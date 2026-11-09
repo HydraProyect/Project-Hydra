@@ -1,6 +1,8 @@
 ﻿@page "/plantillas/nueva"
 @page "/plantillas/{PlantillaDocumentoVersionId:guid}/editar"
-@rendermode InteractiveServer
+@* Sin prerender (como Mi trabajo, M-23): la página carga en el ciclo de vida y no persiste su estado; con prerender
+   corría dos veces en cada visita. *@
+@rendermode @(new InteractiveServerRenderMode(prerender: false))
 @inherits CaeManager.Web.Components.PaginaInteractiva
 @attribute [Authorize(Roles = $"{CaeManager.Infrastructure.Identity.Roles.Administrador},{CaeManager.Infrastructure.Identity.Roles.DireccionCae},{CaeManager.Infrastructure.Identity.Roles.CoordinadorCae},{CaeManager.Infrastructure.Identity.Roles.GestorCae}")]
 @using System.Globalization
@@ -19,6 +21,7 @@
 
 <LimiteDeErrores Pagina="this">
 <PageTitle>@TituloPagina — @Marca.Nombre</PageTitle>
+<TituloDePaginaSinPrerender Titulo="@($"{TituloPagina} — {Marca.Nombre}")" />
 
 <div class="contenedor-pagina">
     @* Cabecera Gen 2 (Editor Plantilla TALVEG.dc.html): kicker, nombre de la

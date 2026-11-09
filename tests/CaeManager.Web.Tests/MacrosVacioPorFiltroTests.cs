@@ -99,6 +99,7 @@ public class MacrosVacioPorFiltroTests : BunitContext
     private IRenderedComponent<Macros> Renderizar(params MacroListaDto[] todas)
     {
         this.ConRolDeEscritura();
+        JSInterop.Mode = JSRuntimeMode.Loose; // la página monta TituloDePaginaSinPrerender, que importa un módulo JS
         Services.AddLocalization();
         Services.AddScoped<IMediator>(_ => new MediatorConSemanticaDeMacros(todas));
         Services.AddScoped<ToastService>();

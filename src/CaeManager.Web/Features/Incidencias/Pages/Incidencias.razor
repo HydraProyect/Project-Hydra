@@ -1,5 +1,7 @@
 @page "/incidencias"
-@rendermode InteractiveServer
+@* Sin prerender (como Mi trabajo, M-23): la página carga en el ciclo de vida y no persiste su estado; con prerender
+   corría dos veces en cada visita. *@
+@rendermode @(new InteractiveServerRenderMode(prerender: false))
 @inherits CaeManager.Web.Components.PaginaInteractiva
 @attribute [Authorize(Roles = $"{CaeManager.Infrastructure.Identity.Roles.Administrador},{CaeManager.Infrastructure.Identity.Roles.DireccionCae},{CaeManager.Infrastructure.Identity.Roles.CoordinadorCae},{CaeManager.Infrastructure.Identity.Roles.GestorCae},{CaeManager.Infrastructure.Identity.Roles.Consulta}")]
 @using CaeManager.Application.Incidencias.Commands.CrearIncidencia
@@ -27,6 +29,7 @@
 
 <LimiteDeErrores Pagina="this">
 <PageTitle>@Textos["TituloPagina"] — @Marca.Nombre</PageTitle>
+<TituloDePaginaSinPrerender Titulo="@($"{Textos["TituloPagina"]} — {Marca.Nombre}")" />
 
 <div class="contenedor-pagina lista-design">
     <CabeceraListado Titulo="@Textos["TituloPagina"]" Contador="@(_cargando || _errorCarga ? null : (int?)_totalElementos)"
