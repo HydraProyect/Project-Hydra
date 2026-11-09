@@ -8,22 +8,14 @@ namespace CaeManager.Web.Services;
 /// <c>Observabilidad:ServerTiming</c>. Apagado por defecto (appsettings.json); en
 /// desarrollo lo enciende launchSettings.json y en staging o producción una
 /// variable de entorno (<c>Observabilidad__ServerTiming__Habilitado=true</c>).
-/// Gobierna a la vez la cabecera de las respuestas SSR y el registro por carga
-/// de página del circuito interactivo.
+/// Gobierna la cabecera de las respuestas SSR de página; las cargas dentro del
+/// circuito interactivo no se miden todavía (issue #2136).
 /// </summary>
 public sealed class OpcionesServerTiming
 {
     public const string Seccion = "Observabilidad:ServerTiming";
 
     public bool Habilitado { get; set; }
-
-    /// <summary>
-    /// En el circuito no hay respuesta que cierre la carga: se da por terminada en
-    /// la siguiente navegación, al cerrarse el circuito o, como muy tarde, tras
-    /// esta ventana desde que empezó (lo que pase antes). Así lo que el usuario
-    /// hace después en la página no se mezcla con lo que costó cargarla.
-    /// </summary>
-    public int VentanaCargaCircuitoSegundos { get; set; } = 5;
 }
 
 /// <summary>

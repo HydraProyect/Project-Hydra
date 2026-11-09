@@ -38,7 +38,7 @@ public static class ApplicationServiceCollectionExtensions
         // Scoped: una puerta por petición HTTP o circuito de Blazor — la
         // misma que usan los accesos a datos que no pasan por MediatR.
         services.AddScoped<PuertaAccesoDatos>();
-        // Coste de acceso a datos del mismo scope (Server-Timing y registro por carga del circuito).
+        // Coste de acceso a datos del mismo scope (lo lee la cabecera Server-Timing).
         services.AddScoped<CosteCarga>();
         services.AddScoped<CaeManager.Application.Integraciones.ConectoresPlataformaCae.IOperacionesConectorPlataformaCae,
             CaeManager.Application.Integraciones.ConectoresPlataformaCae.OperacionesConectorPlataformaCae>();

@@ -720,16 +720,10 @@ builder.Services.AddScoped<CircuitHandler>(sp => sp.GetRequiredService<CaeManage
 builder.Services.AddScoped<CircuitHandler, CaeManager.Web.Services.LiberacionDeAccesoADatosAlCerrarCircuito>();
 
 // Coste de cada carga (pieza 0.1 del plan de rendimiento): cabecera Server-Timing en las respuestas SSR
-// y un registro Information por carga de página en el circuito. Apagado por defecto; ver OpcionesServerTiming.
+// de página. Apagado por defecto; ver OpcionesServerTiming. Las cargas dentro del circuito interactivo
+// aún no se miden (issue #2136).
 builder.Services.Configure<CaeManager.Web.Services.OpcionesServerTiming>(
     builder.Configuration.GetSection(CaeManager.Web.Services.OpcionesServerTiming.Seccion));
-// El CircuitHandler solo se registra encendido: apagado, ningún circuito paga ni arriesga nada por él.
-if (builder.Configuration.GetValue($"{CaeManager.Web.Services.OpcionesServerTiming.Seccion}:Habilitado", false))
-{
-    builder.Services.AddSingleton(sp => new CaeManager.Web.Services.PlantillasDeRutaDePagina(
-        () => sp.GetRequiredService<Microsoft.AspNetCore.Routing.EndpointDataSource>()));
-    builder.Services.AddScoped<CircuitHandler, CaeManager.Web.Services.MedicionCargaCircuitoHandler>();
-}
 
 // Health check real (P0-5 de Project-Hydra-Negocio/MATURITY_REVIEW.md): /salud
 // respondía "ok" incondicional — con PostgreSQL caído seguía dando 200 y

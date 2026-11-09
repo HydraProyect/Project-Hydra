@@ -6,8 +6,7 @@ namespace CaeManager.Application.Common;
 /// interceptores de medición de EF Core (comandos y aperturas de conexión), la
 /// espera en la cola de <see cref="PuertaAccesoDatos"/> y
 /// <see cref="CosteCargaBehavior{TRequest,TResponse}"/> (despachos de MediatR).
-/// Lo leen la cabecera <c>Server-Timing</c> (Web) y el registro por carga de
-/// página del circuito interactivo.
+/// Lo lee la cabecera <c>Server-Timing</c> (Web) de las respuestas SSR de página.
 ///
 /// <para>
 /// Solo cuenta números: ni texto SQL, ni ids, ni Tenant, ni ruta. Esa es la
@@ -18,10 +17,8 @@ namespace CaeManager.Application.Common;
 /// <para>
 /// Coste despreciable a propósito: contadores propios del scope actualizados
 /// con <see cref="Interlocked"/>, sin locks ni estado compartido entre scopes.
-/// Un circuito acumula durante toda su vida; quien mide una carga concreta
-/// toma una <see cref="Leer">instantánea</see> al empezar y resta (ver
-/// <see cref="InstantaneaCosteCarga.Menos"/>), así que nadie tiene que
-/// reiniciar el acumulador ni coordinarse con otro lector.
+/// El acumulador solo crece y nunca se reinicia: un circuito acumula durante
+/// toda su vida, y por eso hoy solo se lee en el scope de una petición HTTP.
 /// </para>
 /// </summary>
 public sealed class CosteCarga
@@ -71,17 +68,4 @@ public readonly record struct InstantaneaCosteCarga(
     long Comandos,
     long Conexiones,
     TimeSpan EsperaPuerta,
-    long Despachos)
-{
-    /// <summary>
-    /// Lo ocurrido entre <paramref name="anterior"/> y esta instantánea. Los dos
-    /// tienen que venir del mismo acumulador; como solo crece, ningún campo sale
-    /// negativo.
-    /// </summary>
-    public InstantaneaCosteCarga Menos(InstantaneaCosteCarga anterior) => new(
-        BaseDatos - anterior.BaseDatos,
-        Comandos - anterior.Comandos,
-        Conexiones - anterior.Conexiones,
-        EsperaPuerta - anterior.EsperaPuerta,
-        Despachos - anterior.Despachos);
-}
+    long Despachos);

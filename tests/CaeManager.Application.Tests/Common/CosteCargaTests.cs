@@ -8,9 +8,8 @@ using Xunit;
 namespace CaeManager.Application.Tests.Common;
 
 /// <summary>
-/// El acumulador del coste de carga (Server-Timing y registro por carga del circuito):
-/// suma lo que recibe, ignora duraciones negativas, no pierde cuentas con escrituras
-/// concurrentes y la resta de instantáneas da el coste de un tramo.
+/// El acumulador del coste de carga que lee la cabecera Server-Timing: suma lo que
+/// recibe, ignora duraciones negativas y no pierde cuentas con escrituras concurrentes.
 /// </summary>
 public class CosteCargaTests
 {
@@ -65,21 +64,6 @@ public class CosteCargaTests
         lectura.Conexiones.Should().Be(8000);
         lectura.Despachos.Should().Be(8000);
         lectura.BaseDatos.Should().Be(TimeSpan.FromTicks(80_000));
-    }
-
-    [Fact]
-    public void La_resta_de_instantaneas_da_solo_lo_ocurrido_en_el_tramo()
-    {
-        var coste = new CosteCarga();
-        coste.RegistrarComando(TimeSpan.FromMilliseconds(10));
-        coste.RegistrarDespacho();
-        var inicio = coste.Leer();
-
-        coste.RegistrarComando(TimeSpan.FromMilliseconds(1));
-        coste.RegistrarConexion();
-
-        coste.Leer().Menos(inicio).Should().Be(new InstantaneaCosteCarga(
-            TimeSpan.FromMilliseconds(1), 1, 1, TimeSpan.Zero, 0));
     }
 
     [Fact]
