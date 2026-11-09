@@ -65,7 +65,7 @@ public sealed class MedicionCargaCircuitoHandler : CircuitHandler, IDisposable
         {
             _suscrito = true;
             _navegacion.LocationChanged += AlNavegar;
-            IniciarCarga(_navegacion.ToBaseRelativePath(_navegacion.Uri));
+            Proteger(() => IniciarCarga(_navegacion.ToBaseRelativePath(_navegacion.Uri)));
         }
 
         return Task.CompletedTask;
@@ -73,13 +73,30 @@ public sealed class MedicionCargaCircuitoHandler : CircuitHandler, IDisposable
 
     public override Task OnCircuitClosedAsync(Circuit circuit, CancellationToken cancellationToken)
     {
-        TerminarCargaEnCurso(MotivoCircuitoCerrado);
+        Proteger(() => TerminarCargaEnCurso(MotivoCircuitoCerrado));
         Desuscribir();
         return Task.CompletedTask;
     }
 
     private void AlNavegar(object? remitente, LocationChangedEventArgs e) =>
-        IniciarCarga(_navegacion.ToBaseRelativePath(e.Location));
+        Proteger(() => IniciarCarga(_navegacion.ToBaseRelativePath(e.Location)));
+
+    /// <summary>
+    /// Una medición nunca puede romper el circuito ni la navegación (ni tumbar el proceso
+    /// desde el temporizador): un fallo se registra solo con el tipo de la excepción, porque
+    /// su mensaje puede llevar la ruta concreta.
+    /// </summary>
+    private void Proteger(Action accion)
+    {
+        try
+        {
+            accion();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning("La medición del coste de carga del circuito falló y se ignora: {TipoExcepcion}", ex.GetType().Name);
+        }
+    }
 
     /// <summary>
     /// Empieza la carga de <paramref name="rutaRelativa"/> y termina la anterior
@@ -93,7 +110,8 @@ public sealed class MedicionCargaCircuitoHandler : CircuitHandler, IDisposable
         Terminar(anterior, MotivoNavegacion);
 
         var ventana = TimeSpan.FromSeconds(Math.Max(1, _opciones.VentanaCargaCircuitoSegundos));
-        nueva.Temporizador = _reloj.CreateTimer(_ => Terminar(nueva, MotivoVentana), null, ventana, Timeout.InfiniteTimeSpan);
+        nueva.Temporizador = _reloj.CreateTimer(
+            _ => Proteger(() => Terminar(nueva, MotivoVentana)), null, ventana, Timeout.InfiniteTimeSpan);
         // Si la carga terminó antes de asignar el temporizador (otra navegación o el cierre
         // en la misma ventana), nadie más lo liberaría.
         if (nueva.Terminada)

@@ -80,10 +80,17 @@ public sealed class ServerTimingCosteCargaMiddleware(RequestDelegate siguiente, 
         if (!EsHtml(contexto.Response.ContentType))
             return Task.CompletedTask;
 
-        if (contexto.RequestServices?.GetService<CosteCarga>() is not { } coste)
-            return Task.CompletedTask;
+        // Una medición no puede tumbar la respuesta: si el scope ya no resuelve el acumulador
+        // (o cualquier otra cosa falla aquí), la página sale sin cabecera.
+        try
+        {
+            if (contexto.RequestServices?.GetService<CosteCarga>() is { } coste)
+                contexto.Response.Headers.Append(CabeceraServerTiming.Nombre, CabeceraServerTiming.Formatear(coste.Leer()));
+        }
+        catch (Exception ex) when (ex is ObjectDisposedException or InvalidOperationException)
+        {
+        }
 
-        contexto.Response.Headers.Append(CabeceraServerTiming.Nombre, CabeceraServerTiming.Formatear(coste.Leer()));
         return Task.CompletedTask;
     }
 

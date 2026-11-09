@@ -123,8 +123,31 @@ public class MedicionCargaCircuitoHandlerTests
         reloj.Temporizadores.Should().ContainSingle();
     }
 
+    [Fact]
+    public async Task Un_fallo_de_la_medicion_no_rompe_el_circuito_ni_la_navegacion_ni_registra_la_ruta()
+    {
+        var (handler, _, navegacion, logger, _) = Crear(habilitado: true, uriInicial: "http://localhost/empresas/123",
+            plantillas: new PlantillasDeRutaDePagina(new FuenteQueFalla()));
+
+        var abrir = () => handler.OnCircuitOpenedAsync(null!, default);
+        await abrir.Should().NotThrowAsync();
+        var navegar = () => navegacion.Navegar("http://localhost/empresas/456");
+        navegar.Should().NotThrow();
+
+        logger.Entradas.Should().NotBeEmpty().And.OnlyContain(e => e.Nivel == LogLevel.Warning);
+        logger.Entradas.Should().OnlyContain(e => !e.Mensaje.Contains("123") && !e.Mensaje.Contains("456"));
+    }
+
+    private sealed class FuenteQueFalla : EndpointDataSource
+    {
+        public override IReadOnlyList<Microsoft.AspNetCore.Http.Endpoint> Endpoints => throw new InvalidOperationException("/empresas/123");
+
+        public override Microsoft.Extensions.Primitives.IChangeToken GetChangeToken() =>
+            Microsoft.Extensions.FileProviders.NullChangeToken.Singleton;
+    }
+
     private static (MedicionCargaCircuitoHandler, CosteCarga, NavegacionDePrueba, LoggerQueCaptura, RelojDePrueba) Crear(
-        bool habilitado, string uriInicial)
+        bool habilitado, string uriInicial, PlantillasDeRutaDePagina? plantillas = null)
     {
         var coste = new CosteCarga();
         var navegacion = new NavegacionDePrueba(uriInicial);
@@ -133,7 +156,7 @@ public class MedicionCargaCircuitoHandlerTests
         var handler = new MedicionCargaCircuitoHandler(
             coste,
             navegacion,
-            Plantillas("/", "/empresas", "/empresas/{Id:guid}"),
+            plantillas ?? Plantillas("/", "/empresas", "/empresas/{Id:guid}"),
             Options.Create(new OpcionesServerTiming { Habilitado = habilitado }),
             reloj,
             logger);
