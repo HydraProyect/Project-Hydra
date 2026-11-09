@@ -231,9 +231,9 @@ public class ObtenerAsignacionesDocumentacionPorCentroQueryHandler(
         // empresarial titular) decide si un vencido todavía vale para acceder. El estado de vigencia del Documento no cambia.
         var clientePorCentro = (await centrosContext.Centros
                 .Where(c => centrosConRequisitos.Contains(c.Id))
-                .Select(c => new { c.Id, c.ClienteId })
+                .Select(c => new { c.Id, Titular = c.ClienteId })
                 .ToListAsync(cancellationToken))
-            .ToDictionary(c => c.Id, c => c.ClienteId);
+            .ToDictionary(c => c.Id, c => c.Titular);
         // Como el SingleAsync de un solo Centro: un Centro pedido que no se puede leer es un error, no un Centro sin Cliente.
         if (centrosConRequisitos.FirstOrDefault(c => !clientePorCentro.ContainsKey(c)) is var sinFila && sinFila != Guid.Empty)
             throw new InvalidOperationException($"El Centro {sinFila} no se puede leer.");
