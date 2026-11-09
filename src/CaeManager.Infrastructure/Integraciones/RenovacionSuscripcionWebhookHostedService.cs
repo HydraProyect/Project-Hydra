@@ -109,11 +109,23 @@ public class RenovacionSuscripcionWebhookHostedService(
     private async Task RenovarPendientesDelTenantAsync(Guid tenantId, CancellationToken stoppingToken)
     {
         // En su propio ámbito y antes de renovar: un choque de identidad descarta los cambios en memoria de su
-        // DbContext, y no debe llevarse por delante los de la renovación.
-        using (var ambitoIdentidad = ambitoFactory.CreateScope())
-        using (AmbitoTenantExplicito.Establecer(tenantId))
+        // DbContext, y no debe llevarse por delante los de la renovación. Un fallo aquí no salta la renovación
+        // del Tenant (dos ciclos perdidos dejarían expirar una suscripción): solo deja sin verificar sus buzones.
+        IReadOnlySet<Guid> identidadVerificada = new HashSet<Guid>();
+        try
         {
-            await ambitoIdentidad.ServiceProvider.GetRequiredService<CompletarIdentidadBuzonService>().CompletarAsync(stoppingToken);
+            using var ambitoIdentidad = ambitoFactory.CreateScope();
+            using var __ = AmbitoTenantExplicito.Establecer(tenantId);
+            identidadVerificada = await ambitoIdentidad.ServiceProvider.GetRequiredService<CompletarIdentidadBuzonService>()
+                .CompletarAsync(stoppingToken);
+        }
+        catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "Falló la comprobación de identidad de los buzones del tenant {TenantId}; se renueva sin rehabilitar ninguno.", tenantId);
         }
 
         using var ambito = ambitoFactory.CreateScope();
@@ -165,8 +177,12 @@ public class RenovacionSuscripcionWebhookHostedService(
 
             // Recuperación automática: si la conexión había quedado ConError
             // por un ciclo anterior y esta renovación funcionó, no hace
-            // falta que un administrador pulse "Reactivar" a mano.
-            if (conexion.Estado == EstadoConexionIntegracion.ConError)
+            // falta que un administrador pulse "Reactivar" a mano. Solo si su
+            // identidad de buzón se comprobó en este mismo ciclo: una conexión
+            // con el buzón de otro Tenant (choque de identidad) o con una
+            // dirección reasignada a otro buzón renueva igual su suscripción,
+            // pero no vuelve a Habilitada sola.
+            if (conexion.Estado == EstadoConexionIntegracion.ConError && identidadVerificada.Contains(conexion.Id))
                 conexion.Rehabilitar();
         }
 

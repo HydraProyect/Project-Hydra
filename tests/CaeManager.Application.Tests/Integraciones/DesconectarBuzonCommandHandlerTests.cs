@@ -39,6 +39,33 @@ public class DesconectarBuzonCommandHandlerTests
         reclamacionRepositorio.Reclamaciones.Should().BeEmpty("desconectar debe dejar el buzón disponible para cualquier tenant");
     }
 
+    /// <summary>
+    /// Un buzón compartido no tiene credencial: la baja de su suscripción pide el token de aplicación de su directorio
+    /// (la baja no lleva buzón en la ruta, <c>/subscriptions/{id}</c>, así que no hay <c>BuzonGraph</c> que comprobar).
+    /// </summary>
+    [Fact]
+    public async Task Con_un_buzon_compartido_elimina_la_suscripcion_con_el_token_de_aplicacion_del_directorio()
+    {
+        var directorio = Guid.NewGuid().ToString("D");
+        var conexion = ConexionIntegracion.CrearBuzonCompartido("piloto@tenant.com", "Buzón piloto", directorio, Guid.NewGuid());
+        var conexionRepositorio = new ConexionIntegracionRepositorioFalso();
+        conexionRepositorio.Agregar(conexion);
+        var suscripcionRepositorio = new SuscripcionWebhookRepositorioFalso();
+        suscripcionRepositorio.Agregar(new SuscripcionWebhook(conexion.Id, "graph-sub-1", "secreto-compartido", DateTime.UtcNow.AddDays(2)));
+        var graphClient = new Microsoft365GraphClientFalso();
+        var handler = CrearHandler(
+            conexionRepositorio, suscripcionRepositorio, new ReclamacionBuzonIntegracionRepositorioFalso(), new AlcanceDatosServiceFalso(),
+            graphClient, new CredencialIntegracionRepositorioFalso(), new UnitOfWorkFalso());
+
+        var resultado = await handler.Handle(new DesconectarBuzonCommand(conexion.Id), CancellationToken.None);
+
+        resultado.EsExitoso.Should().BeTrue();
+        graphClient.DirectoriosConTokenDeAplicacion.Should().Equal(directorio);
+        graphClient.VecesRefrescado.Should().Be(0, "no hay token delegado que refrescar");
+        graphClient.SuscripcionesEliminadas.Should().Equal("graph-sub-1");
+        conexion.Estado.Should().Be(EstadoConexionIntegracion.Deshabilitada);
+    }
+
     [Fact]
     public async Task No_desconecta_el_buzon_personal_de_otro_gestor_aunque_se_le_pase_su_Id()
     {

@@ -51,29 +51,16 @@ public class AccesoGraphServiceTests
     }
 
     [Fact]
-    public async Task Pedir_por_Id_el_token_de_un_compartido_falla_cerrado_sin_credencial()
-    {
-        var conexion = ConexionIntegracion.CrearBuzonCompartido("piloto@tenant.com", "Buzón piloto", Guid.NewGuid().ToString(), Guid.NewGuid());
-        var graphClient = new Microsoft365GraphClientFalso();
-
-        var resultado = await new AccesoGraphService(new CredencialIntegracionRepositorioFalso(), graphClient)
-            .ObtenerAccessTokenVigenteAsync(conexion.Id, CancellationToken.None);
-
-        resultado.EsFallido.Should().BeTrue();
-        resultado.Error.Codigo.Should().Be("ConexionIntegracion.SinCredencial");
-        graphClient.DirectoriosConTokenDeAplicacion.Should().BeEmpty();
-    }
-
-    [Fact]
     public async Task Sin_access_token_cacheado_refresca_contra_graph()
     {
         var credencialRepositorio = new CredencialIntegracionRepositorioFalso();
-        var conexionId = Guid.NewGuid();
+        var conexion = new ConexionIntegracion("cae@tenant.com", "Buzón CAE");
+        var conexionId = conexion.Id;
         credencialRepositorio.Agregar(new CredencialIntegracion(conexionId, "refresh-token"));
         var graphClient = new Microsoft365GraphClientFalso();
         var servicio = new AccesoGraphService(credencialRepositorio, graphClient);
 
-        var resultado = await servicio.ObtenerAccessTokenVigenteAsync(conexionId, CancellationToken.None);
+        var resultado = await servicio.ObtenerAccessTokenVigenteAsync(conexion, CancellationToken.None);
 
         resultado.EsExitoso.Should().BeTrue();
         resultado.Valor.Should().Be(graphClient.AccessTokenDevuelto);
@@ -84,14 +71,15 @@ public class AccesoGraphServiceTests
     public async Task Con_access_token_cacheado_y_vigente_no_vuelve_a_refrescar()
     {
         var credencialRepositorio = new CredencialIntegracionRepositorioFalso();
-        var conexionId = Guid.NewGuid();
+        var conexion = new ConexionIntegracion("cae@tenant.com", "Buzón CAE");
+        var conexionId = conexion.Id;
         var credencial = new CredencialIntegracion(conexionId, "refresh-token");
         credencial.ActualizarAccessTokenCacheado("access-token-cacheado", DateTime.UtcNow.AddMinutes(30));
         credencialRepositorio.Agregar(credencial);
         var graphClient = new Microsoft365GraphClientFalso();
         var servicio = new AccesoGraphService(credencialRepositorio, graphClient);
 
-        var resultado = await servicio.ObtenerAccessTokenVigenteAsync(conexionId, CancellationToken.None);
+        var resultado = await servicio.ObtenerAccessTokenVigenteAsync(conexion, CancellationToken.None);
 
         resultado.EsExitoso.Should().BeTrue();
         resultado.Valor.Should().Be("access-token-cacheado");
@@ -102,14 +90,15 @@ public class AccesoGraphServiceTests
     public async Task Con_access_token_cacheado_pero_expirado_vuelve_a_refrescar()
     {
         var credencialRepositorio = new CredencialIntegracionRepositorioFalso();
-        var conexionId = Guid.NewGuid();
+        var conexion = new ConexionIntegracion("cae@tenant.com", "Buzón CAE");
+        var conexionId = conexion.Id;
         var credencial = new CredencialIntegracion(conexionId, "refresh-token");
         credencial.ActualizarAccessTokenCacheado("access-token-viejo", DateTime.UtcNow.AddMinutes(-5));
         credencialRepositorio.Agregar(credencial);
         var graphClient = new Microsoft365GraphClientFalso();
         var servicio = new AccesoGraphService(credencialRepositorio, graphClient);
 
-        var resultado = await servicio.ObtenerAccessTokenVigenteAsync(conexionId, CancellationToken.None);
+        var resultado = await servicio.ObtenerAccessTokenVigenteAsync(conexion, CancellationToken.None);
 
         resultado.EsExitoso.Should().BeTrue();
         resultado.Valor.Should().Be(graphClient.AccessTokenDevuelto);
@@ -120,13 +109,14 @@ public class AccesoGraphServiceTests
     public async Task Al_refrescar_actualiza_la_cache_del_access_token_y_el_refresh_token()
     {
         var credencialRepositorio = new CredencialIntegracionRepositorioFalso();
-        var conexionId = Guid.NewGuid();
+        var conexion = new ConexionIntegracion("cae@tenant.com", "Buzón CAE");
+        var conexionId = conexion.Id;
         var credencial = new CredencialIntegracion(conexionId, "refresh-token-viejo");
         credencialRepositorio.Agregar(credencial);
         var graphClient = new Microsoft365GraphClientFalso { RefreshTokenDevuelto = "refresh-token-rotado" };
         var servicio = new AccesoGraphService(credencialRepositorio, graphClient);
 
-        await servicio.ObtenerAccessTokenVigenteAsync(conexionId, CancellationToken.None);
+        await servicio.ObtenerAccessTokenVigenteAsync(conexion, CancellationToken.None);
 
         credencial.RefreshToken.Should().Be("refresh-token-rotado");
         credencial.TieneAccessTokenVigente(DateTime.UtcNow).Should().BeTrue();
@@ -139,7 +129,7 @@ public class AccesoGraphServiceTests
         var graphClient = new Microsoft365GraphClientFalso();
         var servicio = new AccesoGraphService(credencialRepositorio, graphClient);
 
-        var resultado = await servicio.ObtenerAccessTokenVigenteAsync(Guid.NewGuid(), CancellationToken.None);
+        var resultado = await servicio.ObtenerAccessTokenVigenteAsync(new ConexionIntegracion("cae@tenant.com", "Buzón CAE"), CancellationToken.None);
 
         resultado.EsFallido.Should().BeTrue();
         resultado.Error.Codigo.Should().Be("ConexionIntegracion.SinCredencial");

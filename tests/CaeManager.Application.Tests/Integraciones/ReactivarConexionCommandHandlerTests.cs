@@ -1,5 +1,7 @@
 using CaeManager.Application.Common;
+using CaeManager.Application.Integraciones;
 using CaeManager.Application.Integraciones.Commands.ReactivarConexion;
+using CaeManager.Domain.Common;
 using CaeManager.Application.Tests.Clientes;
 using CaeManager.Domain.Integraciones;
 using FluentAssertions;
@@ -14,14 +16,19 @@ public class ReactivarConexionCommandHandlerTests
     private static ReactivarConexionCommandHandler CrearHandler(
         ConexionIntegracionRepositorioFalso conexionRepositorio, AlcanceDatosServiceFalso alcanceDatos,
         UnitOfWorkFalso unitOfWork, ReclamacionBuzonIntegracionRepositorioFalso? reclamacionRepositorio = null,
-        ITenantActual? tenantActual = null) =>
-        new(conexionRepositorio, reclamacionRepositorio ?? new ReclamacionBuzonIntegracionRepositorioFalso(),
-            alcanceDatos, tenantActual ?? new TenantActualFalso(TenantId), unitOfWork);
+        ITenantActual? tenantActual = null, Microsoft365GraphClientFalso? graph = null)
+    {
+        graph ??= new Microsoft365GraphClientFalso { IdentidadBuzonPropio = "inbox-x" };
+        return new(conexionRepositorio, reclamacionRepositorio ?? new ReclamacionBuzonIntegracionRepositorioFalso(),
+            alcanceDatos, tenantActual ?? new TenantActualFalso(TenantId), unitOfWork,
+            new AccesoGraphService(new CredencialIntegracionRepositorioFalso { CredencialParaCualquierConexion = true }, graph), graph);
+    }
 
     [Fact]
     public async Task Rehabilita_una_conexion_con_error_y_limpia_el_ultimo_error()
     {
         var conexion = new ConexionIntegracion("cae@cliente.com", "Buzón CAE");
+        conexion.FijarIdentidadBuzon("inbox-x");
         conexion.MarcarConError("El refresh token ha expirado.");
         var conexionRepositorio = new ConexionIntegracionRepositorioFalso();
         conexionRepositorio.Agregar(conexion);
@@ -34,6 +41,70 @@ public class ReactivarConexionCommandHandlerTests
         conexion.Estado.Should().Be(EstadoConexionIntegracion.Habilitada);
         conexion.UltimoError.Should().BeNull();
         unitOfWork.VecesGuardado.Should().Be(1);
+    }
+
+    /// <summary>
+    /// Una colisión de identidad en el relleno deja la conexión ConError y sin identidad: Reactivar no la levanta,
+    /// porque desde ConError no se vuelve a reclamar nada. Hay que reconectar, y ahí decide el índice único.
+    /// </summary>
+    [Fact]
+    public async Task No_rehabilita_desde_ConError_una_conexion_sin_identidad_del_buzon()
+    {
+        var conexion = new ConexionIntegracion("alias@cliente.com", "Buzón CAE");
+        conexion.MarcarConError(CompletarIdentidadBuzonService.MensajeBuzonDuplicado);
+        var conexionRepositorio = new ConexionIntegracionRepositorioFalso();
+        conexionRepositorio.Agregar(conexion);
+        var unitOfWork = new UnitOfWorkFalso();
+        var handler = CrearHandler(conexionRepositorio, new AlcanceDatosServiceFalso(), unitOfWork);
+
+        var resultado = await handler.Handle(new ReactivarConexionCommand(conexion.Id), CancellationToken.None);
+
+        resultado.EsFallido.Should().BeTrue();
+        resultado.Error.Codigo.Should().Be(ReactivarConexionCommandHandler.CodigoReconexionNecesaria);
+        conexion.Estado.Should().Be(EstadoConexionIntegracion.ConError);
+        unitOfWork.VecesGuardado.Should().Be(0);
+    }
+
+    [Fact]
+    public async Task No_rehabilita_si_la_direccion_responde_ahora_con_otro_buzon()
+    {
+        var conexion = ConexionIntegracion.CrearBuzonCompartido(
+            "cae@cliente.com", "Buzón CAE", "11111111-2222-3333-4444-555555555555", Guid.NewGuid());
+        conexion.FijarIdentidadBuzon("inbox-original");
+        conexion.MarcarConError(CompletarIdentidadBuzonService.MensajeBuzonCambiado);
+        var conexionRepositorio = new ConexionIntegracionRepositorioFalso();
+        conexionRepositorio.Agregar(conexion);
+        var graph = new Microsoft365GraphClientFalso();
+        graph.IdentidadesPorDireccion["cae@cliente.com"] = "inbox-de-otro-buzon";
+        var unitOfWork = new UnitOfWorkFalso();
+        var handler = CrearHandler(conexionRepositorio, new AlcanceDatosServiceFalso(), unitOfWork, graph: graph);
+
+        var resultado = await handler.Handle(new ReactivarConexionCommand(conexion.Id), CancellationToken.None);
+
+        resultado.EsFallido.Should().BeTrue();
+        resultado.Error.Codigo.Should().Be(ReactivarConexionCommandHandler.CodigoReconexionNecesaria);
+        conexion.Estado.Should().Be(EstadoConexionIntegracion.ConError);
+        graph.TokensDeIdentidad.Should().Equal("token-aplicacion-falso");
+        unitOfWork.VecesGuardado.Should().Be(0);
+    }
+
+    [Fact]
+    public async Task No_rehabilita_si_no_puede_comprobar_el_buzon()
+    {
+        var conexion = new ConexionIntegracion("cae@cliente.com", "Buzón CAE");
+        conexion.FijarIdentidadBuzon("inbox-x");
+        conexion.MarcarConError("fallo");
+        var conexionRepositorio = new ConexionIntegracionRepositorioFalso();
+        conexionRepositorio.Agregar(conexion);
+        var graph = new Microsoft365GraphClientFalso { ErrorIdentidadBuzon = Error.Crear("Integraciones.Microsoft365.TiempoAgotado", "timeout") };
+        var unitOfWork = new UnitOfWorkFalso();
+        var handler = CrearHandler(conexionRepositorio, new AlcanceDatosServiceFalso(), unitOfWork, graph: graph);
+
+        var resultado = await handler.Handle(new ReactivarConexionCommand(conexion.Id), CancellationToken.None);
+
+        resultado.EsFallido.Should().BeTrue();
+        resultado.Error.Codigo.Should().Be(ReactivarConexionCommandHandler.CodigoSinComprobacion);
+        conexion.Estado.Should().Be(EstadoConexionIntegracion.ConError);
     }
 
     [Fact]

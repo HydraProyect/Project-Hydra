@@ -42,8 +42,9 @@ public class CompletarIdentidadBuzonServiceTests
         var conexion = escenario.AgregarCompartida("cae@operador.test");
         escenario.Graph.IdentidadesPorDireccion["cae@operador.test"] = "inbox-cae";
 
-        await escenario.Servicio().CompletarAsync(CancellationToken.None);
+        var verificadas = await escenario.Servicio().CompletarAsync(CancellationToken.None);
 
+        verificadas.Should().Equal(conexion.Id);
         conexion.IdentidadBuzon.Should().Be("inbox-cae");
         escenario.Reclamaciones.Reclamaciones.Should().ContainSingle().Which.IdentidadBuzon.Should().Be("inbox-cae");
         escenario.Reclamaciones.VecesGuardado.Should().Be(1);
@@ -64,8 +65,9 @@ public class CompletarIdentidadBuzonServiceTests
         var conexion = escenario.AgregarCompartida("alias@operador.test");
         escenario.Reclamaciones.BuzonYaReclamado = true;
 
-        await escenario.Servicio().CompletarAsync(CancellationToken.None);
+        var verificadas = await escenario.Servicio().CompletarAsync(CancellationToken.None);
 
+        verificadas.Should().BeEmpty("la renovación no debe rehabilitarla");
         conexion.Estado.Should().Be(EstadoConexionIntegracion.ConError);
         conexion.UltimoError.Should().Be(CompletarIdentidadBuzonService.MensajeBuzonDuplicado);
         escenario.UnitOfWork.VecesGuardado.Should().Be(1);
@@ -87,16 +89,48 @@ public class CompletarIdentidadBuzonServiceTests
     }
 
     [Fact]
-    public async Task No_toca_conexiones_que_ya_tienen_identidad_ni_las_deshabilitadas()
+    public async Task Una_conexion_con_la_misma_identidad_sale_verificada()
     {
         var escenario = new Escenario();
-        var conIdentidad = escenario.AgregarCompartida("con@operador.test");
-        conIdentidad.FijarIdentidadBuzon("inbox-ya");
+        var conexion = escenario.AgregarCompartida("cae@operador.test");
+        conexion.FijarIdentidadBuzon("inbox-cae");
+        conexion.MarcarConError("fallo transitorio de un ciclo anterior");
+        escenario.Graph.IdentidadesPorDireccion["cae@operador.test"] = "inbox-cae";
+
+        var verificadas = await escenario.Servicio().CompletarAsync(CancellationToken.None);
+
+        verificadas.Should().Equal(conexion.Id);
+        conexion.Estado.Should().Be(EstadoConexionIntegracion.ConError, "rehabilitar es cosa de la renovación");
+    }
+
+    /// <summary>El directorio reasignó la dirección a otro buzón: la conexión deja de ingerir y no sale verificada.</summary>
+    [Fact]
+    public async Task Una_direccion_que_responde_con_otro_buzon_pasa_a_ConError()
+    {
+        var escenario = new Escenario();
+        var conexion = escenario.AgregarCompartida("cae@operador.test");
+        conexion.FijarIdentidadBuzon("inbox-original");
+        escenario.Graph.IdentidadesPorDireccion["cae@operador.test"] = "inbox-de-otro-buzon";
+
+        var verificadas = await escenario.Servicio().CompletarAsync(CancellationToken.None);
+
+        verificadas.Should().BeEmpty();
+        conexion.Estado.Should().Be(EstadoConexionIntegracion.ConError);
+        conexion.UltimoError.Should().Be(CompletarIdentidadBuzonService.MensajeBuzonCambiado);
+        conexion.IdentidadBuzon.Should().Be("inbox-original");
+        escenario.UnitOfWork.VecesGuardado.Should().Be(1);
+    }
+
+    [Fact]
+    public async Task No_mira_las_conexiones_deshabilitadas()
+    {
+        var escenario = new Escenario();
         var deshabilitada = escenario.AgregarCompartida("off@operador.test");
         deshabilitada.Deshabilitar();
 
-        await escenario.Servicio().CompletarAsync(CancellationToken.None);
+        var verificadas = await escenario.Servicio().CompletarAsync(CancellationToken.None);
 
+        verificadas.Should().BeEmpty();
         escenario.Graph.TokensDeIdentidad.Should().BeEmpty();
         deshabilitada.IdentidadBuzon.Should().BeNull();
     }

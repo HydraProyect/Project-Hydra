@@ -11,8 +11,11 @@ namespace CaeManager.Infrastructure.Integraciones;
 internal static class TokenAplicacion
 {
     /// <summary>
-    /// True si el token trae algún permiso de aplicación de correo de Graph (<c>Mail.*</c>) concedido en Entra,
-    /// o si no se puede leer: ante la duda, el token no se usa.
+    /// True si el token trae algún permiso de aplicación concedido en Entra, o si no se puede leer: ante la duda,
+    /// el token no se usa. Este flujo no necesita ninguno (el acceso a buzones lo da RBAC for Applications en
+    /// Exchange), y una lista de denegación por nombre dejaría pasar permisos de buzón que no empiezan por
+    /// <c>Mail.</c> (<c>MailboxItem.*</c>, <c>MailboxFolder.*</c>, los que Microsoft añada): se exige que no haya
+    /// ninguno.
     /// </summary>
     public static bool TienePermisoDeCorreoSinAcotar(string accessToken)
     {
@@ -29,14 +32,7 @@ internal static class TokenAplicacion
             if (roles.ValueKind != JsonValueKind.Array)
                 return true;
 
-            foreach (var rol in roles.EnumerateArray())
-            {
-                if (rol.ValueKind != JsonValueKind.String ||
-                    rol.GetString()!.StartsWith("Mail.", StringComparison.OrdinalIgnoreCase))
-                    return true;
-            }
-
-            return false;
+            return roles.GetArrayLength() > 0;
         }
         catch (Exception ex) when (ex is FormatException or JsonException or ArgumentException)
         {

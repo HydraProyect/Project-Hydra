@@ -62,6 +62,27 @@ public class AcuseAutomaticoBuzonServiceTests
         _unitOfWork.VecesGuardado.Should().Be(2, "uno por el token renovado y otro por el mensaje");
     }
 
+    /// <summary>Un buzón compartido no tiene credencial: el acuse sale por su dirección y con el token de aplicación de su directorio.</summary>
+    [Fact]
+    public async Task Con_un_buzon_compartido_el_acuse_sale_por_su_direccion_y_con_el_token_de_aplicacion_del_directorio()
+    {
+        var directorio = Guid.NewGuid().ToString("D");
+        var compartido = ConexionIntegracion.CrearBuzonCompartido("piloto@tenant.com", "Buzón piloto", directorio, Guid.NewGuid());
+        var conversacion = new Conversacion("Asunto del correo");
+        conversacion.AsociarConexion(compartido.Id, "hilo-1");
+        conversacion.AgregarMensaje(DireccionMensaje.Entrante, CanalConversacion.Correo, Destinatario, "Cuerpo del correo", DateTime.UtcNow);
+        _conversaciones.Agregar(conversacion);
+        var acuse = new AcusePendiente(compartido, conversacion, "msg-1", Destinatario);
+
+        await Servicio().EnviarAsync([acuse], CancellationToken.None);
+
+        _graph.VecesEnviado.Should().Be(1);
+        _graph.BuzonesUsados.Should().ContainSingle().Which.Should().Be(new BuzonGraph("piloto@tenant.com", true));
+        _graph.DirectoriosConTokenDeAplicacion.Should().Equal(directorio);
+        _graph.VecesRefrescado.Should().Be(0, "no hay token delegado que refrescar");
+        MensajeDelAcuse(acuse).Remitente.Should().Be("piloto@tenant.com");
+    }
+
     [Fact]
     public async Task El_registro_de_salida_va_antes_del_envio_y_enmascara_la_direccion()
     {

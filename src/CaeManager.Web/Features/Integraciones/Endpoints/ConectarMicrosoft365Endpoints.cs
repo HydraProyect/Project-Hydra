@@ -130,9 +130,14 @@ public static class ConectarMicrosoft365Endpoints
             try
             {
                 var resultado = await mediator.Send(comando, cancellationToken);
-                return resultado.EsExitoso
-                    ? Results.LocalRedirect("/integraciones?conectado=true")
-                    : Results.LocalRedirect("/integraciones?error=suscripcion");
+                if (resultado.EsExitoso)
+                    return Results.LocalRedirect("/integraciones?conectado=true");
+
+                // Un buzón ya conectado (aquí o en otra organización) no es un fallo de las notificaciones.
+                return Results.LocalRedirect(resultado.Error.Codigo is ConectarBuzonMicrosoft365CommandHandler.CodigoBuzonYaConectado
+                    or ConectarBuzonMicrosoft365CommandHandler.CodigoBuzonYaConectadoEnEstaOrganizacion
+                    ? "/integraciones?error=ya-conectado"
+                    : "/integraciones?error=suscripcion");
             }
             catch (FluentValidation.ValidationException)
             {

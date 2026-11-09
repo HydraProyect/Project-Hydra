@@ -52,6 +52,32 @@ public class EnviarMensajeNuevoCommandHandlerTests
         conversacion.Participantes.Should().ContainSingle(p => p.Email == "contacto@cliente.com" && p.Rol == RolParticipante.Para);
     }
 
+    /// <summary>Un buzón compartido no tiene credencial: el mensaje sale por su dirección y con el token de aplicación de su directorio.</summary>
+    [Fact]
+    public async Task Con_un_buzon_compartido_envia_por_su_direccion_y_con_el_token_de_aplicacion_del_directorio()
+    {
+        var directorio = Guid.NewGuid().ToString("D");
+        var conexion = ConexionIntegracion.CrearBuzonCompartido("piloto@tenant.com", "Buzón piloto", directorio, Guid.NewGuid());
+        var conexionRepositorio = new ConexionIntegracionRepositorioFalso();
+        conexionRepositorio.Agregar(conexion);
+        var graphClient = new Microsoft365GraphClientFalso();
+        var conversaciones = new ConversacionRepositorioFalso();
+        var handler = new EnviarMensajeNuevoCommandHandler(
+            conexionRepositorio, conversaciones, new ComunicacionesQueryContextFalso(), new AlcanceDatosServiceFalso(), new CaeManager.Application.Common.InvalidadorAlcanceInerte(), graphClient,
+            new AccesoGraphService(new CredencialIntegracionRepositorioFalso(), graphClient),
+            new FileStorageServiceFalso(), new ResolucionParticipanteConversacionServiceFalso(), new UnitOfWorkFalso(), new RegistroExportacionFalso());
+
+        var resultado = await handler.Handle(
+            new EnviarMensajeNuevoCommand(conexion.Id, ["contacto@tenant.com"], "Bienvenida", "<p>Hola</p>"), CancellationToken.None);
+
+        resultado.EsExitoso.Should().BeTrue();
+        graphClient.BuzonesUsados.Should().ContainSingle().Which.Should().Be(new BuzonGraph("piloto@tenant.com", true));
+        graphClient.DirectoriosConTokenDeAplicacion.Should().Equal(directorio);
+        graphClient.VecesRefrescado.Should().Be(0, "no hay token delegado que refrescar");
+        conversaciones.Conversaciones.Should().ContainSingle().Which.Mensajes
+            .Should().ContainSingle(m => m.Direccion == DireccionMensaje.Saliente && m.Remitente == "piloto@tenant.com");
+    }
+
     [Fact]
     public async Task La_copia_viaja_al_proveedor_y_queda_como_participante_Cc_del_hilo()
     {

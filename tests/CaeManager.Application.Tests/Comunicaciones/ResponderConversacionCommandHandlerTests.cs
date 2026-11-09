@@ -134,6 +134,36 @@ public class ResponderConversacionCommandHandlerTests
         unitOfWork.VecesGuardado.Should().Be(1);
     }
 
+    /// <summary>Un buzón compartido no tiene credencial: la respuesta sale por su dirección y con el token de aplicación de su directorio.</summary>
+    [Fact]
+    public async Task Con_un_buzon_compartido_responde_por_su_direccion_y_con_el_token_de_aplicacion_del_directorio()
+    {
+        var directorio = Guid.NewGuid().ToString("D");
+        var conexion = ConexionIntegracion.CrearBuzonCompartido("piloto@tenant.com", "Buzón piloto", directorio, Guid.NewGuid());
+        var conversacion = new Conversacion("Duda sobre vigencia documental");
+        conversacion.AsociarConexion(conexion.Id, "graph-thread-1");
+        conversacion.AgregarMensaje(DireccionMensaje.Entrante, CanalConversacion.Correo, "cliente@ejemplo.com", "<p>hola</p>", mensajeExternoId: "graph-msg-1");
+        var repositorio = new ConversacionRepositorioFalso();
+        repositorio.Agregar(conversacion);
+        var conexionRepositorio = new ConexionIntegracionRepositorioFalso();
+        conexionRepositorio.Agregar(conexion);
+        var graphClient = new Microsoft365GraphClientFalso();
+        var handler = new ResponderConversacionCommandHandler(
+            repositorio, new ComunicacionesQueryContextFalso(), conexionRepositorio, new AlcanceDatosServiceFalso(), graphClient,
+            new AccesoGraphService(new CredencialIntegracionRepositorioFalso(), graphClient),
+            new FileStorageServiceFalso(), Options.Create(new ComunicacionesRemitenteOptions()), new UnitOfWorkFalso(),
+            NullLogger<ResponderConversacionCommandHandler>.Instance, new RegistroExportacionFalso(), new CaeManager.Application.Tests.Clientes.DescarteCambiosPendientesFalso());
+
+        var resultado = await handler.Handle(
+            new ResponderConversacionCommand(conversacion.Id, "<p>Respuesta real</p>"), CancellationToken.None);
+
+        resultado.EsExitoso.Should().BeTrue();
+        graphClient.BuzonesUsados.Should().ContainSingle().Which.Should().Be(new BuzonGraph("piloto@tenant.com", true));
+        graphClient.DirectoriosConTokenDeAplicacion.Should().Equal(directorio);
+        graphClient.VecesRefrescado.Should().Be(0, "no hay token delegado que refrescar");
+        graphClient.UltimoMensajeExternoIdRespondido.Should().Be("graph-msg-1");
+    }
+
     [Fact]
     public async Task Con_conexion_deshabilitada_devuelve_fallo_y_no_persiste_nada()
     {

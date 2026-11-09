@@ -76,6 +76,9 @@ public class ConectarBuzonMicrosoft365CommandHandler(
     ILogger<ConectarBuzonMicrosoft365CommandHandler> logger)
     : IRequestHandler<ConectarBuzonMicrosoft365Command, Result<Guid>>
 {
+    public const string CodigoBuzonYaConectado = "Integraciones.Microsoft365.BuzonYaConectado";
+    public const string CodigoBuzonYaConectadoEnEstaOrganizacion = "Integraciones.Microsoft365.BuzonYaConectadoEnEstaOrganizacion";
+
     public async Task<Result<Guid>> Handle(ConectarBuzonMicrosoft365Command request, CancellationToken cancellationToken)
     {
         // Verificación de Ids ajenos — ver P0-1 de Project-Hydra-Negocio/MATURITY_REVIEW.md.
@@ -116,7 +119,7 @@ public class ConectarBuzonMicrosoft365CommandHandler(
                      c.Estado != EstadoConexionIntegracion.Deshabilitada,
                 cancellationToken))
             return Result.Fallo<Guid>(Error.Crear(
-                "Integraciones.Microsoft365.BuzonYaConectadoEnEstaOrganizacion",
+                CodigoBuzonYaConectadoEnEstaOrganizacion,
                 "Ya tienes una conexión con este buzón en esta organización. Desconéctala antes de volver a conectarla."));
 
         ConexionIntegracion conexion;
@@ -172,7 +175,7 @@ public class ConectarBuzonMicrosoft365CommandHandler(
         {
             await CompensarSuscripcionHuerfanaAsync(graphSubscriptionId);
             return Result.Fallo<Guid>(Error.Crear(
-                "Integraciones.Microsoft365.BuzonYaConectado", "Este buzón ya está conectado en otra organización."));
+                CodigoBuzonYaConectado, "Este buzón ya está conectado en otra organización."));
         }
 
         return Result.Exito(conexion.Id);

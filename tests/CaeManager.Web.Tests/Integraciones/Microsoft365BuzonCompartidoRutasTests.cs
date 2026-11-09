@@ -157,16 +157,18 @@ public class Microsoft365BuzonCompartidoRutasTests
 
     /// <summary>
     /// Un permiso de aplicación de correo concedido en Entra abre todos los buzones del directorio y deja sin efecto
-    /// el ámbito de RBAC for Applications de Exchange (los dos se suman): con él, el token no se usa.
+    /// el ámbito de RBAC for Applications de Exchange (los dos se suman): con él, el token no se usa. Tampoco con
+    /// cualquier otro permiso de aplicación de Entra: el token solo vale si no trae ninguno.
     /// </summary>
     [Theory]
     [InlineData("Mail.Read")]
     [InlineData("Mail.ReadWrite")]
     [InlineData("mail.send")]
+    [InlineData("User.Read.All")]
     public async Task Un_token_de_aplicacion_con_permiso_de_correo_sin_acotar_no_se_usa(string rol)
     {
         var directorio = Guid.NewGuid().ToString();
-        var handler = new AnotaPeticionesHandler(cuerpo: RespuestaToken(TokenJwt("User.Read.All", rol)));
+        var handler = new AnotaPeticionesHandler(cuerpo: RespuestaToken(TokenJwt(rol)));
         var cliente = ClienteConSecreto(handler);
 
         var resultado = await cliente.ObtenerTokenAplicacionAsync(directorio, CancellationToken.None);
@@ -192,9 +194,9 @@ public class Microsoft365BuzonCompartidoRutasTests
     }
 
     [Fact]
-    public async Task Un_token_de_aplicacion_sin_permisos_de_correo_en_Entra_se_acepta()
+    public async Task Un_token_de_aplicacion_sin_permisos_de_Entra_se_acepta()
     {
-        var token = TokenJwt("User.Read.All");
+        var token = TokenJwt();
         var handler = new AnotaPeticionesHandler(cuerpo: RespuestaToken(token));
 
         var resultado = await ClienteConSecreto(handler).ObtenerTokenAplicacionAsync(Guid.NewGuid().ToString(), CancellationToken.None);

@@ -6,15 +6,22 @@ using Microsoft.Extensions.Logging;
 namespace CaeManager.Application.Integraciones;
 
 /// <summary>
-/// Completa la identidad estable (<see cref="ConexionIntegracion.IdentidadBuzon"/>) de las conexiones de Microsoft
-/// 365 del Tenant actual dadas de alta antes de que existiera, y la de su <see cref="ReclamacionBuzonIntegracion"/>.
-/// Sin esto, una reclamación antigua solo guardaría la dirección, y un alias del mismo buzón (UPN, proxy) podría
-/// darse de alta en otro Tenant. Lo invoca la renovación de suscripciones, que ya recorre cada Tenant con sus
-/// tokens, antes de renovar.
-///
-/// Si la identidad choca con la de otra reclamación, el mismo buzón está conectado en otro Tenant con otra
-/// dirección: esta conexión pasa a ConError (la ingesta descarta lo que llegue a una conexión que no está
-/// Habilitada) y se registra. La del otro Tenant no se toca: queda fuera del alcance de esta sesión por RLS.
+/// Comprueba en cada ciclo de renovación la identidad estable (<see cref="ConexionIntegracion.IdentidadBuzon"/>)
+/// de las conexiones de Microsoft 365 del Tenant actual que no están Deshabilitadas, con el mismo token que las
+/// abre. Lo invoca la renovación de suscripciones, que ya recorre cada Tenant, antes de renovar, y solo
+/// rehabilita las conexiones que este servicio devuelve como verificadas en ese mismo ciclo.
+/// <list type="bullet">
+/// <item>Sin identidad (dada de alta antes de que existiera): se completa en la conexión y en su
+/// <see cref="ReclamacionBuzonIntegracion"/>. Si choca con la de otra reclamación, el mismo buzón está conectado
+/// en otro Tenant con otra dirección: esta conexión pasa a ConError (la ingesta descarta lo que llegue a una
+/// conexión que no está Habilitada), su identidad queda vacía y ni la renovación ni Reactivar la levantan: hay
+/// que volver a conectarla, y ahí decide el índice único. La del otro Tenant no se toca: queda fuera del
+/// alcance de esta sesión por RLS.</item>
+/// <item>Con identidad distinta de la que responde hoy a su dirección (el directorio reasignó la dirección a
+/// otro buzón): pasa a ConError y tampoco se levanta sola.</item>
+/// </list>
+/// Un token o una lectura que fallan no marcan nada aquí: la conexión no sale verificada, la renovación no la
+/// rehabilita y se reintenta en el ciclo siguiente.
 /// </summary>
 public class CompletarIdentidadBuzonService(
     IIntegracionesQueryContext queryContext,
@@ -28,22 +35,24 @@ public class CompletarIdentidadBuzonService(
     public const string MensajeBuzonDuplicado =
         "Otra organización tiene conectado este mismo buzón con otra dirección. Desconéctalo en una de las dos.";
 
-    public async Task CompletarAsync(CancellationToken cancellationToken)
+    public const string MensajeBuzonCambiado =
+        "La dirección de esta conexión corresponde ahora a otro buzón. Vuelve a conectarla desde Conexiones.";
+
+    /// <returns>Las conexiones cuya identidad se leyó y coincide (o se acaba de completar) en este ciclo.</returns>
+    public async Task<IReadOnlySet<Guid>> CompletarAsync(CancellationToken cancellationToken)
     {
-        var pendientes = await queryContext.ConexionesIntegracion
-            .Where(c => c.Proveedor == ProveedorIntegracion.Microsoft365 && c.IdentidadBuzon == null &&
-                        c.Estado != EstadoConexionIntegracion.Deshabilitada)
+        var verificadas = new HashSet<Guid>();
+        var activas = await queryContext.ConexionesIntegracion
+            .Where(c => c.Proveedor == ProveedorIntegracion.Microsoft365 && c.Estado != EstadoConexionIntegracion.Deshabilitada)
             .Select(c => c.Id)
             .ToListAsync(cancellationToken);
 
-        foreach (var conexionId in pendientes)
+        foreach (var conexionId in activas)
         {
             var conexion = await conexionRepositorio.ObtenerPorIdAsync(conexionId, cancellationToken);
             if (conexion is null)
                 continue;
 
-            // Un token o una lectura que fallan no se marcan aquí: la renovación de esa misma conexión, justo
-            // después, los encuentra y deja la conexión ConError con su motivo. Se reintenta en el ciclo siguiente.
             var token = await accesoGraph.ObtenerAccessTokenVigenteAsync(conexion, cancellationToken);
             if (token.EsFallido)
                 continue;
@@ -56,12 +65,32 @@ public class CompletarIdentidadBuzonService(
                 continue;
             }
 
+            if (conexion.IdentidadBuzon is { } guardada)
+            {
+                if (string.Equals(guardada, identidad.Valor, StringComparison.Ordinal))
+                {
+                    verificadas.Add(conexionId);
+                    // Guarda el token refrescado (si lo hubo), para no volver a rotarlo en la renovación.
+                    await unitOfWork.SaveChangesAsync(cancellationToken);
+                    continue;
+                }
+
+                logger.LogError(
+                    "La dirección de la conexión {ConexionId} responde ahora con otro buzón: pasa a ConError.", conexionId);
+                conexion.MarcarConError(MensajeBuzonCambiado);
+                await unitOfWork.SaveChangesAsync(cancellationToken);
+                continue;
+            }
+
             conexion.FijarIdentidadBuzon(identidad.Valor);
             var reclamacion = await reclamacionRepositorio.ObtenerPorConexionAsync(conexionId, cancellationToken);
             reclamacion?.FijarIdentidadBuzon(identidad.Valor);
 
             if (await reclamacionRepositorio.GuardarCambiosSiBuzonLibreAsync(cancellationToken))
+            {
+                verificadas.Add(conexionId);
                 continue;
+            }
 
             // El guardado fallido descartó los cambios en memoria: se vuelve a leer la conexión para marcarla.
             logger.LogError(
@@ -74,5 +103,7 @@ public class CompletarIdentidadBuzonService(
             duplicada.MarcarConError(MensajeBuzonDuplicado);
             await unitOfWork.SaveChangesAsync(cancellationToken);
         }
+
+        return verificadas;
     }
 }

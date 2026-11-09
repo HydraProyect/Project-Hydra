@@ -30,4 +30,7 @@
   <data name="ErrorSinAccesoCompartido" xml:space="preserve">
     <value>TALVEG no pot obrir aquesta bústia compartida. Comprova l&apos;adreça i demana a l&apos;administrador d&apos;Exchange de la teva organització que inclogui la bústia a l&apos;àmbit autoritzat per a TALVEG.</value>
   </data>
+  <data name="ErrorBuzonYaConectado" xml:space="preserve">
+    <value>Aquesta bústia ja està connectada, en aquesta organització o en una altra. Si ha de ser aquí, desconnecta-la primer on sigui.</value>
+  </data>
 </root>

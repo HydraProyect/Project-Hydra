@@ -44,7 +44,7 @@ public class AccesoGraphService(ICredencialIntegracionRepository credencialRepos
     /// aplicación; un llamador que volviese al Id dejaría de compilar en vez de dejar sin ingesta, en silencio,
     /// a los buzones compartidos.
     /// </summary>
-    internal async Task<Result<string>> ObtenerAccessTokenVigenteAsync(Guid conexionIntegracionId, CancellationToken cancellationToken)
+    private async Task<Result<string>> ObtenerAccessTokenVigenteAsync(Guid conexionIntegracionId, CancellationToken cancellationToken)
     {
         var credencial = await credencialRepositorio.ObtenerPorConexionAsync(conexionIntegracionId, cancellationToken);
         if (credencial is null)

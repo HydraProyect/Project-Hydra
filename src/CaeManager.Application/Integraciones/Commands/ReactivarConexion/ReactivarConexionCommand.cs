@@ -35,7 +35,9 @@ public class ReactivarConexionCommandHandler(
     IReclamacionBuzonIntegracionRepository reclamacionRepositorio,
     IAlcanceDatosService alcanceDatos,
     ITenantActual tenantActual,
-    IUnitOfWork unitOfWork)
+    IUnitOfWork unitOfWork,
+    AccesoGraphService accesoGraph,
+    IMicrosoft365GraphClient graphClient)
     : IRequestHandler<ReactivarConexionCommand, Result>
 {
     public async Task<Result> Handle(ReactivarConexionCommand request, CancellationToken cancellationToken)
@@ -61,16 +63,16 @@ public class ReactivarConexionCommandHandler(
         // que una entidad modificada y trackeada sin guardar podría
         // persistirse igualmente en una operación posterior ajena a este
         // Command.
+        if (conexion.Proveedor == ProveedorIntegracion.Microsoft365)
+        {
+            var comprobacion = await ComprobarIdentidadBuzonAsync(conexion, cancellationToken);
+            if (comprobacion.EsFallido)
+                return comprobacion;
+        }
+
         var tenantId = Guid.Empty;
         if (necesitaReclamarBuzon)
         {
-            // La reclamación va por la identidad estable del buzón. Una conexión anterior a ese campo
-            // no la tiene, y reclamar solo por la dirección dejaría pasar un alias: se vuelve a conectar.
-            if (conexion.Proveedor == ProveedorIntegracion.Microsoft365 && conexion.IdentidadBuzon is null)
-                return Result.Fallo(Error.Crear(
-                    "Integraciones.Microsoft365.ReconexionNecesaria",
-                    "Esta conexión es anterior a la comprobación de buzón: vuelve a conectarla desde Conexiones."));
-
             if (tenantActual.TenantId is not { } resuelto)
                 return Result.Fallo(Error.Crear("Integraciones.Microsoft365.TenantNoResuelto", "No se pudo determinar la organización actual."));
             tenantId = resuelto;
@@ -95,4 +97,35 @@ public class ReactivarConexionCommandHandler(
 
         return Result.Exito();
     }
+
+    /// <summary>
+    /// Reactivar no es un atajo para saltarse la guarda del buzón: la conexión debe tener identidad (una anterior a
+    /// ese campo, o una cuyo relleno chocó con la reclamación de otro Tenant, no la tiene y se vuelve a conectar,
+    /// donde el índice único decide) y el buzón que hoy responde a su dirección debe seguir siendo el mismo. Si no
+    /// se puede comprobar, no se reactiva.
+    /// </summary>
+    private async Task<Result> ComprobarIdentidadBuzonAsync(ConexionIntegracion conexion, CancellationToken cancellationToken)
+    {
+        if (conexion.IdentidadBuzon is not { } guardada)
+            return Result.Fallo(Error.Crear(
+                CodigoReconexionNecesaria,
+                "Esta conexión no tiene la comprobación de buzón: vuelve a conectarla desde Conexiones."));
+
+        var token = await accesoGraph.ObtenerAccessTokenVigenteAsync(conexion, cancellationToken);
+        if (token.EsFallido)
+            return Result.Fallo(Error.Crear(CodigoSinComprobacion, "No pudimos comprobar el buzón en Microsoft. Inténtalo de nuevo."));
+
+        var identidad = await graphClient.ObtenerIdentidadBuzonAsync(token.Valor, BuzonGraph.De(conexion), cancellationToken);
+        if (identidad.EsFallido)
+            return Result.Fallo(Error.Crear(CodigoSinComprobacion, "No pudimos comprobar el buzón en Microsoft. Inténtalo de nuevo."));
+
+        return string.Equals(identidad.Valor, guardada, StringComparison.Ordinal)
+            ? Result.Exito()
+            : Result.Fallo(Error.Crear(
+                CodigoReconexionNecesaria,
+                "La dirección de esta conexión corresponde ahora a otro buzón: vuelve a conectarla desde Conexiones."));
+    }
+
+    public const string CodigoReconexionNecesaria = "Integraciones.Microsoft365.ReconexionNecesaria";
+    public const string CodigoSinComprobacion = "Integraciones.Microsoft365.BuzonSinComprobar";
 }

@@ -109,11 +109,22 @@ public class IngestaWebhookService(
 
         var mensajeIds = graphClient.ExtraerMensajeIdsDeNotificacion(evento.PayloadCrudo);
 
+        // Un mensaje que no se puede leer no bloquea a los siguientes del mismo evento: se ingieren todos los
+        // que se pueda y, si alguno falló, el evento falla al final y se reintenta. Los ya ingeridos se
+        // descartan entonces por duplicado (ExisteMensajeExternoAsync).
+        var noLeidos = new List<string>();
         foreach (var mensajeId in mensajeIds)
-            await IngerirMensajeAsync(conexion, mensajeId, cancellationToken);
+        {
+            if (await IngerirMensajeAsync(conexion, mensajeId, cancellationToken) is { } fallo)
+                noLeidos.Add(fallo);
+        }
+
+        if (noLeidos.Count > 0)
+            throw new InvalidOperationException(string.Join(" | ", noLeidos));
     }
 
-    private async Task IngerirMensajeAsync(ConexionIntegracion conexion, string mensajeId, CancellationToken cancellationToken)
+    /// <returns>El motivo, si el mensaje no se pudo leer por un fallo que no es un 404; null en otro caso.</returns>
+    private async Task<string?> IngerirMensajeAsync(ConexionIntegracion conexion, string mensajeId, CancellationToken cancellationToken)
     {
         var accessTokenResultado = await accesoGraph.ObtenerAccessTokenVigenteAsync(conexion, cancellationToken);
         if (accessTokenResultado.EsFallido)
@@ -123,23 +134,21 @@ public class IngestaWebhookService(
         if (mensajeResultado.EsFallido)
         {
             // Solo un mensaje que Graph ya no tiene (404: borrado entre la notificación y la ingesta) se
-            // descarta sin tirar el resto del evento. Un 403, un 429, un 5xx o un timeout no dicen nada del
-            // mensaje: el evento falla y se reintenta, y los mensajes ya ingeridos en este intento se
-            // descartan entonces por duplicado (ExisteMensajeExternoAsync).
+            // descarta sin reintento. Un 403, un 429, un 5xx o un timeout no dicen nada del mensaje: se
+            // devuelve el motivo y el evento falla al final, para reintentarse.
             if (mensajeResultado.Error.Codigo != CodigosErrorMicrosoft365.MensajeNoEncontrado)
-                throw new InvalidOperationException(
-                    $"No se pudo leer el mensaje {mensajeId} de Graph: {mensajeResultado.Error.Mensaje}");
+                return $"No se pudo leer el mensaje {mensajeId} de Graph: {mensajeResultado.Error.Mensaje}";
 
             logger.LogWarning(
                 "No se pudo obtener el mensaje {MensajeId} de Graph para la conexión {ConexionId}: {Error}",
                 mensajeId, conexion.Id, mensajeResultado.Error.Mensaje);
-            return;
+            return null;
         }
 
         var mensaje = mensajeResultado.Valor;
 
         if (await conversacionRepositorio.ExisteMensajeExternoAsync(conexion.Id, mensaje.MensajeExternoId, cancellationToken))
-            return; // idempotencia: Graph puede reenviar la misma notificación más de una vez.
+            return null; // idempotencia: Graph puede reenviar la misma notificación más de una vez.
 
         var candidatos = await resolucionPlataforma.ResolverPorDominioCorreoAsync(mensaje.Remitente, cancellationToken);
         var esPlataformaAutenticada = candidatos.Count > 0 && AutenticacionCorreoPlataforma.EsValida(mensaje);
@@ -249,6 +258,8 @@ public class IngestaWebhookService(
             && ReglaAcuseBuzon.Procede(conexion, mensaje, dominioDePlataformaCae: candidatos.Count > 0)
             && !_acusesPendientes.Any(a => a.Conversacion.HiloExternoId == conversacion.HiloExternoId))
             _acusesPendientes.Add(new AcusePendiente(conexion, conversacion, mensaje.MensajeExternoId, mensaje.Remitente));
+
+        return null;
     }
 
     /// <summary>

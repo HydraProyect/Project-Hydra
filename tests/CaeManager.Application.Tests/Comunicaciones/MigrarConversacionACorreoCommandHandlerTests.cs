@@ -126,6 +126,31 @@ public class MigrarConversacionACorreoCommandHandlerTests
         resultado.Error.Codigo.Should().Be("Conversacion.CanalIncorrecto");
     }
 
+    /// <summary>Un buzón compartido no tiene credencial: la migración sale por su dirección y con el token de aplicación de su directorio.</summary>
+    [Fact]
+    public async Task Con_un_buzon_compartido_envia_por_su_direccion_y_con_el_token_de_aplicacion_del_directorio()
+    {
+        var conversacion = CrearConversacionWhatsAppConVentanaCerrada();
+        var directorio = Guid.NewGuid().ToString("D");
+        var compartido = ConexionIntegracion.CrearBuzonCompartido("piloto@tenant.com", "Buzón piloto", directorio, Guid.NewGuid());
+        _conexiones.Agregar(compartido);
+        _integraciones.ConexionesLista.Add(compartido);
+        var handler = new MigrarConversacionACorreoCommandHandler(
+            _conversaciones, new ComunicacionesQueryContextFalso(), _integraciones, _conexiones, new AlcanceDatosServiceFalso(), _graphClient,
+            new AccesoGraphService(new CredencialIntegracionRepositorioFalso(), _graphClient),
+            new ResolucionParticipanteConversacionServiceFalso(), _unitOfWork, _registro);
+
+        var resultado = await handler.Handle(
+            new MigrarConversacionACorreoCommand(conversacion.Id, "contacto@tenant.com", "<p>Seguimos por aquí.</p>"),
+            CancellationToken.None);
+
+        resultado.EsExitoso.Should().BeTrue();
+        _graphClient.BuzonesUsados.Should().ContainSingle().Which.Should().Be(new BuzonGraph("piloto@tenant.com", true));
+        _graphClient.DirectoriosConTokenDeAplicacion.Should().Equal(directorio);
+        _graphClient.VecesRefrescado.Should().Be(0, "no hay token delegado que refrescar");
+        conversacion.Mensajes.Should().Contain(m => m.Canal == CanalConversacion.Correo && m.Remitente == "piloto@tenant.com");
+    }
+
     [Fact]
     public async Task Prefiere_el_buzon_dedicado_al_cliente_de_la_conversacion_sobre_el_del_tenant()
     {

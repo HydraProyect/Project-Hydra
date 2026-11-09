@@ -130,6 +130,8 @@ public class ConexionesGen2Tests : BunitContext
     [InlineData("cancelado", TonoToast.Info, "Conexión cancelada.")]
     [InlineData("autenticacion", TonoToast.Error, "No pudimos autenticar con Microsoft")]
     [InlineData("solicitud", TonoToast.Error, "No pudimos completar la conexión.")]
+    [InlineData("ya-conectado", TonoToast.Error, "Ese buzón ya está conectado")]
+    [InlineData("sin-acceso-compartido", TonoToast.Error, "TALVEG no puede abrir ese buzón compartido.")]
     public void El_resultado_del_callback_de_Microsoft_sale_con_su_tono(string codigo, TonoToast tono, string texto)
     {
         Services.AddScoped<IMediator>(_ => new MediadorFalso());

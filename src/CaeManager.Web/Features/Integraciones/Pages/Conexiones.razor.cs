@@ -390,6 +390,7 @@ public partial class Conexiones : CaeManager.Web.Components.PaginaIntegrableConf
         "suscripcion" => "El buzón se autenticó pero no pudimos activar las notificaciones. Inténtalo de nuevo.",
         "buzon-compartido" => Textos["ErrorBuzonCompartidoInvalido"],
         "sin-acceso-compartido" => Textos["ErrorSinAccesoCompartido"],
+        "ya-conectado" => Textos["ErrorBuzonYaConectado"],
         _ => "No pudimos completar la conexión."
     };
 

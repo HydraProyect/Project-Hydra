@@ -139,16 +139,17 @@ public class Microsoft365GraphClient(
                 return Result.Fallo<TokenAplicacionGraphDto>(Error.Crear(
                     "Integraciones.Microsoft365.ErrorAutenticacion", "No pudimos autenticar con Microsoft."));
 
-            // La concesión de Entra y la de Exchange se suman: con un permiso Mail.* de aplicación en Entra el
+            // La concesión de Entra y la de Exchange se suman: con un permiso de aplicación de buzón en Entra el
             // token abre todos los buzones del directorio y el ámbito de RBAC for Applications deja de acotar
-            // nada. Esos permisos viajan en el claim «roles»; los de Exchange no. Se falla cerrado.
+            // nada. Esos permisos viajan en el claim «roles»; los de Exchange no. Este flujo no necesita ninguno
+            // de Entra, así que cualquiera hace fallar cerrado.
             if (TokenAplicacion.TienePermisoDeCorreoSinAcotar(cuerpo.AccessToken))
             {
                 logger.LogError(
-                    "El token de aplicación del directorio {Directorio} trae un permiso Mail.* concedido en Entra: no se usa.", directorio);
+                    "El token de aplicación del directorio {Directorio} trae permisos de aplicación concedidos en Entra: no se usa.", directorio);
                 return Result.Fallo<TokenAplicacionGraphDto>(Error.Crear(
                     "Integraciones.Microsoft365.PermisoSinAcotar",
-                    "La aplicación tiene en ese directorio un permiso de correo sin acotar: el administrador debe retirarlo en Entra."));
+                    "La aplicación tiene en ese directorio permisos de aplicación concedidos en Entra que no acota Exchange: el administrador debe retirarlos."));
             }
 
             var token = new TokenAplicacionGraphDto(cuerpo.AccessToken, DateTime.UtcNow.AddSeconds(cuerpo.ExpiresIn ?? 3600));
@@ -338,7 +339,7 @@ public class Microsoft365GraphClient(
             return respuesta.StatusCode is System.Net.HttpStatusCode.Forbidden or System.Net.HttpStatusCode.NotFound
                 ? Result.Fallo<string>(Error.Crear(
                     "Integraciones.Microsoft365.SinAccesoBuzon",
-                    "Tu cuenta de Microsoft no puede abrir ese buzón: comprueba la dirección y que tengas acceso total a él."))
+                    "No podemos abrir ese buzón: comprueba la dirección y que el administrador de Exchange haya incluido el buzón en el ámbito de la aplicación TALVEG."))
                 : Result.Fallo<string>(Error.Crear("Integraciones.Microsoft365.ErrorApi", "No pudimos leer el buzón conectado."));
         }
         catch (HttpRequestException ex)

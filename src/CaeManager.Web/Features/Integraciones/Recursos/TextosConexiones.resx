@@ -30,4 +30,7 @@
   <data name="ErrorSinAccesoCompartido" xml:space="preserve">
     <value>TALVEG no puede abrir ese buzón compartido. Comprueba la dirección y pide al administrador de Exchange de tu organización que incluya el buzón en el ámbito autorizado para TALVEG.</value>
   </data>
+  <data name="ErrorBuzonYaConectado" xml:space="preserve">
+    <value>Ese buzón ya está conectado, en esta organización o en otra. Si debe estar aquí, desconéctalo primero donde esté.</value>
+  </data>
 </root>
