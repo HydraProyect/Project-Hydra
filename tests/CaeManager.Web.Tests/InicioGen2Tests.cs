@@ -150,7 +150,10 @@ public class InicioGen2Tests : BunitContext
         {
             Kpis = KpisACero() with
             {
-                TrabajadoresActivos = 1, DocumentosVigentes = 3, DocumentosProximos = 1, DocumentosEmpresaProximos = 1,
+                TrabajadoresActivos = 1,
+                DocumentosVigentes = 3,
+                DocumentosProximos = 1,
+                DocumentosEmpresaProximos = 1,
                 TasaCumplimientoDocumental = 100
             },
             ProximoVencimiento = new ProximoVencimientoDto("A. García", "Recibo de cuota de autónomos", new DateOnly(2026, 11, 30), 21)
