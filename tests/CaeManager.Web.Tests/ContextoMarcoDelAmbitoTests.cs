@@ -7,14 +7,21 @@ using Bunit;
 using CaeManager.Application.Common;
 using CaeManager.Application.Marco.Queries.ObtenerContextoMarco;
 using CaeManager.Application.Plataforma;
+using CaeManager.Application.Plataforma.OrdenMenu;
 using CaeManager.Application.Tenants;
 using CaeManager.Application.Tenants.Queries.ObtenerClientesAutorizados;
 using CaeManager.Application.VistaDemo;
+using CaeManager.Domain.Common;
 using CaeManager.Domain.Tenants;
 using CaeManager.Web.Components.Layout;
 using FluentAssertions;
 using MediatR;
+using Microsoft.AspNetCore.Components;
+using Microsoft.AspNetCore.Components.Infrastructure;
+using Microsoft.AspNetCore.Components.RenderTree;
+using Microsoft.AspNetCore.Components.Web;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging.Abstractions;
 using Xunit;
 
 namespace CaeManager.Web.Tests;
@@ -347,6 +354,131 @@ public class ContextoMarcoDelAmbitoTests
         var persistido = await PrerenderizarYPersistir(Marco("privilegiada"));
 
         persistido.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task Un_contexto_degradado_se_entrega_pero_no_se_guarda()
+    {
+        _mediador.Responder = n => Task.FromResult(n == 1 ? Marco("degradado") with { Degradado = true } : Marco("completo"));
+        var ambito = Ambito();
+
+        (await ambito.ObtenerAsync()).Degradado.Should().BeTrue("quien lo pidió recibe lo que se pudo leer");
+        (await ambito.ObtenerAsync()).ClientesAutorizados[0].Nombre.Should().Be("completo 0");
+        _mediador.Lecturas.Should().Be(2, "un contexto con una parte tolerada no se sirve 10 s");
+    }
+
+    [Fact]
+    public async Task Un_contexto_degradado_no_viaja_al_circuito()
+    {
+        var persistido = await PrerenderizarYPersistir(Marco("degradado") with { Degradado = true });
+
+        persistido.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task El_circuito_descarta_un_estado_persistido_degradado()
+    {
+        var persistido = await PrerenderizarYPersistir(Marco("prerender"));
+
+        using var circuito = new BunitContext();
+        var estadoCircuito = circuito.AddBunitPersistentComponentState();
+        Registrar(circuito.Services);
+        estadoCircuito.Persist(ContextoMarcoDelAmbito.ClavePersistencia,
+            persistido! with { Marco = persistido.Marco with { Degradado = true } });
+        var marco = await circuito.Services.GetRequiredService<ContextoMarcoDelAmbito>().ObtenerAsync();
+
+        marco.ClientesAutorizados[0].Nombre.Should().Be("lectura 2 0");
+        _mediador.Lecturas.Should().Be(2);
+    }
+
+    [Fact]
+    public async Task Tras_lo_restaurado_el_circuito_solo_persiste_su_propia_lectura()
+    {
+        // Sustituye al antiguo flag «Restaurada», que no se podía distinguir: la suscripción al guardado solo nace con
+        // una lectura propia, y esa lectura sustituye a la entrada restaurada.
+        var persistido = await PrerenderizarYPersistir(Marco("prerender"));
+
+        using var circuito = new BunitContext();
+        var estadoCircuito = circuito.AddBunitPersistentComponentState();
+        Registrar(circuito.Services);
+        estadoCircuito.Persist(ContextoMarcoDelAmbito.ClavePersistencia, persistido!);
+        var ambito = circuito.Services.GetRequiredService<ContextoMarcoDelAmbito>();
+        (await ambito.ObtenerAsync()).ClientesAutorizados[0].Nombre.Should().Be("prerender 0");
+        _tenant = Beneficiario;
+        await ambito.ObtenerAsync();
+        estadoCircuito.TriggerOnPersisting();
+
+        estadoCircuito.TryTake<ContextoMarcoDelAmbito.ContextoPersistido>(ContextoMarcoDelAmbito.ClavePersistencia, out var nuevo)
+            .Should().BeTrue();
+        nuevo!.Marco.ClientesAutorizados[0].Nombre.Should().Be("lectura 2 0");
+        nuevo.Contexto.Clave.TenantEfectivo.Should().Be(Beneficiario);
+    }
+
+    private sealed class Invalidador : IInvalidadorAlcance
+    {
+        public void Invalidar() { }
+    }
+
+    [Fact]
+    public async Task Guardar_el_orden_del_menu_descarta_el_contexto_del_ambito()
+    {
+        // El Command que guarda el orden es un ICommand: InvalidacionAlcanceBehavior descarta el contexto antes y
+        // después, y la lectura siguiente del mismo ámbito (el menú móvil del circuito) ya ve el orden nuevo.
+        var ambito = Ambito();
+        await ambito.ObtenerAsync();
+        var comportamiento = new InvalidacionAlcanceBehavior<GuardarOrdenMenuLateralCommand, Result>(
+            new Invalidador(), [ambito]);
+
+        await comportamiento.Handle(
+            new GuardarOrdenMenuLateralCommand(["plataforma"], ["/empresas"], Guid.NewGuid()),
+            _ => Task.FromResult(Result.Exito()), CancellationToken.None);
+        await ambito.ObtenerAsync();
+
+        _mediador.Lecturas.Should().Be(2);
+    }
+
+    private sealed class Almacen(Func<IComponentRenderMode, bool> admite) : IPersistentComponentStateStore
+    {
+        public IReadOnlyDictionary<string, byte[]>? Guardado { get; private set; }
+        public Task<IDictionary<string, byte[]>> GetPersistedStateAsync() =>
+            Task.FromResult<IDictionary<string, byte[]>>(new Dictionary<string, byte[]>());
+        public Task PersistStateAsync(IReadOnlyDictionary<string, byte[]> state)
+        {
+            Guardado = state;
+            return Task.CompletedTask;
+        }
+        public bool SupportsRenderMode(IComponentRenderMode renderMode) => admite(renderMode);
+    }
+
+    private sealed class RendererDePrueba() : Renderer(new ServiceCollection().BuildServiceProvider(), NullLoggerFactory.Instance)
+    {
+        public override Dispatcher Dispatcher { get; } = Dispatcher.CreateDefault();
+        protected override void HandleException(Exception exception) => throw exception;
+        protected override Task UpdateDisplayAsync(in RenderBatch renderBatch) => Task.CompletedTask;
+    }
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task Solo_se_persiste_para_el_circuito_InteractiveServer(bool almacenDelCircuito)
+    {
+        // Con el gestor real del framework, no con el doble de bUnit (que ignora el modo): el registro lleva
+        // RenderMode.InteractiveServer y el framework solo lo guarda en un almacén que admite ese modo.
+        var gestor = new ComponentStatePersistenceManager(NullLogger<ComponentStatePersistenceManager>.Instance);
+        await gestor.RestoreStateAsync(new Almacen(_ => true));
+        var servicios = new ServiceCollection();
+        Registrar(servicios);
+        servicios.AddSingleton(gestor.State);
+        var ambito = servicios.BuildServiceProvider().CreateScope().ServiceProvider.GetRequiredService<ContextoMarcoDelAmbito>();
+        await ambito.ObtenerAsync();
+
+        var almacen = new Almacen(modo => almacenDelCircuito
+            ? modo is InteractiveServerRenderMode
+            : modo is InteractiveWebAssemblyRenderMode);
+        using var renderer = new RendererDePrueba();
+        await gestor.PersistStateAsync(almacen, renderer);
+
+        (almacen.Guardado?.ContainsKey(ContextoMarcoDelAmbito.ClavePersistencia) ?? false).Should().Be(almacenDelCircuito);
     }
 
     private async Task<ContextoMarcoDelAmbito.ContextoPersistido?> PrerenderizarYPersistir(ContextoMarcoDto marco)

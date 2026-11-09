@@ -18,7 +18,9 @@ namespace CaeManager.Web.Components.Layout;
 /// también como <see cref="IMemoPorContexto"/> (<c>InvalidacionAlcanceBehavior</c>). Las Queries que compone tienen sus
 /// propios memos del ámbito, así que lo que sirve puede tener hasta dos caducidades de antigüedad, igual que el estado
 /// persistido que tenían antes el selector y las migas; lo acota además la caducidad del alcance de la cartera, y nada
-/// de esto autoriza. Una tarea que falla no se queda: la siguiente petición vuelve a leer.
+/// de esto autoriza. Una tarea que falla no se queda, ni un contexto degradado (alguna parte de presentación se
+/// toleró con su valor sin oferta, <see cref="ContextoMarcoDto.Degradado"/>): se entrega a quien lo esperaba, no se
+/// guarda ni se persiste, y la siguiente petición vuelve a leer.
 /// </para>
 ///
 /// <para>
@@ -64,7 +66,7 @@ public sealed class ContextoMarcoDelAmbito : IMemoPorContexto, IDisposable
     /// <summary>Lo que el prerenderizado deja al circuito.</summary>
     public sealed record ContextoPersistido(ContextoLectura Contexto, DateTimeOffset Creado, ContextoMarcoDto Marco);
 
-    private sealed record Entrada(ContextoLectura Contexto, DateTimeOffset Creado, Task<ContextoMarcoDto> Tarea, bool Restaurada);
+    private sealed record Entrada(ContextoLectura Contexto, DateTimeOffset Creado, Task<ContextoMarcoDto> Tarea);
 
     private readonly IMediator _mediador;
     private readonly IServiceProvider _servicios;
@@ -109,7 +111,7 @@ public sealed class ContextoMarcoDelAmbito : IMemoPorContexto, IDisposable
                 // despacho va fuera del cerrojo, que no debe cubrir el pipeline de MediatR.
                 propia = new TaskCompletionSource<ContextoMarcoDto>(TaskCreationOptions.RunContinuationsAsynchronously);
                 tarea = propia.Task;
-                _entrada = new Entrada(contexto, ahora, tarea, Restaurada: false);
+                _entrada = new Entrada(contexto, ahora, tarea);
                 SuscribirPersistencia();
             }
         }
@@ -152,7 +154,15 @@ public sealed class ContextoMarcoDelAmbito : IMemoPorContexto, IDisposable
     {
         try
         {
-            propia.TrySetResult(await _mediador.Send(new ObtenerContextoMarcoQuery(), CancellationToken.None));
+            var marco = await _mediador.Send(new ObtenerContextoMarcoQuery(), CancellationToken.None);
+            // Degradado: se entrega a quien ya espera, pero se suelta antes de completarse, para que nadie más lo tome
+            // del ámbito ni lo persista al circuito (la persistencia solo mira la entrada guardada).
+            if (marco.Degradado)
+                lock (_cerrojo)
+                {
+                    if (ReferenceEquals(_entrada?.Tarea, propia.Task)) _entrada = null;
+                }
+            propia.TrySetResult(marco);
         }
         catch (OperationCanceledException cancelacion)
         {
@@ -179,8 +189,8 @@ public sealed class ContextoMarcoDelAmbito : IMemoPorContexto, IDisposable
         {
             return _estadoPersistente.TryTakeFromJson<ContextoPersistido>(ClavePersistencia, out var anterior)
                 && anterior is not null && anterior.Contexto == contexto && Vigente(anterior.Creado, ahora)
-                && anterior.Marco.ClientesAutorizados is not null
-                ? new Entrada(contexto, anterior.Creado, Task.FromResult(anterior.Marco), Restaurada: true)
+                && anterior.Marco.ClientesAutorizados is not null && !anterior.Marco.Degradado
+                ? new Entrada(contexto, anterior.Creado, Task.FromResult(anterior.Marco))
                 : null;
         }
         catch (Exception)
@@ -214,8 +224,11 @@ public sealed class ContextoMarcoDelAmbito : IMemoPorContexto, IDisposable
         Entrada? entrada;
         lock (_cerrojo) entrada = _entrada;
 
-        // Solo lo leído en este ámbito y ya terminado bien: lo restaurado ya hizo su viaje y no se reenvía.
-        if (entrada is not { Restaurada: false, Tarea.IsCompletedSuccessfully: true } leida
+        // Solo lo leído en este ámbito y ya terminado bien. Lo restaurado no se reenvía sin necesidad de marcarlo: la
+        // suscripción solo nace con una lectura propia, que ocurre después del único intento de restaurar y sustituye
+        // a la entrada restaurada, así que con suscripción la entrada guardada nunca es una restaurada. Un contexto
+        // degradado tampoco llega aquí: se suelta antes de completarse (LeerAsync).
+        if (entrada is not { Tarea.IsCompletedSuccessfully: true } leida
             || leida.Tarea.Result.ClientesAutorizados.Count > MaximoEmpresasPersistidas)
             return Task.CompletedTask;
 

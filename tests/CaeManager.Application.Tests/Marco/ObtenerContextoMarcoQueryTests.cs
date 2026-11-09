@@ -15,8 +15,8 @@ namespace CaeManager.Application.Tests.Marco;
 
 /// <summary>
 /// Pieza 1.3 del plan de rendimiento: el contexto del marco compone las mismas Queries que antes despachaba cada
-/// componente, sin las variantes que fallan cerradas, y solo tolera que fallen las dos partes opcionales: la
-/// participación en la incorporación a cartera (sin ella no se ofrece) y el avatar.
+/// componente, sin las variantes que fallan cerradas. Cada parte de presentación tolera su fallo con un valor que no
+/// ofrece nada y marca el contexto como degradado; la lista de Tenants beneficiarios autorizados no se tolera.
 /// </summary>
 public class ObtenerContextoMarcoQueryTests
 {
@@ -45,7 +45,7 @@ public class ObtenerContextoMarcoQueryTests
 
     private static object? Respuestas(object request) => request switch
     {
-        ObtenerPerfilVocabularioActualQuery => PerfilVocabularioTenant.ClienteDirecto,
+        ObtenerPerfilVocabularioActualQuery => PerfilVocabularioTenant.Consultora,
         UsaRotulosPrimeraPersonaQuery => true,
         EsAdministradorPlataformaQuery => true,
         ObtenerClientesAutorizadosQuery => (IReadOnlyList<ClienteAutorizadoDto>)[Propio, Beneficiario],
@@ -63,7 +63,7 @@ public class ObtenerContextoMarcoQueryTests
     {
         var contexto = await Componer(new Emisor(Respuestas));
 
-        contexto.PerfilVocabulario.Should().Be(PerfilVocabularioTenant.ClienteDirecto);
+        contexto.PerfilVocabulario.Should().Be(PerfilVocabularioTenant.Consultora);
         contexto.RotulosPrimeraPersona.Should().BeTrue();
         contexto.EsAdministradorPlataforma.Should().BeTrue();
         contexto.ClientesAutorizados.Should().Equal(Propio, Beneficiario);
@@ -96,44 +96,110 @@ public class ObtenerContextoMarcoQueryTests
     }
 
     [Fact]
-    public async Task Si_el_avatar_no_se_puede_leer_el_marco_se_pinta_sin_el()
+    public async Task Sin_fallos_no_va_marcado_como_degradado()
     {
-        var contexto = await Componer(new Emisor(r =>
-            r is ObtenerAvatarPropioQuery ? throw new InvalidOperationException("sin conexión") : Respuestas(r)));
+        (await Componer(new Emisor(Respuestas))).Degradado.Should().BeFalse();
+    }
 
-        contexto.Avatar.Should().BeNull();
+    private static Func<object, object?> FallaEn<TQuery>() =>
+        r => r is TQuery ? throw new InvalidOperationException("sin conexión") : Respuestas(r);
+
+    [Fact]
+    public async Task Si_el_perfil_de_vocabulario_falla_se_pinta_con_el_perfil_por_defecto_y_no_se_lee_nada_mas()
+    {
+        var emisor = new Emisor(FallaEn<ObtenerPerfilVocabularioActualQuery>());
+
+        var contexto = await Componer(emisor);
+
+        contexto.PerfilVocabulario.Should().Be(PerfilVocabularioTenant.ClienteDirecto);
         contexto.ClientesAutorizados.Should().Equal(Propio, Beneficiario);
+        contexto.Degradado.Should().BeTrue();
+        // Tras el primer fallo, el resto de la presentación toma su valor sin oferta sin leer (DbContext del ámbito).
+        contexto.RotulosPrimeraPersona.Should().BeFalse();
+        contexto.EsAdministradorPlataforma.Should().BeFalse();
+        contexto.OrdenGrupos.Should().BeNull();
+        contexto.ParticipaEnIncorporacionCartera.Should().BeFalse();
+        contexto.Avatar.Should().BeNull();
+        emisor.Pedidas.Should().HaveCount(2, "la lista de Tenants beneficiarios y el perfil que falló; nada después");
+    }
+
+    [Fact]
+    public async Task Si_los_rotulos_fallan_no_se_ofrece_la_primera_persona()
+    {
+        var contexto = await Componer(new Emisor(FallaEn<UsaRotulosPrimeraPersonaQuery>()));
+
+        contexto.RotulosPrimeraPersona.Should().BeFalse();
+        contexto.PerfilVocabulario.Should().Be(PerfilVocabularioTenant.Consultora, "lo leído antes del fallo se conserva");
+        contexto.ClientesAutorizados.Should().Equal(Propio, Beneficiario);
+        contexto.Degradado.Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task Si_la_senal_de_AdminPlataforma_falla_no_se_ofrece_el_grupo_Plataforma()
+    {
+        var contexto = await Componer(new Emisor(FallaEn<EsAdministradorPlataformaQuery>()));
+
+        contexto.EsAdministradorPlataforma.Should().BeFalse();
+        contexto.RotulosPrimeraPersona.Should().BeTrue("lo leído antes del fallo se conserva");
+        contexto.ClientesAutorizados.Should().Equal(Propio, Beneficiario);
+        contexto.Degradado.Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task Si_el_orden_del_menu_falla_se_usa_el_canonico()
+    {
+        var contexto = await Componer(new Emisor(FallaEn<ObtenerOrdenMenuLateralQuery>()));
+
+        contexto.OrdenGrupos.Should().BeNull();
+        contexto.OrdenEnlaces.Should().BeNull();
+        contexto.EsAdministradorPlataforma.Should().BeTrue("lo leído antes del fallo se conserva");
+        contexto.ClientesAutorizados.Should().Equal(Propio, Beneficiario);
+        contexto.Degradado.Should().BeTrue();
     }
 
     [Fact]
     public async Task Si_la_participacion_no_se_puede_leer_no_se_ofrece_y_no_se_lee_nada_mas()
     {
-        var emisor = new Emisor(r =>
-            r is ParticipaEnIncorporacionCarteraQuery ? throw new InvalidOperationException("sin conexión") : Respuestas(r));
+        var emisor = new Emisor(FallaEn<ParticipaEnIncorporacionCarteraQuery>());
 
         var contexto = await Componer(emisor);
 
         contexto.ParticipaEnIncorporacionCartera.Should().BeFalse("sin la señal no se ofrece «Solicitar incorporación»");
         contexto.Avatar.Should().BeNull();
+        contexto.OrdenGrupos.Should().Equal("plataforma", "documentos");
         contexto.ClientesAutorizados.Should().Equal(Propio, Beneficiario);
+        contexto.Degradado.Should().BeTrue();
         emisor.Pedidas.OfType<ObtenerAvatarPropioQuery>().Should().BeEmpty("tras un fallo no se lee nada más del ámbito");
     }
 
     [Fact]
-    public async Task Cualquier_otro_fallo_tumba_la_lectura_entera()
+    public async Task Si_el_avatar_no_se_puede_leer_el_marco_se_pinta_sin_el()
     {
-        // Sin valores por defecto inventados: un marco a medias ofrecería lo que no toca.
-        var componer = () => Componer(new Emisor(r =>
-            r is ObtenerClientesAutorizadosQuery ? throw new InvalidOperationException("sin conexión") : Respuestas(r)));
+        var contexto = await Componer(new Emisor(FallaEn<ObtenerAvatarPropioQuery>()));
 
-        await componer.Should().ThrowAsync<InvalidOperationException>();
+        contexto.Avatar.Should().BeNull();
+        contexto.ParticipaEnIncorporacionCartera.Should().BeTrue("lo leído antes del fallo se conserva");
+        contexto.ClientesAutorizados.Should().Equal(Propio, Beneficiario);
+        contexto.Degradado.Should().BeTrue();
     }
 
     [Fact]
-    public async Task La_cancelacion_se_propaga_tambien_en_el_avatar()
+    public async Task Un_fallo_de_la_lista_de_Tenants_beneficiarios_no_se_tolera_y_tumba_la_lectura_entera()
+    {
+        // Es el dato de autorización (como oferta) del marco: sin valores inventados, fail-closed.
+        var emisor = new Emisor(FallaEn<ObtenerClientesAutorizadosQuery>());
+        var componer = () => Componer(emisor);
+
+        await componer.Should().ThrowAsync<InvalidOperationException>();
+        emisor.Pedidas.Should().ContainSingle("la lista va primero y, si falla, no se lee nada más")
+            .Which.Should().BeOfType<ObtenerClientesAutorizadosQuery>();
+    }
+
+    [Fact]
+    public async Task La_cancelacion_se_propaga_tambien_en_una_parte_tolerada()
     {
         var componer = () => Componer(new Emisor(r =>
-            r is ObtenerAvatarPropioQuery ? throw new OperationCanceledException() : Respuestas(r)));
+            r is ObtenerPerfilVocabularioActualQuery ? throw new OperationCanceledException() : Respuestas(r)));
 
         await componer.Should().ThrowAsync<OperationCanceledException>();
     }
