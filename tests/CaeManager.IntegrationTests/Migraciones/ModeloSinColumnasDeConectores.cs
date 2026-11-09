@@ -34,6 +34,12 @@ internal static class ModeloSinColumnasDeConectores
             modelBuilder.Entity<Tenant>().Ignore(t => t.IntegracionHabilitada);
             modelBuilder.Entity<Tenant>().Ignore(t => t.TipoTenant);
             modelBuilder.Entity<ProveedorPlataformaCae>().Ignore(p => p.ConectorApiActivo);
+            // La columna es miembro de una FK compuesta y de un índice explícitos (CentroConfiguration): con un Ignore
+            // a secas la propiedad sigue en el modelo, así que primero se quitan la FK y el índice que la contienen.
+            var centro = modelBuilder.Entity<Centro>().Metadata;
+            var ancla = centro.FindProperty(nameof(Centro.RelacionEmpresarialEntradaId))!;
+            foreach (var fk in ancla.GetContainingForeignKeys().ToList()) centro.RemoveForeignKey(fk);
+            foreach (var indice in ancla.GetContainingIndexes().ToList()) centro.RemoveIndex(indice);
             modelBuilder.Entity<Centro>().Ignore(c => c.RelacionEmpresarialEntradaId);
         }
     }
