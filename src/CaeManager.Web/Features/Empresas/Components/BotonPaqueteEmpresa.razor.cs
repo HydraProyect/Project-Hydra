@@ -33,6 +33,7 @@ public partial class BotonPaqueteEmpresa : IAsyncDisposable
     private bool _errorDescargaSinVer;
     private Guid? _destinoUltimaDescarga;
     private IJSObjectReference? _modulo;
+    private ElementReference _cuerpo;
 
     /// <summary>
     /// Lo que se espera a que el servidor construya el zip y el navegador lo reciba entero. Pública, sin
@@ -72,12 +73,13 @@ public partial class BotonPaqueteEmpresa : IAsyncDisposable
         _destinoId = conservarError ? _destinoUltimaDescarga : null;
         _resumen = null;
         if (!conservarError) _errorDescarga = null;
-        await CargarAsync();
+        var vigente = await CargarYSaberSiSigueVigenteAsync();
 
         // Si el destino de la descarga fallida ya no se puede consultar (por ejemplo, terminó la Relación Empresarial), el error
         // de carga no daría salida: su «Reintentar» volvería a pedir ese mismo destino. Se abre como siempre, sin el motivo,
-        // porque ese paquete ya no se puede reintentar.
-        if (conservarError && _error && _abierto)
+        // porque ese paquete ya no se puede reintentar. Solo si esta carga sigue siendo la última: si la superó otra (se cerró y
+        // reabrió, o se eligió destino), `_error` ya es de esa otra y esta apertura no puede tocar nada.
+        if (vigente && conservarError && _error && _abierto)
         {
             _destinoInicialElegido = false;
             _destinoId = null;
@@ -101,7 +103,13 @@ public partial class BotonPaqueteEmpresa : IAsyncDisposable
     /// respuesta se descarta, para que el diálogo nunca anuncie el resumen de un destino con otro pulsado. Mientras carga,
     /// «Generar ZIP» está deshabilitado.
     /// </summary>
-    private async Task CargarAsync()
+    private Task CargarAsync() => CargarYSaberSiSigueVigenteAsync();
+
+    /// <summary>
+    /// <see cref="CargarAsync"/>, y dice si al terminar esta carga sigue siendo la última: si no, el estado que queda
+    /// (<c>_error</c>, <c>_resumen</c>) es de otra carga y quien esperaba a esta no debe decidir nada con él.
+    /// </summary>
+    private async Task<bool> CargarYSaberSiSigueVigenteAsync()
     {
         var version = ++_versionCarga;
         _cargando = true;
@@ -110,13 +118,13 @@ public partial class BotonPaqueteEmpresa : IAsyncDisposable
         try
         {
             var resultado = await Mediator.Send(new ObtenerResumenPaqueteEmpresaQuery(EmpresaId, _destinoId));
-            if (version != _versionCarga) return;
+            if (version != _versionCarga) return false;
             if (resultado.EsFallido)
             {
                 _error = true;
                 _mensajeError = resultado.Error.Mensaje;
                 _resumen = null;
-                return;
+                return true;
             }
 
             // La maqueta abre con el primer Cliente empresarial elegido: es lo que se le pide al Gestor CAE. El resumen de
@@ -127,8 +135,7 @@ public partial class BotonPaqueteEmpresa : IAsyncDisposable
                 if (resultado.Valor.Destinos.Count > 0)
                 {
                     _destinoId = resultado.Valor.Destinos[0].ClienteEmpresarialId;
-                    await CargarAsync();
-                    return;
+                    return await CargarYSaberSiSigueVigenteAsync();
                 }
             }
 
@@ -148,6 +155,8 @@ public partial class BotonPaqueteEmpresa : IAsyncDisposable
             if (version == _versionCarga)
                 _cargando = false;
         }
+
+        return version == _versionCarga;
     }
 
     private Task GenerarAsync() => GenerarAsync(reintento: false);
@@ -193,6 +202,27 @@ public partial class BotonPaqueteEmpresa : IAsyncDisposable
             _errorDescarga = error;
             _errorDescargaSinVer = _errorDescarga is not null && !_abierto;
             _generando = false;
+        }
+
+        // Si el reintento sale bien, la tarjeta se va con «Reintentar», que tenía el foco: antes de que se retire, el foco pasa
+        // al cuerpo del diálogo, que sigue ahí, para que Tab y Escape sigan llegando al diálogo y a su trampa de foco.
+        if (reintento && error is null && _abierto)
+            await EnfocarCuerpoAsync();
+    }
+
+    private async Task EnfocarCuerpoAsync()
+    {
+        try
+        {
+            await _cuerpo.FocusAsync();
+        }
+        catch (JSException)
+        {
+            // El cuerpo ya no está en el DOM (se repintó sin él): no hay a dónde llevar el foco dentro del diálogo.
+        }
+        catch (JSDisconnectedException)
+        {
+            // El circuito se fue: no queda pantalla.
         }
     }
 

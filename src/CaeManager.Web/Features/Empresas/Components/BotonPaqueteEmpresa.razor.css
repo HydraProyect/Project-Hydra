@@ -44,6 +44,13 @@ div.paquete-estado { display: flex; align-items: center; gap: 12px; flex-wrap: w
 .paquete-error-titulo { font: 600 14px/20px var(--font-family); color: var(--color-text); }
 .paquete-error-motivo { font: var(--font-caption); color: var(--color-text-muted); }
 .paquete-error-acciones { display: flex; gap: 8px; }
+/* «Reintentar» en espera no lleva `disabled` (perdería el foco): se ve como el disabled de Boton y con su spinner. */
+.paquete-dialogo ::deep .paquete-reintentar[aria-disabled="true"] { cursor: not-allowed; opacity: 0.55; }
+.paquete-reintentar-spinner {
+    width: 14px; height: 14px; border-radius: var(--radius-full);
+    border: 2px solid currentColor; border-top-color: transparent; animation: paquete-girar 0.6s linear infinite;
+}
+@keyframes paquete-girar { to { transform: rotate(360deg); } }
 .paquete-resumen { flex: 1; font: var(--font-caption); color: var(--color-text-muted); }
 
 /* Ancho del diálogo: 600 px, el de la maqueta (§ C). Modal solo ofrece 420/520/720 px; se fija en esta instancia con ::deep sobre

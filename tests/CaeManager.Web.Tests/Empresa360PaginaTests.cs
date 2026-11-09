@@ -760,18 +760,69 @@ public partial class Empresa360PaginaTests : BunitContext
 
         cut.Find("[role=dialog] .paquete-reintentar").Click();
 
-        // El botón no sale del DOM: si la tarjeta se retirara al empezar, el foco del teclado caería al documento.
+        // El botón no sale del DOM ni se deshabilita: un botón con `disabled` pierde el foco, que caería al documento, fuera
+        // del diálogo y de su trampa de foco. Lo que impide el segundo clic es aria-disabled y la guarda de GenerarAsync.
         var reintentar = cut.Find("[role=dialog] .paquete-error-descarga[role=alert] .paquete-reintentar");
-        reintentar.HasAttribute("disabled").Should().BeTrue("no se reintenta dos veces a la vez");
-        reintentar.QuerySelectorAll(".boton-spinner").Should().ContainSingle();
+        reintentar.HasAttribute("disabled").Should().BeFalse("el elemento con el foco no puede quedar deshabilitado");
+        reintentar.GetAttribute("aria-disabled").Should().Be("true");
+        reintentar.GetAttribute("aria-busy").Should().Be("true");
+        reintentar.QuerySelectorAll(".paquete-reintentar-spinner[aria-hidden=true]").Should().ContainSingle();
+        reintentar.Click();
+        modulo.Rutas.Should().HaveCount(2, "no se reintenta dos veces a la vez");
 
         modulo.Respuesta = new BotonPaqueteEmpresa.RespuestaDescarga(false, 409, "El paquete pasa de 200 archivos. Elige un Cliente concreto para prepararlo.");
         espera.SetResult();
 
         cut.WaitForAssertion(() => cut.Find("[role=dialog] .paquete-error-motivo").TextContent.Trim()
             .Should().Be("El paquete pasa de 200 archivos. Elige un Cliente concreto para prepararlo."));
-        cut.Find("[role=dialog] .paquete-reintentar").HasAttribute("disabled").Should().BeFalse();
+        cut.Find("[role=dialog] .paquete-reintentar").HasAttribute("aria-disabled").Should().BeFalse();
         modulo.Rutas.Should().HaveCount(2);
+    }
+
+    [Fact]
+    public void Si_el_reintento_vuelve_a_fallar_con_el_mismo_motivo_el_aviso_se_retira_y_se_vuelve_a_pintar()
+    {
+        // Con el mismo motivo, un alert cuyo texto no cambia no se vuelve a anunciar: durante el reintento el motivo sale del
+        // alert y, al fallar otra vez, vuelve a entrar. Un solo alert, para no anunciarlo dos veces.
+        const string generico = "No pudimos generar el paquete. Inténtalo de nuevo.";
+        var modulo = new ModuloDescargaQueAnota { Respuesta = new BotonPaqueteEmpresa.RespuestaDescarga(false, 0, null) };
+        Services.AddSingleton<IJSRuntime>(new JsConImportacionRetenida(JSInterop.JSRuntime, Task.FromResult<IJSObjectReference>(modulo)));
+        var cut = AbrirPaquete(Registrar(Empresa()));
+        cut.Find("[role=dialog] .paquete-generar").Click();
+        cut.WaitForAssertion(() => cut.Find("[role=dialog] .paquete-error-motivo").TextContent.Trim().Should().Be(generico));
+        var espera = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        modulo.Retener = espera.Task;
+
+        cut.Find("[role=dialog] .paquete-reintentar").Click();
+
+        cut.FindAll("[role=dialog] [role=alert] .paquete-error-motivo").Should().BeEmpty("mientras se reintenta el motivo se retira");
+
+        espera.SetResult();
+
+        cut.WaitForAssertion(() => cut.Find("[role=dialog] [role=alert] .paquete-error-motivo").TextContent.Trim().Should().Be(generico));
+        cut.FindAll("[role=dialog] [role=alert]").Should().ContainSingle();
+        modulo.Rutas.Should().HaveCount(2);
+    }
+
+    [Fact]
+    public void Si_el_reintento_sale_bien_el_foco_pasa_al_cuerpo_del_dialogo_antes_de_retirar_la_tarjeta()
+    {
+        var modulo = new ModuloDescargaQueAnota { Respuesta = new BotonPaqueteEmpresa.RespuestaDescarga(false, 0, null) };
+        Services.AddSingleton<IJSRuntime>(new JsConImportacionRetenida(JSInterop.JSRuntime, Task.FromResult<IJSObjectReference>(modulo)));
+        var cut = AbrirPaquete(Registrar(Empresa()));
+        cut.Find("[role=dialog] .paquete-generar").Click();
+        cut.WaitForAssertion(() => cut.FindAll("[role=dialog] .paquete-reintentar").Should().ContainSingle());
+        modulo.Respuesta = new BotonPaqueteEmpresa.RespuestaDescarga(true, 200, null);
+
+        cut.Find("[role=dialog] .paquete-reintentar").Click();
+
+        cut.WaitForAssertion(() => cut.FindAll("[role=dialog] .paquete-error-descarga").Should().BeEmpty());
+        // «Reintentar» tenía el foco y se va con la tarjeta: sin esto el foco caería al documento, fuera del diálogo.
+        var boton = cut.FindComponent<BotonPaqueteEmpresa>().Instance;
+        var cuerpo = (ElementReference)typeof(BotonPaqueteEmpresa)
+            .GetField("_cuerpo", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!.GetValue(boton)!;
+        JSInterop.VerifyFocusAsyncInvoke(1)[0].Arguments[0].Should().Be(cuerpo);
+        cut.Find("[role=dialog] .paquete-cuerpo").GetAttribute("tabindex").Should().Be("-1", "el cuerpo tiene que poder recibir el foco");
     }
 
     [Fact]
@@ -1029,6 +1080,42 @@ public partial class Empresa360PaginaTests : BunitContext
         cut.WaitForAssertion(() => cut.FindAll(".paquete-destino").Select(b => (b.TextContent.Trim(), b.GetAttribute("aria-pressed")))
             .Should().Equal(("Refrielectric S.A.", "true"), ("Grupo Arbeko", "false"), ("Todo lo vigente", "false")));
         cut.FindAll("[role=dialog] .paquete-error-descarga").Should().BeEmpty("ese paquete ya no se puede reintentar");
+    }
+
+    [Fact]
+    public void Una_apertura_anterior_que_termina_tarde_no_toca_el_error_de_la_apertura_actual()
+    {
+        var (cut, mediador, _) = FallarArbekoConElDialogoCerrado();
+        // La carga del destino que falló (Grupo Arbeko) queda retenida y fallará; la de la apertura nueva falla la primera vez.
+        var arbeko = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        mediador.Retener = q => q is ObtenerResumenPaqueteEmpresaQuery { ClienteEmpresarialId: var id } && id == OtroClientePaqueteId ? arbeko.Task : null;
+        var fallosDeTodo = 0;
+        var arbekoRespondido = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        mediador.ResumenPaquete = q =>
+        {
+            if (q.ClienteEmpresarialId == OtroClientePaqueteId) arbekoRespondido.TrySetResult();
+            return q.ClienteEmpresarialId == OtroClientePaqueteId || (q.ClienteEmpresarialId is null && fallosDeTodo++ == 0)
+                ? Result.Fallo<ResumenPaqueteEmpresaDto>(Error.Crear("NoEncontrada", "No encontrada."))
+                : Result.Exito(ResumenPaqueteDe(q.ClienteEmpresarialId));
+        };
+        var preparar = () => cut.FindAll(".cabecera-identidad-acciones button").Single(b => b.TextContent.Trim() == "Preparar paquete").Click();
+
+        preparar();
+        cut.Find("[role=dialog] .modal-cerrar").Click();
+        preparar();
+        cut.WaitForAssertion(() => cut.Find("[role=dialog] .paquete-estado[role=alert]").TextContent.Should().Contain("No encontrada."));
+        var consultasAntes = mediador.Enviadas.OfType<ObtenerResumenPaqueteEmpresaQuery>().Count();
+
+        arbeko.SetResult();
+        arbekoRespondido.Task.Wait(TimeSpan.FromSeconds(5)).Should().BeTrue();
+        // La respuesta y la continuación de la primera apertura corren en el mismo turno del dispatcher: un turno vacío después
+        // garantiza que ya terminó.
+        cut.InvokeAsync(() => { }).Wait();
+
+        // La continuación de la primera apertura no puede leer el error de esta como suyo ni lanzar la apertura normal encima.
+        mediador.Enviadas.OfType<ObtenerResumenPaqueteEmpresaQuery>().Should().HaveCount(consultasAntes);
+        cut.Find("[role=dialog] .paquete-estado[role=alert]").TextContent.Should().Contain("No encontrada.");
+        cut.FindAll(".paquete-destino").Should().BeEmpty();
     }
 
     /// <summary>

@@ -33,7 +33,7 @@
         }
         else
         {
-            <div class="paquete-cuerpo" aria-busy="@(_cargando ? "true" : "false")">
+            <div class="paquete-cuerpo" aria-busy="@(_cargando ? "true" : "false")" tabindex="-1" @ref="_cuerpo">
                 <div class="paquete-campo">
                     <span class="paquete-etiqueta" id="@IdPara">@Textos["Para"]</span>
                     <div class="paquete-destinos" role="group" aria-labelledby="@IdPara">
@@ -90,19 +90,32 @@
                 </div>
 
                 @* Tarjeta de error de la maqueta (§ C, «Barra de lote y estados»): etiqueta, título, motivo y «Reintentar», que repite
-                   la misma descarga con el destino del resumen anunciado. Mientras se reintenta la tarjeta sigue en el DOM con el
-                   botón en espera (como «Generar ZIP»), para no retirar el elemento con el foco si vuelve a fallar; si la
-                   descarga sale bien, la tarjeta desaparece. *@
+                   la misma descarga con el destino del resumen anunciado. Mientras se reintenta la tarjeta sigue en el DOM y el botón
+                   no lleva `disabled` sino aria-disabled (como el interruptor de SeguridadAccesoTarjeta): un botón deshabilitado
+                   pierde el foco y, fuera del diálogo, Tab y Escape ya no llegan a su trampa de foco. El doble clic lo para
+                   GenerarAsync. El motivo se retira durante el reintento y vuelve si falla otra vez, para que el alert cambie y se
+                   anuncie aunque el motivo sea el mismo; si la descarga sale bien, la tarjeta desaparece y el foco pasa al cuerpo. *@
                 @if (_errorDescarga is not null)
                 {
+                    var reintentando = _generando || _cargando;
                     <div class="paquete-error-descarga" role="alert">
                         <span class="paquete-error-etiqueta">@Textos["ErrorDescargaEtiqueta"]</span>
                         <span class="paquete-error-titulo">@Textos["ErrorDescargaTitulo"]</span>
-                        <span class="paquete-error-motivo">@_errorDescarga</span>
+                        @if (!_generando)
+                        {
+                            <span class="paquete-error-motivo">@_errorDescarga</span>
+                        }
                         @if (OfreceGenerar)
                         {
                             <span class="paquete-error-acciones">
-                                <Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno" class="paquete-reintentar" Cargando="_generando" Deshabilitado="_cargando" OnClick="ReintentarAsync">@Textos["Reintentar"]</Boton>
+                                <Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno" class="paquete-reintentar" OnClick="ReintentarAsync"
+                                       aria-disabled="@(reintentando ? "true" : null)" aria-busy="@(_generando ? "true" : null)">
+                                    @if (_generando)
+                                    {
+                                        <span class="paquete-reintentar-spinner" aria-hidden="true"></span>
+                                    }
+                                    @Textos["Reintentar"]
+                                </Boton>
                             </span>
                         }
                     </div>
