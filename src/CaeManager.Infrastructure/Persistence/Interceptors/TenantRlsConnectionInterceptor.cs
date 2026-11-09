@@ -101,7 +101,9 @@ namespace CaeManager.Infrastructure.Persistence.Interceptors;
 /// de una transacción no se realinea, igual que antes: la transacción ya retenía
 /// la conexión con el contexto de su <c>BEGIN</c>. La excepción es el
 /// <c>ROLLBACK TO SAVEPOINT</c>, que devuelve la sesión a la del punto de guardado
-/// con la transacción aún viva: ahí se vuelve a aplicar entera la vigente.
+/// con la transacción aún viva: ahí se realinea el rol (el contexto firmado no se
+/// vuelve a firmar dentro de la transacción) y la sesión queda incierta para el
+/// primer uso fuera de ella.
 /// </description></item>
 /// <item><description>
 /// <b>Caducidad.</b> La renovación de <see cref="FirmanteContextoRls.RenovarSiHaceFaltaAsync"/>
@@ -536,8 +538,8 @@ public class TenantRlsConnectionInterceptor(
     // se olvida todo: el siguiente comando fuera de ella vuelve a aplicar la
     // sesión entera. El Dispose sin confirmar no tiene gancho: lo cubre la marca de
     // TransaccionSinConfirmar, que solo el COMMIT retira. El ROLLBACK TO SAVEPOINT
-    // deja la transacción viva, así que no basta con olvidar: se reaplica la
-    // sesión vigente dentro de ella (ver RolledBackToSavepoint).
+    // deja la transacción viva, así que no basta con olvidar: se realinea el rol
+    // dentro de ella y se conserva el estado del firmante (ver RolledBackToSavepoint).
 
     DbTransaction IDbTransactionInterceptor.TransactionStarted(
         DbConnection connection, TransactionEndEventData eventData, DbTransaction result)
@@ -610,33 +612,51 @@ public class TenantRlsConnectionInterceptor(
     /// realinean. PostgreSQL ha devuelto el rol y el contexto al valor que tenían
     /// al crear el punto de guardado, que puede no ser el vigente: un rol de
     /// aprovisionamiento con el ámbito ya cerrado y devuelto a soporte, o el
-    /// contexto que el sellado firmó con el Tenant propietario de una cuenta. Olvidar
-    /// lo anotado, como antes, dejaba esos comandos con esa sesión y además dejaba
-    /// al sellado sin contexto firmado en memoria para restaurar el de base. Aquí
-    /// se vuelve a aplicar entera la sesión vigente (<c>RESET ROLE</c>, contexto
-    /// firmado y rol deseado) dentro de la transacción, antes de que corra nada
-    /// más. Es la misma sesión que fijaría una apertura nueva en este instante, así
-    /// que nunca concede más que eso. La marca de <see cref="TransaccionSinConfirmar"/>
-    /// sigue puesta: si la transacción termina sin COMMIT, esto también se deshace
-    /// y el siguiente uso fuera de ella aplica la sesión entera. Si la aplicación
-    /// falla, el error se propaga: la transacción queda abortada en PostgreSQL y
-    /// ningún comando más corre en ella.
+    /// contexto que el sellado firmó con el Tenant propietario de una cuenta.
+    ///
+    /// <para>
+    /// <b>El rol se realinea aquí mismo</b>: <c>RESET ROLE</c> y el
+    /// <c>SET ROLE</c> del rol que fijaría una apertura nueva en este instante
+    /// (<see cref="DebeAdoptarRolDeAprovisionamiento"/> sigue exigiendo ámbito,
+    /// sesión y Tenant), así que nunca concede más que eso.
+    /// </para>
+    /// <para>
+    /// <b>El contexto firmado no se vuelve a firmar dentro de la transacción</b>
+    /// (tercera revisión de Codex): una firma nueva podría usar una clave que la
+    /// instantánea de una transacción <c>REPEATABLE READ</c> todavía no ve y dejar
+    /// la transacción sin RLS utilizable. Se conserva el estado del firmante (sin
+    /// él, el sellado no podría volver a firmar el contexto de base al restaurar,
+    /// segunda revisión de Codex) y se retira solo la sesión anotada: fuera de la
+    /// transacción, la marca de <see cref="TransaccionSinConfirmar"/> o la falta de
+    /// anotación hacen que el siguiente uso aplique la sesión entera, también tras
+    /// un COMMIT.
+    /// </para>
+    /// <para>
+    /// La anotación y la marca se retiran antes de calcular nada: si algo falla,
+    /// la sesión queda incierta para todo uso fuera de la transacción. Un error de
+    /// PostgreSQL deja además la transacción abortada.
+    /// </para>
     /// </summary>
     void IDbTransactionInterceptor.RolledBackToSavepoint(DbTransaction transaction, TransactionEventData eventData) =>
-        ReaplicarTrasPuntoDeGuardadoAsync(ConexionDe(transaction, eventData), CancellationToken.None)
+        RealinearRolTrasPuntoDeGuardadoAsync(ConexionDe(transaction, eventData), CancellationToken.None)
             .GetAwaiter().GetResult();
 
     Task IDbTransactionInterceptor.RolledBackToSavepointAsync(
         DbTransaction transaction, TransactionEventData eventData, CancellationToken cancellationToken) =>
-        ReaplicarTrasPuntoDeGuardadoAsync(ConexionDe(transaction, eventData), CancellationToken.None);
+        RealinearRolTrasPuntoDeGuardadoAsync(ConexionDe(transaction, eventData), CancellationToken.None);
 
-    private async Task ReaplicarTrasPuntoDeGuardadoAsync(DbConnection? conexion, CancellationToken cancellationToken)
+    private async Task RealinearRolTrasPuntoDeGuardadoAsync(DbConnection? conexion, CancellationToken cancellationToken)
     {
         if (conexion is not NpgsqlConnection npgsql || npgsql.State != System.Data.ConnectionState.Open)
             return;
 
+        SesionPorConexion.Remove(npgsql);
         MarcarSinConfirmar(npgsql);
-        await AplicarAsync(npgsql, await SesionDeseadaAsync(), deshacerRolPrevio: true, cancellationToken);
+
+        var rolDeseado = (await SesionDeseadaAsync()).Rol;
+        await DeshacerRolAsync(npgsql, cancellationToken);
+        if (rolDeseado is not null)
+            await AdoptarRolAsync(npgsql, rolDeseado, cancellationToken);
     }
 
     private static void OlvidarSiHayConexion(DbConnection? conexion)

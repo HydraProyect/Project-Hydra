@@ -304,24 +304,30 @@ public class ConexionPorOperacionTests : IAsyncLifetime
         var elevacion = new ElevacionEscrituraPrivilegiada(contexto);
         var estrategia = contexto.Database.CreateExecutionStrategy();
 
-        var (rolTrasDevolver, rolTrasPuntoDeGuardado) = await puerta.EjecutarAsync(() => estrategia.ExecuteAsync(async () =>
-        {
-            var ambito = AmbitoEscrituraPrivilegiada.Establecer(sesion, TenantA);
-            (await RolActualAsync(contexto)).Rol.Should().Be("cae_app_aprovisionamiento", "control: dentro del ámbito");
-            await using var transaccion = await contexto.Database.BeginTransactionAsync();
-            await transaccion.CreateSavepointAsync("antes_de_devolver");
-            ambito.Dispose();
-            await elevacion.DevolverSiConexionAbiertaAsync();
-            var trasDevolver = (await RolActualAsync(contexto)).Rol;
-            await transaccion.RollbackToSavepointAsync("antes_de_devolver");
-            var trasPunto = (await RolActualAsync(contexto)).Rol;
-            await transaccion.CommitAsync();
-            return (trasDevolver, trasPunto);
-        }));
+        var (rolTrasDevolver, rolTrasPuntoDeGuardado, tokenAntes, tokenTrasPunto, rolTrasCommit) =
+            await puerta.EjecutarAsync(() => estrategia.ExecuteAsync(async () =>
+            {
+                var ambito = AmbitoEscrituraPrivilegiada.Establecer(sesion, TenantA);
+                (await RolActualAsync(contexto)).Rol.Should().Be("cae_app_aprovisionamiento", "control: dentro del ámbito");
+                await using var transaccion = await contexto.Database.BeginTransactionAsync();
+                var antes = await TokenAsync(contexto);
+                await transaccion.CreateSavepointAsync("antes_de_devolver");
+                ambito.Dispose();
+                await elevacion.DevolverSiConexionAbiertaAsync();
+                var trasDevolver = (await RolActualAsync(contexto)).Rol;
+                await transaccion.RollbackToSavepointAsync("antes_de_devolver");
+                var trasPunto = (await RolActualAsync(contexto)).Rol;
+                var tokenTrasPunto = await TokenAsync(contexto);
+                await transaccion.CommitAsync();
+                return (trasDevolver, trasPunto, antes, tokenTrasPunto, (await RolActualAsync(contexto)).Rol);
+            }));
 
         rolTrasDevolver.Should().Be("cae_app_soporte", "control: la vuelta dentro de la transacción se aplicó");
         rolTrasPuntoDeGuardado.Should().Be("cae_app_soporte",
-            "el ROLLBACK TO SAVEPOINT devolvería aprovisionamiento si nada reaplicara la sesión dentro de la transacción");
+            "el ROLLBACK TO SAVEPOINT devolvería aprovisionamiento si nada realineara el rol dentro de la transacción");
+        tokenTrasPunto.Should().Be(tokenAntes,
+            "dentro de la transacción no se vuelve a firmar: una clave nueva podría no ser visible para su instantánea");
+        rolTrasCommit.Should().Be("cae_app_soporte", "fuera de la transacción la sesión incierta se aplica entera");
     }
 
     /// <summary>
