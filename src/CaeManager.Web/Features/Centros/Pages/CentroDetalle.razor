@@ -367,7 +367,8 @@
                     </div>
                     @if (requisito.Archivado)
                     {
-                        <Badge Tono="TonoBadge.Advertencia" class="centro-requisito-estado" data-estado="sustituido">@Textos["RequisitoCentroSustituido360"]</Badge>
+                        @* Un archivado sin sustituto no está «sustituido»: nada lo cubre; solo está retirado del catálogo. *@
+                        <Badge Tono="TonoBadge.Advertencia" class="centro-requisito-estado" data-estado="@(requisito.NombreSustituto is null ? "archivado" : "sustituido")">@Textos[requisito.NombreSustituto is null ? "RequisitoCentroArchivado360" : "RequisitoCentroSustituido360"]</Badge>
                     }
                     else if (bloquea)
                     {

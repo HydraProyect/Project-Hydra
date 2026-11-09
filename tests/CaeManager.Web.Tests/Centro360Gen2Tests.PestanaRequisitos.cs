@@ -5,6 +5,7 @@ using CaeManager.Application.Centros.Queries.ObtenerDocumentacionRequeridaDeCent
 using CaeManager.Domain.Documentos;
 using CaeManager.Web.Components.Workspace;
 using FluentAssertions;
+using MediatR;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Web;
 using Microsoft.Extensions.DependencyInjection;
@@ -132,6 +133,8 @@ public partial class Centro360Gen2Tests
         // Aunque lleguen los últimos de la lectura, los que bloquean salen en los 5 primeros y el resto conserva su orden.
         NombresDe(empresa).Should().Equal("F bloquea", "G bloquea", "A", "B", "C");
         empresa.QuerySelectorAll("[data-estado=bloquea]").Should().HaveCount(2);
+        empresa.QuerySelectorAll(".centro-requisito-nombre-bloquea").Select(n => n.TextContent.Trim())
+            .Should().Equal("F bloquea", "G bloquea").And.NotContain("A", "solo los que bloquean llevan el nombre en negrita");
         empresa.QuerySelector(".centro-requisito [data-estado=bloquea]")!.TextContent.Trim().Should().Be("Bloquea el acceso");
         empresa.QuerySelector("[data-accion=ver-restantes]")!.TextContent.Trim().Should().Be("Ver los 2 restantes");
     }
@@ -179,6 +182,31 @@ public partial class Centro360Gen2Tests
 
         cut.WaitForAssertion(() =>
             Bloque(cut, "empresa").QuerySelector("[data-accion=ver-restantes]")!.TextContent.Trim().Should().Be("Ver los 4 restantes"));
+    }
+
+    [Fact]
+    public async Task El_filtro_y_el_despliegue_de_un_Centro_no_pasan_al_siguiente()
+    {
+        var a = Guid.NewGuid();
+        var b = Guid.NewGuid();
+        var cut = PestanaRequisitosCon(a,
+            [.. Enumerable.Range(1, 8).Select(i => Requisito($"Curso {i}", AmbitoAplicacion.Empresa))]);
+        var mediador = (MediatorFalso)Services.GetRequiredService<IMediator>();
+        mediador.Detalles[b] = Detalle(b, "Centro Norte");
+        mediador.Requisitos[b] = [.. Enumerable.Range(1, 8).Select(i => Requisito($"Curso B{i}", AmbitoAplicacion.Empresa))];
+        await Bloque(cut, "empresa").QuerySelector("[data-accion=ver-restantes]")!.ClickAsync(new MouseEventArgs());
+        await cut.Find("input[placeholder='Filtrar requisitos']").InputAsync(new ChangeEventArgs { Value = "curso 1" });
+        cut.WaitForAssertion(() => NombresDe(Bloque(cut, "empresa")).Should().Equal("Curso 1")); // control positivo: el filtro de A está activo
+
+        cut.Render(p => p.Add(x => x.CentroId, b));
+
+        cut.WaitForAssertion(() =>
+        {
+            cut.Markup.Should().Contain("Centro Norte");
+            NombresDe(Bloque(cut, "empresa")).Should().Equal("Curso B1", "Curso B2", "Curso B3", "Curso B4", "Curso B5");
+        });
+        cut.Find("input[placeholder='Filtrar requisitos']").GetAttribute("value").Should().BeNullOrEmpty();
+        Bloque(cut, "empresa").QuerySelector("[data-accion=ver-restantes]")!.TextContent.Trim().Should().Be("Ver los 3 restantes");
     }
 
     [Fact]
@@ -243,8 +271,10 @@ public partial class Centro360Gen2Tests
         var filas = trabajador.QuerySelectorAll(".centro-requisito").ToDictionary(f => f.QuerySelector(".centro-requisito-nombre")!.TextContent.Trim());
         filas["Tipo antiguo"].QuerySelector("[data-estado]")!.GetAttribute("data-estado").Should().Be("sustituido");
         filas["Tipo antiguo"].TextContent.Should().Contain("Sustituido").And.Contain("Sustituido por Tipo nuevo").And.NotContain("Bloquea el acceso");
-        filas["Sin sustituto"].QuerySelector("[data-estado]")!.GetAttribute("data-estado").Should().Be("sustituido");
-        filas["Sin sustituto"].TextContent.Should().NotContain("Bloquea el acceso").And.NotContain("Sustituido por");
+        // Sin sustituto nada lo cubre: se dice «Archivado», no «Sustituido».
+        filas["Sin sustituto"].QuerySelector("[data-estado]")!.GetAttribute("data-estado").Should().Be("archivado");
+        filas["Sin sustituto"].QuerySelector("[data-estado]")!.TextContent.Trim().Should().Be("Archivado");
+        filas["Sin sustituto"].TextContent.Should().NotContain("Bloquea el acceso").And.NotContain("Sustituido");
         filas["Vigente"].QuerySelector("[data-estado]")!.GetAttribute("data-estado").Should().Be("bloquea", "control positivo: el mismo requisito sin archivar sí bloquea");
         filas["Otro"].QuerySelector("[data-estado]")!.GetAttribute("data-estado").Should().Be("no-bloquea");
         NombresDe(trabajador).Should().Equal("Vigente", "Otro", "Tipo antiguo", "Sin sustituto");

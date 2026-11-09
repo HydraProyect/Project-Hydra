@@ -497,6 +497,7 @@
   <data name="RequisitoCentroTolerancia360" xml:space="preserve"><value>Tolerancia: {0} días</value></data>
   <data name="RequisitoCentroToleranciaUnDia360" xml:space="preserve"><value>Tolerancia: 1 día</value></data>
   <data name="RequisitoCentroSustituido360" xml:space="preserve"><value>Sustituido</value></data>
+  <data name="RequisitoCentroArchivado360" xml:space="preserve"><value>Archivado</value></data>
   <data name="RequisitoSustituidoPor360" xml:space="preserve"><value>Sustituido por {0}</value></data>
   <data name="FiltrarRequisitos360" xml:space="preserve"><value>Filtrar requisitos</value></data>
   <data name="GestionarRequisitos360" xml:space="preserve"><value>Gestionar requisitos</value></data>
