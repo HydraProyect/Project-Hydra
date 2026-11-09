@@ -56,9 +56,40 @@ public class ServerTimingCosteCargaTests
         contexto.Response.Headers.ContainsKey(CabeceraServerTiming.Nombre).Should().BeFalse();
     }
 
+    [Fact]
+    public async Task Un_html_que_no_sale_de_una_pagina_de_componentes_no_recibe_la_cabecera()
+    {
+        var (contexto, respuesta) = await Ejecutar(habilitado: true, autenticado: true, tipo: "text/html",
+            paginaSsr: false);
+
+        respuesta.DispararOnStarting();
+
+        contexto.Response.Headers.ContainsKey(CabeceraServerTiming.Nombre).Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task Si_no_se_puede_resolver_el_acumulador_la_peticion_sigue_sin_cabecera()
+    {
+        var contexto = new DefaultHttpContext { RequestServices = new ProveedorQueFalla() };
+        var siguienteLlamado = false;
+        var middleware = new ServerTimingCosteCargaMiddleware(_ => { siguienteLlamado = true; return Task.CompletedTask; },
+            Options.Create(new OpcionesServerTiming { Habilitado = true }));
+
+        var invocar = () => middleware.InvokeAsync(contexto);
+
+        await invocar.Should().NotThrowAsync();
+        siguienteLlamado.Should().BeTrue();
+    }
+
+    private sealed class ProveedorQueFalla : IServiceProvider
+    {
+        public object? GetService(Type serviceType) => throw new ObjectDisposedException("scope");
+    }
+
     [Theory]
     [InlineData("application/json")]
     [InlineData("text/css")]
+    [InlineData("text/html-extra")]
     [InlineData(null)]
     public async Task Una_respuesta_que_no_es_pagina_no_recibe_la_cabecera(string? tipo)
     {
@@ -137,7 +168,7 @@ public class ServerTimingCosteCargaTests
 
     private static async Task<(HttpContext Contexto, RespuestaQueCapturaOnStarting Respuesta)> Ejecutar(
         bool habilitado, bool autenticado, string? tipo, Action<CosteCarga>? gastar = null,
-        string ruta = "/", string usuario = "u", bool autenticarDespues = false)
+        string ruta = "/", string usuario = "u", bool autenticarDespues = false, bool paginaSsr = true)
     {
         var servicios = new ServiceCollection();
         servicios.AddScoped<CosteCarga>();
@@ -147,6 +178,9 @@ public class ServerTimingCosteCargaTests
         var contexto = new DefaultHttpContext { RequestServices = proveedor };
         contexto.Features.Set<IHttpResponseFeature>(respuesta);
         contexto.Request.Path = ruta;
+        contexto.SetEndpoint(new Endpoint(_ => Task.CompletedTask, paginaSsr
+            ? new EndpointMetadataCollection(new Microsoft.AspNetCore.Components.Endpoints.ComponentTypeMetadata(typeof(PaginaDePrueba)))
+            : EndpointMetadataCollection.Empty, ruta));
         contexto.User = autenticado
             ? new ClaimsPrincipal(new ClaimsIdentity([new Claim(ClaimTypes.Name, usuario)], "Prueba"))
             : new ClaimsPrincipal(new ClaimsIdentity());
@@ -165,6 +199,8 @@ public class ServerTimingCosteCargaTests
         await middleware.InvokeAsync(contexto);
         return (contexto, respuesta);
     }
+
+    private sealed class PaginaDePrueba : Microsoft.AspNetCore.Components.ComponentBase;
 
     private sealed class RespuestaQueCapturaOnStarting : HttpResponseFeature
     {

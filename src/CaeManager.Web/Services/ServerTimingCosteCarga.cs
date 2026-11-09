@@ -76,12 +76,21 @@ public sealed class ServerTimingCosteCargaMiddleware(RequestDelegate siguiente, 
 
     public Task InvokeAsync(HttpContext contexto)
     {
-        if (opciones.Value.Habilitado
-            && !contexto.Items.ContainsKey(MarcaRegistrada)
-            && contexto.RequestServices?.GetService<CosteCarga>() is { } coste)
+        if (opciones.Value.Habilitado && !contexto.Items.ContainsKey(MarcaRegistrada))
         {
-            contexto.Items[MarcaRegistrada] = true;
-            contexto.Response.OnStarting(EscribirCabecera, new Estado(contexto, coste));
+            // Una medición no puede tumbar la petición: si no se puede resolver el acumulador o
+            // registrar el OnStarting (respuesta ya empezada), la petición sigue sin cabecera.
+            try
+            {
+                if (contexto.RequestServices?.GetService<CosteCarga>() is { } coste)
+                {
+                    contexto.Items[MarcaRegistrada] = true;
+                    contexto.Response.OnStarting(EscribirCabecera, new Estado(contexto, coste));
+                }
+            }
+            catch (Exception ex) when (ex is InvalidOperationException or ObjectDisposedException or NotSupportedException)
+            {
+            }
         }
 
         return siguiente(contexto);
@@ -92,21 +101,33 @@ public sealed class ServerTimingCosteCargaMiddleware(RequestDelegate siguiente, 
     private static Task EscribirCabecera(object estado)
     {
         var (contexto, coste) = (Estado)estado;
+        try
+        {
+            // La decisión se toma aquí y no al entrar: este middleware va antes de UseAuthentication,
+            // y es al empezar la respuesta cuando el usuario, el endpoint y el tipo ya están fijados.
+            if (contexto.User.Identity?.IsAuthenticated == true
+                && EsPaginaSsr(contexto)
+                && EsHtml(contexto.Response.ContentType))
+            {
+                contexto.Response.Headers.Append(CabeceraServerTiming.Nombre, CabeceraServerTiming.Formatear(coste.Leer()));
+            }
+        }
+        catch (Exception ex) when (ex is InvalidOperationException or ObjectDisposedException or NotSupportedException)
+        {
+            // Cabeceras ya de solo lectura o contexto liberado: la respuesta sale sin la cabecera.
+        }
 
-        // La decisión se toma aquí y no al entrar: este middleware va antes de UseAuthentication,
-        // y es al empezar la respuesta cuando el usuario y el tipo de contenido ya están fijados.
-        if (contexto.User.Identity?.IsAuthenticated != true)
-            return Task.CompletedTask;
-
-        if (!EsHtml(contexto.Response.ContentType))
-            return Task.CompletedTask;
-
-        contexto.Response.Headers.Append(CabeceraServerTiming.Nombre, CabeceraServerTiming.Formatear(coste.Leer()));
         return Task.CompletedTask;
     }
 
+    /// <summary>Una página de componentes (SSR), no un endpoint de API, un fichero o un HTML de otra fuente.</summary>
+    private static bool EsPaginaSsr(HttpContext contexto) =>
+        contexto.GetEndpoint()?.Metadata.GetMetadata<Microsoft.AspNetCore.Components.Endpoints.ComponentTypeMetadata>() is not null;
+
+    /// <summary>Tipo MIME exacto <c>text/html</c>, con o sin parámetros; no <c>text/html-algo</c>.</summary>
     private static bool EsHtml(string? tipo) =>
-        tipo is not null && tipo.StartsWith("text/html", StringComparison.OrdinalIgnoreCase);
+        Microsoft.Net.Http.Headers.MediaTypeHeaderValue.TryParse(tipo, out var valor)
+        && valor.MediaType.Equals("text/html", StringComparison.OrdinalIgnoreCase);
 }
 
 public static class ServerTimingCosteCargaExtensions

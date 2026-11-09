@@ -97,6 +97,40 @@ public class MedicionCargaCircuitoHandlerTests
     }
 
     [Fact]
+    public async Task Un_cambio_de_solo_consulta_no_abre_una_carga_nueva()
+    {
+        var (handler, coste, navegacion, logger, reloj) = Crear(habilitado: true, uriInicial: "http://localhost/empresas");
+
+        await handler.OnCircuitOpenedAsync(null!, default);
+        coste.RegistrarComando(TimeSpan.FromMilliseconds(1));
+        navegacion.Navegar("http://localhost/empresas?q=acme");
+        navegacion.Navegar("http://localhost/empresas#arriba");
+        coste.RegistrarComando(TimeSpan.FromMilliseconds(1));
+        await handler.OnCircuitClosedAsync(null!, default);
+
+        logger.Entradas.Should().ContainSingle();
+        logger.Entradas[0].Valor("Comandos").Should().Be(2L);
+        reloj.Temporizadores.Should().ContainSingle();
+    }
+
+    [Fact]
+    public async Task La_suma_de_las_cargas_es_el_total_sin_contar_nada_dos_veces()
+    {
+        var (handler, coste, navegacion, logger, _) = Crear(habilitado: true, uriInicial: "http://localhost/");
+
+        await handler.OnCircuitOpenedAsync(null!, default);
+        for (var i = 0; i < 5; i++)
+        {
+            coste.RegistrarComando(TimeSpan.FromMilliseconds(1));
+            navegacion.Navegar(i % 2 == 0 ? "http://localhost/empresas" : "http://localhost/");
+        }
+
+        await handler.OnCircuitClosedAsync(null!, default);
+
+        logger.Entradas.Sum(e => (long)e.Valor("Comandos")!).Should().Be(coste.Leer().Comandos);
+    }
+
+    [Fact]
     public async Task Con_la_opcion_inactiva_no_registra_ni_se_suscribe()
     {
         var (handler, coste, navegacion, logger, reloj) = Crear(habilitado: false, uriInicial: "http://localhost/empresas");

@@ -113,9 +113,20 @@ public sealed class MedicionCargaCircuitoHandler : CircuitHandler, IDisposable
     /// </summary>
     public void IniciarCarga(string rutaRelativa)
     {
-        var nueva = new Carga(_plantillas.Resolver(QuitarConsulta(rutaRelativa)), _coste.Leer(), _reloj.GetTimestamp());
+        // Un cambio de solo consulta o fragmento (filtros, búsqueda, pestaña) no es una carga de
+        // página nueva: sigue contando en la carga en curso. La ruta se compara en memoria y no
+        // se registra nunca.
+        var ruta = QuitarConsulta(rutaRelativa);
+        if (Volatile.Read(ref _enCurso) is { } enCurso
+            && string.Equals(enCurso.Ruta, ruta, StringComparison.OrdinalIgnoreCase))
+            return;
+
+        // Una sola instantánea de frontera: cierra la carga anterior y abre la nueva, así ningún
+        // comando cuenta en las dos.
+        var frontera = _coste.Leer();
+        var nueva = new Carga(ruta, _plantillas.Resolver(ruta), frontera, _reloj.GetTimestamp());
         var anterior = Interlocked.Exchange(ref _enCurso, nueva);
-        Terminar(anterior, MotivoNavegacion);
+        Terminar(anterior, MotivoNavegacion, frontera);
 
         var ventana = TimeSpan.FromSeconds(Math.Max(1, _opciones.VentanaCargaCircuitoSegundos));
         nueva.Temporizador = _reloj.CreateTimer(
@@ -128,13 +139,13 @@ public sealed class MedicionCargaCircuitoHandler : CircuitHandler, IDisposable
 
     public void TerminarCargaEnCurso(string motivo) => Terminar(Interlocked.Exchange(ref _enCurso, null), motivo);
 
-    private void Terminar(Carga? carga, string motivo)
+    private void Terminar(Carga? carga, string motivo, InstantaneaCosteCarga? fin = null)
     {
         if (carga is null || !carga.MarcarTerminada())
             return;
 
         carga.Temporizador?.Dispose();
-        var coste = _coste.Leer().Menos(carga.Inicio);
+        var coste = (fin ?? _coste.Leer()).Menos(carga.Inicio);
         var duracion = _reloj.GetElapsedTime(carga.InicioMarca);
         _logger.LogInformation(
             "Coste de carga en circuito de {Plantilla}: {BaseDatosMs:0.0} ms de BD en {Comandos} comandos, "
@@ -164,9 +175,12 @@ public sealed class MedicionCargaCircuitoHandler : CircuitHandler, IDisposable
         Interlocked.Exchange(ref _enCurso, null)?.Temporizador?.Dispose();
     }
 
-    private sealed class Carga(string plantilla, InstantaneaCosteCarga inicio, long inicioMarca)
+    private sealed class Carga(string ruta, string plantilla, InstantaneaCosteCarga inicio, long inicioMarca)
     {
         private int _terminada;
+
+        /// <summary>Solo para comparar en memoria; nunca se registra.</summary>
+        public string Ruta { get; } = ruta;
 
         public string Plantilla { get; } = plantilla;
 
