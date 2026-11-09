@@ -110,7 +110,7 @@ public class InicioGen2Tests : BunitContext
     [InlineData("plataforma")]
     [InlineData("rechazada")]
     [InlineData("bloqueo")]
-    [InlineData("vencimiento")]
+    [InlineData("urgente")]
     public void Con_pendientes_el_anillo_no_presenta_un_cien_por_cien(string origen)
     {
         var kpis = KpisACero() with
@@ -120,7 +120,7 @@ public class InicioGen2Tests : BunitContext
             TasaCumplimientoDocumental = 100,
             TienePendientesDocumentales = origen is "centro" or "empresa",
             TrabajadoresBloqueados = origen == "bloqueo" ? 1 : 0,
-            DocumentosProximos = origen == "vencimiento" ? 1 : 0
+            DocumentosUrgentes = origen == "urgente" ? 1 : 0
         };
         var mediador = new MediadorDeInicio
         {
@@ -135,6 +135,30 @@ public class InicioGen2Tests : BunitContext
         cut.Find(".dashboard-resumen-anillo-titulo").TextContent.Should().Be("Hay pendientes");
         cut.Find(".dashboard-resumen").TextContent.Should().NotContain("100%");
         cut.Find(".dashboard-resumen").InnerHtml.Should().NotContain("100% de cumplimiento");
+    }
+
+    /// <summary>
+    /// Revisión 1:1 del 2026-11-09 (Tenant beneficiario autónomo y Tenant con todo en verde): con la cola vacía, el cierre dice
+    /// «Nada pendiente ahora mismo» y anuncia el próximo vencimiento; un documento por vencer (Próximo, el umbral «todavía no
+    /// urgente» que la cola deja fuera) no puede hacer que el anillo diga «Hay pendientes» justo debajo ni esconder un 100 %
+    /// que el anillo cuenta como al día.
+    /// </summary>
+    [Fact]
+    public void Un_vencimiento_proximo_con_la_cola_vacia_no_esconde_el_cien_por_cien_ni_contradice_el_cierre()
+    {
+        var cut = Renderizar(new MediadorDeInicio
+        {
+            Kpis = KpisACero() with
+            {
+                TrabajadoresActivos = 1, DocumentosVigentes = 3, DocumentosProximos = 1, DocumentosEmpresaProximos = 1,
+                TasaCumplimientoDocumental = 100
+            },
+            ProximoVencimiento = new ProximoVencimientoDto("A. García", "Recibo de cuota de autónomos", new DateOnly(2026, 11, 30), 21)
+        });
+
+        cut.Find(".inicio-cierre-texto").TextContent.Should().StartWith("Nada pendiente ahora mismo.");
+        cut.Find(".dashboard-resumen-anillo-titulo").TextContent.Should().Be("100% de cumplimiento documental");
+        cut.Find(".dashboard-resumen").TextContent.Should().NotContain("Hay pendientes");
     }
 
     [Fact]
@@ -733,7 +757,7 @@ public class InicioGen2Tests : BunitContext
             }
         });
 
-        PistaDelKpi(cut, "Vigentes").Should().Be("25 más al día (por vencer o sin caducidad) · 27 no al día (vencidos o sin confirmar)");
+        PistaDelKpi(cut, "Vigentes").Should().Be("+25 por vencer o sin caducidad = 105 al día · 27 de 132 no al día (vencidos o sin confirmar)");
         cut.Find(".dashboard-resumen-anillo-detalle").TextContent.Trim().Should().StartWith("105 de 132 documentos de Trabajador al día");
     }
 
@@ -1136,7 +1160,8 @@ public class InicioGen2Tests : BunitContext
         var cut = Renderizar(new MediadorDeInicio());
 
         cut.Find(".dashboard-resumen-anillo-detalle").TextContent.Trim()
-            .Should().Be("3.983 de 4.383 documentos de Trabajador al día (vigentes, por vencer y sin caducidad)");
+            .Should().Be("3.983 de 4.383 documentos de Trabajador al día (vigentes, por vencer y sin caducidad). Mide los documentos "
+                + "subidos: los que faltan no cuentan aquí, y sí en Empresas y en las fichas de Empresa y de Trabajador.");
 
         DestinoDelKpi(cut, "Trabajadores activos").Should().Be("/trabajadores");
         DestinoDelKpi(cut, "Centros / plataformas").Should().Be("/centros");
