@@ -179,11 +179,11 @@ public class FlujoCicloDocumentalTests(WebAppFixture fixture)
         var filaDocumento = page.GetByRole(AriaRole.Row, new() { Name = apellidosTrabajador });
         await filaDocumento.WaitForAsync(new LocatorWaitForOptions { Timeout = 15_000 });
         // Desde el 2026-10-08 Urgente y Próximo comparten la pastilla «Por vencer» (ámbar); lo que
-        // dice que está a 10 días —dentro del umbral rojo— es el motivo de debajo.
+        // dice que está a 10 días —dentro del umbral rojo— es el relativo de «Vence» (Estado ya no lo repite).
         var insigniaEstado = filaDocumento.Locator(".badge-advertencia");
         await insigniaEstado.WaitForAsync(new LocatorWaitForOptions { Timeout = 15_000 });
         Assert.Equal("Por vencer", (await insigniaEstado.InnerTextAsync()).Trim());
-        Assert.Matches("^Caduca en (9|10|11) días$", (await filaDocumento.Locator(".estado-fila-motivo").InnerTextAsync()).Trim());
+        Assert.Matches("^en (9|10|11) días$", (await filaDocumento.Locator(".documentos-vigencia-subtitulo").InnerTextAsync()).Trim());
 
         // --- Paso 5 (IA + Validación): la revisión IA aparece y se resuelve ---
         // /documentos/revision-ia carga sus datos una sola vez al entrar

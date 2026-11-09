@@ -83,7 +83,7 @@ public class ConsultasPorNavegacionTests(WebAppFixtureConConsultasSql fixture)
         var consultasDelGetCrudo = MedidorConsultasSql.Contar(medidor.ComandosDesde(marcaPrerender), fragmentoSql);
 
         // Incidencias ya no es entrada del menú (Design, 2026-10-17): es pestaña de la sección Documentos, en la
-        // barra de 48 px bajo la cabecera. Se llega a Documentos antes de medir, para medir solo la navegación a la pestaña.
+        // barra de pestañas de la propia página Documentos (la de sección del marco no se pinta ahí). Se llega a Documentos antes de medir, para medir solo la navegación a la pestaña.
         var esPestanaDeDocumentos = ruta == "incidencias";
         if (esPestanaDeDocumentos)
         {
@@ -96,7 +96,7 @@ public class ConsultasPorNavegacionTests(WebAppFixtureConConsultasSql fixture)
         // Navegación mejorada (NavLink): solo el circuito.
         var marcaNavegacion = medidor.MarcarAhora();
         var enlace = (esPestanaDeDocumentos
-            ? page.Locator($"a.barra-seccion-enlace[href='{ruta}']")
+            ? page.GetByRole(AriaRole.Tab, new() { Name = "Incidencias" })
             : page.Locator($"a.nav-item[href='{ruta}']")).First;
         await Assertions.Expect(enlace).ToBeVisibleAsync(new LocatorAssertionsToBeVisibleOptions { Timeout = 15_000 });
         await enlace.ClickAsync();
