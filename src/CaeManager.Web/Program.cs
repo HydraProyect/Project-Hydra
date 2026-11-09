@@ -290,6 +290,11 @@ builder.Services.AddTransient<Microsoft.AspNetCore.Authorization.Policy.IPolicyE
 builder.Services.AddSingleton<CaeManager.Web.Services.IContadorPendientesSelectorTenant>(
     _ => new CaeManager.Web.Services.ContadorPendientesSelectorTenant(TimeProvider.System));
 builder.Services.AddScoped<CaeManager.Web.Services.ILectorRecientesSelectorTenant, CaeManager.Web.Services.LectorRecientesSelectorTenant>();
+// Contexto del marco (pieza 1.3): un despacho por ámbito, compartido por los componentes del marco. Scoped (petición o
+// circuito), nunca singleton, y también como IMemoPorContexto, la MISMA instancia, para que cada Command lo descarte.
+builder.Services.AddScoped<CaeManager.Web.Components.Layout.ContextoMarcoDelAmbito>();
+builder.Services.AddScoped<CaeManager.Application.Common.IMemoPorContexto>(
+    sp => sp.GetRequiredService<CaeManager.Web.Components.Layout.ContextoMarcoDelAmbito>());
 builder.Services.AddScoped<CaeManager.Application.Tenants.IVistaVocabularioPreviewService, CaeManager.Web.Services.VistaVocabularioPreviewCookie>();
 // Lente de demo (selector Dirección / Coordinador CAE / Gestor CAE): APAGADA por defecto y solo
 // para cuentas y Tenants de demo. Vive aqui y no en AddInfrastructure a proposito: un host sin la
@@ -718,6 +723,12 @@ builder.Services.AddScoped<CircuitHandler>(sp => sp.GetRequiredService<CaeManage
 // conexión). Sin esto, un cierre a mitad de una consulta corrompe el protocolo
 // de la conexión y la deja en el pool: ver la clase.
 builder.Services.AddScoped<CircuitHandler, CaeManager.Web.Services.LiberacionDeAccesoADatosAlCerrarCircuito>();
+
+// Coste de cada carga (pieza 0.1 del plan de rendimiento): cabecera Server-Timing en las respuestas SSR
+// de página. Apagado por defecto; ver OpcionesServerTiming. Las cargas dentro del circuito interactivo
+// aún no se miden (issue #2136).
+builder.Services.Configure<CaeManager.Web.Services.OpcionesServerTiming>(
+    builder.Configuration.GetSection(CaeManager.Web.Services.OpcionesServerTiming.Seccion));
 
 // Health check real (P0-5 de Project-Hydra-Negocio/MATURITY_REVIEW.md): /salud
 // respondía "ok" incondicional — con PostgreSQL caído seguía dando 200 y
@@ -1401,6 +1412,11 @@ app.UseHttpsRedirection();
 // Antes de todo lo que produce respuesta (páginas, endpoints y estáticos):
 // las cabeceras han de ir en cualquier respuesta, incluidas las de error.
 app.UseCabecerasSeguridad();
+
+// Antes de todo lo que consulta la base, para que la cabecera recoja también el coste de los
+// middlewares. Solo registra un OnStarting: decide en ese momento (usuario ya autenticado, tipo
+// de respuesta ya fijado) si la añade. Apagado salvo Observabilidad:ServerTiming:Habilitado.
+app.UseServerTimingCosteCarga();
 
 // Detrás de las cabeceras de seguridad (el 503 las reaplica y conserva el HSTS; ver
 // PresupuestoMemoriaAgotadoExtensions): sin hueco en el presupuesto de memoria de
