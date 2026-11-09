@@ -115,7 +115,7 @@ public class FlujoCriticoTests(WebAppFixture fixture)
         // TipoDocumentoSeedData) — habilita el campo de fecha de vencimiento
         // manual, indispensable para fijar determinísticamente el estado del
         // semáforo en vez de depender del cálculo automático por meses.
-        await drawer.GetByLabel("Tipo de documento").SelectOptionAsync(new SelectOptionValue { Label = "Formación PRL de convenio" });
+        await Ayudas.ElegirOpcionEnSelectorAvanzadoPorTextoAsync(page, drawer.GetByLabel("Tipo de documento"), "Formación PRL de convenio");
 
         var hoy = Ayudas.HoyDeNegocio();
         // Exact: true — sin esto, GetByLabel hace match por substring y también
