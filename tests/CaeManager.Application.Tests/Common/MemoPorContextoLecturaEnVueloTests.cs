@@ -162,6 +162,67 @@ public class MemoPorContextoLecturaEnVueloTests
     }
 
     [Fact]
+    public async Task Si_la_cancelacion_de_quien_empezo_llega_como_otra_excepcion_quien_se_unio_reintenta()
+    {
+        var memo = new MemoDePrueba();
+        var veces = 0;
+        async Task<string> FallaAlCancelar(CancellationToken ct)
+        {
+            veces++;
+            try { await Task.Delay(Timeout.Infinite, ct); }
+            catch (OperationCanceledException) { throw new ObjectDisposedException("conexión"); }
+            return "nunca";
+        }
+        Task<string> Propio(CancellationToken _) { veces++; return Task.FromResult("de la segunda"); }
+
+        using var cancelacionDeLaPrimera = new CancellationTokenSource();
+        var primera = memo.ObtenerOCalcularAsync(Clave, FallaAlCancelar, cancelacionDeLaPrimera.Token);
+        var segunda = memo.ObtenerOCalcularAsync(Clave, Propio, CancellationToken.None);
+
+        await cancelacionDeLaPrimera.CancelAsync();
+
+        await Assert.ThrowsAsync<ObjectDisposedException>(() => primera.WaitAsync(Tope));
+        (await segunda.WaitAsync(Tope)).Should().Be("de la segunda");
+        veces.Should().Be(2);
+    }
+
+    [Fact]
+    public async Task Una_tarea_hija_del_calculo_con_la_misma_clave_no_se_espera_a_su_llamante()
+    {
+        var memo = new MemoDePrueba();
+        async Task<string> Exterior(CancellationToken ct)
+        {
+            var hijas = await Task.WhenAll(
+                Task.Run(() => memo.ObtenerOCalcularAsync(Clave, _ => Task.FromResult("hija"), ct), ct),
+                Task.Run(() => memo.ObtenerOCalcularAsync(Clave, _ => Task.FromResult("hija"), ct), ct));
+            return string.Join("+", hijas);
+        }
+
+        (await memo.ObtenerOCalcularAsync(Clave, Exterior, CancellationToken.None).WaitAsync(Tope))
+            .Should().Be("hija+hija");
+    }
+
+    [Fact]
+    public async Task Un_fallo_anterior_a_Invalidar_no_retira_la_entrada_posterior()
+    {
+        var memo = new MemoDePrueba();
+        var anterior = Pendiente();
+        var veces = 0;
+        Task<string> Calcular(CancellationToken _) =>
+            ++veces == 1 ? anterior.Task : Task.FromResult("posterior");
+
+        var primera = memo.ObtenerOCalcularAsync(Clave, Calcular, CancellationToken.None);
+        memo.Invalidar();
+        (await memo.ObtenerOCalcularAsync(Clave, Calcular, CancellationToken.None)).Should().Be("posterior");
+
+        anterior.SetException(new InvalidOperationException("fallo de la lectura anterior"));
+        await Assert.ThrowsAsync<InvalidOperationException>(() => primera.WaitAsync(Tope));
+
+        (await memo.ObtenerOCalcularAsync(Clave, Calcular, CancellationToken.None)).Should().Be("posterior");
+        veces.Should().Be(2, "el fallo del cálculo viejo no retira la entrada del nuevo");
+    }
+
+    [Fact]
     public async Task Invalidar_con_una_lectura_en_vuelo_hace_que_la_llamada_siguiente_no_se_una_a_ella()
     {
         var memo = new MemoDePrueba();

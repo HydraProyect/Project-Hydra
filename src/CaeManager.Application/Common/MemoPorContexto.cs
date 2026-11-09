@@ -152,8 +152,11 @@ public abstract class MemoPorContexto<TValor>(TimeProvider? reloj = null) : IMem
         {
             valor = Congelar(await calcular(cancellationToken));
         }
-        catch (OperationCanceledException)
+        catch (Exception error) when (error is OperationCanceledException || cancellationToken.IsCancellationRequested)
         {
+            // Con el token de quien lo empezó ya cancelado, el proveedor puede expresar la cancelación con otra
+            // excepción (una de E/S, un objeto ya dispuesto): para quien se unió sigue siendo una cancelación
+            // ajena y reintenta.
             Retirar(clave, entrada);
             publicacion.TrySetCanceled();
             throw;
