@@ -155,6 +155,8 @@
                                                        OnConfirmar="() => ConfirmarAsync(entrada.Plan!)"
                                                        OnDescartar="() => DescartarPlanAsync(entrada.Plan!)"
                                                        OnElegirTenant="id => ElegirTenantAsync(entrada.Plan!, id)"
+                                                       OnCambiarDato="valor => CambiarDatoAsync(entrada.Plan!, valor)"
+                                                       OnReintentar="() => ReintentarAsync(entrada.Plan!)"
                                                        OnEscape="PlegarPorEscape" />
                                         break;
                                 }

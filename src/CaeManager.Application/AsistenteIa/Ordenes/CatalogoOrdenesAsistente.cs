@@ -161,15 +161,11 @@ public static class CatalogoOrdenesAsistente
             ],
             Ejecutable: true,
             Limitacion:
-                "Dos cosas, y la segunda es la que más engaña. Una: la fecha de fin no se registra " +
-                "al ejecutar, porque CrearAsignacionCommand acepta (TrabajadorId, CentroId, " +
-                "FechaAlta) y no tiene fecha de fin; se cierra después con " +
-                "DarDeBajaAsignacionCommand, así que el asistente deja la fecha de fin como " +
-                "pendiente y lo dice. Dos: el Command da el alta EN TALVEG. Cuando el Centro se " +
-                "gestiona por plataforma, el alta que decide si la persona entra es la de ese " +
-                "portal, y la hace el Gestor CAE con la extensión aportando la documentación. " +
-                "Ejecutar el Command y decir «ya está de alta» sería cierto en TALVEG y falso " +
-                "donde importa.",
+                "El alta queda hecha en TALVEG, no en la plataforma del Cliente empresarial: si el " +
+                "Centro se gestiona por plataforma, el alta que decide si la persona entra la " +
+                "tienes que hacer tú en ese portal, con la documentación. La fecha de fin no se " +
+                "guarda al dar el alta; cuando acabe, da de baja la asignación desde la ficha del " +
+                "Trabajador.",
             EnviaComunicacionExterna: false,
             RequiereConfirmacion: true),
 
@@ -193,6 +189,9 @@ public static class CatalogoOrdenesAsistente
                     "Día de la visita, o primer día si abarca varios."),
                 new CampoDeOrden("fecha_fin", FormaDeExtraccion.PartesCerradas, Obligatorio: true,
                     "Último día de la visita. Coincide con el inicio cuando es de un solo día."),
+                // CrearVisitaCommand rechaza un Centro fuera de la Asignación de Cartera como si
+                // no existiera; a los Trabajadores solo les exige ser del Tenant. Acotarlos a la
+                // cartera es decisión del catálogo (LectorCandidatosAsistente), no del Command.
                 new CampoDeOrden("trabajadores", FormaDeExtraccion.SeleccionDeCatalogo, Obligatorio: true,
                     "Personas que acceden. Obligatorio: CrearVisitaCommand rechaza una visita sin " +
                     "ningún trabajador, así que sin esto el plan se confirmaría y luego fallaría."),
@@ -203,16 +202,10 @@ public static class CatalogoOrdenesAsistente
             Ejecucion: [new PasoDeEjecucion(typeof(CrearVisitaCommand))],
             Ejecutable: true,
             Limitacion:
-                "CrearVisitaCommand rechaza un centro fuera del alcance de cartera de quien la " +
-                "ordena, como si no existiera. Los trabajadores solo tienen que existir dentro del " +
-                "Tenant: el formulario los ofrece de la base general y acotarlos a la cartera es una " +
-                "decisión de producto aún no tomada, así que los candidatos a trabajador los decide " +
-                "el catálogo, no el comando. Y registrar la Visita " +
-                "no acredita a nadie: lo que hay que hacer después depende del canal del Centro, y " +
-                "está en los cinco caminos de esta orden, y hoy NINGUNO de los cinco se completa " +
-                "solo: todos acaban en una acción del Gestor CAE —subir a la plataforma, pedir un " +
-                "alta, enviar un correo—. Ejecutar la orden deja la Visita registrada en TALVEG, " +
-                "que no es lo mismo que dejarla acreditada.",
+                "La Visita queda registrada en TALVEG, pero eso no acredita a nadie en el Centro: " +
+                "según cómo se gestione el Centro, después te toca subir la documentación a su " +
+                "plataforma, pedir el alta o mandarla por correo. Vega te recuerda el camino; no " +
+                "lo hace por ti.",
             EnviaComunicacionExterna: false,
             RequiereConfirmacion: true)
         {
@@ -400,8 +393,8 @@ public static class CatalogoOrdenesAsistente
             Ejecucion: [new PasoDeEjecucion(typeof(CrearClienteCommand))],
             Ejecutable: true,
             Limitacion:
-                "La criticidad no sale del texto casi nunca, así que en la práctica esta orden " +
-                "llegará al plan con un hueco que hay que rellenar antes de confirmar.",
+                "Indica en el plan si el Cliente empresarial es crítico: casi nunca se deduce de lo " +
+                "que escribes.",
             EnviaComunicacionExterna: false,
             RequiereConfirmacion: true),
 

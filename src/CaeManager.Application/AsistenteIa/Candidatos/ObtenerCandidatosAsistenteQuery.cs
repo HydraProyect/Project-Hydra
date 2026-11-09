@@ -1,12 +1,7 @@
 using CaeManager.Application.AsistenteIa.Decisiones;
 using CaeManager.Application.Bandeja.Queries.ObtenerMiTrabajoAgregado;
-using CaeManager.Application.Centros.Queries.ObtenerCentrosParaSelector;
-using CaeManager.Application.Clientes.Queries.ObtenerClientesParaSelector;
 using CaeManager.Application.Common;
-using CaeManager.Application.Empresas.Queries.ObtenerEmpresasParaSelector;
-using CaeManager.Application.Subcontratas.Queries.ObtenerSubcontratasParaSelector;
 using CaeManager.Application.Tenants.Queries.ObtenerClientesAutorizados;
-using CaeManager.Application.Trabajadores.Queries.ObtenerTrabajadoresParaSelector;
 using MediatR;
 
 namespace CaeManager.Application.AsistenteIa.Candidatos;
@@ -150,47 +145,8 @@ public class ObtenerCandidatosAsistenteQueryHandler(IMediator mediator, IAlcance
         return new CandidatosAsistenteDto(tenants, porCampo);
     }
 
-    private async Task<List<(Guid, string)>> LeerAsync(string campo, TenantDeCarteraDto tenant, CancellationToken cancellationToken)
-    {
-        switch (campo)
-        {
-            case CampoTenant:
-                return [(tenant.TenantId, tenant.Nombre)];
-
-            case CampoClienteEmpresarial:
-                return (await mediator.Send(new ObtenerClientesParaSelectorQuery(), cancellationToken))
-                    .Select(c => (c.Id, c.RazonSocial)).ToList();
-
-            case CampoCentro:
-                return (await mediator.Send(new ObtenerCentrosParaSelectorQuery(), cancellationToken))
-                    .Select(c => (c.Id, $"{c.Nombre} · {c.ClienteRazonSocial}")).ToList();
-
-            case CampoTrabajadores:
-                // Sin DNI por contrato del selector, y con la etiqueta única que
-                // ya usan las pantallas: un candidato no puede describirse por su
-                // documento (PlanDecisionCerrada lo rechazaría).
-                var trabajadores = await mediator.Send(
-                    new ObtenerTrabajadoresParaSelectorQuery(AlcanceSelectorTrabajadores.Cartera), cancellationToken);
-                return EtiquetasSelectorTrabajador.Construir(trabajadores).Select(e => (e.Id, e.Texto)).ToList();
-
-            case CampoEmpresa:
-                return (await mediator.Send(new ObtenerEmpresasParaSelectorQuery(), cancellationToken))
-                    .Select(e => (e.Id, e.RazonSocial)).ToList();
-
-            case CampoEmpleador:
-                var empresas = await mediator.Send(new ObtenerEmpresasParaSelectorQuery(), cancellationToken);
-                // El selector de Subcontratas no aplica la cartera (sirve a
-                // pantallas de configuración): aquí se acota con el mismo
-                // alcance «para gestión» que usa el selector de Empresas.
-                var subcontrataIds = await alcanceDatos.ObtenerSubcontrataIdsParaGestionAsync(cancellationToken);
-                var subcontratas = (await mediator.Send(new ObtenerSubcontratasParaSelectorQuery(), cancellationToken))
-                    .Where(s => subcontrataIds is null || subcontrataIds.Contains(s.Id));
-                return empresas.Select(e => (e.Id, e.RazonSocial))
-                    .Concat(subcontratas.Select(s => (s.Id, $"{s.RazonSocial} (subcontrata)")))
-                    .ToList();
-
-            default:
-                throw new ArgumentOutOfRangeException(nameof(campo), campo, null);
-        }
-    }
+    private async Task<List<(Guid, string)>> LeerAsync(string campo, TenantDeCarteraDto tenant, CancellationToken cancellationToken) =>
+        (await LectorCandidatosAsistente.LeerAsync(mediator, alcanceDatos, campo, tenant.TenantId, tenant.Nombre, cancellationToken))
+            .Select(c => (c.Id, c.Nombre))
+            .ToList();
 }

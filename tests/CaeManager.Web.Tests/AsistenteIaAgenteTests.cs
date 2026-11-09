@@ -1,6 +1,7 @@
 using System.Globalization;
 using Bunit;
 using CaeManager.Application.AsistenteIa.Candidatos;
+using CaeManager.Application.AsistenteIa.Edicion;
 using CaeManager.Application.AsistenteIa.Ordenes;
 using CaeManager.Application.AsistenteIa.Queries.PreguntarAlAsistente;
 using CaeManager.Application.AsistenteIa.Queries.ProponerPlan;
@@ -181,6 +182,8 @@ public class AsistenteIaAgenteTests : BunitContext
         _mediador.Guion[typeof(ObtenerTareaAsistenteQuery)] = _ => Result.Exito(Tarea());
         _mediador.Guion[typeof(ConfirmarPlanTareaAsistenteCommand)] = _ => Result.Exito();
         _mediador.Guion[typeof(DescartarTareaAsistenteCommand)] = _ => Result.Exito();
+        _mediador.Guion[typeof(ObtenerOpcionesPlanAsistenteQuery)] = _ => OpcionesPlanAsistenteDto.Vacias;
+        _mediador.Guion[typeof(EjecutarPlanTareaAsistenteCommand)] = _ => Result.Exito(new EjecucionPlanAsistenteDto(true, []));
         GuionDeEmpresa();
     }
 
@@ -280,7 +283,7 @@ public class AsistenteIaAgenteTests : BunitContext
     }
 
     [Fact]
-    public void Confirmar_manda_la_version_que_la_persona_ve_y_no_promete_ejecucion()
+    public void Confirmar_manda_la_version_que_la_persona_ve_y_despues_ejecuta_el_plan()
     {
         Configurar(anthropic: true, agenteReal: true);
         GuionDeAgente(PlanConfirmable());
@@ -292,7 +295,11 @@ public class AsistenteIaAgenteTests : BunitContext
         var confirmacion = _mediador.De<ConfirmarPlanTareaAsistenteCommand>().Single();
         confirmacion.TareaId.Should().Be(TareaId);
         confirmacion.VersionVista.Should().Be(VersionTarea);
-        panel.Find(".plan-cerrado").TextContent.Should().Contain("no se ha creado ni enviado nada");
+        var ejecucion = _mediador.De<EjecutarPlanTareaAsistenteCommand>().Single();
+        ejecucion.TareaId.Should().Be(TareaId);
+        _mediador.Recibidos.IndexOf(confirmacion).Should().BeLessThan(
+            _mediador.Recibidos.IndexOf(ejecucion), "solo se ejecuta lo que la persona ya confirmó");
+        panel.FindAll(".plan-cerrado .plan-acciones").Should().BeEmpty("la ejecución terminó: no queda nada que reintentar");
     }
 
     [Fact]
@@ -309,7 +316,7 @@ public class AsistenteIaAgenteTests : BunitContext
     }
 
     [Fact]
-    public void Los_botones_del_plan_detienen_el_teclado_para_que_Enter_sobre_un_chip_no_confirme()
+    public void Los_controles_del_plan_detienen_el_teclado_para_que_Enter_sobre_ellos_no_confirme()
     {
         Configurar(anthropic: true, agenteReal: true);
         GuionDeAgente(PlanConfirmable());
@@ -317,11 +324,11 @@ public class AsistenteIaAgenteTests : BunitContext
         Enviar(panel, "reclama");
 
         // bUnit no reproduce el burbujeo detenido por :stopPropagation; lo que se puede
-        // demostrar aquí es que todos los botones del plan lo declaran, que es lo que
+        // demostrar aquí es que todos los controles del plan lo declaran, que es lo que
         // impide que el keydown llegue al manejador de Enter del grupo.
-        var botones = panel.FindAll(".plan button");
-        botones.Should().HaveCountGreaterThan(3);
-        botones.Should().OnlyContain(b => b.OuterHtml.Contains("onkeydown:stoppropagation"));
+        var controles = panel.FindAll(".plan button, .plan select, .plan input");
+        controles.Should().HaveCountGreaterThanOrEqualTo(3);
+        controles.Should().OnlyContain(c => c.OuterHtml.Contains("onkeydown:stoppropagation"));
         _mediador.De<ConfirmarPlanTareaAsistenteCommand>().Should().BeEmpty();
     }
 
@@ -360,14 +367,14 @@ public class AsistenteIaAgenteTests : BunitContext
     }
 
     [Fact]
-    public void Cambiar_el_chip_de_Tenant_vuelve_a_pedir_el_plan_con_ese_Tenant_y_lo_guarda_en_la_misma_Tarea()
+    public void Cambiar_el_Tenant_en_el_desplegable_vuelve_a_pedir_el_plan_con_ese_Tenant_y_lo_guarda_en_la_misma_Tarea()
     {
         Configurar(anthropic: true, agenteReal: true);
         GuionDeAgente(PlanConfirmable());
         var panel = Abrir();
         Enviar(panel, "reclama");
 
-        panel.FindAll(".plan-tenants .plan-opcion")[1].Click();
+        panel.Find(".plan-tenants select").Change(TenantB.ToString());
 
         var peticiones = _mediador.De<ProponerPlanDeTareaAsistenteCommand>().ToList();
         peticiones.Should().HaveCount(2);
@@ -469,7 +476,8 @@ public class AsistenteIaAgenteTests : BunitContext
         panel.Find("textarea.asistente-textarea").GetAttribute("aria-label").Should().Be("Mensaje para Vega");
         foreach (var boton in panel.FindAll("button"))
             (boton.GetAttribute("aria-label") ?? boton.TextContent).Trim().Should().NotBeEmpty($"botón {boton.OuterHtml}");
-        panel.FindAll(".plan-tenants[aria-label]").Should().NotBeEmpty();
+        var tenant = panel.Find(".plan-tenants select");
+        panel.FindAll($"label[for='{tenant.Id}']").Should().ContainSingle("el desplegable de Tenant se nombra con su etiqueta");
     }
 
     // ---- Vega: panel, atajos, modos y contexto -------------------------------------------
