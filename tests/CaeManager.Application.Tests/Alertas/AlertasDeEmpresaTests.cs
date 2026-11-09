@@ -111,8 +111,10 @@ public class AlertasDeEmpresaTests
         _trabajadores.ListaTrabajadores.AddRange([propio, deSubcontrata, deEmpresaQueNoSeLee]);
         var formacion = new TipoDocumento("Formación", 12, true, 0, AmbitoAplicacion.Trabajador);
         _tipos.ListaTiposDocumento.Add(formacion);
-        foreach (var trabajador in new[] { propio, deSubcontrata, deEmpresaQueNoSeLee })
-            _documentos.ListaDocumentos.Add(Documento.DeTrabajador(trabajador.Id, formacion.Id, hoy.AddYears(-1), VigenciaDocumento.VenceEl(hoy.AddDays(-1))));
+        var vencidos = new[] { propio, deSubcontrata, deEmpresaQueNoSeLee }
+            .Select(trabajador => Documento.DeTrabajador(trabajador.Id, formacion.Id, hoy.AddYears(-1), VigenciaDocumento.VenceEl(hoy.AddDays(-1))));
+        // Se siembran en orden inverso al de su Id: sin el desempate de la consulta, saldrían al revés.
+        _documentos.ListaDocumentos.AddRange(vencidos.OrderByDescending(d => d.Id).ToList());
         var deEmpresa = Agregar(3);
 
         var alertas = await Handler().Handle(new ObtenerAlertasQuery(), CancellationToken.None);
