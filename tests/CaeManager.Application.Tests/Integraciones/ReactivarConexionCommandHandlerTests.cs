@@ -17,14 +17,129 @@ public class ReactivarConexionCommandHandlerTests
         ConexionIntegracionRepositorioFalso conexionRepositorio, AlcanceDatosServiceFalso alcanceDatos,
         UnitOfWorkFalso unitOfWork, ReclamacionBuzonIntegracionRepositorioFalso? reclamacionRepositorio = null,
         ITenantActual? tenantActual = null, Microsoft365GraphClientFalso? graph = null, EventoWebhookRepositorioFalso? eventos = null,
-        CerrojoVerificacionBuzonFalso? cerrojo = null)
+        CerrojoVerificacionBuzonFalso? cerrojo = null, SuscripcionWebhookRepositorioFalso? suscripciones = null)
     {
         graph ??= new Microsoft365GraphClientFalso { IdentidadBuzonPropio = "inbox-x" };
         eventos ??= new EventoWebhookRepositorioFalso();
         return new(conexionRepositorio, reclamacionRepositorio ?? new ReclamacionBuzonIntegracionRepositorioFalso(),
             alcanceDatos, tenantActual ?? new TenantActualFalso(TenantId), unitOfWork,
             new AccesoGraphService(new CredencialIntegracionRepositorioFalso { CredencialParaCualquierConexion = true }, graph), graph,
-            eventos, cerrojo ?? new CerrojoVerificacionBuzonFalso());
+            eventos, cerrojo ?? new CerrojoVerificacionBuzonFalso(),
+            new SuscripcionAlRehabilitarService(
+                suscripciones ?? new SuscripcionWebhookRepositorioFalso(), graph,
+                Microsoft.Extensions.Logging.Abstractions.NullLogger<SuscripcionAlRehabilitarService>.Instance));
+    }
+
+    // Ronda 10, hallazgo alto: Reactivar no rehabilita sin una suscripción vigente. Un test por camino de entrada.
+
+    private static (ConexionIntegracion Conexion, ConexionIntegracionRepositorioFalso Repositorio) ConexionM365(bool deshabilitada)
+    {
+        var conexion = new ConexionIntegracion("cae@operador.test", "Buzón CAE");
+        conexion.FijarIdentidadBuzon("inbox-x");
+        if (deshabilitada)
+            conexion.Deshabilitar();
+        else
+            conexion.MarcarConError("caída");
+        var repositorio = new ConexionIntegracionRepositorioFalso();
+        repositorio.Agregar(conexion);
+        return (conexion, repositorio);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Reactivar_con_suscripcion_renovable_la_renueva_y_rehabilita(bool deshabilitada)
+    {
+        var (conexion, repositorio) = ConexionM365(deshabilitada);
+        var suscripciones = new SuscripcionWebhookRepositorioFalso();
+        suscripciones.Agregar(new SuscripcionWebhook(conexion.Id, "sub-1", "estado", DateTime.UtcNow.AddHours(5)));
+        var graph = new Microsoft365GraphClientFalso { IdentidadBuzonPropio = "inbox-x" };
+        var handler = CrearHandler(repositorio, new AlcanceDatosServiceFalso(), new UnitOfWorkFalso(), graph: graph, suscripciones: suscripciones);
+
+        var resultado = await handler.Handle(new ReactivarConexionCommand(conexion.Id), CancellationToken.None);
+
+        resultado.EsExitoso.Should().BeTrue();
+        conexion.Estado.Should().Be(EstadoConexionIntegracion.Habilitada);
+        graph.SuscripcionesRenovadas.Should().Equal("sub-1");
+        graph.VecesSuscrito.Should().Be(0);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Reactivar_con_suscripcion_perdida_la_recrea_y_rehabilita(bool deshabilitada)
+    {
+        var (conexion, repositorio) = ConexionM365(deshabilitada);
+        var suscripciones = new SuscripcionWebhookRepositorioFalso();
+        suscripciones.Agregar(new SuscripcionWebhook(conexion.Id, "sub-1", "estado-propio", DateTime.UtcNow.AddHours(-5)));
+        var graph = new Microsoft365GraphClientFalso { IdentidadBuzonPropio = "inbox-x" };
+        graph.ErroresRenovacion["sub-1"] = Error.Crear("Integraciones.Microsoft365.ErrorRenovacion", "no existe");
+        var handler = CrearHandler(repositorio, new AlcanceDatosServiceFalso(), new UnitOfWorkFalso(), graph: graph, suscripciones: suscripciones);
+
+        var resultado = await handler.Handle(new ReactivarConexionCommand(conexion.Id), CancellationToken.None);
+
+        resultado.EsExitoso.Should().BeTrue();
+        conexion.Estado.Should().Be(EstadoConexionIntegracion.Habilitada);
+        graph.ClientStatesSuscritos.Should().Equal("estado-propio");
+        suscripciones.Suscripciones.Single().GraphSubscriptionId.Should().Be("suscripcion-falsa");
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Reactivar_con_fallo_transitorio_de_la_suscripcion_no_muta_nada(bool deshabilitada)
+    {
+        var (conexion, repositorio) = ConexionM365(deshabilitada);
+        var estadoAntes = conexion.Estado;
+        var graph = new Microsoft365GraphClientFalso
+        {
+            IdentidadBuzonPropio = "inbox-x",
+            ErrorCreacionSuscripcion = Error.Crear(CodigosErrorMicrosoft365.Transitorio, "503"),
+        };
+        var reclamaciones = new ReclamacionBuzonIntegracionRepositorioFalso();
+        var handler = CrearHandler(repositorio, new AlcanceDatosServiceFalso(), new UnitOfWorkFalso(), reclamaciones, graph: graph);
+
+        var resultado = await handler.Handle(new ReactivarConexionCommand(conexion.Id), CancellationToken.None);
+
+        resultado.Error.Codigo.Should().Be(ReactivarConexionCommandHandler.CodigoSinComprobacion);
+        conexion.Estado.Should().Be(estadoAntes);
+        reclamaciones.Reclamaciones.Should().BeEmpty();
+    }
+
+    [Theory]
+    [InlineData(false, EstadoConexionIntegracion.ConError)]
+    [InlineData(true, EstadoConexionIntegracion.Deshabilitada)]
+    public async Task Reactivar_con_fallo_definitivo_de_la_suscripcion_deja_ConError_salvo_Deshabilitada(
+        bool deshabilitada, EstadoConexionIntegracion esperado)
+    {
+        var (conexion, repositorio) = ConexionM365(deshabilitada);
+        var graph = new Microsoft365GraphClientFalso { IdentidadBuzonPropio = "inbox-x", FallaCreacionSuscripcion = true };
+        var handler = CrearHandler(repositorio, new AlcanceDatosServiceFalso(), new UnitOfWorkFalso(), graph: graph);
+
+        var resultado = await handler.Handle(new ReactivarConexionCommand(conexion.Id), CancellationToken.None);
+
+        resultado.Error.Codigo.Should().Be(ReactivarConexionCommandHandler.CodigoSuscripcionImposible);
+        conexion.Estado.Should().Be(esperado);
+    }
+
+    [Fact]
+    public async Task Reactivar_compartida_Deshabilitada_con_heredada_que_cuenta_queda_en_pausa_y_compensa_la_suscripcion()
+    {
+        var conexion = ConexionIntegracion.CrearBuzonCompartido("cae@operador.test", "Buzón CAE", "11111111-2222-3333-4444-555555555555", Guid.NewGuid());
+        conexion.FijarIdentidadBuzon("inbox-x");
+        conexion.Deshabilitar();
+        var repositorio = new ConexionIntegracionRepositorioFalso();
+        repositorio.Agregar(conexion);
+        var reclamaciones = new ReclamacionBuzonIntegracionRepositorioFalso();
+        reclamaciones.AgregarHeredada("otro@tenant.com", Guid.NewGuid());
+        var graph = new Microsoft365GraphClientFalso { IdentidadesPorDireccion = { ["cae@operador.test"] = "inbox-x" } };
+        var handler = CrearHandler(repositorio, new AlcanceDatosServiceFalso(), new UnitOfWorkFalso(), reclamaciones, graph: graph);
+
+        var resultado = await handler.Handle(new ReactivarConexionCommand(conexion.Id), CancellationToken.None);
+
+        resultado.Error.Codigo.Should().Be(CaeManager.Application.Integraciones.Commands.ConectarBuzonMicrosoft365.ConectarBuzonMicrosoft365CommandHandler.CodigoAltaCompartidaEnPausa);
+        resultado.Error.Mensaje.Should().NotContain("otro@tenant.com");
+        graph.SuscripcionesEliminadas.Should().Equal("suscripcion-falsa");
     }
 
     [Fact]

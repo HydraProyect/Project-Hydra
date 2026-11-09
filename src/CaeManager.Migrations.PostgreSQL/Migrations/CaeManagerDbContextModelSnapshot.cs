@@ -8579,6 +8579,12 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                     b.Property<Guid>("ConexionIntegracionId")
                         .HasColumnType("uuid");
 
+                    b.Property<bool>("EsBuzonCompartido")
+                        .HasColumnType("boolean");
+
+                    b.Property<DateTime?>("FueraDeGuardaTransitoriaUtc")
+                        .HasColumnType("timestamp with time zone");
+
                     b.Property<string>("IdentidadBuzon")
                         .HasMaxLength(512)
                         .HasColumnType("character varying(512)");

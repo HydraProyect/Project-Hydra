@@ -28,6 +28,12 @@ public class ReclamacionBuzonIntegracionConfiguration : IEntityTypeConfiguration
             .HasFilter("\"IdentidadBuzon\" IS NOT NULL")
             .HasDatabaseName(ReclamacionBuzonIntegracionRepository.IndiceUnicoIdentidadBuzon);
 
+        // Guarda transitoria del alta de buzones compartidos (ver ReclamacionBuzonIntegracion.CuentaParaGuardaTransitoria).
+        // La restricción de exclusión que la aplica no la modela EF: la crea la migración 20261109210000 en SQL, con el
+        // nombre que el repositorio compara al traducir su 23P01 (mismo caso que EX_Asignaciones_SinSolapeVigencia).
+        builder.Property(r => r.EsBuzonCompartido);
+        builder.Property(r => r.FueraDeGuardaTransitoriaUtc);
+
         // Cada conexión reclama como mucho un buzón — sostiene LiberarAsync/
         // ExisteReclamacionAsync como una relación 1:1 con ConexionIntegracion.
         builder.HasIndex(r => r.ConexionIntegracionId).IsUnique();

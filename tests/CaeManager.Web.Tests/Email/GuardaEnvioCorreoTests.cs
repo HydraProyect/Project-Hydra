@@ -406,6 +406,7 @@ public class GuardaEnvioCorreoTests
         public Task<Result<IReadOnlyList<MensajeResumenGraphDto>>> ListarMensajesAsync(string accessToken, BuzonGraph buzon, string carpetaExternoId, int top, int skip, CancellationToken cancellationToken) => throw new NotSupportedException();
         public Task<Result<SuscripcionGraphDto>> CrearSuscripcionAsync(string accessToken, BuzonGraph buzon, string notificationUrl, string clientState, CancellationToken cancellationToken) => throw new NotSupportedException();
         public Task<Result<SuscripcionGraphDto>> RenovarSuscripcionAsync(string accessToken, string graphSubscriptionId, CancellationToken cancellationToken) => throw new NotSupportedException();
+        public string? UrlNotificacion(Guid conexionId) => throw new NotSupportedException();
         public Task<Result> EliminarSuscripcionAsync(string accessToken, string graphSubscriptionId, CancellationToken cancellationToken) => throw new NotSupportedException();
         public IReadOnlyList<string> ExtraerMensajeIdsDeNotificacion(string payloadJson) => throw new NotSupportedException();
         public string? ExtraerClientStateDeNotificacion(string payloadJson) => throw new NotSupportedException();

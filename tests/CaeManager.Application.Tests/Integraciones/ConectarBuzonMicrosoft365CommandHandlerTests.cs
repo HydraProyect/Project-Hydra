@@ -61,6 +61,77 @@ public class ConectarBuzonMicrosoft365CommandHandlerTests
             GestorPropietarioId: gestorPropietarioId, DirectorioEntraId: Directorio,
             ConsentidoPorUsuarioId: consentidoPor ?? Guid.NewGuid());
 
+    // Ronda 10: guarda transitoria del alta de compartidos (ReclamacionBuzonIntegracion.CuentaParaGuardaTransitoria).
+
+    [Fact]
+    public async Task Guarda_transitoria_una_heredada_que_cuenta_rechaza_el_alta_compartida_sin_revelar_nada_y_compensa()
+    {
+        var reclamaciones = new ReclamacionBuzonIntegracionRepositorioFalso();
+        reclamaciones.AgregarHeredada("heredado@operador.test", Guid.NewGuid());
+        var graph = new Microsoft365GraphClientFalso();
+        var conexiones = new ConexionIntegracionRepositorioFalso();
+        var handler = CrearHandler(conexiones, new CredencialIntegracionRepositorioFalso(), new SuscripcionWebhookRepositorioFalso(),
+            reclamaciones, new EmpresaRepositorioFalso(), new AlcanceDatosServiceFalso(), graph);
+
+        var resultado = await handler.Handle(ComandoCompartido(), CancellationToken.None);
+
+        resultado.Error.Codigo.Should().Be(ConectarBuzonMicrosoft365CommandHandler.CodigoAltaCompartidaEnPausa);
+        resultado.Error.Mensaje.Should().Be(ConectarBuzonMicrosoft365CommandHandler.MensajeAltaCompartidaEnPausa);
+        resultado.Error.Mensaje.Should().NotContain("heredado@operador.test");
+        graph.SuscripcionesEliminadas.Should().ContainSingle("la suscripción creada se compensa");
+        reclamaciones.Reclamaciones.Should().NotContain(r => r.EsBuzonCompartido);
+    }
+
+    [Fact]
+    public async Task Guarda_transitoria_sin_heredadas_que_cuenten_el_alta_compartida_prospera()
+    {
+        var reclamaciones = new ReclamacionBuzonIntegracionRepositorioFalso();
+        // Una nueva sin identidad (de un proveedor que no la tiene) nace fuera de la guarda.
+        reclamaciones.Reclamar(new ReclamacionBuzonIntegracion("whatsapp@operador.test", null, Guid.NewGuid(), Guid.NewGuid(), DateTime.UtcNow));
+        var handler = CrearHandler(new ConexionIntegracionRepositorioFalso(), new CredencialIntegracionRepositorioFalso(),
+            new SuscripcionWebhookRepositorioFalso(), reclamaciones, new EmpresaRepositorioFalso(), new AlcanceDatosServiceFalso(),
+            new Microsoft365GraphClientFalso());
+
+        var resultado = await handler.Handle(ComandoCompartido(), CancellationToken.None);
+
+        resultado.EsExitoso.Should().BeTrue();
+        reclamaciones.Reclamaciones.Should().ContainSingle(r => r.EsBuzonCompartido && r.IdentidadBuzon == "inbox-x");
+    }
+
+    [Fact]
+    public async Task Guarda_transitoria_una_heredada_sacada_por_conexion_terminal_no_bloquea()
+    {
+        var reclamaciones = new ReclamacionBuzonIntegracionRepositorioFalso();
+        var enError = reclamaciones.AgregarHeredada("error@operador.test", Guid.NewGuid());
+        var desconectada = reclamaciones.AgregarHeredada("baja@operador.test", Guid.NewGuid());
+        enError.SacarDeGuardaTransitoria(DateTime.UtcNow);
+        desconectada.SacarDeGuardaTransitoria(DateTime.UtcNow);
+        var handler = CrearHandler(new ConexionIntegracionRepositorioFalso(), new CredencialIntegracionRepositorioFalso(),
+            new SuscripcionWebhookRepositorioFalso(), reclamaciones, new EmpresaRepositorioFalso(), new AlcanceDatosServiceFalso(),
+            new Microsoft365GraphClientFalso());
+
+        var resultado = await handler.Handle(ComandoCompartido(), CancellationToken.None);
+
+        resultado.EsExitoso.Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task Guarda_transitoria_no_afecta_al_alta_de_un_buzon_propio()
+    {
+        var reclamaciones = new ReclamacionBuzonIntegracionRepositorioFalso();
+        reclamaciones.AgregarHeredada("heredado@operador.test", Guid.NewGuid());
+        var handler = CrearHandler(new ConexionIntegracionRepositorioFalso(), new CredencialIntegracionRepositorioFalso(),
+            new SuscripcionWebhookRepositorioFalso(), reclamaciones, new EmpresaRepositorioFalso(), new AlcanceDatosServiceFalso(),
+            new Microsoft365GraphClientFalso());
+
+        var resultado = await handler.Handle(
+            new ConectarBuzonMicrosoft365Command(
+                "propio@operador.test", "Buzón CAE", ClienteId: null, "access-token", "refresh-token", "https://hydra.local", "inbox-p"),
+            CancellationToken.None);
+
+        resultado.EsExitoso.Should().BeTrue();
+    }
+
     /// <summary>
     /// Un buzón compartido es su propia Conexión en el Tenant propietario donde se conecta (DN-3): se reclama igual
     /// que cualquier buzón y se suscribe por <c>users/{buzón}</c>, pero no guarda el refresh token de nadie.

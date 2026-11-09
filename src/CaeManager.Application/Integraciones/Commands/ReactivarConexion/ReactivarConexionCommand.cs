@@ -14,11 +14,9 @@ namespace CaeManager.Application.Integraciones.Commands.ReactivarConexion;
 /// <c>ConError</c> de verdad (salud de plataforma, A-07): sin esta acción esa
 /// conexión no tenía ninguna vía de vuelta salvo SQL directo.
 ///
-/// No reintenta la suscripción de Graph por sí solo — solo limpia el
-/// estado/<c>UltimoError</c>; el siguiente ciclo de
-/// <c>RenovacionSuscripcionWebhookHostedService</c> se encarga de renovarla
-/// si la ventana lo permite. Si la suscripción ya expiró del todo en Graph,
-/// reactivar aquí no basta: hace falta reconectar el buzón desde cero.
+/// En Microsoft 365, antes de rehabilitar renueva la suscripción de Graph o la
+/// crea de nuevo si ya no existe (<see cref="SuscripcionAlRehabilitarService"/>):
+/// una conexión nunca vuelve a Habilitada sin suscripción vigente.
 /// </summary>
 public record ReactivarConexionCommand(Guid ConexionId) : ICommand;
 
@@ -39,7 +37,8 @@ public class ReactivarConexionCommandHandler(
     AccesoGraphService accesoGraph,
     IMicrosoft365GraphClient graphClient,
     IEventoWebhookRepository eventoRepositorio,
-    ICerrojoVerificacionBuzon cerrojo)
+    ICerrojoVerificacionBuzon cerrojo,
+    SuscripcionAlRehabilitarService suscripciones)
     : IRequestHandler<ReactivarConexionCommand, Result>
 {
     public async Task<Result> Handle(ReactivarConexionCommand request, CancellationToken cancellationToken)
@@ -80,9 +79,12 @@ public class ReactivarConexionCommandHandler(
         // que una entidad modificada y trackeada sin guardar podría
         // persistirse igualmente en una operación posterior ajena a este
         // Command.
+        string? accessToken = null;
+        SuscripcionAlRehabilitarService.SuscripcionVigente? vigente = null;
         if (conexion.Proveedor == ProveedorIntegracion.Microsoft365)
         {
-            var (comprobacion, motivoDefinitivo) = await ComprobarIdentidadBuzonAsync(conexion, cancellationToken);
+            var (comprobacion, motivoDefinitivo, token) = await ComprobarIdentidadBuzonAsync(conexion, cancellationToken);
+            accessToken = token;
             if (comprobacion.EsFallido)
             {
                 // Resultado definitivo, igual que en el ciclo de verificación (la dirección responde con otro buzón, o
@@ -98,13 +100,37 @@ public class ReactivarConexionCommandHandler(
 
                 return Result.Fallo(comprobacion.Error);
             }
+
+            // Rehabilitar exige una suscripción vigente (SuscripcionAlRehabilitarService): sin ella la conexión
+            // quedaría Habilitada y verificada pero sin notificaciones. Un fallo transitorio no muta nada y pide volver
+            // a intentarlo; uno definitivo deja ConError (nunca a una Deshabilitada, que sigue desconectada).
+            var suscripcion = await suscripciones.AsegurarAsync(conexion, accessToken!, cancellationToken);
+            if (suscripcion.EsFallido)
+            {
+                if (CodigosErrorMicrosoft365.EsTransitorio(suscripcion.Error))
+                    return Result.Fallo(Error.Crear(CodigoSinComprobacion, "No pudimos activar las notificaciones de este buzón. Inténtalo de nuevo."));
+
+                if (conexion.Estado != EstadoConexionIntegracion.Deshabilitada)
+                {
+                    conexion.MarcarConError(suscripcion.Error.Mensaje);
+                    await unitOfWork.SaveChangesAsync(cancellationToken);
+                }
+
+                return Result.Fallo(Error.Crear(CodigoSuscripcionImposible, suscripcion.Error.Mensaje));
+            }
+
+            vigente = suscripcion.Valor;
         }
 
         var tenantId = Guid.Empty;
         if (necesitaReclamarBuzon)
         {
             if (tenantActual.TenantId is not { } resuelto)
+            {
+                await CompensarAsync();
                 return Result.Fallo(Error.Crear("Integraciones.Microsoft365.TenantNoResuelto", "No se pudo determinar la organización actual."));
+            }
+
             tenantId = resuelto;
         }
 
@@ -131,17 +157,45 @@ public class ReactivarConexionCommandHandler(
             return Result.Exito();
         }
 
-        reclamacionRepositorio.Reclamar(new ReclamacionBuzonIntegracion(conexion.BuzonEmail, conexion.IdentidadBuzon, tenantId, conexion.Id, DateTime.UtcNow));
-        var buzonLibre = await reclamacionRepositorio.GuardarCambiosSiBuzonLibreAsync(cancellationToken);
-        if (!buzonLibre)
+        // Un compartido vuelve a entrar en la guarda transitoria (ReclamacionBuzonIntegracion.CuentaParaGuardaTransitoria).
+        reclamacionRepositorio.Reclamar(new ReclamacionBuzonIntegracion(
+            conexion.BuzonEmail, conexion.IdentidadBuzon, tenantId, conexion.Id, DateTime.UtcNow,
+            esBuzonCompartido: conexion.EsBuzonCompartido));
+        ResultadoReclamacionBuzon resultadoReclamacion;
+        try
         {
-            return Result.Fallo(Error.Crear(
-                "Integraciones.Microsoft365.BuzonYaConectado",
-                "Este buzón fue conectado por otra organización mientras estaba desconectado."));
+            resultadoReclamacion = await reclamacionRepositorio.GuardarCambiosSiBuzonLibreAsync(cancellationToken);
+        }
+        catch
+        {
+            await CompensarAsync();
+            throw;
+        }
+
+        switch (resultadoReclamacion)
+        {
+            case ResultadoReclamacionBuzon.BuzonYaReclamado:
+                await CompensarAsync();
+                return Result.Fallo(Error.Crear(
+                    "Integraciones.Microsoft365.BuzonYaConectado",
+                    "Este buzón fue conectado por otra organización mientras estaba desconectado."));
+            case ResultadoReclamacionBuzon.AltaCompartidaEnPausa:
+                await CompensarAsync();
+                return Result.Fallo(Error.Crear(
+                    ConectarBuzonMicrosoft365.ConectarBuzonMicrosoft365CommandHandler.CodigoAltaCompartidaEnPausa,
+                    ConectarBuzonMicrosoft365.ConectarBuzonMicrosoft365CommandHandler.MensajeAltaCompartidaEnPausa));
         }
 
         return Result.Exito();
+
+        // La reclamación falló y el guardado se descartó (ChangeTracker.Clear): la suscripción recién creada en Graph
+        // quedaría huérfana.
+        Task CompensarAsync() => vigente is not null && accessToken is not null
+            ? suscripciones.CompensarAsync(accessToken, vigente, CancellationToken.None)
+            : Task.CompletedTask;
     }
+
+    public const string CodigoSuscripcionImposible = "Integraciones.Microsoft365.SuscripcionImposible";
 
     /// <summary>
     /// Reactivar no es un atajo para saltarse la guarda del buzón: la conexión debe tener identidad (una anterior a
@@ -156,37 +210,37 @@ public class ReactivarConexionCommandHandler(
     /// </para>
     /// </summary>
     /// <returns>El resultado y, si el fallo es definitivo, el motivo de ConError que pone el ciclo.</returns>
-    private async Task<(Result Resultado, string? MotivoDefinitivo)> ComprobarIdentidadBuzonAsync(
+    private async Task<(Result Resultado, string? MotivoDefinitivo, string? AccessToken)> ComprobarIdentidadBuzonAsync(
         ConexionIntegracion conexion, CancellationToken cancellationToken)
     {
         if (conexion.IdentidadBuzon is not { } guardada)
             return (Result.Fallo(Error.Crear(
                 CodigoReconexionNecesaria,
-                "Esta conexión no tiene la comprobación de buzón: desconéctala y vuelve a conectarla desde Conexiones.")), null);
+                "Esta conexión no tiene la comprobación de buzón: desconéctala y vuelve a conectarla desde Conexiones.")), null, null);
 
         var token = await accesoGraph.ObtenerAccessTokenVigenteAsync(conexion, cancellationToken);
         if (token.EsFallido)
-            return (Result.Fallo(Error.Crear(CodigoSinComprobacion, "No pudimos comprobar el buzón en Microsoft. Inténtalo de nuevo.")), null);
+            return (Result.Fallo(Error.Crear(CodigoSinComprobacion, "No pudimos comprobar el buzón en Microsoft. Inténtalo de nuevo.")), null, null);
 
         var identidad = await graphClient.ObtenerIdentidadBuzonAsync(token.Valor, BuzonGraph.De(conexion), cancellationToken);
         if (identidad.EsFallido)
         {
             if (identidad.Error.Codigo != CodigosErrorMicrosoft365.SinAccesoBuzon)
-                return (Result.Fallo(Error.Crear(CodigoSinComprobacion, "No pudimos comprobar el buzón en Microsoft. Inténtalo de nuevo.")), null);
+                return (Result.Fallo(Error.Crear(CodigoSinComprobacion, "No pudimos comprobar el buzón en Microsoft. Inténtalo de nuevo.")), null, token.Valor);
 
             // Como en el ciclo: un motivo de identidad más concreto que ya tuviera la conexión se conserva.
             var motivo = CompletarIdentidadBuzonService.EsMotivoDeIdentidad(conexion.UltimoError)
                 ? conexion.UltimoError
                 : CompletarIdentidadBuzonService.MensajeSinAccesoBuzon;
-            return (Result.Fallo(Error.Crear(CodigoSinAccesoBuzon, CompletarIdentidadBuzonService.MensajeSinAccesoBuzon)), motivo);
+            return (Result.Fallo(Error.Crear(CodigoSinAccesoBuzon, CompletarIdentidadBuzonService.MensajeSinAccesoBuzon)), motivo, token.Valor);
         }
 
         return string.Equals(identidad.Valor, guardada, StringComparison.Ordinal)
-            ? (Result.Exito(), null)
+            ? (Result.Exito(), null, token.Valor)
             : (Result.Fallo(Error.Crear(
                 CodigoReconexionNecesaria,
                 "La dirección de esta conexión corresponde ahora a otro buzón: desconéctala y vuelve a conectarla desde Conexiones.")),
-                CompletarIdentidadBuzonService.MensajeBuzonCambiado);
+                CompletarIdentidadBuzonService.MensajeBuzonCambiado, token.Valor);
     }
 
     public const string CodigoReconexionNecesaria = "Integraciones.Microsoft365.ReconexionNecesaria";

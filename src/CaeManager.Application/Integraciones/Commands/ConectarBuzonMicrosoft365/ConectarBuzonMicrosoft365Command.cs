@@ -79,6 +79,14 @@ public class ConectarBuzonMicrosoft365CommandHandler(
     public const string CodigoBuzonYaConectado = "Integraciones.Microsoft365.BuzonYaConectado";
     public const string CodigoBuzonYaConectadoEnEstaOrganizacion = "Integraciones.Microsoft365.BuzonYaConectadoEnEstaOrganizacion";
 
+    /// <summary>
+    /// Guarda transitoria del alta de compartidos (ver ReclamacionBuzonIntegracion.CuentaParaGuardaTransitoria). El
+    /// mensaje no dice qué buzón ni de qué Tenant propietario es la reclamación que la mantiene.
+    /// </summary>
+    public const string CodigoAltaCompartidaEnPausa = "Integraciones.Microsoft365.AltaCompartidaEnPausa";
+    public const string MensajeAltaCompartidaEnPausa =
+        "Alta de buzones compartidos en pausa temporal mientras se completa la verificación; vuelve a intentarlo en unas horas.";
+
     public async Task<Result<Guid>> Handle(ConectarBuzonMicrosoft365Command request, CancellationToken cancellationToken)
     {
         // Verificación de Ids ajenos — ver P0-1 de Project-Hydra-Negocio/MATURITY_REVIEW.md.
@@ -161,12 +169,14 @@ public class ConectarBuzonMicrosoft365CommandHandler(
         // Unicidad global del buzón (incremento 1 de PROPUESTA-BUZONES-COMPARTIDOS-M365
         // § 5.4): sin esta reclamación, el mismo buzón podía conectarse en dos
         // Tenants a la vez, con la misma dirección o con un alias suyo.
-        reclamacionRepositorio.Reclamar(new ReclamacionBuzonIntegracion(request.BuzonEmail, identidad, tenantId, conexion.Id, DateTime.UtcNow));
+        // Un compartido entra además en la guarda transitoria (ReclamacionBuzonIntegracion.CuentaParaGuardaTransitoria).
+        reclamacionRepositorio.Reclamar(new ReclamacionBuzonIntegracion(
+            request.BuzonEmail, identidad, tenantId, conexion.Id, DateTime.UtcNow, esBuzonCompartido: conexion.EsBuzonCompartido));
 
-        bool buzonLibre;
+        ResultadoReclamacionBuzon resultadoReclamacion;
         try
         {
-            buzonLibre = await reclamacionRepositorio.GuardarCambiosSiBuzonLibreAsync(cancellationToken);
+            resultadoReclamacion = await reclamacionRepositorio.GuardarCambiosSiBuzonLibreAsync(cancellationToken);
         }
         catch
         {
@@ -174,11 +184,15 @@ public class ConectarBuzonMicrosoft365CommandHandler(
             throw;
         }
 
-        if (!buzonLibre)
+        switch (resultadoReclamacion)
         {
-            await CompensarSuscripcionHuerfanaAsync(graphSubscriptionId);
-            return Result.Fallo<Guid>(Error.Crear(
-                CodigoBuzonYaConectado, "Este buzón ya está conectado en otra organización."));
+            case ResultadoReclamacionBuzon.BuzonYaReclamado:
+                await CompensarSuscripcionHuerfanaAsync(graphSubscriptionId);
+                return Result.Fallo<Guid>(Error.Crear(
+                    CodigoBuzonYaConectado, "Este buzón ya está conectado en otra organización."));
+            case ResultadoReclamacionBuzon.AltaCompartidaEnPausa:
+                await CompensarSuscripcionHuerfanaAsync(graphSubscriptionId);
+                return Result.Fallo<Guid>(Error.Crear(CodigoAltaCompartidaEnPausa, MensajeAltaCompartidaEnPausa));
         }
 
         return Result.Exito(conexion.Id);

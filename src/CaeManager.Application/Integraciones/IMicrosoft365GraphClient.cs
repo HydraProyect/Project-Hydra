@@ -196,6 +196,12 @@ public interface IMicrosoft365GraphClient
 
     Task<Result<SuscripcionGraphDto>> RenovarSuscripcionAsync(string accessToken, string graphSubscriptionId, CancellationToken cancellationToken);
 
+    /// <summary>
+    /// URL del webhook de Microsoft 365 de una conexión (<c>{UrlPublicaBase}/api/integraciones/webhooks/microsoft365/{id}</c>),
+    /// o null si la aplicación no tiene URL pública configurada.
+    /// </summary>
+    string? UrlNotificacion(Guid conexionId);
+
     /// <summary>Best-effort — el llamador no debe bloquear una desconexión local si esto falla (la suscripción expira sola).</summary>
     Task<Result> EliminarSuscripcionAsync(string accessToken, string graphSubscriptionId, CancellationToken cancellationToken);
 
@@ -242,6 +248,15 @@ public static class CodigosErrorMicrosoft365
     /// no existe. No resuelve el evento.
     /// </summary>
     public const string BuzonNoEncontrado = "Integraciones.Microsoft365.BuzonNoEncontrado";
+
+    /// <summary>
+    /// Graph respondió 200 al leer un mensaje, pero sin alguno de los campos obligatorios: remitente
+    /// (<c>from.emailAddress.address</c>), fecha de recepción, <c>conversationId</c>, cuerpo (<c>body.content</c>, que
+    /// puede ser vacío pero no faltar) y la lista de adjuntos pedida con <c>$expand</c> (vacía si no hay), con
+    /// <c>id</c> y <c>name</c> en cada adjunto. No se inventa ninguno: el evento espera, sin gastar intentos, y no se
+    /// marca procesado.
+    /// </summary>
+    public const string MensajeIncompleto = "Integraciones.Microsoft365.MensajeIncompleto";
 
     /// <summary>El buzón está fuera del alcance del token (403/404 en su Bandeja de entrada).</summary>
     public const string SinAccesoBuzon = "Integraciones.Microsoft365.SinAccesoBuzon";

@@ -93,6 +93,8 @@ public sealed class GuardaEnvioMicrosoft365GraphClient(
     public Task<Result<SuscripcionGraphDto>> RenovarSuscripcionAsync(string accessToken, string graphSubscriptionId, CancellationToken cancellationToken) =>
         interno.RenovarSuscripcionAsync(accessToken, graphSubscriptionId, cancellationToken);
 
+    public string? UrlNotificacion(Guid conexionId) => interno.UrlNotificacion(conexionId);
+
     public Task<Result> EliminarSuscripcionAsync(string accessToken, string graphSubscriptionId, CancellationToken cancellationToken) =>
         interno.EliminarSuscripcionAsync(accessToken, graphSubscriptionId, cancellationToken);
 

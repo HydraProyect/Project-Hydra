@@ -18,6 +18,52 @@ public class DesconectarBuzonCommandHandlerTests
         new(conexionRepositorio, suscripcionRepositorio, reclamacionRepositorio, alcanceDatos, graphClient,
             new AccesoGraphService(credencialRepositorio, graphClient), unitOfWork, NullLogger<DesconectarBuzonCommandHandler>.Instance);
 
+    // Ronda 10, hallazgo medio: primero se guarda la desconexión y después se borra en Graph.
+
+    [Fact]
+    public async Task Guarda_la_desconexion_antes_de_borrar_la_suscripcion_en_Graph()
+    {
+        var conexion = new ConexionIntegracion("cae@operador.test", "Buzón CAE");
+        var conexiones = new ConexionIntegracionRepositorioFalso();
+        conexiones.Agregar(conexion);
+        var suscripciones = new SuscripcionWebhookRepositorioFalso();
+        suscripciones.Agregar(new SuscripcionWebhook(conexion.Id, "sub-1", "estado", DateTime.UtcNow.AddDays(2)));
+        var unitOfWork = new UnitOfWorkFalso();
+        var guardadosAlBorrar = -1;
+        var graph = new Microsoft365GraphClientFalso();
+        graph.AlEliminarSuscripcion = () => guardadosAlBorrar = unitOfWork.VecesGuardado;
+        var handler = CrearHandler(conexiones, suscripciones, new ReclamacionBuzonIntegracionRepositorioFalso(), new AlcanceDatosServiceFalso(),
+            graph, new CredencialIntegracionRepositorioFalso { CredencialParaCualquierConexion = true }, unitOfWork);
+
+        var resultado = await handler.Handle(new DesconectarBuzonCommand(conexion.Id), CancellationToken.None);
+
+        resultado.EsExitoso.Should().BeTrue();
+        guardadosAlBorrar.Should().Be(1, "la Deshabilitada ya estaba guardada cuando se pidió el borrado");
+        conexion.HuecoPendienteDesdeUtc.Should().BeNull("el borrado fue bien");
+    }
+
+    [Fact]
+    public async Task Si_el_borrado_falla_la_marca_queda_en_el_momento_del_borrado_y_sigue_Deshabilitada()
+    {
+        var conexion = new ConexionIntegracion("cae@operador.test", "Buzón CAE");
+        var conexiones = new ConexionIntegracionRepositorioFalso();
+        conexiones.Agregar(conexion);
+        var suscripciones = new SuscripcionWebhookRepositorioFalso();
+        suscripciones.Agregar(new SuscripcionWebhook(conexion.Id, "sub-1", "estado", DateTime.UtcNow.AddDays(2)));
+        var graph = new Microsoft365GraphClientFalso { ErrorEliminacion = CaeManager.Domain.Common.Error.Crear("x", "503") };
+        var unitOfWork = new UnitOfWorkFalso();
+        var antes = DateTime.UtcNow;
+        var handler = CrearHandler(conexiones, suscripciones, new ReclamacionBuzonIntegracionRepositorioFalso(), new AlcanceDatosServiceFalso(),
+            graph, new CredencialIntegracionRepositorioFalso { CredencialParaCualquierConexion = true }, unitOfWork);
+
+        var resultado = await handler.Handle(new DesconectarBuzonCommand(conexion.Id), CancellationToken.None);
+
+        resultado.EsExitoso.Should().BeTrue();
+        conexion.Estado.Should().Be(EstadoConexionIntegracion.Deshabilitada);
+        conexion.HuecoPendienteDesdeUtc.Should().BeOnOrAfter(antes).And.BeOnOrBefore(DateTime.UtcNow);
+        unitOfWork.VecesGuardado.Should().Be(2);
+    }
+
     [Fact]
     public async Task Deshabilita_una_conexion_habilitada_y_libera_la_reclamacion_del_buzon()
     {

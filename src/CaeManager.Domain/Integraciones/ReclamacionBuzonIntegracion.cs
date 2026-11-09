@@ -33,6 +33,33 @@ public class ReclamacionBuzonIntegracion : Entity
     /// </summary>
     public string? IdentidadBuzon { get; private set; }
 
+    /// <summary>La reclamación es la de un buzón compartido de Microsoft 365 (siempre con <see cref="IdentidadBuzon"/>).</summary>
+    public bool EsBuzonCompartido { get; private set; }
+
+    /// <summary>
+    /// Desde cuándo esta reclamación sin <see cref="IdentidadBuzon"/> ya no cuenta para la guarda transitoria del alta
+    /// de buzones compartidos (ver <see cref="CuentaParaGuardaTransitoria"/>). Null en las heredadas que siguen
+    /// pendientes de completar su identidad.
+    /// </summary>
+    public DateTime? FueraDeGuardaTransitoriaUtc { get; private set; }
+
+    /// <summary>
+    /// Guarda transitoria del alta de buzones compartidos. Una reclamación anterior a <see cref="IdentidadBuzon"/> no
+    /// está en el índice único por identidad: mientras no se complete, otro Tenant propietario podría reclamar el mismo
+    /// buzón con un alias y desplazar a la conexión antigua, que es la legítima. Por eso, mientras exista en toda la
+    /// plataforma una reclamación que cuente aquí, PostgreSQL rechaza la de un buzón compartido nuevo (restricción de
+    /// exclusión <c>EX_ReclamacionesBuzonIntegracion_GuardaTransitoriaCompartidos</c>, que como los índices únicos se
+    /// comprueba sin mirar la RLS ni leer filas de otro Tenant).
+    /// <para>
+    /// Cuentan solo las heredadas sin identidad de una conexión que todavía puede completarla. Dejan de contar cuando
+    /// el ciclo diario completa la identidad, o cuando ve su conexión en un estado terminal (ConError, incluido un
+    /// 403/404 del buzón, o de otro proveedor o ya sin conexión); Desconectar borra la reclamación. Ninguna reclamación
+    /// nueva cuenta: las de Microsoft 365 nacen con identidad, y una sin ella es de un proveedor que no la tiene.
+    /// La guarda es transitoria y queda inerte cuando no hay ninguna que cuente.
+    /// </para>
+    /// </summary>
+    public bool CuentaParaGuardaTransitoria => IdentidadBuzon is null && FueraDeGuardaTransitoriaUtc is null;
+
     public Guid TenantPropietarioId { get; private set; }
     public Guid ConexionIntegracionId { get; private set; }
     public DateTime ReclamadoEnUtc { get; private set; }
@@ -43,8 +70,12 @@ public class ReclamacionBuzonIntegracion : Entity
     }
 
     public ReclamacionBuzonIntegracion(
-        string buzonEmail, string? identidadBuzon, Guid tenantPropietarioId, Guid conexionIntegracionId, DateTime ahoraUtc)
+        string buzonEmail, string? identidadBuzon, Guid tenantPropietarioId, Guid conexionIntegracionId, DateTime ahoraUtc,
+        bool esBuzonCompartido = false)
     {
+        if (esBuzonCompartido && identidadBuzon is null)
+            throw new ArgumentException("La reclamación de un buzón compartido debe tener la identidad del buzón.", nameof(identidadBuzon));
+
         if (string.IsNullOrWhiteSpace(buzonEmail))
             throw new ArgumentException("La reclamación debe tener un buzón.", nameof(buzonEmail));
 
@@ -66,9 +97,28 @@ public class ReclamacionBuzonIntegracion : Entity
         BuzonEmail = normalizado;
         if (identidadBuzon is not null)
             FijarIdentidadBuzon(identidadBuzon);
+        else
+            FueraDeGuardaTransitoriaUtc = ahoraUtc; // Nueva y sin identidad: de un proveedor que no la tiene.
+
+        EsBuzonCompartido = esBuzonCompartido;
         TenantPropietarioId = tenantPropietarioId;
         ConexionIntegracionId = conexionIntegracionId;
         ReclamadoEnUtc = ahoraUtc;
+    }
+
+    /// <summary>
+    /// El ciclo diario vio la conexión de esta reclamación heredada en un estado terminal: deja de contar para la guarda
+    /// transitoria (<see cref="CuentaParaGuardaTransitoria"/>). No vuelve a contar: si la conexión completa más tarde su
+    /// identidad, el índice único por identidad decide.
+    /// </summary>
+    /// <returns>true si cambió.</returns>
+    public bool SacarDeGuardaTransitoria(DateTime ahoraUtc)
+    {
+        if (!CuentaParaGuardaTransitoria)
+            return false;
+
+        FueraDeGuardaTransitoriaUtc = ahoraUtc;
+        return true;
     }
 
     /// <summary>

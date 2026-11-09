@@ -111,7 +111,7 @@ public class ReclamacionBuzonIntegracionRlsTests : IAsyncLifetime
 
         repositorio.Reclamar(new ReclamacionBuzonIntegracion("A@Example.com", null, _tenantB, Guid.NewGuid(), DateTime.UtcNow));
 
-        (await repositorio.GuardarCambiosSiBuzonLibreAsync()).Should().BeFalse();
+        (await repositorio.GuardarCambiosSiBuzonLibreAsync()).Should().Be(ResultadoReclamacionBuzon.BuzonYaReclamado);
     }
 
     /// <summary>

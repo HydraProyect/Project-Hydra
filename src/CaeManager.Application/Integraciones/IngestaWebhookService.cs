@@ -69,6 +69,9 @@ public class IngestaWebhookService(
     /// Motivo que queda en el evento cuando Graph responde 404 sin decir que lo que falta es el mensaje: puede ser el
     /// buzón el que ya no existe. No se da por resuelto ni se gasta un intento; la verificación de la identidad decide.
     /// </summary>
+    public const string MotivoEsperaMensajeIncompleto =
+        "En espera: Microsoft 365 devolvió el mensaje incompleto; se volverá a leer.";
+
     public const string MotivoEsperaBuzonNoEncontrado =
         "En espera: Microsoft 365 no encuentra el buzón de esta conexión; se ingerirá cuando se compruebe de nuevo.";
 
@@ -166,6 +169,7 @@ public class IngestaWebhookService(
         // descartan entonces por duplicado (ExisteMensajeExternoAsync).
         var noLeidos = new List<string>();
         var buzonNoEncontrado = false;
+        var mensajeIncompleto = false;
         foreach (var mensajeId in mensajeIds)
         {
             var accessTokenResultado = await accesoGraph.ObtenerAccessTokenVigenteAsync(conexion, cancellationToken);
@@ -187,6 +191,8 @@ public class IngestaWebhookService(
             var lectura = await IngerirMensajeAsync(conexion, accessTokenResultado.Valor, mensajeId, cancellationToken);
             if (lectura == ResultadoBuzonNoEncontrado)
                 buzonNoEncontrado = true;
+            else if (lectura == ResultadoMensajeIncompleto)
+                mensajeIncompleto = true;
             else if (lectura is { } fallo)
                 noLeidos.Add(fallo);
         }
@@ -202,6 +208,16 @@ public class IngestaWebhookService(
             return MotivoEsperaBuzonNoEncontrado;
         }
 
+        // Tampoco se da por resuelto ni gasta intentos un mensaje que Graph devolvió incompleto
+        // (CodigosErrorMicrosoft365.MensajeIncompleto): espera y se vuelve a leer.
+        if (mensajeIncompleto)
+        {
+            logger.LogWarning(
+                "Notificación de webhook {EventoId} en espera: Graph devolvió un mensaje incompleto de la conexión {ConexionId}.",
+                evento.Id, conexion.Id);
+            return MotivoEsperaMensajeIncompleto;
+        }
+
         if (noLeidos.Count > 0)
             throw new InvalidOperationException(string.Join(" | ", noLeidos));
 
@@ -210,6 +226,9 @@ public class IngestaWebhookService(
 
     /// <summary>Lo que devuelve <see cref="IngerirMensajeAsync"/> cuando Graph no encuentra el buzón (o no dice qué falta).</summary>
     private const string ResultadoBuzonNoEncontrado = CodigosErrorMicrosoft365.BuzonNoEncontrado;
+
+    /// <summary>Lo que devuelve <see cref="IngerirMensajeAsync"/> cuando Graph devuelve el mensaje sin un campo obligatorio.</summary>
+    private const string ResultadoMensajeIncompleto = CodigosErrorMicrosoft365.MensajeIncompleto;
 
     /// <returns>
     /// El motivo, si el mensaje no se pudo leer por un fallo que no es un 404 del mensaje;
@@ -227,6 +246,10 @@ public class IngestaWebhookService(
             // final, para reintentarse.
             if (mensajeResultado.Error.Codigo == CodigosErrorMicrosoft365.BuzonNoEncontrado)
                 return ResultadoBuzonNoEncontrado;
+
+            // Un 200 sin un campo obligatorio no se ingiere con datos inventados ni gasta intento: espera.
+            if (mensajeResultado.Error.Codigo == CodigosErrorMicrosoft365.MensajeIncompleto)
+                return ResultadoMensajeIncompleto;
 
             if (mensajeResultado.Error.Codigo != CodigosErrorMicrosoft365.MensajeNoEncontrado)
                 return $"No se pudo leer el mensaje {mensajeId} de Graph: {mensajeResultado.Error.Mensaje}";

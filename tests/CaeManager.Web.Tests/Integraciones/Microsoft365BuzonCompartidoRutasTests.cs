@@ -227,6 +227,7 @@ public class Microsoft365BuzonCompartidoRutasTests
     [InlineData("Integraciones.Microsoft365.BuzonYaConectado", "/integraciones?error=ya-conectado")]
     [InlineData("Integraciones.Microsoft365.BuzonYaConectadoEnEstaOrganizacion", "/integraciones?error=ya-conectado")]
     [InlineData("Integraciones.Microsoft365.ErrorSuscripcion", "/integraciones?error=suscripcion")]
+    [InlineData("Integraciones.Microsoft365.AltaCompartidaEnPausa", "/integraciones?error=compartidos-en-pausa")]
     public void Un_buzon_ya_conectado_vuelve_con_su_propio_aviso_y_no_con_el_de_suscripcion(string codigo, string esperada) =>
         CaeManager.Web.Features.Integraciones.Endpoints.ConectarMicrosoft365Endpoints
             .RedireccionTrasConectar(CaeManager.Domain.Common.Result.Fallo<Guid>(CaeManager.Domain.Common.Error.Crear(codigo, "x")))
@@ -417,12 +418,78 @@ public class Microsoft365BuzonCompartidoRutasTests
     [Fact]
     public async Task Un_mensaje_con_destinatarios_y_cabeceras_nulos_se_lee_sin_lanzar()
     {
-        const string cuerpo = """{"id":"mensaje-1","conversationId":"hilo-1","subject":"Asunto","from":null,"toRecipients":[null],"ccRecipients":[null,{"emailAddress":null}],"replyTo":[null],"internetMessageHeaders":[null],"body":{"contentType":"html","content":"<p>hola</p>"},"receivedDateTime":"2026-11-09T10:00:00Z","hasAttachments":false}""";
+        const string cuerpo = """{"id":"mensaje-1","conversationId":"hilo-1","subject":"Asunto","from":{"emailAddress":{"address":"remitente@tenant.com"}},"toRecipients":[null],"ccRecipients":[null,{"emailAddress":null}],"replyTo":[null],"internetMessageHeaders":[null],"body":{"contentType":"html","content":"<p>hola</p>"},"receivedDateTime":"2026-11-09T10:00:00Z","hasAttachments":false,"attachments":[]}""";
 
         var resultado = await Cliente(new RespuestaFijaHandler(cuerpo, "application/json")).ObtenerMensajeAsync("token", Compartido, "mensaje-1", CancellationToken.None);
 
         resultado.EsExitoso.Should().BeTrue();
         resultado.Valor.MensajeExternoId.Should().Be("mensaje-1");
+    }
+
+    /// <summary>
+    /// Ronda 10: un 200 sin un campo obligatorio (CodigosErrorMicrosoft365.MensajeIncompleto) no se ingiere con datos
+    /// inventados: remitente, fecha, hilo, cuerpo y lista de adjuntos (con id y nombre en cada uno).
+    /// </summary>
+    [Theory]
+    [InlineData("\"from\":null,")]
+    [InlineData("\"from\":{\"emailAddress\":{\"address\":\" \"}},")]
+    [InlineData("\"receivedDateTime\":null,")]
+    [InlineData("\"conversationId\":null,")]
+    [InlineData("\"body\":null,")]
+    [InlineData("\"attachments\":null,")]
+    [InlineData("\"attachments\":[null],")]
+    [InlineData("\"attachments\":[{\"id\":\"a-1\",\"name\":null}],")]
+    public async Task Un_200_sin_un_campo_obligatorio_es_un_mensaje_incompleto(string sustitucion)
+    {
+        var campo = sustitucion[..(sustitucion.IndexOf(':') + 1)];
+        var completo = new Dictionary<string, string>
+        {
+            ["\"from\":"] = "\"from\":{\"emailAddress\":{\"address\":\"remitente@tenant.com\"}},",
+            ["\"receivedDateTime\":"] = "\"receivedDateTime\":\"2026-11-09T10:00:00Z\",",
+            ["\"conversationId\":"] = "\"conversationId\":\"hilo-1\",",
+            ["\"body\":"] = "\"body\":{\"contentType\":\"html\",\"content\":\"\"},",
+            ["\"attachments\":"] = "\"attachments\":[],",
+        };
+        completo[campo] = sustitucion;
+        var cuerpo = "{" + string.Concat(completo.Values) + "\"subject\":\"Asunto\"}";
+
+        var resultado = await Cliente(new RespuestaFijaHandler(cuerpo, "application/json")).ObtenerMensajeAsync("token", Compartido, "mensaje-1", CancellationToken.None);
+
+        resultado.EsFallido.Should().BeTrue();
+        resultado.Error.Codigo.Should().Be(CodigosErrorMicrosoft365.MensajeIncompleto);
+    }
+
+    [Fact]
+    public async Task Un_200_completo_con_cuerpo_vacio_y_sin_adjuntos_se_lee()
+    {
+        const string cuerpo = """{"from":{"emailAddress":{"address":"remitente@tenant.com"}},"receivedDateTime":"2026-11-09T10:00:00Z","conversationId":"hilo-1","body":{"contentType":"html","content":""},"attachments":[],"subject":"Asunto"}""";
+
+        var resultado = await Cliente(new RespuestaFijaHandler(cuerpo, "application/json")).ObtenerMensajeAsync("token", Compartido, "mensaje-1", CancellationToken.None);
+
+        resultado.EsExitoso.Should().BeTrue();
+        resultado.Valor.Remitente.Should().Be("remitente@tenant.com");
+    }
+
+    [Theory]
+    [InlineData(HttpStatusCode.TooManyRequests, true)]
+    [InlineData(HttpStatusCode.ServiceUnavailable, true)]
+    [InlineData(HttpStatusCode.Forbidden, false)]
+    [InlineData(HttpStatusCode.BadRequest, false)]
+    public async Task Crear_suscripcion_distingue_el_fallo_transitorio_del_definitivo(HttpStatusCode estado, bool transitorio)
+    {
+        var resultado = await Cliente(new AnotaPeticionesHandler(estado))
+            .CrearSuscripcionAsync("token", Compartido, "https://app.operador.test/hook", "estado", CancellationToken.None);
+
+        CodigosErrorMicrosoft365.EsTransitorio(resultado.Error).Should().Be(transitorio);
+    }
+
+    [Fact]
+    public async Task Un_timeout_al_crear_la_suscripcion_es_transitorio()
+    {
+        var resultado = await Cliente(new LanzaTimeoutHandler())
+            .CrearSuscripcionAsync("token", Compartido, "https://app.operador.test/hook", "estado", CancellationToken.None);
+
+        CodigosErrorMicrosoft365.EsTransitorio(resultado.Error).Should().BeTrue();
     }
 
     private sealed class CapturaCuerpoHandler(string respuesta) : HttpMessageHandler

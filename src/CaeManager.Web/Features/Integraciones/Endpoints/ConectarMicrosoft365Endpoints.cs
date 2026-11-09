@@ -156,7 +156,9 @@ public static class ConectarMicrosoft365Endpoints
             : resultado.Error.Codigo is ConectarBuzonMicrosoft365CommandHandler.CodigoBuzonYaConectado
                 or ConectarBuzonMicrosoft365CommandHandler.CodigoBuzonYaConectadoEnEstaOrganizacion
                 ? "/integraciones?error=ya-conectado"
-                : "/integraciones?error=suscripcion";
+                : resultado.Error.Codigo == ConectarBuzonMicrosoft365CommandHandler.CodigoAltaCompartidaEnPausa
+                    ? "/integraciones?error=compartidos-en-pausa"
+                    : "/integraciones?error=suscripcion";
 
     /// <summary>
     /// Dirección de buzón bien formada (solo la dirección, sin nombre visible) o null. Pública para poder

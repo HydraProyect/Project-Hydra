@@ -207,10 +207,25 @@ public class Microsoft365GraphClientFalso : IMicrosoft365GraphClient
         string accessToken, BuzonGraph buzon, string notificationUrl, string clientState, CancellationToken cancellationToken)
     {
         VecesSuscrito++;
-        return Registrar(buzon, FallaCreacionSuscripcion
+        ClientStatesSuscritos.Add(clientState);
+        return Registrar(buzon, ErrorCreacionSuscripcion is { } errorCreacion
+            ? Result.Fallo<SuscripcionGraphDto>(errorCreacion)
+            : FallaCreacionSuscripcion
             ? Result.Fallo<SuscripcionGraphDto>(Error.Crear("Integraciones.Microsoft365.ErrorApi", "fallo simulado"))
             : Result.Exito(new SuscripcionGraphDto("suscripcion-falsa", DateTime.UtcNow.AddDays(3))));
     }
+
+    /// <summary>Fallo concreto de la creación de suscripción (p. ej. transitorio); null, el de <see cref="FallaCreacionSuscripcion"/>.</summary>
+    public Error? ErrorCreacionSuscripcion { get; set; }
+
+    /// <summary>El clientState de cada suscripción creada.</summary>
+    public List<string> ClientStatesSuscritos { get; } = [];
+
+    /// <summary>Base de la URL del webhook; null simula la falta de URL pública.</summary>
+    public string? UrlPublicaBase { get; set; } = "https://app.operador.test";
+
+    public string? UrlNotificacion(Guid conexionId) =>
+        UrlPublicaBase is null ? null : $"{UrlPublicaBase}/api/integraciones/webhooks/microsoft365/{conexionId}";
 
     private Task<T> Registrar<T>(BuzonGraph buzon, T resultado)
     {
@@ -237,8 +252,15 @@ public class Microsoft365GraphClientFalso : IMicrosoft365GraphClient
     public Task<Result> EliminarSuscripcionAsync(string accessToken, string graphSubscriptionId, CancellationToken cancellationToken)
     {
         SuscripcionesEliminadas.Add(graphSubscriptionId);
-        return Task.FromResult(Result.Exito());
+        AlEliminarSuscripcion?.Invoke();
+        return Task.FromResult(ErrorEliminacion is { } error ? Result.Fallo(error) : Result.Exito());
     }
+
+    /// <summary>Se invoca al pedir el borrado de una suscripción (p. ej. para ver qué estaba guardado ya).</summary>
+    public Action? AlEliminarSuscripcion { get; set; }
+
+    /// <summary>Fallo del borrado de suscripción; null, éxito.</summary>
+    public Error? ErrorEliminacion { get; set; }
 
     public IReadOnlyList<string> ExtraerMensajeIdsDeNotificacion(string payloadJson) => MensajeIdsADevolver;
 

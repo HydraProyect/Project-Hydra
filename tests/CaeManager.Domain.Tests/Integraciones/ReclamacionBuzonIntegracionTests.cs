@@ -10,6 +10,42 @@ public class ReclamacionBuzonIntegracionTests
     private static readonly Guid ConexionId = Guid.NewGuid();
     private static readonly DateTime AhoraUtc = new(2026, 9, 23, 10, 0, 0, DateTimeKind.Utc);
 
+    // Guarda transitoria del alta de compartidos (ronda 10).
+
+    [Fact]
+    public void Una_nueva_sin_identidad_nace_fuera_de_la_guarda()
+    {
+        var reclamacion = new ReclamacionBuzonIntegracion("cae@tenant.com", null, TenantId, ConexionId, AhoraUtc);
+
+        reclamacion.CuentaParaGuardaTransitoria.Should().BeFalse("solo cuentan las heredadas, anteriores a la columna");
+        reclamacion.FueraDeGuardaTransitoriaUtc.Should().Be(AhoraUtc);
+    }
+
+    [Fact]
+    public void Una_compartida_exige_identidad_y_no_cuenta_como_heredada()
+    {
+        FluentActions.Invoking(() => new ReclamacionBuzonIntegracion("cae@tenant.com", null, TenantId, ConexionId, AhoraUtc, esBuzonCompartido: true))
+            .Should().Throw<ArgumentException>();
+
+        var compartida = new ReclamacionBuzonIntegracion("cae@tenant.com", "inbox-1", TenantId, ConexionId, AhoraUtc, esBuzonCompartido: true);
+        compartida.EsBuzonCompartido.Should().BeTrue();
+        compartida.CuentaParaGuardaTransitoria.Should().BeFalse();
+    }
+
+    [Fact]
+    public void Sacar_de_la_guarda_una_heredada_la_deja_inerte_y_es_idempotente()
+    {
+        var heredada = new ReclamacionBuzonIntegracion("cae@tenant.com", null, TenantId, ConexionId, AhoraUtc);
+        typeof(ReclamacionBuzonIntegracion).GetProperty(nameof(ReclamacionBuzonIntegracion.FueraDeGuardaTransitoriaUtc))!
+            .SetValue(heredada, null);
+        heredada.CuentaParaGuardaTransitoria.Should().BeTrue();
+
+        heredada.SacarDeGuardaTransitoria(AhoraUtc.AddHours(1)).Should().BeTrue();
+        heredada.CuentaParaGuardaTransitoria.Should().BeFalse();
+        heredada.SacarDeGuardaTransitoria(AhoraUtc.AddHours(2)).Should().BeFalse();
+        heredada.FueraDeGuardaTransitoriaUtc.Should().Be(AhoraUtc.AddHours(1));
+    }
+
     [Fact]
     public void Se_crea_con_el_buzon_normalizado_a_minusculas()
     {

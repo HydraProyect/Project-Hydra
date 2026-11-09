@@ -395,6 +395,8 @@ public class AcuseAutomaticoBuzonBajoRlsTests : IAsyncLifetime
         public Task<Result<SuscripcionGraphDto>> RenovarSuscripcionAsync(string accessToken, string graphSubscriptionId, CancellationToken cancellationToken) =>
             throw new NotSupportedException();
 
+        public string? UrlNotificacion(Guid conexionId) => throw new NotSupportedException();
+
         public Task<Result> EliminarSuscripcionAsync(string accessToken, string graphSubscriptionId, CancellationToken cancellationToken) =>
             throw new NotSupportedException();
 

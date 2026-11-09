@@ -66,7 +66,7 @@ public class ReclamacionBuzonIntegracionRepositoryGuardaUnicidadTests : IAsyncLi
 
         var buzonLibre = await reclamacionRepositorioB.GuardarCambiosSiBuzonLibreAsync();
 
-        buzonLibre.Should().BeFalse("el buzón ya está reclamado por el tenant A");
+        buzonLibre.Should().Be(ResultadoReclamacionBuzon.BuzonYaReclamado, "el buzón ya está reclamado por el tenant A");
 
         // Sin fila huérfana: ni la ConexionIntegracion ni la reclamación del
         // tenant B llegaron a persistirse — el ChangeTracker.Clear() del
@@ -93,7 +93,7 @@ public class ReclamacionBuzonIntegracionRepositoryGuardaUnicidadTests : IAsyncLi
         var reclamacionRepositorioA = new ReclamacionBuzonIntegracionRepository(contextoA);
         reclamacionRepositorioA.Reclamar(new ReclamacionBuzonIntegracion(conexionA.BuzonEmail, null, _tenantA, conexionA.Id, DateTime.UtcNow));
 
-        (await reclamacionRepositorioA.GuardarCambiosSiBuzonLibreAsync()).Should().BeTrue();
+        (await reclamacionRepositorioA.GuardarCambiosSiBuzonLibreAsync()).Should().Be(ResultadoReclamacionBuzon.Guardada);
 
         await using var contextoB = CrearContexto(_tenantB);
         var conexionB = new ConexionIntegracion("cae@refrielectric.com", "Buzón CAE");
@@ -101,7 +101,7 @@ public class ReclamacionBuzonIntegracionRepositoryGuardaUnicidadTests : IAsyncLi
         var reclamacionRepositorioB = new ReclamacionBuzonIntegracionRepository(contextoB);
         reclamacionRepositorioB.Reclamar(new ReclamacionBuzonIntegracion(conexionB.BuzonEmail, null, _tenantB, conexionB.Id, DateTime.UtcNow));
 
-        (await reclamacionRepositorioB.GuardarCambiosSiBuzonLibreAsync()).Should().BeTrue(
+        (await reclamacionRepositorioB.GuardarCambiosSiBuzonLibreAsync()).Should().Be(ResultadoReclamacionBuzon.Guardada,
             "son dos buzones distintos, la guarda de unicidad no debe interferir entre ellos");
     }
 
@@ -121,7 +121,7 @@ public class ReclamacionBuzonIntegracionRepositoryGuardaUnicidadTests : IAsyncLi
             var repositorioA = new ReclamacionBuzonIntegracionRepository(contextoA);
             repositorioA.Reclamar(new ReclamacionBuzonIntegracion(
                 conexionA.BuzonEmail, "inbox-del-mismo-buzon", _tenantA, conexionA.Id, DateTime.UtcNow));
-            (await repositorioA.GuardarCambiosSiBuzonLibreAsync()).Should().BeTrue();
+            (await repositorioA.GuardarCambiosSiBuzonLibreAsync()).Should().Be(ResultadoReclamacionBuzon.Guardada);
         }
 
         await using var contextoB = CrearContexto(_tenantB);
@@ -132,7 +132,7 @@ public class ReclamacionBuzonIntegracionRepositoryGuardaUnicidadTests : IAsyncLi
         repositorioB.Reclamar(new ReclamacionBuzonIntegracion(
             conexionB.BuzonEmail, "inbox-del-mismo-buzon", _tenantB, conexionB.Id, DateTime.UtcNow));
 
-        (await repositorioB.GuardarCambiosSiBuzonLibreAsync()).Should().BeFalse(
+        (await repositorioB.GuardarCambiosSiBuzonLibreAsync()).Should().Be(ResultadoReclamacionBuzon.BuzonYaReclamado,
             "es el mismo buzón con otra dirección: la identidad ya está reclamada por el tenant A");
 
         await using var contextoVerificacionB = CrearContexto(_tenantB);
@@ -147,7 +147,7 @@ public class ReclamacionBuzonIntegracionRepositoryGuardaUnicidadTests : IAsyncLi
         contextoA.ConexionesIntegracion.Add(conexionA);
         var repositorioA = new ReclamacionBuzonIntegracionRepository(contextoA);
         repositorioA.Reclamar(new ReclamacionBuzonIntegracion(conexionA.BuzonEmail, null, _tenantA, conexionA.Id, DateTime.UtcNow));
-        (await repositorioA.GuardarCambiosSiBuzonLibreAsync()).Should().BeTrue();
+        (await repositorioA.GuardarCambiosSiBuzonLibreAsync()).Should().Be(ResultadoReclamacionBuzon.Guardada);
 
         await using var contextoB = CrearContexto(_tenantB);
         var conexionB = new ConexionIntegracion("dos@operador.test", "Buzón dos");
@@ -155,7 +155,7 @@ public class ReclamacionBuzonIntegracionRepositoryGuardaUnicidadTests : IAsyncLi
         var repositorioB = new ReclamacionBuzonIntegracionRepository(contextoB);
         repositorioB.Reclamar(new ReclamacionBuzonIntegracion(conexionB.BuzonEmail, null, _tenantB, conexionB.Id, DateTime.UtcNow));
 
-        (await repositorioB.GuardarCambiosSiBuzonLibreAsync()).Should().BeTrue("el índice de identidad está filtrado a IS NOT NULL");
+        (await repositorioB.GuardarCambiosSiBuzonLibreAsync()).Should().Be(ResultadoReclamacionBuzon.Guardada, "el índice de identidad está filtrado a IS NOT NULL");
     }
 
     /// <summary>
@@ -195,7 +195,7 @@ public class ReclamacionBuzonIntegracionRepositoryGuardaUnicidadTests : IAsyncLi
         reclamacionRepositorioPosterior.Reclamar(
             new ReclamacionBuzonIntegracion(conexionValidaPosterior.BuzonEmail, null, _tenantA, conexionValidaPosterior.Id, DateTime.UtcNow));
 
-        (await reclamacionRepositorioPosterior.GuardarCambiosSiBuzonLibreAsync()).Should().BeTrue(
+        (await reclamacionRepositorioPosterior.GuardarCambiosSiBuzonLibreAsync()).Should().Be(ResultadoReclamacionBuzon.Guardada,
             "sin el Clear(), la ConexionIntegracion del intento fallido seguiría trackeada como Added y este SaveChangesAsync fallaría también");
 
         await using var contextoVerificacion = CrearContexto(_tenantA);

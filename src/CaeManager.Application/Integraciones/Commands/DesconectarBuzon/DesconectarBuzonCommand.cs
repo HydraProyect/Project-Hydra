@@ -41,24 +41,14 @@ public class DesconectarBuzonCommandHandler(
             return Result.Fallo(Error.Crear("ConexionIntegracion.NoEncontrada", "No encontramos esta conexión."));
 
         var suscripcion = await suscripcionRepositorio.ObtenerPorConexionAsync(conexion.Id, cancellationToken);
-        if (suscripcion is not null)
-        {
-            // Best-effort: si Graph no responde, la suscripción expira sola
-            // en unos días (ver RenovacionSuscripcionWebhookHostedService,
-            // que deja de renovarla porque la conexión ya está
-            // deshabilitada) — no bloquea la desconexión local.
-            var accessTokenResultado = await accesoGraph.ObtenerAccessTokenVigenteAsync(conexion, cancellationToken);
-            if (accessTokenResultado.EsExitoso)
-            {
-                var eliminarResultado = await graphClient.EliminarSuscripcionAsync(
-                    accessTokenResultado.Valor, suscripcion.GraphSubscriptionId, cancellationToken);
-                if (eliminarResultado.EsFallido)
-                    logger.LogWarning(
-                        "No se pudo eliminar la suscripción {SubscriptionId} de Graph al desconectar {ConexionId}: {Error}",
-                        suscripcion.GraphSubscriptionId, conexion.Id, eliminarResultado.Error.Mensaje);
-            }
-        }
+        // El token se pide antes del primer guardado: AccesoGraphService no guarda, y el refresh token que rote viaja
+        // en ese guardado.
+        var accessTokenResultado = suscripcion is null
+            ? null
+            : await accesoGraph.ObtenerAccessTokenVigenteAsync(conexion, cancellationToken);
 
+        // Primero se guarda la desconexión y después se borra en Graph: si el borrado fuera primero y el guardado
+        // fallase, la conexión seguiría Habilitada sin suscripción y sin aviso. Deshabilitada nunca pasa a ConError.
         conexion.Deshabilitar();
         // Libera el buzón para cualquier Tenant (incremento 1 de
         // PROPUESTA-BUZONES-COMPARTIDOS-M365 § 5.4) — solo aquí, nunca en la
@@ -66,6 +56,47 @@ public class DesconectarBuzonCommandHandler(
         // sigue siendo dueña de su buzón.
         await reclamacionRepositorio.LiberarAsync(conexion.Id, cancellationToken);
         await unitOfWork.SaveChangesAsync(cancellationToken);
+
+        if (suscripcion is null)
+            return Result.Exito();
+
+        // Best-effort: si Graph no responde, la suscripción expira sola en unos días (la renovación deja de renovarla
+        // porque la conexión está deshabilitada) y no bloquea la desconexión, que ya está guardada. La marca del hueco
+        // queda en el momento del borrado: desde ahí el correo de este buzón no entra.
+        string? motivoFallo = null;
+        if (accessTokenResultado is { EsExitoso: true })
+        {
+            var eliminarResultado = await graphClient.EliminarSuscripcionAsync(
+                accessTokenResultado.Valor, suscripcion.GraphSubscriptionId, cancellationToken);
+            if (eliminarResultado.EsFallido)
+                motivoFallo = eliminarResultado.Error.Mensaje;
+        }
+        else
+        {
+            motivoFallo = accessTokenResultado?.Error.Mensaje ?? "sin token";
+        }
+
+        if (motivoFallo is null)
+            return Result.Exito();
+
+        logger.LogWarning(
+            "No se pudo eliminar la suscripción {SubscriptionId} de Graph al desconectar {ConexionId}: {Error}",
+            suscripcion.GraphSubscriptionId, conexion.Id, motivoFallo);
+        var ahora = DateTime.UtcNow;
+        if (conexion.RegistrarPerdidaSuscripcion(ahora, ahora))
+        {
+            try
+            {
+                await unitOfWork.SaveChangesAsync(cancellationToken);
+            }
+            catch (Exception ex) when (ex.GetType().Name == "DbUpdateConcurrencyException")
+            {
+                // Otro proceso tocó la conexión entre los dos guardados: la desconexión ya quedó guardada; solo se
+                // pierde la marca, que el siguiente descarte de notificación vuelve a poner.
+                logger.LogWarning(ex, "No se pudo guardar la marca de hueco de {ConexionId} tras desconectar.", conexion.Id);
+            }
+        }
+
         return Result.Exito();
     }
 }

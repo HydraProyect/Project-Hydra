@@ -56,6 +56,7 @@ public class CompletarIdentidadBuzonService(
     IUnitOfWork unitOfWork,
     IDescarteCambiosPendientes descarteCambios,
     ICerrojoVerificacionBuzon cerrojo,
+    SuscripcionAlRehabilitarService suscripciones,
     ILogger<CompletarIdentidadBuzonService> logger)
 {
     public const string MensajeBuzonDuplicado =
@@ -124,6 +125,7 @@ public class CompletarIdentidadBuzonService(
                 verificadas.Add(conexionId);
         }
 
+        await SacarTerminalesDeGuardaTransitoriaAsync(cancellationToken);
         return verificadas;
     }
 
@@ -280,7 +282,7 @@ public class CompletarIdentidadBuzonService(
                 return false;
             }
 
-            await MarcarVerificadaAsync(conexion, ahoraUtc, cancellationToken);
+            await MarcarVerificadaAsync(conexion, token.Valor, ahoraUtc, cancellationToken);
             await unitOfWork.SaveChangesAsync(cancellationToken);
             return true;
         }
@@ -290,13 +292,22 @@ public class CompletarIdentidadBuzonService(
         reclamacion?.FijarIdentidadBuzon(identidad.Valor);
         conexion.MarcarIdentidadVerificada(ahoraUtc);
 
-        if (await reclamacionRepositorio.GuardarCambiosSiBuzonLibreAsync(cancellationToken))
+        var resultadoReclamacion = await reclamacionRepositorio.GuardarCambiosSiBuzonLibreAsync(cancellationToken);
+        if (resultadoReclamacion == ResultadoReclamacionBuzon.Guardada)
         {
             // Ya confirmada la identidad: la rehabilitación y la cola van en un segundo guardado, para no tocar nada de
             // un buzón que acaba de chocar con otro.
-            await MarcarVerificadaAsync(conexion, ahoraUtc, cancellationToken);
+            await MarcarVerificadaAsync(conexion, token.Valor, ahoraUtc, cancellationToken);
             await unitOfWork.SaveChangesAsync(cancellationToken);
             return true;
+        }
+
+        if (resultadoReclamacion == ResultadoReclamacionBuzon.AltaCompartidaEnPausa)
+        {
+            // Completar la identidad saca la fila del predicado de la guarda, así que no debería chocar: si choca, no es
+            // un defecto del buzón y no se marca ConError; el siguiente ciclo lo vuelve a intentar.
+            logger.LogWarning("Completar la identidad de la conexión {ConexionId} chocó con la guarda transitoria.", conexionId);
+            return false;
         }
 
         // El guardado fallido descartó los cambios en memoria: se vuelve a leer la conexión para marcarla.
@@ -330,17 +341,62 @@ public class CompletarIdentidadBuzonService(
     /// Verificada en este ciclo: se rehabilita si estaba en ConError y sus eventos retenidos vuelven a la cola. La marca
     /// del hueco, si la hay, se conserva: el correo de ese intervalo pudo no entrar y Conexiones lo sigue avisando.
     /// </summary>
-    private async Task MarcarVerificadaAsync(ConexionIntegracion conexion, DateTime ahoraUtc, CancellationToken cancellationToken)
+    /// <para>
+    /// Desde ConError, antes de rehabilitar se asegura la suscripción de Graph (<see cref="SuscripcionAlRehabilitarService"/>):
+    /// si falla de forma transitoria, sigue en ConError y sus retenidos esperan al siguiente intento; si falla de forma
+    /// definitiva, sigue en ConError con el motivo de la suscripción. Nunca vuelve a Habilitada sin suscripción vigente.
+    /// </para>
+    private async Task MarcarVerificadaAsync(
+        ConexionIntegracion conexion, string accessToken, DateTime ahoraUtc, CancellationToken cancellationToken)
     {
         conexion.MarcarIdentidadVerificada(ahoraUtc);
 
         if (conexion.Estado == EstadoConexionIntegracion.ConError)
         {
+            var suscripcion = await suscripciones.AsegurarAsync(conexion, accessToken, cancellationToken);
+            if (suscripcion.EsFallido)
+            {
+                logger.LogWarning(
+                    "La conexión {ConexionId} está verificada pero su suscripción no se pudo asegurar ({Error}): sigue en ConError.",
+                    conexion.Id, suscripcion.Error.Mensaje);
+                AplazarSiMicrosoftPideEsperar(conexion, suscripcion.Error);
+                if (!CodigosErrorMicrosoft365.EsTransitorio(suscripcion.Error))
+                    conexion.MarcarConError(suscripcion.Error.Mensaje, ahoraUtc);
+                return;
+            }
+
             logger.LogInformation("La conexión {ConexionId} vuelve a estar verificada: se rehabilita.", conexion.Id);
             conexion.Rehabilitar();
         }
 
         foreach (var retenido in await eventoRepositorio.ObtenerRetenidosAsync(conexion.Id, cancellationToken))
             retenido.Liberar();
+    }
+
+    /// <summary>
+    /// Condición de salida de la guarda transitoria (<see cref="ReclamacionBuzonIntegracion.CuentaParaGuardaTransitoria"/>):
+    /// una reclamación heredada sin identidad cuya conexión es terminal (no existe, no es de Microsoft 365 o no está
+    /// Habilitada: ConError, también la que dejó un 404, o Deshabilitada) deja de contar, para que la guarda nunca
+    /// bloquee para siempre. Solo lee las reclamaciones del Tenant del ámbito (RLS); el ciclo recorre cada Tenant.
+    /// </summary>
+    private async Task SacarTerminalesDeGuardaTransitoriaAsync(CancellationToken cancellationToken)
+    {
+        var ahoraUtc = DateTime.UtcNow;
+        var cambiadas = 0;
+        foreach (var reclamacion in await reclamacionRepositorio.ObtenerQueCuentanParaGuardaTransitoriaAsync(cancellationToken))
+        {
+            var conexion = await conexionRepositorio.ObtenerPorIdAsync(reclamacion.ConexionIntegracionId, cancellationToken);
+            var terminal = conexion is null
+                || conexion.Proveedor != ProveedorIntegracion.Microsoft365
+                || conexion.Estado != EstadoConexionIntegracion.Habilitada;
+            if (terminal && reclamacion.SacarDeGuardaTransitoria(ahoraUtc))
+                cambiadas++;
+        }
+
+        if (cambiadas > 0)
+        {
+            logger.LogInformation("{Cambiadas} reclamaciones de conexiones terminales salen de la guarda transitoria.", cambiadas);
+            await unitOfWork.SaveChangesAsync(cancellationToken);
+        }
     }
 }

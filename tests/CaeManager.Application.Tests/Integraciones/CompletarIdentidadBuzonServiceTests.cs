@@ -62,7 +62,114 @@ public class CompletarIdentidadBuzonServiceTests
             UnitOfWork,
             Descarte,
             Cerrojo,
+            new SuscripcionAlRehabilitarService(Suscripciones, Graph, NullLogger<SuscripcionAlRehabilitarService>.Instance),
             NullLogger<CompletarIdentidadBuzonService>.Instance);
+
+        public SuscripcionWebhookRepositorioFalso Suscripciones { get; } = new();
+    }
+
+    // Ronda 10, hallazgo alto: el ciclo no rehabilita una ConError sin suscripción vigente.
+
+    [Fact]
+    public async Task ConErrorVerificada_SinSuscripcionLocal_LaCreaYRehabilita()
+    {
+        var escenario = new Escenario();
+        var conexion = escenario.AgregarVerificada("cae@tenant.com", "inbox-1", TimeSpan.FromDays(3));
+        conexion.MarcarConError(CompletarIdentidadBuzonService.MensajeSinAccesoBuzon);
+        var retenido = escenario.AgregarRetenido(conexion);
+
+        await escenario.Servicio().CompletarAsync(CancellationToken.None);
+
+        conexion.Estado.Should().Be(EstadoConexionIntegracion.Habilitada);
+        escenario.Suscripciones.Suscripciones.Should().ContainSingle(s => s.ConexionIntegracionId == conexion.Id);
+        retenido.Estado.Should().NotBe(EstadoEventoWebhook.Retenido);
+    }
+
+    [Fact]
+    public async Task ConErrorVerificada_SuscripcionRenovable_LaRenuevaSinCrearOtra()
+    {
+        var escenario = new Escenario();
+        var conexion = escenario.AgregarVerificada("cae@tenant.com", "inbox-1", TimeSpan.FromDays(3));
+        conexion.MarcarConError(CompletarIdentidadBuzonService.MensajeSinAccesoBuzon);
+        escenario.Suscripciones.Agregar(new SuscripcionWebhook(conexion.Id, "sub-1", "estado", DateTime.UtcNow.AddHours(5)));
+
+        await escenario.Servicio().CompletarAsync(CancellationToken.None);
+
+        conexion.Estado.Should().Be(EstadoConexionIntegracion.Habilitada);
+        escenario.Graph.SuscripcionesRenovadas.Should().Contain("sub-1");
+        escenario.Graph.VecesSuscrito.Should().Be(0);
+    }
+
+    [Fact]
+    public async Task ConErrorVerificada_SuscripcionPerdida_LaRecreaConElMismoClientState()
+    {
+        var escenario = new Escenario();
+        var conexion = escenario.AgregarVerificada("cae@tenant.com", "inbox-1", TimeSpan.FromDays(3));
+        conexion.MarcarConError(CompletarIdentidadBuzonService.MensajeSinAccesoBuzon);
+        escenario.Suscripciones.Agregar(new SuscripcionWebhook(conexion.Id, "sub-1", "estado-propio", DateTime.UtcNow.AddHours(-5)));
+        escenario.Graph.ErroresRenovacion["sub-1"] = Error.Crear("Integraciones.Microsoft365.ErrorRenovacion", "no existe");
+
+        await escenario.Servicio().CompletarAsync(CancellationToken.None);
+
+        conexion.Estado.Should().Be(EstadoConexionIntegracion.Habilitada);
+        escenario.Graph.ClientStatesSuscritos.Should().Equal("estado-propio");
+        escenario.Suscripciones.Suscripciones.Single().GraphSubscriptionId.Should().Be("suscripcion-falsa");
+    }
+
+    [Fact]
+    public async Task ConErrorVerificada_CreacionTransitoria_SigueEnConErrorYRetenidosEsperan()
+    {
+        var escenario = new Escenario();
+        var conexion = escenario.AgregarVerificada("cae@tenant.com", "inbox-1", TimeSpan.FromDays(3));
+        conexion.MarcarConError(CompletarIdentidadBuzonService.MensajeSinAccesoBuzon);
+        var retenido = escenario.AgregarRetenido(conexion);
+        escenario.Graph.ErrorCreacionSuscripcion = Error.Crear(CodigosErrorMicrosoft365.Transitorio, "503");
+
+        await escenario.Servicio().CompletarAsync(CancellationToken.None);
+
+        conexion.Estado.Should().Be(EstadoConexionIntegracion.ConError);
+        conexion.UltimoError.Should().Be(CompletarIdentidadBuzonService.MensajeSinAccesoBuzon);
+        retenido.Estado.Should().Be(EstadoEventoWebhook.Retenido);
+        escenario.Suscripciones.Suscripciones.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task ConErrorVerificada_CreacionDefinitiva_SigueEnConErrorConElMotivoDeLaSuscripcion()
+    {
+        var escenario = new Escenario();
+        var conexion = escenario.AgregarVerificada("cae@tenant.com", "inbox-1", TimeSpan.FromDays(3));
+        conexion.MarcarConError(CompletarIdentidadBuzonService.MensajeSinAccesoBuzon);
+        escenario.Graph.FallaCreacionSuscripcion = true;
+
+        await escenario.Servicio().CompletarAsync(CancellationToken.None);
+
+        conexion.Estado.Should().Be(EstadoConexionIntegracion.ConError);
+        conexion.UltimoError.Should().Be("fallo simulado");
+    }
+
+    // Ronda 10, guarda transitoria: el ciclo saca de la guarda las heredadas de conexiones terminales.
+
+    [Fact]
+    public async Task Barrido_HeredadaDeConexionConErrorODesconectada_SaleDeLaGuarda()
+    {
+        var escenario = new Escenario();
+        var enError = ConexionIntegracion.CrearBuzonCompartido("error@tenant.com", "Error", Directorio, Guid.NewGuid());
+        escenario.Conexiones.Agregar(enError);
+        enError.MarcarConError("caída");
+        var desconectada = ConexionIntegracion.CrearBuzonCompartido("baja@tenant.com", "Baja", Directorio, Guid.NewGuid());
+        escenario.Conexiones.Agregar(desconectada);
+        desconectada.Deshabilitar();
+        var habilitada = ConexionIntegracion.CrearBuzonCompartido("viva@tenant.com", "Viva", Directorio, Guid.NewGuid());
+        escenario.Conexiones.Agregar(habilitada);
+        var deError = escenario.Reclamaciones.AgregarHeredada("error@tenant.com", enError.Id);
+        var deBaja = escenario.Reclamaciones.AgregarHeredada("baja@tenant.com", desconectada.Id);
+        var deViva = escenario.Reclamaciones.AgregarHeredada("viva@tenant.com", habilitada.Id);
+
+        await escenario.Servicio().CompletarAsync(CancellationToken.None);
+
+        deError.CuentaParaGuardaTransitoria.Should().BeFalse();
+        deBaja.CuentaParaGuardaTransitoria.Should().BeFalse();
+        deViva.CuentaParaGuardaTransitoria.Should().BeTrue("una Habilitada sin identidad aún puede completarla y sigue contando");
     }
 
     public sealed class DescarteQueSueltaElLote(UnitOfWorkFalso unitOfWork) : CaeManager.Application.Common.IDescarteCambiosPendientes

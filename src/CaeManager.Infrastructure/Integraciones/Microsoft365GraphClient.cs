@@ -618,6 +618,17 @@ public class Microsoft365GraphClient(
             if (mensaje is null)
                 return Result.Fallo<MensajeGraphDto>(Error.Crear("Integraciones.Microsoft365.ErrorApi", "No pudimos leer el mensaje."));
 
+            // Campos obligatorios (CodigosErrorMicrosoft365.MensajeIncompleto): sin ellos no se inventa remitente, fecha
+            // ni hilo; el evento espera sin gastar intento y sin marcarse procesado.
+            if (CampoObligatorioAusente(mensaje) is { } campoAusente)
+            {
+                logger.LogWarning(
+                    "Microsoft Graph devolvió el mensaje {MensajeId} sin {Campo}: se reintentará sin darlo por procesado.",
+                    mensajeId, campoAusente);
+                return Result.Fallo<MensajeGraphDto>(Error.Crear(
+                    CodigosErrorMicrosoft365.MensajeIncompleto, "Microsoft 365 devolvió el mensaje incompleto."));
+            }
+
             var participantes = new List<ParticipanteGraphDto>();
             if (!string.IsNullOrWhiteSpace(mensaje.From?.EmailAddress?.Address))
                 participantes.Add(new ParticipanteGraphDto(mensaje.From.EmailAddress.Address, RolParticipante.De));
@@ -668,6 +679,24 @@ public class Microsoft365GraphClient(
             logger.LogError(ex, "Microsoft Graph devolvió un mensaje {MensajeId} ilegible.", mensajeId);
             return Result.Fallo<MensajeGraphDto>(Error.Crear("Integraciones.Microsoft365.ErrorApi", "No pudimos leer el mensaje."));
         }
+    }
+
+    /// <summary>El primer campo obligatorio que falta (ver <see cref="CodigosErrorMicrosoft365.MensajeIncompleto"/>), o null.</summary>
+    private static string? CampoObligatorioAusente(MensajeDetalleGraph mensaje)
+    {
+        if (string.IsNullOrWhiteSpace(mensaje.From?.EmailAddress?.Address))
+            return "from.emailAddress.address";
+        if (mensaje.ReceivedDateTime is null)
+            return "receivedDateTime";
+        if (string.IsNullOrWhiteSpace(mensaje.ConversationId))
+            return "conversationId";
+        if (mensaje.Body?.Content is null)
+            return "body.content";
+        if (mensaje.Attachments is null)
+            return "attachments";
+        if (mensaje.Attachments.Any(a => a is null || string.IsNullOrWhiteSpace(a.Id) || string.IsNullOrWhiteSpace(a.Name)))
+            return "attachments[].id/name";
+        return null;
     }
 
     private const string CodigoMensajeNoEncontrado = CodigosErrorMicrosoft365.MensajeNoEncontrado;
@@ -846,21 +875,41 @@ public class Microsoft365GraphClient(
                 logger.LogError(
                     "Microsoft Graph devolvió {StatusCode} al crear la suscripción del buzón: {CodigoError}",
                     (int)respuesta.StatusCode, CodigoErrorGraph.Extraer(cuerpoError));
-                return Result.Fallo<SuscripcionGraphDto>(Error.Crear("Integraciones.Microsoft365.ErrorSuscripcion", "No pudimos activar las notificaciones de este buzón."));
+                // 429/5xx es transitorio: rehabilitar una conexión espera en vez de dejarla en ConError
+                // (SuscripcionAlRehabilitarService). El resto (403, 400 de validación del webhook) es definitivo.
+                return Result.Fallo<SuscripcionGraphDto>(EsRespuestaTransitoria(respuesta.StatusCode)
+                    ? ErrorTransitorio
+                    : Error.Crear("Integraciones.Microsoft365.ErrorSuscripcion", "No pudimos activar las notificaciones de este buzón."));
             }
 
             var suscripcion = await respuesta.Content.ReadFromJsonAsync<SuscripcionDetalleGraph>(cancellationToken);
             if (suscripcion?.Id is null || suscripcion.ExpirationDateTime is null)
-                return Result.Fallo<SuscripcionGraphDto>(Error.Crear("Integraciones.Microsoft365.ErrorSuscripcion", "No pudimos activar las notificaciones de este buzón."));
+                return Result.Fallo<SuscripcionGraphDto>(ErrorTransitorio);
 
             return Result.Exito(new SuscripcionGraphDto(suscripcion.Id, suscripcion.ExpirationDateTime.Value));
         }
         catch (HttpRequestException ex)
         {
             logger.LogError(ex, "Fallo de red al crear la suscripción del buzón vía Microsoft Graph.");
-            return Result.Fallo<SuscripcionGraphDto>(Error.Crear("Integraciones.Microsoft365.ErrorRed", "No pudimos conectar con Microsoft."));
+            return Result.Fallo<SuscripcionGraphDto>(Error.Crear(CodigosErrorMicrosoft365.ErrorRed, "No pudimos conectar con Microsoft."));
+        }
+        catch (TaskCanceledException ex) when (!cancellationToken.IsCancellationRequested)
+        {
+            logger.LogError(ex, "Microsoft Graph no respondió a tiempo al crear la suscripción del buzón.");
+            return Result.Fallo<SuscripcionGraphDto>(ErrorTiempoAgotado);
+        }
+        catch (Exception ex) when (ex is JsonException or NotSupportedException)
+        {
+            // Un 200 ilegible no dice si la suscripción existe: transitorio, para no dejar la conexión en ConError.
+            logger.LogError(ex, "Microsoft Graph devolvió una suscripción ilegible.");
+            return Result.Fallo<SuscripcionGraphDto>(ErrorTransitorio);
         }
     }
+
+    public string? UrlNotificacion(Guid conexionId) =>
+        string.IsNullOrWhiteSpace(opciones.Value.UrlPublicaBase)
+            ? null
+            : $"{opciones.Value.UrlPublicaBase.TrimEnd('/')}/api/integraciones/webhooks/microsoft365/{conexionId}";
 
     public async Task<Result<SuscripcionGraphDto>> RenovarSuscripcionAsync(
         string accessToken, string graphSubscriptionId, CancellationToken cancellationToken)
