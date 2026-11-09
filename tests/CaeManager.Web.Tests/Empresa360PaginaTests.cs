@@ -616,7 +616,7 @@ public partial class Empresa360PaginaTests : BunitContext
             .Should().BeTrue("la maqueta (§ C) fija el diálogo en 600 px y Modal solo ofrece 420/520/720");
         System.Text.RegularExpressions.Regex.IsMatch(paquete, @"\.paquete-dialogo\s*\{\s*display:\s*contents;")
             .Should().BeTrue("el contenedor no puede ser un elemento más, con su gap, de la fila de acciones de la cabecera");
-        paquete.Should().NotContain("Inter","la aplicación no carga Inter: la familia viene de --font-family");
+        paquete.Should().NotContain("Inter", "la aplicación no carga Inter: la familia viene de --font-family");
     }
 
     private static string LeerHoja(string carpeta, string fichero)
