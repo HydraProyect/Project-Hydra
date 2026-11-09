@@ -39,6 +39,19 @@ public class SelectorEntidadTests : BunitContext
     }
 
     [Fact]
+    public void Escribir_filtra_sin_mayusculas_ni_tildes_como_el_combobox_del_kit()
+    {
+        var cut = Render<SelectorEntidad>(parametros => parametros
+            .Add(p => p.Opciones, [new OpcionBuscable("1", "Construcciones Peñíscola S.L."), new OpcionBuscable("2", "Bebidas del Norte S.A.")])
+            .Add(p => p.Valor, string.Empty));
+
+        cut.Find("input").Input("PENISCOLA");
+
+        cut.FindAll(".selector-entidad-opcion").Should().ContainSingle()
+            .Which.TextContent.Should().Contain("Construcciones Peñíscola S.L.");
+    }
+
+    [Fact]
     public void Clicar_una_opcion_notifica_su_Id_y_muestra_su_texto()
     {
         string? valorNotificado = null;

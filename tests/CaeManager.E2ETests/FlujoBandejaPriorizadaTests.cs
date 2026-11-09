@@ -70,10 +70,9 @@ public class FlujoBandejaPriorizadaTests(WebAppFixture fixture)
 
         await Ayudas.NavegarYEsperarAsync(page, $"{fixture.BaseUrl}/documentos");
         await page.Locator("[data-keytip-contenedor=\"N\"]").GetByRole(AriaRole.Button, new() { Name = "+ Nuevo documento", Exact = true }).ClickAsync();
-        await drawer.GetByLabel("Trabajador", new LocatorGetByLabelOptions { Exact = true })
-            .FillAsync($"{nombreTrabajador} {apellidosTrabajador} ({razonSocialEmpresa})");
-        // El debounce del servidor resuelve el Id del Trabajador sin exponer su resultado en el DOM.
-        await page.WaitForTimeoutAsync(500);
+        await Ayudas.ElegirOpcionEnSelectorAvanzadoPorTextoAsync(page,
+            drawer.GetByLabel("Trabajador", new LocatorGetByLabelOptions { Exact = true }),
+            $"{nombreTrabajador} {apellidosTrabajador} ({razonSocialEmpresa})");
         await Ayudas.ElegirOpcionEnSelectorAvanzadoPorTextoAsync(page, drawer.GetByLabel("Tipo de documento"), "Formación PRL de convenio");
 
         var hoy = Ayudas.HoyDeNegocio();

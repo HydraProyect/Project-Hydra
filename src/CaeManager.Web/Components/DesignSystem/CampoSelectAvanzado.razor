@@ -250,7 +250,18 @@
     private readonly List<OpcionSelect> _creadas = [];
     private IReadOnlyList<OpcionSelect> _todas = [];
 
-    protected override void OnParametersSet() => RecalcularTodas();
+    protected override void OnParametersSet()
+    {
+        var anteriores = _todas;
+        RecalcularTodas();
+        if (!_abierto || ReferenceEquals(anteriores, _todas)) return;
+
+        // Con la lista abierta, unas opciones que llegan mientras se busca (una carga asíncrona del padre) rehacen
+        // el filtro: los índices visibles apuntaban a la lista anterior y pintaban filas que ya no tocaban.
+        Recalcular();
+        if (_activo < 0 || _activo >= _visibles.Count + (MostrarCrear ? 1 : 0))
+            _activo = _visibles.FindIndex(i => !_todas[i].Deshabilitada);
+    }
 
     private void RecalcularTodas() =>
         _todas = _creadas.Count == 0 ? Opciones : [.. Opciones, .. _creadas.Where(c => Opciones.All(o => o.Valor != c.Valor))];

@@ -152,6 +152,8 @@ public sealed class SubidaMasivaGen2Tests : BunitContext
 
         var buscador = cut.FindComponents<CampoBuscarSelect>().Single(c => c.Instance.Etiqueta == "Trabajador");
         buscador.Instance.Opciones.Select(o => o.Texto).Should().Equal("Persona CAE (Montajes Ebro S.L.)");
+        // Las opciones solo se pintan con la lista abierta: se abre para mirar lo que ve la persona.
+        await AyudasCampoBuscarSelect.Disparador(buscador).ClickAsync(new MouseEventArgs());
         cut.Markup.Should().Contain("Persona CAE").And.NotContain(TrabajadorSelectorFalso.DniSembrado);
         await DisposeComponentsAsync();
     }
