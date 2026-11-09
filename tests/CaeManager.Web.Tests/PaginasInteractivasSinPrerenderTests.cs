@@ -30,9 +30,9 @@ public class PaginasInteractivasSinPrerenderTests
         ["CaeManager.Web.Features.Dashboard.Pages.Inicio"] =
             "la primera impresión (Inicio) está pendiente de una decisión de producto (D1)",
         ["CaeManager.Web.Features.Plataforma.Pages.Plataforma"] =
-            "lee AntiforgeryStateProvider.GetAntiforgeryToken(), cuyo token llega persistido desde el prerender; sin prerender podría ser null (riesgo señalado por la medición MJ-03)",
+            "lee AntiforgeryStateProvider.GetAntiforgeryToken(), cuyo token llega persistido desde el prerender; sin prerender podría ser null; no se ha comprobado y queda fuera por precaución (riesgo señalado por la medición MJ-03)",
         ["CaeManager.Web.Features.VisionCartera.Pages.VisionCartera"] =
-            "lee AntiforgeryStateProvider.GetAntiforgeryToken(), cuyo token llega persistido desde el prerender; sin prerender podría ser null (riesgo señalado por la medición MJ-03)",
+            "lee AntiforgeryStateProvider.GetAntiforgeryToken(), cuyo token llega persistido desde el prerender; sin prerender podría ser null; no se ha comprobado y queda fuera por precaución (riesgo señalado por la medición MJ-03)",
     };
 
     /// <summary>Páginas sin prerender que no montan el componente de título, con su motivo.</summary>

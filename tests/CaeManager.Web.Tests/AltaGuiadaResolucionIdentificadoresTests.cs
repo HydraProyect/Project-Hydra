@@ -100,6 +100,7 @@ public class AltaGuiadaResolucionIdentificadoresTests : BunitContext
     /// </summary>
     private IRenderedComponent<AltaGuiada> RenderizarConQuery(string query, MediatorDeResolucion mediator)
     {
+        JSInterop.Mode = JSRuntimeMode.Loose; // la página monta TituloDePaginaSinPrerender, que importa un módulo JS
         Services.AddLocalization();
         Services.AddScoped<IMediator>(_ => mediator);
         Services.AddScoped<ToastService>();

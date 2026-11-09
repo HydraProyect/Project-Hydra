@@ -86,6 +86,7 @@ public class AltaGuiadaCatalogoEmpresasVacioTests : BunitContext
     /// </summary>
     private IRenderedComponent<AltaGuiada> RenderizarEnPaso1ConCatalogo(params EmpresaSelectorDto[] catalogo)
     {
+        JSInterop.Mode = JSRuntimeMode.Loose; // la página monta TituloDePaginaSinPrerender, que importa un módulo JS
         Services.AddLocalization();
         Services.AddScoped<IMediator>(_ => new MediatorPorTipo { Catalogo = catalogo });
         Services.AddScoped<ToastService>();
