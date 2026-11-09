@@ -403,10 +403,10 @@
     <value>Se calcula sobre la lista completa, no sobre la filtrada.</value>
   </data>
   <data name="ResumenBloqueoUno360" xml:space="preserve">
-    <value>{0} documento bloquea el acceso</value>
+    <value>{0} bloquea el acceso</value>
   </data>
   <data name="ResumenBloqueoVarios360" xml:space="preserve">
-    <value>{0} documentos bloquean el acceso</value>
+    <value>{0} y {1} más bloquean el acceso</value>
   </data>
   <data name="SinExigenciasTrabajador360" xml:space="preserve">
     <value>Este Centro no le exige documentación específica.</value>

@@ -311,7 +311,7 @@ else
                         @if (MostrarEstadoPlataforma && !ModoListado)
                         {
                             @* Centro 360 (maqueta): el primer nivel dice una línea sin botones; los motivos y «Gestionar» viven en el desplegable. *@
-                            <span class="fila-trabajador-resumen" data-resumen-fila>@ResumenPrimerNivel(trabajador)</span>
+                            <span class="fila-trabajador-resumen" data-resumen-fila title="@TituloResumenPrimerNivel(trabajador)">@ResumenPrimerNivel(trabajador)</span>
                         }
                         else if (BloqueosDe(trabajador.TrabajadorId).Count > 0)
                         {

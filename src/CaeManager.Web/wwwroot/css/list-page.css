@@ -2206,12 +2206,13 @@
     display: grid;
     /* Última columna de ancho fijo (antes minmax(150px, auto)): cada fila es su propia rejilla, y con «auto» una acción más
        ancha o una celda vacía movían Estado y Caducidad respecto a las demás filas de la misma tabla. */
-    grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr) 96px 56px 148px;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr) 96px 56px 188px;
     gap: var(--space-3);
     align-items: center;
 }
 .cabecera-plataforma-centro .cabecera-accion-plataforma { text-align: right; }
-.fila-plataforma-centro .celda-accion-plataforma { display: flex; flex-direction: column; align-items: flex-end; gap: 4px; min-width: 0; }
+/* En fila y envolviendo: «Gestionar» y las acciones de plataforma («Marcar subido», «Cambiar») ocupan como mucho dos líneas. */
+.fila-plataforma-centro .celda-accion-plataforma { display: flex; flex-flow: row wrap; align-items: center; justify-content: flex-end; gap: 4px 6px; min-width: 0; }
 .cabecera-plataforma-centro {
     padding: 8px 0 6px;
     font: var(--font-caption);
@@ -2247,7 +2248,7 @@
     .fila-plataforma-centro > :nth-child(2),
     .fila-plataforma-centro > .celda-accion-plataforma { grid-column: 1 / -1; }
     /* En la rejilla estrecha la acción ocupa toda la fila, alineada a la izquierda. */
-    .fila-plataforma-centro .celda-accion-plataforma { align-items: flex-start; }
+    .fila-plataforma-centro .celda-accion-plataforma { justify-content: flex-start; }
 }
 
 /* Centro 360 (maqueta del 20-10): la Empresa empleadora junto al nombre del Trabajador, en tono de apoyo. */

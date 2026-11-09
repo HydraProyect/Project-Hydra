@@ -255,12 +255,26 @@ public partial class AcordeonAsignacionesCentro : ComponentBase, IDisposable
     /// </summary>
     private string ResumenPrimerNivel(TrabajadorAsignacionDocumentacionDto trabajador)
     {
-        var tiposQueBloquean = BloqueosDe(trabajador.TrabajadorId).Select(b => b.TipoDocumentoId)
-            .Concat(trabajador.Documentos.Where(BloqueaPlataforma).Select(d => d.TipoDocumentoId))
-            .Distinct().Count();
-        return tiposQueBloquean == 0
-            ? MotivoDocumental(trabajador)
-            : Textos[tiposQueBloquean == 1 ? "ResumenBloqueoUno360" : "ResumenBloqueoVarios360", tiposQueBloquean].Value;
+        var nombres = NombresQueBloquean(trabajador);
+        return nombres.Count switch
+        {
+            0 => MotivoDocumental(trabajador),
+            1 => Textos["ResumenBloqueoUno360", nombres[0]].Value,
+            _ => Textos["ResumenBloqueoVarios360", nombres[0], nombres.Count - 1].Value
+        };
+    }
+
+    /// <summary>Los Tipos que bloquean al Trabajador en este Centro (bloqueo de acceso o rechazo/pendiente en plataforma), sin repetir, en el orden en que llegan.</summary>
+    private List<string> NombresQueBloquean(TrabajadorAsignacionDocumentacionDto trabajador) =>
+        BloqueosDe(trabajador.TrabajadorId).Select(b => (b.TipoDocumentoId, Nombre: b.TipoDocumentoNombre))
+            .Concat(trabajador.Documentos.Where(BloqueaPlataforma).Select(d => (d.TipoDocumentoId, Nombre: d.TipoDocumentoNombre)))
+            .DistinctBy(t => t.TipoDocumentoId).Select(t => t.Nombre).ToList();
+
+    /// <summary>Resumen completo para el <c>title</c> del primer nivel: con la línea cortada en pantalla estrecha, se lee entero al pasar el cursor.</summary>
+    private string TituloResumenPrimerNivel(TrabajadorAsignacionDocumentacionDto trabajador)
+    {
+        var nombres = NombresQueBloquean(trabajador);
+        return nombres.Count == 0 ? MotivoDocumental(trabajador) : string.Join(" · ", nombres);
     }
 
     private bool _pedirVisible;

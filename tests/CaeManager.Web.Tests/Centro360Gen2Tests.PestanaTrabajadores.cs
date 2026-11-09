@@ -1,6 +1,7 @@
 using Bunit;
 using CaeManager.Application.Asignaciones.Queries.ObtenerAsignacionesDocumentacionPorCentro;
 using CaeManager.Application.Centros.Queries.ObtenerDocumentacionBloqueantePendiente;
+using CaeManager.Application.Documentos.Queries.ObtenerDocumentos;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Documentos;
 using CaeManager.Infrastructure.Identity;
@@ -70,7 +71,9 @@ public partial class Centro360Gen2Tests
 
         var fila = cut.Find(".lista-trabajadores-acordeon .fila-relacion-rejilla");
         fila.QuerySelector(".fila-relacion-nombre")!.TextContent.Should().Contain("Ruiz Peña, Ana");
-        fila.QuerySelector("[data-resumen-fila]")!.TextContent.Trim().Should().Be("3 documentos bloquean el acceso");
+        var resumen = fila.QuerySelector("[data-resumen-fila]")!;
+        resumen.TextContent.Trim().Should().Be("Certificado de aptitud médica y 2 más bloquean el acceso", "como el motivo de una línea de la maqueta: el primero y cuántos más");
+        resumen.GetAttribute("title").Should().Be("Certificado de aptitud médica · Formación PRL · Seguro de responsabilidad civil", "con la línea cortada se lee entera");
         fila.QuerySelector(".fila-relacion-estado .badge")!.TextContent.Trim().Should().Be("Bloqueado");
         fila.QuerySelector(".fila-trabajador-fraccion").Should().NotBeNull("el recuento al día sigue en la fila");
 
@@ -95,7 +98,71 @@ public partial class Centro360Gen2Tests
         mediador.Bloqueos[id] = [new(id, "Centro Norte", trabajador.TrabajadorId, trabajador.TrabajadorNombre, prl.TipoDocumentoId, prl.TipoDocumentoNombre,
             Situacion: SituacionDeRequisitoBloqueante.Vencido)];
         var cut = Renderizar360(id);
-        cut.WaitForAssertion(() => cut.Find("[data-resumen-fila]").TextContent.Trim().Should().Be("1 documento bloquea el acceso"));
+        cut.WaitForAssertion(() => cut.Find("[data-resumen-fila]").TextContent.Trim().Should().Be("Formación PRL bloquea el acceso"));
+    }
+
+    [Fact]
+    public void El_resumen_cuenta_una_vez_el_Tipo_que_bloquea_por_acceso_y_por_plataforma_y_nombra_el_bloqueo_solo_de_plataforma()
+    {
+        var id = Guid.NewGuid();
+        var rechazada = new[] { new AcreditacionResumenDto(Guid.NewGuid(), "Nalanda", EstadoAcreditacion.Rechazada) };
+        var prl = Documento("Formación PRL", EstadoDocumento.Vencido, HoyDeLaPestana.AddDays(-10)) with { AcreditacionesEnElCentro = rechazada };
+        var soloPlataforma = Documento("Reconocimiento médico", EstadoDocumento.Vigente, HoyDeLaPestana.AddDays(300)) with { AcreditacionesEnElCentro = rechazada };
+        var trabajador = Asignado("Ruiz Peña, Ana", EstadoDocumento.Vencido, prl, soloPlataforma);
+        var mediador = Registrar(new MediatorFalso());
+        mediador.Asignaciones[id] = [trabajador];
+        mediador.Bloqueos[id] = [new(id, "Centro Norte", trabajador.TrabajadorId, trabajador.TrabajadorNombre, prl.TipoDocumentoId, prl.TipoDocumentoNombre,
+            Situacion: SituacionDeRequisitoBloqueante.Vencido)];
+        var cut = Renderizar360(id);
+        cut.WaitForAssertion(() => cut.Find("[data-resumen-fila]").TextContent.Trim()
+            .Should().Be("Formación PRL y 1 más bloquean el acceso", "el Tipo bloqueado por acceso y por plataforma cuenta una vez"));
+    }
+
+    [Fact]
+    public void Sin_bloqueos_el_primer_nivel_dice_el_peor_documento_en_una_linea()
+    {
+        var id = Guid.NewGuid();
+        var trabajador = Asignado("Ruiz Peña, Ana", EstadoDocumento.Urgente, Documento("Entrega de EPI", EstadoDocumento.Urgente, HoyDeLaPestana.AddDays(3)));
+        Registrar(new MediatorFalso()).Asignaciones[id] = [trabajador];
+        var cut = Renderizar360(id);
+        cut.WaitForAssertion(() => cut.Find("[data-resumen-fila]").TextContent.Should().Contain("Entrega de EPI").And.NotContain("bloque"));
+        cut.FindAll(".fila-relacion-detalle button").Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task Un_bloqueo_que_no_se_puede_pedir_desde_aqui_no_se_convierte_en_Gestionar_aunque_el_documento_sea_reclamable()
+    {
+        var id = Guid.NewGuid();
+        var epi = Documento("Entrega de EPI", EstadoDocumento.Urgente, HoyDeLaPestana.AddDays(3));
+        var trabajador = Asignado("Ruiz Peña, Ana", EstadoDocumento.Urgente, epi);
+        var mediador = Registrar(new MediatorFalso());
+        mediador.Asignaciones[id] = [trabajador];
+        mediador.Bloqueos[id] = [new(id, "Centro Norte", trabajador.TrabajadorId, trabajador.TrabajadorNombre, epi.TipoDocumentoId, epi.TipoDocumentoNombre,
+            Situacion: SituacionDeRequisitoBloqueante.PendienteDeSubirAPlataforma)];
+        var cut = Renderizar360(id);
+        cut.WaitForAssertion(() => cut.FindAll(".fila-relacion-rejilla").Should().NotBeEmpty());
+        await cut.Find("button.fila-relacion-desplegar").ClickAsync(new MouseEventArgs());
+
+        cut.FindAll(".fila-plataforma-centro").Should().ContainSingle();
+        cut.FindAll("[data-accion=gestionar-documento]").Should().BeEmpty("la regla del primer nivel solo pedía Vencido o Ausente");
+    }
+
+    [Fact]
+    public async Task Gestionar_convive_en_la_misma_celda_con_las_acciones_de_la_plataforma()
+    {
+        var id = Guid.NewGuid();
+        var pendiente = new[] { new AcreditacionResumenDto(Guid.NewGuid(), "Nalanda", EstadoAcreditacion.PendienteDeSubir) };
+        var epi = Documento("Entrega de EPI", EstadoDocumento.Urgente, HoyDeLaPestana.AddDays(3)) with { AcreditacionesEnElCentro = pendiente };
+        var trabajador = Asignado("Ruiz Peña, Ana", EstadoDocumento.Urgente, epi);
+        Registrar(new MediatorFalso()).Asignaciones[id] = [trabajador];
+        var cut = Renderizar360(id);
+        cut.WaitForAssertion(() => cut.FindAll(".fila-relacion-rejilla").Should().NotBeEmpty());
+        await cut.Find("button.fila-relacion-desplegar").ClickAsync(new MouseEventArgs());
+
+        var celda = cut.Find(".fila-plataforma-centro .celda-accion-plataforma");
+        celda.QuerySelectorAll("[data-accion=gestionar-documento]").Should().ContainSingle();
+        celda.QuerySelector("[data-acciones-plataforma]").Should().NotBeNull("«Marcar subido» y «Cambiar» siguen en la celda");
+        celda.QuerySelectorAll("[data-accion=gestionar-documento]").Single().ClassList.Should().Contain("boton-secundario");
     }
 
     [Fact]
