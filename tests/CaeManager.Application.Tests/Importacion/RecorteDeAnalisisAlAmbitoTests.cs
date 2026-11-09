@@ -66,6 +66,73 @@ public class RecorteDeAnalisisAlAmbitoTests
         plan.Asignaciones.Single().YaExiste.Should().BeTrue();
     }
 
+    /// <summary>
+    /// Plan de la plantilla de Importación con un Trabajador (y su Empresa) dentro del ámbito y una Asignación al Centro
+    /// declarado en Centros_Plataformas, tal como lo emite el analizador cuando el Cliente empresarial, el Centro y la
+    /// Asignación activa existen (<paramref name="existe"/>) o cuando no existen.
+    /// </summary>
+    private static PlanImportacionDto PlanConCentroDeAsignacion(bool existe) => EscenarioImportacion.Plan(
+        clientesCentros:
+        [
+            new ClienteCentroImportadoDto(
+                EscenarioImportacion.CentroConocido, EsCritico: false, Direccion: null, Contacto: null,
+                YaExisteCliente: existe, YaExisteCentro: existe)
+        ],
+        empresas: [new EmpresaImportadaDto(EscenarioImportacion.EmpresaConocida, YaExiste: true)],
+        trabajadores:
+        [
+            new TrabajadorImportadoDto(
+                EscenarioImportacion.EmpresaConocida, "Marta", "Ruiz", EscenarioImportacion.DniConocido, null, null, YaExiste: true)
+        ],
+        asignaciones: [new AsignacionImportadaDto(EscenarioImportacion.DniConocido, EscenarioImportacion.CentroConocido, YaExiste: existe)]);
+
+    /// <summary>
+    /// Mundo con el Cliente empresarial y el Centro (mismo nombre, como los declara Centros_Plataformas) y una Asignación
+    /// activa del Trabajador a ese Centro. El Trabajador y su Empresa están siempre dentro del ámbito; el Cliente
+    /// empresarial y el Centro, solo si <paramref name="centroVisible"/>.
+    /// </summary>
+    private static (EscenarioImportacion Escenario, ClientesFalsos.AlcanceDatosServiceFalso Alcance) MundoConCentroDeAsignacion(bool centroVisible)
+    {
+        var cliente = CaeManager.Domain.Empresas.Empresa.CrearComoCliente(
+            EscenarioImportacion.CentroConocido, cif: "B12345674", esCritico: false, notas: null, ejecutivoUsuarioId: null);
+        var escenario = new EscenarioImportacion().ConEmpresaExistente().ConTrabajadorExistente()
+            .ConCentroExistente(clienteId: cliente.Id).ConAsignacionActivaExistente();
+        escenario.EmpresasContexto.ListaEmpresas.Add(cliente);
+        var empresa = escenario.EmpresasContexto.ListaEmpresas.Single(e => e.RazonSocial == EscenarioImportacion.EmpresaConocida);
+        var alcance = new ClientesFalsos.AlcanceDatosServiceFalso(
+            tieneAccesoTotal: false,
+            clienteIdsVisibles: centroVisible ? [cliente.Id] : [],
+            empresaIdsParaGestion: [empresa.Id],
+            trabajadorIdsVisibles: [escenario.TrabajadorExistente!.Id],
+            centroIdsParaGestion: centroVisible ? [escenario.CentroExistente!.Id] : []);
+        return (escenario, alcance);
+    }
+
+    [Fact]
+    public async Task Plantilla_de_importacion_no_distingue_el_Centro_de_una_asignacion_fuera_de_ambito_de_uno_inexistente()
+    {
+        // #1988: el Centro de una Asignación (y su Cliente empresarial y la Asignación activa) existen fuera del ámbito. La
+        // vista previa, y con ella los recuentos del título de confirmación, que la página calcula solo con estos YaExiste,
+        // deben ser los de un Centro que no existe: «No se creará» para el Cliente empresarial y el Centro, y la Asignación
+        // como alta.
+        var (escenario, alcance) = MundoConCentroDeAsignacion(centroVisible: false);
+
+        var fuera = await escenario.Recorte("CoordinadorCae", alcance).RecortarAsync(PlanConCentroDeAsignacion(existe: true), default);
+
+        fuera.Should().BeEquivalentTo(PlanConCentroDeAsignacion(existe: false), o => o.Excluding(p => p.OperacionId).WithStrictOrdering());
+    }
+
+    [Fact]
+    public async Task Plantilla_de_importacion_conserva_el_Centro_de_una_asignacion_dentro_de_ambito()
+    {
+        var (escenario, alcance) = MundoConCentroDeAsignacion(centroVisible: true);
+
+        var visible = await escenario.Recorte("CoordinadorCae", alcance).RecortarAsync(PlanConCentroDeAsignacion(existe: true), default);
+
+        visible.ClientesCentros.Should().ContainSingle().Which.Should().Match<ClienteCentroImportadoDto>(c => c.YaExisteCliente && c.YaExisteCentro);
+        visible.Asignaciones.Should().ContainSingle().Which.YaExiste.Should().BeTrue();
+    }
+
     [Fact]
     public async Task Administrador_no_se_recorta()
     {
