@@ -4,7 +4,9 @@
     EmpresaWorkspacePanel, y cómo se cuentan los trabajadores por estado.
 *@
 @page "/empresas/{EmpresaId:guid}"
-@rendermode InteractiveServer
+@* Sin prerender (como Mi trabajo, M-23): la carga de la ficha corre en OnParametersSetAsync y no persiste su
+   estado; con prerender corría dos veces en cada visita. *@
+@rendermode @(new InteractiveServerRenderMode(prerender: false))
 @inherits CaeManager.Web.Components.PaginaInteractiva
 @attribute [Authorize]
 @using CaeManager.Application.Contactos.Queries.ObtenerAgendaContactos
@@ -22,6 +24,7 @@
 
 <LimiteDeErrores Pagina="this">
 <PageTitle>@(_detalle?.RazonSocial ?? Textos["TituloPestanaNavegador"]) — @Marca.Nombre</PageTitle>
+<TituloDePaginaSinPrerender Titulo="@($"{_detalle?.RazonSocial ?? Textos["TituloPestanaNavegador"]} — {Marca.Nombre}")" />
 
 <div class="contenedor-pagina">
     <Breadcrumb Elementos="Miguero" ElementoSeleccionadoChanged="IrABreadcrumb" EtiquetaNavegacion="@Textos["EtiquetaMigas"]" />
@@ -107,6 +110,11 @@
                 }
             </Datos>
             <Acciones>
+                @* «Preparar paquete» (maqueta, primera acción de la cabecera): el zip sale de TALVEG, así que solo con un rol que escribe,
+                   la misma lista blanca que aplica DescargarPaqueteEmpresaQuery. *@
+                <SoloConEscritura>
+                    <BotonPaqueteEmpresa EmpresaId="_detalle.Id" RazonSocial="@_detalle.RazonSocial" />
+                </SoloConEscritura>
                 <Boton Variante="VarianteBoton.Secundario" class="empresa360-accion-cabecera" Href="@($"/empresas/{_detalle.Id}/deteccion-trabajadores")">@Textos["AccionDetectar"]</Boton>
                 <Boton Variante="VarianteBoton.Secundario" class="empresa360-accion-cabecera" Href="@($"/empresas/{_detalle.Id}/reclamar-acceso")">@Textos["AccionReclamarAcceso"]</Boton>
                 <SoloConEscritura>

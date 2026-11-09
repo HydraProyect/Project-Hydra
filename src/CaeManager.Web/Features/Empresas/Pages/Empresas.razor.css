@@ -208,9 +208,10 @@
 }
 
 .marco-lista-empresas .tarjeta-fila-acordeon-contenido {
-    border-top: 0;
+    /* Segundo nivel (2026-11-08): la misma superficie que la fila, separada por su raya. */
+    border-top: 1px solid var(--color-fila-divisor);
     border-radius: 0;
-    background: color-mix(in srgb, var(--color-surface-subtle) 60%, var(--color-surface));
+    background: var(--color-surface);
     padding: 4px var(--space-4) 4px 56px;
 }
 

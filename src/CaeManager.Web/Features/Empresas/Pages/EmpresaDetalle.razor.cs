@@ -449,9 +449,10 @@ public partial class EmpresaDetalle : CaeManager.Web.Components.PaginaInteractiv
         await CargarClientesAsync();
         await CargarContactoPrincipalAsync();
 
-        // Mismo motivo que CentroDetalle: OnParametersSetAsync también corre
-        // en el prerenderizado estático, y una tarea sin await ahí queda en
-        // vuelo cuando ASP.NET Core ya liberó el scope de DI.
+        // Guarda defensiva, mismo motivo que CentroDetalle: si la página volviera a
+        // prerenderizarse, OnParametersSetAsync correría también en el SSR estático
+        // y una tarea sin await ahí quedaría en vuelo cuando ASP.NET Core ya liberó
+        // el scope de DI. Hoy la página no se prerenderiza y la condición es siempre cierta.
         if (RendererInfo.IsInteractive && carga == _cargaDetalle)
         {
             _ = CargarAccesoAsync();

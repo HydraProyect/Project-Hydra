@@ -1039,7 +1039,8 @@
 */
 .tarjeta-fila-acordeon-contenido {
     padding: var(--space-3) var(--space-4) var(--space-4);
-    background-color: var(--color-surface-subtle);
+    /* Segundo nivel (2026-11-08): la misma superficie que la fila, sin gris. */
+    background-color: var(--color-surface);
     border-radius: 0 0 var(--radius-lg) var(--radius-lg);
 }
 
@@ -2222,9 +2223,12 @@
     border-top: var(--border-default);
     font: var(--font-caption);
 }
-/* Maqueta del 21-10: el tinte entra suave desde la izquierda, sin borde recto. */
-.fila-plataforma-bloquea { background: linear-gradient(90deg, transparent 0, var(--color-danger-50) 28px, transparent 72%); }
-.fila-plataforma-pendiente { background: linear-gradient(90deg, transparent 0, var(--color-warning-50) 28px, transparent 72%); }
+/* Segundo nivel (decisión de Chris del 2026-11-08): la fila no se tiñe; el estado lo dicen la
+   etiqueta y un acento lateral de 3 px, igual que las subfilas de FilaRelacion. */
+.fila-plataforma-bloquea { box-shadow: inset 3px 0 0 var(--color-danger-500); }
+.fila-plataforma-pendiente { box-shadow: inset 3px 0 0 var(--color-warning-500); }
+/* Dentro del bloque desplegado de una fila, la tabla es esa misma superficie: sin raya ni fondo propios. */
+.fila-relacion-desplegado .tabla-plataforma-centro { border-top: 0; background: none; }
 .identidad-documento-plataforma { display: flex; align-items: center; gap: 8px; min-width: 0; overflow-wrap: anywhere; font-size: 13px; }
 .indicador-talveg { flex: none; width: 18px; height: 18px; box-sizing: border-box; border: 1px solid var(--color-text-muted); border-radius: 50%; text-align: center; font: 700 10px/16px var(--font-family); color: var(--color-text-muted); cursor: help; }
 .estado-documento-plataforma { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; min-width: 0; }

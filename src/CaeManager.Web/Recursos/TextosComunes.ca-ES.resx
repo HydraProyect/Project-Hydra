@@ -36,6 +36,9 @@
   <data name="IdiomaNoCambiadoDetalle" xml:space="preserve">
     <value>Tu preferencia de idioma no se ha guardado y la interfaz sigue en el idioma anterior. Inténtalo de nuevo en unos segundos.</value>
   </data>
+  <data name="AvisosRestantesTitulo" xml:space="preserve">
+    <value>+{0}: {1}. Es veuen a la pàgina de {2}</value>
+  </data>
   <data name="IrAPaginaDe" xml:space="preserve">
     <value>Anar a la pàgina de {0}</value>
   </data>
