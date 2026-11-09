@@ -82,7 +82,32 @@
     justify-self: end;
 }
 
+/* «Ver» y «Gestionar» comparten la cuarta columna: una línea de acciones de enlace, pegada a la derecha. */
+.panel-doc-base-acciones {
+    grid-column: 4;
+    justify-self: end;
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+}
+
+/* El nombre enlaza a la ficha 360 del Documento: enlace discreto, subrayado al apuntarlo o enfocarlo. */
+.panel-doc-base-enlace {
+    color: inherit;
+    text-decoration: none;
+}
+
+.panel-doc-base-enlace:hover,
+.panel-doc-base-enlace:focus-visible {
+    color: var(--color-primary-500);
+    text-decoration: underline;
+}
+
 @container (max-width: 640px) {
+    .panel-doc-base-acciones {
+        grid-column: auto;
+    }
+
     .panel-doc-base-fila {
         grid-template-columns: minmax(0, 1fr) auto auto;
         row-gap: 6px;

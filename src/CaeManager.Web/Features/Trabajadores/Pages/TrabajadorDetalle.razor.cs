@@ -914,6 +914,18 @@ public partial class TrabajadorDetalle : CaeManager.Web.Components.PaginaInterac
 
     private Task EditarDocumentoAsync(Guid documentoId) => _drawerGestion.AbrirEditarAsync(documentoId);
 
+    private bool _visorVisible;
+    private Guid _visorDocumentoId;
+    private string _visorTitulo = string.Empty;
+
+    /// <summary>«Ver»: abre el visor del PDF de un documento sin salir de la ficha (Documentación base, Por vencer, Vigencia sin confirmar).</summary>
+    private void AbrirVisorDocumento((Guid DocumentoId, string Titulo) documento)
+    {
+        _visorDocumentoId = documento.DocumentoId;
+        _visorTitulo = documento.Titulo;
+        _visorVisible = true;
+    }
+
     /// <summary>
     /// «Gestionar» de un indicador de Documentación base que falta: no hay Documento que renovar ni Tipo de documento
     /// concreto, así que abre el mismo Nuevo documento con el Trabajador ya elegido que usa «Subir documento» sin incidencia.
