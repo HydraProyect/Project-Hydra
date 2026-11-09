@@ -35,7 +35,8 @@ public class SoporteTalvegEnListadosBajoRuntimeTests(WebAppFixtureBajoRuntime fi
         var pagina = await contexto.NewPageAsync();
         await AbrirSesionPrivilegiadaAsync(contexto, pagina);
 
-        // Varias cargas frías: la concurrencia sobre el DbContext en el prerender no falla en todas.
+        // Varias cargas frías: la concurrencia sobre el DbContext no falla en todas. Las tres pantallas ya no se
+        // prerenderizan, así que la carga del listado corre en el circuito; el layout sigue pasando por el SSR.
         var fallos = RegistrarRespuestasFallidas(pagina);
         for (var carga = 0; carga < CargasPorRuta; carga++)
         {
@@ -198,8 +199,8 @@ public class SoporteTalvegEnListadosBajoRuntimeTests(WebAppFixtureBajoRuntime fi
 
     /// <summary>
     /// El botón de salir solo existe en la rama de Sesión Privilegiada de <c>TrazaSoporte</c>,
-    /// no en la de ventana de Soporte. Las filas llegan ya con el prerender, así que no prueban
-    /// la carga del circuito: esa la prueba el clic atendido, y después la lista sigue con filas.
+    /// no en la de ventana de Soporte. Las pantallas no se prerenderizan, así que las filas llegan
+    /// por el circuito; el clic atendido prueba además que el circuito responde, y después la lista sigue con filas.
     /// </summary>
     private static async Task EsperarListadoEnSesionPrivilegiadaAsync(IPage pagina, string ruta)
     {

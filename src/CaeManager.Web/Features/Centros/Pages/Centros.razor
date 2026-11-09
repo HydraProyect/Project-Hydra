@@ -1,5 +1,7 @@
 @page "/centros"
-@rendermode InteractiveServer
+@* Sin prerender (como Mi trabajo, M-23): OnInitializedAsync carga la lista y no persiste su estado; con prerender
+   corría dos veces en cada visita. *@
+@rendermode @(new InteractiveServerRenderMode(prerender: false))
 @inherits CaeManager.Web.Components.PaginaInteractiva
 @implements IDisposable
 @attribute [Authorize]
@@ -29,6 +31,7 @@
 
 <LimiteDeErrores Pagina="this">
 <PageTitle>Centros — @Marca.Nombre</PageTitle>
+<TituloDePaginaSinPrerender Titulo="@($"Centros — {Marca.Nombre}")" />
 
 <div class="contenedor-pagina lista-design lista-design-centros">
     @* Lista 1:1 con «Lista Centros TALVEG.dc.html» del export de Design (DDL-083, 2026-10-18), con el mismo molde que

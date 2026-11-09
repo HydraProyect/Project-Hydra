@@ -1,5 +1,7 @@
 @page "/documentos"
-@rendermode InteractiveServer
+@* Sin prerender (como Mi trabajo, M-23): OnInitializedAsync carga la lista y no persiste su estado; con prerender
+   corría dos veces en cada visita. *@
+@rendermode @(new InteractiveServerRenderMode(prerender: false))
 @inherits CaeManager.Web.Components.PaginaInteractiva
 @attribute [Authorize]
 @using CaeManager.Web.Features.Documentos.Recursos
@@ -30,6 +32,7 @@
 
 <LimiteDeErrores Pagina="this">
 <PageTitle>@Textos["TituloPagina"] — @Marca.Nombre</PageTitle>
+<TituloDePaginaSinPrerender Titulo="@($"{Textos["TituloPagina"]} — {Marca.Nombre}")" />
 
 <div class="contenedor-pagina lista-design">
     @* Fase 1: el selector lateral ya identifica la Empresa seleccionada; las seis pestañas conservan su comportamiento. *@
