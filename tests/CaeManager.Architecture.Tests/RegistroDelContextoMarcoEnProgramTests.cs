@@ -36,13 +36,16 @@ public class RegistroDelContextoMarcoEnProgramTests
     private static string SinEspacios(string texto) => Regex.Replace(texto, @"\s+", "");
 
     /// <summary>
-    /// Sin comentarios: comentar el registro dejaba la cadena en su sitio y el
+    /// Sin comentarios de línea ni de bloque: comentar el registro dejaba la cadena en su sitio y el
     /// ratchet en verde (mismo hueco demostrado en el ratchet de referencia).
     /// </summary>
     private static string SinComentarios(string texto) =>
-        string.Join('\n', texto
-            .Split('\n')
-            .Where(linea => !linea.TrimStart().StartsWith("//", StringComparison.Ordinal)));
+        // Primero los de línea: varios llevan rutas como «/cuenta/*» que, si no, abrirían un falso comentario de bloque.
+        Regex.Replace(
+            string.Join('\n', texto
+                .Split('\n')
+                .Where(linea => !linea.TrimStart().StartsWith("//", StringComparison.Ordinal))),
+            @"/\*.*?\*/", "", RegexOptions.Singleline);
 
     private static string RaizDelRepositorio()
     {

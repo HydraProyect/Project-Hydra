@@ -227,8 +227,10 @@ public sealed class ContextoMarcoDelAmbito : IMemoPorContexto, IDisposable
         // Solo lo leído en este ámbito y ya terminado bien. Lo restaurado no se reenvía sin necesidad de marcarlo: la
         // suscripción solo nace con una lectura propia, que ocurre después del único intento de restaurar y sustituye
         // a la entrada restaurada, así que con suscripción la entrada guardada nunca es una restaurada. Un contexto
-        // degradado tampoco llega aquí: se suelta antes de completarse (LeerAsync).
+        // degradado se suelta antes de completarse (LeerAsync), pero esta comprobación va fuera del cerrojo y la
+        // entrada pudo tomarse aún en vuelo: por eso se mira también aquí.
         if (entrada is not { Tarea.IsCompletedSuccessfully: true } leida
+            || leida.Tarea.Result.Degradado
             || leida.Tarea.Result.ClientesAutorizados.Count > MaximoEmpresasPersistidas)
             return Task.CompletedTask;
 

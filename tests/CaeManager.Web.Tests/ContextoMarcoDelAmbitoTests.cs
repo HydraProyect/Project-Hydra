@@ -450,12 +450,16 @@ public class ContextoMarcoDelAmbitoTests
         public bool SupportsRenderMode(IComponentRenderMode renderMode) => admite(renderMode);
     }
 
+    // BL0006: Renderer y RenderBatch no son API estable fuera del framework. El gestor real de estado persistido solo
+    // acepta un Renderer (para su Dispatcher), y es justo lo que este test necesita para no depender del doble de bUnit.
+#pragma warning disable BL0006
     private sealed class RendererDePrueba() : Renderer(new ServiceCollection().BuildServiceProvider(), NullLoggerFactory.Instance)
     {
         public override Dispatcher Dispatcher { get; } = Dispatcher.CreateDefault();
         protected override void HandleException(Exception exception) => throw exception;
         protected override Task UpdateDisplayAsync(in RenderBatch renderBatch) => Task.CompletedTask;
     }
+#pragma warning restore BL0006
 
     [Theory]
     [InlineData(true)]

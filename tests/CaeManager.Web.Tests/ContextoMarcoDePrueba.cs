@@ -13,8 +13,9 @@ namespace CaeManager.Web.Tests;
 /// con el handler real sobre las respuestas que el test ya da a cada Query, así que el test sigue diciendo qué devuelve
 /// cada una y lo que se prueba es el mismo contenido que antes. Una Query del contexto que el test no responde
 /// (<see cref="NotSupportedException"/> o <c>null</c>) sale con su valor neutro: perfil por defecto, falso, lista vacía
-/// o sin avatar. Una Query que no sea de las siete compuestas falla. Cualquier otra excepción se propaga, como en la
-/// composición real.
+/// o sin avatar. Una Query que no sea de las siete compuestas falla. Cualquier otra excepción sigue la composición
+/// real: la de la lista de Tenants beneficiarios autorizados se propaga, y la de una parte de presentación se tolera
+/// con su valor sin oferta y marca el contexto como degradado.
 /// </summary>
 internal static class ContextoMarcoDePrueba
 {
