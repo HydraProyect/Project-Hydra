@@ -94,7 +94,15 @@ public sealed class MedicionCargaCircuitoHandler : CircuitHandler, IDisposable
         }
         catch (Exception ex)
         {
-            _logger.LogWarning("La medición del coste de carga del circuito falló y se ignora: {TipoExcepcion}", ex.GetType().Name);
+            try
+            {
+                _logger.LogWarning("La medición del coste de carga del circuito falló y se ignora: {TipoExcepcion}", ex.GetType().Name);
+            }
+            catch
+            {
+                // Si el propio registro falla (desde el temporizador no hay nadie por encima que
+                // capture), se pierde la medición, no el proceso.
+            }
         }
     }
 

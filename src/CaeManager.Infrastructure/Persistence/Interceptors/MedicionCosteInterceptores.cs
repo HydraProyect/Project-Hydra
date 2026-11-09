@@ -68,6 +68,15 @@ internal sealed class MedicionCosteComandosInterceptor(CosteCarga coste) : DbCom
         coste.RegistrarComando(eventData.Duration);
         return Task.CompletedTask;
     }
+
+    public override void CommandCanceled(DbCommand command, CommandEndEventData eventData) =>
+        coste.RegistrarComando(eventData.Duration);
+
+    public override Task CommandCanceledAsync(DbCommand command, CommandEndEventData eventData, CancellationToken cancellationToken = default)
+    {
+        coste.RegistrarComando(eventData.Duration);
+        return Task.CompletedTask;
+    }
 }
 
 /// <summary>

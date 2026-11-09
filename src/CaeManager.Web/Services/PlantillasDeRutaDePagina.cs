@@ -20,12 +20,22 @@ namespace CaeManager.Web.Services;
 /// </summary>
 public sealed class PlantillasDeRutaDePagina
 {
-    public const string SinPlantilla = "(sin plantilla)";
+    public const string SinPlantilla = "sin_plantilla";
 
     private readonly Lazy<IReadOnlyList<(TemplateMatcher Comparador, string Plantilla)>> _plantillas;
 
-    public PlantillasDeRutaDePagina(EndpointDataSource fuente) =>
-        _plantillas = new(() => Construir(fuente), LazyThreadSafetyMode.ExecutionAndPublication);
+    public PlantillasDeRutaDePagina(EndpointDataSource fuente)
+        : this(() => fuente)
+    {
+    }
+
+    /// <summary>
+    /// La fuente se resuelve en la primera consulta, no al construir: así un fallo al
+    /// obtenerla cae dentro de la medición (que lo absorbe) y nunca impide crear los
+    /// <c>CircuitHandler</c> del circuito.
+    /// </summary>
+    public PlantillasDeRutaDePagina(Func<EndpointDataSource> fuente) =>
+        _plantillas = new(() => Construir(fuente()), LazyThreadSafetyMode.PublicationOnly);
 
     public string Resolver(string ruta)
     {

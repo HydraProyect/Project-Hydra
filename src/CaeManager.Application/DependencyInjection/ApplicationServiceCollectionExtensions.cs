@@ -142,7 +142,8 @@ public static class ApplicationServiceCollectionExtensions
                     + "administración sin que lo supieran ni las exclusiones ni la auditoría. La señal la da la misma "
                     + "clase que resuelve el rol efectivo."),
             });
-        // Orden importa. LoggingBehavior va el primero de todos: mide lo que
+        // Orden importa. Por fuera de todo solo va CosteCargaBehavior, que únicamente cuenta
+        // despachos. Después, LoggingBehavior, el primero de los que actúan: mide lo que
         // el usuario espera de verdad, incluido el tiempo en la cola de
         // acceso a datos, y su ámbito de log correlaciona todo lo que
         // registren los behaviors de dentro. Puede ir ahí porque no toca la

@@ -1,8 +1,14 @@
 using CaeManager.Application.Common;
+using CaeManager.Infrastructure.Auditing;
+using CaeManager.Infrastructure.EstadoMaterializado;
+using CaeManager.Infrastructure.MultiTenancy;
+using CaeManager.Infrastructure.Persistence;
 using CaeManager.Infrastructure.Persistence.Interceptors;
 using FluentAssertions;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace CaeManager.Web.Tests.Observabilidad;
 
@@ -57,6 +63,53 @@ public class MedicionCosteInterceptoresTests
 
         coste.Leer().Comandos.Should().Be(2);
         coste.Leer().Conexiones.Should().BeGreaterThanOrEqualTo(1);
+    }
+
+    [Fact]
+    public async Task El_tiempo_de_ejecucion_se_suma_al_acumulador()
+    {
+        var coste = new CosteCarga();
+        await using var contexto = Crear(coste, out var conexion);
+        await using var _ = conexion;
+
+        // Una consulta que tarda algo de verdad: SQLite calcula el recuento antes de devolver la primera fila.
+        await contexto.Database.SqlQueryRaw<int>(
+            "WITH RECURSIVE c(x) AS (SELECT 1 UNION ALL SELECT x + 1 FROM c WHERE x < 300000) SELECT count(*) AS Value FROM c")
+            .ToListAsync();
+
+        coste.Leer().BaseDatos.Should().BeGreaterThan(TimeSpan.Zero);
+    }
+
+    [Fact]
+    public void Aplicar_anade_los_interceptores_de_medicion_despues_de_los_existentes()
+    {
+        var servicios = new ServiceCollection();
+        servicios.AddScoped<CosteCarga>();
+        servicios.AddScoped<MedicionCosteComandosInterceptor>();
+        servicios.AddScoped<MedicionCosteConexionesInterceptor>();
+        // Los existentes, construidos sin dependencias: montar las opciones no los invoca.
+        servicios.AddScoped(_ => new AuditoriaInterceptor(null!));
+        servicios.AddScoped(_ => new TenantSelladoInterceptor(null!));
+        servicios.AddScoped(_ => new TenantRlsConnectionInterceptor(null!, null!, null!, null!));
+        servicios.AddScoped(_ => new ConcurrenciaOptimistaInterceptor());
+        servicios.AddScoped(_ => new AvisoEstadoTrasConfirmarInterceptor(null!));
+        servicios.AddScoped(sp => new DetectorCambiosEstadoInterceptor(sp));
+        using var proveedor = servicios.BuildServiceProvider();
+        using var ambito = proveedor.CreateScope();
+        var opciones = new DbContextOptionsBuilder();
+
+        ConfiguracionDeContexto.Aplicar(opciones, ambito.ServiceProvider, "Host=localhost;Database=x");
+
+        var interceptores = opciones.Options.FindExtension<CoreOptionsExtension>()!.Interceptors!.ToList();
+        interceptores.Select(i => i.GetType()).Should().Equal(
+            typeof(AuditoriaInterceptor),
+            typeof(TenantSelladoInterceptor),
+            typeof(TenantRlsConnectionInterceptor),
+            typeof(ConcurrenciaOptimistaInterceptor),
+            typeof(AvisoEstadoTrasConfirmarInterceptor),
+            typeof(DetectorCambiosEstadoInterceptor),
+            typeof(MedicionCosteComandosInterceptor),
+            typeof(MedicionCosteConexionesInterceptor));
     }
 
     private static ContextoDePrueba Crear(CosteCarga coste, out SqliteConnection conexion)

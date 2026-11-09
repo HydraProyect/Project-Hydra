@@ -94,7 +94,7 @@ public class ServerTimingCosteCargaTests
         {
             Thread.CurrentThread.CurrentCulture = new System.Globalization.CultureInfo("es-ES");
             CabeceraServerTiming.Formatear(new InstantaneaCosteCarga(TimeSpan.FromMilliseconds(1.25), 0, 0, TimeSpan.Zero, 0))
-                .Should().StartWith("db;dur=1.2").Or.StartWith("db;dur=1.3");
+                .Should().MatchRegex("^db;dur=1\\.[23], ");
         }
         finally
         {
@@ -102,9 +102,42 @@ public class ServerTimingCosteCargaTests
         }
     }
 
+    [Fact]
+    public async Task La_autenticacion_se_decide_al_empezar_la_respuesta_no_al_entrar()
+    {
+        // En la canalización real este middleware va antes de UseAuthentication: al entrar el
+        // usuario aún es anónimo y solo después queda autenticado.
+        var (contexto, respuesta) = await Ejecutar(habilitado: true, autenticado: false, tipo: "text/html",
+            autenticarDespues: true);
+
+        respuesta.DispararOnStarting();
+
+        contexto.Response.Headers.ContainsKey(CabeceraServerTiming.Nombre).Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task Una_reejecucion_con_scope_nuevo_no_duplica_la_cabecera_y_cuenta_el_scope_original()
+    {
+        var (contexto, respuesta) = await Ejecutar(habilitado: true, autenticado: true, tipo: "text/html",
+            coste => coste.RegistrarComando(TimeSpan.FromMilliseconds(1)));
+
+        // UseExceptionHandler/UseStatusCodePagesWithReExecute con createScope: mismo HttpContext, scope nuevo.
+        var servicios = new ServiceCollection();
+        servicios.AddScoped<CosteCarga>();
+        contexto.RequestServices = servicios.BuildServiceProvider().CreateScope().ServiceProvider;
+        var middleware = new ServerTimingCosteCargaMiddleware(_ => Task.CompletedTask,
+            Options.Create(new OpcionesServerTiming { Habilitado = true }));
+        await middleware.InvokeAsync(contexto);
+
+        respuesta.DispararOnStarting();
+
+        respuesta.Callbacks.Should().ContainSingle();
+        contexto.Response.Headers[CabeceraServerTiming.Nombre].ToString().Should().Contain("cmd;desc=\"1\"");
+    }
+
     private static async Task<(HttpContext Contexto, RespuestaQueCapturaOnStarting Respuesta)> Ejecutar(
         bool habilitado, bool autenticado, string? tipo, Action<CosteCarga>? gastar = null,
-        string ruta = "/", string usuario = "u")
+        string ruta = "/", string usuario = "u", bool autenticarDespues = false)
     {
         var servicios = new ServiceCollection();
         servicios.AddScoped<CosteCarga>();
@@ -123,6 +156,8 @@ public class ServerTimingCosteCargaTests
             {
                 gastar?.Invoke(ctx.RequestServices.GetRequiredService<CosteCarga>());
                 ctx.Response.ContentType = tipo;
+                if (autenticarDespues)
+                    ctx.User = new ClaimsPrincipal(new ClaimsIdentity([new Claim(ClaimTypes.Name, usuario)], "Prueba"));
                 return Task.CompletedTask;
             },
             Options.Create(new OpcionesServerTiming { Habilitado = habilitado }));

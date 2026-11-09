@@ -56,6 +56,15 @@ public static class CabeceraServerTiming
 /// </para>
 ///
 /// <para>
+/// El acumulador se toma al entrar, del scope de la petición original, y la
+/// cabecera se registra una sola vez por <see cref="HttpContext"/>: cuando
+/// <c>UseExceptionHandler</c> o <c>UseStatusCodePagesWithReExecute</c>
+/// re-ejecutan la canalización con un scope nuevo, la cabecera cuenta el coste
+/// del scope original (la petición que falló), no el del scope de la página de
+/// error, y no sale duplicada.
+/// </para>
+///
+/// <para>
 /// Divulgación de información a un cliente autenticado (OWASP ASVS 4.0.3
 /// V14.3): por eso va apagada por defecto, solo a usuarios autenticados y solo
 /// con números agregados de la propia petición.
@@ -63,34 +72,36 @@ public static class CabeceraServerTiming
 /// </summary>
 public sealed class ServerTimingCosteCargaMiddleware(RequestDelegate siguiente, IOptions<OpcionesServerTiming> opciones)
 {
+    private static readonly object MarcaRegistrada = new();
+
     public Task InvokeAsync(HttpContext contexto)
     {
-        if (opciones.Value.Habilitado)
-            contexto.Response.OnStarting(EscribirCabecera, contexto);
+        if (opciones.Value.Habilitado
+            && !contexto.Items.ContainsKey(MarcaRegistrada)
+            && contexto.RequestServices?.GetService<CosteCarga>() is { } coste)
+        {
+            contexto.Items[MarcaRegistrada] = true;
+            contexto.Response.OnStarting(EscribirCabecera, new Estado(contexto, coste));
+        }
 
         return siguiente(contexto);
     }
 
+    private sealed record Estado(HttpContext Contexto, CosteCarga Coste);
+
     private static Task EscribirCabecera(object estado)
     {
-        var contexto = (HttpContext)estado;
+        var (contexto, coste) = (Estado)estado;
+
+        // La decisión se toma aquí y no al entrar: este middleware va antes de UseAuthentication,
+        // y es al empezar la respuesta cuando el usuario y el tipo de contenido ya están fijados.
         if (contexto.User.Identity?.IsAuthenticated != true)
             return Task.CompletedTask;
 
         if (!EsHtml(contexto.Response.ContentType))
             return Task.CompletedTask;
 
-        // Una medición no puede tumbar la respuesta: si el scope ya no resuelve el acumulador
-        // (o cualquier otra cosa falla aquí), la página sale sin cabecera.
-        try
-        {
-            if (contexto.RequestServices?.GetService<CosteCarga>() is { } coste)
-                contexto.Response.Headers.Append(CabeceraServerTiming.Nombre, CabeceraServerTiming.Formatear(coste.Leer()));
-        }
-        catch (Exception ex) when (ex is ObjectDisposedException or InvalidOperationException)
-        {
-        }
-
+        contexto.Response.Headers.Append(CabeceraServerTiming.Nombre, CabeceraServerTiming.Formatear(coste.Leer()));
         return Task.CompletedTask;
     }
 
