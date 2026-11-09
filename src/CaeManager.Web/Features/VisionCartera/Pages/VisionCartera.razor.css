@@ -13,6 +13,9 @@
     display: flex;
     flex-direction: column;
     gap: var(--space-3);
+    /* Para las container queries de las tarjetas de riesgo. Implica contención de layout: un descendiente `position: fixed` (hoja móvil,
+       diálogo) se anclaría a esta sección y no a la ventana. Hoy ninguna de sus dos secciones lleva uno; no añadirlo dentro sin quitar esto. */
+    container-type: inline-size;
 }
 
 .titulo-seccion-cartera {
@@ -21,6 +24,8 @@
     color: var(--color-text);
 }
 
+/* Título y nota de una sección, como la maqueta: la nota a la derecha del título mientras cabe; si no cabe, envuelve (flex-wrap) y
+   pasa a la izquierda, bajo el título. */
 .cabecera-seccion-cartera {
     display: flex;
     align-items: baseline;
@@ -40,15 +45,62 @@
     color: var(--color-text-muted);
 }
 
-/* Cabecera: ámbito a la derecha del título. */
+/* Cabecera: ámbito a la izquierda; a la derecha del título solo con ancho de sobra (≥ 1280 px). DECISIÓN de pulido, no lectura de la
+   maqueta: la maqueta lo alinea siempre a la derecha, pero a 1024 px envuelve bajo el título y las líneas quedaban alineadas a la
+   derecha entre sí, sin motivo (revisión 1:1 de la demo). A confirmar con Diseño. */
 .ambito-cartera {
     display: flex;
     flex-direction: column;
-    align-items: flex-end;
+    align-items: flex-start;
     gap: var(--space-1);
     font: var(--font-body-md);
     color: var(--color-text-muted);
-    text-align: right;
+    text-align: left;
+}
+
+@media (min-width: 1280px) {
+    .ambito-cartera {
+        align-items: flex-end;
+        text-align: right;
+    }
+}
+
+/*
+    Cinco tarjetas de riesgo. La rejilla global (auto-fit de 220 px) dejaba cuatro en una fila y la quinta sola, con un hueco
+    de tres cuartos de fila al lado. Aquí fluyen en filas completas: las cinco juntas con ancho de sobra (sección ≥ 860 px); de
+    3 + 2 y de 2 + 2 + 1 más abajo, con la última fila repartida (flex-grow), nunca con una tarjeta suelta a un cuarto de ancho.
+*/
+.vision-cartera-contenido ::deep .rejilla-kpis-cartera {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-4);
+}
+
+.vision-cartera-contenido ::deep .rejilla-kpis-cartera > .tarjeta-metrica {
+    flex: 1 1 calc(50% - var(--space-4));
+    min-width: 0;
+}
+
+/* Por ancho de la sección (container query), no de la ventana: con la barra lateral, 1024 px de ventana dejan menos de 900 px. */
+@container (min-width: 560px) {
+    .vision-cartera-contenido ::deep .rejilla-kpis-cartera > .tarjeta-metrica {
+        flex-basis: calc(33.333% - var(--space-4));
+    }
+}
+
+@container (min-width: 860px) {
+    .vision-cartera-contenido ::deep .rejilla-kpis-cartera {
+        flex-wrap: nowrap;
+    }
+
+    .vision-cartera-contenido ::deep .rejilla-kpis-cartera > .tarjeta-metrica {
+        flex-basis: 0;
+    }
+}
+
+/* La tabla de organizaciones desliza dentro de su tarjeta si no cabe (375 px): la página nunca tiene scroll horizontal. */
+.vision-cartera-contenido ::deep .tarjeta-organizaciones-riesgo > .tarjeta-contenido {
+    overflow-x: auto;
 }
 
 .ambito-cartera-sistema {
@@ -129,7 +181,11 @@
     border-radius: var(--radius-lg);
 }
 
+/* position + overflow: la tabla de abajo es absoluta y, con white-space: nowrap, una tabla no se encoge a 1 px (overflow no le
+   aplica): sin esta caja contenedora su ancho real (el del título más largo) sumaba scroll horizontal a la página a 1024 px. */
 figure.reparto-riesgo {
+    position: relative;
+    overflow: hidden;
     margin: 0;
 }
 
@@ -137,6 +193,8 @@ figure.reparto-riesgo {
    vista pero leída por el lector de pantalla (el SVG va aria-hidden). */
 .reparto-riesgo-datos {
     position: absolute;
+    top: 0;
+    left: 0;
     width: 1px;
     height: 1px;
     padding: 0;
@@ -337,11 +395,6 @@ figure.reparto-riesgo {
     .resumen-cartera,
     .rejilla-actividad-cartera {
         grid-template-columns: minmax(0, 1fr);
-    }
-
-    .ambito-cartera {
-        align-items: flex-start;
-        text-align: left;
     }
 
     .pulso-cartera-cifras {
