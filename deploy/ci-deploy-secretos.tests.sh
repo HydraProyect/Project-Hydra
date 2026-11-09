@@ -26,15 +26,15 @@ trap 'rm -rf "$DIR"' EXIT
 export FICHERO_ENV_SECRETOS_PRODUCCION="$DIR/.env"
 
 # contiene_texto <fragmento> <texto>: 0 si el texto contiene el fragmento, 1 si
-# no; cualquier otro estado de grep corta la prueba. Las pruebas negativas («la
-# salida NO contiene el valor») van con esto y nunca con `printf | grep -q`: con
-# pipefail, grep -q sale al primer acierto, printf muere por SIGPIPE si aún
-# escribe y la tubería da «no está» justo cuando el fragmento sí estaba.
+# no. Las pruebas negativas («la salida NO contiene el valor») van con esto y
+# nunca con `printf | grep -q`: con pipefail, grep -q sale al primer acierto,
+# printf muere por SIGPIPE si aún escribe y la tubería da «no está» justo cuando
+# el fragmento sí estaba. Tampoco con `grep <<<` (revisión Codex de #2106, ronda
+# 2): Bash puede volcar el here-string a un fichero temporal y, si no lo crea,
+# grep no corre y su 1 se lee como «no está». La comparación de Bash no crea
+# ficheros ni procesos, y solo puede dar 0 o 1.
 contiene_texto() {
-  local estado=0
-  grep -qF -- "$1" <<< "$2" || estado=$?
-  [ "$estado" -le 1 ] || { echo "FALLO: grep salió con $estado buscando un fragmento" >&2; exit 1; }
-  return "$estado"
+  [[ "$2" == *"$1"* ]]
 }
 # Control del instrumento: 1 MB con el fragmento en la primera línea tiene que
 # dar «sí»; la forma `printf | grep -q` daba «no» aquí.
@@ -423,7 +423,7 @@ BLOQUE_APP="$(bloque_de_servicio app-azul)"
 grep -q '^    env_file: \.env' <<< "$BLOQUE_APP" || { echo "FALLO: el extractor no ve el env_file de 'app' — el caso no observa lo que dice observar" >&2; exit 1; }
 BLOQUE_CADDY="$(bloque_de_servicio caddy)"
 [ -n "$BLOQUE_CADDY" ] || { echo "FALLO: no se encontró el bloque del servicio caddy" >&2; exit 1; }
-if grep -q '^    env_file:' <<< "$BLOQUE_CADDY"; then
+if contiene_texto $'\n''    env_file:' $'\n'"$BLOQUE_CADDY"; then
   echo "FALLO: el servicio caddy vuelve a cargar un env_file entero" >&2
   exit 1
 fi
@@ -471,7 +471,7 @@ for compose19 in docker-compose.produccion.yml docker-compose.staging.yml; do
   grep -q '^    command: \["--preparar-arranque"\]' <<< "$MIGRADOR19" \
     || { echo "FALLO: $compose19: el migrador no prepara el arranque (--preparar-arranque): 'app' tendría que sembrar sin la credencial" >&2; exit 1; }
   [ -n "$APP19" ] || { echo "FALLO: $compose19: no se encontró el bloque del servicio app" >&2; exit 1; }
-  if grep -qE 'Username=postgres|\$\{POSTGRES_PASSWORD' <<< "$APP19"; then
+  if contiene_texto 'Username=postgres' "$APP19" || contiene_texto '${POSTGRES_PASSWORD' "$APP19"; then
     echo "FALLO: $compose19: el servicio app vuelve a recibir la credencial del superusuario postgres" >&2
     exit 1
   fi
@@ -505,7 +505,7 @@ if docker compose version >/dev/null 2>&1; then
     for ranura19 in app-azul app-verde; do
       APP19="$(bloque_de_servicio_en "$EFECTIVA19" "$ranura19")"
       [ -n "$APP19" ] || { echo "FALLO: $1 (efectiva): no se encontró el bloque del servicio $ranura19" >&2; exit 1; }
-      if grep -q 'SINTETICA_SUPERUSUARIO_19' <<< "$APP19"; then
+      if contiene_texto 'SINTETICA_SUPERUSUARIO_19' "$APP19"; then
         echo "FALLO: $1 (efectiva): $ranura19 recibe la credencial del superusuario (por environment o por env_file)" >&2
         exit 1
       fi

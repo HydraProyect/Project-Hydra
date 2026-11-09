@@ -230,6 +230,24 @@ fi
 
 unset EXCEPCIONES
 
+# Lo mismo con la lista de paquetes (revisión Codex de #2106, ronda 2): el mismo
+# `tr` falso la escribe entera y sale con error. Con `done < <(tr …)` el estado se
+# perdía y, revisado Serilog (MIT), el verificador salía con 0; ahora falla con 2
+# sin dar por revisada la lista. Mutación que lo pone en rojo: volver a
+# `done < <(tr -d '\r' <"$LISTA")` sin la captura previa.
+PRUEBAS=$((PRUEBAS + 1))
+set +e
+salida_lista="$(PATH="$BIN_TR_FALLA:$PATH" "${VERIFICADOR[@]}" "$(lista "# MARCA_TR_FALLA" "Serilog 4.4.0")" 2>&1)"
+codigo_lista=$?
+set -e
+if [[ "$codigo_lista" == 2 && "$salida_lista" == *"no se pudo leer entera la lista de paquetes"* ]]; then
+  echo "OK: un fallo leyendo la lista de paquetes hace fallar la verificación, no da 0"
+else
+  echo "FALLO: con la lista de paquetes ilegible se esperaba código 2, obtenido $codigo_lista" >&2
+  printf '%s\n' "$salida_lista" >&2
+  FALLOS=$((FALLOS + 1))
+fi
+
 echo
 echo "=== El instrumento distingue versión, no solo nombre ==="
 # Sin esto, un guion que solo mirase el nombre del paquete pasaría igual.

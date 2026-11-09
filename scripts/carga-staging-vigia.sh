@@ -137,7 +137,13 @@ registrar_sondeo() {
 }
 
 # Campo `clave=valor` de la línea de cierre (vacío si no está).
-campo_cierre() { printf '%s\n' "$1" | sed -n "s/.* $2=\([^ ]*\).*/\1/p" | head -1; }
+# La primera coincidencia se recorta en Bash, sin `| head -1`: con pipefail, el
+# SIGPIPE de sed al cerrar head hacía fallar la extracción.
+campo_cierre() {
+    local valores
+    valores="$(printf '%s\n' "$1" | sed -n "s/.* $2=\([^ ]*\).*/\1/p")" || return
+    printf '%s\n' "${valores%%$'\n'*}"
+}
 
 # Juzga la línea de cierre del muestreo contra los hechos que declara.
 #   $1 salida del muestreo · $2 duración pedida (s) · $3 intervalo (s)
@@ -282,17 +288,20 @@ main() {
     fi
     log "Verificación previa del muestreo del VPS (10 s)."
     salida_pre="$(ssh_muestreo 10 2 2>&1)"
-    if grep -q "Hay un despliegue en curso" <<<"$salida_pre"; then
+    # Comparado en Bash, sin `grep <<<`: si Bash no pudiera crear el fichero
+    # temporal del here-string, grep no correría y su 1 se leería como «no hay
+    # despliegue en curso», y se cargaría staging en mitad de un despliegue.
+    if [[ "$salida_pre" == *"Hay un despliegue en curso"* ]]; then
         echo "El VPS reporta un despliegue en curso. No se carga nada." >&2; return 6
     fi
     if ! motivo_pre="$(evaluar_cierre "$salida_pre" 10 2 0 previo)"; then
-        if grep -q "=== Muestreo de memoria (REC-196/P33)" <<<"$salida_pre"; then
+        if [[ "$salida_pre" == *"=== Muestreo de memoria (REC-196/P33)"* ]]; then
             # El modo existe y arrancó: lo que falla es la máquina (docker lento), no el despliegue.
             echo "El VPS ofrece el modo muestreo-memoria pero la prueba de 10 s no dio lecturas válidas: ${motivo_pre}. No se carga nada (¿docker lento? no hace falta desplegar de nuevo). Final de la salida:" >&2
             printf '%s\n' "$salida_pre" | tail -6 >&2; return 4
         fi
         echo "El VPS no ofrece el modo muestreo-memoria (¿aún corre un ci-deploy.sh anterior? hacen falta dos despliegues tras fusionar la PR que lo añadió). Salida:" >&2
-        printf '%s\n' "$salida_pre" | head -5 >&2; return 5
+        printf '%s\n' "$salida_pre" | sed -n '1,5p' >&2; return 5
     fi
 
     # --- ejecución ----------------------------------------------------------

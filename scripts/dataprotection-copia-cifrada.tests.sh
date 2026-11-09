@@ -58,7 +58,9 @@ FICHERO=$(ls "$DEST"/dataprotection-keys-*.tar.age 2>/dev/null | head -1)
 comprobar "termina con 0 y deja un .age" '[ "$CODIGO" -eq 0 ] && [ -s "$FICHERO" ]'
 comprobar "el fichero no contiene el XML ni el secreto en claro" '! grep -aq "SECRETO-EN-CLARO\|masterKey\|<key id" "$FICHERO"'
 comprobar "la salida da la huella y la id de la clave" 'grep -q "SHA-256" <<<"$SALIDA" && grep -q "$ID_CLAVE" <<<"$SALIDA"'
-comprobar "la salida NO imprime el material de la clave" '! grep -q "SECRETO-EN-CLARO" <<<"$SALIDA"'
+# Comparado en Bash, sin `grep <<<`: si Bash no pudiera crear el fichero temporal
+# del here-string, grep no correría y su 1 se leería como «no está».
+comprobar "la salida NO imprime el material de la clave" '[[ "$SALIDA" != *"SECRETO-EN-CLARO"* ]]'
 comprobar "permisos 0600" '[ "$(stat -c %a "$FICHERO" 2>/dev/null || stat -f %Lp "$FICHERO")" = "600" ]'
 
 echo "== verificar"

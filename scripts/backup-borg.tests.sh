@@ -176,7 +176,7 @@ ejecutar exito BETTERSTACK_HEARTBEAT_URL="$URL"
 comprobar "termina con 0" '[ "$CODIGO" -eq 0 ]'
 comprobar "un único curl" '[ "$(llamadas_curl)" -eq 1 ]'
 comprobar "el curl va a la URL exacta (por stdin)" 'grep -q "^cfg url = \"$URL\"\$" "$LOG_CURL"'
-comprobar "la URL NO viaja en los argumentos de curl (saldría en ps)" '! grep -q "$URL" <<<"$(grep "^curl" "$LOG_CURL")"'
+comprobar "la URL NO viaja en los argumentos de curl (saldría en ps)" '[[ "$(grep "^curl" "$LOG_CURL")" != *"$URL"* ]]'
 comprobar "no se avisó de fallo" '! grep -q "/fail" "$LOG_CURL"'
 
 echo "== sin URL de heartbeat: cero llamadas de red"
@@ -235,7 +235,10 @@ comprobar "termina con 0" '[ "$CODIGO" -eq 0 ]'
 comprobar "el archivo Borg lleva env-produccion, byte a byte igual al .env" '[ -f "$ARCH/env-produccion" ] && cmp -s "$ARCH/env-produccion" "$ENV_FALSO"'
 comprobar "y sigue llevando dump, claves y documentos" '[ -s "$ARCH/CaeManager.dump" ] && [ -f "$ARCH/dataprotection-keys/key-x.xml" ] && [ -f "$ARCH/documentos/$TENANT_PRUEBA/a.pdf" ]'
 comprobar "permisos 0600" '[ "$(stat -c %a "$ARCH/env-produccion" 2>/dev/null || stat -f %Lp "$ARCH/env-produccion")" = "600" ]'
-comprobar "el contenido NO sale en la salida del guion" '! grep -q "$SENTINELA" <<<"$SALIDA"'
+# Negativas de secretos comparadas en Bash, sin `grep <<<`: si Bash no pudiera
+# crear el fichero temporal del here-string, grep no correría y su 1 se leería
+# como «no está» (revisión Codex de #2106, ronda 2).
+comprobar "el contenido NO sale en la salida del guion" '[[ "$SALIDA" != *"$SENTINELA"* ]]'
 comprobar "el contenido NO va en argv de borg" '! grep -q "$SENTINELA" "$LOG_BORG"'
 comprobar "el contenido NO va en argv de curl ni en su configuración" '! grep -q "$SENTINELA" "$LOG_CURL"'
 comprobar "el contenido NO va en argv de docker" '! grep -q "$SENTINELA" "$LOG_DOCKER"'
@@ -244,7 +247,7 @@ comprobar "la salida dice que se incluyó, sin mostrarlo" 'grep -q "env-producci
 echo "== fallo tras copiar el .env: tampoco se filtra"
 ejecutar envfalla BETTERSTACK_HEARTBEAT_URL="$URL" ESC_BORG_CREATE_FALLA=1
 comprobar "termina distinto de 0" '[ "$CODIGO" -ne 0 ]'
-comprobar "el contenido NO sale en la salida" '! grep -q "$SENTINELA" <<<"$SALIDA"'
+comprobar "el contenido NO sale en la salida" '[[ "$SALIDA" != *"$SENTINELA"* ]]'
 comprobar "ni en los logs de curl / borg / docker" '! grep -q "$SENTINELA" "$LOG_CURL" "$LOG_BORG" "$LOG_DOCKER"'
 
 echo "== sin .env (ruta inexistente): la BD SE RESPALDA igualmente; el guion sale con error y avisa /fail"

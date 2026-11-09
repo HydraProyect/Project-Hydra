@@ -237,6 +237,31 @@ echo "== trinquete estático: el UID de la app sale a una constante"
 comprobar "APP_UID_CONTENEDOR=1654 definido una vez" '[ "$(grep -c "^APP_UID_CONTENEDOR=1654$" "$SCRIPT")" -eq 1 ]'
 comprobar "ningún 1654 literal fuera de la constante y de comentarios" '! grep -nE "^[^#]*1654" "$SCRIPT" | grep -v "APP_UID_CONTENEDOR=1654"'
 
+echo "== copia cifrada de las claves: un listado que falla no da la copia por buena (revisión Codex de #2106, ronda 2)"
+# La función se carga sola desde el guion y se ejerce con un `ls` falso que, en el
+# directorio del archivo Borg, escribe una parte del listado y falla. Con
+# `comm <(ls …) <(ls …)` ese fallo se perdía y salía «0 0»: copia al día, aunque le
+# falta k2.xml. Mutación que lo pone en rojo: volver a comparar con `comm <(cd … && ls
+# *.xml | sort) <(…)` sin capturar antes los listados.
+DIR_CLAVES="$TMP_ROOT/claves"; mkdir -p "$DIR_CLAVES/archivo-claves" "$DIR_CLAVES/copia-claves" "$TMP_ROOT/bin-ls-falla"
+: > "$DIR_CLAVES/archivo-claves/k1.xml"; : > "$DIR_CLAVES/archivo-claves/k2.xml"; : > "$DIR_CLAVES/copia-claves/k1.xml"
+LS_REAL="$(command -v ls)"
+cat > "$TMP_ROOT/bin-ls-falla/ls" <<SH
+#!/bin/bash
+if [[ "\$PWD" == */archivo-claves ]]; then echo k1.xml; exit 2; fi
+exec "$LS_REAL" "\$@"
+SH
+chmod +x "$TMP_ROOT/bin-ls-falla/ls"
+FUNCION_CLAVES="$(sed -n '/^contar_claves_distintas() {$/,/^}$/p' "$SCRIPT")"
+comprobar "la función existe en el guion" '[ -n "$FUNCION_CLAVES" ]'
+CONTEO=$(eval "$FUNCION_CLAVES"; contar_claves_distintas "$DIR_CLAVES/archivo-claves" "$DIR_CLAVES/copia-claves"); CODIGO=$?
+comprobar "con los dos listados legibles cuenta la que falta en la copia (1 0)" '[ "$CODIGO" -eq 0 ] && [ "$CONTEO" = "1 0" ]'
+CONTEO=$(eval "$FUNCION_CLAVES"; PATH="$TMP_ROOT/bin-ls-falla:$PATH"; contar_claves_distintas "$DIR_CLAVES/archivo-claves" "$DIR_CLAVES/copia-claves"); CODIGO=$?
+comprobar "si el listado del archivo falla a medias, falla en vez de dar la copia al día" '[ "$CODIGO" -ne 0 ] && [ -z "$CONTEO" ]'
+CONTEO=$(eval "$FUNCION_CLAVES"; contar_claves_distintas "$DIR_CLAVES/vacio-inexistente" "$DIR_CLAVES/copia-claves"); CODIGO=$?
+comprobar "si el archivo no trae claves legibles, falla" '[ "$CODIGO" -ne 0 ] && [ -z "$CONTEO" ]'
+comprobar "el paso 7/7 usa la función y registra FALLO si falla" 'grep -q "if ! conteo_claves=\$(contar_claves_distintas" "$SCRIPT"'
+
 echo ""
 echo "$PRUEBAS comprobaciones, $FALLOS fallo(s)"
 [ "$FALLOS" -eq 0 ]

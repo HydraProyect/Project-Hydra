@@ -107,6 +107,27 @@ ejecutar 100 --hasta checks
 assert_veredicto "los tres obligatorios en verde -> VERDE" VERDE 0 "AAA"
 
 echo
+echo "=== Revisión Codex de #2106, ronda 2: 'gh pr checks' que escribe filas y luego falla NO da VERDE ==="
+# Las tres filas llegan en pass, pero gh sale con error: la lectura puede estar
+# incompleta. Mutación que lo pone en rojo: volver a `done < <(pr_checks_requeridos_tsv)`
+# (el estado de gh se pierde y sale VERDE).
+nueva_fixture_dir
+fixture PR_VIEW 1 "OPEN	AAA	CLEAN		"
+fixture_branch_protection 1
+fixture PR_CHECKS 1 "MOCK_PARCIAL_ERROR" $'Check A\tpass' $'Check B\tpass' $'Check C\tpass'
+ejecutar 153 --hasta checks
+assert_veredicto "filas en pass seguidas de un fallo de gh -> TIMEOUT, no VERDE" TIMEOUT 3 "sin una lectura completa"
+
+# Si la siguiente lectura sale entera, el vigía sigue y da VERDE.
+nueva_fixture_dir
+fixture PR_VIEW 1 "OPEN	AAA	CLEAN		"
+fixture_branch_protection 1
+fixture PR_CHECKS 1 "MOCK_PARCIAL_ERROR" $'Check A\tpass'
+fixture PR_CHECKS 2 $'Check A\tpass' $'Check B\tpass' $'Check C\tpass'
+TIMEOUT_S_PRUEBA=20 ejecutar 154 --hasta checks
+assert_veredicto "lectura parcial descartada y la siguiente entera -> VERDE" VERDE 0 "AAA"
+
+echo
 echo "=== Alcance del CI (2026-10-09): un obligatorio saltado cuenta como satisfecho; cancelado o pendiente, no ==="
 nueva_fixture_dir
 fixture PR_VIEW 1 "OPEN	AAA	CLEAN		"

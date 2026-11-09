@@ -291,8 +291,12 @@ run_es_obsoleto() {
   # Log capturado entero antes de buscar: con pipefail, `gh … | grep -q` da
   # fallo por SIGPIPE si gh sigue escribiendo tras el primer acierto. Un fallo
   # de `gh` no es «no obsoleto»: se devuelve aparte para no clasificar el run.
+  # Tampoco `grep <<<`: Bash puede volcar el here-string a un fichero temporal
+  # y, si no lo crea, grep no corre y su 1 se leería como «no obsoleto». Sin -q,
+  # grep lee la entrada entera y el printf no escribe en una tubería cerrada;
+  # cualquier estado distinto de 0 o 1 es «no se sabe».
   log="$(gh run view "$run_id" --repo "$REPO" --log-failed 2>/dev/null)" || return 2
-  grep -qi -- "$MENSAJE_RUN_OBSOLETO" <<<"$log" || estado=$?
+  printf '%s\n' "$log" | grep -i -- "$MENSAJE_RUN_OBSOLETO" >/dev/null || estado=$?
   (( estado <= 1 )) || return 2
   return "$estado"
 }
@@ -405,6 +409,23 @@ fase_checks() {
     done
     esperados=("${esperados_filtrados[@]}")
 
+    # Las filas de `gh pr checks` se leen enteras ANTES de interpretarlas: con
+    # `done < <(pr_checks_requeridos_tsv)` el estado de gh se perdía, y una
+    # salida parcial seguida de un fallo podía traer como `pass` todos los
+    # esperados y dar VERDE con una lectura incompleta (revisión Codex de
+    # #2106, ronda 2). Una lectura fallida no da veredicto en ningún sentido: se
+    # descarta entera y se espera a la siguiente vuelta, igual que cuando gh aún
+    # no informa de ningún check; el plazo total sigue acotando la espera.
+    local checks_tsv
+    if ! checks_tsv="$(pr_checks_requeridos_tsv)"; then
+      log "fase checks: 'gh pr checks' falló (o aún no informa de checks obligatorios) — se descarta esta lectura, sin decidir nada con ella"
+      if tiempo_agotado; then
+        salir_timeout checks "head=$head_vigilado sin una lectura completa de 'gh pr checks'"
+      fi
+      sleep "$INTERVALO_S"
+      continue
+    fi
+
     declare -A vistos=()
     local rojo=""
     while IFS=$'\t' read -r nombre bucket; do
@@ -413,7 +434,7 @@ fase_checks() {
       if [[ "$bucket" == "fail" || "$bucket" == "cancel" ]]; then
         rojo="check obligatorio '$nombre' del HEAD $head_vigilado: $bucket"
       fi
-    done < <(pr_checks_requeridos_tsv)
+    done < <(printf '%s\n' "$checks_tsv")
 
     if [[ -n "$rojo" ]]; then
       salir_rojo "$rojo"
