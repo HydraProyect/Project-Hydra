@@ -1,5 +1,3 @@
-using System.Collections.Immutable;
-
 namespace CaeManager.Application.Common;
 
 /// <summary>
@@ -18,6 +16,12 @@ public static class MemoPorContexto
 {
     /// <summary>Vida máxima de una entrada desde que empezó a calcularse.</summary>
     public static readonly TimeSpan Caducidad = TimeSpan.FromSeconds(10);
+
+    /// <summary>
+    /// <c>true</c> en el flujo asíncrono de un cálculo de cualquier memo (y en sus tareas hijas). Ahí una llamada
+    /// nunca se une a un cálculo en vuelo: así ninguna espera entre memos puede cerrar un ciclo.
+    /// </summary>
+    internal static readonly AsyncLocal<bool> DentroDeUnCalculo = new();
 }
 
 /// <summary>
@@ -59,9 +63,12 @@ public static class MemoPorContexto
 /// <para>
 /// <b>Sin interbloqueo con la puerta.</b> Todo despacho de MediatR pasa por <see cref="PuertaAccesoDatos"/>
 /// (<see cref="SerializacionAccesoDatosBehavior{TRequest,TResponse}"/>), así que quien empieza un cálculo ya está
-/// dentro de ella y su cálculo no tiene que esperar a nadie para tomarla. Una llamada anidada con la misma clave
-/// desde el propio cálculo (o desde una tarea hija suya) no se une a él, porque esperaría a su propio llamante:
-/// calcula aparte, sin guardar.
+/// dentro de ella y su cálculo no tiene que esperar a nadie para tomarla. Dentro de un cálculo de cualquier memo
+/// (o de una tarea hija suya), una llamada no se une nunca a un cálculo en vuelo: usa un valor ya resuelto, empieza
+/// uno si no hay entrada o, si la hay en vuelo, calcula aparte sin guardar. Así no hay ciclo de esperas posible:
+/// solo espera a otro quien no está calculando nada, y a quien no calcula nada no lo espera nadie. Cubre la llamada
+/// anidada con la misma clave (se esperaría a sí misma) y la de dos memos que se piden uno al otro desde flujos
+/// hermanos.
 /// </para>
 ///
 /// Lo memoizado no autoriza nada por sí solo: los endpoints, los Commands y RLS siguen decidiendo con el dato
@@ -77,10 +84,6 @@ public abstract class MemoPorContexto<TValor>(TimeProvider? reloj = null) : IMem
     // así que nadie más lo recibe y no pisa la entrada nueva.
     private readonly Dictionary<ClaveContextoMemo, Entrada> _entradas = new();
 
-    // Claves que el flujo asíncrono actual está calculando: una llamada anidada con una de ellas no se une a su
-    // propio cálculo (se esperaría a sí misma).
-    private readonly AsyncLocal<ImmutableHashSet<ClaveContextoMemo>?> _calculandoEnEsteFlujo = new();
-
     private sealed record Entrada(long Inicio, Task<TValor> Tarea);
 
     /// <summary>
@@ -93,20 +96,23 @@ public abstract class MemoPorContexto<TValor>(TimeProvider? reloj = null) : IMem
         Func<CancellationToken, Task<TValor>> calcular,
         CancellationToken cancellationToken)
     {
-        if (_calculandoEnEsteFlujo.Value?.Contains(clave) == true)
-            return Congelar(await calcular(cancellationToken));
-
         while (true)
         {
             Task<TValor>? compartida = null;
             TaskCompletionSource<TValor>? propia = null;
             Entrada? nueva = null;
+            var aparte = false;
             lock (_cerrojo)
             {
                 if (_entradas.TryGetValue(clave, out var entrada)
                     && _reloj.GetElapsedTime(entrada.Inicio) < MemoPorContexto.Caducidad)
                 {
-                    compartida = entrada.Tarea;
+                    // Una entrada fallida o cancelada nunca está en el diccionario (se retira antes de completarse):
+                    // resuelta, es un acierto. En vuelo, dentro de un cálculo no se espera (ver la clase).
+                    if (entrada.Tarea.IsCompletedSuccessfully || !MemoPorContexto.DentroDeUnCalculo.Value)
+                        compartida = entrada.Tarea;
+                    else
+                        aparte = true;
                 }
                 else
                 {
@@ -121,6 +127,9 @@ public abstract class MemoPorContexto<TValor>(TimeProvider? reloj = null) : IMem
                     _entradas[clave] = nueva;
                 }
             }
+
+            if (aparte)
+                return Congelar(await calcular(cancellationToken));
 
             if (propia is not null)
                 return await CalcularYPublicarAsync(clave, nueva!, propia, calcular, cancellationToken);
@@ -144,8 +153,7 @@ public abstract class MemoPorContexto<TValor>(TimeProvider? reloj = null) : IMem
     {
         // El cambio de un AsyncLocal dentro de un método async solo lo ven el propio método y lo que llama; al
         // volver, quien llamó conserva su valor.
-        _calculandoEnEsteFlujo.Value = (_calculandoEnEsteFlujo.Value ?? ImmutableHashSet<ClaveContextoMemo>.Empty)
-            .Add(clave);
+        MemoPorContexto.DentroDeUnCalculo.Value = true;
 
         TValor valor;
         try

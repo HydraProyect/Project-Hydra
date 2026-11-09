@@ -202,6 +202,61 @@ public class MemoPorContextoLecturaEnVueloTests
             .Should().Be("hija+hija");
     }
 
+    private sealed class OtroMemoDePrueba : MemoPorContexto<string>;
+
+    /// <summary>
+    /// Dos memos que se piden uno al otro desde flujos hermanos dentro de la misma puerta reentrante: si cada
+    /// cálculo se uniera al del otro, se esperarían para siempre.
+    /// </summary>
+    [Fact]
+    public async Task Dos_memos_que_se_piden_uno_al_otro_desde_flujos_hermanos_no_se_interbloquean()
+    {
+        var puerta = new PuertaAccesoDatos();
+        var memoA = new MemoDePrueba();
+        var memoB = new OtroMemoDePrueba();
+        var ambosEnVuelo = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var ambosPidieron = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var empezados = 0;
+        var pedidos = 0;
+
+        static async Task Barrera(TaskCompletionSource barrera, Func<int> llegar)
+        {
+            if (llegar() == 2) barrera.SetResult();
+            await barrera.Task;
+        }
+
+        // Las dos lecturas cruzadas solo terminan cuando ambas han empezado: con los dos cálculos exteriores aún en
+        // vuelo, unirse al del otro sería esperar para siempre.
+        Func<CancellationToken, Task<string>> Cruzada(string valor) => async _ =>
+        {
+            await Barrera(ambosPidieron, () => Interlocked.Increment(ref pedidos));
+            return valor;
+        };
+
+        async Task<string> CalcularA(CancellationToken ct)
+        {
+            await Barrera(ambosEnVuelo, () => Interlocked.Increment(ref empezados));
+            var b = await puerta.EjecutarAsync(() => memoB.ObtenerOCalcularAsync(Clave, Cruzada("B desde A"), ct), ct);
+            return $"A con {b}";
+        }
+
+        async Task<string> CalcularB(CancellationToken ct)
+        {
+            await Barrera(ambosEnVuelo, () => Interlocked.Increment(ref empezados));
+            var a = await puerta.EjecutarAsync(() => memoA.ObtenerOCalcularAsync(Clave, Cruzada("A desde B"), ct), ct);
+            return $"B con {a}";
+        }
+
+        var resultados = await puerta.EjecutarAsync(() => Task.WhenAll(
+            puerta.EjecutarAsync(() => memoA.ObtenerOCalcularAsync(Clave, CalcularA, CancellationToken.None)),
+            puerta.EjecutarAsync(() => memoB.ObtenerOCalcularAsync(Clave, CalcularB, CancellationToken.None))))
+            .WaitAsync(Tope);
+
+        resultados.Should().Equal("A con B desde A", "B con A desde B");
+        (await memoA.ObtenerOCalcularAsync(Clave, CalcularA, CancellationToken.None)).Should().Be("A con B desde A");
+        (await memoB.ObtenerOCalcularAsync(Clave, CalcularB, CancellationToken.None)).Should().Be("B con A desde B");
+    }
+
     [Fact]
     public async Task Un_fallo_anterior_a_Invalidar_no_retira_la_entrada_posterior()
     {
