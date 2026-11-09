@@ -931,4 +931,6 @@
   <data name="ReqDescartarConfirmar" xml:space="preserve">
     <value>Descartar els canvis</value>
   </data>
-</root>
+  <data name="ReqDescartarSeguir" xml:space="preserve">
+    <value>Continuar editant</value>
+  </data></root>

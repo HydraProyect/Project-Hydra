@@ -494,13 +494,18 @@ else
         EnProgreso="_eliminandoCanal"
         OnConfirmar="ConfirmarEliminarCanalAsync" />
 
-    <DialogoConfirmacion
-        Visible="_confirmarDescarteEdicion"
-        VisibleChanged="CerrarConfirmacionDescarteEdicion"
-        Titulo="@Textos["ReqDescartarTitulo"]"
-        Mensaje="@Textos["ReqDescartarMensaje"]"
-        TextoBotonConfirmar="@Textos["ReqDescartarConfirmar"]"
-        OnConfirmar="ConfirmarDescarteEdicion" />
+    @* El Escape de esta pregunta es de la pregunta: sin este corte sube al aside del panel de contexto (ManejarTeclaGlobalAsync),
+       que lo toma por «cerrar el panel» y abre una segunda pregunta. El contenedor no tiene caja (display: contents). *@
+    <div class="requisitos-sin-caja" @onkeydown:stopPropagation="true">
+        <DialogoConfirmacion
+            Visible="_confirmarDescarteEdicion"
+            VisibleChanged="CerrarConfirmacionDescarteEdicion"
+            Titulo="@Textos["ReqDescartarTitulo"]"
+            Mensaje="@Textos["ReqDescartarMensaje"]"
+            TextoBotonConfirmar="@Textos["ReqDescartarConfirmar"]"
+            TextoBotonDescartar="@Textos["ReqDescartarSeguir"]"
+            OnConfirmar="ConfirmarDescarteEdicion" />
+    </div>
 
     <DialogoConfirmacion
         Visible="_ajusteAQuitar is not null"
@@ -832,6 +837,19 @@ else
             .OrderBy(t => t.Nombre, StringComparer.CurrentCultureIgnoreCase)
             .ToList() ?? [];
 
+    private string TextoCoincidencias(int total) =>
+        total == 1 ? Textos["ReqCoincidenciaUna"].Value : Textos["ReqCoincidencias", total].Value;
+
+    /// <summary>Texto de la región viva del buscador: solo habla si hay coincidencias; sin ellas lo dice el estado «sin coincidencias».</summary>
+    private string AnuncioResultadosBuscador()
+    {
+        if (!BuscadorConTermino)
+            return string.Empty;
+
+        var total = ResultadosBuscador().Count;
+        return total > 0 ? TextoCoincidencias(total) : string.Empty;
+    }
+
     private void AbrirBuscadorRequisito()
     {
         _buscadorAbierto = true;
@@ -940,13 +958,15 @@ else
             }
             <button type="button" class="requisitos-icono requisitos-icono-compacto" aria-label="@Textos["ReqBuscadorCerrar"]" title="@Textos["ReqBuscadorCerrar"]" @onclick="CerrarBuscadorRequisito"><Icono Nombre="cerrar" Tamano="TamanoIcono.Pequeno" /></button>
         </div>
+        @* Región viva fuera de la lista: anuncia «N coincidencias» al teclear. Va siempre montada (una región que aparece ya con su texto no se anuncia). *@
+        <div class="requisitos-anuncio" role="status">@AnuncioResultadosBuscador()</div>
         @if (BuscadorConTermino)
         {
             var resultados = ResultadosBuscador();
             if (resultados.Count > 0)
             {
                 <ul class="requisitos-resultados" aria-label="@Textos["ReqResultadosAria"]">
-                    <li class="requisitos-resultados-cabecera">@(resultados.Count == 1 ? Textos["ReqCoincidenciaUna"].Value : Textos["ReqCoincidencias", resultados.Count].Value)</li>
+                    <li class="requisitos-resultados-cabecera">@TextoCoincidencias(resultados.Count)</li>
                     @foreach (var resultado in resultados)
                     {
                         <li @key="resultado.TipoDocumentoId">
@@ -1166,8 +1186,6 @@ else
         if (_anadiendoRequisito || tipo.Aplica || tipo.Incluido is not null || tipo.Archivado)
             return;
 
-        // Con ajustes de otra fila a medias no se pisan: el requisito se añade y sus ajustes se abren a mano con el lápiz.
-        var abrirAjustes = !EdicionRequisitoConCambios && !_subiendoArchivoEdicion;
         _anadiendoRequisito = true;
         try
         {
@@ -1184,6 +1202,9 @@ else
             CerrarBuscadorRequisito();
             await CargarDocumentacionAsync();
             await CargarEstadoAsync();
+            // Con ajustes de otra fila a medias no se pisan: el requisito se añade y sus ajustes se abren a mano con el lápiz.
+            // Se decide aquí, tras las recargas, y no antes de los await: durante ellas se pudo empezar a editar otra fila.
+            var abrirAjustes = !EdicionRequisitoConCambios && !_subiendoArchivoEdicion;
             if (abrirAjustes && _documentacion?.FirstOrDefault(r => r.TipoDocumentoId == tipo.TipoDocumentoId) is { } incluido)
                 AbrirConfigurar(incluido);
         }

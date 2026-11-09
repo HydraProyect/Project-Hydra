@@ -191,6 +191,24 @@
     overflow-wrap: anywhere;
 }
 
+/* Contenedor sin caja: solo corta la propagación del teclado de la pregunta «¿Descartar cambios?». */
+.requisitos-sin-caja {
+    display: contents;
+}
+
+/* Región viva del buscador: la oyen los lectores de pantalla y no se ve (la cabecera visible ya dice lo mismo). */
+.requisitos-anuncio {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    margin: -1px;
+    padding: 0;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
+}
+
 .requisitos-barra .requisitos-ayuda {
     flex: 1 1 12rem;
 }
