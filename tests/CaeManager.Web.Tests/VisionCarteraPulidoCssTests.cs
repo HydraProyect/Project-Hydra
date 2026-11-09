@@ -59,7 +59,7 @@ public class VisionCarteraPulidoCssTests
         css.Should().Contain("@container (min-width: 860px)");
     }
 
-    /// <summary>B3: el ámbito y la nota de sección van a la izquierda y solo se alinean a la derecha con ancho de sobra.</summary>
+    /// <summary>B3: el ámbito de la cabecera va a la izquierda y solo se alinea a la derecha con ancho de sobra; la nota de sección sigue a la derecha del título mientras cabe (maqueta).</summary>
     [Fact]
     public void Los_subtitulos_van_a_la_izquierda_y_solo_a_la_derecha_con_ancho_de_sobra()
     {
