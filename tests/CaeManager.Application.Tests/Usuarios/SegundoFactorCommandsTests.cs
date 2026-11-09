@@ -1,5 +1,6 @@
 using CaeManager.Application.Common;
 using CaeManager.Application.Plataforma;
+using CaeManager.Application.Tests.Plataforma;
 using CaeManager.Application.Usuarios;
 using CaeManager.Application.Usuarios.Commands.GenerarCodigosRecuperacion;
 using CaeManager.Application.Usuarios.Commands.RestablecerSegundoFactor;
@@ -389,6 +390,18 @@ public class SegundoFactorCommandsTests
         };
         var handler = new ObtenerRestablecimientoPorSoporteQueryHandler(
             new SesionFija(sesion), new TenantFijo(caso == "otro-tenant" ? TenantB : TenantA), puerto);
+
+        (await handler.Handle(new ObtenerRestablecimientoPorSoporteQuery(), default)).Should().BeNull();
+    }
+
+    [Fact]
+    public async Task Con_la_sesion_cerrada_en_otra_pestana_la_seccion_no_existe_aunque_la_memo_la_conserve()
+    {
+        var puerto = PuertoConCuentas();
+        puerto.AdministradoresUnicos.Add(UsuarioA);
+        var handler = new ObtenerRestablecimientoPorSoporteQueryHandler(
+            new SesionMemoizadaRevocada(SesionDeSoporte(CapacidadPrivilegio.RestablecimientoSegundoFactor)),
+            new TenantFijo(TenantA), puerto);
 
         (await handler.Handle(new ObtenerRestablecimientoPorSoporteQuery(), default)).Should().BeNull();
     }

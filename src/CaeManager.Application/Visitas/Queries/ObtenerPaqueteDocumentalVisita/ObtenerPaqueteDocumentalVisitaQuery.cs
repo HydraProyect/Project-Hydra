@@ -90,7 +90,10 @@ public class ObtenerPaqueteDocumentalVisitaQueryHandler(
         if (visita is null || !await alcanceDatos.CentroParaGestionVisibleAsync(visita.CentroId, cancellationToken))
             return Result.Fallo<PaqueteDocumentalDescargaDto>(ObtenerSolicitudAccesoCorreoQueryHandler.NoEncontrada);
 
-        if (await sesionPrivilegiadaActual.ObtenerAsync(cancellationToken) is null
+        // RevalidarAsync y no ObtenerAsync: la sesión exime de la lista de roles, y en Blazor
+        // Server la memo del circuito seguiría eximiendo tras revocar la concesión o cerrar la
+        // sesión en otra pestaña, hasta la siguiente revalidación periódica.
+        if (await sesionPrivilegiadaActual.RevalidarAsync(cancellationToken) is null
             && (await currentUserService.ObtenerRolEfectivoAsync() is not { } rol || !RolesQueObtienenElPaquete.Contains(rol)))
             return Result.Fallo<PaqueteDocumentalDescargaDto>(RolSinDescarga);
 
