@@ -9,6 +9,7 @@ using Bunit.TestDoubles;
 using CaeManager.Application.Bandeja.Queries.ObtenerBandejaAgrupada;
 using CaeManager.Application.Bandeja.Queries.ObtenerMiTrabajoAgregado;
 using CaeManager.Application.Common;
+using CaeManager.Application.Marco.Queries.ObtenerContextoMarco;
 using CaeManager.Application.Tenants.Queries.ObtenerClientesAutorizados;
 using CaeManager.Infrastructure.Autorizacion;
 using CaeManager.Web.Components.DesignSystem;
@@ -46,10 +47,17 @@ public class SelectorClienteActivoTests : BunitContext
 
     private sealed class Mediador(
         Func<IReadOnlyList<ClienteAutorizadoDto>> lista, Func<Task<MiTrabajoAgregadoDto>> miTrabajo, Action alCalcularMiTrabajo,
-        Func<bool> participaEnIncorporacion) : IMediator
+        Func<bool> participaEnIncorporacion, Action alPedirContextoMarco) : IMediator
     {
         public async Task<T> Send<T>(IRequest<T> request, CancellationToken cancellationToken = default)
         {
+            // El contexto del marco se compone con el handler real sobre las respuestas de abajo; cuántas veces se pide
+            // es lo que miden las pruebas de reutilización.
+            if (request is ObtenerContextoMarcoQuery)
+            {
+                alPedirContextoMarco();
+                return (T)(object)await ContextoMarcoDePrueba.ComponerAsync(this, cancellationToken);
+            }
             if (request is ObtenerClientesAutorizadosQuery) return (T)(object)lista();
             if (request is CaeManager.Application.Operaciones.IncorporacionCartera.Queries.ParticipaEnIncorporacionCarteraQuery)
                 return (T)(object)participaEnIncorporacion();
@@ -90,6 +98,7 @@ public class SelectorClienteActivoTests : BunitContext
     private Func<Task<MiTrabajoAgregadoDto>> _miTrabajo = () => Task.FromResult(new MiTrabajoAgregadoDto([]));
     private int _cuantasVecesSeCalculoMiTrabajo;
     private bool _participaEnIncorporacion;
+    private int _contextosPedidos;
     private readonly BunitPersistentComponentState _estadoPersistente;
 
     public SelectorClienteActivoTests()
@@ -97,7 +106,9 @@ public class SelectorClienteActivoTests : BunitContext
         _estadoPersistente = AddBunitPersistentComponentState();
         JSInterop.Mode = JSRuntimeMode.Loose;
         Services.AddLocalization();
-        Services.AddScoped<IMediator>(_ => new Mediador(() => _lista, () => _miTrabajo(), () => _cuantasVecesSeCalculoMiTrabajo++, () => _participaEnIncorporacion));
+        Services.AddScoped<IMediator>(_ => new Mediador(() => _lista, () => _miTrabajo(), () => _cuantasVecesSeCalculoMiTrabajo++,
+            () => _participaEnIncorporacion, () => _contextosPedidos++));
+        Services.AddScoped<ContextoMarcoDelAmbito>();
         Services.AddScoped<CaeManager.Web.Components.DesignSystem.ToastService>();
         Services.AddScoped<ICurrentUserService, UsuarioFalso>();
         // El Tenant efectivo es el seleccionado, como en la composición real: entra en la clave de la presentación.
@@ -114,7 +125,7 @@ public class SelectorClienteActivoTests : BunitContext
         new(Origen, "Operador de prueba", EsOrigen: true, EsGestionadoPorOperacion: gestionado);
 
     [Fact]
-    public void La_presentacion_prerenderizada_evita_repetir_consultas_en_interactivo()
+    public void La_presentacion_prerenderizada_se_lee_una_vez_por_ambito_y_se_persiste_para_el_circuito()
     {
         _lista = [Propio(), Gestionado(Norte, "Empresa Norte"), Gestionado(Sur, "Empresa Sur")];
         var prerender = Renderizar(Norte);
@@ -122,10 +133,18 @@ public class SelectorClienteActivoTests : BunitContext
         prerender.Dispose();
         _lista = [];
 
+        // bUnit comparte un solo ámbito: el segundo render es el mismo ámbito y reutiliza lo leído sin despachar.
         var interactivo = Render<SelectorClienteActivo>();
 
         interactivo.Find(".selector-tenant-disparador").TextContent.Should().Contain("Empresa Norte");
         interactivo.Markup.Should().Contain("token-de-prueba", "el token antiforgery se obtiene en la instancia interactiva");
+        _contextosPedidos.Should().Be(1, "el contexto del marco se lee una sola vez en el ámbito");
+        _estadoPersistente.TryTake<ContextoMarcoDelAmbito.ContextoPersistido>(ContextoMarcoDelAmbito.ClavePersistencia, out var persistido)
+            .Should().BeTrue("lo leído en el prerenderizado viaja al circuito");
+        persistido!.Contexto.Seleccionado.Should().Be(Norte);
+        persistido.Contexto.Clave.UsuarioId.Should().Be(UsuarioFalso.Id);
+        persistido.Contexto.Clave.TenantOrigenId.Should().Be(Origen);
+        persistido.Marco.ClientesAutorizados.Select(c => c.Nombre).Should().Contain("Empresa Norte");
     }
 
     [Theory]
@@ -146,11 +165,13 @@ public class SelectorClienteActivoTests : BunitContext
             escenario == "otro-perfil" ? "Consulta" : "GestorCae",
             escenario == "otro-tenant-efectivo" ? Sur : Norte,
             escenario == "otro-ambito" ? Norte : null);
-        _estadoPersistente.Persist("layout-selector-presentacion-v1",
-            new SelectorClienteActivo.PresentacionSelector(
+        _estadoPersistente.Persist(ContextoMarcoDelAmbito.ClavePersistencia,
+            new ContextoMarcoDelAmbito.ContextoPersistido(
                 new(clave, escenario == "otro-seleccionado" ? Sur : Norte),
                 DateTimeOffset.UtcNow - (escenario == "caducada" ? TimeSpan.FromMinutes(1) : TimeSpan.Zero),
-                [Propio(), Gestionado(Norte, "Dato antiguo"), Gestionado(Sur, "Empresa Sur")], true));
+                new ContextoMarcoDto(default, RotulosPrimeraPersona: false, EsAdministradorPlataforma: false,
+                    [Propio(), Gestionado(Norte, "Dato antiguo"), Gestionado(Sur, "Empresa Sur")],
+                    OrdenGrupos: null, OrdenEnlaces: null, ParticipaEnIncorporacionCartera: true, Avatar: null)));
         _lista = [Propio(), Gestionado(Norte, "Dato vigente"), Gestionado(Sur, "Empresa Sur")];
 
         var cut = Render<SelectorClienteActivo>();
@@ -167,8 +188,8 @@ public class SelectorClienteActivoTests : BunitContext
         _estadoPersistente.TriggerOnPersisting();
         prerender.Dispose();
 
-        _estadoPersistente.TryTake<SelectorClienteActivo.PresentacionSelector>(
-                "layout-selector-presentacion-v1", out _)
+        _estadoPersistente.TryTake<ContextoMarcoDelAmbito.ContextoPersistido>(
+                ContextoMarcoDelAmbito.ClavePersistencia, out _)
             .Should().BeFalse("el estado persistido vuelve al servidor en el mensaje de arranque del circuito");
     }
 
@@ -289,7 +310,9 @@ public class SelectorClienteActivoTests : BunitContext
         NombresDeLaLista(cut).Should().Contain("Empresa Sur");
 
         // La query ya no devuelve el Tenant caducado: otra pantalla nueva del selector.
+        // Otra pantalla es otra petición y otro ámbito; bUnit comparte uno solo, así que se descarta lo leído.
         _lista = [Propio(), Gestionado(Norte, "Empresa Norte")];
+        Services.GetRequiredService<ContextoMarcoDelAmbito>().Invalidar();
         var refrescado = Render<SelectorClienteActivo>();
 
         // Su selección (Sur) ya no está autorizada: el contexto efectivo vuelve al origen y, como aún
