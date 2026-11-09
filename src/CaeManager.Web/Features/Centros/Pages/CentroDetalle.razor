@@ -251,19 +251,16 @@
                         }
                         else
                         {
-                            <ListaRelaciones EnTarjeta="true" Etiqueta="@Textos["PestanaRequisitos360"]">
-                                @foreach (var requisito in _requisitosCentro)
-                                {
-                                    <FilaRelacion @key="requisito.TipoDocumentoId" Nombre="@requisito.Nombre">
-                                        <Detalle>
-                                            @Textos[requisito.AmbitoAplicacion == AmbitoAplicacion.Empresa ? "RequisitoCentroEmpresa360" : "RequisitoCentroTrabajador360"]
-                                            · @Textos["RequisitoCentroTolerancia360", ReglaBloqueoDeAcceso.ResolverToleranciaDias(requisito.ToleranciaDias, requisito.ToleranciaHeredadaDias)]
-                                        </Detalle>
-                                        <Estado>@Textos[requisito.BloqueaAcceso ? "RequisitoCentroBloquea360" : "RequisitoCentroNoBloquea360"]</Estado>
-                                        <Acciones><Boton360 Nombre="@requisito.Nombre" OnClick="() => IrATipoDocumento(requisito.TipoDocumentoId)" /></Acciones>
-                                    </FilaRelacion>
-                                }
-                            </ListaRelaciones>
+                            @* Maqueta Centro360.dc.html (pestaña Requisitos): filtro y «Gestionar requisitos» arriba, y dos bloques (Empresa y Trabajador). *@
+                            <div class="centro-requisitos-barra">
+                                <BuscadorLista Placeholder="@Textos["FiltrarRequisitos360"]" Valor="@_filtroRequisitos" ValorChanged="FiltrarRequisitos" />
+                                <SoloConEscritura><Boton Variante="VarianteBoton.Secundario" OnClick="AbrirRequisitos">@Textos["GestionarRequisitos360"]</Boton></SoloConEscritura>
+                            </div>
+                            <p class="centro-requisitos-intro">@Textos["RequisitosCentroIntro360"]</p>
+                            <div class="centro-requisitos-bloques">
+                                @BloqueRequisitos(AmbitoAplicacion.Empresa)
+                                @BloqueRequisitos(AmbitoAplicacion.Trabajador)
+                            </div>
                         }
                     }
                     <div class="centro-ficha-canales" hidden="@(_pestana != PestanaFicha)">
@@ -333,6 +330,65 @@
 </LimiteDeErrores>
 
 @code {
+    /// <summary>
+    /// Un bloque de la pestaña «Requisitos» (Empresa o Trabajador): título y recuento, los 5 primeros con los que bloquean
+    /// delante y «Ver los N restantes». El recuento y el despliegue respetan «Filtrar requisitos».
+    /// </summary>
+    private RenderFragment<AmbitoAplicacion> BloqueRequisitos => ambito => @<text>
+        @{
+            var esEmpresa = ambito == AmbitoAplicacion.Empresa;
+            var requisitos = RequisitosDelBloque(ambito);
+            var desplegado = _requisitosDesplegados.Contains(ambito);
+            var visibles = desplegado ? requisitos : requisitos.Take(RequisitosVisiblesPorBloque).ToList();
+            var restantes = requisitos.Count - visibles.Count;
+            var titulo = Textos[esEmpresa ? "RequisitosBloqueEmpresa360" : "RequisitosBloqueTrabajador360"];
+        }
+        <details class="centro-requisitos-bloque" open data-bloque="@(esEmpresa ? "empresa" : "trabajador")">
+            <summary class="centro-requisitos-cabecera">
+                <h3 class="centro-requisitos-titulo">@titulo</h3>
+                <Badge Tono="TonoBadge.Info" class="centro-requisitos-recuento">@requisitos.Count</Badge>
+                <span class="centro-requisitos-chevron" aria-hidden="true"><Icono Nombre="chevron" Tamano="TamanoIcono.Pequeno" /></span>
+            </summary>
+            @if (requisitos.Count == 0)
+            {
+                <p class="centro-requisitos-vacio">@Textos[string.IsNullOrWhiteSpace(_filtroRequisitos) ? "RequisitosBloqueVacio360" : "RequisitosBloqueSinCoincidencias360"]</p>
+            }
+            @foreach (var requisito in visibles)
+            {
+                var bloquea = BloqueaElAcceso(requisito);
+                <div class="centro-requisito" data-requisito="@requisito.TipoDocumentoId" @key="requisito.TipoDocumentoId">
+                    <div class="centro-requisito-texto">
+                        <a class="centro-requisito-nombre @(bloquea ? "centro-requisito-nombre-bloquea" : null)" href="/documentos/tipos/@requisito.TipoDocumentoId">@requisito.Nombre</a>
+                        <span class="centro-requisito-meta" data-pieza="requisito-tolerancia">@TextoToleranciaRequisito(requisito)</span>
+                        @if (requisito.Archivado && requisito.NombreSustituto is { } sustituto)
+                        {
+                            <span class="centro-requisito-meta">@Textos["RequisitoSustituidoPor360", sustituto]</span>
+                        }
+                    </div>
+                    @if (requisito.Archivado)
+                    {
+                        <Badge Tono="TonoBadge.Advertencia" class="centro-requisito-estado" data-estado="sustituido">@Textos["RequisitoCentroSustituido360"]</Badge>
+                    }
+                    else if (bloquea)
+                    {
+                        <Badge Tono="TonoBadge.Peligro" class="centro-requisito-estado" data-estado="bloquea">@Textos["RequisitoCentroBloquea360"]</Badge>
+                    }
+                    else
+                    {
+                        <span class="centro-requisito-estado centro-requisito-no-bloquea" data-estado="no-bloquea">@Textos["RequisitoCentroNoBloquea360"]</span>
+                    }
+                </div>
+            }
+            @if (requisitos.Count > RequisitosVisiblesPorBloque)
+            {
+                <button type="button" class="centro-requisitos-mas" data-accion="ver-restantes" aria-expanded="@(desplegado ? "true" : "false")"
+                        @onclick="() => AlternarRestantesRequisitos(ambito)">
+                    @(desplegado ? Textos["RequisitosVerMenos360"] : Textos[restantes == 1 ? "RequisitosVerRestanteUno360" : "RequisitosVerRestantes360", restantes])
+                </button>
+            }
+        </details>
+    </text>;
+
     /// <summary>Una fila de la tabla de documentación de Empresa (la de una Empresa del Centro o la de una Subcontrata).</summary>
     private RenderFragment<(DocumentacionEmpresaCentroDto Empresa, DocumentoEmpresaCentroDto Documento, ClavesDeHermanos Claves)> FilaDocumentoEmpresa => fila => @<text>
         @{ var (empresa, documento, clavesDocumentos) = fila; }
