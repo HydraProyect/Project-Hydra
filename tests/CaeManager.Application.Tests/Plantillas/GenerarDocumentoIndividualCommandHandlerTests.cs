@@ -342,6 +342,31 @@ public class GenerarDocumentoIndividualCommandHandlerTests
     }
 
     [Fact]
+    public async Task Si_no_se_puede_comprobar_si_consta_el_documento_tras_revocarse_la_cartera_se_conserva_el_pdf()
+    {
+        // Revisión puente de la ronda 3 sobre la PR #2121: ante la duda no se borra, porque podría ser el PDF de un
+        // Documento confirmado en un commit ambiguo.
+        var tipo = new TipoDocumento("Plan de prevención", null, false, 1, AmbitoAplicacion.Empresa);
+        var entorno = await ConstruirEntornoAsync(tipo, AmbitoAplicacion.Empresa);
+        var empresa = new Empresa("Contratista SL", "B12345674");
+        entorno.Empresas.ListaEmpresas.Add(empresa);
+        var usuarioId = Guid.NewGuid();
+        Confirmar(entorno.Version,
+            [new PlantillaElemento(entorno.Version.Id, TipoElementoPlantilla.Texto, 1, 0, 0, 10, 10, "Razón social", FuenteDatoPlantilla.EmpresaRazonSocial)],
+            usuarioId);
+        var alcance = new AlcanceMemoizadoRevocableFalso(new AlcanceDatosServiceFalso());
+        entorno.Serializacion.AlTomarElCandado = alcance.Revocar;
+        entorno.Documentos.ExcepcionAlComprobar = new InvalidOperationException("base caída");
+        var archivosAntes = entorno.Almacenamiento.ArchivosGuardados;
+
+        var resultado = await entorno.CrearHandler(usuarioId, alcance, invalidadorAlcance: alcance).Handle(
+            new GenerarDocumentoIndividualCommand(entorno.Version.Id, empresa.Id), CancellationToken.None);
+
+        resultado.Error.Codigo.Should().Be("Plantilla.PropietarioNoEncontrado");
+        entorno.Almacenamiento.ArchivosGuardados.Should().Be(archivosAntes + 1, "sin comprobar que ningún Documento lo referencia, el PDF se conserva");
+    }
+
+    [Fact]
     public async Task Un_reintento_rechazado_por_la_cartera_tras_un_commit_confirmado_no_borra_el_pdf_del_documento()
     {
         // Ronda 2 de Codex sobre la PR #2121: el commit se confirma pero comunica un error transitorio, la cartera se
