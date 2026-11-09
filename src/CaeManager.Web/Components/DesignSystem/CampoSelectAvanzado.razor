@@ -77,7 +77,7 @@
                     <input type="text" class="csa-buscador" @ref="_buscador"
                            role="combobox" aria-expanded="true" aria-autocomplete="list" aria-controls="@_idLista"
                            aria-activedescendant="@IdActivo" aria-label="@Comunes["SelectorBuscarEtiqueta"]"
-                           placeholder="@Comunes["SelectorBuscarMarcador"]" autocomplete="off" value="@_consulta"
+                           placeholder="@Comunes["SelectorBuscarMarcador"]" autocomplete="off" value="@_consultaSembrada"
                            @oninput="AlEscribir" @onkeydown="e => ManejarTeclaAsync(e, true)" />
                 </div>
             }
@@ -179,6 +179,11 @@
     private bool _anclado;
     private bool _desechado;
     private string _consulta = string.Empty;
+
+    // Lo que el servidor escribe en el buscador: solo cambia cuando la búsqueda se siembra desde fuera del input
+    // (teclear sobre el disparador). Lo que el usuario escribe en el input no lo toca, así un render en cola con
+    // un valor más corto nunca pisa lo que ya ve (el mismo fallo que CampoTexto evita).
+    private string _consultaSembrada = string.Empty;
     private int _activo = -1;
     private string _escrito = string.Empty;
     private long _escritoEn;
@@ -377,6 +382,7 @@
 
         _abierto = true;
         _consulta = string.Empty;
+        _consultaSembrada = string.Empty;
         _escrito = string.Empty;
         Recalcular();
         _activo = _visibles.FindIndex(i => _todas[i].Valor == Valor && !_todas[i].Deshabilitada);
@@ -413,6 +419,7 @@
     private void AnadirABusqueda(string tecla)
     {
         _consulta += tecla;
+        _consultaSembrada = _consulta;
         Recalcular();
         _activo = _visibles.FindIndex(i => !_todas[i].Deshabilitada);
         if (_activo < 0 && MostrarCrear) _activo = _visibles.Count;

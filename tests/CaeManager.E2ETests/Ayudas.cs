@@ -259,6 +259,9 @@ public static class Ayudas
     {
         var idLista = await combobox.GetAttributeAsync("aria-controls");
         await combobox.ClickAsync();
+        // Se espera a que el panel esté pintado antes de mirar si tiene buscador: contar en seco tras el clic
+        // saltaría el filtrado si el circuito aún no ha respondido.
+        await page.Locator($"[id='{idLista}']").WaitForAsync();
         var buscador = page.Locator($"input.csa-buscador[aria-controls='{idLista}']");
         if (await buscador.CountAsync() > 0) await buscador.FillAsync(texto);
         await page.Locator($"[id='{idLista}']").GetByRole(AriaRole.Option, new() { Name = texto, Exact = true }).ClickAsync();
