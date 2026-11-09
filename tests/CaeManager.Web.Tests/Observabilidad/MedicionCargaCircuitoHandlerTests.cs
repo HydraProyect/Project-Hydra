@@ -99,25 +99,30 @@ public class MedicionCargaCircuitoHandlerTests
     [Fact]
     public async Task Una_navegacion_espera_a_que_el_temporizador_cierre_su_carga_y_nada_cuenta_dos_veces()
     {
-        // Intercalación de la carrera: el temporizador está a mitad de cerrar la carga (ya leyó su
-        // cierre y está registrando) cuando llega una navegación. La navegación no puede tomar su
-        // frontera hasta que el cierre termine.
+        // Intercalación de la carrera: el temporizador está a mitad de cerrar la carga (ya la marcó
+        // y leyó su cierre; está leyendo la marca de tiempo) cuando llega una navegación. La
+        // navegación no puede tomar su frontera hasta que el cierre termine.
         var (handler, coste, navegacion, logger, reloj) = Crear(habilitado: true, uriInicial: "http://localhost/");
         await handler.OnCircuitOpenedAsync(null!, default);
         coste.RegistrarComando(TimeSpan.FromMilliseconds(1));
 
         using var cierreEnCurso = new ManualResetEventSlim();
         using var soltarCierre = new ManualResetEventSlim();
-        logger.AlRegistrar = e =>
+        var hiloTemporizador = -1;
+        reloj.AlLeerMarca = () =>
         {
-            if (Equals(e.Valor("Motivo"), MedicionCargaCircuitoHandler.MotivoVentana))
+            if (Environment.CurrentManagedThreadId == Volatile.Read(ref hiloTemporizador))
             {
                 cierreEnCurso.Set();
                 soltarCierre.Wait(TimeSpan.FromSeconds(10));
             }
         };
 
-        var temporizador = Task.Run(() => reloj.Temporizadores[0].Disparar());
+        var temporizador = Task.Run(() =>
+        {
+            Volatile.Write(ref hiloTemporizador, Environment.CurrentManagedThreadId);
+            reloj.Temporizadores[0].Disparar();
+        });
         cierreEnCurso.Wait(TimeSpan.FromSeconds(10)).Should().BeTrue();
         coste.RegistrarComando(TimeSpan.FromMilliseconds(1));
         var navegar = Task.Run(() => navegacion.Navegar("http://localhost/empresas"));
@@ -126,13 +131,61 @@ public class MedicionCargaCircuitoHandlerTests
             "la navegación debe esperar a que el temporizador termine su transición");
         soltarCierre.Set();
         await Task.WhenAll(temporizador, navegar).WaitAsync(TimeSpan.FromSeconds(10));
-        logger.AlRegistrar = null;
+        reloj.AlLeerMarca = null;
         coste.RegistrarComando(TimeSpan.FromMilliseconds(1));
         await handler.OnCircuitClosedAsync(null!, default);
 
         logger.Entradas.Should().HaveCount(2);
         logger.Entradas[0].Valor("Comandos").Should().Be(1L);
         logger.Entradas.Sum(e => (long)e.Valor("Comandos")!).Should().BeLessThanOrEqualTo(coste.Leer().Comandos);
+    }
+
+    [Fact]
+    public async Task Un_registro_bloqueado_no_deja_esperando_a_la_navegacion()
+    {
+        var (handler, _, navegacion, logger, reloj) = Crear(habilitado: true, uriInicial: "http://localhost/");
+        await handler.OnCircuitOpenedAsync(null!, default);
+
+        using var registrando = new ManualResetEventSlim();
+        using var soltarRegistro = new ManualResetEventSlim();
+        logger.AlRegistrar = e =>
+        {
+            if (Equals(e.Valor("Motivo"), MedicionCargaCircuitoHandler.MotivoVentana))
+            {
+                registrando.Set();
+                soltarRegistro.Wait(TimeSpan.FromSeconds(10));
+            }
+        };
+
+        var temporizador = Task.Run(() => reloj.Temporizadores[0].Disparar());
+        registrando.Wait(TimeSpan.FromSeconds(10)).Should().BeTrue();
+        var navegar = Task.Run(() => navegacion.Navegar("http://localhost/empresas"));
+
+        try
+        {
+            (await Task.WhenAny(navegar, Task.Delay(TimeSpan.FromSeconds(5)))).Should().BeSameAs(navegar,
+                "el registro se emite fuera del lock de transición");
+        }
+        finally
+        {
+            soltarRegistro.Set();
+        }
+
+        await temporizador.WaitAsync(TimeSpan.FromSeconds(10));
+    }
+
+    [Fact]
+    public async Task Un_disparo_del_temporizador_tras_liberar_el_handler_no_registra()
+    {
+        var (handler, coste, _, logger, reloj) = Crear(habilitado: true, uriInicial: "http://localhost/");
+        await handler.OnCircuitOpenedAsync(null!, default);
+        coste.RegistrarComando(TimeSpan.FromMilliseconds(1));
+
+        handler.Dispose();
+        reloj.Temporizadores[0].Disparar();
+
+        logger.Entradas.Should().BeEmpty();
+        reloj.Temporizadores[0].Liberado.Should().BeTrue();
     }
 
     [Fact]
@@ -290,6 +343,15 @@ public class MedicionCargaCircuitoHandlerTests
     private sealed class RelojDePrueba : TimeProvider
     {
         public List<TemporizadorDePrueba> Temporizadores { get; } = [];
+
+        /// <summary>Se llama en cada lectura de la marca de tiempo, en el hilo que la lee.</summary>
+        public Action? AlLeerMarca { get; set; }
+
+        public override long GetTimestamp()
+        {
+            AlLeerMarca?.Invoke();
+            return base.GetTimestamp();
+        }
 
         public override ITimer CreateTimer(TimerCallback callback, object? state, TimeSpan dueTime, TimeSpan period)
         {

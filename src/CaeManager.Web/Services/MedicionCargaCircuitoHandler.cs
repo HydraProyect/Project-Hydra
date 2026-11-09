@@ -122,6 +122,7 @@ public sealed class MedicionCargaCircuitoHandler : CircuitHandler, IDisposable
         // página nueva: sigue contando en la carga en curso. La ruta se compara en memoria y no
         // se registra nunca.
         var ruta = QuitarConsulta(rutaRelativa);
+        CargaCerrada? anteriorCerrada;
         lock (_transicion)
         {
             if (Volatile.Read(ref _enCurso) is { } enCurso
@@ -133,7 +134,7 @@ public sealed class MedicionCargaCircuitoHandler : CircuitHandler, IDisposable
             var frontera = _coste.Leer();
             var nueva = new Carga(ruta, _plantillas.Resolver(ruta), frontera, _reloj.GetTimestamp());
             var anterior = Interlocked.Exchange(ref _enCurso, nueva);
-            Terminar(anterior, MotivoNavegacion, frontera);
+            anteriorCerrada = Cerrar(anterior, MotivoNavegacion, frontera);
 
             var ventana = TimeSpan.FromSeconds(Math.Max(1, _opciones.VentanaCargaCircuitoSegundos));
             nueva.Temporizador = _reloj.CreateTimer(
@@ -143,32 +144,55 @@ public sealed class MedicionCargaCircuitoHandler : CircuitHandler, IDisposable
             if (nueva.Terminada)
                 nueva.Temporizador.Dispose();
         }
+
+        Registrar(anteriorCerrada);
     }
 
     public void TerminarCargaEnCurso(string motivo)
     {
+        CargaCerrada? cerrada;
         lock (_transicion)
-            Terminar(Interlocked.Exchange(ref _enCurso, null), motivo);
+            cerrada = Cerrar(Interlocked.Exchange(ref _enCurso, null), motivo);
+        Registrar(cerrada);
     }
 
-    private void Terminar(Carga? carga, string motivo, InstantaneaCosteCarga? fin = null)
+    private void Terminar(Carga carga, string motivo)
     {
+        CargaCerrada? cerrada;
         lock (_transicion)
-        {
-            if (carga is null || !carga.MarcarTerminada())
-                return;
-
-            carga.Temporizador?.Dispose();
-            var coste = (fin ?? _coste.Leer()).Menos(carga.Inicio);
-            var duracion = _reloj.GetElapsedTime(carga.InicioMarca);
-            _logger.LogInformation(
-                "Coste de carga en circuito de {Plantilla}: {BaseDatosMs:0.0} ms de BD en {Comandos} comandos, "
-                + "{Conexiones} aperturas de conexión, {EsperaPuertaMs:0.0} ms de espera en la puerta, "
-                + "{Despachos} despachos de MediatR; {DuracionMs:0} ms medidos hasta {Motivo}",
-                carga.Plantilla, coste.BaseDatos.TotalMilliseconds, coste.Comandos, coste.Conexiones,
-                coste.EsperaPuerta.TotalMilliseconds, coste.Despachos, duracion.TotalMilliseconds, motivo);
-        }
+            cerrada = Cerrar(carga, motivo);
+        Registrar(cerrada);
     }
+
+    /// <summary>
+    /// Bajo <see cref="_transicion"/>: marca la carga terminada y lee su cierre. El registro se
+    /// emite después, fuera del lock, para que un proveedor de registro lento nunca deje a una
+    /// navegación esperando.
+    /// </summary>
+    private CargaCerrada? Cerrar(Carga? carga, string motivo, InstantaneaCosteCarga? fin = null)
+    {
+        if (carga is null || !carga.MarcarTerminada())
+            return null;
+
+        carga.Temporizador?.Dispose();
+        return new CargaCerrada(carga.Plantilla, (fin ?? _coste.Leer()).Menos(carga.Inicio),
+            _reloj.GetElapsedTime(carga.InicioMarca), motivo);
+    }
+
+    private void Registrar(CargaCerrada? cerrada)
+    {
+        if (cerrada is not { } c)
+            return;
+
+        _logger.LogInformation(
+            "Coste de carga en circuito de {Plantilla}: {BaseDatosMs:0.0} ms de BD en {Comandos} comandos, "
+            + "{Conexiones} aperturas de conexión, {EsperaPuertaMs:0.0} ms de espera en la puerta, "
+            + "{Despachos} despachos de MediatR; {DuracionMs:0} ms medidos hasta {Motivo}",
+            c.Plantilla, c.Coste.BaseDatos.TotalMilliseconds, c.Coste.Comandos, c.Coste.Conexiones,
+            c.Coste.EsperaPuerta.TotalMilliseconds, c.Coste.Despachos, c.Duracion.TotalMilliseconds, c.Motivo);
+    }
+
+    private sealed record CargaCerrada(string Plantilla, InstantaneaCosteCarga Coste, TimeSpan Duracion, string Motivo);
 
     private static string QuitarConsulta(string ruta)
     {
@@ -188,7 +212,15 @@ public sealed class MedicionCargaCircuitoHandler : CircuitHandler, IDisposable
     {
         Desuscribir();
         lock (_transicion)
-            Interlocked.Exchange(ref _enCurso, null)?.Temporizador?.Dispose();
+        {
+            // Marcada terminada antes de liberar el temporizador: un disparo ya encolado que llegue
+            // al lock después no registra una carga de un circuito liberado.
+            if (Interlocked.Exchange(ref _enCurso, null) is { } carga)
+            {
+                carga.MarcarTerminada();
+                carga.Temporizador?.Dispose();
+            }
+        }
     }
 
     private sealed class Carga(string ruta, string plantilla, InstantaneaCosteCarga inicio, long inicioMarca)
