@@ -1,4 +1,4 @@
-﻿using System.Text.Json;
+using System.Text.Json;
 using CaeManager.Application.Centros;
 using CaeManager.Application.Common;
 using CaeManager.Application.Common.Archivos;
@@ -18,6 +18,7 @@ using CaeManager.Domain.Plantillas;
 using CaeManager.Domain.Trabajadores;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 
 namespace CaeManager.Application.Plantillas.Commands.GenerarDocumentoIndividual;
 
@@ -48,6 +49,7 @@ public class GenerarDocumentoIndividualCommandHandler(
     IAltaAcreditacionesPlataformaService altaAcreditaciones,
     IUnitOfWork unitOfWork,
     INacimientoGestionAutomaticaService gestionAutomatica,
+    ILogger<GenerarDocumentoIndividualCommandHandler> logger,
     // Opcional solo mientras la PR #2104 cambia los tests que construyen este handler: el contenedor siempre lo resuelve
     // (InvalidadorAlcanceInerte por defecto, el AlcanceDatosService del circuito en la Web). Issue #2118.
     IInvalidadorAlcance? invalidadorAlcance = null)
@@ -255,7 +257,7 @@ public class GenerarDocumentoIndividualCommandHandler(
                 // Bajo el candado se vuelve a decidir la Asignación de Cartera sobre la Empresa y el Centro: pudo
                 // revocarse mientras se esperaba, y el alcance memoizado (en Blazor Server, el del circuito) es de
                 // antes; se descarta, igual que en BloqueoRespuestaSugerida.ComprobarEnvioPorBuzonAsync (issue #2118).
-                // El PDF ya guardado queda sin referenciar, igual que si fallara el guardado.
+                // Un rechazo aquí deja el PDF ya guardado sin ningún Documento que lo referencie: se elimina abajo.
                 invalidadorAlcance?.Invalidar();
                 if (!await alcanceDatos.EmpresaParaGestionVisibleAsync(request.OwnerId, ct))
                     return Result.Fallo(Error.Crear("Plantilla.PropietarioNoEncontrado", "No encontramos a quién pertenece este documento."));
@@ -265,7 +267,13 @@ public class GenerarDocumentoIndividualCommandHandler(
             }, cancellationToken)
             : await GuardarAsync(documento, documentoGenerado, cancellationToken);
         if (guardado.EsFallido)
+        {
+            // GuardarAsync solo devuelve éxito o lanza: un fallo aquí es el rechazo de la Asignación de Cartera bajo el
+            // candado, y la transacción no llegó a crear el Documento. El PDF guardado arriba no lo referencia nadie y
+            // puede llevar datos de la Empresa y de sus contactos a los que quien lo pidió ya no tiene acceso.
+            await EliminarPdfHuerfanoAsync(archivoUrl, version.Id, cancellationToken);
             return Result.Fallo<GenerarDocumentoIndividualResultadoDto>(guardado.Error);
+        }
 
         return Result.Exito(new GenerarDocumentoIndividualResultadoDto(
             documentoGenerado.Id, documento.Id, camposObligatoriosVacios, valoresNoReconocidos));
@@ -289,6 +297,24 @@ public class GenerarDocumentoIndividualCommandHandler(
 
         await unitOfWork.SaveChangesAsync(cancellationToken);
         return Result.Exito();
+    }
+
+    private async Task EliminarPdfHuerfanoAsync(string archivoUrl, Guid versionId, CancellationToken cancellationToken)
+    {
+        try
+        {
+            await almacenamientoArchivos.EliminarAsync(archivoUrl, cancellationToken);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            // No se propaga: el fallo real ya es el rechazo de la cartera, y perderlo por un problema al limpiar dejaría
+            // al llamador sin explicación. Mismo patrón de compensación best-effort que AgregarVersionPlantillaCommandHandler:
+            // si la limpieza falla, el PDF queda huérfano sin más reintento. Se registra la versión de plantilla por Id y
+            // el tipo de la excepción: ni la clave del archivo ni el mensaje de la excepción deben acabar en los registros.
+            logger.LogWarning(
+                "No se pudo eliminar el PDF generado desde la versión de plantilla {PlantillaDocumentoVersionId} tras rechazarse su alta ({TipoExcepcion}).",
+                versionId, ex.GetType().Name);
+        }
     }
 
     /// <summary>Si varios contactos comparten el mismo rol, se queda con el primero — comportamiento razonable para MVP, sin criterio de desempate.</summary>

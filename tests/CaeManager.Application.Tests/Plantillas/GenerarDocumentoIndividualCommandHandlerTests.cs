@@ -1,4 +1,4 @@
-﻿using System.Text.Json;
+using System.Text.Json;
 using CaeManager.Application.Common;
 using CaeManager.Application.Documentos.Acreditacion;
 using CaeManager.Application.Gestiones;
@@ -18,6 +18,7 @@ using CaeManager.Domain.Empresas;
 using CaeManager.Domain.Plantillas;
 using CaeManager.Domain.Trabajadores;
 using FluentAssertions;
+using Microsoft.Extensions.Logging.Abstractions;
 using Xunit;
 
 namespace CaeManager.Application.Tests.Plantillas;
@@ -66,7 +67,7 @@ public class GenerarDocumentoIndividualCommandHandlerTests
             Empresas, Trabajadores, Centros, Contactos, Rellenador, Almacenamiento,
             new CurrentUserServiceFalso(sinUsuario ? null : usuarioActualId ?? Guid.NewGuid()),
             alcanceDatos ?? new AlcanceDatosServiceFalso(), Asignaciones, Serializacion, AltaAcreditaciones, UnitOfWork,
-            GestionAutomatica, invalidadorAlcance ?? new InvalidadorAlcanceInerte());
+            GestionAutomatica, NullLogger<GenerarDocumentoIndividualCommandHandler>.Instance, invalidadorAlcance ?? new InvalidadorAlcanceInerte());
 
         public UnitOfWorkFalso UnitOfWork { get; } = new();
 
@@ -241,6 +242,7 @@ public class GenerarDocumentoIndividualCommandHandlerTests
             usuarioId);
         var alcance = new AlcanceMemoizadoRevocableFalso(new AlcanceDatosServiceFalso());
         entorno.Serializacion.AlTomarElCandado = alcance.Revocar;
+        var archivosAntes = entorno.Almacenamiento.ArchivosGuardados;
 
         var resultado = await entorno.CrearHandler(usuarioId, alcance, invalidadorAlcance: alcance).Handle(
             new GenerarDocumentoIndividualCommand(entorno.Version.Id, empresa.Id), CancellationToken.None);
@@ -250,6 +252,66 @@ public class GenerarDocumentoIndividualCommandHandlerTests
         entorno.Documentos.Documentos.Should().BeEmpty();
         entorno.UnitOfWork.VecesGuardado.Should().Be(0);
         alta.Recibidas.Should().BeEmpty();
+        // Ronda 1 de Codex sobre la PR #2121: el PDF se guarda antes del candado y ningún Documento llega a referenciarlo.
+        entorno.Almacenamiento.ArchivosGuardados.Should().Be(archivosAntes, "el PDF generado se elimina al rechazarse el alta");
+    }
+
+    [Fact]
+    public async Task Generar_un_documento_de_empresa_cuyo_centro_sale_de_la_cartera_mientras_espera_el_candado_no_lo_guarda()
+    {
+        // Ronda 1 de Codex sobre la PR #2121: la Empresa sigue en la cartera y solo el Centro deja de estarlo; lo tiene
+        // que ver la comprobación del Centro bajo el candado, no la de la Empresa.
+        var tipo = new TipoDocumento("Plan de prevención", null, false, 1, AmbitoAplicacion.Empresa);
+        var entorno = await ConstruirEntornoAsync(tipo, AmbitoAplicacion.Empresa);
+        var cliente = Empresa.CrearComoCliente("Cliente SA", "B12345674", false, null, null);
+        var empresa = new Empresa("Contratista SL", "B12345674");
+        entorno.Empresas.ListaEmpresas.AddRange([cliente, empresa]);
+        var centro = new Centro(cliente.Id, empresa.Id, "Centro Norte");
+        entorno.Centros.ListaCentros.Add(centro);
+        var alta = new AltaAcreditacionesPlataformaServiceFalso();
+        entorno.AltaAcreditaciones = alta;
+        var usuarioId = Guid.NewGuid();
+        Confirmar(entorno.Version,
+            [new PlantillaElemento(entorno.Version.Id, TipoElementoPlantilla.Texto, 1, 0, 0, 10, 10, "Razón social", FuenteDatoPlantilla.EmpresaRazonSocial)],
+            usuarioId);
+        var alcance = new AlcanceMemoizadoRevocableFalso(
+            new AlcanceDatosServiceFalso(tieneAccesoTotal: false, empresaIdsVisibles: [empresa.Id], centroIdsVisibles: [centro.Id]),
+            revocado: new AlcanceDatosServiceFalso(tieneAccesoTotal: false, empresaIdsVisibles: [empresa.Id], centroIdsVisibles: []));
+        entorno.Serializacion.AlTomarElCandado = alcance.Revocar;
+        var archivosAntes = entorno.Almacenamiento.ArchivosGuardados;
+
+        var resultado = await entorno.CrearHandler(usuarioId, alcance, invalidadorAlcance: alcance).Handle(
+            new GenerarDocumentoIndividualCommand(entorno.Version.Id, empresa.Id, CentroId: centro.Id), CancellationToken.None);
+
+        entorno.Serializacion.Llamadas.Should().Be(1, "la primera comprobación, con el Centro aún en la cartera, deja pasar hasta el candado");
+        resultado.Error.Codigo.Should().Be("Plantilla.CentroNoEncontrado");
+        entorno.Documentos.Documentos.Should().BeEmpty();
+        entorno.UnitOfWork.VecesGuardado.Should().Be(0);
+        alta.Recibidas.Should().BeEmpty();
+        entorno.Almacenamiento.ArchivosGuardados.Should().Be(archivosAntes, "el PDF generado se elimina al rechazarse el alta");
+    }
+
+    [Fact]
+    public async Task Si_no_se_puede_eliminar_el_pdf_tras_revocarse_la_cartera_devuelve_igualmente_el_rechazo()
+    {
+        // La limpieza es best-effort, como en AgregarVersionPlantillaCommandHandler: su fallo no tapa el rechazo real.
+        var tipo = new TipoDocumento("Plan de prevención", null, false, 1, AmbitoAplicacion.Empresa);
+        var entorno = await ConstruirEntornoAsync(tipo, AmbitoAplicacion.Empresa);
+        var empresa = new Empresa("Contratista SL", "B12345674");
+        entorno.Empresas.ListaEmpresas.Add(empresa);
+        var usuarioId = Guid.NewGuid();
+        Confirmar(entorno.Version,
+            [new PlantillaElemento(entorno.Version.Id, TipoElementoPlantilla.Texto, 1, 0, 0, 10, 10, "Razón social", FuenteDatoPlantilla.EmpresaRazonSocial)],
+            usuarioId);
+        var alcance = new AlcanceMemoizadoRevocableFalso(new AlcanceDatosServiceFalso());
+        entorno.Serializacion.AlTomarElCandado = alcance.Revocar;
+        entorno.Almacenamiento.ExcepcionAlEliminar = new IOException("almacenamiento caído");
+
+        var resultado = await entorno.CrearHandler(usuarioId, alcance, invalidadorAlcance: alcance).Handle(
+            new GenerarDocumentoIndividualCommand(entorno.Version.Id, empresa.Id), CancellationToken.None);
+
+        resultado.Error.Codigo.Should().Be("Plantilla.PropietarioNoEncontrado");
+        entorno.Documentos.Documentos.Should().BeEmpty();
     }
 
     [Fact]
@@ -556,7 +618,8 @@ public class GenerarDocumentoIndividualCommandHandlerTests
             entorno.Empresas, entorno.Trabajadores, entorno.Centros, entorno.Contactos,
             entorno.Rellenador, entorno.Almacenamiento, new CurrentUserServiceFalso(usuarioId),
             new AlcanceDatosServiceFalso(), entorno.Asignaciones, new SerializacionAltasAcreditacionEmpresaFalsa(),
-            new AltaAcreditacionesPlataformaServiceFalso(), new UnitOfWorkFalso(), new NacimientoGestionAutomaticaQueRegistra());
+            new AltaAcreditacionesPlataformaServiceFalso(), new UnitOfWorkFalso(), new NacimientoGestionAutomaticaQueRegistra(),
+            NullLogger<GenerarDocumentoIndividualCommandHandler>.Instance);
 
         var resultado = await handler.Handle(
             new GenerarDocumentoIndividualCommand(entorno.Version.Id, trabajador.Id), CancellationToken.None);
@@ -746,7 +809,8 @@ public class GenerarDocumentoIndividualCommandHandlerTests
             entorno.Empresas, entorno.Trabajadores, entorno.Centros, entorno.Contactos,
             entorno.Rellenador, entorno.Almacenamiento, new CurrentUserServiceFalso(usuarioId),
             new AlcanceDatosServiceFalso(), entorno.Asignaciones, new SerializacionAltasAcreditacionEmpresaFalsa(),
-            new AltaAcreditacionesPlataformaServiceFalso(), new UnitOfWorkFalso(), new NacimientoGestionAutomaticaQueRegistra());
+            new AltaAcreditacionesPlataformaServiceFalso(), new UnitOfWorkFalso(), new NacimientoGestionAutomaticaQueRegistra(),
+            NullLogger<GenerarDocumentoIndividualCommandHandler>.Instance);
 
         await handler.Handle(new GenerarDocumentoIndividualCommand(entorno.Version.Id, trabajador.Id), CancellationToken.None);
 
@@ -776,7 +840,8 @@ public class GenerarDocumentoIndividualCommandHandlerTests
             entorno.Empresas, entorno.Trabajadores, entorno.Centros, entorno.Contactos,
             entorno.Rellenador, entorno.Almacenamiento, new CurrentUserServiceFalso(usuarioId),
             new AlcanceDatosServiceFalso(), entorno.Asignaciones, new SerializacionAltasAcreditacionEmpresaFalsa(),
-            new AltaAcreditacionesPlataformaServiceFalso(), new UnitOfWorkFalso(), new NacimientoGestionAutomaticaQueRegistra());
+            new AltaAcreditacionesPlataformaServiceFalso(), new UnitOfWorkFalso(), new NacimientoGestionAutomaticaQueRegistra(),
+            NullLogger<GenerarDocumentoIndividualCommandHandler>.Instance);
 
         await handler.Handle(new GenerarDocumentoIndividualCommand(entorno.Version.Id, trabajador.Id), CancellationToken.None);
 
@@ -801,7 +866,8 @@ public class GenerarDocumentoIndividualCommandHandlerTests
             entorno.Empresas, entorno.Trabajadores, entorno.Centros, entorno.Contactos,
             entorno.Rellenador, entorno.Almacenamiento, new CurrentUserServiceFalso(usuarioId),
             new AlcanceDatosServiceFalso(), entorno.Asignaciones, new SerializacionAltasAcreditacionEmpresaFalsa(),
-            new AltaAcreditacionesPlataformaServiceFalso(), new UnitOfWorkFalso(), new NacimientoGestionAutomaticaQueRegistra());
+            new AltaAcreditacionesPlataformaServiceFalso(), new UnitOfWorkFalso(), new NacimientoGestionAutomaticaQueRegistra(),
+            NullLogger<GenerarDocumentoIndividualCommandHandler>.Instance);
 
         await handler.Handle(new GenerarDocumentoIndividualCommand(entorno.Version.Id, trabajador.Id), CancellationToken.None);
 
