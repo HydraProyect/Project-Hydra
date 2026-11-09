@@ -1026,11 +1026,11 @@ public partial class Centros : CaeManager.Web.Components.PaginaInteractiva
 
     /// <summary>
     /// «Empresa» solo es columna si hay de dónde elegir: con una única Empresa en los Centros visibles (las opciones del filtro,
-    /// que cubren todo el listado y no solo la página) las filas dirían todas lo mismo, y encima recortado. Sin opciones
-    /// (aún sin cargar, o la lectura falló) se enseña, para no esconder el dato por un fallo. El Cliente sigue en la segunda
-    /// línea de «Centro».
+    /// que cubren todo el listado y no solo la página) las filas dirían todas lo mismo, y encima recortado. Hasta que
+    /// llegan las opciones no se pinta (así una sola Empresa no ve aparecer y desaparecer la columna al cargar); si la lectura
+    /// falló, quedan cero opciones y se enseña, para no esconder el dato por un fallo. El Cliente sigue en la segunda línea de «Centro».
     /// </summary>
-    internal bool MostrarColumnaEmpresa => _opcionesEmpresa.Count != 1;
+    internal bool MostrarColumnaEmpresa => _opcionesFiltroCargadas && _opcionesEmpresa.Count != 1;
 
     private string ClaseRejilla(string claseBase) =>
         $"{claseBase} rejilla-centros" + (_seleccionMultiple ? " rejilla-centros-seleccion" : string.Empty)

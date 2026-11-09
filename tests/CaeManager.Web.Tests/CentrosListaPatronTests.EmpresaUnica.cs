@@ -44,6 +44,25 @@ public partial class CentrosListaPatronTests
     }
 
     [Fact]
+    public void Mientras_llegan_las_opciones_la_columna_Empresa_no_se_pinta_y_una_sola_Empresa_no_la_ve_aparecer_y_desaparecer()
+    {
+        var mediador = ConCentros(CentroDe("Almacén Vigo", ClienteOrion, EmpresaMontajes));
+        mediador.EmpresasDeCentros.Add(new(EmpresaMontajes, "Montajes Norte S.L."));
+        var retener = new TaskCompletionSource();
+        mediador.RetenerEmpresasDeCentros = retener.Task;
+
+        var cut = Renderizar(mediador);
+
+        cut.FindAll(".tarjeta-fila-acordeon").Should().NotBeEmpty("la lista ya está pintada");
+        cut.FindAll(".columna-empresa-centro").Should().BeEmpty("sin saber cuántas Empresas hay, la columna no se pinta para no quitarla después");
+
+        cut.InvokeAsync(() => retener.SetResult());
+
+        cut.WaitForAssertion(() => cut.Find(".cabecera-columnas-centros").ClassList.Should().Contain("rejilla-centros-sin-empresa"));
+        cut.FindAll(".columna-empresa-centro").Should().BeEmpty();
+    }
+
+    [Fact]
     public void Sin_opciones_de_Empresa_la_columna_se_enseña_para_no_esconder_el_dato_por_un_fallo()
     {
         var mediador = ConCentros(CentroDe("Almacén Vigo", ClienteOrion, EmpresaMontajes));

@@ -44,6 +44,7 @@ public class CentrosCabeceraAlineadaE2ETests(WebAppFixtureListados fixture)
                 filas: filas.length,
                 columnas: cabecera.length,
                 rotulos: cabecera.filter(h => h.textContent.trim()).length,
+                conEmpresa: !!document.querySelector('.columna-empresa-centro-cabecera'),
                 desvios
             };
         }
@@ -172,11 +173,6 @@ public class CentrosCabeceraAlineadaE2ETests(WebAppFixtureListados fixture)
     private static async Task AfirmarAlineadoEnLosDosTemasAsync(IPage page, int columnas, string modo)
     {
         await Expect(page.Locator(".lista-filas-acordeon .tarjeta-fila-acordeon-cabecera")).Not.ToHaveCountAsync(0);
-        // «Empresa» solo es columna si los Centros visibles son de más de una Empresa (MostrarColumnaEmpresa): sin ella, una
-        // pista y un rótulo menos. Se lee del DOM y no de la siembra para que el test mida las dos formas de la cabecera.
-        var sinEmpresa = await page.Locator(".columna-empresa-centro-cabecera").CountAsync() == 0;
-        var columnasEsperadas = sinEmpresa ? columnas - 1 : columnas;
-        var rotulosEsperados = sinEmpresa ? 3 : 4;
         foreach (var tema in new[] { "claro", "oscuro" })
         {
             await page.EvaluateAsync("tema => document.documentElement.setAttribute('data-theme', tema)", tema);
@@ -185,8 +181,11 @@ public class CentrosCabeceraAlineadaE2ETests(WebAppFixtureListados fixture)
 
             // Sin filas, sin rótulos o con otra cabecera no habría nada que comparar y el test pasaría en vacío.
             Assert.True(medicion.GetProperty("filas").GetInt32() > 0, $"[{contexto}] la lista sembrada no tiene filas a la vista: no hay nada que medir.");
-            Assert.Equal(columnasEsperadas, medicion.GetProperty("columnas").GetInt32());
-            Assert.Equal(rotulosEsperados, medicion.GetProperty("rotulos").GetInt32());
+            // «Empresa» solo es columna si los Centros visibles son de más de una Empresa (MostrarColumnaEmpresa) y las opciones del filtro
+            // ya llegaron: se lee en la MISMA medición que las columnas, para que un cambio entre medias no dé una falsa discrepancia.
+            var conEmpresa = medicion.GetProperty("conEmpresa").GetBoolean();
+            Assert.Equal(conEmpresa ? columnas : columnas - 1, medicion.GetProperty("columnas").GetInt32());
+            Assert.Equal(conEmpresa ? 4 : 3, medicion.GetProperty("rotulos").GetInt32());
 
             var desvios = medicion.GetProperty("desvios").EnumerateArray().Select(d => d.GetString()).ToList();
             Assert.True(desvios.Count == 0, $"[{contexto}] la cabecera no coincide con sus celdas:{Environment.NewLine}{string.Join(Environment.NewLine, desvios.Take(12))}");
