@@ -12,8 +12,11 @@ namespace CaeManager.Application.Integraciones;
 /// <list type="bullet">
 /// <item>Coincide (o se acaba de completar): fija <see cref="ConexionIntegracion.IdentidadVerificadaUtc"/>. Si la
 /// conexión estaba en ConError, se rehabilita aquí mismo, verificada en este ciclo; sus eventos
-/// <see cref="EstadoEventoWebhook.Retenido"/> vuelven a la cola, y si no estaba verificada se encola una lectura
-/// puntual del hueco (<see cref="RecuperacionCorreoBuzonService"/>).</item>
+/// <see cref="EstadoEventoWebhook.Retenido"/> vuelven a la cola. Aquí no se lee Graph: el hueco que dejó la caída
+/// queda en <see cref="ConexionIntegracion.HuecoPendienteDesdeUtc"/> y lo lee, con reintentos,
+/// <see cref="RecuperacionCorreoBuzonService"/>.</item>
+/// <item>Habilitada con la verificación ya caducada: se fija la marca del hueco en el momento en que caducó
+/// (<see cref="ConexionIntegracion.RegistrarCaducidadVerificacion"/>), antes de intentar nada.</item>
 /// <item>Sin identidad (dada de alta antes de que existiera): se completa en la conexión y en su
 /// <see cref="ReclamacionBuzonIntegracion"/>. Si choca con la de otra reclamación, el mismo buzón está conectado
 /// en otro Tenant con otra dirección: esta conexión pasa a ConError (<see cref="MensajeBuzonDuplicado"/>), su
@@ -36,8 +39,8 @@ public class CompletarIdentidadBuzonService(
     IEventoWebhookRepository eventoRepositorio,
     AccesoGraphService accesoGraph,
     IMicrosoft365GraphClient graphClient,
-    RecuperacionCorreoBuzonService recuperacion,
     IUnitOfWork unitOfWork,
+    IDescarteCambiosPendientes descarteCambios,
     ILogger<CompletarIdentidadBuzonService> logger)
 {
     public const string MensajeBuzonDuplicado =
@@ -89,6 +92,10 @@ public class CompletarIdentidadBuzonService(
             catch (Exception ex) when (ex is not OperationCanceledException || !cancellationToken.IsCancellationRequested)
             {
                 logger.LogError(ex, "No se pudo comprobar la identidad del buzón de la conexión {ConexionId}.", conexionId);
+
+                // Un guardado fallido deja sus cambios rastreados: sin esto, el guardado de la conexión siguiente
+                // reintentaría la mutación ajena (o volvería a fallar por ella).
+                descarteCambios.DescartarCambiosPendientes();
             }
         }
 
@@ -103,8 +110,12 @@ public class CompletarIdentidadBuzonService(
             return false;
 
         var ahoraUtc = DateTime.UtcNow;
-        // Antes de tocar nada: si ya estaba verificada y Habilitada, la ingesta no ha descartado nada y no hay hueco.
-        var veniaSinVerificar = !conexion.OperativaVerificada(ahoraUtc);
+
+        // La caducidad de la verificación no tiene transición propia: se detecta aquí, en cada ciclo, y la marca toma
+        // la fecha exacta de caducidad, no la de este ciclo. Se guarda ya, para que un fallo transitorio posterior no la
+        // pierda.
+        if (conexion.RegistrarCaducidadVerificacion(ahoraUtc))
+            await unitOfWork.SaveChangesAsync(cancellationToken);
 
         var token = await accesoGraph.ObtenerAccessTokenVigenteAsync(conexion, cancellationToken);
         if (token.EsFallido)
@@ -142,7 +153,7 @@ public class CompletarIdentidadBuzonService(
                 return false;
             }
 
-            await MarcarVerificadaAsync(conexion, token.Valor, ahoraUtc, veniaSinVerificar, cancellationToken);
+            await MarcarVerificadaAsync(conexion, ahoraUtc, cancellationToken);
             await unitOfWork.SaveChangesAsync(cancellationToken);
             return true;
         }
@@ -154,9 +165,9 @@ public class CompletarIdentidadBuzonService(
 
         if (await reclamacionRepositorio.GuardarCambiosSiBuzonLibreAsync(cancellationToken))
         {
-            // Ya confirmada la identidad: la rehabilitación, la cola y la recuperación van en un segundo guardado, para
-            // no leer Graph por un buzón que acaba de chocar con otro.
-            await MarcarVerificadaAsync(conexion, token.Valor, ahoraUtc, veniaSinVerificar, cancellationToken);
+            // Ya confirmada la identidad: la rehabilitación y la cola van en un segundo guardado, para no tocar nada de
+            // un buzón que acaba de chocar con otro.
+            await MarcarVerificadaAsync(conexion, ahoraUtc, cancellationToken);
             await unitOfWork.SaveChangesAsync(cancellationToken);
             return true;
         }
@@ -175,11 +186,11 @@ public class CompletarIdentidadBuzonService(
     }
 
     /// <summary>
-    /// Verificada en este ciclo: se rehabilita si estaba en ConError, sus eventos retenidos vuelven a la cola y, si
-    /// venía sin verificar, se encola la lectura puntual del hueco.
+    /// Verificada en este ciclo: se rehabilita si estaba en ConError y sus eventos retenidos vuelven a la cola. No se
+    /// lee Graph: la marca del hueco, si la hay, se queda en la conexión y la atiende
+    /// <see cref="RecuperacionCorreoBuzonService"/>, en la misma transacción que esta rehabilitación.
     /// </summary>
-    private async Task MarcarVerificadaAsync(
-        ConexionIntegracion conexion, string accessToken, DateTime ahoraUtc, bool veniaSinVerificar, CancellationToken cancellationToken)
+    private async Task MarcarVerificadaAsync(ConexionIntegracion conexion, DateTime ahoraUtc, CancellationToken cancellationToken)
     {
         conexion.MarcarIdentidadVerificada(ahoraUtc);
 
@@ -191,8 +202,5 @@ public class CompletarIdentidadBuzonService(
 
         foreach (var retenido in await eventoRepositorio.ObtenerRetenidosAsync(conexion.Id, cancellationToken))
             retenido.Liberar();
-
-        if (veniaSinVerificar)
-            await recuperacion.EncolarHuecoAsync(conexion, accessToken, ahoraUtc, cancellationToken);
     }
 }

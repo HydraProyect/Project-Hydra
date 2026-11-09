@@ -109,8 +109,11 @@ public class IngestaWebhookService(
             // transitorio que deba reintentarse, es un descarte de negocio
             // deliberado que se resuelve reactivando la conexión.
             // ConError solo lo ponen ya resultados definitivos (CompletarIdentidadBuzonService) o un fallo de la
-            // renovación; lo que se descarte aquí lo recupera RecuperacionCorreoBuzonService cuando la conexión
-            // vuelva a verificarse.
+            // renovación. Al pasar a ConError la conexión fijó HuecoPendienteDesdeUtc: lo que se descarte aquí lo
+            // lee RecuperacionCorreoBuzonService, con reintentos, cuando vuelva a estar operativa. Una notificación
+            // recibida antes de la caída (esperaba en la cola) lleva la marca hasta su recepción; se guarda con el
+            // evento.
+            conexion.RegistrarNotificacionDescartada(evento.FechaRecepcionUtc);
             logger.LogWarning(
                 "Notificación de webhook {EventoId} descartada: la conexión {ConexionId} está en estado {Estado}.",
                 evento.Id, conexion.Id, conexion.Estado);
@@ -136,7 +139,23 @@ public class IngestaWebhookService(
         var noLeidos = new List<string>();
         foreach (var mensajeId in mensajeIds)
         {
-            if (await IngerirMensajeAsync(conexion, mensajeId, cancellationToken) is { } fallo)
+            var accessTokenResultado = await accesoGraph.ObtenerAccessTokenVigenteAsync(conexion, cancellationToken);
+            if (accessTokenResultado.EsFallido)
+                throw new InvalidOperationException(accessTokenResultado.Error.Mensaje);
+
+            // Puerta justo antes de cada lectura: la conexión se cargó al empezar el evento, y otro proceso puede
+            // haberla pasado a ConError o desconectado entre medias. Se relee de la base; si ya no está operativa, el
+            // evento vuelve a esperar sin gastar intentos (lo ya ingerido se descarta luego por duplicado) y el
+            // siguiente intento decide con el estado real.
+            if (!await conexionRepositorio.SigueOperativaVerificadaAsync(conexion.Id, DateTime.UtcNow, cancellationToken))
+            {
+                logger.LogWarning(
+                    "Notificación de webhook {EventoId} en espera: la conexión {ConexionId} dejó de estar operativa durante la ingesta.",
+                    evento.Id, conexion.Id);
+                return false;
+            }
+
+            if (await IngerirMensajeAsync(conexion, accessTokenResultado.Valor, mensajeId, cancellationToken) is { } fallo)
                 noLeidos.Add(fallo);
         }
 
@@ -147,13 +166,10 @@ public class IngestaWebhookService(
     }
 
     /// <returns>El motivo, si el mensaje no se pudo leer por un fallo que no es un 404; null en otro caso.</returns>
-    private async Task<string?> IngerirMensajeAsync(ConexionIntegracion conexion, string mensajeId, CancellationToken cancellationToken)
+    private async Task<string?> IngerirMensajeAsync(
+        ConexionIntegracion conexion, string accessToken, string mensajeId, CancellationToken cancellationToken)
     {
-        var accessTokenResultado = await accesoGraph.ObtenerAccessTokenVigenteAsync(conexion, cancellationToken);
-        if (accessTokenResultado.EsFallido)
-            throw new InvalidOperationException(accessTokenResultado.Error.Mensaje);
-
-        var mensajeResultado = await graphClient.ObtenerMensajeAsync(accessTokenResultado.Valor, BuzonGraph.De(conexion), mensajeId, cancellationToken);
+        var mensajeResultado = await graphClient.ObtenerMensajeAsync(accessToken, BuzonGraph.De(conexion), mensajeId, cancellationToken);
         if (mensajeResultado.EsFallido)
         {
             // Solo un mensaje que Graph ya no tiene (404: borrado entre la notificación y la ingesta) se
@@ -231,7 +247,7 @@ public class IngestaWebhookService(
         }
 
         foreach (var adjunto in mensaje.Adjuntos)
-            await DescargarYGuardarAdjuntoAsync(mensajeCreado, accessTokenResultado.Valor, BuzonGraph.De(conexion), mensaje.MensajeExternoId, adjunto, cancellationToken);
+            await DescargarYGuardarAdjuntoAsync(mensajeCreado, accessToken, BuzonGraph.De(conexion), mensaje.MensajeExternoId, adjunto, cancellationToken);
 
         // Gate compartido por todos los patrones de ruido de esta ronda — solo Correo tiene
         // dominio en el remitente (WhatsApp es un teléfono). Se calcula una vez aquí y queda

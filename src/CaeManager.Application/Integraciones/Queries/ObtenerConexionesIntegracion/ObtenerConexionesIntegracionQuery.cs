@@ -22,7 +22,8 @@ public record ObtenerConexionesIntegracionQuery(bool SoloPropiasYGenerales = fal
 public record ConexionIntegracionListaDto(
     Guid Id, string BuzonEmail, string Nombre, Guid? ClienteId, string? ClienteNombre, EstadoConexionIntegracion Estado,
     DateTime FechaConectadaUtc, Guid? GestorPropietarioId, string? UltimoError, Guid? ResponsableUsuarioId = null,
-    bool AcuseAutomaticoActivo = false, bool EsBuzonCompartido = false, bool IdentidadSinVerificar = false);
+    bool AcuseAutomaticoActivo = false, bool EsBuzonCompartido = false, bool IdentidadSinVerificar = false,
+    DateTime? CorreoNoRecuperadoDesdeUtc = null, bool CorreoRetenido = false, bool CorreoDescartado = false);
 
 /// <remarks>
 /// <c>UltimoError</c> se lee en una consulta aparte y solo fuera de Sesión Privilegiada: es el texto que
@@ -38,6 +39,12 @@ public class ObtenerConexionesIntegracionQueryHandler(
     IClienteActivoSeleccionado clienteActivoSeleccionado)
     : IRequestHandler<ObtenerConexionesIntegracionQuery, IReadOnlyList<ConexionIntegracionListaDto>>
 {
+    /// <summary>
+    /// Cuánto tiempo avisa Conexiones de un evento <see cref="EstadoEventoWebhook.DescartadoDefinitivo"/>: lo bastante
+    /// para que alguien lo vea, sin dejar un aviso perpetuo por un fallo antiguo.
+    /// </summary>
+    public static readonly TimeSpan VentanaAvisoCorreoDescartado = TimeSpan.FromDays(7);
+
     public async Task<IReadOnlyList<ConexionIntegracionListaDto>> Handle(
         ObtenerConexionesIntegracionQuery request, CancellationToken cancellationToken)
     {
@@ -67,7 +74,8 @@ public class ObtenerConexionesIntegracionQueryHandler(
                 conexion.FechaConectadaUtc, conexion.GestorPropietarioId, null, conexion.ResponsableUsuarioId,
                 conexion.AcuseAutomaticoActivo, conexion.EsBuzonCompartido,
                 conexion.Proveedor == ProveedorIntegracion.Microsoft365 && conexion.Estado == EstadoConexionIntegracion.Habilitada &&
-                (conexion.IdentidadVerificadaUtc == null || conexion.IdentidadVerificadaUtc < limiteVerificacion));
+                (conexion.IdentidadVerificadaUtc == null || conexion.IdentidadVerificadaUtc < limiteVerificacion),
+                conexion.CorreoNoRecuperadoDesdeUtc);
 
         var conexiones = await query.ToListAsync(cancellationToken);
         if (conexiones.Count == 0 || clienteActivoSeleccionado.SesionPrivilegiadaIdSeleccionada is not null)
@@ -75,9 +83,36 @@ public class ObtenerConexionesIntegracionQueryHandler(
 
         var ids = conexiones.Select(c => c.Id).ToList();
         var errores = await UltimosErroresAsync(integracionesContext, ids, cancellationToken);
+        var avisos = await AvisosDeEventosAsync(integracionesContext, ids, DateTime.UtcNow, cancellationToken);
         return conexiones
             .Select(c => errores.TryGetValue(c.Id, out var error) ? c with { UltimoError = error } : c)
+            .Select(c => c with
+            {
+                CorreoRetenido = avisos.Contains((c.Id, EstadoEventoWebhook.Retenido)),
+                CorreoDescartado = avisos.Contains((c.Id, EstadoEventoWebhook.DescartadoDefinitivo)),
+            })
             .ToList();
+    }
+
+    /// <summary>
+    /// Qué conexiones tienen eventos retenidos (cualquiera, sin mirar su verificación: uno puede quedar Retenido
+    /// después de que la conexión se verificase y liberase los suyos) o descartados en
+    /// <see cref="VentanaAvisoCorreoDescartado"/>. Fuera de Sesión Privilegiada, como <see cref="UltimosErroresAsync"/>.
+    /// </summary>
+    internal static async Task<HashSet<(Guid ConexionId, EstadoEventoWebhook Estado)>> AvisosDeEventosAsync(
+        IIntegracionesQueryContext integracionesContext, IReadOnlyCollection<Guid> conexionIds, DateTime ahoraUtc,
+        CancellationToken cancellationToken)
+    {
+        var desdeDescartes = ahoraUtc - VentanaAvisoCorreoDescartado;
+        var filas = await integracionesContext.EventosWebhook
+            .Where(e => conexionIds.Contains(e.ConexionIntegracionId))
+            .Where(e => e.Estado == EstadoEventoWebhook.Retenido
+                || (e.Estado == EstadoEventoWebhook.DescartadoDefinitivo && e.FechaRecepcionUtc >= desdeDescartes))
+            .Select(e => new { e.ConexionIntegracionId, e.Estado })
+            .Distinct()
+            .ToListAsync(cancellationToken);
+
+        return filas.Select(f => (f.ConexionIntegracionId, f.Estado)).ToHashSet();
     }
 
     /// <summary>

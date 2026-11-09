@@ -24,6 +24,7 @@ namespace CaeManager.Application.Integraciones;
 /// </summary>
 public class AcuseAutomaticoBuzonService(
     IConversacionRepository conversacionRepositorio,
+    Domain.Integraciones.IConexionIntegracionRepository conexionRepositorio,
     IMicrosoft365GraphClient graphClient,
     AccesoGraphService accesoGraph,
     IRegistroExportacionService registroSalida,
@@ -102,6 +103,16 @@ public class AcuseAutomaticoBuzonService(
         // Antes de enviar: el token puede haberse renovado, Graph invalida el refresh token anterior, y una excepción del
         // envío descarta todo lo pendiente. Sin el token de parada, por lo mismo: la renovación ya ocurrió.
         await unitOfWork.SaveChangesAsync(CancellationToken.None);
+
+        // Puerta justo antes de enviar: la conexión del acuse es la instancia que cargó la ingesta. Si entre medias
+        // otro proceso la pasó a ConError o la desconectó (y quizá otro Tenant ya reclamó el buzón), no sale nada.
+        if (!await conexionRepositorio.SigueOperativaVerificadaAsync(conexion.Id, DateTime.UtcNow, cancellationToken))
+        {
+            logger.LogWarning(
+                "La conversación {ConversacionId} no lleva acuse: su conexión dejó de estar operativa antes del envío.",
+                conversacion.Id);
+            return;
+        }
 
         // Por el cliente del contenedor: lo envuelve la guarda de envío C-04, que aquí decide igual que para una respuesta.
         var envio = await graphClient.EnviarRespuestaAsync(

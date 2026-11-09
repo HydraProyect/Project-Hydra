@@ -13,6 +13,7 @@ namespace CaeManager.Application.Tests.Comunicaciones;
 public class MigrarConversacionACorreoCommandHandlerTests
 {
     private const string Telefono = "+34600111222";
+    private const string Directorio = "11111111-2222-3333-4444-555555555555";
 
     private readonly ConversacionRepositorioFalso _conversaciones = new();
     private readonly IntegracionesQueryContextFalso _integraciones = new();
@@ -80,6 +81,49 @@ public class MigrarConversacionACorreoCommandHandlerTests
         var fila = _registro.Filas.Should().ContainSingle().Subject;
         fila.Criterios["origen"].Should().Be("MigracionACorreo");
         fila.Criterios["destinatarios"].Should().Be("c***@cliente.com");
+    }
+
+    [Fact]
+    public async Task Si_la_conexion_dejo_de_estar_operativa_en_la_base_antes_del_envio_no_migra()
+    {
+        var conversacion = CrearConversacionWhatsAppConVentanaCerrada();
+        var conexion = AgregarBuzonHabilitado();
+        _conexiones.NoOperativasEnBase.Add(conexion.Id);
+
+        var resultado = await CrearHandler().Handle(
+            new MigrarConversacionACorreoCommand(conversacion.Id, "contacto@tenant.com", "<p>Hola</p>"), CancellationToken.None);
+
+        resultado.EsFallido.Should().BeTrue();
+        resultado.Error.Codigo.Should().Be(CaeManager.Application.Integraciones.ErroresBuzonSinVerificar.Codigo);
+        _graphClient.VecesEnviado.Should().Be(0);
+        conversacion.Mensajes.Should().NotContain(m => m.Canal == CanalConversacion.Correo);
+    }
+
+    /// <summary>
+    /// Dos buzones compartidos del Tenant: el más antiguo sin verificar no tapa al verificado. El desempate por
+    /// antigüedad solo decide entre los que están en la misma situación.
+    /// </summary>
+    [Fact]
+    public async Task Un_compartido_antiguo_sin_verificar_no_tapa_a_uno_verificado()
+    {
+        var conversacion = CrearConversacionWhatsAppConVentanaCerrada();
+        var antiguo = ConexionIntegracion.CrearBuzonCompartido("antiguo@operador.test", "Buzón antiguo", Directorio, Guid.NewGuid());
+        antiguo.FijarIdentidadBuzon("inbox-antiguo");
+        typeof(ConexionIntegracion).GetProperty(nameof(ConexionIntegracion.FechaConectadaUtc))!
+            .SetValue(antiguo, DateTime.UtcNow.AddDays(-30));
+        var verificado = ConexionIntegracion.CrearBuzonCompartido("cae@operador.test", "Buzón CAE", Directorio, Guid.NewGuid()).Verificada();
+        foreach (var conexion in new[] { antiguo, verificado })
+        {
+            _conexiones.Agregar(conexion);
+            _integraciones.ConexionesLista.Add(conexion);
+        }
+
+        var resultado = await CrearHandler().Handle(
+            new MigrarConversacionACorreoCommand(conversacion.Id, "contacto@tenant.com", "<p>Hola</p>"), CancellationToken.None);
+
+        resultado.EsExitoso.Should().BeTrue();
+        _graphClient.VecesEnviado.Should().Be(1);
+        _graphClient.BuzonesUsados.Should().OnlyContain(b => b.Direccion == "cae@operador.test");
     }
 
     [Fact]

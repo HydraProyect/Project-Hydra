@@ -161,6 +161,10 @@ public class ResponderConversacionCommandHandler(
         if (accessTokenResultado.EsFallido)
             return Result.Fallo<Mensaje>(accessTokenResultado.Error);
 
+        // Puerta justo antes de enviar: se relee de la base, la instancia cargada antes puede estar obsoleta.
+        if (!await conexionRepositorio.SigueOperativaVerificadaAsync(conexion.Id, DateTime.UtcNow, cancellationToken))
+            return Result.Fallo<Mensaje>(ErroresBuzonSinVerificar.Crear());
+
         var envioResultado = await graphClient.EnviarRespuestaAsync(
             accessTokenResultado.Valor, BuzonGraph.De(conexion), ultimoMensajeEntrante.MensajeExternoId!, cuerpoHtml, adjuntos, cancellationToken);
         if (envioResultado.EsFallido)

@@ -108,6 +108,23 @@ public class ConexionIntegracion : EntidadBase
     /// </summary>
     public DateTime? IdentidadVerificadaUtc { get; private set; }
 
+    /// <summary>
+    /// Desde cuándo puede faltar correo de este buzón por leer: el momento en que la conexión dejó de estar operativa
+    /// (pasó a ConError o caducó su verificación), mientras la ingesta descartaba o no veía sus notificaciones. La fija
+    /// cada transición que deja la conexión no operativa, solo si estaba vacía o con una fecha posterior: una segunda
+    /// caída conserva la más antigua. Rehabilitar no la toca; la limpia solo la lectura del hueco
+    /// (<c>RecuperacionCorreoBuzonService</c>) cuando termina completa, o la convierte en
+    /// <see cref="CorreoNoRecuperadoDesdeUtc"/> si llega a su tope. Null: no hay hueco pendiente.
+    /// </summary>
+    public DateTime? HuecoPendienteDesdeUtc { get; private set; }
+
+    /// <summary>
+    /// Aviso visible en Conexiones: puede haber correo de este buzón, recibido desde esta fecha, que no se llegó a
+    /// recuperar (la lectura del hueco alcanzó su tope de antigüedad o de mensajes, o la conexión se desconectó con el
+    /// hueco pendiente). Nunca se limpia en silencio; desaparece con la conexión. Null: sin aviso.
+    /// </summary>
+    public DateTime? CorreoNoRecuperadoDesdeUtc { get; private set; }
+
     private ConexionIntegracion()
     {
     }
@@ -119,18 +136,111 @@ public class ConexionIntegracion : EntidadBase
     /// La identidad se comprobó dentro de <see cref="VentanaVerificacionIdentidad"/>. Una fecha futura (reloj
     /// desajustado) tampoco cuenta: no se puede extender la vigencia escribiendo una fecha adelantada.
     /// </summary>
-    public bool IdentidadVerificadaVigente(DateTime ahoraUtc) =>
-        IdentidadVerificadaUtc is { } verificada
-        && verificada <= ahoraUtc.AddMinutes(5)
-        && ahoraUtc - verificada < VentanaVerificacionIdentidad;
+    public bool IdentidadVerificadaVigente(DateTime ahoraUtc) => EsVerificacionVigente(IdentidadVerificadaUtc, ahoraUtc);
 
     /// <summary>
     /// Se puede leer correo del buzón y enviar desde él: Habilitada y, en Microsoft 365, con la identidad
     /// verificada hace menos de <see cref="VentanaVerificacionIdentidad"/>.
     /// </summary>
     public bool OperativaVerificada(DateTime ahoraUtc) =>
-        Estado == EstadoConexionIntegracion.Habilitada
-        && (!RequiereVerificacionIdentidad || IdentidadVerificadaVigente(ahoraUtc));
+        EsOperativaVerificada(Estado, Proveedor, IdentidadVerificadaUtc, ahoraUtc);
+
+    /// <summary>
+    /// La misma regla que <see cref="OperativaVerificada"/> sobre los valores sueltos, para quien relee de la base el
+    /// estado de una conexión justo antes de llamar a Graph en vez de fiarse de una instancia cargada antes.
+    /// </summary>
+    public static bool EsOperativaVerificada(
+        EstadoConexionIntegracion estado, ProveedorIntegracion proveedor, DateTime? identidadVerificadaUtc, DateTime ahoraUtc) =>
+        estado == EstadoConexionIntegracion.Habilitada
+        && (proveedor != ProveedorIntegracion.Microsoft365 || EsVerificacionVigente(identidadVerificadaUtc, ahoraUtc));
+
+    private static bool EsVerificacionVigente(DateTime? identidadVerificadaUtc, DateTime ahoraUtc) =>
+        identidadVerificadaUtc is { } verificada
+        && verificada <= ahoraUtc.AddMinutes(5)
+        && ahoraUtc - verificada < VentanaVerificacionIdentidad;
+
+    /// <summary>
+    /// Habilitada, con una verificación anterior que ya caducó: la conexión dejó de estar operativa al caducar, sin
+    /// ninguna transición explícita. Fija <see cref="HuecoPendienteDesdeUtc"/> en ese momento exacto
+    /// (<see cref="IdentidadVerificadaUtc"/> + <see cref="VentanaVerificacionIdentidad"/>, nunca uno posterior a
+    /// <paramref name="ahoraUtc"/>), sea cual sea el ciclo que lo detecte. Sin verificación previa (null) no hay un
+    /// momento de caída que fijar: sus notificaciones esperan Pendiente o Retenidas, sin perderse.
+    /// </summary>
+    /// <returns>true si la marca cambió.</returns>
+    public bool RegistrarCaducidadVerificacion(DateTime ahoraUtc)
+    {
+        if (Estado != EstadoConexionIntegracion.Habilitada || !RequiereVerificacionIdentidad
+            || IdentidadVerificadaUtc is not { } verificada || IdentidadVerificadaVigente(ahoraUtc))
+            return false;
+
+        var caducidad = verificada + VentanaVerificacionIdentidad;
+        return RegistrarHuecoDesde(caducidad < ahoraUtc ? caducidad : ahoraUtc);
+    }
+
+    /// <summary>
+    /// La ingesta descarta una notificación recibida en <paramref name="recepcionUtc"/> porque la conexión está en
+    /// ConError. Pudo llegar antes de la caída y esperar en la cola (reintentos o espera de verificación): su correo es
+    /// anterior a la marca que fijó <see cref="MarcarConError"/>, y sin esto la lectura del hueco no lo cubriría. La
+    /// marca retrocede hasta esa recepción, nunca avanza. Deshabilitada no: lo que llega con la conexión desconectada a
+    /// propósito no se ingiere.
+    /// </summary>
+    /// <returns>true si la marca cambió.</returns>
+    public bool RegistrarNotificacionDescartada(DateTime recepcionUtc) =>
+        Estado == EstadoConexionIntegracion.ConError && RegistrarHuecoDesde(recepcionUtc);
+
+    /// <summary>
+    /// La lectura del hueco que empezó con <paramref name="marcaLeida"/> terminó completa: no queda nada por leer. Si
+    /// otra caída fijó entretanto una marca distinta, esa se conserva para la siguiente lectura.
+    /// </summary>
+    public void CerrarHuecoRecuperado(DateTime marcaLeida)
+    {
+        if (HuecoPendienteDesdeUtc == marcaLeida)
+            HuecoPendienteDesdeUtc = null;
+    }
+
+    /// <summary>
+    /// La lectura del hueco que empezó con <paramref name="marcaLeida"/> llegó a su tope: lo anterior no se va a leer.
+    /// La marca no se limpia en silencio: pasa a <see cref="CorreoNoRecuperadoDesdeUtc"/>, que conserva la fecha más
+    /// antigua si ya había un aviso.
+    /// </summary>
+    public void CerrarHuecoConCorreoNoRecuperado(DateTime marcaLeida)
+    {
+        if (HuecoPendienteDesdeUtc != marcaLeida)
+            return;
+
+        AvisarCorreoNoRecuperado(marcaLeida);
+        HuecoPendienteDesdeUtc = null;
+    }
+
+    private void AvisarCorreoNoRecuperado(DateTime desdeUtc)
+    {
+        if (CorreoNoRecuperadoDesdeUtc is null || desdeUtc < CorreoNoRecuperadoDesdeUtc)
+            CorreoNoRecuperadoDesdeUtc = desdeUtc;
+    }
+
+    /// <returns>true si la marca cambió: estaba vacía o era posterior.</returns>
+    private bool RegistrarHuecoDesde(DateTime desdeUtc)
+    {
+        if (!RequiereVerificacionIdentidad)
+            return false;
+
+        if (HuecoPendienteDesdeUtc is { } actual && actual <= desdeUtc)
+            return false;
+
+        HuecoPendienteDesdeUtc = desdeUtc;
+        return true;
+    }
+
+    /// <summary>
+    /// Momento en que la conexión dejó de estar operativa: si estaba Habilitada con una verificación ya caducada, al
+    /// caducar; si no, ahora.
+    /// </summary>
+    private DateTime InicioNoOperativa(DateTime ahoraUtc) =>
+        Estado == EstadoConexionIntegracion.Habilitada && RequiereVerificacionIdentidad
+        && IdentidadVerificadaUtc is { } verificada && !IdentidadVerificadaVigente(ahoraUtc)
+        && verificada + VentanaVerificacionIdentidad < ahoraUtc
+            ? verificada + VentanaVerificacionIdentidad
+            : ahoraUtc;
 
     /// <summary>La identidad leída hoy en Microsoft 365 coincide con <see cref="IdentidadBuzon"/>, que ya está fijada.</summary>
     public void MarcarIdentidadVerificada(DateTime ahoraUtc)
@@ -215,16 +325,37 @@ public class ConexionIntegracion : EntidadBase
         AcuseAutomaticoActivo = activo;
     }
 
-    public void MarcarConError(string mensaje)
+    /// <summary>
+    /// Resultado definitivo (o fallo de la renovación): la ingesta descarta desde ahora sus notificaciones, así que se
+    /// fija <see cref="HuecoPendienteDesdeUtc"/> en el momento en que dejó de estar operativa, sin adelantar una marca
+    /// anterior.
+    /// </summary>
+    public void MarcarConError(string mensaje, DateTime? ahoraUtc = null)
     {
         if (string.IsNullOrWhiteSpace(mensaje))
             throw new ArgumentException("El error debe describir qué falló.", nameof(mensaje));
+
+        if (Estado != EstadoConexionIntegracion.Deshabilitada)
+            RegistrarHuecoDesde(InicioNoOperativa(ahoraUtc ?? DateTime.UtcNow));
 
         Estado = EstadoConexionIntegracion.ConError;
         UltimoError = mensaje.Length > LongitudMaximaUltimoError ? mensaje[..LongitudMaximaUltimoError] : mensaje;
     }
 
-    public void Deshabilitar() => Estado = EstadoConexionIntegracion.Deshabilitada;
+    /// <summary>
+    /// Desconectar a propósito: lo que llegue mientras tanto no se ingiere, y un hueco que quedase pendiente ya no se
+    /// va a leer. No se limpia en silencio: pasa a <see cref="CorreoNoRecuperadoDesdeUtc"/>.
+    /// </summary>
+    public void Deshabilitar()
+    {
+        if (HuecoPendienteDesdeUtc is { } pendiente)
+        {
+            AvisarCorreoNoRecuperado(pendiente);
+            HuecoPendienteDesdeUtc = null;
+        }
+
+        Estado = EstadoConexionIntegracion.Deshabilitada;
+    }
 
     public void Rehabilitar()
     {

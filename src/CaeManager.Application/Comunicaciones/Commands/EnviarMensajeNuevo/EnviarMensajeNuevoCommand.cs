@@ -120,6 +120,11 @@ public class EnviarMensajeNuevoCommandHandler(
         if (tokenResultado.EsFallido)
             return Result.Fallo<Guid>(tokenResultado.Error);
 
+        // Puerta justo antes de enviar: la instancia se cargó antes, y otro proceso puede haberla pasado a ConError o
+        // desconectado entre medias. Se relee de la base.
+        if (!await conexionRepositorio.SigueOperativaVerificadaAsync(conexion.Id, DateTime.UtcNow, cancellationToken))
+            return Result.Fallo<Guid>(Integraciones.ErroresBuzonSinVerificar.Crear());
+
         var envioResultado = await graphClient.EnviarNuevoMensajeAsync(
             tokenResultado.Valor, BuzonGraph.De(conexion), request.Destinatarios, request.Asunto, request.CuerpoHtml, request.Adjuntos, cancellationToken, request.Copia);
         if (envioResultado.EsFallido)

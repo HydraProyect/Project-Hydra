@@ -104,6 +104,18 @@
                             {
                                 <span class="texto-aviso-verificacion" data-testid="aviso-identidad-sin-verificar">@Textos["AvisoIdentidadSinVerificar"]</span>
                             }
+                            @if (conexion.CorreoRetenido)
+                            {
+                                <span class="texto-aviso-verificacion" data-testid="aviso-correo-retenido">@Textos["AvisoCorreoRetenido"]</span>
+                            }
+                            @if (conexion.CorreoDescartado)
+                            {
+                                <span class="texto-aviso-verificacion" data-testid="aviso-correo-descartado">@Textos["AvisoCorreoDescartado"]</span>
+                            }
+                            @if (conexion.CorreoNoRecuperadoDesdeUtc is { } noRecuperadoDesde)
+                            {
+                                <span class="texto-aviso-verificacion" data-testid="aviso-correo-no-recuperado">@Textos["AvisoCorreoNoRecuperado", noRecuperadoDesde.EnHoraPeninsular().ToString("dd/MM/yyyy HH:mm")]</span>
+                            }
                         </td>
                         <td>@conexion.FechaConectadaUtc.EnHoraPeninsular().ToString("dd/MM/yyyy")</td>
                         <td class="acciones-conexion">

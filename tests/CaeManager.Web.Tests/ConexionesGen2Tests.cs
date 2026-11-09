@@ -328,6 +328,27 @@ public class ConexionesGen2Tests : BunitContext
         avisos[0].Closest("tr")!.TextContent.Should().Contain("sinverificar@ejemplo.test");
     }
 
+    /// <summary>
+    /// Avisos de correo que no se ve en Bandeja: retenido, descartado tras sus intentos y no recuperado tras una caída.
+    /// Cada uno sale solo en su fila, y una conexión sin ellos no muestra ninguno.
+    /// </summary>
+    [Fact]
+    public void Los_avisos_de_correo_retenido_descartado_y_no_recuperado_salen_en_su_fila()
+    {
+        var retenido = Buzon("retenido") with { CorreoRetenido = true };
+        var descartado = Buzon("descartado") with { CorreoDescartado = true };
+        var noRecuperado = Buzon("norecuperado") with { CorreoNoRecuperadoDesdeUtc = new DateTime(2026, 11, 2, 9, 30, 0, DateTimeKind.Utc) };
+        var cut = Renderizar(new MediadorFalso { Conexiones = [retenido, descartado, noRecuperado, Buzon("sano")] });
+
+        var avisoRetenido = cut.FindAll("[data-testid=aviso-correo-retenido]").Should().ContainSingle().Subject;
+        avisoRetenido.Closest("tr")!.TextContent.Should().Contain("retenido@ejemplo.test");
+        var avisoDescartado = cut.FindAll("[data-testid=aviso-correo-descartado]").Should().ContainSingle().Subject;
+        avisoDescartado.Closest("tr")!.TextContent.Should().Contain("descartado@ejemplo.test");
+        var avisoNoRecuperado = cut.FindAll("[data-testid=aviso-correo-no-recuperado]").Should().ContainSingle().Subject;
+        avisoNoRecuperado.Closest("tr")!.TextContent.Should().Contain("norecuperado@ejemplo.test");
+        avisoNoRecuperado.TextContent.Should().Contain("02/11/2026 10:30", "la fecha se muestra en hora peninsular");
+    }
+
     [Fact]
     public void Sin_foco_previo_ninguna_fila_esta_enfocada()
     {

@@ -404,7 +404,7 @@ public class LlamadasAAmbitoTenantExplicitoCongeladasTests
         ["src/CaeManager.Infrastructure/Comunicaciones/PropuestaRecordatoriosConversacionHostedService.cs"] =
             new(Categoria.JobDeFondoSobreEnumeracionPropia, "tenantId del bucle que recorre todos los Tenants (activos y suspendidos) desde el propio servicio, un CreateScope por Tenant propietario, mismo patrón que CierreConversacionesResueltasHostedService (2026-10-18: propuesta de recordatorio a los 2 días laborables de espera de respuesta externa)"),
         ["src/CaeManager.Infrastructure/Integraciones/IngestaWebhookHostedService.cs"] =
-            new(Categoria.JobDeFondoSobreEnumeracionPropia, "4 llamadas — tenantId del EventoWebhook ya persistido con su tenant resuelto por el paso de verificación previo"),
+            new(Categoria.JobDeFondoSobreEnumeracionPropia, "5 llamadas — tenantId del EventoWebhook ya persistido con su tenant resuelto por el paso de verificación previo; la quinta, la lectura del hueco de correo de las conexiones del mismo Tenant del bucle (RecuperacionCorreoBuzonService, 2026-11-09)"),
         ["src/CaeManager.Infrastructure/Integraciones/IngestaWebhookWhatsAppHostedService.cs"] =
             new(Categoria.JobDeFondoSobreEnumeracionPropia, "4 llamadas — mismo patrón que IngestaWebhookHostedService (gate del interruptor, bucle principal, recuperación de estancados y registro de ejecución), completado en salud de plataforma (A-06, 2026-09-02)"),
         ["src/CaeManager.Infrastructure/Integraciones/RedaccionPayloadWebhookHostedService.cs"] =
@@ -602,7 +602,7 @@ public class LlamadasAAmbitoTenantExplicitoCongeladasTests
         var conteoEsperado = new Dictionary<string, int>
         {
             ["src/CaeManager.Infrastructure/DocumentosIa/ProcesadorAnalisisDocumentoHostedService.cs"] = 3,
-            ["src/CaeManager.Infrastructure/Integraciones/IngestaWebhookHostedService.cs"] = 4,
+            ["src/CaeManager.Infrastructure/Integraciones/IngestaWebhookHostedService.cs"] = 5,
             ["src/CaeManager.Infrastructure/Integraciones/IngestaWebhookWhatsAppHostedService.cs"] = 4,
             ["src/CaeManager.Infrastructure/Retencion/RetencionHostedService.cs"] = 3,
             // Las dos con el Tenant del bucle: completar la identidad de los buzones antiguos y renovar sus suscripciones.

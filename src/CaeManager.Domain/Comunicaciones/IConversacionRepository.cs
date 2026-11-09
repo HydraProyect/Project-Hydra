@@ -37,12 +37,6 @@ public interface IConversacionRepository
     Task<bool> ExisteMensajeExternoAsync(Guid conexionIntegracionId, string mensajeExternoId, CancellationToken cancellationToken = default);
 
     /// <summary>
-    /// Fecha del último mensaje entrante ya ingerido por esta conexión, o null si no hay ninguno: desde ahí lee la
-    /// recuperación puntual de <c>RecuperacionCorreoBuzonService</c> el hueco que dejó una conexión sin verificar.
-    /// </summary>
-    Task<DateTime?> ObtenerFechaUltimoMensajeEntranteAsync(Guid conexionIntegracionId, CancellationToken cancellationToken = default);
-
-    /// <summary>
     /// Reserva el acuse automático de este buzón a este remitente, sin distinguir mayúsculas, y devuelve si la obtuvo:
     /// no la obtiene si hay otra dentro del <paramref name="intervalo"/>. Queda confirmada al volver, sin esperar a
     /// SaveChanges, y de varias llamadas simultáneas solo una la obtiene.

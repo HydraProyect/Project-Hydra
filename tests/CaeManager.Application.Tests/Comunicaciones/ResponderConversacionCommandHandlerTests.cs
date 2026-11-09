@@ -28,11 +28,13 @@ public class ResponderConversacionCommandHandlerTests
 
     private static ResponderConversacionCommandHandler CrearHandlerConConexion(
         ConversacionRepositorioFalso repositorio, ConexionIntegracion conexion, IUnitOfWork unitOfWork,
-        Microsoft365GraphClientFalso? graphClient = null)
+        Microsoft365GraphClientFalso? graphClient = null, bool noOperativaEnBase = false)
     {
         graphClient ??= new Microsoft365GraphClientFalso();
         var conexionRepositorio = new ConexionIntegracionRepositorioFalso();
         conexionRepositorio.Agregar(conexion);
+        if (noOperativaEnBase)
+            conexionRepositorio.NoOperativasEnBase.Add(conexion.Id);
         var credencialRepositorio = new CredencialIntegracionRepositorioFalso();
         credencialRepositorio.Agregar(new CredencialIntegracion(conexion.Id, "refresh-token"));
         var accesoGraph = new AccesoGraphService(credencialRepositorio, graphClient);
@@ -157,6 +159,29 @@ public class ResponderConversacionCommandHandlerTests
         resultado.Error.Codigo.Should().Be(CaeManager.Application.Integraciones.ErroresBuzonSinVerificar.Codigo);
         graphClient.UltimoMensajeExternoIdRespondido.Should().BeNull();
         unitOfWork.VecesGuardado.Should().Be(0);
+    }
+
+    /// <summary>Puerta justo antes de enviar: otro proceso pasó la conexión a ConError entre la carga y el envío.</summary>
+    [Fact]
+    public async Task Si_la_conexion_dejo_de_estar_operativa_en_la_base_antes_del_envio_no_responde()
+    {
+        var conexion = new ConexionIntegracion("cae@operador.test", "Buzón CAE").Verificada();
+        var conversacion = new Conversacion("Duda sobre vigencia documental");
+        conversacion.AsociarConexion(conexion.Id, "graph-thread-1");
+        conversacion.AgregarMensaje(DireccionMensaje.Entrante, CanalConversacion.Correo, "contacto@tenant.com", "<p>hola</p>", mensajeExternoId: "graph-msg-1");
+        var repositorio = new ConversacionRepositorioFalso();
+        repositorio.Agregar(conversacion);
+        var unitOfWork = new UnitOfWorkFalso();
+        var graphClient = new Microsoft365GraphClientFalso();
+        var handler = CrearHandlerConConexion(repositorio, conexion, unitOfWork, graphClient, noOperativaEnBase: true);
+
+        var resultado = await handler.Handle(
+            new ResponderConversacionCommand(conversacion.Id, "<p>Respuesta</p>"), CancellationToken.None);
+
+        resultado.EsFallido.Should().BeTrue();
+        resultado.Error.Codigo.Should().Be(CaeManager.Application.Integraciones.ErroresBuzonSinVerificar.Codigo);
+        graphClient.VecesEnviado.Should().Be(0);
+        graphClient.UltimoMensajeExternoIdRespondido.Should().BeNull();
     }
 
     /// <summary>Un buzón compartido no tiene credencial: la respuesta sale por su dirección y con el token de aplicación de su directorio.</summary>

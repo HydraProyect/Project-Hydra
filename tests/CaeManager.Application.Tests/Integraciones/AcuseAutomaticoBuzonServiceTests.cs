@@ -21,16 +21,18 @@ public class AcuseAutomaticoBuzonServiceTests
     private readonly CredencialIntegracionRepositorioFalso _credenciales = new();
     private readonly Microsoft365GraphClientFalso _graph = new();
     private readonly UnitOfWorkFalso _unitOfWork = new();
+    private readonly ConexionIntegracionRepositorioFalso _conexiones = new();
     private readonly DescarteCambiosPendientesFalso _descarte = new();
     private readonly RegistroDeAvisos<AcuseAutomaticoBuzonService> _log = new();
 
     public AcuseAutomaticoBuzonServiceTests()
     {
         _credenciales.Agregar(new CredencialIntegracion(_conexion.Id, "refresh"));
+        _conexiones.Agregar(_conexion);
     }
 
     private AcuseAutomaticoBuzonService Servicio(RegistroExportacionFalso? registro = null, IUnitOfWork? unitOfWork = null) =>
-        new(_conversaciones, _graph, new AccesoGraphService(_credenciales, _graph), registro ?? new RegistroExportacionFalso(),
+        new(_conversaciones, _conexiones, _graph, new AccesoGraphService(_credenciales, _graph), registro ?? new RegistroExportacionFalso(),
             unitOfWork ?? _unitOfWork, _descarte, _log);
 
     private AcusePendiente Pendiente(string mensajeExternoId = "msg-1", string hilo = "hilo-1", string remitente = Destinatario)
@@ -63,6 +65,22 @@ public class AcuseAutomaticoBuzonServiceTests
     }
 
     /// <summary>Un buzón compartido no tiene credencial: el acuse sale por su dirección y con el token de aplicación de su directorio.</summary>
+    /// <summary>
+    /// Puerta justo antes de enviar: la conexión del acuse es la instancia que cargó la ingesta, y entre medias otro
+    /// proceso la pasó a ConError (quizá otro Tenant ya reclamó el buzón). No sale nada.
+    /// </summary>
+    [Fact]
+    public async Task Si_la_conexion_dejo_de_estar_operativa_en_la_base_el_acuse_no_sale()
+    {
+        var acuse = Pendiente();
+        _conexiones.NoOperativasEnBase.Add(_conexion.Id);
+
+        await Servicio().EnviarAsync([acuse], CancellationToken.None);
+
+        _graph.VecesEnviado.Should().Be(0);
+        acuse.Conversacion.Mensajes.Should().NotContain(m => m.Direccion == DireccionMensaje.Saliente);
+    }
+
     [Fact]
     public async Task Con_un_buzon_compartido_el_acuse_sale_por_su_direccion_y_con_el_token_de_aplicacion_del_directorio()
     {
@@ -73,6 +91,7 @@ public class AcuseAutomaticoBuzonServiceTests
         conversacion.AgregarMensaje(DireccionMensaje.Entrante, CanalConversacion.Correo, Destinatario, "Cuerpo del correo", DateTime.UtcNow);
         _conversaciones.Agregar(conversacion);
         var acuse = new AcusePendiente(compartido, conversacion, "msg-1", Destinatario);
+        _conexiones.Agregar(compartido);
 
         await Servicio().EnviarAsync([acuse], CancellationToken.None);
 

@@ -24,6 +24,15 @@
   <data name="AvisoIdentidadSinVerificar" xml:space="preserve">
     <value>Sense verificar: no hem pogut comprovar en l'últim dia que aquesta adreça continua sent la mateixa bústia. El correu entrant queda en espera, sense perdre's, i no s'envia res des d'aquesta bústia fins que es comprovi en la renovació diària. Si l'avís continua, desconnecta la bústia i torna-la a connectar.</value>
   </data>
+  <data name="AvisoCorreoNoRecuperado" xml:space="preserve">
+    <value>Possible correu no recuperat des del {0}: mentre la connexió no funcionava podia arribar correu que no hem pogut llegir després. Revisa'l a la mateixa bústia de Microsoft 365.</value>
+  </data>
+  <data name="AvisoCorreoRetenido" xml:space="preserve">
+    <value>Hi ha correu retingut: va arribar mentre no es podia comprovar aquesta bústia i fa més de tres dies que espera. S'ingerirà quan es comprovi; si l'avís continua, desconnecta la bústia i torna-la a connectar.</value>
+  </data>
+  <data name="AvisoCorreoDescartado" xml:space="preserve">
+    <value>Durant l'última setmana no hem pogut llegir algun correu d'aquesta bústia després de diversos intents. Revisa'l a la mateixa bústia de Microsoft 365.</value>
+  </data>
   <data name="InsigniaCompartido" xml:space="preserve">
     <value>Compartida</value>
   </data>

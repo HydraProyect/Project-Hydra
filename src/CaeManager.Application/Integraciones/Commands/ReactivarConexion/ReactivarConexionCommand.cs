@@ -38,8 +38,7 @@ public class ReactivarConexionCommandHandler(
     IUnitOfWork unitOfWork,
     AccesoGraphService accesoGraph,
     IMicrosoft365GraphClient graphClient,
-    IEventoWebhookRepository eventoRepositorio,
-    RecuperacionCorreoBuzonService recuperacion)
+    IEventoWebhookRepository eventoRepositorio)
     : IRequestHandler<ReactivarConexionCommand, Result>
 {
     public async Task<Result> Handle(ReactivarConexionCommand request, CancellationToken cancellationToken)
@@ -65,13 +64,23 @@ public class ReactivarConexionCommandHandler(
         // que una entidad modificada y trackeada sin guardar podría
         // persistirse igualmente en una operación posterior ajena a este
         // Command.
-        string? accessToken = null;
         if (conexion.Proveedor == ProveedorIntegracion.Microsoft365)
         {
-            var comprobacion = await ComprobarIdentidadBuzonAsync(conexion, cancellationToken);
+            var (comprobacion, identidadCambiada) = await ComprobarIdentidadBuzonAsync(conexion, cancellationToken);
             if (comprobacion.EsFallido)
+            {
+                // Resultado definitivo, igual que en el ciclo de verificación: la dirección responde con otro buzón.
+                // La conexión deja de estar operativa ya (su verificación anterior no la sostiene), con el mismo motivo
+                // que pone el ciclo. Solo esta mutación se guarda: es lo único que se ha tocado. Desde Deshabilitada
+                // no: sigue desconectada, sin suscripción que renovar.
+                if (identidadCambiada && conexion.Estado != EstadoConexionIntegracion.Deshabilitada)
+                {
+                    conexion.MarcarConError(CompletarIdentidadBuzonService.MensajeBuzonCambiado);
+                    await unitOfWork.SaveChangesAsync(cancellationToken);
+                }
+
                 return Result.Fallo(comprobacion.Error);
-            accessToken = comprobacion.Valor;
+            }
         }
 
         var tenantId = Guid.Empty;
@@ -89,14 +98,14 @@ public class ReactivarConexionCommandHandler(
 
         if (!necesitaReclamarBuzon)
         {
-            // Desde ConError, o sin verificar: sus eventos retenidos vuelven a la cola y se encola la lectura puntual
-            // de lo que la ingesta descartó mientras tanto. Desde Deshabilitada no: lo que llegó con la conexión
-            // desconectada a propósito no se ingiere.
-            if (accessToken is not null && veniaSinVerificar)
+            // Desde ConError, o sin verificar: sus eventos retenidos vuelven a la cola. Aquí no se lee Graph: lo que
+            // la ingesta descartó mientras tanto queda en HuecoPendienteDesdeUtc, que se guarda con esta rehabilitación
+            // y lee RecuperacionCorreoBuzonService con reintentos. Desde Deshabilitada no: lo que llegó con la
+            // conexión desconectada a propósito no se ingiere.
+            if (conexion.Proveedor == ProveedorIntegracion.Microsoft365 && veniaSinVerificar)
             {
                 foreach (var retenido in await eventoRepositorio.ObtenerRetenidosAsync(conexion.Id, cancellationToken))
                     retenido.Liberar();
-                await recuperacion.EncolarHuecoAsync(conexion, accessToken, DateTime.UtcNow, cancellationToken);
             }
 
             await unitOfWork.SaveChangesAsync(cancellationToken);
@@ -121,27 +130,28 @@ public class ReactivarConexionCommandHandler(
     /// donde el índice único decide) y el buzón que hoy responde a su dirección debe seguir siendo el mismo. Si no
     /// se puede comprobar, no se reactiva.
     /// </summary>
-    /// <returns>El token con el que se comprobó, para la lectura puntual del hueco.</returns>
-    private async Task<Result<string>> ComprobarIdentidadBuzonAsync(ConexionIntegracion conexion, CancellationToken cancellationToken)
+    /// <returns>El resultado y si el fallo es que la dirección responde hoy con otro buzón (definitivo).</returns>
+    private async Task<(Result Resultado, bool IdentidadCambiada)> ComprobarIdentidadBuzonAsync(
+        ConexionIntegracion conexion, CancellationToken cancellationToken)
     {
         if (conexion.IdentidadBuzon is not { } guardada)
-            return Result.Fallo<string>(Error.Crear(
+            return (Result.Fallo(Error.Crear(
                 CodigoReconexionNecesaria,
-                "Esta conexión no tiene la comprobación de buzón: desconéctala y vuelve a conectarla desde Conexiones."));
+                "Esta conexión no tiene la comprobación de buzón: desconéctala y vuelve a conectarla desde Conexiones.")), false);
 
         var token = await accesoGraph.ObtenerAccessTokenVigenteAsync(conexion, cancellationToken);
         if (token.EsFallido)
-            return Result.Fallo<string>(Error.Crear(CodigoSinComprobacion, "No pudimos comprobar el buzón en Microsoft. Inténtalo de nuevo."));
+            return (Result.Fallo(Error.Crear(CodigoSinComprobacion, "No pudimos comprobar el buzón en Microsoft. Inténtalo de nuevo.")), false);
 
         var identidad = await graphClient.ObtenerIdentidadBuzonAsync(token.Valor, BuzonGraph.De(conexion), cancellationToken);
         if (identidad.EsFallido)
-            return Result.Fallo<string>(Error.Crear(CodigoSinComprobacion, "No pudimos comprobar el buzón en Microsoft. Inténtalo de nuevo."));
+            return (Result.Fallo(Error.Crear(CodigoSinComprobacion, "No pudimos comprobar el buzón en Microsoft. Inténtalo de nuevo.")), false);
 
         return string.Equals(identidad.Valor, guardada, StringComparison.Ordinal)
-            ? Result.Exito(token.Valor)
-            : Result.Fallo<string>(Error.Crear(
+            ? (Result.Exito(), false)
+            : (Result.Fallo(Error.Crear(
                 CodigoReconexionNecesaria,
-                "La dirección de esta conexión corresponde ahora a otro buzón: desconéctala y vuelve a conectarla desde Conexiones."));
+                "La dirección de esta conexión corresponde ahora a otro buzón: desconéctala y vuelve a conectarla desde Conexiones.")), true);
     }
 
     public const string CodigoReconexionNecesaria = "Integraciones.Microsoft365.ReconexionNecesaria";

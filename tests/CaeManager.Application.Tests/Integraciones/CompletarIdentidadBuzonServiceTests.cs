@@ -23,6 +23,11 @@ public class CompletarIdentidadBuzonServiceTests
         public Microsoft365GraphClientFalso Graph { get; } = new();
         public UnitOfWorkFalso UnitOfWork { get; } = new();
 
+        /// <summary>Descartar suelta el lote fallido, como el contexto real: el siguiente guardado ya no lo arrastra.</summary>
+        public DescarteQueSueltaElLote Descarte { get; }
+
+        public Escenario() => Descarte = new DescarteQueSueltaElLote(UnitOfWork);
+
         public ConexionIntegracion AgregarCompartida(string direccion)
         {
             var conexion = ConexionIntegracion.CrearBuzonCompartido(direccion, "Buzón CAE", Directorio, Guid.NewGuid());
@@ -53,9 +58,20 @@ public class CompletarIdentidadBuzonServiceTests
         public CompletarIdentidadBuzonService Servicio() => new(
             QueryContext, Conexiones, Reclamaciones, Eventos,
             new AccesoGraphService(new CredencialIntegracionRepositorioFalso(), Graph), Graph,
-            new RecuperacionCorreoBuzonService(Graph, Conversaciones, Eventos, NullLogger<RecuperacionCorreoBuzonService>.Instance),
             UnitOfWork,
+            Descarte,
             NullLogger<CompletarIdentidadBuzonService>.Instance);
+    }
+
+    public sealed class DescarteQueSueltaElLote(UnitOfWorkFalso unitOfWork) : CaeManager.Application.Common.IDescarteCambiosPendientes
+    {
+        public int Veces { get; private set; }
+
+        public void DescartarCambiosPendientes()
+        {
+            Veces++;
+            unitOfWork.ExcepcionAlGuardar = null;
+        }
     }
 
     private static MensajeResumenGraphDto MensajeRecibido(string id) =>
@@ -194,23 +210,27 @@ public class CompletarIdentidadBuzonServiceTests
 
         var verificadas = await escenario.Servicio().CompletarAsync(CancellationToken.None);
 
-        verificadas.Should().Equal(sana.Id);
+        verificadas.Should().BeEquivalentTo([sana.Id]);
     }
 
     /// <summary>
     /// Verificada en este ciclo, una conexión en ConError se rehabilita aquí mismo (no espera a la ventana de
-    /// renovación), sus eventos retenidos vuelven a la cola y se encola el correo que la ingesta descartó.
+    /// renovación) y sus eventos retenidos vuelven a la cola. No lee Graph: el hueco que dejó la caída queda en la marca,
+    /// guardada en la misma transacción, para la lectura con reintentos.
     /// </summary>
     [Fact]
-    public async Task Una_conexion_en_ConError_con_la_misma_identidad_se_rehabilita_libera_sus_retenidos_y_recupera_el_hueco()
+    public async Task Una_conexion_en_ConError_con_la_misma_identidad_se_rehabilita_libera_sus_retenidos_y_conserva_la_marca_sin_leer_Graph()
     {
         var escenario = new Escenario();
         var conexion = escenario.AgregarCompartida("cae@operador.test");
         conexion.FijarIdentidadBuzon("inbox-cae");
-        conexion.MarcarConError("fallo de un ciclo anterior");
+        var caida = DateTime.UtcNow.AddHours(-3);
+        conexion.MarcarConError("fallo de un ciclo anterior", caida);
         escenario.Graph.IdentidadesPorDireccion["cae@operador.test"] = "inbox-cae";
         var retenido = escenario.AgregarRetenido(conexion);
         escenario.Graph.MensajesADevolver = [MensajeRecibido("m-2"), MensajeRecibido("m-1")];
+        var marcaGuardada = (DateTime?)null;
+        escenario.UnitOfWork.AlGuardar = () => marcaGuardada = conexion.HuecoPendienteDesdeUtc;
 
         var verificadas = await escenario.Servicio().CompletarAsync(CancellationToken.None);
 
@@ -219,8 +239,10 @@ public class CompletarIdentidadBuzonServiceTests
         conexion.UltimoError.Should().BeNull();
         conexion.IdentidadVerificadaUtc.Should().NotBeNull();
         retenido.Estado.Should().Be(EstadoEventoWebhook.Pendiente);
-        escenario.Eventos.Eventos.Should().Contain(e => e.PayloadCrudo == "recuperacion:m-1,m-2",
-            "lo encolado va del más antiguo al más reciente, en un único evento");
+        escenario.Graph.ListadosPedidos.Should().BeEmpty("al rehabilitar no se lee Graph en línea");
+        escenario.Eventos.Eventos.Should().Equal(retenido);
+        conexion.HuecoPendienteDesdeUtc.Should().Be(caida);
+        marcaGuardada.Should().Be(caida, "la marca sigue en la misma transacción que la rehabilitación");
         escenario.UnitOfWork.VecesGuardado.Should().Be(1);
     }
 
@@ -240,20 +262,61 @@ public class CompletarIdentidadBuzonServiceTests
         escenario.Eventos.Eventos.Should().BeEmpty();
     }
 
-    /// <summary>Habilitada pero con la verificación caducada: la ingesta la dejó en espera, y se recupera el hueco.</summary>
+    /// <summary>
+    /// Habilitada pero con la verificación caducada: el ciclo fija la marca en el momento exacto de la caducidad, no en
+    /// el del ciclo, y al verificar no lee Graph.
+    /// </summary>
     [Fact]
-    public async Task Una_conexion_con_la_verificacion_caducada_recupera_el_hueco()
+    public async Task Una_conexion_con_la_verificacion_caducada_fija_la_marca_en_la_caducidad_y_no_lee_Graph()
     {
         var escenario = new Escenario();
         var conexion = escenario.AgregarVerificada(
             "cae@operador.test", "inbox-cae", ConexionIntegracion.VentanaVerificacionIdentidad + TimeSpan.FromHours(1));
+        var caducidad = conexion.IdentidadVerificadaUtc!.Value + ConexionIntegracion.VentanaVerificacionIdentidad;
         escenario.Graph.MensajesADevolver = [MensajeRecibido("m-1")];
 
         await escenario.Servicio().CompletarAsync(CancellationToken.None);
 
         conexion.OperativaVerificada(DateTime.UtcNow).Should().BeTrue();
-        escenario.Graph.ListadosPedidos.Should().ContainSingle().Which.Carpeta.Should().Be("inbox");
-        escenario.Eventos.Eventos.Should().ContainSingle().Which.PayloadCrudo.Should().Be("recuperacion:m-1");
+        conexion.HuecoPendienteDesdeUtc.Should().Be(caducidad);
+        escenario.Graph.ListadosPedidos.Should().BeEmpty();
+        escenario.Eventos.Eventos.Should().BeEmpty();
+    }
+
+    /// <summary>La caducidad se guarda aunque el resto del ciclo falle de forma transitoria (sin token).</summary>
+    [Fact]
+    public async Task La_marca_de_caducidad_se_guarda_aunque_falle_el_token()
+    {
+        var escenario = new Escenario();
+        var conexion = escenario.AgregarVerificada(
+            "cae@operador.test", "inbox-cae", ConexionIntegracion.VentanaVerificacionIdentidad + TimeSpan.FromHours(5));
+        var caducidad = conexion.IdentidadVerificadaUtc!.Value + ConexionIntegracion.VentanaVerificacionIdentidad;
+        escenario.Graph.FallaTokenAplicacion = true;
+
+        await escenario.Servicio().CompletarAsync(CancellationToken.None);
+
+        conexion.HuecoPendienteDesdeUtc.Should().Be(caducidad);
+        escenario.UnitOfWork.VecesGuardado.Should().Be(1);
+    }
+
+    /// <summary>
+    /// Un guardado fallido en una conexión suelta su lote antes de pasar a la siguiente: sin el descarte, el guardado
+    /// de la siguiente arrastraría (y volvería a fallar por) la mutación ajena.
+    /// </summary>
+    [Fact]
+    public async Task Tras_un_guardado_fallido_descarta_el_lote_y_la_siguiente_conexion_se_verifica()
+    {
+        var escenario = new Escenario();
+        escenario.AgregarVerificada("cambiado@operador.test", "inbox-original", TimeSpan.FromHours(20));
+        escenario.Graph.IdentidadesPorDireccion["cambiado@operador.test"] = "inbox-de-otro-buzon";
+        var sana = escenario.AgregarVerificada("sano@operador.test", "inbox-sano", TimeSpan.FromHours(20));
+        escenario.UnitOfWork.ExcepcionAlGuardar = new InvalidOperationException("guardado rechazado");
+
+        var verificadas = await escenario.Servicio().CompletarAsync(CancellationToken.None);
+
+        escenario.Descarte.Veces.Should().Be(1);
+        verificadas.Should().BeEquivalentTo([sana.Id]);
+        escenario.UnitOfWork.VecesGuardado.Should().Be(1);
     }
 
     /// <summary>El directorio reasignó la dirección a otro buzón: la conexión deja de operar y no sale verificada.</summary>

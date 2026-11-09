@@ -23,17 +23,16 @@ public class ReactivarConexionCommandHandlerTests
         return new(conexionRepositorio, reclamacionRepositorio ?? new ReclamacionBuzonIntegracionRepositorioFalso(),
             alcanceDatos, tenantActual ?? new TenantActualFalso(TenantId), unitOfWork,
             new AccesoGraphService(new CredencialIntegracionRepositorioFalso { CredencialParaCualquierConexion = true }, graph), graph,
-            eventos,
-            new RecuperacionCorreoBuzonService(graph, new CaeManager.Application.Tests.Comunicaciones.ConversacionRepositorioFalso(), eventos,
-                Microsoft.Extensions.Logging.Abstractions.NullLogger<RecuperacionCorreoBuzonService>.Instance));
+            eventos);
     }
 
     [Fact]
-    public async Task Reactivar_desde_ConError_marca_verificada_libera_los_retenidos_y_recupera_el_hueco()
+    public async Task Reactivar_desde_ConError_marca_verificada_libera_los_retenidos_y_deja_la_marca_sin_leer_Graph()
     {
         var conexion = new ConexionIntegracion("cae@operador.test", "Buzón CAE");
         conexion.FijarIdentidadBuzon("inbox-x");
-        conexion.MarcarConError("El refresh token ha expirado.");
+        var caida = DateTime.UtcNow.AddHours(-2);
+        conexion.MarcarConError("El refresh token ha expirado.", caida);
         var conexionRepositorio = new ConexionIntegracionRepositorioFalso();
         conexionRepositorio.Agregar(conexion);
         var eventos = new EventoWebhookRepositorioFalso();
@@ -52,7 +51,9 @@ public class ReactivarConexionCommandHandlerTests
         resultado.EsExitoso.Should().BeTrue();
         conexion.OperativaVerificada(DateTime.UtcNow).Should().BeTrue();
         retenido.Estado.Should().Be(EstadoEventoWebhook.Pendiente);
-        eventos.Eventos.Should().Contain(e => e.PayloadCrudo == "recuperacion:m-1");
+        graph.ListadosPedidos.Should().BeEmpty("la rehabilitación no lee Graph en línea: lo hace la recuperación con reintentos");
+        eventos.Eventos.Should().Equal(retenido);
+        conexion.HuecoPendienteDesdeUtc.Should().Be(caida);
     }
 
     /// <summary>Lo que llegó con la conexión desconectada a propósito no se ingiere al reactivarla.</summary>
@@ -141,6 +142,55 @@ public class ReactivarConexionCommandHandlerTests
         resultado.Error.Codigo.Should().Be(ReactivarConexionCommandHandler.CodigoReconexionNecesaria);
         conexion.Estado.Should().Be(EstadoConexionIntegracion.ConError);
         graph.TokensDeIdentidad.Should().Equal("token-aplicacion-falso");
+        unitOfWork.VecesGuardado.Should().Be(1, "el motivo definitivo se guarda, igual que en el ciclo");
+    }
+
+    /// <summary>
+    /// Una conexión operativa cuya dirección responde ahora con otro buzón deja de estar operativa ya, con el mismo
+    /// motivo que pone el ciclo de verificación, y queda marcado el hueco desde ese momento.
+    /// </summary>
+    [Fact]
+    public async Task Reactivar_una_conexion_operativa_cuyo_buzon_cambio_la_pasa_a_ConError_con_el_motivo_del_ciclo()
+    {
+        var conexion = new ConexionIntegracion("cae@operador.test", "Buzón CAE");
+        conexion.FijarIdentidadBuzon("inbox-original");
+        conexion.MarcarIdentidadVerificada(DateTime.UtcNow.AddHours(-1));
+        var conexionRepositorio = new ConexionIntegracionRepositorioFalso();
+        conexionRepositorio.Agregar(conexion);
+        var graph = new Microsoft365GraphClientFalso();
+        graph.IdentidadesPorDireccion["cae@operador.test"] = "inbox-de-otro-buzon";
+        var unitOfWork = new UnitOfWorkFalso();
+        var handler = CrearHandler(conexionRepositorio, new AlcanceDatosServiceFalso(), unitOfWork, graph: graph);
+        var antes = DateTime.UtcNow;
+
+        var resultado = await handler.Handle(new ReactivarConexionCommand(conexion.Id), CancellationToken.None);
+
+        resultado.EsFallido.Should().BeTrue();
+        conexion.Estado.Should().Be(EstadoConexionIntegracion.ConError);
+        conexion.UltimoError.Should().Be(CompletarIdentidadBuzonService.MensajeBuzonCambiado);
+        conexion.OperativaVerificada(DateTime.UtcNow).Should().BeFalse();
+        conexion.HuecoPendienteDesdeUtc.Should().BeOnOrAfter(antes);
+        unitOfWork.VecesGuardado.Should().Be(1);
+    }
+
+    /// <summary>Desde Deshabilitada no: sigue desconectada y no se guarda nada.</summary>
+    [Fact]
+    public async Task Reactivar_desde_Deshabilitada_con_el_buzon_cambiado_no_la_pasa_a_ConError()
+    {
+        var conexion = new ConexionIntegracion("cae@operador.test", "Buzón CAE");
+        conexion.FijarIdentidadBuzon("inbox-original");
+        conexion.Deshabilitar();
+        var conexionRepositorio = new ConexionIntegracionRepositorioFalso();
+        conexionRepositorio.Agregar(conexion);
+        var graph = new Microsoft365GraphClientFalso();
+        graph.IdentidadesPorDireccion["cae@operador.test"] = "inbox-de-otro-buzon";
+        var unitOfWork = new UnitOfWorkFalso();
+        var handler = CrearHandler(conexionRepositorio, new AlcanceDatosServiceFalso(), unitOfWork, graph: graph);
+
+        var resultado = await handler.Handle(new ReactivarConexionCommand(conexion.Id), CancellationToken.None);
+
+        resultado.EsFallido.Should().BeTrue();
+        conexion.Estado.Should().Be(EstadoConexionIntegracion.Deshabilitada);
         unitOfWork.VecesGuardado.Should().Be(0);
     }
 

@@ -7823,6 +7823,9 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                     b.Property<Guid?>("ConsentidoPorUsuarioId")
                         .HasColumnType("uuid");
 
+                    b.Property<DateTime?>("CorreoNoRecuperadoDesdeUtc")
+                        .HasColumnType("timestamp with time zone");
+
                     b.Property<DateTime>("CreadoEnUtc")
                         .HasColumnType("timestamp with time zone");
 
@@ -7850,6 +7853,9 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
 
                     b.Property<Guid?>("GestorPropietarioId")
                         .HasColumnType("uuid");
+
+                    b.Property<DateTime?>("HuecoPendienteDesdeUtc")
+                        .HasColumnType("timestamp with time zone");
 
                     b.Property<string>("IdentidadBuzon")
                         .HasMaxLength(512)

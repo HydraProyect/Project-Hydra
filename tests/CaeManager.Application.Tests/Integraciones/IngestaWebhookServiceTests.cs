@@ -161,6 +161,68 @@ public class IngestaWebhookServiceTests
         conversaciones.Conversaciones.Should().BeEmpty();
     }
 
+    /// <summary>
+    /// Puerta antes de cada lectura: la instancia cargada dice operativa, pero tras el primer mensaje otro proceso pasó
+    /// la conexión a ConError. El segundo no se lee de Graph y el evento espera sin gastar intentos.
+    /// </summary>
+    [Fact]
+    public async Task Si_la_conexion_deja_de_estar_operativa_entre_mensajes_no_lee_el_siguiente_y_el_evento_espera()
+    {
+        var conexion = new ConexionIntegracion("cae@operador.test", "Buzón CAE").Verificada();
+        var conexiones = new ConexionIntegracionRepositorioFalso();
+        conexiones.Agregar(conexion);
+        conexiones.AlReleer = vez =>
+        {
+            if (vez == 2)
+                conexiones.NoOperativasEnBase.Add(conexion.Id);
+        };
+        var conversaciones = new ConversacionRepositorioFalso();
+        var graph = new Microsoft365GraphClientFalso
+        {
+            MensajeIdsADevolver = ["primero", "segundo"],
+            MensajesPorId =
+            {
+                ["primero"] = new MensajeGraphDto("primero", "hilo-1", "Asunto", "contacto@tenant.com", "Texto", DateTime.UtcNow, [], []),
+                ["segundo"] = new MensajeGraphDto("segundo", "hilo-2", "Otro", "contacto@tenant.com", "Texto", DateTime.UtcNow, [], []),
+            },
+        };
+        var credenciales = new CredencialIntegracionRepositorioFalso();
+        credenciales.Agregar(new CredencialIntegracion(conexion.Id, "refresh"));
+        var evento = new EventoWebhook(conexion.Id, "{}");
+        evento.MarcarEnProceso();
+
+        await CrearServicio(conexiones, conversaciones, graph, credenciales).ProcesarAsync(evento, CancellationToken.None);
+
+        conversaciones.Conversaciones.Should().ContainSingle().Which.HiloExternoId.Should().Be("hilo-1");
+        conexiones.VecesReleido.Should().Be(2);
+        evento.Estado.Should().Be(EstadoEventoWebhook.Pendiente);
+        evento.Intentos.Should().Be(0);
+    }
+
+    /// <summary>
+    /// Una notificación que esperaba en la cola cuando la conexión cayó se descarta (ConError), pero su correo es
+    /// anterior a la marca de la caída: la marca retrocede hasta su recepción para que la lectura del hueco lo cubra.
+    /// </summary>
+    [Fact]
+    public async Task Descartar_una_notificacion_anterior_a_la_caida_retrocede_la_marca_hasta_su_recepcion()
+    {
+        var conexion = new ConexionIntegracion("cae@operador.test", "Buzón CAE").Verificada();
+        var evento = new EventoWebhook(conexion.Id, "{}");
+        conexion.MarcarConError("refresh token caducado", evento.FechaRecepcionUtc.AddMinutes(30));
+        var conexiones = new ConexionIntegracionRepositorioFalso();
+        conexiones.Agregar(conexion);
+        var conversaciones = new ConversacionRepositorioFalso();
+        var graph = new Microsoft365GraphClientFalso { MensajeIdsADevolver = ["nuevo"] };
+        evento.MarcarEnProceso();
+
+        await CrearServicio(conexiones, conversaciones, graph, new CredencialIntegracionRepositorioFalso())
+            .ProcesarAsync(evento, CancellationToken.None);
+
+        evento.Estado.Should().Be(EstadoEventoWebhook.Completado);
+        conversaciones.Conversaciones.Should().BeEmpty();
+        conexion.HuecoPendienteDesdeUtc.Should().Be(evento.FechaRecepcionUtc);
+    }
+
     [Fact]
     public async Task Una_conexion_verificada_ingiere_el_evento_que_estaba_en_espera()
     {

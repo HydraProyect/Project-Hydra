@@ -83,6 +83,8 @@ public class MigrarConversacionACorreoCommandHandler(
             .Where(c => c.ClienteId == conversacion.ClienteId || c.ClienteId == null)
             // Buzón dedicado al Cliente de la conversación antes que el buzón general del tenant.
             .OrderByDescending(c => c.ClienteId != null)
+            // Dentro de cada grupo, una verificada antes que una sin verificar: un buzón general antiguo que ha perdido la verificación no tapa a otro verificado.
+            .ThenByDescending(CaeManager.Application.Integraciones.ConsultasConexionIntegracion.VerificadaVigente(DateTime.UtcNow))
             // Varios buzones generales (los compartidos del Tenant): el conectado primero, para que la elección no dependa del orden de la base de datos.
             .ThenBy(c => c.FechaConectadaUtc)
             .ThenBy(c => c.Id)
@@ -109,6 +111,10 @@ public class MigrarConversacionACorreoCommandHandler(
         var tokenResultado = await accesoGraph.ObtenerAccessTokenVigenteAsync(conexion, cancellationToken);
         if (tokenResultado.EsFallido)
             return Result.Fallo(tokenResultado.Error);
+
+        // Puerta justo antes de enviar: se relee de la base, la instancia cargada antes puede estar obsoleta.
+        if (!await conexionRepositorio.SigueOperativaVerificadaAsync(conexion.Id, DateTime.UtcNow, cancellationToken))
+            return Result.Fallo(ErroresBuzonSinVerificar.Crear());
 
         var envioResultado = await graphClient.EnviarNuevoMensajeAsync(
             tokenResultado.Valor, BuzonGraph.De(conexion), [request.EmailDestino], conversacion.Asunto, request.CuerpoHtml,

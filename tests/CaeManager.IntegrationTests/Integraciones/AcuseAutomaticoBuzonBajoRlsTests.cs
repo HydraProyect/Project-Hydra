@@ -262,7 +262,8 @@ public class AcuseAutomaticoBuzonBajoRlsTests : IAsyncLifetime
             new ActorFijo(ActorAuditoria.SinResolver),
             new RegistroAccesoDatoSensibleRepository(runtime, NullLogger<RegistroAccesoDatoSensibleRepository>.Instance));
         var servicio = new AcuseAutomaticoBuzonService(
-            repositorio, _graph, new AccesoGraphService(new CredencialIntegracionRepository(runtime), _graph), registro, runtime,
+            repositorio, new ConexionIntegracionRepository(runtime), _graph,
+            new AccesoGraphService(new CredencialIntegracionRepository(runtime), _graph), registro, runtime,
             new DescarteSinDescartar(), NullLogger<AcuseAutomaticoBuzonService>.Instance);
 
         await servicio.EnviarAsync([pendiente], CancellationToken.None);

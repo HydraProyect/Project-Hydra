@@ -14,10 +14,12 @@ namespace CaeManager.Application.Tests.Comunicaciones;
 public class EnviarMensajeNuevoCommandHandlerTests
 {
     private static (EnviarMensajeNuevoCommandHandler Handler, ConversacionRepositorioFalso Conversaciones, Microsoft365GraphClientFalso GraphClient) CrearHandler(
-        ConexionIntegracion conexion)
+        ConexionIntegracion conexion, bool noOperativaEnBase = false)
     {
         var conexionRepositorio = new ConexionIntegracionRepositorioFalso();
         conexionRepositorio.Agregar(conexion);
+        if (noOperativaEnBase)
+            conexionRepositorio.NoOperativasEnBase.Add(conexion.Id);
         var credencialRepositorio = new CredencialIntegracionRepositorioFalso();
         credencialRepositorio.Agregar(new CredencialIntegracion(conexion.Id, "refresh-token"));
         var graphClient = new Microsoft365GraphClientFalso();
@@ -68,6 +70,25 @@ public class EnviarMensajeNuevoCommandHandlerTests
 
         resultado.EsFallido.Should().BeTrue();
         resultado.Error.Codigo.Should().Be(CaeManager.Application.Integraciones.ErroresBuzonSinVerificar.Codigo);
+        conversaciones.Conversaciones.Should().BeEmpty();
+    }
+
+    /// <summary>
+    /// Puerta justo antes de enviar: la instancia cargada dice operativa, pero otro proceso la pasó a ConError entre la
+    /// carga y el envío. Cubre también Reclamación y PedirPrioridad, que envían por aquí.
+    /// </summary>
+    [Fact]
+    public async Task Si_la_conexion_dejo_de_estar_operativa_en_la_base_antes_del_envio_no_envia()
+    {
+        var conexion = new ConexionIntegracion("cae@operador.test", "Buzón CAE").Verificada();
+        var (handler, conversaciones, graphClient) = CrearHandler(conexion, noOperativaEnBase: true);
+
+        var resultado = await handler.Handle(
+            new EnviarMensajeNuevoCommand(conexion.Id, ["contacto@tenant.com"], "Bienvenida", "<p>Hola</p>"), CancellationToken.None);
+
+        resultado.EsFallido.Should().BeTrue();
+        resultado.Error.Codigo.Should().Be(CaeManager.Application.Integraciones.ErroresBuzonSinVerificar.Codigo);
+        graphClient.VecesEnviado.Should().Be(0);
         conversaciones.Conversaciones.Should().BeEmpty();
     }
 
