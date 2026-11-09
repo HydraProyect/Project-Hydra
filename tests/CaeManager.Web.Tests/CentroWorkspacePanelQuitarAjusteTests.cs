@@ -142,12 +142,16 @@ public class CentroWorkspacePanelQuitarAjusteTests : BunitContext
         var cut = Render<CentroWorkspacePanel>(p => p
             .Add(c => c.EntidadId, centroId)
             .Add(c => c.PestanaActiva, "requisitos"));
-        cut.WaitForAssertion(() => cut.FindAll("button").Should().Contain(b => b.TextContent.Trim() == "Quitar ajuste"));
+        cut.WaitForAssertion(() => cut.FindAll("details.requisitos-excluidos button[aria-label^='Editar ajustes de']").Should().ContainSingle());
         return cut;
     }
 
-    private static IElement BotonDeLaTarjeta(IRenderedComponent<CentroWorkspacePanel> cut) =>
-        cut.FindAll(".workspace-tarjeta-requisito-acciones button").Single(b => b.TextContent.Trim() == "Quitar ajuste");
+    /// <summary>«Quitar ajuste» vive en el pie del panel de ajustes de la fila (lápiz): primero se abre el panel.</summary>
+    private static async Task<IElement> BotonQuitarAjusteAsync(IRenderedComponent<CentroWorkspacePanel> cut)
+    {
+        await cut.Find("button[aria-label^='Editar ajustes de']").ClickAsync(new MouseEventArgs());
+        return cut.FindAll(".requisitos-edicion-pie button").Single(b => b.TextContent.Trim() == "Quitar ajuste");
+    }
 
     private static IElement BotonDelDialogo(IRenderedComponent<CentroWorkspacePanel> cut, string texto) =>
         cut.FindAll(".modal-pie button").Single(b => b.TextContent.Trim() == texto);
@@ -157,7 +161,7 @@ public class CentroWorkspacePanelQuitarAjusteTests : BunitContext
     {
         var cut = RenderizarRequisitos();
 
-        await BotonDeLaTarjeta(cut).ClickAsync(new MouseEventArgs());
+        await (await BotonQuitarAjusteAsync(cut)).ClickAsync(new MouseEventArgs());
 
         Eliminaciones.Should().BeEmpty("quitar el ajuste se confirma antes de enviarse");
         cut.Find(".modal-pie").Should().NotBeNull("control positivo: el diálogo se abrió");
@@ -174,7 +178,7 @@ public class CentroWorkspacePanelQuitarAjusteTests : BunitContext
     {
         var cut = RenderizarRequisitos();
 
-        await BotonDeLaTarjeta(cut).ClickAsync(new MouseEventArgs());
+        await (await BotonQuitarAjusteAsync(cut)).ClickAsync(new MouseEventArgs());
         await BotonDelDialogo(cut, "Quitar ajuste").ClickAsync(new MouseEventArgs());
 
         Eliminaciones.Should().ContainSingle().Which.TipoDocumentoId.Should().Be(TipoDocumentoId);
