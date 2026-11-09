@@ -620,7 +620,7 @@ public class SinTransaccionesFueraDeEfTests(ITestOutputHelper salida)
     /// Issue #2024: las cadenas crudas de C# 11 dentro de un .razor, también multilínea e
     /// interpoladas. La expresión anterior leía <c>"""</c> como una cadena vacía seguida de otra que
     /// no cerraba en la línea, así que no veía las líneas 5 y 8, y en cambio daba por cadena el
-    /// <c>"BEGIN;"</c> que es texto de la cruda de la línea 12.
+    /// <c>"BEGIN;"</c> de la línea 13, que es texto de la cruda abierta en la línea 12.
     /// </summary>
     [Fact]
     public void El_detector_de_razor_ve_las_cadenas_crudas_multilinea()
