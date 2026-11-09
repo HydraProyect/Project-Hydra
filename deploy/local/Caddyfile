@@ -67,7 +67,55 @@
 	stream_close_delay 24h
 }
 
+# Compresión de las respuestas (HTML, JSON, CSS, JS) de la aplicación, en
+# producción y en staging, y de la web pública de talveg.es. Sin ella, el HTML
+# de una página de la aplicación salía en claro (~84 KB); comprimido, ~10 KB.
+# Kestrel no comprime (no hay UseResponseCompression): lo hace este borde.
+#
+# Qué comprime y qué no, según el código de encode de Caddy 2.11.4:
+# - Sin bloque `match`, solo los Content-Type de su lista por defecto (text/*,
+#   application/json*, application/javascript*, xml, svg, algunas fuentes) y
+#   solo a partir de 512 bytes. Fuera de la lista: application/pdf,
+#   application/zip, application/octet-stream, image/png y demás binarios, así
+#   que las descargas de documentos, el ZIP de Preparar paquete y las firmas
+#   salen tal cual, con su Content-Length.
+# - Una respuesta que ya trae Content-Encoding no se toca: los estáticos de
+#   MapStaticAssets que Kestrel sirve ya precomprimidos (.br/.gz) pasan sin
+#   recomprimir. Tampoco una con Cache-Control no-transform.
+# - Un handshake de WebSocket (con Sec-WebSocket-Key) solo admite identity: el
+#   upgrade de /_blazor y los marcos del circuito no pasan por aquí. La
+#   compresión de esos marcos (permessage-deflate) la negocian el navegador y
+#   Kestrel, no este bloque. El negotiate de SignalR (JSON) sí se comprime.
+# - Al comprimir, Caddy quita Content-Length y Accept-Ranges de la respuesta.
+#   Ningún código de la aplicación lee el Content-Length de su propia
+#   respuesta; los que lo miran son de PETICIONES (demo, webhooks), y encode
+#   no toca las peticiones.
+# - @sin_rango: una petición con Range (visor de PDF, reanudar una descarga)
+#   no se comprime. Encode no distingue un 206: comprimiría el trozo, y su
+#   Content-Range, que cuenta bytes sin comprimir, dejaría de cuadrar. Afecta
+#   a un adjunto de Comunicaciones de tipo text/* o JSON, que se sirve con
+#   enableRangeProcessing.
+#
+# BREACH y CRIME (OWASP ASVS 4.0.3 V9.1, V14.4; WSTG-CRYP-01). BREACH extrae
+# un secreto ESTABLE de una respuesta comprimida que además refleja entrada
+# del atacante, midiendo su longitud en muchas peticiones. El secreto que
+# lleva el HTML, el token antifalsificación, no es estable: Antiforgery lo
+# serializa con IDataProtector.Protect (DefaultAntiforgeryTokenSerializer) y
+# Data Protection genera un modificador de clave y un IV aleatorios en cada
+# llamada, así que cambia en cada respuesta. Lo mismo vale para los
+# marcadores de componente de Blazor y el estado persistido, y para los retos
+# antiabuso del alta autónoma (Protect con carga aleatoria). Además, la
+# cookie de sesión es SameSite=Lax: una petición de subrecurso entre sitios
+# (img, script, fetch) no la lleva, y es la vía con la que BREACH lanza sus
+# miles de peticiones. CRIME ataca la compresión de TLS o de las cabeceras,
+# no la del cuerpo, y Caddy no comprime cabeceras.
+(comprimir) {
+	@sin_rango not header Range *
+	encode @sin_rango zstd gzip
+}
+
 {$DOMINIO} {
+	import comprimir
 	reverse_proxy {
 		import /etc/caddy/ranuras/produccion.caddy
 		import relevo_app
@@ -79,6 +127,7 @@ staging.talveg.es {
 	# Caddyfile y su .env son de producción — no tiene sentido acoplar el .env
 	# de producción a una variable que solo staging necesita. Cambiarlo aquí
 	# si el subdominio de staging cambia alguna vez.
+	import comprimir
 	reverse_proxy {
 		import /etc/caddy/ranuras/staging.caddy
 		import relevo_app
@@ -98,9 +147,11 @@ staging.talveg.es {
 # entero (rm -rf + mv) deja al contenedor viendo el viejo hasta recrearlo,
 # igual que pasa con un bind de fichero suelto.
 #
-# Los bloques de la aplicación ({$DOMINIO} y staging.talveg.es) no cambian:
-# estos dos bloques solo añaden nombres de sitio nuevos, con su certificado
-# propio, y no comparten cabeceras ni rutas con ellos.
+# Estos dos bloques solo añaden nombres de sitio nuevos, con su certificado
+# propio, y no comparten cabeceras ni rutas con los de la aplicación
+# ({$DOMINIO} y staging.talveg.es). Solo comparten la compresión (snippet
+# comprimir, con su excepción de Range): la web es HTML y CSS estáticos, sin
+# sesión ni secretos, así que BREACH no tiene nada que extraer.
 #
 # Cabeceras de seguridad aquí y no en los HTML, para que valgan también en
 # fuentes, imágenes y la página de error. Sin Content-Security-Policy de
@@ -121,7 +172,7 @@ staging.talveg.es {
 
 talveg.es {
 	root * /srv/talveg-web
-	encode zstd gzip
+	import comprimir
 	import cabeceras_web_publica
 
 	# Caché larga solo para /estatico/ (fuentes, imágenes, JS). Lo demás (el

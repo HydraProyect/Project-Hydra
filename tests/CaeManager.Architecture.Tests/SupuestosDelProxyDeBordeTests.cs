@@ -42,6 +42,49 @@ public class SupuestosDelProxyDeBordeTests
             "cambia de qué cabecera sale la IP del cliente, con el mismo efecto que trusted_proxies");
     }
 
+    /// <summary>
+    /// La compresión del borde (ver la cabecera del snippet <c>comprimir</c> en el
+    /// Caddyfile): un solo <c>encode</c>, el del snippet, con la excepción de las
+    /// peticiones con <c>Range</c>, importado en los tres sitios que sirven
+    /// contenido. Un <c>encode</c> suelto en otro bloque comprimiría también los
+    /// 206 parciales, cuyo <c>Content-Range</c> cuenta bytes sin comprimir.
+    /// </summary>
+    [Theory]
+    [InlineData("{$DOMINIO} {")]
+    [InlineData("staging.talveg.es {")]
+    [InlineData("talveg.es {")]
+    public void El_sitio_comprime_con_el_snippet_que_excluye_Range(string cabeceraDelSitio)
+    {
+        var lineas = File.ReadAllText(RutaDeDespliegue("Caddyfile")).Replace("\r\n", "\n").Split('\n');
+
+        var snippet = BloqueDeNivelSuperior(lineas, "(comprimir) {");
+        snippet.Should().Contain("\t@sin_rango not header Range *")
+            .And.Contain("\tencode @sin_rango zstd gzip");
+
+        lineas.Count(l => l.TrimStart().StartsWith("encode ", StringComparison.Ordinal)).Should().Be(1,
+            "el único encode es el del snippet: uno suelto en un sitio no llevaría la excepción de Range");
+
+        BloqueDeNivelSuperior(lineas, cabeceraDelSitio).Should().Contain("\timport comprimir",
+            $"el sitio '{cabeceraDelSitio}' tiene que comprimir con el snippet");
+    }
+
+    /// <summary>
+    /// Las líneas de un bloque de primer nivel del Caddyfile, desde su cabecera
+    /// exacta hasta la llave que lo cierra en la columna 0. Comparación exacta
+    /// de línea: "talveg.es {" no debe casar con "staging.talveg.es {".
+    /// </summary>
+    private static string[] BloqueDeNivelSuperior(string[] lineas, string cabecera)
+    {
+        var inicio = Array.IndexOf(lineas, cabecera);
+        inicio.Should().BeGreaterThan(-1,
+            $"sin encontrar '{cabecera}' este trinquete daría verde sin haber mirado nada");
+
+        var fin = Array.IndexOf(lineas, "}", inicio);
+        fin.Should().BeGreaterThan(inicio, $"el bloque '{cabecera}' tiene que cerrarse");
+
+        return lineas[(inicio + 1)..fin];
+    }
+
     [Theory]
     // Las dos ranuras de cada entorno (P1-F2). La verde hereda la definición de
     // la azul con `extends`: un `ports:` en la azul lo publica también la verde y
