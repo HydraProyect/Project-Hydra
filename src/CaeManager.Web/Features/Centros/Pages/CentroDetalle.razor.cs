@@ -268,7 +268,38 @@ public partial class CentroDetalle : CaeManager.Web.Components.PaginaInteractiva
     private IReadOnlyList<BreadcrumbElemento> Miguero =>
         new[] { new BreadcrumbElemento("Centros"), new BreadcrumbElemento(_detalle?.Nombre ?? "…") };
 
-    protected override void OnInitialized() => _cancelacion = _ciclo.Token;
+    protected override void OnInitialized()
+    {
+        _cancelacion = _ciclo.Token;
+        WorkspaceService.OnEntidadGuardada += AlGuardarEntidad;
+    }
+
+    /// <summary>
+    /// El panel «Requisitos del Centro» vive en MainLayout y guarda sin pasar por esta página: avisa por
+    /// <see cref="ContextWorkspaceService.OnEntidadGuardada"/> (mismo patrón que los listados). Sin este aviso, las pestañas
+    /// «Requisitos» y «Documentación», y los bloqueos, seguían enseñando lo anterior hasta recargar la página.
+    /// </summary>
+    private void AlGuardarEntidad(EntidadWorkspace tipo, Guid id)
+    {
+        if (tipo == EntidadWorkspace.Centro && id == CentroId)
+            _ = InvokeAsync(RecargarTrasGuardarEnPanelAsync);
+    }
+
+    private async Task RecargarTrasGuardarEnPanelAsync()
+    {
+        try
+        {
+            _lecturaRequisitosCentro = null;
+            _lecturaDocumentacionCentro = null;
+            await CargarAsync();
+            await CargarLecturasFase2Async();
+            StateHasChanged();
+        }
+        catch (Exception)
+        {
+            // El guardado ya es firme: que falle la relectura no es un error que enseñar; la pestaña conserva lo anterior.
+        }
+    }
 
     /// <summary>
     /// Solo recarga cuando cambia el centro. Los filtros de la barra de trabajo
@@ -510,6 +541,7 @@ public partial class CentroDetalle : CaeManager.Web.Components.PaginaInteractiva
     /// </summary>
     public void Dispose()
     {
+        WorkspaceService.OnEntidadGuardada -= AlGuardarEntidad;
         InvalidarCargas();
         _ciclo.Cancel();
         _ciclo.Dispose();

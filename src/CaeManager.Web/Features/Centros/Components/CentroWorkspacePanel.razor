@@ -250,6 +250,14 @@ else
                                         <Badge Tono="TonoBadge.Peligro">Bloquea acceso</Badge>
                                     }
                                 </div>
+                                @if (item.Archivado)
+                                {
+                                    @* Solo llega aquí un archivado que este centro ya exige: se puede desmarcar, no volver a marcar. *@
+                                    <p class="workspace-metrica-inline" data-testid="requisito-archivado">
+                                        Tipo archivado: @(item.NombreSustituto is { } sustituto ? $"sustituido por {sustituto}" : "sin sustituto").
+                                        Desmárcalo para dejar de exigirlo@(item.NombreSustituto is null ? "." : $" y exige {item.NombreSustituto}.")
+                                    </p>
+                                }
                                 @if (item.PeriodicidadEspecialMeses is { } meses)
                                 {
                                     <p class="workspace-metrica-inline">Renovación cada @meses mes(es) en este centro</p>
@@ -1193,7 +1201,9 @@ else
         {
             var resultado = await Mediator.Send(new ObtenerDocumentacionRequeridaDeCentroQuery(idSolicitado));
             if (idSolicitado == EntidadId)
-                _documentacion = resultado ?? [];
+                // Un tipo archivado que este centro no exige no se ofrece para marcarlo (el Command lo rechaza); la Query
+                // ya no lo devuelve, y esta guarda evita ofrecerlo si algún día lo devolviera.
+                _documentacion = (resultado ?? []).Where(r => !r.Archivado || r.Aplica).ToList();
         }
         catch (Exception)
         {
@@ -1354,6 +1364,8 @@ else
             }
 
             ToastService.Mostrar(Textos["RequisitoGuardadoToast"].Value, TonoToast.Exito);
+            // La pestaña «Requisitos» de Centro 360 se recarga con este aviso (el panel guarda sin pasar por la página).
+            WorkspaceService.NotificarEntidadGuardada(EntidadWorkspace.Centro, EntidadId);
 
             _drawerDocVisible = false;
             await CargarDocumentacionAsync();
@@ -1418,6 +1430,7 @@ else
         }
 
         ToastService.Mostrar($"\"{item.Nombre}\" vuelve a seguir el criterio global del tenant.", TonoToast.Exito);
+        WorkspaceService.NotificarEntidadGuardada(EntidadWorkspace.Centro, EntidadId);
         await CargarDocumentacionAsync();
         await CargarEstadoAsync();
     }
