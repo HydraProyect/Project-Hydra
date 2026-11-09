@@ -247,7 +247,17 @@
                         }
                         else if (_requisitosCentro.Count == 0)
                         {
-                            <EstadoVacio Titulo="@Textos["RequisitosCentroVacio360"]" />
+                            @* Sin requisitos es justo cuando hace falta abrir el panel: «Gestionar requisitos» también aquí (salvo sin gestión CAE, que no exige nada). *@
+                            @if (_detalle.GestionCae == ModalidadGestionCae.SinGestionCae)
+                            {
+                                <EstadoVacio Titulo="@Textos["RequisitosCentroVacio360"]" />
+                            }
+                            else
+                            {
+                                <EstadoVacio Titulo="@Textos["RequisitosCentroVacio360"]">
+                                    <Accion><SoloConEscritura><Boton Variante="VarianteBoton.Secundario" OnClick="AbrirRequisitos">@Textos["GestionarRequisitos360"]</Boton></SoloConEscritura></Accion>
+                                </EstadoVacio>
+                            }
                         }
                         else
                         {

@@ -138,11 +138,13 @@
     margin-left: auto;
     display: inline-flex;
     color: var(--color-text-muted);
+    /* Regla de los chevrons de desplegar (2026-10-18): cerrado a la derecha, abierto hacia abajo. */
     transition: transform var(--motion-transition) var(--ease-fluid);
+    transform: rotate(-90deg);
 }
 
 .centro-requisitos-bloque[open] > .centro-requisitos-cabecera .centro-requisitos-chevron {
-    transform: rotate(180deg);
+    transform: rotate(0deg);
 }
 
 @media (prefers-reduced-motion: reduce) {

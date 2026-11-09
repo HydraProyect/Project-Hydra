@@ -320,6 +320,30 @@ public partial class Centro360Gen2Tests
         cut.FindAll(".centro-requisito").Should().ContainSingle();
     }
 
+    [Theory]
+    [InlineData(false, true)]
+    [InlineData(true, false)]
+    public async Task Sin_requisitos_Gestionar_requisitos_se_ofrece_salvo_sin_gestion_CAE(bool sinGestionCae, bool seOfrece)
+    {
+        var id = Guid.NewGuid();
+        var mediador = Registrar(new MediatorFalso());
+        mediador.Detalles[id] = sinGestionCae
+            ? Detalle(id, "Centro Sur") with { GestionCae = CaeManager.Domain.Centros.ModalidadGestionCae.SinGestionCae }
+            : Detalle(id, "Centro Sur");
+        Services.GetRequiredService<NavigationManager>().NavigateTo($"centros/{id}?pestana=requisitos");
+        var cut = Renderizar(id);
+
+        cut.Markup.Should().Contain("Sin requisitos documentales aplicables", "control positivo: es el estado vacío");
+        var botones = cut.FindAll(".estado-vacio button").Where(b => b.TextContent.Trim() == "Gestionar requisitos").ToList();
+        botones.Should().HaveCount(seOfrece ? 1 : 0);
+        if (seOfrece)
+        {
+            await botones[0].ClickAsync(new MouseEventArgs());
+            Services.GetRequiredService<ContextWorkspaceService>().FrameActual
+                .Should().Be(new WorkspaceFrame(EntidadWorkspace.Centro, id, "Centro Sur", "requisitos"));
+        }
+    }
+
     [Fact]
     public void La_pestana_conserva_la_introduccion_del_maquetado()
     {
