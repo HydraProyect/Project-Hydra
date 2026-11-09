@@ -184,9 +184,10 @@ public class RenovacionSuscripcionWebhookHostedService(
     }
 
     /// <summary>
-    /// Un fallo transitorio (429, 5xx, red, tiempo agotado, cuerpo ilegible) solo queda en el registro y se reintenta en
-    /// el siguiente ciclo; uno definitivo pasa la conexión a ConError con la marca del hueco en min(ahora, expiración de
-    /// la suscripción). La regla vive en <see cref="CompletarIdentidadBuzonService.MarcarConErrorDeRenovacion"/>.
+    /// Un fallo transitorio (429, 5xx, red, tiempo agotado, cuerpo ilegible) queda en el registro y se reintenta en el
+    /// siguiente ciclo; si la suscripción ya expiró, además marca el hueco en su expiración (disparador b). Uno definitivo
+    /// marca el hueco en min(ahora, expiración de la suscripción) y pasa la conexión a ConError. La regla vive en
+    /// <see cref="CompletarIdentidadBuzonService.MarcarConErrorDeRenovacion"/>.
     /// </summary>
     private static void MarcarConErrorSiDefinitivo(ConexionIntegracion conexion, SuscripcionWebhook suscripcion, Error error) =>
         CompletarIdentidadBuzonService.MarcarConErrorDeRenovacion(conexion, error, suscripcion.FechaExpiracionUtc, DateTime.UtcNow);

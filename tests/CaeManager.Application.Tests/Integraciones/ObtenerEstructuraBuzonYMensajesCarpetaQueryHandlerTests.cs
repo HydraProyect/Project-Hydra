@@ -164,4 +164,63 @@ public class ObtenerEstructuraBuzonYMensajesCarpetaQueryHandlerTests
 
         resultado.EsExitoso.Should().BeTrue();
     }
+
+    private static (ConexionIntegracion Conexion, ConexionIntegracionRepositorioFalso Repositorio, Microsoft365GraphClientFalso Graph, AccesoGraphService Acceso) CompartidoVerificado()
+    {
+        var conexion = ConexionIntegracion.CrearBuzonCompartido(
+            "piloto@tenant.com", "Buzón piloto", Guid.NewGuid().ToString(), Guid.NewGuid());
+        var conexionRepositorio = new ConexionIntegracionRepositorioFalso();
+        conexionRepositorio.Agregar(conexion.Verificada());
+        var graphClient = new Microsoft365GraphClientFalso();
+        return (conexion, conexionRepositorio, graphClient, new AccesoGraphService(new CredencialIntegracionRepositorioFalso(), graphClient));
+    }
+
+    /// <summary>
+    /// N: la conexión deja de estar operativa (desconectada o en ConError por otro proceso) mientras se obtiene el token.
+    /// Las dos consultas releen la conexión después del token y antes de llamar a Graph, y no leen el buzón.
+    /// </summary>
+    [Fact]
+    public async Task Las_dos_consultas_releen_la_conexion_tras_el_token_y_no_leen_si_ya_no_esta_operativa()
+    {
+        var (conexion, conexionRepositorio, graphClient, accesoGraph) = CompartidoVerificado();
+        conexionRepositorio.NoOperativasEnBase.Add(conexion.Id);
+
+        var estructura = await new ObtenerEstructuraBuzonQueryHandler(
+                conexionRepositorio, accesoGraph, graphClient, new AlcanceDatosServiceFalso(), new UnitOfWorkFalso())
+            .Handle(new ObtenerEstructuraBuzonQuery(conexion.Id), CancellationToken.None);
+        var mensajes = await new ObtenerMensajesCarpetaQueryHandler(
+                conexionRepositorio, accesoGraph, graphClient, new AlcanceDatosServiceFalso(), new UnitOfWorkFalso())
+            .Handle(new ObtenerMensajesCarpetaQuery(conexion.Id, "carpeta-1"), CancellationToken.None);
+
+        estructura.Error.Codigo.Should().Be(ErroresBuzonSinVerificar.Codigo);
+        mensajes.Error.Codigo.Should().Be(ErroresBuzonSinVerificar.Codigo);
+        conexionRepositorio.VecesReleido.Should().Be(2);
+        graphClient.BuzonesUsados.Should().BeEmpty();
+        graphClient.ListadosPedidos.Should().BeEmpty();
+    }
+
+    /// <summary>N: el listado de carpetas pide las hijas de cada carpeta; la puerta se vuelve a pasar antes de cada petición.</summary>
+    [Fact]
+    public async Task El_listado_de_carpetas_corta_si_la_conexion_deja_de_estar_operativa_entre_peticiones()
+    {
+        var (conexion, conexionRepositorio, graphClient, accesoGraph) = CompartidoVerificado();
+        graphClient.CarpetasADevolver =
+        [
+            new CarpetaGraphDto("inbox", "Bandeja de entrada", null, 0, 1),
+            new CarpetaGraphDto("archivo", "Archivo", null, 0, 1)
+        ];
+        conexionRepositorio.AlReleer = vez =>
+        {
+            if (vez >= 2)
+                conexionRepositorio.NoOperativasEnBase.Add(conexion.Id);
+        };
+
+        var estructura = await new ObtenerEstructuraBuzonQueryHandler(
+                conexionRepositorio, accesoGraph, graphClient, new AlcanceDatosServiceFalso(), new UnitOfWorkFalso())
+            .Handle(new ObtenerEstructuraBuzonQuery(conexion.Id), CancellationToken.None);
+
+        estructura.EsFallido.Should().BeTrue();
+        estructura.Error.Codigo.Should().Be(ErroresBuzonSinVerificar.Codigo);
+        conexionRepositorio.VecesReleido.Should().Be(2, "una tras el token y la primera puerta entre peticiones");
+    }
 }

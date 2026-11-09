@@ -173,7 +173,13 @@ public interface IMicrosoft365GraphClient
     /// como mucho una subcarpeta propia) sin la complejidad de recorrer un
     /// árbol de profundidad arbitraria.
     /// </summary>
-    Task<Result<IReadOnlyList<CarpetaGraphDto>>> ListarCarpetasAsync(string accessToken, BuzonGraph buzon, CancellationToken cancellationToken);
+    /// <remarks>
+    /// Son varias peticiones (la lista de primer nivel y una por cada carpeta para sus hijas). Entre una y otra la conexión
+    /// puede pasar a ConError o desconectarse: <paramref name="puertaEntrePeticiones"/> se evalúa antes de cada petición
+    /// de hijas, y si devuelve false o lanza, el listado se corta con <see cref="ErroresBuzonSinVerificar"/>.
+    /// </remarks>
+    Task<Result<IReadOnlyList<CarpetaGraphDto>>> ListarCarpetasAsync(
+        string accessToken, BuzonGraph buzon, Func<CancellationToken, Task<bool>> puertaEntrePeticiones, CancellationToken cancellationToken);
 
     /// <summary>Historial de una carpeta (más recientes primero) — para consultar cadenas antiguas sin salir a Outlook.</summary>
     Task<Result<IReadOnlyList<MensajeResumenGraphDto>>> ListarMensajesAsync(
@@ -224,8 +230,18 @@ public interface IMicrosoft365GraphClient
 /// <summary>Códigos de error de <see cref="IMicrosoft365GraphClient"/> que un llamador trata de forma distinta al resto.</summary>
 public static class CodigosErrorMicrosoft365
 {
-    /// <summary>Graph respondió 404 al leer un mensaje: ya no existe. Cualquier otro fallo de lectura es transitorio o de permiso.</summary>
+    /// <summary>
+    /// Graph respondió 404 con <c>ErrorItemNotFound</c> al leer un mensaje: el buzón existe y el mensaje ya no. Cualquier
+    /// otro fallo de lectura es transitorio, de permiso o <see cref="BuzonNoEncontrado"/>.
+    /// </summary>
     public const string MensajeNoEncontrado = "Integraciones.Microsoft365.MensajeNoEncontrado";
+
+    /// <summary>
+    /// Graph respondió 404 al leer un mensaje sin decir que lo que falta es el mensaje (<c>ResourceNotFound</c>,
+    /// <c>MailboxNotEnabledForRESTAPI</c>, <c>ErrorInvalidUser</c>, un cuerpo ilegible...): puede ser el buzón el que ya
+    /// no existe. No resuelve el evento.
+    /// </summary>
+    public const string BuzonNoEncontrado = "Integraciones.Microsoft365.BuzonNoEncontrado";
 
     /// <summary>El buzón está fuera del alcance del token (403/404 en su Bandeja de entrada).</summary>
     public const string SinAccesoBuzon = "Integraciones.Microsoft365.SinAccesoBuzon";

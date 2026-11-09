@@ -38,7 +38,8 @@ public class ReactivarConexionCommandHandler(
     IUnitOfWork unitOfWork,
     AccesoGraphService accesoGraph,
     IMicrosoft365GraphClient graphClient,
-    IEventoWebhookRepository eventoRepositorio)
+    IEventoWebhookRepository eventoRepositorio,
+    ICerrojoVerificacionBuzon cerrojo)
     : IRequestHandler<ReactivarConexionCommand, Result>
 {
     public async Task<Result> Handle(ReactivarConexionCommand request, CancellationToken cancellationToken)
@@ -53,6 +54,21 @@ public class ReactivarConexionCommandHandler(
         if (!await alcanceDatos.ConexionIntegracionVisibleAsync(conexion.Id, cancellationToken))
             return Result.Fallo(Error.Crear("ConexionIntegracion.NoEncontrada", "No encontramos esta conexión."));
 
+        if (conexion.Proveedor != ProveedorIntegracion.Microsoft365)
+            return await ReactivarAsync(conexion, cancellationToken);
+
+        // Reactivar verifica la identidad del buzón: nunca a la vez que el ciclo diario o el reintento de la misma
+        // conexión, en ninguna réplica. Si otra verificación está en curso, no se espera: se pide volver a intentarlo.
+        Result? resultado = null;
+        if (!await cerrojo.IntentarEjecutarAsync(conexion.Id, async ct => resultado = await ReactivarAsync(conexion, ct), cancellationToken))
+            return Result.Fallo(Error.Crear(
+                CodigoVerificacionEnCurso, "Ya estamos comprobando este buzón en Microsoft. Inténtalo de nuevo en unos segundos."));
+
+        return resultado!;
+    }
+
+    private async Task<Result> ReactivarAsync(ConexionIntegracion conexion, CancellationToken cancellationToken)
+    {
         // Solo Deshabilitada libera la reclamación (ver DesconectarBuzonCommandHandler)
         // — ConError nunca la libera, así que reactivar desde ConError no
         // necesita reclamar de nuevo.
@@ -93,9 +109,7 @@ public class ReactivarConexionCommandHandler(
 
         var veniaSinVerificar = !conexion.OperativaVerificada(DateTime.UtcNow);
 
-        // Una Habilitada con la verificación ya caducada dejó de estar operativa en la caducidad: se registra antes de
-        // renovar la verificación, que ya no lo dejaría ver. Mismo criterio que el ciclo de verificación.
-        conexion.RegistrarCaducidadVerificacion(DateTime.UtcNow);
+        // Una verificación caducada no marca hueco: mientras estuvo sin verificar, su correo esperó en la cola.
         conexion.Rehabilitar();
         if (conexion.Proveedor == ProveedorIntegracion.Microsoft365)
             conexion.MarcarIdentidadVerificada(DateTime.UtcNow);
@@ -160,4 +174,5 @@ public class ReactivarConexionCommandHandler(
 
     public const string CodigoReconexionNecesaria = "Integraciones.Microsoft365.ReconexionNecesaria";
     public const string CodigoSinComprobacion = "Integraciones.Microsoft365.BuzonSinComprobar";
+    public const string CodigoVerificacionEnCurso = "Integraciones.Microsoft365.VerificacionEnCurso";
 }

@@ -411,6 +411,8 @@ public class LlamadasAAmbitoTenantExplicitoCongeladasTests
             new(Categoria.JobDeFondoSobreEnumeracionPropia, "tenantId del EventoWebhook que procesa"),
         ["src/CaeManager.Infrastructure/Integraciones/RenovacionSuscripcionWebhookHostedService.cs"] =
             new(Categoria.JobDeFondoSobreEnumeracionPropia, "2 llamadas — tenantId del bucle que recorre los Tenants activos desde el propio servicio: una para completar la identidad de los buzones antiguos, en su propio ámbito, y otra para renovar sus suscripciones"),
+        ["src/CaeManager.Infrastructure/Integraciones/ReintentoVerificacionIdentidadBuzonHostedService.cs"] =
+            new(Categoria.JobDeFondoSobreEnumeracionPropia, "tenantId del bucle que recorre los Tenants activos desde el propio servicio, un CreateScope por Tenant propietario, mismo patrón que RenovacionSuscripcionWebhookHostedService (2026-11-09: reintento acotado de la verificación de identidad de los buzones de Microsoft 365, para que un fallo transitorio no bloquee la conexión hasta el ciclo diario siguiente)"),
         ["src/CaeManager.Infrastructure/Retencion/RetencionHostedService.cs"] =
             new(Categoria.JobDeFondoSobreEnumeracionPropia, "3 llamadas — tenantId del bucle que recorre todos los tenants activos desde el propio servicio (HO-084-01, REC-084)"),
         ["src/CaeManager.Infrastructure/VigilanciaNormativa/VigilanciaNormativaBoeHostedService.cs"] =

@@ -75,7 +75,7 @@ public class Microsoft365BuzonCompartidoRutasTests
     {
         var handler = new AnotaPeticionesHandler(cuerpo: """{"value":[]}""");
 
-        var resultado = await Cliente(handler).ListarCarpetasAsync("token", Compartido, CancellationToken.None);
+        var resultado = await Cliente(handler).ListarCarpetasAsync("token", Compartido, _ => Task.FromResult(true), CancellationToken.None);
 
         resultado.EsExitoso.Should().BeTrue();
         handler.Peticiones.Should().NotBeEmpty()
@@ -537,12 +537,13 @@ public class Microsoft365BuzonCompartidoRutasTests
         CodigosErrorMicrosoft365.EsTransitorio(resultado.Error).Should().BeTrue();
     }
 
+    /// <summary>Un 404 sin código de Graph («{}») no dice qué falta: puede ser el buzón y no se da por borrado (R).</summary>
     [Theory]
-    [InlineData(HttpStatusCode.NotFound, "Integraciones.Microsoft365.MensajeNoEncontrado")]
+    [InlineData(HttpStatusCode.NotFound, "Integraciones.Microsoft365.BuzonNoEncontrado")]
     [InlineData(HttpStatusCode.Forbidden, "Integraciones.Microsoft365.ErrorApi")]
     [InlineData(HttpStatusCode.TooManyRequests, "Integraciones.Microsoft365.ErrorApi")]
     [InlineData(HttpStatusCode.ServiceUnavailable, "Integraciones.Microsoft365.ErrorApi")]
-    public async Task Leer_un_mensaje_solo_da_por_borrado_el_404(HttpStatusCode estado, string codigo)
+    public async Task Leer_un_mensaje_no_da_por_borrado_un_404_sin_codigo_ni_ningun_otro_fallo(HttpStatusCode estado, string codigo)
     {
         var resultado = await Cliente(new AnotaPeticionesHandler(estado))
             .ObtenerMensajeAsync("token", Compartido, "msg-1", CancellationToken.None);
@@ -587,5 +588,161 @@ public class Microsoft365BuzonCompartidoRutasTests
 
         resultado.EsFallido.Should().BeTrue();
         resultado.Error.Codigo.Should().Be(codigo);
+    }
+
+    /// <summary>Responde con lo que decida la función para cada petición; anota las peticiones como el otro manejador.</summary>
+    private sealed class RespuestaPorPeticionHandler(Func<HttpRequestMessage, HttpResponseMessage> responder) : HttpMessageHandler
+    {
+        public List<(HttpMethod Metodo, string Url)> Peticiones { get; } = [];
+
+        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+        {
+            Peticiones.Add((request.Method, request.RequestUri!.AbsoluteUri));
+            return Task.FromResult(responder(request));
+        }
+    }
+
+    private static HttpResponseMessage Json(HttpStatusCode estado, string cuerpo) =>
+        new(estado) { Content = new StringContent(cuerpo, Encoding.UTF8, "application/json") };
+
+    /// <summary>
+    /// O: un 200 del endpoint de tokens con JSON válido pero sin el token obligatorio no es un rechazo de Entra (que
+    /// respondería 4xx): es transitorio, como una respuesta ilegible, y no lleva la conexión a ConError.
+    /// </summary>
+    [Theory]
+    [InlineData("""{"token_type":"Bearer","expires_in":3599}""")]
+    [InlineData("""{"access_token":"","expires_in":3599}""")]
+    public async Task Un_200_sin_token_de_aplicacion_es_transitorio(string cuerpo)
+    {
+        var handler = new AnotaPeticionesHandler(cuerpo: cuerpo);
+
+        var resultado = await ClienteConSecreto(handler).ObtenerTokenAplicacionAsync(Guid.NewGuid().ToString(), CancellationToken.None);
+
+        resultado.EsFallido.Should().BeTrue();
+        CodigosErrorMicrosoft365.EsTransitorio(resultado.Error).Should().BeTrue();
+    }
+
+    [Theory]
+    [InlineData("""{"access_token":"a","expires_in":3599}""")]
+    [InlineData("""{"refresh_token":"r","expires_in":3599}""")]
+    [InlineData("""{"expires_in":3599}""")]
+    public async Task Un_200_sin_alguno_de_los_dos_tokens_al_refrescar_es_transitorio(string cuerpo)
+    {
+        var handler = new AnotaPeticionesHandler(cuerpo: cuerpo);
+
+        var resultado = await ClienteConSecreto(handler).RefrescarTokensAsync("refresh", CancellationToken.None);
+
+        resultado.EsFallido.Should().BeTrue();
+        CodigosErrorMicrosoft365.EsTransitorio(resultado.Error).Should().BeTrue();
+    }
+
+    /// <summary>Un 429 con Retry-After lleva la espera pedida en el error, para que la verificación no vuelva antes.</summary>
+    [Fact]
+    public async Task Un_429_con_Retry_After_lleva_la_espera_en_el_error()
+    {
+        var handler = new RespuestaPorPeticionHandler(_ =>
+        {
+            var respuesta = Json((HttpStatusCode)429, """{"error":{"code":"TooManyRequests"}}""");
+            respuesta.Headers.RetryAfter = new System.Net.Http.Headers.RetryConditionHeaderValue(TimeSpan.FromSeconds(120));
+            return respuesta;
+        });
+
+        var identidad = await Cliente(handler).ObtenerIdentidadBuzonAsync("token", Compartido, CancellationToken.None);
+        var token = await ClienteConSecreto(handler).ObtenerTokenAplicacionAsync(Guid.NewGuid().ToString(), CancellationToken.None);
+
+        identidad.EsFallido.Should().BeTrue();
+        identidad.Error.Codigo.Should().NotBe(CodigosErrorMicrosoft365.SinAccesoBuzon, "un 429 no es definitivo");
+        identidad.Error.ReintentarTras.Should().Be(TimeSpan.FromSeconds(120));
+        token.Error.ReintentarTras.Should().Be(TimeSpan.FromSeconds(120));
+    }
+
+    [Fact]
+    public async Task Un_429_sin_Retry_After_no_inventa_una_espera()
+    {
+        var handler = new RespuestaPorPeticionHandler(_ => Json((HttpStatusCode)429, """{"error":{"code":"TooManyRequests"}}"""));
+
+        var identidad = await Cliente(handler).ObtenerIdentidadBuzonAsync("token", Compartido, CancellationToken.None);
+
+        identidad.EsFallido.Should().BeTrue();
+        identidad.Error.ReintentarTras.Should().BeNull();
+    }
+
+    /// <summary>
+    /// R: solo un 404 con <c>ErrorItemNotFound</c> es un mensaje que ya no está. Cualquier otro 404 (buzón inexistente,
+    /// buzón sin REST, usuario inválido, recurso no encontrado o cuerpo ilegible) puede ser del buzón y no se da por
+    /// resuelto.
+    /// </summary>
+    [Theory]
+    [InlineData("""{"error":{"code":"ErrorItemNotFound","message":"The specified object was not found in the store."}}""", CodigosErrorMicrosoft365.MensajeNoEncontrado)]
+    [InlineData("""{"error":{"code":"ResourceNotFound","message":"Resource could not be discovered."}}""", CodigosErrorMicrosoft365.BuzonNoEncontrado)]
+    [InlineData("""{"error":{"code":"MailboxNotEnabledForRESTAPI"}}""", CodigosErrorMicrosoft365.BuzonNoEncontrado)]
+    [InlineData("""{"error":{"code":"ErrorInvalidUser"}}""", CodigosErrorMicrosoft365.BuzonNoEncontrado)]
+    [InlineData("no es json", CodigosErrorMicrosoft365.BuzonNoEncontrado)]
+    [InlineData("", CodigosErrorMicrosoft365.BuzonNoEncontrado)]
+    public async Task Un_404_al_leer_un_mensaje_solo_es_mensaje_eliminado_con_ErrorItemNotFound(string cuerpo, string codigoEsperado)
+    {
+        var handler = new RespuestaPorPeticionHandler(_ => Json(HttpStatusCode.NotFound, cuerpo));
+
+        var resultado = await Cliente(handler).ObtenerMensajeAsync("token", Compartido, "mensaje-1", CancellationToken.None);
+
+        resultado.EsFallido.Should().BeTrue();
+        resultado.Error.Codigo.Should().Be(codigoEsperado);
+    }
+
+    /// <summary>S: cancelar durante el borrado del borrador que no pasó la puerta propaga la cancelación, no un fallo ordinario.</summary>
+    [Fact]
+    public async Task La_cancelacion_pedida_durante_el_borrado_del_borrador_se_propaga()
+    {
+        using var cancelacion = new CancellationTokenSource();
+        var handler = new RespuestaPorPeticionHandler(peticion =>
+        {
+            if (peticion.Method == HttpMethod.Delete)
+            {
+                cancelacion.Cancel();
+                throw new OperationCanceledException(cancelacion.Token);
+            }
+
+            return Json(HttpStatusCode.Created, """{"id":"m1","conversationId":"c1"}""");
+        });
+
+        await FluentActions.Awaiting(() => Cliente(handler).EnviarNuevoMensajeAsync(
+                "token", Compartido, ["contacto@empresa.example"], "Asunto", "<p>Hola</p>", null,
+                _ => Task.FromResult(false), cancelacion.Token))
+            .Should().ThrowAsync<OperationCanceledException>();
+        handler.Peticiones.Select(p => p.Metodo).Should().Equal(HttpMethod.Post, HttpMethod.Delete);
+    }
+
+    /// <summary>Sin cancelación pedida, un fallo del borrado sigue siendo de mejor esfuerzo: el envío falla sin enviar.</summary>
+    [Fact]
+    public async Task Un_fallo_del_borrado_sin_cancelacion_pedida_no_se_propaga()
+    {
+        var handler = new RespuestaPorPeticionHandler(peticion => peticion.Method == HttpMethod.Delete
+            ? throw new TaskCanceledException("tiempo agotado")
+            : Json(HttpStatusCode.Created, """{"id":"m1","conversationId":"c1"}"""));
+
+        var resultado = await Cliente(handler).EnviarNuevoMensajeAsync(
+            "token", Compartido, ["contacto@empresa.example"], "Asunto", "<p>Hola</p>", null, _ => Task.FromResult(false), CancellationToken.None);
+
+        resultado.EsFallido.Should().BeTrue();
+        resultado.Error.Codigo.Should().Be(ErroresBuzonSinVerificar.Codigo);
+    }
+
+    /// <summary>
+    /// N: el listado pide las hijas de cada carpeta en peticiones aparte; antes de cada una vuelve a pasar la puerta, y si
+    /// la conexión ya no está operativa no pide nada más.
+    /// </summary>
+    [Fact]
+    public async Task El_listado_de_carpetas_no_pide_las_hijas_si_la_puerta_se_cierra()
+    {
+        var handler = new AnotaPeticionesHandler(cuerpo: """{"value":[{"id":"inbox","displayName":"Bandeja de entrada","childFolderCount":2}]}""");
+        var puertas = 0;
+
+        var resultado = await Cliente(handler).ListarCarpetasAsync(
+            "token", Compartido, _ => Task.FromResult(++puertas < 1), CancellationToken.None);
+
+        resultado.EsFallido.Should().BeTrue();
+        resultado.Error.Codigo.Should().Be(ErroresBuzonSinVerificar.Codigo);
+        puertas.Should().Be(1);
+        handler.Peticiones.Should().ContainSingle("solo la petición de las carpetas raíz, ninguna de las hijas");
     }
 }

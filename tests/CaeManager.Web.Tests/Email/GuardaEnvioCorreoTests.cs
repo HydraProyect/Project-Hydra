@@ -156,7 +156,7 @@ public class GuardaEnvioCorreoTests
     [Fact]
     public async Task Cerrada_no_corta_lo_que_no_es_un_envio()
     {
-        var resultado = await GuardaGraph(new EspiaGraph(), Opciones(null)).ListarCarpetasAsync("t", new BuzonGraph("b", false), default);
+        var resultado = await GuardaGraph(new EspiaGraph(), Opciones(null)).ListarCarpetasAsync("t", new BuzonGraph("b", false), _ => Task.FromResult(true), default);
 
         resultado.EsExitoso.Should().BeTrue();
     }
@@ -391,7 +391,7 @@ public class GuardaEnvioCorreoTests
             return Task.FromResult(Result.Exito(new MensajeEnviadoGraphDto("mensaje", "hilo")));
         }
 
-        public Task<Result<IReadOnlyList<CarpetaGraphDto>>> ListarCarpetasAsync(string accessToken, BuzonGraph buzon, CancellationToken cancellationToken) =>
+        public Task<Result<IReadOnlyList<CarpetaGraphDto>>> ListarCarpetasAsync(string accessToken, BuzonGraph buzon, Func<CancellationToken, Task<bool>> puertaEntrePeticiones, CancellationToken cancellationToken) =>
             Task.FromResult(Result.Exito<IReadOnlyList<CarpetaGraphDto>>([]));
 
         public string ConstruirUrlAutorizacion(string redirectUri, string state) => throw new NotSupportedException();

@@ -4,8 +4,8 @@ using CaeManager.Domain.Integraciones;
 namespace CaeManager.Application.Integraciones;
 
 /// <summary>
-/// La regla de <see cref="ConexionIntegracion.EsOperativaVerificada"/> en forma traducible a SQL, para las consultas que
-/// eligen o recorren conexiones sin cargarlas.
+/// La parte de verificación de <see cref="ConexionIntegracion.EsOperativaVerificada"/> en forma traducible a SQL, para
+/// las consultas que eligen o recorren conexiones sin cargarlas. El estado (Habilitada) lo filtra cada consulta.
 /// </summary>
 public static class ConsultasConexionIntegracion
 {
@@ -22,9 +22,4 @@ public static class ConsultasConexionIntegracion
             || (c.IdentidadVerificadaUtc != null && c.IdentidadVerificadaUtc > limite && c.IdentidadVerificadaUtc <= futuro);
     }
 
-    /// <summary>Habilitadas y con la verificación vigente: las que hoy pueden leer y enviar.</summary>
-    public static IQueryable<ConexionIntegracion> OperativasVerificadas(this IQueryable<ConexionIntegracion> conexiones, DateTime ahoraUtc) =>
-        conexiones
-            .Where(c => c.Estado == EstadoConexionIntegracion.Habilitada)
-            .Where(VerificadaVigente(ahoraUtc));
 }

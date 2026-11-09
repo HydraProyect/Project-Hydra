@@ -78,8 +78,9 @@ public sealed class GuardaEnvioMicrosoft365GraphClient(
         string accessToken, BuzonGraph buzon, string mensajeId, string adjuntoExternoId, CancellationToken cancellationToken) =>
         interno.ObtenerContenidoAdjuntoAsync(accessToken, buzon, mensajeId, adjuntoExternoId, cancellationToken);
 
-    public Task<Result<IReadOnlyList<CarpetaGraphDto>>> ListarCarpetasAsync(string accessToken, BuzonGraph buzon, CancellationToken cancellationToken) =>
-        interno.ListarCarpetasAsync(accessToken, buzon, cancellationToken);
+    public Task<Result<IReadOnlyList<CarpetaGraphDto>>> ListarCarpetasAsync(
+        string accessToken, BuzonGraph buzon, Func<CancellationToken, Task<bool>> puertaEntrePeticiones, CancellationToken cancellationToken) =>
+        interno.ListarCarpetasAsync(accessToken, buzon, puertaEntrePeticiones, cancellationToken);
 
     public Task<Result<IReadOnlyList<MensajeResumenGraphDto>>> ListarMensajesAsync(
         string accessToken, BuzonGraph buzon, string carpetaExternoId, int top, int skip, CancellationToken cancellationToken) =>

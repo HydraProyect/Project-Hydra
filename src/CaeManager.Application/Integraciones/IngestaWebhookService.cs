@@ -65,14 +65,21 @@ public class IngestaWebhookService(
     public const string MotivoEsperaVerificacion =
         "En espera: la identidad del buzón de esta conexión no está verificada; se ingerirá cuando se verifique.";
 
+    /// <summary>
+    /// Motivo que queda en el evento cuando Graph responde 404 sin decir que lo que falta es el mensaje: puede ser el
+    /// buzón el que ya no existe. No se da por resuelto ni se gasta un intento; la verificación de la identidad decide.
+    /// </summary>
+    public const string MotivoEsperaBuzonNoEncontrado =
+        "En espera: Microsoft 365 no encuentra el buzón de esta conexión; se ingerirá cuando se compruebe de nuevo.";
+
     public async Task ProcesarAsync(EventoWebhook evento, CancellationToken cancellationToken)
     {
         try
         {
-            if (await IngerirNotificacionAsync(evento, cancellationToken))
-                evento.MarcarProcesado();
+            if (await IngerirNotificacionAsync(evento, cancellationToken) is { } motivoEspera)
+                evento.EsperarVerificacion(motivoEspera, DateTime.UtcNow);
             else
-                evento.EsperarVerificacion(MotivoEsperaVerificacion, DateTime.UtcNow);
+                evento.MarcarProcesado();
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
@@ -86,15 +93,34 @@ public class IngestaWebhookService(
         {
             logger.LogWarning(ex, "Fallo procesando el evento de webhook {EventoId} (intento {Intento}).", evento.Id, evento.Intentos + 1);
             evento.RegistrarFallo(ex.Message);
+
+            // Si con este fallo agotó sus intentos, su correo no se leerá: es una pérdida real y se marca. Se guarda con
+            // el evento; si la conexión no se puede leer ahora, la excepción sale y el evento no se guarda descartado.
+            await RegistrarHuecoSiDescartadoAsync(evento, conexionRepositorio, cancellationToken);
         }
     }
 
-    /// <returns>false si el evento debe esperar a que su conexión se verifique; true si quedó resuelto.</returns>
-    private async Task<bool> IngerirNotificacionAsync(EventoWebhook evento, CancellationToken cancellationToken)
+    /// <summary>
+    /// Disparador (a) de <see cref="ConexionIntegracion.HuecoPendienteDesdeUtc"/> para un evento que acaba de pasar a
+    /// <see cref="EstadoEventoWebhook.DescartadoDefinitivo"/>, aquí o al recuperarlo estancado: la marca retrocede a su
+    /// recepción − <see cref="ConexionIntegracion.RetrasoMaximoNotificacion"/>, sea cual sea el estado de la conexión.
+    /// </summary>
+    public static async Task RegistrarHuecoSiDescartadoAsync(
+        EventoWebhook evento, IConexionIntegracionRepository conexiones, CancellationToken cancellationToken)
+    {
+        if (evento.Estado != EstadoEventoWebhook.DescartadoDefinitivo)
+            return;
+
+        var conexion = await conexiones.ObtenerPorIdAsync(evento.ConexionIntegracionId, cancellationToken);
+        conexion?.RegistrarNotificacionDescartada(evento.FechaRecepcionUtc);
+    }
+
+    /// <returns>El motivo si el evento debe esperar (sin gastar intentos); null si quedó resuelto.</returns>
+    private async Task<string?> IngerirNotificacionAsync(EventoWebhook evento, CancellationToken cancellationToken)
     {
         var conexion = await conexionRepositorio.ObtenerPorIdAsync(evento.ConexionIntegracionId, cancellationToken);
         if (conexion is null)
-            return true; // se borró entre medias — se descarta sin reintentar, no es un fallo transitorio.
+            return null; // se borró entre medias — se descarta sin reintentar, no es un fallo transitorio.
 
         if (conexion.Estado != EstadoConexionIntegracion.Habilitada)
         {
@@ -109,16 +135,17 @@ public class IngestaWebhookService(
             // transitorio que deba reintentarse, es un descarte de negocio
             // deliberado que se resuelve reactivando la conexión.
             // ConError solo lo ponen ya resultados definitivos (CompletarIdentidadBuzonService) o un fallo de la
-            // renovación. Al pasar a ConError la conexión fijó HuecoPendienteDesdeUtc, y Conexiones avisa de posible
-            // correo no recuperado desde esa fecha: el hueco queda declarado, no se lee (issue #2124). Graph reintenta
-            // la entrega hasta cuatro horas, así que el correo de una notificación descartada pudo llegar hasta cuatro
-            // horas antes de su recepción: la marca retrocede a recepción − 4 h, nunca se adelanta, y se guarda con el
-            // evento. Sobre una Deshabilitada no actúa.
+            // renovación. Descartar el evento es una pérdida real, en ConError y en Deshabilitada (también el que
+            // esperaba verificación cuando se desconectó la conexión): disparador (a) de HuecoPendienteDesdeUtc, y
+            // Conexiones avisa de posible correo no recuperado desde esa fecha. El hueco queda declarado, no se lee
+            // (issue #2124). Graph reintenta la entrega hasta cuatro horas, así que el correo de una notificación
+            // descartada pudo llegar hasta cuatro horas antes de su recepción: la marca retrocede a recepción − 4 h,
+            // nunca se adelanta, y se guarda con el evento.
             conexion.RegistrarNotificacionDescartada(evento.FechaRecepcionUtc);
             logger.LogWarning(
                 "Notificación de webhook {EventoId} descartada: la conexión {ConexionId} está en estado {Estado}.",
                 evento.Id, conexion.Id, conexion.Estado);
-            return true;
+            return null;
         }
 
         // Habilitada pero sin la identidad del buzón verificada hace menos de VentanaVerificacionIdentidad: no se lee
@@ -129,7 +156,7 @@ public class IngestaWebhookService(
             logger.LogWarning(
                 "Notificación de webhook {EventoId} en espera: la identidad del buzón de la conexión {ConexionId} no está verificada.",
                 evento.Id, conexion.Id);
-            return false;
+            return MotivoEsperaVerificacion;
         }
 
         var mensajeIds = graphClient.ExtraerMensajeIdsDeNotificacion(evento.PayloadCrudo);
@@ -138,6 +165,7 @@ public class IngestaWebhookService(
         // que se pueda y, si alguno falló, el evento falla al final y se reintenta. Los ya ingeridos se
         // descartan entonces por duplicado (ExisteMensajeExternoAsync).
         var noLeidos = new List<string>();
+        var buzonNoEncontrado = false;
         foreach (var mensajeId in mensajeIds)
         {
             var accessTokenResultado = await accesoGraph.ObtenerAccessTokenVigenteAsync(conexion, cancellationToken);
@@ -153,29 +181,53 @@ public class IngestaWebhookService(
                 logger.LogWarning(
                     "Notificación de webhook {EventoId} en espera: la conexión {ConexionId} dejó de estar operativa durante la ingesta.",
                     evento.Id, conexion.Id);
-                return false;
+                return MotivoEsperaVerificacion;
             }
 
-            if (await IngerirMensajeAsync(conexion, accessTokenResultado.Valor, mensajeId, cancellationToken) is { } fallo)
+            var lectura = await IngerirMensajeAsync(conexion, accessTokenResultado.Valor, mensajeId, cancellationToken);
+            if (lectura == ResultadoBuzonNoEncontrado)
+                buzonNoEncontrado = true;
+            else if (lectura is { } fallo)
                 noLeidos.Add(fallo);
+        }
+
+        // Un 404 que puede ser del buzón y no del mensaje no da el evento por resuelto ni gasta intentos: espera a que la
+        // verificación de la identidad decida (si el buzón ya no existe, la conexión pasa a ConError y el descarte
+        // posterior lo marca). Va antes que los demás fallos: gastar intentos aquí acabaría en un descarte prematuro.
+        if (buzonNoEncontrado)
+        {
+            logger.LogWarning(
+                "Notificación de webhook {EventoId} en espera: Graph no encuentra el buzón de la conexión {ConexionId}.",
+                evento.Id, conexion.Id);
+            return MotivoEsperaBuzonNoEncontrado;
         }
 
         if (noLeidos.Count > 0)
             throw new InvalidOperationException(string.Join(" | ", noLeidos));
 
-        return true;
+        return null;
     }
 
-    /// <returns>El motivo, si el mensaje no se pudo leer por un fallo que no es un 404; null en otro caso.</returns>
+    /// <summary>Lo que devuelve <see cref="IngerirMensajeAsync"/> cuando Graph no encuentra el buzón (o no dice qué falta).</summary>
+    private const string ResultadoBuzonNoEncontrado = CodigosErrorMicrosoft365.BuzonNoEncontrado;
+
+    /// <returns>
+    /// El motivo, si el mensaje no se pudo leer por un fallo que no es un 404 del mensaje;
+    /// <see cref="ResultadoBuzonNoEncontrado"/> si el 404 puede ser del buzón; null en otro caso.
+    /// </returns>
     private async Task<string?> IngerirMensajeAsync(
         ConexionIntegracion conexion, string accessToken, string mensajeId, CancellationToken cancellationToken)
     {
         var mensajeResultado = await graphClient.ObtenerMensajeAsync(accessToken, BuzonGraph.De(conexion), mensajeId, cancellationToken);
         if (mensajeResultado.EsFallido)
         {
-            // Solo un mensaje que Graph ya no tiene (404: borrado entre la notificación y la ingesta) se
-            // descarta sin reintento. Un 403, un 429, un 5xx o un timeout no dicen nada del mensaje: se
-            // devuelve el motivo y el evento falla al final, para reintentarse.
+            // Solo un mensaje que Graph ya no tiene (404 con ErrorItemNotFound: borrado entre la notificación y la
+            // ingesta) se descarta sin reintento. Un 404 del buzón, o uno que no dice qué falta, no lo resuelve: espera.
+            // Un 403, un 429, un 5xx o un timeout no dicen nada del mensaje: se devuelve el motivo y el evento falla al
+            // final, para reintentarse.
+            if (mensajeResultado.Error.Codigo == CodigosErrorMicrosoft365.BuzonNoEncontrado)
+                return ResultadoBuzonNoEncontrado;
+
             if (mensajeResultado.Error.Codigo != CodigosErrorMicrosoft365.MensajeNoEncontrado)
                 return $"No se pudo leer el mensaje {mensajeId} de Graph: {mensajeResultado.Error.Mensaje}";
 

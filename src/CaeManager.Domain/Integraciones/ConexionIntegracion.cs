@@ -109,14 +109,38 @@ public class ConexionIntegracion : EntidadBase
     public DateTime? IdentidadVerificadaUtc { get; private set; }
 
     /// <summary>
-    /// Desde cuándo puede faltar correo de este buzón: el momento en que la conexión dejó de estar operativa (pasó a
-    /// ConError o caducó su verificación), o antes si la ingesta descartó una notificación más antigua
-    /// (<see cref="RegistrarNotificacionDescartada"/>). Cada escritor solo la retrasa, nunca la adelanta: una segunda
-    /// caída conserva la fecha más antigua. Mientras esté puesta, Conexiones avisa de posible correo no recuperado desde
-    /// esa fecha. El hueco queda declarado, no recuperado: nada lee ese correo ni limpia la marca (ni rehabilitar, ni
-    /// Reactivar, ni Deshabilitar, ni el ciclo de verificación). Null: sin hueco.
+    /// Desde cuándo puede faltar correo de este buzón. Solo la fija una pérdida real, con tres disparadores:
+    /// <list type="bullet">
+    /// <item>(a) la ingesta descarta un evento (conexión en ConError o Deshabilitada, o el evento pasa a
+    /// DescartadoDefinitivo): recepción − <see cref="RetrasoMaximoNotificacion"/>
+    /// (<see cref="RegistrarNotificacionDescartada"/>);</item>
+    /// <item>(b) la suscripción expira o se pierde: min(ahora, expiración) (<see cref="RegistrarPerdidaSuscripcion"/>);</item>
+    /// <item>(c) la conexión pasa a ConError: el momento del ConError (<see cref="MarcarConError"/>).</item>
+    /// </list>
+    /// La simple caducidad de la verificación no la fija: mientras la conexión está sin verificar su correo espera en la
+    /// cola (Pendiente o Retenido) y no se pierde; si después se descarta, lo marca (a). Cada escritor solo la retrasa,
+    /// nunca la adelanta. Mientras esté puesta, Conexiones avisa de posible correo no recuperado desde esa fecha. El hueco
+    /// queda declarado, no recuperado: nada lee ese correo ni limpia la marca. Null: sin hueco.
     /// </summary>
     public DateTime? HuecoPendienteDesdeUtc { get; private set; }
+
+    /// <summary>
+    /// Ninguna verificación automática de la identidad (el ciclo diario ni el reintento) se intenta antes de esta hora.
+    /// Se fija antes de cada intento automático (<see cref="ProgramarReintentoVerificacion"/>: ahora +
+    /// <see cref="IntervaloReintentoVerificacion"/> + un margen aleatorio), se retrasa si Microsoft pide esperar más
+    /// (<see cref="AplazarReintentoVerificacion"/>, Retry-After de un 429) y se vacía al verificarla. Null: sin espera.
+    /// No es un cerrojo: la exclusión entre verificaciones simultáneas la da un advisory lock por conexión.
+    /// </summary>
+    public DateTime? ReintentoVerificacionNoAntesDeUtc { get; private set; }
+
+    /// <summary>
+    /// Una conexión Habilitada cuya última verificación tiene más de esto (o que nunca se verificó) entra en el
+    /// reintento de verificación: deja unas seis horas, en varios intentos, antes de que caduque la ventana de 26 h.
+    /// </summary>
+    public static readonly TimeSpan UmbralReintentoVerificacion = TimeSpan.FromHours(20);
+
+    /// <summary>Cada cuánto, como poco, se reintenta la verificación de una misma conexión que sigue fallando.</summary>
+    public static readonly TimeSpan IntervaloReintentoVerificacion = TimeSpan.FromHours(2);
 
     /// <summary>
     /// Cuánto retrocede la marca del hueco desde la recepción de una notificación descartada: Graph reintenta la entrega
@@ -159,33 +183,65 @@ public class ConexionIntegracion : EntidadBase
         && ahoraUtc - verificada < VentanaVerificacionIdentidad;
 
     /// <summary>
-    /// Habilitada, con una verificación anterior que ya caducó: la conexión dejó de estar operativa al caducar, sin
-    /// ninguna transición explícita. Fija <see cref="HuecoPendienteDesdeUtc"/> en ese momento exacto
-    /// (<see cref="IdentidadVerificadaUtc"/> + <see cref="VentanaVerificacionIdentidad"/>, nunca uno posterior a
-    /// <paramref name="ahoraUtc"/>), sea cual sea el ciclo que lo detecte. Sin verificación previa (null) no hay un
-    /// momento de caída que fijar: sus notificaciones esperan Pendiente o Retenidas, sin perderse.
-    /// </summary>
-    /// <returns>true si la marca cambió.</returns>
-    public bool RegistrarCaducidadVerificacion(DateTime ahoraUtc)
-    {
-        if (Estado != EstadoConexionIntegracion.Habilitada || !RequiereVerificacionIdentidad
-            || IdentidadVerificadaUtc is not { } verificada || IdentidadVerificadaVigente(ahoraUtc))
-            return false;
-
-        var caducidad = verificada + VentanaVerificacionIdentidad;
-        return RegistrarHuecoDesde(caducidad < ahoraUtc ? caducidad : ahoraUtc);
-    }
-
-    /// <summary>
-    /// La ingesta descarta una notificación recibida en <paramref name="recepcionUtc"/> porque la conexión está en
-    /// ConError. Pudo llegar antes de la caída y esperar en la cola (reintentos o espera de verificación), y Graph pudo
-    /// tardar hasta <see cref="RetrasoMaximoNotificacion"/> en entregarla: su correo puede ser anterior a la marca que
-    /// fijó <see cref="MarcarConError"/>. La marca retrocede hasta <paramref name="recepcionUtc"/> menos ese retraso,
-    /// nunca avanza. Deshabilitada no: lo que llega con la conexión desconectada a propósito no se ingiere.
+    /// Disparador (a): la ingesta descarta, sin leerlo, un evento recibido en <paramref name="recepcionUtc"/> (la
+    /// conexión está en ConError o Deshabilitada, también el que esperaba verificación cuando se desconectó, o el evento
+    /// agotó sus intentos y pasó a DescartadoDefinitivo). Graph pudo tardar hasta <see cref="RetrasoMaximoNotificacion"/>
+    /// en entregarlo, así que su correo pudo llegar al buzón ese tiempo antes: la marca retrocede hasta
+    /// <paramref name="recepcionUtc"/> menos ese retraso, nunca avanza. El llamador decide que hubo descarte; aquí no se
+    /// mira el estado.
     /// </summary>
     /// <returns>true si la marca cambió.</returns>
     public bool RegistrarNotificacionDescartada(DateTime recepcionUtc) =>
-        Estado == EstadoConexionIntegracion.ConError && RegistrarHuecoDesde(recepcionUtc - RetrasoMaximoNotificacion);
+        RegistrarHuecoDesde(recepcionUtc - RetrasoMaximoNotificacion);
+
+    /// <summary>
+    /// Disparador (b): la suscripción de la conexión expiró o se perdió (fallo definitivo de su renovación, o su
+    /// expiración ya pasó): desde min(<paramref name="ahoraUtc"/>, <paramref name="expiracionUtc"/>) no llegan
+    /// notificaciones. Retrocede la marca aunque la conexión ya esté en ConError por otro motivo; nunca la adelanta.
+    /// </summary>
+    /// <returns>true si la marca cambió.</returns>
+    public bool RegistrarPerdidaSuscripcion(DateTime expiracionUtc, DateTime ahoraUtc) =>
+        RegistrarHuecoDesde(expiracionUtc < ahoraUtc ? expiracionUtc : ahoraUtc);
+
+    /// <summary>Ninguna verificación automática espera (<see cref="ReintentoVerificacionNoAntesDeUtc"/>) ya.</summary>
+    public bool PuedeReintentarVerificacion(DateTime ahoraUtc) =>
+        ReintentoVerificacionNoAntesDeUtc is not { } noAntesDe || noAntesDe <= ahoraUtc;
+
+    /// <summary>
+    /// Antes de un intento automático de verificación: el siguiente no irá antes de ahora +
+    /// <see cref="IntervaloReintentoVerificacion"/> + <paramref name="margenAleatorio"/>, aunque este proceso se caiga a
+    /// mitad. El margen reparte los reintentos de distintas conexiones y Tenants en el tiempo.
+    /// </summary>
+    public void ProgramarReintentoVerificacion(DateTime ahoraUtc, TimeSpan margenAleatorio)
+    {
+        if (margenAleatorio < TimeSpan.Zero)
+            throw new ArgumentOutOfRangeException(nameof(margenAleatorio), "El margen no puede ser negativo.");
+
+        ReintentoVerificacionNoAntesDeUtc = ahoraUtc + IntervaloReintentoVerificacion + margenAleatorio;
+    }
+
+    /// <summary>
+    /// Primera entrada en el reintento (sin espera programada): el primer intento va tras <paramref name="retraso"/>, no
+    /// ya, para que las conexiones que el ciclo diario verificó en el mismo minuto no reintenten todas a la vez.
+    /// </summary>
+    public void ProgramarPrimerReintentoVerificacion(DateTime ahoraUtc, TimeSpan retraso)
+    {
+        if (retraso < TimeSpan.Zero)
+            throw new ArgumentOutOfRangeException(nameof(retraso), "El retraso no puede ser negativo.");
+
+        ReintentoVerificacionNoAntesDeUtc = ahoraUtc + retraso;
+    }
+
+    /// <summary>
+    /// Microsoft respondió 429 con Retry-After: ninguna verificación automática vuelve a intentarlo antes de
+    /// <paramref name="ahoraUtc"/> + <paramref name="esperaPedida"/>. Solo retrasa la espera ya programada, nunca la adelanta.
+    /// </summary>
+    public void AplazarReintentoVerificacion(DateTime ahoraUtc, TimeSpan esperaPedida)
+    {
+        var noAntesDe = ahoraUtc + (esperaPedida < TimeSpan.Zero ? TimeSpan.Zero : esperaPedida);
+        if (ReintentoVerificacionNoAntesDeUtc is not { } actual || actual < noAntesDe)
+            ReintentoVerificacionNoAntesDeUtc = noAntesDe;
+    }
 
     /// <returns>true si la marca cambió: estaba vacía o era posterior.</returns>
     private bool RegistrarHuecoDesde(DateTime desdeUtc)
@@ -201,23 +257,16 @@ public class ConexionIntegracion : EntidadBase
     }
 
     /// <summary>
-    /// Momento en que la conexión dejó de estar operativa: si estaba Habilitada con una verificación ya caducada, al
-    /// caducar; si no, ahora.
+    /// La identidad leída hoy en Microsoft 365 coincide con <see cref="IdentidadBuzon"/>, que ya está fijada. Vacía la
+    /// espera del reintento: la conexión no vuelve a él hasta que su verificación envejezca.
     /// </summary>
-    private DateTime InicioNoOperativa(DateTime ahoraUtc) =>
-        Estado == EstadoConexionIntegracion.Habilitada && RequiereVerificacionIdentidad
-        && IdentidadVerificadaUtc is { } verificada && !IdentidadVerificadaVigente(ahoraUtc)
-        && verificada + VentanaVerificacionIdentidad < ahoraUtc
-            ? verificada + VentanaVerificacionIdentidad
-            : ahoraUtc;
-
-    /// <summary>La identidad leída hoy en Microsoft 365 coincide con <see cref="IdentidadBuzon"/>, que ya está fijada.</summary>
     public void MarcarIdentidadVerificada(DateTime ahoraUtc)
     {
         if (IdentidadBuzon is null)
             throw new InvalidOperationException("No se puede verificar una conexión sin identidad de buzón.");
 
         IdentidadVerificadaUtc = ahoraUtc;
+        ReintentoVerificacionNoAntesDeUtc = null;
     }
 
     /// <summary>
@@ -295,10 +344,12 @@ public class ConexionIntegracion : EntidadBase
     }
 
     /// <summary>
-    /// Resultado definitivo (de la verificación de identidad o de la renovación de la suscripción): la ingesta descarta
-    /// desde ahora sus notificaciones, así que se fija <see cref="HuecoPendienteDesdeUtc"/> en el momento en que dejó de
-    /// estar operativa, sin adelantar una marca anterior. <paramref name="ahoraUtc"/> puede ser anterior a ahora cuando
-    /// se sabe que dejó de recibir notificaciones antes (la renovación pasa la expiración de su suscripción).
+    /// Resultado definitivo (de la verificación de identidad o de la renovación de la suscripción). Disparador (c): la
+    /// ingesta descarta desde ahora sus notificaciones, así que se fija <see cref="HuecoPendienteDesdeUtc"/> en el
+    /// momento del ConError (<paramref name="ahoraUtc"/>, ahora si no se da), sin adelantar una marca anterior. Aunque la
+    /// verificación hubiera caducado antes, no se marca desde la caducidad: hasta el ConError el correo esperaba en la cola
+    /// sin perderse, y lo que se descarte después lo marca (a) desde su recepción. La pérdida de la suscripción se marca
+    /// aparte (<see cref="RegistrarPerdidaSuscripcion"/>).
     /// </summary>
     public void MarcarConError(string mensaje, DateTime? ahoraUtc = null)
     {
@@ -306,7 +357,7 @@ public class ConexionIntegracion : EntidadBase
             throw new ArgumentException("El error debe describir qué falló.", nameof(mensaje));
 
         if (Estado != EstadoConexionIntegracion.Deshabilitada)
-            RegistrarHuecoDesde(InicioNoOperativa(ahoraUtc ?? DateTime.UtcNow));
+            RegistrarHuecoDesde(ahoraUtc ?? DateTime.UtcNow);
 
         Estado = EstadoConexionIntegracion.ConError;
         UltimoError = mensaje.Length > LongitudMaximaUltimoError ? mensaje[..LongitudMaximaUltimoError] : mensaje;

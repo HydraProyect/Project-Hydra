@@ -16,14 +16,15 @@ public class ReactivarConexionCommandHandlerTests
     private static ReactivarConexionCommandHandler CrearHandler(
         ConexionIntegracionRepositorioFalso conexionRepositorio, AlcanceDatosServiceFalso alcanceDatos,
         UnitOfWorkFalso unitOfWork, ReclamacionBuzonIntegracionRepositorioFalso? reclamacionRepositorio = null,
-        ITenantActual? tenantActual = null, Microsoft365GraphClientFalso? graph = null, EventoWebhookRepositorioFalso? eventos = null)
+        ITenantActual? tenantActual = null, Microsoft365GraphClientFalso? graph = null, EventoWebhookRepositorioFalso? eventos = null,
+        CerrojoVerificacionBuzonFalso? cerrojo = null)
     {
         graph ??= new Microsoft365GraphClientFalso { IdentidadBuzonPropio = "inbox-x" };
         eventos ??= new EventoWebhookRepositorioFalso();
         return new(conexionRepositorio, reclamacionRepositorio ?? new ReclamacionBuzonIntegracionRepositorioFalso(),
             alcanceDatos, tenantActual ?? new TenantActualFalso(TenantId), unitOfWork,
             new AccesoGraphService(new CredencialIntegracionRepositorioFalso { CredencialParaCualquierConexion = true }, graph), graph,
-            eventos);
+            eventos, cerrojo ?? new CerrojoVerificacionBuzonFalso());
     }
 
     [Fact]
@@ -82,16 +83,15 @@ public class ReactivarConexionCommandHandlerTests
     }
 
     /// <summary>
-    /// Reactivar una Habilitada cuya verificación ya caducó: dejó de estar operativa en la caducidad, y eso se registra
-    /// antes de renovar la verificación. Sin ello la verificación nueva taparía el intervalo.
+    /// Reactivar una Habilitada cuya verificación ya caducó: la renueva y no marca hueco. La caducidad sola bloquea, pero
+    /// no pierde correo: los eventos esperaban en la cola.
     /// </summary>
     [Fact]
-    public async Task Reactivar_una_habilitada_con_la_verificacion_caducada_fija_la_marca_en_la_caducidad_antes_de_renovarla()
+    public async Task Reactivar_una_habilitada_con_la_verificacion_caducada_la_renueva_sin_fijar_marca()
     {
         var conexion = new ConexionIntegracion("cae@operador.test", "Buzón CAE");
         conexion.FijarIdentidadBuzon("inbox-x");
         conexion.MarcarIdentidadVerificada(DateTime.UtcNow - ConexionIntegracion.VentanaVerificacionIdentidad - TimeSpan.FromHours(3));
-        var caducidad = conexion.IdentidadVerificadaUtc!.Value + ConexionIntegracion.VentanaVerificacionIdentidad;
         var conexionRepositorio = new ConexionIntegracionRepositorioFalso();
         conexionRepositorio.Agregar(conexion);
         var unitOfWork = new UnitOfWorkFalso();
@@ -101,8 +101,35 @@ public class ReactivarConexionCommandHandlerTests
 
         resultado.EsExitoso.Should().BeTrue();
         conexion.OperativaVerificada(DateTime.UtcNow).Should().BeTrue();
-        conexion.HuecoPendienteDesdeUtc.Should().Be(caducidad);
+        conexion.HuecoPendienteDesdeUtc.Should().BeNull("la caducidad sola no es pérdida: el correo esperaba en la cola");
         unitOfWork.VecesGuardado.Should().BeGreaterThan(0);
+    }
+
+    /// <summary>
+    /// Otra verificación de la misma conexión en curso (el ciclo diario o el reintento, en cualquier réplica): Reactivar
+    /// no llama a Microsoft ni cambia nada, y pide reintentarlo.
+    /// </summary>
+    [Fact]
+    public async Task Con_otra_verificacion_en_curso_Reactivar_no_comprueba_y_pide_reintentar()
+    {
+        var conexion = new ConexionIntegracion("cae@operador.test", "Buzón CAE");
+        conexion.FijarIdentidadBuzon("inbox-x");
+        conexion.MarcarConError("fallo");
+        var conexionRepositorio = new ConexionIntegracionRepositorioFalso();
+        conexionRepositorio.Agregar(conexion);
+        var graph = new Microsoft365GraphClientFalso { IdentidadBuzonPropio = "inbox-x" };
+        var cerrojo = new CerrojoVerificacionBuzonFalso();
+        cerrojo.Ocupadas.Add(conexion.Id);
+        var unitOfWork = new UnitOfWorkFalso();
+        var handler = CrearHandler(conexionRepositorio, new AlcanceDatosServiceFalso(), unitOfWork, graph: graph, cerrojo: cerrojo);
+
+        var resultado = await handler.Handle(new ReactivarConexionCommand(conexion.Id), CancellationToken.None);
+
+        resultado.EsFallido.Should().BeTrue();
+        resultado.Error.Codigo.Should().Be(ReactivarConexionCommandHandler.CodigoVerificacionEnCurso);
+        conexion.Estado.Should().Be(EstadoConexionIntegracion.ConError);
+        graph.TokensDeIdentidad.Should().BeEmpty();
+        unitOfWork.VecesGuardado.Should().Be(0);
     }
 
     [Fact]

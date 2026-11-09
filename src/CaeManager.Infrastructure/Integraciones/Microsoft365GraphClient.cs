@@ -131,14 +131,18 @@ public class Microsoft365GraphClient(
                     "Microsoft Entra ID devolvió {StatusCode} al pedir un token de aplicación: {CodigoError}",
                     (int)respuesta.StatusCode, CodigoErrorGraph.Extraer(cuerpoError));
                 return Result.Fallo<TokenAplicacionGraphDto>(EsRespuestaTransitoria(respuesta.StatusCode)
-                    ? ErrorTransitorio
+                    ? ConEsperaPedida(ErrorTransitorio, respuesta)
                     : Error.Crear("Integraciones.Microsoft365.ErrorAutenticacion", "No pudimos autenticar con Microsoft."));
             }
 
+            // Un 200 con JSON válido pero sin el token no es un rechazo de Entra (que respondería 4xx): es una respuesta
+            // incompleta, como una ilegible, y se reintenta sin pasar la conexión a ConError.
             var cuerpo = await respuesta.Content.ReadFromJsonAsync<RespuestaTokenGraph>(cancellationToken);
-            if (cuerpo?.AccessToken is null)
-                return Result.Fallo<TokenAplicacionGraphDto>(Error.Crear(
-                    "Integraciones.Microsoft365.ErrorAutenticacion", "No pudimos autenticar con Microsoft."));
+            if (string.IsNullOrWhiteSpace(cuerpo?.AccessToken))
+            {
+                logger.LogError("Microsoft Entra ID devolvió un 200 sin access_token al pedir un token de aplicación.");
+                return Result.Fallo<TokenAplicacionGraphDto>(ErrorTransitorio);
+            }
 
             // La concesión de Entra y la de Exchange se suman: con un permiso de aplicación de buzón en Entra el
             // token abre todos los buzones del directorio y el ámbito de RBAC for Applications deja de acotar
@@ -230,13 +234,18 @@ public class Microsoft365GraphClient(
                 var cuerpoError = await respuesta.Content.ReadAsStringAsync(cancellationToken);
                 logger.LogError("Microsoft Entra ID devolvió {StatusCode} al canjear tokens: {CodigoError}", (int)respuesta.StatusCode, CodigoErrorGraph.Extraer(cuerpoError));
                 return Result.Fallo<TokensGraphDto>(EsRespuestaTransitoria(respuesta.StatusCode)
-                    ? ErrorTransitorio
+                    ? ConEsperaPedida(ErrorTransitorio, respuesta)
                     : Error.Crear("Integraciones.Microsoft365.ErrorAutenticacion", "No pudimos autenticar con Microsoft."));
             }
 
+            // Un 200 con JSON válido pero sin alguno de los dos tokens no es un rechazo de Entra (que respondería 4xx):
+            // es una respuesta incompleta, como una ilegible, y se reintenta sin pasar la conexión a ConError.
             var cuerpo = await respuesta.Content.ReadFromJsonAsync<RespuestaTokenGraph>(cancellationToken);
-            if (cuerpo?.AccessToken is null || cuerpo.RefreshToken is null)
-                return Result.Fallo<TokensGraphDto>(Error.Crear("Integraciones.Microsoft365.ErrorAutenticacion", "No pudimos autenticar con Microsoft."));
+            if (string.IsNullOrWhiteSpace(cuerpo?.AccessToken) || string.IsNullOrWhiteSpace(cuerpo.RefreshToken))
+            {
+                logger.LogError("Microsoft Entra ID devolvió un 200 sin access_token o sin refresh_token al canjear tokens.");
+                return Result.Fallo<TokensGraphDto>(ErrorTransitorio);
+            }
 
             // expires_in casi siempre viaja (Entra ID lo manda de serie), pero
             // ante su ausencia se asume el mínimo típico de Graph (1 h) en vez
@@ -322,7 +331,8 @@ public class Microsoft365GraphClient(
                 ? Result.Fallo<string>(Error.Crear(
                     "Integraciones.Microsoft365.SinAccesoBuzon",
                     "No podemos abrir ese buzón: comprueba la dirección y que el administrador de Exchange haya incluido el buzón en el ámbito de la aplicación TALVEG."))
-                : Result.Fallo<string>(Error.Crear("Integraciones.Microsoft365.ErrorApi", "No pudimos leer el buzón conectado."));
+                : Result.Fallo<string>(ConEsperaPedida(
+                    Error.Crear("Integraciones.Microsoft365.ErrorApi", "No pudimos leer el buzón conectado."), respuesta));
         }
         catch (HttpRequestException ex)
         {
@@ -357,6 +367,21 @@ public class Microsoft365GraphClient(
     /// </summary>
     private static readonly Error ErrorTransitorio =
         Error.Crear(CodigosErrorMicrosoft365.Transitorio, "Microsoft no ha podido atender la petición ahora; se reintentará.");
+
+    /// <summary>
+    /// Un 429 con <c>Retry-After</c> (en segundos o como fecha): el error lleva esa espera
+    /// (<see cref="Error.ReintentarTras"/>) para que la verificación de la identidad no vuelva antes. Sin la cabecera, o
+    /// en otro código, el error tal cual.
+    /// </summary>
+    internal static Error ConEsperaPedida(Error error, HttpResponseMessage respuesta)
+    {
+        if (respuesta.StatusCode != System.Net.HttpStatusCode.TooManyRequests || respuesta.Headers.RetryAfter is not { } reintento)
+            return error;
+
+        var espera = reintento.Delta
+            ?? (reintento.Date is { } fecha ? fecha - DateTimeOffset.UtcNow : (TimeSpan?)null);
+        return espera is { } valor && valor > TimeSpan.Zero ? error.ConReintentarTras(valor) : error;
+    }
 
     /// <summary>408, 429 o 5xx: la respuesta no dice nada de la credencial ni de la suscripción.</summary>
     internal static bool EsRespuestaTransitoria(System.Net.HttpStatusCode codigo) =>
@@ -468,7 +493,7 @@ public class Microsoft365GraphClient(
             // Puerta entre crear y enviar: crear el borrador es una llamada a Graph, y mientras tanto la conexión puede
             // haber pasado a ConError o haberse desconectado. Si ya no está operativa (o no se puede comprobar), el
             // borrador no sale: se borra y el envío falla como cualquier otro envío desde un buzón sin verificar.
-            if (!await PasaPuertaAntesDeEnviarAsync(puertaAntesDeEnviar, cancellationToken))
+            if (!await PasaPuertaAsync(puertaAntesDeEnviar, cancellationToken))
             {
                 logger.LogWarning(
                     "La conexión dejó de estar operativa entre crear el borrador {MensajeId} y enviarlo: no se envía.", mensajeExternoId);
@@ -508,23 +533,23 @@ public class Microsoft365GraphClient(
     /// Falla cerrado: una puerta que lanza (la base no responde) cuenta como no superada. La cancelación de la propia
     /// operación sí se propaga.
     /// </summary>
-    private async Task<bool> PasaPuertaAntesDeEnviarAsync(
-        Func<CancellationToken, Task<bool>> puertaAntesDeEnviar, CancellationToken cancellationToken)
+    private async Task<bool> PasaPuertaAsync(
+        Func<CancellationToken, Task<bool>> puerta, CancellationToken cancellationToken)
     {
         try
         {
-            return await puertaAntesDeEnviar(cancellationToken);
+            return await puerta(cancellationToken);
         }
         catch (Exception ex) when (ex is not OperationCanceledException || !cancellationToken.IsCancellationRequested)
         {
-            logger.LogError(ex, "No se pudo comprobar la conexión antes de enviar un borrador: no se envía.");
+            logger.LogError(ex, "No se pudo comprobar la conexión antes de la siguiente llamada a Graph: no se hace.");
             return false;
         }
     }
 
     /// <summary>
     /// Mejor esfuerzo: un borrador que no se envió no debe quedarse en Borradores del buzón. Si el borrado falla, el
-    /// borrador se queda allí sin enviar; no hay reintento.
+    /// borrador se queda allí sin enviar; no hay reintento. La cancelación pedida no es un fallo del borrado: se propaga.
     /// </summary>
     private async Task EliminarBorradorAsync(string accessToken, BuzonGraph buzon, string mensajeExternoId, CancellationToken cancellationToken)
     {
@@ -538,7 +563,7 @@ public class Microsoft365GraphClient(
                 logger.LogWarning(
                     "Microsoft Graph devolvió {StatusCode} al eliminar el borrador sin enviar {MensajeId}.", (int)respuesta.StatusCode, mensajeExternoId);
         }
-        catch (Exception ex)
+        catch (Exception ex) when (ex is not OperationCanceledException || !cancellationToken.IsCancellationRequested)
         {
             logger.LogWarning(ex, "No se pudo eliminar el borrador huérfano {MensajeId}.", mensajeExternoId);
         }
@@ -570,12 +595,23 @@ public class Microsoft365GraphClient(
             using var respuesta = await httpClient.SendAsync(peticion, cancellationToken);
             if (!respuesta.IsSuccessStatusCode)
             {
-                // Solo el 404 dice que el mensaje ya no existe (borrado entre la notificación y la
-                // lectura). Un 403, un 429 o un 5xx no dicen nada del mensaje, y tratarlos igual
-                // perdería la notificación: la ingesta los reintenta.
-                return Result.Fallo<MensajeGraphDto>(respuesta.StatusCode == System.Net.HttpStatusCode.NotFound
-                    ? Error.Crear(CodigoMensajeNoEncontrado, "El mensaje ya no está en el buzón.")
-                    : Error.Crear("Integraciones.Microsoft365.ErrorApi", "No pudimos leer el mensaje."));
+                // Un 403, un 429 o un 5xx no dicen nada del mensaje, y tratarlos como borrado perdería la
+                // notificación: la ingesta los reintenta. Un 404 tampoco basta: /users/{buzón}/messages/{id} da 404
+                // también si el buzón ya no existe. Solo ErrorItemNotFound dice que falta el mensaje (borrado entre la
+                // notificación y la lectura); cualquier otro código de 404, o uno ilegible, puede ser del buzón y
+                // deja el evento sin resolver.
+                if (respuesta.StatusCode != System.Net.HttpStatusCode.NotFound)
+                    return Result.Fallo<MensajeGraphDto>(Error.Crear("Integraciones.Microsoft365.ErrorApi", "No pudimos leer el mensaje."));
+
+                var codigoError = CodigoErrorGraph.Extraer(await respuesta.Content.ReadAsStringAsync(cancellationToken));
+                if (string.Equals(codigoError, CodigoGraphElementoNoEncontrado, StringComparison.Ordinal))
+                    return Result.Fallo<MensajeGraphDto>(Error.Crear(CodigoMensajeNoEncontrado, "El mensaje ya no está en el buzón."));
+
+                logger.LogWarning(
+                    "Microsoft Graph devolvió 404 ({CodigoError}) al leer el mensaje {MensajeId}: puede faltar el buzón, no se da por borrado.",
+                    codigoError, mensajeId);
+                return Result.Fallo<MensajeGraphDto>(Error.Crear(
+                    CodigosErrorMicrosoft365.BuzonNoEncontrado, "Microsoft 365 no encuentra el buzón de este mensaje."));
             }
 
             var mensaje = await respuesta.Content.ReadFromJsonAsync<MensajeDetalleGraph>(cancellationToken);
@@ -636,6 +672,9 @@ public class Microsoft365GraphClient(
 
     private const string CodigoMensajeNoEncontrado = CodigosErrorMicrosoft365.MensajeNoEncontrado;
 
+    /// <summary>Código de Graph (Exchange) para un elemento que no está en el buzón; el del buzón inexistente es otro.</summary>
+    internal const string CodigoGraphElementoNoEncontrado = "ErrorItemNotFound";
+
     public async Task<Result<byte[]>> ObtenerContenidoAdjuntoAsync(
         string accessToken, BuzonGraph buzon, string mensajeId, string adjuntoExternoId, CancellationToken cancellationToken)
     {
@@ -679,7 +718,8 @@ public class Microsoft365GraphClient(
         }
     }
 
-    public async Task<Result<IReadOnlyList<CarpetaGraphDto>>> ListarCarpetasAsync(string accessToken, BuzonGraph buzon, CancellationToken cancellationToken)
+    public async Task<Result<IReadOnlyList<CarpetaGraphDto>>> ListarCarpetasAsync(
+        string accessToken, BuzonGraph buzon, Func<CancellationToken, Task<bool>> puertaEntrePeticiones, CancellationToken cancellationToken)
     {
         const string seleccion = "$select=id,displayName,parentFolderId,unreadItemCount,totalItemCount";
 
@@ -696,6 +736,14 @@ public class Microsoft365GraphClient(
             // real de un buzón de gestión CAE (ver comentario de la interfaz).
             foreach (var carpeta in carpetasNivel1.Valor)
             {
+                // Puerta antes de cada petición de hijas: la conexión pudo pasar a ConError o desconectarse mientras
+                // tanto, y entonces no se sigue leyendo el buzón ni se devuelve lo ya leído.
+                if (!await PasaPuertaAsync(puertaEntrePeticiones, cancellationToken))
+                {
+                    logger.LogWarning("La conexión dejó de estar operativa mientras se listaban las carpetas del buzón: se corta.");
+                    return Result.Fallo<IReadOnlyList<CarpetaGraphDto>>(ErroresBuzonSinVerificar.Crear());
+                }
+
                 var hijas = await ObtenerPaginaCarpetasAsync(
                     accessToken,
                     $"{RutaBuzon(buzon)}/mailFolders/{Uri.EscapeDataString(carpeta.CarpetaExternoId)}/childFolders?{seleccion}&$top=100",

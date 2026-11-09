@@ -316,9 +316,10 @@ public static class InfrastructureServiceCollectionExtensions
         {
             services.AddHostedService<IngestaWebhookHostedService>();
             services.AddHostedService<RenovacionSuscripcionWebhookHostedService>();
+            services.AddHostedService<ReintentoVerificacionIdentidadBuzonHostedService>();
         }
 
-        // Configuración a medias (p. ej. una sola de las dos rutas del certificado): los dos
+        // Configuración a medias (p. ej. una sola de las dos rutas del certificado): los
         // servicios de arriba no se registran y, sin este aviso, nada lo diría. Va por el
         // mecanismo genérico, como el resto de gates; solo mira y avisa.
         services.AvisarSiConfiguracionAMedias(Microsoft365GraphOptions.SeccionConfiguracion, opcionesMicrosoft365,
@@ -518,6 +519,7 @@ public static class InfrastructureServiceCollectionExtensions
         services.AddScoped<CaeManager.Application.Integraciones.AccesoGraphService>();
         services.AddScoped<CaeManager.Application.Integraciones.AltaBuzonMicrosoft365Service>();
         services.AddScoped<CaeManager.Application.Integraciones.CompletarIdentidadBuzonService>();
+        services.AddSingleton<CaeManager.Application.Integraciones.ICerrojoVerificacionBuzon, CerrojoVerificacionBuzonPostgres>();
         services.AddScoped<CaeManager.Application.Integraciones.IngestaWebhookService>();
         services.AddScoped<CaeManager.Application.Integraciones.AcuseAutomaticoBuzonService>();
         services.AddScoped<CaeManager.Application.Integraciones.IWebhookTenantResolver, WebhookTenantResolver>();

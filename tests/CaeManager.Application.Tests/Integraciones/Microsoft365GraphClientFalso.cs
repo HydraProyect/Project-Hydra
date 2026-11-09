@@ -175,8 +175,18 @@ public class Microsoft365GraphClientFalso : IMicrosoft365GraphClient
         string accessToken, BuzonGraph buzon, string mensajeId, string adjuntoExternoId, CancellationToken cancellationToken) =>
         Registrar(buzon, Result.Exito(ContenidoAdjuntoADevolver));
 
-    public Task<Result<IReadOnlyList<CarpetaGraphDto>>> ListarCarpetasAsync(string accessToken, BuzonGraph buzon, CancellationToken cancellationToken) =>
-        Registrar(buzon, Result.Exito(CarpetasADevolver));
+    /// <summary>Como el cliente real: la puerta se evalúa una vez por carpeta, antes de pedir sus hijas.</summary>
+    public async Task<Result<IReadOnlyList<CarpetaGraphDto>>> ListarCarpetasAsync(
+        string accessToken, BuzonGraph buzon, Func<CancellationToken, Task<bool>> puertaEntrePeticiones, CancellationToken cancellationToken)
+    {
+        foreach (var _ in CarpetasADevolver)
+        {
+            if (!await puertaEntrePeticiones(cancellationToken))
+                return await Registrar(buzon, Result.Fallo<IReadOnlyList<CarpetaGraphDto>>(ErroresBuzonSinVerificar.Crear()));
+        }
+
+        return await Registrar(buzon, Result.Exito(CarpetasADevolver));
+    }
 
     public Task<Result<IReadOnlyList<MensajeResumenGraphDto>>> ListarMensajesAsync(
         string accessToken, BuzonGraph buzon, string carpetaExternoId, int top, int skip, CancellationToken cancellationToken)

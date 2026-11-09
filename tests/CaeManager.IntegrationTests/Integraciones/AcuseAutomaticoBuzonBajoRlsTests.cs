@@ -381,7 +381,7 @@ public class AcuseAutomaticoBuzonBajoRlsTests : IAsyncLifetime
             string accessToken, BuzonGraph buzon, string mensajeId, string adjuntoExternoId, CancellationToken cancellationToken) =>
             throw new NotSupportedException();
 
-        public Task<Result<IReadOnlyList<CarpetaGraphDto>>> ListarCarpetasAsync(string accessToken, BuzonGraph buzon, CancellationToken cancellationToken) =>
+        public Task<Result<IReadOnlyList<CarpetaGraphDto>>> ListarCarpetasAsync(string accessToken, BuzonGraph buzon, Func<CancellationToken, Task<bool>> puertaEntrePeticiones, CancellationToken cancellationToken) =>
             throw new NotSupportedException();
 
         public Task<Result<IReadOnlyList<MensajeResumenGraphDto>>> ListarMensajesAsync(

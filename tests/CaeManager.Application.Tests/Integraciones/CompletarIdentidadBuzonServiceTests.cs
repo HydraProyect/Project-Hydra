@@ -22,6 +22,7 @@ public class CompletarIdentidadBuzonServiceTests
         public ConversacionRepositorioFalso Conversaciones { get; } = new();
         public Microsoft365GraphClientFalso Graph { get; } = new();
         public UnitOfWorkFalso UnitOfWork { get; } = new();
+        public CerrojoVerificacionBuzonFalso Cerrojo { get; } = new();
 
         /// <summary>Descartar suelta el lote fallido, como el contexto real: el siguiente guardado ya no lo arrastra.</summary>
         public DescarteQueSueltaElLote Descarte { get; }
@@ -60,6 +61,7 @@ public class CompletarIdentidadBuzonServiceTests
             new AccesoGraphService(new CredencialIntegracionRepositorioFalso(), Graph), Graph,
             UnitOfWork,
             Descarte,
+            Cerrojo,
             NullLogger<CompletarIdentidadBuzonService>.Instance);
     }
 
@@ -114,7 +116,7 @@ public class CompletarIdentidadBuzonServiceTests
         verificadas.Should().BeEmpty("la renovación no debe rehabilitarla");
         conexion.Estado.Should().Be(EstadoConexionIntegracion.ConError);
         conexion.UltimoError.Should().Be(CompletarIdentidadBuzonService.MensajeBuzonDuplicado);
-        escenario.UnitOfWork.VecesGuardado.Should().Be(1);
+        escenario.UnitOfWork.VecesGuardado.Should().Be(2, "la programación antes de Graph y el ConError después");
     }
 
     /// <summary>Un fallo transitorio no dice nada del buzón: la conexión no cambia y no se fija ninguna identidad.</summary>
@@ -155,17 +157,19 @@ public class CompletarIdentidadBuzonServiceTests
     }
 
     [Fact]
-    public async Task Sin_token_no_cambia_nada_ni_guarda()
+    public async Task Sin_token_no_cambia_el_estado_y_solo_guarda_la_programacion_del_reintento()
     {
         var escenario = new Escenario();
         var conexion = escenario.AgregarVerificada("cae@operador.test", "inbox-cae", TimeSpan.FromHours(20));
+        var verificadaAntes = conexion.IdentidadVerificadaUtc;
         escenario.Graph.FallaTokenAplicacion = true;
 
         var verificadas = await escenario.Servicio().CompletarAsync(CancellationToken.None);
 
         verificadas.Should().BeEmpty();
         conexion.Estado.Should().Be(EstadoConexionIntegracion.Habilitada);
-        escenario.UnitOfWork.VecesGuardado.Should().Be(0);
+        conexion.IdentidadVerificadaUtc.Should().Be(verificadaAntes);
+        escenario.UnitOfWork.VecesGuardado.Should().Be(1, "la programación se guarda antes de llamar a Microsoft");
     }
 
     /// <summary>403/404: Microsoft dice que el buzón no se puede abrir. Es definitivo y la conexión deja de operar.</summary>
@@ -182,7 +186,8 @@ public class CompletarIdentidadBuzonServiceTests
         conexion.Estado.Should().Be(EstadoConexionIntegracion.ConError);
         conexion.UltimoError.Should().Be(CompletarIdentidadBuzonService.MensajeSinAccesoBuzon);
         conexion.IdentidadBuzon.Should().Be("inbox-cae");
-        escenario.UnitOfWork.VecesGuardado.Should().Be(1);
+        conexion.HuecoPendienteDesdeUtc.Should().BeCloseTo(DateTime.UtcNow, TimeSpan.FromMinutes(1), "pasar a ConError marca (disparador c)");
+        escenario.UnitOfWork.VecesGuardado.Should().Be(2, "la programación antes de Graph y el resultado después");
     }
 
     /// <summary>Sin acceso no tapa el motivo más concreto de una conexión que ya estaba en ConError.</summary>
@@ -243,7 +248,7 @@ public class CompletarIdentidadBuzonServiceTests
         escenario.Eventos.Eventos.Should().Equal(retenido);
         conexion.HuecoPendienteDesdeUtc.Should().Be(caida);
         marcaGuardada.Should().Be(caida, "la marca sigue en la misma transacción que la rehabilitación");
-        escenario.UnitOfWork.VecesGuardado.Should().Be(1);
+        escenario.UnitOfWork.VecesGuardado.Should().Be(2, "la programación antes de Graph y el resultado después");
     }
 
     /// <summary>Ya verificada y Habilitada, la ingesta no descartó nada: no hay hueco que leer.</summary>
@@ -263,68 +268,41 @@ public class CompletarIdentidadBuzonServiceTests
     }
 
     /// <summary>
-    /// Habilitada pero con la verificación caducada: el ciclo fija la marca en el momento exacto de la caducidad, no en
-    /// el del ciclo, y al verificar no lee Graph.
+    /// Habilitada pero con la verificación caducada: bloquea y se muestra «sin verificar», pero no marca hueco. Mientras
+    /// tanto el correo espera en la cola; si algo se descarta, marca la ingesta (disparador a). Al verificar no lee Graph.
     /// </summary>
     [Fact]
-    public async Task Una_conexion_con_la_verificacion_caducada_fija_la_marca_en_la_caducidad_y_no_lee_Graph()
+    public async Task Una_verificacion_caducada_sin_perdida_no_fija_marca_y_no_lee_Graph()
     {
         var escenario = new Escenario();
         var conexion = escenario.AgregarVerificada(
             "cae@operador.test", "inbox-cae", ConexionIntegracion.VentanaVerificacionIdentidad + TimeSpan.FromHours(1));
-        var caducidad = conexion.IdentidadVerificadaUtc!.Value + ConexionIntegracion.VentanaVerificacionIdentidad;
         escenario.Graph.MensajesADevolver = [MensajeRecibido("m-1")];
 
         await escenario.Servicio().CompletarAsync(CancellationToken.None);
 
         conexion.OperativaVerificada(DateTime.UtcNow).Should().BeTrue();
-        conexion.HuecoPendienteDesdeUtc.Should().Be(caducidad);
+        conexion.HuecoPendienteDesdeUtc.Should().BeNull();
         escenario.Graph.ListadosPedidos.Should().BeEmpty();
         escenario.Eventos.Eventos.Should().BeEmpty();
     }
 
-    /// <summary>
-    /// La ventana caduca mientras dura la lectura de la identidad en Graph: el ciclo vuelve a mirar la caducidad antes
-    /// de marcarla verificada, y la marca queda en la caducidad. Sin esa segunda comprobación, la verificación nueva
-    /// taparía el intervalo sin conexión operativa.
-    /// </summary>
+    /// <summary>Caducada y sin token: sigue sin verificar y sin marca; solo se guarda la programación del reintento.</summary>
     [Fact]
-    public async Task Si_la_verificacion_caduca_durante_la_llamada_a_Graph_la_marca_queda_en_la_caducidad()
-    {
-        var escenario = new Escenario();
-        var conexion = escenario.AgregarVerificada(
-            "cae@operador.test", "inbox-cae", ConexionIntegracion.VentanaVerificacionIdentidad - TimeSpan.FromMinutes(5));
-        DateTime? caducidad = null;
-        escenario.Graph.AlLeerIdentidad = () =>
-        {
-            // El tiempo pasa durante la llamada: la verificación envejece hasta caducar.
-            conexion.MarcarIdentidadVerificada(DateTime.UtcNow - ConexionIntegracion.VentanaVerificacionIdentidad - TimeSpan.FromMinutes(10));
-            caducidad = conexion.IdentidadVerificadaUtc!.Value + ConexionIntegracion.VentanaVerificacionIdentidad;
-        };
-
-        await escenario.Servicio().CompletarAsync(CancellationToken.None);
-
-        caducidad.Should().NotBeNull();
-        conexion.HuecoPendienteDesdeUtc.Should().Be(caducidad);
-        conexion.OperativaVerificada(DateTime.UtcNow).Should().BeTrue("la identidad coincide y se vuelve a verificar");
-    }
-
-    /// <summary>La caducidad se guarda aunque el resto del ciclo falle de forma transitoria (sin token).</summary>
-    [Fact]
-    public async Task La_marca_de_caducidad_se_guarda_aunque_falle_el_token()
+    public async Task Una_verificacion_caducada_sin_token_no_fija_marca()
     {
         var escenario = new Escenario();
         var conexion = escenario.AgregarVerificada(
             "cae@operador.test", "inbox-cae", ConexionIntegracion.VentanaVerificacionIdentidad + TimeSpan.FromHours(5));
-        var caducidad = conexion.IdentidadVerificadaUtc!.Value + ConexionIntegracion.VentanaVerificacionIdentidad;
         escenario.Graph.FallaTokenAplicacion = true;
 
         await escenario.Servicio().CompletarAsync(CancellationToken.None);
 
-        conexion.HuecoPendienteDesdeUtc.Should().Be(caducidad);
+        conexion.HuecoPendienteDesdeUtc.Should().BeNull();
+        conexion.OperativaVerificada(DateTime.UtcNow).Should().BeFalse();
+        conexion.ReintentoVerificacionNoAntesDeUtc.Should().NotBeNull();
         escenario.UnitOfWork.VecesGuardado.Should().Be(1);
     }
-
     /// <summary>
     /// Un guardado fallido en una conexión suelta su lote antes de pasar a la siguiente: sin el descarte, el guardado
     /// de la siguiente arrastraría (y volvería a fallar por) la mutación ajena.
@@ -342,7 +320,7 @@ public class CompletarIdentidadBuzonServiceTests
 
         escenario.Descarte.Veces.Should().Be(1);
         verificadas.Should().BeEquivalentTo([sana.Id]);
-        escenario.UnitOfWork.VecesGuardado.Should().Be(1);
+        escenario.UnitOfWork.VecesGuardado.Should().Be(2, "solo los dos guardados de la sana");
     }
 
     /// <summary>El directorio reasignó la dirección a otro buzón: la conexión deja de operar y no sale verificada.</summary>
@@ -361,7 +339,7 @@ public class CompletarIdentidadBuzonServiceTests
         conexion.UltimoError.Should().Be(CompletarIdentidadBuzonService.MensajeBuzonCambiado);
         conexion.IdentidadBuzon.Should().Be("inbox-original");
         conexion.IdentidadVerificadaUtc.Should().Be(verificadaAntes);
-        escenario.UnitOfWork.VecesGuardado.Should().Be(1);
+        escenario.UnitOfWork.VecesGuardado.Should().Be(2);
     }
 
     [Fact]
@@ -409,8 +387,9 @@ public class CompletarIdentidadBuzonServiceTests
     }
 
     /// <summary>
-    /// Un fallo transitorio del token o de la renovación (429, 5xx, red, tiempo agotado, cuerpo ilegible) no dice nada de
-    /// la conexión: no la pasa a ConError ni fija la marca. Se reintenta en el siguiente ciclo.
+    /// Un fallo transitorio del token o de la renovación (429, 5xx, red, tiempo agotado, cuerpo ilegible) con la
+    /// suscripción aún vigente no dice nada de la conexión: no la pasa a ConError ni fija la marca. Se reintenta en el
+    /// siguiente ciclo.
     /// </summary>
     [Theory]
     [InlineData(CodigosErrorMicrosoft365.Transitorio)]
@@ -423,11 +402,54 @@ public class CompletarIdentidadBuzonServiceTests
         conexion.MarcarIdentidadVerificada(DateTime.UtcNow.AddHours(-1));
 
         var marcada = CompletarIdentidadBuzonService.MarcarConErrorDeRenovacion(
-            conexion, Error.Crear(codigo, "transitorio"), DateTime.UtcNow.AddHours(-2), DateTime.UtcNow);
+            conexion, Error.Crear(codigo, "transitorio"), DateTime.UtcNow.AddHours(2), DateTime.UtcNow);
 
         marcada.Should().BeFalse();
         conexion.Estado.Should().Be(EstadoConexionIntegracion.Habilitada);
         conexion.HuecoPendienteDesdeUtc.Should().BeNull();
+    }
+
+    /// <summary>
+    /// Transitorio, pero la suscripción ya expiró: desde la expiración no llegan notificaciones aunque la conexión siga
+    /// Habilitada (disparador b). La marca va en la expiración.
+    /// </summary>
+    [Fact]
+    public void Un_fallo_transitorio_con_la_suscripcion_ya_expirada_marca_en_la_expiracion_sin_pasar_a_ConError()
+    {
+        var ahora = new DateTime(2026, 11, 9, 12, 0, 0, DateTimeKind.Utc);
+        var conexion = ConexionIntegracion.CrearBuzonCompartido("cae@operador.test", "Buzón CAE", Directorio, Guid.NewGuid());
+        conexion.FijarIdentidadBuzon("inbox-cae");
+        conexion.MarcarIdentidadVerificada(ahora.AddHours(-1));
+
+        var marcada = CompletarIdentidadBuzonService.MarcarConErrorDeRenovacion(
+            conexion, Error.Crear(CodigosErrorMicrosoft365.Transitorio, "transitorio"), ahora.AddHours(-2), ahora);
+
+        marcada.Should().BeFalse();
+        conexion.Estado.Should().Be(EstadoConexionIntegracion.Habilitada);
+        conexion.HuecoPendienteDesdeUtc.Should().Be(ahora.AddHours(-2));
+    }
+
+    /// <summary>
+    /// P: la conexión ya estaba en ConError por un motivo de identidad (marca en el momento de esa caída) y la renovación
+    /// falla de forma definitiva con la suscripción expirada antes: la marca retrocede hasta la expiración y el motivo
+    /// de identidad se conserva.
+    /// </summary>
+    [Theory]
+    [InlineData(CompletarIdentidadBuzonService.MensajeBuzonCambiado)]
+    [InlineData(CompletarIdentidadBuzonService.MensajeSinAccesoBuzon)]
+    public void Un_fallo_definitivo_de_renovacion_retrocede_la_marca_aunque_haya_motivo_de_identidad(string motivo)
+    {
+        var ahora = new DateTime(2026, 11, 9, 12, 0, 0, DateTimeKind.Utc);
+        var conexion = ConexionIntegracion.CrearBuzonCompartido("cae@operador.test", "Buzón CAE", Directorio, Guid.NewGuid());
+        conexion.FijarIdentidadBuzon("inbox-cae");
+        conexion.MarcarIdentidadVerificada(ahora.AddDays(-2));
+        conexion.MarcarConError(motivo, ahora.AddHours(-1));
+
+        CompletarIdentidadBuzonService.MarcarConErrorDeRenovacion(conexion, FalloDefinitivo, ahora.AddHours(-20), ahora)
+            .Should().BeFalse();
+
+        conexion.UltimoError.Should().Be(motivo);
+        conexion.HuecoPendienteDesdeUtc.Should().Be(ahora.AddHours(-20));
     }
 
     /// <summary>
@@ -451,5 +473,136 @@ public class CompletarIdentidadBuzonServiceTests
         marcada.Should().BeTrue();
         conexion.Estado.Should().Be(EstadoConexionIntegracion.ConError);
         conexion.HuecoPendienteDesdeUtc.Should().Be(ahora.AddHours(horasEsperadasDesdeAhora));
+    }
+
+    /// <summary>Candidata al reintento ya programada para antes de ahora: el siguiente sondeo la intenta.</summary>
+    private static ConexionIntegracion AgregarVencidaParaReintento(Escenario escenario, string direccion, string identidad)
+    {
+        var conexion = escenario.AgregarVerificada(direccion, identidad, ConexionIntegracion.UmbralReintentoVerificacion + TimeSpan.FromHours(1));
+        conexion.ProgramarPrimerReintentoVerificacion(DateTime.UtcNow.AddHours(-1), TimeSpan.Zero);
+        return conexion;
+    }
+
+    [Fact]
+    public async Task El_reintento_solo_atiende_a_las_Habilitadas_con_la_verificacion_vieja_o_sin_verificar()
+    {
+        var escenario = new Escenario();
+        var reciente = escenario.AgregarVerificada("reciente@operador.test", "inbox-reciente", TimeSpan.FromHours(10));
+        var vieja = AgregarVencidaParaReintento(escenario, "vieja@operador.test", "inbox-vieja");
+        var caida = escenario.AgregarVerificada("caida@operador.test", "inbox-caida", TimeSpan.FromHours(30));
+        caida.MarcarConError("caída anterior");
+        caida.ProgramarPrimerReintentoVerificacion(DateTime.UtcNow.AddHours(-1), TimeSpan.Zero);
+        var verificadaReciente = reciente.IdentidadVerificadaUtc;
+
+        var verificadas = await escenario.Servicio().ReintentarAsync(CancellationToken.None);
+
+        verificadas.Should().Be(1);
+        vieja.IdentidadVerificadaUtc.Should().BeCloseTo(DateTime.UtcNow, TimeSpan.FromMinutes(1));
+        vieja.ReintentoVerificacionNoAntesDeUtc.Should().BeNull("verificar vacía la espera");
+        reciente.IdentidadVerificadaUtc.Should().Be(verificadaReciente);
+        caida.Estado.Should().Be(EstadoConexionIntegracion.ConError, "las ConError las levantan el ciclo diario o Reactivar");
+        escenario.Cerrojo.Pedidos.Should().Equal(vieja.Id);
+    }
+
+    /// <summary>
+    /// La primera vez que una conexión entra en el reintento no se intenta ya: se programa tras un retraso aleatorio de
+    /// hasta IntervaloReintentoVerificacion, para que no reintenten todas a la vez.
+    /// </summary>
+    [Fact]
+    public async Task La_primera_entrada_en_el_reintento_solo_programa_un_intento_aleatorio_sin_llamar_a_Microsoft()
+    {
+        var escenario = new Escenario();
+        var conexion = escenario.AgregarVerificada(
+            "cae@operador.test", "inbox-cae", ConexionIntegracion.UmbralReintentoVerificacion + TimeSpan.FromHours(1));
+        var antes = DateTime.UtcNow;
+
+        var verificadas = await escenario.Servicio().ReintentarAsync(CancellationToken.None);
+
+        verificadas.Should().Be(0);
+        escenario.Graph.TokensDeIdentidad.Should().BeEmpty();
+        conexion.ReintentoVerificacionNoAntesDeUtc.Should().NotBeNull();
+        conexion.ReintentoVerificacionNoAntesDeUtc!.Value.Should().BeOnOrAfter(antes)
+            .And.BeOnOrBefore(DateTime.UtcNow + ConexionIntegracion.IntervaloReintentoVerificacion);
+        escenario.UnitOfWork.VecesGuardado.Should().Be(1);
+    }
+
+    [Fact]
+    public async Task El_reintento_respeta_la_espera_programada()
+    {
+        var escenario = new Escenario();
+        var conexion = escenario.AgregarVerificada(
+            "cae@operador.test", "inbox-cae", ConexionIntegracion.UmbralReintentoVerificacion + TimeSpan.FromHours(1));
+        conexion.ProgramarPrimerReintentoVerificacion(DateTime.UtcNow, TimeSpan.FromHours(1));
+
+        await escenario.Servicio().ReintentarAsync(CancellationToken.None);
+        await escenario.Servicio().CompletarAsync(CancellationToken.None);
+
+        escenario.Graph.TokensDeIdentidad.Should().BeEmpty("ni el reintento ni el ciclo diario se adelantan a la espera");
+    }
+
+    /// <summary>Un fallo transitorio deja el siguiente intento a IntervaloReintentoVerificacion más el margen aleatorio.</summary>
+    [Fact]
+    public async Task Tras_un_fallo_transitorio_el_siguiente_reintento_va_a_unas_dos_horas_con_margen_aleatorio()
+    {
+        var escenario = new Escenario();
+        var conexion = AgregarVencidaParaReintento(escenario, "cae@operador.test", "inbox-cae");
+        escenario.Graph.ErrorIdentidadBuzon = Error.Crear(CodigosErrorMicrosoft365.Transitorio, "503");
+        var antes = DateTime.UtcNow;
+
+        await escenario.Servicio().ReintentarAsync(CancellationToken.None);
+
+        conexion.Estado.Should().Be(EstadoConexionIntegracion.Habilitada);
+        conexion.HuecoPendienteDesdeUtc.Should().BeNull();
+        conexion.ReintentoVerificacionNoAntesDeUtc!.Value.Should().BeOnOrAfter(antes + ConexionIntegracion.IntervaloReintentoVerificacion)
+            .And.BeOnOrBefore(DateTime.UtcNow + ConexionIntegracion.IntervaloReintentoVerificacion + CompletarIdentidadBuzonService.MargenAleatorioMaximo);
+    }
+
+    /// <summary>429 con Retry-After: ninguna verificación automática vuelve a intentarlo antes de lo que pidió Microsoft.</summary>
+    [Fact]
+    public async Task Un_429_con_Retry_After_aplaza_el_siguiente_intento_hasta_lo_pedido()
+    {
+        var escenario = new Escenario();
+        var conexion = AgregarVencidaParaReintento(escenario, "cae@operador.test", "inbox-cae");
+        escenario.Graph.ErrorIdentidadBuzon =
+            Error.Crear(CodigosErrorMicrosoft365.Transitorio, "429").ConReintentarTras(TimeSpan.FromHours(6));
+
+        await escenario.Servicio().ReintentarAsync(CancellationToken.None);
+
+        conexion.Estado.Should().Be(EstadoConexionIntegracion.Habilitada);
+        conexion.ReintentoVerificacionNoAntesDeUtc.Should().BeCloseTo(DateTime.UtcNow.AddHours(6), TimeSpan.FromMinutes(1));
+        conexion.PuedeReintentarVerificacion(DateTime.UtcNow.AddHours(5)).Should().BeFalse();
+    }
+
+    /// <summary>Otra verificación de la misma conexión en curso (otra réplica, el ciclo diario o Reactivar): no se toca.</summary>
+    [Fact]
+    public async Task Con_el_cerrojo_ocupado_no_se_comprueba_la_conexion()
+    {
+        var escenario = new Escenario();
+        var conexion = AgregarVencidaParaReintento(escenario, "cae@operador.test", "inbox-cae");
+        var esperaAntes = conexion.ReintentoVerificacionNoAntesDeUtc;
+        escenario.Cerrojo.Ocupadas.Add(conexion.Id);
+
+        (await escenario.Servicio().ReintentarAsync(CancellationToken.None)).Should().Be(0);
+        (await escenario.Servicio().CompletarAsync(CancellationToken.None)).Should().BeEmpty();
+
+        escenario.Graph.TokensDeIdentidad.Should().BeEmpty();
+        conexion.ReintentoVerificacionNoAntesDeUtc.Should().Be(esperaAntes);
+        escenario.UnitOfWork.VecesGuardado.Should().Be(0);
+    }
+
+    [Fact]
+    public async Task La_cancelacion_pedida_se_propaga_desde_el_reintento()
+    {
+        var escenario = new Escenario();
+        AgregarVencidaParaReintento(escenario, "cae@operador.test", "inbox-cae");
+        using var cancelacion = new CancellationTokenSource();
+        escenario.Graph.AlLeerIdentidad = () =>
+        {
+            cancelacion.Cancel();
+            cancelacion.Token.ThrowIfCancellationRequested();
+        };
+
+        await FluentActions.Awaiting(() => escenario.Servicio().ReintentarAsync(cancelacion.Token))
+            .Should().ThrowAsync<OperationCanceledException>();
     }
 }

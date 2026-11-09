@@ -7872,6 +7872,9 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                     b.Property<int>("Proveedor")
                         .HasColumnType("integer");
 
+                    b.Property<DateTime?>("ReintentoVerificacionNoAntesDeUtc")
+                        .HasColumnType("timestamp with time zone");
+
                     b.Property<Guid?>("ResponsableUsuarioId")
                         .HasColumnType("uuid");
 

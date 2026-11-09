@@ -203,37 +203,113 @@ public class ConexionIntegracionTests
     }
 
     [Fact]
-    public void ConError_sobre_una_verificacion_ya_caducada_fija_la_marca_en_la_caducidad()
+    public void ConError_sobre_una_verificacion_ya_caducada_fija_la_marca_a_la_hora_del_ConError()
     {
+        // Mientras la verificación estaba caducada los eventos esperaban sin perderse: el hueco empieza al caer.
         var verificada = new DateTime(2026, 11, 8, 0, 0, 0, DateTimeKind.Utc);
         var conexion = Verificada(verificada);
 
         conexion.MarcarConError("caída", verificada.AddHours(40));
 
-        conexion.HuecoPendienteDesdeUtc.Should().Be(verificada + ConexionIntegracion.VentanaVerificacionIdentidad);
+        conexion.HuecoPendienteDesdeUtc.Should().Be(verificada.AddHours(40));
     }
 
     [Fact]
-    public void La_caducidad_de_la_verificacion_fija_la_marca_en_el_momento_exacto_aunque_se_detecte_tarde()
+    public void Una_verificacion_caducada_sin_perdida_no_fija_marca()
     {
         var verificada = new DateTime(2026, 11, 8, 0, 0, 0, DateTimeKind.Utc);
         var conexion = Verificada(verificada);
 
-        conexion.RegistrarCaducidadVerificacion(verificada.AddHours(25)).Should().BeFalse("aún está vigente");
-        conexion.RegistrarCaducidadVerificacion(verificada.AddHours(50)).Should().BeTrue();
-        conexion.RegistrarCaducidadVerificacion(verificada.AddHours(60)).Should().BeFalse("la marca ya es la más antigua");
+        conexion.OperativaVerificada(verificada.AddHours(50)).Should().BeFalse("sigue bloqueando y mostrándose sin verificar");
 
-        conexion.HuecoPendienteDesdeUtc.Should().Be(verificada + ConexionIntegracion.VentanaVerificacionIdentidad);
+        conexion.HuecoPendienteDesdeUtc.Should().BeNull();
     }
 
     [Fact]
-    public void Sin_verificacion_previa_la_caducidad_no_fija_marca()
+    public void La_perdida_de_la_suscripcion_marca_en_el_minimo_entre_ahora_y_su_expiracion_y_nunca_adelanta()
     {
-        var conexion = new ConexionIntegracion("cae@operador.test", "Buzón CAE");
+        var ahora = new DateTime(2026, 11, 9, 10, 0, 0, DateTimeKind.Utc);
+        var conexion = Verificada(ahora.AddHours(-1));
 
-        conexion.RegistrarCaducidadVerificacion(DateTime.UtcNow).Should().BeFalse();
+        conexion.RegistrarPerdidaSuscripcion(ahora.AddHours(5), ahora).Should().BeTrue();
+        conexion.HuecoPendienteDesdeUtc.Should().Be(ahora, "aún no había expirado: deja de recibir desde ahora");
 
-        conexion.HuecoPendienteDesdeUtc.Should().BeNull();
+        conexion.RegistrarPerdidaSuscripcion(ahora.AddHours(-3), ahora.AddHours(1)).Should().BeTrue();
+        conexion.HuecoPendienteDesdeUtc.Should().Be(ahora.AddHours(-3), "ya había expirado: desde su expiración");
+
+        conexion.RegistrarPerdidaSuscripcion(ahora.AddHours(2), ahora.AddHours(4)).Should().BeFalse();
+        conexion.HuecoPendienteDesdeUtc.Should().Be(ahora.AddHours(-3));
+    }
+
+    [Fact]
+    public void La_perdida_de_la_suscripcion_retrocede_la_marca_aunque_la_conexion_ya_este_en_ConError()
+    {
+        var ahora = new DateTime(2026, 11, 9, 10, 0, 0, DateTimeKind.Utc);
+        var conexion = Verificada(ahora.AddDays(-2));
+        conexion.MarcarConError("el buzón ya no es accesible", ahora);
+
+        conexion.RegistrarPerdidaSuscripcion(ahora.AddHours(-20), ahora.AddHours(1)).Should().BeTrue();
+
+        conexion.HuecoPendienteDesdeUtc.Should().Be(ahora.AddHours(-20));
+    }
+
+    [Fact]
+    public void Ningun_disparador_adelanta_la_marca()
+    {
+        var caida = new DateTime(2026, 11, 9, 10, 0, 0, DateTimeKind.Utc);
+        var conexion = Verificada(caida.AddHours(-1));
+        conexion.MarcarConError("caída", caida);
+        conexion.Rehabilitar();
+
+        conexion.RegistrarNotificacionDescartada(caida.AddHours(10)).Should().BeFalse();
+        conexion.RegistrarPerdidaSuscripcion(caida.AddHours(10), caida.AddHours(11)).Should().BeFalse();
+        conexion.MarcarConError("otra caída", caida.AddHours(12));
+
+        conexion.HuecoPendienteDesdeUtc.Should().Be(caida);
+    }
+
+    [Fact]
+    public void El_reintento_programado_bloquea_hasta_su_hora_y_verificar_lo_vacia()
+    {
+        var ahora = new DateTime(2026, 11, 9, 10, 0, 0, DateTimeKind.Utc);
+        var conexion = Verificada(ahora.AddHours(-21));
+        conexion.PuedeReintentarVerificacion(ahora).Should().BeTrue("sin programar");
+
+        conexion.ProgramarReintentoVerificacion(ahora, TimeSpan.FromMinutes(10));
+
+        conexion.ReintentoVerificacionNoAntesDeUtc.Should().Be(ahora + ConexionIntegracion.IntervaloReintentoVerificacion + TimeSpan.FromMinutes(10));
+        conexion.PuedeReintentarVerificacion(ahora.AddHours(2)).Should().BeFalse();
+        conexion.PuedeReintentarVerificacion(ahora.AddHours(2).AddMinutes(10)).Should().BeTrue();
+
+        conexion.MarcarIdentidadVerificada(ahora.AddMinutes(1));
+        conexion.ReintentoVerificacionNoAntesDeUtc.Should().BeNull();
+    }
+
+    [Fact]
+    public void El_primer_reintento_espera_el_retraso_dado()
+    {
+        var ahora = new DateTime(2026, 11, 9, 10, 0, 0, DateTimeKind.Utc);
+        var conexion = Verificada(ahora.AddHours(-21));
+
+        conexion.ProgramarPrimerReintentoVerificacion(ahora, TimeSpan.FromMinutes(47));
+
+        conexion.ReintentoVerificacionNoAntesDeUtc.Should().Be(ahora.AddMinutes(47));
+        FluentActions.Invoking(() => conexion.ProgramarPrimerReintentoVerificacion(ahora, TimeSpan.FromMinutes(-1)))
+            .Should().Throw<ArgumentOutOfRangeException>();
+    }
+
+    [Fact]
+    public void Aplazar_por_Retry_After_solo_retrasa_la_espera_programada()
+    {
+        var ahora = new DateTime(2026, 11, 9, 10, 0, 0, DateTimeKind.Utc);
+        var conexion = Verificada(ahora.AddHours(-21));
+        conexion.ProgramarReintentoVerificacion(ahora, TimeSpan.Zero);
+
+        conexion.AplazarReintentoVerificacion(ahora, TimeSpan.FromMinutes(5));
+        conexion.ReintentoVerificacionNoAntesDeUtc.Should().Be(ahora.AddHours(2), "una espera más corta no la adelanta");
+
+        conexion.AplazarReintentoVerificacion(ahora, TimeSpan.FromHours(6));
+        conexion.ReintentoVerificacionNoAntesDeUtc.Should().Be(ahora.AddHours(6));
     }
 
     [Fact]
@@ -281,14 +357,16 @@ public class ConexionIntegracionTests
     }
 
     [Fact]
-    public void Una_notificacion_descartada_de_una_conexion_deshabilitada_no_fija_marca()
+    public void Una_notificacion_descartada_de_una_conexion_deshabilitada_fija_la_marca()
     {
-        var conexion = Verificada(DateTime.UtcNow.AddHours(-1));
+        // Desconectar con eventos en espera: los que se descartan después se pierden y marcan (disparador a).
+        var recepcion = new DateTime(2026, 11, 9, 10, 0, 0, DateTimeKind.Utc);
+        var conexion = Verificada(recepcion.AddHours(-30));
         conexion.Deshabilitar();
 
-        conexion.RegistrarNotificacionDescartada(DateTime.UtcNow.AddMinutes(-5)).Should().BeFalse();
+        conexion.RegistrarNotificacionDescartada(recepcion).Should().BeTrue();
 
-        conexion.HuecoPendienteDesdeUtc.Should().BeNull();
+        conexion.HuecoPendienteDesdeUtc.Should().Be(recepcion - ConexionIntegracion.RetrasoMaximoNotificacion);
     }
 
     [Theory]
