@@ -343,7 +343,7 @@ public class PlanEditableAsistenteTests
     }
 
     [Fact]
-    public void El_historial_pone_primero_los_planes_confirmados_a_medias_aunque_sean_antiguos()
+    public void El_historial_trae_todos_los_planes_confirmados_a_medias_aunque_superen_el_maximo()
     {
         var hace = new DateTime(2026, 11, 1, 9, 0, 0, DateTimeKind.Utc);
         TareaAsistente Tarea(DateTime cuando, bool confirmada)
@@ -356,12 +356,29 @@ public class PlanEditableAsistenteTests
             return tarea;
         }
         var antiguaConfirmada = Tarea(hace, confirmada: true);
+        var otraConfirmada = Tarea(hace.AddDays(1), confirmada: true);
         var reciente = Tarea(hace.AddDays(5), confirmada: false);
         var intermedia = Tarea(hace.AddDays(2), confirmada: false);
+        var todas = new[] { intermedia, reciente, antiguaConfirmada, otraConfirmada }.AsQueryable();
 
-        var orden = ListarTareasAsistenteQueryHandler.EnOrdenDeHistorial(new[] { intermedia, reciente, antiguaConfirmada }.AsQueryable()).ToList();
+        // Con un máximo de 1 caben las dos confirmadas: el máximo solo limita el resto.
+        ListarTareasAsistenteQueryHandler.ConfirmadasAMedias(todas).ToList().Should().Equal(otraConfirmada, antiguaConfirmada);
+        ListarTareasAsistenteQueryHandler.Resto(todas, 1).ToList().Should().Equal(reciente);
+    }
 
-        orden.Should().Equal(antiguaConfirmada, reciente, intermedia);
+    [Fact]
+    public async Task Un_rechazo_de_la_base_que_no_es_de_unicidad_no_se_disfraza_de_carrera()
+    {
+        var tarea = await TareaConfirmadaAsync();
+        _mediador.AltaChocaEnBase = () => { };
+        _mediador.EstadoSqlDelChoque = "42501";
+
+        var excepcion = await Record.ExceptionAsync(() => EjecutarAsync(tarea));
+
+        excepcion.Should().BeOfType<Microsoft.EntityFrameworkCore.DbUpdateException>(
+            "una denegación de RLS no es otra ventana: se propaga en vez de quedar como paso fallido");
+        tarea.Pasos[0].Estado.Should().NotBe(EstadoPasoTareaAsistente.Fallido);
+        _transaccion.Deshechas.Should().Be(1);
     }
 
     [Theory]
@@ -484,6 +501,7 @@ public class PlanEditableAsistenteTests
         public bool AsignacionFalla { get; set; }
         public bool AsignacionNoValida { get; set; }
         public Action? AltaChocaEnBase { get; set; }
+        public string EstadoSqlDelChoque { get; set; } = "23505";
         public Func<string, string>? AlterarDatos { get; set; }
         public Guid TrabajadorCreado { get; } = Guid.NewGuid();
         public List<object> Enviados { get; } = [];
@@ -494,7 +512,7 @@ public class PlanEditableAsistenteTests
             {
                 Enviados.Add(request);
                 antesDeChocar();
-                throw new Microsoft.EntityFrameworkCore.DbUpdateException("duplicate key value violates unique constraint");
+                throw new Microsoft.EntityFrameworkCore.DbUpdateException("La base rechazó el guardado.", new ExcepcionDeBase(EstadoSqlDelChoque));
             }
 
             if (request is CrearAsignacionCommand && AsignacionNoValida)
@@ -538,6 +556,12 @@ public class PlanEditableAsistenteTests
         public IAsyncEnumerable<object?> CreateStream(object request, CancellationToken cancellationToken = default) => throw new NotSupportedException();
         public Task Publish(object notification, CancellationToken cancellationToken = default) => Task.CompletedTask;
         public Task Publish<TNotification>(TNotification notification, CancellationToken cancellationToken = default) where TNotification : INotification => Task.CompletedTask;
+    }
+
+    /// <summary>Lo que el proveedor de base de datos pone dentro de un DbUpdateException, con su SQLSTATE.</summary>
+    private sealed class ExcepcionDeBase(string estadoSql) : System.Data.Common.DbException("Rechazo de la base.")
+    {
+        public override string? SqlState => estadoSql;
     }
 
     private sealed class TrabajadoresFalsos : ITrabajadorRepository

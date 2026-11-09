@@ -8,8 +8,8 @@ namespace CaeManager.Application.AsistenteIa.Tareas.Queries;
 
 /// <summary>
 /// Las tareas del asistente de la persona en el Tenant en el que trabaja: primero
-/// los planes confirmados a medias y luego las más recientes
-/// (<see cref="ListarTareasAsistenteQueryHandler.EnOrdenDeHistorial"/>). Con
+/// todos los planes confirmados a medias y luego, hasta <paramref name="Maximo"/>, las
+/// más recientes (<see cref="ListarTareasAsistenteQueryHandler.ConfirmadasAMedias"/>). Con
 /// <paramref name="SoloAbiertas"/>, solo las que se pueden retomar (ni terminadas
 /// ni descartadas).
 /// </summary>
@@ -43,29 +43,31 @@ public class ListarTareasAsistenteQueryHandler(
             consulta = consulta.Where(t => t.Estado != EstadoTareaAsistente.Terminada && t.Estado != EstadoTareaAsistente.Descartada);
 
         var maximo = Math.Clamp(request.Maximo, 1, MaximoPermitido);
-        IReadOnlyList<ResumenTareaAsistenteDto> tareas = await EnOrdenDeHistorial(consulta)
-            .Take(maximo)
-            .Select(t => new ResumenTareaAsistenteDto(
-                t.Id,
-                t.Estado,
-                contexto.TurnosTareaAsistente
-                    .Where(u => u.TareaAsistenteId == t.Id && u.Numero == 1)
-                    .Select(u => u.TextoOriginal)
-                    .FirstOrDefault() ?? string.Empty,
-                t.ActualizadaEnUtc))
-            .ToListAsync(cancellationToken);
+        var aMedias = await Resumir(ConfirmadasAMedias(consulta)).ToListAsync(cancellationToken);
+        var resto = await Resumir(Resto(consulta, maximo)).ToListAsync(cancellationToken);
 
-        return Result.Exito(tareas);
+        return Result.Exito<IReadOnlyList<ResumenTareaAsistenteDto>>([.. aMedias, .. resto]);
     }
 
+    private IQueryable<ResumenTareaAsistenteDto> Resumir(IQueryable<TareaAsistente> tareas) =>
+        tareas.Select(t => new ResumenTareaAsistenteDto(
+            t.Id,
+            t.Estado,
+            contexto.TurnosTareaAsistente
+                .Where(u => u.TareaAsistenteId == t.Id && u.Numero == 1)
+                .Select(u => u.TextoOriginal)
+                .FirstOrDefault() ?? string.Empty,
+            t.ActualizadaEnUtc));
+
     /// <summary>
-    /// Primero los planes confirmados que quedaron a medias (un paso falló o se cortó): son
-    /// los únicos que tienen algo hecho de verdad y solo se terminan desde aquí, así que el
-    /// límite de <see cref="ListarTareasAsistenteQuery.Maximo"/> no puede dejarlos fuera por
-    /// antiguos. Dentro de cada grupo, los más recientes primero.
+    /// Los planes confirmados que quedaron a medias (un paso falló o se cortó), todos y
+    /// primero: son los únicos que tienen algo hecho de verdad y solo se terminan desde el
+    /// historial, así que <see cref="ListarTareasAsistenteQuery.Maximo"/> no los deja fuera.
     /// </summary>
-    internal static IOrderedQueryable<TareaAsistente> EnOrdenDeHistorial(IQueryable<TareaAsistente> tareas) =>
-        tareas
-            .OrderByDescending(t => t.Estado == EstadoTareaAsistente.Confirmada)
-            .ThenByDescending(t => t.ActualizadaEnUtc);
+    internal static IQueryable<TareaAsistente> ConfirmadasAMedias(IQueryable<TareaAsistente> tareas) =>
+        tareas.Where(t => t.Estado == EstadoTareaAsistente.Confirmada).OrderByDescending(t => t.ActualizadaEnUtc);
+
+    /// <summary>Las demás, las más recientes primero y hasta el máximo pedido.</summary>
+    internal static IQueryable<TareaAsistente> Resto(IQueryable<TareaAsistente> tareas, int maximo) =>
+        tareas.Where(t => t.Estado != EstadoTareaAsistente.Confirmada).OrderByDescending(t => t.ActualizadaEnUtc).Take(maximo);
 }

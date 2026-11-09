@@ -10,6 +10,7 @@ using CaeManager.Application.Trabajadores.Commands.CrearTrabajador;
 using CaeManager.Application.Visitas.Commands.CrearVisita;
 using CaeManager.Domain.AsistenteIa;
 using CaeManager.Domain.Common;
+using System.Data.Common;
 using FluentValidation;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
@@ -53,6 +54,9 @@ public class EjecutarPlanTareaAsistenteCommandHandler(
     : IRequestHandler<EjecutarPlanTareaAsistenteCommand, Result<EjecucionPlanAsistenteDto>>
 {
     private const int LongitudMaximaMotivo = 500;
+
+    /// <summary>SQLSTATE estándar de violación de unicidad (unique_violation).</summary>
+    private const string ViolacionDeUnicidad = "23505";
 
     public async Task<Result<EjecucionPlanAsistenteDto>> Handle(
         EjecutarPlanTareaAsistenteCommand request, CancellationToken cancellationToken)
@@ -141,22 +145,29 @@ public class EjecutarPlanTareaAsistenteCommandHandler(
             var ahora = DateTime.UtcNow;
             // Fuera de la transacción del paso, que se deshizo entera. Si mientras tanto otra
             // ventana lo ejecutó, no se pisa su resultado: se informa de él.
-            Guid? hechoPorOtra = null;
+            var hechoPorOtra = false;
+            Guid? hecho = null;
             var registro = await modificacion.AplicarAsync(request.TareaId, null, (t, _) =>
             {
                 var guardado = t.Pasos.Single(p => p.Id == paso.Id);
                 if (guardado.Estado == EstadoPasoTareaAsistente.Ejecutado)
-                    hechoPorOtra = guardado.EntidadResultadoId ?? Guid.Empty;
+                {
+                    hechoPorOtra = true;
+                    hecho = guardado.EntidadResultadoId;
+                }
                 else
                     t.RegistrarPasoFallido(paso.Id, motivo, ahora);
             }, cancellationToken);
             if (registro.EsFallido)
                 return Result.Fallo<EjecucionPlanAsistenteDto>(registro.Error);
-            if (hechoPorOtra is { } hecho)
+            if (hechoPorOtra)
             {
                 if (operacion == nameof(CrearTrabajadorCommand))
                     trabajadorCreado = hecho;
                 resultados.Add(new PasoEjecutadoDto(paso.Id, paso.Posicion, operacion, EstadoPasoTareaAsistente.Ejecutado, hecho, null));
+                // Sin el Id de lo que hizo la otra ventana no se sigue: el paso siguiente no
+                // sabría sobre qué entidad trabajar.
+                parado = hecho is null;
                 continue;
             }
             resultados.Add(new PasoEjecutadoDto(paso.Id, paso.Posicion, operacion, EstadoPasoTareaAsistente.Fallido, null, motivo));
@@ -240,12 +251,13 @@ public class EjecutarPlanTareaAsistenteCommandHandler(
         {
             return new IntentoPaso(null, null, PasoEnCurso());
         }
-        catch (DbUpdateException)
+        catch (DbUpdateException excepcion) when (excepcion.InnerException is DbException { SqlState: ViolacionDeUnicidad })
         {
-            // La base rechazó el efecto (p. ej. el índice único del documento del Trabajador,
-            // cuando otra ventana lo dio de alta a la vez). La transacción ya lo deshizo; el
-            // paso queda fallido salvo que otra ventana lo haya ejecutado, y eso lo decide el
-            // registro del fallo, que relee la Tarea.
+            // Solo el choque con un índice único (p. ej. el del documento del Trabajador, cuando
+            // otra ventana lo dio de alta a la vez): cualquier otro rechazo de la base, como una
+            // denegación de RLS, no es una carrera y se propaga. La transacción ya deshizo el
+            // efecto; el paso queda fallido salvo que otra ventana lo haya ejecutado, y eso lo
+            // decide el registro del fallo, que relee la Tarea.
             return new IntentoPaso(null, Error.Crear("AsistenteIa.PasoNoGuardado",
                 "No se ha podido guardar este paso: puede que ya exista o que otra ventana lo esté haciendo. Vuelve a abrir el plan y reintenta."), null);
         }
