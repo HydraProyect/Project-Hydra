@@ -154,7 +154,7 @@ public class CarteraRevocadaBajoElCandadoTests
         // antes, en el mismo circuito.
         await alcance.ObtenerCentroIdsParaGestionAsync();
         var handler = new EstablecerGestionCaeCentroCommandHandler(
-            centros, new Plantillas.CentrosQueryContextFalso(),new MundoAcreditaciones().Servicio(), alcance, unitOfWork, serializacion, alcance);
+            centros, new Plantillas.CentrosQueryContextFalso(), new MundoAcreditaciones().Servicio(), alcance, unitOfWork, serializacion, alcance);
 
         var resultado = await handler.Handle(
             new EstablecerGestionCaeCentroCommand(centro.Id, ModalidadGestionCae.ConGestionCae), CancellationToken.None);
