@@ -177,8 +177,15 @@ fi
 # Nombres capturados antes de buscar: con pipefail, `docker ps | grep -q` daba
 # fallo por SIGPIPE si docker seguía escribiendo tras el primer acierto, y la
 # guarda no saltaba justo con el stack real presente.
-NOMBRES_EN_HOST="$(docker ps -a --format '{{.Names}}' 2>/dev/null || true)"
-if grep -qxE 'caemanager-(app|db)' <<<"$NOMBRES_EN_HOST"; then
+# Si `docker ps` falla no se sabe si el stack está, y eso no es «no está»: la
+# guarda se niega igual (antes el `|| true` lo leía como lista vacía).
+if ! NOMBRES_EN_HOST="$(docker ps -a --format '{{.Names}}' 2>/dev/null)"; then
+    if [ "${ENSAYO_PERMITIR_EN_SERVIDOR:-}" != "1" ]; then
+        echo "ERROR: no se pudo consultar 'docker ps -a': no se puede descartar que en este host esté el stack real."
+        echo "       Comprueba que Docker responde y repite, o ejecuta el ensayo en otra máquina."
+        exit 3
+    fi
+elif grep -qxE 'caemanager-(app|db)' <<<"$NOMBRES_EN_HOST"; then
     if [ "${ENSAYO_PERMITIR_EN_SERVIDOR:-}" != "1" ]; then
         echo "ERROR: en este host existe el stack real (caemanager-app / caemanager-db)."
         echo "       Ejecuta el ensayo en otra máquina (tu equipo con Docker, o un servidor temporal)."

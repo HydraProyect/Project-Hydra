@@ -66,7 +66,14 @@ esta_exceptuado() {
   local id="$1" version="$2"
   [[ -f "$EXCEPCIONES" ]] || return 1
   local contenido
-  contenido="$(tr -d '\r' <"$EXCEPCIONES")"
+  # Se llama dentro de un `if`, donde `set -e` no actúa: sin esta comprobación,
+  # un `tr` que fallara tras escribir media lista dejaría buscar en la salida
+  # parcial y aceptar la excepción. Si no se puede leer la lista entera, la
+  # verificación no decide nada y falla.
+  if ! contenido="$(tr -d '\r' <"$EXCEPCIONES")"; then
+    echo "ERROR: no se pudo leer entera la lista de excepciones $EXCEPCIONES; no se decide si $id $version está revisado" >&2
+    exit 2
+  fi
   grep -qE "^[[:space:]]*${id}[[:space:]]+${version}([[:space:]]|$)" <<<"$contenido"
 }
 

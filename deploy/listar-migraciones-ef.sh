@@ -38,7 +38,13 @@ if [ -z "$ids" ]; then
     echo "listar-migraciones-ef: ninguna migración en $dir" >&2
     exit 1
 fi
-if printf '%s\n' "$ids" | grep -qE '^$|[,[:space:]]'; then
+# `grep <<<`, no `printf | grep -q`: con pipefail, grep -q sale al primer
+# acierto y, con un inventario largo, el SIGPIPE de printf hacía que la guarda
+# no saltara justo cuando había un identificador malo. Un error de grep (estado
+# distinto de 0 y 1) también corta.
+malos=0
+grep -qE '^$|[,[:space:]]' <<<"$ids" || malos=$?
+if [ "$malos" -ne 1 ]; then
     echo "listar-migraciones-ef: identificador de migración vacío o con coma o espacio" >&2
     exit 1
 fi

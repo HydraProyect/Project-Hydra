@@ -199,6 +199,34 @@ assert_codigo   "una versión NO revisada del mismo paquete sigue bloqueando" 1 
 assert_codigo "exceptuar un paquete no exceptúa a MediatR 13.0.0" 1 \
   "$(lista "ConFichero 1.0.0" "MediatR 13.0.0")"
 
+# Si la lista de excepciones no se puede leer entera, la verificación falla y no
+# decide: un `tr` falso escribe la lista completa (con la excepción) y luego sale
+# con error, solo cuando lo que lee es esta lista (MARCA_TR_FALLA). Antes se
+# buscaba en esa salida parcial y la versión pasaba como REVISADA con código 0.
+TR_REAL="$(command -v tr)"
+BIN_TR_FALLA="$TMP_ROOT/bin-tr-falla"; mkdir -p "$BIN_TR_FALLA"
+cat >"$BIN_TR_FALLA/tr" <<SH
+#!/bin/bash
+entrada="\$(cat; echo x)"; entrada="\${entrada%x}"
+printf '%s' "\$entrada" | "$TR_REAL" "\$@"
+[[ "\$entrada" == *MARCA_TR_FALLA* ]] && exit 1
+exit 0
+SH
+chmod +x "$BIN_TR_FALLA/tr"
+printf '# MARCA_TR_FALLA\nConFichero 1.0.0\n' >"$EXCEPCIONES_PRUEBA"
+PRUEBAS=$((PRUEBAS + 1))
+set +e
+salida_tr="$(PATH="$BIN_TR_FALLA:$PATH" "${VERIFICADOR[@]}" "$(lista "ConFichero 1.0.0")" 2>&1)"
+codigo_tr=$?
+set -e
+if [[ "$codigo_tr" == 2 ]] && grep -q 'no se pudo leer entera la lista de excepciones' <<<"$salida_tr"; then
+  echo "OK: un fallo leyendo las excepciones hace fallar la verificación, no la acepta"
+else
+  echo "FALLO: con la lista de excepciones ilegible se esperaba código 2, obtenido $codigo_tr" >&2
+  printf '%s\n' "$salida_tr" >&2
+  FALLOS=$((FALLOS + 1))
+fi
+
 unset EXCEPCIONES
 
 echo

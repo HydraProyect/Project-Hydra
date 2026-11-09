@@ -51,7 +51,8 @@
 #                           ya no era la punta de `main` (main avanzó mientras
 #                           tanto: CI reejecutado, o dos merges seguidos).
 #   INDETERMINADO       5   Ya se estaba vigilando la PR y una lectura de `gh`
-#                           (la PR, la protección de main o la cola de fusión)
+#                           (la PR, la protección de main, la cola de fusión o
+#                           el log de un despliegue a staging fallido)
 #                           siguió fallando tras los reintentos acotados. NO
 #                           dice nada del desenlace: la PR puede seguir en cola
 #                           o haberse fusionado. La línea lleva la lectura que
@@ -284,12 +285,16 @@ run_jobs_tsv() {
     2>/dev/null
 }
 
+# 0 = obsoleto, 1 = no obsoleto, 2 = no se pudo leer el log (ni sí ni no).
 run_es_obsoleto() {
-  local run_id="$1" log
+  local run_id="$1" log estado=0
   # Log capturado entero antes de buscar: con pipefail, `gh … | grep -q` da
-  # fallo por SIGPIPE si gh sigue escribiendo tras el primer acierto.
-  log="$(gh run view "$run_id" --repo "$REPO" --log-failed 2>/dev/null)" || return 1
-  grep -qi -- "$MENSAJE_RUN_OBSOLETO" <<<"$log"
+  # fallo por SIGPIPE si gh sigue escribiendo tras el primer acierto. Un fallo
+  # de `gh` no es «no obsoleto»: se devuelve aparte para no clasificar el run.
+  log="$(gh run view "$run_id" --repo "$REPO" --log-failed 2>/dev/null)" || return 2
+  grep -qi -- "$MENSAJE_RUN_OBSOLETO" <<<"$log" || estado=$?
+  (( estado <= 1 )) || return 2
+  return "$estado"
 }
 
 # --- Veredicto final: UNA línea a stdout, log de progreso a stderr -------
@@ -574,7 +579,7 @@ fi
 # =========================================================================
 fase_despliegue() {
   log "fase despliegue: buscando el run de 'Desplegar' para $SHA_FUSION"
-  local fallos_lectura_jobs=0
+  local fallos_lectura_jobs=0 fallos_lectura_log=0
   while true; do
     local linea_run
     linea_run="$(run_desplegar_para_sha_tsv "$SHA_FUSION")"
@@ -621,7 +626,20 @@ fase_despliegue() {
         log "fase despliegue: no se pudieron leer los jobs del run $run_id (intento $fallos_lectura_jobs) — reintentando, sin inferir nada de la conclusión agregada"
       elif [[ -n "$job_staging_estado" && "$job_staging_estado" == "completed" ]]; then
         fallos_lectura_jobs=0
-        if [[ "$job_staging_conclusion" == "failure" ]] && run_es_obsoleto "$run_id"; then
+        local obsoleto=1
+        if [[ "$job_staging_conclusion" == "failure" ]]; then
+          obsoleto=0
+          run_es_obsoleto "$run_id" || obsoleto=$?
+        fi
+        if [[ "$obsoleto" -eq 2 ]]; then
+          # Sin el log no se sabe si es OBSOLETO o ROJO: se reintenta y, si no
+          # se puede leer, se sale INDETERMINADO, nunca con una clasificación.
+          fallos_lectura_log=$((fallos_lectura_log + 1))
+          log "fase despliegue: ERROR leyendo el log del run $run_id (gh run view --log-failed) — intento $fallos_lectura_log de $MAX_FALLOS_RELECTURA, sin clasificar el run"
+          if [[ "$fallos_lectura_log" -ge "$MAX_FALLOS_RELECTURA" ]] || tiempo_agotado; then
+            salir_indeterminado run_log_failed "fase=despliegue run=$run_id sha=$SHA_FUSION: 'Desplegar a staging' concluyó failure y no se pudo leer su log para saber si es OBSOLETO o ROJO"
+          fi
+        elif [[ "$obsoleto" -eq 0 ]]; then
           salir_obsoleto "run=$run_id sha=$SHA_FUSION ya no era la punta de main al desplegar"
         elif [[ "$job_staging_conclusion" == "success" ]]; then
           salir_verde "PR #$PR desplegada a staging (run=$run_id, $detalle_jobs)"

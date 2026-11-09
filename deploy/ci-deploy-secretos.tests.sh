@@ -25,6 +25,24 @@ DIR="$(mktemp -d)"
 trap 'rm -rf "$DIR"' EXIT
 export FICHERO_ENV_SECRETOS_PRODUCCION="$DIR/.env"
 
+# contiene_texto <fragmento> <texto>: 0 si el texto contiene el fragmento, 1 si
+# no; cualquier otro estado de grep corta la prueba. Las pruebas negativas («la
+# salida NO contiene el valor») van con esto y nunca con `printf | grep -q`: con
+# pipefail, grep -q sale al primer acierto, printf muere por SIGPIPE si aún
+# escribe y la tubería da «no está» justo cuando el fragmento sí estaba.
+contiene_texto() {
+  local estado=0
+  grep -qF -- "$1" <<< "$2" || estado=$?
+  [ "$estado" -le 1 ] || { echo "FALLO: grep salió con $estado buscando un fragmento" >&2; exit 1; }
+  return "$estado"
+}
+# Control del instrumento: 1 MB con el fragmento en la primera línea tiene que
+# dar «sí»; la forma `printf | grep -q` daba «no» aquí.
+TEXTO_GRANDE="SINTETICA-al-principio"$'\n'"$(printf 'relleno-%07d\n' $(seq 1 60000))"
+contiene_texto "SINTETICA" "$TEXTO_GRANDE" || { echo "FALLO: contiene_texto no ve un fragmento al principio de una salida grande" >&2; exit 1; }
+if contiene_texto "NO-ESTA" "$TEXTO_GRANDE"; then echo "FALLO: contiene_texto ve un fragmento que no está" >&2; exit 1; fi
+unset TEXTO_GRANDE
+
 cat > "$FICHERO_ENV_SECRETOS_PRODUCCION" <<'ENVEOF'
 DOMINIO=app.talveg.es
 POSTGRES_PASSWORD=viejo123
@@ -293,7 +311,7 @@ if SALIDA13="$(printf 'Anthropic__ApiKey=sk-buena-123\nStripe__ApiKey=%s\n' "$SE
   exit 1
 fi
 printf '%s' "$SALIDA13" | grep -qF "'Stripe__ApiKey' no tiene la forma esperada" || { echo "FALLO: el rechazo no fue por la forma del valor" >&2; printf '%s\n' "$SALIDA13" >&2; exit 1; }
-printf '%s' "$SALIDA13" | grep -qF "SINTETICO" && { echo "FALLO: el mensaje de error imprimió (parte de) el valor" >&2; exit 1; }
+contiene_texto "SINTETICO" "$SALIDA13" && { echo "FALLO: el mensaje de error imprimió (parte de) el valor" >&2; exit 1; }
 [ "$ANTES13" = "$(cat "$FICHERO_ENV_SECRETOS_PRODUCCION")" ] || { echo "FALLO: .env cambió pese al rechazo" >&2; exit 1; }
 echo "OK: rechazo entero, .env intacto, el mensaje no contiene el valor"
 
@@ -305,7 +323,7 @@ if SALIDA14="$(printf 'Stripe__WebhookSecret=%s\n' "$CLAVE_STRIPE_LIVE" | actual
   exit 1
 fi
 printf '%s' "$SALIDA14" | grep -qF "'Stripe__WebhookSecret' no tiene la forma esperada" || { echo "FALLO: el rechazo no fue por la forma del valor" >&2; exit 1; }
-printf '%s' "$SALIDA14" | grep -qF "SINTETICA" && { echo "FALLO: el mensaje de error imprimió (parte de) el valor" >&2; exit 1; }
+contiene_texto "SINTETICA" "$SALIDA14" && { echo "FALLO: el mensaje de error imprimió (parte de) el valor" >&2; exit 1; }
 echo "OK: whsec_ solo vale como secreto de webhook"
 
 echo "=== Caso 15: verificar_secretos_de_stripe informa de presencia y forma, y NUNCA del valor ==="
@@ -320,7 +338,7 @@ comprobar() {  # <etiqueta> <entorno> <fragmento-esperado> ; el .env ya está en
   salida="$(verificar_secretos_de_stripe "$PRUEBA_FICHERO" "$entorno" 2>&1)" || { echo "FALLO [$etiqueta]: la comprobación devolvió error" >&2; exit 1; }
   printf '%s' "$salida" | grep -qF -- "$esperado" || { echo "FALLO [$etiqueta]: falta '$esperado' en:" >&2; printf '%s\n' "$salida" >&2; exit 1; }
   for fragmento in SINTETICA SINTETICO 1111111 0000000; do
-    printf '%s' "$salida" | grep -qF -- "$fragmento" && { echo "FALLO [$etiqueta]: la salida contiene un fragmento del valor ($fragmento)" >&2; exit 1; }
+    contiene_texto "$fragmento" "$salida" && { echo "FALLO [$etiqueta]: la salida contiene un fragmento del valor ($fragmento)" >&2; exit 1; }
   done
   echo "OK   [$etiqueta]"
 }
@@ -352,7 +370,8 @@ comprobar "staging con clave live avisa" staging "::warning::Stripe__ApiKey de S
 
 printf 'Stripe__ApiKey=%s\n' "$CLAVE_STRIPE_PRUEBA" > "$PRUEBA_FICHERO"
 comprobar "staging con clave de prueba: sin aviso de producción" staging "Stripe__ApiKey: modo prueba"
-if verificar_secretos_de_stripe "$PRUEBA_FICHERO" staging 2>&1 | grep -qF "::warning::"; then
+SALIDA_STAGING_PRUEBA="$(verificar_secretos_de_stripe "$PRUEBA_FICHERO" staging 2>&1)" || { echo "FALLO: la comprobación de staging devolvió error" >&2; exit 1; }
+if contiene_texto "::warning::" "$SALIDA_STAGING_PRUEBA"; then
   echo "FALLO: staging con clave de prueba no debe avisar" >&2
   exit 1
 fi
@@ -425,7 +444,7 @@ for valor in "sk_""live_""SINTETICA2222222222" "sk_""test_""SINTETICA3333333333"
     exit 1
   fi
   printf '%s' "$SALIDA18" | grep -qF "'Stripe__ApiKey' no tiene la forma esperada" || { echo "FALLO: el rechazo no fue por la forma del valor" >&2; exit 1; }
-  printf '%s' "$SALIDA18" | grep -qF "SINTETICA" && { echo "FALLO: el mensaje de error imprimió (parte de) el valor" >&2; exit 1; }
+  contiene_texto "SINTETICA" "$SALIDA18" && { echo "FALLO: el mensaje de error imprimió (parte de) el valor" >&2; exit 1; }
   [ "$ANTES18" = "$(cat "$FICHERO_ENV_SECRETOS_PRODUCCION")" ] || { echo "FALLO: .env cambió pese al rechazo" >&2; exit 1; }
 done
 echo "OK: sk_live_, sk_test_ y rk_test_ rechazados; rk_live_ sigue entrando (caso 12)"

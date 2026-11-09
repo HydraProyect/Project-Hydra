@@ -167,14 +167,31 @@ retener_imagenes() {
         podar_colgantes_de_despliegue
         return 0
     fi
-    # Las que usa cualquier contenedor, aunque esté parado.
-    conservar+="$(docker ps -a --format '{{.Image}}' | sed -n "s/^${REPOSITORIO_IMAGEN_DESPLIEGUE}://p")"$'\n'
+    # Las que usa cualquier contenedor, aunque esté parado. Si `docker ps` falla
+    # no se sabe cuáles son, y no se retira ninguna (como sin historial).
+    local en_uso
+    if ! en_uso="$(docker ps -a --format '{{.Image}}')"; then
+        echo "::warning::retención de imágenes omitida: no se pudo listar los contenedores (docker ps -a). No se retira ninguna ${REPOSITORIO_IMAGEN_DESPLIEGUE}:<sha>." >&2
+        podar_colgantes_de_despliegue
+        return 0
+    fi
+    conservar+="$(sed -n "s/^${REPOSITORIO_IMAGEN_DESPLIEGUE}://p" <<<"$en_uso")"$'\n'
 
     echo "Retención de imágenes: se conservan las $n últimas de cada entorno y las que usa un contenedor."
+    local estado
     while read -r etiqueta; do
         es_sha "$etiqueta" || continue
-        if printf '%s' "$conservar" | grep -qx -- "$etiqueta"; then
+        # `grep <<<`, no `printf | grep -q`: con pipefail, grep -q cierra la
+        # tubería al primer acierto y, con una lista larga, el SIGPIPE de printf
+        # convertía «se conserva» en «se retira». Un estado distinto de 0 y 1 es
+        # un error de grep: no se retira nada más.
+        estado=0
+        grep -qxF -- "$etiqueta" <<<"$conservar" || estado=$?
+        if [ "$estado" -eq 0 ]; then
             continue
+        elif [ "$estado" -ne 1 ]; then
+            echo "::warning::retención de imágenes interrumpida: no se pudo comprobar ${REPOSITORIO_IMAGEN_DESPLIEGUE}:${etiqueta} (grep salió con $estado)." >&2
+            break
         fi
         echo "  retirando ${REPOSITORIO_IMAGEN_DESPLIEGUE}:${etiqueta}"
         docker image rm "${REPOSITORIO_IMAGEN_DESPLIEGUE}:${etiqueta}" > /dev/null \

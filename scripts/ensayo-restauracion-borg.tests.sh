@@ -37,7 +37,7 @@ cat > "$MOCK_BIN/docker" <<'EOF'
 #!/bin/bash
 echo "docker $*" >> "$LOG_DOCKER"
 case "$1" in
-  ps) printf '%s\n' ${ESC_CONTENEDORES:-}; exit 0 ;;
+  ps) printf '%s\n' ${ESC_CONTENEDORES:-}; exit "${ESC_PS_CODIGO:-0}" ;;
   network) exit 1 ;;   # el ensayo real llegaría hasta aquí; el doble lo detiene
 esac
 exit 0
@@ -75,6 +75,17 @@ echo "== ENSAYO_PERMITIR_EN_SERVIDOR=1: la guarda se levanta"
 ejecutar permitido ESC_CONTENEDORES="caemanager-app" ENSAYO_PERMITIR_EN_SERVIDOR=1
 comprobar "no sale con 3" '[ "$CODIGO" -ne 3 ]'
 comprobar "llegó a crear la red (lo único que lo frenaba era la guarda)" 'grep -q "^docker network create" "$LOG_DOCKER"'
+
+echo "== docker ps falla: no se sabe si está el stack, y se niega igual"
+# Sin nombres y con código de error: antes el `|| true` lo leía como «no hay
+# stack» y el ensayo seguía hasta crear la red.
+ejecutar ps-falla ESC_CONTENEDORES="" ESC_PS_CODIGO=1
+comprobar "sale con 3" '[ "$CODIGO" -eq 3 ]'
+comprobar "dice por qué" 'grep -q "no se pudo consultar" <<<"$SALIDA"'
+comprobar "no llegó a crear la red" '! grep -q "^docker network" "$LOG_DOCKER"'
+# Una salida parcial con el stack dentro también se niega.
+ejecutar ps-falla-parcial ESC_CONTENEDORES="caemanager-db" ESC_PS_CODIGO=1
+comprobar "salida parcial y error: sale con 3" '[ "$CODIGO" -eq 3 ]'
 
 echo "== nombres parecidos: no disparan la guarda"
 ejecutar parecidos ESC_CONTENEDORES="caemanager-app-staging caemanager-db2 xcaemanager-app"
