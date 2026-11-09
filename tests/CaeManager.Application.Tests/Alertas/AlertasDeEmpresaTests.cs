@@ -13,6 +13,7 @@ using CaeManager.Domain.Common;
 using CaeManager.Domain.Configuracion;
 using CaeManager.Domain.Documentos;
 using CaeManager.Domain.Empresas;
+using CaeManager.Domain.Trabajadores;
 using FluentAssertions;
 
 namespace CaeManager.Application.Tests.Alertas;
@@ -23,6 +24,7 @@ public class AlertasDeEmpresaTests
     private readonly DocumentosQueryContextFalso _documentos = new();
     private readonly EmpresasQueryContextFalso _empresas = new();
     private readonly TiposDocumentoQueryContextFalso _tipos = new();
+    private readonly TrabajadoresQueryContextFalso _trabajadores = new();
     private readonly Empresa _empresa = new("Empresa propia");
     private readonly TipoDocumento _tipo = new("Seguro", 12, true, 0, AmbitoAplicacion.Empresa);
 
@@ -46,7 +48,7 @@ public class AlertasDeEmpresaTests
         var centros = new CentrosQueryContextFalso();
         var asignaciones = new AsignacionesQueryContextFalso();
         var proyectos = new ProyectosQueryContextFalso();
-        return new(_configuracion, _documentos, _tipos, new TrabajadoresQueryContextFalso(), asignaciones,
+        return new(_configuracion, _documentos, _tipos, _trabajadores, asignaciones,
             centros, _empresas, new ResolverClientePrincipalService(asignaciones, centros, _empresas),
             alcance ?? new AlcanceDatosServiceFalso(), new DocumentosFaltantesService(_tipos, _documentos, centros),
             proyectos, proyectos);
@@ -97,6 +99,30 @@ public class AlertasDeEmpresaTests
         var alertas = await Handler().Handle(new ObtenerAlertasQuery(), CancellationToken.None);
 
         alertas.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task La_vigencia_de_un_Trabajador_lleva_el_nombre_de_su_Empresa_y_sin_Empresa_visible_ninguno()
+    {
+        var hoy = DiaDeNegocio.Hoy();
+        var propio = Trabajador.DeEmpresa(_empresa.Id, "Ana", "Alba", "60005301A");
+        var deSubcontrata = Trabajador.DeSubcontrata(Guid.NewGuid(), "Bea", "Bueno", "60005302G");
+        var deEmpresaQueNoSeLee = Trabajador.DeEmpresa(Guid.NewGuid(), "Carla", "Cano", "60005303M");
+        _trabajadores.ListaTrabajadores.AddRange([propio, deSubcontrata, deEmpresaQueNoSeLee]);
+        var formacion = new TipoDocumento("Formación", 12, true, 0, AmbitoAplicacion.Trabajador);
+        _tipos.ListaTiposDocumento.Add(formacion);
+        foreach (var trabajador in new[] { propio, deSubcontrata, deEmpresaQueNoSeLee })
+            _documentos.ListaDocumentos.Add(Documento.DeTrabajador(trabajador.Id, formacion.Id, hoy.AddYears(-1), VigenciaDocumento.VenceEl(hoy.AddDays(-1))));
+        var deEmpresa = Agregar(3);
+
+        var alertas = await Handler().Handle(new ObtenerAlertasQuery(), CancellationToken.None);
+
+        alertas.Select(a => (a.TrabajadorId, a.EmpresaId, a.EmpresaNombre, a.Estado)).Should().Equal(
+            ((Guid?)propio.Id, (Guid?)_empresa.Id, (string?)_empresa.RazonSocial, EstadoDocumento.Vencido),
+            ((Guid?)deSubcontrata.Id, (Guid?)null, (string?)null, EstadoDocumento.Vencido),
+            ((Guid?)deEmpresaQueNoSeLee.Id, deEmpresaQueNoSeLee.EmpresaId, (string?)null, EstadoDocumento.Vencido),
+            ((Guid?)null, (Guid?)_empresa.Id, (string?)_empresa.RazonSocial, EstadoDocumento.Urgente));
+        alertas[^1].DocumentoId.Should().Be(deEmpresa.Id);
     }
 
     [Theory]
