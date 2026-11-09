@@ -1270,6 +1270,32 @@
     outline-offset: 1px;
 }
 
+/* 375 px: el selector, con el rótulo en una línea, y «+ Asignar trabajador» envuelven en vez de salirse de la pantalla. */
+.acordeon-asignaciones-cabecera-recursos {
+    flex-wrap: wrap;
+    row-gap: var(--space-2);
+    max-width: 100%;
+}
+
+.acordeon-asignaciones-cabecera-recursos > * {
+    min-width: 0;
+    max-width: 100%;
+}
+
+.selector-recurso-opcion {
+    white-space: nowrap;
+}
+
+@media (max-width: 480px) {
+    .acordeon-asignaciones-cabecera-recursos .selector-recurso-opcion {
+        padding: 0 8px;
+    }
+
+    .acordeon-asignaciones-cabecera-recursos > .acordeon-asignaciones-cabecera {
+        margin-left: auto;
+    }
+}
+
 /* Búsqueda de trabajadores del cuerpo de Centro 360 (AcordeonAsignacionesCentro) — solo aparece con más de un trabajador en la lista ya filtrada. */
 .acordeon-asignaciones-busqueda {
     max-width: 320px;
@@ -2206,12 +2232,12 @@
     display: grid;
     /* Última columna de ancho fijo (antes minmax(150px, auto)): cada fila es su propia rejilla, y con «auto» una acción más
        ancha o una celda vacía movían Estado y Caducidad respecto a las demás filas de la misma tabla. */
-    grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr) 96px 56px 188px;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr) 96px 56px minmax(150px, 188px);
     gap: var(--space-3);
     align-items: center;
 }
 .cabecera-plataforma-centro .cabecera-accion-plataforma { text-align: right; }
-/* En fila y envolviendo: «Gestionar» y las acciones de plataforma («Marcar subido», «Cambiar») ocupan como mucho dos líneas. */
+/* En fila y envolviendo: «Gestionar» y las acciones de plataforma («Marcar subido», «Cambiar») de una acreditación ocupan una o dos líneas. */
 .fila-plataforma-centro .celda-accion-plataforma { display: flex; flex-flow: row wrap; align-items: center; justify-content: flex-end; gap: 4px 6px; min-width: 0; }
 .cabecera-plataforma-centro {
     padding: 8px 0 6px;
@@ -2256,4 +2282,13 @@
     font: var(--font-caption);
     color: var(--color-text-muted);
     overflow-wrap: anywhere;
+}
+
+/* Filas homogéneas: el nombre de la Empresa empleadora va siempre en la línea del Trabajador, cortado con puntos suspensivos si no cabe. */
+.lista-trabajadores-acordeon:not(.lista-trabajadores-acordeon-listado) .fila-trabajador-empleador {
+    min-width: 0;
+    overflow: hidden;
+    overflow-wrap: normal;
+    text-overflow: ellipsis;
+    white-space: nowrap;
 }

@@ -311,7 +311,12 @@ else
                         @if (MostrarEstadoPlataforma && !ModoListado)
                         {
                             @* Centro 360 (maqueta): el primer nivel dice una línea sin botones; los motivos y «Gestionar» viven en el desplegable. *@
-                            <span class="fila-trabajador-resumen" data-resumen-fila title="@TituloResumenPrimerNivel(trabajador)">@ResumenPrimerNivel(trabajador)</span>
+                            @* Al día no repite texto en cada fila: basta la píldora de estado. *@
+                            var resumen = ResumenPrimerNivel(trabajador);
+                            @if (resumen.Length > 0)
+                            {
+                                <span class="fila-trabajador-resumen" data-resumen-fila title="@TituloResumenPrimerNivel(trabajador)">@resumen</span>
+                            }
                         }
                         else if (BloqueosDe(trabajador.TrabajadorId).Count > 0)
                         {

@@ -284,7 +284,56 @@ public partial class Centro360Gen2Tests
         var pie = cut.Find("[data-totales-documentales]");
         pie.QuerySelector(".totales-cifras")!.TextContent.Should().Contain("exigidos").And.NotContain("Se calcula");
         pie.QuerySelector("[data-totales-nota]")!.TextContent.Trim().Should().Be("Se calcula sobre la lista completa, no sobre la filtrada.");
-        System.Text.RegularExpressions.Regex.IsMatch(pie.TextContent, @"pendientes?\s+Se calcula")
-            .Should().BeTrue("las dos frases no pueden quedar pegadas: «pendientesSe calcula…»");
+        pie.QuerySelector("[data-totales-nota]")!.ParentElement!.HasAttribute("data-totales-documentales").Should()
+            .BeTrue("la nota es un elemento hermano de las cifras, no texto pegado a «… pendientes»");
+        pie.QuerySelector(".totales-cifras")!.NextElementSibling!.HasAttribute("data-totales-nota").Should().BeTrue();
+    }
+
+    [Fact]
+    public void Un_Trabajador_al_dia_no_repite_texto_en_la_fila_y_las_filas_son_homogeneas()
+    {
+        var id = Guid.NewGuid();
+        var uno = Asignado("Alba Uno, Eva", EstadoDocumento.Vigente, Documento("Contrato de trabajo", EstadoDocumento.Vigente, HoyDeLaPestana.AddDays(400)));
+        var dos = Asignado("Alba Dos, Eva", EstadoDocumento.Vigente, Documento("Contrato de trabajo", EstadoDocumento.Vigente, HoyDeLaPestana.AddDays(400)));
+        var mediador = Registrar(new MediatorFalso());
+        mediador.Asignaciones[id] = [uno, dos];
+        mediador.Empleadores[id] = [new(uno.TrabajadorId, uno.TrabajadorNombre, "Montajes Largos y Muy Largos del Norte S.L.", new DateOnly(2026, 1, 9)),
+            new(dos.TrabajadorId, dos.TrabajadorNombre, "Eco S.L.", new DateOnly(2026, 1, 9))];
+        var cut = Renderizar360(id);
+        cut.WaitForAssertion(() => cut.FindAll(".lista-trabajadores-acordeon .fila-relacion-rejilla").Should().HaveCount(2));
+
+        cut.FindAll("[data-resumen-fila]").Should().BeEmpty("al día no repite «Toda la documentación… vigente» en cada fila");
+        cut.Markup.Should().NotContain("vigente");
+        cut.FindAll(".fila-relacion-estado .badge").Should().HaveCount(2).And.OnlyContain(b => b.TextContent.Trim() == "Vigente");
+        // Misma estructura en todas las filas: el empleador siempre dentro de la línea del nombre.
+        cut.FindAll(".fila-relacion-titulo").Should().OnlyContain(t => t.QuerySelector(".fila-relacion-nombre") != null && t.QuerySelector("[data-empleador]") != null);
+    }
+
+    [Fact]
+    public void El_autonomo_no_repite_su_nombre_como_Empresa_empleadora()
+    {
+        var id = Guid.NewGuid();
+        var autonomo = Asignado("Ruiz Peña, Ana", EstadoDocumento.Vigente, Documento("Contrato de trabajo", EstadoDocumento.Vigente, HoyDeLaPestana.AddDays(400)));
+        var asalariado = Asignado("Gil Mora, Luis", EstadoDocumento.Vigente, Documento("Contrato de trabajo", EstadoDocumento.Vigente, HoyDeLaPestana.AddDays(400)));
+        var mediador = Registrar(new MediatorFalso());
+        mediador.Asignaciones[id] = [autonomo, asalariado];
+        mediador.Empleadores[id] = [new(autonomo.TrabajadorId, autonomo.TrabajadorNombre, "ANA RUIZ PEÑA", new DateOnly(2026, 1, 9)),
+            new(asalariado.TrabajadorId, asalariado.TrabajadorNombre, "Eco S.L.", new DateOnly(2026, 1, 9))];
+        var cut = Renderizar360(id);
+        cut.WaitForAssertion(() => cut.FindAll("[data-empleador]").Should().ContainSingle().Which.TextContent.Should().Be("Eco S.L."));
+    }
+
+    [Fact]
+    public void La_barra_de_la_pestana_agrupa_selector_y_Asignar_en_una_cabecera_que_envuelve_a_375_px()
+    {
+        // bUnit no aplica CSS: se fija la estructura y las clases que lo hacen caber (list-page.css: flex-wrap, nowrap del rótulo).
+        var escenario = MontarTrabajadorBloqueado();
+        var cut = Renderizar360(escenario.CentroId);
+        cut.WaitForAssertion(() => cut.FindAll(".fila-relacion-rejilla").Should().NotBeEmpty());
+
+        var cabecera = cut.Find(".acordeon-asignaciones-cabecera-recursos");
+        cabecera.QuerySelectorAll(".selector-recurso-centro .selector-recurso-opcion").Should().HaveCount(2);
+        cabecera.QuerySelectorAll(".selector-recurso-opcion").Select(o => o.TextContent.Trim()).Should().Equal("Trabajadores · 1", "Vehículos · 0");
+        cabecera.QuerySelector(".acordeon-asignaciones-cabecera")!.TextContent.Should().Contain("+ Asignar trabajador");
     }
 }

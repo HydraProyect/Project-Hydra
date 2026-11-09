@@ -50,7 +50,22 @@ public partial class AcordeonAsignacionesCentro : ComponentBase, IDisposable
     private IReadOnlyDictionary<Guid, string> _empleadoresPorTrabajador = new Dictionary<Guid, string>();
 
     private string? EmpleadorDe(Guid trabajadorId) =>
-        MostrarEstadoPlataforma && _empleadoresPorTrabajador.TryGetValue(trabajadorId, out var empleador) ? empleador : null;
+        MostrarEstadoPlataforma && _empleadoresPorTrabajador.TryGetValue(trabajadorId, out var empleador)
+        && !MismoNombre(empleador, _trabajadores.FirstOrDefault(t => t.TrabajadorId == trabajadorId)?.TrabajadorNombre)
+            ? empleador : null;
+
+    /// <summary>
+    /// Un autónomo es su propia Empresa empleadora: «Ruiz Peña, Ana» y «Ana Ruiz Peña» son el mismo nombre y la fila no lo repite.
+    /// Compara las palabras sin acentos ni mayúsculas y sin importar el orden.
+    /// </summary>
+    internal static bool MismoNombre(string? a, string? b)
+    {
+        static string[] Palabras(string texto) => texto.Normalize(System.Text.NormalizationForm.FormD)
+            .Where(c => System.Globalization.CharUnicodeInfo.GetUnicodeCategory(c) != System.Globalization.UnicodeCategory.NonSpacingMark)
+            .Aggregate(new System.Text.StringBuilder(), (sb, c) => sb.Append(char.IsLetterOrDigit(c) ? char.ToLowerInvariant(c) : ' '))
+            .ToString().Split(' ', StringSplitOptions.RemoveEmptyEntries).Order().ToArray();
+        return !string.IsNullOrWhiteSpace(a) && !string.IsNullOrWhiteSpace(b) && Palabras(a).SequenceEqual(Palabras(b));
+    }
     /// <summary>Plataforma CAE del primer canal de gestión por plataforma del Centro; rotula la columna de estado.</summary>
     [Parameter] public string? NombrePlataforma { get; set; }
     /// <summary>Barra de búsqueda de la página; recibe si la vista es «Vehículos» para rotular el buscador.</summary>
@@ -258,11 +273,17 @@ public partial class AcordeonAsignacionesCentro : ComponentBase, IDisposable
         var nombres = NombresQueBloquean(trabajador);
         return nombres.Count switch
         {
+            0 when AlDia(trabajador) => string.Empty,
             0 => MotivoDocumental(trabajador),
             1 => Textos["ResumenBloqueoUno360", nombres[0]].Value,
             _ => Textos["ResumenBloqueoVarios360", nombres[0], nombres.Count - 1].Value
         };
     }
+
+    /// <summary>Sin exigencias o con todo vigente: no hay nada que decir en la fila (la píldora ya dice «Vigente»).</summary>
+    private static bool AlDia(TrabajadorAsignacionDocumentacionDto trabajador) =>
+        trabajador.Cumplimiento.Requeridos == 0
+        || EstadoDocumentoFicha360.Clave(trabajador.PeorEstado) == EstadoDocumentoFicha360.Clave(EstadoDocumento.Vigente);
 
     /// <summary>Los Tipos que bloquean al Trabajador en este Centro (bloqueo de acceso o rechazo/pendiente en plataforma), sin repetir, en el orden en que llegan.</summary>
     private List<string> NombresQueBloquean(TrabajadorAsignacionDocumentacionDto trabajador) =>
