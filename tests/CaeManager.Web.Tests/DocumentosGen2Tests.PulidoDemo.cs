@@ -30,7 +30,7 @@ public partial class DocumentosGen2Tests
         var (cut, _) = Renderizar(ConDocumentos(DocumentoDeFila()), rol: rol);
         cut.WaitForAssertion(() => cut.Find("tbody button.enlace-nombre-fila"));
 
-        cut.FindAll("[role=tablist]").Should().ContainSingle("la barra de sección del marco no se pinta sobre /documentos");
+        cut.FindAll("[role=tablist]").Should().ContainSingle("la página lleva una sola tira de pestañas; que el marco no pinte la suya sobre /documentos lo fija BarraSeccionTests");
         var etiquetas = Pestanas(cut).Select(EtiquetaDePestana).ToList();
         etiquetas.Count(e => e == "Revisión IA").Should().Be(1);
         etiquetas.Should().StartWith(["Estado", "Plataformas CAE", "Reclamaciones", "Preventivo", "Revisión IA", "Plantillas"]);
@@ -124,5 +124,27 @@ public partial class DocumentosGen2Tests
         gestionar.ClassList.Should().NotContain("accion-fila-enlace").And.Contain("boton-secundario");
         cut.Find("tbody .documentos-acciones-fila").Children.Select(c => c.TextContent.Trim())
             .Take(2).Should().Equal("Ver", "Gestionar");
+    }
+
+    [Fact]
+    public void El_resumen_de_plataformas_desempata_por_gravedad_y_no_por_el_orden_del_DTO()
+    {
+        var documento = DocumentoDeFila("blob/x.pdf",
+            new AcreditacionResumenDto(Guid.NewGuid(), "Nalanda", EstadoAcreditacion.NoRequerida),
+            new AcreditacionResumenDto(Guid.NewGuid(), "Dokify", EstadoAcreditacion.Subida),
+            new AcreditacionResumenDto(Guid.NewGuid(), "CTAIMA", EstadoAcreditacion.Aceptada));
+        var (cut, _) = Renderizar(ConDocumentos(documento));
+        cut.WaitForAssertion(() => cut.Find("tbody .badges-acreditacion"));
+
+        cut.Find("tbody tr [data-pieza=pastilla]").TextContent.Should().Contain("Dokify");
+    }
+
+    [Fact]
+    public void Sin_confirmar_conserva_su_motivo_aunque_el_documento_traiga_fecha()
+    {
+        var documento = DocumentoDeFila() with { FechaVencimiento = DiaDeNegocio.Hoy().AddDays(-4), Estado = EstadoDocumento.SinConfirmar };
+        var (cut, _) = Renderizar(ConDocumentos(documento));
+
+        cut.WaitForAssertion(() => cut.Find("tbody tr .estado-fila-motivo").TextContent.Should().NotBeNullOrWhiteSpace());
     }
 }

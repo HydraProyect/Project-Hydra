@@ -22,10 +22,11 @@
     @* Una línea de altura fija para las filas de un listado: la plataforma más urgente y «+N» con las demás
        (la ventana de contexto de la fila las lista todas con su estado). *@
     var principal = Acreditaciones.OrderBy(a => Prioridad(a.Estado)).First();
+    var textoPrincipal = $"{principal.NombrePlataforma}: {EstadoAcreditacionUi.Texto(principal.Estado)}";
     var resto = Acreditaciones.Where(a => a.Id != principal.Id).ToList();
     <span class="badges-acreditacion badges-acreditacion-resumen">
-        <Badge Tono="TonoDe(principal.Estado)" Tamano="TamanoBadge.Pequeno">
-            @principal.NombrePlataforma: @EstadoAcreditacionUi.Texto(principal.Estado)
+        <Badge Tono="TonoDe(principal.Estado)" Tamano="TamanoBadge.Pequeno" title="@textoPrincipal">
+            @textoPrincipal
         </Badge>
         @if (resto.Count > 0)
         {
@@ -55,7 +56,9 @@ else if (Acreditaciones.Count > 0)
     {
         EstadoAcreditacion.Rechazada => 0,
         EstadoAcreditacion.PendienteDeSubir => 1,
-        _ => 2
+        EstadoAcreditacion.Subida => 2,
+        EstadoAcreditacion.Aceptada => 3,
+        _ => 4
     };
 
     private static TonoBadge TonoDe(EstadoAcreditacion estado) => estado switch

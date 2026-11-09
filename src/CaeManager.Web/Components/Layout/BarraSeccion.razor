@@ -18,8 +18,9 @@
 
     Solo señala: cada pestaña es un enlace corriente y la pantalla de destino decide quién entra. Una
     pestaña que el rol no ve no se pinta, y con menos de dos visibles no se pinta la barra. Es un islote
-    porque tiene que seguir la navegación interna del circuito (LocationChanged), incluido el cambio de
-    pestaña de Documentos, que solo cambia el ?pestana= de la URL.
+    porque tiene que seguir la navegación interna del circuito (LocationChanged). Sobre /documentos no se
+    pinta (esa página lleva su propia barra, con Revisión IA e Incidencias): sí en /incidencias y en
+    /documentos/revision-ia.
 *@
 <LimiteDeErrores Islote="this">
 @if (_seccion is { } seccion)

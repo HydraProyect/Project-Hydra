@@ -7,6 +7,15 @@
 .badges-acreditacion-resumen {
     flex-wrap: nowrap;
     align-items: center;
+    max-width: 100%;
+    min-width: 0;
+}
+
+/* La pastilla se recorta con puntos suspensivos antes que salirse de su celda y tapar la columna de al lado (el texto completo va en su title). */
+.badges-acreditacion-resumen ::deep [data-pieza="pastilla"] {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 
 .badges-acreditacion-resto {

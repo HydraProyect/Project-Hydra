@@ -907,7 +907,7 @@ public partial class Documentos : CaeManager.Web.Components.PaginaInteractiva, I
     /// fecha de vencimiento (Sin confirmar, que explica qué falta).
     /// </summary>
     private string? MotivoDeLaFila(DocumentoListaDto documento) =>
-        _ordenVigenciaPorEmision || documento.FechaVencimiento is null
+        _ordenVigenciaPorEmision || documento.FechaVencimiento is null || documento.Estado == EstadoDocumento.SinConfirmar
             ? EstadoDocumentoUi.MotivoDeDocumento(documento.Estado, documento.FechaVencimiento, _hoy)
             : null;
 
