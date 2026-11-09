@@ -21,16 +21,13 @@
 {
     @* Una línea de altura fija para las filas de un listado: la plataforma más urgente y «+N» con las demás
        (la ventana de contexto de la fila las lista todas con su estado). *@
-    var principal = Acreditaciones.OrderBy(a => Prioridad(a.Estado)).First();
-    var textoPrincipal = $"{principal.NombrePlataforma}: {EstadoAcreditacionUi.Texto(principal.Estado)}";
-    var resto = Acreditaciones.Where(a => a.Id != principal.Id).ToList();
     <span class="badges-acreditacion badges-acreditacion-resumen">
-        <Badge Tono="TonoDe(principal.Estado)" Tamano="TamanoBadge.Pequeno" title="@textoPrincipal">
-            @textoPrincipal
+        <Badge Tono="TonoDe(Principal.Estado)" Tamano="TamanoBadge.Pequeno" title="@TextoDe(Principal)">
+            @TextoDe(Principal)
         </Badge>
-        @if (resto.Count > 0)
+        @if (Resto.Count > 0)
         {
-            <span class="badges-acreditacion-resto" title="@string.Join(", ", resto.Select(a => $"{a.NombrePlataforma}: {EstadoAcreditacionUi.Texto(a.Estado)}"))">+@resto.Count</span>
+            <span class="badges-acreditacion-resto" title="@string.Join(", ", Resto.Select(TextoDe))">+@Resto.Count</span>
         }
     </span>
 }
@@ -51,6 +48,15 @@ else if (Acreditaciones.Count > 0)
 
     /// <summary>Una sola pastilla (la más urgente) y «+N», para que las filas de un listado midan lo mismo. Falso por defecto.</summary>
     [Parameter] public bool Resumen { get; set; }
+
+    /// <summary>La pastilla del resumen: la acreditación más grave.</summary>
+    private AcreditacionResumenDto Principal => Acreditaciones.OrderBy(a => Prioridad(a.Estado)).First();
+
+    private IReadOnlyList<AcreditacionResumenDto> Resto => Acreditaciones.Where(a => a.Id != Principal.Id).ToList();
+
+    /// <summary>«Plataforma: estado», el mismo texto que lleva la pastilla.</summary>
+    private static string TextoDe(AcreditacionResumenDto acreditacion) =>
+        acreditacion.NombrePlataforma + ": " + EstadoAcreditacionUi.Texto(acreditacion.Estado);
 
     private static int Prioridad(EstadoAcreditacion estado) => estado switch
     {

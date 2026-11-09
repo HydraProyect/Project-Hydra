@@ -482,7 +482,7 @@
                                 {
                                     @* Botón y no enlace: abre el visor en un modal (VisorDocumento) sin salir de la lista.
                                        «Abrir en pestaña nueva» sigue dentro del propio visor. *@
-                                    @* Acción secundaria, de enlace (como «Ver» de las fichas 360): «Gestionar» es la principal de la fila. *@
+                                    @* «Ver» es la acción secundaria de la fila, de enlace como en las fichas 360; «Gestionar» es la principal. *@
                                     <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" class="accion-fila-enlace documentos-accion-ver"
                                            aria-label="@Textos["VerPdfAria", context.TipoDocumentoNombre, context.PropietarioNombre]"
                                            OnClick="() => AbrirVisor(context)">@Textos["ListaVer"]</Boton>
