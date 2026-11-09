@@ -899,6 +899,34 @@ public partial class AsistenteIa : IDisposable
         }
     }
 
+    private bool _ejecutandoBorrador;
+
+    /// <summary>
+    /// Vuelve a ejecutar los pasos pendientes de un plan confirmado que ya no está en el hilo
+    /// (recarga, otra conversación). El Command salta lo ya hecho y comprueba otra vez la
+    /// cartera y el Tenant efectivo.
+    /// </summary>
+    private async Task ReintentarBorradorAsync(Guid tareaId)
+    {
+        if (_ejecutandoBorrador || TenantEfectivoCambiado()) return;
+        _ejecutandoBorrador = true;
+        _mensajeError = null;
+        try
+        {
+            var resultado = await Mediator.Send(new EjecutarPlanTareaAsistenteCommand(tareaId));
+            if (resultado.EsFallido)
+                _mensajeError = resultado.Error.Mensaje;
+            else if (!resultado.Valor.Terminada)
+                _mensajeError = resultado.Valor.Pasos.FirstOrDefault(p => p.Motivo is not null)?.Motivo
+                    ?? Textos["Plan_EjecucionIncompleta"];
+            await CargarBorradoresAsync();
+        }
+        finally
+        {
+            _ejecutandoBorrador = false;
+        }
+    }
+
     private async Task DescartarBorradorAsync(Guid tareaId)
     {
         if (TenantEfectivoCambiado()) return;

@@ -78,17 +78,35 @@ public class PlanAsistenteEditableTests : BunitContext
     }
 
     [Fact]
-    public void Enter_dentro_de_un_control_del_plan_no_confirma()
+    public void Enter_en_el_plan_confirmable_fuera_de_un_control_confirma()
     {
-        var vista = VistaEditable();
-        var confirmado = false;
+        // Control del test siguiente: el Enter de un hijo sube hasta el plan y lo confirma.
+        var confirmados = 0;
 
         var cut = Render<PlanAsistente>(p => p
-            .Add(x => x.Vista, vista)
-            .Add(x => x.OnConfirmar, () => confirmado = true));
-        cut.Find($"#plan-{vista.TareaId:N}-{TiposDatoPlan.CampoTrabajador}").KeyDown(new KeyboardEventArgs { Key = "Enter" });
+            .Add(x => x.Vista, VistaConfirmable())
+            .Add(x => x.OnConfirmar, () => confirmados++));
+        cut.Find(".plan-titulo").KeyDown(new KeyboardEventArgs { Key = "Enter" });
 
-        confirmado.Should().BeFalse();
+        confirmados.Should().Be(1);
+    }
+
+    [Fact]
+    public void Enter_dentro_de_cualquier_control_de_un_plan_confirmable_no_confirma()
+    {
+        var confirmados = 0;
+
+        var cut = Render<PlanAsistente>(p => p
+            .Add(x => x.Vista, VistaConfirmable())
+            .Add(x => x.OnConfirmar, () => confirmados++));
+        const string controles = ".plan input, .plan select";
+        var total = cut.FindAll(controles).Count;
+        total.Should().BeGreaterThan(5, "el alta de Trabajador tiene nombre, apellidos, documento, empleador, Centro y fecha");
+
+        for (var i = 0; i < total; i++)
+            cut.FindAll(controles)[i].KeyDown(new KeyboardEventArgs { Key = "Enter" });
+
+        confirmados.Should().Be(0, "Enter dentro de un campo es escribir, no confirmar");
     }
 
     [Fact]
@@ -128,6 +146,24 @@ public class PlanAsistenteEditableTests : BunitContext
         var cut = Render<PlanAsistente>(p => p.Add(x => x.Vista, vista));
 
         cut.FindAll(".plan-acciones .plan-confirmar").Should().BeEmpty();
+    }
+
+    /// <summary>Editable y con todos los datos completos: Enter confirmaría.</summary>
+    private static VistaPlanAsistente VistaConfirmable()
+    {
+        var vista = VistaEditable();
+        vista.Plan = vista.Plan with
+        {
+            Datos = vista.Plan.Datos.Select(d => d with
+            {
+                Valor = d.Campo == TiposDatoPlan.CampoTrabajador
+                    ? new ValorDatoPlanDto(d.Campo, Trabajador: new TrabajadorNuevoDto("Lucía", "Pérez Gil", "12345678Z"))
+                    : new ValorDatoPlanDto(d.Campo, Texto: "completo"),
+            }).ToList(),
+        };
+        vista.Plan.Confirmable.Should().BeTrue();
+        vista.PuedeConfirmar.Should().BeTrue();
+        return vista;
     }
 
     private static VistaPlanAsistente VistaEditable()

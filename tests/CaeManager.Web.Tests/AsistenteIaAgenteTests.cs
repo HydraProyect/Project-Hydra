@@ -463,6 +463,38 @@ public class AsistenteIaAgenteTests : BunitContext
         _mediador.De<DescartarTareaAsistenteCommand>().Should().ContainSingle().Which.TareaId.Should().Be(TareaId);
     }
 
+    [Fact]
+    public void Un_plan_confirmado_que_quedo_a_medias_se_reintenta_desde_el_historial()
+    {
+        Configurar(anthropic: true, agenteReal: true);
+        GuionDeAgente(PlanConfirmable());
+        var aMedias = new ResumenTareaAsistenteDto(TareaId, EstadoTareaAsistente.Confirmada, "alta de Lucía", DateTime.UtcNow);
+        _mediador.Guion[typeof(ListarTareasAsistenteQuery)] = _ => Result.Exito<IReadOnlyList<ResumenTareaAsistenteDto>>([aMedias]);
+        _mediador.Guion[typeof(EjecutarPlanTareaAsistenteCommand)] = _ => Result.Exito(new EjecucionPlanAsistenteDto(false,
+            [new PasoEjecutadoDto(Guid.NewGuid(), 2, "CrearAsignacionCommand", EstadoPasoTareaAsistente.Fallido, null, "El centro no es de tu cartera.")]));
+        var panel = Abrir();
+
+        panel.Find("button[aria-label='Borradores y conversaciones anteriores']").Click();
+        panel.Find(".asistente-borrador-reintentar").Click();
+
+        _mediador.De<EjecutarPlanTareaAsistenteCommand>().Should().ContainSingle().Which.TareaId.Should().Be(TareaId);
+        panel.Find(".asistente-mensaje-error").TextContent.Should().Be("El centro no es de tu cartera.");
+    }
+
+    [Fact]
+    public void Un_borrador_sin_confirmar_no_ofrece_reintentar()
+    {
+        Configurar(anthropic: true, agenteReal: true);
+        GuionDeAgente(PlanConfirmable());
+        var borrador = new ResumenTareaAsistenteDto(TareaId, EstadoTareaAsistente.PlanEnBorrador, "alta de un centro", DateTime.UtcNow);
+        _mediador.Guion[typeof(ListarTareasAsistenteQuery)] = _ => Result.Exito<IReadOnlyList<ResumenTareaAsistenteDto>>([borrador]);
+        var panel = Abrir();
+
+        panel.Find("button[aria-label='Borradores y conversaciones anteriores']").Click();
+
+        panel.FindAll(".asistente-borrador-reintentar").Should().BeEmpty();
+    }
+
     // ---- Accesibilidad -----------------------------------------------------------------------
 
     [Fact]

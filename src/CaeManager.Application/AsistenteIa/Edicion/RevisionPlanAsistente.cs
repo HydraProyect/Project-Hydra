@@ -149,9 +149,10 @@ public sealed class RevisionPlanAsistente(IMediator mediator, ITrabajadorReposit
                 var texto = valor.Texto?.Trim();
                 if (string.IsNullOrEmpty(texto))
                     return Vacio();
-                if (texto.Length > TiposDatoPlan.LongitudMaximaTexto)
+                var maximo = LongitudMaxima(campo.Nombre);
+                if (texto.Length > maximo)
                     return Result.Fallo<DatoPropuestoDto>(Error.Crear("AsistenteIa.TextoDemasiadoLargo",
-                        $"«{campo.Descripcion}» no puede pasar de {TiposDatoPlan.LongitudMaximaTexto} caracteres."));
+                        $"«{campo.Descripcion}» no puede pasar de {maximo} caracteres."));
                 return Con(campo, new ValorDatoPlanDto(campo.Nombre, Texto: texto), texto);
 
             case TipoDatoPlan.TrabajadorNuevo:
@@ -174,6 +175,19 @@ public sealed class RevisionPlanAsistente(IMediator mediator, ITrabajadorReposit
                 return Vacio();
         }
     }
+
+    /// <summary>
+    /// El límite del Command que recibirá el texto, no uno propio: un plan que se puede
+    /// confirmar no puede acabar rechazado por el validador del Command al ejecutar.
+    /// </summary>
+    internal static int LongitudMaxima(string campo) => Math.Min(TiposDatoPlan.LongitudMaximaTexto, campo switch
+    {
+        TiposDatoPlan.CampoNombre => Domain.Centros.Centro.LongitudMaximaNombre,
+        TiposDatoPlan.CampoDireccion => Domain.Centros.Centro.LongitudMaximaDireccion,
+        TiposDatoPlan.CampoRazonSocial => Domain.Empresas.Empresa.LongitudMaximaRazonSocial,
+        TiposDatoPlan.CampoMotivo => Domain.Visitas.Visita.LongitudMaximaNotas,
+        _ => TiposDatoPlan.LongitudMaximaTexto,
+    });
 
     private static Result<DatoPropuestoDto> Con(CampoDeOrden campo, ValorDatoPlanDto valor, string nombre) =>
         new DatoPropuestoDto(campo.Nombre, campo.Descripcion, campo.Obligatorio, null, nombre, null, 100, null, valor);

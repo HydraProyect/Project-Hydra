@@ -12,6 +12,8 @@ using CaeManager.Domain.AsistenteIa;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Trabajadores;
 using FluentAssertions;
+using FluentValidation;
+using FluentValidation.Results;
 using MediatR;
 using Xunit;
 
@@ -39,6 +41,7 @@ public class PlanEditableAsistenteTests
     private readonly UnidadDeTrabajoContada _unidad = new();
     private readonly TrabajadoresFalsos _trabajadores = new();
     private readonly MediadorFalso _mediador;
+    private readonly Clientes.TransaccionDeComandoFalsa _transaccion = new();
 
     public PlanEditableAsistenteTests()
     {
@@ -182,6 +185,8 @@ public class PlanEditableAsistenteTests
         primero.Valor.Pasos.Select(p => p.Estado).Should().Equal(EstadoPasoTareaAsistente.Ejecutado, EstadoPasoTareaAsistente.Fallido);
         primero.Valor.Pasos[1].Motivo.Should().Be("El centro no es de tu cartera.");
 
+        // El documento ya existe porque lo dio de alta este mismo plan: no bloquea el reintento.
+        _trabajadores.Existentes.Add(DniValido);
         _mediador.AsignacionFalla = false;
         var segundo = await EjecutarAsync(tarea);
 
@@ -236,6 +241,82 @@ public class PlanEditableAsistenteTests
         var alta = _mediador.Enviados.OfType<CrearTrabajadorCommand>().Single();
         alta.SubcontrataId.Should().Be(_subcontrata);
         alta.EmpresaId.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task Un_plan_guardado_con_otra_operacion_que_la_del_catalogo_no_se_ejecuta()
+    {
+        var tarea = await TareaConfirmadaAsync();
+        _mediador.AlterarDatos = json => json.Replace(nameof(CrearAsignacionCommand), "CrearVisitaCommand", StringComparison.Ordinal);
+
+        var resultado = await EjecutarAsync(tarea);
+
+        resultado.Error.Codigo.Should().Be("AsistenteIa.PlanAlterado");
+        _mediador.Enviados.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task Lo_que_bloquea_confirmar_tambien_bloquea_ejecutar()
+    {
+        var tarea = await TareaConfirmadaAsync();
+        // Entre confirmar y ejecutar, alguien da de alta a una persona con el mismo documento.
+        _trabajadores.Existentes.Add(DniValido);
+
+        var resultado = await EjecutarAsync(tarea);
+
+        resultado.Error.Codigo.Should().Be("AsistenteIa.PlanBloqueado");
+        _mediador.Enviados.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task Un_paso_que_el_Command_rechaza_por_validacion_queda_fallido_con_su_motivo_y_se_deshace()
+    {
+        var tarea = await TareaConfirmadaAsync();
+        _mediador.AsignacionNoValida = true;
+
+        var resultado = await EjecutarAsync(tarea);
+
+        resultado.EsExitoso.Should().BeTrue();
+        resultado.Valor.Pasos[1].Estado.Should().Be(EstadoPasoTareaAsistente.Fallido);
+        resultado.Valor.Pasos[1].Motivo.Should().Be("La fecha de alta no es válida.");
+        tarea.Pasos[1].Estado.Should().Be(EstadoPasoTareaAsistente.Fallido);
+        _transaccion.Deshechas.Should().Be(1, "el paso que falla no deja nada escrito");
+    }
+
+    [Fact]
+    public async Task Si_otra_ventana_ya_ejecuto_el_paso_no_se_repite()
+    {
+        var tarea = await TareaConfirmadaAsync();
+        var otraVentana = new TransaccionConOtraVentana(() =>
+        {
+            if (tarea.Pasos[0].Estado != EstadoPasoTareaAsistente.Ejecutado)
+                tarea.RegistrarPasoEjecutado(tarea.Pasos[0].Id, Guid.NewGuid(), DateTime.UtcNow);
+        });
+
+        var resultado = await EjecutarAsync(tarea, transaccion: otraVentana);
+
+        resultado.Error.Codigo.Should().Be("AsistenteIa.PasoEnCurso");
+        _mediador.Enviados.OfType<CrearTrabajadorCommand>().Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task Si_dos_ejecuciones_chocan_al_confirmar_la_segunda_falla_sin_registrar_un_fallo()
+    {
+        var tarea = await TareaConfirmadaAsync();
+
+        var resultado = await EjecutarAsync(tarea, transaccion: new TransaccionQueChoca());
+
+        resultado.Error.Codigo.Should().Be("AsistenteIa.PasoEnCurso");
+        tarea.Pasos[0].Estado.Should().NotBe(EstadoPasoTareaAsistente.Fallido);
+    }
+
+    [Theory]
+    [InlineData(TiposDatoPlan.CampoNombre, CaeManager.Domain.Centros.Centro.LongitudMaximaNombre)]
+    [InlineData(TiposDatoPlan.CampoDireccion, CaeManager.Domain.Centros.Centro.LongitudMaximaDireccion)]
+    [InlineData(TiposDatoPlan.CampoRazonSocial, CaeManager.Domain.Empresas.Empresa.LongitudMaximaRazonSocial)]
+    public void Un_texto_del_plan_no_admite_mas_de_lo_que_admite_la_entidad_que_lo_guarda(string campo, int maximoDeLaEntidad)
+    {
+        RevisionPlanAsistente.LongitudMaxima(campo).Should().BeLessThanOrEqualTo(maximoDeLaEntidad);
     }
 
     // ── Catálogo ──────────────────────────────────────────────────────────
@@ -304,10 +385,35 @@ public class PlanEditableAsistenteTests
         new CompletarPlanTareaAsistenteCommandHandler(_mediador, new RevisionPlanAsistente(_mediador, _trabajadores), Modificacion())
             .Handle(new CompletarPlanTareaAsistenteCommand(tarea.Id, tarea.Version, 90, valores), CancellationToken.None);
 
-    private Task<Result<EjecucionPlanAsistenteDto>> EjecutarAsync(TareaAsistente tarea, Guid? tenantEfectivo = null) =>
+    private Task<Result<EjecucionPlanAsistenteDto>> EjecutarAsync(
+        TareaAsistente tarea, Guid? tenantEfectivo = null, ITransaccionDeComando? transaccion = null) =>
         new EjecutarPlanTareaAsistenteCommandHandler(
-                _mediador, new RevisionPlanAsistente(_mediador, _trabajadores), Modificacion(), new TenantFijo(tenantEfectivo ?? _tenant))
+                _mediador, new RevisionPlanAsistente(_mediador, _trabajadores), Modificacion(), new TenantFijo(tenantEfectivo ?? _tenant),
+                transaccion ?? _transaccion)
             .Handle(new EjecutarPlanTareaAsistenteCommand(tarea.Id), CancellationToken.None);
+
+    /// <summary>
+    /// Otra ventana del mismo Actor real ejecuta el paso justo antes de que esta lo reclame:
+    /// dentro de la transacción el paso ya no está pendiente.
+    /// </summary>
+    private sealed class TransaccionConOtraVentana(Action antes) : ITransaccionDeComando
+    {
+        public Task<Result> EjecutarAsync(Func<CancellationToken, Task<Result>> operacion, CancellationToken cancellationToken = default)
+        {
+            antes();
+            return operacion(cancellationToken);
+        }
+    }
+
+    /// <summary>La confirmación choca con otra ejecución: el token de concurrencia de la Tarea saltó.</summary>
+    private sealed class TransaccionQueChoca : ITransaccionDeComando
+    {
+        public async Task<Result> EjecutarAsync(Func<CancellationToken, Task<Result>> operacion, CancellationToken cancellationToken = default)
+        {
+            await operacion(cancellationToken);
+            throw new Microsoft.EntityFrameworkCore.DbUpdateConcurrencyException("La versión de la Tarea cambió.");
+        }
+    }
 
     private CurrentUserServiceFalso Usuario() => new(_persona, tenantOrigenId: _tenant);
 
@@ -322,11 +428,19 @@ public class PlanEditableAsistenteTests
     {
         public OpcionesPlanAsistenteDto Opciones { get; set; } = OpcionesPlanAsistenteDto.Vacias;
         public bool AsignacionFalla { get; set; }
+        public bool AsignacionNoValida { get; set; }
+        public Func<string, string>? AlterarDatos { get; set; }
         public Guid TrabajadorCreado { get; } = Guid.NewGuid();
         public List<object> Enviados { get; } = [];
 
         public Task<TResponse> Send<TResponse>(IRequest<TResponse> request, CancellationToken cancellationToken = default)
         {
+            if (request is CrearAsignacionCommand && AsignacionNoValida)
+            {
+                Enviados.Add(request);
+                throw new ValidationException([new ValidationFailure("FechaAlta", "La fecha de alta no es válida.")]);
+            }
+
             object respuesta = request switch
             {
                 ObtenerTareaAsistenteQuery q => Tarea(q.TareaId),
@@ -352,7 +466,7 @@ public class PlanEditableAsistenteTests
             return Result.Exito(new TareaAsistenteDto(
                 t.Id, t.Version, t.Estado, t.CreadaEnUtc, t.ActualizadaEnUtc, t.PlanConfirmadoEnUtc, [],
                 t.Pasos.Select(p => new PasoTareaAsistenteDto(
-                    p.Id, p.Posicion, p.OrdenAsistenteId, p.DatosJson, p.Resumen, p.CamposPendientes, p.Avisos,
+                    p.Id, p.Posicion, p.OrdenAsistenteId, AlterarDatos?.Invoke(p.DatosJson) ?? p.DatosJson, p.Resumen, p.CamposPendientes, p.Avisos,
                     p.AsistidoPorIa, p.Estado, p.MotivoFallo, p.EntidadResultadoId)).ToList()));
         }
 

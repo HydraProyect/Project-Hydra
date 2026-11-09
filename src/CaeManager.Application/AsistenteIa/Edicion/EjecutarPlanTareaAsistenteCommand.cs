@@ -12,6 +12,7 @@ using CaeManager.Domain.AsistenteIa;
 using CaeManager.Domain.Common;
 using FluentValidation;
 using MediatR;
+using Microsoft.EntityFrameworkCore;
 
 namespace CaeManager.Application.AsistenteIa.Edicion;
 
@@ -47,7 +48,8 @@ public class EjecutarPlanTareaAsistenteCommandValidator : AbstractValidator<Ejec
 }
 
 public class EjecutarPlanTareaAsistenteCommandHandler(
-    IMediator mediator, RevisionPlanAsistente revision, ModificacionTareaAsistente modificacion, ITenantActual tenantActual)
+    IMediator mediator, RevisionPlanAsistente revision, ModificacionTareaAsistente modificacion, ITenantActual tenantActual,
+    ITransaccionDeComando transaccion)
     : IRequestHandler<EjecutarPlanTareaAsistenteCommand, Result<EjecucionPlanAsistenteDto>>
 {
     private const int LongitudMaximaMotivo = 500;
@@ -72,10 +74,31 @@ public class EjecutarPlanTareaAsistenteCommandHandler(
             return Result.Fallo<EjecucionPlanAsistenteDto>(Error.Crear(
                 "AsistenteIa.DestinoNoEsLaPantalla", PlanPropuestoATareaAsistente.TextoDestinoNoEsLaPantalla));
 
+        // Los pasos tienen que ser exactamente los del catálogo, en su orden: lo guardado en
+        // la Tarea no decide qué ni cuántas operaciones se ejecutan.
+        var orden = CatalogoOrdenesAsistente.PorId(primero.OrdenAsistenteId);
+        var operaciones = pasos.Select(Operacion).ToList();
+        if (orden is null || !EjecucionPlanAsistente.SabeEjecutar(orden.Id)
+            || pasos.Any(p => p.OrdenAsistenteId != orden.Id)
+            || !operaciones.SequenceEqual(orden.Ejecucion.Select(e => e.Operacion.Name), StringComparer.Ordinal))
+            return Result.Fallo<EjecucionPlanAsistenteDto>(Error.Crear(
+                "AsistenteIa.PlanAlterado", "El plan guardado no coincide con la gestión del catálogo: descártalo y vuelve a pedirlo."));
+
         var valores = PlanPropuestoATareaAsistente.LeerValores(primero.DatosJson);
         var revisado = await revision.RevisarAsync(primero.OrdenAsistenteId, 0, valores, cancellationToken);
         if (revisado.EsFallido)
             return Result.Fallo<EjecucionPlanAsistenteDto>(revisado.Error);
+
+        // Lo que impedía confirmar impide también ejecutar (el JSON guardado no se da por
+        // bueno). Salvo el documento repetido del Trabajador que este mismo plan ya dio de
+        // alta: es el suyo, y su Asignación tiene que poder reintentarse.
+        var trabajadorYaCreado = pasos.Any(p =>
+            Operacion(p) == nameof(CrearTrabajadorCommand) && p.Estado == EstadoPasoTareaAsistente.Ejecutado);
+        if ((revisado.Valor.Plan.Avisos ?? []).FirstOrDefault(a =>
+                a.Gravedad == GravedadAvisoPasoTareaAsistente.Bloqueante
+                && !(trabajadorYaCreado && a.Campo == TiposDatoPlan.CampoTrabajador)) is { } bloqueante)
+            return Result.Fallo<EjecucionPlanAsistenteDto>(Error.Crear("AsistenteIa.PlanBloqueado", bloqueante.Texto));
+
         var datos = revisado.Valor.Plan.Datos.ToDictionary(d => d.Campo, StringComparer.Ordinal);
         var opciones = revisado.Valor.Opciones;
 
@@ -84,9 +107,7 @@ public class EjecutarPlanTareaAsistenteCommandHandler(
         var parado = false;
         foreach (var paso in pasos)
         {
-            var operacion = PlanPropuestoATareaAsistente.LeerOperacion(paso.DatosJson)
-                ?? CatalogoOrdenesAsistente.PorId(paso.OrdenAsistenteId)?.Ejecucion.SingleOrDefault()?.Operacion.Name
-                ?? string.Empty;
+            var operacion = Operacion(paso);
 
             if (paso.Estado == EstadoPasoTareaAsistente.Ejecutado)
             {
@@ -102,36 +123,116 @@ public class EjecutarPlanTareaAsistenteCommandHandler(
                 continue;
             }
 
-            var ejecutado = await EnviarAsync(operacion, datos, opciones, trabajadorCreado, cancellationToken);
-            var ahora = DateTime.UtcNow;
-            if (ejecutado.EsExitoso)
+            var intento = await EjecutarPasoAsync(request.TareaId, paso.Id, operacion, datos, opciones, trabajadorCreado, cancellationToken);
+            if (intento.Conflicto is { } conflicto)
+                return Result.Fallo<EjecucionPlanAsistenteDto>(conflicto);
+
+            if (intento.EntidadId is { } id)
             {
-                var id = ejecutado.Valor;
-                var registro = await modificacion.AplicarAsync(request.TareaId, null,
-                    (t, _) => t.RegistrarPasoEjecutado(paso.Id, id, ahora), cancellationToken);
-                if (registro.EsFallido)
-                    return Result.Fallo<EjecucionPlanAsistenteDto>(registro.Error);
                 if (operacion == nameof(CrearTrabajadorCommand))
                     trabajadorCreado = id;
                 resultados.Add(new PasoEjecutadoDto(paso.Id, paso.Posicion, operacion, EstadoPasoTareaAsistente.Ejecutado, id, null));
+                continue;
             }
-            else
+
+            var motivo = intento.Fallo!.Mensaje;
+            if (motivo.Length > LongitudMaximaMotivo)
+                motivo = motivo[..LongitudMaximaMotivo];
+            var ahora = DateTime.UtcNow;
+            // Fuera de la transacción del paso, que se deshizo entera. Si mientras tanto otra
+            // ventana lo ejecutó, no se pisa su resultado.
+            var registro = await modificacion.AplicarAsync(request.TareaId, null, (t, _) =>
             {
-                var motivo = ejecutado.Error.Mensaje;
-                if (motivo.Length > LongitudMaximaMotivo)
-                    motivo = motivo[..LongitudMaximaMotivo];
-                var registro = await modificacion.AplicarAsync(request.TareaId, null,
-                    (t, _) => t.RegistrarPasoFallido(paso.Id, motivo, ahora), cancellationToken);
-                if (registro.EsFallido)
-                    return Result.Fallo<EjecucionPlanAsistenteDto>(registro.Error);
-                resultados.Add(new PasoEjecutadoDto(paso.Id, paso.Posicion, operacion, EstadoPasoTareaAsistente.Fallido, null, motivo));
-                parado = true;
-            }
+                if (t.Pasos.Single(p => p.Id == paso.Id).Estado != EstadoPasoTareaAsistente.Ejecutado)
+                    t.RegistrarPasoFallido(paso.Id, motivo, ahora);
+            }, cancellationToken);
+            if (registro.EsFallido)
+                return Result.Fallo<EjecucionPlanAsistenteDto>(registro.Error);
+            resultados.Add(new PasoEjecutadoDto(paso.Id, paso.Posicion, operacion, EstadoPasoTareaAsistente.Fallido, null, motivo));
+            parado = true;
         }
 
         return new EjecucionPlanAsistenteDto(
             resultados.All(r => r.Estado == EstadoPasoTareaAsistente.Ejecutado), resultados);
     }
+
+    private static string Operacion(PasoTareaAsistenteDto paso) =>
+        PlanPropuestoATareaAsistente.LeerOperacion(paso.DatosJson)
+        ?? CatalogoOrdenesAsistente.PorId(paso.OrdenAsistenteId)?.Ejecucion.SingleOrDefault()?.Operacion.Name
+        ?? string.Empty;
+
+    /// <summary>Lo que dejó un paso: el Id creado, el fallo del Command o un conflicto con otra ejecución.</summary>
+    private sealed record IntentoPaso(Guid? EntidadId, Error? Fallo, Error? Conflicto);
+
+    /// <summary>
+    /// El efecto del Command y su registro en la Tarea van en <b>una sola transacción</b>:
+    /// o quedan los dos o ninguno, así que un corte entre ambos no deja una Visita creada
+    /// con el paso pendiente de repetirse.
+    /// <para>
+    /// También es el reclamo del paso frente a otra ventana del mismo Actor real: dentro
+    /// de la transacción se vuelve a leer la Tarea, se comprueba que el paso sigue sin
+    /// ejecutar y se registra con la versión leída. La versión es token de concurrencia,
+    /// así que de dos ejecuciones simultáneas solo confirma la primera: la segunda choca al
+    /// registrar y deshace su propio efecto.
+    /// </para>
+    /// </summary>
+    private async Task<IntentoPaso> EjecutarPasoAsync(
+        Guid tareaId, Guid pasoId, string operacion, IReadOnlyDictionary<string, Queries.ProponerPlan.DatoPropuestoDto> datos,
+        OpcionesPlanAsistenteDto opciones, Guid? trabajadorCreado, CancellationToken cancellationToken)
+    {
+        Guid? creado = null;
+        Error? fallo = null;
+        try
+        {
+            var hecho = await transaccion.EjecutarAsync(async ct =>
+            {
+                creado = null;
+                fallo = null;
+                var actual = await mediator.Send(new ObtenerTareaAsistenteQuery(tareaId), ct);
+                if (actual.EsFallido)
+                    return Result.Fallo(actual.Error);
+                if (actual.Valor.Pasos.SingleOrDefault(p => p.Id == pasoId) is not
+                    { Estado: EstadoPasoTareaAsistente.Confirmado or EstadoPasoTareaAsistente.Fallido })
+                    return Result.Fallo(PasoEnCurso());
+
+                Result<Guid> ejecutado;
+                try
+                {
+                    ejecutado = await EnviarAsync(operacion, datos, opciones, trabajadorCreado, ct);
+                }
+                catch (ValidationException excepcion)
+                {
+                    ejecutado = Result.Fallo<Guid>(Error.Crear("AsistenteIa.PasoNoValido",
+                        excepcion.Errors.Select(e => e.ErrorMessage).FirstOrDefault() ?? "El paso no es válido."));
+                }
+                if (ejecutado.EsFallido)
+                {
+                    fallo = ejecutado.Error;
+                    return Result.Fallo(ejecutado.Error);
+                }
+
+                var id = ejecutado.Valor;
+                var ahora = DateTime.UtcNow;
+                var registro = await modificacion.AplicarAsync(tareaId, actual.Valor.Version,
+                    (t, _) => t.RegistrarPasoEjecutado(pasoId, id, ahora), ct);
+                if (registro.EsFallido)
+                    return registro;
+                creado = id;
+                return Result.Exito();
+            }, cancellationToken);
+
+            if (hecho.EsExitoso && creado is { } entidad)
+                return new IntentoPaso(entidad, null, null);
+            return fallo is not null ? new IntentoPaso(null, fallo, null) : new IntentoPaso(null, null, hecho.Error);
+        }
+        catch (DbUpdateConcurrencyException)
+        {
+            return new IntentoPaso(null, null, PasoEnCurso());
+        }
+    }
+
+    private static Error PasoEnCurso() => Error.Crear("AsistenteIa.PasoEnCurso",
+        "Otra ventana está ejecutando este plan: espera un momento y vuelve a abrirlo.");
 
     private static PasoEjecutadoDto Resultado(PasoTareaAsistenteDto paso) =>
         new(paso.Id, paso.Posicion, PlanPropuestoATareaAsistente.LeerOperacion(paso.DatosJson) ?? string.Empty,

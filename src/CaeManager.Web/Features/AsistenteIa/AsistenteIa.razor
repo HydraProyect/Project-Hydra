@@ -94,6 +94,11 @@
                                 <span class="asistente-borrador-estado">@Textos[$"TareaEstado_{borrador.Estado}"]</span>
                                 <span class="asistente-borrador-texto">@borrador.PrimerTextoOriginal</span>
                                 <span class="asistente-borrador-fecha">@FechaDeBorrador(borrador.ActualizadaEnUtc)</span>
+                                @if (borrador.Estado == CaeManager.Domain.AsistenteIa.EstadoTareaAsistente.Confirmada)
+                                {
+                                    @* Un plan confirmado al que le quedó un paso sin hacer (se cortó o falló): se reintenta aquí aunque ya no esté en el hilo. *@
+                                    <button type="button" class="asistente-borrador-descartar asistente-borrador-reintentar" disabled="@_ejecutandoBorrador" @onclick="() => ReintentarBorradorAsync(borrador.Id)">@Textos["Plan_Reintentar"]</button>
+                                }
                                 <button type="button" class="asistente-borrador-descartar" @onclick="() => DescartarBorradorAsync(borrador.Id)">@Textos["Plan_Descartar"]</button>
                             </li>
                         }
