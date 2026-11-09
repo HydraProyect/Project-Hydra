@@ -20,8 +20,10 @@ namespace CaeManager.Application.Integraciones;
 /// <item>Con identidad distinta de la que responde hoy a su dirección (el directorio reasignó la dirección a
 /// otro buzón): pasa a ConError y tampoco se levanta sola.</item>
 /// </list>
-/// Un token o una lectura que fallan no marcan nada aquí: la conexión no sale verificada, la renovación no la
-/// rehabilita y se reintenta en el ciclo siguiente.
+/// Una lectura de la identidad que falla deja la conexión en ConError (falla cerrado: sin saber qué buzón responde
+/// a la dirección, no se ingiere); un ciclo posterior que la compruebe permite a la renovación rehabilitarla. Un
+/// token que falla no marca nada (sin token tampoco se lee ningún mensaje). En ninguno de los dos casos la conexión
+/// sale verificada.
 /// </summary>
 public class CompletarIdentidadBuzonService(
     IIntegracionesQueryContext queryContext,
@@ -36,7 +38,10 @@ public class CompletarIdentidadBuzonService(
         "Otra organización tiene conectado este mismo buzón con otra dirección. Desconéctalo en una de las dos.";
 
     public const string MensajeBuzonCambiado =
-        "La dirección de esta conexión corresponde ahora a otro buzón. Vuelve a conectarla desde Conexiones.";
+        "La dirección de esta conexión corresponde ahora a otro buzón. Desconéctala y vuelve a conectarla desde Conexiones.";
+
+    public const string MensajeSinComprobar =
+        "No pudimos comprobar qué buzón responde a esta dirección. Se reintentará en la próxima renovación, o puedes reactivarla desde Conexiones.";
 
     /// <returns>Las conexiones cuya identidad se leyó y coincide (o se acaba de completar) en este ciclo.</returns>
     public async Task<IReadOnlySet<Guid>> CompletarAsync(CancellationToken cancellationToken)
@@ -49,61 +54,85 @@ public class CompletarIdentidadBuzonService(
 
         foreach (var conexionId in activas)
         {
-            var conexion = await conexionRepositorio.ObtenerPorIdAsync(conexionId, cancellationToken);
-            if (conexion is null)
-                continue;
-
-            var token = await accesoGraph.ObtenerAccessTokenVigenteAsync(conexion, cancellationToken);
-            if (token.EsFallido)
-                continue;
-
-            var identidad = await graphClient.ObtenerIdentidadBuzonAsync(token.Valor, BuzonGraph.De(conexion), cancellationToken);
-            if (identidad.EsFallido)
+            // Una conexión que lanza no deja sin comprobar a las siguientes del Tenant: no sale verificada (la
+            // renovación no la rehabilita) y se reintenta en el ciclo siguiente.
+            try
             {
-                logger.LogWarning(
-                    "No se pudo leer la identidad del buzón de la conexión {ConexionId}: {Error}", conexionId, identidad.Error.Mensaje);
-                continue;
-            }
-
-            if (conexion.IdentidadBuzon is { } guardada)
-            {
-                if (string.Equals(guardada, identidad.Valor, StringComparison.Ordinal))
-                {
+                if (await ComprobarAsync(conexionId, cancellationToken))
                     verificadas.Add(conexionId);
-                    // Guarda el token refrescado (si lo hubo), para no volver a rotarlo en la renovación.
-                    await unitOfWork.SaveChangesAsync(cancellationToken);
-                    continue;
-                }
-
-                logger.LogError(
-                    "La dirección de la conexión {ConexionId} responde ahora con otro buzón: pasa a ConError.", conexionId);
-                conexion.MarcarConError(MensajeBuzonCambiado);
-                await unitOfWork.SaveChangesAsync(cancellationToken);
-                continue;
             }
-
-            conexion.FijarIdentidadBuzon(identidad.Valor);
-            var reclamacion = await reclamacionRepositorio.ObtenerPorConexionAsync(conexionId, cancellationToken);
-            reclamacion?.FijarIdentidadBuzon(identidad.Valor);
-
-            if (await reclamacionRepositorio.GuardarCambiosSiBuzonLibreAsync(cancellationToken))
+            catch (Exception ex) when (ex is not OperationCanceledException || !cancellationToken.IsCancellationRequested)
             {
-                verificadas.Add(conexionId);
-                continue;
+                logger.LogError(ex, "No se pudo comprobar la identidad del buzón de la conexión {ConexionId}.", conexionId);
             }
-
-            // El guardado fallido descartó los cambios en memoria: se vuelve a leer la conexión para marcarla.
-            logger.LogError(
-                "La conexión {ConexionId} tiene el mismo buzón que una reclamación de otro Tenant con otra dirección: pasa a ConError.",
-                conexionId);
-            var duplicada = await conexionRepositorio.ObtenerPorIdAsync(conexionId, cancellationToken);
-            if (duplicada is null)
-                continue;
-
-            duplicada.MarcarConError(MensajeBuzonDuplicado);
-            await unitOfWork.SaveChangesAsync(cancellationToken);
         }
 
         return verificadas;
+    }
+
+    /// <returns>true si la identidad se leyó y coincide con la guardada, o se acaba de completar.</returns>
+    private async Task<bool> ComprobarAsync(Guid conexionId, CancellationToken cancellationToken)
+    {
+        var conexion = await conexionRepositorio.ObtenerPorIdAsync(conexionId, cancellationToken);
+        if (conexion is null)
+            return false;
+
+        // Sin token tampoco se puede leer ningún mensaje del buzón: no hay nada que cerrar aquí.
+        var token = await accesoGraph.ObtenerAccessTokenVigenteAsync(conexion, cancellationToken);
+        if (token.EsFallido)
+        {
+            logger.LogWarning(
+                "No se pudo obtener el token de la conexión {ConexionId} para comprobar su buzón: {Error}", conexionId, token.Error.Mensaje);
+            return false;
+        }
+
+        var identidad = await graphClient.ObtenerIdentidadBuzonAsync(token.Valor, BuzonGraph.De(conexion), cancellationToken);
+        if (identidad.EsFallido)
+        {
+            // Falla cerrado: sin comprobar qué buzón responde a la dirección, la conexión deja de ingerir hasta que
+            // un ciclo posterior la compruebe (y la renovación la rehabilite) o la reactive el Administrador. Si ya
+            // estaba en ConError se deja su motivo, que es más concreto.
+            logger.LogWarning(
+                "No se pudo leer la identidad del buzón de la conexión {ConexionId}: {Error}", conexionId, identidad.Error.Mensaje);
+            if (conexion.Estado == EstadoConexionIntegracion.Habilitada)
+                conexion.MarcarConError(MensajeSinComprobar);
+            await unitOfWork.SaveChangesAsync(cancellationToken);
+            return false;
+        }
+
+        if (conexion.IdentidadBuzon is { } guardada)
+        {
+            if (string.Equals(guardada, identidad.Valor, StringComparison.Ordinal))
+            {
+                // Guarda el token refrescado (si lo hubo), para no volver a rotarlo en la renovación.
+                await unitOfWork.SaveChangesAsync(cancellationToken);
+                return true;
+            }
+
+            logger.LogError(
+                "La dirección de la conexión {ConexionId} responde ahora con otro buzón: pasa a ConError.", conexionId);
+            conexion.MarcarConError(MensajeBuzonCambiado);
+            await unitOfWork.SaveChangesAsync(cancellationToken);
+            return false;
+        }
+
+        conexion.FijarIdentidadBuzon(identidad.Valor);
+        var reclamacion = await reclamacionRepositorio.ObtenerPorConexionAsync(conexionId, cancellationToken);
+        reclamacion?.FijarIdentidadBuzon(identidad.Valor);
+
+        if (await reclamacionRepositorio.GuardarCambiosSiBuzonLibreAsync(cancellationToken))
+            return true;
+
+        // El guardado fallido descartó los cambios en memoria: se vuelve a leer la conexión para marcarla.
+        logger.LogError(
+            "La conexión {ConexionId} tiene el mismo buzón que una reclamación de otro Tenant con otra dirección: pasa a ConError.",
+            conexionId);
+        var duplicada = await conexionRepositorio.ObtenerPorIdAsync(conexionId, cancellationToken);
+        if (duplicada is null)
+            return false;
+
+        duplicada.MarcarConError(MensajeBuzonDuplicado);
+        await unitOfWork.SaveChangesAsync(cancellationToken);
+        return false;
     }
 }

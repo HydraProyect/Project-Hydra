@@ -109,7 +109,7 @@ public class ReactivarConexionCommandHandler(
         if (conexion.IdentidadBuzon is not { } guardada)
             return Result.Fallo(Error.Crear(
                 CodigoReconexionNecesaria,
-                "Esta conexión no tiene la comprobación de buzón: vuelve a conectarla desde Conexiones."));
+                "Esta conexión no tiene la comprobación de buzón: desconéctala y vuelve a conectarla desde Conexiones."));
 
         var token = await accesoGraph.ObtenerAccessTokenVigenteAsync(conexion, cancellationToken);
         if (token.EsFallido)
@@ -123,7 +123,7 @@ public class ReactivarConexionCommandHandler(
             ? Result.Exito()
             : Result.Fallo(Error.Crear(
                 CodigoReconexionNecesaria,
-                "La dirección de esta conexión corresponde ahora a otro buzón: vuelve a conectarla desde Conexiones."));
+                "La dirección de esta conexión corresponde ahora a otro buzón: desconéctala y vuelve a conectarla desde Conexiones."));
     }
 
     public const string CodigoReconexionNecesaria = "Integraciones.Microsoft365.ReconexionNecesaria";

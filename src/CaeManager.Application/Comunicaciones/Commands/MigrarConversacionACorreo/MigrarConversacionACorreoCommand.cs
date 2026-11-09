@@ -83,6 +83,9 @@ public class MigrarConversacionACorreoCommandHandler(
             .Where(c => c.ClienteId == conversacion.ClienteId || c.ClienteId == null)
             // Buzón dedicado al Cliente de la conversación antes que el buzón general del tenant.
             .OrderByDescending(c => c.ClienteId != null)
+            // Varios buzones generales (los compartidos del Tenant): el conectado primero, para que la elección no dependa del orden de la base de datos.
+            .ThenBy(c => c.FechaConectadaUtc)
+            .ThenBy(c => c.Id)
             .Select(c => (Guid?)c.Id)
             .FirstOrDefaultAsync(cancellationToken);
 

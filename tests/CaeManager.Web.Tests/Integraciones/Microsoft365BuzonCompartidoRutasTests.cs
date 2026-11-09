@@ -193,6 +193,49 @@ public class Microsoft365BuzonCompartidoRutasTests
         resultado.Error.Codigo.Should().Be("Integraciones.Microsoft365.PermisoSinAcotar");
     }
 
+    [Theory]
+    [InlineData("Integraciones.Microsoft365.BuzonYaConectado", "/integraciones?error=ya-conectado")]
+    [InlineData("Integraciones.Microsoft365.BuzonYaConectadoEnEstaOrganizacion", "/integraciones?error=ya-conectado")]
+    [InlineData("Integraciones.Microsoft365.ErrorSuscripcion", "/integraciones?error=suscripcion")]
+    public void Un_buzon_ya_conectado_vuelve_con_su_propio_aviso_y_no_con_el_de_suscripcion(string codigo, string esperada) =>
+        CaeManager.Web.Features.Integraciones.Endpoints.ConectarMicrosoft365Endpoints
+            .RedireccionTrasConectar(CaeManager.Domain.Common.Result.Fallo<Guid>(CaeManager.Domain.Common.Error.Crear(codigo, "x")))
+            .Should().Be(esperada);
+
+    /// <summary>Token con forma de JWT y la carga dada tal cual.</summary>
+    private static string TokenJwtConCarga(string carga)
+    {
+        static string Base64Url(string texto) =>
+            Convert.ToBase64String(System.Text.Encoding.UTF8.GetBytes(texto)).TrimEnd('=').Replace('+', '-').Replace('/', '_');
+
+        return $"{Base64Url("{\"alg\":\"none\"}")}.{Base64Url(carga)}.firma";
+    }
+
+    [Theory]
+    [InlineData("""{"roles":"Mail.Read"}""")]
+    [InlineData("""{"roles":{"0":"Mail.Read"}}""")]
+    public async Task Un_token_de_aplicacion_con_roles_que_no_son_una_lista_no_se_usa(string carga)
+    {
+        var handler = new AnotaPeticionesHandler(cuerpo: RespuestaToken(TokenJwtConCarga(carga)));
+
+        var resultado = await ClienteConSecreto(handler).ObtenerTokenAplicacionAsync(Guid.NewGuid().ToString(), CancellationToken.None);
+
+        resultado.EsFallido.Should().BeTrue();
+        resultado.Error.Codigo.Should().Be("Integraciones.Microsoft365.PermisoSinAcotar");
+    }
+
+    [Fact]
+    public async Task Un_token_de_aplicacion_con_la_lista_de_roles_vacia_se_acepta()
+    {
+        var token = TokenJwtConCarga("""{"roles":[]}""");
+        var handler = new AnotaPeticionesHandler(cuerpo: RespuestaToken(token));
+
+        var resultado = await ClienteConSecreto(handler).ObtenerTokenAplicacionAsync(Guid.NewGuid().ToString(), CancellationToken.None);
+
+        resultado.EsExitoso.Should().BeTrue();
+        resultado.Valor.AccessToken.Should().Be(token);
+    }
+
     [Fact]
     public async Task Un_token_de_aplicacion_sin_permisos_de_Entra_se_acepta()
     {

@@ -414,6 +414,29 @@ public class IngestaWebhookServiceTests
         conversaciones.Conversaciones.Should().BeEmpty();
     }
 
+    /// <summary>
+    /// Un mensaje que no se puede leer no bloquea a los siguientes del mismo evento: el sano se ingiere y el evento
+    /// queda para reintento por el otro.
+    /// </summary>
+    [Fact]
+    public async Task Un_mensaje_que_no_se_puede_leer_no_impide_ingerir_los_demas_del_lote()
+    {
+        var (conexion, conexiones) = ConexionCompartida();
+        var conversaciones = new ConversacionRepositorioFalso();
+        var graph = new Microsoft365GraphClientFalso { MensajeIdsADevolver = ["roto", "sano"] };
+        graph.ErroresLecturaPorId["roto"] = Error.Crear("Integraciones.Microsoft365.ErrorApi", "403");
+        graph.MensajesPorId["sano"] = new MensajeGraphDto(
+            "sano", "hilo-sano", "Documentación", "contratista@ejemplo.test", "<p>ok</p>", DateTime.UtcNow,
+            [new ParticipanteGraphDto("contratista@ejemplo.test", RolParticipante.De)], []);
+        var evento = new EventoWebhook(conexion.Id, "{\"value\":[{}]}");
+
+        await CrearServicio(conexiones, conversaciones, graph).ProcesarAsync(evento, CancellationToken.None);
+
+        conversaciones.Conversaciones.Should().ContainSingle().Which.Mensajes.Should().ContainSingle(m => m.MensajeExternoId == "sano");
+        evento.Estado.Should().Be(EstadoEventoWebhook.Pendiente);
+        evento.ErrorProcesado.Should().Contain("403");
+    }
+
     [Fact]
     public async Task Un_mensaje_borrado_antes_de_leerlo_se_salta_sin_reintento()
     {

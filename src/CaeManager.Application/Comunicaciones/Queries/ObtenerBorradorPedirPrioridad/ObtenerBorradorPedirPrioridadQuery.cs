@@ -183,6 +183,9 @@ public class ObtenerBorradorPedirPrioridadQueryHandler(
             .Where(c => c.GestorPropietarioId == null)
             .Where(c => c.ClienteId == null || c.ClienteId == clienteId)
             .OrderByDescending(c => c.ClienteId != null)
+            // Varios buzones generales (los compartidos del Tenant): el conectado primero, para que la elección no dependa del orden de la base de datos.
+            .ThenBy(c => c.FechaConectadaUtc)
+            .ThenBy(c => c.Id)
             .Select(c => (Guid?)c.Id)
             .FirstOrDefaultAsync(cancellationToken);
 }

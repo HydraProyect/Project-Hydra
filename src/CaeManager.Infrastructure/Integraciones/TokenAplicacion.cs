@@ -17,7 +17,7 @@ internal static class TokenAplicacion
     /// <c>Mail.</c> (<c>MailboxItem.*</c>, <c>MailboxFolder.*</c>, los que Microsoft añada): se exige que no haya
     /// ninguno.
     /// </summary>
-    public static bool TienePermisoDeCorreoSinAcotar(string accessToken)
+    public static bool TienePermisosDeEntraOEsIlegible(string accessToken)
     {
         var partes = accessToken.Split('.');
         if (partes.Length != 3)

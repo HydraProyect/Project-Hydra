@@ -143,7 +143,7 @@ public class Microsoft365GraphClient(
             // token abre todos los buzones del directorio y el ámbito de RBAC for Applications deja de acotar
             // nada. Esos permisos viajan en el claim «roles»; los de Exchange no. Este flujo no necesita ninguno
             // de Entra, así que cualquiera hace fallar cerrado.
-            if (TokenAplicacion.TienePermisoDeCorreoSinAcotar(cuerpo.AccessToken))
+            if (TokenAplicacion.TienePermisosDeEntraOEsIlegible(cuerpo.AccessToken))
             {
                 logger.LogError(
                     "El token de aplicación del directorio {Directorio} trae permisos de aplicación concedidos en Entra: no se usa.", directorio);
@@ -166,7 +166,7 @@ public class Microsoft365GraphClient(
             logger.LogError(ex, "Microsoft Entra ID no respondió a tiempo al pedir un token de aplicación.");
             return Result.Fallo<TokenAplicacionGraphDto>(ErrorTiempoAgotado);
         }
-        catch (JsonException)
+        catch (Exception ex) when (ex is JsonException or NotSupportedException)
         {
             return Result.Fallo<TokenAplicacionGraphDto>(Error.Crear(
                 "Integraciones.Microsoft365.ErrorAutenticacion", "No pudimos autenticar con Microsoft."));
@@ -303,7 +303,7 @@ public class Microsoft365GraphClient(
             logger.LogError(ex, "Microsoft Graph no respondió a tiempo al leer el directorio.");
             return Result.Fallo<string>(ErrorTiempoAgotado);
         }
-        catch (JsonException)
+        catch (Exception ex) when (ex is JsonException or NotSupportedException)
         {
             return Result.Fallo<string>(Error.Crear("Integraciones.Microsoft365.DirectorioInvalido", "No pudimos leer el directorio de Microsoft."));
         }
@@ -352,7 +352,7 @@ public class Microsoft365GraphClient(
             logger.LogError(ex, "Microsoft Graph no respondió a tiempo al comprobar el acceso a un buzón.");
             return Result.Fallo<string>(ErrorTiempoAgotado);
         }
-        catch (JsonException)
+        catch (Exception ex) when (ex is JsonException or NotSupportedException)
         {
             return Result.Fallo<string>(Error.Crear("Integraciones.Microsoft365.ErrorApi", "No pudimos leer el buzón conectado."));
         }
@@ -589,6 +589,13 @@ public class Microsoft365GraphClient(
         {
             logger.LogError(ex, "Microsoft Graph no respondió a tiempo al leer el mensaje {MensajeId}.", mensajeId);
             return Result.Fallo<MensajeGraphDto>(ErrorTiempoAgotado);
+        }
+        catch (Exception ex) when (ex is JsonException or NotSupportedException)
+        {
+            // Un 200 con un cuerpo ilegible es un fallo de Graph como otro cualquiera: se devuelve, para que la ingesta
+            // siga con los demás mensajes del lote y reintente este.
+            logger.LogError(ex, "Microsoft Graph devolvió un mensaje {MensajeId} ilegible.", mensajeId);
+            return Result.Fallo<MensajeGraphDto>(Error.Crear("Integraciones.Microsoft365.ErrorApi", "No pudimos leer el mensaje."));
         }
     }
 

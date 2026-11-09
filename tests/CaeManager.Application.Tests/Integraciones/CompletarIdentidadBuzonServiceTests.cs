@@ -73,19 +73,65 @@ public class CompletarIdentidadBuzonServiceTests
         escenario.UnitOfWork.VecesGuardado.Should().Be(1);
     }
 
+    /// <summary>Falla cerrado: sin saber qué buzón responde a la dirección, la conexión deja de ingerir.</summary>
     [Fact]
-    public async Task Una_lectura_fallida_no_fija_nada_ni_marca_la_conexion()
+    public async Task Una_lectura_fallida_pasa_la_conexion_a_ConError_sin_fijar_identidad()
     {
         var escenario = new Escenario();
         var conexion = escenario.AgregarCompartida("cae@operador.test");
         escenario.Graph.ErrorIdentidadBuzon = Error.Crear("Integraciones.Microsoft365.TiempoAgotado", "timeout");
 
+        var verificadas = await escenario.Servicio().CompletarAsync(CancellationToken.None);
+
+        verificadas.Should().BeEmpty();
+        conexion.IdentidadBuzon.Should().BeNull();
+        conexion.Estado.Should().Be(EstadoConexionIntegracion.ConError);
+        conexion.UltimoError.Should().Be(CompletarIdentidadBuzonService.MensajeSinComprobar);
+        escenario.Reclamaciones.VecesGuardado.Should().Be(0);
+        escenario.UnitOfWork.VecesGuardado.Should().Be(1);
+    }
+
+    [Fact]
+    public async Task Una_lectura_fallida_con_identidad_ya_fijada_pasa_a_ConError_y_conserva_la_identidad()
+    {
+        var escenario = new Escenario();
+        var conexion = escenario.AgregarCompartida("cae@operador.test");
+        conexion.FijarIdentidadBuzon("inbox-cae");
+        escenario.Graph.ErrorIdentidadBuzon = Error.Crear("Integraciones.Microsoft365.ErrorApi", "403");
+
+        var verificadas = await escenario.Servicio().CompletarAsync(CancellationToken.None);
+
+        verificadas.Should().BeEmpty();
+        conexion.Estado.Should().Be(EstadoConexionIntegracion.ConError);
+        conexion.IdentidadBuzon.Should().Be("inbox-cae");
+    }
+
+    /// <summary>Una lectura fallida no tapa el motivo más concreto de una conexión que ya estaba en ConError.</summary>
+    [Fact]
+    public async Task Una_lectura_fallida_no_cambia_el_motivo_de_una_conexion_ya_en_ConError()
+    {
+        var escenario = new Escenario();
+        var conexion = escenario.AgregarCompartida("cae@operador.test");
+        conexion.FijarIdentidadBuzon("inbox-cae");
+        conexion.MarcarConError(CompletarIdentidadBuzonService.MensajeBuzonCambiado);
+        escenario.Graph.ErrorIdentidadBuzon = Error.Crear("Integraciones.Microsoft365.ErrorApi", "403");
+
         await escenario.Servicio().CompletarAsync(CancellationToken.None);
 
-        conexion.IdentidadBuzon.Should().BeNull();
-        conexion.Estado.Should().Be(EstadoConexionIntegracion.Habilitada);
-        escenario.Reclamaciones.VecesGuardado.Should().Be(0);
-        escenario.UnitOfWork.VecesGuardado.Should().Be(0);
+        conexion.UltimoError.Should().Be(CompletarIdentidadBuzonService.MensajeBuzonCambiado);
+    }
+
+    [Fact]
+    public async Task Una_conexion_que_lanza_no_deja_sin_comprobar_a_las_siguientes()
+    {
+        var escenario = new Escenario();
+        escenario.AgregarCompartida("roto@operador.test");
+        var sana = escenario.AgregarCompartida("sano@operador.test");
+        escenario.Graph.DireccionesQueLanzanEnIdentidad.Add("roto@operador.test");
+
+        var verificadas = await escenario.Servicio().CompletarAsync(CancellationToken.None);
+
+        verificadas.Should().Equal(sana.Id);
     }
 
     [Fact]

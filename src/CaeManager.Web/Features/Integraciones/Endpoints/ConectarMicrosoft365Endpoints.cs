@@ -1,6 +1,7 @@
 using CaeManager.Application.Common;
 using CaeManager.Application.Integraciones;
 using CaeManager.Application.Integraciones.Commands.ConectarBuzonMicrosoft365;
+using CaeManager.Domain.Common;
 using CaeManager.Domain.Integraciones;
 using CaeManager.Infrastructure.Identity;
 using CaeManager.Infrastructure.Integraciones;
@@ -130,14 +131,7 @@ public static class ConectarMicrosoft365Endpoints
             try
             {
                 var resultado = await mediator.Send(comando, cancellationToken);
-                if (resultado.EsExitoso)
-                    return Results.LocalRedirect("/integraciones?conectado=true");
-
-                // Un buzón ya conectado (aquí o en otra organización) no es un fallo de las notificaciones.
-                return Results.LocalRedirect(resultado.Error.Codigo is ConectarBuzonMicrosoft365CommandHandler.CodigoBuzonYaConectado
-                    or ConectarBuzonMicrosoft365CommandHandler.CodigoBuzonYaConectadoEnEstaOrganizacion
-                    ? "/integraciones?error=ya-conectado"
-                    : "/integraciones?error=suscripcion");
+                return Results.LocalRedirect(RedireccionTrasConectar(resultado));
             }
             catch (FluentValidation.ValidationException)
             {
@@ -150,6 +144,19 @@ public static class ConectarMicrosoft365Endpoints
 
         return endpoints;
     }
+
+    /// <summary>
+    /// A dónde vuelve el callback según el resultado del Command. Un buzón ya conectado (aquí o en otra
+    /// organización) no es un fallo de las notificaciones. Pública para poder probarla (sin
+    /// <c>InternalsVisibleTo</c> en CaeManager.Web).
+    /// </summary>
+    public static string RedireccionTrasConectar(Result<Guid> resultado) =>
+        resultado.EsExitoso
+            ? "/integraciones?conectado=true"
+            : resultado.Error.Codigo is ConectarBuzonMicrosoft365CommandHandler.CodigoBuzonYaConectado
+                or ConectarBuzonMicrosoft365CommandHandler.CodigoBuzonYaConectadoEnEstaOrganizacion
+                ? "/integraciones?error=ya-conectado"
+                : "/integraciones?error=suscripcion";
 
     /// <summary>
     /// Dirección de buzón bien formada (solo la dirección, sin nombre visible) o null. Pública para poder

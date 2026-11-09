@@ -19,9 +19,9 @@ namespace CaeManager.Application.Integraciones;
 /// refresco (ver <see cref="CredencialIntegracion.Version"/>).
 ///
 /// Un buzón compartido (<see cref="ConexionIntegracion.EsBuzonCompartido"/>) no tiene credencial: se abre
-/// con el token de aplicación de su directorio, y por eso todo el que tenga la conexión a mano debe pedir
-/// el token con la sobrecarga que la recibe. La que recibe solo el Id falla cerrada ante un compartido
-/// (<c>ConexionIntegracion.SinCredencial</c>): nunca cae en el token de una persona.
+/// con el token de aplicación de su directorio. Por eso la única entrada pública recibe la conexión: es la
+/// que decide entre credencial delegada y token de aplicación, y un compartido nunca cae en el token de una
+/// persona.
 /// </summary>
 public class AccesoGraphService(ICredencialIntegracionRepository credencialRepositorio, IMicrosoft365GraphClient graphClient)
 {
@@ -39,10 +39,9 @@ public class AccesoGraphService(ICredencialIntegracionRepository credencialRepos
     }
 
     /// <summary>
-    /// Token delegado de la credencial de una conexión. <c>internal</c> a propósito: fuera de Application nadie
-    /// puede pedir un token sin pasar la conexión, que es lo que decide entre credencial delegada y token de
-    /// aplicación; un llamador que volviese al Id dejaría de compilar en vez de dejar sin ingesta, en silencio,
-    /// a los buzones compartidos.
+    /// Token delegado de la credencial de una conexión que no es compartida. Privado a propósito: nadie puede
+    /// pedir un token sin pasar la conexión, y un llamador que volviese al Id dejaría de compilar en vez de
+    /// abrir un compartido con una credencial delegada o dejarlo sin ingesta en silencio.
     /// </summary>
     private async Task<Result<string>> ObtenerAccessTokenVigenteAsync(Guid conexionIntegracionId, CancellationToken cancellationToken)
     {

@@ -87,6 +87,9 @@ public class Microsoft365GraphClientFalso : IMicrosoft365GraphClient
     /// <summary>Error que devuelve la sonda de identidad; null, éxito.</summary>
     public Error? ErrorIdentidadBuzon { get; set; }
 
+    /// <summary>Direcciones de compartido cuya sonda de identidad lanza una excepción en vez de devolver un resultado.</summary>
+    public HashSet<string> DireccionesQueLanzanEnIdentidad { get; } = new(StringComparer.OrdinalIgnoreCase);
+
     /// <summary>Tokens con los que se pidió la identidad, en orden: prueba que la sonda del compartido usa el de aplicación.</summary>
     public List<string> TokensDeIdentidad { get; } = [];
 
@@ -94,6 +97,8 @@ public class Microsoft365GraphClientFalso : IMicrosoft365GraphClient
     {
         BuzonesUsados.Add(buzon);
         TokensDeIdentidad.Add(accessToken);
+        if (buzon.EsCompartido && DireccionesQueLanzanEnIdentidad.Contains(buzon.Direccion))
+            throw new InvalidOperationException("fallo inesperado simulado");
         if (ErrorIdentidadBuzon is { } error)
             return Task.FromResult(Result.Fallo<string>(error));
 
@@ -134,7 +139,7 @@ public class Microsoft365GraphClientFalso : IMicrosoft365GraphClient
 
     public Task<Result<MensajeGraphDto>> ObtenerMensajeAsync(
         string accessToken, BuzonGraph buzon, string mensajeId, CancellationToken cancellationToken) =>
-        Registrar(buzon, ErrorLecturaMensaje is { } error
+        Registrar(buzon, (ErroresLecturaPorId.GetValueOrDefault(mensajeId) ?? ErrorLecturaMensaje) is { } error
             ? Result.Fallo<MensajeGraphDto>(error)
             : (MensajesPorId.GetValueOrDefault(mensajeId) ?? MensajeADevolver) is not { } mensaje
                 // Sin mensaje configurado: el 404 de Graph, un mensaje borrado entre la notificación y la lectura.
@@ -143,6 +148,9 @@ public class Microsoft365GraphClientFalso : IMicrosoft365GraphClient
 
     /// <summary>Fallo de lectura que no es un 404 (403, 429, 5xx, timeout); null, el comportamiento normal.</summary>
     public Error? ErrorLecturaMensaje { get; set; }
+
+    /// <summary>Fallo de lectura que no es un 404, solo para el mensaje con ese Id.</summary>
+    public Dictionary<string, Error> ErroresLecturaPorId { get; } = [];
 
     public Task<Result<byte[]>> ObtenerContenidoAdjuntoAsync(
         string accessToken, BuzonGraph buzon, string mensajeId, string adjuntoExternoId, CancellationToken cancellationToken) =>
