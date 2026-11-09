@@ -494,8 +494,9 @@ else
         EnProgreso="_eliminandoCanal"
         OnConfirmar="ConfirmarEliminarCanalAsync" />
 
-    @* El Escape de esta pregunta es de la pregunta: sin este corte sube al aside del panel de contexto (ManejarTeclaGlobalAsync),
-       que lo toma por «cerrar el panel» y abre una segunda pregunta. El contenedor no tiene caja (display: contents). *@
+    @* El Escape de estas preguntas (descartar y quitar ajuste, las dos del panel de ajustes de una fila) es de la pregunta: sin este corte sube
+       al aside del panel de contexto (ManejarTeclaGlobalAsync), que lo toma por «cerrar el panel» y abre una segunda pregunta.
+       El contenedor no tiene caja (display: contents). *@
     <div class="requisitos-sin-caja" @onkeydown:stopPropagation="true">
         <DialogoConfirmacion
             Visible="_confirmarDescarteEdicion"
@@ -505,16 +506,16 @@ else
             TextoBotonConfirmar="@Textos["ReqDescartarConfirmar"]"
             TextoBotonDescartar="@Textos["ReqDescartarSeguir"]"
             OnConfirmar="ConfirmarDescarteEdicion" />
-    </div>
 
-    <DialogoConfirmacion
-        Visible="_ajusteAQuitar is not null"
-        VisibleChanged="CerrarConfirmacionQuitarAjuste"
-        Titulo="@Textos["QuitarAjusteTitulo", _ajusteAQuitar?.Nombre ?? string.Empty]"
-        Mensaje="@MensajeQuitarAjuste"
-        TextoBotonConfirmar="@Textos["QuitarAjusteConfirmar"]"
-        EnProgreso="_quitandoAjuste"
-        OnConfirmar="ConfirmarQuitarAjusteAsync" />
+        <DialogoConfirmacion
+            Visible="_ajusteAQuitar is not null"
+            VisibleChanged="CerrarConfirmacionQuitarAjuste"
+            Titulo="@Textos["QuitarAjusteTitulo", _ajusteAQuitar?.Nombre ?? string.Empty]"
+            Mensaje="@MensajeQuitarAjuste"
+            TextoBotonConfirmar="@Textos["QuitarAjusteConfirmar"]"
+            EnProgreso="_quitandoAjuste"
+            OnConfirmar="ConfirmarQuitarAjusteAsync" />
+    </div>
 
     <DrawerFormulario HayCambios="() => !_saliendoAConfigurarSegundoFactor && _instantaneaCanal.Difiere(ValoresCanal())" Visible="_drawerCanalVisible" VisibleChanged="v => _drawerCanalVisible = v"
             Titulo="@(_canalIdEditando is null ? "Añadir acceso de gestión documental" : "Editar acceso de gestión documental")"
@@ -840,14 +841,14 @@ else
     private string TextoCoincidencias(int total) =>
         total == 1 ? Textos["ReqCoincidenciaUna"].Value : Textos["ReqCoincidencias", total].Value;
 
-    /// <summary>Texto de la región viva del buscador: solo habla si hay coincidencias; sin ellas lo dice el estado «sin coincidencias».</summary>
+    /// <summary>Texto de la región viva del buscador (siempre montada): el recuento de coincidencias o, sin ellas, el título del estado «sin coincidencias».</summary>
     private string AnuncioResultadosBuscador()
     {
         if (!BuscadorConTermino)
             return string.Empty;
 
         var total = ResultadosBuscador().Count;
-        return total > 0 ? TextoCoincidencias(total) : string.Empty;
+        return total > 0 ? TextoCoincidencias(total) : Textos["ReqSinCoincidenciasTitulo", _terminoBusqueda.Trim()].Value;
     }
 
     private void AbrirBuscadorRequisito()
@@ -993,7 +994,7 @@ else
             }
             else
             {
-                <div class="requisitos-sin-coincidencias" role="status">
+                <div class="requisitos-sin-coincidencias">
                     <Icono Nombre="buscar" Tamano="TamanoIcono.Grande" />
                     <div class="requisitos-sin-coincidencias-titulo">@Textos["ReqSinCoincidenciasTitulo", _terminoBusqueda.Trim()]</div>
                     <p>@Textos["ReqSinCoincidenciasAyuda"]</p>

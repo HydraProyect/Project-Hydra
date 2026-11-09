@@ -736,6 +736,22 @@ public class CentroWorkspacePanelRequisitosModalTests : BunitContext
     }
 
     [Fact]
+    public async Task Escape_dentro_de_la_pregunta_de_quitar_el_ajuste_no_llega_al_panel_de_contexto()
+    {
+        var teclasEnElContenedor = new List<string>();
+        var cut = Renderizar(e => teclasEnElContenedor.Add(e.Key), Excluido(ExcluidoId, "Formación PRL específica"));
+        await Lapiz(cut, "Formación PRL específica").ClickAsync(new MouseEventArgs());
+        await cut.FindAll(".requisitos-edicion-pie button").Single(b => b.TextContent.Trim() == "Quitar ajuste").ClickAsync(new MouseEventArgs());
+        var pregunta = _contenedor!.FindAll(".modal-contenido").Single(m => m.QuerySelectorAll(".modal-pie button").Any(b => b.TextContent.Trim() == "Quitar ajuste"));
+
+        await pregunta.KeyDownAsync(new KeyboardEventArgs { Key = "Escape" });
+
+        teclasEnElContenedor.Should().BeEmpty("sube al aside del panel de contexto y, con cambios en la fila, abriría «¿Descartar cambios?» tras cerrar esta pregunta");
+        cut.FindAll(".modal-contenido").Should().BeEmpty("Escape cierra la pregunta");
+        _mediador.Enviadas.OfType<EliminarDocumentacionRequeridaCentroCommand>().Should().BeEmpty("cerrar con Escape no quita nada");
+    }
+
+    [Fact]
     public async Task Escape_fuera_de_la_pregunta_sigue_llegando_al_panel_de_contexto()
     {
         var teclasEnElContenedor = new List<string>();
@@ -914,5 +930,9 @@ public class CentroWorkspacePanelRequisitosModalTests : BunitContext
 
         await BuscarAsync(cut, "aptitud");
         cut.Find(".requisitos-anuncio").TextContent.Trim().Should().Be("1 tipo de documento coincide");
+
+        await BuscarAsync(cut, "zzz");
+        cut.Find(".requisitos-anuncio").TextContent.Trim().Should().NotBeEmpty("sin coincidencias también se anuncia: es el caso que más lo necesita");
+        cut.Find(".requisitos-sin-coincidencias").HasAttribute("role").Should().BeFalse("una sola región viva, la persistente, no una que aparece ya con su texto");
     }
 }
