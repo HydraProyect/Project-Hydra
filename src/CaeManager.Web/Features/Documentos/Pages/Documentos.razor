@@ -447,16 +447,13 @@
     private RenderFragment<DocumentoListaDto> CeldaEstado => context => @<text>
                                 <EstadoFila Tono="EstadoDocumentoUi.Tono(context.Estado)" Texto="@EstadoDocumentoUi.Texto(context.Estado)"
                                             Correcto="EstadoDocumentoUi.EsCorrecto(context.Estado)"
-                                            Motivo="@EstadoDocumentoUi.MotivoDeDocumento(context.Estado, context.FechaVencimiento, _hoy)" />
+                                            Motivo="@MotivoDeLaFila(context)" />
                             
     </text>;
 
     private RenderFragment<DocumentoListaDto> CeldaPlataformas => context => @<text>
-                                @if (context.Acreditaciones.Count == 0)
-                                {
-                                    <span class="detalle-tecnico">—</span>
-                                }
-                                else
+                                @* Sin plataformas no se pinta nada: una segunda línea con «—» no aporta y estira la fila. *@
+                                @if (context.Acreditaciones.Count > 0)
                                 {
                                     @* La ventana repite lo que la celda ya dice (plataforma y estado), una línea por
                                        plataforma; pulsar una abre la vista rápida del documento en «Validación». *@
@@ -465,7 +462,7 @@
                                                      Etiqueta="@Textos["VentanaPlataformasEtiqueta", context.Acreditaciones.Count]"
                                                      Titulo="@Textos["VentanaPlataformasTitulo"]"
                                                      class="documentos-plataformas">
-                                        <Disparador><BadgesAcreditacion Acreditaciones="context.Acreditaciones" /></Disparador>
+                                        <Disparador><BadgesAcreditacion Acreditaciones="context.Acreditaciones" Resumen="true" /></Disparador>
                                         <Detalle>
                                             @foreach (var acreditacion in context.Acreditaciones)
                                             {
@@ -485,7 +482,8 @@
                                 {
                                     @* Botón y no enlace: abre el visor en un modal (VisorDocumento) sin salir de la lista.
                                        «Abrir en pestaña nueva» sigue dentro del propio visor. *@
-                                    <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno"
+                                    @* Acción secundaria, de enlace (como «Ver» de las fichas 360): «Gestionar» es la principal de la fila. *@
+                                    <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" class="accion-fila-enlace documentos-accion-ver"
                                            aria-label="@Textos["VerPdfAria", context.TipoDocumentoNombre, context.PropietarioNombre]"
                                            OnClick="() => AbrirVisor(context)">@Textos["ListaVer"]</Boton>
                                 }

@@ -83,6 +83,12 @@
         var consulta = QueryHelpers.ParseQuery(new Uri(uri).Query);
         var pestana = consulta.TryGetValue("pestana", out var valor) ? valor.ToString() : null;
 
+        // /documentos lleva su propia barra de pestañas (Estado, Plataformas CAE, Reclamaciones, Preventivo, Revisión IA,
+        // Plantillas e Incidencias): pintar además esta repetía «Revisión IA» y apilaba dos barras. Las pantallas
+        // hermanas (/incidencias, /documentos/revision-ia) siguen con esta barra, que lleva de vuelta a Documentos.
+        if (string.Equals(ruta, "documentos", StringComparison.OrdinalIgnoreCase))
+            return null;
+
         var contexto = new ContextoMenuLateral(_usuario, _vista, false, false, default, VariosTenants: false);
         return CatalogoSeccionesMenu.Resolver(ruta, pestana, contexto);
     }

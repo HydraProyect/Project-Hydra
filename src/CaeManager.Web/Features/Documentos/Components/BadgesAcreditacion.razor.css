@@ -3,3 +3,14 @@
     flex-wrap: wrap;
     gap: var(--space-1);
 }
+
+.badges-acreditacion-resumen {
+    flex-wrap: nowrap;
+    align-items: center;
+}
+
+.badges-acreditacion-resto {
+    font: var(--font-caption);
+    color: var(--color-text-muted);
+    white-space: nowrap;
+}

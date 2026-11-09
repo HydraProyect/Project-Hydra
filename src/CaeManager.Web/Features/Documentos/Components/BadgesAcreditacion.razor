@@ -17,7 +17,23 @@
 @using CaeManager.Application.Documentos.Queries.ObtenerDocumentos
 @using CaeManager.Domain.Documentos
 
-@if (Acreditaciones.Count > 0)
+@if (Acreditaciones.Count > 0 && Resumen)
+{
+    @* Una línea de altura fija para las filas de un listado: la plataforma más urgente y «+N» con las demás
+       (la ventana de contexto de la fila las lista todas con su estado). *@
+    var principal = Acreditaciones.OrderBy(a => Prioridad(a.Estado)).First();
+    var resto = Acreditaciones.Where(a => a.Id != principal.Id).ToList();
+    <span class="badges-acreditacion badges-acreditacion-resumen">
+        <Badge Tono="TonoDe(principal.Estado)" Tamano="TamanoBadge.Pequeno">
+            @principal.NombrePlataforma: @EstadoAcreditacionUi.Texto(principal.Estado)
+        </Badge>
+        @if (resto.Count > 0)
+        {
+            <span class="badges-acreditacion-resto" title="@string.Join(", ", resto.Select(a => $"{a.NombrePlataforma}: {EstadoAcreditacionUi.Texto(a.Estado)}"))">+@resto.Count</span>
+        }
+    </span>
+}
+else if (Acreditaciones.Count > 0)
 {
     <span class="badges-acreditacion">
         @foreach (var acreditacion in Acreditaciones)
@@ -31,6 +47,16 @@
 
 @code {
     [Parameter, EditorRequired] public IReadOnlyList<AcreditacionResumenDto> Acreditaciones { get; set; } = [];
+
+    /// <summary>Una sola pastilla (la más urgente) y «+N», para que las filas de un listado midan lo mismo. Falso por defecto.</summary>
+    [Parameter] public bool Resumen { get; set; }
+
+    private static int Prioridad(EstadoAcreditacion estado) => estado switch
+    {
+        EstadoAcreditacion.Rechazada => 0,
+        EstadoAcreditacion.PendienteDeSubir => 1,
+        _ => 2
+    };
 
     private static TonoBadge TonoDe(EstadoAcreditacion estado) => estado switch
     {

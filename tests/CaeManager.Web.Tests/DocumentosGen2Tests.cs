@@ -424,7 +424,7 @@ public partial class DocumentosGen2Tests : BunitContext
         var (cut, _) = Renderizar();
 
         Pestanas(cut).Select(p => p.TextContent.Trim()).Should().BeEquivalentTo(
-            ["Estado", "Plataformas CAE", "Reclamaciones", "Preventivo", "Revisión IA", "Plantillas"],
+            ["Estado", "Plataformas CAE", "Reclamaciones", "Preventivo", "Revisión IA", "Plantillas", "Incidencias"],
             o => o.WithoutStrictOrdering(),
             "la píldora de recuento puede añadir texto, pero los rótulos son estos");
 

@@ -190,18 +190,37 @@ public partial class Documentos : CaeManager.Web.Components.PaginaInteractiva, I
     /// ese número depende de lo cargado.
     /// </para>
     /// </summary>
-    private IReadOnlyList<PestanaDefinicion> PestanasDocumentos =>
-    [
-        new("listado", "Estado", "documentos") { Contador = ContadorDeEstado },
-        new("plataforma", "Plataformas CAE", "plataforma"),
-        // "correo" y "reloj" son los más cercanos del catálogo: no hay glifo
-        // propio de reclamación (que sale por correo) ni de preventivo (que
-        // es anticiparse al vencimiento). Si algún día se dibujan, aquí.
-        new("reclamaciones", "Reclamaciones", "correo"),
-        new("sugerencias", "Preventivo", "reloj"),
-        new("revision-ia", "Revisión IA", "ia"),
-        new("plantillas", "Plantillas", "plantilla")
-    ];
+    private IReadOnlyList<PestanaDefinicion> PestanasDocumentos
+    {
+        get
+        {
+            List<PestanaDefinicion> pestanas =
+            [
+                new("listado", "Estado", "documentos") { Contador = ContadorDeEstado },
+                new("plataforma", "Plataformas CAE", "plataforma"),
+                // "correo" y "reloj" son los más cercanos del catálogo: no hay glifo
+                // propio de reclamación (que sale por correo) ni de preventivo (que
+                // es anticiparse al vencimiento). Si algún día se dibujan, aquí.
+                new("reclamaciones", "Reclamaciones", "correo"),
+                new("sugerencias", "Preventivo", "reloj"),
+                new("revision-ia", "Revisión IA", "ia"),
+                new("plantillas", "Plantillas", "plantilla")
+            ];
+
+            // Esta es la única barra de pestañas de /documentos (la de sección del marco no se pinta aquí). «Incidencias»
+            // es una pantalla hermana, no una vista de esta página: su pestaña lleva a /incidencias en vez de cambiar
+            // el contenido, y solo se ofrece a los roles que esa pantalla abre (los mismos que la barra de sección).
+            if (_puedeVerIncidencias)
+                pestanas.Add(new(IdPestanaIncidencias, "Incidencias", "incidencias"));
+
+            return pestanas;
+        }
+    }
+
+    /// <summary>Id de la pestaña que sale a <c>/incidencias</c>; nunca es una pestaña activa ni viaja en <c>?pestana=</c>.</summary>
+    private const string IdPestanaIncidencias = "incidencias";
+
+    private bool _puedeVerIncidencias;
 
     /// <summary>Ids de pestaña válidos, sin construir la tira entera para comprobar uno.</summary>
     private static readonly string[] _idsDePestana =
@@ -270,6 +289,12 @@ public partial class Documentos : CaeManager.Web.Components.PaginaInteractiva, I
     /// </summary>
     private void CambiarPestana(string pestana)
     {
+        if (pestana == IdPestanaIncidencias)
+        {
+            NavigationManager.NavigateTo("/incidencias");
+            return;
+        }
+
         _pestanaActiva = pestana;
         CambiarContextoDocumental();
         NavigationManager.ActualizarFiltroEnUrl(nameof(Pestana), pestana == "listado" ? null : pestana);
@@ -495,6 +520,7 @@ public partial class Documentos : CaeManager.Web.Components.PaginaInteractiva, I
             var usuario = (await EstadoAutenticacion).User;
             if (_desechado) return;
             _puedeEscribir = Roles.ConEscrituraCsv.Split(',').Any(usuario.IsInRole);
+            _puedeVerIncidencias = CaeManager.Web.Components.Layout.CatalogoSeccionesMenu.RolesDeIncidencias.Split(',').Any(usuario.IsInRole);
         }
 
         // Delegado estable — ver Clientes.razor.cs (bucle de recargas de QuickGrid).
@@ -874,6 +900,16 @@ public partial class Documentos : CaeManager.Web.Components.PaginaInteractiva, I
 
     /// <summary>Día de negocio con el que la columna de estado cuenta los días del motivo; se fija en cada carga.</summary>
     private DateOnly _hoy = DiaDeNegocio.Hoy();
+
+    /// <summary>
+    /// El motivo bajo la pastilla de Estado de la fila. Con el relativo de la fecha ya en «Vence» («hace 88 días») no se
+    /// repite en «Estado»; sí cuando «Vence» no lo muestra (ordenada por emisión, que pone la fecha de emisión) o no hay
+    /// fecha de vencimiento (Sin confirmar, que explica qué falta).
+    /// </summary>
+    private string? MotivoDeLaFila(DocumentoListaDto documento) =>
+        _ordenVigenciaPorEmision || documento.FechaVencimiento is null
+            ? EstadoDocumentoUi.MotivoDeDocumento(documento.Estado, documento.FechaVencimiento, _hoy)
+            : null;
 
     private string SubtituloVencimiento(DocumentoListaDto documento)
     {
