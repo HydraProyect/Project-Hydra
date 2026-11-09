@@ -290,6 +290,11 @@ builder.Services.AddTransient<Microsoft.AspNetCore.Authorization.Policy.IPolicyE
 builder.Services.AddSingleton<CaeManager.Web.Services.IContadorPendientesSelectorTenant>(
     _ => new CaeManager.Web.Services.ContadorPendientesSelectorTenant(TimeProvider.System));
 builder.Services.AddScoped<CaeManager.Web.Services.ILectorRecientesSelectorTenant, CaeManager.Web.Services.LectorRecientesSelectorTenant>();
+// Contexto del marco (pieza 1.3): un despacho por ámbito, compartido por los componentes del marco. Scoped (petición o
+// circuito), nunca singleton, y también como IMemoPorContexto, la MISMA instancia, para que cada Command lo descarte.
+builder.Services.AddScoped<CaeManager.Web.Components.Layout.ContextoMarcoDelAmbito>();
+builder.Services.AddScoped<CaeManager.Application.Common.IMemoPorContexto>(
+    sp => sp.GetRequiredService<CaeManager.Web.Components.Layout.ContextoMarcoDelAmbito>());
 builder.Services.AddScoped<CaeManager.Application.Tenants.IVistaVocabularioPreviewService, CaeManager.Web.Services.VistaVocabularioPreviewCookie>();
 // Lente de demo (selector Dirección / Coordinador CAE / Gestor CAE): APAGADA por defecto y solo
 // para cuentas y Tenants de demo. Vive aqui y no en AddInfrastructure a proposito: un host sin la
