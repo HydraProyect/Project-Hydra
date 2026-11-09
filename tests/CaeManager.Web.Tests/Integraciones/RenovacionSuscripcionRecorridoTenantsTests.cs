@@ -1,3 +1,4 @@
+using CaeManager.Domain.Tenants;
 using CaeManager.Infrastructure.Integraciones;
 using FluentAssertions;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -84,6 +85,36 @@ public class RenovacionSuscripcionRecorridoTenantsTests
 
         registro.CicloActivo.Should().Equal(activoRoto, activoSano);
         registro.Barrido.Should().Equal(suspendidoRoto, suspendidoSano);
+    }
+
+    // Ronda 11, B4: el cableado que hace terminal la reclamación de un Tenant no activo.
+
+    [Theory]
+    [InlineData(EstadoTenant.Activo, true)]
+    [InlineData(EstadoTenant.Suspendido, false)]
+    public void SoloUnTenantActivo_VerificaYRenueva(EstadoTenant estado, bool activo)
+    {
+        var id = Guid.NewGuid();
+
+        RenovacionSuscripcionWebhookHostedService.DelTenant(id, estado).Should().Be(new TenantDelCiclo(id, activo));
+    }
+
+    [Fact]
+    public void CualquierEstadoQueNoSeaActivo_VaAlBarrido()
+    {
+        foreach (var estado in Enum.GetValues<EstadoTenant>().Where(e => e != EstadoTenant.Activo))
+            RenovacionSuscripcionWebhookHostedService.DelTenant(Guid.NewGuid(), estado).Activo.Should().BeFalse(estado.ToString());
+    }
+
+    [Fact]
+    public async Task ElBarridoDeUnTenantNoActivo_TrataSusReclamacionesComoTerminales()
+    {
+        var pedidos = new List<bool>();
+
+        await RenovacionSuscripcionWebhookHostedService.BarrerTenantNoActivoAsync(
+            (tenantActivo, _) => { pedidos.Add(tenantActivo); return Task.CompletedTask; }, CancellationToken.None);
+
+        pedidos.Should().Equal(false);
     }
 
     [Fact]

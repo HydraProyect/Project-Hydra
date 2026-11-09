@@ -116,10 +116,10 @@ public class ConectarBuzonMicrosoft365CommandHandler(
         // Excluye Deshabilitada (hallazgo P2, revisión Codex sobre PR #820):
         // DesconectarBuzonCommand libera la reclamación pero NO borra la
         // ConexionIntegracion — queda Deshabilitada. Bloquear también ese
-        // caso impediría reconectar desde cero cuando la suscripción de
-        // Graph anterior ya no existe, el único camino que
-        // ReactivarConexionCommand documenta para ese escenario (no crea una
-        // suscripción nueva por sí solo).
+        // caso impediría reconectar desde cero esa dirección. Reactivar es la
+        // otra vía: renueva la suscripción de Graph guardada o, si ya no
+        // existe, crea una nueva (SuscripcionAlRehabilitarService), pero exige
+        // la identidad del buzón guardada y que siga respondiendo la misma.
         var buzonNormalizado = request.BuzonEmail.Trim().ToLowerInvariant();
         var identidad = request.IdentidadBuzon;
         if (await queryContext.ConexionesIntegracion.AnyAsync(

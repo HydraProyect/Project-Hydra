@@ -51,6 +51,9 @@ public class RenovacionSuscripcionesWebhookServiceTests
 
         /// <summary>Lo que otro proceso escribió en la base y se carga al recargar tras la colisión.</summary>
         public Func<ConexionIntegracion, ConexionIntegracion>? VersionEnLaBase { get; set; }
+
+        /// <summary>Otra escritura del otro proceso que se ve al recargar (p. ej. Reactivar sustituyó la suscripción).</summary>
+        public Action? AlDescartar { get; set; }
     }
 
     private sealed class UnitOfWorkConColisiones(Escenario escenario) : IUnitOfWork
@@ -74,6 +77,7 @@ public class RenovacionSuscripcionesWebhookServiceTests
         public void DescartarCambiosPendientes()
         {
             Veces++;
+            escenario.AlDescartar?.Invoke();
             if (escenario.VersionEnLaBase is not { } version)
                 return;
 
@@ -184,6 +188,33 @@ public class RenovacionSuscripcionesWebhookServiceTests
         recargada.UltimoError.Should().BeNull();
         recargada.HuecoPendienteDesdeUtc.Should().BeNull();
         escenario.UnitOfWork.VecesGuardado.Should().Be(0);
+    }
+
+    /// <summary>
+    /// Ronda 11 (C3): Graph rechazó de forma definitiva la suscripción antigua, pero antes de guardarlo Reactivar creó
+    /// otra. Al reaplicar tras la colisión, la observación es de una suscripción que ya no es la de la conexión: no la
+    /// pasa a ConError ni marca una pérdida que no corresponde a la suscripción vigente.
+    /// </summary>
+    [Fact]
+    public async Task Un_fallo_reaplicado_sobre_una_suscripcion_sustituida_se_descarta_sin_mutar_nada()
+    {
+        var escenario = new Escenario();
+        var (conexion, suscripcion) = escenario.Agregar("a@operador.test", "sub-vieja", DateTime.UtcNow.AddHours(-2));
+        escenario.Graph.ErroresRenovacion["sub-vieja"] = FalloDefinitivo;
+        escenario.ColisionesPendientes = 1;
+        var expiracionNueva = DateTime.UtcNow.AddDays(3);
+        escenario.VersionEnLaBase = actual => Compartida("a@operador.test", actual.Id);
+        escenario.AlDescartar = () => suscripcion.ActualizarTrasRenovacion("sub-nueva", expiracionNueva);
+
+        await escenario.Servicio().RenovarProximasAExpirarAsync(Ventana, CancellationToken.None);
+
+        var recargada = escenario.Conexiones.Conexiones.Single(c => c.Id == conexion.Id);
+        recargada.Should().NotBeSameAs(conexion, "control: el descarte cargó la versión de la base");
+        recargada.Estado.Should().Be(EstadoConexionIntegracion.Habilitada);
+        recargada.UltimoError.Should().BeNull();
+        recargada.HuecoPendienteDesdeUtc.Should().BeNull();
+        suscripcion.GraphSubscriptionId.Should().Be("sub-nueva");
+        suscripcion.FechaExpiracionUtc.Should().Be(expiracionNueva);
     }
 
     /// <summary>Una renovación con éxito que colisiona se reaplica a la suscripción recargada, sin volver a Graph.</summary>

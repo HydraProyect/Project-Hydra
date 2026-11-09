@@ -132,15 +132,21 @@ public class RenovacionSuscripcionesWebhookService(
     /// <summary>
     /// Aplica lo observado a la conexión y a su suscripción tal como están ahora, recién cargadas o no.
     /// <list type="bullet">
+    /// <item>Solo si la suscripción sigue siendo la observada (mismo <see cref="SuscripcionWebhook.GraphSubscriptionId"/>).
+    /// Si al recargar es otra (Reactivar o la verificación la sustituyeron entretanto), la observación habla de una
+    /// suscripción que ya no es la de la conexión y se descarta sin mutar nada: ni ConError ni marca ni renovación.</item>
     /// <item>Fallo: la regla de <see cref="CompletarIdentidadBuzonService.MarcarConErrorDeRenovacion"/>, con la expiración
     /// y la hora de la observación, no las de la reaplicación.</item>
-    /// <item>Renovada: solo si la suscripción sigue siendo la que se renovó y no tiene ya una expiración igual o
-    /// posterior. Una conexión en ConError renueva igual su suscripción, pero no vuelve a Habilitada aquí: solo la
-    /// rehabilita <see cref="CompletarIdentidadBuzonService"/> cuando verifica su identidad.</item>
+    /// <item>Renovada: solo si no tiene ya una expiración igual o posterior. Una conexión en ConError renueva igual su
+    /// suscripción, pero no vuelve a Habilitada aquí: solo la rehabilita <see cref="CompletarIdentidadBuzonService"/>
+    /// cuando verifica su identidad.</item>
     /// </list>
     /// </summary>
     private static void Aplicar(ConexionIntegracion conexion, SuscripcionWebhook? suscripcion, Observacion observacion)
     {
+        if (suscripcion is null || suscripcion.GraphSubscriptionId != observacion.GraphSubscriptionId)
+            return;
+
         if (observacion.Fallo is { } fallo)
         {
             CompletarIdentidadBuzonService.MarcarConErrorDeRenovacion(
@@ -149,8 +155,6 @@ public class RenovacionSuscripcionesWebhookService(
         }
 
         if (observacion.Renovada is { } renovada
-            && suscripcion is not null
-            && suscripcion.GraphSubscriptionId == observacion.GraphSubscriptionId
             && suscripcion.FechaExpiracionUtc < renovada.FechaExpiracionUtc)
         {
             suscripcion.ActualizarTrasRenovacion(renovada.GraphSubscriptionId, renovada.FechaExpiracionUtc);

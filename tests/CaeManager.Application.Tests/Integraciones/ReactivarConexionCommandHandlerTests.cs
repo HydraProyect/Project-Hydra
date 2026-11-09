@@ -17,7 +17,8 @@ public class ReactivarConexionCommandHandlerTests
         ConexionIntegracionRepositorioFalso conexionRepositorio, AlcanceDatosServiceFalso alcanceDatos,
         UnitOfWorkFalso unitOfWork, ReclamacionBuzonIntegracionRepositorioFalso? reclamacionRepositorio = null,
         ITenantActual? tenantActual = null, Microsoft365GraphClientFalso? graph = null, EventoWebhookRepositorioFalso? eventos = null,
-        CerrojoVerificacionBuzonFalso? cerrojo = null, SuscripcionWebhookRepositorioFalso? suscripciones = null)
+        CerrojoVerificacionBuzonFalso? cerrojo = null, SuscripcionWebhookRepositorioFalso? suscripciones = null,
+        DescarteContado? descarte = null)
     {
         graph ??= new Microsoft365GraphClientFalso { IdentidadBuzonPropio = "inbox-x" };
         eventos ??= new EventoWebhookRepositorioFalso();
@@ -27,7 +28,202 @@ public class ReactivarConexionCommandHandlerTests
             eventos, cerrojo ?? new CerrojoVerificacionBuzonFalso(),
             new SuscripcionAlRehabilitarService(
                 suscripciones ?? new SuscripcionWebhookRepositorioFalso(), graph,
-                Microsoft.Extensions.Logging.Abstractions.NullLogger<SuscripcionAlRehabilitarService>.Instance));
+                Microsoft.Extensions.Logging.Abstractions.NullLogger<SuscripcionAlRehabilitarService>.Instance),
+            descarte ?? new DescarteContado());
+    }
+
+    private sealed class DescarteContado : IDescarteCambiosPendientes
+    {
+        public int Veces { get; private set; }
+
+        public void DescartarCambiosPendientes() => Veces++;
+    }
+
+    // Ronda 11, C2: la rehabilitación que sustituye una suscripción perdida registra antes su pérdida.
+
+    [Fact]
+    public async Task Sustituir_una_suscripcion_perdida_retrocede_la_marca_a_su_expiracion()
+    {
+        var conexion = new ConexionIntegracion("cae@operador.test", "Buzón CAE");
+        conexion.FijarIdentidadBuzon("inbox-x");
+        var expiracion = DateTime.UtcNow.AddHours(-5);
+        conexion.MarcarConError(CompletarIdentidadBuzonService.MensajeSinAccesoBuzon, DateTime.UtcNow.AddHours(-1));
+        var repositorio = new ConexionIntegracionRepositorioFalso();
+        repositorio.Agregar(conexion);
+        var suscripciones = new SuscripcionWebhookRepositorioFalso();
+        suscripciones.Agregar(new SuscripcionWebhook(conexion.Id, "sub-1", "estado", expiracion));
+        var graph = new Microsoft365GraphClientFalso { IdentidadBuzonPropio = "inbox-x" };
+        graph.ErroresRenovacion["sub-1"] = Error.Crear("Integraciones.Microsoft365.ErrorRenovacion", "no existe");
+        var marcaAlGuardar = (DateTime?)null;
+        var unitOfWork = new UnitOfWorkFalso();
+        unitOfWork.AlGuardar = () => marcaAlGuardar = conexion.HuecoPendienteDesdeUtc;
+        var handler = CrearHandler(repositorio, new AlcanceDatosServiceFalso(), unitOfWork, graph: graph, suscripciones: suscripciones);
+
+        var resultado = await handler.Handle(new ReactivarConexionCommand(conexion.Id), CancellationToken.None);
+
+        resultado.EsExitoso.Should().BeTrue();
+        marcaAlGuardar.Should().Be(expiracion, "la suscripción anterior se perdió al expirar, antes del ConError");
+        suscripciones.Suscripciones.Single().GraphSubscriptionId.Should().Be("suscripcion-falsa");
+    }
+
+    [Fact]
+    public async Task Sustituir_una_suscripcion_perdida_que_aun_no_expiraba_marca_ahora_y_nunca_adelanta()
+    {
+        var conexion = new ConexionIntegracion("cae@operador.test", "Buzón CAE");
+        conexion.FijarIdentidadBuzon("inbox-x");
+        var caida = DateTime.UtcNow.AddHours(-3);
+        conexion.MarcarConError("caída", caida);
+        var repositorio = new ConexionIntegracionRepositorioFalso();
+        repositorio.Agregar(conexion);
+        var suscripciones = new SuscripcionWebhookRepositorioFalso();
+        suscripciones.Agregar(new SuscripcionWebhook(conexion.Id, "sub-1", "estado", DateTime.UtcNow.AddDays(1)));
+        var graph = new Microsoft365GraphClientFalso { IdentidadBuzonPropio = "inbox-x" };
+        graph.ErroresRenovacion["sub-1"] = Error.Crear("Integraciones.Microsoft365.ErrorRenovacion", "no existe");
+        var handler = CrearHandler(repositorio, new AlcanceDatosServiceFalso(), new UnitOfWorkFalso(), graph: graph, suscripciones: suscripciones);
+
+        await handler.Handle(new ReactivarConexionCommand(conexion.Id), CancellationToken.None);
+
+        conexion.HuecoPendienteDesdeUtc.Should().Be(caida, "la marca anterior era más antigua y no se adelanta");
+    }
+
+    [Fact]
+    public async Task Con_creacion_transitoria_tras_perder_la_suscripcion_no_toca_la_marca()
+    {
+        var conexion = new ConexionIntegracion("cae@operador.test", "Buzón CAE");
+        conexion.FijarIdentidadBuzon("inbox-x");
+        var caida = DateTime.UtcNow.AddHours(-1);
+        conexion.MarcarConError("caída", caida);
+        var repositorio = new ConexionIntegracionRepositorioFalso();
+        repositorio.Agregar(conexion);
+        var suscripciones = new SuscripcionWebhookRepositorioFalso();
+        suscripciones.Agregar(new SuscripcionWebhook(conexion.Id, "sub-1", "estado", DateTime.UtcNow.AddHours(-5)));
+        var graph = new Microsoft365GraphClientFalso
+        {
+            IdentidadBuzonPropio = "inbox-x",
+            ErrorCreacionSuscripcion = Error.Crear(CodigosErrorMicrosoft365.Transitorio, "503"),
+        };
+        graph.ErroresRenovacion["sub-1"] = Error.Crear("Integraciones.Microsoft365.ErrorRenovacion", "no existe");
+        var unitOfWork = new UnitOfWorkFalso();
+        var handler = CrearHandler(repositorio, new AlcanceDatosServiceFalso(), unitOfWork, graph: graph, suscripciones: suscripciones);
+
+        var resultado = await handler.Handle(new ReactivarConexionCommand(conexion.Id), CancellationToken.None);
+
+        resultado.Error.Codigo.Should().Be(ReactivarConexionCommandHandler.CodigoSinComprobacion);
+        conexion.HuecoPendienteDesdeUtc.Should().Be(caida, "un fallo transitorio no muta nada; la fila conserva la expiración anterior");
+        unitOfWork.VecesGuardado.Should().Be(0);
+    }
+
+    [Fact]
+    public async Task Con_creacion_rechazada_tras_perder_la_suscripcion_el_ConError_guarda_la_marca_en_su_expiracion()
+    {
+        var conexion = new ConexionIntegracion("cae@operador.test", "Buzón CAE");
+        conexion.FijarIdentidadBuzon("inbox-x");
+        conexion.MarcarConError("caída", DateTime.UtcNow.AddHours(-1));
+        var repositorio = new ConexionIntegracionRepositorioFalso();
+        repositorio.Agregar(conexion);
+        var expiracion = DateTime.UtcNow.AddHours(-5);
+        var suscripciones = new SuscripcionWebhookRepositorioFalso();
+        suscripciones.Agregar(new SuscripcionWebhook(conexion.Id, "sub-1", "estado", expiracion));
+        var graph = new Microsoft365GraphClientFalso { IdentidadBuzonPropio = "inbox-x", FallaCreacionSuscripcion = true };
+        graph.ErroresRenovacion["sub-1"] = Error.Crear("Integraciones.Microsoft365.ErrorRenovacion", "no existe");
+        var marcaAlGuardar = (DateTime?)null;
+        var unitOfWork = new UnitOfWorkFalso();
+        unitOfWork.AlGuardar = () => marcaAlGuardar = conexion.HuecoPendienteDesdeUtc;
+        var handler = CrearHandler(repositorio, new AlcanceDatosServiceFalso(), unitOfWork, graph: graph, suscripciones: suscripciones);
+
+        var resultado = await handler.Handle(new ReactivarConexionCommand(conexion.Id), CancellationToken.None);
+
+        resultado.Error.Codigo.Should().Be(ReactivarConexionCommandHandler.CodigoSuscripcionImposible);
+        conexion.Estado.Should().Be(EstadoConexionIntegracion.ConError);
+        marcaAlGuardar.Should().Be(expiracion);
+    }
+
+    // Ronda 11, B2: compensaciones de Reactivar.
+
+    [Fact]
+    public async Task Sin_Tenant_resuelto_no_toca_Graph_ni_deja_la_suscripcion_rastreada()
+    {
+        var (conexion, repositorio) = ConexionM365(deshabilitada: true);
+        var suscripciones = new SuscripcionWebhookRepositorioFalso();
+        var suscripcion = new SuscripcionWebhook(conexion.Id, "sub-1", "estado", DateTime.UtcNow.AddHours(5));
+        var expiracionAntes = suscripcion.FechaExpiracionUtc;
+        suscripciones.Agregar(suscripcion);
+        var graph = new Microsoft365GraphClientFalso { IdentidadBuzonPropio = "inbox-x" };
+        var handler = CrearHandler(repositorio, new AlcanceDatosServiceFalso(), new UnitOfWorkFalso(), graph: graph,
+            tenantActual: new TenantActualFalso(null), suscripciones: suscripciones);
+
+        var resultado = await handler.Handle(new ReactivarConexionCommand(conexion.Id), CancellationToken.None);
+
+        resultado.Error.Codigo.Should().Be("Integraciones.Microsoft365.TenantNoResuelto");
+        graph.SuscripcionesRenovadas.Should().BeEmpty();
+        graph.VecesSuscrito.Should().Be(0);
+        suscripcion.FechaExpiracionUtc.Should().Be(expiracionAntes, "la fila no queda modificada a la espera de otro guardado");
+    }
+
+    [Fact]
+    public async Task Si_el_guardado_desde_ConError_falla_borra_la_suscripcion_creada_y_descarta_lo_rastreado()
+    {
+        var (conexion, repositorio) = ConexionM365(deshabilitada: false);
+        var graph = new Microsoft365GraphClientFalso { IdentidadBuzonPropio = "inbox-x" };
+        var unitOfWork = new UnitOfWorkFalso { ExcepcionAlGuardar = new InvalidOperationException("base caída") };
+        var descarte = new DescarteContado();
+        var handler = CrearHandler(repositorio, new AlcanceDatosServiceFalso(), unitOfWork, graph: graph, descarte: descarte);
+
+        var accion = () => handler.Handle(new ReactivarConexionCommand(conexion.Id), CancellationToken.None);
+
+        await accion.Should().ThrowAsync<InvalidOperationException>();
+        graph.SuscripcionesEliminadas.Should().Equal("suscripcion-falsa");
+        descarte.Veces.Should().Be(1);
+    }
+
+    [Fact]
+    public async Task Si_el_guardado_desde_ConError_falla_no_borra_la_suscripcion_solo_renovada()
+    {
+        var (conexion, repositorio) = ConexionM365(deshabilitada: false);
+        var suscripciones = new SuscripcionWebhookRepositorioFalso();
+        suscripciones.Agregar(new SuscripcionWebhook(conexion.Id, "sub-1", "estado", DateTime.UtcNow.AddHours(5)));
+        var graph = new Microsoft365GraphClientFalso { IdentidadBuzonPropio = "inbox-x" };
+        var unitOfWork = new UnitOfWorkFalso { ExcepcionAlGuardar = new InvalidOperationException("base caída") };
+        var handler = CrearHandler(repositorio, new AlcanceDatosServiceFalso(), unitOfWork, graph: graph, suscripciones: suscripciones);
+
+        var accion = () => handler.Handle(new ReactivarConexionCommand(conexion.Id), CancellationToken.None);
+
+        await accion.Should().ThrowAsync<InvalidOperationException>();
+        graph.SuscripcionesEliminadas.Should().BeEmpty("sigue siendo la de una conexión en ConError, que la renovación mantiene");
+    }
+
+    [Fact]
+    public async Task Si_la_reclamacion_falla_tras_solo_renovar_borra_la_suscripcion_de_la_Deshabilitada()
+    {
+        var (conexion, repositorio) = ConexionM365(deshabilitada: true);
+        var suscripciones = new SuscripcionWebhookRepositorioFalso();
+        suscripciones.Agregar(new SuscripcionWebhook(conexion.Id, "sub-1", "estado", DateTime.UtcNow.AddHours(5)));
+        var graph = new Microsoft365GraphClientFalso { IdentidadBuzonPropio = "inbox-x" };
+        var reclamaciones = new ReclamacionBuzonIntegracionRepositorioFalso { BuzonYaReclamado = true };
+        var handler = CrearHandler(repositorio, new AlcanceDatosServiceFalso(), new UnitOfWorkFalso(), reclamaciones, graph: graph,
+            suscripciones: suscripciones);
+
+        var resultado = await handler.Handle(new ReactivarConexionCommand(conexion.Id), CancellationToken.None);
+
+        resultado.Error.Codigo.Should().Be("Integraciones.Microsoft365.BuzonYaConectado");
+        graph.SuscripcionesRenovadas.Should().Equal("sub-1");
+        graph.SuscripcionesEliminadas.Should().Equal("sub-1");
+    }
+
+    [Fact]
+    public async Task Si_la_reclamacion_lanza_descarta_lo_rastreado_y_borra_la_suscripcion()
+    {
+        var (conexion, repositorio) = ConexionM365(deshabilitada: true);
+        var graph = new Microsoft365GraphClientFalso { IdentidadBuzonPropio = "inbox-x" };
+        var reclamaciones = new ReclamacionBuzonIntegracionRepositorioFalso { ExcepcionAlGuardar = new InvalidOperationException("base caída") };
+        var descarte = new DescarteContado();
+        var handler = CrearHandler(repositorio, new AlcanceDatosServiceFalso(), new UnitOfWorkFalso(), reclamaciones, graph: graph, descarte: descarte);
+
+        var accion = () => handler.Handle(new ReactivarConexionCommand(conexion.Id), CancellationToken.None);
+
+        await accion.Should().ThrowAsync<InvalidOperationException>();
+        graph.SuscripcionesEliminadas.Should().Equal("suscripcion-falsa");
+        descarte.Veces.Should().Be(1);
     }
 
     // Ronda 10, hallazgo alto: Reactivar no rehabilita sin una suscripción vigente. Un test por camino de entrada.

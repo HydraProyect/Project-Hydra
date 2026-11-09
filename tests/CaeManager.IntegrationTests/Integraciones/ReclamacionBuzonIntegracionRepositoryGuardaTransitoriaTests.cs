@@ -5,6 +5,7 @@ using CaeManager.Infrastructure.Persistence.Repositories;
 using FluentAssertions;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.EntityFrameworkCore;
+using Npgsql;
 using Xunit;
 
 namespace CaeManager.IntegrationTests.Integraciones;
@@ -145,6 +146,45 @@ public class ReclamacionBuzonIntegracionRepositoryGuardaTransitoriaTests : IAsyn
 
         resultado.Should().Be(ResultadoReclamacionBuzon.Guardada,
             "FueraDeGuardaTransitoriaUtc saca la fila del predicado de la restricción de exclusión");
+    }
+
+    /// <summary>
+    /// Ronda 11 (B5): la guarda se cumple con la identidad real de la aplicación, <c>cae_app_runtime</c> bajo la RLS del
+    /// Tenant nuevo, que no ve la heredada del otro Tenant propietario: la restricción de exclusión la ve igual y el
+    /// repositorio lo traduce a <see cref="ResultadoReclamacionBuzon.AltaCompartidaEnPausa"/>, sin excepción. Mismo
+    /// patrón que <see cref="ReclamacionBuzonIntegracionRlsTests"/>.
+    /// </summary>
+    [Fact]
+    public async Task Como_cae_app_runtime_del_Tenant_nuevo_una_heredada_de_otro_Tenant_deja_el_alta_compartida_en_pausa()
+    {
+        await SembrarHeredadaAsync("heredado@operador.test", fueraDeGuarda: false);
+
+        await using var conexion = await AbrirAsync("cae_app_runtime", _tenantNuevo);
+        await using (var comando = conexion.CreateCommand())
+        {
+            comando.CommandText = "SELECT count(*) FROM public.\"ReclamacionesBuzonIntegracion\"";
+            ((long)(await comando.ExecuteScalarAsync())!).Should().Be(0, "control: la heredada es de otro Tenant y la RLS la oculta");
+        }
+
+        await using var contexto = new CaeManagerDbContext(
+            new DbContextOptionsBuilder<CaeManagerDbContext>().UseNpgsql(conexion).Options,
+            new EphemeralDataProtectionProvider(), new TenantActualAmbiental());
+        var repositorio = new ReclamacionBuzonIntegracionRepository(contexto);
+        repositorio.Reclamar(new ReclamacionBuzonIntegracion(
+            "compartido@operador.test", "inbox-compartido", _tenantNuevo, Guid.NewGuid(), DateTime.UtcNow, esBuzonCompartido: true));
+
+        (await repositorio.GuardarCambiosSiBuzonLibreAsync()).Should().Be(ResultadoReclamacionBuzon.AltaCompartidaEnPausa);
+    }
+
+    private async Task<NpgsqlConnection> AbrirAsync(string rol, Guid? tenant)
+    {
+        var conexion = new NpgsqlConnection(_cadenaConexion);
+        await conexion.OpenAsync();
+        await ContextoRlsDePruebas.FijarAsync(conexion, tenantId: tenant);
+        await using var comando = conexion.CreateCommand();
+        comando.CommandText = $"SET ROLE {rol};";
+        await comando.ExecuteNonQueryAsync();
+        return conexion;
     }
 
     [Fact]

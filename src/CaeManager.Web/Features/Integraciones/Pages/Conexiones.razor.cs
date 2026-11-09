@@ -391,7 +391,7 @@ public partial class Conexiones : CaeManager.Web.Components.PaginaIntegrableConf
         "buzon-compartido" => Textos["ErrorBuzonCompartidoInvalido"],
         "sin-acceso-compartido" => Textos["ErrorSinAccesoCompartido"],
         "ya-conectado" => Textos["ErrorBuzonYaConectado"],
-        "compartidos-en-pausa" => CaeManager.Application.Integraciones.Commands.ConectarBuzonMicrosoft365.ConectarBuzonMicrosoft365CommandHandler.MensajeAltaCompartidaEnPausa,
+        "compartidos-en-pausa" => Textos["ErrorAltaCompartidaEnPausa"],
         _ => "No pudimos completar la conexión."
     };
 

@@ -66,12 +66,17 @@ public class IngestaWebhookService(
         "En espera: la identidad del buzón de esta conexión no está verificada; se ingerirá cuando se verifique.";
 
     /// <summary>
-    /// Motivo que queda en el evento cuando Graph responde 404 sin decir que lo que falta es el mensaje: puede ser el
-    /// buzón el que ya no existe. No se da por resuelto ni se gasta un intento; la verificación de la identidad decide.
+    /// Motivo que queda en el evento cuando Graph responde 200 con un mensaje al que le falta un campo obligatorio
+    /// (remitente, fecha de recepción, conversación, cuerpo o adjuntos legibles). No se procesa ni se gasta un intento:
+    /// el evento espera y se vuelve a leer; pasadas 72 h queda Retenido.
     /// </summary>
     public const string MotivoEsperaMensajeIncompleto =
         "En espera: Microsoft 365 devolvió el mensaje incompleto; se volverá a leer.";
 
+    /// <summary>
+    /// Motivo que queda en el evento cuando Graph responde 404 sin decir que lo que falta es el mensaje: puede ser el
+    /// buzón el que ya no existe. No se da por resuelto ni se gasta un intento; la verificación de la identidad decide.
+    /// </summary>
     public const string MotivoEsperaBuzonNoEncontrado =
         "En espera: Microsoft 365 no encuentra el buzón de esta conexión; se ingerirá cuando se compruebe de nuevo.";
 

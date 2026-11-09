@@ -76,7 +76,7 @@ public class RenovacionSuscripcionWebhookHostedService(
             tenants = (await ambito.ServiceProvider.GetRequiredService<ITenantsQueryContext>()
                     .Tenants.Select(t => new { t.Id, t.Estado })
                     .ToListAsync(stoppingToken))
-                .Select(t => new TenantDelCiclo(t.Id, t.Estado == EstadoTenant.Activo))
+                .Select(t => DelTenant(t.Id, t.Estado))
                 .ToList();
         }
 
@@ -86,6 +86,21 @@ public class RenovacionSuscripcionWebhookHostedService(
 
     /// <summary>Un Tenant propietario que recorre el ciclo, y si está Activo.</summary>
     internal readonly record struct TenantDelCiclo(Guid TenantId, bool Activo);
+
+    /// <summary>
+    /// Solo un Tenant <see cref="EstadoTenant.Activo"/> verifica y renueva; cualquier otro estado (hoy, Suspendido) va al
+    /// barrido, porque sus suscripciones no se renuevan.
+    /// </summary>
+    internal static TenantDelCiclo DelTenant(Guid tenantId, EstadoTenant estado) => new(tenantId, estado == EstadoTenant.Activo);
+
+    /// <summary>
+    /// El barrido de un Tenant no activo trata como terminal toda reclamación suya que cuente (<c>tenantActivo: false</c>):
+    /// sus suscripciones no se renuevan, así que ninguna de sus conexiones volverá a estar operativa sin pasar por
+    /// Reactivar. Recibe el método del servicio, no una lambda, para que el valor solo se decida aquí.
+    /// </summary>
+    internal static Task BarrerTenantNoActivoAsync(
+        Func<bool, CancellationToken, Task> sacarTerminalesDeGuardaTransitoria, CancellationToken stoppingToken) =>
+        sacarTerminalesDeGuardaTransitoria(false, stoppingToken);
 
     /// <summary>
     /// Reparte el ciclo entre los Tenants propietarios. Los activos, primero, completan la identidad de sus buzones y
@@ -141,8 +156,9 @@ public class RenovacionSuscripcionWebhookHostedService(
     {
         using var ambito = ambitoFactory.CreateScope();
         using var _ = AmbitoTenantExplicito.Establecer(tenantId);
-        await ambito.ServiceProvider.GetRequiredService<CompletarIdentidadBuzonService>()
-            .SacarTerminalesDeGuardaTransitoriaAsync(tenantActivo: false, stoppingToken);
+        await BarrerTenantNoActivoAsync(
+            ambito.ServiceProvider.GetRequiredService<CompletarIdentidadBuzonService>().SacarTerminalesDeGuardaTransitoriaAsync,
+            stoppingToken);
     }
 
     private async Task RenovarPendientesDelTenantAsync(Guid tenantId, CancellationToken stoppingToken)

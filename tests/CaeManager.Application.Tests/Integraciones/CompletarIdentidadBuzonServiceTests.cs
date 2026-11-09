@@ -727,8 +727,8 @@ public class CompletarIdentidadBuzonServiceTests
     }
 
     /// <summary>
-    /// Desconectar no toma el cerrojo de la verificación: entre la selección y la comprobación puede dejar la conexión
-    /// Deshabilitada y liberar su reclamación. La comprobación lo ve al releerla y sale sin leer Graph ni mutar nada; un
+    /// Desconectar toma el cerrojo de la verificación, pero la selección va fuera de él: entre la selección y la
+    /// comprobación puede dejar la conexión Deshabilitada y liberar su reclamación. La comprobación lo ve al releerla y sale sin leer Graph ni mutar nada; un
     /// 403/404 posterior no la deja en ConError, desde donde una verificación la rehabilitaría sin reclamación.
     /// </summary>
     [Fact]

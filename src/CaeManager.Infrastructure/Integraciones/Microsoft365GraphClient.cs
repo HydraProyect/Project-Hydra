@@ -969,6 +969,12 @@ public class Microsoft365GraphClient(
             logger.LogError(ex, "Fallo de red al eliminar la suscripción {SubscriptionId} vía Microsoft Graph.", graphSubscriptionId);
             return Result.Fallo(Error.Crear("Integraciones.Microsoft365.ErrorRed", "No pudimos conectar con Microsoft."));
         }
+        catch (TaskCanceledException ex) when (!cancellationToken.IsCancellationRequested)
+        {
+            // Resultado incierto: el borrado pudo llegar o no. Quien desconecta lo trata como fallido y deja la marca.
+            logger.LogError(ex, "Microsoft Graph no respondió a tiempo al eliminar la suscripción {SubscriptionId}.", graphSubscriptionId);
+            return Result.Fallo(ErrorTiempoAgotado);
+        }
     }
 
     public IReadOnlyList<string> ExtraerMensajeIdsDeNotificacion(string payloadJson)

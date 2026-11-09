@@ -48,4 +48,7 @@
   <data name="ErrorBuzonYaConectado" xml:space="preserve">
     <value>Aquesta bústia ja està connectada, en aquesta organització o en una altra. Si ha de ser aquí, desconnecta-la primer on sigui.</value>
   </data>
+  <data name="ErrorAltaCompartidaEnPausa" xml:space="preserve">
+    <value>Alta de bústies compartides en pausa temporal mentre es completa la verificació; torna-ho a provar d'aquí a unes hores.</value>
+  </data>
 </root>

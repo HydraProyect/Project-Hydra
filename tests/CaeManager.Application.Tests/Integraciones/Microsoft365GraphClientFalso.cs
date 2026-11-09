@@ -253,8 +253,14 @@ public class Microsoft365GraphClientFalso : IMicrosoft365GraphClient
     {
         SuscripcionesEliminadas.Add(graphSubscriptionId);
         AlEliminarSuscripcion?.Invoke();
+        if (ExcepcionEliminacion is { } excepcion)
+            throw excepcion;
+
         return Task.FromResult(ErrorEliminacion is { } error ? Result.Fallo(error) : Result.Exito());
     }
+
+    /// <summary>Excepción que lanza el borrado de suscripción (resultado incierto); null, no lanza.</summary>
+    public Exception? ExcepcionEliminacion { get; set; }
 
     /// <summary>Se invoca al pedir el borrado de una suscripción (p. ej. para ver qué estaba guardado ya).</summary>
     public Action? AlEliminarSuscripcion { get; set; }

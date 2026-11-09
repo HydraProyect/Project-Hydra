@@ -48,4 +48,7 @@
   <data name="ErrorBuzonYaConectado" xml:space="preserve">
     <value>Ese buzón ya está conectado, en esta organización o en otra. Si debe estar aquí, desconéctalo primero donde esté.</value>
   </data>
+  <data name="ErrorAltaCompartidaEnPausa" xml:space="preserve">
+    <value>Alta de buzones compartidos en pausa temporal mientras se completa la verificación; vuelve a intentarlo en unas horas.</value>
+  </data>
 </root>

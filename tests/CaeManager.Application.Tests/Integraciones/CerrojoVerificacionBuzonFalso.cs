@@ -14,7 +14,7 @@ public sealed class CerrojoVerificacionBuzonFalso : ICerrojoVerificacionBuzon
 
     /// <summary>
     /// Corre al tomar el cerrojo, antes del trabajo: lo que otro proceso cambió entre la selección de la conexión y su
-    /// comprobación (Desconectar no toma este cerrojo).
+    /// comprobación (la renovación y la ingesta no toman este cerrojo).
     /// </summary>
     public Action<Guid>? AlTomar { get; set; }
 

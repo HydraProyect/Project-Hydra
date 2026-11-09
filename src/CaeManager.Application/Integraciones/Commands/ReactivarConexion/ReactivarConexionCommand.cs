@@ -38,7 +38,8 @@ public class ReactivarConexionCommandHandler(
     IMicrosoft365GraphClient graphClient,
     IEventoWebhookRepository eventoRepositorio,
     ICerrojoVerificacionBuzon cerrojo,
-    SuscripcionAlRehabilitarService suscripciones)
+    SuscripcionAlRehabilitarService suscripciones,
+    IDescarteCambiosPendientes descarteCambios)
     : IRequestHandler<ReactivarConexionCommand, Result>
 {
     public async Task<Result> Handle(ReactivarConexionCommand request, CancellationToken cancellationToken)
@@ -72,6 +73,18 @@ public class ReactivarConexionCommandHandler(
         // — ConError nunca la libera, así que reactivar desde ConError no
         // necesita reclamar de nuevo.
         var necesitaReclamarBuzon = conexion.Estado == EstadoConexionIntegracion.Deshabilitada;
+
+        // El Tenant de la reclamación se resuelve antes de tocar Graph ni rastrear nada: sin él no se crea ni se renueva
+        // una suscripción que luego habría que borrar, y no queda ninguna fila de SuscripcionWebhook modificada en el
+        // DbContext (que vive lo que el circuito) a la espera de que la guarde otra operación.
+        var tenantId = Guid.Empty;
+        if (necesitaReclamarBuzon)
+        {
+            if (tenantActual.TenantId is not { } resuelto)
+                return Result.Fallo(Error.Crear("Integraciones.Microsoft365.TenantNoResuelto", "No se pudo determinar la organización actual."));
+
+            tenantId = resuelto;
+        }
 
         // Resuelto ANTES de mutar la entidad (hallazgo del punto 6, revisión
         // Codex sobre PR #820): Rehabilitar() no se deshace solo con
@@ -122,18 +135,6 @@ public class ReactivarConexionCommandHandler(
             vigente = suscripcion.Valor;
         }
 
-        var tenantId = Guid.Empty;
-        if (necesitaReclamarBuzon)
-        {
-            if (tenantActual.TenantId is not { } resuelto)
-            {
-                await CompensarAsync();
-                return Result.Fallo(Error.Crear("Integraciones.Microsoft365.TenantNoResuelto", "No se pudo determinar la organización actual."));
-            }
-
-            tenantId = resuelto;
-        }
-
         var veniaSinVerificar = !conexion.OperativaVerificada(DateTime.UtcNow);
 
         // Una verificación caducada no marca hueco: mientras estuvo sin verificar, su correo esperó en la cola.
@@ -153,10 +154,30 @@ public class ReactivarConexionCommandHandler(
                     retenido.Liberar();
             }
 
-            await unitOfWork.SaveChangesAsync(cancellationToken);
+            try
+            {
+                await unitOfWork.SaveChangesAsync(cancellationToken);
+            }
+            catch
+            {
+                // La rehabilitación no se guardó: lo rastreado (Habilitada, la fila de la suscripción) se suelta para que
+                // no lo guarde otra operación del circuito, y la suscripción creada en esta llamada no queda huérfana en
+                // Graph. Una solo renovada sigue siendo la de esta conexión en ConError, que la renovación diaria mantiene.
+                descarteCambios.DescartarCambiosPendientes();
+                await CompensarAsync(tambienRenovada: false);
+                throw;
+            }
+
             return Result.Exito();
         }
 
+        // Orden: primero la suscripción y después la reclamación, que se guarda en el mismo guardado que la
+        // rehabilitación y la fila de la suscripción. Reclamar antes evitaría crear y borrar una suscripción cuando la
+        // guarda transitoria está en pausa, pero dejaría guardada la reclamación de una conexión aún Deshabilitada si
+        // después la suscripción fallase, y su compensación (liberarla) sería otro guardado que puede fallar: una
+        // reclamación huérfana bloquea el buzón para todos los Tenants. Una suscripción huérfana, en cambio, se borra
+        // aquí sin bloquear y, si ese borrado falla, expira sola en unos días. Saber si la guarda está en pausa antes de
+        // reclamar exigiría leer reclamaciones de otros Tenants: la guarda se decidió sin ninguna lectura entre Tenants.
         // Un compartido vuelve a entrar en la guarda transitoria (ReclamacionBuzonIntegracion.CuentaParaGuardaTransitoria).
         reclamacionRepositorio.Reclamar(new ReclamacionBuzonIntegracion(
             conexion.BuzonEmail, conexion.IdentidadBuzon, tenantId, conexion.Id, DateTime.UtcNow,
@@ -168,19 +189,20 @@ public class ReactivarConexionCommandHandler(
         }
         catch
         {
-            await CompensarAsync();
+            descarteCambios.DescartarCambiosPendientes();
+            await CompensarAsync(tambienRenovada: true);
             throw;
         }
 
         switch (resultadoReclamacion)
         {
             case ResultadoReclamacionBuzon.BuzonYaReclamado:
-                await CompensarAsync();
+                await CompensarAsync(tambienRenovada: true);
                 return Result.Fallo(Error.Crear(
                     "Integraciones.Microsoft365.BuzonYaConectado",
                     "Este buzón fue conectado por otra organización mientras estaba desconectado."));
             case ResultadoReclamacionBuzon.AltaCompartidaEnPausa:
-                await CompensarAsync();
+                await CompensarAsync(tambienRenovada: true);
                 return Result.Fallo(Error.Crear(
                     ConectarBuzonMicrosoft365.ConectarBuzonMicrosoft365CommandHandler.CodigoAltaCompartidaEnPausa,
                     ConectarBuzonMicrosoft365.ConectarBuzonMicrosoft365CommandHandler.MensajeAltaCompartidaEnPausa));
@@ -188,10 +210,11 @@ public class ReactivarConexionCommandHandler(
 
         return Result.Exito();
 
-        // La reclamación falló y el guardado se descartó (ChangeTracker.Clear): la suscripción recién creada en Graph
-        // quedaría huérfana.
-        Task CompensarAsync() => vigente is not null && accessToken is not null
-            ? suscripciones.CompensarAsync(accessToken, vigente, CancellationToken.None)
+        // La rehabilitación no se guardó (la reclamación falló y el guardado se descartó con ChangeTracker.Clear, o el
+        // guardado lanzó): la suscripción recién creada en Graph quedaría huérfana. Si la conexión sigue Deshabilitada
+        // (camino de la reclamación), también se borra la que solo se renovó: una Deshabilitada no tiene suscripción viva.
+        Task CompensarAsync(bool tambienRenovada) => vigente is not null && accessToken is not null
+            ? suscripciones.CompensarAsync(accessToken, vigente, tambienRenovada, CancellationToken.None)
             : Task.CompletedTask;
     }
 

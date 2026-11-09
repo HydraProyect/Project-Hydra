@@ -556,6 +556,28 @@ public class Microsoft365BuzonCompartidoRutasTests
     }
 
     [Fact]
+    public async Task Un_timeout_de_Graph_al_eliminar_la_suscripcion_es_un_fallo_transitorio()
+    {
+        var resultado = await Cliente(new LanzaTimeoutHandler())
+            .EliminarSuscripcionAsync("token", "sub-1", CancellationToken.None);
+
+        resultado.EsFallido.Should().BeTrue();
+        CodigosErrorMicrosoft365.EsTransitorio(resultado.Error).Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task La_cancelacion_pedida_al_eliminar_la_suscripcion_se_propaga()
+    {
+        using var cancelacion = new CancellationTokenSource();
+        await cancelacion.CancelAsync();
+
+        var accion = () => Cliente(new LanzaTimeoutHandler())
+            .EliminarSuscripcionAsync("token", "sub-1", cancelacion.Token);
+
+        await accion.Should().ThrowAsync<OperationCanceledException>();
+    }
+
+    [Fact]
     public async Task La_cancelacion_pedida_de_verdad_se_propaga()
     {
         using var cancelacion = new CancellationTokenSource();
