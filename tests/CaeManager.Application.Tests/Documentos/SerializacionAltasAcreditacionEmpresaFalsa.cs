@@ -17,10 +17,21 @@ public sealed class SerializacionAltasAcreditacionEmpresaFalsa : ISerializacionA
     /// </summary>
     public Action? AlTomarElCandado { get; set; }
 
-    public Task<Result> EjecutarAsync(Func<CancellationToken, Task<Result>> operacion, CancellationToken cancellationToken = default)
+    /// <summary>
+    /// Si se informa, un primer intento con éxito se da por confirmado en la base pero comunicado como un error transitorio:
+    /// se ejecuta esto y se repite la operación, como hace la estrategia de reintentos, y se devuelve lo que diga el reintento.
+    /// </summary>
+    public Action? AntesDeReintentarTrasConfirmar { get; set; }
+
+    public async Task<Result> EjecutarAsync(Func<CancellationToken, Task<Result>> operacion, CancellationToken cancellationToken = default)
     {
         Llamadas++;
         AlTomarElCandado?.Invoke();
-        return operacion(cancellationToken);
+        var resultado = await operacion(cancellationToken);
+        if (resultado.EsFallido || AntesDeReintentarTrasConfirmar is not { } antesDeReintentar)
+            return resultado;
+
+        antesDeReintentar();
+        return await operacion(cancellationToken);
     }
 }

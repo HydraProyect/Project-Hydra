@@ -319,6 +319,55 @@ public class GenerarDocumentoIndividualCommandHandlerTests
     }
 
     [Fact]
+    public async Task Si_la_limpieza_del_pdf_se_cancela_tras_revocarse_la_cartera_devuelve_igualmente_el_rechazo()
+    {
+        // Ronda 2 de Codex sobre la PR #2121: una cancelación al limpiar tampoco sustituye al rechazo de la cartera.
+        var tipo = new TipoDocumento("Plan de prevención", null, false, 1, AmbitoAplicacion.Empresa);
+        var entorno = await ConstruirEntornoAsync(tipo, AmbitoAplicacion.Empresa);
+        var empresa = new Empresa("Contratista SL", "B12345674");
+        entorno.Empresas.ListaEmpresas.Add(empresa);
+        var usuarioId = Guid.NewGuid();
+        Confirmar(entorno.Version,
+            [new PlantillaElemento(entorno.Version.Id, TipoElementoPlantilla.Texto, 1, 0, 0, 10, 10, "Razón social", FuenteDatoPlantilla.EmpresaRazonSocial)],
+            usuarioId);
+        var alcance = new AlcanceMemoizadoRevocableFalso(new AlcanceDatosServiceFalso());
+        entorno.Serializacion.AlTomarElCandado = alcance.Revocar;
+        entorno.Almacenamiento.ExcepcionAlEliminar = new OperationCanceledException();
+
+        var resultado = await entorno.CrearHandler(usuarioId, alcance, invalidadorAlcance: alcance).Handle(
+            new GenerarDocumentoIndividualCommand(entorno.Version.Id, empresa.Id), CancellationToken.None);
+
+        resultado.Error.Codigo.Should().Be("Plantilla.PropietarioNoEncontrado");
+        entorno.Documentos.Documentos.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task Un_reintento_rechazado_por_la_cartera_tras_un_commit_confirmado_no_borra_el_pdf_del_documento()
+    {
+        // Ronda 2 de Codex sobre la PR #2121: el commit se confirma pero comunica un error transitorio, la cartera se
+        // revoca antes del reintento y este rechaza. El Documento confirmado sigue referenciando su PDF.
+        var tipo = new TipoDocumento("Plan de prevención", null, false, 1, AmbitoAplicacion.Empresa);
+        var entorno = await ConstruirEntornoAsync(tipo, AmbitoAplicacion.Empresa);
+        var empresa = new Empresa("Contratista SL", "B12345674");
+        entorno.Empresas.ListaEmpresas.Add(empresa);
+        var usuarioId = Guid.NewGuid();
+        Confirmar(entorno.Version,
+            [new PlantillaElemento(entorno.Version.Id, TipoElementoPlantilla.Texto, 1, 0, 0, 10, 10, "Razón social", FuenteDatoPlantilla.EmpresaRazonSocial)],
+            usuarioId);
+        var alcance = new AlcanceMemoizadoRevocableFalso(new AlcanceDatosServiceFalso());
+        entorno.Serializacion.AntesDeReintentarTrasConfirmar = alcance.Revocar;
+        var archivosAntes = entorno.Almacenamiento.ArchivosGuardados;
+
+        var resultado = await entorno.CrearHandler(usuarioId, alcance, invalidadorAlcance: alcance).Handle(
+            new GenerarDocumentoIndividualCommand(entorno.Version.Id, empresa.Id), CancellationToken.None);
+
+        resultado.Error.Codigo.Should().Be("Plantilla.PropietarioNoEncontrado", "el reintento rechaza con la cartera ya revocada");
+        var documento = entorno.Documentos.Documentos.Should().ContainSingle("el primer intento lo confirmó").Subject;
+        entorno.Almacenamiento.ArchivosGuardados.Should().Be(archivosAntes + 1, "el PDF del Documento confirmado se conserva");
+        await using (var _ = await entorno.Almacenamiento.AbrirAsync(documento.ArchivoUrl!)) { }
+    }
+
+    [Fact]
     public async Task Generar_desde_plantilla_es_un_alta_con_archivo_y_hace_nacer_la_gestion_automatica_en_el_mismo_guardado()
     {
         // Hallazgo 2 de la primera ronda de Codex sobre la PR #2072: el alta desde plantilla guarda archivo,

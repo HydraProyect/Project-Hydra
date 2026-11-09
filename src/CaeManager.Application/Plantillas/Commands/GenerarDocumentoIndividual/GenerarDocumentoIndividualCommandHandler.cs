@@ -269,13 +269,13 @@ public class GenerarDocumentoIndividualCommandHandler(
         if (guardado.EsFallido)
         {
             // GuardarAsync solo devuelve éxito o lanza: un fallo aquí es el rechazo de la Asignación de Cartera bajo el
-            // candado, y la transacción no llegó a crear el Documento. El PDF guardado arriba no lo referencia nadie y
-            // puede llevar datos de la Empresa y de sus contactos a los que quien lo pidió ya no tiene acceso.
-            // Límite aceptado: si un commit se confirma en la base pero devuelve un error transitorio, la estrategia de
-            // reintentos repite la operación; si en ese reintento la cartera ya está revocada, se rechaza y se borra el PDF
-            // de un Documento que sí quedó confirmado. Exige un fallo justo en el commit y una revocación en esa ventana.
-            // Las excepciones tras guardar el PDF no se compensan aquí: un commit ambiguo podría haber confirmado el Documento.
-            await EliminarPdfHuerfanoAsync(archivoUrl, version.Id, cancellationToken);
+            // candado. El PDF guardado arriba puede llevar datos de la Empresa y de sus contactos a los que quien lo pidió
+            // ya no tiene acceso, así que se elimina si ningún Documento lo referencia. Que este intento rechazara no lo
+            // prueba: si un commit anterior se confirmó en la base pero devolvió un error transitorio, la estrategia de
+            // reintentos repitió la operación y este rechazo llega sobre un Documento ya confirmado. Por eso se pregunta a
+            // la base, ya fuera de la transacción, por el Id de este Documento (el mismo en todos los intentos).
+            // Las excepciones tras guardar el PDF no se compensan aquí (issue #2123).
+            await EliminarPdfSiNingunDocumentoLoReferenciaAsync(archivoUrl, documento.Id, version.Id);
             return Result.Fallo<GenerarDocumentoIndividualResultadoDto>(guardado.Error);
         }
 
@@ -303,18 +303,28 @@ public class GenerarDocumentoIndividualCommandHandler(
         return Result.Exito();
     }
 
-    private async Task EliminarPdfHuerfanoAsync(string archivoUrl, Guid versionId, CancellationToken cancellationToken)
+    // Sin el token de la petición y sin dejar escapar ninguna excepción, tampoco una cancelación: el fallo real ya es el
+    // rechazo de la cartera, y perderlo por un problema al limpiar dejaría al llamador sin explicación. Mismo patrón de
+    // compensación best-effort que AgregarVersionPlantillaCommandHandler: si la comprobación o la limpieza fallan, el PDF
+    // queda huérfano sin más reintento, que es preferible a borrar el de un Documento confirmado. Se registra la versión
+    // de plantilla por Id y el tipo de la excepción: ni la clave del archivo ni el mensaje de la excepción deben acabar
+    // en los registros.
+    private async Task EliminarPdfSiNingunDocumentoLoReferenciaAsync(string archivoUrl, Guid documentoId, Guid versionId)
     {
         try
         {
-            await almacenamientoArchivos.EliminarAsync(archivoUrl, cancellationToken);
+            if (await documentoRepositorio.PodriaExistirAsync(documentoId, CancellationToken.None))
+            {
+                logger.LogWarning(
+                    "Se rechazó el alta generada desde la versión de plantilla {PlantillaDocumentoVersionId} pero su Documento consta en la base: se conserva el PDF.",
+                    versionId);
+                return;
+            }
+
+            await almacenamientoArchivos.EliminarAsync(archivoUrl, CancellationToken.None);
         }
-        catch (Exception ex) when (ex is not OperationCanceledException)
+        catch (Exception ex)
         {
-            // No se propaga: el fallo real ya es el rechazo de la cartera, y perderlo por un problema al limpiar dejaría
-            // al llamador sin explicación. Mismo patrón de compensación best-effort que AgregarVersionPlantillaCommandHandler:
-            // si la limpieza falla, el PDF queda huérfano sin más reintento. Se registra la versión de plantilla por Id y
-            // el tipo de la excepción: ni la clave del archivo ni el mensaje de la excepción deben acabar en los registros.
             logger.LogWarning(
                 "No se pudo eliminar el PDF generado desde la versión de plantilla {PlantillaDocumentoVersionId} tras rechazarse su alta ({TipoExcepcion}).",
                 versionId, ex.GetType().Name);

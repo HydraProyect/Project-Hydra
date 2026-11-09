@@ -12,6 +12,9 @@ public class DocumentoRepositorioFalso : IDocumentoRepository
     public Task<Documento?> ObtenerPorIdAsync(Guid id, CancellationToken cancellationToken = default) =>
         Task.FromResult(Documentos.FirstOrDefault(d => d.Id == id));
 
+    public Task<bool> PodriaExistirAsync(Guid id, CancellationToken cancellationToken = default) =>
+        Task.FromResult(Documentos.Any(d => d.Id == id));
+
     public void Agregar(Documento documento)
     {
         if (ExcepcionAlAgregar is { } excepcion)
