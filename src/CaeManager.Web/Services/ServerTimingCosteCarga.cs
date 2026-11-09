@@ -120,9 +120,29 @@ public sealed class ServerTimingCosteCargaMiddleware(RequestDelegate siguiente, 
         return Task.CompletedTask;
     }
 
-    /// <summary>Una página de componentes (SSR), no un endpoint de API, un fichero o un HTML de otra fuente.</summary>
-    private static bool EsPaginaSsr(HttpContext contexto) =>
-        contexto.GetEndpoint()?.Metadata.GetMetadata<Microsoft.AspNetCore.Components.Endpoints.ComponentTypeMetadata>() is not null;
+    /// <summary>
+    /// Una página de componentes (SSR), no un endpoint de API, un fichero o un HTML de otra fuente.
+    /// En una re-ejecución (<c>UseStatusCodePagesWithReExecute</c>, <c>UseExceptionHandler</c>) el
+    /// endpoint actual es la página de error, pero el coste es el de la petición original: también
+    /// esa tiene que ser una página. Así un 404 de una API re-ejecutado como página no lleva el coste
+    /// de la API; y si la petición original no llegó a ningún endpoint, no hay cabecera.
+    /// </summary>
+    private static bool EsPaginaSsr(HttpContext contexto)
+    {
+        if (!EsPagina(contexto.GetEndpoint()))
+            return false;
+
+        if (contexto.Features.Get<Microsoft.AspNetCore.Diagnostics.IStatusCodeReExecuteFeature>() is { } reejecucion)
+            return EsPagina(reejecucion.Endpoint);
+
+        if (contexto.Features.Get<Microsoft.AspNetCore.Diagnostics.IExceptionHandlerFeature>() is { } excepcion)
+            return EsPagina(excepcion.Endpoint);
+
+        return true;
+    }
+
+    private static bool EsPagina(Endpoint? endpoint) =>
+        endpoint?.Metadata.GetMetadata<Microsoft.AspNetCore.Components.Endpoints.ComponentTypeMetadata>() is not null;
 
     /// <summary>Tipo MIME exacto <c>text/html</c>, con o sin parámetros; no <c>text/html-algo</c>.</summary>
     private static bool EsHtml(string? tipo) =>

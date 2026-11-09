@@ -166,6 +166,50 @@ public class ServerTimingCosteCargaTests
         contexto.Response.Headers[CabeceraServerTiming.Nombre].ToString().Should().Contain("cmd;desc=\"1\"");
     }
 
+    [Theory]
+    [InlineData(false, false)]
+    [InlineData(true, true)]
+    public async Task Una_reejecucion_de_codigo_de_estado_solo_lleva_cabecera_si_la_peticion_original_era_una_pagina(
+        bool originalEsPagina, bool esperaCabecera)
+    {
+        // Un 404 de una API autenticada re-ejecutado como /not-found: el endpoint actual es una
+        // página, el original no.
+        var (contexto, respuesta) = await Ejecutar(habilitado: true, autenticado: true, tipo: "text/html",
+            coste => coste.RegistrarComando(TimeSpan.FromMilliseconds(1)));
+        contexto.Features.Set<Microsoft.AspNetCore.Diagnostics.IStatusCodeReExecuteFeature>(
+            new Microsoft.AspNetCore.Diagnostics.StatusCodeReExecuteFeature
+            {
+                Endpoint = originalEsPagina ? EndpointDePagina("/empresas") : new Endpoint(_ => Task.CompletedTask, EndpointMetadataCollection.Empty, "api"),
+            });
+
+        respuesta.DispararOnStarting();
+
+        contexto.Response.Headers.ContainsKey(CabeceraServerTiming.Nombre).Should().Be(esperaCabecera);
+    }
+
+    [Theory]
+    [InlineData(false, false)]
+    [InlineData(true, true)]
+    public async Task Una_reejecucion_por_excepcion_solo_lleva_cabecera_si_la_peticion_original_era_una_pagina(
+        bool originalEsPagina, bool esperaCabecera)
+    {
+        var (contexto, respuesta) = await Ejecutar(habilitado: true, autenticado: true, tipo: "text/html");
+        contexto.Features.Set<Microsoft.AspNetCore.Diagnostics.IExceptionHandlerFeature>(
+            new Microsoft.AspNetCore.Diagnostics.ExceptionHandlerFeature
+            {
+                Error = new InvalidOperationException(),
+                Path = "/",
+                Endpoint = originalEsPagina ? EndpointDePagina("/empresas") : null,
+            });
+
+        respuesta.DispararOnStarting();
+
+        contexto.Response.Headers.ContainsKey(CabeceraServerTiming.Nombre).Should().Be(esperaCabecera);
+    }
+
+    private static Endpoint EndpointDePagina(string nombre) => new(_ => Task.CompletedTask,
+        new EndpointMetadataCollection(new Microsoft.AspNetCore.Components.Endpoints.ComponentTypeMetadata(typeof(PaginaDePrueba))), nombre);
+
     private static async Task<(HttpContext Contexto, RespuestaQueCapturaOnStarting Respuesta)> Ejecutar(
         bool habilitado, bool autenticado, string? tipo, Action<CosteCarga>? gastar = null,
         string ruta = "/", string usuario = "u", bool autenticarDespues = false, bool paginaSsr = true)

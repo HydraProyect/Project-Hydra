@@ -97,6 +97,45 @@ public class MedicionCargaCircuitoHandlerTests
     }
 
     [Fact]
+    public async Task Una_navegacion_espera_a_que_el_temporizador_cierre_su_carga_y_nada_cuenta_dos_veces()
+    {
+        // Intercalación de la carrera: el temporizador está a mitad de cerrar la carga (ya leyó su
+        // cierre y está registrando) cuando llega una navegación. La navegación no puede tomar su
+        // frontera hasta que el cierre termine.
+        var (handler, coste, navegacion, logger, reloj) = Crear(habilitado: true, uriInicial: "http://localhost/");
+        await handler.OnCircuitOpenedAsync(null!, default);
+        coste.RegistrarComando(TimeSpan.FromMilliseconds(1));
+
+        using var cierreEnCurso = new ManualResetEventSlim();
+        using var soltarCierre = new ManualResetEventSlim();
+        logger.AlRegistrar = e =>
+        {
+            if (Equals(e.Valor("Motivo"), MedicionCargaCircuitoHandler.MotivoVentana))
+            {
+                cierreEnCurso.Set();
+                soltarCierre.Wait(TimeSpan.FromSeconds(10));
+            }
+        };
+
+        var temporizador = Task.Run(() => reloj.Temporizadores[0].Disparar());
+        cierreEnCurso.Wait(TimeSpan.FromSeconds(10)).Should().BeTrue();
+        coste.RegistrarComando(TimeSpan.FromMilliseconds(1));
+        var navegar = Task.Run(() => navegacion.Navegar("http://localhost/empresas"));
+
+        (await Task.WhenAny(navegar, Task.Delay(300))).Should().NotBeSameAs(navegar,
+            "la navegación debe esperar a que el temporizador termine su transición");
+        soltarCierre.Set();
+        await Task.WhenAll(temporizador, navegar).WaitAsync(TimeSpan.FromSeconds(10));
+        logger.AlRegistrar = null;
+        coste.RegistrarComando(TimeSpan.FromMilliseconds(1));
+        await handler.OnCircuitClosedAsync(null!, default);
+
+        logger.Entradas.Should().HaveCount(2);
+        logger.Entradas[0].Valor("Comandos").Should().Be(1L);
+        logger.Entradas.Sum(e => (long)e.Valor("Comandos")!).Should().BeLessThanOrEqualTo(coste.Leer().Comandos);
+    }
+
+    [Fact]
     public async Task Un_cambio_de_solo_consulta_no_abre_una_carga_nueva()
     {
         var (handler, coste, navegacion, logger, reloj) = Crear(habilitado: true, uriInicial: "http://localhost/empresas");
@@ -226,13 +265,21 @@ public class MedicionCargaCircuitoHandlerTests
     {
         public List<Entrada> Entradas { get; } = [];
 
+        /// <summary>Se llama tras anotar cada entrada, en el hilo que registra.</summary>
+        public Action<Entrada>? AlRegistrar { get; set; }
+
         public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
 
         public bool IsEnabled(LogLevel logLevel) => true;
 
-        public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception? exception, Func<TState, Exception?, string> formatter) =>
-            Entradas.Add(new Entrada(logLevel, formatter(state, exception),
-                state as IReadOnlyList<KeyValuePair<string, object?>> ?? []));
+        public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception? exception, Func<TState, Exception?, string> formatter)
+        {
+            var entrada = new Entrada(logLevel, formatter(state, exception),
+                state as IReadOnlyList<KeyValuePair<string, object?>> ?? []);
+            lock (Entradas)
+                Entradas.Add(entrada);
+            AlRegistrar?.Invoke(entrada);
+        }
     }
 
     private sealed record Entrada(LogLevel Nivel, string Mensaje, IReadOnlyList<KeyValuePair<string, object?>> Valores)
