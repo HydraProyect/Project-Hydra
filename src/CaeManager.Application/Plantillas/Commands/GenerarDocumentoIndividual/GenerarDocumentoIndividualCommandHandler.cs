@@ -1,4 +1,4 @@
-using System.Text.Json;
+﻿using System.Text.Json;
 using CaeManager.Application.Centros;
 using CaeManager.Application.Common;
 using CaeManager.Application.Common.Archivos;
@@ -271,6 +271,10 @@ public class GenerarDocumentoIndividualCommandHandler(
             // GuardarAsync solo devuelve éxito o lanza: un fallo aquí es el rechazo de la Asignación de Cartera bajo el
             // candado, y la transacción no llegó a crear el Documento. El PDF guardado arriba no lo referencia nadie y
             // puede llevar datos de la Empresa y de sus contactos a los que quien lo pidió ya no tiene acceso.
+            // Límite aceptado: si un commit se confirma en la base pero devuelve un error transitorio, la estrategia de
+            // reintentos repite la operación; si en ese reintento la cartera ya está revocada, se rechaza y se borra el PDF
+            // de un Documento que sí quedó confirmado. Exige un fallo justo en el commit y una revocación en esa ventana.
+            // Las excepciones tras guardar el PDF no se compensan aquí: un commit ambiguo podría haber confirmado el Documento.
             await EliminarPdfHuerfanoAsync(archivoUrl, version.Id, cancellationToken);
             return Result.Fallo<GenerarDocumentoIndividualResultadoDto>(guardado.Error);
         }

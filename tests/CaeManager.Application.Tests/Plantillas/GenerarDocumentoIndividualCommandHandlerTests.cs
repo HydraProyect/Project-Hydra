@@ -1,4 +1,4 @@
-using System.Text.Json;
+﻿using System.Text.Json;
 using CaeManager.Application.Common;
 using CaeManager.Application.Documentos.Acreditacion;
 using CaeManager.Application.Gestiones;
@@ -215,11 +215,15 @@ public class GenerarDocumentoIndividualCommandHandlerTests
             usuarioId);
         (int Documentos, int Altas)? alTomarElCandado = null;
         entorno.Serializacion.AlTomarElCandado = () => alTomarElCandado = (entorno.Documentos.Documentos.Count, alta.Recibidas.Count);
+        var archivosAntes = entorno.Almacenamiento.ArchivosGuardados;
 
         var resultado = await entorno.CrearHandler(usuarioId).Handle(
             new GenerarDocumentoIndividualCommand(entorno.Version.Id, empresa.Id), CancellationToken.None);
 
         resultado.EsExitoso.Should().BeTrue();
+        // Revisión puente de la ronda 2 sobre la PR #2121: la compensación del PDF solo actúa ante el rechazo.
+        entorno.Almacenamiento.ArchivosGuardados.Should().Be(archivosAntes + 1, "el PDF del Documento confirmado se conserva");
+        await using (var _ = await entorno.Almacenamiento.AbrirAsync(entorno.Documentos.Documentos.Single().ArchivoUrl)) { }
         entorno.Serializacion.Llamadas.Should().Be(1, "el alta de un Documento de Empresa se serializa con la de un acceso de plataforma");
         alTomarElCandado.Should().Be((0, 0), "el Documento y sus acreditaciones se agregan dentro de la operación serializada");
         entorno.Documentos.Documentos.Should().ContainSingle().Which.Id.Should().Be(resultado.Valor.DocumentoId);
@@ -665,12 +669,15 @@ public class GenerarDocumentoIndividualCommandHandlerTests
             new PlantillaElemento(entorno.Version.Id, TipoElementoPlantilla.Texto, 1, 0, 0, 10, 10, "Nombre completo", FuenteDatoPlantilla.TrabajadorNombreCompleto, obligatorio: true),
         ], Guid.NewGuid());
         var handler = entorno.CrearHandler();
+        var archivosAntes = entorno.Almacenamiento.ArchivosGuardados;
 
         var resultado = await handler.Handle(
             new GenerarDocumentoIndividualCommand(entorno.Version.Id, trabajador.Id), CancellationToken.None);
 
         resultado.EsExitoso.Should().BeTrue();
         resultado.Valor.CamposObligatoriosVacios.Should().BeEmpty();
+        entorno.Almacenamiento.ArchivosGuardados.Should().Be(archivosAntes + 1, "el PDF del Documento confirmado se conserva");
+        await using (var _ = await entorno.Almacenamiento.AbrirAsync(entorno.Documentos.Documentos.Single().ArchivoUrl)) { }
     }
 
     [Fact]
