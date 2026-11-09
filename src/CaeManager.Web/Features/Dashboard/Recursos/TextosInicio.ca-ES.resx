@@ -115,7 +115,7 @@
     <value>Centres amb bloqueig</value>
   </data>
   <data name="AnilloAlDiaDetalle" xml:space="preserve">
-    <value>{0} de {1} documents de Treballador al dia (vigents, per vèncer i sense caducitat)</value>
+    <value>{0} de {1} documents de Treballador al dia (vigents, per vèncer i sense caducitat). Mesura els documents pujats: els que falten no hi compten, i sí a Empreses i a les fitxes d'Empresa i de Treballador.</value>
   </data>
   <data name="KpiCentrosBloqueadosUno" xml:space="preserve">
     <value>1 centre amb treballadors bloquejats</value>
@@ -124,9 +124,9 @@
     <value>{0} centres amb treballadors bloquejats</value>
   </data>
   <data name="KpiVigentesAlDia" xml:space="preserve">
-    <value>{0} més al dia (per vèncer o sense caducitat)</value>
+    <value>+{0} per vèncer o sense caducitat = {1} al dia</value>
   </data>
   <data name="KpiVigentesNoAlDia" xml:space="preserve">
-    <value>{0} no al dia (vençuts o sense confirmar)</value>
+    <value>{0} de {1} no al dia (vençuts o sense confirmar)</value>
   </data>
 </root>
