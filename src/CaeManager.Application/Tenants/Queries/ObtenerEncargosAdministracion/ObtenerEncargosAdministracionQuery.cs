@@ -61,7 +61,7 @@ public class ObtenerEncargosAdministracionQueryHandler(
         ObtenerEncargosAdministracionQuery request, CancellationToken cancellationToken)
     {
         if (tenantActual.TenantId is not { } propietarioTenantId
-            || await autoridad.ResolverAsync(propietarioTenantId, cancellationToken) is null)
+            || await autoridad.ResolverEnConsultaAsync(propietarioTenantId, cancellationToken) is null)
             return [];
 
         var filas = await (
