@@ -487,6 +487,10 @@ else
                siempre por defecto (nota de la lista, arriba). "Este centro lo exige" atribuía la
                marca inicial al centro incluso cuando venía del valor general del tipo. *@
             <p class="workspace-metrica-inline">@_nombreTipoDocumentoEditando</p>
+            @if (_archivadoEdicion)
+            {
+                <p class="workspace-nota-contextual">Tipo archivado: solo se puede desmarcar@(_nombreSustitutoEdicion is { } sustituto ? $"; el sustituto es «{sustituto}»" : string.Empty).</p>
+            }
             <label class="campo-checkbox">
                 <input type="checkbox" @bind="_incluidoEdicion" /> Incluido en este centro
             </label>
@@ -815,6 +819,9 @@ else
     private Guid _tipoDocumentoIdEditando;
     private string _nombreTipoDocumentoEditando = string.Empty;
     private bool _incluidoEdicion;
+    // Un tipo archivado ya exigido solo se puede desmarcar: el Command rechaza Incluido = true aunque la fila ya lo tuviera.
+    private bool _archivadoEdicion;
+    private string? _nombreSustitutoEdicion;
     private string _periodicidadSeleccionEdicion = string.Empty;
     private string _periodicidadPersonalizadaEdicion = string.Empty;
     private bool _bloqueaAccesoEdicion;
@@ -1221,6 +1228,8 @@ else
     {
         _tipoDocumentoIdEditando = item.TipoDocumentoId;
         _nombreTipoDocumentoEditando = item.Nombre;
+        _archivadoEdicion = item.Archivado;
+        _nombreSustitutoEdicion = item.NombreSustituto;
         _incluidoEdicion = item.Aplica;
         _periodicidadSeleccionEdicion = item.PeriodicidadEspecialMeses switch
         {
@@ -1333,6 +1342,14 @@ else
                 "personalizado" => int.TryParse(_periodicidadPersonalizadaEdicion, out var personalizado) ? personalizado : null,
                 var seleccion => int.Parse(seleccion)
             };
+
+            if (_archivadoEdicion && _incluidoEdicion)
+            {
+                _mensajeErrorDocumentacion = _nombreSustitutoEdicion is { } sustituto
+                    ? $"Este tipo de documento está archivado: solo se puede desmarcar. Exige su sustituto, «{sustituto}»."
+                    : "Este tipo de documento está archivado: solo se puede desmarcar.";
+                return;
+            }
 
             if (_periodicidadSeleccionEdicion == "personalizado" && periodicidadMeses is null)
             {

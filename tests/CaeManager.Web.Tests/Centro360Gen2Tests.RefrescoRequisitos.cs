@@ -1,4 +1,5 @@
 using Bunit;
+using CaeManager.Application.Centros.Queries.ObtenerCentroPorId;
 using CaeManager.Application.Centros.Queries.ObtenerDocumentacionRequeridaDeCentro;
 using CaeManager.Domain.Documentos;
 using CaeManager.Web.Components.DesignSystem;
@@ -30,6 +31,7 @@ public partial class Centro360Gen2Tests
         var cut = Renderizar(id);
         cut.FindComponents<FilaRelacion>().Single().Find(".fila-relacion-estado").TextContent.Should().Contain("Bloquea el acceso", "control positivo: carga inicial");
         var antes = mediador.Enviadas.OfType<ObtenerDocumentacionRequeridaDeCentroQuery>().Count();
+        var lecturasDeLaFicha = mediador.Enviadas.OfType<ObtenerCentroPorIdQuery>().Count();
 
         // El panel guarda (en la base ya no bloquea) y avisa.
         mediador.Requisitos[id] = [RequisitoDeFormacion(tipo, bloquea: false)];
@@ -38,6 +40,8 @@ public partial class Centro360Gen2Tests
 
         cut.WaitForAssertion(() => cut.FindComponents<FilaRelacion>().Single().Find(".fila-relacion-estado").TextContent.Should().Contain("No bloquea el acceso"));
         mediador.Enviadas.OfType<ObtenerDocumentacionRequeridaDeCentroQuery>().Count().Should().Be(antes + 1);
+        mediador.Enviadas.OfType<ObtenerCentroPorIdQuery>().Count().Should().Be(lecturasDeLaFicha,
+            "la relectura es silenciosa: no rehace la ficha entera ni la sustituye por el esqueleto de carga");
     }
 
     [Fact]

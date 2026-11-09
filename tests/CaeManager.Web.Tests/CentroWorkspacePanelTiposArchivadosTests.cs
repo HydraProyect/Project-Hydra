@@ -1,4 +1,5 @@
 using Bunit;
+using CaeManager.Application.Centros.Commands.EliminarDocumentacionRequeridaCentro;
 using CaeManager.Application.Centros.Commands.EstablecerDocumentacionRequeridaCentro;
 using CaeManager.Application.Centros.Queries.ObtenerCanalesGestionDeCentro;
 using CaeManager.Application.Centros.Queries.ObtenerCentroPorId;
@@ -68,6 +69,7 @@ public class CentroWorkspacePanelTiposArchivadosTests : BunitContext
                 ObtenerProveedoresPlataformaCaeQuery => (IReadOnlyList<ProveedorPlataformaCaeListaDto>)[],
                 ObtenerDocumentacionRequeridaDeCentroQuery => filas,
                 EstablecerDocumentacionRequeridaCentroCommand => Result.Exito(),
+                EliminarDocumentacionRequeridaCentroCommand => Result.Exito(),
                 _ => throw new NotSupportedException($"Consulta no prevista en este test: {request.GetType().Name}.")
             };
             return Task.FromResult((TResponse)valor!);
@@ -189,5 +191,35 @@ public class CentroWorkspacePanelTiposArchivadosTests : BunitContext
         envio.Incluido.Should().BeFalse("desmarcar un archivado es lo que sí permite el Command");
         avisos.Should().ContainSingle().Which.Should().Be((EntidadWorkspace.Centro, envio.CentroId),
             "tras guardar el requisito el panel avisa para que la pestaña «Requisitos» de Centro 360 se recargue");
+    }
+
+    [Fact]
+    public async Task Un_tipo_archivado_exigido_no_se_guarda_marcado_aunque_se_edite_otro_campo()
+    {
+        var cut = Renderizar(
+            Fila(ArchivadoExigidoId, "Recibo de pago RLC/TC1", aplica: true, incluido: true, archivado: true, sustituto: "RLC (TC1)"));
+
+        await cut.FindAll("button").First(b => b.TextContent.Trim() == "Configurar").ClickAsync(new MouseEventArgs());
+        cut.WaitForAssertion(() => cut.Markup.Should().Contain("Tipo archivado: solo se puede desmarcar; el sustituto es «RLC (TC1)»"));
+        await cut.FindAll("button").First(b => b.TextContent.Trim() == "Guardar").ClickAsync(new MouseEventArgs());
+
+        _mediador.Enviadas.OfType<EstablecerDocumentacionRequeridaCentroCommand>().Should().BeEmpty(
+            "el Command rechaza Incluido = true de un archivado: se avisa sin enviarlo");
+        cut.Markup.Should().Contain("solo se puede desmarcar. Exige su sustituto, «RLC (TC1)»");
+    }
+
+    [Fact]
+    public async Task Quitar_el_ajuste_de_un_requisito_avisa_a_la_ficha_del_Centro()
+    {
+        var cut = Renderizar(Fila(ArchivadoExigidoId, "Recibo de pago RLC/TC1", aplica: true, incluido: true, archivado: true, sustituto: "RLC (TC1)"));
+        var avisos = new List<(EntidadWorkspace Tipo, Guid Id)>();
+        Services.GetRequiredService<ContextWorkspaceService>().OnEntidadGuardada += (tipo, id) => avisos.Add((tipo, id));
+
+        await cut.FindAll(".workspace-tarjeta-requisito-acciones button").Single(b => b.TextContent.Trim() == "Quitar ajuste")
+            .ClickAsync(new MouseEventArgs());
+        await cut.FindAll(".modal-pie button").Single(b => b.TextContent.Trim() == "Quitar ajuste").ClickAsync(new MouseEventArgs());
+
+        var envio = _mediador.Enviadas.OfType<EliminarDocumentacionRequeridaCentroCommand>().Should().ContainSingle().Subject;
+        avisos.Should().ContainSingle().Which.Should().Be((EntidadWorkspace.Centro, envio.CentroId));
     }
 }
