@@ -46,6 +46,17 @@ public class SelectorMultipleSoloRelacionadosTests : BunitContext
         Listados(cut).Should().BeEquivalentTo("Alfa", "Beta");
     }
 
+    [Fact]
+    public async Task Buscar_filtra_sin_mayusculas_ni_tildes_como_el_combobox_del_kit()
+    {
+        var cut = Render<SelectorMultiple>(p => p
+            .Add(c => c.Elementos, [new ElementoSeleccionable(A, "Construcción Peñíscola"), new ElementoSeleccionable(B, "Beta")]));
+
+        await cut.InvokeAsync(() => cut.FindComponent<CampoTexto>().Instance.ValorChanged.InvokeAsync("construccion peniscola"));
+
+        Listados(cut).Should().Equal("Construcción Peñíscola");
+    }
+
     // ---- Paginación: 20 por defecto, que es lo que dan por supuesto los demás consumidores -----------------------------------
 
     private static IReadOnlyList<ElementoSeleccionable> Elementos(int cuantos) =>

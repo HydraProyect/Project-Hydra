@@ -100,6 +100,8 @@ public class DrawerGestionDocumentoPreseleccionAlcanceTests : BunitContext
         Services.AddSingleton(typeof(ILogger<>), typeof(NullLogger<>));
         // AvisoCambiosSinGuardar (P1-E2) saca sus textos de IStringLocalizer<TextosComunes>.
         Services.AddLocalization();
+        // El campo de Trabajador es el combobox del kit: su módulo de anclaje es la única llamada a JS que se admite.
+        JSInterop.SetupModule("./js/campo-select-avanzado.js").Mode = JSRuntimeMode.Loose;
 
         return Render<DrawerGestionDocumento>();
     }
@@ -290,7 +292,7 @@ public class DrawerGestionDocumentoPreseleccionAlcanceTests : BunitContext
         buscador.Instance.Opciones.Select(o => o.Texto).Should().Equal(
             "Ana Ruiz Peña (Montajes Ebro S.L.)", "Ana Ruiz Peña (Instalaciones Arbeko S.L.)");
 
-        await buscador.Find("input").InputAsync(new ChangeEventArgs { Value = "Ana Ruiz Peña (Instalaciones Arbeko S.L.)" });
+        await AyudasCampoBuscarSelect.ElegirAsync(buscador, "Ana Ruiz Peña (Instalaciones Arbeko S.L.)");
 
         cut.WaitForAssertion(() => LeerCampoPrivado(cut.Instance, "_trabajadorId").Should().Be(segundo.Id.ToString()));
     }
