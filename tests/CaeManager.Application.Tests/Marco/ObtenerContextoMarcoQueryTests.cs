@@ -15,7 +15,8 @@ namespace CaeManager.Application.Tests.Marco;
 
 /// <summary>
 /// Pieza 1.3 del plan de rendimiento: el contexto del marco compone las mismas Queries que antes despachaba cada
-/// componente, sin las variantes que fallan cerradas, y solo tolera que falle el avatar.
+/// componente, sin las variantes que fallan cerradas, y solo tolera que fallen las dos partes opcionales: la
+/// participación en la incorporación a cartera (sin ella no se ofrece) y el avatar.
 /// </summary>
 public class ObtenerContextoMarcoQueryTests
 {
@@ -102,6 +103,20 @@ public class ObtenerContextoMarcoQueryTests
 
         contexto.Avatar.Should().BeNull();
         contexto.ClientesAutorizados.Should().Equal(Propio, Beneficiario);
+    }
+
+    [Fact]
+    public async Task Si_la_participacion_no_se_puede_leer_no_se_ofrece_y_no_se_lee_nada_mas()
+    {
+        var emisor = new Emisor(r =>
+            r is ParticipaEnIncorporacionCarteraQuery ? throw new InvalidOperationException("sin conexión") : Respuestas(r));
+
+        var contexto = await Componer(emisor);
+
+        contexto.ParticipaEnIncorporacionCartera.Should().BeFalse("sin la señal no se ofrece «Solicitar incorporación»");
+        contexto.Avatar.Should().BeNull();
+        contexto.ClientesAutorizados.Should().Equal(Propio, Beneficiario);
+        emisor.Pedidas.OfType<ObtenerAvatarPropioQuery>().Should().BeEmpty("tras un fallo no se lee nada más del ámbito");
     }
 
     [Fact]

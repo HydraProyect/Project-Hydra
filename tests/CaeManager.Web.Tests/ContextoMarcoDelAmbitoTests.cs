@@ -195,6 +195,22 @@ public class ContextoMarcoDelAmbitoTests
     }
 
     [Fact]
+    public async Task Una_lectura_en_vuelo_cuando_llega_un_Command_se_entrega_pero_no_se_guarda()
+    {
+        var pendiente = new TaskCompletionSource<ContextoMarcoDto>(TaskCreationOptions.RunContinuationsAsynchronously);
+        _mediador.Responder = n => n == 1 ? pendiente.Task : Task.FromResult(Marco("tras el Command"));
+        var ambito = Ambito();
+
+        var enVuelo = ambito.ObtenerAsync();
+        ambito.Invalidar();
+        pendiente.SetResult(Marco("antes del Command"));
+
+        (await enVuelo).ClientesAutorizados[0].Nombre.Should().Be("antes del Command 0");
+        (await ambito.ObtenerAsync()).ClientesAutorizados[0].Nombre.Should().Be("tras el Command 0");
+        _mediador.Lecturas.Should().Be(2);
+    }
+
+    [Fact]
     public async Task Una_lectura_fallida_no_se_queda()
     {
         _mediador.Responder = n => n == 1
@@ -271,6 +287,48 @@ public class ContextoMarcoDelAmbitoTests
 
         marco.ClientesAutorizados[0].Nombre.Should().Be("lectura 2 0");
         _mediador.Lecturas.Should().Be(2);
+    }
+
+    [Fact]
+    public async Task Un_Command_en_el_circuito_antes_de_la_primera_lectura_descarta_lo_persistido()
+    {
+        var persistido = await PrerenderizarYPersistir(Marco("prerender"));
+
+        using var circuito = new BunitContext();
+        var estadoCircuito = circuito.AddBunitPersistentComponentState();
+        Registrar(circuito.Services);
+        estadoCircuito.Persist(ContextoMarcoDelAmbito.ClavePersistencia, persistido!);
+        var ambito = circuito.Services.GetRequiredService<ContextoMarcoDelAmbito>();
+        ((IMemoPorContexto)ambito).Invalidar();
+        var marco = await ambito.ObtenerAsync();
+
+        marco.ClientesAutorizados[0].Nombre.Should().Be("lectura 2 0", "lo persistido pudo leerse antes de la escritura");
+    }
+
+    [Fact]
+    public async Task Lo_restaurado_no_se_vuelve_a_persistir()
+    {
+        var persistido = await PrerenderizarYPersistir(Marco("prerender"));
+
+        using var circuito = new BunitContext();
+        var estadoCircuito = circuito.AddBunitPersistentComponentState();
+        Registrar(circuito.Services);
+        estadoCircuito.Persist(ContextoMarcoDelAmbito.ClavePersistencia, persistido!);
+        await circuito.Services.GetRequiredService<ContextoMarcoDelAmbito>().ObtenerAsync();
+        estadoCircuito.TriggerOnPersisting();
+
+        estadoCircuito.TryTake<ContextoMarcoDelAmbito.ContextoPersistido>(ContextoMarcoDelAmbito.ClavePersistencia, out _)
+            .Should().BeFalse("lo que ya hizo su viaje no se reenvía");
+        _mediador.Lecturas.Should().Be(1);
+    }
+
+    [Fact]
+    public async Task Un_estado_demasiado_grande_no_viaja_al_circuito()
+    {
+        var enlaces = Enumerable.Range(0, 200).Select(i => $"/enlace-{i}-{new string('x', 50)}").ToList();
+        var persistido = await PrerenderizarYPersistir(Marco("orden largo") with { OrdenEnlaces = enlaces });
+
+        persistido.Should().BeNull("el mensaje de arranque del circuito tiene un tope");
     }
 
     [Fact]

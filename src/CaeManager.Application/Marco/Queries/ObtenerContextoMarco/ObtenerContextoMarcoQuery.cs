@@ -41,7 +41,7 @@ public record ObtenerContextoMarcoQuery : IRequest<ContextoMarcoDto>;
 /// <param name="ClientesAutorizados">Tenants beneficiarios que el usuario puede activar, con la lente de demo aplicada.</param>
 /// <param name="OrdenGrupos">Orden global de los grupos del menú, o <c>null</c> si nunca se cambió.</param>
 /// <param name="OrdenEnlaces">Orden global de los enlaces del menú, o <c>null</c> si nunca se cambió.</param>
-/// <param name="ParticipaEnIncorporacionCartera">Gestor CAE o Coordinador CAE en su Operador CAE de origen.</param>
+/// <param name="ParticipaEnIncorporacionCartera">Gestor CAE o Coordinador CAE en su Operador CAE de origen; <c>false</c> también si no se pudo leer (no se ofrece).</param>
 /// <param name="Avatar">Clave del avatar propio, o <c>null</c> (también si no se pudo leer: es decoración).</param>
 public sealed record ContextoMarcoDto(
     PerfilVocabularioTenant PerfilVocabulario,
@@ -64,18 +64,21 @@ public class ObtenerContextoMarcoQueryHandler(ISender mediador, ILogger<ObtenerC
         var esAdministradorPlataforma = await mediador.Send(new EsAdministradorPlataformaQuery(), cancellationToken);
         var clientes = await mediador.Send(new ObtenerClientesAutorizadosQuery(), cancellationToken);
         var orden = await mediador.Send(new ObtenerOrdenMenuLateralQuery(), cancellationToken);
-        var participa = await mediador.Send(new ParticipaEnIncorporacionCarteraQuery(), cancellationToken);
 
-        // El avatar es decoración y va el último: si no se puede leer, la cabecera pinta las iniciales en vez de tumbar
-        // el marco de todas las páginas (mismo criterio que tenía MenuUsuario), y nada lee después del fallo.
+        // Las dos lecturas opcionales van al final y se toleran: «+ Solicitar incorporación» es una comodidad (sin la
+        // señal no se ofrece, y el Command vuelve a decidir) y el avatar es decoración (la cabecera pinta las
+        // iniciales). Mismo criterio que tenían el selector y MenuUsuario: un fallo suyo no tumba el marco de todas
+        // las páginas. Tras un fallo no se lee nada más, por si el DbContext del ámbito quedó en mal estado.
+        var participa = false;
         string? avatar = null;
         try
         {
+            participa = await mediador.Send(new ParticipaEnIncorporacionCarteraQuery(), cancellationToken);
             avatar = await mediador.Send(new ObtenerAvatarPropioQuery(), cancellationToken);
         }
         catch (Exception excepcion) when (excepcion is not OperationCanceledException)
         {
-            logger?.LogWarning(excepcion, "No se pudo leer el avatar de la cuenta para el marco");
+            logger?.LogWarning(excepcion, "No se pudo leer una parte opcional del marco (incorporación a cartera o avatar)");
         }
 
         return new ContextoMarcoDto(

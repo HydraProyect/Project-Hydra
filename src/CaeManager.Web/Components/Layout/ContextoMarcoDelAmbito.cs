@@ -14,9 +14,11 @@ namespace CaeManager.Web.Components.Layout;
 /// <para>
 /// <b>Un despacho por ámbito.</b> La primera petición lanza la Query y las demás esperan la misma tarea, también
 /// las simultáneas (los islotes del circuito se inicializan a la vez). Caduca a los <see cref="MemoPorContexto.Caducidad"/>
-/// segundos, como los memos de las Queries que compone, y se descarta antes y después de cada Command porque se
-/// registra también como <see cref="IMemoPorContexto"/> (<c>InvalidacionAlcanceBehavior</c>). Una tarea que falla no
-/// se queda: la siguiente petición vuelve a leer.
+/// segundos contados desde que empezó su lectura, y se descarta antes y después de cada Command porque se registra
+/// también como <see cref="IMemoPorContexto"/> (<c>InvalidacionAlcanceBehavior</c>). Las Queries que compone tienen sus
+/// propios memos del ámbito, así que lo que sirve puede tener hasta dos caducidades de antigüedad, igual que el estado
+/// persistido que tenían antes el selector y las migas; lo acota además la caducidad del alcance de la cartera, y nada
+/// de esto autoriza. Una tarea que falla no se queda: la siguiente petición vuelve a leer.
 /// </para>
 ///
 /// <para>
@@ -24,8 +26,9 @@ namespace CaeManager.Web.Components.Layout;
 /// <see cref="PersistentComponentState"/> (cifrado con Data Protection, como el resto del estado persistido) y el
 /// circuito lo toma en vez de volver a leerlo, con el mismo criterio que tenían el selector y las migas: el mismo
 /// contexto exacto (<see cref="ClaveContextoMemo"/> más el Tenant beneficiario y la Asignación de Operación
-/// seleccionados), una edad dentro de la
-/// caducidad y una cartera pequeña (el estado vuelve en el mensaje de arranque del circuito, 32 KB por defecto).
+/// seleccionados), una edad dentro de la caducidad, una cartera pequeña y un tamaño serializado acotado (el estado
+/// vuelve en el mensaje de arranque del circuito, 32 KB por defecto, junto al del resto de componentes). Un Command
+/// en el ámbito antes de la primera lectura también descarta lo persistido: pudo leerse antes de la escritura.
 /// </para>
 ///
 /// <para>
@@ -45,6 +48,12 @@ public sealed class ContextoMarcoDelAmbito : IMemoPorContexto, IDisposable
 
     /// <summary>Tope de Tenants beneficiarios que se persisten para el circuito; con más, el circuito vuelve a leer.</summary>
     public const int MaximoEmpresasPersistidas = 25;
+
+    /// <summary>
+    /// Tope del estado serializado, antes de cifrarlo (Data Protection y base64 lo inflan): con el orden del menú, que
+    /// admite listas largas, la cartera sola no lo acota. Por encima, el circuito vuelve a leer.
+    /// </summary>
+    public const int MaximoBytesPersistidos = 8 * 1024;
 
     /// <summary>
     /// Todo lo que tiene que coincidir para reutilizar lo leído: la clave de los memos y la selección entera (Tenant
@@ -125,7 +134,12 @@ public sealed class ContextoMarcoDelAmbito : IMemoPorContexto, IDisposable
     public void Invalidar()
     {
         // Una lectura en vuelo se entrega a quien ya la esperaba, pero no se guarda: pudo leerse antes de la escritura.
-        lock (_cerrojo) _entrada = null;
+        // Por lo mismo, lo que dejó el prerenderizado y aún no se tomó ya no se toma.
+        lock (_cerrojo)
+        {
+            _entrada = null;
+            _restauracionIntentada = true;
+        }
     }
 
     public void Dispose() => _suscripcion?.Dispose();
@@ -169,8 +183,9 @@ public sealed class ContextoMarcoDelAmbito : IMemoPorContexto, IDisposable
                 ? new Entrada(contexto, anterior.Creado, Task.FromResult(anterior.Marco), Restaurada: true)
                 : null;
         }
-        catch (Exception excepcion) when (excepcion is System.Text.Json.JsonException or InvalidOperationException)
+        catch (Exception)
         {
+            // Ilegible o incompleto (p. ej. sin «Marco»): se lee, como en AceptacionTerminosGate.
             return null;
         }
     }
@@ -200,9 +215,13 @@ public sealed class ContextoMarcoDelAmbito : IMemoPorContexto, IDisposable
         lock (_cerrojo) entrada = _entrada;
 
         // Solo lo leído en este ámbito y ya terminado bien: lo restaurado ya hizo su viaje y no se reenvía.
-        if (entrada is { Restaurada: false, Tarea.IsCompletedSuccessfully: true } leida
-            && leida.Tarea.Result.ClientesAutorizados.Count <= MaximoEmpresasPersistidas)
-            _estadoPersistente!.PersistAsJson(ClavePersistencia, new ContextoPersistido(leida.Contexto, leida.Creado, leida.Tarea.Result));
+        if (entrada is not { Restaurada: false, Tarea.IsCompletedSuccessfully: true } leida
+            || leida.Tarea.Result.ClientesAutorizados.Count > MaximoEmpresasPersistidas)
+            return Task.CompletedTask;
+
+        var persistido = new ContextoPersistido(leida.Contexto, leida.Creado, leida.Tarea.Result);
+        if (System.Text.Json.JsonSerializer.SerializeToUtf8Bytes(persistido).Length <= MaximoBytesPersistidos)
+            _estadoPersistente!.PersistAsJson(ClavePersistencia, persistido);
         return Task.CompletedTask;
     }
 
