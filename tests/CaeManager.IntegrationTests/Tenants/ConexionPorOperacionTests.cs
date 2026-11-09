@@ -242,6 +242,16 @@ public class ConexionPorOperacionTests : IAsyncLifetime
     /// aprovisionamiento que tenía al empezarla. Lo anotado (soporte) ya no es
     /// la verdad: el comando siguiente, fuera de la transacción, tiene que
     /// volver a aplicar la sesión y no correr con escritura elevada.
+    ///
+    /// <para>
+    /// El ámbito se abre y se cierra dentro de la lambda de la estrategia: el
+    /// <c>AsyncLocal</c> del ámbito no vuelve al llamador, así que en el flujo
+    /// exterior nunca estuvo abierto y la sesión deseada allí es la de soporte.
+    /// Sin la marca de transacción sin confirmar, lo anotado (soporte) coincidiría
+    /// con lo deseado (soporte) y la conexión seguiría en aprovisionamiento
+    /// (revisión puente de la segunda ronda: abrir el ámbito fuera hacía que el
+    /// test no discriminara).
+    /// </para>
     /// </summary>
     [Fact]
     public async Task Un_rollback_que_deshace_la_vuelta_del_rol_no_deja_escritura_elevada_fuera_del_ambito()
@@ -256,11 +266,10 @@ public class ConexionPorOperacionTests : IAsyncLifetime
 
         await puerta.EjecutarAsync(async () =>
         {
-            var ambito = AmbitoEscrituraPrivilegiada.Establecer(sesion, TenantA);
-            (await RolActualAsync(contexto)).Rol.Should().Be("cae_app_aprovisionamiento", "control: dentro del ámbito");
-
             var rolDentroTrasDevolver = await estrategia.ExecuteAsync(async () =>
             {
+                var ambito = AmbitoEscrituraPrivilegiada.Establecer(sesion, TenantA);
+                (await RolActualAsync(contexto)).Rol.Should().Be("cae_app_aprovisionamiento", "control: dentro del ámbito");
                 await using var transaccion = await contexto.Database.BeginTransactionAsync();
                 ambito.Dispose();
                 await elevacion.DevolverSiConexionAbiertaAsync();
@@ -269,10 +278,80 @@ public class ConexionPorOperacionTests : IAsyncLifetime
                 return rol;
             });
             rolDentroTrasDevolver.Should().Be("cae_app_soporte", "control: la vuelta dentro de la transacción se aplicó");
+            AmbitoEscrituraPrivilegiada.Actual.Should().BeNull(
+                "control: en este flujo no hay ámbito abierto, así que la sesión vigente es la de soporte");
 
             (await RolActualAsync(contexto)).Should().Be(("cae_app_soporte", true),
                 "tras el ROLLBACK la conexión volvería a aprovisionamiento si nada realineara");
         });
+    }
+
+    /// <summary>
+    /// Segunda revisión de Codex: un ROLLBACK TO SAVEPOINT deja la transacción
+    /// viva y devuelve el rol al del punto de guardado. Si el punto se creó con
+    /// el rol de aprovisionamiento y después el ámbito se cerró y el rol volvió a
+    /// soporte, el comando siguiente de la MISMA transacción no puede correr con
+    /// escritura elevada.
+    /// </summary>
+    [Fact]
+    public async Task Un_rollback_a_un_punto_de_guardado_no_devuelve_la_escritura_elevada_dentro_de_la_transaccion()
+    {
+        var puerta = new PuertaAccesoDatos();
+        var sesion = Guid.NewGuid();
+        var seleccion = new SeleccionMutable { SesionPrivilegiadaIdSeleccionada = sesion };
+        var (contexto, _) = CrearContextoRuntime(new TenantMutable(TenantA), seleccion, puerta);
+        await using var __ = contexto;
+        var elevacion = new ElevacionEscrituraPrivilegiada(contexto);
+        var estrategia = contexto.Database.CreateExecutionStrategy();
+
+        var (rolTrasDevolver, rolTrasPuntoDeGuardado) = await puerta.EjecutarAsync(() => estrategia.ExecuteAsync(async () =>
+        {
+            var ambito = AmbitoEscrituraPrivilegiada.Establecer(sesion, TenantA);
+            (await RolActualAsync(contexto)).Rol.Should().Be("cae_app_aprovisionamiento", "control: dentro del ámbito");
+            await using var transaccion = await contexto.Database.BeginTransactionAsync();
+            await transaccion.CreateSavepointAsync("antes_de_devolver");
+            ambito.Dispose();
+            await elevacion.DevolverSiConexionAbiertaAsync();
+            var trasDevolver = (await RolActualAsync(contexto)).Rol;
+            await transaccion.RollbackToSavepointAsync("antes_de_devolver");
+            var trasPunto = (await RolActualAsync(contexto)).Rol;
+            await transaccion.CommitAsync();
+            return (trasDevolver, trasPunto);
+        }));
+
+        rolTrasDevolver.Should().Be("cae_app_soporte", "control: la vuelta dentro de la transacción se aplicó");
+        rolTrasPuntoDeGuardado.Should().Be("cae_app_soporte",
+            "el ROLLBACK TO SAVEPOINT devolvería aprovisionamiento si nada reaplicara la sesión dentro de la transacción");
+    }
+
+    /// <summary>
+    /// Revisión puente de la segunda ronda: tras un COMMIT dentro de la
+    /// operación, la conexión no queda marcada como «transacción sin confirmar».
+    /// Si el gancho del COMMIT no encontrara la conexión, cada transacción
+    /// confirmada obligaría a volver a firmar el contexto en el comando siguiente.
+    /// </summary>
+    [Fact]
+    public async Task Un_commit_dentro_de_la_operacion_no_obliga_a_volver_a_firmar_el_contexto()
+    {
+        var puerta = new PuertaAccesoDatos();
+        var (contexto, aperturas) = CrearContextoRuntime(new TenantMutable(TenantA), new SeleccionMutable(), puerta);
+        await using var _ = contexto;
+        var estrategia = contexto.Database.CreateExecutionStrategy();
+
+        var (antes, despues) = await puerta.EjecutarAsync(async () =>
+        {
+            var tokenAntes = await TokenAsync(contexto);
+            await estrategia.ExecuteAsync(async () =>
+            {
+                await using var transaccion = await contexto.Database.BeginTransactionAsync();
+                await TenantsVisiblesAsync(contexto);
+                await transaccion.CommitAsync();
+            });
+            return (tokenAntes, await TokenAsync(contexto));
+        });
+
+        despues.Should().Be(antes, "lo confirmado no deshace nada: la sesión anotada sigue siendo la de la conexión");
+        aperturas.Aperturas.Should().Be(1);
     }
 
     /// <summary>

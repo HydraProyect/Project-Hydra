@@ -227,6 +227,50 @@ public class PuertaAccesoDatosRetencionTests
         rezagadoEntro.Should().BeTrue("entra como operación nueva cuando la puerta queda libre");
     }
 
+    /// <summary>
+    /// Segunda revisión de Codex: mientras la operación libera lo retenido
+    /// (cierra la conexión, restaura el sellado), un flujo rezagado que despierte
+    /// no puede pasar por reentrada y usar el DbContext a la vez que la limpieza.
+    /// </summary>
+    [Fact]
+    public async Task Un_flujo_rezagado_que_entra_mientras_la_operacion_libera_espera_a_que_termine_la_limpieza()
+    {
+        var puerta = new PuertaAccesoDatos();
+        var liberando = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var sueltaLiberacion = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var rezagadoEntro = false;
+        Task? rezagado = null;
+
+        var operacion = puerta.EjecutarAsync(() =>
+        {
+            puerta.RetenerHastaSalir(new object(), () => { }, async () =>
+            {
+                liberando.SetResult();
+                await sueltaLiberacion.Task;
+            }).Should().BeTrue("control: el recurso queda retenido hasta salir");
+
+            rezagado = Task.Run(async () =>
+            {
+                await liberando.Task;
+                await puerta.EjecutarAsync(() =>
+                {
+                    rezagadoEntro = true;
+                    return Task.CompletedTask;
+                });
+            });
+            return Task.CompletedTask;
+        });
+
+        await liberando.Task;
+        await Task.Delay(50);
+        rezagadoEntro.Should().BeFalse(
+            "durante la limpieza la operación ya no es la vigente: el flujo rezagado espera al semáforo");
+
+        sueltaLiberacion.SetResult();
+        await Task.WhenAll(operacion, rezagado!);
+        rezagadoEntro.Should().BeTrue("entra como operación nueva cuando la limpieza termina y la puerta queda libre");
+    }
+
     [Fact]
     public async Task Si_adquirir_lanza_no_queda_nada_retenido()
     {

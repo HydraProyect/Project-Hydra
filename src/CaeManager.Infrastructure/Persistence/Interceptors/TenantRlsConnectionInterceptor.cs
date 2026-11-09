@@ -99,7 +99,9 @@ namespace CaeManager.Infrastructure.Persistence.Interceptors;
 /// dejar pasar el comando (<see cref="AlinearSiCambioAsync"/>). Es lo que pasaba
 /// antes por construcción, al abrir una conexión nueva en cada comando. Dentro
 /// de una transacción no se realinea, igual que antes: la transacción ya retenía
-/// la conexión con el contexto de su <c>BEGIN</c>.
+/// la conexión con el contexto de su <c>BEGIN</c>. La excepción es el
+/// <c>ROLLBACK TO SAVEPOINT</c>, que devuelve la sesión a la del punto de guardado
+/// con la transacción aún viva: ahí se vuelve a aplicar entera la vigente.
 /// </description></item>
 /// <item><description>
 /// <b>Caducidad.</b> La renovación de <see cref="FirmanteContextoRls.RenovarSiHaceFaltaAsync"/>
@@ -530,10 +532,12 @@ public class TenantRlsConnectionInterceptor(
     // renovación, un sellado. Lo anotado en memoria no se deshace con ellos, y
     // con la conexión retenida el comando siguiente compararía contra una sesión
     // que ya no es la de la conexión (p. ej. anotado soporte con el rol de
-    // aprovisionamiento restaurado por el ROLLBACK). Se olvida todo: el siguiente
-    // comando fuera de la transacción vuelve a aplicar la sesión entera. El
-    // Dispose sin confirmar no tiene gancho: lo cubre la marca de
-    // TransaccionSinConfirmar, que solo el COMMIT retira.
+    // aprovisionamiento restaurado por el ROLLBACK). Con la transacción terminada
+    // se olvida todo: el siguiente comando fuera de ella vuelve a aplicar la
+    // sesión entera. El Dispose sin confirmar no tiene gancho: lo cubre la marca de
+    // TransaccionSinConfirmar, que solo el COMMIT retira. El ROLLBACK TO SAVEPOINT
+    // deja la transacción viva, así que no basta con olvidar: se reaplica la
+    // sesión vigente dentro de ella (ver RolledBackToSavepoint).
 
     DbTransaction IDbTransactionInterceptor.TransactionStarted(
         DbConnection connection, TransactionEndEventData eventData, DbTransaction result)
@@ -552,17 +556,28 @@ public class TenantRlsConnectionInterceptor(
 
     void IDbTransactionInterceptor.TransactionCommitted(DbTransaction transaction, TransactionEndEventData eventData)
     {
-        if (transaction.Connection is { } conexion)
+        if (ConexionDe(transaction, eventData) is { } conexion)
             TransaccionSinConfirmar.Remove(conexion);
     }
 
     Task IDbTransactionInterceptor.TransactionCommittedAsync(
         DbTransaction transaction, TransactionEndEventData eventData, CancellationToken cancellationToken)
     {
-        if (transaction.Connection is { } conexion)
+        if (ConexionDe(transaction, eventData) is { } conexion)
             TransaccionSinConfirmar.Remove(conexion);
         return Task.CompletedTask;
     }
+
+    /// <summary>
+    /// La conexión de una transacción en sus ganchos. Tras el <c>COMMIT</c> o el
+    /// <c>ROLLBACK</c>, <see cref="DbTransaction.Connection"/> puede ser
+    /// <c>null</c> (una transacción terminada ya no está ligada a su conexión), así
+    /// que manda la conexión de EF del contexto, la misma que abre y cierra este
+    /// interceptor (revisión puente de la segunda ronda). Sin contexto, la de la
+    /// transacción.
+    /// </summary>
+    private static DbConnection? ConexionDe(DbTransaction transaction, TransactionEventData eventData) =>
+        eventData.Context?.GetService<IRelationalConnection>().DbConnection ?? transaction.Connection;
 
     private static void MarcarSinConfirmar(DbConnection conexion) =>
         TransaccionSinConfirmar.AddOrUpdate(conexion, Marca);
@@ -570,33 +585,58 @@ public class TenantRlsConnectionInterceptor(
     private static readonly object Marca = new();
 
     void IDbTransactionInterceptor.TransactionRolledBack(DbTransaction transaction, TransactionEndEventData eventData) =>
-        OlvidarSiHayConexion(transaction.Connection);
+        OlvidarSiHayConexion(ConexionDe(transaction, eventData));
 
     Task IDbTransactionInterceptor.TransactionRolledBackAsync(
         DbTransaction transaction, TransactionEndEventData eventData, CancellationToken cancellationToken)
     {
-        OlvidarSiHayConexion(transaction.Connection);
+        OlvidarSiHayConexion(ConexionDe(transaction, eventData));
         return Task.CompletedTask;
     }
 
     void IDbTransactionInterceptor.TransactionFailed(DbTransaction transaction, TransactionErrorEventData eventData) =>
-        OlvidarSiHayConexion(transaction.Connection);
+        OlvidarSiHayConexion(ConexionDe(transaction, eventData));
 
     Task IDbTransactionInterceptor.TransactionFailedAsync(
         DbTransaction transaction, TransactionErrorEventData eventData, CancellationToken cancellationToken)
     {
-        OlvidarSiHayConexion(transaction.Connection);
+        OlvidarSiHayConexion(ConexionDe(transaction, eventData));
         return Task.CompletedTask;
     }
 
+    /// <summary>
+    /// <c>ROLLBACK TO SAVEPOINT</c> (segunda revisión de Codex): a diferencia del
+    /// ROLLBACK, la transacción sigue viva y sus comandos siguientes no se
+    /// realinean. PostgreSQL ha devuelto el rol y el contexto al valor que tenían
+    /// al crear el punto de guardado, que puede no ser el vigente: un rol de
+    /// aprovisionamiento con el ámbito ya cerrado y devuelto a soporte, o el
+    /// contexto que el sellado firmó con el Tenant propietario de una cuenta. Olvidar
+    /// lo anotado, como antes, dejaba esos comandos con esa sesión y además dejaba
+    /// al sellado sin contexto firmado en memoria para restaurar el de base. Aquí
+    /// se vuelve a aplicar entera la sesión vigente (<c>RESET ROLE</c>, contexto
+    /// firmado y rol deseado) dentro de la transacción, antes de que corra nada
+    /// más. Es la misma sesión que fijaría una apertura nueva en este instante, así
+    /// que nunca concede más que eso. La marca de <see cref="TransaccionSinConfirmar"/>
+    /// sigue puesta: si la transacción termina sin COMMIT, esto también se deshace
+    /// y el siguiente uso fuera de ella aplica la sesión entera. Si la aplicación
+    /// falla, el error se propaga: la transacción queda abortada en PostgreSQL y
+    /// ningún comando más corre en ella.
+    /// </summary>
     void IDbTransactionInterceptor.RolledBackToSavepoint(DbTransaction transaction, TransactionEventData eventData) =>
-        OlvidarSiHayConexion(transaction.Connection);
+        ReaplicarTrasPuntoDeGuardadoAsync(ConexionDe(transaction, eventData), CancellationToken.None)
+            .GetAwaiter().GetResult();
 
     Task IDbTransactionInterceptor.RolledBackToSavepointAsync(
-        DbTransaction transaction, TransactionEventData eventData, CancellationToken cancellationToken)
+        DbTransaction transaction, TransactionEventData eventData, CancellationToken cancellationToken) =>
+        ReaplicarTrasPuntoDeGuardadoAsync(ConexionDe(transaction, eventData), CancellationToken.None);
+
+    private async Task ReaplicarTrasPuntoDeGuardadoAsync(DbConnection? conexion, CancellationToken cancellationToken)
     {
-        OlvidarSiHayConexion(transaction.Connection);
-        return Task.CompletedTask;
+        if (conexion is not NpgsqlConnection npgsql || npgsql.State != System.Data.ConnectionState.Open)
+            return;
+
+        MarcarSinConfirmar(npgsql);
+        await AplicarAsync(npgsql, await SesionDeseadaAsync(), deshacerRolPrevio: true, cancellationToken);
     }
 
     private static void OlvidarSiHayConexion(DbConnection? conexion)

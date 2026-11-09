@@ -479,6 +479,12 @@ public sealed class LoteMixtoIdentidadDominioFallaCerradoTests : IAsyncLifetime
 
             (await LeerTenantDeSesionPorEfAsync(sesion.Contexto)).Should().Be(tenantSesion.ToString(),
                 "dentro de la misma transacción, el primer comando posterior ya corre con el Tenant de sesión");
+            // Segunda revisión de Codex de la conexión por operación: lo que leen
+            // las políticas es el contexto firmado, no la variable suelta. Tras el
+            // ROLLBACK TO SAVEPOINT del lote fallido tiene que volver a nombrar el
+            // Tenant de sesión, y no seguir firmado con el Tenant de la cuenta.
+            (await LeerTenantFirmadoPorEfAsync(sesion.Contexto)).Should().Be(tenantSesion.ToString(),
+                "dentro de la misma transacción, el contexto firmado también vuelve al Tenant de sesión");
 
             if (confirmar) await transaccion.CommitAsync();
             else await transaccion.RollbackAsync();
@@ -517,9 +523,47 @@ public sealed class LoteMixtoIdentidadDominioFallaCerradoTests : IAsyncLifetime
             "el ROLLBACK de una transacción abierta tras el conflicto no puede devolver la variable a X");
     }
 
+    /// <summary>
+    /// Revisión puente de la segunda ronda de la conexión por operación: con la
+    /// conexión retenida por la operación de la puerta, el «siguiente comando EF»
+    /// que ejecutaría la restauración diferida puede no llegar antes de salir. La
+    /// restauración se hace al salir de la operación, antes de soltar la conexión:
+    /// tras la operación, sin ningún comando EF más, la variable ya vuelve al
+    /// Tenant de sesión (se lee con un comando crudo, que no pasa por los
+    /// interceptores ni dispara la restauración).
+    /// </summary>
+    [Fact]
+    public async Task B_Un_conflicto_de_concurrencia_dentro_de_una_operacion_de_la_puerta_restaura_la_sesion_al_salir()
+    {
+        var (tenantCuenta, tenantSesion, cuentaId) = await EscenarioAsync(conParametroDeSesion: true);
+        var puerta = new PuertaAccesoDatos();
+
+        await using var sesion = await AbrirSesionSoloAuditoriaDeIdentidadAsync(tenantSesion, puerta: puerta);
+        await puerta.EjecutarAsync(async () =>
+        {
+            var parametro = await sesion.Contexto.ParametrosSistema.SingleAsync();
+            parametro.Actualizar(UmbralAmbarRecuperacion, UmbralRojoRecuperacion);
+            var cuenta = await sesion.Contexto.Users.SingleAsync(u => u.Id == cuentaId);
+            cuenta.PhoneNumber = "600000019";
+            (await CapturarAsync(() => sesion.Contexto.SaveChangesAsync()))
+                .Should().BeOfType<DbUpdateConcurrencyException>("precondición: el lote termina en conflicto");
+
+            (await LeerTenantDeSesionAsync(sesion.Contexto)).Should().Be(tenantCuenta.ToString(),
+                "control: sin comando EF posterior, dentro de la operación la restauración sigue diferida");
+        });
+
+        (await LeerTenantDeSesionAsync(sesion.Contexto)).Should().Be(tenantSesion.ToString(),
+            "al salir de la operación la restauración ya se hizo, antes de soltar la conexión");
+    }
+
     private static async Task<string?> LeerTenantDeSesionPorEfAsync(CaeManagerDbContext contexto) =>
         (await contexto.Database
             .SqlQueryRaw<string>("SELECT current_setting('app.tenant_id', true) AS \"Value\"")
+            .ToListAsync()).Single();
+
+    private static async Task<string?> LeerTenantFirmadoPorEfAsync(CaeManagerDbContext contexto) =>
+        (await contexto.Database
+            .SqlQueryRaw<string>("SELECT app_ctx_tenant_id()::text AS \"Value\"")
             .ToListAsync()).Single();
 
     /// <summary>
@@ -623,20 +667,21 @@ public sealed class LoteMixtoIdentidadDominioFallaCerradoTests : IAsyncLifetime
     /// las rechace antes.
     /// </summary>
     private async Task<SesionDeTest> AbrirSesionSoloAuditoriaDeIdentidadAsync(
-        Guid tenantSesion, SaveChangesInterceptor? trasElSellado = null)
+        Guid tenantSesion, SaveChangesInterceptor? trasElSellado = null, PuertaAccesoDatos? puerta = null)
     {
         _sesion.TenantId = tenantSesion;
         var servicios = _arnes.Servicios;
         var interceptores = new List<IInterceptor>
         {
             new AuditoriaSoloDeIdentidadInterceptor(),
-            new TenantSelladoInterceptor(_sesion, _titular),
+            new TenantSelladoInterceptor(_sesion, _titular, puerta),
         };
         if (trasElSellado is not null) interceptores.Add(trasElSellado);
         interceptores.Add(new TenantRlsConnectionInterceptor(
             _sesion,
             servicios.GetRequiredService<IClienteActivoSeleccionado>(),
-            servicios.GetRequiredService<ICurrentUserService>(), BaseDatosPostgresDePruebas.FirmanteContextoRls));
+            servicios.GetRequiredService<ICurrentUserService>(), BaseDatosPostgresDePruebas.FirmanteContextoRls,
+            puerta));
 
         var opciones = new DbContextOptionsBuilder<CaeManagerDbContext>()
             .UseNpgsql(

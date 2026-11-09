@@ -257,16 +257,26 @@ public sealed class PuertaAccesoDatos
     /// Libera lo retenido y después suelta el semáforo. El <c>finally</c>
     /// interior garantiza que el semáforo se suelta aunque liberar lanzara: una
     /// puerta que no se suelta deja el scope entero bloqueado.
+    ///
+    /// <para>
+    /// La operación deja de ser la vigente <b>antes</b> de liberar (segunda
+    /// revisión de Codex): mientras se cierra la conexión o se restaura el
+    /// sellado, un flujo rezagado de esta operación que despierte no es
+    /// reentrada, espera al semáforo como operación nueva y no usa el
+    /// <c>DbContext</c> a la vez que la limpieza. Las liberaciones no pasan por
+    /// <see cref="EjecutarAsync(Func{Task}, CancellationToken)"/>, así que no se
+    /// esperan a sí mismas.
+    /// </para>
     /// </summary>
     private async Task SalirAsync(OperacionEnCurso enCurso)
     {
+        Volatile.Write(ref _operacionEnCurso, null);
         try
         {
             await enCurso.TerminarAsync();
         }
         finally
         {
-            Volatile.Write(ref _operacionEnCurso, null);
             _flujoDentro.Value = null;
             _puerta.Release();
         }
