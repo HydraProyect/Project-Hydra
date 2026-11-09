@@ -164,7 +164,8 @@
             @switch (_pestanaActiva)
             {
                 case PestanaOperacion:
-                    <PanelDocumentacionBase TrabajadorId="TrabajadorId" OnCorregirDocumento="EditarDocumentoAsync" OnSubirFaltante="SubirFaltanteAsync" />
+                    <PanelDocumentacionBase TrabajadorId="TrabajadorId" OnCorregirDocumento="EditarDocumentoAsync" OnSubirFaltante="SubirFaltanteAsync"
+                                            OnVerDocumento="AbrirVisorDocumento" DocumentosConArchivo="DocumentosConArchivo" />
                     @*
                         Franja «Por vencer» (decisión del propietario 2026-09-24,
                         Q3 = (a)): los documentos del trabajador en Próximo o
@@ -180,10 +181,11 @@
                                 @foreach (var documento in porVencer)
                                 {
                                     var pideGestionar = EstadoDocumentoFicha360.PideGestionar(documento.Estado);
-                                    <FilaRelacion @key="documento.Id" Nombre="@documento.TipoDocumentoNombre" Tono="@EstadoDocumentoFicha360.TonoFila(documento.Estado)">
+                                    <FilaRelacion @key="documento.Id" Nombre="@documento.TipoDocumentoNombre" Href="@EstadoDocumentoFicha360.RutaFicha360(documento.Id)" Tono="@EstadoDocumentoFicha360.TonoFila(documento.Estado)">
                                         <Detalle>@(" ")@Textos["VenceEl", TextoVence(documento.FechaVencimiento, documento.Estado)]</Detalle>
                                         <Estado><Badge Tono="EstadoDocumentoUi.Tono(documento.Estado)" Tamano="TamanoBadge.Pequeno">@EstadoDocumentoUi.Texto(documento.Estado)</Badge></Estado>
                                         <Acciones>
+                                            @BotonVerDocumento(documento)
                                             @if (pideGestionar)
                                             {
                                                 <SoloConEscritura><Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno" aria-label="@EstadoDocumentoFicha360.TextoAccionAccesible(documento.TipoDocumentoNombre)" OnClick="() => EditarDocumentoAsync(documento.Id)">@EstadoDocumentoFicha360.TextoAccion</Boton></SoloConEscritura>
@@ -206,10 +208,11 @@
                             <ListaRelaciones EnTarjeta="true" Etiqueta="@Textos["SeparadorSinConfirmar"]">
                                 @foreach (var documento in sinConfirmarOperacion)
                                 {
-                                    <FilaRelacion @key="documento.Id" Nombre="@documento.TipoDocumentoNombre">
+                                    <FilaRelacion @key="documento.Id" Nombre="@documento.TipoDocumentoNombre" Href="@EstadoDocumentoFicha360.RutaFicha360(documento.Id)">
                                         <Detalle>@(" ")@Textos["DocBaseSubSinConfirmar"]</Detalle>
                                         <Estado><Badge Tono="EstadoDocumentoUi.Tono(documento.Estado)" Tamano="TamanoBadge.Pequeno">@EstadoDocumentoUi.Texto(documento.Estado)</Badge></Estado>
                                         <Acciones>
+                                            @BotonVerDocumento(documento)
                                             <SoloConEscritura><Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno" aria-label="@EstadoDocumentoFicha360.TextoAccionAccesible(documento.TipoDocumentoNombre)" OnClick="() => EditarDocumentoAsync(documento.Id)">@EstadoDocumentoFicha360.TextoAccion</Boton></SoloConEscritura>
                                         </Acciones>
                                     </FilaRelacion>
@@ -540,6 +543,9 @@
 
 <DrawerGestionDocumento @ref="_drawerGestion" OnGuardado="ManejarDocumentoGuardadoAsync" />
 
+@* Visor del PDF de un documento de Operación («Ver»): el mismo VisorDocumento de la lista de Documentos, sin salir de la ficha. *@
+<VisorDocumento Visible="_visorVisible" VisibleChanged="v => _visorVisible = v" DocumentoId="_visorDocumentoId" Titulo="@_visorTitulo" />
+
 @* Los dos modales de la ficha son ModalFormulario: cada uno con su guardián, su estado de «guardando», su aviso fijo (el rechazo del servidor) y el
    motivo por el que «Crear» o «Reclamar» están deshabilitados (antes eran primarios mudos). Cada kit trae su aviso de navegación. *@
 <ModalFormulario Visible="_crearGestionVisible" VisibleChanged="v => { if (v || !_creandoGestion) _crearGestionVisible = v; }" Titulo="@Textos["ModalCrearGestionTitulo"]"
@@ -734,6 +740,20 @@
                     </RejillaDatos>
                 </ChildContent>
             </Tarjeta>
+        }
+    };
+
+    /// <summary>
+    /// «Ver» de un documento de Operación: abre el visor del PDF. Como en la lista de Documentos, solo si el documento tiene
+    /// archivo, y para todo rol que ve la ficha (el visor y la ficha 360 del Documento aplican su propia autorización).
+    /// </summary>
+    private RenderFragment BotonVerDocumento(CaeManager.Application.Documentos.Queries.ObtenerDocumentos.DocumentoListaDto documento) => __builder =>
+    {
+        if (documento.ArchivoUrl is not null)
+        {
+            <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" class="accion-fila-enlace"
+                   aria-label="@EstadoDocumentoFicha360.TextoVerAccesible(documento.TipoDocumentoNombre)"
+                   OnClick="() => AbrirVisorDocumento((documento.Id, documento.TipoDocumentoNombre))">@EstadoDocumentoFicha360.TextoVer</Boton>
         }
     };
 

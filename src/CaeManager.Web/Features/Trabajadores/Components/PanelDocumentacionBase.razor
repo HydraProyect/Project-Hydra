@@ -60,9 +60,19 @@
                 @{ var claves = new ClavesDeHermanos(); }
                 @foreach (var indicador in _datos.Indicadores)
                 {
-                    <li class="panel-doc-base-fila panel-doc-base-fila-@Clase(indicador.Estado) @(OnCorregirDocumento.HasDelegate || OnSubirFaltante.HasDelegate ? "panel-doc-base-con-acciones" : null)" @key="claves.De(indicador.Tipo)">
+                    <li class="panel-doc-base-fila panel-doc-base-fila-@Clase(indicador.Estado) @(OnCorregirDocumento.HasDelegate || OnSubirFaltante.HasDelegate || OnVerDocumento.HasDelegate ? "panel-doc-base-con-acciones" : null)" @key="claves.De(indicador.Tipo)">
                         <span class="panel-doc-base-nombre">
-                            <span>@TextoTipo(indicador.Tipo)</span>
+                            @* Con «Ver» disponible, el nombre lleva a la ficha 360 del Documento (DocumentoDetalle); sin Documento (el que falta) es texto. *@
+                            <span>
+                                @if (OnVerDocumento.HasDelegate && indicador.DocumentoId is { } enlaceId)
+                                {
+                                    <a class="panel-doc-base-enlace" href="@EstadoDocumentoFicha360.RutaFicha360(enlaceId)">@TextoTipo(indicador.Tipo)</a>
+                                }
+                                else
+                                {
+                                    @TextoTipo(indicador.Tipo)
+                                }
+                            </span>
                             <span class="panel-doc-base-sub">@TextoDetalle(indicador)</span>
                         </span>
                         <span class="panel-doc-base-fecha" title="@Textos["ColumnaVence"]">
@@ -76,25 +86,44 @@
                             }
                         </span>
                         <span class="panel-doc-base-estado"><Badge Tono="TonoDe(indicador.Estado)" Tamano="TamanoBadge.Pequeno">@TextoEstado(indicador)</Badge></span>
-                        @if (OnCorregirDocumento.HasDelegate && indicador.DocumentoId is { } documentoId &&
-                            indicador.Estado is EstadoIndicadorBase.Vencido or EstadoIndicadorBase.SinConfirmar or EstadoIndicadorBase.ProximoAVencer)
-                        {
-                            <SoloConEscritura>
-                                @* Confirmar o renovar abren el mismo editor: la fila ofrece una sola acción, «Gestionar», y solo si el documento pide trabajo (maqueta Trabajador 360: el vigente no lleva botón). *@
-                                <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno"
-                                       class="accion-fila-enlace"
-                                       aria-label="@EstadoDocumentoFicha360.TextoAccionAccesible(TextoTipo(indicador.Tipo))"
-                                       OnClick="() => OnCorregirDocumento.InvokeAsync(documentoId)">@EstadoDocumentoFicha360.TextoAccion</Boton>
-                            </SoloConEscritura>
+                        @{
+                            var verId = OnVerDocumento.HasDelegate && indicador.DocumentoId is { } candidatoVer
+                                        && (DocumentosConArchivo is null || DocumentosConArchivo.Contains(candidatoVer))
+                                ? indicador.DocumentoId : null;
+                            var pideTrabajo = indicador.Estado is EstadoIndicadorBase.Vencido or EstadoIndicadorBase.SinConfirmar or EstadoIndicadorBase.ProximoAVencer;
+                            Guid? gestionaDocumentoId = OnCorregirDocumento.HasDelegate && pideTrabajo ? indicador.DocumentoId : null;
+                            var gestionaFaltante = gestionaDocumentoId is null && OnSubirFaltante.HasDelegate && indicador.Estado == EstadoIndicadorBase.Falta;
                         }
-                        else if (OnSubirFaltante.HasDelegate && indicador.Estado == EstadoIndicadorBase.Falta)
+                        @if (verId is not null || gestionaDocumentoId is not null || gestionaFaltante)
                         {
-                            @* El que falta no tiene documento que abrir: «Gestionar» lleva a la misma subida que usa la ficha (Nuevo documento con el Trabajador elegido). *@
-                            <SoloConEscritura>
-                                <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" class="accion-fila-enlace"
-                                       aria-label="@EstadoDocumentoFicha360.TextoAccionAccesible(TextoTipo(indicador.Tipo))"
-                                       OnClick="() => OnSubirFaltante.InvokeAsync()">@EstadoDocumentoFicha360.TextoAccion</Boton>
-                            </SoloConEscritura>
+                            <span class="panel-doc-base-acciones">
+                                @if (verId is { } documentoVer)
+                                {
+                                    @* «Ver» abre el visor del PDF sin salir de la ficha: acción secundaria, de enlace, para todo rol que ve la ficha (como en la lista de Documentos). *@
+                                    <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" class="accion-fila-enlace"
+                                           aria-label="@EstadoDocumentoFicha360.TextoVerAccesible(TextoTipo(indicador.Tipo))"
+                                           OnClick="() => OnVerDocumento.InvokeAsync((documentoVer, TextoTipo(indicador.Tipo)))">@EstadoDocumentoFicha360.TextoVer</Boton>
+                                }
+                                @if (gestionaDocumentoId is { } documentoGestion)
+                                {
+                                    <SoloConEscritura>
+                                        @* Confirmar o renovar abren el mismo editor: la fila ofrece una sola acción de gestión, «Gestionar», y solo si el documento pide trabajo (maqueta Trabajador 360: el vigente no lleva botón). *@
+                                        <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno"
+                                               class="accion-fila-enlace"
+                                               aria-label="@EstadoDocumentoFicha360.TextoAccionAccesible(TextoTipo(indicador.Tipo))"
+                                               OnClick="() => OnCorregirDocumento.InvokeAsync(documentoGestion)">@EstadoDocumentoFicha360.TextoAccion</Boton>
+                                    </SoloConEscritura>
+                                }
+                                else if (gestionaFaltante)
+                                {
+                                    @* El que falta no tiene documento que abrir: «Gestionar» lleva a la misma subida que usa la ficha (Nuevo documento con el Trabajador elegido). *@
+                                    <SoloConEscritura>
+                                        <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" class="accion-fila-enlace"
+                                               aria-label="@EstadoDocumentoFicha360.TextoAccionAccesible(TextoTipo(indicador.Tipo))"
+                                               OnClick="() => OnSubirFaltante.InvokeAsync()">@EstadoDocumentoFicha360.TextoAccion</Boton>
+                                    </SoloConEscritura>
+                                }
+                            </span>
                         }
                     </li>
                 }
@@ -124,6 +153,18 @@
 
     /// <summary>La ficha abre su subida de un documento que falta; sin ella, un indicador «Falta» no lleva acción.</summary>
     [Parameter] public EventCallback OnSubirFaltante { get; set; }
+
+    /// <summary>
+    /// La ficha 360 abre el visor del PDF de un indicador que tiene Documento (id y título del visor). Con delegado, el
+    /// nombre de esa fila enlaza a la ficha 360 del Documento y lleva «Ver»; sin él (cajón, panel) la fila no cambia.
+    /// </summary>
+    [Parameter] public EventCallback<(Guid DocumentoId, string Titulo)> OnVerDocumento { get; set; }
+
+    /// <summary>
+    /// Ids de los Documentos de la ficha que tienen archivo. El indicador de documentación base no trae el archivo, así que
+    /// «Ver» solo se ofrece a un Documento de este conjunto; con null (el host no lo sabe) se ofrece a todo indicador con Documento.
+    /// </summary>
+    [Parameter] public IReadOnlySet<Guid>? DocumentosConArchivo { get; set; }
 
     protected override async Task OnParametersSetAsync()
     {

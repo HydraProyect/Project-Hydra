@@ -192,6 +192,13 @@ public partial class TrabajadorDetalle : CaeManager.Web.Components.PaginaInterac
     /// ObtenerDocumentosQuery que la pestaña del panel, con su alcance.
     /// </summary>
     private IReadOnlyList<DocumentoListaDto> _documentos = [];
+
+    /// <summary>
+    /// Ids de los Documentos cargados que tienen archivo: el indicador de documentación base no trae el archivo, y «Ver» solo
+    /// se ofrece donde hay PDF. Un Documento fuera del tope de carga de la lista no aparece aquí y no muestra «Ver» (sigue el enlace).
+    /// </summary>
+    private IReadOnlySet<Guid> DocumentosConArchivo =>
+        _documentos.Where(d => d.ArchivoUrl is not null).Select(d => d.Id).ToHashSet();
     private int _totalDocumentos;
 
     /// <summary>
@@ -913,6 +920,18 @@ public partial class TrabajadorDetalle : CaeManager.Web.Components.PaginaInterac
         _drawerGestion.AbrirSerieAsync(SerieDeDocumentos, PasoDe(documento));
 
     private Task EditarDocumentoAsync(Guid documentoId) => _drawerGestion.AbrirEditarAsync(documentoId);
+
+    private bool _visorVisible;
+    private Guid _visorDocumentoId;
+    private string _visorTitulo = string.Empty;
+
+    /// <summary>«Ver»: abre el visor del PDF de un documento sin salir de la ficha (Documentación base, Por vencer, Vigencia sin confirmar).</summary>
+    private void AbrirVisorDocumento((Guid DocumentoId, string Titulo) documento)
+    {
+        _visorDocumentoId = documento.DocumentoId;
+        _visorTitulo = documento.Titulo;
+        _visorVisible = true;
+    }
 
     /// <summary>
     /// «Gestionar» de un indicador de Documentación base que falta: no hay Documento que renovar ni Tipo de documento
