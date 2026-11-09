@@ -264,6 +264,78 @@ public class CarteraRevocadaBajoElCandadoTests
         mundo.Agregadas.Should().BeEmpty();
     }
 
+    // ---- La misma revocación vista por el Trabajador: el Centro sigue en la cartera y solo sale el Trabajador.
+
+    [Fact]
+    public async Task Crear_una_asignacion_cuyo_trabajador_sale_de_la_cartera_mientras_espera_el_candado_no_la_guarda()
+    {
+        var mundo = new MundoAcreditaciones();
+        var trabajador = mundo.Trabajador();
+        var acceso = mundo.AccesoPlataforma(mundo.Centro("Planta de otra Empresa"));
+        var repositorio = new AsignacionRepositorioFalso();
+        var (alcance, serializacion) = TrabajadoresQueSalenAlTomarElCandado(acceso.CentroId, [trabajador.Id], []);
+        var handler = new CrearAsignacionCommandHandler(
+            repositorio, new AutoridadPorCartera(alcance), mundo.Servicio(), new UnitOfWorkFalso(), serializacion, alcance);
+
+        var resultado = await handler.Handle(new CrearAsignacionCommand(trabajador.Id, acceso.CentroId, Hoy), CancellationToken.None);
+
+        serializacion.Llamadas.Should().Be(1);
+        resultado.Error.Codigo.Should().Be("Asignacion.TrabajadorNoEncontrado");
+        repositorio.Asignaciones.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task Crear_asignaciones_en_lote_solo_guarda_las_del_trabajador_que_sigue_en_la_cartera_bajo_el_candado()
+    {
+        var mundo = new MundoAcreditaciones();
+        var sigue = mundo.Trabajador("12345678Z");
+        var sale = mundo.Trabajador("87654321X");
+        var acceso = mundo.AccesoPlataforma(mundo.Centro("Planta de otra Empresa"));
+        var repositorio = new AsignacionRepositorioFalso();
+        var (alcance, serializacion) = TrabajadoresQueSalenAlTomarElCandado(acceso.CentroId, [sigue.Id, sale.Id], [sigue.Id]);
+        var handler = new CaeManager.Application.Asignaciones.Commands.CrearAsignaciones.CrearAsignacionesCommandHandler(
+            repositorio, mundo.AsignacionesContexto, new AutoridadPorCartera(alcance), mundo.Servicio(), new UnitOfWorkFalso(),
+            serializacion, alcance);
+
+        var resultado = await handler.Handle(
+            new CaeManager.Application.Asignaciones.Commands.CrearAsignaciones.CrearAsignacionesCommand(
+                [sigue.Id, sale.Id], [acceso.CentroId], Hoy),
+            CancellationToken.None);
+
+        resultado.Valor.Creadas.Should().Be(1);
+        resultado.Valor.Errores.Should().Contain("1 trabajador(es) ya no existían.");
+        repositorio.Asignaciones.Should().ContainSingle().Which.TrabajadorId.Should().Be(sigue.Id);
+    }
+
+    [Fact]
+    public async Task Reabrir_una_asignacion_cuyo_trabajador_sale_de_la_cartera_mientras_espera_el_candado_no_la_reabre()
+    {
+        var mundo = new MundoAcreditaciones();
+        var trabajador = mundo.Trabajador();
+        var acceso = mundo.AccesoPlataforma(mundo.Centro("Planta de otra Empresa"));
+        var repositorio = new AsignacionRepositorioFalso();
+        var cerrada = new Asignacion(trabajador.Id, acceso.CentroId, Hoy.AddDays(-30));
+        cerrada.DarDeBaja(Hoy.AddDays(-10));
+        repositorio.Asignaciones.Add(cerrada);
+        var (alcance, serializacion) = TrabajadoresQueSalenAlTomarElCandado(acceso.CentroId, [trabajador.Id], []);
+        var handler = new ReactivarAsignacionCommandHandler(
+            repositorio, new AutoridadPorCartera(alcance), mundo.Servicio(), new UnitOfWorkFalso(), serializacion, alcance);
+
+        var resultado = await handler.Handle(new ReactivarAsignacionCommand(cerrada.Id), CancellationToken.None);
+
+        resultado.Error.Codigo.Should().Be("Asignacion.NoEncontrada");
+        cerrada.EstaActiva.Should().BeFalse();
+    }
+
+    private static (AlcanceMemoizadoRevocableFalso Alcance, SerializacionAltasAcreditacionEmpresaFalsa Serializacion)
+        TrabajadoresQueSalenAlTomarElCandado(Guid centroId, IReadOnlyList<Guid> antes, IReadOnlyList<Guid> despues)
+    {
+        var alcance = new AlcanceMemoizadoRevocableFalso(
+            new AlcanceDatosServiceFalso(tieneAccesoTotal: false, trabajadorIdsVisibles: antes, centroIdsVisibles: [centroId]),
+            new AlcanceDatosServiceFalso(tieneAccesoTotal: false, trabajadorIdsVisibles: despues, centroIdsVisibles: [centroId]));
+        return (alcance, new SerializacionAltasAcreditacionEmpresaFalsa { AlTomarElCandado = alcance.Revocar });
+    }
+
     /// <summary>Acceso total hasta tomar el candado; al tomarlo, la base deja de dar cartera.</summary>
     private static (AlcanceMemoizadoRevocableFalso Alcance, SerializacionAltasAcreditacionEmpresaFalsa Serializacion)
         CarteraQueSeRevocaAlTomarElCandado()

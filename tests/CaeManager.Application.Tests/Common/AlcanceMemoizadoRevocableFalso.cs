@@ -10,15 +10,19 @@ namespace CaeManager.Application.Tests.Common;
 /// Mismo doble que <c>AlcanceMemoizadoFalso</c> de la PR #2104, con otro nombre para no pisar sus ficheros mientras está
 /// abierta (issue #2118): cuando las dos estén en main se unifican en uno.
 /// </summary>
-public sealed class AlcanceMemoizadoRevocableFalso(IAlcanceDatosService inicial) : IAlcanceDatosService, IInvalidadorAlcance
+public sealed class AlcanceMemoizadoRevocableFalso(IAlcanceDatosService inicial, IAlcanceDatosService? revocado = null)
+    : IAlcanceDatosService, IInvalidadorAlcance
 {
     private IAlcanceDatosService enLaBase = inicial;
     private IAlcanceDatosService? memoizado;
 
     public int Invalidaciones { get; private set; }
 
-    /// <summary>A partir de aquí la base ya no da cartera; la memoización, si la hay, sigue con la de antes.</summary>
-    public void Revocar() => enLaBase = new AlcanceDatosServiceFalso(tieneAccesoTotal: false);
+    /// <summary>
+    /// A partir de aquí la base da <paramref name="revocado"/> (por defecto, sin cartera); la memoización, si la hay, sigue
+    /// con la de antes.
+    /// </summary>
+    public void Revocar() => enLaBase = revocado ?? new AlcanceDatosServiceFalso(tieneAccesoTotal: false);
 
     public void Invalidar()
     {
