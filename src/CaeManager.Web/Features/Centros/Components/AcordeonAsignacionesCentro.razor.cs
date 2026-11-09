@@ -221,6 +221,48 @@ public partial class AcordeonAsignacionesCentro : ComponentBase, IDisposable
             .ToList();
     }
 
+    /// <summary>
+    /// Centro 360, segundo nivel: a quién le abre «Gestionar» un documento de la tabla, con la MISMA regla que tenía el primer nivel
+    /// (<see cref="MotivoBloqueoTrabajador"/>): si su Tipo es un bloqueo de acceso, la entidad que ese bloqueo pide (solo Vencido o
+    /// Ausente); si no, un pendiente que no bloquea pero se puede reclamar. Null: nada que gestionar, la celda queda vacía.
+    /// </summary>
+    private MotivoBloqueoTrabajador.EntidadAPedir? EntidadAGestionar(TrabajadorAsignacionDocumentacionDto trabajador, DocumentoRequeridoDto documento)
+    {
+        var bloqueosDelTipo = BloqueosDe(trabajador.TrabajadorId).Where(b => b.TipoDocumentoId == documento.TipoDocumentoId).ToList();
+        if (bloqueosDelTipo.Count > 0)
+        {
+            var propio = bloqueosDelTipo.FirstOrDefault(b => b.Ambito == AmbitoAplicacion.Trabajador);
+            return propio is null ? null : MotivoBloqueoTrabajador.EntidadAReclamar(propio);
+        }
+
+        // Lo que falta o está vencido en TALVEG sin ser un bloqueo cubría el antiguo enlace «Actualizar en Trabajador 360»: no se queda sin acción.
+        var gestionable = GestionarEnPlataforma.FaltaEnTalveg(documento.DocumentoId, documento.Estado)
+            || (MotivoBloqueoTrabajador.EsPendienteQueNoBloquea(documento.Estado) && MotivoBloqueoTrabajador.EsReclamable(documento));
+        return gestionable
+            ? new MotivoBloqueoTrabajador.EntidadAPedir(AmbitoAplicacion.Trabajador, trabajador.TrabajadorId)
+            : null;
+    }
+
+    /// <summary>Bloqueos que ninguna fila de la tabla del Trabajador recoge (documentos de la Empresa o Tipos que no exige este Centro): su motivo y su «Gestionar» no se pierden.</summary>
+    private IReadOnlyList<DocumentacionBloqueantePendienteDto> BloqueosSinFilaDe(TrabajadorAsignacionDocumentacionDto trabajador) =>
+        BloqueosDe(trabajador.TrabajadorId)
+            .Where(b => b.Ambito != AmbitoAplicacion.Trabajador || !trabajador.Documentos.Any(d => d.TipoDocumentoId == b.TipoDocumentoId))
+            .ToList();
+
+    /// <summary>
+    /// Primer nivel de Centro 360 (maqueta: «motivo» de una línea, sin botones): cuántos documentos bloquean el acceso, o el peor
+    /// documento si ninguno bloquea. El detalle y sus acciones viven solo en el desplegable.
+    /// </summary>
+    private string ResumenPrimerNivel(TrabajadorAsignacionDocumentacionDto trabajador)
+    {
+        var tiposQueBloquean = BloqueosDe(trabajador.TrabajadorId).Select(b => b.TipoDocumentoId)
+            .Concat(trabajador.Documentos.Where(BloqueaPlataforma).Select(d => d.TipoDocumentoId))
+            .Distinct().Count();
+        return tiposQueBloquean == 0
+            ? MotivoDocumental(trabajador)
+            : Textos[tiposQueBloquean == 1 ? "ResumenBloqueoUno360" : "ResumenBloqueoVarios360", tiposQueBloquean].Value;
+    }
+
     private bool _pedirVisible;
     private AmbitoAplicacion? _pedirAmbito;
     private Guid? _pedirEntidadId;

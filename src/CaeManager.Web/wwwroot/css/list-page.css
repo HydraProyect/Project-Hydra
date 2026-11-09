@@ -2204,7 +2204,9 @@
 .cabecera-plataforma-centro,
 .fila-plataforma-centro {
     display: grid;
-    grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr) 96px 56px minmax(150px, auto);
+    /* Última columna de ancho fijo (antes minmax(150px, auto)): cada fila es su propia rejilla, y con «auto» una acción más
+       ancha o una celda vacía movían Estado y Caducidad respecto a las demás filas de la misma tabla. */
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr) 96px 56px 148px;
     gap: var(--space-3);
     align-items: center;
 }
