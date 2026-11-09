@@ -47,7 +47,10 @@ public class GenerarDocumentoIndividualCommandHandler(
     ISerializacionAltasAcreditacionEmpresa serializacionAltas,
     IAltaAcreditacionesPlataformaService altaAcreditaciones,
     IUnitOfWork unitOfWork,
-    INacimientoGestionAutomaticaService gestionAutomatica)
+    INacimientoGestionAutomaticaService gestionAutomatica,
+    // Opcional solo mientras la PR #2104 cambia los tests que construyen este handler: el contenedor siempre lo resuelve
+    // (InvalidadorAlcanceInerte por defecto, el AlcanceDatosService del circuito en la Web). Issue #2118.
+    IInvalidadorAlcance? invalidadorAlcance = null)
     : IRequestHandler<GenerarDocumentoIndividualCommand, Result<GenerarDocumentoIndividualResultadoDto>>
 {
     public async Task<Result<GenerarDocumentoIndividualResultadoDto>> Handle(
@@ -247,7 +250,19 @@ public class GenerarDocumentoIndividualCommandHandler(
         // alta se serializa con la de un acceso de plataforma, igual que en CrearDocumentoCommandHandler (ver
         // ISerializacionAltasAcreditacionEmpresa).
         var guardado = plantilla.AmbitoAplicacion == AmbitoAplicacion.Empresa
-            ? await serializacionAltas.EjecutarAsync(ct => GuardarAsync(documento, documentoGenerado, ct), cancellationToken)
+            ? await serializacionAltas.EjecutarAsync(async ct =>
+            {
+                // Bajo el candado se vuelve a decidir la Asignación de Cartera sobre la Empresa y el Centro: pudo
+                // revocarse mientras se esperaba, y el alcance memoizado (en Blazor Server, el del circuito) es de
+                // antes; se descarta, igual que en BloqueoRespuestaSugerida.ComprobarEnvioPorBuzonAsync (issue #2118).
+                // El PDF ya guardado queda sin referenciar, igual que si fallara el guardado.
+                invalidadorAlcance?.Invalidar();
+                if (!await alcanceDatos.EmpresaParaGestionVisibleAsync(request.OwnerId, ct))
+                    return Result.Fallo(Error.Crear("Plantilla.PropietarioNoEncontrado", "No encontramos a quién pertenece este documento."));
+                if (request.CentroId is { } centroBajoCandado && !await alcanceDatos.CentroVisibleAsync(centroBajoCandado, ct))
+                    return Result.Fallo(Error.Crear("Plantilla.CentroNoEncontrado", "No encontramos este centro."));
+                return await GuardarAsync(documento, documentoGenerado, ct);
+            }, cancellationToken)
             : await GuardarAsync(documento, documentoGenerado, cancellationToken);
         if (guardado.EsFallido)
             return Result.Fallo<GenerarDocumentoIndividualResultadoDto>(guardado.Error);

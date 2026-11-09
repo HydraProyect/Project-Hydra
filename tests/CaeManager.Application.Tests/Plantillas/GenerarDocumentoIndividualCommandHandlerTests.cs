@@ -60,12 +60,13 @@ public class GenerarDocumentoIndividualCommandHandlerTests
         public SerializacionAltasAcreditacionEmpresaFalsa Serializacion { get; } = new();
 
         public GenerarDocumentoIndividualCommandHandler CrearHandler(
-            Guid? usuarioActualId = null, IAlcanceDatosService? alcanceDatos = null, bool sinUsuario = false) => new(
+            Guid? usuarioActualId = null, IAlcanceDatosService? alcanceDatos = null, bool sinUsuario = false,
+            IInvalidadorAlcance? invalidadorAlcance = null) => new(
             Versiones, Plantillas, Documentos, new DocumentoGeneradoRepositorioFalso(), TiposDocumento,
             Empresas, Trabajadores, Centros, Contactos, Rellenador, Almacenamiento,
             new CurrentUserServiceFalso(sinUsuario ? null : usuarioActualId ?? Guid.NewGuid()),
             alcanceDatos ?? new AlcanceDatosServiceFalso(), Asignaciones, Serializacion, AltaAcreditaciones, UnitOfWork,
-            GestionAutomatica);
+            GestionAutomatica, invalidadorAlcance ?? new InvalidadorAlcanceInerte());
 
         public UnitOfWorkFalso UnitOfWork { get; } = new();
 
@@ -222,6 +223,33 @@ public class GenerarDocumentoIndividualCommandHandlerTests
         alTomarElCandado.Should().Be((0, 0), "el Documento y sus acreditaciones se agregan dentro de la operación serializada");
         entorno.Documentos.Documentos.Should().ContainSingle().Which.Id.Should().Be(resultado.Valor.DocumentoId);
         alta.Recibidas.Should().ContainSingle().Which.Documentos.Should().ContainSingle().Which.Id.Should().Be(resultado.Valor.DocumentoId);
+    }
+
+    [Fact]
+    public async Task Generar_un_documento_de_empresa_cuya_cartera_se_revoca_mientras_espera_el_candado_no_lo_guarda()
+    {
+        // Issue #2118: la Asignación de Cartera se vuelve a decidir bajo el candado, sin el alcance memoizado de antes.
+        var tipo = new TipoDocumento("Plan de prevención", null, false, 1, AmbitoAplicacion.Empresa);
+        var entorno = await ConstruirEntornoAsync(tipo, AmbitoAplicacion.Empresa);
+        var empresa = new Empresa("Contratista SL", "B12345674");
+        entorno.Empresas.ListaEmpresas.Add(empresa);
+        var alta = new AltaAcreditacionesPlataformaServiceFalso();
+        entorno.AltaAcreditaciones = alta;
+        var usuarioId = Guid.NewGuid();
+        Confirmar(entorno.Version,
+            [new PlantillaElemento(entorno.Version.Id, TipoElementoPlantilla.Texto, 1, 0, 0, 10, 10, "Razón social", FuenteDatoPlantilla.EmpresaRazonSocial)],
+            usuarioId);
+        var alcance = new AlcanceMemoizadoRevocableFalso(new AlcanceDatosServiceFalso());
+        entorno.Serializacion.AlTomarElCandado = alcance.Revocar;
+
+        var resultado = await entorno.CrearHandler(usuarioId, alcance, invalidadorAlcance: alcance).Handle(
+            new GenerarDocumentoIndividualCommand(entorno.Version.Id, empresa.Id), CancellationToken.None);
+
+        entorno.Serializacion.Llamadas.Should().Be(1, "la primera comprobación, con la cartera aún vigente, deja pasar hasta el candado");
+        resultado.Error.Codigo.Should().Be("Plantilla.PropietarioNoEncontrado");
+        entorno.Documentos.Documentos.Should().BeEmpty();
+        entorno.UnitOfWork.VecesGuardado.Should().Be(0);
+        alta.Recibidas.Should().BeEmpty();
     }
 
     [Fact]

@@ -45,7 +45,10 @@ public class EstablecerGestionCaeCentroCommandHandler(
     IAltaAcreditacionesPlataformaService altaAcreditaciones,
     IAlcanceDatosService alcanceDatos,
     IUnitOfWork unitOfWork,
-    ISerializacionAltasAcreditacionEmpresa serializacionAltas)
+    ISerializacionAltasAcreditacionEmpresa serializacionAltas,
+    // Opcional solo mientras la PR #2104 cambia los tests que construyen este handler: el contenedor siempre lo resuelve
+    // (InvalidadorAlcanceInerte por defecto, el AlcanceDatosService del circuito en la Web). Issue #2118.
+    IInvalidadorAlcance? invalidadorAlcance = null)
     : IRequestHandler<EstablecerGestionCaeCentroCommand, Result>
 {
     /// <summary>
@@ -54,10 +57,17 @@ public class EstablecerGestionCaeCentroCommandHandler(
     /// Documento ve todavía el Centro sin gestión CAE y el par se pierde (revisión Codex de la PR #2074, ronda 3,
     /// hallazgo 3). Se decide por la modalidad pedida, no por la guardada, para no leer antes del candado; dejar la
     /// gestión CAE no da de alta nada que pueda perderse. Todo se lee dentro: un reintento empieza con el contexto vacío.
+    /// La Asignación de Cartera también se decide dentro, sin el alcance memoizado antes de esperar el candado (en Blazor
+    /// Server, el del circuito, que fija AutorizacionEscrituraBehavior): pudo revocarse mientras se esperaba. Mismo patrón
+    /// que BloqueoRespuestaSugerida.ComprobarEnvioPorBuzonAsync (issue #2118).
     /// </summary>
     public async Task<Result> Handle(EstablecerGestionCaeCentroCommand request, CancellationToken cancellationToken) =>
         request.Modalidad == ModalidadGestionCae.ConGestionCae
-            ? await serializacionAltas.EjecutarAsync(ct => EstablecerAsync(request, ct), cancellationToken)
+            ? await serializacionAltas.EjecutarAsync(ct =>
+            {
+                invalidadorAlcance?.Invalidar();
+                return EstablecerAsync(request, ct);
+            }, cancellationToken)
             : await EstablecerAsync(request, cancellationToken);
 
     private async Task<Result> EstablecerAsync(EstablecerGestionCaeCentroCommand request, CancellationToken cancellationToken)
