@@ -140,14 +140,25 @@ public class EjecutarPlanTareaAsistenteCommandHandler(
                 motivo = motivo[..LongitudMaximaMotivo];
             var ahora = DateTime.UtcNow;
             // Fuera de la transacción del paso, que se deshizo entera. Si mientras tanto otra
-            // ventana lo ejecutó, no se pisa su resultado.
+            // ventana lo ejecutó, no se pisa su resultado: se informa de él.
+            Guid? hechoPorOtra = null;
             var registro = await modificacion.AplicarAsync(request.TareaId, null, (t, _) =>
             {
-                if (t.Pasos.Single(p => p.Id == paso.Id).Estado != EstadoPasoTareaAsistente.Ejecutado)
+                var guardado = t.Pasos.Single(p => p.Id == paso.Id);
+                if (guardado.Estado == EstadoPasoTareaAsistente.Ejecutado)
+                    hechoPorOtra = guardado.EntidadResultadoId ?? Guid.Empty;
+                else
                     t.RegistrarPasoFallido(paso.Id, motivo, ahora);
             }, cancellationToken);
             if (registro.EsFallido)
                 return Result.Fallo<EjecucionPlanAsistenteDto>(registro.Error);
+            if (hechoPorOtra is { } hecho)
+            {
+                if (operacion == nameof(CrearTrabajadorCommand))
+                    trabajadorCreado = hecho;
+                resultados.Add(new PasoEjecutadoDto(paso.Id, paso.Posicion, operacion, EstadoPasoTareaAsistente.Ejecutado, hecho, null));
+                continue;
+            }
             resultados.Add(new PasoEjecutadoDto(paso.Id, paso.Posicion, operacion, EstadoPasoTareaAsistente.Fallido, null, motivo));
             parado = true;
         }
@@ -228,6 +239,15 @@ public class EjecutarPlanTareaAsistenteCommandHandler(
         catch (DbUpdateConcurrencyException)
         {
             return new IntentoPaso(null, null, PasoEnCurso());
+        }
+        catch (DbUpdateException)
+        {
+            // La base rechazó el efecto (p. ej. el índice único del documento del Trabajador,
+            // cuando otra ventana lo dio de alta a la vez). La transacción ya lo deshizo; el
+            // paso queda fallido salvo que otra ventana lo haya ejecutado, y eso lo decide el
+            // registro del fallo, que relee la Tarea.
+            return new IntentoPaso(null, Error.Crear("AsistenteIa.PasoNoGuardado",
+                "No se ha podido guardar este paso: puede que ya exista o que otra ventana lo esté haciendo. Vuelve a abrir el plan y reintenta."), null);
         }
     }
 

@@ -7,9 +7,11 @@ using Microsoft.EntityFrameworkCore;
 namespace CaeManager.Application.AsistenteIa.Tareas.Queries;
 
 /// <summary>
-/// Las tareas del asistente de la persona en el Tenant en el que trabaja, las
-/// más recientes primero. Con <paramref name="SoloAbiertas"/>, solo las que se
-/// pueden retomar (ni terminadas ni descartadas).
+/// Las tareas del asistente de la persona en el Tenant en el que trabaja: primero
+/// los planes confirmados a medias y luego las más recientes
+/// (<see cref="ListarTareasAsistenteQueryHandler.EnOrdenDeHistorial"/>). Con
+/// <paramref name="SoloAbiertas"/>, solo las que se pueden retomar (ni terminadas
+/// ni descartadas).
 /// </summary>
 public record ListarTareasAsistenteQuery(bool SoloAbiertas = true, int Maximo = 50) : IRequest<Result<IReadOnlyList<ResumenTareaAsistenteDto>>>;
 
@@ -41,8 +43,7 @@ public class ListarTareasAsistenteQueryHandler(
             consulta = consulta.Where(t => t.Estado != EstadoTareaAsistente.Terminada && t.Estado != EstadoTareaAsistente.Descartada);
 
         var maximo = Math.Clamp(request.Maximo, 1, MaximoPermitido);
-        IReadOnlyList<ResumenTareaAsistenteDto> tareas = await consulta
-            .OrderByDescending(t => t.ActualizadaEnUtc)
+        IReadOnlyList<ResumenTareaAsistenteDto> tareas = await EnOrdenDeHistorial(consulta)
             .Take(maximo)
             .Select(t => new ResumenTareaAsistenteDto(
                 t.Id,
@@ -56,4 +57,15 @@ public class ListarTareasAsistenteQueryHandler(
 
         return Result.Exito(tareas);
     }
+
+    /// <summary>
+    /// Primero los planes confirmados que quedaron a medias (un paso falló o se cortó): son
+    /// los únicos que tienen algo hecho de verdad y solo se terminan desde aquí, así que el
+    /// límite de <see cref="ListarTareasAsistenteQuery.Maximo"/> no puede dejarlos fuera por
+    /// antiguos. Dentro de cada grupo, los más recientes primero.
+    /// </summary>
+    internal static IOrderedQueryable<TareaAsistente> EnOrdenDeHistorial(IQueryable<TareaAsistente> tareas) =>
+        tareas
+            .OrderByDescending(t => t.Estado == EstadoTareaAsistente.Confirmada)
+            .ThenByDescending(t => t.ActualizadaEnUtc);
 }

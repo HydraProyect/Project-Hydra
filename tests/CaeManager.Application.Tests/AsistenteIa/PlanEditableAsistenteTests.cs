@@ -310,6 +310,60 @@ public class PlanEditableAsistenteTests
         tarea.Pasos[0].Estado.Should().NotBe(EstadoPasoTareaAsistente.Fallido);
     }
 
+    [Fact]
+    public async Task Si_la_base_rechaza_el_alta_el_paso_queda_fallido_y_no_sale_la_excepcion()
+    {
+        var tarea = await TareaConfirmadaAsync();
+        _mediador.AltaChocaEnBase = () => { };
+
+        var resultado = await EjecutarAsync(tarea);
+
+        resultado.EsExitoso.Should().BeTrue();
+        resultado.Valor.Pasos[0].Estado.Should().Be(EstadoPasoTareaAsistente.Fallido);
+        tarea.Pasos[0].Estado.Should().Be(EstadoPasoTareaAsistente.Fallido);
+        tarea.Pasos[0].MotivoFallo.Should().StartWith("No se ha podido guardar este paso");
+        _mediador.Enviados.OfType<CrearAsignacionCommand>().Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task Si_otra_ventana_dio_de_alta_al_Trabajador_a_la_vez_se_informa_de_su_alta_y_se_sigue_con_ella()
+    {
+        var tarea = await TareaConfirmadaAsync();
+        var deLaOtraVentana = Guid.NewGuid();
+        // La otra ventana gana: confirma el alta y registra el paso; la nuestra choca con el índice único.
+        _mediador.AltaChocaEnBase = () => tarea.RegistrarPasoEjecutado(tarea.Pasos[0].Id, deLaOtraVentana, DateTime.UtcNow);
+
+        var resultado = await EjecutarAsync(tarea);
+
+        resultado.Valor.Pasos[0].Estado.Should().Be(EstadoPasoTareaAsistente.Ejecutado);
+        resultado.Valor.Pasos[0].EntidadResultadoId.Should().Be(deLaOtraVentana);
+        tarea.Pasos[0].Estado.Should().Be(EstadoPasoTareaAsistente.Ejecutado, "no se pisa el alta de la otra ventana con un fallo");
+        _mediador.Enviados.OfType<CrearAsignacionCommand>().Should().ContainSingle()
+            .Which.TrabajadorId.Should().Be(deLaOtraVentana);
+    }
+
+    [Fact]
+    public void El_historial_pone_primero_los_planes_confirmados_a_medias_aunque_sean_antiguos()
+    {
+        var hace = new DateTime(2026, 11, 1, 9, 0, 0, DateTimeKind.Utc);
+        TareaAsistente Tarea(DateTime cuando, bool confirmada)
+        {
+            var tarea = new TareaAsistente(_persona, null, _tenant, CaeManager.Domain.Auditoria.TipoViaAccesoAuditoria.Normal, null, cuando);
+            tarea.AgregarTurnoDePersona("Alta", null, cuando);
+            tarea.GuardarPlan([new("alta_centro", "{}", "Alta", [], [])], true, cuando);
+            if (confirmada)
+                tarea.ConfirmarPlan(_persona, null, cuando);
+            return tarea;
+        }
+        var antiguaConfirmada = Tarea(hace, confirmada: true);
+        var reciente = Tarea(hace.AddDays(5), confirmada: false);
+        var intermedia = Tarea(hace.AddDays(2), confirmada: false);
+
+        var orden = ListarTareasAsistenteQueryHandler.EnOrdenDeHistorial(new[] { intermedia, reciente, antiguaConfirmada }.AsQueryable()).ToList();
+
+        orden.Should().Equal(antiguaConfirmada, reciente, intermedia);
+    }
+
     [Theory]
     [InlineData(TiposDatoPlan.CampoNombre, CaeManager.Domain.Centros.Centro.LongitudMaximaNombre)]
     [InlineData(TiposDatoPlan.CampoDireccion, CaeManager.Domain.Centros.Centro.LongitudMaximaDireccion)]
@@ -429,12 +483,20 @@ public class PlanEditableAsistenteTests
         public OpcionesPlanAsistenteDto Opciones { get; set; } = OpcionesPlanAsistenteDto.Vacias;
         public bool AsignacionFalla { get; set; }
         public bool AsignacionNoValida { get; set; }
+        public Action? AltaChocaEnBase { get; set; }
         public Func<string, string>? AlterarDatos { get; set; }
         public Guid TrabajadorCreado { get; } = Guid.NewGuid();
         public List<object> Enviados { get; } = [];
 
         public Task<TResponse> Send<TResponse>(IRequest<TResponse> request, CancellationToken cancellationToken = default)
         {
+            if (request is CrearTrabajadorCommand && AltaChocaEnBase is { } antesDeChocar)
+            {
+                Enviados.Add(request);
+                antesDeChocar();
+                throw new Microsoft.EntityFrameworkCore.DbUpdateException("duplicate key value violates unique constraint");
+            }
+
             if (request is CrearAsignacionCommand && AsignacionNoValida)
             {
                 Enviados.Add(request);
