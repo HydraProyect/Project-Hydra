@@ -1,3 +1,4 @@
+using AngleSharp.Dom;
 using Bunit;
 using CaeManager.Application.ContactosSeguridad;
 using CaeManager.Application.ContactosSeguridad.Commands.ProponerContactoSeguridad;
@@ -11,6 +12,8 @@ using CaeManager.Web.Features.ContactoSeguridad.Components;
 using CaeManager.Web.Features.ContactoSeguridad.Pages;
 using FluentAssertions;
 using MediatR;
+using Microsoft.AspNetCore.Components;
+using Microsoft.AspNetCore.Components.Web;
 using Microsoft.Extensions.DependencyInjection;
 using Xunit;
 
@@ -76,42 +79,54 @@ public class ContactoSeguridadTests : BunitContext
         cut.FindAll("button").Should().Contain(b => b.TextContent.Trim() == "Proponer otro contacto");
     }
 
+    /// <summary>
+    /// Escribe en un <c>CampoTexto</c> y lo vuelca al salir del campo, como el usuario. <c>Input()</c> deja pendiente el
+    /// <c>Task.Delay</c> real del rebote; <c>BlurAsync</c> lo cancela y avisa a la página en el acto. La continuación de ese
+    /// delay cancelado vuelve al dispatcher por el pool de hilos y lo ocupa un instante: un <c>Click()</c> sin esperar que llegue
+    /// entonces se encola detrás y lo ejecuta ese hilo del pool. Con <c>WaitForAssertion</c> (1 s por defecto) y el pool
+    /// saturado, el plazo vencía antes de que el envío ocurriera (#2111). Por eso el test espera a los manejadores, sin plazo.
+    /// </summary>
+    private static async Task EscribirAsync(IElement campo, string valor)
+    {
+        campo.Input(valor);
+        await campo.BlurAsync(new FocusEventArgs());
+    }
+
+    private static Task PulsarAsync<T>(IRenderedComponent<T> cut, string texto) where T : IComponent =>
+        cut.FindAll("button").First(b => b.TextContent.Trim() == texto).ClickAsync(new MouseEventArgs());
+
     [Fact]
-    public void Proponer_abre_el_DrawerFormulario_y_envia_los_datos_recortados()
+    public async Task Proponer_abre_el_DrawerFormulario_y_envia_los_datos_recortados()
     {
         _mediador.MiOrganizacion = new ContactoSeguridadDeMiOrganizacionDto(null, null, null);
         var cut = Render<SeccionContactoSeguridad>();
 
-        cut.FindAll("button").First(b => b.TextContent.Trim() == "Proponer contacto").Click();
+        await PulsarAsync(cut, "Proponer contacto");
         var drawer = cut.FindComponent<ProponerContactoSeguridadDrawer>();
         drawer.FindComponent<DrawerFormulario>().Instance.Visible.Should().BeTrue();
 
         var campos = drawer.FindAll("input");
-        campos[0].Input("  Marta Ruiz ");
-        campos[0].Blur();
-        campos[1].Input(" marta@ejemplo.test ");
-        campos[1].Blur();
-        cut.FindAll("button").First(b => b.TextContent.Trim() == "Enviar a revisión").Click();
+        await EscribirAsync(campos[0], "  Marta Ruiz ");
+        await EscribirAsync(campos[1], " marta@ejemplo.test ");
+        await PulsarAsync(cut, "Enviar a revisión");
 
-        cut.WaitForAssertion(() => _mediador.Propuestas.Should().ContainSingle()
-            .Which.Should().Be(new ProponerContactoSeguridadCommand("Marta Ruiz", "marta@ejemplo.test", null)));
+        _mediador.Propuestas.Should().ContainSingle()
+            .Which.Should().Be(new ProponerContactoSeguridadCommand("Marta Ruiz", "marta@ejemplo.test", null));
     }
 
     [Fact]
-    public void Un_correo_no_valido_no_llega_al_servidor_y_se_marca_en_el_campo()
+    public async Task Un_correo_no_valido_no_llega_al_servidor_y_se_marca_en_el_campo()
     {
         _mediador.MiOrganizacion = new ContactoSeguridadDeMiOrganizacionDto(null, null, null);
         var cut = Render<SeccionContactoSeguridad>();
 
-        cut.FindAll("button").First(b => b.TextContent.Trim() == "Proponer contacto").Click();
+        await PulsarAsync(cut, "Proponer contacto");
         var campos = cut.FindComponent<ProponerContactoSeguridadDrawer>().FindAll("input");
-        campos[0].Input("Marta Ruiz");
-        campos[0].Blur();
-        campos[1].Input("no-es-un-correo");
-        campos[1].Blur();
-        cut.FindAll("button").First(b => b.TextContent.Trim() == "Enviar a revisión").Click();
+        await EscribirAsync(campos[0], "Marta Ruiz");
+        await EscribirAsync(campos[1], "no-es-un-correo");
+        await PulsarAsync(cut, "Enviar a revisión");
 
-        cut.WaitForAssertion(() => cut.Markup.Should().Contain("El correo no tiene un formato válido."));
+        cut.Markup.Should().Contain("El correo no tiene un formato válido.");
         _mediador.Propuestas.Should().BeEmpty();
     }
 
@@ -157,26 +172,24 @@ public class ContactoSeguridadTests : BunitContext
     }
 
     [Fact]
-    public void Rechazar_exige_motivo_antes_de_enviar()
+    public async Task Rechazar_exige_motivo_antes_de_enviar()
     {
         var propuesto = Propuesto();
         _mediador.Propuestos = [propuesto];
         var cut = Render<ContactosSeguridadPlataforma>();
         cut.WaitForAssertion(() => cut.FindAll("table").Should().ContainSingle());
 
-        cut.FindAll("button").First(b => b.TextContent.Trim() == "Rechazar").Click();
-        cut.FindAll("button").First(b => b.TextContent.Trim() == "Rechazar propuesta").Click();
+        await PulsarAsync(cut, "Rechazar");
+        await PulsarAsync(cut, "Rechazar propuesta");
 
         cut.Markup.Should().Contain("Indica el motivo del rechazo.");
         _mediador.Rechazados.Should().BeEmpty();
 
-        cut.Find("textarea").Input("La persona no pertenece a la organización");
+        await EscribirAsync(cut.Find("textarea"), "La persona no pertenece a la organización");
+        await PulsarAsync(cut, "Rechazar propuesta");
 
-        cut.Find("textarea").Blur();
-        cut.FindAll("button").First(b => b.TextContent.Trim() == "Rechazar propuesta").Click();
-
-        cut.WaitForAssertion(() => _mediador.Rechazados.Should().ContainSingle()
-            .Which.Should().Be(new RechazarContactoSeguridadCommand(propuesto.Id, "La persona no pertenece a la organización")));
+        _mediador.Rechazados.Should().ContainSingle()
+            .Which.Should().Be(new RechazarContactoSeguridadCommand(propuesto.Id, "La persona no pertenece a la organización"));
     }
 
     [Fact]
@@ -211,39 +224,36 @@ public class ContactoSeguridadTests : BunitContext
     }
 
     [Fact]
-    public void Rechazar_la_propuesta_propia_muestra_los_cuatro_ojos()
+    public async Task Rechazar_la_propuesta_propia_muestra_los_cuatro_ojos()
     {
         _mediador.Propuestos = [Propuesto()];
         _mediador.ResultadoResolver = Result.Fallo(ErroresContactoSeguridad.MismaCuentaProponente);
         var cut = Render<ContactosSeguridadPlataforma>();
         cut.WaitForAssertion(() => cut.FindAll("table").Should().ContainSingle());
 
-        cut.FindAll("button").First(b => b.TextContent.Trim() == "Rechazar").Click();
-        cut.Find("textarea").Input("La persona no pertenece a la organización");
-        cut.Find("textarea").Blur();
-        cut.FindAll("button").First(b => b.TextContent.Trim() == "Rechazar propuesta").Click();
+        await PulsarAsync(cut, "Rechazar");
+        await EscribirAsync(cut.Find("textarea"), "La persona no pertenece a la organización");
+        await PulsarAsync(cut, "Rechazar propuesta");
 
-        cut.WaitForAssertion(() => cut.Markup.Should().Contain(TextoMismaCuenta));
+        cut.Markup.Should().Contain(TextoMismaCuenta);
         _mediador.Rechazados.Should().ContainSingle();
     }
 
     [Fact]
-    public void Una_propuesta_que_pierde_la_carrera_lo_explica_en_el_Drawer()
+    public async Task Una_propuesta_que_pierde_la_carrera_lo_explica_en_el_Drawer()
     {
         _mediador.MiOrganizacion = new ContactoSeguridadDeMiOrganizacionDto(null, null, null);
         _mediador.ResultadoProponer = Result.Fallo(ErroresContactoSeguridad.PropuestaConcurrente);
         var cut = Render<SeccionContactoSeguridad>();
 
-        cut.FindAll("button").First(b => b.TextContent.Trim() == "Proponer contacto").Click();
+        await PulsarAsync(cut, "Proponer contacto");
         var campos = cut.FindComponent<ProponerContactoSeguridadDrawer>().FindAll("input");
-        campos[0].Input("Marta Ruiz");
-        campos[0].Blur();
-        campos[1].Input("marta@ejemplo.test");
-        campos[1].Blur();
-        cut.FindAll("button").First(b => b.TextContent.Trim() == "Enviar a revisión").Click();
+        await EscribirAsync(campos[0], "Marta Ruiz");
+        await EscribirAsync(campos[1], "marta@ejemplo.test");
+        await PulsarAsync(cut, "Enviar a revisión");
 
-        cut.WaitForAssertion(() => cut.Markup.Should().Contain(
-            "Se acaba de enviar otra propuesta para tu organización. Recarga la página para verla."));
+        cut.Markup.Should().Contain(
+            "Se acaba de enviar otra propuesta para tu organización. Recarga la página para verla.");
         cut.FindComponent<DrawerFormulario>().Instance.Visible.Should().BeTrue("la propuesta no se guardó");
     }
 
