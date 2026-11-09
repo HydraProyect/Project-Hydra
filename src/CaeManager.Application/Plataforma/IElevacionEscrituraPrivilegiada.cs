@@ -34,7 +34,8 @@ public interface IElevacionEscrituraPrivilegiada
     /// <summary>
     /// Si la conexión de este ámbito de DI ya está abierta, adopta de
     /// inmediato el rol de escritura acotada. Si no lo está, no hace nada: la
-    /// próxima apertura la decide <c>TenantRlsConnectionInterceptor</c>
+    /// próxima apertura (o la realineación del siguiente comando con la
+    /// conexión retenida) la decide <c>TenantRlsConnectionInterceptor</c>
     /// consultando el <see cref="AmbitoEscrituraPrivilegiada"/> que el
     /// llamador ya tiene que haber abierto antes de invocar esto.
     /// </summary>

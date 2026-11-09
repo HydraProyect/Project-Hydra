@@ -493,8 +493,9 @@ public class TenantSelladoInterceptor(ITenantActual tenantActual, ICurrentUserSe
                     // solo en el objeto .NET — la política RLS de
                     // "RegistrosAuditoria" compara contra
                     // current_setting('app.tenant_id'), que
-                    // TenantRlsConnectionInterceptor solo fija UNA VEZ, al
-                    // abrir la conexión, con el tenant de SESIÓN (que puede
+                    // TenantRlsConnectionInterceptor fija al abrir la conexión
+                    // (o al realinear una retenida, antes de este sellado:
+                    // va registrado delante) con el tenant de SESIÓN (que puede
                     // ser null —sin sesión— o distinto del propietario real
                     // —workspace delegado—). Bajo el rol restringido
                     // cae_app_runtime (confirmado en producción, ver

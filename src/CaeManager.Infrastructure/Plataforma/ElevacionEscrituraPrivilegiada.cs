@@ -9,7 +9,8 @@ namespace CaeManager.Infrastructure.Plataforma;
 ///
 /// <summary>
 /// Contraparte de <see cref="Interceptors.TenantRlsConnectionInterceptor"/>:
-/// aquel decide el rol en CADA apertura de conexión consultando
+/// aquel decide el rol en CADA apertura de conexión (y en cada realineación
+/// de una conexión retenida por <c>PuertaAccesoDatos</c>) consultando
 /// <see cref="AmbitoEscrituraPrivilegiada.Actual"/> (que abre y cierra
 /// <c>ElevacionEscrituraAprovisionamientoBehavior</c>, no esta clase — ver el
 /// porqué en <see cref="IElevacionEscrituraPrivilegiada"/>); esta clase solo

@@ -1,12 +1,14 @@
 using System.Data;
 using System.Data.Common;
 using CaeManager.Application.Common;
+using CaeManager.Application.Plataforma;
 using CaeManager.Domain.Empresas;
 using CaeManager.Domain.Tenants;
 using CaeManager.Infrastructure.MultiTenancy;
 using CaeManager.Infrastructure.Persistence;
 using CaeManager.Infrastructure.Persistence.Interceptors;
 using CaeManager.Infrastructure.Persistence.Seed;
+using CaeManager.Infrastructure.Plataforma;
 using FluentAssertions;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.EntityFrameworkCore;
@@ -177,6 +179,93 @@ public class ConexionPorOperacionTests : IAsyncLifetime
         });
 
         aperturas.Aperturas.Should().Be(1);
+    }
+
+    /// <summary>
+    /// La elevación de Aprovisionamiento con la conexión retenida: antes casi
+    /// siempre la encontraba cerrada; ahora la encuentra abierta, hace su
+    /// <c>SET ROLE</c> crudo y lo anota. El rol tiene que seguir al ámbito en
+    /// el comando siguiente —dentro, aprovisionamiento; fuera, o con un ámbito
+    /// de otro Tenant, el de soporte— y la anotación tiene que evitar volver a
+    /// firmar (si faltara, el token cambiaría tras la elevación).
+    /// </summary>
+    [Fact]
+    public async Task La_elevacion_de_aprovisionamiento_sigue_al_ambito_con_la_conexion_retenida()
+    {
+        var puerta = new PuertaAccesoDatos();
+        var sesion = Guid.NewGuid();
+        var seleccion = new SeleccionMutable { SesionPrivilegiadaIdSeleccionada = sesion };
+        var (contexto, aperturas) = CrearContextoRuntime(new TenantMutable(TenantA), seleccion, puerta);
+        await using var _ = contexto;
+        var elevacion = new ElevacionEscrituraPrivilegiada(contexto);
+
+        await puerta.EjecutarAsync(async () =>
+        {
+            (await RolActualAsync(contexto)).Should().Be(("cae_app_soporte", true), "control: soporte antes del ámbito");
+
+            using (AmbitoEscrituraPrivilegiada.Establecer(sesion, TenantA))
+            {
+                await elevacion.ElevarSiConexionAbiertaAsync();
+                var tokenTrasElevar = await TokenAsync(contexto);
+                (await RolActualAsync(contexto)).Rol.Should().Be("cae_app_aprovisionamiento",
+                    "dentro del ámbito, con la conexión ya abierta, el comando corre con el rol de escritura acotada");
+                (await TokenAsync(contexto)).Should().Be(tokenTrasElevar,
+                    "el rol adoptado por la elevación queda anotado: no hay que volver a firmar");
+                await elevacion.DevolverSiConexionAbiertaAsync();
+            }
+
+            (await RolActualAsync(contexto)).Should().Be(("cae_app_soporte", true),
+                "fuera del ámbito el rol vuelve al de solo lectura");
+
+            using (AmbitoEscrituraPrivilegiada.Establecer(sesion, TenantB))
+            {
+                (await RolActualAsync(contexto)).Should().Be(("cae_app_soporte", true),
+                    "un ámbito de otro Tenant no eleva nada");
+            }
+
+            using (AmbitoEscrituraPrivilegiada.Establecer(sesion, TenantA))
+            {
+                (await RolActualAsync(contexto)).Rol.Should().Be("cae_app_aprovisionamiento",
+                    "sin la llamada explícita a Elevar, la realineación del comando adopta el rol del ámbito");
+            }
+
+            (await RolActualAsync(contexto)).Should().Be(("cae_app_soporte", true),
+                "y sin Devolver, el comando siguiente al ámbito lo deshace");
+        });
+
+        aperturas.Aperturas.Should().Be(1);
+    }
+
+    [Fact]
+    public async Task Un_cambio_de_Tenant_entre_dos_transacciones_de_la_misma_operacion_llega_a_la_segunda()
+    {
+        var puerta = new PuertaAccesoDatos();
+        var tenant = new TenantMutable(TenantA);
+        var (contexto, aperturas) = CrearContextoRuntime(tenant, new SeleccionMutable(), puerta);
+        await using var _ = contexto;
+        var estrategia = contexto.Database.CreateExecutionStrategy();
+
+        var (primera, segunda) = await puerta.EjecutarAsync(async () =>
+        {
+            var enPrimera = await EnTransaccionAsync();
+            tenant.TenantId = TenantB;
+            // Sin comando entre medias: la realineación tiene que ocurrir al
+            // empezar la transacción, porque dentro de ella ya no se realinea.
+            var enSegunda = await EnTransaccionAsync();
+            return (enPrimera, enSegunda);
+        });
+
+        primera.Should().Equal([TenantA], "control positivo de la primera transacción");
+        segunda.Should().Equal([TenantB], "la segunda transacción empieza con el contexto nuevo");
+        aperturas.Aperturas.Should().Be(1);
+
+        Task<List<Guid>> EnTransaccionAsync() => estrategia.ExecuteAsync(async () =>
+        {
+            await using var transaccion = await contexto.Database.BeginTransactionAsync();
+            var visibles = await TenantsVisiblesAsync(contexto);
+            await transaccion.CommitAsync();
+            return visibles;
+        });
     }
 
     [Fact]

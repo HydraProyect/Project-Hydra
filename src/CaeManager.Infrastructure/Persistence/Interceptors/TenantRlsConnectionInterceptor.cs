@@ -14,7 +14,8 @@ namespace CaeManager.Infrastructure.Persistence.Interceptors;
 /// <summary>
 /// Segunda línea de aislamiento por tenant, bajo el filtro global de EF Core
 /// (ver Project-Hydra-Negocio/tecnico/docs/MULTITENANCY.md § 4.2 y Project-Hydra-Negocio/tecnico/RUNBOOK-RLS.md). En cada apertura de
-/// conexión Npgsql fija la variable de sesión <c>app.tenant_id</c>, que las
+/// conexión Npgsql, y en cada realineación de una conexión que sigue abierta
+/// (retenida por la operación de <c>PuertaAccesoDatos</c>), fija la variable de sesión <c>app.tenant_id</c>, que las
 /// políticas de Row-Level Security creadas por la migración
 /// <c>HabilitarRlsPostgres</c> usan para filtrar filas incluso si una
 /// consulta se saltara el <c>HasQueryFilter</c> (<c>IgnoreQueryFilters</c>
@@ -501,7 +502,8 @@ public class TenantRlsConnectionInterceptor(
         DbContextEventData eventData, InterceptionResult<int> result, CancellationToken cancellationToken)
     {
         if (eventData.Context is { } contexto && contexto.Database.CurrentTransaction is null)
-            await AlinearSiCambioAsync(contexto.Database.GetDbConnection(), cancellationToken);
+            // La conexión de EF de este contexto (la misma que abre y cierra este interceptor), no una nueva.
+            await AlinearSiCambioAsync(contexto.GetService<IRelationalConnection>().DbConnection, cancellationToken);
         return result;
     }
 
