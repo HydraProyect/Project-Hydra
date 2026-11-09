@@ -97,7 +97,6 @@
                    anuncie aunque el motivo sea el mismo; si la descarga sale bien, la tarjeta desaparece y el foco pasa al cuerpo. *@
                 @if (_errorDescarga is not null)
                 {
-                    var reintentando = _generando || _cargando;
                     <div class="paquete-error-descarga" role="alert">
                         <span class="paquete-error-etiqueta">@Textos["ErrorDescargaEtiqueta"]</span>
                         <span class="paquete-error-titulo">@Textos["ErrorDescargaTitulo"]</span>
@@ -109,7 +108,7 @@
                         {
                             <span class="paquete-error-acciones">
                                 <Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno" class="paquete-reintentar" OnClick="ReintentarAsync"
-                                       aria-disabled="@(reintentando ? "true" : null)" aria-busy="@(_generando ? "true" : null)">
+                                       aria-disabled="@(_generando ? "true" : null)" aria-busy="@(_generando ? "true" : null)">
                                     @if (_generando)
                                     {
                                         <span class="paquete-reintentar-spinner" aria-hidden="true"></span>

@@ -44,8 +44,11 @@ div.paquete-estado { display: flex; align-items: center; gap: 12px; flex-wrap: w
 .paquete-error-titulo { font: 600 14px/20px var(--font-family); color: var(--color-text); }
 .paquete-error-motivo { font: var(--font-caption); color: var(--color-text-muted); }
 .paquete-error-acciones { display: flex; gap: 8px; }
-/* «Reintentar» en espera no lleva `disabled` (perdería el foco): se ve como el disabled de Boton y con su spinner. */
-.paquete-dialogo ::deep .paquete-reintentar[aria-disabled="true"] { cursor: not-allowed; opacity: 0.55; }
+/* «Reintentar» en espera no lleva `disabled` (perdería el foco): se ve como el disabled de Boton y con su spinner, y sin el
+   hover ni el active de Boton, que se fijan en :not(:disabled). */
+.paquete-dialogo ::deep .paquete-reintentar[aria-disabled="true"] { opacity: 0.55; pointer-events: none; }
+/* El cuerpo solo recibe el foco por script (tabindex=-1, al irse «Reintentar» tras un reintento bueno): sin aro alrededor. */
+.paquete-cuerpo:focus { outline: none; }
 .paquete-reintentar-spinner {
     width: 14px; height: 14px; border-radius: var(--radius-full);
     border: 2px solid currentColor; border-top-color: transparent; animation: paquete-girar 0.6s linear infinite;

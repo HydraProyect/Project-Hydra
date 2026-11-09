@@ -826,6 +826,29 @@ public partial class Empresa360PaginaTests : BunitContext
     }
 
     [Fact]
+    public void Si_se_cierra_el_dialogo_durante_el_reintento_no_se_mueve_el_foco_al_salir_bien()
+    {
+        var modulo = new ModuloDescargaQueAnota { Respuesta = new BotonPaqueteEmpresa.RespuestaDescarga(false, 0, null) };
+        Services.AddSingleton<IJSRuntime>(new JsConImportacionRetenida(JSInterop.JSRuntime, Task.FromResult<IJSObjectReference>(modulo)));
+        var cut = AbrirPaquete(Registrar(Empresa()));
+        cut.Find("[role=dialog] .paquete-generar").Click();
+        cut.WaitForAssertion(() => cut.FindAll("[role=dialog] .paquete-reintentar").Should().ContainSingle());
+        var espera = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        modulo.Retener = espera.Task;
+        modulo.Respuesta = new BotonPaqueteEmpresa.RespuestaDescarga(true, 200, null);
+        cut.Find("[role=dialog] .paquete-reintentar").Click();
+
+        cut.Find("[role=dialog] .modal-cerrar").Click();
+        espera.SetResult();
+
+        // Cerrado, el foco ya volvió a quien abrió el diálogo: llevarlo a un cuerpo que no se ve se lo quitaría.
+        cut.WaitForAssertion(() => cut.FindComponent<BotonPaqueteEmpresa>().Instance.GetType()
+            .GetField("_generando", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!
+            .GetValue(cut.FindComponent<BotonPaqueteEmpresa>().Instance).Should().Be(false));
+        JSInterop.Invocations.Where(i => i.Identifier.EndsWith(".focus", StringComparison.Ordinal)).Should().BeEmpty();
+    }
+
+    [Fact]
     public void Por_encima_de_200_archivos_no_ofrece_Generar_ZIP_y_explica_el_limite()
     {
         var mediador = Registrar(Empresa());
@@ -1083,7 +1106,7 @@ public partial class Empresa360PaginaTests : BunitContext
     }
 
     [Fact]
-    public void Una_apertura_anterior_que_termina_tarde_no_toca_el_error_de_la_apertura_actual()
+    public async Task Una_apertura_anterior_que_termina_tarde_no_toca_el_error_de_la_apertura_actual()
     {
         var (cut, mediador, _) = FallarArbekoConElDialogoCerrado();
         // La carga del destino que falló (Grupo Arbeko) queda retenida y fallará; la de la apertura nueva falla la primera vez.
@@ -1107,10 +1130,10 @@ public partial class Empresa360PaginaTests : BunitContext
         var consultasAntes = mediador.Enviadas.OfType<ObtenerResumenPaqueteEmpresaQuery>().Count();
 
         arbeko.SetResult();
-        arbekoRespondido.Task.Wait(TimeSpan.FromSeconds(5)).Should().BeTrue();
+        await arbekoRespondido.Task.WaitAsync(TimeSpan.FromSeconds(5));
         // La respuesta y la continuación de la primera apertura corren en el mismo turno del dispatcher: un turno vacío después
         // garantiza que ya terminó.
-        cut.InvokeAsync(() => { }).Wait();
+        await cut.InvokeAsync(() => { });
 
         // La continuación de la primera apertura no puede leer el error de esta como suyo ni lanzar la apertura normal encima.
         mediador.Enviadas.OfType<ObtenerResumenPaqueteEmpresaQuery>().Should().HaveCount(consultasAntes);
