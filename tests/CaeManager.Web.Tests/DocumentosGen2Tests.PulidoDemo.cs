@@ -77,7 +77,7 @@ public partial class DocumentosGen2Tests
     }
 
     [Fact]
-    public void Sin_fecha_de_vencimiento_el_motivo_sigue_diciendo_que_falta()
+    public void Sin_confirmar_sin_fecha_el_motivo_sigue_diciendo_que_falta()
     {
         var documento = DocumentoDeFila() with { FechaVencimiento = null, Estado = EstadoDocumento.SinConfirmar };
         var (cut, _) = Renderizar(ConDocumentos(documento));

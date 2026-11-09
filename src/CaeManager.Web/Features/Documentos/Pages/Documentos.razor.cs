@@ -211,7 +211,7 @@ public partial class Documentos : CaeManager.Web.Components.PaginaInteractiva, I
             // es una pantalla hermana, no una vista de esta página: su pestaña lleva a /incidencias en vez de cambiar
             // el contenido, y solo se ofrece a los roles que esa pantalla abre (los mismos que la barra de sección).
             if (_puedeVerIncidencias)
-                pestanas.Add(new(IdPestanaIncidencias, "Incidencias", "incidencias"));
+                pestanas.Add(new(IdPestanaIncidencias, Textos["PestanaIncidencias"].Value, "incidencias"));
 
             return pestanas;
         }
@@ -904,10 +904,10 @@ public partial class Documentos : CaeManager.Web.Components.PaginaInteractiva, I
     /// <summary>
     /// El motivo bajo la pastilla de Estado de la fila. Con el relativo de la fecha ya en «Vence» («hace 88 días») no se
     /// repite en «Estado»; sí cuando «Vence» no lo muestra (ordenada por emisión, que pone la fecha de emisión) o no hay
-    /// fecha de vencimiento (Sin confirmar, que explica qué falta).
+    /// fecha que mostrar (Sin confirmar, que explica qué falta).
     /// </summary>
     private string? MotivoDeLaFila(DocumentoListaDto documento) =>
-        _ordenVigenciaPorEmision || documento.FechaVencimiento is null || documento.Estado == EstadoDocumento.SinConfirmar
+        _ordenVigenciaPorEmision || documento.Estado == EstadoDocumento.SinConfirmar
             ? EstadoDocumentoUi.MotivoDeDocumento(documento.Estado, documento.FechaVencimiento, _hoy)
             : null;
 

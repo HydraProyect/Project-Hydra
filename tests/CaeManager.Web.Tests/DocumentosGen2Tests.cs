@@ -468,8 +468,8 @@ public partial class DocumentosGen2Tests : BunitContext
     }
 
     /// <summary>
-    /// «Todos los documentos» de la barra de sección enlaza a «documentos» sin parámetro: desde otra pestaña, la misma
-    /// instancia de la página solo ve desaparecer «?pestana=» y tiene que volver al listado (la barra la marca activa).
+    /// «Todos los documentos» (menú lateral, la barra de sección de /incidencias o un enlace guardado) apunta a «documentos» sin parámetro: desde otra pestaña, la misma
+    /// instancia de la página solo ve desaparecer «?pestana=» y tiene que volver al listado.
     /// </summary>
     [Fact]
     public void Quitar_el_parametro_pestana_de_la_URL_devuelve_el_listado()

@@ -11,7 +11,7 @@
     min-width: 0;
 }
 
-/* La pastilla se recorta con puntos suspensivos antes que salirse de su celda y tapar la columna de al lado (el texto completo va en su title). */
+/* La pastilla se recorta antes que salirse de su celda y tapar la columna de al lado (el texto completo va en su title y en la ventana de contexto de la fila). */
 .badges-acreditacion-resumen ::deep [data-pieza="pastilla"] {
     min-width: 0;
     overflow: hidden;
