@@ -124,6 +124,33 @@ public class Ficha360VerDocumentoPanelTests : BunitContext
     }
 
     [Fact]
+    public void Ver_solo_sale_en_el_indicador_cuyo_Documento_tiene_archivo_y_el_enlace_al_documento_se_conserva()
+    {
+        this.ConRolDeEscritura(Roles.GestorCae);
+        var cut = Render<PanelDocumentacionBase>(p => p
+            .Add(c => c.Datos, Base())
+            .Add(c => c.OnVerDocumento, EventCallback.Factory.Create<(Guid DocumentoId, string Titulo)>(this, _ => { }))
+            .Add(c => c.OnCorregirDocumento, EventCallback.Factory.Create<Guid>(this, _ => { }))
+            .Add(c => c.DocumentosConArchivo, new HashSet<Guid> { Vigente }));
+
+        var filas = cut.FindAll(".panel-doc-base-fila");
+        // El Documento vencido no tiene archivo en la lista de la ficha: sin «Ver», pero con enlace y «Gestionar».
+        Botones(filas[0]).Should().Equal("Gestionar");
+        filas[0].QuerySelector(".panel-doc-base-nombre a")!.GetAttribute("href").Should().Be($"/documentos/{Vencido}");
+        Botones(filas[2]).Should().Equal("Ver");
+    }
+
+    [Fact]
+    public void Ver_lleva_el_nombre_del_documento_en_su_etiqueta_accesible()
+    {
+        this.ConRolDeEscritura(Roles.GestorCae);
+        var cut = Panel([]);
+
+        var ver = cut.FindAll(".panel-doc-base-fila")[0].QuerySelectorAll("button").Single(b => b.TextContent.Trim() == "Ver");
+        ver.GetAttribute("aria-label").Should().Be("Ver el PDF del documento «Aptitud médica»");
+    }
+
+    [Fact]
     public void Sin_OnVerDocumento_el_cajon_y_el_panel_no_pintan_ni_enlace_ni_Ver()
     {
         this.ConRolDeEscritura(Roles.GestorCae);
@@ -189,6 +216,8 @@ public class Ficha360VerDocumentoPanelTests : BunitContext
         BotonesDeAcciones(filas[0]).Should().Contain(["Ver", "Gestionar"]);
         // Vigente también lleva «Gestionar» discreto en esta pestaña (como en main); sin archivo no hay nada que ver.
         BotonesDeAcciones(filas[1]).Should().NotContain("Ver").And.Contain("Gestionar");
+        filas[0].QuerySelectorAll(".fila-relacion-acciones button").Single(b => b.TextContent.Trim() == "Ver")
+            .GetAttribute("aria-label").Should().Be("Ver el PDF del documento «Seguro de responsabilidad civil»");
     }
 
     [Fact]

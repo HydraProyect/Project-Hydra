@@ -37,6 +37,9 @@ public partial class Trabajador360Gen2Tests
         [
             DocumentoDelTrabajador("Reconocimiento médico", EstadoDocumento.Urgente, new(2025, 10, 1), new(2026, 10, 1), PorVencerId) with { ArchivoUrl = archivo },
             DocumentoDelTrabajador("Documento de identidad", EstadoDocumento.SinConfirmar, new(2026, 5, 31), null, SinConfirmarId) with { ArchivoUrl = archivo },
+            // Los Documentos de la documentación base (el vencido y el vigente): «Ver» sale en su fila solo si la lista los trae con archivo.
+            DocumentoDelTrabajador("Aptitud médica", EstadoDocumento.Vencido, new(2024, 1, 1), new(2025, 1, 1), BaseVencida) with { ArchivoUrl = archivo },
+            DocumentoDelTrabajador("Información Art. 18", EstadoDocumento.Vigente, new(2026, 1, 1), new(2027, 1, 1), BaseVigente) with { ArchivoUrl = archivo },
         ];
         return Renderizar(id);
     }
@@ -128,6 +131,21 @@ public partial class Trabajador360Gen2Tests
         var porVencer = cut.Find(".trabajador360-por-vencer li.fila-relacion");
         porVencer.QuerySelector("a.fila-relacion-nombre").Should().NotBeNull();
         TextosDeBotones(porVencer).Should().Equal("Gestionar");
+        // Documentación base: el indicador tiene Documento pero la lista no trae su archivo; sin PDF no hay «Ver».
+        cut.FindAll(".panel-doc-base-fila").Select(TextosDeBotones).Should().Equal(
+            new List<string>[] { ["Gestionar"], ["Gestionar"], [] }, (a, b) => a.SequenceEqual(b));
+        cut.FindAll(".panel-doc-base-fila")[0].QuerySelector(".panel-doc-base-nombre a")!.GetAttribute("href").Should().Be($"/documentos/{BaseVencida}");
+    }
+
+    [Fact]
+    public void Ver_de_franjas_y_documentacion_base_lleva_el_nombre_del_documento_en_su_etiqueta_accesible()
+    {
+        var cut = OperacionConDocumentos();
+
+        var ver = cut.Find(".trabajador360-por-vencer li.fila-relacion").QuerySelectorAll("button").Single(b => b.TextContent.Trim() == "Ver");
+        ver.GetAttribute("aria-label").Should().Be("Ver el PDF del documento «Reconocimiento médico»");
+        var verSinConfirmar = cut.Find("[aria-label='Vigencia sin confirmar'] li.fila-relacion").QuerySelectorAll("button").Single(b => b.TextContent.Trim() == "Ver");
+        verSinConfirmar.GetAttribute("aria-label").Should().Be("Ver el PDF del documento «Documento de identidad»");
     }
 
     [Theory]

@@ -87,7 +87,9 @@
                         </span>
                         <span class="panel-doc-base-estado"><Badge Tono="TonoDe(indicador.Estado)" Tamano="TamanoBadge.Pequeno">@TextoEstado(indicador)</Badge></span>
                         @{
-                            var verId = OnVerDocumento.HasDelegate ? indicador.DocumentoId : null;
+                            var verId = OnVerDocumento.HasDelegate && indicador.DocumentoId is { } candidatoVer
+                                        && (DocumentosConArchivo is null || DocumentosConArchivo.Contains(candidatoVer))
+                                ? indicador.DocumentoId : null;
                             var pideTrabajo = indicador.Estado is EstadoIndicadorBase.Vencido or EstadoIndicadorBase.SinConfirmar or EstadoIndicadorBase.ProximoAVencer;
                             Guid? gestionaDocumentoId = OnCorregirDocumento.HasDelegate && pideTrabajo ? indicador.DocumentoId : null;
                             var gestionaFaltante = gestionaDocumentoId is null && OnSubirFaltante.HasDelegate && indicador.Estado == EstadoIndicadorBase.Falta;
@@ -157,6 +159,12 @@
     /// nombre de esa fila enlaza a la ficha 360 del Documento y lleva «Ver»; sin él (cajón, panel) la fila no cambia.
     /// </summary>
     [Parameter] public EventCallback<(Guid DocumentoId, string Titulo)> OnVerDocumento { get; set; }
+
+    /// <summary>
+    /// Ids de los Documentos de la ficha que tienen archivo. El indicador de documentación base no trae el archivo, así que
+    /// «Ver» solo se ofrece a un Documento de este conjunto; con null (el host no lo sabe) se ofrece a todo indicador con Documento.
+    /// </summary>
+    [Parameter] public IReadOnlySet<Guid>? DocumentosConArchivo { get; set; }
 
     protected override async Task OnParametersSetAsync()
     {

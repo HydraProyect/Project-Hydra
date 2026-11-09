@@ -192,6 +192,13 @@ public partial class TrabajadorDetalle : CaeManager.Web.Components.PaginaInterac
     /// ObtenerDocumentosQuery que la pestaña del panel, con su alcance.
     /// </summary>
     private IReadOnlyList<DocumentoListaDto> _documentos = [];
+
+    /// <summary>
+    /// Ids de los Documentos cargados que tienen archivo: el indicador de documentación base no trae el archivo, y «Ver» solo
+    /// se ofrece donde hay PDF. Un Documento fuera del tope de carga de la lista no aparece aquí y no muestra «Ver» (sigue el enlace).
+    /// </summary>
+    private IReadOnlySet<Guid> DocumentosConArchivo =>
+        _documentos.Where(d => d.ArchivoUrl is not null).Select(d => d.Id).ToHashSet();
     private int _totalDocumentos;
 
     /// <summary>
