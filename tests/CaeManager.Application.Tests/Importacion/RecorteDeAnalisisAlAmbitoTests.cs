@@ -123,6 +123,47 @@ public class RecorteDeAnalisisAlAmbitoTests
     }
 
     [Fact]
+    public async Task Plantilla_de_importacion_no_da_por_existente_la_asignacion_al_homonimo_fuera_de_ambito_de_un_Centro_visible()
+    {
+        // El Trabajador visible tiene una Asignación activa al Centro «N» de fuera del ámbito; hay otro Centro «N» dentro, sin
+        // Asignación. DNI y nombre de Centro visibles no bastan: la Asignación tiene que estar entre las del ámbito.
+        var (escenario, alcance) = MundoConCentroDeAsignacion(centroVisible: false);
+        var homonimoVisible = new CaeManager.Domain.Centros.Centro(Guid.NewGuid(), Guid.NewGuid(), EscenarioImportacion.CentroConocido);
+        escenario.CentrosContexto.ListaCentros.Add(homonimoVisible);
+        alcance = new ClientesFalsos.AlcanceDatosServiceFalso(
+            tieneAccesoTotal: false,
+            empresaIdsParaGestion: [escenario.EmpresasContexto.ListaEmpresas.Single(e => e.RazonSocial == EscenarioImportacion.EmpresaConocida).Id],
+            trabajadorIdsVisibles: [escenario.TrabajadorExistente!.Id],
+            centroIdsParaGestion: [homonimoVisible.Id]);
+
+        var plan = await escenario.Recorte("CoordinadorCae", alcance).RecortarAsync(PlanConCentroDeAsignacion(existe: true), default);
+
+        plan.Asignaciones.Should().ContainSingle().Which.YaExiste.Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task Plantilla_de_importacion_sin_trabajadores_no_distingue_el_Centro_fuera_de_ambito_de_uno_inexistente()
+    {
+        // Sin Empresas, Trabajadores ni Documentos (hojas vacías o sin configurar) el recorte toma el camino de la plantilla
+        // de Clientes: la fila de Centros_Plataformas tiene que acabar igual en los dos mundos.
+        static PlanImportacionDto SoloCentros(bool existe) => EscenarioImportacion.Plan(clientesCentros:
+        [
+            new ClienteCentroImportadoDto(
+                EscenarioImportacion.CentroConocido, EsCritico: false, Direccion: null, Contacto: null,
+                YaExisteCliente: existe, YaExisteCentro: existe)
+        ]);
+        var (escenario, alcance) = MundoConCentroDeAsignacion(centroVisible: false);
+        var vacio = new ClientesFalsos.AlcanceDatosServiceFalso(
+            tieneAccesoTotal: false, clienteIdsVisibles: [], empresaIdsParaGestion: [], trabajadorIdsVisibles: [], centroIdsParaGestion: []);
+
+        var fuera = await escenario.Recorte("CoordinadorCae", alcance).RecortarAsync(SoloCentros(existe: true), default);
+        var inexistente = await new EscenarioImportacion().Recorte("CoordinadorCae", vacio).RecortarAsync(SoloCentros(existe: false), default);
+
+        fuera.Should().BeEquivalentTo(inexistente, o => o.Excluding(p => p.OperacionId).WithStrictOrdering());
+        fuera.Omitidos.Should().ContainSingle("el control de que la fila no desaparece sin más");
+    }
+
+    [Fact]
     public async Task Plantilla_de_importacion_conserva_el_Centro_de_una_asignacion_dentro_de_ambito()
     {
         var (escenario, alcance) = MundoConCentroDeAsignacion(centroVisible: true);
