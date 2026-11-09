@@ -12,7 +12,7 @@ namespace CaeManager.Web.Features.Empresas.Components;
 /// ZIP» descarga por fetch (<c>wwwroot/js/descarga-archivo.js</c>) del endpoint autenticado con el destino del resumen
 /// anunciado —fijado antes de cualquier espera, y con los destinos deshabilitados mientras se genera, también si se cierra y se reabre el diálogo—, que vuelve a
 /// autorizar y a seleccionar: el resumen es solo lo que se anuncia, y si el servidor rechaza la descarga el motivo se ve en
-/// el diálogo.
+/// el diálogo, en la tarjeta de error de la maqueta con «Reintentar».
 /// </summary>
 public partial class BotonPaqueteEmpresa : IAsyncDisposable
 {
@@ -31,6 +31,7 @@ public partial class BotonPaqueteEmpresa : IAsyncDisposable
     private bool _generando;
     private string? _errorDescarga;
     private bool _errorDescargaSinVer;
+    private Guid? _destinoUltimaDescarga;
     private IJSObjectReference? _modulo;
 
     /// <summary>
@@ -63,11 +64,12 @@ public partial class BotonPaqueteEmpresa : IAsyncDisposable
         if (_generando) return;
 
         // Si la descarga falló mientras el diálogo estaba cerrado, el motivo se enseña en esta apertura (el contrato del diálogo
-        // es que el rechazo del servidor se ve en él); se borra al elegir destino o al generar de nuevo.
+        // es que el rechazo del servidor se ve en él), con el destino de esa descarga y no el primer Cliente empresarial: así
+        // el resumen y «Reintentar» son los del paquete que falló. Se borra al elegir destino o al generar de nuevo.
         var conservarError = _errorDescargaSinVer;
         _errorDescargaSinVer = false;
-        _destinoInicialElegido = false;
-        _destinoId = null;
+        _destinoInicialElegido = conservarError;
+        _destinoId = conservarError ? _destinoUltimaDescarga : null;
         _resumen = null;
         if (!conservarError) _errorDescarga = null;
         await CargarAsync();
@@ -137,15 +139,25 @@ public partial class BotonPaqueteEmpresa : IAsyncDisposable
         }
     }
 
-    private async Task GenerarAsync()
+    private Task GenerarAsync() => GenerarAsync(reintento: false);
+
+    /// <summary>
+    /// «Reintentar» de la tarjeta de error: la misma descarga, por la misma llamada y con el destino del resumen anunciado (el
+    /// de la descarga que falló). La tarjeta se queda hasta saber el resultado, para que su botón no salga del DOM con el foco.
+    /// </summary>
+    private Task ReintentarAsync() => GenerarAsync(reintento: true);
+
+    private async Task GenerarAsync(bool reintento)
     {
         if (_generando || _cargando || !OfreceGenerar || _resumen is not { } resumen) return;
 
         // La ruta se fija antes de cualquier espera y sale del resumen anunciado: nada de lo que pase mientras se importa el
         // módulo o se descarga cambia qué paquete se pide.
         var ruta = RutaDescargaDe(resumen);
+        _destinoUltimaDescarga = resumen.ClienteEmpresarialId;
         _generando = true;
-        _errorDescarga = null;
+        if (!reintento) _errorDescarga = null;
+        string? error = null;
         try
         {
             _modulo ??= await JS.InvokeAsync<IJSObjectReference>("import", "./js/descarga-archivo.js");
@@ -155,7 +167,7 @@ public partial class BotonPaqueteEmpresa : IAsyncDisposable
             using var limite = new CancellationTokenSource(TiempoMaximoDeDescarga);
             var respuesta = await _modulo.InvokeAsync<RespuestaDescarga>("descargar", limite.Token, ruta, "paquete-documental.zip");
             if (!respuesta.Ok)
-                _errorDescarga = MensajeDeDescarga(respuesta);
+                error = MensajeDeDescarga(respuesta);
         }
         catch (JSDisconnectedException)
         {
@@ -163,10 +175,11 @@ public partial class BotonPaqueteEmpresa : IAsyncDisposable
         }
         catch (Exception)
         {
-            _errorDescarga = Textos["ErrorDescarga"];
+            error = Textos["ErrorDescarga"];
         }
         finally
         {
+            _errorDescarga = error;
             _errorDescargaSinVer = _errorDescarga is not null && !_abierto;
             _generando = false;
         }

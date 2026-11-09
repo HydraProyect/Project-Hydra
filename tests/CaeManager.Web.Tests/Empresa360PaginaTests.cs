@@ -590,7 +590,28 @@ public partial class Empresa360PaginaTests : BunitContext
         var generar = cut.Find("[role=dialog] .paquete-generar");
         generar.QuerySelectorAll("svg.icono-pequeno[aria-hidden=true]").Should().ContainSingle(
             "la maqueta (§ C) pinta un icono de descarga de 16 px (TamanoIcono.Pequeno) delante del texto");
+        // Es el icono «descargar» y no cualquier SVG pequeño: el marcado tiene que ser el que pinta Icono con ese nombre.
+        var descargar = Render<Icono>(p => p.Add(x => x.Nombre, "descargar").Add(x => x.Tamano, TamanoIcono.Pequeno));
+        generar.QuerySelector("svg")!.MarkupMatches(descargar.Markup);
         generar.TextContent.Trim().Should().Be("Generar ZIP", "el icono es decorativo: el nombre accesible no cambia");
+    }
+
+    [Fact]
+    public void Mientras_se_genera_Generar_ZIP_pinta_el_spinner_y_no_el_icono_de_descarga()
+    {
+        var importacion = new TaskCompletionSource<IJSObjectReference>(TaskCreationOptions.RunContinuationsAsynchronously);
+        Services.AddSingleton<IJSRuntime>(new JsConImportacionRetenida(JSInterop.JSRuntime, importacion.Task));
+        var cut = AbrirPaquete(Registrar(Empresa()));
+
+        cut.Find("[role=dialog] .paquete-generar").Click();
+
+        var generando = cut.Find("[role=dialog] .paquete-generar");
+        generando.QuerySelectorAll(".boton-spinner").Should().ContainSingle("Boton pinta su spinner mientras se genera");
+        generando.QuerySelectorAll("svg").Should().BeEmpty("el spinner sustituye al icono: los dos a la vez no son la maqueta");
+
+        importacion.SetResult(new ModuloDescargaQueAnota());
+        cut.WaitForAssertion(() => cut.Find("[role=dialog] .paquete-generar").QuerySelectorAll("svg").Should().ContainSingle(
+            "terminada la descarga vuelve el icono"));
     }
 
     [Fact]
@@ -610,8 +631,16 @@ public partial class Empresa360PaginaTests : BunitContext
         detalle.Should().Contain(".contenedor-pagina ::deep .boton.empresa360-accion-cabecera",
             "el botón de «Preparar paquete» es un <button>: el selector no puede exigir `a.`");
         detalle.Should().NotContain("a.boton.empresa360-accion-cabecera");
+        System.Text.RegularExpressions.Regex.IsMatch(detalle, @"\.contenedor-pagina ::deep \.boton\.empresa360-accion-cabecera\s*\{\s*font-size:\s*0\.8125rem;\s*\}")
+            .Should().BeTrue("las cuatro acciones de la cabecera miden 13 px (0.8125rem) en la maqueta, no los 14 px de .boton-medio");
 
         var paquete = LeerHoja("Components", "BotonPaqueteEmpresa.razor.css");
+        System.Text.RegularExpressions.Regex.IsMatch(paquete, @"\.paquete-destino\s*\{[^}]*font:\s*var\(--font-label-md\);")
+            .Should().BeTrue("las pastillas de destino usan la letra de etiqueta de 13 px de la aplicación");
+        System.Text.RegularExpressions.Regex.IsMatch(paquete, @"\.paquete-cifra\s*\{[^}]*font:\s*700 20px/26px var\(--font-family\);")
+            .Should().BeTrue("la cifra de los recuentos usa la familia de la aplicación");
+        System.Text.RegularExpressions.Regex.IsMatch(paquete, @"\.paquete-faltan-cabecera\s*\{[^}]*font:\s*600 12px/16px var\(--font-family\);")
+            .Should().BeTrue("la cabecera «Faltan» usa la familia de la aplicación");
         System.Text.RegularExpressions.Regex.IsMatch(paquete, @"\.paquete-dialogo ::deep \.modal-contenido-grande\s*\{\s*max-width:\s*600px;")
             .Should().BeTrue("la maqueta (§ C) fija el diálogo en 600 px y Modal solo ofrece 420/520/720");
         System.Text.RegularExpressions.Regex.IsMatch(paquete, @"\.paquete-dialogo\s*\{\s*display:\s*contents;")
@@ -681,8 +710,68 @@ public partial class Empresa360PaginaTests : BunitContext
 
         cut.FindAll("[role=dialog] button").Single(b => b.TextContent.Trim() == "Generar ZIP").Click();
 
-        cut.Find("[role=dialog] .paquete-error-descarga[role=alert]").TextContent.Trim().Should().Be(esperado,
+        cut.Find("[role=dialog] .paquete-error-descarga[role=alert] .paquete-error-motivo").TextContent.Trim().Should().Be(esperado,
             "un 409 o un 403 de la descarga no puede quedarse solo en la barra de descargas del navegador");
+    }
+
+    [Fact]
+    public void El_error_de_la_descarga_es_la_tarjeta_de_la_maqueta_y_Reintentar_repite_la_misma_descarga()
+    {
+        // Maqueta «Mapa Dia a Dia TALVEG.dc.html» § C, «Barra de lote y estados»: «Error», «No pudimos preparar el paquete», el
+        // motivo y «Reintentar». Se elige un destino que no es el inicial para que «el mismo destino» no salga gratis.
+        var modulo = new ModuloDescargaQueAnota { Respuesta = new BotonPaqueteEmpresa.RespuestaDescarga(false, 0, null) };
+        Services.AddSingleton<IJSRuntime>(new JsConImportacionRetenida(JSInterop.JSRuntime, Task.FromResult<IJSObjectReference>(modulo)));
+        var mediador = Registrar(Empresa());
+        var cut = AbrirPaquete(mediador);
+        cut.FindAll(".paquete-destino").Single(b => b.TextContent.Trim() == "Grupo Arbeko").Click();
+        var consultasAntes = mediador.Enviadas.OfType<ObtenerResumenPaqueteEmpresaQuery>().Count();
+
+        cut.Find("[role=dialog] .paquete-generar").Click();
+
+        cut.WaitForAssertion(() => cut.FindAll("[role=dialog] .paquete-error-descarga[role=alert]").Should().ContainSingle());
+        var tarjeta = cut.Find("[role=dialog] .paquete-error-descarga");
+        tarjeta.Children.Select(c => (c.ClassName, c.TextContent.Trim())).Should().Equal(
+            ("paquete-error-etiqueta", "Error"),
+            ("paquete-error-titulo", "No pudimos preparar el paquete"),
+            ("paquete-error-motivo", "No pudimos generar el paquete. Inténtalo de nuevo."),
+            ("paquete-error-acciones", "Reintentar"));
+
+        modulo.Respuesta = new BotonPaqueteEmpresa.RespuestaDescarga(true, 200, null);
+        cut.Find("[role=dialog] .paquete-reintentar").Click();
+
+        cut.WaitForAssertion(() => modulo.Rutas.Should().HaveCount(2));
+        modulo.Rutas.Should().OnlyContain(r => r == $"/empresas/{EmpresaId}/paquete-documental.zip?cliente={OtroClientePaqueteId}",
+            "«Reintentar» repite la misma descarga, con el destino del resumen anunciado");
+        mediador.Enviadas.OfType<ObtenerResumenPaqueteEmpresaQuery>().Should().HaveCount(consultasAntes,
+            "reintentar no vuelve a pedir el resumen ni cambia de destino");
+        cut.WaitForAssertion(() => cut.FindAll("[role=dialog] .paquete-error-descarga").Should().BeEmpty("la descarga salió bien"));
+    }
+
+    [Fact]
+    public void Mientras_se_reintenta_la_tarjeta_y_su_boton_siguen_en_el_dialogo_y_un_fallo_nuevo_cambia_el_motivo()
+    {
+        var modulo = new ModuloDescargaQueAnota { Respuesta = new BotonPaqueteEmpresa.RespuestaDescarga(false, 0, null) };
+        Services.AddSingleton<IJSRuntime>(new JsConImportacionRetenida(JSInterop.JSRuntime, Task.FromResult<IJSObjectReference>(modulo)));
+        var cut = AbrirPaquete(Registrar(Empresa()));
+        cut.Find("[role=dialog] .paquete-generar").Click();
+        cut.WaitForAssertion(() => cut.FindAll("[role=dialog] .paquete-reintentar").Should().ContainSingle());
+        var espera = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        modulo.Retener = espera.Task;
+
+        cut.Find("[role=dialog] .paquete-reintentar").Click();
+
+        // El botón no sale del DOM: si la tarjeta se retirara al empezar, el foco del teclado caería al documento.
+        var reintentar = cut.Find("[role=dialog] .paquete-error-descarga[role=alert] .paquete-reintentar");
+        reintentar.HasAttribute("disabled").Should().BeTrue("no se reintenta dos veces a la vez");
+        reintentar.QuerySelectorAll(".boton-spinner").Should().ContainSingle();
+
+        modulo.Respuesta = new BotonPaqueteEmpresa.RespuestaDescarga(false, 409, "El paquete pasa de 200 archivos. Elige un Cliente concreto para prepararlo.");
+        espera.SetResult();
+
+        cut.WaitForAssertion(() => cut.Find("[role=dialog] .paquete-error-motivo").TextContent.Trim()
+            .Should().Be("El paquete pasa de 200 archivos. Elige un Cliente concreto para prepararlo."));
+        cut.Find("[role=dialog] .paquete-reintentar").HasAttribute("disabled").Should().BeFalse();
+        modulo.Rutas.Should().HaveCount(2);
     }
 
     [Fact]
@@ -884,8 +973,16 @@ public partial class Empresa360PaginaTests : BunitContext
         cut.WaitForAssertion(() => modulo.Rutas.Should().ContainSingle());
         cut.FindAll(".cabecera-identidad-acciones button").Single(b => b.TextContent.Trim() == "Preparar paquete").Click();
 
-        cut.WaitForAssertion(() => cut.Find("[role=dialog] .paquete-error-descarga[role=alert]").TextContent.Trim()
+        cut.WaitForAssertion(() => cut.Find("[role=dialog] .paquete-error-descarga[role=alert] .paquete-error-motivo").TextContent.Trim()
             .Should().Be("El paquete pasa de 200 archivos. Elige un Cliente concreto para prepararlo."));
+        // El diálogo reabre con el destino de la descarga que falló, no con el primer Cliente empresarial: el resumen y
+        // «Reintentar» son los de ese paquete.
+        cut.FindAll(".paquete-destino").Select(b => (b.TextContent.Trim(), b.GetAttribute("aria-pressed")))
+            .Should().Equal(("Refrielectric S.A.", "false"), ("Grupo Arbeko", "false"), ("Todo lo vigente", "true"));
+
+        cut.Find("[role=dialog] .paquete-reintentar").Click();
+        cut.WaitForAssertion(() => modulo.Rutas.Should().HaveCount(2));
+        modulo.Rutas.Last().Should().Be($"/empresas/{EmpresaId}/paquete-documental.zip", "se reintenta «Todo lo vigente», lo que falló");
     }
 
     /// <summary>
@@ -908,7 +1005,10 @@ public partial class Empresa360PaginaTests : BunitContext
     /// <summary>El módulo <c>descarga-archivo.js</c> con la importación retenida: anota cada ruta que se pide.</summary>
     private sealed class ModuloDescargaQueAnota : IJSObjectReference
     {
-        public BotonPaqueteEmpresa.RespuestaDescarga Respuesta { get; init; } = new(true, 200, null);
+        public BotonPaqueteEmpresa.RespuestaDescarga Respuesta { get; set; } = new(true, 200, null);
+
+        /// <summary>Si está puesta, la llamada siguiente espera a que termine y devuelve la <see cref="Respuesta"/> de ese momento.</summary>
+        public Task? Retener { get; set; }
 
         public List<string> Rutas { get; } = [];
 
@@ -922,6 +1022,11 @@ public partial class Empresa360PaginaTests : BunitContext
             identifier.Should().Be("descargar");
             Tokens.Add(cancellationToken);
             Rutas.Add((string)args![0]!);
+            if (Retener is { } espera)
+            {
+                Retener = null;
+                return new ValueTask<TValue>(espera.ContinueWith(_ => (TValue)(object)Respuesta, TaskScheduler.Default));
+            }
             return ValueTask.FromResult((TValue)(object)Respuesta);
         }
 

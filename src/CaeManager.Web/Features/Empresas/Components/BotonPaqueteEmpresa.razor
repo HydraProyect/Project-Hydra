@@ -89,9 +89,22 @@
                     <span class="paquete-formato">@Textos["FormatoZip"]</span>
                 </div>
 
+                @* Tarjeta de error de la maqueta (§ C, «Barra de lote y estados»): etiqueta, título, motivo y «Reintentar», que repite
+                   la misma descarga con el destino del resumen anunciado. Mientras se reintenta la tarjeta sigue en el DOM con el
+                   botón en espera, para que el foco del teclado no se pierda; desaparece si la descarga sale bien. *@
                 @if (_errorDescarga is not null)
                 {
-                    <p class="paquete-error-descarga" role="alert">@_errorDescarga</p>
+                    <div class="paquete-error-descarga" role="alert">
+                        <span class="paquete-error-etiqueta">@Textos["ErrorDescargaEtiqueta"]</span>
+                        <span class="paquete-error-titulo">@Textos["ErrorDescargaTitulo"]</span>
+                        <span class="paquete-error-motivo">@_errorDescarga</span>
+                        @if (OfreceGenerar)
+                        {
+                            <span class="paquete-error-acciones">
+                                <Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno" class="paquete-reintentar" Cargando="_generando" Deshabilitado="_cargando" OnClick="ReintentarAsync">@Textos["Reintentar"]</Boton>
+                            </span>
+                        }
+                    </div>
                 }
             </div>
         }
