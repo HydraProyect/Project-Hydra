@@ -54,8 +54,10 @@ internal static class ConfiguracionDeContexto
 
         opciones.AddInterceptors(
             servicios.GetRequiredService<AuditoriaInterceptor>(),
-            servicios.GetRequiredService<TenantSelladoInterceptor>(),
+            // Delante del sellado: al empezar un SaveChanges con la conexión ya abierta (retenida por la operación de
+            // PuertaAccesoDatos), realinea el contexto RLS antes de que el sellado lo mueva para una fila de Identity.
             servicios.GetRequiredService<TenantRlsConnectionInterceptor>(),
+            servicios.GetRequiredService<TenantSelladoInterceptor>(),
             servicios.GetRequiredService<ConcurrenciaOptimistaInterceptor>(),
             // De transacciones, no de guardado: saca los avisos del estado materializado tras el COMMIT (diseño § 5.3).
             servicios.GetRequiredService<EstadoMaterializado.AvisoEstadoTrasConfirmarInterceptor>(),

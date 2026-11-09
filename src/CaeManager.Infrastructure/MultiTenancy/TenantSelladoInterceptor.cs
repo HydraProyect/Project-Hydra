@@ -349,7 +349,15 @@ public class TenantSelladoInterceptor(ITenantActual tenantActual, ICurrentUserSe
     {
         if (_tenantDeSesionARestaurar is null) return;
 
-        var valorARestaurar = _tenantDeSesionARestaurar;
+        // Restaurar es volver al contexto de base de la conexión. Si la conexión
+        // lo tiene en memoria, manda ese y no el valor anotado al sellar: una
+        // conexión retenida por la operación de la puerta puede haberse
+        // realineado con el contexto actual (TenantRlsConnectionInterceptor) entre
+        // el sellado y esta restauración, y el anotado sería el de antes. Sin
+        // realineación los dos coinciden. Sin contexto firmado, el anotado.
+        var valorARestaurar = FirmanteContextoRls.TryObtenerTenantBase(context.Database.GetDbConnection(), out var tenantBase)
+            ? tenantBase?.ToString() ?? string.Empty
+            : _tenantDeSesionARestaurar;
         try
         {
             await FijarTenantEnSesionRlsAsync(context, valorARestaurar, CancellationToken.None);
@@ -393,8 +401,12 @@ public class TenantSelladoInterceptor(ITenantActual tenantActual, ICurrentUserSe
         // lote, por el mismo camino que el sellado de Identity de abajo. Sin esto,
         // escribir en dos Tenants dentro de una misma transacción (el alta de un
         // Gestor CAE con su cartera, CrearUsuarioCommand) fallaba cerrado con 42501.
-        // Solo con transacción abierta: sin ella la conexión se abre y se cierra
-        // por operación, y una retenida a mano sin transacción queda como estaba.
+        // Solo con transacción abierta: sin ella, una conexión que sigue abierta
+        // (la retenida por la operación de PuertaAccesoDatos, o una abierta a
+        // mano) ya la ha realineado TenantRlsConnectionInterceptor con el
+        // contexto actual al empezar este SaveChanges, antes que este sellado
+        // (va registrado delante, ver ConfiguracionDeContexto), y dentro de una
+        // transacción no se realinea.
         if (context.Database.CurrentTransaction is not null
             && FirmanteContextoRls.TryObtenerTenantVigente(context.Database.GetDbConnection(), out var tenantDeLaConexion)
             && tenantDeLaConexion != tenantId)

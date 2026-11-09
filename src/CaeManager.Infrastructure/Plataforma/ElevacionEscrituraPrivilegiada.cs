@@ -44,5 +44,12 @@ public sealed class ElevacionEscrituraPrivilegiada(CaeManagerDbContext contexto)
         // para SET ROLE y tampoco hace falta ninguno.
         comando.CommandText = $"SET ROLE {rol};";
         await comando.ExecuteNonQueryAsync(cancellationToken);
+
+        // La conexión puede seguir abierta el resto de la operación (retenida
+        // por PuertaAccesoDatos): sin anotarlo, el interceptor tomaría este rol
+        // por un cambio y volvería a aplicar la sesión entera en el siguiente
+        // comando. Solo tras el éxito: si el SET ROLE falla, lo anotado sigue
+        // siendo el rol anterior y el siguiente comando realinea con el deseado.
+        Persistence.Interceptors.TenantRlsConnectionInterceptor.AnotarRolAdoptado(conexion, rol);
     }
 }

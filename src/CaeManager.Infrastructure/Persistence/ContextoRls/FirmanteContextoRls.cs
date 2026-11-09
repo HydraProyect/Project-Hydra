@@ -213,6 +213,26 @@ public sealed class FirmanteContextoRls
         return false;
     }
 
+    /// <summary>
+    /// El Tenant activo del contexto de base de esta conexión: el que fijó
+    /// <c>TenantRlsConnectionInterceptor</c> al abrirla o al realinearla con el
+    /// contexto actual. Para <c>TenantSelladoInterceptor</c>: restaurar tras
+    /// sellar es volver a la base, y la base puede haberse realineado mientras
+    /// la conexión seguía abierta (conexión retenida por la operación de la
+    /// puerta) después de que el sellado anotara qué Tenant restaurar.
+    /// </summary>
+    public static bool TryObtenerTenantBase(DbConnection conexion, out Guid? tenantId)
+    {
+        if (EstadoPorConexion.TryGetValue(conexion, out var estado))
+        {
+            tenantId = estado.Base.TenantId;
+            return true;
+        }
+
+        tenantId = null;
+        return false;
+    }
+
     /// <summary>Olvida el contexto de la conexión (se llama al cerrarla).</summary>
     public static void Olvidar(DbConnection conexion) => EstadoPorConexion.Remove(conexion);
 
