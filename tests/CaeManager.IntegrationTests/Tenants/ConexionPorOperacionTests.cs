@@ -236,6 +236,78 @@ public class ConexionPorOperacionTests : IAsyncLifetime
         aperturas.Aperturas.Should().Be(1);
     }
 
+    /// <summary>
+    /// PostgreSQL deshace con el ROLLBACK el <c>SET ROLE</c> de vuelta hecho
+    /// dentro de la transacción y devuelve la conexión al rol de
+    /// aprovisionamiento que tenía al empezarla. Lo anotado (soporte) ya no es
+    /// la verdad: el comando siguiente, fuera de la transacción, tiene que
+    /// volver a aplicar la sesión y no correr con escritura elevada.
+    /// </summary>
+    [Fact]
+    public async Task Un_rollback_que_deshace_la_vuelta_del_rol_no_deja_escritura_elevada_fuera_del_ambito()
+    {
+        var puerta = new PuertaAccesoDatos();
+        var sesion = Guid.NewGuid();
+        var seleccion = new SeleccionMutable { SesionPrivilegiadaIdSeleccionada = sesion };
+        var (contexto, _) = CrearContextoRuntime(new TenantMutable(TenantA), seleccion, puerta);
+        await using var __ = contexto;
+        var elevacion = new ElevacionEscrituraPrivilegiada(contexto);
+        var estrategia = contexto.Database.CreateExecutionStrategy();
+
+        await puerta.EjecutarAsync(async () =>
+        {
+            var ambito = AmbitoEscrituraPrivilegiada.Establecer(sesion, TenantA);
+            (await RolActualAsync(contexto)).Rol.Should().Be("cae_app_aprovisionamiento", "control: dentro del ámbito");
+
+            var rolDentroTrasDevolver = await estrategia.ExecuteAsync(async () =>
+            {
+                await using var transaccion = await contexto.Database.BeginTransactionAsync();
+                ambito.Dispose();
+                await elevacion.DevolverSiConexionAbiertaAsync();
+                var rol = (await RolActualAsync(contexto)).Rol;
+                await transaccion.RollbackAsync();
+                return rol;
+            });
+            rolDentroTrasDevolver.Should().Be("cae_app_soporte", "control: la vuelta dentro de la transacción se aplicó");
+
+            (await RolActualAsync(contexto)).Should().Be(("cae_app_soporte", true),
+                "tras el ROLLBACK la conexión volvería a aprovisionamiento si nada realineara");
+        });
+    }
+
+    /// <summary>
+    /// Un error transitorio dentro de la transacción: la estrategia de
+    /// reintentos repite la unidad entera sobre la conexión retenida (sin
+    /// reabrirla) y el segundo intento, tras el ROLLBACK del primero, vuelve a
+    /// aplicar la sesión y ve lo del Tenant correcto.
+    /// </summary>
+    [Fact]
+    public async Task Un_reintento_por_error_transitorio_dentro_de_la_operacion_reaplica_la_sesion_y_no_reabre()
+    {
+        var puerta = new PuertaAccesoDatos();
+        var fallo = new FalloTransitorioUnaVez();
+        var (contexto, aperturas) = CrearContextoRuntime(new TenantMutable(TenantA), new SeleccionMutable(), puerta, extra: fallo);
+        await using var _ = contexto;
+        var estrategia = contexto.Database.CreateExecutionStrategy();
+        var intentos = 0;
+
+        var visibles = await puerta.EjecutarAsync(() => estrategia.ExecuteAsync(async () =>
+        {
+            intentos++;
+            await using var transaccion = await contexto.Database.BeginTransactionAsync();
+            fallo.Armado = intentos == 1;
+            var leidos = await TenantsVisiblesAsync(contexto);
+            await transaccion.CommitAsync();
+            return leidos;
+        }));
+
+        fallo.Lanzados.Should().Be(1, "control: el fallo transitorio se produjo de verdad");
+        intentos.Should().Be(2, "la estrategia repitió la unidad");
+        visibles.Should().Equal([TenantA]);
+        aperturas.Aperturas.Should().Be(1, "el reintento reutiliza la conexión retenida");
+        contexto.Database.GetDbConnection().State.Should().Be(ConnectionState.Closed);
+    }
+
     [Fact]
     public async Task Un_cambio_de_Tenant_entre_dos_transacciones_de_la_misma_operacion_llega_a_la_segunda()
     {
@@ -356,7 +428,7 @@ public class ConexionPorOperacionTests : IAsyncLifetime
 
     internal (CaeManagerDbContext Contexto, ContadorAperturas Aperturas) CrearContextoRuntime(
         TenantMutable tenant, SeleccionMutable seleccion, PuertaAccesoDatos puerta, string? cadena = null,
-        Guid? usuarioId = null)
+        Guid? usuarioId = null, IInterceptor? extra = null)
     {
         var aperturas = new ContadorAperturas();
         var opciones = new DbContextOptionsBuilder<CaeManagerDbContext>()
@@ -368,8 +440,9 @@ public class ConexionPorOperacionTests : IAsyncLifetime
                 new TenantRlsConnectionInterceptor(
                     tenant, seleccion, new UsuarioDelTenant(usuarioId ?? Guid.NewGuid(), () => tenant.TenantId),
                     BaseDatosPostgresDePruebas.FirmanteContextoRls, puerta),
-                new TenantSelladoInterceptor(tenant),
+                new TenantSelladoInterceptor(tenant, puertaAccesoDatos: puerta),
                 aperturas)
+            .AddInterceptors(extra is null ? Array.Empty<IInterceptor>() : new[] { extra })
             .Options;
 
         return (new CaeManagerDbContext(opciones, new EphemeralDataProtectionProvider(), tenant), aperturas);
@@ -429,6 +502,32 @@ public class ConexionPorOperacionTests : IAsyncLifetime
         public Task<string?> ObtenerRolEfectivoAsync() => Task.FromResult<string?>("Administrador");
         public Task<Guid?> ObtenerTenantOrigenIdAsync() => Task.FromResult(tenantOrigenId());
         public Task<bool> TieneDobleFactorActivoAsync() => Task.FromResult(true);
+    }
+    /// <summary>
+    /// Lanza una vez, mientras está armado, el mismo tipo de error que la
+    /// estrategia de reintentos de Npgsql trata como transitorio (una
+    /// <see cref="NpgsqlException"/> por E/S), antes de que el comando llegue a
+    /// la base. Va registrado detrás del interceptor RLS, así que la conexión ya
+    /// está alineada y retenida cuando falla.
+    /// </summary>
+    internal sealed class FalloTransitorioUnaVez : DbCommandInterceptor
+    {
+        public bool Armado;
+        public int Lanzados;
+
+        public override ValueTask<InterceptionResult<DbDataReader>> ReaderExecutingAsync(
+            DbCommand command, CommandEventData eventData, InterceptionResult<DbDataReader> result,
+            CancellationToken cancellationToken = default)
+        {
+            if (Armado)
+            {
+                Armado = false;
+                Lanzados++;
+                throw new NpgsqlException("Fallo transitorio de prueba", new System.IO.IOException("corte simulado"));
+            }
+
+            return base.ReaderExecutingAsync(command, eventData, result, cancellationToken);
+        }
     }
     /// <summary>Aperturas físicas de la conexión que EF hizo para este contexto.</summary>
     internal sealed class ContadorAperturas : DbConnectionInterceptor

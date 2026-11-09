@@ -258,6 +258,11 @@ public class TenantRlsConnectionInterceptor(
         if (connection is not NpgsqlConnection npgsql || npgsql.State != System.Data.ConnectionState.Open)
             return;
 
+        // Una transacción terminó sin COMMIT (ROLLBACK, fallo o Dispose sin
+        // confirmar): lo que se fijó dentro se deshizo y lo anotado no lo sabe.
+        if (TransaccionSinConfirmar.TryGetValue(npgsql, out _))
+            Olvidar(npgsql);
+
         var deseada = await SesionDeseadaAsync();
         var conocida = SesionPorConexion.TryGetValue(npgsql, out var aplicada);
         if (conocida && aplicada == deseada)
@@ -409,7 +414,17 @@ public class TenantRlsConnectionInterceptor(
     {
         FirmanteContextoRls.Olvidar(connection);
         SesionPorConexion.Remove(connection);
+        TransaccionSinConfirmar.Remove(connection);
     }
+
+    /// <summary>
+    /// Conexiones con una transacción empezada y aún no confirmada. EF no avisa
+    /// cuando una transacción se deshace por <c>Dispose</c> sin confirmar (no hay
+    /// gancho de rollback para eso), así que se marca al empezar y se desmarca
+    /// solo con el <c>COMMIT</c>: cualquier otro final deja la marca y el
+    /// siguiente uso fuera de transacción olvida lo anotado.
+    /// </summary>
+    private static readonly ConditionalWeakTable<DbConnection, object> TransaccionSinConfirmar = new();
 
     InterceptionResult<DbDataReader> IDbCommandInterceptor.ReaderExecuting(
         DbCommand command, CommandEventData eventData, InterceptionResult<DbDataReader> result)
@@ -507,6 +522,89 @@ public class TenantRlsConnectionInterceptor(
         return result;
     }
 
+    // ── Fin de transacción con deshacer ─────────────────────────────────────
+    //
+    // PostgreSQL deshace con un ROLLBACK (o un ROLLBACK TO SAVEPOINT, que EF usa
+    // dentro de SaveChanges en una transacción del llamador) los SET ROLE y los
+    // set_config de sesión hechos dentro: una elevación o su vuelta, una
+    // renovación, un sellado. Lo anotado en memoria no se deshace con ellos, y
+    // con la conexión retenida el comando siguiente compararía contra una sesión
+    // que ya no es la de la conexión (p. ej. anotado soporte con el rol de
+    // aprovisionamiento restaurado por el ROLLBACK). Se olvida todo: el siguiente
+    // comando fuera de la transacción vuelve a aplicar la sesión entera. El
+    // Dispose sin confirmar no tiene gancho: lo cubre la marca de
+    // TransaccionSinConfirmar, que solo el COMMIT retira.
+
+    DbTransaction IDbTransactionInterceptor.TransactionStarted(
+        DbConnection connection, TransactionEndEventData eventData, DbTransaction result)
+    {
+        MarcarSinConfirmar(connection);
+        return result;
+    }
+
+    ValueTask<DbTransaction> IDbTransactionInterceptor.TransactionStartedAsync(
+        DbConnection connection, TransactionEndEventData eventData, DbTransaction result,
+        CancellationToken cancellationToken)
+    {
+        MarcarSinConfirmar(connection);
+        return ValueTask.FromResult(result);
+    }
+
+    void IDbTransactionInterceptor.TransactionCommitted(DbTransaction transaction, TransactionEndEventData eventData)
+    {
+        if (transaction.Connection is { } conexion)
+            TransaccionSinConfirmar.Remove(conexion);
+    }
+
+    Task IDbTransactionInterceptor.TransactionCommittedAsync(
+        DbTransaction transaction, TransactionEndEventData eventData, CancellationToken cancellationToken)
+    {
+        if (transaction.Connection is { } conexion)
+            TransaccionSinConfirmar.Remove(conexion);
+        return Task.CompletedTask;
+    }
+
+    private static void MarcarSinConfirmar(DbConnection conexion) =>
+        TransaccionSinConfirmar.AddOrUpdate(conexion, Marca);
+
+    private static readonly object Marca = new();
+
+    void IDbTransactionInterceptor.TransactionRolledBack(DbTransaction transaction, TransactionEndEventData eventData) =>
+        OlvidarSiHayConexion(transaction.Connection);
+
+    Task IDbTransactionInterceptor.TransactionRolledBackAsync(
+        DbTransaction transaction, TransactionEndEventData eventData, CancellationToken cancellationToken)
+    {
+        OlvidarSiHayConexion(transaction.Connection);
+        return Task.CompletedTask;
+    }
+
+    void IDbTransactionInterceptor.TransactionFailed(DbTransaction transaction, TransactionErrorEventData eventData) =>
+        OlvidarSiHayConexion(transaction.Connection);
+
+    Task IDbTransactionInterceptor.TransactionFailedAsync(
+        DbTransaction transaction, TransactionErrorEventData eventData, CancellationToken cancellationToken)
+    {
+        OlvidarSiHayConexion(transaction.Connection);
+        return Task.CompletedTask;
+    }
+
+    void IDbTransactionInterceptor.RolledBackToSavepoint(DbTransaction transaction, TransactionEventData eventData) =>
+        OlvidarSiHayConexion(transaction.Connection);
+
+    Task IDbTransactionInterceptor.RolledBackToSavepointAsync(
+        DbTransaction transaction, TransactionEventData eventData, CancellationToken cancellationToken)
+    {
+        OlvidarSiHayConexion(transaction.Connection);
+        return Task.CompletedTask;
+    }
+
+    private static void OlvidarSiHayConexion(DbConnection? conexion)
+    {
+        if (conexion is not null)
+            Olvidar(conexion);
+    }
+
     private async Task AntesDeTransaccionAsync(DbConnection connection, CancellationToken cancellationToken)
     {
         await AlinearSiCambioAsync(connection, cancellationToken);
@@ -554,12 +652,16 @@ public class TenantRlsConnectionInterceptor(
     /// <summary>
     /// Cierre al salir de la operación, sin token de cancelación (es limpieza):
     /// pasa por <see cref="ConnectionClosingAsync"/> (<c>RESET ROLE</c>) y
-    /// <see cref="ConnectionClosedAsync"/>, como cualquier cierre de EF. No
-    /// lanza: si el cierre de EF falla, se cierra la conexión física
-    /// directamente para que no quede abierta fuera de la operación con el
-    /// contexto de este usuario; al reutilizarla, Npgsql descarta la sesión
-    /// (<c>DISCARD ALL</c>) y la apertura siguiente vuelve a prepararla, porque
-    /// <see cref="AplicarAsync"/> parte de olvidar lo anotado.
+    /// <see cref="ConnectionClosedAsync"/>, como cualquier cierre de EF. Si el
+    /// cierre de EF falla, se cierra la conexión física directamente para que
+    /// no quede abierta fuera de la operación con el contexto de este usuario;
+    /// al reutilizarla, Npgsql descarta la sesión (<c>DISCARD ALL</c>) y la
+    /// apertura siguiente vuelve a prepararla, porque <see cref="AplicarAsync"/>
+    /// parte de olvidar lo anotado (olvidarlo antes del segundo intento es lo
+    /// seguro: sin anotación, todo uso posterior aplica la sesión entera y el
+    /// cierre hace <c>RESET ROLE</c>). Si también falla el cierre físico, no se
+    /// absorbe: la operación termina con error (la puerta suelta igualmente) en
+    /// vez de comunicar éxito sin saber si la conexión volvió al pool.
     /// </summary>
     private async ValueTask LiberarAsync(IRelationalConnection conexion)
     {
@@ -578,6 +680,8 @@ public class TenantRlsConnectionInterceptor(
             catch (Exception exCierre)
             {
                 log?.LogError(exCierre, "No se pudo cerrar la conexión física retenida por la operación.");
+                throw new AggregateException(
+                    "No se pudo cerrar la conexión retenida por la operación de acceso a datos.", ex, exCierre);
             }
         }
     }
@@ -633,7 +737,8 @@ public class TenantRlsConnectionInterceptor(
     {
         if (connection.State != System.Data.ConnectionState.Open) return;
 
-        var sinRolAnotado = SesionPorConexion.TryGetValue(connection, out var aplicada) && aplicada.Rol is null;
+        var sinRolAnotado = SesionPorConexion.TryGetValue(connection, out var aplicada) && aplicada.Rol is null
+            && !TransaccionSinConfirmar.TryGetValue(connection, out _);
         if (sinRolAnotado && clienteActivoSeleccionado.SesionPrivilegiadaIdSeleccionada is null) return;
 
         await DeshacerRolAsync(connection, cancellationToken);

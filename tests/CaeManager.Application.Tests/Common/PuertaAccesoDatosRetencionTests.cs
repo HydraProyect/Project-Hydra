@@ -187,6 +187,47 @@ public class PuertaAccesoDatosRetencionTests
     }
 
     [Fact]
+    public async Task Un_flujo_rezagado_que_vuelve_a_entrar_espera_a_la_operacion_que_tiene_la_puerta()
+    {
+        var puerta = new PuertaAccesoDatos();
+        var sigue = new TaskCompletionSource();
+        var segundaDentro = new TaskCompletionSource();
+        var sueltaSegunda = new TaskCompletionSource();
+        var rezagadoEntro = false;
+        Task? rezagado = null;
+
+        await puerta.EjecutarAsync(() =>
+        {
+            rezagado = Task.Run(async () =>
+            {
+                await sigue.Task;
+                await puerta.EjecutarAsync(() =>
+                {
+                    rezagadoEntro = true;
+                    return Task.CompletedTask;
+                });
+            });
+            return Task.CompletedTask;
+        });
+
+        var segunda = puerta.EjecutarAsync(async () =>
+        {
+            segundaDentro.SetResult();
+            await sueltaSegunda.Task;
+        });
+        await segundaDentro.Task;
+
+        sigue.SetResult();
+        await Task.Delay(50);
+        rezagadoEntro.Should().BeFalse(
+            "un flujo de una operación terminada no es reentrada: no corre a la vez que la que tiene la puerta");
+
+        sueltaSegunda.SetResult();
+        await Task.WhenAll(segunda, rezagado!);
+        rezagadoEntro.Should().BeTrue("entra como operación nueva cuando la puerta queda libre");
+    }
+
+    [Fact]
     public async Task Si_adquirir_lanza_no_queda_nada_retenido()
     {
         var puerta = new PuertaAccesoDatos();

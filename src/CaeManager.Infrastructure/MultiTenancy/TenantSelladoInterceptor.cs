@@ -21,7 +21,7 @@ namespace CaeManager.Infrastructure.MultiTenancy;
 /// mismo principio arquitectónico que <c>AuditoriaInterceptor</c> para los
 /// campos de auditoría.
 /// </summary>
-public class TenantSelladoInterceptor(ITenantActual tenantActual, ICurrentUserService? currentUserService = null)
+public class TenantSelladoInterceptor(ITenantActual tenantActual, ICurrentUserService? currentUserService = null, PuertaAccesoDatos? puertaAccesoDatos = null)
     : SaveChangesInterceptor, IDbCommandInterceptor, IDbTransactionInterceptor
 {
     /// <summary>
@@ -169,24 +169,37 @@ public class TenantSelladoInterceptor(ITenantActual tenantActual, ICurrentUserSe
     public override ValueTask<InterceptionResult> ThrowingConcurrencyExceptionAsync(
         ConcurrencyExceptionEventData eventData, InterceptionResult result, CancellationToken cancellationToken = default)
     {
-        DiferirRestauracion(result);
+        DiferirRestauracion(eventData.Context, result);
         return base.ThrowingConcurrencyExceptionAsync(eventData, result, cancellationToken);
+
     }
 
     /// <summary>Versión síncrona — ver <see cref="ThrowingConcurrencyExceptionAsync"/>.</summary>
     public override InterceptionResult ThrowingConcurrencyException(
         ConcurrencyExceptionEventData eventData, InterceptionResult result)
     {
-        DiferirRestauracion(result);
+        DiferirRestauracion(eventData.Context, result);
         return base.ThrowingConcurrencyException(eventData, result);
     }
 
-    private void DiferirRestauracion(InterceptionResult result)
+    private void DiferirRestauracion(DbContext? context, InterceptionResult result)
     {
-        if (!result.IsSuppressed && _tenantDeSesionARestaurar is not null)
-            _restauracionDiferida = true;
-    }
+        if (result.IsSuppressed || _tenantDeSesionARestaurar is null) return;
 
+        _restauracionDiferida = true;
+
+        // Con la conexión retenida por la operación de PuertaAccesoDatos, el
+        // "siguiente comando" puede no llegar antes de que la operación salga:
+        // la apertura explícita del sellado dejaría la conexión abierta fuera
+        // de la operación con el Tenant de la cuenta. Se restaura (y se cierra
+        // esa apertura) al salir, antes de que la puerta suelte la conexión
+        // (libera en orden inverso a la retención, y la conexión se retuvo en
+        // el primer comando). Fuera de una operación, como siempre: el
+        // siguiente comando EF o SaveChanges de este contexto.
+        if (puertaAccesoDatos is not null && context is not null)
+            puertaAccesoDatos.RetenerHastaSalir(
+                this, static () => { }, () => new ValueTask(RestaurarSiEstaDiferidaAsync(context)));
+    }
     /// <summary>
     /// Ejecuta la restauración que <see cref="ThrowingConcurrencyExceptionAsync"/>
     /// dejó diferida. Se invoca desde los comandos EF de este contexto (ver

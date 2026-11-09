@@ -170,7 +170,7 @@ public sealed class PuertaAccesoDatos
 
     public async Task<T> EjecutarAsync<T>(Func<Task<T>> operacion, CancellationToken cancellationToken = default)
     {
-        if (_flujoDentro.Value is not null)
+        if (EsReentrada())
             return await operacion();
 
         await AdquirirAsync(cancellationToken);
@@ -187,7 +187,7 @@ public sealed class PuertaAccesoDatos
 
     public async Task EjecutarAsync(Func<Task> operacion, CancellationToken cancellationToken = default)
     {
-        if (_flujoDentro.Value is not null)
+        if (EsReentrada())
         {
             await operacion();
             return;
@@ -234,6 +234,17 @@ public sealed class PuertaAccesoDatos
         return enCurso.Retener(recurso, adquirir, liberar);
     }
 
+    /// <summary>
+    /// Reentrada: el flujo pertenece a la operación que tiene la puerta ahora
+    /// (un <c>Send</c> anidado, o una tarea hija que la operación aún espera).
+    /// Un flujo rezagado de una operación ya terminada hereda el
+    /// <c>AsyncLocal</c> pero no es reentrada: entra por el semáforo como una
+    /// operación nueva, porque si no correría a la vez que la operación que sí
+    /// tiene la puerta, sobre el mismo <c>DbContext</c> y la conexión que esa
+    /// operación retiene, o después de <see cref="CerrarAsync"/>.
+    /// </summary>
+    private bool EsReentrada() =>
+        _flujoDentro.Value is { } enCurso && ReferenceEquals(enCurso, Volatile.Read(ref _operacionEnCurso));
     private OperacionEnCurso Entrar()
     {
         var enCurso = new OperacionEnCurso();
