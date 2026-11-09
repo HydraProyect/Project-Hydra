@@ -568,9 +568,10 @@ public partial class TrabajadorDetalle : CaeManager.Web.Components.PaginaInterac
 
             _estadoTrabajador = fila.Elementos.FirstOrDefault();
 
-            // RendererInfo.IsInteractive: OnParametersSetAsync (y por tanto
-            // CargarAsync) también corre durante el prerenderizado estático
-            // de una carga en frío — un "_ = " sin await ahí deja la tarea
+            // Guarda defensiva (la página ya no se prerenderiza; hoy la condición es
+            // siempre cierta). RendererInfo.IsInteractive: si volviera el prerender,
+            // OnParametersSetAsync (y por tanto CargarAsync) también correría durante
+            // el prerenderizado estático de una carga en frío — un "_ = " sin await ahí deja la tarea
             // de gestiones en vuelo cuando ASP.NET Core ya dio por completada
             // esa fase y libera el scope de DI, tirando el DbContext a mitad
             // de consulta (reproducido en vivo: "Connection is not open",

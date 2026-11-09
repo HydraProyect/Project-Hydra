@@ -445,15 +445,15 @@ public partial class CentroDetalle : CaeManager.Web.Components.PaginaInteractiva
                     _bloqueos = [];
             }
 
-            // RendererInfo.IsInteractive: mismo motivo que TrabajadorDetalle
-            // (ver ese commit) — OnParametersSetAsync también corre durante
-            // el prerenderizado estático de una carga en frío, y un "_ = "
-            // sin await ahí deja esta tarea en vuelo cuando ASP.NET Core ya
-            // liberó el scope de DI al terminar esa fase, tirando el
-            // DbContext a mitad de consulta (reportado en producción vía
-            // Sentry: ObjectDisposedException sobre IServiceProvider,
-            // mismo patrón exacto de pila que causó la carga en frío
-            // colgada de Trabajador 360).
+            // Guarda defensiva, mismo motivo que TrabajadorDetalle: la página ya no se
+            // prerenderiza (prerender: false), pero si volviera a hacerlo,
+            // OnParametersSetAsync correría también en el prerenderizado estático
+            // de una carga en frío, y un "_ = " sin await ahí dejaría esta tarea
+            // en vuelo cuando ASP.NET Core ya liberó el scope de DI al terminar esa
+            // fase, tirando el DbContext a mitad de consulta (reportado en
+            // producción vía Sentry: ObjectDisposedException sobre
+            // IServiceProvider, mismo patrón exacto de pila que causó la carga en
+            // frío colgada de Trabajador 360). Hoy la condición es siempre cierta.
             if (RendererInfo.IsInteractive)
                 _ = CargarCanalesAsync();
         }
