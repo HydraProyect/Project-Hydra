@@ -38,8 +38,8 @@ namespace CaeManager.IntegrationTests.Subcontratas;
 /// <para>
 /// Escenario, en el Tenant propietario de la sesión. La Subcontrata S (Empresa empleadora) trabaja para dos Clientes
 /// empresariales; el Gestor CAE solo tiene en su cartera al Cliente A. Dos tipos de documento de Trabajador exigidos, la
-/// Formación (bloquea el acceso en los tres Centros con plataforma) y la Aptitud médica (sin fila de Centro, obligatoria por
-/// defecto):
+/// Formación (bloquea el acceso en los tres Centros con plataforma) y la Aptitud médica (obligatoria por defecto; C2 y C5
+/// la excluyen con una fila de Centro «incluido» en falso):
 /// <list type="bullet">
 /// <item>C1 (Cliente A): «Ana», de S, con los dos al día y la Formación validada en la plataforma del Centro; y «Pepe», de
 /// la Empresa propia, sin documentos (no es de S: ni la consulta ni el lote lo cuentan).</item>
@@ -176,10 +176,11 @@ public class CumplimientoPorCentrosEnLoteBajoRlsTests : IAsyncLifetime
     [InlineData(1)]
     [InlineData(2)]
     [InlineData(3)]
+    [InlineData(5)]
     public async Task El_lote_de_un_solo_Centro_coincide_con_su_consulta_propia_visible_o_no(int numeroDeCentro)
     {
         using var reloj = RelojDePrueba.FijarEn(_instante);
-        var centro = numeroDeCentro switch { 1 => _centro1, 2 => _centro2, _ => _centro3 };
+        var centro = numeroDeCentro switch { 1 => _centro1, 2 => _centro2, 3 => _centro3, _ => _centro5 };
         var (lote, porCentro) = Handlers(_runtimeDelGestor, AlcanceDelGestor(), UsuarioGestor());
 
         var delLote = await lote.Handle(new ObtenerCumplimientoDeAsignacionesPorCentrosQuery([centro], _subcontrata), CancellationToken.None);
@@ -216,8 +217,8 @@ public class CumplimientoPorCentrosEnLoteBajoRlsTests : IAsyncLifetime
     }
 
     /// <summary>
-    /// Sin restricción de alcance (Administrador) el lote también nombra el Centro del Cliente B, y los tres siguen
-    /// coincidiendo con su consulta propia: control positivo de que lo que el Gestor no ve existe y se calcula.
+    /// Sin restricción de alcance (Administrador) el lote también nombra el Centro del Cliente B, y los cuatro Centros con
+    /// Asignaciones de S siguen coincidiendo con su consulta propia: control positivo de que lo que el Gestor no ve existe y se calcula.
     /// </summary>
     [Fact]
     public async Task Sin_restriccion_de_alcance_el_lote_incluye_el_Centro_del_Cliente_B_y_coincide_Centro_a_Centro()
