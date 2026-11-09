@@ -321,6 +321,8 @@ public partial class Centro360Gen2Tests
             new(asalariado.TrabajadorId, asalariado.TrabajadorNombre, "Eco S.L.", new DateOnly(2026, 1, 9))];
         var cut = Renderizar360(id);
         cut.WaitForAssertion(() => cut.FindAll("[data-empleador]").Should().ContainSingle().Which.TextContent.Should().Be("Eco S.L."));
+        // El empleador se corta con puntos suspensivos en pantallas estrechas: el nombre completo queda en el title.
+        cut.Find("[data-empleador]").GetAttribute("title").Should().Be("Eco S.L.");
     }
 
     [Fact]

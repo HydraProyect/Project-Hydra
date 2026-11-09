@@ -2292,3 +2292,8 @@
     text-overflow: ellipsis;
     white-space: nowrap;
 }
+
+/* Con flex-wrap el salto se decide por el tamaño natural del ítem: sin esto un empleador largo bajaría a una segunda línea. */
+.lista-trabajadores-acordeon:not(.lista-trabajadores-acordeon-listado) .fila-relacion-titulo {
+    flex-wrap: nowrap;
+}

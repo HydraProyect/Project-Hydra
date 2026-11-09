@@ -304,7 +304,7 @@ else
                         @* Maqueta de Centro 360: la Empresa empleadora acompaña al Trabajador en la fila. *@
                         @if (EmpleadorDe(trabajador.TrabajadorId) is { } empleador)
                         {
-                            <span class="fila-trabajador-empleador" data-empleador>@empleador</span>
+                            <span class="fila-trabajador-empleador" data-empleador title="@empleador">@empleador</span>
                         }
                     </JuntoAlNombre>
                     <Detalle>
