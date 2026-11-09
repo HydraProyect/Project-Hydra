@@ -254,8 +254,7 @@ else
                                 {
                                     @* Solo llega aquí un archivado que este centro ya exige: se puede desmarcar, no volver a marcar. *@
                                     <p class="workspace-metrica-inline" data-testid="requisito-archivado">
-                                        Tipo archivado: @(item.NombreSustituto is { } sustituto ? $"sustituido por {sustituto}" : "sin sustituto").
-                                        Desmárcalo para dejar de exigirlo@(item.NombreSustituto is null ? "." : $" y exige {item.NombreSustituto}.")
+                                        @(item.NombreSustituto is { } sustituto ? Textos["RequisitoArchivadoConSustituto", sustituto] : Textos["RequisitoArchivadoSinSustituto"])
                                     </p>
                                 }
                                 @if (item.PeriodicidadEspecialMeses is { } meses)
@@ -489,7 +488,7 @@ else
             <p class="workspace-metrica-inline">@_nombreTipoDocumentoEditando</p>
             @if (_archivadoEdicion)
             {
-                <p class="workspace-nota-contextual">Tipo archivado: solo se puede desmarcar@(_nombreSustitutoEdicion is { } sustituto ? $"; el sustituto es «{sustituto}»" : string.Empty).</p>
+                <p class="workspace-nota-contextual">@(_nombreSustitutoEdicion is { } sustituto ? Textos["RequisitoArchivadoDrawerConSustituto", sustituto] : Textos["RequisitoArchivadoDrawerSinSustituto"])</p>
             }
             <label class="campo-checkbox">
                 <input type="checkbox" @bind="_incluidoEdicion" /> Incluido en este centro
@@ -1346,8 +1345,8 @@ else
             if (_archivadoEdicion && _incluidoEdicion)
             {
                 _mensajeErrorDocumentacion = _nombreSustitutoEdicion is { } sustituto
-                    ? $"Este tipo de documento está archivado: solo se puede desmarcar. Exige su sustituto, «{sustituto}»."
-                    : "Este tipo de documento está archivado: solo se puede desmarcar.";
+                    ? Textos["RequisitoArchivadoGuardarConSustituto", sustituto].Value
+                    : Textos["RequisitoArchivadoGuardarSinSustituto"].Value;
                 return;
             }
 

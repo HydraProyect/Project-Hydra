@@ -683,6 +683,24 @@
   <data name="ArchivoCentroAyuda" xml:space="preserve">
     <value>Model o instruccions que el Centre lliura a les Empreses. Opcional.</value>
   </data>
+  <data name="RequisitoArchivadoConSustituto" xml:space="preserve">
+    <value>Tipus arxivat: substituït per {0}. Desmarca'l per deixar d'exigir-lo i exigeix {0}.</value>
+  </data>
+  <data name="RequisitoArchivadoSinSustituto" xml:space="preserve">
+    <value>Tipus arxivat: sense substitut. Desmarca'l per deixar d'exigir-lo.</value>
+  </data>
+  <data name="RequisitoArchivadoDrawerConSustituto" xml:space="preserve">
+    <value>Tipus arxivat: només es pot desmarcar; el substitut és «{0}».</value>
+  </data>
+  <data name="RequisitoArchivadoDrawerSinSustituto" xml:space="preserve">
+    <value>Tipus arxivat: només es pot desmarcar.</value>
+  </data>
+  <data name="RequisitoArchivadoGuardarConSustituto" xml:space="preserve">
+    <value>Aquest tipus de document està arxivat: només es pot desmarcar. Exigeix el seu substitut, «{0}».</value>
+  </data>
+  <data name="RequisitoArchivadoGuardarSinSustituto" xml:space="preserve">
+    <value>Aquest tipus de document està arxivat: només es pot desmarcar.</value>
+  </data>
   <data name="RequisitoGuardadoToast" xml:space="preserve">
     <value>Requisit desat en aquest centre.</value>
   </data>
