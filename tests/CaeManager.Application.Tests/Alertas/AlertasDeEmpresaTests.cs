@@ -117,12 +117,17 @@ public class AlertasDeEmpresaTests
 
         var alertas = await Handler().Handle(new ObtenerAlertasQuery(), CancellationToken.None);
 
-        alertas.Select(a => (a.TrabajadorId, a.EmpresaId, a.EmpresaNombre, a.Estado)).Should().Equal(
+        alertas.Should().HaveCount(4);
+        alertas.Take(3).Select(a => (a.TrabajadorId, a.EmpresaId, a.EmpresaNombre, a.Estado)).Should().BeEquivalentTo(new[]
+        {
             ((Guid?)propio.Id, (Guid?)_empresa.Id, (string?)_empresa.RazonSocial, EstadoDocumento.Vencido),
             ((Guid?)deSubcontrata.Id, (Guid?)null, (string?)null, EstadoDocumento.Vencido),
             ((Guid?)deEmpresaQueNoSeLee.Id, deEmpresaQueNoSeLee.EmpresaId, (string?)null, EstadoDocumento.Vencido),
-            ((Guid?)null, (Guid?)_empresa.Id, (string?)_empresa.RazonSocial, EstadoDocumento.Urgente));
-        alertas[^1].DocumentoId.Should().Be(deEmpresa.Id);
+        });
+        // El empate de gravedad y fecha entre alertas de vigencia lo cierra el Id del documento, no el plan de la consulta.
+        alertas.Take(3).Select(a => a.DocumentoId).Should().BeInAscendingOrder();
+        alertas[^1].Should().Match<AlertaDto>(a => a.TrabajadorId == null && a.EmpresaId == _empresa.Id
+            && a.EmpresaNombre == _empresa.RazonSocial && a.Estado == EstadoDocumento.Urgente && a.DocumentoId == deEmpresa.Id);
     }
 
     [Theory]

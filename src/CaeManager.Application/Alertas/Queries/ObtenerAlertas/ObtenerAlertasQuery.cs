@@ -153,6 +153,9 @@ public class ObtenerAlertasQueryHandler(
             join empresa in empresasContext.Empresas on trabajador.EmpresaId equals (Guid?)empresa.Id into empresasDelTrabajador
             from empresa in empresasDelTrabajador.DefaultIfEmpty()
             where documento.FechaVencimiento != null && documento.FechaVencimiento <= fechaLimiteAlerta
+            // Sin orden propio, dos alertas con la misma gravedad y fecha salían en el orden que eligiera el plan de PostgreSQL
+            // (el join de arriba puede cambiarlo). El Id solo cierra ese empate: el orden visible sigue siendo el de abajo.
+            orderby documento.Id
             select new
             {
                 DocumentoId = documento.Id,
