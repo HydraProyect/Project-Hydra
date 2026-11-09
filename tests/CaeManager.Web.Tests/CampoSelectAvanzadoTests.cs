@@ -121,6 +121,12 @@ public class CampoSelectAvanzadoTests : BunitContext
         await Buscador(cut).InputAsync(new ChangeEventArgs { Value = "medica" });
         Buscador(cut).GetAttribute("value").Should().Be("m");
         cut.FindAll("li[role=option]").Should().ContainSingle().Which.GetAttribute("data-valor").Should().Be("b");
+
+        // Cerrar y reabrir empieza de cero: el input nuevo no hereda la siembra anterior.
+        await Teclear(Buscador(cut), "Escape");
+        await Disparador(cut).ClickAsync(new MouseEventArgs());
+        (Buscador(cut).GetAttribute("value") ?? string.Empty).Should().BeEmpty();
+        cut.FindAll("li[role=option]").Should().HaveCount(4);
     }
 
     [Fact]
