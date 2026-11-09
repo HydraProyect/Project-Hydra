@@ -598,8 +598,8 @@ public partial class Empresa360PaginaTests : BunitContext
     {
         var cut = AbrirPaquete(Registrar(Empresa()));
 
-        cut.Find(".paquete-dialogo [role=dialog]").Should().NotBeNull(
-            "la regla de ancho es `.paquete-dialogo ::deep .modal-contenido-grande`: sin este contenedor no casa con nada y el diálogo vuelve a 720 px");
+        cut.Find(".paquete-dialogo .modal-contenido-grande[role=dialog]").Should().NotBeNull(
+            "la regla de ancho es `.paquete-dialogo ::deep .modal-contenido-grande`: sin el contenedor, o con otro AnchoModal, no casa con nada y el diálogo no mide 600 px");
     }
 
     // bUnit no aplica CSS: lo que sí se puede fijar es el texto de las hojas (revisión píxel a píxel de #2100, divergencias 1, 3 y 4).
@@ -614,7 +614,9 @@ public partial class Empresa360PaginaTests : BunitContext
         var paquete = LeerHoja("Components", "BotonPaqueteEmpresa.razor.css");
         System.Text.RegularExpressions.Regex.IsMatch(paquete, @"\.paquete-dialogo ::deep \.modal-contenido-grande\s*\{\s*max-width:\s*600px;")
             .Should().BeTrue("la maqueta (§ C) fija el diálogo en 600 px y Modal solo ofrece 420/520/720");
-        paquete.Should().NotContain("Inter", "la aplicación no carga Inter: la familia viene de --font-family");
+        System.Text.RegularExpressions.Regex.IsMatch(paquete, @"\.paquete-dialogo\s*\{\s*display:\s*contents;")
+            .Should().BeTrue("el contenedor no puede ser un elemento más, con su gap, de la fila de acciones de la cabecera");
+        paquete.Should().NotContain("Inter","la aplicación no carga Inter: la familia viene de --font-family");
     }
 
     private static string LeerHoja(string carpeta, string fichero)
