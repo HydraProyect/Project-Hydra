@@ -75,8 +75,9 @@
 # Qué comprime y qué no, según el código de encode de Caddy 2.11.4:
 # - Sin bloque `match`, solo los Content-Type de su lista por defecto (text/*,
 #   application/json*, application/javascript*, xml, svg, algunas fuentes) y
-#   solo a partir de 512 bytes. Fuera de la lista: application/pdf,
-#   application/zip, application/octet-stream, image/png y demás binarios, así
+#   solo a partir de 512 bytes. Fuera de la lista quedan, entre otros,
+#   application/pdf, application/zip, application/octet-stream, el xlsx y las
+#   imágenes rasterizadas (la lista sí trae application/wasm y protobuf), así
 #   que las descargas de documentos, el ZIP de Preparar paquete y las firmas
 #   salen tal cual, con su Content-Length.
 # - Una respuesta que ya trae Content-Encoding no se toca: los estáticos de
@@ -85,7 +86,8 @@
 # - Un handshake de WebSocket (con Sec-WebSocket-Key) solo admite identity: el
 #   upgrade de /_blazor y los marcos del circuito no pasan por aquí. La
 #   compresión de esos marcos (permessage-deflate) la negocian el navegador y
-#   Kestrel, no este bloque. El negotiate de SignalR (JSON) sí se comprime.
+#   Kestrel, no este bloque. El negotiate de SignalR y el long polling son
+#   respuestas HTTP normales: se comprimen si su tipo y su tamaño entran.
 # - Al comprimir, Caddy quita Content-Length y Accept-Ranges de la respuesta.
 #   Ningún código de la aplicación lee el Content-Length de su propia
 #   respuesta; los que lo miran son de PETICIONES (demo, webhooks), y encode
@@ -104,11 +106,12 @@
 # Data Protection genera un modificador de clave y un IV aleatorios en cada
 # llamada, así que cambia en cada respuesta. Lo mismo vale para los
 # marcadores de componente de Blazor y el estado persistido, y para los retos
-# antiabuso del alta autónoma (Protect con carga aleatoria). Además, la
-# cookie de sesión es SameSite=Lax: una petición de subrecurso entre sitios
-# (img, script, fetch) no la lleva, y es la vía con la que BREACH lanza sus
-# miles de peticiones. CRIME ataca la compresión de TLS o de las cabeceras,
-# no la del cuerpo, y Caddy no comprime cabeceras.
+# antiabuso del alta autónoma (Protect con carga aleatoria). La cookie de
+# sesión SameSite=Lax es solo una defensa parcial: un subrecurso entre sitios
+# (img, script, fetch) no la lleva, pero una navegación de nivel superior sí.
+# CRIME, en sentido estricto, ataca la compresión de TLS o de cabeceras, que
+# Caddy no hace; el oráculo de compresión de los marcos del WebSocket
+# (permessage-deflate) es otra superficie, de Kestrel, que este bloque no toca.
 (comprimir) {
 	@sin_rango not header Range *
 	encode @sin_rango zstd gzip
