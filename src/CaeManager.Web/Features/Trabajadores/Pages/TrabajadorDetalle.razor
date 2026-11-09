@@ -335,7 +335,7 @@
                                             }
                                             else
                                             {
-                                                <ListaRelaciones EnTarjeta="true" Etiqueta="@(Textos["AriaDocumentacionExigida", centro.CentroNombre])">
+                                                <ListaRelaciones Anidada="true" Etiqueta="@(Textos["AriaDocumentacionExigida", centro.CentroNombre])">
                                                     @foreach (var documento in centro.Documentos.OrderBy(d => SeveridadEstadoDocumento.Rango(d.Estado)).ThenBy(d => d.TipoDocumentoNombre, StringComparer.CurrentCulture))
                                                     {
                                                         <AuthorizeView Context="autorizacionDocumento">

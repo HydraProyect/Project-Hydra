@@ -36,6 +36,10 @@
   <data name="IdiomaNoCambiadoDetalle" xml:space="preserve">
     <value>Tu preferencia de idioma no se ha guardado y la interfaz sigue en el idioma anterior. Inténtalo de nuevo en unos segundos.</value>
   </data>
+  <data name="AvisosRestantesTitulo" xml:space="preserve">
+    <value>+{0}: {1}. Se ven en la página de {2}</value>
+    <comment>Título y nombre accesible del indicador «+N» de AvisosRecortados. {0}: número de avisos ocultos; {1}: avisos ocultos separados por « · »; {2}: nombre de la entidad.</comment>
+  </data>
   <data name="IrAPaginaDe" xml:space="preserve">
     <value>Ir a la página de {0}</value>
     <comment>Título del nombre enlazado en una fila de relación (FilaRelacion). {0}: nombre de la entidad.</comment>

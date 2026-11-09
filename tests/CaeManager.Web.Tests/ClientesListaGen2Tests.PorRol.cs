@@ -163,6 +163,37 @@ public partial class ClientesListaGen2Tests
         Tarjeta(cut, sinCentros.RazonSocial).QuerySelector("button.boton-expandir-fila").Should().BeNull("sin Centros no hay nada que desplegar");
     }
 
+    /// <summary>
+    /// Petición de Chris del 2026-11-08: con muchos recuentos la fila del Centro no los acumula. Se ven
+    /// los dos primeros —el bloqueo de plataforma, el más grave, siempre delante— y el resto va en un
+    /// «+N» hacia el Centro 360.
+    /// </summary>
+    [Fact]
+    public async Task Con_mas_de_dos_motivos_el_Centro_muestra_el_bloqueo_primero_y_el_resto_en_un_mas_N()
+    {
+        var cliente = ClienteConProblemas();
+        var incidencia = (EstadoDocumento? estado) =>
+            new IncidenciaCentroDto("Aptitud médica", AmbitoCausa.Trabajador, estado, Guid.NewGuid(), Guid.NewGuid(), null);
+        var centro = new CentroListaDto(Guid.NewGuid(), "Sede Sevilla", null, cliente.Id, "Cliente", Guid.NewGuid(), "Empresa",
+            EstadoCentro.Bloqueado, 40,
+            new RecuentosCentroDto(
+                [incidencia(EstadoDocumento.Vencido), incidencia(EstadoDocumento.Vencido), incidencia(EstadoDocumento.Faltante), incidencia(null)],
+                [incidencia(EstadoDocumento.Proximo)]));
+        var mediador = new MediatorFalso { Almacen = { cliente } };
+        mediador.CentrosConEstadoPorCliente[cliente.Id] = [centro];
+        var cut = Renderizar(mediador);
+
+        var contenido = await Desplegar(cut, cliente.RazonSocial);
+
+        var detalle = contenido.QuerySelector("li.centro-pendiente-cliente .centro-pendiente-detalle")!;
+        detalle.TextContent.Should().StartWith("1 bloqueado por la plataforma · 2 vencidos")
+            .And.NotContain("pendiente").And.NotContain("por vencer");
+        var mas = detalle.QuerySelector("a.avisos-recortados-mas")!;
+        mas.TextContent.Should().Be("+2");
+        mas.GetAttribute("href").Should().Be($"/centros/{centro.Id}");
+        mas.GetAttribute("aria-label").Should().StartWith("+2: ").And.Contain("pendiente").And.Contain("Sede Sevilla");
+    }
+
     [Theory]
     [MemberData(nameof(TodosLosRoles))]
     public async Task Al_desplegar_cada_Centro_con_problema_lleva_pastilla_motivo_y_un_unico_Gestionar(string rol)

@@ -1,0 +1,39 @@
+@*
+    Avisos de una fila de lista, recortados (petición de Chris del 2026-11-08):
+    cuando una fila acumula muchos recuentos, se muestran los primeros
+    <see cref="Maximo"/> y el resto se resume en «+N», que lleva a la página
+    360 de la entidad, donde se ven todos. El título y el nombre accesible del
+    «+N» nombran lo que esconde, así que nada se pierde para quien lo lea.
+
+    El orden de <see cref="Avisos"/> lo decide quien llama: del más grave al
+    menos grave. El «+N» es un enlace con posición propia para quedar por
+    encima del enlace de fondo de la fila (FilaRelacion HrefFila).
+*@
+@using CaeManager.Web.Recursos
+@using Microsoft.Extensions.Localization
+@inject IStringLocalizer<TextosComunes> Comunes
+
+@if (Avisos.Count > 0)
+{
+    var visibles = Avisos.Take(Maximo).ToList();
+    var ocultos = Avisos.Skip(Maximo).ToList();
+    <span class="avisos-recortados" data-pieza="avisos-recortados">@string.Join(" · ", visibles)@if (ocultos.Count > 0)
+        {
+            var titulo = Comunes["AvisosRestantesTitulo", ocultos.Count, string.Join(" · ", ocultos), Nombre].Value;
+            <span aria-hidden="true"> · </span><a class="avisos-recortados-mas" href="@Href" title="@titulo" aria-label="@titulo" data-ocultos="@ocultos.Count">+@ocultos.Count</a>
+        }</span>
+}
+
+@code {
+    /// <summary>Avisos ya redactados, del más grave al menos grave.</summary>
+    [Parameter, EditorRequired] public IReadOnlyList<string> Avisos { get; set; } = [];
+
+    /// <summary>Cuántos se muestran antes del «+N». Dos por defecto.</summary>
+    [Parameter] public int Maximo { get; set; } = 2;
+
+    /// <summary>Página 360 donde se ven todos (<c>/centros/{id}</c>).</summary>
+    [Parameter, EditorRequired] public string Href { get; set; } = string.Empty;
+
+    /// <summary>Nombre de la entidad, para el título del «+N».</summary>
+    [Parameter, EditorRequired] public string Nombre { get; set; } = string.Empty;
+}
