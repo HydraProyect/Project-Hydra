@@ -1,17 +1,22 @@
 using CaeManager.Application.Asignaciones.Commands.CrearAsignacion;
 using CaeManager.Application.Asignaciones.Commands.CrearAsignaciones;
 using CaeManager.Application.Asignaciones.Commands.ReactivarAsignacion;
+using CaeManager.Application.Centros.Commands.EliminarDocumentacionRequeridaCentro;
 using CaeManager.Application.Centros.Commands.EstablecerDocumentacionRequeridaCentro;
 using CaeManager.Application.Centros.Commands.EstablecerGestionCaeCentro;
+using CaeManager.Application.Centros.Commands.RestaurarCentro;
 using CaeManager.Application.Common;
 using CaeManager.Application.Documentos.Acreditacion;
+using CaeManager.Application.Documentos.Commands.RestaurarDocumento;
 using CaeManager.Application.Importacion;
 using CaeManager.Application.TiposDocumento.Commands.EditarTipoDocumento;
 using CaeManager.Application.Tests.Asignaciones;
 using CaeManager.Application.Tests.Centros;
 using CaeManager.Application.Tests.Clientes;
 using CaeManager.Application.Tests.Common;
+using CaeManager.Application.Tests.Configuracion;
 using CaeManager.Application.Tests.Importacion;
+using CaeManager.Application.Tests.Proyectos;
 using CaeManager.Application.Tests.TiposDocumento;
 using CaeManager.Domain.Centros;
 using CaeManager.Domain.Documentos;
@@ -386,5 +391,222 @@ public class ProductoresDeA1SeSerializanTests
 
         public Task<IReadOnlyList<Guid>> FiltrarTrabajadoresConAutoridadAsync(IReadOnlyList<Guid> trabajadorIds, CancellationToken cancellationToken = default) =>
             Task.FromResult(trabajadorIds);
+    }
+
+    [Fact]
+    public async Task Quitar_la_exclusion_de_un_tipo_exigido_de_serie_toma_el_candado_y_acredita_solo_los_documentos_de_empresa()
+    {
+        // El Centro vuelve al valor general (Sí): sus Documentos de Empresa del tipo nacen pendientes de acreditar ante su
+        // acceso de plataforma (regla A-1). El de Trabajador asignado allí no cambia, ni el acceso por correo acredita.
+        var mundo = new MundoAcreditaciones();
+        var tipo = mundo.Tipo(RequisitoDocumental.Si, AmbitoAplicacion.Empresa, "Seguro RC");
+        var centro = mundo.Centro("Planta sin personal", mundo.EmpresaId);
+        var acceso = mundo.AccesoPlataforma(centro);
+        mundo.AccesoCorreo(centro);
+        var trabajador = mundo.Trabajador();
+        mundo.Asignacion(trabajador, centro);
+        mundo.DocumentoDe(trabajador, tipo);
+        var exclusion = mundo.Requisito(tipo, centro, incluido: false);
+        var filas = new TipoDocumentoCentroRepositorioFalso();
+        filas.Agregar(exclusion);
+        Documento? concurrente = null;
+        var serializacion = new SerializacionAltasAcreditacionEmpresaFalsa
+        {
+            AlTomarElCandado = () =>
+            {
+                filas.Relaciones.Should().ContainSingle("la fila se relee y se borra bajo el candado");
+                concurrente = mundo.DocumentoDeEmpresa(tipo);
+            }
+        };
+        var handler = new EliminarDocumentacionRequeridaCentroCommandHandler(
+            filas, new AlcanceDatosServiceFalso(), new UnitOfWorkFalso(), mundo.Servicio(), serializacion, new InvalidadorAlcanceInerte());
+
+        var resultado = await handler.Handle(new EliminarDocumentacionRequeridaCentroCommand(centro.Id, tipo.Id), CancellationToken.None);
+
+        resultado.EsExitoso.Should().BeTrue();
+        serializacion.Llamadas.Should().Be(1);
+        filas.Relaciones.Should().BeEmpty();
+        mundo.Agregadas.Should().BeEquivalentTo([(concurrente!.Id, acceso.Id)]);
+    }
+
+    [Fact]
+    public async Task Quitar_la_exclusion_de_un_tipo_que_no_se_exige_de_serie_no_acredita_nada()
+    {
+        var mundo = new MundoAcreditaciones();
+        var tipo = mundo.Tipo(RequisitoDocumental.No, AmbitoAplicacion.Empresa, "Seguro RC");
+        var centro = mundo.Centro("Planta sin personal", mundo.EmpresaId);
+        mundo.AccesoPlataforma(centro);
+        mundo.DocumentoDeEmpresa(tipo);
+        var filas = new TipoDocumentoCentroRepositorioFalso();
+        filas.Agregar(mundo.Requisito(tipo, centro, incluido: false));
+        var serializacion = new SerializacionAltasAcreditacionEmpresaFalsa();
+        var handler = new EliminarDocumentacionRequeridaCentroCommandHandler(
+            filas, new AlcanceDatosServiceFalso(), new UnitOfWorkFalso(), mundo.Servicio(), serializacion, new InvalidadorAlcanceInerte());
+
+        var resultado = await handler.Handle(new EliminarDocumentacionRequeridaCentroCommand(centro.Id, tipo.Id), CancellationToken.None);
+
+        resultado.EsExitoso.Should().BeTrue();
+        serializacion.Llamadas.Should().Be(1, "si el valor general es Sí se decide bajo el candado");
+        mundo.Agregadas.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task Restaurar_un_centro_toma_el_candado_antes_de_leerlo_y_acredita_solo_los_documentos_de_empresa()
+    {
+        var mundo = new MundoAcreditaciones();
+        var tipo = mundo.Tipo(RequisitoDocumental.Si, AmbitoAplicacion.Empresa, "Seguro RC");
+        var centro = mundo.Centro("Planta restaurada", mundo.EmpresaId);
+        var acceso = mundo.AccesoPlataforma(centro);
+        mundo.AccesoCorreo(centro);
+        var trabajador = mundo.Trabajador();
+        mundo.Asignacion(trabajador, centro);
+        mundo.DocumentoDe(trabajador, tipo);
+        centro.MarcarComoEliminado(Guid.NewGuid());
+        Documento? concurrente = null;
+        var serializacion = new SerializacionAltasAcreditacionEmpresaFalsa
+        {
+            AlTomarElCandado = () =>
+            {
+                centro.EstaEliminado.Should().BeTrue("el Centro se lee y se restaura bajo el candado");
+                concurrente = mundo.DocumentoDeEmpresa(tipo);
+            }
+        };
+        var handler = RestaurarCentro(mundo, centro, serializacion);
+
+        var resultado = await handler.Handle(new RestaurarCentroCommand(centro.Id), CancellationToken.None);
+
+        resultado.EsExitoso.Should().BeTrue();
+        centro.EstaEliminado.Should().BeFalse();
+        serializacion.Llamadas.Should().Be(1);
+        mundo.Agregadas.Should().BeEquivalentTo([(concurrente!.Id, acceso.Id)]);
+    }
+
+    [Fact]
+    public async Task Restaurar_un_centro_decide_con_lo_releido_bajo_el_candado_y_no_con_lo_cargado_antes()
+    {
+        var mundo = new MundoAcreditaciones();
+        var tipo = mundo.Tipo(RequisitoDocumental.Si, AmbitoAplicacion.Empresa, "Seguro RC");
+        var centro = mundo.Centro("Planta restaurada", mundo.EmpresaId);
+        mundo.AccesoPlataforma(centro);
+        mundo.DocumentoDeEmpresa(tipo);
+        centro.MarcarComoEliminado(Guid.NewGuid());
+        var centros = new CentroRepositorioFalso();
+        centros.Centros.Add(centro);
+        // Mientras se esperaba el candado, otra operación lo restauró y confirmó: solo una relectura lo ve.
+        var serializacion = new SerializacionAltasAcreditacionEmpresaFalsa
+        {
+            AlTomarElCandado = () => centros.CambioEnLaBase = c => { if (c.EstaEliminado) c.Restaurar(); }
+        };
+        var handler = RestaurarCentro(mundo, centro, serializacion, centros);
+
+        var resultado = await handler.Handle(new RestaurarCentroCommand(centro.Id), CancellationToken.None);
+
+        resultado.EsExitoso.Should().BeFalse("el Centro ya no está eliminado en la base");
+        resultado.Error.Codigo.Should().Be("Centro.NoEncontrado");
+        mundo.Agregadas.Should().BeEmpty("lo acreditó, si acaso, la operación que lo restauró");
+    }
+
+    [Fact]
+    public async Task Restaurar_un_documento_de_empresa_toma_el_candado_y_ve_el_acceso_dado_de_alta_mientras_esperaba()
+    {
+        var mundo = new MundoAcreditaciones();
+        var tipo = mundo.Tipo(RequisitoDocumental.Si, AmbitoAplicacion.Empresa, "Seguro RC");
+        var centro = mundo.Centro("Planta sin personal", mundo.EmpresaId);
+        var documento = mundo.DocumentoDeEmpresa(tipo);
+        documento.MarcarComoEliminado(Guid.NewGuid());
+        CanalGestionDocumental? concurrente = null;
+        var serializacion = new SerializacionAltasAcreditacionEmpresaFalsa
+        {
+            AlTomarElCandado = () =>
+            {
+                documento.EstaEliminado.Should().BeTrue("el Documento se restaura bajo el candado");
+                concurrente = mundo.AccesoPlataforma(centro);
+            }
+        };
+        var handler = RestaurarDocumento(mundo, documento, serializacion);
+
+        var resultado = await handler.Handle(new RestaurarDocumentoCommand(documento.Id), CancellationToken.None);
+
+        resultado.EsExitoso.Should().BeTrue();
+        documento.EstaEliminado.Should().BeFalse();
+        serializacion.Llamadas.Should().Be(1);
+        mundo.Agregadas.Should().BeEquivalentTo([(documento.Id, concurrente!.Id)]);
+    }
+
+    [Fact]
+    public async Task Restaurar_un_documento_de_empresa_decide_con_lo_releido_bajo_el_candado_y_no_con_lo_cargado_antes()
+    {
+        var mundo = new MundoAcreditaciones();
+        var tipo = mundo.Tipo(RequisitoDocumental.Si, AmbitoAplicacion.Empresa, "Seguro RC");
+        var centro = mundo.Centro("Planta sin personal", mundo.EmpresaId);
+        mundo.AccesoPlataforma(centro);
+        var documento = mundo.DocumentoDeEmpresa(tipo);
+        documento.MarcarComoEliminado(Guid.NewGuid());
+        var documentos = new DocumentoRepositorioFalso();
+        documentos.Documentos.Add(documento);
+        // La primera carga, antes del candado, lo ve eliminado; mientras se esperaba, otra operación lo restauró y
+        // confirmó: solo una relectura bajo el candado lo ve.
+        var serializacion = new SerializacionAltasAcreditacionEmpresaFalsa
+        {
+            AlTomarElCandado = () => documentos.CambioEnLaBase = d => { if (d.EstaEliminado) d.Restaurar(); }
+        };
+        var handler = RestaurarDocumento(mundo, documento, serializacion, documentos);
+
+        var resultado = await handler.Handle(new RestaurarDocumentoCommand(documento.Id), CancellationToken.None);
+
+        serializacion.Llamadas.Should().Be(1, "la primera carga lo vio eliminado");
+        resultado.EsExitoso.Should().BeFalse("el Documento ya no está eliminado en la base");
+        resultado.Error.Codigo.Should().Be("Documento.NoEncontrado");
+        mundo.Agregadas.Should().BeEmpty("lo acreditó, si acaso, la operación que lo restauró");
+    }
+
+    [Fact]
+    public async Task Restaurar_un_documento_de_trabajador_no_toma_el_candado_ni_acredita()
+    {
+        var mundo = new MundoAcreditaciones();
+        var tipo = mundo.Tipo(RequisitoDocumental.Si);
+        var centro = mundo.Centro("Planta Norte");
+        mundo.AccesoPlataforma(centro);
+        var trabajador = mundo.Trabajador();
+        mundo.Asignacion(trabajador, centro);
+        var documento = mundo.DocumentoDe(trabajador, tipo);
+        documento.MarcarComoEliminado(Guid.NewGuid());
+        var serializacion = new SerializacionAltasAcreditacionEmpresaFalsa();
+        var handler = RestaurarDocumento(mundo, documento, serializacion);
+
+        var resultado = await handler.Handle(new RestaurarDocumentoCommand(documento.Id), CancellationToken.None);
+
+        resultado.EsExitoso.Should().BeTrue();
+        documento.EstaEliminado.Should().BeFalse();
+        serializacion.Llamadas.Should().Be(0, "los Documentos de Trabajador no cambian");
+        mundo.Agregadas.Should().BeEmpty();
+    }
+
+    private static RestaurarDocumentoCommandHandler RestaurarDocumento(
+        MundoAcreditaciones mundo, Documento documento, SerializacionAltasAcreditacionEmpresaFalsa serializacion,
+        DocumentoRepositorioFalso? documentos = null)
+    {
+        if (documentos is null)
+        {
+            documentos = new DocumentoRepositorioFalso();
+            documentos.Documentos.Add(documento);
+        }
+
+        return new(documentos, new TenantActualFijo(documento.TenantId), new AlcanceDatosServiceFalso(),
+            new ProyectosQueryContextFalso(), new UnitOfWorkFalso(), mundo.Servicio(), serializacion, new InvalidadorAlcanceInerte());
+    }
+
+    private static RestaurarCentroCommandHandler RestaurarCentro(
+        MundoAcreditaciones mundo, Centro centro, SerializacionAltasAcreditacionEmpresaFalsa serializacion,
+        CentroRepositorioFalso? centros = null)
+    {
+        if (centros is null)
+        {
+            centros = new CentroRepositorioFalso();
+            centros.Centros.Add(centro);
+        }
+
+        return new(mundo.CentrosContexto, new TenantActualFijo(centro.TenantId), new AlcanceDatosServiceFalso(),
+            new UnitOfWorkFalso(), mundo.Servicio(), serializacion, centros, new InvalidadorAlcanceInerte());
     }
 }

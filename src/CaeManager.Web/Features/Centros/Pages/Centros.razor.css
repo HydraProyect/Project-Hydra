@@ -29,6 +29,18 @@
     grid-template-columns: 28px 24px minmax(180px, 2fr) minmax(160px, 1.5fr) minmax(130px, 1fr) minmax(150px, 1.3fr) 40px;
 }
 
+/*
+  Sin la columna «Empresa» (una sola Empresa en los Centros visibles, ver MostrarColumnaEmpresa): mismas pistas sin la
+  tercera; Centro gana el ancho que dejaba.
+*/
+.rejilla-centros-sin-empresa {
+    grid-template-columns: 24px minmax(220px, 2.5fr) minmax(130px, 1fr) minmax(170px, 1.3fr) 40px;
+}
+
+.rejilla-centros-seleccion.rejilla-centros-sin-empresa {
+    grid-template-columns: 28px 24px minmax(200px, 2.5fr) minmax(130px, 1fr) minmax(150px, 1.3fr) 40px;
+}
+
 /* Casilla de selección: misma caja en la cabecera y en la fila (16 px). */
 .seleccion-centro {
     display: inline-flex;
@@ -92,9 +104,10 @@
 }
 
 .marco-lista-centros .tarjeta-fila-acordeon-contenido {
-    border-top: 0;
+    /* Segundo nivel (2026-11-08): la misma superficie que la fila, separada por su raya. */
+    border-top: 1px solid var(--color-fila-divisor);
     border-radius: 0;
-    background: color-mix(in srgb, var(--color-surface-subtle) 60%, var(--color-surface));
+    background: var(--color-surface);
     padding: 4px var(--space-4) 4px 56px;
 }
 
@@ -243,6 +256,16 @@
     max-width: 100%;
     overflow: visible;
     white-space: normal;
+}
+
+/*
+  Objetivo táctil de 24 px (WCAG 2.5.8): el disparador de cada parte del motivo («N vencidos · M por vencer») mide como el
+  texto, unos 20 px de alto. Mientras la pista de Estado era estrecha las partes partían en líneas y quedaban separadas;
+  sin la columna «Empresa» la pista gana ancho, las partes caben en una línea y quedan a menos de 24 px unas de otras, y
+  axe (target-size) las cuenta. Con 24 px de alto cada disparador cumple por tamaño, vaya donde vaya el salto de línea.
+*/
+.celda-estado-centro ::deep .ventana-contexto-disparador {
+    min-height: 24px;
 }
 
 /* El color no es el único portador: el texto ya dice «vencidos» o «por vencer». */

@@ -44,9 +44,11 @@ public record ApoyosDeCarteraDto(
 /// (<see cref="AutoridadSobreCarteraDeGestorCae.PuedeRevocarApoyoAsync"/> para la revocación).
 ///
 /// <para>
-/// Se resuelve en el Tenant de origen del Operador CAE, sea cual sea el Tenant activo, y el
-/// rol se lee en Identity. Con <paramref name="TenantId"/>, solo los apoyos sobre ese Tenant
-/// propietario.
+/// Se resuelve en el Tenant de origen del Operador CAE, sea cual sea el Tenant activo. Decide el
+/// rol efectivo de la sesión en ese Tenant e Identity lo confirma
+/// (<see cref="AutoridadSobreCarteraDeGestorCae.RolDeAutoridadAsync"/>), como en los Commands: una
+/// sesión de Gestor CAE no recibe los apoyos revocables aunque la cuenta ya sea Coordinador CAE en
+/// Identity. Con <paramref name="TenantId"/>, solo los apoyos sobre ese Tenant propietario.
 /// </para>
 /// </summary>
 public record ObtenerApoyosDeCarteraQuery(Guid? TenantId = null) : IRequest<ApoyosDeCarteraDto>;
@@ -61,7 +63,6 @@ public class ObtenerApoyosDeCarteraQueryHandler(
     private const string GestorCae = "GestorCae";
     private const string CoordinadorCae = "CoordinadorCae";
 
-    // Por orden de autoridad: una cuenta con dos roles se trata por el mayor.
     private static readonly string[] RolesQueLeen = ["Administrador", "DireccionCae", CoordinadorCae, GestorCae];
 
     public async Task<ApoyosDeCarteraDto> Handle(ObtenerApoyosDeCarteraQuery request, CancellationToken cancellationToken)
@@ -73,20 +74,11 @@ public class ObtenerApoyosDeCarteraQueryHandler(
 
         using (AmbitoTenantExplicito.Establecer(operadorTenantId))
         {
-            // Falla cerrado sin rol de negocio en la sesión: Soporte TALVEG nunca es Operador CAE.
-            if (await currentUserService.ObtenerRolEfectivoAsync() is null)
-                return ApoyosDeCarteraDto.Vacio;
-
-            string? rol = null;
-            foreach (var candidato in RolesQueLeen)
-            {
-                if (await directorioUsuarios.EsCuentaActivaConRolAsync(yo, operadorTenantId, candidato, cancellationToken))
-                {
-                    rol = candidato;
-                    break;
-                }
-            }
-
+            // El rol efectivo de la sesión en origen, confirmado por Identity: el mismo con el que
+            // los Commands deciden después. Sin rol de negocio (Sesión Privilegiada) falla cerrado:
+            // Soporte TALVEG nunca es Operador CAE. OWASP ASVS 4.0.3 V4.1.3 y V4.2.1.
+            var rol = await AutoridadSobreCarteraDeGestorCae.RolDeAutoridadAsync(
+                yo, operadorTenantId, RolesQueLeen, currentUserService, directorioUsuarios, cancellationToken);
             if (rol is null)
                 return ApoyosDeCarteraDto.Vacio;
 

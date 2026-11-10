@@ -18,6 +18,7 @@
 @using Microsoft.Extensions.Localization
 @inject IStringLocalizer<Recursos.TextosMiTrabajo> Textos
 @inject Microsoft.AspNetCore.Components.NavigationManager NavigationManager
+@inject IServiceProvider Servicios
 @inject CaeManager.Web.Components.Workspace.ContextWorkspaceService WorkspaceService
 
 <div class="@("grupo-cola" + (MarcarBloqueo && BloqueaDeVerdad ? " grupo-cola-bloquea" : ""))">
@@ -104,7 +105,7 @@
                         {
                             <a class="enlace-ver-todas" href="@($"/centros/{centroId}")">Ver @OcultosDe(empresa).Count trabajador@(OcultosDe(empresa).Count == 1 ? "" : "es") más en este Centro →</a>
                         }
-                        else
+                        else if (!CaeManager.Web.Components.Layout.MiTrabajoVisibilidad.EstaOculto(Servicios))
                         {
                             <a class="enlace-ver-todas" href="/bandeja">Ver @OcultosDe(empresa).Count trabajador@(OcultosDe(empresa).Count == 1 ? "" : "es") más en Mi trabajo →</a>
                         }

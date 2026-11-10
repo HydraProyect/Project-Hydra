@@ -175,10 +175,26 @@ public class CuadroDireccionMultiTenantTests : IAsyncLifetime
         await DesignarPrincipalAsync(coordinadora, "CoordinadorCae");
 
         var cuadro = await PedirMesEnCursoAsync(ConstruirServicios(
-            perfiles: new() { [_usuario] = "CoordinadorCae" }, nombres: new() { [coordinadora] = "Coordinadora de prueba" }));
+            rol: "CoordinadorCae", perfiles: new() { [_usuario] = "CoordinadorCae" },
+            nombres: new() { [coordinadora] = "Coordinadora de prueba" }));
 
         cuadro.Tenants.Single(t => t.TenantId == _tenantIbertec).PrincipalDeCartera
             .Should().Be(new PrincipalDeCarteraDto(coordinadora, "Coordinadora de prueba", "CoordinadorCae"));
+    }
+
+    [Fact]
+    public async Task El_principal_lo_decide_el_rol_de_la_sesion_en_origen_y_no_el_que_Identity_de_a_la_cuenta()
+    {
+        // Decisión P7 (OWASP ASVS 4.0.3 V4.1.3 y V4.2.1): la sesión dice Dirección CAE y la cuenta es
+        // Coordinador CAE en Identity. Identity no confirma el rol de la sesión: el cuadro se lee,
+        // pero sin el Gestor CAE principal.
+        var gestora = Guid.NewGuid();
+        await DesignarPrincipalAsync(gestora, "GestorCae");
+
+        var cuadro = await PedirMesEnCursoAsync(ConstruirServicios(
+            rol: "DireccionCae", perfiles: new() { [_usuario] = "CoordinadorCae" }, nombres: new() { [gestora] = NombreGestora }));
+
+        cuadro.Tenants.Single(t => t.TenantId == _tenantIbertec).PrincipalDeCartera.Should().BeNull();
     }
 
     [Fact]

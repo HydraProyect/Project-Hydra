@@ -66,7 +66,7 @@ public partial class CuadroDireccion : CaeManager.Web.Components.PaginaInteracti
 
     private static readonly IReadOnlyDictionary<string, IReadOnlyList<string>> TarjetasPorPestana = new Dictionary<string, IReadOnlyList<string>>
     {
-        // Visión general: los seis KPI de la maqueta, «Facturación y gestiones por mes» y «Qué requiere una decisión».
+        // Visión general: los seis KPI de la maqueta, «Cuota y gestiones por mes» y «Qué requiere una decisión».
         // «Gestiones del mes» vive en el gráfico de evolución y «Trabajadores extra sin tarifa» en Facturación.
         ["general"] = ["k-fact", "k-ext", "k-trab", "k-centros", "k-revisar", "k-cumpl", "g-evolucion", "g-alertas"],
         // Facturación del Operador CAE por Empresa gestionada: una sola pieza, la de «Cuadro Facturacion TALVEG».

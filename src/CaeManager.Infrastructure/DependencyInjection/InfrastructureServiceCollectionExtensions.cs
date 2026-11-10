@@ -85,6 +85,9 @@ public static class InfrastructureServiceCollectionExtensions
         services.AddScoped<AuditoriaInterceptor>();
         services.AddScoped<TenantSelladoInterceptor>();
         services.AddScoped<TenantRlsConnectionInterceptor>();
+        // Solo medición (Server-Timing): cuentan comandos y aperturas en el CosteCarga del scope.
+        services.AddScoped<MedicionCosteComandosInterceptor>();
+        services.AddScoped<MedicionCosteConexionesInterceptor>();
         services.AddScoped<CaeManager.Infrastructure.EstadoMaterializado.DetectorCambiosEstadoInterceptor>();
         services.AddScoped<CaeManager.Infrastructure.EstadoMaterializado.RecalculoEstadoEnLinea>();
         services.AddScoped<CaeManager.Infrastructure.EstadoMaterializado.ProcesadorColaEstadoMaterializado>();
@@ -652,6 +655,8 @@ public static class InfrastructureServiceCollectionExtensions
         services.AddScoped<CaeManager.Application.Usuarios.ISegundoFactorDeCuentas, SegundoFactorDeCuentasIdentity>();
         services.AddScoped<CaeManager.Application.Plataforma.IConcesionAdministradorPorPlataforma,
             CaeManager.Infrastructure.Plataforma.ConcesionAdministradorPorPlataforma>();
+        services.AddScoped<CaeManager.Application.Plataforma.IAjusteSegundoFactorPorPlataforma,
+            CaeManager.Infrastructure.Plataforma.AjusteSegundoFactorPorPlataforma>();
         services.AddScoped<CaeManager.Application.Plataforma.IRevocacionOperadorCaeExternoPorSoporte,
             CaeManager.Infrastructure.Plataforma.RevocacionOperadorCaeExternoPorSoporte>();
         services.AddScoped<CaeManager.Application.ContactosSeguridad.IContactosSeguridadPlataforma,

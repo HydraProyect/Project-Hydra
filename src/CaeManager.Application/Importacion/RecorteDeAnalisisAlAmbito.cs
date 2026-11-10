@@ -133,9 +133,15 @@ public sealed class RecorteDeAnalisisAlAmbito(
         var clientesEnAmbito = empresas.Where(x => ambito.Cliente(x.Id)).ToList();
 
         var centros = await centrosContext.Centros
-            .Select(c => new { c.Id, c.ClienteId, c.Nombre })
+            .Select(c => new { c.Id, c.Nombre })
             .ToListAsync(cancellationToken);
         var centrosEnAmbito = centros.Where(c => ambito.Centro(c.Id)).ToList();
+        // La pareja Cliente empresarial–Centro, con la misma lectura que el analizador de la combinada que la consume.
+        var centrosConCliente = (await centrosContext.Centros
+                .ConSuClienteEmpresarial(empresasContext.Empresas)
+                .ToListAsync(cancellationToken))
+            .Where(c => ambito.Centro(c.CentroId))
+            .ToList();
 
         var trabajadores = await trabajadoresContext.Trabajadores
             .Where(t => t.Dni != null)
@@ -144,7 +150,6 @@ public sealed class RecorteDeAnalisisAlAmbito(
         var trabajadoresEnAmbito = trabajadores.Where(t => ambito.Trabajador(t.Id)).ToList();
         var dniPorId = trabajadoresEnAmbito.ToDictionary(t => t.Id, t => t.Dni);
 
-        var razonSocialPorId = empresas.ToDictionary(x => x.Id, x => x.RazonSocial);
         var centroPorId = centrosEnAmbito.ToDictionary(c => c.Id, c => c.Nombre);
         var asignaciones = await asignacionesContext.Asignaciones
             .Where(a => a.FechaBaja == null)
@@ -161,7 +166,6 @@ public sealed class RecorteDeAnalisisAlAmbito(
                 .Where(a => dniPorId.ContainsKey(a.TrabajadorId) && centroPorId.ContainsKey(a.CentroId))
                 .Select(a => (dniPorId[a.TrabajadorId], centroPorId[a.CentroId]))],
             new HashSet<string>(
-                centrosEnAmbito.Where(c => razonSocialPorId.ContainsKey(c.ClienteId))
-                    .Select(c => ExistentesEnAmbito.ClaveCentro(razonSocialPorId[c.ClienteId], c.Nombre)), comparador));
+                centrosConCliente.Select(c => ExistentesEnAmbito.ClaveCentro(c.RazonSocialClienteEmpresarial, c.NombreCentro)), comparador));
     }
 }

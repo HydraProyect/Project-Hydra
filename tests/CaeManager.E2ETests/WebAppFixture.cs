@@ -154,6 +154,11 @@ public class WebAppFixture : IAsyncLifetime
         infoInicio.Environment["ConnectionStrings__CaeManagerDb"] = _cadenaConexion;
         infoInicio.Environment["DatosPrueba__Activo"] = "true";
 
+        // Mi trabajo está oculto por defecto (MiTrabajo:Oculto, decisión de la demo del 2026-11-10; ver
+        // MiTrabajoVisibilidad). Los E2E de Mi trabajo y de la cola siguen siendo válidos con la pantalla visible,
+        // y la ocultación (menú, enlaces y redirección) la fijan los bUnit de ocultación: aquí se enciende.
+        infoInicio.Environment["MiTrabajo__Oculto"] = "false";
+
         // La plantilla CAE completa no trae la Empresa de cada hoja de Trabajadores en el código: la declara la
         // configuración (Importacion:PlantillaCaeCompleta). ImportacionTests sube un libro con estas dos hojas.
         infoInicio.Environment["Importacion__PlantillaCaeCompleta__HojasTrabajadores__0__Hoja"] = "Empleados";

@@ -402,6 +402,12 @@
   <data name="TotalesListaCompleta360" xml:space="preserve">
     <value>Se calcula sobre la lista completa, no sobre la filtrada.</value>
   </data>
+  <data name="ResumenBloqueoUno360" xml:space="preserve">
+    <value>{0} bloquea el acceso</value>
+  </data>
+  <data name="ResumenBloqueoVarios360" xml:space="preserve">
+    <value>{0} y {1} más bloquean el acceso</value>
+  </data>
   <data name="SinExigenciasTrabajador360" xml:space="preserve">
     <value>Este Centro no le exige documentación específica.</value>
   </data>
@@ -494,9 +500,21 @@
   <data name="DocumentacionCentroLista360" xml:space="preserve"><value>Documentación de {0} en el Centro</value></data>
   <data name="DocumentacionCentroRecuento360" xml:space="preserve"><value>Mostrando {0} de {1} · del peor estado al mejor</value></data>
   <data name="RequisitosCentroVacio360" xml:space="preserve"><value>Sin requisitos documentales aplicables</value></data>
-  <data name="RequisitoCentroEmpresa360" xml:space="preserve"><value>Empresa empleadora</value></data>
-  <data name="RequisitoCentroTrabajador360" xml:space="preserve"><value>Trabajador</value></data>
   <data name="RequisitoCentroTolerancia360" xml:space="preserve"><value>Tolerancia: {0} días</value></data>
+  <data name="RequisitoCentroToleranciaUnDia360" xml:space="preserve"><value>Tolerancia: 1 día</value></data>
+  <data name="RequisitoCentroSustituido360" xml:space="preserve"><value>Sustituido</value></data>
+  <data name="RequisitoCentroArchivado360" xml:space="preserve"><value>Archivado</value></data>
+  <data name="RequisitoSustituidoPor360" xml:space="preserve"><value>Sustituido por {0}</value></data>
+  <data name="FiltrarRequisitos360" xml:space="preserve"><value>Filtrar requisitos</value></data>
+  <data name="GestionarRequisitos360" xml:space="preserve"><value>Gestionar requisitos</value></data>
+  <data name="RequisitosCentroIntro360" xml:space="preserve"><value>Documentación que este Centro exige. En cada bloque, primero la que bloquea el acceso.</value></data>
+  <data name="RequisitosBloqueEmpresa360" xml:space="preserve"><value>Documentación de la Empresa</value></data>
+  <data name="RequisitosBloqueTrabajador360" xml:space="preserve"><value>Documentación del Trabajador</value></data>
+  <data name="RequisitosBloqueVacio360" xml:space="preserve"><value>Sin requisitos en este bloque</value></data>
+  <data name="RequisitosBloqueSinCoincidencias360" xml:space="preserve"><value>Ningún requisito coincide con el filtro</value></data>
+  <data name="RequisitosVerRestantes360" xml:space="preserve"><value>Ver los {0} restantes</value></data>
+  <data name="RequisitosVerRestanteUno360" xml:space="preserve"><value>Ver el 1 restante</value></data>
+  <data name="RequisitosVerMenos360" xml:space="preserve"><value>Ver menos</value></data>
   <data name="RequisitoCentroBloquea360" xml:space="preserve"><value>Bloquea el acceso</value></data>
   <data name="RequisitoCentroNoBloquea360" xml:space="preserve"><value>No bloquea el acceso</value></data>
   <data name="FichaContratoHasta360" xml:space="preserve"><value>Contrato vigente hasta</value></data>
@@ -643,6 +661,8 @@
   <data name="PlataformaTalveg360" xml:space="preserve"><value>En TALVEG: {0}</value></data>
   <data name="DocumentacionEmpresaIntro360" xml:space="preserve"><value>Lo que este Centro exige a cada Empresa, con su estado en la plataforma CAE.</value></data>
   <data name="DocumentacionEmpresaTabla360" xml:space="preserve"><value>Documentación de Empresa exigida en este Centro</value></data>
+  <data name="DocumentoVer360" xml:space="preserve"><value>Ver</value></data>
+  <data name="DocumentoVerAria360" xml:space="preserve"><value>Ver el PDF del documento «{0}» de {1}</value></data>
   <data name="DocumentoNombre360" xml:space="preserve"><value>Documento</value></data>
   <data name="HistorialCambios360" xml:space="preserve"><value>Cambios</value></data>
   <data name="DocumentoColumna360" xml:space="preserve"><value>Documento</value></data>
@@ -688,6 +708,24 @@
   </data>
   <data name="ArchivoCentroAyuda" xml:space="preserve">
     <value>Modelo o instrucciones que el Centro entrega a las Empresas. Opcional.</value>
+  </data>
+  <data name="RequisitoArchivadoConSustituto" xml:space="preserve">
+    <value>Tipo archivado: sustituido por {0}. Pásalo a «Se excluye» para dejar de exigirlo y exige {0}.</value>
+  </data>
+  <data name="RequisitoArchivadoSinSustituto" xml:space="preserve">
+    <value>Tipo archivado: sin sustituto. Pásalo a «Se excluye» para dejar de exigirlo.</value>
+  </data>
+  <data name="RequisitoArchivadoDrawerConSustituto" xml:space="preserve">
+    <value>Tipo archivado: solo se puede excluir; el sustituto es «{0}».</value>
+  </data>
+  <data name="RequisitoArchivadoDrawerSinSustituto" xml:space="preserve">
+    <value>Tipo archivado: solo se puede excluir.</value>
+  </data>
+  <data name="RequisitoArchivadoGuardarConSustituto" xml:space="preserve">
+    <value>Este tipo de documento está archivado: solo se puede excluir. Exige su sustituto, «{0}».</value>
+  </data>
+  <data name="RequisitoArchivadoGuardarSinSustituto" xml:space="preserve">
+    <value>Este tipo de documento está archivado: solo se puede excluir.</value>
   </data>
   <data name="RequisitoGuardadoToast" xml:space="preserve">
     <value>Requisito guardado en este centro.</value>
@@ -772,4 +810,153 @@
   <data name="ToastFiltrosNoCargados" xml:space="preserve">
     <value>No pudimos cargar las opciones de los filtros. Las listas pueden estar incompletas; recarga la página.</value>
   </data>
-</root>
+  <data name="ReqAnadir" xml:space="preserve">
+    <value>Añadir requisito</value>
+  </data>
+  <data name="ReqAyudaCabecera" xml:space="preserve">
+    <value>Solo aparece lo que este Centro exige o excluye.</value>
+  </data>
+  <data name="ReqGrupoEmpresa" xml:space="preserve">
+    <value>Empresa</value>
+  </data>
+  <data name="ReqGrupoTrabajador" xml:space="preserve">
+    <value>Trabajador</value>
+  </data>
+  <data name="ReqEditarAria" xml:space="preserve">
+    <value>Editar ajustes de {0}</value>
+  </data>
+  <data name="ReqQuitarAria" xml:space="preserve">
+    <value>Quitar requisito {0}</value>
+  </data>
+  <data name="ReqQuitarAjusteAria" xml:space="preserve">
+    <value>Quitar ajuste de {0}</value>
+  </data>
+  <data name="ReqMetaRenovacion" xml:space="preserve">
+    <value>Renovación cada {0} meses</value>
+  </data>
+  <data name="ReqMetaRenovacionMensual" xml:space="preserve">
+    <value>Renovación cada mes</value>
+  </data>
+  <data name="ReqMetaBloquea" xml:space="preserve">
+    <value>Bloquea el acceso</value>
+  </data>
+  <data name="ReqMetaExcluido" xml:space="preserve">
+    <value>Se excluye en este Centro</value>
+  </data>
+  <data name="ReqExcluidosResumen" xml:space="preserve">
+    <value>Excluidos en este Centro ({0})</value>
+  </data>
+  <data name="ReqLeyendaExige" xml:space="preserve">
+    <value>Se exige / Se excluye en este Centro</value>
+  </data>
+  <data name="ReqSeExige" xml:space="preserve">
+    <value>Se exige</value>
+  </data>
+  <data name="ReqSeExcluye" xml:space="preserve">
+    <value>Se excluye</value>
+  </data>
+  <data name="ReqSeExigeAyuda" xml:space="preserve">
+    <value>Decide si este Centro pide este documento o lo deja fuera, aunque el catálogo diga otra cosa.</value>
+  </data>
+  <data name="ReqPeriodicidadEtiqueta" xml:space="preserve">
+    <value>Periodicidad propia</value>
+  </data>
+  <data name="ReqPeriodicidadAyuda" xml:space="preserve">
+    <value>Cada cuánto se renueva en este Centro. Vacío: vale la vigencia del propio documento.</value>
+  </data>
+  <data name="ReqToleranciaAyuda" xml:space="preserve">
+    <value>Días de margen tras el vencimiento antes de bloquear.</value>
+  </data>
+  <data name="ReqBloqueaEtiqueta" xml:space="preserve">
+    <value>Bloquea el acceso</value>
+  </data>
+  <data name="ReqBloqueaAyuda" xml:space="preserve">
+    <value>Si falta o está vencido, quien lo incumpla no entra al Centro.</value>
+  </data>
+  <data name="ReqPlantillaEtiqueta" xml:space="preserve">
+    <value>Plantilla adjunta</value>
+  </data>
+  <data name="ReqPlantillaAyuda" xml:space="preserve">
+    <value>Modelo del documento que se ofrece a la Empresa para este requisito.</value>
+  </data>
+  <data name="ReqPlantillaSustituir" xml:space="preserve">
+    <value>Sustituir</value>
+  </data>
+  <data name="ReqPlantillaQuitar" xml:space="preserve">
+    <value>Quitar plantilla</value>
+  </data>
+  <data name="ReqPlantillaVer" xml:space="preserve">
+    <value>Ver formulario</value>
+  </data>
+  <data name="ReqCancelar" xml:space="preserve">
+    <value>Cancelar</value>
+  </data>
+  <data name="ReqGuardar" xml:space="preserve">
+    <value>Guardar ajustes</value>
+  </data>
+  <data name="ReqBuscadorEtiqueta" xml:space="preserve">
+    <value>Añadir requisito: busca en el catálogo de tipos de documento</value>
+  </data>
+  <data name="ReqBuscadorBorrar" xml:space="preserve">
+    <value>Borrar</value>
+  </data>
+  <data name="ReqBuscadorCerrar" xml:space="preserve">
+    <value>Cerrar el buscador</value>
+  </data>
+  <data name="ReqResultadosAria" xml:space="preserve">
+    <value>Resultados</value>
+  </data>
+  <data name="ReqCoincidenciaUna" xml:space="preserve">
+    <value>1 tipo de documento coincide</value>
+  </data>
+  <data name="ReqCoincidencias" xml:space="preserve">
+    <value>{0} tipos de documento coinciden</value>
+  </data>
+  <data name="ReqYaSeExige" xml:space="preserve">
+    <value>Ya se exige</value>
+  </data>
+  <data name="ReqExcluidoAqui" xml:space="preserve">
+    <value>Excluido en este Centro</value>
+  </data>
+  <data name="ReqAnadirOpcion" xml:space="preserve">
+    <value>Añadir</value>
+  </data>
+  <data name="ReqArchivadosNoAparecen" xml:space="preserve">
+    <value>Los tipos de documento archivados no aparecen en el buscador.</value>
+  </data>
+  <data name="ReqSinCoincidenciasTitulo" xml:space="preserve">
+    <value>Ningún tipo de documento coincide con «{0}»</value>
+  </data>
+  <data name="ReqSinCoincidenciasAyuda" xml:space="preserve">
+    <value>Revisa la escritura o prueba con otra palabra. Si el tipo no existe, créalo antes en el catálogo de tipos de documento.</value>
+  </data>
+  <data name="ReqVerCatalogo" xml:space="preserve">
+    <value>Ver catálogo de tipos de documento</value>
+  </data>
+  <data name="ReqVacioTitulo" xml:space="preserve">
+    <value>Este Centro no tiene requisitos propios</value>
+  </data>
+  <data name="ReqVacioTexto" xml:space="preserve">
+    <value>Ningún tipo de documento se exige todavía en este Centro. Añade un requisito para exigir un tipo de documento únicamente aquí.</value>
+  </data>
+  <data name="ReqAnadidoToast" xml:space="preserve">
+    <value>«{0}» se exige ahora en este Centro.</value>
+  </data>
+  <data name="ReqExcluidoToast" xml:space="preserve">
+    <value>«{0}» queda excluido en este Centro.</value>
+  </data>
+  <data name="ReqErrorGuardar" xml:space="preserve">
+    <value>No pudimos guardar los cambios. Intenta nuevamente en unos segundos.</value>
+  </data>
+  <data name="ReqDescartarTitulo" xml:space="preserve">
+    <value>¿Descartar cambios?</value>
+  </data>
+  <data name="ReqDescartarMensaje" xml:space="preserve">
+    <value>Hay cambios que todavía no se han guardado. Si cierras, se pierden.</value>
+  </data>
+  <data name="ReqDescartarConfirmar" xml:space="preserve">
+    <value>Descartar cambios</value>
+  </data>
+  <data name="ReqDescartarSeguir" xml:space="preserve">
+    <value>Seguir editando</value>
+  </data></root>

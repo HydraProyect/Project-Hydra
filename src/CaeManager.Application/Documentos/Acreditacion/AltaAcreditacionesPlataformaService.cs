@@ -41,6 +41,16 @@ public sealed record AltasConAcreditacion
     public IReadOnlyCollection<TipoDocumentoCentro> Requisitos { get; init; } = [];
 
     /// <summary>
+    /// Posiciones de un Centro sobre un TipoDocumento que este alta elimina (EliminarDocumentacionRequeridaCentro): el
+    /// Centro vuelve al valor general del tipo, así que, si ese valor es <see cref="RequisitoDocumental.Si"/>, sus
+    /// Documentos de Empresa de ese tipo se evalúan como si el Centro hubiera pasado a exigirlo. Solo los de Empresa: los
+    /// Documentos de Trabajador no se acreditan por esta vía, igual que antes de la regla A-1 (mismo criterio que
+    /// <see cref="TiposQuePasanAExigirseDeSerie"/>). Prevalecen sobre la fila guardada, que el Command borra en el mismo
+    /// guardado.
+    /// </summary>
+    public IReadOnlyCollection<TipoDocumentoCentro> RequisitosRetirados { get; init; } = [];
+
+    /// <summary>
     /// Centros que este alta devuelve a <see cref="ModalidadGestionCae.ConGestionCae"/>
     /// (P1-X2). Prevalecen sobre la modalidad guardada, igual que
     /// <see cref="Requisitos"/> sobre la fila guardada: el Command los cambia y
@@ -100,7 +110,9 @@ public sealed record AltasConAcreditacion
 /// Todos los caminos de alta —Documento creado a mano, importado o generado
 /// desde plantilla; Asignación individual, en lote, importada o reabierta; acceso de
 /// plataforma nuevo; tipo que un Centro pasa a exigir, o que pasa a exigirse de
-/// serie (<see cref="AltasConAcreditacion.TiposQuePasanAExigirseDeSerie"/>)— llaman aquí. Cada
+/// serie (<see cref="AltasConAcreditacion.TiposQuePasanAExigirseDeSerie"/>) o al retirar la posición del
+/// Centro (<see cref="AltasConAcreditacion.RequisitosRetirados"/>); Centro que vuelve a gestión CAE (también
+/// desde la importación maestra) o que se restaura; Documento de Empresa restaurado— llaman aquí. Cada
 /// camino evalúa solo lo que su alta pone en juego: un Documento nuevo, ante
 /// todos los Centros donde su propietario tiene actividad; una Asignación nueva, los Documentos
 /// del Trabajador y de su Empresa ante ese Centro; un acceso nuevo, solo ese
@@ -150,11 +162,13 @@ public class AltaAcreditacionesPlataformaService(
         var asignacionesNuevas = altas.Asignaciones.Where(a => a.FechaBaja is null).ToList();
         var canalesNuevos = altas.Canales.Where(c => c.Tipo == TipoCanalGestion.Plataforma).ToList();
         var requisitosIncluidos = altas.Requisitos.Where(r => r.Incluido).ToList();
+        var requisitosRetirados = altas.RequisitosRetirados.ToList();
         var tiposExigidosDeSerie = altas.TiposQuePasanAExigirseDeSerie.ToHashSet();
         var centrosAConciliar = altas.CentrosAConciliar.ToHashSet();
 
         if (documentosNuevos.Count == 0 && asignacionesNuevas.Count == 0 && canalesNuevos.Count == 0
-            && requisitosIncluidos.Count == 0 && tiposExigidosDeSerie.Count == 0 && centrosAConciliar.Count == 0)
+            && requisitosIncluidos.Count == 0 && requisitosRetirados.Count == 0 && tiposExigidosDeSerie.Count == 0
+            && centrosAConciliar.Count == 0)
             return 0;
 
         // Un tipo que pasa a exigirse de serie pone en juego cada Centro con acceso de plataforma (bajo RLS, del
@@ -171,6 +185,7 @@ public class AltaAcreditacionesPlataformaService(
         // Centros donde el alta pone en juego a todos los propietarios con actividad.
         var centrosPorCompleto = canalesNuevos.Select(c => c.CentroId)
             .Concat(requisitosIncluidos.Select(r => r.CentroId))
+            .Concat(requisitosRetirados.Select(r => r.CentroId))
             .Concat(centrosConPlataforma)
             .Concat(centrosAConciliar)
             .ToHashSet();
@@ -242,6 +257,13 @@ public class AltaAcreditacionesPlataformaService(
                          .Where(d => d.TipoDocumentoId == requisito.TipoDocumentoId))
                 candidatos.Add((documento, requisito.CentroId, null));
 
+        // Solo Documentos de Empresa, por la misma razón que la serie de abajo: retirar la posición del Centro le aplica
+        // el valor general, y por esa vía nunca se acreditaron los de Trabajador.
+        foreach (var retirado in requisitosRetirados)
+            foreach (var documento in DocumentosConActividadEn(retirado.CentroId, documentosDisponibles, paresActivos, empresaDeTrabajador, empresaDeCentro)
+                         .Where(d => d.EmpresaId is not null && d.TipoDocumentoId == retirado.TipoDocumentoId))
+                candidatos.Add((documento, retirado.CentroId, null));
+
         // Solo Documentos de Empresa: el valor general nunca propagó los de Trabajador, y la regla A-1 no lo cambia
         // (decisión del propietario del producto del 2026-11-08, revisión Codex de la PR #2074, ronda 5). Un Documento
         // de Trabajador cargado por otra vía de este mismo alta tampoco entra por aquí.
@@ -299,6 +321,9 @@ public class AltaAcreditacionesPlataformaService(
         // es Sí; los de Trabajador, los únicos a los que la serie dejaría fuera, no entran por esa vía.
         foreach (var requisito in altas.Requisitos)
             incluidoPorPar[(requisito.TipoDocumentoId, requisito.CentroId)] = requisito.Incluido;
+        // La fila que el mismo alta borra todavía está en la base: sin ella, el Centro sigue el valor general.
+        foreach (var retirado in requisitosRetirados)
+            incluidoPorPar.Remove((retirado.TipoDocumentoId, retirado.CentroId));
 
         // Accesos de plataforma de cada Centro: la base, más los del propio alta.
         var canalesPorCentro = (await centrosContext.CanalesGestionDocumental

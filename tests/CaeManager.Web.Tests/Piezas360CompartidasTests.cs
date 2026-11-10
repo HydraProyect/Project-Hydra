@@ -386,6 +386,66 @@ public class Piezas360CompartidasTests : BunitContext
         lista.QuerySelectorAll("li[data-pieza='fila']").Should().ContainSingle();
     }
 
+    /// <summary>
+    /// Segundo nivel (decisión de Chris del 2026-11-08): la lista dentro del bloque desplegado no es una tarjeta
+    /// ni una caja, para que la fila desplegada no mezcle tres fondos. Anidada gana a EnTarjeta.
+    /// </summary>
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void La_lista_anidada_no_es_tarjeta_ni_caja(bool tambienEnTarjeta)
+    {
+        var cut = Render<ListaRelaciones>(p => p
+            .Add(l => l.Etiqueta, "Documentación exigida en Planta Illescas")
+            .Add(l => l.Anidada, true)
+            .Add(l => l.EnTarjeta, tambienEnTarjeta)
+            .Add(l => l.Encabezado, Texto("no se pinta"))
+            .AddChildContent<FilaRelacion>(f => f.Add(x => x.Nombre, "Entrega de EPI").Add(x => x.Compacta, true).Add(x => x.Estado, Marca("pastilla"))));
+
+        cut.FindAll(".lista-relaciones-tarjeta, [data-pieza='tarjeta'], .lista-relaciones-encabezado").Should().BeEmpty();
+        var lista = cut.Find("ul.lista-relaciones.lista-relaciones-sin-caja.lista-relaciones-anidada[data-pieza='lista-anidada']");
+        lista.GetAttribute("aria-label").Should().Be("Documentación exigida en Planta Illescas");
+        lista.QuerySelectorAll("li.fila-relacion-compacta").Should().ContainSingle();
+    }
+
+    [Fact]
+    public void Los_avisos_se_recortan_a_dos_y_el_resto_es_un_mas_N_hacia_la_pagina_360()
+    {
+        var cut = Render<AvisosRecortados>(p => p
+            .Add(a => a.Avisos, new[] { "2 documentos bloquean el acceso", "24 pendientes", "3 pendientes de validación", "2 por vencer" })
+            .Add(a => a.Href, "/centros/abc")
+            .Add(a => a.Nombre, "Plataforma logística de Illescas"));
+
+        var avisos = cut.Find("[data-pieza='avisos-recortados']");
+        avisos.TextContent.Should().StartWith("2 documentos bloquean el acceso · 24 pendientes");
+        avisos.TextContent.Should().NotContain("por vencer").And.NotContain("validación");
+
+        var mas = cut.Find("a.avisos-recortados-mas");
+        mas.TextContent.Should().Be("+2");
+        mas.GetAttribute("href").Should().Be("/centros/abc");
+        mas.GetAttribute("data-ocultos").Should().Be("2");
+        mas.GetAttribute("aria-label").Should().Be(
+            "+2: 3 pendientes de validación · 2 por vencer. Se ven en la página de Plataforma logística de Illescas");
+        mas.GetAttribute("title").Should().Be(mas.GetAttribute("aria-label"));
+    }
+
+    [Fact]
+    public void Con_dos_avisos_o_menos_no_hay_mas_N_y_sin_avisos_no_se_pinta_nada()
+    {
+        var dos = Render<AvisosRecortados>(p => p
+            .Add(a => a.Avisos, new[] { "1 vencido", "2 por vencer" })
+            .Add(a => a.Href, "/centros/abc")
+            .Add(a => a.Nombre, "Centro Norte"));
+        dos.Find("[data-pieza='avisos-recortados']").TextContent.Should().Be("1 vencido · 2 por vencer");
+        dos.FindAll("a.avisos-recortados-mas").Should().BeEmpty();
+
+        var ninguno = Render<AvisosRecortados>(p => p
+            .Add(a => a.Avisos, Array.Empty<string>())
+            .Add(a => a.Href, "/centros/abc")
+            .Add(a => a.Nombre, "Centro Norte"));
+        ninguno.Markup.Trim().Should().BeEmpty();
+    }
+
     [Fact]
     public void Sin_EnTarjeta_la_lista_sigue_siendo_la_caja_de_siempre()
     {

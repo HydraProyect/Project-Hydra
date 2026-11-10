@@ -17,9 +17,10 @@ public record ContextoCarteraDeGestorCae(Guid OperadorTenantId, Guid ActorUsuari
 /// <list type="bullet">
 /// <item><b>Quién</b>: cuenta activa del Operador CAE externo (su Tenant de origen) con rol
 /// Administrador o Dirección CAE —los que ya asignan cartera al dar de alta, ver
-/// <c>CrearUsuarioCommand</c>— o Coordinador CAE. Se lee en Identity sobre el Tenant de
-/// origen, no en el claim: dentro de un Workspace operativo derivado el claim es el de la
-/// cartera, y la sesión de una cuenta desactivada no debe seguir escribiendo.</item>
+/// <c>CrearUsuarioCommand</c>— o Coordinador CAE. Decide el rol efectivo de la sesión en el
+/// Tenant de origen e Identity confirma que la cuenta sigue activa con ese rol
+/// (<see cref="RolDeAutoridadAsync"/>): la sesión de una cuenta desactivada no sigue
+/// escribiendo, y una sesión limitada a Consulta no actúa con el rol de la cuenta en Identity.</item>
 /// <item><b>Sobre quién</b>: un Gestor CAE del propio Operador CAE (nunca de un Operador CAE
 /// externo delegado). Un Coordinador CAE solo sobre su equipo: los Gestores CAE que le
 /// reportan (<c>CoordinadorUsuarioId</c>, decisión D-001, la misma jerarquía que acota su
@@ -86,8 +87,8 @@ public static class AutoridadSobreCarteraDeGestorCae
 
     /// <summary>
     /// El actor y su rol de autoridad sobre carteras —Administrador, Dirección CAE o
-    /// Coordinador CAE—, leído en Identity sobre su Tenant de origen. Falla con
-    /// <see cref="SinAutoridad"/> si no tiene ninguno o la sesión no tiene rol de negocio.
+    /// Coordinador CAE—. Falla con <see cref="SinAutoridad"/> si no tiene ninguno o la sesión
+    /// no tiene rol de negocio. Cómo se decide el rol, en <see cref="RolDeAutoridadAsync"/>.
     /// </summary>
     public static async Task<Result<(Guid OperadorTenantId, Guid ActorUsuarioId, string Rol)>> ResolverActorAsync(
         ICurrentUserService currentUserService,
@@ -101,18 +102,48 @@ public static class AutoridadSobreCarteraDeGestorCae
 
         using (AmbitoTenantExplicito.Establecer(origen.Value))
         {
-            // Falla cerrado sin rol de negocio en la sesión, igual que ResolverAsync.
-            if (await currentUserService.ObtenerRolEfectivoAsync() is null)
-                return Result.Fallo<(Guid, Guid, string)>(SinAutoridad);
-
-            foreach (var rol in RolesAutorizados)
-            {
-                if (await directorioUsuarios.EsCuentaActivaConRolAsync(actorId.Value, origen.Value, rol, cancellationToken))
-                    return Result.Exito((origen.Value, actorId.Value, rol));
-            }
-
-            return Result.Fallo<(Guid, Guid, string)>(SinAutoridad);
+            var rol = await RolDeAutoridadAsync(
+                actorId.Value, origen.Value, RolesAutorizados, currentUserService, directorioUsuarios, cancellationToken);
+            return rol is null
+                ? Result.Fallo<(Guid, Guid, string)>(SinAutoridad)
+                : Result.Exito((origen.Value, actorId.Value, rol));
         }
+    }
+
+    /// <summary>
+    /// El rol con el que el actor opera sobre las carteras de su Operador CAE, o <c>null</c>.
+    /// Se llama con el Tenant de origen como <see cref="AmbitoTenantExplicito"/>: las cuentas, los
+    /// equipos y las Asignaciones de Operación son de ese Tenant, sea cual sea el Workspace
+    /// operativo derivado que la sesión tenga abierto.
+    ///
+    /// <para>
+    /// Decide el <b>rol efectivo</b> de la sesión en ese Tenant
+    /// (<see cref="ICurrentUserService.ObtenerRolEfectivoAsync"/>, decisión P7), con las
+    /// restricciones de sesión ya aplicadas: una sesión de login local limitada a Consulta es
+    /// Consulta aunque la cuenta sea de Dirección CAE, y una Sesión Privilegiada de plataforma no
+    /// tiene rol de negocio (Soporte TALVEG nunca es Operador CAE ni Gestor CAE). Identity solo
+    /// <b>confirma</b> que la cuenta sigue activa con ese mismo rol en su Tenant de origen
+    /// (<see cref="IDirectorioUsuariosService.EsCuentaActivaConRolAsync"/>): una cuenta
+    /// desactivada, o a la que retiraron el rol, no sigue operando con la sesión viva; y un rol
+    /// concedido en Identity tras abrir la sesión no autoriza hasta la sesión siguiente. Es el
+    /// mismo criterio que <c>ObtenerCapasCalendarioQuery</c> (OWASP ASVS 4.0.3 V4.1.3, V4.2.1).
+    /// </para>
+    /// </summary>
+    internal static async Task<string?> RolDeAutoridadAsync(
+        Guid actorUsuarioId,
+        Guid origenTenantId,
+        IReadOnlyCollection<string> rolesAdmitidos,
+        ICurrentUserService currentUserService,
+        IDirectorioUsuariosService directorioUsuarios,
+        CancellationToken cancellationToken)
+    {
+        var rol = await currentUserService.ObtenerRolEfectivoAsync();
+        if (rol is null || !rolesAdmitidos.Contains(rol))
+            return null;
+
+        return await directorioUsuarios.EsCuentaActivaConRolAsync(actorUsuarioId, origenTenantId, rol, cancellationToken)
+            ? rol
+            : null;
     }
 
     public static async Task<Result<ContextoCarteraDeGestorCae>> ResolverAsync(
@@ -129,21 +160,8 @@ public static class AutoridadSobreCarteraDeGestorCae
 
         using (AmbitoTenantExplicito.Establecer(origen.Value))
         {
-            // Falla cerrado sin rol de negocio en la sesión (sesión privilegiada de plataforma,
-            // delegación retirada): Soporte TALVEG nunca es Operador CAE ni Gestor CAE.
-            if (await currentUserService.ObtenerRolEfectivoAsync() is null)
-                return Result.Fallo<ContextoCarteraDeGestorCae>(SinAutoridad);
-
-            string? rolActor = null;
-            foreach (var rol in RolesAutorizados)
-            {
-                if (await directorioUsuarios.EsCuentaActivaConRolAsync(actorId.Value, origen.Value, rol, cancellationToken))
-                {
-                    rolActor = rol;
-                    break;
-                }
-            }
-
+            var rolActor = await RolDeAutoridadAsync(
+                actorId.Value, origen.Value, RolesAutorizados, currentUserService, directorioUsuarios, cancellationToken);
             if (rolActor is null)
                 return Result.Fallo<ContextoCarteraDeGestorCae>(SinAutoridad);
 

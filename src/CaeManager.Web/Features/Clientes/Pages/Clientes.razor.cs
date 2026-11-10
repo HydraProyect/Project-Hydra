@@ -1008,19 +1008,22 @@ public partial class Clientes : CaeManager.Web.Components.PaginaInteractiva, IDi
         _centrosConEstadoConError.Clear();
     }
 
-    /// <summary>Motivos del estado de un Centro, sin partes en cero ni confundir pendientes con vencidos (los de Centro de Cliente 360).</summary>
-    private string MotivosCentro(CentroListaDto centro)
+    /// <summary>
+    /// Motivos del estado de un Centro, sin partes en cero ni confundir pendientes con vencidos (los de Centro de Cliente 360).
+    /// Del más grave al menos grave: la fila muestra dos y el resto en «+N» hacia el Centro 360 (2026-11-08).
+    /// </summary>
+    private IReadOnlyList<string> MotivosCentro(CentroListaDto centro)
     {
         var partes = new List<string>();
+        if (centro.Recuentos.Bloqueos.Count > 0)
+            partes.Add(Plural(centro.Recuentos.Bloqueos.Count, "DetalleBloqueoPlataformaUno", "DetalleBloqueosPlataformaVarios"));
         if (centro.Recuentos.VencidasPorFecha.Count > 0)
             partes.Add(Plural(centro.Recuentos.VencidasPorFecha.Count, "DetalleVencidosUno", "DetalleVencidosVarios"));
         if (centro.Recuentos.Pendientes.Count > 0)
             partes.Add(Textos[centro.Recuentos.Pendientes.Count == 1 ? "DetallePendienteUno" : "DetallePendientes", centro.Recuentos.Pendientes.Count]);
-        if (centro.Recuentos.Bloqueos.Count > 0)
-            partes.Add(Plural(centro.Recuentos.Bloqueos.Count, "DetalleBloqueoPlataformaUno", "DetalleBloqueosPlataformaVarios"));
         if (centro.Recuentos.TotalProximas > 0)
             partes.Add(Plural(centro.Recuentos.TotalProximas, "DetalleProximosUno", "DetalleProximosVarios"));
-        return string.Join(" · ", partes);
+        return partes;
     }
 
     private string Plural(int n, string claveUno, string claveVarios) =>

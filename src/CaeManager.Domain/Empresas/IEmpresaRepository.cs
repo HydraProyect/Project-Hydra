@@ -4,6 +4,13 @@ public interface IEmpresaRepository
 {
     Task<Empresa?> ObtenerPorIdAsync(Guid id, CancellationToken cancellationToken = default);
 
+    /// <summary>
+    /// Las Empresas no eliminadas del Tenant en curso, releídas de la base las que el contexto ya rastreaba: quien decide
+    /// bajo el candado de la regla A-1 (por ejemplo, qué Empresa casa con un CIF) tiene que ver lo que otra operación
+    /// confirmó mientras esperaba.
+    /// </summary>
+    Task<IReadOnlyList<Empresa>> ListarActualizadasAsync(CancellationToken cancellationToken = default);
+
     /// <summary>Regla de los comandos de alta y edición: Empresa activa con la misma razón social sin distinguir mayúsculas.</summary>
     Task<bool> ExisteConRazonSocialAsync(string razonSocial, Guid? excluirId = null, CancellationToken cancellationToken = default);
 

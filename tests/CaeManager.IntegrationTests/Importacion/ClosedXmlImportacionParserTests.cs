@@ -517,6 +517,78 @@ public class ClosedXmlImportacionParserTests
         fuera.Should().BeEquivalentTo(inexistente, o => o.Excluding(p => p.OperacionId).WithStrictOrdering());
     }
 
+    private const string CentroDeAsignacion = "Planta Norte";
+
+    /// <summary>
+    /// Cadena real con una Asignación (#1988): el Trabajador y su Empresa existen y están dentro del ámbito en todos los
+    /// mundos; el Cliente empresarial y el Centro de Centros_Plataformas (mismo nombre) y la Asignación activa existen solo
+    /// si <paramref name="existente"/>, y quedan dentro del ámbito solo si <paramref name="visible"/>.
+    /// </summary>
+    private static async Task<CaeManager.Application.Importacion.PlanImportacionDto> AnalizadoAcotadoConCentroAsync(bool existente, bool visible)
+    {
+        var empresas = new EmpresasQueryContextFalso();
+        var centros = new CentrosQueryContextFalso();
+        var trabajadores = new TrabajadoresQueryContextFalso();
+        var asignaciones = new AsignacionesQueryContextFalso();
+        var empresa = new Empresa(EmpresaMatriz);
+        var trabajador = CaeManager.Domain.Trabajadores.Trabajador.DeEmpresa(empresa.Id, "Marta", "Ruiz", DniValido);
+        empresas.ListaEmpresas.Add(empresa);
+        trabajadores.ListaTrabajadores.Add(trabajador);
+        var cliente = Empresa.CrearComoCliente(CentroDeAsignacion, cif: "B12345674", esCritico: false, notas: null, ejecutivoUsuarioId: null);
+        var centro = new CaeManager.Domain.Centros.Centro(cliente.Id, empresa.Id, CentroDeAsignacion);
+        if (existente)
+        {
+            empresas.ListaEmpresas.Add(cliente);
+            centros.ListaCentros.Add(centro);
+            asignaciones.ListaAsignaciones.Add(new CaeManager.Domain.Asignaciones.Asignacion(trabajador.Id, centro.Id, new DateOnly(2026, 1, 1)));
+        }
+
+        var libro = NuevoLibroBase();
+        EscribirTrabajadorValido(libro.Worksheets.Worksheet("Empleados"), fila: 4);
+        ConfigurarUnCentro(libro, CentroDeAsignacion);
+        var hojaAsignaciones = libro.Worksheets.Worksheet("Asignaciones");
+        hojaAsignaciones.Cell(5, 1).Value = 1;
+        hojaAsignaciones.Cell(5, 2).Value = "Marta";
+        hojaAsignaciones.Cell(5, 3).Value = "Ruiz";
+        hojaAsignaciones.Cell(5, 4).Value = "X";
+
+        var parser = new ClosedXmlImportacionParser(
+            asignaciones, centros, new DocumentosQueryContextFalso(),
+            empresas, new TiposDocumentoQueryContextFalso(), trabajadores, Options.Create(OpcionesDePrueba()));
+        var alcance = new AlcanceDatosServiceFalso(
+            trabajadorIds: [trabajador.Id], empresaIdsParaGestion: [empresa.Id],
+            clienteIds: visible ? [cliente.Id] : [], centroIdsParaGestion: visible ? [centro.Id] : []);
+        var recorte = new CaeManager.Application.Importacion.RecorteDeAnalisisAlAmbito(
+            new AutoridadAcotadaFalsa(), alcance, empresas, centros, trabajadores, asignaciones);
+
+        using var flujo = new MemoryStream();
+        libro.SaveAs(flujo);
+        flujo.Position = 0;
+        return await recorte.RecortarAsync(await parser.AnalizarAsync(flujo), default);
+    }
+
+    [Fact]
+    public async Task Con_autoridad_acotada_el_Centro_de_una_Asignacion_fuera_de_ambito_da_el_mismo_plan_que_si_no_existiera()
+    {
+        // #1988: los recuentos del título de confirmación salen solo de los YaExiste de este plan
+        // (Importacion.razor.cs, TotalACrear y AltasClienteCentroQueNoSeHaran), así que el plan igual los iguala también.
+        var fuera = await AnalizadoAcotadoConCentroAsync(existente: true, visible: false);
+        var inexistente = await AnalizadoAcotadoConCentroAsync(existente: false, visible: false);
+
+        fuera.Should().BeEquivalentTo(inexistente, o => o.Excluding(p => p.OperacionId).WithStrictOrdering());
+        fuera.Asignaciones.Should().ContainSingle("el control de que el archivo sí declara la Asignación");
+    }
+
+    [Fact]
+    public async Task Con_autoridad_acotada_control_el_Centro_visible_de_una_Asignacion_figura_como_existente()
+    {
+        var visible = await AnalizadoAcotadoConCentroAsync(existente: true, visible: true);
+
+        visible.ClientesCentros.Should().ContainSingle().Which.YaExisteCentro.Should().BeTrue();
+        visible.ClientesCentros.Single().YaExisteCliente.Should().BeTrue();
+        visible.Asignaciones.Should().ContainSingle().Which.YaExiste.Should().BeTrue();
+    }
+
     [Fact]
     public async Task Con_autoridad_acotada_control_el_Trabajador_y_la_Empresa_visibles_figuran_como_existentes()
     {

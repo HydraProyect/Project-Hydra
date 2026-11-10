@@ -24,7 +24,10 @@
     <div class="inicio-cartera-cabecera">
         <h2 id="inicio-cartera-titulo" class="dashboard-subtitulo">@Textos["CarteraTitulo"]</h2>
         <span class="inicio-cartera-meta">@MetaEmpresas</span>
-        <a class="inicio-cartera-enlace" href="@RutaMiTrabajo">@Textos["EnlaceMiTrabajo"]</a>
+        @if (RutaMiTrabajo is not null)
+        {
+            <a class="inicio-cartera-enlace" href="@RutaMiTrabajo">@Textos["EnlaceMiTrabajo"]</a>
+        }
     </div>
     <p class="inicio-cartera-descripcion">@Textos["CarteraDescripcion"]</p>
 
@@ -120,8 +123,8 @@
     /// </summary>
     [Parameter, EditorRequired] public IReadOnlyList<ClienteRiesgoDto> Empresas { get; set; } = [];
 
-    /// <summary>La cola agregada de toda la cartera (el mismo destino que «Mi trabajo» del menú lateral).</summary>
-    [Parameter, EditorRequired] public string RutaMiTrabajo { get; set; } = "/mi-trabajo";
+    /// <summary>La cola agregada de toda la cartera (el mismo destino que «Mi trabajo» del menú lateral); null (Mi trabajo oculto, <c>MiTrabajoVisibilidad</c>) no pinta el enlace.</summary>
+    [Parameter, EditorRequired] public string? RutaMiTrabajo { get; set; } = "/mi-trabajo";
 
     private AntiforgeryRequestToken? _token;
 
