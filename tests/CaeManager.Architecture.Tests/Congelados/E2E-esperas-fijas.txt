@@ -20,5 +20,7 @@ tests/CaeManager.E2ETests/Fidelidad360/Mockup360.cs :: WaitForTimeoutAsync = 1
 # Reloj del servidor: intervalo de la revalidación periódica del circuito (6 s) sin señal observable de cada ciclo.
 tests/CaeManager.E2ETests/RecorridoFichas360.cs :: WaitForTimeoutAsync = 1
 tests/CaeManager.E2ETests/Rendimiento/MedidorConsultasSql.cs :: Task.Delay = 1
+# Pausa de un bucle de sondeo con límite de 15 s (relectura de la vista recordada en base de datos, que la página escribe al salir sin esperarla).
+tests/CaeManager.E2ETests/VistaRecordadaE2ETests.cs :: Task.Delay = 1
 # Pausa del bucle que espera a que la aplicación recién arrancada acepte conexiones.
 tests/CaeManager.E2ETests/WebAppFixture.cs :: Task.Delay = 1

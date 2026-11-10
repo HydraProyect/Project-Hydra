@@ -1,0 +1,76 @@
+@* Componente invisible: registra los atajos de la pantalla de pasos de una Gestión automática (§ 4.5: → o «s»
+   siguiente, ← anterior, 1 subido, 2 validado; atajos-pasos-gestion.js). La página decide qué hace cada tecla
+   vía OnAtajo. Mismo ciclo de vida que AtajosListaTeclado. *@
+@implements IAsyncDisposable
+@inject IJSRuntime JsRuntime
+
+@code {
+    /// <summary>Teclas que el módulo reenvía. Debe coincidir con TECLAS de atajos-pasos-gestion.js.</summary>
+    public static readonly IReadOnlyList<string> Teclas = [TeclaSiguiente, TeclaAnterior, TeclaSiguienteLetra, TeclaSubido, TeclaValidado];
+
+    public const string TeclaSiguiente = "ArrowRight";
+    public const string TeclaAnterior = "ArrowLeft";
+    public const string TeclaSiguienteLetra = "s";
+    public const string TeclaSubido = "1";
+    public const string TeclaValidado = "2";
+
+    [Parameter] public EventCallback<string> OnAtajo { get; set; }
+
+    private IJSObjectReference? _modulo;
+    private IJSObjectReference? _suscripcion;
+    private DotNetObjectReference<AtajosPasosGestion>? _referenciaDotNet;
+    private bool _desechado;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender) return;
+
+        _modulo = await JsRuntime.InvokeAsync<IJSObjectReference>("import", "./js/atajos-pasos-gestion.js");
+        if (!_desechado)
+        {
+            _referenciaDotNet = DotNetObjectReference.Create(this);
+            _suscripcion = await _modulo.InvokeAsync<IJSObjectReference>("registrarAtajosPasosGestion", _referenciaDotNet);
+        }
+
+        // Se salió de la pantalla mientras llegaba el módulo o el registro: DisposeAsync ya pasó sin nada que retirar,
+        // y sin esto el manejador seguiría escuchando en document.
+        if (_desechado)
+        {
+            await RetirarAsync();
+            _referenciaDotNet?.Dispose();
+        }
+    }
+
+    [JSInvokable]
+    public Task RecibirAtajo(string tecla) => Teclas.Contains(tecla) ? OnAtajo.InvokeAsync(tecla) : Task.CompletedTask;
+
+    public async ValueTask DisposeAsync()
+    {
+        _desechado = true;
+        await RetirarAsync();
+        _referenciaDotNet?.Dispose();
+    }
+
+    private async Task RetirarAsync()
+    {
+        // En una navegación el circuito puede estar ya desconectado: JSDisconnectedException aquí no es un error real.
+        try
+        {
+            if (_suscripcion is { } suscripcion)
+            {
+                _suscripcion = null;
+                await suscripcion.InvokeVoidAsync("dispose");
+                await suscripcion.DisposeAsync();
+            }
+
+            if (_modulo is { } modulo)
+            {
+                _modulo = null;
+                await modulo.DisposeAsync();
+            }
+        }
+        catch (JSDisconnectedException)
+        {
+        }
+    }
+}
