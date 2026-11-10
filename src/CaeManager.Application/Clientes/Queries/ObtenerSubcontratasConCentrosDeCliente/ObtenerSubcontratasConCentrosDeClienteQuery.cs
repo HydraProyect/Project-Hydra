@@ -38,10 +38,15 @@ public class ObtenerSubcontratasConCentrosDeClienteQueryHandler(IMediator mediat
             {
                 var actividad = await mediator.Send(new ObtenerCentrosConActividadDeSubcontrataQuery(subcontrata.Id), cancellationToken);
                 // Intersectar antes de leer documentos: los Centros de otros Clientes empresariales no se calculan.
-                foreach (var centro in actividad.Where(c => visibles.Contains(c.Id)))
+                var centrosDeCliente = actividad.Where(c => visibles.Contains(c.Id)).ToList();
+                // Una sola lectura por Subcontrata para todos sus Centros (mismo cálculo y alcance que la de un Centro).
+                var porCentro = centrosDeCliente.Count == 0
+                    ? new Dictionary<Guid, IReadOnlyList<CumplimientoDeAsignacionDto>>()
+                    : await mediator.Send(new ObtenerCumplimientoDeAsignacionesPorCentrosQuery(
+                        centrosDeCliente.Select(c => c.Id).Distinct().ToList(), EmpresaEmpleadoraSubcontratistaId: subcontrata.Id), cancellationToken);
+                foreach (var centro in centrosDeCliente)
                 {
-                    var trabajadores = await mediator.Send(new ObtenerAsignacionesDocumentacionPorCentroQuery(centro.Id,
-                        EmpresaEmpleadoraSubcontratistaId: subcontrata.Id), cancellationToken);
+                    var trabajadores = porCentro.GetValueOrDefault(centro.Id) ?? [];
                     var fraccion = new FraccionCumplimiento(trabajadores.Sum(t => t.Cumplimiento.AlDia), trabajadores.Sum(t => t.Cumplimiento.Requeridos));
                     var estados = trabajadores.Where(t => t.Cumplimiento.Requeridos > 0).Select(t => t.PeorEstado).ToList();
                     centros.Add(new(centro, fraccion, estados.Count == 0 ? null : estados.MinBy(SeveridadEstadoDocumento.Rango)));
