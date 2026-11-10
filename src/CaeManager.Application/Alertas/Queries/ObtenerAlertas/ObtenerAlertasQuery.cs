@@ -148,7 +148,14 @@ public class ObtenerAlertasQueryHandler(
                 documentosContext, trabajadoresContext, tiposDocumentoContext, proyectosContext, trabajadorIdsVisibles, hoy)
             join trabajador in trabajadoresContext.Trabajadores on documento.TrabajadorId!.Value equals trabajador.Id
             join tipoDocumento in tiposDocumentoContext.TiposDocumento on documento.TipoDocumentoId equals tipoDocumento.Id
+            // El nombre de la Empresa del Trabajador en la misma consulta (la misma lectura de Empresas, bajo RLS, que hacía
+            // la búsqueda por lote del final): sin fila visible, ninguno, como allí.
+            join empresa in empresasContext.Empresas on trabajador.EmpresaId equals (Guid?)empresa.Id into empresasDelTrabajador
+            from empresa in empresasDelTrabajador.DefaultIfEmpty()
             where documento.FechaVencimiento != null && documento.FechaVencimiento <= fechaLimiteAlerta
+            // Sin orden propio, dos alertas con la misma gravedad y fecha salían en el orden que eligiera el plan de PostgreSQL
+            // (el join de arriba puede cambiarlo). El Id solo cierra ese empate: el orden visible sigue siendo el de abajo.
+            orderby documento.Id
             select new
             {
                 DocumentoId = documento.Id,
@@ -158,7 +165,8 @@ public class ObtenerAlertasQueryHandler(
                 TipoDocumentoNombre = tipoDocumento.Nombre,
                 documento.FechaVencimiento,
                 documento.ArchivoUrl,
-                trabajador.EmpresaId
+                trabajador.EmpresaId,
+                EmpresaNombre = empresa == null ? null : empresa.RazonSocial
             })
             .ToListAsync(cancellationToken);
 
@@ -215,23 +223,43 @@ public class ObtenerAlertasQueryHandler(
             .ThenBy(a => a.FechaVencimiento)
             .ToList();
 
-        return await ConEmpresaNombreAsync(combinadas, cancellationToken);
+        // Lo que ya se leyó de Empresas en las dos consultas de vigencia: con fila (su nombre) o sin fila visible (null).
+        var nombresLeidos = new Dictionary<Guid, string?>();
+        foreach (var fila in vigenciaFilas.Where(f => f.EmpresaId is not null))
+            nombresLeidos.TryAdd(fila.EmpresaId!.Value, fila.EmpresaNombre);
+        foreach (var documento in documentosEmpresa.Where(d => d.EmpresaId is not null))
+            nombresLeidos[documento.EmpresaId!.Value] = documento.RazonSocial;
+
+        return await ConEmpresaNombreAsync(combinadas, nombresLeidos, cancellationToken);
     }
 
     /// <summary>
     /// Nombre de Empresa resuelto en un único lote al final (no por fila):
     /// alimenta la agrupación Empresa→Trabajador de "Requiere atención" en
     /// vocabulario Consultora (GrupoCola, ver también
-    /// ObtenerDocumentacionBloqueantePendienteQuery, mismo patrón).
+    /// ObtenerDocumentacionBloqueantePendienteQuery, mismo patrón). Solo se consulta
+    /// Empresas por las que no vinieron ya en las consultas de vigencia (las de los documentos
+    /// faltantes): si no queda ninguna, no hay ida a la base de datos.
     /// </summary>
-    private async Task<List<AlertaDto>> ConEmpresaNombreAsync(List<AlertaDto> alertas, CancellationToken cancellationToken)
+    private async Task<List<AlertaDto>> ConEmpresaNombreAsync(
+        List<AlertaDto> alertas, Dictionary<Guid, string?> nombresLeidos, CancellationToken cancellationToken)
     {
         var empresaIds = alertas.Where(a => a.EmpresaId is not null).Select(a => a.EmpresaId!.Value).Distinct().ToList();
         if (empresaIds.Count == 0) return alertas;
 
-        var nombresPorEmpresa = await empresasContext.Empresas
-            .Where(e => empresaIds.Contains(e.Id))
-            .ToDictionaryAsync(e => e.Id, e => e.RazonSocial, cancellationToken);
+        var porLeer = empresaIds.Where(id => !nombresLeidos.ContainsKey(id)).ToList();
+        var nombresPorEmpresa = nombresLeidos
+            .Where(par => par.Value is not null)
+            .ToDictionary(par => par.Key, par => par.Value!);
+        if (porLeer.Count > 0)
+        {
+            var leidas = await empresasContext.Empresas
+                .Where(e => porLeer.Contains(e.Id))
+                .Select(e => new { e.Id, e.RazonSocial })
+                .ToListAsync(cancellationToken);
+            foreach (var empresa in leidas)
+                nombresPorEmpresa[empresa.Id] = empresa.RazonSocial;
+        }
 
         return alertas
             .Select(a => a.EmpresaId is { } empresaId && nombresPorEmpresa.TryGetValue(empresaId, out var nombre)

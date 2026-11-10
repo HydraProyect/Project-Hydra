@@ -277,6 +277,9 @@
   <data name="SelectorSinResultados" xml:space="preserve">
     <value>Ninguna opción coincide con la búsqueda.</value>
   </data>
+  <data name="SelectorSinCoincidencias" xml:space="preserve">
+    <value>Sin coincidencias</value>
+  </data>
   <data name="SelectorResultados" xml:space="preserve">
     <value>{0} resultados</value>
   </data>

@@ -152,6 +152,7 @@ src/CaeManager.Application/Empresas/Commands/EditarEmpresa/EditarEmpresaCommand.
 src/CaeManager.Application/Empresas/Commands/EditarEmpresa/EditarEmpresaCommand.cs :: clienteId = 6
 src/CaeManager.Application/Empresas/Commands/EditarEmpresa/EditarEmpresaCommand.cs :: ObtenerClienteIdsVisiblesAsync = 1
 src/CaeManager.Application/Empresas/Commands/EditarEmpresa/EditarEmpresaCommand.cs :: clienteIdsNuevos = 5
+src/CaeManager.Application/Empresas/PaqueteDocumental/PaqueteDocumentalEmpresaService.cs :: ClienteId = 1
 src/CaeManager.Application/Empresas/Queries/ObtenerCentrosConActividadDeEmpresa/ObtenerCentrosConActividadDeEmpresaQuery.cs :: ClienteId = 1
 src/CaeManager.Application/Empresas/Queries/ObtenerClientesDeEmpresa/ObtenerClientesDeEmpresaQuery.cs :: ClienteId = 1
 src/CaeManager.Application/Empresas/Queries/ObtenerEmpresaPorId/ObtenerEmpresaPorIdQuery.cs :: ClienteId = 1

@@ -110,6 +110,11 @@
                 }
             </Datos>
             <Acciones>
+                @* «Preparar paquete» (maqueta, primera acción de la cabecera): el zip sale de TALVEG, así que solo con un rol que escribe,
+                   la misma lista blanca que aplica DescargarPaqueteEmpresaQuery. *@
+                <SoloConEscritura>
+                    <BotonPaqueteEmpresa EmpresaId="_detalle.Id" RazonSocial="@_detalle.RazonSocial" />
+                </SoloConEscritura>
                 <Boton Variante="VarianteBoton.Secundario" class="empresa360-accion-cabecera" Href="@($"/empresas/{_detalle.Id}/deteccion-trabajadores")">@Textos["AccionDetectar"]</Boton>
                 <Boton Variante="VarianteBoton.Secundario" class="empresa360-accion-cabecera" Href="@($"/empresas/{_detalle.Id}/reclamar-acceso")">@Textos["AccionReclamarAcceso"]</Boton>
                 <SoloConEscritura>
@@ -142,7 +147,7 @@
                             @PestanaDeClientes
                             break;
                         case PestanaDocumentacion:
-                            <PestanaDocumentacion Ambito="AmbitoAplicacion.Empresa" PropietarioId="_detalle.Id" EnPagina="true" ConFiltros="true"
+                            <PestanaDocumentacion Ambito="AmbitoAplicacion.Empresa" PropietarioId="_detalle.Id" EnPagina="true" ConFiltros="true" ConVerDocumento="true"
                                                       PlaceholderBuscador="@Textos["BuscadorDocumentos"]" EtiquetaFiltros="@Textos["EtiquetaFiltrosDocumentacion"]"
                                                       TextoSinResultados="@Textos["NingunDocumentoConFiltro"]" />
                             break;
@@ -444,7 +449,8 @@
                         @Chip(FiltroTrabajadores.Todos, Textos["ChipTodos", r.Total])
                         @Chip(FiltroTrabajadores.SinDocumentacionValida, Textos["ChipSinValida", r.SinDocumentacionValida])
                         @Chip(FiltroTrabajadores.PorVencer, Textos["ChipPorVencer", r.PorVencer])
-                        @Chip(FiltroTrabajadores.AlDia, Textos["ChipAlDia", r.AlDia])
+                        @* «Sin confirmar» cuenta como al día, con aviso: el chip lo dice para no contradecir las filas con esa pastilla. *@
+                        @Chip(FiltroTrabajadores.AlDia, r.AlDiaSinConfirmar > 0 ? Textos["ChipAlDiaConSinConfirmar", r.AlDia, r.AlDiaSinConfirmar] : Textos["ChipAlDia", r.AlDia])
                     </div>
                     <BuscadorLista Placeholder="@Textos["BuscadorTrabajadores"]" Valor="@_busqueda" ValorChanged="BuscarAsync" />
                 </div>

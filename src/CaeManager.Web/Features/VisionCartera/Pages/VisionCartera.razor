@@ -88,7 +88,7 @@
                 @* Iconografía obligatoria en superficies de resumen (02 § 7, DDL-036),
                    mismos iconos que Inicio. El desglose por organización de
                    vencidos y urgentes es la tabla de abajo. *@
-                <div class="rejilla-kpis-criticos">
+                <div class="rejilla-kpis-criticos rejilla-kpis-cartera">
                     <TarjetaMetrica Etiqueta="@Textos["MetricaVencidos"]" Valor="@_kpis.DocumentosVencidos.ToString()" NombreIcono="advertencia" Tono="TonoBadge.Peligro"
                                     Pista="@PistaVencidos" />
                     <TarjetaMetrica Etiqueta="@Textos["MetricaUrgentes"]" Valor="@_kpis.DocumentosUrgentes.ToString()" NombreIcono="reloj" Tono="TonoBadge.Peligro"
@@ -174,8 +174,12 @@
                                 }
                             </tbody>
                         </table>
+                        @* El SVG nunca se reduce por debajo de su tamaño natural (min-width inline = ancho del viewBox): con muchas
+                           organizaciones desliza dentro de este lienzo en vez de encoger las etiquetas hasta ser ilegibles. El
+                           lienzo es enfocable (tabindex) porque una región con scroll debe poder recorrerse con teclado. *@
+                        <div class="reparto-riesgo-lienzo" tabindex="0" role="group" aria-label="@Textos["RepartoCaption"]">
                         <svg class="reparto-riesgo-grafico" viewBox="0 0 @AnchoGrafico @AltoGrafico" aria-hidden="true" focusable="false"
-                             preserveAspectRatio="xMinYMid meet">
+                             style="min-width: @(AnchoGrafico)px" preserveAspectRatio="xMinYMid meet">
                             <line class="reparto-riesgo-base" x1="0" y1="@BaseBarras" x2="@AnchoGrafico" y2="@BaseBarras" />
                             @foreach (var barra in Barras)
                             {
@@ -206,6 +210,7 @@
                                 </g>
                             }
                         </svg>
+                        </div>
                         <div class="reparto-riesgo-leyenda">
                             <span><span class="muestra-leyenda muestra-vencidos" aria-hidden="true"></span>@Textos["LeyendaVencidos"]</span>
                             <span><span class="muestra-leyenda muestra-urgentes" aria-hidden="true"></span>@Textos["LeyendaUrgentes"]</span>
@@ -232,34 +237,36 @@
                     }
                     else
                     {
-                        <table class="tabla-datos">
-                            <thead>
-                                <tr>
-                                    <th>@Textos["ColumnaOrganizacion"]</th>
-                                    <th>@Textos["ColumnaVencidos"]</th>
-                                    <th>@Textos["ColumnaUrgentes"]</th>
-                                    <th>@Textos["ColumnaCumplimiento"]</th>
-                                    <th aria-label="@Textos["ColumnaAcciones"]"></th>
+                        @* En estrecho (container query de .seccion-cartera) la tabla se apila: cada fila pasa a ser una ficha, la
+                           cabecera se oculta a la vista y cada cifra lleva su etiqueta en data-etiqueta (la pinta ::before). *@
+                        <table class="tabla-datos tabla-organizaciones" role="table">
+                            <thead role="rowgroup">
+                                <tr role="row">
+                                    <th role="columnheader">@Textos["ColumnaOrganizacion"]</th>
+                                    <th role="columnheader">@Textos["ColumnaVencidos"]</th>
+                                    <th role="columnheader">@Textos["ColumnaUrgentes"]</th>
+                                    <th role="columnheader">@Textos["ColumnaCumplimiento"]</th>
+                                    <th role="columnheader" aria-label="@Textos["ColumnaAcciones"]"></th>
                                 </tr>
                             </thead>
-                            <tbody>
+                            <tbody role="rowgroup">
                                 @foreach (var organizacion in Organizaciones)
                                 {
                                     var tasa = Math.Clamp(organizacion.TasaCumplimientoDocumental, 0, 100);
-                                    <tr>
-                                        <td>
+                                    <tr role="row">
+                                        <td role="cell">
                                             <span class="nombre-organizacion">@organizacion.Nombre</span>
                                             <span class="meta-organizacion">@MetaOrganizacion(organizacion)</span>
                                         </td>
-                                        <td>
+                                        <td role="cell" data-etiqueta="@Textos["ColumnaVencidos"]">
                                             <Badge Tono="@(organizacion.DocumentosVencidos > 0 ? TonoBadge.Peligro : TonoBadge.Neutro)"
                                                    title="@TituloVencidos(organizacion)">@organizacion.DocumentosVencidos</Badge>
                                         </td>
-                                        <td>
+                                        <td role="cell" data-etiqueta="@Textos["ColumnaUrgentes"]">
                                             <Badge Tono="@(organizacion.DocumentosUrgentes > 0 ? TonoBadge.Advertencia : TonoBadge.Neutro)"
                                                    title="@TituloUrgentes(organizacion)">@organizacion.DocumentosUrgentes</Badge>
                                         </td>
-                                        <td>
+                                        <td role="cell" data-etiqueta="@Textos["ColumnaCumplimiento"]">
                                             @if (organizacion.SinCarteraAsignada)
                                             {
                                                 <span class="sin-cartera-organizacion" title="@TituloCumplimiento(organizacion)">@Textos["CeldaSinCartera"]</span>
@@ -282,12 +289,12 @@
                                                 }
                                             }
                                         </td>
-                                        <td class="celda-accion-organizacion">
+                                        <td role="cell" class="celda-accion-organizacion">
                                             @* Mismo patrón que SelectorClienteActivo: cambiar la organización
                                                activa escribe una cookie de servidor, así que va por POST con
                                                antiforgery (M-8) y no por navegación GET. Por eso la acción vive
                                                en un botón y no en un @onclick de la fila: un <form> no puede
-                                               envolver un <tr>. *@
+                                               envolver un <tr role="row">. *@
                                             <form method="post" action="/cuenta/cliente-activo">
                                                 @if (_token is not null)
                                                 {

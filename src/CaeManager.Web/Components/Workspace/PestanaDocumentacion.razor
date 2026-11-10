@@ -73,17 +73,28 @@ else if (EnPagina)
     <ListaRelaciones EnTarjeta="true" Etiqueta="@Comunes["ListaDocumentacion"]">
         @foreach (var documento in DocumentosVisibles)
         {
+            @* Con ConVerDocumento (Empresa 360) el nombre es un enlace real a la ficha 360 del Documento, el panel de 520 px
+               sigue a un clic en el botón 360 (el patrón de FilaRelacion) y la fila gana «Ver», que abre el visor del PDF. *@
             <FilaRelacion Compacta="true" @key="documento.Id" Nombre="@documento.TipoDocumentoNombre"
                           Tono="@EstadoDocumentoFicha360.TonoFila(documento.Estado)"
-                          OnNombre="() => AbrirDocumentoAsync(documento)">
+                          Href="@(ConVerDocumento ? EstadoDocumentoFicha360.RutaFicha360(documento.Id) : null)"
+                          OnNombre="@(ConVerDocumento ? default : EventCallback.Factory.Create(this, () => AbrirDocumentoAsync(documento)))"
+                          OnAbrir360="@(ConVerDocumento ? EventCallback.Factory.Create(this, () => AbrirDocumentoAsync(documento)) : default)">
                 <Detalle><BadgesAcreditacion Acreditaciones="documento.Acreditaciones" /></Detalle>
                 <Cifra><span>@TextoVence(documento)</span></Cifra>
                 <Estado><Badge Tono="EstadoDocumentoUi.Tono(documento.Estado)" Tamano="TamanoBadge.Pequeno">@EstadoDocumentoUi.Texto(documento.Estado)</Badge></Estado>
                 <Acciones>
+                    @if (ConVerDocumento && documento.ArchivoUrl is not null)
+                    {
+                        @* Acción secundaria, de enlace, para todo rol que ve la ficha (como «Ver» en la lista de Documentos). *@
+                        <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" class="accion-fila-enlace"
+                               aria-label="@EstadoDocumentoFicha360.TextoVerAccesible(documento.TipoDocumentoNombre)"
+                               OnClick="() => AbrirVisor(documento)">@EstadoDocumentoFicha360.TextoVer</Boton>
+                    }
                     @if (EstadoDocumentoFicha360.PideGestionar(documento.Estado))
                     {
                         <SoloConEscritura>
-                            <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" class="@EstadoDocumentoFicha360.ClaseGestionar(documento.Estado, "accion-fila-enlace")"
+                            <Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno" class="@EstadoDocumentoFicha360.ClaseGestionar(documento.Estado, "accion-gestionar-documento")"
                                    aria-label="@EstadoDocumentoFicha360.TextoAccionAccesible(documento.TipoDocumentoNombre)"
                                    OnClick="() => _correccion.AbrirAsync(documento.Id, null, null, null)">@EstadoDocumentoFicha360.TextoAccion</Boton>
                         </SoloConEscritura>
@@ -111,6 +122,10 @@ else
 }
 
 <CorreccionIncidenciaDocumental @ref="_correccion" OnCorregida="CargarAsync" />
+@if (ConVerDocumento)
+{
+    <VisorDocumento Visible="_visorVisible" VisibleChanged="v => _visorVisible = v" DocumentoId="_visorDocumentoId" Titulo="@_visorTitulo" />
+}
 
 @code {
     private CorreccionIncidenciaDocumental _correccion = default!;
@@ -131,6 +146,23 @@ else
     /// «Empresa 360». Solo lo pide esa ficha; el filtrado es en memoria sobre los documentos ya cargados.
     /// </summary>
     [Parameter] public bool ConFiltros { get; set; }
+
+    /// <summary>
+    /// Con <see cref="EnPagina"/>: el nombre de cada documento enlaza a su ficha 360 (<c>/documentos/{id}</c>), el panel pasa al
+    /// botón 360 y los documentos con archivo llevan «Ver» (visor del PDF sin salir de la ficha). Solo lo pide Empresa 360.
+    /// </summary>
+    [Parameter] public bool ConVerDocumento { get; set; }
+
+    private bool _visorVisible;
+    private Guid _visorDocumentoId;
+    private string _visorTitulo = string.Empty;
+
+    private void AbrirVisor(DocumentoListaDto documento)
+    {
+        _visorDocumentoId = documento.Id;
+        _visorTitulo = documento.TipoDocumentoNombre;
+        _visorVisible = true;
+    }
 
     [Parameter] public string? PlaceholderBuscador { get; set; }
     [Parameter] public string? EtiquetaFiltros { get; set; }

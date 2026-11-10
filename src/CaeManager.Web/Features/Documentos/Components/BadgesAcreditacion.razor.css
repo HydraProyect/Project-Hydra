@@ -3,3 +3,23 @@
     flex-wrap: wrap;
     gap: var(--space-1);
 }
+
+.badges-acreditacion-resumen {
+    flex-wrap: nowrap;
+    align-items: center;
+    max-width: 100%;
+    min-width: 0;
+}
+
+/* La pastilla se recorta antes que salirse de su celda y tapar la columna de al lado (el texto completo va en su title y en la ventana de contexto de la fila). */
+.badges-acreditacion-resumen ::deep [data-pieza="pastilla"] {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.badges-acreditacion-resto {
+    font: var(--font-caption);
+    color: var(--color-text-muted);
+    white-space: nowrap;
+}

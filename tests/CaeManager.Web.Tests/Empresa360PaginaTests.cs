@@ -1,4 +1,6 @@
-﻿using CaeManager.Web.Components.Layout;
+using CaeManager.Application.Empresas.PaqueteDocumental;
+using CaeManager.Application.Empresas.Queries.PaqueteDocumentalEmpresa;
+using CaeManager.Web.Components.Layout;
 using AngleSharp.Dom;
 using Bunit.TestDoubles;
 using Bunit;
@@ -26,6 +28,7 @@ using CaeManager.Web.Features.Empresas.Pages;
 using FluentAssertions;
 using MediatR;
 using Microsoft.AspNetCore.Components.Web;
+using Microsoft.JSInterop;
 using Microsoft.AspNetCore.Components;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -84,6 +87,10 @@ public partial class Empresa360PaginaTests : BunitContext
 
         public List<object> Enviadas { get; } = [];
 
+        /// <summary>Lo que responde ObtenerResumenPaqueteEmpresaQuery («Preparar paquete»).</summary>
+        public Func<ObtenerResumenPaqueteEmpresaQuery, Result<ResumenPaqueteEmpresaDto>> ResumenPaquete { get; set; } =
+            _ => throw new NotSupportedException("El resumen del paquete no está previsto en este test.");
+
         /// <summary>Como AutorizacionSecretosDeTenantBehavior con un rol que lee secretos y sin 2FA (P1-I1).</summary>
         public bool SinDobleFactor { get; set; }
         public Func<object, Task?>? Retener { get; set; }
@@ -118,6 +125,7 @@ public partial class Empresa360PaginaTests : BunitContext
                 : null,
             ObtenerCredencialAccesoEmpresaQuery q => Credenciales.GetValueOrDefault(q.EmpresaId),
             CaeManager.Application.Empresas.Queries.ObtenerCatalogoTrabajadoresEmpresa.ObtenerCatalogoTrabajadoresEmpresaQuery q => Catalogos.GetValueOrDefault(q.EmpresaId) ?? CaeManager.Application.Empresas.Queries.ObtenerCatalogoTrabajadoresEmpresa.CatalogoTrabajadoresEmpresaDto.Vacio,
+            ObtenerResumenPaqueteEmpresaQuery q => ResumenPaquete(q),
             GuardarNotaInternaEmpresaCommand c => GuardarNota(c),
             EditarFichaEmpresaCommand c => GuardarFicha(c),
             _ => throw new NotSupportedException($"Petición no prevista en este test: {request.GetType().Name}.")
@@ -539,14 +547,420 @@ public partial class Empresa360PaginaTests : BunitContext
         cut.Find("h1").TextContent.Trim().Should().Be("Ibertec GmbH");
     }
 
-    [Fact]
-    public void La_cabecera_no_ofrece_Preparar_paquete_porque_el_paquete_documental_es_de_una_Visita_no_de_una_Empresa()
-    {
-        // Hueco declarado, no inventado: la única función de paquete documental de la aplicación se genera por Visita
-        // (ObtenerPaqueteDocumentalVisitaQuery). Cuando exista el de Empresa, este test deja de tener sentido y se sustituye.
-        Registrar(Empresa());
+    // ---- «Preparar paquete» (maqueta «Mapa Dia a Dia TALVEG.dc.html» § C, enlazada desde la cabecera de Empresa 360)
 
-        Renderizar().Find(".cabecera-identidad-acciones").TextContent.Should().NotContain("Preparar paquete");
+    private static readonly Guid ClientePaqueteId = Guid.NewGuid();
+    private static readonly Guid OtroClientePaqueteId = Guid.NewGuid();
+
+    private static ResumenPaqueteEmpresaDto ResumenPaqueteDe(Guid? clienteId) => clienteId is null
+        ? new ResumenPaqueteEmpresaDto("Montajes Ebro SL", Destinos, null, 40, 0, 0, [])
+        : new ResumenPaqueteEmpresaDto("Montajes Ebro SL", Destinos, clienteId, 31, 2, 9,
+        [
+            new FaltaPaqueteEmpresaDto("Seguro de Responsabilidad Civil", null, null),
+            new FaltaPaqueteEmpresaDto("Certificado de aptitud médica", "Paula Campos Lara", new DateOnly(2026, 8, 2)),
+        ]);
+
+    private static readonly IReadOnlyList<DestinoPaqueteEmpresaDto> Destinos =
+        [new(ClientePaqueteId, "Refrielectric S.A."), new(OtroClientePaqueteId, "Grupo Arbeko")];
+
+    private IRenderedComponent<EmpresaDetalle> AbrirPaquete(MediatorFalso mediador)
+    {
+        mediador.ResumenPaquete = q => Result.Exito(ResumenPaqueteDe(q.ClienteEmpresarialId));
+        var cut = Renderizar();
+        cut.FindAll(".cabecera-identidad-acciones button").Single(b => b.TextContent.Trim() == "Preparar paquete").Click();
+        return cut;
+    }
+
+    [Theory]
+    [InlineData(Roles.GestorCae, true)]
+    [InlineData(Roles.Consulta, false)]
+    public void La_cabecera_ofrece_Preparar_paquete_solo_a_un_rol_que_descarga(string rol, bool ofrece)
+    {
+        Registrar(Empresa(), rol);
+
+        Renderizar().Find(".cabecera-identidad-acciones").TextContent.Contains("Preparar paquete").Should().Be(ofrece,
+            "el zip sale de TALVEG con documentos sensibles: la misma lista blanca que DescargarPaqueteEmpresaQuery");
+    }
+
+    [Fact]
+    public void Generar_ZIP_lleva_el_icono_de_descarga_decorativo_como_la_maqueta()
+    {
+        var cut = AbrirPaquete(Registrar(Empresa()));
+
+        var generar = cut.Find("[role=dialog] .paquete-generar");
+        generar.QuerySelectorAll("svg.icono-pequeno[aria-hidden=true]").Should().ContainSingle(
+            "la maqueta (§ C) pinta un icono de descarga de 16 px (TamanoIcono.Pequeno) delante del texto");
+        generar.TextContent.Trim().Should().Be("Generar ZIP", "el icono es decorativo: el nombre accesible no cambia");
+    }
+
+    [Fact]
+    public void El_dialogo_cuelga_del_contenedor_al_que_el_CSS_del_componente_fija_los_600_px_de_la_maqueta()
+    {
+        var cut = AbrirPaquete(Registrar(Empresa()));
+
+        cut.Find(".paquete-dialogo .modal-contenido-grande[role=dialog]").Should().NotBeNull(
+            "la regla de ancho es `.paquete-dialogo ::deep .modal-contenido-grande`: sin el contenedor, o con otro AnchoModal, no casa con nada y el diálogo no mide 600 px");
+    }
+
+    // bUnit no aplica CSS: lo que sí se puede fijar es el texto de las hojas (revisión píxel a píxel de #2100, divergencias 1, 3 y 4).
+    [Fact]
+    public void Las_hojas_fijan_13_px_en_el_boton_de_la_cabecera_600_px_en_el_dialogo_y_la_familia_de_la_aplicacion()
+    {
+        var detalle = LeerHoja("Pages", "EmpresaDetalle.razor.css");
+        detalle.Should().Contain(".contenedor-pagina ::deep .boton.empresa360-accion-cabecera",
+            "el botón de «Preparar paquete» es un <button>: el selector no puede exigir `a.`");
+        detalle.Should().NotContain("a.boton.empresa360-accion-cabecera");
+
+        var paquete = LeerHoja("Components", "BotonPaqueteEmpresa.razor.css");
+        System.Text.RegularExpressions.Regex.IsMatch(paquete, @"\.paquete-dialogo ::deep \.modal-contenido-grande\s*\{\s*max-width:\s*600px;")
+            .Should().BeTrue("la maqueta (§ C) fija el diálogo en 600 px y Modal solo ofrece 420/520/720");
+        System.Text.RegularExpressions.Regex.IsMatch(paquete, @"\.paquete-dialogo\s*\{\s*display:\s*contents;")
+            .Should().BeTrue("el contenedor no puede ser un elemento más, con su gap, de la fila de acciones de la cabecera");
+        paquete.Should().NotContain("Inter", "la aplicación no carga Inter: la familia viene de --font-family");
+    }
+
+    private static string LeerHoja(string carpeta, string fichero)
+    {
+        var dir = AppContext.BaseDirectory;
+        while (dir is not null && !File.Exists(Path.Combine(dir, "CaeManager.slnx")))
+            dir = Path.GetDirectoryName(dir);
+        dir.Should().NotBeNull("se necesita la raíz del repositorio");
+        return File.ReadAllText(Path.Combine(dir!, "src", "CaeManager.Web", "Features", "Empresas", carpeta, fichero));
+    }
+
+    [Fact]
+    public void Al_abrir_elige_el_primer_Cliente_empresarial_y_dice_que_va_que_falta_y_que_no_pide_antes_de_generar()
+    {
+        var mediador = Registrar(Empresa());
+
+        var dialogo = AbrirPaquete(mediador).Find("[role=dialog]");
+
+        mediador.Enviadas.OfType<ObtenerResumenPaqueteEmpresaQuery>().Last().Should().Be(new ObtenerResumenPaqueteEmpresaQuery(EmpresaId, ClientePaqueteId));
+        dialogo.QuerySelector("h2")!.TextContent.Trim().Should().Be("Preparar paquete documental");
+        dialogo.QuerySelectorAll(".paquete-destino").Select(b => (b.TextContent.Trim(), b.GetAttribute("aria-pressed")))
+            .Should().Equal(("Refrielectric S.A.", "true"), ("Grupo Arbeko", "false"), ("Todo lo vigente", "false"));
+        dialogo.QuerySelectorAll(".paquete-recuento").Select(r => r.TextContent.Trim())
+            .Should().Equal("31van en el paquete", "2faltan o vencidos", "9no los pide este Cliente");
+        dialogo.QuerySelectorAll(".paquete-faltan li")
+            .Select(l => System.Text.RegularExpressions.Regex.Replace(l.TextContent, @"\s+", " ").Trim())
+            .Should().Equal("Seguro de Responsabilidad Civil Falta", "Certificado de aptitud médica · Paula Campos Lara Vencido 02/08");
+        dialogo.TextContent.Should().Contain("Reclamar lo que falta");
+
+        var descarga = ModuloDescarga(new BotonPaqueteEmpresa.RespuestaDescarga(true, 200, null));
+        dialogo.QuerySelectorAll("button").Single(b => b.TextContent.Trim() == "Generar ZIP").Click();
+        descarga.Invocations["descargar"].Single().Arguments[0].Should().Be(
+            $"/empresas/{EmpresaId}/paquete-documental.zip?cliente={ClientePaqueteId}",
+            "la descarga va por el endpoint autenticado con el destino elegido, nunca por una URL pública");
+    }
+
+    [Fact]
+    public void Todo_lo_vigente_pide_el_resumen_sin_destino_y_descarga_sin_Cliente()
+    {
+        var mediador = Registrar(Empresa());
+        var descarga = ModuloDescarga(new BotonPaqueteEmpresa.RespuestaDescarga(true, 200, null));
+        var cut = AbrirPaquete(mediador);
+
+        cut.FindAll(".paquete-destino").Single(b => b.TextContent.Trim() == "Todo lo vigente").Click();
+
+        mediador.Enviadas.OfType<ObtenerResumenPaqueteEmpresaQuery>().Last().ClienteEmpresarialId.Should().BeNull();
+        cut.Find("[role=dialog]").TextContent.Should().NotContain("Reclamar lo que falta", "no falta nada");
+        cut.FindAll("[role=dialog] button").Single(b => b.TextContent.Trim() == "Generar ZIP").Click();
+        descarga.Invocations["descargar"].Single().Arguments[0].Should().Be($"/empresas/{EmpresaId}/paquete-documental.zip");
+    }
+
+    [Theory]
+    [InlineData(409, "El paquete pasa de 200 archivos. Elige un Cliente concreto para prepararlo.", "El paquete pasa de 200 archivos. Elige un Cliente concreto para prepararlo.")]
+    [InlineData(403, "Tu rol no permite preparar ni descargar el paquete documental de una empresa — solo consultarla.", "Tu rol no permite preparar ni descargar el paquete documental de una empresa — solo consultarla.")]
+    [InlineData(404, null, "La empresa o el destino ya no están disponibles para ti.")]
+    [InlineData(0, null, "No pudimos generar el paquete. Inténtalo de nuevo.")]
+    public void Si_el_servidor_rechaza_la_descarga_el_motivo_se_ve_en_el_dialogo(int estado, string? mensaje, string esperado)
+    {
+        var mediador = Registrar(Empresa());
+        ModuloDescarga(new BotonPaqueteEmpresa.RespuestaDescarga(false, estado, mensaje));
+        var cut = AbrirPaquete(mediador);
+
+        cut.FindAll("[role=dialog] button").Single(b => b.TextContent.Trim() == "Generar ZIP").Click();
+
+        cut.Find("[role=dialog] .paquete-error-descarga[role=alert]").TextContent.Trim().Should().Be(esperado,
+            "un 409 o un 403 de la descarga no puede quedarse solo en la barra de descargas del navegador");
+    }
+
+    [Fact]
+    public void Por_encima_de_200_archivos_no_ofrece_Generar_ZIP_y_explica_el_limite()
+    {
+        var mediador = Registrar(Empresa());
+        mediador.ResumenPaquete = q => Result.Exito(new ResumenPaqueteEmpresaDto("Montajes Ebro SL", Destinos, q.ClienteEmpresarialId, 201, 0, 0, []));
+        var cut = Renderizar();
+
+        cut.FindAll(".cabecera-identidad-acciones button").Single(b => b.TextContent.Trim() == "Preparar paquete").Click();
+
+        var dialogo = cut.Find("[role=dialog]");
+        dialogo.QuerySelectorAll("button").Should().NotContain(b => b.TextContent.Trim() == "Generar ZIP");
+        dialogo.QuerySelector(".paquete-aviso")!.TextContent.Should().Contain("pasa de 200 archivos").And.Contain("Elige un Cliente concreto");
+    }
+
+    [Fact]
+    public void Con_exactamente_200_archivos_si_ofrece_Generar_ZIP()
+    {
+        var mediador = Registrar(Empresa());
+        mediador.ResumenPaquete = q => Result.Exito(new ResumenPaqueteEmpresaDto("Montajes Ebro SL", Destinos, q.ClienteEmpresarialId, 200, 0, 0, []));
+        var cut = Renderizar();
+
+        cut.FindAll(".cabecera-identidad-acciones button").Single(b => b.TextContent.Trim() == "Preparar paquete").Click();
+
+        cut.FindAll("[role=dialog] button").Should().Contain(b => b.TextContent.Trim() == "Generar ZIP");
+    }
+
+    [Fact]
+    public void En_una_Sesion_Privilegiada_ve_el_resumen_pero_no_ofrece_Generar_ZIP()
+    {
+        var mediador = Registrar(Empresa());
+        mediador.ResumenPaquete = q => Result.Exito(ResumenPaqueteDe(q.ClienteEmpresarialId) with { PuedeDescargar = false });
+        var cut = Renderizar();
+
+        cut.FindAll(".cabecera-identidad-acciones button").Single(b => b.TextContent.Trim() == "Preparar paquete").Click();
+
+        var dialogo = cut.Find("[role=dialog]");
+        dialogo.QuerySelectorAll(".paquete-recuento").Should().HaveCount(3);
+        dialogo.QuerySelectorAll("button").Should().NotContain(b => b.TextContent.Trim() == "Generar ZIP");
+        dialogo.QuerySelector(".paquete-aviso")!.TextContent.Should().Contain("sesión privilegiada");
+    }
+
+    [Fact]
+    public void Al_elegir_destino_los_botones_siguen_en_el_dialogo_y_el_resumen_nuevo_se_anuncia()
+    {
+        var mediador = Registrar(Empresa());
+        var cut = AbrirPaquete(mediador);
+
+        cut.FindAll(".paquete-destino").Single(b => b.TextContent.Trim() == "Grupo Arbeko").Click();
+
+        cut.FindAll(".paquete-destino").Select(b => (b.TextContent.Trim(), b.GetAttribute("aria-pressed")))
+            .Should().Equal(("Refrielectric S.A.", "false"), ("Grupo Arbeko", "true"), ("Todo lo vigente", "false"));
+        var recuentos = cut.Find(".paquete-recuentos");
+        recuentos.GetAttribute("aria-live").Should().Be("polite");
+        recuentos.GetAttribute("aria-atomic").Should().Be("true");
+    }
+
+    [Fact]
+    public void Mientras_carga_el_destino_nuevo_se_queda_el_resumen_los_botones_siguen_y_Generar_esta_deshabilitado()
+    {
+        var mediador = Registrar(Empresa());
+        var cut = AbrirPaquete(mediador);
+        var arbeko = cut.FindAll(".paquete-destino").Single(b => b.TextContent.Trim() == "Grupo Arbeko");
+        var espera = new TaskCompletionSource();
+        mediador.Retener = q => q is ObtenerResumenPaqueteEmpresaQuery ? espera.Task : null;
+
+        arbeko.Click();
+
+        cut.Find("[role=dialog]").TextContent.Should().NotContain("Calculando el paquete", "solo la primera carga sustituye el cuerpo");
+        cut.Find(".paquete-cuerpo").GetAttribute("aria-busy").Should().Be("true");
+        cut.FindAll(".paquete-destino").Should().HaveCount(3);
+        cut.FindAll("[role=dialog] button").Single(b => b.TextContent.Trim() == "Generar ZIP").HasAttribute("disabled").Should().BeTrue(
+            "mientras carga, lo anunciado aún es el destino anterior");
+
+        espera.SetResult();
+
+        cut.WaitForAssertion(() => cut.Find(".paquete-cuerpo").GetAttribute("aria-busy").Should().Be("false"));
+        cut.FindAll("[role=dialog] button").Single(b => b.TextContent.Trim() == "Generar ZIP").HasAttribute("disabled").Should().BeFalse();
+    }
+
+    [Fact]
+    public void La_respuesta_de_un_destino_ya_superado_no_pisa_el_resumen_del_destino_pulsado()
+    {
+        var mediador = Registrar(Empresa());
+        var cut = AbrirPaquete(mediador);
+        mediador.ResumenPaquete = q => Result.Exito(new ResumenPaqueteEmpresaDto(
+            "Montajes Ebro SL", Destinos, q.ClienteEmpresarialId, q.ClienteEmpresarialId == OtroClientePaqueteId ? 7 : 40, 0, 0, []));
+        var espera = new TaskCompletionSource();
+        mediador.Retener = q => q is ObtenerResumenPaqueteEmpresaQuery { ClienteEmpresarialId: var c } && c == OtroClientePaqueteId ? espera.Task : null;
+
+        cut.FindAll(".paquete-destino").Single(b => b.TextContent.Trim() == "Grupo Arbeko").Click();
+        cut.FindAll(".paquete-destino").Single(b => b.TextContent.Trim() == "Todo lo vigente").Click();
+        espera.SetResult();
+
+        cut.WaitForAssertion(() => cut.Find(".paquete-cuerpo").GetAttribute("aria-busy").Should().Be("false"));
+        cut.Find(".paquete-recuento-incluye .paquete-cifra").TextContent.Trim().Should().Be("40",
+            "la respuesta de Grupo Arbeko llegó tarde y se descarta: está pulsado «Todo lo vigente»");
+    }
+
+    [Fact]
+    public void La_descarga_lleva_su_propio_limite_de_tiempo_y_no_el_de_60_segundos_de_la_interop()
+    {
+        // Sin token propio, Blazor Server corta la llamada a JS a los 60 s por defecto aunque el zip siga llegando.
+        var importacion = new TaskCompletionSource<IJSObjectReference>(TaskCreationOptions.RunContinuationsAsynchronously);
+        Services.AddSingleton<IJSRuntime>(new JsConImportacionRetenida(JSInterop.JSRuntime, importacion.Task));
+        var mediador = Registrar(Empresa());
+        var cut = AbrirPaquete(mediador);
+        var modulo = new ModuloDescargaQueAnota();
+        importacion.SetResult(modulo);
+
+        cut.FindAll("[role=dialog] button").Single(b => b.TextContent.Trim() == "Generar ZIP").Click();
+
+        cut.WaitForAssertion(() => modulo.Tokens.Should().ContainSingle());
+        modulo.Tokens.Single().CanBeCanceled.Should().BeTrue("la llamada lleva el límite propio de la descarga");
+        modulo.Tokens.Single().IsCancellationRequested.Should().BeFalse();
+        BotonPaqueteEmpresa.TiempoMaximoDeDescarga.Should().BeGreaterThan(TimeSpan.FromMinutes(1),
+            "un paquete de hasta 200 MiB no cabe en el minuto de la interop por defecto");
+    }
+
+    [Fact]
+    public void Cambiar_de_destino_mientras_se_genera_no_cambia_el_paquete_que_se_descarga()
+    {
+        // La importación del módulo se queda pendiente: es la espera en la que, sin la corrección, se podía cambiar a «Todo lo
+        // vigente» y descargar un paquete más amplio que el anunciado. Se registra antes de que nada lea los servicios.
+        var importacion = new TaskCompletionSource<IJSObjectReference>(TaskCreationOptions.RunContinuationsAsynchronously);
+        Services.AddSingleton<IJSRuntime>(new JsConImportacionRetenida(JSInterop.JSRuntime, importacion.Task));
+        var mediador = Registrar(Empresa());
+        var cut = AbrirPaquete(mediador);
+        var consultasAntes = mediador.Enviadas.OfType<ObtenerResumenPaqueteEmpresaQuery>().Count();
+
+        cut.FindAll("[role=dialog] button").Single(b => b.TextContent.Trim() == "Generar ZIP").Click();
+
+        var todo = cut.FindAll(".paquete-destino").Single(b => b.TextContent.Trim() == "Todo lo vigente");
+        cut.FindAll(".paquete-destino").Should().OnlyContain(b => b.HasAttribute("disabled"), "mientras se genera, el destino no cambia");
+        todo.Click();
+
+        var modulo = new ModuloDescargaQueAnota();
+        importacion.SetResult(modulo);
+        cut.WaitForAssertion(() => cut.FindAll(".paquete-destino").Should().OnlyContain(b => !b.HasAttribute("disabled")));
+
+        cut.WaitForAssertion(() => modulo.Rutas.Should().ContainSingle());
+        modulo.Rutas.Single().Should().Be($"/empresas/{EmpresaId}/paquete-documental.zip?cliente={ClientePaqueteId}",
+            "se descarga exactamente el paquete cuyo resumen se anunció al pulsar «Generar ZIP»");
+        mediador.Enviadas.OfType<ObtenerResumenPaqueteEmpresaQuery>().Should().HaveCount(consultasAntes, "el destino no cambió");
+        cut.FindAll(".paquete-destino").Select(b => (b.TextContent.Trim(), b.GetAttribute("aria-pressed")))
+            .Should().Equal(("Refrielectric S.A.", "true"), ("Grupo Arbeko", "false"), ("Todo lo vigente", "false"));
+        cut.FindAll(".paquete-destino").Should().OnlyContain(b => !b.HasAttribute("disabled"), "al terminar se puede volver a elegir");
+    }
+
+    [Fact]
+    public void Cerrar_y_reabrir_el_dialogo_con_una_descarga_en_curso_sigue_anunciando_el_destino_que_se_descarga()
+    {
+        // «Todo lo vigente» es el paquete más amplio: reabrir sin conservarlo anunciaría el primer Cliente empresarial mientras
+        // llega el ZIP de todo.
+        var importacion = new TaskCompletionSource<IJSObjectReference>(TaskCreationOptions.RunContinuationsAsynchronously);
+        Services.AddSingleton<IJSRuntime>(new JsConImportacionRetenida(JSInterop.JSRuntime, importacion.Task));
+        var mediador = Registrar(Empresa());
+        var cut = AbrirPaquete(mediador);
+        cut.FindAll(".paquete-destino").Single(b => b.TextContent.Trim() == "Todo lo vigente").Click();
+        var consultasAntes = mediador.Enviadas.OfType<ObtenerResumenPaqueteEmpresaQuery>().Count();
+        cut.FindAll("[role=dialog] button").Single(b => b.TextContent.Trim() == "Generar ZIP").Click();
+
+        cut.Find("[role=dialog] .modal-cerrar").Click();
+        cut.FindAll("[role=dialog]").Should().BeEmpty("el Gestor CAE cerró el diálogo");
+        cut.FindAll(".cabecera-identidad-acciones button").Single(b => b.TextContent.Trim() == "Preparar paquete").Click();
+
+        cut.FindAll(".paquete-destino").Select(b => (b.TextContent.Trim(), b.GetAttribute("aria-pressed")))
+            .Should().Equal(("Refrielectric S.A.", "false"), ("Grupo Arbeko", "false"), ("Todo lo vigente", "true")); // el destino del ZIP que llega, no el primer Cliente empresarial
+        cut.FindAll(".paquete-destino").Should().OnlyContain(b => b.HasAttribute("disabled"), "mientras se genera, el destino no cambia");
+        mediador.Enviadas.OfType<ObtenerResumenPaqueteEmpresaQuery>().Should().HaveCount(consultasAntes,
+            "reabrir durante la descarga no vuelve a pedir ni a reiniciar el resumen");
+
+        var modulo = new ModuloDescargaQueAnota();
+        importacion.SetResult(modulo);
+        cut.WaitForAssertion(() => modulo.Rutas.Should().ContainSingle());
+        modulo.Rutas.Single().Should().Be($"/empresas/{EmpresaId}/paquete-documental.zip");
+        cut.WaitForAssertion(() => cut.FindAll(".paquete-destino").Should().OnlyContain(b => !b.HasAttribute("disabled")));
+
+        cut.Find("[role=dialog] .modal-cerrar").Click();
+        cut.FindAll(".cabecera-identidad-acciones button").Single(b => b.TextContent.Trim() == "Preparar paquete").Click();
+        cut.WaitForAssertion(() => cut.FindAll(".paquete-destino").Select(b => (b.TextContent.Trim(), b.GetAttribute("aria-pressed")))
+            .Should().Equal(("Refrielectric S.A.", "true"), ("Grupo Arbeko", "false"), ("Todo lo vigente", "false"))); // terminada la descarga, la siguiente apertura vuelve a elegir el primer Cliente empresarial
+    }
+
+    [Fact]
+    public void Si_la_descarga_falla_con_el_dialogo_cerrado_el_motivo_se_ve_al_reabrirlo()
+    {
+        var importacion = new TaskCompletionSource<IJSObjectReference>(TaskCreationOptions.RunContinuationsAsynchronously);
+        Services.AddSingleton<IJSRuntime>(new JsConImportacionRetenida(JSInterop.JSRuntime, importacion.Task));
+        var mediador = Registrar(Empresa());
+        var cut = AbrirPaquete(mediador);
+        cut.FindAll(".paquete-destino").Single(b => b.TextContent.Trim() == "Todo lo vigente").Click();
+        cut.FindAll("[role=dialog] button").Single(b => b.TextContent.Trim() == "Generar ZIP").Click();
+        cut.Find("[role=dialog] .modal-cerrar").Click();
+
+        var modulo = new ModuloDescargaQueAnota { Respuesta = new BotonPaqueteEmpresa.RespuestaDescarga(false, 409, "El paquete pasa de 200 archivos. Elige un Cliente concreto para prepararlo.") };
+        importacion.SetResult(modulo);
+        cut.WaitForAssertion(() => modulo.Rutas.Should().ContainSingle());
+        cut.FindAll(".cabecera-identidad-acciones button").Single(b => b.TextContent.Trim() == "Preparar paquete").Click();
+
+        cut.WaitForAssertion(() => cut.Find("[role=dialog] .paquete-error-descarga[role=alert]").TextContent.Trim()
+            .Should().Be("El paquete pasa de 200 archivos. Elige un Cliente concreto para prepararlo."));
+    }
+
+    /// <summary>
+    /// El JS de bUnit, salvo la importación de <c>descarga-archivo.js</c>, que espera a <paramref name="modulo"/> (bUnit no
+    /// deja retener un <c>SetupModule</c>).
+    /// </summary>
+    private sealed class JsConImportacionRetenida(IJSRuntime interior, Task<IJSObjectReference> modulo) : IJSRuntime
+    {
+        public ValueTask<TValue> InvokeAsync<TValue>(string identifier, object?[]? args) =>
+            InvokeAsync<TValue>(identifier, CancellationToken.None, args);
+
+        public ValueTask<TValue> InvokeAsync<TValue>(string identifier, CancellationToken cancellationToken, object?[]? args) =>
+            identifier == "import" && args is ["./js/descarga-archivo.js", ..]
+                ? EsperarModuloAsync<TValue>()
+                : interior.InvokeAsync<TValue>(identifier, cancellationToken, args);
+
+        private async ValueTask<TValue> EsperarModuloAsync<TValue>() => (TValue)await modulo;
+    }
+
+    /// <summary>El módulo <c>descarga-archivo.js</c> con la importación retenida: anota cada ruta que se pide.</summary>
+    private sealed class ModuloDescargaQueAnota : IJSObjectReference
+    {
+        public BotonPaqueteEmpresa.RespuestaDescarga Respuesta { get; init; } = new(true, 200, null);
+
+        public List<string> Rutas { get; } = [];
+
+        public List<CancellationToken> Tokens { get; } = [];
+
+        public ValueTask<TValue> InvokeAsync<TValue>(string identifier, object?[]? args) =>
+            InvokeAsync<TValue>(identifier, CancellationToken.None, args);
+
+        public ValueTask<TValue> InvokeAsync<TValue>(string identifier, CancellationToken cancellationToken, object?[]? args)
+        {
+            identifier.Should().Be("descargar");
+            Tokens.Add(cancellationToken);
+            Rutas.Add((string)args![0]!);
+            return ValueTask.FromResult((TValue)(object)Respuesta);
+        }
+
+        public ValueTask DisposeAsync() => ValueTask.CompletedTask;
+    }
+
+    private BunitJSModuleInterop ModuloDescarga(BotonPaqueteEmpresa.RespuestaDescarga respuesta)
+    {
+        var modulo = JSInterop.SetupModule("./js/descarga-archivo.js");
+        modulo.Setup<BotonPaqueteEmpresa.RespuestaDescarga>("descargar", _ => true).SetResult(respuesta);
+        return modulo;
+    }
+
+    [Fact]
+    public void Si_nada_esta_vigente_no_ofrece_generar_y_si_reclamar_lo_que_falta()
+    {
+        var mediador = Registrar(Empresa());
+        mediador.ResumenPaquete = q => Result.Exito(new ResumenPaqueteEmpresaDto("Montajes Ebro SL", [], null, 0, 0, 0, []));
+        var cut = Renderizar();
+
+        cut.FindAll(".cabecera-identidad-acciones button").Single(b => b.TextContent.Trim() == "Preparar paquete").Click();
+
+        var dialogo = cut.Find("[role=dialog]");
+        dialogo.QuerySelectorAll("button, a").Should().NotContain(a => a.TextContent.Trim() == "Generar ZIP");
+        dialogo.TextContent.Should().Contain("no se genera el paquete").And.Contain("Reclamar lo que falta");
+    }
+
+    [Fact]
+    public void Si_la_consulta_rechaza_el_paquete_lo_dice_y_no_ofrece_generar()
+    {
+        var mediador = Registrar(Empresa());
+        mediador.ResumenPaquete = _ => Result.Fallo<ResumenPaqueteEmpresaDto>(AutorizacionPaqueteEmpresa.RolSinDescarga);
+        var cut = Renderizar();
+
+        cut.FindAll(".cabecera-identidad-acciones button").Single(b => b.TextContent.Trim() == "Preparar paquete").Click();
+
+        var dialogo = cut.Find("[role=dialog]");
+        dialogo.QuerySelector("[role=alert]")!.TextContent.Should().Contain(AutorizacionPaqueteEmpresa.RolSinDescarga.Mensaje);
+        dialogo.QuerySelectorAll("button, a").Should().NotContain(a => a.TextContent.Trim() == "Generar ZIP");
     }
 
     /// <summary>
@@ -652,6 +1066,34 @@ public partial class Empresa360PaginaTests : BunitContext
         await cut.FindAll(".empresa360-chip")[1].ClickAsync(new MouseEventArgs());
 
         cut.WaitForAssertion(() => EstadosDeLasFilas(cut).Should().BeEquivalentTo(["Vencido", "Pendiente", "Pendiente"]));
+    }
+
+    /// <summary>
+    /// Pulido de la demo (2026-11-10): «Al día · 7» contradecía filas «Sin confirmar». Por D-22 (2026-10-01) lo Sin confirmar
+    /// cuenta como al día con aviso; el chip lo dice, con el recuento tomado de la misma consulta (EstadoDocumental) que las filas.
+    /// </summary>
+    [Fact]
+    public void El_chip_Al_dia_dice_cuantos_de_ellos_estan_sin_confirmar_y_sin_ninguno_no_dice_nada()
+    {
+        Registrar(Empresa(
+        [
+            Trabajador(EstadoDocumento.Vencido, "Vencido Uno"),
+            Trabajador(EstadoDocumento.SinConfirmar, "Sin confirmar Uno"),
+            Trabajador(EstadoDocumento.SinConfirmar, "Sin confirmar Dos"),
+            Trabajador(EstadoDocumento.Vigente, "Vigente Uno")
+        ]));
+
+        Chips(Renderizar()).Should().Contain(c => c.StartsWith("Al día · 3 (de ellos, 2 sin confirmar)"));
+    }
+
+    [Fact]
+    public void Un_solo_trabajador_se_glosa_en_singular_en_la_pestana()
+    {
+        Registrar(Empresa([Trabajador(EstadoDocumento.Vigente, "Vigente Uno")]));
+
+        var glosas = Renderizar().FindAll(".pestanas-contador-glosa").Select(g => g.TextContent.Trim()).ToList();
+
+        glosas.Should().Contain("trabajador").And.NotContain("trabajadores");
     }
 
     [Fact]

@@ -1,11 +1,14 @@
 @page "/configuracion/orden-menu"
-@rendermode InteractiveServer
+@* Sin prerender (como Mi trabajo, M-23): la página carga en el ciclo de vida y no persiste su estado; con prerender
+   corría dos veces en cada visita. *@
+@rendermode @(new InteractiveServerRenderMode(prerender: false))
 @inherits CaeManager.Web.Components.PaginaInteractiva
 @attribute [Authorize]
 @using CaeManager.Web.Components.Layout
 
 <LimiteDeErrores Pagina="this">
 <PageTitle>@Textos["OrdenMenuTituloDocumento"] — @Marca.Nombre</PageTitle>
+<TituloDePaginaSinPrerender Titulo="@($"{Textos["OrdenMenuTituloDocumento"]} — {Marca.Nombre}")" />
 
 @* Mockup «Orden del Menu TALVEG.dc.html», aprobado por el propietario el 2026-09-23 con la
    pantalla dentro de Configuración (grupo «Plataforma y conexiones»), no en el grupo Plataforma
