@@ -77,6 +77,32 @@ public class UnifiedTimelineTests : BunitContext
     }
 
     [Fact]
+    public void Los_mensajes_y_las_notas_son_tarjetas_sin_avatar_y_la_pildora_de_la_nota_va_sobre_el_autor()
+    {
+        var t0 = new DateTime(2026, 8, 8, 9, 0, 0, DateTimeKind.Utc);
+        var autor = Guid.NewGuid();
+        var nota = new NotaInternaDetalleDto(Guid.NewGuid(), autor, "llamar antes", t0.AddMinutes(10));
+
+        var cut = Render<UnifiedTimeline>(parametros => parametros
+            .Add(p => p.Mensajes, [CrearMensaje(t0, "Primero")])
+            .Add(p => p.Participantes, [])
+            .Add(p => p.NotasInternas, [nota])
+            .Add(p => p.AutoresNotas, new Dictionary<Guid, string> { [autor] = "Marta Gestora" }));
+
+        // Maqueta (E17, `.msg`): sin avatar de remitente en ninguna de las dos tarjetas.
+        cut.FindAll(".timeline-avatar, .timeline-autor-nota, .avatar-usuario").Should().BeEmpty();
+        cut.Find(".timeline-mensaje-fila").Children.Should().ContainSingle("la fila es solo la tarjeta del mensaje");
+        cut.Find(".timeline-nota-interna-fila").Children.Should().ContainSingle("la fila es solo la tarjeta de la nota");
+
+        // `.msg.nota`: la píldora va primero y en su propia línea, antes de la línea del autor y la hora.
+        var cajaNota = cut.Find(".timeline-nota-interna");
+        cajaNota.Children[0].ClassList.Should().Contain("timeline-pildora-nota");
+        cajaNota.Children[1].ClassList.Should().Contain("timeline-mensaje-cabecera");
+        cajaNota.Children[1].TextContent.Should().Contain("Marta Gestora");
+        cajaNota.Children[1].QuerySelector(".timeline-pildora-nota").Should().BeNull();
+    }
+
+    [Fact]
     public void Un_evento_de_visita_creada_incluye_el_enlace_ver_visita()
     {
         var cut = Render<UnifiedTimeline>(parametros => parametros

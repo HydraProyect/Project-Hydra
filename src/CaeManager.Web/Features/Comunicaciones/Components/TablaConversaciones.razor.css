@@ -25,7 +25,7 @@
 }
 .tabla-conversaciones-fila:has(button):hover,
 .tabla-conversaciones-fila:focus-within {
-    background: var(--color-primary-50);
+    background: var(--color-fila-hover);
 }
 
 .tabla-conversaciones-asunto {
@@ -41,7 +41,7 @@
     border: 0;
     padding: 0;
     background: none;
-    color: var(--color-text);
+    color: var(--color-primary-500);
     font: inherit;
     font-weight: 600;
     text-align: left;
@@ -73,13 +73,14 @@
     font: var(--font-caption);
 }
 
-/* Prioridad = punto de 10 px + texto (maqueta); el punto toma el color del texto. */
+/* Prioridad = punto de 10 px + texto (maqueta, .prio y .cu): el texto va en el color base y solo el punto lleva el color de la prioridad (gris de control, rojo si es urgente), con 4 px entre ambos. */
 .tabla-prioridad {
     display: inline-flex;
     align-items: center;
-    gap: 6px;
-    color: var(--color-primary-700);
-    font: 600 13px/18px var(--font-family);
+    gap: 4px;
+    color: var(--color-text);
+    font: 400 13px/18px var(--font-family);
+    white-space: nowrap;
 }
 
 .tabla-prioridad-punto {
@@ -87,21 +88,27 @@
     width: 10px;
     height: 10px;
     border-radius: var(--radius-full);
-    background: currentColor;
+    background: var(--color-border-control);
 }
 
-.tabla-prioridad-urgente,
-.tabla-prioridad-critica {
-    color: var(--color-danger-700);
+.tabla-prioridad-urgente .tabla-prioridad-punto {
+    background: var(--color-danger-500);
 }
 
-@media (min-width: 1181px) {
+.tabla-prioridad-critica .tabla-prioridad-punto {
+    background: var(--color-danger-700);
+}
+
+/* El ancho mínimo de 860 px de la maqueta solo cabe cuando la columna central lo tiene: desde 1440 px (menú de 260,
+   relleno de 2 x 32 y columna de filtros de 240 dan 876 px). Por debajo, la tabla pasa a la composición apilada en vez
+   de desbordar con una barra horizontal. */
+@media (min-width: 1440px) {
     .tabla-conversaciones {
         min-width: 860px;
     }
 }
 
-@media (max-width: 1180px) {
+@media (max-width: 1439px) {
     .tabla-conversaciones-fila {
         grid-template-columns: 76px minmax(0, 1.6fr) minmax(0, 1fr);
     }

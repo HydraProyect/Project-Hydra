@@ -32,15 +32,13 @@
         {
             var autor = AutoresNotas.TryGetValue(nota.AutorUsuarioId, out var nombreAutor) ? nombreAutor : TextosNotas["AutorDesconocido"].Value;
             @* Texto plano, nunca MarkupString: la nota no pasa por el saneador de HTML. *@
+            @* Maqueta (E17, `.msg.nota`): tarjeta a todo el ancho, sin avatar; la píldora amarilla va en su propia línea, encima
+               del autor, y dice a quién NO llega la nota. *@
             <div class="timeline-nota-interna-fila">
-                <span class="timeline-autor-nota" title="@autor">
-                    <AvatarUsuario Nombre="@autor" Avatar="@AvataresNotas.GetValueOrDefault(nota.AutorUsuarioId)" />
-                </span>
                 <div class="timeline-nota-interna" role="note" aria-label="@TextosNotas["EtiquetaNotaInterna"]">
+                    <span class="timeline-pildora-nota">@TextosNotas["PildoraNotaInterna"]</span>
                     <div class="timeline-mensaje-cabecera">
                         <span class="timeline-mensaje-remitente">@autor</span>
-                        @* Píldora amarilla de la maqueta (E17): dice a quién NO llega la nota. *@
-                        <span class="timeline-pildora-nota">@TextosNotas["PildoraNotaInterna"]</span>
                         <span class="timeline-mensaje-fecha">@FormatearFechaRelativa(nota.FechaUtc)</span>
                     </div>
                     <div class="timeline-nota-interna-cuerpo">@nota.Texto</div>
@@ -75,7 +73,6 @@
         {
             var esRuidoSinConfirmar = EsRuidoSinConfirmar(mensaje);
             <div class="timeline-mensaje-fila timeline-mensaje-fila-@mensaje.Direccion.ToString().ToLowerInvariant() @(esRuidoSinConfirmar ? "timeline-mensaje-fila-ruido" : null)">
-                <span class="timeline-avatar" title="@mensaje.Remitente" aria-hidden="true">@ObtenerIniciales(mensaje.Remitente)</span>
                 <div class="timeline-mensaje timeline-mensaje-@mensaje.Direccion.ToString().ToLowerInvariant()">
                     <div class="timeline-mensaje-cabecera">
                         <span class="timeline-mensaje-remitente">@mensaje.Remitente</span>
@@ -207,13 +204,6 @@
         NotaInternaDetalleDto n => n.FechaUtc,
         _ => null
     };
-
-    /// <summary>Dos letras del correo (local-part) o del teléfono para el avatar — sin depender de un nombre completo, que este DTO no siempre trae.</summary>
-    private static string ObtenerIniciales(string remitente)
-    {
-        var local = remitente.Split('@')[0];
-        return local.Length >= 2 ? local[..2].ToUpperInvariant() : local.ToUpperInvariant();
-    }
 
     private static string FormatearTamano(long bytes) => bytes switch
     {

@@ -1,71 +1,35 @@
 .timeline-mensajes {
     flex: 1;
     overflow-y: auto;
-    /* Maqueta: .cc-cuerpo — sin superficie propia (se ve el fondo de la columna), 16/22/20 y 14 px entre elementos. */
-    padding: 16px 22px 20px;
+    /* Maqueta (`.hilo`): relleno 12/16 y 12 px entre tarjetas, sin superficie propia (se ve el fondo de la columna). */
+    padding: 12px 16px;
     background-color: transparent;
     display: flex;
     flex-direction: column;
-    gap: 14px;
-}
-
-/* Maqueta: .tl-fecha — rótulo de fecha con una línea a cada lado, no una píldora. */
-.timeline-separador-fecha {
-    display: flex;
-    align-items: center;
     gap: 12px;
 }
 
-.timeline-separador-fecha::before,
-.timeline-separador-fecha::after {
-    content: "";
-    flex: 1;
-    height: 1px;
-    background-color: var(--color-border);
+/* Maqueta (`.fecha`, E17): rótulo de fecha centrado, 12/16 500 apagado, sin líneas ni píldora. */
+.timeline-separador-fecha {
+    display: flex;
+    justify-content: center;
 }
 
 .timeline-separador-fecha span {
     color: var(--color-text-muted);
-    font: var(--font-caption);
+    font: 500 12px/16px var(--font-family);
 }
 
-/* Fila = avatar + burbuja, para poder invertir el orden en saliente sin
-   duplicar el marcado (flex-direction: row-reverse en vez de un segundo
-   bloque de HTML). */
+/* Maqueta (`.msg`, E17): cada mensaje es una tarjeta a todo el ancho de la columna, sin avatar; el saliente se distingue
+   por el fondo y el borde, no por la alineación. */
 .timeline-mensaje-fila {
     display: flex;
     align-items: flex-start;
-    gap: var(--space-3);
-    max-width: min(620px, 88%);
-}
-
-.timeline-mensaje-fila-saliente {
-    align-self: flex-end;
-    flex-direction: row-reverse;
-}
-
-.timeline-mensaje-fila-entrante {
-    align-self: flex-start;
-}
-
-/* Un único tratamiento de avatar para todos los remitentes (slate/acero,
-   nunca un color por persona) — Project-Hydra-Negocio/tecnico/docs/archive/design/DESIGN_SYSTEM.md reserva el color como
-   portador de significado (semáforo, acción). */
-.timeline-avatar {
-    flex-shrink: 0;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    width: 32px;
-    height: 32px;
-    border-radius: var(--radius-full);
-    background-color: var(--color-secondary-100);
-    color: var(--color-secondary-600);
-    font: var(--font-label-md);
-    letter-spacing: 0;
+    width: 100%;
 }
 
 .timeline-mensaje {
+    flex: 1;
     min-width: 0;
     padding: 12px 16px;
     border-radius: var(--radius-card-sm);
@@ -78,24 +42,22 @@
 
 .timeline-mensaje-saliente {
     background-color: var(--color-primary-50);
-    border-color: var(--color-primary-100);
+    border-color: var(--color-border-strong);
 }
 
 .timeline-mensaje-cabecera {
     display: flex;
     align-items: center;
     gap: var(--space-2);
-    margin-bottom: 6px;
+    margin-bottom: 8px;
     flex-wrap: wrap;
 }
 
-/* Maqueta: .msg-cab strong — el remitente hereda el tamaño de la cabecera (caption) y pesa 600. */
+/* Maqueta (`.m-c strong`, E17): el remitente es 14/20 600. */
 .timeline-mensaje-remitente {
-    font: var(--font-caption);
-    font-weight: 600;
+    font: 600 14px/20px var(--font-family);
     color: var(--color-text);
 }
-
 /* Ronda de reducción de ruido en Comunicaciones: minimizar sin borrar — el mensaje sigue
    completo y accesible, solo pierde peso visual hasta que el gestor lo confirme. */
 .timeline-mensaje-fila-ruido {
@@ -134,7 +96,13 @@
     margin-left: auto;
 }
 
+/* Maqueta (.m-c, E17): la hora va pegada al remitente, no en el extremo derecho de la tarjeta. */
+.timeline-mensaje-cabecera .timeline-mensaje-fecha {
+    margin-left: 0;
+}
+
 .timeline-mensaje-cuerpo {
+    max-width: 68ch;
     font: var(--font-body-md);
     color: var(--color-text);
     word-break: break-word;
@@ -300,23 +268,8 @@ a.timeline-adjunto-chip:hover {
 }
 
 /* Nota interna (Project-Hydra-Negocio/tecnico/docs/COMUNICACIONES.md § 12.3): inconfundible con un mensaje
-   saliente — ni se alinea a un lado ni usa el fondo de marca del saliente, y
-   el borde discontinuo marca que no salió del equipo. Mismo avatar neutro que
-   el resto de remitentes. */
-/* Envoltorio del AvatarUsuario del autor de una nota interna: solo fija su sitio en la fila. */
-.timeline-autor-nota {
-    flex-shrink: 0;
-    display: flex;
-}
-
-.timeline-nota-interna-fila {
-    display: flex;
-    align-items: flex-start;
-    gap: var(--space-3);
-    align-self: center;
-    width: 78%;
-}
-
+   saliente — no usa el fondo de marca del saliente y el amarillo, exclusivo de las notas,
+   marca que no salió del equipo. */
 .timeline-nota-interna {
     flex: 1;
     min-width: 0;
@@ -331,7 +284,7 @@ a.timeline-adjunto-chip:hover {
     color: var(--color-nota-texto);
 }
 
-/* Píldora de la nota interna (maqueta .pill-nota): el amarillo es exclusivo de las notas. */
+/* Píldora de la nota interna (maqueta .pill-nota, E17): el amarillo es exclusivo de las notas; va en su propia línea, sobre el autor. */
 .timeline-pildora-nota {
     display: inline-flex;
     align-items: center;
@@ -346,22 +299,16 @@ a.timeline-adjunto-chip:hover {
 }
 
 .timeline-nota-interna-cuerpo {
+    max-width: 68ch;
     font: var(--font-body-md);
     color: var(--color-text);
     word-break: break-word;
     white-space: pre-wrap;
 }
 
-/* Móvil (maqueta: .msg { max-width: 100% } en @container ws max-width 520): la burbuja aprovecha todo el ancho; con el 88 %
-   y el avatar la cabecera (remitente, canal, estado, hora) se partía en cuatro líneas. */
+/* Móvil: el hilo gana ancho con un relleno menor; las tarjetas ya ocupan todo el ancho de la columna. */
 @media (max-width: 520px) {
     .timeline-mensajes {
         padding: 12px 14px;
-    }
-
-    .timeline-mensaje-fila,
-    .timeline-nota-interna-fila {
-        max-width: 100%;
-        width: 100%;
     }
 }

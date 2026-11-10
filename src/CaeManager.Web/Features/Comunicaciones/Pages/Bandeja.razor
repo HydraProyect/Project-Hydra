@@ -195,7 +195,7 @@
                         else if (_cargandoLista)
                         {
                             <EstadoCargando Filas="6" />
-                            <p class="bandeja-cargando-texto">@TextosLista["Cargando"]</p>
+                            <p class="bandeja-cargando-texto" role="status">@TextosLista["Cargando"]</p>
                         }
                         else
                         {
@@ -280,7 +280,7 @@
                 else if (_cargandoLista)
                 {
                     <EstadoCargando Filas="6" />
-                    <p class="bandeja-cargando-texto">@TextosLista["Cargando"]</p>
+                    <p class="bandeja-cargando-texto" role="status">@TextosLista["Cargando"]</p>
                 }
                 else if (_conversaciones.Count > 0)
                 {
@@ -316,7 +316,7 @@
             else if (_cargandoDetalle)
             {
                 <EstadoCargando Filas="4" />
-                <p class="bandeja-cargando-texto">@TextosLista["Cargando"]</p>
+                <p class="bandeja-cargando-texto" role="status">@TextosLista["Cargando"]</p>
             }
             else if (_errorDetalle && (_detalle is null || _detalle.Id != _conversacionSeleccionadaId))
             {

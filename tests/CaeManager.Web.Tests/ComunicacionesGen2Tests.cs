@@ -481,6 +481,19 @@ public class ComunicacionesGen2Tests : BunitContext
     }
 
     [Fact]
+    public void Mientras_carga_la_lista_Cargando_es_un_estado_anunciado_a_los_lectores_de_pantalla()
+    {
+        var escenario = new Escenario();
+        var pendiente = new TaskCompletionSource<object?>();
+        escenario.Interceptar = p => p is ObtenerConversacionesQuery ? pendiente.Task : null;
+        var (cut, _) = Renderizar(escenario);
+
+        var texto = cut.Find(".bandeja-centro .bandeja-cargando-texto");
+        texto.TextContent.Trim().Should().Be("Cargando…");
+        texto.GetAttribute("role").Should().Be("status", "sin role=status la carga no se anuncia a un lector de pantalla");
+    }
+
+    [Fact]
     public async Task Si_la_lista_falla_dice_No_pudimos_cargar_la_lista_y_Reintentar_la_vuelve_a_pedir()
     {
         var escenario = new Escenario();

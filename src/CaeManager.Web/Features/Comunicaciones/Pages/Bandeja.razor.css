@@ -135,7 +135,7 @@
     min-height: 32px;
     padding: 4px 8px;
     border: 0;
-    border-radius: var(--radius-md);
+    border-radius: var(--radius-lg);
     background: transparent;
     color: var(--color-text);
     font: 400 13px/18px var(--font-family);
@@ -196,7 +196,8 @@
     color: var(--color-text-muted);
 }
 
-/* Botón pequeño de la maqueta (`.mini`): 32 px, 12/16 500, borde de control. */
+/* Botón pequeño de la maqueta (`.mini`): 32 px, 12/16 500, radius-md (la regla única de radios de la maqueta la sitúa
+   ahí, no en radius-sm). Borde de control (3:1, DDL-062/063) en vez del border-strong de la maqueta. */
 .bandeja-mini {
     display: inline-flex;
     align-items: center;
@@ -204,7 +205,7 @@
     height: 32px;
     padding: 0 8px;
     border: var(--border-control);
-    border-radius: var(--radius-sm);
+    border-radius: var(--radius-md);
     background: var(--color-surface);
     color: var(--color-text);
     font: 500 12px/16px var(--font-family);
@@ -223,10 +224,32 @@
     color: var(--color-text-muted);
 }
 
+/* Estados vacío y de error de la bandeja (maqueta, `.vacio`, E14): relleno de 32 px, 8 px entre piezas, título 18/26 600
+   y altura mínima de 200 px centrada. EstadoVacio es compartido (relleno de 48 px y título 22/30), por eso se acota aquí. */
+.bandeja-centro ::deep .estado-vacio,
+.bandeja-lista ::deep .estado-vacio {
+    flex: 1;
+    justify-content: center;
+    min-height: 200px;
+    padding: 32px;
+}
+
+.bandeja-centro ::deep .estado-vacio h3,
+.bandeja-lista ::deep .estado-vacio h3 {
+    font: 600 18px/26px var(--font-family);
+}
+
+.bandeja-centro ::deep .estado-vacio-accion,
+.bandeja-lista ::deep .estado-vacio-accion {
+    margin-top: 0;
+}
+
+/* «Al día» es la primera pieza del vacío, 8 px sobre el título: se pega al relleno superior del EstadoVacio que le sigue. */
 .bandeja-al-dia {
     display: flex;
     justify-content: center;
-    padding-top: var(--space-6);
+    padding-top: 32px;
+    margin-bottom: -24px;
 }
 
 .bandeja-vista-personal-descripcion {
@@ -1156,14 +1179,14 @@ a.bandeja-documento-citado-nombre:hover {
     height: 36px;
     padding: 0 8px;
     border: var(--border-control);
-    border-radius: var(--radius-md);
+    border-radius: var(--radius-lg);
     background: var(--color-surface);
     color: var(--color-text-muted);
 }
 
 .bandeja-buscar:focus-within {
     outline: 2px solid var(--color-primary-500);
-    outline-offset: 2px;
+    outline-offset: 1px;
 }
 
 .bandeja-buscar input {
