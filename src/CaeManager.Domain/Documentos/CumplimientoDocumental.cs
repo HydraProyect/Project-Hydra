@@ -58,7 +58,7 @@ public readonly record struct ParDocumentalExigido(
 /// <see cref="ParDocumentalExigido"/>, salvo que el sujeto es la Empresa y no un Trabajador.
 /// </summary>
 /// <param name="CentroId">Centro que exige el tipo.</param>
-/// <param name="EmpresaId">Empresa a la que se le exige: la de algún Trabajador con Asignación activa en el Centro.</param>
+/// <param name="EmpresaId">Empresa a la que se le exige: la de algún Trabajador con Asignación activa en el Centro o la que tiene allí un Pendiente en la plataforma (decisión del 2026-11-08, Centro sin Trabajadores suyos).</param>
 /// <param name="TipoDocumentoId">Tipo de ámbito Empresa exigido.</param>
 /// <param name="Estado">Estado del documento efectivo del par, o Faltante.</param>
 /// <param name="PendienteEnPlataforma">Mismo significado que en <see cref="ParDocumentalExigido.PendienteEnPlataforma"/>.</param>
