@@ -574,6 +574,9 @@ public class PlanEditableAsistenteTests
         public Task<Trabajador?> ObtenerPorIdAsync(Guid id, CancellationToken cancellationToken = default) => throw new NotSupportedException();
         public Task<IReadOnlySet<string>> ObtenerDnisEnPapeleraAsync(IReadOnlyCollection<string> dnis, CancellationToken cancellationToken = default) => throw new NotSupportedException();
         public void Agregar(Trabajador trabajador) => throw new NotSupportedException();
+
+        public Task<IReadOnlyList<Trabajador>> ListarConIdentidadActualizadosAsync(CancellationToken cancellationToken = default) =>
+            Task.FromResult<IReadOnlyList<Trabajador>>([]);
     }
 
     private sealed class RepositorioEnMemoria : ITareaAsistenteRepository
