@@ -1,0 +1,191 @@
+@page "/herramientas-pdf/unir"
+@* Sin prerender (como Dividir y Mi trabajo, M-23): la página carga en el ciclo de vida y no persiste su estado. *@
+@rendermode @(new InteractiveServerRenderMode(prerender: false))
+@inherits CaeManager.Web.Components.PaginaInteractiva
+@using CaeManager.Application.HerramientasPdf
+@using CaeManager.Web.Features.HerramientasPdf.Recursos
+@using Microsoft.AspNetCore.Components.Forms
+@attribute [Authorize(Roles = $"{CaeManager.Infrastructure.Identity.Roles.Administrador},{CaeManager.Infrastructure.Identity.Roles.DireccionCae},{CaeManager.Infrastructure.Identity.Roles.CoordinadorCae},{CaeManager.Infrastructure.Identity.Roles.GestorCae}")]
+
+<LimiteDeErrores Pagina="this">
+    <PageTitle>@Textos["UnirPestana"] — @Marca.Nombre</PageTitle>
+    <TituloDePaginaSinPrerender Titulo="@($"{Textos["UnirPestana"]} — {Marca.Nombre}")" />
+    <div class="contenedor-pagina unir-pdf">
+        <a class="volver-herramientas" href="herramientas-pdf"><Icono Nombre="volver" />@Textos["Herramientas"]</a>
+
+        @if (_inicializando)
+        {
+            <p class="texto-suave" role="status">@Textos["Cargando"]</p>
+        }
+        else if (!_disponible)
+        {
+            <EstadoVacio Titulo="@Textos["NoDisponibleTitulo"]" Descripcion="@Textos["NoDisponibleDescripcion"]" NombreIcono="documentos" />
+        }
+        else if (_unido)
+        {
+            <div class="cabecera-unir">
+                <h1>@Textos["UnirResultadoTitulo", _paginasUnido]</h1>
+                <p>@Textos["UnirResultadoDescarga", _nombreUnido]</p>
+            </div>
+            <div class="aviso-unir" role="note"><Icono Nombre="info" /><span>@Textos["UnirResultadoNoGuardado"]</span></div>
+            <div class="barra-acciones-unir">
+                <Boton Variante="VarianteBoton.Fantasma" Href="herramientas-pdf">@Textos["Herramientas"]</Boton>
+                <Boton Variante="VarianteBoton.Secundario" OnClick="ReiniciarAsync">@Textos["UnirOtros"]</Boton>
+            </div>
+        }
+        else
+        {
+            <div class="cabecera-unir">
+                <h1>@Textos["UnirTitulo"]</h1>
+                @if (NombreEmpresaActiva is { } nombreEmpresa)
+                {
+                    <p>
+                        @Textos["EmpresaGestionadaDe"] <strong>@nombreEmpresa</strong>
+                        @if (_selectorVisible && !_elegirEmpresaAqui)
+                        {
+                            <text> · @Textos["LaDelSelector"]</text>
+                        }
+                    </p>
+                }
+            </div>
+
+            @if (_sinEmpresa)
+            {
+                <div class="aviso-unir" role="note"><Icono Nombre="advertencia" /><span><strong>@Textos["SinEmpresaAvisoNegrita"]</strong> @Textos["UnirSinEmpresaResto"]</span></div>
+            }
+            else if (_empresas.Count == 0)
+            {
+                <div class="aviso-unir" role="status"><Icono Nombre="advertencia" /><span>@Textos["UnirSinEmpresaPropia"]</span></div>
+            }
+            else if (_elegirEmpresaAqui)
+            {
+                <CampoSelect Etiqueta="@Textos["EmpresaGestionada"]" Valor="@Texto(_empresaId)" ValorChanged="CambiarEmpresaAsync">
+                    <option value="">@Textos["ElegirEmpresaGestionada"]</option>
+                    @foreach (var empresa in _empresas)
+                    {
+                        <option value="@empresa.Id">@empresa.RazonSocial</option>
+                    }
+                </CampoSelect>
+            }
+
+            @if (!string.IsNullOrEmpty(_error))
+            {
+                <div class="aviso-unir aviso-error" role="alert"><Icono Nombre="advertencia" /><span>@_error</span></div>
+            }
+
+            @if (_firmasPendientes.Count > 0)
+            {
+                <div class="aviso-unir" role="alertdialog" aria-label="@Textos["UnirFirmasTitulo"]">
+                    <Icono Nombre="advertencia" />
+                    <span>
+                        <strong>@Textos["UnirFirmasTitulo"]</strong>
+                        @Textos["UnirFirmasPierden", string.Join(", ", _firmasPendientes.Select(NombreEnPosicion))]
+                    </span>
+                    <Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno" OnClick="() => _firmasPendientes = []">@Textos["UnirRevisarLista"]</Boton>
+                    <Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno" Cargando="_uniendo" OnClick="() => UnirAsync(true)">@Textos["UnirIgualmente"]</Boton>
+                </div>
+            }
+            else if (_elementos.Any(e => e.Firmado))
+            {
+                <div class="aviso-unir" role="status"><Icono Nombre="advertencia" /><span>@Textos["UnirAvisoFirmado"]</span></div>
+            }
+
+            <section class="isla-unir" aria-labelledby="titulo-anadir-unir">
+                <h2 id="titulo-anadir-unir">@Textos["UnirAnadirTitulo"]</h2>
+                @if (PuedeAnadir)
+                {
+                    <ZonaSoltarArchivo Titulo="@Textos["UnirZonaTitulo"]" FormatosTexto="@Textos["UnirZonaFormatos", LimiteSubidaMb, LimitesUnionPdf.MaximoFicheros]"
+                                       Accept=".pdf,application/pdf" Multiple="true" Cargando="_cargando" OnChange="CargarArchivosAsync" />
+                    <div class="acciones-origen">
+                        <Boton Variante="VarianteBoton.Secundario" OnClick="AlternarDocumentosAsync">@Textos[_documentosAbiertos ? "UnirOcultarDocumentos" : "UnirElegirDeDocumentos"]</Boton>
+                    </div>
+                }
+                else
+                {
+                    <div class="zona-bloqueada"><Icono Nombre="documentos" /><span>@Textos["UnirZonaBloqueada"]</span></div>
+                }
+
+                @if (_documentosAbiertos)
+                {
+                    <div class="documentos-unir" role="region" aria-label="@Textos["UnirDocumentosTitulo"]">
+                        <h3>@Textos["UnirDocumentosTitulo"]</h3>
+                        @if (_cargandoDocumentos)
+                        {
+                            <p class="texto-suave" role="status">@Textos["Cargando"]</p>
+                        }
+                        else if (_documentos.Count == 0)
+                        {
+                            <p class="texto-suave">@Textos["UnirDocumentosVacio"]</p>
+                        }
+                        else
+                        {
+                            <ul>
+                                @foreach (var documento in _documentos)
+                                {
+                                    var id = documento.Id;
+                                    var anadido = EstaAnadido(id);
+                                    <li>
+                                        <span>
+                                            <strong>@documento.TipoNombre</strong>
+                                            @if (documento.TitularNombre is { } titular)
+                                            {
+                                                <text> · @titular</text>
+                                            }
+                                            <span class="texto-suave"> · @Textos["UnirEmitido", documento.FechaEmision.ToString("dd/MM/yyyy", System.Globalization.CultureInfo.InvariantCulture)]</span>
+                                        </span>
+                                        <Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno" Deshabilitado="@(anadido || _elementos.Count >= LimitesUnionPdf.MaximoFicheros)"
+                                               OnClick="() => AnadirDocumento(documento)">@Textos[anadido ? "UnirDocumentoAnadido" : "UnirDocumentoAnadir"]</Boton>
+                                    </li>
+                                }
+                            </ul>
+                        }
+                    </div>
+                }
+            </section>
+
+            <section class="isla-unir" aria-labelledby="titulo-lista-unir">
+                <h2 id="titulo-lista-unir">@Textos["UnirListaTitulo"]</h2>
+                @if (_elementos.Count == 0)
+                {
+                    <p class="texto-suave">@Textos["UnirListaVacia"]</p>
+                }
+                else
+                {
+                    <ol class="lista-unir">
+                        @foreach (var (elemento, posicion) in ElementosConPosicion)
+                        {
+                            <li class="@(_firmasPendientes.Contains(posicion) ? "con-firma" : null)">
+                                <span class="orden-unir">@(posicion + 1)</span>
+                                <span class="nombre-unir">
+                                    <strong>@elemento.Nombre</strong>
+                                    <span class="texto-suave">
+                                        @Textos[elemento.DocumentoId is null ? "UnirOrigenSubido" : "UnirOrigenDocumento"]
+                                        @if (elemento.Paginas is { } paginas)
+                                        {
+                                            <text> · @Textos[paginas == 1 ? "UnirPaginaUna" : "UnirPaginasVarias", paginas]</text>
+                                        }
+                                        @if (elemento.Firmado)
+                                        {
+                                            <text> · @Textos["UnirFirmado"]</text>
+                                        }
+                                    </span>
+                                </span>
+                                <span class="botones-unir">
+                                    <button type="button" class="boton-orden" aria-label="@Textos["UnirSubirPosicion", elemento.Nombre]" disabled="@(posicion == 0)" @onclick="() => Mover(posicion, -1)">↑</button>
+                                    <button type="button" class="boton-orden" aria-label="@Textos["UnirBajarPosicion", elemento.Nombre]" disabled="@(posicion == _elementos.Count - 1)" @onclick="() => Mover(posicion, 1)">↓</button>
+                                    <button type="button" class="boton-orden" aria-label="@Textos["UnirQuitar", elemento.Nombre]" @onclick="() => Quitar(posicion)"><Icono Nombre="papelera" /></button>
+                                </span>
+                            </li>
+                        }
+                    </ol>
+                }
+                <p class="texto-suave">@Textos["UnirPie"]</p>
+            </section>
+
+            <div class="barra-acciones-unir">
+                <span>@Textos[_elementos.Count == 1 ? "UnirResumenUno" : "UnirResumenVarios", _elementos.Count]</span>
+                <Boton Variante="VarianteBoton.Primario" Deshabilitado="@(!PuedeUnir)" Cargando="_uniendo" OnClick="() => UnirAsync(false)">@Textos["UnirAccion"]</Boton>
+            </div>
+        }
+    </div>
+</LimiteDeErrores>
