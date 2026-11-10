@@ -534,7 +534,15 @@ $LISTA_UNA" \
       ENVIOCORREO__MODO: Abierto
 $LISTA_UNA" \
             "SoloPermitidos en otra grafía, sin lista, y Cerrado|      ENVIOCORREO__MODO: SoloPermitidos
-      EnvioCorreo__Modo: Cerrado"; do
+      EnvioCorreo__Modo: Cerrado" \
+            "Cerrado y la clave con «:» con Abierto|      EnvioCorreo__Modo: Cerrado
+      EnvioCorreo:Modo: Abierto" \
+            "Solo Permitidos, con un espacio dentro, y lista|      EnvioCorreo__Modo: Solo Permitidos
+$LISTA_UNA" \
+            "SoloPermitidos con comillas dentro y lista|      EnvioCorreo__Modo: Solo\"Permitidos
+$LISTA_UNA" \
+            "Cerrado y una línea del entorno que no se puede leer|      EnvioCorreo__Modo: Cerrado
+      LINEA_SIN_SEPARADOR"; do
   escenario_correo; relevo "CORREO_VERDE=${caso#*|}" -- desplegar staging "$B"
   comprobar "staging con ${caso%%|*}: aborta sin up, sin recarga, sin drenaje y sin tocar la activa" "1 0 0 0 to caemanager-staging-app-azul:8080 true" "$codigo $(sin_tocar_nada staging)"
   comprobar "  dice qué exige y dónde" si "$(contiene "EnvioCorreo__Modo no es Cerrado ni SoloPermitidos en el entorno efectivo de app-verde" "$salida")"
@@ -555,16 +563,23 @@ for caso in "sin lista|" \
             "dos direcciones en una entrada|      EnvioCorreo__DestinatariosPermitidos__0: una@ejemplo.invalid,otra@ejemplo.invalid" \
             "la clave sin índice|      EnvioCorreo__DestinatariosPermitidos: una@ejemplo.invalid" \
             "un índice que no es número|      EnvioCorreo__DestinatariosPermitidos__a: una@ejemplo.invalid" \
+            "una clave anidada bajo el índice|      EnvioCorreo__DestinatariosPermitidos__0__x: una@ejemplo.invalid" \
+            "una entrada con «:» y nombre visible|$LISTA_UNA
+      EnvioCorreo:DestinatariosPermitidos:1: Otra <otra@ejemplo.invalid>" \
             "otra grafía de la clave con una entrada mala|$LISTA_UNA
       ENVIOCORREO__DESTINATARIOSPERMITIDOS__1: Otra <otra@ejemplo.invalid>" \
             "solo otra clave con el mismo prefijo|      EnvioCorreo__DestinatariosPermitidosAntiguos: una@ejemplo.invalid"; do
   escenario_correo; relevo "CORREO_VERDE=      EnvioCorreo__Modo: SoloPermitidos
 ${caso#*|}" -- desplegar staging "$B"
   comprobar "staging con SoloPermitidos y ${caso%%|*}: aborta sin up, sin recarga, sin drenaje y sin tocar la activa" "1 0 0 0 to caemanager-staging-app-azul:8080 true" "$codigo $(sin_tocar_nada staging)"
-  comprobar "  dice qué falta y dónde" si "$(contiene "EnvioCorreo__Modo es SoloPermitidos en el entorno efectivo de app-verde, pero EnvioCorreo__DestinatariosPermitidos__<n> no lleva ninguna dirección" "$salida")"
+  comprobar "  dice qué falta y dónde" si "$(contiene "la lista EnvioCorreo__DestinatariosPermitidos__<n> del entorno efectivo de app-verde no vale" "$salida")"
   comprobar "  nombra .env.staging" si "$(contiene "Corrígelo en .env.staging en el servidor" "$salida")"
   comprobar "  no imprime ninguna dirección ni ningún otro valor" 0 "$(printf '%s\n' "$salida" | grep -ciE 'SECRETO_CENTINELA|ejemplo\.invalid|localhost|persona')"
 done
+escenario_correo; relevo "CORREO_VERDE=      EnvioCorreo__Modo: Cerrado
+      EnvioCorreo__DestinatariosPermitidos__0: \"\"" -- desplegar staging "$B"
+comprobar "staging con Cerrado y una entrada de lista que la aplicación rechazaría: aborta antes de tocar nada" "1 0 0 0 to caemanager-staging-app-azul:8080 true" "$codigo $(sin_tocar_nada staging)"
+comprobar "  y lo dice" si "$(contiene "la lista EnvioCorreo__DestinatariosPermitidos__<n> del entorno efectivo de app-verde no vale" "$salida")"
 
 for caso in "una dirección|$LISTA_UNA" \
             "dos direcciones|$LISTA_UNA
@@ -573,6 +588,8 @@ for caso in "una dirección|$LISTA_UNA" \
       EnvioCorreo__DestinatariosPermitidos__1: 'otra@ejemplo.invalid'" \
             "otra grafía de la clave con el mismo modo|      ENVIOCORREO__MODO: SoloPermitidos
 $LISTA_UNA" \
+            "una entrada con «:»|$LISTA_UNA
+      EnvioCorreo:DestinatariosPermitidos:1: otra@ejemplo.invalid" \
             "otra clave con el mismo prefijo, que no es la lista|$LISTA_UNA
       EnvioCorreo__DestinatariosPermitidosAntiguos: Una Persona <una@ejemplo.invalid>"; do
   limpio; contenedor caemanager-staging-app-azul "$A"; fichero staging "to caemanager-staging-app-azul:8080"; fichero produccion "to caemanager-app-azul:8080"
@@ -934,7 +951,7 @@ if [ -z "${RELEVO_GUION:-}" ]; then
   mutar "staging no exige Cerrado ni SoloPermitidos" \
     's#^    \[ "\$entorno" = staging \] \&\& modo_exigido="\$MODOS_CORREO_STAGING" #    [ "$entorno" = staging ] \&\& #' esc_staging comp_staging
   mutar "un modo distinto de los admitidos no aborta" \
-    's#if (discrepa) exit 3#if (0) exit 3#' esc_staging comp_staging
+    's#if (discrepa || ilegible) exit 3#if (ilegible) exit 3#' esc_staging comp_staging
   mutar "la comparación con los modos admitidos va al revés" \
     's#if (v == partes\[i\]) return 1#if (v != partes[i]) return 1#' esc_staging comp_staging
   mutar "staging admite Abierto" \
@@ -942,14 +959,26 @@ if [ -z "${RELEVO_GUION:-}" ]; then
   CORREO_MUTANTE='      EnvioCorreo__Modo: Cerrado
       ENVIOCORREO__MODO: Abierto'
   mutar "otra grafía de la clave no cuenta" \
-    's#index(tolower(\$0), "      " tolower(clave) ":") == 1#index($0, "      " clave ":") == 1#' esc_staging comp_staging
+    's#clave_n = tolower(clave); lista_n = tolower(lista)#clave_n = clave; lista_n = lista#; s#nombre = tolower(nombre); #nombre = nombre; #' esc_staging comp_staging
+  CORREO_MUTANTE='      EnvioCorreo__Modo: Cerrado
+      EnvioCorreo:Modo: Abierto'
+  mutar "«:» en el nombre no cuenta como «__»" \
+    's#gsub(/:/, "__", nombre)#nombre = nombre#' esc_staging comp_staging
+  CORREO_MUTANTE='      EnvioCorreo__Modo: Cerrado
+      LINEA_SIN_SEPARADOR'
+  mutar "una línea ilegible no aborta" \
+    's#if (discrepa || ilegible) exit 3#if (discrepa) exit 3#' esc_staging comp_staging
+  CORREO_MUTANTE='      EnvioCorreo__Modo: Solo Permitidos
+      EnvioCorreo__DestinatariosPermitidos__0: una@ejemplo.invalid'
+  mutar "el modo se compara sin los espacios de dentro" \
+    's#valor = crudo_de(resto)#valor = valor_de($0)#' esc_staging comp_staging
   CORREO_MUTANTE='      ENVIOCORREO__MODO: SoloPermitidos
       EnvioCorreo__Modo: Cerrado'
   mutar "dos grafías con modos admitidos distintos no abortan" \
     's#(vistos++ \&\& valor != modo)#0#' esc_staging comp_staging
   CORREO_MUTANTE='      EnvioCorreo__Modo: SoloPermitidos'
   mutar "SoloPermitidos sin lista pasa" \
-    's#(lista_mala || !direcciones)) exit 4#(lista_mala || !direcciones)) exit 0#' esc_staging comp_staging
+    's#\&\& !direcciones)) exit 4#\&\& 0)) exit 4#' esc_staging comp_staging
   mutar "staging no pide la lista para SoloPermitidos" \
     's# modo_con_lista="\$MODO_CORREO_CON_LISTA" lista=# lista=#' esc_staging comp_staging
   CORREO_MUTANTE='      EnvioCorreo__Modo: SoloPermitidos
@@ -958,16 +987,28 @@ if [ -z "${RELEVO_GUION:-}" ]; then
   mutar "una entrada mala no invalida la lista si hay otra buena" \
     's#else lista_mala = 1#else lista_mala = 0#' esc_staging comp_staging
   mutar "la dirección no se comprueba" \
-    's#\&\& direccion_de(\$0) ~ exacta) direcciones++#) direcciones++#' esc_staging comp_staging
+    's#\&\& crudo_de(resto) ~ exacta) direcciones++#) direcciones++#' esc_staging comp_staging
   CORREO_MUTANTE='      EnvioCorreo__Modo: SoloPermitidos
       EnvioCorreo__DestinatariosPermitidos__0: una@ejemplo.invalid
       ENVIOCORREO__DESTINATARIOSPERMITIDOS__1: Otra <otra@ejemplo.invalid>'
   mutar "otra grafía de la lista no cuenta" \
-    's#(index(tolower(\$0), "      " tolower(lista) ":") == 1 || index(tolower(\$0), "      " tolower(lista) "__") == 1)#(index($0, "      " lista ":") == 1 || index($0, "      " lista "__") == 1)#' esc_staging comp_staging
+    's#clave_n = tolower(clave); lista_n = tolower(lista)#clave_n = clave; lista_n = lista#; s#nombre = tolower(nombre); #nombre = nombre; #' esc_staging comp_staging
   CORREO_MUTANTE='      EnvioCorreo__Modo: SoloPermitidos
       EnvioCorreo__DestinatariosPermitidos: una@ejemplo.invalid'
   mutar "la clave sin índice cuenta como lista" \
-    's#if (tolower(\$0) ~ hijo \&\& #if (#' esc_staging comp_staging
+    's#if (nombre ~ hijo \&\& #if (#' esc_staging comp_staging
+  CORREO_MUTANTE='      EnvioCorreo__Modo: SoloPermitidos
+      EnvioCorreo__DestinatariosPermitidos__0__x: una@ejemplo.invalid'
+  mutar "una clave anidada bajo el índice cuenta como entrada" \
+    's#"__\[0-9\]+\$"#"__[0-9]+"#' esc_staging comp_staging
+  CORREO_MUTANTE='      EnvioCorreo__Modo: SoloPermitidos
+      EnvioCorreo__DestinatariosPermitidos__a: una@ejemplo.invalid'
+  mutar "un índice que no es número cuenta como entrada" \
+    's#"__\[0-9\]+\$"#"__[^_]+$"#' esc_staging comp_staging
+  CORREO_MUTANTE='      EnvioCorreo__Modo: Cerrado
+      EnvioCorreo__DestinatariosPermitidos__0: ""'
+  mutar "con Cerrado la lista no se mira" \
+    's#if (lista_mala || (modo_con_lista#if ((modo == modo_con_lista \&\& lista_mala) || (modo_con_lista#' esc_staging comp_staging
   unset CORREO_MUTANTE
 
   esc_staging_lista() { limpio; contenedor caemanager-staging-app-azul "$A"; fichero staging "to caemanager-staging-app-azul:8080"; fichero produccion "to caemanager-app-azul:8080"

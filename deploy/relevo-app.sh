@@ -341,19 +341,21 @@ volcar_ranura_fallida() {
 # ausente, igual que los trata la aplicación.
 #
 # Con un tercer argumento, además sale con 3 si la clave no vale exactamente uno
-# de esos valores (separados por «|»), o si dos grafías de la clave no valen lo
-# mismo, sin distinguir mayúsculas en el nombre de la clave: la aplicación lee
-# cualquier grafía, así que otra línea con el mismo nombre podría decidir el modo
-# efectivo.
+# de esos valores (separados por «|»), si dos grafías de la clave no valen lo
+# mismo o si una línea del entorno no se puede leer. El nombre se compara como lo
+# ve la aplicación: sin distinguir mayúsculas y con «:» igual a «__», así que
+# cualquier otra grafía cuenta (podría decidir el modo efectivo). El valor se
+# compara entero, solo sin los espacios de alrededor ni un par de comillas YAML
+# que lo envuelva: «Solo Permitidos» no es SoloPermitidos.
 #
-# Con cuarto y quinto argumento (<modo> <clave de lista>), si el modo es ese sale
-# con 4 cuando la lista no lleva ninguna dirección o lleva alguna entrada que no
-# lo sea, igual que EnvioCorreoOptions.EsValida(): cuenta toda clave que empiece
-# por <clave de lista> seguida de «:» o de «__», en cualquier grafía, y solo vale
-# <clave de lista>__<n> con una dirección exacta (sin nombre visible, sin
-# espacios, sin un dominio suelto). El patrón es más estricto que MailAddress: lo
-# que rechace de más deja staging sin relevar, no con correo abierto. Las
-# direcciones tampoco salen de awk.
+# Con cuarto y quinto argumento (<modo> <clave de lista>) mira además la lista,
+# como EnvioCorreoOptions.EsValida(), y sale con 4 si alguna entrada no es una
+# dirección exacta (con cualquier modo) o si el modo es <modo> y la lista no lleva
+# ninguna. Cuenta como entrada todo nombre que sea <clave de lista> o empiece por
+# <clave de lista>__, en cualquier grafía, y solo vale <clave de lista>__<número>
+# con una dirección exacta (sin nombre visible, sin espacios, sin un dominio
+# suelto). El patrón es más estricto que MailAddress: lo que rechace de más deja
+# staging sin relevar, no con correo abierto. Las direcciones tampoco salen de awk.
 clave_con_valor_en_servicio() {
     awk -v servicio="$1" -v clave="$2" -v exigido="${3:-}" -v modo_con_lista="${4:-}" -v lista="${5:-}" '
         function valor_de(linea) {
@@ -362,13 +364,12 @@ clave_con_valor_en_servicio() {
             gsub("\047", "", linea)
             return linea
         }
-        # Lo que recibiría la aplicación: sin los espacios de alrededor ni las
-        # comillas de YAML, pero con todo lo de dentro.
-        function direccion_de(linea) {
-            linea = substr(linea, index(linea, ":") + 1)
-            gsub(/^[ \t]+|[ \t\r]+$/, "", linea)
-            if (linea ~ /^".*"$/ || linea ~ /^\047.*\047$/) linea = substr(linea, 2, length(linea) - 2)
-            return linea
+        # Lo que recibiría la aplicación: sin los espacios de alrededor ni un
+        # par de comillas de YAML que lo envuelva, pero con todo lo de dentro.
+        function crudo_de(resto) {
+            gsub(/^[ \t]+|[ \t\r]+$/, "", resto)
+            if (resto ~ /^".*"$/ || resto ~ /^\047.*\047$/) resto = substr(resto, 2, length(resto) - 2)
+            return resto
         }
         function admitido(v,   partes, n, i) {
             n = split(exigido, partes, "|")
@@ -379,20 +380,34 @@ clave_con_valor_en_servicio() {
             atomo = "[A-Za-z0-9_%+\047-]+"
             etiqueta = "[A-Za-z0-9]([A-Za-z0-9-]*[A-Za-z0-9])?"
             exacta = "^" atomo "(\\." atomo ")*@" etiqueta "(\\." etiqueta ")+$"
-            hijo = "^      " tolower(lista) "__[0-9]+:"
+            clave_n = tolower(clave); lista_n = tolower(lista)
+            hijo = "^" lista_n "__[0-9]+$"
         }
         /^[^ ]/ { en_servicios = ($0 == "services:"); actual = 0; en_entorno = 0; next }
         en_servicios && /^  [^ ]/ { actual = ($0 == "  " servicio ":"); if (actual) visto = 1; en_entorno = 0; next }
         actual && /^    [^ ]/ { en_entorno = ($0 == "    environment:"); next }
-        en_entorno && exigido != "" && index(tolower($0), "      " tolower(clave) ":") == 1 {
-            valor = valor_de($0)
-            if (!admitido(valor) || (vistos++ && valor != modo)) discrepa = 1
-            modo = valor
-            valor = ""
-        }
-        en_entorno && lista != "" && (index(tolower($0), "      " tolower(lista) ":") == 1 || index(tolower($0), "      " tolower(lista) "__") == 1) {
-            if (tolower($0) ~ hijo && direccion_de($0) ~ exacta) direcciones++
-            else lista_mala = 1
+        # Cada variable, con el nombre como lo ve la aplicación. Las líneas más
+        # sangradas son continuación de un valor, no variables.
+        en_entorno && (exigido != "" || lista != "") && /^      [^ ]/ {
+            linea = substr($0, 7); sub(/\r$/, "", linea)
+            p = index(linea, ": ")
+            if (p) { nombre = substr(linea, 1, p - 1); resto = substr(linea, p + 2) }
+            else if (linea ~ /:$/) { nombre = substr(linea, 1, length(linea) - 1); resto = "" }
+            else { ilegible = 1; linea = ""; next }
+            linea = ""
+            if (nombre ~ /^".*"$/ || nombre ~ /^\047.*\047$/) nombre = substr(nombre, 2, length(nombre) - 2)
+            nombre = tolower(nombre); gsub(/:/, "__", nombre)
+            if (exigido != "" && nombre == clave_n) {
+                valor = crudo_de(resto)
+                if (!admitido(valor) || (vistos++ && valor != modo)) discrepa = 1
+                modo = valor
+                valor = ""
+            }
+            if (lista != "" && (nombre == lista_n || index(nombre, lista_n "__") == 1)) {
+                if (nombre ~ hijo && crudo_de(resto) ~ exacta) direcciones++
+                else lista_mala = 1
+            }
+            resto = ""
         }
         en_entorno && index($0, "      " clave ":") == 1 {
             valor = valor_de($0)
@@ -402,8 +417,8 @@ clave_con_valor_en_servicio() {
         END {
             if (!visto) exit 2
             if (!presente) exit 1
-            if (discrepa) exit 3
-            if (modo_con_lista != "" && modo == modo_con_lista && (lista_mala || !direcciones)) exit 4
+            if (discrepa || ilegible) exit 3
+            if (lista_mala || (modo_con_lista != "" && modo == modo_con_lista && !direcciones)) exit 4
             exit 0
         }'
 }
@@ -480,10 +495,10 @@ exigir_guarda_de_correo() {
     case "$resultado" in
         0) return 0 ;;
         2) echo "::error::Relevo de $entorno abortado: no se pudo resolver la configuración efectiva de $servicio para comprobar $CLAVE_GUARDA_CORREO (revisa $fichero y docker-compose.$entorno.yml; el error de Compose no se imprime porque puede citar valores). $intacto" >&2 ;;
-        4) echo "::error::Relevo de $entorno abortado: $CLAVE_GUARDA_CORREO es $MODO_CORREO_CON_LISTA en el entorno efectivo de $servicio, pero ${CLAVE_LISTA_CORREO}__<n> no lleva ninguna dirección, o lleva una entrada que no es una dirección exacta (sin nombre visible ni espacios) o una clave que no es ${CLAVE_LISTA_CORREO}__<número>. Corrígelo en $fichero en el servidor y repite la operación. $intacto" >&2 ;;
+        4) echo "::error::Relevo de $entorno abortado: la lista ${CLAVE_LISTA_CORREO}__<n> del entorno efectivo de $servicio no vale: con $MODO_CORREO_CON_LISTA tiene que llevar al menos una dirección, y con cualquier modo cada entrada tiene que ser ${CLAVE_LISTA_CORREO}__<número> con una dirección exacta (sin nombre visible, sin espacios, una por entrada). Corrígelo en $fichero en el servidor y repite la operación. $intacto" >&2 ;;
         3)
             if [ "$entorno" = staging ]; then
-                echo "::error::Relevo de $entorno abortado: $CLAVE_GUARDA_CORREO no es ${MODOS_CORREO_STAGING//|/ ni } en el entorno efectivo de $servicio (o dos grafías de la clave no coinciden), y en staging no se admite otro modo, para que no salga correo real a quien no esté en la lista. Corrígelo en $fichero en el servidor y repite la operación. $intacto" >&2
+                echo "::error::Relevo de $entorno abortado: $CLAVE_GUARDA_CORREO no es ${MODOS_CORREO_STAGING//|/ ni } en el entorno efectivo de $servicio (o dos grafías de la clave no coinciden, o una línea del entorno no se puede leer), y en staging no se admite otro modo, para que no salga correo real a quien no esté en la lista. Corrígelo en $fichero en el servidor y repite la operación. $intacto" >&2
             else
                 echo "::error::Relevo de $entorno abortado: caemanager:$sha no declara $ETIQUETA_GUARDA_CORREO y $CLAVE_GUARDA_CORREO no es $MODO_CORREO_SIN_GUARDA en el entorno efectivo de $servicio: esa imagen ignoraría el modo y enviaría correo igualmente. Elige una imagen que declare la guarda. $intacto" >&2
             fi ;;

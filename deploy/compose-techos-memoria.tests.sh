@@ -214,6 +214,10 @@ for caso in "${CASOS[@]}"; do
   medir_staging 4 "SoloPermitidos con una entrada vacía"
   escribir_entorno "$DIR/$entorno" "EnvioCorreo__Modo=SoloPermitidos" "EnvioCorreo__DestinatariosPermitidos__0=Una Persona <una@ejemplo.invalid>"
   medir_staging 4 "SoloPermitidos con nombre visible"
+  escribir_entorno "$DIR/$entorno" "EnvioCorreo__Modo=Cerrado" "EnvioCorreo__DestinatariosPermitidos__0="
+  medir_staging 4 "Cerrado con una entrada de lista vacía"
+  escribir_entorno "$DIR/$entorno" "EnvioCorreo__Modo=Solo Permitidos" "EnvioCorreo__DestinatariosPermitidos__0=una@ejemplo.invalid"
+  medir_staging 3 "Solo Permitidos, con un espacio dentro"
   escribir_entorno "$DIR/$entorno" "EnvioCorreo__Modo=SoloPermitidos" "EnvioCorreo__DestinatariosPermitidos__0=una@ejemplo.invalid"
   medir_staging 0 "SoloPermitidos con una dirección"
   escribir_entorno "$DIR/$entorno" "EnvioCorreo__Modo=SoloPermitidos" \
