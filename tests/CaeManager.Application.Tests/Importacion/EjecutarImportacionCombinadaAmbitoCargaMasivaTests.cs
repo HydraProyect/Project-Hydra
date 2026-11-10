@@ -424,6 +424,22 @@ public class EjecutarImportacionCombinadaAmbitoCargaMasivaTests
     }
 
     [Fact]
+    public async Task Con_la_baja_en_la_lista_explicita_de_quien_carga_se_conserva_el_error_accionable()
+    {
+        // Lista no universal que conserva el id de un Cliente empresarial de su cartera dado de baja después: está dentro
+        // del ámbito de quien carga, así que nombrarlo no revela nada de fuera (Codex sobre 8ebc4a79d, MEDIO rechazado).
+        var (escenario, _, baja) = EscenarioConBaja();
+        var plan = EscenarioImportacionCombinada.Plan(clientes:
+            [new ClienteImportadoDto("Nombre Nuevo S.A.", CifDeBaja, EsCritico: false, YaExiste: false, Fila: 2)]);
+
+        var resultado = await escenario.Handler(Cartera(clientes: [baja.Id]), AutoridadCargaMasiva.Acotada)
+            .Handle(new Application.Importacion.Commands.EjecutarImportacionCombinada.EjecutarImportacionCombinadaCommand(plan, false), default);
+
+        resultado.EsExitoso.Should().BeFalse();
+        resultado.Error.Codigo.Should().Be("Empresa.CifDeBaja");
+    }
+
+    [Fact]
     public async Task Administrador_con_el_CIF_de_una_Empresa_dada_de_baja_sigue_viendo_el_error_de_baja()
     {
         var (escenario, _, _) = EscenarioConBaja();

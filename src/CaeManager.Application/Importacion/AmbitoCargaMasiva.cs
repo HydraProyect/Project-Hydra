@@ -76,7 +76,8 @@ public sealed class AmbitoCargaMasiva
     /// <summary>
     /// Si la confirmación puede nombrar a quien carga una Empresa en posición de Cliente empresarial que no está en ninguna
     /// lista, como una dada de baja (el filtro global la saca también de las listas de la cartera universal). Cierto si el
-    /// Cliente empresarial está en el ámbito o si la lista de Clientes no recorta (autoridad Total, lista sin restricción o
+    /// Cliente empresarial está en el ámbito (su id figura en la lista de quien carga: nombrarlo no revela nada de fuera)
+    /// o si la lista de Clientes no recorta (autoridad Total, lista sin restricción o
     /// Asignación de Cartera universal expresada como lista): entonces no hay nada fuera del ámbito que ocultar. No concede
     /// escritura: solo decide si se da el error accionable o el motivo uniforme.
     /// </summary>
@@ -131,8 +132,10 @@ public sealed class AmbitoCargaMasiva
 
     /// <summary>
     /// Motivo de una fila cuyo DNI está en la Papelera. La Papelera no tiene ámbito decidible (el eliminado no está en
-    /// ninguna lista visible), así que con ámbito acotado se da el mismo motivo que fuera de ámbito: «restáuralo» revelaría
-    /// a un Coordinador CAE que ese DNI existe en el Tenant aunque no sea de su cartera.
+    /// ninguna lista visible), así que con una lista de Trabajadores que recorta se da el mismo motivo que fuera de ámbito:
+    /// «restáuralo» revelaría a un Coordinador CAE que ese DNI existe en el Tenant aunque no sea de su cartera. Con la
+    /// Asignación de Cartera universal, aunque se exprese como lista, no recorta y se conserva el accionable (ver
+    /// <see cref="MotivoPapeleraSinDistinguir"/>).
     /// </summary>
     public string MotivoPapelera(string dni) => MotivoPapeleraSinDistinguir("Un trabajador con ese DNI", dni);
 
@@ -147,7 +150,8 @@ public sealed class AmbitoCargaMasiva
     /// <summary>
     /// Motivo de una fila que no se escribe porque algo de lo que depende (el Trabajador o el Centro de una Asignación, la
     /// Empresa de un Trabajador, el Cliente empresarial o el Centro de la hoja de Centros) no existe o queda fuera del
-    /// ámbito. Si la lista de <paramref name="citada"/> recorta (autoridad acotada con lista explícita), las dos causas dan
+    /// ámbito. Si la lista de <paramref name="citada"/> recorta (autoridad acotada con lista explícita que no sea la de una
+    /// Asignación de Cartera universal), las dos causas dan
     /// el MISMO motivo uniforme, con el mismo <paramref name="quePide"/> que la rama «fuera de ámbito» de esa fila: la fila
     /// no intenta crear lo que cita, así que distinguirlas sería un oráculo de existencia que no es el de clave única
     /// aceptado. Si no recorta (autoridad Total, o acotada que alcanza el Tenant entero para esa entidad), no hay nada fuera
