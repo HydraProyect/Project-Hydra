@@ -282,10 +282,10 @@
   Las tres columnas fijas (fracción, estado, acción) suman 284 px, y en una pestaña estrecha (a 1024 px la columna
   principal convive con el panel «Información», a 375 px la caja mide ~330 px) dejaban al nombre unos píxeles: se
   partía letra a letra y la fila medía 337-437 px. Mismo corte que la tabla de documentos del segundo nivel
-  (list-page.css, 640 px) para que fila y desplegable cambien a la vez. Van los dos bloques tras la regla de la
+  (list-page.css, 640 px) para que fila y desplegable cambien casi a la vez. El corte es 42rem (672 px) y no 641 px: la rejilla ancha pide 16rem + 284 px + huecos (576 px) y con la letra del navegador ampliada, 16rem crece y desbordaría. Van los dos bloques tras la regla de la
   rejilla y con más especificidad que el @media de 700 px de arriba y que FilaRelacion (<= 767 px).
 */
-@container (min-width: 641px) {
+@container (min-width: 42rem) {
     .lista-trabajadores-acordeon:not(.lista-trabajadores-acordeon-listado) ::deep .fila-relacion-rejilla {
         grid-template-columns: minmax(16rem, 1fr) var(--ancho-fraccion-trabajador) var(--ancho-estado-trabajador) var(--ancho-acciones-trabajador);
     }
@@ -302,7 +302,7 @@
 }
 
 /* Estrecho: el nombre arriba con ancho completo; debajo, cifra, estado y acción. La Empresa y el motivo envuelven en vez de truncarse. */
-@container (max-width: 640px) {
+@container (max-width: 41.99rem) {
     .lista-trabajadores-acordeon:not(.lista-trabajadores-acordeon-listado) ::deep .fila-relacion-rejilla {
         grid-template-columns: auto auto minmax(0, 1fr);
         column-gap: var(--space-3);
@@ -342,7 +342,7 @@
         text-overflow: clip;
     }
 
-    /* Segundo nivel: la sangría de escritorio (50 px del desplegable + 16 px de la tabla) se come un tercio de una caja de ~330 px. */
+    /* Segundo nivel: la sangría de escritorio (46 px del desplegable + 72 px de la tabla) se come un tercio de una caja de ~330 px; la tabla ya baja a 16 px por su propia consulta y aquí se quita del todo. */
     .lista-trabajadores-acordeon:not(.lista-trabajadores-acordeon-listado) ::deep .fila-relacion-desplegado {
         padding-left: calc(var(--fila-relleno-x) + var(--space-2));
     }

@@ -58,7 +58,7 @@ public class AcordeonAsignacionesCentroEstrechoCssTests
     [Fact]
     public void En_ancho_la_columna_del_nombre_es_flexible_con_un_minimo_razonable()
     {
-        var ancho = Bloque(Css(), "min-width: 641px");
+        var ancho = Bloque(Css(), "min-width: 42rem");
 
         var rejilla = Regla(ancho, $"{Lista} ::deep .fila-relacion-rejilla");
         rejilla.Should().Contain("grid-template-columns: minmax(16rem, 1fr) var(--ancho-fraccion-trabajador) var(--ancho-estado-trabajador) var(--ancho-acciones-trabajador);");
@@ -70,7 +70,7 @@ public class AcordeonAsignacionesCentroEstrechoCssTests
     [Fact]
     public void En_estrecho_la_fila_apila_el_nombre_arriba_y_cifra_estado_y_accion_debajo()
     {
-        var estrecho = Bloque(Css(), "max-width: 640px");
+        var estrecho = Bloque(Css(), "max-width: 41.99rem");
 
         Regla(estrecho, $"{Lista} ::deep .fila-relacion-rejilla").Should().Contain("grid-template-columns: auto auto minmax(0, 1fr);");
         var identidad = Regla(estrecho, $"{Lista} ::deep .fila-relacion-rejilla:not(.fila-relacion-compacta) > .fila-relacion-identidad");
@@ -85,7 +85,7 @@ public class AcordeonAsignacionesCentroEstrechoCssTests
     [Fact]
     public void En_estrecho_la_Empresa_y_el_motivo_envuelven_en_vez_de_truncarse()
     {
-        var estrecho = Bloque(Css(), "max-width: 640px");
+        var estrecho = Bloque(Css(), "max-width: 41.99rem");
 
         Regex.IsMatch(estrecho, Regex.Escape($"{Lista} .fila-trabajador-empleador") + @"\s*,").Should().BeTrue("la regla cubre también a la Empresa");
         var regla = Regla(estrecho, $"{Lista} .fila-trabajador-resumen");
@@ -95,7 +95,7 @@ public class AcordeonAsignacionesCentroEstrechoCssTests
     [Fact]
     public void En_estrecho_el_segundo_nivel_reduce_su_sangria_y_la_celda_suelta_lleva_su_etiqueta()
     {
-        var estrecho = Bloque(Css(), "max-width: 640px");
+        var estrecho = Bloque(Css(), "max-width: 41.99rem");
 
         Regla(estrecho, $"{Lista} ::deep .fila-relacion-desplegado").Should().Contain("padding-left: calc(var(--fila-relleno-x) + var(--space-2));");
         Regla(estrecho, $"{Lista} ::deep .tabla-plataforma-centro").Should().Contain("padding-left: 0;");
