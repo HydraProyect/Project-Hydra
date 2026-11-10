@@ -140,12 +140,9 @@ public class ClosedXmlPlantillaCombinadaService(ICentrosQueryContext centrosCont
         var nombresEmpresasDisponibles = new HashSet<string>(nombresEmpresasExistentes, StringComparer.OrdinalIgnoreCase);
 
         var centrosExistentes = new HashSet<string>(
-            (await (from centro in centrosContext.Centros
-                    join cliente in empresasContext.Empresas on centro.ClienteId equals cliente.Id
-                    select new { Cliente = cliente.RazonSocial, Centro = centro.Nombre })
-                .ToListAsync(cancellationToken))
-            .Where(c => ambito is null || ambito.Centro(c.Cliente, c.Centro))
-            .Select(c => c.Cliente + ClaveSeparador + c.Centro),
+            (await centrosContext.Centros.ConSuClienteEmpresarial(empresasContext.Empresas).ToListAsync(cancellationToken))
+            .Where(c => ambito is null || ambito.Centro(c.RazonSocialClienteEmpresarial, c.NombreCentro))
+            .Select(c => c.RazonSocialClienteEmpresarial + ClaveSeparador + c.NombreCentro),
             StringComparer.OrdinalIgnoreCase);
 
         var dnisExistentes = new HashSet<string>(

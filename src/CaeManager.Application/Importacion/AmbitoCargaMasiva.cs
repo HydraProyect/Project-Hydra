@@ -73,6 +73,15 @@ public sealed class AmbitoCargaMasiva
 
     public bool Cliente(Guid id) => _sinRestriccion || _clientes is null || _clientes.Contains(id);
 
+    /// <summary>
+    /// Si la confirmación puede nombrar a quien carga una Empresa en posición de Cliente empresarial que no está en ninguna
+    /// lista, como una dada de baja (el filtro global la saca también de las listas de la cartera universal). Cierto si el
+    /// Cliente empresarial está en el ámbito o si la lista de Clientes no recorta (autoridad Total, lista sin restricción o
+    /// Asignación de Cartera universal expresada como lista): entonces no hay nada fuera del ámbito que ocultar. No concede
+    /// escritura: solo decide si se da el error accionable o el motivo uniforme.
+    /// </summary>
+    public bool PuedeNombrarCliente(Guid id) => !Recorta(EntidadDelAmbito.Cliente) || Cliente(id);
+
     public bool Empresa(Guid id) => _sinRestriccion || _empresas is null || _empresas.Contains(id);
 
     public bool Centro(Guid id) => _sinRestriccion || _centros is null || _centros.Contains(id);
