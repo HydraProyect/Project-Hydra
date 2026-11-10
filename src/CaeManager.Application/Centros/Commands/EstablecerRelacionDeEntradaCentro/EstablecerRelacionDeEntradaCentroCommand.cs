@@ -24,10 +24,11 @@ namespace CaeManager.Application.Centros.Commands.EstablecerRelacionDeEntradaCen
 /// Tenant propietario actual (filtro global y RLS) y su cliente X tiene que estar entre los Clientes
 /// empresariales visibles de quien la fija: una arista de otro Tenant, inexistente o con X fuera de su cartera
 /// responde lo mismo, para no revelar cuál de las tres es. La FK compuesta con <c>TenantId</c> repite en la base
-/// la frontera de Tenant.
+/// la frontera de Tenant. <c>Version</c> es la versión del Centro que se vio en pantalla y es obligatoria
+/// (<see cref="Guid.Empty"/> se rechaza en la validación): un valor vacío desactivaría el control optimista.
 /// </summary>
 public record EstablecerRelacionDeEntradaCentroCommand(
-    Guid CentroId, Guid? RelacionEmpresarialId, Guid Version = default) : ICommand;
+    Guid CentroId, Guid? RelacionEmpresarialId, Guid Version) : ICommand;
 
 public class EstablecerRelacionDeEntradaCentroCommandValidator
     : AbstractValidator<EstablecerRelacionDeEntradaCentroCommand>
@@ -35,6 +36,9 @@ public class EstablecerRelacionDeEntradaCentroCommandValidator
     public EstablecerRelacionDeEntradaCentroCommandValidator()
     {
         RuleFor(c => c.CentroId).NotEmpty();
+        // Un Version vacío desactiva el control optimista (ConcurrenciaOptimista.Verificar lo deja pasar) y
+        // permitiría pisar un cambio concurrente: se exige la versión que se vio en pantalla.
+        RuleFor(c => c.Version).NotEmpty();
         RuleFor(c => c.RelacionEmpresarialId).NotEqual(Guid.Empty)
             .WithMessage("Elige una relación empresarial o quita el ancla.");
     }

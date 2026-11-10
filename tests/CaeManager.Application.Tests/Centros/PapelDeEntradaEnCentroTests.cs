@@ -179,11 +179,33 @@ public class PapelDeEntradaEnCentroTests
     [Fact]
     public void El_validador_rechaza_el_Centro_vacio_y_la_relacion_vacia()
     {
-        var comando = new EstablecerRelacionDeEntradaCentroCommand(Guid.Empty, Guid.Empty);
+        var comando = new EstablecerRelacionDeEntradaCentroCommand(Guid.Empty, Guid.Empty, Guid.NewGuid());
 
         new EstablecerRelacionDeEntradaCentroCommandValidator().Validate(comando).Errors
             .Select(x => x.PropertyName).Should()
             .BeEquivalentTo([nameof(comando.CentroId), nameof(comando.RelacionEmpresarialId)]);
+    }
+
+    [Fact]
+    public void El_validador_rechaza_una_version_vacia_con_o_sin_ancla()
+    {
+        // Con Guid.Empty el control optimista no compara (ConcurrenciaOptimista.Verificar lo deja pasar): sin esta
+        // regla, quitar o cambiar el ancla pisaría un cambio concurrente sin conflicto.
+        foreach (var relacionId in new Guid?[] { Guid.NewGuid(), null })
+        {
+            var comando = new EstablecerRelacionDeEntradaCentroCommand(Guid.NewGuid(), relacionId, Guid.Empty);
+
+            new EstablecerRelacionDeEntradaCentroCommandValidator().Validate(comando).Errors
+                .Select(x => x.PropertyName).Should().BeEquivalentTo([nameof(comando.Version)]);
+        }
+    }
+
+    [Fact]
+    public void El_validador_acepta_una_version_informada()
+    {
+        var comando = new EstablecerRelacionDeEntradaCentroCommand(Guid.NewGuid(), null, Guid.NewGuid());
+
+        new EstablecerRelacionDeEntradaCentroCommandValidator().Validate(comando).IsValid.Should().BeTrue();
     }
 
     private static CentrosQueryContextFalso Centros(params Centro[] centros)
