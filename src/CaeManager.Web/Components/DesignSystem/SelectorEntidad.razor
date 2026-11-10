@@ -123,7 +123,8 @@
             var filtro = _filtro.Trim();
             var coincidencias = filtro.Length == 0
                 ? Opciones
-                : Opciones.Where(o => o.Texto.Contains(filtro, StringComparison.OrdinalIgnoreCase)).ToList();
+                // Sin mayúsculas ni tildes, como el combobox del kit: «jose» encuentra «José».
+                : Opciones.Where(o => TextoDeBusqueda.Contiene(o.Texto, filtro)).ToList();
 
             return coincidencias.Take(MaximoOpcionesVisibles).ToList();
         }

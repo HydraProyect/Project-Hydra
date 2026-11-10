@@ -12,7 +12,7 @@ namespace CaeManager.Web.Features.Empresas.Components;
 /// ZIP» descarga por fetch (<c>wwwroot/js/descarga-archivo.js</c>) del endpoint autenticado con el destino del resumen
 /// anunciado —fijado antes de cualquier espera, y con los destinos deshabilitados mientras se genera, también si se cierra y se reabre el diálogo—, que vuelve a
 /// autorizar y a seleccionar: el resumen es solo lo que se anuncia, y si el servidor rechaza la descarga el motivo se ve en
-/// el diálogo.
+/// el diálogo, en la tarjeta de error de la maqueta con «Reintentar».
 /// </summary>
 public partial class BotonPaqueteEmpresa : IAsyncDisposable
 {
@@ -31,7 +31,9 @@ public partial class BotonPaqueteEmpresa : IAsyncDisposable
     private bool _generando;
     private string? _errorDescarga;
     private bool _errorDescargaSinVer;
+    private Guid? _destinoUltimaDescarga;
     private IJSObjectReference? _modulo;
+    private ElementReference _cuerpo;
 
     /// <summary>
     /// Lo que se espera a que el servidor construya el zip y el navegador lo reciba entero. Pública, sin
@@ -63,14 +65,27 @@ public partial class BotonPaqueteEmpresa : IAsyncDisposable
         if (_generando) return;
 
         // Si la descarga falló mientras el diálogo estaba cerrado, el motivo se enseña en esta apertura (el contrato del diálogo
-        // es que el rechazo del servidor se ve en él); se borra al elegir destino o al generar de nuevo.
+        // es que el rechazo del servidor se ve en él), con el destino de esa descarga y no el primer Cliente empresarial: así
+        // el resumen y «Reintentar» son los del paquete que falló. Se borra al elegir destino o al generar de nuevo.
         var conservarError = _errorDescargaSinVer;
         _errorDescargaSinVer = false;
-        _destinoInicialElegido = false;
-        _destinoId = null;
+        _destinoInicialElegido = conservarError;
+        _destinoId = conservarError ? _destinoUltimaDescarga : null;
         _resumen = null;
         if (!conservarError) _errorDescarga = null;
-        await CargarAsync();
+        var vigente = await CargarYSaberSiSigueVigenteAsync();
+
+        // Si el destino de la descarga fallida ya no se puede consultar (por ejemplo, terminó la Relación Empresarial), el error
+        // de carga no daría salida: su «Reintentar» volvería a pedir ese mismo destino. Se abre como siempre, sin el motivo,
+        // porque ese paquete ya no se puede reintentar. Solo si esta carga sigue siendo la última: si la superó otra (se cerró y
+        // reabrió, o se eligió destino), `_error` ya es de esa otra y esta apertura no puede tocar nada.
+        if (vigente && conservarError && _error && _abierto)
+        {
+            _destinoInicialElegido = false;
+            _destinoId = null;
+            _errorDescarga = null;
+            await CargarAsync();
+        }
     }
 
     private async Task ElegirAsync(Guid? destinoId)
@@ -88,7 +103,13 @@ public partial class BotonPaqueteEmpresa : IAsyncDisposable
     /// respuesta se descarta, para que el diálogo nunca anuncie el resumen de un destino con otro pulsado. Mientras carga,
     /// «Generar ZIP» está deshabilitado.
     /// </summary>
-    private async Task CargarAsync()
+    private Task CargarAsync() => CargarYSaberSiSigueVigenteAsync();
+
+    /// <summary>
+    /// <see cref="CargarAsync"/>, y dice si al terminar esta carga sigue siendo la última: si no, el estado que queda
+    /// (<c>_error</c>, <c>_resumen</c>) es de otra carga y quien esperaba a esta no debe decidir nada con él.
+    /// </summary>
+    private async Task<bool> CargarYSaberSiSigueVigenteAsync()
     {
         var version = ++_versionCarga;
         _cargando = true;
@@ -97,13 +118,13 @@ public partial class BotonPaqueteEmpresa : IAsyncDisposable
         try
         {
             var resultado = await Mediator.Send(new ObtenerResumenPaqueteEmpresaQuery(EmpresaId, _destinoId));
-            if (version != _versionCarga) return;
+            if (version != _versionCarga) return false;
             if (resultado.EsFallido)
             {
                 _error = true;
                 _mensajeError = resultado.Error.Mensaje;
                 _resumen = null;
-                return;
+                return true;
             }
 
             // La maqueta abre con el primer Cliente empresarial elegido: es lo que se le pide al Gestor CAE. El resumen de
@@ -114,8 +135,7 @@ public partial class BotonPaqueteEmpresa : IAsyncDisposable
                 if (resultado.Valor.Destinos.Count > 0)
                 {
                     _destinoId = resultado.Valor.Destinos[0].ClienteEmpresarialId;
-                    await CargarAsync();
-                    return;
+                    return await CargarYSaberSiSigueVigenteAsync();
                 }
             }
 
@@ -135,17 +155,29 @@ public partial class BotonPaqueteEmpresa : IAsyncDisposable
             if (version == _versionCarga)
                 _cargando = false;
         }
+
+        return version == _versionCarga;
     }
 
-    private async Task GenerarAsync()
+    private Task GenerarAsync() => GenerarAsync(reintento: false);
+
+    /// <summary>
+    /// «Reintentar» de la tarjeta de error: la misma descarga, por la misma llamada y con el destino del resumen anunciado (el
+    /// de la descarga que falló). La tarjeta se queda hasta saber el resultado, para que su botón no salga del DOM si vuelve a fallar.
+    /// </summary>
+    private Task ReintentarAsync() => GenerarAsync(reintento: true);
+
+    private async Task GenerarAsync(bool reintento)
     {
         if (_generando || _cargando || !OfreceGenerar || _resumen is not { } resumen) return;
 
         // La ruta se fija antes de cualquier espera y sale del resumen anunciado: nada de lo que pase mientras se importa el
         // módulo o se descarga cambia qué paquete se pide.
         var ruta = RutaDescargaDe(resumen);
+        _destinoUltimaDescarga = resumen.ClienteEmpresarialId;
         _generando = true;
-        _errorDescarga = null;
+        if (!reintento) _errorDescarga = null;
+        string? error = null;
         try
         {
             _modulo ??= await JS.InvokeAsync<IJSObjectReference>("import", "./js/descarga-archivo.js");
@@ -155,7 +187,7 @@ public partial class BotonPaqueteEmpresa : IAsyncDisposable
             using var limite = new CancellationTokenSource(TiempoMaximoDeDescarga);
             var respuesta = await _modulo.InvokeAsync<RespuestaDescarga>("descargar", limite.Token, ruta, "paquete-documental.zip");
             if (!respuesta.Ok)
-                _errorDescarga = MensajeDeDescarga(respuesta);
+                error = MensajeDeDescarga(respuesta);
         }
         catch (JSDisconnectedException)
         {
@@ -163,12 +195,34 @@ public partial class BotonPaqueteEmpresa : IAsyncDisposable
         }
         catch (Exception)
         {
-            _errorDescarga = Textos["ErrorDescarga"];
+            error = Textos["ErrorDescarga"];
         }
         finally
         {
+            _errorDescarga = error;
             _errorDescargaSinVer = _errorDescarga is not null && !_abierto;
             _generando = false;
+        }
+
+        // Si el reintento sale bien, la tarjeta se va con «Reintentar», que tenía el foco: antes de que se retire, el foco pasa
+        // al cuerpo del diálogo, que sigue ahí, para que Tab y Escape sigan llegando al diálogo y a su trampa de foco.
+        if (reintento && error is null && _abierto)
+            await EnfocarCuerpoAsync();
+    }
+
+    private async Task EnfocarCuerpoAsync()
+    {
+        try
+        {
+            await _cuerpo.FocusAsync();
+        }
+        catch (JSException)
+        {
+            // El cuerpo ya no está en el DOM (se repintó sin él): no hay a dónde llevar el foco dentro del diálogo.
+        }
+        catch (JSDisconnectedException)
+        {
+            // El circuito se fue: no queda pantalla.
         }
     }
 

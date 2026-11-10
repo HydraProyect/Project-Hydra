@@ -14,5 +14,10 @@ public class DocumentoRepository(CaeManagerDbContext dbContext) : IDocumentoRepo
         || await dbContext.Documentos.IgnoreQueryFilters().AsNoTracking()
             .AnyAsync(d => d.Id == id && d.TenantId == tenantId, cancellationToken);
 
+    // Al retirar el filtro combinado se repone explícitamente el Tenant; RLS sigue aplicándose.
+    public Task<Documento?> ObtenerIncluidoEliminadoActualizadoAsync(Guid id, Guid? tenantId, CancellationToken cancellationToken = default) =>
+        dbContext.ObtenerActualAsync(
+            dbContext.Documentos.IgnoreQueryFilters().Where(d => d.Id == id && d.TenantId == tenantId), cancellationToken);
+
     public void Agregar(Documento documento) => dbContext.Documentos.Add(documento);
 }

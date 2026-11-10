@@ -82,13 +82,16 @@ public class ProhibicionSqlCrudoYFiltrosIgnoradosTests
         // queda fuera del filtro global de tenant/borrado — hay que saltarlo
         // a propósito para poder restaurarlo, con el TenantId comprobado a mano.
         [("src/CaeManager.Application/Clientes/Commands/RestaurarCliente/RestaurarClienteCommand.cs", ".IgnoreQueryFilters()")] = 1,
-        [("src/CaeManager.Application/Centros/Commands/RestaurarCentro/RestaurarCentroCommand.cs", ".IgnoreQueryFilters()")] = 1,
         [("src/CaeManager.Application/Empresas/Commands/RestaurarEmpresa/RestaurarEmpresaCommand.cs", ".IgnoreQueryFilters()")] = 1,
         [("src/CaeManager.Application/Trabajadores/Commands/RestaurarTrabajador/RestaurarTrabajadorCommand.cs", ".IgnoreQueryFilters()")] = 1,
-        // 2: el Documento eliminado, y el Proyecto dueño, que puede estar eliminado también (EliminarProyecto no
-        // arrastra sus Documentos) y del que se lee solo el Cliente empresarial para la Asignación de Cartera;
-        // las dos consultas van acotadas al Tenant actual.
-        [("src/CaeManager.Application/Documentos/Commands/RestaurarDocumento/RestaurarDocumentoCommand.cs", ".IgnoreQueryFilters()")] = 2,
+        // El Proyecto dueño, que puede estar eliminado (EliminarProyecto no arrastra sus Documentos) y del que se lee solo
+        // el Cliente empresarial para la Asignación de Cartera, acotado al Tenant actual. El Documento eliminado se lee con
+        // DocumentoRepository.ObtenerIncluidoEliminadoActualizadoAsync.
+        [("src/CaeManager.Application/Documentos/Commands/RestaurarDocumento/RestaurarDocumentoCommand.cs", ".IgnoreQueryFilters()")] = 1,
+        // RestaurarCentro y RestaurarDocumento leen bajo el candado de la regla A-1 el Centro o el Documento eliminado, releído
+        // si el contexto ya lo rastreaba; reponen el TenantId en la misma consulta y RLS sigue aplicando.
+        [("src/CaeManager.Infrastructure/Persistence/Repositories/CentroRepository.cs", "dbContext.Centros.IgnoreQueryFilters().Where(c => c.Id == id && c.TenantId == tenantId), cancellationToken);")] = 1,
+        [("src/CaeManager.Infrastructure/Persistence/Repositories/DocumentoRepository.cs", "dbContext.Documentos.IgnoreQueryFilters().Where(d => d.Id == id && d.TenantId == tenantId), cancellationToken);")] = 1,
         [("src/CaeManager.Application/Subcontratas/Commands/RestaurarSubcontrata/RestaurarSubcontrataCommand.cs", ".IgnoreQueryFilters()")] = 1,
         // Antes de borrar la copia de un adjunto comprueba que no haya fila con el Id reservado, tampoco entre las eliminadas,
         // que son restaurables y conservan su archivo. Solo Id y Tenant actual explícito; RLS sigue aplicando.
@@ -238,6 +241,7 @@ public class ProhibicionSqlCrudoYFiltrosIgnoradosTests
         // por ese rol, que vuelve a comprobar sesión, concesión y cuenta contra el
         // contexto RLS firmado antes de escribir. No lee filas: devuelve un código.
         // Los dos Guid van parametrizados por EF.
+        [("src/CaeManager.Infrastructure/Plataforma/AjusteSegundoFactorPorPlataforma.cs", ".SqlQuery<string>(")] = 1,          // Decisiones del 2026-11-08: el código de app_cambiar_segundo_factor_tenant_por_plataforma, con la conexión de cae_app_soporte (solo SELECT). La función SECURITY DEFINER repite sesión, capacidad, Tenant objetivo, actor y motivo; los tres valores van parametrizados por EF.
         [("src/CaeManager.Infrastructure/Plataforma/ConcesionAdministradorPorPlataforma.cs", ".SqlQuery<string>(")] = 1,          // Decisión del 2026-10-30: el código de app_conceder_administrador_por_plataforma.
         [("src/CaeManager.Infrastructure/Plataforma/RevocacionOperadorCaeExternoPorSoporte.cs", ".SqlQuery<string>(")] = 1,          // Enmienda de ADR-004 § 12.2 (2026-10-26): Soporte TALVEG revoca la Delegación del Operador CAE externo con la conexión de cae_app_soporte (solo SELECT); la escritura es la función SECURITY DEFINER app_revocar_operador_cae_externo_por_soporte, que repite sesión, capacidad, Tenant objetivo y motivo, y devuelve un código. Mismo patrón que el segundo factor.
         [("src/CaeManager.Infrastructure/Identity/SegundoFactorDeCuentasIdentity.cs",

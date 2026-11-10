@@ -65,6 +65,17 @@
     margin-bottom: var(--space-4);
 }
 
+/*
+  Franjas «Por vencer» y «Vigencia sin confirmar»: la columna de acciones de la rejilla (128 px) solo cabe un botón; con «Ver»
+  y «Gestionar» juntos se ensancha a 200 px (fija, para que el estado de todas las filas siga alineado). En pantalla estrecha
+  (≤767 px) la rejilla de FilaRelacion pasa a tres columnas automáticas y esta regla no aplica.
+*/
+@media (min-width: 768px) {
+    .trabajador360-por-vencer ::deep .fila-relacion-rejilla:not(.fila-relacion-compacta) {
+        grid-template-columns: minmax(0, 1fr) 104px 152px 200px;
+    }
+}
+
 /* Gestiones pendientes: título en negrita sobre una tarjeta-lista con sombra suave (maqueta Trabajador 360). */
 .trabajador360-gestiones {
     margin-bottom: var(--space-4);

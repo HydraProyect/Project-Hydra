@@ -114,6 +114,12 @@ public class FronterasEntrePersistenciaDeFeaturesTests
         ("Asignaciones.ObtenerAsignacionesDocumentacionPorCentroQueryHandler", "IDocumentosQueryContext"),
         ("Asignaciones.ObtenerAsignacionesDocumentacionPorCentroQueryHandler", "ITiposDocumentoQueryContext"),
         ("Asignaciones.ObtenerAsignacionesDocumentacionPorCentroQueryHandler", "ITrabajadoresQueryContext"),
+        // El lote de Subcontrata 360: el mismo cálculo que la consulta de un Centro (lo delega en ella), con sus mismos contextos.
+        ("Asignaciones.ObtenerCumplimientoDeAsignacionesPorCentrosQueryHandler", "ICentrosQueryContext"),
+        ("Asignaciones.ObtenerCumplimientoDeAsignacionesPorCentrosQueryHandler", "IConfiguracionQueryContext"),
+        ("Asignaciones.ObtenerCumplimientoDeAsignacionesPorCentrosQueryHandler", "IDocumentosQueryContext"),
+        ("Asignaciones.ObtenerCumplimientoDeAsignacionesPorCentrosQueryHandler", "ITiposDocumentoQueryContext"),
+        ("Asignaciones.ObtenerCumplimientoDeAsignacionesPorCentrosQueryHandler", "ITrabajadoresQueryContext"),
         ("Asignaciones.ObtenerAsignacionesQueryHandler", "ICentrosQueryContext"),
         ("Asignaciones.ObtenerAsignacionesQueryHandler", "IClientesQueryContext"),
         ("Asignaciones.ObtenerAsignacionesQueryHandler", "ITrabajadoresQueryContext"),
@@ -656,7 +662,6 @@ public class FronterasEntrePersistenciaDeFeaturesTests
         ("Importacion.EjecutarImportacionMaestraCommandHandler", "IEmpresaRepository"),
         ("Importacion.EjecutarImportacionMaestraCommandHandler", "IEmpresasQueryContext"),
         ("Importacion.EjecutarImportacionMaestraCommandHandler", "IRelacionEmpresarialRepository"),
-        ("Importacion.EjecutarImportacionMaestraCommandHandler", "ITrabajadoresQueryContext"),
         ("Importacion.EjecutarImportacionMaestraCommandHandler", "ITrabajadorRepository"),
         ("Importacion.EjecutarImportacionCommandHandler", "IAsignacionesQueryContext"),
         ("Importacion.EjecutarImportacionCommandHandler", "IAsignacionRepository"),
@@ -702,6 +707,11 @@ public class FronterasEntrePersistenciaDeFeaturesTests
         // SoporteLectura cubre cualquier Guid, así que la apertura comprueba que
         // el Tenant objetivo existe. Solo lee Tenants, nunca contenido del Tenant.
         ("Plataforma.AbrirSesionPrivilegiadaCommandHandler", "ITenantsQueryContext"),
+        // Segundo factor configurable por TALVEG (decisión del 2026-11-08): el comando rechaza un Tenant
+        // de plataforma como objetivo y la pantalla lee el valor vigente de la exigencia, como
+        // AutoridadSeguridadAcceso y ObtenerSeguridadAccesoQuery. La escritura es de la función de la base.
+        ("Plataforma.CambiarSegundoFactorDelTenantPorPlataformaCommandHandler", "ITenantsQueryContext"),
+        ("Plataforma.ObtenerAjusteSegundoFactorPorPlataformaQueryHandler", "IConfiguracionQueryContext"),
         ("Proyectos.AsignarTecnicoProyectoCommandHandler","ITrabajadoresQueryContext"),
         ("Proyectos.CrearProyectoCommandHandler", "ICentrosQueryContext"),
         // Alta de un contrato de acceso (Inbound M1): como CrearProyecto, comprueba que el Centro es del Cliente y que la

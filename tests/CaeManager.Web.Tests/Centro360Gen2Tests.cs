@@ -151,6 +151,13 @@ public partial class Centro360Gen2Tests : BunitContext
             ObtenerTrabajadoresAsignadosDeCentroQuery q => (IReadOnlyList<TrabajadorAsignadoDto>)(Empleadores.GetValueOrDefault(q.CentroId) ?? []),
             ObtenerDocumentacionVehiculosDeCentroQuery q => (IReadOnlyList<VehiculoDocumentacionCentroDto>)(Vehiculos.GetValueOrDefault(q.CentroId) ?? []),
             ObtenerDocumentosFaltantesParaAsignacionQuery => new List<DocumentoFaltanteDto>(),
+            // El selector del DrawerReclamacionLote, que se monta al pulsar «Gestionar»: un catálogo vacío basta para ver a quién apunta.
+            CaeManager.Application.TiposDocumento.Queries.ObtenerTiposDocumento.ObtenerTiposDocumentoQuery =>
+                (IReadOnlyList<CaeManager.Application.TiposDocumento.Queries.ObtenerTiposDocumento.TipoDocumentoListaDto>)[],
+            CaeManager.Application.Trabajadores.Queries.ObtenerTrabajadoresParaSelector.ObtenerTrabajadoresParaSelectorQuery =>
+                (IReadOnlyList<CaeManager.Application.Trabajadores.Queries.ObtenerTrabajadoresParaSelector.TrabajadorSelectorDto>)[],
+            CaeManager.Application.Empresas.Queries.ObtenerEmpresasParaSelector.ObtenerEmpresasParaSelectorQuery =>
+                (IReadOnlyList<CaeManager.Application.Empresas.Queries.ObtenerEmpresasParaSelector.EmpresaSelectorDto>)[],
             CaeManager.Application.Centros.Queries.ObtenerCambiosEstadoPlataformaDeCentro.ObtenerCambiosEstadoPlataformaDeCentroQuery =>
                 (IReadOnlyList<CaeManager.Application.Centros.Queries.ObtenerCambiosEstadoPlataformaDeCentro.CambioEstadoPlataformaCentroDto>)[],
             DarDeBajaAsignacionesCommand => ResultadoBaja,

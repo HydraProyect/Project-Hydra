@@ -23,15 +23,22 @@ public sealed class SerializacionAltasAcreditacionEmpresaFalsa : ISerializacionA
     /// </summary>
     public Action? AntesDeReintentarTrasConfirmar { get; set; }
 
+    /// <summary>
+    /// Lo que devolvió la última operación: un fallo deshace la transacción del candado real. Con
+    /// <see cref="AntesDeReintentarTrasConfirmar"/>, es lo que devolvió el reintento.
+    /// </summary>
+    public Result? UltimoResultado { get; private set; }
+
     public async Task<Result> EjecutarAsync(Func<CancellationToken, Task<Result>> operacion, CancellationToken cancellationToken = default)
     {
         Llamadas++;
         AlTomarElCandado?.Invoke();
-        var resultado = await operacion(cancellationToken);
-        if (resultado.EsFallido || AntesDeReintentarTrasConfirmar is not { } antesDeReintentar)
-            return resultado;
+        UltimoResultado = await operacion(cancellationToken);
+        if (UltimoResultado.EsFallido || AntesDeReintentarTrasConfirmar is not { } antesDeReintentar)
+            return UltimoResultado;
 
         antesDeReintentar();
-        return await operacion(cancellationToken);
+        UltimoResultado = await operacion(cancellationToken);
+        return UltimoResultado;
     }
 }

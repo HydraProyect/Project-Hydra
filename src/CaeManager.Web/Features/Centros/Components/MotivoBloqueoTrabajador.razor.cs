@@ -40,7 +40,7 @@ public partial class MotivoBloqueoTrabajador
     /// vigencia (<see cref="VentanaReclamacion.EsSinConfirmarSinFecha"/>; IPendientesDeReclamacionService). Un «No caduca»
     /// confirmado no tiene nada que pedir.
     /// </summary>
-    private static bool EsReclamable(DocumentoRequeridoDto documento) =>
+    public static bool EsReclamable(DocumentoRequeridoDto documento) =>
         documento.DocumentoId is not null
         && (VentanaReclamacion.EsReclamable(documento.FechaVencimiento, DiaDeNegocio.Hoy())
             || (documento.Estado == EstadoDocumento.SinConfirmar && documento.FechaVencimiento is null));
@@ -51,7 +51,7 @@ public partial class MotivoBloqueoTrabajador
     /// decide el destinatario: el Trabajador (se resuelve a su Cliente empresarial vía Centro) o la Empresa titular del
     /// documento de Empresa.
     /// </summary>
-    private EntidadAPedir? EntidadAReclamar(DocumentacionBloqueantePendienteDto bloqueo)
+    public static EntidadAPedir? EntidadAReclamar(DocumentacionBloqueantePendienteDto bloqueo)
     {
         if (bloqueo.Situacion is not (SituacionDeRequisitoBloqueante.Vencido or SituacionDeRequisitoBloqueante.Ausente))
             return null;

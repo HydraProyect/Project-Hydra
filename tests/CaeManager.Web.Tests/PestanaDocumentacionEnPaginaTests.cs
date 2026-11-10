@@ -191,6 +191,9 @@ public class PestanaDocumentacionEnPaginaTests : BunitContext
         var gestionarVigente = filas[0].QuerySelector(".fila-relacion-acciones button")!;
         gestionarVigente.TextContent.Trim().Should().Be("Gestionar");
         gestionarVigente.ClassList.Should().Contain("gestionar-discreto");
+        // Mismo patrón que Centro 360 › Trabajadores (#2142): botón secundario, no enlace de texto.
+        filas.Select(f => f.QuerySelector(".fila-relacion-acciones button")!).Should()
+            .OnlyContain(b => b.ClassList.Contains("boton-secundario") && b.ClassList.Contains("accion-gestionar-documento"));
         filas[1].QuerySelector(".fila-relacion-acciones button")!.TextContent.Trim().Should().Be("Gestionar");
     }
 

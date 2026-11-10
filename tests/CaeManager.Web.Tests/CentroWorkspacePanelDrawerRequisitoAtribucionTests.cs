@@ -20,14 +20,14 @@ using Microsoft.Extensions.Logging.Abstractions;
 namespace CaeManager.Web.Tests;
 
 /// <summary>
-/// La casilla "Incluido" del drawer de "Requisitos del Centro" parte de
+/// El ajuste «Se exige / Se excluye» del panel de una fila de "Requisitos del Centro" parte de
 /// <c>item.Aplica</c> (ObtenerDocumentacionRequeridaDeCentroQuery, mismo
 /// criterio de ResolucionTipoDocumentoCentro.Aplica que Alertas.razor):
 /// puede llegar premarcada sin que este centro tenga fila propia, solo
 /// porque el tipo se pide siempre por defecto. La etiqueta "este centro lo
 /// exige" atribuía esa marca inicial al centro incluso cuando venía del
 /// valor general del tipo — la nota de la lista (arriba del botón
-/// "Configurar") ya explica las dos procedencias; la casilla no debe
+/// "lápiz») ya explica las dos procedencias; el ajuste no debe
 /// contradecirla.
 /// </summary>
 public class CentroWorkspacePanelDrawerRequisitoAtribucionTests : BunitContext
@@ -115,7 +115,7 @@ public class CentroWorkspacePanelDrawerRequisitoAtribucionTests : BunitContext
         "Centro Logístico Norte", "C-001", null, null, null, Guid.NewGuid());
 
     [Fact]
-    public async Task La_casilla_Incluido_no_atribuye_la_marca_inicial_solo_al_centro()
+    public async Task El_ajuste_Se_exige_no_atribuye_la_marca_inicial_solo_al_centro()
     {
         var centroId = Guid.NewGuid();
 
@@ -135,13 +135,15 @@ public class CentroWorkspacePanelDrawerRequisitoAtribucionTests : BunitContext
             .Add(c => c.PestanaActiva, "requisitos"));
 
         cut.WaitForAssertion(() => cut.Markup.Should().Contain("Reconocimiento médico"));
-        await cut.FindAll("button").First(b => b.TextContent.Trim() == "Configurar").ClickAsync(new MouseEventArgs());
+        await cut.Find("button[aria-label='Editar ajustes de Reconocimiento médico']").ClickAsync(new MouseEventArgs());
 
-        cut.WaitForAssertion(() => cut.Markup.Should().Contain("campo-checkbox"));
-        var etiqueta = cut.FindAll(".campo-checkbox").First(l => l.TextContent.Contains("Incluido")).TextContent.Trim();
+        cut.WaitForAssertion(() => cut.FindAll(".requisitos-edicion input[type=radio]").Should().HaveCount(2));
+        var radios = cut.FindAll(".requisitos-edicion fieldset label").Select(l => l.TextContent.Trim()).ToList();
 
-        etiqueta.Should().Be("Incluido en este centro");
-        etiqueta.Should().NotContain("este centro lo exige",
-            "la casilla puede llegar premarcada por el valor general del tipo, no porque este centro lo haya configurado");
+        radios.Should().Equal("Se exige", "Se excluye");
+        radios.Should().NotContain(r => r.Contains("este centro lo exige"),
+            "el ajuste puede llegar marcado por el valor general del tipo, no porque este centro lo haya configurado");
+        cut.FindAll(".requisitos-edicion input[type=radio]")[0].HasAttribute("checked").Should().BeTrue("el tipo se pide siempre, así que parte en «Se exige»");
+        cut.FindAll(".requisitos-edicion input[type=radio]")[1].HasAttribute("checked").Should().BeFalse();
     }
 }

@@ -592,7 +592,7 @@
     <value>Vigència sense confirmar</value>
   </data>
   <data name="DocBaseSubVigente" xml:space="preserve">
-    <value>Vigent fins al {0}</value>
+    <value>Al dia</value>
   </data>
   <data name="DocBaseSubVigenteSinFecha" xml:space="preserve">
     <value>Al dia</value>
@@ -601,10 +601,10 @@
     <value>Document present</value>
   </data>
   <data name="DocBaseSubProximoAVencer" xml:space="preserve">
-    <value>Venç el {0}</value>
+    <value>Venç aviat</value>
   </data>
   <data name="DocBaseSubVencido" xml:space="preserve">
-    <value>Va vèncer el {0}</value>
+    <value>Cal renovar-lo</value>
   </data>
   <data name="DocBaseSubFalta" xml:space="preserve">
     <value>Sense document pujat</value>

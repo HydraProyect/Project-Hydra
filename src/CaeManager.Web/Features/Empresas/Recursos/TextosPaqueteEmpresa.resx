@@ -84,4 +84,10 @@
   <data name="ErrorDescargaNoEncontrada" xml:space="preserve">
     <value>La empresa o el destino ya no están disponibles para ti.</value>
   </data>
+  <data name="ErrorDescargaEtiqueta" xml:space="preserve">
+    <value>Error</value>
+  </data>
+  <data name="ErrorDescargaTitulo" xml:space="preserve">
+    <value>No pudimos preparar el paquete</value>
+  </data>
 </root>

@@ -225,9 +225,9 @@ public class CentroWorkspacePanelAvisoCambiosSinGuardarTests : BunitContext
     private async Task<IRenderedComponent<CentroWorkspacePanel>> AbrirConfigurarRequisitoAsync()
     {
         var cut = Renderizar("requisitos");
-        cut.WaitForAssertion(() => cut.FindAll("button").Should().Contain(b => b.TextContent.Trim() == "Configurar"));
-        await PulsarAsync(cut, "Configurar");
-        cut.WaitForAssertion(() => cut.Markup.Should().Contain("Incluido en este centro"));
+        cut.WaitForAssertion(() => cut.FindAll("button[aria-label^='Editar ajustes de']").Should().NotBeEmpty());
+        await cut.Find("button[aria-label^='Editar ajustes de']").ClickAsync(new MouseEventArgs());
+        cut.WaitForAssertion(() => cut.FindAll(".requisitos-edicion").Should().ContainSingle());
         return cut;
     }
 
@@ -416,7 +416,7 @@ public class CentroWorkspacePanelAvisoCambiosSinGuardarTests : BunitContext
     public async Task Configurar_un_requisito_cambiando_una_casilla_pregunta()
     {
         var cut = await AbrirConfigurarRequisitoAsync();
-        var bloquea = cut.FindAll("label.campo-checkbox").Single(l => l.TextContent.Contains("Bloquea el acceso")).QuerySelector("input")!;
+        var bloquea = cut.FindAll("label.requisitos-casilla").Single(l => l.TextContent.Contains("Bloquea el acceso")).QuerySelector("input")!;
         await bloquea.ChangeAsync(new ChangeEventArgs { Value = true });
         await cut.SalirYComprobarQuePreguntaAsync(Navegacion);
     }
@@ -460,7 +460,7 @@ public class CentroWorkspacePanelAvisoCambiosSinGuardarTests : BunitContext
                 await Control(cut, "Para qué sirve este acceso").InputAsync(new ChangeEventArgs { Value = "Gestión general" });
                 break;
             default:
-                var bloquea = cut.FindAll("label.campo-checkbox").Single(l => l.TextContent.Contains("Bloquea el acceso")).QuerySelector("input")!;
+                var bloquea = cut.FindAll("label.requisitos-casilla").Single(l => l.TextContent.Contains("Bloquea el acceso")).QuerySelector("input")!;
                 await bloquea.ChangeAsync(new ChangeEventArgs { Value = true });
                 break;
         }
@@ -474,7 +474,6 @@ public class CentroWorkspacePanelAvisoCambiosSinGuardarTests : BunitContext
     [InlineData("prioridad")]
     [InlineData("reclamacion")]
     [InlineData("acceso")]
-    [InlineData("requisito")]
     public async Task Cancelar_con_cambios_pregunta_antes_de_cerrar_el_drawer(string drawer)
     {
         var cut = await AbrirDrawerAsync(drawer);
@@ -492,7 +491,6 @@ public class CentroWorkspacePanelAvisoCambiosSinGuardarTests : BunitContext
     [InlineData("prioridad")]
     [InlineData("reclamacion")]
     [InlineData("acceso")]
-    [InlineData("requisito")]
     public async Task Cancelar_sin_cambios_cierra_el_drawer_directamente(string drawer)
     {
         var cut = await AbrirDrawerAsync(drawer);
@@ -501,6 +499,18 @@ public class CentroWorkspacePanelAvisoCambiosSinGuardarTests : BunitContext
         await CancelarDelDrawerAsync(cut);
 
         cut.FindAll(".drawer-panel").Should().BeEmpty();
+        cut.FindAll("h2").Should().NotContain(h => h.TextContent.Trim() == "¿Descartar cambios?");
+    }
+
+    /// <summary>Los ajustes de un requisito ya no son un drawer: «Cancelar» cierra el panel de la fila (sin drawer ni pregunta).</summary>
+    [Fact]
+    public async Task Cancelar_sin_cambios_cierra_el_panel_de_ajustes_del_requisito()
+    {
+        var cut = await AbrirConfigurarRequisitoAsync();
+
+        await cut.FindAll(".requisitos-edicion-pie button").Single(b => b.TextContent.Trim() == "Cancelar").ClickAsync(new MouseEventArgs());
+
+        cut.FindAll(".requisitos-edicion").Should().BeEmpty();
         cut.FindAll("h2").Should().NotContain(h => h.TextContent.Trim() == "¿Descartar cambios?");
     }
 

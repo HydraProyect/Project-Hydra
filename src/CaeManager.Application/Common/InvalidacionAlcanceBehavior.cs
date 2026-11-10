@@ -32,7 +32,8 @@ namespace CaeManager.Application.Common;
 /// <para>
 /// Descarta también, en los mismos dos puntos, las lecturas memoizadas del layout (<see cref="IMemoPorContexto"/>:
 /// Tenants beneficiarios autorizados, perfil de vocabulario, rótulos en primera persona, avatar, señal de
-/// AdminPlataforma y participación en la incorporación a cartera): un Command que las lea (p. ej. una reapertura del Cuadro de dirección que recorre los
+/// AdminPlataforma y participación en la incorporación a cartera, más el contexto del marco que las compone,
+/// <c>ContextoMarcoDelAmbito</c> en la capa Web): un Command que las lea (p. ej. una reapertura del Cuadro de dirección que recorre los
 /// Tenants) las resuelve de nuevo, y la lectura siguiente ve lo que el propio Command cambió.
 /// </para>
 /// </summary>
