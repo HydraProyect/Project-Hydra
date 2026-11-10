@@ -258,6 +258,16 @@
     white-space: normal;
 }
 
+/*
+  Objetivo táctil de 24 px (WCAG 2.5.8): el disparador de cada parte del motivo («N vencidos · M por vencer») mide como el
+  texto, unos 20 px de alto. Mientras la pista de Estado era estrecha las partes partían en líneas y quedaban separadas;
+  sin la columna «Empresa» la pista gana ancho, las partes caben en una línea y quedan a menos de 24 px unas de otras, y
+  axe (target-size) las cuenta. Con 24 px de alto cada disparador cumple por tamaño, vaya donde vaya el salto de línea.
+*/
+.celda-estado-centro ::deep .ventana-contexto-disparador {
+    min-height: 24px;
+}
+
 /* El color no es el único portador: el texto ya dice «vencidos» o «por vencer». */
 .motivo-recuento {
     font-variant-numeric: tabular-nums;
