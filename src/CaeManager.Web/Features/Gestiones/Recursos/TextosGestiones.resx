@@ -197,4 +197,415 @@
   <data name="PlataformaCargando" xml:space="preserve"><value>Cargando la Plataforma CAE…</value></data>
   <data name="PlataformaErrorCarga" xml:space="preserve"><value>No se pudo cargar la Plataforma CAE</value></data>
   <data name="PlataformaPrincipal" xml:space="preserve"><value>Principal</value></data>
+  <data name="AutoAriaFiltroEstado" xml:space="preserve">
+    <value>Filtrar por estado</value>
+  </data>
+  <data name="AutoAriaMigas" xml:space="preserve">
+    <value>Migas de pan</value>
+  </data>
+  <data name="AutoCargando" xml:space="preserve">
+    <value>Cargando</value>
+  </data>
+  <data name="AutoColumnaAcciones" xml:space="preserve">
+    <value>Acciones</value>
+  </data>
+  <data name="AutoColumnaAvance" xml:space="preserve">
+    <value>Avance</value>
+  </data>
+  <data name="AutoColumnaEstado" xml:space="preserve">
+    <value>Estado</value>
+  </data>
+  <data name="AutoColumnaGestion" xml:space="preserve">
+    <value>Gestión</value>
+  </data>
+  <data name="AutoColumnaOrigen" xml:space="preserve">
+    <value>Origen</value>
+  </data>
+  <data name="AutoColumnaPlataformas" xml:space="preserve">
+    <value>Plataformas</value>
+  </data>
+  <data name="AutoContinuar" xml:space="preserve">
+    <value>Continuar</value>
+  </data>
+  <data name="AutoErrorDescripcion" xml:space="preserve">
+    <value>Tu avance no se ha perdido. Vuelve a intentarlo.</value>
+  </data>
+  <data name="AutoErrorTitulo" xml:space="preserve">
+    <value>No se han podido cargar las Gestiones</value>
+  </data>
+  <data name="AutoEstadoCerrada" xml:space="preserve">
+    <value>Cerrada</value>
+  </data>
+  <data name="AutoEstadoEnCurso" xml:space="preserve">
+    <value>En curso</value>
+  </data>
+  <data name="AutoEstadoPendienteDeValidar" xml:space="preserve">
+    <value>Pendiente de validar</value>
+  </data>
+  <data name="AutoEstadoSustituida" xml:space="preserve">
+    <value>Sustituida</value>
+  </data>
+  <data name="AutoHayRechazo" xml:space="preserve">
+    <value>Rechazo</value>
+  </data>
+  <data name="AutoMigaGestiones" xml:space="preserve">
+    <value>Gestiones</value>
+  </data>
+  <data name="AutoMigaOperacion" xml:space="preserve">
+    <value>Operación</value>
+  </data>
+  <data name="AutoOrigenAlta" xml:space="preserve">
+    <value>Alta de documento</value>
+  </data>
+  <data name="AutoOrigenRenovacion" xml:space="preserve">
+    <value>Renovación</value>
+  </data>
+  <data name="AutoSubtitulo" xml:space="preserve">
+    <value>Nacen solas al subir o renovar un documento que se pide en plataformas CAE externas.</value>
+  </data>
+  <data name="AutoTituloAlta" xml:space="preserve">
+    <value>Subir {0} de {1}</value>
+  </data>
+  <data name="AutoTituloPagina" xml:space="preserve">
+    <value>Gestiones automáticas</value>
+  </data>
+  <data name="AutoTituloRenovacion" xml:space="preserve">
+    <value>Actualizar {0} de {1}</value>
+  </data>
+  <data name="AutoVacioDescripcion" xml:space="preserve">
+    <value>No hay Gestiones con este estado en tu cartera.</value>
+  </data>
+  <data name="AutoVacioTitulo" xml:space="preserve">
+    <value>Sin Gestiones</value>
+  </data>
+  <data name="AutoVer" xml:space="preserve">
+    <value>Ver</value>
+  </data>
+  <data name="GpAnterior" xml:space="preserve">
+    <value>Anterior</value>
+  </data>
+  <data name="GpAriaFiltrarPasos" xml:space="preserve">
+    <value>Filtrar pasos</value>
+  </data>
+  <data name="GpAriaPasoAbierto" xml:space="preserve">
+    <value>Paso abierto</value>
+  </data>
+  <data name="GpAriaPasos" xml:space="preserve">
+    <value>Pasos de la Gestión</value>
+  </data>
+  <data name="GpAriaResumen" xml:space="preserve">
+    <value>Resumen de la Gestión</value>
+  </data>
+  <data name="GpAvanceUnoUno" xml:space="preserve">
+    <value>{0} de {1} pasos hechos · {2} validado, {3} pendiente de validar en la plataforma</value>
+  </data>
+  <data name="GpAvanceUnoVarios" xml:space="preserve">
+    <value>{0} de {1} pasos hechos · {2} validado, {3} pendientes de validar en la plataforma</value>
+  </data>
+  <data name="GpAvanceVariosUno" xml:space="preserve">
+    <value>{0} de {1} pasos hechos · {2} validados, {3} pendiente de validar en la plataforma</value>
+  </data>
+  <data name="GpAvanceVariosVarios" xml:space="preserve">
+    <value>{0} de {1} pasos hechos · {2} validados, {3} pendientes de validar en la plataforma</value>
+  </data>
+  <data name="GpCampoCif" xml:space="preserve">
+    <value>CIF del titular</value>
+  </data>
+  <data name="GpCampoDni" xml:space="preserve">
+    <value>DNI del titular</value>
+  </data>
+  <data name="GpCampoEmision" xml:space="preserve">
+    <value>Fecha de emisión</value>
+  </data>
+  <data name="GpCampoEstadoTalveg" xml:space="preserve">
+    <value>Estado en TALVEG</value>
+  </data>
+  <data name="GpCampoTipo" xml:space="preserve">
+    <value>Tipo</value>
+  </data>
+  <data name="GpCampoTitular" xml:space="preserve">
+    <value>Titular</value>
+  </data>
+  <data name="GpCampoVencimiento" xml:space="preserve">
+    <value>Fecha de vencimiento</value>
+  </data>
+  <data name="GpCausa" xml:space="preserve">
+    <value>Causa</value>
+  </data>
+  <data name="GpCausaCaducado" xml:space="preserve">
+    <value>Documento caducado</value>
+  </data>
+  <data name="GpCausaDatos" xml:space="preserve">
+    <value>Datos incorrectos</value>
+  </data>
+  <data name="GpCausaIlegible" xml:space="preserve">
+    <value>Documento ilegible</value>
+  </data>
+  <data name="GpCausaNoCorresponde" xml:space="preserve">
+    <value>No corresponde al puesto</value>
+  </data>
+  <data name="GpCausaOtra" xml:space="preserve">
+    <value>Otra</value>
+  </data>
+  <data name="GpCliente" xml:space="preserve">
+    <value>Cliente: {0}</value>
+  </data>
+  <data name="GpComoHaQuedado" xml:space="preserve">
+    <value>¿Cómo ha quedado?</value>
+  </data>
+  <data name="GpConsultaNoCopia" xml:space="preserve">
+    <value>Con el rol Consulta puedes abrir la plataforma, pero no copiar sus credenciales.</value>
+  </data>
+  <data name="GpConsultaNoMarca" xml:space="preserve">
+    <value>Con el rol Consulta ves el avance de la Gestión, pero no puedes marcar el estado de los pasos.</value>
+  </data>
+  <data name="GpCopiarCampo" xml:space="preserve">
+    <value>Copiar {0}</value>
+  </data>
+  <data name="GpDescargarDocumento" xml:space="preserve">
+    <value>Descargar documento</value>
+  </data>
+  <data name="GpDeshacer" xml:space="preserve">
+    <value>Deshacer</value>
+  </data>
+  <data name="GpElDocumento" xml:space="preserve">
+    <value>El documento</value>
+  </data>
+  <data name="GpElegirCausa" xml:space="preserve">
+    <value>Elige una causa</value>
+  </data>
+  <data name="GpEntrarPlataforma" xml:space="preserve">
+    <value>Entrar en la plataforma</value>
+  </data>
+  <data name="GpErrorDescripcion" xml:space="preserve">
+    <value>Tu avance no se ha perdido: lo guardado en cada paso sigue en Centro 360. Vuelve a intentarlo.</value>
+  </data>
+  <data name="GpErrorGuardadoDescripcion" xml:space="preserve">
+    <value>No se ha podido guardar. Vuelve a intentarlo.</value>
+  </data>
+  <data name="GpErrorGuardadoTitulo" xml:space="preserve">
+    <value>No se ha guardado el paso.</value>
+  </data>
+  <data name="GpErrorTitulo" xml:space="preserve">
+    <value>No se ha podido cargar la Gestión</value>
+  </data>
+  <data name="GpFinCerradaTexto" xml:space="preserve">
+    <value>Todos los pasos están validados en su plataforma.</value>
+  </data>
+  <data name="GpFinCerradaTitulo" xml:space="preserve">
+    <value>Gestión cerrada</value>
+  </data>
+  <data name="GpFinPendienteTexto" xml:space="preserve">
+    <value>Has terminado esta Gestión. {0} pasos están pendientes de que la plataforma los valide (suele tardar de 24 a 48 horas). La Gestión sigue abierta hasta entonces.</value>
+  </data>
+  <data name="GpFinPendienteTextoUno" xml:space="preserve">
+    <value>Has terminado esta Gestión. {0} paso está pendiente de que la plataforma lo valide (suele tardar de 24 a 48 horas). La Gestión sigue abierta hasta entonces.</value>
+  </data>
+  <data name="GpFinPendienteTitulo" xml:space="preserve">
+    <value>Has hecho todo lo que depende de ti</value>
+  </data>
+  <data name="GpGuardar" xml:space="preserve">
+    <value>Guardar</value>
+  </data>
+  <data name="GpGuardarSiguienteGestion" xml:space="preserve">
+    <value>Guardar · Siguiente Gestión</value>
+  </data>
+  <data name="GpGuardarYSiguiente" xml:space="preserve">
+    <value>Guardar y siguiente</value>
+  </data>
+  <data name="GpHechosDeTotal" xml:space="preserve">
+    <value>{0} de {1} hechos</value>
+  </data>
+  <data name="GpIrALaNueva" xml:space="preserve">
+    <value>Ir a la Gestión nueva</value>
+  </data>
+  <data name="GpIrAlRechazado" xml:space="preserve">
+    <value>Ir al paso rechazado</value>
+  </data>
+  <data name="GpLeyendaSubido" xml:space="preserve">
+    <value>Subido, pendiente de validar</value>
+  </data>
+  <data name="GpLeyendaValidado" xml:space="preserve">
+    <value>Validado</value>
+  </data>
+  <data name="GpMasAcciones" xml:space="preserve">
+    <value>Más acciones</value>
+  </data>
+  <data name="GpMismaSeccionCentro360" xml:space="preserve">
+    <value>La misma sección de accesos de Centro 360</value>
+  </data>
+  <data name="GpMotivo" xml:space="preserve">
+    <value>Motivo que da la plataforma</value>
+  </data>
+  <data name="GpMotivoPlaceholder" xml:space="preserve">
+    <value>Cópialo tal cual, por ejemplo: «No se lee la fecha de emisión»</value>
+  </data>
+  <data name="GpNoCaduca" xml:space="preserve">
+    <value>No caduca</value>
+  </data>
+  <data name="GpNoExisteDescripcion" xml:space="preserve">
+    <value>No hay pasos de los Centros de tu cartera en esta Gestión. Sigue con la siguiente Gestión en curso.</value>
+  </data>
+  <data name="GpNoExisteTitulo" xml:space="preserve">
+    <value>Esta Gestión no tiene pasos que atender</value>
+  </data>
+  <data name="GpNoLoSe" xml:space="preserve">
+    <value>No lo sé</value>
+  </data>
+  <data name="GpNotasAcceso" xml:space="preserve">
+    <value>Notas del acceso</value>
+  </data>
+  <data name="GpNoVigente" xml:space="preserve">
+    <value>Este documento no está vigente en TALVEG: renuévalo en la ficha de</value>
+  </data>
+  <data name="GpNoVigenteValor" xml:space="preserve">
+    <value>No vigente</value>
+  </data>
+  <data name="GpObligatorio" xml:space="preserve">
+    <value>(obligatorio)</value>
+  </data>
+  <data name="GpOpcionesNoVigente" xml:space="preserve">
+    <value>«Subido» y «Validado» están desactivados mientras el documento no esté vigente en TALVEG.</value>
+  </data>
+  <data name="GpOpcionSubidoRechazada" xml:space="preserve">
+    <value>La plataforma rechazó este paso: para marcarlo «Subido» hay que subir antes una versión corregida del documento.</value>
+  </data>
+  <data name="GpOpcionNoPideDescripcion" xml:space="preserve">
+    <value>No se volverá a pedir en este acceso.</value>
+  </data>
+  <data name="GpOpcionNoPideProximamente" xml:space="preserve">
+    <value>Disponible próximamente.</value>
+  </data>
+  <data name="GpOpcionNoPideTitulo" xml:space="preserve">
+    <value>Esta plataforma no lo pide</value>
+  </data>
+  <data name="GpOpcionRechazadoDescripcion" xml:space="preserve">
+    <value>Indica la causa y copia el motivo que da la plataforma.</value>
+  </data>
+  <data name="GpOpcionRechazadoTitulo" xml:space="preserve">
+    <value>Rechazado por la plataforma</value>
+  </data>
+  <data name="GpOpcionSubidoDescripcion" xml:space="preserve">
+    <value>La plataforma aún no lo ha revisado.</value>
+  </data>
+  <data name="GpOpcionSubidoTitulo" xml:space="preserve">
+    <value>Subido, pendiente de validar</value>
+  </data>
+  <data name="GpOpcionValidadoDescripcion" xml:space="preserve">
+    <value>La plataforma ya lo ha aceptado. Indica hasta cuándo vale allí.</value>
+  </data>
+  <data name="GpOpcionValidadoTitulo" xml:space="preserve">
+    <value>Validado en la plataforma</value>
+  </data>
+  <data name="GpOrigenAlta" xml:space="preserve">
+    <value>Nació al subir el documento el {0} a las {1}.</value>
+  </data>
+  <data name="GpOrigenRenovacion" xml:space="preserve">
+    <value>Nació al renovar el documento el {0} a las {1}.</value>
+  </data>
+  <data name="GpPasoGuardado" xml:space="preserve">
+    <value>Paso guardado. Centro 360 ya muestra el estado nuevo.</value>
+  </data>
+  <data name="GpPasoNDeM" xml:space="preserve">
+    <value>Paso {0} de {1}</value>
+  </data>
+  <data name="GpPasosRechazados" xml:space="preserve">
+    <value>{0} pasos rechazados</value>
+  </data>
+  <data name="GpPorHacer" xml:space="preserve">
+    <value>Por hacer ({0})</value>
+  </data>
+  <data name="GpReabiertaTexto" xml:space="preserve">
+    <value>{0}</value>
+  </data>
+  <data name="GpReabiertaTitulo" xml:space="preserve">
+    <value>La Gestión se ha reabierto.</value>
+  </data>
+  <data name="GpRechazadoEn" xml:space="preserve">
+    <value>{0} ha rechazado el paso de {1}.</value>
+  </data>
+  <data name="GpSiguiente" xml:space="preserve">
+    <value>Siguiente</value>
+  </data>
+  <data name="GpSiguienteGestion" xml:space="preserve">
+    <value>Siguiente Gestión</value>
+  </data>
+  <data name="GpSinCredenciales" xml:space="preserve">
+    <value>Este acceso no tiene usuario guardado. Añádelo en</value>
+  </data>
+  <data name="GpSinCredencialesEnlace" xml:space="preserve">
+    <value>Centro 360 › Accesos</value>
+  </data>
+  <data name="GpSinDireccion" xml:space="preserve">
+    <value>Este acceso no tiene dirección guardada.</value>
+  </data>
+  <data name="GpSinPorHacer" xml:space="preserve">
+    <value>No queda ningún paso por hacer. Pasa a «Todos» para revisarlos.</value>
+  </data>
+  <data name="GpSustituida" xml:space="preserve">
+    <value>Esta Gestión se cerró porque el documento se renovó el {0}. Continúa en la Gestión nueva.</value>
+  </data>
+  <data name="GpTodos" xml:space="preserve">
+    <value>Todos ({0})</value>
+  </data>
+  <data name="GpUnPasoRechazado" xml:space="preserve">
+    <value>{0} paso rechazado</value>
+  </data>
+  <data name="GpValidoHasta" xml:space="preserve">
+    <value>Válido en la plataforma hasta</value>
+  </data>
+  <data name="GpVencidoEl" xml:space="preserve">
+    <value>Vencido el {0}</value>
+  </data>
+  <data name="GpVerCentro360" xml:space="preserve">
+    <value>Ver en Centro 360 · {0}</value>
+  </data>
+  <data name="GpVerDocumento" xml:space="preserve">
+    <value>Ver documento</value>
+  </data>
+  <data name="GpVerFichaTitular" xml:space="preserve">
+    <value>Ver ficha de {0}</value>
+  </data>
+  <data name="GpVigente" xml:space="preserve">
+    <value>Vigente</value>
+  </data>
+  <data name="GpVigenteHasta" xml:space="preserve">
+    <value>Vigente hasta {0}</value>
+  </data>
+  <data name="GpVolverMiTrabajo" xml:space="preserve">
+    <value>Volver a Mi trabajo</value>
+  </data>
+  <data name="PasoNoSePide" xml:space="preserve">
+    <value>No se pide aquí</value>
+  </data>
+  <data name="PasoPendienteDeSubir" xml:space="preserve">
+    <value>Pendiente de subir</value>
+  </data>
+  <data name="PasoPendienteDeValidar" xml:space="preserve">
+    <value>Pendiente de validar</value>
+  </data>
+  <data name="PasoRechazado" xml:space="preserve">
+    <value>Rechazado</value>
+  </data>
+  <data name="PasoValidado" xml:space="preserve">
+    <value>Validado</value>
+  </data>
+  <data name="PasoValidadoHasta" xml:space="preserve">
+    <value>Validado hasta {0}</value>
+  </data>
+  <data name="PasoDetalleValidadoHasta" xml:space="preserve">
+    <value>validado hasta {0}</value>
+  </data>
+  <data name="AutoAriaAvance" xml:space="preserve">
+    <value>Avance de la Gestión</value>
+  </data>
+  <data name="GpAriaAtajos" xml:space="preserve">
+    <value>Atajos de teclado</value>
+  </data>
+  <data name="GpAtajoSubido" xml:space="preserve">
+    <value>Subido</value>
+  </data>
+  <data name="GpAtajoValidado" xml:space="preserve">
+    <value>Validado</value>
+  </data>
 </root>
