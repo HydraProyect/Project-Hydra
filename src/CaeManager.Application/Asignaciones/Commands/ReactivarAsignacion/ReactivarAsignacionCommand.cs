@@ -27,7 +27,10 @@ public class ReactivarAsignacionCommandValidator : AbstractValidator<ReactivarAs
 public class ReactivarAsignacionCommandHandler(
     IAsignacionRepository repositorio, IAutoridadAsignacionesService autoridad,
     IAltaAcreditacionesPlataformaService altaAcreditaciones, IUnitOfWork unitOfWork,
-    ISerializacionAltasAcreditacionEmpresa serializacionAltas)
+    ISerializacionAltasAcreditacionEmpresa serializacionAltas,
+    // Opcional solo mientras la PR #2104 cambia los tests que construyen este handler: el contenedor siempre lo resuelve
+    // (InvalidadorAlcanceInerte por defecto, el AlcanceDatosService del circuito en la Web). Issue #2118.
+    IInvalidadorAlcance? invalidadorAlcance = null)
     : IRequestHandler<ReactivarAsignacionCommand, Result>
 {
     public async Task<Result> Handle(ReactivarAsignacionCommand request, CancellationToken cancellationToken)
@@ -44,8 +47,7 @@ public class ReactivarAsignacionCommandHandler(
         // asignación vieja devolvería a la cartera del actor a un trabajador
         // que ya no está en ella. Mismo error que «no encontrada»: distinguirlo
         // confirmaría la existencia de una asignación ajena.
-        if (!await autoridad.PuedeModificarAsignacionesDelTrabajadorAsync(asignacion.TrabajadorId, cancellationToken)
-            || !await autoridad.PuedeModificarAsignacionesDelCentroAsync(asignacion.CentroId, cancellationToken))
+        if (!await TieneAutoridadAsync(asignacion, cancellationToken))
             return Result.Fallo(noEncontrada);
 
         // Reabierta, vuelve a estar de alta en la plataforma del Centro, igual
@@ -53,10 +55,18 @@ public class ReactivarAsignacionCommandHandler(
         // lo que se subió, mientras estaba cerrada nace pendiente de acreditar.
         // Idempotente: lo ya acreditado antes de la baja no se duplica. Bajo la
         // misma serialización que CrearAsignacionCommand (revisión Codex de la
-        // PR #2074, ronda 3, hallazgo 4). Fuera queda solo la autoridad, que
-        // depende del Trabajador y del Centro, que una Asignación no cambia.
+        // PR #2074, ronda 3, hallazgo 4). La autoridad se comprueba fuera para
+        // rechazar pronto y otra vez dentro: el Trabajador y el Centro no
+        // cambian, pero la Asignación de Cartera que la decide sí pudo
+        // revocarse mientras se esperaba el candado.
         return await serializacionAltas.EjecutarAsync(async ct =>
         {
+            // Sin el alcance memoizado antes de esperar (en Blazor Server, el del circuito), igual que en
+            // BloqueoRespuestaSugerida.ComprobarEnvioPorBuzonAsync (issue #2118).
+            invalidadorAlcance?.Invalidar();
+            if (!await TieneAutoridadAsync(asignacion, ct))
+                return Result.Fallo(noEncontrada);
+
             // Bajo el candado, lo confirmado en la base: la de arriba, o la que el contexto (uno por circuito)
             // rastreara antes, puede ser la de antes de esperar. Con ella, una baja o una reapertura ajenas
             // confirmadas mientras tanto no se verían (revisión Codex de la PR #2074, ronda 4). En el reintento, que
@@ -89,4 +99,8 @@ public class ReactivarAsignacionCommandHandler(
             return Result.Exito();
         }, cancellationToken);
     }
+
+    private async Task<bool> TieneAutoridadAsync(Asignacion asignacion, CancellationToken cancellationToken) =>
+        await autoridad.PuedeModificarAsignacionesDelTrabajadorAsync(asignacion.TrabajadorId, cancellationToken)
+        && await autoridad.PuedeModificarAsignacionesDelCentroAsync(asignacion.CentroId, cancellationToken);
 }

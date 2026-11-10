@@ -66,7 +66,10 @@ public class EditarTipoDocumentoCommandHandler(
     ITipoDocumentoRepository repositorio, ITipoDocumentoCentroRepository tipoDocumentoCentroRepositorio,
     ICentrosQueryContext centrosContext, IAltaAcreditacionesPlataformaService altaAcreditaciones,
     IAlcanceDatosService alcanceDatos, IUnitOfWork unitOfWork,
-    ISerializacionAltasAcreditacionEmpresa serializacionAltas)
+    ISerializacionAltasAcreditacionEmpresa serializacionAltas,
+    // Opcional solo mientras la PR #2104 cambia los tests que construyen este handler: el contenedor siempre lo resuelve
+    // (InvalidadorAlcanceInerte por defecto, el AlcanceDatosService del circuito en la Web). Issue #2118.
+    IInvalidadorAlcance? invalidadorAlcance = null)
     : IRequestHandler<EditarTipoDocumentoCommand, Result>
 {
     /// <summary>
@@ -74,10 +77,15 @@ public class EditarTipoDocumentoCommandHandler(
     /// Documento de Empresa (ver <see cref="ISerializacionAltasAcreditacionEmpresa"/>): sin ello, el Documento lee el
     /// requisito antiguo, la edición no ve el Documento y el par se pierde (revisión Codex de la PR #2074, ronda 3,
     /// hallazgo 2). Saber si la empieza a exigir pide leer el tipo y sus filas, así que se serializa siempre y todo se
-    /// lee dentro: un reintento empieza con el contexto vacío.
+    /// lee dentro: un reintento empieza con el contexto vacío. También la Asignación de Cartera, sin el alcance memoizado
+    /// antes de esperar el candado, igual que en BloqueoRespuestaSugerida.ComprobarEnvioPorBuzonAsync (issue #2118).
     /// </summary>
     public Task<Result> Handle(EditarTipoDocumentoCommand request, CancellationToken cancellationToken) =>
-        serializacionAltas.EjecutarAsync(ct => EditarAsync(request, ct), cancellationToken);
+        serializacionAltas.EjecutarAsync(ct =>
+        {
+            invalidadorAlcance?.Invalidar();
+            return EditarAsync(request, ct);
+        }, cancellationToken);
 
     private async Task<Result> EditarAsync(EditarTipoDocumentoCommand request, CancellationToken cancellationToken)
     {
