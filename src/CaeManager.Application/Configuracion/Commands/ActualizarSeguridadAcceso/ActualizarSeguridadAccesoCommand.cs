@@ -9,9 +9,16 @@ namespace CaeManager.Application.Configuracion.Commands.ActualizarSeguridadAcces
 
 /// <summary>
 /// Plazo de inactividad y exigencia de segundo factor del Tenant actual (decisión del 2026-10-28;
-/// ASVS 4.0.3 V3.3.2, V2.8). Va aparte del resto de <c>/configuracion</c> porque solo lo puede
-/// cambiar el Administrador del Tenant (<see cref="AutoridadSeguridadAcceso"/>). Las sesiones lo
-/// reciben en la siguiente revalidación de su sello, en un minuto como mucho.
+/// ASVS 4.0.3 V3.3.2, V2.8). Va aparte del resto de <c>/configuracion</c> porque desde aquí solo lo
+/// puede cambiar el Administrador del Tenant (<see cref="AutoridadSeguridadAcceso"/>). Las sesiones
+/// lo reciben en la siguiente revalidación de su sello, en un minuto como mucho.
+///
+/// <para>
+/// No es el único escritor de la exigencia de segundo factor: un Actor de Plataforma TALVEG la cambia
+/// también, y solo ella, desde una Sesión Privilegiada con la capacidad
+/// <c>AjusteSegundoFactorTenant</c> (<c>CambiarSegundoFactorDelTenantPorPlataformaCommand</c>,
+/// decisiones del 2026-11-08). El plazo de inactividad solo lo escribe este comando.
+/// </para>
 /// </summary>
 public record ActualizarSeguridadAccesoCommand(int MinutosInactividadSesion, bool ExigeSegundoFactorTodosLosPerfiles) : ICommand;
 

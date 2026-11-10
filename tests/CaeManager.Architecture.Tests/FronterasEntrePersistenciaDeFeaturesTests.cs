@@ -708,6 +708,11 @@ public class FronterasEntrePersistenciaDeFeaturesTests
         // SoporteLectura cubre cualquier Guid, así que la apertura comprueba que
         // el Tenant objetivo existe. Solo lee Tenants, nunca contenido del Tenant.
         ("Plataforma.AbrirSesionPrivilegiadaCommandHandler", "ITenantsQueryContext"),
+        // Segundo factor configurable por TALVEG (decisión del 2026-11-08): el comando rechaza un Tenant
+        // de plataforma como objetivo y la pantalla lee el valor vigente de la exigencia, como
+        // AutoridadSeguridadAcceso y ObtenerSeguridadAccesoQuery. La escritura es de la función de la base.
+        ("Plataforma.CambiarSegundoFactorDelTenantPorPlataformaCommandHandler", "ITenantsQueryContext"),
+        ("Plataforma.ObtenerAjusteSegundoFactorPorPlataformaQueryHandler", "IConfiguracionQueryContext"),
         ("Proyectos.AsignarTecnicoProyectoCommandHandler","ITrabajadoresQueryContext"),
         ("Proyectos.CrearProyectoCommandHandler", "ICentrosQueryContext"),
         // Alta de un contrato de acceso (Inbound M1): como CrearProyecto, comprueba que el Centro es del Cliente y que la

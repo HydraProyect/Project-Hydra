@@ -53,6 +53,7 @@ public class AutorizacionEscrituraBehaviorTests
     private record FalsoComandoDeRestablecimiento : ICommand, IComandoDeRestablecimientoSegundoFactor;
 
     private record FalsoComandoDeConcesionAdministrador : ICommand, IComandoDeConcesionAdministrador;
+    private record FalsoComandoDeAjusteSegundoFactor : ICommand, IComandoDeAjusteSegundoFactorTenant;
 
     private record FalsoComandoDeRevocacion : ICommand, IComandoDeRevocacionOperadorCaeExterno;
 
@@ -425,6 +426,77 @@ public class AutorizacionEscrituraBehaviorTests
 
         var resultado = await behavior.Handle(
             new FalsoComandoDeConcesionAdministrador(), _ => Task.FromResult(Result.Exito()), CancellationToken.None);
+
+        resultado.Error!.Codigo.Should().Be(codigo);
+    }
+
+    // ── Decisión del 2026-11-08: la sesión de ajuste del segundo factor del Tenant por Plataforma ──
+
+    [Fact]
+    public async Task AjusteSegundoFactorTenant_deja_pasar_su_comando_marcado_dentro_del_tenant_objetivo()
+    {
+        var tenantObjetivo = Guid.NewGuid();
+        var behavior = new AutorizacionEscrituraBehavior<FalsoComandoDeAjusteSegundoFactor, Result>(
+            new CurrentUserServiceFalso(Guid.NewGuid(), rol: null),
+            new SesionPrivilegiadaActualFalsa(SesionCon(CapacidadPrivilegio.AjusteSegundoFactorTenant, tenantObjetivo)),
+            new TenantActualFalso(tenantObjetivo));
+
+        var resultado = await behavior.Handle(
+            new FalsoComandoDeAjusteSegundoFactor(), _ => Task.FromResult(Result.Exito()), CancellationToken.None);
+
+        resultado.EsExitoso.Should().BeTrue("con rol efectivo nulo: la sesión no da rol de negocio, da un acto");
+    }
+
+    [Fact]
+    public async Task AjusteSegundoFactorTenant_bloquea_cualquier_otro_comando_incluido_el_de_concesion()
+    {
+        var tenantObjetivo = Guid.NewGuid();
+        var sesion = SesionCon(CapacidadPrivilegio.AjusteSegundoFactorTenant, tenantObjetivo);
+
+        var normal = await new AutorizacionEscrituraBehavior<FalsoCommand, Result>(
+                new CurrentUserServiceFalso(Guid.NewGuid(), "Administrador"),
+                new SesionPrivilegiadaActualFalsa(sesion), new TenantActualFalso(tenantObjetivo))
+            .Handle(new FalsoCommand(), _ => Task.FromResult(Result.Exito()), CancellationToken.None);
+        var concesion = await new AutorizacionEscrituraBehavior<FalsoComandoDeConcesionAdministrador, Result>(
+                new CurrentUserServiceFalso(Guid.NewGuid(), "Administrador"),
+                new SesionPrivilegiadaActualFalsa(sesion), new TenantActualFalso(tenantObjetivo))
+            .Handle(new FalsoComandoDeConcesionAdministrador(), _ => Task.FromResult(Result.Exito()), CancellationToken.None);
+
+        normal.Error!.Codigo.Should().Be("Autorizacion.ComandoFueraDelAjusteSegundoFactor");
+        concesion.Error!.Codigo.Should().Be("Autorizacion.ComandoFueraDelAjusteSegundoFactor",
+            "una capacidad no es la llave de los comandos de otra");
+    }
+
+    [Fact]
+    public async Task AjusteSegundoFactorTenant_bloquea_su_comando_fuera_del_tenant_objetivo()
+    {
+        var behavior = new AutorizacionEscrituraBehavior<FalsoComandoDeAjusteSegundoFactor, Result>(
+            new CurrentUserServiceFalso(Guid.NewGuid(), rol: null),
+            new SesionPrivilegiadaActualFalsa(SesionCon(CapacidadPrivilegio.AjusteSegundoFactorTenant, Guid.NewGuid())),
+            new TenantActualFalso(Guid.NewGuid()));
+
+        var resultado = await behavior.Handle(
+            new FalsoComandoDeAjusteSegundoFactor(), _ => Task.FromResult(Result.Exito()), CancellationToken.None);
+
+        resultado.Error!.Codigo.Should().Be("Autorizacion.AjusteSegundoFactorFueraDelTenantObjetivo");
+    }
+
+    [Theory]
+    [InlineData(CapacidadPrivilegio.SoporteLectura, "Autorizacion.SesionPrivilegiadaSoloLectura")]
+    [InlineData(CapacidadPrivilegio.Aprovisionamiento, "Autorizacion.ComandoFueraDelAprovisionamiento")]
+    [InlineData(CapacidadPrivilegio.RestablecimientoSegundoFactor, "Autorizacion.ComandoFueraDelRestablecimiento")]
+    [InlineData(CapacidadPrivilegio.RevocacionOperadorCaeExterno, "Autorizacion.ComandoFueraDeLaRevocacion")]
+    [InlineData(CapacidadPrivilegio.ConcesionAdministrador, "Autorizacion.ComandoFueraDeLaConcesionAdministrador")]
+    public async Task El_comando_de_AjusteSegundoFactorTenant_no_pasa_con_otra_capacidad(CapacidadPrivilegio capacidad, string codigo)
+    {
+        var tenantObjetivo = Guid.NewGuid();
+        var behavior = new AutorizacionEscrituraBehavior<FalsoComandoDeAjusteSegundoFactor, Result>(
+            new CurrentUserServiceFalso(Guid.NewGuid(), "Administrador"),
+            new SesionPrivilegiadaActualFalsa(SesionCon(capacidad, tenantObjetivo)),
+            new TenantActualFalso(tenantObjetivo));
+
+        var resultado = await behavior.Handle(
+            new FalsoComandoDeAjusteSegundoFactor(), _ => Task.FromResult(Result.Exito()), CancellationToken.None);
 
         resultado.Error!.Codigo.Should().Be(codigo);
     }
