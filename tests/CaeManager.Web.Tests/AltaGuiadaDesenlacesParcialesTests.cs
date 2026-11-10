@@ -137,6 +137,7 @@ public class AltaGuiadaDesenlacesParcialesTests : BunitContext
     {
         mediador ??= new MediadorControlado();
 
+        JSInterop.Mode = JSRuntimeMode.Loose; // la página monta TituloDePaginaSinPrerender, que importa un módulo JS
         Services.AddLocalization();
         Services.AddScoped<IMediator>(_ => mediador);
         Services.AddScoped<ToastService>();

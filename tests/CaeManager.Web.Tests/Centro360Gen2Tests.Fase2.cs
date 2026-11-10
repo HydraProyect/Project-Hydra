@@ -91,10 +91,10 @@ public partial class Centro360Gen2Tests
             new(Guid.NewGuid(), "No aplicable", AmbitoAplicacion.Empresa, true, false, false, null, false, null, null)];
         Services.GetRequiredService<NavigationManager>().NavigateTo($"centros/{id}?pestana=requisitos");
         var cut = Renderizar(id);
-        cut.FindComponents<FilaRelacion>().Should().HaveCount(2);
-        var filas = cut.FindComponents<FilaRelacion>();
-        filas.Single(f => f.Instance.Nombre == "Formación").Find(".fila-relacion-estado").TextContent.Should().Contain("Bloquea el acceso");
-        filas.Single(f => f.Instance.Nombre == "Seguro").Find(".fila-relacion-estado").TextContent.Should().Contain("No bloquea el acceso");
+        cut.FindAll(".centro-requisito").Should().HaveCount(2);
+        var filas = cut.FindAll(".centro-requisito");
+        filas.Single(f => f.QuerySelector(".centro-requisito-nombre")!.TextContent.Trim() == "Formación").QuerySelector("[data-estado]")!.TextContent.Should().Contain("Bloquea el acceso");
+        filas.Single(f => f.QuerySelector(".centro-requisito-nombre")!.TextContent.Trim() == "Seguro").QuerySelector("[data-estado]")!.TextContent.Should().Contain("No bloquea el acceso");
         cut.Markup.Should().Contain("Bloquea el acceso").And.Contain("No bloquea el acceso").And.Contain("Tolerancia: 5 días").And.Contain("Tolerancia: 0 días").And.NotContain("No aplicable");
     }
 

@@ -1,3 +1,4 @@
+using System.Globalization;
 using Microsoft.Extensions.Logging;
 using CaeManager.Web.Features.Documentos;
 using CaeManager.Application.Centros.Queries.ObtenerDocumentacionEmpresasDeCentro;
@@ -268,7 +269,43 @@ public partial class CentroDetalle : CaeManager.Web.Components.PaginaInteractiva
     private IReadOnlyList<BreadcrumbElemento> Miguero =>
         new[] { new BreadcrumbElemento("Centros"), new BreadcrumbElemento(_detalle?.Nombre ?? "…") };
 
-    protected override void OnInitialized() => _cancelacion = _ciclo.Token;
+    protected override void OnInitialized()
+    {
+        _cancelacion = _ciclo.Token;
+        WorkspaceService.OnEntidadGuardada += AlGuardarEntidad;
+    }
+
+    /// <summary>
+    /// El panel «Requisitos del Centro» vive en MainLayout y guarda sin pasar por esta página: avisa por
+    /// <see cref="ContextWorkspaceService.OnEntidadGuardada"/> (mismo patrón que los listados). Sin este aviso, las pestañas
+    /// «Requisitos» y «Documentación», y los bloqueos, seguían enseñando lo anterior hasta recargar la página.
+    /// </summary>
+    private void AlGuardarEntidad(EntidadWorkspace tipo, Guid id)
+    {
+        if (tipo == EntidadWorkspace.Centro && id == CentroId)
+            _ = InvokeAsync(RecargarTrasGuardarEnPanelAsync);
+    }
+
+    /// <summary>
+    /// Relee en silencio (sin <c>CargarAsync</c>, que cambia la ficha entera por el esqueleto de carga y desmonta los
+    /// componentes hijos, con los borradores): las lecturas de las pestañas «Requisitos» y «Documentación» se invalidan y la
+    /// activa se vuelve a pedir ya; la otra se pide al abrirla. Hueco conocido: los contadores de la cabecera y los bloqueos
+    /// se actualizan en la siguiente carga de la página.
+    /// </summary>
+    private async Task RecargarTrasGuardarEnPanelAsync()
+    {
+        _lecturaRequisitosCentro = null;
+        _lecturaDocumentacionCentro = null;
+        try
+        {
+            await CargarLecturasFase2Async(silenciosa: true);
+        }
+        catch (Exception)
+        {
+            // El guardado ya es firme: la pestaña conserva lo anterior y se vuelve a pedir al abrirla.
+        }
+        StateHasChanged();
+    }
 
     /// <summary>
     /// Solo recarga cuando cambia el centro. Los filtros de la barra de trabajo
@@ -369,6 +406,8 @@ public partial class CentroDetalle : CaeManager.Web.Components.PaginaInteractiva
         _subcontratasAbiertas.PlegarTodos();
         _subcontratasCompletas.Clear();
         _requisitosCentro = [];
+        _filtroRequisitos = string.Empty;
+        _requisitosDesplegados.Clear();
         _lecturaDocumentacionCentro = null;
         _lecturaRequisitosCentro = null;
         _errorLecturasFase2 = false;
@@ -445,15 +484,15 @@ public partial class CentroDetalle : CaeManager.Web.Components.PaginaInteractiva
                     _bloqueos = [];
             }
 
-            // RendererInfo.IsInteractive: mismo motivo que TrabajadorDetalle
-            // (ver ese commit) — OnParametersSetAsync también corre durante
-            // el prerenderizado estático de una carga en frío, y un "_ = "
-            // sin await ahí deja esta tarea en vuelo cuando ASP.NET Core ya
-            // liberó el scope de DI al terminar esa fase, tirando el
-            // DbContext a mitad de consulta (reportado en producción vía
-            // Sentry: ObjectDisposedException sobre IServiceProvider,
-            // mismo patrón exacto de pila que causó la carga en frío
-            // colgada de Trabajador 360).
+            // Guarda defensiva, mismo motivo que TrabajadorDetalle: la página ya no se
+            // prerenderiza (prerender: false), pero si volviera a hacerlo,
+            // OnParametersSetAsync correría también en el prerenderizado estático
+            // de una carga en frío, y un "_ = " sin await ahí dejaría esta tarea
+            // en vuelo cuando ASP.NET Core ya liberó el scope de DI al terminar esa
+            // fase, tirando el DbContext a mitad de consulta (reportado en
+            // producción vía Sentry: ObjectDisposedException sobre
+            // IServiceProvider, mismo patrón exacto de pila que causó la carga en
+            // frío colgada de Trabajador 360). Hoy la condición es siempre cierta.
             if (RendererInfo.IsInteractive)
                 _ = CargarCanalesAsync();
         }
@@ -510,6 +549,7 @@ public partial class CentroDetalle : CaeManager.Web.Components.PaginaInteractiva
     /// </summary>
     public void Dispose()
     {
+        WorkspaceService.OnEntidadGuardada -= AlGuardarEntidad;
         InvalidarCargas();
         _ciclo.Cancel();
         _ciclo.Dispose();
@@ -618,7 +658,11 @@ public partial class CentroDetalle : CaeManager.Web.Components.PaginaInteractiva
     private bool _cargandoLecturasFase2;
     private bool _errorLecturasFase2;
 
-    private async Task CargarLecturasFase2Async()
+    /// <param name="silenciosa">
+    /// Relectura tras un guardado del panel: no enseña spinner ni tarjeta de error (la pestaña conserva lo que ya mostraba y
+    /// se vuelve a pedir al volver a ella si la relectura falla).
+    /// </param>
+    private async Task CargarLecturasFase2Async(bool silenciosa = false)
     {
         if (_detalle is null || _pestana is not (PestanaDocumentacionCentro or PestanaRequisitos)) return;
         var id = CentroId;
@@ -626,8 +670,11 @@ public partial class CentroDetalle : CaeManager.Web.Components.PaginaInteractiva
         var documentacion = _pestana == PestanaDocumentacionCentro;
         if ((documentacion ? _lecturaDocumentacionCentro : _lecturaRequisitosCentro) == id) return;
         if (documentacion) _lecturaDocumentacionCentro = id; else _lecturaRequisitosCentro = id;
-        _cargandoLecturasFase2 = true;
-        _errorLecturasFase2 = false;
+        if (!silenciosa)
+        {
+            _cargandoLecturasFase2 = true;
+            _errorLecturasFase2 = false;
+        }
         try
         {
             if (documentacion)
@@ -646,11 +693,14 @@ public partial class CentroDetalle : CaeManager.Web.Components.PaginaInteractiva
         catch (OperationCanceledException) { }
         catch (Exception)
         {
-            if (carga == _cargaDetalle) _errorLecturasFase2 = true;
+            if (carga != _cargaDetalle) return;
+            if (!silenciosa) _errorLecturasFase2 = true;
+            else if (documentacion) _lecturaDocumentacionCentro = null;
+            else _lecturaRequisitosCentro = null;
         }
         finally
         {
-            if (carga == _cargaDetalle) _cargandoLecturasFase2 = false;
+            if (carga == _cargaDetalle && !silenciosa) _cargandoLecturasFase2 = false;
         }
     }
 
@@ -670,7 +720,50 @@ public partial class CentroDetalle : CaeManager.Web.Components.PaginaInteractiva
             empresa.EmpresaId, empresa.Nombre, "documentacion");
     private void IrAEmpresaDocumentacion(DocumentacionEmpresaCentroDto empresa) =>
         NavigationManager.NavigateTo($"/{(empresa.DesdeRelacionSubcontrata ? "subcontratas" : "empresas")}/{empresa.EmpresaId}");
-    private void IrATipoDocumento(Guid id) => NavigationManager.NavigateTo($"/documentos/tipos/{id}");
+
+    // ---------- Pestaña «Requisitos»: dos bloques (Empresa / Trabajador), 5 a la vista, filtro ----------
+
+    /// <summary>Cuántos requisitos enseña cada bloque antes de «Ver los N restantes».</summary>
+    internal const int RequisitosVisiblesPorBloque = 5;
+
+    /// <summary>Texto de «Filtrar requisitos». Estado local de la pestaña: no viaja en la URL ni toca ninguna consulta.</summary>
+    private string _filtroRequisitos = string.Empty;
+
+    /// <summary>Bloques con el resto de sus requisitos desplegado. Estado local: se reinicia al cambiar de Centro.</summary>
+    private readonly HashSet<AmbitoAplicacion> _requisitosDesplegados = [];
+
+    private void FiltrarRequisitos(string valor) => _filtroRequisitos = valor ?? string.Empty;
+
+    private void AlternarRestantesRequisitos(AmbitoAplicacion ambito)
+    {
+        if (!_requisitosDesplegados.Remove(ambito)) _requisitosDesplegados.Add(ambito);
+    }
+
+    private void AbrirRequisitos() =>
+        WorkspaceService.AbrirAsync(EntidadWorkspace.Centro, CentroId, _detalle?.Nombre ?? string.Empty, "requisitos");
+
+    /// <summary>
+    /// Un tipo archivado ya exigido no bloquea: <c>EvaluacionDeAccesoPorCentroService</c> ignora los archivados aunque su
+    /// <c>BloqueaAcceso</c> siga marcado en el requisito. Por eso el bloqueo mostrado nunca sale solo del DTO.
+    /// </summary>
+    private static bool BloqueaElAcceso(DocumentacionRequeridaCentroDto requisito) => requisito.BloqueaAcceso && !requisito.Archivado;
+
+    /// <summary>Los requisitos de un ámbito que casan con «Filtrar requisitos» (sin distinguir mayúsculas ni tildes), con los que bloquean delante y los sustituidos al final; dentro de cada grupo, el orden de la lectura.</summary>
+    private IReadOnlyList<DocumentacionRequeridaCentroDto> RequisitosDelBloque(AmbitoAplicacion ambito)
+    {
+        var filtro = _filtroRequisitos.Trim();
+        return _requisitosCentro
+            .Where(r => r.AmbitoAplicacion == ambito
+                && (filtro.Length == 0 || CultureInfo.CurrentCulture.CompareInfo.IndexOf(r.Nombre, filtro, CompareOptions.IgnoreCase | CompareOptions.IgnoreNonSpace) >= 0))
+            .OrderBy(r => BloqueaElAcceso(r) ? 0 : r.Archivado ? 2 : 1)
+            .ToList();
+    }
+
+    private string TextoToleranciaRequisito(DocumentacionRequeridaCentroDto requisito)
+    {
+        var dias = ReglaBloqueoDeAcceso.ResolverToleranciaDias(requisito.ToleranciaDias, requisito.ToleranciaHeredadaDias);
+        return Textos[dias == 1 ? "RequisitoCentroToleranciaUnDia360" : "RequisitoCentroTolerancia360", dias].Value;
+    }
 
     // ---------- Nota interna (mismo patrón que Empresa 360, editor en NotaInternaEditable) ----------
 

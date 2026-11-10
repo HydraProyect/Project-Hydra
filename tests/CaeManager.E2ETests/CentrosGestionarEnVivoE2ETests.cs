@@ -145,8 +145,9 @@ public class CentrosGestionarEnVivoE2ETests(WebAppFixture fixture)
             }
             catch (TimeoutException) when (intento < 3) { }
         }
-        await page.Locator(".modal-cuerpo").GetByLabel("Centro", new LocatorGetByLabelOptions { Exact = true })
-            .FillAsync($"{nombreCentro} ({razonSocialCliente})");
+        await Ayudas.ElegirOpcionEnSelectorAvanzadoPorTextoAsync(page,
+            page.Locator(".modal-cuerpo").GetByLabel("Centro", new LocatorGetByLabelOptions { Exact = true }),
+            $"{nombreCentro} ({razonSocialCliente})");
         await Expect(page.Locator(".modal-pie").GetByRole(AriaRole.Button, new() { Name = "Asignar igualmente", Exact = true })).ToBeVisibleAsync();
         // El botón dice "Asignar igualmente" cuando al comprobarlo faltaba
         // algún documento de los que se piden — exactamente el caso de este

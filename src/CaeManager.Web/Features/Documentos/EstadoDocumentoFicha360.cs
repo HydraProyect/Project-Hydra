@@ -98,6 +98,16 @@ public static class EstadoDocumentoFicha360
     /// </summary>
     public static string TextoAccion => TextosVigenciaDocumento.Texto("Ficha360Gestionar");
 
+    /// <summary>Rótulo de la acción secundaria que abre el visor del PDF sin salir de la ficha (el mismo «Ver» de la lista de Documentos).</summary>
+    public static string TextoVer => TextosVigenciaDocumento.Texto("Ficha360Ver");
+
+    /// <summary>Nombre accesible del botón «Ver»: empieza por el texto visible y dice de qué documento es el PDF.</summary>
+    public static string TextoVerAccesible(string documento) =>
+        string.Format(CultureInfo.CurrentUICulture, TextosVigenciaDocumento.Texto("Ficha360VerAccesible"), documento);
+
+    /// <summary>Destino de la ficha 360 de un Documento (<c>DocumentoDetalle</c>).</summary>
+    public static string RutaFicha360(Guid documentoId) => $"/documentos/{documentoId}";
+
     /// <summary>Nombre accesible del botón «Gestionar»: dice sobre qué documento actúa y empieza por el texto visible.</summary>
     public static string TextoAccionAccesible(string documento) =>
         string.Format(CultureInfo.CurrentUICulture, TextosVigenciaDocumento.Texto("Ficha360GestionarAccesible"), documento);

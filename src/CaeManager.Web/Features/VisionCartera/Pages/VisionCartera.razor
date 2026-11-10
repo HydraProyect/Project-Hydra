@@ -88,7 +88,7 @@
                 @* Iconografía obligatoria en superficies de resumen (02 § 7, DDL-036),
                    mismos iconos que Inicio. El desglose por organización de
                    vencidos y urgentes es la tabla de abajo. *@
-                <div class="rejilla-kpis-criticos">
+                <div class="rejilla-kpis-criticos rejilla-kpis-cartera">
                     <TarjetaMetrica Etiqueta="@Textos["MetricaVencidos"]" Valor="@_kpis.DocumentosVencidos.ToString()" NombreIcono="advertencia" Tono="TonoBadge.Peligro"
                                     Pista="@PistaVencidos" />
                     <TarjetaMetrica Etiqueta="@Textos["MetricaUrgentes"]" Valor="@_kpis.DocumentosUrgentes.ToString()" NombreIcono="reloj" Tono="TonoBadge.Peligro"

@@ -62,6 +62,8 @@ public partial class Documento360Gen2Tests : BunitContext
         Services.AddScoped<ToastService>();
         Services.AddScoped<ContextWorkspaceService>();
         Services.AddLocalization();
+        // El campo de Trabajador de la reclamación es el combobox del kit: su módulo de anclaje es la única llamada a JS que se admite.
+        JSInterop.SetupModule("./js/campo-select-avanzado.js").Mode = JSRuntimeMode.Loose;
         // «Renovar» va dentro de SoloConEscritura: sin rol, AuthorizeView no tendría con qué decidir.
         this.ConRolDeEscritura();
         return mediador;

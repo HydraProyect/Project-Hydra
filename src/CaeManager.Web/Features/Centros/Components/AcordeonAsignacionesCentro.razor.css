@@ -216,6 +216,32 @@
 .linea-estado-plataforma { color: var(--color-text-muted); }
 .linea-estado-plataforma--rechazada { color: var(--color-danger-700); }
 
+/* Centro 360, primer nivel: una sola línea de resumen, sin botones (maqueta: «motivo» de la fila). */
+.fila-trabajador-resumen {
+    display: block;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+/* Pie de totales: las cifras y la nota «lista completa» son dos textos distintos, con aire entre ellos y envolviendo en pantalla estrecha. */
+.nota-totales-documentales {
+    flex-wrap: wrap;
+    justify-content: flex-start;
+    column-gap: var(--space-3);
+    row-gap: var(--space-1);
+}
+
+.nota-totales-documentales .totales-nota {
+    flex: 0 1 auto;
+}
+
+/* Acción «Gestionar» del segundo nivel: compacta y siempre secundaria, nunca más pesada que el nombre del Trabajador. */
+.celda-accion-plataforma ::deep .accion-gestionar-documento {
+    white-space: nowrap;
+}
+
 /*
   Fila desplegada de /centros en una caja estrecha (375 px: la lista deja de desplazarse en horizontal y la caja mide
   ~280 px). La rejilla de escritorio reserva 230 px para el nombre y el estado quedaba fuera de la caja, cortado. Aquí:

@@ -358,6 +358,31 @@ public class VisionCarteraGen2Tests : BunitContext
             "/trabajadores y /centros enseñan solo la organización activa: un enlace desde una suma de varias llevaría a otro número");
     }
 
+    /// <summary>B2: las cinco tarjetas de riesgo van en su propia rejilla (que reparte la última fila), no en la auto-fit de 220 px.</summary>
+    [Fact]
+    public void Las_cinco_tarjetas_de_riesgo_van_en_la_rejilla_que_reparte_la_ultima_fila()
+    {
+        var cut = Renderizar(new Escenario()).Cut;
+
+        var rejilla = cut.Find(".rejilla-kpis-criticos");
+        rejilla.ClassList.Should().Contain("rejilla-kpis-cartera");
+        rejilla.Children.Should().HaveCount(5).And.OnlyContain(t => t.ClassList.Contains("tarjeta-metrica"),
+            "el CSS de la rejilla coloca a los hijos directos: ninguna tarjeta puede ir envuelta");
+    }
+
+    /// <summary>B4 (inventario): la fila del propio Tenant del usuario sale en el reparto accesible como «X, sin datos» cuando no tiene datos.</summary>
+    [Fact]
+    public void La_propia_organizacion_sin_datos_sale_en_el_reparto_y_en_la_tabla_con_su_texto_completo()
+    {
+        var escenario = new Escenario();
+        escenario.Cambiar(TenantPropio, o => o with { Completa = Datos.Nada, Cartera = Datos.Nada });
+        var cut = Renderizar(escenario).Cut;
+
+        TablaDelGrafico(cut).Select(f => f.Organizacion).Should().Contain($"{NombrePropio}, sin datos");
+        Filas(cut).Single(f => Texto(f.QuerySelector(".nombre-organizacion")!) == NombrePropio)
+            .QuerySelector(".sin-datos-organizacion").Should().NotBeNull();
+    }
+
     // ---------------------------------------------------------------- tabla
 
     [Fact]
