@@ -166,6 +166,18 @@ public class UnirPdfQueryHandlerTests
     }
 
     [Fact]
+    public async Task Si_el_unidor_lanza_con_un_Documento_ya_abierto_la_excepcion_sigue_y_la_Apertura_queda()
+    {
+        var seguro = DocumentoDeEmpresa("SEGURO");
+
+        var unir = () => UnirAsync([new EntradaUnionDocumento(seguro.Id), Subido("b.pdf", "B[explota]")]);
+
+        await unir.Should().ThrowAsync<InvalidOperationException>("la excepción original no se enmascara");
+        _registro.Registrados.Should().Equal([(seguro.Id, TipoAccesoDocumentoSensible.Apertura)],
+            "el Documento se abrió antes de la excepción: es una lectura aunque no salga nada");
+    }
+
+    [Fact]
     public async Task Si_el_total_pasa_de_cincuenta_megas_el_Documento_ya_abierto_deja_su_Apertura()
     {
         var seguro = DocumentoDeEmpresa("SEGURO");
@@ -501,6 +513,7 @@ public class UnirPdfQueryHandlerTests
         public Result<InfoPdfParaUnir> Inspeccionar(byte[] contenidoPdf)
         {
             var texto = Texto(contenidoPdf);
+            if (texto.Contains("[explota]")) throw new InvalidOperationException("fallo inesperado del unidor");
             if (texto.Contains("[clave]")) return Result.Fallo<InfoPdfParaUnir>(Error.Crear(ErroresUnirPdf.ConContrasena, "con contraseña"));
             if (texto.Contains("[ilegible]")) return Result.Fallo<InfoPdfParaUnir>(Error.Crear(ErroresUnirPdf.Ilegible, "ilegible"));
             return Result.Exito(new InfoPdfParaUnir(Paginas(texto), texto.Contains("[firmado]")));
