@@ -412,8 +412,10 @@ else
                                                     }
                                                     <CaeManager.Web.Features.Documentos.Components.LineaPlataformaYReclamacion Acreditaciones="null" UltimaReclamacion="documento.UltimaReclamacion" Estado="documento.Estado" LaFilaYaDiceLaPlataforma="false" />
                                                 </span>
-                                                <span role="cell"><TextoFechaCopiable Fecha="documento.FechaVencimiento">@TextoVigencia(documento)</TextoFechaCopiable></span>
-                                                <span role="cell">@(documento.AcreditacionesEnElCentro is not { Count: > 0 } ? "—" : Textos[BloqueaPlataforma(documento) ? "PlataformaBloqueaSi360" : "PlataformaBloqueaNo360"].Value)</span>
+                                                @* data-etiqueta-celda: en pestaña estrecha la cabecera de la tabla se oculta y la celda queda sin rótulo (un «Sí» suelto);
+                                                   el CSS la pinta como prefijo visual sin tocar el texto de la celda. *@
+                                                <span role="cell" data-etiqueta-celda="@Textos["PlataformaCaducidad360"]"><TextoFechaCopiable Fecha="documento.FechaVencimiento">@TextoVigencia(documento)</TextoFechaCopiable></span>
+                                                <span role="cell" data-etiqueta-celda="@Textos["PlataformaBloquea360"]">@(documento.AcreditacionesEnElCentro is not { Count: > 0 } ? "—" : Textos[BloqueaPlataforma(documento) ? "PlataformaBloqueaSi360" : "PlataformaBloqueaNo360"].Value)</span>
                                                 @* Columna «Acción» (bloque 3 del 21-10): el estado en la plataforma solo se cambia aquí, en Centro 360. Desde un
                                                    Centro no se sube nada a TALVEG (regla del 2026-10-19, #1475): si falta en TALVEG, la acción lleva a la ficha 360
                                                    del Trabajador; si no, «Marcar subido / validado» y «Cambiar» anotan el estado en la plataforma de ESTE Centro. *@
