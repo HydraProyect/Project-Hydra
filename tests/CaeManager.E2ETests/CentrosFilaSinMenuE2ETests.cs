@@ -22,12 +22,14 @@ public class CentrosFilaSinMenuE2ETests(WebAppFixtureListados fixture)
     private const string Lapiz = "button[aria-label='Editar información del centro']";
 
     // La lista sembrada no tiene un Centro de nombre estable que sirva de ancla: el recorrido vale
-    // para cualquier fila, así que se toma la primera, y su celda de Empresa como punto de la fila
+    // para cualquier fila, así que se toma la primera, y su celda de Cumplimiento como punto de la fila
     // que no es ningún control. Solo los Centros con incidencias llevan chevron (maqueta: «tieneHijos») y el
     // recorrido pulsa el desplegable: se toma la primera fila que lo tenga.
     private static ILocator PrimeraFila(IPage page) =>
         page.Locator(".lista-filas-acordeon .fila-pulsable").Filter(new() { Has = page.Locator(".boton-expandir-fila") }).First;
-    private static ILocator CeldaSinControles(ILocator fila) => fila.Locator(".columna-empresa-centro");
+    // La columna «Empresa» no se pinta con una sola Empresa en los Centros visibles (MostrarColumnaEmpresa): el punto de la fila que
+    // no es ningún control pasa a ser la celda de Cumplimiento, que existe siempre y es una sola por fila.
+    private static ILocator CeldaSinControles(ILocator fila) => fila.Locator(".columna-cumplimiento-centro");
 
     private async Task<IPage> AbrirCentrosAsync(IBrowserContext contexto)
     {
@@ -66,7 +68,7 @@ public class CentrosFilaSinMenuE2ETests(WebAppFixtureListados fixture)
         await Expect(desplegable).ToHaveAttributeAsync("aria-expanded", "false");
         await Expect(panel).ToHaveCountAsync(0);
 
-        // Un punto de la fila que no es ningún control: la celda de la Empresa.
+        // Un punto de la fila que no es ningún control: la celda de Cumplimiento (CeldaSinControles).
         await CeldaSinControles(fila).ClickAsync();
         await Expect(panel.Locator(".workspace-titulo-entidad")).ToContainTextAsync(nombre);
 
