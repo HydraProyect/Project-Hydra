@@ -519,19 +519,74 @@ limpio; contenedor caemanager-app-azul "$A"; fichero produccion "to caemanager-a
 relevo "CORREO_VERDE=      EnvioCorreo__Modo: \"Abierto\"" -- desplegar produccion "$B"
 comprobar "un valor entrecomillado cuenta" "0 to caemanager-app-verde:8080 caemanager-app-azul:8080" "$codigo $(ranuras produccion)"
 
+LISTA_UNA='      EnvioCorreo__DestinatariosPermitidos__0: una@ejemplo.invalid'
 for caso in "Abierto|      EnvioCorreo__Modo: Abierto" \
             'Abierto entrecomillado|      EnvioCorreo__Modo: "Abierto"' \
-            "SoloPermitidos|      EnvioCorreo__Modo: SoloPermitidos" \
+            "Abierto aunque haya lista|      EnvioCorreo__Modo: Abierto
+$LISTA_UNA" \
             "abierto en minúsculas|      EnvioCorreo__Modo: abierto" \
+            "solopermitidos en minúsculas, con lista|      EnvioCorreo__Modo: solopermitidos
+$LISTA_UNA" \
             "un modo que no existe|      EnvioCorreo__Modo: Entreabierto" \
             "Cerrado y otra grafía de la clave con Abierto|      EnvioCorreo__Modo: Cerrado
-      ENVIOCORREO__MODO: Abierto"; do
+      ENVIOCORREO__MODO: Abierto" \
+            "SoloPermitidos con lista y otra grafía de la clave con Abierto|      EnvioCorreo__Modo: SoloPermitidos
+      ENVIOCORREO__MODO: Abierto
+$LISTA_UNA" \
+            "SoloPermitidos en otra grafía, sin lista, y Cerrado|      ENVIOCORREO__MODO: SoloPermitidos
+      EnvioCorreo__Modo: Cerrado"; do
   escenario_correo; relevo "CORREO_VERDE=${caso#*|}" -- desplegar staging "$B"
   comprobar "staging con ${caso%%|*}: aborta sin up, sin recarga, sin drenaje y sin tocar la activa" "1 0 0 0 to caemanager-staging-app-azul:8080 true" "$codigo $(sin_tocar_nada staging)"
-  comprobar "  dice qué exige y dónde" si "$(contiene "EnvioCorreo__Modo no es Cerrado en el entorno efectivo de app-verde" "$salida")"
+  comprobar "  dice qué exige y dónde" si "$(contiene "EnvioCorreo__Modo no es Cerrado ni SoloPermitidos en el entorno efectivo de app-verde" "$salida")"
   comprobar "  nombra .env.staging" si "$(contiene "Corrígelo en .env.staging en el servidor" "$salida")"
-  comprobar "  no imprime el valor ni ningún otro" 0 "$(printf '%s\n' "$salida" | grep -ciE 'SECRETO_CENTINELA|abierto|SoloPermitidos')"
+  comprobar "  no imprime el valor ni ningún otro" 0 "$(printf '%s\n' "$salida" | grep -ciE 'SECRETO_CENTINELA|abierto|ejemplo\.invalid')"
 done
+
+# SoloPermitidos solo con lista válida, como EnvioCorreoOptions.EsValida().
+for caso in "sin lista|" \
+            'una entrada vacía|      EnvioCorreo__DestinatariosPermitidos__0: ""' \
+            "una dirección con nombre visible|      EnvioCorreo__DestinatariosPermitidos__0: Una Persona <una@ejemplo.invalid>" \
+            "una válida y otra con nombre visible|$LISTA_UNA
+      EnvioCorreo__DestinatariosPermitidos__1: Otra <otra@ejemplo.invalid>" \
+            "un dominio suelto|      EnvioCorreo__DestinatariosPermitidos__0: ejemplo.invalid" \
+            "un espacio dentro|      EnvioCorreo__DestinatariosPermitidos__0: una @ejemplo.invalid" \
+            "dos arrobas|      EnvioCorreo__DestinatariosPermitidos__0: una@otra@ejemplo.invalid" \
+            "un dominio sin punto|      EnvioCorreo__DestinatariosPermitidos__0: una@localhost" \
+            "dos direcciones en una entrada|      EnvioCorreo__DestinatariosPermitidos__0: una@ejemplo.invalid,otra@ejemplo.invalid" \
+            "la clave sin índice|      EnvioCorreo__DestinatariosPermitidos: una@ejemplo.invalid" \
+            "un índice que no es número|      EnvioCorreo__DestinatariosPermitidos__a: una@ejemplo.invalid" \
+            "otra grafía de la clave con una entrada mala|$LISTA_UNA
+      ENVIOCORREO__DESTINATARIOSPERMITIDOS__1: Otra <otra@ejemplo.invalid>" \
+            "solo otra clave con el mismo prefijo|      EnvioCorreo__DestinatariosPermitidosAntiguos: una@ejemplo.invalid"; do
+  escenario_correo; relevo "CORREO_VERDE=      EnvioCorreo__Modo: SoloPermitidos
+${caso#*|}" -- desplegar staging "$B"
+  comprobar "staging con SoloPermitidos y ${caso%%|*}: aborta sin up, sin recarga, sin drenaje y sin tocar la activa" "1 0 0 0 to caemanager-staging-app-azul:8080 true" "$codigo $(sin_tocar_nada staging)"
+  comprobar "  dice qué falta y dónde" si "$(contiene "EnvioCorreo__Modo es SoloPermitidos en el entorno efectivo de app-verde, pero EnvioCorreo__DestinatariosPermitidos__<n> no lleva ninguna dirección" "$salida")"
+  comprobar "  nombra .env.staging" si "$(contiene "Corrígelo en .env.staging en el servidor" "$salida")"
+  comprobar "  no imprime ninguna dirección ni ningún otro valor" 0 "$(printf '%s\n' "$salida" | grep -ciE 'SECRETO_CENTINELA|ejemplo\.invalid|localhost|persona')"
+done
+
+for caso in "una dirección|$LISTA_UNA" \
+            "dos direcciones|$LISTA_UNA
+      EnvioCorreo__DestinatariosPermitidos__1: otra.persona+demo@sub.ejemplo.invalid" \
+            "direcciones entrecomilladas|      EnvioCorreo__DestinatariosPermitidos__0: \"una@ejemplo.invalid\"
+      EnvioCorreo__DestinatariosPermitidos__1: 'otra@ejemplo.invalid'" \
+            "otra grafía de la clave con el mismo modo|      ENVIOCORREO__MODO: SoloPermitidos
+$LISTA_UNA" \
+            "otra clave con el mismo prefijo, que no es la lista|$LISTA_UNA
+      EnvioCorreo__DestinatariosPermitidosAntiguos: Una Persona <una@ejemplo.invalid>"; do
+  limpio; contenedor caemanager-staging-app-azul "$A"; fichero staging "to caemanager-staging-app-azul:8080"; fichero produccion "to caemanager-app-azul:8080"
+  relevo "CORREO_VERDE=      EnvioCorreo__Modo: SoloPermitidos
+${caso#*|}" -- desplegar staging "$B"
+  comprobar "staging con SoloPermitidos y ${caso%%|*}: conmuta" "0 to caemanager-staging-app-verde:8080 caemanager-staging-app-azul:8080" "$codigo $(ranuras staging)"
+done
+limpio; contenedor caemanager-staging-app-azul "$A"; fichero staging "to caemanager-staging-app-azul:8080"; fichero produccion "to caemanager-app-azul:8080"
+relevo "CORREO_VERDE=      EnvioCorreo__Modo: \"SoloPermitidos\"
+$LISTA_UNA" -- desplegar staging "$B"
+comprobar "  también con el modo entrecomillado" "0 to caemanager-staging-app-verde:8080 caemanager-staging-app-azul:8080" "$codigo $(ranuras staging)"
+limpio; contenedor caemanager-staging-app-azul "$A"; fichero staging "to caemanager-staging-app-azul:8080"; fichero produccion "to caemanager-app-azul:8080"
+relevo "CORREO_AZUL=      EnvioCorreo__Modo: SoloPermitidos" -- desplegar staging "$B"
+comprobar "staging mira la lista de la ranura que arranca: SoloPermitidos sin lista en la otra no aborta" "0 to caemanager-staging-app-verde:8080 caemanager-staging-app-azul:8080" "$codigo $(ranuras staging)"
 limpio; contenedor caemanager-staging-app-azul "$A"; fichero staging "to caemanager-staging-app-azul:8080"; fichero produccion "to caemanager-app-azul:8080"
 relevo "CORREO_AZUL=      EnvioCorreo__Modo: Abierto" -- desplegar staging "$B"
 comprobar "staging mira la ranura que arranca: Abierto en la que no arranca no aborta" "0 to caemanager-staging-app-verde:8080 caemanager-staging-app-azul:8080" "$codigo $(ranuras staging)"
@@ -553,7 +608,12 @@ escenario_correo; relevo CORREO_VERDE= -- comprobar-guarda produccion "$B"
 comprobar "sin la clave: sale 1 sin tocar nada" "1 0 0 0 to caemanager-app-azul:8080 true" "$codigo $(sin_tocar_nada produccion)"
 comprobar "  y dice qué falta" si "$(contiene "falta EnvioCorreo__Modo, o no tiene valor, en el entorno efectivo de app-verde" "$salida")"
 escenario_correo; relevo "CORREO_VERDE=      EnvioCorreo__Modo: Abierto" -- comprobar-guarda staging "$B"
-comprobar "staging sin Cerrado: sale 1 sin tocar nada" "1 0 0 0 to caemanager-staging-app-azul:8080 true" "$codigo $(sin_tocar_nada staging)"
+comprobar "staging con Abierto: sale 1 sin tocar nada" "1 0 0 0 to caemanager-staging-app-azul:8080 true" "$codigo $(sin_tocar_nada staging)"
+escenario_correo; relevo "CORREO_VERDE=      EnvioCorreo__Modo: SoloPermitidos" -- comprobar-guarda staging "$B"
+comprobar "staging con SoloPermitidos sin lista: sale 1 sin tocar nada" "1 0 0 0 to caemanager-staging-app-azul:8080 true" "$codigo $(sin_tocar_nada staging)"
+escenario_correo; relevo "CORREO_VERDE=      EnvioCorreo__Modo: SoloPermitidos
+$LISTA_UNA" -- comprobar-guarda staging "$B"
+comprobar "staging con SoloPermitidos y lista: sale 0 sin tocar nada" "0 0 0 0 to caemanager-staging-app-azul:8080 true" "$codigo $(sin_tocar_nada staging)"
 limpio; contenedor caemanager-app-verde "$A"; fichero produccion "to caemanager-app-verde:8080"; fichero staging "to caemanager-staging-app-azul:8080"
 relevo CORREO_VERDE= -- comprobar-guarda produccion "$B"
 comprobar "con verde activa mira azul, como desplegar: sin clave en verde pasa" 0 "$codigo"
@@ -751,7 +811,7 @@ comprobar "ningún compose da valor a la clave: la decide cada .env" "0 0" \
   "$(grep -c 'EnvioCorreo__Modo' "$AQUI/local/docker-compose.produccion.yml") $(grep -c 'EnvioCorreo__Modo' "$AQUI/local/docker-compose.staging.yml")"
 comprobar "los dos .env de ejemplo la llevan activa" "1 1" \
   "$(grep -c '^EnvioCorreo__Modo=[A-Za-z]' "$AQUI/local/.env.example") $(grep -c '^EnvioCorreo__Modo=[A-Za-z]' "$AQUI/local/.env.staging.example")"
-comprobar "el ejemplo de staging lleva el único modo que el relevo admite allí" 1 \
+comprobar "el ejemplo de staging nace Cerrado, que el relevo admite allí sin lista" 1 \
   "$(tr -d '\r' < "$AQUI/local/.env.staging.example" | grep -cx 'EnvioCorreo__Modo=Cerrado')"
 
 echo "conexiones_establecidas"
@@ -871,23 +931,59 @@ if [ -z "${RELEVO_GUION:-}" ]; then
                   CORREO_VERDE="$CORREO_MUTANTE" bash "$1" desplegar staging "$B" > /dev/null 2>&1; }
   comp_staging() { [ "$(ranuras staging)" != "to caemanager-staging-app-azul:8080" ] && echo si || echo no; }
   CORREO_MUTANTE='      EnvioCorreo__Modo: Abierto'
-  mutar "staging no exige Cerrado" \
-    's#^    \[ "\$entorno" = staging \] \&\& modo_exigido="\$MODO_CORREO_STAGING"$#    :#' esc_staging comp_staging
-  mutar "un modo distinto del exigido no aborta" \
-    's#exit discrepa ? 3 : 0#exit 0#' esc_staging comp_staging
-  mutar "la comparación con el modo exigido va al revés" \
-    's#if (valor != exigido) discrepa = 1#if (valor == exigido) discrepa = 1#' esc_staging comp_staging
+  mutar "staging no exige Cerrado ni SoloPermitidos" \
+    's#^    \[ "\$entorno" = staging \] \&\& modo_exigido="\$MODOS_CORREO_STAGING" #    [ "$entorno" = staging ] \&\& #' esc_staging comp_staging
+  mutar "un modo distinto de los admitidos no aborta" \
+    's#if (discrepa) exit 3#if (0) exit 3#' esc_staging comp_staging
+  mutar "la comparación con los modos admitidos va al revés" \
+    's#if (v == partes\[i\]) return 1#if (v != partes[i]) return 1#' esc_staging comp_staging
+  mutar "staging admite Abierto" \
+    's#^MODOS_CORREO_STAGING="Cerrado|SoloPermitidos"$#MODOS_CORREO_STAGING="Cerrado|SoloPermitidos|Abierto"#' esc_staging comp_staging
   CORREO_MUTANTE='      EnvioCorreo__Modo: Cerrado
       ENVIOCORREO__MODO: Abierto'
   mutar "otra grafía de la clave no cuenta" \
     's#index(tolower(\$0), "      " tolower(clave) ":") == 1#index($0, "      " clave ":") == 1#' esc_staging comp_staging
+  CORREO_MUTANTE='      ENVIOCORREO__MODO: SoloPermitidos
+      EnvioCorreo__Modo: Cerrado'
+  mutar "dos grafías con modos admitidos distintos no abortan" \
+    's#(vistos++ \&\& valor != modo)#0#' esc_staging comp_staging
+  CORREO_MUTANTE='      EnvioCorreo__Modo: SoloPermitidos'
+  mutar "SoloPermitidos sin lista pasa" \
+    's#(lista_mala || !direcciones)) exit 4#(lista_mala || !direcciones)) exit 0#' esc_staging comp_staging
+  mutar "staging no pide la lista para SoloPermitidos" \
+    's# modo_con_lista="\$MODO_CORREO_CON_LISTA" lista=# lista=#' esc_staging comp_staging
+  CORREO_MUTANTE='      EnvioCorreo__Modo: SoloPermitidos
+      EnvioCorreo__DestinatariosPermitidos__0: una@ejemplo.invalid
+      EnvioCorreo__DestinatariosPermitidos__1: Otra <otra@ejemplo.invalid>'
+  mutar "una entrada mala no invalida la lista si hay otra buena" \
+    's#else lista_mala = 1#else lista_mala = 0#' esc_staging comp_staging
+  mutar "la dirección no se comprueba" \
+    's#\&\& direccion_de(\$0) ~ exacta) direcciones++#) direcciones++#' esc_staging comp_staging
+  CORREO_MUTANTE='      EnvioCorreo__Modo: SoloPermitidos
+      EnvioCorreo__DestinatariosPermitidos__0: una@ejemplo.invalid
+      ENVIOCORREO__DESTINATARIOSPERMITIDOS__1: Otra <otra@ejemplo.invalid>'
+  mutar "otra grafía de la lista no cuenta" \
+    's#(index(tolower(\$0), "      " tolower(lista) ":") == 1 || index(tolower(\$0), "      " tolower(lista) "__") == 1)#(index($0, "      " lista ":") == 1 || index($0, "      " lista "__") == 1)#' esc_staging comp_staging
+  CORREO_MUTANTE='      EnvioCorreo__Modo: SoloPermitidos
+      EnvioCorreo__DestinatariosPermitidos: una@ejemplo.invalid'
+  mutar "la clave sin índice cuenta como lista" \
+    's#if (tolower(\$0) ~ hijo \&\& #if (#' esc_staging comp_staging
   unset CORREO_MUTANTE
+
+  esc_staging_lista() { limpio; contenedor caemanager-staging-app-azul "$A"; fichero staging "to caemanager-staging-app-azul:8080"; fichero produccion "to caemanager-app-azul:8080"
+                        CORREO_VERDE='      EnvioCorreo__Modo: SoloPermitidos
+      EnvioCorreo__DestinatariosPermitidos__0: una@ejemplo.invalid' bash "$1" desplegar staging "$B" > /dev/null 2>&1; }
+  comp_staging_lista() { [ "$(ranuras staging)" = "to caemanager-staging-app-azul:8080" ] && echo si || echo no; }
+  mutar "staging vuelve a exigir solo Cerrado" \
+    's#^MODOS_CORREO_STAGING="Cerrado|SoloPermitidos"$#MODOS_CORREO_STAGING="Cerrado"#' esc_staging_lista comp_staging_lista
+  mutar "una dirección exacta no cuenta" \
+    's#direcciones++#lista_mala = 1#' esc_staging_lista comp_staging_lista
 
   esc_prod_abierto() { limpio; contenedor caemanager-app-azul "$A"; fichero produccion "to caemanager-app-azul:8080"; fichero staging "to caemanager-staging-app-azul:8080"
                        bash "$1" desplegar produccion "$B" > /dev/null 2>&1; }
   comp_prod_abierto() { [ "$(ranuras produccion)" = "to caemanager-app-azul:8080" ] && echo si || echo no; }
-  mutar "producción también exige Cerrado" \
-    's#^    \[ "\$entorno" = staging \] \&\& modo_exigido="\$MODO_CORREO_STAGING"$#    modo_exigido="$MODO_CORREO_STAGING"#' esc_prod_abierto comp_prod_abierto
+  mutar "producción también exige Cerrado o SoloPermitidos" \
+    's#^    \[ "\$entorno" = staging \] \&\& modo_exigido=#    modo_exigido=#' esc_prod_abierto comp_prod_abierto
 
   esc_orden() { limpio; contenedor caemanager-app-azul "$A"; fichero produccion "to caemanager-app-azul:8080"; fichero staging "to caemanager-staging-app-azul:8080"
                 CORREO_VERDE= bash "$1" comprobar-guarda produccion "$B" > /dev/null 2>&1; codigo=$?; }

@@ -23,8 +23,10 @@
 #       Con la imagen caemanager:<sha> ya cargada y el cerrojo de despliegue
 #       YA TOMADO por quien llama (ci-deploy.sh, volver-atras.sh):
 #         0. Exige EnvioCorreo__Modo con valor en el entorno efectivo de la
-#            ranura nueva, y en staging que ese valor sea Cerrado y que la imagen
-#            declare la guarda; en producción, una imagen que no la declara solo
+#            ranura nueva, y en staging que ese valor sea Cerrado o SoloPermitidos
+#            (este, con al menos una dirección exacta en
+#            EnvioCorreo__DestinatariosPermitidos__N y ninguna entrada que no lo
+#            sea) y que la imagen declare la guarda; en producción, una imagen que no la declara solo
 #            arranca con Abierto (exigir_guarda_de_correo). Si no, sale con 1
 #            antes de tocar Caddy, el fichero de ranuras, el migrador o los
 #            contenedores.
@@ -106,7 +108,10 @@ RELEVO_TOPE_STOP="${RELEVO_TOPE_STOP:-45}"
 RELEVO_TOPE_KILL="${RELEVO_TOPE_KILL:-15}"
 CLAVE_GUARDA_CORREO="EnvioCorreo__Modo"
 ETIQUETA_GUARDA_CORREO="es.talveg.guarda-correo"
-MODO_CORREO_STAGING="Cerrado"
+# Modos que staging admite, separados por «|», y el que solo vale con lista.
+MODOS_CORREO_STAGING="Cerrado|SoloPermitidos"
+MODO_CORREO_CON_LISTA="SoloPermitidos"
+CLAVE_LISTA_CORREO="EnvioCorreo__DestinatariosPermitidos"
 MODO_CORREO_SIN_GUARDA="Abierto"
 GUION_RELEVO="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/$(basename "${BASH_SOURCE[0]}")"
 
@@ -335,31 +340,72 @@ volcar_ranura_fallida() {
 # entorno, y el valor no sale de awk. Vacío, solo espacios y null cuentan como
 # ausente, igual que los trata la aplicación.
 #
-# Con un tercer argumento, además sale con 3 si la clave no vale exactamente eso,
-# sin distinguir mayúsculas en el nombre de la clave: la aplicación lee cualquier
-# grafía, así que otra línea con el mismo nombre podría decidir el modo efectivo.
+# Con un tercer argumento, además sale con 3 si la clave no vale exactamente uno
+# de esos valores (separados por «|»), o si dos grafías de la clave no valen lo
+# mismo, sin distinguir mayúsculas en el nombre de la clave: la aplicación lee
+# cualquier grafía, así que otra línea con el mismo nombre podría decidir el modo
+# efectivo.
+#
+# Con cuarto y quinto argumento (<modo> <clave de lista>), si el modo es ese sale
+# con 4 cuando la lista no lleva ninguna dirección o lleva alguna entrada que no
+# lo sea, igual que EnvioCorreoOptions.EsValida(): cuenta toda clave que empiece
+# por <clave de lista> seguida de «:» o de «__», en cualquier grafía, y solo vale
+# <clave de lista>__<n> con una dirección exacta (sin nombre visible, sin
+# espacios, sin un dominio suelto). El patrón es más estricto que MailAddress: lo
+# que rechace de más deja staging sin relevar, no con correo abierto. Las
+# direcciones tampoco salen de awk.
 clave_con_valor_en_servicio() {
-    awk -v servicio="$1" -v clave="$2" -v exigido="${3:-}" '
+    awk -v servicio="$1" -v clave="$2" -v exigido="${3:-}" -v modo_con_lista="${4:-}" -v lista="${5:-}" '
         function valor_de(linea) {
             linea = substr(linea, length("      " clave ":") + 1)
             gsub(/[ \t\r"]/, "", linea)
             gsub("\047", "", linea)
             return linea
         }
+        # Lo que recibiría la aplicación: sin los espacios de alrededor ni las
+        # comillas de YAML, pero con todo lo de dentro.
+        function direccion_de(linea) {
+            linea = substr(linea, index(linea, ":") + 1)
+            gsub(/^[ \t]+|[ \t\r]+$/, "", linea)
+            if (linea ~ /^".*"$/ || linea ~ /^\047.*\047$/) linea = substr(linea, 2, length(linea) - 2)
+            return linea
+        }
+        function admitido(v,   partes, n, i) {
+            n = split(exigido, partes, "|")
+            for (i = 1; i <= n; i++) if (v == partes[i]) return 1
+            return 0
+        }
+        BEGIN {
+            atomo = "[A-Za-z0-9_%+\047-]+"
+            etiqueta = "[A-Za-z0-9]([A-Za-z0-9-]*[A-Za-z0-9])?"
+            exacta = "^" atomo "(\\." atomo ")*@" etiqueta "(\\." etiqueta ")+$"
+            hijo = "^      " tolower(lista) "__[0-9]+:"
+        }
         /^[^ ]/ { en_servicios = ($0 == "services:"); actual = 0; en_entorno = 0; next }
         en_servicios && /^  [^ ]/ { actual = ($0 == "  " servicio ":"); if (actual) visto = 1; en_entorno = 0; next }
         actual && /^    [^ ]/ { en_entorno = ($0 == "    environment:"); next }
         en_entorno && exigido != "" && index(tolower($0), "      " tolower(clave) ":") == 1 {
             valor = valor_de($0)
-            if (valor != exigido) discrepa = 1
+            if (!admitido(valor) || (vistos++ && valor != modo)) discrepa = 1
+            modo = valor
             valor = ""
+        }
+        en_entorno && lista != "" && (index(tolower($0), "      " tolower(lista) ":") == 1 || index(tolower($0), "      " tolower(lista) "__") == 1) {
+            if (tolower($0) ~ hijo && direccion_de($0) ~ exacta) direcciones++
+            else lista_mala = 1
         }
         en_entorno && index($0, "      " clave ":") == 1 {
             valor = valor_de($0)
             presente = (valor != "" && valor != "null" && valor != "~")
             valor = ""
         }
-        END { if (!visto) exit 2; if (!presente) exit 1; exit discrepa ? 3 : 0 }'
+        END {
+            if (!visto) exit 2
+            if (!presente) exit 1
+            if (discrepa) exit 3
+            if (modo_con_lista != "" && modo == modo_con_lista && (lista_mala || !direcciones)) exit 4
+            exit 0
+        }'
 }
 
 # Guarda de envío de correo (C-04). Sin EnvioCorreo__Modo la aplicación arranca
@@ -369,9 +415,12 @@ clave_con_valor_en_servicio() {
 # valor a la clave: se exige que alguien la haya decidido en el `.env` del
 # entorno.
 #
-# En staging se exige además que el valor sea Cerrado: staging arranca como
-# Production, nada más lo distingue, y una copia del `.env` de producción dejaría
-# salir correo real a destinatarios reales. El valor no se imprime. En producción
+# En staging se exige además que el valor sea Cerrado o SoloPermitidos, y este
+# con al menos una dirección exacta en EnvioCorreo__DestinatariosPermitidos__N y
+# ninguna entrada que no lo sea: staging arranca como Production, nada más lo
+# distingue, y una copia del `.env` de producción (Abierto) dejaría salir correo
+# real a destinatarios reales. Con SoloPermitidos solo sale correo a las
+# direcciones de la lista. Ni el valor ni las direcciones se imprimen. En producción
 # no se valida: uno ilegible impide arrancar (ValidateOnStart) y lo resuelve el
 # `up`.
 #
@@ -402,21 +451,21 @@ declara_guarda_de_correo() {
 # Resuelve la configuración efectiva de <servicio> con la imagen <sha> y sale con
 # el código de clave_con_valor_en_servicio.
 medir_guarda_de_correo() {
-    local entorno="$1" sha="$2" servicio="$3" modo_exigido="$4"
+    local entorno="$1" sha="$2" servicio="$3" modo_exigido="$4" modo_con_lista="${5:-}" lista="${6:-}"
     local -a args
     args=(-f "docker-compose.$entorno.yml")
     [ "$entorno" = staging ] && args+=(--env-file .env.staging)
 
     ( cd "$RAIZ_DESPLIEGUE/deploy/local" \
         && IMAGEN_TAG="$sha" docker compose "${args[@]}" --profile ranura config 2>/dev/null ) \
-        | clave_con_valor_en_servicio "$servicio" "$CLAVE_GUARDA_CORREO" "$modo_exigido"
+        | clave_con_valor_en_servicio "$servicio" "$CLAVE_GUARDA_CORREO" "$modo_exigido" "$modo_con_lista" "$lista"
 }
 
 exigir_guarda_de_correo() {
-    local entorno="$1" sha="$2" servicio="$3" fichero=.env modo_exigido="" resultado=0
+    local entorno="$1" sha="$2" servicio="$3" fichero=.env modo_exigido="" modo_con_lista="" lista="" resultado=0
     local intacto="El relevo no ha tocado Caddy, el fichero de ranuras, el migrador ni los contenedores: sigue sirviendo la ranura de antes."
     [ "$entorno" = staging ] && fichero=.env.staging
-    [ "$entorno" = staging ] && modo_exigido="$MODO_CORREO_STAGING"
+    [ "$entorno" = staging ] && modo_exigido="$MODOS_CORREO_STAGING" modo_con_lista="$MODO_CORREO_CON_LISTA" lista="$CLAVE_LISTA_CORREO"
 
     if ! declara_guarda_de_correo "caemanager:$sha"; then
         if [ "$entorno" = staging ]; then
@@ -426,14 +475,15 @@ exigir_guarda_de_correo() {
         modo_exigido="$MODO_CORREO_SIN_GUARDA"
     fi
 
-    medir_guarda_de_correo "$entorno" "$sha" "$servicio" "$modo_exigido" || resultado=$?
+    medir_guarda_de_correo "$entorno" "$sha" "$servicio" "$modo_exigido" "$modo_con_lista" "$lista" || resultado=$?
 
     case "$resultado" in
         0) return 0 ;;
         2) echo "::error::Relevo de $entorno abortado: no se pudo resolver la configuración efectiva de $servicio para comprobar $CLAVE_GUARDA_CORREO (revisa $fichero y docker-compose.$entorno.yml; el error de Compose no se imprime porque puede citar valores). $intacto" >&2 ;;
+        4) echo "::error::Relevo de $entorno abortado: $CLAVE_GUARDA_CORREO es $MODO_CORREO_CON_LISTA en el entorno efectivo de $servicio, pero ${CLAVE_LISTA_CORREO}__<n> no lleva ninguna dirección, o lleva una entrada que no es una dirección exacta (sin nombre visible ni espacios) o una clave que no es ${CLAVE_LISTA_CORREO}__<número>. Corrígelo en $fichero en el servidor y repite la operación. $intacto" >&2 ;;
         3)
             if [ "$entorno" = staging ]; then
-                echo "::error::Relevo de $entorno abortado: $CLAVE_GUARDA_CORREO no es $MODO_CORREO_STAGING en el entorno efectivo de $servicio, y en staging no se admite otro modo, para que no salga correo real. Corrígelo en $fichero en el servidor y repite la operación. $intacto" >&2
+                echo "::error::Relevo de $entorno abortado: $CLAVE_GUARDA_CORREO no es ${MODOS_CORREO_STAGING//|/ ni } en el entorno efectivo de $servicio (o dos grafías de la clave no coinciden), y en staging no se admite otro modo, para que no salga correo real a quien no esté en la lista. Corrígelo en $fichero en el servidor y repite la operación. $intacto" >&2
             else
                 echo "::error::Relevo de $entorno abortado: caemanager:$sha no declara $ETIQUETA_GUARDA_CORREO y $CLAVE_GUARDA_CORREO no es $MODO_CORREO_SIN_GUARDA en el entorno efectivo de $servicio: esa imagen ignoraría el modo y enviaría correo igualmente. Elige una imagen que declare la guarda. $intacto" >&2
             fi ;;

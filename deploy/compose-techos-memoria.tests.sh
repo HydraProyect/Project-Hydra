@@ -13,7 +13,8 @@
 #   4. Un valor que Docker no entiende hace fallar `config`: el despliegue se
 #      detiene antes de tocar nada en vez de arrancar sin techo en silencio.
 #   5. La guarda de correo de deploy/relevo-app.sh ve EnvioCorreo__Modo en la
-#      salida real de `config`, ve su ausencia y distingue un valor del exigido.
+#      salida real de `config`, ve su ausencia, distingue un valor del exigido
+#      y, en staging, SoloPermitidos con y sin una lista de direcciones exactas.
 #
 # No mide que el kernel aplique el techo ni que el valor sea el adecuado: eso
 # se comprueba en el servidor (`memory.max` del contenedor) tras fijarlo.
@@ -190,6 +191,35 @@ for caso in "${CASOS[@]}"; do
   escribir_entorno "$DIR/$entorno"
   medir_modo 1 "la clave ausente"
   echo "OK: el modo exigido se distingue en la salida real de config"
+
+  # Los modos y la lista que el relevo exige en staging, con las mismas
+  # variables del guion: SoloPermitidos solo vale con direcciones exactas.
+  medir_staging() {  # <salida esperada> <descripción>
+    local ranura obtenido
+    for ranura in app-azul app-verde; do
+      obtenido=0
+      ( source "$DIR_GUION/relevo-app.sh"; efectiva "$compose" "$entorno" \
+          | clave_con_valor_en_servicio "$ranura" EnvioCorreo__Modo "$MODOS_CORREO_STAGING" "$MODO_CORREO_CON_LISTA" "$CLAVE_LISTA_CORREO" ) || obtenido=$?
+      [ "$obtenido" = "$1" ] \
+        || { echo "FALLO: $compose: $ranura con $2 da $obtenido, se esperaba $1" >&2; exit 1; }
+    done
+  }
+  escribir_entorno "$DIR/$entorno" "EnvioCorreo__Modo=Cerrado"
+  medir_staging 0 "Cerrado"
+  escribir_entorno "$DIR/$entorno" "EnvioCorreo__Modo=Abierto" "EnvioCorreo__DestinatariosPermitidos__0=una@ejemplo.invalid"
+  medir_staging 3 "Abierto con lista"
+  escribir_entorno "$DIR/$entorno" "EnvioCorreo__Modo=SoloPermitidos"
+  medir_staging 4 "SoloPermitidos sin lista"
+  escribir_entorno "$DIR/$entorno" "EnvioCorreo__Modo=SoloPermitidos" "EnvioCorreo__DestinatariosPermitidos__0="
+  medir_staging 4 "SoloPermitidos con una entrada vacía"
+  escribir_entorno "$DIR/$entorno" "EnvioCorreo__Modo=SoloPermitidos" "EnvioCorreo__DestinatariosPermitidos__0=Una Persona <una@ejemplo.invalid>"
+  medir_staging 4 "SoloPermitidos con nombre visible"
+  escribir_entorno "$DIR/$entorno" "EnvioCorreo__Modo=SoloPermitidos" "EnvioCorreo__DestinatariosPermitidos__0=una@ejemplo.invalid"
+  medir_staging 0 "SoloPermitidos con una dirección"
+  escribir_entorno "$DIR/$entorno" "EnvioCorreo__Modo=SoloPermitidos" \
+    "EnvioCorreo__DestinatariosPermitidos__0=una@ejemplo.invalid" "EnvioCorreo__DestinatariosPermitidos__1=otra.persona+demo@sub.ejemplo.invalid"
+  medir_staging 0 "SoloPermitidos con dos direcciones"
+  echo "OK: SoloPermitidos con lista se distingue en la salida real de config"
 done
 
 echo "TODAS LAS PRUEBAS PASARON"
