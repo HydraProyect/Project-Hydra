@@ -575,21 +575,6 @@
   <data name="GpVolverMiTrabajo" xml:space="preserve">
     <value>Tornar a El meu treball</value>
   </data>
-  <data name="PasoLargoNoRequerida" xml:space="preserve">
-    <value>No es requereix</value>
-  </data>
-  <data name="PasoLargoPendienteDeSubir" xml:space="preserve">
-    <value>Pendent de pujar</value>
-  </data>
-  <data name="PasoLargoPendienteDeValidacion" xml:space="preserve">
-    <value>Pendent de validació</value>
-  </data>
-  <data name="PasoLargoRechazado" xml:space="preserve">
-    <value>Rebutjat per la plataforma</value>
-  </data>
-  <data name="PasoLargoSubidoYAlDia" xml:space="preserve">
-    <value>Pujat i al dia</value>
-  </data>
   <data name="PasoNoSePide" xml:space="preserve">
     <value>No es demana aquí</value>
   </data>
@@ -607,6 +592,9 @@
   </data>
   <data name="PasoValidadoHasta" xml:space="preserve">
     <value>Validat fins al {0}</value>
+  </data>
+  <data name="PasoDetalleValidadoHasta" xml:space="preserve">
+    <value>validat fins al {0}</value>
   </data>
   <data name="AutoAriaAvance" xml:space="preserve">
     <value>Avanç de la Gestió</value>

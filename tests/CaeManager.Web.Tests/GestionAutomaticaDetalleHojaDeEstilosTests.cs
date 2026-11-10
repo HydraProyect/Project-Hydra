@@ -44,6 +44,23 @@ public class GestionAutomaticaDetalleHojaDeEstilosTests
     }
 
     [Fact]
+    public void Las_notas_del_acceso_llevan_una_barra_a_la_izquierda_y_no_un_marco_completo()
+    {
+        // Maqueta: «border-left:3px solid var(--color-primary-500)», sin borde en los otros lados ni radio.
+        var reglas = Reglas(".gp-nota-acceso");
+        reglas.Should().Contain(c => Regex.IsMatch(c, @"border-left\s*:\s*3px\s+solid\s+var\(--color-primary-500\)"));
+        reglas.Should().NotContain(c => Regex.IsMatch(c, @"(^|;|\s)border\s*:"), "el marco completo no es el de la maqueta");
+        reglas.Should().NotContain(c => Regex.IsMatch(c, @"border-radius"), "la maqueta no redondea la nota");
+    }
+
+    [Fact]
+    public void El_aviso_de_no_vigente_lleva_el_borde_al_25_por_ciento_como_la_maqueta()
+    {
+        var reglas = Reglas(".gp-aviso[data-aviso=\"no-vigente\"]");
+        reglas.Should().Contain(c => Regex.IsMatch(c, @"border-color\s*:\s*color-mix\(in srgb,\s*var\(--color-warning-700\)\s*25%,\s*transparent\)"));
+    }
+
+    [Fact]
     public void La_regla_de_los_valores_copiables_no_esta_dentro_de_una_media_query()
     {
         var css = Regex.Replace(Css(), @"/\*.*?\*/", string.Empty, RegexOptions.Singleline);

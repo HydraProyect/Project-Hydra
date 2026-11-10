@@ -201,7 +201,7 @@
                         <div class="gp-paso-cabecera">
                             <div class="gp-paso-meta">
                                 <span class="gp-paso-n">@Textos["GpPasoNDeM", IndiceAbierto + 1, _detalle.Pasos.Count]</span>
-                                <span class="bp bp-@PresentacionGestionAutomatica.TonoPaso(abierto.Estado)" data-pastilla-paso="">@Textos[PresentacionGestionAutomatica.ClavePasoLargo(abierto.Estado)]</span>
+                                <span class="bp bp-@PresentacionGestionAutomatica.TonoPaso(abierto.Estado)" data-pastilla-paso="">@Textos[PresentacionGestionAutomatica.ClavePasoCorto(abierto.Estado)]</span>
                                 @if (DetallePaso(abierto) is { } detallePaso)
                                 {
                                     <span data-detalle-paso="">· @detallePaso</span>

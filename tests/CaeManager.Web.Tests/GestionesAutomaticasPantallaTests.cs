@@ -341,7 +341,7 @@ public partial class GestionesAutomaticasPantallaTests : BunitContext
         var cut = Detallar(m, Detalle(pasos));
 
         cut.Find("[data-paso-abierto]").GetAttribute("data-paso-abierto").Should().Be(pasos[4].AcreditacionId.ToString());
-        cut.Find("[data-pastilla-paso]").TextContent.Should().Be("Rechazado por la plataforma");
+        cut.Find("[data-pastilla-paso]").TextContent.Should().Be("Rechazado");
         cut.Find("[data-rechazados]").TextContent.Should().Be("1 paso rechazado");
         cut.Find($"[data-paso='{pasos[4].AcreditacionId}'] .gp-paso-estado").TextContent.Should().Be("Rechazado");
     }

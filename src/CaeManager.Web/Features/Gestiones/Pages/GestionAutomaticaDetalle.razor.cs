@@ -159,7 +159,7 @@ public partial class GestionAutomaticaDetalle : CaeManager.Web.Components.Pagina
 
     private string? DetallePaso(PasoGestionAutomaticaDto p) =>
         p.Estado == EstadoAcreditacion.Aceptada && p.FechaVencimientoEnPlataforma is { } hasta
-            ? Textos["PasoValidadoHasta", hasta.ToString("dd/MM/yyyy")].Value
+            ? Textos["PasoDetalleValidadoHasta", hasta.ToString("dd/MM/yyyy")].Value
             : null;
 
     private string RutaFichaTitular => _detalle?.Documento switch

@@ -25,7 +25,7 @@ public static class PresentacionGestionAutomatica
         _ => "neutro"
     };
 
-    /// <summary>Texto corto del paso en la lista de la izquierda (CORTO de la maqueta).</summary>
+    /// <summary>Texto corto del paso: la lista de la izquierda y la pastilla del paso abierto (CORTO de la maqueta).</summary>
     public static string ClavePasoCorto(EstadoAcreditacion e) => e switch
     {
         EstadoAcreditacion.PendienteDeSubir => "PasoPendienteDeSubir",
@@ -33,16 +33,6 @@ public static class PresentacionGestionAutomatica
         EstadoAcreditacion.Aceptada => "PasoValidado",
         EstadoAcreditacion.Rechazada => "PasoRechazado",
         _ => "PasoNoSePide"
-    };
-
-    /// <summary>Texto de la pastilla del paso abierto (estado de la acreditación, como en «Gestionar»).</summary>
-    public static string ClavePasoLargo(EstadoAcreditacion e) => e switch
-    {
-        EstadoAcreditacion.PendienteDeSubir => "PasoLargoPendienteDeSubir",
-        EstadoAcreditacion.Subida => "PasoLargoPendienteDeValidacion",
-        EstadoAcreditacion.Aceptada => "PasoLargoSubidoYAlDia",
-        EstadoAcreditacion.Rechazada => "PasoLargoRechazado",
-        _ => "PasoLargoNoRequerida"
     };
 
     /// <summary>Clase de la pastilla (bp-*) y del punto/color del paso.</summary>

@@ -47,6 +47,8 @@
 .gp-aviso > span { flex: 1; min-width: 260px; }
 .gp-aviso-simple { padding: 10px 12px; }
 .gp-aviso-advertencia { background: var(--color-warning-50); color: var(--color-warning-700); border-color: color-mix(in srgb, var(--color-warning-700) 30%, transparent); }
+/* El aviso de «no vigente» de la maqueta lleva el borde al 25 %, no al 30 % del resto de avisos. */
+.gp-aviso[data-aviso="no-vigente"] { border-color: color-mix(in srgb, var(--color-warning-700) 25%, transparent); }
 .gp-aviso-peligro { background: var(--color-danger-50); color: var(--color-danger-700); border-color: color-mix(in srgb, var(--color-danger-700) 30%, transparent); }
 .gp-aviso-neutro { background: var(--color-surface-subtle); color: var(--color-text-muted); border-color: transparent; }
 
@@ -119,7 +121,7 @@
 .gp-campo ::deep .boton-copiar-en-linea { text-align: left; align-self: flex-start; }
 .gp-campo-valor[data-tono="exito"]{ color: var(--color-success-700); }
 .gp-campo-valor[data-tono="peligro"] { color: var(--color-danger-700); }
-.gp-nota-acceso { white-space: pre-wrap; padding: 10px 12px; border: 1px solid var(--color-primary-200); border-radius: var(--radius-md); background: var(--color-primary-50); color: var(--color-primary-700); font: var(--font-body-md); }
+.gp-nota-acceso { white-space: pre-wrap; padding: 10px 12px; border-left: 3px solid var(--color-primary-500); background: var(--color-primary-50); color: var(--color-primary-700); font: var(--font-body-md); }
 
 .gp-opciones { margin: 0; padding: 0; border: 0; display: flex; flex-direction: column; gap: 8px; }
 .gp-opciones legend { padding: 0 0 8px; }
