@@ -79,13 +79,16 @@ public class ProhibicionSqlCrudoYFiltrosIgnoradosTests
         // queda fuera del filtro global de tenant/borrado — hay que saltarlo
         // a propósito para poder restaurarlo, con el TenantId comprobado a mano.
         [("src/CaeManager.Application/Clientes/Commands/RestaurarCliente/RestaurarClienteCommand.cs", ".IgnoreQueryFilters()")] = 1,
-        [("src/CaeManager.Application/Centros/Commands/RestaurarCentro/RestaurarCentroCommand.cs", ".IgnoreQueryFilters()")] = 1,
         [("src/CaeManager.Application/Empresas/Commands/RestaurarEmpresa/RestaurarEmpresaCommand.cs", ".IgnoreQueryFilters()")] = 1,
         [("src/CaeManager.Application/Trabajadores/Commands/RestaurarTrabajador/RestaurarTrabajadorCommand.cs", ".IgnoreQueryFilters()")] = 1,
-        // 2: el Documento eliminado, y el Proyecto dueño, que puede estar eliminado también (EliminarProyecto no
-        // arrastra sus Documentos) y del que se lee solo el Cliente empresarial para la Asignación de Cartera;
-        // las dos consultas van acotadas al Tenant actual.
-        [("src/CaeManager.Application/Documentos/Commands/RestaurarDocumento/RestaurarDocumentoCommand.cs", ".IgnoreQueryFilters()")] = 2,
+        // El Proyecto dueño, que puede estar eliminado (EliminarProyecto no arrastra sus Documentos) y del que se lee solo
+        // el Cliente empresarial para la Asignación de Cartera, acotado al Tenant actual. El Documento eliminado se lee con
+        // DocumentoRepository.ObtenerIncluidoEliminadoActualizadoAsync.
+        [("src/CaeManager.Application/Documentos/Commands/RestaurarDocumento/RestaurarDocumentoCommand.cs", ".IgnoreQueryFilters()")] = 1,
+        // RestaurarCentro y RestaurarDocumento leen bajo el candado de la regla A-1 el Centro o el Documento eliminado, releído
+        // si el contexto ya lo rastreaba; reponen el TenantId en la misma consulta y RLS sigue aplicando.
+        [("src/CaeManager.Infrastructure/Persistence/Repositories/CentroRepository.cs", "dbContext.Centros.IgnoreQueryFilters().Where(c => c.Id == id && c.TenantId == tenantId), cancellationToken);")] = 1,
+        [("src/CaeManager.Infrastructure/Persistence/Repositories/DocumentoRepository.cs", "dbContext.Documentos.IgnoreQueryFilters().Where(d => d.Id == id && d.TenantId == tenantId), cancellationToken);")] = 1,
         [("src/CaeManager.Application/Subcontratas/Commands/RestaurarSubcontrata/RestaurarSubcontrataCommand.cs", ".IgnoreQueryFilters()")] = 1,
         // Antes de borrar la copia de un adjunto comprueba que no haya fila con el Id reservado, tampoco entre las eliminadas,
         // que son restaurables y conservan su archivo. Solo Id y Tenant actual explícito; RLS sigue aplicando.

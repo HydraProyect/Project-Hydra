@@ -6,10 +6,11 @@ namespace CaeManager.Application.Documentos.Acreditacion;
 /// Serializa, dentro de un Tenant, las altas que ponen un Documento de Empresa ante los accesos de plataforma de sus
 /// Centros (regla A-1): el alta de un Documento de Empresa (crear, renovar con archivo, generar desde plantilla) y toda
 /// operación que cambie a qué Centros llega: el alta de un acceso de plataforma, empezar a exigir un tipo en un Centro o
-/// de serie (EstablecerDocumentacionRequeridaCentro, EditarTipoDocumento), volver a gestión CAE
-/// (EstablecerGestionCaeCentro) y crear o reabrir una Asignación (CrearAsignacion, CrearAsignaciones,
-/// ReactivarAsignacion, EjecutarImportacion con una hoja de Asignaciones). Revisión Codex de la PR #2074, ronda 3,
-/// hallazgos 2 a 4.
+/// de serie (EstablecerDocumentacionRequeridaCentro, EliminarDocumentacionRequeridaCentro, EditarTipoDocumento), volver
+/// a gestión CAE (EstablecerGestionCaeCentro, EjecutarImportacionMaestra reemplazando), restaurar un Centro o un
+/// Documento de Empresa (RestaurarCentro, RestaurarDocumento) y crear o reabrir una Asignación (CrearAsignacion,
+/// CrearAsignaciones, ReactivarAsignacion, EjecutarImportacion con una hoja de Asignaciones). Revisión Codex de la PR
+/// #2074, ronda 3, hallazgos 2 a 4.
 ///
 /// <para>
 /// Sin ella, las dos altas simultáneas leen antes de que la otra confirme: el Documento no ve el acceso nuevo, el acceso

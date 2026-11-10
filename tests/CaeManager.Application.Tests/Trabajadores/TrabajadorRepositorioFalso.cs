@@ -9,6 +9,27 @@ public class TrabajadorRepositorioFalso : ITrabajadorRepository
     public Task<Trabajador?> ObtenerPorIdAsync(Guid id, CancellationToken cancellationToken = default) =>
         Task.FromResult(Trabajadores.FirstOrDefault(t => t.Id == id));
 
+    /// <summary>
+    /// De dónde lee <see cref="ListarConIdentidadActualizadosAsync"/>: por defecto, <see cref="Trabajadores"/>; un arnés
+    /// que siembra los Trabajadores en un contexto de consulta falso lo apunta allí.
+    /// </summary>
+    public Func<IEnumerable<Trabajador>>? Existentes { get; set; }
+
+    /// <summary>
+    /// Lo que otra operación confirma en la base mientras se espera el candado. Solo lo ve la lectura «…Actualizados»,
+    /// igual que EF, que no repone una instancia ya rastreada salvo que se relea.
+    /// </summary>
+    public Action<Trabajador>? CambioEnLaBase { get; set; }
+
+    public Task<IReadOnlyList<Trabajador>> ListarConIdentidadActualizadosAsync(CancellationToken cancellationToken = default)
+    {
+        var existentes = (Existentes?.Invoke() ?? Trabajadores).ToList();
+        foreach (var trabajador in existentes)
+            CambioEnLaBase?.Invoke(trabajador);
+        return Task.FromResult<IReadOnlyList<Trabajador>>(
+            existentes.Where(t => !t.EstaEliminado && t.Dni != null).ToList());
+    }
+
     public Task<bool> ExisteConDniAsync(string dni, Guid? excluirId = null, CancellationToken cancellationToken = default) =>
         Task.FromResult(Trabajadores.Any(t => t.Dni == dni.Trim().ToUpperInvariant() && t.Id != excluirId));
 

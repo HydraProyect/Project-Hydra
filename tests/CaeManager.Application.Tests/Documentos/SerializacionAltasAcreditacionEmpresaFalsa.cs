@@ -17,10 +17,14 @@ public sealed class SerializacionAltasAcreditacionEmpresaFalsa : ISerializacionA
     /// </summary>
     public Action? AlTomarElCandado { get; set; }
 
-    public Task<Result> EjecutarAsync(Func<CancellationToken, Task<Result>> operacion, CancellationToken cancellationToken = default)
+    /// <summary>Lo que devolvió la última operación: un fallo deshace la transacción del candado real.</summary>
+    public Result? UltimoResultado { get; private set; }
+
+    public async Task<Result> EjecutarAsync(Func<CancellationToken, Task<Result>> operacion, CancellationToken cancellationToken = default)
     {
         Llamadas++;
         AlTomarElCandado?.Invoke();
-        return operacion(cancellationToken);
+        UltimoResultado = await operacion(cancellationToken);
+        return UltimoResultado;
     }
 }
