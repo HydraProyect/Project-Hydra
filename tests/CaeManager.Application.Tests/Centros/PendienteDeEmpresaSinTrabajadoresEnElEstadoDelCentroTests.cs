@@ -70,6 +70,40 @@ public class PendienteDeEmpresaSinTrabajadoresEnElEstadoDelCentroTests
     }
 
     [Fact]
+    public async Task Un_Pendiente_que_no_bloquea_el_acceso_pone_el_Centro_Pendiente_y_su_par_cuenta_al_dia()
+    {
+        var centro = _mundo.Centro(empresaId: _mundo.EmpresaId);
+        var plataforma = _mundo.AccesoPlataforma(centro);
+        var tipo = _mundo.Tipo(RequisitoDocumental.Si, AmbitoAplicacion.Empresa, "ISO 9001");
+        _mundo.TiposDocumentoContexto.ListaTiposDocumentoCentros.Add(
+            new TipoDocumentoCentro(tipo.Id, centro.Id, incluido: true, bloqueaAcceso: false));
+        _mundo.DocumentosContexto.ListaAcreditacionesDocumentoPlataforma.Add(
+            new AcreditacionDocumentoPlataforma(_mundo.DocumentoDeEmpresa(tipo).Id, plataforma.Id));
+
+        var estado = (await Calculo().CalcularAsync([centro.Id], CancellationToken.None))[centro.Id];
+        var cumplimiento = (await Calculo().CalcularCumplimientoAsync([centro.Id], CancellationToken.None))[centro.Id];
+
+        estado.Estado.Should().Be(EstadoCentro.Pendiente, "el Pendiente de un tipo que no bloquea también pone el Centro en Pendiente");
+        cumplimiento.Requeridos.Should().Be(1, "tiene par: no es un Centro Pendiente con 0/0");
+        cumplimiento.AlDia.Should().Be(1, "solo baja el porcentaje el Pendiente de un tipo que bloquea el acceso (ReglaPendienteEnPlataforma)");
+    }
+
+    [Fact]
+    public async Task El_par_del_Pendiente_sin_Trabajadores_sale_igual_por_el_camino_acotado_por_Empresa_y_no_para_otra_Empresa()
+    {
+        var (centro, tipo) = CentroQueExigeElRntDeSuEmpresa();
+
+        var deLaEmpresa = await Calculo().ObtenerParesDeEmpresaExigidosDeEmpresasAsync(
+            [centro.Id], new HashSet<Guid> { _mundo.EmpresaId }, CancellationToken.None);
+        var deOtra = await Calculo().ObtenerParesDeEmpresaExigidosDeEmpresasAsync(
+            [centro.Id], new HashSet<Guid> { Guid.NewGuid() }, CancellationToken.None);
+
+        deLaEmpresa.Should().ContainSingle().Which.Should().Match<ParDocumentalDeEmpresaExigido>(p =>
+            p.CentroId == centro.Id && p.EmpresaId == _mundo.EmpresaId && p.TipoDocumentoId == tipo.Id);
+        deOtra.Should().BeEmpty("el recálculo por Empresa solo trae los pares de esas Empresas");
+    }
+
+    [Fact]
     public async Task Un_Centro_con_Trabajadores_solo_de_otra_Empresa_cuenta_tambien_el_par_de_su_propia_Empresa_pendiente()
     {
         var (centro, tipo) = CentroQueExigeElRntDeSuEmpresa();

@@ -108,7 +108,8 @@ public interface ICalculoEstadoCentroService
     /// Cumplimiento documental de cada Centro (Centro 360, Project-Hydra-Negocio/tecnico/docs/ux-audit/PLAN-EJECUCION-UX.md
     /// § 0.5): <c>Requeridos</c> son los pares Trabajador×TipoDocumento incluidos explícitamente en el Centro para sus Trabajadores con
     /// Asignación activa más los pares Empresa×TipoDocumento (ámbito Empresa) incluidos explícitamente para las Empresas de esos Trabajadores
-    /// (decisión del propietario, 2026-10-10), más los pares Trabajador×TipoDocumento que pide cada evento futuro o vigente del Centro a quien
+    /// (decisión del propietario, 2026-10-10) y para la Empresa que tiene en el Centro un Pendiente en la plataforma aunque no tenga allí
+    /// Trabajadores (decisión del 2026-11-08), más los pares Trabajador×TipoDocumento que pide cada evento futuro o vigente del Centro a quien
     /// está asignado a él aunque el Centro no incluya ese tipo (decisiones 2026-10-15 y 2026-10-16), y <c>AlDia</c> los que <see cref="CumplimientoDocumental"/> cuenta como al día. Es el contexto
     /// <see cref="ContextoCumplimiento.Centro"/>; un Centro sin ningún par exigido (o sin gestión CAE) queda en 0/0,
     /// cuyo porcentaje es <c>null</c>.
@@ -133,8 +134,8 @@ public interface ICalculoEstadoCentroService
     /// Los pares Empresa × TipoDocumento (ámbito Empresa) que esos Centros exigen, con el estado del documento efectivo de la
     /// Empresa o Faltante: los mismos que entran en el denominador del % del Centro (<see cref="CalcularCumplimientoAsync"/>),
     /// con su marca de pendiente en la plataforma. Cada Empresa con un Trabajador de Asignación activa en el Centro (o su
-    /// Subcontrata si no tiene Empresa; sin voluntarios inactivos), más la que tiene allí un Pendiente en la plataforma que baja
-    /// el porcentaje aunque no tenga Trabajadores (decisión del 2026-11-08), × cada tipo que le aplica al Centro
+    /// Subcontrata si no tiene Empresa; sin voluntarios inactivos), más la que tiene allí un Pendiente en la plataforma, bloquee
+    /// o no el acceso, aunque no tenga Trabajadores (decisión del 2026-11-08), × cada tipo que le aplica al Centro
     /// (<see cref="ResolucionTipoDocumentoCentro.Aplica"/>), bloquee o no el acceso. Un Centro sin gestión CAE no aporta ninguno.
     /// No acota por alcance: quien lo consume cruza con lo que ve.
     /// </summary>
@@ -664,9 +665,10 @@ public class CalculoEstadoCentroService(
         // pares Empresa × Tipo de ámbito Empresa. Las dos mitades comparten una sola carga de lo pendiente en la plataforma.
         var conGestionCae = await CentrosConGestionCaeAsync(centroIds, cancellationToken);
         var hoy = DiaDeNegocio.Hoy();
-        var pendientes = await PendientesQueBajanElPorcentajeAsync(conGestionCae, hoy, cancellationToken);
+        var todosLosPendientes = await PendientesEnLaPlataformaAsync(conGestionCae, hoy, cancellationToken);
+        var pendientes = todosLosPendientes.Where(p => p.BloqueaAcceso).ToList();
         var paresDeTrabajador = await ObtenerParesDeTrabajadorAsync(centroIds, conGestionCae, pendientes, hoy, cancellationToken);
-        var paresDeEmpresa = await ObtenerParesDeEmpresaAsync(conGestionCae, pendientes, hoy, cancellationToken);
+        var paresDeEmpresa = await ObtenerParesDeEmpresaAsync(conGestionCae, todosLosPendientes, hoy, cancellationToken);
         // El porcentaje cuenta únicamente inclusiones explícitas del Centro, en las dos mitades. La herencia global
         // sigue vigente para las otras lecturas de pares exigidos y no cambia su contrato.
         var incluidos = await tiposDocumentoContext.TiposDocumentoCentros
@@ -700,19 +702,25 @@ public class CalculoEstadoCentroService(
     /// bloqueo de personas (<see cref="PendientesEnPlataformaDeCentros"/>: documento efectivo, vigencia del requisito en el
     /// Centro), para que el porcentaje no discrepe de ellos. Solo baja el porcentaje el Pendiente de un tipo que el Centro
     /// marca «bloquea el acceso»: lo obligatorio configurado (decisión 3 del 2026-10-10). Un Centro sin plataforma no devuelve ninguno.
-    /// Esta lista define también el universo de pares de Empresa que no salen de una Asignación
-    /// (<see cref="ObtenerParesDeEmpresaAsync"/>): el Pendiente de Empresa de un Centro sin Trabajadores suyos (decisión del
-    /// 2026-11-08) trae su propio par, para que el Centro «Pendiente» no figure con 0/0 «sin requisitos».
     /// </summary>
     private async Task<IReadOnlyList<PendienteEnPlataformaDeCentro>> PendientesQueBajanElPorcentajeAsync(
         List<Guid> conGestionCae, DateOnly hoy, CancellationToken cancellationToken) =>
+        (await PendientesEnLaPlataformaAsync(conGestionCae, hoy, cancellationToken)).Where(p => p.BloqueaAcceso).ToList();
+
+    /// <summary>
+    /// Todos los Pendientes en la plataforma de esos Centros, bloqueen o no el acceso (la causa del estado del Centro cuenta los
+    /// dos). De esta lista sale el universo de pares de Empresa que no salen de una Asignación
+    /// (<see cref="ObtenerParesDeEmpresaAsync"/>): el Pendiente de Empresa de un Centro sin Trabajadores suyos (decisión del
+    /// 2026-11-08) trae su propio par, bloquee o no el acceso, para que el Centro «Pendiente» no figure con 0/0 «sin requisitos»
+    /// (el no bloqueante deja el par al día, como el de un Trabajador: <see cref="ReglaPendienteEnPlataforma"/>).
+    /// </summary>
+    private async Task<IReadOnlyList<PendienteEnPlataformaDeCentro>> PendientesEnLaPlataformaAsync(
+        List<Guid> conGestionCae, DateOnly hoy, CancellationToken cancellationToken) =>
         conGestionCae.Count == 0
             ? []
-            : (await PendientesEnPlataformaDeCentros.CargarAsync(
-                    centrosContext, documentosContext, tiposDocumentoContext, trabajadoresContext, AsignacionesQueCuentan(),
-                    conGestionCae, hoy, cancellationToken))
-                .Where(p => p.BloqueaAcceso)
-                .ToList();
+            : await PendientesEnPlataformaDeCentros.CargarAsync(
+                centrosContext, documentosContext, tiposDocumentoContext, trabajadoresContext, AsignacionesQueCuentan(),
+                conGestionCae, hoy, cancellationToken);
 
     public async Task<IReadOnlyList<ParDocumentalExigido>> ObtenerParesExigidosAsync(
         IReadOnlyList<Guid> centroIds, CancellationToken cancellationToken)
@@ -739,7 +747,7 @@ public class CalculoEstadoCentroService(
         var hoy = DiaDeNegocio.Hoy();
         // El universo es el del porcentaje: incluye los pares de los Pendientes de Empresa sin Trabajadores suyos en el Centro.
         return await ObtenerParesDeEmpresaAsync(
-            conGestionCae, await PendientesQueBajanElPorcentajeAsync(conGestionCae, hoy, cancellationToken), hoy, cancellationToken);
+            conGestionCae, await PendientesEnLaPlataformaAsync(conGestionCae, hoy, cancellationToken), hoy, cancellationToken);
     }
 
     public async Task<IReadOnlyList<ParDocumentalExigido>> ObtenerParesExigidosDeTrabajadoresAsync(
@@ -765,7 +773,7 @@ public class CalculoEstadoCentroService(
         var conGestionCae = await CentrosConGestionCaeAsync(centroIds, cancellationToken);
         var hoy = DiaDeNegocio.Hoy();
         return await ObtenerParesDeEmpresaAsync(
-            conGestionCae, await PendientesQueBajanElPorcentajeAsync(conGestionCae, hoy, cancellationToken), hoy, cancellationToken,
+            conGestionCae, await PendientesEnLaPlataformaAsync(conGestionCae, hoy, cancellationToken), hoy, cancellationToken,
             empresaIds.ToHashSet());
     }
 
@@ -904,14 +912,17 @@ public class CalculoEstadoCentroService(
     /// Los pares Empresa × Tipo de ámbito Empresa de cada Centro con gestión CAE (decisión del propietario, 2026-10-10: el
     /// Pendiente de Empresa baja el porcentaje del Centro y los documentos de Empresa entran en su denominador): cada Empresa
     /// con algún Trabajador de Asignación activa en el Centro (la del Trabajador, o su Subcontrata si no tiene Empresa, como en
-    /// <see cref="PendientesEnPlataformaDeCentros"/>), más cada Empresa con un Pendiente en la plataforma que baja el porcentaje
-    /// en el Centro (<paramref name="pendientes"/>, decisión del 2026-11-08: la de un Centro sin Trabajadores suyos), × cada tipo
+    /// <see cref="PendientesEnPlataformaDeCentros"/>), más cada Empresa con un Pendiente en la plataforma, bloquee o no
+    /// el acceso, en el Centro (<paramref name="pendientes"/>, decisión del 2026-11-08: la de un Centro sin Trabajadores suyos), × cada tipo
     /// de ámbito Empresa que le aplica al Centro (<see cref="ResolucionTipoDocumentoCentro.Aplica"/>, la misma regla que los
     /// pares de Trabajador). El estado es el del documento efectivo de la Empresa y el tipo (<see cref="DocumentoEfectivo"/>),
-    /// o Faltante. Quien llame debe pasar la misma lista (<see cref="PendientesQueBajanElPorcentajeAsync"/>) para que todas las
+    /// o Faltante. Quien llame debe pasar la misma lista (<see cref="PendientesEnLaPlataformaAsync"/>) para que todas las
     /// lecturas compartan universo; sin ella, solo cuentan las Empresas con Trabajadores asignados.
     /// </summary>
-    /// <param name="pendientes">Los Pendientes que bajan el porcentaje: de ellos sale la marca y el par de Empresa sin Trabajadores.</param>
+    /// <param name="pendientes">
+    /// Todos los Pendientes en la plataforma (<see cref="PendientesEnLaPlataformaAsync"/>): de ellos sale el par de Empresa sin
+    /// Trabajadores; la marca de pendiente de un par solo la dan los que bloquean el acceso (<see cref="PendientesQueBajanElPorcentajeAsync"/>).
+    /// </param>
     /// <param name="soloEmpresas">Solo los pares de esas Empresas; los de cada Empresa no dependen de las demás.</param>
     private async Task<IReadOnlyList<ParDocumentalDeEmpresaExigido>> ObtenerParesDeEmpresaAsync(
         List<Guid> conGestionCae, IReadOnlyList<PendienteEnPlataformaDeCentro> pendientes, DateOnly hoy, CancellationToken cancellationToken,
@@ -931,8 +942,8 @@ public class CalculoEstadoCentroService(
             .Select(a => (a.CentroId, EmpresaId: a.EmpresaId!.Value));
 
         // El Pendiente de Empresa de un Centro sin Trabajadores suyos (decisión del 2026-11-08) no sale de ninguna Asignación: el
-        // par sale de él, para que el porcentaje y el Pendiente tengan el mismo universo. Solo el que baja el porcentaje
-        // (bloquea el acceso, ver PendientesQueBajanElPorcentajeAsync); la Empresa del Centro sin Pendiente no aporta par.
+        // par sale de él, para que el porcentaje y el Pendiente tengan el mismo universo; bloquee o no el acceso, aunque solo
+        // el que bloquea baja el porcentaje (la marca, abajo). La Empresa del Centro sin Pendiente no aporta par.
         var empresasConPendiente = pendientes
             .Where(p => p.TrabajadorId is null && p.EmpresaId is not null)
             .Select(p => (p.CentroId, EmpresaId: p.EmpresaId!.Value));
@@ -975,7 +986,7 @@ public class CalculoEstadoCentroService(
                 p => (Estado: CalculadoraEstadoDocumento.Calcular(p.Value.EstadoVigencia, p.Value.FechaVencimiento, hoy, parametros.UmbralAmbarDias, parametros.UmbralRojoDias), p.Value.EsRenuncia));
 
         var pendientesDeEmpresa = pendientes
-            .Where(p => p.TrabajadorId is null && p.EmpresaId is not null)
+            .Where(p => p.BloqueaAcceso && p.TrabajadorId is null && p.EmpresaId is not null)
             .Select(p => (p.CentroId, EmpresaId: p.EmpresaId!.Value, p.TipoDocumentoId))
             .ToHashSet();
 
