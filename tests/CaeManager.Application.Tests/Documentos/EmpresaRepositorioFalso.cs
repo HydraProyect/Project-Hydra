@@ -9,6 +9,9 @@ public class EmpresaRepositorioFalso : IEmpresaRepository
     public Task<Empresa?> ObtenerPorIdAsync(Guid id, CancellationToken cancellationToken = default) =>
         Task.FromResult(Empresas.FirstOrDefault(e => e.Id == id));
 
+    public Task<IReadOnlyList<Empresa>> ListarActualizadasAsync(CancellationToken cancellationToken = default) =>
+        Task.FromResult<IReadOnlyList<Empresa>>(Empresas.Where(e => !e.EstaEliminado).ToList());
+
     public Task<bool> ExisteConRazonSocialAsync(string razonSocial, Guid? excluirId = null, CancellationToken cancellationToken = default) =>
         Task.FromResult(Empresas.Any(e => e.RazonSocial == razonSocial && e.Id != excluirId));
 

@@ -1,5 +1,6 @@
 using CaeManager.Application.Centros;
 using CaeManager.Application.Common;
+using CaeManager.Application.Documentos.Acreditacion;
 using CaeManager.Application.Empresas;
 using CaeManager.Application.Importacion.Maestra;
 using CaeManager.Application.Trabajadores;
@@ -71,9 +72,11 @@ public class EjecutarImportacionMaestraCommandHandler(
     IRelacionEmpresarialRepository relacionEmpresarialRepositorio,
     ICentroRepository centroRepositorio,
     ITrabajadorRepository trabajadorRepositorio,
-    ICentrosQueryContext centrosContext, IEmpresasQueryContext empresasContext, ITrabajadoresQueryContext trabajadoresContext,
+    ICentrosQueryContext centrosContext, IEmpresasQueryContext empresasContext,
     IOperacionImportacionRepository operacionImportacionRepositorio,
-    IAutorizacionEscrituraEfectiva autorizacionEscrituraEfectiva)
+    IAutorizacionEscrituraEfectiva autorizacionEscrituraEfectiva,
+    IAltaAcreditacionesPlataformaService altaAcreditaciones,
+    ISerializacionAltasAcreditacionEmpresa serializacionAltas)
     : IRequestHandler<EjecutarImportacionMaestraCommand, Result<ResultadoImportacionMaestraDto>>,
       IRequestHandler<PrevisualizarImportacionMaestraCommand, Result<ResultadoImportacionMaestraDto>>
 {
@@ -81,6 +84,10 @@ public class EjecutarImportacionMaestraCommandHandler(
     private const string HojaClientes = "Clientes empresariales";
     private const string HojaCentros = "Centros";
     private const string HojaTrabajadores = "Trabajadores";
+
+    // La marca de la operación chocó en el índice único: otra confirmación de la misma operación ganó. Se reinicia en
+    // cada ejecución, por si el handler se reutiliza.
+    private bool operacionYaEjecutada;
 
     public Task<Result<ResultadoImportacionMaestraDto>> Handle(
         EjecutarImportacionMaestraCommand request, CancellationToken cancellationToken) =>
@@ -93,6 +100,7 @@ public class EjecutarImportacionMaestraCommandHandler(
     private async Task<Result<ResultadoImportacionMaestraDto>> EjecutarAsync(
         PlanImportacionMaestraDto plan, bool reemplazar, bool escribir, CancellationToken cancellationToken)
     {
+        operacionYaEjecutada = false;
         if (!await autorizacionEscrituraEfectiva.EsActoDeAdministradorAsync(cancellationToken))
             return Result.Fallo<ResultadoImportacionMaestraDto>(Error.Crear(
                 "Importacion.SoloAdministrador", "Solo Administrador puede ejecutar la importación de la plantilla maestra."));
@@ -111,7 +119,29 @@ public class EjecutarImportacionMaestraCommandHandler(
 
         try
         {
-            return await ProcesarAsync(plan, reemplazar, escribir, cancellationToken);
+            // Solo reemplazando se cambia la modalidad de un Centro existente, y solo una fila con gestión CAE puede
+            // devolverlo a ella: entonces sus accesos de plataforma reciben los Documentos de Empresa que exige (regla
+            // A-1), igual que en EstablecerGestionCaeCentro. Se serializa con el alta de un Documento de Empresa (ver
+            // ISerializacionAltasAcreditacionEmpresa), y se decide por el plan, no por una lectura: así toda la
+            // importación, desde la lectura de los Centros existentes, corre bajo el candado.
+            if (!escribir || !reemplazar || plan.Centros.All(c => c.SinGestionCae))
+                return await ProcesarAsync(plan, reemplazar, escribir, cancellationToken);
+
+            Result<ResultadoImportacionMaestraDto>? procesado = null;
+            var serializado = await serializacionAltas.EjecutarAsync(async ct =>
+            {
+                procesado = await ProcesarAsync(plan, reemplazar, escribir, ct);
+                if (procesado.EsFallido)
+                    return Result.Fallo(procesado.Error);
+                // La perdedora de dos confirmaciones de la misma operación devuelve «ya ejecutada», que es un éxito para
+                // quien llama, pero la transacción del candado tiene que deshacerse, igual que en EjecutarImportacion.
+                return operacionYaEjecutada
+                    ? Result.Fallo(Error.Crear("Importacion.YaEjecutada", "Esta importación ya se había ejecutado."))
+                    : Result.Exito();
+            }, cancellationToken);
+            if (serializado.EsExitoso || operacionYaEjecutada)
+                return procesado!;
+            return procesado is { EsFallido: true } ? procesado : Result.Fallo<ResultadoImportacionMaestraDto>(serializado.Error);
         }
         catch
         {
@@ -193,7 +223,9 @@ public class EjecutarImportacionMaestraCommandHandler(
         }
 
         // ---- Empresas gestionadas (CIF) ----
-        var todas = await empresasContext.Empresas.ToListAsync(cancellationToken);
+        // Releídas las que el contexto (uno por circuito en Blazor Server) ya rastreaba: una Empresa con el CIF de antes
+        // de esperar el candado casaría por él una fila de Centro y podría devolverlo a gestión CAE (regla A-1).
+        var todas = await empresaRepositorio.ListarActualizadasAsync(cancellationToken);
         var gestionadasPorCif = todas.Where(e => e.EsPropia && e.Cif != null).ToDictionary(e => e.Cif!, StringComparer.OrdinalIgnoreCase);
         var clientesPorCif = todas.Where(e => e.EsCritico != null && e.Cif != null).ToDictionary(e => e.Cif!, StringComparer.OrdinalIgnoreCase);
         var razonesEscritas = new HashSet<string>(StringComparer.Ordinal);
@@ -371,10 +403,13 @@ public class EjecutarImportacionMaestraCommandHandler(
         // ---- Centros (Cliente empresarial + nombre) ----
         var clientePorId = todas.Concat(clientesPorCif.Values).Concat(gestionadasPorCif.Values).DistinctBy(e => e.Id).ToDictionary(e => e.Id);
         static string ClaveCentro(Guid idDelCliente, string nombre) => $"{idDelCliente:N}|{nombre}";
+        // Releídos los que el contexto (uno por circuito en Blazor Server) ya rastreaba: la modalidad de gestión CAE que
+        // decide si un Centro vuelve a ella (regla A-1) tiene que ser la de la base bajo el candado, no la de antes.
         var centrosPorClave = CatalogoPorNombre<Centro>.De(
-            await centrosContext.Centros.ToListAsync(cancellationToken), c => ClaveCentro(c.ClienteId, c.Nombre), c => c);
+            await centroRepositorio.ListarActualizadosAsync(cancellationToken), c => ClaveCentro(c.ClienteId, c.Nombre), c => c);
         var centrosCreados = 0;
         var centrosActualizados = 0;
+        var centrosQueVuelvenAGestionCae = new List<Centro>();
 
         foreach (var fila in plan.Centros)
         {
@@ -436,6 +471,9 @@ public class EjecutarImportacionMaestraCommandHandler(
                             }, out var error))
                     {
                         centrosActualizados++;
+                        if (escribir && modalidad0 == ModalidadGestionCae.SinGestionCae
+                            && modalidadResultante == ModalidadGestionCae.ConGestionCae)
+                            centrosQueVuelvenAGestionCae.Add(existente);
                     }
                     else
                     {
@@ -461,9 +499,9 @@ public class EjecutarImportacionMaestraCommandHandler(
         }
 
         // ---- Trabajadores (identidad) ----
-        var trabajadoresPorIdentidad = await trabajadoresContext.Trabajadores
-            .Where(t => t.Dni != null)
-            .ToDictionaryAsync(t => t.Dni!, StringComparer.OrdinalIgnoreCase, cancellationToken);
+        // Releídos igual que las Empresas: bajo el candado, la identidad y la Empresa de cada Trabajador son las de la base.
+        var trabajadoresPorIdentidad = (await trabajadorRepositorio.ListarConIdentidadActualizadosAsync(cancellationToken))
+            .ToDictionary(t => t.Dni!, StringComparer.OrdinalIgnoreCase);
         var enPapelera = await DnisEnPapelera.ObtenerAsync(
             trabajadorRepositorio, plan.Trabajadores.Select(t => t.Identidad).Where(i => !trabajadoresPorIdentidad.ContainsKey(i)), cancellationToken);
         var trabajadoresCreados = 0;
@@ -564,10 +602,34 @@ public class EjecutarImportacionMaestraCommandHandler(
 
         if (!escribir) return resultado;
 
+        // Un Centro que vuelve a gestión CAE: sus accesos de plataforma reciben los Documentos de Empresa que exige
+        // (regla A-1), en el mismo guardado. Solo los de Empresa: los Documentos de Trabajador no cambian.
+        // Cuenta el estado final: una fila posterior del mismo Centro puede devolverlo a Sin gestión CAE.
+        var vuelvenAGestionCae = centrosQueVuelvenAGestionCae
+            .Where(c => c.GestionCae == ModalidadGestionCae.ConGestionCae)
+            .Select(c => c.Id)
+            .Distinct()
+            .ToList();
+        if (vuelvenAGestionCae.Count > 0)
+        {
+            var accesosPlataforma = await centrosContext.CanalesGestionDocumental
+                .Where(c => vuelvenAGestionCae.Contains(c.CentroId) && c.Tipo == TipoCanalGestion.Plataforma)
+                .ToListAsync(cancellationToken);
+            if (accesosPlataforma.Count > 0)
+                await altaAcreditaciones.AgregarPendientesAsync(new AltasConAcreditacion
+                {
+                    Canales = accesosPlataforma,
+                    CentrosQueVuelvenAGestionCae = vuelvenAGestionCae,
+                    SoloDocumentosDeEmpresa = true
+                }, cancellationToken);
+        }
+
         // Todo lo pendiente junto con la marca de la operación en un único guardado: si dos confirmaciones de la
         // MISMA operación compiten, la perdedora choca en el índice único y no escribe nada.
-        return await operacionImportacionRepositorio.GuardarSiOperacionNuevaAsync(cancellationToken)
-            ? resultado
-            : ResultadoImportacionMaestraDto.YaEjecutada();
+        if (await operacionImportacionRepositorio.GuardarSiOperacionNuevaAsync(cancellationToken))
+            return resultado;
+
+        operacionYaEjecutada = true;
+        return ResultadoImportacionMaestraDto.YaEjecutada();
     }
 }
