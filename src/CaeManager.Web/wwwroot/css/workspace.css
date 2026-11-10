@@ -162,7 +162,7 @@
 
 /*
   Cabecera de sección del drawer de Centro: el título (h3) a la izquierda y, si la hay, la acción a la derecha con hueco.
-  Con poco ancho la acción baja de línea en vez de montarse sobre el título; el h3 pierde su margen propio para alinear con el botón.
+  Con poco ancho la acción baja de línea en vez de montarse sobre el título; el h3 va sin margen para centrarse en vertical con el botón.
 */
 .workspace-cabecera-seccion {
     display: flex;
