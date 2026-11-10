@@ -8,11 +8,11 @@ namespace CaeManager.Application.Tests.Operaciones.IncorporacionCartera;
 /// <summary>
 /// <see cref="ICurrentUserService"/> cuyo rol depende del ámbito, como el real:
 /// dentro de <see cref="AmbitoTenantExplicito"/> sobre el tenant de origen
-/// devuelve el claim de rol de la sesión; en cualquier otro sitio, el de la
-/// cartera del workspace activo. Dentro de un Workspace operativo derivado ese
-/// claim ya no es el de origen (RolEfectivoDelWorkspaceMiddleware lo sustituye
-/// por el de la cartera), así que quien lo construye pasa aquí el claim tal
-/// como quedó, y el rol real de origen al <see cref="DirectorioRolesEnOrigen"/>.
+/// devuelve el rol de sesión en origen (el conservado antes de que
+/// RolEfectivoDelWorkspaceMiddleware sustituya el claim por el de la cartera,
+/// decisión P7); en cualquier otro sitio, el de la cartera del workspace activo.
+/// El rol de la cuenta en Identity va aparte, al <see cref="DirectorioRolesEnOrigen"/>,
+/// que solo confirma el rol de la sesión.
 /// </summary>
 public class CurrentUserServicePorAmbito(Guid? usuarioId, Guid? tenantOrigenId, string? rolEnOrigen, string? rolFueraDelOrigen = null)
     : ICurrentUserService
@@ -445,9 +445,9 @@ public class CatalogoIncorporacionCarteraFalso : ICatalogoIncorporacionCartera
 }
 
 /// <summary>
-/// Directorio con el rol de cada cuenta en su tenant, como Identity: la fuente
-/// del rol de origen de ContextoOperadorCae, que la selección de workspace no
-/// cambia. Resuelve nombres para cualquiera (no es de lo que van estos tests).
+/// Directorio con el rol de cada cuenta en su tenant, como Identity: confirma el
+/// rol de sesión en origen que usa ContextoOperadorCae, y la selección de
+/// workspace no lo cambia. Resuelve nombres para cualquiera (no es de lo que van estos tests).
 /// </summary>
 public class DirectorioRolesEnOrigen : IDirectorioUsuariosService
 {

@@ -20,6 +20,7 @@ public class AsignarCarteraGestorCaeCommandTests
 {
     private static readonly Guid Operador = Guid.NewGuid();
     private static readonly Guid OtroOperador = Guid.NewGuid();
+    private static readonly Guid TenantTalveg = Guid.NewGuid(); // Tenant de origen de las cuentas de Soporte TALVEG
     private static readonly Guid Beneficiario1 = Guid.NewGuid();
     private static readonly Guid Beneficiario2 = Guid.NewGuid();
     private static readonly Guid BeneficiarioSinOperacion = Guid.NewGuid();
@@ -33,7 +34,18 @@ public class AsignarCarteraGestorCaeCommandTests
         public BloqueoCarteraUsuarioFalso Bloqueo { get; } = new();
         public DirectorioRolesEnOrigen Directorio { get; } = new();
         public Guid TenantOrigenDelActor { get; init; } = Operador;
-        public string? RolDeSesion { get; init; } = "Administrador";
+        private string? _rolDeSesion = "Administrador";
+        private bool _rolDeSesionFijado;
+
+        /// <summary>
+        /// Rol efectivo de la sesión en el Tenant de origen. Si el test no lo fija, es el que
+        /// <see cref="ActorConRol"/> da en Identity: una sesión normal, abierta con ese rol.
+        /// </summary>
+        public string? RolDeSesion
+        {
+            get => _rolDeSesion;
+            init { _rolDeSesion = value; _rolDeSesionFijado = true; }
+        }
         public DestinoCartera Destino { get; init; } = new(Activa: true, RolEfectivo: "GestorCae", CoordinadorUsuarioId: null, EsOperadorDelegado: false);
 
         public Escenario()
@@ -46,6 +58,8 @@ public class AsignarCarteraGestorCaeCommandTests
         public Escenario ActorConRol(string rol)
         {
             Directorio.Asignar(Actor, TenantOrigenDelActor, rol);
+            if (!_rolDeSesionFijado)
+                _rolDeSesion = rol;
             return this;
         }
 
@@ -205,6 +219,41 @@ public class AsignarCarteraGestorCaeCommandTests
 
         (await e.Handler().Handle(Asignar(Beneficiario1), default)).Error.Should().Be(AutoridadSobreCarteraDeGestorCae.SinAutoridad);
 
+        NadaEscrito(e);
+    }
+
+    /// <summary>
+    /// Decide el rol efectivo de la sesión en el Tenant de origen (decisión P7) e Identity solo lo
+    /// confirma: una sesión limitada a Consulta por login local, o abierta como Gestor CAE antes de
+    /// que la cuenta pasara a Administrador, no asigna ni retira con el rol de Identity. Lo
+    /// garantiza el handler, no solo <c>AutorizacionEscrituraBehavior</c>: la Query de la pantalla
+    /// usa la misma regla y no pasa por ese behavior.
+    /// </summary>
+    [Theory]
+    [InlineData("Consulta")]
+    [InlineData("GestorCae")]
+    public async Task Una_sesion_con_menos_rol_que_la_cuenta_no_asigna_ni_retira_con_el_rol_de_Identity(string rolDeSesion)
+    {
+        var e = new Escenario { RolDeSesion = rolDeSesion }.ActorConRol("Administrador");
+        e.Catalogo.CarterasUniversales.Add((Operador, Gestor, new TenantEnCarteraDeGestor(Beneficiario1, "Beneficiario Uno")));
+
+        (await e.Handler().Handle(Asignar(Beneficiario2), default)).Error.Should().Be(AutoridadSobreCarteraDeGestorCae.SinAutoridad);
+        (await e.Handler().Handle(Retirar(Beneficiario1), default)).Error.Should().Be(AutoridadSobreCarteraDeGestorCae.SinAutoridad);
+
+        NadaEscrito(e);
+    }
+
+    [Fact]
+    public async Task Soporte_TALVEG_sin_Sesion_Privilegiada_no_asigna_Tenants_de_un_Operador_CAE()
+    {
+        // Cuenta de Soporte TALVEG con sesión normal: es Administrador de su propio Tenant y pasa la
+        // puerta de rol, pero todo se acota a ese Tenant de origen, que no opera los Tenants de este
+        // Operador CAE. Test de regresión: el acotado por Tenant de origen es anterior a este cambio.
+        var e = new Escenario { TenantOrigenDelActor = TenantTalveg }.ActorConRol("Administrador");
+
+        var resultado = await e.Handler().Handle(Asignar(Beneficiario1), default);
+
+        resultado.Error.Should().Be(AsignarCarteraGestorCaeCommandHandler.EmpresaNoAsignable);
         NadaEscrito(e);
     }
 
