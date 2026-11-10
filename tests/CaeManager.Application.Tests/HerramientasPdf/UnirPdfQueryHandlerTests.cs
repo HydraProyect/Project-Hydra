@@ -275,7 +275,8 @@ public class UnirPdfQueryHandlerTests
         fuera.Valor.Estado.Should().Be(EstadoUnionPdf.EntradaRechazada);
         fuera.Valor.Posiciones.Should().Equal(1);
         fuera.Valor.CodigoRechazo.Should().Be(ErroresUnirPdf.DocumentoNoDisponible);
-        _registro.Registrados.Should().BeEmpty();
+        _registro.Registrados.Should().Equal([(seguro.Id, TipoAccesoDocumentoSensible.Apertura)],
+            "se abrió el Documento anterior; el de fuera de cartera nunca se abrió y no deja registro");
     }
 
     [Fact]
@@ -332,7 +333,7 @@ public class UnirPdfQueryHandlerTests
     // ---- Firma electrónica
 
     [Fact]
-    public async Task Un_PDF_firmado_sin_confirmar_avisa_con_sus_posiciones_y_no_une_ni_registra_nada()
+    public async Task Un_PDF_firmado_sin_confirmar_avisa_con_sus_posiciones_y_no_une_pero_registra_la_apertura_de_lo_abierto()
     {
         var seguro = DocumentoDeEmpresa("SEGURO[firmado]");
 
@@ -342,7 +343,8 @@ public class UnirPdfQueryHandlerTests
         resultado.Valor.Posiciones.Should().Equal(1, 2);
         resultado.Valor.Contenido.Should().BeNull("sin confirmar no se entrega nada");
         _unidor.Unidos.Should().BeEmpty();
-        _registro.Registrados.Should().BeEmpty("no se entregó nada, así que no hay acceso que registrar");
+        _registro.Registrados.Should().Equal([(seguro.Id, TipoAccesoDocumentoSensible.Apertura)],
+            "el Documento se abrió para detectar la firma: es una lectura aunque aún no se una nada");
     }
 
     [Fact]
@@ -431,7 +433,8 @@ public class UnirPdfQueryHandlerTests
         var resultado = await UnirAsync([Subido("a.pdf", "A"), new EntradaUnionDocumento(corrupto.Id)]);
 
         resultado.Valor.CodigoRechazo.Should().Be(ErroresUnirPdf.NoEsPdf);
-        _registro.Registrados.Should().BeEmpty();
+        _registro.Registrados.Should().Equal([(corrupto.Id, TipoAccesoDocumentoSensible.Apertura)],
+            "el archivo se abrió para comprobarlo: es una lectura aunque no salga PDF");
     }
 
     // ---- Montaje

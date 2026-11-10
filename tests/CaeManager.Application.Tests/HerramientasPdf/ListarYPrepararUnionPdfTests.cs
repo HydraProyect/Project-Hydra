@@ -1,6 +1,8 @@
 using System.Text;
 using CaeManager.Application.HerramientasPdf;
+using CaeManager.Application.Plataforma;
 using CaeManager.Application.Tests.Clientes;
+using CaeManager.Application.Tests.Common;
 using CaeManager.Application.Tests.Documentos;
 using CaeManager.Application.Tests.Plantillas;
 using CaeManager.Application.Tests.Proyectos;
@@ -8,6 +10,7 @@ using CaeManager.Application.Tests.TiposDocumento;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Documentos;
 using CaeManager.Domain.Empresas;
+using CaeManager.Domain.Plataforma;
 using CaeManager.Domain.Trabajadores;
 using FluentAssertions;
 using Xunit;
@@ -32,6 +35,8 @@ public class ListarYPrepararUnionPdfTests
     private readonly TipoDocumento _seguro = new("Seguro RC", vigenciaMeses: null, aplicaVencimientoAutomatico: false, orden: 1, AmbitoAplicacion.Empresa);
     private readonly TipoDocumento _reconocimiento = new("Reconocimiento médico", vigenciaMeses: null, aplicaVencimientoAutomatico: false, orden: 2, AmbitoAplicacion.Trabajador);
     private bool _disponible = true;
+    private string? _rol = "GestorCae";
+    private SesionPrivilegiadaActiva? _sesionPrivilegiada;
 
     public ListarYPrepararUnionPdfTests()
     {
@@ -44,6 +49,31 @@ public class ListarYPrepararUnionPdfTests
     }
 
     // ---- Listar
+
+    [Theory]
+    [InlineData("Cliente")]
+    [InlineData("Lector")]
+    [InlineData(null)]
+    public async Task Un_rol_que_no_escribe_no_recibe_el_listado_de_Documentos(string? rol)
+    {
+        _rol = rol;
+        _documentos.ListaDocumentos.Add(Documento.DeEmpresa(_empresa.Id, _seguro.Id, Hoy.AddDays(-5), VigenciaDocumento.NoCaduca, "seguro.pdf"));
+
+        var resultado = await ListarAsync(_empresa.Id);
+
+        resultado.Error.Codigo.Should().Be(ErroresUnirPdf.RolSinAcceso);
+    }
+
+    [Fact]
+    public async Task Una_Sesion_Privilegiada_de_plataforma_no_recibe_el_listado_de_Documentos()
+    {
+        _sesionPrivilegiada = new SesionPrivilegiadaActiva(Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), CapacidadPrivilegio.AdminPlataforma, null);
+        _documentos.ListaDocumentos.Add(Documento.DeEmpresa(_empresa.Id, _seguro.Id, Hoy.AddDays(-5), VigenciaDocumento.NoCaduca, "seguro.pdf"));
+
+        var resultado = await ListarAsync(_empresa.Id);
+
+        resultado.Error.Codigo.Should().Be(ErroresUnirPdf.SesionPrivilegiadaSinLectura);
+    }
 
     [Fact]
     public async Task Lista_los_Documentos_con_archivo_de_la_Empresa_y_de_sus_Trabajadores_y_ningun_otro()
@@ -163,12 +193,19 @@ public class ListarYPrepararUnionPdfTests
 
     private Task<Result<IReadOnlyList<DocumentoParaUnirDto>>> ListarAsync(Guid empresaId, AlcanceDatosServiceFalso? alcance = null) =>
         new ListarDocumentosParaUnirQueryHandler(
-            new Disponibilidad(_disponible), _empresas, _documentos, _trabajadores, _tipos, _proyectos, alcance ?? new AlcanceDatosServiceFalso())
+            new Disponibilidad(_disponible), _empresas, _documentos, _trabajadores, _tipos, _proyectos, alcance ?? new AlcanceDatosServiceFalso(),
+            new CurrentUserServiceFalso(rol: _rol), new SesionPrivilegiadaFija(_sesionPrivilegiada))
             .Handle(new ListarDocumentosParaUnirQuery(empresaId), CancellationToken.None);
 
     private Task<Result<InfoPdfParaUnir>> Preparar(UnidorFijo unidor, byte[] contenido, string nombre) =>
         new PrepararUnionPdfQueryHandler(new Disponibilidad(_disponible), unidor)
             .Handle(new PrepararUnionPdfQuery(contenido, nombre), CancellationToken.None);
+
+    private sealed class SesionPrivilegiadaFija(SesionPrivilegiadaActiva? sesion) : ISesionPrivilegiadaActual
+    {
+        public Task<SesionPrivilegiadaActiva?> ObtenerAsync(CancellationToken cancellationToken = default) => Task.FromResult(sesion);
+        public Task<SesionPrivilegiadaActiva?> RevalidarAsync(CancellationToken cancellationToken = default) => Task.FromResult(sesion);
+    }
 
     private sealed class Disponibilidad(bool disponible) : IDisponibilidadHerramientasPdf
     {

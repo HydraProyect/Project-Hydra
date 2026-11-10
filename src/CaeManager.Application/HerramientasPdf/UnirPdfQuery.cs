@@ -33,12 +33,13 @@ public sealed record EntradaUnionDocumento(Guid DocumentoId) : EntradaUnionPdf;
 /// <item>Rol: solo los que escriben leen documentos para sacarlos de TALVEG (lista blanca, como el paquete de Empresa 360); una
 /// Sesión Privilegiada de plataforma no lee Documentos aquí (la misma decisión provisional que ese paquete).</item>
 /// </list>
-/// DEC-36: cada Documento que entra en el PDF unido cuenta como una apertura y se registra si es sensible, igual que una
-/// descarga normal, antes de entregar nada y solo tras haber unido con éxito. El registro falla en cerrado y es atómico.
+/// DEC-36: cada Documento cuyo archivo se abre cuenta como una apertura y se registra si es sensible, igual que una descarga
+/// normal, salga o no el PDF unido (un PDF rechazado o una firma sin confirmar también revelan algo del Documento), y antes de
+/// devolver nada. El registro falla en cerrado y es atómico; un Documento que no se llegó a abrir no deja registro.
 /// </summary>
 /// <param name="ConfirmaPerderFirmas">
 /// Si algún PDF lleva firma electrónica, sin esto no se une: se responde <see cref="EstadoUnionPdf.FirmasSinConfirmar"/> con
-/// las posiciones afectadas, sin leer más ni registrar acceso alguno.
+/// las posiciones afectadas, sin unir nada (los Documentos ya abiertos para comprobarlo sí dejan su registro de apertura).
 /// </param>
 public record UnirPdfQuery(
     IReadOnlyList<EntradaUnionPdf> Entradas, Guid TenantEsperadoId, Guid EmpresaGestionadaId, bool ConfirmaPerderFirmas)
@@ -83,11 +84,35 @@ public class UnirPdfQueryHandler(
     ITransaccionDeComando transaccion)
     : IRequestHandler<UnirPdfQuery, Result<ResultadoUnionPdf>>
 {
-    // Los mismos literales que AutorizacionPaqueteEmpresa y AutorizacionEscrituraBehavior: Application no referencia
-    // Infrastructure.Identity.Roles.
-    private static readonly string[] RolesQueLeenDocumentos = ["Administrador", "DireccionCae", "CoordinadorCae", "GestorCae"];
-
     public async Task<Result<ResultadoUnionPdf>> Handle(UnirPdfQuery request, CancellationToken cancellationToken)
+    {
+        var abiertos = new HashSet<Guid>();
+        var resultado = await UnirAsync(request, abiertos, cancellationToken);
+        if (abiertos.Count == 0)
+            return resultado;
+
+        // DEC-36: abrir el archivo de un Documento es leerlo, salga o no el PDF unido (un PDF rechazado, una firma sin
+        // confirmar o un tope superado también revelan algo de él). Todas las aperturas o ninguna, y antes de devolver
+        // nada: sin constancia no hay resultado. La señal de extracción masiva se emite solo tras confirmar (ver
+        // DescargarPaqueteEmpresaQueryHandler, del que se copia el mecanismo).
+        ILoteAccesosSensibles? lote = null;
+        var confirmada = await transaccion.EjecutarAsync(async ct =>
+        {
+            lote = registroAcceso.IniciarLote();
+            foreach (var documentoId in abiertos)
+                await lote.RegistrarSiSensibleAsync(documentoId, TipoAccesoDocumentoSensible.Apertura, ct);
+            return Result.Exito();
+        }, cancellationToken);
+
+        if (confirmada.EsFallido)
+            return Result.Fallo<ResultadoUnionPdf>(confirmada.Error);
+        if (lote is not null)
+            await lote.EmitirSenalesAsync(CancellationToken.None);
+
+        return resultado;
+    }
+
+    private async Task<Result<ResultadoUnionPdf>> UnirAsync(UnirPdfQuery request, HashSet<Guid> abiertos, CancellationToken cancellationToken)
     {
         if (!await disponibilidad.EstaDisponibleAsync(cancellationToken))
             return Fallo(ErroresUnirPdf.NoDisponible, "Herramientas PDF no está disponible.");
@@ -108,10 +133,8 @@ public class UnirPdfQueryHandler(
         if (documentoIds.Count > 0)
         {
             // Tenant propietario y alcance antes de abrir nada. Solo lo que lee Documentos pide rol y descarta la Sesión Privilegiada.
-            if (await sesionPrivilegiadaActual.ObtenerAsync(cancellationToken) is not null)
-                return Fallo(ErroresUnirPdf.SesionPrivilegiadaSinLectura, "Una sesión privilegiada de plataforma no puede leer documentos para unirlos.");
-            if (await currentUserService.ObtenerRolEfectivoAsync() is not { } rol || !RolesQueLeenDocumentos.Contains(rol))
-                return Fallo(ErroresUnirPdf.RolSinAcceso, "Tu rol no permite leer documentos para unirlos.");
+            if (await DocumentosUnibles.RechazoDeLecturaAsync(sesionPrivilegiadaActual, currentUserService, cancellationToken) is { } rechazoDeLectura)
+                return Result.Fallo<ResultadoUnionPdf>(rechazoDeLectura);
 
             archivos = await ArchivosDeLosDocumentosAsync(request.EmpresaGestionadaId, documentoIds, cancellationToken);
         }
@@ -127,7 +150,7 @@ public class UnirPdfQueryHandler(
         {
             for (var posicion = 0; posicion < entradas.Count; posicion++)
             {
-                var leido = await LeerAsync(entradas[posicion], archivos, lecturaDeDocumentos, cancellationToken);
+                var leido = await LeerAsync(entradas[posicion], archivos, lecturaDeDocumentos, abiertos, cancellationToken);
                 if (leido.Rechazo is { } rechazo)
                     return Result.Exito(ResultadoUnionPdf.Rechazada(posicion, rechazo));
 
@@ -162,25 +185,6 @@ public class UnirPdfQueryHandler(
         if (!unido.EsExitoso)
             return Result.Exito(ResultadoUnionPdf.Rechazada(0, CodigoDeEntrada(unido.Error.Codigo)));
 
-        // Todas las aperturas o ninguna, y antes de entregar: sin constancia no hay PDF. La señal de extracción masiva se
-        // emite solo tras confirmar (ver DescargarPaqueteEmpresaQueryHandler, del que se copia el mecanismo).
-        if (documentoIds.Count > 0)
-        {
-            ILoteAccesosSensibles? lote = null;
-            var confirmada = await transaccion.EjecutarAsync(async ct =>
-            {
-                lote = registroAcceso.IniciarLote();
-                foreach (var documentoId in documentoIds)
-                    await lote.RegistrarSiSensibleAsync(documentoId, TipoAccesoDocumentoSensible.Apertura, ct);
-                return Result.Exito();
-            }, cancellationToken);
-
-            if (confirmada.EsFallido)
-                return Result.Fallo<ResultadoUnionPdf>(confirmada.Error);
-            if (lote is not null)
-                await lote.EmitirSenalesAsync(CancellationToken.None);
-        }
-
         var nombre = $"{ArmadoPaqueteDocumental.SanearSegmento(empresa.RazonSocial).Replace(' ', '-')}_unido_{DiaDeNegocio.Hoy():yyyy-MM-dd}.pdf";
         return Result.Exito(new ResultadoUnionPdf(EstadoUnionPdf.Unido, unido.Valor.Contenido, nombre, unido.Valor.NumeroPaginas, [], null));
     }
@@ -202,7 +206,8 @@ public class UnirPdfQueryHandler(
     }
 
     private async Task<(byte[]? Contenido, string? Rechazo)> LeerAsync(
-        EntradaUnionPdf entrada, Dictionary<Guid, string> archivos, Dictionary<Guid, byte[]> yaLeidos, CancellationToken cancellationToken)
+        EntradaUnionPdf entrada, Dictionary<Guid, string> archivos, Dictionary<Guid, byte[]> yaLeidos, HashSet<Guid> abiertos,
+        CancellationToken cancellationToken)
     {
         switch (entrada)
         {
@@ -220,6 +225,7 @@ public class UnirPdfQueryHandler(
                 try
                 {
                     await using var flujo = await almacenamiento.AbrirAsync(clave, cancellationToken);
+                    abiertos.Add(documento.DocumentoId);
                     // Lo almacenado puede pasar del tope por archivo de una subida (un PDF unificado), pero nunca del total.
                     if (flujo.CanSeek && flujo.Length > LimitesUnionPdf.TamanoMaximoTotalBytes)
                         return (null, ErroresUnirPdf.DemasiadoGrande);

@@ -1,6 +1,7 @@
 using CaeManager.Application.Common;
 using CaeManager.Application.Documentos;
 using CaeManager.Application.Empresas;
+using CaeManager.Application.Plataforma;
 using CaeManager.Application.Proyectos;
 using CaeManager.Application.TiposDocumento;
 using CaeManager.Application.Trabajadores;
@@ -31,6 +32,25 @@ internal static class DocumentosUnibles
 {
     /// <summary>Tope del listado de la pantalla; por encima se pide acotar la Empresa, no se pagina.</summary>
     public const int MaximoListados = 500;
+
+    // Los mismos literales que AutorizacionPaqueteEmpresa y AutorizacionEscrituraBehavior: Application no referencia
+    // Infrastructure.Identity.Roles.
+    private static readonly string[] RolesQueLeenDocumentos = ["Administrador", "DireccionCae", "CoordinadorCae", "GestorCae"];
+
+    /// <summary>
+    /// Código de rechazo si quien pide no puede leer Documentos de un Tenant para sacarlos de TALVEG; <c>null</c> si puede. Una
+    /// Sesión Privilegiada de plataforma no lee (decisión provisional del paquete de Empresa 360) y solo leen los roles que
+    /// escriben. Lo aplican el listado y la unión: el listado entrega nombres de titulares y tipos de Documento.
+    /// </summary>
+    public static async Task<Error?> RechazoDeLecturaAsync(
+        ISesionPrivilegiadaActual sesionPrivilegiadaActual, ICurrentUserService currentUserService, CancellationToken cancellationToken)
+    {
+        if (await sesionPrivilegiadaActual.ObtenerAsync(cancellationToken) is not null)
+            return Error.Crear(ErroresUnirPdf.SesionPrivilegiadaSinLectura, "Una sesión privilegiada de plataforma no puede leer documentos para unirlos.");
+        if (await currentUserService.ObtenerRolEfectivoAsync() is not { } rol || !RolesQueLeenDocumentos.Contains(rol))
+            return Error.Crear(ErroresUnirPdf.RolSinAcceso, "Tu rol no permite leer documentos para unirlos.");
+        return null;
+    }
 
     public static async Task<List<Guid>> TrabajadorIdsAsync(
         Guid empresaId, ITrabajadoresQueryContext trabajadoresContext, IAlcanceDatosService alcanceDatos, CancellationToken cancellationToken)
@@ -66,7 +86,9 @@ public class ListarDocumentosParaUnirQueryHandler(
     ITrabajadoresQueryContext trabajadoresContext,
     ITiposDocumentoQueryContext tiposContext,
     IProyectosQueryContext proyectosContext,
-    IAlcanceDatosService alcanceDatos)
+    IAlcanceDatosService alcanceDatos,
+    ICurrentUserService currentUserService,
+    ISesionPrivilegiadaActual sesionPrivilegiadaActual)
     : IRequestHandler<ListarDocumentosParaUnirQuery, Result<IReadOnlyList<DocumentoParaUnirDto>>>
 {
     public async Task<Result<IReadOnlyList<DocumentoParaUnirDto>>> Handle(
@@ -78,6 +100,9 @@ public class ListarDocumentosParaUnirQueryHandler(
         if (await DocumentosUnibles.EmpresaGestionableAsync(request.EmpresaGestionadaId, empresasContext, alcanceDatos, cancellationToken) is null)
             return Result.Fallo<IReadOnlyList<DocumentoParaUnirDto>>(Error.Crear(
                 ErroresUnirPdf.EmpresaNoGestionable, "La Empresa gestionada no existe o queda fuera de tu cartera."));
+
+        if (await DocumentosUnibles.RechazoDeLecturaAsync(sesionPrivilegiadaActual, currentUserService, cancellationToken) is { } rechazo)
+            return Result.Fallo<IReadOnlyList<DocumentoParaUnirDto>>(rechazo);
 
         var trabajadorIds = await DocumentosUnibles.TrabajadorIdsAsync(request.EmpresaGestionadaId, trabajadoresContext, alcanceDatos, cancellationToken);
         var candidatos = await DocumentosUnibles.De(documentosContext, request.EmpresaGestionadaId, trabajadorIds)

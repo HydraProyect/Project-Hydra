@@ -128,7 +128,7 @@ public partial class UnirPdf : CaeManager.Web.Components.PaginaInteractiva, IDis
     private async Task CambiarEmpresaAsync(string valor)
     {
         var nueva = Identificador(valor);
-        if (nueva == _empresaId)
+        if (nueva == _empresaId || _uniendo)
             return;
 
         // Los Documentos de la Empresa anterior no se unen en la nueva.
@@ -176,7 +176,8 @@ public partial class UnirPdf : CaeManager.Web.Components.PaginaInteractiva, IDis
 
     private void AnadirDocumento(DocumentoParaUnirDto documento)
     {
-        if (_elementos.Count >= LimitesUnionPdf.MaximoFicheros || _elementos.Any(e => e.DocumentoId == documento.Id))
+        // Mientras se une, la lista no se toca: UnirAsync la recorre con esperas y quitar un elemento rompería su lectura.
+        if (_uniendo || _elementos.Count >= LimitesUnionPdf.MaximoFicheros || _elementos.Any(e => e.DocumentoId == documento.Id))
             return;
 
         _firmasPendientes = [];
@@ -187,7 +188,7 @@ public partial class UnirPdf : CaeManager.Web.Components.PaginaInteractiva, IDis
 
     private async Task CargarArchivosAsync(InputFileChangeEventArgs evento)
     {
-        if (_cargando || _almacen is null || !PuedeAnadir)
+        if (_cargando || _uniendo || _almacen is null || !PuedeAnadir)
             return;
 
         IReadOnlyList<IBrowserFile> archivos;
@@ -283,7 +284,7 @@ public partial class UnirPdf : CaeManager.Web.Components.PaginaInteractiva, IDis
     private void Mover(int posicion, int salto)
     {
         var destino = posicion + salto;
-        if (posicion < 0 || posicion >= _elementos.Count || destino < 0 || destino >= _elementos.Count)
+        if (_uniendo || posicion < 0 || posicion >= _elementos.Count || destino < 0 || destino >= _elementos.Count)
             return;
 
         _firmasPendientes = [];
@@ -292,7 +293,7 @@ public partial class UnirPdf : CaeManager.Web.Components.PaginaInteractiva, IDis
 
     private void Quitar(int posicion)
     {
-        if (posicion < 0 || posicion >= _elementos.Count)
+        if (_uniendo || posicion < 0 || posicion >= _elementos.Count)
             return;
 
         _firmasPendientes = [];
@@ -316,7 +317,7 @@ public partial class UnirPdf : CaeManager.Web.Components.PaginaInteractiva, IDis
             using (subidos > 0 ? await PresupuestoMemoria.ReservarAsync(subidos, _ciclo.Token) : null)
             {
                 var entradas = new List<EntradaUnionPdf>(_elementos.Count);
-                foreach (var elemento in _elementos)
+                foreach (var elemento in _elementos.ToList())
                 {
                     entradas.Add(elemento.DocumentoId is { } documentoId
                         ? new EntradaUnionDocumento(documentoId)
