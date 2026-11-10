@@ -449,7 +449,8 @@
                         @Chip(FiltroTrabajadores.Todos, Textos["ChipTodos", r.Total])
                         @Chip(FiltroTrabajadores.SinDocumentacionValida, Textos["ChipSinValida", r.SinDocumentacionValida])
                         @Chip(FiltroTrabajadores.PorVencer, Textos["ChipPorVencer", r.PorVencer])
-                        @Chip(FiltroTrabajadores.AlDia, Textos["ChipAlDia", r.AlDia])
+                        @* «Sin confirmar» cuenta como al día, con aviso: el chip lo dice para no contradecir las filas con esa pastilla. *@
+                        @Chip(FiltroTrabajadores.AlDia, r.AlDiaSinConfirmar > 0 ? Textos["ChipAlDiaConSinConfirmar", r.AlDia, r.AlDiaSinConfirmar] : Textos["ChipAlDia", r.AlDia])
                     </div>
                     <BuscadorLista Placeholder="@Textos["BuscadorTrabajadores"]" Valor="@_busqueda" ValorChanged="BuscarAsync" />
                 </div>

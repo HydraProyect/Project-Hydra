@@ -1214,6 +1214,8 @@ public partial class Trabajador360Gen2Tests : BunitContext
         var botones = detalle.QuerySelectorAll(".fila-relacion-acciones button");
         botones.Select(b => b.TextContent.Trim()).Should().Equal(["Gestionar", "Gestionar", "Gestionar"]);
         botones.Select(b => b.ClassList.Contains("gestionar-discreto")).Should().Equal([false, false, true]);
+        // Mismo patrón que Centro 360 › Trabajadores (#2142): botón secundario, no enlace de texto.
+        botones.Should().OnlyContain(b => b.ClassList.Contains("boton-secundario") && b.ClassList.Contains("accion-gestionar-documento"));
         detalle.TextContent.Should().NotContain("Nave Berriz", "solo se despliega el centro sobre el que se pulsó");
     }
 
