@@ -69,8 +69,8 @@ public class VisionCarteraPulidoCssTests
         ambito.Should().Contain("align-items: flex-start").And.Contain("text-align: left");
         ambito.Should().NotContain("flex-end").And.NotContain("text-align: right");
 
-        // La caja de acciones ocupa su propia línea: baja bajo el título en vez de ir al borde derecho.
-        Regla(css, ".contenedor-pagina ::deep .acciones-cabecera").Should().Contain("flex: 0 0 100%");
+        // La caja de acciones ocupa su propia línea: baja bajo el título en vez de ir al borde derecho (solo si lleva el ámbito: vacía no añade hueco).
+        Regla(css, ".contenedor-pagina ::deep .acciones-cabecera:has(.ambito-cartera)").Should().Contain("flex: 0 0 100%");
 
         // Ninguna regla alinea a la derecha el ámbito, ni siquiera con ancho de sobra.
         css.Should().NotContain("@media (min-width: 1280px)");
@@ -93,6 +93,8 @@ public class VisionCarteraPulidoCssTests
         bloque.Should().Contain(".tabla-organizaciones td[data-etiqueta]::before").And.Contain("content: attr(data-etiqueta)");
         bloque.Should().Contain(".tabla-organizaciones thead").And.Contain("clip-path: inset(50%)", "la cabecera se oculta a la vista, no del lector de pantalla");
         bloque.Should().Contain(".tabla-organizaciones td.celda-accion-organizacion").And.Contain("grid-column: 1 / -1");
+        // list-page.css pone white-space: nowrap a las celdas hasta 767 px: sin anularlo, un nombre largo o la insignia de bloqueos desbordarían la ficha.
+        bloque.Should().Contain("white-space: normal").And.Contain("overflow-wrap: anywhere").And.Contain(".tabla-organizaciones ::deep .bloqueos-organizacion");
     }
 
     /// <summary>Defecto 2 (1024 px): las tarjetas de actividad solo van en tres columnas con ancho para su etiqueta; sin elipsis, la etiqueta envuelve.</summary>

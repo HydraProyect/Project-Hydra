@@ -637,6 +637,8 @@ public class VisionCarteraGen2Tests : BunitContext
 
         var tabla = cut.Find(".tarjeta-organizaciones-riesgo table.tabla-organizaciones");
         tabla.ClassList.Should().Contain("tabla-datos");
+        tabla.GetAttribute("role").Should().Be("table", "con display block/grid el navegador pierde la semántica de tabla: los roles la conservan");
+        cut.FindAll(".tarjeta-organizaciones-riesgo tbody tr").Should().OnlyContain(f => f.GetAttribute("role") == "row");
         foreach (var fila in tabla.QuerySelectorAll("tbody tr"))
         {
             var celdas = fila.QuerySelectorAll("td");
