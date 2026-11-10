@@ -105,6 +105,19 @@ public class SubcontratasConCentrosDeClienteTests
         m.Enviadas.OfType<ObtenerAsignacionesDocumentacionPorCentroQuery>().Should().BeEmpty();
     }
     [Fact]
+    public async Task Centro_visible_sin_Trabajadores_sigue_en_el_resultado_con_cero_de_cero()
+    {
+        var m = Datos();
+        var vacio = Guid.NewGuid();
+        m.Propios.Add(new(vacio, "Sin trabajadores", "Empresa propia"));
+        m.Centros.Add(new(new(vacio, "Sin trabajadores", "Cliente", 1), new(0, 0), null));
+        m.SinTrabajadores.Add(vacio);
+        var centros = (await Leer(m)).Single().Centros;
+        centros.Select(c => c.Centro.Id).Should().Equal(_centro, vacio);
+        centros[1].Cumplimiento.Should().Be(new FraccionCumplimiento(0, 0));
+        centros[1].PeorEstado.Should().BeNull();
+    }
+    [Fact]
     public async Task Usuario_fuera_de_cartera_solo_pide_el_lote_de_sus_Centros_visibles()
     {
         var m = Datos();
@@ -122,6 +135,8 @@ public class SubcontratasConCentrosDeClienteTests
         public List<SubcontrataDeClienteDto> Subcontratas { get; } = [];
         public List<CentroCumplimientoSubcontrataDto> Centros { get; } = [];
         public List<object> Enviadas { get; } = [];
+        /// <summary>Como el lote real: un Centro sin Asignación activa no trae clave en el diccionario.</summary>
+        public HashSet<Guid> SinTrabajadores { get; } = [];
         public Task<TResponse> Send<TResponse>(IRequest<TResponse> request, CancellationToken ct = default)
         {
             Enviadas.Add(request);
@@ -130,7 +145,7 @@ public class SubcontratasConCentrosDeClienteTests
                 ObtenerCentrosDeClienteQuery => Propios,
                 ObtenerSubcontratasDeClienteQuery => Subcontratas,
                 ObtenerCentrosConActividadDeSubcontrataQuery => Centros.Select(c => c.Centro).ToList(),
-                ObtenerCumplimientoDeAsignacionesPorCentrosQuery q => (IReadOnlyDictionary<Guid, IReadOnlyList<CumplimientoDeAsignacionDto>>)q.CentroIds.ToDictionary(id => id, id => Documentos(id)),
+                ObtenerCumplimientoDeAsignacionesPorCentrosQuery q => (IReadOnlyDictionary<Guid, IReadOnlyList<CumplimientoDeAsignacionDto>>)q.CentroIds.Where(id => !SinTrabajadores.Contains(id)).ToDictionary(id => id, id => Documentos(id)),
                 _ => throw new NotSupportedException()
             };
             return Task.FromResult((TResponse)respuesta);
