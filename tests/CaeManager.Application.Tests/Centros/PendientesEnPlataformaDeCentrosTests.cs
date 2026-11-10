@@ -1,4 +1,5 @@
 using CaeManager.Application.Centros;
+using CaeManager.Application.Documentos.Acreditacion;
 using CaeManager.Application.Tests.Documentos;
 using CaeManager.Domain.Centros;
 using CaeManager.Domain.Documentos;
@@ -52,6 +53,34 @@ public class PendientesEnPlataformaDeCentrosTests
                 p.CentroId == centro.Id && p.EmpresaId == mundo.EmpresaId && p.TrabajadorId == null
                 && p.DocumentoId == documento.Id && p.TipoDocumentoId == tipo.Id
                 && p.EstadoAcreditacion == EstadoAcreditacion.PendienteDeSubir);
+    }
+
+    /// <summary>
+    /// Las dos mitades de la decisión del 2026-11-08 juntas, con los servicios REALES: el alta
+    /// (<see cref="IAltaAcreditacionesPlataformaService"/>, #2074) acredita al documento de Empresa en el Centro de su
+    /// Empresa sin Trabajadores asignados, y el cargador (esta PR) lo cuenta como Pendiente. Cada mitad por separado ya
+    /// está probada; esta fija que no se desacoplen (ni el alta con la regla antigua, ni el cargador con el filtro por actividad).
+    /// </summary>
+    [Fact]
+    public async Task El_alta_acredita_un_documento_de_Empresa_en_su_Centro_sin_Trabajadores_y_el_Centro_lo_cuenta_como_Pendiente_y_no_en_el_de_otra_Empresa()
+    {
+        var mundo = new MundoAcreditaciones();
+        var (centroPropio, plataformaPropia) = CentroConPlataforma(mundo, mundo.EmpresaId);
+        var (centroAjeno, _) = CentroConPlataforma(mundo, Guid.NewGuid());
+        var tipo = mundo.Tipo(RequisitoDocumental.Si, AmbitoAplicacion.Empresa, "RNT");
+        var documento = mundo.DocumentoDeEmpresa(tipo);
+
+        var agregadas = await mundo.Servicio().AgregarPendientesAsync(new AltasConAcreditacion { Documentos = [documento] });
+        mundo.Guardar();
+
+        agregadas.Should().Be(1, "solo el Centro de su Empresa lo exige, aunque nadie esté asignado allí");
+        var pendientes = await Cargar(mundo, centroPropio, centroAjeno);
+        pendientes.Should().ContainSingle("el Centro de otra Empresa sin Trabajadores suyos no acredita ni cuenta")
+            .Which.Should().Match<PendienteEnPlataformaDeCentro>(p =>
+                p.CentroId == centroPropio.Id && p.EmpresaId == mundo.EmpresaId && p.TrabajadorId == null
+                && p.DocumentoId == documento.Id && p.EstadoAcreditacion == EstadoAcreditacion.PendienteDeSubir);
+        mundo.DocumentosContexto.ListaAcreditacionesDocumentoPlataforma.Should().ContainSingle()
+            .Which.CanalGestionDocumentalId.Should().Be(plataformaPropia.Id);
     }
 
     [Fact]
