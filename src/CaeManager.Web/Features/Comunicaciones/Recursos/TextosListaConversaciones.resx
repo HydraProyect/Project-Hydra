@@ -36,7 +36,7 @@
   <data name="SinResultados" xml:space="preserve"><value>Sin resultados</value></data>
   <data name="SinResultadosAyuda" xml:space="preserve"><value>Prueba con otro término o quita los filtros.</value></data>
   <data name="SinConversaciones" xml:space="preserve"><value>No quedan conversaciones</value></data>
-  <data name="SinConversacionesAyuda" xml:space="preserve"><value>Los mensajes nuevos entrarán en su buzón.</value></data>
+  <data name="SinConversacionesAyuda" xml:space="preserve"><value>Los mensajes nuevos aparecerán aquí.</value></data>
   <data name="QuitarFiltros" xml:space="preserve"><value>Quitar los filtros</value></data>
   <data name="TipoMensaje" xml:space="preserve"><value>Tipo de mensaje</value></data>
   <data name="RespuestaPublica" xml:space="preserve"><value>Respuesta pública</value></data>
@@ -45,7 +45,7 @@
   <data name="Mias" xml:space="preserve"><value>Mías</value></data>
   <data name="EsperandoCliente" xml:space="preserve"><value>Esperando al Cliente</value></data>
   <data name="BuscarBuzon" xml:space="preserve"><value>Buscar en el buzón</value></data>
-  <data name="BuscarPlaceholder" xml:space="preserve"><value>Buscar en el asunto y en el texto de los correos</value></data>
+  <data name="BuscarPlaceholder" xml:space="preserve"><value>Buscar en el asunto y en el texto de los mensajes</value></data>
   <data name="RecuentoConversacion" xml:space="preserve"><value>{0} conversación</value></data>
   <data name="SiguienteConversacion" xml:space="preserve"><value>Siguiente conversación</value></data>
   <data name="ResumenCerrada" xml:space="preserve"><value>Cerrada</value></data>

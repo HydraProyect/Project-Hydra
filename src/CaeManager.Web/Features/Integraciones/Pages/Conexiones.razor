@@ -22,11 +22,6 @@
             @TextosCx["Subtitulo"]
             @TextosCx["EnlaceDiagnostico"] <a href="/comunicaciones/buzon">@TextosCx["EnlaceDiagnosticoVinculo"]</a>.
         </Descripcion>
-        <Acciones>
-            @* E31: «Añadir buzón» es un botón secundario a la derecha del título; sigue siendo el enlace que arranca la
-               conexión de Microsoft 365 con el propietario elegido más abajo. *@
-            <a class="enlace-conectar-microsoft" href="@UrlConectar">@TextosCx["AnadirBuzon"]</a>
-        </Acciones>
     </CabeceraPagina>
 
     <AtajosListaTeclado OnAtajo="ManejarAtajoAsync" />
@@ -54,6 +49,8 @@
                 <option value="@gestor.Id">@gestor.NombreCompleto</option>
             }
         </CampoSelect>
+
+        <a class="enlace-conectar-microsoft" href="@UrlConectar">Conectar buzón de Microsoft 365 <span aria-hidden="true">↗</span></a>
     </div>
 
     @if (_cargando)

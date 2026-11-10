@@ -113,7 +113,7 @@ public class TextosSinLocalizarCongeladosTests
         //   («(var i = 0; i», «(numero», «.ToString("dd/MM/yy HH:mm")») y los corchetes anidados de
         //   @Textos[ClavesPasos[i]] y @Textos["BotonContinuarConPlantilla", Textos[…].Value].
         ["Importacion"] = 18,
-        ["Integraciones"] = 86, // 93 → 86 el 2026-11-10 al migrar a TextosConexiones.resx el subtítulo y el pie de Buzones; 91 → 93 el 2026-11-09 SIN migrar a .resx: TituloDePaginaSinPrerender repite en C# el literal del PageTitle (páginas InteractiveServer sin prerender); baja cuando el título se localice.
+        ["Integraciones"] = 87, // 93 → 87 el 2026-11-10 al migrar a TextosConexiones.resx el subtítulo y el pie de Buzones; 91 → 93 el 2026-11-09 SIN migrar a .resx: TituloDePaginaSinPrerender repite en C# el literal del PageTitle (páginas InteractiveServer sin prerender); baja cuando el título se localice.
         ["Plantillas"] = 159, // 158 → 159 el 2026-11-09 SIN migrar a .resx: TituloDePaginaSinPrerender repite en C# el literal del PageTitle (páginas InteractiveServer sin prerender); baja cuando el título se localice.
         ["Plataforma"] = 74,
         ["Retencion"] = 86, // 85 → 86 el 2026-11-09 SIN migrar a .resx: TituloDePaginaSinPrerender repite en C# el literal del PageTitle (páginas InteractiveServer sin prerender); baja cuando el título se localice.

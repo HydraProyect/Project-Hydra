@@ -917,6 +917,9 @@ public partial class Bandeja : CaeManager.Web.Components.PaginaInteractiva, IAsy
             if (carga != _cargaDetalleVigente) return;
 
             _errorDetalle = true;
+            // Sin hilo ni contexto de la conversación anterior: la columna de acciones no puede operar sobre otra (revisión puente).
+            _detalle = null;
+            _clienteActivo = null;
             ToastService.Mostrar(ErroresTextos["ErrorAbrirConversacion"].Value, TonoToast.Error);
         }
         finally

@@ -370,7 +370,7 @@ public class ComunicacionesGen2Tests : BunitContext
         cabecera.QuerySelectorAll("button").Select(b => b.TextContent.Trim()).Should().Contain("Nuevo correo")
             .And.NotContain("Redactar");
         var buscador = cabecera.QuerySelector("input")!;
-        buscador.GetAttribute("placeholder").Should().Be("Buscar en el asunto y en el texto de los correos");
+        buscador.GetAttribute("placeholder").Should().Be("Buscar en el asunto y en el texto de los mensajes");
 
         cut.FindAll(".bandeja-lista-cabecera").Should().BeEmpty("el título y la acción subieron a la cabecera de la página");
         cut.FindAll(".bandeja-toolbar").Should().BeEmpty(
@@ -526,6 +526,7 @@ public class ComunicacionesGen2Tests : BunitContext
         escenario.Detalle = id => DetalleDe(escenario.Conversaciones.Single(c => c.Id == id));
         var (cut, _) = Renderizar(escenario);
         await SeleccionarFila(cut, "Primera conversación");
+        cut.FindAll(".bandeja-cliente").Should().NotBeEmpty("control positivo: con la primera abierta hay columna de contexto");
 
         escenario.Interceptar = p => p is ObtenerConversacionPorIdQuery q && q.Id == segunda.Id
             ? Task.FromException<object?>(new InvalidOperationException("boom"))
@@ -535,6 +536,7 @@ public class ComunicacionesGen2Tests : BunitContext
         cut.Find(".bandeja-centro .estado-vacio h3").TextContent.Trim().Should().Be("No pudimos abrir la conversación");
         cut.Find(".bandeja-centro").TextContent.Should().NotContain("Primera conversación",
             "el hilo anterior no puede quedar bajo la selección nueva");
+        cut.FindAll(".bandeja-cliente").Should().BeEmpty("la columna de contexto y de acciones tampoco puede operar sobre la conversación anterior");
 
         escenario.Interceptar = _ => null;
         await Boton(cut, ".bandeja-centro .estado-vacio button", "Reintentar").ClickAsync(new MouseEventArgs());
@@ -896,7 +898,7 @@ public class ComunicacionesGen2Tests : BunitContext
         cut.Markup.Should()
             .Contain("Esperando al Cliente")
             .And.Contain("Todos los Clientes")
-            .And.Contain("Los mensajes nuevos entrarán en su buzón.");
+            .And.Contain("Los mensajes nuevos aparecerán aquí.");
 
         cut.Markup.Should()
             .NotContain("Esperando cliente")

@@ -13,16 +13,13 @@
     <value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
   </resheader>
   <data name="Subtitulo" xml:space="preserve">
-    <value>TALVEG només llegeix les bústies d'aquesta llista. Cada connexió pertany a una Empresa sense rol CAE, a l'organització pròpia o a la bústia personal d'un Gestor CAE.</value>
+    <value>Bústies de Microsoft 365 connectades a Comunicacions. Cada connexió pertany a una Empresa sense rol CAE, a l'organització pròpia o a la bústia personal d'un Gestor CAE.</value>
   </data>
   <data name="EnlaceDiagnostico" xml:space="preserve">
     <value>Per investigar una connexió concreta (carpetes, missatges a Graph que encara no han arribat per webhook), fes servir l'</value>
   </data>
   <data name="EnlaceDiagnosticoVinculo" xml:space="preserve">
     <value>explorador tècnic de la bústia (diagnòstic)</value>
-  </data>
-  <data name="AnadirBuzon" xml:space="preserve">
-    <value>Afegeix una bústia</value>
   </data>
   <data name="PieBuzones" xml:space="preserve">
     <value>La bústia personal d'un Gestor CAE només la veu el seu propietari; la resta de bústies alimenten les converses compartides de Comunicacions.</value>

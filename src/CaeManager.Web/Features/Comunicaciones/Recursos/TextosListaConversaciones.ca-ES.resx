@@ -36,7 +36,7 @@
   <data name="SinResultados" xml:space="preserve"><value>Sense resultats</value></data>
   <data name="SinResultadosAyuda" xml:space="preserve"><value>Prova amb un altre terme o treu els filtres.</value></data>
   <data name="SinConversaciones" xml:space="preserve"><value>No queden converses</value></data>
-  <data name="SinConversacionesAyuda" xml:space="preserve"><value>Els missatges nous entraran a la seva bústia.</value></data>
+  <data name="SinConversacionesAyuda" xml:space="preserve"><value>Els missatges nous apareixeran aquí.</value></data>
   <data name="QuitarFiltros" xml:space="preserve"><value>Treure els filtres</value></data>
   <data name="TipoMensaje" xml:space="preserve"><value>Tipus de missatge</value></data>
   <data name="RespuestaPublica" xml:space="preserve"><value>Resposta pública</value></data>
@@ -45,7 +45,7 @@
   <data name="Mias" xml:space="preserve"><value>Meves</value></data>
   <data name="EsperandoCliente" xml:space="preserve"><value>Esperant el Client</value></data>
   <data name="BuscarBuzon" xml:space="preserve"><value>Cercar a la bústia</value></data>
-  <data name="BuscarPlaceholder" xml:space="preserve"><value>Cercar a l’assumpte i al text dels correus</value></data>
+  <data name="BuscarPlaceholder" xml:space="preserve"><value>Cercar a l’assumpte i al text dels missatges</value></data>
   <data name="RecuentoConversacion" xml:space="preserve"><value>{0} conversa</value></data>
   <data name="SiguienteConversacion" xml:space="preserve"><value>Conversa següent</value></data>
   <data name="ResumenCerrada" xml:space="preserve"><value>Tancada</value></data>
