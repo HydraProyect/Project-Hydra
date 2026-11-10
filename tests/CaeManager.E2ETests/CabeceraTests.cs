@@ -58,11 +58,23 @@ public class CabeceraTests(WebAppFixture fixture)
         var cabecera = page.Locator(".cabecera-fija");
         await Assertions.Expect(cabecera).Not.ToHaveAttributeAsync("data-desplazada", "");
 
-        // Se fuerza altura: la pantalla de aterrizaje puede ser más corta que el visor.
-        await page.EvaluateAsync("document.body.style.minHeight = '3000px'; window.scrollTo(0, 400)");
+        // El que desplaza es main.contenido (el shell mide la ventana), no el documento. Se fuerza altura dentro de él:
+        // la pantalla de aterrizaje puede ser más corta que el visor.
+        await page.EvaluateAsync("""
+            () => {
+                const c = document.getElementById('contenido-principal');
+                const relleno = document.createElement('div');
+                relleno.style.height = '3000px';
+                c.appendChild(relleno);
+                c.scrollTop = 400;
+            }
+            """);
         await Assertions.Expect(cabecera).ToHaveAttributeAsync("data-desplazada", "");
+        // El documento no desborda (sin doble barra): con el relleno dentro, lo que crece es main.contenido.
+        Assert.True(await page.EvaluateAsync<bool>(
+            "() => document.documentElement.scrollHeight <= document.documentElement.clientHeight"));
 
-        await page.EvaluateAsync("window.scrollTo(0, 0)");
+        await page.EvaluateAsync("document.getElementById('contenido-principal').scrollTop = 0");
         await Assertions.Expect(cabecera).Not.ToHaveAttributeAsync("data-desplazada", "");
     }
 

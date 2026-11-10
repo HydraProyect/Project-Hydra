@@ -347,7 +347,8 @@ public partial class SubcontrataDetalle : CaeManager.Web.Components.PaginaIntera
         await CargarCentrosAsync();
         if (generacion != _generacion) return;
 
-        // Mismo motivo que EmpresaDetalle: en el prerenderizado estático no hay circuito que vaya a usar el dato.
+        // Guarda defensiva, mismo motivo que EmpresaDetalle: la página ya no se prerenderiza; si volviera a hacerlo,
+        // en el prerenderizado estático no habría circuito que fuera a usar el dato. Hoy la condición es siempre cierta.
         if (RendererInfo.IsInteractive)
             await CargarDobleFactorAsync();
         if (generacion != _generacion) return;

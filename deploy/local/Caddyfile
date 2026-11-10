@@ -9,8 +9,9 @@
 # Este Caddy es el único proceso de la máquina que puede ocupar el 80/443, así
 # que también sirve el segundo dominio de staging (ver
 # docker-compose.staging.yml) en vez de que staging levante su propio Caddy —
-# dos Caddy no pueden competir por los mismos puertos del host. La ACME_EMAIL
-# de arriba aplica a los certificados de ambos dominios.
+# dos Caddy no pueden competir por los mismos puertos del host. Por lo mismo
+# sirve la web pública de talveg.es y www.talveg.es (bloques del final). La
+# ACME_EMAIL de arriba aplica a los certificados de todos esos dominios.
 {
 	email {$ACME_EMAIL}
 }
@@ -82,4 +83,119 @@ staging.talveg.es {
 		import /etc/caddy/ranuras/staging.caddy
 		import relevo_app
 	}
+}
+
+# Web pública estática de talveg.es (el ápice) y su www. La sirve este mismo
+# Caddy por la razón de la cabecera: es el único proceso de la máquina que
+# puede ocupar el 80/443, así que un servidor web aparte no podría escuchar ahí.
+#
+# Los ficheros de la web NO viven en este repositorio ni en el checkout de
+# /opt/talveg (que cada despliegue mueve a otro SHA con `git checkout
+# --detach`): se suben a mano a /srv/talveg-web del host, que el compose monta
+# de solo lectura en el mismo camino. Así un despliegue de la aplicación no
+# toca la web, y subir la web no exige desplegar, siempre que se escriba
+# DENTRO del directorio (rsync o cp al contenido): sustituir el directorio
+# entero (rm -rf + mv) deja al contenedor viendo el viejo hasta recrearlo,
+# igual que pasa con un bind de fichero suelto.
+#
+# Los bloques de la aplicación ({$DOMINIO} y staging.talveg.es) no cambian:
+# estos dos bloques solo añaden nombres de sitio nuevos, con su certificado
+# propio, y no comparten cabeceras ni rutas con ellos.
+#
+# Cabeceras de seguridad aquí y no en los HTML, para que valgan también en
+# fuentes, imágenes y la página de error. Sin Content-Security-Policy de
+# momento: las páginas llevan estilos en línea y una CSP útil exige quitarlos
+# o enumerar sus hashes; queda como incremento aparte. Sin includeSubDomains en
+# HSTS: el ápice no decide por los subdominios de la aplicación. Sin brotli:
+# el Caddy de serie no lo trae; zstd y gzip bastan.
+(cabeceras_web_publica) {
+	header {
+		Strict-Transport-Security "max-age=31536000"
+		X-Content-Type-Options "nosniff"
+		Referrer-Policy "strict-origin-when-cross-origin"
+		X-Frame-Options "DENY"
+		Permissions-Policy "camera=(), microphone=(), geolocation=()"
+		-Server
+	}
+}
+
+talveg.es {
+	root * /srv/talveg-web
+	encode zstd gzip
+	import cabeceras_web_publica
+
+	# Caché larga solo para /estatico/ (fuentes, imágenes, JS). Lo demás (el
+	# HTML) va con no-cache: el navegador revalida cada vez (304 si no cambió)
+	# en vez de aplicar una caché heurística por Last-Modified que podría
+	# servir días una página ya cambiada. Un fichero de /estatico/ que cambie de
+	# contenido tiene que cambiar de nombre, o tarda hasta una semana en verse.
+	@no_estatico not path /estatico/*
+	header /estatico/* Cache-Control "public, max-age=604800"
+	header @no_estatico Cache-Control "no-cache"
+
+	# Rutas de la web anterior (agosto) que aún pueden estar enlazadas o
+	# indexadas: /login lleva a la aplicación y /en/ ya no existe. Con y sin
+	# barra final.
+	@login_antiguo path /login /login/
+	@ingles_antiguo path /en /en/*
+	redir @login_antiguo https://app.talveg.es/ 301
+	redir @ingles_antiguo / 301
+
+	# Ni listado de directorios (no hay `browse`) ni ficheros o carpetas que
+	# empiecen por punto (.git, .env, .DS_Store) si se suben por descuido.
+	# Excepción única: /.well-known/, que la web publica a propósito (p. ej.
+	# tdmrep.json, la reserva de minería de textos y datos, señal legal) y que
+	# `hide .*` ocultaría porque compara cada componente de la ruta. Se sirve en
+	# su propio `handle`, sin el hide; lo demás sigue oculto por defecto en vez
+	# de depender de una lista de nombres que siempre se queda corta. Dentro de
+	# /.well-known/ no se oculta nada: se sirve entera, así que ahí se sube solo
+	# lo que se publica. Los retos ACME no pasan por aquí: Caddy los atiende
+	# antes de las rutas del sitio.
+	#
+	# file_server SIGUE los enlaces simbólicos, también los que apuntan fuera
+	# de la raíz, y dentro de este contenedor está /data con las claves
+	# privadas TLS de todos los dominios. La raíz no es una frontera: la web se
+	# sube sin enlaces (rsync --no-links, o comprobar que `find /srv/talveg-web
+	# -type l` sale vacío). Caddy no tiene opción para no seguirlos.
+	handle /.well-known/* {
+		file_server
+	}
+	file_server {
+		hide .*
+	}
+
+	# Página 404 propia con su código 404, no un 200. Cualquier otro error (405
+	# a un POST, 403, 5xx) va al segundo manejador, con un cuerpo de texto con
+	# su código. Si falta /404.html, el 404 sale vacío.
+	#
+	# Lo que la ruta principal ya fijó en la respuesta (el Cache-Control de
+	# arriba) llega al error; el bloque de cabeceras de seguridad, que va
+	# diferido por llevar el borrado de Server, no. Medido el 2026-11-09 con la
+	# imagen del compose: sin este import el 404 salía sin HSTS ni
+	# X-Frame-Options y con Server, pero con el Cache-Control de la ruta. Por
+	# eso cada manejador importa las cabeceras y fija no-store: si no, un 404
+	# bajo /estatico/ (HTML subido antes que su CSS) quedaría en caché una
+	# semana. no-store y no no-cache: con no-cache, la revalidación del 404
+	# podría acabar en un 304 por fechas si el fichero subido después conserva
+	# una fecha de modificación anterior (rsync -a la conserva).
+	handle_errors 404 {
+		import cabeceras_web_publica
+		header Cache-Control "no-store"
+		rewrite * /404.html
+		file_server {
+			status 404
+		}
+	}
+	handle_errors {
+		import cabeceras_web_publica
+		header Cache-Control "no-store"
+		respond "{err.status_code} {err.status_text}" {err.status_code}
+	}
+}
+
+# www solo redirige al ápice, conservando ruta y consulta; lleva las mismas
+# cabeceras para que el primer salto ya fije HSTS.
+www.talveg.es {
+	import cabeceras_web_publica
+	redir https://talveg.es{uri} permanent
 }

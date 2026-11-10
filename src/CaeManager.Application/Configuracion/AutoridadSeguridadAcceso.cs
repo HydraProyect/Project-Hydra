@@ -6,11 +6,20 @@ using Microsoft.EntityFrameworkCore;
 namespace CaeManager.Application.Configuracion;
 
 /// <summary>
-/// Quién puede cambiar la seguridad de acceso de un Tenant: su propio Administrador, leído en la
-/// base (<see cref="IAdministradorDelTenantPropietario"/>), como con el contacto de seguridad. Con
-/// otro Tenant seleccionado por la vía de Operación, un Gestor CAE o el Administrador del Operador
-/// CAE externo no pasan, y Soporte TALVEG en Sesión Privilegiada tampoco. El Tenant es siempre el
-/// actual, nunca un parámetro.
+/// Quién puede cambiar la seguridad de acceso de un Tenant desde <c>/configuracion</c>: su propio
+/// Administrador, leído en la base (<see cref="IAdministradorDelTenantPropietario"/>), como con el
+/// contacto de seguridad. Con otro Tenant seleccionado por la vía de Operación, un Gestor CAE o el
+/// Administrador del Operador CAE externo no pasan, y un Actor de Plataforma TALVEG en Sesión
+/// Privilegiada tampoco por esta vía. El Tenant es siempre el actual, nunca un parámetro.
+///
+/// <para>
+/// Existe además una vía de plataforma, acotada (decisiones del 2026-11-08): un Actor de Plataforma
+/// TALVEG, dentro de una Sesión Privilegiada con la capacidad <c>AjusteSegundoFactorTenant</c>
+/// sobre ese Tenant, cambia <b>solo</b> la exigencia de segundo factor con
+/// <c>CambiarSegundoFactorDelTenantPorPlataformaCommand</c> y la función
+/// <c>app_cambiar_segundo_factor_tenant_por_plataforma</c>, que audita el acto. El plazo de
+/// inactividad lo sigue fijando únicamente el Administrador del Tenant.
+/// </para>
 ///
 /// <para>
 /// El Tenant de plataforma queda fuera: sus cuentas son las de los Actores de Plataforma TALVEG, que

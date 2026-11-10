@@ -115,7 +115,7 @@
     <value>Centros con bloqueo</value>
   </data>
   <data name="AnilloAlDiaDetalle" xml:space="preserve">
-    <value>{0} de {1} documentos de Trabajador al día (vigentes, por vencer y sin caducidad)</value>
+    <value>{0} de {1} documentos de Trabajador al día (vigentes, por vencer y sin caducidad). Mide los documentos subidos: los que faltan no cuentan aquí, y sí en Empresas y en las fichas de Empresa y de Trabajador.</value>
   </data>
   <data name="KpiCentrosBloqueadosUno" xml:space="preserve">
     <value>1 centro con trabajadores bloqueados</value>
@@ -124,9 +124,9 @@
     <value>{0} centros con trabajadores bloqueados</value>
   </data>
   <data name="KpiVigentesAlDia" xml:space="preserve">
-    <value>{0} más al día (por vencer o sin caducidad)</value>
+    <value>+{0} por vencer o sin caducidad = {1} al día</value>
   </data>
   <data name="KpiVigentesNoAlDia" xml:space="preserve">
-    <value>{0} no al día (vencidos o sin confirmar)</value>
+    <value>{0} de {1} no al día (vencidos o sin confirmar)</value>
   </data>
 </root>

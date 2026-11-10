@@ -576,7 +576,8 @@ public class RolesGen2Tests : BunitContext
         await Pestana(cut, "roles").KeyDownAsync(new KeyboardEventArgs { Key = "ArrowDown" });
 
         Pestana(cut, "roles").GetAttribute("aria-selected").Should().Be("true");
-        JSInterop.Invocations.Should().BeEmpty("sin pestaña destino no hay foco que pedir");
+        JSInterop.Invocations.Where(i => i.Identifier is not ("import" or "fijarTitulo" or "liberar"))
+            .Should().BeEmpty("sin pestaña destino no hay foco que pedir (el título de la pestaña del navegador importa y llama a su módulo, y eso no es foco)");
     }
 
     /// <summary>

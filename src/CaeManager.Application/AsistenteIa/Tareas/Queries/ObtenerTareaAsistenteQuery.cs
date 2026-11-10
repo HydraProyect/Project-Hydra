@@ -36,7 +36,8 @@ public record PasoTareaAsistenteDto(
     IReadOnlyList<AvisoPasoTareaAsistente> Avisos,
     bool AsistidoPorIa,
     EstadoPasoTareaAsistente Estado,
-    string? MotivoFallo);
+    string? MotivoFallo,
+    Guid? EntidadResultadoId = null);
 
 public class ObtenerTareaAsistenteQueryHandler(
     ITareasAsistenteQueryContext contexto,
@@ -83,6 +84,6 @@ public class ObtenerTareaAsistenteQueryHandler(
             turnos,
             pasos.Select(p => new PasoTareaAsistenteDto(
                 p.Id, p.Posicion, p.OrdenAsistenteId, p.DatosJson, p.Resumen, p.CamposPendientes, p.Avisos,
-                p.AsistidoPorIa, p.Estado, p.MotivoFallo)).ToList()));
+                p.AsistidoPorIa, p.Estado, p.MotivoFallo, p.EntidadResultadoId)).ToList()));
     }
 }

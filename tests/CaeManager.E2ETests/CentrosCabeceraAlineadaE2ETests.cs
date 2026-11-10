@@ -44,6 +44,7 @@ public class CentrosCabeceraAlineadaE2ETests(WebAppFixtureListados fixture)
                 filas: filas.length,
                 columnas: cabecera.length,
                 rotulos: cabecera.filter(h => h.textContent.trim()).length,
+                conEmpresa: !!document.querySelector('.columna-empresa-centro-cabecera'),
                 desvios
             };
         }
@@ -145,10 +146,17 @@ public class CentrosCabeceraAlineadaE2ETests(WebAppFixtureListados fixture)
                 Assert.Equal(0, caja.GetProperty("borde").GetDouble());
                 Assert.Equal(0, caja.GetProperty("radio").GetDouble());
             }
-            await page.EvaluateAsync("() => window.scrollTo(0, 0)");
+            // El que desplaza es main.contenido (el shell mide la ventana): la captura parte de arriba de él.
+            await page.EvaluateAsync("() => document.getElementById('contenido-principal')?.scrollTo({ top: 0, behavior: 'instant' })");
             var carpeta = Path.Combine(Path.GetTempPath(), "centros-fidelidad-local");
             Directory.CreateDirectory(carpeta);
+            // El shell mide la ventana, así que el documento nunca es más alto que ella y FullPage recortaría la captura al
+            // alto de la ventana. Para ver .contenido entero se agranda la ventana hasta que le cabe todo, y se restaura.
+            var altoVentana = await page.EvaluateAsync<int>(
+                "() => { const c = document.getElementById('contenido-principal'); return c ? Math.ceil(c.scrollHeight + window.innerHeight - c.clientHeight) : window.innerHeight; }");
+            await page.SetViewportSizeAsync(1266, Math.Clamp(altoVentana, 800, 12000));
             await page.ScreenshotAsync(new() { Path = Path.Combine(carpeta, $"centros-{tema}.png"), FullPage = true });
+            await page.SetViewportSizeAsync(1266, 800);
         }
     }
 
@@ -173,8 +181,11 @@ public class CentrosCabeceraAlineadaE2ETests(WebAppFixtureListados fixture)
 
             // Sin filas, sin rótulos o con otra cabecera no habría nada que comparar y el test pasaría en vacío.
             Assert.True(medicion.GetProperty("filas").GetInt32() > 0, $"[{contexto}] la lista sembrada no tiene filas a la vista: no hay nada que medir.");
-            Assert.Equal(columnas, medicion.GetProperty("columnas").GetInt32());
-            Assert.Equal(4, medicion.GetProperty("rotulos").GetInt32());
+            // «Empresa» solo es columna si los Centros visibles son de más de una Empresa (MostrarColumnaEmpresa) y las opciones del filtro
+            // ya llegaron: se lee en la MISMA medición que las columnas, para que un cambio entre medias no dé una falsa discrepancia.
+            var conEmpresa = medicion.GetProperty("conEmpresa").GetBoolean();
+            Assert.Equal(conEmpresa ? columnas : columnas - 1, medicion.GetProperty("columnas").GetInt32());
+            Assert.Equal(conEmpresa ? 4 : 3, medicion.GetProperty("rotulos").GetInt32());
 
             var desvios = medicion.GetProperty("desvios").EnumerateArray().Select(d => d.GetString()).ToList();
             Assert.True(desvios.Count == 0, $"[{contexto}] la cabecera no coincide con sus celdas:{Environment.NewLine}{string.Join(Environment.NewLine, desvios.Take(12))}");

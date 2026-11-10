@@ -82,6 +82,16 @@ public sealed class PuertaAccesoDatos
     private readonly AsyncLocal<bool> _flujoDentro = new();
     private volatile bool _cerrada;
 
+    // Solo medición (Server-Timing «puerta»): cuánto se espera en la cola del
+    // semáforo. No cambia cuándo se entra ni quién entra.
+    private readonly CosteCarga? _coste;
+
+    public PuertaAccesoDatos()
+    {
+    }
+
+    public PuertaAccesoDatos(CosteCarga coste) => _coste = coste;
+
     /// <summary>
     /// <c>true</c> cuando el scope ya no admite operaciones nuevas (ver
     /// <see cref="CerrarAsync"/>).
@@ -135,7 +145,9 @@ public sealed class PuertaAccesoDatos
         if (_cerrada)
             throw new OperationCanceledException(MensajePuertaCerrada);
 
+        var inicioEspera = System.Diagnostics.Stopwatch.GetTimestamp();
         await _puerta.WaitAsync(cancellationToken);
+        _coste?.RegistrarEsperaPuerta(System.Diagnostics.Stopwatch.GetElapsedTime(inicioEspera));
         // SemaphoreSlim.WaitAsync puede conceder el semáforo aunque el token ya
         // estuviera cancelado en el momento del Release() de quien lo tenía: es
         // una carrera de la propia BCL entre "cancelar" y "liberar", no algo que

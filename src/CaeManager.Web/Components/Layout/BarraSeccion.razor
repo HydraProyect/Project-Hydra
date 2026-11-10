@@ -18,8 +18,9 @@
 
     Solo señala: cada pestaña es un enlace corriente y la pantalla de destino decide quién entra. Una
     pestaña que el rol no ve no se pinta, y con menos de dos visibles no se pinta la barra. Es un islote
-    porque tiene que seguir la navegación interna del circuito (LocationChanged), incluido el cambio de
-    pestaña de Documentos, que solo cambia el ?pestana= de la URL.
+    porque tiene que seguir la navegación interna del circuito (LocationChanged). Sobre /documentos no se
+    pinta (esa página lleva su propia barra, con Revisión IA e Incidencias): sí en /incidencias y en
+    /documentos/revision-ia.
 *@
 <LimiteDeErrores Islote="this">
 @if (_seccion is { } seccion)
@@ -82,6 +83,12 @@
         var ruta = Navigation.ToBaseRelativePath(uri).Split('?', '#')[0].Trim('/');
         var consulta = QueryHelpers.ParseQuery(new Uri(uri).Query);
         var pestana = consulta.TryGetValue("pestana", out var valor) ? valor.ToString() : null;
+
+        // /documentos lleva su propia barra de pestañas (Estado, Plataformas CAE, Reclamaciones, Preventivo, Revisión IA,
+        // Plantillas e Incidencias): pintar además esta repetía «Revisión IA» y apilaba dos barras. Las pantallas
+        // hermanas (/incidencias, /documentos/revision-ia) siguen con esta barra, que lleva de vuelta a Documentos.
+        if (string.Equals(ruta, "documentos", StringComparison.OrdinalIgnoreCase))
+            return null;
 
         var contexto = new ContextoMenuLateral(_usuario, _vista, false, false, default, VariosTenants: false);
         return CatalogoSeccionesMenu.Resolver(ruta, pestana, contexto);

@@ -109,6 +109,48 @@ public class CampoSelectAvanzadoTests : BunitContext
     }
 
     [Fact]
+    public async Task El_buscador_solo_recibe_valor_del_servidor_al_sembrarlo_desde_el_disparador()
+    {
+        var cut = Renderizar(buscable: true);
+
+        // Teclear sobre el disparador cerrado abre la lista y siembra la búsqueda en el input.
+        await Teclear(Disparador(cut), "m");
+        Buscador(cut).GetAttribute("value").Should().Be("m");
+
+        // Lo que se escribe en el propio input no se reenvía: un render en cola no pisa lo que el usuario ve.
+        await Buscador(cut).InputAsync(new ChangeEventArgs { Value = "medica" });
+        Buscador(cut).GetAttribute("value").Should().Be("m");
+        cut.FindAll("li[role=option]").Should().ContainSingle().Which.GetAttribute("data-valor").Should().Be("b");
+
+        // Cerrar y reabrir empieza de cero: el input nuevo no hereda la siembra anterior.
+        await Teclear(Buscador(cut), "Escape");
+        await Disparador(cut).ClickAsync(new MouseEventArgs());
+        (Buscador(cut).GetAttribute("value") ?? string.Empty).Should().BeEmpty();
+        cut.FindAll("li[role=option]").Should().HaveCount(4);
+    }
+
+    [Fact]
+    public async Task Sin_TextoSinResultados_el_vacio_usa_el_texto_comun()
+    {
+        var anterior = System.Globalization.CultureInfo.CurrentUICulture;
+        try
+        {
+            System.Globalization.CultureInfo.CurrentUICulture = new("es");
+            var cut = Renderizar(buscable: true);
+            await Disparador(cut).ClickAsync(new MouseEventArgs());
+
+            await Buscador(cut).InputAsync(new ChangeEventArgs { Value = "zzz" });
+
+            cut.FindAll("li[role=option]").Should().BeEmpty();
+            cut.Find(".csa-panel").TextContent.Should().Contain("Ninguna opción coincide con la búsqueda.");
+        }
+        finally
+        {
+            System.Globalization.CultureInfo.CurrentUICulture = anterior;
+        }
+    }
+
+    [Fact]
     public async Task Abierto_enlaza_disparador_y_lista_y_marca_la_opcion_actual()
     {
         var cut = Renderizar();

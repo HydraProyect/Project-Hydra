@@ -150,11 +150,10 @@ public class FlujoCicloDocumentalTests(WebAppFixture fixture)
         await Ayudas.NavegarYEsperarAsync(page, $"{fixture.BaseUrl}/documentos");
         await page.Locator("[data-keytip-contenedor=\"N\"]").GetByRole(AriaRole.Button, new() { Name = "+ Nuevo documento", Exact = true }).ClickAsync();
 
-        await drawer.GetByLabel("Trabajador", new LocatorGetByLabelOptions { Exact = true })
-            .FillAsync($"{nombreTrabajador} {apellidosTrabajador} ({razonSocialEmpresa})");
-        // El debounce del servidor resuelve el Id del Trabajador sin exponer su resultado en el DOM.
-        await page.WaitForTimeoutAsync(500);
-        await drawer.GetByLabel("Tipo de documento").SelectOptionAsync(new SelectOptionValue { Label = nombreTipoDocumento });
+        await Ayudas.ElegirOpcionEnSelectorAvanzadoPorTextoAsync(page,
+            drawer.GetByLabel("Trabajador", new LocatorGetByLabelOptions { Exact = true }),
+            $"{nombreTrabajador} {apellidosTrabajador} ({razonSocialEmpresa})");
+        await Ayudas.ElegirOpcionEnSelectorAvanzadoPorTextoAsync(page, drawer.GetByLabel("Tipo de documento"), nombreTipoDocumento);
 
         var hoy = Ayudas.HoyDeNegocio();
         await drawer.GetByLabel("Fecha de emisión", new LocatorGetByLabelOptions { Exact = true }).FillAsync(hoy.ToString("yyyy-MM-dd"));
@@ -180,11 +179,11 @@ public class FlujoCicloDocumentalTests(WebAppFixture fixture)
         var filaDocumento = page.GetByRole(AriaRole.Row, new() { Name = apellidosTrabajador });
         await filaDocumento.WaitForAsync(new LocatorWaitForOptions { Timeout = 15_000 });
         // Desde el 2026-10-08 Urgente y Próximo comparten la pastilla «Por vencer» (ámbar); lo que
-        // dice que está a 10 días —dentro del umbral rojo— es el motivo de debajo.
+        // dice que está a 10 días —dentro del umbral rojo— es el relativo de «Vence» (Estado ya no lo repite).
         var insigniaEstado = filaDocumento.Locator(".badge-advertencia");
         await insigniaEstado.WaitForAsync(new LocatorWaitForOptions { Timeout = 15_000 });
         Assert.Equal("Por vencer", (await insigniaEstado.InnerTextAsync()).Trim());
-        Assert.Matches("^Caduca en (9|10|11) días$", (await filaDocumento.Locator(".estado-fila-motivo").InnerTextAsync()).Trim());
+        Assert.Matches("^en (9|10|11) días$", (await filaDocumento.Locator(".documentos-vigencia-subtitulo").InnerTextAsync()).Trim());
 
         // --- Paso 5 (IA + Validación): la revisión IA aparece y se resuelve ---
         // /documentos/revision-ia carga sus datos una sola vez al entrar
@@ -244,19 +243,15 @@ public class FlujoCicloDocumentalTests(WebAppFixture fixture)
         // contiene "centro" como subcadena (visto en CI —
         // "strict mode violation... resolved to 2 elements").
         //
-        // CampoBuscarSelect resuelve por texto EXACTO de la opción — y la
-        // opción de Centro no es solo el nombre: OpcionesCentrosParaAsignar
+        // La opción de Centro no es solo el nombre: OpcionesCentrosParaAsignar
         // (Trabajadores.razor.cs) la construye como "{Nombre} ({Cliente})"
         // para poder distinguir centros del mismo nombre en clientes
-        // distintos. Rellenar solo con nombreCentro no coincidía con
-        // ninguna opción — _centroIdParaAsignar se quedaba vacío y
-        // "Asignar" fallaba en silencio con el toast "Selecciona un
-        // centro.", sin cerrar el modal (visto en CI: timeout esperando a
-        // que ".modal-pie" desapareciera).
-        await page.Locator(".modal-cuerpo").GetByLabel("Centro", new LocatorGetByLabelOptions { Exact = true })
-            .FillAsync($"{nombreCentro} ({razonSocialCliente})");
-        // El debounce del servidor resuelve el Id del Centro; sin documentos faltantes no hay señal visible.
-        await page.WaitForTimeoutAsync(500);
+        // distintos. Se busca y se pulsa esa opción en el combobox
+        // (CampoBuscarSelect); sin elegirla, "Asignar" falla con el toast
+        // "Selecciona un centro." y el modal no se cierra.
+        await Ayudas.ElegirOpcionEnSelectorAvanzadoPorTextoAsync(page,
+            page.Locator(".modal-cuerpo").GetByLabel("Centro", new LocatorGetByLabelOptions { Exact = true }),
+            $"{nombreCentro} ({razonSocialCliente})");
         // El botón de confirmar cambia de texto a "Asignar igualmente" si al
         // comprobarlo faltaba algún documento de los que se piden (ver
         // Trabajadores.razor.cs, ObtenerDocumentosFaltantesParaAsignacionQuery)

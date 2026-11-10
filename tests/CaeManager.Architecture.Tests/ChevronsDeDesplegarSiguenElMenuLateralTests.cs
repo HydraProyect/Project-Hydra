@@ -34,6 +34,7 @@ public class ChevronsDeDesplegarSiguenElMenuLateralTests
         { "src/CaeManager.Web/Features/Bandeja/Pages/MiTrabajo.razor.css", ".mi-trabajo-chevron", ".mi-trabajo-chevron-plegado", null },
         { "src/CaeManager.Web/Features/Comunicaciones/Pages/Bandeja.razor.css", ".bandeja-grupo-caret", @".bandeja-grupo-cabecera[aria-expanded=""false""] .bandeja-grupo-caret", null },
         { "src/CaeManager.Web/Features/Visitas/Pages/VisitaDetalle.razor.css", ".visita360-grupo-plegar", @".visita360-grupo-plegar[aria-expanded=""false""]", null },
+        { "src/CaeManager.Web/Features/Centros/Pages/CentroDetalle.razor.css", ".centro-requisitos-chevron", ".centro-requisitos-chevron", ".centro-requisitos-bloque[open] > .centro-requisitos-cabecera .centro-requisitos-chevron" },
     };
 
     [Theory]

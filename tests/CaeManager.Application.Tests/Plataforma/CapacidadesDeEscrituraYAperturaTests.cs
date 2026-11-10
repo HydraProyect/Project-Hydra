@@ -25,7 +25,7 @@ public class CapacidadesDeEscrituraYAperturaTests
     {
         var esperado = capacidad is CapacidadPrivilegio.SoporteLectura or CapacidadPrivilegio.Aprovisionamiento
             or CapacidadPrivilegio.RestablecimientoSegundoFactor or CapacidadPrivilegio.RevocacionOperadorCaeExterno
-            or CapacidadPrivilegio.ConcesionAdministrador;
+            or CapacidadPrivilegio.ConcesionAdministrador or CapacidadPrivilegio.AjusteSegundoFactorTenant;
 
         CapacidadesQuePuedenAbrirSesion.Admite(capacidad).Should().Be(esperado);
     }

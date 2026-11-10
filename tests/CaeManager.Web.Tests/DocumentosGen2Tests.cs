@@ -424,7 +424,7 @@ public partial class DocumentosGen2Tests : BunitContext
         var (cut, _) = Renderizar();
 
         Pestanas(cut).Select(p => p.TextContent.Trim()).Should().BeEquivalentTo(
-            ["Estado", "Plataformas CAE", "Reclamaciones", "Preventivo", "Revisión IA", "Plantillas"],
+            ["Estado", "Plataformas CAE", "Reclamaciones", "Preventivo", "Revisión IA", "Plantillas", "Incidencias"],
             o => o.WithoutStrictOrdering(),
             "la píldora de recuento puede añadir texto, pero los rótulos son estos");
 
@@ -468,8 +468,8 @@ public partial class DocumentosGen2Tests : BunitContext
     }
 
     /// <summary>
-    /// «Todos los documentos» de la barra de sección enlaza a «documentos» sin parámetro: desde otra pestaña, la misma
-    /// instancia de la página solo ve desaparecer «?pestana=» y tiene que volver al listado (la barra la marca activa).
+    /// «Todos los documentos» (menú lateral, la barra de sección de /incidencias o un enlace guardado) apunta a «documentos» sin parámetro: desde otra pestaña, la misma
+    /// instancia de la página solo ve desaparecer «?pestana=» y tiene que volver al listado.
     /// </summary>
     [Fact]
     public void Quitar_el_parametro_pestana_de_la_URL_devuelve_el_listado()

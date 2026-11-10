@@ -45,8 +45,7 @@ public partial class SelectorClienteActivo
     [Inject] private IStringLocalizer<TextosComunes> Textos { get; set; } = default!;
     [Inject] private ILogger<ExcepcionDeCircuitoDesconectado> Logger { get; set; } = default!;
     [Inject] private ICurrentUserService CurrentUserService { get; set; } = default!;
-    [Inject] private PersistentComponentState EstadoPersistente { get; set; } = default!;
-    [Inject] private IServiceProvider Servicios { get; set; } = default!;
+    [Inject] private ContextoMarcoDelAmbito ContextoMarco { get; set; } = default!;
     [Inject] private IContadorPendientesSelectorTenant ContadorPendientes { get; set; } = default!;
     [Inject] private ILectorRecientesSelectorTenant LectorRecientes { get; set; } = default!;
     [Inject] private IJSRuntime JsRuntime { get; set; } = default!;
@@ -67,42 +66,6 @@ public partial class SelectorClienteActivo
     private bool _pendientesIniciados;
     private bool _desechado;
     private bool _puedeSolicitar;
-    private PersistingComponentStateSubscription _persistencia;
-    private PresentacionSelector? _presentacion;
-    private const string ClavePersistencia = "layout-selector-presentacion-v1";
-
-    // El estado persistido viaja de vuelta al servidor al arrancar el circuito, dentro del mensaje de SignalR
-    // (32 KB por defecto). Una cartera grande no se persiste: el circuito vuelve a leerla, como antes.
-    internal const int MaximoEmpresasPersistidas = 25;
-
-    /// <summary>
-    /// Contexto con el que se leyó lo que el prerenderizado deja al circuito: la misma clave que los memos del
-    /// layout (usuario, Tenant de origen, perfil que decide el alcance, Tenant efectivo y ámbito explícito) más el
-    /// Tenant beneficiario seleccionado. Si el circuito no ve exactamente el mismo, vuelve a leer.
-    /// </summary>
-    public sealed record ContextoPresentacion(ClaveContextoMemo Clave, Guid? Seleccionado);
-    public sealed record PresentacionSelector(ContextoPresentacion Contexto, DateTimeOffset Creado,
-        List<ClienteAutorizadoDto> Empresas, bool PuedeSolicitar);
-
-    private async Task<ContextoPresentacion?> ObtenerContextoPresentacionAsync(Guid? tenantSeleccionado)
-    {
-        // Con la lente de demo la lista es un recorte de la real: no se reutiliza entre ámbitos.
-        var vistaDemo = Servicios.GetService<CaeManager.Application.VistaDemo.IVistaDemoActual>();
-        if (vistaDemo is not null && await vistaDemo.ObtenerEfectivaAsync() is not null)
-            return null;
-        var tenantActual = Servicios.GetService<ITenantActual>();
-        return tenantActual is not null && await ClaveContextoMemo.ResolverAsync(CurrentUserService, tenantActual) is { } clave
-            ? new ContextoPresentacion(clave, tenantSeleccionado)
-            : null;
-    }
-
-    private Task PersistirPresentacionAsync()
-    {
-        // Solo presentación: el POST vuelve a autorizar la selección y mantiene su antiforgery propio.
-        if (_presentacion is { } presentacion)
-            EstadoPersistente.PersistAsJson(ClavePersistencia, presentacion);
-        return Task.CompletedTask;
-    }
 
     // Fijadas (Design, 2026-10-17). Viven en el localStorage del navegador (LIMITACIÓN CONOCIDA: por
     // usuario y por navegador, no viajan con la cuenta), y el módulo JS las lee y las guarda. Son una
@@ -377,7 +340,6 @@ public partial class SelectorClienteActivo
     public void Dispose()
     {
         _desechado = true;
-        _persistencia.Dispose();
         NavigationManager.LocationChanged -= AlNavegar;
     }
 
@@ -434,21 +396,14 @@ public partial class SelectorClienteActivo
     protected override async Task OnInitializedAsync()
     {
         var tenantSeleccionado = ClienteActivoSeleccionado.TenantIdSeleccionado;
-        ContextoPresentacion? contexto = null;
-        var restaurado = false;
         try
         {
-            contexto = await ObtenerContextoPresentacionAsync(tenantSeleccionado);
-            if (EstadoPersistente.TryTakeFromJson<PresentacionSelector>(ClavePersistencia, out var anterior)
-                && anterior is not null && contexto is not null && anterior.Contexto == contexto
-                && DateTimeOffset.UtcNow - anterior.Creado is var edad && edad >= TimeSpan.Zero && edad < MemoPorContexto.Caducidad)
-            {
-                _clientes = anterior.Empresas;
-                _puedeSolicitar = anterior.PuedeSolicitar;
-                restaurado = true;
-            }
-            else
-                _clientes = await Mediator.Send(new ObtenerClientesAutorizadosQuery());
+            // Del contexto del marco: un despacho por ámbito compartido con el menú y las migas, y en el circuito lo que
+            // dejó el prerenderizado si es del mismo contexto exacto (ContextoMarcoDelAmbito). Solo presentación: el
+            // POST vuelve a autorizar la selección y mantiene su antiforgery propio.
+            var marco = await ContextoMarco.ObtenerAsync();
+            _clientes = marco.ClientesAutorizados;
+            _puedeSolicitar = marco.ParticipaEnIncorporacionCartera;
         }
         catch (Exception ex) when (ExcepcionDeCircuitoDesconectado.Es(ex))
         {
@@ -477,19 +432,6 @@ public partial class SelectorClienteActivo
 
         try
         {
-            if (!restaurado)
-                _puedeSolicitar = await Mediator.Send(new CaeManager.Application.Operaciones.IncorporacionCartera.Queries.ParticipaEnIncorporacionCarteraQuery());
-            if (!restaurado && contexto is not null && _clientes.Count <= MaximoEmpresasPersistidas)
-                _presentacion = new(contexto, DateTimeOffset.UtcNow, _clientes.ToList(), _puedeSolicitar);
-        }
-        catch (Exception ex)
-        {
-            // «+ Solicitar» es una comodidad: sin la respuesta no se ofrece y el selector sigue funcionando.
-            Logger.LogWarning(ex, "SelectorClienteActivo descartó la consulta de participación en la incorporación a cartera: {TipoExcepcion}", ex.GetType().Name);
-        }
-
-        try
-        {
             _usuarioId = await CurrentUserService.ObtenerUsuarioActualIdAsync();
             if (_usuarioId is { } usuario)
                 _recientesIds = LectorRecientes.Leer(usuario);
@@ -498,6 +440,5 @@ public partial class SelectorClienteActivo
         {
             // Sin usuario no hay recientes ni contador; el selector sigue funcionando.
         }
-        _persistencia = EstadoPersistente.RegisterOnPersisting(PersistirPresentacionAsync);
     }
 }
