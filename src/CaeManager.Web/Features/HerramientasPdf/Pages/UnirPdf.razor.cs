@@ -81,7 +81,7 @@ public partial class UnirPdf : CaeManager.Web.Components.PaginaInteractiva, IDis
 
     private List<(ElementoUnion Elemento, int Posicion)> ElementosConPosicion => _elementos.Select((e, i) => (e, i)).ToList();
 
-    private bool PuedeUnir =>PuedeAnadir && !_uniendo && _elementos.Count >= LimitesUnionPdf.MinimoFicheros;
+    private bool PuedeUnir =>PuedeAnadir && !_uniendo && !_cargando && _elementos.Count >= LimitesUnionPdf.MinimoFicheros;
 
     private string? NombreEmpresaActiva => _empresas.FirstOrDefault(e => e.Id == _empresaId)?.RazonSocial;
 

@@ -166,6 +166,22 @@ public class UnirPdfQueryHandlerTests
     }
 
     [Fact]
+    public async Task Si_el_total_pasa_de_cincuenta_megas_el_Documento_ya_abierto_deja_su_Apertura()
+    {
+        var seguro = DocumentoDeEmpresa("SEGURO");
+        var nueve = new byte[9 * 1024 * 1024];
+        "%PDF-1.4 X"u8.CopyTo(nueve);
+        var entradas = new List<EntradaUnionPdf> { new EntradaUnionDocumento(seguro.Id) };
+        entradas.AddRange(Enumerable.Range(0, 6).Select(i => (EntradaUnionPdf)new EntradaUnionSubida(nueve, $"f{i}.pdf")));
+
+        var resultado = await UnirAsync(entradas);
+
+        resultado.Error.Codigo.Should().Be(ErroresUnirPdf.TotalDemasiadoGrande);
+        _registro.Registrados.Should().Equal([(seguro.Id, TipoAccesoDocumentoSensible.Apertura)],
+            "el Documento se abrió antes de superar el tope: es una lectura aunque el resultado sea un fallo");
+    }
+
+    [Fact]
     public async Task Si_las_paginas_suman_mas_de_quinientas_no_se_une_nada()
     {
         var resultado = await UnirAsync([Subido("a.pdf", "A[p=300]"), Subido("b.pdf", "B[p=201]")]);

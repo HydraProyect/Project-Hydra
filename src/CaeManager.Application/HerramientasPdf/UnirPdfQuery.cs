@@ -87,14 +87,34 @@ public class UnirPdfQueryHandler(
     public async Task<Result<ResultadoUnionPdf>> Handle(UnirPdfQuery request, CancellationToken cancellationToken)
     {
         var abiertos = new HashSet<Guid>();
-        var resultado = await UnirAsync(request, abiertos, cancellationToken);
+        Result<ResultadoUnionPdf> resultado;
+        try
+        {
+            resultado = await UnirAsync(request, abiertos, cancellationToken);
+        }
+        catch
+        {
+            // Una excepción tras abrir un Documento no borra la lectura: queda constancia y la excepción sigue su camino.
+            if (abiertos.Count > 0)
+                await RegistrarAperturasAsync(abiertos, CancellationToken.None);
+            throw;
+        }
+
         if (abiertos.Count == 0)
             return resultado;
 
-        // DEC-36: abrir el archivo de un Documento es leerlo, salga o no el PDF unido (un PDF rechazado, una firma sin
-        // confirmar o un tope superado también revelan algo de él). Todas las aperturas o ninguna, y antes de devolver
-        // nada: sin constancia no hay resultado. La señal de extracción masiva se emite solo tras confirmar (ver
-        // DescargarPaqueteEmpresaQueryHandler, del que se copia el mecanismo).
+        var confirmada = await RegistrarAperturasAsync(abiertos, cancellationToken);
+        return confirmada.EsFallido ? Result.Fallo<ResultadoUnionPdf>(confirmada.Error) : resultado;
+    }
+
+    /// <summary>
+    /// DEC-36: abrir el archivo de un Documento es leerlo, salga o no el PDF unido (un PDF rechazado, una firma sin confirmar
+    /// o un tope superado también revelan algo de él). Todas las aperturas o ninguna, y antes de devolver nada: sin
+    /// constancia no hay resultado. La señal de extracción masiva se emite solo tras confirmar (ver
+    /// DescargarPaqueteEmpresaQueryHandler, del que se copia el mecanismo).
+    /// </summary>
+    private async Task<Result> RegistrarAperturasAsync(IReadOnlyCollection<Guid> abiertos, CancellationToken cancellationToken)
+    {
         ILoteAccesosSensibles? lote = null;
         var confirmada = await transaccion.EjecutarAsync(async ct =>
         {
@@ -105,11 +125,10 @@ public class UnirPdfQueryHandler(
         }, cancellationToken);
 
         if (confirmada.EsFallido)
-            return Result.Fallo<ResultadoUnionPdf>(confirmada.Error);
+            return confirmada;
         if (lote is not null)
             await lote.EmitirSenalesAsync(CancellationToken.None);
-
-        return resultado;
+        return confirmada;
     }
 
     private async Task<Result<ResultadoUnionPdf>> UnirAsync(UnirPdfQuery request, HashSet<Guid> abiertos, CancellationToken cancellationToken)
