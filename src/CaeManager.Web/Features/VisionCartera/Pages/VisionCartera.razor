@@ -174,8 +174,12 @@
                                 }
                             </tbody>
                         </table>
+                        @* El SVG nunca se reduce por debajo de su tamaño natural (min-width inline = ancho del viewBox): con muchas
+                           organizaciones desliza dentro de este lienzo en vez de encoger las etiquetas hasta ser ilegibles. El
+                           lienzo es enfocable (tabindex) porque una región con scroll debe poder recorrerse con teclado. *@
+                        <div class="reparto-riesgo-lienzo" tabindex="0" role="group" aria-label="@Textos["RepartoCaption"]">
                         <svg class="reparto-riesgo-grafico" viewBox="0 0 @AnchoGrafico @AltoGrafico" aria-hidden="true" focusable="false"
-                             preserveAspectRatio="xMinYMid meet">
+                             style="min-width: @(AnchoGrafico)px" preserveAspectRatio="xMinYMid meet">
                             <line class="reparto-riesgo-base" x1="0" y1="@BaseBarras" x2="@AnchoGrafico" y2="@BaseBarras" />
                             @foreach (var barra in Barras)
                             {
@@ -206,6 +210,7 @@
                                 </g>
                             }
                         </svg>
+                        </div>
                         <div class="reparto-riesgo-leyenda">
                             <span><span class="muestra-leyenda muestra-vencidos" aria-hidden="true"></span>@Textos["LeyendaVencidos"]</span>
                             <span><span class="muestra-leyenda muestra-urgentes" aria-hidden="true"></span>@Textos["LeyendaUrgentes"]</span>
@@ -232,7 +237,9 @@
                     }
                     else
                     {
-                        <table class="tabla-datos">
+                        @* En estrecho (container query de .seccion-cartera) la tabla se apila: cada fila pasa a ser una ficha, la
+                           cabecera se oculta a la vista y cada cifra lleva su etiqueta en data-etiqueta (la pinta ::before). *@
+                        <table class="tabla-datos tabla-organizaciones">
                             <thead>
                                 <tr>
                                     <th>@Textos["ColumnaOrganizacion"]</th>
@@ -251,15 +258,15 @@
                                             <span class="nombre-organizacion">@organizacion.Nombre</span>
                                             <span class="meta-organizacion">@MetaOrganizacion(organizacion)</span>
                                         </td>
-                                        <td>
+                                        <td data-etiqueta="@Textos["ColumnaVencidos"]">
                                             <Badge Tono="@(organizacion.DocumentosVencidos > 0 ? TonoBadge.Peligro : TonoBadge.Neutro)"
                                                    title="@TituloVencidos(organizacion)">@organizacion.DocumentosVencidos</Badge>
                                         </td>
-                                        <td>
+                                        <td data-etiqueta="@Textos["ColumnaUrgentes"]">
                                             <Badge Tono="@(organizacion.DocumentosUrgentes > 0 ? TonoBadge.Advertencia : TonoBadge.Neutro)"
                                                    title="@TituloUrgentes(organizacion)">@organizacion.DocumentosUrgentes</Badge>
                                         </td>
-                                        <td>
+                                        <td data-etiqueta="@Textos["ColumnaCumplimiento"]">
                                             @if (organizacion.SinCarteraAsignada)
                                             {
                                                 <span class="sin-cartera-organizacion" title="@TituloCumplimiento(organizacion)">@Textos["CeldaSinCartera"]</span>

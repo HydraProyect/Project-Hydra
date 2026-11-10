@@ -45,9 +45,13 @@
     color: var(--color-text-muted);
 }
 
-/* Cabecera: ámbito a la izquierda; a la derecha del título solo con ancho de sobra (≥ 1280 px). DECISIÓN de pulido, no lectura de la
-   maqueta: la maqueta lo alinea siempre a la derecha, pero a 1024 px envuelve bajo el título y las líneas quedaban alineadas a la
-   derecha entre sí, sin motivo (revisión 1:1 de la demo). A confirmar con Diseño. */
+/* Cabecera: el ámbito va SIEMPRE bajo el título y alineado con él, a la izquierda, a cualquier ancho. DECISIÓN de pulido, no lectura de
+   la maqueta (que lo alinea a la derecha): a 1440 px quedaba pegado al borde derecho, alineado a la derecha bajo un h1 a la izquierda
+   (revisión visual de la demo 2026-11-10). La caja de acciones de la cabecera ocupa su propia línea (flex-basis 100%). A confirmar con Diseño. */
+.contenedor-pagina ::deep .acciones-cabecera {
+    flex: 0 0 100%;
+}
+
 .ambito-cartera {
     display: flex;
     flex-direction: column;
@@ -56,13 +60,6 @@
     font: var(--font-body-md);
     color: var(--color-text-muted);
     text-align: left;
-}
-
-@media (min-width: 1280px) {
-    .ambito-cartera {
-        align-items: flex-end;
-        text-align: right;
-    }
 }
 
 /*
@@ -158,12 +155,37 @@
     flex-direction: column;
     gap: var(--space-3);
     min-width: 0;
+    /* Para la container query de .rejilla-actividad-cartera (más abajo). */
+    container-type: inline-size;
 }
 
+/* Tres tarjetas solo si el bloque tiene ancho para la etiqueta más larga («ORGANIZACIONES», en mayúsculas, ~130 px de texto + el
+   relleno de la tarjeta): por debajo, 2 + 1 con la tercera a todo el ancho. Antes eran siempre 3 y a 1024 px (bloque de ~390 px)
+   la etiqueta se salía de su tarjeta y la tapaba la vecina. Por ancho del bloque (container query), no de la ventana. */
 .rejilla-actividad-cartera {
     display: grid;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
+    grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: var(--space-3);
+}
+
+.rejilla-actividad-cartera > :last-child:nth-child(odd) {
+    grid-column: 1 / -1;
+}
+
+@container (min-width: 520px) {
+    .rejilla-actividad-cartera {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+
+    .rejilla-actividad-cartera > :last-child:nth-child(odd) {
+        grid-column: auto;
+    }
+}
+
+/* Red de seguridad: si aun así una etiqueta no cabe, se parte en dos líneas; nunca se corta ni se sale de la tarjeta. */
+.rejilla-actividad-cartera ::deep .tarjeta-metrica-etiqueta {
+    min-width: 0;
+    overflow-wrap: anywhere;
 }
 
 .rejilla-actividad-cartera ::deep .tarjeta-metrica {
@@ -218,7 +240,14 @@ figure.reparto-riesgo {
     letter-spacing: .06em;
 }
 
+/* Lienzo del gráfico: el SVG lleva un min-width inline igual al ancho de su viewBox (escala 1:1), así que con muchas organizaciones
+   desliza aquí dentro y las etiquetas conservan su tamaño en vez de encogerse con el viewBox (a 1440 px salían de ~6 px). */
+.reparto-riesgo-lienzo {
+    overflow-x: auto;
+}
+
 .reparto-riesgo-grafico {
+    display: block;
     width: 100%;
     height: 120px;
 }
@@ -236,15 +265,11 @@ figure.reparto-riesgo {
     fill: var(--color-warning-500);
 }
 
+/* Tipografía del token de pie (12 px): con el SVG a escala 1:1 los textos miden lo que dice el token, nunca menos de 11-12 px. */
 .reparto-riesgo-etiqueta,
 .reparto-riesgo-sin-riesgo {
     fill: var(--color-text-muted);
-    font-family: var(--font-family);
-    font-size: 10px;
-}
-
-.reparto-riesgo-sin-riesgo {
-    font-size: 11px;
+    font: var(--font-caption);
 }
 
 .reparto-riesgo-leyenda {
@@ -330,6 +355,71 @@ figure.reparto-riesgo {
 .celda-accion-organizacion {
     text-align: right;
     white-space: nowrap;
+}
+
+/*
+    Estrecho (375 px): la tabla de cinco columnas medía ~1100 px en una caja de ~310 y solo se veía la primera. Por debajo de 640 px de
+    ancho de la sección (container query de .seccion-cartera) cada fila pasa a ser una ficha apilada: organización arriba, Vencidos y
+    Urgentes en dos columnas con su etiqueta, Cumplimiento debajo y la acción al final. La cabecera de la tabla se oculta a la vista (las
+    etiquetas ya van en cada celda, data-etiqueta). El overflow-x de la tarjeta queda como red de seguridad.
+*/
+@container (max-width: 640px) {
+    .tabla-organizaciones,
+    .tabla-organizaciones tbody {
+        display: block;
+    }
+
+    .tabla-organizaciones thead {
+        position: absolute;
+        width: 1px;
+        height: 1px;
+        margin: -1px;
+        overflow: hidden;
+        clip-path: inset(50%);
+        white-space: nowrap;
+    }
+
+    .tabla-organizaciones tr {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: var(--space-3) var(--space-4);
+        padding: var(--space-4);
+        border-bottom: 1px solid var(--color-fila-divisor);
+    }
+
+    .tabla-organizaciones tr:last-child {
+        border-bottom: 0;
+    }
+
+    .tabla-organizaciones td {
+        display: block;
+        min-width: 0;
+        padding: 0;
+        border-bottom: 0;
+    }
+
+    .tabla-organizaciones td[data-etiqueta]::before {
+        content: attr(data-etiqueta);
+        display: block;
+        margin-bottom: var(--space-1);
+        font: var(--font-caption);
+        color: var(--color-text-muted);
+    }
+
+    .tabla-organizaciones td:first-child,
+    .tabla-organizaciones td:nth-child(4),
+    .tabla-organizaciones td.celda-accion-organizacion {
+        grid-column: 1 / -1;
+    }
+
+    .tabla-organizaciones td.celda-accion-organizacion {
+        text-align: left;
+        white-space: normal;
+    }
+
+    .tabla-organizaciones .cumplimiento-organizacion {
+        min-width: 0;
+    }
 }
 
 /* Pulso. */
