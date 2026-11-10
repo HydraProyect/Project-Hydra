@@ -7,6 +7,7 @@ using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Application.Tenants.Queries.ObtenerEncargosAdministracion;
 using CaeManager.Application.Tests.Comercial;
 using CaeManager.Application.Tests.Integraciones;
+using CaeManager.Application.Tests.Plataforma;
 using CaeManager.Domain.Operaciones;
 using CaeManager.Domain.Plataforma;
 using CaeManager.Domain.Tenants;
@@ -61,10 +62,13 @@ public class EncargoAdministracionCommandsTests
     private sealed record Actor(
         Guid UsuarioId, Guid? TenantOrigen, bool EsAdministradorMiembro,
         SesionPrivilegiadaActiva? Sesion = null, Guid? UsuarioSimulado = null,
-        Guid? EncargoPleno = null, string RolEfectivo = "Administrador", Guid? UsuarioDeSesion = null);
+        Guid? EncargoPleno = null, string RolEfectivo = "Administrador", Guid? UsuarioDeSesion = null,
+        bool SesionRevocadaEnBase = false);
 
     private AutoridadSobreElEncargo Autoridad(Actor actor) => new(
-        new SesionFija(actor.Sesion),
+        actor is { Sesion: { } sesion, SesionRevocadaEnBase: true }
+            ? new SesionMemoizadaRevocada(sesion)
+            : new SesionFija(actor.Sesion),
         // El rol efectivo es Administrador para todos: ninguna decisión de este acto puede depender de él.
         new CurrentUserServiceFalso(actor.UsuarioDeSesion ?? actor.UsuarioId, actor.RolEfectivo, actor.TenantOrigen),
         new ActorFijo(new ActorAuditoria(actor.UsuarioId, actor.UsuarioSimulado, TipoViaAcceso.Normal, null)),
@@ -421,6 +425,25 @@ public class EncargoAdministracionCommandsTests
     }
 
     // --- Leer ----------------------------------------------------------------------------------
+
+    [Fact]
+    public async Task Con_la_Sesion_Privilegiada_cerrada_en_otra_pestana_Soporte_no_ve_los_encargos_aunque_la_memo_la_conserve()
+    {
+        EncargoYaRegistrado().Retirar(Guid.NewGuid(), Ahora.AddMinutes(-1));
+        var tenants = new TenantsQueryContextFalso();
+        tenants.ListaTenants.AddRange([_propietario, _operador]);
+        var soporte = Soporte(CapacidadPrivilegio.Aprovisionamiento);
+        // Control: con la sesión viva en la base, Soporte TALVEG sí ve las dos listas.
+        (await ListarAsync(soporte, tenants)).Should().ContainSingle();
+        (await EncargablesAsync(soporte, tenants)).Should().ContainSingle();
+        var lecturasDelControl = _repositorio.VecesQueSeLeyoUnaOperacion;
+
+        var revocada = soporte with { SesionRevocadaEnBase = true };
+
+        (await ListarAsync(revocada, tenants)).Should().BeEmpty();
+        (await EncargablesAsync(revocada, tenants)).Should().BeEmpty();
+        _repositorio.VecesQueSeLeyoUnaOperacion.Should().Be(lecturasDelControl, "la autoridad va antes que cualquier lectura");
+    }
 
     [Fact]
     public async Task La_lista_de_encargos_la_ve_quien_puede_gobernarlos_con_su_estado()

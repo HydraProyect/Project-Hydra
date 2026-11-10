@@ -36,7 +36,7 @@ public class ObtenerOperacionesEncargablesQueryHandler(
     {
         // La autoridad va antes que cualquier lectura, igual que al registrar.
         if (tenantActual.TenantId is not { } propietarioTenantId
-            || await autoridad.ResolverAsync(propietarioTenantId, cancellationToken) is null)
+            || await autoridad.ResolverEnConsultaAsync(propietarioTenantId, cancellationToken) is null)
             return [];
 
         var operaciones = await encargos.ListarOperacionesEncargablesAsync(
