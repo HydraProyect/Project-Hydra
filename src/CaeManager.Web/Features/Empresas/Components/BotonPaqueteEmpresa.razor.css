@@ -34,10 +34,26 @@ div.paquete-estado { display: flex; align-items: center; gap: 12px; flex-wrap: w
     margin: 0; padding: 10px 12px; border-radius: var(--radius-md);
     background: var(--color-warning-50); color: var(--color-warning-700); font: var(--font-body-md);
 }
+/* Tarjeta de error de la descarga, como la de la maqueta (§ C, «Barra de lote y estados»). */
 .paquete-error-descarga {
-    margin: 0; padding: 10px 12px; border-radius: var(--radius-md);
-    background: var(--color-danger-50); color: var(--color-danger-700); font: var(--font-body-md);
+    display: flex; flex-direction: column; gap: 8px; padding: 12px 14px;
+    background: var(--color-overlay); border: 1px solid var(--color-border); border-radius: var(--radius-md);
+    box-shadow: var(--shadow-overlay);
 }
+.paquete-error-etiqueta { font: var(--font-caption); color: var(--color-danger-700); }
+.paquete-error-titulo { font: 600 14px/20px var(--font-family); color: var(--color-text); }
+.paquete-error-motivo { font: var(--font-caption); color: var(--color-text-muted); }
+.paquete-error-acciones { display: flex; gap: 8px; }
+/* «Reintentar» en espera no lleva `disabled` (perdería el foco): se ve como el disabled de Boton y con su spinner, y sin el
+   hover ni el active de Boton, que se fijan en :not(:disabled). */
+.paquete-dialogo ::deep .paquete-reintentar[aria-disabled="true"] { opacity: 0.55; pointer-events: none; }
+/* El cuerpo solo recibe el foco por script (tabindex=-1, al irse «Reintentar» tras un reintento bueno): sin aro alrededor. */
+.paquete-cuerpo:focus { outline: none; }
+.paquete-reintentar-spinner {
+    width: 14px; height: 14px; border-radius: var(--radius-full);
+    border: 2px solid currentColor; border-top-color: transparent; animation: paquete-girar 0.6s linear infinite;
+}
+@keyframes paquete-girar { to { transform: rotate(360deg); } }
 .paquete-resumen { flex: 1; font: var(--font-caption); color: var(--color-text-muted); }
 
 /* Ancho del diálogo: 600 px, el de la maqueta (§ C). Modal solo ofrece 420/520/720 px; se fija en esta instancia con ::deep sobre
