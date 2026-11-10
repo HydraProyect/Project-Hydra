@@ -2,6 +2,7 @@ using AngleSharp.Dom;
 using Bunit;
 using CaeManager.Application.Plataforma.Commands.AutoConcederPrivilegio;
 using CaeManager.Application.Common;
+using CaeManager.Application.Plataforma.Queries.ObtenerAjusteSegundoFactorPorPlataforma;
 using CaeManager.Application.Plataforma.Queries.ObtenerIdentidadPlataforma;
 using CaeManager.Application.Plataforma.Queries.PuedeInicializarPlataforma;
 using CaeManager.Application.Usuarios;
@@ -53,6 +54,12 @@ public class PlataformaGen2Tests : BunitContext
             if (request is ObtenerRestablecimientoPorSoporteQuery)
             {
                 return Task.FromResult((TResponse)(object?)restablecimiento!);
+            }
+            // Lo mismo para el ajuste del segundo factor por plataforma: null fuera de una
+            // Sesión Privilegiada con la capacidad AjusteSegundoFactorTenant.
+            if (request is ObtenerAjusteSegundoFactorPorPlataformaQuery)
+            {
+                return Task.FromResult((TResponse)(object?)null!);
             }
             var respuesta = responder(request);
             return respuesta is Task<TResponse> tarea ? tarea : Task.FromResult((TResponse)respuesta);

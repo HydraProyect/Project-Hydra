@@ -18,6 +18,9 @@
 }
 
 .pestanas-boton {
+    /* Contenedor de la glosa del contador, que es position: absolute: sin él, su bloque contenedor era la página y el 1 px de la
+       glosa de una pestaña fuera de pantalla alargaba el scroll horizontal (Trabajador 360: 461 px de ancho con 375 de pantalla). */
+    position: relative;
     display: inline-flex;
     align-items: center;
     gap: var(--space-2);

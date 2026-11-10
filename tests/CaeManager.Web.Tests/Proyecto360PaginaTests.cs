@@ -123,14 +123,23 @@ public partial class Proyecto360PaginaTests : BunitContext
         public HashSet<Type> QueLanzan { get; } = [];
 
         private static readonly Error Rechazo = Error.Crear("Proyecto.Rechazado", "El servidor lo ha rechazado.");
-        public List<object> Enviados { get; } = [];
+        private readonly List<object> _enviados = [];
+
+        /// <summary>Copia de lo enviado: la página pide en el dispatcher mientras el test enumera en su hilo (como en #2087).</summary>
+        public IReadOnlyList<object> Enviados
+        {
+            get { lock (_enviados) return [.. _enviados]; }
+        }
 
         private readonly List<(Func<object, bool> Cuando, TaskCompletionSource<object?> Respuesta)> _retenciones = [];
         private readonly HashSet<Guid> _dadosDeBaja = [];
 
         public TaskCompletionSource<object?> Retener(Func<object, bool> cuando)
         {
-            var respuesta = new TaskCompletionSource<object?>(TaskCreationOptions.RunContinuationsAsynchronously);
+            // Continuaciones síncronas a propósito: el test la resuelve dentro de cut.InvokeAsync y la carga sigue ahí
+            // mismo, en el dispatcher. Con RunContinuationsAsynchronously la carga saltaba al pool de hilos; causa probable
+            // de #2092 (sin reproducción local): con el pool saturado en CI no volvía a pintar dentro de WaitForAssertion.
+            var respuesta = new TaskCompletionSource<object?>();
             _retenciones.Add((cuando, respuesta));
             return respuesta;
         }
@@ -152,7 +161,7 @@ public partial class Proyecto360PaginaTests : BunitContext
 
         public Task<TResponse> Send<TResponse>(IRequest<TResponse> request, CancellationToken cancellationToken = default)
         {
-            Enviados.Add(request);
+            lock (_enviados) _enviados.Add(request);
 
             var retencion = _retenciones.FirstOrDefault(r => r.Cuando(request));
             if (retencion.Respuesta is not null)

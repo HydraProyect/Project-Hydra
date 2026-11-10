@@ -661,6 +661,8 @@
   <data name="PlataformaTalveg360" xml:space="preserve"><value>En TALVEG: {0}</value></data>
   <data name="DocumentacionEmpresaIntro360" xml:space="preserve"><value>Lo que este Centro exige a cada Empresa, con su estado en la plataforma CAE.</value></data>
   <data name="DocumentacionEmpresaTabla360" xml:space="preserve"><value>Documentación de Empresa exigida en este Centro</value></data>
+  <data name="DocumentoVer360" xml:space="preserve"><value>Ver</value></data>
+  <data name="DocumentoVerAria360" xml:space="preserve"><value>Ver el PDF del documento «{0}» de {1}</value></data>
   <data name="DocumentoNombre360" xml:space="preserve"><value>Documento</value></data>
   <data name="HistorialCambios360" xml:space="preserve"><value>Cambios</value></data>
   <data name="DocumentoColumna360" xml:space="preserve"><value>Documento</value></data>

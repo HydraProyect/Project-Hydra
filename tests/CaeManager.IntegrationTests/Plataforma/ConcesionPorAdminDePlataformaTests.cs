@@ -173,6 +173,20 @@ VALUES (gen_random_uuid(), @concesion, @tenant);";
         (await InsertarAlcanceAsync(conexion, concesionId, _tenantCubierto)).Should().Be(1);
     }
 
+    [Fact]
+    public async Task Un_admin_concede_AjusteSegundoFactorTenant_a_un_tercero_por_el_mismo_camino()
+    {
+        // Decisiones del 2026-11-08. Fija el ALTER POLICY de
+        // 20261109190000_PlataformaAjustaSegundoFactorTenant: sin él, este INSERT da 42501.
+        await using var conexion = await AbrirRestringidaComoAsync(_admin);
+        await using var alta = await conexion.BeginTransactionAsync();
+
+        var concesionId = await InsertarConcesionAsync(
+            conexion, _beneficiario, "AjusteSegundoFactorTenant", esAlcanceGlobal: false, concedidaPor: _admin);
+
+        (await InsertarAlcanceAsync(conexion, concesionId, _tenantCubierto)).Should().Be(1);
+    }
+
     [Theory]
     [InlineData("AdminPlataforma")]
     [InlineData("BreakGlass")]
@@ -189,7 +203,7 @@ VALUES (gen_random_uuid(), @concesion, @tenant);";
         (await accion.Should().ThrowAsync<PostgresException>())
             .Which.SqlState.Should().Be(PostgresErrorCodes.InsufficientPrivilege,
                 "un admin no puede acuñar más AdminPlataforma ni BreakGlass por esta vía, " +
-                "solo Aprovisionamiento, RestablecimientoSegundoFactor, RevocacionOperadorCaeExterno y ConcesionAdministrador");
+                "solo Aprovisionamiento, RestablecimientoSegundoFactor, RevocacionOperadorCaeExterno, ConcesionAdministrador y AjusteSegundoFactorTenant");
     }
 
     [Fact]

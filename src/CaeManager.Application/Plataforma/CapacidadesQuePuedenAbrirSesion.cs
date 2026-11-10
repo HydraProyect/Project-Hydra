@@ -21,14 +21,15 @@ namespace CaeManager.Application.Plataforma;
 ///
 /// <para>
 /// <b>Por qué hoy <c>SoporteLectura</c>, <c>Aprovisionamiento</c>,
-/// <c>RestablecimientoSegundoFactor</c>, <c>RevocacionOperadorCaeExterno</c> y
-/// <c>ConcesionAdministrador</c>.</b> No es
+/// <c>RestablecimientoSegundoFactor</c>, <c>RevocacionOperadorCaeExterno</c>,
+/// <c>ConcesionAdministrador</c> y <c>AjusteSegundoFactorTenant</c>.</b> No es
 /// una elección de diseño ampliada a la ligera: son los caminos de creación que existen.
 /// La auto-concesión solo emite <c>SoporteLectura</c>; <c>ConcederPrivilegioCommand</c>
 /// emite <c>Aprovisionamiento</c> (PD-A3), <c>RestablecimientoSegundoFactor</c>
 /// (ADR-011 § 8.7, punto 3, restablecimiento del Administrador único),
-/// <c>RevocacionOperadorCaeExterno</c> (enmienda de ADR-004 § 12.2 del 2026-10-26) y
-/// <c>ConcesionAdministrador</c> (decisión del 2026-10-30), y
+/// <c>RevocacionOperadorCaeExterno</c> (enmienda de ADR-004 § 12.2 del 2026-10-26),
+/// <c>ConcesionAdministrador</c> (decisión del 2026-10-30) y
+/// <c>AjusteSegundoFactorTenant</c> (decisión del 2026-11-08), y
 /// <c>ConcesionesSoloPorActoExplicitoTests</c> mantiene esa lista cerrada.
 /// Ninguna otra capacidad puede materializarse en una fila hoy, así que poner
 /// más aquí seguiría afirmando algo que el sistema no sabe honrar.
@@ -51,6 +52,7 @@ public static class CapacidadesQuePuedenAbrirSesion
             CapacidadPrivilegio.RestablecimientoSegundoFactor,
             CapacidadPrivilegio.RevocacionOperadorCaeExterno,
             CapacidadPrivilegio.ConcesionAdministrador,
+            CapacidadPrivilegio.AjusteSegundoFactorTenant,
         ];
 
     public static bool Admite(CapacidadPrivilegio capacidad) => Admitidas.Contains(capacidad);

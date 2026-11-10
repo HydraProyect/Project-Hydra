@@ -263,7 +263,11 @@
 .centro-documentacion-cabecera,
 .centro-documentacion-fila {
     display: grid;
-    grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr) 96px 56px minmax(150px, auto);
+    /* Cabecera y filas son rejillas distintas que comparten esta definición: ninguna pista se resuelve por contenido (con «auto»
+       las columnas dejarían de caer bajo su rótulo). Caducidad, Bloquea y Acción, de ancho fijo y ajustado (Acción es la
+       «acción 128 px» de la maqueta, con «Ver» bajo el botón de estado); el resto del ancho es para Documento (con su Empresa)
+       y para el estado en la plataforma, en 1,7 a 1,1 (antes 1 a 1,2, y Documento quedaba en ~180 px con la Empresa en tres líneas). */
+    grid-template-columns: minmax(0, 1.7fr) minmax(0, 1.1fr) 88px 56px 132px;
     gap: var(--space-3);
     align-items: center;
     color: var(--color-text-muted);
@@ -305,6 +309,23 @@
 
 .centro-documentacion-empresa {
     gap: 4px;
+}
+
+/* Nombre del documento: enlace a su ficha 360, con el color y el peso del texto que sustituye. */
+.centro-documentacion-enlace {
+    color: inherit;
+    text-decoration: none;
+}
+
+.centro-documentacion-enlace:hover {
+    color: var(--color-primary-500);
+    text-decoration: underline;
+}
+
+.centro-documentacion-enlace:focus-visible {
+    outline: var(--border-focus);
+    outline-offset: 2px;
+    border-radius: var(--radius-sm);
 }
 
 .centro-documentacion-empresa .enlace-nombre-fila {
@@ -433,4 +454,39 @@
 .centro-documentacion-grupo ::deep .grupo-lista {
     border: 0;
     border-radius: 0;
+}
+
+/*
+  Datos copiables de «Información» y de la pestaña «Ficha» (la dirección, los teléfonos, el correo): el botón de copiar
+  lleva `white-space: nowrap`, y una dirección larga llegaba al borde de la tarjeta y se cortaba. Aquí el dato envuelve
+  y se alinea a la izquierda, como el resto de valores de la rejilla.
+*/
+.contenedor-pagina ::deep .dato-rejilla-valor .boton-copiar-en-linea {
+    min-width: 0;
+    max-width: 100%;
+    white-space: normal;
+    overflow-wrap: anywhere;
+    text-align: left;
+}
+
+/*
+  Cajas de la pestaña «Ficha»: un solo flujo de dos columnas (.ficha-cols de la maqueta «Páginas 360 nuevas»), de arriba
+  abajo y sin partir una caja. La rejilla de CajasFicha (modo editable) alinea las filas a la caja más alta y dejaba huecos
+  blancos bajo las más bajas. El orden del DOM —el que arrastra el usuario— no cambia.
+*/
+.centro-ficha-canales ::deep .cajas-ficha-editables {
+    display: block;
+    columns: 2;
+    column-gap: var(--space-4);
+}
+
+.centro-ficha-canales ::deep .cajas-ficha-editables .cajas-ficha-caja {
+    break-inside: avoid;
+    margin: 0 0 var(--space-4);
+}
+
+@media (max-width: 900px) {
+    .centro-ficha-canales ::deep .cajas-ficha-editables {
+        columns: 1;
+    }
 }

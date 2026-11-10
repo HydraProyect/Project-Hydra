@@ -327,6 +327,8 @@
     }
 </div>
 
+<CaeManager.Web.Features.Documentos.Components.VisorDocumento Visible="_visorVisible" VisibleChanged="v => _visorVisible = v" DocumentoId="_visorDocumentoId" Titulo="@_visorTitulo" />
+
 <DialogoConfirmacion Visible="_confirmarEliminarVisible"
                      VisibleChanged="v => _confirmarEliminarVisible = v"
                      Titulo="@Textos["EliminarCentroTitulo", _detalle?.Nombre ?? string.Empty].Value"
@@ -407,7 +409,17 @@
                                                 <span role="cell" class="centro-documentacion-identidad">
                                                     <span class="centro-documentacion-t" data-estado="@EstadoDocumentoFicha360.Tono(documento.Estado)" title="@Textos["PlataformaTalveg360", EstadoDocumentoFicha360.Texto(documento.Estado)]" aria-label="@Textos["PlataformaTalveg360", EstadoDocumentoFicha360.Texto(documento.Estado)]">T</span>
                                                     <span class="centro-documentacion-nombre">
-                                                        <span>@documento.Nombre</span>
+                                                        @* Con Documento, el nombre lleva a su ficha 360 (DocumentoDetalle); el requisito sin Documento (Faltante) es texto. *@
+                                                        <span>
+                                                            @if (documento.DocumentoId is { } enlaceDocumentoId)
+                                                            {
+                                                                <a class="centro-documentacion-enlace" href="@RutaFichaDocumento(enlaceDocumentoId)">@documento.Nombre</a>
+                                                            }
+                                                            else
+                                                            {
+                                                                @documento.Nombre
+                                                            }
+                                                        </span>
                                                         <span class="centro-documentacion-empresa">
                                                             <button type="button" class="enlace-nombre-fila" @onclick="() => AbrirEmpresaDocumentacion(empresa)">@empresa.Nombre</button>
                                                             <Boton360 Nombre="@empresa.Nombre" OnClick="() => IrAEmpresaDocumentacion(empresa)" />
@@ -444,6 +456,14 @@
                                                                                     Acreditacion="acreditacion" DocumentoNombre="@documento.Nombre"
                                                                                     TitularNombre="@empresa.Nombre" OnCambio="RecargarTrasCambioPlataformaAsync" />
                                                         }
+                                                    }
+                                                    @* «Ver» abre el PDF en el visor sin salir del Centro, para todo rol que ve la ficha; solo en filas con Documento. *@
+                                                    @if (documento.DocumentoId is { } verDocumentoId)
+                                                    {
+                                                        <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" class="accion-fila-enlace"
+                                                               data-accion="ver-documento-empresa"
+                                                               aria-label="@Textos["DocumentoVerAria360", documento.Nombre, empresa.Nombre]"
+                                                               OnClick="() => AbrirVisorDocumento(verDocumentoId, documento.Nombre)">@Textos["DocumentoVer360"]</Boton>
                                                     }
                                                 </span>
                                             </div>
@@ -557,7 +577,7 @@
                         <RejillaDatos>
                             @if (!string.IsNullOrWhiteSpace(detalle.Direccion))
                             {
-                                <DatoRejilla Etiqueta="@Textos["FichaDireccionCentro"]"><BotonCopiar Valor="@detalle.Direccion" Texto="@detalle.Direccion" Etiqueta="@Textos["FichaDireccionCentro"]" NombreAccesible="@Textos["FichaCopiarDato", Textos["FichaDireccionCentro"]]" /></DatoRejilla>
+                                <DatoRejilla Etiqueta="@Textos["FichaDireccionCentro"]"><BotonCopiar EnLinea="true" Valor="@detalle.Direccion" Texto="@detalle.Direccion" Etiqueta="@Textos["FichaDireccionCentro"]" NombreAccesible="@Textos["FichaCopiarDato", Textos["FichaDireccionCentro"]]" /></DatoRejilla>
                             }
                             @if (detalle.FichaVisible && detalle.HorarioAcceso is not null)
                             {
@@ -569,7 +589,7 @@
                             }
                             @if (detalle.FichaVisible && detalle.ControlAccesosTelefono is not null)
                             {
-                                <DatoRejilla Etiqueta="@Textos["FichaControlAccesosTelefono"]"><BotonCopiar Valor="@detalle.ControlAccesosTelefono" Texto="@detalle.ControlAccesosTelefono" Etiqueta="@Textos["FichaControlAccesosTelefono"]" NombreAccesible="@Textos["FichaCopiarDato", Textos["FichaControlAccesosTelefono"]]" /></DatoRejilla>
+                                <DatoRejilla Etiqueta="@Textos["FichaControlAccesosTelefono"]"><BotonCopiar EnLinea="true" Valor="@detalle.ControlAccesosTelefono" Texto="@detalle.ControlAccesosTelefono" Etiqueta="@Textos["FichaControlAccesosTelefono"]" NombreAccesible="@Textos["FichaCopiarDato", Textos["FichaControlAccesosTelefono"]]" /></DatoRejilla>
                             }
                         </RejillaDatos>
                     }
@@ -605,11 +625,11 @@
                             }
                             @if (detalle.TecnicoPrevencionTelefono is not null)
                             {
-                                <DatoRejilla Etiqueta="@Textos["FichaTecnicoPrevencionTelefono"]"><BotonCopiar Valor="@detalle.TecnicoPrevencionTelefono" Texto="@detalle.TecnicoPrevencionTelefono" Etiqueta="@Textos["FichaTecnicoPrevencionTelefono"]" NombreAccesible="@Textos["FichaCopiarDato", Textos["FichaTecnicoPrevencionTelefono"]]" /></DatoRejilla>
+                                <DatoRejilla Etiqueta="@Textos["FichaTecnicoPrevencionTelefono"]"><BotonCopiar EnLinea="true" Valor="@detalle.TecnicoPrevencionTelefono" Texto="@detalle.TecnicoPrevencionTelefono" Etiqueta="@Textos["FichaTecnicoPrevencionTelefono"]" NombreAccesible="@Textos["FichaCopiarDato", Textos["FichaTecnicoPrevencionTelefono"]]" /></DatoRejilla>
                             }
                             @if (detalle.TecnicoPrevencionCorreo is not null)
                             {
-                                <DatoRejilla Etiqueta="@Textos["FichaTecnicoPrevencionCorreo"]"><BotonCopiar Valor="@detalle.TecnicoPrevencionCorreo" Texto="@detalle.TecnicoPrevencionCorreo" Etiqueta="@Textos["FichaTecnicoPrevencionCorreo"]" NombreAccesible="@Textos["FichaCopiarDato", Textos["FichaTecnicoPrevencionCorreo"]]" /></DatoRejilla>
+                                <DatoRejilla Etiqueta="@Textos["FichaTecnicoPrevencionCorreo"]"><BotonCopiar EnLinea="true" Valor="@detalle.TecnicoPrevencionCorreo" Texto="@detalle.TecnicoPrevencionCorreo" Etiqueta="@Textos["FichaTecnicoPrevencionCorreo"]" NombreAccesible="@Textos["FichaCopiarDato", Textos["FichaTecnicoPrevencionCorreo"]]" /></DatoRejilla>
                             }
                             @if (detalle.TrabajosEnAltura is { } valorTrabajosEnAltura)
                             {

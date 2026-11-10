@@ -626,6 +626,39 @@ public class VisionCarteraGen2Tests : BunitContext
             .Should().Equal(["Refrielec…", "Montajes …", "Consultor…"], "el eje recorta; la tabla lleva el nombre entero");
     }
 
+    /// <summary>
+    /// Estrecho (375 px): la tabla se apila por CSS, que necesita la etiqueta de cada cifra en data-etiqueta y la acción en su celda; y el
+    /// gráfico del reparto va en un lienzo que desliza (enfocable por teclado) con el SVG a su tamaño natural.
+    /// </summary>
+    [Fact]
+    public void La_tabla_de_organizaciones_lleva_las_etiquetas_para_apilarse_y_el_reparto_su_lienzo_con_scroll()
+    {
+        var cut = Renderizar(new Escenario()).Cut;
+
+        var tabla = cut.Find(".tarjeta-organizaciones-riesgo table.tabla-organizaciones");
+        tabla.ClassList.Should().Contain("tabla-datos");
+        tabla.GetAttribute("role").Should().Be("table", "con display block/grid el navegador pierde la semántica de tabla: los roles la conservan");
+        cut.FindAll(".tarjeta-organizaciones-riesgo tbody tr").Should().OnlyContain(f => f.GetAttribute("role") == "row");
+        foreach (var fila in tabla.QuerySelectorAll("tbody tr"))
+        {
+            var celdas = fila.QuerySelectorAll("td");
+            celdas.Should().HaveCount(5);
+            celdas[0].HasAttribute("data-etiqueta").Should().BeFalse("la organización encabeza la ficha: no lleva etiqueta");
+            celdas[1].GetAttribute("data-etiqueta").Should().Be("Vencidos");
+            celdas[2].GetAttribute("data-etiqueta").Should().Be("Urgentes");
+            celdas[3].GetAttribute("data-etiqueta").Should().Be("Cumplimiento documental");
+            celdas[4].ClassList.Should().Contain("celda-accion-organizacion");
+            celdas[4].QuerySelector("form button[type=submit]").Should().NotBeNull("la acción de cambiar de organización sigue en su celda");
+        }
+
+        var lienzo = cut.Find("figure.reparto-riesgo .reparto-riesgo-lienzo");
+        lienzo.GetAttribute("tabindex").Should().Be("0", "una región con scroll debe poder recorrerse con teclado");
+        lienzo.GetAttribute("aria-label").Should().Be("Documentos vencidos y urgentes por organización");
+        var svg = lienzo.QuerySelector("svg.reparto-riesgo-grafico")!;
+        svg.GetAttribute("style").Should().Be("min-width: 276px", "tres organizaciones × 92 unidades: el SVG no se encoge por debajo de su escala 1:1");
+        svg.GetAttribute("viewBox").Should().Be("0 0 276 120");
+    }
+
     [Fact]
     public void El_pulso_cuenta_con_vencidos_en_verde_y_en_riesgo_con_su_desglose()
     {

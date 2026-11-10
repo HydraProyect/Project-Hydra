@@ -89,7 +89,7 @@ public class GestionarUnicoFichas360Tests : BunitContext
     }
 
     [Fact]
-    public void El_documento_Vigente_no_lleva_Gestionar_y_los_demas_conservan_la_accion_comun_de_la_fila()
+    public void El_documento_Vigente_no_lleva_Gestionar_y_los_demas_son_botones_secundarios_como_en_Centro_360()
     {
         this.ConRolDeEscritura(Roles.GestorCae);
         var cut = Panel([]);
@@ -97,7 +97,8 @@ public class GestionarUnicoFichas360Tests : BunitContext
         var filas = cut.FindAll(".panel-doc-base-fila");
         filas[3].QuerySelectorAll("button").Should().BeEmpty("lo vigente no pide trabajo");
         cut.FindAll(".panel-doc-base-fila button").Should().HaveCount(3)
-            .And.OnlyContain(b => b.ClassList.Contains("accion-fila-enlace"));
+            .And.OnlyContain(b => b.ClassList.Contains("boton-secundario") && !b.ClassList.Contains("accion-fila-enlace")
+                                  && b.ClassList.Contains("accion-gestionar-documento") && b.HasAttribute("data-accion-fila"));
     }
 
     [Theory]

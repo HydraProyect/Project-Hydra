@@ -715,6 +715,21 @@ public partial class CentroDetalle : CaeManager.Web.Components.PaginaInteractiva
         await CargarLecturasFase2Async();
     }
 
+    // «Ver» de «Documentación Empresa»: el visor del PDF (el mismo de la lista de Documentos) sin salir del Centro.
+    private bool _visorVisible;
+    private Guid _visorDocumentoId;
+    private string _visorTitulo = string.Empty;
+
+    private void AbrirVisorDocumento(Guid documentoId, string titulo)
+    {
+        _visorDocumentoId = documentoId;
+        _visorTitulo = titulo;
+        _visorVisible = true;
+    }
+
+    /// <summary>Ficha 360 del Documento (<c>DocumentoDetalle</c>), destino del nombre de cada fila con Documento.</summary>
+    internal static string RutaFichaDocumento(Guid documentoId) => $"/documentos/{documentoId}";
+
     private Task AbrirEmpresaDocumentacion(DocumentacionEmpresaCentroDto empresa) =>
         WorkspaceService.AbrirAsync(empresa.DesdeRelacionSubcontrata ? EntidadWorkspace.Subcontrata : EntidadWorkspace.Empresa,
             empresa.EmpresaId, empresa.Nombre, "documentacion");
