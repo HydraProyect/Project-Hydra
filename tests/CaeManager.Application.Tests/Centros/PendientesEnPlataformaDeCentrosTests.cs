@@ -62,7 +62,7 @@ public class PendientesEnPlataformaDeCentrosTests
     /// está probada; esta fija que no se desacoplen (ni el alta con la regla antigua, ni el cargador con el filtro por actividad).
     /// </summary>
     [Fact]
-    public async Task El_alta_acredita_un_documento_de_Empresa_en_su_Centro_sin_Trabajadores_y_el_Centro_lo_cuenta_como_Pendiente_y_no_en_el_de_otra_Empresa()
+    public async Task El_alta_acredita_un_documento_de_Empresa_en_su_Centro_sin_Trabajadores_y_el_Centro_lo_cuenta_como_Pendiente()
     {
         var mundo = new MundoAcreditaciones();
         var (centroPropio, plataformaPropia) = CentroConPlataforma(mundo, mundo.EmpresaId);
@@ -70,12 +70,13 @@ public class PendientesEnPlataformaDeCentrosTests
         var tipo = mundo.Tipo(RequisitoDocumental.Si, AmbitoAplicacion.Empresa, "RNT");
         var documento = mundo.DocumentoDeEmpresa(tipo);
 
+        // El Centro de otra Empresa solo comprueba que el alta no lo elige (el cargador, sin acreditación allí, no tendría qué contar).
         var agregadas = await mundo.Servicio().AgregarPendientesAsync(new AltasConAcreditacion { Documentos = [documento] });
         mundo.Guardar();
 
         agregadas.Should().Be(1, "solo el Centro de su Empresa lo exige, aunque nadie esté asignado allí");
         var pendientes = await Cargar(mundo, centroPropio, centroAjeno);
-        pendientes.Should().ContainSingle("el Centro de otra Empresa sin Trabajadores suyos no acredita ni cuenta")
+        pendientes.Should().ContainSingle("solo el Centro de su Empresa tiene la acreditación; el de otra Empresa sin Trabajadores suyos no")
             .Which.Should().Match<PendienteEnPlataformaDeCentro>(p =>
                 p.CentroId == centroPropio.Id && p.EmpresaId == mundo.EmpresaId && p.TrabajadorId == null
                 && p.DocumentoId == documento.Id && p.EstadoAcreditacion == EstadoAcreditacion.PendienteDeSubir);
