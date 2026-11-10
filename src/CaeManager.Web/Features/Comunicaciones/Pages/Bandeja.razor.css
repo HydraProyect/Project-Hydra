@@ -244,12 +244,28 @@
     margin-top: 0;
 }
 
-/* «Al día» es la primera pieza del vacío, 8 px sobre el título: se pega al relleno superior del EstadoVacio que le sigue. */
+/* Bloque del vacío de la lista (maqueta, `.vacio`): «Al día» y el EstadoVacio comparten un bloque centrado, 8 px entre
+   piezas; el EstadoVacio pierde aquí su relleno y su altura mínima, que pasan al bloque. */
+.bandeja-vacio-bloque {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    min-height: 200px;
+    padding: 32px;
+}
+
+.bandeja-vacio-bloque ::deep .estado-vacio {
+    flex: none;
+    min-height: 0;
+    padding: 0;
+}
+
 .bandeja-al-dia {
     display: flex;
     justify-content: center;
-    padding-top: 32px;
-    margin-bottom: -24px;
 }
 
 .bandeja-vista-personal-descripcion {
@@ -1272,7 +1288,7 @@ a.bandeja-documento-citado-nombre:hover {
         order: 3;
     }
 
-    .bandeja-filtros {
+    .bandeja-modo-hilo .bandeja-filtros {
         min-height: 60vh;
     }
 }

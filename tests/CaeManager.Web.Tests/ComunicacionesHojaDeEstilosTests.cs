@@ -56,14 +56,15 @@ public class ComunicacionesHojaDeEstilosTests
     [Fact]
     public void La_tabla_solo_exige_860_px_cuando_la_columna_central_los_tiene()
     {
-        // 1440 px = menú de 260 + relleno de 2 x 32 + filtros de 240 -> 876 px para la tabla. Entre 1181 y 1439 px el
+        // 1440 px = menú de 260 + relleno de 2 x 32 + filtros de 240 -> 876 px, 861 con la barra vertical de 15 px: sin margen,
+        // por eso el corte está en 1460 px. Entre 1181 y 1459 px el
         // mínimo de 860 hacía desbordar la tabla con una barra horizontal.
         var css = Leer("Features/Comunicaciones/Components/TablaConversaciones.razor.css");
-        Regex.IsMatch(css, @"@media \(min-width: 1440px\)\s*\{\s*\.tabla-conversaciones\s*\{\s*min-width: 860px").Should().BeTrue();
+        Regex.IsMatch(css, @"@media \(min-width: 1460px\)\s*\{\s*\.tabla-conversaciones\s*\{\s*min-width: 860px").Should().BeTrue();
         Regex.Matches(css, @"min-width: 860px").Should().ContainSingle("el mínimo de 860 px solo vive en el tramo ancho");
         css.Should().NotContain("1181px").And.NotContain("1180px");
-        Regex.IsMatch(css, @"@media \(max-width: 1439px\)\s*\{\s*\.tabla-conversaciones-fila\s*\{\s*grid-template-columns: 76px").Should().BeTrue(
-            "por debajo de 1440 px la tabla pasa a la composición apilada");
+        Regex.IsMatch(css, @"@media \(max-width: 1459px\)\s*\{\s*\.tabla-conversaciones-fila\s*\{\s*grid-template-columns: 76px").Should().BeTrue(
+            "por debajo de 1460 px la tabla pasa a la composición apilada");
     }
 
     [Fact]
@@ -73,7 +74,7 @@ public class ComunicacionesHojaDeEstilosTests
         var prioridad = Regla(css, @"\.tabla-prioridad");
         prioridad.Should().MatchRegex(@"gap\s*:\s*4px").And.MatchRegex(@"color\s*:\s*var\(--color-text\)");
         Regla(css, @"\.tabla-prioridad-punto").Should().Contain("var(--color-border-control)");
-        Regla(css, @"\.tabla-prioridad-urgente \.tabla-prioridad-punto").Should().Contain("var(--color-danger-500)");
+        Regla(css, @"\.tabla-prioridad-urgente \.tabla-prioridad-punto,\s*\.tabla-prioridad-critica \.tabla-prioridad-punto").Should().Contain("var(--color-danger-500)");
         Regla(css, @"\.tabla-conversaciones-fila:has\(button\):hover,\s*\.tabla-conversaciones-fila:focus-within")
             .Should().Contain("var(--color-fila-hover)");
         Regla(css, @"\.tabla-conversaciones-asunto button").Should().Contain("var(--color-primary-500)");
@@ -100,6 +101,12 @@ public class ComunicacionesHojaDeEstilosTests
         vacio.Should().MatchRegex(@"padding\s*:\s*32px").And.MatchRegex(@"min-height\s*:\s*200px");
         Regla(css, @"\.bandeja-centro ::deep \.estado-vacio h3,\s*\.bandeja-lista ::deep \.estado-vacio h3")
             .Should().MatchRegex(@"font\s*:\s*600 18px/26px");
+        // «Al día» y el vacío comparten bloque centrado, 8 px entre piezas.
+        var bloque = Regla(css, @"\.bandeja-vacio-bloque");
+        bloque.Should().MatchRegex(@"gap\s*:\s*8px").And.MatchRegex(@"justify-content\s*:\s*center");
+        // El 60vh de la lista en móvil es del modo hilo: en la tabla empujaba la primera fila fuera de la pantalla.
+        Regex.IsMatch(css, @"@media \(max-width: 760px\)\s*\{[^@]*\.bandeja-modo-hilo \.bandeja-filtros\s*\{\s*min-height: 60vh").Should().BeTrue();
+        Regex.IsMatch(css, @"(?m)^\s*\.bandeja-filtros\s*\{\s*min-height: 60vh").Should().BeFalse();
     }
 
     [Fact]

@@ -188,7 +188,7 @@
                         </div>
                         @if (_errorCargaLista)
                         {
-                            <EstadoVacio Titulo="@TextosLista["ErrorBuzon"]" Descripcion="@TextosLista["ErrorBuzonAyuda"]">
+                            <EstadoVacio SinIcono="true" Titulo="@TextosLista["ErrorBuzon"]" Descripcion="@TextosLista["ErrorBuzonAyuda"]">
                                 <Accion><Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno" OnClick="CargarListaAsync">@TextosLista["Reintentar"]</Boton></Accion>
                             </EstadoVacio>
                         }
@@ -273,7 +273,7 @@
                 </div>
                 @if (_errorCargaLista)
                 {
-                    <EstadoVacio Titulo="@TextosLista["ErrorBuzon"]" Descripcion="@TextosLista["ErrorBuzonAyuda"]">
+                    <EstadoVacio SinIcono="true" Titulo="@TextosLista["ErrorBuzon"]" Descripcion="@TextosLista["ErrorBuzonAyuda"]">
                         <Accion><Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno" OnClick="CargarListaAsync">@TextosLista["Reintentar"]</Boton></Accion>
                     </EstadoVacio>
                 }
@@ -293,25 +293,28 @@
                 }
                 else
                 {
-                    @* «Al día» (maqueta, E14): solo cuando no hay ningún filtro puesto; con filtros el vacío es «Sin resultados». *@
-                    @if (!HayFiltrosActivos)
-                    {
-                        <div class="bandeja-al-dia"><Badge Tono="TonoBadge.Exito">@TextosLista["AlDia"]</Badge></div>
-                    }
-                    <EstadoVacio SinIcono="@(!HayFiltrosActivos)" Titulo="@(HayFiltrosActivos ? TextosLista["SinResultados"] : TextosLista["SinConversaciones"])"
-                                 Descripcion="@(HayFiltrosActivos ? TextosLista["SinResultadosAyuda"] : TextosLista["SinConversacionesAyuda"])">
-                        <Accion>
-                            @if (HayFiltrosActivos)
-                            {
-                                <Boton Variante="VarianteBoton.Secundario" OnClick="LimpiarFiltrosAsync">@TextosLista["QuitarFiltros"]</Boton>
-                            }
-                        </Accion>
-                    </EstadoVacio>
+                    @* «Al día» (maqueta, E14, `.vacio`): solo cuando no hay ningún filtro puesto; con filtros el vacío es «Sin resultados».
+                       El distintivo y el estado vacío van en un mismo bloque centrado, a 8 px entre piezas, como en la maqueta. *@
+                    <div class="bandeja-vacio-bloque">
+                        @if (!HayFiltrosActivos)
+                        {
+                            <div class="bandeja-al-dia"><Badge Tono="TonoBadge.Exito">@TextosLista["AlDia"]</Badge></div>
+                        }
+                        <EstadoVacio SinIcono="true" Titulo="@(HayFiltrosActivos ? TextosLista["SinResultados"] : TextosLista["SinConversaciones"])"
+                                     Descripcion="@(HayFiltrosActivos ? TextosLista["SinResultadosAyuda"] : TextosLista["SinConversacionesAyuda"])">
+                            <Accion>
+                                @if (HayFiltrosActivos)
+                                {
+                                    <Boton Variante="VarianteBoton.Secundario" OnClick="LimpiarFiltrosAsync">@TextosLista["QuitarFiltros"]</Boton>
+                                }
+                            </Accion>
+                        </EstadoVacio>
+                    </div>
                 }
             }
             else if (_conversacionSeleccionadaId is null)
             {
-                <EstadoVacio Titulo="@TextosLista["NingunaConversacion"]" Descripcion="@TextosLista["EligeConversacion"]" />
+                <EstadoVacio SinIcono="true" Titulo="@TextosLista["NingunaConversacion"]" Descripcion="@TextosLista["EligeConversacion"]" />
             }
             else if (_cargandoDetalle)
             {
@@ -322,7 +325,7 @@
             {
                 @* Error al abrir una conversación (maqueta, E14): estado propio con «Reintentar». Sin él, el panel
                    mostraba el hilo de la conversación abierta antes bajo la selección nueva. *@
-                <EstadoVacio Titulo="@TextosLista["ErrorAbrirConversacion"]" Descripcion="@TextosLista["ErrorAbrirConversacionAyuda"]">
+                <EstadoVacio SinIcono="true" Titulo="@TextosLista["ErrorAbrirConversacion"]" Descripcion="@TextosLista["ErrorAbrirConversacionAyuda"]">
                     <Accion><Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno" OnClick="CargarDetalleAsync">@TextosLista["Reintentar"]</Boton></Accion>
                 </EstadoVacio>
             }

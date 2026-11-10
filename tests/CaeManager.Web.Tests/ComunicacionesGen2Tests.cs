@@ -470,6 +470,12 @@ public class ComunicacionesGen2Tests : BunitContext
     {
         var (cut, _) = Renderizar(new Escenario());
         cut.Find(".bandeja-centro .bandeja-al-dia").TextContent.Trim().Should().Be("Al día");
+
+        // Maqueta (`.vacio`, E14): el distintivo y el estado vacío van en un mismo bloque y sin icono.
+        var bloque = cut.Find(".bandeja-centro .bandeja-vacio-bloque");
+        bloque.QuerySelector(".bandeja-al-dia").Should().NotBeNull();
+        bloque.QuerySelector(".estado-vacio").Should().NotBeNull();
+        cut.FindAll(".bandeja-centro .estado-vacio-icono").Should().BeEmpty("el vacío de la maqueta no lleva icono");
     }
 
     [Fact]

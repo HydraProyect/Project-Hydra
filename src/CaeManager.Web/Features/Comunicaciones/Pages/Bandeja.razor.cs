@@ -1557,7 +1557,7 @@ public partial class Bandeja : CaeManager.Web.Components.PaginaInteractiva, IAsy
         _ => "Del propietario"
     };
 
-    /// <summary>Dos letras de la razón social para el avatar de la columna de contexto — mismo criterio que UnifiedTimeline.ObtenerIniciales.</summary>
+    /// <summary>Dos letras de la razón social para el avatar de la columna de contexto — mismo criterio que FilaConversacion.ObtenerIniciales.</summary>
     private static string ObtenerInicialesCliente(string razonSocial)
     {
         var palabras = razonSocial.Split(' ', StringSplitOptions.RemoveEmptyEntries);

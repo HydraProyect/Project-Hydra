@@ -91,24 +91,21 @@
     background: var(--color-border-control);
 }
 
-.tabla-prioridad-urgente .tabla-prioridad-punto {
+.tabla-prioridad-urgente .tabla-prioridad-punto,
+.tabla-prioridad-critica .tabla-prioridad-punto {
     background: var(--color-danger-500);
 }
 
-.tabla-prioridad-critica .tabla-prioridad-punto {
-    background: var(--color-danger-700);
-}
-
-/* El ancho mínimo de 860 px de la maqueta solo cabe cuando la columna central lo tiene: desde 1440 px (menú de 260,
-   relleno de 2 x 32 y columna de filtros de 240 dan 876 px). Por debajo, la tabla pasa a la composición apilada en vez
-   de desbordar con una barra horizontal. */
-@media (min-width: 1440px) {
+/* El ancho mínimo de 860 px de la maqueta solo cabe cuando la columna central lo tiene. A 1440 px son 876 (menú de 260,
+   relleno de 2 x 32 y filtros de 240), pero la barra vertical de 15 px lo deja en 861: sin margen. Desde 1460 px sobran 21 px
+   con la barra puesta. Por debajo, la tabla pasa a la composición apilada en vez de desbordar con una barra horizontal. */
+@media (min-width: 1460px) {
     .tabla-conversaciones {
         min-width: 860px;
     }
 }
 
-@media (max-width: 1439px) {
+@media (max-width: 1459px) {
     .tabla-conversaciones-fila {
         grid-template-columns: 76px minmax(0, 1.6fr) minmax(0, 1fr);
     }
