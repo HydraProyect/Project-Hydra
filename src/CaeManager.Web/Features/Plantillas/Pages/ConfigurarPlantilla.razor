@@ -131,12 +131,15 @@
                                 var seleccionado = elemento.IdLocal == _idLocalSeleccionado;
                                 @* Sigue siendo un div y no un button: editorPlantilla.js hace
                                    preventDefault en pointerdown para arrastrar, y en un button eso
-                                   rompe el foco. role/tabindex/teclado dan lo que el button daría. *@
+                                   rompe el foco. role/tabindex/teclado dan lo que el button daría.
+                                   data-editable: una versión confirmada es inmutable; sin esta marca,
+                                   editorPlantilla.js dejaba arrastrar y redimensionar sus cajas en pantalla,
+                                   contradiciendo el «Solo lectura» que la propia pantalla anuncia.
+                                   Este comentario va FUERA de la etiqueta a propósito: dentro, Razor lo
+                                   emite como nombre de atributo y el cliente rechaza el lote de render
+                                   (InvalidCharacterError en setAttribute) al pintar una caja nueva. *@
                                 <div class="editor-plantilla-caja @(seleccionado ? "editor-plantilla-caja-seleccionada" : null) @(elemento.Tipo == TipoElementoPlantilla.Firma ? "editor-plantilla-caja-firma" : null)"
                                      data-id-local="@elemento.IdLocal"
-                                     @* Una versión confirmada es inmutable: sin esta marca, editorPlantilla.js
-                                        dejaba arrastrar y redimensionar sus cajas en pantalla, contradiciendo
-                                        el «Solo lectura» que la propia pantalla anuncia. *@
                                      data-editable="@(PuedeEditar ? "true" : "false")"
                                      role="@(PuedeEditar ? "button" : null)"
                                      tabindex="@(PuedeEditar ? "0" : null)"
