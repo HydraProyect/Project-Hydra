@@ -108,6 +108,12 @@
   <data name="Ficha360GestionarAccesible" xml:space="preserve">
     <value>Gestionar el documento «{0}»</value>
   </data>
+  <data name="Ficha360Ver" xml:space="preserve">
+    <value>Ver</value>
+  </data>
+  <data name="Ficha360VerAccesible" xml:space="preserve">
+    <value>Ver el PDF del documento «{0}»</value>
+  </data>
   <data name="MotivoFaltaTipos" xml:space="preserve">
     <value>Falta: {0}</value>
   </data>

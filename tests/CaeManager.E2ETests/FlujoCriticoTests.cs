@@ -102,20 +102,16 @@ public class FlujoCriticoTests(WebAppFixture fixture)
         await page.Locator("[data-keytip-contenedor=\"N\"]").GetByRole(AriaRole.Button, new() { Name = "+ Nuevo documento", Exact = true }).ClickAsync();
 
         // Ámbito por defecto ya es Trabajador (ver Documentos.razor.cs, _ambitoAplicacion).
-        // El selector de Trabajador es un CampoBuscarSelect (input + datalist,
-        // no un <select> — ver Documentos.razor.cs, OpcionesTrabajadores):
-        // se escribe el texto exacto de la opción y se espera su debounce de
-        // 150ms más el viaje de ida y vuelta a Blazor Server antes de seguir.
-        await drawer.GetByLabel("Trabajador", new LocatorGetByLabelOptions { Exact = true })
-            .FillAsync($"{nombreTrabajador} {apellidosTrabajador} ({razonSocialEmpresa})");
-        // El debounce del servidor resuelve el Id del Trabajador sin exponer su resultado en el DOM.
-        await page.WaitForTimeoutAsync(500);
+        // El selector de Trabajador es el combobox del kit (CampoBuscarSelect): se busca y se pulsa la opción.
+        await Ayudas.ElegirOpcionEnSelectorAvanzadoPorTextoAsync(page,
+            drawer.GetByLabel("Trabajador", new LocatorGetByLabelOptions { Exact = true }),
+            $"{nombreTrabajador} {apellidosTrabajador} ({razonSocialEmpresa})");
 
         // "Formación PRL de convenio" no tiene vencimiento automático (ver
         // TipoDocumentoSeedData) — habilita el campo de fecha de vencimiento
         // manual, indispensable para fijar determinísticamente el estado del
         // semáforo en vez de depender del cálculo automático por meses.
-        await drawer.GetByLabel("Tipo de documento").SelectOptionAsync(new SelectOptionValue { Label = "Formación PRL de convenio" });
+        await Ayudas.ElegirOpcionEnSelectorAvanzadoPorTextoAsync(page, drawer.GetByLabel("Tipo de documento"), "Formación PRL de convenio");
 
         var hoy = Ayudas.HoyDeNegocio();
         // Exact: true — sin esto, GetByLabel hace match por substring y también
@@ -151,10 +147,10 @@ public class FlujoCriticoTests(WebAppFixture fixture)
         await fila.WaitForAsync(new LocatorWaitForOptions { Timeout = 15_000 });
 
         // Desde el 2026-10-08 Urgente y Próximo comparten la pastilla «Por vencer» (ámbar); lo que
-        // dice que está a 10 días —dentro del umbral rojo— es el motivo de debajo.
+        // dice que está a 10 días —dentro del umbral rojo— es el relativo de «Vence» (Estado ya no lo repite).
         var insigniaEstado = fila.Locator(".badge-advertencia");
         await insigniaEstado.WaitForAsync(new LocatorWaitForOptions { Timeout = 15_000 });
         Assert.Equal("Por vencer", (await insigniaEstado.InnerTextAsync()).Trim());
-        Assert.Matches("^Caduca en (9|10|11) días$", (await fila.Locator(".estado-fila-motivo").InnerTextAsync()).Trim());
+        Assert.Matches("^en (9|10|11) días$", (await fila.Locator(".documentos-vigencia-subtitulo").InnerTextAsync()).Trim());
     }
 }

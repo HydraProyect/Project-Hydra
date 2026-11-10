@@ -235,3 +235,5 @@
    propia tabla por debajo, y la página no se mueve nunca (DocumentosTablaDesplazableE2ETests): el cuerpo del listado
    no lleva ese mínimo. */
 .lista-design.lista-design .tarjeta-listado-contenido > .documentos-cuerpo { min-width: 0; }
+/* Las acciones de la fila («Ver», «Gestionar», icono 360) no se parten en dos líneas: con ellas en una la fila no crece. */
+.documentos-tabla-desplazable ::deep .documentos-acciones-fila { flex-wrap: nowrap; white-space: nowrap; }

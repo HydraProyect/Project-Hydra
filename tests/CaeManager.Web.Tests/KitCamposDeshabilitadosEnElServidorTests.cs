@@ -133,26 +133,27 @@ public class KitCamposDeshabilitadosEnElServidorTests : BunitContext
             .Add(x => x.Opciones, Opciones)
             .Add(x => x.Deshabilitado, true)
             .Add(x => x.ValorChanged, v => cambios.Add(v)));
-        var input = cut.Find("input");
-        input.HasAttribute("disabled").Should().BeTrue();
+        var disparador = AyudasCampoBuscarSelect.Disparador(cut);
+        disparador.HasAttribute("disabled").Should().BeTrue();
 
-        input.RemoveAttribute("disabled");
-        await input.InputAsync(new ChangeEventArgs { Value = "Uno" });
-        await Task.Delay(700);
+        // Un cliente manipulado que quita el atributo y pulsa no abre la lista: el servidor no la despliega.
+        disparador.RemoveAttribute("disabled");
+        await disparador.ClickAsync(new MouseEventArgs());
 
+        cut.FindAll("[role=listbox]").Should().BeEmpty();
         cambios.Should().BeEmpty();
     }
 
     [Fact]
-    public async Task CampoBuscarSelect_habilitado_elige_la_coincidencia_exacta()
+    public async Task CampoBuscarSelect_habilitado_elige_la_opcion_pulsada()
     {
         var cambios = new List<string>();
         var cut = Render<CampoBuscarSelect>(p => p
             .Add(x => x.Opciones, Opciones)
             .Add(x => x.ValorChanged, v => cambios.Add(v)));
 
-        await cut.Find("input").InputAsync(new ChangeEventArgs { Value = "Uno" });
-        cut.WaitForAssertion(() => cambios.Should().Contain("1"), TimeSpan.FromSeconds(3));
+        await AyudasCampoBuscarSelect.ElegirAsync(cut, "Uno");
+        cambios.Should().Equal("1");
     }
 
     [Fact]

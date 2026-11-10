@@ -207,9 +207,9 @@ public class ReportesGen2Tests : BunitContext
     private static Task ElegirInforme(IRenderedComponent<ReportesPagina> cut, string titulo) =>
         cut.FindAll("[role=radio]").Single(b => b.QuerySelector(".titulo-item-informe")!.TextContent == titulo).ClickAsync(new MouseEventArgs());
 
-    /// <summary>Escribir la razón social exacta es lo que hace casar la opción del datalist.</summary>
+    /// <summary>Elige el Cliente empresarial como una persona: lo busca en el combobox y pulsa su opción.</summary>
     private static Task EscribirCliente(IRenderedComponent<ReportesPagina> cut, string razonSocial) =>
-        cut.Find(".campo-cliente-informe input").InputAsync(new ChangeEventArgs { Value = razonSocial });
+        AyudasCampoBuscarSelect.ElegirAsync(cut.FindComponent<CampoBuscarSelect>(), razonSocial);
 
     private static string Texto(IElement elemento) => elemento.TextContent.Trim();
 
@@ -560,7 +560,7 @@ public class ReportesGen2Tests : BunitContext
         Navegacion.Uri.Should().NotContain("clienteId").And.NotContain("centroId",
             "con el clienteId viejo en la URL, recargar la página volvía a filtrar por el cliente quitado");
         Texto(cut.Find(".aviso-sin-cliente-informe")).Should().Be("Sin filtrar por Cliente: la vista previa abarca toda tu cartera");
-        cut.Find(".campo-cliente-informe input").GetAttribute("value").Should().BeEmpty();
+        cut.FindAll(".campo-cliente-informe .csa-valor:not(.csa-marcador)").Should().BeEmpty("el combobox vuelve al marcador: ningún Cliente elegido");
         cut.Find(".campo-centro-informe select").HasAttribute("disabled").Should().BeTrue();
         cut.FindAll("button.quitar-filtro-cliente").Should().BeEmpty();
 

@@ -57,6 +57,7 @@ public class ImportarDocumentosGen2Tests : BunitContext
         Services.AddScoped<ToastService>();
         Services.AddScoped<PuertaAccesoDatos>();
         Services.AddLogging();
+        JSInterop.Mode = JSRuntimeMode.Loose; // la página monta TituloDePaginaSinPrerender, que importa un módulo JS
         Services.AddLocalization();
         Services.GetRequiredService<NavigationManager>().NavigateTo(
             entradaDocumental ? "importacion?plantilla=documentos&flujo=documentos" : "importacion?plantilla=documentos");
@@ -114,6 +115,7 @@ public class ImportarDocumentosGen2Tests : BunitContext
         Services.AddScoped<ToastService>();
         Services.AddScoped<PuertaAccesoDatos>();
         Services.AddLogging();
+        JSInterop.Mode = JSRuntimeMode.Loose; // la página monta TituloDePaginaSinPrerender, que importa un módulo JS
         Services.AddLocalization();
         Services.GetRequiredService<NavigationManager>().NavigateTo("importacion?plantilla=documentos&flujo=documentos");
 

@@ -14,6 +14,7 @@ public class ConfiguracionTests : BunitContext
 {
     public ConfiguracionTests()
     {
+        JSInterop.Mode = JSRuntimeMode.Loose; // la página monta TituloDePaginaSinPrerender, que importa un módulo JS
         Services.AddLocalization();
         // El hub pregunta si quien mira es Actor de Plataforma TALVEG (entrada «Orden del menú»):
         // aquí no lo es, así que el catálogo es el del Administrador de Tenant.

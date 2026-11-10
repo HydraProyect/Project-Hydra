@@ -197,6 +197,8 @@
                 }
                 <span></span>
                 <span>@Textos["ColCentro"]</span>
+                @if (MostrarColumnaEmpresa)
+                {
                 <span class="columna-empresa-centro-cabecera">
                     <button type="button" class="cabecera-columna-orden"
                             aria-pressed="@(OrdenPorEmpresa ? "true" : "false")"
@@ -204,6 +206,7 @@
                         @Textos["ColEmpresa"] <span aria-hidden="true">@FlechaDeOrden(OrdenPorEmpresa)</span>
                     </button>
                 </span>
+                }
                 <span class="columna-cumplimiento-centro">
                     <button type="button" class="cabecera-columna-orden"
                             aria-pressed="@(OrdenPorCumplimiento ? "true" : "false")"
@@ -329,7 +332,10 @@
                                     }
                                 </span>
                             </span>
+                            @if (MostrarColumnaEmpresa)
+                            {
                             <span class="columna-empresa-centro" title="@centro.EmpresaRazonSocial"><TextoResaltado Texto="@centro.EmpresaRazonSocial" Termino="@_busqueda" /></span>
+                            }
                             <span class="columna-cumplimiento-centro">
                                 <BarraCumplimiento Porcentaje="centro.CumplimientoPorcentaje"
                                                    Etiqueta="@(centro.CumplimientoPorcentaje is { } cumplimiento ? $"{cumplimiento}% de cumplimiento — documentos al día / requeridos entre los trabajadores de este centro" : null)" />

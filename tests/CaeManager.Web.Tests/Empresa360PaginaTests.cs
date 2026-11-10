@@ -1068,6 +1068,34 @@ public partial class Empresa360PaginaTests : BunitContext
         cut.WaitForAssertion(() => EstadosDeLasFilas(cut).Should().BeEquivalentTo(["Vencido", "Pendiente", "Pendiente"]));
     }
 
+    /// <summary>
+    /// Pulido de la demo (2026-11-10): «Al día · 7» contradecía filas «Sin confirmar». Por D-22 (2026-10-01) lo Sin confirmar
+    /// cuenta como al día con aviso; el chip lo dice, con el recuento tomado de la misma consulta (EstadoDocumental) que las filas.
+    /// </summary>
+    [Fact]
+    public void El_chip_Al_dia_dice_cuantos_de_ellos_estan_sin_confirmar_y_sin_ninguno_no_dice_nada()
+    {
+        Registrar(Empresa(
+        [
+            Trabajador(EstadoDocumento.Vencido, "Vencido Uno"),
+            Trabajador(EstadoDocumento.SinConfirmar, "Sin confirmar Uno"),
+            Trabajador(EstadoDocumento.SinConfirmar, "Sin confirmar Dos"),
+            Trabajador(EstadoDocumento.Vigente, "Vigente Uno")
+        ]));
+
+        Chips(Renderizar()).Should().Contain(c => c.StartsWith("Al día · 3 (de ellos, 2 sin confirmar)"));
+    }
+
+    [Fact]
+    public void Un_solo_trabajador_se_glosa_en_singular_en_la_pestana()
+    {
+        Registrar(Empresa([Trabajador(EstadoDocumento.Vigente, "Vigente Uno")]));
+
+        var glosas = Renderizar().FindAll(".pestanas-contador-glosa").Select(g => g.TextContent.Trim()).ToList();
+
+        glosas.Should().Contain("trabajador").And.NotContain("trabajadores");
+    }
+
     [Fact]
     public async Task Pulsar_el_chip_sin_documentacion_valida_filtra_la_lista_y_lo_deja_en_la_url()
     {

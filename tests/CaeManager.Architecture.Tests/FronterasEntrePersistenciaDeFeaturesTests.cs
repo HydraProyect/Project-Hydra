@@ -114,6 +114,12 @@ public class FronterasEntrePersistenciaDeFeaturesTests
         ("Asignaciones.ObtenerAsignacionesDocumentacionPorCentroQueryHandler", "IDocumentosQueryContext"),
         ("Asignaciones.ObtenerAsignacionesDocumentacionPorCentroQueryHandler", "ITiposDocumentoQueryContext"),
         ("Asignaciones.ObtenerAsignacionesDocumentacionPorCentroQueryHandler", "ITrabajadoresQueryContext"),
+        // El lote de Subcontrata 360: el mismo cálculo que la consulta de un Centro (lo delega en ella), con sus mismos contextos.
+        ("Asignaciones.ObtenerCumplimientoDeAsignacionesPorCentrosQueryHandler", "ICentrosQueryContext"),
+        ("Asignaciones.ObtenerCumplimientoDeAsignacionesPorCentrosQueryHandler", "IConfiguracionQueryContext"),
+        ("Asignaciones.ObtenerCumplimientoDeAsignacionesPorCentrosQueryHandler", "IDocumentosQueryContext"),
+        ("Asignaciones.ObtenerCumplimientoDeAsignacionesPorCentrosQueryHandler", "ITiposDocumentoQueryContext"),
+        ("Asignaciones.ObtenerCumplimientoDeAsignacionesPorCentrosQueryHandler", "ITrabajadoresQueryContext"),
         ("Asignaciones.ObtenerAsignacionesQueryHandler", "ICentrosQueryContext"),
         ("Asignaciones.ObtenerAsignacionesQueryHandler", "IClientesQueryContext"),
         ("Asignaciones.ObtenerAsignacionesQueryHandler", "ITrabajadoresQueryContext"),

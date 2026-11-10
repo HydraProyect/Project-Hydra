@@ -242,9 +242,9 @@ public class BarraSeccionTests : BunitContext
     }
 
     [Fact]
-    public void En_Documentos_el_Administrador_ve_las_tres_pestanas_en_orden_con_la_primera_activa()
+    public void Desde_Incidencias_el_Administrador_ve_las_tres_pestanas_en_orden_con_la_de_Incidencias_activa()
     {
-        var cut = Pintar("documentos", Roles.Administrador);
+        var cut = Pintar("incidencias", Roles.Administrador);
 
         var barra = cut.Find("nav[data-testid=barra-seccion]");
         barra.GetAttribute("data-seccion").Should().Be("documentos");
@@ -253,13 +253,24 @@ public class BarraSeccionTests : BunitContext
         enlaces.Select(a => a.TextContent.Trim()).Should().Equal("Todos los documentos", "Revisión IA", "Incidencias");
         enlaces.Select(a => a.GetAttribute("href")).Should().Equal(
             "documentos", "documentos?pestana=revision-ia", "incidencias");
-        enlaces.Select(a => a.GetAttribute("aria-current")).Should().Equal("page", null, null);
+        enlaces.Select(a => a.GetAttribute("aria-current")).Should().Equal(null, null, "page");
+    }
+
+    [Theory]
+    [InlineData("documentos", Roles.Administrador)]
+    [InlineData("documentos?pestana=revision-ia", Roles.GestorCae)]
+    [InlineData("DOCUMENTOS", Roles.Administrador)]
+    public void En_Documentos_la_barra_de_seccion_no_se_pinta_porque_la_pagina_lleva_la_suya(string url, string rol)
+    {
+        var cut = Pintar(url, rol);
+
+        cut.FindAll("nav.barra-seccion").Should().BeEmpty("dos barras de pestañas apiladas repetían «Revisión IA»");
     }
 
     [Fact]
-    public void El_parametro_pestana_marca_Revision_IA_como_actual()
+    public void La_pantalla_legada_de_Revision_IA_conserva_la_barra_con_su_pestana_actual()
     {
-        var cut = Pintar("documentos?pestana=revision-ia", Roles.GestorCae);
+        var cut = Pintar("documentos/revision-ia", Roles.GestorCae);
 
         cut.Find("a[data-pestana=documentos-revision-ia]").GetAttribute("aria-current").Should().Be("page");
         cut.Find("a[data-pestana=documentos-todos]").HasAttribute("aria-current").Should().BeFalse();
@@ -308,12 +319,12 @@ public class BarraSeccionTests : BunitContext
     [Fact]
     public void La_barra_sigue_la_navegacion_interna_incluido_el_cambio_de_pestana_de_Documentos()
     {
-        var cut = Pintar("documentos", Roles.Administrador);
+        var cut = Pintar("documentos/revision-ia", Roles.Administrador);
         var navegacion = Services.GetRequiredService<NavigationManager>();
+        cut.Find("a[data-pestana=documentos-revision-ia]").GetAttribute("aria-current").Should().Be("page");
 
         navegacion.NavigateTo("documentos?pestana=revision-ia");
-        cut.WaitForAssertion(() =>
-            cut.Find("a[data-pestana=documentos-revision-ia]").GetAttribute("aria-current").Should().Be("page"));
+        cut.WaitForAssertion(() => cut.FindAll("nav.barra-seccion").Should().BeEmpty());
 
         navegacion.NavigateTo("incidencias");
         cut.WaitForAssertion(() =>

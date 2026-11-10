@@ -21,6 +21,14 @@ public class TransaccionDeComando(CaeManagerDbContext dbContext) : ITransaccionD
 {
     public Task<Result> EjecutarAsync(Func<CancellationToken, Task<Result>> operacion, CancellationToken cancellationToken = default)
     {
+        // Reentrante: un Command que abre su transacción y se ejecuta dentro de otra (el paso
+        // de un plan de Vega envía CrearClienteCommand dentro de la suya) se une a la de
+        // fuera. Confirmar o deshacer es de quien la abrió: si el Command de dentro falla,
+        // devuelve el fallo y quien está fuera tiene que deshacer, como hace
+        // EjecutarPlanTareaAsistenteCommandHandler devolviendo ese fallo.
+        if (dbContext.Database.CurrentTransaction is not null)
+            return operacion(cancellationToken);
+
         var estrategia = dbContext.Database.CreateExecutionStrategy();
 
         return estrategia.ExecuteAsync(async ct =>

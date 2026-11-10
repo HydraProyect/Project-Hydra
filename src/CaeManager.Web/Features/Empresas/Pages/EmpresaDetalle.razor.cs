@@ -614,7 +614,10 @@ public partial class EmpresaDetalle : CaeManager.Web.Components.PaginaInteractiv
         var proximos = await ContarAsync(empresaId, EstadoDocumento.Proximo, busqueda, conCatalogo);
         if (carga != _cargaTrabajadores) return null;
 
-        return (new RecuentoTrabajadores(primera.TotalElementos, vencidos, urgentes, proximos, pendientes), primera.Elementos);
+        var sinConfirmar = await ContarAsync(empresaId, EstadoDocumento.SinConfirmar, busqueda, conCatalogo);
+        if (carga != _cargaTrabajadores) return null;
+
+        return (new RecuentoTrabajadores(primera.TotalElementos, vencidos, urgentes, proximos, pendientes, sinConfirmar), primera.Elementos);
     }
 
     private static ObtenerTrabajadoresQuery ConsultaOrdenada(Guid empresaId, int pagina, string? busqueda, Guid? delegacionId, Guid? oficioId) =>
@@ -1127,18 +1130,18 @@ public partial class EmpresaDetalle : CaeManager.Web.Components.PaginaInteractiv
     [
         new(PestanaTrabajadores, Textos["PestanaTrabajadores"])
         {
-            Contador = _recuentos is { } r ? new ContadorPestana(r.Total, Textos["GlosaTrabajadores"]) : null
+            Contador = _recuentos is { } r ? new ContadorPestana(r.Total, Textos[r.Total == 1 ? "GlosaTrabajadorUno" : "GlosaTrabajadores"]) : null
         },
         new(PestanaVigencia, Textos["PestanaVigencia"]),
         new(PestanaClientes, Textos["PestanaClientes"])
         {
-            Contador = _clientes is { Count: > 0 } clientes ? new ContadorPestana(clientes.Count, Textos["GlosaClientes"]) : null
+            Contador = _clientes is { Count: > 0 } clientes ? new ContadorPestana(clientes.Count, Textos[clientes.Count == 1 ? "GlosaClienteUno" : "GlosaClientes"]) : null
         },
         new(PestanaDocumentacion, Textos["PestanaDocumentacion"]),
         new(PestanaReclamar, Textos["PestanaReclamar"]),
         new(PestanaPlataformas, Textos["PestanaPlataformas"])
         {
-            Contador = _incidenciasPlataformas is > 0 and var incidencias ? new ContadorPestana(incidencias, Textos["GlosaPlataformas"]) : null
+            Contador = _incidenciasPlataformas is > 0 and var incidencias ? new ContadorPestana(incidencias, Textos[incidencias == 1 ? "GlosaPlataformasUna" : "GlosaPlataformas"]) : null
         },
         new(PestanaAgenda, Textos["PestanaAgenda"]),
         .. HayCajasDeFicha ? new[] { new PestanaDefinicion(PestanaFicha, Textos["PestanaFicha"]) } : [],
@@ -1273,8 +1276,15 @@ public enum FiltroTrabajadores
 /// documento ya combinado). Los grupos parten el total: cada trabajador está en uno solo, en el orden de la lista
 /// ordenada por estado (Vencido, Pendiente, Urgente, Próximo y el resto).
 /// </summary>
-public sealed record RecuentoTrabajadores(int Total, int Vencidos, int Urgentes, int Proximos, int Pendientes)
+public sealed record RecuentoTrabajadores(int Total, int Vencidos, int Urgentes, int Proximos, int Pendientes, int SinConfirmar = 0)
 {
+    /// <summary>
+    /// De <see cref="AlDia"/>, los Trabajadores cuyo peor estado es «Sin confirmar» (cuentan como al día, con aviso; decisión del
+    /// propietario del 2026-10-01). Sale de la misma consulta que pinta sus filas, no de una resta: el chip lo dice en voz alta para
+    /// que «Al día · N» no contradiga las filas con la pastilla «Sin confirmar».
+    /// </summary>
+    public int AlDiaSinConfirmar => Math.Min(SinConfirmar, AlDia);
+
     public int SinDocumentacionValida => Vencidos + Pendientes;
     public int PorVencer => Urgentes + Proximos;
     public int AlDia => Math.Max(0, Total - SinDocumentacionValida - PorVencer);
