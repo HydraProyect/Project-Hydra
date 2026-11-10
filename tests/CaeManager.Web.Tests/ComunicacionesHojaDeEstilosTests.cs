@@ -15,17 +15,34 @@ public class ComunicacionesHojaDeEstilosTests
     private const string Composer = "Features/Comunicaciones/Components/ComposerBar.razor.css";
 
     [Fact]
-    public void El_conmutador_de_ambito_no_tiene_altura_fija_y_se_reparte_el_ancho()
+    public void El_ambito_es_una_navegacion_vertical_sin_altura_fija_y_los_chips_de_filtro_no_se_reparten_el_ancho()
     {
         var css = Leer(Bandeja);
         // Los chips de filtro comparten .bandeja-toggle: no deben repartirse el ancho.
         Regla(css, @"\.bandeja-toggle").Should().NotMatchRegex(@"flex\s*:\s*1");
-        var regla = Regla(css, @"\.bandeja-vista-toggle \.bandeja-toggle");
-        regla.Should().MatchRegex(@"height\s*:\s*auto", "su rótulo ocupa dos líneas en la columna estrecha");
-        regla.Should().MatchRegex(@"min-height\s*:");
-        regla.Should().MatchRegex(@"flex\s*:\s*1");
+        var item = Regla(css, @"\.bandeja-nav-item");
+        item.Should().MatchRegex(@"min-height\s*:", "el rótulo puede ocupar dos líneas en la columna estrecha");
+        item.Should().NotMatchRegex(@"(?<!min-)(?<!max-)height\s*:\s*\d", "sin altura fija");
+        Regla(css, @"\.bandeja-nav").Should().MatchRegex(@"flex-direction\s*:\s*column");
     }
 
+    [Fact]
+    public void Los_puntos_de_corte_de_la_maqueta_son_1099_1600_y_1760_y_el_movil_es_760()
+    {
+        var css = Leer(Bandeja);
+        css.Should().Contain("@media (max-width: 1099px)").And.NotContain("max-width: 1023px");
+        Regex.IsMatch(css, @"@media \(min-width: 1600px\)\s*\{[^@]*344px").Should().BeTrue("a 1600 px la lista del hilo pasa a 344 px");
+        Regex.IsMatch(css, @"@media \(min-width: 1760px\)\s*\{[^@]*380px").Should().BeTrue("a 1760 px la lista del hilo pasa a 380 px");
+        Regex.IsMatch(css, @"@media \(max-width: 760px\)\s*\{[^@]*bandeja-cabecera-pagina").Should().BeTrue("en móvil la cabecera se parte en filas");
+    }
+
+    [Fact]
+    public void La_tabla_de_conversaciones_va_a_sangre_con_cabecera_fija_y_divisor_de_fila()
+    {
+        var css = Leer("Features/Comunicaciones/Components/TablaConversaciones.razor.css");
+        css.Should().Contain("position: sticky").And.Contain("--color-fila-divisor").And.Contain(".tabla-prioridad-punto");
+        Regla(css, @"\.tabla-conversaciones").Should().NotMatchRegex(@"border-radius\s*:\s*var");
+    }
     [Fact]
     public void Los_badges_de_la_linea_de_estado_de_la_fila_no_se_parten()
     {

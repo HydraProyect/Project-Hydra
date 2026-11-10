@@ -67,6 +67,13 @@ public class UnifiedTimelineTests : BunitContext
         var cuerpo = cut.Find(".timeline-nota-interna-cuerpo");
         cuerpo.TextContent.Should().Be("<b>ojo</b> llamar antes", "el texto de la nota nunca se interpreta como HTML");
         cuerpo.QuerySelector("b").Should().BeNull();
+
+        // E17: la nota lleva la píldora amarilla que dice a quién no llega, no una pastilla informativa genérica.
+        var cajaNota = cut.Find(".timeline-nota-interna");
+        cajaNota.GetAttribute("role").Should().Be("note");
+        cajaNota.QuerySelector(".timeline-pildora-nota")!.TextContent.Trim()
+            .Should().Be("Nota interna · no la ve el destinatario");
+        cajaNota.QuerySelector("[data-pieza='pastilla']").Should().BeNull();
     }
 
     [Fact]

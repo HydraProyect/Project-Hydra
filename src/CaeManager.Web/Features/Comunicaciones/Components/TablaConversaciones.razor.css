@@ -1,32 +1,28 @@
+/* Tabla a sangre (maqueta 2026-11-01, `.tabla-w`, E13): sin tarjeta ni borde propios, cabecera 12/16 600 en
+   minúsculas sobre surface-subtle con relleno 8/12, celdas 13/18 con relleno 8/12 y un ancho mínimo de 860 px. */
 .tabla-conversaciones {
-    border: var(--border-default);
-    border-radius: var(--radius-lg);
     background: var(--color-surface);
-    overflow: hidden;
 }
 
 .tabla-conversaciones-fila {
     display: grid;
     grid-template-columns: 92px minmax(0, 1.7fr) minmax(0, 1fr) 168px 116px;
-    align-items: center;
+    align-items: start;
     gap: 14px;
-    min-height: 60px;
-    padding: 10px 16px;
-    border-top: var(--border-default);
-    font: var(--font-body-md);
+    padding: 8px 12px;
+    border-bottom: 1px solid var(--color-fila-divisor);
+    font: 400 13px/18px var(--font-family);
     color: var(--color-text);
 }
 
 .tabla-conversaciones-cabecera {
-    min-height: 34px;
-    border-top: 0;
+    position: sticky;
+    top: 0;
+    z-index: 1;
     background: var(--color-surface-subtle);
     color: var(--color-text-muted);
-    font: var(--font-caption);
-    text-transform: uppercase;
-    letter-spacing: .05em;
+    font: 600 12px/16px var(--font-family);
 }
-
 .tabla-conversaciones-fila:has(button):hover,
 .tabla-conversaciones-fila:focus-within {
     background: var(--color-primary-50);
@@ -77,14 +73,32 @@
     font: var(--font-caption);
 }
 
+/* Prioridad = punto de 10 px + texto (maqueta); el punto toma el color del texto. */
 .tabla-prioridad {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
     color: var(--color-primary-700);
-    font: var(--font-label);
+    font: 600 13px/18px var(--font-family);
+}
+
+.tabla-prioridad-punto {
+    flex: none;
+    width: 10px;
+    height: 10px;
+    border-radius: var(--radius-full);
+    background: currentColor;
 }
 
 .tabla-prioridad-urgente,
 .tabla-prioridad-critica {
     color: var(--color-danger-700);
+}
+
+@media (min-width: 1181px) {
+    .tabla-conversaciones {
+        min-width: 860px;
+    }
 }
 
 @media (max-width: 1180px) {

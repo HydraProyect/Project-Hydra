@@ -171,6 +171,13 @@ public partial class Bandeja : CaeManager.Web.Components.PaginaInteractiva, IAsy
     private Guid? _conversacionSeleccionadaId;
     private ConversacionDetalleDto? _detalle;
     private bool _cargandoDetalle;
+
+    /// <summary>La última carga del detalle falló (maqueta 2026-11-01, E14): se pinta «No pudimos abrir la conversación» con «Reintentar» en vez de dejar el hilo anterior bajo la selección nueva.</summary>
+    private bool _errorDetalle;
+
+    /// <summary>Título del encabezado de la lista (E9): el filtro rápido activo, como hasta ahora.</summary>
+    private string TituloLista =>
+        TextosLista[_soloAsignadasAMi ? "Mias" : _soloSinAsignar ? "SinAsignar" : _soloEsperandoCliente ? "EsperandoCliente" : "Todas"].Value;
     private ClienteDetalleDto? _clienteActivo;
     private IReadOnlyList<MacroListaDto> _macrosDisponibles = [];
     private IReadOnlyList<CentroSelectorDto> _centrosClienteActivo = [];
@@ -740,6 +747,7 @@ public partial class Bandeja : CaeManager.Web.Components.PaginaInteractiva, IAsy
         if (!await _ambitoConversacion.ConfirmarAbandonoAsync()) return;
         ++_cargaDetalleVigente;
         _cargandoDetalle = false;
+        _errorDetalle = false;
         _conversacionSeleccionadaId = null;
         _detalle = null;
         _clienteActivo = null;
@@ -824,6 +832,7 @@ public partial class Bandeja : CaeManager.Web.Components.PaginaInteractiva, IAsy
 
         var carga = ++_cargaDetalleVigente;
         _cargandoDetalle = true;
+        _errorDetalle = false;
         StateHasChanged();
 
         try
@@ -907,6 +916,7 @@ public partial class Bandeja : CaeManager.Web.Components.PaginaInteractiva, IAsy
             Logger.LogError(ex, "Error al abrir la conversación {ConversacionId}.", id);
             if (carga != _cargaDetalleVigente) return;
 
+            _errorDetalle = true;
             ToastService.Mostrar(ErroresTextos["ErrorAbrirConversacion"].Value, TonoToast.Error);
         }
         finally

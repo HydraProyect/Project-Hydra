@@ -188,6 +188,21 @@ public class ConexionesGen2Tests : BunitContext
     }
 
     [Fact]
+    public void La_cabecera_tiene_subtitulo_corto_boton_Anadir_buzon_a_la_derecha_y_conserva_el_explorador_tecnico()
+    {
+        var cut = Renderizar();
+
+        var anadir = cut.Find("a.enlace-conectar-microsoft");
+        anadir.TextContent.Trim().Should().Be("Añadir buzón");
+        anadir.Closest(".acciones-conexion-buzon").Should().BeNull("el botón vive en la cabecera, no entre los selectores de propietario");
+        cut.Markup.Should().NotContain("Conectar buzón de Microsoft 365");
+
+        cut.Markup.Should().Contain("TALVEG solo lee los buzones de esta lista.");
+        cut.Find("a[href='/comunicaciones/buzon']").TextContent.Should().Contain("explorador técnico del buzón");
+        cut.Find("p.pie-buzones").TextContent.Should().Contain("solo lo ve su propietario");
+    }
+
+    [Fact]
     public async Task Los_selectores_de_propietario_son_excluyentes_y_conservan_la_url_correcta()
     {
         var cut = Renderizar();

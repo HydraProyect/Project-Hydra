@@ -5,6 +5,9 @@
 @attribute [Authorize(Roles = CaeManager.Infrastructure.Identity.Roles.Administrador)]
 @inherits CaeManager.Web.Components.PaginaIntegrableConfiguracionBase
 @using CaeManager.Domain.Integraciones
+@using CaeManager.Web.Features.Integraciones.Recursos
+@using Microsoft.Extensions.Localization
+@inject IStringLocalizer<TextosConexiones> TextosCx
 
 <LimiteDeErrores Pagina="this">
 @if (!IntegradaEnConfiguracion)
@@ -16,12 +19,14 @@
 <div class="@ClaseContenedorPagina">
     <CabeceraPagina Titulo="Conexiones de integración" Integrada="@IntegradaEnConfiguracion">
         <Descripcion>
-            Buzones de Microsoft 365 conectados para la bandeja de correo compartida (Comunicaciones).
-            Cada conexión pertenece a una empresa sin rol CAE concreta, a la organización propia si se deja en blanco
-            o al buzón personal de un Gestor CAE.
-            Para investigar una conexión en concreto —carpetas, mensajes en Graph que aún no llegaron por
-            webhook—, usa el <a href="/comunicaciones/buzon">explorador técnico del buzón (diagnóstico)</a>.
+            @TextosCx["Subtitulo"]
+            @TextosCx["EnlaceDiagnostico"] <a href="/comunicaciones/buzon">@TextosCx["EnlaceDiagnosticoVinculo"]</a>.
         </Descripcion>
+        <Acciones>
+            @* E31: «Añadir buzón» es un botón secundario a la derecha del título; sigue siendo el enlace que arranca la
+               conexión de Microsoft 365 con el propietario elegido más abajo. *@
+            <a class="enlace-conectar-microsoft" href="@UrlConectar">@TextosCx["AnadirBuzon"]</a>
+        </Acciones>
     </CabeceraPagina>
 
     <AtajosListaTeclado OnAtajo="ManejarAtajoAsync" />
@@ -49,8 +54,6 @@
                 <option value="@gestor.Id">@gestor.NombreCompleto</option>
             }
         </CampoSelect>
-
-        <a class="enlace-conectar-microsoft" href="@UrlConectar">Conectar buzón de Microsoft 365 <span aria-hidden="true">↗</span></a>
     </div>
 
     @if (_cargando)
@@ -112,6 +115,7 @@
                     </Contenido>
                 </TarjetaListado>
     }
+    <p class="texto-descriptivo pie-buzones">@TextosCx["PieBuzones"]</p>
     </section>
 
     <section class="seccion-conexiones seccion-lineas-whatsapp" aria-labelledby="titulo-lineas-whatsapp"

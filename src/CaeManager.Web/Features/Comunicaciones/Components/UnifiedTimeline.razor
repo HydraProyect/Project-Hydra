@@ -36,10 +36,11 @@
                 <span class="timeline-autor-nota" title="@autor">
                     <AvatarUsuario Nombre="@autor" Avatar="@AvataresNotas.GetValueOrDefault(nota.AutorUsuarioId)" />
                 </span>
-                <div class="timeline-nota-interna">
+                <div class="timeline-nota-interna" role="note" aria-label="@TextosNotas["EtiquetaNotaInterna"]">
                     <div class="timeline-mensaje-cabecera">
                         <span class="timeline-mensaje-remitente">@autor</span>
-                        <Badge Tono="TonoBadge.Info" Tamano="TamanoBadge.Pequeno">@TextosNotas["EtiquetaNotaInterna"]</Badge>
+                        @* Píldora amarilla de la maqueta (E17): dice a quién NO llega la nota. *@
+                        <span class="timeline-pildora-nota">@TextosNotas["PildoraNotaInterna"]</span>
                         <span class="timeline-mensaje-fecha">@FormatearFechaRelativa(nota.FechaUtc)</span>
                     </div>
                     <div class="timeline-nota-interna-cuerpo">@nota.Texto</div>
