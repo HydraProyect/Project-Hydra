@@ -21,12 +21,15 @@ namespace CaeManager.Architecture.Tests;
 /// <item>ninguna cadena (literal, interpolada o cruda) contiene en código SQL una sentencia
 /// <c>BEGIN</c> o <c>START TRANSACTION</c>; mira todas las cadenas, no solo las que se pasan en la
 /// misma línea a ExecuteSqlRaw, ExecuteSqlInterpolated, SqlQuery o CommandText, para que también
-/// cuente una constante que se pasa después;</item>
+/// cuente una constante que se pasa después; y las mira en Debug y en Release, para que tampoco
+/// se escape la que vive bajo <c>#if DEBUG</c> o bajo su <c>#else</c> (y también sin símbolos, como
+/// antes);</item>
 /// <item>BeginTransaction y BeginTransactionAsync solo resuelven, según el modelo semántico de Roslyn
 /// sobre el proyecto compilado en memoria, a <c>DatabaseFacade</c> de EF o a sus extensiones
 /// relacionales (que fijan <c>CurrentTransaction</c>), y EnlistTransaction no se llama, salvo la lista
 /// cerrada; no se mira el nombre del receptor, que una variable puede imitar;</item>
-/// <item>en los <c>.razor</c>, fuera de comentarios, ni esos métodos ni cadenas con SQL de transacción.</item>
+/// <item>en los <c>.razor</c>, fuera de comentarios, ni esos métodos ni cadenas (también crudas y
+/// multilínea) con SQL de transacción.</item>
 /// </list>
 /// </summary>
 public class SinTransaccionesFueraDeEfTests(ITestOutputHelper salida)
@@ -164,26 +167,95 @@ public class SinTransaccionesFueraDeEfTests(ITestOutputHelper salida)
 
     private static readonly Regex NombreDeTransaccionEnRazor = new(@"\b(BeginTransaction|BeginTransactionAsync|EnlistTransaction)\b", RegexOptions.Compiled);
 
-    private static readonly Regex CadenaEnRazor = new(@"@""(?:[^""]|"""")*""|""(?:[^""\\\r\n]|\\.)*""", RegexOptions.Compiled);
+    /// <summary>
+    /// Una cadena de C# dentro de un .razor, con sus prefijos: primero la cruda, con cualquier número
+    /// de <c>$</c> y de comillas y con la gramática de C#: o de una línea (abre y cierra en ella) o
+    /// multilínea (tras las comillas de apertura solo hay espacios hasta el fin de línea, y las de
+    /// cierre empiezan su línea tras espacios); cierra con exactamente las mismas comillas con que
+    /// abre. Luego la verbatim y por último la normal, interpoladas o no. La cruda va primero para
+    /// que sus comillas no se lean como una cadena vacía seguida de otra.
+    /// </summary>
+    private static readonly Regex CadenaEnRazor = new(
+        @"\$*(?<q>""{3,})(?!"")(?:[^\r\n]*?(?<!"")\k<q>|[ \t]*\r?\n[\s\S]*?\n[ \t]*\k<q>)(?!"")" +
+        @"|(?:\$*@|@\$+)""(?:[^""]|"""")*""" +
+        @"|\$*""(?:[^""\\\r\n]|\\.)*""",
+        RegexOptions.Compiled);
+
+    /// <summary>
+    /// La expresión de antes de reconocer las crudas: solo normales y verbatim. Un .razor no dice
+    /// dónde acaba el marcado y empieza el C#, así que unas comillas triples del marcado pueden
+    /// casar con otras y tragarse un bloque <c>@code</c> entero; para que eso nunca oculte lo que
+    /// ya se detectaba, sus infractoras se suman siempre a las de <see cref="CadenaEnRazor"/>.
+    /// </summary>
+    private static readonly Regex CadenaEnRazorAnterior = new(@"@""(?:[^""]|"""")*""|""(?:[^""\\\r\n]|\\.)*""", RegexOptions.Compiled);
+
+    private static int LineaDe(string texto, int indice) => texto.AsSpan(0, indice).Count('\n') + 1;
 
     /// <summary>
     /// Las líneas de un .razor, sin sus comentarios, que nombran un método de transacción, y las de
-    /// las cadenas entre comillas (normales o verbatim) que abren una transacción por SQL.
+    /// las cadenas (normales, verbatim, interpoladas o crudas, también multilínea; la línea es la de
+    /// su apertura) que abren una transacción por SQL. El valor de cada cadena lo da Roslyn, que
+    /// resuelve escapes, huecos y la sangría de las crudas; además se examina su texto decodificado
+    /// entre los delimitadores, por si Roslyn no la reconoce. Las infractoras son la unión con las
+    /// de <see cref="InfractorasEnRazorAnteriores"/>: detecta siempre un superconjunto de lo que
+    /// detectaba la expresión anterior.
     /// </summary>
     internal static (List<int> Nombres, (int Total, List<int> Infractoras) Cadenas) TransaccionesEnRazor(string fuente)
     {
         var limpio = LimpiadorDeComentarios.Quitar(fuente, razor: true);
-        int Linea(int indice) => limpio.AsSpan(0, indice).Count('\n') + 1;
 
-        var nombres = NombreDeTransaccionEnRazor.Matches(limpio).Select(m => Linea(m.Index)).ToList();
+        var nombres = NombreDeTransaccionEnRazor.Matches(limpio).Select(m => LineaDe(limpio, m.Index)).ToList();
         var cadenas = CadenaEnRazor.Matches(limpio);
         var infractoras = cadenas
+            .Where(m => ValoresDeCadenaEnRazor(m.Value).Any(AbreTransaccion))
+            .Select(m => LineaDe(limpio, m.Index))
+            .Concat(InfractorasEnRazorAnteriores(limpio))
+            .Distinct()
+            .Order()
+            .ToList();
+        return (nombres, (cadenas.Count, infractoras));
+    }
+
+    /// <summary>
+    /// Lo que detectaba el analizador anterior sobre un .razor ya sin comentarios: cadenas normales
+    /// y verbatim de una expresión que no conoce las crudas, decodificadas como entonces.
+    /// </summary>
+    internal static IEnumerable<int> InfractorasEnRazorAnteriores(string limpio) =>
+        CadenaEnRazorAnterior.Matches(limpio)
             .Where(m => AbreTransaccion(m.Value.StartsWith('@')
                 ? m.Value[2..^1].Replace("\"\"", "\"")
                 : Regex.Unescape(m.Value[1..^1])))
-            .Select(m => Linea(m.Index))
-            .ToList();
-        return (nombres, (cadenas.Count, infractoras));
+            .Select(m => LineaDe(limpio, m.Index));
+
+    private static readonly CSharpParseOptions OpcionesDeLiteral = CSharpParseOptions.Default.WithLanguageVersion(LanguageVersion.Preview);
+
+    /// <summary>El valor de una cadena de un .razor según Roslyn, y su texto decodificado entre los delimitadores.</summary>
+    private static IEnumerable<string> ValoresDeCadenaEnRazor(string literal)
+    {
+        var raiz = CSharpSyntaxTree.ParseText($"class C {{ object x = {literal}\n; }}", OpcionesDeLiteral).GetRoot();
+        foreach (var (_, _, texto) in CadenasDe(raiz))
+            yield return texto;
+        yield return TextoDecodificado(literal);
+    }
+
+    /// <summary>
+    /// El texto de una cadena entre sus delimitadores, sin Roslyn: la cruda, tal cual entre sus
+    /// comillas (no tiene escapes); la verbatim, con sus comillas dobles reducidas a una; la normal,
+    /// con sus escapes resueltos. Los huecos de una interpolada quedan como texto.
+    /// </summary>
+    private static string TextoDecodificado(string literal)
+    {
+        var sinPrefijo = literal.TrimStart('$');
+        if (sinPrefijo.StartsWith("\"\"\"", StringComparison.Ordinal))
+        {
+            var comillas = sinPrefijo.Length - sinPrefijo.TrimStart('"').Length;
+            return sinPrefijo[comillas..^comillas];
+        }
+
+        if (sinPrefijo.StartsWith('@') || literal.StartsWith('@'))
+            return sinPrefijo.TrimStart('@').TrimStart('$')[1..^1].Replace("\"\"", "\"");
+
+        return Regex.Unescape(sinPrefijo[1..^1]);
     }
 
     private static IEnumerable<(string Relativa, string Fuente)> FicherosDeSrc()
@@ -198,10 +270,28 @@ public class SinTransaccionesFueraDeEfTests(ITestOutputHelper salida)
         return ficheros.Select(f => (Path.GetRelativePath(src, f).Replace('\\', '/'), File.ReadAllText(f)));
     }
 
-    /// <summary>Las cadenas de un fichero C#, con su línea; los huecos de una interpolada cuentan como un valor.</summary>
+    /// <summary>
+    /// Las cadenas de un fichero C#, con su línea; los huecos de una interpolada cuentan como un valor.
+    /// Se parsea con las opciones de cada configuración (las mismas del análisis semántico), para que
+    /// una cadena bajo <c>#if DEBUG</c> o bajo su <c>#else</c> también se examine; cada cadena sale una
+    /// sola vez aunque exista en varias. Además se parsea sin símbolos, como antes, para no perder la
+    /// rama que solo existe sin ellos (<c>#if !TRACE</c>, <c>#elif !NET</c>).
+    /// </summary>
     internal static IEnumerable<(int Linea, string Texto)> Cadenas(string fuente)
     {
-        var raiz = CSharpSyntaxTree.ParseText(fuente).GetRoot();
+        var vistas = new HashSet<int>();
+        foreach (var opciones in Configuraciones.Select(c => c.Opciones).Append(CSharpParseOptions.Default))
+        {
+            foreach (var cadena in CadenasDe(CSharpSyntaxTree.ParseText(fuente, opciones).GetRoot()))
+            {
+                if (vistas.Add(cadena.Inicio))
+                    yield return (cadena.Linea, cadena.Texto);
+            }
+        }
+    }
+
+    private static IEnumerable<(int Inicio, int Linea, string Texto)> CadenasDe(SyntaxNode raiz)
+    {
         foreach (var nodo in raiz.DescendantNodes())
         {
             string? texto = nodo switch
@@ -216,7 +306,7 @@ public class SinTransaccionesFueraDeEfTests(ITestOutputHelper salida)
                 _ => null,
             };
             if (texto is not null)
-                yield return (nodo.GetLocation().GetLineSpan().StartLinePosition.Line + 1, texto);
+                yield return (nodo.SpanStart, nodo.GetLocation().GetLineSpan().StartLinePosition.Line + 1, texto);
         }
     }
 
@@ -549,10 +639,7 @@ public class SinTransaccionesFueraDeEfTests(ITestOutputHelper salida)
         NombraMetodoDeTransaccion(sinSimbolos).Should().BeFalse("el caso es sensible a los símbolos de preprocesador");
     }
 
-    [Fact]
-    public void El_detector_de_razor_ve_metodos_y_SQL_de_transaccion_fuera_de_comentarios()
-    {
-        const string fuente = """
+    private const string RazorConMetodosYSql = """
             @page "/x"
             @* await Db.Database.GetDbConnection().BeginTransactionAsync(); "BEGIN;" *@
             <p title="Begin import">Begin</p>
@@ -569,10 +656,202 @@ public class SinTransaccionesFueraDeEfTests(ITestOutputHelper salida)
             }
             """;
 
-        var (nombres, cadenas) = TransaccionesEnRazor(fuente);
+    [Fact]
+    public void El_detector_de_razor_ve_metodos_y_SQL_de_transaccion_fuera_de_comentarios()
+    {
+        var (nombres, cadenas) = TransaccionesEnRazor(RazorConMetodosYSql);
 
         nombres.Should().Equal([9], "solo la llamada fuera de comentarios");
         cadenas.Infractoras.Should().Equal([10, 11], "las cadenas que abren transacción, normal y verbatim; no la de un literal SQL ni el marcado");
+    }
+
+    private const string RazorConCrudas = """"
+            @page "/x"
+            @code {
+                private async Task F(int x)
+                {
+                    await Db.Database.ExecuteSqlRawAsync("""
+                        BEGIN;
+                        """);
+                    await Db.Database.ExecuteSqlRawAsync($$"""
+                        START TRANSACTION; SELECT {{x}}
+                        """);
+                    await Db.Database.ExecuteSqlRawAsync("""BEGIN ISOLATION LEVEL SERIALIZABLE""");
+                    await Db.Database.ExecuteSqlRawAsync("""
+                        SELECT "BEGIN;" FROM t;
+                        DO $$ BEGIN PERFORM 1; END $$;
+                        """);
+                    await Db.Database.ExecuteSqlRawAsync(@"SELECT 1");
+                }
+            }
+            """";
+
+    /// <summary>
+    /// Issue #2024: las cadenas crudas de C# 11 dentro de un .razor, también multilínea e
+    /// interpoladas. La expresión anterior leía <c>"""</c> como una cadena vacía seguida de otra que
+    /// no cerraba en la línea, así que no veía las líneas 5 y 8. Sí daba por cadena el
+    /// <c>"BEGIN;"</c> de la línea 13, que es texto de la cruda abierta en la línea 12: ese falso
+    /// positivo se conserva a propósito, porque las infractoras de la expresión anterior se suman
+    /// siempre (ver <see cref="El_detector_de_razor_detecta_un_superconjunto_del_anterior"/>).
+    /// </summary>
+    [Fact]
+    public void El_detector_de_razor_ve_las_cadenas_crudas_multilinea()
+    {
+        var (_, cadenas) = TransaccionesEnRazor(RazorConCrudas);
+
+        cadenas.Infractoras.Should().Equal([5, 8, 11, 13],
+            "las crudas que abren transacción, multilínea, interpolada y de una línea, y lo que ya veía la " +
+            "expresión anterior; no la cruda cuyo BEGIN es un bloque plpgsql");
+        cadenas.Total.Should().Be(6, "cada cruda es una sola cadena, más la del @page y la verbatim");
+    }
+
+    /// <summary>
+    /// Unas comillas triples del marcado no abren una cruda que se trague el <c>@code</c> que hay
+    /// entre ellas: la expresión anterior veía el <c>"BEGIN;"</c> de la línea 3 y la nueva también;
+    /// y como tras <c>"""</c> viene <c>&lt;/p&gt;</c>, no es una apertura de cruda, así que la
+    /// cruda multilínea de la línea 4 tampoco queda desemparejada.
+    /// </summary>
+    private const string RazorConComillasTriplesEnElMarcado = """"
+            <p>"""</p>
+            @code {
+                void F() { Db.Database.ExecuteSqlRaw("BEGIN;"); }
+                void G() { Db.Database.ExecuteSqlRaw("""
+                    START TRANSACTION;
+                    """); }
+            }
+            <p>"""</p>
+            """";
+
+    /// <summary>
+    /// Lo mismo cuando las comillas del marcado sí cumplen la gramática de una cruda multilínea
+    /// (nada tras las de apertura, las de cierre al empezar la línea): solo la unión con la
+    /// expresión anterior lo cierra.
+    /// </summary>
+    private const string RazorConComillasTriplesQueParecenUnaCruda = """"
+            <p>"""
+            </p>
+            @code {
+                void F() { Db.Database.ExecuteSqlRaw("BEGIN;"); }
+            }
+            """</p>
+            """";
+
+    [Fact]
+    public void Las_comillas_triples_del_marcado_no_ocultan_un_BEGIN_del_codigo()
+    {
+        TransaccionesEnRazor(RazorConComillasTriplesEnElMarcado).Cadenas.Infractoras.Should().Equal([3, 4]);
+        TransaccionesEnRazor(RazorConComillasTriplesQueParecenUnaCruda).Cadenas.Infractoras.Should().Equal([4]);
+    }
+
+    /// <summary>
+    /// El valor de una verbatim es <c>SELECT "x; BEGIN; y"</c>: el BEGIN es parte de un identificador
+    /// entre comillas, no una sentencia. Examinar el texto sin reducir sus comillas dobles lo daba
+    /// por transacción. (La forma <c>@$"…"</c> no va aquí: la expresión anterior ya la leía como dos
+    /// cadenas normales y la unión conserva ese falso positivo.)
+    /// </summary>
+    [Fact]
+    public void El_detector_de_razor_decodifica_las_comillas_dobles_de_una_verbatim()
+    {
+        const string fuente = """"
+            @code {
+                void F() { Db.Database.ExecuteSqlRaw(@"SELECT ""x; BEGIN; y"""); }
+                void G() { Db.Database.ExecuteSqlRaw($@"SELECT ""x; BEGIN; y"""); }
+            }
+            """";
+
+        var (_, cadenas) = TransaccionesEnRazor(fuente);
+
+        cadenas.Total.Should().Be(2);
+        cadenas.Infractoras.Should().BeEmpty("el BEGIN está dentro de un identificador entre comillas");
+    }
+
+    /// <summary>
+    /// Cada caso con las líneas que detectaba el analizador de origin/main antes de esta PR, fijadas
+    /// a mano: si alguien cambia la expresión anterior o su decodificación, la referencia no se mueve
+    /// con el código.
+    /// </summary>
+    public static TheoryData<string, int[]> FuentesRazorDeLosCasos() => new()
+    {
+        { RazorConMetodosYSql, [10, 11] },
+        { RazorConCrudas, [11, 13] },
+        { RazorConComillasTriplesEnElMarcado, [3] },
+        { RazorConComillasTriplesQueParecenUnaCruda, [4] },
+    };
+
+    /// <summary>
+    /// La propiedad general: en cada caso, toda línea que detectaba el analizador anterior la detecta
+    /// también el nuevo.
+    /// </summary>
+    [Theory]
+    [MemberData(nameof(FuentesRazorDeLosCasos))]
+    public void El_detector_de_razor_detecta_un_superconjunto_del_anterior(string fuente, int[] anteriores)
+    {
+        InfractorasEnRazorAnteriores(LimpiadorDeComentarios.Quitar(fuente, razor: true)).Should().Equal(
+            anteriores, "la expresión anterior y su decodificación son la referencia y no cambian");
+        TransaccionesEnRazor(fuente).Cadenas.Infractoras.Should().Contain(anteriores);
+    }
+
+    /// <summary>
+    /// Issue #2025: una cadena bajo <c>#if DEBUG</c> solo existe con el símbolo DEBUG; la de su
+    /// <c>#else</c>, solo sin él. Parseando sin símbolos (lo que hacía <see cref="Cadenas"/> antes) la
+    /// de la línea 6 no se examinaba.
+    /// </summary>
+    [Fact]
+    public void El_detector_ve_las_cadenas_escondidas_tras_if_DEBUG_o_su_else()
+    {
+        const string fuente = """
+            class C
+            {
+                void F(System.Data.Common.DbCommand cmd)
+                {
+            #if DEBUG
+                    cmd.CommandText = "BEGIN;";
+                    cmd.CommandText = "SELECT 'BEGIN;'";
+            #else
+                    cmd.CommandText = "START TRANSACTION";
+            #endif
+                    cmd.CommandText = "SELECT 1";
+                }
+            }
+            """;
+
+        var cadenas = Cadenas(fuente).ToList();
+
+        cadenas.Where(c => AbreTransaccion(c.Texto)).Select(c => c.Linea).Should().BeEquivalentTo(
+            new[] { 6, 9 }, "la de #if DEBUG y la de su #else; no el literal SQL que contiene BEGIN");
+        cadenas.Select(c => c.Linea).Should().BeEquivalentTo(
+            new[] { 6, 7, 9, 11 }, "cada cadena una sola vez, aunque exista en las dos configuraciones");
+
+        CadenasDe(CSharpSyntaxTree.ParseText(fuente).GetRoot()).Select(c => c.Linea).Should().NotContain(
+            6, "el caso es sensible a los símbolos de preprocesador");
+    }
+
+    /// <summary>
+    /// Una rama que solo existe sin símbolos (<c>#if !TRACE</c>, o un <c>#elif !NET</c>) no existe ni
+    /// en Debug ni en Release, pero el análisis anterior, que parseaba sin símbolos, sí la veía; se
+    /// sigue examinando para no perder nada de lo que ya se detectaba.
+    /// </summary>
+    [Fact]
+    public void El_detector_ve_las_cadenas_que_solo_existen_sin_simbolos()
+    {
+        const string fuente = """
+            class C
+            {
+                void F(System.Data.Common.DbCommand cmd)
+                {
+            #if DEBUG
+                    cmd.CommandText = "SELECT 1";
+            #elif !NET
+                    cmd.CommandText = "BEGIN;";
+            #endif
+            #if !TRACE
+                    cmd.CommandText = "START TRANSACTION";
+            #endif
+                }
+            }
+            """;
+
+        Cadenas(fuente).Where(c => AbreTransaccion(c.Texto)).Select(c => c.Linea).Should().Equal(8, 11);
     }
 
     private static string BuscarRaizDelRepositorio()
