@@ -402,6 +402,9 @@ public partial class UnirPdf : CaeManager.Web.Components.PaginaInteractiva, IDis
     /// </summary>
     private async Task DescargarAsync(ResultadoUnionPdf resultado, CancellationToken token)
     {
+        // Al vencer el plazo o desecharse la pantalla, la espera de interop se corta y quien llama devuelve la reserva, aunque
+        // Blazor quizá siga transfiriendo el MemoryStream un instante. Se acepta: la reserva es una cuenta del presupuesto, no
+        // el búfer, y ese búfer (el PDF unido, con su tope) deja de estar referenciado en cuanto Blazor suelta el flujo.
         using var vencimiento = new CancellationTokenSource(PlazoDescarga, Reloj);
         using var plazo = CancellationTokenSource.CreateLinkedTokenSource(token, vencimiento.Token);
         try

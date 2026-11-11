@@ -4,6 +4,7 @@ using CaeManager.Application.HerramientasPdf;
 using CaeManager.Domain.Common;
 using CaeManager.Infrastructure.HerramientasPdf;
 using FluentAssertions;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Xunit;
 
@@ -137,7 +138,8 @@ public sealed class UnidorPdfEnProcesoAparteTests
 
         resultado.EsFallido.Should().BeTrue(caso);
         resultado.Error.Codigo.Should().Be(codigo, caso);
-        _limitador.Libres.Should().Be(1, "el turno se suelta siempre");
+        _limitador.Libres.Should().Be(1, "con el hijo terminado el turno se suelta siempre");
+        _limitador.Degradado.Should().BeFalse(caso);
     }
 
     [Fact]
@@ -162,31 +164,99 @@ public sealed class UnidorPdfEnProcesoAparteTests
     }
 
     [Fact]
-    public async Task Si_el_lanzador_no_vuelve_ni_al_cancelar_el_turno_se_suelta_igualmente()
+    public async Task Con_el_hijo_terminado_el_turno_se_suelta_y_la_herramienta_sigue_activa()
     {
-        // No pudo matar al hijo y la lectura no atiende la cancelación: el lanzador no vuelve nunca, ni con el token.
-        var lanzador = new LanzadorDoble(_ => Terminado(0, [])) { NoVolver = true };
-        var opciones = _opciones with { TiempoMaximoInspeccionar = TimeSpan.FromMilliseconds(50), MargenLiberacionTurno = TimeSpan.FromMilliseconds(50) };
-        var unidor = new UnidorPdfEnProcesoAparte(opciones, _limitador, lanzador, NullLogger<UnidorPdfEnProcesoAparte>.Instance);
+        var lanzador = new LanzadorDoble(_ => Terminado(0, Union(Result.Exito(new PdfUnido("%PDF-1.4 unido"u8.ToArray(), 2)))));
 
-        var resultado = await unidor.InspeccionarAsync(PdfA, CancellationToken.None).WaitAsync(TimeSpan.FromSeconds(10));
+        await Unidor(lanzador).UnirAsync([PdfA, PdfB], CancellationToken.None);
+        var segunda = await Unidor(lanzador).UnirAsync([PdfA, PdfB], CancellationToken.None);
 
-        resultado.Error.Codigo.Should().Be(ErroresUnirPdf.DemasiadoComplejo, "es un tiempo agotado");
-        _limitador.Libres.Should().Be(1, "el único turno no se queda retenido por un hijo que no se pudo matar");
+        segunda.EsExitoso.Should().BeTrue();
+        lanzador.Llamadas.Should().Be(2);
+        _limitador.Libres.Should().Be(1);
+        _limitador.Degradado.Should().BeFalse();
     }
 
     [Fact]
-    public async Task Si_el_lanzador_no_vuelve_y_el_llamante_cancela_el_turno_se_suelta_y_se_cancela()
+    public async Task Si_no_se_confirma_que_el_hijo_termino_el_turno_no_se_suelta_y_la_herramienta_queda_desactivada()
+    {
+        // Falló Kill, o el hijo no salió en el margen tras matarlo: el lanzador no puede confirmar su muerte.
+        var registro = new RegistroDoble();
+        var lanzador = new LanzadorDoble(_ => throw new ProcesoAisladoSinTerminarException(4321));
+        var unidor = new UnidorPdfEnProcesoAparte(_opciones, _limitador, lanzador, registro);
+
+        var unir = () => unidor.UnirAsync([PdfA, PdfB], CancellationToken.None);
+
+        await unir.Should().ThrowAsync<PresupuestoMemoriaAgotadoException>("la pantalla lo traduce a «inténtalo más tarde»");
+        _limitador.Libres.Should().Be(0, "el hijo quizá vivo conserva su hueco: otro proceso no puede ocuparlo");
+        _limitador.Degradado.Should().BeTrue();
+        (await _limitador.EntrarAsync(TimeSpan.Zero, CancellationToken.None)).Should().BeNull("ningún otro proceso recibe turno");
+        registro.Entradas.Should().ContainSingle(e => e.Nivel == LogLevel.Critical)
+            .Which.Mensaje.Should().Contain("4321").And.NotContain("%PDF", "sin datos de los Documentos");
+    }
+
+    [Fact]
+    public async Task Desactivada_la_herramienta_una_union_posterior_pide_reintentar_en_el_acto_sin_lanzar_nada()
+    {
+        var lanzador = new LanzadorDoble(_ => throw new ProcesoAisladoSinTerminarException(4321));
+        // Una espera de turno larga: si la unión posterior esperase turno en vez de responder en el acto, el test vencería.
+        var opciones = _opciones with { EsperaMaximaTurno = TimeSpan.FromMinutes(5) };
+        var unidor = new UnidorPdfEnProcesoAparte(opciones, _limitador, lanzador, NullLogger<UnidorPdfEnProcesoAparte>.Instance);
+        await unidor.Invoking(u => u.UnirAsync([PdfA, PdfB], CancellationToken.None)).Should().ThrowAsync<PresupuestoMemoriaAgotadoException>();
+
+        var unir = () => unidor.UnirAsync([PdfA, PdfB], CancellationToken.None).WaitAsync(TimeSpan.FromSeconds(10));
+        var inspeccionar = () => unidor.InspeccionarAsync(PdfA, CancellationToken.None).WaitAsync(TimeSpan.FromSeconds(10));
+
+        await unir.Should().ThrowAsync<PresupuestoMemoriaAgotadoException>();
+        await inspeccionar.Should().ThrowAsync<PresupuestoMemoriaAgotadoException>();
+        lanzador.Llamadas.Should().Be(1, "solo la unión que degradó llegó a lanzar");
+    }
+
+    [Fact]
+    public async Task Si_el_hijo_no_se_confirma_terminado_y_el_llamante_cancelo_se_cancela_y_la_herramienta_queda_desactivada()
+    {
+        using var cancelacion = new CancellationTokenSource();
+        var lanzador = new LanzadorDoble(_ =>
+        {
+            cancelacion.Cancel();
+            throw new ProcesoAisladoSinTerminarException(4321);
+        });
+
+        var inspeccionar = () => Unidor(lanzador).InspeccionarAsync(PdfA, cancelacion.Token);
+
+        await inspeccionar.Should().ThrowAsync<OperationCanceledException>();
+        _limitador.Libres.Should().Be(0);
+        _limitador.Degradado.Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task Si_el_lanzador_no_vuelve_ni_al_cancelar_el_turno_no_se_suelta_y_la_herramienta_queda_desactivada()
+    {
+        // No pudo matar al hijo y la lectura no atiende la cancelación: el lanzador no vuelve nunca, ni con el token.
+        var lanzador = new LanzadorDoble(_ => Terminado(0, [])) { NoVolver = true };
+        var opciones = _opciones with { TiempoMaximoInspeccionar = TimeSpan.FromMilliseconds(50), MargenConfirmacionTerminado = TimeSpan.FromMilliseconds(50) };
+        var unidor = new UnidorPdfEnProcesoAparte(opciones, _limitador, lanzador, NullLogger<UnidorPdfEnProcesoAparte>.Instance);
+
+        var inspeccionar = () => unidor.InspeccionarAsync(PdfA, CancellationToken.None).WaitAsync(TimeSpan.FromSeconds(10));
+
+        await inspeccionar.Should().ThrowAsync<PresupuestoMemoriaAgotadoException>("la espera acotada no confirma que el hijo muriera");
+        _limitador.Libres.Should().Be(0, "el único turno se queda con el hijo quizá vivo");
+        _limitador.Degradado.Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task Si_el_lanzador_no_vuelve_y_el_llamante_cancela_se_cancela_y_la_herramienta_queda_desactivada()
     {
         var lanzador = new LanzadorDoble(_ => Terminado(0, [])) { NoVolver = true };
-        var opciones = _opciones with { TiempoMaximoInspeccionar = TimeSpan.FromMilliseconds(50), MargenLiberacionTurno = TimeSpan.FromMilliseconds(50) };
+        var opciones = _opciones with { TiempoMaximoInspeccionar = TimeSpan.FromMilliseconds(50), MargenConfirmacionTerminado = TimeSpan.FromMilliseconds(50) };
         var unidor = new UnidorPdfEnProcesoAparte(opciones, _limitador, lanzador, NullLogger<UnidorPdfEnProcesoAparte>.Instance);
         using var cancelacion = new CancellationTokenSource(TimeSpan.FromMilliseconds(20));
 
         var inspeccionar = () => unidor.InspeccionarAsync(PdfA, cancelacion.Token).WaitAsync(TimeSpan.FromSeconds(10));
 
         await inspeccionar.Should().ThrowAsync<OperationCanceledException>();
-        _limitador.Libres.Should().Be(1);
+        _limitador.Libres.Should().Be(0);
+        _limitador.Degradado.Should().BeTrue();
     }
 
     [Fact]
@@ -199,6 +269,7 @@ public sealed class UnidorPdfEnProcesoAparteTests
 
         await inspeccionar.Should().ThrowAsync<OperationCanceledException>();
         _limitador.Libres.Should().Be(1);
+        _limitador.Degradado.Should().BeFalse("el lanzador confirmó la muerte al cancelar");
     }
 
     [Fact]
@@ -262,6 +333,19 @@ public sealed class UnidorPdfEnProcesoAparteTests
         using var salida = new MemoryStream();
         var codigo = ProcesoHerramientasPdf.Ejecutar(new MemoryStream(peticion), salida);
         return (codigo, salida.ToArray());
+    }
+
+    /// <summary>Anota cada entrada del registro con su nivel y su mensaje ya formateado.</summary>
+    private sealed class RegistroDoble : ILogger<UnidorPdfEnProcesoAparte>
+    {
+        public List<(LogLevel Nivel, string Mensaje)> Entradas { get; } = [];
+
+        public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
+
+        public bool IsEnabled(LogLevel logLevel) => true;
+
+        public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception? exception,
+            Func<TState, Exception?, string> formatter) => Entradas.Add((logLevel, formatter(state, exception)));
     }
 
     /// <summary>

@@ -5,33 +5,71 @@ namespace CaeManager.Infrastructure.HerramientasPdf;
 /// aplicación, así que el techo de memoria que suman es capacidad × límite. Sirve para cualquier herramienta que abra
 /// archivos ajenos en un proceso aparte: quien lo registre decide si comparte la instancia.
 ///
-/// Esa cota supone que el hijo muere al vencer su plazo. Si el sistema no deja matarlo, el turno se suelta igualmente,
-/// pasado un margen acotado (<see cref="OpcionesProcesoHerramientasPdf.MargenLiberacionTurno"/>), y el hijo vivo queda fuera
-/// de la cuenta: queda en el registro como error, y el techo del contenedor y su <c>oom_score_adj</c> son lo que lo acota.
+/// Esa cota solo vale si cada turno se suelta con su hijo ya muerto. Por eso un turno cuyo hijo no se pudo confirmar
+/// terminado no se suelta nunca (<see cref="TurnoProcesoAislado.RetenerPorHijoSinConfirmar"/>) y el limitador pasa a
+/// degradado: desde entonces no da turnos, y quien lo pida recibe <c>null</c> en el acto, sin lanzar nada. No hay reactivación
+/// automática: la instancia se recupera al reiniciarse, que es lo que garantiza que ese hijo ya no existe.
 /// </summary>
 public sealed class LimitadorProcesosAislados(int capacidad)
 {
     private readonly SemaphoreSlim _huecos = new(capacidad, capacidad);
+    private volatile bool _degradado;
 
     public int Capacidad { get; } = capacidad;
 
     public int Libres => _huecos.CurrentCount;
 
+    /// <summary>Un hijo no se pudo confirmar terminado: hasta reiniciar la instancia no se lanza ningún proceso aislado más.</summary>
+    public bool Degradado => _degradado;
+
     /// <summary>
-    /// Un turno que se suelta al desecharlo, o <c>null</c> si no quedó hueco en <paramref name="esperaMaxima"/>. La espera
-    /// se corta si el llamante cancela.
+    /// Un turno que se suelta al desecharlo, o <c>null</c> si no quedó hueco en <paramref name="esperaMaxima"/> o si el
+    /// limitador está <see cref="Degradado"/> (entonces sin esperar). La espera se corta si el llamante cancela.
     /// </summary>
-    public async Task<IDisposable?> EntrarAsync(TimeSpan esperaMaxima, CancellationToken cancellationToken) =>
-        await _huecos.WaitAsync(esperaMaxima, cancellationToken) ? new Turno(_huecos) : null;
-
-    private sealed class Turno(SemaphoreSlim huecos) : IDisposable
+    public async Task<TurnoProcesoAislado?> EntrarAsync(TimeSpan esperaMaxima, CancellationToken cancellationToken)
     {
-        private int _soltado;
+        if (_degradado)
+            return null;
 
-        public void Dispose()
+        if (!await _huecos.WaitAsync(esperaMaxima, cancellationToken))
+            return null;
+
+        // Pudo degradarse mientras se esperaba (con capacidad > 1 otro turno sigue soltándose).
+        if (_degradado)
         {
-            if (Interlocked.Exchange(ref _soltado, 1) == 0)
-                huecos.Release();
+            _huecos.Release();
+            return null;
         }
+
+        return new TurnoProcesoAislado(this);
+    }
+
+    internal void Soltar() => _huecos.Release();
+
+    internal void Degradar() => _degradado = true;
+}
+
+/// <summary>El hueco de un proceso aislado. Desecharlo lo suelta, una sola vez, salvo que se haya retenido.</summary>
+public sealed class TurnoProcesoAislado : IDisposable
+{
+    private readonly LimitadorProcesosAislados _limitador;
+    private int _cerrado;
+
+    internal TurnoProcesoAislado(LimitadorProcesosAislados limitador) => _limitador = limitador;
+
+    /// <summary>
+    /// El hijo de este turno quizá sigue vivo: el hueco no se devuelve nunca (ese hijo puede seguir gastando su límite de
+    /// memoria) y el limitador queda <see cref="LimitadorProcesosAislados.Degradado"/>. Desechar el turno después no hace nada.
+    /// </summary>
+    public void RetenerPorHijoSinConfirmar()
+    {
+        _limitador.Degradar();
+        Interlocked.Exchange(ref _cerrado, 1);
+    }
+
+    public void Dispose()
+    {
+        if (Interlocked.Exchange(ref _cerrado, 1) == 0)
+            _limitador.Soltar();
     }
 }

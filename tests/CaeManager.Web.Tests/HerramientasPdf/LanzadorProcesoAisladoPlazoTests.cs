@@ -6,11 +6,63 @@ namespace CaeManager.Web.Tests.HerramientasPdf;
 
 /// <summary>
 /// La lectura de la salida del hijo no se espera más allá del plazo aunque no atienda la cancelación: es lo que hace que el
-/// lanzador vuelva (y quien llama suelte su turno) cuando el hijo no se pudo matar y su tubería sigue abierta. Con un
-/// proceso real no se puede provocar que falle <c>Kill</c>; aquí la tubería es un flujo que nunca responde.
+/// lanzador vuelva (y quien llama sepa si puede soltar su turno) cuando el hijo no se pudo matar y su tubería sigue abierta.
+/// Con un proceso real no se puede provocar que falle <c>Kill</c>; aquí la tubería es un flujo que nunca responde, y la
+/// confirmación de la muerte se prueba con dobles de sus pasos.
 /// </summary>
 public sealed class LanzadorProcesoAisladoPlazoTests
 {
+    private static readonly TimeSpan Margen = TimeSpan.FromMilliseconds(50);
+
+    [Fact]
+    public async Task Un_hijo_que_ya_salio_consta_terminado_sin_matarlo()
+    {
+        var matado = false;
+
+        var terminado = await LanzadorProcesoAislado.ConfirmarTerminadoAsync(
+            () => true, () => matado = true, _ => Task.CompletedTask, Margen, _ => { });
+
+        terminado.Should().BeTrue();
+        matado.Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task Un_hijo_que_se_mata_y_sale_en_el_margen_consta_terminado()
+    {
+        var matado = false;
+
+        var terminado = await LanzadorProcesoAislado.ConfirmarTerminadoAsync(
+            () => false, () => matado = true, _ => Task.CompletedTask, Margen, _ => { });
+
+        terminado.Should().BeTrue();
+        matado.Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task Si_Kill_falla_el_hijo_no_consta_terminado_y_se_registra()
+    {
+        Exception? registrado = null;
+        var esperado = false;
+
+        var terminado = await LanzadorProcesoAislado.ConfirmarTerminadoAsync(
+            () => false, () => throw new InvalidOperationException("sin permiso"), _ => { esperado = true; return Task.CompletedTask; },
+            Margen, ex => registrado = ex);
+
+        terminado.Should().BeFalse();
+        esperado.Should().BeFalse("sin matarlo no hay salida que esperar");
+        registrado.Should().BeOfType<InvalidOperationException>();
+    }
+
+    [Fact]
+    public async Task Si_el_hijo_no_sale_en_el_margen_tras_matarlo_no_consta_terminado()
+    {
+        var terminado = await LanzadorProcesoAislado.ConfirmarTerminadoAsync(
+            () => false, () => { }, token => Task.Delay(Timeout.Infinite, token), Margen, _ => { })
+            .WaitAsync(TimeSpan.FromSeconds(5));
+
+        terminado.Should().BeFalse();
+    }
+
     [Fact]
     public async Task Una_lectura_bloqueada_que_no_atiende_la_cancelacion_no_retiene_al_lanzador_mas_alla_del_plazo()
     {

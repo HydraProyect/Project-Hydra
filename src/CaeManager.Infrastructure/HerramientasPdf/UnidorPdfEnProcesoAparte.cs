@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Globalization;
 using System.Reflection;
 using CaeManager.Application.Common;
 using CaeManager.Application.HerramientasPdf;
@@ -28,11 +29,12 @@ public sealed record OpcionesProcesoHerramientasPdf
     public TimeSpan EsperaMaximaTurno { get; init; } = TimeSpan.FromSeconds(30);
 
     /// <summary>
-    /// Lo que se espera al lanzador, pasado el tiempo de la operación, antes de soltar el turno sin él. Cubre lo que el
-    /// lanzador tarda en matar al hijo y cerrar sus tuberías (unos 10 s por paso); si aun así no vuelve —no pudo matar al
-    /// hijo y una lectura no atiende la cancelación—, el turno no se queda retenido para siempre.
+    /// Lo que se espera al lanzador, pasado el tiempo de la operación, a que diga si el hijo terminó. Cubre lo que tarda en
+    /// matarlo y cerrar sus tuberías (unos 10 s por paso, cuatro pasos). Si no vuelve en ese margen no consta que el hijo
+    /// haya muerto: el turno no se suelta y la herramienta queda desactivada en la instancia (ver
+    /// <see cref="LimitadorProcesosAislados"/>). Nunca suelta el turno con el hijo quizá vivo.
     /// </summary>
-    public TimeSpan MargenLiberacionTurno { get; init; } = TimeSpan.FromMinutes(1);
+    public TimeSpan MargenConfirmacionTerminado { get; init; } = TimeSpan.FromMinutes(1);
 
     /// <summary>El ejecutable <c>dotnet</c> del runtime que ejecuta esta aplicación.</summary>
     public string Anfitrion { get; init; } = AnfitrionDotnet();
@@ -62,8 +64,9 @@ public sealed record OpcionesProcesoHerramientasPdf
 /// cerrado: corre con el mismo usuario y en el mismo contenedor. Lo que acota es el coste, que es el riesgo de abrir un PDF
 /// con PDFsharp, código administrado.
 ///
-/// El turno de <see cref="LimitadorProcesosAislados"/> se suelta siempre en un tiempo acotado, también si el hijo no se pudo
-/// matar: entonces ese hijo queda fuera de la cota de memoria del limitador (ver allí).
+/// El turno de <see cref="LimitadorProcesosAislados"/> solo se suelta con el hijo terminado. Si no se puede confirmar (no se
+/// pudo matar, no salió en el margen o el lanzador no volvió), el turno se retiene, el limitador queda degradado hasta
+/// reiniciar la instancia y esta unión y las siguientes piden reintentar sin lanzar ningún proceso.
 /// </summary>
 public sealed class UnidorPdfEnProcesoAparte(
     OpcionesProcesoHerramientasPdf opciones,
@@ -116,7 +119,8 @@ public sealed class UnidorPdfEnProcesoAparte(
     private async Task<SalidaProcesoAislado> EjecutarAsync(byte operacion, IReadOnlyList<byte[]> pdfs, TimeSpan tiempoMaximo,
         int maximoBytesSalida, CancellationToken cancellationToken)
     {
-        // Sin turno a tiempo es el mismo transitorio que un presupuesto de memoria lleno: la pantalla pide reintentar.
+        // Sin turno a tiempo, o con el limitador degradado, es el mismo transitorio que un presupuesto de memoria lleno: la
+        // pantalla pide reintentar más tarde, y no se lanza nada.
         using var turno = await limitador.EntrarAsync(opciones.EsperaMaximaTurno, cancellationToken)
             ?? throw new PresupuestoMemoriaAgotadoException();
 
@@ -127,19 +131,36 @@ public sealed class UnidorPdfEnProcesoAparte(
         try
         {
             // Sin el token del llamante: al cancelar, el lanzador mata al hijo y vuelve, y el turno se suelta cuando ya está
-            // muerto. Esta espera solo acota el caso en que el lanzador no vuelve.
-            return await ejecucion.WaitAsync(tiempoMaximo + opciones.MargenLiberacionTurno);
+            // muerto. Esta espera solo acota el caso en que el lanzador no vuelve, que no confirma nada.
+            return await ejecucion.WaitAsync(tiempoMaximo + opciones.MargenConfirmacionTerminado);
+        }
+        catch (ProcesoAisladoSinTerminarException ex)
+        {
+            throw Degradar(turno, ex.IdProceso, cancellationToken);
         }
         catch (TimeoutException)
         {
-            // El turno se suelta igualmente (using): retenerlo bloquearía la herramienta para todos. La ejecución se abandona,
-            // con su excepción observada; el hijo puede seguir vivo, y queda en el registro.
+            // La ejecución se abandona, con su excepción observada.
             _ = ejecucion.ContinueWith(static tarea => _ = tarea.Exception, CancellationToken.None,
                 TaskContinuationOptions.OnlyOnFaulted | TaskContinuationOptions.ExecuteSynchronously, TaskScheduler.Default);
-            logger.LogError("El proceso aparte no terminó a tiempo ni se pudo matar; se suelta su turno sin él.");
-            cancellationToken.ThrowIfCancellationRequested();
-            return new SalidaProcesoAislado(DesenlaceProcesoAislado.TiempoAgotado, null, ReadOnlyMemory<byte>.Empty, 0);
+            throw Degradar(turno, null, cancellationToken);
         }
+    }
+
+    /// <summary>
+    /// El hijo quizá sigue vivo con su límite de memoria: su turno no se devuelve y la herramienta queda desactivada en esta
+    /// instancia hasta reiniciarla. Al llamante, su cancelación si la pidió; si no, el mismo «inténtalo más tarde».
+    /// </summary>
+    private Exception Degradar(TurnoProcesoAislado turno, int? idProceso, CancellationToken cancellationToken)
+    {
+        turno.RetenerPorHijoSinConfirmar();
+        // Sin nada del Documento: solo el identificador del proceso, que es lo que hace falta para buscarlo en el host.
+        logger.LogCritical(
+            "Unir PDF queda desactivada en esta instancia hasta reiniciarla: no se pudo confirmar que terminara el proceso aislado {IdProceso}.",
+            idProceso?.ToString(CultureInfo.InvariantCulture) ?? "desconocido (el lanzador no volvió)");
+        return cancellationToken.IsCancellationRequested
+            ? new OperationCanceledException(cancellationToken)
+            : new PresupuestoMemoriaAgotadoException();
     }
 
     private Result<T> Traducir<T>(SalidaProcesoAislado salida, Func<ReadOnlyMemory<byte>, Result<T>?> leer, string operacion)
