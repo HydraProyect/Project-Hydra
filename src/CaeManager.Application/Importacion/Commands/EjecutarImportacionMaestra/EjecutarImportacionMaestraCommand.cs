@@ -30,8 +30,9 @@ namespace CaeManager.Application.Importacion.Commands.EjecutarImportacionMaestra
 ///
 /// Idempotencia: misma que la plantilla combinada — <c>Plan.OperacionId</c> y el índice único de
 /// <see cref="OperacionImportacion"/> en el MISMO <c>SaveChangesAsync</c> que las altas. Un reintento de la estrategia
-/// dentro de la misma confirmación devuelve lo que guardó su intento anterior; una confirmación distinta de una operación
-/// ya guardada devuelve <see cref="ResultadoImportacionMaestraDto.YaEjecutada"/>, marcada como tal y sin informe.
+/// dentro de la misma confirmación devuelve lo que guardó su intento anterior solo si la marca guardada en la base es la
+/// de ese intento (su commit llegó); en cualquier otro caso, una operación ya guardada devuelve
+/// <see cref="ResultadoImportacionMaestraDto.YaEjecutada"/>, marcada como tal y sin informe.
 /// Autorización: <see cref="IAutorizacionEscrituraEfectiva.EsActoDeAdministradorAsync"/>, como el resto de importaciones.
 /// A diferencia de la plantilla combinada, NO es <see cref="IComandoDeAprovisionamiento"/>: ampliar esa lista explícita
 /// es una decisión de autorización que este incremento no toma.
@@ -40,9 +41,24 @@ namespace CaeManager.Application.Importacion.Commands.EjecutarImportacionMaestra
 /// se mostró al confirmar. Lo que se escribe tiene que ser exactamente eso (N14): si al escribir, con los datos releídos,
 /// el resultado difiere (otro Administrador del Tenant rellenó o cambió un campo, una razón social quedó ocupada…), no se
 /// escribe nada y se devuelve <see cref="ErroresImportacionMaestra.VistaPreviaCambiada"/> para que se revise de nuevo.
+///
+/// Historial: a diferencia de las otras dos importaciones (que lo registran con <c>RegistrarHistorialImportacionCommand</c>
+/// después, desde la página), el ÉXITO de esta lo registra el handler en el MISMO guardado que la marca de la operación y
+/// las altas: una operación confirmada tiene siempre su entrada de éxito en el Historial, y «ya confirmada» puede remitir a
+/// él. Los fallos (no se escribió nada) los sigue registrando la página. Revisión Codex de la PR #2164, r4, MEDIO 2.
 /// </summary>
-public record EjecutarImportacionMaestraCommand(PlanImportacionMaestraDto Plan, bool ReemplazarExistentes, string HuellaVistaPrevia)
-    : ICommand<ResultadoImportacionMaestraDto>, Common.ILecturaRegistradaEnSesionPrivilegiada;
+/// <param name="NombreArchivo">Nombre del archivo para la entrada de éxito del Historial; vacío, «(desconocido)»; se recorta a 260.</param>
+public record EjecutarImportacionMaestraCommand(
+    PlanImportacionMaestraDto Plan, bool ReemplazarExistentes, string HuellaVistaPrevia, string NombreArchivo)
+    : ICommand<ResultadoImportacionMaestraDto>, Common.ILecturaRegistradaEnSesionPrivilegiada
+{
+    /// <summary>Valor de <c>HistorialImportacion.Plantilla</c> de esta importación: dato del Historial, no se localiza.</summary>
+    public const string PlantillaHistorial = "Maestra";
+
+    /// <summary>Lo que el Historial guarda como nombre del archivo (su columna admite 260 caracteres).</summary>
+    public static string NombreArchivoHistorial(string? nombreArchivo) =>
+        string.IsNullOrWhiteSpace(nombreArchivo) ? "(desconocido)" : nombreArchivo[..Math.Min(nombreArchivo.Length, 260)];
+}
 
 public static class ErroresImportacionMaestra
 {
@@ -173,7 +189,9 @@ public class EjecutarImportacionMaestraCommandHandler(
     IOperacionImportacionRepository operacionImportacionRepositorio,
     IAutorizacionEscrituraEfectiva autorizacionEscrituraEfectiva,
     IAltaAcreditacionesPlataformaService altaAcreditaciones,
-    ISerializacionAltasAcreditacionEmpresa serializacionAltas)
+    ISerializacionAltasAcreditacionEmpresa serializacionAltas,
+    IHistorialImportacionRepository historialRepositorio,
+    ICurrentUserService usuarioActual)
     : IRequestHandler<EjecutarImportacionMaestraCommand, Result<ResultadoImportacionMaestraDto>>,
       IRequestHandler<PrevisualizarImportacionMaestraCommand, Result<ResultadoImportacionMaestraDto>>
 {
@@ -186,31 +204,41 @@ public class EjecutarImportacionMaestraCommandHandler(
     // cada ejecución, por si el handler se reutiliza.
     private bool operacionYaEjecutada;
 
-    // Lo que un intento de ESTA confirmación guardó junto con la marca de la operación. Si la estrategia de reintentos
-    // repite la operación porque el commit se comunicó como un error transitorio pero sí llegó a la base, el reintento
-    // encuentra la operación guardada y devuelve esto, el informe real de lo escrito, en vez de unas cifras a cero
-    // (revisión Codex de la PR #2164, r3, MEDIO 2). Es lo escrito: todo intento que llega al guardado tiene la huella
-    // de la vista previa confirmada. Se reinicia en cada ejecución, por si el handler se reutiliza.
-    private ResultadoImportacionMaestraDto? resultadoGuardado;
+    // Lo que un intento de ESTA confirmación calculó y mandó guardar, con el Id de la marca de la operación que guardó a
+    // la vez. Si la estrategia de reintentos repite la operación, el reintento solo devuelve este informe si la marca
+    // guardada en la base es ESA fila: entonces el commit de ese intento sí llegó (se comunicó como un error transitorio)
+    // y el informe es lo escrito (revisión Codex de la PR #2164, r3, MEDIO 2). Si el commit falló de verdad y otra
+    // confirmación guardó después la misma operación, la marca es otra y el informe de este intento, revertido, no
+    // describe nada: se devuelve «ya confirmada» (r4, MEDIO 1). Se reinicia en cada ejecución, por si el handler se reutiliza.
+    private (Guid MarcaId, ResultadoImportacionMaestraDto Resultado)? intentoGuardado;
+
+    // La entrada de éxito del Historial que va en el mismo guardado (r4, MEDIO 2). Se fija en cada confirmación.
+    private string nombreArchivoHistorial = string.Empty;
+    private Guid usuarioHistorialId;
 
     public Task<Result<ResultadoImportacionMaestraDto>> Handle(
         EjecutarImportacionMaestraCommand request, CancellationToken cancellationToken) =>
-        EjecutarAsync(request.Plan, request.ReemplazarExistentes, request.HuellaVistaPrevia, cancellationToken);
+        EjecutarAsync(request.Plan, request.ReemplazarExistentes, request.HuellaVistaPrevia, request.NombreArchivo, cancellationToken);
 
     public Task<Result<ResultadoImportacionMaestraDto>> Handle(
         PrevisualizarImportacionMaestraCommand request, CancellationToken cancellationToken) =>
-        EjecutarAsync(request.Plan, request.ReemplazarExistentes, huellaVistaPrevia: null, cancellationToken);
+        EjecutarAsync(request.Plan, request.ReemplazarExistentes, huellaVistaPrevia: null, nombreArchivo: null, cancellationToken);
 
     /// <param name="huellaVistaPrevia">Null: vista previa (no escribe). Si no: confirmar, solo si el resultado sigue teniendo esa huella.</param>
     private async Task<Result<ResultadoImportacionMaestraDto>> EjecutarAsync(
-        PlanImportacionMaestraDto plan, bool reemplazar, string? huellaVistaPrevia, CancellationToken cancellationToken)
+        PlanImportacionMaestraDto plan, bool reemplazar, string? huellaVistaPrevia, string? nombreArchivo,
+        CancellationToken cancellationToken)
     {
         var escribir = huellaVistaPrevia is not null;
         operacionYaEjecutada = false;
-        resultadoGuardado = null;
+        intentoGuardado = null;
         if (!await autorizacionEscrituraEfectiva.EsActoDeAdministradorAsync(cancellationToken))
             return Result.Fallo<ResultadoImportacionMaestraDto>(Error.Crear(
                 "Importacion.SoloAdministrador", "Solo Administrador puede ejecutar la importación de la plantilla maestra."));
+
+        // Mismo autor que registraba RegistrarHistorialImportacionCommand: el usuario actual, o vacío si no lo hay.
+        nombreArchivoHistorial = EjecutarImportacionMaestraCommand.NombreArchivoHistorial(nombreArchivo);
+        usuarioHistorialId = escribir ? await usuarioActual.ObtenerUsuarioActualIdAsync() ?? Guid.Empty : Guid.Empty;
 
         if (escribir && await operacionImportacionRepositorio.ExisteAsync(plan.OperacionId, cancellationToken))
             return ResultadoImportacionMaestraDto.YaEjecutada();
@@ -273,12 +301,16 @@ public class EjecutarImportacionMaestraCommandHandler(
     {
         // Releída bajo el candado: otra confirmación de la misma operación, o el primer intento de esta si la estrategia
         // de reintentos repite la operación tras confirmar, ya la guardó. Sin esto, la relectura vería lo que ella creó y
-        // respondería «la vista previa cambió» por una importación que sí se hizo. Si fue un intento anterior de esta misma
-        // confirmación, se devuelve lo que guardó; si no, «ya confirmada», sin informe.
+        // respondería «la vista previa cambió» por una importación que sí se hizo. Si la marca guardada es la de un intento
+        // anterior de esta misma confirmación (su commit llegó), se devuelve lo que ese intento escribió; si no (otra
+        // confirmación, o un intento propio revertido y otra confirmación después), «ya confirmada», sin informe.
         if (await operacionImportacionRepositorio.ExisteAsync(plan.OperacionId, cancellationToken))
         {
             operacionYaEjecutada = true;
-            return resultadoGuardado ?? ResultadoImportacionMaestraDto.YaEjecutada();
+            return intentoGuardado is { } intento
+                   && await operacionImportacionRepositorio.EsLaMarcaGuardadaAsync(plan.OperacionId, intento.MarcaId, cancellationToken)
+                ? intento.Resultado
+                : ResultadoImportacionMaestraDto.YaEjecutada();
         }
 
         var actual = await ProcesarAsync(plan, reemplazar, huellaEsperada: null, cancellationToken);
@@ -293,7 +325,8 @@ public class EjecutarImportacionMaestraCommandHandler(
         PlanImportacionMaestraDto plan, bool reemplazar, string? huellaEsperada, CancellationToken cancellationToken)
     {
         var escribir = huellaEsperada is not null;
-        if (escribir) operacionImportacionRepositorio.Agregar(OperacionImportacion.Registrar(plan.OperacionId));
+        var marca = escribir ? OperacionImportacion.Registrar(plan.OperacionId) : null;
+        if (marca is not null) operacionImportacionRepositorio.Agregar(marca);
 
         var omitidos = new List<ItemImportacionDto>();
         var sobrescritos = new List<ValorPrevioDto>();
@@ -793,11 +826,19 @@ public class EjecutarImportacionMaestraCommandHandler(
                 }, cancellationToken);
         }
 
+        // La entrada de éxito del Historial, en el mismo guardado: queda si y solo si queda lo escrito (r4, MEDIO 2).
+        historialRepositorio.Agregar(HistorialImportacion.Exito(
+            EjecutarImportacionMaestraCommand.PlantillaHistorial, nombreArchivoHistorial, usuarioHistorialId,
+            resultado.EmpresasCreadas + resultado.ClientesCreados + resultado.RelacionesCreadas + resultado.CentrosCreados
+            + resultado.TrabajadoresCreados,
+            resultado.Advertencias.Count, resultado.Omitidos.Count));
+
         // Todo lo pendiente junto con la marca de la operación en un único guardado: si dos confirmaciones de la
-        // MISMA operación compiten, la perdedora choca en el índice único y no escribe nada.
+        // MISMA operación compiten, la perdedora choca en el índice único y no escribe nada (ni su entrada de Historial).
+        // Guardado no es confirmado: el commit es de la transacción del candado. Por eso se recuerda con el Id de su marca.
         if (await operacionImportacionRepositorio.GuardarSiOperacionNuevaAsync(cancellationToken))
         {
-            resultadoGuardado = resultado;
+            intentoGuardado = (marca!.Id, resultado);
             return resultado;
         }
 

@@ -36,6 +36,9 @@ public class EjecutarImportacionMaestraTests
 
         public AltaAcreditacionesPlataformaServiceFalso Altas { get; } = new();
         public CaeManager.Application.Tests.Documentos.SerializacionAltasAcreditacionEmpresaFalsa Serializacion { get; } = new();
+        public HistorialImportacionRepositorioFalso Historial { get; } = new();
+        public Guid UsuarioId { get; } = Guid.NewGuid();
+        public const string NombreArchivo = "maestra.xlsx";
 
         public EjecutarImportacionMaestraCommandHandler Handler()
         {
@@ -45,7 +48,7 @@ public class EjecutarImportacionMaestraTests
             TrabajadorRepositorio.Existentes = () => Trabajadores.ListaTrabajadores;
             return new(
                 EmpresaRepositorio, Relaciones, CentroRepositorio, TrabajadorRepositorio, Centros, Empresas,
-                Operaciones, new Autorizacion(administrador), Altas, Serializacion);
+                Operaciones, new Autorizacion(administrador), Altas, Serializacion, Historial, new Usuario(UsuarioId));
         }
 
         /// <summary>Como la pantalla: confirma con la huella de una vista previa del mismo plan y modo calculada justo antes.</summary>
@@ -56,7 +59,7 @@ public class EjecutarImportacionMaestraTests
         }
 
         public async Task<Result<ResultadoImportacionMaestraDto>> ConfirmarAsync(PlanImportacionMaestraDto plan, bool reemplazar, string huella) =>
-            await Handler().Handle(new EjecutarImportacionMaestraCommand(plan, reemplazar, huella), CancellationToken.None);
+            await Handler().Handle(new EjecutarImportacionMaestraCommand(plan, reemplazar, huella, NombreArchivo), CancellationToken.None);
 
         public async Task<Result<ResultadoImportacionMaestraDto>> PrevisualizarAsync(PlanImportacionMaestraDto plan, bool reemplazar = false) =>
             await Handler().Handle(new PrevisualizarImportacionMaestraCommand(plan, reemplazar), CancellationToken.None);
@@ -67,6 +70,15 @@ public class EjecutarImportacionMaestraTests
 
             public Task<AutoridadCargaMasiva> ObtenerAutoridadCargaMasivaAsync(CancellationToken cancellationToken = default) =>
                 Task.FromResult(administrador ? AutoridadCargaMasiva.Total : AutoridadCargaMasiva.Ninguna);
+        }
+
+        private sealed class Usuario(Guid usuarioId) : ICurrentUserService
+        {
+            public Task<Guid?> ObtenerUsuarioActualIdAsync() => Task.FromResult<Guid?>(usuarioId);
+            public Task<string?> ObtenerRolEfectivoAsync() => Task.FromResult<string?>(null);
+            public Task<string?> ObtenerRolOrigenAsync() => Task.FromResult<string?>(null);
+            public Task<Guid?> ObtenerTenantOrigenIdAsync() => Task.FromResult<Guid?>(null);
+            public Task<bool> TieneDobleFactorActivoAsync() => Task.FromResult(false);
         }
     }
 
@@ -730,6 +742,63 @@ public class EjecutarImportacionMaestraTests
         r.Valor.CamposRellenados.Should().Be(previa.CamposRellenados);
         r.Valor.CalcularHuella().Should().Be(previa.CalcularHuella(), "el informe es exactamente lo que se escribió, que es lo mostrado");
         e.CentroRepositorio.Centros.Should().ContainSingle(c => c.Nombre == "Planta Norte");
+    }
+
+    [Fact]
+    public async Task Un_reintento_tras_un_commit_fallido_y_otra_confirmacion_de_la_misma_operacion_no_devuelve_el_informe_revertido()
+    {
+        // Revisión Codex de la PR #2164, r4, MEDIO 1: el primer intento guarda, pero su commit falla y la transacción se
+        // deshace; antes del reintento, otra confirmación guarda la misma operación. Lo que el primer intento calculó no
+        // es lo escrito: el reintento responde «ya confirmada», sin informe.
+        var e = new Escenario();
+        e.Empresas.ListaEmpresas.Add(GestionadaExistente());
+        var plan = Plan([FilaEmpresa() with { YaExiste = true }]);
+        var previa = (await e.PrevisualizarAsync(plan)).Valor;
+        previa.CamposRellenados.Should().BeGreaterThan(0);
+        e.Serializacion.AntesDeReintentarTrasConfirmar = () =>
+        {
+            e.Operaciones.RevertirUltimoGuardado();
+            e.Operaciones.ConfirmarDesdeOtraEjecucion(plan.OperacionId);
+        };
+
+        var r = await e.ConfirmarAsync(plan, reemplazar: false, previa.CalcularHuella());
+
+        r.EsExitoso.Should().BeTrue();
+        r.Valor.YaConfirmadaAntes.Should().BeTrue("el intento que lo calculó se revirtió; lo guardó otra confirmación");
+        r.Valor.CamposRellenados.Should().Be(0);
+        r.Valor.DetalleCamposRellenados.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task Confirmar_registra_el_exito_en_el_Historial_en_el_mismo_guardado_que_lo_escrito()
+    {
+        // Revisión Codex de la PR #2164, r4, MEDIO 2: la entrada de éxito no es una operación posterior y separada; va
+        // en el guardado de la marca de la operación, así que «ya confirmada» siempre remite a un Historial que la tiene.
+        var e = new Escenario();
+        var plan = Plan([FilaEmpresa()], [FilaCliente()], [FilaCentro()], [FilaTrabajador()]);
+        var previa = (await e.PrevisualizarAsync(plan)).Valor;
+        e.Historial.Registros.Should().BeEmpty("la vista previa no registra nada");
+        var enElGuardado = -1;
+        e.Operaciones.AlGuardar = () => enElGuardado = e.Historial.Registros.Count;
+
+        var r = await e.ConfirmarAsync(plan, reemplazar: false, previa.CalcularHuella());
+
+        r.EsExitoso.Should().BeTrue();
+        enElGuardado.Should().Be(1, "la entrada del Historial va en el mismo guardado que la marca de la operación");
+        var registro = e.Historial.Registros.Should().ContainSingle().Subject;
+        registro.Exitosa.Should().BeTrue();
+        registro.Plantilla.Should().Be(EjecutarImportacionMaestraCommand.PlantillaHistorial);
+        registro.NombreArchivo.Should().Be(Escenario.NombreArchivo);
+        registro.EjecutadaPorUsuarioId.Should().Be(e.UsuarioId);
+        registro.TotalCreados.Should().Be(r.Valor.EmpresasCreadas + r.Valor.ClientesCreados + r.Valor.RelacionesCreadas
+                                          + r.Valor.CentrosCreados + r.Valor.TrabajadoresCreados).And.Be(5);
+        registro.TotalAdvertencias.Should().Be(r.Valor.Advertencias.Count);
+        registro.TotalOmitidos.Should().Be(r.Valor.Omitidos.Count);
+
+        var otra = await e.ConfirmarAsync(plan, reemplazar: false, previa.CalcularHuella());
+
+        otra.Valor.YaConfirmadaAntes.Should().BeTrue();
+        e.Historial.Registros.Should().ContainSingle("una confirmación repetida no añade otra entrada");
     }
 
     [Fact]

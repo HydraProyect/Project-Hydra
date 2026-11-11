@@ -6,7 +6,9 @@ namespace CaeManager.Web.Features.Importacion;
 /// Enmascara el DNI/NIE que el Importador enseña en pantalla (plan, avisos, omitidos). Decisión provisional del
 /// 2026-11-02, pendiente de Chris: el DNI completo del plan solo lo ve el Administrador (decisión S3 del 2026-09-24);
 /// Dirección CAE y Coordinador CAE, que ejecutan cargas masivas desde el 2026-11-01, lo ven enmascarado. Conserva los
-/// tres últimos dígitos y la letra, suficientes para reconocer la fila en su propio fichero.
+/// tres últimos dígitos y la letra, suficientes para reconocer la fila en su propio fichero. Los CSV de la importación
+/// maestra (errores, filas omitidas de la vista previa, valores previos e informe) lo llevan SIEMPRE enmascarado, sea
+/// cual sea el rol: decisión de Chris del 2026-11-11 (DECISION_LOG de Negocio).
 /// </summary>
 public static partial class MascaraDni
 {

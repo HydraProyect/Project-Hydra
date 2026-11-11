@@ -405,7 +405,9 @@ public partial class Importacion : CaeManager.Web.Components.PaginaIntegrableCon
 
     protected override async Task OnInitializedAsync()
     {
-        // Decisión provisional (2026-11-02): solo el Administrador ve el DNI del plan completo; ver MascaraDni. Falla cerrado.
+        // Decisión provisional (2026-11-02): solo el Administrador ve el DNI del plan completo EN PANTALLA; ver MascaraDni.
+        // Falla cerrado. Los CSV de la importación maestra lo enmascaran siempre, también para él (decisión de Chris del
+        // 2026-11-11): ImportacionEstructura no usa este permiso al construirlos.
         var estado = EstadoAutenticacion is null ? null : await EstadoAutenticacion;
         _dniCompleto = MascaraDni.PuedeVerCompleto(estado?.User);
         await CargarHistorialAsync();

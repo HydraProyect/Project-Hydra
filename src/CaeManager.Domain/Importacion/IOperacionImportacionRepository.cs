@@ -11,6 +11,14 @@ public interface IOperacionImportacionRepository
     /// </summary>
     Task<bool> ExisteAsync(Guid operacionId, CancellationToken cancellationToken = default);
 
+    /// <summary>
+    /// Lee de la base si la marca guardada de <paramref name="operacionId"/> es exactamente la fila
+    /// <paramref name="marcaId"/> (su <c>Id</c>, generado al registrarla). Distingue el intento cuyo commit sí llegó
+    /// (la estrategia de reintentos repite tras un commit comunicado como error transitorio) de un intento revertido
+    /// cuya operación guardó después otra confirmación: solo en el primer caso lo que ese intento calculó es lo escrito.
+    /// </summary>
+    Task<bool> EsLaMarcaGuardadaAsync(Guid operacionId, Guid marcaId, CancellationToken cancellationToken = default);
+
     void Agregar(OperacionImportacion operacion);
 
     /// <summary>

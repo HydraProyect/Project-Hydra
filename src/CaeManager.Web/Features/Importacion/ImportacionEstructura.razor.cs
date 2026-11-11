@@ -26,8 +26,8 @@ public partial class ImportacionEstructura : ComponentBase, IDisposable
     /// <summary>N4: 10 MB por fichero hasta que haya medición (los escaneos de móvil son del Paso 2, no de este).</summary>
     public const long TamanoMaximoBytes = LimitesArchivoSubido.TamanoMaximoBytes;
 
-    // Contrato del archivo y del Historial (HistorialImportacion.Plantilla), no interfaz: no se localizan.
-    private const string NombreHistorial = "Maestra";
+    // Contrato del archivo (nombre de las hojas), no interfaz: no se localizan. El valor del Historial es
+    // EjecutarImportacionMaestraCommand.PlantillaHistorial.
     private const string HojaEmpresas = "Empresas";
     private const string HojaCentros = "Centros";
     private const string HojaTrabajadores = "Trabajadores";
@@ -388,7 +388,15 @@ public partial class ImportacionEstructura : ComponentBase, IDisposable
             || f.Item.Fila.ToString().Contains(criterio, StringComparison.Ordinal))];
     }
 
+    /// <summary>En pantalla: el DNI completo solo si la página puede mostrarlo (<see cref="DniCompleto"/>).</summary>
     private string Enmascarar(string texto) => MascaraDni.Aplicar(texto, DniCompleto);
+
+    /// <summary>
+    /// En los cuatro CSV (errores, filas omitidas de la vista previa, valores previos e informe): el DNI sale SIEMPRE
+    /// enmascarado, con independencia de <see cref="DniCompleto"/>. Decisión de Chris del 2026-11-11 (DECISION_LOG de
+    /// Negocio): el informe se descarga para revisar filas, no para obtener DNI. La pantalla no cambia.
+    /// </summary>
+    private static string EnmascararEnCsv(string texto) => MascaraDni.Aplicar(texto, completo: false);
 
     // ---------------------------------------------------------------- vista previa
 
@@ -578,7 +586,7 @@ public partial class ImportacionEstructura : ComponentBase, IDisposable
         var reemplazar = _reemplazar;
         // Lo que se confirma es exactamente la vista previa mostrada (N14): si al escribir ya no coincide, no se escribe.
         var huella = _previa.CalcularHuella();
-        var nombreArchivo = string.IsNullOrWhiteSpace(_nombreArchivo) ? "(desconocido)" : _nombreArchivo[..Math.Min(_nombreArchivo.Length, 260)];
+        var nombreArchivo = EjecutarImportacionMaestraCommand.NombreArchivoHistorial(_nombreArchivo);
 
         _importando = true;
         _errorImportacion = null;
@@ -589,7 +597,10 @@ public partial class ImportacionEstructura : ComponentBase, IDisposable
         try
         {
             // La escritura no recibe el token de la página: una escritura ya enviada se deja terminar y registrar.
-            var resultado = await Mediator.Send(new EjecutarImportacionMaestraCommand(plan, reemplazar, huella));
+            // El éxito lo registra en el Historial el propio comando, en el mismo guardado que lo escrito (revisión Codex de
+            // la PR #2164, r4, MEDIO 2): una importación confirmada siempre tiene su entrada, y «ya confirmada» puede remitir
+            // a ella. Aquí solo se registran los fallos.
+            var resultado = await Mediator.Send(new EjecutarImportacionMaestraCommand(plan, reemplazar, huella, nombreArchivo));
             if (resultado.EsFallido)
             {
                 await RegistrarFalloAsync(nombreArchivo, resultado.Error.Mensaje);
@@ -607,11 +618,8 @@ public partial class ImportacionEstructura : ComponentBase, IDisposable
             }
 
             var r = resultado.Valor;
-            // «Ya confirmada» no trae lo que se escribió: ni se registra en el Historial como un éxito con cifras a cero (el
-            // registro que haya es el de la confirmación que la guardó) ni se anuncia como completada; la vista remite al
-            // Historial. Revisión Codex de la PR #2164, r3, MEDIO 2.
-            if (!EsYaEjecutada(r))
-                await RegistrarExitoAsync(nombreArchivo, CreadosDe(r), r.Advertencias.Count, r.Omitidos.Count);
+            // «Ya confirmada» no trae lo que se escribió: no se anuncia como completada y la vista remite al Historial, donde
+            // está la entrada de éxito que guardó la confirmación que la escribió. Revisión Codex de la PR #2164, r3, MEDIO 2.
             if (_desechada) return;
             _resultado = r;
             _momentoInforme = DateTime.UtcNow;
@@ -639,24 +647,12 @@ public partial class ImportacionEstructura : ComponentBase, IDisposable
         _fase = Fase.VistaPrevia;
     }
 
-    private async Task RegistrarExitoAsync(string nombreArchivo, int creados, int advertencias, int omitidos)
-    {
-        try
-        {
-            await Mediator.Send(new RegistrarHistorialImportacionCommand(NombreHistorial, nombreArchivo, true, creados, advertencias, omitidos, null));
-        }
-        catch (Exception ex) when (ex is not OperationCanceledException)
-        {
-            // Lo escrito ya está: que el Historial no lo registre no deshace ni oculta el informe.
-            Logger.LogWarning(ex, "No se pudo registrar la importación de la plantilla maestra en el historial.");
-        }
-    }
-
     private async Task RegistrarFalloAsync(string nombreArchivo, string mensaje)
     {
         try
         {
-            await Mediator.Send(new RegistrarHistorialImportacionCommand(NombreHistorial, nombreArchivo, false, 0, 0, 0, mensaje));
+            await Mediator.Send(new RegistrarHistorialImportacionCommand(
+                EjecutarImportacionMaestraCommand.PlantillaHistorial, nombreArchivo, false, 0, 0, 0, mensaje));
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
@@ -703,7 +699,7 @@ public partial class ImportacionEstructura : ComponentBase, IDisposable
     {
         if (_previa is null) return Task.CompletedTask;
         var filas = _previa.ValoresSobrescritos.Select(v => (IReadOnlyList<string?>)
-            [Enmascarar(v.Hoja), v.Fila.ToString(), v.Campo, Enmascarar(v.ValorPrevio), Enmascarar(v.ValorNuevo ?? string.Empty)]);
+            [EnmascararEnCsv(v.Hoja), v.Fila.ToString(), v.Campo, EnmascararEnCsv(v.ValorPrevio), EnmascararEnCsv(v.ValorNuevo ?? string.Empty)]);
         return DescargarAsync("valores-previos-importacion.csv", InformeCsv.Construir(
             [Textos["EstColHoja"].Value, Textos["EstColFila"].Value, Textos["EstColCampo"].Value, Textos["EstColValorPrevio"].Value, Textos["EstColValorNuevo"].Value],
             filas));
@@ -717,7 +713,7 @@ public partial class ImportacionEstructura : ComponentBase, IDisposable
         {
             filas.AddRange(_resultado.Advertencias.Select(i => Fila(i, "EstAviso")));
             filas.AddRange(_resultado.ValoresSobrescritos.Select(v => (IReadOnlyList<string?>)
-                [Enmascarar(v.Hoja), v.Fila.ToString(), Textos["EstSobrescrito"].Value + ": " + v.Campo, Enmascarar(v.ValorPrevio) + " → " + Enmascarar(v.ValorNuevo ?? string.Empty), Textos["EstSobrescrito"].Value]));
+                [EnmascararEnCsv(v.Hoja), v.Fila.ToString(), Textos["EstSobrescrito"].Value + ": " + v.Campo, EnmascararEnCsv(v.ValorPrevio) + " → " + EnmascararEnCsv(v.ValorNuevo ?? string.Empty), Textos["EstSobrescrito"].Value]));
         }
 
         return DescargarAsync(soloOmitidas ? "filas-omitidas-importacion.csv" : "informe-importacion.csv", InformeCsv.Construir(CabeceraIncidencias, filas));
@@ -728,7 +724,7 @@ public partial class ImportacionEstructura : ComponentBase, IDisposable
 
     private IReadOnlyList<string?> Fila(ItemImportacionDto item, string claveGravedad) =>
         // El nombre de hoja también: una hoja desconocida lleva el nombre que el Excel le dio (revisión Codex #2164, r1, BAJO 2).
-        [Enmascarar(item.Hoja), item.Fila == 0 ? string.Empty : item.Fila.ToString(), Enmascarar(item.Descripcion), Enmascarar(item.Motivo), Textos[claveGravedad].Value];
+        [EnmascararEnCsv(item.Hoja), item.Fila == 0 ? string.Empty : item.Fila.ToString(), EnmascararEnCsv(item.Descripcion), EnmascararEnCsv(item.Motivo), Textos[claveGravedad].Value];
 
     // ---------------------------------------------------------------- informe
 

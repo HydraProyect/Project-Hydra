@@ -742,11 +742,10 @@ public class ImportacionEstructuraTests : BunitContext
         var ejecucion = servidor.De<EjecutarImportacionMaestraCommand>().Should().ContainSingle().Subject;
         ejecucion.ReemplazarExistentes.Should().BeFalse();
         ejecucion.Plan.OperacionId.Should().Be(operacion);
-        var historial = servidor.De<RegistrarHistorialImportacionCommand>().Should().ContainSingle().Subject;
-        historial.Plantilla.Should().Be("Maestra");
-        historial.NombreArchivo.Should().Be("maestra.xlsx");
-        historial.Exitosa.Should().BeTrue();
-        historial.TotalCreados.Should().Be(5);
+        // Revisión Codex de la PR #2164, r4, MEDIO 2: el éxito lo registra en el Historial el comando, en el mismo guardado
+        // que lo escrito (EjecutarImportacionMaestraTests); la página le pasa el nombre del archivo y no lo registra aparte.
+        ejecucion.NombreArchivo.Should().Be("maestra.xlsx");
+        servidor.De<RegistrarHistorialImportacionCommand>().Should().BeEmpty("un éxito no se registra en una operación separada");
         Fase(cut).Should().Be("Informe");
         cut.FindAll("[data-testid='est-informe-completada']").Should().HaveCount(1);
         Metrica(cut, "Creados").Should().Be("5");
@@ -898,7 +897,7 @@ public class ImportacionEstructuraTests : BunitContext
         var (cut, servidor) = await HastaVistaPreviaAsync();
         var plan = servidor.De<PrevisualizarImportacionMaestraCommand>().Single().Plan;
         // La primera confirmación de ESTE plan ya ocurrió (otra pestaña, un reintento tras un corte).
-        await servidor.Responder(new EjecutarImportacionMaestraCommand(plan, false, servidor.Previas.Single().CalcularHuella()), CancellationToken.None);
+        await servidor.Responder(new EjecutarImportacionMaestraCommand(plan, false, servidor.Previas.Single().CalcularHuella(), "maestra.xlsx"), CancellationToken.None);
 
         await Pulsar(Primario(cut));
 
@@ -909,6 +908,8 @@ public class ImportacionEstructuraTests : BunitContext
         cut.Markup.Should().NotContain("Informe completo (CSV)");
         cut.Find("[data-testid='est-informe-ya-ejecutada-historial']").GetAttribute("href").Should().Be("/importacion");
         servidor.De<RegistrarHistorialImportacionCommand>().Should().BeEmpty("no se registra en el Historial un éxito con cifras a cero");
+        servidor.De<EjecutarImportacionMaestraCommand>().Should().HaveCount(2)
+            .And.OnlyContain(c => c.NombreArchivo == "maestra.xlsx", "la entrada de éxito la guardó la primera confirmación, con lo escrito");
     }
 
     [Fact]
@@ -946,10 +947,14 @@ public class ImportacionEstructuraTests : BunitContext
         csv.Split("\r\n", StringSplitOptions.RemoveEmptyEntries).Should().HaveCount(2, "cabecera y una fila");
     }
 
-    [Fact]
-    public async Task Descargas_LosTresCsvEnmascaranElDniSalvoPermiso()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Descargas_LosCuatroCsvEnmascaranElDniSiempreYLaPantallaSegunElPermiso(bool dniCompleto)
     {
         // Revisión Codex de la PR #2164, r1, BAJO 2: también el nombre de una hoja desconocida, que elige el Excel.
+        // Decisión de Chris del 2026-11-11: los CSV llevan el DNI enmascarado también con el permiso DniCompleto
+        // (Administrador); en pantalla, el Administrador lo sigue viendo completo.
         var plan = PlanConErrores() with
         {
             Omitidos = [.. PlanConErrores().Omitidos, new ItemImportacionDto("12345678Z", 0, "Hoja completa", "Hoja no reconocida.")]
@@ -958,7 +963,7 @@ public class ImportacionEstructuraTests : BunitContext
         servidor.ValoresPrevios.Add(new ValorPrevioDto("Trabajadores", 7, "Observaciones", "Documento 12345678Z", "Documento 87654321X"));
         var modulo = JSInterop.SetupModule("./js/importacion-descarga.js");
         modulo.SetupVoid("descargarTexto", _ => true).SetVoidResult();
-        var (cut, _) = await HastaValidacionAsync(servidor, dniCompleto: false);
+        var (cut, _) = await HastaValidacionAsync(servidor, dniCompleto);
 
         await Pulsar(Boton(cut, "Descargar errores (CSV)"));
         await Pulsar(Boton(cut, "Continuar sin las filas con error"));
@@ -973,7 +978,10 @@ public class ImportacionEstructuraTests : BunitContext
         csvs.Should().HaveCount(4, "errores, filas omitidas de la vista previa, valores previos e informe completo");
         foreach (var csv in csvs)
             csv.Should().Contain("****678Z", "el DNI sale enmascarado").And.NotContain("12345678Z").And.NotContain("87654321X");
-        cut.Markup.Should().NotContain("12345678Z", "ni en pantalla");
+        if (dniCompleto)
+            cut.Markup.Should().Contain("12345678Z", "la pantalla no cambia: con el permiso se ve completo");
+        else
+            cut.Markup.Should().NotContain("12345678Z", "ni en pantalla");
     }
 
     [Fact]
