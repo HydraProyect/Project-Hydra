@@ -827,12 +827,19 @@ public partial class Bandeja : CaeManager.Web.Components.PaginaInteractiva, IAsy
         _avataresNotas = avatares;
     }
 
+    /// <summary>
+    /// Conversación a la que pertenece el contexto en memoria (Cliente empresarial, macros, centros y selectores). <c>_detalle</c>
+    /// se asigna a mitad de la carga, antes que ese contexto: su Id no dice de quién es el contexto (revisión puente del delta r1
+    /// de la #2167). Solo una recarga de la conversación a la que el contexto ya pertenece conserva el contexto si falla.
+    /// </summary>
+    private Guid? _contextoDeId;
+
     private async Task CargarDetalleAsync()
     {
         if (_conversacionSeleccionadaId is not { } id) return;
 
         var carga = ++_cargaDetalleVigente;
-        var esRecarga = _detalle?.Id == id;
+        var esRecarga = _detalle?.Id == id && _contextoDeId == id;
         var clienteAntes = _detalle?.ClienteId;
         _cargandoDetalle = true;
         _errorDetalle = false;
@@ -910,6 +917,7 @@ public partial class Bandeja : CaeManager.Web.Components.PaginaInteractiva, IAsy
 
             _tiposDocumentoSelector = tiposDocumento;
             _trabajadoresSelector = trabajadores;
+            _contextoDeId = id;
         }
         catch (OperationCanceledException)
         {
@@ -929,6 +937,7 @@ public partial class Bandeja : CaeManager.Web.Components.PaginaInteractiva, IAsy
             // el contexto siga siendo el de la anterior (revisión puente del delta r1 de la #2167, MEDIO).
             if (!esRecarga || _detalle?.ClienteId != clienteAntes)
             {
+                _contextoDeId = null;
                 _detalle = null;
                 _clienteActivo = null;
             }

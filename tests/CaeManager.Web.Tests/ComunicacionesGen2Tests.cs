@@ -1010,6 +1010,45 @@ public class ComunicacionesGen2Tests : BunitContext
         cut.Find(".bandeja-centro .estado-vacio h3").TextContent.Trim().Should().Be("No pudimos abrir la conversación");
         cut.FindAll(".bandeja-cliente").Should().BeEmpty("el contexto del Cliente empresarial de la primera no puede quedar bajo la segunda");
     }
+    /// <summary>
+    /// Segunda pasada de la revisión puente del delta r1 de la #2167 (MEDIO): dos cargas solapadas de la misma conversación. La
+    /// primera (al abrirla desde otra) ya asignó el detalle pero espera el contexto de su Cliente empresarial; entra un mensaje
+    /// nuevo y la recarga falla. El Id del detalle ya es el de la conversación, pero el contexto en memoria sigue siendo el de
+    /// la anterior y no puede quedar bajo el hilo nuevo.
+    /// </summary>
+    [Fact]
+    public async Task Una_recarga_fallida_con_la_carga_anterior_a_medias_no_deja_el_contexto_de_la_conversacion_previa()
+    {
+        var escenario = new Escenario();
+        var primera = Conversacion("Primera conversación", ClienteRefrielectric);
+        var segunda = Conversacion("Segunda conversación", ClienteEbro);
+        escenario.Conversaciones.AddRange([primera, segunda]);
+        escenario.Detalle = id => DetalleDe(escenario.Conversaciones.Single(c => c.Id == id));
+        var (cut, _) = Renderizar(escenario);
+        await SeleccionarFila(cut, "Primera conversación");
+        cut.FindAll(".bandeja-cliente").Should().NotBeEmpty("control positivo: con la primera abierta hay columna de contexto");
+
+        var clienteDeLaSegunda = new TaskCompletionSource<object?>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var lecturasDeLaSegunda = 0;
+        escenario.Interceptar = p => p switch
+        {
+            ObtenerClientePorIdQuery q when q.Id == ClienteEbro.Id => clienteDeLaSegunda.Task,
+            ObtenerConversacionPorIdQuery q when q.Id == segunda.Id && ++lecturasDeLaSegunda > 1 =>
+                Task.FromException<object?>(new InvalidOperationException("boom")),
+            _ => null
+        };
+        var apertura = SeleccionarFila(cut, "Segunda conversación");
+        cut.WaitForAssertion(() => lecturasDeLaSegunda.Should().Be(1, "la primera carga ya asignó el detalle y espera al Cliente empresarial"));
+
+        await cut.InvokeAsync(() => (Task)typeof(Bandeja).GetMethod("AlRecibirMensajeAsync", BindingFlags.Instance | BindingFlags.NonPublic)!
+            .Invoke(cut.Instance, [new MensajeWhatsAppRecibidoEvent(Guid.NewGuid(), segunda.Id)])!);
+
+        cut.WaitForAssertion(() => cut.Find(".bandeja-centro .estado-vacio h3").TextContent.Trim().Should().Be("No pudimos abrir la conversación"));
+        cut.FindAll(".bandeja-cliente").Should().BeEmpty("el contexto del Cliente empresarial de la primera no puede quedar bajo la segunda");
+
+        await cut.InvokeAsync(() => clienteDeLaSegunda.SetException(new InvalidOperationException("tarde")));
+        await apertura;
+    }
     [Fact]
     public async Task El_filtro_de_estado_viaja_a_la_URL_al_elegirlo()
     {
