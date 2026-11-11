@@ -1,3 +1,4 @@
+using System.Security.Cryptography;
 using System.Text;
 using System.Xml.Linq;
 using Amazon.KeyManagementService;
@@ -20,24 +21,69 @@ namespace CaeManager.Infrastructure.DataProtection;
 /// descifrado lo hace <see cref="KmsXmlDecryptor"/>, que Data Protection
 /// localiza por el atributo <c>decryptorType</c> que se escribe aquí.
 /// </summary>
-public class KmsXmlEncryptor(IAmazonKeyManagementService kms, string keyId) : IXmlEncryptor
+public class KmsXmlEncryptor : IXmlEncryptor
 {
     internal const string NombreElemento = "cifradoConKms";
+
+    private readonly IAmazonKeyManagementService _kms;
+    private readonly string _keyId;
+    private readonly TimeSpan _limite;
+    private readonly TaskScheduler _planificador;
+
+    public KmsXmlEncryptor(IAmazonKeyManagementService kms, string keyId)
+        : this(kms, keyId, LlamadaSincronaAws.LimitePorDefecto)
+    {
+    }
+
+    internal KmsXmlEncryptor(IAmazonKeyManagementService kms, string keyId, TimeSpan limite)
+        : this(kms, keyId, limite, TaskScheduler.Default)
+    {
+    }
+
+    /// <param name="planificador">Solo los tests pasan otro que <see cref="TaskScheduler.Default"/>.</param>
+    internal KmsXmlEncryptor(IAmazonKeyManagementService kms, string keyId, TimeSpan limite, TaskScheduler planificador)
+    {
+        _kms = kms;
+        _keyId = keyId;
+        _limite = limite;
+        _planificador = planificador;
+    }
 
     public EncryptedXmlInfo Encrypt(XElement plaintextElement)
     {
         ArgumentNullException.ThrowIfNull(plaintextElement);
 
-        var textoPlano = plaintextElement.ToString(SaveOptions.DisableFormatting);
-
-        // GetAwaiter().GetResult(): la interfaz de Data Protection es
-        // síncrona y no hay variante asíncrona. Ocurre una vez por creación
-        // de clave (cada 90 días por defecto), no en el camino caliente.
-        var respuesta = kms.EncryptAsync(new EncryptRequest
+        // La clausura solo retiene estos bytes, que se borran al salir aunque la
+        // petición quede abandonada tras el límite: si aún no se había serializado,
+        // KMS recibe ceros y el resultado ya nadie lo usa. No alcanza a las copias
+        // que el SDK haga al serializar ni al string intermedio, que es inmutable y
+        // vive lo que tarde el recolector.
+        var textoPlano = Encoding.UTF8.GetBytes(plaintextElement.ToString(SaveOptions.DisableFormatting));
+        EncryptResponse respuesta;
+        try
         {
-            KeyId = keyId,
-            Plaintext = new MemoryStream(Encoding.UTF8.GetBytes(textoPlano))
-        }).GetAwaiter().GetResult();
+            // La interfaz de Data Protection es síncrona y el SDK de KMS solo es
+            // asíncrono: LlamadaSincronaAws ejecuta la llamada fuera del
+            // SynchronizationContext del llamante y con un límite de tiempo. Ocurre
+            // una vez por creación de clave (cada 90 días por defecto), pero puede
+            // ocurrir en el hilo de un circuito de Blazor si coincide con una carga
+            // en frío o una recarga forzada del anillo.
+            respuesta = LlamadaSincronaAws.Ejecutar(
+                token => _kms.EncryptAsync(new EncryptRequest
+                {
+                    KeyId = _keyId,
+                    Plaintext = new MemoryStream(textoPlano)
+                }, token),
+                _limite,
+                "El cifrado con KMS de una clave de Data Protection",
+                descartarResultadoTardio: null,
+                liberarEntrada: null,
+                _planificador);
+        }
+        finally
+        {
+            CryptographicOperations.ZeroMemory(textoPlano);
+        }
 
         var cifrado = Convert.ToBase64String(respuesta.CiphertextBlob.ToArray());
 
