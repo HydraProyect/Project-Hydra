@@ -8,7 +8,6 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using MimeKit;
-using MimeKit.Text;
 using Xunit;
 
 namespace CaeManager.IntegrationTests.Email;

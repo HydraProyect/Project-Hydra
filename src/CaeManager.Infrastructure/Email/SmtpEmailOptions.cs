@@ -1,13 +1,10 @@
 namespace CaeManager.Infrastructure.Email;
 
 /// <summary>
-/// Configuración del envío de correo vía SMTP. Se escribió para el buzón
-/// corporativo de dinahosting (mail.talveg.es), cuando el MX de talveg.es
-/// apuntaba allí. Esa premisa ya no vale: medido el 2026-11-08, el MX de
-/// talveg.es es <c>talveg-es.mail.protection.outlook.com</c> (Microsoft 365) y
-/// el SPF autoriza tanto a Microsoft 365 como a mail.talveg.es. Qué servidor
-/// usa cada entorno lo decide <c>Smtp__Host</c> en su configuración, no este
-/// comentario. Sin las cinco variables configuradas, el envío de correo queda inerte: las
+/// Configuración del envío de correo vía SMTP (buzón corporativo alojado en
+/// dinahosting, no Microsoft 365 — el MX de talveg.es resuelve a
+/// mail.talveg.es, un servidor SMTP/IMAP tradicional, no a Exchange Online).
+/// Sin las cinco variables configuradas, el envío de correo queda inerte: las
 /// acciones que lo disparan (usuario pendiente, asignación de rol) siguen
 /// funcionando igual, solo que sin notificación — mismo patrón que
 /// Sentry/Backups/Anthropic/AzureAd.

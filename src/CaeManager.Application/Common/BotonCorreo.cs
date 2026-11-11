@@ -12,7 +12,8 @@ namespace CaeManager.Application.Common;
 /// correo; un botón dibujado con una imagen, o cuyo aspecto dependa de una
 /// clase, desaparece o pierde su jerarquía. Aquí el botón es un
 /// <c>&lt;a&gt;</c> con su texto dentro de una celda con color de fondo (un
-/// color, no una imagen), y todo su estilo va en línea, de modo que se ve igual
+/// color, no una imagen) que lleva el relleno (Outlook de escritorio ignora el
+/// relleno de un <c>&lt;a&gt;</c>, no el de una celda), y todo su estilo va en línea, de modo que se ve igual
 /// con las imágenes bloqueadas y sin la hoja de estilos.
 /// </para>
 ///
@@ -40,14 +41,22 @@ public static class BotonCorreo
         ArgumentException.ThrowIfNullOrWhiteSpace(texto);
         ArgumentException.ThrowIfNullOrWhiteSpace(url);
 
+        // Defensa en profundidad: la codificación HTML no neutraliza un esquema peligroso
+        // («javascript:», «data:»), así que solo se admiten direcciones absolutas http(s).
+        if (!Uri.TryCreate(url, UriKind.Absolute, out var destino)
+            || (destino.Scheme != Uri.UriSchemeHttps && destino.Scheme != Uri.UriSchemeHttp))
+        {
+            throw new ArgumentException("La dirección del botón debe ser una URL absoluta http o https.", nameof(url));
+        }
+
         var textoHtml = WebUtility.HtmlEncode(texto);
         var urlHtml = WebUtility.HtmlEncode(url);
 
         return $"""
             <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="width:auto;border-collapse:separate;margin:6px 0 14px;">
               <tr>
-                <td bgcolor="#122A21" style="background-color:#122A21;border-radius:4px;padding:0;border-bottom:0;">
-                  <a href="{urlHtml}" style="display:inline-block;padding:11px 22px;font-family:Arial,Helvetica,sans-serif;font-size:15px;font-weight:bold;line-height:1.2;color:#FFFFFF;text-decoration:none;border:1px solid #122A21;border-radius:4px;">{textoHtml}</a>
+                <td bgcolor="#122A21" style="background-color:#122A21;border-radius:4px;padding:14px 24px;border-bottom:0;">
+                  <a href="{urlHtml}" style="display:inline-block;font-family:Arial,Helvetica,sans-serif;font-size:16px;font-weight:bold;line-height:1.2;color:#FFFFFF;text-decoration:none;">{textoHtml}</a>
                 </td>
               </tr>
             </table>

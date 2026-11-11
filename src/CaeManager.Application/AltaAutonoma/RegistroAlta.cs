@@ -137,7 +137,7 @@ public sealed class ServicioRegistroAlta(
     private static string CuerpoCuentaExistente(Uri basePublica) => $"""
         <p>Alguien ha intentado crear una cuenta en TALVEG con este correo, pero ya tienes una.</p>
         {BotonCorreo.Html("Iniciar sesión", new Uri(basePublica, "cuenta/iniciar-sesion").AbsoluteUri)}
-        <p>Si no recuerdas la contraseña, puedes <a href="{WebUtility.HtmlEncode(new Uri(basePublica, "cuenta/olvide-contrasena").AbsoluteUri)}" style="color:#122A21;text-decoration:underline;">restablecerla aquí</a>: {WebUtility.HtmlEncode(new Uri(basePublica, "cuenta/olvide-contrasena").AbsoluteUri)}</p>
+        <p>Si no recuerdas la contraseña, puedes restablecerla en <a href="{WebUtility.HtmlEncode(new Uri(basePublica, "cuenta/olvide-contrasena").AbsoluteUri)}" style="color:#122A21;text-decoration:underline;word-break:break-all;">{WebUtility.HtmlEncode(new Uri(basePublica, "cuenta/olvide-contrasena").AbsoluteUri)}</a>.</p>
         <p>Si no has sido tú, ignora este mensaje: tu cuenta no ha cambiado.</p>
         """;
 }

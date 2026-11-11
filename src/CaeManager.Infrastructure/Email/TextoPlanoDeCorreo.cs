@@ -28,11 +28,29 @@ namespace CaeManager.Infrastructure.Email;
 /// </summary>
 internal static partial class TextoPlanoDeCorreo
 {
+    private const int TopeRegexMs = 500;
+
     public static string DesdeHtml(string html)
     {
         if (string.IsNullOrWhiteSpace(html))
             return string.Empty;
 
+        try
+        {
+            return Convertir(html);
+        }
+        catch (RegexMatchTimeoutException)
+        {
+            // Un HTML patológico (miles de etiquetas sin cerrar) no debe impedir el envío ni agotar la CPU:
+            // se cae a quitar etiquetas sin expresiones regulares, perdiendo los enlaces pero no el mensaje.
+            return Normalizar(WebUtility.HtmlDecode(SinEtiquetas(html)));
+        }
+    }
+
+    // Decodificar entidades ocurre una sola vez, al final: lo que se inserta antes (texto y dirección de los
+    // enlaces, alt de las imágenes) se deja tal cual viene del HTML, para que «&amp;lt;» no acabe como «<».
+    private static string Convertir(string html)
+    {
         var texto = BloquesSinTexto().Replace(html, string.Empty);
         texto = Comentarios().Replace(texto, string.Empty);
         texto = Enlaces().Replace(texto, EscribirEnlace);
@@ -52,9 +70,9 @@ internal static partial class TextoPlanoDeCorreo
 
     private static string EscribirEnlace(Match m)
     {
-        var href = WebUtility.HtmlDecode(m.Groups["href"].Value).Trim();
+        var href = m.Groups["href"].Value.Trim();
         var interior = Etiquetas().Replace(m.Groups["texto"].Value, string.Empty);
-        var texto = Espacios().Replace(WebUtility.HtmlDecode(interior), " ").Trim();
+        var texto = Espacios().Replace(interior, " ").Trim();
 
         if (href.StartsWith("mailto:", StringComparison.OrdinalIgnoreCase))
         {
@@ -79,10 +97,30 @@ internal static partial class TextoPlanoDeCorreo
         return $"{texto} ({href})";
     }
 
+    private static string SinEtiquetas(string html)
+    {
+        var sb = new StringBuilder(html.Length);
+        var dentro = false;
+        foreach (var c in html)
+        {
+            if (c == '<')
+                dentro = true;
+            else if (c == '>' && dentro)
+            {
+                dentro = false;
+                sb.Append(' ');
+            }
+            else if (!dentro)
+                sb.Append(c);
+        }
+
+        return sb.ToString();
+    }
+
     private static string? Atributo(string etiqueta, string nombre)
     {
-        var m = Regex.Match(etiqueta, $"""\b{nombre}\s*=\s*(?:"(?<v>[^"]*)"|'(?<v>[^']*)')""", RegexOptions.IgnoreCase);
-        return m.Success ? WebUtility.HtmlDecode(m.Groups["v"].Value).Trim() : null;
+        var m = Regex.Match(etiqueta, $"""\b{nombre}\s*=\s*(?:"(?<v>[^"]*)"|'(?<v>[^']*)')""", RegexOptions.IgnoreCase, TimeSpan.FromMilliseconds(TopeRegexMs));
+        return m.Success ? m.Groups["v"].Value.Trim() : null;
     }
 
     private static string Normalizar(string texto)
@@ -110,36 +148,36 @@ internal static partial class TextoPlanoDeCorreo
         return resultado.ToString();
     }
 
-    [GeneratedRegex(@"<(head|style|script|title)\b[^>]*>.*?</\1\s*>", RegexOptions.IgnoreCase | RegexOptions.Singleline)]
+    [GeneratedRegex(@"<(head|style|script|title)\b[^>]*>.*?</\1\s*>", RegexOptions.IgnoreCase | RegexOptions.Singleline, matchTimeoutMilliseconds: TopeRegexMs)]
     private static partial Regex BloquesSinTexto();
 
-    [GeneratedRegex(@"<!--.*?-->", RegexOptions.Singleline)]
+    [GeneratedRegex(@"<!--.*?-->", RegexOptions.Singleline, matchTimeoutMilliseconds: TopeRegexMs)]
     private static partial Regex Comentarios();
 
-    [GeneratedRegex("""<a\b[^>]*?\bhref\s*=\s*(?:"(?<href>[^"]*)"|'(?<href>[^']*)')[^>]*>(?<texto>.*?)</a\s*>""", RegexOptions.IgnoreCase | RegexOptions.Singleline)]
+    [GeneratedRegex("""<a\b[^>]*?\bhref\s*=\s*(?:"(?<href>[^"]*)"|'(?<href>[^']*)')[^>]*>(?<texto>.*?)</a\s*>""", RegexOptions.IgnoreCase | RegexOptions.Singleline, matchTimeoutMilliseconds: TopeRegexMs)]
     private static partial Regex Enlaces();
 
-    [GeneratedRegex(@"<img\b[^>]*>", RegexOptions.IgnoreCase)]
+    [GeneratedRegex(@"<img\b[^>]*>", RegexOptions.IgnoreCase, matchTimeoutMilliseconds: TopeRegexMs)]
     private static partial Regex Imagenes();
 
-    [GeneratedRegex(@"<li\b[^>]*>", RegexOptions.IgnoreCase)]
+    [GeneratedRegex(@"<li\b[^>]*>", RegexOptions.IgnoreCase, matchTimeoutMilliseconds: TopeRegexMs)]
     private static partial Regex ElementoDeLista();
 
-    [GeneratedRegex(@"<br\s*/?>", RegexOptions.IgnoreCase)]
+    [GeneratedRegex(@"<br\s*/?>", RegexOptions.IgnoreCase, matchTimeoutMilliseconds: TopeRegexMs)]
     private static partial Regex SaltoDeLinea();
 
-    [GeneratedRegex(@"</?(p|div|h[1-6]|table|ul|ol|blockquote)\b[^>]*>", RegexOptions.IgnoreCase)]
+    [GeneratedRegex(@"</?(p|div|h[1-6]|table|ul|ol|blockquote)\b[^>]*>", RegexOptions.IgnoreCase, matchTimeoutMilliseconds: TopeRegexMs)]
     private static partial Regex FinDeBloque();
 
-    [GeneratedRegex(@"</?tr\b[^>]*>", RegexOptions.IgnoreCase)]
+    [GeneratedRegex(@"</?tr\b[^>]*>", RegexOptions.IgnoreCase, matchTimeoutMilliseconds: TopeRegexMs)]
     private static partial Regex Fila();
 
-    [GeneratedRegex(@"</?t[dh]\b[^>]*>", RegexOptions.IgnoreCase)]
+    [GeneratedRegex(@"</?t[dh]\b[^>]*>", RegexOptions.IgnoreCase, matchTimeoutMilliseconds: TopeRegexMs)]
     private static partial Regex Celda();
 
-    [GeneratedRegex(@"<[^>]+>")]
+    [GeneratedRegex(@"<[^>]+>", RegexOptions.None, matchTimeoutMilliseconds: TopeRegexMs)]
     private static partial Regex Etiquetas();
 
-    [GeneratedRegex(@"[ \t ]+")]
+    [GeneratedRegex(@"[ \t ]+", RegexOptions.None, matchTimeoutMilliseconds: TopeRegexMs)]
     private static partial Regex Espacios();
 }

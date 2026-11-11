@@ -78,6 +78,39 @@ public class CorreoLegibleSinImagenesTests
         html.Should().NotContain("a=\"b\"").And.Contain("a=&quot;b&quot;");
     }
 
+    [Theory]
+    [InlineData("javascript:alert(1)")]
+    [InlineData("data:text/html;base64,AAAA")]
+    [InlineData("/cuenta/activar")]
+    public void El_boton_rechaza_destinos_que_no_son_http_absolutos(string url)
+    {
+        var accion = () => BotonCorreo.Html("Abrir", url);
+
+        accion.Should().Throw<ArgumentException>();
+    }
+
+    [Fact]
+    public void El_texto_plano_decodifica_las_entidades_una_sola_vez()
+    {
+        const string html = "<p>Empresa &amp;lt;Norte&amp;gt; &amp; Cía</p><p><a href=\"https://x.example/?a=1&amp;amp;b=2\">Ver &amp;lt;ya&amp;gt;</a></p>";
+
+        var texto = TextoPlanoDeCorreo.DesdeHtml(html);
+
+        texto.Should().Contain("Empresa &lt;Norte&gt; & Cía");
+        texto.Should().Contain("Ver &lt;ya&gt; (https://x.example/?a=1&amp;b=2)");
+    }
+
+    [Fact]
+    public void Un_HTML_con_miles_de_enlaces_sin_cerrar_no_bloquea_ni_impide_el_texto()
+    {
+        var html = "<p>Hola</p>" + string.Concat(Enumerable.Repeat("<a href=\"https://x.example\">x", 20000));
+        var reloj = System.Diagnostics.Stopwatch.StartNew();
+
+        var texto = TextoPlanoDeCorreo.DesdeHtml(html);
+
+        texto.Should().StartWith("Hola");
+        reloj.Elapsed.Should().BeLessThan(TimeSpan.FromSeconds(30), "las expresiones regulares tienen tope de tiempo y hay una vía sin ellas");
+    }
     [Fact]
     public void El_mensaje_lleva_parte_de_texto_plano_equivalente_al_HTML()
     {
@@ -92,7 +125,7 @@ public class CorreoLegibleSinImagenesTests
         mensaje.HtmlBody.Should().Contain(WebUtility.HtmlEncode("Establecer mi contraseña"));
 
         // MimeKit guarda la parte de texto con los saltos de línea canónicos de MIME (CRLF).
-        var texto = mensaje.TextBody.Replace("\r\n", "\n");
+        var texto = mensaje.TextBody!.Replace("\r\n", "\n");
         texto.Should().StartWith("TALVEG\n\nCoordinación de actividades empresariales");
         texto.Should().Contain("Hola Marta,");
         texto.Should().Contain($"Establecer mi contraseña ({url})", "sin HTML la llamada a la acción sigue siendo utilizable");
