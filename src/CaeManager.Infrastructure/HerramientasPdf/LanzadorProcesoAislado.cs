@@ -27,7 +27,7 @@ public sealed record SalidaProcesoAislado(DesenlaceProcesoAislado Desenlace, int
 /// </summary>
 public interface ILanzadorProcesoAislado
 {
-    /// <exception cref="OperationCanceledException">Si cancela el llamante; el proceso ya está muerto.</exception>
+    /// <exception cref="OperationCanceledException">Si cancela el llamante; el proceso ya está muerto, salvo que no se pudiera matar (queda en el registro).</exception>
     Task<SalidaProcesoAislado> EjecutarAsync(ProcessStartInfo inicio, Func<Stream, CancellationToken, Task> escribirEntrada,
         TimeSpan tiempoMaximo, int maximoBytesSalida, CancellationToken cancellationToken);
 }
@@ -36,6 +36,10 @@ public interface ILanzadorProcesoAislado
 /// La mecánica real con <see cref="Process"/>, en la línea de <c>LibreOfficeConversorWordPdfService</c>: se mata siempre el
 /// árbol entero y se espera a que muera antes de devolver el control. La salida de errores se lee y se descarta, porque la
 /// traza de un fallo del hijo puede reproducir contenido del documento.
+///
+/// Si el sistema no deja matar al hijo, no se espera para siempre: cada espera tras el plazo está acotada, se registra un
+/// aviso y se devuelve el control con el hijo quizá vivo. Retener al llamante (y su turno) bloquearía la herramienta para
+/// todos; a cambio, la cota de memoria de <see cref="LimitadorProcesosAislados"/> deja de valer para ese hijo.
 /// </summary>
 public sealed class LanzadorProcesoAislado(ILogger<LanzadorProcesoAislado> logger) : ILanzadorProcesoAislado
 {
@@ -72,10 +76,7 @@ public sealed class LanzadorProcesoAislado(ILogger<LanzadorProcesoAislado> logge
 
         try
         {
-            // La lectura no se espera más allá del plazo: si vence o el llamante cancela, se sale en el acto aunque la lectura
-            // no atienda el token (bloqueada en la tubería de un hijo que no se pudo matar). Se abandona y la observa el
-            // finally, con espera acotada; así el lanzador siempre vuelve y quien llama suelta su turno.
-            var salida = await lectura.WaitAsync(plazo.Token);
+            var salida = await HastaElPlazoAsync(lectura, plazo.Token);
             if (salida is null)
                 return new SalidaProcesoAislado(DesenlaceProcesoAislado.SalidaDemasiadoGrande, null, ReadOnlyMemory<byte>.Empty, id);
 
@@ -121,8 +122,16 @@ public sealed class LanzadorProcesoAislado(ILogger<LanzadorProcesoAislado> logge
         }
     }
 
+    /// <summary>
+    /// <paramref name="lectura"/>, sin esperarla más allá de <paramref name="plazo"/>: si vence o el llamante cancela, lanza
+    /// <see cref="OperationCanceledException"/> en el acto aunque la lectura no atienda el token (bloqueada en la tubería de
+    /// un hijo que no se pudo matar). La lectura se abandona y la observa el finally con espera acotada; así el lanzador
+    /// siempre vuelve y quien llama suelta su turno.
+    /// </summary>
+    internal static Task<T> HastaElPlazoAsync<T>(Task<T> lectura, CancellationToken plazo) => lectura.WaitAsync(plazo);
+
     /// <summary>La salida entera, o <c>null</c> en cuanto pasa de <paramref name="maximo"/> bytes.</summary>
-    private static async Task<ReadOnlyMemory<byte>?> LeerConTopeAsync(Stream origen, int maximo, CancellationToken cancellationToken)
+    internal static async Task<ReadOnlyMemory<byte>?> LeerConTopeAsync(Stream origen, int maximo, CancellationToken cancellationToken)
     {
         using var leido = new MemoryStream();
         var bloque = new byte[81_920];

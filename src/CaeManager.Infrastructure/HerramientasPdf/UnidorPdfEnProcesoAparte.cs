@@ -61,6 +61,9 @@ public sealed record OpcionesProcesoHerramientasPdf
 /// El proceso aparte no hereda el entorno (cadenas de conexión, claves): solo lo que necesita el runtime. No es un entorno
 /// cerrado: corre con el mismo usuario y en el mismo contenedor. Lo que acota es el coste, que es el riesgo de abrir un PDF
 /// con PDFsharp, código administrado.
+///
+/// El turno de <see cref="LimitadorProcesosAislados"/> se suelta siempre en un tiempo acotado, también si el hijo no se pudo
+/// matar: entonces ese hijo queda fuera de la cota de memoria del limitador (ver allí).
 /// </summary>
 public sealed class UnidorPdfEnProcesoAparte(
     OpcionesProcesoHerramientasPdf opciones,

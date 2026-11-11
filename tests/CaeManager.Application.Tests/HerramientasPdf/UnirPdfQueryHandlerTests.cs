@@ -437,6 +437,19 @@ public class UnirPdfQueryHandlerTests
     }
 
     [Fact]
+    public async Task Si_la_transaccion_del_registro_no_confirma_no_hay_PDF_ni_queda_su_reserva()
+    {
+        var seguro = DocumentoDeEmpresa("SEGURO");
+        _transaccion.Fallo = Error.Crear("Transaccion.NoConfirmada", "no confirmó");
+
+        var resultado = await UnirAsync([new EntradaUnionDocumento(seguro.Id), Subido("a.pdf", "A")]);
+
+        resultado.EsFallido.Should().BeTrue("sin constancia del acceso no sale el PDF (DEC-36)");
+        resultado.Error.Codigo.Should().Be("Transaccion.NoConfirmada");
+        PresupuestoLibre().Should().BeTrue("el PDF unido que no sale tampoco retiene su reserva");
+    }
+
+    [Fact]
     public async Task Unir_solo_PDF_subidos_no_registra_accesos_ni_abre_transaccion()
     {
         await UnirAsync([Subido("a.pdf", "A"), Subido("b.pdf", "B")]);
@@ -902,6 +915,8 @@ public class UnirPdfQueryHandlerTests
         public bool Abierta { get; private set; }
         public int Ejecutadas { get; private set; }
         public int Confirmadas { get; private set; }
+        /// <summary>Si no es <c>null</c>, la transacción no confirma y devuelve este fallo sin lanzar.</summary>
+        public Error? Fallo { get; set; }
 
         public async Task<Result> EjecutarAsync(Func<CancellationToken, Task<Result>> operacion, CancellationToken cancellationToken = default)
         {
@@ -912,6 +927,7 @@ public class UnirPdfQueryHandlerTests
             try
             {
                 var resultado = await operacion(cancellationToken);
+                if (Fallo is not null) return Result.Fallo(Fallo);
                 if (!resultado.EsFallido) Confirmadas++;
                 return resultado;
             }

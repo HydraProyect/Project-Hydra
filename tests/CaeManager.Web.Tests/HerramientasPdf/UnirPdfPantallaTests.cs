@@ -13,6 +13,7 @@ using MediatR;
 using Microsoft.AspNetCore.Components.Authorization;
 using Microsoft.AspNetCore.Components.Forms;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
@@ -157,6 +158,7 @@ public sealed class UnirPdfPantallaTests : BunitContext
         })));
         Services.AddSingleton<IPresupuestoMemoriaDocumentos>(new PresupuestoMemoriaDocumentos(
             Options.Create(new OpcionesPresupuestoMemoriaDocumentos()), TimeProvider.System));
+        Services.TryAddSingleton(TimeProvider.System);
 
         return Render<UnirPdf>();
     }
@@ -477,6 +479,31 @@ public sealed class UnirPdfPantallaTests : BunitContext
         await cut.InvokeAsync(() => descarga.SetException(new Microsoft.JSInterop.JSException("el navegador no pudo")));
 
         cut.WaitForAssertion(() => reserva.Desechada.Should().Be(1));
+        cut.FindAll("h1").Should().NotContain(h => h.TextContent.Contains("PDF unido"));
+    }
+
+    /// <summary>Un reloj cuyos temporizadores vencen en el acto: el plazo de la descarga pasa sin esperar un minuto real.</summary>
+    private sealed class RelojQueVenceEnseguida : TimeProvider
+    {
+        public override ITimer CreateTimer(TimerCallback callback, object? state, TimeSpan dueTime, TimeSpan period) =>
+            System.CreateTimer(callback, state, dueTime == Timeout.InfiniteTimeSpan ? dueTime : TimeSpan.FromMilliseconds(50), period);
+    }
+
+    [Fact]
+    public async Task Si_el_navegador_no_lee_el_PDF_unido_a_tiempo_la_descarga_se_corta_y_la_reserva_se_devuelve_una_vez()
+    {
+        // Pasar un token propio a la llamada JS anula su plazo por defecto: sin el de la pantalla, la reserva viviría lo que el circuito.
+        Services.AddSingleton<TimeProvider>(new RelojQueVenceEnseguida());
+        var reserva = UnirConReserva();
+        var descarga = _descarga.SetupVoid("descargarPdf", _ => true);
+        var cut = Renderizar();
+        await SubirAsync(cut, "a.pdf", "b.pdf");
+
+        PulsarBoton(cut, "Unir y descargar");
+
+        await reserva.Devuelta.WaitAsync(TimeSpan.FromSeconds(5));
+        reserva.Desechada.Should().Be(1);
+        descarga.Invocations.Should().ContainSingle("la descarga empezó y nunca terminó");
         cut.FindAll("h1").Should().NotContain(h => h.TextContent.Contains("PDF unido"));
     }
 

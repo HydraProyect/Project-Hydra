@@ -45,6 +45,7 @@ public partial class UnirPdf : CaeManager.Web.Components.PaginaInteractiva, IDis
     [Inject] private IPresupuestoMemoriaDocumentos PresupuestoMemoria { get; set; } = default!;
     [Inject] private IDisponibilidadHerramientasPdf Disponibilidad { get; set; } = default!;
     [Inject] private IJSRuntime JS { get; set; } = default!;
+    [Inject] private TimeProvider Reloj { get; set; } = default!;
     [Inject] private ILogger<UnirPdf> Logger { get; set; } = default!;
     [Inject] private IStringLocalizer<TextosHerramientasPdf> Textos { get; set; } = default!;
 
@@ -389,17 +390,31 @@ public partial class UnirPdf : CaeManager.Web.Components.PaginaInteractiva, IDis
     }
 
     /// <summary>
-    /// Entrega el PDF unido al navegador como flujo. Vuelve cuando el navegador lo ha leído entero, ha fallado o la pantalla
-    /// se desecha (<paramref name="token"/>): hasta entonces el flujo apunta a <see cref="ResultadoUnionPdf.Contenido"/> y
-    /// quien llama mantiene su reserva.
+    /// Lo que se espera a que el navegador lea el PDF unido. Es el plazo por defecto de las llamadas JS de Blazor, que pasar un
+    /// token propio anula: sin él, un navegador que no tira del flujo retendría la reserva mientras viva el circuito.
+    /// </summary>
+    private static readonly TimeSpan PlazoDescarga = TimeSpan.FromMinutes(1);
+
+    /// <summary>
+    /// Entrega el PDF unido al navegador como flujo. Vuelve cuando el navegador lo ha leído entero, ha fallado, pasa
+    /// <see cref="PlazoDescarga"/> o la pantalla se desecha (<paramref name="token"/>): hasta entonces el flujo apunta a
+    /// <see cref="ResultadoUnionPdf.Contenido"/> y quien llama mantiene su reserva.
     /// </summary>
     private async Task DescargarAsync(ResultadoUnionPdf resultado, CancellationToken token)
     {
+        using var vencimiento = new CancellationTokenSource(PlazoDescarga, Reloj);
+        using var plazo = CancellationTokenSource.CreateLinkedTokenSource(token, vencimiento.Token);
         try
         {
-            _modulo ??= await JS.InvokeAsync<IJSObjectReference>("import", token, "./js/descarga-pdf-unido.js");
+            _modulo ??= await JS.InvokeAsync<IJSObjectReference>("import", plazo.Token, "./js/descarga-pdf-unido.js");
             using var referencia = new DotNetStreamReference(new MemoryStream(resultado.Contenido!, writable: false));
-            await _modulo.InvokeVoidAsync("descargarPdf", token, resultado.NombreArchivo, referencia);
+            await _modulo.InvokeVoidAsync("descargarPdf", plazo.Token, resultado.NombreArchivo, referencia);
+        }
+        catch (OperationCanceledException) when (!token.IsCancellationRequested && vencimiento.IsCancellationRequested)
+        {
+            Logger.LogWarning("Unir PDF: el navegador no leyó el PDF unido en {Plazo}; se suelta.", PlazoDescarga);
+            _error = Textos["UnirErrorDescarga"];
+            return;
         }
         catch (JSException ex)
         {

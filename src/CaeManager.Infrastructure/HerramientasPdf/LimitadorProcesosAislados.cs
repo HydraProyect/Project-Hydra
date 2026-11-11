@@ -4,6 +4,10 @@ namespace CaeManager.Infrastructure.HerramientasPdf;
 /// Cuántos procesos aislados corren a la vez. Cada uno puede llegar a su límite de memoria dentro del mismo contenedor que la
 /// aplicación, así que el techo de memoria que suman es capacidad × límite. Sirve para cualquier herramienta que abra
 /// archivos ajenos en un proceso aparte: quien lo registre decide si comparte la instancia.
+///
+/// Esa cota supone que el hijo muere al vencer su plazo. Si el sistema no deja matarlo, el turno se suelta igualmente,
+/// pasado un margen acotado (<see cref="OpcionesProcesoHerramientasPdf.MargenLiberacionTurno"/>), y el hijo vivo queda fuera
+/// de la cuenta: queda en el registro como error, y el techo del contenedor y su <c>oom_score_adj</c> son lo que lo acota.
 /// </summary>
 public sealed class LimitadorProcesosAislados(int capacidad)
 {
