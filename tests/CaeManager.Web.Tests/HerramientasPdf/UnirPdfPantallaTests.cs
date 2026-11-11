@@ -486,7 +486,7 @@ public sealed class UnirPdfPantallaTests : BunitContext
     private sealed class RelojQueVenceEnseguida : TimeProvider
     {
         public override ITimer CreateTimer(TimerCallback callback, object? state, TimeSpan dueTime, TimeSpan period) =>
-            System.CreateTimer(callback, state, dueTime == Timeout.InfiniteTimeSpan ? dueTime : TimeSpan.FromMilliseconds(50), period);
+            System.CreateTimer(callback, state, dueTime == Timeout.InfiniteTimeSpan ? dueTime : TimeSpan.FromMilliseconds(500), period);
     }
 
     [Fact]
