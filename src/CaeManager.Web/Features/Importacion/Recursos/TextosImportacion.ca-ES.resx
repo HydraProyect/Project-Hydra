@@ -724,6 +724,10 @@
   <data name="EstErrorExtension" xml:space="preserve"><value>Només s'admeten fitxers .xlsx.</value></data>
   <data name="EstErrorTamano" xml:space="preserve"><value>El fitxer pesa més de {0} MB.</value></data>
   <data name="EstErrorPrevia" xml:space="preserve"><value>No hem pogut calcular la vista prèvia. Torna-ho a provar.</value></data>
+  <data name="EstVistaPreviaCambiada" xml:space="preserve"><value>Les dades han canviat des de la vista prèvia (per exemple, una altra persona ha editat un registre). No s'ha escrit res: revisa la vista prèvia actualitzada i torna a confirmar.</value></data>
+  <data name="EstTituloOmitidasPrevia" xml:space="preserve"><value>Files que s'ometran en confirmar</value></data>
+  <data name="EstTextoOmitidasPrevia" xml:space="preserve"><value>Les files amb error de la validació i les que l'escriptura no podrà aplicar (per exemple, una raó social ja ocupada), cadascuna amb el seu motiu. Cap no s'escriu.</value></data>
+  <data name="EstBotonOmitidasPrevia" xml:space="preserve"><value>Files omeses (CSV)</value></data>
   <data name="EstErrorDescarga" xml:space="preserve"><value>No hem pogut preparar la descàrrega.</value></data>
   <data name="EstSobrescrito" xml:space="preserve"><value>Sobreescrit</value></data>
   <data name="EstBotonValidar" xml:space="preserve"><value>Validar el fitxer</value></data>

@@ -724,6 +724,10 @@
   <data name="EstErrorExtension" xml:space="preserve"><value>Solo se admiten archivos .xlsx.</value></data>
   <data name="EstErrorTamano" xml:space="preserve"><value>El archivo pesa más de {0} MB.</value></data>
   <data name="EstErrorPrevia" xml:space="preserve"><value>No pudimos calcular la vista previa. Inténtalo de nuevo.</value></data>
+  <data name="EstVistaPreviaCambiada" xml:space="preserve"><value>Los datos han cambiado desde la vista previa (por ejemplo, otra persona ha editado un registro). No se ha escrito nada: revisa la vista previa actualizada y vuelve a confirmar.</value></data>
+  <data name="EstTituloOmitidasPrevia" xml:space="preserve"><value>Filas que se omitirán al confirmar</value></data>
+  <data name="EstTextoOmitidasPrevia" xml:space="preserve"><value>Las filas con error de la validación y las que la escritura no podrá aplicar (por ejemplo, una razón social ya ocupada), cada una con su motivo. Ninguna se escribe.</value></data>
+  <data name="EstBotonOmitidasPrevia" xml:space="preserve"><value>Filas omitidas (CSV)</value></data>
   <data name="EstErrorDescarga" xml:space="preserve"><value>No pudimos preparar la descarga.</value></data>
   <data name="EstSobrescrito" xml:space="preserve"><value>Sobrescrito</value></data>
   <data name="EstBotonValidar" xml:space="preserve"><value>Validar archivo</value></data>

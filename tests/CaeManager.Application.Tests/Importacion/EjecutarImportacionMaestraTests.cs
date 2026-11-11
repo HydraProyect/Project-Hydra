@@ -48,8 +48,15 @@ public class EjecutarImportacionMaestraTests
                 Operaciones, new Autorizacion(administrador), Altas, Serializacion);
         }
 
-        public async Task<Result<ResultadoImportacionMaestraDto>> EjecutarAsync(PlanImportacionMaestraDto plan, bool reemplazar = false) =>
-            await Handler().Handle(new EjecutarImportacionMaestraCommand(plan, reemplazar), CancellationToken.None);
+        /// <summary>Como la pantalla: confirma con la huella de una vista previa del mismo plan y modo calculada justo antes.</summary>
+        public async Task<Result<ResultadoImportacionMaestraDto>> EjecutarAsync(PlanImportacionMaestraDto plan, bool reemplazar = false)
+        {
+            var previa = await PrevisualizarAsync(plan, reemplazar);
+            return await ConfirmarAsync(plan, reemplazar, previa.EsExitoso ? previa.Valor.CalcularHuella() : string.Empty);
+        }
+
+        public async Task<Result<ResultadoImportacionMaestraDto>> ConfirmarAsync(PlanImportacionMaestraDto plan, bool reemplazar, string huella) =>
+            await Handler().Handle(new EjecutarImportacionMaestraCommand(plan, reemplazar, huella), CancellationToken.None);
 
         public async Task<Result<ResultadoImportacionMaestraDto>> PrevisualizarAsync(PlanImportacionMaestraDto plan, bool reemplazar = false) =>
             await Handler().Handle(new PrevisualizarImportacionMaestraCommand(plan, reemplazar), CancellationToken.None);
@@ -185,6 +192,89 @@ public class EjecutarImportacionMaestraTests
 
         var real = (await e.EjecutarAsync(plan, reemplazar: true)).Valor;
         real.Should().BeEquivalentTo(previa, "N14: el aviso previo debe coincidir con lo que se hace al confirmar");
+    }
+
+    [Fact]
+    public async Task Si_otro_rellena_un_campo_entre_la_vista_previa_y_confirmar_en_Reemplazar_no_se_sobrescribe_sin_mostrarlo()
+    {
+        // Revisión Codex de la PR #2164, r1, MEDIO 1: la vista previa mostró el CNAE vacío (se rellenaría, sin valor previo
+        // que avisar); otro Administrador del Tenant lo rellena antes de confirmar. Confirmar no puede sobrescribirlo.
+        var e = new Escenario();
+        var existente = GestionadaExistente();
+        e.Empresas.ListaEmpresas.Add(existente);
+        var plan = Plan([FilaEmpresa() with { YaExiste = true }]);
+        var previa = (await e.PrevisualizarAsync(plan, reemplazar: true)).Valor;
+        previa.ValoresSobrescritos.Should().NotContain(v => v.Campo == "CNAE");
+
+        existente.Actualizar(existente.RazonSocial, existente.Cif, "9999", existente.ConvenioAplicable, existente.EsActividadAnexoI);
+        var r = await e.ConfirmarAsync(plan, reemplazar: true, previa.CalcularHuella());
+
+        r.Error.Should().Be(ErroresImportacionMaestra.VistaPreviaCambiada);
+        existente.Cnae.Should().Be("9999", "el valor que la vista previa no mostró no se sobrescribe");
+        existente.ConvenioAplicable.Should().Be("Convenio previo", "no se escribe nada de la fila");
+        (await e.Operaciones.ExisteAsync(plan.OperacionId)).Should().BeFalse("se puede confirmar tras revisar la vista previa");
+
+        // La vista previa nueva sí lo muestra, y con su huella se escribe.
+        var revisada = (await e.PrevisualizarAsync(plan, reemplazar: true)).Valor;
+        revisada.ValoresSobrescritos.Should().Contain(new ValorPrevioDto("Empresas", 3, "CNAE", "9999", "4321"));
+        (await e.ConfirmarAsync(plan, reemplazar: true, revisada.CalcularHuella())).EsExitoso.Should().BeTrue();
+        existente.Cnae.Should().Be("4321");
+    }
+
+    [Fact]
+    public async Task En_Completar_un_cambio_entre_la_vista_previa_y_confirmar_tambien_pide_revisarla()
+    {
+        // Completar nunca sobrescribe, pero lo escrito tampoco sería lo mostrado (un campo «se rellenará» ya no).
+        var e = new Escenario();
+        var existente = GestionadaExistente();
+        e.Empresas.ListaEmpresas.Add(existente);
+        var plan = Plan([FilaEmpresa() with { YaExiste = true }]);
+        var previa = (await e.PrevisualizarAsync(plan)).Valor;
+        previa.CamposRellenados.Should().Be(1);
+
+        existente.Actualizar(existente.RazonSocial, existente.Cif, "9999", existente.ConvenioAplicable, existente.EsActividadAnexoI);
+        var r = await e.ConfirmarAsync(plan, reemplazar: false, previa.CalcularHuella());
+
+        r.Error.Should().Be(ErroresImportacionMaestra.VistaPreviaCambiada);
+        existente.Cnae.Should().Be("9999");
+    }
+
+    [Fact]
+    public async Task Un_cambio_entre_la_comprobacion_y_la_escritura_descarta_lo_pendiente_y_no_guarda()
+    {
+        // La escritura compara su propio resultado antes de guardar: cubre el hueco entre la comprobación y su lectura.
+        var e = new Escenario();
+        var existente = GestionadaExistente();
+        e.Empresas.ListaEmpresas.Add(existente);
+        var plan = Plan([FilaEmpresa() with { YaExiste = true }], clientes: [FilaCliente()]);
+        var previa = (await e.PrevisualizarAsync(plan, reemplazar: true)).Valor;
+        var lecturas = 0;
+        // Lecturas: la comprobación (1) y la escritura (2). El cambio llega justo antes de la segunda.
+        e.EmpresaRepositorio.CambioEnLaBase = emp =>
+        {
+            if (emp.Id == existente.Id && ++lecturas == 2)
+                emp.Actualizar(emp.RazonSocial, emp.Cif, "9999", emp.ConvenioAplicable, emp.EsActividadAnexoI);
+        };
+
+        var r = await e.ConfirmarAsync(plan, reemplazar: true, previa.CalcularHuella());
+
+        r.Error.Should().Be(ErroresImportacionMaestra.VistaPreviaCambiada);
+        lecturas.Should().Be(2);
+        e.Operaciones.VecesDescartado.Should().BeGreaterThan(0, "lo que la escritura dejó pendiente no llega a ningún guardado posterior");
+        (await e.Operaciones.ExisteAsync(plan.OperacionId)).Should().BeFalse();
+    }
+
+    [Fact]
+    public void La_huella_distingue_cada_valor_previo_y_cada_motivo_de_omision()
+    {
+        var baseR = new ResultadoImportacionMaestraDto(0, 1, 0, 0, 0, 0, 0, 0, 0, 1,
+            [new ValorPrevioDto("Empresas", 3, "CNAE", "ab", "c")], [], [new ItemImportacionDto("Empresas", 4, "X", "Motivo")]);
+
+        baseR.CalcularHuella().Should().Be((baseR with { }).CalcularHuella());
+        baseR.CalcularHuella().Should().NotBe((baseR with { ValoresSobrescritos = [new ValorPrevioDto("Empresas", 3, "CNAE", "a", "bc")] }).CalcularHuella());
+        baseR.CalcularHuella().Should().NotBe((baseR with { Omitidos = [new ItemImportacionDto("Empresas", 4, "X", "Otro motivo")] }).CalcularHuella());
+        baseR.CalcularHuella().Should().NotBe((baseR with { CamposRellenados = 2 }).CalcularHuella());
+        baseR.CalcularHuella().Should().NotBe((baseR with { Omitidos = [], Advertencias = [new ItemImportacionDto("Empresas", 4, "X", "Motivo")] }).CalcularHuella());
     }
 
     [Fact]
@@ -378,11 +468,13 @@ public class EjecutarImportacionMaestraTests
     }
 
     [Fact]
-    public async Task Reemplazando_decide_la_vuelta_a_gestion_cae_con_la_modalidad_releida_bajo_el_candado()
+    public async Task Reemplazando_compara_la_vista_previa_con_la_modalidad_releida_bajo_el_candado_y_no_escribe_si_cambio()
     {
         // Revisión Codex de la PR #2104, ronda 1, hallazgo MEDIO: el contexto (uno por circuito) ya rastreaba el Centro
         // con gestión CAE y otra operación lo dejó sin ella; sin relectura, la fila «con gestión CAE» no vería cambio y el
-        // Centro se quedaría sin gestión CAE y sin acreditar.
+        // Centro se quedaría sin gestión CAE y sin acreditar. Desde la revisión Codex de la PR #2164 (r1, MEDIO 1), la
+        // vista previa mostrada no incluía ese cambio de modalidad: la confirmación lo detecta releyendo bajo el candado
+        // y no escribe nada.
         var e = new Escenario();
         var gestionada = GestionadaExistente();
         var cliente = Empresa.CrearComoCliente("Distribuciones Ficticias, S.A.", CifCliente, esCritico: false, notas: null, ejecutivoUsuarioId: null);
@@ -394,12 +486,23 @@ public class EjecutarImportacionMaestraTests
         e.Centros.ListaCanalesGestionDocumental.Add(acceso);
         e.Serializacion.AlTomarElCandado = () =>
             e.CentroRepositorio.CambioEnLaBase = c => c.EstablecerGestionCae(ModalidadGestionCae.SinGestionCae);
+        var plan = Plan([FilaEmpresa() with { YaExiste = true }], [FilaCliente() with { YaExiste = true }],
+            [FilaCentro() with { YaExiste = true }]);
 
-        var r = await e.EjecutarAsync(
-            Plan([FilaEmpresa() with { YaExiste = true }], [FilaCliente() with { YaExiste = true }],
-                [FilaCentro() with { YaExiste = true }]), reemplazar: true);
+        var r = await e.EjecutarAsync(plan, reemplazar: true);
 
-        r.EsExitoso.Should().BeTrue();
+        r.Error.Should().Be(ErroresImportacionMaestra.VistaPreviaCambiada,
+            "la vista previa no mostró el cambio de modalidad que la base tiene bajo el candado");
+        centro.GestionCae.Should().Be(ModalidadGestionCae.SinGestionCae, "no se escribe lo que la vista previa no mostró");
+        e.Altas.Recibidas.Should().BeEmpty();
+        e.Serializacion.UltimoResultado!.EsFallido.Should().BeTrue("la transacción del candado se deshace");
+        (await e.Operaciones.ExisteAsync(plan.OperacionId)).Should().BeFalse("la operación no se consume: se puede confirmar tras revisar");
+
+        // Revisada de nuevo la vista previa (ya con el cambio), confirmar sí escribe y devuelve el Centro a gestión CAE.
+        e.Serializacion.AlTomarElCandado = null;
+        var segunda = await e.EjecutarAsync(plan, reemplazar: true);
+        segunda.EsExitoso.Should().BeTrue();
+        segunda.Valor.ValoresSobrescritos.Should().ContainSingle(v => v.Campo == "Modalidad de gestión CAE");
         centro.GestionCae.Should().Be(ModalidadGestionCae.ConGestionCae);
         var alta = e.Altas.Recibidas.Should().ContainSingle().Subject;
         alta.Canales.Should().BeEquivalentTo([acceso]);
@@ -428,13 +531,19 @@ public class EjecutarImportacionMaestraTests
                 emp.Actualizar(emp.RazonSocial, cifNuevo, emp.Cnae, emp.ConvenioAplicable, emp.EsActividadAnexoI);
         };
 
-        var r = await e.EjecutarAsync(Plan(centros: [FilaCentro() with { YaExiste = true }]), reemplazar: true);
+        var plan = Plan(centros: [FilaCentro() with { YaExiste = true }]);
 
-        r.EsExitoso.Should().BeTrue();
+        var r = await e.EjecutarAsync(plan, reemplazar: true);
+
+        // Revisión Codex de la PR #2164, r1, MEDIO 1: la vista previa mostró el Centro devuelto a gestión CAE; releído bajo
+        // el candado, se omitiría. No coincide con lo mostrado: no se escribe nada.
+        r.Error.Should().Be(ErroresImportacionMaestra.VistaPreviaCambiada);
         e.Serializacion.Llamadas.Should().Be(1);
-        r.Valor.Omitidos.Should().ContainSingle(o => o.Hoja == "Centros", "el CIF de la fila ya no es el de ninguna Empresa gestionada");
         centro.GestionCae.Should().Be(ModalidadGestionCae.SinGestionCae);
         e.Altas.Recibidas.Should().BeEmpty("ningún Centro vuelve a gestión CAE");
+
+        var revisada = await e.PrevisualizarAsync(plan, reemplazar: true);
+        revisada.Valor.Omitidos.Should().ContainSingle(o => o.Hoja == "Centros", "el CIF de la fila ya no es el de ninguna Empresa gestionada");
     }
 
     [Fact]
@@ -461,15 +570,23 @@ public class EjecutarImportacionMaestraTests
                 t.Actualizar(t.Nombre, t.Apellidos, t.FechaNacimiento, "otro@ejemplo.invalid", t.Observaciones, t.Alias, t.Telefono, t.Puesto);
         };
 
-        var r = await e.EjecutarAsync(
-            Plan(centros: [FilaCentro() with { YaExiste = true }],
-                trabajadores: [FilaTrabajador(correo: "previo@ejemplo.invalid") with { YaExiste = true }]), reemplazar: true);
+        var plan = Plan(centros: [FilaCentro() with { YaExiste = true }],
+            trabajadores: [FilaTrabajador(correo: "previo@ejemplo.invalid") with { YaExiste = true }]);
 
-        r.EsExitoso.Should().BeTrue();
+        var r = await e.EjecutarAsync(plan, reemplazar: true);
+
+        // Revisión Codex de la PR #2164, r1, MEDIO 1: la vista previa no mostró ninguna sobrescritura del correo; bajo el
+        // candado, la habría. No se escribe un valor previo que nadie vio.
+        r.Error.Should().Be(ErroresImportacionMaestra.VistaPreviaCambiada);
         e.Serializacion.Llamadas.Should().Be(1);
-        trabajador.Email.Should().Be("previo@ejemplo.invalid", "el archivo reemplaza el valor que hay en la base");
-        r.Valor.TrabajadoresActualizados.Should().Be(1);
-        r.Valor.ValoresSobrescritos.Should().ContainSingle(v => v.Campo == "Correo")
+        trabajador.Email.Should().Be("otro@ejemplo.invalid", "el valor que otro puso en la base no se sobrescribe sin mostrarlo");
+
+        e.Serializacion.AlTomarElCandado = null;
+        var segunda = await e.EjecutarAsync(plan, reemplazar: true);
+        segunda.EsExitoso.Should().BeTrue();
+        trabajador.Email.Should().Be("previo@ejemplo.invalid", "revisada la vista previa, el archivo reemplaza el valor que hay en la base");
+        segunda.Valor.TrabajadoresActualizados.Should().Be(1);
+        segunda.Valor.ValoresSobrescritos.Should().ContainSingle(v => v.Campo == "Correo")
             .Which.ValorPrevio.Should().Be("otro@ejemplo.invalid");
     }
 

@@ -561,6 +561,8 @@ public partial class ImportacionEstructura : ComponentBase, IDisposable
         // Todo lo que la escritura y su registro en el historial necesitan se fija aquí.
         var plan = _plan;
         var reemplazar = _reemplazar;
+        // Lo que se confirma es exactamente la vista previa mostrada (N14): si al escribir ya no coincide, no se escribe.
+        var huella = _previa.CalcularHuella();
         var nombreArchivo = string.IsNullOrWhiteSpace(_nombreArchivo) ? "(desconocido)" : _nombreArchivo[..Math.Min(_nombreArchivo.Length, 260)];
 
         _importando = true;
@@ -572,11 +574,20 @@ public partial class ImportacionEstructura : ComponentBase, IDisposable
         try
         {
             // La escritura no recibe el token de la página: una escritura ya enviada se deja terminar y registrar.
-            var resultado = await Mediator.Send(new EjecutarImportacionMaestraCommand(plan, reemplazar));
+            var resultado = await Mediator.Send(new EjecutarImportacionMaestraCommand(plan, reemplazar, huella));
             if (resultado.EsFallido)
             {
                 await RegistrarFalloAsync(nombreArchivo, resultado.Error.Mensaje);
-                if (!_desechada) Fallar(resultado.Error.Mensaje);
+                if (_desechada) return;
+                if (resultado.Error == ErroresImportacionMaestra.VistaPreviaCambiada)
+                {
+                    // No se ha escrito nada: se recalcula la vista previa y hay que volver a confirmar (y, si ahora hay
+                    // valores que se sobrescribirían, pasar por el diálogo de N14).
+                    Fallar(Textos["EstVistaPreviaCambiada"].Value);
+                    await CargarVistaPreviaAsync();
+                    return;
+                }
+                Fallar(resultado.Error.Mensaje);
                 return;
             }
 
@@ -660,11 +671,19 @@ public partial class ImportacionEstructura : ComponentBase, IDisposable
         return DescargarAsync("errores-importacion.csv", InformeCsv.Construir(CabeceraIncidencias, filas));
     }
 
+    /// <summary>Las filas que la vista previa dice que se omitirán (análisis y escritura), con su motivo, y los avisos.</summary>
+    private Task DescargarOmitidasPreviaAsync()
+    {
+        if (_previa is null) return Task.CompletedTask;
+        var filas = _previa.Omitidos.Select(i => Fila(i, "EstError")).Concat(_previa.Advertencias.Select(i => Fila(i, "EstAviso")));
+        return DescargarAsync("filas-omitidas-vista-previa.csv", InformeCsv.Construir(CabeceraIncidencias, filas));
+    }
+
     private Task DescargarValoresPreviosAsync()
     {
         if (_previa is null) return Task.CompletedTask;
         var filas = _previa.ValoresSobrescritos.Select(v => (IReadOnlyList<string?>)
-            [v.Hoja, v.Fila.ToString(), v.Campo, Enmascarar(v.ValorPrevio), Enmascarar(v.ValorNuevo ?? string.Empty)]);
+            [Enmascarar(v.Hoja), v.Fila.ToString(), v.Campo, Enmascarar(v.ValorPrevio), Enmascarar(v.ValorNuevo ?? string.Empty)]);
         return DescargarAsync("valores-previos-importacion.csv", InformeCsv.Construir(
             [Textos["EstColHoja"].Value, Textos["EstColFila"].Value, Textos["EstColCampo"].Value, Textos["EstColValorPrevio"].Value, Textos["EstColValorNuevo"].Value],
             filas));
@@ -678,7 +697,7 @@ public partial class ImportacionEstructura : ComponentBase, IDisposable
         {
             filas.AddRange(_resultado.Advertencias.Select(i => Fila(i, "EstAviso")));
             filas.AddRange(_resultado.ValoresSobrescritos.Select(v => (IReadOnlyList<string?>)
-                [v.Hoja, v.Fila.ToString(), Textos["EstSobrescrito"].Value + ": " + v.Campo, Enmascarar(v.ValorPrevio) + " → " + Enmascarar(v.ValorNuevo ?? string.Empty), Textos["EstSobrescrito"].Value]));
+                [Enmascarar(v.Hoja), v.Fila.ToString(), Textos["EstSobrescrito"].Value + ": " + v.Campo, Enmascarar(v.ValorPrevio) + " → " + Enmascarar(v.ValorNuevo ?? string.Empty), Textos["EstSobrescrito"].Value]));
         }
 
         return DescargarAsync(soloOmitidas ? "filas-omitidas-importacion.csv" : "informe-importacion.csv", InformeCsv.Construir(CabeceraIncidencias, filas));
@@ -688,7 +707,8 @@ public partial class ImportacionEstructura : ComponentBase, IDisposable
         [Textos["EstColHoja"].Value, Textos["EstColFila"].Value, Textos["EstColElemento"].Value, Textos["EstColMotivo"].Value, Textos["EstColGravedad"].Value];
 
     private IReadOnlyList<string?> Fila(ItemImportacionDto item, string claveGravedad) =>
-        [item.Hoja, item.Fila == 0 ? string.Empty : item.Fila.ToString(), Enmascarar(item.Descripcion), Enmascarar(item.Motivo), Textos[claveGravedad].Value];
+        // El nombre de hoja también: una hoja desconocida lleva el nombre que el Excel le dio (revisión Codex #2164, r1, BAJO 2).
+        [Enmascarar(item.Hoja), item.Fila == 0 ? string.Empty : item.Fila.ToString(), Enmascarar(item.Descripcion), Enmascarar(item.Motivo), Textos[claveGravedad].Value];
 
     // ---------------------------------------------------------------- informe
 

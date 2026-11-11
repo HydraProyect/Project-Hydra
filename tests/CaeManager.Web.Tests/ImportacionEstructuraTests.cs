@@ -92,6 +92,9 @@ public class ImportacionEstructuraTests : BunitContext
         public Result<PlanImportacionMaestraDto>? RespuestaAnalisis { get; set; }
         public Exception? FalloDeAnalisis { get; set; }
         public List<ValorPrevioDto> ValoresPrevios { get; } = [];
+        /// <summary>Filas que el análisis dio por válidas y que la escritura omitirá (razón social ocupada…).</summary>
+        public List<ItemImportacionDto> OmitidosDeEscritura { get; } = [];
+        public List<ResultadoImportacionMaestraDto> Previas { get; } = [];
         public Func<Task>? RetenerPrevia { get; set; }
         public Func<Task>? RetenerEscritura { get; set; }
         public Func<int, Result<ResultadoImportacionMaestraDto>?>? FalloDeEscritura { get; set; }
@@ -111,13 +114,19 @@ public class ImportacionEstructuraTests : BunitContext
                     return RespuestaAnalisis ?? Result.Exito(Plan);
                 case PrevisualizarImportacionMaestraCommand p:
                     if (RetenerPrevia is { } esperaPrevia) await esperaPrevia();
-                    return Result.Exito(Simular(p.Plan, p.ReemplazarExistentes));
+                    var previa = Simular(p.Plan, p.ReemplazarExistentes);
+                    Previas.Add(previa);
+                    return Result.Exito(previa);
                 case EjecutarImportacionMaestraCommand e:
                     if (RetenerEscritura is { } esperaEscritura) await esperaEscritura();
                     if (FalloDeEscritura?.Invoke(++_escrituras) is { } fallo) return fallo;
-                    return _confirmadas.Add(e.Plan.OperacionId)
-                        ? Result.Exito(Simular(e.Plan, e.ReemplazarExistentes))
-                        : Result.Exito(ResultadoImportacionMaestraDto.YaEjecutada());
+                    if (_confirmadas.Contains(e.Plan.OperacionId)) return Result.Exito(ResultadoImportacionMaestraDto.YaEjecutada());
+                    // Como el handler real: solo escribe si lo que haría sigue siendo lo que la vista previa mostró.
+                    var escrito = Simular(e.Plan, e.ReemplazarExistentes);
+                    if (escrito.CalcularHuella() != e.HuellaVistaPrevia)
+                        return Result.Fallo<ResultadoImportacionMaestraDto>(ErroresImportacionMaestra.VistaPreviaCambiada);
+                    _confirmadas.Add(e.Plan.OperacionId);
+                    return Result.Exito(escrito);
                 case RegistrarHistorialImportacionCommand:
                     return Result.Exito();
                 default:
@@ -132,7 +141,7 @@ public class ImportacionEstructuraTests : BunitContext
             plan.Clientes.Count(x => !x.YaExiste),
             plan.Centros.Count(x => !x.YaExiste), reemplazar ? plan.Centros.Count(x => x.YaExiste) : 0,
             plan.Trabajadores.Count(x => !x.YaExiste), reemplazar ? plan.Trabajadores.Count(x => x.YaExiste) : 0,
-            2, reemplazar ? [.. ValoresPrevios] : [], plan.Advertencias, plan.Omitidos);
+            2, reemplazar ? [.. ValoresPrevios] : [], plan.Advertencias, [.. plan.Omitidos, .. OmitidosDeEscritura]);
     }
 
     // ---------------------------------------------------------------- datos (ficticios)
@@ -794,6 +803,47 @@ public class ImportacionEstructuraTests : BunitContext
     }
 
     [Fact]
+    public async Task Confirmar_EnviaLaHuellaDeLaVistaPreviaMostrada()
+    {
+        var servidor = new Servidor();
+        servidor.ValoresPrevios.Add(new ValorPrevioDto("Empresas", 3, "CNAE", "4321", "4322"));
+        var (cut, _) = await HastaVistaPreviaAsync(servidor);
+        await ElegirModo(cut, "reemplazar");
+
+        await Pulsar(Primario(cut));
+        await Pulsar(Boton(cut, "Sí, reemplazar e importar"));
+
+        servidor.De<EjecutarImportacionMaestraCommand>().Should().ContainSingle()
+            .Which.HuellaVistaPrevia.Should().Be(servidor.Previas.Last().CalcularHuella(), "se confirma la vista previa que se mostró");
+    }
+
+    [Fact]
+    public async Task Confirmar_SiLaVistaPreviaCambio_NoHayInformeSeRecalculaYAhoraPideElDialogo()
+    {
+        // Revisión Codex de la PR #2164, r1, MEDIO 1: la vista previa en Reemplazar no traía nada que sobrescribir; antes
+        // de confirmar, otra persona rellena un campo. La escritura lo rechaza y la pantalla tiene que volver a mostrarlo.
+        var (cut, servidor) = await HastaVistaPreviaAsync();
+        await ElegirModo(cut, "reemplazar");
+        var previasAntes = servidor.De<PrevisualizarImportacionMaestraCommand>().Count();
+        servidor.ValoresPrevios.Add(new ValorPrevioDto("Empresas", 3, "CNAE", "9999", "4321"));
+
+        await Pulsar(Primario(cut));
+
+        Fase(cut).Should().Be("VistaPrevia");
+        Texto(cut.Find("[data-testid='est-error-importacion']")).Should().StartWith("Los datos han cambiado desde la vista previa");
+        servidor.De<PrevisualizarImportacionMaestraCommand>().Count().Should().Be(previasAntes + 1, "la vista previa se recalcula");
+        cut.Find("[data-testid='est-aviso-reemplazar']").TextContent.Should().Contain("1");
+        Services.GetRequiredService<ToastService>().Mensajes.Should().BeEmpty();
+
+        await Pulsar(Primario(cut));
+
+        servidor.De<EjecutarImportacionMaestraCommand>().Should().ContainSingle("ahora hay un valor previo: primero el diálogo de N14");
+        cut.Find(".modal-pie").TextContent.Should().Contain("Sí, reemplazar e importar");
+        await Pulsar(Boton(cut, "Sí, reemplazar e importar"));
+        Fase(cut).Should().Be("Informe");
+    }
+
+    [Fact]
     public async Task Confirmar_UnaExcepcionNoFiltraSuTextoYDejaReintentar()
     {
         var servidor = new Servidor { FalloDeEscritura = intento => intento == 1 ? throw new InvalidOperationException("detalle interno secreto") : null };
@@ -813,7 +863,7 @@ public class ImportacionEstructuraTests : BunitContext
         var (cut, servidor) = await HastaVistaPreviaAsync();
         var plan = servidor.De<PrevisualizarImportacionMaestraCommand>().Single().Plan;
         // La primera confirmación de ESTE plan ya ocurrió (otra pestaña, un reintento tras un corte).
-        await servidor.Responder(new EjecutarImportacionMaestraCommand(plan, false), CancellationToken.None);
+        await servidor.Responder(new EjecutarImportacionMaestraCommand(plan, false, servidor.Previas.Single().CalcularHuella()), CancellationToken.None);
 
         await Pulsar(Primario(cut));
 
@@ -859,7 +909,11 @@ public class ImportacionEstructuraTests : BunitContext
     [Fact]
     public async Task Descargas_LosTresCsvEnmascaranElDniSalvoPermiso()
     {
-        var plan = PlanConErrores();
+        // Revisión Codex de la PR #2164, r1, BAJO 2: también el nombre de una hoja desconocida, que elige el Excel.
+        var plan = PlanConErrores() with
+        {
+            Omitidos = [.. PlanConErrores().Omitidos, new ItemImportacionDto("12345678Z", 0, "Hoja completa", "Hoja no reconocida.")]
+        };
         var servidor = new Servidor { Plan = plan };
         servidor.ValoresPrevios.Add(new ValorPrevioDto("Trabajadores", 7, "Observaciones", "Documento 12345678Z", "Documento 87654321X"));
         var modulo = JSInterop.SetupModule("./js/importacion-descarga.js");
@@ -868,6 +922,7 @@ public class ImportacionEstructuraTests : BunitContext
 
         await Pulsar(Boton(cut, "Descargar errores (CSV)"));
         await Pulsar(Boton(cut, "Continuar sin las filas con error"));
+        await Pulsar(Boton(cut, "Filas omitidas (CSV)"));
         await ElegirModo(cut, "reemplazar");
         await Pulsar(Boton(cut, "Valores previos (CSV)"));
         await Pulsar(Primario(cut));
@@ -875,9 +930,41 @@ public class ImportacionEstructuraTests : BunitContext
         await Pulsar(Boton(cut, "Informe completo (CSV)"));
 
         var csvs = modulo.Invocations["descargarTexto"].Select(i => (string)i.Arguments[1]!).ToList();
-        csvs.Should().HaveCount(3, "errores, valores previos e informe completo");
+        csvs.Should().HaveCount(4, "errores, filas omitidas de la vista previa, valores previos e informe completo");
         foreach (var csv in csvs)
             csv.Should().Contain("****678Z", "el DNI sale enmascarado").And.NotContain("12345678Z").And.NotContain("87654321X");
+        cut.Markup.Should().NotContain("12345678Z", "ni en pantalla");
+    }
+
+    [Fact]
+    public async Task VistaPrevia_IdentificaLasFilasQueLaEscrituraOmitiraConSuMotivoYLasDescarga()
+    {
+        // Revisión Codex de la PR #2164, r1, MEDIO 2: antes de confirmar no bastaba el recuento.
+        var servidor = new Servidor();
+        servidor.OmitidosDeEscritura.Add(new ItemImportacionDto("Empresas", 2, "Industrias Ficticias, S.L.",
+            "Ya existe otra Empresa con esta razón social."));
+        var modulo = JSInterop.SetupModule("./js/importacion-descarga.js");
+        modulo.SetupVoid("descargarTexto", _ => true).SetVoidResult();
+        var (cut, _) = await HastaVistaPreviaAsync(servidor);
+
+        Metrica(cut, "Se omitirán").Should().Be("1");
+        var seccion = Texto(cut.Find("[data-testid='est-omitidas-previa']"));
+        seccion.Should().Contain("Empresas").And.Contain("Industrias Ficticias, S.L.").And.Contain("Ya existe otra Empresa con esta razón social.");
+
+        await Pulsar(Boton(cut, "Filas omitidas (CSV)"));
+
+        var llamada = modulo.Invocations["descargarTexto"].Should().ContainSingle().Subject;
+        llamada.Arguments[0].Should().Be("filas-omitidas-vista-previa.csv");
+        ((string)llamada.Arguments[1]!).Should().Contain("Ya existe otra Empresa con esta razón social.");
+        servidor.De<EjecutarImportacionMaestraCommand>().Should().BeEmpty("todo esto se ve antes de escribir");
+    }
+
+    [Fact]
+    public async Task VistaPrevia_SinFilasOmitidasNoMuestraLaSeccion()
+    {
+        var (cut, _) = await HastaVistaPreviaAsync();
+
+        cut.FindAll("[data-testid='est-omitidas-previa']").Should().BeEmpty();
     }
 
     [Fact]

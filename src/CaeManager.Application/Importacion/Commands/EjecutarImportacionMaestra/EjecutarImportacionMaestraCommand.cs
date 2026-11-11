@@ -1,3 +1,6 @@
+using System.Globalization;
+using System.Security.Cryptography;
+using System.Text;
 using CaeManager.Application.Centros;
 using CaeManager.Application.Common;
 using CaeManager.Application.Documentos.Acreditacion;
@@ -30,9 +33,22 @@ namespace CaeManager.Application.Importacion.Commands.EjecutarImportacionMaestra
 /// Autorización: <see cref="IAutorizacionEscrituraEfectiva.EsActoDeAdministradorAsync"/>, como el resto de importaciones.
 /// A diferencia de la plantilla combinada, NO es <see cref="IComandoDeAprovisionamiento"/>: ampliar esa lista explícita
 /// es una decisión de autorización que este incremento no toma.
+///
+/// <see cref="HuellaVistaPrevia"/> es la <see cref="ResultadoImportacionMaestraDto.CalcularHuella"/> de la vista previa que
+/// se mostró al confirmar. Lo que se escribe tiene que ser exactamente eso (N14): si al escribir, con los datos releídos,
+/// el resultado difiere (otro Administrador del Tenant rellenó o cambió un campo, una razón social quedó ocupada…), no se
+/// escribe nada y se devuelve <see cref="ErroresImportacionMaestra.VistaPreviaCambiada"/> para que se revise de nuevo.
 /// </summary>
-public record EjecutarImportacionMaestraCommand(PlanImportacionMaestraDto Plan, bool ReemplazarExistentes)
+public record EjecutarImportacionMaestraCommand(PlanImportacionMaestraDto Plan, bool ReemplazarExistentes, string HuellaVistaPrevia)
     : ICommand<ResultadoImportacionMaestraDto>, Common.ILecturaRegistradaEnSesionPrivilegiada;
+
+public static class ErroresImportacionMaestra
+{
+    /// <summary>Lo que se escribiría ya no es lo que mostró la vista previa: no se ha escrito nada.</summary>
+    public static readonly Error VistaPreviaCambiada = Error.Crear(
+        "Importacion.VistaPreviaCambiada",
+        "Los datos han cambiado desde la vista previa y la importación ya no haría exactamente lo que se mostró. No se ha escrito nada: revisa la vista previa de nuevo antes de confirmar.");
+}
 
 /// <summary>
 /// Vista previa SIN escribir (es un comando para pasar por la misma tubería de autorización que confirmar): devuelve exactamente lo que confirmar haría con este plan y este modo (cuántos campos se
@@ -63,6 +79,36 @@ public record ResultadoImportacionMaestraDto(
     public static ResultadoImportacionMaestraDto YaEjecutada() => new(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, [], [],
         [new ItemImportacionDto("Importación", 0, "Archivo completo",
             "Esta importación ya se había confirmado antes (reintento o doble confirmación); no se ha vuelto a crear nada.")]);
+
+    /// <summary>
+    /// Huella de TODO lo que este resultado dice que se hará: las cifras, cada valor sobrescrito (con su valor previo y el
+    /// nuevo), cada fila omitida con su motivo y cada advertencia. Dos resultados con la misma huella muestran lo mismo.
+    /// Cada campo va precedido de su longitud, así que dos contenidos distintos nunca se serializan igual. Solo se compara
+    /// en memoria; nunca se registra.
+    /// </summary>
+    public string CalcularHuella()
+    {
+        var texto = new StringBuilder();
+        void Campo(string? valor) => texto.Append(valor?.Length ?? -1).Append(':').Append(valor).Append(';');
+        void Numero(int valor) => Campo(valor.ToString(CultureInfo.InvariantCulture));
+        void Items(IReadOnlyList<ItemImportacionDto> items)
+        {
+            Numero(items.Count);
+            foreach (var i in items) { Campo(i.Hoja); Numero(i.Fila); Campo(i.Descripcion); Campo(i.Motivo); }
+        }
+
+        foreach (var cifra in new[]
+                 {
+                     EmpresasCreadas, EmpresasActualizadas, ClientesCreados, ClientesActualizados, RelacionesCreadas,
+                     CentrosCreados, CentrosActualizados, TrabajadoresCreados, TrabajadoresActualizados, CamposRellenados
+                 })
+            Numero(cifra);
+        Numero(ValoresSobrescritos.Count);
+        foreach (var v in ValoresSobrescritos) { Campo(v.Hoja); Numero(v.Fila); Campo(v.Campo); Campo(v.ValorPrevio); Campo(v.ValorNuevo); }
+        Items(Advertencias);
+        Items(Omitidos);
+        return Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(texto.ToString())));
+    }
 }
 
 public record ValorPrevioDto(string Hoja, int Fila, string Campo, string ValorPrevio, string? ValorNuevo);
@@ -91,15 +137,17 @@ public class EjecutarImportacionMaestraCommandHandler(
 
     public Task<Result<ResultadoImportacionMaestraDto>> Handle(
         EjecutarImportacionMaestraCommand request, CancellationToken cancellationToken) =>
-        EjecutarAsync(request.Plan, request.ReemplazarExistentes, escribir: true, cancellationToken);
+        EjecutarAsync(request.Plan, request.ReemplazarExistentes, request.HuellaVistaPrevia, cancellationToken);
 
     public Task<Result<ResultadoImportacionMaestraDto>> Handle(
         PrevisualizarImportacionMaestraCommand request, CancellationToken cancellationToken) =>
-        EjecutarAsync(request.Plan, request.ReemplazarExistentes, escribir: false, cancellationToken);
+        EjecutarAsync(request.Plan, request.ReemplazarExistentes, huellaVistaPrevia: null, cancellationToken);
 
+    /// <param name="huellaVistaPrevia">Null: vista previa (no escribe). Si no: confirmar, solo si el resultado sigue teniendo esa huella.</param>
     private async Task<Result<ResultadoImportacionMaestraDto>> EjecutarAsync(
-        PlanImportacionMaestraDto plan, bool reemplazar, bool escribir, CancellationToken cancellationToken)
+        PlanImportacionMaestraDto plan, bool reemplazar, string? huellaVistaPrevia, CancellationToken cancellationToken)
     {
+        var escribir = huellaVistaPrevia is not null;
         operacionYaEjecutada = false;
         if (!await autorizacionEscrituraEfectiva.EsActoDeAdministradorAsync(cancellationToken))
             return Result.Fallo<ResultadoImportacionMaestraDto>(Error.Crear(
@@ -124,13 +172,15 @@ public class EjecutarImportacionMaestraCommandHandler(
             // A-1), igual que en EstablecerGestionCaeCentro. Se serializa con el alta de un Documento de Empresa (ver
             // ISerializacionAltasAcreditacionEmpresa), y se decide por el plan, no por una lectura: así toda la
             // importación, desde la lectura de los Centros existentes, corre bajo el candado.
-            if (!escribir || !reemplazar || plan.Centros.All(c => c.SinGestionCae))
-                return await ProcesarAsync(plan, reemplazar, escribir, cancellationToken);
+            if (!escribir)
+                return await ProcesarAsync(plan, reemplazar, huellaEsperada: null, cancellationToken);
+            if (!reemplazar || plan.Centros.All(c => c.SinGestionCae))
+                return await ComprobarYEscribirAsync(plan, reemplazar, huellaVistaPrevia!, cancellationToken);
 
             Result<ResultadoImportacionMaestraDto>? procesado = null;
             var serializado = await serializacionAltas.EjecutarAsync(async ct =>
             {
-                procesado = await ProcesarAsync(plan, reemplazar, escribir, ct);
+                procesado = await ComprobarYEscribirAsync(plan, reemplazar, huellaVistaPrevia!, ct);
                 if (procesado.EsFallido)
                     return Result.Fallo(procesado.Error);
                 // La perdedora de dos confirmaciones de la misma operación devuelve «ya ejecutada», que es un éxito para
@@ -151,9 +201,26 @@ public class EjecutarImportacionMaestraCommandHandler(
         }
     }
 
-    private async Task<Result<ResultadoImportacionMaestraDto>> ProcesarAsync(
-        PlanImportacionMaestraDto plan, bool reemplazar, bool escribir, CancellationToken cancellationToken)
+    /// <summary>
+    /// Confirmar: primero recalcula la vista previa con los datos de ahora (bajo el candado, si lo hay) sin tocar ninguna
+    /// entidad; si ya no coincide con la mostrada, para ahí. Si coincide, escribe, y la escritura vuelve a comparar su
+    /// propio resultado antes de guardar (cierra el hueco entre las dos lecturas).
+    /// </summary>
+    private async Task<Result<ResultadoImportacionMaestraDto>> ComprobarYEscribirAsync(
+        PlanImportacionMaestraDto plan, bool reemplazar, string huellaVistaPrevia, CancellationToken cancellationToken)
     {
+        var actual = await ProcesarAsync(plan, reemplazar, huellaEsperada: null, cancellationToken);
+        if (actual.EsFallido) return actual;
+        if (actual.Valor.CalcularHuella() != huellaVistaPrevia)
+            return Result.Fallo<ResultadoImportacionMaestraDto>(ErroresImportacionMaestra.VistaPreviaCambiada);
+        return await ProcesarAsync(plan, reemplazar, huellaVistaPrevia, cancellationToken);
+    }
+
+    /// <param name="huellaEsperada">Null: solo calcula (vista previa). Si no: escribe, si el resultado tiene esa huella.</param>
+    private async Task<Result<ResultadoImportacionMaestraDto>> ProcesarAsync(
+        PlanImportacionMaestraDto plan, bool reemplazar, string? huellaEsperada, CancellationToken cancellationToken)
+    {
+        var escribir = huellaEsperada is not null;
         if (escribir) operacionImportacionRepositorio.Agregar(OperacionImportacion.Registrar(plan.OperacionId));
 
         var omitidos = new List<ItemImportacionDto>();
@@ -601,6 +668,14 @@ public class EjecutarImportacionMaestraCommandHandler(
             sobrescritos, plan.Advertencias, [.. plan.Omitidos, .. omitidos]);
 
         if (!escribir) return resultado;
+
+        // Lo que esta pasada dejaría guardado ya no es lo mostrado (algo cambió entre la comprobación y esta lectura): se
+        // descarta todo lo pendiente del contexto y no se guarda nada.
+        if (resultado.CalcularHuella() != huellaEsperada)
+        {
+            operacionImportacionRepositorio.DescartarPendientes();
+            return Result.Fallo<ResultadoImportacionMaestraDto>(ErroresImportacionMaestra.VistaPreviaCambiada);
+        }
 
         // Un Centro que vuelve a gestión CAE: sus accesos de plataforma reciben los Documentos de Empresa que exige
         // (regla A-1), en el mismo guardado. Solo los de Empresa: los Documentos de Trabajador no cambian.

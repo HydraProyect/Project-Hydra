@@ -194,8 +194,8 @@
                 {
                     var activa = hoja.Nombre == _hojaSeleccionada;
                     <button type="button" class="@(activa ? "hoja-est hoja-est-activa" : "hoja-est")" aria-current="@(activa ? "page" : null)"
-                            data-hoja="@hoja.Nombre" @onclick="() => SeleccionarHoja(hoja.Nombre)">
-                        <span>@hoja.Nombre</span>
+                            data-hoja="@Enmascarar(hoja.Nombre)" @onclick="() => SeleccionarHoja(hoja.Nombre)">
+                        <span>@Enmascarar(hoja.Nombre)</span>
                         @if (hoja.Errores > 0)
                         {
                             <Badge Tono="TonoBadge.Peligro">@hoja.Errores</Badge>
@@ -227,7 +227,7 @@
                 <section class="tarjeta-est" aria-labelledby="est-titulo-hoja">
                     <div class="cab-est">
                         <div>
-                            <h2 id="est-titulo-hoja">@Textos["EstTituloHoja", actual.Nombre, actual.Errores, actual.Avisos]</h2>
+                            <h2 id="est-titulo-hoja">@Textos["EstTituloHoja", Enmascarar(actual.Nombre), actual.Errores, actual.Avisos]</h2>
                             <p>@(actual.Pendiente ? Textos["EstHojaPendienteTexto", actual.FilasDeDatos].Value : Textos["EstHojaLeidas", actual.FilasDeDatos + actual.Errores].Value)</p>
                         </div>
                         <div class="fila-est">
@@ -249,7 +249,7 @@
                     {
                         <div class="tabla-est" tabindex="0" role="region" aria-label="@Textos["EstAriaTabla"]">
                             <table class="tabla-datos">
-                                <caption class="sr-est">@Textos["EstTituloHoja", actual.Nombre, actual.Errores, actual.Avisos]</caption>
+                                <caption class="sr-est">@Textos["EstTituloHoja", Enmascarar(actual.Nombre), actual.Errores, actual.Avisos]</caption>
                                 <thead>
                                     <tr>
                                         <th scope="col" class="num-est">@Textos["EstColFila"]</th>
@@ -353,6 +353,51 @@
                     </table>
                 </div>
             </section>
+
+            @if (previa.Omitidos.Count > 0)
+            {
+                @* Revisión Codex de la PR #2164, r1, MEDIO 2: antes de confirmar se ve QUÉ filas se omitirán y por qué, también
+                   las que añade la escritura (razón social ocupada, otra Empresa gestionada…), no solo su recuento. *@
+                <section class="tarjeta-est" aria-labelledby="est-titulo-omitidas" data-testid="est-omitidas-previa">
+                    <div class="cab-est">
+                        <div>
+                            <h2 id="est-titulo-omitidas">@Textos["EstTituloOmitidasPrevia"]</h2>
+                            <p>@Textos["EstTextoOmitidasPrevia"]</p>
+                        </div>
+                        <Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno" OnClick="DescargarOmitidasPreviaAsync">
+                            <Icono Nombre="descargar" Tamano="TamanoIcono.Pequeno" /> @Textos["EstBotonOmitidasPrevia"]
+                        </Boton>
+                    </div>
+                    <div class="tabla-est" tabindex="0" role="region" aria-label="@Textos["EstAriaTabla"]">
+                        <table class="tabla-datos">
+                            <caption class="sr-est">@Textos["EstTituloOmitidasPrevia"]</caption>
+                            <thead>
+                                <tr>
+                                    <th scope="col">@Textos["EstColHoja"]</th>
+                                    <th scope="col" class="num-est">@Textos["EstColFila"]</th>
+                                    <th scope="col">@Textos["EstColElemento"]</th>
+                                    <th scope="col">@Textos["EstColMotivo"]</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var o in previa.Omitidos.Take(MaxFilasEnTabla))
+                                {
+                                    <tr class="fila-incidencia-er" data-gravedad="error">
+                                        <td>@Enmascarar(o.Hoja)</td>
+                                        <td class="num-est neg-est">@(o.Fila == 0 ? "—" : o.Fila.ToString())</td>
+                                        <td>@Enmascarar(o.Descripcion)</td>
+                                        <td>@Enmascarar(o.Motivo)</td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                    @if (previa.Omitidos.Count > MaxFilasEnTabla)
+                    {
+                        <p class="cap-est">@Textos["EstMostrandoDe", MaxFilasEnTabla, previa.Omitidos.Count]</p>
+                    }
+                </section>
+            }
 
             <section class="tarjeta-est" aria-labelledby="est-titulo-modo">
                 <fieldset class="columna-est modo-est">
