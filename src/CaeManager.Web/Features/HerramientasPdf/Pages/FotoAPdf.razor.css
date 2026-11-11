@@ -1,0 +1,27 @@
+.foto-a-pdf { display: flex; flex-direction: column; gap: var(--space-4); max-width: 960px; }
+.foto-a-pdf ::deep a.boton { text-decoration: none; }
+.volver-herramientas { align-items: center; align-self: flex-start; display: inline-flex; font-weight: 600; gap: var(--space-1); }
+.texto-suave { color: var(--color-text-muted); font: var(--font-caption); margin: 0; }
+.cabecera-foto { display: flex; flex-direction: column; gap: var(--space-1); }
+.cabecera-foto h1 { font: 700 26px/32px var(--font-family); letter-spacing: -.01em; margin: 0; }
+.cabecera-foto p { color: var(--color-text-muted); font: var(--font-body-md); margin: 0; }
+.aviso-foto { align-items: center; background: var(--color-warning-50); border: 1px solid var(--color-warning-500); border-radius: var(--radius-md); color: var(--color-warning-700); display: flex; font: var(--font-body-md); gap: var(--space-2); padding: var(--space-3) var(--space-4); }
+.aviso-error { background: var(--color-danger-50); border-color: var(--color-danger-500); color: var(--color-danger-700); }
+.lista-rechazadas { margin: var(--space-1) 0 0; padding-left: var(--space-5); }
+.isla-foto { background: var(--color-surface); border: var(--border-default); border-radius: var(--radius-lg); display: flex; flex-direction: column; gap: var(--space-4); padding: var(--space-6); }
+.isla-foto h2 { font: var(--font-h4); margin: 0; }
+.lista-fotos { display: flex; flex-direction: column; gap: var(--space-2); list-style: none; margin: 0; padding: 0; }
+.foto-fila { align-items: center; border: 1px solid var(--color-border); border-radius: var(--radius-md); display: grid; gap: var(--space-3); grid-template-columns: 76px 64px minmax(0, 1fr) auto; padding: var(--space-2) var(--space-3); }
+.foto-numero { color: var(--color-text-muted); font: var(--font-caption); white-space: nowrap; }
+.foto-miniatura { align-items: center; background: var(--color-surface-subtle); border-radius: var(--radius-sm); display: inline-flex; height: 64px; justify-content: center; overflow: hidden; width: 64px; }
+.foto-miniatura img { display: block; max-height: 100%; max-width: 100%; object-fit: contain; }
+.foto-datos { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.foto-nombre { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.foto-acciones { display: inline-flex; flex-wrap: wrap; gap: var(--space-1); justify-content: flex-end; }
+.barra-acciones-foto { align-items: center; display: flex; flex-wrap: wrap; gap: var(--space-3); justify-content: flex-end; }
+
+@media (max-width: 640px) {
+    .foto-fila { grid-template-columns: 64px minmax(0, 1fr); }
+    .foto-numero { grid-column: 1 / -1; }
+    .foto-acciones { grid-column: 1 / -1; justify-content: flex-start; }
+}
