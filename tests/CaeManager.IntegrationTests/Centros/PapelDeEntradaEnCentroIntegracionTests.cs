@@ -1,10 +1,16 @@
+using CaeManager.Application.Centros.Commands.EstablecerRelacionDeEntradaCentro;
 using CaeManager.Application.Centros.Queries;
 using CaeManager.Application.Centros.Queries.ObtenerCentroPorId;
+using CaeManager.Application.Common;
 using CaeManager.Domain.Centros;
+using CaeManager.Domain.Common;
 using CaeManager.Domain.Empresas;
 using CaeManager.Domain.RelacionesEmpresariales;
+using CaeManager.Infrastructure.Auditing;
 using CaeManager.Infrastructure.MultiTenancy;
 using CaeManager.Infrastructure.Persistence;
+using CaeManager.Infrastructure.Persistence.Interceptors;
+using CaeManager.Infrastructure.Persistence.Repositories;
 using FluentAssertions;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.EntityFrameworkCore;
@@ -130,14 +136,84 @@ public class PapelDeEntradaEnCentroIntegracionTests : IAsyncLifetime
             .RelacionEmpresarialEntradaId.Should().Be(anclado.RelacionId);
     }
 
-    private async Task<PapelDeEntradaDto?> PapelEnLaFichaAsync(Guid centroId, AlcanceDatosServiceFalso alcance)
+    /// <summary>
+    /// Quitar un ancla cuya arista se cerró no exige ver a X (DECISION_LOG, 2026-11-11, punto 11 b). Un Gestor CAE
+    /// sin Asignación de Cartera sobre X lee la ficha, envía el comando sin relación y relee, en un Centro con ancla
+    /// cerrada y en un gemelo sin ancla: con PostgreSQL, el repositorio y los interceptores de auditoría y de
+    /// concurrencia reales, la respuesta, el cambio de versión, el papel y las filas de auditoría son iguales en los
+    /// dos. Si quitar sin ancla no renovase la versión, esta comparación distinguiría los dos Centros.
+    /// </summary>
+    [Fact]
+    public async Task Quitar_un_ancla_cerrada_tiene_el_mismo_efecto_observable_que_quitar_en_un_Centro_sin_ancla()
+    {
+        var anclado = await SembrarAsync(_tenant);
+        var sinAncla = await SembrarAsync(_tenant);
+        await using (var contexto = CrearContexto(_tenant))
+        {
+            var centro = await contexto.Centros.SingleAsync(c => c.Id == anclado.CentroId);
+            var relacion = await contexto.RelacionesEmpresariales.SingleAsync(r => r.Id == anclado.RelacionId);
+            centro.AnclarRelacionDeEntrada(relacion).EsExitoso.Should().BeTrue();
+            relacion.Cerrar(DateTime.UtcNow);
+            await contexto.SaveChangesAsync();
+        }
+
+        var conAnclaCerrada = await QuitarYObservarAsync(anclado);
+        var gemelo = await QuitarYObservarAsync(sinAncla);
+
+        conAnclaCerrada.Should().Be(gemelo);
+        conAnclaCerrada.Should().Be(new EfectoObservable(
+            Exito: true, CodigoError: null, VersionCambio: true, Papel: PapelDeEntradaDto.ContratistaPrincipal, FilasDeAuditoria: 1));
+
+        await using var lectura = CrearContexto(_tenant);
+        (await lectura.Centros.SingleAsync(c => c.Id == anclado.CentroId))
+            .RelacionEmpresarialEntradaId.Should().BeNull("el ancla cerrada sí se borró");
+    }
+
+    private sealed record EfectoObservable(
+        bool Exito, string? CodigoError, bool VersionCambio, PapelDeEntradaDto? Papel, int FilasDeAuditoria);
+
+    private async Task<EfectoObservable> QuitarYObservarAsync(Sembrado sembrado)
+    {
+        var sinCarteraSobreX = new AlcanceDatosServiceFalso(
+            clienteIds: [sembrado.TitularId], centroIds: [sembrado.CentroId], centroIdsParaGestion: [sembrado.CentroId]);
+        var antes = await FichaAsync(sembrado.CentroId, sinCarteraSobreX);
+        var auditoriaAntes = await FilasDeAuditoriaAsync(sembrado.CentroId);
+
+        Result resultado;
+        await using (var contexto = CrearContextoConInterceptoresDeProduccion())
+        {
+            resultado = await new EstablecerRelacionDeEntradaCentroCommandHandler(
+                    new CentroRepository(contexto), contexto, sinCarteraSobreX, contexto)
+                .Handle(new EstablecerRelacionDeEntradaCentroCommand(sembrado.CentroId, null, antes.Version),
+                    CancellationToken.None);
+        }
+
+        var despues = await FichaAsync(sembrado.CentroId, sinCarteraSobreX);
+        return new EfectoObservable(
+            resultado.EsExitoso,
+            resultado.EsExitoso ? null : resultado.Error.Codigo,
+            despues.Version != antes.Version,
+            despues.PapelDeEntrada,
+            await FilasDeAuditoriaAsync(sembrado.CentroId) - auditoriaAntes);
+    }
+
+    private async Task<int> FilasDeAuditoriaAsync(Guid centroId)
+    {
+        await using var contexto = CrearContexto(_tenant);
+        return await contexto.RegistrosAuditoria.IgnoreQueryFilters().CountAsync(r => r.EntidadId == centroId);
+    }
+
+    private async Task<CentroDetalleDto> FichaAsync(Guid centroId, AlcanceDatosServiceFalso alcance)
     {
         await using var contexto = CrearContexto(_tenant);
         var dto = await new ObtenerCentroPorIdQueryHandler(contexto, contexto, alcance, PoliticaNotaInternaPruebas.Con("GestorCae"))
             .Handle(new ObtenerCentroPorIdQuery(centroId), CancellationToken.None);
         dto.Should().NotBeNull();
-        return dto!.PapelDeEntrada;
+        return dto!;
     }
+
+    private async Task<PapelDeEntradaDto?> PapelEnLaFichaAsync(Guid centroId, AlcanceDatosServiceFalso alcance) =>
+        (await FichaAsync(centroId, alcance)).PapelDeEntrada;
 
     private sealed record Sembrado(
         Guid CentroId, Guid RelacionId, Guid TitularId, Guid ContratistaPrincipalId, string ContratistaPrincipalRazonSocial);
@@ -172,6 +248,24 @@ public class PapelDeEntradaEnCentroIntegracionTests : IAsyncLifetime
         var options = new DbContextOptionsBuilder<CaeManagerDbContext>()
             .UseNpgsql(_cadenaConexion, npgsql => npgsql.MigrationsAssembly("CaeManager.Migrations.PostgreSQL"))
             .AddInterceptors(new TenantSelladoInterceptor(tenantActual))
+            .Options;
+
+        return new CaeManagerDbContext(options, new EphemeralDataProtectionProvider(), tenantActual);
+    }
+
+    /// <summary>
+    /// Con los interceptores que renuevan la versión y escriben la auditoría, como en producción (mismo montaje que
+    /// <c>ReactivarVisitaConcurrenciaTests</c>): sin <see cref="ConcurrenciaOptimistaInterceptor"/> la versión de un
+    /// Centro modificado no cambiaría y la comparación no observaría nada.
+    /// </summary>
+    private CaeManagerDbContext CrearContextoConInterceptoresDeProduccion()
+    {
+        var tenantActual = new TenantActualAmbiental { TenantId = _tenant };
+        var actor = new ActorAuditoriaFalso(ActorAuditoria.Normal(Guid.NewGuid()));
+        var options = new DbContextOptionsBuilder<CaeManagerDbContext>()
+            .UseNpgsql(_cadenaConexion, npgsql => npgsql.MigrationsAssembly("CaeManager.Migrations.PostgreSQL"))
+            .AddInterceptors(new AuditoriaInterceptor(actor), new TenantSelladoInterceptor(tenantActual),
+                new ConcurrenciaOptimistaInterceptor())
             .Options;
 
         return new CaeManagerDbContext(options, new EphemeralDataProtectionProvider(), tenantActual);

@@ -336,6 +336,78 @@ public class PapelDeEntradaEnCentroTests
         e.Uow.VecesGuardado.Should().Be(1);
     }
 
+    /// <summary>
+    /// Quien no ve a X lee la versión, quita y relee en un Centro con ancla cerrada y en otro sin ancla: la respuesta,
+    /// el guardado y el cambio de versión son iguales, así que el comando no revela que había un ancla cerrada. La
+    /// misma comparación con persistencia e interceptor reales está en
+    /// <c>PapelDeEntradaEnCentroIntegracionTests</c>.
+    /// </summary>
+    [Fact]
+    public async Task Quitar_un_ancla_cerrada_tiene_el_mismo_efecto_que_quitar_en_un_Centro_sin_ancla()
+    {
+        var conAnclaCerrada = Montar();
+        conAnclaCerrada.Centro.AnclarRelacionDeEntrada(conAnclaCerrada.Relacion).EsExitoso.Should().BeTrue();
+        conAnclaCerrada.Relacion.Cerrar(DateTime.UtcNow);
+        var sinAncla = Montar();
+        var versionConAnclaCerrada = conAnclaCerrada.Centro.Version;
+        var versionSinAncla = sinAncla.Centro.Version;
+
+        var conAncla = await Ejecutar(conAnclaCerrada, null, SinCarteraSobreX(conAnclaCerrada.Centro));
+        var gemelo = await Ejecutar(sinAncla, null, SinCarteraSobreX(sinAncla.Centro));
+
+        conAncla.EsExitoso.Should().BeTrue();
+        gemelo.EsExitoso.Should().BeTrue();
+        conAnclaCerrada.Uow.VecesGuardado.Should().Be(sinAncla.Uow.VecesGuardado).And.Be(1);
+        conAnclaCerrada.Centro.Version.Should().NotBe(versionConAnclaCerrada);
+        sinAncla.Centro.Version.Should().NotBe(versionSinAncla,
+            "si quitar sin ancla no renovase la versión, releerla distinguiría el Centro con ancla cerrada");
+    }
+
+    private RelacionEmpresarial OtraRelacionDeLaEmpresaDelCentro(Escenario e, out Empresa nuevaX)
+    {
+        nuevaX = EnTenant(new Empresa("Nueva Contratista SL"), Tenant);
+        var relacion = EnTenant(RelacionEmpresarial.Crear(_empresaDelCentro, nuevaX.Id, DateTime.UtcNow), Tenant);
+        e.Empresas.ListaEmpresas.Add(nuevaX);
+        e.Empresas.ListaRelacionesEmpresariales.Add(relacion);
+        return relacion;
+    }
+
+    /// <summary>
+    /// Con la arista anclada cerrada, quien no ve a la X antigua puede sustituir el ancla (punto 11 b), pero la nueva
+    /// X sí tiene que estar entre sus Clientes empresariales visibles.
+    /// </summary>
+    [Fact]
+    public async Task Sustituir_un_ancla_cerrada_por_otra_con_la_nueva_X_visible_la_fija()
+    {
+        var e = Montar();
+        e.Centro.AnclarRelacionDeEntrada(e.Relacion).EsExitoso.Should().BeTrue();
+        e.Relacion.Cerrar(DateTime.UtcNow);
+        var nueva = OtraRelacionDeLaEmpresaDelCentro(e, out var nuevaX);
+        var alcance = new AlcanceDatosServiceFalso(tieneAccesoTotal: false, clienteIdsVisibles: [_titular.Id, nuevaX.Id],
+            centroIdsVisibles: [e.Centro.Id], centroIdsParaGestion: [e.Centro.Id]);
+
+        var resultado = await Ejecutar(e, nueva.Id, alcance);
+
+        resultado.EsExitoso.Should().BeTrue();
+        e.Centro.RelacionEmpresarialEntradaId.Should().Be(nueva.Id);
+        e.Uow.VecesGuardado.Should().Be(1);
+    }
+
+    [Fact]
+    public async Task Sustituir_un_ancla_cerrada_por_otra_con_la_nueva_X_fuera_de_la_cartera_se_rechaza()
+    {
+        var e = Montar();
+        e.Centro.AnclarRelacionDeEntrada(e.Relacion).EsExitoso.Should().BeTrue();
+        e.Relacion.Cerrar(DateTime.UtcNow);
+        var nueva = OtraRelacionDeLaEmpresaDelCentro(e, out _);
+
+        var resultado = await Ejecutar(e, nueva.Id, SinCarteraSobreX(e.Centro));
+
+        resultado.Error.Codigo.Should().Be("Centro.RelacionEntradaNoEncontrada");
+        e.Centro.RelacionEmpresarialEntradaId.Should().Be(e.Relacion.Id, "el ancla cerrada sigue guardada");
+        e.Uow.VecesGuardado.Should().Be(0);
+    }
+
     [Fact]
     public async Task La_ficha_del_Centro_lleva_el_papel_calculado_con_la_razon_social_de_X()
     {

@@ -58,6 +58,7 @@ public class Centro : EntidadBase
     /// principal (o no se ha dicho) y no se muestra nada. El papel se calcula a partir de esta arista y no se
     /// guarda (ADR-011): no hay columna de rol. Solo la escriben <see cref="AnclarRelacionDeEntrada"/> y
     /// <see cref="QuitarAnclaDeEntrada"/>; el alta, la edición, la ficha, la importación y la restauración no la tocan.
+    /// Quitarla renueva la versión del Centro aunque no hubiera ancla (ver <see cref="QuitarAnclaDeEntrada"/>).
     /// </summary>
     public Guid? RelacionEmpresarialEntradaId { get; private set; }
 
@@ -191,8 +192,17 @@ public class Centro : EntidadBase
         return Result.Exito();
     }
 
-    /// <summary>La Empresa del Centro vuelve a entrar como contratista principal: no se muestra nada.</summary>
-    public void QuitarAnclaDeEntrada() => RelacionEmpresarialEntradaId = null;
+    /// <summary>
+    /// La Empresa del Centro vuelve a entrar como contratista principal: no se muestra nada. Renueva la versión
+    /// siempre, también si no había ancla: así quitar un ancla cuya arista se cerró (que se permite sin ver a su X,
+    /// DECISION_LOG, 2026-11-11, punto 11 b) y quitar en un Centro sin ancla tienen el mismo efecto observable
+    /// —un UPDATE del Centro y una versión nueva— y la versión de la ficha no revela si había un ancla cerrada.
+    /// </summary>
+    public void QuitarAnclaDeEntrada()
+    {
+        RelacionEmpresarialEntradaId = null;
+        RenovarVersion();
+    }
 
     public bool ContratoCaducado(DateOnly hoy) => ContratoVigenteHasta is not null && ContratoVigenteHasta < hoy;
 

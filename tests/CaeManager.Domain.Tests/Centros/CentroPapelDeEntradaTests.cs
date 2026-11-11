@@ -101,4 +101,25 @@ public class CentroPapelDeEntradaTests
 
         centro.RelacionEmpresarialEntradaId.Should().BeNull();
     }
+
+    /// <summary>
+    /// Quitar renueva la versión haya o no ancla: si solo la renovase al borrar un ancla, releer la versión tras
+    /// quitar distinguiría un Centro con ancla cerrada de uno sin ancla (DECISION_LOG, 2026-11-11, punto 11 b).
+    /// </summary>
+    [Fact]
+    public void Quitar_renueva_la_version_tambien_sin_ancla()
+    {
+        var conAncla = NuevoCentro();
+        conAncla.AnclarRelacionDeEntrada(Relacion(EmpresaDelCentro, ContratistaPrincipal));
+        var sinAncla = NuevoCentro();
+        var versionConAncla = conAncla.Version;
+        var versionSinAncla = sinAncla.Version;
+
+        conAncla.QuitarAnclaDeEntrada();
+        sinAncla.QuitarAnclaDeEntrada();
+
+        conAncla.Version.Should().NotBe(versionConAncla);
+        sinAncla.Version.Should().NotBe(versionSinAncla);
+        sinAncla.RelacionEmpresarialEntradaId.Should().BeNull();
+    }
 }
