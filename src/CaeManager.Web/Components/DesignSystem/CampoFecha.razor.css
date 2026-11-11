@@ -1,0 +1,157 @@
+.campo-fecha {
+    position: relative;
+}
+
+/* El botón va junto al campo, no encima del texto: el input ocupa el resto de la fila. */
+.campo-fecha-fila {
+    display: flex;
+    align-items: stretch;
+    gap: var(--space-2);
+}
+
+.campo-input {
+    flex: 1 1 auto;
+    min-width: 0;
+    min-height: 48px;
+    padding: 0 var(--space-4);
+    border-radius: var(--radius-md);
+    border: var(--border-control);
+    background-color: var(--color-surface);
+    color: var(--color-text);
+    font: var(--font-body-md);
+    font-variant-numeric: tabular-nums;
+    transition: border-color var(--motion-fast) var(--ease-standard), box-shadow var(--motion-fast) var(--ease-standard);
+}
+
+.campo-input:focus,
+.campo-fecha-boton:focus-visible,
+.campo-fecha-mes:focus-visible,
+.campo-fecha-dia:focus-visible {
+    outline: var(--border-focus);
+    outline-offset: -1px;
+    box-shadow: 0 0 0 4px var(--color-primary-100);
+}
+
+.campo-input:disabled,
+.campo-fecha-boton:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+.campo-input-error {
+    border-color: var(--color-danger-500);
+}
+
+.campo-fecha-boton {
+    flex: 0 0 48px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 48px;
+    border-radius: var(--radius-md);
+    border: var(--border-control);
+    background-color: var(--color-surface);
+    color: var(--color-text-muted);
+    cursor: pointer;
+}
+
+.campo-fecha-boton:hover:not(:disabled) {
+    color: var(--color-text);
+}
+
+.campo-fecha-velo {
+    position: fixed;
+    inset: 0;
+    z-index: 40;
+}
+
+.campo-fecha-calendario {
+    position: absolute;
+    z-index: 41;
+    top: 100%;
+    right: 0;
+    margin-top: var(--space-1);
+    width: 296px;
+    padding: var(--space-3);
+    border-radius: var(--radius-md);
+    border: var(--border-control);
+    background-color: var(--color-surface);
+    box-shadow: var(--shadow-overlay);
+}
+
+.campo-fecha-cabecera {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: var(--space-2);
+}
+
+.campo-fecha-titulo {
+    font: var(--font-label);
+    color: var(--color-text);
+}
+
+.campo-fecha-mes {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 36px;
+    height: 36px;
+    border: none;
+    border-radius: var(--radius-md);
+    background: transparent;
+    color: var(--color-text);
+    cursor: pointer;
+}
+
+.campo-fecha-semana,
+.campo-fecha-rejilla {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    gap: 2px;
+}
+
+.campo-fecha-semana span {
+    text-align: center;
+    font: var(--font-caption);
+    color: var(--color-text-muted);
+    padding: var(--space-1) 0;
+}
+
+.campo-fecha-dia {
+    height: 36px;
+    border: none;
+    border-radius: var(--radius-md);
+    background: transparent;
+    color: var(--color-text);
+    font: var(--font-body-md);
+    font-variant-numeric: tabular-nums;
+    cursor: pointer;
+}
+
+.campo-fecha-dia:hover {
+    background-color: var(--color-primary-100);
+}
+
+.campo-fecha-dia[aria-current="date"] {
+    font-weight: 600;
+    text-decoration: underline;
+}
+
+.campo-fecha-dia-elegido,
+.campo-fecha-dia-elegido:hover {
+    background-color: var(--color-primary-600);
+    color: var(--color-surface);
+}
+
+@media (max-width: 767px) {
+    .campo-input {
+        font-size: 1rem;
+    }
+
+    .campo-fecha-calendario {
+        left: 0;
+        right: auto;
+        width: min(296px, calc(100vw - 32px));
+    }
+}

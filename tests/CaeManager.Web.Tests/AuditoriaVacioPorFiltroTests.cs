@@ -122,7 +122,7 @@ public class AuditoriaVacioPorFiltroTests : BunitContext
     public void Sin_filtro_ni_rango_y_sin_registros_sigue_diciendo_que_no_hay_ninguno()
     {
         var cut = Renderizar();
-        cut.FindAll("input[type=date]")[0].Input("");
+        cut.FindAll("input[data-campo-fecha]")[0].Input("");
 
         cut.WaitForAssertion(() => cut.Markup.Should().Contain("No hay registros de auditoría"));
         cut.Markup.Should().NotContain("Ningún registro con este filtro");
@@ -151,7 +151,7 @@ public class AuditoriaVacioPorFiltroTests : BunitContext
     public void El_estado_sin_filtro_ya_no_habla_de_un_filtro_que_no_existe()
     {
         var cut = Renderizar();
-        cut.FindAll("input[type=date]")[0].Input("");
+        cut.FindAll("input[data-campo-fecha]")[0].Input("");
 
         cut.WaitForAssertion(() => cut.Markup.Should().Contain("No hay registros de auditoría"));
         cut.Markup.Should().NotContain("con este filtro");

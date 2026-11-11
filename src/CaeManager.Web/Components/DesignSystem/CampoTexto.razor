@@ -1,4 +1,20 @@
 @implements IDisposable
+@if (EsFecha)
+{
+    @* Type="date" ya no es el input nativo: es CampoFecha (dd/mm/aaaa con máscara y calendario), con el mismo contrato
+       de texto ISO yyyy-MM-dd que daba el navegador, para que las pantallas que lo usan no cambien. *@
+    <CampoFecha Etiqueta="@Etiqueta"
+                Valor="@MascaraFecha.DesdeIso(Valor)"
+                ValorChanged="FechaCambiadaAsync"
+                TextoNoValido="TextoFechaNoValidoAsync"
+                Placeholder="@Placeholder"
+                Deshabilitado="@Deshabilitado"
+                MensajeError="@MensajeError"
+                OnBlur="OnBlur"
+                @attributes="AtributosAdicionales" />
+}
+else
+{
 <div class="campo">
     @if (!string.IsNullOrWhiteSpace(Etiqueta))
     {
@@ -27,9 +43,27 @@
         <span id="@IdMensajeError" class="campo-mensaje-error" role="alert">@MensajeError</span>
     }
 </div>
+}
 
 @code {
     private const int DebounceMilisegundos = 300;
+
+    private bool EsFecha => string.Equals(Type, "date", StringComparison.OrdinalIgnoreCase);
+
+    private Task FechaCambiadaAsync(DateOnly? fecha)
+    {
+        var iso = MascaraFecha.AIso(fecha);
+        _ultimoValor = iso;
+        _ultimoValorNotificado = iso;
+        return ValorChanged.InvokeAsync(iso);
+    }
+
+    private Task TextoFechaNoValidoAsync(string texto)
+    {
+        _ultimoValor = texto;
+        _ultimoValorNotificado = texto;
+        return ValorChanged.InvokeAsync(texto);
+    }
 
     private readonly string _id = $"campo-{Guid.NewGuid():N}";
     private CancellationTokenSource? _debounceCts;

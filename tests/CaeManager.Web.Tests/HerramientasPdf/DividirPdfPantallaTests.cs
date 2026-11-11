@@ -12,7 +12,9 @@ using CaeManager.Web.Documentos;
 using CaeManager.Web.Features.HerramientasPdf.Pages;
 using FluentAssertions;
 using MediatR;
+using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Authorization;
+using Microsoft.AspNetCore.Components.Web;
 using Microsoft.AspNetCore.Components.Forms;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -290,6 +292,43 @@ public sealed class DividirPdfPantallaTests : BunitContext
 
         cut.Markup.Should().Contain("Este PDF está firmado");
         cut.FindAll("button.tijera").Should().HaveCount(3);
+    }
+
+    /// <summary>
+    /// Defecto del 11-11: la «Fecha de emisión» del paso 2 se borraba al instante. La pantalla enlazaba un DateOnly? a un
+    /// CampoTexto con una conversión que pierde lo parcial («15» no es fecha, vuelve como null y se pinta como «»); CampoTexto
+    /// toma ese «» como un reinicio venido del padre y recrea el input vacío. Cubre las dos salidas: el debounce vencido sin
+    /// tocar nada más y la pérdida del foco.
+    ///
+    /// <para>
+    /// Instrumento: bUnit no ve lo que el navegador tiene tecleado (ni CampoTexto ni CampoFecha re-renderizan «value» al
+    /// teclear), solo lo que Blazor le manda. Por eso se parte de una fecha ya pintada y se comprueba que, al dejarla a
+    /// medias, Blazor no manda al navegador un «value» vacío: ese envío es justo el borrado que veía la persona.
+    /// </para>
+    /// </summary>
+    [Fact]
+    public async Task Lo_tecleado_a_medias_en_la_fecha_de_emision_no_se_borra()
+    {
+        var cut = Renderizar();
+        cut.WaitForAssertion(() => cut.FindAll(".zona-soltar-archivo").Should().ContainSingle());
+        await SubirAsync(cut);
+        Pulsar(cut, "Asignar documentos");
+        PonerEmision(cut);
+        // Ir y volver: el campo nace de nuevo con la fecha guardada y Blazor la pinta en «value».
+        Pulsar(cut, "Volver a dividir");
+        Pulsar(cut, "Asignar documentos");
+        cut.WaitForAssertion(() => cut.FindAll("input[placeholder=\"dd/mm/aaaa\"]")[0].GetAttribute("value").Should().Be("15/01/2026"));
+
+        await cut.FindAll("input[placeholder=\"dd/mm/aaaa\"]")[0].InputAsync(new ChangeEventArgs { Value = "15/01/202" });
+        await Task.Delay(450);
+        cut.FindAll("input[placeholder=\"dd/mm/aaaa\"]")[0].GetAttribute("value").Should().NotBeEmpty(
+            "al vencer el retardo Blazor no puede vaciar lo que se está escribiendo");
+
+        await cut.FindAll("input[placeholder=\"dd/mm/aaaa\"]")[0].InputAsync(new ChangeEventArgs { Value = "15/0" });
+        await cut.FindAll("input[placeholder=\"dd/mm/aaaa\"]")[0].BlurAsync(new FocusEventArgs());
+        cut.FindAll("input[placeholder=\"dd/mm/aaaa\"]")[0].GetAttribute("value").Should().NotBeEmpty(
+            "ni al salir del campo: lo escrito se conserva para corregirlo");
+        cut.Find(".campos-tramo .campo-mensaje-error").TextContent.Should().Contain("dd/mm/aaaa", "y se avisa de que no es una fecha");
     }
 
     [Fact]

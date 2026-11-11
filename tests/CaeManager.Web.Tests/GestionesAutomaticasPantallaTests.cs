@@ -567,7 +567,7 @@ public partial class GestionesAutomaticasPantallaTests : BunitContext
         cut.Find("[data-campos-opcion='validado']").TextContent.Should().Contain("Válido en la plataforma hasta").And.Contain("No lo sé");
         cut.Find("[data-accion='primario']").HasAttribute("disabled").Should().BeTrue("sin fecha ni «No lo sé» no se guarda");
 
-        cut.Find("[data-campos-opcion='validado'] input[type='date']").Input("2027-10-14");
+        cut.Find("[data-campos-opcion='validado'] input[data-campo-fecha]").Input("2027-10-14");
         cut.Find("[data-accion='primario']").HasAttribute("disabled").Should().BeFalse();
         cut.Find("[data-accion='guardar']").Click();
 
@@ -584,7 +584,7 @@ public partial class GestionesAutomaticasPantallaTests : BunitContext
 
         cut.Find("[data-opcion='validado']").Click();
         cut.Find("[data-campos-opcion='validado'] input[type='checkbox']").Change(true);
-        cut.Find("[data-campos-opcion='validado'] input[type='date']").HasAttribute("disabled").Should().BeTrue();
+        cut.Find("[data-campos-opcion='validado'] input[data-campo-fecha]").HasAttribute("disabled").Should().BeTrue();
         cut.Find("[data-accion='guardar']").Click();
 
         cut.WaitForAssertion(() => m.Enviados.OfType<MarcarAcreditacionAceptadaCommand>().Should().ContainSingle()

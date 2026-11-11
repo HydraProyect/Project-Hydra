@@ -214,8 +214,9 @@ public partial class VisitasFilaSinMenuE2ETests(WebAppFixtureListados fixture)
 
         var formulario = FormularioEdicion(page);
         await Expect(formulario).ToBeVisibleAsync();
+        // El campo de fecha (CampoFecha) enseña dd/mm/aaaa, no el ISO del antiguo input type="date".
         await Expect(formulario.GetByLabel("Fecha de inicio", new LocatorGetByLabelOptions { Exact = true }))
-            .ToHaveValueAsync(DateOnly.ParseExact(fechas.Trim(), "dd/MM/yyyy").ToString("yyyy-MM-dd"));
+            .ToHaveValueAsync(DateOnly.ParseExact(fechas.Trim(), "dd/MM/yyyy").ToString("dd/MM/yyyy", System.Globalization.CultureInfo.InvariantCulture));
     }
 
     [Fact]

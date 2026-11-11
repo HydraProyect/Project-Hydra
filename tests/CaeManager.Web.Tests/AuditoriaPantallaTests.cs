@@ -204,9 +204,9 @@ public class AuditoriaPantallaTests : BunitContext
 
         _mediador.Consultas[^1].DesdeUtc.Should().Be(DesdeUtcPorDefecto);
         _mediador.Consultas[^1].HastaUtc.Should().BeNull("«Hasta» vacío es «hasta ahora»: lo de hoy nunca queda fuera");
-        var campos = cut.FindAll("input[type=date]");
+        var campos = cut.FindAll("input[data-campo-fecha]");
         campos.Should().HaveCount(2);
-        campos[0].GetAttribute("value").Should().Be(DesdeTextoPorDefecto);
+        campos[0].GetAttribute("value").Should().Be(DiaDeNegocio.Hoy().AddDays(-90).ToString("dd/MM/yyyy", System.Globalization.CultureInfo.InvariantCulture));
         campos[1].GetAttribute("value").Should().BeNullOrEmpty();
         DesdeTextoPorDefecto.Should().Be(DiaDeNegocio.Hoy().AddDays(-90).ToString("yyyy-MM-dd"));
     }
@@ -218,7 +218,7 @@ public class AuditoriaPantallaTests : BunitContext
     /// continuación por el pool de hilos, y con el pool saturado en CI no la cubría (#1949, #2029).
     /// </summary>
     private static Task CambiarFechaAsync(IRenderedComponent<Features.Auditoria.Pages.Auditoria> cut, int campo, string valor) =>
-        cut.FindAll("input[type=date]")[campo].InputAsync(new ChangeEventArgs { Value = valor });
+        cut.FindAll("input[data-campo-fecha]")[campo].InputAsync(new ChangeEventArgs { Value = valor });
 
     [Fact]
     public async Task Cambiar_las_fechas_recarga_desde_la_pagina_1_y_el_enlace_de_exportar_las_lleva()

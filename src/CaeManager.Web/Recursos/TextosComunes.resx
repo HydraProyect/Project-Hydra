@@ -817,4 +817,22 @@
   <data name="SubirCabeceraTitulo" xml:space="preserve">
     <value>Subir documentos</value>
   </data>
+  <data name="CampoFechaFormato" xml:space="preserve">
+    <value>dd/mm/aaaa</value>
+  </data>
+  <data name="CampoFechaInvalida" xml:space="preserve">
+    <value>Escribe una fecha que exista, con el formato dd/mm/aaaa.</value>
+  </data>
+  <data name="CampoFechaAbrirCalendario" xml:space="preserve">
+    <value>Abrir el calendario</value>
+  </data>
+  <data name="CampoFechaCalendario" xml:space="preserve">
+    <value>Elegir fecha</value>
+  </data>
+  <data name="CampoFechaMesAnterior" xml:space="preserve">
+    <value>Mes anterior</value>
+  </data>
+  <data name="CampoFechaMesSiguiente" xml:space="preserve">
+    <value>Mes siguiente</value>
+  </data>
 </root>

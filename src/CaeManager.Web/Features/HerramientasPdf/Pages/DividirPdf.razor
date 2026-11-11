@@ -357,7 +357,7 @@
                         }
                     </CampoSelect>
 
-                    <CampoTexto Etiqueta="@Textos["FechaEmision"]" Placeholder="dd/mm/aaaa" Deshabilitado="asignacion.Omitido" Valor="@TextoFecha(asignacion.FechaEmision)" ValorChanged="v => asignacion.FechaEmision = Fecha(v)" />
+                    <CampoFecha Etiqueta="@Textos["FechaEmision"]" Deshabilitado="asignacion.Omitido" Valor="asignacion.FechaEmision" ValorChanged="v => asignacion.FechaEmision = v" />
 
                     @if (division.Tipo(asignacion.TipoDocumentoId) is { VencimientoAutomatico: true })
                     {
@@ -365,7 +365,7 @@
                     }
                     else
                     {
-                        <CampoTexto Etiqueta="@Textos["FechaCaducidad"]" Placeholder="dd/mm/aaaa" Deshabilitado="@(asignacion.Omitido || asignacion.SinCaducidad)" Valor="@TextoFecha(asignacion.FechaCaducidad)" ValorChanged="v => asignacion.FechaCaducidad = Fecha(v)" />
+                        <CampoFecha Etiqueta="@Textos["FechaCaducidad"]" Deshabilitado="@(asignacion.Omitido || asignacion.SinCaducidad)" Valor="asignacion.FechaCaducidad" ValorChanged="v => asignacion.FechaCaducidad = v" />
                         <label class="marca-tramo">
                             <input type="checkbox" checked="@asignacion.SinCaducidad" disabled="@asignacion.Omitido" @onchange="AlMarcarSinCaducidad(asignacion)" />
                             @Textos["SinCaducidad"]

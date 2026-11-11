@@ -1,0 +1,96 @@
+@using System.Globalization
+@using CaeManager.Web.Recursos
+@using Microsoft.Extensions.Localization
+@inject IStringLocalizer<TextosComunes> Comunes
+@inject IServiceProvider Servicios
+@*
+    Campo de fecha de TALVEG: se escribe como dd/mm/aaaa (las barras entran solas, ver MascaraFecha) o se elige en el
+    calendario del botón contiguo. Enlaza un DateOnly? y solo lo notifica cuando el texto es una fecha entera o está vacío:
+    lo tecleado a medias se queda en el campo, nunca vuelve del padre convertido en «» (el defecto del 11-11 en Dividir un
+    PDF). Una fecha imposible (31/02) se avisa al salir del campo, no mientras se escribe, y se notifica como null para
+    que el formulario no guarde la anterior creyendo que sigue en pantalla.
+*@
+@* Con el calendario abierto, Escape lo cierra a él y no al Drawer o Modal que lo contiene (mismo criterio que
+   CampoSelectAvanzado). *@
+<div class="campo campo-fecha" @onkeydown:stopPropagation="_abierto">
+    @if (!string.IsNullOrWhiteSpace(Etiqueta))
+    {
+        <label id="@IdEtiqueta" for="@_id">@Etiqueta</label>
+    }
+    <div class="campo-fecha-fila">
+        @* @key: mismo criterio que CampoTexto — solo cambia cuando hay que imponer al navegador un texto que Blazor ya
+           tenía renderizado (ver MostrarTexto). *@
+        <input @key="_generacion"
+               @ref="_refInput"
+               id="@_id"
+               type="text"
+               inputmode="numeric"
+               autocomplete="off"
+               maxlength="10"
+               data-campo-fecha
+               class="@ClaseInput"
+               value="@_valorMostrado"
+               placeholder="@(Placeholder ?? Comunes["CampoFechaFormato"])"
+               disabled="@Deshabilitado"
+               aria-invalid="@(TieneError ? "true" : null)"
+               @oninput="AlTeclearAsync"
+               @onblur="AlSalirAsync"
+               @attributes="AtributosInput" />
+        <button type="button"
+                class="campo-fecha-boton"
+                aria-label="@Comunes["CampoFechaAbrirCalendario"]"
+                aria-describedby="@(string.IsNullOrWhiteSpace(Etiqueta) ? null : IdEtiqueta)"
+                aria-haspopup="dialog"
+                aria-expanded="@(_abierto ? "true" : "false")"
+                aria-controls="@IdCalendario"
+                disabled="@Deshabilitado"
+                data-campo-fecha-boton
+                @onclick="AlternarCalendario">
+            <Icono Nombre="calendario" Tamano="TamanoIcono.Pequeno" />
+        </button>
+    </div>
+    @if (_abierto)
+    {
+        <div class="campo-fecha-velo" @onclick="CerrarYVolverAsync"></div>
+        <div id="@IdCalendario" class="campo-fecha-calendario" role="dialog" aria-modal="false"
+             aria-label="@Comunes["CampoFechaCalendario"]" @onkeydown="AlPulsarEnCalendarioAsync">
+            <div class="campo-fecha-cabecera">
+                <button type="button" class="campo-fecha-mes" aria-label="@Comunes["CampoFechaMesAnterior"]" @onclick="() => CambiarMes(-1)">
+                    <Icono Nombre="volver" Tamano="TamanoIcono.Pequeno" />
+                </button>
+                <span class="campo-fecha-titulo" aria-live="polite">@TituloMes</span>
+                <button type="button" class="campo-fecha-mes" aria-label="@Comunes["CampoFechaMesSiguiente"]" @onclick="() => CambiarMes(1)">
+                    <Icono Nombre="siguiente" Tamano="TamanoIcono.Pequeno" />
+                </button>
+            </div>
+            <div class="campo-fecha-semana" aria-hidden="true">
+                @foreach (var dia in DiasSemana)
+                {
+                    <span>@dia</span>
+                }
+            </div>
+            <div class="campo-fecha-rejilla" @onkeydown="AlPulsarEnRejillaAsync">
+                @for (var hueco = 0; hueco < HuecosIniciales; hueco++)
+                {
+                    <span class="campo-fecha-hueco"></span>
+                }
+                @foreach (var dia in DiasDelMes)
+                {
+                    var fecha = dia;
+                    if (fecha == _diaEnfoco)
+                    {
+                        <button type="button" @ref="_refDia" @attributes="AtributosDia(fecha)" @onclick="() => ElegirAsync(fecha)">@fecha.Day</button>
+                    }
+                    else
+                    {
+                        <button type="button" @attributes="AtributosDia(fecha)" @onclick="() => ElegirAsync(fecha)">@fecha.Day</button>
+                    }
+                }
+            </div>
+        </div>
+    }
+    @if (TieneError)
+    {
+        <span id="@IdMensajeError" class="campo-mensaje-error" role="alert">@Error</span>
+    }
+</div>

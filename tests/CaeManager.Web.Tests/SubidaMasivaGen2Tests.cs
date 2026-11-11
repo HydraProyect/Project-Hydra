@@ -269,7 +269,7 @@ public sealed class SubidaMasivaGen2Tests : BunitContext
         cut.Find(".item-subida-masiva-propuesta").TextContent.Should().StartWith("Propuesta de la IA —", "control: sin tocar nada es la propuesta intacta");
 
         await cut.FindAll("button").First(b => b.TextContent.Trim() == "Gestionar").ClickAsync(new MouseEventArgs());
-        var fecha = cut.FindAll("input[type=date]").First();
+        var fecha = cut.FindAll("input[data-campo-fecha]").First();
         await fecha.InputAsync(new ChangeEventArgs { Value = "2026-03-05" });
         await fecha.BlurAsync(new FocusEventArgs());
 
@@ -287,7 +287,7 @@ public sealed class SubidaMasivaGen2Tests : BunitContext
         cut.Find(".item-subida-masiva").TextContent.Should().Contain("sin leer en el archivo");
 
         await cut.FindAll("button").First(b => b.TextContent.Trim() == "Gestionar").ClickAsync(new MouseEventArgs());
-        cut.Find(".item-subida-masiva-formulario input[type=date]").GetAttribute("value").Should().BeNullOrEmpty(
+        cut.Find(".item-subida-masiva-formulario input[data-campo-fecha]").GetAttribute("value").Should().BeNullOrEmpty(
             "el campo no se rellena con la fecha de hoy");
         cut.Find(".ayuda-fecha-subida").TextContent.Should().Contain("no leyó una fecha de emisión");
         await cut.FindAll("button").First(b => b.TextContent.Trim() == "Confirmar y crear").ClickAsync(new MouseEventArgs());
@@ -305,10 +305,10 @@ public sealed class SubidaMasivaGen2Tests : BunitContext
         var cut = Render<SubidaMasiva>();
         await ProcesarAsync(cut, "corregir.pdf");
         await cut.FindAll("button").First(b => b.TextContent.Trim() == "Gestionar").ClickAsync(new MouseEventArgs());
-        cut.Find(".item-subida-masiva-formulario input[type=date]").GetAttribute("value").Should().Be("2026-03-01",
+        cut.Find(".item-subida-masiva-formulario input[data-campo-fecha]").GetAttribute("value").Should().Be("01/03/2026",
             "la fecha leída del archivo aparece en el campo para que la persona la vea");
 
-        var campo = cut.Find(".item-subida-masiva-formulario input[type=date]");
+        var campo = cut.Find(".item-subida-masiva-formulario input[data-campo-fecha]");
         await campo.InputAsync(new ChangeEventArgs { Value = "2026-02-02" });
         await campo.BlurAsync(new FocusEventArgs());
         await cut.FindAll("button").First(b => b.TextContent.Trim() == "Confirmar y crear").ClickAsync(new MouseEventArgs());

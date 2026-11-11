@@ -267,7 +267,7 @@ public class RevisionIaGen2Tests : BunitContext
         cut.FindAll(".modal-contenido").Should().BeEmpty("la fecha precargada sin tocar no es un cambio");
 
         var origen = navegacion.Uri;
-        await cut.Find(".drawer-panel input[type=date]").InputAsync(new ChangeEventArgs { Value = "2026-09-15" });
+        await cut.Find(".drawer-panel input[data-campo-fecha]").InputAsync(new ChangeEventArgs { Value = "2026-09-15" });
         await cut.InvokeAsync(() => navegacion.NavigateTo("/documentos/revision-ia?con-cambio"));
 
         navegacion.Uri.Should().Be(origen, "con la fecha cambiada la navegación se detiene");
@@ -289,7 +289,7 @@ public class RevisionIaGen2Tests : BunitContext
         await Boton(cut, "Corregir a mano…").ClickAsync(new MouseEventArgs());
         await cut.ComprobarQueCancelarSinCambiosCierraAsync(".drawer-pie", ".drawer-panel");
         await Boton(cut, "Corregir a mano…").ClickAsync(new MouseEventArgs());
-        await cut.Find(".drawer-panel input[type=date]").InputAsync(new ChangeEventArgs { Value = "2026-09-15" });
+        await cut.Find(".drawer-panel input[data-campo-fecha]").InputAsync(new ChangeEventArgs { Value = "2026-09-15" });
         await cut.PulsarCancelarDelPieAsync(".drawer-pie");
         await cut.ComprobarQuePreguntaYDescartarAsync(".drawer-panel");
     }
@@ -305,7 +305,7 @@ public class RevisionIaGen2Tests : BunitContext
         var cut = Renderizar(mediador);
 
         await Boton(cut, "Corregir a mano…").ClickAsync(new MouseEventArgs());
-        await cut.Find(".drawer-panel input[type=date]").InputAsync(new ChangeEventArgs { Value = string.Empty });
+        await cut.Find(".drawer-panel input[data-campo-fecha]").InputAsync(new ChangeEventArgs { Value = string.Empty });
         await Boton(cut, "Guardar y cerrar el aviso").ClickAsync(new MouseEventArgs());
 
         cut.Markup.Should().Contain("Indica una fecha de emisión válida.");
@@ -314,7 +314,7 @@ public class RevisionIaGen2Tests : BunitContext
         await cut.Find(".drawer-superposicion").ClickAsync(new MouseEventArgs());
         cut.FindComponents<Drawer>().Should().ContainSingle(d => d.Instance.Visible, "con el error del campo visible el clic fuera no cierra");
 
-        await cut.Find(".drawer-panel input[type=date]").InputAsync(new ChangeEventArgs { Value = "2026-09-15" });
+        await cut.Find(".drawer-panel input[data-campo-fecha]").InputAsync(new ChangeEventArgs { Value = "2026-09-15" });
         cut.Markup.Should().NotContain("Indica una fecha de emisión válida.", "teclear una fecha nueva retira el error");
     }
 

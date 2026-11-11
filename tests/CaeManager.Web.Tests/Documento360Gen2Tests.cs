@@ -203,7 +203,7 @@ public partial class Documento360Gen2Tests : BunitContext
         var cut = Renderizar(id);
 
         await Boton(cut, "Renovar").ClickAsync(new MouseEventArgs());
-        var campos = cut.FindAll("input[type=date]");
+        var campos = cut.FindAll("input[data-campo-fecha]");
         campos.Should().HaveCount(2, "el formulario de renovación tiene emisión y vencimiento manual");
         await campos[0].InputAsync(new ChangeEventArgs { Value = "2026-02-03" });
         await cut.Find("textarea").InputAsync(new ChangeEventArgs { Value = "Renovado" });

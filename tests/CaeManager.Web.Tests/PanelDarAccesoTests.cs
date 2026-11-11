@@ -128,7 +128,7 @@ public class PanelDarAccesoTests : BunitContext
         _mediador.Enviadas.OfType<ObtenerDestinatariosDeApoyoQuery>().Should().ContainSingle()
             .Which.AsignacionOperacionId.Should().Be(mia.AsignacionOperacionId);
         cut.FindAll("select option").Select(o => o.TextContent).Should().Equal("Elige un Gestor CAE", "Lucía", "Pau");
-        cut.FindAll("input[type=date]").Should().ContainSingle("la fecha de fin es opcional (D-5)")
+        cut.FindAll("input[data-campo-fecha]").Should().ContainSingle("la fecha de fin es opcional (D-5)")
             .Which.GetAttribute("value").Should().BeNullOrEmpty("sin fecha, el apoyo no caduca");
         cut.FindAll("select").Should().ContainSingle("solo se elige a quién: el rol no es parámetro de quien propone");
 
@@ -225,7 +225,7 @@ public class PanelDarAccesoTests : BunitContext
         await cut.InvokeAsync(() => cut.Find("[data-dar-acceso-operacion] > button").Click());
 
         cut.Find("select").Change(lucia.UsuarioId.ToString());
-        await cut.Find("input[type=date]").InputAsync(new Microsoft.AspNetCore.Components.ChangeEventArgs { Value = ultimoDia.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture) });
+        await cut.Find("input[data-campo-fecha]").InputAsync(new Microsoft.AspNetCore.Components.ChangeEventArgs { Value = ultimoDia.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture) });
         await cut.InvokeAsync(() => Boton(cut, "Proponer").Click());
 
         _mediador.Enviadas.OfType<ProponerApoyoCarteraCommand>().Should().ContainSingle()
@@ -242,7 +242,7 @@ public class PanelDarAccesoTests : BunitContext
         await cut.InvokeAsync(() => cut.Find("[data-dar-acceso-operacion] > button").Click());
 
         cut.Find("select").Change(lucia.UsuarioId.ToString());
-        await cut.Find("input[type=date]").InputAsync(new Microsoft.AspNetCore.Components.ChangeEventArgs { Value = DiaDeNegocio.Hoy().AddDays(-1).ToString("yyyy-MM-dd", CultureInfo.InvariantCulture) });
+        await cut.Find("input[data-campo-fecha]").InputAsync(new Microsoft.AspNetCore.Components.ChangeEventArgs { Value = DiaDeNegocio.Hoy().AddDays(-1).ToString("yyyy-MM-dd", CultureInfo.InvariantCulture) });
         await cut.InvokeAsync(() => Boton(cut, "Proponer").Click());
 
         _mediador.Enviadas.OfType<ProponerApoyoCarteraCommand>().Should().BeEmpty();
