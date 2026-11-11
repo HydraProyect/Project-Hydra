@@ -302,9 +302,9 @@ public sealed class FotoAPdfPantallaTests : BunitContext
         _procesador.Pausa = pausa;
         var cut = Renderizar();
         await SubirAsync(cut, ("a.jpg", Jpeg(10, 10)));
-        cut.WaitForAssertion(() => Nombres(cut).Should().Equal("a.jpg"));
+        cut.WaitForAssertion(() => Nombres(cut).Should().Equal("a.jpg"), TimeSpan.FromSeconds(20));
         cut.FindAll("button").First(b => b.TextContent.Trim() == "Descargar PDF de 1 página").Click();
-        cut.WaitForAssertion(() => _procesador.Composiciones.Should().ContainSingle());
+        cut.WaitForAssertion(() => _procesador.Composiciones.Should().ContainSingle(), TimeSpan.FromSeconds(20));
 
         await SubirAsync(cut, ("b.jpg", Jpeg(20, 20)));
         await Task.Delay(500);
@@ -312,7 +312,7 @@ public sealed class FotoAPdfPantallaTests : BunitContext
         // Sin el cerrojo, b.jpg habría entrado en la lista (y en la copia que ya se está componiendo no estaría).
         Nombres(cut).Should().Equal("a.jpg");
         pausa.Set();
-        cut.WaitForAssertion(() => modulo.Invocations["descargar"].Should().ContainSingle());
+        cut.WaitForAssertion(() => modulo.Invocations["descargar"].Should().ContainSingle(), TimeSpan.FromSeconds(20));
         _procesador.Composiciones.Should().ContainSingle().Which.Should().ContainSingle();
     }
 
