@@ -477,7 +477,8 @@ public class ClavesApiGen2Tests : BunitContext
         await cut.FindAll("button").Single(b => b.TextContent.Trim() == "Generar").ClickAsync(new MouseEventArgs());
 
         mediator.Enviadas.OfType<GenerarClaveApiCommand>().Should().BeEmpty();
-        cut.Markup.Should().Contain("La caducidad no es una fecha válida");
+        cut.Markup.Should().NotContain("La caducidad no es una fecha válida", "la fecha está bien escrita: no es un aviso de formato");
+        cut.Markup.Should().Contain("como máximo dentro de 364 días");
     }
 
     // CampoFecha entrega «» mientras lo escrito no es una fecha entera: sin el bloqueo, «15/03» saldría como una clave

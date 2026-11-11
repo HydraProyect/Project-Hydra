@@ -264,6 +264,12 @@ public partial class PanelDarAcceso
             return;
         }
 
+        if (MascaraFecha.DesdeIso(_ultimoDia) == DateOnly.MaxValue)
+        {
+            _mensajeErrorFormulario = Textos["ErrorFechaDeFinFueraDeRango"];
+            return;
+        }
+
         if (_ultimoDia.Length > 0)
         {
             if (!DateOnly.TryParseExact(_ultimoDia, "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out var dia)

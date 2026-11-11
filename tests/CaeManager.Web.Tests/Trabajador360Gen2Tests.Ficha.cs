@@ -430,6 +430,48 @@ public partial class Trabajador360Gen2Tests
             .Which.FechaAltaEmpresa.Should().Be(new DateOnly(2023, 5, 2));
     }
 
+    // Ronda 3: vuelve a la última fecha válida del campo, no a la cargada; una corrección ya hecha no se pierde.
+    [Fact]
+    public async Task Dejar_el_paso_con_una_fecha_a_medias_conserva_la_ultima_corregida()
+    {
+        var id = Guid.NewGuid(); var m = ConTrabajador(id);
+        m.Detalles[id] = m.Detalles[id] with { FechaAltaEmpresa = new DateOnly(2023, 5, 2) };
+        var cut = Renderizar(id); var drawer = await AbrirEditorFicha(cut);
+        await IrAPasoFicha(drawer, "Trabajo");
+        await CambiarCampoFicha(drawer, "Alta en la empresa", "03/06/2024");
+        await CambiarCampoFicha(drawer, "Alta en la empresa", "03/0");
+        await PulsarFicha(drawer, "Atrás");
+
+        await GuardarFicha(drawer);
+
+        m.Enviadas.OfType<EditarFichaTrabajadorCommand>().Should().ContainSingle()
+            .Which.FechaAltaEmpresa.Should().Be(new DateOnly(2024, 6, 3));
+    }
+
+    // Ronda 3: un «Guardar» rechazado con una fecha no válida en el paso visible no lleva a otro paso con error (eso
+    // destruiría el campo y su texto): el formulario se queda donde está la fecha.
+    [Fact]
+    public async Task Un_guardado_rechazado_no_sale_del_paso_con_la_fecha_no_valida()
+    {
+        var id = Guid.NewGuid(); var m = ConTrabajador(id);
+        var cut = Renderizar(id); var drawer = await AbrirEditorFicha(cut);
+        await IrAPasoFicha(drawer, "Situación");
+        await PulsarFicha(drawer, "Atrás");
+        await PulsarFicha(drawer, "Atrás");
+        // Un error en Lo básico, antes que Trabajo: sin la guarda, el guardado llevaría allí y revertiría la fecha.
+        await CambiarCampoFicha(drawer, "Nombre", "");
+        await drawer.FindAll("button.indicador-pasos-boton").Single(b => b.TextContent.Contains("Trabajo")).ClickAsync(new MouseEventArgs());
+        PasoActivoFicha(drawer).Should().Be("Trabajo", "control: el indicador lleva al paso ya visto");
+        await CambiarCampoFicha(drawer, "Alta en la empresa", "15/03");
+
+        await GuardarFicha(drawer);
+
+        m.Enviadas.OfType<EditarFichaTrabajadorCommand>().Should().BeEmpty();
+        PasoActivoFicha(drawer).Should().Be("Trabajo");
+        drawer.FindComponents<CampoTexto>().Single(c => c.Instance.Etiqueta == "Alta en la empresa")
+            .Instance.MensajeError.Should().Be("Introduce una fecha válida.");
+    }
+
     // Hallazgo de la revisión: tras un texto no válido, vaciar el campo tiene que dejar quitar la Baja.
     [Fact]
     public async Task Tras_un_texto_no_valido_vaciar_la_baja_la_quita()

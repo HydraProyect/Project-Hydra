@@ -223,15 +223,16 @@
 
     /// <summary>
     /// Al dejar un paso sus campos se destruyen y con ellos el texto que no era una fecha: al volver, el campo nace con el
-    /// valor del formulario y no tiene nada que señalar. La marca y su aviso se quitan, y la fecha vuelve a la que se cargó
-    /// (el campo había entregado «»): abandonar una fecha a medias no puede borrar la guardada sin que nadie lo vea.
+    /// valor del formulario y no tiene nada que señalar. La marca y su aviso se quitan, y la fecha vuelve a la última válida
+    /// que tenía el campo antes del texto (el campo había entregado «»): abandonar una fecha a medias no puede borrar la
+    /// guardada, ni otra ya corregida, sin que nadie lo vea.
     /// </summary>
     private void CambiarDePaso(string clave)
     {
         if (clave == _paso) return;
         foreach (var campo in _fechasNoValidas.Where(c => PasoDelCampo(c) == _paso).ToList())
         {
-            RestaurarFechaCargada(campo);
+            RestaurarFechaAnterior(campo);
             _fechasNoValidas.Remove(campo);
             _errores.Remove(campo);
         }
@@ -239,20 +240,32 @@
         _paso = clave;
     }
 
-    private void RestaurarFechaCargada(string campo)
+    private void RestaurarFechaAnterior(string campo)
     {
-        var cargada = _fechasCargadas.GetValueOrDefault(campo, "");
+        var anterior = _fechaAntesDelTexto.GetValueOrDefault(campo, "");
         switch (campo)
         {
-            case nameof(EditarFichaTrabajadorCommand.FechaNacimiento): _nacimiento = cargada; break;
-            case nameof(EditarFichaTrabajadorCommand.FechaAltaEmpresa): _alta = cargada; break;
-            case nameof(EditarFichaTrabajadorCommand.FechaBajaEmpresa): _baja = cargada; break;
-            case nameof(EditarFichaTrabajadorCommand.CaducidadPermisoTrabajo): _caducidad = cargada; break;
+            case nameof(EditarFichaTrabajadorCommand.FechaNacimiento): _nacimiento = anterior; break;
+            case nameof(EditarFichaTrabajadorCommand.FechaAltaEmpresa): _alta = anterior; break;
+            case nameof(EditarFichaTrabajadorCommand.FechaBajaEmpresa): _baja = anterior; break;
+            case nameof(EditarFichaTrabajadorCommand.CaducidadPermisoTrabajo): _caducidad = anterior; break;
         }
     }
 
-    /// <summary>Las fechas tal como se cargaron (ISO o «»), a las que vuelve un campo que se deja con texto no válido.</summary>
-    private readonly Dictionary<string, string> _fechasCargadas = [];
+    private string ValorDeFecha(string campo) => campo switch
+    {
+        nameof(EditarFichaTrabajadorCommand.FechaNacimiento) => _nacimiento,
+        nameof(EditarFichaTrabajadorCommand.FechaAltaEmpresa) => _alta,
+        nameof(EditarFichaTrabajadorCommand.FechaBajaEmpresa) => _baja,
+        nameof(EditarFichaTrabajadorCommand.CaducidadPermisoTrabajo) => _caducidad,
+        _ => "",
+    };
+
+    /// <summary>
+    /// La fecha (ISO o «») que tenía cada campo cuando su texto dejó de ser una fecha. Se toma al marcarlo: mientras se
+    /// escribe, CampoFecha no notifica lo que aún no es fecha, así que el formulario conserva todavía la última válida.
+    /// </summary>
+    private readonly Dictionary<string, string> _fechaAntesDelTexto = [];
 
     private void AnotarErrores(IEnumerable<FluentValidation.Results.ValidationFailure> fallos) =>
         _errores = fallos.GroupBy(f => f.PropertyName).ToDictionary(g => g.Key, g => g.First().ErrorMessage);
@@ -286,7 +299,10 @@
 
     private void MarcarFechaNoValida(string campo, bool noValida)
     {
-        if (noValida) _fechasNoValidas.Add(campo);
+        if (noValida)
+        {
+            if (_fechasNoValidas.Add(campo)) _fechaAntesDelTexto[campo] = ValorDeFecha(campo);
+        }
         else _fechasNoValidas.Remove(campo);
     }
 
@@ -381,10 +397,6 @@
             _conExtranjeroCobrable = detalle.ExtranjeroCobrableVisible;
             _extranjeroCobrablePorDocumento = _extranjeroCobrablePorDocumentoCargado = detalle.ExtranjeroCobrablePorDocumento;
             _extranjeroCobrable = _extranjeroCobrableCargado = detalle.MarcaExtranjeroCobrable ?? detalle.ExtranjeroCobrablePorDocumento;
-            _fechasCargadas[nameof(EditarFichaTrabajadorCommand.FechaNacimiento)] = _nacimiento;
-            _fechasCargadas[nameof(EditarFichaTrabajadorCommand.FechaAltaEmpresa)] = _alta;
-            _fechasCargadas[nameof(EditarFichaTrabajadorCommand.FechaBajaEmpresa)] = _baja;
-            _fechasCargadas[nameof(EditarFichaTrabajadorCommand.CaducidadPermisoTrabajo)] = _caducidad;
             _instantanea.Fijar(Instantanea());
             _lista = true;
         }

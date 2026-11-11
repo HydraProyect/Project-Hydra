@@ -114,9 +114,9 @@ public partial class ClavesApi : CaeManager.Web.Components.PaginaIntegrableConfi
         // que la persona cree haber puesto.
         if (_caducidadNoValida) { _errorGenerar = Textos["CaducidadNoValida"]; return; }
         // La clave caduca al empezar el día siguiente al elegido: el 31/12/9999 no lo tiene (AddDays lanzaría), y emitirla
-        // sin caducidad no es lo que se pidió.
+        // sin caducidad no es lo que se pidió. La fecha está bien escrita: el aviso es el del plazo máximo, no el de formato.
         var diaElegido = MascaraFecha.DesdeIso(_caducidadNuevaClave);
-        if (diaElegido == DateOnly.MaxValue) { _errorGenerar = Textos["CaducidadNoValida"]; return; }
+        if (diaElegido == DateOnly.MaxValue) { _errorGenerar = Textos["LimiteCaducidad"]; return; }
         var generacionContexto = _generacionContexto;
         var nombreOrganizacion = NombreOrganizacion(delegacionId);
         _generando = true; _errorGenerar = null;

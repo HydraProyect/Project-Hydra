@@ -572,6 +572,8 @@ public class FinDeApoyoCarteraTests
         var e = new Escenario();
 
         (await e.Proponer(GestorA, GestorB, DiaDeNegocio.Hoy().AddDays(-1))).Error.Should().Be(ErroresPropuestaApoyo.FechaDeFinNoValida);
+        // El último día representable no tiene día siguiente: antes HastaElFinalDe lanzaba.
+        (await e.Proponer(GestorA, GestorB, DateOnly.MaxValue)).Error.Should().Be(ErroresPropuestaApoyo.FechaDeFinNoValida);
 
         e.Repositorio.Propuestas.Should().BeEmpty();
     }
