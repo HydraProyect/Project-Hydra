@@ -8,6 +8,12 @@ public class SuscripcionWebhookRepository(CaeManagerDbContext dbContext) : ISusc
     public Task<SuscripcionWebhook?> ObtenerPorConexionAsync(Guid conexionIntegracionId, CancellationToken cancellationToken = default) =>
         dbContext.SuscripcionesWebhook.FirstOrDefaultAsync(s => s.ConexionIntegracionId == conexionIntegracionId, cancellationToken);
 
+    public async Task<SuscripcionWebhook?> ObtenerActualPorConexionAsync(
+        Guid conexionIntegracionId, CancellationToken cancellationToken = default) =>
+        (await dbContext.ListarActualesAsync(
+            dbContext.SuscripcionesWebhook, s => s.ConexionIntegracionId == conexionIntegracionId, cancellationToken))
+        .FirstOrDefault();
+
     public async Task<IReadOnlyList<SuscripcionWebhook>> ObtenerProximasAExpirarAsync(
         TimeSpan dentroDe, CancellationToken cancellationToken = default)
     {

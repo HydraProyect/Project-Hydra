@@ -5,6 +5,7 @@ using CaeManager.Application.Operaciones;
 using CaeManager.Application.Tests.Clientes;
 using CaeManager.Application.Tests.Comunicaciones;
 using CaeManager.Application.Tests.Common;
+using CaeManager.Domain.Common;
 using CaeManager.Domain.Comunicaciones;
 using CaeManager.Domain.Integraciones;
 using FluentAssertions;
@@ -95,7 +96,7 @@ public class IngestaWebhookServiceTests
 
     private static ConexionIntegracion ConexionHabilitada(Guid? clienteId = null)
     {
-        var conexion = new ConexionIntegracion("cae@cliente.com", "Buzón CAE", clienteId);
+        var conexion = new ConexionIntegracion("cae@cliente.com", "Buzón CAE", clienteId).Verificada();
         return conexion;
     }
 
@@ -125,6 +126,132 @@ public class IngestaWebhookServiceTests
         return conversaciones.Conversaciones.Single();
     }
 
+    /// <summary>
+    /// Habilitada pero sin la identidad verificada: el evento espera sin gastar intentos (con el backoff normal se
+    /// agotarían en minutos y el correo se perdería) y no se ingiere nada.
+    /// </summary>
+    [Fact]
+    public async Task Una_conexion_habilitada_sin_verificar_deja_el_evento_en_espera_sin_gastar_intentos()
+    {
+        var conexion = new ConexionIntegracion("cae@cliente.com", "Buzón CAE");
+        conexion.FijarIdentidadBuzon("inbox-cae");
+        var conexiones = new ConexionIntegracionRepositorioFalso();
+        conexiones.Agregar(conexion);
+        var conversaciones = new ConversacionRepositorioFalso();
+        var graph = new Microsoft365GraphClientFalso
+        {
+            MensajeIdsADevolver = ["nuevo"],
+            MensajeADevolver = new MensajeGraphDto("nuevo", "hilo", "Asunto", "contacto@ejemplo.test", "Texto", DateTime.UtcNow, [], []),
+        };
+        var credenciales = new CredencialIntegracionRepositorioFalso();
+        credenciales.Agregar(new CredencialIntegracion(conexion.Id, "refresh"));
+        var evento = new EventoWebhook(conexion.Id, "{}");
+        var servicio = CrearServicio(conexiones, conversaciones, graph, credenciales);
+
+        for (var i = 0; i < EventoWebhook.MaximoIntentos + 1; i++)
+        {
+            evento.MarcarEnProceso();
+            await servicio.ProcesarAsync(evento, CancellationToken.None);
+        }
+
+        evento.Estado.Should().Be(EstadoEventoWebhook.Pendiente);
+        evento.Intentos.Should().Be(0);
+        evento.ErrorProcesado.Should().Be(IngestaWebhookService.MotivoEsperaVerificacion);
+        evento.SiguienteIntentoEnUtc.Should().BeAfter(DateTime.UtcNow.AddMinutes(10));
+        conversaciones.Conversaciones.Should().BeEmpty();
+    }
+
+    /// <summary>
+    /// Puerta antes de cada lectura: la instancia cargada dice operativa, pero tras el primer mensaje otro proceso pasó
+    /// la conexión a ConError. El segundo no se lee de Graph y el evento espera sin gastar intentos.
+    /// </summary>
+    [Fact]
+    public async Task Si_la_conexion_deja_de_estar_operativa_entre_mensajes_no_lee_el_siguiente_y_el_evento_espera()
+    {
+        var conexion = new ConexionIntegracion("cae@operador.test", "Buzón CAE").Verificada();
+        var conexiones = new ConexionIntegracionRepositorioFalso();
+        conexiones.Agregar(conexion);
+        conexiones.AlReleer = vez =>
+        {
+            if (vez == 2)
+                conexiones.NoOperativasEnBase.Add(conexion.Id);
+        };
+        var conversaciones = new ConversacionRepositorioFalso();
+        var graph = new Microsoft365GraphClientFalso
+        {
+            MensajeIdsADevolver = ["primero", "segundo"],
+            MensajesPorId =
+            {
+                ["primero"] = new MensajeGraphDto("primero", "hilo-1", "Asunto", "contacto@tenant.com", "Texto", DateTime.UtcNow, [], []),
+                ["segundo"] = new MensajeGraphDto("segundo", "hilo-2", "Otro", "contacto@tenant.com", "Texto", DateTime.UtcNow, [], []),
+            },
+        };
+        var credenciales = new CredencialIntegracionRepositorioFalso();
+        credenciales.Agregar(new CredencialIntegracion(conexion.Id, "refresh"));
+        var evento = new EventoWebhook(conexion.Id, "{}");
+        evento.MarcarEnProceso();
+
+        await CrearServicio(conexiones, conversaciones, graph, credenciales).ProcesarAsync(evento, CancellationToken.None);
+
+        conversaciones.Conversaciones.Should().ContainSingle().Which.HiloExternoId.Should().Be("hilo-1");
+        conexiones.VecesReleido.Should().Be(2);
+        evento.Estado.Should().Be(EstadoEventoWebhook.Pendiente);
+        evento.Intentos.Should().Be(0);
+    }
+
+    /// <summary>
+    /// Una notificación que esperaba en la cola cuando la conexión cayó se descarta (ConError), pero su correo es
+    /// anterior a la marca de la caída, y Graph pudo tardar hasta cuatro horas en entregarla: la marca retrocede a su
+    /// recepción menos cuatro horas para que el aviso de Conexiones cubra ese correo.
+    /// </summary>
+    [Fact]
+    public async Task Descartar_una_notificacion_anterior_a_la_caida_retrocede_la_marca_a_su_recepcion_menos_cuatro_horas()
+    {
+        var conexion = new ConexionIntegracion("cae@operador.test", "Buzón CAE").Verificada();
+        var evento = new EventoWebhook(conexion.Id, "{}");
+        conexion.MarcarConError("refresh token caducado", evento.FechaRecepcionUtc.AddMinutes(30));
+        var conexiones = new ConexionIntegracionRepositorioFalso();
+        conexiones.Agregar(conexion);
+        var conversaciones = new ConversacionRepositorioFalso();
+        var graph = new Microsoft365GraphClientFalso { MensajeIdsADevolver = ["nuevo"] };
+        evento.MarcarEnProceso();
+
+        await CrearServicio(conexiones, conversaciones, graph, new CredencialIntegracionRepositorioFalso())
+            .ProcesarAsync(evento, CancellationToken.None);
+
+        evento.Estado.Should().Be(EstadoEventoWebhook.Completado);
+        conversaciones.Conversaciones.Should().BeEmpty();
+        conexion.HuecoPendienteDesdeUtc.Should().Be(evento.FechaRecepcionUtc - ConexionIntegracion.RetrasoMaximoNotificacion);
+    }
+
+    [Fact]
+    public async Task Una_conexion_verificada_ingiere_el_evento_que_estaba_en_espera()
+    {
+        var conexion = new ConexionIntegracion("cae@cliente.com", "Buzón CAE");
+        conexion.FijarIdentidadBuzon("inbox-cae");
+        var conversaciones = new ConversacionRepositorioFalso();
+        var conexiones = new ConexionIntegracionRepositorioFalso();
+        conexiones.Agregar(conexion);
+        var graph = new Microsoft365GraphClientFalso
+        {
+            MensajeIdsADevolver = ["nuevo"],
+            MensajeADevolver = new MensajeGraphDto("nuevo", "hilo", "Asunto", "contacto@ejemplo.test", "Texto", DateTime.UtcNow, [], []),
+        };
+        var credenciales = new CredencialIntegracionRepositorioFalso();
+        credenciales.Agregar(new CredencialIntegracion(conexion.Id, "refresh"));
+        var evento = new EventoWebhook(conexion.Id, "{}");
+        var servicio = CrearServicio(conexiones, conversaciones, graph, credenciales);
+        evento.MarcarEnProceso();
+        await servicio.ProcesarAsync(evento, CancellationToken.None);
+
+        conexion.MarcarIdentidadVerificada(DateTime.UtcNow);
+        evento.MarcarEnProceso();
+        await servicio.ProcesarAsync(evento, CancellationToken.None);
+
+        evento.Estado.Should().Be(EstadoEventoWebhook.Completado);
+        conversaciones.Conversaciones.Should().ContainSingle();
+    }
+
     [Fact]
     public async Task La_conversacion_nueva_nace_asignada_al_responsable_del_buzon()
     {
@@ -141,7 +268,7 @@ public class IngestaWebhookServiceTests
     public async Task La_conversacion_del_buzon_personal_nace_asignada_a_su_propietario()
     {
         var propietario = Guid.NewGuid();
-        var conexion = new ConexionIntegracion("gestor@ejemplo.test", "Personal", gestorPropietarioId: propietario);
+        var conexion = new ConexionIntegracion("gestor@ejemplo.test", "Personal", gestorPropietarioId: propietario).Verificada();
 
         var conversacion = await IngerirHiloNuevoAsync(conexion, new ConversacionRepositorioFalso(), DestinoActivo);
 
@@ -357,6 +484,99 @@ public class IngestaWebhookServiceTests
         conversacion.Mensajes.Should().ContainSingle(m => m.MensajeExternoId == "graph-msg-1");
     }
 
+    private static (ConexionIntegracion Conexion, ConexionIntegracionRepositorioFalso Repositorio) ConexionCompartida()
+    {
+        var conexion = ConexionIntegracion.CrearBuzonCompartido(
+            "cae@operador.test", "Buzón CAE", "11111111-2222-3333-4444-555555555555", Guid.NewGuid()).Verificada();
+        var repositorio = new ConexionIntegracionRepositorioFalso();
+        repositorio.Agregar(conexion);
+        return (conexion, repositorio);
+    }
+
+    /// <summary>Un buzón compartido se lee por <c>users/{buzón}</c> con el token de aplicación, sin credencial de nadie.</summary>
+    [Fact]
+    public async Task Ingiere_un_mensaje_de_un_buzon_compartido_con_el_token_de_aplicacion()
+    {
+        var (conexion, conexiones) = ConexionCompartida();
+        var conversaciones = new ConversacionRepositorioFalso();
+        var graph = new Microsoft365GraphClientFalso
+        {
+            MensajeIdsADevolver = ["compartido-1"],
+            MensajeADevolver = new MensajeGraphDto(
+                "compartido-1", "hilo-compartido", "Documentación", "contratista@ejemplo.test", "<p>adjunto</p>", DateTime.UtcNow,
+                [new ParticipanteGraphDto("contratista@ejemplo.test", RolParticipante.De)], []),
+        };
+        var evento = new EventoWebhook(conexion.Id, "{\"value\":[{}]}");
+
+        await CrearServicio(conexiones, conversaciones, graph).ProcesarAsync(evento, CancellationToken.None);
+
+        evento.Estado.Should().Be(EstadoEventoWebhook.Completado);
+        conversaciones.Conversaciones.Should().ContainSingle().Which.Mensajes.Should().ContainSingle(m => m.MensajeExternoId == "compartido-1");
+        graph.DirectoriosConTokenDeAplicacion.Should().Equal("11111111-2222-3333-4444-555555555555");
+        graph.VecesRefrescado.Should().Be(0, "un compartido nunca cae en el token de una persona");
+        graph.BuzonesUsados.Should().OnlyContain(b => b == new BuzonGraph("cae@operador.test", true));
+    }
+
+    /// <summary>
+    /// Un fallo de lectura que no es un 404 (403, 429, 5xx, timeout) no puede tomarse por un mensaje borrado:
+    /// el evento queda para reintento y el mensaje no se pierde.
+    /// </summary>
+    [Fact]
+    public async Task Un_fallo_transitorio_al_leer_el_mensaje_deja_el_evento_para_reintento()
+    {
+        var (conexion, conexiones) = ConexionCompartida();
+        var conversaciones = new ConversacionRepositorioFalso();
+        var graph = new Microsoft365GraphClientFalso
+        {
+            MensajeIdsADevolver = ["compartido-1"],
+            ErrorLecturaMensaje = Error.Crear("Integraciones.Microsoft365.ErrorApi", "429"),
+        };
+        var evento = new EventoWebhook(conexion.Id, "{\"value\":[{}]}");
+
+        await CrearServicio(conexiones, conversaciones, graph).ProcesarAsync(evento, CancellationToken.None);
+
+        evento.Estado.Should().Be(EstadoEventoWebhook.Pendiente);
+        evento.ErrorProcesado.Should().NotBeNullOrEmpty();
+        conversaciones.Conversaciones.Should().BeEmpty();
+    }
+
+    /// <summary>
+    /// Un mensaje que no se puede leer no bloquea a los siguientes del mismo evento: el sano se ingiere y el evento
+    /// queda para reintento por el otro.
+    /// </summary>
+    [Fact]
+    public async Task Un_mensaje_que_no_se_puede_leer_no_impide_ingerir_los_demas_del_lote()
+    {
+        var (conexion, conexiones) = ConexionCompartida();
+        var conversaciones = new ConversacionRepositorioFalso();
+        var graph = new Microsoft365GraphClientFalso { MensajeIdsADevolver = ["roto", "sano"] };
+        graph.ErroresLecturaPorId["roto"] = Error.Crear("Integraciones.Microsoft365.ErrorApi", "403");
+        graph.MensajesPorId["sano"] = new MensajeGraphDto(
+            "sano", "hilo-sano", "Documentación", "contratista@ejemplo.test", "<p>ok</p>", DateTime.UtcNow,
+            [new ParticipanteGraphDto("contratista@ejemplo.test", RolParticipante.De)], []);
+        var evento = new EventoWebhook(conexion.Id, "{\"value\":[{}]}");
+
+        await CrearServicio(conexiones, conversaciones, graph).ProcesarAsync(evento, CancellationToken.None);
+
+        conversaciones.Conversaciones.Should().ContainSingle().Which.Mensajes.Should().ContainSingle(m => m.MensajeExternoId == "sano");
+        evento.Estado.Should().Be(EstadoEventoWebhook.Pendiente);
+        evento.ErrorProcesado.Should().Contain("403");
+    }
+
+    [Fact]
+    public async Task Un_mensaje_borrado_antes_de_leerlo_se_salta_sin_reintento()
+    {
+        var (conexion, conexiones) = ConexionCompartida();
+        var conversaciones = new ConversacionRepositorioFalso();
+        var graph = new Microsoft365GraphClientFalso { MensajeIdsADevolver = ["borrado"] };
+        var evento = new EventoWebhook(conexion.Id, "{\"value\":[{}]}");
+
+        await CrearServicio(conexiones, conversaciones, graph).ProcesarAsync(evento, CancellationToken.None);
+
+        evento.Estado.Should().Be(EstadoEventoWebhook.Completado);
+        conversaciones.Conversaciones.Should().BeEmpty();
+    }
+
     [Fact]
     public async Task Reutiliza_la_conversacion_existente_del_mismo_hilo_externo()
     {
@@ -429,6 +649,191 @@ public class IngestaWebhookServiceTests
 
         evento.Estado.Should().Be(EstadoEventoWebhook.Completado);
         conversacionRepositorio.Conversaciones.Should().BeEmpty();
+        conexion.HuecoPendienteDesdeUtc.Should().Be(
+            evento.FechaRecepcionUtc - ConexionIntegracion.RetrasoMaximoNotificacion,
+            "el correo de una notificación descartada por desconectar se pierde: disparador (a)");
+    }
+
+    /// <summary>
+    /// Q: la verificación ya había caducado, el evento esperaba en la cola sin perderse (sin marca) y el usuario desconecta.
+    /// El descarte posterior por Deshabilitada es la pérdida: marca en su recepción − 4 h.
+    /// </summary>
+    [Fact]
+    public async Task Desconectar_con_la_verificacion_caducada_y_un_evento_en_espera_marca_al_descartarlo()
+    {
+        var conexion = new ConexionIntegracion("cae@operador.test", "Buzón CAE");
+        conexion.FijarIdentidadBuzon("inbox-cae");
+        conexion.MarcarIdentidadVerificada(DateTime.UtcNow - ConexionIntegracion.VentanaVerificacionIdentidad - TimeSpan.FromHours(2));
+        var conexiones = new ConexionIntegracionRepositorioFalso();
+        conexiones.Agregar(conexion);
+        var conversaciones = new ConversacionRepositorioFalso();
+        var graph = new Microsoft365GraphClientFalso { MensajeIdsADevolver = ["m-1"] };
+        var servicio = CrearServicio(conexiones, conversaciones, graph);
+        var evento = new EventoWebhook(conexion.Id, "{}");
+
+        await servicio.ProcesarAsync(evento, CancellationToken.None);
+        evento.Estado.Should().Be(EstadoEventoWebhook.Pendiente, "sin verificar, espera");
+        conexion.HuecoPendienteDesdeUtc.Should().BeNull("la caducidad sola no es pérdida");
+
+        conexion.Deshabilitar();
+        await servicio.ProcesarAsync(evento, CancellationToken.None);
+
+        evento.Estado.Should().Be(EstadoEventoWebhook.Completado);
+        conversaciones.Conversaciones.Should().BeEmpty();
+        conexion.HuecoPendienteDesdeUtc.Should().Be(evento.FechaRecepcionUtc - ConexionIntegracion.RetrasoMaximoNotificacion);
+    }
+
+    /// <summary>El evento agota sus intentos y pasa a DescartadoDefinitivo: su correo no se leerá y marca (disparador a).</summary>
+    [Fact]
+    public async Task Un_evento_que_pasa_a_DescartadoDefinitivo_marca_el_hueco()
+    {
+        var conexion = ConexionHabilitada();
+        var conexiones = new ConexionIntegracionRepositorioFalso();
+        conexiones.Agregar(conexion);
+        var graph = new Microsoft365GraphClientFalso
+        {
+            MensajeIdsADevolver = ["m-1"],
+            ErrorLecturaMensaje = Error.Crear(CodigosErrorMicrosoft365.Transitorio, "503")
+        };
+        var credenciales = new CredencialIntegracionRepositorioFalso();
+        credenciales.Agregar(new CredencialIntegracion(conexion.Id, "refresh"));
+        var evento = new EventoWebhook(conexion.Id, "{}");
+        for (var i = 1; i < EventoWebhook.MaximoIntentos; i++)
+            evento.RegistrarFallo("fallo anterior");
+
+        await CrearServicio(conexiones, new ConversacionRepositorioFalso(), graph, credenciales).ProcesarAsync(evento, CancellationToken.None);
+
+        evento.Estado.Should().Be(EstadoEventoWebhook.DescartadoDefinitivo);
+        conexion.HuecoPendienteDesdeUtc.Should().Be(evento.FechaRecepcionUtc - ConexionIntegracion.RetrasoMaximoNotificacion);
+    }
+
+    /// <summary>
+    /// R: un 404 que no dice que falta el mensaje puede ser del buzón. No da el evento por resuelto ni gasta intentos: espera
+    /// a que la verificación de la identidad decida. Tampoco marca: aún no se ha perdido nada.
+    /// </summary>
+    [Fact]
+    public async Task Un_404_que_puede_ser_del_buzon_deja_el_evento_en_espera_sin_gastar_intentos()
+    {
+        var conexion = ConexionHabilitada();
+        var conexiones = new ConexionIntegracionRepositorioFalso();
+        conexiones.Agregar(conexion);
+        var conversaciones = new ConversacionRepositorioFalso();
+        var graph = new Microsoft365GraphClientFalso
+        {
+            MensajeIdsADevolver = ["m-1"],
+            ErrorLecturaMensaje = Error.Crear(CodigosErrorMicrosoft365.BuzonNoEncontrado, "404")
+        };
+        var credenciales = new CredencialIntegracionRepositorioFalso();
+        credenciales.Agregar(new CredencialIntegracion(conexion.Id, "refresh"));
+        var evento = new EventoWebhook(conexion.Id, "{}");
+
+        await CrearServicio(conexiones, conversaciones, graph, credenciales).ProcesarAsync(evento, CancellationToken.None);
+
+        evento.Estado.Should().Be(EstadoEventoWebhook.Pendiente);
+        evento.Intentos.Should().Be(0);
+        evento.ErrorProcesado.Should().Be(IngestaWebhookService.MotivoEsperaBuzonNoEncontrado);
+        conversaciones.Conversaciones.Should().BeEmpty();
+        conexion.HuecoPendienteDesdeUtc.Should().BeNull();
+    }
+
+    /// <summary>
+    /// Ronda 10: un 200 de Graph sin un campo obligatorio no se ingiere con datos inventados, no gasta intento y no da el
+    /// evento por procesado: espera como el 404 que puede ser del buzón, con su propio motivo.
+    /// </summary>
+    [Fact]
+    public async Task Un_mensaje_incompleto_deja_el_evento_en_espera_sin_gastar_intento_ni_marcarlo_procesado()
+    {
+        var conexion = ConexionHabilitada();
+        var conexiones = new ConexionIntegracionRepositorioFalso();
+        conexiones.Agregar(conexion);
+        var conversaciones = new ConversacionRepositorioFalso();
+        var graph = new Microsoft365GraphClientFalso
+        {
+            MensajeIdsADevolver = ["m-1"],
+            ErrorLecturaMensaje = Error.Crear(CodigosErrorMicrosoft365.MensajeIncompleto, "sin remitente")
+        };
+        var credenciales = new CredencialIntegracionRepositorioFalso();
+        credenciales.Agregar(new CredencialIntegracion(conexion.Id, "refresh"));
+        var evento = new EventoWebhook(conexion.Id, "{}");
+        var servicio = CrearServicio(conexiones, conversaciones, graph, credenciales);
+
+        for (var i = 0; i < EventoWebhook.MaximoIntentos + 1; i++)
+        {
+            evento.MarcarEnProceso();
+            await servicio.ProcesarAsync(evento, CancellationToken.None);
+        }
+
+        evento.Estado.Should().Be(EstadoEventoWebhook.Pendiente, "ni Completado ni descartado tras más pasadas que intentos");
+        evento.Intentos.Should().Be(0);
+        evento.ErrorProcesado.Should().Be(IngestaWebhookService.MotivoEsperaMensajeIncompleto);
+        evento.SiguienteIntentoEnUtc.Should().BeAfter(DateTime.UtcNow.AddMinutes(10),
+            "vuelve a la cola de la ingesta tras IntervaloEsperaVerificacion, como el de BuzonNoEncontrado");
+        conversaciones.Conversaciones.Should().BeEmpty();
+        conexion.HuecoPendienteDesdeUtc.Should().BeNull("aún no se ha perdido nada");
+    }
+
+    /// <summary>
+    /// Tarea 4 de la ronda 10: el evento que espera por mensaje incompleto se reanuda igual que el de BuzonNoEncontrado,
+    /// porque los dos pasan por el mismo <see cref="EventoWebhook.EsperarVerificacion"/>: misma cola (Pendiente con
+    /// SiguienteIntentoEnUtc) y, cuando Graph ya devuelve el mensaje completo, se ingiere y queda Completado.
+    /// </summary>
+    [Theory]
+    [InlineData(CodigosErrorMicrosoft365.MensajeIncompleto, IngestaWebhookService.MotivoEsperaMensajeIncompleto)]
+    [InlineData(CodigosErrorMicrosoft365.BuzonNoEncontrado, IngestaWebhookService.MotivoEsperaBuzonNoEncontrado)]
+    public async Task La_espera_por_mensaje_incompleto_se_reanuda_igual_que_la_de_buzon_no_encontrado(string codigo, string motivo)
+    {
+        var conexion = ConexionHabilitada();
+        var conexiones = new ConexionIntegracionRepositorioFalso();
+        conexiones.Agregar(conexion);
+        var conversaciones = new ConversacionRepositorioFalso();
+        var graph = new Microsoft365GraphClientFalso
+        {
+            MensajeIdsADevolver = ["m-1"],
+            ErrorLecturaMensaje = Error.Crear(codigo, "transitorio"),
+            MensajeADevolver = new MensajeGraphDto("m-1", "hilo", "Asunto", "contacto@ejemplo.test", "Texto", DateTime.UtcNow, [], []),
+        };
+        var credenciales = new CredencialIntegracionRepositorioFalso();
+        credenciales.Agregar(new CredencialIntegracion(conexion.Id, "refresh"));
+        var evento = new EventoWebhook(conexion.Id, "{}");
+        var servicio = CrearServicio(conexiones, conversaciones, graph, credenciales);
+
+        evento.MarcarEnProceso();
+        var antes = DateTime.UtcNow;
+        await servicio.ProcesarAsync(evento, CancellationToken.None);
+
+        evento.Estado.Should().Be(EstadoEventoWebhook.Pendiente);
+        evento.ErrorProcesado.Should().Be(motivo);
+        evento.SiguienteIntentoEnUtc.Should().BeOnOrAfter(antes + EventoWebhook.IntervaloEsperaVerificacion);
+
+        graph.ErrorLecturaMensaje = null;
+        evento.MarcarEnProceso();
+        await servicio.ProcesarAsync(evento, CancellationToken.None);
+
+        evento.Estado.Should().Be(EstadoEventoWebhook.Completado);
+        evento.Intentos.Should().Be(0);
+        conversaciones.Conversaciones.Should().ContainSingle();
+    }
+
+    /// <summary>
+    /// Tarea 4 de la ronda 10, el tope: el motivo no cambia la regla de <see cref="EventoWebhook.EsperarVerificacion"/>.
+    /// Pasadas <see cref="EventoWebhook.TopeEsperaVerificacion"/> desde la recepción, los dos quedan Retenido, nunca
+    /// descartados, y sin siguiente intento.
+    /// </summary>
+    [Theory]
+    [InlineData(IngestaWebhookService.MotivoEsperaMensajeIncompleto)]
+    [InlineData(IngestaWebhookService.MotivoEsperaBuzonNoEncontrado)]
+    public void A_las_72_horas_la_espera_por_mensaje_incompleto_queda_retenida_como_la_de_buzon_no_encontrado(string motivo)
+    {
+        var evento = new EventoWebhook(Guid.NewGuid(), "{}");
+
+        evento.EsperarVerificacion(motivo, evento.FechaRecepcionUtc + EventoWebhook.TopeEsperaVerificacion - TimeSpan.FromMinutes(1));
+        evento.Estado.Should().Be(EstadoEventoWebhook.Pendiente);
+
+        evento.EsperarVerificacion(motivo, evento.FechaRecepcionUtc + EventoWebhook.TopeEsperaVerificacion);
+        evento.Estado.Should().Be(EstadoEventoWebhook.Retenido);
+        evento.SiguienteIntentoEnUtc.Should().BeNull();
+        evento.Intentos.Should().Be(0);
+        evento.ErrorProcesado.Should().Be(motivo);
     }
 
     /// <summary>
@@ -493,7 +898,7 @@ public class IngestaWebhookServiceTests
     [InlineData("mx; dmarc=pass header.from=dokify.net||X-MS-Exchange-Organization-AuthAs: Anonymous", true)]
     public async Task Una_plataforma_solo_es_de_confianza_con_autenticacion_alineada(string? autenticacion, bool confiable)
     {
-        var conexion = new ConexionIntegracion("persona@empresa.test", "Personal", gestorPropietarioId: Guid.NewGuid());
+        var conexion = new ConexionIntegracion("persona@empresa.test", "Personal", gestorPropietarioId: Guid.NewGuid()).Verificada();
         var conexionRepositorio = new ConexionIntegracionRepositorioFalso();
         conexionRepositorio.Agregar(conexion);
         var conversacionRepositorio = new ConversacionRepositorioFalso();

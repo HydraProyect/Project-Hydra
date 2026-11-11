@@ -11,6 +11,7 @@ using CaeManager.Application.Integraciones.Commands.FijarResponsableBuzon;
 using CaeManager.Application.Integraciones.Commands.GuardarConexionPlataformaCae;
 using CaeManager.Application.Integraciones.Commands.RetirarConexionPlataformaCae;
 using CaeManager.Application.Integraciones.Commands.ReactivarConexion;
+using CaeManager.Application.Integraciones.Commands.RepararMarcaHueco;
 using CaeManager.Application.Integraciones.Queries.ObtenerLineasWhatsApp;
 using CaeManager.Application.TiposDocumento.Commands.ActualizarDeteccionTrabajadoresGlobal;
 using CaeManager.Application.TiposDocumento.Commands.ActualizarLecturaIaGlobal;
@@ -108,6 +109,7 @@ public static class ActosExcluidosDelEncargo
         // buzón y saber qué conexiones existen sigue permitido: lo usan las pantallas de Comunicaciones.
         typeof(ConectarBuzonMicrosoft365Command),
         typeof(DesconectarBuzonCommand),
+        typeof(RepararMarcaHuecoCommand),
         typeof(ReactivarConexionCommand),
         typeof(FijarResponsableBuzonCommand),
         typeof(FijarAcuseAutomaticoBuzonCommand),

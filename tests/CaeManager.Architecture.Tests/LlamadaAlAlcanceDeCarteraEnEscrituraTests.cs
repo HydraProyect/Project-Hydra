@@ -206,6 +206,7 @@ public class LlamadaAlAlcanceDeCarteraEnEscrituraTests
         "Integraciones.FijarAcuseAutomaticoBuzonCommandHandler",
         "Integraciones.FijarResponsableBuzonCommandHandler",
         "Integraciones.ReactivarConexionCommandHandler",
+        "Integraciones.RepararMarcaHuecoCommandHandler",
 
         // Plantillas
         "Plantillas.AgregarVersionPlantillaCommandHandler",
