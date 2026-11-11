@@ -15,6 +15,9 @@
   <data name="EtiquetaNotaInterna" xml:space="preserve">
     <value>Nota interna</value>
   </data>
+  <data name="PildoraNotaInterna" xml:space="preserve">
+    <value>Nota interna · no la ve el destinatario</value>
+  </data>
   <data name="AvisoSoloEquipo" xml:space="preserve">
     <value>Solo la ve tu equipo. No se envía al contacto.</value>
   </data>
