@@ -85,7 +85,7 @@
                     </div>
                     <ZonaSoltarArchivo Titulo="@Textos["EstZonaTitulo"]"
                                        FormatosTexto="@Textos["EstZonaFormatos", TamanoMaximoMb]"
-                                       Accept=".xlsx" NombreArchivoActual="@_nombreArchivo"
+                                       Accept=".xlsx" NombreArchivoActual="@_nombreArchivo" AnunciarNombre="false"
                                        OnChange="ManejarArchivoSeleccionadoAsync" />
                     @if (_rechazo is not null)
                     {

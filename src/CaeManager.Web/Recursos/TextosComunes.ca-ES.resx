@@ -823,6 +823,9 @@
   <data name="ZonaSoltarAnuncioSeleccionado" xml:space="preserve">
     <value>Fitxer seleccionat: {0}.</value>
   </data>
+  <data name="ZonaSoltarAnuncioSinNombre" xml:space="preserve">
+    <value>Fitxer rebut.</value>
+  </data>
   <data name="ZonaSoltarAnuncioPegado" xml:space="preserve">
     <value>Fitxer enganxat: {0}.</value>
   </data>

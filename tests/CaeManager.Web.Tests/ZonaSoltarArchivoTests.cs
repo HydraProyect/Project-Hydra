@@ -280,6 +280,17 @@ public class ZonaSoltarArchivoTests : BunitContext
     }
 
     [Fact]
+    public void Sin_anunciar_el_nombre_el_aviso_no_deja_el_nombre_del_archivo_en_la_pagina()
+    {
+        var cut = Zona(p => p.Add(z => z.AnunciarNombre, false));
+
+        Subir(cut, "nomina-de-alguien.png");
+
+        cut.WaitForAssertion(() => Anuncio(cut).Should().Be("Archivo recibido."));
+        cut.Markup.Should().NotContain("nomina-de-alguien");
+    }
+
+    [Fact]
     public async Task Pegar_con_Ctrl_V_se_anuncia_como_pegado()
     {
         var cut = Zona();

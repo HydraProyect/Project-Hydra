@@ -147,6 +147,12 @@ else if (!TieneArchivos && !string.IsNullOrWhiteSpace(NombreArchivoActual))
     /// <summary>Permite ocultar «Quitar» aunque haya OnQuitar (p. ej. el archivo que el Documento ya tenía).</summary>
     [Parameter] public bool PermitirQuitar { get; set; } = true;
 
+    /// <summary>
+    /// false: el aviso de lectores de pantalla al recibir un archivo no repite su nombre. Lo usa quien suelta
+    /// un archivo rechazado y no quiere que su nombre quede en la página (p. ej. el importador de estructura).
+    /// </summary>
+    [Parameter] public bool AnunciarNombre { get; set; } = true;
+
     /// <summary>2 pinta el título de la zona vacía como encabezado h2 (páginas cuya zona ES el contenido); otro valor, párrafo.</summary>
     [Parameter] public int? NivelEncabezado { get; set; }
 
@@ -193,6 +199,9 @@ else if (!TieneArchivos && !string.IsNullOrWhiteSpace(NombreArchivoActual))
     {
         if (e.FileCount > 1)
             return string.Format(CultureInfo.CurrentCulture, Comunes["ZonaSoltarAnuncioVarios"].Value, e.FileCount);
+
+        if (!AnunciarNombre)
+            return Comunes["ZonaSoltarAnuncioSinNombre"].Value;
 
         var clave = _origenPendiente switch
         {
