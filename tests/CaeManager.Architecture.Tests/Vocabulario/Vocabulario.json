@@ -439,6 +439,21 @@
   ],
   "excepciones": [
     {
+      "id": "nombre-de-hoja-del-libro-de-importacion",
+      "prohibidos": [
+        "cliente-empresarial-en-pantalla"
+      ],
+      "ficheros": [
+        "src/CaeManager.Web/Features/Importacion/Recursos/TextosImportacion.resx",
+        "src/CaeManager.Web/Features/Importacion/Recursos/TextosImportacion.ca-ES.resx"
+      ],
+      "claves": [
+        "EstHojaClientes"
+      ],
+      "contexto": "plantilla de importación",
+      "motivo": "«Clientes empresariales» es el nombre literal de una hoja del libro de la plantilla maestra: el lector del backend la localiza por ese nombre y lo devuelve en cada incidencia. Se guarda en el .resx para no escribir texto a mano, con el mismo valor en es-ES y ca-ES porque traducirlo rompería la correspondencia con el archivo. Cada texto de la pantalla del Paso 1 dice «Cliente»."
+    },
+    {
       "id": "tenant-en-comandos-de-plataforma",
       "prohibidos": [
         "tenant-a-secas"

@@ -11,6 +11,9 @@ public class OperacionImportacionRepository(CaeManagerDbContext dbContext) : IOp
     public Task<bool> ExisteAsync(Guid operacionId, CancellationToken cancellationToken = default) =>
         dbContext.OperacionesImportacion.AnyAsync(o => o.OperacionId == operacionId, cancellationToken);
 
+    public Task<bool> EsLaMarcaGuardadaAsync(Guid operacionId, Guid marcaId, CancellationToken cancellationToken = default) =>
+        dbContext.OperacionesImportacion.AnyAsync(o => o.OperacionId == operacionId && o.Id == marcaId, cancellationToken);
+
     public void Agregar(OperacionImportacion operacion) => dbContext.OperacionesImportacion.Add(operacion);
 
     public async Task<bool> GuardarSiOperacionNuevaAsync(CancellationToken cancellationToken = default)

@@ -57,13 +57,15 @@ SALIDA=$(correr AGE_RECIPIENT="$PUB" bash "$SCRIPT" exportar "$DEST"); CODIGO=$?
 FICHERO=$(ls "$DEST"/dataprotection-keys-*.tar.age 2>/dev/null | head -1)
 comprobar "termina con 0 y deja un .age" '[ "$CODIGO" -eq 0 ] && [ -s "$FICHERO" ]'
 comprobar "el fichero no contiene el XML ni el secreto en claro" '! grep -aq "SECRETO-EN-CLARO\|masterKey\|<key id" "$FICHERO"'
-comprobar "la salida da la huella y la id de la clave" 'printf "%s" "$SALIDA" | grep -q "SHA-256" && printf "%s" "$SALIDA" | grep -q "$ID_CLAVE"'
-comprobar "la salida NO imprime el material de la clave" '! printf "%s" "$SALIDA" | grep -q "SECRETO-EN-CLARO"'
+comprobar "la salida da la huella y la id de la clave" 'grep -q "SHA-256" <<<"$SALIDA" && grep -q "$ID_CLAVE" <<<"$SALIDA"'
+# Comparado en Bash, sin `grep <<<`: si Bash no pudiera crear el fichero temporal
+# del here-string, grep no correría y su 1 se leería como «no está».
+comprobar "la salida NO imprime el material de la clave" '[[ "$SALIDA" != *"SECRETO-EN-CLARO"* ]]'
 comprobar "permisos 0600" '[ "$(stat -c %a "$FICHERO" 2>/dev/null || stat -f %Lp "$FICHERO")" = "600" ]'
 
 echo "== verificar"
 SALIDA=$(correr bash "$SCRIPT" verificar "$FICHERO" "$TMP_ROOT/id-buena.txt"); CODIGO=$?
-comprobar "con la identidad correcta: 0 y muestra la id" '[ "$CODIGO" -eq 0 ] && printf "%s" "$SALIDA" | grep -q "$ID_CLAVE"'
+comprobar "con la identidad correcta: 0 y muestra la id" '[ "$CODIGO" -eq 0 ] && grep -q "$ID_CLAVE" <<<"$SALIDA"'
 SALIDA=$(correr bash "$SCRIPT" verificar "$FICHERO" "$TMP_ROOT/id-otra.txt"); CODIGO=$?
 comprobar "con otra identidad: falla" '[ "$CODIGO" -ne 0 ]'
 
@@ -85,9 +87,9 @@ printf '<key id="%s" version="1"><expirationDate>2026-04-01T00:00:00Z</expiratio
 DEST4="$TMP_ROOT/destino4"
 SALIDA=$(correr AGE_RECIPIENT="$PUB" bash "$SCRIPT" desde-directorio "$ORIGEN" "$DEST4"); CODIGO=$?
 F4=$(ls "$DEST4"/dataprotection-keys-*.tar.age 2>/dev/null | head -1)
-comprobar "deja un .age con la id de la clave y sin el secreto en claro" '[ "$CODIGO" -eq 0 ] && [ -s "$F4" ] && printf "%s" "$SALIDA" | grep -q "$ID_CLAVE" && ! grep -aq "SECRETO-EN-CLARO" "$F4"'
+comprobar "deja un .age con la id de la clave y sin el secreto en claro" '[ "$CODIGO" -eq 0 ] && [ -s "$F4" ] && grep -q "$ID_CLAVE" <<<"$SALIDA" && ! grep -aq "SECRETO-EN-CLARO" "$F4"'
 SALIDA=$(correr bash "$SCRIPT" verificar "$F4" "$TMP_ROOT/id-buena.txt"); CODIGO=$?
-comprobar "la identidad correcta lo abre" '[ "$CODIGO" -eq 0 ] && printf "%s" "$SALIDA" | grep -q "$ID_CLAVE"'
+comprobar "la identidad correcta lo abre" '[ "$CODIGO" -eq 0 ] && grep -q "$ID_CLAVE" <<<"$SALIDA"'
 SALIDA=$(correr AGE_RECIPIENT="$PUB" bash "$SCRIPT" desde-directorio "$TMP_ROOT/vacio" "$TMP_ROOT/destino5"); CODIGO=$?
 comprobar "carpeta sin claves: falla y no deja .age" '[ "$CODIGO" -ne 0 ] && ! ls "$TMP_ROOT"/destino5/*.age >/dev/null 2>&1'
 

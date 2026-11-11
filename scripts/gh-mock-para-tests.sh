@@ -40,6 +40,14 @@ siguiente() {
     echo "MOCK gh: fallo simulado para '$endpoint' (llamada nº $n)" >&2
     return 1
   fi
+  # Sentinela: primera línea "MOCK_PARCIAL_ERROR" -> escribe el resto de la
+  # fixture en stdout y sale con error, como un `gh` que se corta a medias.
+  # Sirve para probar que el guion no decide nada con una lectura incompleta.
+  if [[ "$(head -n1 "$archivo")" == "MOCK_PARCIAL_ERROR" ]]; then
+    tail -n +2 "$archivo"
+    echo "MOCK gh: fallo simulado tras salida parcial para '$endpoint' (llamada nº $n)" >&2
+    return 1
+  fi
   cat "$archivo"
 }
 

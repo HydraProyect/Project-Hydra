@@ -46,7 +46,13 @@ case "$1 ${2:-}" in
     esac ;;
   "image ls") ls "$ESTADO/imagenes" ;;
   "image rm") rm -rf "$ESTADO/imagenes/${3#caemanager:}" ;;
-  "ps -a") cat "$ESTADO/contenedores/"* 2>/dev/null; true ;;
+  "ps -a")
+    [ "${DOCKER_PS_FALLA:-0}" = 1 ] && exit 1
+    cat "$ESTADO/contenedores/"* 2>/dev/null
+    # PS_RELLENO=N: N contenedores más, con etiquetas que no son SHA, para que
+    # la lista de conservadas supere de sobra el búfer de una tubería.
+    [ -z "${PS_RELLENO:-}" ] || awk -v n="$PS_RELLENO" 'BEGIN { for (i = 1; i <= n; i++) printf "caemanager:relleno-%d\n", i }'
+    true ;;
   "exec "*)
     case "$*" in
       "exec -i "*psql*)
@@ -170,6 +176,22 @@ comprobar "y no imprime un inventario incompleto" "listar-migraciones-ef: 2 clas
 inventario sin-designer '[Migration("20260102000000_B")]' 'public partial class N : Migration { }'
 rm "$TMP/repo-sin-designer/src/CaeManager.Migrations.PostgreSQL/Migrations/20260102000000_B.Designer.cs"
 bash "$LISTAR" "$TMP/repo-sin-designer" > /dev/null 2>&1; comprobar "una clase sin .Designer.cs falla" 1 "$?"
+# Inventario largo con un identificador con espacio el PRIMERO tras ordenar
+# (revisión Codex de #2106): con `printf | grep -q` bajo pipefail, grep salía al
+# primer acierto, printf moría por SIGPIPE y la guarda no saltaba. Las clases
+# cuadran con los atributos, así que solo esta guarda puede rechazarlo.
+d="$TMP/repo-largo/src/CaeManager.Migrations.PostgreSQL/Migrations"; mkdir -p "$d"
+awk 'BEGIN { print "[Migration(\"20250101000000_Con espacio\")]"
+             for (i = 1; i < 6000; i++) printf "[Migration(\"20260101000000_M%05d\")]\n", i }' > "$d/todas.Designer.cs"
+awk 'BEGIN { for (i = 0; i < 6000; i++) printf "public partial class M%05d : Migration { }\n", i }' > "$d/todas.cs"
+salida="$(bash "$LISTAR" "$TMP/repo-largo" 2>&1)"; codigo=$?
+comprobar "inventario largo con un identificador con espacio falla" 1 "$codigo"
+comprobar "  y lo dice" si "$(contiene 'identificador de migración vacío o con coma o espacio' "$salida")"
+# Las otras dos ramas de la guarda, con las clases cuadrando: coma y vacío.
+inventario coma '[Migration("20260102000000_B,C")]' 'public partial class N : Migration { }'
+bash "$LISTAR" "$TMP/repo-coma" > /dev/null 2>&1; comprobar "un identificador con coma falla" 1 "$?"
+inventario vacio-id '[Migration("")]' 'public partial class N : Migration { }'
+bash "$LISTAR" "$TMP/repo-vacio-id" > /dev/null 2>&1; comprobar "un identificador vacío falla" 1 "$?"
 
 echo "imagenes-retenidas.sh"
 escenario produccion "$C"
@@ -226,6 +248,22 @@ imagen "$(printf '%040d' 100001)"; imagen "$(printf '%040d' 120000)"
 IMAGENES_RETENIDAS=5 bash "$RETENIDAS" retener > /dev/null 2>&1
 comprobar "historial de 20000 entradas: retener termina con 0" 0 "$?"
 comprobar "  y retira la antigua conservando la última" "$(printf '%040d' 120000)" "$(ls "$ESTADO/imagenes" | paste -sd' ')"
+# Lista de conservadas larga (revisión Codex de #2106): 100000 contenedores con
+# etiquetas que no son SHA detrás de las retenidas. Con `printf | grep -qx` bajo
+# pipefail, grep salía al primer acierto, printf moría por SIGPIPE y la imagen
+# retenida se retiraba. Debe quitar lo mismo que el caso base, ni una más.
+escenario_retencion
+PS_RELLENO=100000 IMAGENES_RETENIDAS=5 bash "$RETENIDAS" retener > /dev/null 2>&1
+comprobar "lista de conservadas larga: retener termina con 0" 0 "$?"
+comprobar "  y quita solo lo que excede N por entorno" \
+  "$(printf '%s\n' "$(sha 11)" "$(sha 88)" | sort | paste -sd' ')" \
+  "$(sed -n 's/^image rm caemanager:\([^ ]*\) .*/\1/p' "$DOCKER_LOG" | sort | paste -sd' ')"
+# Sin la lista de contenedores no se sabe cuáles están en uso: no se retira nada.
+escenario_retencion
+err="$(DOCKER_PS_FALLA=1 IMAGENES_RETENIDAS=5 bash "$RETENIDAS" retener 2>&1 > /dev/null)"
+comprobar "docker ps falla: retener sale con 0" 0 "$?"
+comprobar "  no retira ninguna imagen" 0 "$(grep -c '^image rm' "$DOCKER_LOG")"
+comprobar "  lo avisa" si "$(contiene 'no se pudo listar los contenedores' "$err")"
 : > "$DOCKER_LOG"
 IMAGENES_RETENIDAS=1 bash "$RETENIDAS" retener > /dev/null 2>&1; comprobar "con N inválido retener falla" 1 "$?"
 comprobar "con N inválido no retira nada" 0 "$(grep -c '^image rm' "$DOCKER_LOG")"
