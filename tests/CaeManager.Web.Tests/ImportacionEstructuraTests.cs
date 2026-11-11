@@ -984,6 +984,43 @@ public class ImportacionEstructuraTests : BunitContext
             cut.Markup.Should().NotContain("12345678Z", "ni en pantalla");
     }
 
+    [Theory]
+    [InlineData("87.654.321-X", "X-1234567-L")]
+    [InlineData("87 654 321 X", "X 1234567 L")]
+    [InlineData("87-654-321-X", "Y.1.234.567/L")]
+    [InlineData("87654321 - X", "x-1.234.567-l")]
+    public async Task Descargas_ElDniConSeparadoresEscritoEnTextoLibreTambienSaleEnmascaradoEnLosCuatroCsv(string dni, string nie)
+    {
+        // Revisión Codex de la PR #2164, r5, MEDIO: «12.345.678-Z» o «12 345 678 Z» en Observaciones salía completo.
+        // Decisión de Chris del 2026-11-11: el DNI va SIEMPRE enmascarado en el CSV, sea cual sea su forma de escribirlo.
+        var plan = PlanConErrores() with
+        {
+            Omitidos = [.. PlanConErrores().Omitidos, new ItemImportacionDto("Trabajadores", 9, $"Observaciones: DNI {dni} y NIE {nie}", "Hoja no reconocida.")]
+        };
+        var servidor = new Servidor { Plan = plan };
+        servidor.ValoresPrevios.Add(new ValorPrevioDto("Trabajadores", 7, "Observaciones", $"Documento {dni}, pareja {nie}.", $"Documento {nie}"));
+        var modulo = JSInterop.SetupModule("./js/importacion-descarga.js");
+        modulo.SetupVoid("descargarTexto", _ => true).SetVoidResult();
+        var (cut, _) = await HastaValidacionAsync(servidor, dniCompleto: true);
+
+        await Pulsar(Boton(cut, "Descargar errores (CSV)"));
+        await Pulsar(Boton(cut, "Continuar sin las filas con error"));
+        await Pulsar(Boton(cut, "Filas omitidas (CSV)"));
+        await ElegirModo(cut, "reemplazar");
+        await Pulsar(Boton(cut, "Valores previos (CSV)"));
+        await Pulsar(Primario(cut));
+        await Pulsar(Boton(cut, "Sí, reemplazar e importar"));
+        await Pulsar(Boton(cut, "Informe completo (CSV)"));
+
+        var csvs = modulo.Invocations["descargarTexto"].Select(i => (string)i.Arguments[1]!).ToList();
+        csvs.Should().HaveCount(4, "errores, filas omitidas de la vista previa, valores previos e informe completo");
+        foreach (var csv in csvs)
+        {
+            csv.Should().Contain("****321X").And.Contain("****567", "el DNI y el NIE salen enmascarados");
+            csv.Should().NotContain(dni).And.NotContain(nie).And.NotContain("654").And.NotContain("234");
+        }
+    }
+
     [Fact]
     public async Task VistaPrevia_IdentificaLasFilasQueLaEscrituraOmitiraConSuMotivoYLasDescarga()
     {

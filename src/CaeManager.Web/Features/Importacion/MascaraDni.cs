@@ -36,7 +36,9 @@ public static partial class MascaraDni
 
     private static string Reemplazar(Match m)
     {
-        var valor = m.Value;
+        // Sin los separadores («12.345.678-Z» → «12345678Z») para que la máscara conserve siempre los tres últimos
+        // dígitos y la letra, y no «78-Z».
+        var valor = string.Concat(m.Value.Where(char.IsLetterOrDigit));
         return "****" + valor[^4..];
     }
 
@@ -55,6 +57,23 @@ public static partial class MascaraDni
     [GeneratedRegex(@"^(?=[A-Za-z0-9]*\d)[A-Za-z0-9]{5,}(?= (?:—|→))")]
     private static partial Regex PatronPasaporteInicio();
 
-    [GeneratedRegex(@"(?<![A-Za-z0-9])(?:[XYZxyz]?\d{7,8}[A-Za-z]|\d{8})(?![A-Za-z0-9])")]
+    // Separadores admitidos dentro de un DNI/NIE escrito a mano: punto, guion, barra, espacio y espacio duro, hasta tres
+    // seguidos («12.345.678 - Z»). No se exige que la letra de control sea válida: más vale enmascarar de más.
+    private const string Sep = @"[.\-/  ]{0,3}";
+
+    // Una fecha «12/11/2026» o «2026-11-12» tiene ocho cifras con separadores; seguida de una palabra de una letra
+    // («y», «a») parecería un DNI, así que las formas con separadores excluyen esas dos disposiciones de fecha.
+    private const string NoEsFecha = @"(?!\d{1,2}[./\-]\d{1,2}[./\-]\d{4}(?!\d))(?!\d{4}[./\-]\d{1,2}[./\-]\d{1,2}(?!\d))";
+
+    /// <summary>
+    /// DNI/NIE: sin separadores (forma original: NIE con prefijo, 7-8 cifras y letra, u ocho cifras sin letra) o con
+    /// separadores entre cualquiera de sus partes (8 cifras + letra, o X/Y/Z + 7 cifras + letra). Las ocho cifras con
+    /// separadores sin letra no se enmascaran: no se distinguen de un teléfono o un importe.
+    /// </summary>
+    [GeneratedRegex(
+        @"(?<![A-Za-z0-9])(?:"
+        + @"[XYZxyz]" + Sep + @"\d(?:" + Sep + @"\d){6}" + Sep + "[A-Za-z]"
+        + "|" + NoEsFecha + @"\d(?:" + Sep + @"\d){7}" + Sep + "[A-Za-z]"
+        + @"|[XYZxyz]?\d{7,8}[A-Za-z]|\d{8})(?![A-Za-z0-9])")]
     private static partial Regex PatronDni();
 }
