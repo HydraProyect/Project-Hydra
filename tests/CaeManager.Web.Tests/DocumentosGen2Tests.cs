@@ -468,7 +468,7 @@ public partial class DocumentosGen2Tests : BunitContext
     }
 
     /// <summary>
-    /// «Todos los documentos» (menú lateral, la barra de sección de /incidencias o un enlace guardado) apunta a «documentos» sin parámetro: desde otra pestaña, la misma
+    /// «Todos los documentos» (menú lateral, la pestaña «Estado» de /incidencias o un enlace guardado) apunta a «documentos» sin parámetro: desde otra pestaña, la misma
     /// instancia de la página solo ve desaparecer «?pestana=» y tiene que volver al listado.
     /// </summary>
     [Fact]
