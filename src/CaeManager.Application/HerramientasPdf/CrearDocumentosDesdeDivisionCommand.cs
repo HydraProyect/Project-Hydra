@@ -80,17 +80,17 @@ public class CrearDocumentosDesdeDivisionCommandHandler(
             return Fallo(PrepararDivisionPdfQueryHandler.ErrorNoDisponible, "Herramientas PDF no está disponible.");
 
         if (tenantActual.TenantId is not { } tenant || tenant != request.TenantEsperadoId)
-            return Fallo(ErrorTenantCruzado, "La Empresa gestionada ha cambiado. Vuelve a empezar para no crear documentos en otra.");
+            return Fallo(ErrorTenantCruzado, "La Empresa ha cambiado. Vuelve a empezar para no crear documentos en otra.");
 
         if (!await alcanceDatos.EmpresaParaGestionVisibleAsync(request.EmpresaGestionadaId, cancellationToken))
-            return Fallo(ObtenerCatalogoDivisionPdfQueryHandler.ErrorEmpresaNoGestionable, "La Empresa gestionada no está en tu cartera.");
+            return Fallo(ObtenerCatalogoDivisionPdfQueryHandler.ErrorEmpresaNoGestionable, "La Empresa no está en tu cartera.");
 
         var catalogo = await mediator.Send(new ObtenerCatalogoDivisionPdfQuery(request.EmpresaGestionadaId), cancellationToken);
         if (!catalogo.EsExitoso)
             return Result.Fallo<IReadOnlyList<ResultadoTramoCreado>>(catalogo.Error);
 
         if (request.Tramos.Any(t => !catalogo.Valor.Contiene(t.Clase, t.TitularId)))
-            return Fallo(ErrorTitularAjeno, "Un documento se asigna a alguien que no pertenece a esta Empresa gestionada ni a sus Subcontratas.");
+            return Fallo(ErrorTitularAjeno, "Un documento se asigna a alguien que no pertenece a esta Empresa ni a sus Subcontratas.");
 
         // Antes de crear nada: el alta lanza si no valida, y a mitad del lote dejaría creados los tramos anteriores.
         if (MotivoDeTramoInvalido(request, catalogo.Valor) is { } motivo)

@@ -16,7 +16,7 @@
     <value>Herramientas PDF</value>
   </data>
   <data name="PortadaDescripcion" xml:space="preserve">
-    <value>Lo que haces con PDF dentro de la gestión CAE de la Empresa gestionada, sin salir de TALVEG.</value>
+    <value>Lo que haces con PDF dentro de la gestión CAE de la Empresa, sin salir de TALVEG.</value>
   </data>
   <data name="PortadaDividirTitulo" xml:space="preserve">
     <value>Dividir un PDF con varios documentos</value>
@@ -49,28 +49,28 @@
     <value>El original no se conserva: desaparece al crear los documentos o al salir de esta pantalla.</value>
   </data>
   <data name="SinEmpresaAviso" xml:space="preserve">
-    <value>Elige primero una Empresa gestionada en el selector de la barra lateral. Los documentos se crean en ella.</value>
+    <value>Elige primero una Empresa en el selector de la barra lateral. Los documentos se crean en ella.</value>
   </data>
   <data name="SoloLectura" xml:space="preserve">
     <value>Tu acceso es de solo lectura: no puedes crear documentos.</value>
   </data>
   <data name="SinEmpresaPropia" xml:space="preserve">
-    <value>Aún no hay ninguna Empresa gestionada a la que asignar documentos.</value>
+    <value>Aún no hay ninguna Empresa a la que asignar documentos.</value>
   </data>
   <data name="ElegirEmpresaGestionada" xml:space="preserve">
-    <value>Elige una Empresa gestionada</value>
+    <value>Elige una Empresa</value>
   </data>
   <data name="EmpresaGestionada" xml:space="preserve">
-    <value>Empresa gestionada</value>
+    <value>Empresa</value>
   </data>
   <data name="ElegirEmpresa" xml:space="preserve">
-    <value>Elige una Empresa gestionada</value>
+    <value>Elige una Empresa</value>
   </data>
   <data name="EmpresaDelSelector" xml:space="preserve">
-    <value>Empresa gestionada: {0} · la del selector de la barra lateral</value>
+    <value>Empresa: {0} · la del selector de la barra lateral</value>
   </data>
   <data name="EmpresaUnica" xml:space="preserve">
-    <value>Empresa gestionada: {0}</value>
+    <value>Empresa: {0}</value>
   </data>
   <data name="ZonaTitulo" xml:space="preserve">
     <value>Arrastra aquí el PDF o pulsa para elegirlo</value>
@@ -79,7 +79,7 @@
     <value>Escaneado o fusionado, hasta {0} MB.</value>
   </data>
   <data name="ZonaBloqueada" xml:space="preserve">
-    <value>Elige una Empresa gestionada para poder subir el PDF</value>
+    <value>Elige una Empresa para poder subir el PDF</value>
   </data>
   <data name="ErrorDemasiadoGrande" xml:space="preserve">
     <value>El PDF supera los {0} MB. Divídelo antes o sube otra copia.</value>
@@ -97,7 +97,7 @@
     <value>Hay muchas conversiones en curso, inténtalo en unos segundos.</value>
   </data>
   <data name="ErrorTenantCambiado" xml:space="preserve">
-    <value>La Empresa gestionada del selector ha cambiado desde que subiste el PDF. No se ha creado nada: vuelve a subirlo.</value>
+    <value>La Empresa del selector ha cambiado desde que subiste el PDF. No se ha creado nada: vuelve a subirlo.</value>
   </data>
   <data name="PasosEtiqueta" xml:space="preserve">
     <value>Pasos de la división</value>
@@ -208,7 +208,7 @@
     <value>Es de</value>
   </data>
   <data name="ClaseEmpresaGestionada" xml:space="preserve">
-    <value>Empresa gestionada</value>
+    <value>Empresa</value>
   </data>
   <data name="ClaseSubcontrata" xml:space="preserve">
     <value>Subcontrata</value>
@@ -328,7 +328,7 @@
     <value>{0} documentos creados</value>
   </data>
   <data name="ResultadoDe" xml:space="preserve">
-    <value>De {0} para la Empresa gestionada {1} —</value>
+    <value>De {0} para la Empresa {1} —</value>
   </data>
   <data name="ResultadoHora" xml:space="preserve">
     <value>creados por ti hoy a las {0}.</value>
@@ -397,10 +397,10 @@
     <value>la del selector de la barra lateral</value>
   </data>
   <data name="EmpresaGestionadaDe" xml:space="preserve">
-    <value>Empresa gestionada:</value>
+    <value>Empresa:</value>
   </data>
   <data name="SinEmpresaAvisoNegrita" xml:space="preserve">
-    <value>Elige primero una Empresa gestionada</value>
+    <value>Elige primero una Empresa</value>
   </data>
   <data name="DocumentosUno" xml:space="preserve">
     <value>1 documento</value>
@@ -442,7 +442,7 @@
     <value>en el selector de la barra lateral. De ella salen los Documentos que puedes unir.</value>
   </data>
   <data name="UnirSinEmpresaPropia" xml:space="preserve">
-    <value>Aún no hay ninguna Empresa gestionada de la que unir documentos.</value>
+    <value>Aún no hay ninguna Empresa de la que unir documentos.</value>
   </data>
   <data name="UnirFirmasTitulo" xml:space="preserve">
     <value>Perderán la firma electrónica.</value>
@@ -475,13 +475,13 @@
     <value>Elegir de Documentos</value>
   </data>
   <data name="UnirZonaBloqueada" xml:space="preserve">
-    <value>Elige una Empresa gestionada para poder añadir PDF</value>
+    <value>Elige una Empresa para poder añadir PDF</value>
   </data>
   <data name="UnirDocumentosTitulo" xml:space="preserve">
-    <value>Documentos de la Empresa gestionada</value>
+    <value>Documentos de la Empresa</value>
   </data>
   <data name="UnirDocumentosVacio" xml:space="preserve">
-    <value>Esta Empresa gestionada no tiene documentos con archivo que puedas unir.</value>
+    <value>Esta Empresa no tiene documentos con archivo que puedas unir.</value>
   </data>
   <data name="UnirEmitido" xml:space="preserve">
     <value>emitido el {0}</value>
@@ -577,10 +577,10 @@
     <value>No hemos podido leer {0}. Prueba con otra copia.</value>
   </data>
   <data name="UnirErrorTenantCambiado" xml:space="preserve">
-    <value>La Empresa gestionada del selector ha cambiado. No se ha unido nada: vuelve a empezar.</value>
+    <value>La Empresa del selector ha cambiado. No se ha unido nada: vuelve a empezar.</value>
   </data>
   <data name="UnirErrorEmpresa" xml:space="preserve">
-    <value>La Empresa gestionada no existe o queda fuera de tu cartera.</value>
+    <value>La Empresa no existe o queda fuera de tu cartera.</value>
   </data>
   <data name="UnirErrorNumeroFicheros" xml:space="preserve">
     <value>Hay que unir entre {0} y {1} PDF.</value>

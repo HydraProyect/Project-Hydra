@@ -194,9 +194,9 @@ public sealed class DividirPdfPantallaTests : BunitContext
 
         var cut = Renderizar(tenantId: TenantOrigenId);
 
-        cut.WaitForAssertion(() => cut.Find(".aviso-dividir").TextContent.Should().Contain("Elige primero una Empresa gestionada en el selector de la barra lateral"));
+        cut.WaitForAssertion(() => cut.Find(".aviso-dividir").TextContent.Should().Contain("Elige primero una Empresa en el selector de la barra lateral"));
         cut.FindAll(".zona-soltar-archivo").Should().BeEmpty();
-        cut.Find(".zona-bloqueada").TextContent.Should().Contain("Elige una Empresa gestionada para poder subir el PDF");
+        cut.Find(".zona-bloqueada").TextContent.Should().Contain("Elige una Empresa para poder subir el PDF");
     }
 
     [Fact]
