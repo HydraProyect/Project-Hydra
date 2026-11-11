@@ -651,7 +651,7 @@ public class ComunicacionesGen2Tests : BunitContext
         cut.WaitForAssertion(() => cut.FindAll(".notas-equipo").Should().ContainSingle());
         var enlace = cut.Find(".notas-equipo a.notas-equipo-nota");
         enlace.TextContent.Should().Contain("Pedir el TC2 antes del viernes.");
-        enlace.GetAttribute("href").Should().EndWith($"/comunicaciones#nota-interna-{nota.Id}",
+        enlace.GetAttribute("href").Should().StartWith("http").And.Contain("/comunicaciones").And.EndWith($"#nota-interna-{nota.Id}",
             "con <base href=\"/\"> un enlace de solo fragmento saldría de la pantalla: se ancla a la URL actual");
         cut.FindAll($"#nota-interna-{nota.Id}").Should().ContainSingle("el enlace apunta a una fila real del hilo");
     }
