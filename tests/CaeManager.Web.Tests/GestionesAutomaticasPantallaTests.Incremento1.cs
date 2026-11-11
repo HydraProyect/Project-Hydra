@@ -240,8 +240,8 @@ public partial class GestionesAutomaticasPantallaTests
         cut.Find("[data-accion='primario']").Click();
 
         cut.WaitForAssertion(() => m.Enviados.OfType<MarcarAcreditacionNoRequeridaCommand>().Should().ContainSingle()
-            .Which.Should().Be(new MarcarAcreditacionNoRequeridaCommand(pasos[0].AcreditacionId, pasos[0].Estado),
-                "lleva el estado que se tenía delante, para no sobrescribir a ciegas"));
+            .Which.Should().Be(new MarcarAcreditacionNoRequeridaCommand(pasos[0].AcreditacionId, pasos[0].VersionAcreditacion),
+                "lleva la versión que se tenía delante, para no sobrescribir a ciegas"));
         Toasts.Mensajes.Should().ContainSingle().Which.Tono.Should().Be(TonoToast.Exito);
         cut.Find("[data-paso-abierto]").GetAttribute("data-paso-abierto").Should().Be(pasos[1].AcreditacionId.ToString());
     }
@@ -285,7 +285,7 @@ public partial class GestionesAutomaticasPantallaTests
     }
 
     [Fact]
-    public void No_lo_pide_envia_el_estado_del_paso_abierto_aunque_no_sea_Pendiente_de_subir()
+    public void No_lo_pide_envia_la_version_del_paso_abierto_aunque_no_sea_Pendiente_de_subir()
     {
         var pasos = SeisPasosNuevos();
         pasos[0] = pasos[0] with { Estado = EstadoAcreditacion.Rechazada };
@@ -298,16 +298,21 @@ public partial class GestionesAutomaticasPantallaTests
         cut.Find("[data-accion='guardar']").Click();
 
         cut.WaitForAssertion(() => m.Enviados.OfType<MarcarAcreditacionNoRequeridaCommand>().Should().ContainSingle()
-            .Which.EstadoVisto.Should().Be(EstadoAcreditacion.Rechazada));
+            .Which.VersionEsperada.Should().Be(pasos[0].VersionAcreditacion).And.NotBe(Guid.Empty));
     }
 
-    [Fact]
-    public void Si_el_paso_cambio_desde_que_se_abrio_se_relee_y_hay_que_confirmar_otra_vez_sin_Reintentar_a_ciegas()
+    [Theory]
+    [InlineData("Acreditacion.CambiadaDesdeQueSeAbrio")]
+    // El choque que llega en el guardado (ConcurrenciaBehavior): otra escritura entre la lectura del comando y su SaveChanges.
+    [InlineData("Concurrencia.Conflicto")]
+    public void Si_el_paso_cambio_desde_que_se_abrio_se_relee_y_hay_que_confirmar_otra_vez_sin_Reintentar_a_ciegas(string codigo)
     {
         var pasos = SeisPasosNuevos();
         var m = Montar();
-        m.FalloAlMarcar = MarcarAcreditacionNoRequeridaCommandHandler.CambiadaDesdeQueSeAbrio.Mensaje;
-        m.CodigoFallo = MarcarAcreditacionNoRequeridaCommandHandler.CambiadaDesdeQueSeAbrio.Codigo;
+        m.FalloAlMarcar = codigo == MarcarAcreditacionNoRequeridaCommandHandler.CambiadaDesdeQueSeAbrio.Codigo
+            ? MarcarAcreditacionNoRequeridaCommandHandler.CambiadaDesdeQueSeAbrio.Mensaje
+            : "Otra persona modificó este registro mientras lo editabas. Vuelve a abrirlo para ver los cambios y aplica los tuyos de nuevo.";
+        m.CodigoFallo = codigo;
         var cut = Detallar(m, Detalle(pasos));
         var ahora = pasos.ToList();
         ahora[0] = ahora[0] with { Estado = EstadoAcreditacion.Rechazada };

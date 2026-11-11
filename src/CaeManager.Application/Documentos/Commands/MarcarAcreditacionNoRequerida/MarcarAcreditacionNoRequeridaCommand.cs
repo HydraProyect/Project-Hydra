@@ -32,19 +32,23 @@ namespace CaeManager.Application.Documentos.Commands.MarcarAcreditacionNoRequeri
 /// </para>
 ///
 /// <para>
-/// <paramref name="EstadoVisto"/> es el estado del paso que tenía delante quien lo marca. Si la acreditación ha cambiado
-/// desde entonces (otro Gestor CAE o la extensión la ha marcado rechazada, por ejemplo), no se sobrescribe a ciegas: falla
-/// con <see cref="CambiadaDesdeQueSeAbrio"/> y no escribe. Se lee de nuevo de la base para compararlo.
+/// <paramref name="VersionEsperada"/> es la versión de la acreditación que tenía delante quien lo marca
+/// (<see cref="EntidadBase.Version"/>, la que da la pantalla de la Gestión). Si la acreditación ha cambiado desde entonces,
+/// no se sobrescribe a ciegas: falla con <see cref="CambiadaDesdeQueSeAbrio"/> y no escribe. Es la versión y no el estado
+/// porque hay cambios que no mueven el estado y que «no lo pide» borraría: una vigencia confirmada en la plataforma, o un
+/// estado que cambia y vuelve al que se vio. Se lee de nuevo de la base para compararla; un choque entre esa lectura y el
+/// guardado lo para el token de EF y llega como <see cref="ConcurrenciaOptimista.CodigoConflicto"/>.
 /// </para>
 /// </summary>
-public record MarcarAcreditacionNoRequeridaCommand(Guid AcreditacionId, EstadoAcreditacion EstadoVisto) : ICommand;
+public record MarcarAcreditacionNoRequeridaCommand(Guid AcreditacionId, Guid VersionEsperada) : ICommand;
 
 public class MarcarAcreditacionNoRequeridaCommandValidator : AbstractValidator<MarcarAcreditacionNoRequeridaCommand>
 {
     public MarcarAcreditacionNoRequeridaCommandValidator()
     {
         RuleFor(c => c.AcreditacionId).NotEmpty();
-        RuleFor(c => c.EstadoVisto).IsInEnum();
+        // Guid.Empty en ConcurrenciaOptimista significa «sin comprobación»: aquí no vale.
+        RuleFor(c => c.VersionEsperada).NotEmpty();
     }
 }
 
@@ -65,11 +69,14 @@ public class MarcarAcreditacionNoRequeridaCommandHandler(
         if (acreditacion is null)
             return Result.Fallo(AcreditacionSubible.NoEncontrada);
 
-        // Ya está como se pide: nada que sobrescribir, sea cual sea el estado que se vio.
-        if (acreditacion.Estado == EstadoAcreditacion.NoRequerida)
+        // Ya está como se pide: nada que sobrescribir, sea cual sea la versión que se vio. Una No requerida anterior a la
+        // invariante que conserve una vigencia no cuenta como «ya está»: marcarla otra vez se la quita.
+        if (acreditacion.Estado == EstadoAcreditacion.NoRequerida && acreditacion.Vigencia.EstaSinConfirmar)
             return Result.Exito();
 
-        if (acreditacion.Estado != request.EstadoVisto)
+        // Comparación directa y no ConcurrenciaOptimista.Verificar: ahí Guid.Empty es «sin comprobación», y aquí una
+        // versión vacía que se colara sin validador tiene que fallar, no pasar.
+        if (acreditacion.Version != request.VersionEsperada)
             return Result.Fallo(CambiadaDesdeQueSeAbrio);
 
         acreditacion.MarcarNoRequerida();

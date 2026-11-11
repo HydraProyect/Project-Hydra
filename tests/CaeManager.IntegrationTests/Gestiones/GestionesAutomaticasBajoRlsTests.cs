@@ -1,5 +1,9 @@
 using CaeManager.Application.Common;
+using CaeManager.Application.Documentos.Commands.ConfirmarVigenciaAcreditacion;
+using CaeManager.Application.Documentos.Commands.MarcarAcreditacionNoRequerida;
+using CaeManager.Application.Documentos.Commands.RestaurarAnotacionAcreditacion;
 using CaeManager.Application.Gestiones.Queries.GestionesAutomaticas;
+using CaeManager.Domain.Asignaciones;
 using CaeManager.Application.Plataforma;
 using CaeManager.Domain.Centros;
 using CaeManager.Domain.Common;
@@ -284,6 +288,114 @@ public class GestionesAutomaticasBajoRlsTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task El_detalle_de_una_gestion_propia_bajo_RLS_trae_Centro_Asignacion_CIF_y_datos_del_Trabajador()
+    {
+        // Control positivo de la consulta del detalle (hallazgo de Codex r1): las lecturas nuevas del incremento 1 ejecutadas
+        // como cae_app_runtime, no con contextos falsos.
+        var inicio = DiaDeNegocio.Hoy().AddDays(-20);
+        await CompletarFichaYAsignacionAsync(_tenantSesion, _propio, inicio, "Autorización de residencia y trabajo");
+        await CompletarFichaYAsignacionAsync(_tenantAjeno, _ajeno, inicio.AddDays(-5), "Permiso del Tenant ajeno");
+        var propia = await NacerComoPropietarioAsync(_tenantSesion, _propio.Documento);
+        await NacerComoPropietarioAsync(_tenantAjeno, _ajeno.Documento);
+
+        await using var runtime = CrearRuntime();
+        var sinNota = await DetalleAsync(runtime, propia, new SinNotaInterna());
+        var conNota = await DetalleAsync(runtime, propia, new ConNotaInterna());
+
+        sinNota.Should().NotBeNull();
+        sinNota!.Documento.Id.Should().Be(_propio.Documento);
+        sinNota.EmpresaGestionadaCif.Should().Be("B87654323");
+        var paso = sinNota.Pasos.Should().ContainSingle().Subject;
+        paso.AcreditacionId.Should().Be(_propio.Acreditacion);
+        paso.CentroId.Should().Be(_propio.Centro);
+        paso.CentroNombre.Should().Be("Planta Norte");
+        paso.InicioAsignacion.Should().Be(inicio, "la Asignación del Trabajador titular a ese Centro, no la del Tenant ajeno");
+        paso.VersionAcreditacion.Should().NotBe(Guid.Empty, "la pantalla la devuelve al marcar «no lo pide»");
+
+        var trabajador = sinNota.Trabajador!;
+        trabajador.Id.Should().Be(_propio.Trabajador);
+        trabajador.NombreCompleto.Should().Be("Laura Gil");
+        trabajador.Dni.Should().Be("77189989B");
+        trabajador.Nacionalidad.Should().Be("Española");
+        trabajador.PermisoTrabajoVisible.Should().BeFalse();
+        trabajador.TipoPermisoTrabajo.Should().BeNull("sin la política de la nota interna no sale del servidor");
+
+        conNota!.Trabajador!.PermisoTrabajoVisible.Should().BeTrue("control positivo de la política");
+        conNota.Trabajador.TipoPermisoTrabajo.Should().Be("Autorización de residencia y trabajo");
+    }
+
+    [Fact]
+    public async Task Bajo_RLS_el_detalle_y_los_tres_comandos_de_la_ventana_no_alcanzan_una_acreditacion_de_otro_Tenant()
+    {
+        await CompletarFichaYAsignacionAsync(_tenantAjeno, _ajeno, DiaDeNegocio.Hoy(), "Permiso del Tenant ajeno");
+        var ajena = await NacerComoPropietarioAsync(_tenantAjeno, _ajeno.Documento);
+        var propia = await NacerComoPropietarioAsync(_tenantSesion, _propio.Documento);
+        Guid versionAjena;
+        using (AmbitoTenantExplicito.Establecer(_tenantAjeno))
+            versionAjena = await _propietario.AcreditacionesDocumentoPlataforma.AsNoTracking()
+                .Where(a => a.Id == _ajeno.Acreditacion).Select(a => a.Version).SingleAsync();
+
+        await using (var runtime = CrearRuntime())
+        {
+            (await DetalleAsync(runtime, ajena, new ConNotaInterna())).Should().BeNull();
+
+            var noPide = await NoPide(runtime).Handle(
+                new MarcarAcreditacionNoRequeridaCommand(_ajeno.Acreditacion, versionAjena), CancellationToken.None);
+            var vigencia = await new ConfirmarVigenciaAcreditacionCommandHandler(
+                    new AcreditacionDocumentoPlataformaRepository(runtime), new DocumentoRepository(runtime), Alcance(runtime), runtime, runtime, runtime)
+                .Handle(new ConfirmarVigenciaAcreditacionCommand(_ajeno.Acreditacion, VigenciaEnPlataforma.VenceEl(new DateOnly(2020, 1, 1))),
+                    CancellationToken.None);
+            var restaurar = await new RestaurarAnotacionAcreditacionCommandHandler(
+                    new AcreditacionDocumentoPlataformaRepository(runtime), new DocumentoRepository(runtime), Alcance(runtime), runtime, runtime, runtime)
+                .Handle(new RestaurarAnotacionAcreditacionCommand(_ajeno.Acreditacion, EstadoAcreditacion.NoRequerida,
+                    VigenciaEnPlataforma.SinConfirmar, versionAjena), CancellationToken.None);
+
+            noPide.Error.Codigo.Should().Be("Acreditacion.NoEncontrada");
+            vigencia.Error.Codigo.Should().Be("Acreditacion.NoEncontrada");
+            restaurar.Error.Codigo.Should().Be("Acreditacion.NoEncontrada");
+        }
+
+        using (AmbitoTenantExplicito.Establecer(_tenantAjeno))
+        {
+            var fila = await _propietario.AcreditacionesDocumentoPlataforma.AsNoTracking().SingleAsync(a => a.Id == _ajeno.Acreditacion);
+            fila.Estado.Should().Be(EstadoAcreditacion.PendienteDeSubir, "la acreditación del Tenant ajeno no cambia");
+            fila.Vigencia.EstaSinConfirmar.Should().BeTrue();
+            fila.Version.Should().Be(versionAjena);
+        }
+
+        // Control positivo: el mismo comando, con la versión que da el detalle, sí escribe en la acreditación propia.
+        await using (var runtime = CrearRuntime())
+        {
+            var detalle = await DetalleAsync(runtime, propia, new SinNotaInterna());
+            var paso = detalle!.Pasos.Should().ContainSingle().Subject;
+            (await NoPide(runtime).Handle(
+                    new MarcarAcreditacionNoRequeridaCommand(paso.AcreditacionId, paso.VersionAcreditacion), CancellationToken.None))
+                .EsExitoso.Should().BeTrue();
+        }
+
+        using (AmbitoTenantExplicito.Establecer(_tenantSesion))
+            (await _propietario.AcreditacionesDocumentoPlataforma.AsNoTracking().SingleAsync(a => a.Id == _propio.Acreditacion))
+                .Estado.Should().Be(EstadoAcreditacion.NoRequerida);
+    }
+
+    private MarcarAcreditacionNoRequeridaCommandHandler NoPide(CaeManagerDbContext runtime) => new(
+        new AcreditacionDocumentoPlataformaRepository(runtime), new DocumentoRepository(runtime), Alcance(runtime), runtime, runtime, runtime);
+
+    private Task<GestionAutomaticaDetalleDto?> DetalleAsync(CaeManagerDbContext runtime, Guid gestionId, IPoliticaNotaInterna politica) =>
+        new ObtenerGestionAutomaticaQueryHandler(runtime, runtime, runtime, runtime, runtime, runtime, runtime, runtime, Alcance(runtime), politica)
+            .Handle(new ObtenerGestionAutomaticaQuery(gestionId), CancellationToken.None);
+
+    /// <summary>La ficha del Trabajador sembrado (nacionalidad y permiso de trabajo) y su Asignación al Centro del acceso.</summary>
+    private async Task CompletarFichaYAsignacionAsync(Guid tenantId, Sembrado sembrado, DateOnly inicio, string permiso)
+    {
+        using var ambito = AmbitoTenantExplicito.Establecer(tenantId);
+        var trabajador = await _propietario.Trabajadores.SingleAsync(t => t.Id == sembrado.Trabajador);
+        trabajador.ActualizarFicha(null, null, null, "Española", null, null, null, null, permiso, null, null);
+        _propietario.Asignaciones.Add(new Asignacion(sembrado.Trabajador, sembrado.Centro, inicio));
+        await _propietario.SaveChangesAsync();
+    }
+
+    [Fact]
     public async Task Una_fila_con_el_Tenant_de_otro_no_entra_por_la_politica()
     {
         await using var runtime = CrearRuntime();
@@ -377,7 +489,7 @@ public class GestionesAutomaticasBajoRlsTests : IAsyncLifetime
         return gestion.Id;
     }
 
-    private sealed record Sembrado(Guid Documento, Guid Acreditacion, Guid Canal, Guid Trabajador, Guid Tipo);
+    private sealed record Sembrado(Guid Documento, Guid Acreditacion, Guid Canal, Guid Trabajador, Guid Tipo, Guid Centro);
 
     private async Task<Sembrado> SembrarAsync(Guid tenantId, Guid proveedorId, string razonSocial)
     {
@@ -405,7 +517,7 @@ public class GestionesAutomaticasBajoRlsTests : IAsyncLifetime
         var acreditacion = new AcreditacionDocumentoPlataforma(documento.Id, canal.Id);
         _propietario.AcreditacionesDocumentoPlataforma.Add(acreditacion);
         await _propietario.SaveChangesAsync();
-        return new Sembrado(documento.Id, acreditacion.Id, canal.Id, trabajador.Id, tipo.Id);
+        return new Sembrado(documento.Id, acreditacion.Id, canal.Id, trabajador.Id, tipo.Id, centro.Id);
     }
 
     private CurrentUserServiceFalso Usuario() => new(_usuarioId, Roles.Administrador, tenantOrigenId: _tenantSesion);
@@ -459,6 +571,14 @@ public class GestionesAutomaticasBajoRlsTests : IAsyncLifetime
         public Task<bool> PuedeLeerAsync(CancellationToken cancellationToken = default) => Task.FromResult(false);
 
         public Task<bool> TieneAccesoTotalAlTenantAsync(CancellationToken cancellationToken = default) => Task.FromResult(false);
+    }
+
+    /// <summary>Quien consulta sí lee la nota interna: el tipo de permiso de trabajo sale.</summary>
+    private sealed class ConNotaInterna : IPoliticaNotaInterna
+    {
+        public Task<bool> PuedeLeerAsync(CancellationToken cancellationToken = default) => Task.FromResult(true);
+
+        public Task<bool> TieneAccesoTotalAlTenantAsync(CancellationToken cancellationToken = default) => Task.FromResult(true);
     }
 
     private sealed class SesionPrivilegiadaAusente : ISesionPrivilegiadaActual

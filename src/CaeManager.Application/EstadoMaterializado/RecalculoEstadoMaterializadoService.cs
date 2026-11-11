@@ -675,8 +675,14 @@ public sealed class RecalculoEstadoMaterializadoService(
     }
 
     /// <summary>De más a menos grave: rechazada, vencida en la plataforma, sin subir, subida sin validar, aceptada, no requerida.</summary>
-    private static int GravedadAcreditacion(FilaEstadoEnPlataforma fila, DateOnly hoy) =>
-        fila.Estado == EstadoAcreditacion.Rechazada ? 0
+    /// <remarks>
+    /// No requerida va primero: una fila No requerida anterior a la invariante «sin vigencia» puede conservar una fecha
+    /// pasada, y por ella saldría como la más grave y ocultaría a un hermano pendiente (misma regla que
+    /// <c>CalculoEstadoCentroService</c>: lo que la plataforma no pide no vence).
+    /// </remarks>
+    internal static int GravedadAcreditacion(FilaEstadoEnPlataforma fila, DateOnly hoy) =>
+        fila.Estado == EstadoAcreditacion.NoRequerida ? 5
+        : fila.Estado == EstadoAcreditacion.Rechazada ? 0
         : fila.EstadoVigencia == EstadoVigenciaEnPlataforma.VenceEnFecha && fila.FechaVencimientoEnPlataforma < hoy ? 1
         : fila.Estado switch
         {

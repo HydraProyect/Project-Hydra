@@ -145,9 +145,12 @@ public class AcreditacionDocumentoPlataforma : EntidadBase, IAccionAuditoriaProp
     /// atrás; si no, solo se corrige la vigencia y el estado previo debe ser el actual.</item>
     /// <item>Rechazada exige un rechazo en el historial y vigencia Sin confirmar, el valor que
     /// fija <see cref="Rechazar"/>.</item>
-    /// <item>No requerida exige vigencia Sin confirmar, el valor que fija <see cref="MarcarNoRequerida"/>.</item>
     /// <item>La vigencia debe ser interpretable (<see cref="VigenciaEnPlataforma.Rehidratar"/>).</item>
     /// </list>
+    /// No requerida no se rechaza por traer una vigencia: antes de que existiera la invariante (No requerida implica
+    /// vigencia Sin confirmar) se podía anotar una sobre una No requerida, y esas filas siguen en la base. Deshacer
+    /// devuelve el estado y deja la vigencia Sin confirmar (<see cref="VigenciaAlVolverA"/>), en vez de restaurar una
+    /// fecha que pondría el Centro en rojo por un documento que nadie pide o de dejar sin «Deshacer» a esas filas.
     /// </summary>
     public bool PuedeDeshacerAnotacion(EstadoAcreditacion estadoPrevio, VigenciaEnPlataforma vigenciaPrevia)
     {
@@ -155,9 +158,6 @@ public class AcreditacionDocumentoPlataforma : EntidadBase, IAccionAuditoriaProp
         if (estadoPrevio != Estado && Estado != EstadoAcreditacion.Aceptada) return false;
         if (estadoPrevio == EstadoAcreditacion.Rechazada
             && (_historialRechazos.Count == 0 || !vigenciaPrevia.EstaSinConfirmar))
-            return false;
-        // No requerida implica vigencia Sin confirmar (ConfirmarVigencia): tampoco se restaura otra.
-        if (estadoPrevio == EstadoAcreditacion.NoRequerida && !vigenciaPrevia.EstaSinConfirmar)
             return false;
 
         try
@@ -187,9 +187,18 @@ public class AcreditacionDocumentoPlataforma : EntidadBase, IAccionAuditoriaProp
 
         Estado = estadoPrevio;
         UltimoCambioEstadoAManoId = null;
-        AnotarVigencia(vigenciaPrevia);
+        AnotarVigencia(VigenciaAlVolverA(estadoPrevio, vigenciaPrevia));
         _accionAuditoria = RegistroAuditoria.AccionRestaurado;
     }
+
+    /// <summary>
+    /// La vigencia con la que se vuelve a un estado anterior en los dos «Deshacer» (<see cref="DeshacerAnotacion"/> y
+    /// <see cref="DeshacerCambioEstado"/>): la guardada, salvo al volver a No requerida, que no tiene vigencia que anotar
+    /// (invariante de <see cref="ConfirmarVigencia"/>). La guardada puede traer una fecha de una fila anterior a esa
+    /// invariante; restaurarla pondría el Centro en rojo por un documento que la plataforma no pide.
+    /// </summary>
+    private static VigenciaEnPlataforma VigenciaAlVolverA(EstadoAcreditacion estado, VigenciaEnPlataforma guardada) =>
+        estado == EstadoAcreditacion.NoRequerida ? VigenciaEnPlataforma.SinConfirmar : guardada;
 
     // Solo campo: sin propiedad, EF no lo mapea y nunca llega a la base de datos.
     private string? _accionAuditoria;
@@ -349,7 +358,7 @@ public class AcreditacionDocumentoPlataforma : EntidadBase, IAccionAuditoriaProp
         var cambio = _cambiosEstado.Single(c => c.Id == cambioId);
         Estado = cambio.EstadoAnterior;
         UltimoCambioEstadoAManoId = null;
-        AnotarVigencia(cambio.VigenciaAnterior);
+        AnotarVigencia(VigenciaAlVolverA(cambio.EstadoAnterior, cambio.VigenciaAnterior));
         cambio.MarcarDeshecho(momentoUtc);
         _accionAuditoria = RegistroAuditoria.AccionRestaurado;
     }

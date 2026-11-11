@@ -39,13 +39,16 @@ public sealed record DocumentoDeGestionAutomaticaDto(
 /// <summary>
 /// Un paso visible. <paramref name="CentroCodigo"/>, <paramref name="CentroDireccion"/> e <paramref name="InicioAsignacion"/>
 /// son la pestaña Centro de «Datos a mano»: el Centro ya lo da a ver el paso (D-7), y el inicio es el de la Asignación
-/// del Trabajador titular a ese Centro (null en un Documento de Empresa o sin Asignación).
+/// del Trabajador titular a ese Centro (null en un Documento de Empresa o sin Asignación). <paramref name="VersionAcreditacion"/>
+/// es la versión de la acreditación que se leyó: «Esta plataforma no lo pide» la devuelve para no pisar un cambio posterior
+/// (<c>MarcarAcreditacionNoRequeridaCommand</c>). Vacía, el comando lo rechaza.
 /// </summary>
 public sealed record PasoGestionAutomaticaDto(
     Guid AcreditacionId, EstadoAcreditacion Estado, bool Hecho, DateOnly? FechaVencimientoEnPlataforma,
     Guid CanalId, string Plataforma, string? UrlAcceso, bool TieneUsuario, string? Notas,
     Guid CentroId, string CentroNombre, string? ClienteNombre,
-    string? CentroCodigo = null, string? CentroDireccion = null, DateOnly? InicioAsignacion = null);
+    string? CentroCodigo = null, string? CentroDireccion = null, DateOnly? InicioAsignacion = null,
+    Guid VersionAcreditacion = default);
 
 /// <summary>
 /// Pestaña Trabajador de «Datos a mano» (ventana de la Gestión, § 1.1): lo que los portales piden del Trabajador titular,
@@ -225,7 +228,8 @@ public class ObtenerGestionAutomaticaQueryHandler(
                     p.CanalId, p.Plataforma, canal?.UrlAcceso, canal?.TieneUsuario ?? false, canal?.Notas,
                     p.CentroId, p.CentroNombre, clientes.GetValueOrDefault(p.ClienteEmpresarialId),
                     centro?.CodigoCentro, centro?.Direccion,
-                    inicioPorCentro.TryGetValue(p.CentroId, out var inicio) ? inicio : null);
+                    inicioPorCentro.TryGetValue(p.CentroId, out var inicio) ? inicio : null,
+                    p.VersionAcreditacion);
             })
             .ToList();
 

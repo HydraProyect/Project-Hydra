@@ -43,7 +43,8 @@ public partial class GestionesAutomaticasPantallaTests : BunitContext
         bool usuario = true, string? notas = null, DateOnly? hasta = null) =>
         new(Guid.Parse($"aaaaaaaa-0000-0000-0000-{n:D12}"), estado, GestionAutomatica.PasoHecho(estado), hasta,
             Guid.Parse($"bbbbbbbb-0000-0000-0000-{n:D12}"), plataforma, url, usuario, notas,
-            Guid.Parse($"cccccccc-0000-0000-0000-{n:D12}"), centro, cliente);
+            Guid.Parse($"cccccccc-0000-0000-0000-{n:D12}"), centro, cliente,
+            VersionAcreditacion: Guid.Parse($"dddddddd-0000-0000-0000-{n:D12}"));
 
     private static List<PasoGestionAutomaticaDto> SeisPasosNuevos() =>
     [

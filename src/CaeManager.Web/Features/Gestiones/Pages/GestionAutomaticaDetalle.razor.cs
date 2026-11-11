@@ -424,6 +424,15 @@ public partial class GestionAutomaticaDetalle : CaeManager.Web.Components.Pagina
 
     private Task GuardarSoloAsync() => GuardarAsync(luegoSiguiente: false);
 
+    /// <summary>
+    /// El paso cambió desde que se abrió la Gestión: lo dice el comando al comparar la versión vista
+    /// (<see cref="MarcarAcreditacionNoRequeridaCommandHandler.CambiadaDesdeQueSeAbrio"/>) o el guardado al chocar con el
+    /// token de concurrencia (<see cref="ConcurrenciaOptimista.CodigoConflicto"/>, de <c>ConcurrenciaBehavior</c>).
+    /// </summary>
+    private static bool EsCambioDesdeQueSeAbrio(Error error) =>
+        error.Codigo == MarcarAcreditacionNoRequeridaCommandHandler.CambiadaDesdeQueSeAbrio.Codigo
+        || error.Codigo == ConcurrenciaOptimista.CodigoConflicto;
+
     private async Task GuardarAsync(bool luegoSiguiente)
     {
         var paso = PasoAbierto;
@@ -471,8 +480,8 @@ public partial class GestionAutomaticaDetalle : CaeManager.Web.Components.Pagina
                     resultado = await Mediator.Send(new MarcarAcreditacionRechazadaCommand(paso.AcreditacionId, causa, _motivo.Trim()));
                     break;
                 case OpcionNoPide:
-                    // El estado que se tenía delante: si cambió entretanto, el comando no lo sobrescribe a ciegas.
-                    resultado = await Mediator.Send(new MarcarAcreditacionNoRequeridaCommand(paso.AcreditacionId, paso.Estado));
+                    // La versión que se tenía delante: si cambió entretanto (también la vigencia), el comando no lo sobrescribe a ciegas.
+                    resultado = await Mediator.Send(new MarcarAcreditacionNoRequeridaCommand(paso.AcreditacionId, paso.VersionAcreditacion));
                     break;
                 default:
                     return;
@@ -482,9 +491,12 @@ public partial class GestionAutomaticaDetalle : CaeManager.Web.Components.Pagina
             {
                 _errorGuardado = resultado.Error.Mensaje;
                 // El paso cambió desde que se abrió: se relee para enseñar cómo está de verdad, y «no lo pide» hay que
-                // confirmarlo otra vez sobre ese estado (sin confirmación, «Reintentar» no se ofrece).
-                if (resultado.Error.Codigo == MarcarAcreditacionNoRequeridaCommandHandler.CambiadaDesdeQueSeAbrio.Codigo)
+                // confirmarlo otra vez sobre ese estado (sin confirmación, «Reintentar» no se ofrece). Es lo mismo si el
+                // choque llega en el guardado (el token de EF, ConcurrenciaBehavior): otra escritura entre la lectura
+                // del comando y su SaveChanges. Mismo aviso y misma recarga, sea cual sea la opción.
+                if (EsCambioDesdeQueSeAbrio(resultado.Error))
                 {
+                    _errorGuardado = MarcarAcreditacionNoRequeridaCommandHandler.CambiadaDesdeQueSeAbrio.Mensaje;
                     _confirmaNoPide = false;
                     await CargarAsync();
                 }

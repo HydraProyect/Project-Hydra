@@ -137,16 +137,78 @@ public class AcreditacionDocumentoPlataformaTests
 
         acreditacion.PuedeConfirmarVigencia.Should().BeFalse();
         ((Action)(() => acreditacion.ConfirmarVigencia(pasada))).Should().Throw<InvalidOperationException>();
-        acreditacion.PuedeDeshacerAnotacion(EstadoAcreditacion.NoRequerida, pasada).Should().BeFalse();
         acreditacion.PuedeDeshacerAnotacion(EstadoAcreditacion.NoRequerida, VigenciaEnPlataforma.SinConfirmar).Should()
             .BeTrue("control positivo: sin vigencia sí");
-        acreditacion.Vigencia.EstaSinConfirmar.Should().BeTrue();
+        acreditacion.DeshacerAnotacion(EstadoAcreditacion.NoRequerida, pasada);
+        acreditacion.Vigencia.EstaSinConfirmar.Should().BeTrue("deshacer hacia No requerida no restaura una fecha");
 
         var validada = CrearAcreditacion();
         validada.MarcarAceptada(VigenciaEnPlataforma.SinConfirmar);
         validada.PuedeConfirmarVigencia.Should().BeTrue("control positivo");
         validada.ConfirmarVigencia(pasada);
         validada.FechaVencimientoEnPlataforma.Should().Be(new DateOnly(2020, 1, 1));
+    }
+
+    /// <summary>
+    /// Fila anterior a la invariante «No requerida implica vigencia Sin confirmar»: antes se podía anotar una vigencia sobre
+    /// una No requerida, y esas filas siguen en la base. Se fabrica a mano porque el dominio ya no deja llegar a ella.
+    /// </summary>
+    private static AcreditacionDocumentoPlataforma NoRequeridaHistoricaConVigencia(VigenciaEnPlataforma vigencia)
+    {
+        var acreditacion = CrearAcreditacion();
+        acreditacion.MarcarAceptada(vigencia);
+        typeof(AcreditacionDocumentoPlataforma).GetProperty(nameof(AcreditacionDocumentoPlataforma.Estado))!
+            .SetValue(acreditacion, EstadoAcreditacion.NoRequerida);
+        return acreditacion;
+    }
+
+    [Fact]
+    public void Deshacer_un_cambio_a_mano_sobre_una_no_requerida_historica_no_le_devuelve_su_fecha()
+    {
+        var pasada = VigenciaEnPlataforma.VenceEl(new DateOnly(2020, 1, 1));
+        var acreditacion = NoRequeridaHistoricaConVigencia(pasada);
+        var cambio = acreditacion.CambiarEstadoAMano(
+            EstadoAcreditacion.Subida, new DateOnly(2026, 11, 10), null, null, Guid.NewGuid(), DateTime.UtcNow);
+        cambio.FechaVencimientoAnterior.Should().Be(new DateOnly(2020, 1, 1), "precondición: el cambio guardó la fecha histórica");
+
+        acreditacion.DeshacerCambioEstado(cambio.Id, DateTime.UtcNow);
+
+        acreditacion.Estado.Should().Be(EstadoAcreditacion.NoRequerida);
+        acreditacion.Vigencia.EstaSinConfirmar.Should().BeTrue("una fecha vencida de un documento que no se pide no pone el Centro en rojo");
+    }
+
+    [Fact]
+    public void Deshacer_un_cambio_a_mano_hacia_validada_si_devuelve_su_fecha()
+    {
+        // Control positivo: la excepción es solo para No requerida.
+        var acreditacion = CrearAcreditacion();
+        var vigencia = VigenciaEnPlataforma.VenceEl(new DateOnly(2027, 1, 1));
+        acreditacion.MarcarAceptada(vigencia);
+        var cambio = acreditacion.CambiarEstadoAMano(
+            EstadoAcreditacion.Subida, new DateOnly(2026, 11, 10), null, null, Guid.NewGuid(), DateTime.UtcNow);
+
+        acreditacion.DeshacerCambioEstado(cambio.Id, DateTime.UtcNow);
+
+        acreditacion.Estado.Should().Be(EstadoAcreditacion.Aceptada);
+        acreditacion.Vigencia.Should().Be(vigencia);
+    }
+
+    [Fact]
+    public void Una_no_requerida_historica_con_fecha_no_admite_otra_y_deshacer_una_validacion_la_deja_sin_fecha()
+    {
+        var pasada = VigenciaEnPlataforma.VenceEl(new DateOnly(2020, 1, 1));
+        var acreditacion = NoRequeridaHistoricaConVigencia(pasada);
+
+        acreditacion.PuedeConfirmarVigencia.Should().BeFalse("la lectura no se rompe: es una No requerida como las demás");
+        acreditacion.Vigencia.Should().Be(pasada, "se lee sin lanzar");
+
+        // «Marcar validado» desde la Gestión y su «Deshacer» (RestaurarAnotacionAcreditacion), con el previo histórico.
+        acreditacion.MarcarAceptada(VigenciaEnPlataforma.NoVenceAqui);
+        acreditacion.PuedeDeshacerAnotacion(EstadoAcreditacion.NoRequerida, pasada).Should().BeTrue("deshacer no queda bloqueado");
+        acreditacion.DeshacerAnotacion(EstadoAcreditacion.NoRequerida, pasada);
+
+        acreditacion.Estado.Should().Be(EstadoAcreditacion.NoRequerida);
+        acreditacion.Vigencia.EstaSinConfirmar.Should().BeTrue();
     }
 
     [Fact]
