@@ -980,13 +980,20 @@ public partial class Bandeja : CaeManager.Web.Components.PaginaInteractiva, IAsy
     /// <summary>«Insertar para revisar»: el texto va al redactor y no se envía nada. Si ya había algo, el panel ha preguntado antes.</summary>
     private Task InsertarSugerenciaAsync(RespuestaSugeridaDto sugerencia)
     {
-        // Una devolución tardía de otra conversación no escribe en el redactor de la que está abierta.
-        if (_detalle?.Id != sugerencia.ConversacionId) return Task.CompletedTask;
+        // Una devolución tardía de otra conversación no escribe en el redactor de la que está abierta. La selección cambia
+        // al pulsar otra conversación y el detalle solo cuando termina de cargar (revisión Codex r1, ALTO 2): hacen falta las dos.
+        if (!EsLaConversacionAbierta(sugerencia.ConversacionId)) return Task.CompletedTask;
 
-        _textoRespuesta = sugerencia.Texto;
+        // En correo la sugerencia se guarda como HTML; el redactor es texto (revisión Codex r1, MEDIO 8). El servidor compara
+        // los dos como texto (RevisionRespuestaSugerida.TextoComparable), así que el bloqueo es el mismo.
+        _textoRespuesta = RespuestaSugeridaPanel.TextoParaRedactor(sugerencia, _detalle!.Canal == CanalConversacion.WhatsApp);
         _notaInternaActiva = false;
         return Task.CompletedTask;
     }
+
+    /// <summary>La conversación seleccionada y la que muestra el detalle son esta: ni la anterior, ni una que aún carga.</summary>
+    private bool EsLaConversacionAbierta(Guid conversacionId) =>
+        _conversacionSeleccionadaId == conversacionId && _detalle?.Id == conversacionId;
 
     /// <summary>
     /// Tras descartar, el redactor no se queda con el texto descartado: el servidor sigue bloqueando enviarlo y la persona
@@ -994,7 +1001,7 @@ public partial class Bandeja : CaeManager.Web.Components.PaginaInteractiva, IAsy
     /// </summary>
     private Task SugerenciaDescartadaAsync(RespuestaSugeridaDto sugerencia)
     {
-        if (_detalle?.Id == sugerencia.ConversacionId && !RevisionRespuestaSugerida.EditadaLoSuficiente(_textoRespuesta, sugerencia.Texto))
+        if (EsLaConversacionAbierta(sugerencia.ConversacionId) && !RevisionRespuestaSugerida.EditadaLoSuficiente(_textoRespuesta, sugerencia.Texto))
             _textoRespuesta = string.Empty;
 
         return Task.CompletedTask;
@@ -1002,10 +1009,11 @@ public partial class Bandeja : CaeManager.Web.Components.PaginaInteractiva, IAsy
 
     /// <summary>
     /// Antes de enviar: una sugerencia insertada y editada más allá del umbral cuenta como revisada y se confirma en el
-    /// servidor, que bloquea todo envío mientras siga sin revisar. <c>false</c>: no se envía.
+    /// servidor, que bloquea todo envío mientras siga sin revisar. Recibe el texto fijado al pulsar Enviar, no el del redactor
+    /// cuando acabe de esperar. <c>false</c>: no se envía.
     /// </summary>
-    private Task<bool> AsegurarSugerenciaRevisadaAsync() =>
-        _panelSugerencia is { } panel ? panel.ConfirmarSiEditadaAsync(_textoRespuesta) : Task.FromResult(true);
+    private Task<bool> AsegurarSugerenciaRevisadaAsync(Guid conversacionId, string texto) =>
+        _panelSugerencia is { } panel ? panel.ConfirmarSiEditadaAsync(conversacionId, texto) : Task.FromResult(true);
 
     private async Task AplicarMacro(string macroIdTexto)
     {
@@ -1099,17 +1107,25 @@ public partial class Bandeja : CaeManager.Web.Components.PaginaInteractiva, IAsy
         // correos idénticos al mismo destinatario, y un correo enviado no se
         // deshace.
         if (_enviando || _aplicandoMacro || VariablesPlantillaRespuesta.Pendientes(_textoRespuesta).Count > 0) return;
-        if (_conversacionSeleccionadaId is null || string.IsNullOrWhiteSpace(_textoRespuesta)) return;
+        if (_conversacionSeleccionadaId is not { } conversacionId || string.IsNullOrWhiteSpace(_textoRespuesta)) return;
+        // Mientras carga otra conversación, el detalle aún es el de la anterior: no se envía con un canal que no es el suyo.
+        if (_detalle is not { } detalle || detalle.Id != conversacionId) return;
+
+        // Revisión Codex r1 (#2163, ALTO 3): destino, canal, texto y adjuntos se fijan aquí, antes de cualquier espera. Si
+        // durante la confirmación de la sugerencia o el envío se abre otra conversación, sale lo que se pidió enviar en esta
+        // y a esta, nunca el borrador de la otra; y lo de la otra no se borra al terminar.
+        var esWhatsApp = detalle.Canal == CanalConversacion.WhatsApp;
+        var texto = _textoRespuesta;
+        var adjuntos = _adjuntosPendientes.Count > 0 ? _adjuntosPendientes.ToList() : null;
 
         _enviando = true;
         try
         {
-            if (!await AsegurarSugerenciaRevisadaAsync()) return;
+            if (!await AsegurarSugerenciaRevisadaAsync(conversacionId, texto)) return;
 
-            var resultado = _detalle?.Canal == CanalConversacion.WhatsApp
-                ? await Mediator.Send(new ResponderConversacionWhatsAppCommand(_conversacionSeleccionadaId.Value, _textoRespuesta.Trim()), _ciclo.Token)
-                : await Mediator.Send(new ResponderConversacionCommand(
-                    _conversacionSeleccionadaId.Value, _textoRespuesta, _adjuntosPendientes.Count > 0 ? _adjuntosPendientes.ToList() : null), _ciclo.Token);
+            var resultado = esWhatsApp
+                ? await Mediator.Send(new ResponderConversacionWhatsAppCommand(conversacionId, texto.Trim()), _ciclo.Token)
+                : await Mediator.Send(new ResponderConversacionCommand(conversacionId, texto, adjuntos), _ciclo.Token);
 
             if (resultado.EsFallido)
             {
@@ -1120,11 +1136,17 @@ public partial class Bandeja : CaeManager.Web.Components.PaginaInteractiva, IAsy
                 return;
             }
 
+            ToastService.Mostrar("Respuesta enviada.", TonoToast.Exito);
+            if (_conversacionSeleccionadaId != conversacionId)
+            {
+                await CargarListaAsync();
+                return;
+            }
+
             _textoRespuesta = string.Empty;
             _macroSeleccionadaId = string.Empty;
             _adjuntosPendientes.Clear();
             _errorAdjuntos = null;
-            ToastService.Mostrar("Respuesta enviada.", TonoToast.Exito);
 
             await RegistrarAccionMedidaAsync();
             await CargarDetalleAsync();
@@ -1156,25 +1178,35 @@ public partial class Bandeja : CaeManager.Web.Components.PaginaInteractiva, IAsy
     private async Task EnviarFallbackCorreoAsync()
     {
         if (_enviando || _aplicandoMacro || VariablesPlantillaRespuesta.Pendientes(_textoRespuesta).Count > 0) return;
-        if (_conversacionSeleccionadaId is null || string.IsNullOrWhiteSpace(_textoRespuesta) || string.IsNullOrWhiteSpace(_emailFallback))
+        if (_conversacionSeleccionadaId is not { } conversacionId || string.IsNullOrWhiteSpace(_textoRespuesta) || string.IsNullOrWhiteSpace(_emailFallback))
             return;
+        if (_detalle?.Id != conversacionId) return;
+
+        // Como en EnviarAsync (revisión Codex r1, ALTO 3): lo que se envía y a dónde se fija antes de esperar.
+        var texto = _textoRespuesta;
+        var email = _emailFallback.Trim();
 
         _enviando = true;
         try
         {
-            if (!await AsegurarSugerenciaRevisadaAsync()) return;
+            if (!await AsegurarSugerenciaRevisadaAsync(conversacionId, texto)) return;
 
-            var resultado = await Mediator.Send(new MigrarConversacionACorreoCommand(
-                _conversacionSeleccionadaId.Value, _emailFallback.Trim(), _textoRespuesta), _ciclo.Token);
+            var resultado = await Mediator.Send(new MigrarConversacionACorreoCommand(conversacionId, email, texto), _ciclo.Token);
             if (resultado.EsFallido)
             {
                 ToastService.MostrarError(resultado.Error);
                 return;
             }
 
+            ToastService.Mostrar("Mensaje enviado por correo — la conversación continúa en este mismo hilo.", TonoToast.Exito);
+            if (_conversacionSeleccionadaId != conversacionId)
+            {
+                await CargarListaAsync();
+                return;
+            }
+
             _textoRespuesta = string.Empty;
             _emailFallback = string.Empty;
-            ToastService.Mostrar("Mensaje enviado por correo — la conversación continúa en este mismo hilo.", TonoToast.Exito);
 
             await CargarDetalleAsync();
             await CargarListaAsync();
@@ -1877,7 +1909,17 @@ public partial class Bandeja : CaeManager.Web.Components.PaginaInteractiva, IAsy
     private bool HayRespuestaONotaAMedias =>
         _detalle is not null && _vista == "clientes"
         && (!string.IsNullOrWhiteSpace(_textoRespuesta) || _adjuntosPendientes.Count > 0
-            || !string.IsNullOrWhiteSpace(_emailFallback) || _composerNota?.TieneTextoSinGuardar == true);
+            || !string.IsNullOrWhiteSpace(_emailFallback) || _composerNota?.TieneTextoSinGuardar == true
+            || _notaFija?.TieneTextoSinGuardar == true);
+
+    private NotaFijaContacto? _notaFija;
+
+    /// <summary>
+    /// Nota fija del contacto o notas del equipo que enseñar en el panel de contexto (revisión Codex r1, MEDIO 6): una
+    /// conversación anclada a una Empresa, sin Cliente empresarial activo ni acciones pendientes, también las tiene.
+    /// </summary>
+    private bool HayNotasDeContexto =>
+        _detalle is not null && (InterlocutorNotaFijaActual is not null || _notasInternas.Count > 0);
 
     private object?[] ValoresActualizarDocumento() =>
     [
@@ -1922,5 +1964,6 @@ public partial class Bandeja : CaeManager.Web.Components.PaginaInteractiva, IAsy
         _errorAdjuntos = null;
         _emailFallback = string.Empty;
         _composerNota?.Descartar();
+        _notaFija?.Descartar();
     }
 }

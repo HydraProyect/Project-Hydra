@@ -209,8 +209,14 @@ else if (_cargado && PuedeSugerir && _puedeEscribir)
             await OnEstadoCambiado.InvokeAsync();
     }
 
-    private string TextoVisible(RespuestaSugeridaDto sugerencia) =>
-        EsWhatsApp ? sugerencia.Texto : VariablesPlantillaRespuesta.HtmlATexto(sugerencia.Texto);
+    private string TextoVisible(RespuestaSugeridaDto sugerencia) => TextoParaRedactor(sugerencia, EsWhatsApp);
+
+    /// <summary>
+    /// El texto que ve la persona, en el panel y en el redactor: en WhatsApp la sugerencia ya es texto plano; en correo se
+    /// guarda como HTML y se pasa a texto, porque el redactor es un campo de texto y no debe enseñar etiquetas ni entidades.
+    /// </summary>
+    public static string TextoParaRedactor(RespuestaSugeridaDto sugerencia, bool esWhatsApp) =>
+        esWhatsApp ? sugerencia.Texto : VariablesPlantillaRespuesta.HtmlATexto(sugerencia.Texto);
 
     private bool HayMensajeNuevo(RespuestaSugeridaDto sugerencia) =>
         UltimoEntranteId is { } ultimo && ultimo != sugerencia.MensajeOrigenId;
@@ -250,7 +256,8 @@ else if (_cargado && PuedeSugerir && _puedeEscribir)
     private Task PedirInsertarAsync(RespuestaSugeridaDto sugerencia)
     {
         var hayTextoPropio = !string.IsNullOrWhiteSpace(TextoRedactor)
-            && !string.Equals(TextoRedactor.Trim(), sugerencia.Texto.Trim(), StringComparison.Ordinal);
+            && !string.Equals(RevisionRespuestaSugerida.TextoComparable(TextoRedactor),
+                RevisionRespuestaSugerida.TextoComparable(sugerencia.Texto), StringComparison.Ordinal);
         if (hayTextoPropio)
         {
             _confirmaSustituir = true;
@@ -330,9 +337,11 @@ else if (_cargado && PuedeSugerir && _puedeEscribir)
     /// y se confirma en el servidor (que bloquea todo envío mientras siga sin revisar). Devuelve <c>false</c> si no se pudo,
     /// y entonces la página no envía.
     /// </summary>
-    public async Task<bool> ConfirmarSiEditadaAsync(string? textoDelRedactor)
+    public async Task<bool> ConfirmarSiEditadaAsync(Guid conversacionId, string? textoDelRedactor)
     {
-        if (_sugerencia is not { Estado: EstadoRespuestaSugerida.SinRevisar } sugerencia) return true;
+        // La de otra conversación no se confirma con este texto: decide el servidor, que bloquea si sigue sin revisar.
+        if (_sugerencia is not { Estado: EstadoRespuestaSugerida.SinRevisar } sugerencia || sugerencia.ConversacionId != conversacionId)
+            return true;
         if (!RevisionRespuestaSugerida.EditadaLoSuficiente(textoDelRedactor, sugerencia.Texto)) return false;
 
         try

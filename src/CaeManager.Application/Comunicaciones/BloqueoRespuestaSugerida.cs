@@ -9,8 +9,9 @@ namespace CaeManager.Application.Comunicaciones;
 /// <summary>
 /// Bloqueo en servidor de la respuesta sugerida: nunca se envía sin que una persona la revise. Lo llaman, antes de tocar
 /// el canal, todos los comandos de Comunicaciones que envían texto de una persona. La interfaz bloquea además Enviar y
-/// Ctrl+Intro, pero la garantía es esta. Escribir a mano sin insertar la sugerencia no bloquea. Editar el texto por dentro
-/// tampoco: cuenta como edición.
+/// Ctrl+Intro, pero la garantía es esta. Escribir a mano sin insertar la sugerencia no bloquea. Editar el texto cuenta como
+/// revisión solo si se aparta más de <see cref="RevisionRespuestaSugerida.UmbralEdicion"/> caracteres, la misma regla que
+/// aplica la interfaz: copiar la propuesta sin «Insertar» y cambiarle una letra sigue bloqueando.
 /// </summary>
 public static class BloqueoRespuestaSugerida
 {
@@ -33,10 +34,12 @@ public static class BloqueoRespuestaSugerida
     /// Falla si la conversación tiene una sugerencia en <see cref="EstadoRespuestaSugerida.SinRevisar"/>, o si
     /// <paramref name="cuerpo"/> coincide con una en <see cref="EstadoRespuestaSugerida.Propuesta"/>, que es la vía de
     /// enviarla sin pasar por Insertar, o con una <see cref="EstadoRespuestaSugerida.Descartada"/> que contestaba al último
-    /// entrante: otra persona puede tener ese texto en el editor, y descartarla no lo revisa. Coincide si es el mismo texto
-    /// o si el cuerpo lo contiene entero, para que añadir una firma o un saludo no eluda el bloqueo; desde
-    /// <see cref="LongitudMinimaTextoContenido"/>. Una coincidencia deja de bloquear si una persona confirmó ese mismo texto
-    /// para ese mismo mensaje.
+    /// entrante: otra persona puede tener ese texto en el editor, y descartarla no lo revisa. Coincide si es el mismo texto,
+    /// si el cuerpo lo contiene entero, para que añadir una firma o un saludo no eluda el bloqueo (desde
+    /// <see cref="LongitudMinimaTextoContenido"/>), o si es casi el mismo (<see cref="RevisionRespuestaSugerida.EsCasiLaMisma"/>:
+    /// a lo sumo <see cref="RevisionRespuestaSugerida.UmbralEdicion"/> caracteres cambiados), para que copiarlo a mano y
+    /// tocar una letra tampoco lo eluda. Una coincidencia deja de bloquear si una persona confirmó ese mismo texto para ese
+    /// mismo mensaje.
     /// </summary>
     public static async Task<Result> ComprobarEnvioAsync(
         this IComunicacionesQueryContext comunicaciones, Guid conversacionId, string cuerpo, CancellationToken cancellationToken)
@@ -60,7 +63,7 @@ public static class BloqueoRespuestaSugerida
         var hash = RespuestaSugerida.CalcularTextoHash(cuerpo);
         var cuerpoNormalizado = RespuestaSugerida.NormalizarTexto(cuerpo);
 
-        return HayCoincidenciaSinRevisar(sugerencias, r => r.TextoHash == hash || ContieneElTexto(cuerpoNormalizado, r.Texto!))
+        return HayCoincidenciaSinRevisar(sugerencias, r => r.TextoHash == hash || CoincideConElTexto(cuerpoNormalizado, r.Texto!))
             ? Result.Fallo(SugerenciaSinRevisar)
             : Result.Exito();
     }
@@ -68,9 +71,10 @@ public static class BloqueoRespuestaSugerida
     /// <summary>
     /// Para un mensaje nuevo: el proveedor decide después de enviarlo si cae en un hilo ya existente, y solo puede ser un
     /// hilo de este buzón. Antes de enviar no se sabe cuál, así que se aplican a los hilos del buzón las mismas reglas que a
-    /// una conversación y la misma coincidencia que en <see cref="ComprobarEnvioAsync"/>: el mismo texto o un cuerpo que lo
-    /// contiene entero (misma normalización, mismo umbral <see cref="LongitudMinimaTextoContenido"/>), de modo que añadir una
-    /// firma o un saludo tampoco eluda el bloqueo. Una diferencia con la conversación: allí cualquier sugerencia
+    /// una conversación y la misma coincidencia que en <see cref="ComprobarEnvioAsync"/>: el mismo texto, un cuerpo que lo
+    /// contiene entero (misma normalización, mismo umbral <see cref="LongitudMinimaTextoContenido"/>) o uno casi igual
+    /// (<see cref="RevisionRespuestaSugerida.EsCasiLaMisma"/>), de modo que añadir una firma o tocar una letra tampoco eluda
+    /// el bloqueo. Una diferencia con la conversación: allí cualquier sugerencia
     /// <see cref="EstadoRespuestaSugerida.SinRevisar"/> bloquea el hilo entero; aquí solo bloquea la que coincide con el
     /// cuerpo, porque no se sabe en qué hilo caerá y una sola sin revisar frenaría todo el buzón.
     ///
@@ -94,8 +98,8 @@ public static class BloqueoRespuestaSugerida
     /// hilos del buzón que cumplen ese filtro: las <see cref="EstadoRespuestaSugerida.Propuesta"/> y
     /// <see cref="EstadoRespuestaSugerida.SinRevisar"/> de cualquier edad y las que contestan al último entrante de su hilo,
     /// que es lo que aplica una conversación. (3) Coinciden con el cuerpo, por hash, las no revisadas con el hash del
-    /// cuerpo; por contención, las demás no revisadas cuyo texto, leído por lotes de <see cref="LoteTextosPorBuzon"/> y
-    /// descartado tras compararlo, está contenido en el cuerpo. (4) Sin ninguna coincidencia no se bloquea; con ellas se
+    /// cuerpo; por contención o parecido, las demás no revisadas cuyo texto, leído por lotes de <see cref="LoteTextosPorBuzon"/>
+    /// y descartado tras compararlo, está contenido en el cuerpo o es casi el mismo (distancia acotada, lineal en la longitud). (4) Sin ninguna coincidencia no se bloquea; con ellas se
     /// evalúa el bloqueo sobre las mismas candidatas, con las reglas de la conversación: la Revisada que desbloquea es la
     /// de esa misma instantánea. Como todas las lecturas son de la misma foto, no hay que releer ni volver a validar nada.
     /// </para>
@@ -163,7 +167,7 @@ public static class BloqueoRespuestaSugerida
                     .AsNoTracking()
                     .ToListAsync(ct);
 
-                foreach (var texto in textos.Where(t => ContieneElTexto(cuerpoNormalizado, t.Texto)))
+                foreach (var texto in textos.Where(t => CoincideConElTexto(cuerpoNormalizado, t.Texto)))
                     coinciden.Add(texto.Id);
             }
 
@@ -245,11 +249,16 @@ public static class BloqueoRespuestaSugerida
             !revisadas.Contains((p.TextoHash, p.MensajeOrigenId)));
     }
 
-    private static bool ContieneElTexto(string cuerpoNormalizado, string texto)
+    /// <summary>
+    /// El cuerpo contiene el texto entero (desde <see cref="LongitudMinimaTextoContenido"/>) o es casi el mismo
+    /// (<see cref="RevisionRespuestaSugerida.EsCasiLaMisma"/>): copiar la propuesta a mano y cambiarle una letra no la revisa.
+    /// </summary>
+    private static bool CoincideConElTexto(string cuerpoNormalizado, string texto)
     {
         var textoNormalizado = RespuestaSugerida.NormalizarTexto(texto);
-        return textoNormalizado.Length >= LongitudMinimaTextoContenido &&
-               cuerpoNormalizado.Contains(textoNormalizado, StringComparison.Ordinal);
+        return (textoNormalizado.Length >= LongitudMinimaTextoContenido &&
+                cuerpoNormalizado.Contains(textoNormalizado, StringComparison.Ordinal)) ||
+               RevisionRespuestaSugerida.EsCasiLaMisma(cuerpoNormalizado, textoNormalizado);
     }
 
     private sealed record SugerenciaComparable(

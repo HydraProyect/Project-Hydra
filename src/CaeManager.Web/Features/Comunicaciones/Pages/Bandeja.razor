@@ -419,7 +419,7 @@
                     <RespuestaSugeridaPanel @ref="_panelSugerencia" ConversacionId="_detalle.Id" PuedeSugerir="PuedeSugerirRespuesta"
                                             UltimoEntranteId="UltimoMensajeEntranteId" Version="_detalle.FechaUltimoMensajeUtc"
                                             TextoRedactor="@_textoRespuesta" EsWhatsApp="_detalle.Canal == CanalConversacion.WhatsApp"
-                                            OnInsertar="InsertarSugerenciaAsync" OnDescartada="SugerenciaDescartadaAsync"OnEstadoCambiado="() => StateHasChanged()" />
+                                            OnInsertar="InsertarSugerenciaAsync" OnDescartada="SugerenciaDescartadaAsync" OnEstadoCambiado="() => StateHasChanged()" />
 
                   <SoloConEscritura>
                     <RecordatorioPropuesto ConversacionId="_detalle.Id" Asunto="@_detalle.Asunto" Estado="_detalle.Estado"                                           FechaUltimoMensajeUtc="_detalle.FechaUltimoMensajeUtc" OnEnviado="CargarDetalleAsync" />
@@ -482,7 +482,7 @@
             }
         </section>
 
-        @if (_vista == "clientes" && (_clienteActivo is not null || HayAccionesPendientes))
+        @if (_vista == "clientes" && (_clienteActivo is not null || HayAccionesPendientes || HayNotasDeContexto))
         {
             <aside class="bandeja-columna bandeja-cliente">
                 <AccionCenter SugerenciasVisita="SugerenciasVisitaPendientes" SugerenciasGestion="SugerenciasGestionPendientes"
@@ -497,7 +497,7 @@
                 @* Nota fija del contacto y notas del equipo (E21), como en la maqueta: lo primero del contexto. *@
                 @if (InterlocutorNotaFijaActual is { } interlocutor)
                 {
-                    <NotaFijaContacto Tipo="interlocutor.Tipo" PropietarioId="interlocutor.PropietarioId"
+                    <NotaFijaContacto @ref="_notaFija" OnTextoCambiado="AlCambiarNotaInterna" Tipo="interlocutor.Tipo" PropietarioId="interlocutor.PropietarioId"
                                       Email="@interlocutor.Email" ResolverAutores="ResolverNombresAutoresAsync" />
                 }
                 <NotasEquipoConversacion Notas="_notasInternas" Autores="_autoresNotas" />

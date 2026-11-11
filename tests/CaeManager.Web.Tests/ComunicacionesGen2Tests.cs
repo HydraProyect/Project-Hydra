@@ -656,6 +656,203 @@ public class ComunicacionesGen2Tests : BunitContext
         cut.FindAll($"#nota-interna-{nota.Id}").Should().ContainSingle("el enlace apunta a una fila real del hilo");
     }
 
+    // ---------------------------------------------------------------- revisión Codex r1 de la #2163
+
+    private static Task<object?> Ya(object? valor) => Task.FromResult(valor);
+
+    private static string TextoDelRedactor(IRenderedComponent<Bandeja> cut) => cut.FindComponent<ComposerBar>().Instance.Texto;
+
+    private (Escenario Escenario, ConversacionListaDto Primera, ConversacionListaDto Segunda, ConversacionDetalleDto DetallePrimera)
+        DosConversacionesConSugerenciaEnLaPrimera()
+    {
+        var primera = Conversacion("Documentación pendiente", ClienteRefrielectric);
+        var segunda = Conversacion("Rechazo del portal", ClienteRefrielectric, "laura.gil@refrielectric.es");
+        var detallePrimera = DetalleDe(primera);
+        var detalleSegunda = DetalleDe(segunda);
+        var escenario = new Escenario { Detalle = id => id == primera.Id ? detallePrimera : detalleSegunda };
+        escenario.Conversaciones.AddRange([primera, segunda]);
+        escenario.Sugerencia = PropuestaPara(detallePrimera);
+        return (escenario, primera, segunda, detallePrimera);
+    }
+
+    /// <summary>
+    /// ALTO 2: «Insertar» en A tarda; entretanto se abre B, cuyo detalle aún carga. La inserción de A vuelve con el detalle de
+    /// A todavía en pantalla y antes comparaba solo ese Id: el texto de A acababa en el redactor de B.
+    /// </summary>
+    [Fact]
+    public async Task La_insercion_tardia_de_una_sugerencia_no_escribe_en_el_redactor_de_otra_conversacion()
+    {
+        var (escenario, _, segunda, _) = DosConversacionesConSugerenciaEnLaPrimera();
+        var insercion = new TaskCompletionSource<object?>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var detalleSegunda = new TaskCompletionSource<object?>(TaskCreationOptions.RunContinuationsAsynchronously);
+        escenario.Interceptar = p => p switch
+        {
+            ResolverRespuestaSugeridaCommand { Accion: AccionRespuestaSugerida.Insertar } => insercion.Task,
+            ObtenerConversacionPorIdQuery q when q.Id == segunda.Id => detalleSegunda.Task,
+            ObtenerRespuestaSugeridaQuery q when q.ConversacionId == segunda.Id => Ya(null),
+            _ => null
+        };
+        var (cut, _) = Renderizar(escenario);
+        await SeleccionarFila(cut, "Documentación pendiente");
+        cut.WaitForAssertion(() => cut.FindAll(".rs-bloque").Should().ContainSingle());
+
+        var clic = Boton(cut, ".rs-bloque button", "Insertar para revisar").ClickAsync(new MouseEventArgs());
+        var apertura = SeleccionarFila(cut, "Rechazo del portal");
+        await cut.InvokeAsync(() => insercion.SetResult(Result.Exito()));
+        await clic;
+        await cut.InvokeAsync(() => detalleSegunda.SetResult(escenario.Detalle(segunda.Id)));
+        await apertura;
+
+        cut.Find(".bandeja-centro-titulo-fila h2").TextContent.Trim().Should().Be("Rechazo del portal");
+        TextoDelRedactor(cut).Should().BeEmpty("la sugerencia era de la conversación anterior");
+    }
+
+    /// <summary>
+    /// ALTO 3: Enviar en A espera a que el servidor confirme la sugerencia editada; entretanto se abre B y se escribe su
+    /// borrador. Antes el comando se construía al volver de esa espera, con la selección y el redactor de B.
+    /// </summary>
+    [Fact]
+    public async Task Un_envio_iniciado_en_una_conversacion_no_se_reanuda_con_el_destino_y_el_borrador_de_otra()
+    {
+        var (escenario, primera, segunda, _) = DosConversacionesConSugerenciaEnLaPrimera();
+        var confirmacion = new TaskCompletionSource<object?>(TaskCreationOptions.RunContinuationsAsynchronously);
+        escenario.Interceptar = p => p switch
+        {
+            ResolverRespuestaSugeridaCommand { Accion: AccionRespuestaSugerida.Confirmar } => confirmacion.Task,
+            ObtenerRespuestaSugeridaQuery q when q.ConversacionId == segunda.Id => Ya(null),
+            _ => null
+        };
+        var (cut, mediador) = Renderizar(escenario);
+        await SeleccionarFila(cut, "Documentación pendiente");
+        cut.WaitForAssertion(() => cut.FindAll(".rs-bloque").Should().ContainSingle());
+        await Boton(cut, ".rs-bloque button", "Insertar para revisar").ClickAsync(new MouseEventArgs());
+        const string respuestaDeA = "Hola Carmen, recibido todo. Lo miramos esta tarde y mañana le decimos algo sin falta.";
+        await Escribir(cut, respuestaDeA);
+
+        var envio = Enviar(cut);
+        var apertura = SeleccionarFila(cut, "Rechazo del portal");
+        cut.WaitForAssertion(() => cut.FindAll(".modal-pie button").Should().Contain(b => b.TextContent.Trim() == "Salir y descartar"));
+        await cut.PulsarEnElAvisoAsync("Salir y descartar");
+        await apertura;
+        cut.WaitForAssertion(() => cut.Find(".bandeja-centro-titulo-fila h2").TextContent.Trim().Should().Be("Rechazo del portal"));
+        const string borradorDeB = "Laura, este borrador es de otra conversación y no se ha enviado.";
+        await Escribir(cut, borradorDeB);
+
+        await cut.InvokeAsync(() => confirmacion.SetResult(Result.Exito()));
+        await envio;
+
+        var enviado = mediador.Enviados.OfType<ResponderConversacionCommand>().Should().ContainSingle().Subject;
+        enviado.ConversacionId.Should().Be(primera.Id, "el envío se pidió en A");
+        enviado.CuerpoHtml.Should().Be(respuestaDeA);
+        TextoDelRedactor(cut).Should().Be(borradorDeB, "el borrador de B no se envió y no se borra al terminar el de A");
+    }
+
+    private static NotaContactoDto NotaDeLaura() =>
+        new(Guid.NewGuid(), "Laura Gil", "Solo por correo, nunca por teléfono.", null, new DateTime(2026, 11, 4, 9, 0, 0, DateTimeKind.Utc));
+
+    /// <summary>
+    /// MEDIO 4: al abrir otra conversación de la misma Agenda, la nota fija del contacto anterior no sigue en pantalla, y por
+    /// tanto no se puede editar ni guardar, mientras carga la del contacto nuevo; lo que se guarda después es del nuevo.
+    /// </summary>
+    [Fact]
+    public async Task La_nota_fija_del_contacto_anterior_no_se_puede_editar_mientras_carga_la_del_nuevo()
+    {
+        var (escenario, _, _, _) = DosConversacionesConSugerenciaEnLaPrimera();
+        escenario.Sugerencia = null;
+        var carmen = NotaDeCarmen();
+        var laura = NotaDeLaura();
+        var notaDeLaura = new TaskCompletionSource<object?>(TaskCreationOptions.RunContinuationsAsynchronously);
+        escenario.Interceptar = p => p switch
+        {
+            ObtenerNotaContactoQuery { Email: "carmen.ruiz@refrielectric.es" } => Ya(carmen),
+            ObtenerNotaContactoQuery { Email: "laura.gil@refrielectric.es" } => notaDeLaura.Task,
+            _ => null
+        };
+        var (cut, _) = Renderizar(escenario);
+        await SeleccionarFila(cut, "Documentación pendiente");
+        cut.WaitForAssertion(() => cut.Find(".nota-fija").TextContent.Should().Contain("Carmen Ruiz"));
+
+        var apertura = SeleccionarFila(cut, "Rechazo del portal");
+        cut.WaitForAssertion(() => cut.Find(".bandeja-centro-titulo-fila h2").TextContent.Trim().Should().Be("Rechazo del portal"));
+
+        cut.FindAll(".nota-fija").Should().BeEmpty("la nota de Carmen no es la de este contacto, y la de Laura aún no ha llegado");
+        await cut.InvokeAsync(() => notaDeLaura.SetResult(laura));
+        await apertura;
+        cut.WaitForAssertion(() => cut.Find(".nota-fija").TextContent.Should().Contain("Laura Gil"));
+
+        await Boton(cut, ".nota-fija button", "Editar").ClickAsync(new MouseEventArgs());
+        await cut.Find(".nota-fija-area").InputAsync(new ChangeEventArgs { Value = "Solo por correo." });
+        await Boton(cut, ".nota-fija button", "Guardar nota fija").ClickAsync(new MouseEventArgs());
+        escenario.NotasFijadas.Should().ContainSingle().Which.ContactoId.Should().Be(laura.ContactoId);
+    }
+
+    /// <summary>MEDIO 7: una nota fija editada y sin guardar cuenta como cambio sin guardar al abrir otra conversación.</summary>
+    [Fact]
+    public async Task Abrir_otra_conversacion_con_la_nota_fija_a_medias_pregunta_antes_de_descartarla()
+    {
+        var (escenario, _, _, _) = DosConversacionesConSugerenciaEnLaPrimera();
+        escenario.Sugerencia = null;
+        escenario.NotaContacto = NotaDeCarmen();
+        var (cut, _) = Renderizar(escenario);
+        await SeleccionarFila(cut, "Documentación pendiente");
+        cut.WaitForAssertion(() => cut.FindAll(".nota-fija").Should().ContainSingle());
+        await Boton(cut, ".nota-fija button", "Editar").ClickAsync(new MouseEventArgs());
+        await cut.Find(".nota-fija-area").InputAsync(new ChangeEventArgs { Value = "Llamar por la tarde." });
+
+        var apertura = SeleccionarFila(cut, "Rechazo del portal");
+
+        cut.WaitForAssertion(() => cut.FindAll(".modal-pie button").Should().Contain(b => b.TextContent.Trim() == "Salir y descartar",
+            "la edición de la nota fija se perdería sin aviso"));
+        cut.Find(".bandeja-centro-titulo-fila h2").TextContent.Trim().Should().Be("Documentación pendiente");
+        await cut.PulsarEnElAvisoAsync("Salir y descartar");
+        await apertura;
+        cut.WaitForAssertion(() => cut.Find(".bandeja-centro-titulo-fila h2").TextContent.Trim().Should().Be("Rechazo del portal"));
+        escenario.NotasFijadas.Should().BeEmpty();
+    }
+
+    /// <summary>
+    /// MEDIO 6: una conversación anclada a una Empresa, sin Cliente empresarial activo ni acciones pendientes, también enseña
+    /// la nota fija del contacto y las notas del equipo.
+    /// </summary>
+    [Fact]
+    public async Task Una_conversacion_anclada_a_una_Empresa_sin_Cliente_ni_acciones_muestra_las_notas()
+    {
+        var conversacion = Conversacion("Documentación de la subcontrata", remitente: "laura.gil@aislamientos.es");
+        var participante = new ParticipanteDetalleDto(
+            Guid.NewGuid(), "laura.gil@aislamientos.es", RolParticipante.De, TipoParticipanteOrigen.Empresa, Guid.NewGuid());
+        var detalle = DetalleDe(conversacion) with { Participantes = [participante] };
+        var escenario = new Escenario { Detalle = _ => detalle, NotaContacto = NotaDeLaura() };
+        escenario.NotasInternas.Add(new NotaInternaDetalleDto(Guid.NewGuid(), Guid.NewGuid(), "Pedir el TC2 antes del viernes.", DateTime.UtcNow));
+        escenario.Conversaciones.Add(conversacion);
+        var (cut, _) = Renderizar(escenario);
+        await SeleccionarFila(cut, "Documentación de la subcontrata");
+
+        cut.WaitForAssertion(() => cut.FindAll(".nota-fija").Should().ContainSingle());
+        cut.FindAll(".notas-equipo").Should().ContainSingle();
+        cut.FindAll(".bandeja-cliente-identidad").Should().BeEmpty("no hay Cliente empresarial activo");
+    }
+
+    /// <summary>
+    /// MEDIO 8: en correo la sugerencia se guarda como HTML, y el redactor es un campo de texto: recibe el texto, sin
+    /// etiquetas ni entidades, y la revisión lo mide como texto (sigue sin revisar y bloqueando Enviar).
+    /// </summary>
+    [Fact]
+    public async Task Insertar_una_sugerencia_de_correo_pone_texto_y_no_HTML_en_el_redactor()
+    {
+        var (escenario, detalle) = EscenarioConSugerencia();
+        escenario.Sugerencia = PropuestaPara(detalle,
+            "<p>Buenos días, Carmen.</p><p>Recibimos la documentación &amp; la revisaremos hoy mismo; le confirmamos mañana.</p>");
+        var (cut, _) = Renderizar(escenario);
+        await SeleccionarFila(cut, "Documentación pendiente");
+        cut.WaitForAssertion(() => cut.FindAll(".rs-bloque").Should().ContainSingle());
+
+        await Boton(cut, ".rs-bloque button", "Insertar para revisar").ClickAsync(new MouseEventArgs());
+
+        TextoDelRedactor(cut).Should().Be(
+            "Buenos días, Carmen.\n\nRecibimos la documentación & la revisaremos hoy mismo; le confirmamos mañana.");
+        EnviarDeshabilitado(cut).Should().BeTrue("el texto es la sugerencia sin tocar: la distancia se mide sin marcado");
+    }
+
     // ---------------------------------------------------------------- mockup Gen 2
 
     [Fact]

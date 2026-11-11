@@ -281,12 +281,14 @@ public class BloqueoRespuestaSugeridaPorBuzonConCarteraTests : IAsyncLifetime
 
         _clienteDeLaCartera = await SembrarHiloAsync(
             "Cliente de la cartera", clienteDeLaCartera.Id, null, "<p>Texto del hilo del Cliente empresarial de la cartera, con su documentación.</p>");
+        // Los textos de los hilos ocultos no se parecen a los visibles: el bloqueo también compara por parecido (a lo sumo 15
+        // caracteres cambiados), y un negativo con un texto a seis letras de uno visible bloquearía por el visible, no por él.
         _clienteFueraDeLaCartera = await SembrarHiloAsync(
-            "Cliente fuera de la cartera", clienteFuera.Id, null, "<p>Texto del hilo del Cliente empresarial fuera de la cartera, con su documentación.</p>");
+            "Cliente fuera de la cartera", clienteFuera.Id, null, "<p>Revisados los certificados de la central: faltan dos reconocimientos médicos.</p>");
         _empresaQueGestiona = await SembrarHiloAsync(
             "Empresa que gestiona", null, subcontrataQueGestiona.Id, "<p>Texto del hilo de la Empresa contraparte que el Gestor gestiona, con su documentación.</p>");
         _empresaQueNoGestiona = await SembrarHiloAsync(
-            "Empresa que no gestiona", null, subcontrataQueNoGestiona.Id, "<p>Texto del hilo de la Empresa contraparte que el Gestor no gestiona, con su documentación.</p>");
+            "Empresa que no gestiona", null, subcontrataQueNoGestiona.Id, "<p>Las soldaduras siguen pendientes de acreditar el recurso preventivo en obra.</p>");
         _triageCompartido = await SembrarHiloAsync(
             "Triage compartido", null, null, "<p>Texto del hilo sin Cliente empresarial ni Empresa, en triage compartido, con su documentación.</p>");
     }

@@ -39,7 +39,7 @@
         {
             <textarea class="nota-fija-area" rows="3" maxlength="@ContactoAgenda.LongitudMaximaNotas"
                       aria-label="@string.Format(Textos["EtiquetaCampo"].Value, _nota.Nombre)"
-                      value="@_texto" @oninput="e => _texto = e.Value?.ToString() ?? string.Empty"></textarea>
+                      value="@_texto" @oninput="e => CambiarTextoAsync(e.Value?.ToString() ?? string.Empty)"></textarea>
             <div class="nota-fija-acciones">
                 @* Secundario y no primario: la vista ya tiene «Enviar» como único primario. *@
                 <Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno" Cargando="_guardando"
@@ -87,10 +87,38 @@
         var clave = (Tipo, PropietarioId, Email);
         if (_cargada == clave) return;
 
+        // Revisión Codex r1 (#2163, MEDIO 4): la nota del contacto anterior desaparece en el acto, antes de esperar a la del
+        // nuevo. Si siguiera pintada, se podría editar y guardar con su ContactoId bajo la entidad del contacto nuevo.
         _cargada = clave;
+        _nota = null;
+        _autor = string.Empty;
         _editando = false;
+        _texto = string.Empty;
         _puedeEscribir = await SoloConEscritura.PuedeEscribirAsync(EstadoAutenticacion);
         await CargarAsync();
+    }
+
+    /// <summary>
+    /// Hay una edición de la nota fija sin guardar (revisión Codex r1, MEDIO 7): la página la cuenta en su aviso de cambios
+    /// sin guardar, como la respuesta y la nota interna a medias.
+    /// </summary>
+    public bool TieneTextoSinGuardar =>
+        _editando && !string.Equals(_texto.Trim(), (_nota?.Notas ?? string.Empty).Trim(), StringComparison.Ordinal);
+
+    /// <summary>Descarta la edición en curso: lo llama la página cuando la persona elige descartar los cambios.</summary>
+    public void Descartar()
+    {
+        _editando = false;
+        _texto = string.Empty;
+    }
+
+    /// <summary>Cada cambio del texto en edición: re-renderiza la página, que calcula con él el aviso del navegador.</summary>
+    [Parameter] public EventCallback OnTextoCambiado { get; set; }
+
+    private Task CambiarTextoAsync(string texto)
+    {
+        _texto = texto;
+        return OnTextoCambiado.InvokeAsync();
     }
 
     private async Task CargarAsync()
@@ -101,8 +129,12 @@
             var nota = await Mediator.Send(new ObtenerNotaContactoQuery(Tipo, PropietarioId, Email));
             if (_cargada != clave) return;
 
+            // El autor se resuelve antes de pintar, y bajo la misma guarda: un nombre que llega tarde no es de esta nota.
+            var autor = await NombreDelAutorAsync(nota);
+            if (_cargada != clave) return;
+
             _nota = nota;
-            _autor = await NombreDelAutorAsync(nota);
+            _autor = autor;
         }
         catch (Exception ex)
         {
@@ -136,12 +168,15 @@
 
     private async Task GuardarAsync()
     {
-        if (_guardando || _nota is null || string.IsNullOrWhiteSpace(_texto)) return;
+        if (_guardando || _nota is not { } nota || _cargada is not { } clave || string.IsNullOrWhiteSpace(_texto)) return;
 
+        // Entidad y contacto salen de la misma carga (la nota pintada es la de la clave vigente): nunca uno de cada contacto.
+        var (tipo, propietarioId, _) = clave;
         _guardando = true;
         try
         {
-            var resultado = await Mediator.Send(new FijarNotaContactoAgendaCommand(Tipo, PropietarioId, _nota.ContactoId, _texto.Trim()));
+            var resultado = await Mediator.Send(new FijarNotaContactoAgendaCommand(tipo, propietarioId, nota.ContactoId, _texto.Trim()));
+            if (_cargada != clave) return;
             if (resultado.EsFallido)
             {
                 ToastService.MostrarError(resultado.Error);
@@ -149,12 +184,12 @@
             }
 
             _editando = false;
-            ToastService.Mostrar(string.Format(Textos["ToastGuardada"].Value, _nota.Nombre), TonoToast.Exito);
+            ToastService.Mostrar(string.Format(Textos["ToastGuardada"].Value, nota.Nombre), TonoToast.Exito);
             await CargarAsync();
         }
         catch (Exception ex)
         {
-            Logger.LogError(ex, "Error al guardar la nota fija del contacto {ContactoId}.", _nota?.ContactoId);
+            Logger.LogError(ex, "Error al guardar la nota fija del contacto {ContactoId}.", nota.ContactoId);
             ToastService.Mostrar(Textos["ErrorGuardar"].Value, TonoToast.Error);
         }
         finally

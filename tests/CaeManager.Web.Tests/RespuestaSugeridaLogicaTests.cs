@@ -1,3 +1,4 @@
+using CaeManager.Application.Comunicaciones;
 using CaeManager.Application.Comunicaciones.Queries.ObtenerConversacionPorId;
 using CaeManager.Application.Contactos.Queries.ObtenerAgendaContactos;
 using CaeManager.Domain.Comunicaciones;
