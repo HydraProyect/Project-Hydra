@@ -123,7 +123,10 @@ public sealed class FotoAPdfPantallaTests : BunitContext
         return [0xFF, 0xD8, 0xFF, 0xE0, 0x00, 0x04, 0x00, 0x00, .. sof, 0xFF, 0xDA];
     }
 
-    private IRenderedComponent<FotoAPdf> Renderizar(bool disponible = true)
+    private IRenderedComponent<FotoAPdf> Renderizar(bool disponible = true) => Renderizar<FotoAPdf>(disponible);
+
+    private IRenderedComponent<TPantalla> Renderizar<TPantalla>(bool disponible = true)
+        where TPantalla : FotoAPdf
     {
         Services.AddScoped<ICurrentUserService>(_ => new UsuarioFalso("GestorCae"));
         Services.AddScoped<PuertaAccesoDatos>();
@@ -141,8 +144,33 @@ public sealed class FotoAPdfPantallaTests : BunitContext
         })));
         Services.AddSingleton<IPresupuestoMemoriaDocumentos>(_presupuesto);
         Services.AddSingleton(_limitador);
+        Services.AddSingleton(new ObservadorDeLaCadena(() => _presupuesto.Reservado));
 
-        return Render<FotoAPdf>();
+        return Render<TPantalla>();
+    }
+
+    /// <summary>La pantalla con la construcción de la cadena de la miniatura observable y, si se pide, fallida.</summary>
+    public sealed class FotoAPdfObservable : FotoAPdf
+    {
+        [Microsoft.AspNetCore.Components.Inject] private ObservadorDeLaCadena Observador { get; set; } = default!;
+
+        protected override string CrearUrlMiniatura(byte[] jpeg)
+        {
+            var reservado = Observador.LeerReservado();
+            if (Observador.Falla)
+                throw new PresupuestoMemoriaAgotadoException();
+            var url = base.CrearUrlMiniatura(jpeg);
+            Observador.Construcciones.Add((reservado, url.Length));
+            return url;
+        }
+    }
+
+    /// <summary>Lo que ve la pantalla observable al crear cada cadena: lo reservado en ese momento y los caracteres de la cadena.</summary>
+    public sealed class ObservadorDeLaCadena(Func<long> leerReservado)
+    {
+        public Func<long> LeerReservado { get; } = leerReservado;
+        public bool Falla { get; set; }
+        public List<(long Reservado, int Caracteres)> Construcciones { get; } = [];
     }
 
     private static async Task SubirAsync(IRenderedComponent<FotoAPdf> cut, params (string Nombre, byte[] Contenido)[] fotos)
@@ -467,11 +495,11 @@ public sealed class FotoAPdfPantallaTests : BunitContext
 
     /// <summary>
     /// Lo que se reserva por la cadena <c>data:image/jpeg;base64,...</c> de una miniatura de <paramref name="bytesJpeg"/>
-    /// bytes: el Base64 (4 caracteres por cada 3 bytes) más el prefijo, a 3 bytes por carácter (2 de la cadena retenida en
-    /// UTF-16 y 1 de su copia UTF-8 en el lote de render pendiente de confirmar).
+    /// bytes: el Base64 (4 caracteres por cada 3 bytes) más el prefijo, a 4 bytes por carácter (el pico al crear la cadena:
+    /// la que devuelve <c>Convert.ToBase64String</c> y la de la concatenación, 2 bytes UTF-16 cada una).
     /// </summary>
     private static long BytesDeLaCadenaDeUnaMiniatura(int bytesJpeg) =>
-        ("data:image/jpeg;base64,".Length + (bytesJpeg + 2) / 3 * 4) * 3L;
+        ("data:image/jpeg;base64,".Length + (bytesJpeg + 2) / 3 * 4) * 4L;
 
     private static int FilasEn(string marcado) => marcado.Split("class=\"foto-fila\"").Length - 1;
 
@@ -541,8 +569,40 @@ public sealed class FotoAPdfPantallaTests : BunitContext
         cut.WaitForAssertion(() => cut.FindAll("li.foto-fila .foto-miniatura img").Should().ContainSingle());
         var src = cut.Find("li.foto-fila .foto-miniatura img").GetAttribute("src")!;
         src.Should().Be("data:image/jpeg;base64," + Convert.ToBase64String(new byte[100]));
-        (src.Length * 3L).Should().Be(_presupuesto.Reservado,
-            "lo reservado es la cadena que retiene el circuito (UTF-16) y su copia en el lote de render (UTF-8)");
+        (src.Length * 4L).Should().Be(_presupuesto.Reservado,
+            "lo reservado cubre el pico al crear la cadena: 4 bytes por carácter, la de Base64 y la de la concatenación (UTF-16)");
+    }
+
+    [Fact]
+    public async Task La_reserva_ya_cubre_cuatro_bytes_por_caracter_cuando_se_crea_la_cadena_de_la_miniatura()
+    {
+        _procesador.Miniatura = new byte[100];
+        var cut = Renderizar<FotoAPdfObservable>();
+        var observador = Services.GetRequiredService<ObservadorDeLaCadena>();
+
+        await SubirAsync(cut, ("a.jpg", Jpeg(10, 10)));
+
+        cut.WaitForAssertion(() => Nombres(cut).Should().HaveCount(1));
+        var construccion = observador.Construcciones.Should().ContainSingle().Subject;
+        construccion.Caracteres.Should().BeGreaterThan(100, "instrumento: se observó la cadena de una miniatura real");
+        construccion.Reservado.Should().BeGreaterThanOrEqualTo(4L * construccion.Caracteres,
+            "el pico al crear la cadena son 4 bytes por carácter (la de Base64 y la de la concatenación, en UTF-16) y se reserva ANTES de crearla");
+    }
+
+    [Fact]
+    public async Task Si_crear_la_cadena_de_la_miniatura_lanza_la_reserva_vuelve_a_cero_y_la_foto_no_entra()
+    {
+        _procesador.Miniatura = new byte[100];
+        var cut = Renderizar<FotoAPdfObservable>();
+        var observador = Services.GetRequiredService<ObservadorDeLaCadena>();
+        observador.Falla = true;
+
+        await SubirAsync(cut, ("a.jpg", Jpeg(10, 10)));
+
+        cut.WaitForAssertion(() => cut.Find(".aviso-error[role=alert]").TextContent.Should().Contain("no hay espacio"));
+        cut.FindAll("li.foto-fila").Should().BeEmpty();
+        _presupuesto.Reservado.Should().Be(0,
+            "la reserva local aún no pertenece a ninguna foto: salir por excepción debe liberarla, no dejarla retenida");
     }
 
     [Fact]

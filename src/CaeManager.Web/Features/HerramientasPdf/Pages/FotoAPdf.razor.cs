@@ -46,11 +46,15 @@ public partial class FotoAPdf : CaeManager.Web.Components.PaginaInteractiva, IAs
     private const string PrefijoUrlMiniatura = "data:image/jpeg;base64,";
 
     /// <summary>
-    /// Por cada carácter de la cadena data: de una miniatura: 2 bytes de la cadena retenida (UTF-16) y 1 de su copia en el
-    /// lote de render pendiente de confirmar (UTF-8, el Base64 es ASCII). Cada cadena viaja en UN solo lote: las filas llevan
-    /// <c>@key</c>, así que mover o quitar fotos permuta o retira filas sin volver a enviar el <c>src</c> de las demás.
+    /// Por cada carácter de la cadena data: de una miniatura se reservan 4 bytes, que es el pico real al crearla:
+    /// <c>Convert.ToBase64String</c> devuelve una cadena UTF-16 (2 bytes por carácter) y concatenarla con el prefijo crea
+    /// otra (otros 2), de modo que durante la concatenación coexisten 4 bytes por carácter, además del array JPEG que ya
+    /// retiene el procesador (acotado por <see cref="LimitesFotoAPdf.TamanoMaximoMiniaturaBytes"/>). Ya creada, lo que queda
+    /// vivo son 3: la cadena retenida (2) y su copia en el lote de render pendiente de confirmar (1, UTF-8: el Base64 es
+    /// ASCII); la reserva se mantiene en 4 hasta quitar la foto, del lado seguro. Cada cadena viaja en UN solo lote: las filas
+    /// llevan <c>@key</c>, así que mover o quitar fotos permuta o retira filas sin volver a enviar el <c>src</c> de las demás.
     /// </summary>
-    internal const int BytesReservadosPorCaracter = 3;
+    internal const int BytesReservadosPorCaracter = 4;
 
     /// <summary>Se lanza cuando la miniatura no encuentra hueco en <see cref="LimitadorConversionesPdf"/> a tiempo.</summary>
     private sealed class SinHuecoDeConversionException : Exception;
@@ -229,24 +233,35 @@ public partial class FotoAPdf : CaeManager.Web.Components.PaginaInteractiva, IAs
             // ajena desde un circuito. Se devuelve con la foto, cuando el navegador ya confirmó el render que la quita. Una
             // miniatura que pasa del tope no se retiene: la foto entra sin vista previa.
             IDisposable? reservaMiniatura = null;
-            string? urlMiniatura = null;
-            if (bytesMiniatura is { Length: > 0 } && bytesMiniatura.Length <= LimitesFotoAPdf.TamanoMaximoMiniaturaBytes)
+            var reservaEntregada = false;
+            try
             {
-                if (!PresupuestoMemoria.TryReservar(BytesReservadosDeMiniatura(bytesMiniatura.Length), out var reserva))
-                    throw new PresupuestoMemoriaAgotadoException();
-                reservaMiniatura = reserva;
-                urlMiniatura = PrefijoUrlMiniatura + Convert.ToBase64String(bytesMiniatura);
-            }
+                string? urlMiniatura = null;
+                if (bytesMiniatura is { Length: > 0 } && bytesMiniatura.Length <= LimitesFotoAPdf.TamanoMaximoMiniaturaBytes)
+                {
+                    if (!PresupuestoMemoria.TryReservar(BytesReservadosDeMiniatura(bytesMiniatura.Length), out var reserva))
+                        throw new PresupuestoMemoriaAgotadoException();
+                    reservaMiniatura = reserva;
+                    urlMiniatura = CrearUrlMiniatura(bytesMiniatura);
+                }
 
-            // La pantalla se desechó mientras se procesaba: nadie liberaría esta foto ni su reserva.
-            if (_desechado)
+                // La pantalla se desechó mientras se procesaba: nadie liberaría esta foto; su reserva la suelta el finally.
+                if (_desechado)
+                {
+                    almacen.Eliminar(guardado);
+                    return;
+                }
+
+                _fotos.Add(new FotoElegida(guardado, nombre, guardado.TamanoBytes, datosFoto, urlMiniatura, reservaMiniatura));
+                reservaEntregada = true;
+            }
+            finally
             {
-                reservaMiniatura?.Dispose();
-                almacen.Eliminar(guardado);
-                return;
+                // Hasta que la foto la posee (_fotos), la reserva es de esta llamada: si crear la cadena o añadir la foto lanza,
+                // o la pantalla se desechó, se libera aquí, una sola vez (una vez entregada, la libera la foto al quitarse).
+                if (!reservaEntregada)
+                    reservaMiniatura?.Dispose();
             }
-
-            _fotos.Add(new FotoElegida(guardado, nombre, guardado.TamanoBytes, datosFoto, urlMiniatura, reservaMiniatura));
         }
         catch (ArchivoTemporalDemasiadoGrandeException)
         {
@@ -381,6 +396,12 @@ public partial class FotoAPdf : CaeManager.Web.Components.PaginaInteractiva, IAs
     private static string TextoTamano(long bytes) => bytes >= 1024 * 1024
         ? $"{(bytes / (1024.0 * 1024.0)).ToString("0.0", CultureInfo.InvariantCulture)} MB"
         : $"{Math.Max(1, bytes / 1024).ToString(CultureInfo.InvariantCulture)} KB";
+
+    /// <summary>
+    /// Construye la cadena data: de una miniatura. Virtual solo para que un test pueda hacerla fallar u observar lo reservado
+    /// en ese momento (CaeManager.Web no tiene InternalsVisibleTo).
+    /// </summary>
+    protected virtual string CrearUrlMiniatura(byte[] jpeg) => PrefijoUrlMiniatura + Convert.ToBase64String(jpeg);
 
     /// <summary>
     /// Lo que se reserva por la miniatura de un JPEG de <paramref name="bytesJpeg"/> bytes, calculado ANTES de crear su cadena:
