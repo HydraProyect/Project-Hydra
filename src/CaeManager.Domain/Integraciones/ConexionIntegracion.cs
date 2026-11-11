@@ -220,8 +220,8 @@ public class ConexionIntegracion : EntidadBase
     /// <summary>
     /// Disparador (b), regla conservadora única: la única fuente de la marca en los caminos que observan o sustituyen la
     /// suscripción de Graph (Reactivar, la rehabilitación de <c>SuscripcionAlRehabilitarService</c>, la renovación diaria
-    /// y Desconectar, antes de llamar a Graph, otra vez tras confirmar la desconexión si la suscripción ya expiró, y otra
-    /// si el borrado falla).
+    /// y Desconectar, antes de llamar a Graph, otra vez tras confirmar la desconexión si la suscripción ya expiró, otra
+    /// si el borrado falla, y al repetir la desconexión sobre una conexión ya Deshabilitada si la suscripción ya expiró).
     /// Si en <paramref name="observadaUtc"/> la conexión no está Habilitada (ConError o Deshabilitada) o su suscripción
     /// guardada ya expiró, la marca pasa a min(marca,
     /// <paramref name="expiracionSuscripcionUtc"/>, <paramref name="observadaUtc"/>). Sin suscripción guardada (null)

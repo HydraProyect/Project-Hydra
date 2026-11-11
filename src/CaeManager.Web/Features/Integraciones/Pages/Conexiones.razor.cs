@@ -324,7 +324,12 @@ public partial class Conexiones : CaeManager.Web.Components.PaginaIntegrableConf
 
             if (resultado.EsFallido)
             {
+                // Un fallo no implica que nada cambiara: con ConexionIntegracion.MarcaHuecoNoGuardada la conexión ya
+                // está Deshabilitada. Se recarga para mostrar el estado real; el aviso de error se
+                // conserva y el modal sigue abierto, y volver a desconectar desde él repara la marca (Codex, ronda 17,
+                // hallazgo medio).
                 ToastService.MostrarError(resultado.Error);
+                await CargarConexionesAsync();
                 return;
             }
 

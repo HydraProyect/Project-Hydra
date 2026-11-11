@@ -279,6 +279,44 @@ public class ConexionesGen2Tests : BunitContext
         await desconexion.WaitAsync(TimeSpan.FromSeconds(10));
     }
 
+    /// <summary>
+    /// Codex, ronda 17, hallazgo medio: con ConexionIntegracion.MarcaHuecoNoGuardada la conexión ya quedó Deshabilitada,
+    /// pero la pantalla seguía mostrándola Habilitada. Ante cualquier fallo se recarga el listado, el aviso de error se
+    /// conserva y el modal sigue abierto para volver a intentarlo.
+    /// </summary>
+    [Fact]
+    public async Task Un_fallo_al_desconectar_recarga_el_listado_y_conserva_el_error()
+    {
+        var buzon = Buzon("cae");
+        var mediador = new MediadorFalso
+        {
+            Conexiones = [buzon],
+            DesconexionPendiente = new(TaskCreationOptions.RunContinuationsAsynchronously)
+        };
+        var cut = Renderizar(mediador);
+        var instancia = cut.Instance;
+        cut.FindAll("td.acciones-conexion button").Should().ContainSingle("control: antes del fallo se puede desconectar");
+
+        await cut.InvokeAsync(() => Invocar(instancia, "AbrirDesconexion", buzon));
+        var desconexion = cut.InvokeAsync(() => InvocarAsync(instancia, "DesconectarAsync"));
+        await mediador.DesconexionIniciada.Task.WaitAsync(TimeSpan.FromSeconds(10));
+
+        // Lo que hay en la base cuando vuelve el fallo: la desconexión sí se guardó.
+        mediador.Conexiones = [buzon with { Estado = EstadoConexionIntegracion.Deshabilitada }];
+        await cut.InvokeAsync(() => mediador.DesconexionPendiente.TrySetResult(Result.Fallo(Error.Crear(
+            "ConexionIntegracion.MarcaHuecoNoGuardada",
+            "Hemos desconectado el buzón, pero no hemos podido registrar desde cuándo dejó de recibirse su correo."))));
+        await desconexion.WaitAsync(TimeSpan.FromSeconds(10));
+
+        // El desenlace llega por reflexión y no repinta: sin Render se leería la tabla anterior.
+        cut.Render();
+        cut.FindAll("tr").Single(fila => fila.TextContent.Contains(buzon.BuzonEmail)).TextContent.Should().Contain("Deshabilitada");
+        cut.FindAll("td.acciones-conexion button").Should().BeEmpty("una Deshabilitada no ofrece Desconectar en la fila");
+        Services.GetRequiredService<ToastService>().Mensajes.Should().ContainSingle()
+            .Which.Tono.Should().Be(TonoToast.Error);
+        cut.Find(".modal-contenido").TextContent.Should().Contain(buzon.BuzonEmail, "el modal sigue abierto para reintentar");
+    }
+
     [Fact]
     public async Task El_desenlace_de_guardado_obsoleto_no_desbloquea_el_modal_vigente()
     {
