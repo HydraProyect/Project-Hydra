@@ -40,6 +40,22 @@ public class CicloSuscripcionesUsaReglasDeTenantTests
             "nadie en el servicio llama al barrido con un valor propio de tenantActivo");
     }
 
+    /// <summary>
+    /// Codex, ronda 18: el ciclo diario repara la marca del hueco que una desconexión dejó por registrar
+    /// (<c>ReparacionMarcaHuecoService</c>), en el mismo ámbito del Tenant propietario y antes de renovar. El cableado vive
+    /// en un método de instancia sin test que lo observe: quitar la llamada, o sacarla del ámbito con el Tenant explícito,
+    /// pone este trinquete en rojo.
+    /// </summary>
+    [Fact]
+    public void El_ciclo_repara_las_marcas_por_registrar_en_el_ambito_del_Tenant_antes_de_renovar()
+    {
+        var fuente = Fuente();
+
+        Regex.IsMatch(fuente,
+                @"using\s+var\s+_\s*=\s*AmbitoTenantExplicito\.Establecer\(tenantId\);[\s\S]*?ambito\.ServiceProvider\.GetRequiredService<ReparacionMarcaHuecoService>\(\)\s*\.RepararDelTenantActualAsync\(stoppingToken\)[\s\S]*?ambito\.ServiceProvider\.GetRequiredService<RenovacionSuscripcionesWebhookService>\(\)\s*\.RenovarProximasAExpirarAsync\(")
+            .Should().BeTrue("la reparación usa el ámbito del Tenant propietario y va antes de la renovación");
+    }
+
     private static string RaizDelRepositorio()
     {
         var actual = new DirectoryInfo(AppContext.BaseDirectory);

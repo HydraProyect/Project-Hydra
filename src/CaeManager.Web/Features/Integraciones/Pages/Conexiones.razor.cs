@@ -387,8 +387,9 @@ public partial class Conexiones : CaeManager.Web.Components.PaginaIntegrableConf
                 return;
             }
 
+            // La reparación ya quedó guardada: si falla la recarga, se avisa de la recarga y no de la reparación.
             ToastService.Mostrar(Textos["HuecoReparado"], TonoToast.Exito);
-            await CargarConexionesAsync();
+            await RecargarSinPropagarAsync();
         }
         catch (Exception ex)
         {
