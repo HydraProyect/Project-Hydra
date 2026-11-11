@@ -736,4 +736,7 @@
   <data name="ErrorDescargaTramo" xml:space="preserve">
     <value>No se han podido descargar las páginas {0} a {1}, ni las siguientes. Inténtalo de nuevo.</value>
   </data>
+  <data name="ErrorSinEspacioTramo" xml:space="preserve">
+    <value>Ahora mismo no hay espacio para preparar las páginas {0} a {1}, ni las siguientes. Vuelve a intentarlo en unos minutos.</value>
+  </data>
 </root>

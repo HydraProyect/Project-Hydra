@@ -9,6 +9,20 @@ public static class LimitesDivisionPdf
     public const long TamanoMaximoOriginalBytes = 50L * 1024 * 1024;
 
     public const int TamanoMaximoOriginalMb = (int)(TamanoMaximoOriginalBytes / (1024 * 1024));
+
+    /// <summary>
+    /// Veces el tamaño del original que coexisten en memoria mientras se extrae un tramo para descargarlo. El factor del
+    /// análisis (<see cref="Common.Archivos.LecturaAlmacenadaParaAnalisis.FactorMemoriaAnalisis"/>, el mismo que la
+    /// unión) cubre la copia leída del temporal, lo que PDFsharp construye al abrirla y las páginas copiadas al tramo
+    /// nuevo. Encima, el guardado: PDFsharp escribe el tramo en un <see cref="MemoryStream"/> que crece doblando su
+    /// búfer (hasta el doble del tramo) y luego lo copia con <c>ToArray</c> (otro tramo). Un tramo no pasa del
+    /// original en la práctica, así que esas tres copias se acotan con tres originales; si un tramo pasara, quien lo
+    /// retiene amplía su reserva sin esperar o falla cerrado.
+    /// </summary>
+    public const int FactorMemoriaExtraccionTramo = Common.Archivos.LecturaAlmacenadaParaAnalisis.FactorMemoriaAnalisis + 3;
+
+    /// <summary>Lo que se reserva del presupuesto de memoria de documentos para extraer un tramo de un original de este tamaño.</summary>
+    public static long MemoriaExtraccionTramo(long bytesOriginal) => bytesOriginal * FactorMemoriaExtraccionTramo;
 }
 
 /// <summary>Códigos de fallo de la lectura de un PDF para dividirlo; la pantalla traduce cada uno.</summary>

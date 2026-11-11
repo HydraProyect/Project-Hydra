@@ -736,4 +736,7 @@
   <data name="ErrorDescargaTramo" xml:space="preserve">
     <value>No s&apos;han pogut descarregar les pàgines {0} a {1}, ni les següents. Torna-ho a provar.</value>
   </data>
+  <data name="ErrorSinEspacioTramo" xml:space="preserve">
+    <value>Ara mateix no hi ha espai per preparar les pàgines {0} a {1}, ni les següents. Torna-ho a provar d&apos;aquí a uns minuts.</value>
+  </data>
 </root>

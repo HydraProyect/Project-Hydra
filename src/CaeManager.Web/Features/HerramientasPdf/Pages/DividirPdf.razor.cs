@@ -453,15 +453,16 @@ public partial class DividirPdf : CaeManager.Web.Components.PaginaInteractiva, I
     private static readonly TimeSpan PlazoDescarga = TimeSpan.FromMinutes(1);
 
     /// <summary>
-    /// La salida «Descargar»: cada tramo, en orden, como un PDF aparte, sin crear ningún Documento. Por tramo hay dos
-    /// reservas sucesivas, nunca a la vez: el doble del original mientras se lee y se extrae (el original y lo que PDFsharp
-    /// construye con él), y solo el tramo mientras el navegador lo recibe, así que la espera del navegador no retiene el
-    /// original. Un tramo que falla corta la serie y se dice cuál, para no dejar a medias una descarga que parezca completa.
+    /// La salida «Descargar»: cada tramo, en orden, como un PDF aparte, sin crear ningún Documento. Por tramo hay una sola
+    /// reserva: mientras se lee y se extrae cubre todo lo que coexiste (<see cref="LimitesDivisionPdf.MemoriaExtraccionTramo"/>),
+    /// y en cuanto el tramo existe se reduce a él, sin soltarse nunca mientras el tramo sigue vivo, así que la espera del
+    /// navegador no retiene el original pero el tramo nunca queda fuera del presupuesto. Un tramo que falla, por el
+    /// motivo que sea, corta la serie y se dice cuál, para no dejar a medias una descarga que parezca completa.
     /// </summary>
     private async Task DescargarTramosAsync()
     {
         if (_descargando || _creando || _division is not { } division || _almacen is not { } almacen
-            || _original is not { } original || _empresaId is not { } empresaId)
+            || _original is not { } original || _empresaId is not { } empresaId || _tenantEsperadoId is not { } tenantId)
             return;
 
         var rangos = division.Rangos;
@@ -477,22 +478,14 @@ public partial class DividirPdf : CaeManager.Web.Components.PaginaInteractiva, I
             foreach (var rango in rangos)
             {
                 enCurso = rango;
-                Result<TramoPdfExtraido> tramo;
-                using (await PresupuestoMemoria.ReservarAsync(original.TamanoBytes * 2, token))
-                {
-                    var contenido = await almacen.LeerAsync(original, token);
-                    tramo = await Mediator.Send(
-                        new ExtraerTramoPdfQuery(contenido, nombre, empresaId, rango.Inicial, rango.Final), token);
-                }
-
+                using var reserva = await PresupuestoMemoria.ReservarAsync(LimitesDivisionPdf.MemoriaExtraccionTramo(original.TamanoBytes), token);
+                var tramo = await ExtraerTramoAsync(almacen, original, nombre, tenantId, empresaId, rango, token);
                 if (tramo.EsFallido)
                     break;
 
-                using (await PresupuestoMemoria.ReservarAsync(tramo.Valor.Contenido.Length, token))
-                {
-                    if (!await EntregarTramoAsync(tramo.Valor, token))
-                        break;
-                }
+                using var exceso = CubrirSoloElTramo(reserva, tramo.Valor.Contenido.Length);
+                if (!await EntregarTramoAsync(tramo.Valor, token))
+                    break;
 
                 entregados++;
                 enCurso = null;
@@ -503,7 +496,9 @@ public partial class DividirPdf : CaeManager.Web.Components.PaginaInteractiva, I
         }
         catch (PresupuestoMemoriaAgotadoException)
         {
-            _error = Textos["ErrorSinEspacio"];
+            _error = enCurso is { } sinEspacio
+                ? Textos["ErrorSinEspacioTramo", sinEspacio.Inicial, sinEspacio.Final]
+                : Textos["ErrorSinEspacio"];
         }
         catch (IOException ex)
         {
@@ -522,6 +517,34 @@ public partial class DividirPdf : CaeManager.Web.Components.PaginaInteractiva, I
             // Si a mitad se cambió de PDF, el recuento ya no describe lo que hay en pantalla.
             _descargados = entregados > 0 && ReferenceEquals(_division, division) ? entregados : null;
         }
+    }
+
+    /// <summary>Lee el original y extrae un tramo; la copia del original no sobrevive a este método.</summary>
+    private async Task<Result<TramoPdfExtraido>> ExtraerTramoAsync(AlmacenTemporalSubidaMasiva almacen, ArchivoTemporal original,
+        string nombre, Guid tenantId, Guid empresaId, RangoPaginas rango, CancellationToken token)
+    {
+        var contenido = await almacen.LeerAsync(original, token);
+        return await Mediator.Send(
+            new ExtraerTramoPdfQuery(contenido, nombre, tenantId, empresaId, rango.Inicial, rango.Final), token);
+    }
+
+    /// <summary>
+    /// Deja la reserva de la extracción en lo que ocupa el tramo, que sigue vivo hasta que el navegador lo recibe. Si el
+    /// tramo ocupa más de lo reservado, amplía sin esperar: esperar reteniendo una reserva puede esperar a sí misma.
+    /// </summary>
+    /// <returns>La ampliación, si hizo falta; quien llama la suelta junto con la reserva.</returns>
+    /// <exception cref="PresupuestoMemoriaAgotadoException">El tramo no cabe ahora junto a lo ya reservado.</exception>
+    private ReservaMemoriaDocumentos? CubrirSoloElTramo(ReservaMemoriaDocumentos reserva, long bytesTramo)
+    {
+        if (bytesTramo <= reserva.Bytes)
+        {
+            reserva.ReducirA(bytesTramo);
+            return null;
+        }
+
+        return PresupuestoMemoria.TryReservar(bytesTramo - reserva.Bytes, out var exceso)
+            ? exceso
+            : throw new PresupuestoMemoriaAgotadoException();
     }
 
     /// <summary>Entrega un tramo al navegador como flujo; vuelve cuando lo ha leído, ha fallado o vence el plazo.</summary>

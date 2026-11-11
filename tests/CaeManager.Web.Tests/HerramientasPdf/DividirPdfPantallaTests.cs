@@ -69,6 +69,12 @@ public sealed class DividirPdfPantallaTests : BunitContext
         public List<ExtraerTramoPdfQuery> Extracciones { get; } = [];
         public int? PaginaQueFallaAlExtraer { get; set; }
 
+        /// <summary>Si está, la extracción pasa por la de verdad (<see cref="ExtraccionTramoPdf"/>) con este divisor.</summary>
+        public IDivisorPdf? Divisor { get; set; }
+
+        /// <summary>Se llama al extraer cada tramo, con la reserva de la pantalla ya hecha.</summary>
+        public Action? AlExtraer { get; set; }
+
         private object Responder(object peticion)
         {
             switch (peticion)
@@ -87,6 +93,16 @@ public sealed class DividirPdfPantallaTests : BunitContext
                     return Result.Exito(resultados);
                 case ExtraerTramoPdfQuery extraccion:
                     Extracciones.Add(extraccion);
+                    AlExtraer?.Invoke();
+                    if (Divisor is { } divisor)
+                    {
+                        var extraido = ExtraccionTramoPdf.Extraer(
+                            divisor, extraccion.ContenidoPdf, extraccion.PaginaInicial, extraccion.PaginaFinal, NullLogger.Instance);
+                        return extraido.EsExitoso
+                            ? Result.Exito(new TramoPdfExtraido($"paquete-pag-{extraccion.PaginaInicial}-{extraccion.PaginaFinal}.pdf", extraido.Valor))
+                            : Result.Fallo<TramoPdfExtraido>(extraido.Error);
+                    }
+
                     return extraccion.PaginaInicial == PaginaQueFallaAlExtraer
                         ? Result.Fallo<TramoPdfExtraido>(Error.Crear("Prueba.Extraccion", "No se pudo extraer."))
                         : Result.Exito(new TramoPdfExtraido($"paquete-pag-{extraccion.PaginaInicial}-{extraccion.PaginaFinal}.pdf", [1]));
@@ -148,7 +164,48 @@ public sealed class DividirPdfPantallaTests : BunitContext
                 new ClaimsIdentity([new Claim(ClaimTypes.Role, rol)], "test"))));
     }
 
-    private IRenderedComponent<DividirPdf> Renderizar(string rol = "GestorCae", Guid? tenantId = null, bool disponible = true)
+    /// <summary>Cuenta las reservas que pide la pantalla y las pasa al presupuesto de verdad.</summary>
+    private sealed class PresupuestoContado(IPresupuestoMemoriaDocumentos real) : IPresupuestoMemoriaDocumentos
+    {
+        public int Peticiones { get; private set; }
+
+        public long Maximo => real.Maximo;
+
+        public ValueTask<ReservaMemoriaDocumentos> ReservarAsync(long bytes, CancellationToken cancellationToken = default)
+        {
+            Peticiones++;
+            return real.ReservarAsync(bytes, cancellationToken);
+        }
+
+        public bool TryReservar(long bytes, out ReservaMemoriaDocumentos reserva)
+        {
+            Peticiones++;
+            return real.TryReservar(bytes, out reserva);
+        }
+    }
+
+    /// <summary>Un divisor que abre bien y lanza al copiar las páginas de un tramo, como PDFsharp con un PDF dañado.</summary>
+    private sealed class DivisorQueLanza(int paginaQueLanza) : IDivisorPdf
+    {
+        public Result<IPdfParaDividir> Abrir(byte[] contenidoPdf) => Result.Exito<IPdfParaDividir>(new Abierto(paginaQueLanza));
+
+        private sealed class Abierto(int paginaQueLanza) : IPdfParaDividir
+        {
+            public int NumeroPaginas => 4;
+            public bool EstaFirmado => false;
+
+            public Result<byte[]> ExtraerPaginas(int paginaInicial, int paginaFinal) => paginaInicial == paginaQueLanza
+                ? throw new InvalidOperationException("PDFsharp no pudo copiar la página.")
+                : Result.Exito(new byte[] { 1 });
+
+            public void Dispose()
+            {
+            }
+        }
+    }
+
+    private IRenderedComponent<DividirPdf> Renderizar(
+        string rol = "GestorCae", Guid? tenantId = null, bool disponible = true, IPresupuestoMemoriaDocumentos? presupuesto = null)
     {
         Services.AddScoped<IMediator>(_ => _mediador);
         Services.AddScoped<ICurrentUserService>(_ => new UsuarioFalso(rol));
@@ -165,7 +222,7 @@ public sealed class DividirPdfPantallaTests : BunitContext
         {
             DirectorioTemporal = Path.Combine(Path.GetTempPath(), "talveg-dividir-pdf-tests"),
         })));
-        Services.AddSingleton<IPresupuestoMemoriaDocumentos>(_presupuesto);
+        Services.AddSingleton<IPresupuestoMemoriaDocumentos>(presupuesto ?? _presupuesto);
         Services.TryAddSingleton(TimeProvider.System);
 
         return Render<DividirPdf>();
@@ -252,6 +309,122 @@ public sealed class DividirPdfPantallaTests : BunitContext
         cut.FindAll(".salida-descargada").Should().BeEmpty();
         _mediador.Creaciones.Should().BeEmpty();
         _presupuesto.Reservado.Should().Be(0, "un fallo del navegador también suelta la reserva");
+    }
+
+    [Fact]
+    public async Task Descargar_pide_la_extraccion_con_el_Tenant_del_inicio_de_la_pantalla()
+    {
+        var descarga = JSInterop.SetupModule("./js/descarga-pdf-unido.js");
+        descarga.SetupVoid("descargarPdf", _ => true).SetVoidResult();
+        var cut = Renderizar();
+        await SubirAsync(cut);
+
+        Pulsar(cut, "Descargar 3 PDF");
+
+        cut.WaitForAssertion(() => _mediador.Extracciones.Should().HaveCount(3));
+        _mediador.Extracciones.Should().OnlyContain(e => e.TenantEsperadoId == TenantAId);
+    }
+
+    [Fact]
+    public async Task Si_el_divisor_lanza_al_extraer_un_tramo_se_corta_la_serie_y_se_dice_cual_sin_tumbar_la_pantalla()
+    {
+        var descarga = JSInterop.SetupModule("./js/descarga-pdf-unido.js");
+        descarga.SetupVoid("descargarPdf", _ => true).SetVoidResult();
+        _mediador.Divisor = new DivisorQueLanza(paginaQueLanza: 3);
+        var cut = Renderizar();
+        await SubirAsync(cut);
+
+        Pulsar(cut, "Descargar 3 PDF");
+
+        cut.WaitForAssertion(() => cut.Find(".aviso-error").TextContent.Should().Contain("No se han podido descargar las páginas 3 a 3, ni las siguientes."));
+        _mediador.Extracciones.Select(e => e.PaginaInicial).Should().Equal(1, 3);
+        descarga.Invocations.Should().ContainSingle();
+        cut.Find(".salida-descargada").TextContent.Should().Contain("PDF enviados al navegador: 1.");
+        cut.FindAll("button").Should().Contain(b => b.TextContent.Trim() == "Guardar en TALVEG", "la pantalla sigue viva tras el fallo");
+        _presupuesto.Reservado.Should().Be(0);
+    }
+
+    [Fact]
+    public async Task La_reserva_de_un_tramo_cubre_la_extraccion_y_se_reduce_al_tramo_sin_soltarse_entre_medias()
+    {
+        var contado = new PresupuestoContado(_presupuesto);
+        var reservadoAlExtraer = new List<long>();
+        _mediador.AlExtraer = () => reservadoAlExtraer.Add(_presupuesto.Reservado);
+        var descarga = JSInterop.SetupModule("./js/descarga-pdf-unido.js");
+        var pendiente = descarga.SetupVoid("descargarPdf", _ => true);
+        var cut = Renderizar(presupuesto: contado);
+        await SubirAsync(cut);
+        cut.WaitForAssertion(() => _presupuesto.Reservado.Should().Be(0, "las vistas previas ya soltaron su reserva"));
+        var peticionesAntes = contado.Peticiones;
+
+        Pulsar(cut, "Descargar 3 PDF");
+        cut.WaitForAssertion(() => pendiente.Invocations.Should().ContainSingle());
+
+        reservadoAlExtraer.Should().Equal([LimitesDivisionPdf.MemoriaExtraccionTramo(3)],
+            "mientras se extrae coexisten la copia del original, lo que PDFsharp construye y las copias del guardado");
+        _presupuesto.Reservado.Should().Be(1, "mientras el navegador recibe el tramo solo queda reservado el tramo");
+        (contado.Peticiones - peticionesAntes).Should().Be(1,
+            "la reserva de la extracción se reduce al tramo: soltarla y pedir otra dejaría el tramo vivo fuera del presupuesto");
+    }
+
+    [Fact]
+    public async Task Durante_la_descarga_no_se_pueden_tocar_los_cortes()
+    {
+        var descarga = JSInterop.SetupModule("./js/descarga-pdf-unido.js");
+        var pendiente = descarga.SetupVoid("descargarPdf", _ => true);
+        var cut = Renderizar();
+        await SubirAsync(cut);
+        var antes = cut.FindAll("button.tijera").Select(b => b.GetAttribute("aria-pressed")).ToList();
+
+        Pulsar(cut, "Descargar 3 PDF");
+        cut.WaitForAssertion(() => pendiente.Invocations.Should().ContainSingle());
+        cut.FindAll("button.tijera")[0].Click();
+        pendiente.SetVoidResult();
+
+        cut.WaitForAssertion(() => cut.Find(".salida-descargada").TextContent.Should().Contain("PDF enviados al navegador: 3."));
+        cut.FindAll("button.tijera").Select(b => b.GetAttribute("aria-pressed")).Should().Equal(antes);
+        _mediador.Extracciones.Select(e => (e.PaginaInicial, e.PaginaFinal)).Should().Equal((1, 2), (3, 3), (4, 4));
+    }
+
+    [Fact]
+    public async Task Si_el_temporal_del_original_desaparece_se_dice_que_tramo_no_salio()
+    {
+        var descarga = JSInterop.SetupModule("./js/descarga-pdf-unido.js");
+        descarga.SetupVoid("descargarPdf", _ => true).SetVoidResult();
+        var cut = Renderizar();
+        await SubirAsync(cut);
+        cut.WaitForAssertion(() => _presupuesto.Reservado.Should().Be(0, "las vistas previas ya leyeron el original"));
+        var proceso = Services.GetRequiredService<CuotaSubidaMasiva>().DirectorioProceso;
+        foreach (var directorio in Directory.GetDirectories(proceso))
+            foreach (var fichero in Directory.GetFiles(directorio))
+                File.Delete(fichero);
+
+        Pulsar(cut, "Descargar 3 PDF");
+
+        cut.WaitForAssertion(() => cut.Find(".aviso-error").TextContent.Should().Contain("No se han podido descargar las páginas 1 a 2, ni las siguientes."));
+        _mediador.Extracciones.Should().BeEmpty();
+        descarga.Invocations.Should().BeEmpty();
+        _presupuesto.Reservado.Should().Be(0);
+    }
+
+    [Fact]
+    public async Task Sin_espacio_en_el_presupuesto_se_dice_que_tramo_no_salio()
+    {
+        var descarga = JSInterop.SetupModule("./js/descarga-pdf-unido.js");
+        descarga.SetupVoid("descargarPdf", _ => true).SetVoidResult();
+        var corto = new PresupuestoMemoriaDocumentos(
+            Options.Create(new OpcionesPresupuestoMemoriaDocumentos { EsperaMaxima = TimeSpan.FromMilliseconds(100) }), TimeProvider.System);
+        var cut = Renderizar(presupuesto: corto);
+        await SubirAsync(cut);
+        cut.WaitForAssertion(() => corto.Reservado.Should().Be(0, "las vistas previas ya soltaron su reserva"));
+        // Una reserva ajena de todo el presupuesto: la del primer tramo espera y agota el plazo.
+        using var ocupado = await corto.ReservarAsync(corto.Maximo);
+
+        Pulsar(cut, "Descargar 3 PDF");
+
+        cut.WaitForAssertion(() => cut.Find(".aviso-error").TextContent.Should()
+            .Contain("Ahora mismo no hay espacio para preparar las páginas 1 a 2, ni las siguientes."));
+        _mediador.Extracciones.Should().BeEmpty();
     }
 
     [Fact]
