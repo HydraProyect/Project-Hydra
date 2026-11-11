@@ -256,7 +256,7 @@
     <value>Crear projecte</value>
   </data>
   <data name="ModalCerrarExplicacion" xml:space="preserve">
-    <value>Un cop tancat, aquest projecte deixarà de comptar com a obert per a la facturació per dies. Pots seguir consultant-ne els tècnics i documents, i reobrir-lo des del seu detall si la data no era la correcta.</value>
+    <value>Un cop tancat, aquest projecte deixarà de comptar com a obert per a la facturació per dies. Pots continuar consultant-ne els tècnics i documents, i reobrir-lo des del seu detall si la data no era la correcta.</value>
   </data>
   <data name="EtiquetaFechaCierre" xml:space="preserve">
     <value>Data de tancament</value>

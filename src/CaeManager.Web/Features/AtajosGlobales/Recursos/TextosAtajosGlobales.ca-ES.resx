@@ -103,10 +103,10 @@
     <value>Fila següent / anterior</value>
   </data>
   <data name="ListaMarcarFila" xml:space="preserve">
-    <value>Marcar/desmarcar la fila que té el focus</value>
+    <value>Marcar/desmarcar la fila enfocada</value>
   </data>
   <data name="ListaAbrirFila" xml:space="preserve">
-    <value>Obrir la fila que té el focus</value>
+    <value>Obrir la fila enfocada</value>
   </data>
   <data name="ListaEditarFila" xml:space="preserve">
     <value>Editar la fila enfocada des de la seva vista ràpida</value>
