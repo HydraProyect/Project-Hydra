@@ -89,10 +89,10 @@ public class NotaFijaContactoCargasTests : BunitContext
     }
 
     private (IRenderedComponent<NotaFijaContacto> Cut, MediadorControlado Mediador) MontarConEscritura(
-        Func<IReadOnlyCollection<Guid>, Task<IReadOnlyDictionary<Guid, string>>>? resolverAutores = null)
+        Func<IReadOnlyCollection<Guid>, Task<IReadOnlyDictionary<Guid, string>>>? resolverAutores = null, string rol = Roles.GestorCae)
     {
         JSInterop.Mode = JSRuntimeMode.Loose;
-        this.ConRolDeEscritura(Roles.GestorCae);
+        this.ConRolDeEscritura(rol);
         Services.AddLocalization();
         var mediador = new MediadorControlado();
         Services.AddScoped<IMediator>(_ => mediador);
@@ -130,7 +130,10 @@ public class NotaFijaContactoCargasTests : BunitContext
         cut.WaitForAssertion(() => cut.Find(".nota-fija").TextContent.Should().Contain("Texto antiguo."));
 
         var guardado = await GuardarAsync(cut, mediador, "Texto nuevo.");
-        cut.Render(p => p.Add(x => x.Email, "carmen@obra.es")); // la página renderiza con la recarga en vuelo
+
+        // Sin render forzado por la página: el propio componente muestra lo guardado al cerrar la edición (StateHasChanged).
+        cut.WaitForAssertion(() => cut.Find(".nota-fija-texto").TextContent.Trim().Should().Be("Texto nuevo."));
+        cut.Render(p => p.Add(x => x.Email, "carmen@obra.es")); // y la página renderiza con la recarga en vuelo
 
         cut.FindAll(".nota-fija-texto-boton").Should().BeEmpty("con la recarga en vuelo no se abre la nota antigua para revertirla");
         cut.Find(".nota-fija-texto").TextContent.Trim().Should().Be("Texto nuevo.");
@@ -192,6 +195,26 @@ public class NotaFijaContactoCargasTests : BunitContext
     }
 
     /// <summary>
+    /// El rol Consulta ve el aviso y «Reintentar» (es una lectura), pero tras recuperar la nota sigue sin ningún botón de escritura.
+    /// </summary>
+    [Fact]
+    public async Task Con_rol_Consulta_el_reintento_es_de_lectura_y_no_ofrece_escribir()
+    {
+        var (cut, mediador) = MontarConEscritura(rol: Roles.Consulta);
+        await cut.InvokeAsync(() => mediador.Lecturas[0].Respuesta.SetException(new InvalidOperationException("boom")));
+        cut.WaitForAssertion(() => cut.FindAll(".nota-fija-reintentar").Should().ContainSingle());
+        cut.FindAll(".nota-fija button").Should().ContainSingle("solo «Reintentar»");
+
+        var reintento = cut.Find(".nota-fija-reintentar").ClickAsync(new MouseEventArgs());
+        cut.WaitForAssertion(() => mediador.Lecturas.Should().HaveCount(2));
+        await cut.InvokeAsync(() => mediador.Lecturas[1].Respuesta.SetResult(Nota("Carmen", "Prefiere la mañana.")));
+        await reintento;
+
+        cut.Find(".nota-fija").TextContent.Should().Contain("Prefiere la mañana.");
+        cut.FindAll(".nota-fija button").Should().BeEmpty();
+    }
+
+    /// <summary>
     /// Revisión Codex r2 de la #2167, BAJO: si el directorio de autores falla, la nota se pinta con el autor genérico en vez de
     /// desaparecer entera. Detecta que el fallo del resolutor tumbe la nota.
     /// </summary>
@@ -204,5 +227,6 @@ public class NotaFijaContactoCargasTests : BunitContext
 
         cut.WaitForAssertion(() => cut.Find(".nota-fija-texto").TextContent.Trim().Should().Be("Prefiere la mañana."));
         cut.FindAll(".nota-fija-reintentar").Should().BeEmpty("la nota se cargó: solo falló el nombre del autor");
+        cut.Find(".nota-fija").TextContent.Should().Contain("Agenda · Miembro del equipo", "sin nombre de autor se pinta el rótulo genérico");
     }
 }
