@@ -157,7 +157,10 @@ alcance_pr() {
   if ! etiquetas="$(gh api "repos/$REPO/issues/$PR_NUMERO/labels?per_page=100" --jq '.[].name')"; then
     todo "no se pudieron leer las etiquetas de la PR: corre todo."
   fi
-  if grep -qxF "$ETIQUETA_COMPLETO" <<< "$etiquetas"; then
+  # Línea exacta comparada en Bash, sin `grep <<<`: si Bash no pudiera crear el
+  # fichero temporal del here-string, grep no correría y su 1 se leería como
+  # «sin la etiqueta», y la PR correría con menos jobs de los pedidos.
+  if [[ $'\n'"$etiquetas"$'\n' == *$'\n'"$ETIQUETA_COMPLETO"$'\n'* ]]; then
     todo "la PR lleva la etiqueta «$ETIQUETA_COMPLETO»: corre todo."
   fi
   if ! ficheros="$(gh api --paginate "repos/$REPO/pulls/$PR_NUMERO/files?per_page=100" \
@@ -168,7 +171,13 @@ alcance_pr() {
     todo "la lista de ficheros de la PR llegó vacía: corre todo."
   fi
 
-  if (( $(grep -c . <<< "$ficheros") >= MAX_FICHEROS_API )); then
+  # Contadas con grep -c (lee la entrada entera) tras un printf, sin `<<<`: si la
+  # cuenta no sale, no se sabe si la API truncó la lista y corre todo.
+  local n_ficheros
+  if ! n_ficheros="$(printf '%s\n' "$ficheros" | grep -c .)" || [[ ! "$n_ficheros" =~ ^[0-9]+$ ]]; then
+    todo "no se pudo contar la lista de ficheros de la PR: corre todo."
+  fi
+  if (( n_ficheros >= MAX_FICHEROS_API )); then
     todo "la PR toca $MAX_FICHEROS_API ficheros o más y la API trunca la lista: corre todo."
   fi
 
@@ -207,7 +216,10 @@ alcance_pr() {
     if [[ "$f" =~ $re_e2e ]]; then
       e2e=true; porque_e2e="${porque_e2e:-$f}"
     fi
-  done <<< "$ficheros"
+  # `printf` del propio Bash por process substitution, no `<<<`: si el fichero
+  # temporal del here-string no se creara, el bucle no correría, ningún fichero
+  # activaría nada y la PR saldría con el alcance mínimo.
+  done < <(printf '%s\n' "$ficheros")
 
   local txt_i="se deja para el grupo de fusión" txt_e="se deja para el grupo de fusión"
   [[ -n "$porque_integracion" ]] && txt_i="corre por «$porque_integracion»"

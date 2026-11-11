@@ -419,6 +419,7 @@ public static class InfrastructureServiceCollectionExtensions
         services.AddSingleton(new CaeManager.Infrastructure.HerramientasPdf.LimitadorProcesosAislados(capacidad: 1));
         services.AddSingleton<CaeManager.Infrastructure.HerramientasPdf.ILanzadorProcesoAislado, CaeManager.Infrastructure.HerramientasPdf.LanzadorProcesoAislado>();
         services.AddSingleton<CaeManager.Application.HerramientasPdf.IUnidorPdf, CaeManager.Infrastructure.HerramientasPdf.UnidorPdfEnProcesoAparte>();
+        services.AddSingleton<CaeManager.Application.HerramientasPdf.IProcesadorFotosPdf, CaeManager.Infrastructure.HerramientasPdf.SkiaPdfSharpProcesadorFotosPdf>();
         services.AddSingleton<IRasterizadorPaginasPdfService, PdfToPngRasterizadorPaginasPdfService>();
         services.AddSingleton(AlmacenConfianzaFirmas.AdministracionEspanola());
         services.AddSingleton<IVerificadorFirmaPdfService, VerificadorFirmaPdfService>();

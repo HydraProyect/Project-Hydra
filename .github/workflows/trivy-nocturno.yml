@@ -82,7 +82,7 @@ jobs:
 
       - name: Recuperar la base de CVE del día
         id: cache-cve
-        uses: actions/cache/restore@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ${{ runner.temp }}/trivy-cache
           key: trivy-db-${{ steps.fecha-cve.outputs.fecha }}
@@ -105,7 +105,7 @@ jobs:
 
       - name: Guardar la base de CVE del día
         if: steps.cache-cve.outputs.cache-hit != 'true'
-        uses: actions/cache/save@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ${{ runner.temp }}/trivy-cache
           key: trivy-db-${{ steps.fecha-cve.outputs.fecha }}
