@@ -418,7 +418,7 @@
                      para que el rol Consulta pueda leerla; el propio componente oculta las acciones a quien no escribe. *@
                     <RespuestaSugeridaPanel @ref="_panelSugerencia" ConversacionId="_detalle.Id" PuedeSugerir="PuedeSugerirRespuesta"
                                             UltimoEntranteId="UltimoMensajeEntranteId" Version="_detalle.FechaUltimoMensajeUtc"
-                                            TextoRedactor="@_textoRespuesta" EsWhatsApp="_detalle.Canal == CanalConversacion.WhatsApp"
+                                            TextoRedactor="@_textoRespuesta" EsWhatsApp="_detalle.Canal == CanalConversacion.WhatsApp" Seleccion="_seleccion"
                                             OnInsertar="InsertarSugerenciaAsync" OnDescartada="SugerenciaDescartadaAsync" OnEstadoCambiado="() => StateHasChanged()" />
 
                   <SoloConEscritura>

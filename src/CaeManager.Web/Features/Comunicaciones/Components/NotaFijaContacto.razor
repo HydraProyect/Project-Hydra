@@ -37,8 +37,9 @@
 
         @if (_editando)
         {
+            @* Mientras se guarda no se escribe (revisión Codex r2 de la #2163, MEDIO 2): el comando ya lleva una copia del texto. *@
             <textarea class="nota-fija-area" rows="3" maxlength="@ContactoAgenda.LongitudMaximaNotas"
-                      aria-label="@string.Format(Textos["EtiquetaCampo"].Value, _nota.Nombre)"
+                      aria-label="@string.Format(Textos["EtiquetaCampo"].Value, _nota.Nombre)" readonly="@_guardando" aria-busy="@(_guardando ? "true" : null)"
                       value="@_texto" @oninput="e => CambiarTextoAsync(e.Value?.ToString() ?? string.Empty)"></textarea>
             <div class="nota-fija-acciones">
                 @* Secundario y no primario: la vista ya tiene «Enviar» como único primario. *@
@@ -172,10 +173,11 @@
 
         // Entidad y contacto salen de la misma carga (la nota pintada es la de la clave vigente): nunca uno de cada contacto.
         var (tipo, propietarioId, _) = clave;
+        var guardado = _texto.Trim();
         _guardando = true;
         try
         {
-            var resultado = await Mediator.Send(new FijarNotaContactoAgendaCommand(tipo, propietarioId, nota.ContactoId, _texto.Trim()));
+            var resultado = await Mediator.Send(new FijarNotaContactoAgendaCommand(tipo, propietarioId, nota.ContactoId, guardado));
             if (_cargada != clave) return;
             if (resultado.EsFallido)
             {
@@ -183,7 +185,9 @@
                 return;
             }
 
-            _editando = false;
+            // Si aun así llegó texto nuevo mientras se guardaba (un evento en cola), no se pierde: la edición sigue abierta
+            // con él y cuenta como cambio sin guardar. Solo se sale de la edición si lo guardado es lo que hay.
+            _editando = !string.Equals(_texto.Trim(), guardado, StringComparison.Ordinal);
             ToastService.Mostrar(string.Format(Textos["ToastGuardada"].Value, nota.Nombre), TonoToast.Exito);
             await CargarAsync();
         }

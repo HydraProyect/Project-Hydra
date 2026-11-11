@@ -747,6 +747,121 @@ public class ComunicacionesGen2Tests : BunitContext
         TextoDelRedactor(cut).Should().Be(borradorDeB, "el borrador de B no se envió y no se borra al terminar el de A");
     }
 
+    // ---------------------------------------------------------------- revisión Codex r2 de la #2163
+
+    /// <summary>
+    /// MEDIO 1 (r2): «Insertar» en A tarda; entretanto se abre B y se vuelve a A, y se escribe un borrador nuevo. La inserción
+    /// vuelve con A abierta otra vez, que es la misma conversación pero no la misma selección: no pisa el borrador nuevo.
+    /// </summary>
+    [Fact]
+    public async Task La_insercion_tardia_no_pisa_el_borrador_nuevo_tras_ir_a_otra_conversacion_y_volver()
+    {
+        var (escenario, _, segunda, _) = DosConversacionesConSugerenciaEnLaPrimera();
+        var insercion = new TaskCompletionSource<object?>(TaskCreationOptions.RunContinuationsAsynchronously);
+        escenario.Interceptar = p => p switch
+        {
+            ResolverRespuestaSugeridaCommand { Accion: AccionRespuestaSugerida.Insertar } => insercion.Task,
+            ObtenerRespuestaSugeridaQuery q when q.ConversacionId == segunda.Id => Ya(null),
+            _ => null
+        };
+        var (cut, _) = Renderizar(escenario);
+        await SeleccionarFila(cut, "Documentación pendiente");
+        cut.WaitForAssertion(() => cut.FindAll(".rs-bloque").Should().ContainSingle());
+
+        var clic = Boton(cut, ".rs-bloque button", "Insertar para revisar").ClickAsync(new MouseEventArgs());
+        await SeleccionarFila(cut, "Rechazo del portal");
+        cut.WaitForAssertion(() => cut.Find(".bandeja-centro-titulo-fila h2").TextContent.Trim().Should().Be("Rechazo del portal"));
+        await SeleccionarFila(cut, "Documentación pendiente");
+        cut.WaitForAssertion(() => cut.Find(".bandeja-centro-titulo-fila h2").TextContent.Trim().Should().Be("Documentación pendiente"));
+        const string borradorNuevo = "Carmen, esto lo he escrito al volver a la conversación y no es la sugerencia.";
+        await Escribir(cut, borradorNuevo);
+
+        await cut.InvokeAsync(() => insercion.SetResult(Result.Exito()));
+        await clic;
+
+        TextoDelRedactor(cut).Should().Be(borradorNuevo, "la inserción se pidió en una selección anterior de esta conversación");
+    }
+
+    /// <summary>
+    /// MEDIO 1 (r2): Enviar en A espera la confirmación de la sugerencia editada; entretanto se abre B, se vuelve a A y se
+    /// escribe un borrador nuevo. Sale lo que se pidió enviar, y al terminar el borrador nuevo de A no se vacía.
+    /// </summary>
+    [Fact]
+    public async Task Un_envio_que_termina_tras_ir_a_otra_conversacion_y_volver_no_vacia_el_borrador_nuevo()
+    {
+        var (escenario, primera, segunda, _) = DosConversacionesConSugerenciaEnLaPrimera();
+        var confirmacion = new TaskCompletionSource<object?>(TaskCreationOptions.RunContinuationsAsynchronously);
+        escenario.Interceptar = p => p switch
+        {
+            ResolverRespuestaSugeridaCommand { Accion: AccionRespuestaSugerida.Confirmar } => confirmacion.Task,
+            ObtenerRespuestaSugeridaQuery q when q.ConversacionId == segunda.Id => Ya(null),
+            _ => null
+        };
+        var (cut, mediador) = Renderizar(escenario);
+        await SeleccionarFila(cut, "Documentación pendiente");
+        cut.WaitForAssertion(() => cut.FindAll(".rs-bloque").Should().ContainSingle());
+        await Boton(cut, ".rs-bloque button", "Insertar para revisar").ClickAsync(new MouseEventArgs());
+        const string respuestaDeA = "Hola Carmen, recibido todo. Lo miramos esta tarde y mañana le decimos algo sin falta.";
+        await Escribir(cut, respuestaDeA);
+
+        var envio = Enviar(cut);
+        var apertura = SeleccionarFila(cut, "Rechazo del portal");
+        cut.WaitForAssertion(() => cut.FindAll(".modal-pie button").Should().Contain(b => b.TextContent.Trim() == "Salir y descartar"));
+        await cut.PulsarEnElAvisoAsync("Salir y descartar");
+        await apertura;
+        cut.WaitForAssertion(() => cut.Find(".bandeja-centro-titulo-fila h2").TextContent.Trim().Should().Be("Rechazo del portal"));
+        await SeleccionarFila(cut, "Documentación pendiente");
+        cut.WaitForAssertion(() => cut.Find(".bandeja-centro-titulo-fila h2").TextContent.Trim().Should().Be("Documentación pendiente"));
+        const string borradorNuevo = "Carmen, este es un borrador nuevo de la misma conversación y aún no se ha enviado.";
+        await Escribir(cut, borradorNuevo);
+
+        await cut.InvokeAsync(() => confirmacion.SetResult(Result.Exito()));
+        await envio;
+
+        var enviado = mediador.Enviados.OfType<ResponderConversacionCommand>().Should().ContainSingle().Subject;
+        enviado.ConversacionId.Should().Be(primera.Id);
+        enviado.CuerpoHtml.Should().Be(respuestaDeA, "sale lo que se pidió enviar");
+        TextoDelRedactor(cut).Should().Be(borradorNuevo, "el borrador nuevo no es el que se envió y no se vacía al terminar");
+    }
+
+    /// <summary>
+    /// MEDIO 2 (r2): mientras se guarda la nota fija el área es de solo lectura; y si aun así llega texto nuevo durante el
+    /// guardado, al terminar no se pierde: la edición sigue abierta con él y cuenta como cambio sin guardar.
+    /// </summary>
+    [Fact]
+    public async Task Lo_escrito_en_la_nota_fija_mientras_se_guarda_no_se_pierde()
+    {
+        var conversacion = Conversacion("Documentación pendiente", ClienteRefrielectric);
+        var escenario = new Escenario { Detalle = _ => DetalleDe(conversacion), NotaContacto = NotaDeCarmen() };
+        escenario.Conversaciones.Add(conversacion);
+        var puerta = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        async Task<object?> Retener(FijarNotaContactoAgendaCommand comando)
+        {
+            await puerta.Task;
+            escenario.NotasFijadas.Add(comando);
+            return Result.Exito();
+        }
+        escenario.Interceptar = p => p is FijarNotaContactoAgendaCommand c ? Retener(c) : null;
+        var (cut, _) = Renderizar(escenario);
+        await SeleccionarFila(cut, "Documentación pendiente");
+        cut.WaitForAssertion(() => cut.FindAll(".nota-fija").Should().ContainSingle());
+
+        await Boton(cut, ".nota-fija button", "Editar").ClickAsync(new MouseEventArgs());
+        await cut.Find(".nota-fija-area").InputAsync(new ChangeEventArgs { Value = "Llamar por la tarde." });
+        var guardado = Boton(cut, ".nota-fija button", "Guardar nota fija").ClickAsync(new MouseEventArgs());
+        cut.WaitForAssertion(() => cut.Find(".nota-fija-area").HasAttribute("readonly").Should().BeTrue("mientras se guarda no se escribe"));
+
+        await cut.Find(".nota-fija-area").InputAsync(new ChangeEventArgs { Value = "Llamar por la tarde, después de las cuatro." });
+        await cut.InvokeAsync(() => puerta.SetResult());
+        await guardado;
+
+        escenario.NotasFijadas.Should().ContainSingle().Which.Texto.Should().Be("Llamar por la tarde.");
+        var area = cut.Find(".nota-fija-area");
+        area.GetAttribute("value").Should().Be("Llamar por la tarde, después de las cuatro.", "lo escrito después sigue en el área");
+        area.HasAttribute("readonly").Should().BeFalse();
+        cut.FindComponent<NotaFijaContacto>().Instance.TieneTextoSinGuardar.Should().BeTrue();
+    }
+
     private static NotaContactoDto NotaDeLaura() =>
         new(Guid.NewGuid(), "Laura Gil", "Solo por correo, nunca por teléfono.", null, new DateTime(2026, 11, 4, 9, 0, 0, DateTimeKind.Utc));
 

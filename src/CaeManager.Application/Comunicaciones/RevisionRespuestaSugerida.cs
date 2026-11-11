@@ -25,22 +25,22 @@ public static class RevisionRespuestaSugerida
     public static string TextoComparable(string? texto) =>
         string.IsNullOrEmpty(texto) ? string.Empty : RespuestaSugerida.NormalizarTexto(texto);
 
-    /// <summary>El texto actual se ha apartado de la sugerencia más que <see cref="UmbralEdicion"/>, comparados como texto.</summary>
+    /// <summary>
+    /// El texto actual se ha apartado de la sugerencia más que <see cref="UmbralEdicion"/>, comparados como texto. Es la
+    /// negación exacta de <see cref="EsCasiLaMisma"/> sobre los textos normalizados: la interfaz y el servidor aplican la
+    /// misma función y el mismo umbral.
+    /// </summary>
     public static bool EditadaLoSuficiente(string? textoActual, string? textoSugerido) =>
-        DistanciaEdicion(TextoComparable(textoActual), TextoComparable(textoSugerido)) > UmbralEdicion;
+        !EsCasiLaMisma(TextoComparable(textoActual), TextoComparable(textoSugerido));
 
     /// <summary>
-    /// Para el servidor, sobre textos ya normalizados: el cuerpo es la sugerencia con a lo sumo <see cref="UmbralEdicion"/>
-    /// caracteres cambiados. En una sugerencia corta el margen baja a menos de la mitad de su longitud: si no, cualquier
-    /// mensaje breve escrito a mano quedaría a menos de 15 de un acuse de pocas palabras y se bloquearía sin parecerse.
+    /// La regla única, sobre textos ya normalizados (<see cref="TextoComparable"/>): el texto es la sugerencia con a lo sumo
+    /// <see cref="UmbralEdicion"/> caracteres cambiados, y por tanto sigue sin revisar. No hay excepción por longitud
+    /// (revisión Codex r2 de la #2163, ALTO): con un margen menor para las sugerencias cortas, «Ok, gracias» con una firma de
+    /// siete letras salía sin revisión por el servidor mientras la interfaz la seguía dando por no revisada.
     /// </summary>
-    public static bool EsCasiLaMisma(string cuerpoNormalizado, string textoNormalizado)
-    {
-        if (textoNormalizado.Length == 0) return false;
-
-        var margen = Math.Min(UmbralEdicion, (textoNormalizado.Length - 1) / 2);
-        return DistanciaEdicion(cuerpoNormalizado, textoNormalizado) <= margen;
-    }
+    public static bool EsCasiLaMisma(string cuerpoNormalizado, string textoNormalizado) =>
+        DistanciaEdicion(cuerpoNormalizado, textoNormalizado) <= UmbralEdicion;
 
     /// <summary>
     /// Distancia de Levenshtein acotada: devuelve como máximo <c>UmbralEdicion + 1</c>. Solo calcula la banda de

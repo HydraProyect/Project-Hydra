@@ -30,7 +30,7 @@
             @if (string.IsNullOrWhiteSpace(TextoRedactor))
             {
                 <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" Deshabilitado="_resolviendo"
-                       OnClick="() => OnInsertar.InvokeAsync(sinRevisar)">@Textos["PonerEnRedactor"]</Boton>
+                       OnClick="() => OnInsertar.InvokeAsync(new SugerenciaDeLaSeleccion(sinRevisar, Seleccion))">@Textos["PonerEnRedactor"]</Boton>
             }
             <Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno" Cargando="_resolviendo"
                    OnClick="() => ResolverAsync(AccionRespuestaSugerida.Confirmar)">@Textos["LoHeRevisado"]</Boton>
@@ -133,10 +133,20 @@ else if (_cargado && PuedeSugerir && _puedeEscribir)
     [Parameter] public string TextoRedactor { get; set; } = string.Empty;
 
     /// <summary>La página pone el texto de la sugerencia en el redactor. Esto no envía nada.</summary>
-    [Parameter] public EventCallback<RespuestaSugeridaDto> OnInsertar { get; set; }
+    [Parameter] public EventCallback<SugerenciaDeLaSeleccion> OnInsertar { get; set; }
+
+    /// <summary>
+    /// Token de la selección de la página: cambia cada vez que se abre una conversación, también al volver a la misma
+    /// (revisión Codex r2 de la #2163, MEDIO 1). Se fija al pulsar y vuelve con el aviso, para que la página descarte el de
+    /// una operación empezada en una selección anterior aunque la conversación sea la misma (A→B→A).
+    /// </summary>
+    [Parameter] public long Seleccion { get; set; }
 
     /// <summary>Se descartó una sugerencia: si el redactor aún tiene su texto, la página lo vacía (el servidor sigue bloqueando ese texto).</summary>
-    [Parameter] public EventCallback<RespuestaSugeridaDto> OnDescartada { get; set; }
+    [Parameter] public EventCallback<SugerenciaDeLaSeleccion> OnDescartada { get; set; }
+
+    /// <summary>La sugerencia de un aviso a la página, con el token de la selección en que se pulsó (<see cref="Seleccion"/>).</summary>
+    public sealed record SugerenciaDeLaSeleccion(RespuestaSugeridaDto Sugerencia, long Seleccion);
 
     /// <summary>Cambia el estado de la sugerencia (insertada, revisada, descartada): la página reevalúa si Enviar se ofrece.</summary>
     [Parameter] public EventCallback OnEstadoCambiado { get; set; }
@@ -271,6 +281,7 @@ else if (_cargado && PuedeSugerir && _puedeEscribir)
     {
         if (_resolviendo) return;
 
+        var seleccion = Seleccion;
         _resolviendo = true;
         try
         {
@@ -285,7 +296,7 @@ else if (_cargado && PuedeSugerir && _puedeEscribir)
             _confirmaSustituir = false;
             // Primero el estado (sin revisar) y después el texto: así la página ya bloquea Enviar cuando pinta el redactor.
             await CargarAsync(ConversacionId);
-            await OnInsertar.InvokeAsync(sugerencia);
+            await OnInsertar.InvokeAsync(new SugerenciaDeLaSeleccion(sugerencia, seleccion));
         }
         catch (Exception ex)
         {
@@ -302,6 +313,7 @@ else if (_cargado && PuedeSugerir && _puedeEscribir)
     {
         if (_resolviendo || _sugerencia is not { } sugerencia) return;
 
+        var seleccion = Seleccion;
         _resolviendo = true;
         try
         {
@@ -316,7 +328,7 @@ else if (_cargado && PuedeSugerir && _puedeEscribir)
             if (accion == AccionRespuestaSugerida.Descartar)
             {
                 ToastService.Mostrar(Textos["ToastDescartada"].Value, TonoToast.Exito);
-                await OnDescartada.InvokeAsync(sugerencia);
+                await OnDescartada.InvokeAsync(new SugerenciaDeLaSeleccion(sugerencia, seleccion));
             }
 
             await CargarAsync(ConversacionId);

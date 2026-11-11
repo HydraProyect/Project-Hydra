@@ -105,7 +105,10 @@ public class EnviarMensajeNuevoCommandHandler(
         if (request.EmpresaId is { } empresaId && !await alcanceDatos.EmpresaParaGestionVisibleAsync(empresaId, cancellationToken))
             return Result.Fallo<Guid>(Error.Crear("Empresa.NoEncontrada", "No encontramos esta empresa."));
 
-        var bloqueo = await comunicaciones.ComprobarEnvioPorBuzonAsync(alcanceDatos, invalidadorAlcance, conexion.Id, request.CuerpoHtml, cancellationToken);
+        // Se compara con las sugerencias de los hilos de este buzón con alguno de los destinatarios (Para o CC): son los
+        // únicos en los que el proveedor puede agrupar el mensaje, y la conversación con otra contraparte no lo bloquea.
+        var bloqueo = await comunicaciones.ComprobarEnvioPorBuzonAsync(
+            alcanceDatos, invalidadorAlcance, conexion.Id, request.Destinatarios.Concat(request.Copia ?? []), request.CuerpoHtml, cancellationToken);
         if (bloqueo.EsFallido)
             return Result.Fallo<Guid>(bloqueo.Error);
         await registroSalida.RegistrarSalidaAsync(

@@ -744,9 +744,18 @@ public partial class Bandeja : CaeManager.Web.Components.PaginaInteractiva, IAsy
 
     private bool _notaInternaActiva;
 
+    /// <summary>
+    /// Token de la selección (revisión Codex r2 de la #2163, MEDIO 1): cambia cada vez que se abre una conversación o se
+    /// vuelve a la bandeja, también al volver a la misma. Una operación que termina después (insertar o descartar la
+    /// sugerencia, enviar) solo toca el redactor si sigue en la selección en que empezó: en A→B→A el borrador nuevo de A no es
+    /// el que había al pulsar, y no se pisa ni se vacía. El Id de la conversación no basta, porque es el mismo.
+    /// </summary>
+    private long _seleccion;
+
     private async Task VolverABandejaAsync()
     {
         if (!await _ambitoConversacion.ConfirmarAbandonoAsync()) return;
+        ++_seleccion;
         ++_cargaDetalleVigente;
         _cargandoDetalle = false;
         _errorDetalle = false;
@@ -772,6 +781,7 @@ public partial class Bandeja : CaeManager.Web.Components.PaginaInteractiva, IAsy
 
         if (!await _ambitoConversacion.ConfirmarAbandonoAsync()) return;
 
+        ++_seleccion;
         _conversacionSeleccionadaId = id;
         _idEnfocado = id;
         _notaInternaActiva = false;
@@ -978,11 +988,13 @@ public partial class Bandeja : CaeManager.Web.Components.PaginaInteractiva, IAsy
         DirectorioUsuarios.ObtenerNombresVisiblesAsync(ids.ToList(), _ciclo.Token);
 
     /// <summary>«Insertar para revisar»: el texto va al redactor y no se envía nada. Si ya había algo, el panel ha preguntado antes.</summary>
-    private Task InsertarSugerenciaAsync(RespuestaSugeridaDto sugerencia)
+    private Task InsertarSugerenciaAsync(RespuestaSugeridaPanel.SugerenciaDeLaSeleccion aviso)
     {
         // Una devolución tardía de otra conversación no escribe en el redactor de la que está abierta. La selección cambia
-        // al pulsar otra conversación y el detalle solo cuando termina de cargar (revisión Codex r1, ALTO 2): hacen falta las dos.
-        if (!EsLaConversacionAbierta(sugerencia.ConversacionId)) return Task.CompletedTask;
+        // al pulsar otra conversación y el detalle solo cuando termina de cargar (revisión Codex r1, ALTO 2): hacen falta las
+        // dos. Y la de una selección anterior de esta misma conversación tampoco (A→B→A, revisión Codex r2, MEDIO 1).
+        var sugerencia = aviso.Sugerencia;
+        if (aviso.Seleccion != _seleccion || !EsLaConversacionAbierta(sugerencia.ConversacionId)) return Task.CompletedTask;
 
         // En correo la sugerencia se guarda como HTML; el redactor es texto (revisión Codex r1, MEDIO 8). El servidor compara
         // los dos como texto (RevisionRespuestaSugerida.TextoComparable), así que el bloqueo es el mismo.
@@ -999,9 +1011,11 @@ public partial class Bandeja : CaeManager.Web.Components.PaginaInteractiva, IAsy
     /// Tras descartar, el redactor no se queda con el texto descartado: el servidor sigue bloqueando enviarlo y la persona
     /// acabaría ante un rechazo de algo que acaba de descartar. Si ya lo editó más del umbral, es suyo y se respeta.
     /// </summary>
-    private Task SugerenciaDescartadaAsync(RespuestaSugeridaDto sugerencia)
+    private Task SugerenciaDescartadaAsync(RespuestaSugeridaPanel.SugerenciaDeLaSeleccion aviso)
     {
-        if (EsLaConversacionAbierta(sugerencia.ConversacionId) && !RevisionRespuestaSugerida.EditadaLoSuficiente(_textoRespuesta, sugerencia.Texto))
+        var sugerencia = aviso.Sugerencia;
+        if (aviso.Seleccion == _seleccion && EsLaConversacionAbierta(sugerencia.ConversacionId) &&
+            !RevisionRespuestaSugerida.EditadaLoSuficiente(_textoRespuesta, sugerencia.Texto))
             _textoRespuesta = string.Empty;
 
         return Task.CompletedTask;
@@ -1117,6 +1131,7 @@ public partial class Bandeja : CaeManager.Web.Components.PaginaInteractiva, IAsy
         var esWhatsApp = detalle.Canal == CanalConversacion.WhatsApp;
         var texto = _textoRespuesta;
         var adjuntos = _adjuntosPendientes.Count > 0 ? _adjuntosPendientes.ToList() : null;
+        var seleccion = _seleccion;
 
         _enviando = true;
         try
@@ -1137,7 +1152,9 @@ public partial class Bandeja : CaeManager.Web.Components.PaginaInteractiva, IAsy
             }
 
             ToastService.Mostrar("Respuesta enviada.", TonoToast.Exito);
-            if (_conversacionSeleccionadaId != conversacionId)
+            // Otra selección (aunque sea otra vez esta conversación, A→B→A; revisión Codex r2, MEDIO 1): lo que hay ahora en
+            // el redactor y en los adjuntos no es lo que se envió, y no se borra.
+            if (_seleccion != seleccion)
             {
                 await CargarListaAsync();
                 return;
@@ -1185,6 +1202,7 @@ public partial class Bandeja : CaeManager.Web.Components.PaginaInteractiva, IAsy
         // Como en EnviarAsync (revisión Codex r1, ALTO 3): lo que se envía y a dónde se fija antes de esperar.
         var texto = _textoRespuesta;
         var email = _emailFallback.Trim();
+        var seleccion = _seleccion;
 
         _enviando = true;
         try
@@ -1199,7 +1217,7 @@ public partial class Bandeja : CaeManager.Web.Components.PaginaInteractiva, IAsy
             }
 
             ToastService.Mostrar("Mensaje enviado por correo — la conversación continúa en este mismo hilo.", TonoToast.Exito);
-            if (_conversacionSeleccionadaId != conversacionId)
+            if (_seleccion != seleccion)
             {
                 await CargarListaAsync();
                 return;
