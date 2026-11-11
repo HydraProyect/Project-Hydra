@@ -3,6 +3,7 @@
    corría dos veces en cada visita. *@
 @rendermode @(new InteractiveServerRenderMode(prerender: false))
 @inherits CaeManager.Web.Components.PaginaInteractiva
+@implements IAsyncDisposable
 @attribute [Authorize(Roles = $"{CaeManager.Infrastructure.Identity.Roles.Administrador},{CaeManager.Infrastructure.Identity.Roles.DireccionCae},{CaeManager.Infrastructure.Identity.Roles.CoordinadorCae},{CaeManager.Infrastructure.Identity.Roles.GestorCae},{CaeManager.Infrastructure.Identity.Roles.Consulta}")]
 @using CaeManager.Web.Features.Documentos
 @using CaeManager.Web.Features.Reportes.Recursos
@@ -206,7 +207,13 @@
             else if (TienePlan)
             {
                 var generado = _generado!;
-                <div class="mesa-vista-previa-informe">
+                @* Panel de altura acotada al viewport: la hoja (131 documentos en
+                   vigencia) desplaza dentro de la mesa y no alarga la página. Los
+                   botones flotan sobre el panel, fuera del contenido que desplaza,
+                   y solo se activan cuando hay desbordamiento. *@
+                <div class="panel-vista-previa-informe">
+                <div class="mesa-vista-previa-informe" @ref="_mesaVistaPrevia" tabindex="0" role="region"
+                     aria-label="@Textos["AriaZonaDesplazableVistaPrevia"]">
                     <article class="hoja-informe" aria-label="@Textos["AriaVistaPrevia"]">
                         <header class="cabecera-hoja-informe">
                             <h2 class="titulo-hoja-informe">@TituloGenerado@(NombreClienteGenerado is { } cliente ? $" — {cliente}" : "")</h2>
@@ -290,6 +297,23 @@
                        la vista previa (ReportesEndpoints): no es una instantánea
                        de estas filas, así que no se promete que coincidan. *@
                     <span class="nota-vista-previa-informe">@Textos["NotaVistaPrevia"]</span>
+                </div>
+                <div class="botones-desplazamiento-informe">
+                    <button type="button" class="boton-desplazamiento-informe" disabled="@(!_vistaPreviaDesborda)"
+                            aria-label="@Textos["AriaIrAlPrincipio"]" title="@Textos["AriaIrAlPrincipio"]"
+                            @onclick="() => DesplazarVistaPreviaAsync(DestinoInicio)">
+                        <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">
+                            <line x1="12" y1="19" x2="12" y2="5" /><polyline points="5 12 12 5 19 12" />
+                        </svg>
+                    </button>
+                    <button type="button" class="boton-desplazamiento-informe" disabled="@(!_vistaPreviaDesborda)"
+                            aria-label="@Textos["AriaIrAlFinal"]" title="@Textos["AriaIrAlFinal"]"
+                            @onclick="() => DesplazarVistaPreviaAsync(DestinoFinal)">
+                        <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">
+                            <line x1="12" y1="5" x2="12" y2="19" /><polyline points="19 12 12 19 5 12" />
+                        </svg>
+                    </button>
+                </div>
                 </div>
             }
             else if (!_generando)

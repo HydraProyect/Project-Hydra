@@ -298,6 +298,7 @@ a.boton-exportar-informe:hover {
     flex-direction: column;
     gap: var(--space-4);
     min-width: 0;
+    align-self: stretch;
 }
 
 /* D-25: la tabla del informe ocupa todo el ancho de la hoja y el nombre del
@@ -337,6 +338,23 @@ a.boton-exportar-informe:hover {
     text-wrap: pretty;
 }
 
+/* Un informe largo (131 documentos de vigencia) no alarga la página: el panel de la
+   vista previa tiene altura acotada al viewport y la hoja desplaza dentro de él.
+   .contenido es quien desplaza la página (MainLayout.razor.css), así que el panel se
+   queda pegado bajo la cabecera mientras se lee la hoja. Para que el sticky tenga
+   recorrido la columna ocupa toda la altura de la fila (align-self en
+   .columna-reportes-vista), que marca la columna de filtros e historial. El mínimo
+   evita un panel inservible en ventanas muy bajas. */
+.panel-vista-previa-informe {
+    position: sticky;
+    top: var(--space-4);
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    max-height: max(20rem, calc(100vh - 9rem));
+    max-height: max(20rem, calc(100dvh - 9rem));
+}
+
 /* La vista previa del mockup: una hoja sobre una mesa atenuada. */
 .mesa-vista-previa-informe {
     background-color: var(--color-surface-subtle);
@@ -347,6 +365,84 @@ a.boton-exportar-informe:hover {
     flex-direction: column;
     align-items: center;
     gap: var(--space-5);
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+}
+
+/* Sin esto la hoja, hija flex de altura intrínseca, se encogería para caber. */
+.mesa-vista-previa-informe > * {
+    flex-shrink: 0;
+}
+
+.mesa-vista-previa-informe:focus-visible {
+    outline: 2px solid var(--color-primary-500);
+    outline-offset: -2px;
+}
+
+/* Flotan sobre la esquina inferior derecha del panel, fuera del contenido que
+   desplaza, y dejan libre el hueco de la barra de desplazamiento. */
+.botones-desplazamiento-informe {
+    position: absolute;
+    right: calc(var(--space-4) + 14px);
+    bottom: var(--space-4);
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+}
+
+.boton-desplazamiento-informe {
+    width: 36px;
+    height: 36px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+    border: 1px solid var(--color-border-control);
+    border-radius: var(--radius-full);
+    background-color: var(--color-surface);
+    color: var(--color-primary-500);
+    box-shadow: var(--shadow-overlay);
+    cursor: pointer;
+}
+
+.boton-desplazamiento-informe:hover:not(:disabled) {
+    border-color: var(--color-primary-500);
+    background-color: var(--color-surface-hover);
+}
+
+.boton-desplazamiento-informe:focus-visible {
+    outline: 2px solid var(--color-primary-500);
+    outline-offset: 2px;
+}
+
+.boton-desplazamiento-informe:disabled {
+    opacity: .5;
+    box-shadow: none;
+    cursor: not-allowed;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+    .boton-desplazamiento-informe {
+        transition: border-color .15s ease, background-color .15s ease;
+    }
+}
+
+/* Al imprimir sale la hoja entera, no solo lo visible del panel. */
+@media print {
+    .panel-vista-previa-informe {
+        position: static;
+        max-height: none;
+    }
+
+    .mesa-vista-previa-informe {
+        overflow: visible;
+    }
+
+    .botones-desplazamiento-informe {
+        display: none;
+    }
 }
 
 .hoja-informe {

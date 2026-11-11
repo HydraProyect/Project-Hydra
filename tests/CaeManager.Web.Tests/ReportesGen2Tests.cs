@@ -848,4 +848,165 @@ public class ReportesGen2Tests : BunitContext
         llamadas.Should().Be(2);
         Texto(cut.Find(".detalle-item-historial-informes")).Should().Be("Toda la cartera · Marta Rodríguez");
     }
+
+    // ---------------------------------------------------------------- vista previa acotada
+
+    private const string ModuloVistaPrevia = "./js/vista-previa-informe.js";
+
+    private BunitJSModuleInterop ModuloDeLaVistaPrevia()
+    {
+        var modulo = JSInterop.SetupModule(ModuloVistaPrevia);
+        modulo.Mode = JSRuntimeMode.Loose;
+        return modulo;
+    }
+
+    private static IElement BotonDeDesplazamiento(IRenderedComponent<ReportesPagina> cut, string etiqueta) =>
+        cut.FindAll(".botones-desplazamiento-informe button").Single(b => b.GetAttribute("aria-label") == etiqueta);
+
+    private static string LeerCssDeLaPagina()
+    {
+        var dir = AppContext.BaseDirectory;
+        while (dir is not null && !File.Exists(Path.Combine(dir, "CaeManager.slnx")))
+            dir = Path.GetDirectoryName(dir);
+        dir.Should().NotBeNull("se necesita la raíz del repositorio");
+        return File.ReadAllText(Path.Combine(dir!, "src", "CaeManager.Web", "Features", "Reportes", "Pages", "Reportes.razor.css"));
+    }
+
+    private static IEnumerable<string> CuerposCss(string css, string selector) =>
+        System.Text.RegularExpressions.Regex.Matches(css, @"(?<![\w-])" + System.Text.RegularExpressions.Regex.Escape(selector) + @"\s*\{([^}]*)\}")
+            .Select(m => m.Groups[1].Value);
+
+    [Fact]
+    public async Task La_hoja_va_en_un_panel_con_su_propio_desplazamiento_y_los_botones_quedan_fuera_de_lo_que_desplaza()
+    {
+        ModuloDeLaVistaPrevia();
+        var (cut, _) = Renderizar(new Escenario(), $"reportes?clienteId={ClienteA}");
+
+        await Generar(cut);
+
+        var panel = cut.Find(".panel-vista-previa-informe");
+        var mesa = panel.Children.SingleOrDefault(c => c.ClassList.Contains("mesa-vista-previa-informe"));
+        mesa.Should().NotBeNull("la mesa con la hoja es lo que desplaza dentro del panel");
+        mesa!.GetAttribute("tabindex").Should().Be("0", "una zona con desplazamiento tiene que poder recibir el foco para desplazarla con el teclado");
+        mesa.GetAttribute("role").Should().Be("region");
+        mesa.GetAttribute("aria-label").Should().Be("Vista previa del informe, con desplazamiento");
+        mesa.QuerySelector("article.hoja-informe").Should().NotBeNull();
+        mesa.QuerySelector(".nota-vista-previa-informe").Should().NotBeNull();
+        mesa.QuerySelector(".botones-desplazamiento-informe").Should().BeNull(
+            "los botones flotan sobre el panel; dentro de la mesa se irían con el contenido al desplazar");
+        panel.Children.Should().Contain(c => c.ClassList.Contains("botones-desplazamiento-informe"));
+    }
+
+    [Fact]
+    public void El_css_acota_la_altura_del_panel_y_da_desplazamiento_vertical_a_la_mesa()
+    {
+        var css = LeerCssDeLaPagina();
+
+        CuerposCss(css, ".panel-vista-previa-informe").Should().Contain(c => c.Contains("max-height:") && c.Contains("100dvh"),
+            "sin altura máxima ligada al viewport un informe de 131 documentos alarga la página sin fin");
+        CuerposCss(css, ".mesa-vista-previa-informe").Should().Contain(c => System.Text.RegularExpressions.Regex.IsMatch(c, @"overflow-y\s*:\s*auto"),
+            "la barra de desplazamiento vertical es de la hoja, no de la página");
+        CuerposCss(css, ".mesa-vista-previa-informe").Should().Contain(c => c.Contains("min-height: 0"),
+            "sin min-height:0 el hijo flex no encoge por debajo de su contenido y no llega a desplazar");
+        CuerposCss(css, ".botones-desplazamiento-informe").Should().Contain(c => c.Contains("position: absolute"));
+    }
+
+    [Fact]
+    public async Task Los_botones_de_desplazamiento_tienen_aria_label_y_estan_desactivados_mientras_la_hoja_no_desborda()
+    {
+        ModuloDeLaVistaPrevia();
+        var (cut, _) = Renderizar(new Escenario(), $"reportes?clienteId={ClienteA}");
+
+        await Generar(cut);
+
+        foreach (var etiqueta in new[] { "Ir al principio", "Ir al final" })
+        {
+            var boton = BotonDeDesplazamiento(cut, etiqueta);
+            boton.TagName.Should().Be("BUTTON", "un botón nativo responde a Intro y Espacio sin código");
+            boton.GetAttribute("type").Should().Be("button");
+            boton.HasAttribute("disabled").Should().BeTrue($"«{etiqueta}» no hace nada si la hoja cabe en el panel");
+            boton.QuerySelector("svg")!.GetAttribute("aria-hidden").Should().Be("true", "el nombre accesible es el aria-label, no el dibujo");
+        }
+    }
+
+    [Fact]
+    public async Task Sin_vista_previa_no_hay_panel_ni_botones_y_cambiar_de_informe_los_retira()
+    {
+        var modulo = ModuloDeLaVistaPrevia();
+        var (cut, _) = Renderizar(new Escenario(), $"reportes?clienteId={ClienteA}");
+        cut.FindAll(".panel-vista-previa-informe").Should().BeEmpty();
+        cut.FindAll(".botones-desplazamiento-informe").Should().BeEmpty();
+
+        await Generar(cut);
+        cut.WaitForAssertion(() => modulo.Invocations["observarDesbordamiento"].Should().ContainSingle());
+        await cut.InvokeAsync(() => cut.Instance.CambiarDesbordamientoVistaPrevia(true));
+        BotonDeDesplazamiento(cut, "Ir al final").HasAttribute("disabled").Should().BeFalse();
+
+        await ElegirInforme(cut, "Incidencias");
+
+        cut.FindAll(".panel-vista-previa-informe").Should().BeEmpty("cambiar de informe invalida la vista previa");
+        cut.WaitForAssertion(() => modulo.Invocations["desconectar"].Should().ContainSingle(
+            "el observador de una mesa que ya no está en el DOM sobra"));
+
+        await Generar(cut);
+        BotonDeDesplazamiento(cut, "Ir al final").HasAttribute("disabled").Should().BeTrue(
+            "el «desborda» de la hoja anterior no vale para la siguiente: hasta que el navegador lo mida, desactivado");
+    }
+
+    [Fact]
+    public async Task Cuando_la_hoja_desborda_los_botones_se_activan_y_desplazan_el_panel()
+    {
+        var modulo = ModuloDeLaVistaPrevia();
+        var (cut, _) = Renderizar(new Escenario(), $"reportes?clienteId={ClienteA}");
+        await Generar(cut);
+        cut.WaitForAssertion(() => modulo.Invocations["observarDesbordamiento"].Should().ContainSingle());
+
+        await cut.InvokeAsync(() => cut.Instance.CambiarDesbordamientoVistaPrevia(true));
+
+        var alFinal = BotonDeDesplazamiento(cut, "Ir al final");
+        var alPrincipio = BotonDeDesplazamiento(cut, "Ir al principio");
+        alFinal.HasAttribute("disabled").Should().BeFalse();
+        alPrincipio.HasAttribute("disabled").Should().BeFalse();
+
+        await alFinal.ClickAsync(new MouseEventArgs());
+        await alPrincipio.ClickAsync(new MouseEventArgs());
+
+        modulo.Invocations["desplazar"].Select(i => i.Arguments[1]).Should().Equal(new object?[] { "final", "inicio" },
+            "cada botón desplaza el panel a su extremo");
+        modulo.Invocations["desplazar"].Should().OnlyContain(i => i.Arguments[0] is ElementReference);
+
+        await cut.InvokeAsync(() => cut.Instance.CambiarDesbordamientoVistaPrevia(false));
+        BotonDeDesplazamiento(cut, "Ir al final").HasAttribute("disabled").Should().BeTrue("si la hoja vuelve a caber, no hay a dónde desplazar");
+    }
+
+    [Fact]
+    public async Task Un_boton_desactivado_no_desplaza_nada()
+    {
+        var modulo = ModuloDeLaVistaPrevia();
+        var (cut, _) = Renderizar(new Escenario(), $"reportes?clienteId={ClienteA}");
+        await Generar(cut);
+
+        // bUnit no impide el clic sobre un botón disabled: la guarda de la página es la que sostiene la propiedad.
+        await BotonDeDesplazamiento(cut, "Ir al final").ClickAsync(new MouseEventArgs());
+
+        modulo.Invocations["desplazar"].Should().BeEmpty();
+    }
+
+    [Fact]
+    public void Los_textos_de_los_botones_existen_tambien_en_catalan_y_no_son_el_castellano()
+    {
+        var dir = AppContext.BaseDirectory;
+        while (dir is not null && !File.Exists(Path.Combine(dir, "CaeManager.slnx")))
+            dir = Path.GetDirectoryName(dir);
+        var recursos = Path.Combine(dir!, "src", "CaeManager.Web", "Features", "Reportes", "Recursos");
+        var neutral = File.ReadAllText(Path.Combine(recursos, "TextosReportes.resx"));
+        var catalan = File.ReadAllText(Path.Combine(recursos, "TextosReportes.ca-ES.resx"));
+
+        foreach (var clave in new[] { "AriaIrAlPrincipio", "AriaIrAlFinal", "AriaZonaDesplazableVistaPrevia" })
+        {
+            neutral.Should().Contain($"name=\"{clave}\"");
+            catalan.Should().Contain($"name=\"{clave}\"");
+        }
+        catalan.Should().Contain("<value>Anar al principi</value>").And.Contain("<value>Anar al final</value>");
+    }
 }

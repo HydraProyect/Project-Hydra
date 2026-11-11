@@ -12,6 +12,7 @@ using CaeManager.Web.Reportes;
 using MediatR;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Web;
+using Microsoft.JSInterop;
 
 namespace CaeManager.Web.Features.Reportes.Pages;
 
@@ -236,10 +237,110 @@ public partial class Reportes : CaeManager.Web.Components.PaginaInteractiva
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
-        if (_informePorEnfocar is not { } indice) return;
+        if (_informePorEnfocar is { } indice)
+        {
+            _informePorEnfocar = null;
+            await _referenciasInformes[indice].FocusAsync();
+        }
 
-        _informePorEnfocar = null;
-        await _referenciasInformes[indice].FocusAsync();
+        await SincronizarObservadorVistaPreviaAsync();
+    }
+
+    // --- Vista previa acotada al viewport: desbordamiento y botones de desplazamiento ---
+    //
+    // El panel de la hoja tiene altura máxima y desplaza por dentro. Un informe
+    // largo (131 documentos de vigencia) desborda; uno corto, no. Los botones
+    // «Ir al principio» e «Ir al final» solo se activan cuando desborda. Lo mide
+    // el navegador (vista-previa-informe.js, ResizeObserver) y avisa por
+    // CambiarDesbordamientoVistaPrevia: ni la ventana redimensionada ni el cambio
+    // de zoom repintan la página, así que no se puede deducir desde C#.
+
+    private const string ModuloVistaPrevia = "./js/vista-previa-informe.js";
+    internal const string DestinoInicio = "inicio";
+    internal const string DestinoFinal = "final";
+
+    [Inject] private IJSRuntime JsRuntime { get; set; } = default!;
+
+    private ElementReference _mesaVistaPrevia;
+    private IJSObjectReference? _moduloVistaPrevia;
+    private DotNetObjectReference<Reportes>? _referenciaDotNet;
+    private bool _observandoVistaPrevia;
+    private bool _vistaPreviaDesborda;
+    private bool _desechado;
+
+    private async Task SincronizarObservadorVistaPreviaAsync()
+    {
+        if (_desechado) return;
+
+        try
+        {
+            if (TienePlan && !_observandoVistaPrevia)
+            {
+                _observandoVistaPrevia = true;
+                _moduloVistaPrevia ??= await JsRuntime.InvokeAsync<IJSObjectReference>("import", ModuloVistaPrevia);
+                _referenciaDotNet ??= DotNetObjectReference.Create(this);
+                await _moduloVistaPrevia.InvokeVoidAsync("observarDesbordamiento", _mesaVistaPrevia, _referenciaDotNet);
+            }
+            else if (!TienePlan && _observandoVistaPrevia)
+            {
+                // La mesa ya no está en el DOM: su observador sobra y el estado
+                // «desborda» de la hoja anterior no vale para la siguiente.
+                _observandoVistaPrevia = false;
+                _vistaPreviaDesborda = false;
+                if (_moduloVistaPrevia is not null)
+                    await _moduloVistaPrevia.InvokeVoidAsync("desconectar");
+            }
+        }
+        catch (JSException) { }
+        catch (JSDisconnectedException) { }
+        catch (OperationCanceledException) { }
+    }
+
+    [JSInvokable]
+    public async Task CambiarDesbordamientoVistaPrevia(bool desborda)
+    {
+        if (_desechado || desborda == _vistaPreviaDesborda) return;
+
+        await InvokeAsync(() =>
+        {
+            _vistaPreviaDesborda = desborda;
+            StateHasChanged();
+        });
+    }
+
+    private async Task DesplazarVistaPreviaAsync(string destino)
+    {
+        if (!_vistaPreviaDesborda || _desechado) return;
+
+        try
+        {
+            _moduloVistaPrevia ??= await JsRuntime.InvokeAsync<IJSObjectReference>("import", ModuloVistaPrevia);
+            await _moduloVistaPrevia.InvokeVoidAsync("desplazar", _mesaVistaPrevia, destino);
+        }
+        catch (JSException) { }
+        catch (JSDisconnectedException) { }
+        catch (OperationCanceledException) { }
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        _desechado = true;
+
+        // En una navegación el circuito puede estar ya desconectado: no es un error real.
+        try
+        {
+            if (_moduloVistaPrevia is { } modulo)
+            {
+                _moduloVistaPrevia = null;
+                if (_observandoVistaPrevia) await modulo.InvokeVoidAsync("desconectar");
+                await modulo.DisposeAsync();
+            }
+        }
+        catch (JSException) { }
+        catch (JSDisconnectedException) { }
+        catch (OperationCanceledException) { }
+
+        _referenciaDotNet?.Dispose();
     }
 
     private async Task CambiarClienteAsync(string clienteId)
