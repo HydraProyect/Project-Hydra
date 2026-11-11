@@ -286,6 +286,33 @@ public class CentrosAltaSelectoresClienteEmpresaTests : BunitContext
     }
 
     [Fact]
+    public async Task La_carga_tardia_del_Cliente_de_la_URL_no_elige_su_Empresa_unica_bajo_otro_Cliente_elegido_a_mano()
+    {
+        var puerta = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        _mediador.PuertasEmpresasDe[ClienteConUnaEmpresa] = puerta;
+
+        // El encadenado trae el primer Cliente empresarial y su carga de Empresas queda en vuelo tras la puerta, con el
+        // drawer ya abierto y editable.
+        var cut = Renderizar($"centros?accion=crear&clienteId={ClienteConUnaEmpresa}");
+        cut.WaitForAssertion(() => cut.FindAll(".drawer-panel").Should().NotBeEmpty());
+        cut.WaitForAssertion(() => _mediador.Enviadas.OfType<ObtenerEmpresasParaSelectorQuery>()
+            .Should().Contain(q => q.ClienteId == ClienteConUnaEmpresa));
+
+        await ElegirAsync(cut, "Cliente", RazonClienteVarias);
+        var consultasDeClientes = _mediador.Enviadas.OfType<ObtenerClientesParaSelectorQuery>().Count();
+
+        await cut.InvokeAsync(puerta.SetResult);
+        // El encadenado termina pidiendo las opciones de los filtros: tras eso ya procesó la respuesta tardía.
+        cut.WaitForAssertion(() => _mediador.Enviadas.OfType<ObtenerClientesParaSelectorQuery>().Count().Should().BeGreaterThan(consultasDeClientes));
+
+        Control(cut, "Cliente").GetAttribute("value").Should().Be(RazonClienteVarias, "barrera: el Cliente empresarial del alta es el elegido a mano");
+        Control(cut, "Empresa").GetAttribute("value").Should().BeNullOrEmpty("la Empresa única era del Cliente empresarial de la URL");
+        await Control(cut, "Empresa").InputAsync(new ChangeEventArgs { Value = "Mont" });
+        cut.FindAll("li.selector-entidad-opcion:not(.selector-entidad-opcion-crear)").Should().BeEmpty(
+            "la Empresa del Cliente empresarial de la URL no se ofrece bajo el elegido a mano");
+    }
+
+    [Fact]
     public async Task Un_aviso_de_Empresa_sin_elegir_se_quita_cuando_la_Empresa_unica_queda_elegida()
     {
         var cut = await AbrirAltaAsync(Renderizar());

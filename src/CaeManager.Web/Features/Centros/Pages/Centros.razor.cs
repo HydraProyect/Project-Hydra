@@ -433,19 +433,26 @@ public partial class Centros : CaeManager.Web.Components.PaginaInteractiva
                 _clienteId = ClienteId.Value.ToString();
                 alAbrir[IndiceClienteEnValores] = _clienteId;
                 _clienteNombreSoloLectura = _clientesDisponibles.First(c => c.Id == ClienteId).RazonSocial;
-                await CargarEmpresasDisponiblesAsync(ClienteId);
+                var empresasDelCliente = await Mediator.Send(new ObtenerEmpresasParaSelectorQuery(ClienteId));
 
-                if (EmpresaId is not null && _empresasDisponibles.Any(e => e.Id == EmpresaId))
+                // El drawer ya es editable mientras cargan: si se eligió otro Cliente empresarial, su propia carga puso la
+                // lista y decide la Empresa, y esta respuesta tardía no pisa ni elige nada.
+                if (_clienteId == ClienteId.Value.ToString())
                 {
-                    _empresaId = EmpresaId.Value.ToString();
-                    alAbrir[IndiceEmpresaEnValores] = _empresaId;
-                    _empresaNombreSoloLectura = _empresasDisponibles.First(e => e.Id == EmpresaId).RazonSocial;
-                    _padresFijadosPorCadena = true;
-                }
-                else if (ElegirEmpresaUnicaDelCliente())
-                {
-                    // Sin Empresa en la URL, la única del Cliente empresarial la elige la pantalla: tampoco es un cambio.
-                    alAbrir[IndiceEmpresaEnValores] = _empresaId;
+                    _empresasDisponibles = empresasDelCliente;
+
+                    if (EmpresaId is not null && _empresasDisponibles.Any(e => e.Id == EmpresaId))
+                    {
+                        _empresaId = EmpresaId.Value.ToString();
+                        alAbrir[IndiceEmpresaEnValores] = _empresaId;
+                        _empresaNombreSoloLectura = _empresasDisponibles.First(e => e.Id == EmpresaId).RazonSocial;
+                        _padresFijadosPorCadena = true;
+                    }
+                    else if (ElegirEmpresaUnicaDelCliente())
+                    {
+                        // Sin Empresa en la URL, la única del Cliente empresarial la elige la pantalla: tampoco es un cambio.
+                        alAbrir[IndiceEmpresaEnValores] = _empresaId;
+                    }
                 }
             }
 
@@ -1165,8 +1172,8 @@ public partial class Centros : CaeManager.Web.Components.PaginaInteractiva
     /// <summary>
     /// Recarga el selector de Empresa acotado al Cliente elegido — o al
     /// catálogo completo si todavía no hay Cliente. Se llama al abrir el
-    /// Drawer y en el encadenado; el cambio de Cliente empresarial en modo
-    /// creación carga por su cuenta para descartar respuestas tardías.
+    /// Drawer; el cambio de Cliente empresarial en modo creación y el
+    /// encadenado por URL cargan por su cuenta para descartar respuestas tardías.
     /// </summary>
     private async Task CargarEmpresasDisponiblesAsync(Guid? clienteId)
     {
