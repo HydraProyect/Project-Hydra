@@ -59,6 +59,7 @@ runs:
         # en un reintento de descarga desde un espejo malicioso. Los tres intentos
         # de abajo ya cubren los fallos de red.
         escribir_conf_apt() {
+          case "$1" in 0|1) ;; *) return 1 ;; esac
           printf '%s\n' \
             "Acquire::Retries \"$1\";" \
             'Acquire::http::Timeout "30";' \
@@ -67,10 +68,41 @@ runs:
             | sudo tee /etc/apt/apt.conf.d/99-ci-apt-acotado > /dev/null \
             && grep -qxF "Acquire::Retries \"$1\";" /etc/apt/apt.conf.d/99-ci-apt-acotado
         }
+        # Los reintentos los deciden las fuentes que quedan configuradas, no el
+        # camino que tomó esta invocación: una invocación anterior del mismo job
+        # puede haber dejado un espejo de terceros aunque Azure vuelva a responder.
+        # Imprime 1 solo si hay alguna URI y todas (incluidas las del mirror+file
+        # de la imagen) son de ubuntu.com, Azure incluido; si no, o si no puede
+        # leerlas, imprime 0. Sin expansión de comodines (set -f, en subshell).
+        reintentos_segun_fuentes() (
+          set -f
+          efectivas=""
+          for uri in $(sed -n 's/^URIs://p' "$fuentes" 2>/dev/null); do
+            if [ "$uri" = "mirror+file:/etc/apt/apt-mirrors.txt" ]; then
+              efectivas+="$(cat /etc/apt/apt-mirrors.txt 2>/dev/null || echo ilegible)"$'\n'
+            else
+              efectivas+="$uri"$'\n'
+            fi
+          done
+          if printf '%s' "$efectivas" | awk '
+              NF && $1 !~ /^#/ { n++; if ($1 !~ /^https?:\/\/([a-z0-9-]+\.)*ubuntu\.com\/ubuntu\/?$/) ajena = 1 }
+              END { exit (n == 0 || ajena) }'; then
+            echo 1
+          else
+            echo 0
+          fi
+        )
+        # Escribe la configuración según las fuentes efectivas y lo deja en el log.
+        fijar_reintentos() {
+          local reintentos
+          reintentos="$(reintentos_segun_fuentes)"
+          escribir_conf_apt "$reintentos" || return 1
+          echo "Acquire::Retries ${reintentos} según las fuentes de Ubuntu configuradas."
+        }
         # Sin errexit, cada preparación se comprueba a mano y falla cerrada: apt
         # nunca corre con reintentos activos ante un espejo de terceros ni con
         # unas fuentes a medio reescribir.
-        escribir_conf_apt 1 || { echo "::error::No se pudo escribir la configuración de apt."; exit 1; }
+        fijar_reintentos || { echo "::error::No se pudo escribir la configuración de apt."; exit 1; }
 
         # Apunta cada URI de Ubuntu de las fuentes deb822 (el mirror+file de
         # Azure, archive, security o un espejo elegido antes, todos acabados en
@@ -87,23 +119,24 @@ runs:
 
         # Fuera de Azure: archive.ubuntu.com o, si tampoco responde, el primer
         # espejo oficial de reserva que responda (elegir-espejo.sh).
+        # Retries baja a 0 antes de tocar las fuentes y solo vuelve a subir si las
+        # fuentes ya reescritas son todas de ubuntu.com.
         usar_archivo_directo() {
           local base
+          escribir_conf_apt 0 || return 1
           if base="$(bash "$GITHUB_ACTION_PATH/elegir-espejo.sh" "$VERSION_CODENAME")"; then
             case "$base" in
               https://archive.ubuntu.com/*)
-                escribir_conf_apt 1 || return 1
                 echo "::warning::apt usará archive.ubuntu.com directamente." ;;
               *)
-                escribir_conf_apt 0 || return 1
                 echo "::warning::Ni Azure ni archive.ubuntu.com responden: apt usará el espejo de reserva ${base}" ;;
             esac
           else
             base=https://archive.ubuntu.com/ubuntu/
-            escribir_conf_apt 1 || return 1
             echo "::warning::Ningún archivo de Ubuntu responde a la sonda: apt probará archive.ubuntu.com igualmente."
           fi
           apuntar_fuentes_a "$base" || return 1
+          fijar_reintentos || return 1
         }
         preparar_o_fallar() {
           usar_archivo_directo && return 0
@@ -120,7 +153,13 @@ runs:
           sudo timeout -k 5 120 dpkg --configure -a
         }
 
-        if ! curl -fsS --max-time 10 -o /dev/null "$sonda"; then
+        # Solo vale un 200 final del propio espejo: sin -L curl no sigue un 3xx, y
+        # con -f lo daría por bueno sin haber alcanzado el InRelease.
+        responde_200() {
+          [ "$(curl -sS --max-time 10 --max-redirs 0 -o /dev/null -w '%{http_code}' "$1")" = "200" ]
+        }
+
+        if ! responde_200 "$sonda"; then
           echo "::warning::El espejo de Azure no responde: apt sale de Azure."
           preparar_o_fallar
         fi

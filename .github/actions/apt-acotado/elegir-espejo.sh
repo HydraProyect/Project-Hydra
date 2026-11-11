@@ -41,9 +41,15 @@ case "${2:-}" in
     exit 2 ;;
 esac
 
+# Solo vale un 200 final del propio candidato: sin -L curl no sigue un 3xx, y
+# con -f lo daría por bueno sin haber alcanzado el InRelease.
+responde_200() {
+  [ "$(curl -sS --max-time 10 --max-redirs 0 -o /dev/null -w '%{http_code}' "$1")" = "200" ]
+}
+
 for base in "${candidatos[@]}"; do
-  if curl -fsS --max-time 10 -o /dev/null "${base}dists/${codename}/InRelease" \
-    && curl -fsS --max-time 10 -o /dev/null "${base}dists/${codename}-security/InRelease"; then
+  if responde_200 "${base}dists/${codename}/InRelease" \
+    && responde_200 "${base}dists/${codename}-security/InRelease"; then
     echo "$base"
     exit 0
   fi

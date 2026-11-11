@@ -1264,8 +1264,13 @@ jobs:
           base_final="$(sed -nE 's/^FROM[[:space:]]+([^[:space:]]+)[[:space:]]+AS[[:space:]]+final[[:space:]]*$/\1/p' Dockerfile)"
           [ -n "$base_final" ] || { echo "::error::No encuentro la etapa «final» del Dockerfile."; exit 1; }
           codename="$(docker run --rm --entrypoint sh "$base_final" -c '. /etc/os-release && echo "$VERSION_CODENAME"')"
-          if curl -fsS --max-time 10 -o /dev/null "http://archive.ubuntu.com/ubuntu/dists/${codename}/InRelease" \
-            && curl -fsS --max-time 10 -o /dev/null "http://security.ubuntu.com/ubuntu/dists/${codename}-security/InRelease"; then
+          # Solo vale un 200 final: sin -L curl no sigue un 3xx, y con -f lo daría
+          # por bueno sin haber alcanzado el InRelease.
+          responde_200() {
+            [ "$(curl -sS --max-time 10 --max-redirs 0 -o /dev/null -w '%{http_code}' "$1")" = "200" ]
+          }
+          if responde_200 "http://archive.ubuntu.com/ubuntu/dists/${codename}/InRelease" \
+            && responde_200 "http://security.ubuntu.com/ubuntu/dists/${codename}-security/InRelease"; then
             echo "build-args=" >> "$GITHUB_OUTPUT"
           elif base="$(bash .github/actions/apt-acotado/elegir-espejo.sh "$codename" solo-reserva)"; then
             echo "::warning::*.ubuntu.com no responde desde el runner: la imagen (${codename}) se construye con el espejo de reserva ${base}"
