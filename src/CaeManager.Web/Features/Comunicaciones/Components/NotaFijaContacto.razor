@@ -29,7 +29,9 @@
             </span>
             @* Sin «Editar» mientras se guarda (que incluye la recarga posterior): la nota pintada podría ser aún la anterior y
                abrirla permitiría revertir lo recién guardado (revisión Codex r2 de la #2167, MEDIO 2). *@
-            @if (_puedeEscribir && !_editando && !_guardando)
+            @* Tampoco con un reintento en vuelo: si devolviera null (el contacto ya no es visible), la edición abierta entre medias
+               quedaría sin área ni acciones y con el borrador inaccesible (revisión Codex r3 de la #2167, MEDIO 3). *@
+            @if (_puedeEscribir && !_editando && !_guardando && !Reintentando)
             {
                 <button type="button" class="nota-fija-texto-boton" @onclick="Editar">
                     @(string.IsNullOrWhiteSpace(_nota.Notas) ? Textos["Anadir"] : Textos["Editar"])
@@ -71,7 +73,11 @@
         @if (_errorCarga && !_guardando)
         {
             <span class="nota-fija-meta" role="status">@Textos["ErrorCarga"]</span>
-            <button type="button" class="nota-fija-texto-boton nota-fija-reintentar" @onclick="ReintentarAsync">@Textos["Reintentar"]</button>
+            @* Sin «Reintentar» durante la edición: su respuesta sustituiría la nota bajo el borrador (revisión Codex r3 de la #2167, MEDIO 3). *@
+            @if (!_editando)
+            {
+                <button type="button" class="nota-fija-texto-boton nota-fija-reintentar" @onclick="ReintentarAsync">@Textos["Reintentar"]</button>
+            }
         }
     </section>
 }
@@ -196,10 +202,29 @@ else if (_errorCarga)
         }
     }
 
-    private Task ReintentarAsync()
+    /// <summary>
+    /// Carga que es un reintento y aún no ha terminado (0 = ninguno). Vale mientras sea la carga vigente: un cambio de contacto o
+    /// un guardado suben <c>_cargaVigente</c> y la dejan atrás sin tener que apagarla.
+    /// </summary>
+    private int _cargaDelReintento;
+
+    private bool Reintentando => _cargaDelReintento != 0 && _cargaDelReintento == _cargaVigente;
+
+    private async Task ReintentarAsync()
     {
+        if (_editando || _guardando || Reintentando) return;
+
         _errorCarga = false;
-        return CargarAsync();
+        var generacion = _cargaVigente + 1; // la que va a tomar CargarAsync
+        _cargaDelReintento = generacion;
+        try
+        {
+            await CargarAsync();
+        }
+        finally
+        {
+            if (_cargaDelReintento == generacion) _cargaDelReintento = 0;
+        }
     }
 
     private async Task<string> NombreDelAutorAsync(NotaContactoDto? nota)
@@ -226,7 +251,7 @@ else if (_errorCarga)
 
     private void Editar()
     {
-        if (_guardando) return;
+        if (_guardando || Reintentando) return;
         _texto = _nota?.Notas ?? string.Empty;
         _editando = true;
     }

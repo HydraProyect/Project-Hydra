@@ -905,9 +905,13 @@ public partial class Bandeja : CaeManager.Web.Components.PaginaInteractiva, IAsy
             }
             else
             {
-                _clienteActivo = null;
-                _macrosDisponibles = await Mediator.Send(new ObtenerMacrosQuery(), _ciclo.Token);
+                // Las macros se asignan después de comprobar la carga vigente, como en la rama con Cliente empresarial: una lectura
+                // tardía de una carga antigua no sustituye las macros de la conversación abierta (revisión Codex r3 de la #2167, MEDIO 2).
+                var macros = await Mediator.Send(new ObtenerMacrosQuery(), _ciclo.Token);
                 if (carga != _cargaDetalleVigente) return;
+
+                _clienteActivo = null;
+                _macrosDisponibles = macros;
                 _centrosClienteActivo = [];
             }
 
@@ -944,8 +948,12 @@ public partial class Bandeja : CaeManager.Web.Components.PaginaInteractiva, IAsy
             if (!(_detalle is { } actual && ContextoEs(id, ClienteDelDetalle(actual))))
             {
                 _contextoDe = null;
-                _detalle = null;
                 _clienteActivo = null;
+
+                // Excepción: con la nota fija de esta conversación en edición el detalle se conserva sin contexto (el panel solo
+                // pinta esa nota, PanelContextoVisible); vaciarlo desmontaría el borrador sin confirmar el abandono (revisión
+                // Codex r3 de la #2167, MEDIO 1: una segunda recarga que falla tras otra que cambió el Cliente empresarial).
+                if (!NotaFijaEnEdicionDeLaConversacion(id)) _detalle = null;
             }
             ToastService.Mostrar(ErroresTextos["ErrorAbrirConversacion"].Value, TonoToast.Error);
         }
@@ -1004,9 +1012,14 @@ public partial class Bandeja : CaeManager.Web.Components.PaginaInteractiva, IAsy
         _centroFormatosSeleccionado = centroIdTexto;
         if (!Guid.TryParse(centroIdTexto, out var centroId)) return;
 
+        // La conversación que pidió los formatos: si el Gestor CAE abre otra mientras espera, el resultado se descarta; no puede
+        // acabar en la respuesta de otro interlocutor (revisión Codex r3 de la #2167, MEDIO 4).
+        var conversacionId = _conversacionSeleccionadaId;
         try
         {
             var formatos = await Mediator.Send(new ObtenerFormatosRequeridosCentroQuery(centroId), _ciclo.Token);
+            if (_conversacionSeleccionadaId != conversacionId) return;
+
             if (formatos is null)
             {
                 ToastService.Mostrar("Este centro no tiene requisitos documentales configurados.", TonoToast.Info);
@@ -1928,6 +1941,22 @@ public partial class Bandeja : CaeManager.Web.Components.PaginaInteractiva, IAsy
     /// carga fija el par (conversación, Cliente) no se pinta nada del contexto.
     /// </summary>
     private bool ContextoEsDelDetalle => DetalleEsDeLaSeleccion && ContextoEs(_detalle!.Id, ClienteDelDetalle(_detalle));
+
+    /// <summary>
+    /// La nota fija de esta conversación se está editando o guardando. Si una recarga cambia el Cliente empresarial, el contexto
+    /// deja de ser el del detalle hasta que la carga lo fija; mientras tanto el componente de la nota fija no puede desmontarse, o
+    /// su borrador se perdería sin pasar por la confirmación de abandono (revisión Codex r3 de la #2167, MEDIO 1).
+    /// </summary>
+    private bool NotaFijaEnEdicionDelDetalle => DetalleEsDeLaSeleccion && NotaFijaEnEdicionDeLaConversacion(_detalle!.Id);
+
+    private bool NotaFijaEnEdicionDeLaConversacion(Guid conversacionId) =>
+        _detalle?.Id == conversacionId && _detalleDelInterlocutor?.Id == conversacionId && _notaFija?.EnEdicion == true;
+
+    /// <summary>Panel de contexto: el del detalle con su contexto vigente, o solo la nota fija en edición mientras ese contexto se recarga.</summary>
+    private bool PanelContextoVisible =>
+        ContextoEsDelDetalle
+            ? _clienteActivo is not null || HayAccionesPendientes || HayNotasDeContexto
+            : NotaFijaEnEdicionDelDetalle;
 
     // Macros y centros del compositor salen de ese mismo contexto: hasta que es el del detalle no se ofrecen los del hilo anterior.
     private IReadOnlyList<MacroListaDto> MacrosDelContexto => ContextoEsDelDetalle ? _macrosDisponibles : [];

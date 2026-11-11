@@ -175,6 +175,54 @@ public class NotaFijaContactoCargasTests : BunitContext
     }
 
     /// <summary>
+    /// Revisión Codex r3 de la #2167, MEDIO 3: tras fallar la recarga se ofrecían a la vez «Editar» y «Reintentar»; la respuesta del
+    /// reintento sustituye la nota bajo el borrador. Con la edición abierta no se ofrece «Reintentar». Detecta quitar «!_editando» del botón.
+    /// </summary>
+    [Fact]
+    public async Task Con_la_edicion_abierta_tras_fallar_la_recarga_no_se_ofrece_reintentar()
+    {
+        var (cut, mediador) = MontarConEscritura();
+        await cut.InvokeAsync(() => mediador.Lecturas[0].Respuesta.SetResult(Nota("Carmen", "Texto antiguo.")));
+        cut.WaitForAssertion(() => cut.Find(".nota-fija").TextContent.Should().Contain("Texto antiguo."));
+        var guardado = await GuardarAsync(cut, mediador, "Texto nuevo.");
+        await cut.InvokeAsync(() => mediador.Lecturas[1].Respuesta.SetException(new InvalidOperationException("boom")));
+        await guardado;
+        cut.FindAll(".nota-fija-reintentar").Should().ContainSingle("control positivo: sin edición, tras el fallo se ofrece reintentar");
+
+        await cut.Find(".nota-fija-texto-boton:not(.nota-fija-reintentar)").ClickAsync(new MouseEventArgs());
+
+        cut.FindAll(".nota-fija-area").Should().ContainSingle("la edición está abierta");
+        cut.FindAll(".nota-fija-reintentar").Should().BeEmpty("el reintento sustituiría la nota bajo el borrador");
+    }
+
+    /// <summary>
+    /// Revisión Codex r3 de la #2167, MEDIO 3 (variante concurrente): con el reintento en vuelo no se ofrece «Editar»; si se
+    /// pudiera abrir la edición y el reintento devolviera null (el contacto ya no es visible), desaparecerían el área y sus
+    /// acciones con el borrador inaccesible. Detecta quitar «!Reintentando» del botón «Editar».
+    /// </summary>
+    [Fact]
+    public async Task Con_un_reintento_en_vuelo_no_se_ofrece_editar_y_un_resultado_nulo_no_deja_un_borrador_oculto()
+    {
+        var (cut, mediador) = MontarConEscritura();
+        await cut.InvokeAsync(() => mediador.Lecturas[0].Respuesta.SetResult(Nota("Carmen", "Texto antiguo.")));
+        cut.WaitForAssertion(() => cut.Find(".nota-fija").TextContent.Should().Contain("Texto antiguo."));
+        var guardado = await GuardarAsync(cut, mediador, "Texto nuevo.");
+        await cut.InvokeAsync(() => mediador.Lecturas[1].Respuesta.SetException(new InvalidOperationException("boom")));
+        await guardado;
+        cut.FindAll(".nota-fija-texto-boton:not(.nota-fija-reintentar)").Should().ContainSingle("control positivo: Editar se ofrece antes del reintento");
+
+        var reintento = cut.Find(".nota-fija-reintentar").ClickAsync(new MouseEventArgs());
+        cut.WaitForAssertion(() => mediador.Lecturas.Should().HaveCount(3, "el reintento está en vuelo"));
+
+        cut.FindAll(".nota-fija-texto-boton").Should().BeEmpty("con el reintento en vuelo no se puede abrir una edición que él sustituiría");
+
+        await cut.InvokeAsync(() => mediador.Lecturas[2].Respuesta.SetResult(null));
+        await reintento;
+
+        cut.FindAll(".nota-fija-area").Should().BeEmpty("no hubo edición: no queda ningún borrador oculto");
+    }
+
+    /// <summary>
     /// Revisión Codex r2 de la #2167, BAJO: si la primera lectura falla no hay nota que conservar, pero tampoco queda un hueco
     /// mudo: aviso y «Reintentar».
     /// </summary>

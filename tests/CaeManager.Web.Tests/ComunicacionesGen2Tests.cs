@@ -1127,6 +1127,177 @@ public class ComunicacionesGen2Tests : BunitContext
         await cut.InvokeAsync(() => clienteNuevo.SetException(new InvalidOperationException("tarde")));
         await primeraRecarga;
     }
+    private static Task RecibirMensajeAsync(IRenderedComponent<Bandeja> cut, Guid conversacionId) =>
+        cut.InvokeAsync(() => (Task)typeof(Bandeja).GetMethod("AlRecibirMensajeAsync", BindingFlags.Instance | BindingFlags.NonPublic)!
+            .Invoke(cut.Instance, [new MensajeWhatsAppRecibidoEvent(Guid.NewGuid(), conversacionId)])!);
+
+    private static ClienteDetalleDto FichaDeEbro() =>
+        new(ClienteEbro.Id, ClienteEbro.RazonSocial, "A22222222", false, null, DateTime.UtcNow, null, Guid.NewGuid());
+
+    /// <summary>
+    /// Revisión Codex r3 de la #2167, MEDIO 1: con la nota fija en edición, la recarga del mismo hilo cambia su Cliente empresarial.
+    /// Mientras la carga espera el contexto del nuevo, el contexto anterior no se pinta (ficha) pero el componente de la nota fija no
+    /// se desmonta: el borrador sigue en su área y, al llegar el contexto, se pinta la ficha nueva. Detecta volver a desmontar el
+    /// panel cuando <c>ContextoEsDelDetalle</c> es falso (PanelContextoVisible).
+    /// </summary>
+    [Fact]
+    public async Task Si_la_recarga_cambia_el_Cliente_con_la_nota_fija_en_edicion_el_borrador_no_se_desmonta()
+    {
+        var conversacion = Conversacion("Documentación pendiente", ClienteRefrielectric);
+        var escenario = new Escenario { Detalle = _ => DetalleDe(conversacion), NotaContacto = NotaDeCarmen() };
+        escenario.Conversaciones.Add(conversacion);
+        var (cut, _) = Renderizar(escenario);
+        await SeleccionarFila(cut, "Documentación pendiente");
+        cut.WaitForAssertion(() => cut.FindAll(".nota-fija").Should().ContainSingle());
+        await Boton(cut, ".nota-fija button", "Editar").ClickAsync(new MouseEventArgs());
+        await cut.Find(".nota-fija-area").InputAsync(new ChangeEventArgs { Value = "Llamar por la tarde." });
+
+        escenario.Detalle = _ => DetalleDe(conversacion) with { ClienteId = ClienteEbro.Id, ClienteRazonSocial = ClienteEbro.RazonSocial };
+        var clienteNuevo = new TaskCompletionSource<object?>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var consultas = 0;
+        escenario.Interceptar = p => p is ObtenerClientePorIdQuery q && q.Id == ClienteEbro.Id ? Retener() : null;
+        Task<object?> Retener()
+        {
+            consultas++;
+            return clienteNuevo.Task;
+        }
+        var recarga = RecibirMensajeAsync(cut, conversacion.Id);
+        cut.WaitForAssertion(() => consultas.Should().Be(1, "la recarga ya asignó el detalle y espera al Cliente empresarial nuevo"));
+        cut.Render();
+
+        cut.Find(".bandeja-cliente .nota-fija-area").GetAttribute("value").Should().Be("Llamar por la tarde.",
+            "el borrador sigue en su área mientras el contexto se recarga");
+        cut.FindAll(".bandeja-cliente-identidad").Should().BeEmpty("la ficha del Cliente empresarial anterior no puede verse bajo el detalle nuevo");
+
+        await cut.InvokeAsync(() => clienteNuevo.SetResult(FichaDeEbro()));
+        await recarga;
+
+        cut.Find(".nota-fija-area").GetAttribute("value").Should().Be("Llamar por la tarde.");
+        cut.FindComponent<NotaFijaContacto>().Instance.TieneTextoSinGuardar.Should().BeTrue();
+        cut.Find(".bandeja-cliente-identidad").TextContent.Should().Contain(ClienteEbro.RazonSocial);
+    }
+
+    /// <summary>
+    /// Revisión Codex r3 de la #2167, MEDIO 1 (segunda recarga): tras la recarga que cambia el Cliente empresarial y espera su
+    /// contexto, una segunda recarga falla. Con la nota fija en edición, el detalle se conserva sin contexto y el borrador no se
+    /// pierde; sin la nota en edición, el comportamiento sigue siendo vaciar el detalle (test de la tercera pasada del delta r1).
+    /// Detecta quitar la excepción de la nota fija en el catch de <c>CargarDetalleAsync</c>.
+    /// </summary>
+    [Fact]
+    public async Task Una_segunda_recarga_fallida_tras_cambiar_el_Cliente_no_destruye_el_borrador_de_la_nota_fija()
+    {
+        var conversacion = Conversacion("Documentación pendiente", ClienteRefrielectric);
+        var escenario = new Escenario { Detalle = _ => DetalleDe(conversacion), NotaContacto = NotaDeCarmen() };
+        escenario.Conversaciones.Add(conversacion);
+        var (cut, _) = Renderizar(escenario);
+        await SeleccionarFila(cut, "Documentación pendiente");
+        cut.WaitForAssertion(() => cut.FindAll(".nota-fija").Should().ContainSingle());
+        await Boton(cut, ".nota-fija button", "Editar").ClickAsync(new MouseEventArgs());
+        await cut.Find(".nota-fija-area").InputAsync(new ChangeEventArgs { Value = "Llamar por la tarde." });
+
+        escenario.Detalle = _ => DetalleDe(conversacion) with { ClienteId = ClienteEbro.Id, ClienteRazonSocial = ClienteEbro.RazonSocial };
+        var clienteNuevo = new TaskCompletionSource<object?>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var lecturas = 0;
+        escenario.Interceptar = p => p switch
+        {
+            ObtenerClientePorIdQuery q when q.Id == ClienteEbro.Id => clienteNuevo.Task,
+            ObtenerConversacionPorIdQuery q when q.Id == conversacion.Id && ++lecturas > 1 =>
+                Task.FromException<object?>(new InvalidOperationException("boom")),
+            _ => null
+        };
+        var primeraRecarga = RecibirMensajeAsync(cut, conversacion.Id);
+        cut.WaitForAssertion(() => lecturas.Should().Be(1, "la primera recarga ya asignó el detalle y espera al Cliente empresarial nuevo"));
+
+        await RecibirMensajeAsync(cut, conversacion.Id);
+
+        cut.WaitForAssertion(() => Services.GetRequiredService<ToastService>().Mensajes.Should().Contain(
+            m => m.Mensaje.StartsWith("No pudimos abrir la conversación"), "el fallo de la recarga se avisa"));
+        cut.Render();
+        cut.Find(".bandeja-cliente .nota-fija-area").GetAttribute("value").Should().Be("Llamar por la tarde.", "el borrador sobrevive a la segunda recarga fallida");
+        cut.FindAll(".bandeja-cliente-identidad").Should().BeEmpty("el contexto del Cliente empresarial anterior no puede quedar bajo el hilo");
+
+        await cut.InvokeAsync(() => clienteNuevo.SetException(new InvalidOperationException("tarde")));
+        await primeraRecarga;
+    }
+
+    /// <summary>
+    /// Revisión Codex r3 de la #2167, MEDIO 2: la carga de una conversación sin Cliente empresarial leía las macros y las asignaba
+    /// antes de comprobar si seguía siendo la vigente. Con la conversación A leyendo sus macros, se abre B (que fija las suyas) y
+    /// después acaba la lectura de A: no puede sustituir las de B. Detecta volver a asignar <c>_macrosDisponibles</c> antes de la guarda.
+    /// </summary>
+    [Fact]
+    public async Task Una_lectura_tardia_de_macros_de_otra_conversacion_sin_Cliente_no_sustituye_las_de_la_abierta()
+    {
+        var escenario = new Escenario();
+        var primera = Conversacion("Primera sin Cliente");
+        var segunda = Conversacion("Segunda sin Cliente");
+        escenario.Conversaciones.AddRange([primera, segunda]);
+        escenario.Detalle = id => DetalleDe(escenario.Conversaciones.Single(c => c.Id == id));
+        escenario.Macros.Add(new MacroListaDto(Guid.NewGuid(), null, null, "Plantilla vigente", "<p>vigente</p>", Guid.NewGuid()));
+        var macrosDeLaPrimera = new TaskCompletionSource<object?>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var lecturas = 0;
+        escenario.Interceptar = p => p is ObtenerMacrosQuery && ++lecturas == 1 ? macrosDeLaPrimera.Task : null;
+        var (cut, _) = Renderizar(escenario);
+
+        var aperturaDeLaPrimera = SeleccionarFila(cut, "Primera sin Cliente");
+        cut.WaitForAssertion(() => lecturas.Should().Be(1, "la carga de la primera espera sus macros"));
+        await SeleccionarFila(cut, "Segunda sin Cliente");
+        cut.WaitForAssertion(() => cut.FindAll(".composer-macro-campo select option").Select(o => o.TextContent.Trim())
+            .Should().Contain("Plantilla vigente", "control positivo: la segunda ya fijó sus macros"));
+
+        await cut.InvokeAsync(() => macrosDeLaPrimera.SetResult(new List<MacroListaDto>
+            { new(Guid.NewGuid(), null, null, "Plantilla de la carga antigua", "<p>antigua</p>", Guid.NewGuid()) }));
+        await aperturaDeLaPrimera;
+        cut.Render();
+
+        TituloAbierto(cut).Should().Be("Segunda sin Cliente");
+        cut.FindAll(".composer-macro-campo select option").Select(o => o.TextContent.Trim())
+            .Should().Contain("Plantilla vigente").And.NotContain("Plantilla de la carga antigua");
+    }
+
+    /// <summary>
+    /// Revisión Codex r3 de la #2167, MEDIO 4: «Compartir formatos de centro» espera al servidor y, si el Gestor CAE abre otra
+    /// conversación mientras tanto, el resumen del Centro anterior acababa en la respuesta de la nueva. El resultado se descarta
+    /// si la conversación que lo pidió ya no es la abierta. Detecta quitar la comprobación tras el await.
+    /// </summary>
+    [Fact]
+    public async Task Los_formatos_de_un_centro_que_llegan_tarde_no_acaban_en_la_respuesta_de_otra_conversacion()
+    {
+        var escenario = new Escenario();
+        var primera = Conversacion("Primera conversación", ClienteRefrielectric);
+        var segunda = Conversacion("Segunda conversación", ClienteRefrielectric, "laura.gil@refrielectric.es");
+        escenario.Conversaciones.AddRange([primera, segunda]);
+        escenario.Detalle = id => DetalleDe(escenario.Conversaciones.Single(c => c.Id == id));
+        var formatos = new TaskCompletionSource<object?>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var peticiones = 0;
+        escenario.Interceptar = p => p switch
+        {
+            ObtenerCentrosParaSelectorQuery => Ya(new List<CentroSelectorDto>
+                { new(CentroNorteId, "Centro Norte", ClienteRefrielectric.RazonSocial, "Refrielectric S.A.") }),
+            ObtenerFormatosRequeridosCentroQuery => Retener(),
+            _ => null
+        };
+        Task<object?> Retener()
+        {
+            peticiones++;
+            return formatos.Task;
+        }
+        var (cut, _) = Renderizar(escenario);
+        await SeleccionarFila(cut, "Primera conversación");
+        cut.WaitForAssertion(() => cut.FindAll(".composer-correo-prellenados select").Should().ContainSingle());
+
+        var comparticion = cut.Find(".composer-correo-prellenados select").ChangeAsync(new ChangeEventArgs { Value = CentroNorteId.ToString() });
+        cut.WaitForAssertion(() => peticiones.Should().Be(1, "el resumen del Centro está en vuelo"));
+        await SeleccionarFila(cut, "Segunda conversación");
+        cut.WaitForAssertion(() => TituloAbierto(cut).Should().Be("Segunda conversación"));
+
+        await cut.InvokeAsync(() => formatos.SetResult("FORMATOS DEL CENTRO NORTE"));
+        await comparticion;
+        cut.Render();
+
+        cut.FindComponent<ComposerBar>().Instance.Texto.Should().BeEmpty("la respuesta de la segunda conversación no recibe lo pedido desde la primera");
+    }
+
     [Fact]
     public async Task El_filtro_de_estado_viaja_a_la_URL_al_elegirlo()
     {
