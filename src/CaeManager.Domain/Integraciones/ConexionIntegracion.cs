@@ -136,7 +136,8 @@ public class ConexionIntegracion : EntidadBase
     /// registra la marca del borrado (o que confirma que no había hueco que registrar). Si ese guardado no llega a la base,
     /// queda puesta: no hay ningún camino en que la conexión quede Deshabilitada sin la marca ni este valor (Codex, ronda
     /// 18). La reparan, sin depender de lo que quede en memoria ni de una notificación que llegue después, Desconectar
-    /// repetido sobre la Deshabilitada, la acción Reparar de Conexiones (el mismo comando) y el ciclo diario de
+    /// repetido sobre la Deshabilitada, la acción Reparar de Conexiones (un comando propio, que solo repara una conexión
+    /// que siga Deshabilitada y nunca cambia su estado ni llama a Graph) y el ciclo diario de
     /// suscripciones (<c>ReparacionMarcaHuecoService</c>), con <see cref="RegistrarMarcaHuecoPorRegistrar"/>; y
     /// <see cref="Rehabilitar"/> la registra antes de volver a Habilitada. Solo en conexiones que verifican identidad, como
     /// la marca. Null: nada por registrar.

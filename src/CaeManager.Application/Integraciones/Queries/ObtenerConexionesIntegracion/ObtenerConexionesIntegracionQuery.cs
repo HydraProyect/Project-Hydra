@@ -25,7 +25,8 @@ public record ObtenerConexionesIntegracionQuery(bool SoloPropiasYGenerales = fal
 /// </param>
 /// <param name="HuecoSinRegistrar">
 /// <see cref="ConexionIntegracion.MarcaHuecoPorRegistrarDesdeUtc"/> puesta: la desconexión no llegó a registrar la marca
-/// del hueco. Conexiones avisa «Hueco sin registrar» y ofrece Reparar (Desconectar sobre la Deshabilitada).
+/// del hueco. Conexiones avisa «Hueco sin registrar» y ofrece Reparar (<c>RepararMarcaHuecoCommand</c>, que solo
+/// repara si la conexión sigue Deshabilitada).
 /// </param>
 public record ConexionIntegracionListaDto(
     Guid Id, string BuzonEmail, string Nombre, Guid? ClienteId, string? ClienteNombre, EstadoConexionIntegracion Estado,

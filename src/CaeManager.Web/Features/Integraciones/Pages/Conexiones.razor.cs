@@ -2,6 +2,7 @@ using CaeManager.Application.Clientes.Queries.ObtenerClientesParaSelector;
 using CaeManager.Application.Integraciones.Commands.ActualizarLineaWhatsApp;
 using CaeManager.Application.Integraciones.Commands.CrearLineaWhatsApp;
 using CaeManager.Application.Integraciones.Commands.DesconectarBuzon;
+using CaeManager.Application.Integraciones.Commands.RepararMarcaHueco;
 using CaeManager.Application.Integraciones.Commands.ReactivarConexion;
 using CaeManager.Application.Integraciones.Queries.ObtenerConexionesIntegracion;
 using CaeManager.Application.Integraciones.Queries.ObtenerLineasWhatsApp;
@@ -32,6 +33,9 @@ public partial class Conexiones : CaeManager.Web.Components.PaginaIntegrableConf
     private IReadOnlyList<LineaWhatsAppListaDto> _lineas = [];
     private IReadOnlyList<GestorSelectorDto> _gestores = [];
     private bool _cargando = true;
+
+    /// <summary>La última carga del listado falló: no se muestra ningún listado ni acción, solo el aviso.</summary>
+    private bool _cargaFallida;
     private Guid? _clienteSeleccionadoId;
     private Guid? _gestorPropietarioSeleccionadoId;
 
@@ -145,6 +149,8 @@ public partial class Conexiones : CaeManager.Web.Components.PaginaIntegrableConf
         {
             if (generacion == _generacionInicializacion)
             {
+                // También si falla antes de llegar al listado: «Sin conexiones» diría algo que no sabemos.
+                _cargaFallida = true;
                 Logger.LogError(ex, "Error al cargar las conexiones de integración.");
                 ToastService.Mostrar("No pudimos cargar las conexiones.", TonoToast.Error);
             }
@@ -170,9 +176,21 @@ public partial class Conexiones : CaeManager.Web.Components.PaginaIntegrableConf
             if (generacion != _generacionCarga || token.IsCancellationRequested) return;
             _conexiones = conexiones;
             _lineas = lineas;
+            _cargaFallida = false;
         }
         catch (OperationCanceledException) when (token.IsCancellationRequested)
         {
+        }
+        catch (Exception) when (generacion == _generacionCarga)
+        {
+            // Una carga que falla no deja a la vista el listado anterior: sus estados pueden estar obsoletos (una
+            // Habilitada que ya está Deshabilitada) y sus acciones operarían sobre ellos. Se vacía y la página muestra el
+            // aviso en su lugar, sin acciones, hasta la próxima carga que sí termine (Codex, ronda 19, hallazgo medio).
+            // La excepción sigue: quien llama decide cómo avisar.
+            _conexiones = [];
+            _lineas = [];
+            _cargaFallida = true;
+            throw;
         }
         finally
         {
@@ -351,7 +369,8 @@ public partial class Conexiones : CaeManager.Web.Components.PaginaIntegrableConf
     /// <summary>
     /// Recarga tras un fallo de Desconectar o tras Reparar: las consultas pueden fallar también (la misma base que no guardó la
     /// marca). La excepción no sale del manejador, el error del comando sigue visible y un aviso aparte dice que el listado
-    /// no se pudo actualizar (Codex, ronda 18, hallazgo medio).
+    /// no se pudo actualizar (Codex, ronda 18, hallazgo medio). El listado anterior no queda a la vista: la carga fallida
+    /// lo vacía y la página muestra el aviso sin acciones (Codex, ronda 19).
     /// </summary>
     private async Task RecargarSinPropagarAsync()
     {
@@ -367,9 +386,11 @@ public partial class Conexiones : CaeManager.Web.Components.PaginaIntegrableConf
     }
 
     /// <summary>
-    /// Reparar en la fila de una conexión Deshabilitada con la marca del hueco por registrar: es Desconectar sobre la
-    /// Deshabilitada, que registra lo guardado en la conexión (DesconectarBuzonCommandHandler). Sin modal: no desconecta
-    /// nada que no esté ya desconectado.
+    /// Reparar en la fila de una conexión Deshabilitada con la marca del hueco por registrar: RepararMarcaHuecoCommand, que
+    /// registra lo guardado en la conexión solo si sigue Deshabilitada y nunca cambia su estado ni llama a Graph. No es
+    /// Desconectar: si otra sesión la reactivó después de cargar la fila, Desconectar la habría desconectado (Codex, ronda
+    /// 19, hallazgo alto). Sin modal: no cambia nada más que la marca. Ante un fallo (también si la conexión ya no está
+    /// Deshabilitada) se recarga el listado para mostrar su estado real.
     /// </summary>
     private async Task RepararHuecoAsync(ConexionIntegracionListaDto conexion)
     {
@@ -379,7 +400,7 @@ public partial class Conexiones : CaeManager.Web.Components.PaginaIntegrableConf
 
         try
         {
-            var resultado = await Mediator.Send(new DesconectarBuzonCommand(conexion.Id));
+            var resultado = await Mediator.Send(new RepararMarcaHuecoCommand(conexion.Id));
             if (resultado.EsFallido)
             {
                 ToastService.MostrarError(resultado.Error);
