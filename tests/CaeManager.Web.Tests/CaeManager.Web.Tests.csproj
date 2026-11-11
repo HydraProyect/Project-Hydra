@@ -39,11 +39,12 @@
          de modo que el cuerpo de cada test corre en un hilo del ThreadPool, no en un hilo propio. El WaitForAssertion/
          WaitForState SINCRONO de bUnit 2.11.3 bloquea ese hilo con GetResult(); su primera comprobacion se encola con
          InvokeAsync y, si el Dispatcher esta ocupado, necesita otro hilo del pool. Este proyecto tiene 1814 llamadas
-         sincronas a WaitFor*. Con el suelo por defecto (= nucleos, 2-4 en CI) el pool solo inyecta ~1 hilo por segundo,
-         y el WaitFor* de 1 s caduca con «Check count: 0». Una sonda capturo un fallo real (PestanaVehiculosSubcontrata
+         sincronas a WaitFor*. Con el suelo por defecto (= nucleos) el pool inyecta hilos nuevos a un ritmo lento (~1 por
+         segundo segun el algoritmo del runtime, NO medido aqui) y el WaitFor* de 1 s caduca con «Check count: 0». Una sonda capturo un fallo real (PestanaVehiculosSubcontrata
          Tests, Una_respuesta_del_anterior...) con 9 hilos, 25-27 elementos en cola y 4579 ms de espera por un hilo.
-         Corrida pareada de la suite completa (11.710 tests, DOTNET_PROCESSOR_COUNT=2): con MinThreads=64, 0 fallos,
-         3 esperas >= 1 s, maximo 1,5 s; sin MinThreads, 2 fallos, 28 esperas >= 1 s, maximo 6 s. parallelAlgorithm:
+         UNA corrida pareada de la suite completa (11.710 tests, DOTNET_PROCESSOR_COUNT=2, n=1): con MinThreads=64,
+         0 fallos, 3 esperas >= 1 s, maximo 1,5 s; sin MinThreads, 2 fallos, 28 esperas >= 1 s, maximo 6 s. El suelo reduce
+         el riesgo, no lo elimina (persisten esperas >= 1 s); lo solido del dato son las esperas, no 0 contra 2. parallelAlgorithm:
          aggressive queda descartado (rompio 15-16 tests por corrida). Sigue SIN saberse que codigo retiene los hilos
          durante un episodio. Plan: migrar los WaitFor* a sus variantes async con tests async Task (varias PR por
          carpetas, #2171); al terminar se QUITA este suelo. Efecto asumido mientras tanto: un test que dependiera de
