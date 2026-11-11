@@ -24,6 +24,9 @@ internal static class ProtocoloProcesoHerramientasPdf
     private const byte EstadoExito = 0;
     private const byte EstadoFallo = 1;
 
+    /// <summary>Con lo que empieza todo PDF (ISO 32000-1, 7.5.2): el padre lo exige al contenido de una unión.</summary>
+    private static ReadOnlySpan<byte> CabeceraPdf => "%PDF-"u8;
+
     /// <summary>Los únicos códigos que el proceso aparte puede devolver: los de una entrada que dependen del PDF.</summary>
     internal static readonly string[] CodigosDeFallo =
     [
@@ -168,6 +171,10 @@ internal static class ProtocoloProcesoHerramientasPdf
         var paginas = BinaryPrimitives.ReadInt32LittleEndian(bytes[1..]);
         var longitud = BinaryPrimitives.ReadInt32LittleEndian(bytes[5..]);
         if (paginas is < 1 or > LimitesUnionPdf.MaximoPaginasTotales || longitud <= 0 || longitud != bytes.Length - 9)
+            return null;
+
+        // Lo que se entrega como PDF tiene que empezar como uno: el padre no da por bueno cualquier contenido del hijo.
+        if (!bytes[9..].StartsWith(CabeceraPdf))
             return null;
 
         return Result.Exito(new PdfUnido(respuesta[9..].ToArray(), paginas));

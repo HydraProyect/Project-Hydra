@@ -424,6 +424,80 @@ public sealed class UnirPdfPantallaTests : BunitContext
 
     // ---- Resultado
 
+    /// <summary>Cuenta cuántas veces se devuelve la reserva del PDF unido.</summary>
+    private sealed class ReservaEspia : IDisposable
+    {
+        private readonly TaskCompletionSource _devuelta = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public int Desechada { get; private set; }
+        public Task Devuelta => _devuelta.Task;
+
+        public void Dispose()
+        {
+            Desechada++;
+            _devuelta.TrySetResult();
+        }
+    }
+
+    private ReservaEspia UnirConReserva()
+    {
+        var reserva = new ReservaEspia();
+        _mediador.Unir = _ => Result.Exito(new ResultadoUnionPdf(EstadoUnionPdf.Unido, [1, 2, 3], "unido.pdf", 4, [], null) { Reserva = reserva });
+        return reserva;
+    }
+
+    [Fact]
+    public async Task La_reserva_del_PDF_unido_se_mantiene_mientras_el_navegador_lo_descarga_y_se_devuelve_una_vez_al_terminar()
+    {
+        var reserva = UnirConReserva();
+        var descarga = _descarga.SetupVoid("descargarPdf", _ => true);
+        var cut = Renderizar();
+        await SubirAsync(cut, "a.pdf", "b.pdf");
+
+        PulsarBoton(cut, "Unir y descargar");
+
+        cut.WaitForAssertion(() => descarga.Invocations.Should().ContainSingle());
+        reserva.Desechada.Should().Be(0, "el navegador aún lee el PDF unido: sigue en memoria y cuenta en el presupuesto");
+
+        await cut.InvokeAsync(descarga.SetVoidResult);
+
+        EsperarSinErrores(cut, () => cut.Find("h1").TextContent.Should().Contain("PDF unido: 4 páginas"));
+        reserva.Desechada.Should().Be(1);
+    }
+
+    [Fact]
+    public async Task Si_la_descarga_falla_la_reserva_del_PDF_unido_se_devuelve_una_vez()
+    {
+        var reserva = UnirConReserva();
+        var descarga = _descarga.SetupVoid("descargarPdf", _ => true);
+        var cut = Renderizar();
+        await SubirAsync(cut, "a.pdf", "b.pdf");
+
+        PulsarBoton(cut, "Unir y descargar");
+        cut.WaitForAssertion(() => descarga.Invocations.Should().ContainSingle());
+        await cut.InvokeAsync(() => descarga.SetException(new Microsoft.JSInterop.JSException("el navegador no pudo")));
+
+        cut.WaitForAssertion(() => reserva.Desechada.Should().Be(1));
+        cut.FindAll("h1").Should().NotContain(h => h.TextContent.Contains("PDF unido"));
+    }
+
+    [Fact]
+    public async Task Si_la_pantalla_se_desecha_durante_la_descarga_la_reserva_del_PDF_unido_se_devuelve_una_vez()
+    {
+        var reserva = UnirConReserva();
+        var descarga = _descarga.SetupVoid("descargarPdf", _ => true);
+        var cut = Renderizar();
+        await SubirAsync(cut, "a.pdf", "b.pdf");
+
+        PulsarBoton(cut, "Unir y descargar");
+        cut.WaitForAssertion(() => descarga.Invocations.Should().ContainSingle());
+        reserva.Desechada.Should().Be(0);
+
+        await DisposeComponentsAsync();
+
+        await reserva.Devuelta.WaitAsync(TimeSpan.FromSeconds(5));
+        reserva.Desechada.Should().Be(1, "la descarga se corta con la pantalla y nadie más devolvería la reserva");
+    }
+
     [Fact]
     public async Task Al_unir_se_descarga_se_dice_que_no_se_guarda_y_se_puede_empezar_de_nuevo()
     {

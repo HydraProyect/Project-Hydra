@@ -70,12 +70,12 @@ public sealed class UnidorPdfEnProcesoAparteTests
     [Fact]
     public async Task Unir_manda_los_PDF_en_orden_y_devuelve_el_unido()
     {
-        var lanzador = new LanzadorDoble(_ => Terminado(0, Union(Result.Exito(new PdfUnido("%PDF unido"u8.ToArray(), 5)))));
+        var lanzador = new LanzadorDoble(_ => Terminado(0, Union(Result.Exito(new PdfUnido("%PDF-1.4 unido"u8.ToArray(), 5)))));
 
         var resultado = await Unidor(lanzador).UnirAsync([PdfB, PdfA], CancellationToken.None);
 
         resultado.Valor.NumeroPaginas.Should().Be(5);
-        resultado.Valor.Contenido.Should().Equal("%PDF unido"u8.ToArray());
+        resultado.Valor.Contenido.Should().Equal("%PDF-1.4 unido"u8.ToArray());
         var peticion = ProtocoloProcesoHerramientasPdf.LeerPeticion(new MemoryStream(lanzador.Entrada!))!;
         peticion.Operacion.Should().Be(ProtocoloProcesoHerramientasPdf.OperacionUnir);
         peticion.Pdfs.Should().HaveCount(2);
@@ -143,11 +143,50 @@ public sealed class UnidorPdfEnProcesoAparteTests
     [Fact]
     public async Task Una_union_cuya_longitud_no_cuadra_con_lo_recibido_es_ilegible()
     {
-        var union = Union(Result.Exito(new PdfUnido("%PDF unido"u8.ToArray(), 2)));
+        var union = Union(Result.Exito(new PdfUnido("%PDF-1.4 unido"u8.ToArray(), 2)));
 
         var resultado = await Unidor(new LanzadorDoble(_ => Terminado(0, union[..^1]))).UnirAsync([PdfA, PdfB], CancellationToken.None);
 
         resultado.Error.Codigo.Should().Be(ErroresUnirPdf.Ilegible);
+    }
+
+    [Fact]
+    public async Task Una_union_cuyo_contenido_no_empieza_como_un_PDF_es_ilegible()
+    {
+        // Longitud y páginas cuadran; lo único que falla es la cabecera: «%PDF» sin el guion no es la de un PDF.
+        var union = Union(Result.Exito(new PdfUnido("%PDF unido"u8.ToArray(), 2)));
+
+        var resultado = await Unidor(new LanzadorDoble(_ => Terminado(0, union))).UnirAsync([PdfA, PdfB], CancellationToken.None);
+
+        resultado.Error.Codigo.Should().Be(ErroresUnirPdf.Ilegible);
+    }
+
+    [Fact]
+    public async Task Si_el_lanzador_no_vuelve_ni_al_cancelar_el_turno_se_suelta_igualmente()
+    {
+        // No pudo matar al hijo y la lectura no atiende la cancelación: el lanzador no vuelve nunca, ni con el token.
+        var lanzador = new LanzadorDoble(_ => Terminado(0, [])) { NoVolver = true };
+        var opciones = _opciones with { TiempoMaximoInspeccionar = TimeSpan.FromMilliseconds(50), MargenLiberacionTurno = TimeSpan.FromMilliseconds(50) };
+        var unidor = new UnidorPdfEnProcesoAparte(opciones, _limitador, lanzador, NullLogger<UnidorPdfEnProcesoAparte>.Instance);
+
+        var resultado = await unidor.InspeccionarAsync(PdfA, CancellationToken.None).WaitAsync(TimeSpan.FromSeconds(10));
+
+        resultado.Error.Codigo.Should().Be(ErroresUnirPdf.DemasiadoComplejo, "es un tiempo agotado");
+        _limitador.Libres.Should().Be(1, "el único turno no se queda retenido por un hijo que no se pudo matar");
+    }
+
+    [Fact]
+    public async Task Si_el_lanzador_no_vuelve_y_el_llamante_cancela_el_turno_se_suelta_y_se_cancela()
+    {
+        var lanzador = new LanzadorDoble(_ => Terminado(0, [])) { NoVolver = true };
+        var opciones = _opciones with { TiempoMaximoInspeccionar = TimeSpan.FromMilliseconds(50), MargenLiberacionTurno = TimeSpan.FromMilliseconds(50) };
+        var unidor = new UnidorPdfEnProcesoAparte(opciones, _limitador, lanzador, NullLogger<UnidorPdfEnProcesoAparte>.Instance);
+        using var cancelacion = new CancellationTokenSource(TimeSpan.FromMilliseconds(20));
+
+        var inspeccionar = () => unidor.InspeccionarAsync(PdfA, cancelacion.Token).WaitAsync(TimeSpan.FromSeconds(10));
+
+        await inspeccionar.Should().ThrowAsync<OperationCanceledException>();
+        _limitador.Libres.Should().Be(1);
     }
 
     [Fact]
@@ -225,10 +264,14 @@ public sealed class UnidorPdfEnProcesoAparteTests
         return (codigo, salida.ToArray());
     }
 
-    /// <summary>Anota lo que se le pide y responde lo que diga el test; con <see cref="Esperar"/>, no responde hasta que se cancele.</summary>
+    /// <summary>
+    /// Anota lo que se le pide y responde lo que diga el test; con <see cref="Esperar"/>, no responde hasta que se cancele, y
+    /// con <see cref="NoVolver"/>, no responde nunca, ni al cancelar (un hijo que no se pudo matar).
+    /// </summary>
     private sealed class LanzadorDoble(Func<byte[], SalidaProcesoAislado> responder) : ILanzadorProcesoAislado
     {
         public bool Esperar { get; init; }
+        public bool NoVolver { get; init; }
         public int Llamadas { get; private set; }
         public byte[]? Entrada { get; private set; }
         public TimeSpan Tiempo { get; private set; }
@@ -245,6 +288,8 @@ public sealed class UnidorPdfEnProcesoAparteTests
             Entrada = entrada.ToArray();
             if (Esperar)
                 await Task.Delay(Timeout.Infinite, cancellationToken);
+            if (NoVolver)
+                await new TaskCompletionSource().Task;
             return responder(Entrada);
         }
     }

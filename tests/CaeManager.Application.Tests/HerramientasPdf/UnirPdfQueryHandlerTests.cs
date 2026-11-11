@@ -433,6 +433,7 @@ public class UnirPdfQueryHandlerTests
         var unir = () => UnirAsync([new EntradaUnionDocumento(seguro.Id), Subido("a.pdf", "A")]);
 
         await unir.Should().ThrowAsync<AccesoDocumentoSensibleNoRegistradoException>("el registro falla en cerrado (DEC-36)");
+        PresupuestoLibre().Should().BeTrue("el PDF unido que no sale tampoco retiene su reserva");
     }
 
     [Fact]
@@ -601,10 +602,49 @@ public class UnirPdfQueryHandlerTests
         if (desenlace == "excepcion del unidor")
             await llamada.Should().ThrowAsync<InvalidOperationException>();
         else
-            await llamada();
+            // Lo que se entrega lo desecha quien lo recibe; eso es lo único que retiene el PDF unido (ver el test siguiente).
+            (await llamada()).Valor.Dispose();
 
         PresupuestoLibre().Should().BeTrue("las reservas de lectura, de copias y de estructura se devuelven siempre");
     }
+
+    [Fact]
+    public async Task El_PDF_unido_retiene_su_reserva_hasta_que_quien_lo_entrega_lo_desecha_y_la_devuelve_una_sola_vez()
+    {
+        var seguro = DocumentoDeEmpresa("SEGURO[estructura=1000000]");
+
+        var resultado = await UnirAsync([new EntradaUnionDocumento(seguro.Id), Subido("b.pdf", "B")]);
+
+        resultado.Valor.Estado.Should().Be(EstadoUnionPdf.Unido);
+        _presupuesto.Reservado.Should().Be(resultado.Valor.Contenido!.LongLength,
+            "mientras se descarga, el PDF unido sigue en memoria y cuenta; lo demás de la unión ya se devolvió");
+
+        resultado.Valor.Dispose();
+        resultado.Valor.Dispose();
+        _presupuesto.Reservado.Should().Be(0);
+        using var otra = await _presupuesto.ReservarAsync(1);
+        resultado.Valor.Dispose();
+        _presupuesto.Reservado.Should().Be(1, "desecharlo otra vez no devuelve lo que es de otra reserva");
+    }
+
+    [Fact]
+    public async Task Sin_hueco_para_retener_el_PDF_unido_pide_reintentar_y_no_queda_nada_reservado()
+    {
+        _unidor.AlUnir = () =>
+        {
+            // Lo que otros retienen deja hueco para unir, pero no para quedarse además con el PDF unido.
+            var libre = _presupuesto.Maximo - _presupuesto.Reservado;
+            _presupuesto.TryReservar(libre, out _ocupado).Should().BeTrue();
+        };
+
+        var resultado = await UnirAsync([Subido("a.pdf", "A"), Subido("b.pdf", "B")]);
+        _ocupado!.Dispose();
+
+        resultado.Error.Codigo.Should().Be(ErroresUnirPdf.SinEspacio);
+        PresupuestoLibre().Should().BeTrue();
+    }
+
+    private ReservaMemoriaDocumentos? _ocupado;
 
     [Fact]
     public async Task Mientras_se_une_el_presupuesto_retiene_la_estructura_que_el_unidor_midio()

@@ -43,7 +43,8 @@ public sealed record EntradaUnionDocumento(Guid DocumentoId) : EntradaUnionPdf;
 /// aunque quien pidió se haya ido. Un Documento que no se llegó a leer no deja registro.
 ///
 /// Memoria (OWASP API4:2023): cada Documento se abre solo si su tamaño almacenado cabe en lo que queda del total, la copia
-/// se corta al pasar de ahí y lo que la unión retiene de cada PDF cuenta en el presupuesto de memoria de documentos.
+/// se corta al pasar de ahí y lo que la unión retiene de cada PDF cuenta en el presupuesto de memoria de documentos. El PDF
+/// unido sigue contando después: su reserva va en <see cref="ResultadoUnionPdf.Reserva"/> y la devuelve quien lo entrega.
 /// </summary>
 /// <param name="FirmasConfirmadas">
 /// Si algún PDF lleva firma electrónica, sin esto no se une: se responde <see cref="EstadoUnionPdf.FirmasSinConfirmar"/> con
@@ -66,12 +67,27 @@ public enum EstadoUnionPdf
     EntradaRechazada = 2
 }
 
+/// <summary>
+/// Lo que responde la unión. Con <see cref="EstadoUnionPdf.Unido"/>, el PDF unido sigue en memoria hasta que quien lo
+/// entrega termina, y por eso trae su reserva del presupuesto de memoria de documentos (<see cref="Reserva"/>): quien recibe
+/// el resultado lo desecha cuando ya no retiene <see cref="Contenido"/> (la descarga terminó, falló o la pantalla se fue).
+/// Desecharlo más de una vez no devuelve nada de más.
+/// </summary>
 /// <param name="Posiciones">Posiciones (desde 0) en la lista de entradas a las que se refiere el estado.</param>
 /// <param name="HuellaFirmas">Con <see cref="EstadoUnionPdf.FirmasSinConfirmar"/>, lo que se devuelve en <see cref="UnirPdfQuery.FirmasConfirmadas"/> para unir esos mismos PDF.</param>
 public record ResultadoUnionPdf(
     EstadoUnionPdf Estado, byte[]? Contenido, string? NombreArchivo, int NumeroPaginas,
-    IReadOnlyList<int> Posiciones, string? CodigoRechazo, string? HuellaFirmas = null)
+    IReadOnlyList<int> Posiciones, string? CodigoRechazo, string? HuellaFirmas = null) : IDisposable
 {
+    /// <summary>La reserva que cubre <see cref="Contenido"/> mientras alguien lo retiene; <c>null</c> si no hay PDF unido.</summary>
+    public IDisposable? Reserva { get; init; }
+
+    public void Dispose()
+    {
+        Reserva?.Dispose();
+        GC.SuppressFinalize(this);
+    }
+
     public static ResultadoUnionPdf Rechazada(int posicion, string codigo) =>
         new(EstadoUnionPdf.EntradaRechazada, null, null, 0, [posicion], codigo);
 
@@ -115,8 +131,29 @@ public class UnirPdfQueryHandler(
         if (abiertos.Count == 0)
             return resultado;
 
-        var confirmada = await RegistrarAperturasAsync(abiertos);
-        return confirmada.EsFallido ? Result.Fallo<ResultadoUnionPdf>(confirmada.Error) : resultado;
+        Result confirmada;
+        try
+        {
+            confirmada = await RegistrarAperturasAsync(abiertos);
+        }
+        catch
+        {
+            // Sin constancia no sale el PDF, y nadie más va a desechar su reserva.
+            SoltarReserva(resultado);
+            throw;
+        }
+
+        if (!confirmada.EsFallido)
+            return resultado;
+
+        SoltarReserva(resultado);
+        return Result.Fallo<ResultadoUnionPdf>(confirmada.Error);
+    }
+
+    private static void SoltarReserva(Result<ResultadoUnionPdf> resultado)
+    {
+        if (resultado.EsExitoso)
+            resultado.Valor.Dispose();
     }
 
     /// <summary>
@@ -230,7 +267,15 @@ public class UnirPdfQueryHandler(
                 return Result.Exito(ResultadoUnionPdf.Rechazada(0, CodigoDeEntrada(unido.Error.Codigo)));
 
             var nombre = $"{ArmadoPaqueteDocumental.SanearSegmento(empresa.RazonSocial).Replace(' ', '-')}_unido_{DiaDeNegocio.Hoy():yyyy-MM-dd}.pdf";
-            return Result.Exito(new ResultadoUnionPdf(EstadoUnionPdf.Unido, unido.Valor.Contenido, nombre, unido.Valor.NumeroPaginas, [], null));
+
+            // El PDF unido sobrevive a esta unión: lo retiene quien lo entrega (la descarga) cuando las reservas de arriba ya
+            // se han devuelto. Se reserva ahora, sin esperar y mientras aún se retienen las demás (un instante cuenta dos
+            // veces, del lado seguro), y la reserva viaja con el resultado: la devuelve quien lo desecha, no este finally.
+            var reservaUnido = Reservar(unido.Valor.Contenido.LongLength);
+            return Result.Exito(new ResultadoUnionPdf(EstadoUnionPdf.Unido, unido.Valor.Contenido, nombre, unido.Valor.NumeroPaginas, [], null)
+            {
+                Reserva = reservaUnido,
+            });
         }
         catch (PresupuestoMemoriaAgotadoException)
         {

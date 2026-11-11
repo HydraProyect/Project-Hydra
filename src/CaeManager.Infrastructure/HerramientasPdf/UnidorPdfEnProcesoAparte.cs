@@ -27,6 +27,13 @@ public sealed record OpcionesProcesoHerramientasPdf
     /// <summary>Lo que se espera turno (<see cref="LimitadorProcesosAislados"/>) antes de pedir que se reintente.</summary>
     public TimeSpan EsperaMaximaTurno { get; init; } = TimeSpan.FromSeconds(30);
 
+    /// <summary>
+    /// Lo que se espera al lanzador, pasado el tiempo de la operación, antes de soltar el turno sin él. Cubre lo que el
+    /// lanzador tarda en matar al hijo y cerrar sus tuberías (unos 10 s por paso); si aun así no vuelve —no pudo matar al
+    /// hijo y una lectura no atiende la cancelación—, el turno no se queda retenido para siempre.
+    /// </summary>
+    public TimeSpan MargenLiberacionTurno { get; init; } = TimeSpan.FromMinutes(1);
+
     /// <summary>El ejecutable <c>dotnet</c> del runtime que ejecuta esta aplicación.</summary>
     public string Anfitrion { get; init; } = AnfitrionDotnet();
 
@@ -110,9 +117,26 @@ public sealed class UnidorPdfEnProcesoAparte(
         using var turno = await limitador.EntrarAsync(opciones.EsperaMaximaTurno, cancellationToken)
             ?? throw new PresupuestoMemoriaAgotadoException();
 
-        return await lanzador.EjecutarAsync(Inicio(opciones),
+        var ejecucion = lanzador.EjecutarAsync(Inicio(opciones),
             (entrada, token) => ProtocoloProcesoHerramientasPdf.EscribirPeticionAsync(entrada, operacion, pdfs, token),
             tiempoMaximo, maximoBytesSalida, cancellationToken);
+
+        try
+        {
+            // Sin el token del llamante: al cancelar, el lanzador mata al hijo y vuelve, y el turno se suelta cuando ya está
+            // muerto. Esta espera solo acota el caso en que el lanzador no vuelve.
+            return await ejecucion.WaitAsync(tiempoMaximo + opciones.MargenLiberacionTurno);
+        }
+        catch (TimeoutException)
+        {
+            // El turno se suelta igualmente (using): retenerlo bloquearía la herramienta para todos. La ejecución se abandona,
+            // con su excepción observada; el hijo puede seguir vivo, y queda en el registro.
+            _ = ejecucion.ContinueWith(static tarea => _ = tarea.Exception, CancellationToken.None,
+                TaskContinuationOptions.OnlyOnFaulted | TaskContinuationOptions.ExecuteSynchronously, TaskScheduler.Default);
+            logger.LogError("El proceso aparte no terminó a tiempo ni se pudo matar; se suelta su turno sin él.");
+            cancellationToken.ThrowIfCancellationRequested();
+            return new SalidaProcesoAislado(DesenlaceProcesoAislado.TiempoAgotado, null, ReadOnlyMemory<byte>.Empty, 0);
+        }
     }
 
     private Result<T> Traducir<T>(SalidaProcesoAislado salida, Func<ReadOnlyMemory<byte>, Result<T>?> leer, string operacion)

@@ -323,10 +323,14 @@ public partial class UnirPdf : CaeManager.Web.Components.PaginaInteractiva, IDis
         _uniendo = true;
         _error = null;
         OlvidarFirmas();
+        // Capturado aquí: Dispose desecha el origen del token, y la descarga tiene que poder cortarse después.
+        var token = _ciclo.Token;
+        // El PDF unido trae su reserva del presupuesto de memoria y esta pantalla lo retiene hasta que la descarga termina:
+        // se desecha en el finally, una sola vez, también si la descarga falla, se cancela o lanza.
+        ResultadoUnionPdf? resultado = null;
         try
         {
             var subidos = _elementos.Where(e => e.Archivo is not null).Sum(e => e.Archivo!.TamanoBytes);
-            ResultadoUnionPdf resultado;
             using (subidos > 0 ? await PresupuestoMemoria.ReservarAsync(subidos, _ciclo.Token) : null)
             {
                 var entradas = new List<EntradaUnionPdf>(_elementos.Count);
@@ -359,9 +363,13 @@ public partial class UnirPdf : CaeManager.Web.Components.PaginaInteractiva, IDis
                         resultado.CodigoRechazo!, NombreEnPosicion(resultado.Posiciones[0]), EsDocumentoEnPosicion(resultado.Posiciones[0]));
                     break;
                 default:
-                    await DescargarAsync(resultado);
+                    await DescargarAsync(resultado, token);
                     break;
             }
+        }
+        catch (OperationCanceledException) when (token.IsCancellationRequested)
+        {
+            // La pantalla se fue: no queda nadie a quien avisar. La reserva del PDF unido la devuelve el finally.
         }
         catch (PresupuestoMemoriaAgotadoException)
         {
@@ -376,16 +384,22 @@ public partial class UnirPdf : CaeManager.Web.Components.PaginaInteractiva, IDis
         finally
         {
             _uniendo = false;
+            resultado?.Dispose();
         }
     }
 
-    private async Task DescargarAsync(ResultadoUnionPdf resultado)
+    /// <summary>
+    /// Entrega el PDF unido al navegador como flujo. Vuelve cuando el navegador lo ha leído entero, ha fallado o la pantalla
+    /// se desecha (<paramref name="token"/>): hasta entonces el flujo apunta a <see cref="ResultadoUnionPdf.Contenido"/> y
+    /// quien llama mantiene su reserva.
+    /// </summary>
+    private async Task DescargarAsync(ResultadoUnionPdf resultado, CancellationToken token)
     {
         try
         {
-            _modulo ??= await JS.InvokeAsync<IJSObjectReference>("import", "./js/descarga-pdf-unido.js");
+            _modulo ??= await JS.InvokeAsync<IJSObjectReference>("import", token, "./js/descarga-pdf-unido.js");
             using var referencia = new DotNetStreamReference(new MemoryStream(resultado.Contenido!, writable: false));
-            await _modulo.InvokeVoidAsync("descargarPdf", resultado.NombreArchivo, referencia);
+            await _modulo.InvokeVoidAsync("descargarPdf", token, resultado.NombreArchivo, referencia);
         }
         catch (JSException ex)
         {

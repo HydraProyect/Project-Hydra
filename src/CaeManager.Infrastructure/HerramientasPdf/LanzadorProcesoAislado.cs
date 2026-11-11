@@ -68,10 +68,14 @@ public sealed class LanzadorProcesoAislado(ILogger<LanzadorProcesoAislado> logge
         using var matarAlVencer = plazo.Token.Register(() => MatarArbolSinEsperar(proceso));
         plazo.CancelAfter(tiempoMaximo);
         var escritura = EscribirAsync(proceso.StandardInput.BaseStream, escribirEntrada, plazo.Token);
+        var lectura = LeerConTopeAsync(proceso.StandardOutput.BaseStream, maximoBytesSalida, plazo.Token);
 
         try
         {
-            var salida = await LeerConTopeAsync(proceso.StandardOutput.BaseStream, maximoBytesSalida, plazo.Token);
+            // La lectura no se espera más allá del plazo: si vence o el llamante cancela, se sale en el acto aunque la lectura
+            // no atienda el token (bloqueada en la tubería de un hijo que no se pudo matar). Se abandona y la observa el
+            // finally, con espera acotada; así el lanzador siempre vuelve y quien llama suelta su turno.
+            var salida = await lectura.WaitAsync(plazo.Token);
             if (salida is null)
                 return new SalidaProcesoAislado(DesenlaceProcesoAislado.SalidaDemasiadoGrande, null, ReadOnlyMemory<byte>.Empty, id);
 
@@ -88,6 +92,7 @@ public sealed class LanzadorProcesoAislado(ILogger<LanzadorProcesoAislado> logge
         {
             // También al cancelar el llamante o ante cualquier excepción: no se deja un hijo vivo con el PDF abierto.
             await MatarArbolAsync(proceso);
+            await ObservarAsync(lectura);
             await ObservarAsync(escritura);
             await ObservarAsync(errores);
         }
