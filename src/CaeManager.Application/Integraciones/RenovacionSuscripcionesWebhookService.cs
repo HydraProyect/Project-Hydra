@@ -20,8 +20,9 @@ namespace CaeManager.Application.Integraciones;
 /// identidad y no mueve una Deshabilitada, y la renovación no rebaja una expiración ya posterior.</item>
 /// <item>Marca del hueco: la regla conservadora (<see cref="ConexionIntegracion.RegistrarHuecoAlObservarSuscripcion"/>),
 /// guardada con <see cref="CancellationToken.None"/> antes de pedir el token, otra vez justo antes del PATCH (por si la
-/// suscripción expiró mientras se pedía el token) y otra vez tras la respuesta con la hora de después de la respuesta (<see cref="CompletarIdentidadBuzonService.MarcarConErrorDeRenovacion"/>). Es la
-/// única fuente de la marca en este camino.</item>
+/// suscripción expiró mientras se pedía el token) y otra vez tras la respuesta con la hora de después de la respuesta
+/// (<see cref="CompletarIdentidadBuzonService.MarcarConErrorDeRenovacion"/>). Es la única fuente de la marca en este
+/// camino.</item>
 /// </list>
 /// Una conexión Deshabilitada (o borrada) no se renueva ni se marca, tampoco al reaplicar.
 /// </summary>
@@ -104,6 +105,9 @@ public class RenovacionSuscripcionesWebhookService(
             // La suscripción puede expirar mientras se pide el token: la regla se vuelve a aplicar y a guardar justo antes
             // del PATCH, para que ninguna llamada de renovación salga con una pérdida ya ocurrida sin su marca en la base
             // (Codex, ronda 13, hallazgo medio 2). Si este guardado recarga, el PATCH va contra la suscripción recargada.
+            // Esa recarga descarta lo que el token dejó pendiente en una conexión delegada (refresh token rotado, caché del
+            // access token), igual que el guardado final cuando colisiona: el siguiente ciclo vuelve a canjear el refresh
+            // token guardado. Solo pasa si la marca cambió y además chocó; un buzón compartido no tiene credencial.
             if (await GuardarMarcaAntesDeGraphAsync(conexionId, conexion, suscripcion, cancellationToken) is not { } antesDelPatch)
                 return;
             (conexion, suscripcion) = antesDelPatch;

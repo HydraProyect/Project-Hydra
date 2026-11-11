@@ -384,17 +384,20 @@ public class RenovacionSuscripcionesWebhookServiceTests
     public async Task Una_suscripcion_que_expira_mientras_se_pide_el_token_guarda_la_marca_antes_del_PATCH()
     {
         var escenario = new Escenario();
-        var expiracion = DateTime.UtcNow.AddSeconds(1);
-        var (conexion, _) = escenario.Agregar("a@operador.test", "sub-a", expiracion);
+        var (conexion, suscripcion) = escenario.Agregar("a@operador.test", "sub-a", DateTime.UtcNow.AddHours(2));
         escenario.Graph.ErroresRenovacion["sub-a"] = Error.Crear(CodigosErrorMicrosoft365.Transitorio, "503");
         var marcasGuardadas = new List<DateTime?>();
         escenario.UnitOfWork.AlGuardar = () => marcasGuardadas.Add(conexion.HuecoPendienteDesdeUtc);
         var guardadasAlPedirToken = -1;
+        var expiracion = DateTime.MinValue;
+
+        // Sin reloj: mientras se pide el token, la expiración de la suscripción queda en el pasado, que para el servicio
+        // es lo mismo que haber llegado a ella durante la petición.
         escenario.Graph.AlObtenerTokenAplicacion = () =>
         {
             guardadasAlPedirToken = marcasGuardadas.Count;
-            while (DateTime.UtcNow <= expiracion)
-                Thread.Sleep(10);
+            expiracion = DateTime.UtcNow.AddSeconds(-1);
+            suscripcion.ActualizarTrasRenovacion("sub-a", expiracion);
         };
         var guardadasAlRenovar = -1;
         escenario.Graph.AlRenovarSuscripcion = _ => guardadasAlRenovar = marcasGuardadas.Count;
@@ -407,6 +410,33 @@ public class RenovacionSuscripcionesWebhookServiceTests
         escenario.UnitOfWork.TokensDeGuardado[0].Should().Be(CancellationToken.None);
         conexion.HuecoPendienteDesdeUtc.Should().Be(expiracion);
         conexion.Estado.Should().Be(EstadoConexionIntegracion.Habilitada, "un fallo transitorio no pasa a ConError");
+    }
+
+    /// <summary>
+    /// El guardado de justo antes del PATCH colisiona: se recargan la conexión y la suscripción de la base, la regla se
+    /// vuelve a aplicar sobre ellas y el PATCH va contra la suscripción recargada, no contra la que se observó antes.
+    /// </summary>
+    [Fact]
+    public async Task Una_colision_del_guardado_previo_al_PATCH_recarga_y_renueva_la_suscripcion_recargada()
+    {
+        var escenario = new Escenario();
+        var (conexion, suscripcion) = escenario.Agregar("a@operador.test", "sub-a", DateTime.UtcNow.AddHours(2));
+        var expiracionRecargada = DateTime.UtcNow.AddMinutes(-5);
+        escenario.Graph.AlObtenerTokenAplicacion = () =>
+        {
+            suscripcion.ActualizarTrasRenovacion("sub-a", DateTime.UtcNow.AddSeconds(-1));
+            escenario.ColisionesPendientes = 1;
+        };
+        escenario.VersionEnLaBase = actual => Compartida("a@operador.test", actual.Id);
+        escenario.AlDescartar = () => escenario.Suscripciones.SustituirEnBase(conexion.Id, "sub-recargada", expiracionRecargada);
+
+        await escenario.Servicio().RenovarProximasAExpirarAsync(Ventana, CancellationToken.None);
+
+        var recargada = escenario.Conexiones.Conexiones.Single(c => c.Id == conexion.Id);
+        recargada.Should().NotBeSameAs(conexion, "control: el descarte cargó la versión de la base");
+        escenario.Graph.SuscripcionesRenovadas.Should().Equal(["sub-recargada"]);
+        recargada.HuecoPendienteDesdeUtc.Should().Be(expiracionRecargada);
+        escenario.Suscripciones.Suscripciones.Single().FechaExpiracionUtc.Should().BeAfter(DateTime.UtcNow.AddDays(2));
     }
 
     [Fact]

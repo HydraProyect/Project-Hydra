@@ -288,25 +288,105 @@ public class DesconectarBuzonCommandHandlerTests
         var unitOfWork = new UnitOfWorkFalso();
         var marcasGuardadas = new List<DateTime?>();
         unitOfWork.AlGuardar = () => marcasGuardadas.Add(conexion.HuecoPendienteDesdeUtc);
-        var guardadasAlPedirToken = -1;
+        // Aquí la expiración tiene que pasar de verdad: Desconectar la fija antes del token. Las aserciones no dependen de
+        // cuánto tarde el runner: si ya hubiera expirado antes del token, la marca se guardaría antes y el test pasaría
+        // igual (solo perdería sensibilidad, nunca falla sin defecto).
         graph.AlObtenerTokenAplicacion = () =>
         {
-            guardadasAlPedirToken = marcasGuardadas.Count;
             while (DateTime.UtcNow <= expiracion)
                 Thread.Sleep(10);
         };
-        var guardadasAlBorrar = -1;
-        graph.AlEliminarSuscripcion = () => guardadasAlBorrar = marcasGuardadas.Count;
+        DateTime? marcaGuardadaAlBorrar = null;
+        graph.AlEliminarSuscripcion = () => marcaGuardadaAlBorrar = marcasGuardadas.LastOrDefault();
         var handler = CrearHandler(conexiones, suscripciones, new ReclamacionBuzonIntegracionRepositorioFalso(), new AlcanceDatosServiceFalso(),
             graph, new CredencialIntegracionRepositorioFalso(), unitOfWork);
 
         var resultado = await handler.Handle(new DesconectarBuzonCommand(conexion.Id), CancellationToken.None);
 
         resultado.EsExitoso.Should().BeTrue();
-        guardadasAlPedirToken.Should().Be(0, "control: al pedir el token aún no había expirado y no había nada que guardar");
-        guardadasAlBorrar.Should().Be(1, "solo la desconexión, que ya lleva la marca");
-        marcasGuardadas[0].Should().Be(expiracion);
+        marcaGuardadaAlBorrar.Should().Be(expiracion, "la marca ya estaba en la base cuando salió el DELETE");
         conexion.Estado.Should().Be(EstadoConexionIntegracion.Deshabilitada);
+    }
+
+    /// <summary>
+    /// El guardado de la marca previo a Graph colisiona (la ingesta escribió la conexión): se recarga, se vuelve a poner
+    /// la marca y la desconexión sigue sobre la versión recargada, no sobre la instancia ya descartada.
+    /// </summary>
+    [Fact]
+    public async Task Una_colision_del_guardado_previo_recarga_y_desconecta_la_version_recargada()
+    {
+        var expiracion = DateTime.UtcNow.AddHours(-3);
+        var (conexion, conexiones, suscripciones) = ConSuscripcion();
+        suscripciones.Suscripciones.Clear();
+        suscripciones.Agregar(new SuscripcionWebhook(conexion.Id, "sub-1", "estado", expiracion));
+        var graph = new Microsoft365GraphClientFalso();
+        var interno = new UnitOfWorkFalso();
+        var descarte = new DescarteContado(() => conexiones.Conexiones[0] = Copia(conexion, deshabilitada: false));
+        var handler = CrearHandler(conexiones, suscripciones, new ReclamacionBuzonIntegracionRepositorioFalso(), new AlcanceDatosServiceFalso(),
+            graph, new CredencialIntegracionRepositorioFalso { CredencialParaCualquierConexion = true },
+            new UnitOfWorkConColisiones(interno, 1), descarte: descarte);
+
+        var resultado = await handler.Handle(new DesconectarBuzonCommand(conexion.Id), CancellationToken.None);
+
+        resultado.EsExitoso.Should().BeTrue();
+        var recargada = conexiones.Conexiones[0];
+        recargada.Should().NotBeSameAs(conexion, "control: el descarte cargó la versión de la base");
+        recargada.Estado.Should().Be(EstadoConexionIntegracion.Deshabilitada);
+        recargada.HuecoPendienteDesdeUtc.Should().Be(expiracion);
+        graph.SuscripcionesEliminadas.Should().Equal(["sub-1"]);
+        interno.VecesGuardado.Should().Be(2, "la marca reaplicada y la desconexión");
+    }
+
+    /// <summary>
+    /// El guardado de la marca previo a Graph agota las colisiones: la excepción sale sin pedir el token, sin deshabilitar
+    /// y sin borrar. Ninguna llamada externa sale sin la marca guardada.
+    /// </summary>
+    [Fact]
+    public async Task Si_el_guardado_previo_agota_las_colisiones_no_se_llama_a_Graph_ni_se_deshabilita()
+    {
+        var expiracion = DateTime.UtcNow.AddHours(-3);
+        var (conexion, conexiones, suscripciones) = ConSuscripcion();
+        suscripciones.Suscripciones.Clear();
+        suscripciones.Agregar(new SuscripcionWebhook(conexion.Id, "sub-1", "estado", expiracion));
+        var graph = new Microsoft365GraphClientFalso();
+        var interno = new UnitOfWorkFalso();
+        var descarte = new DescarteContado(() => conexiones.Conexiones[0] = Copia(conexion, deshabilitada: false));
+        var handler = CrearHandler(conexiones, suscripciones, new ReclamacionBuzonIntegracionRepositorioFalso(), new AlcanceDatosServiceFalso(),
+            graph, new CredencialIntegracionRepositorioFalso { CredencialParaCualquierConexion = true },
+            new UnitOfWorkConColisiones(interno, 1, 2, 3), descarte: descarte);
+
+        var desconectar = () => handler.Handle(new DesconectarBuzonCommand(conexion.Id), CancellationToken.None);
+
+        await desconectar.Should().ThrowAsync<DbUpdateConcurrencyException>();
+        graph.SuscripcionesEliminadas.Should().BeEmpty();
+        graph.VecesRefrescado.Should().Be(0, "el token tampoco se pidió");
+        conexiones.Conexiones[0].Estado.Should().Be(EstadoConexionIntegracion.Habilitada);
+        interno.VecesGuardado.Should().Be(0);
+        descarte.Veces.Should().Be(DesconectarBuzonCommandHandler.IntentosGuardadoMarca);
+    }
+
+    /// <summary>
+    /// Un fallo del guardado previo que no es una colisión (base caída) descarta lo rastreado antes de salir: la marca no
+    /// queda pendiente para que la guarde otra operación del circuito. No se llama a Graph.
+    /// </summary>
+    [Fact]
+    public async Task Un_fallo_del_guardado_previo_que_no_es_colision_descarta_y_no_llama_a_Graph()
+    {
+        var (conexion, conexiones, suscripciones) = ConSuscripcion();
+        suscripciones.Suscripciones.Clear();
+        suscripciones.Agregar(new SuscripcionWebhook(conexion.Id, "sub-1", "estado", DateTime.UtcNow.AddHours(-3)));
+        var graph = new Microsoft365GraphClientFalso();
+        var descarte = new DescarteContado();
+        var handler = CrearHandler(conexiones, suscripciones, new ReclamacionBuzonIntegracionRepositorioFalso(), new AlcanceDatosServiceFalso(),
+            graph, new CredencialIntegracionRepositorioFalso { CredencialParaCualquierConexion = true },
+            new UnitOfWorkFalso { ExcepcionAlGuardar = new InvalidOperationException("base caída") }, descarte: descarte);
+
+        var desconectar = () => handler.Handle(new DesconectarBuzonCommand(conexion.Id), CancellationToken.None);
+
+        await desconectar.Should().ThrowAsync<InvalidOperationException>();
+        descarte.Veces.Should().Be(1);
+        graph.SuscripcionesEliminadas.Should().BeEmpty();
+        graph.VecesRefrescado.Should().Be(0);
     }
 
     /// <summary>Bajo B5 del revisor-puente (ronda 13): la visibilidad se vuelve a comprobar con el estado releído en el cerrojo.</summary>

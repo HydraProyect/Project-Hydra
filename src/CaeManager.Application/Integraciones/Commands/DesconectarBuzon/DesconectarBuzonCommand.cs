@@ -179,8 +179,8 @@ public class DesconectarBuzonCommandHandler(
         // porque la conexión está deshabilitada) y no bloquea la desconexión, que ya está guardada. Un borrado fallido o
         // de resultado incierto (error, tiempo agotado, excepción, cancelación) deja siempre la marca del hueco en el
         // momento del borrado: desde ahí el correo de este buzón no entra. Un borrado con éxito (también el 404 de una
-        // suscripción ya expirada) no añade nada: la pérdida anterior ya quedó marcada antes del token o, si la expiración cayó mientras se pedía, en el guardado de
-        // la desconexión.
+        // suscripción ya expirada) no añade nada: la pérdida anterior ya quedó marcada antes del token o, si la
+        // expiración cayó mientras se pedía, en el guardado de la desconexión.
         string? motivoFallo;
         try
         {
@@ -282,6 +282,14 @@ public class DesconectarBuzonCommandHandler(
                     return null;
 
                 actual = recargada;
+            }
+            catch when (lanzarSiSeAgota)
+            {
+                // Antes de Graph, cualquier otro fallo del guardado (base caída, tiempo agotado) tampoco deja la marca
+                // rastreada para que la guarde otra operación del circuito, como el catch del guardado de la desconexión.
+                // Tras el borrado fallido lo descarta el llamador.
+                descarteCambios.DescartarCambiosPendientes();
+                throw;
             }
         }
     }
