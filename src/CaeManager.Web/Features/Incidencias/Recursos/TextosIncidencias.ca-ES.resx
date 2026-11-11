@@ -13,7 +13,7 @@
     <value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
   </resheader>
   <data name="TituloPagina" xml:space="preserve">
-    <value>Incidencias</value>
+    <value>Incidències</value>
   </data>
   <data name="KickerOperacion" xml:space="preserve">
     <value>Operación</value>
@@ -22,28 +22,28 @@
     <value>Exportar a Excel</value>
   </data>
   <data name="BotonNuevaIncidencia" xml:space="preserve">
-    <value>+ Nueva incidencia</value>
+    <value>+ Nova incidència</value>
   </data>
   <data name="PlaceholderBusqueda" xml:space="preserve">
-    <value>Buscar por centro, trabajador o descripción…</value>
+    <value>Cerca per centre, treballador o descripció…</value>
   </data>
   <data name="OpcionTodas" xml:space="preserve">
     <value>Todas</value>
   </data>
   <data name="AriaQuitarFiltroEstado" xml:space="preserve">
-    <value>Quitar el filtro de estado</value>
+    <value>Treure el filtre d'estat</value>
   </data>
   <data name="ChipEstadoResueltas" xml:space="preserve">
-    <value>Estado: resueltas</value>
+    <value>Estat: resoltes</value>
   </data>
   <data name="ChipEstadoSinResolver" xml:space="preserve">
-    <value>Estado: sin resolver</value>
+    <value>Estat: sense resoldre</value>
   </data>
   <data name="ErrorCargaListaTitulo" xml:space="preserve">
-    <value>No pudimos cargar las incidencias</value>
+    <value>No hem pogut carregar les incidències</value>
   </data>
   <data name="ErrorCargaDetalle" xml:space="preserve">
-    <value>Intenta nuevamente en unos segundos.</value>
+    <value>Torna-ho a provar d'aquí a uns segons.</value>
   </data>
   <data name="BotonReintentar" xml:space="preserve">
     <value>Reintentar</value>
@@ -52,13 +52,13 @@
     <value>{0} incidencia</value>
   </data>
   <data name="RecuentoVarios" xml:space="preserve">
-    <value>{0} incidencias</value>
+    <value>{0} incidències</value>
   </data>
   <data name="RecuentoUnoConFiltro" xml:space="preserve">
-    <value>{0} incidencia con el filtro actual</value>
+    <value>{0} incidència amb el filtre actual</value>
   </data>
   <data name="RecuentoVariosConFiltro" xml:space="preserve">
-    <value>{0} incidencias con el filtro actual</value>
+    <value>{0} incidències amb el filtre actual</value>
   </data>
   <data name="AtajosEtiqueta" xml:space="preserve">
     <value>Atajos:</value>
@@ -70,16 +70,16 @@
     <value>marcar</value>
   </data>
   <data name="AtajoAbrirCentro" xml:space="preserve">
-    <value>abrir el centro</value>
+    <value>obrir el centre</value>
   </data>
   <data name="TeclaEnter" xml:space="preserve">
     <value>Enter</value>
   </data>
   <data name="AriaSeleccionarPagina" xml:space="preserve">
-    <value>Seleccionar la página</value>
+    <value>Seleccionar la pàgina</value>
   </data>
   <data name="AriaSeleccionarIncidencia" xml:space="preserve">
-    <value>Seleccionar la incidencia de {0} del {1}</value>
+    <value>Seleccionar la incidència de {0} del {1}</value>
   </data>
   <data name="EtiquetaCentro" xml:space="preserve">
     <value>Centro</value>
@@ -106,13 +106,13 @@
     <value>Resuelta</value>
   </data>
   <data name="EstadoSinResolver" xml:space="preserve">
-    <value>Sin resolver</value>
+    <value>Sense resoldre</value>
   </data>
   <data name="AccionReabrir" xml:space="preserve">
     <value>Reabrir</value>
   </data>
   <data name="AccionMarcarResuelta" xml:space="preserve">
-    <value>Marcar resuelta</value>
+    <value>Marcar com a resolta</value>
   </data>
   <data name="AccionEditar" xml:space="preserve">
     <value>Editar</value>
@@ -121,43 +121,43 @@
     <value>Eliminar</value>
   </data>
   <data name="EtiquetaPaginador" xml:space="preserve">
-    <value>incidencia(s)</value>
+    <value>incidència(s)</value>
   </data>
   <data name="VacioFiltrosTitulo" xml:space="preserve">
-    <value>Ninguna incidencia con estos filtros</value>
+    <value>Cap incidència amb aquests filtres</value>
   </data>
   <data name="VacioFiltrosDescripcion" xml:space="preserve">
-    <value>Ninguna coincide con la búsqueda ni con el estado seleccionado.</value>
+    <value>Cap coincideix amb la cerca ni amb l'estat seleccionat.</value>
   </data>
   <data name="BotonQuitarFiltros" xml:space="preserve">
-    <value>Quitar los filtros</value>
+    <value>Treure els filtres</value>
   </data>
   <data name="VacioTitulo" xml:space="preserve">
-    <value>Todavía no hay incidencias</value>
+    <value>Encara no hi ha incidències</value>
   </data>
   <data name="VacioDescripcion" xml:space="preserve">
-    <value>Registra la primera incidencia operativa de un centro.</value>
+    <value>Registra la primera incidència operativa d'un centre.</value>
   </data>
   <data name="DrawerTituloNueva" xml:space="preserve">
     <value>Registrar incidència</value>
   </data>
   <data name="DrawerTituloEditar" xml:space="preserve">
-    <value>Editar incidencia</value>
+    <value>Editar incidència</value>
   </data>
   <data name="OpcionSeleccionaCentro" xml:space="preserve">
-    <value>Selecciona un centro…</value>
+    <value>Selecciona un centre…</value>
   </data>
   <data name="EtiquetaTrabajadorOpcional" xml:space="preserve">
-    <value>Trabajador (opcional)</value>
+    <value>Treballador (opcional)</value>
   </data>
   <data name="OpcionNingunTrabajador" xml:space="preserve">
-    <value>Ninguno — incidencia general del centro</value>
+    <value>Cap — incidència general del centre</value>
   </data>
   <data name="TipoAccidente" xml:space="preserve">
     <value>Accidente</value>
   </data>
   <data name="TipoIncumplimiento" xml:space="preserve">
-    <value>Incumplimiento</value>
+    <value>Incompliment</value>
   </data>
   <data name="GravedadLeve" xml:space="preserve">
     <value>Leve</value>
@@ -169,13 +169,13 @@
     <value>Muy grave</value>
   </data>
   <data name="EtiquetaFechaOcurrencia" xml:space="preserve">
-    <value>Fecha de ocurrencia</value>
+    <value>Data d'ocurrència</value>
   </data>
   <data name="EtiquetaDescripcion" xml:space="preserve">
-    <value>Descripción</value>
+    <value>Descripció</value>
   </data>
   <data name="PlaceholderDescripcion" xml:space="preserve">
-    <value>Qué pasó, dónde y quién lo detectó</value>
+    <value>Què ha passat, on i qui ho ha detectat</value>
   </data>
   <data name="BotonCancelar" xml:space="preserve">
     <value>Cancelar</value>
@@ -184,73 +184,73 @@
     <value>Guardar</value>
   </data>
   <data name="ConfirmarEliminarTitulo" xml:space="preserve">
-    <value>¿Eliminar la incidencia de {0}?</value>
+    <value>Vols eliminar la incidència de {0}?</value>
   </data>
   <data name="ConfirmarEliminarMensaje" xml:space="preserve">
-    <value>Se ocultará de las listas activas.</value>
+    <value>S'ocultarà de les llistes actives.</value>
   </data>
   <data name="ConfirmarEliminarLoteTitulo" xml:space="preserve">
-    <value>¿Eliminar {0} incidencia(s)?</value>
+    <value>Vols eliminar {0} incidència(s)?</value>
   </data>
   <data name="ConfirmarEliminarLoteMensaje" xml:space="preserve">
-    <value>Se ocultarán de las listas activas.</value>
+    <value>S'ocultaran de les llistes actives.</value>
   </data>
   <data name="ErrorConflictoVersion" xml:space="preserve">
-    <value>Otra persona guardó esta incidencia mientras la tenías abierta. Vuelve a abrirla para no pisar sus cambios.</value>
+    <value>Una altra persona ha desat aquesta incidència mentre la tenies oberta. Torna-la a obrir per no trepitjar els seus canvis.</value>
   </data>
   <data name="ToastNoEncontrada" xml:space="preserve">
-    <value>No encontramos esta incidencia. Puede que ya se haya eliminado.</value>
+    <value>No hem trobat aquesta incidència. Pot ser que ja s'hagi eliminat.</value>
   </data>
   <data name="ErrorFechaInvalida" xml:space="preserve">
-    <value>La fecha no es válida.</value>
+    <value>La data no és vàlida.</value>
   </data>
   <data name="ErrorTipoInvalido" xml:space="preserve">
-    <value>Selecciona un tipo válido.</value>
+    <value>Selecciona un tipus vàlid.</value>
   </data>
   <data name="ErrorGravedadInvalida" xml:space="preserve">
-    <value>Selecciona una gravedad válida.</value>
+    <value>Selecciona una gravetat vàlida.</value>
   </data>
   <data name="ErrorSeleccionaCentro" xml:space="preserve">
-    <value>Selecciona un centro.</value>
+    <value>Selecciona un centre.</value>
   </data>
   <data name="ToastCreada" xml:space="preserve">
     <value>Incidència registrada.</value>
   </data>
   <data name="ToastActualizada" xml:space="preserve">
-    <value>Incidencia actualizada correctamente.</value>
+    <value>Incidència actualitzada correctament.</value>
   </data>
   <data name="ErrorGuardar" xml:space="preserve">
-    <value>No pudimos guardar los cambios. Intenta nuevamente en unos segundos.</value>
+    <value>No hem pogut desar els canvis. Torna-ho a provar d'aquí a uns segons.</value>
   </data>
   <data name="ToastAccionDeshacer" xml:space="preserve">
     <value>Desfer</value>
   </data>
   <data name="ToastMarcadaResuelta" xml:space="preserve">
-    <value>Incidencia marcada como resuelta.</value>
+    <value>Incidència marcada com a resolta.</value>
   </data>
   <data name="ToastReabierta" xml:space="preserve">
-    <value>Incidencia reabierta.</value>
+    <value>Incidència reoberta.</value>
   </data>
   <data name="ErrorActualizarEstado" xml:space="preserve">
-    <value>No pudimos actualizar el estado. Intenta nuevamente en unos segundos.</value>
+    <value>No hem pogut actualitzar l'estat. Torna-ho a provar d'aquí a uns segons.</value>
   </data>
   <data name="ToastEliminada" xml:space="preserve">
-    <value>Incidencia eliminada correctamente.</value>
+    <value>Incidència eliminada correctament.</value>
   </data>
   <data name="ErrorEliminar" xml:space="preserve">
-    <value>No pudimos eliminar la incidencia. Intenta nuevamente en unos segundos.</value>
+    <value>No hem pogut eliminar la incidència. Torna-ho a provar d'aquí a uns segons.</value>
   </data>
   <data name="ToastLoteEliminadas" xml:space="preserve">
-    <value>{0} incidencia(s) eliminada(s).</value>
+    <value>Incidències eliminades: {0}.</value>
   </data>
   <data name="ToastLoteEliminadasConErrores" xml:space="preserve">
-    <value>{0} eliminada(s). {1} no se pudieron borrar: {2}</value>
+    <value>Eliminades: {0}. {1} no s'han pogut esborrar: {2}</value>
   </data>
   <data name="ErrorEliminarLote" xml:space="preserve">
-    <value>No pudimos eliminar las incidencias seleccionadas. Intenta nuevamente.</value>
+    <value>No hem pogut eliminar les incidències seleccionades. Torna-ho a provar.</value>
   </data>
   <data name="NombreHojaExportacion" xml:space="preserve">
-    <value>Incidencias</value>
+    <value>Incidències</value>
   </data>
   <data name="ColumnaIncidencia" xml:space="preserve"><value>Incidència</value></data>
   <data name="CopiarReferenciaIncidencia" xml:space="preserve"><value>Copia la referència de la incidència ({0})</value></data>

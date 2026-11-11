@@ -19,7 +19,7 @@
     <value>Operación</value>
   </data>
   <data name="PlaceholderBusqueda" xml:space="preserve">
-    <value>Buscar por trabajador, centro o documento…</value>
+    <value>Cerca per treballador, centre o document…</value>
   </data>
   <data name="FiltroTodas" xml:space="preserve">
     <value>Todas</value>
@@ -28,28 +28,28 @@
     <value>Pendientes</value>
   </data>
   <data name="FiltroCompletadas" xml:space="preserve">
-    <value>Completadas</value>
+    <value>Completades</value>
   </data>
   <data name="ChipBusqueda" xml:space="preserve">
     <value>Búsqueda: &quot;{0}&quot;</value>
   </data>
   <data name="ChipEstadoPendientes" xml:space="preserve">
-    <value>Estado: pendientes</value>
+    <value>Estat: pendents</value>
   </data>
   <data name="ChipEstadoCompletadas" xml:space="preserve">
-    <value>Estado: completadas</value>
+    <value>Estat: completades</value>
   </data>
   <data name="AriaQuitarBusqueda" xml:space="preserve">
-    <value>Quitar la búsqueda</value>
+    <value>Treure la cerca</value>
   </data>
   <data name="AriaQuitarFiltroEstado" xml:space="preserve">
-    <value>Quitar el filtro de estado</value>
+    <value>Treure el filtre d'estat</value>
   </data>
   <data name="ErrorCargaTitulo" xml:space="preserve">
-    <value>No pudimos cargar las gestiones</value>
+    <value>No hem pogut carregar les gestions</value>
   </data>
   <data name="ErrorCargaDescripcion" xml:space="preserve">
-    <value>Intenta nuevamente en unos segundos.</value>
+    <value>Torna-ho a provar d'aquí a uns segons.</value>
   </data>
   <data name="BotonReintentar" xml:space="preserve">
     <value>Reintentar</value>
@@ -61,10 +61,10 @@
     <value>{0} gestiones</value>
   </data>
   <data name="ConteoFiltradoUno" xml:space="preserve">
-    <value>{0} gestión con estos filtros</value>
+    <value>{0} gestió amb aquests filtres</value>
   </data>
   <data name="ConteoFiltradoVarios" xml:space="preserve">
-    <value>{0} gestiones con estos filtros</value>
+    <value>{0} gestions amb aquests filtres</value>
   </data>
   <data name="ColumnaTrabajador" xml:space="preserve">
     <value>Trabajador</value>
@@ -103,7 +103,7 @@
     <value>Reabrir</value>
   </data>
   <data name="AccionMarcarCompletada" xml:space="preserve">
-    <value>Marcar completada</value>
+    <value>Marcar com a completada</value>
   </data>
   <data name="AccionEliminar" xml:space="preserve">
     <value>Eliminar</value>
@@ -112,61 +112,61 @@
     <value>gestión(es)</value>
   </data>
   <data name="VacioFiltrosTitulo" xml:space="preserve">
-    <value>Ninguna gestión con estos filtros</value>
+    <value>Cap gestió amb aquests filtres</value>
   </data>
   <data name="VacioFiltrosDescripcion" xml:space="preserve">
-    <value>Ninguna coincide con la búsqueda ni con el estado seleccionado.</value>
+    <value>Cap coincideix amb la cerca ni amb l'estat seleccionat.</value>
   </data>
   <data name="BotonQuitarFiltros" xml:space="preserve">
-    <value>Quitar los filtros</value>
+    <value>Treure els filtres</value>
   </data>
   <data name="VacioTitulo" xml:space="preserve">
-    <value>Sin gestiones</value>
+    <value>Sense gestions</value>
   </data>
   <data name="VacioDescripcion" xml:space="preserve">
-    <value>Las gestiones se generan desde Mi trabajo cuando se detecta la actualización de un documento de un trabajador, o desde el propio Trabajador/Centro.</value>
+    <value>Les gestions es generen des de La meva feina quan es detecta l'actualització d'un document d'un treballador, o des del propi Treballador/Centre.</value>
   </data>
   <data name="BotonIrAMiTrabajo" xml:space="preserve">
-    <value>Ir a Mi trabajo →</value>
+    <value>Ves a La meva feina →</value>
   </data>
   <data name="AriaVistaRapida" xml:space="preserve">
-    <value>Vista rápida de la gestión</value>
+    <value>Vista ràpida de la gestió</value>
   </data>
   <data name="EtiquetaVistaRapida" xml:space="preserve">
-    <value>Vista rápida · Gestión</value>
+    <value>Vista ràpida · Gestió</value>
   </data>
   <data name="VistaRapidaCreadaEl" xml:space="preserve">
     <value>creada el {0}</value>
   </data>
   <data name="AriaCerrarVistaRapida" xml:space="preserve">
-    <value>Cerrar la vista rápida</value>
+    <value>Tancar la vista ràpida</value>
   </data>
   <data name="EnlaceTrabajador360" xml:space="preserve">
-    <value>Abrir Trabajador 360 →</value>
+    <value>Obrir Treballador 360 →</value>
   </data>
   <data name="EnlaceCentro360" xml:space="preserve">
-    <value>Abrir Centro 360 →</value>
+    <value>Obrir Centre 360 →</value>
   </data>
   <data name="EnlaceDocumentacionTrabajador" xml:space="preserve">
-    <value>Ver la documentación del trabajador →</value>
+    <value>Veure la documentació del treballador →</value>
   </data>
   <data name="BotonReabrirGestion" xml:space="preserve">
-    <value>Reabrir gestión</value>
+    <value>Reobrir gestió</value>
   </data>
   <data name="DialogoEliminarTitulo" xml:space="preserve">
-    <value>¿Eliminar esta gestión?</value>
+    <value>Vols eliminar aquesta gestió?</value>
   </data>
   <data name="DialogoEliminarMensaje" xml:space="preserve">
-    <value>Dejará de aparecer en las listas. Podrás deshacerlo desde el aviso que aparecerá; después, solo un Administrador de esta organización puede recuperarla desde Auditoría. Si ya está hecha, márcala como completada en lugar de eliminarla.</value>
+    <value>Deixarà d'aparèixer a les llistes. Podràs desfer-ho des de l'avís que apareixerà; després, només un Administrador d'aquesta organització pot recuperar-la des d'Auditoria. Si ja està feta, marca-la com a completada en lloc d'eliminar-la.</value>
   </data>
   <data name="ToastErrorEstado" xml:space="preserve">
-    <value>No pudimos actualizar el estado. Intenta nuevamente en unos segundos.</value>
+    <value>No hem pogut actualitzar l'estat. Torna-ho a provar d'aquí a uns segons.</value>
   </data>
   <data name="ToastEliminada" xml:space="preserve">
-    <value>Gestión eliminada correctamente.</value>
+    <value>Gestió eliminada correctament.</value>
   </data>
   <data name="ToastErrorEliminar" xml:space="preserve">
-    <value>No pudimos eliminar la gestión. Intenta nuevamente en unos segundos.</value>
+    <value>No hem pogut eliminar la gestió. Torna-ho a provar d'aquí a uns segons.</value>
   </data>
   <data name="ListaCompletar" xml:space="preserve"><value>Completar</value></data>
   <data name="ListaFiltrarPlaceholder" xml:space="preserve"><value>Filtrar aquesta pantalla: treballador, centre o tipus de document</value></data>
