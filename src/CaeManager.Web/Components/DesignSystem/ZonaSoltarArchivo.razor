@@ -27,6 +27,7 @@
 @implements IAsyncDisposable
 @inject IJSRuntime JS
 @inject IStringLocalizer<TextosComunes> Comunes
+@{ var claves = new ClavesDeHermanos(); }
 
 <div class="zona-soltar-archivo @(Cargando ? "zona-soltar-archivo-deshabilitada" : "") @(TieneArchivos ? "zona-soltar-archivo-con-archivo" : "")"
      @ref="_zonaRef" tabindex="@(Cargando ? "-1" : "0")"
@@ -97,11 +98,11 @@
     @if (_errorEntrada is not null)
     {
         @* @key: un segundo rechazo idéntico vuelve a insertar el aviso y el lector de pantalla lo repite. *@
-        <p @key="_contadorErrores" class="zona-soltar-archivo-error" role="alert">@_errorEntrada</p>
+        <p @key="claves.De((_contadorErrores, 'e'))" class="zona-soltar-archivo-error" role="alert">@_errorEntrada</p>
     }
 </div>
 
-<span class="zona-soltar-archivo-anuncio" role="status" aria-live="polite" aria-atomic="true"><span @key="_contadorAnuncios">@_anuncio</span></span>
+<span class="zona-soltar-archivo-anuncio" role="status" aria-live="polite" aria-atomic="true"><span @key="claves.De((_contadorAnuncios, 'a'))">@_anuncio</span></span>
 
 @if (Cargando)
 {
@@ -191,6 +192,10 @@ else if (!TieneArchivos && !string.IsNullOrWhiteSpace(NombreArchivoActual))
 
     private async Task ManejarCambioAsync(InputFileChangeEventArgs e)
     {
+        // El InputFile va con disabled="@Cargando": quitar el atributo en el DOM no puede ejecutar la acción.
+        if (Cargando)
+            return;
+
         _errorEntrada = null;
         if (e.FileCount > 0)
             Anunciar(AnuncioDeEntrada(e));
