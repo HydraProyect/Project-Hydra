@@ -163,8 +163,8 @@
                             </CampoSelect>
                             <CampoTexto Etiqueta="Mes" Type="month" Valor="@_mesFiltro" ValorChanged="async v => { _mesFiltro = v; await AplicarFiltrosAsync(); }" />
 
-                            <CampoSelect Etiqueta="Cliente" Valor="@_clienteIdFiltro" ValorChanged="async v => { _clienteIdFiltro = v; await AplicarFiltrosAsync(); }">
-                                <option value="">Todos los Clientes</option>
+                            <CampoSelect Etiqueta="Cliente empresarial" Valor="@_clienteIdFiltro" ValorChanged="async v => { _clienteIdFiltro = v; await AplicarFiltrosAsync(); }">
+                                <option value="">Todos los Clientes empresariales</option>
                                 @foreach (var cliente in _clientesSelector)
                                 {
                                     <option value="@cliente.Id">@cliente.RazonSocial</option>
@@ -353,7 +353,7 @@
                                     Contexto de negocio — sin gestión CAE todavía
                                 </Badge>
                             }
-                            <span class="bandeja-centro-subtitulo">@(_detalle.ClienteRazonSocial ?? "Sin Cliente asignado")</span>
+                            <span class="bandeja-centro-subtitulo">@(_detalle.ClienteRazonSocial ?? "Sin Cliente empresarial asignado")</span>
                         </div>
                     </div>
                     <div class="bandeja-centro-acciones">
@@ -366,7 +366,7 @@
                             @if (_detalle.ClienteId is null)
                             {
                                 <CampoSelect Valor="@_clienteTriageSeleccionado" ValorChanged="v => _clienteTriageSeleccionado = v">
-                                    <option value="">Asignar Cliente…</option>
+                                    <option value="">Asignar Cliente empresarial…</option>
                                     @foreach (var cliente in _clientesSelector)
                                     {
                                         <option value="@cliente.Id">@cliente.RazonSocial</option>
@@ -499,7 +499,7 @@
                 @if (_clienteActivo is not null)
                 {
                     <div class="bandeja-cliente-titulo">
-                        <Icono Nombre="clientes" Tamano="TamanoIcono.Pequeno" /> Contexto del Cliente
+                        <Icono Nombre="clientes" Tamano="TamanoIcono.Pequeno" /> Contexto del Cliente empresarial
                     </div>
                     <div class="bandeja-cliente-cabecera">
                         <span class="bandeja-cliente-avatar" aria-hidden="true">@ObtenerInicialesCliente(_clienteActivo.RazonSocial)</span>
@@ -519,7 +519,7 @@
                     @if (!string.IsNullOrWhiteSpace(_clienteActivo.Notas))
                     {
                         <div class="bandeja-cliente-notas">
-                            <span class="bandeja-cliente-notas-titulo">Notas del Cliente</span>
+                            <span class="bandeja-cliente-notas-titulo">Notas del Cliente empresarial</span>
                             <p>@_clienteActivo.Notas</p>
                         </div>
                     }

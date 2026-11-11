@@ -18,13 +18,13 @@
   <data name="TodasConversaciones" xml:space="preserve"><value>Todas las conversaciones</value></data>
   <data name="RecuentoConversaciones" xml:space="preserve"><value>{0} conversaciones</value></data>
   <data name="Conversacion" xml:space="preserve"><value>Conversación</value></data>
-  <data name="Empresa" xml:space="preserve"><value>Cliente</value></data>
+  <data name="Empresa" xml:space="preserve"><value>Cliente empresarial</value></data>
   <data name="Prioridad" xml:space="preserve"><value>Prioridad</value></data>
   <data name="Estado" xml:space="preserve"><value>Estado</value></data>
   <data name="AsignadaA" xml:space="preserve"><value>Asignada a</value></data>
   <data name="SinAsignar" xml:space="preserve"><value>Sin asignar</value></data>
   <data name="Asignada" xml:space="preserve"><value>Asignada</value></data>
-  <data name="SinEmpresa" xml:space="preserve"><value>Sin Cliente asignado</value></data>
+  <data name="SinEmpresa" xml:space="preserve"><value>Sin Cliente empresarial asignado</value></data>
   <data name="Correo" xml:space="preserve"><value>Correo</value></data>
   <data name="VolverBandeja" xml:space="preserve"><value>Volver a la bandeja de entrada</value></data>
   <data name="ErrorBuzon" xml:space="preserve"><value>No pudimos cargar la lista</value></data>
@@ -43,7 +43,7 @@
   <data name="NotaInterna" xml:space="preserve"><value>Nota interna</value></data>
   <data name="Todas" xml:space="preserve"><value>Todas</value></data>
   <data name="Mias" xml:space="preserve"><value>Mías</value></data>
-  <data name="EsperandoCliente" xml:space="preserve"><value>Esperando al Cliente</value></data>
+  <data name="EsperandoCliente" xml:space="preserve"><value>Esperando al Cliente empresarial</value></data>
   <data name="BuscarBuzon" xml:space="preserve"><value>Buscar en el buzón</value></data>
   <data name="BuscarPlaceholder" xml:space="preserve"><value>Buscar en el asunto y en el texto de los mensajes</value></data>
   <data name="RecuentoConversacion" xml:space="preserve"><value>{0} conversación</value></data>
@@ -52,8 +52,8 @@
   <data name="ResumenResuelta" xml:space="preserve"><value>Resuelta</value></data>
   <data name="ParaCerrarlaFalta" xml:space="preserve"><value>Para cerrarla falta</value></data>
   <data name="SinAccionesCierre" xml:space="preserve"><value>No quedan acciones de cierre.</value></data>
-  <data name="IdentificarClienteCierre" xml:space="preserve"><value>Identificar al remitente y asignar el Cliente antes de tramitar la conversación.</value></data>
-  <data name="EsperarClienteCierre" xml:space="preserve"><value>Recibir la respuesta del Cliente y revisar lo recibido.</value></data>
+  <data name="IdentificarClienteCierre" xml:space="preserve"><value>Identificar al remitente y asignar el Cliente empresarial antes de tramitar la conversación.</value></data>
+  <data name="EsperarClienteCierre" xml:space="preserve"><value>Recibir la respuesta del Cliente empresarial y revisar lo recibido.</value></data>
   <data name="EsperarTerceroCierre" xml:space="preserve"><value>Recibir la respuesta del tercero y revisar lo recibido.</value></data>
   <data name="RevisarCierre" xml:space="preserve"><value>Revisar el hilo y confirmar que la gestión está resuelta.</value></data>
   <data name="NuevoCorreo" xml:space="preserve"><value>Nuevo correo</value></data>

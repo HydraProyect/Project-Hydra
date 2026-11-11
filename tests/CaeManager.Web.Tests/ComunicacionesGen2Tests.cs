@@ -865,7 +865,7 @@ public class ComunicacionesGen2Tests : BunitContext
         opciones.Select(o => o.GetAttribute("value")).Should().Equal(
             "", "Abierta", "Pendiente", "EsperandoRespuestaExterna", "EnEsperaDeTercero", "Resuelta", "Cerrada");
         opciones.Select(o => o.TextContent.Trim()).Should().Equal(
-            "Todos los estados", "Abierta", "Pendiente", "Esperando al Cliente", "En espera de tercero", "Resuelta", "Cerrada");
+            "Todos los estados", "Abierta", "Pendiente", "Esperando al Cliente empresarial", "En espera de tercero", "Resuelta", "Cerrada");
     }
 
     [Fact]
@@ -882,7 +882,7 @@ public class ComunicacionesGen2Tests : BunitContext
     }
 
     [Theory]
-    [InlineData(EstadoConversacion.EsperandoRespuestaExterna, "Esperando al Cliente")]
+    [InlineData(EstadoConversacion.EsperandoRespuestaExterna, "Esperando al Cliente empresarial")]
     [InlineData(EstadoConversacion.EnEsperaDeTercero, "En espera de tercero")]
     public async Task El_chip_de_la_fila_y_el_de_la_cabecera_dicen_el_estado_en_castellano_y_con_tono_de_advertencia(
         EstadoConversacion estado, string texto)
@@ -927,7 +927,7 @@ public class ComunicacionesGen2Tests : BunitContext
         await SeleccionarFila(cut, "Documentación pendiente");
 
         SelectorCambiarEstado(cut).QuerySelectorAll("option").Select(o => o.TextContent.Trim()).Should().Equal(
-            "Abierta", "Esperando al Cliente", "En espera de tercero", "Resuelta", "Cerrada");
+            "Abierta", "Esperando al Cliente empresarial", "En espera de tercero", "Resuelta", "Cerrada");
         SelectorCambiarEstado(cut).QuerySelector("option[value=Cerrada]")!.HasAttribute("disabled").Should().BeTrue();
         await SelectorCambiarEstado(cut).ChangeAsync(new ChangeEventArgs { Value = nameof(EstadoConversacion.EsperandoRespuestaExterna) });
 
@@ -1189,8 +1189,8 @@ public class ComunicacionesGen2Tests : BunitContext
         var (cut, _) = Renderizar(new Escenario());
 
         cut.Markup.Should()
-            .Contain("Esperando al Cliente")
-            .And.Contain("Todos los Clientes")
+            .Contain("Esperando al Cliente empresarial")
+            .And.Contain("Todos los Clientes empresariales")
             .And.Contain("Los mensajes nuevos aparecerán aquí.");
 
         cut.Markup.Should()
