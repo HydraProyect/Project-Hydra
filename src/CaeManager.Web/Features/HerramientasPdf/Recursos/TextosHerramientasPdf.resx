@@ -743,9 +743,18 @@
     <value>Este PDF tiene una estructura interna demasiado grande para dividirlo sin riesgo. Ábrelo y guárdalo de nuevo como PDF (por ejemplo, imprimiéndolo a PDF) y vuelve a subirlo.</value>
   </data>
   <data name="ErrorTenantCambiadoDescarga" xml:space="preserve">
-    <value>La Empresa del selector ha cambiado desde que subiste el PDF. Se han descargado {0} de {1} PDF y los demás no: vuelve a subirlo.</value>
+    <value>La Empresa del selector ha cambiado desde que subiste el PDF. {0} Vuelve a subirlo.</value>
   </data>
   <data name="ErrorTramoDemasiadoGrande" xml:space="preserve">
-    <value>Las páginas {0} a {1} ocupan demasiado al separarlas en un PDF aparte (al separarlas, algunos PDF crecen mucho), así que no se han descargado ni ellas ni las siguientes. Volver a intentarlo no lo arregla: divide en tramos más pequeños.</value>
+    <value>Las páginas {0} a {1} ocupan demasiado al separarlas en un PDF aparte (al separarlas, algunos PDF crecen mucho), así que no se han descargado ni ellas ni las siguientes. Volver a intentarlo no lo arregla: divide en tramos más pequeños o guárdalas en TALVEG, que admite documentos de hasta {2} MB.</value>
+  </data>
+  <data name="ErrorEmpresaFueraDescarga" xml:space="preserve">
+    <value>La Empresa ya no existe o ha salido de tu cartera. {0}</value>
+  </data>
+  <data name="DescargaParcial" xml:space="preserve">
+    <value>Se han descargado {0} de {1} PDF y los demás no.</value>
+  </data>
+  <data name="DescargaNinguna" xml:space="preserve">
+    <value>No se ha descargado ninguno.</value>
   </data>
 </root>

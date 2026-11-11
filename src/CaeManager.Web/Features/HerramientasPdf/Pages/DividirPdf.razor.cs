@@ -473,6 +473,7 @@ public partial class DividirPdf : CaeManager.Web.Components.PaginaInteractiva, I
         RangoPaginas? enCurso = null;
         var tenantCambiado = false;
         var tramoDemasiadoGrande = false;
+        var empresaFuera = false;
         _descargando = true;
         _descargados = null;
         _error = null;
@@ -487,6 +488,7 @@ public partial class DividirPdf : CaeManager.Web.Components.PaginaInteractiva, I
                 {
                     tenantCambiado = tramo.Error.Codigo == CrearDocumentosDesdeDivisionCommandHandler.ErrorTenantCruzado;
                     tramoDemasiadoGrande = tramo.Error.Codigo == ErroresDivisorPdf.DemasiadoGrande;
+                    empresaFuera = tramo.Error.Codigo == ObtenerCatalogoDivisionPdfQueryHandler.ErrorEmpresaNoGestionable;
                     break;
                 }
 
@@ -505,13 +507,16 @@ public partial class DividirPdf : CaeManager.Web.Components.PaginaInteractiva, I
                 enCurso = null;
             }
 
-            // Con otro Tenant en el selector, reintentar no sirve, y lo ya descargado no se puede deshacer: se dice cuánto
-            // salió. Un tramo demasiado grande tampoco cabe al reintentarlo igual, solo con tramos más pequeños.
+            // Con otro Tenant en el selector o la Empresa fuera de alcance, reintentar no sirve, y lo ya descargado no se
+            // puede deshacer: se dice cuánto salió. Un tramo demasiado grande tampoco cabe al reintentarlo igual.
+            var descargado = entregados == 0 ? Textos["DescargaNinguna"].Value : Textos["DescargaParcial", entregados, rangos.Count].Value;
             if (tenantCambiado)
-                _error = Textos["ErrorTenantCambiadoDescarga", entregados, rangos.Count];
+                _error = Textos["ErrorTenantCambiadoDescarga", descargado];
+            else if (empresaFuera)
+                _error = Textos["ErrorEmpresaFueraDescarga", descargado];
             else if (enCurso is { } fallido)
                 _error = tramoDemasiadoGrande
-                    ? Textos["ErrorTramoDemasiadoGrande", fallido.Inicial, fallido.Final]
+                    ? Textos["ErrorTramoDemasiadoGrande", fallido.Inicial, fallido.Final, LimitesArchivoSubido.TamanoMaximoMb]
                     : Textos["ErrorDescargaTramo", fallido.Inicial, fallido.Final];
         }
         catch (PresupuestoMemoriaAgotadoException)

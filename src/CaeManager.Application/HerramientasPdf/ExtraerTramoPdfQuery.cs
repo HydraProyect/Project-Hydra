@@ -12,8 +12,10 @@ namespace CaeManager.Application.HerramientasPdf;
 /// salida «Descargar» de Dividir, la alternativa a <see cref="CrearDocumentosDesdeDivisionCommand"/>. Exige lo mismo que
 /// guardar la división, y en el mismo orden, antes de abrir el PDF: Herramientas PDF disponible, el Tenant propietario
 /// del inicio de la pantalla y una Empresa que exista en ese Tenant, sea propia y esté en el alcance de gestión. El Tenant
-/// y la Empresa se vuelven a comprobar tras la extracción, justo antes de devolver el tramo. Un
-/// alcance sin restricción no sustituye a la comprobación de la Empresa: la cartera no es aislamiento de Tenant.
+/// y la Empresa se vuelven a comprobar tras la extracción, justo antes de devolver el tramo: el Tenant activo y la lectura
+/// de la Empresa son en vivo; la cartera, con la frescura del alcance ya resuelto en el circuito (como cualquier Query, a
+/// diferencia de un Command, que lo resuelve de nuevo). Un alcance sin restricción no sustituye a la comprobación de la
+/// Empresa: la cartera no es aislamiento de Tenant.
 /// </summary>
 /// <param name="TenantEsperadoId">El Tenant con el que empezó la pantalla; si el selector cambió, se rechaza.</param>
 public record ExtraerTramoPdfQuery(
@@ -59,8 +61,9 @@ public class ExtraerTramoPdfQueryHandler(
         if (!extraido.EsExitoso)
             return Result.Fallo<TramoPdfExtraido>(extraido.Error);
 
-        // La extracción tarda: si entretanto el selector cambió de Tenant o la Empresa dejó de estar en el Tenant o en la
-        // cartera, el tramo ya no se entrega. Es la misma comprobación de antes de abrir, repetida justo antes de devolverlo.
+        // La extracción tarda: si entretanto el selector cambió de Tenant o la Empresa dejó de existir en él, el tramo ya no
+        // se entrega. Es la misma comprobación de antes de abrir, repetida justo antes de devolverlo; la cartera se mira con
+        // el alcance ya resuelto en el circuito, así que una baja de cartera de hace segundos puede no verse aún.
         if (await RechazoDeAccesoAsync(request, cancellationToken) is { } rechazoTrasExtraer)
             return rechazoTrasExtraer;
 

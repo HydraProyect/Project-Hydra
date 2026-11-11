@@ -277,6 +277,16 @@ public sealed class DivisionSobrePdfRealTests
         normal.NumeroPaginas.Should().Be(1, "un flujo de objetos dentro de los topes se sigue abriendo");
     }
 
+    [Fact]
+    public void Un_PDF_cifrado_que_el_acotador_no_puede_medir_se_rechaza_como_PDF_con_contrasena_sin_abrirlo()
+    {
+        // Sus flujos de objetos irían cifrados: no se miden, y dejarlo pasar haría de «/Encrypt» un salto del acotador.
+        var bomba = PdfQueSeExpandeAlReescribirse(elementos: 10, objetosDeclarados: LimitesUnionPdf.MaximoObjetosPorPdf + 1);
+        var cifrada = bomba.Concat(Encoding.ASCII.GetBytes("% /Encrypt\n")).ToArray();
+
+        _divisor.Abrir(cifrada).Error.Codigo.Should().Be(ErroresDivisorPdf.ConContrasena);
+    }
+
     /// <summary>
     /// PDF 1.5 cuya única página guarda sus recursos en un flujo de objetos comprimido, con la tabla de referencias también
     /// como flujo. PDFsharp lo abre y, al reescribir el tramo, saca esos recursos sin comprimir: el tramo ocupa mucho más

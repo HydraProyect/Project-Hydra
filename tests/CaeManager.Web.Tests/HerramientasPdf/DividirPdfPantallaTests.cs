@@ -380,9 +380,44 @@ public sealed class DividirPdfPantallaTests : BunitContext
         Pulsar(cut, "Descargar 3 PDF");
 
         cut.WaitForAssertion(() => cut.Find(".aviso-error").TextContent.Should().Contain("Las páginas 3 a 3 ocupan demasiado al separarlas"));
-        cut.Find(".aviso-error").TextContent.Should().NotContain("Inténtalo de nuevo").And.Contain("divide en tramos más pequeños");
+        cut.Find(".aviso-error").TextContent.Should().NotContain("Inténtalo de nuevo")
+            .And.Contain("divide en tramos más pequeños o guárdalas en TALVEG, que admite documentos de hasta 10 MB.");
         cut.Find(".salida-descargada").TextContent.Should().Contain("PDF enviados al navegador: 1.");
         _presupuesto.Reservado.Should().Be(0);
+    }
+
+    [Fact]
+    public async Task Si_el_Tenant_cambia_antes_del_primer_tramo_se_dice_que_no_se_descargo_ninguno()
+    {
+        var descarga = JSInterop.SetupModule("./js/descarga-pdf-unido.js");
+        descarga.SetupVoid("descargarPdf", _ => true).SetVoidResult();
+        _mediador.PaginaQueFallaAlExtraer = 1;
+        _mediador.CodigoFalloExtraccion = CrearDocumentosDesdeDivisionCommandHandler.ErrorTenantCruzado;
+        var cut = Renderizar();
+        await SubirAsync(cut);
+
+        Pulsar(cut, "Descargar 3 PDF");
+
+        cut.WaitForAssertion(() => cut.Find(".aviso-error").TextContent.Should().Contain(
+            "La Empresa del selector ha cambiado desde que subiste el PDF. No se ha descargado ninguno. Vuelve a subirlo."));
+        descarga.Invocations.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task Si_la_Empresa_sale_de_la_cartera_a_mitad_de_la_descarga_se_dice_asi_y_cuanto_salio_sin_invitar_a_reintentar()
+    {
+        var descarga = JSInterop.SetupModule("./js/descarga-pdf-unido.js");
+        descarga.SetupVoid("descargarPdf", _ => true).SetVoidResult();
+        _mediador.PaginaQueFallaAlExtraer = 3;
+        _mediador.CodigoFalloExtraccion = ObtenerCatalogoDivisionPdfQueryHandler.ErrorEmpresaNoGestionable;
+        var cut = Renderizar();
+        await SubirAsync(cut);
+
+        Pulsar(cut, "Descargar 3 PDF");
+
+        cut.WaitForAssertion(() => cut.Find(".aviso-error").TextContent.Should().Contain(
+            "La Empresa ya no existe o ha salido de tu cartera. Se han descargado 1 de 3 PDF y los demás no."));
+        cut.Find(".aviso-error").TextContent.Should().NotContain("Inténtalo de nuevo");
     }
 
     [Fact]

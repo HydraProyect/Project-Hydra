@@ -48,7 +48,9 @@ public sealed class PdfSharpDivisorPdf(ILogger<PdfSharpDivisorPdf> logger) : IDi
 
         if (estructura is null)
         {
-            // Un PDF cifrado no se deja medir (sus flujos de objetos van cifrados) y tampoco se abriría sin la contraseña.
+            // Un PDF cifrado no se deja medir: sus flujos de objetos van cifrados. Se rechaza aunque solo lleve contraseña de
+            // propietario (PDFsharp lo abriría), porque dejarlo pasar sin medir convertiría «/Encrypt» en la forma de saltarse
+            // el acotador; es la misma regla que la unión. Sin flujos de objetos, sí se mide y decide PDFsharp.
             logger.LogInformation("PDF rechazado antes de abrir para dividir: estructura fuera de los topes (cifrado: {Cifrado}).", cifrado);
             return cifrado
                 ? Fallo(ErroresDivisorPdf.ConContrasena, "El PDF tiene contraseña.")
