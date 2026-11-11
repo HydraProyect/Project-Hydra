@@ -62,7 +62,7 @@ public sealed class PdfSharpDivisorPdf(ILogger<PdfSharpDivisorPdf> logger) : IDi
 
         public bool EstaFirmado => firmado;
 
-        public Result<byte[]> ExtraerPaginas(int paginaInicial, int paginaFinal)
+        public Result<byte[]> ExtraerPaginas(int paginaInicial, int paginaFinal, long tamanoMaximoBytes)
         {
             if (paginaInicial < 1 || paginaFinal < paginaInicial || paginaFinal > documento.PageCount)
                 return Result.Fallo<byte[]>(Error.Crear(ErroresDivisorPdf.RangoInvalido, "Las páginas no están en el PDF."));
@@ -71,8 +71,17 @@ public sealed class PdfSharpDivisorPdf(ILogger<PdfSharpDivisorPdf> logger) : IDi
             for (var indice = paginaInicial - 1; indice < paginaFinal; indice++)
                 tramo.AddPage(documento.Pages[indice]);
 
-            using var salida = new MemoryStream();
-            tramo.Save(salida, closeStream: false);
+            using var salida = new FlujoMemoriaAcotado(tamanoMaximoBytes);
+            try
+            {
+                tramo.Save(salida, closeStream: false);
+            }
+            catch (Exception) when (salida.CotaSuperada)
+            {
+                // Lo que lance PDFsharp al cortarle la escritura, la propia cota o una excepción suya que la envuelva.
+                return Result.Fallo<byte[]>(Error.Crear(ErroresDivisorPdf.DemasiadoGrande, "El tramo supera el tamaño que se puede preparar."));
+            }
+
             return Result.Exito(salida.ToArray());
         }
 

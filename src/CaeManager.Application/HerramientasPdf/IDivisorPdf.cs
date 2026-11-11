@@ -11,18 +11,28 @@ public static class LimitesDivisionPdf
     public const int TamanoMaximoOriginalMb = (int)(TamanoMaximoOriginalBytes / (1024 * 1024));
 
     /// <summary>
-    /// Veces el tamaño del original que coexisten en memoria mientras se extrae un tramo para descargarlo. El factor del
-    /// análisis (<see cref="Common.Archivos.LecturaAlmacenadaParaAnalisis.FactorMemoriaAnalisis"/>, el mismo que la
-    /// unión) cubre la copia leída del temporal, lo que PDFsharp construye al abrirla y las páginas copiadas al tramo
-    /// nuevo. Encima, el guardado: PDFsharp escribe el tramo en un <see cref="MemoryStream"/> que crece doblando su
-    /// búfer (hasta el doble del tramo) y luego lo copia con <c>ToArray</c> (otro tramo). Un tramo no pasa del
-    /// original en la práctica, así que esas tres copias se acotan con tres originales; si un tramo pasara, quien lo
-    /// retiene amplía su reserva sin esperar o falla cerrado.
+    /// Holgura fija del tramo sobre el original: lo que PDFsharp añade al reescribirlo (cabecera, <c>/Info</c>, tabla de
+    /// referencias), que en un PDF de pocos kilobytes puede pesar más que el propio original.
     /// </summary>
-    public const int FactorMemoriaExtraccionTramo = Common.Archivos.LecturaAlmacenadaParaAnalisis.FactorMemoriaAnalisis + 3;
+    public const long HolguraTramoBytes = 64L * 1024;
 
-    /// <summary>Lo que se reserva del presupuesto de memoria de documentos para extraer un tramo de un original de este tamaño.</summary>
-    public static long MemoriaExtraccionTramo(long bytesOriginal) => bytesOriginal * FactorMemoriaExtraccionTramo;
+    /// <summary>
+    /// Lo más que puede ocupar un tramo extraído para descargarlo: vez y media el original más <see cref="HolguraTramoBytes"/>.
+    /// Un tramo puede pasar del original, porque PDFsharp reescribe sin comprimir los objetos que el original guardaba en
+    /// flujos de objetos comprimidos. La cota se aplica mientras PDFsharp escribe, no después: al pasarla, el guardado se
+    /// corta y el tramo falla cerrado (<see cref="ErroresDivisorPdf.DemasiadoGrande"/>) sin haber ocupado más.
+    /// </summary>
+    public static long TamanoMaximoTramo(long bytesOriginal) => bytesOriginal + bytesOriginal / 2 + HolguraTramoBytes;
+
+    /// <summary>
+    /// Lo que se reserva del presupuesto de memoria de documentos para extraer un tramo de un original de este tamaño. El
+    /// factor del análisis (<see cref="Common.Archivos.LecturaAlmacenadaParaAnalisis.FactorMemoriaAnalisis"/>, el mismo que
+    /// la unión) cubre la copia leída del temporal, lo que PDFsharp construye al abrirla y las páginas copiadas al tramo
+    /// nuevo. Encima, el guardado, que escribe en un búfer que nunca pasa de <see cref="TamanoMaximoTramo"/>: al crecer
+    /// coexisten el búfer viejo y el nuevo, y al final el búfer y la copia que se entrega, así que son dos tramos máximos.
+    /// </summary>
+    public static long MemoriaExtraccionTramo(long bytesOriginal) =>
+        bytesOriginal * Common.Archivos.LecturaAlmacenadaParaAnalisis.FactorMemoriaAnalisis + 2 * TamanoMaximoTramo(bytesOriginal);
 }
 
 /// <summary>Códigos de fallo de la lectura de un PDF para dividirlo; la pantalla traduce cada uno.</summary>
@@ -51,6 +61,13 @@ public interface IPdfParaDividir : IDisposable
     /// <summary>Lleva firma electrónica; un tramo extraído la pierde, así que la pantalla avisa.</summary>
     bool EstaFirmado { get; }
 
-    /// <summary>Extrae las páginas indicadas (empezando en 1, ambas incluidas) como un PDF nuevo.</summary>
-    Result<byte[]> ExtraerPaginas(int paginaInicial, int paginaFinal);
+    /// <summary>Extrae las páginas indicadas (empezando en 1, ambas incluidas) como un PDF nuevo, sin cota de tamaño.</summary>
+    Result<byte[]> ExtraerPaginas(int paginaInicial, int paginaFinal) => ExtraerPaginas(paginaInicial, paginaFinal, long.MaxValue);
+
+    /// <summary>
+    /// Extrae las páginas indicadas como un PDF nuevo que no puede pasar de <paramref name="tamanoMaximoBytes"/>. La cota se
+    /// comprueba mientras se escribe el tramo: al pasarla se corta el guardado y se devuelve
+    /// <see cref="ErroresDivisorPdf.DemasiadoGrande"/>, sin haber reservado más que la cota.
+    /// </summary>
+    Result<byte[]> ExtraerPaginas(int paginaInicial, int paginaFinal, long tamanoMaximoBytes);
 }

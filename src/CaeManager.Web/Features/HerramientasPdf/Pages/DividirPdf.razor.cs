@@ -487,6 +487,13 @@ public partial class DividirPdf : CaeManager.Web.Components.PaginaInteractiva, I
                     break;
                 }
 
+                // Lo último antes de entregar: si el Tenant activo ya no es el del inicio, el tramo no sale de TALVEG.
+                if (TenantActual.TenantId != tenantId)
+                {
+                    tenantCambiado = true;
+                    break;
+                }
+
                 using var exceso = CubrirSoloElTramo(reserva, tramo.Valor.Contenido.Length);
                 if (!await EntregarTramoAsync(tramo.Valor, token))
                     break;
@@ -538,8 +545,9 @@ public partial class DividirPdf : CaeManager.Web.Components.PaginaInteractiva, I
     }
 
     /// <summary>
-    /// Deja la reserva de la extracción en lo que ocupa el tramo, que sigue vivo hasta que el navegador lo recibe. Si el
-    /// tramo ocupa más de lo reservado, amplía sin esperar: esperar reteniendo una reserva puede esperar a sí misma.
+    /// Deja la reserva de la extracción en lo que ocupa el tramo, que sigue vivo hasta que el navegador lo recibe. El tramo
+    /// no puede pasar de <see cref="LimitesDivisionPdf.TamanoMaximoTramo"/>, que la reserva cubre dos veces; si aun así
+    /// ocupara más, amplía sin esperar (esperar reteniendo una reserva puede esperar a sí misma) o falla cerrado.
     /// </summary>
     /// <returns>La ampliación, si hizo falta; quien llama la suelta junto con la reserva.</returns>
     /// <exception cref="PresupuestoMemoriaAgotadoException">El tramo no cabe ahora junto a lo ya reservado.</exception>

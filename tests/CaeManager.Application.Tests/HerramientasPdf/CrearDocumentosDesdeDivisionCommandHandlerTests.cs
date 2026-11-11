@@ -320,7 +320,7 @@ public class CrearDocumentosDesdeDivisionCommandHandlerTests
             public int NumeroPaginas => 6;
             public bool EstaFirmado => false;
 
-            public Result<byte[]> ExtraerPaginas(int paginaInicial, int paginaFinal)
+            public Result<byte[]> ExtraerPaginas(int paginaInicial, int paginaFinal, long tamanoMaximoBytes)
             {
                 divisor.Extraidos.Add((paginaInicial, paginaFinal));
                 return Result.Exito(new byte[paginaInicial == divisor.PaginaEnorme ? divisor.TamanoEnorme : 8]);

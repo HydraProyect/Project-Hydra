@@ -11,7 +11,8 @@ namespace CaeManager.Application.HerramientasPdf;
 /// Extrae un tramo del PDF que se está dividiendo para descargarlo, sin crear ningún Documento ni escribir nada: es la
 /// salida «Descargar» de Dividir, la alternativa a <see cref="CrearDocumentosDesdeDivisionCommand"/>. Exige lo mismo que
 /// guardar la división, y en el mismo orden, antes de abrir el PDF: Herramientas PDF disponible, el Tenant propietario
-/// del inicio de la pantalla y una Empresa que exista en ese Tenant, sea propia y esté en el alcance de gestión. Un
+/// del inicio de la pantalla y una Empresa que exista en ese Tenant, sea propia y esté en el alcance de gestión. El Tenant
+/// y la Empresa se vuelven a comprobar tras la extracción, justo antes de devolver el tramo. Un
 /// alcance sin restricción no sustituye a la comprobación de la Empresa: la cartera no es aislamiento de Tenant.
 /// </summary>
 /// <param name="TenantEsperadoId">El Tenant con el que empezó la pantalla; si el selector cambió, se rechaza.</param>
@@ -48,6 +49,27 @@ public class ExtraerTramoPdfQueryHandler(
         if (!await disponibilidad.EstaDisponibleAsync(cancellationToken))
             return Fallo(PrepararDivisionPdfQueryHandler.ErrorNoDisponible, "Herramientas PDF no está disponible.");
 
+        if (await RechazoDeAccesoAsync(request, cancellationToken) is { } rechazo)
+            return rechazo;
+
+        // PDFsharp es síncrono y trabaja con la CPU: en un circuito de Blazor bloquearía la pantalla.
+        var extraido = await Task.Run(
+            () => ExtraccionTramoPdf.Extraer(divisor, request.ContenidoPdf, request.PaginaInicial, request.PaginaFinal, logger),
+            cancellationToken);
+        if (!extraido.EsExitoso)
+            return Result.Fallo<TramoPdfExtraido>(extraido.Error);
+
+        // La extracción tarda: si entretanto el selector cambió de Tenant o la Empresa dejó de estar en el Tenant o en la
+        // cartera, el tramo ya no se entrega. Es la misma comprobación de antes de abrir, repetida justo antes de devolverlo.
+        if (await RechazoDeAccesoAsync(request, cancellationToken) is { } rechazoTrasExtraer)
+            return rechazoTrasExtraer;
+
+        return Result.Exito(new TramoPdfExtraido(
+            NombresTramoPdf.De(request.NombreOriginal, request.PaginaInicial, request.PaginaFinal), extraido.Valor));
+    }
+
+    private async Task<Result<TramoPdfExtraido>?> RechazoDeAccesoAsync(ExtraerTramoPdfQuery request, CancellationToken cancellationToken)
+    {
         if (tenantActual.TenantId is not { } tenant || tenant != request.TenantEsperadoId)
             return Fallo(CrearDocumentosDesdeDivisionCommandHandler.ErrorTenantCruzado,
                 "La Empresa ha cambiado. Vuelve a empezar para no descargar documentos de otra.");
@@ -58,15 +80,7 @@ public class ExtraerTramoPdfQueryHandler(
         if (await DocumentosUnibles.EmpresaGestionableAsync(request.EmpresaGestionadaId, empresasContext, alcanceDatos, cancellationToken) is null)
             return Fallo(ObtenerCatalogoDivisionPdfQueryHandler.ErrorEmpresaNoGestionable, "La Empresa no existe o queda fuera de tu cartera.");
 
-        // PDFsharp es síncrono y trabaja con la CPU: en un circuito de Blazor bloquearía la pantalla.
-        var extraido = await Task.Run(
-            () => ExtraccionTramoPdf.Extraer(divisor, request.ContenidoPdf, request.PaginaInicial, request.PaginaFinal, logger),
-            cancellationToken);
-        if (!extraido.EsExitoso)
-            return Result.Fallo<TramoPdfExtraido>(extraido.Error);
-
-        return Result.Exito(new TramoPdfExtraido(
-            NombresTramoPdf.De(request.NombreOriginal, request.PaginaInicial, request.PaginaFinal), extraido.Valor));
+        return null;
     }
 
     private static Result<TramoPdfExtraido> Fallo(string codigo, string mensaje) =>
@@ -94,7 +108,8 @@ public static class ExtraccionTramoPdf
             if (paginaFinal > pdf.NumeroPaginas)
                 return Result.Fallo<byte[]>(Error.Crear(ErroresDivisorPdf.RangoInvalido, "Las páginas no coinciden con el PDF."));
 
-            return pdf.ExtraerPaginas(paginaInicial, paginaFinal);
+            // La cota se aplica mientras se escribe el tramo: la reserva de quien extrae se calcula con ella.
+            return pdf.ExtraerPaginas(paginaInicial, paginaFinal, LimitesDivisionPdf.TamanoMaximoTramo(contenidoPdf.Length));
         }
         catch (Exception ex) when (ex is not (OperationCanceledException or OutOfMemoryException))
         {

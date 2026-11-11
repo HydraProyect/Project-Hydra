@@ -36,8 +36,9 @@ public class ExtraerTramoPdfQueryHandlerTests
         _empresas.ListaEmpresas.AddRange([_propia, _deOtroTenant, _subcontrata]);
     }
 
-    private ExtraerTramoPdfQueryHandler Handler(bool disponible = true, AlcanceDatosServiceFalso? alcance = null, Guid? tenantActivo = null) =>
-        new(new Disponibilidad(disponible), new TenantFijo(tenantActivo ?? _tenantId), _empresas,
+    private ExtraerTramoPdfQueryHandler Handler(
+        bool disponible = true, AlcanceDatosServiceFalso? alcance = null, Guid? tenantActivo = null, TenantFijo? tenant = null) =>
+        new(new Disponibilidad(disponible), tenant ?? new TenantFijo(tenantActivo ?? _tenantId), _empresas,
             alcance ?? new AlcanceDatosServiceFalso(), _divisor, NullLogger<ExtraerTramoPdfQueryHandler>.Instance);
 
     private ExtraerTramoPdfQuery Consulta(int inicial, int final, Guid? empresaId = null) =>
@@ -194,14 +195,71 @@ public class ExtraerTramoPdfQueryHandlerTests
     }
 
     [Fact]
-    public void La_reserva_de_la_extraccion_cubre_el_analisis_y_las_tres_copias_del_guardado()
+    public async Task La_extraccion_pide_al_divisor_la_cota_del_tramo_calculada_con_el_original()
+    {
+        var consulta = Consulta(1, 2);
+
+        await Handler().Handle(consulta, CancellationToken.None);
+
+        _divisor.Cotas.Should().Equal(LimitesDivisionPdf.TamanoMaximoTramo(consulta.ContenidoPdf.Length));
+    }
+
+    [Fact]
+    public async Task Un_tramo_que_pasa_la_cota_es_el_fallo_de_ese_tramo_y_no_se_entrega()
+    {
+        _divisor.FalloAlExtraer = Error.Crear(ErroresDivisorPdf.DemasiadoGrande, "El tramo supera el tamaño que se puede preparar.");
+
+        var resultado = await Handler().Handle(Consulta(1, 2), CancellationToken.None);
+
+        resultado.Error.Codigo.Should().Be(ErroresDivisorPdf.DemasiadoGrande);
+    }
+
+    [Fact]
+    public async Task Si_el_Tenant_activo_cambia_mientras_se_extrae_el_tramo_no_se_entrega()
+    {
+        var tenant = new TenantFijo(_tenantId);
+        _divisor.AlExtraer = () => tenant.TenantId = _otroTenantId;
+
+        var resultado = await Handler(tenant: tenant).Handle(Consulta(1, 2), CancellationToken.None);
+
+        resultado.Error.Codigo.Should().Be(CrearDocumentosDesdeDivisionCommandHandler.ErrorTenantCruzado);
+        _divisor.Extraidos.Should().Equal([(1, 2)], "el cambio llega con la extracción ya hecha: lo que se corta es la entrega");
+    }
+
+    [Fact]
+    public async Task Si_se_retira_el_acceso_al_Tenant_mientras_se_extrae_el_tramo_no_se_entrega()
+    {
+        var tenant = new TenantFijo(_tenantId);
+        _divisor.AlExtraer = () => tenant.TenantId = null;
+
+        var resultado = await Handler(tenant: tenant).Handle(Consulta(1, 2), CancellationToken.None);
+
+        resultado.Error.Codigo.Should().Be(CrearDocumentosDesdeDivisionCommandHandler.ErrorTenantCruzado);
+        _divisor.Extraidos.Should().Equal([(1, 2)]);
+    }
+
+    [Fact]
+    public async Task Si_la_Empresa_deja_de_ser_visible_mientras_se_extrae_el_tramo_no_se_entrega()
+    {
+        _divisor.AlExtraer = () => _empresas.ListaEmpresas.Remove(_propia);
+
+        var resultado = await Handler().Handle(Consulta(1, 2), CancellationToken.None);
+
+        resultado.Error.Codigo.Should().Be(ObtenerCatalogoDivisionPdfQueryHandler.ErrorEmpresaNoGestionable);
+        _divisor.Extraidos.Should().Equal([(1, 2)]);
+    }
+
+    [Fact]
+    public void La_reserva_de_la_extraccion_cubre_el_analisis_y_dos_tramos_maximos()
     {
         const long original = 10L * 1024 * 1024;
 
-        // Copia, PDFsharp abierto y páginas copiadas (el factor del análisis), más el MemoryStream que dobla su búfer
-        // (hasta dos tramos) y el ToArray (otro tramo), con el tramo acotado por el original.
+        // Copia, PDFsharp abierto y páginas copiadas (el factor del análisis), más el búfer acotado del guardado: al crecer
+        // coexisten el viejo y el nuevo, y al final el búfer y su ToArray, cada uno sin pasar del tramo máximo.
         LimitesDivisionPdf.MemoriaExtraccionTramo(original).Should().BeGreaterThanOrEqualTo(
-            original * (CaeManager.Application.Common.Archivos.LecturaAlmacenadaParaAnalisis.FactorMemoriaAnalisis + 3));
+            original * CaeManager.Application.Common.Archivos.LecturaAlmacenadaParaAnalisis.FactorMemoriaAnalisis
+            + 2 * LimitesDivisionPdf.TamanoMaximoTramo(original));
+        LimitesDivisionPdf.TamanoMaximoTramo(original).Should().BeGreaterThan(original, "un tramo puede pasar del original al reescribirse");
     }
 
     private static void AsignarTenant(EntidadConTenant entidad, Guid tenantId) =>
@@ -225,9 +283,10 @@ public class ExtraerTramoPdfQueryHandlerTests
         public IQueryable<CaeManager.Domain.Empresas.OficioEmpresa> OficiosEmpresa => _todas.OficiosEmpresa;
     }
 
+    /// <summary>El Tenant activo; una prueba lo cambia a mitad de la extracción, como el selector lateral.</summary>
     private sealed class TenantFijo(Guid? tenantId) : ITenantActual
     {
-        public Guid? TenantId => tenantId;
+        public Guid? TenantId { get; set; } = tenantId;
     }
 
     private sealed class Disponibilidad(bool disponible) : IDisponibilidadHerramientasPdf
@@ -242,6 +301,11 @@ public class ExtraerTramoPdfQueryHandlerTests
         public int Cerrados { get; private set; }
         public Error? FalloAlAbrir { get; set; }
         public Exception? ExcepcionAlExtraer { get; set; }
+        public Error? FalloAlExtraer { get; set; }
+        public List<long> Cotas { get; } = [];
+
+        /// <summary>Se llama con el tramo ya extraído, dentro de la extracción.</summary>
+        public Action? AlExtraer { get; set; }
 
         public Result<IPdfParaDividir> Abrir(byte[] contenidoPdf)
         {
@@ -254,11 +318,15 @@ public class ExtraerTramoPdfQueryHandlerTests
             public int NumeroPaginas => 6;
             public bool EstaFirmado => false;
 
-            public Result<byte[]> ExtraerPaginas(int paginaInicial, int paginaFinal)
+            public Result<byte[]> ExtraerPaginas(int paginaInicial, int paginaFinal, long tamanoMaximoBytes)
             {
+                divisor.Cotas.Add(tamanoMaximoBytes);
                 if (divisor.ExcepcionAlExtraer is { } excepcion)
                     throw excepcion;
+                if (divisor.FalloAlExtraer is { } fallo)
+                    return Result.Fallo<byte[]>(fallo);
                 divisor.Extraidos.Add((paginaInicial, paginaFinal));
+                divisor.AlExtraer?.Invoke();
                 return Result.Exito(new[] { (byte)paginaInicial, (byte)paginaFinal });
             }
 

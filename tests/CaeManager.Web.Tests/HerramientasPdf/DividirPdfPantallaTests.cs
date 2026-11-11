@@ -58,6 +58,12 @@ public sealed class DividirPdfPantallaTests : BunitContext
     private readonly PresupuestoMemoriaDocumentos _presupuesto = new(
         Options.Create(new OpcionesPresupuestoMemoriaDocumentos()), TimeProvider.System);
 
+    /// <summary>
+    /// Las vistas previas leen el original página a página, cada una en su <c>Task.Run</c>: con el CI cargado tardan más que
+    /// el segundo por defecto de <c>WaitForAssertion</c>, y la prueba caía antes de que soltaran su reserva.
+    /// </summary>
+    private static readonly TimeSpan PlazoVistasPrevias = TimeSpan.FromSeconds(15);
+
     public DividirPdfPantallaTests() => JSInterop.Mode = JSRuntimeMode.Loose;
 
     private sealed class MediadorFalso : IMediator
@@ -147,6 +153,12 @@ public sealed class DividirPdfPantallaTests : BunitContext
         public Guid? TenantId => tenantId;
     }
 
+    /// <summary>El Tenant activo que lee la pantalla, cambiable a mitad de una descarga como hace el selector lateral.</summary>
+    private sealed class TenantCambiable(Guid tenantId) : ITenantActual
+    {
+        public Guid? TenantId { get; set; } = tenantId;
+    }
+
     private sealed class SinVistaPrevia : IRasterizadorPaginasPdfService
     {
         public Result<byte[]> RasterizarPagina(byte[] contenidoPdf, int indicePagina, CancellationToken cancellationToken = default) =>
@@ -195,7 +207,7 @@ public sealed class DividirPdfPantallaTests : BunitContext
             public int NumeroPaginas => 4;
             public bool EstaFirmado => false;
 
-            public Result<byte[]> ExtraerPaginas(int paginaInicial, int paginaFinal) => paginaInicial == paginaQueLanza
+            public Result<byte[]> ExtraerPaginas(int paginaInicial, int paginaFinal, long tamanoMaximoBytes) => paginaInicial == paginaQueLanza
                 ? throw new InvalidOperationException("PDFsharp no pudo copiar la página.")
                 : Result.Exito(new byte[] { 1 });
 
@@ -206,11 +218,12 @@ public sealed class DividirPdfPantallaTests : BunitContext
     }
 
     private IRenderedComponent<DividirPdf> Renderizar(
-        string rol = "GestorCae", Guid? tenantId = null, bool disponible = true, IPresupuestoMemoriaDocumentos? presupuesto = null)
+        string rol = "GestorCae", Guid? tenantId = null, bool disponible = true, IPresupuestoMemoriaDocumentos? presupuesto = null,
+        ITenantActual? tenant = null)
     {
         Services.AddScoped<IMediator>(_ => _mediador);
         Services.AddScoped<ICurrentUserService>(_ => new UsuarioFalso(rol));
-        Services.AddScoped<ITenantActual>(_ => new TenantFijo(tenantId ?? TenantAId));
+        Services.AddScoped<ITenantActual>(_ => tenant ?? new TenantFijo(tenantId ?? TenantAId));
         Services.AddScoped<PuertaAccesoDatos>();
         Services.AddScoped<IRasterizadorPaginasPdfService, SinVistaPrevia>();
         Services.AddSingleton<IDisponibilidadHerramientasPdf>(new Disponibilidad(disponible));
@@ -344,6 +357,29 @@ public sealed class DividirPdfPantallaTests : BunitContext
     }
 
     [Fact]
+    public async Task Si_el_Tenant_activo_cambia_mientras_se_extrae_un_tramo_ese_tramo_no_se_entrega()
+    {
+        // La extracción responde bien: lo que corta la entrega es la comprobación de la pantalla contra el Tenant activo.
+        var descarga = JSInterop.SetupModule("./js/descarga-pdf-unido.js");
+        descarga.SetupVoid("descargarPdf", _ => true).SetVoidResult();
+        var tenant = new TenantCambiable(TenantAId);
+        _mediador.AlExtraer = () =>
+        {
+            if (_mediador.Extracciones.Count == 2)
+                tenant.TenantId = TenantBId;
+        };
+        var cut = Renderizar(tenant: tenant);
+        await SubirAsync(cut);
+
+        Pulsar(cut, "Descargar 3 PDF");
+
+        cut.WaitForAssertion(() => cut.Find(".aviso-error").TextContent.Should().Contain("La Empresa del selector ha cambiado desde que subiste el PDF."));
+        descarga.Invocations.Select(i => i.Arguments[0]).Should().Equal(["paquete-pag-1-2.pdf"], "el tramo extraído tras el cambio no sale");
+        _mediador.Extracciones.Select(e => e.PaginaInicial).Should().Equal(1, 3);
+        _presupuesto.Reservado.Should().Be(0);
+    }
+
+    [Fact]
     public async Task Si_el_divisor_lanza_al_extraer_un_tramo_se_corta_la_serie_y_se_dice_cual_sin_tumbar_la_pantalla()
     {
         var descarga = JSInterop.SetupModule("./js/descarga-pdf-unido.js");
@@ -372,7 +408,7 @@ public sealed class DividirPdfPantallaTests : BunitContext
         var pendiente = descarga.SetupVoid("descargarPdf", _ => true);
         var cut = Renderizar(presupuesto: contado);
         await SubirAsync(cut);
-        cut.WaitForAssertion(() => _presupuesto.Reservado.Should().Be(0, "las vistas previas ya soltaron su reserva"));
+        cut.WaitForAssertion(() => _presupuesto.Reservado.Should().Be(0, "las vistas previas ya soltaron su reserva"), PlazoVistasPrevias);
         var peticionesAntes = contado.Peticiones;
 
         Pulsar(cut, "Descargar 3 PDF");
@@ -411,7 +447,7 @@ public sealed class DividirPdfPantallaTests : BunitContext
         descarga.SetupVoid("descargarPdf", _ => true).SetVoidResult();
         var cut = Renderizar();
         await SubirAsync(cut);
-        cut.WaitForAssertion(() => _presupuesto.Reservado.Should().Be(0, "las vistas previas ya leyeron el original"));
+        cut.WaitForAssertion(() => _presupuesto.Reservado.Should().Be(0, "las vistas previas ya leyeron el original"), PlazoVistasPrevias);
         var proceso = Services.GetRequiredService<CuotaSubidaMasiva>().DirectorioProceso;
         foreach (var directorio in Directory.GetDirectories(proceso))
             foreach (var fichero in Directory.GetFiles(directorio))
@@ -434,7 +470,7 @@ public sealed class DividirPdfPantallaTests : BunitContext
             Options.Create(new OpcionesPresupuestoMemoriaDocumentos { EsperaMaxima = TimeSpan.FromMilliseconds(100) }), TimeProvider.System);
         var cut = Renderizar(presupuesto: corto);
         await SubirAsync(cut);
-        cut.WaitForAssertion(() => corto.Reservado.Should().Be(0, "las vistas previas ya soltaron su reserva"));
+        cut.WaitForAssertion(() => corto.Reservado.Should().Be(0, "las vistas previas ya soltaron su reserva"), PlazoVistasPrevias);
         // Una reserva ajena de todo el presupuesto: la del primer tramo espera y agota el plazo.
         using var ocupado = await corto.ReservarAsync(corto.Maximo);
 

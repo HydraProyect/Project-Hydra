@@ -642,7 +642,7 @@ public class RepartoAdjuntosBajoRlsTests : IAsyncLifetime
         public int NumeroPaginas => 2;
         public bool EstaFirmado => false;
         public Result<IPdfParaDividir> Abrir(byte[] contenidoPdf) => Result.Exito<IPdfParaDividir>(this);
-        public Result<byte[]> ExtraerPaginas(int paginaInicial, int paginaFinal) => Result.Exito("%PDF-tramo"u8.ToArray());
+        public Result<byte[]> ExtraerPaginas(int paginaInicial, int paginaFinal, long tamanoMaximoBytes) => Result.Exito("%PDF-tramo"u8.ToArray());
         public void Dispose() { }
     }
 
