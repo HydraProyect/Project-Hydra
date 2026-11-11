@@ -82,7 +82,6 @@ public class ClasesDeCssAisladoNoViajanEntreComponentesTests
         ["RevisionIaTab.razor::revision-ia-confianza"] = "barra de confianza que la pestana comparte con RevisionIa.razor",
         ["RevisionIaTab.razor::revision-ia-confianza-barra"] = "barra de confianza que la pestana comparte con RevisionIa.razor",
         ["RevisionIaTab.razor::revision-ia-confianza-texto"] = "barra de confianza que la pestana comparte con RevisionIa.razor",
-        ["SelectorEntidad.razor::campo-input"] = "control de formulario a pelo en vez de CampoTexto o CampoBuscarSelect",
         ["Usuarios.razor::pista-documento"] = "pista de validacion copiada de Trabajadores; primitiva de pista pendiente",
         ["Usuarios.razor::pista-documento-error"] = "pista de validacion copiada de Trabajadores; primitiva de pista pendiente",
         ["Usuarios.razor::pista-documento-exito"] = "pista de validacion copiada de Trabajadores; primitiva de pista pendiente",

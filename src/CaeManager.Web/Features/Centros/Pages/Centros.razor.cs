@@ -442,6 +442,11 @@ public partial class Centros : CaeManager.Web.Components.PaginaInteractiva
                     _empresaNombreSoloLectura = _empresasDisponibles.First(e => e.Id == EmpresaId).RazonSocial;
                     _padresFijadosPorCadena = true;
                 }
+                else if (ElegirEmpresaUnicaDelCliente())
+                {
+                    // Sin Empresa en la URL, la única del Cliente empresarial la elige la pantalla: tampoco es un cambio.
+                    alAbrir[IndiceEmpresaEnValores] = _empresaId;
+                }
             }
 
             _instantanea.Fijar(alAbrir);
@@ -1169,10 +1174,11 @@ public partial class Centros : CaeManager.Web.Components.PaginaInteractiva
 
     /// <summary>
     /// Solo aplica en modo creación con los padres editables (no fijados por
-    /// una cadena de otra pantalla): al cambiar el Cliente, el selector de
-    /// Empresa se recorta a las suyas — si la Empresa que estaba elegida ya
-    /// no pertenece al nuevo Cliente, se limpia en vez de dejar una
-    /// combinación imposible.
+    /// una cadena de otra pantalla): al cambiar el Cliente empresarial, el
+    /// selector de Empresa se recorta a las suyas — si la Empresa que estaba
+    /// elegida ya no pertenece al nuevo Cliente empresarial, se limpia en vez
+    /// de dejar una combinación imposible, y si el nuevo tiene una sola
+    /// Empresa, esa queda elegida (<see cref="ElegirEmpresaUnicaDelCliente"/>).
     /// </summary>
     private async Task CambiarClienteCreacionAsync(string valor)
     {
@@ -1186,6 +1192,22 @@ public partial class Centros : CaeManager.Web.Components.PaginaInteractiva
 
         if (!_empresasDisponibles.Any(e => e.Id.ToString() == _empresaId))
             _empresaId = string.Empty;
+
+        if (clienteId is not null && ElegirEmpresaUnicaDelCliente())
+            LimpiarAvisoDeSeleccionFaltante();
+    }
+
+    /// <summary>
+    /// Con la lista de Empresas ya acotada a un Cliente empresarial: si tiene una sola y no hay ninguna elegida, queda
+    /// elegida esa (el selector sigue editable para crear otra). Con varias no se elige ninguna. Devuelve si la eligió.
+    /// </summary>
+    private bool ElegirEmpresaUnicaDelCliente()
+    {
+        if (_empresaId.Length > 0 || _empresasDisponibles.Count != 1)
+            return false;
+
+        _empresaId = _empresasDisponibles[0].Id.ToString();
+        return true;
     }
 
     private const string AvisoSeleccionaCliente = "Selecciona un Cliente.";
