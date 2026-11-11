@@ -7,6 +7,7 @@ using CaeManager.Domain.Common;
 using CaeManager.Domain.Empresas;
 using CaeManager.Domain.RelacionesEmpresariales;
 using CaeManager.Infrastructure.Auditing;
+using CaeManager.Infrastructure.EstadoMaterializado;
 using CaeManager.Infrastructure.MultiTenancy;
 using CaeManager.Infrastructure.Persistence;
 using CaeManager.Infrastructure.Persistence.Interceptors;
@@ -14,6 +15,7 @@ using CaeManager.Infrastructure.Persistence.Repositories;
 using FluentAssertions;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Diagnostics;
 using Npgsql;
 using Xunit;
 
@@ -140,8 +142,9 @@ public class PapelDeEntradaEnCentroIntegracionTests : IAsyncLifetime
     /// Quitar un ancla cuya arista se cerró no exige ver a X (DECISION_LOG, 2026-11-11, punto 11 b). Un Gestor CAE
     /// sin Asignación de Cartera sobre X lee la ficha, envía el comando sin relación y relee, en un Centro con ancla
     /// cerrada y en un gemelo sin ancla: con PostgreSQL, el repositorio y los interceptores de auditoría y de
-    /// concurrencia reales, la respuesta, el cambio de versión, el papel y las filas de auditoría son iguales en los
-    /// dos. Si quitar sin ancla no renovase la versión, esta comparación distinguiría los dos Centros.
+    /// concurrencia reales, la respuesta, el cambio de versión, el papel, las filas y la acción de auditoría y las
+    /// raíces que el guardado entrega al recálculo del estado son iguales en los dos. Si quitar sin ancla no renovase la
+    /// versión, esta comparación distinguiría los dos Centros.
     /// </summary>
     [Fact]
     public async Task Quitar_un_ancla_cerrada_tiene_el_mismo_efecto_observable_que_quitar_en_un_Centro_sin_ancla()
@@ -161,26 +164,42 @@ public class PapelDeEntradaEnCentroIntegracionTests : IAsyncLifetime
         var gemelo = await QuitarYObservarAsync(sinAncla);
 
         conAnclaCerrada.Should().Be(gemelo);
-        conAnclaCerrada.Should().Be(new EfectoObservable(
-            Exito: true, CodigoError: null, VersionCambio: true, Papel: PapelDeEntradaDto.ContratistaPrincipal, FilasDeAuditoria: 1));
+        conAnclaCerrada.Exito.Should().BeTrue();
+        conAnclaCerrada.CodigoError.Should().BeNull();
+        conAnclaCerrada.VersionCambio.Should().BeTrue();
+        conAnclaCerrada.Papel.Should().Be(PapelDeEntradaDto.ContratistaPrincipal);
+        conAnclaCerrada.FilasDeAuditoria.Should().Be(1);
+        conAnclaCerrada.AccionesAuditadas.Should().NotBeNullOrEmpty();
+        conAnclaCerrada.RecalculoDeEstado.Should().Be(
+            "tenant=propio;disparadores=Centro;centros=Centro;afectados=;empresas=EmpresaDelCentro;trabajadores=0;eventos=0;tenantEntero=",
+            "quitar el ancla recalcula el estado del Centro y de su Empresa, como cualquier cambio del Centro");
 
         await using var lectura = CrearContexto(_tenant);
         (await lectura.Centros.SingleAsync(c => c.Id == anclado.CentroId))
             .RelacionEmpresarialEntradaId.Should().BeNull("el ancla cerrada sí se borró");
     }
 
+    /// <summary>
+    /// Lo que distingue un guardado de otro para quien envía el comando y para lo que se dispara detrás: respuesta,
+    /// versión, papel, filas y acción de auditoría, y las raíces que el guardado entrega al recálculo del estado
+    /// materializado. El comando no publica eventos ni notificaciones (no tiene publicador y el Centro no levanta
+    /// eventos de dominio); los avisos del estado salen de esas mismas raíces tras el COMMIT. Los identificadores se
+    /// traducen a su papel en el sembrado (<c>Centro</c>, <c>EmpresaDelCentro</c>…) para comparar dos Centros gemelos.
+    /// </summary>
     private sealed record EfectoObservable(
-        bool Exito, string? CodigoError, bool VersionCambio, PapelDeEntradaDto? Papel, int FilasDeAuditoria);
+        bool Exito, string? CodigoError, bool VersionCambio, PapelDeEntradaDto? Papel, int FilasDeAuditoria,
+        string AccionesAuditadas, string RecalculoDeEstado);
 
     private async Task<EfectoObservable> QuitarYObservarAsync(Sembrado sembrado)
     {
         var sinCarteraSobreX = new AlcanceDatosServiceFalso(
             clienteIds: [sembrado.TitularId], centroIds: [sembrado.CentroId], centroIdsParaGestion: [sembrado.CentroId]);
         var antes = await FichaAsync(sembrado.CentroId, sinCarteraSobreX);
-        var auditoriaAntes = await FilasDeAuditoriaAsync(sembrado.CentroId);
+        var auditoriaAntes = await AuditoriaAsync(sembrado.CentroId);
 
         Result resultado;
-        await using (var contexto = CrearContextoConInterceptoresDeProduccion())
+        var raices = new RaicesDeRecalculoQueAnota();
+        await using (var contexto = CrearContextoConInterceptoresDeProduccion(raices))
         {
             resultado = await new EstablecerRelacionDeEntradaCentroCommandHandler(
                     new CentroRepository(contexto), contexto, sinCarteraSobreX, contexto)
@@ -189,18 +208,61 @@ public class PapelDeEntradaEnCentroIntegracionTests : IAsyncLifetime
         }
 
         var despues = await FichaAsync(sembrado.CentroId, sinCarteraSobreX);
+        var nuevas = (await AuditoriaAsync(sembrado.CentroId)).Skip(auditoriaAntes.Count).ToList();
         return new EfectoObservable(
             resultado.EsExitoso,
             resultado.EsExitoso ? null : resultado.Error.Codigo,
             despues.Version != antes.Version,
             despues.PapelDeEntrada,
-            await FilasDeAuditoriaAsync(sembrado.CentroId) - auditoriaAntes);
+            nuevas.Count,
+            string.Join("|", nuevas),
+            DescribirRaices(raices.Cambios, sembrado));
     }
 
-    private async Task<int> FilasDeAuditoriaAsync(Guid centroId)
+    /// <summary>Entidad y acción de cada fila de auditoría del Centro, en orden de escritura.</summary>
+    private async Task<List<string>> AuditoriaAsync(Guid centroId)
     {
         await using var contexto = CrearContexto(_tenant);
-        return await contexto.RegistrosAuditoria.IgnoreQueryFilters().CountAsync(r => r.EntidadId == centroId);
+        return await contexto.RegistrosAuditoria.IgnoreQueryFilters()
+            .Where(r => r.EntidadId == centroId)
+            .OrderBy(r => r.FechaUtc).ThenBy(r => r.Id)
+            .Select(r => r.EntidadTipo + ":" + r.Accion)
+            .ToListAsync();
+    }
+
+    private string DescribirRaices(CambiosEstadoDetectados cambios, Sembrado s)
+    {
+        string Papel(Guid id) =>
+            id == s.CentroId ? "Centro"
+            : id == s.EmpresaDelCentroId ? "EmpresaDelCentro"
+            : id == s.TitularId ? "Titular"
+            : id == s.ContratistaPrincipalId ? "X"
+            : "otra";
+        string Lista(IEnumerable<Guid> ids) => string.Join(",", ids.Select(Papel).Order(StringComparer.Ordinal));
+
+        return string.Join(" / ", cambios.PorTenant.OrderBy(p => p.Key).Select(p =>
+            $"tenant={(p.Key == _tenant ? "propio" : "otro")};disparadores={string.Join(",", p.Value.Disparadores)};" +
+            $"centros={Lista(p.Value.Centros)};afectados={Lista(p.Value.CentrosAfectados)};" +
+            $"empresas={Lista(p.Value.Empresas)};trabajadores={p.Value.Trabajadores.Count};" +
+            $"eventos={p.Value.Eventos.Count};tenantEntero={p.Value.TenantEntero}"));
+    }
+
+    /// <summary>
+    /// Anota, con el mismo inventario que <see cref="DetectorCambiosEstadoInterceptor"/> y en el mismo momento (al
+    /// guardar, después del sellado de Tenant), las raíces que el guardado entregaría al recálculo del estado. No
+    /// recalcula: el recálculo es una función de esas raíces y de la base, que es igual en los dos gemelos.
+    /// </summary>
+    private sealed class RaicesDeRecalculoQueAnota : SaveChangesInterceptor
+    {
+        public CambiosEstadoDetectados Cambios { get; } = new();
+
+        public override ValueTask<InterceptionResult<int>> SavingChangesAsync(
+            DbContextEventData eventData, InterceptionResult<int> result, CancellationToken cancellationToken = default)
+        {
+            foreach (var entrada in eventData.Context!.ChangeTracker.Entries())
+                InventarioDisparadoresEstado.Recoger(entrada, Cambios);
+            return ValueTask.FromResult(result);
+        }
     }
 
     private async Task<CentroDetalleDto> FichaAsync(Guid centroId, AlcanceDatosServiceFalso alcance)
@@ -216,7 +278,8 @@ public class PapelDeEntradaEnCentroIntegracionTests : IAsyncLifetime
         (await FichaAsync(centroId, alcance)).PapelDeEntrada;
 
     private sealed record Sembrado(
-        Guid CentroId, Guid RelacionId, Guid TitularId, Guid ContratistaPrincipalId, string ContratistaPrincipalRazonSocial);
+        Guid CentroId, Guid RelacionId, Guid TitularId, Guid ContratistaPrincipalId, string ContratistaPrincipalRazonSocial,
+        Guid EmpresaDelCentroId);
 
     private async Task<(Guid CentroId, Guid RelacionId)> SembrarCentroConRelacionAsync(Guid tenant)
     {
@@ -239,7 +302,8 @@ public class PapelDeEntradaEnCentroIntegracionTests : IAsyncLifetime
         contexto.RelacionesEmpresariales.Add(relacion);
         contexto.Centros.Add(centro);
         await contexto.SaveChangesAsync();
-        return new Sembrado(centro.Id, relacion.Id, titular.Id, contratistaPrincipal.Id, contratistaPrincipal.RazonSocial);
+        return new Sembrado(
+            centro.Id, relacion.Id, titular.Id, contratistaPrincipal.Id, contratistaPrincipal.RazonSocial, empresaDelCentro.Id);
     }
 
     private CaeManagerDbContext CrearContexto(Guid tenant)
@@ -258,14 +322,15 @@ public class PapelDeEntradaEnCentroIntegracionTests : IAsyncLifetime
     /// <c>ReactivarVisitaConcurrenciaTests</c>): sin <see cref="ConcurrenciaOptimistaInterceptor"/> la versión de un
     /// Centro modificado no cambiaría y la comparación no observaría nada.
     /// </summary>
-    private CaeManagerDbContext CrearContextoConInterceptoresDeProduccion()
+    private CaeManagerDbContext CrearContextoConInterceptoresDeProduccion(RaicesDeRecalculoQueAnota raices)
     {
         var tenantActual = new TenantActualAmbiental { TenantId = _tenant };
         var actor = new ActorAuditoriaFalso(ActorAuditoria.Normal(Guid.NewGuid()));
         var options = new DbContextOptionsBuilder<CaeManagerDbContext>()
             .UseNpgsql(_cadenaConexion, npgsql => npgsql.MigrationsAssembly("CaeManager.Migrations.PostgreSQL"))
+            // Mismo orden que ConfiguracionDeContexto.Aplicar; las raíces se anotan las últimas, como el detector.
             .AddInterceptors(new AuditoriaInterceptor(actor), new TenantSelladoInterceptor(tenantActual),
-                new ConcurrenciaOptimistaInterceptor())
+                new ConcurrenciaOptimistaInterceptor(), raices)
             .Options;
 
         return new CaeManagerDbContext(options, new EphemeralDataProtectionProvider(), tenantActual);

@@ -24,7 +24,8 @@ namespace CaeManager.Application.Centros.Commands.EstablecerRelacionDeEntradaCen
 /// si no hubiera ancla, sin exigir ver a su X. Para que eso no abra otro oráculo, quitar responde y guarda igual con
 /// un ancla cerrada que sin ancla: <see cref="Centro.QuitarAnclaDeEntrada"/> renueva siempre la versión del Centro, de
 /// modo que leer la versión, quitar y releer no distingue esos dos casos (el ancla vigente con X no visible sigue en
-/// el oráculo residual de arriba). La arista se busca en el
+/// el oráculo residual de arriba). Tampoco el tiempo: con ancla cerrada y sin ancla el comando hace las mismas
+/// consultas en el mismo orden, también cuando rechaza una arista nueva inexistente. La arista se busca en el
 /// Tenant propietario actual (filtro global y RLS) y su cliente X tiene que estar entre los Clientes
 /// empresariales visibles de quien la fija: una arista de otro Tenant, inexistente o con X fuera de su cartera
 /// responde lo mismo, para no revelar cuál de las tres es. La FK compuesta con <c>TenantId</c> repite en la base
@@ -76,15 +77,17 @@ public class EstablecerRelacionDeEntradaCentroCommandHandler(
         // oráculo residual descrito en la cabecera. Un ancla cuya arista ya se cerró (VigenciaHasta informada) no da
         // papel en la ficha (DECISION_LOG, 2026-11-11, punto 11 b) y aquí cuenta igual que sin ancla: se puede quitar
         // o sustituir sin ver a su X, y el comando responde lo mismo que en un Centro sin ancla.
-        if (centro.RelacionEmpresarialEntradaId is { } anclaActual)
-        {
-            var xActual = await empresasContext.RelacionesEmpresariales.AsNoTracking()
-                .Where(r => r.Id == anclaActual && r.TenantId == centro.TenantId && r.VigenciaHasta == null)
-                .Select(r => (Guid?)r.ClienteId)
-                .FirstOrDefaultAsync(cancellationToken);
-            if (xActual is { } x && !await alcanceDatos.ClienteVisibleAsync(x, cancellationToken))
-                return Result.Fallo(CentroNoEncontrado);
-        }
+        // La lectura del ancla se hace siempre, también sin ancla (con Guid.Empty, que ninguna arista tiene): así un
+        // Centro sin ancla y uno con ancla cerrada ejecutan las mismas consultas en el mismo orden y el tiempo de
+        // respuesta no distingue los dos casos. Solo el ancla vigente añade la consulta de cartera, dentro del oráculo
+        // residual aceptado (punto 11 a).
+        var anclaActual = centro.RelacionEmpresarialEntradaId ?? Guid.Empty;
+        var xActual = await empresasContext.RelacionesEmpresariales.AsNoTracking()
+            .Where(r => r.Id == anclaActual && r.TenantId == centro.TenantId && r.VigenciaHasta == null)
+            .Select(r => (Guid?)r.ClienteId)
+            .FirstOrDefaultAsync(cancellationToken);
+        if (xActual is { } x && !await alcanceDatos.ClienteVisibleAsync(x, cancellationToken))
+            return Result.Fallo(CentroNoEncontrado);
 
         if (request.RelacionEmpresarialId is not { } relacionId)
         {

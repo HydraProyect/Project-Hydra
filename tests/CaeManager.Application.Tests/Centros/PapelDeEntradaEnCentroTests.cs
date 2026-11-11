@@ -2,6 +2,7 @@ using CaeManager.Application.Centros.Commands.EstablecerRelacionDeEntradaCentro;
 using CaeManager.Application.Centros.Queries;
 using CaeManager.Application.Centros.Queries.ObtenerCentroPorId;
 using CaeManager.Application.Common;
+using CaeManager.Application.Empresas;
 using CaeManager.Application.Tests.Clientes;
 using CaeManager.Application.Tests.Common;
 using CaeManager.Application.Tests.Documentos;
@@ -361,6 +362,141 @@ public class PapelDeEntradaEnCentroTests
         conAnclaCerrada.Centro.Version.Should().NotBe(versionConAnclaCerrada);
         sinAncla.Centro.Version.Should().NotBe(versionSinAncla,
             "si quitar sin ancla no renovase la versión, releerla distinguiría el Centro con ancla cerrada");
+    }
+
+    /// <summary>
+    /// Canal temporal (ronda 3 de Codex en la PR #2107): con un ancla cerrada y sin ancla, el comando hace las mismas
+    /// lecturas en el mismo orden, al quitar y al rechazar una arista nueva inexistente. Si la lectura del ancla solo
+    /// se hiciera cuando hay ancla, el Centro con ancla cerrada pagaría una consulta más y el tiempo lo delataría.
+    /// Cada lectura de <c>RelacionesEmpresariales</c> cuenta como una consulta: el comando abre una por acceso.
+    /// </summary>
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Con_ancla_cerrada_y_sin_ancla_el_comando_hace_las_mismas_consultas_en_el_mismo_orden(bool relacionNuevaInexistente)
+    {
+        var conAnclaCerrada = Montar();
+        conAnclaCerrada.Centro.AnclarRelacionDeEntrada(conAnclaCerrada.Relacion).EsExitoso.Should().BeTrue();
+        conAnclaCerrada.Relacion.Cerrar(DateTime.UtcNow);
+        var sinAncla = Montar();
+        Guid? relacionId = relacionNuevaInexistente ? Guid.NewGuid() : null;
+
+        var (resultadoConAncla, consultasConAncla) = await EjecutarAnotando(conAnclaCerrada, relacionId);
+        var (resultadoSinAncla, consultasSinAncla) = await EjecutarAnotando(sinAncla, relacionId);
+
+        string[] esperadas = relacionNuevaInexistente
+            ? ["Centros.ObtenerPorId", "Alcance.CentrosParaGestion", "Empresas.RelacionesEmpresariales", "Empresas.RelacionesEmpresariales"]
+            : ["Centros.ObtenerPorId", "Alcance.CentrosParaGestion", "Empresas.RelacionesEmpresariales"];
+        consultasSinAncla.Should().Equal(esperadas);
+        consultasConAncla.Should().Equal(consultasSinAncla,
+            "un Centro con ancla cerrada no puede costar ni una consulta más que uno sin ancla");
+        resultadoConAncla.EsExitoso.Should().Be(resultadoSinAncla.EsExitoso).And.Be(!relacionNuevaInexistente);
+        if (relacionNuevaInexistente)
+            resultadoConAncla.Error.Should().Be(resultadoSinAncla.Error);
+        conAnclaCerrada.Uow.VecesGuardado.Should().Be(sinAncla.Uow.VecesGuardado);
+    }
+
+    private async Task<(Result Resultado, List<string> Consultas)> EjecutarAnotando(Escenario e, Guid? relacionId)
+    {
+        var consultas = new List<string>();
+        var handler = new EstablecerRelacionDeEntradaCentroCommandHandler(
+            new CentrosQueAnotan(e.Repositorio, consultas), new EmpresasQueAnotan(e.Empresas, consultas),
+            new AlcanceQueAnota(SinCarteraSobreX(e.Centro), consultas), e.Uow);
+        var resultado = await handler.Handle(
+            new EstablecerRelacionDeEntradaCentroCommand(e.Centro.Id, relacionId, e.Centro.Version), CancellationToken.None);
+        return (resultado, consultas);
+    }
+
+    private sealed class CentrosQueAnotan(ICentroRepository interno, List<string> consultas) : ICentroRepository
+    {
+        public Task<Centro?> ObtenerPorIdAsync(Guid id, CancellationToken cancellationToken = default)
+        {
+            consultas.Add("Centros.ObtenerPorId");
+            return interno.ObtenerPorIdAsync(id, cancellationToken);
+        }
+
+        public Task<Centro?> ObtenerIncluidoEliminadoActualizadoAsync(Guid id, Guid? tenantId, CancellationToken cancellationToken = default)
+        {
+            consultas.Add("Centros.ObtenerIncluidoEliminadoActualizado");
+            return interno.ObtenerIncluidoEliminadoActualizadoAsync(id, tenantId, cancellationToken);
+        }
+
+        public Task<IReadOnlyList<Centro>> ListarActualizadosAsync(CancellationToken cancellationToken = default)
+        {
+            consultas.Add("Centros.ListarActualizados");
+            return interno.ListarActualizadosAsync(cancellationToken);
+        }
+
+        public Task<bool> ExisteConNombreEnClienteAsync(
+            Guid clienteId, string nombre, Guid? excluirId = null, CancellationToken cancellationToken = default)
+        {
+            consultas.Add("Centros.ExisteConNombreEnCliente");
+            return interno.ExisteConNombreEnClienteAsync(clienteId, nombre, excluirId, cancellationToken);
+        }
+
+        public void Agregar(Centro centro)
+        {
+            consultas.Add("Centros.Agregar");
+            interno.Agregar(centro);
+        }
+    }
+
+    private sealed class EmpresasQueAnotan(IEmpresasQueryContext interno, List<string> consultas) : IEmpresasQueryContext
+    {
+        private IQueryable<T> Anotar<T>(string nombre, IQueryable<T> consulta)
+        {
+            consultas.Add($"Empresas.{nombre}");
+            return consulta;
+        }
+
+        public IQueryable<Empresa> Empresas => Anotar(nameof(Empresas), interno.Empresas);
+        public IQueryable<CredencialAccesoEmpresa> CredencialesAccesoEmpresa =>
+            Anotar(nameof(CredencialesAccesoEmpresa), interno.CredencialesAccesoEmpresa);
+        public IQueryable<RelacionEmpresarial> RelacionesEmpresariales =>
+            Anotar(nameof(RelacionesEmpresariales), interno.RelacionesEmpresariales);
+        public IQueryable<PlataformaCaeClienteEmpresarial> PlataformasCaeClienteEmpresarial =>
+            Anotar(nameof(PlataformasCaeClienteEmpresarial), interno.PlataformasCaeClienteEmpresarial);
+        public IQueryable<AccesoPlataformaCaeEmpresa> AccesosPlataformaCaeEmpresa =>
+            Anotar(nameof(AccesosPlataformaCaeEmpresa), interno.AccesosPlataformaCaeEmpresa);
+        public IQueryable<DelegacionEmpresa> DelegacionesEmpresa => Anotar(nameof(DelegacionesEmpresa), interno.DelegacionesEmpresa);
+        public IQueryable<OficioEmpresa> OficiosEmpresa => Anotar(nameof(OficiosEmpresa), interno.OficiosEmpresa);
+    }
+
+    /// <summary>Anota cada consulta de alcance; las extensiones (<c>ClienteVisibleAsync</c>, …) pasan por estas.</summary>
+    private sealed class AlcanceQueAnota(IAlcanceDatosService interno, List<string> consultas) : IAlcanceDatosService
+    {
+        private Task<T> Anotar<T>(string nombre, Task<T> consulta)
+        {
+            consultas.Add($"Alcance.{nombre}");
+            return consulta;
+        }
+
+        public Task<bool> TieneAccesoTotalAsync(CancellationToken cancellationToken = default) =>
+            Anotar("TieneAccesoTotal", interno.TieneAccesoTotalAsync(cancellationToken));
+        public Task<IReadOnlyList<Guid>?> ObtenerClienteIdsVisiblesAsync(CancellationToken cancellationToken = default) =>
+            Anotar("ClientesVisibles", interno.ObtenerClienteIdsVisiblesAsync(cancellationToken));
+        public Task<bool> OperaDesdeElLadoDeGestionAsync(CancellationToken cancellationToken = default) =>
+            Anotar("LadoDeGestion", interno.OperaDesdeElLadoDeGestionAsync(cancellationToken));
+        public Task<IReadOnlyList<Guid>?> ObtenerCentroIdsVisiblesAsync(CancellationToken cancellationToken = default) =>
+            Anotar("CentrosVisibles", interno.ObtenerCentroIdsVisiblesAsync(cancellationToken));
+        public Task<IReadOnlyList<Guid>?> ObtenerCentroIdsParaGestionAsync(CancellationToken cancellationToken = default) =>
+            Anotar("CentrosParaGestion", interno.ObtenerCentroIdsParaGestionAsync(cancellationToken));
+        public Task<IReadOnlyList<Guid>?> ObtenerEmpresaIdsVisiblesAsync(CancellationToken cancellationToken = default) =>
+            Anotar("EmpresasVisibles", interno.ObtenerEmpresaIdsVisiblesAsync(cancellationToken));
+        public Task<IReadOnlyList<Guid>?> ObtenerEmpresaIdsParaGestionAsync(CancellationToken cancellationToken = default) =>
+            Anotar("EmpresasParaGestion", interno.ObtenerEmpresaIdsParaGestionAsync(cancellationToken));
+        public Task<IReadOnlyList<Guid>?> ObtenerSubcontrataIdsVisiblesAsync(CancellationToken cancellationToken = default) =>
+            Anotar("SubcontratasVisibles", interno.ObtenerSubcontrataIdsVisiblesAsync(cancellationToken));
+        public Task<IReadOnlyList<Guid>?> ObtenerSubcontrataIdsParaGestionAsync(CancellationToken cancellationToken = default) =>
+            Anotar("SubcontratasParaGestion", interno.ObtenerSubcontrataIdsParaGestionAsync(cancellationToken));
+        public Task<bool> SubcontrataEliminadaParaGestionVisibleAsync(Guid subcontrataId, CancellationToken cancellationToken = default) =>
+            Anotar("SubcontrataEliminadaParaGestion", interno.SubcontrataEliminadaParaGestionVisibleAsync(subcontrataId, cancellationToken));
+        public Task<IReadOnlyList<Guid>?> ObtenerTrabajadorIdsVisiblesAsync(CancellationToken cancellationToken = default) =>
+            Anotar("TrabajadoresVisibles", interno.ObtenerTrabajadorIdsVisiblesAsync(cancellationToken));
+        public Task<IReadOnlyList<Guid>?> ObtenerVehiculoIdsVisiblesAsync(CancellationToken cancellationToken = default) =>
+            Anotar("VehiculosVisibles", interno.ObtenerVehiculoIdsVisiblesAsync(cancellationToken));
+        public Task<bool> ConexionIntegracionVisibleAsync(Guid conexionIntegracionId, CancellationToken cancellationToken = default) =>
+            Anotar("ConexionIntegracion", interno.ConexionIntegracionVisibleAsync(conexionIntegracionId, cancellationToken));
     }
 
     private RelacionEmpresarial OtraRelacionDeLaEmpresaDelCentro(Escenario e, out Empresa nuevaX)
