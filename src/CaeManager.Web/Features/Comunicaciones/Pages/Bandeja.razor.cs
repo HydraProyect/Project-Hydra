@@ -834,10 +834,13 @@ public partial class Bandeja : CaeManager.Web.Components.PaginaInteractiva, IAsy
     /// detalle que no es el de ese par y se fija al terminar la carga con éxito; si una carga falla, solo se conserva el detalle
     /// con el contexto cuando el par coincide.
     /// </summary>
-    private (Guid ConversacionId, Guid? ClienteId)? _contextoDe;
+    private (Guid ConversacionId, Guid? Cliente)? _contextoDe;
 
-    private bool ContextoEs(Guid conversacionId, Guid? clienteId) =>
-        _contextoDe is { } c && c.ConversacionId == conversacionId && c.ClienteId == clienteId;
+    private bool ContextoEs(Guid conversacionId, Guid? cliente) =>
+        _contextoDe is { } c && c.ConversacionId == conversacionId && c.Cliente == cliente;
+
+    // Un único acceso a ese campo del detalle para el contexto: deuda terminológica heredada (Empresa.Id en posición de Cliente empresarial).
+    private static Guid? ClienteDelDetalle(ConversacionDetalleDto detalle) => detalle.ClienteId;
 
     private async Task CargarDetalleAsync()
     {
@@ -870,7 +873,7 @@ public partial class Bandeja : CaeManager.Web.Components.PaginaInteractiva, IAsy
             if (carga != _cargaDetalleVigente) return;
 
             _detalle = detalle;
-            if (detalle is not null && !ContextoEs(id, detalle.ClienteId)) _contextoDe = null;
+            if (detalle is not null && !ContextoEs(id, ClienteDelDetalle(detalle))) _contextoDe = null;
             _notasInternas = notas;
             _autoresNotas = autores;
             _avataresNotas = avatares;
@@ -921,7 +924,7 @@ public partial class Bandeja : CaeManager.Web.Components.PaginaInteractiva, IAsy
 
             _tiposDocumentoSelector = tiposDocumento;
             _trabajadoresSelector = trabajadores;
-            _contextoDe = (id, detalle.ClienteId);
+            _contextoDe = (id, ClienteDelDetalle(_detalle));
         }
         catch (OperationCanceledException)
         {
@@ -938,7 +941,7 @@ public partial class Bandeja : CaeManager.Web.Components.PaginaInteractiva, IAsy
             // abandono (revisión Codex r1 de la #2167, MEDIO 2). El error se avisa igualmente con el toast.
             // Una recarga que falla conserva el detalle y su contexto solo si el contexto en memoria es el de ESTA conversación y
             // este Cliente empresarial (_contextoDe); si no, el contexto sería de otro hilo (revisión puente del delta r1 de la #2167).
-            if (!(_detalle is { } actual && ContextoEs(id, actual.ClienteId)))
+            if (!(_detalle is { } actual && ContextoEs(id, ClienteDelDetalle(actual))))
             {
                 _contextoDe = null;
                 _detalle = null;
