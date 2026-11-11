@@ -41,10 +41,14 @@ case "${2:-}" in
     exit 2 ;;
 esac
 
-# Solo vale un 200 final del propio candidato: sin -L curl no sigue un 3xx, y
-# con -f lo daría por bueno sin haber alcanzado el InRelease.
+# Solo vale un 200 final del propio candidato con la descarga completa: sin -L
+# curl no sigue un 3xx, y con -f lo daría por bueno sin haber alcanzado el
+# InRelease. El código de salida de curl también cuenta: un 200 que se corta o
+# se cuelga a mitad del cuerpo no es una respuesta.
 responde_200() {
-  [ "$(curl -sS --max-time 10 --max-redirs 0 -o /dev/null -w '%{http_code}' "$1")" = "200" ]
+  local codigo
+  codigo="$(curl -sS --max-time 10 --max-redirs 0 -o /dev/null -w '%{http_code}' "$1")" || return 1
+  [ "$codigo" = "200" ]
 }
 
 for base in "${candidatos[@]}"; do

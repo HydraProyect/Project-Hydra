@@ -74,8 +74,14 @@ runs:
         # Imprime 1 solo si hay alguna URI y todas (incluidas las del mirror+file
         # de la imagen) son de ubuntu.com, Azure incluido; si no, o si no puede
         # leerlas, imprime 0. Sin expansión de comodines (set -f, en subshell).
+        # Deb822 admite líneas de continuación y nombres de campo sin distinguir
+        # mayúsculas: si aparece cualquiera de las dos cosas no se interpreta y queda 0.
         reintentos_segun_fuentes() (
           set -f
+          if grep -qE '^[[:space:]]+[^[:space:]]' "$fuentes" || grep -iE '^uris:' "$fuentes" | grep -vqE '^URIs:'; then
+            echo 0
+            exit 0
+          fi
           efectivas=""
           for uri in $(sed -n 's/^URIs://p' "$fuentes" 2>/dev/null); do
             if [ "$uri" = "mirror+file:/etc/apt/apt-mirrors.txt" ]; then
@@ -153,10 +159,14 @@ runs:
           sudo timeout -k 5 120 dpkg --configure -a
         }
 
-        # Solo vale un 200 final del propio espejo: sin -L curl no sigue un 3xx, y
-        # con -f lo daría por bueno sin haber alcanzado el InRelease.
+        # Solo vale un 200 final del propio espejo con la descarga completa: sin -L
+        # curl no sigue un 3xx, y con -f lo daría por bueno sin haber alcanzado el
+        # InRelease. El código de salida de curl también cuenta: un 200 que se corta
+        # o se cuelga a mitad del cuerpo no es una respuesta.
         responde_200() {
-          [ "$(curl -sS --max-time 10 --max-redirs 0 -o /dev/null -w '%{http_code}' "$1")" = "200" ]
+          local codigo
+          codigo="$(curl -sS --max-time 10 --max-redirs 0 -o /dev/null -w '%{http_code}' "$1")" || return 1
+          [ "$codigo" = "200" ]
         }
 
         if ! responde_200 "$sonda"; then

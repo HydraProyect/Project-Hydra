@@ -275,21 +275,36 @@ public class AptAcotadoEnCiTests
         };
         var siguePorRedireccion = new Regex(@"(^|\s)(--location(-trusted)?|-[A-Za-z]*L[A-Za-z]*)(\s|$)", RegexOptions.Compiled);
 
+        // El cuerpo entero de la sonda, línea a línea: el 200 exacto (no «!= 200»), el
+        // código de salida de curl (un 200 cortado o colgado a mitad no vale) y sin -L.
+        string[] sonda =
+        [
+            "responde_200() {",
+            "local codigo",
+            "codigo=\"$(curl -sS --max-time 10 --max-redirs 0 -o /dev/null -w '%{http_code}' \"$1\")\" || return 1",
+            "[ \"$codigo\" = \"200\" ]",
+            "}",
+        ];
+        var llamadasMinimas = new Dictionary<string, int>
+        {
+            ["action.yml"] = 1,
+            ["elegir-espejo.sh"] = 2,
+            ["ci.yml (espejo-ubuntu)"] = 2,
+        };
+
         foreach (var (nombre, lineas) in fuentes)
         {
             var curls = lineas.Where(l => Regex.IsMatch(l, @"\bcurl\s")).ToList();
 
             curls.Should().NotBeEmpty($"{nombre}: el test tiene que estar mirando la sonda de verdad");
-            curls.Should().OnlyContain(l => l.Contains("--max-redirs 0", StringComparison.Ordinal),
-                $"{nombre}: una sonda no puede aceptar un 3xx como si fuera el InRelease");
-            curls.Should().OnlyContain(l => l.Contains("-w '%{http_code}'", StringComparison.Ordinal),
-                $"{nombre}: la sonda tiene que leer el código HTTP final");
+            IndiceDeSecuencia(lineas, sonda).Should().BeGreaterThan(-1,
+                $"{nombre}: la sonda exige un 200 final, sin redirección y con la descarga completa");
+            curls.Should().OnlyContain(l => l == sonda[2],
+                $"{nombre}: ninguna otra llamada a curl puede decidir la sonda por su cuenta");
             curls.Should().NotContain(l => siguePorRedireccion.IsMatch(l),
                 $"{nombre}: la sonda no sigue redirecciones: el 200 tiene que darlo el propio espejo");
-            lineas.Should().Contain(l => l.Contains("= \"200\" ]", StringComparison.Ordinal),
-                $"{nombre}: solo un 200 cuenta como respuesta");
-            lineas.Should().NotContain(l => Regex.IsMatch(l, @"\bif\s+!?\s*curl\b|&&\s*curl\b"),
-                $"{nombre}: la decisión se toma con responde_200, no con el código de salida de curl");
+            lineas.Count(l => Regex.IsMatch(l, @"\bresponde_200\s+""")).Should().BeGreaterThanOrEqualTo(llamadasMinimas[nombre],
+                $"{nombre}: cada InRelease sondeado pasa por responde_200");
         }
     }
 
@@ -316,22 +331,50 @@ public class AptAcotadoEnCiTests
             "ningún camino puede activar los reintentos sin mirar las fuentes que quedan");
         accion.Should().Contain("case \"$1\" in 0|1) ;; *) return 1 ;; esac",
             "un valor vacío o inesperado no puede llegar a Acquire::Retries");
-        accion.Should().Contain("reintentos=\"$(reintentos_segun_fuentes)\"",
-            "los reintentos salen de las fuentes efectivas");
-        accion.Should().Contain("escribir_conf_apt \"$reintentos\" || return 1",
-            "un fallo al escribir los reintentos no puede quedar oculto");
-        accion.Should().Contain(l => l.Contains("sed -n 's/^URIs://p' \"$fuentes\"", StringComparison.Ordinal),
-            "la decisión lee las URIs: de las fuentes de Ubuntu configuradas");
-        accion.Should().Contain("if [ \"$uri\" = \"mirror+file:/etc/apt/apt-mirrors.txt\" ]; then",
-            "el mirror+file de la imagen se expande a los espejos que lista");
-        accion.Should().Contain("END { exit (n == 0 || ajena) }'; then",
-            "sin ninguna URI legible, o con una sola ajena a ubuntu.com, los reintentos quedan a 0");
+        // El cuerpo entero, línea a línea: set -f, el rechazo de continuaciones y de
+        // «uris:» con otras mayúsculas, el «|| echo ilegible» que hace fallar un
+        // mirror+file ilegible, «ajena = 1» y el orden echo 1 / echo 0. Cualquier
+        // cambio, aunque sea inocuo, obliga a revisar de nuevo este control.
+        string[] decision =
+        [
+            "reintentos_segun_fuentes() (",
+            "set -f",
+            "if grep -qE '^[[:space:]]+[^[:space:]]' \"$fuentes\" || grep -iE '^uris:' \"$fuentes\" | grep -vqE '^URIs:'; then",
+            "echo 0",
+            "exit 0",
+            "fi",
+            "efectivas=\"\"",
+            "for uri in $(sed -n 's/^URIs://p' \"$fuentes\" 2>/dev/null); do",
+            "if [ \"$uri\" = \"mirror+file:/etc/apt/apt-mirrors.txt\" ]; then",
+            "efectivas+=\"$(cat /etc/apt/apt-mirrors.txt 2>/dev/null || echo ilegible)\"$'\\n'",
+            "else",
+            "efectivas+=\"$uri\"$'\\n'",
+            "fi",
+            "done",
+            "if printf '%s' \"$efectivas\" | awk '",
+            @"NF && $1 !~ /^#/ { n++; if ($1 !~ /^https?:\/\/([a-z0-9-]+\.)*ubuntu\.com\/ubuntu\/?$/) ajena = 1 }",
+            "END { exit (n == 0 || ajena) }'; then",
+            "echo 1",
+            "else",
+            "echo 0",
+            "fi",
+            ")",
+        ];
+        IndiceDeSecuencia(accion, decision).Should().BeGreaterThan(-1,
+            "la decisión de Acquire::Retries lee las fuentes efectivas y falla cerrada");
+        IndiceDeSecuencia(accion,
+        [
+            "fijar_reintentos() {",
+            "local reintentos",
+            "reintentos=\"$(reintentos_segun_fuentes)\"",
+            "escribir_conf_apt \"$reintentos\" || return 1",
+        ]).Should().BeGreaterThan(-1, "los reintentos salen de las fuentes efectivas y un fallo al escribirlos no queda oculto");
 
         var indiceDefinicion = accion.IndexOf("usar_archivo_directo() {");
+        indiceDefinicion.Should().BeGreaterThan(-1, "el test tiene que encontrar la preparación de fuentes");
         var indiceAntes = accion.FindIndex(indiceDefinicion, l => l == "escribir_conf_apt 0 || return 1");
         var indiceFuentes = accion.FindIndex(indiceDefinicion, l => l == "apuntar_fuentes_a \"$base\" || return 1");
         var indiceDespues = accion.FindIndex(indiceDefinicion, l => l == "fijar_reintentos || return 1");
-        indiceDefinicion.Should().BeGreaterThan(-1);
         indiceAntes.Should().BeInRange(indiceDefinicion + 1, indiceFuentes - 1,
             "los reintentos bajan a 0 antes de tocar las fuentes");
         indiceDespues.Should().BeGreaterThan(indiceFuentes,
@@ -365,6 +408,17 @@ public class AptAcotadoEnCiTests
         ];
         admitidas.Should().OnlyContain(u => oficial.IsMatch(u), "las fuentes oficiales mantienen los reintentos");
         ajenas.Should().NotContain(u => oficial.IsMatch(u), "cualquier otra fuente deja los reintentos a 0");
+    }
+
+    private static int IndiceDeSecuencia(List<string> lineas, string[] secuencia)
+    {
+        for (var i = 0; i + secuencia.Length <= lineas.Count; i++)
+        {
+            if (lineas.Skip(i).Take(secuencia.Length).SequenceEqual(secuencia, StringComparer.Ordinal))
+                return i;
+        }
+
+        return -1;
     }
 
     private static List<string> LineasSinComentario(string ruta) =>

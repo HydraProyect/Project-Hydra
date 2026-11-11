@@ -1264,10 +1264,13 @@ jobs:
           base_final="$(sed -nE 's/^FROM[[:space:]]+([^[:space:]]+)[[:space:]]+AS[[:space:]]+final[[:space:]]*$/\1/p' Dockerfile)"
           [ -n "$base_final" ] || { echo "::error::No encuentro la etapa «final» del Dockerfile."; exit 1; }
           codename="$(docker run --rm --entrypoint sh "$base_final" -c '. /etc/os-release && echo "$VERSION_CODENAME"')"
-          # Solo vale un 200 final: sin -L curl no sigue un 3xx, y con -f lo daría
-          # por bueno sin haber alcanzado el InRelease.
+          # Solo vale un 200 final con la descarga completa: sin -L curl no sigue
+          # un 3xx, y con -f lo daría por bueno sin haber alcanzado el InRelease. El
+          # código de salida de curl también cuenta (un 200 cortado no vale).
           responde_200() {
-            [ "$(curl -sS --max-time 10 --max-redirs 0 -o /dev/null -w '%{http_code}' "$1")" = "200" ]
+            local codigo
+            codigo="$(curl -sS --max-time 10 --max-redirs 0 -o /dev/null -w '%{http_code}' "$1")" || return 1
+            [ "$codigo" = "200" ]
           }
           if responde_200 "http://archive.ubuntu.com/ubuntu/dists/${codename}/InRelease" \
             && responde_200 "http://security.ubuntu.com/ubuntu/dists/${codename}-security/InRelease"; then
