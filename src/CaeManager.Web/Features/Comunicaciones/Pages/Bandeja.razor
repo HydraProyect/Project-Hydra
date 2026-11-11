@@ -474,7 +474,9 @@
             }
         </section>
 
-        @if (_vista == "clientes" && (_clienteActivo is not null || HayAccionesPendientes))
+        @* Solo con el detalle de la conversación seleccionada: mientras carga otra, el panel de contexto de la anterior (sus
+           acciones, su nota fija y sus notas del equipo) no se pinta, y no se puede editar ni guardar bajo la selección nueva. *@
+        @if (_vista == "clientes" && DetalleEsDeLaSeleccion && (_clienteActivo is not null || HayAccionesPendientes || HayNotasDeContexto))
         {
             <aside class="bandeja-columna bandeja-cliente">
                 <AccionCenter SugerenciasVisita="SugerenciasVisitaPendientes" SugerenciasGestion="SugerenciasGestionPendientes"
@@ -485,6 +487,14 @@
                               OnGenerarGestionesDesdeSugerencia="args => GenerarGestionesDesdeSugerenciaAsync(args.SugerenciaId, args.TrabajadorId, args.TipoDocumentoId)"
                               OnDescartarSugerenciaGestion="DescartarSugerenciaGestionAsync"
                               OnVincularConversacion="VincularConversacionAsync" />
+
+                @* Nota fija del contacto y notas del equipo (E21), como en la maqueta: lo primero del contexto. *@
+                @if (InterlocutorNotaFijaActual is { } interlocutor)
+                {
+                    <NotaFijaContacto @ref="_notaFija" OnTextoCambiado="AlCambiarNotaInterna" Tipo="interlocutor.Tipo" PropietarioId="interlocutor.PropietarioId"
+                                      Email="@interlocutor.Email" ResolverAutores="ResolverNombresAutoresAsync" />
+                }
+                <NotasEquipoConversacion Notas="_notasInternas" Autores="_autoresNotas" />
 
                 @if (_clienteActivo is not null)
                 {

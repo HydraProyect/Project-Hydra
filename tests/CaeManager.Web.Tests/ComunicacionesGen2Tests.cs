@@ -24,6 +24,8 @@ using CaeManager.Application.Comunicaciones.Queries.ObtenerMacros;
 using CaeManager.Application.Comunicaciones.Queries.ObtenerMensajesBuzonPersonal;
 using CaeManager.Application.Comunicaciones.Queries.ObtenerNotasInternasConversacion;
 using CaeManager.Application.Comunicaciones.Queries.ObtenerRecordatorioPropuestoConversacion;
+using CaeManager.Application.Contactos.Commands.FijarNotaContactoAgenda;
+using CaeManager.Application.Contactos.Queries.ObtenerNotaContacto;
 using CaeManager.Web.Features.Comunicaciones.Components;
 using CaeManager.Application.Telemetria.Queries.ObtenerTiempoGestionConversacion;
 using CaeManager.Application.TiposDocumento.Queries.ObtenerTiposDocumento;
@@ -226,6 +228,17 @@ public class ComunicacionesGen2Tests : BunitContext
 
         public Func<ResponderConversacionCommand, Result> AlResponder { get; set; } = _ => Result.Exito();
 
+        public NotaContactoDto? NotaContacto { get; set; }
+
+        public List<FijarNotaContactoAgendaCommand> NotasFijadas { get; } = [];
+
+        private Result GuardarNotaContacto(FijarNotaContactoAgendaCommand comando)
+        {
+            NotasFijadas.Add(comando);
+            NotaContacto = NotaContacto is null ? null : NotaContacto with { Notas = comando.Texto, ActualizadaEnUtc = DateTime.UtcNow };
+            return Result.Exito();
+        }
+
         /// <summary>Si devuelve una tarea, esa petición se resuelve cuando el test lo diga.</summary>
         public Func<object, Task<object?>?> Interceptar { get; set; } = _ => null;
 
@@ -248,6 +261,8 @@ public class ComunicacionesGen2Tests : BunitContext
                 ObtenerNotasInternasConversacionQuery => NotasInternas.ToList(),
                 CaeManager.Application.Comunicaciones.AlertasCriticas.ObtenerAlertaCriticaQuery => null,
                 ObtenerRecordatorioPropuestoConversacionQuery => null,
+                ObtenerNotaContactoQuery => NotaContacto,
+                FijarNotaContactoAgendaCommand c => GuardarNotaContacto(c),
                 ResponderConversacionCommand c => AlResponder(c),
                 CambiarEstadoConversacionCommand => Result.Exito(),
                 _ => throw new NotSupportedException($"Petición no prevista en este test: {peticion.GetType().Name}.")
@@ -357,6 +372,265 @@ public class ComunicacionesGen2Tests : BunitContext
 
     private static Task Escribir(IRenderedComponent<Bandeja> cut, string texto) =>
         cut.Find(".composer-correo textarea").InputAsync(new ChangeEventArgs { Value = texto });
+
+    // ---------------------------------------------------------------- revisión 1:1, incremento 2: E21 (nota fija del contacto y notas del equipo)
+
+    private static NotaContactoDto NotaDeCarmen(string? texto = "Prefiere que la llamen por la mañana.") =>
+        new(Guid.NewGuid(), "Carmen Ruiz", texto, null, new DateTime(2026, 11, 3, 10, 0, 0, DateTimeKind.Utc));
+
+    [Fact]
+    public async Task La_nota_fija_del_contacto_se_muestra_con_su_origen_y_se_edita_sin_perder_el_resto()
+    {
+        var conversacion = Conversacion("Documentación pendiente", ClienteRefrielectric);
+        var escenario = new Escenario { Detalle = _ => DetalleDe(conversacion), NotaContacto = NotaDeCarmen() };
+        escenario.Conversaciones.Add(conversacion);
+        var (cut, mediador) = Renderizar(escenario);
+        await SeleccionarFila(cut, "Documentación pendiente");
+
+        cut.WaitForAssertion(() => cut.FindAll(".nota-fija").Should().ContainSingle());
+        var nota = cut.Find(".nota-fija");
+        nota.TextContent.Should().Contain("Nota fija · Carmen Ruiz").And.Contain("Prefiere que la llamen por la mañana.")
+            .And.Contain("Agenda ·").And.Contain("03/11/2026");
+        mediador.Enviados.OfType<ObtenerNotaContactoQuery>().Should().ContainSingle().Which.Email.Should().Be("carmen.ruiz@refrielectric.es");
+
+        await Boton(cut, ".nota-fija button", "Editar").ClickAsync(new MouseEventArgs());
+        await cut.Find(".nota-fija-area").InputAsync(new ChangeEventArgs { Value = "Llamar por la tarde." });
+        await Boton(cut, ".nota-fija button", "Guardar nota fija").ClickAsync(new MouseEventArgs());
+
+        escenario.NotasFijadas.Should().ContainSingle().Which.Texto.Should().Be("Llamar por la tarde.");
+        cut.Find(".nota-fija").TextContent.Should().Contain("Llamar por la tarde.");
+        cut.FindAll(".nota-fija-area").Should().BeEmpty("al guardar se sale de la edición");
+    }
+
+    [Fact]
+    public async Task La_nota_fija_no_se_guarda_vacia_y_cancelar_conserva_la_anterior()
+    {
+        var conversacion = Conversacion("Documentación pendiente", ClienteRefrielectric);
+        var escenario = new Escenario { Detalle = _ => DetalleDe(conversacion), NotaContacto = NotaDeCarmen() };
+        escenario.Conversaciones.Add(conversacion);
+        var (cut, _) = Renderizar(escenario);
+        await SeleccionarFila(cut, "Documentación pendiente");
+        cut.WaitForAssertion(() => cut.FindAll(".nota-fija").Should().ContainSingle());
+
+        await Boton(cut, ".nota-fija button", "Editar").ClickAsync(new MouseEventArgs());
+        await cut.Find(".nota-fija-area").InputAsync(new ChangeEventArgs { Value = "   " });
+        Boton(cut, ".nota-fija button", "Guardar nota fija").HasAttribute("disabled").Should().BeTrue();
+
+        await Boton(cut, ".nota-fija button", "Cancelar").ClickAsync(new MouseEventArgs());
+
+        escenario.NotasFijadas.Should().BeEmpty();
+        cut.Find(".nota-fija").TextContent.Should().Contain("Prefiere que la llamen por la mañana.");
+    }
+
+    [Fact]
+    public async Task Sin_contacto_en_la_agenda_no_se_pinta_la_nota_fija()
+    {
+        var conversacion = Conversacion("Documentación pendiente", ClienteRefrielectric);
+        var escenario = new Escenario { Detalle = _ => DetalleDe(conversacion), NotaContacto = null };
+        escenario.Conversaciones.Add(conversacion);
+        var (cut, mediador) = Renderizar(escenario);
+        await SeleccionarFila(cut, "Documentación pendiente");
+
+        cut.WaitForAssertion(() => mediador.Enviados.OfType<ObtenerNotaContactoQuery>().Should().NotBeEmpty());
+        cut.FindAll(".nota-fija").Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task Las_notas_del_equipo_enlazan_con_la_nota_dentro_del_hilo()
+    {
+        var conversacion = Conversacion("Documentación pendiente", ClienteRefrielectric);
+        var escenario = new Escenario { Detalle = _ => DetalleDe(conversacion) };
+        var nota = new NotaInternaDetalleDto(Guid.NewGuid(), Guid.NewGuid(), "Pedir el TC2 antes del viernes.", DateTime.UtcNow);
+        escenario.NotasInternas.Add(nota);
+        escenario.Conversaciones.Add(conversacion);
+        var (cut, _) = Renderizar(escenario);
+        await SeleccionarFila(cut, "Documentación pendiente");
+
+        cut.WaitForAssertion(() => cut.FindAll(".notas-equipo").Should().ContainSingle());
+        var enlace = cut.Find(".notas-equipo a.notas-equipo-nota");
+        enlace.TextContent.Should().Contain("Pedir el TC2 antes del viernes.");
+        enlace.GetAttribute("href").Should().StartWith("http").And.Contain("/comunicaciones").And.EndWith($"#nota-interna-{nota.Id}",
+            "con <base href=\"/\"> un enlace de solo fragmento saldría de la pantalla: se ancla a la URL actual");
+        cut.FindAll($"#nota-interna-{nota.Id}").Should().ContainSingle("el enlace apunta a una fila real del hilo");
+    }
+
+    // ---------------------------------------------------------------- revisiones Codex r1 a r3 de la #2163 (notas)
+
+    private static Task<object?> Ya(object? valor) => Task.FromResult(valor);
+
+    /// <summary>Dos conversaciones del mismo Cliente empresarial con dos contactos distintos de su Agenda (Carmen y Laura).</summary>
+    private (Escenario Escenario, ConversacionListaDto Primera, ConversacionListaDto Segunda) DosConversacionesDeLaMismaAgenda()
+    {
+        var primera = Conversacion("Documentación pendiente", ClienteRefrielectric);
+        var segunda = Conversacion("Rechazo del portal", ClienteRefrielectric, "laura.gil@refrielectric.es");
+        var detallePrimera = DetalleDe(primera);
+        var detalleSegunda = DetalleDe(segunda);
+        var escenario = new Escenario { Detalle = id => id == primera.Id ? detallePrimera : detalleSegunda };
+        escenario.Conversaciones.AddRange([primera, segunda]);
+        return (escenario, primera, segunda);
+    }
+
+    /// <summary>
+    /// MEDIO 2 (r2): mientras se guarda la nota fija el área es de solo lectura; y si aun así llega texto nuevo durante el
+    /// guardado, al terminar no se pierde: la edición sigue abierta con él y cuenta como cambio sin guardar.
+    /// </summary>
+    [Fact]
+    public async Task Lo_escrito_en_la_nota_fija_mientras_se_guarda_no_se_pierde()
+    {
+        var conversacion = Conversacion("Documentación pendiente", ClienteRefrielectric);
+        var escenario = new Escenario { Detalle = _ => DetalleDe(conversacion), NotaContacto = NotaDeCarmen() };
+        escenario.Conversaciones.Add(conversacion);
+        var puerta = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        async Task<object?> Retener(FijarNotaContactoAgendaCommand comando)
+        {
+            await puerta.Task;
+            escenario.NotasFijadas.Add(comando);
+            return Result.Exito();
+        }
+        escenario.Interceptar = p => p is FijarNotaContactoAgendaCommand c ? Retener(c) : null;
+        var (cut, _) = Renderizar(escenario);
+        await SeleccionarFila(cut, "Documentación pendiente");
+        cut.WaitForAssertion(() => cut.FindAll(".nota-fija").Should().ContainSingle());
+
+        await Boton(cut, ".nota-fija button", "Editar").ClickAsync(new MouseEventArgs());
+        await cut.Find(".nota-fija-area").InputAsync(new ChangeEventArgs { Value = "Llamar por la tarde." });
+        var guardado = Boton(cut, ".nota-fija button", "Guardar nota fija").ClickAsync(new MouseEventArgs());
+        cut.WaitForAssertion(() => cut.Find(".nota-fija-area").HasAttribute("readonly").Should().BeTrue("mientras se guarda no se escribe"));
+
+        await cut.Find(".nota-fija-area").InputAsync(new ChangeEventArgs { Value = "Llamar por la tarde, después de las cuatro." });
+        await cut.InvokeAsync(() => puerta.SetResult());
+        await guardado;
+
+        escenario.NotasFijadas.Should().ContainSingle().Which.Texto.Should().Be("Llamar por la tarde.");
+        var area = cut.Find(".nota-fija-area");
+        area.GetAttribute("value").Should().Be("Llamar por la tarde, después de las cuatro.", "lo escrito después sigue en el área");
+        area.HasAttribute("readonly").Should().BeFalse();
+        cut.FindComponent<NotaFijaContacto>().Instance.TieneTextoSinGuardar.Should().BeTrue();
+    }
+
+    private static NotaContactoDto NotaDeLaura() =>
+        new(Guid.NewGuid(), "Laura Gil", "Solo por correo, nunca por teléfono.", null, new DateTime(2026, 11, 4, 9, 0, 0, DateTimeKind.Utc));
+
+    /// <summary>
+    /// MEDIO 4: al abrir otra conversación de la misma Agenda, la nota fija del contacto anterior no sigue en pantalla, y por
+    /// tanto no se puede editar ni guardar, mientras carga la del contacto nuevo; lo que se guarda después es del nuevo.
+    /// </summary>
+    [Fact]
+    public async Task La_nota_fija_del_contacto_anterior_no_se_puede_editar_mientras_carga_la_del_nuevo()
+    {
+        var (escenario, _, _) = DosConversacionesDeLaMismaAgenda();
+        var carmen = NotaDeCarmen();
+        var laura = NotaDeLaura();
+        var notaDeLaura = new TaskCompletionSource<object?>(TaskCreationOptions.RunContinuationsAsynchronously);
+        escenario.Interceptar = p => p switch
+        {
+            ObtenerNotaContactoQuery { Email: "carmen.ruiz@refrielectric.es" } => Ya(carmen),
+            ObtenerNotaContactoQuery { Email: "laura.gil@refrielectric.es" } => notaDeLaura.Task,
+            _ => null
+        };
+        var (cut, _) = Renderizar(escenario);
+        await SeleccionarFila(cut, "Documentación pendiente");
+        cut.WaitForAssertion(() => cut.Find(".nota-fija").TextContent.Should().Contain("Carmen Ruiz"));
+
+        var apertura = SeleccionarFila(cut, "Rechazo del portal");
+        cut.WaitForAssertion(() => cut.Find(".bandeja-centro-titulo-fila h2").TextContent.Trim().Should().Be("Rechazo del portal"));
+
+        cut.FindAll(".nota-fija").Should().BeEmpty("la nota de Carmen no es la de este contacto, y la de Laura aún no ha llegado");
+        await cut.InvokeAsync(() => notaDeLaura.SetResult(laura));
+        await apertura;
+        cut.WaitForAssertion(() => cut.Find(".nota-fija").TextContent.Should().Contain("Laura Gil"));
+
+        await Boton(cut, ".nota-fija button", "Editar").ClickAsync(new MouseEventArgs());
+        await cut.Find(".nota-fija-area").InputAsync(new ChangeEventArgs { Value = "Solo por correo." });
+        await Boton(cut, ".nota-fija button", "Guardar nota fija").ClickAsync(new MouseEventArgs());
+        escenario.NotasFijadas.Should().ContainSingle().Which.ContactoId.Should().Be(laura.ContactoId);
+    }
+
+    /// <summary>
+    /// MEDIO (r3): al pulsar otra conversación, la selección cambia antes de que llegue su detalle, y hasta entonces el detalle
+    /// en memoria es el de la anterior. Mientras carga el de B, el panel de contexto de A (su nota fija y sus notas del
+    /// equipo) no está en pantalla: no se puede editar ni guardar la nota de Carmen bajo la selección de B.
+    /// </summary>
+    [Fact]
+    public async Task Mientras_carga_el_detalle_de_otra_conversacion_no_se_puede_editar_la_nota_fija_de_la_anterior()
+    {
+        var (escenario, _, segunda) = DosConversacionesDeLaMismaAgenda();
+        escenario.NotasInternas.Add(new NotaInternaDetalleDto(Guid.NewGuid(), Guid.NewGuid(), "Pedir el TC2 antes del viernes.", DateTime.UtcNow));
+        var laura = NotaDeLaura();
+        var detalleSegunda = new TaskCompletionSource<object?>(TaskCreationOptions.RunContinuationsAsynchronously);
+        escenario.Interceptar = p => p switch
+        {
+            ObtenerConversacionPorIdQuery q when q.Id == segunda.Id => detalleSegunda.Task,
+            ObtenerNotaContactoQuery { Email: "carmen.ruiz@refrielectric.es" } => Ya(NotaDeCarmen()),
+            ObtenerNotaContactoQuery { Email: "laura.gil@refrielectric.es" } => Ya(laura),
+            _ => null
+        };
+        var (cut, _) = Renderizar(escenario);
+        await SeleccionarFila(cut, "Documentación pendiente");
+        cut.WaitForAssertion(() => cut.Find(".nota-fija").TextContent.Should().Contain("Carmen Ruiz"));
+        cut.FindAll(".notas-equipo").Should().ContainSingle();
+
+        var apertura = SeleccionarFila(cut, "Rechazo del portal");
+
+        cut.WaitForAssertion(() => cut.FindAll(".bandeja-centro-titulo-fila h2").Should().BeEmpty("el detalle de B aún carga"));
+        cut.FindAll(".nota-fija").Should().BeEmpty("la nota fija de Carmen es de la conversación anterior");
+        cut.FindAll(".notas-equipo").Should().BeEmpty("las notas del equipo de A no son las de B");
+        cut.FindAll(".bandeja-cliente").Should().BeEmpty("el panel de contexto de A no se pinta bajo la selección de B");
+
+        await cut.InvokeAsync(() => detalleSegunda.SetResult(escenario.Detalle(segunda.Id)));
+        await apertura;
+        cut.WaitForAssertion(() => cut.Find(".nota-fija").TextContent.Should().Contain("Laura Gil"));
+
+        await Boton(cut, ".nota-fija button", "Editar").ClickAsync(new MouseEventArgs());
+        await cut.Find(".nota-fija-area").InputAsync(new ChangeEventArgs { Value = "Solo por correo." });
+        await Boton(cut, ".nota-fija button", "Guardar nota fija").ClickAsync(new MouseEventArgs());
+        escenario.NotasFijadas.Should().ContainSingle().Which.ContactoId.Should().Be(laura.ContactoId);
+    }
+
+    /// <summary>MEDIO 7: una nota fija editada y sin guardar cuenta como cambio sin guardar al abrir otra conversación.</summary>
+    [Fact]
+    public async Task Abrir_otra_conversacion_con_la_nota_fija_a_medias_pregunta_antes_de_descartarla()
+    {
+        var (escenario, _, _) = DosConversacionesDeLaMismaAgenda();
+        escenario.NotaContacto = NotaDeCarmen();
+        var (cut, _) = Renderizar(escenario);
+        await SeleccionarFila(cut, "Documentación pendiente");
+        cut.WaitForAssertion(() => cut.FindAll(".nota-fija").Should().ContainSingle());
+        await Boton(cut, ".nota-fija button", "Editar").ClickAsync(new MouseEventArgs());
+        await cut.Find(".nota-fija-area").InputAsync(new ChangeEventArgs { Value = "Llamar por la tarde." });
+
+        var apertura = SeleccionarFila(cut, "Rechazo del portal");
+
+        cut.WaitForAssertion(() => cut.FindAll(".modal-pie button").Should().Contain(b => b.TextContent.Trim() == "Salir y descartar",
+            "la edición de la nota fija se perdería sin aviso"));
+        cut.Find(".bandeja-centro-titulo-fila h2").TextContent.Trim().Should().Be("Documentación pendiente");
+        await cut.PulsarEnElAvisoAsync("Salir y descartar");
+        await apertura;
+        cut.WaitForAssertion(() => cut.Find(".bandeja-centro-titulo-fila h2").TextContent.Trim().Should().Be("Rechazo del portal"));
+        escenario.NotasFijadas.Should().BeEmpty();
+    }
+
+    /// <summary>
+    /// MEDIO 6: una conversación anclada a una Empresa, sin Cliente empresarial activo ni acciones pendientes, también enseña
+    /// la nota fija del contacto y las notas del equipo.
+    /// </summary>
+    [Fact]
+    public async Task Una_conversacion_anclada_a_una_Empresa_sin_Cliente_ni_acciones_muestra_las_notas()
+    {
+        var conversacion = Conversacion("Documentación de la subcontrata", remitente: "laura.gil@aislamientos.es");
+        var participante = new ParticipanteDetalleDto(
+            Guid.NewGuid(), "laura.gil@aislamientos.es", RolParticipante.De, TipoParticipanteOrigen.Empresa, Guid.NewGuid());
+        var detalle = DetalleDe(conversacion) with { Participantes = [participante] };
+        var escenario = new Escenario { Detalle = _ => detalle, NotaContacto = NotaDeLaura() };
+        escenario.NotasInternas.Add(new NotaInternaDetalleDto(Guid.NewGuid(), Guid.NewGuid(), "Pedir el TC2 antes del viernes.", DateTime.UtcNow));
+        escenario.Conversaciones.Add(conversacion);
+        var (cut, _) = Renderizar(escenario);
+        await SeleccionarFila(cut, "Documentación de la subcontrata");
+
+        cut.WaitForAssertion(() => cut.FindAll(".nota-fija").Should().ContainSingle());
+        cut.FindAll(".notas-equipo").Should().ContainSingle();
+        cut.FindAll(".bandeja-cliente-identidad").Should().BeEmpty("no hay Cliente empresarial activo");
+    }
 
     // ---------------------------------------------------------------- mockup Gen 2
 

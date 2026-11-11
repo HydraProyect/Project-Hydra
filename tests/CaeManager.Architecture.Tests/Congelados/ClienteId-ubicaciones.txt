@@ -509,6 +509,8 @@ src/CaeManager.Web/Features/Clientes/Pages/ConfiguracionIaCliente.razor :: Clien
 src/CaeManager.Web/Features/Clientes/Pages/ConfiguracionIaCliente.razor.cs :: ClienteId = 7
 src/CaeManager.Web/Features/Clientes/Pages/ConfiguracionIaCliente.razor.cs :: clienteId = 15
 # Núcleo Comunicaciones: comprobaciones de asignación sobre el Empresa.Id en posición Cliente empresarial del DTO legacy.
+src/CaeManager.Web/Features/Comunicaciones/InterlocutorNotaFija.cs :: ClienteId = 1
+src/CaeManager.Web/Features/Comunicaciones/InterlocutorNotaFija.cs :: clienteId = 2
 src/CaeManager.Web/Features/Comunicaciones/Pages/Bandeja.razor :: ClienteId = 2
 src/CaeManager.Web/Features/Comunicaciones/Pages/Bandeja.razor :: _clienteIdFiltro = 2
 src/CaeManager.Web/Features/Comunicaciones/Pages/Bandeja.razor.cs :: ClienteId = 7

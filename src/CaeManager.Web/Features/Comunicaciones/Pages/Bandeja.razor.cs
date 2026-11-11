@@ -4,6 +4,7 @@ using CaeManager.Application.Comunicaciones;
 using CaeManager.Web.Features.Documentos.Recursos;
 using CaeManager.Application.Common;
 using CaeManager.Web.Features.Comunicaciones.Components;
+using CaeManager.Web.Features.Comunicaciones;
 using CaeManager.Application.Clientes.Queries.ObtenerClientePorId;
 using CaeManager.Application.Clientes.Queries.ObtenerClientesParaSelector;
 using CaeManager.Application.Comunicaciones.Commands.ActualizarDocumentoDesdeAdjunto;
@@ -1800,7 +1801,8 @@ public partial class Bandeja : CaeManager.Web.Components.PaginaInteractiva, IAsy
     private bool HayRespuestaONotaAMedias =>
         _detalle is not null && _vista == "clientes"
         && (!string.IsNullOrWhiteSpace(_textoRespuesta) || _adjuntosPendientes.Count > 0
-            || !string.IsNullOrWhiteSpace(_emailFallback) || _composerNota?.TieneTextoSinGuardar == true);
+            || !string.IsNullOrWhiteSpace(_emailFallback) || _composerNota?.TieneTextoSinGuardar == true
+            || _notaFija?.TieneTextoSinGuardar == true);
 
     private object?[] ValoresActualizarDocumento() =>
     [
@@ -1845,5 +1847,46 @@ public partial class Bandeja : CaeManager.Web.Components.PaginaInteractiva, IAsy
         _errorAdjuntos = null;
         _emailFallback = string.Empty;
         _composerNota?.Descartar();
+        _notaFija?.Descartar();
     }
+
+    // ---- Nota fija del contacto y notas del equipo (E21) ----
+
+    private NotaFijaContacto? _notaFija;
+
+    private ConversacionDetalleDto? _detalleDelInterlocutor;
+    private InterlocutorNotaFija.Interlocutor? _interlocutorNotaFija;
+
+    private InterlocutorNotaFija.Interlocutor? InterlocutorNotaFijaActual
+    {
+        get
+        {
+            if (_detalle is null) return null;
+            if (!ReferenceEquals(_detalleDelInterlocutor, _detalle))
+            {
+                _detalleDelInterlocutor = _detalle;
+                _interlocutorNotaFija = InterlocutorNotaFija.De(_detalle);
+            }
+
+            return _interlocutorNotaFija;
+        }
+    }
+
+    private Task<IReadOnlyDictionary<Guid, string>> ResolverNombresAutoresAsync(IReadOnlyCollection<Guid> ids) =>
+        DirectorioUsuarios.ObtenerNombresVisiblesAsync(ids.ToList(), _ciclo.Token);
+
+    /// <summary>
+    /// Nota fija del contacto o notas del equipo que enseñar en el panel de contexto (revisión Codex r1 de la #2163, MEDIO 6):
+    /// una conversación anclada a una Empresa, sin Cliente empresarial activo ni acciones pendientes, también las tiene.
+    /// </summary>
+    private bool HayNotasDeContexto =>
+        _detalle is not null && (InterlocutorNotaFijaActual is not null || _notasInternas.Count > 0);
+
+    /// <summary>
+    /// El detalle en memoria es el de la conversación seleccionada (revisión Codex r3 de la #2163, MEDIO). Al pulsar otra
+    /// conversación la selección cambia antes de esperar su detalle, y hasta que llega <c>_detalle</c> sigue siendo el de la
+    /// anterior: su panel de contexto no se pinta, para que su nota fija no se edite ni se guarde bajo la selección nueva.
+    /// Recargar la misma conversación (tras enviar, por ejemplo) no lo oculta: el Id no cambia.
+    /// </summary>
+    private bool DetalleEsDeLaSeleccion => _detalle is not null && _detalle.Id == _conversacionSeleccionadaId;
 }
