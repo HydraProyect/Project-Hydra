@@ -616,13 +616,22 @@ public sealed class ProcesadorFotosPdfTests
     }
 
     /// <summary>
-    /// Un PNG RGBA entrelazado (Adam7) construido a mano: Skia no sabe codificarlos. Mitad izquierda roja y mitad derecha
-    /// azul. <paramref name="profundidad"/> 8 o 16 bits por canal.
+    /// Un PNG entrelazado (Adam7) construido a mano: Skia no sabe codificarlos. Mitad izquierda roja y mitad derecha azul
+    /// (en gris, blanca y negra). <paramref name="profundidad"/> 8 o 16 bits por canal (la paleta, solo 8);
+    /// <paramref name="tipoDeColor"/> 0 gris, 2 RGB, 3 paleta o 6 RGBA; <paramref name="conTrns"/> añade un tRNS (gris, RGB y
+    /// paleta), que libpng convierte en alfa.
     /// </summary>
-    private static byte[] PngEntrelazado(int ancho, int alto, int profundidad = 8)
+    private static byte[] PngEntrelazado(int ancho, int alto, int profundidad = 8, byte tipoDeColor = 6, bool conTrns = false)
     {
         (int X0, int Y0, int DX, int DY)[] pasadas = [(0, 0, 8, 8), (4, 0, 8, 8), (0, 4, 4, 8), (2, 0, 4, 4), (0, 2, 2, 4), (1, 0, 2, 2), (0, 1, 1, 2)];
         var bytesPorMuestra = profundidad / 8;
+        byte[] Muestras(bool izquierda) => tipoDeColor switch
+        {
+            0 => [(byte)(izquierda ? 255 : 0)],
+            2 => [(byte)(izquierda ? 255 : 0), 0, (byte)(izquierda ? 0 : 255)],
+            3 => [(byte)(izquierda ? 0 : 1)],
+            _ => [(byte)(izquierda ? 255 : 0), 0, (byte)(izquierda ? 0 : 255), 255],
+        };
         var crudo = new List<byte>();
         foreach (var (x0, y0, dx, dy) in pasadas)
         {
@@ -637,7 +646,7 @@ public sealed class ProcesadorFotosPdfTests
                 for (var c = 0; c < columnas; c++)
                 {
                     var izquierda = x0 + c * dx < ancho / 2;
-                    foreach (var muestra in new byte[] { (byte)(izquierda ? 255 : 0), 0, (byte)(izquierda ? 0 : 255), 255 })
+                    foreach (var muestra in Muestras(izquierda))
                         for (var b = 0; b < bytesPorMuestra; b++)
                             crudo.Add(muestra);
                 }
@@ -652,13 +661,24 @@ public sealed class ProcesadorFotosPdfTests
         System.Buffers.Binary.BinaryPrimitives.WriteUInt32BigEndian(ihdr, (uint)ancho);
         System.Buffers.Binary.BinaryPrimitives.WriteUInt32BigEndian(ihdr.AsSpan(4), (uint)alto);
         ihdr[8] = (byte)profundidad;
-        ihdr[9] = 6; // RGBA
+        ihdr[9] = tipoDeColor;
         ihdr[12] = 1; // Adam7
+
+        // Paleta: rojo y azul. tRNS: en gris y RGB, el color que pasa a transparente (uno que no aparece, 2 bytes por
+        // muestra); en paleta, el alfa de cada entrada.
+        byte[] trozosPrevios = tipoDeColor switch
+        {
+            3 => [.. TrozoPng("PLTE", [255, 0, 0, 0, 0, 255]), .. (conTrns ? TrozoPng("tRNS", [255, 128]) : [])],
+            0 when conTrns => TrozoPng("tRNS", [0, 7]),
+            2 when conTrns => TrozoPng("tRNS", [0, 7, 0, 7, 0, 7]),
+            _ => [],
+        };
 
         return
         [
             0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A,
             .. TrozoPng("IHDR", ihdr),
+            .. trozosPrevios,
             .. TrozoPng("IDAT", comprimido.ToArray()),
             .. TrozoPng("IEND", []),
         ];
@@ -676,13 +696,34 @@ public sealed class ProcesadorFotosPdfTests
         return trozo;
     }
 
+    /// <summary>
+    /// Cada tipo de color, con y sin tRNS: Skia los decodifica de verdad y la reserva suma el búfer del entrelazado en el
+    /// PEOR caso (gris como gris con alfa, RGB y paleta como RGBA), que es lo que libpng puede entregar con un tRNS que IHDR no
+    /// anuncia. Con y sin tRNS se reserva lo mismo: la cota no se fía de que no venga.
+    /// </summary>
     [Theory]
-    [InlineData(8, 4)]
-    [InlineData(16, 8)]
-    public void Un_PNG_entrelazado_reserva_ademas_el_buffer_con_todas_las_filas_que_guarda_Skia(int profundidad, int bytesPorPixelNativos)
+    [InlineData(8, (byte)6, false, 4)] // RGBA
+    [InlineData(16, (byte)6, false, 8)]
+    [InlineData(8, (byte)2, false, 4)] // RGB: cuenta como RGBA
+    [InlineData(8, (byte)2, true, 4)] // RGB con tRNS: libpng lo entrega como RGBA
+    [InlineData(16, (byte)2, true, 8)]
+    [InlineData(8, (byte)0, false, 2)] // gris: cuenta como gris con alfa
+    [InlineData(8, (byte)0, true, 2)] // gris con tRNS: gris con alfa
+    [InlineData(16, (byte)0, true, 4)]
+    [InlineData(8, (byte)3, false, 4)] // paleta: cuenta como RGBA expandido
+    [InlineData(8, (byte)3, true, 4)]
+    public void Un_PNG_entrelazado_reserva_ademas_el_buffer_con_todas_las_filas_que_guarda_Skia(
+        int profundidad, byte tipoDeColor, bool conTrns, int bytesPorPixelNativos)
     {
-        var png = PngEntrelazado(64, 48, profundidad);
+        var png = PngEntrelazado(64, 48, profundidad, tipoDeColor, conTrns);
         CabeceraPng.Leer(png)!.Entrelazado.Should().BeTrue("instrumento: el fixture es de verdad Adam7");
+        using (var codecInstrumento = SKCodec.Create(new MemoryStream(png)))
+        {
+            codecInstrumento.Should().NotBeNull("instrumento: Skia lee el fixture");
+            // Instrumento: el tRNS llega a Skia (el PNG con tRNS no es opaco, el que no lo lleva sí lo es salvo RGBA).
+            if (tipoDeColor != 6)
+                (codecInstrumento!.Info.AlphaType != SKAlphaType.Opaque).Should().Be(conTrns);
+        }
         SKCodec.Create(new MemoryStream(png)).Should().NotBeNull("instrumento: Skia lo lee");
 
         var real = PresupuestoDe(512L * 1024 * 1024);

@@ -83,6 +83,9 @@ public static class ErroresFotoAPdf
     public const string FotoIlegible = "FotoAPdf.FotoIlegible";
     public const string DemasiadosPixeles = "FotoAPdf.DemasiadosPixeles";
     public const string NoSePudoGenerar = "FotoAPdf.NoSePudoGenerar";
+
+    /// <summary>No hubo hueco en <see cref="LimitadorConversionesPdf"/> a tiempo: se puede reintentar en unos segundos.</summary>
+    public const string Ocupado = "FotoAPdf.Ocupado";
 }
 
 /// <summary>

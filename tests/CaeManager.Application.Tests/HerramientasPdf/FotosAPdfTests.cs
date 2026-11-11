@@ -269,9 +269,14 @@ public sealed class FotosAPdfTests
     {
         public List<IReadOnlyList<byte[]>> Llamadas { get; } = [];
 
+        /// <summary>Si se pone, componer espera aquí después de anotar la llamada.</summary>
+        public ManualResetEventSlim? Pausa { get; init; }
+
         public Result<PdfDeFotos> ComponerPdf(IReadOnlyList<byte[]> fotos, CancellationToken cancellationToken)
         {
-            Llamadas.Add(fotos);
+            lock (Llamadas)
+                Llamadas.Add(fotos);
+            Pausa?.Wait(TimeSpan.FromSeconds(20), cancellationToken);
             return Result.Exito(new PdfDeFotos(new MemoryStream([1, 2, 3]), new Nada()));
         }
 
@@ -286,9 +291,99 @@ public sealed class FotosAPdfTests
         }
     }
 
-    private static Task<Result<PdfDeFotos>> Generar(ProcesadorFalso procesador, IReadOnlyList<byte[]> fotos, bool disponible = true) =>
-        new GeneradorPdfDesdeFotos(new Disponibilidad(disponible), procesador)
+    private static Task<Result<PdfDeFotos>> Generar(
+        ProcesadorFalso procesador, IReadOnlyList<byte[]> fotos, bool disponible = true, LimitadorConversionesPdf? limitador = null) =>
+        new GeneradorPdfDesdeFotos(new Disponibilidad(disponible), procesador, limitador ?? new LimitadorConversionesPdf())
             .GenerarAsync(fotos, CancellationToken.None);
+
+    [Fact]
+    public async Task Sin_hueco_en_el_limitador_el_generador_avisa_de_que_esta_ocupado_sin_llegar_al_procesador()
+    {
+        var procesador = new ProcesadorFalso();
+        var limitador = new LimitadorConversionesPdf(1, TimeSpan.FromMilliseconds(50));
+        using var ocupado = await limitador.EntrarAsync(CancellationToken.None);
+
+        var r = await Generar(procesador, [Jpeg(100, 100)], limitador: limitador);
+
+        r.Error.Codigo.Should().Be(ErroresFotoAPdf.Ocupado);
+        procesador.Llamadas.Should().BeEmpty("la composición no empieza sin turno de CPU");
+    }
+
+    [Fact]
+    public async Task El_generador_suelta_su_turno_al_terminar_y_otra_conversion_lo_puede_tomar()
+    {
+        var procesador = new ProcesadorFalso();
+        var limitador = new LimitadorConversionesPdf(1, TimeSpan.FromMilliseconds(50));
+
+        (await Generar(procesador, [Jpeg(100, 100)], limitador: limitador)).EsExitoso.Should().BeTrue();
+        (await Generar(procesador, [Jpeg(100, 100)], limitador: limitador)).EsExitoso.Should().BeTrue();
+
+        using var turno = await limitador.EntrarAsync(CancellationToken.None);
+        turno.Should().NotBeNull("las dos composiciones devolvieron su turno");
+    }
+
+    [Fact]
+    public async Task El_generador_retiene_el_turno_mientras_el_procesador_compone()
+    {
+        using var pausa = new ManualResetEventSlim();
+        var limitador = new LimitadorConversionesPdf(1, TimeSpan.FromMilliseconds(50));
+        var procesador = new ProcesadorFalso { Pausa = pausa };
+
+        var generando = Generar(procesador, [Jpeg(100, 100)], limitador: limitador);
+        SpinWait.SpinUntil(() => procesador.Llamadas.Count > 0, TimeSpan.FromSeconds(10)).Should().BeTrue();
+
+        (await limitador.EntrarAsync(CancellationToken.None)).Should().BeNull("el procesador sigue componiendo con el turno");
+
+        pausa.Set();
+        (await generando).EsExitoso.Should().BeTrue();
+    }
+
+    // --- El limitador de conversiones ---
+
+    [Fact]
+    public async Task El_limitador_no_da_mas_turnos_que_huecos_y_sin_hueco_a_tiempo_devuelve_null()
+    {
+        var limitador = new LimitadorConversionesPdf(2, TimeSpan.FromMilliseconds(50));
+
+        using var primero = await limitador.EntrarAsync(CancellationToken.None);
+        var segundo = await limitador.EntrarAsync(CancellationToken.None);
+        var tercero = await limitador.EntrarAsync(CancellationToken.None);
+
+        primero.Should().NotBeNull();
+        segundo.Should().NotBeNull();
+        tercero.Should().BeNull();
+
+        segundo!.Dispose();
+        segundo.Dispose(); // Soltar dos veces no regala un hueco.
+        using var cuarto = await limitador.EntrarAsync(CancellationToken.None);
+        cuarto.Should().NotBeNull();
+        (await limitador.EntrarAsync(CancellationToken.None)).Should().BeNull("soltar el mismo turno dos veces solo devuelve un hueco");
+    }
+
+    [Fact]
+    public async Task La_espera_del_limitador_se_corta_al_cancelar_sin_tomar_hueco()
+    {
+        var limitador = new LimitadorConversionesPdf(1, TimeSpan.FromSeconds(30));
+        var ocupado = await limitador.EntrarAsync(CancellationToken.None);
+        using var cancelacion = new CancellationTokenSource();
+
+        var esperando = limitador.EntrarAsync(cancelacion.Token);
+        cancelacion.Cancel();
+
+        await FluentActions.Awaiting(() => esperando).Should().ThrowAsync<OperationCanceledException>();
+        ocupado!.Dispose();
+        using var siguiente = await limitador.EntrarAsync(CancellationToken.None);
+        siguiente.Should().NotBeNull("la espera cancelada no se quedó con el hueco");
+    }
+
+    [Fact]
+    public void El_limitador_por_defecto_deja_nucleos_libres_y_espera_un_tiempo_acotado()
+    {
+        var limitador = new LimitadorConversionesPdf();
+
+        limitador.Huecos.Should().Be(Math.Max(1, Environment.ProcessorCount / 2));
+        limitador.EsperaMaxima.Should().BeGreaterThan(TimeSpan.Zero).And.BeLessThanOrEqualTo(TimeSpan.FromSeconds(30));
+    }
 
     [Fact]
     public async Task El_generador_pasa_las_fotos_al_procesador_en_el_orden_recibido()

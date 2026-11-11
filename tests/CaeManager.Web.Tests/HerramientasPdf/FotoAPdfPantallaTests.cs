@@ -34,6 +34,9 @@ public sealed class FotoAPdfPantallaTests : BunitContext
     private readonly PresupuestoMemoriaDocumentos _presupuesto = new(
         Options.Create(new OpcionesPresupuestoMemoriaDocumentos()), TimeProvider.System);
 
+    /// <summary>El limitador de CPU del proceso; los tests de «ocupado» lo cambian por uno de un hueco y espera corta.</summary>
+    private LimitadorConversionesPdf _limitador = new(4, TimeSpan.FromSeconds(10));
+
     public FotoAPdfPantallaTests() => JSInterop.Mode = JSRuntimeMode.Loose;
 
     private sealed class UsuarioFalso(string rol) : ICurrentUserService
@@ -87,10 +90,16 @@ public sealed class FotoAPdfPantallaTests : BunitContext
         /// <summary>Cuántas de las próximas llamadas a <see cref="CrearMiniatura"/> devuelven un fallo (una foto que el decodificador no lee).</summary>
         public int MiniaturasQueFallan;
 
-        public Result<byte[]> CrearMiniatura(byte[] foto, int ladoMaximoPixeles, CancellationToken cancellationToken) =>
-            Interlocked.Decrement(ref MiniaturasQueFallan) >= 0
+        /// <summary>Cuántas veces se llamó a <see cref="CrearMiniatura"/>.</summary>
+        public int MiniaturasPedidas;
+
+        public Result<byte[]> CrearMiniatura(byte[] foto, int ladoMaximoPixeles, CancellationToken cancellationToken)
+        {
+            Interlocked.Increment(ref MiniaturasPedidas);
+            return Interlocked.Decrement(ref MiniaturasQueFallan) >= 0
                 ? Result.Fallo<byte[]>(Error.Crear(ErroresFotoAPdf.FotoIlegible, "x"))
                 : Result.Exito(Miniatura);
+        }
     }
 
     private sealed class Disponibilidad(bool disponible) : IDisponibilidadHerramientasPdf
@@ -131,6 +140,7 @@ public sealed class FotoAPdfPantallaTests : BunitContext
             DirectorioTemporal = Path.Combine(Path.GetTempPath(), "talveg-foto-a-pdf-tests"),
         })));
         Services.AddSingleton<IPresupuestoMemoriaDocumentos>(_presupuesto);
+        Services.AddSingleton(_limitador);
 
         return Render<FotoAPdf>();
     }
@@ -456,11 +466,69 @@ public sealed class FotoAPdfPantallaTests : BunitContext
     }
 
     /// <summary>
-    /// Lo que ocupa en memoria la cadena <c>data:image/jpeg;base64,...</c> de una miniatura de <paramref name="bytesJpeg"/>
-    /// bytes: el Base64 (4 caracteres por cada 3 bytes) más el prefijo, a 2 bytes por carácter (UTF-16).
+    /// Lo que se reserva por la cadena <c>data:image/jpeg;base64,...</c> de una miniatura de <paramref name="bytesJpeg"/>
+    /// bytes: el Base64 (4 caracteres por cada 3 bytes) más el prefijo, a 3 bytes por carácter (2 de la cadena retenida en
+    /// UTF-16 y 1 de su copia UTF-8 en el lote de render pendiente de confirmar).
     /// </summary>
     private static long BytesDeLaCadenaDeUnaMiniatura(int bytesJpeg) =>
-        ("data:image/jpeg;base64,".Length + (bytesJpeg + 2) / 3 * 4) * (long)sizeof(char);
+        ("data:image/jpeg;base64,".Length + (bytesJpeg + 2) / 3 * 4) * 3L;
+
+    private static int FilasEn(string marcado) => marcado.Split("class=\"foto-fila\"").Length - 1;
+
+    [Fact]
+    public async Task La_reserva_de_una_miniatura_quitada_se_mantiene_hasta_despues_del_render_que_la_quita()
+    {
+        _procesador.Miniatura = new byte[100];
+        var cut = Renderizar();
+        await SubirAsync(cut, ("a.jpg", Jpeg(10, 10)), ("b.jpg", Jpeg(20, 20)));
+        cut.WaitForAssertion(() => _presupuesto.Reservado.Should().Be(2 * BytesDeLaCadenaDeUnaMiniatura(100)));
+
+        // Lo reservado en el momento en que se pinta cada render (antes de su OnAfterRender, que en Blazor Server llega
+        // cuando el navegador confirma el lote).
+        var alPintar = new List<(int Filas, long Reservado)>();
+        cut.OnMarkupUpdated += (_, _) => alPintar.Add((FilasEn(cut.Markup), _presupuesto.Reservado));
+
+        Pulsar(cut, "Quitar a.jpg");
+
+        cut.WaitForAssertion(() => _presupuesto.Reservado.Should().Be(BytesDeLaCadenaDeUnaMiniatura(100)));
+        alPintar.Should().Contain(p => p.Filas == 1);
+        alPintar.First(p => p.Filas == 1).Reservado.Should().Be(2 * BytesDeLaCadenaDeUnaMiniatura(100),
+            "el render que retira la fila aún lleva la reserva: su lote no está confirmado y la cadena puede seguir serializada");
+    }
+
+    [Fact]
+    public async Task Sin_hueco_para_convertir_las_fotos_no_entran_y_se_avisa_de_que_se_intente_en_unos_segundos()
+    {
+        _limitador = new LimitadorConversionesPdf(1, TimeSpan.FromMilliseconds(50));
+        using var ocupado = await _limitador.EntrarAsync(CancellationToken.None);
+        var cut = Renderizar();
+
+        await SubirAsync(cut, ("a.jpg", Jpeg(10, 10)), ("b.jpg", Jpeg(20, 20)));
+
+        cut.WaitForAssertion(() => cut.Find(".aviso-error[role=alert]").TextContent
+            .Should().Contain("Hay muchas conversiones en curso, inténtalo en unos segundos"));
+        cut.FindAll("li.foto-fila").Should().BeEmpty();
+        _procesador.MiniaturasPedidas.Should().Be(0, "sin turno de CPU no se decodifica ninguna foto");
+        _presupuesto.Reservado.Should().Be(0, "la foto leída no se queda reservada");
+    }
+
+    [Fact]
+    public async Task Sin_hueco_para_componer_el_PDF_se_avisa_de_que_se_intente_en_unos_segundos_sin_descargar()
+    {
+        _limitador = new LimitadorConversionesPdf(1, TimeSpan.FromMilliseconds(50));
+        var cut = Renderizar();
+        await SubirAsync(cut, ("a.jpg", Jpeg(10, 10)));
+        cut.WaitForAssertion(() => Nombres(cut).Should().HaveCount(1));
+        using var ocupado = await _limitador.EntrarAsync(CancellationToken.None);
+        ocupado.Should().NotBeNull("instrumento: la miniatura devolvió su turno");
+
+        PulsarDescargar(cut, "Descargar PDF de 1 página");
+
+        cut.WaitForAssertion(() => cut.Find(".aviso-error[role=alert]").TextContent
+            .Should().Contain("Hay muchas conversiones en curso, inténtalo en unos segundos"));
+        _procesador.Composiciones.Should().BeEmpty();
+        _procesador.FlujoEntregado.Should().BeNull();
+    }
 
     [Fact]
     public async Task La_miniatura_se_pinta_con_la_misma_cadena_que_se_reservo()
@@ -473,7 +541,8 @@ public sealed class FotoAPdfPantallaTests : BunitContext
         cut.WaitForAssertion(() => cut.FindAll("li.foto-fila .foto-miniatura img").Should().ContainSingle());
         var src = cut.Find("li.foto-fila .foto-miniatura img").GetAttribute("src")!;
         src.Should().Be("data:image/jpeg;base64," + Convert.ToBase64String(new byte[100]));
-        (src.Length * (long)sizeof(char)).Should().Be(_presupuesto.Reservado, "lo reservado es exactamente la cadena que retiene el circuito");
+        (src.Length * 3L).Should().Be(_presupuesto.Reservado,
+            "lo reservado es la cadena que retiene el circuito (UTF-16) y su copia en el lote de render (UTF-8)");
     }
 
     [Fact]

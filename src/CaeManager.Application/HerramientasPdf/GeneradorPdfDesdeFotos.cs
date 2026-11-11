@@ -13,7 +13,8 @@ namespace CaeManager.Application.HerramientasPdf;
 /// Un Command tampoco sirve: caería en las listas de comandos con cartera, y no toca ningún dato de Tenant. El rol lo exige
 /// la página (Administrador, Dirección CAE, Coordinador CAE y Gestor CAE), igual que el resto de Herramientas PDF.
 /// </summary>
-public class GeneradorPdfDesdeFotos(IDisponibilidadHerramientasPdf disponibilidad, IProcesadorFotosPdf procesador)
+public class GeneradorPdfDesdeFotos(
+    IDisponibilidadHerramientasPdf disponibilidad, IProcesadorFotosPdf procesador, LimitadorConversionesPdf limitador)
 {
     public async Task<Result<PdfDeFotos>> GenerarAsync(IReadOnlyList<byte[]> fotos, CancellationToken cancellationToken)
     {
@@ -39,7 +40,13 @@ public class GeneradorPdfDesdeFotos(IDisponibilidadHerramientasPdf disponibilida
                 return Fallo(ErroresFotoAPdf.TotalDemasiadoGrande, "Las fotos superan el tamaño total admitido.");
         }
 
-        // Decodificar y componer es trabajo de CPU síncrono: en un circuito de Blazor bloquearía la pantalla.
+        // Decodificar y componer es trabajo de CPU: entra por el limitador del proceso (no se ocupan todos los núcleos por
+        // muchas sesiones que generen a la vez) y corre fuera del circuito de Blazor, que si no se quedaría bloqueado. El
+        // turno se suelta cuando el procesador termina: Task.Run no completa mientras su delegado sigue en marcha.
+        using var turno = await limitador.EntrarAsync(cancellationToken);
+        if (turno is null)
+            return Fallo(ErroresFotoAPdf.Ocupado, "Hay muchas conversiones en curso.");
+
         return await Task.Run(() => procesador.ComponerPdf(fotos, cancellationToken), cancellationToken);
     }
 

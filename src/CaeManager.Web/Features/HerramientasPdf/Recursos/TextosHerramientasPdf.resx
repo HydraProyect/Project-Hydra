@@ -93,6 +93,9 @@
   <data name="ErrorSinEspacio" xml:space="preserve">
     <value>Ahora mismo no hay espacio para este PDF. Vuelve a intentarlo en unos minutos.</value>
   </data>
+  <data name="FotoErrorOcupado" xml:space="preserve">
+    <value>Hay muchas conversiones en curso, inténtalo en unos segundos.</value>
+  </data>
   <data name="ErrorTenantCambiado" xml:space="preserve">
     <value>La Empresa gestionada del selector ha cambiado desde que subiste el PDF. No se ha creado nada: vuelve a subirlo.</value>
   </data>

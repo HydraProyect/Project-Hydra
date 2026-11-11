@@ -10,16 +10,19 @@ namespace CaeManager.Application.HerramientasPdf;
 /// el bitmap decodificado ni se ve en las dimensiones por sí solas (depende del tipo de color y de la profundidad).
 ///
 /// <para>
-/// <b>Cálculo.</b> Es una COTA SUPERIOR: muestras por píxel del tipo de color (gris 1, RGB 3, paleta 1, gris con alfa 2, RGBA 4)
-/// por 2 bytes si la profundidad es 16 y por 1 en los demás casos (libpng desempaqueta las profundidades menores de 8 a un
-/// byte por muestra). Un PNG sin entrelazar no usa ese búfer: 0.
+/// <b>Cálculo.</b> Es una COTA SUPERIOR en el PEOR caso de las transformaciones que libpng puede aplicar a la fila antes de
+/// entregarla, porque desde IHDR no se sabe si después viene un tRNS: muestras por píxel tras expandir la transparencia y la
+/// paleta (gris 2, porque un tRNS lo convierte en gris con alfa; RGB 4, porque un tRNS lo convierte en RGBA; paleta 4, por si
+/// se expande a RGBA; gris con alfa 2; RGBA 4), por 2 bytes si la profundidad es 16 y por 1 en los demás casos (libpng
+/// desempaqueta las profundidades menores de 8 a un byte por muestra). Skia m119 no expande la paleta en libpng (lo hace su
+/// swizzler), así que para la paleta se reserva de más a propósito. Un PNG sin entrelazar no usa ese búfer: 0.
 /// </para>
 ///
 /// <para>
 /// <b>Qué no se garantiza.</b> El valor se deduce del código fuente de Skia (m119) y de libpng, no de una medición de
-/// memoria del binario desplegado. Se reserva de más antes que de menos, y una cabecera que no se reconoce (método de
-/// entrelazado, tipo de color o profundidad fuera de la especificación) no se presupuesta: <see cref="Leer"/> devuelve null y
-/// el procesador la rechaza.
+/// memoria del binario desplegado. Se reserva de más antes que de menos, y una cabecera que no se reconoce (métodos de
+/// compresión, filtro o entrelazado, tipo de color o profundidad fuera de la especificación) no se presupuesta:
+/// <see cref="Leer"/> devuelve null y el procesador la rechaza.
 /// </para>
 /// </summary>
 public sealed record CabeceraPng(int Ancho, int Alto, int ProfundidadBits, int TipoDeColor, bool Entrelazado)
@@ -29,18 +32,19 @@ public sealed record CabeceraPng(int Ancho, int Alto, int ProfundidadBits, int T
 
     private static readonly byte[] FirmaPng = [0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A];
 
-    /// <summary>Bytes por píxel de una fila en el formato nativo del PNG (el que mide <c>png_get_rowbytes</c>), como cota superior.</summary>
-    public int BytesPorPixelNativos => MuestrasPorPixel * (ProfundidadBits == 16 ? 2 : 1);
+    /// <summary>
+    /// Bytes por píxel de una fila tal como la entrega libpng (el que mide <c>png_get_rowbytes</c> tras sus transformaciones),
+    /// como cota superior para cualquier tRNS o expansión de paleta posterior a IHDR.
+    /// </summary>
+    public int BytesPorPixelNativos => MuestrasPorPixelEnElPeorCaso * (ProfundidadBits == 16 ? 2 : 1);
 
     /// <summary>Memoria nativa del búfer de todas las filas de un PNG entrelazado; 0 si no está entrelazado.</summary>
     public long BytesDeBufferEntrelazado => Entrelazado ? (long)Ancho * Alto * BytesPorPixelNativos : 0;
 
-    private int MuestrasPorPixel => TipoDeColor switch
+    private int MuestrasPorPixelEnElPeorCaso => TipoDeColor switch
     {
-        0 or 3 => 1,
-        4 => 2,
-        2 => 3,
-        _ => 4,
+        0 or 4 => 2, // Gris (con tRNS pasa a gris con alfa) y gris con alfa.
+        _ => 4,      // RGB (con tRNS pasa a RGBA), paleta (expandida a RGBA) y RGBA.
     };
 
     /// <summary>Null si no es un IHDR legible y dentro de la especificación: no es un PNG que se pueda presupuestar.</summary>
@@ -57,7 +61,11 @@ public sealed record CabeceraPng(int Ancho, int Alto, int ProfundidadBits, int T
         if (ancho == 0 || alto == 0 || ancho > int.MaxValue || alto > int.MaxValue)
             return null;
 
-        int profundidad = c[24], tipoDeColor = c[25], entrelazado = c[28];
+        int profundidad = c[24], tipoDeColor = c[25], compresion = c[26], filtro = c[27], entrelazado = c[28];
+
+        // La especificación solo define el método 0 de compresión (deflate) y el 0 de filtro (adaptativo).
+        if (compresion != 0 || filtro != 0)
+            return null;
 
         // Combinaciones de la especificación del PNG (tabla de tipos de color y profundidades).
         var profundidadValida = tipoDeColor switch

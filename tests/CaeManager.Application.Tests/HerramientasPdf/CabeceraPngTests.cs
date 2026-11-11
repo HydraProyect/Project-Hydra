@@ -28,19 +28,28 @@ public sealed class CabeceraPngTests
         return c;
     }
 
+    /// <summary>
+    /// Todas las combinaciones de la especificación, con la cota del PEOR caso: IHDR no dice si después viene un tRNS, así
+    /// que el gris cuenta como gris con alfa y el RGB como RGBA (png_set_tRNS_to_alpha), y la paleta como RGBA expandido.
+    /// </summary>
     [Theory]
     [InlineData(8, 6, 4)] // RGBA de 8 bits
-    [InlineData(16, 6, 8)] // RGBA de 16 bits: el peor caso, 8 bytes por píxel
-    [InlineData(8, 2, 3)] // RGB
-    [InlineData(16, 2, 6)]
-    [InlineData(8, 0, 1)] // gris
-    [InlineData(16, 0, 2)]
-    [InlineData(1, 0, 1)] // gris de 1 bit: libpng lo desempaqueta a un byte
+    [InlineData(16, 6, 8)] // RGBA de 16 bits: 8 bytes por píxel
+    [InlineData(8, 2, 4)] // RGB: con tRNS libpng lo entrega como RGBA
+    [InlineData(16, 2, 8)] // RGB de 16 bits con tRNS: RGBA de 16 bits
+    [InlineData(1, 0, 2)] // gris de 1 bit: desempaquetado a un byte y, con tRNS, gris con alfa
+    [InlineData(2, 0, 2)]
+    [InlineData(4, 0, 2)]
+    [InlineData(8, 0, 2)] // gris de 8 bits con tRNS: gris con alfa
+    [InlineData(16, 0, 4)] // gris de 16 bits con tRNS: gris con alfa de 16 bits
     [InlineData(8, 4, 2)] // gris con alfa
     [InlineData(16, 4, 4)]
-    [InlineData(8, 3, 1)] // paleta
-    [InlineData(2, 3, 1)]
-    public void Un_PNG_entrelazado_pide_un_buffer_con_todas_las_filas_en_el_formato_nativo(byte profundidad, byte tipoDeColor, int bytesPorPixel)
+    [InlineData(1, 3, 4)] // paleta de 1 bit: desempaquetada y expandida a RGBA, con o sin tRNS
+    [InlineData(2, 3, 4)]
+    [InlineData(4, 3, 4)]
+    [InlineData(8, 3, 4)]
+    public void Un_PNG_entrelazado_pide_un_buffer_con_todas_las_filas_en_el_peor_formato_que_puede_entregar_libpng(
+        byte profundidad, byte tipoDeColor, int bytesPorPixel)
     {
         var c = CabeceraPng.Leer(Png(7000, 5000, profundidad, tipoDeColor, entrelazado: 1))!;
 
@@ -57,6 +66,39 @@ public sealed class CabeceraPngTests
 
         c.Entrelazado.Should().BeFalse();
         c.BytesDeBufferEntrelazado.Should().Be(0);
+    }
+
+    [Theory]
+    [InlineData(0)] // gris
+    [InlineData(2)] // RGB
+    [InlineData(3)] // paleta
+    public void La_cota_no_depende_de_que_haya_tRNS_porque_IHDR_no_lo_dice(byte tipoDeColor)
+    {
+        // El lector solo ve IHDR: el mismo IHDR seguido o no de un tRNS da la misma cota, y esa cota ya es la del tRNS.
+        var sinTrns = Png(100, 100, 8, tipoDeColor, entrelazado: 1);
+        byte[] conTrns = [.. sinTrns, 0, 0, 0, 2, .. "tRNS"u8, 0, 0, 0, 0, 0, 0];
+
+        var cotaSin = CabeceraPng.Leer(sinTrns)!.BytesDeBufferEntrelazado;
+        var cotaCon = CabeceraPng.Leer(conTrns)!.BytesDeBufferEntrelazado;
+
+        cotaCon.Should().Be(cotaSin);
+        var muestrasConAlfa = tipoDeColor == 0 ? 2 : 4;
+        cotaSin.Should().BeGreaterThanOrEqualTo(100L * 100 * muestrasConAlfa, "la fila con el alfa que añade el tRNS cabe en la cota");
+    }
+
+    [Theory]
+    [InlineData(1, 0)]
+    [InlineData(0, 1)]
+    [InlineData(255, 0)]
+    [InlineData(0, 255)]
+    public void Un_IHDR_con_metodo_de_compresion_o_de_filtro_distinto_de_0_no_se_presupuesta(byte compresion, byte filtro)
+    {
+        var c = Png(10, 10, 8, 6, 1);
+        c[26] = compresion;
+        c[27] = filtro;
+
+        CabeceraPng.Leer(c).Should().BeNull("la especificación solo define el método 0 de compresión y el 0 de filtro");
+        CabeceraPng.Leer(Png(10, 10, 8, 6, 1)).Should().NotBeNull("con los dos a 0 la misma cabecera se presupuesta");
     }
 
     [Fact]

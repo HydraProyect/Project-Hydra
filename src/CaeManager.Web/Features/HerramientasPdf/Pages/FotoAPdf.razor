@@ -6,6 +6,8 @@
 @using CaeManager.Web.Features.HerramientasPdf.Recursos
 @using Microsoft.AspNetCore.Components.Forms
 @attribute [Authorize(Roles = $"{CaeManager.Infrastructure.Identity.Roles.Administrador},{CaeManager.Infrastructure.Identity.Roles.DireccionCae},{CaeManager.Infrastructure.Identity.Roles.CoordinadorCae},{CaeManager.Infrastructure.Identity.Roles.GestorCae}")]
+@* Cuenta cada render: la reserva de una miniatura quitada se suelta tras confirmarse el render siguiente (FotoAPdf.razor.cs). *@
+@{ ContarPintado(); }
 
 <LimiteDeErrores Pagina="this">
     <PageTitle>@Textos["FotoPestana"] — @Marca.Nombre</PageTitle>
@@ -74,7 +76,8 @@
                         {
                             var actual = foto;
                             var indice = posicion;
-                            <li class="foto-fila">
+                            @* @key: mover o quitar una foto permuta o retira su fila sin volver a enviar el src (la cadena data:) de las demás. *@
+                            <li class="foto-fila" @key="actual">
                                 <span class="foto-numero">@Textos["FotoPagina", indice + 1]</span>
                                 <span class="foto-miniatura">
                                     @if (actual.UrlMiniatura is { } urlMiniatura)
