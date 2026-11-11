@@ -1147,6 +1147,71 @@ public class DesconectarBuzonCommandHandlerTests
         conexion.HuecoPendienteDesdeUtc.Should().BeNull("no hubo hueco");
     }
 
+    /// <summary>
+    /// Bajo 5 de la revisión puente (ronda 18): la rama <c>Registrar: false</c> del reintento final. Tras un borrado
+    /// confirmado con la suscripción vigente, el guardado que vacía lo que quedaba por registrar agota sus colisiones; el
+    /// reintento sobre la versión de la base lo vacía igual y no registra un hueco que no hubo.
+    /// </summary>
+    [Fact]
+    public async Task Si_el_vaciado_tras_un_borrado_con_exito_no_llega_el_reintento_lo_vacia_sin_registrar_hueco()
+    {
+        var reloj = new RelojFalso(DateTime.UtcNow);
+        var (conexion, conexiones, suscripciones) = BuzonCompartidoQueExpiraEn(reloj.AhoraUtc.AddDays(2), reloj.AhoraUtc.AddHours(-1));
+        var graph = new Microsoft365GraphClientFalso();
+        var interno = new UnitOfWorkFalso();
+        DateTime? porRegistrarGuardado = null;
+        interno.AlGuardar = () => porRegistrarGuardado ??= conexion.MarcaHuecoPorRegistrarDesdeUtc;
+        var descarte = new DescarteContado(() => conexiones.Conexiones[0] = Copia(conexion, deshabilitada: true, porRegistrarGuardado));
+        var colisiones = Enumerable.Range(2, DesconectarBuzonCommandHandler.IntentosGuardadoMarca).ToArray();
+        var handler = CrearHandler(conexiones, suscripciones, new ReclamacionBuzonIntegracionRepositorioFalso(), new AlcanceDatosServiceFalso(),
+            graph, new CredencialIntegracionRepositorioFalso(), new UnitOfWorkConColisiones(interno, colisiones), descarte: descarte, reloj: reloj);
+
+        var resultado = await handler.Handle(new DesconectarBuzonCommand(conexion.Id), CancellationToken.None);
+
+        resultado.EsExitoso.Should().BeTrue();
+        graph.SuscripcionesEliminadas.Should().Equal(["sub-1"], "control: el DELETE se pidió y tuvo éxito");
+        porRegistrarGuardado.Should().Be(reloj.AhoraUtc, "control: el valor por registrar viajó con la Deshabilitada");
+        descarte.Veces.Should().Be(DesconectarBuzonCommandHandler.IntentosGuardadoMarca, "control: el primer vaciado agotó las colisiones");
+        interno.VecesGuardado.Should().Be(2, "la desconexión y el vaciado reintentado");
+        var recargada = conexiones.Conexiones[0];
+        recargada.Should().NotBeSameAs(conexion, "control: el reintento va sobre la versión de la base");
+        recargada.MarcaHuecoPorRegistrarDesdeUtc.Should().BeNull("el reintento vacía lo que quedaba por registrar");
+        recargada.HuecoPendienteDesdeUtc.Should().BeNull("el borrado se confirmó: no hay hueco que registrar");
+    }
+
+    /// <summary>
+    /// Bajo 5 de la revisión puente (ronda 18): si el vaciado tampoco llega al reintentarlo, el comando no devuelve un
+    /// éxito silencioso. Devuelve el mismo fallo visible, y la base conserva el valor por registrar: la reparación avisará
+    /// de más (el borrado sí se confirmó), nunca de menos.
+    /// </summary>
+    [Fact]
+    public async Task Si_el_vaciado_tras_un_borrado_con_exito_tampoco_llega_al_reintentarlo_devuelve_el_fallo_y_conserva_lo_por_registrar()
+    {
+        var reloj = new RelojFalso(DateTime.UtcNow);
+        var (conexion, conexiones, suscripciones) = BuzonCompartidoQueExpiraEn(reloj.AhoraUtc.AddDays(2), reloj.AhoraUtc.AddHours(-1));
+        var graph = new Microsoft365GraphClientFalso();
+        var interno = new UnitOfWorkFalso();
+        DateTime? porRegistrarGuardado = null;
+        interno.AlGuardar = () => porRegistrarGuardado ??= conexion.MarcaHuecoPorRegistrarDesdeUtc;
+        var descarte = new DescarteContado(() => conexiones.Conexiones[0] = Copia(conexion, deshabilitada: true, porRegistrarGuardado));
+        var colisiones = Enumerable.Range(2, 2 * DesconectarBuzonCommandHandler.IntentosGuardadoMarca).ToArray();
+        var logger = new LoggerCaptura();
+        var handler = CrearHandler(conexiones, suscripciones, new ReclamacionBuzonIntegracionRepositorioFalso(), new AlcanceDatosServiceFalso(),
+            graph, new CredencialIntegracionRepositorioFalso(), new UnitOfWorkConColisiones(interno, colisiones), descarte: descarte,
+            logger: logger, reloj: reloj);
+
+        var resultado = await handler.Handle(new DesconectarBuzonCommand(conexion.Id), CancellationToken.None);
+
+        resultado.Error.Codigo.Should().Be(DesconectarBuzonCommandHandler.CodigoMarcaHuecoNoGuardada);
+        graph.SuscripcionesEliminadas.Should().Equal(["sub-1"], "control: el DELETE se pidió y tuvo éxito");
+        descarte.Veces.Should().Be(2 * DesconectarBuzonCommandHandler.IntentosGuardadoMarca, "el intento y el reintento");
+        interno.VecesGuardado.Should().Be(1, "solo la desconexión");
+        logger.Entradas.Should().ContainSingle(e => e.Nivel == LogLevel.Critical)
+            .Which.Mensaje.Should().Contain(conexion.Id.ToString());
+        conexiones.Conexiones[0].MarcaHuecoPorRegistrarDesdeUtc.Should().Be(porRegistrarGuardado, "sigue guardado para la reparación");
+        conexiones.Conexiones[0].HuecoPendienteDesdeUtc.Should().BeNull();
+    }
+
     // Ronda 10, hallazgo medio: primero se guarda la desconexión y después se borra en Graph.
 
     [Fact]
