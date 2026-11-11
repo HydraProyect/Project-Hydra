@@ -405,7 +405,6 @@ public class ReglasDeNegocioSinCopiasTests
         ["src/CaeManager.Application/Comunicaciones/Queries/ObtenerConversacionPorId/ObtenerConversacionPorIdQuery.cs"] = 2,
         ["src/CaeManager.Application/Comunicaciones/Deteccion/ClasificacionRuidoMensajeService.cs"] = 1,
         ["src/CaeManager.Application/Visitas/Antelacion/EvaluadorExpedienteVisitaService.cs"] = 1,
-        ["src/CaeManager.Application/Documentos/Commands/RestaurarDocumento/RestaurarDocumentoCommand.cs"] = 1,
         // Una reclamación enviada nombra Documentos que pudieron renovarse después: se resuelve su Trabajador por Id
         // para derivar a qué Empresa empleadora y Delegación se envió, sea o no operativo hoy.
         // Y a qué Clientes empresariales llegó una reclamación a la Empresa empleadora (rastro de Centro 360): por las líneas que

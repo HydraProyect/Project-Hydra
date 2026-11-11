@@ -10,6 +10,9 @@ public class EmpresaRepository(CaeManagerDbContext dbContext) : IEmpresaReposito
     public Task<Empresa?> ObtenerPorIdAsync(Guid id, CancellationToken cancellationToken = default) =>
         dbContext.ObtenerActualAsync(dbContext.Empresas.Where(e => e.Id == id), cancellationToken);
 
+    public async Task<IReadOnlyList<Empresa>> ListarActualizadasAsync(CancellationToken cancellationToken = default) =>
+        await dbContext.ListarActualesAsync(dbContext.Empresas, e => !e.EstaEliminado, cancellationToken);
+
     public Task<bool> ExisteConRazonSocialAsync(string razonSocial, Guid? excluirId = null, CancellationToken cancellationToken = default) =>
         dbContext.Empresas.AnyAsync(
             e => e.RazonSocial.ToUpper() == razonSocial.ToUpper() && (excluirId == null || e.Id != excluirId),

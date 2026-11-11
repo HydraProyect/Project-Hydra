@@ -71,7 +71,10 @@ public class RenovarDocumentoCommandHandler(
     ISerializacionAltasAcreditacionEmpresa serializacionAltas,
     IPublisher publisher, IUnitOfWork unitOfWork,
     IVerificadorArchivoAlmacenado verificadorArchivo,
-    INacimientoGestionAutomaticaService gestionAutomatica)
+    INacimientoGestionAutomaticaService gestionAutomatica,
+    // Opcional solo mientras la PR #2104 cambia los tests que construyen este handler: el contenedor siempre lo resuelve
+    // (InvalidadorAlcanceInerte por defecto, el AlcanceDatosService del circuito en la Web). Issue #2118.
+    IInvalidadorAlcance? invalidadorAlcance = null)
     : IRequestHandler<RenovarDocumentoCommand, Result<Guid>>
 {
     public async Task<Result<Guid>> Handle(RenovarDocumentoCommand request, CancellationToken cancellationToken)
@@ -144,9 +147,12 @@ public class RenovarDocumentoCommandHandler(
                 // comprueba otra vez que sigue siendo el vigente que vio quien renueva. En el primer intento la lectura
                 // devuelve la misma instancia rastreada, sin refrescar: una renovación ajena confirmada mientras esta
                 // esperaba el candado no se ve aquí, sino en el guardado, por la versión del anterior
-                // (Concurrencia.Conflicto).
+                // (Concurrencia.Conflicto). La Asignación de Cartera también se vuelve a decidir: pudo revocarse mientras
+                // se esperaba, y el alcance memoizado (en Blazor Server, el del circuito) es de antes; se descarta, igual
+                // que en BloqueoRespuestaSugerida.ComprobarEnvioPorBuzonAsync (issue #2118).
+                invalidadorAlcance?.Invalidar();
                 var vigente = await repositorio.ObtenerPorIdAsync(anterior.Id, ct);
-                if (vigente is null)
+                if (vigente is null || !await alcanceDatos.DocumentoVisibleAsync(vigente, proyectosContext, ct))
                     return Result.Fallo(Error.Crear("Documento.NoEncontrado", "No encontramos este documento."));
                 if (!DocumentoOperativo.Es(vigente))
                     return Result.Fallo(DocumentoEnHistorial.NuevoError());

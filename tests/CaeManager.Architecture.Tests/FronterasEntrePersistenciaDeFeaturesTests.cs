@@ -662,7 +662,6 @@ public class FronterasEntrePersistenciaDeFeaturesTests
         ("Importacion.EjecutarImportacionMaestraCommandHandler", "IEmpresaRepository"),
         ("Importacion.EjecutarImportacionMaestraCommandHandler", "IEmpresasQueryContext"),
         ("Importacion.EjecutarImportacionMaestraCommandHandler", "IRelacionEmpresarialRepository"),
-        ("Importacion.EjecutarImportacionMaestraCommandHandler", "ITrabajadoresQueryContext"),
         ("Importacion.EjecutarImportacionMaestraCommandHandler", "ITrabajadorRepository"),
         ("Importacion.EjecutarImportacionCommandHandler", "IAsignacionesQueryContext"),
         ("Importacion.EjecutarImportacionCommandHandler", "IAsignacionRepository"),
