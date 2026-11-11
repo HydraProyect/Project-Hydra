@@ -93,6 +93,7 @@ public class LlamadaAlAlcanceDeCarteraEnEscrituraTests
         "Centros.EliminarDocumentacionRequeridaCentroCommandHandler",
         "Centros.EstablecerDocumentacionRequeridaCentroCommandHandler",
         "Centros.EstablecerGestionCaeCentroCommandHandler",
+        "Centros.EstablecerRelacionDeEntradaCentroCommandHandler",
         "Centros.GuardarNotaInternaCentroCommandHandler",
         "Centros.MarcarCanalGestionPrincipalCommandHandler",
         "Centros.RestaurarCentroCommandHandler",
