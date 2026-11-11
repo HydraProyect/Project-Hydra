@@ -433,14 +433,26 @@ public partial class Centros : CaeManager.Web.Components.PaginaInteractiva
                 _clienteId = ClienteId.Value.ToString();
                 alAbrir[IndiceClienteEnValores] = _clienteId;
                 _clienteNombreSoloLectura = _clientesDisponibles.First(c => c.Id == ClienteId).RazonSocial;
-                await CargarEmpresasDisponiblesAsync(ClienteId);
+                var empresasDelCliente = await Mediator.Send(new ObtenerEmpresasParaSelectorQuery(ClienteId));
 
-                if (EmpresaId is not null && _empresasDisponibles.Any(e => e.Id == EmpresaId))
+                // El drawer ya es editable mientras cargan: si se eligió otro Cliente empresarial, su propia carga puso la
+                // lista y decide la Empresa, y esta respuesta tardía no pisa ni elige nada.
+                if (_clienteId == ClienteId.Value.ToString())
                 {
-                    _empresaId = EmpresaId.Value.ToString();
-                    alAbrir[IndiceEmpresaEnValores] = _empresaId;
-                    _empresaNombreSoloLectura = _empresasDisponibles.First(e => e.Id == EmpresaId).RazonSocial;
-                    _padresFijadosPorCadena = true;
+                    _empresasDisponibles = empresasDelCliente;
+
+                    if (EmpresaId is not null && _empresasDisponibles.Any(e => e.Id == EmpresaId))
+                    {
+                        _empresaId = EmpresaId.Value.ToString();
+                        alAbrir[IndiceEmpresaEnValores] = _empresaId;
+                        _empresaNombreSoloLectura = _empresasDisponibles.First(e => e.Id == EmpresaId).RazonSocial;
+                        _padresFijadosPorCadena = true;
+                    }
+                    else if (ElegirEmpresaUnicaDelCliente())
+                    {
+                        // Sin Empresa en la URL, la única del Cliente empresarial la elige la pantalla: tampoco es un cambio.
+                        alAbrir[IndiceEmpresaEnValores] = _empresaId;
+                    }
                 }
             }
 
@@ -1160,7 +1172,8 @@ public partial class Centros : CaeManager.Web.Components.PaginaInteractiva
     /// <summary>
     /// Recarga el selector de Empresa acotado al Cliente elegido — o al
     /// catálogo completo si todavía no hay Cliente. Se llama al abrir el
-    /// Drawer y cada vez que el usuario cambia el Cliente en modo creación.
+    /// Drawer; el cambio de Cliente empresarial en modo creación y el
+    /// encadenado por URL cargan por su cuenta para descartar respuestas tardías.
     /// </summary>
     private async Task CargarEmpresasDisponiblesAsync(Guid? clienteId)
     {
@@ -1169,10 +1182,11 @@ public partial class Centros : CaeManager.Web.Components.PaginaInteractiva
 
     /// <summary>
     /// Solo aplica en modo creación con los padres editables (no fijados por
-    /// una cadena de otra pantalla): al cambiar el Cliente, el selector de
-    /// Empresa se recorta a las suyas — si la Empresa que estaba elegida ya
-    /// no pertenece al nuevo Cliente, se limpia en vez de dejar una
-    /// combinación imposible.
+    /// una cadena de otra pantalla): al cambiar el Cliente empresarial, el
+    /// selector de Empresa se recorta a las suyas — si la Empresa que estaba
+    /// elegida ya no pertenece al nuevo Cliente empresarial, se limpia en vez
+    /// de dejar una combinación imposible, y si el nuevo tiene una sola
+    /// Empresa, esa queda elegida (<see cref="ElegirEmpresaUnicaDelCliente"/>).
     /// </summary>
     private async Task CambiarClienteCreacionAsync(string valor)
     {
@@ -1182,10 +1196,34 @@ public partial class Centros : CaeManager.Web.Components.PaginaInteractiva
             _mensajeErrorFormulario = null;
 
         var clienteId = Guid.TryParse(valor, out var id) ? id : (Guid?)null;
-        await CargarEmpresasDisponiblesAsync(clienteId);
+        var empresas = await Mediator.Send(new ObtenerEmpresasParaSelectorQuery(clienteId));
+
+        // Otro Cliente empresarial elegido mientras cargaban estas Empresas: su propia llamada pone la lista y decide la
+        // Empresa. Sin esto, una respuesta tardía dejaría las Empresas (y la única, elegida) de un Cliente empresarial que
+        // ya no es el del alta.
+        if (_clienteId != valor)
+            return;
+
+        _empresasDisponibles = empresas;
 
         if (!_empresasDisponibles.Any(e => e.Id.ToString() == _empresaId))
             _empresaId = string.Empty;
+
+        if (clienteId is not null && ElegirEmpresaUnicaDelCliente())
+            LimpiarAvisoDeSeleccionFaltante();
+    }
+
+    /// <summary>
+    /// Con la lista de Empresas ya acotada a un Cliente empresarial: si tiene una sola y no hay ninguna elegida, queda
+    /// elegida esa (el selector sigue editable para crear otra). Con varias no se elige ninguna. Devuelve si la eligió.
+    /// </summary>
+    private bool ElegirEmpresaUnicaDelCliente()
+    {
+        if (_empresaId.Length > 0 || _empresasDisponibles.Count != 1)
+            return false;
+
+        _empresaId = _empresasDisponibles[0].Id.ToString();
+        return true;
     }
 
     private const string AvisoSeleccionaCliente = "Selecciona un Cliente.";
