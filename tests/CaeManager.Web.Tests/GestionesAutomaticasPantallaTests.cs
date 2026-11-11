@@ -1014,6 +1014,7 @@ public partial class GestionesAutomaticasPantallaTests : BunitContext
         public bool FallaListado { get; set; }
         public bool FallaDetalle { get; set; }
         public string? FalloAlMarcar { get; set; }
+        public string CodigoFallo { get; set; } = "X";
         public Action? AlMarcar { get; set; }
         public List<object> Enviados { get; } = [];
         public List<Guid> DetallesPedidos { get; } = [];
@@ -1039,7 +1040,7 @@ public partial class GestionesAutomaticasPantallaTests : BunitContext
                 case MarcarAcreditacionSubidaCommand or MarcarAcreditacionRechazadaCommand
                     or CaeManager.Application.Documentos.Commands.MarcarAcreditacionNoRequerida.MarcarAcreditacionNoRequeridaCommand:
                     Enviados.Add(request);
-                    if (FalloAlMarcar is not null) return Responder<TResponse>(Result.Fallo(Error.Crear("X", FalloAlMarcar)));
+                    if (FalloAlMarcar is not null) return Responder<TResponse>(Result.Fallo(Error.Crear(CodigoFallo, FalloAlMarcar)));
                     AlMarcar?.Invoke();
                     return Responder<TResponse>(Result.Exito());
                 case CaeManager.Application.Documentos.Commands.RestaurarAnotacionAcreditacion.RestaurarAnotacionAcreditacionCommand r:

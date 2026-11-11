@@ -69,6 +69,8 @@ public class MarcarAcreditacionNoRequeridaCommandHandlerTests
         resultado.Error.Codigo.Should().Be("Acreditacion.CambiadaDesdeQueSeAbrio");
         escenario.Acreditacion.Estado.Should().Be(EstadoAcreditacion.Rechazada, "el rechazo no sale de la cola sin aviso");
         escenario.UnitOfWork.VecesGuardado.Should().Be(0);
+        escenario.Acreditaciones.LecturasActualizadas.Should().Be(1,
+            "compara contra la base releída: con una entidad rastreada obsoleta la guarda no vería el cambio");
     }
 
     [Fact]

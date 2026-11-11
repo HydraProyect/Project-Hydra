@@ -55,7 +55,7 @@ public class MarcarAcreditacionNoRequeridaCommandHandler(
 {
     public static readonly Error CambiadaDesdeQueSeAbrio = Error.Crear(
         "Acreditacion.CambiadaDesdeQueSeAbrio",
-        "Este paso ha cambiado desde que abriste la Gestión. Vuelve a cargarla para ver cómo está.");
+        "Este paso ha cambiado desde que abriste la Gestión. Revisa cómo está ahora antes de marcarlo.");
 
     public async Task<Result> Handle(MarcarAcreditacionNoRequeridaCommand request, CancellationToken cancellationToken)
     {

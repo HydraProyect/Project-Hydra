@@ -2,6 +2,7 @@ using Bunit;
 using CaeManager.Application.Documentos.Commands.MarcarAcreditacionNoRequerida;
 using CaeManager.Application.Gestiones.Queries.GestionesAutomaticas;
 using CaeManager.Application.Trabajadores.Queries.ObtenerTrabajadorPorId;
+using CaeManager.Domain.Documentos;
 using CaeManager.Infrastructure.Identity;
 using CaeManager.Web.Components.DesignSystem;
 using CaeManager.Web.Features.Gestiones.Pages;
@@ -281,6 +282,47 @@ public partial class GestionesAutomaticasPantallaTests
         cut.Find("[data-campos-opcion='nopide'] input[type='checkbox']").HasAttribute("checked").Should().BeFalse();
         cut.Find("[data-accion='guardar']").HasAttribute("disabled").Should().BeTrue("sin confirmar otra vez no se guarda");
         m.Enviados.OfType<MarcarAcreditacionNoRequeridaCommand>().Should().BeEmpty();
+    }
+
+    [Fact]
+    public void No_lo_pide_envia_el_estado_del_paso_abierto_aunque_no_sea_Pendiente_de_subir()
+    {
+        var pasos = SeisPasosNuevos();
+        pasos[0] = pasos[0] with { Estado = EstadoAcreditacion.Rechazada };
+        var m = Montar();
+        var cut = Detallar(m, Detalle(pasos));
+
+        cut.Find("[data-paso-abierto]").GetAttribute("data-paso-abierto").Should().Be(pasos[0].AcreditacionId.ToString(), "precondición");
+        cut.Find("[data-opcion='nopide']").Click();
+        cut.Find("[data-campos-opcion='nopide'] input[type='checkbox']").Change(true);
+        cut.Find("[data-accion='guardar']").Click();
+
+        cut.WaitForAssertion(() => m.Enviados.OfType<MarcarAcreditacionNoRequeridaCommand>().Should().ContainSingle()
+            .Which.EstadoVisto.Should().Be(EstadoAcreditacion.Rechazada));
+    }
+
+    [Fact]
+    public void Si_el_paso_cambio_desde_que_se_abrio_se_relee_y_hay_que_confirmar_otra_vez_sin_Reintentar_a_ciegas()
+    {
+        var pasos = SeisPasosNuevos();
+        var m = Montar();
+        m.FalloAlMarcar = MarcarAcreditacionNoRequeridaCommandHandler.CambiadaDesdeQueSeAbrio.Mensaje;
+        m.CodigoFallo = MarcarAcreditacionNoRequeridaCommandHandler.CambiadaDesdeQueSeAbrio.Codigo;
+        var cut = Detallar(m, Detalle(pasos));
+        var ahora = pasos.ToList();
+        ahora[0] = ahora[0] with { Estado = EstadoAcreditacion.Rechazada };
+
+        cut.Find("[data-opcion='nopide']").Click();
+        cut.Find("[data-campos-opcion='nopide'] input[type='checkbox']").Change(true);
+        m.Detalle = Detalle(ahora);
+        cut.Find("[data-accion='primario']").Click();
+
+        cut.WaitForAssertion(() => m.DetallesPedidos.Should().HaveCount(2, "el fallo vuelve a leer la Gestión"));
+        cut.Find("[data-aviso='error-guardado']").TextContent.Should().Contain("Este paso ha cambiado desde que abriste la Gestión.");
+        cut.Find("[data-paso-abierto]").GetAttribute("data-paso-abierto").Should().Be(pasos[0].AcreditacionId.ToString());
+        cut.Find("[data-campos-opcion='nopide'] input[type='checkbox']").HasAttribute("checked").Should()
+            .BeFalse("se confirma otra vez sobre el estado real");
+        cut.FindAll("[data-accion='reintentar']").Should().BeEmpty("reintentar reenviaría el estado viejo");
     }
 
     [Fact]

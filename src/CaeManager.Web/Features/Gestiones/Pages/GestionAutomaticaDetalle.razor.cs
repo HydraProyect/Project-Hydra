@@ -481,6 +481,14 @@ public partial class GestionAutomaticaDetalle : CaeManager.Web.Components.Pagina
             if (resultado.EsFallido)
             {
                 _errorGuardado = resultado.Error.Mensaje;
+                // El paso cambió desde que se abrió: se relee para enseñar cómo está de verdad, y «no lo pide» hay que
+                // confirmarlo otra vez sobre ese estado (sin confirmación, «Reintentar» no se ofrece).
+                if (resultado.Error.Codigo == MarcarAcreditacionNoRequeridaCommandHandler.CambiadaDesdeQueSeAbrio.Codigo)
+                {
+                    _confirmaNoPide = false;
+                    await CargarAsync();
+                }
+
                 return;
             }
 

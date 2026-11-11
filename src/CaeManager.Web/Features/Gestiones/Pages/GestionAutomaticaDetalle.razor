@@ -229,7 +229,10 @@
                         {
                             <div class="gp-aviso gp-aviso-peligro" role="alert" data-aviso="error-guardado">
                                 <span><b>@Textos["GpErrorGuardadoTitulo"]</b> @_errorGuardado</span>
-                                <button type="button" class="gp-boton gp-boton-secundario gp-boton-pequeno" @onclick="GuardarSoloAsync">@Textos["BotonReintentar"]</button>
+                                @if (PuedeGuardar)
+                                {
+                                    <button type="button" class="gp-boton gp-boton-secundario gp-boton-pequeno" data-accion="reintentar" @onclick="GuardarSoloAsync">@Textos["BotonReintentar"]</button>
+                                }
                             </div>
                         }
 
