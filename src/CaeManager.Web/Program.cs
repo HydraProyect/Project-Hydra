@@ -62,6 +62,16 @@ using System.Text.Json.Serialization;
 // vida de DI — se registra una sola vez al arrancar (ver EmbeddedFontResolver).
 GlobalFontSettings.FontResolver = new EmbeddedFontResolver();
 
+// Proceso aparte de Herramientas PDF (UnidorPdfEnProcesoAparte): abre los PDF ajenos con su límite de memoria y de tiempo
+// y termina, antes de leer configuración, conectar con la base de datos o configurar el registro.
+if (args is [CaeManager.Infrastructure.HerramientasPdf.ProcesoHerramientasPdf.Argumento])
+{
+    CaeManager.Infrastructure.HerramientasPdf.ProcesoHerramientasPdf.PreferirComoVictimaDeFaltaDeMemoria();
+    using var entradaProcesoPdf = Console.OpenStandardInput();
+    using var salidaProcesoPdf = Console.OpenStandardOutput();
+    Environment.Exit(CaeManager.Infrastructure.HerramientasPdf.ProcesoHerramientasPdf.Ejecutar(entradaProcesoPdf, salidaProcesoPdf));
+}
+
 var builder = WebApplication.CreateBuilder(args);
 
 // S-B-6: en Production no se arranca con la válvula que deja el tráfico en la

@@ -423,6 +423,192 @@
   <data name="ResultadoDocumentos" xml:space="preserve">
     <value>Documentos</value>
   </data>
+  <data name="PortadaUnirTitulo" xml:space="preserve">
+    <value>Unir varios PDF en uno</value>
+  </data>
+  <data name="PortadaUnirDescripcion" xml:space="preserve">
+    <value>Elige PDF que subes o que ya están en Documentos, ordénalos y descarga uno solo. No se guarda nada.</value>
+  </data>
+  <data name="PortadaUnirAccion" xml:space="preserve">
+    <value>Unir PDF</value>
+  </data>
+  <data name="UnirPestana" xml:space="preserve">
+    <value>Unir PDF</value>
+  </data>
+  <data name="UnirTitulo" xml:space="preserve">
+    <value>Unir PDF</value>
+  </data>
+  <data name="UnirSinEmpresaResto" xml:space="preserve">
+    <value>en el selector de la barra lateral. De ella salen los Documentos que puedes unir.</value>
+  </data>
+  <data name="UnirSinEmpresaPropia" xml:space="preserve">
+    <value>Aún no hay ninguna Empresa gestionada de la que unir documentos.</value>
+  </data>
+  <data name="UnirFirmasTitulo" xml:space="preserve">
+    <value>Perderán la firma electrónica.</value>
+  </data>
+  <data name="UnirFirmasPierden" xml:space="preserve">
+    <value>El PDF unido es nuevo y no conserva la firma de {0}.</value>
+  </data>
+  <data name="UnirRevisarLista" xml:space="preserve">
+    <value>Revisar la lista</value>
+  </data>
+  <data name="UnirIgualmente" xml:space="preserve">
+    <value>Unir igualmente</value>
+  </data>
+  <data name="UnirAvisoFirmado" xml:space="preserve">
+    <value>Algún PDF lleva firma electrónica. Al unirlo la pierde: el PDF unido es nuevo y no la conserva.</value>
+  </data>
+  <data name="UnirAnadirTitulo" xml:space="preserve">
+    <value>Añade los PDF</value>
+  </data>
+  <data name="UnirZonaTitulo" xml:space="preserve">
+    <value>Arrastra aquí los PDF o pulsa para elegirlos</value>
+  </data>
+  <data name="UnirZonaFormatos" xml:space="preserve">
+    <value>Hasta {0} MB cada uno y {1} PDF como máximo.</value>
+  </data>
+  <data name="UnirOcultarDocumentos" xml:space="preserve">
+    <value>Ocultar Documentos</value>
+  </data>
+  <data name="UnirElegirDeDocumentos" xml:space="preserve">
+    <value>Elegir de Documentos</value>
+  </data>
+  <data name="UnirZonaBloqueada" xml:space="preserve">
+    <value>Elige una Empresa gestionada para poder añadir PDF</value>
+  </data>
+  <data name="UnirDocumentosTitulo" xml:space="preserve">
+    <value>Documentos de la Empresa gestionada</value>
+  </data>
+  <data name="UnirDocumentosVacio" xml:space="preserve">
+    <value>Esta Empresa gestionada no tiene documentos con archivo que puedas unir.</value>
+  </data>
+  <data name="UnirEmitido" xml:space="preserve">
+    <value>emitido el {0}</value>
+  </data>
+  <data name="UnirDocumentoAnadir" xml:space="preserve">
+    <value>Añadir</value>
+  </data>
+  <data name="UnirDocumentoAnadido" xml:space="preserve">
+    <value>Añadido</value>
+  </data>
+  <data name="UnirListaTitulo" xml:space="preserve">
+    <value>PDF a unir, en este orden</value>
+  </data>
+  <data name="UnirListaVacia" xml:space="preserve">
+    <value>Añade al menos dos PDF para unirlos.</value>
+  </data>
+  <data name="UnirOrigenSubido" xml:space="preserve">
+    <value>Subido</value>
+  </data>
+  <data name="UnirOrigenDocumento" xml:space="preserve">
+    <value>De Documentos</value>
+  </data>
+  <data name="UnirPaginaUna" xml:space="preserve">
+    <value>{0} página</value>
+  </data>
+  <data name="UnirPaginasVarias" xml:space="preserve">
+    <value>{0} páginas</value>
+  </data>
+  <data name="UnirFirmado" xml:space="preserve">
+    <value>con firma electrónica</value>
+  </data>
+  <data name="UnirSubirPosicion" xml:space="preserve">
+    <value>Subir {0} una posición</value>
+  </data>
+  <data name="UnirBajarPosicion" xml:space="preserve">
+    <value>Bajar {0} una posición</value>
+  </data>
+  <data name="UnirQuitar" xml:space="preserve">
+    <value>Quitar {0}</value>
+  </data>
+  <data name="UnirPie" xml:space="preserve">
+    <value>El PDF unido se descarga y no se guarda como Documento. Los PDF que subes desaparecen al unir o al salir de esta pantalla.</value>
+  </data>
+  <data name="UnirResumenUno" xml:space="preserve">
+    <value>{0} PDF en la lista: hacen falta al menos dos</value>
+  </data>
+  <data name="UnirResumenVarios" xml:space="preserve">
+    <value>{0} PDF para unir</value>
+  </data>
+  <data name="UnirAccion" xml:space="preserve">
+    <value>Unir y descargar</value>
+  </data>
+  <data name="UnirResultadoTitulo" xml:space="preserve">
+    <value>PDF unido: {0} páginas</value>
+  </data>
+  <data name="UnirResultadoDescarga" xml:space="preserve">
+    <value>Se ha descargado {0}.</value>
+  </data>
+  <data name="UnirResultadoNoGuardado" xml:space="preserve">
+    <value>El PDF unido no se ha guardado en TALVEG. Si lo necesitas como Documento, súbelo desde Documentos.</value>
+  </data>
+  <data name="UnirOtros" xml:space="preserve">
+    <value>Unir otros PDF</value>
+  </data>
+  <data name="UnirElPdf" xml:space="preserve">
+    <value>el PDF</value>
+  </data>
+  <data name="UnirErrorMaximoFicheros" xml:space="preserve">
+    <value>Se pueden unir como máximo {0} PDF a la vez.</value>
+  </data>
+  <data name="UnirErrorDemasiadoGrande" xml:space="preserve">
+    <value>{0} pesa más de {1} MB.</value>
+  </data>
+  <data name="UnirErrorTotalGrande" xml:space="preserve">
+    <value>Los PDF pesan juntos más de {0} MB. Quita alguno.</value>
+  </data>
+  <data name="UnirErrorContrasena" xml:space="preserve">
+    <value>{0} tiene contraseña. Quítala y vuelve a añadirlo.</value>
+  </data>
+  <data name="UnirErrorNoEsPdf" xml:space="preserve">
+    <value>{0} no es un PDF válido.</value>
+  </data>
+  <data name="UnirErrorDemasiadasPaginas" xml:space="preserve">
+    <value>{0} tiene demasiadas páginas: el PDF unido no puede pasar de {1}.</value>
+  </data>
+  <data name="UnirErrorDocumentoNoDisponible" xml:space="preserve">
+    <value>{0} ya no está disponible o queda fuera de tu cartera.</value>
+  </data>
+  <data name="UnirErrorArchivoNoDisponible" xml:space="preserve">
+    <value>No se ha podido abrir el archivo de {0}. Inténtalo más tarde.</value>
+  </data>
+  <data name="UnirErrorIlegible" xml:space="preserve">
+    <value>No hemos podido leer {0}. Prueba con otra copia.</value>
+  </data>
+  <data name="UnirErrorTenantCambiado" xml:space="preserve">
+    <value>La Empresa gestionada del selector ha cambiado. No se ha unido nada: vuelve a empezar.</value>
+  </data>
+  <data name="UnirErrorEmpresa" xml:space="preserve">
+    <value>La Empresa gestionada no existe o queda fuera de tu cartera.</value>
+  </data>
+  <data name="UnirErrorNumeroFicheros" xml:space="preserve">
+    <value>Hay que unir entre {0} y {1} PDF.</value>
+  </data>
+  <data name="UnirErrorTotalPaginas" xml:space="preserve">
+    <value>El PDF unido pasaría de {0} páginas. Quita alguno.</value>
+  </data>
+  <data name="UnirErrorRol" xml:space="preserve">
+    <value>Tu rol no permite leer documentos para unirlos. Puedes unir PDF que subas tú.</value>
+  </data>
+  <data name="UnirErrorSesionPrivilegiada" xml:space="preserve">
+    <value>Una sesión privilegiada de plataforma no puede leer documentos para unirlos.</value>
+  </data>
+  <data name="UnirErrorGeneral" xml:space="preserve">
+    <value>No se ha podido unir. Inténtalo de nuevo.</value>
+  </data>
+  <data name="UnirErrorSinConstancia" xml:space="preserve">
+    <value>No se ha podido dejar constancia del acceso a los documentos, así que no se entrega el PDF. Inténtalo de nuevo.</value>
+  </data>
+  <data name="UnirErrorDescarga" xml:space="preserve">
+    <value>El PDF se ha unido pero el navegador no ha podido descargarlo. Inténtalo de nuevo.</value>
+  </data>
+  <data name="UnirErrorDemasiadoComplejo" xml:space="preserve">
+    <value>{0} tiene una estructura interna demasiado grande para unirlo sin riesgo. Ábrelo y guárdalo de nuevo como PDF (por ejemplo, imprimiéndolo a PDF) y vuelve a probar.</value>
+  </data>
+  <data name="UnirDocumentosTruncados" xml:space="preserve">
+    <value>Se muestran los {0} Documentos más recientes. Hay más: si no ves el que buscas, súbelo como PDF.</value>
+  </data>
   <!-- Foto a PDF: bloque propio al final del fichero, para que un conflicto de fusión con otra herramienta sea trivial. -->
   <data name="PortadaFotoTitulo" xml:space="preserve">
     <value>Foto a PDF</value>
