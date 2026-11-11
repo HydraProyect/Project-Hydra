@@ -121,6 +121,9 @@ public sealed class UnidorPdfEnProcesoAparte(
     private async Task<SalidaProcesoAislado> EjecutarAsync(byte operacion, IReadOnlyList<byte[]> pdfs, TimeSpan tiempoMaximo,
         int maximoBytesSalida, CancellationToken cancellationToken)
     {
+        // Antes del turno: un fallo al preparar el arranque no tiene hijo y no debe degradar la instancia.
+        var inicio = Inicio(opciones);
+
         // Sin turno a tiempo, o con el limitador degradado, es el mismo transitorio que un presupuesto de memoria lleno: la
         // pantalla pide reintentar más tarde, y no se lanza nada.
         var turno = await limitador.EntrarAsync(opciones.EsperaMaximaTurno, cancellationToken)
@@ -139,7 +142,7 @@ public sealed class UnidorPdfEnProcesoAparte(
                 throw new PresupuestoMemoriaAgotadoException();
             }
 
-            return lanzador.EjecutarAsync(Inicio(opciones),
+            return lanzador.EjecutarAsync(inicio,
                 (entrada, token) => ProtocoloProcesoHerramientasPdf.EscribirPeticionAsync(entrada, operacion, pdfs, token),
                 tiempoMaximo, maximoBytesSalida, cancellationToken, seguimiento);
         }, CancellationToken.None);

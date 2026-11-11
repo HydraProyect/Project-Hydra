@@ -120,11 +120,22 @@ public class UnirPdfQueryHandler(
         {
             resultado = await UnirAsync(request, abiertos, cancellationToken);
         }
-        catch
+        catch (Exception excepcion)
         {
             // Una excepción tras leer un Documento no borra la lectura: queda constancia y la excepción sigue su camino.
             if (abiertos.Count > 0)
-                await RegistrarAperturasAsync(abiertos);
+            {
+                try
+                {
+                    await RegistrarAperturasAsync(abiertos);
+                }
+                catch (Exception) when (excepcion is EntradaPdfRetenidaException)
+                {
+                    // La retención manda: si un fallo del registro la sustituyera, la pantalla devolvería su reserva con
+                    // los PDF quizá aún referenciados. El PDF no sale, así que no hay entrega sin constancia.
+                }
+            }
+
             throw;
         }
 

@@ -278,7 +278,8 @@ public sealed class UnidorPdfEnProcesoAparteTests
         var unidor = new UnidorPdfEnProcesoAparte(opciones, _limitador, lanzador, registro);
         try
         {
-            var inspeccionar = () => unidor.InspeccionarAsync(PdfA, CancellationToken.None).WaitAsync(TimeSpan.FromSeconds(10));
+            // En otro hilo: si el unidor volviera a bloquearse en el tramo síncrono, el test vencería en vez de colgarse.
+            var inspeccionar = () => Task.Run(() => unidor.InspeccionarAsync(PdfA, CancellationToken.None)).WaitAsync(TimeSpan.FromSeconds(10));
 
             await inspeccionar.Should().ThrowAsync<EntradaPdfRetenidaException>("un TimeoutException diría que la espera exterior no cubrió el bloqueo");
             _limitador.Libres.Should().Be(0);

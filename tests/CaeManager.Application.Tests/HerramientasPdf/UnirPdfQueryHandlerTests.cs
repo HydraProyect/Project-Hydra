@@ -636,6 +636,19 @@ public class UnirPdfQueryHandlerTests
     }
 
     [Fact]
+    public async Task Si_ademas_falla_el_registro_de_aperturas_la_entrada_retenida_no_se_pierde()
+    {
+        // Si el fallo del registro sustituyera a la retención, la pantalla devolvería su reserva de lo subido.
+        var seguro = DocumentoDeEmpresa("SEGURO");
+        _registro.Falla = true;
+
+        var llamada = async () => await UnirAsync([new EntradaUnionDocumento(seguro.Id), Subido("b.pdf", "B[retenida]")]);
+
+        await llamada.Should().ThrowAsync<EntradaPdfRetenidaException>();
+        PresupuestoLibre().Should().BeFalse();
+    }
+
+    [Fact]
     public async Task El_PDF_unido_retiene_su_reserva_hasta_que_quien_lo_entrega_lo_desecha_y_la_devuelve_una_sola_vez()
     {
         var seguro = DocumentoDeEmpresa("SEGURO[estructura=1000000]");
