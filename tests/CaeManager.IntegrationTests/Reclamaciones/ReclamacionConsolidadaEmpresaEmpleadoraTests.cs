@@ -53,6 +53,7 @@ public class ReclamacionConsolidadaEmpresaEmpleadoraTests : IAsyncLifetime
     private readonly Guid _tenantPlataforma = Guid.NewGuid();
     private readonly Guid _tenantAgenda = Guid.NewGuid();
     private readonly Guid _tenantSinBloqueo = Guid.NewGuid();
+    private readonly Guid _tenantVigente = Guid.NewGuid();
     private readonly Guid _usuario = Guid.NewGuid();
     private readonly List<CaeManagerDbContext> _contextosRuntime = [];
 
@@ -63,6 +64,7 @@ public class ReclamacionConsolidadaEmpresaEmpleadoraTests : IAsyncLifetime
     private Escenario _plataforma = null!;
     private Escenario _agenda = null!;
     private EscenarioSinBloqueo _sinBloqueo = null!;
+    private Escenario _vigente = null!;
 
     /// <summary>Un Centro que exige sin marcar nada «bloquea el acceso»: Ana con el certificado vencido, Bea sin él y el Plan vencido.</summary>
     private sealed record EscenarioSinBloqueo(
@@ -95,6 +97,7 @@ public class ReclamacionConsolidadaEmpresaEmpleadoraTests : IAsyncLifetime
         _plataforma = await SembrarAsync(_tenantPlataforma, conPlanDePrevencion: true, conPlataforma: true);
         _agenda = await SembrarAsync(_tenantAgenda, conPlanDePrevencion: true, conAgendaPorTipo: true);
         _sinBloqueo = await SembrarSinBloqueoAsync(_tenantSinBloqueo);
+        _vigente = await SembrarAsync(_tenantVigente, conPlanDePrevencion: true, beaVigente: true);
     }
 
     public async Task DisposeAsync()
@@ -235,6 +238,28 @@ public class ReclamacionConsolidadaEmpresaEmpleadoraTests : IAsyncLifetime
         var sinElCentro = new Arnes(Runtime(_tenantSinBloqueo), new AlcanceDatosServiceFalso(centroIds: [Guid.NewGuid()]));
         (await sinElCentro.PorAcceso.Handle(
             new ObtenerReclamacionPorAccesoQuery(s.EmpresaId, s.CentroId, [s.AnaId, s.BeaId]), CancellationToken.None)).Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task Por_acceso_no_reclama_lo_vigente_aunque_la_preventiva_lo_ofrezca_dentro_de_su_ventana()
+    {
+        // Defecto visto en «Reclamar a la Empresa»: la página dice «vencido o pendiente» y listaba, marcaba y enviaba
+        // documentos «Vigente» (dentro de la ventana de 3 meses, pero lejos del umbral de «Por vencer»).
+        var v = _vigente;
+        var arnes = new Arnes(Runtime(_tenantVigente), new AlcanceDatosServiceFalso());
+
+        var lotes = await arnes.PorAcceso.Handle(
+            new ObtenerReclamacionPorAccesoQuery(v.EmpresaId, v.CentroId, [v.AnaId, v.BeaId]), CancellationToken.None);
+
+        var lote = lotes.Should().ContainSingle("sin nada que reclamar a Bea su tarjeta de Málaga no sale, y lo de la Empresa viaja en la de Ana").Subject;
+        lote.EmpresaEmpleadora!.DelegacionEmpresaId.Should().Be(v.SevillaId);
+        lote.Documentos.Select(d => d.DocumentoId).Should().BeEquivalentTo([v.DocAnaCertificadoId, v.DocPlanId!.Value]);
+        lote.Documentos.Should().OnlyContain(d => d.Estado != EstadoDocumento.Vigente);
+
+        var preventiva = await arnes.Preventiva.Handle(new ObtenerReclamacionPreventivaEmpresaQuery(v.EmpresaId), CancellationToken.None);
+        preventiva.Lotes.Single(l => l.EmpresaEmpleadora?.DelegacionEmpresaId == v.MalagaId).Documentos
+            .Should().ContainSingle(d => d.DocumentoId == v.DocBeaCertificadoId && d.Estado == EstadoDocumento.Vigente,
+                "la preventiva sigue con su ventana de 3 meses: el filtro es solo de la reclamación por acceso");
     }
 
     // ---------- Envío ----------
@@ -436,7 +461,8 @@ public class ReclamacionConsolidadaEmpresaEmpleadoraTests : IAsyncLifetime
 
     // ---------- Siembra ----------
 
-    private async Task<Escenario> SembrarAsync(Guid tenant, bool conPlanDePrevencion, bool conPlataforma = false, bool conAgendaPorTipo = false)
+    private async Task<Escenario> SembrarAsync(
+        Guid tenant, bool conPlanDePrevencion, bool conPlataforma = false, bool conAgendaPorTipo = false, bool beaVigente = false)
     {
         using var ambito = AmbitoTenantExplicito.Establecer(tenant);
         var c = _propietario;
@@ -487,16 +513,20 @@ public class ReclamacionConsolidadaEmpresaEmpleadoraTests : IAsyncLifetime
         c.TiposDocumentoCentros.Add(new TipoDocumentoCentro(certificado.Id, centro.Id, incluido: true, bloqueaAcceso: true));
         c.TiposDocumentoCentros.Add(new TipoDocumentoCentro(plan.Id, centro.Id, incluido: true, bloqueaAcceso: true));
 
-        Documento DeTrabajador(Trabajador t, TipoDocumento tipo) =>
-            Documento.DeTrabajador(t.Id, tipo.Id, hoy.AddMonths(-10), VigenciaDocumento.VenceEl(hoy.AddMonths(2)));
+        // Por vencer (a 10 días, dentro del umbral de 30 de ParametroSistema): lo reclaman las dos reclamaciones. Con
+        // beaVigente, el certificado de Bea vence a 2 meses: dentro de la ventana de la preventiva, pero «Vigente», que la
+        // reclamación por acceso no reclama.
+        var porVencer = VigenciaDocumento.VenceEl(hoy.AddDays(10));
+        Documento DeTrabajador(Trabajador t, TipoDocumento tipo, VigenciaDocumento? vigencia = null) =>
+            Documento.DeTrabajador(t.Id, tipo.Id, hoy.AddMonths(-10), vigencia ?? porVencer);
         var anaCertificado = DeTrabajador(ana, certificado);
         var anaFormacion = DeTrabajador(ana, formacion);
-        var beaCertificado = DeTrabajador(bea, certificado);
+        var beaCertificado = DeTrabajador(bea, certificado, beaVigente ? VigenciaDocumento.VenceEl(hoy.AddMonths(2)) : null);
         c.Documentos.AddRange(anaCertificado, anaFormacion, beaCertificado);
         Documento? docPlan = null;
         if (conPlanDePrevencion)
         {
-            docPlan = Documento.DeEmpresa(empresa.Id, plan.Id, hoy.AddMonths(-10), VigenciaDocumento.VenceEl(hoy.AddMonths(2)));
+            docPlan = Documento.DeEmpresa(empresa.Id, plan.Id, hoy.AddMonths(-10), porVencer);
             c.Documentos.Add(docPlan);
         }
         await c.SaveChangesAsync();

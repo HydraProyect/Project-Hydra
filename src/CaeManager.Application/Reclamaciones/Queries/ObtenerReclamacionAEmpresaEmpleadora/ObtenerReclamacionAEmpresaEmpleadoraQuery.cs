@@ -23,7 +23,9 @@ namespace CaeManager.Application.Reclamaciones.Queries.ObtenerReclamacionAEmpres
 /// (<see cref="ICalculoEstadoCentroService.ObtenerParesExigidosAsync"/>, los mismos que el Centro 360), no solo los requisitos
 /// que bloquean el acceso: un Centro sin ningún tipo «bloquea el acceso» también exige; qué es reclamable y a quién va, los lotes de
 /// siempre (<see cref="ObtenerLoteReclamacionQuery"/>, <see cref="ObtenerLoteReclamacionEmpresaQuery"/> y
-/// <see cref="ReclamacionEmpresaEmpleadoraService"/>). Esta query solo intersecta: no recuenta ni amplía nada.
+/// <see cref="ReclamacionEmpresaEmpleadoraService"/>). Esta query solo intersecta y deja fuera lo vigente
+/// (<see cref="DocumentoReclamablePorAcceso"/>: la ventana de los lotes trae documentos «Vigente» que aquí no se reclaman);
+/// no recuenta ni amplía nada.
 /// </summary>
 /// <remarks>
 /// Lo de la Empresa viaja en el lote de los Trabajadores cuando hay uno solo, o en el que va a la agenda de la Empresa si
@@ -117,7 +119,9 @@ public class ObtenerReclamacionPorAccesoQueryHandler(
             .Where(l => l.TitularId == request.EmpresaId)
             .Select(l => l with
             {
-                Documentos = [.. l.Documentos.Where(d => d.TrabajadorId is { } t && exigidosTrabajador.Contains((t, d.TipoDocumentoId)))],
+                // Lo vigente no se reclama por acceso (DocumentoReclamablePorAcceso): la ventana de los lotes lo trae.
+                Documentos = [.. l.Documentos.Where(d => d.TrabajadorId is { } t && exigidosTrabajador.Contains((t, d.TipoDocumentoId))
+                                                        && DocumentoReclamablePorAcceso.SeReclama(d))],
                 PendientesSinFecha = [.. (l.PendientesSinFecha ?? []).Where(p => p.TrabajadorId is { } t && exigidosTrabajador.Contains((t, p.TipoDocumentoId)))],
             })
             .Where(l => l.Documentos.Count > 0 || l.PendientesSinFecha!.Count > 0)
@@ -129,6 +133,8 @@ public class ObtenerReclamacionPorAccesoQueryHandler(
         var deEmpresa = (await mediator.Send(
                 new ObtenerLoteReclamacionEmpresaQuery(request.EmpresaId, [.. exigidosEmpresa], IncluirPendientesSinFecha: true), cancellationToken))
             .FirstOrDefault(l => l.EmpresaId == request.EmpresaId);
+        if (deEmpresa is not null)
+            deEmpresa = deEmpresa with { Documentos = [.. deEmpresa.Documentos.Where(DocumentoReclamablePorAcceso.SeReclama)] };
         if (deEmpresa is null || (deEmpresa.Documentos.Count == 0 && (deEmpresa.PendientesSinFecha ?? []).Count == 0))
             return lotes;
 
