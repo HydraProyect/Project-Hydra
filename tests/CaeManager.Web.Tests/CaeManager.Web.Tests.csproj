@@ -34,14 +34,20 @@
   </ItemGroup>
 
   <ItemGroup>
-    <!-- Suelo de hilos del ThreadPool (issue #2171, HIPÓTESIS no demostrada por instrumentación del pool).
-         Los WaitForAssertion de 1 s de bUnit caducaban solo en CI con «Check count: 0». Con el suelo por defecto
-         (= núcleos, 2-4 en CI) el pool inyecta hilos nuevos a ~1 por segundo si todos están ocupados, y la
-         continuación del componente y la comprobación necesitan uno. Quién los ocupa no está identificado
-         (xunit corre los tests en hilos propios, no del pool). Evidencia: con DOTNET_PROCESSOR_COUNT=2 la suite
-         entera fallaba en WaitForAssertion de tests ajenos al issue, y con este suelo no. Si #2171 reaparece, el
-         suelo no era la causa: medir ThreadPool.ThreadCount y PendingWorkItemCount en el fallo.
-         Efecto asumido: un test que dependiera de un hilo libre del pool ya no lo delataría por intermitencia. -->
+    <!-- Suelo de hilos del ThreadPool: MITIGACION declarada de #2171, no su causa raiz.
+         Mecanismo medido (xunit 2.9.3, algoritmo conservative por defecto): xunit lanza cada coleccion con Task.Run,
+         de modo que el cuerpo de cada test corre en un hilo del ThreadPool, no en un hilo propio. El WaitForAssertion/
+         WaitForState SINCRONO de bUnit 2.11.3 bloquea ese hilo con GetResult(); su primera comprobacion se encola con
+         InvokeAsync y, si el Dispatcher esta ocupado, necesita otro hilo del pool. Este proyecto tiene 1814 llamadas
+         sincronas a WaitFor*. Con el suelo por defecto (= nucleos, 2-4 en CI) el pool solo inyecta ~1 hilo por segundo,
+         y el WaitFor* de 1 s caduca con «Check count: 0». Una sonda capturo un fallo real (PestanaVehiculosSubcontrata
+         Tests, Una_respuesta_del_anterior...) con 9 hilos, 25-27 elementos en cola y 4579 ms de espera por un hilo.
+         Corrida pareada de la suite completa (11.710 tests, DOTNET_PROCESSOR_COUNT=2): con MinThreads=64, 0 fallos,
+         3 esperas >= 1 s, maximo 1,5 s; sin MinThreads, 2 fallos, 28 esperas >= 1 s, maximo 6 s. parallelAlgorithm:
+         aggressive queda descartado (rompio 15-16 tests por corrida). Sigue SIN saberse que codigo retiene los hilos
+         durante un episodio. Plan: migrar los WaitFor* a sus variantes async con tests async Task (varias PR por
+         carpetas, #2171); al terminar se QUITA este suelo. Efecto asumido mientras tanto: un test que dependiera de
+         un hilo libre del pool ya no lo delataria por intermitencia. -->
     <RuntimeHostConfigurationOption Include="System.Threading.ThreadPool.MinThreads" Value="64" />
   </ItemGroup>
 
