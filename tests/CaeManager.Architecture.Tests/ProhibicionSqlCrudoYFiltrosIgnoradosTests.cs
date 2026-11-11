@@ -233,6 +233,14 @@ public class ProhibicionSqlCrudoYFiltrosIgnoradosTests
         [("src/CaeManager.Infrastructure/AltaAutonoma/AccesoSolicitudesAlta.cs",
             """.SqlQuery<bool>($"SELECT app_correo_en_uso_por_otra_cuenta({correoNormalizado}, {Guid.Empty}) AS \"Value\"")""")] = 1,
 
+        // Alta autónoma (A8, DA-7): caducidad y borrado de datos personales de SolicitudesAlta, que sigue cerrada. Dos
+        // funciones SECURITY DEFINER (migración CaducidadYBorradoSolicitudesAlta) con los plazos y el estado de origen
+        // escritos dentro; el único parámetro, el tamaño del lote, va por EF. Solo devuelven un recuento.
+        [("src/CaeManager.Infrastructure/AltaAutonoma/LimpiezaSolicitudesAlta.cs",
+            """.SqlQuery<int>($"SELECT public.app_alta_caducar_solicitudes({tamanoLote}) AS \"Value\"")""")] = 1,
+        [("src/CaeManager.Infrastructure/AltaAutonoma/LimpiezaSolicitudesAlta.cs",
+            """.SqlQuery<int>($"SELECT public.app_alta_borrar_datos_personales({tamanoLote}) AS \"Value\"")""")] = 1,
+
         // ADR-011 § 8.7, punto 3: Soporte TALVEG restablece la 2FA del Administrador único
         // desde una Sesión Privilegiada. Esa conexión lleva cae_app_soporte (solo
         // SELECT), así que Identity no puede escribir: la única puerta es la
