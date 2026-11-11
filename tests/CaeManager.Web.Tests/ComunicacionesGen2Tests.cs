@@ -1215,6 +1215,13 @@ public class ComunicacionesGen2Tests : BunitContext
         cut.Render();
         cut.Find(".bandeja-cliente .nota-fija-area").GetAttribute("value").Should().Be("Llamar por la tarde.", "el borrador sobrevive a la segunda recarga fallida");
         cut.FindAll(".bandeja-cliente-identidad").Should().BeEmpty("el contexto del Cliente empresarial anterior no puede quedar bajo el hilo");
+        cut.FindAll(".bandeja-centro .estado-vacio").Should().BeEmpty("mientras se edita, el hilo sigue en pantalla");
+
+        // Revisión puente de la r3 (MEDIO): el detalle sin contexto solo dura mientras la nota se edita. Al cancelar la edición la
+        // página vuelve al estado de error con «Reintentar», no se queda con un hilo sin ficha ni salida.
+        await Boton(cut, ".nota-fija button", "Cancelar").ClickAsync(new MouseEventArgs());
+        cut.Find(".bandeja-centro .estado-vacio h3").TextContent.Trim().Should().Be("No pudimos abrir la conversación");
+        cut.Find(".bandeja-centro .estado-vacio button").TextContent.Trim().Should().NotBeEmpty("con su «Reintentar»");
 
         await cut.InvokeAsync(() => clienteNuevo.SetException(new InvalidOperationException("tarde")));
         await primeraRecarga;

@@ -321,10 +321,13 @@
                 <EstadoCargando Filas="4" />
                 <p class="bandeja-cargando-texto" role="status">@TextosLista["Cargando"]</p>
             }
-            else if (_errorDetalle && (_detalle is null || _detalle.Id != _conversacionSeleccionadaId))
+            else if (_errorDetalle && (_detalle is null || _detalle.Id != _conversacionSeleccionadaId
+                                       || (!ContextoEsDelDetalle && !NotaFijaEnEdicionDelDetalle)))
             {
                 @* Error al abrir una conversación (maqueta, E14): estado propio con «Reintentar». Sin él, el panel
-                   mostraba el hilo de la conversación abierta antes bajo la selección nueva. *@
+                   mostraba el hilo de la conversación abierta antes bajo la selección nueva. Un detalle conservado sin contexto
+                   (la nota fija en edición, revisión Codex r3 de la #2167, MEDIO 1) solo dura mientras se edita: al terminar la
+                   edición, la página vuelve a este estado y no se queda con un hilo sin ficha ni forma de reintentar. *@
                 <EstadoVacio SinIcono="true" Titulo="@TextosLista["ErrorAbrirConversacion"]" Descripcion="@TextosLista["ErrorAbrirConversacionAyuda"]">
                     <Accion><Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno" OnClick="CargarDetalleAsync">@TextosLista["Reintentar"]</Boton></Accion>
                 </EstadoVacio>
