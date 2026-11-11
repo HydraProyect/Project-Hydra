@@ -54,6 +54,23 @@
         </div>
     }
 
+    @* Vistas de la pantalla (maqueta del Importador, 2026-11-11): Paso 1 · Estructura (plantilla maestra) y la vista de siempre
+       (plantillas clásicas con su Historial). El Paso 2 (PDF) no entra en este incremento: la pestaña se ve y no actúa. *@
+    @if (MostrarNavegacionVistas)
+    {
+        <nav class="nav-vistas-importacion" aria-label="@Textos["EstNavAria"]">
+            <a href="?vista=estructura" class="@(EsVistaEstructura ? "vista-importacion vista-importacion-actual" : "vista-importacion")" aria-current="@(EsVistaEstructura ? "page" : null)">@Textos["EstNavPaso1"]</a>
+            <button type="button" class="vista-importacion vista-importacion-proxima" disabled aria-disabled="true">@Textos["EstNavPaso2"] <small>(@Textos["EstNavPaso2Proximamente"])</small></button>
+            <a href="?" class="@(EsVistaEstructura ? "vista-importacion" : "vista-importacion vista-importacion-actual")" aria-current="@(EsVistaEstructura ? null : "page")">@Textos["EstNavHistorial"]</a>
+        </nav>
+    }
+
+    @if (EsVistaEstructura)
+    {
+        <ImportacionEstructura DniCompleto="_dniCompleto" />
+    }
+    else
+    {
     <nav class="pasos-importacion" aria-label="@Textos["AriaProgresoImportacion"]">
         @for (var i = 0; i < ClavesPasos.Count; i++)
         {
@@ -617,6 +634,8 @@
                 </div>
             </div>
         </div>
+    }
+
     }
 
     <DialogoConfirmacion Visible="_mostrarDialogoImportar" VisibleChanged="CambiarVisibilidadDialogoImportar"
