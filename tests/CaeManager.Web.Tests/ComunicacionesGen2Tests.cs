@@ -587,6 +587,44 @@ public class ComunicacionesGen2Tests : BunitContext
         escenario.NotasFijadas.Should().ContainSingle().Which.ContactoId.Should().Be(laura.ContactoId);
     }
 
+    /// <summary>
+    /// Revisión puente de la PR de E21 (MEDIO): con la nota fija de Carmen en edición, llega un mensaje nuevo de Laura al
+    /// mismo hilo y la página recarga el detalle. El último entrante ya es de Laura, pero la edición de Carmen no se vacía
+    /// en silencio: el interlocutor no cambia mientras se edita, y lo que se guarda es de Carmen.
+    /// </summary>
+    [Fact]
+    public async Task Un_mensaje_nuevo_de_otro_participante_no_vacia_la_nota_fija_en_edicion()
+    {
+        var conversacion = Conversacion("Documentación pendiente", ClienteRefrielectric);
+        var deLaura = Conversacion("Documentación pendiente", ClienteRefrielectric, "laura.gil@refrielectric.es");
+        var detalle = DetalleDe(conversacion);
+        var escenario = new Escenario { Detalle = _ => detalle };
+        escenario.Conversaciones.Add(conversacion);
+        var carmen = NotaDeCarmen();
+        escenario.Interceptar = p => p switch
+        {
+            ObtenerNotaContactoQuery { Email: "carmen.ruiz@refrielectric.es" } => Ya(carmen),
+            ObtenerNotaContactoQuery { Email: "laura.gil@refrielectric.es" } => Ya(NotaDeLaura()),
+            _ => null
+        };
+        var (cut, _) = Renderizar(escenario);
+        await SeleccionarFila(cut, "Documentación pendiente");
+        cut.WaitForAssertion(() => cut.Find(".nota-fija").TextContent.Should().Contain("Carmen Ruiz"));
+        await Boton(cut, ".nota-fija button", "Editar").ClickAsync(new MouseEventArgs());
+        await cut.Find(".nota-fija-area").InputAsync(new ChangeEventArgs { Value = "Llamar por la tarde." });
+
+        var mensajeDeLaura = DetalleDe(deLaura).Mensajes[0] with { FechaUtc = DateTime.UtcNow.AddMinutes(5) };
+        detalle = detalle with { Id = conversacion.Id, Mensajes = [.. detalle.Mensajes, mensajeDeLaura] };
+        await cut.InvokeAsync(() => (Task)typeof(Bandeja).GetMethod("AlRecibirMensajeAsync", BindingFlags.Instance | BindingFlags.NonPublic)!
+            .Invoke(cut.Instance, [new MensajeWhatsAppRecibidoEvent(Guid.NewGuid(), conversacion.Id)])!);
+
+        cut.WaitForAssertion(() => cut.Find(".nota-fija-area").GetAttribute("value").Should().Be("Llamar por la tarde.",
+            "la edición en curso no se vacía porque haya escrito otro participante"));
+        cut.FindComponent<NotaFijaContacto>().Instance.TieneTextoSinGuardar.Should().BeTrue();
+        await Boton(cut, ".nota-fija button", "Guardar nota fija").ClickAsync(new MouseEventArgs());
+        escenario.NotasFijadas.Should().ContainSingle().Which.ContactoId.Should().Be(carmen.ContactoId);
+    }
+
     /// <summary>MEDIO 7: una nota fija editada y sin guardar cuenta como cambio sin guardar al abrir otra conversación.</summary>
     [Fact]
     public async Task Abrir_otra_conversacion_con_la_nota_fija_a_medias_pregunta_antes_de_descartarla()
@@ -1179,12 +1217,13 @@ public class ComunicacionesGen2Tests : BunitContext
 
     /// <summary>
     /// Contrato terminológico TALVEG: la contraparte de una Relación
-    /// Empresarial es el <b>Cliente empresarial</b>, que en pantalla se rotula
-    /// «Cliente» (decisión de rótulo del 2026-10-09): con mayúscula y artículo,
-    /// nunca las formas sueltas anteriores ni el rótulo largo.
+    /// Empresarial es el <b>Cliente empresarial</b>. Fuera de la bandeja la pantalla
+    /// lo rotula «Cliente» (decisión de rótulo del 2026-10-09); en la bandeja de
+    /// Comunicaciones, «Cliente empresarial» (decisión E24 del 2026-11-11): con
+    /// mayúscula y artículo, nunca las formas sueltas anteriores ni «Cliente» a secas.
     /// </summary>
     [Fact]
-    public void Los_rotulos_de_la_bandeja_nombran_al_Cliente_con_su_rotulo_de_pantalla()
+    public void Los_rotulos_de_la_bandeja_nombran_al_Cliente_empresarial_con_su_rotulo_de_pantalla()
     {
         var (cut, _) = Renderizar(new Escenario());
 
@@ -1197,7 +1236,8 @@ public class ComunicacionesGen2Tests : BunitContext
             .NotContain("Esperando cliente")
             .And.NotContain("Todos los clientes")
             .And.NotContain("Sin cliente asignado")
-            .And.NotContainEquivalentOf("cliente empresarial");
+            .And.NotContain("Esperando al Cliente<")
+            .And.NotContain("Todos los Clientes<");
     }
 
     // ---------------------------------------------------------------- cambios sin guardar (P1-E2b)
@@ -1984,7 +2024,7 @@ public class ComunicacionesGen2Tests : BunitContext
         escenario.Conversaciones.Add(conversacion);
         var (cut, _) = Renderizar(escenario);
         cut.FindAll(".tabla-conversaciones [role=columnheader]").Select(e => e.TextContent.Trim())
-            .Should().Equal("Prioridad", "Conversaci\u00f3n", "Cliente", "Estado", "Asignada a");
+            .Should().Equal("Prioridad", "Conversaci\u00f3n", "Cliente empresarial", "Estado", "Asignada a");
         await cut.Find(".tabla-conversaciones-asunto button").ClickAsync(new MouseEventArgs());
         await Escribir(cut, "Recibido.");
         cut.FindAll(".composer-macro-campo").Should().ContainSingle();

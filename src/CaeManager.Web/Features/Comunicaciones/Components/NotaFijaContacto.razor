@@ -106,6 +106,12 @@
     public bool TieneTextoSinGuardar =>
         _editando && !string.Equals(_texto.Trim(), (_nota?.Notas ?? string.Empty).Trim(), StringComparison.Ordinal);
 
+    /// <summary>
+    /// La nota se está editando o guardando: la página no le cambia el contacto en medio (revisión puente de la PR de E21).
+    /// Un mensaje nuevo de otro participante en el mismo hilo cambiaría el interlocutor y vaciaría la edición en silencio.
+    /// </summary>
+    public bool EnEdicion => _editando || _guardando;
+
     /// <summary>Descarta la edición en curso: lo llama la página cuando la persona elige descartar los cambios.</summary>
     public void Descartar()
     {

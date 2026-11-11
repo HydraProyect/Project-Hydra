@@ -1864,6 +1864,11 @@ public partial class Bandeja : CaeManager.Web.Components.PaginaInteractiva, IAsy
             if (_detalle is null) return null;
             if (!ReferenceEquals(_detalleDelInterlocutor, _detalle))
             {
+                // Recarga de la misma conversación (un mensaje nuevo, un envío) con la nota fija en edición o guardándose: el
+                // interlocutor se mantiene hasta que termine. Si el último entrante es ahora de otro participante, cambiarlo
+                // vaciaría la edición sin aviso; se recalcula en el primer render tras salir de la edición.
+                if (_detalleDelInterlocutor?.Id == _detalle.Id && _notaFija?.EnEdicion == true) return _interlocutorNotaFija;
+
                 _detalleDelInterlocutor = _detalle;
                 _interlocutorNotaFija = InterlocutorNotaFija.De(_detalle);
             }
