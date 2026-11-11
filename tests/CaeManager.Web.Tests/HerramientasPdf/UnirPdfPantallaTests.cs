@@ -156,11 +156,52 @@ public sealed class UnirPdfPantallaTests : BunitContext
         {
             DirectorioTemporal = Path.Combine(Path.GetTempPath(), "talveg-unir-pdf-tests"),
         })));
-        Services.AddSingleton<IPresupuestoMemoriaDocumentos>(new PresupuestoMemoriaDocumentos(
-            Options.Create(new OpcionesPresupuestoMemoriaDocumentos()), TimeProvider.System));
+        Services.AddSingleton<IPresupuestoMemoriaDocumentos>(_presupuesto);
         Services.TryAddSingleton(TimeProvider.System);
 
         return Render<UnirPdf>();
+    }
+
+    private readonly PresupuestoMemoriaDocumentos _presupuesto = new(
+        Options.Create(new OpcionesPresupuestoMemoriaDocumentos()), TimeProvider.System);
+
+    /// <summary>Verdadero si no queda nada reservado: el presupuesto entero cabe ahora mismo.</summary>
+    private bool PresupuestoLibre()
+    {
+        if (!_presupuesto.TryReservar(_presupuesto.Maximo, out var todo))
+            return false;
+        todo.Dispose();
+        return true;
+    }
+
+    // ---- Proceso aparte que no consta terminado
+
+    [Fact]
+    public async Task Si_al_preparar_el_proceso_aparte_no_consta_terminado_la_reserva_del_PDF_no_se_devuelve()
+    {
+        _mediador.Preparar = _ => throw new EntradaPdfRetenidaException();
+        var cut = Renderizar();
+
+        cut.WaitForAssertion(() => cut.FindAll(".zona-soltar-archivo").Should().ContainSingle());
+        await cut.InvokeAsync(() => cut.FindComponent<InputFile>().UploadFiles(Pdf("a.pdf")));
+
+        EsperarSinErrores(cut, () => PresupuestoLibre().Should().BeFalse("el proceso aparte puede seguir referenciando el PDF"));
+        cut.FindAll("ol.lista-unir li").Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task Si_al_unir_el_proceso_aparte_no_consta_terminado_la_reserva_de_lo_subido_no_se_devuelve()
+    {
+        var cut = Renderizar();
+        await SubirAsync(cut, "a.pdf", "b.pdf");
+        PresupuestoLibre().Should().BeTrue("tras preparar, la reserva de cada subida se devuelve");
+        _mediador.ExcepcionAlUnir = new EntradaPdfRetenidaException();
+
+        PulsarBoton(cut, "Unir y descargar");
+
+        EsperarSinErrores(cut, () => _mediador.Uniones.Should().ContainSingle());
+        EsperarSinErrores(cut, () => PresupuestoLibre().Should().BeFalse("el proceso aparte puede seguir referenciando lo subido"));
+        _descarga.Invocations.Should().BeEmpty();
     }
 
     /// <summary>Espera como <c>WaitForAssertion</c>, pero si el límite de errores contuvo una excepción, falla con ella.</summary>

@@ -22,8 +22,8 @@ public enum DesenlaceProcesoAislado
 public sealed record SalidaProcesoAislado(DesenlaceProcesoAislado Desenlace, int? CodigoSalida, ReadOnlyMemory<byte> Salida, int IdProceso);
 
 /// <summary>
-/// El lanzador no pudo confirmar que el hijo terminara: falló <see cref="Process.Kill(bool)"/> o el hijo no salió en el margen
-/// tras matarlo. Puede seguir vivo con su límite de memoria, así que quien tenga su turno no debe soltarlo
+/// El lanzador no pudo confirmar que el hijo terminara: falló <see cref="Process.Kill(bool)"/>, el hijo no salió en el margen
+/// tras matarlo o una de sus tuberías no acabó (una escritura pendiente retiene la entrada). Puede seguir vivo con su límite de memoria, así que quien tenga su turno no debe soltarlo
 /// (<see cref="TurnoProcesoAislado.RetenerPorHijoSinConfirmar"/>). Sustituye a cualquier otro
 /// desenlace, también a la cancelación del llamante.
 /// </summary>
@@ -34,16 +34,45 @@ public sealed class ProcesoAisladoSinTerminarException(int idProceso)
 }
 
 /// <summary>
+/// Lo que el lanzador publica de una ejecución mientras ocurre, para quien la supervisa sin esperar a que vuelva: el
+/// identificador del hijo en cuanto arranca y la confirmación positiva de que ya no queda nada vivo de ella. Sin esa
+/// confirmación, quien tenga su turno no lo suelta, aunque el lanzador haya devuelto una excepción o no haya vuelto.
+/// </summary>
+public sealed class SeguimientoProcesoAislado
+{
+    private int _idProceso;
+    private int _constaTerminado;
+
+    /// <summary>El hijo, en cuanto <see cref="Process.Start()"/> vuelve; <c>null</c> si no llegó a arrancar.</summary>
+    public int? IdProceso => Volatile.Read(ref _idProceso) is var id and not 0 ? id : null;
+
+    /// <summary>
+    /// Verdadero solo si consta que no queda nada vivo de la ejecución: el hijo no llegó a arrancar, o salió y sus tuberías
+    /// terminaron, de modo que ninguna escritura pendiente retiene la entrada. Falso mientras no conste, sea cual sea el motivo.
+    /// </summary>
+    public bool ConstaTerminado => Volatile.Read(ref _constaTerminado) == 1;
+
+    public void Arrancado(int idProceso) => Volatile.Write(ref _idProceso, idProceso);
+
+    /// <summary>Lo llama solo quien sabe que no queda nada vivo: el lanzador tras confirmarlo, o quien no llegó a lanzar.</summary>
+    public void ConfirmarTerminado() => Volatile.Write(ref _constaTerminado, 1);
+}
+
+/// <summary>
 /// Lanza un proceso hijo, le escribe la entrada estándar, lee su salida estándar con tope y lo mata (con su árbol) si pasa
 /// de su tiempo, si escribe de más o si el llamante cancela. Separado de quien decide qué proceso lanzar para poder probar
 /// esa decisión con un doble y esta mecánica con un proceso real.
 /// </summary>
 public interface ILanzadorProcesoAislado
 {
+    /// <param name="seguimiento">
+    /// Donde se publica el identificador del hijo al arrancar y, solo si consta, que terminó (<see cref="SeguimientoProcesoAislado.ConfirmarTerminado"/>):
+    /// también si luego se lanza una excepción. Quien retiene un turno por la ejecución decide con él, no con el tipo de excepción.
+    /// </param>
     /// <exception cref="OperationCanceledException">Si cancela el llamante; el proceso ya está muerto.</exception>
     /// <exception cref="ProcesoAisladoSinTerminarException">Si no se pudo confirmar que el proceso terminara, sea cual sea el desenlace.</exception>
     Task<SalidaProcesoAislado> EjecutarAsync(ProcessStartInfo inicio, Func<Stream, CancellationToken, Task> escribirEntrada,
-        TimeSpan tiempoMaximo, int maximoBytesSalida, CancellationToken cancellationToken);
+        TimeSpan tiempoMaximo, int maximoBytesSalida, CancellationToken cancellationToken, SeguimientoProcesoAislado? seguimiento = null);
 }
 
 /// <summary>
@@ -67,9 +96,15 @@ public sealed class LanzadorProcesoAislado(ILogger<LanzadorProcesoAislado> logge
     internal Action<Process>? Matar { get; init; }
 
     public async Task<SalidaProcesoAislado> EjecutarAsync(ProcessStartInfo inicio, Func<Stream, CancellationToken, Task> escribirEntrada,
-        TimeSpan tiempoMaximo, int maximoBytesSalida, CancellationToken cancellationToken)
+        TimeSpan tiempoMaximo, int maximoBytesSalida, CancellationToken cancellationToken, SeguimientoProcesoAislado? seguimiento = null)
     {
-        cancellationToken.ThrowIfCancellationRequested();
+        seguimiento ??= new SeguimientoProcesoAislado();
+        if (cancellationToken.IsCancellationRequested)
+        {
+            seguimiento.ConfirmarTerminado();
+            cancellationToken.ThrowIfCancellationRequested();
+        }
+
         inicio.UseShellExecute = false;
         inicio.RedirectStandardInput = true;
         inicio.RedirectStandardOutput = true;
@@ -77,8 +112,19 @@ public sealed class LanzadorProcesoAislado(ILogger<LanzadorProcesoAislado> logge
 
         using var plazo = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         using var proceso = new Process { StartInfo = inicio };
-        proceso.Start();
+        try
+        {
+            proceso.Start();
+        }
+        catch (Exception) when (!HaArrancado(proceso))
+        {
+            // Sin hijo (el ejecutable no existe, sin permiso): no queda nada vivo que retenga el turno.
+            seguimiento.ConfirmarTerminado();
+            throw;
+        }
+
         var id = proceso.Id;
+        seguimiento.Arrancado(id);
 
         Task errores = Task.CompletedTask, escritura = Task.CompletedTask, lectura = Task.CompletedTask;
         var matarAlVencer = default(CancellationTokenRegistration);
@@ -109,19 +155,36 @@ public sealed class LanzadorProcesoAislado(ILogger<LanzadorProcesoAislado> logge
             fallo = ExceptionDispatchInfo.Capture(ex);
         }
 
-        // También al cancelar el llamante o ante cualquier excepción: no se deja un hijo vivo con el PDF abierto.
+        // También al cancelar el llamante o ante cualquier excepción: no se deja un hijo vivo con el PDF abierto. Solo cuenta
+        // como terminado lo que se confirma: el hijo salió y cada tubería acabó. Una escritura que sigue pendiente retiene la
+        // entrada (los PDF) y quizá la tubería sigue abierta en otro proceso: no consta terminado.
         var terminado = await MatarArbolAsync(proceso, id);
-        await ObservarAsync(lectura);
-        await ObservarAsync(escritura);
-        await ObservarAsync(errores);
+        var tuberias = await TerminaEnAsync(lectura, EsperaDeMuerte);
+        tuberias &= await TerminaEnAsync(escritura, EsperaDeMuerte);
+        tuberias &= await TerminaEnAsync(errores, EsperaDeMuerte);
         matarAlVencer.Dispose();
 
         // Sustituye al desenlace que hubiera: sin la muerte confirmada, el turno de quien llama no puede soltarse.
-        if (!terminado)
+        if (!(terminado && tuberias))
             throw new ProcesoAisladoSinTerminarException(id);
 
+        seguimiento.ConfirmarTerminado();
         fallo?.Throw();
         return desenlace!;
+    }
+
+    /// <summary>Si <see cref="Process.Start()"/> lanzó habiendo creado ya el hijo, este sigue ahí y no consta terminado.</summary>
+    private static bool HaArrancado(Process proceso)
+    {
+        try
+        {
+            _ = proceso.Id;
+            return true;
+        }
+        catch (InvalidOperationException)
+        {
+            return false;
+        }
     }
 
     private static async Task<SalidaProcesoAislado> DesenlaceAsync(Process proceso, Task<ReadOnlyMemory<byte>?> lectura,
@@ -224,13 +287,14 @@ public sealed class LanzadorProcesoAislado(ILogger<LanzadorProcesoAislado> logge
     /// <summary>
     /// <c>true</c> solo si el hijo consta terminado: ya había salido, o salió dentro de <paramref name="margen"/> tras
     /// <paramref name="matar"/>. Lo que cuenta es la salida, no que matar no falle: un hijo que ya estaba saliendo puede hacer
-    /// que matar lance, y entonces la espera vuelve en el acto. Si la espera vence, <c>false</c>. Ningún fallo se deja
-    /// escapar, porque llegamos aquí ya cancelando o agotando el tiempo y el motivo real lo decide el llamante.
+    /// que matar lance, y entonces la espera vuelve en el acto. Los dos <c>true</c> son los únicos caminos confirmados; todo
+    /// lo demás, incluido un fallo al registrar, es <c>false</c>. Ningún fallo se deja escapar, porque llegamos aquí ya
+    /// cancelando o agotando el tiempo y el motivo real lo decide el llamante.
     /// </summary>
     internal static async Task<bool> ConfirmarTerminadoAsync(Func<bool> haTerminado, Action matar,
         Func<CancellationToken, Task> esperarSalida, TimeSpan margen, Action<Exception> registrar)
     {
-        Exception? falloAlMatar = null;
+        Exception? motivo = null;
         try
         {
             if (haTerminado())
@@ -242,7 +306,7 @@ public sealed class LanzadorProcesoAislado(ILogger<LanzadorProcesoAislado> logge
             }
             catch (Exception ex)
             {
-                falloAlMatar = ex;
+                motivo = ex;
             }
 
             using var espera = new CancellationTokenSource(margen);
@@ -251,20 +315,43 @@ public sealed class LanzadorProcesoAislado(ILogger<LanzadorProcesoAislado> logge
         }
         catch (Exception ex)
         {
-            registrar(falloAlMatar ?? ex);
-            return false;
+            motivo ??= ex;
         }
-    }
 
-    private async Task ObservarAsync(Task tarea)
-    {
         try
         {
-            await tarea.WaitAsync(EsperaDeMuerte);
+            registrar(motivo);
         }
         catch (Exception)
         {
-            // Solo se observa para no dejar excepciones sin observar; el desenlace ya está decidido.
+            // Que el registro falle no cambia nada: el hijo sigue sin constar terminado.
+        }
+
+        return false;
+    }
+
+    /// <summary>
+    /// <c>true</c> si <paramref name="tarea"/> termina (bien o con excepción) dentro de <paramref name="espera"/>. Si no, se
+    /// abandona con una continuación que observa su excepción cuando llegue, y <c>false</c>: sigue viva y puede retener lo que
+    /// referencia.
+    /// </summary>
+    internal static async Task<bool> TerminaEnAsync(Task tarea, TimeSpan espera)
+    {
+        try
+        {
+            await tarea.WaitAsync(espera);
+            return true;
+        }
+        catch (Exception) when (tarea.IsCompleted)
+        {
+            // Terminó con excepción: ya está observada aquí y el desenlace lo decide el llamante.
+            return true;
+        }
+        catch (Exception)
+        {
+            _ = tarea.ContinueWith(static t => _ = t.Exception, CancellationToken.None,
+                TaskContinuationOptions.OnlyOnFaulted | TaskContinuationOptions.ExecuteSynchronously, TaskScheduler.Default);
+            return false;
         }
     }
 }

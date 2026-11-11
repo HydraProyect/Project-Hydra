@@ -72,6 +72,74 @@ public sealed class LanzadorProcesoAisladoPlazoTests
     }
 
     [Fact]
+    public async Task Si_el_registro_falla_al_no_confirmar_la_muerte_sigue_sin_constar_terminado_y_no_lanza()
+    {
+        var terminado = await LanzadorProcesoAislado.ConfirmarTerminadoAsync(
+            () => false, () => throw new InvalidOperationException("sin permiso"), token => Task.Delay(Timeout.Infinite, token),
+            Margen, _ => throw new InvalidOperationException("el proveedor de registro falla")).WaitAsync(TimeSpan.FromSeconds(5));
+
+        terminado.Should().BeFalse("un fallo del registro no puede convertirse en una excepción que suelte el turno");
+    }
+
+    [Fact]
+    public async Task Si_comprobar_la_salida_lanza_no_consta_terminado()
+    {
+        var terminado = await LanzadorProcesoAislado.ConfirmarTerminadoAsync(
+            () => throw new InvalidOperationException("sin proceso asociado"), () => { }, _ => Task.CompletedTask, Margen, _ => { });
+
+        terminado.Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task Una_tarea_de_tuberia_que_no_termina_en_su_espera_se_abandona_y_lo_dice()
+    {
+        var nunca = new TaskCompletionSource();
+
+        (await LanzadorProcesoAislado.TerminaEnAsync(nunca.Task, Margen).WaitAsync(TimeSpan.FromSeconds(5))).Should().BeFalse();
+        (await LanzadorProcesoAislado.TerminaEnAsync(Task.FromException(new IOException("tubería rota")), Margen)).Should()
+            .BeTrue("terminó, aunque fuera con excepción");
+    }
+
+    [Fact]
+    public async Task Una_tarea_de_tuberia_abandonada_que_falla_despues_queda_observada()
+    {
+        var sinObservar = new List<Exception>();
+        EventHandler<UnobservedTaskExceptionEventArgs> anotar = (_, e) =>
+        {
+            if (e.Exception.InnerExceptions.Any(ex => ex.Message == MarcaFalloTardio))
+                lock (sinObservar)
+                    sinObservar.Add(e.Exception);
+        };
+        TaskScheduler.UnobservedTaskException += anotar;
+        try
+        {
+            await AbandonarYFallarDespuesAsync();
+            GC.Collect();
+            GC.WaitForPendingFinalizers();
+            GC.Collect();
+
+            lock (sinObservar)
+                sinObservar.Should().BeEmpty("la continuación del abandono observa la excepción tardía");
+        }
+        finally
+        {
+            TaskScheduler.UnobservedTaskException -= anotar;
+        }
+    }
+
+    private const string MarcaFalloTardio = "fallo tardío de una tubería abandonada";
+
+    [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.NoInlining)]
+    private static async Task AbandonarYFallarDespuesAsync()
+    {
+        var tarde = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        (await LanzadorProcesoAislado.TerminaEnAsync(tarde.Task, Margen)).Should().BeFalse();
+        tarde.SetException(new IOException(MarcaFalloTardio));
+        // Que la continuación llegue a correr antes de soltar la tarea.
+        await Task.Delay(100);
+    }
+
+    [Fact]
     public async Task Una_lectura_bloqueada_que_no_atiende_la_cancelacion_no_retiene_al_lanzador_mas_alla_del_plazo()
     {
         using var tuberia = new TuberiaQueNoResponde();

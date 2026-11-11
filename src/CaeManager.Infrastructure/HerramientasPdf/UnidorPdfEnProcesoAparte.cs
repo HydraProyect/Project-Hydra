@@ -64,9 +64,11 @@ public sealed record OpcionesProcesoHerramientasPdf
 /// cerrado: corre con el mismo usuario y en el mismo contenedor. Lo que acota es el coste, que es el riesgo de abrir un PDF
 /// con PDFsharp, código administrado.
 ///
-/// El turno de <see cref="LimitadorProcesosAislados"/> solo se suelta con el hijo terminado. Si no se puede confirmar (no se
-/// pudo matar, no salió en el margen o el lanzador no volvió), el turno se retiene, el limitador queda degradado hasta
-/// reiniciar la instancia y esta unión y las siguientes piden reintentar sin lanzar ningún proceso.
+/// El turno de <see cref="LimitadorProcesosAislados"/> solo se suelta cuando el lanzador confirma, en su
+/// <see cref="SeguimientoProcesoAislado"/>, que no queda nada vivo de la ejecución. Si no consta (no se pudo matar, no salió
+/// en el margen, una tubería no acabó, el lanzador no volvió o lanzó sin confirmar), el turno se retiene, el limitador queda
+/// degradado hasta reiniciar la instancia, el llamante recibe <see cref="EntradaPdfRetenidaException"/> para retener la
+/// memoria reservada para esos PDF, y las uniones siguientes piden reintentar sin lanzar ningún proceso.
 /// </summary>
 public sealed class UnidorPdfEnProcesoAparte(
     OpcionesProcesoHerramientasPdf opciones,
@@ -121,46 +123,67 @@ public sealed class UnidorPdfEnProcesoAparte(
     {
         // Sin turno a tiempo, o con el limitador degradado, es el mismo transitorio que un presupuesto de memoria lleno: la
         // pantalla pide reintentar más tarde, y no se lanza nada.
-        using var turno = await limitador.EntrarAsync(opciones.EsperaMaximaTurno, cancellationToken)
+        var turno = await limitador.EntrarAsync(opciones.EsperaMaximaTurno, cancellationToken)
             ?? throw new PresupuestoMemoriaAgotadoException();
 
-        var ejecucion = lanzador.EjecutarAsync(Inicio(opciones),
-            (entrada, token) => ProtocoloProcesoHerramientasPdf.EscribirPeticionAsync(entrada, operacion, pdfs, token),
-            tiempoMaximo, maximoBytesSalida, cancellationToken);
+        // El turno no va en un using: se suelta solo en el camino en que consta que no queda nada vivo de la ejecución.
+        var seguimiento = new SeguimientoProcesoAislado();
+        // En otro hilo: el tramo síncrono del lanzador (Process.Start, registrar la cancelación) también queda dentro de la
+        // espera acotada de abajo, aunque se bloquee antes de devolver su tarea.
+        var ejecucion = Task.Run(() =>
+        {
+            // Con capacidad > 1 la instancia pudo degradarse después de dar este turno: ya no se lanza nada más.
+            if (limitador.Degradado)
+            {
+                seguimiento.ConfirmarTerminado();
+                throw new PresupuestoMemoriaAgotadoException();
+            }
 
-        try
+            return lanzador.EjecutarAsync(Inicio(opciones),
+                (entrada, token) => ProtocoloProcesoHerramientasPdf.EscribirPeticionAsync(entrada, operacion, pdfs, token),
+                tiempoMaximo, maximoBytesSalida, cancellationToken, seguimiento);
+        }, CancellationToken.None);
+
+        // Sin el token del llamante: al cancelar, el lanzador mata al hijo y vuelve. Esta espera solo acota el caso en que el
+        // lanzador no vuelve, que no confirma nada. Sin lanzar: lo que decide es el seguimiento, no el tipo de excepción.
+        await ((Task)ejecucion.WaitAsync(tiempoMaximo + opciones.MargenConfirmacionTerminado))
+            .ConfigureAwait(ConfigureAwaitOptions.SuppressThrowing);
+
+        if (!ejecucion.IsCompleted || !seguimiento.ConstaTerminado)
         {
-            // Sin el token del llamante: al cancelar, el lanzador mata al hijo y vuelve, y el turno se suelta cuando ya está
-            // muerto. Esta espera solo acota el caso en que el lanzador no vuelve, que no confirma nada.
-            return await ejecucion.WaitAsync(tiempoMaximo + opciones.MargenConfirmacionTerminado);
-        }
-        catch (ProcesoAisladoSinTerminarException ex)
-        {
-            throw Degradar(turno, ex.IdProceso, cancellationToken);
-        }
-        catch (TimeoutException)
-        {
-            // La ejecución se abandona, con su excepción observada.
+            // La ejecución se abandona (si no volvió), con su excepción observada.
             _ = ejecucion.ContinueWith(static tarea => _ = tarea.Exception, CancellationToken.None,
                 TaskContinuationOptions.OnlyOnFaulted | TaskContinuationOptions.ExecuteSynchronously, TaskScheduler.Default);
-            throw Degradar(turno, null, cancellationToken);
+            throw Degradar(turno, seguimiento.IdProceso);
         }
+
+        turno.Dispose();
+        // Devuelve la salida o relanza lo que lanzó el lanzador (la cancelación del llamante, entre otras), ya con el turno suelto.
+        return await ejecucion;
     }
 
     /// <summary>
-    /// El hijo quizá sigue vivo con su límite de memoria: su turno no se devuelve y la herramienta queda desactivada en esta
-    /// instancia hasta reiniciarla. Al llamante, su cancelación si la pidió; si no, el mismo «inténtalo más tarde».
+    /// El hijo quizá sigue vivo con su límite de memoria, o una escritura suya retiene los PDF: su turno no se devuelve y la
+    /// herramienta queda desactivada en esta instancia hasta reiniciarla. Al llamante, siempre
+    /// <see cref="EntradaPdfRetenidaException"/>, también si canceló: así sabe que no debe devolver la memoria reservada
+    /// para esos PDF.
     /// </summary>
-    private Exception Degradar(TurnoProcesoAislado turno, int? idProceso, CancellationToken cancellationToken)
+    private EntradaPdfRetenidaException Degradar(TurnoProcesoAislado turno, int? idProceso)
     {
         turno.RetenerPorHijoSinConfirmar();
-        // Sin nada del Documento: solo el identificador del proceso, que es lo que hace falta para buscarlo en el host.
-        logger.LogCritical(
-            "Unir PDF queda desactivada en esta instancia hasta reiniciarla: no se pudo confirmar que terminara el proceso aislado {IdProceso}.",
-            idProceso?.ToString(CultureInfo.InvariantCulture) ?? "desconocido (el lanzador no volvió)");
-        return cancellationToken.IsCancellationRequested
-            ? new OperationCanceledException(cancellationToken)
-            : new PresupuestoMemoriaAgotadoException();
+        try
+        {
+            // Sin nada del Documento: solo el identificador del proceso, que es lo que hace falta para buscarlo en el host.
+            logger.LogCritical(
+                "Unir PDF queda desactivada en esta instancia hasta reiniciarla: no se pudo confirmar que terminara el proceso aislado {IdProceso}.",
+                idProceso?.ToString(CultureInfo.InvariantCulture) ?? "desconocido (no consta que llegara a arrancar)");
+        }
+        catch (Exception)
+        {
+            // Un registro que falla no cambia el desenlace: el turno ya está retenido.
+        }
+
+        return new EntradaPdfRetenidaException();
     }
 
     private Result<T> Traducir<T>(SalidaProcesoAislado salida, Func<ReadOnlyMemory<byte>, Result<T>?> leer, string operacion)

@@ -96,7 +96,8 @@ public record PdfUnido(byte[] Contenido, int NumeroPaginas);
 ///
 /// Un PDF que agota la memoria o el tiempo del análisis sale como <see cref="ErroresUnirPdf.DemasiadoComplejo"/>. Si no hay
 /// turno libre para el proceso aparte a tiempo, lanza <see cref="Common.PresupuestoMemoriaAgotadoException"/>, el mismo
-/// transitorio que el presupuesto de memoria de documentos («inténtalo de nuevo»).
+/// transitorio que el presupuesto de memoria de documentos («inténtalo de nuevo»). Si no consta que el proceso que recibió
+/// los PDF terminara, lanza <see cref="EntradaPdfRetenidaException"/>, también si el llamante canceló.
 /// </summary>
 public interface IUnidorPdf
 {
@@ -105,4 +106,29 @@ public interface IUnidorPdf
 
     /// <summary>Une los PDF en el orden recibido en uno nuevo: las páginas se copian, la firma electrónica no se conserva.</summary>
     Task<Result<PdfUnido>> UnirAsync(IReadOnlyList<byte[]> pdfs, CancellationToken cancellationToken);
+}
+
+/// <summary>
+/// No consta que terminara el proceso aparte que recibió estos PDF (no se pudo matar, no salió, una escritura de su entrada
+/// sigue pendiente o el lanzador no volvió): los PDF pueden seguir referenciados y el turno de ese proceso queda retenido
+/// hasta reiniciar la instancia. Quien reservó memoria del presupuesto para esos PDF tampoco la devuelve: la pasa a
+/// <see cref="Retener"/>. Para la persona es el mismo «inténtalo más tarde» que
+/// <see cref="Common.PresupuestoMemoriaAgotadoException"/>.
+/// </summary>
+public sealed class EntradaPdfRetenidaException() : Exception(Common.PresupuestoMemoriaAgotadoException.MensajeUsuario)
+{
+    private static readonly System.Collections.Concurrent.ConcurrentBag<IDisposable> Retenidas = [];
+
+    /// <summary>Reservas que no se devuelven nunca en esta instancia, igual que el turno del proceso que no consta terminado.</summary>
+    public static int NumeroRetenidas => Retenidas.Count;
+
+    /// <summary>
+    /// Deja <paramref name="reserva"/> sin devolver hasta reiniciar la instancia: se guarda viva y nadie la desecha. Quien la
+    /// pasa aquí no debe desecharla después.
+    /// </summary>
+    public static void Retener(IDisposable? reserva)
+    {
+        if (reserva is not null)
+            Retenidas.Add(reserva);
+    }
 }

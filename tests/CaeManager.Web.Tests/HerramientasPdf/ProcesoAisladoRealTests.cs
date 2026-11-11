@@ -164,6 +164,60 @@ public sealed class ProcesoAisladoRealTests
         }
     }
 
+    [Fact]
+    public async Task Si_el_hijo_muere_pero_una_escritura_sigue_pendiente_no_consta_terminado_porque_retiene_la_entrada()
+    {
+        // Una escritura que no atiende la cancelación ni ve la tubería rota: sigue referenciando la entrada tras matar al hijo.
+        var pendiente = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var lanzador = new LanzadorProcesoAislado(NullLogger<LanzadorProcesoAislado>.Instance)
+        {
+            AlArrancar = id => _arrancados.Add(id),
+            EsperaDeMuerte = TimeSpan.FromMilliseconds(300),
+        };
+        var seguimiento = new SeguimientoProcesoAislado();
+        try
+        {
+            var ejecutar = () => lanzador.EjecutarAsync(ProcesoQueEspera(), (_, _) => pendiente.Task,
+                TimeSpan.FromMilliseconds(300), 1_000_000, CancellationToken.None, seguimiento);
+
+            await ejecutar.Should().ThrowAsync<ProcesoAisladoSinTerminarException>("la escritura abandonada sigue reteniendo los PDF");
+            YaNoExiste(_arrancados.Single()).Should().BeTrue("el hijo sí murió: lo que no consta es que nada retenga la entrada");
+            seguimiento.ConstaTerminado.Should().BeFalse();
+            seguimiento.IdProceso.Should().Be(_arrancados.Single(), "el PID se publica al arrancar");
+        }
+        finally
+        {
+            pendiente.TrySetResult();
+            MatarDeVerdad();
+        }
+    }
+
+    [Fact]
+    public async Task Con_el_hijo_terminado_y_sus_tuberias_cerradas_el_seguimiento_lo_confirma()
+    {
+        var seguimiento = new SeguimientoProcesoAislado();
+
+        var salida = await Lanzador().EjecutarAsync(ProcesoQueEspera(), (_, _) => Task.CompletedTask,
+            TimeSpan.FromMilliseconds(300), 1_000_000, CancellationToken.None, seguimiento);
+
+        salida.Desenlace.Should().Be(DesenlaceProcesoAislado.TiempoAgotado);
+        seguimiento.ConstaTerminado.Should().BeTrue();
+        seguimiento.IdProceso.Should().Be(salida.IdProceso);
+    }
+
+    [Fact]
+    public async Task Si_el_ejecutable_no_existe_no_hay_hijo_y_el_seguimiento_lo_confirma()
+    {
+        var seguimiento = new SeguimientoProcesoAislado();
+
+        var ejecutar = () => Lanzador().EjecutarAsync(new ProcessStartInfo(Path.Combine(AppContext.BaseDirectory, "no-existe-" + Guid.NewGuid().ToString("N"))),
+            (_, _) => Task.CompletedTask, TimeSpan.FromSeconds(5), 1_000_000, CancellationToken.None, seguimiento);
+
+        await ejecutar.Should().ThrowAsync<System.ComponentModel.Win32Exception>();
+        seguimiento.ConstaTerminado.Should().BeTrue("sin hijo no queda nada vivo que retenga el turno");
+        seguimiento.IdProceso.Should().BeNull();
+    }
+
     private LanzadorProcesoAislado LanzadorQueNoPuedeMatar(Action<Process> matar) =>
         new(NullLogger<LanzadorProcesoAislado>.Instance)
         {
@@ -285,9 +339,9 @@ public sealed class ProcesoAisladoRealTests
     private sealed class Grabador(ILanzadorProcesoAislado real, Action<SalidaProcesoAislado> anotar) : ILanzadorProcesoAislado
     {
         public async Task<SalidaProcesoAislado> EjecutarAsync(ProcessStartInfo inicio, Func<Stream, CancellationToken, Task> escribirEntrada,
-            TimeSpan tiempoMaximo, int maximoBytesSalida, CancellationToken cancellationToken)
+            TimeSpan tiempoMaximo, int maximoBytesSalida, CancellationToken cancellationToken, SeguimientoProcesoAislado? seguimiento = null)
         {
-            var salida = await real.EjecutarAsync(inicio, escribirEntrada, tiempoMaximo, maximoBytesSalida, cancellationToken);
+            var salida = await real.EjecutarAsync(inicio, escribirEntrada, tiempoMaximo, maximoBytesSalida, cancellationToken, seguimiento);
             anotar(salida);
             return salida;
         }
@@ -297,11 +351,11 @@ public sealed class ProcesoAisladoRealTests
     private sealed class AntesDeEscribir(ILanzadorProcesoAislado real, Func<Task> antes) : ILanzadorProcesoAislado
     {
         public Task<SalidaProcesoAislado> EjecutarAsync(ProcessStartInfo inicio, Func<Stream, CancellationToken, Task> escribirEntrada,
-            TimeSpan tiempoMaximo, int maximoBytesSalida, CancellationToken cancellationToken) =>
+            TimeSpan tiempoMaximo, int maximoBytesSalida, CancellationToken cancellationToken, SeguimientoProcesoAislado? seguimiento = null) =>
             real.EjecutarAsync(inicio, async (entrada, ct) =>
             {
                 await antes();
                 await escribirEntrada(entrada, ct);
-            }, tiempoMaximo, maximoBytesSalida, cancellationToken);
+            }, tiempoMaximo, maximoBytesSalida, cancellationToken, seguimiento);
     }
 }

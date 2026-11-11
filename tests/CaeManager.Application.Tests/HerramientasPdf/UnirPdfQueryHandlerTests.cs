@@ -622,6 +622,20 @@ public class UnirPdfQueryHandlerTests
     }
 
     [Fact]
+    public async Task Si_el_proceso_que_recibio_los_PDF_no_consta_terminado_sus_reservas_no_se_devuelven_y_la_excepcion_sigue()
+    {
+        // Una escritura del proceso aparte puede seguir referenciando los PDF: lo reservado para ellos se queda retenido.
+        var seguro = DocumentoDeEmpresa("SEGURO[estructura=1000000]");
+        var retenidasAntes = EntradaPdfRetenidaException.NumeroRetenidas;
+
+        var llamada = async () => await UnirAsync([new EntradaUnionDocumento(seguro.Id), Subido("b.pdf", "B[retenida]")]);
+
+        await llamada.Should().ThrowAsync<EntradaPdfRetenidaException>("la pantalla tiene que retener también lo suyo");
+        PresupuestoLibre().Should().BeFalse("la lectura del Documento, su estructura y la copia de lo subido siguen reservadas");
+        EntradaPdfRetenidaException.NumeroRetenidas.Should().BeGreaterThanOrEqualTo(retenidasAntes + 3);
+    }
+
+    [Fact]
     public async Task El_PDF_unido_retiene_su_reserva_hasta_que_quien_lo_entrega_lo_desecha_y_la_devuelve_una_sola_vez()
     {
         var seguro = DocumentoDeEmpresa("SEGURO[estructura=1000000]");
@@ -856,6 +870,7 @@ public class UnirPdfQueryHandlerTests
             var texto = Texto(contenidoPdf);
             if (texto.Contains("[explota]")) throw new InvalidOperationException("fallo inesperado del unidor");
             if (texto.Contains("[sin-turno]")) throw new PresupuestoMemoriaAgotadoException();
+            if (texto.Contains("[retenida]")) throw new EntradaPdfRetenidaException();
             if (texto.Contains("[clave]")) return Result.Fallo<InfoPdfParaUnir>(Error.Crear(ErroresUnirPdf.ConContrasena, "con contraseña"));
             if (texto.Contains("[ilegible]")) return Result.Fallo<InfoPdfParaUnir>(Error.Crear(ErroresUnirPdf.Ilegible, "ilegible"));
             var estructura = System.Text.RegularExpressions.Regex.Match(texto, @"\[estructura=(\d+)\]");

@@ -277,6 +277,15 @@ public class UnirPdfQueryHandler(
                 Reserva = reservaUnido,
             });
         }
+        catch (EntradaPdfRetenidaException)
+        {
+            // El proceso aparte que recibió estos PDF no consta terminado: pueden seguir referenciados, así que lo reservado
+            // para ellos no se devuelve (ni en el finally). La excepción sigue para que la pantalla retenga también lo suyo.
+            foreach (var reserva in reservas)
+                EntradaPdfRetenidaException.Retener(reserva);
+            reservas.Clear();
+            throw;
+        }
         catch (PresupuestoMemoriaAgotadoException)
         {
             // Transitorio: sin hueco en el presupuesto de memoria de documentos del proceso. Los Documentos ya leídos sí

@@ -187,7 +187,7 @@ public sealed class UnidorPdfEnProcesoAparteTests
 
         var unir = () => unidor.UnirAsync([PdfA, PdfB], CancellationToken.None);
 
-        await unir.Should().ThrowAsync<PresupuestoMemoriaAgotadoException>("la pantalla lo traduce a «inténtalo más tarde»");
+        await unir.Should().ThrowAsync<EntradaPdfRetenidaException>("quien reservó memoria para los PDF tampoco la devuelve");
         _limitador.Libres.Should().Be(0, "el hijo quizá vivo conserva su hueco: otro proceso no puede ocuparlo");
         _limitador.Degradado.Should().BeTrue();
         (await _limitador.EntrarAsync(TimeSpan.Zero, CancellationToken.None)).Should().BeNull("ningún otro proceso recibe turno");
@@ -202,7 +202,7 @@ public sealed class UnidorPdfEnProcesoAparteTests
         // Una espera de turno larga: si la unión posterior esperase turno en vez de responder en el acto, el test vencería.
         var opciones = _opciones with { EsperaMaximaTurno = TimeSpan.FromMinutes(5) };
         var unidor = new UnidorPdfEnProcesoAparte(opciones, _limitador, lanzador, NullLogger<UnidorPdfEnProcesoAparte>.Instance);
-        await unidor.Invoking(u => u.UnirAsync([PdfA, PdfB], CancellationToken.None)).Should().ThrowAsync<PresupuestoMemoriaAgotadoException>();
+        await unidor.Invoking(u => u.UnirAsync([PdfA, PdfB], CancellationToken.None)).Should().ThrowAsync<EntradaPdfRetenidaException>();
 
         var unir = () => unidor.UnirAsync([PdfA, PdfB], CancellationToken.None).WaitAsync(TimeSpan.FromSeconds(10));
         var inspeccionar = () => unidor.InspeccionarAsync(PdfA, CancellationToken.None).WaitAsync(TimeSpan.FromSeconds(10));
@@ -213,7 +213,7 @@ public sealed class UnidorPdfEnProcesoAparteTests
     }
 
     [Fact]
-    public async Task Si_el_hijo_no_se_confirma_terminado_y_el_llamante_cancelo_se_cancela_y_la_herramienta_queda_desactivada()
+    public async Task Si_el_hijo_no_se_confirma_terminado_y_el_llamante_cancelo_gana_la_entrada_retenida_y_la_herramienta_queda_desactivada()
     {
         using var cancelacion = new CancellationTokenSource();
         var lanzador = new LanzadorDoble(_ =>
@@ -224,28 +224,110 @@ public sealed class UnidorPdfEnProcesoAparteTests
 
         var inspeccionar = () => Unidor(lanzador).InspeccionarAsync(PdfA, cancelacion.Token);
 
-        await inspeccionar.Should().ThrowAsync<OperationCanceledException>();
+        await inspeccionar.Should().ThrowAsync<EntradaPdfRetenidaException>("una cancelación haría que el llamante devolviera la memoria de los PDF");
         _limitador.Libres.Should().Be(0);
         _limitador.Degradado.Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task Si_el_lanzador_lanza_cualquier_otra_excepcion_sin_confirmar_la_muerte_el_turno_se_retiene()
+    {
+        // Por ejemplo, un fallo del proveedor de registro mientras confirmaba: no es una ProcesoAisladoSinTerminarException.
+        var lanzador = new LanzadorDoble(_ => throw new InvalidOperationException("el registro falló")) { SinConfirmar = true };
+
+        var unir = () => Unidor(lanzador).UnirAsync([PdfA, PdfB], CancellationToken.None);
+
+        await unir.Should().ThrowAsync<EntradaPdfRetenidaException>();
+        _limitador.Libres.Should().Be(0, "sin confirmación positiva el turno no se suelta, sea cual sea la excepción");
+        _limitador.Degradado.Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task Si_el_lanzador_confirma_la_muerte_y_luego_lanza_el_turno_se_suelta_y_la_excepcion_sigue()
+    {
+        var lanzador = new LanzadorDoble(_ => throw new InvalidOperationException("fallo con el hijo ya muerto"));
+
+        var unir = () => Unidor(lanzador).UnirAsync([PdfA, PdfB], CancellationToken.None);
+
+        await unir.Should().ThrowAsync<InvalidOperationException>();
+        _limitador.Libres.Should().Be(1);
+        _limitador.Degradado.Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task Un_registro_que_falla_al_desactivar_la_herramienta_no_suelta_el_turno()
+    {
+        var lanzador = new LanzadorDoble(_ => throw new ProcesoAisladoSinTerminarException(4321));
+        var unidor = new UnidorPdfEnProcesoAparte(_opciones, _limitador, lanzador, new RegistroDoble { Fallar = true });
+
+        var unir = () => unidor.UnirAsync([PdfA, PdfB], CancellationToken.None);
+
+        await unir.Should().ThrowAsync<EntradaPdfRetenidaException>();
+        _limitador.Libres.Should().Be(0);
+        _limitador.Degradado.Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task Si_el_lanzador_se_bloquea_antes_de_devolver_su_tarea_la_espera_exterior_lo_acota_y_el_turno_se_retiene()
+    {
+        // Como un Process.Start que no vuelve: el bloqueo es síncrono, antes de que exista ninguna tarea que esperar.
+        using var bloqueo = new ManualResetEventSlim();
+        var registro = new RegistroDoble();
+        var lanzador = new LanzadorDoble(_ => Terminado(0, [])) { Bloqueo = bloqueo };
+        var opciones = _opciones with { TiempoMaximoInspeccionar = TimeSpan.FromMilliseconds(50), MargenConfirmacionTerminado = TimeSpan.FromMilliseconds(50) };
+        var unidor = new UnidorPdfEnProcesoAparte(opciones, _limitador, lanzador, registro);
+        try
+        {
+            var inspeccionar = () => unidor.InspeccionarAsync(PdfA, CancellationToken.None).WaitAsync(TimeSpan.FromSeconds(10));
+
+            await inspeccionar.Should().ThrowAsync<EntradaPdfRetenidaException>("un TimeoutException diría que la espera exterior no cubrió el bloqueo");
+            _limitador.Libres.Should().Be(0);
+            _limitador.Degradado.Should().BeTrue();
+            registro.Entradas.Should().ContainSingle(e => e.Nivel == LogLevel.Critical).Which.Mensaje.Should().Contain("no consta que llegara a arrancar");
+        }
+        finally
+        {
+            bloqueo.Set();
+        }
+    }
+
+    [Fact]
+    public async Task Con_capacidad_dos_quien_ya_tenia_turno_cuando_se_degrado_no_lanza()
+    {
+        var limitador = new LimitadorProcesosAislados(2);
+        var otro = await limitador.EntrarAsync(TimeSpan.Zero, CancellationToken.None);
+        // La otra unión degrada la instancia justo después de que esta pasara la última comprobación del limitador.
+        limitador.AlDarTurno = () => otro!.RetenerPorHijoSinConfirmar();
+        var lanzador = new LanzadorDoble(_ => Terminado(0, []));
+        var unidor = new UnidorPdfEnProcesoAparte(_opciones, limitador, lanzador, NullLogger<UnidorPdfEnProcesoAparte>.Instance);
+
+        var inspeccionar = () => unidor.InspeccionarAsync(PdfA, CancellationToken.None);
+
+        await inspeccionar.Should().ThrowAsync<PresupuestoMemoriaAgotadoException>();
+        lanzador.Llamadas.Should().Be(0, "degradada la instancia no se lanza ningún proceso más");
+        limitador.Libres.Should().Be(1, "el turno que no se usó vuelve; el retenido no");
     }
 
     [Fact]
     public async Task Si_el_lanzador_no_vuelve_ni_al_cancelar_el_turno_no_se_suelta_y_la_herramienta_queda_desactivada()
     {
         // No pudo matar al hijo y la lectura no atiende la cancelación: el lanzador no vuelve nunca, ni con el token.
+        var registro = new RegistroDoble();
         var lanzador = new LanzadorDoble(_ => Terminado(0, [])) { NoVolver = true };
         var opciones = _opciones with { TiempoMaximoInspeccionar = TimeSpan.FromMilliseconds(50), MargenConfirmacionTerminado = TimeSpan.FromMilliseconds(50) };
-        var unidor = new UnidorPdfEnProcesoAparte(opciones, _limitador, lanzador, NullLogger<UnidorPdfEnProcesoAparte>.Instance);
+        var unidor = new UnidorPdfEnProcesoAparte(opciones, _limitador, lanzador, registro);
 
         var inspeccionar = () => unidor.InspeccionarAsync(PdfA, CancellationToken.None).WaitAsync(TimeSpan.FromSeconds(10));
 
-        await inspeccionar.Should().ThrowAsync<PresupuestoMemoriaAgotadoException>("la espera acotada no confirma que el hijo muriera");
+        await inspeccionar.Should().ThrowAsync<EntradaPdfRetenidaException>("la espera acotada no confirma que el hijo muriera");
         _limitador.Libres.Should().Be(0, "el único turno se queda con el hijo quizá vivo");
         _limitador.Degradado.Should().BeTrue();
+        registro.Entradas.Should().ContainSingle(e => e.Nivel == LogLevel.Critical)
+            .Which.Mensaje.Should().Contain(LanzadorDoble.IdHijo.ToString(), "el PID se publicó al arrancar, aunque el lanzador no volviera");
     }
 
     [Fact]
-    public async Task Si_el_lanzador_no_vuelve_y_el_llamante_cancela_se_cancela_y_la_herramienta_queda_desactivada()
+    public async Task Si_el_lanzador_no_vuelve_y_el_llamante_cancela_gana_la_entrada_retenida_y_la_herramienta_queda_desactivada()
     {
         var lanzador = new LanzadorDoble(_ => Terminado(0, [])) { NoVolver = true };
         var opciones = _opciones with { TiempoMaximoInspeccionar = TimeSpan.FromMilliseconds(50), MargenConfirmacionTerminado = TimeSpan.FromMilliseconds(50) };
@@ -254,7 +336,7 @@ public sealed class UnidorPdfEnProcesoAparteTests
 
         var inspeccionar = () => unidor.InspeccionarAsync(PdfA, cancelacion.Token).WaitAsync(TimeSpan.FromSeconds(10));
 
-        await inspeccionar.Should().ThrowAsync<OperationCanceledException>();
+        await inspeccionar.Should().ThrowAsync<EntradaPdfRetenidaException>();
         _limitador.Libres.Should().Be(0);
         _limitador.Degradado.Should().BeTrue();
     }
@@ -340,41 +422,84 @@ public sealed class UnidorPdfEnProcesoAparteTests
     {
         public List<(LogLevel Nivel, string Mensaje)> Entradas { get; } = [];
 
+        /// <summary>Un proveedor de registro que lanza en cada entrada.</summary>
+        public bool Fallar { get; init; }
+
         public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
 
         public bool IsEnabled(LogLevel logLevel) => true;
 
         public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception? exception,
-            Func<TState, Exception?, string> formatter) => Entradas.Add((logLevel, formatter(state, exception)));
+            Func<TState, Exception?, string> formatter)
+        {
+            if (Fallar)
+                throw new InvalidOperationException("el proveedor de registro falla");
+            Entradas.Add((logLevel, formatter(state, exception)));
+        }
     }
 
     /// <summary>
-    /// Anota lo que se le pide y responde lo que diga el test; con <see cref="Esperar"/>, no responde hasta que se cancele, y
-    /// con <see cref="NoVolver"/>, no responde nunca, ni al cancelar (un hijo que no se pudo matar).
+    /// Anota lo que se le pide y responde lo que diga el test, como el lanzador real: publica el PID del hijo al arrancar y
+    /// confirma su muerte en el seguimiento al volver, salvo con <see cref="ProcesoAisladoSinTerminarException"/> o con
+    /// <see cref="SinConfirmar"/>. Con <see cref="Esperar"/>, no responde hasta que se cancele; con <see cref="NoVolver"/>, no
+    /// responde nunca, ni al cancelar (un hijo que no se pudo matar); con <see cref="Bloqueo"/>, se bloquea antes de devolver
+    /// su tarea, como un <c>Process.Start</c> que no vuelve.
     /// </summary>
     private sealed class LanzadorDoble(Func<byte[], SalidaProcesoAislado> responder) : ILanzadorProcesoAislado
     {
+        public const int IdHijo = 4321;
+
         public bool Esperar { get; init; }
         public bool NoVolver { get; init; }
+        public bool SinConfirmar { get; init; }
+        public ManualResetEventSlim? Bloqueo { get; init; }
         public int Llamadas { get; private set; }
         public byte[]? Entrada { get; private set; }
         public TimeSpan Tiempo { get; private set; }
         public int MaximoSalida { get; private set; }
 
         public async Task<SalidaProcesoAislado> EjecutarAsync(ProcessStartInfo inicio, Func<Stream, CancellationToken, Task> escribirEntrada,
-            TimeSpan tiempoMaximo, int maximoBytesSalida, CancellationToken cancellationToken)
+            TimeSpan tiempoMaximo, int maximoBytesSalida, CancellationToken cancellationToken, SeguimientoProcesoAislado? seguimiento = null)
         {
             Llamadas++;
             Tiempo = tiempoMaximo;
             MaximoSalida = maximoBytesSalida;
+            // Antes del primer await: bloquea a quien llama, que aún no tiene ninguna tarea que esperar.
+            Bloqueo?.Wait();
+            seguimiento?.Arrancado(IdHijo);
             using var entrada = new MemoryStream();
             await escribirEntrada(entrada, cancellationToken);
             Entrada = entrada.ToArray();
             if (Esperar)
-                await Task.Delay(Timeout.Infinite, cancellationToken);
+            {
+                try
+                {
+                    await Task.Delay(Timeout.Infinite, cancellationToken);
+                }
+                catch (OperationCanceledException)
+                {
+                    seguimiento?.ConfirmarTerminado();
+                    throw;
+                }
+            }
+
             if (NoVolver)
                 await new TaskCompletionSource().Task;
-            return responder(Entrada);
+
+            SalidaProcesoAislado salida;
+            try
+            {
+                salida = responder(Entrada);
+            }
+            catch (Exception ex) when (ex is not ProcesoAisladoSinTerminarException && !SinConfirmar)
+            {
+                seguimiento?.ConfirmarTerminado();
+                throw;
+            }
+
+            if (!SinConfirmar)
+                seguimiento?.ConfirmarTerminado();
+            return salida;
         }
     }
 }

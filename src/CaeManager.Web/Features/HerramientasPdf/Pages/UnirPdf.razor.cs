@@ -260,10 +260,22 @@ public partial class UnirPdf : CaeManager.Web.Components.PaginaInteractiva, IDis
                 archivo.Size, LimitesArchivoSubido.TamanoMaximoBytes, cancellationToken: _ciclo.Token);
 
             Result<InfoPdfParaUnir> info;
-            using (await PresupuestoMemoria.ReservarAsync(guardado.TamanoBytes, _ciclo.Token))
+            ReservaMemoriaDocumentos? reserva = await PresupuestoMemoria.ReservarAsync(guardado.TamanoBytes, _ciclo.Token);
+            try
             {
                 var contenido = await _almacen.LeerAsync(guardado, _ciclo.Token);
                 info = await Mediator.Send(new PrepararUnionPdfQuery(contenido, archivo.Name), _ciclo.Token);
+            }
+            catch (EntradaPdfRetenidaException)
+            {
+                // El proceso aparte que recibió el PDF no consta terminado y puede seguir referenciándolo: no se devuelve.
+                EntradaPdfRetenidaException.Retener(reserva);
+                reserva = null;
+                throw;
+            }
+            finally
+            {
+                reserva?.Dispose();
             }
 
             if (info.EsFallido)
@@ -279,7 +291,7 @@ public partial class UnirPdf : CaeManager.Web.Components.PaginaInteractiva, IDis
         {
             return Textos["UnirErrorDemasiadoGrande", archivo.Name, LimiteSubidaMb];
         }
-        catch (Exception ex) when (ex is CuotaSubidaMasivaSuperadaException or PresupuestoMemoriaAgotadoException)
+        catch (Exception ex) when (ex is CuotaSubidaMasivaSuperadaException or PresupuestoMemoriaAgotadoException or EntradaPdfRetenidaException)
         {
             if (guardado is not null)
                 _almacen!.Eliminar(guardado);
@@ -332,7 +344,8 @@ public partial class UnirPdf : CaeManager.Web.Components.PaginaInteractiva, IDis
         try
         {
             var subidos = _elementos.Where(e => e.Archivo is not null).Sum(e => e.Archivo!.TamanoBytes);
-            using (subidos > 0 ? await PresupuestoMemoria.ReservarAsync(subidos, _ciclo.Token) : null)
+            var reservaSubidos = subidos > 0 ? await PresupuestoMemoria.ReservarAsync(subidos, _ciclo.Token) : null;
+            try
             {
                 var entradas = new List<EntradaUnionPdf>(_elementos.Count);
                 foreach (var elemento in _elementos.ToList())
@@ -351,6 +364,17 @@ public partial class UnirPdf : CaeManager.Web.Components.PaginaInteractiva, IDis
                 }
 
                 resultado = respuesta.Valor;
+            }
+            catch (EntradaPdfRetenidaException)
+            {
+                // El proceso aparte que recibió los PDF no consta terminado y puede seguir referenciándolos: no se devuelve.
+                EntradaPdfRetenidaException.Retener(reservaSubidos);
+                reservaSubidos = null;
+                throw;
+            }
+            finally
+            {
+                reservaSubidos?.Dispose();
             }
 
             switch (resultado.Estado)
@@ -372,7 +396,7 @@ public partial class UnirPdf : CaeManager.Web.Components.PaginaInteractiva, IDis
         {
             // La pantalla se fue: no queda nadie a quien avisar. La reserva del PDF unido la devuelve el finally.
         }
-        catch (PresupuestoMemoriaAgotadoException)
+        catch (Exception ex) when (ex is PresupuestoMemoriaAgotadoException or EntradaPdfRetenidaException)
         {
             _error = Textos["ErrorSinEspacio"];
         }

@@ -9,7 +9,8 @@ namespace CaeManager.Infrastructure.HerramientasPdf;
 /// terminado no se suelta nunca (<see cref="TurnoProcesoAislado.RetenerPorHijoSinConfirmar"/>) y el limitador pasa a
 /// degradado: desde entonces no da turnos, y quien lo pida recibe <c>null</c> en el acto, sin lanzar nada. Quien ya esperaba
 /// hueco cuando se degradó tampoco lo recibe: con capacidad 1 agota su espera (el hueco retenido no vuelve) y con más
-/// capacidad lo devuelve al despertar. No hay reactivación automática: la instancia se recupera al reiniciarse, que es lo que
+/// capacidad lo devuelve al despertar. Quien ya tenía turno cuando se degradó comprueba <see cref="Degradado"/> antes de
+/// lanzar y, si lo está, no lanza (<see cref="UnidorPdfEnProcesoAparte"/>). No hay reactivación automática: la instancia se recupera al reiniciarse, que es lo que
 /// garantiza que ese hijo ya no existe.
 /// </summary>
 public sealed class LimitadorProcesosAislados(int capacidad)
@@ -43,8 +44,12 @@ public sealed class LimitadorProcesosAislados(int capacidad)
             return null;
         }
 
+        AlDarTurno?.Invoke();
         return new TurnoProcesoAislado(this);
     }
+
+    /// <summary>Para los tests: justo antes de devolver un turno, ya pasada la última comprobación de <see cref="Degradado"/>.</summary>
+    internal Action? AlDarTurno { get; set; }
 
     internal void Soltar() => _huecos.Release();
 
