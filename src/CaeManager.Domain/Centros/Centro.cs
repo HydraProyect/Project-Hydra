@@ -1,4 +1,5 @@
 using CaeManager.Domain.Common;
+using CaeManager.Domain.RelacionesEmpresariales;
 
 namespace CaeManager.Domain.Centros;
 
@@ -49,6 +50,17 @@ public class Centro : EntidadBase
     /// escribe <see cref="FijarNotaInterna"/>; <see cref="Actualizar"/> y <see cref="ActualizarFicha"/> no la tocan.
     /// </summary>
     public string? Notas { get; private set; }
+
+    /// <summary>
+    /// Ancla del papel por Centro (DECISION_LOG, 2026-11-08, «Papel por Centro»): la Relación Empresarial
+    /// <c>EmpresaId → X</c> por la que la Empresa del Centro entra en él como subcontrata de X, la contratista
+    /// principal. <see cref="ClienteId"/> sigue siendo el titular del Centro. NULL = entra como contratista
+    /// principal (o no se ha dicho) y no se muestra nada. El papel se calcula a partir de esta arista y no se
+    /// guarda (ADR-011): no hay columna de rol. Solo la escriben <see cref="AnclarRelacionDeEntrada"/> y
+    /// <see cref="QuitarAnclaDeEntrada"/>; el alta, la edición, la ficha, la importación y la restauración no la tocan.
+    /// Quitarla renueva la versión del Centro aunque no hubiera ancla (ver <see cref="QuitarAnclaDeEntrada"/>).
+    /// </summary>
+    public Guid? RelacionEmpresarialEntradaId { get; private set; }
 
     private Centro()
     {
@@ -148,6 +160,48 @@ public class Centro : EntidadBase
         if (normalizado?.Length > longitudMaxima)
             throw new ArgumentException($"El campo no puede superar {longitudMaxima} caracteres.", parametro);
         return normalizado;
+    }
+
+    /// <summary>
+    /// Fija la Relación Empresarial por la que la Empresa del Centro entra como subcontrata. La arista tiene que
+    /// ser del mismo Tenant propietario, estar vigente, tener como proveedora la Empresa del Centro y como cliente
+    /// una Empresa distinta del titular: si el cliente fuera el titular, la Empresa entraría como contratista
+    /// principal, y entonces no hay ancla. La FK compuesta con <c>TenantId</c> repite en la base la primera
+    /// condición; las demás solo se comprueban aquí.
+    /// </summary>
+    public Result AnclarRelacionDeEntrada(RelacionEmpresarial relacion)
+    {
+        ArgumentNullException.ThrowIfNull(relacion);
+
+        // La de otro Tenant responde como inexistente: no se confirma que exista.
+        if (relacion.TenantId != TenantId)
+            return Result.Fallo(Error.Crear(
+                "Centro.RelacionEntradaNoEncontrada", "No encontramos esa relación empresarial."));
+        if (!relacion.EstaVigente)
+            return Result.Fallo(Error.Crear(
+                "Centro.RelacionEntradaNoVigente", "Esa relación empresarial ya no está vigente."));
+        if (relacion.ProveedoraId != EmpresaId)
+            return Result.Fallo(Error.Crear(
+                "Centro.RelacionEntradaDeOtraEmpresa", "Esa relación empresarial no es de la Empresa de este centro."));
+        if (relacion.ClienteId == ClienteId)
+            return Result.Fallo(Error.Crear(
+                "Centro.RelacionEntradaConElTitular",
+                "Con el titular del centro la Empresa entra como contratista principal: no hace falta indicar nada."));
+
+        RelacionEmpresarialEntradaId = relacion.Id;
+        return Result.Exito();
+    }
+
+    /// <summary>
+    /// La Empresa del Centro vuelve a entrar como contratista principal: no se muestra nada. Renueva la versión
+    /// siempre, también si no había ancla: así quitar un ancla cuya arista se cerró (que se permite sin ver a su X,
+    /// DECISION_LOG, 2026-11-11, punto 11 b) y quitar en un Centro sin ancla tienen el mismo efecto observable
+    /// —un UPDATE del Centro y una versión nueva— y la versión de la ficha no revela si había un ancla cerrada.
+    /// </summary>
+    public void QuitarAnclaDeEntrada()
+    {
+        RelacionEmpresarialEntradaId = null;
+        RenovarVersion();
     }
 
     public bool ContratoCaducado(DateOnly hoy) => ContratoVigenteHasta is not null && ContratoVigenteHasta < hoy;
