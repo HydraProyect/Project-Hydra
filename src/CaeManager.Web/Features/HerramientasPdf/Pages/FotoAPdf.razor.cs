@@ -56,7 +56,7 @@ public partial class FotoAPdf : CaeManager.Web.Components.PaginaInteractiva, IAs
     private sealed class SinHuecoDeConversionException : Exception;
 
     private readonly List<(int PintadoAlQuitar, IDisposable Reserva)> _reservasPorSoltar = [];
-    private int _pintadosEmpezados;
+    private int _pintadosEmpezados = 1;
     private int _pintadosConfirmados;
 
     [Inject] private LimitadorConversionesPdf Limitador { get; set; } = default!;
@@ -402,8 +402,16 @@ public partial class FotoAPdf : CaeManager.Web.Components.PaginaInteractiva, IAs
             _reservasPorSoltar.Add((_pintadosEmpezados, reserva));
     }
 
-    /// <summary>Lo llama el marcado al empezar cada render: cuenta los renders para <see cref="AplazarHastaElSiguientePintado"/>.</summary>
-    private void ContarPintado() => _pintadosEmpezados++;
+    /// <summary>
+    /// Cuenta los renders para <see cref="AplazarHastaElSiguientePintado"/>. ComponentBase llama a ShouldRender una vez por
+    /// cada render que encola (el primero no pasa por aquí: <see cref="_pintadosEmpezados"/> empieza en 1). Un render que
+    /// ya estaba encolado al quitar la foto cuenta como anterior: la reserva espera entonces a uno más, que es el lado seguro.
+    /// </summary>
+    protected override bool ShouldRender()
+    {
+        _pintadosEmpezados++;
+        return true;
+    }
 
     protected override void OnAfterRender(bool firstRender)
     {

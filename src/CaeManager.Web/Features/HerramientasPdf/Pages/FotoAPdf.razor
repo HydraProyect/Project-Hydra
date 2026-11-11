@@ -6,8 +6,6 @@
 @using CaeManager.Web.Features.HerramientasPdf.Recursos
 @using Microsoft.AspNetCore.Components.Forms
 @attribute [Authorize(Roles = $"{CaeManager.Infrastructure.Identity.Roles.Administrador},{CaeManager.Infrastructure.Identity.Roles.DireccionCae},{CaeManager.Infrastructure.Identity.Roles.CoordinadorCae},{CaeManager.Infrastructure.Identity.Roles.GestorCae}")]
-@* Cuenta cada render: la reserva de una miniatura quitada se suelta tras confirmarse el render siguiente (FotoAPdf.razor.cs). *@
-@{ ContarPintado(); }
 
 <LimiteDeErrores Pagina="this">
     <PageTitle>@Textos["FotoPestana"] — @Marca.Nombre</PageTitle>
@@ -72,12 +70,13 @@
                 <section class="isla-foto" aria-labelledby="titulo-orden-fotos">
                     <h2 id="titulo-orden-fotos">@Textos["FotoListaTitulo"] <span class="texto-suave">· @Textos[_fotos.Count == 1 ? "FotoResumenUna" : "FotoResumenVarias", _fotos.Count]</span></h2>
                     <ol class="lista-fotos">
+                        @{ var claves = new ClavesDeHermanos(); }
                         @foreach (var (foto, posicion) in _fotos.Select((f, i) => (f, i)))
                         {
                             var actual = foto;
                             var indice = posicion;
                             @* @key: mover o quitar una foto permuta o retira su fila sin volver a enviar el src (la cadena data:) de las demás. *@
-                            <li class="foto-fila" @key="actual">
+                            <li class="foto-fila" @key="claves.De(actual.Archivo)">
                                 <span class="foto-numero">@Textos["FotoPagina", indice + 1]</span>
                                 <span class="foto-miniatura">
                                     @if (actual.UrlMiniatura is { } urlMiniatura)
