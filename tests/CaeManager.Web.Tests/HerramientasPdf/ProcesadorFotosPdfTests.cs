@@ -570,24 +570,181 @@ public sealed class ProcesadorFotosPdfTests
     }
 
     [Fact]
-    public void Cancelar_mientras_se_guarda_el_PDF_no_devuelve_exito_y_libera_las_reservas()
+    public void Cancelar_mientras_PDFsharp_escribe_el_PDF_no_devuelve_exito_y_libera_las_reservas()
     {
         using var cts = new CancellationTokenSource();
         var real = PresupuestoDe(512L * 1024 * 1024);
         var procesador = Procesador(real);
         var vistas = new List<string>();
-        procesador.AlTerminarEtapa = etapa =>
+        procesador.AlTerminarEtapa = vistas.Add;
+
+        // La cancelación se pide desde el propio flujo de salida, cuando PDFsharp escribe en él: es decir, con Save en curso.
+        procesador.AlEscribirElPdf = () =>
         {
-            vistas.Add(etapa);
-            if (etapa == "guardado")
-                cts.Cancel();
+            vistas.Add("escritura");
+            cts.Cancel();
         };
 
         var accion = () => procesador.ComponerPdf([FotoBicolor(40, 20)], cts.Token);
 
         accion.Should().Throw<OperationCanceledException>();
-        vistas.Should().Contain("guardado", "instrumento: la cancelación llegó DURANTE el guardado, no antes");
+        vistas.Should().Contain("escritura", "instrumento: PDFsharp escribió de verdad en el flujo y la cancelación se pidió ahí");
+        vistas.IndexOf("escritura").Should().BeLessThan(vistas.IndexOf("guardado"), "la cancelación llegó ANTES de que Save volviera, no después");
         real.Reservado.Should().Be(0, "ni el PDF ni su reserva quedan retenidos por un resultado que nadie va a recoger");
+    }
+
+    [Fact]
+    public void Sin_pedir_la_cancelacion_PDFsharp_escribe_en_el_flujo_observado_y_el_PDF_se_entrega()
+    {
+        var procesador = Procesador(PresupuestoDe(512L * 1024 * 1024));
+        var escrituras = 0;
+        procesador.AlEscribirElPdf = () => escrituras++;
+
+        var r = procesador.ComponerPdf([FotoBicolor(40, 20)], CancellationToken.None);
+
+        escrituras.Should().BeGreaterThan(0, "contraste del instrumento: el flujo avisa de las escrituras de PDFsharp");
+        r.EsExitoso.Should().BeTrue();
+        r.Valor.Dispose();
+    }
+
+    [Fact]
+    public void El_muestreo_de_la_reduccion_no_usa_mipmaps()
+    {
+        // Con SKMipmapMode.Linear Skia construye y cachea una pirámide que ninguna reserva cuenta.
+        SkiaPdfSharpProcesadorFotosPdf.MuestreoDeReduccion.Mipmap.Should().Be(SKMipmapMode.None);
+        SkiaPdfSharpProcesadorFotosPdf.MuestreoDeReduccion.Filter.Should().Be(SKFilterMode.Linear);
+    }
+
+    /// <summary>
+    /// Un PNG RGBA entrelazado (Adam7) construido a mano: Skia no sabe codificarlos. Mitad izquierda roja y mitad derecha
+    /// azul. <paramref name="profundidad"/> 8 o 16 bits por canal.
+    /// </summary>
+    private static byte[] PngEntrelazado(int ancho, int alto, int profundidad = 8)
+    {
+        (int X0, int Y0, int DX, int DY)[] pasadas = [(0, 0, 8, 8), (4, 0, 8, 8), (0, 4, 4, 8), (2, 0, 4, 4), (0, 2, 2, 4), (1, 0, 2, 2), (0, 1, 1, 2)];
+        var bytesPorMuestra = profundidad / 8;
+        var crudo = new List<byte>();
+        foreach (var (x0, y0, dx, dy) in pasadas)
+        {
+            var columnas = (ancho - x0 + dx - 1) / dx;
+            var filas = (alto - y0 + dy - 1) / dy;
+            if (columnas <= 0 || filas <= 0)
+                continue;
+
+            for (var f = 0; f < filas; f++)
+            {
+                crudo.Add(0); // filtro: ninguno
+                for (var c = 0; c < columnas; c++)
+                {
+                    var izquierda = x0 + c * dx < ancho / 2;
+                    foreach (var muestra in new byte[] { (byte)(izquierda ? 255 : 0), 0, (byte)(izquierda ? 0 : 255), 255 })
+                        for (var b = 0; b < bytesPorMuestra; b++)
+                            crudo.Add(muestra);
+                }
+            }
+        }
+
+        using var comprimido = new MemoryStream();
+        using (var zlib = new System.IO.Compression.ZLibStream(comprimido, System.IO.Compression.CompressionLevel.Optimal, leaveOpen: true))
+            zlib.Write(crudo.ToArray());
+
+        var ihdr = new byte[13];
+        System.Buffers.Binary.BinaryPrimitives.WriteUInt32BigEndian(ihdr, (uint)ancho);
+        System.Buffers.Binary.BinaryPrimitives.WriteUInt32BigEndian(ihdr.AsSpan(4), (uint)alto);
+        ihdr[8] = (byte)profundidad;
+        ihdr[9] = 6; // RGBA
+        ihdr[12] = 1; // Adam7
+
+        return
+        [
+            0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A,
+            .. TrozoPng("IHDR", ihdr),
+            .. TrozoPng("IDAT", comprimido.ToArray()),
+            .. TrozoPng("IEND", []),
+        ];
+    }
+
+    private static byte[] TrozoPng(string tipo, byte[] carga)
+    {
+        var cuerpo = new byte[4 + carga.Length];
+        System.Text.Encoding.ASCII.GetBytes(tipo).CopyTo(cuerpo, 0);
+        carga.CopyTo(cuerpo, 4);
+        var trozo = new byte[12 + carga.Length];
+        System.Buffers.Binary.BinaryPrimitives.WriteUInt32BigEndian(trozo, (uint)carga.Length);
+        cuerpo.CopyTo(trozo, 4);
+        System.Buffers.Binary.BinaryPrimitives.WriteUInt32BigEndian(trozo.AsSpan(8 + carga.Length), Crc32(cuerpo));
+        return trozo;
+    }
+
+    [Theory]
+    [InlineData(8, 4)]
+    [InlineData(16, 8)]
+    public void Un_PNG_entrelazado_reserva_ademas_el_buffer_con_todas_las_filas_que_guarda_Skia(int profundidad, int bytesPorPixelNativos)
+    {
+        var png = PngEntrelazado(64, 48, profundidad);
+        CabeceraPng.Leer(png)!.Entrelazado.Should().BeTrue("instrumento: el fixture es de verdad Adam7");
+        SKCodec.Create(new MemoryStream(png)).Should().NotBeNull("instrumento: Skia lo lee");
+
+        var real = PresupuestoDe(512L * 1024 * 1024);
+        var conEntrelazado = new PresupuestoRegistrador(real);
+        var r = Procesador(conEntrelazado).Normalizar(png, 3508);
+        r.EsExitoso.Should().BeTrue("Skia decodifica el entrelazado de verdad");
+
+        // Contraste: el mismo tamaño sin entrelazar reserva solo los píxeles decodificados.
+        var conBase = new PresupuestoRegistrador(real);
+        Procesador(conBase).Normalizar(FotoBicolor(64, 48, SKEncodedImageFormat.Png), 3508).EsExitoso.Should().BeTrue();
+
+        const long Pixeles = 64L * 48;
+        conBase.Pedidos.Should().Contain(Pixeles * 4).And.NotContain(Pixeles * (4 + bytesPorPixelNativos));
+        conEntrelazado.Pedidos.Should().Contain(Pixeles * (4 + bytesPorPixelNativos), "la decodificación suma el búfer con todas las filas del entrelazado");
+        real.Reservado.Should().Be(0);
+    }
+
+    [Fact]
+    public void Un_PNG_entrelazado_cuyo_buffer_no_cabe_falla_cerrado_antes_de_decodificar()
+    {
+        // 64 x 48 en RGBA de 16 bits: 12 KB decodificados, 12 KB de lienzo y 24 KB del búfer de filas del entrelazado. El
+        // presupuesto admite lo primero y no la suma: sin contar el búfer, la reserva pasaba y se decodificaba.
+        var png = PngEntrelazado(64, 48, profundidad: 16);
+        var real = PresupuestoDe(40_000);
+        var etapas = new List<string>();
+        var procesador = Procesador(real);
+        procesador.AlTerminarEtapa = etapas.Add;
+
+        var accion = () => procesador.Normalizar(png, 3508);
+
+        accion.Should().Throw<PresupuestoMemoriaAgotadoException>();
+        etapas.Should().NotContain("decodificada");
+        real.Reservado.Should().Be(0);
+    }
+
+    [Fact]
+    public void Un_JPEG_con_dos_SOF_no_se_decodifica_y_no_deja_reservas()
+    {
+        // El segundo SOF (progresivo y enorme) llega DESPUÉS del primero: el lector de cabecera solo cuenta el primero, y esto
+        // fija lo que hace el decodificador desplegado ante el segundo: libjpeg lo rechaza («dos marcadores SOF»).
+        var jpeg = FotoBicolor(64, 48);
+        var sof = Array.IndexOf(jpeg, (byte)0xC0);
+        while (sof > 0 && jpeg[sof - 1] != 0xFF)
+            sof = Array.IndexOf(jpeg, (byte)0xC0, sof + 1);
+        sof--;
+        sof.Should().BeGreaterThan(0, "instrumento: el fixture tiene su SOF0");
+        var longitud = (jpeg[sof + 2] << 8) | jpeg[sof + 3];
+        byte[] segundoSof = [0xFF, 0xC2, 0x00, 0x11, 0x08, 0x2E, 0xE0, 0x2E, 0xE0, 0x03, 0x01, 0x11, 0x00, 0x02, 0x11, 0x00, 0x03, 0x11, 0x00];
+        byte[] conDosSof = [.. jpeg[..(sof + 2 + longitud)], .. segundoSof, .. jpeg[(sof + 2 + longitud)..]];
+        CabeceraJpeg.Leer(conDosSof)!.Ancho.Should().Be(64, "instrumento: el lector de cabecera sigue contando el primer SOF");
+
+        var real = PresupuestoDe(512L * 1024 * 1024);
+        var etapas = new List<string>();
+        var procesador = Procesador(real);
+        procesador.AlTerminarEtapa = etapas.Add;
+
+        var r = procesador.Normalizar(conDosSof, 3508);
+
+        r.EsFallido.Should().BeTrue();
+        r.Error.Codigo.Should().BeOneOf(ErroresFotoAPdf.FotoIlegible, ErroresFotoAPdf.FormatoNoSoportado);
+        etapas.Should().NotContain("decodificada");
+        real.Reservado.Should().Be(0);
     }
 
     [Fact]

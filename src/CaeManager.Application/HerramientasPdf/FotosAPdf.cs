@@ -44,11 +44,12 @@ public static class LimitesFotoAPdf
     public const long CopiasDelJpegEnElDocumento = 2;
 
     /// <summary>
-    /// Bytes máximos de la miniatura JPEG que la pantalla retiene en el circuito mientras la foto está en la lista. Se
-    /// guarda como bytes (no como Base64, que en memoria ocupa más del doble) y se reserva en el presupuesto de memoria
-    /// con su tamaño real hasta quitar la foto o desechar la pantalla; una miniatura mayor no se retiene (la foto entra
-    /// igual, sin vista previa). Una de 128 px a calidad 90 ocupa de 5 a 15 KB, y 32 KB cubre incluso una foto de ruido;
-    /// con 20 fotos son 640 KB por circuito como máximo.
+    /// Bytes máximos de la miniatura JPEG que la pantalla retiene en el circuito mientras la foto está en la lista. Lo que
+    /// se retiene es la cadena <c>data:</c> con su Base64 (la misma que pinta cada render, sin volver a convertirla), que en
+    /// UTF-16 ocupa unas 2,7 veces los bytes del JPEG: se reserva en el presupuesto de memoria ESE tamaño real hasta quitar
+    /// la foto o desechar la pantalla; una miniatura mayor no se retiene (la foto entra igual, sin vista previa). Una de
+    /// 128 px a calidad 90 ocupa de 5 a 15 KB, y 32 KB cubre incluso una foto de ruido; con 20 fotos son unos 1,7 MiB por
+    /// circuito como máximo.
     /// </summary>
     public const long TamanoMaximoMiniaturaBytes = 32 * 1024;
 

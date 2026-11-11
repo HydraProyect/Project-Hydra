@@ -19,9 +19,10 @@ namespace CaeManager.Web.Features.HerramientasPdf.Pages;
 /// Las fotos esperan en el almacén temporal del circuito (el mismo de Dividir un PDF, con su cuota y su borrado al
 /// salir), no en memoria. Cada una se comprueba al añadirla por su firma de bytes y por las dimensiones de su cabecera,
 /// ANTES de decodificarla; al generar, el generador lo repite. Las miniaturas salen del mismo procesador que el PDF, así que
-/// ya van giradas según el EXIF. La miniatura de cada foto vive en el circuito como bytes, acotada por
-/// <see cref="LimitesFotoAPdf.TamanoMaximoMiniaturaBytes"/>, y reserva su tamaño real en el presupuesto de memoria hasta quitar
-/// la foto o desechar la pantalla.
+/// ya van giradas según el EXIF. La miniatura de cada foto vive en el circuito como la cadena data: con la que se pinta
+/// (se convierte una sola vez, no en cada render), con el JPEG acotado por
+/// <see cref="LimitesFotoAPdf.TamanoMaximoMiniaturaBytes"/>, y reserva el tamaño real de esa cadena (UTF-16) en el presupuesto
+/// de memoria hasta quitar la foto o desechar la pantalla.
 /// </summary>
 public partial class FotoAPdf : CaeManager.Web.Components.PaginaInteractiva, IAsyncDisposable
 {
@@ -33,7 +34,9 @@ public partial class FotoAPdf : CaeManager.Web.Components.PaginaInteractiva, IAs
     /// mientras viva en el circuito.
     /// </summary>
     private sealed record FotoElegida(
-        ArchivoTemporal Archivo, string Nombre, long Bytes, FotoValidada Datos, byte[]? Miniatura, IDisposable? ReservaMiniatura);
+        ArchivoTemporal Archivo, string Nombre, long Bytes, FotoValidada Datos, string? UrlMiniatura, IDisposable? ReservaMiniatura);
+
+    private const string PrefijoUrlMiniatura = "data:image/jpeg;base64,";
 
     [Inject] private GeneradorPdfDesdeFotos Generador { get; set; } = default!;
     [Inject] private ICurrentUserService CurrentUserService { get; set; } = default!;
@@ -165,8 +168,13 @@ public partial class FotoAPdf : CaeManager.Web.Components.PaginaInteractiva, IAs
                     // JPEG que produce) sin esperar, porque esta operación ya retiene la reserva del fichero leído, y lanza
                     // PresupuestoMemoriaAgotadoException si no cabe. Cancelar interrumpe la decodificación entre bandas.
                     var miniatura = await Task.Run(() => Procesador.CrearMiniatura(contenido, LadoMiniaturaPixeles, token), token);
+                    // Si el procesador no puede leer la foto (la cabecera es válida pero no decodifica), la misma foto fallaría al
+                    // generar el PDF: se rechaza con su motivo, como cualquier otra, sin tocar las demás de la selección.
                     if (miniatura.EsFallido)
+                    {
                         codigoRechazo = miniatura.Error.Codigo;
+                    }
+                    else
                     {
                         datos = validada.Valor;
                         bytesMiniatura = miniatura.Valor;
@@ -182,18 +190,18 @@ public partial class FotoAPdf : CaeManager.Web.Components.PaginaInteractiva, IAs
             }
 
             // La miniatura vive en el circuito hasta quitar la foto o desechar la pantalla, y la reserva del procesador terminó
-            // al devolverla: se reserva aquí su tamaño real (sin esperar, para no esperar a una reserva ajena desde un circuito)
-            // y se devuelve con la foto. Una miniatura que pasa del tope no se retiene: la foto entra sin vista previa.
+            // al devolverla. Lo que se retiene (y lo que cada render pinta, sin volver a convertirla) es la cadena data: con el
+            // Base64, que en UTF-16 ocupa 2 bytes por carácter, unas 2,7 veces los bytes del JPEG: se reserva ESE tamaño real
+            // (sin esperar, para no esperar a una reserva ajena desde un circuito) y se devuelve con la foto. Una miniatura que
+            // pasa del tope no se retiene: la foto entra sin vista previa.
             IDisposable? reservaMiniatura = null;
+            string? urlMiniatura = null;
             if (bytesMiniatura is { Length: > 0 } && bytesMiniatura.Length <= LimitesFotoAPdf.TamanoMaximoMiniaturaBytes)
             {
-                if (!PresupuestoMemoria.TryReservar(bytesMiniatura.Length, out var reserva))
+                urlMiniatura = PrefijoUrlMiniatura + Convert.ToBase64String(bytesMiniatura);
+                if (!PresupuestoMemoria.TryReservar((long)urlMiniatura.Length * sizeof(char), out var reserva))
                     throw new PresupuestoMemoriaAgotadoException();
                 reservaMiniatura = reserva;
-            }
-            else
-            {
-                bytesMiniatura = null;
             }
 
             // La pantalla se desechó mientras se procesaba: nadie liberaría esta foto ni su reserva.
@@ -204,7 +212,7 @@ public partial class FotoAPdf : CaeManager.Web.Components.PaginaInteractiva, IAs
                 return;
             }
 
-            _fotos.Add(new FotoElegida(guardado, nombre, guardado.TamanoBytes, datosFoto, bytesMiniatura, reservaMiniatura));
+            _fotos.Add(new FotoElegida(guardado, nombre, guardado.TamanoBytes, datosFoto, urlMiniatura, reservaMiniatura));
         }
         catch (ArchivoTemporalDemasiadoGrandeException)
         {

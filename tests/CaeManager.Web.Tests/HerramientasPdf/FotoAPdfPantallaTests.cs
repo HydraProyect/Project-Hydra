@@ -84,8 +84,13 @@ public sealed class FotoAPdfPantallaTests : BunitContext
         /// <summary>Lo que devuelve como miniatura: la pantalla la retiene y reserva su tamaño.</summary>
         public byte[] Miniatura { get; set; } = [1, 2, 3];
 
+        /// <summary>Cuántas de las próximas llamadas a <see cref="CrearMiniatura"/> devuelven un fallo (una foto que el decodificador no lee).</summary>
+        public int MiniaturasQueFallan;
+
         public Result<byte[]> CrearMiniatura(byte[] foto, int ladoMaximoPixeles, CancellationToken cancellationToken) =>
-            Result.Exito(Miniatura);
+            Interlocked.Decrement(ref MiniaturasQueFallan) >= 0
+                ? Result.Fallo<byte[]>(Error.Crear(ErroresFotoAPdf.FotoIlegible, "x"))
+                : Result.Exito(Miniatura);
     }
 
     private sealed class Disponibilidad(bool disponible) : IDisponibilidadHerramientasPdf
@@ -355,7 +360,7 @@ public sealed class FotoAPdfPantallaTests : BunitContext
         PulsarDescargar(cut, "Descargar PDF de 1 página");
 
         cut.WaitForAssertion(() => modulo.Invocations["descargar"].Should().ContainSingle());
-        cut.WaitForAssertion(() => _presupuesto.Reservado.Should().Be(3,
+        cut.WaitForAssertion(() => _presupuesto.Reservado.Should().Be(BytesDeLaCadenaDeUnaMiniatura(3),
             "el PDF y lo reservado para él se sueltan juntos al terminar; solo queda la miniatura de la foto que sigue en la lista"));
         _procesador.FlujoEntregado!.CanRead.Should().BeFalse("el PDF no se queda en memoria tras la descarga");
     }
@@ -374,7 +379,7 @@ public sealed class FotoAPdfPantallaTests : BunitContext
 
         cut.WaitForAssertion(() => cut.Find(".aviso-error[role=alert]").TextContent.Should().Contain("no hay espacio"));
         modulo.Invocations["descargar"].Should().BeEmpty();
-        _presupuesto.Reservado.Should().Be(3, "la reserva de las fotos leídas también se devuelve; solo queda la miniatura de la foto de la lista");
+        _presupuesto.Reservado.Should().Be(BytesDeLaCadenaDeUnaMiniatura(3), "la reserva de las fotos leídas también se devuelve; solo queda la miniatura de la foto de la lista");
         Nombres(cut).Should().Equal("a.jpg");
     }
 
@@ -427,10 +432,11 @@ public sealed class FotoAPdfPantallaTests : BunitContext
         await SubirAsync(cut, ("a.jpg", Jpeg(10, 10)), ("b.jpg", Jpeg(20, 20)));
 
         cut.WaitForAssertion(() => Nombres(cut).Should().Equal("a.jpg", "b.jpg"));
-        _presupuesto.Reservado.Should().Be(200, "cada miniatura que vive en el circuito cuenta con sus bytes reales");
+        _presupuesto.Reservado.Should().Be(2 * BytesDeLaCadenaDeUnaMiniatura(100),
+            "cada miniatura que vive en el circuito cuenta con lo que ocupa su cadena data: en UTF-16, no solo los bytes del JPEG");
 
         Pulsar(cut, "Quitar a.jpg");
-        cut.WaitForAssertion(() => _presupuesto.Reservado.Should().Be(100));
+        cut.WaitForAssertion(() => _presupuesto.Reservado.Should().Be(BytesDeLaCadenaDeUnaMiniatura(100)));
 
         await DisposeComponentsAsync();
         _presupuesto.Reservado.Should().Be(0, "desechar la pantalla devuelve las miniaturas que quedaban");
@@ -442,11 +448,46 @@ public sealed class FotoAPdfPantallaTests : BunitContext
         _procesador.Miniatura = new byte[100];
         var cut = Renderizar();
         await SubirAsync(cut, ("a.jpg", Jpeg(10, 10)), ("b.jpg", Jpeg(20, 20)));
-        cut.WaitForAssertion(() => _presupuesto.Reservado.Should().Be(200));
+        cut.WaitForAssertion(() => _presupuesto.Reservado.Should().Be(2 * BytesDeLaCadenaDeUnaMiniatura(100)));
 
         cut.FindAll("button").First(b => b.TextContent.Trim() == "Quitar todas").Click();
 
         cut.WaitForAssertion(() => _presupuesto.Reservado.Should().Be(0));
+    }
+
+    /// <summary>
+    /// Lo que ocupa en memoria la cadena <c>data:image/jpeg;base64,...</c> de una miniatura de <paramref name="bytesJpeg"/>
+    /// bytes: el Base64 (4 caracteres por cada 3 bytes) más el prefijo, a 2 bytes por carácter (UTF-16).
+    /// </summary>
+    private static long BytesDeLaCadenaDeUnaMiniatura(int bytesJpeg) =>
+        ("data:image/jpeg;base64,".Length + (bytesJpeg + 2) / 3 * 4) * (long)sizeof(char);
+
+    [Fact]
+    public async Task La_miniatura_se_pinta_con_la_misma_cadena_que_se_reservo()
+    {
+        _procesador.Miniatura = new byte[100];
+        var cut = Renderizar();
+
+        await SubirAsync(cut, ("a.jpg", Jpeg(10, 10)));
+
+        cut.WaitForAssertion(() => cut.FindAll("li.foto-fila .foto-miniatura img").Should().ContainSingle());
+        var src = cut.Find("li.foto-fila .foto-miniatura img").GetAttribute("src")!;
+        src.Should().Be("data:image/jpeg;base64," + Convert.ToBase64String(new byte[100]));
+        (src.Length * (long)sizeof(char)).Should().Be(_presupuesto.Reservado, "lo reservado es exactamente la cadena que retiene el circuito");
+    }
+
+    [Fact]
+    public async Task Si_el_procesador_no_puede_leer_una_foto_esa_foto_se_rechaza_con_aviso_y_la_pantalla_sigue_con_las_demas()
+    {
+        _procesador.MiniaturasQueFallan = 1;
+        var cut = Renderizar();
+
+        await SubirAsync(cut, ("ilegible.jpg", Jpeg(10, 10)), ("buena.jpg", Jpeg(20, 20)));
+
+        cut.WaitForAssertion(() => Nombres(cut).Should().Equal("buena.jpg"));
+        cut.WaitForAssertion(() => cut.Find(".lista-rechazadas").TextContent.Should().Contain("ilegible.jpg").And.Contain("No hemos podido leer esta foto"));
+        cut.FindAll(".aviso-error").Should().ContainSingle("solo el aviso de las rechazadas: la pantalla no se sustituyó por un error del circuito");
+        _presupuesto.Reservado.Should().Be(BytesDeLaCadenaDeUnaMiniatura(3), "la foto rechazada no deja ni su lectura ni su miniatura reservadas");
     }
 
     [Fact]

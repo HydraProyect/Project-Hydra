@@ -27,11 +27,14 @@ namespace CaeManager.Infrastructure.HerramientasPdf;
 /// cabe lanza <see cref="PresupuestoMemoriaAgotadoException"/>. Lo que cuesta cada foto se conoce por su cabecera
 /// (decodificación y lienzo, 4 bytes por píxel de cada uno, más el búfer de coeficientes que libjpeg guarda en memoria
 /// nativa para un JPEG progresivo o de varios barridos: <see cref="CabeceraJpeg.BytesDeBufferDeCoeficientes"/>, hasta
-/// 6 bytes por píxel, que se reserva antes de decodificar y se devuelve cuando el decodificador ya se liberó) salvo el JPEG de salida, que NO se deduce del tamaño de la foto
+/// 6 bytes por píxel, que se reserva antes de decodificar y se devuelve cuando el decodificador ya se liberó; y, en un PNG
+/// entrelazado (Adam7), el búfer con todas las filas que Skia reserva además del bitmap: <see cref="CabeceraPng.BytesDeBufferEntrelazado"/>,
+/// hasta 8 bytes por píxel, con la misma regla) salvo el JPEG de salida, que NO se deduce del tamaño de la foto
 /// subida (un PNG de 170 KB con un patrón repetido da un JPEG de varios MB): se reserva por trozos a medida que el
 /// codificador lo escribe, y si el presupuesto se agota se descarta lo que falta y se falla al terminar. Del PDF se
 /// reservan la copia de cada JPEG que retiene el documento (<see cref="LimitesFotoAPdf.CopiasDelJpegEnElDocumento"/>) y el
-/// flujo de salida, que se entrega tal cual a la pantalla sin copiarlo a otro array.
+/// flujo de salida, que se entrega tal cual a la pantalla sin copiarlo a otro array. El dibujo reducido usa muestreo sin
+/// mipmaps (<see cref="MuestreoDeReduccion"/>): la pirámide que Skia cachea con ellos no entraría en la cuenta.
 /// </para>
 ///
 /// <para>
@@ -50,6 +53,9 @@ public sealed class SkiaPdfSharpProcesadorFotosPdf(
 {
     private const int CalidadJpeg = 90;
 
+    /// <summary>Filtro lineal SIN mipmaps: la pirámide que Skia crea y cachea con ellos no entra en ninguna reserva.</summary>
+    internal static readonly SKSamplingOptions MuestreoDeReduccion = new(SKFilterMode.Linear, SKMipmapMode.None);
+
     /// <summary>5 mm de margen en cada lado de la página, para que una impresora doméstica no recorte la foto.</summary>
     private const double MargenPuntos = 14.17;
 
@@ -65,6 +71,31 @@ public sealed class SkiaPdfSharpProcesadorFotosPdf(
     /// frontera concreta y comprobar que no se pasa de ella.
     /// </summary>
     internal Action<string>? AlTerminarEtapa { get; set; }
+
+    /// <summary>Solo para los tests: se llama cada vez que PDFsharp escribe en el flujo de salida, es decir, DURANTE el guardado.</summary>
+    internal Action? AlEscribirElPdf { get; set; }
+
+    /// <summary>El flujo de salida del PDF, que avisa de cada escritura para que un test pueda cancelar a mitad del guardado.</summary>
+    private sealed class SalidaObservable(int capacidad, Action? alEscribir) : MemoryStream(capacidad)
+    {
+        public override void Write(byte[] buffer, int offset, int count)
+        {
+            alEscribir?.Invoke();
+            base.Write(buffer, offset, count);
+        }
+
+        public override void Write(ReadOnlySpan<byte> buffer)
+        {
+            alEscribir?.Invoke();
+            base.Write(buffer);
+        }
+
+        public override void WriteByte(byte value)
+        {
+            alEscribir?.Invoke();
+            base.WriteByte(value);
+        }
+    }
 
     public Result<PdfDeFotos> ComponerPdf(IReadOnlyList<byte[]> fotos, CancellationToken cancellationToken)
     {
@@ -99,7 +130,7 @@ public sealed class SkiaPdfSharpProcesadorFotosPdf(
 
                 var capacidad = totalJpeg + SobrecosteFijoPdfBytes + SobrecostePorPaginaBytes * fotos.Count;
                 cuentaPdf.Reservar(capacidad - totalJpeg);
-                salida = new MemoryStream(checked((int)capacidad));
+                salida = new SalidaObservable(checked((int)capacidad), AlEscribirElPdf);
                 documento.Save(salida, closeStream: false);
 
                 // Guardar es una sola llamada de PDFsharp que no mira el token: si se canceló mientras tanto, el PDF no se
@@ -191,17 +222,24 @@ public sealed class SkiaPdfSharpProcesadorFotosPdf(
             // Lo que cuestan decodificar y dibujar se sabe por la cabecera: se reserva ANTES de pedir esa memoria. A los píxeles
             // decodificados se suma, en un JPEG progresivo o de varios barridos, el búfer de coeficientes que libjpeg guarda
             // en memoria nativa (hasta 6 bytes por píxel): no es un bitmap de Skia, pero ocupa el proceso igual.
-            long bytesDeCoeficientes = 0;
+            // A los de un PNG entrelazado (Adam7), el búfer nativo con todas las filas que Skia reserva además del bitmap.
+            long bytesNativosAdicionales;
             if (codec.EncodedFormat == SKEncodedImageFormat.Jpeg)
             {
                 // Sin una cabecera legible no hay forma de presupuestar la decodificación: se rechaza.
                 if (CabeceraJpeg.Leer(foto) is not { } cabecera)
                     return FalloNormalizacion(ErroresFotoAPdf.FotoIlegible, "No hemos podido leer esta foto.");
-                bytesDeCoeficientes = cabecera.BytesDeBufferDeCoeficientes;
+                bytesNativosAdicionales = cabecera.BytesDeBufferDeCoeficientes;
+            }
+            else
+            {
+                if (CabeceraPng.Leer(foto) is not { } cabeceraPng)
+                    return FalloNormalizacion(ErroresFotoAPdf.FotoIlegible, "No hemos podido leer esta foto.");
+                bytesNativosAdicionales = cabeceraPng.BytesDeBufferEntrelazado;
             }
 
             using var cuentaLienzo = new Cuenta(presupuesto);
-            cuentaDecodificacion.Reservar((long)info.Width * info.Height * LimitesFotoAPdf.BytesPorPixelDecodificado + bytesDeCoeficientes);
+            cuentaDecodificacion.Reservar((long)info.Width * info.Height * LimitesFotoAPdf.BytesPorPixelDecodificado + bytesNativosAdicionales);
             cuentaLienzo.Reservar((long)anchoSalida * altoSalida * LimitesFotoAPdf.BytesPorPixelDecodificado);
 
             using var destino = new SKBitmap(new SKImageInfo(anchoSalida, altoSalida, SKColorType.Rgba8888, SKAlphaType.Opaque));
@@ -221,7 +259,10 @@ public sealed class SkiaPdfSharpProcesadorFotosPdf(
                 // Inmutable: SKImage.FromBitmap comparte los píxeles en vez de copiarlos (la reserva cuenta una sola copia).
                 bitmap.SetImmutable();
                 using var imagen = SKImage.FromBitmap(bitmap);
-                lienzo.DrawImage(imagen, 0, 0, new SKSamplingOptions(SKFilterMode.Linear, SKMipmapMode.Linear));
+                // Sin mipmaps (SKMipmapMode.None): con ellos Skia construye y cachea una pirámide de niveles (un tercio más que el
+                // bitmap) que la reserva no cuenta. El filtro lineal sin pirámide alisa menos una reducción muy grande (una miniatura
+                // de 128 px sale de una foto de hasta 12000 px), pero es una vista previa; en el PDF la reducción máxima es de 3,4 veces.
+                lienzo.DrawImage(imagen, 0, 0, MuestreoDeReduccion);
             }
 
             // La decodificación ya no existe: se libera el decodificador (y con él su búfer de coeficientes) y SOLO entonces

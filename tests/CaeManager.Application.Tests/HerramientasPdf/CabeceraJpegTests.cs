@@ -141,6 +141,10 @@ public sealed class CabeceraJpegTests
         c.BytesDeBufferDeCoeficientes.Should().Be(0);
     }
 
+    /// <summary>
+    /// Solo fija qué SOF elige ESTE lector. Que el decodificador desplegado rechaza un segundo SOF no se puede probar aquí
+    /// (Application no decodifica): lo hace <c>ProcesadorFotosPdfTests.Un_JPEG_con_dos_SOF_no_se_decodifica_y_no_deja_reservas</c>.
+    /// </summary>
     [Fact]
     public void Solo_cuenta_el_primer_SOF()
     {
