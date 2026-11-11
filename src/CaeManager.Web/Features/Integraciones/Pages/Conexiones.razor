@@ -65,6 +65,10 @@
     {
         <EstadoCargando Filas="3" />
     }
+    else if (_cargaFallida)
+    {
+        <p class="texto-error" role="alert" data-testid="aviso-listado-no-actualizado">@Textos["AvisoRecargaFallida"]</p>
+    }
     else if (_conexiones.Count == 0)
     {
         <EstadoVacio Titulo="Sin conexiones" Descripcion="Todavía no hay ningún buzón de Microsoft 365 conectado." />
@@ -172,6 +176,10 @@
     @if (_cargando)
     {
         <EstadoCargando Filas="2" />
+    }
+    else if (_cargaFallida)
+    {
+        <p class="texto-error" role="alert" data-testid="aviso-lineas-no-actualizadas">@Textos["AvisoRecargaFallida"]</p>
     }
     else if (_lineas.Count == 0)
     {

@@ -8,10 +8,13 @@ namespace CaeManager.Application.Integraciones;
 /// Repara la marca del hueco de una desconexión cuyo último guardado no llegó a la base: registra
 /// <see cref="ConexionIntegracion.MarcaHuecoPorRegistrarDesdeUtc"/> en <see cref="ConexionIntegracion.HuecoPendienteDesdeUtc"/>
 /// (<see cref="ConexionIntegracion.RegistrarMarcaHuecoPorRegistrar"/>). Todo sale de lo guardado en la conexión, no de lo
-/// que quedara en memoria ni de una notificación posterior (Codex, ronda 18). Dos llamadores:
+/// que quedara en memoria ni de una notificación posterior (Codex, ronda 18). Solo escribe la marca y el valor por
+/// registrar: nunca el estado, la reclamación ni la suscripción. Tres llamadores:
 /// <list type="bullet">
-/// <item>Desconectar repetido sobre la conexión Deshabilitada, que también es la acción Reparar de Conexiones, ya dentro
-/// de <see cref="ICerrojoVerificacionBuzon"/> (<see cref="RepararBajoCerrojoAsync"/>).</item>
+/// <item>Desconectar repetido sobre la conexión Deshabilitada, ya dentro de <see cref="ICerrojoVerificacionBuzon"/>
+/// (<see cref="RepararBajoCerrojoAsync"/>).</item>
+/// <item>La acción Reparar de Conexiones (<c>RepararMarcaHuecoCommandHandler</c>), también dentro del cerrojo y solo si
+/// la conexión releída sigue Deshabilitada (Codex, ronda 19).</item>
 /// <item>El ciclo diario de suscripciones (<c>RenovacionSuscripcionWebhookHostedService</c>), por Tenant propietario
 /// activo y con su ámbito explícito, que toma el mismo cerrojo por conexión (<see cref="RepararDelTenantActualAsync"/>).</item>
 /// </list>
