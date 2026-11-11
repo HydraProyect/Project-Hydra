@@ -343,12 +343,16 @@ public partial class UnirPdf : CaeManager.Web.Components.PaginaInteractiva, IDis
         ResultadoUnionPdf? resultado = null;
         try
         {
-            var subidos = _elementos.Where(e => e.Archivo is not null).Sum(e => e.Archivo!.TamanoBytes);
+            // Lo que se envía, en el orden de la lista: la posición de cada entrada es la de su elemento aquí.
+            var enviados = _elementos.ToList();
+            var subidos = enviados.Where(e => e.Archivo is not null).Sum(e => e.Archivo!.TamanoBytes);
+            // Una sola espera por el total de lo subido (esperar reteniendo otra reserva bloquea a las demás operaciones, ver
+            // IPresupuestoMemoriaDocumentos.TryReservar); si hay que retener, se reduce a lo de las subidas retenidas.
             var reservaSubidos = subidos > 0 ? await PresupuestoMemoria.ReservarAsync(subidos, _ciclo.Token) : null;
             try
             {
-                var entradas = new List<EntradaUnionPdf>(_elementos.Count);
-                foreach (var elemento in _elementos.ToList())
+                var entradas = new List<EntradaUnionPdf>(enviados.Count);
+                foreach (var elemento in enviados)
                 {
                     entradas.Add(elemento.DocumentoId is { } documentoId
                         ? new EntradaUnionDocumento(documentoId)
@@ -365,11 +369,18 @@ public partial class UnirPdf : CaeManager.Web.Components.PaginaInteractiva, IDis
 
                 resultado = respuesta.Valor;
             }
-            catch (EntradaPdfRetenidaException)
+            catch (EntradaPdfRetenidaException retenida) when (reservaSubidos is not null)
             {
-                // El proceso aparte que recibió los PDF no consta terminado y puede seguir referenciándolos: no se devuelve.
-                EntradaPdfRetenidaException.Retener(reservaSubidos);
-                reservaSubidos = null;
+                // El proceso aparte que recibió esos PDF no consta terminado y puede seguir referenciándolos: lo de las subidas
+                // que tenía no se devuelve. Lo de las demás (una inspección que no es la suya, o un Documento) sí, como en el
+                // handler: retenerlo inmovilizaría presupuesto compartido sin nada que lo use. Sin posiciones, se retiene todo.
+                var retenidos = BytesSubidosRetenidos(enviados, retenida);
+                if (retenidos > 0)
+                {
+                    reservaSubidos.ReducirA(retenidos);
+                    EntradaPdfRetenidaException.Retener(reservaSubidos);
+                    reservaSubidos = null;
+                }
                 throw;
             }
             finally
@@ -412,6 +423,12 @@ public partial class UnirPdf : CaeManager.Web.Components.PaginaInteractiva, IDis
             resultado?.Dispose();
         }
     }
+
+    /// <summary>Bytes subidos cuyos PDF tenía el proceso que no consta terminado, según las posiciones que indica <paramref name="retenida"/>.</summary>
+    private static long BytesSubidosRetenidos(IReadOnlyList<ElementoUnion> enviados, EntradaPdfRetenidaException retenida) =>
+        enviados.Select((elemento, posicion) => (elemento, posicion))
+            .Where(x => x.elemento.Archivo is not null && retenida.Retiene(x.posicion))
+            .Sum(x => x.elemento.Archivo!.TamanoBytes);
 
     /// <summary>
     /// Lo que se espera a que el navegador lea el PDF unido. Es el plazo por defecto de las llamadas JS de Blazor, que pasar un

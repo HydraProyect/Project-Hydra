@@ -143,17 +143,26 @@ public sealed class LanzadorProcesoAisladoPlazoTests
         TaskScheduler.UnobservedTaskException += anotar;
         try
         {
-            var (terminada, publicaciones) = await FallarJustoTrasVencerAsync();
-            DejarUnFalloSinObservar();
-            for (var intento = 0; intento < 5 && !Contiene(sinObservar, MarcaControl); intento++)
+            var (terminada, publicaciones, delHueco) = await FallarJustoTrasVencerAsync();
+
+            // La propia tarea del hueco tiene que recolectarse: si nada la suelta, su excepción no se publicaría nunca y el
+            // test pasaría sin mirar. Una referencia débil corta deja de estar viva en la recolección que la encola para
+            // finalizar, y la espera de finalizadores de esa misma pasada publica lo que no se observó.
+            for (var intento = 0; intento < 10 && delHueco.IsAlive; intento++)
             {
                 GC.Collect();
                 GC.WaitForPendingFinalizers();
             }
-
-            // Una pasada más tras ver el control: la tarea del hueco se soltó antes que él y ya debería estar finalizada.
             GC.Collect();
             GC.WaitForPendingFinalizers();
+            delHueco.IsAlive.Should().BeFalse("la tarea del hueco se recolectó: lo que no se hubiera observado ya se habría publicado");
+
+            DejarUnFalloSinObservar();
+            for (var intento = 0; intento < 10 && !Contiene(sinObservar, MarcaControl); intento++)
+            {
+                GC.Collect();
+                GC.WaitForPendingFinalizers();
+            }
 
             terminada.Should().BeTrue("la tarea terminó, aunque fuera después de vencer la espera");
             publicaciones.Should().Be(1, "la tarea falló en el hueco entre el vencimiento y el filtro");
@@ -183,7 +192,7 @@ public sealed class LanzadorProcesoAisladoPlazoTests
     }
 
     [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.NoInlining)]
-    private static async Task<(bool Terminada, int Publicaciones)> FallarJustoTrasVencerAsync()
+    private static async Task<(bool Terminada, int Publicaciones, WeakReference DelHueco)> FallarJustoTrasVencerAsync()
     {
         var tarea = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var contexto = new ContextoQueFallaAntesDeSeguir(() => tarea.TrySetException(new IOException(MarcaFalloEnElHueco)));
@@ -200,7 +209,7 @@ public sealed class LanzadorProcesoAisladoPlazoTests
         }
 
         var terminada = await terminaEn.WaitAsync(TimeSpan.FromSeconds(5));
-        return (terminada, contexto.Publicaciones);
+        return (terminada, contexto.Publicaciones, new WeakReference(tarea.Task));
     }
 
     /// <summary>

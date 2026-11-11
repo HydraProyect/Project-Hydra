@@ -634,7 +634,8 @@ public class UnirPdfQueryHandlerTests
 
         var llamada = async () => await UnirAsync([new EntradaUnionDocumento(seguro.Id), subido]);
 
-        await llamada.Should().ThrowAsync<EntradaPdfRetenidaException>("la pantalla tiene que retener también lo suyo");
+        (await llamada.Should().ThrowAsync<EntradaPdfRetenidaException>("la pantalla tiene que retener también lo suyo"))
+            .Which.Posiciones.Should().Equal([1], "la pantalla retiene solo lo subido de la entrada que tenía el proceso");
         _presupuesto.Reservado.Should().Be((Factor - 1) * subido.Contenido.Length,
             "solo queda la copia de lo subido que recibió el proceso sin terminar; la lectura y la estructura del Documento se devuelven");
     }
@@ -648,7 +649,8 @@ public class UnirPdfQueryHandlerTests
 
         var llamada = async () => await UnirAsync([subido, new EntradaUnionDocumento(retenido.Id)]);
 
-        await llamada.Should().ThrowAsync<EntradaPdfRetenidaException>();
+        (await llamada.Should().ThrowAsync<EntradaPdfRetenidaException>())
+            .Which.Posiciones.Should().Equal([1], "la subida de la posición 0 no la tenía ese proceso: la pantalla la devuelve");
         _presupuesto.Reservado.Should().Be(Factor * Pdf("X[retenida]").Length,
             "solo la lectura del Documento; ni la copia ni la estructura de la subida, cuya inspección terminó");
     }
@@ -664,7 +666,7 @@ public class UnirPdfQueryHandlerTests
 
         var llamada = async () => await UnirAsync([new EntradaUnionDocumento(a.Id), new EntradaUnionDocumento(b.Id), c, retenido]);
 
-        await llamada.Should().ThrowAsync<EntradaPdfRetenidaException>();
+        (await llamada.Should().ThrowAsync<EntradaPdfRetenidaException>()).Which.Posiciones.Should().Equal([3]);
         _presupuesto.Reservado.Should().Be((Factor - 1) * retenido.Contenido.Length);
     }
 
@@ -679,7 +681,7 @@ public class UnirPdfQueryHandlerTests
         var llamada = async () => await UnirAsync(
             [new EntradaUnionDocumento(seguro.Id), Subido("b.pdf", "B[estructura=1000000]"), new EntradaUnionDocumento(seguro.Id)]);
 
-        await llamada.Should().ThrowAsync<EntradaPdfRetenidaException>();
+        (await llamada.Should().ThrowAsync<EntradaPdfRetenidaException>()).Which.Posiciones.Should().Equal([2]);
         _presupuesto.Reservado.Should().Be(Factor * longitud + (Factor - 1) * longitud,
             "la lectura del Documento y la copia del repetido; ni las estructuras ni la copia de lo subido");
     }
@@ -694,7 +696,8 @@ public class UnirPdfQueryHandlerTests
 
         var llamada = async () => await UnirAsync([new EntradaUnionDocumento(seguro.Id), subido]);
 
-        await llamada.Should().ThrowAsync<EntradaPdfRetenidaException>();
+        (await llamada.Should().ThrowAsync<EntradaPdfRetenidaException>())
+            .Which.Posiciones.Should().BeNull("el proceso de la unión tenía todos los PDF: la pantalla retiene todo lo subido");
         _presupuesto.Reservado.Should().Be(
             Factor * Pdf("SEGURO[estructura=1000000]").Length + 1000000 + (Factor - 1) * subido.Contenido.Length + 2000);
     }

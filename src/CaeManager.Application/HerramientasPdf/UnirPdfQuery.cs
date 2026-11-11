@@ -247,6 +247,10 @@ public class UnirPdfQueryHandler(
         // Las de una inspección ya terminada cubren PDF que ningún proceso vivo referencia y se devuelven en el finally.
         IReadOnlyList<IDisposable> enElProceso = [];
 
+        // Las posiciones cuyos PDF tiene ese proceso, para que la pantalla retenga solo lo suyo de esas: la de la entrada que
+        // se inspecciona, o null (todas) en la unión o si no se sabe.
+        IReadOnlyList<int>? posicionesEnElProceso = null;
+
         try
         {
             for (var posicion = 0; posicion < entradas.Count; posicion++)
@@ -268,8 +272,10 @@ public class UnirPdfQueryHandler(
                     return Fallo(ErroresUnirPdf.TotalDemasiadoGrande, "Los PDF pesan juntos más de lo que se puede unir.");
 
                 enElProceso = ReservasDeLaEntrada(entradas[posicion], reservas, reservasAntes, lecturaDeDocumentos);
+                posicionesEnElProceso = [posicion];
                 var info = await unidor.InspeccionarAsync(contenido, cancellationToken);
                 enElProceso = [];
+                posicionesEnElProceso = null;
                 if (!info.EsExitoso)
                     return Result.Exito(ResultadoUnionPdf.Rechazada(posicion, CodigoDeEntrada(info.Error.Codigo)));
 
@@ -312,18 +318,21 @@ public class UnirPdfQueryHandler(
                 Reserva = reservaUnido,
             });
         }
-        catch (EntradaPdfRetenidaException)
+        catch (EntradaPdfRetenidaException retenida)
         {
             // El proceso aparte que recibió estos PDF no consta terminado: pueden seguir referenciados, así que lo reservado
             // para ellos no se devuelve (ni en el finally). Lo de inspecciones anteriores, cuyo proceso sí consta terminado, se
-            // devuelve: retenerlo dejaría inmovilizado presupuesto compartido sin nada que lo use. La excepción sigue para que
-            // la pantalla retenga también lo suyo.
+            // devuelve: retenerlo dejaría inmovilizado presupuesto compartido sin nada que lo use. La excepción sigue, con las
+            // posiciones de ese proceso, para que la pantalla retenga también lo suyo de esas y devuelva lo de las demás.
             foreach (var reserva in enElProceso)
             {
                 EntradaPdfRetenidaException.Retener(reserva);
                 reservas.Remove(reserva);
             }
-            throw;
+
+            if (posicionesEnElProceso is null)
+                throw;
+            throw new EntradaPdfRetenidaException(posicionesEnElProceso, retenida);
         }
         catch (PresupuestoMemoriaAgotadoException)
         {

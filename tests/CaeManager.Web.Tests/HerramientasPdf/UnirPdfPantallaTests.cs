@@ -204,6 +204,35 @@ public sealed class UnirPdfPantallaTests : BunitContext
         _descarga.Invocations.Should().BeEmpty();
     }
 
+    [Theory]
+    [InlineData(null, 400L)]
+    [InlineData(0, 100L)]
+    [InlineData(1, 300L)]
+    [InlineData(2, 0L)]
+    public async Task Si_al_unir_queda_retenido_un_proceso_solo_se_retiene_lo_subido_de_las_posiciones_que_tenia(int? posicion, long retenido)
+    {
+        // a.pdf (100 bytes) y b.pdf (300 bytes) subidos y un Documento en la posición 2, que la pantalla no reserva. Sin
+        // posiciones (la unión) se retiene todo lo subido; con una, solo lo de esa subida, y nada si es el Documento.
+        _mediador.Documentos = [new DocumentoParaUnirDto(Guid.NewGuid(), "Seguro RC", null, new DateOnly(2026, 1, 15), null)];
+        var cut = Renderizar();
+        cut.WaitForAssertion(() => cut.FindAll(".zona-soltar-archivo").Should().ContainSingle());
+        await cut.InvokeAsync(() => cut.FindComponent<InputFile>().UploadFiles(PdfDe("a.pdf", 100), PdfDe("b.pdf", 300)));
+        cut.WaitForAssertion(() => cut.FindAll("ol.lista-unir li").Should().HaveCount(2));
+        PulsarBoton(cut, "Elegir de Documentos");
+        cut.WaitForAssertion(() => cut.Find(".documentos-unir").TextContent.Should().Contain("Seguro RC"));
+        PulsarBoton(cut, "Añadir");
+        cut.WaitForAssertion(() => NombresEnLista(cut).Should().Equal("a.pdf", "b.pdf", "Seguro RC"));
+        _presupuesto.Reservado.Should().Be(0, "tras preparar, la reserva de cada subida se devuelve");
+        _mediador.ExcepcionAlUnir = posicion is { } p ? new EntradaPdfRetenidaException([p], null) : new EntradaPdfRetenidaException();
+
+        PulsarBoton(cut, "Unir y descargar");
+
+        EsperarSinErrores(cut, () => _mediador.Uniones.Should().ContainSingle());
+        EsperarSinErrores(cut, () => cut.FindAll("[role=alert]").Should().NotBeEmpty("la unión terminó con el aviso de sin espacio"));
+        _presupuesto.Reservado.Should().Be(retenido);
+        _descarga.Invocations.Should().BeEmpty();
+    }
+
     /// <summary>Espera como <c>WaitForAssertion</c>, pero si el límite de errores contuvo una excepción, falla con ella.</summary>
     private void EsperarSinErrores(IRenderedComponent<UnirPdf> cut, Action asercion)
     {
@@ -218,6 +247,13 @@ public sealed class UnirPdfPantallaTests : BunitContext
     }
 
     private static InputFileContent Pdf(string nombre) => InputFileContent.CreateFromBinary("%PDF-1.4 x"u8.ToArray(), nombre);
+
+    private static InputFileContent PdfDe(string nombre, int bytes)
+    {
+        var contenido = new byte[bytes];
+        "%PDF-1.4 "u8.CopyTo(contenido);
+        return InputFileContent.CreateFromBinary(contenido, nombre);
+    }
 
     private static async Task SubirAsync(IRenderedComponent<UnirPdf> cut, params string[] nombres) =>
         await SubirHastaAsync(cut, nombres.Length, nombres);

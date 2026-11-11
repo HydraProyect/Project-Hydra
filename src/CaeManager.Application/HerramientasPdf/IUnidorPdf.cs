@@ -115,9 +115,32 @@ public interface IUnidorPdf
 /// <see cref="Retener"/>. Para la persona es el mismo «inténtalo más tarde» que
 /// <see cref="Common.PresupuestoMemoriaAgotadoException"/>.
 /// </summary>
-public sealed class EntradaPdfRetenidaException() : Exception(Common.PresupuestoMemoriaAgotadoException.MensajeUsuario)
+public sealed class EntradaPdfRetenidaException : Exception
 {
     private static readonly System.Collections.Concurrent.ConcurrentBag<IDisposable> Retenidas = [];
+
+    /// <summary>Sin decir qué entradas: quien la recibe retiene todo lo que reservó para los PDF (el lado seguro).</summary>
+    public EntradaPdfRetenidaException()
+        : base(Common.PresupuestoMemoriaAgotadoException.MensajeUsuario)
+    {
+    }
+
+    /// <summary>Solo quedan referenciados los PDF de <paramref name="posiciones"/> (posiciones de la entrada de la unión).</summary>
+    public EntradaPdfRetenidaException(IReadOnlyList<int> posiciones, Exception? interna)
+        : base(Common.PresupuestoMemoriaAgotadoException.MensajeUsuario, interna)
+    {
+        ArgumentNullException.ThrowIfNull(posiciones);
+        Posiciones = posiciones;
+    }
+
+    /// <summary>
+    /// Las posiciones de la entrada cuyos PDF recibió el proceso que no consta terminado: lo reservado para ellas se retiene y
+    /// lo reservado para las demás se devuelve. <c>null</c> si no se sabe o son todas (la unión): se retiene todo.
+    /// </summary>
+    public IReadOnlyList<int>? Posiciones { get; }
+
+    /// <summary>Verdadero si el PDF de la posición <paramref name="posicion"/> puede seguir referenciado.</summary>
+    public bool Retiene(int posicion) => Posiciones is null || Posiciones.Contains(posicion);
 
     /// <summary>Reservas que no se devuelven nunca en esta instancia, igual que el turno del proceso que no consta terminado.</summary>
     public static int NumeroRetenidas => Retenidas.Count;
