@@ -112,7 +112,7 @@ public partial class ClavesApi : CaeManager.Web.Components.PaginaIntegrableConfi
         if (_generando || _delegacionSeleccionadaId is not { } delegacionId) return;
         // Lo escrito en «Caducidad» que no es una fecha llega aquí como «»; emitir con eso sería emitir sin la caducidad
         // que la persona cree haber puesto.
-        if (_caducidadNoValida) { _errorGenerar = "La caducidad no es una fecha válida: escríbela como dd/mm/aaaa o elígela en el calendario."; return; }
+        if (_caducidadNoValida) { _errorGenerar = Textos["CaducidadNoValida"]; return; }
         var generacionContexto = _generacionContexto;
         var nombreOrganizacion = NombreOrganizacion(delegacionId);
         _generando = true; _errorGenerar = null;

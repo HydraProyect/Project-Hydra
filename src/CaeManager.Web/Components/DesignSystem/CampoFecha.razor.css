@@ -135,8 +135,9 @@
     cursor: pointer;
 }
 
+/* Mismo fondo de paso que las opciones de CampoSelectAvanzado: se lee en los dos temas. */
 .campo-fecha-dia:hover {
-    background-color: var(--color-primary-100);
+    background-color: var(--color-surface-hover);
 }
 
 .campo-fecha-dia[aria-current="date"] {
@@ -156,8 +157,8 @@
 
 .campo-fecha-dia-elegido,
 .campo-fecha-dia-elegido:hover {
-    background-color: var(--color-primary-600);
-    color: var(--color-surface);
+    background-color: var(--color-primario-fondo);
+    color: var(--color-primario-texto);
 }
 
 @media (max-width: 767px) {
