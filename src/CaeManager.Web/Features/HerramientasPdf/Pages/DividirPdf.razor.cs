@@ -470,6 +470,7 @@ public partial class DividirPdf : CaeManager.Web.Components.PaginaInteractiva, I
         var token = _ciclo.Token;
         var entregados = 0;
         RangoPaginas? enCurso = null;
+        var tenantCambiado = false;
         _descargando = true;
         _descargados = null;
         _error = null;
@@ -481,7 +482,10 @@ public partial class DividirPdf : CaeManager.Web.Components.PaginaInteractiva, I
                 using var reserva = await PresupuestoMemoria.ReservarAsync(LimitesDivisionPdf.MemoriaExtraccionTramo(original.TamanoBytes), token);
                 var tramo = await ExtraerTramoAsync(almacen, original, nombre, tenantId, empresaId, rango, token);
                 if (tramo.EsFallido)
+                {
+                    tenantCambiado = tramo.Error.Codigo == CrearDocumentosDesdeDivisionCommandHandler.ErrorTenantCruzado;
                     break;
+                }
 
                 using var exceso = CubrirSoloElTramo(reserva, tramo.Valor.Contenido.Length);
                 if (!await EntregarTramoAsync(tramo.Valor, token))
@@ -491,11 +495,16 @@ public partial class DividirPdf : CaeManager.Web.Components.PaginaInteractiva, I
                 enCurso = null;
             }
 
-            if (enCurso is { } fallido)
+            // Con otro Tenant en el selector, reintentar no sirve: se dice lo mismo que al guardar.
+            if (tenantCambiado)
+                _error = Textos["ErrorTenantCambiado"];
+            else if (enCurso is { } fallido)
                 _error = Textos["ErrorDescargaTramo", fallido.Inicial, fallido.Final];
         }
         catch (PresupuestoMemoriaAgotadoException)
         {
+            // Solo lanzan la reserva y su ampliación, dentro del bucle y con el tramo ya en curso; el aviso genérico es
+            // solo por si eso cambiara.
             _error = enCurso is { } sinEspacio
                 ? Textos["ErrorSinEspacioTramo", sinEspacio.Inicial, sinEspacio.Final]
                 : Textos["ErrorSinEspacio"];

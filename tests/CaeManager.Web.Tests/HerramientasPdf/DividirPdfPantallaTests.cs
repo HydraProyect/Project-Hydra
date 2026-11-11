@@ -68,6 +68,7 @@ public sealed class DividirPdfPantallaTests : BunitContext
         public List<CrearDocumentosDesdeDivisionCommand> Creaciones { get; } = [];
         public List<ExtraerTramoPdfQuery> Extracciones { get; } = [];
         public int? PaginaQueFallaAlExtraer { get; set; }
+        public string CodigoFalloExtraccion { get; set; } = "Prueba.Extraccion";
 
         /// <summary>Si está, la extracción pasa por la de verdad (<see cref="ExtraccionTramoPdf"/>) con este divisor.</summary>
         public IDivisorPdf? Divisor { get; set; }
@@ -104,7 +105,7 @@ public sealed class DividirPdfPantallaTests : BunitContext
                     }
 
                     return extraccion.PaginaInicial == PaginaQueFallaAlExtraer
-                        ? Result.Fallo<TramoPdfExtraido>(Error.Crear("Prueba.Extraccion", "No se pudo extraer."))
+                        ? Result.Fallo<TramoPdfExtraido>(Error.Crear(CodigoFalloExtraccion, "No se pudo extraer."))
                         : Result.Exito(new TramoPdfExtraido($"paquete-pag-{extraccion.PaginaInicial}-{extraccion.PaginaFinal}.pdf", [1]));
                 default:
                     throw new NotSupportedException(peticion.GetType().Name);
@@ -323,6 +324,23 @@ public sealed class DividirPdfPantallaTests : BunitContext
 
         cut.WaitForAssertion(() => _mediador.Extracciones.Should().HaveCount(3));
         _mediador.Extracciones.Should().OnlyContain(e => e.TenantEsperadoId == TenantAId);
+    }
+
+    [Fact]
+    public async Task Si_el_Tenant_del_selector_cambia_a_mitad_de_la_descarga_se_dice_que_cambio_la_Empresa()
+    {
+        var descarga = JSInterop.SetupModule("./js/descarga-pdf-unido.js");
+        descarga.SetupVoid("descargarPdf", _ => true).SetVoidResult();
+        _mediador.PaginaQueFallaAlExtraer = 3;
+        _mediador.CodigoFalloExtraccion = CrearDocumentosDesdeDivisionCommandHandler.ErrorTenantCruzado;
+        var cut = Renderizar();
+        await SubirAsync(cut);
+
+        Pulsar(cut, "Descargar 3 PDF");
+
+        cut.WaitForAssertion(() => cut.Find(".aviso-error").TextContent.Should().Contain("La Empresa del selector ha cambiado desde que subiste el PDF."));
+        cut.Find(".aviso-error").TextContent.Should().NotContain("Inténtalo de nuevo", "reintentar con otro Tenant no sirve");
+        _mediador.Extracciones.Select(e => e.PaginaInicial).Should().Equal(1, 3);
     }
 
     [Fact]

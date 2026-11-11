@@ -193,6 +193,17 @@ public class ExtraerTramoPdfQueryHandlerTests
         new ExtraerTramoPdfQueryValidator().Validate(Consulta(1, 1) with { TenantEsperadoId = Guid.Empty }).IsValid.Should().BeFalse();
     }
 
+    [Fact]
+    public void La_reserva_de_la_extraccion_cubre_el_analisis_y_las_tres_copias_del_guardado()
+    {
+        const long original = 10L * 1024 * 1024;
+
+        // Copia, PDFsharp abierto y páginas copiadas (el factor del análisis), más el MemoryStream que dobla su búfer
+        // (hasta dos tramos) y el ToArray (otro tramo), con el tramo acotado por el original.
+        LimitesDivisionPdf.MemoriaExtraccionTramo(original).Should().BeGreaterThanOrEqualTo(
+            original * (CaeManager.Application.Common.Archivos.LecturaAlmacenadaParaAnalisis.FactorMemoriaAnalisis + 3));
+    }
+
     private static void AsignarTenant(EntidadConTenant entidad, Guid tenantId) =>
         typeof(EntidadConTenant).GetProperty(nameof(entidad.TenantId))!.SetValue(entidad, tenantId);
 
