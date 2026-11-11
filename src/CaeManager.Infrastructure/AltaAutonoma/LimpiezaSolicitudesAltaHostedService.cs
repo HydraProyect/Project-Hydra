@@ -63,8 +63,7 @@ public class LimpiezaSolicitudesAltaHostedService(
         }
     }
 
-    /// <summary>Una pasada. Interna para que la integración la ejercite sin temporizador ni elección de líder.</summary>
-    internal async Task LimpiarAsync(CancellationToken stoppingToken)
+    private async Task LimpiarAsync(CancellationToken stoppingToken)
     {
         using var ambito = ambitoFactory.CreateScope();
         await ambito.ServiceProvider.GetRequiredService<ServicioLimpiezaSolicitudesAlta>().EjecutarAsync(stoppingToken);

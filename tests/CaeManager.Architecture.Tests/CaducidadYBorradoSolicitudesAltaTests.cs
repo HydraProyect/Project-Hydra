@@ -74,6 +74,8 @@ public class CaducidadYBorradoSolicitudesAltaTests
         cuerpo.Should().Contain("\"CaducaEnUtc\" <= v_ahora")
             .And.Contain("'Iniciada', 'CorreoVerificado', 'DatosCompletos'")
             .And.Contain("s.\"Estado\" = 'PendientePago'")
+            .And.Contain("s.\"UltimoCambioEstadoEnUtc\" <= v_ahora - interval '4 days'",
+                "una sesión de Checkout pagable o un aviso de pago por llegar no pueden encontrarse la fila ya caducada")
             .And.Contain("\"Estado\" = 'Caducada'")
             .And.NotContain("DELETE ")
             .And.NotContain("INSERT ")

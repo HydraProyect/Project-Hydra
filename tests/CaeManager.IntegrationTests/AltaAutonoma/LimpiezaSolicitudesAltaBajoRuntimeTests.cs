@@ -40,8 +40,8 @@ public class LimpiezaSolicitudesAltaBajoRuntimeTests : IAsyncLifetime
     [InlineData("PendientePago")]
     public async Task Caduca_a_los_7_dias_y_no_antes_sin_borrar_todavia_los_datos(string estado)
     {
-        var reciente = await SembrarAsync(estado, edadHoras: 6 * 24 + 23, haceHorasDelUltimoCambio: 48);
-        var vencida = await SembrarAsync(estado, edadHoras: 7 * 24 + 1, haceHorasDelUltimoCambio: 48);
+        var reciente = await SembrarAsync(estado, edadHoras: 6 * 24 + 23, haceHorasDelUltimoCambio: 5 * 24);
+        var vencida = await SembrarAsync(estado, edadHoras: 7 * 24 + 1, haceHorasDelUltimoCambio: 5 * 24);
 
         (await CaducarAsync()).Should().Be(1);
 
@@ -72,16 +72,37 @@ public class LimpiezaSolicitudesAltaBajoRuntimeTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task Una_solicitud_pendiente_de_pago_con_la_sesion_de_Checkout_en_curso_espera_a_que_acabe()
+    public async Task Una_solicitud_pendiente_de_pago_espera_4_dias_desde_que_entro_en_ese_estado()
     {
         var enCurso = await SembrarAsync("PendientePago", edadHoras: 7 * 24 + 1, haceHorasDelUltimoCambio: 0.2);
-        var terminada = await SembrarAsync("PendientePago", edadHoras: 7 * 24 + 1, haceHorasDelUltimoCambio: 2);
+        var avisoPorLlegar = await SembrarAsync("PendientePago", edadHoras: 7 * 24 + 1, haceHorasDelUltimoCambio: 4 * 24 - 1);
+        var terminada = await SembrarAsync("PendientePago", edadHoras: 7 * 24 + 1, haceHorasDelUltimoCambio: 4 * 24 + 1);
 
         (await CaducarAsync()).Should().Be(1);
 
         (await LeerAsync(enCurso)).Estado.Should().Be("PendientePago",
-            "el webhook de un pago hecho a tiempo no podría registrarlo sobre una fila ya Caducada");
+            "la sesión de Checkout aún se puede pagar y MarcarPagada solo parte de PendientePago");
+        (await LeerAsync(avisoPorLlegar)).Estado.Should().Be("PendientePago",
+            "el aviso de un pago ya hecho puede tardar hasta los 3 días de reintentos de Stripe");
         (await LeerAsync(terminada)).Estado.Should().Be("Caducada");
+    }
+
+    [Fact]
+    public async Task Caducar_incrementa_VersionFila_y_un_escritor_optimista_que_leyo_antes_ya_no_pisa_la_fila()
+    {
+        var id = await SembrarAsync("DatosCompletos", edadHoras: 8 * 24, haceHorasDelUltimoCambio: 8 * 24);
+        var versionLeida = (await LeerAsync(id)).Version;
+
+        (await CaducarAsync()).Should().Be(1);
+
+        // El escritor optimista (el webhook de pago con EF) actualiza con la versión que leyó: tras caducar, no coincide.
+        await using var propietario = await AbrirComoPropietarioAsync();
+        await using var tardio = new NpgsqlCommand(
+            "UPDATE \"SolicitudesAlta\" SET \"Estado\" = 'Pagada' WHERE \"Id\" = @id AND \"VersionFila\" = @version", propietario);
+        tardio.Parameters.AddWithValue("id", id);
+        tardio.Parameters.AddWithValue("version", versionLeida);
+        (await tardio.ExecuteNonQueryAsync()).Should().Be(0);
+        (await LeerAsync(id)).Estado.Should().Be("Caducada");
     }
 
     [Fact]
@@ -182,7 +203,8 @@ public class LimpiezaSolicitudesAltaBajoRuntimeTests : IAsyncLifetime
         var libre = await SembrarAsync("Iniciada", edadHoras: 8 * 24, haceHorasDelUltimoCambio: 8 * 24);
         var bloqueada = await SembrarAsync("Iniciada", edadHoras: 8 * 24, haceHorasDelUltimoCambio: 8 * 24);
 
-        // El «webhook de pago» (aquí, el propietario) retiene la fila con FOR UPDATE.
+        // Otra transacción (aquí, el propietario; en producción la verificación del correo u otra instancia del trabajo)
+        // retiene la fila con FOR UPDATE.
         await using var retenedor = await AbrirComoPropietarioAsync();
         await using var transaccion = await retenedor.BeginTransactionAsync();
         await using (var bloqueo = new NpgsqlCommand(

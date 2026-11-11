@@ -14,16 +14,21 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations;
 /// <c>CorreoVerificado</c>, <c>DatosCompletos</c> y <c>PendientePago</c> cuyo plazo (<c>CaducaEnUtc</c>, 7 días desde
 /// <c>CreadaEnUtc</c>) ya venció según el reloj de la base. Espejo de <c>SolicitudAlta.Caducar</c>: nada que esté en
 /// <c>Pagada</c>, <c>Completada</c>, <c>Reembolsada</c>, <c>DerivadaAAcceso</c> ni <c>Bloqueada</c>. Una Solicitud de
-/// alta en <c>PendientePago</c> espera además una hora desde que entró en ese estado, porque su sesión de Checkout
-/// dura 30 minutos y el webhook de un pago hecho a tiempo no podría registrarlo sobre una fila ya <c>Caducada</c>
-/// (el dominio fija que lo pagado está pagado aunque el plazo haya vencido).</item>
+/// alta en <c>PendientePago</c> espera además 4 días desde que entró en ese estado: <c>MarcarPagada</c> solo parte de
+/// <c>PendientePago</c> y el dominio fija que lo pagado está pagado aunque el plazo haya vencido, así que caducar una
+/// fila con una sesión de Checkout aún pagable, o con el aviso de un pago ya hecho todavía por llegar (Stripe
+/// reintenta la entrega hasta 3 días y la sesión dura como mucho 24 h), dejaría un cobro sin Tenant. Es un margen
+/// de seguridad, no una regla de producto: el criterio definitivo (reconciliar con Stripe antes de caducar) es
+/// decisión pendiente del incremento del webhook de pago.</item>
 /// <item><c>app_alta_borrar_datos_personales</c> borra los datos personales de las <c>Caducada</c> con 30 días
 /// desde <c>CreadaEnUtc</c>: los mismos campos que <c>SolicitudAlta.BorrarDatosPersonales</c>, las filas de
 /// <c>AceptacionesSolicitudAlta</c> y marca <c>DatosPersonalesBorradosEnUtc</c>. Repetirla no cambia nada, y deja
 /// una fila en <c>TrazasPurga</c> con el recuento, como las demás purgas.</item>
 /// </list>
-/// Las dos trabajan por lotes (<c>p_lote</c> entre 1 y 1000) con <c>FOR UPDATE SKIP LOCKED</c>, así que ni se pisan con
-/// el webhook de pago ni con otra instancia del trabajo, e incrementan <c>VersionFila</c> en cada fila que cambian.
+/// Las dos trabajan por lotes (<c>p_lote</c> entre 1 y 1000) con <c>FOR UPDATE SKIP LOCKED</c>: dos instancias del
+/// trabajo, o una transacción que ya retiene la fila (la verificación del correo), no se esperan ni se pisan. Frente
+/// al webhook de pago, que actualiza de forma optimista, la protección es que cada fila que cambian incrementa
+/// <c>VersionFila</c> (un escritor que leyó antes falla en vez de sobrescribir) y el margen de <c>PendientePago</c>.
 /// Los plazos y el estado de origen están escritos dentro: el rol de la aplicación puede pedir el trabajo, pero no
 /// adelantarlo ni elegir una fila. Como el resto de purgas no exigen el contexto firmado, porque no hay petición de
 /// usuario detrás: las dispara el servicio de fondo de la plataforma.
@@ -67,15 +72,16 @@ public partial class CaducidadYBorradoSolicitudesAlta : Migration
 
                 v_ahora := pg_catalog.clock_timestamp();
 
-                -- SKIP LOCKED: una fila que el webhook de pago o otra instancia tiene bloqueada se deja para la
-                -- siguiente pasada en vez de esperarla. Los plazos se comparan con el reloj de la base.
+                -- SKIP LOCKED: una fila que otra transacción tiene bloqueada (otra instancia, la verificación del
+                -- correo) se deja para la siguiente pasada en vez de esperarla. Los plazos se comparan con el reloj
+                -- de la base. PendientePago espera 4 días desde que entró: ver el comentario de la migración.
                 WITH lote AS (
                     SELECT s."Id"
                       FROM public."SolicitudesAlta" s
                      WHERE s."CaducaEnUtc" <= v_ahora
                        AND (s."Estado" IN ('Iniciada', 'CorreoVerificado', 'DatosCompletos')
                             OR (s."Estado" = 'PendientePago'
-                                AND s."UltimoCambioEstadoEnUtc" <= v_ahora - interval '1 hour'))
+                                AND s."UltimoCambioEstadoEnUtc" <= v_ahora - interval '4 days'))
                      ORDER BY s."CaducaEnUtc", s."Id"
                      LIMIT p_lote
                        FOR UPDATE SKIP LOCKED)
