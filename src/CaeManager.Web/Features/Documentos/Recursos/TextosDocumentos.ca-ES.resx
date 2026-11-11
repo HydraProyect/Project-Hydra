@@ -13,16 +13,16 @@
     <value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
   </resheader>
   <data name="ConfirmarEliminarLoteMensaje" xml:space="preserve">
-    <value>Se ocultarán de las listas activas. Podrás deshacer la eliminación desde el aviso que aparecerá; después, solo un Administrador de esta organización puede recuperarlos desde Auditoría.</value>
+    <value>S'ocultaran de les llistes actives. Podràs desfer l'eliminació des de l'avís que apareixerà; després, només un Administrador d'aquesta organització pot recuperar-los des d'Auditoria.</value>
   </data>
   <data name="ToastAccionDeshacer" xml:space="preserve">
     <value>Deshacer</value>
   </data>
   <data name="ToastLoteRestaurados" xml:space="preserve">
-    <value>{0} documento(s) restaurado(s).</value>
+    <value>{0} document(s) restaurat(s).</value>
   </data>
   <data name="ToastLoteRestauradosConErrores" xml:space="preserve">
-    <value>{0} documento(s) restaurado(s); {1} no se pudieron restaurar: {2}</value>
+    <value>{0} document(s) restaurat(s); {1} no s'han pogut restaurar: {2}</value>
   </data>
   <data name="Documento360DescargarPdf" xml:space="preserve">
     <value>Descarregar el PDF</value>
