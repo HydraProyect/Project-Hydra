@@ -16,7 +16,7 @@ namespace CaeManager.Infrastructure.HerramientasPdf;
 /// escribe lo que se le pide, y no se le pide nada.
 ///
 /// Las dimensiones se leen de la cabecera ANTES de decodificar y se comparan con los topes de
-/// <see cref="LimitesFotoAPdf"/> aunque el comando ya lo hiciera: son las que usa el decodificador, y un fichero que
+/// <see cref="LimitesFotoAPdf"/> aunque el generador ya lo hiciera: son las que usa el decodificador, y un fichero que
 /// engañe a un lector de cabeceras no tiene por qué engañar al otro. No se usa disco: todo ocurre en memoria. Los
 /// mensajes de excepción no se registran, porque pueden reproducir contenido del fichero.
 /// </summary>
@@ -32,21 +32,31 @@ public sealed class SkiaPdfSharpProcesadorFotosPdf(ILogger<SkiaPdfSharpProcesado
         if (fotos.Count == 0)
             return Fallo(ErroresFotoAPdf.SinFotos, "No hay fotos.");
 
-        using var documento = new PdfDocument();
-        for (var i = 0; i < fotos.Count; i++)
+        try
         {
-            cancellationToken.ThrowIfCancellationRequested();
+            using var documento = new PdfDocument();
+            for (var i = 0; i < fotos.Count; i++)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
 
-            var normalizada = Normalizar(fotos[i], LimitesFotoAPdf.LadoMaximoEnPdfPixeles);
-            if (normalizada.EsFallido)
-                return Fallo(normalizada.Error.Codigo, $"Foto {i + 1}: {normalizada.Error.Mensaje}");
+                var normalizada = Normalizar(fotos[i], LimitesFotoAPdf.LadoMaximoEnPdfPixeles);
+                if (normalizada.EsFallido)
+                    return Fallo(normalizada.Error.Codigo, $"Foto {i + 1}: {normalizada.Error.Mensaje}");
 
-            AnadirPagina(documento, normalizada.Valor);
+                AnadirPagina(documento, normalizada.Valor);
+            }
+
+            using var salida = new MemoryStream();
+            documento.Save(salida, closeStream: false);
+            return Result.Exito(salida.ToArray());
         }
-
-        using var salida = new MemoryStream();
-        documento.Save(salida, closeStream: false);
-        return Result.Exito(salida.ToArray());
+        catch (Exception ex) when (ex is not (OutOfMemoryException or OperationCanceledException))
+        {
+            // Componer la página y guardar el PDF son de PDFsharp, que lanza excepciones de varios tipos: ninguna debe
+            // cruzar al circuito. Solo el tipo, nunca el contenido de la foto.
+            logger.LogInformation("No se pudo componer el PDF de fotos ({Tipo}).", ex.GetType().Name);
+            return Fallo(ErroresFotoAPdf.NoSePudoGenerar, "No hemos podido crear el PDF.");
+        }
     }
 
     public Result<byte[]> CrearMiniatura(byte[] foto, int ladoMaximoPixeles, CancellationToken cancellationToken)
@@ -95,6 +105,8 @@ public sealed class SkiaPdfSharpProcesadorFotosPdf(ILogger<SkiaPdfSharpProcesado
             {
                 lienzo.Clear(SKColors.White);
                 lienzo.SetMatrix(MatrizDeOrientacion(origen, info.Width, info.Height, escala));
+                // Inmutable: SKImage.FromBitmap comparte los píxeles en vez de copiarlos (la reserva cuenta una sola copia).
+                bitmap.SetImmutable();
                 using var imagen = SKImage.FromBitmap(bitmap);
                 lienzo.DrawImage(imagen, 0, 0, new SKSamplingOptions(SKFilterMode.Linear, SKMipmapMode.Linear));
             }

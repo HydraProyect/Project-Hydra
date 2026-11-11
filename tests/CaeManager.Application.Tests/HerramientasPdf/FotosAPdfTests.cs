@@ -193,6 +193,22 @@ public sealed class FotosAPdfTests
         Codigo(ValidadorFotoAPdf.Validar(jpeg)).Should().Be(ErroresFotoAPdf.DemasiadosPixeles);
     }
 
+    [Theory]
+    [InlineData((byte)0xC4)] // DHT: tablas de Huffman, que van antes del SOF en muchos JPEG
+    [InlineData((byte)0xC8)] // JPG reservado
+    [InlineData((byte)0xCC)] // DAC
+    public void Un_marcador_C4_C8_o_CC_antes_del_SOF_no_se_toma_por_un_SOF(byte marcador)
+    {
+        // Su carga imita un SOF con 65535 x 65535: si el recorrido lo leyera como cabecera de fotograma, la foto normal
+        // (4000 x 3000) se rechazaría por píxeles.
+        var impostor = App(marcador, [0x08, 0xFF, 0xFF, 0xFF, 0xFF, 0x01, 0x01, 0x11, 0x00]);
+
+        var r = ValidadorFotoAPdf.Validar(Jpeg(4000, 3000, impostor));
+
+        r.EsExitoso.Should().BeTrue();
+        r.Valor.Should().Be(new FotoValidada(FormatoFoto.Jpeg, 4000, 3000));
+    }
+
     [Fact]
     public void El_SOF_de_una_miniatura_dentro_del_EXIF_no_se_toma_por_el_de_la_imagen()
     {
@@ -241,7 +257,7 @@ public sealed class FotosAPdfTests
         Codigo(ValidadorFotoAPdf.Validar(Png(0, 100))).Should().Be(ErroresFotoAPdf.FotoIlegible);
     }
 
-    // --- El comando ---
+    // --- El generador ---
 
     private sealed class Disponibilidad(bool disponible) : IDisponibilidadHerramientasPdf
     {
@@ -263,11 +279,11 @@ public sealed class FotosAPdfTests
     }
 
     private static Task<Result<byte[]>> Generar(ProcesadorFalso procesador, IReadOnlyList<byte[]> fotos, bool disponible = true) =>
-        new GenerarPdfDesdeFotosQueryHandler(new Disponibilidad(disponible), procesador)
-            .Handle(new GenerarPdfDesdeFotosQuery(fotos), CancellationToken.None);
+        new GeneradorPdfDesdeFotos(new Disponibilidad(disponible), procesador)
+            .GenerarAsync(fotos, CancellationToken.None);
 
     [Fact]
-    public async Task El_comando_pasa_las_fotos_al_procesador_en_el_orden_recibido()
+    public async Task El_generador_pasa_las_fotos_al_procesador_en_el_orden_recibido()
     {
         var procesador = new ProcesadorFalso();
         var a = Jpeg(100, 200);
@@ -320,7 +336,7 @@ public sealed class FotosAPdfTests
     }
 
     [Fact]
-    public async Task El_comando_repite_la_validacion_y_dice_que_foto_falla()
+    public async Task El_generador_repite_la_validacion_y_dice_que_foto_falla()
     {
         var procesador = new ProcesadorFalso();
         byte[] pdfDisfrazado = System.Text.Encoding.ASCII.GetBytes("%PDF-1.7 esto no es una foto");
@@ -333,7 +349,7 @@ public sealed class FotosAPdfTests
     }
 
     [Fact]
-    public async Task El_comando_rechaza_una_foto_con_demasiados_pixeles_sin_llegar_al_procesador()
+    public async Task El_generador_rechaza_una_foto_con_demasiados_pixeles_sin_llegar_al_procesador()
     {
         var procesador = new ProcesadorFalso();
 

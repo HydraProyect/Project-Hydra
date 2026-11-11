@@ -73,7 +73,7 @@ public static class ErroresFotoAPdf
 /// <summary>
 /// Comprueba una foto subida sin decodificarla: tamaño, firma de bytes y dimensiones declaradas por la cabecera. Solo
 /// cuentan los bytes; el nombre y el tipo MIME que declare el navegador no se miran. Lo usa la pantalla al añadir cada
-/// foto y lo repite el comando al generar (una foto no se da por buena por haberlo sido antes), y el procesador de
+/// foto y lo repite el generador al generar (una foto no se da por buena por haberlo sido antes), y el procesador de
 /// Infrastructure lo vuelve a comprobar con las dimensiones que lee el propio decodificador.
 /// </summary>
 public static class ValidadorFotoAPdf

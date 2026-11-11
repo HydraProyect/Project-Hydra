@@ -521,7 +521,7 @@
     <value>Les fotos HEIC no s'admeten. A l'iPhone, a Ajustos, Càmera, Formats, tria «Més compatible», o comparteix-la com a JPEG.</value>
   </data>
   <data name="FotoErrorPixeles" xml:space="preserve">
-    <value>La foto té massa resolució (màxim {0} megapíxels). Redueix-la i torna a pujar-la.</value>
+    <value>La foto té massa resolució (màxim {0} megapíxels i {1} píxels per costat). Redueix-la i torna a pujar-la.</value>
   </data>
   <data name="FotoErrorIlegible" xml:space="preserve">
     <value>No hem pogut llegir aquesta foto. Comprova que no estigui malmesa.</value>

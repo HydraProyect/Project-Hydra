@@ -4,7 +4,6 @@ using CaeManager.Application.HerramientasPdf;
 using CaeManager.Domain.Common;
 using CaeManager.Web.Documentos;
 using CaeManager.Web.Features.HerramientasPdf.Recursos;
-using MediatR;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Forms;
 using Microsoft.Extensions.Localization;
@@ -19,7 +18,7 @@ namespace CaeManager.Web.Features.HerramientasPdf.Pages;
 ///
 /// Las fotos esperan en el almacén temporal del circuito (el mismo de Dividir un PDF, con su cuota y su borrado al
 /// salir), no en memoria. Cada una se comprueba al añadirla por su firma de bytes y por las dimensiones de su cabecera,
-/// ANTES de decodificarla; al generar, el comando lo repite. Las miniaturas salen del mismo procesador que el PDF, así que
+/// ANTES de decodificarla; al generar, el generador lo repite. Las miniaturas salen del mismo procesador que el PDF, así que
 /// ya van giradas según el EXIF.
 /// </summary>
 public partial class FotoAPdf : CaeManager.Web.Components.PaginaInteractiva, IAsyncDisposable
@@ -29,7 +28,7 @@ public partial class FotoAPdf : CaeManager.Web.Components.PaginaInteractiva, IAs
     /// <summary>Una foto ya aceptada: su fichero temporal, lo que declara su cabecera y su vista previa.</summary>
     private sealed record FotoElegida(ArchivoTemporal Archivo, string Nombre, long Bytes, FotoValidada Datos, string? Miniatura);
 
-    [Inject] private IMediator Mediator { get; set; } = default!;
+    [Inject] private GeneradorPdfDesdeFotos Generador { get; set; } = default!;
     [Inject] private ICurrentUserService CurrentUserService { get; set; } = default!;
     [Inject] private PuertaAccesoDatos PuertaAccesoDatos { get; set; } = default!;
     [Inject] private CuotaSubidaMasiva CuotaSubidaMasiva { get; set; } = default!;
@@ -71,7 +70,7 @@ public partial class FotoAPdf : CaeManager.Web.Components.PaginaInteractiva, IAs
 
     private async Task AnadirFotosAsync(InputFileChangeEventArgs evento)
     {
-        if (_cargando || _almacen is not { } almacen)
+        if (_cargando || _generando || _almacen is not { } almacen)
             return;
 
         _error = null;
@@ -234,18 +233,20 @@ public partial class FotoAPdf : CaeManager.Web.Components.PaginaInteractiva, IAs
         var token = _ciclo.Token;
         try
         {
-            var bytes = _fotos.Sum(f => f.Bytes);
-            var mayorPixeles = _fotos.Max(f => f.Datos.Pixeles);
+            // Una copia: la reserva y la lectura se calculan sobre las mismas fotos aunque la lista cambie mientras se espera.
+            var elegidas = _fotos.ToList();
+            var bytes = elegidas.Sum(f => f.Bytes);
+            var mayorPixeles = elegidas.Max(f => f.Datos.Pixeles);
 
             // Las fotos leídas, el PDF que sale y la decodificación de la mayor.
             using var reserva = await PresupuestoMemoria.ReservarAsync(
                 2 * bytes + mayorPixeles * LimitesFotoAPdf.BytesPorPixelEnProceso, token);
 
-            var contenidos = new List<byte[]>(_fotos.Count);
-            foreach (var foto in _fotos)
+            var contenidos = new List<byte[]>(elegidas.Count);
+            foreach (var foto in elegidas)
                 contenidos.Add(await almacen.LeerAsync(foto.Archivo, token));
 
-            var resultado = await Mediator.Send(new GenerarPdfDesdeFotosQuery(contenidos), token);
+            var resultado = await Generador.GenerarAsync(contenidos, token);
             if (resultado.EsFallido)
             {
                 _error = MensajeDe(resultado.Error.Codigo);
@@ -283,7 +284,7 @@ public partial class FotoAPdf : CaeManager.Web.Components.PaginaInteractiva, IAs
         ErroresFotoAPdf.TotalDemasiadoGrande => Textos["FotoErrorTotal", LimitesFotoAPdf.TamanoMaximoTotalMb],
         ErroresFotoAPdf.FormatoNoSoportado => Textos["FotoErrorFormato"],
         ErroresFotoAPdf.HeicNoSoportado => Textos["FotoErrorHeic"],
-        ErroresFotoAPdf.DemasiadosPixeles => Textos["FotoErrorPixeles", LimitesFotoAPdf.MaximoPixeles / 1_000_000],
+        ErroresFotoAPdf.DemasiadosPixeles => Textos["FotoErrorPixeles", LimitesFotoAPdf.MaximoPixeles / 1_000_000, LimitesFotoAPdf.MaximoLadoPixeles],
         ErroresFotoAPdf.DemasiadasFotos => Textos["FotoErrorDemasiadas", LimitesFotoAPdf.MaximoFotos],
         ErroresFotoAPdf.NoDisponible => Textos["NoDisponibleTitulo"],
         ErroresFotoAPdf.FotoVacia or ErroresFotoAPdf.FotoIlegible => Textos["FotoErrorIlegible"],

@@ -9,7 +9,6 @@ using CaeManager.Infrastructure.Identity;
 using CaeManager.Web.Documentos;
 using CaeManager.Web.Features.HerramientasPdf.Pages;
 using FluentAssertions;
-using MediatR;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Components.Authorization;
 using Microsoft.AspNetCore.Components.Forms;
@@ -22,48 +21,17 @@ using Xunit;
 namespace CaeManager.Web.Tests.HerramientasPdf;
 
 /// <summary>
-/// La pantalla de Foto a PDF con un mediador y un procesador falsos: aquí se prueba la pantalla (subir, ordenar, quitar,
-/// descargar y rechazos). Los límites viven en <see cref="ValidadorFotoAPdf"/> y el comando (tests de Application), y la
+/// La pantalla de Foto a PDF con un procesador falso: aquí se prueba la pantalla (subir, ordenar, quitar,
+/// descargar y rechazos). Los límites viven en <see cref="ValidadorFotoAPdf"/> y el generador (tests de Application), y la
 /// decodificación en el procesador de Infrastructure (<see cref="ProcesadorFotosPdfTests"/>).
 /// </summary>
 public sealed class FotoAPdfPantallaTests : BunitContext
 {
     private static readonly Guid TenantOrigenId = Guid.NewGuid();
 
-    private readonly MediadorFalso _mediador = new();
+    private readonly ProcesadorFalso _procesador = new();
 
     public FotoAPdfPantallaTests() => JSInterop.Mode = JSRuntimeMode.Loose;
-
-    private sealed class MediadorFalso : IMediator
-    {
-        public List<GenerarPdfDesdeFotosQuery> Comandos { get; } = [];
-        public Result<byte[]> Respuesta { get; set; } = Result.Exito(new byte[] { 0x25, 0x50, 0x44, 0x46 });
-
-        public Task<TResponse> Send<TResponse>(IRequest<TResponse> request, CancellationToken cancellationToken = default)
-        {
-            if (request is not GenerarPdfDesdeFotosQuery comando)
-                throw new NotSupportedException(request.GetType().Name);
-
-            Comandos.Add(comando);
-            return Task.FromResult((TResponse)(object)Respuesta);
-        }
-
-        public Task Send<TRequest>(TRequest request, CancellationToken cancellationToken = default) where TRequest : IRequest =>
-            Task.CompletedTask;
-
-        public Task<object?> Send(object request, CancellationToken cancellationToken = default) => Task.FromResult<object?>(null);
-
-        public IAsyncEnumerable<TResponse> CreateStream<TResponse>(IStreamRequest<TResponse> request, CancellationToken cancellationToken = default) =>
-            throw new NotSupportedException();
-
-        public IAsyncEnumerable<object?> CreateStream(object request, CancellationToken cancellationToken = default) =>
-            throw new NotSupportedException();
-
-        public Task Publish(object notification, CancellationToken cancellationToken = default) => Task.CompletedTask;
-
-        public Task Publish<TNotification>(TNotification notification, CancellationToken cancellationToken = default)
-            where TNotification : INotification => Task.CompletedTask;
-    }
 
     private sealed class UsuarioFalso(string rol) : ICurrentUserService
     {
@@ -76,8 +44,18 @@ public sealed class FotoAPdfPantallaTests : BunitContext
 
     private sealed class ProcesadorFalso : IProcesadorFotosPdf
     {
-        public Result<byte[]> ComponerPdf(IReadOnlyList<byte[]> fotos, CancellationToken cancellationToken) =>
-            Result.Exito<byte[]>([1]);
+        public List<IReadOnlyList<byte[]>> Composiciones { get; } = [];
+        public Result<byte[]> Respuesta { get; set; } = Result.Exito(new byte[] { 0x25, 0x50, 0x44, 0x46 });
+
+        /// <summary>Si se pone, componer espera aquí: deja la pantalla «generando» el tiempo que haga falta.</summary>
+        public ManualResetEventSlim? Pausa { get; set; }
+
+        public Result<byte[]> ComponerPdf(IReadOnlyList<byte[]> fotos, CancellationToken cancellationToken)
+        {
+            Composiciones.Add(fotos);
+            Pausa?.Wait(TimeSpan.FromSeconds(20), cancellationToken);
+            return Respuesta;
+        }
 
         public Result<byte[]> CrearMiniatura(byte[] foto, int ladoMaximoPixeles, CancellationToken cancellationToken) =>
             Result.Exito<byte[]>([1, 2, 3]);
@@ -106,11 +84,11 @@ public sealed class FotoAPdfPantallaTests : BunitContext
 
     private IRenderedComponent<FotoAPdf> Renderizar(bool disponible = true)
     {
-        Services.AddScoped<IMediator>(_ => _mediador);
         Services.AddScoped<ICurrentUserService>(_ => new UsuarioFalso("GestorCae"));
         Services.AddScoped<PuertaAccesoDatos>();
-        Services.AddSingleton<IProcesadorFotosPdf>(new ProcesadorFalso());
+        Services.AddSingleton<IProcesadorFotosPdf>(_procesador);
         Services.AddSingleton<IDisponibilidadHerramientasPdf>(new Disponibilidad(disponible));
+        Services.AddSingleton<GeneradorPdfDesdeFotos>();
         Services.AddSingleton<ILogger<FotoAPdf>>(_ => NullLogger<FotoAPdf>.Instance);
         Services.AddScoped<AuthenticationStateProvider>(_ => new AutenticacionFalsa("GestorCae"));
         Services.AddAuthorizationCore();
@@ -292,7 +270,7 @@ public sealed class FotoAPdfPantallaTests : BunitContext
     }
 
     [Fact]
-    public async Task Descargar_manda_al_comando_las_fotos_en_el_orden_elegido_y_entrega_el_PDF_al_navegador()
+    public async Task Descargar_manda_al_procesador_las_fotos_en_el_orden_elegido_y_entrega_el_PDF_al_navegador()
     {
         var modulo = JSInterop.SetupModule("./js/foto-a-pdf.js");
         modulo.SetupVoid("descargar", _ => true).SetVoidResult();
@@ -306,21 +284,44 @@ public sealed class FotoAPdfPantallaTests : BunitContext
 
         cut.FindAll("button").First(b2 => b2.TextContent.Trim() == "Descargar PDF de 2 páginas").Click();
 
-        cut.WaitForAssertion(() => _mediador.Comandos.Should().ContainSingle());
-        _mediador.Comandos[0].Fotos.Should().HaveCount(2);
-        _mediador.Comandos[0].Fotos[0].Should().Equal(b);
-        _mediador.Comandos[0].Fotos[1].Should().Equal(a);
+        cut.WaitForAssertion(() => _procesador.Composiciones.Should().ContainSingle());
+        _procesador.Composiciones[0].Should().HaveCount(2);
+        _procesador.Composiciones[0][0].Should().Equal(b);
+        _procesador.Composiciones[0][1].Should().Equal(a);
         cut.WaitForAssertion(() => modulo.Invocations["descargar"].Should().ContainSingle()
             .Which.Arguments[0].Should().Be("fotos.pdf"));
         cut.FindAll(".aviso-error").Should().BeEmpty();
     }
 
     [Fact]
-    public async Task Si_el_comando_falla_se_muestra_el_motivo_y_no_se_descarga_nada()
+    public async Task Mientras_se_genera_el_PDF_no_se_pueden_anadir_fotos()
     {
         var modulo = JSInterop.SetupModule("./js/foto-a-pdf.js");
         modulo.SetupVoid("descargar", _ => true).SetVoidResult();
-        _mediador.Respuesta = Result.Fallo<byte[]>(Error.Crear(ErroresFotoAPdf.NoSePudoGenerar, "x"));
+        using var pausa = new ManualResetEventSlim(false);
+        _procesador.Pausa = pausa;
+        var cut = Renderizar();
+        await SubirAsync(cut, ("a.jpg", Jpeg(10, 10)));
+        cut.WaitForAssertion(() => Nombres(cut).Should().Equal("a.jpg"));
+        cut.FindAll("button").First(b => b.TextContent.Trim() == "Descargar PDF de 1 página").Click();
+        cut.WaitForAssertion(() => _procesador.Composiciones.Should().ContainSingle());
+
+        await SubirAsync(cut, ("b.jpg", Jpeg(20, 20)));
+        await Task.Delay(500);
+
+        // Sin el cerrojo, b.jpg habría entrado en la lista (y en la copia que ya se está componiendo no estaría).
+        Nombres(cut).Should().Equal("a.jpg");
+        pausa.Set();
+        cut.WaitForAssertion(() => modulo.Invocations["descargar"].Should().ContainSingle());
+        _procesador.Composiciones.Should().ContainSingle().Which.Should().ContainSingle();
+    }
+
+    [Fact]
+    public async Task Si_la_composicion_falla_se_muestra_el_motivo_y_no_se_descarga_nada()
+    {
+        var modulo = JSInterop.SetupModule("./js/foto-a-pdf.js");
+        modulo.SetupVoid("descargar", _ => true).SetVoidResult();
+        _procesador.Respuesta = Result.Fallo<byte[]>(Error.Crear(ErroresFotoAPdf.NoSePudoGenerar, "x"));
         var cut = Renderizar();
         await SubirAsync(cut, ("a.jpg", Jpeg(10, 10)));
         cut.WaitForAssertion(() => Nombres(cut).Should().HaveCount(1));

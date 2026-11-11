@@ -1,5 +1,4 @@
 using CaeManager.Domain.Common;
-using MediatR;
 
 namespace CaeManager.Application.HerramientasPdf;
 
@@ -7,22 +6,20 @@ namespace CaeManager.Application.HerramientasPdf;
 /// Arma un PDF con una página por foto, en el orden dado. No escribe nada: el resultado vuelve como bytes y la pantalla
 /// lo entrega para descargar; no se guarda como Documento ni se registra como Apertura, porque no lee ningún Documento
 /// almacenado, solo las fotos que acaba de subir quien lo pide.
-/// Es una Query y no un Command porque no escribe: un Command quedaría en las listas de comandos con cartera, y este
-/// no toca ningún dato de Tenant. El rol lo exige la página (Administrador, Dirección CAE, Coordinador CAE y Gestor CAE).
+///
+/// No es un request de MediatR a propósito. Todo request pasa por <see cref="Common.PuertaAccesoDatos"/>, un semáforo de
+/// uno por circuito, y decodificar hasta veinte fotos tarda decenas de segundos: durante ese tiempo el circuito entero
+/// (contadores del layout, buscador, notificaciones) se quedaría sin acceso a datos, y esta operación no usa ninguno.
+/// Un Command tampoco sirve: caería en las listas de comandos con cartera, y no toca ningún dato de Tenant. El rol lo exige
+/// la página (Administrador, Dirección CAE, Coordinador CAE y Gestor CAE), igual que el resto de Herramientas PDF.
 /// </summary>
-public record GenerarPdfDesdeFotosQuery(IReadOnlyList<byte[]> Fotos) : IRequest<Result<byte[]>>;
-
-public class GenerarPdfDesdeFotosQueryHandler(
-    IDisponibilidadHerramientasPdf disponibilidad,
-    IProcesadorFotosPdf procesador)
-    : IRequestHandler<GenerarPdfDesdeFotosQuery, Result<byte[]>>
+public class GeneradorPdfDesdeFotos(IDisponibilidadHerramientasPdf disponibilidad, IProcesadorFotosPdf procesador)
 {
-    public async Task<Result<byte[]>> Handle(GenerarPdfDesdeFotosQuery request, CancellationToken cancellationToken)
+    public async Task<Result<byte[]>> GenerarAsync(IReadOnlyList<byte[]> fotos, CancellationToken cancellationToken)
     {
         if (!await disponibilidad.EstaDisponibleAsync(cancellationToken))
             return Fallo(ErroresFotoAPdf.NoDisponible, "Herramientas PDF no está disponible.");
 
-        var fotos = request.Fotos;
         if (fotos.Count == 0)
             return Fallo(ErroresFotoAPdf.SinFotos, "No hay fotos.");
 

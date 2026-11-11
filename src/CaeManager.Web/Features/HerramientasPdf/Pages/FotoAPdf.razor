@@ -57,7 +57,7 @@
                 {
                     <ZonaSoltarArchivo Titulo="@Textos["FotoZonaTitulo"]"
                                        FormatosTexto="@Textos["FotoZonaFormatos", LimitesFotoAPdf.MaximoFotos, LimitesFotoAPdf.TamanoMaximoFotoMb]"
-                                       Accept=".jpg,.jpeg,.png,image/jpeg,image/png" Multiple="true" Cargando="_cargando" OnChange="AnadirFotosAsync" />
+                                       Accept=".jpg,.jpeg,.png,image/jpeg,image/png" Multiple="true" Cargando="@(_cargando || _generando)" OnChange="AnadirFotosAsync" />
                 }
                 else
                 {

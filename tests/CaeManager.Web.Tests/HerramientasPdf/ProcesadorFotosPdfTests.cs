@@ -106,6 +106,67 @@ public sealed class ProcesadorFotosPdfTests
         EsAzul(azul).Should().BeTrue();
     }
 
+    /// <summary>Cuatro cuadrantes distintos (R arriba izquierda, G arriba derecha, B abajo izquierda, Y abajo derecha).</summary>
+    private static byte[] FotoCuadrantes(int ancho, int alto)
+    {
+        using var bitmap = new SKBitmap(ancho, alto);
+        using (var lienzo = new SKCanvas(bitmap))
+        {
+            void Rellenar(SKColor color, float x, float y)
+            {
+                using var pintura = new SKPaint { Color = color };
+                lienzo.DrawRect(x, y, ancho / 2f, alto / 2f, pintura);
+            }
+
+            Rellenar(SKColors.Red, 0, 0);
+            Rellenar(SKColors.Lime, ancho / 2f, 0);
+            Rellenar(SKColors.Blue, 0, alto / 2f);
+            Rellenar(SKColors.Yellow, ancho / 2f, alto / 2f);
+        }
+
+        using var imagen = SKImage.FromBitmap(bitmap);
+        using var datos = imagen.Encode(SKEncodedImageFormat.Jpeg, 95);
+        return datos.ToArray();
+    }
+
+    private static char Cuadrante(SKColor c) => c switch
+    {
+        { Red: > 170, Green: < 100, Blue: < 100 } => 'R',
+        { Red: < 100, Green: > 170, Blue: < 100 } => 'G',
+        { Red: < 100, Green: < 100, Blue: > 170 } => 'B',
+        { Red: > 170, Green: > 170, Blue: < 100 } => 'Y',
+        _ => '?',
+    };
+
+    [Theory]
+    // Esquinas de la imagen derecha (arriba izquierda, arriba derecha, abajo izquierda, abajo derecha) para una foto guardada
+    // con R G / B Y. Con cuatro cuadrantes distintos, cada una de las ocho matrices se distingue de las otras siete: el espejo
+    // de la 2 no se confunde con el giro de la 3, ni la 5 con la 6, ni la 7 con la 8, ni la 4 con la 1.
+    [InlineData(1, "RGBY")]
+    [InlineData(2, "GRYB")]
+    [InlineData(3, "YBGR")]
+    [InlineData(4, "BYRG")]
+    [InlineData(5, "RBGY")]
+    [InlineData(6, "BRYG")]
+    [InlineData(7, "YGBR")]
+    [InlineData(8, "GYRB")]
+    public void Cada_orientacion_EXIF_coloca_las_cuatro_esquinas_donde_toca(int orientacion, string esquinas)
+    {
+        var r = _procesador.Normalizar(ConExif(FotoCuadrantes(40, 20), orientacion), 3508);
+
+        r.EsExitoso.Should().BeTrue();
+        var (a, h) = (r.Valor.Ancho, r.Valor.Alto);
+        var obtenidas = new string(
+        [
+            Cuadrante(Pixel(r.Valor.Jpeg, a / 4, h / 4)),
+            Cuadrante(Pixel(r.Valor.Jpeg, 3 * a / 4, h / 4)),
+            Cuadrante(Pixel(r.Valor.Jpeg, a / 4, 3 * h / 4)),
+            Cuadrante(Pixel(r.Valor.Jpeg, 3 * a / 4, 3 * h / 4)),
+        ]);
+
+        obtenidas.Should().Be(esquinas, $"con la orientación {orientacion}");
+    }
+
     [Fact]
     public void Una_foto_sin_orientacion_EXIF_se_deja_como_esta()
     {
