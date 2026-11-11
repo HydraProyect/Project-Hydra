@@ -704,8 +704,9 @@
 /* Cada contacto: la casilla a la izquierda y, a su derecha, «Nombre — correo»
    y debajo el motivo. El correo se parte donde haga falta antes que ensanchar
    el bloque. Rejilla y no flex: así el motivo baja siempre a su propia línea,
-   alineado con el nombre, en las cuatro superficies que pintan este bloque
-   (cajón «Reclamar en lote», pestaña Reclamaciones, Alertas y Centro 360). */
+   alineado con el nombre, en las cinco superficies que pintan este bloque
+   (cajón «Reclamar en lote», pestaña Reclamaciones, Alertas, Centro 360 y
+   ficha del Trabajador). */
 .reclamacion-destinatarios > .campo-checkbox {
     display: grid;
     grid-template-columns: auto minmax(0, 1fr);
