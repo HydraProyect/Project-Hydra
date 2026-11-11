@@ -619,7 +619,7 @@ public class DesconectarBuzonCommandHandlerTests
 
         var resultado = await handler.Handle(new DesconectarBuzonCommand(conexion.Id), CancellationToken.None);
 
-        graph.SuscripcionesEliminadas.Should().BeEmpty("control: el DELETE falló");
+        graph.SuscripcionesEliminadas.Should().Equal(["sub-1"], "control: el DELETE se pidió y falló (ErrorEliminacion)");
         lecturasRotas.Should().BeGreaterThan(0, "control: la recarga del intento del borrado se rompió");
         if (recargaSiempreRota)
         {
