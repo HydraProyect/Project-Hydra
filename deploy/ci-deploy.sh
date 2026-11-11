@@ -288,8 +288,14 @@ actualizar_secretos_produccion() {
     # tokens generados — nada de esto les hace falta, y regenerarlos sin
     # estos caracteres es trivial. Preferible negarse alto y claro a
     # perseguir el siguiente caso de escape ambiguo del formato.
-    local linea clave valor
+    # El bucle lee de un `printf` del propio Bash, no de `<<<`: si Bash no
+    # pudiera crear el fichero temporal del here-string (disco lleno), el bucle
+    # no correría, ninguna línea se validaría y el awk de abajo las escribiría
+    # igual en el .env (revisión Codex de #2106, ronda 2). `vueltas` cierra el
+    # resto del hueco: si el bucle no llegó a leer nada, no se escribe nada.
+    local linea clave valor vueltas=0
     while IFS= read -r linea; do
+        vueltas=$((vueltas + 1))
         [ -n "$linea" ] || continue
         clave="${linea%%=*}"
         valor="${linea#*=}"
@@ -316,7 +322,11 @@ actualizar_secretos_produccion() {
             echo "::error::el valor de '$clave' no tiene la forma esperada (Stripe__ApiKey: rk_live_…, clave restringida de solo lectura — D9; Stripe__WebhookSecret: whsec_…) — ¿pegado en la variable equivocada? .env sin tocar." >&2
             return 1
         fi
-    done <<< "$recibido"
+    done < <(printf '%s\n' "$recibido")
+    if [ "$vueltas" -eq 0 ]; then
+        echo "::error::no se pudo leer la lista de secretos recibida para validarla — .env sin tocar." >&2
+        return 1
+    fi
 
     # FICHERO_ENV_SECRETOS_PRODUCCION solo existe para que
     # deploy/ci-deploy-secretos.tests.sh pueda hacer `source` de ESTE

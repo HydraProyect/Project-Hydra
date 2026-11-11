@@ -19,7 +19,7 @@ fallo() { echo "FALLO: $*" >&2; exit 1; }
 serie() { # $1 nº de muestras, $2 código, $3 ms → una por segundo desde t=1_000_000
     local i; for ((i = 0; i < $1; i++)); do echo "$((1000000 + i * 1000)),$2,$3"; done
 }
-evalua() { evaluar_ventana "$1" 2>&1 || true; }   # devuelve 1 al abortar: sin el `|| true`, pipefail rompería los `evalua | grep`
+evalua() { evaluar_ventana "$1" 2>&1 || true; }   # devuelve 1 al abortar; se busca con `grep -q … <<<"$(evalua …)"`, nunca `evalua | grep -q` (con pipefail, SIGPIPE al cortar grep)
 
 echo "=== A1: sin datos y con datos sanos -> OK ==="
 : > "$TMP/s"; [ "$(evalua "$TMP/s")" = "OK" ] || fallo "un fichero vacío debe dar OK"
@@ -30,34 +30,34 @@ echo "=== A2: cualquier 5xx aborta, también uno aislado ==="
 { serie 10 200 50; echo "1010000,503,80"; serie 5 200 50; } > "$TMP/s"
 R="$(evalua "$TMP/s")"; case "$R" in "ABORTAR: respuesta 503"*) ;; *) fallo "un 503 debía abortar: $R" ;; esac
 { serie 3 200 50; echo "1003000,500,80"; } > "$TMP/s"
-evalua "$TMP/s" | grep -q "ABORTAR: respuesta 500" || fallo "un 500 debía abortar"
+grep -q "ABORTAR: respuesta 500" <<<"$(evalua "$TMP/s")" || fallo "un 500 debía abortar"
 { serie 3 200 50; echo "1003000,599,80"; } > "$TMP/s"
-evalua "$TMP/s" | grep -q "ABORTAR: respuesta 599" || fallo "un 599 debía abortar"
+grep -q "ABORTAR: respuesta 599" <<<"$(evalua "$TMP/s")" || fallo "un 599 debía abortar"
 { serie 3 200 50; echo "1003000,499,80"; } > "$TMP/s"
 [ "$(evalua "$TMP/s")" = "OK" ] || fallo "un 499 aislado no es 5xx ni son 3 seguidos: debía dar OK"
 echo "OK"
 
 echo "=== A3: timeout (>3 s o sin respuesta) aborta ==="
 { serie 5 200 50; echo "1005000,000,3001"; } > "$TMP/s"
-evalua "$TMP/s" | grep -q "no respondió o tardó" || fallo "un 000 debía abortar por timeout"
+grep -q "no respondió o tardó" <<<"$(evalua "$TMP/s")" || fallo "un 000 debía abortar por timeout"
 { serie 5 200 50; echo "1005000,200,3500"; } > "$TMP/s"
-evalua "$TMP/s" | grep -q "no respondió o tardó" || fallo "un 200 de 3500 ms debía abortar por timeout"
+grep -q "no respondió o tardó" <<<"$(evalua "$TMP/s")" || fallo "un 200 de 3500 ms debía abortar por timeout"
 { serie 5 200 50; echo "1005000,000,3000"; } > "$TMP/s"
-evalua "$TMP/s" | grep -q "no respondió o tardó" || fallo "un 000 (curl sin respuesta, 3000 ms) debía abortar aunque no supere los 3000 ms"
+grep -q "no respondió o tardó" <<<"$(evalua "$TMP/s")" || fallo "un 000 (curl sin respuesta, 3000 ms) debía abortar aunque no supere los 3000 ms"
 { serie 5 200 50; echo "1005000,200,3000"; serie 3 200 50; } > "$TMP/s"
 [ "$(evalua "$TMP/s")" = "OK" ] || fallo "exactamente 3000 ms no supera el umbral: debía dar OK"
 echo "OK"
 
 echo "=== A4: 3 fallos seguidos abortan; 2 no ==="
 { serie 5 200 50; echo "1005000,404,50"; echo "1006000,404,50"; echo "1007000,404,50"; } > "$TMP/s"
-evalua "$TMP/s" | grep -q "3 respuestas seguidas" || fallo "3 seguidas debían abortar: $(evalua "$TMP/s")"
+grep -q "3 respuestas seguidas" <<<"$(evalua "$TMP/s")" || fallo "3 seguidas debían abortar: $(evalua "$TMP/s")"
 { serie 5 200 50; echo "1005000,404,50"; echo "1006000,404,50"; echo "1007000,200,50"; echo "1008000,404,50"; echo "1009000,404,50"; echo "1010000,200,50"; } > "$TMP/s"
 [ "$(evalua "$TMP/s")" = "OK" ] || fallo "2 seguidas dos veces, separadas por un 200, no deben abortar: $(evalua "$TMP/s")"
 echo "OK"
 
 echo "=== A5: p95 sostenido > 1 s en 30 s: 2 valores lentos abortan, 1 no ==="
 { serie 38 200 50; echo "1038000,200,1500"; echo "1039000,200,1500"; } > "$TMP/s"   # 40 muestras, 2 lentas al final
-evalua "$TMP/s" | grep -q "degradación sostenida" || fallo "2 lentas de 30 debían dar p95 > 1 s: $(evalua "$TMP/s")"
+grep -q "degradación sostenida" <<<"$(evalua "$TMP/s")" || fallo "2 lentas de 30 debían dar p95 > 1 s: $(evalua "$TMP/s")"
 { serie 39 200 50; echo "1039000,200,1500"; } > "$TMP/s"                            # 1 lenta
 [ "$(evalua "$TMP/s")" = "OK" ] || fallo "1 valor atípico no es degradación sostenida: $(evalua "$TMP/s")"
 { serie 38 200 50; echo "1038000,200,1000"; echo "1039000,200,1000"; } > "$TMP/s"   # justo en el umbral
@@ -85,7 +85,7 @@ echo "OK"
 echo "=== A8: con pocas muestras (respuestas lentas) el p95 se evalúa si hay al menos 2 lentas ==="
 # 11 sondeos espaciados 3 s (cubren 30 s), todos de 2,5 s: p95 > 1 s sostenido, y no llegan a 15.
 for ((i = 0; i < 11; i++)); do echo "$((1000000 + i * 3000)),200,2500"; done > "$TMP/s"
-evalua "$TMP/s" | grep -q "degradación sostenida" || fallo "11 sondeos de 2,5 s en 30 s debían abortar por p95: $(evalua "$TMP/s")"
+grep -q "degradación sostenida" <<<"$(evalua "$TMP/s")" || fallo "11 sondeos de 2,5 s en 30 s debían abortar por p95: $(evalua "$TMP/s")"
 { for ((i = 0; i < 10; i++)); do echo "$((1000000 + i * 3000)),200,50"; done; echo "1030000,200,2500"; } > "$TMP/s"
 [ "$(evalua "$TMP/s")" = "OK" ] || fallo "con pocas muestras, UNA sola lenta no debe abortar: $(evalua "$TMP/s")"
 echo "OK"
@@ -330,7 +330,7 @@ cat > "$TMP/sinlecturas.log" <<'EOF2'
 === Muestreo SIN lecturas de docker stats (muestras=5 stats_ok=0 t_primera=1s volcado_inicial=0/? volcado_final=0/? duracion=10s) ===
 EOF2
 SALIDA_R="$(resumir_muestreo "$TMP/sinlecturas.log")"
-echo "$SALIDA_R" | grep -q "sin ninguna lectura de docker stats" || fallo "sin lecturas debía decirlo en vez de una tabla vacía: $SALIDA_R"
+grep -q "sin ninguna lectura de docker stats" <<<"$SALIDA_R" || fallo "sin lecturas debía decirlo en vez de una tabla vacía: $SALIDA_R"
 echo "OK"
 
 echo "TODAS LAS PRUEBAS PASARON"

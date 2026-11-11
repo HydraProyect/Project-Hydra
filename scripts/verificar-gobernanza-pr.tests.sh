@@ -74,7 +74,9 @@ assert_menciona() {
   local resultado
   resultado="$(ejecutar "$cuerpo" "$ficheros" "$autor")"
   PRUEBAS=$((PRUEBAS + 1))
-  if printf '%s' "${resultado#*|}" | grep -qi -- "$patron"; then
+  # `grep <<<`, no `printf | grep -q`: con pipefail, grep -q cierra la tubería al
+  # primer acierto y el printf que sigue escribiendo hace fallar la comprobación.
+  if grep -qi -- "$patron" <<<"${resultado#*|}"; then
     echo "OK: $descripcion"
   else
     echo "FALLO: $descripcion — la salida no menciona '$patron'" >&2

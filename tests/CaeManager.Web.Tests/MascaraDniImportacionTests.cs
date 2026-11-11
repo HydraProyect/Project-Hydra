@@ -34,6 +34,68 @@ public class MascaraDniImportacionTests : BunitContext
     public void Sin_pedir_el_DNI_completo_sale_enmascarado(string original, string esperado) =>
         MascaraDni.Aplicar(original, completo: false).Should().Be(esperado);
 
+    [Theory]
+    [InlineData("12.345.678-Z", "****678Z")]
+    [InlineData("12 345 678 Z", "****678Z")]
+    [InlineData("12-345-678-Z", "****678Z")]
+    [InlineData("12/345/678/Z", "****678Z")]
+    [InlineData("12345678-Z", "****678Z")]
+    [InlineData("12.345.678 z", "****678z")]
+    [InlineData("12.345.678 - Z", "****678Z")]
+    [InlineData("7.654.321-K", "****321K")]
+    [InlineData("7 654 321 K", "****321K")]
+    [InlineData("12-34-5678-Z", "****678Z")]
+    [InlineData("12.345.678\u2013Z", "****678Z")]
+    [InlineData("12.345.678\u2011Z", "****678Z")]
+    [InlineData("12.345.678\u2212Z", "****678Z")]
+    [InlineData("12.345.678\nZ", "****678Z")]
+    [InlineData("12\u2009345\u2009678\u202FZ", "****678Z")]
+    [InlineData("12.345.678 (Z)", "****678Z)")]
+    [InlineData("DNI 12.345.678", "DNI ****5678")]
+    [InlineData("dni: 12 345 678 en la ficha", "dni: ****5678 en la ficha")]
+    [InlineData("NIF 12-345-678", "NIF ****5678")]
+    [InlineData("12345678 Z", "****678Z")]
+    [InlineData("12345678 - z", "****678z")]
+    [InlineData("DNI nº 12.345.678", "DNI nº ****5678")]
+    [InlineData("DNI n.º 12 345 678", "DNI n.º ****5678")]
+    [InlineData("D.N.I. 12.345.678", "D.N.I. ****5678")]
+    [InlineData("Documento 12.345.678", "Documento ****5678")]
+    [InlineData("DNI 1.234.567", "DNI ****4567")]
+    [InlineData("12.345.678\u200B-Z", "****678Z")]
+    [InlineData("12.345.678\u00AD-Z", "****678Z")]
+    [InlineData("12\u00A0345\u00A0678\u00A0Z", "****678Z")]
+    [InlineData("X-1234567-L", "****567L")]
+    [InlineData("X 1234567 L", "****567L")]
+    [InlineData("Y.1.234.567/B", "****567B")]
+    [InlineData("z-1234567-k", "****567k")]
+    [InlineData("Marta Ruiz (12.345.678-Z)", "Marta Ruiz (****678Z)")]
+    [InlineData("12 345 678 Z — Formación 20h", "****678Z — Formación 20h")]
+    [InlineData("Observaciones: DNI 12.345.678-Z y NIE X-1234567-L, llamar.", "Observaciones: DNI ****678Z y NIE ****567L, llamar.")]
+    [InlineData("DNI 12 345 678 Z\ny otro 87.654.321-X.", "DNI ****678Z\ny otro ****321X.")]
+    public void Un_DNI_o_NIE_escrito_con_separadores_sale_enmascarado_con_la_misma_forma(string original, string esperado) =>
+        MascaraDni.Aplicar(original, completo: false).Should().Be(esperado);
+
+    [Theory]
+    [InlineData("Llamar al 91 234 56 78 mañana")]
+    [InlineData("Teléfono 612 345 678")]
+    [InlineData("Teléfono 612-345-678 Z")]
+    [InlineData("Importe 12.345.678 euros")]
+    [InlineData("Importe 12.345.678")]
+    [InlineData("Importe 1.234.567 euros")]
+    [InlineData("Pedido 1234567 y 7654321")]
+    [InlineData("Pedido 1234567 y")]
+    [InlineData("Del 1/11/2026 y 3/11/2026")]
+    [InlineData("Ref. 12.345.678 de la obra")]
+    [InlineData("Del 12/11/2026 y 13/11/2026")]
+    [InlineData("Del 12-11-2026 a las 10:00")]
+    [InlineData("Desde 2026-11-12 y hasta 2026-11-30")]
+    [InlineData("Planta Norte 2026, nave 12-B")]
+    public void Un_telefono_un_importe_o_una_fecha_con_separadores_no_se_enmascara(string texto) =>
+        MascaraDni.Aplicar(texto, completo: false).Should().Be(texto);
+
+    [Fact]
+    public void El_Administrador_ve_completo_el_DNI_con_separadores_en_pantalla() =>
+        MascaraDni.Aplicar("DNI 12.345.678-Z", completo: true).Should().Be("DNI 12.345.678-Z");
 
     [Theory]
     [InlineData("12345678", "****5678")]

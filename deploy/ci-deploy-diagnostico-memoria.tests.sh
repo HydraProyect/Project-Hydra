@@ -105,7 +105,7 @@ echo "$SALIDA3" | grep -q "anon 111111 file 222222 shmem 333 file_mapped 44" \
     || { echo "FALLO: memory.stat filtrado no llegó al log" >&2; echo "$SALIDA3" >&2; exit 1; }
 echo "$SALIDA3" | grep -q -- "--- caemanager-db ---" \
     || { echo "FALLO: falta el contenedor caemanager-db" >&2; exit 1; }
-if echo "$SALIDA3" | grep -q "otro-contenedor"; then
+if grep -q "otro-contenedor" <<< "$SALIDA3"; then  # `<<<`, no `echo | grep -q`: con pipefail, el SIGPIPE daría un falso «no está»
     echo "FALLO: se volcó un contenedor que no es caemanager-*" >&2; exit 1
 fi
 echo "$SALIDA3" | grep -q "iniciado=2026-09-19T00:00:00Z" \
@@ -164,7 +164,7 @@ echo "$SALIDA7" | grep -q "oom_kill 3" \
     || { echo "FALLO: oom_kill de /proc/vmstat no llegó al log" >&2; echo "$SALIDA7" >&2; exit 1; }
 echo "$SALIDA7" | grep -q "uptime_s: 12345.67" \
     || { echo "FALLO: uptime no llegó al log" >&2; echo "$SALIDA7" >&2; exit 1; }
-if echo "$SALIDA7" | grep -q "otra_cosa"; then
+if grep -q "otra_cosa" <<< "$SALIDA7"; then
     echo "FALLO: se volcó un contador que no se pidió" >&2; exit 1
 fi
 echo "OK: PSI, oom_kill y uptime llegan al log"

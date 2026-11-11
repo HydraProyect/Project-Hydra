@@ -368,6 +368,35 @@ else
   FALLOS=$((FALLOS + 1))
 fi
 
+# Un listado de workflows que falla a medias no es un verde (revisión Codex de
+# #2106, ronda 2). Un `find` falso escribe solo el workflow bueno y sale con
+# error: con `mapfile < <(find …)` el estado se perdía, se revisaba solo a.yml y
+# salía 0 aunque b.yml lleva el secreto en un pull_request. Mutación que lo pone
+# en rojo: volver a `mapfile -t FICHEROS < <(find …)` sin la captura previa.
+D="$(nuevo_dir listado-parcial)"
+verde_de_referencia > "$D/a.yml"
+cat > "$D/b.yml" <<'YML'
+name: B
+on: pull_request
+jobs:
+  j:
+    runs-on: ubuntu-latest
+    environment: ci-integraciones
+    steps:
+      - run: echo "${{ secrets.CI_ANTHROPIC_API_KEY }}"
+YML
+esperar "control: con el listado entero, b.yml se caza" 1 "pull_request" "$D"
+BIN_FIND_FALLA="$TMP_ROOT/bin-find-falla"; mkdir -p "$BIN_FIND_FALLA"
+cat > "$BIN_FIND_FALLA/find" <<'SH'
+#!/bin/bash
+echo "$1/a.yml"; exit 1
+SH
+chmod +x "$BIN_FIND_FALLA/find"
+VERIFICADOR_ORIGINAL=("${VERIFICADOR[@]}")
+VERIFICADOR=(env "PATH=$BIN_FIND_FALLA:$PATH" bash "$SCRIPT_DIR/verificar-secretos-de-ci.sh")
+esperar "find que falla tras listar a.yml -> rojo, no verde" 1 "no se pudo listar entero" "$D"
+VERIFICADOR=("${VERIFICADOR_ORIGINAL[@]}")
+
 echo ""
 echo "$((PRUEBAS - FALLOS))/$PRUEBAS pruebas correctas"
 [ "$FALLOS" -eq 0 ]
