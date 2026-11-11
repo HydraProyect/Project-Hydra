@@ -34,6 +34,17 @@
   </ItemGroup>
 
   <ItemGroup>
+    <!-- Suelo de hilos del ThreadPool. Cada continuaciÃ³n de un componente de bUnit (el await que
+         vuelve al Dispatcher del renderer) y cada comprobaciÃ³n de WaitForAssertion necesitan un hilo
+         del pool, y las clases de prueba corren en paralelo con tantos hilos como nÃºcleos (2-4 en CI)
+         mientras unas esperan de forma sÃ­ncrona. Con el suelo por defecto (= nÃºcleos) el pool inyecta
+         hilos nuevos a ~1 por segundo, y el WaitForAssertion de 1 s caducaba sin haber llegado a
+         comprobar nada (Check count: 0, issue #2171). Subir el suelo no alarga ninguna espera: quita
+         la inanición del pool que las hacÃ­a caducar. -->
+    <RuntimeHostConfigurationOption Include="System.Threading.ThreadPool.MinThreads" Value="64" />
+  </ItemGroup>
+
+  <ItemGroup>
     <Using Include="Xunit" />
     <Compile Include="..\CaeManager.E2ETests\Rendimiento\MedidorConsultasSql.cs" Link="Rendimiento\MedidorConsultasSql.cs" />
   </ItemGroup>
