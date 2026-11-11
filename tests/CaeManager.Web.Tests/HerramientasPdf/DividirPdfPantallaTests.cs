@@ -355,6 +355,30 @@ public sealed class DividirPdfPantallaTests : BunitContext
         cut.FindAll(".campos-tramo .campo-mensaje-error").Should().BeEmpty("el campo apagado vuelve a su valor, sin aviso");
     }
 
+    /// <summary>
+    /// Hallazgo de la revisión (ronda 2): sin una clave por tramo, Blazor reutilizaba el mismo CampoFecha al pasar de un
+    /// tramo a otro, y el texto no válido del anterior (con su aviso) aparecía en el siguiente, cuya fecha es otra.
+    /// </summary>
+    [Fact]
+    public async Task Lo_escrito_que_no_es_fecha_no_pasa_al_tramo_siguiente()
+    {
+        var cut = Renderizar();
+        cut.WaitForAssertion(() => cut.FindAll(".zona-soltar-archivo").Should().ContainSingle());
+        await SubirAsync(cut);
+        Pulsar(cut, "Asignar documentos");
+        cut.WaitForAssertion(() => cut.FindAll("input[placeholder=\"dd/mm/aaaa\"]").Should().NotBeEmpty());
+
+        await cut.FindAll("input[placeholder=\"dd/mm/aaaa\"]")[0].InputAsync(new ChangeEventArgs { Value = "15/0" });
+        await cut.FindAll("input[placeholder=\"dd/mm/aaaa\"]")[0].BlurAsync(new FocusEventArgs());
+        cut.FindAll(".campos-tramo .campo-mensaje-error").Should().ContainSingle("control positivo: «15/0» se señala en el tramo 1");
+
+        Pulsar(cut, "Siguiente documento");
+
+        cut.WaitForAssertion(() => cut.Find(".cabecera-tramo h1").TextContent.Should().Contain("2"));
+        cut.FindAll(".campos-tramo .campo-mensaje-error").Should().BeEmpty("el tramo 2 no hereda el texto del 1");
+        cut.FindAll("input[placeholder=\"dd/mm/aaaa\"]")[0].GetAttribute("value").Should().BeEmpty();
+    }
+
     [Fact]
     public async Task Volver_atras_no_pierde_los_cortes_ni_lo_escrito()
     {

@@ -65,4 +65,13 @@ public class RangoFechasAuditoriaTests
         RangoFechasAuditoria.DesdeUtc(null).Should().BeNull();
         RangoFechasAuditoria.HastaUtcExclusivo(null).Should().BeNull();
     }
+
+    // Hallazgo de la revisión (ronda 2): «hasta el 31/12/9999» no tiene día siguiente; antes AddDays lanzaba y tiraba la
+    // pantalla. No hay registro después, así que es lo mismo que no poner límite.
+    [Fact]
+    public void Hasta_el_ultimo_dia_representable_es_sin_limite_y_no_lanza()
+    {
+        RangoFechasAuditoria.HastaUtcExclusivo(DateOnly.MaxValue).Should().BeNull();
+        RangoFechasAuditoria.HastaUtcExclusivo(DateOnly.MaxValue.AddDays(-1)).Should().NotBeNull("control: el día anterior sí tiene siguiente");
+    }
 }

@@ -461,6 +461,25 @@ public class ClavesApiGen2Tests : BunitContext
             .Which.CaducaEnUtc.Should().BeNull("la página no inventa una caducidad por omisión");
     }
 
+    // Hallazgo de la revisión (ronda 2): el 31/12/9999 es una fecha válida para el campo, pero la clave caduca al empezar el
+    // día siguiente, que no existe; antes AddDays lanzaba. No se emite (sería una clave sin fin) y se dice en el formulario.
+    [Fact]
+    public async Task Con_la_caducidad_en_el_ultimo_dia_representable_no_se_emite_ni_lanza()
+    {
+        var (cut, mediator) = Renderizar();
+        await Seleccionar(cut, mediator.DelegacionId);
+        await cut.FindAll("button").Single(b => b.TextContent.Trim() == "Generar clave").ClickAsync(new MouseEventArgs());
+        await Campo(cut, "Nombre").InputAsync(new ChangeEventArgs { Value = "Integración ERP" });
+        await Campo(cut, "Motivo de la emisión").InputAsync(new ChangeEventArgs { Value = "Alta del conector del ERP" });
+
+        await Campo(cut, "Válida hasta").InputAsync(new ChangeEventArgs { Value = "31/12/9999" });
+        await Campo(cut, "Válida hasta").BlurAsync(new FocusEventArgs());
+        await cut.FindAll("button").Single(b => b.TextContent.Trim() == "Generar").ClickAsync(new MouseEventArgs());
+
+        mediator.Enviadas.OfType<GenerarClaveApiCommand>().Should().BeEmpty();
+        cut.Markup.Should().Contain("La caducidad no es una fecha válida");
+    }
+
     // CampoFecha entrega «» mientras lo escrito no es una fecha entera: sin el bloqueo, «15/03» saldría como una clave
     // sin la caducidad que la persona cree haber puesto. Al corregirla, se emite con la fecha.
     [Theory]

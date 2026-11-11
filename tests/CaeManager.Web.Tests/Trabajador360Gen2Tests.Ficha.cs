@@ -396,7 +396,6 @@ public partial class Trabajador360Gen2Tests
         var cut = Renderizar(id); var drawer = await AbrirEditorFicha(cut);
         await IrAPasoFicha(drawer, "Trabajo");
         await CambiarCampoFicha(drawer, "Alta en la empresa", tecleado);
-        await PulsarFicha(drawer, "Atrás");
 
         await GuardarFicha(drawer);
 
@@ -405,6 +404,30 @@ public partial class Trabajador360Gen2Tests
         var campo = drawer.FindComponents<CampoTexto>().Single(c => c.Instance.Etiqueta == "Alta en la empresa").Instance;
         campo.Valor.Should().BeEmpty("el texto que no es fecha no llega al formulario");
         campo.MensajeError.Should().Be("Introduce una fecha válida.");
+    }
+
+    // Hallazgo de la revisión (ronda 2): al dejar el paso, el campo se destruye con su texto. La marca no puede sobrevivirle
+    // (al guardar saldría un aviso bajo un campo vacío y válido), y la fecha vuelve a la cargada: el campo había entregado «»
+    // y guardar así borraría el alta sin que nadie lo viera.
+    [Fact]
+    public async Task Dejar_el_paso_con_una_fecha_a_medias_vuelve_a_la_cargada_sin_aviso()
+    {
+        var id = Guid.NewGuid(); var m = ConTrabajador(id);
+        m.Detalles[id] = m.Detalles[id] with { FechaAltaEmpresa = new DateOnly(2023, 5, 2) };
+        var cut = Renderizar(id); var drawer = await AbrirEditorFicha(cut);
+        await IrAPasoFicha(drawer, "Trabajo");
+        await CambiarCampoFicha(drawer, "Alta en la empresa", "15/03");
+        await PulsarFicha(drawer, "Atrás");
+
+        await IrAPasoFicha(drawer, "Trabajo");
+        var campo = drawer.FindComponents<CampoTexto>().Single(c => c.Instance.Etiqueta == "Alta en la empresa").Instance;
+        campo.Valor.Should().Be("2023-05-02", "el campo vuelve con la fecha cargada");
+        campo.MensajeError.Should().BeNullOrWhiteSpace();
+
+        await GuardarFicha(drawer);
+
+        m.Enviadas.OfType<EditarFichaTrabajadorCommand>().Should().ContainSingle()
+            .Which.FechaAltaEmpresa.Should().Be(new DateOnly(2023, 5, 2));
     }
 
     // Hallazgo de la revisión: tras un texto no válido, vaciar el campo tiene que dejar quitar la Baja.

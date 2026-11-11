@@ -249,6 +249,35 @@ public class PanelDarAccesoTests : BunitContext
         cut.FindComponent<DrawerFormulario>().Instance.MensajeError.Should().Be("La fecha de fin del apoyo no puede ser anterior a hoy.");
     }
 
+    // Hallazgo de la revisión (ronda 2): un texto que no es fecha llega como «», que aquí es «sin último día». Proponer así
+    // concedería un acceso sin caducidad a quien quiso ponerle una: no se envía mientras el campo lo señale.
+    [Theory]
+    [InlineData("15/03")]
+    [InlineData("31/02/2030")]
+    public async Task Proponer_con_un_ultimo_dia_que_no_es_fecha_no_envia_un_acceso_sin_fin(string tecleado)
+    {
+        var lucia = new DestinatarioDeApoyoDto(Guid.NewGuid(), "Lucía");
+        _mediador.Operaciones = [Operacion("Empresa Mía", Yo)];
+        _mediador.Destinatarios = [lucia];
+        var cut = Render<PanelDarAcceso>();
+        await cut.InvokeAsync(() => cut.Find("[data-dar-acceso-operacion] > button").Click());
+
+        cut.Find("select").Change(lucia.UsuarioId.ToString());
+        await cut.Find("input[data-campo-fecha]").InputAsync(new Microsoft.AspNetCore.Components.ChangeEventArgs { Value = tecleado });
+        await cut.Find("input[data-campo-fecha]").BlurAsync(new Microsoft.AspNetCore.Components.Web.FocusEventArgs());
+        await cut.InvokeAsync(() => Boton(cut, "Proponer").Click());
+
+        _mediador.Enviadas.OfType<ProponerApoyoCarteraCommand>().Should().BeEmpty();
+        cut.FindComponent<DrawerFormulario>().Instance.MensajeError.Should().StartWith("El último día no es una fecha");
+
+        // Control: al corregirlo a una fecha entera, la propuesta sale con ese día.
+        var ultimoDia = DiaDeNegocio.Hoy().AddDays(10);
+        await cut.Find("input[data-campo-fecha]").InputAsync(new Microsoft.AspNetCore.Components.ChangeEventArgs { Value = ultimoDia.ToString("dd/MM/yyyy", CultureInfo.InvariantCulture) });
+        await cut.InvokeAsync(() => Boton(cut, "Proponer").Click());
+        _mediador.Enviadas.OfType<ProponerApoyoCarteraCommand>().Should().ContainSingle()
+            .Which.UltimoDia.Should().Be(ultimoDia);
+    }
+
     // El «min» que acotaba el selector nativo pasa al calendario de CampoFecha: los días anteriores a hoy no se eligen.
     [Fact]
     public async Task El_calendario_no_deja_elegir_un_dia_anterior_a_hoy()

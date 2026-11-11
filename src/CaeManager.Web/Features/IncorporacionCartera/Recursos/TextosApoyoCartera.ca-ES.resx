@@ -228,6 +228,9 @@
   <data name="ErrorFechaDeFinNoValida" xml:space="preserve">
     <value>La data de fi del suport no pot ser anterior a avui.</value>
   </data>
+  <data name="ErrorFechaDeFinIlegible" xml:space="preserve">
+    <value>L'últim dia no és una data: escriu-lo amb el format dd/mm/aaaa o deixa'l buit perquè l'accés no tingui fi.</value>
+  </data>
   <data name="ErrorApoyoNoEncontrado" xml:space="preserve">
     <value>Aquest accés de suport ja no existeix.</value>
   </data>

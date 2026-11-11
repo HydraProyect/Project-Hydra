@@ -273,7 +273,9 @@
                 <span class="texto-suave">@TextoPaginas(rango)</span>
             </header>
 
-            <div class="ficha-tramo">
+            @* La ficha se recrea al cambiar de tramo: si no, Blazor reutilizaría los mismos campos y un texto de fecha a medias
+               (o no válido) del tramo anterior pasaría al siguiente. *@
+            <div class="ficha-tramo" @key="rango.Clave">
                 <div class="vista-tramo">
                     @if ((Grande(rango.Inicial) ?? Miniatura(rango.Inicial)) is { } miniatura)
                     {

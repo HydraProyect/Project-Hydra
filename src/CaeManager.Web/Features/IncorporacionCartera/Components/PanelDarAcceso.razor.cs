@@ -77,6 +77,12 @@ public partial class PanelDarAcceso
     private IReadOnlyList<DestinatarioDeApoyoDto>? _destinatarios;
     private string _destinatarioId = string.Empty;
     private string _ultimoDia = string.Empty;
+
+    /// <summary>
+    /// El campo tiene un texto que no es una fecha entera: entonces entrega «» (como el campo nativo), y «» aquí es «sin
+    /// último día». Proponer con eso concedería un acceso sin caducidad a quien quiso ponerle una, así que bloquea el envío.
+    /// </summary>
+    private bool _ultimoDiaNoValido;
     private string? _mensajeErrorFormulario;
     private PropuestaApoyoDto? _aRetirar;
     private (ApoyoDeCarteraDto Apoyo, ViaFinDeApoyo Via)? _aTerminar;
@@ -202,6 +208,7 @@ public partial class PanelDarAcceso
         _operacionDelDrawer = operacion;
         _destinatarioId = string.Empty;
         _ultimoDia = string.Empty;
+        _ultimoDiaNoValido = false;
         _mensajeErrorFormulario = null;
         _destinatarios = null;
         _destinatarios = await Mediator.Send(new ObtenerDestinatariosDeApoyoQuery(operacion.AsignacionOperacionId));
@@ -216,6 +223,7 @@ public partial class PanelDarAcceso
         _destinatarios = null;
         _destinatarioId = string.Empty;
         _ultimoDia = string.Empty;
+        _ultimoDiaNoValido = false;
         _mensajeErrorFormulario = null;
     }
 
@@ -224,6 +232,8 @@ public partial class PanelDarAcceso
         _ultimoDia = valor;
         _mensajeErrorFormulario = null;
     }
+
+    private void AlCambiarUltimoDiaNoValido(bool noValido) => _ultimoDiaNoValido = noValido;
 
     private void AlElegirDestinatario(string valor)
     {
@@ -245,8 +255,15 @@ public partial class PanelDarAcceso
             return;
         }
 
-        // La fecha es opcional; si viene, es el último día con acceso (día de negocio).
+        // La fecha es opcional; si viene, es el último día con acceso (día de negocio). Un texto que no es fecha no es
+        // «sin fecha»: llega como «», pero proponer así daría un acceso sin fin.
         DateOnly? ultimoDia = null;
+        if (_ultimoDiaNoValido)
+        {
+            _mensajeErrorFormulario = Textos["ErrorFechaDeFinIlegible"];
+            return;
+        }
+
         if (_ultimoDia.Length > 0)
         {
             if (!DateOnly.TryParseExact(_ultimoDia, "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out var dia)
@@ -275,6 +292,7 @@ public partial class PanelDarAcceso
             _destinatarios = null;
             _destinatarioId = string.Empty;
             _ultimoDia = string.Empty;
+            _ultimoDiaNoValido = false;
             await CargarAsync();
             await AlCambiar.InvokeAsync();
         }

@@ -113,6 +113,10 @@ public partial class ClavesApi : CaeManager.Web.Components.PaginaIntegrableConfi
         // Lo escrito en «Caducidad» que no es una fecha llega aquí como «»; emitir con eso sería emitir sin la caducidad
         // que la persona cree haber puesto.
         if (_caducidadNoValida) { _errorGenerar = Textos["CaducidadNoValida"]; return; }
+        // La clave caduca al empezar el día siguiente al elegido: el 31/12/9999 no lo tiene (AddDays lanzaría), y emitirla
+        // sin caducidad no es lo que se pidió.
+        var diaElegido = MascaraFecha.DesdeIso(_caducidadNuevaClave);
+        if (diaElegido == DateOnly.MaxValue) { _errorGenerar = Textos["CaducidadNoValida"]; return; }
         var generacionContexto = _generacionContexto;
         var nombreOrganizacion = NombreOrganizacion(delegacionId);
         _generando = true; _errorGenerar = null;
@@ -120,8 +124,7 @@ public partial class ClavesApi : CaeManager.Web.Components.PaginaIntegrableConfi
         {
             // La fecha elegida vale entera en hora peninsular: la clave caduca al empezar el día
             // siguiente en Madrid, expresado en UTC, que es lo que exige el validador.
-            DateTime? caducidad = DateOnly.TryParseExact(_caducidadNuevaClave, "yyyy-MM-dd", CultureInfo.InvariantCulture,
-                DateTimeStyles.None, out var dia) ? DiaDeNegocio.InicioEnUtc(dia.AddDays(1)) : null;
+            DateTime? caducidad = diaElegido is { } dia ? DiaDeNegocio.InicioEnUtc(dia.AddDays(1)) : null;
             var resultado = await Mediator.Send(new GenerarClaveApiCommand(delegacionId, _nombreNuevaClave, caducidad, _motivoNuevaClave));
             var fallido = resultado.EsFallido; var error = fallido ? resultado.Error.Mensaje : null;
             if (!EsContextoVigente(generacionContexto, delegacionId))
