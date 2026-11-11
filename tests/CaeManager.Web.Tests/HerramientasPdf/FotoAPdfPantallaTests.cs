@@ -147,6 +147,16 @@ public sealed class FotoAPdfPantallaTests : BunitContext
         cut.Find($"button[aria-label=\"{aria}\"]").Click();
     }
 
+    /// <summary>
+    /// El botón sigue deshabilitado mientras la pantalla termina de añadir fotos (el renglón aparece antes de que acabe la
+    /// carga): pulsarlo entonces no hace nada, y bajo carga eso hacía fallar los tests por el reloj. Se espera a que se habilite.
+    /// </summary>
+    private static void PulsarDescargar(IRenderedComponent<FotoAPdf> cut, string texto)
+    {
+        cut.WaitForAssertion(() => cut.FindAll("button").Where(b => b.TextContent.Trim() == texto && !b.HasAttribute("disabled"))
+            .Should().ContainSingle(), TimeSpan.FromSeconds(20));
+        cut.FindAll("button").First(b => b.TextContent.Trim() == texto).Click();
+    }
     [Fact]
     public void Solo_pueden_entrar_los_roles_de_gestion_y_la_pantalla_pide_autenticacion()
     {
@@ -308,7 +318,7 @@ public sealed class FotoAPdfPantallaTests : BunitContext
         Pulsar(cut, "Bajar de posición a.jpg");
         cut.WaitForAssertion(() => Nombres(cut).Should().Equal("b.jpg", "a.jpg"));
 
-        cut.FindAll("button").First(b2 => b2.TextContent.Trim() == "Descargar PDF de 2 páginas").Click();
+        PulsarDescargar(cut, "Descargar PDF de 2 páginas");
 
         cut.WaitForAssertion(() => _procesador.Composiciones.Should().ContainSingle());
         _procesador.Composiciones[0].Should().HaveCount(2);
@@ -330,7 +340,7 @@ public sealed class FotoAPdfPantallaTests : BunitContext
         await SubirAsync(cut, ("a.jpg", Jpeg(10, 10)));
         cut.WaitForAssertion(() => Nombres(cut).Should().HaveCount(1));
 
-        cut.FindAll("button").First(b => b.TextContent.Trim() == "Descargar PDF de 1 página").Click();
+        PulsarDescargar(cut, "Descargar PDF de 1 página");
 
         cut.WaitForAssertion(() => modulo.Invocations["descargar"].Should().ContainSingle());
         cut.WaitForAssertion(() => _presupuesto.Reservado.Should().Be(3,
@@ -348,7 +358,7 @@ public sealed class FotoAPdfPantallaTests : BunitContext
         await SubirAsync(cut, ("a.jpg", Jpeg(10, 10)));
         cut.WaitForAssertion(() => Nombres(cut).Should().HaveCount(1));
 
-        cut.FindAll("button").First(b => b.TextContent.Trim() == "Descargar PDF de 1 página").Click();
+        PulsarDescargar(cut, "Descargar PDF de 1 página");
 
         cut.WaitForAssertion(() => cut.Find(".aviso-error[role=alert]").TextContent.Should().Contain("no hay espacio"));
         modulo.Invocations["descargar"].Should().BeEmpty();
@@ -366,7 +376,7 @@ public sealed class FotoAPdfPantallaTests : BunitContext
         var cut = Renderizar();
         await SubirAsync(cut, ("a.jpg", Jpeg(10, 10)));
         cut.WaitForAssertion(() => Nombres(cut).Should().Equal("a.jpg"), TimeSpan.FromSeconds(20));
-        cut.FindAll("button").First(b => b.TextContent.Trim() == "Descargar PDF de 1 página").Click();
+        PulsarDescargar(cut, "Descargar PDF de 1 página");
         cut.WaitForAssertion(() => _procesador.Composiciones.Should().ContainSingle(), TimeSpan.FromSeconds(20));
 
         await SubirAsync(cut, ("b.jpg", Jpeg(20, 20)));
@@ -389,7 +399,7 @@ public sealed class FotoAPdfPantallaTests : BunitContext
         await SubirAsync(cut, ("a.jpg", Jpeg(10, 10)));
         cut.WaitForAssertion(() => Nombres(cut).Should().HaveCount(1));
 
-        cut.FindAll("button").First(b => b.TextContent.Trim() == "Descargar PDF de 1 página").Click();
+        PulsarDescargar(cut, "Descargar PDF de 1 página");
 
         cut.WaitForAssertion(() => cut.Find(".aviso-error[role=alert]").TextContent.Should().Contain("No hemos podido crear el PDF"));
         modulo.Invocations["descargar"].Should().BeEmpty();
@@ -465,7 +475,7 @@ public sealed class FotoAPdfPantallaTests : BunitContext
         await SubirAsync(cut, ("a.jpg", Jpeg(10, 10)));
         cut.WaitForAssertion(() => Nombres(cut).Should().HaveCount(1));
 
-        cut.FindAll("button").First(b => b.TextContent.Trim() == "Descargar PDF de 1 página").Click();
+        PulsarDescargar(cut, "Descargar PDF de 1 página");
 
         cut.WaitForAssertion(() => modulo.Invocations["descargar"].Should().ContainSingle());
         var importacion = JSInterop.Invocations.Where(i => i.Identifier == "import" && i.Arguments.Contains("./js/foto-a-pdf.js")).Should().ContainSingle().Subject;
