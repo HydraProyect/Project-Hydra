@@ -156,7 +156,7 @@ public interface ICalculoEstadoCentroService
 
     /// <summary>
     /// Los pares de <see cref="ObtenerParesDeEmpresaExigidosAsync"/> de esos Centros que son de esas Empresas, sin calcular
-    /// los de las demás. Por defecto filtra el resultado completo; el servicio real lee las Asignaciones del Centro igual, pero solo carga los documentos y construye los pares de esas Empresas.
+    /// los de las demás. Por defecto filtra el resultado completo; el servicio real lee las Asignaciones y los Pendientes en la plataforma de los Centros igual (de ellos sale también el par de una Empresa sin Trabajadores), pero solo carga los documentos y construye los pares de esas Empresas.
     /// </summary>
     async Task<IReadOnlyList<ParDocumentalDeEmpresaExigido>> ObtenerParesDeEmpresaExigidosDeEmpresasAsync(
         IReadOnlyList<Guid> centroIds, IReadOnlyCollection<Guid> empresaIds, CancellationToken cancellationToken)
@@ -670,7 +670,8 @@ public class CalculoEstadoCentroService(
         var paresDeTrabajador = await ObtenerParesDeTrabajadorAsync(centroIds, conGestionCae, pendientes, hoy, cancellationToken);
         var paresDeEmpresa = await ObtenerParesDeEmpresaAsync(conGestionCae, todosLosPendientes, hoy, cancellationToken);
         // El porcentaje cuenta únicamente inclusiones explícitas del Centro, en las dos mitades. La herencia global
-        // sigue vigente para las otras lecturas de pares exigidos y no cambia su contrato.
+        // sigue vigente para las otras lecturas de pares exigidos y no cambia su contrato. Vale también para el par de una Empresa
+        // sin Trabajadores (como el de un Trabajador): un Centro en espera por un tipo heredado, sin fila propia, no lo tiene.
         var incluidos = await tiposDocumentoContext.TiposDocumentoCentros
             .Where(tc => centroIds.Contains(tc.CentroId) && tc.Incluido)
             .Select(tc => new { tc.CentroId, tc.TipoDocumentoId })
@@ -700,16 +701,10 @@ public class CalculoEstadoCentroService(
     /// <summary>
     /// Pendiente en la plataforma (decisión 2026-10-10): la MISMA carga que la causa del estado del Centro y que el
     /// bloqueo de personas (<see cref="PendientesEnPlataformaDeCentros"/>: documento efectivo, vigencia del requisito en el
-    /// Centro), para que el porcentaje no discrepe de ellos. Solo baja el porcentaje el Pendiente de un tipo que el Centro
-    /// marca «bloquea el acceso»: lo obligatorio configurado (decisión 3 del 2026-10-10). Un Centro sin plataforma no devuelve ninguno.
-    /// </summary>
-    private async Task<IReadOnlyList<PendienteEnPlataformaDeCentro>> PendientesQueBajanElPorcentajeAsync(
-        List<Guid> conGestionCae, DateOnly hoy, CancellationToken cancellationToken) =>
-        (await PendientesEnLaPlataformaAsync(conGestionCae, hoy, cancellationToken)).Where(p => p.BloqueaAcceso).ToList();
-
-    /// <summary>
-    /// Todos los Pendientes en la plataforma de esos Centros, bloqueen o no el acceso (la causa del estado del Centro cuenta los
-    /// dos). De esta lista sale el universo de pares de Empresa que no salen de una Asignación
+    /// Centro), para que el porcentaje no discrepe de ellos, bloqueen o no el acceso (la causa del estado del Centro cuenta los
+    /// dos). Solo baja el porcentaje el Pendiente de un tipo que el Centro marca «bloquea el acceso»: lo obligatorio configurado
+    /// (decisión 3 del 2026-10-10), que filtra <see cref="CalcularCumplimientoAsync"/> con <c>BloqueaAcceso</c>. Un Centro sin
+    /// plataforma no devuelve ninguno. De esta lista sale el universo de pares de Empresa que no salen de una Asignación
     /// (<see cref="ObtenerParesDeEmpresaAsync"/>): el Pendiente de Empresa de un Centro sin Trabajadores suyos (decisión del
     /// 2026-11-08) trae su propio par, bloquee o no el acceso, para que el Centro «Pendiente» no figure con 0/0 «sin requisitos»
     /// (el no bloqueante deja el par al día, como el de un Trabajador: <see cref="ReglaPendienteEnPlataforma"/>).
@@ -921,7 +916,7 @@ public class CalculoEstadoCentroService(
     /// </summary>
     /// <param name="pendientes">
     /// Todos los Pendientes en la plataforma (<see cref="PendientesEnLaPlataformaAsync"/>): de ellos sale el par de Empresa sin
-    /// Trabajadores; la marca de pendiente de un par solo la dan los que bloquean el acceso (<see cref="PendientesQueBajanElPorcentajeAsync"/>).
+    /// Trabajadores; la marca de pendiente de un par solo la dan los que bloquean el acceso (<c>BloqueaAcceso</c>).
     /// </param>
     /// <param name="soloEmpresas">Solo los pares de esas Empresas; los de cada Empresa no dependen de las demás.</param>
     private async Task<IReadOnlyList<ParDocumentalDeEmpresaExigido>> ObtenerParesDeEmpresaAsync(
