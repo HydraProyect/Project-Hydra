@@ -18,7 +18,7 @@ using System.Reflection;
 
 namespace CaeManager.Web.Tests;
 
-public class RevisionIaGen2Tests : BunitContext
+public partial class RevisionIaGen2Tests : BunitContext
 {
     public RevisionIaGen2Tests() => JSInterop.Mode = JSRuntimeMode.Loose;
 

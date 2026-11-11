@@ -74,6 +74,9 @@ public static class CatalogoSeccionesMenu
 
     private const string PestanaRevisionIa = "revision-ia";
 
+    /// <summary>Id de la sección Documentos: su barra de pestañas la pinta <c>BarraPestanasDocumentos</c>, no <c>BarraSeccion</c>.</summary>
+    internal const string IdSeccionDocumentos = "documentos";
+
     private static bool EsRuta(string ruta, string destino) =>
         ruta.Equals(destino, StringComparison.OrdinalIgnoreCase)
         || ruta.StartsWith(destino + "/", StringComparison.OrdinalIgnoreCase);
@@ -91,11 +94,10 @@ public static class CatalogoSeccionesMenu
         // Reclamaciones, Preventivo, Plantillas— siguen dentro de ella). «Revisión IA» e Incidencias salieron
         // de Operación y del propio menú: ahora son pestañas de sección. Revisión IA abre la pestaña de
         // Documentos con su deep-link; /documentos/revision-ia sigue vivo para enlaces guardados.
-        // BarraSeccion NO pinta esta sección sobre /documentos: esa página lleva su propia barra de pestañas
-        // (con Revisión IA e Incidencias dentro) y dos barras repetían «Revisión IA». La barra de sección sigue
-        // en las pantallas hermanas (/incidencias, /documentos/revision-ia). Este catálogo no cambia: sigue
-        // sirviendo a las migas y a esas pantallas.
-        new("documentos", "SeccionDocumentos", "documentos",
+        // BarraSeccion NO pinta esta sección en ninguna ruta: Documentos, /incidencias y /documentos/revision-ia
+        // pintan todas BarraPestanasDocumentos (una sola barra, bajo el título), y dos barras repetían pestañas.
+        // Este catálogo sigue sirviendo a las migas y al menú lateral (qué pantalla es de qué sección).
+        new(IdSeccionDocumentos, "SeccionDocumentos", "documentos",
         [
             new("documentos-todos", "SeccionTodosLosDocumentos", "documentos", RolesDeDocumentos,
                 (ruta, pestana) => ruta.Equals("documentos", StringComparison.OrdinalIgnoreCase) && !EsRevisionIa(ruta, pestana)),

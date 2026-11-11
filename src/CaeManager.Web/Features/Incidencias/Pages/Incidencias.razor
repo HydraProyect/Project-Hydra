@@ -19,6 +19,7 @@
 @using MediatR
 @using Microsoft.AspNetCore.Components.QuickGrid
 @using CaeManager.Web.Components.Workspace
+@using CaeManager.Web.Features.Documentos.Components
 @using CaeManager.Web.Features.Incidencias.Recursos
 @using Microsoft.Extensions.Localization
 @inject IMediator Mediator
@@ -43,6 +44,8 @@
         </Primaria>
     </CabeceraListado>
 
+    @* Incidencias es una pestaña de la sección Documentos: la misma barra que pinta Documentos, bajo el título y las acciones. *@
+    <BarraPestanasDocumentos PestanaActiva="@BarraPestanasDocumentos.IdIncidencias">
     @* El estado se filtra en la franja (Sin resolver / Resueltas), que ya dice cuál está marcado: sin pastillas. El fragmento
        vacío mantiene la barra en modo pastillas. *@
     <BarraFiltros Busqueda="@_busqueda" BusquedaChanged="BuscarAsync" PlaceholderBuscador="@Textos["PlaceholderBusqueda"]"
@@ -62,8 +65,6 @@
             }
         </Chips>
     </BarraFiltros>
-    <FiltrosGuardadosDeListado Conexion="_filtrosGuardados" Pantalla="@PantallaDeFiltrosGuardados" ParametrosDeVista="ParametrosDeVista"
-                               OnAplicar="AplicarVistaGuardadaAsync" AlCambiar="StateHasChanged" />
     <VistaRecordadaDeListado Conexion="_vistaRecordada" Pantalla="@CaeManager.Application.Configuracion.PantallasConVistaRecordada.Incidencias"
                              ParametrosDeVista="ParametrosDeVista" ParametroDeBusqueda="q" OnAplicar="AplicarVistaGuardadaAsync" AlCambiar="StateHasChanged" />
 
@@ -180,6 +181,10 @@
             </EstadoVacio>
         }
     }
+    </BarraPestanasDocumentos>
+    @* Fuera de la barra, a nivel de página: el modal «Guardar filtro» no es de ninguna pestaña, y registrarlo en su ámbito haría preguntar al cambiar de pestaña. *@
+    <FiltrosGuardadosDeListado Conexion="_filtrosGuardados" Pantalla="@PantallaDeFiltrosGuardados" ParametrosDeVista="ParametrosDeVista"
+                               OnAplicar="AplicarVistaGuardadaAsync" AlCambiar="StateHasChanged" />
 </div>
 
 <DrawerFormulario Visible="_drawerVisible" VisibleChanged="CerrarDrawerAsync"

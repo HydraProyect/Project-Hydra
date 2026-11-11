@@ -168,60 +168,6 @@ public partial class Documentos : CaeManager.Web.Components.PaginaInteractiva, I
 
     private GridItemsProvider<DocumentoListaDto>? _proveedorElementos;
 
-    /// <summary>
-    /// Los Ids son estables y viajan en la URL (<c>?pestana=</c>, deep-link
-    /// desde el timeline de Comunicaciones): las etiquetas se alinean al mockup
-    /// Gen 2, los Ids NO se tocan.
-    ///
-    /// <para>
-    /// Dos rótulos se apartan del mockup por el contrato terminológico, que
-    /// manda sobre el diseño en el vocabulario: «Plataformas CAE» y no
-    /// «Por plataforma» —«plataforma» a secas colisiona con el plano Plataforma
-    /// del ADR-011, el de quien accede excepcionalmente desde TALVEG, mientras
-    /// que aquí se habla de la Plataforma CAE externa (Nalanda, Dokify,
-    /// CTAIMA), que es como la nombra el propio dominio
-    /// (<c>ProveedorPlataformaCae</c>)—; y «Plantillas», que el mockup no
-    /// dibuja pero la pantalla ya tiene: un mockup omite comportamiento, no lo
-    /// deroga.
-    /// </para>
-    ///
-    /// <para>
-    /// No es estática porque la primera pestaña lleva el recuento del mockup, y
-    /// ese número depende de lo cargado.
-    /// </para>
-    /// </summary>
-    private IReadOnlyList<PestanaDefinicion> PestanasDocumentos
-    {
-        get
-        {
-            List<PestanaDefinicion> pestanas =
-            [
-                new("listado", "Estado", "documentos") { Contador = ContadorDeEstado },
-                new("plataforma", "Plataformas CAE", "plataforma"),
-                // "correo" y "reloj" son los más cercanos del catálogo: no hay glifo
-                // propio de reclamación (que sale por correo) ni de preventivo (que
-                // es anticiparse al vencimiento). Si algún día se dibujan, aquí.
-                new("reclamaciones", "Reclamaciones", "correo"),
-                new("sugerencias", "Preventivo", "reloj"),
-                new("revision-ia", "Revisión IA", "ia"),
-                new("plantillas", "Plantillas", "plantilla")
-            ];
-
-            // Esta es la única barra de pestañas de /documentos (la de sección del marco no se pinta aquí). «Incidencias»
-            // es una pantalla hermana, no una vista de esta página: su pestaña lleva a /incidencias en vez de cambiar
-            // el contenido, y solo se ofrece a los roles que esa pantalla abre (los mismos que la barra de sección).
-            if (_puedeVerIncidencias)
-                pestanas.Add(new(IdPestanaIncidencias, Textos["PestanaIncidencias"].Value, "incidencias"));
-
-            return pestanas;
-        }
-    }
-
-    /// <summary>Id de la pestaña que sale a <c>/incidencias</c>; nunca es una pestaña activa ni viaja en <c>?pestana=</c>.</summary>
-    private const string IdPestanaIncidencias = "incidencias";
-
-    private bool _puedeVerIncidencias;
-
     /// <summary>Ids de pestaña válidos, sin construir la tira entera para comprobar uno.</summary>
     private static readonly string[] _idsDePestana =
         ["listado", "plataforma", "reclamaciones", "sugerencias", "revision-ia", "plantillas"];
@@ -289,12 +235,6 @@ public partial class Documentos : CaeManager.Web.Components.PaginaInteractiva, I
     /// </summary>
     private void CambiarPestana(string pestana)
     {
-        if (pestana == IdPestanaIncidencias)
-        {
-            NavigationManager.NavigateTo("/incidencias");
-            return;
-        }
-
         _pestanaActiva = pestana;
         CambiarContextoDocumental();
         NavigationManager.ActualizarFiltroEnUrl(nameof(Pestana), pestana == "listado" ? null : pestana);
@@ -520,7 +460,6 @@ public partial class Documentos : CaeManager.Web.Components.PaginaInteractiva, I
             var usuario = (await EstadoAutenticacion).User;
             if (_desechado) return;
             _puedeEscribir = Roles.ConEscrituraCsv.Split(',').Any(usuario.IsInRole);
-            _puedeVerIncidencias = CaeManager.Web.Components.Layout.CatalogoSeccionesMenu.RolesDeIncidencias.Split(',').Any(usuario.IsInRole);
         }
 
         // Delegado estable — ver Clientes.razor.cs (bucle de recargas de QuickGrid).
@@ -734,7 +673,7 @@ public partial class Documentos : CaeManager.Web.Components.PaginaInteractiva, I
         // Deep-link de pestaña: lo usa el timeline de Comunicaciones para llevar
         // desde el evento de reclamación enviada a su pestaña. Se ignora un
         // valor que no exista en vez de dejar la página en blanco.
-        // Sin «?pestana=» la URL pide el listado, que es lo que «Todos los documentos» (barra de sección)
+        // Sin «?pestana=» la URL pide el listado, que es lo que «Estado» (la barra de las pantallas hermanas) y el menú lateral
         // enlaza: desde cualquier otra pestaña de esta misma instancia, ese enlace solo quita el parámetro.
         if (IdDePestanaDeUrl(Pestana) is { } pestanaDeUrl)
             _pestanaActiva = pestanaDeUrl;
