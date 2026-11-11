@@ -151,6 +151,47 @@ public sealed class ProcesoAisladoRealTests
     }
 
     /// <summary>
+    /// Si el contenedor llega a su techo de memoria, el OOM killer del kernel debe elegir al proceso aparte y no al proceso
+    /// web: el hijo sube su propio <c>oom_score_adj</c> a 1000 al arrancar. Se lee de <c>/proc</c> mientras el hijo espera la
+    /// petición, antes de escribírsela. procfs y el OOM killer solo existen en Linux, así que en Windows no hay nada que
+    /// comprobar; la suite corre en Linux en CI, que es donde discrimina.
+    /// </summary>
+    [Fact]
+    public async Task En_Linux_el_proceso_aparte_se_ofrece_como_primera_victima_del_OOM_killer()
+    {
+        if (!OperatingSystem.IsLinux())
+            return;
+
+        string? valor = null;
+        var unidor = new UnidorPdfEnProcesoAparte(Opciones(), new LimitadorProcesosAislados(1),
+            new AntesDeEscribir(Lanzador(), async () => valor = await LeerOomScoreAdjAsync(_arrancados[^1])),
+            NullLogger<UnidorPdfEnProcesoAparte>.Instance);
+
+        var info = await unidor.InspeccionarAsync(UnionSobrePdfRealTests.Pdf("Uno"), CancellationToken.None);
+
+        info.EsExitoso.Should().BeTrue(info.EsExitoso ? "" : info.Error.Codigo);
+        valor.Should().Be("1000");
+    }
+
+    /// <summary>Espera a que el hijo haya escrito su <c>oom_score_adj</c> (arranca el anfitrión dotnet) y lo devuelve.</summary>
+    private static async Task<string> LeerOomScoreAdjAsync(int id)
+    {
+        var ruta = $"/proc/{id}/oom_score_adj";
+        var limite = Stopwatch.StartNew();
+        string valor;
+        do
+        {
+            valor = (await File.ReadAllTextAsync(ruta)).Trim();
+            if (valor == "1000")
+                break;
+            await Task.Delay(50);
+        }
+        while (limite.Elapsed < TimeSpan.FromSeconds(20));
+
+        return valor;
+    }
+
+    /// <summary>
     /// Un proceso que no escribe nada y tarda 60 s en acabar porque espera a un nieto, en Windows y en Linux: comprueba que
     /// el plazo no depende de que el hijo escriba y que se mata el árbol (el nieto hereda la salida estándar; si siguiera
     /// vivo, la lectura no terminaría).
@@ -186,5 +227,17 @@ public sealed class ProcesoAisladoRealTests
             anotar(salida);
             return salida;
         }
+    }
+
+    /// <summary>El lanzador real, con una espera antes de escribir la petición al hijo ya arrancado.</summary>
+    private sealed class AntesDeEscribir(ILanzadorProcesoAislado real, Func<Task> antes) : ILanzadorProcesoAislado
+    {
+        public Task<SalidaProcesoAislado> EjecutarAsync(ProcessStartInfo inicio, Func<Stream, CancellationToken, Task> escribirEntrada,
+            TimeSpan tiempoMaximo, int maximoBytesSalida, CancellationToken cancellationToken) =>
+            real.EjecutarAsync(inicio, async (entrada, ct) =>
+            {
+                await antes();
+                await escribirEntrada(entrada, ct);
+            }, tiempoMaximo, maximoBytesSalida, cancellationToken);
     }
 }
