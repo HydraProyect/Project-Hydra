@@ -91,7 +91,12 @@ public class SoporteSinLecturaDeCredencialesTests : IAsyncLifetime
         { "ConexionesIntegracion", "UltimoError", [
             "Id", "AcuseAutomaticoActivo", "BuzonEmail", "ClienteId", "CreadoEnUtc", "EliminadoEnUtc", "EliminadoPorUsuarioId",
             "EstaEliminado", "Estado", "FechaConectadaUtc", "GestorPropietarioId", "Nombre", "Proveedor", "ResponsableUsuarioId",
-            "TenantId", "Version"] },
+            "TenantId", "Version",
+            // Buzón compartido de Microsoft 365 (migraciones 20261111100000, 20261111110000 y 20261111120000): ninguna
+            // es un secreto (identificadores de directorio y de buzón, quién consintió y fechas de verificación, hueco y
+            // reintento), y Soporte TALVEG las necesita para cargar la entidad sin 42501.
+            "ConsentidoPorUsuarioId", "DirectorioEntraId", "EsBuzonCompartido", "HuecoPendienteDesdeUtc", "IdentidadBuzon",
+            "IdentidadVerificadaUtc", "ReintentoVerificacionNoAntesDeUtc"] },
     };
 
     private const string ErrorDelProveedor = "El token de Microsoft Graph caducó: hay que reconectar el buzón.";

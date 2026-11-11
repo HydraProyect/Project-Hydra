@@ -79,7 +79,7 @@ public class ReclamacionBuzonIntegracionRepositorioFalso : IReclamacionBuzonInte
             return Task.FromResult(ResultadoReclamacionBuzon.BuzonYaReclamado);
         }
 
-        // La restricción de exclusión de la migración 20261109210000, en memoria: una compartida y una heredada que
+        // La restricción de exclusión de la migración 20261111120000, en memoria: una compartida y una heredada que
         // cuenta no conviven. El guardado fallido descarta lo que no se había guardado.
         if (Reclamaciones.Any(r => r.EsBuzonCompartido) && Reclamaciones.Any(r => r.CuentaParaGuardaTransitoria))
         {

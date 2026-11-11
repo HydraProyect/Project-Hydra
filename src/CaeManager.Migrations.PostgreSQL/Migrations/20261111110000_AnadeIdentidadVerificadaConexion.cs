@@ -23,7 +23,7 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
             //
             // Soporte TALVEG lee esta tabla columna a columna (SoporteSinColumnasSecretasRestantes): sin este grant,
             // cargar la entidad bajo cae_app_soporte daría 42501. Es una fecha, no un secreto. Mismo patrón que
-            // 20261109190000_AnadeBuzonCompartidoMicrosoft365.
+            // 20261111100000_AnadeBuzonCompartidoMicrosoft365.
             migrationBuilder.Sql("""
                 GRANT SELECT ("IdentidadVerificadaUtc") ON TABLE public."ConexionesIntegracion" TO cae_app_soporte;
                 """);

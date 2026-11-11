@@ -13,8 +13,8 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace CaeManager.Migrations.PostgreSQL.Migrations
 {
     [DbContext(typeof(CaeManagerDbContext))]
-    [Migration("20261109210000_AnadeHuecoPendienteConexion")]
-    partial class AnadeHuecoPendienteConexion
+    [Migration("20261111100000_AnadeBuzonCompartidoMicrosoft365")]
+    partial class AnadeBuzonCompartidoMicrosoft365
     {
         /// <inheritdoc />
         protected override void BuildTargetModel(ModelBuilder modelBuilder)
@@ -7854,15 +7854,9 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                     b.Property<Guid?>("GestorPropietarioId")
                         .HasColumnType("uuid");
 
-                    b.Property<DateTime?>("HuecoPendienteDesdeUtc")
-                        .HasColumnType("timestamp with time zone");
-
                     b.Property<string>("IdentidadBuzon")
                         .HasMaxLength(512)
                         .HasColumnType("character varying(512)");
-
-                    b.Property<DateTime?>("IdentidadVerificadaUtc")
-                        .HasColumnType("timestamp with time zone");
 
                     b.Property<string>("Nombre")
                         .IsRequired()
@@ -7871,9 +7865,6 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
 
                     b.Property<int>("Proveedor")
                         .HasColumnType("integer");
-
-                    b.Property<DateTime?>("ReintentoVerificacionNoAntesDeUtc")
-                        .HasColumnType("timestamp with time zone");
 
                     b.Property<Guid?>("ResponsableUsuarioId")
                         .HasColumnType("uuid");
@@ -8581,12 +8572,6 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
 
                     b.Property<Guid>("ConexionIntegracionId")
                         .HasColumnType("uuid");
-
-                    b.Property<bool>("EsBuzonCompartido")
-                        .HasColumnType("boolean");
-
-                    b.Property<DateTime?>("FueraDeGuardaTransitoriaUtc")
-                        .HasColumnType("timestamp with time zone");
 
                     b.Property<string>("IdentidadBuzon")
                         .HasMaxLength(512)
