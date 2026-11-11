@@ -52,8 +52,8 @@ beforeEach(() => {
     documentoFalso = {
         addEventListener: (tipo, f) => { (oyentesDocumento[tipo] ??= []).push(f); },
         removeEventListener: (tipo, f) => { oyentesDocumento[tipo] = (oyentesDocumento[tipo] ?? []).filter(x => x !== f); },
-        modalAbierto: null,
-        querySelector(selector) { return selector === '[aria-modal="true"]' ? this.modalAbierto : null; },
+        modalesAbiertos: [],
+        querySelectorAll(selector) { return selector === '[aria-modal="true"]' ? this.modalesAbiertos : []; },
     };
     globalThis.document = documentoFalso;
     globalThis.Element = ElementoFalso;
@@ -306,7 +306,7 @@ test('con un diálogo modal abierto, el pegado no sube el archivo a la zona de l
     const m = await cargarModulo();
     const pagina = montar(m);
     const modal = new ElementoFalso('div');
-    documentoFalso.modalAbierto = modal;
+    documentoFalso.modalesAbiertos = [modal];
 
     pegar(cuerpo(), [archivo('a.pdf', 'application/pdf')]);
     assert.equal(pagina.input.cambios, 0, 'el modal abierto no tiene zona: no se pega en la de detrás');
@@ -316,6 +316,20 @@ test('con un diálogo modal abierto, el pegado no sube el archivo a la zona de l
     pegar(cuerpo(), [archivo('b.pdf', 'application/pdf')]);
     assert.equal(dentro.input.cambios, 1, 'la zona de dentro del modal sí');
     assert.equal(pagina.input.cambios, 0);
+});
+
+test('con un drawer y un diálogo de confirmación apilados, el pegado no llega a la zona del drawer', async () => {
+    const m = await cargarModulo();
+    const drawer = new ElementoFalso('div');
+    const dialogo = new ElementoFalso('div');
+    const zonaDelDrawer = montar(m);
+    drawer.hijos.push(zonaDelDrawer.zona);
+    // El diálogo se pinta después del drawer: el último del DOM queda encima.
+    documentoFalso.modalesAbiertos = [drawer, dialogo];
+
+    pegar(cuerpo(), [archivo('a.pdf', 'application/pdf')]);
+
+    assert.equal(zonaDelDrawer.input.cambios, 0, 'la confirmación abierta bloquea el pegado en el drawer de detrás');
 });
 
 test('si la última zona está ocupada no se cae a otra zona anterior', async () => {

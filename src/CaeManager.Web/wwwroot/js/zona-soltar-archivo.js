@@ -55,8 +55,10 @@ function elegirZonaParaPegar(destino) {
     if (esCampoDeTexto(destino)) return null;
 
     // Con un diálogo modal abierto (drawer, modal), solo cuentan las zonas de dentro: pegar con el
-    // foco en el cuerpo no puede subir el archivo a la página que queda detrás.
-    const modal = document.querySelector('[aria-modal="true"]');
+    // foco en el cuerpo no puede subir el archivo a la página que queda detrás. Con modales apilados
+    // (un drawer y su diálogo de confirmación) manda el último del DOM, que es el que queda encima.
+    const modales = document.querySelectorAll('[aria-modal="true"]');
+    const modal = modales.length > 0 ? modales[modales.length - 1] : null;
     const candidatas = modal ? zonas.filter(zona => modal.contains(zona.zonaElement)) : zonas;
 
     // Responde la última visible; si está ocupada (cargando) se ignora el pegado, no se cae a otra zona.

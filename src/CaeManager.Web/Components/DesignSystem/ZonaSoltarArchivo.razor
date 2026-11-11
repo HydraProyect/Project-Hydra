@@ -96,7 +96,8 @@
     <InputFile id="@_inputId" @ref="_inputFileRef" OnChange="ManejarCambioAsync" multiple="@Multiple" accept="@Accept" disabled="@Cargando" class="zona-soltar-archivo-input" aria-label="@Titulo" />
     @if (_errorEntrada is not null)
     {
-        <p class="zona-soltar-archivo-error" role="alert">@_errorEntrada</p>
+        @* @key: un segundo rechazo idéntico vuelve a insertar el aviso y el lector de pantalla lo repite. *@
+        <p @key="_contadorErrores" class="zona-soltar-archivo-error" role="alert">@_errorEntrada</p>
     }
 </div>
 
@@ -119,6 +120,7 @@ else if (!TieneArchivos && !string.IsNullOrWhiteSpace(NombreArchivoActual))
     private IJSObjectReference? _instancia;
     private DotNetObjectReference<ZonaSoltarArchivo>? _referencia;
     private string? _errorEntrada;
+    private int _contadorErrores;
     private string? _anuncio;
     private string? _origenPendiente;
     private int _contadorAnuncios;
@@ -182,7 +184,8 @@ else if (!TieneArchivos && !string.IsNullOrWhiteSpace(NombreArchivoActual))
         {
             // Mejor esfuerzo: sin JS interop (circuito cerrándose, o bUnit sin
             // navegador real) el "busca archivos" nativo del label sigue
-            // funcionando — solo se pierde arrastrar/soltar y pegar.
+            // funcionando en la zona vacía — solo se pierde arrastrar/soltar y
+            // pegar, y el botón «Cambiar» de la zona con archivo (necesita el JS).
         }
     }
 
@@ -242,6 +245,7 @@ else if (!TieneArchivos && !string.IsNullOrWhiteSpace(NombreArchivoActual))
     public async Task RechazarEntrada(string motivo, string? nombre)
     {
         _origenPendiente = null;
+        _contadorErrores++;
         _errorEntrada = motivo switch
         {
             "tamano" => string.Format(CultureInfo.CurrentCulture, Comunes["ZonaSoltarErrorTamano"].Value, nombre, (TamanoMaximoBytes ?? 0) / (1024 * 1024)),
