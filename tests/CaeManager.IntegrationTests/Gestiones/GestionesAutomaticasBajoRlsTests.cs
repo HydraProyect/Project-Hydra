@@ -272,7 +272,7 @@ public class GestionesAutomaticasBajoRlsTests : IAsyncLifetime
 
         await using var runtime = CrearRuntime();
         var alcance = Alcance(runtime);
-        var detalle = await new ObtenerGestionAutomaticaQueryHandler(runtime, runtime, runtime, runtime, runtime, runtime, runtime, alcance)
+        var detalle = await new ObtenerGestionAutomaticaQueryHandler(runtime, runtime, runtime, runtime, runtime, runtime, runtime, runtime, alcance)
             .Handle(new ObtenerGestionAutomaticaQuery(ajena), CancellationToken.None);
         var listado = await new ObtenerGestionesAutomaticasQueryHandler(runtime, runtime, runtime, runtime, runtime, runtime, runtime, alcance)
             .Handle(new ObtenerGestionesAutomaticasQuery(), CancellationToken.None);

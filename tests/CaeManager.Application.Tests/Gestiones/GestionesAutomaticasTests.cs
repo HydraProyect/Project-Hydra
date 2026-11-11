@@ -6,6 +6,7 @@ using CaeManager.Application.Tests.Integraciones;
 using CaeManager.Application.Tests.Plantillas;
 using CaeManager.Application.Tests.Reportes;
 using CaeManager.Application.Tests.TiposDocumento;
+using CaeManager.Domain.Asignaciones;
 using CaeManager.Domain.Centros;
 using CaeManager.Domain.Documentos;
 using CaeManager.Domain.Empresas;
@@ -34,6 +35,7 @@ public class GestionesAutomaticasTests
     private readonly EmpresasQueryContextFalso _empresas = new();
     private readonly TiposDocumentoQueryContextFalso _tipos = new();
     private readonly ProveedoresPlataformaCaeQueryContextFalso _proveedores = new();
+    private readonly AsignacionesQueryContextFalso _asignaciones = new();
     private readonly GestionesAutomaticasEnMemoria _gestiones = new();
     private readonly AcreditacionDocumentoPlataformaRepositorioFalso _delActo = new();
     private readonly Guid _usuarioId = Guid.NewGuid();
@@ -589,6 +591,99 @@ public class GestionesAutomaticasTests
         detalle.Pasos.Single(p => p.CentroId == sinUsuario.Id).TieneUsuario.Should().BeFalse();
     }
 
+    // ---------- CIF del empleador y «Datos a mano» (incremento 1 de Gestiones) ----------
+
+    [Fact]
+    public async Task El_detalle_lleva_el_CIF_de_la_Empresa_gestionada_solo_si_la_cartera_deja_nombrarla()
+    {
+        var documento = DocumentoDelTrabajador();
+        var centro = Centro("Planta Norte");
+        Acreditar(documento, AccesoPlataforma(centro, "Nalanda"));
+        await Nacer(documento);
+        var id = _gestiones.Lista.Single().Id;
+        var conLaEmpresa = new AlcanceDatosServiceFalso(tieneAccesoTotal: false, trabajadorIdsVisibles: [_trabajador.Id],
+            empresaIdsVisibles: [_empresa.Id], centroIdsVisibles: [centro.Id]);
+        var sinLaEmpresa = new AlcanceDatosServiceFalso(tieneAccesoTotal: false, trabajadorIdsVisibles: [_trabajador.Id],
+            empresaIdsVisibles: [Guid.NewGuid()], centroIdsVisibles: [centro.Id]);
+
+        var con = await Detalle(id, conLaEmpresa);
+        var sin = await Detalle(id, sinLaEmpresa);
+
+        con!.EmpresaGestionadaCif.Should().Be("B87654323");
+        sin!.Resumen.EmpresaGestionadaNombre.Should().BeNull("precondición: la cartera no deja nombrarla");
+        sin.EmpresaGestionadaCif.Should().BeNull("el CIF va con el nombre: lo que no se nombra no se identifica");
+    }
+
+    [Fact]
+    public async Task El_detalle_lleva_los_datos_a_mano_del_Trabajador_titular_tal_como_estan_en_su_ficha()
+    {
+        _trabajador.ActualizarFicha(
+            "501234567890", "Técnica de mantenimiento", new DateOnly(1988, 2, 21), "Española", "Indefinido",
+            new DateOnly(2019, 3, 1), null, "Sí", null, null, null);
+        var documento = DocumentoDelTrabajador();
+        Acreditar(documento, AccesoPlataforma(Centro("Planta Norte"), "Nalanda"));
+        await Nacer(documento);
+
+        var datos = (await Detalle(_gestiones.Lista.Single().Id, new AlcanceDatosServiceFalso()))!.Trabajador;
+
+        datos.Should().NotBeNull();
+        datos!.Id.Should().Be(_trabajador.Id);
+        datos.NombreCompleto.Should().Be("Laura Gil");
+        datos.Dni.Should().Be("77189989B");
+        datos.FechaNacimiento.Should().Be(new DateOnly(1988, 2, 21));
+        datos.NumeroAfiliacionSeguridadSocial.Should().Be("501234567890");
+        datos.Nacionalidad.Should().Be("Española");
+        datos.Puesto.Should().Be("Técnica de mantenimiento");
+        datos.TipoVinculo.Should().Be("Indefinido");
+        datos.FechaAltaEmpresa.Should().Be(new DateOnly(2019, 3, 1));
+        datos.FiguraEnRnt.Should().Be("Sí");
+        datos.TipoPermisoTrabajo.Should().BeNull("un dato vacío llega null: la pantalla dice «Falta en TALVEG»");
+        datos.FechaBajaEmpresa.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task Los_datos_del_Trabajador_no_salen_si_quien_consulta_no_ve_a_ese_Trabajador()
+    {
+        // La pestaña Trabajador no tiene guarda propia: la da el universo de la Gestión, que exige ver al Trabajador.
+        var documento = DocumentoDelTrabajador();
+        var centro = Centro("Planta Norte");
+        Acreditar(documento, AccesoPlataforma(centro, "Nalanda"));
+        await Nacer(documento);
+        var id = _gestiones.Lista.Single().Id;
+        var loVe = new AlcanceDatosServiceFalso(trabajadorIdsVisibles: [_trabajador.Id]);
+        var noLoVe = new AlcanceDatosServiceFalso(trabajadorIdsVisibles: [Guid.NewGuid()]);
+
+        (await Detalle(id, loVe))!.Trabajador.Should().NotBeNull("control positivo");
+        (await Detalle(id, noLoVe)).Should().BeNull("sin ver al Trabajador no se ve la Gestión, ni por tanto sus datos");
+    }
+
+    [Fact]
+    public async Task Cada_paso_lleva_codigo_direccion_del_Centro_y_el_inicio_de_la_Asignacion_activa_del_titular()
+    {
+        var documento = DocumentoDelTrabajador();
+        var planta = Centro("Planta Norte");
+        planta.Actualizar(planta.Nombre, "PN-01", "Polígono Malpica, calle E, 12 · 50016 Zaragoza", null, null);
+        var almacen = Centro("Almacén Sur");
+        Acreditar(documento, AccesoPlataforma(planta, "Nalanda"));
+        Acreditar(documento, AccesoPlataforma(almacen, "Nalanda"));
+        await Nacer(documento);
+        var antigua = new Asignacion(_trabajador.Id, planta.Id, new DateOnly(2024, 1, 10));
+        antigua.DarDeBaja(new DateOnly(2024, 6, 30));
+        _asignaciones.ListaAsignaciones.Add(antigua);
+        _asignaciones.ListaAsignaciones.Add(new Asignacion(_trabajador.Id, planta.Id, new DateOnly(2023, 5, 2)));
+        _asignaciones.ListaAsignaciones.Add(new Asignacion(Guid.NewGuid(), almacen.Id, new DateOnly(2025, 9, 1)));
+
+        var pasos = (await Detalle(_gestiones.Lista.Single().Id, new AlcanceDatosServiceFalso()))!.Pasos;
+
+        var enPlanta = pasos.Single(p => p.CentroId == planta.Id);
+        enPlanta.CentroCodigo.Should().Be("PN-01");
+        enPlanta.CentroDireccion.Should().Be("Polígono Malpica, calle E, 12 · 50016 Zaragoza");
+        enPlanta.InicioAsignacion.Should().Be(new DateOnly(2023, 5, 2), "la activa manda sobre una de baja más reciente");
+        var enAlmacen = pasos.Single(p => p.CentroId == almacen.Id);
+        enAlmacen.CentroCodigo.Should().BeNull();
+        enAlmacen.InicioAsignacion.Should().BeNull("la Asignación de otro Trabajador no es la del titular");
+    }
+
     // ---------- Montaje ----------
 
     private async Task<GestionAutomatica?> Nacer(Documento documento, Documento? sustituido = null)
@@ -608,7 +703,7 @@ public class GestionesAutomaticasTests
 
     private Task<GestionAutomaticaDetalleDto?> Detalle(Guid id, AlcanceDatosServiceFalso alcance) =>
         new ObtenerGestionAutomaticaQueryHandler(
-                _gestiones, _documentos, _centros, _proveedores, _trabajadores, _empresas, _tipos, alcance)
+                _gestiones, _documentos, _centros, _proveedores, _trabajadores, _empresas, _tipos, _asignaciones, alcance)
             .Handle(new ObtenerGestionAutomaticaQuery(id), CancellationToken.None);
 
     private Documento DocumentoDelTrabajador(string? archivoUrl = "tenant/reconocimiento.pdf")
