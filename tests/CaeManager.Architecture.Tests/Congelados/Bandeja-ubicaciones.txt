@@ -126,7 +126,7 @@ src/CaeManager.Web/Features/Comunicaciones/Components/FilaConversacion.razor :: 
 src/CaeManager.Web/Features/Comunicaciones/Components/FilaMensajeBuzonPersonal.razor :: bandeja = 11
 src/CaeManager.Web/Features/Comunicaciones/Pages/Bandeja.razor :: (nombre de fichero) = 1
 src/CaeManager.Web/Features/Comunicaciones/Pages/Bandeja.razor :: CambiarPaginaBandejaAsync = 2
-src/CaeManager.Web/Features/Comunicaciones/Pages/Bandeja.razor :: bandeja = 83
+src/CaeManager.Web/Features/Comunicaciones/Pages/Bandeja.razor :: bandeja = 84
 src/CaeManager.Web/Features/Comunicaciones/Pages/Bandeja.razor.cs :: (nombre de fichero) = 1
 src/CaeManager.Web/Features/Comunicaciones/Pages/Bandeja.razor.cs :: Bandeja = 2
 src/CaeManager.Web/Features/Comunicaciones/Pages/Bandeja.razor.cs :: CambiarPaginaBandejaAsync = 1
