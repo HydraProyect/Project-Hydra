@@ -17,11 +17,36 @@ public class DesconectarBuzonCommandHandlerTests
         ConexionIntegracionRepositorioFalso conexionRepositorio, SuscripcionWebhookRepositorioFalso suscripcionRepositorio,
         ReclamacionBuzonIntegracionRepositorioFalso reclamacionRepositorio,
         AlcanceDatosServiceFalso alcanceDatos, Microsoft365GraphClientFalso graphClient, CredencialIntegracionRepositorioFalso credencialRepositorio,
-        IUnitOfWork unitOfWork, CerrojoVerificacionBuzonFalso? cerrojo = null, IDescarteCambiosPendientes? descarte = null) =>
+        IUnitOfWork unitOfWork, CerrojoVerificacionBuzonFalso? cerrojo = null, IDescarteCambiosPendientes? descarte = null,
+        TimeProvider? reloj = null) =>
         new(conexionRepositorio, suscripcionRepositorio, reclamacionRepositorio, alcanceDatos, graphClient,
             new AccesoGraphService(credencialRepositorio, graphClient), unitOfWork,
             cerrojo ?? new CerrojoVerificacionBuzonFalso(), descarte ?? new DescarteContado(),
-            NullLogger<DesconectarBuzonCommandHandler>.Instance);
+            reloj ?? TimeProvider.System, NullLogger<DesconectarBuzonCommandHandler>.Instance);
+
+    /// <summary>Reloj que solo avanza cuando el test lo dice, para fijar en qué paso expira la suscripción.</summary>
+    private sealed class RelojFalso(DateTime ahoraUtc) : TimeProvider
+    {
+        private DateTimeOffset _ahora = new(ahoraUtc, TimeSpan.Zero);
+        public DateTime AhoraUtc => _ahora.UtcDateTime;
+        public override DateTimeOffset GetUtcNow() => _ahora;
+        public void Avanzar(TimeSpan tiempo) => _ahora += tiempo;
+    }
+
+    /// <summary>Buzón compartido Habilitado y verificado con una suscripción que expira en <paramref name="expiracion"/>.</summary>
+    private static (ConexionIntegracion Conexion, ConexionIntegracionRepositorioFalso Conexiones, SuscripcionWebhookRepositorioFalso Suscripciones)
+        BuzonCompartidoQueExpiraEn(DateTime expiracion, DateTime verificadaUtc)
+    {
+        var conexion = ConexionIntegracion.CrearBuzonCompartido(
+            "cae@operador.test", "Buzón CAE", "11111111-2222-3333-4444-555555555555", Guid.NewGuid());
+        conexion.FijarIdentidadBuzon("inbox-cae");
+        conexion.MarcarIdentidadVerificada(verificadaUtc);
+        var conexiones = new ConexionIntegracionRepositorioFalso();
+        conexiones.Agregar(conexion);
+        var suscripciones = new SuscripcionWebhookRepositorioFalso();
+        suscripciones.Agregar(new SuscripcionWebhook(conexion.Id, "sub-1", "estado", expiracion));
+        return (conexion, conexiones, suscripciones);
+    }
 
     /// <summary>Lanza una colisión de concurrencia en los guardados indicados (1 = el primero) y delega el resto.</summary>
     private sealed class UnitOfWorkConColisiones(UnitOfWorkFalso interno, params int[] guardadosQueColisionan) : IUnitOfWork
@@ -270,42 +295,106 @@ public class DesconectarBuzonCommandHandlerTests
 
     /// <summary>
     /// La suscripción expira mientras se pide el token: la regla se vuelve a aplicar sobre la conexión aún sin
-    /// deshabilitar y la marca viaja en el guardado de la desconexión, antes del DELETE.
+    /// deshabilitar y la marca viaja en el MISMO guardado de la desconexión, antes del DELETE. El reloj controlado fija
+    /// la expiración dentro de la petición del token (Codex, ronda 15, hallazgo bajo): al pedirlo aún no había expirado
+    /// y no se había guardado nada.
     /// </summary>
     [Fact]
     public async Task Una_suscripcion_que_expira_mientras_se_pide_el_token_se_marca_en_el_guardado_de_la_desconexion()
     {
-        var expiracion = DateTime.UtcNow.AddSeconds(1);
-        var conexion = ConexionIntegracion.CrearBuzonCompartido(
-            "cae@operador.test", "Buzón CAE", "11111111-2222-3333-4444-555555555555", Guid.NewGuid());
-        conexion.FijarIdentidadBuzon("inbox-cae");
-        conexion.MarcarIdentidadVerificada(DateTime.UtcNow.AddHours(-1));
-        var conexiones = new ConexionIntegracionRepositorioFalso();
-        conexiones.Agregar(conexion);
-        var suscripciones = new SuscripcionWebhookRepositorioFalso();
-        suscripciones.Agregar(new SuscripcionWebhook(conexion.Id, "sub-1", "estado", expiracion));
+        var reloj = new RelojFalso(DateTime.UtcNow);
+        var expiracion = reloj.AhoraUtc.AddMinutes(1);
+        var (conexion, conexiones, suscripciones) = BuzonCompartidoQueExpiraEn(expiracion, reloj.AhoraUtc.AddHours(-1));
         var graph = new Microsoft365GraphClientFalso();
         var unitOfWork = new UnitOfWorkFalso();
-        var marcasGuardadas = new List<DateTime?>();
-        unitOfWork.AlGuardar = () => marcasGuardadas.Add(conexion.HuecoPendienteDesdeUtc);
-        // Aquí la expiración tiene que pasar de verdad: Desconectar la fija antes del token. Las aserciones no dependen de
-        // cuánto tarde el runner: si ya hubiera expirado antes del token, la marca se guardaría antes y el test pasaría
-        // igual (solo perdería sensibilidad, nunca falla sin defecto).
+        var guardados = new List<(DateTime? Marca, EstadoConexionIntegracion Estado)>();
+        unitOfWork.AlGuardar = () => guardados.Add((conexion.HuecoPendienteDesdeUtc, conexion.Estado));
+        DateTime? relojAlPedirToken = null;
+        var guardadosAlPedirToken = -1;
         graph.AlObtenerTokenAplicacion = () =>
         {
-            while (DateTime.UtcNow <= expiracion)
-                Thread.Sleep(10);
+            relojAlPedirToken = reloj.AhoraUtc;
+            guardadosAlPedirToken = guardados.Count;
+            reloj.Avanzar(TimeSpan.FromMinutes(2));
         };
-        DateTime? marcaGuardadaAlBorrar = null;
-        graph.AlEliminarSuscripcion = () => marcaGuardadaAlBorrar = marcasGuardadas.LastOrDefault();
+        var guardadosAlBorrar = -1;
+        graph.AlEliminarSuscripcion = () => guardadosAlBorrar = guardados.Count;
         var handler = CrearHandler(conexiones, suscripciones, new ReclamacionBuzonIntegracionRepositorioFalso(), new AlcanceDatosServiceFalso(),
-            graph, new CredencialIntegracionRepositorioFalso(), unitOfWork);
+            graph, new CredencialIntegracionRepositorioFalso(), unitOfWork, reloj: reloj);
 
         var resultado = await handler.Handle(new DesconectarBuzonCommand(conexion.Id), CancellationToken.None);
 
         resultado.EsExitoso.Should().BeTrue();
-        marcaGuardadaAlBorrar.Should().Be(expiracion, "la marca ya estaba en la base cuando salió el DELETE");
-        conexion.Estado.Should().Be(EstadoConexionIntegracion.Deshabilitada);
+        relojAlPedirToken.Should().BeBefore(expiracion, "control: la expiración cae dentro de la petición del token");
+        guardadosAlPedirToken.Should().Be(0, "con la suscripción vigente no hay marca que guardar antes del token");
+        guardados.Should().Equal([(expiracion, EstadoConexionIntegracion.Deshabilitada)],
+            "la marca viaja en el mismo guardado que la desconexión, y no hace falta otro");
+        guardadosAlBorrar.Should().Be(1, "la marca ya estaba en la base cuando salió el DELETE");
+        graph.SuscripcionesEliminadas.Should().Equal(["sub-1"]);
+    }
+
+    /// <summary>
+    /// Medio de Codex (ronda 15): la suscripción expira después de la última comprobación previa al guardado y antes de que
+    /// la desconexión quede confirmada, y el DELETE responde 404, que el cliente de Graph cuenta como borrado con éxito.
+    /// La regla se vuelve a aplicar con el reloj leído tras la confirmación: la marca queda en la expiración y llega a la
+    /// base antes del DELETE, sin depender de lo que Graph responda.
+    /// </summary>
+    [Fact]
+    public async Task Una_suscripcion_que_expira_durante_el_guardado_de_la_desconexion_se_marca_aunque_el_DELETE_tenga_exito()
+    {
+        var reloj = new RelojFalso(DateTime.UtcNow);
+        var expiracion = reloj.AhoraUtc.AddMinutes(1);
+        var (conexion, conexiones, suscripciones) = BuzonCompartidoQueExpiraEn(expiracion, reloj.AhoraUtc.AddHours(-1));
+        // Sin error de eliminación: el 404 de una suscripción ya expirada se cuenta como borrado con éxito.
+        var graph = new Microsoft365GraphClientFalso();
+        var unitOfWork = new UnitOfWorkFalso();
+        var guardados = new List<(DateTime? Marca, EstadoConexionIntegracion Estado)>();
+        unitOfWork.AlGuardar = () =>
+        {
+            guardados.Add((conexion.HuecoPendienteDesdeUtc, conexion.Estado));
+            // La expiración cae dentro del guardado que confirma la desconexión.
+            if (guardados.Count == 1)
+                reloj.Avanzar(TimeSpan.FromMinutes(2));
+        };
+        var guardadosAlBorrar = -1;
+        graph.AlEliminarSuscripcion = () => guardadosAlBorrar = guardados.Count;
+        var handler = CrearHandler(conexiones, suscripciones, new ReclamacionBuzonIntegracionRepositorioFalso(), new AlcanceDatosServiceFalso(),
+            graph, new CredencialIntegracionRepositorioFalso(), unitOfWork, reloj: reloj);
+
+        var resultado = await handler.Handle(new DesconectarBuzonCommand(conexion.Id), CancellationToken.None);
+
+        resultado.EsExitoso.Should().BeTrue();
+        guardados.Should().Equal(
+            [(null, EstadoConexionIntegracion.Deshabilitada), (expiracion, EstadoConexionIntegracion.Deshabilitada)],
+            "control: al confirmar aún no había marca; la del hueco se guarda justo después");
+        guardadosAlBorrar.Should().Be(2, "la marca ya estaba en la base cuando salió el DELETE");
+        unitOfWork.TokensDeGuardado[1].Should().Be(CancellationToken.None);
+        graph.SuscripcionesEliminadas.Should().Equal(["sub-1"]);
+        conexion.HuecoPendienteDesdeUtc.Should().Be(expiracion);
+    }
+
+    /// <summary>
+    /// Control de la regla anterior: si la suscripción sigue vigente al confirmar la desconexión, la conexión ya
+    /// Deshabilitada no se marca (la regla sobre una conexión no Habilitada marcaría también una suscripción vigente).
+    /// </summary>
+    [Fact]
+    public async Task Con_la_suscripcion_vigente_al_confirmar_y_un_DELETE_con_exito_no_se_marca_nada()
+    {
+        var reloj = new RelojFalso(DateTime.UtcNow);
+        var (conexion, conexiones, suscripciones) = BuzonCompartidoQueExpiraEn(reloj.AhoraUtc.AddMinutes(1), reloj.AhoraUtc.AddHours(-1));
+        var graph = new Microsoft365GraphClientFalso();
+        // La suscripción expira después de la confirmación, ya durante el DELETE: la desconexión ya era efectiva.
+        graph.AlEliminarSuscripcion = () => reloj.Avanzar(TimeSpan.FromMinutes(2));
+        var unitOfWork = new UnitOfWorkFalso();
+        var handler = CrearHandler(conexiones, suscripciones, new ReclamacionBuzonIntegracionRepositorioFalso(), new AlcanceDatosServiceFalso(),
+            graph, new CredencialIntegracionRepositorioFalso(), unitOfWork, reloj: reloj);
+
+        var resultado = await handler.Handle(new DesconectarBuzonCommand(conexion.Id), CancellationToken.None);
+
+        resultado.EsExitoso.Should().BeTrue();
+        graph.SuscripcionesEliminadas.Should().Equal(["sub-1"]);
+        unitOfWork.VecesGuardado.Should().Be(1, "solo la desconexión");
+        conexion.HuecoPendienteDesdeUtc.Should().BeNull();
     }
 
     /// <summary>
