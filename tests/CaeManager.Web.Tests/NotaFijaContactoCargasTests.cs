@@ -131,7 +131,8 @@ public class NotaFijaContactoCargasTests : BunitContext
 
         var guardado = await GuardarAsync(cut, mediador, "Texto nuevo.");
 
-        // Sin render forzado por la página: el propio componente muestra lo guardado al cerrar la edición (StateHasChanged).
+        // Sin render forzado por la página: el propio componente ya muestra lo guardado al cerrar la edición (el render lo hace
+        // ComponentBase al ceder el manejador en la recarga, así que este test no fija por sí solo la llamada a StateHasChanged).
         cut.WaitForAssertion(() => cut.Find(".nota-fija-texto").TextContent.Trim().Should().Be("Texto nuevo."));
         cut.Render(p => p.Add(x => x.Email, "carmen@obra.es")); // y la página renderiza con la recarga en vuelo
 
