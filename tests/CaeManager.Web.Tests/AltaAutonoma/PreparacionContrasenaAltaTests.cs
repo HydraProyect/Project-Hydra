@@ -58,10 +58,48 @@ public class PreparacionContrasenaAltaTests
         preparacion.Coincide(ajeno!, Contrasena).Should().BeFalse();
     }
 
-    private static PreparacionContrasenaAlta Crear() => new(new UserManager<ApplicationUser>(
-        new AlmacenSinUso(), Opciones.Create(new IdentityOptions()), new PasswordHasher<ApplicationUser>(),
+    // ── Revisión de A4: los rechazos sin comparación real pagan una ficticia con el mismo hasher ──
+
+    [Theory]
+    [InlineData("Andamios-2026")]
+    [InlineData("")]
+    [InlineData(null)]
+    public void La_comparacion_ficticia_verifica_con_el_mismo_hasher_sobre_un_hash_suyo_y_no_lanza(string? contrasena)
+    {
+        var hasher = new HasherQueCuenta();
+        var preparacion = Crear(hasher);
+
+        preparacion.CompararFicticia(contrasena);
+        preparacion.CompararFicticia(contrasena);
+
+        hasher.Verificaciones.Should().Be(2, "cada rechazo paga un PBKDF2, también con la contraseña vacía");
+        hasher.Resultados.Should().OnlyContain(r => r == PasswordVerificationResult.Failed,
+            "el hash ficticio es un hash válido del hasher (no lanza FormatException ni sale antes) y no casa con nada");
+    }
+
+    private static PreparacionContrasenaAlta Crear(IPasswordHasher<ApplicationUser>? hasher = null) => new(new UserManager<ApplicationUser>(
+        new AlmacenSinUso(), Opciones.Create(new IdentityOptions()), hasher ?? new PasswordHasher<ApplicationUser>(),
         [], [new PasswordValidator<ApplicationUser>()], new UpperInvariantLookupNormalizer(), new IdentityErrorDescriber(), null!,
         NullLogger<UserManager<ApplicationUser>>.Instance));
+
+    /// <summary>El hasher real de Identity, contando las verificaciones y su resultado.</summary>
+    private sealed class HasherQueCuenta : IPasswordHasher<ApplicationUser>
+    {
+        private readonly PasswordHasher<ApplicationUser> _real = new();
+
+        public int Verificaciones { get; private set; }
+        public List<PasswordVerificationResult> Resultados { get; } = [];
+
+        public string HashPassword(ApplicationUser user, string password) => _real.HashPassword(user, password);
+
+        public PasswordVerificationResult VerifyHashedPassword(ApplicationUser user, string hashedPassword, string providedPassword)
+        {
+            Verificaciones++;
+            var resultado = _real.VerifyHashedPassword(user, hashedPassword, providedPassword);
+            Resultados.Add(resultado);
+            return resultado;
+        }
+    }
 
     private sealed class AlmacenSinUso : IUserStore<ApplicationUser>
     {

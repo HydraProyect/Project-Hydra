@@ -103,7 +103,7 @@ public class RegistroYVerificacionAltaTests : BunitContext
         corte.Find("form").Submit();
 
         _acceso.Verificaciones.Should().ContainSingle().Which.Should().Be(token);
-        var cookie = Microsoft.Net.Http.Headers.SetCookieHeaderValue.ParseList(http.Response.Headers.SetCookie.ToArray())
+        var cookie = Microsoft.Net.Http.Headers.SetCookieHeaderValue.ParseList(http.Response.Headers.SetCookie.OfType<string>().ToList())
             .Should().ContainSingle(c => c.Name.Value == CookieContinuacionAlta.Nombre).Which;
         cookie.Value.Value.Should().NotBeNullOrEmpty().And.NotBe(token, "el credencial no es el token del enlace");
         cookie.Path.Value.Should().Be("/alta");
@@ -212,6 +212,10 @@ public class RegistroYVerificacionAltaTests : BunitContext
         public Task<string?> ValidarYHashearAsync(string correo, string contrasena) => Task.FromResult<string?>("hash-guardado");
 
         public bool Coincide(string hashContrasena, string contrasena) => hashContrasena == "hash-guardado" && contrasena == "la-buena";
+
+        public void CompararFicticia(string? contrasena)
+        {
+        }
     }
 
     private sealed class SinCuentas : IExistenciaCuentaPorCorreo

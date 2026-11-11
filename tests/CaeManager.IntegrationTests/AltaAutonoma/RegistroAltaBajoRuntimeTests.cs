@@ -328,12 +328,18 @@ public class RegistroAltaBajoRuntimeTests : IAsyncLifetime
     }
 
     // B6(d): los Tenants creados antes de A1 no tienen fila en CifsPropietarioTenant; su CIF es el de su Empresa propia.
+    // Empresas."Cif" es varchar(9) (Empresa.LongitudCif): cada valor guardado cabe en la columna, para que el caso pruebe
+    // la normalización de la base y no choque antes con el esquema. Con separadores solo cabe el DNI de siete dígitos.
+    // U+00A0 (espacio de no separación) lo quita char.IsWhiteSpace en Normalizar; [[:space:]] dependería del locale.
     [Theory]
     [InlineData("B12345674", "B12345674")]
     [InlineData("b12345674", "B12345674")]
     [InlineData("1234567L", "01234567L")]
-    [InlineData(" B-12.345.674 ", "B12345674")]
-    [InlineData("b 1234567-4", "B12345674")]
+    [InlineData(" 1234567l", "01234567L")]
+    [InlineData("1234567-L", "01234567L")]
+    [InlineData("1.234567L", "01234567L")]
+    [InlineData("1234567 L", "01234567L")]
+    [InlineData(" 1234567L", "01234567L")]
     public async Task El_CIF_de_la_Empresa_propia_de_un_Tenant_sin_fila_de_CIF_propietario_deriva_a_acceso(string guardado, string enviado)
     {
         var tenant = await TenantConEmpresaAsync(enviado, esPropia: true);

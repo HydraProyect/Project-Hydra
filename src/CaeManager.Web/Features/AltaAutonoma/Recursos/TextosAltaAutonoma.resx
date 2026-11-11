@@ -243,9 +243,6 @@
   <data name="ErrorDeclaraActividad" xml:space="preserve">
     <value>Con un NIF de persona física, declara que actúas en el ejercicio de tu actividad profesional.</value>
   </data>
-  <data name="ErrorLimiteCif" xml:space="preserve">
-    <value>Ahora mismo no podemos comprobar estos datos. Vuelve a intentarlo mañana o escribe a Soporte TALVEG.</value>
-  </data>
   <data name="DatosGuardadosTitulo" xml:space="preserve">
     <value>Datos guardados</value>
   </data>

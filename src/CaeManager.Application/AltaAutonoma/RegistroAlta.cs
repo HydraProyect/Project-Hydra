@@ -82,6 +82,14 @@ public interface IPreparacionContrasenaAlta
 
     /// <summary>¿La contraseña casa con el hash de Identity guardado en la Solicitud de alta?</summary>
     bool Coincide(string hashContrasena, string contrasena);
+
+    /// <summary>
+    /// Verificación ficticia de coste equivalente a <see cref="Coincide"/>: el mismo hasher sobre un hash fijo generado
+    /// con los mismos parámetros, con el resultado descartado. La usan los rechazos que no llegan a comparar la
+    /// contraseña (token desconocido, usado o caducado, contraseña vacía), para que el tiempo de respuesta no distinga
+    /// un token vigente de uno que no lo es (oráculo temporal; OWASP Top 10 A07:2021).
+    /// </summary>
+    void CompararFicticia(string? contrasena);
 }
 
 public enum ResultadoVerificacionCorreoAlta
@@ -165,18 +173,36 @@ public sealed class ServicioRegistroAlta(
     /// responde lo mismo que un enlace no válido y no gasta el enlace: se puede reintentar, con el techo por IP del
     /// limitador global (<c>LimitadorAlta.ParticionVerificar</c>). Verificado, devuelve el credencial de continuación
     /// en claro, que la base guarda solo como SHA-256.
+    /// <para>
+    /// Toda respuesta cuesta exactamente un PBKDF2: la comparación real si el enlace está vigente y hay contraseña, y una
+    /// ficticia (<see cref="IPreparacionContrasenaAlta.CompararFicticia"/>) en cualquier otro rechazo. Sin eso, un token
+    /// desconocido o usado respondería al instante y uno vigente con contraseña errónea tardaría lo que tarda el hasher:
+    /// un oráculo temporal de qué tokens están vigentes.
+    /// </para>
     /// </summary>
     public async Task<VerificacionCorreoAlta> VerificarCorreoAsync(string? token, string? contrasena, CancellationToken cancellationToken)
     {
         var noValido = new VerificacionCorreoAlta(ResultadoVerificacionCorreoAlta.NoValido, null);
         if (string.IsNullOrEmpty(token) || token.Length < SolicitudAlta.LongitudMinimaToken || token.Length > 128)
+        {
+            contrasenas.CompararFicticia(contrasena);
             return noValido;
+        }
 
         var enlace = await acceso.ConsultarEnlaceAsync(token, cancellationToken);
         if (enlace.Rechazo is { } rechazo)
+        {
+            contrasenas.CompararFicticia(contrasena);
             return new VerificacionCorreoAlta(rechazo, null);
+        }
 
-        if (enlace.HashContrasena is null || string.IsNullOrEmpty(contrasena) || !contrasenas.Coincide(enlace.HashContrasena, contrasena))
+        if (enlace.HashContrasena is null || string.IsNullOrEmpty(contrasena))
+        {
+            contrasenas.CompararFicticia(contrasena);
+            return noValido;
+        }
+
+        if (!contrasenas.Coincide(enlace.HashContrasena, contrasena))
             return noValido;
 
         var credencial = NuevoToken();

@@ -15,7 +15,7 @@ using Xunit;
 namespace CaeManager.Web.Tests.AltaAutonoma;
 
 /// <summary>
-/// Paso «Empresa» del alta autónoma (A4) en la Web: bandera, credencial de continuación en cookie, límite por CIF y el
+/// Paso «Empresa» del alta autónoma (A4) en la Web: bandera, credencial de continuación en cookie, alerta sin bloqueo por CIF y el
 /// mensaje genérico cuando el CIF ya tiene Tenant propietario (RQ-13, RQ-28). La transición la decide la base; aquí la
 /// sustituye un falso.
 /// </summary>
@@ -26,6 +26,7 @@ public class OrganizacionAltaTests : BunitContext
 
     private readonly RegistroYVerificacionAltaTests.AccesoQueCuenta _acceso = new();
     private readonly DefaultHttpContext _http = new();
+    private readonly AlertaConsultasCifAltaTests.RegistroCapturado _registro = new();
 
     public OrganizacionAltaTests()
     {
@@ -39,7 +40,7 @@ public class OrganizacionAltaTests : BunitContext
     [Fact]
     public void Con_la_bandera_apagada_la_pagina_no_pinta_nada()
     {
-        Configurar(habilitada: false, consultasPorCif: 3);
+        Configurar(habilitada: false);
         ConCookie(ServicioRegistroAlta.NuevoToken());
 
         var corte = Pintar();
@@ -51,7 +52,7 @@ public class OrganizacionAltaTests : BunitContext
     [Fact]
     public void Sin_credencial_de_continuacion_no_hay_formulario_sino_volver_a_empezar()
     {
-        Configurar(habilitada: true, consultasPorCif: 3);
+        Configurar(habilitada: true);
 
         var corte = Pintar();
 
@@ -63,7 +64,7 @@ public class OrganizacionAltaTests : BunitContext
     [Fact]
     public void Con_credencial_pinta_el_formulario_en_el_paso_Empresa()
     {
-        Configurar(habilitada: true, consultasPorCif: 3);
+        Configurar(habilitada: true);
         ConCookie(ServicioRegistroAlta.NuevoToken());
 
         var corte = Pintar();
@@ -76,7 +77,7 @@ public class OrganizacionAltaTests : BunitContext
     [Fact]
     public void Un_CIF_con_Tenant_propietario_da_un_mensaje_generico_sin_nada_del_Tenant_y_borra_la_cookie()
     {
-        Configurar(habilitada: true, consultasPorCif: 3);
+        Configurar(habilitada: true);
         ConCookie(ServicioRegistroAlta.NuevoToken());
         _acceso.ResultadoDatos = ResultadoDatosOrganizacionAlta.DerivadaAAcceso;
 
@@ -96,7 +97,7 @@ public class OrganizacionAltaTests : BunitContext
     [Fact]
     public void Un_CIF_libre_guarda_los_datos_y_conserva_la_cookie_para_el_paso_siguiente()
     {
-        Configurar(habilitada: true, consultasPorCif: 3);
+        Configurar(habilitada: true);
         ConCookie(ServicioRegistroAlta.NuevoToken());
 
         var corte = Pintar();
@@ -111,28 +112,27 @@ public class OrganizacionAltaTests : BunitContext
     }
 
     [Fact]
-    public void Un_CIF_no_valido_no_llega_a_la_base_ni_gasta_cupo()
+    public void Un_CIF_no_valido_no_llega_a_la_base_ni_cuenta_para_la_alerta()
     {
-        Configurar(habilitada: true, consultasPorCif: 1);
+        Configurar(habilitada: true);
         ConCookie(ServicioRegistroAlta.NuevoToken());
 
-        var corte = Pintar();
-        Rellenar(corte, cif: "B12345670");
-        corte.Find("form").Submit();
+        foreach (var _ in Enumerable.Range(0, AlertaConsultasCifAlta.Umbral + 2))
+        {
+            var corte = Pintar();
+            Rellenar(corte, cif: "B12345670");
+            corte.Find("form").Submit();
+            corte.Find("[role=alert]").TextContent.Should().Be(Texto("ErrorCifNif"));
+        }
 
         _acceso.Completados.Should().BeEmpty();
-        corte.Find("[role=alert]").TextContent.Should().Be(Texto("ErrorCifNif"));
-
-        var otro = Pintar();
-        Rellenar(otro);
-        otro.Find("form").Submit();
-        _acceso.Completados.Should().ContainSingle("el envío con el CIF mal escrito no consumió la consulta del día");
+        _registro.Entradas.Should().BeEmpty();
     }
 
     [Fact]
     public void Un_tramo_que_no_es_de_la_lista_se_rechaza_aunque_sea_un_numero_del_enum()
     {
-        Configurar(habilitada: true, consultasPorCif: 3);
+        Configurar(habilitada: true);
         ConCookie(ServicioRegistroAlta.NuevoToken());
 
         var corte = Pintar();
@@ -147,7 +147,7 @@ public class OrganizacionAltaTests : BunitContext
     [Fact]
     public void Un_NIF_de_persona_fisica_exige_la_declaracion_de_actividad_profesional()
     {
-        Configurar(habilitada: true, consultasPorCif: 3);
+        Configurar(habilitada: true);
         ConCookie(ServicioRegistroAlta.NuevoToken());
 
         var corte = Pintar();
@@ -158,91 +158,78 @@ public class OrganizacionAltaTests : BunitContext
         corte.Find("[role=alert]").TextContent.Should().Be(Texto("ErrorDeclaraActividad"));
     }
 
-    [Fact]
-    public void El_mismo_CIF_no_se_consulta_mas_veces_al_dia_que_el_cupo_aunque_cambie_su_escritura()
-    {
-        Configurar(habilitada: true, consultasPorCif: 2);
-        ConCookie(ServicioRegistroAlta.NuevoToken());
+    // ── Revisión de A4: sin cupo por CIF que bloquee; las consultas repetidas solo avisan ──
 
-        foreach (var escritura in new[] { Cif, "b-12345674", "B 12345674" })
+    /// <summary>
+    /// Un contador por CIF compartido entre Solicitudes de alta distintas que bloqueara sería un oráculo de actividad
+    /// ajena: quien se registra con su propio credencial recibiría otra respuesta porque otras Solicitudes consultaron ese
+    /// CIF. La Solicitud nueva recibe exactamente lo mismo que la primera, por muchas que la precedan.
+    /// </summary>
+    [Theory]
+    [InlineData(ResultadoDatosOrganizacionAlta.DatosCompletos)]
+    [InlineData(ResultadoDatosOrganizacionAlta.DerivadaAAcceso)]
+    public void La_respuesta_a_una_Solicitud_nueva_no_depende_de_cuantas_otras_consultaron_ese_CIF(ResultadoDatosOrganizacionAlta resultado)
+    {
+        Configurar(habilitada: true);
+        _acceso.ResultadoDatos = resultado;
+        var otras = AlertaConsultasCifAlta.Umbral * 4;
+
+        string? primera = null;
+        foreach (var escritura in Enumerable.Range(0, otras).Select(i => (i % 3) switch { 0 => Cif, 1 => "b-12345674", _ => "B 12345674" }))
         {
+            ConCookie(ServicioRegistroAlta.NuevoToken());
+            var otra = Pintar();
+            Rellenar(otra, cif: escritura);
+            otra.Find("form").Submit();
+            primera ??= otra.Markup;
+        }
+
+        ConCookie(ServicioRegistroAlta.NuevoToken());
+        var nueva = Pintar();
+        Rellenar(nueva);
+        nueva.Find("form").Submit();
+
+        _acceso.Completados.Should().HaveCount(otras + 1, "cada Solicitud de alta llega a la base, sin cupo por CIF delante");
+        nueva.FindAll("[role=alert]").Should().BeEmpty();
+        nueva.Markup.Should().Be(primera, "la respuesta no cambia por lo que hicieran otras Solicitudes de alta");
+        _registro.Entradas.Should().NotBeEmpty("las consultas repetidas sí se avisan, solo en el registro");
+    }
+
+    [Fact]
+    public void Las_consultas_repetidas_de_un_mismo_CIF_avisan_en_el_registro_sin_el_CIF_aunque_cambie_su_escritura()
+    {
+        Configurar(habilitada: true);
+
+        foreach (var escritura in new[] { Cif, "b-12345674", "B 12345674", "b12345674" })
+        {
+            _registro.Entradas.Should().BeEmpty("hasta pasar el umbral no hay aviso");
+            ConCookie(ServicioRegistroAlta.NuevoToken());
             var corte = Pintar();
             Rellenar(corte, cif: escritura);
             corte.Find("form").Submit();
         }
 
-        _acceso.Completados.Should().HaveCount(2);
+        var aviso = _registro.Entradas.Should().ContainSingle().Subject;
+        aviso.Evento.Should().Be(AlertaConsultasCifAlta.EventoConsultasRepetidas);
+        aviso.Texto.Should().NotContain("12345674");
     }
 
     [Fact]
-    public void Cuando_el_cupo_del_CIF_se_agota_se_dice_sin_preguntar_a_la_base()
+    public void Un_credencial_que_la_base_no_acepta_no_cuenta_para_la_alerta()
     {
-        Configurar(habilitada: true, consultasPorCif: 1);
-        ConCookie(ServicioRegistroAlta.NuevoToken());
-
-        var primero = Pintar();
-        Rellenar(primero);
-        primero.Find("form").Submit();
-        var segundo = Pintar();
-        Rellenar(segundo);
-        segundo.Find("form").Submit();
-
-        _acceso.Completados.Should().ContainSingle();
-        segundo.Find("[role=alert]").TextContent.Should().Be(Texto("ErrorLimiteCif"));
-    }
-
-    // ── M1: el cupo por CIF solo lo gasta una transición que la base aceptó ──
-
-    [Fact]
-    public void Un_credencial_que_la_base_no_acepta_no_gasta_el_cupo_del_CIF()
-    {
-        Configurar(habilitada: true, consultasPorCif: 1);
+        Configurar(habilitada: true);
         ConCookie(ServicioRegistroAlta.NuevoToken());
         _acceso.ResultadoDatos = ResultadoDatosOrganizacionAlta.NoValido;
 
-        foreach (var _ in Enumerable.Range(0, 3))
+        foreach (var _ in Enumerable.Range(0, AlertaConsultasCifAlta.Umbral + 2))
         {
             var ajeno = Pintar();
             Rellenar(ajeno);
             ajeno.Find("form").Submit();
-            ajeno.Markup.Should().NotContain(Texto("ErrorLimiteCif"));
         }
 
-        _acceso.ResultadoDatos = ResultadoDatosOrganizacionAlta.DatosCompletos;
-        var legitimo = Pintar();
-        Rellenar(legitimo);
-        legitimo.Find("form").Submit();
-
-        _acceso.Completados.Should().HaveCount(4, "tres envíos con un credencial que la base no aceptó no agotan el cupo de 1");
-        legitimo.Markup.Should().Contain(Texto("DatosGuardadosTitulo"));
-    }
-
-    [Fact]
-    public void Una_derivacion_a_acceso_si_gasta_el_cupo_del_CIF()
-    {
-        Configurar(habilitada: true, consultasPorCif: 1);
-        ConCookie(ServicioRegistroAlta.NuevoToken());
-        _acceso.ResultadoDatos = ResultadoDatosOrganizacionAlta.DerivadaAAcceso;
-
-        var primero = Pintar();
-        Rellenar(primero);
-        primero.Find("form").Submit();
-        var segundo = Pintar();
-        Rellenar(segundo);
-        segundo.Find("form").Submit();
-
-        _acceso.Completados.Should().ContainSingle();
-        segundo.Find("[role=alert]").TextContent.Should().Be(Texto("ErrorLimiteCif"));
-    }
-
-    [Theory]
-    [InlineData("es-ES")]
-    [InlineData("ca-ES")]
-    public void El_mensaje_de_cupo_agotado_no_habla_del_CIF_ni_de_consultas(string cultura)
-    {
-        var texto = EnCultura(cultura, "ErrorLimiteCif");
-
-        texto.Should().NotContainAny("CIF", "NIF", "consultado", "consultat");
+        _acceso.Completados.Should().HaveCount(AlertaConsultasCifAlta.Umbral + 2);
+        _registro.Entradas.Should().BeEmpty("sin transición en la base no hubo consulta con resultado");
     }
 
     // ── M2: recargar o reenviar tras DatosCompletos no transiciona ni borra la cookie ──
@@ -250,7 +237,7 @@ public class OrganizacionAltaTests : BunitContext
     [Fact]
     public void Recargar_tras_DatosCompletos_muestra_lo_guardado_sin_transicionar_ni_borrar_la_cookie()
     {
-        Configurar(habilitada: true, consultasPorCif: 3);
+        Configurar(habilitada: true);
         ConCookie(ServicioRegistroAlta.NuevoToken());
         _acceso.Continuacion = EstadoContinuacionAlta.DatosCompletos;
 
@@ -265,7 +252,7 @@ public class OrganizacionAltaTests : BunitContext
     [Fact]
     public void Reenviar_cuando_la_base_ya_tiene_los_datos_muestra_lo_guardado_y_conserva_la_cookie()
     {
-        Configurar(habilitada: true, consultasPorCif: 3);
+        Configurar(habilitada: true);
         ConCookie(ServicioRegistroAlta.NuevoToken());
         _acceso.ResultadoDatos = ResultadoDatosOrganizacionAlta.NoValido;
         _acceso.ContinuacionTrasCompletar = EstadoContinuacionAlta.DatosCompletos;
@@ -281,7 +268,7 @@ public class OrganizacionAltaTests : BunitContext
     [Fact]
     public void Un_credencial_caducado_pide_volver_a_empezar_y_borra_la_cookie()
     {
-        Configurar(habilitada: true, consultasPorCif: 3);
+        Configurar(habilitada: true);
         ConCookie(ServicioRegistroAlta.NuevoToken());
         _acceso.Continuacion = EstadoContinuacionAlta.Caducada;
 
@@ -296,7 +283,7 @@ public class OrganizacionAltaTests : BunitContext
     [Fact]
     public void Un_credencial_que_la_base_no_reconoce_pide_volver_a_empezar_sin_borrar_la_cookie()
     {
-        Configurar(habilitada: true, consultasPorCif: 3);
+        Configurar(habilitada: true);
         ConCookie(ServicioRegistroAlta.NuevoToken());
         _acceso.Continuacion = EstadoContinuacionAlta.NoValido;
 
@@ -337,10 +324,10 @@ public class OrganizacionAltaTests : BunitContext
         }
     }
 
-    private void Configurar(bool habilitada, int consultasPorCif)
+    private void Configurar(bool habilitada)
     {
         Services.AddSingleton(Options.Create(new AltaAutonomaOptions { Habilitada = habilitada }));
-        Services.AddSingleton(new CupoConsultasCifAlta(consultasPorCif, TimeSpan.FromDays(1)));
+        Services.AddSingleton(new AlertaConsultasCifAlta(_registro));
     }
 
     private void ConCookie(string credencial) =>

@@ -7,6 +7,37 @@ namespace CaeManager.Domain.Tests.AltaAutonoma;
 
 public class SolicitudAltaTests
 {
+    /// <summary>
+    /// Revisión de A4: la base compara el CIF enviado con Empresas."Cif" reducido a ASCII alfanumérico en mayúsculas. Eso
+    /// solo es un superconjunto seguro si todo CIF o NIF que la aplicación acepta y normaliza es ASCII [0-9A-Z], también
+    /// cuando llega con espacios Unicode (U+00A0, U+2007, U+3000), tabuladores, puntos o guiones.
+    /// </summary>
+    [Theory]
+    [InlineData("B12345674", "B12345674")]
+    [InlineData("b 12345674", "B12345674")]
+    [InlineData("B 12.345.674", "B12345674")]
+    [InlineData("　b-12345674\t", "B12345674")]
+    [InlineData("1234567 l", "01234567L")]
+    [InlineData("x1234567l", "X1234567L")]
+    public void El_CIF_normalizado_que_se_compara_en_la_base_es_ASCII_alfanumerico_en_mayusculas(string escrito, string esperado)
+    {
+        var normalizado = SolicitudAlta.NormalizarCifNif(escrito);
+
+        normalizado.Should().Be(esperado).And.MatchRegex("^[0-9A-Z]+$");
+        normalizado.Should().OnlyContain(c => c < 128);
+    }
+
+    [Theory]
+    [InlineData("B１２３４５６７４")]
+    [InlineData("Ｂ12345674")]
+    [InlineData("B12345674​")]
+    public void Un_CIF_con_caracteres_que_no_son_ASCII_no_se_acepta(string escrito)
+    {
+        var accion = () => SolicitudAlta.NormalizarCifNif(escrito);
+
+        accion.Should().Throw<ArgumentException>();
+    }
+
     private static readonly DateTime Inicio = new(2026, 11, 4, 10, 0, 0, DateTimeKind.Utc);
     private static readonly string Token = new('t', 43);
     private const string CifEmpresa = "B12345674";

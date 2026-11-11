@@ -9,7 +9,7 @@ namespace CaeManager.Web.Tests.AltaAutonoma;
 
 /// <summary>
 /// Atributos de la cookie del credencial de continuación (A4), leídos de la cabecera <c>Set-Cookie</c> que sale de verdad:
-/// HttpOnly, SameSite=Strict, Path=/alta, Secure con HTTPS y dos horas de vida; el borrado, con el mismo Path.
+/// HttpOnly, SameSite=Strict, Path=/alta, Secure siempre y dos horas de vida; el borrado, con el mismo Path.
 /// </summary>
 public class CookieContinuacionAltaTests
 {
@@ -33,21 +33,28 @@ public class CookieContinuacionAltaTests
         cookie.Domain.HasValue.Should().BeFalse("solo la recibe el host que la puso");
     }
 
+    /// <summary>
+    /// Revisión de A4: <c>Secure</c> no depende de <c>IsHttps</c>. Si detrás del proxy el esquema llegara mal, el
+    /// credencial seguiría sin poder viajar por HTTP en claro. En local se prueba con el perfil HTTPS de Kestrel.
+    /// </summary>
     [Fact]
-    public void Sin_HTTPS_no_lleva_Secure_para_no_perderse_en_local()
+    public void Sin_HTTPS_tambien_lleva_Secure()
     {
         var http = new DefaultHttpContext();
+        http.Request.IsHttps.Should().BeFalse("guarda del instrumento");
 
         CookieContinuacionAlta.Escribir(http, ServicioRegistroAlta.NuevoToken());
 
-        Unica(http).Secure.Should().BeFalse();
+        Unica(http).Secure.Should().BeTrue();
     }
 
-    [Fact]
-    public void Borrar_caduca_la_cookie_en_el_mismo_Path_y_con_los_mismos_atributos()
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void Borrar_caduca_la_cookie_en_el_mismo_Path_y_con_los_mismos_atributos(bool https)
     {
         var http = new DefaultHttpContext();
-        http.Request.IsHttps = true;
+        http.Request.IsHttps = https;
 
         CookieContinuacionAlta.Borrar(http);
 

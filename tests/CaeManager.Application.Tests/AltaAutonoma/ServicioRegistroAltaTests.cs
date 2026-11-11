@@ -135,6 +135,50 @@ public class ServicioRegistroAltaTests
 
     private static DatosRegistroAlta Datos(string correo) => new(correo, "hash-de-identity", "203.0.113.9", "Navegador");
 
+    // ── Revisión de A4: toda respuesta de la verificación cuesta un PBKDF2, para no ser un oráculo temporal ──
+
+    [Theory]
+    [InlineData(null, "la-buena")]
+    [InlineData("corto", "la-buena")]
+    [InlineData("corto", null)]
+    public async Task Un_token_mal_formado_paga_una_comparacion_ficticia(string? token, string? contrasena)
+    {
+        var (servicio, _, _, contrasenas) = CrearConContrasenas();
+
+        await servicio.VerificarCorreoAsync(token, contrasena, CancellationToken.None);
+
+        (contrasenas.Reales, contrasenas.Ficticias).Should().Be((0, 1));
+    }
+
+    [Theory]
+    [InlineData(ResultadoVerificacionCorreoAlta.NoValido, "la-buena")]
+    [InlineData(ResultadoVerificacionCorreoAlta.NoValido, "la-mala")]
+    [InlineData(ResultadoVerificacionCorreoAlta.EnlaceCaducado, "la-buena")]
+    [InlineData(ResultadoVerificacionCorreoAlta.SolicitudCaducada, null)]
+    public async Task Un_token_desconocido_usado_o_caducado_paga_una_comparacion_ficticia(ResultadoVerificacionCorreoAlta rechazo, string? contrasena)
+    {
+        var (servicio, acceso, _, contrasenas) = CrearConContrasenas();
+        acceso.Enlace = new EnlaceVerificacionAlta(rechazo, null);
+
+        await servicio.VerificarCorreoAsync(ServicioRegistroAlta.NuevoToken(), contrasena, CancellationToken.None);
+
+        (contrasenas.Reales, contrasenas.Ficticias).Should().Be((0, 1), "el rechazo cuesta lo mismo que comparar la contraseña");
+    }
+
+    [Theory]
+    [InlineData("la-mala", 1, 0)]
+    [InlineData("la-buena", 1, 0)]
+    [InlineData("", 0, 1)]
+    [InlineData(null, 0, 1)]
+    public async Task Un_token_vigente_paga_un_solo_PBKDF2_real_o_ficticio(string? contrasena, int reales, int ficticias)
+    {
+        var (servicio, _, _, contrasenas) = CrearConContrasenas();
+
+        await servicio.VerificarCorreoAsync(ServicioRegistroAlta.NuevoToken(), contrasena, CancellationToken.None);
+
+        (contrasenas.Reales, contrasenas.Ficticias).Should().Be((reales, ficticias));
+    }
+
     private static (ServicioRegistroAlta, AccesoFalso, RemitenteFalso) Crear(bool existeCuenta)
     {
         var acceso = new AccesoFalso();
@@ -142,6 +186,16 @@ public class ServicioRegistroAltaTests
         var servicio = new ServicioRegistroAlta(acceso, new CuentasFalsas(existeCuenta), remitente, new ContrasenasFalsas(),
             TimeProvider.System, NullLogger<ServicioRegistroAlta>.Instance);
         return (servicio, acceso, remitente);
+    }
+
+    private static (ServicioRegistroAlta, AccesoFalso, RemitenteFalso, ContrasenasFalsas) CrearConContrasenas()
+    {
+        var acceso = new AccesoFalso();
+        var remitente = new RemitenteFalso();
+        var contrasenas = new ContrasenasFalsas();
+        var servicio = new ServicioRegistroAlta(acceso, new CuentasFalsas(false), remitente, contrasenas,
+            TimeProvider.System, NullLogger<ServicioRegistroAlta>.Instance);
+        return (servicio, acceso, remitente, contrasenas);
     }
 
     internal sealed class AccesoFalso : IAccesoSolicitudesAlta
@@ -194,12 +248,21 @@ public class ServicioRegistroAltaTests
         }
     }
 
-    /// <summary>Solo «la-buena» casa con «hash-guardado».</summary>
+    /// <summary>Solo «la-buena» casa con «hash-guardado». Cuenta las comparaciones reales y las ficticias.</summary>
     private sealed class ContrasenasFalsas : IPreparacionContrasenaAlta
     {
+        public int Reales { get; private set; }
+        public int Ficticias { get; private set; }
+
         public Task<string?> ValidarYHashearAsync(string correo, string contrasena) => Task.FromResult<string?>("hash-de-identity");
 
-        public bool Coincide(string hashContrasena, string contrasena) => hashContrasena == "hash-guardado" && contrasena == "la-buena";
+        public bool Coincide(string hashContrasena, string contrasena)
+        {
+            Reales++;
+            return hashContrasena == "hash-guardado" && contrasena == "la-buena";
+        }
+
+        public void CompararFicticia(string? contrasena) => Ficticias++;
     }
 
     private sealed class CuentasFalsas(bool existe) : IExistenciaCuentaPorCorreo

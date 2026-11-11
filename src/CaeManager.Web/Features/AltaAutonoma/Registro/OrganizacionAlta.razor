@@ -12,14 +12,15 @@
 @inject IOptions<AltaAutonomaOptions> OpcionesAlta
 @inject IStringLocalizer<TextosAltaAutonoma> T
 @inject ServicioDatosOrganizacionAlta Servicio
-@inject CupoConsultasCifAlta CupoCif
+@inject AlertaConsultasCifAlta AlertaCif
 @inject NavigationManager Navigation
 
 @* Paso 2 del alta autónoma, «Empresa» (A4). Formulario SSR estático, para que el envío pase por el techo por IP del
    limitador global (LimitadorAlta.ParticionOrganizacion), que cubre también el GET porque pintar consulta la base. No
    lleva la política «alta»: esa cuenta los inicios del alta y no debe gastarse en este paso. Quien llega aquí no tiene cuenta ni sesión: lo que le deja seguir es el credencial de continuación que dejó
    la verificación del correo en una cookie HttpOnly (CookieContinuacionAlta). La página valida con las reglas del
-   dominio (DatosOrganizacionAlta), aplica el límite de consultas por CIF y deja que la base decida, bajo candado, si el
+   dominio (DatosOrganizacionAlta), cuenta la consulta para la alerta de barrido de CIF, que no bloquea
+   (AlertaConsultasCifAlta), y deja que la base decida, bajo candado, si el
    CIF ya tiene Tenant propietario. Si lo tiene, el mensaje es genérico: ni qué Tenant es ni quién lo gestiona
    (RQ-13, RQ-28).
 
@@ -195,28 +196,22 @@
             return;
         }
 
-        // Límite de consultas por CIF (§ 4.1 del plan): se mira antes de preguntar a la base, que es la que sabe si el
-        // CIF tiene Tenant propietario, y se gasta solo si la base aceptó el credencial e hizo la transición (M1): quien
-        // no tiene un credencial vigente no agota el cupo de un CIF ajeno. Cuenta el CIF ya normalizado, para que
-        // «b12345678» y «B-12345678» sumen juntos. El mensaje no habla del CIF: que el cupo esté agotado solo dice que hoy
-        // hubo varias transiciones con él, y eso se declara como riesgo residual.
-        if (!CupoCif.QuedaCupo(datos.CifNif))
-        {
-            _error = T["ErrorLimiteCif"];
-            return;
-        }
-
+        // Sin cupo por CIF que bloquee: un contador por CIF compartido entre Solicitudes de alta distintas haría que la
+        // respuesta a una Solicitud dependiera de lo que hicieron otras. Cada Solicitud consulta su CIF con resultado una
+        // sola vez (la base solo transiciona desde CorreoVerificado), y una consulta con resultado cuenta para la alerta
+        // de barrido (AlertaConsultasCifAlta), que solo escribe en el registro. Cuenta el CIF ya normalizado, para que
+        // «b12345678» y «B-12345678» sumen juntos.
         var resultado = await Servicio.CompletarAsync(CookieContinuacionAlta.Leer(HttpContext), datos, CancellationToken.None);
         switch (resultado)
         {
             case ResultadoDatosOrganizacionAlta.DatosCompletos:
                 // El credencial sigue: lo necesita el paso siguiente (plan y condiciones).
-                CupoCif.Gastar(datos.CifNif);
+                AlertaCif.Registrar(datos.CifNif);
                 _pantalla = Pantalla.DatosCompletos;
                 break;
             case ResultadoDatosOrganizacionAlta.DerivadaAAcceso:
                 // Estado final: la base ya borró el hash del credencial; la cookie se va también.
-                CupoCif.Gastar(datos.CifNif);
+                AlertaCif.Registrar(datos.CifNif);
                 CookieContinuacionAlta.Borrar(HttpContext);
                 _pantalla = Pantalla.DerivadaAAcceso;
                 break;

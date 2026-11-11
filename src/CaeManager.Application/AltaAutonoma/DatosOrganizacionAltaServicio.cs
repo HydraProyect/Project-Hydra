@@ -61,8 +61,8 @@ public sealed record TransicionDatosOrganizacionAlta(ResultadoDatosOrganizacionA
 /// </para>
 /// <para>
 /// No es un <c>ICommand</c> de MediatR por lo mismo que <see cref="ServicioRegistroAlta"/>: quien lo usa es anónimo. No
-/// crea cuenta, ni sesión de Identity, ni Tenant (DA-2). El límite de consultas por CIF lo aplica la página (mira el cupo
-/// antes de llamar y lo gasta solo si la base hizo la transición), porque vive con el resto del antiabuso de la Web.
+/// crea cuenta, ni sesión de Identity, ni Tenant (DA-2). No hay cupo por CIF que bloquee: la alerta de consultas repetidas
+/// de un mismo CIF la escribe la página, con el resto del antiabuso de la Web, y no cambia la respuesta.
 /// </para>
 /// </summary>
 public sealed class ServicioDatosOrganizacionAlta(

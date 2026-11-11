@@ -179,8 +179,11 @@ public partial class AltaDatosOrganizacionYCredencialContinuacion : Migration
             -- El CIF está ocupado si está en CifsPropietarioTenant o si es el de una Empresa propia (EsPropia, no
             -- eliminada) de cualquier Tenant: los Tenants creados antes de A1 no tienen fila en CifsPropietarioTenant, y
             -- sin esto su CIF pasaría por libre (DM-5). Empresas."Cif" se guardó con Trim y mayúsculas, no con
-            -- ValidadorIdentificacion.Normalizar: aquí se le quitan espacios, puntos y guiones, se pasa a mayúsculas y se
-            -- repone el cero de un DNI de siete dígitos, como hace Normalizar.
+            -- ValidadorIdentificacion.Normalizar: aquí se reduce a ASCII alfanumérico en mayúsculas y se repone el cero
+            -- de un DNI de siete dígitos. Es un superconjunto seguro de Normalizar, que quita todo char.IsWhiteSpace
+            -- (también U+00A0), puntos y guiones: un CIF o NIF válido normalizado solo tiene [0-9A-Z] (lo exige el
+            -- techo de p_cif_nif de arriba). No usa [[:space:]] ni upper() ni rangos, que dependen del locale y de la
+            -- intercalación de la base: translate y la lista explícita de caracteres no.
             CREATE FUNCTION public.app_alta_completar_datos_organizacion(
                     p_hash_credencial text, p_razon_social text, p_cif_nif text, p_domicilio_fiscal text, p_telefono text,
                     p_tramo text, p_declara_representacion boolean, p_declara_actividad_profesional boolean)
@@ -235,7 +238,9 @@ public partial class AltaDatosOrganizacionYCredencialContinuacion : Migration
                 IF EXISTS (SELECT 1 FROM public."CifsPropietarioTenant" c WHERE c."Cif" = p_cif_nif)
                    OR EXISTS (SELECT 1
                                 FROM public."Empresas" e
-                                CROSS JOIN LATERAL (SELECT pg_catalog.upper(pg_catalog.regexp_replace(e."Cif", '[[:space:].-]', '', 'g')) AS limpio) n
+                                CROSS JOIN LATERAL (SELECT pg_catalog.regexp_replace(
+                                                       pg_catalog.translate(e."Cif", 'abcdefghijklmnopqrstuvwxyz', 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'),
+                                                       '[^0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ]', '', 'g') AS limpio) n
                                WHERE e."EsPropia" AND NOT e."EstaEliminado" AND e."Cif" IS NOT NULL
                                  AND (CASE WHEN n.limpio ~ '^[0-9]{7}[A-Z]$' THEN '0' || n.limpio ELSE n.limpio END) = p_cif_nif) THEN
                     -- Estado final: se guarda el CIF para la petición de acceso y el credencial deja de servir.

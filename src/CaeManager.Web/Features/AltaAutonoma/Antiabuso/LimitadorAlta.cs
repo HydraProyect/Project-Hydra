@@ -104,7 +104,8 @@ public static class LimitadorAlta
     /// <c>app_alta_completar_datos_organizacion</c>), así que el GET también lleva techo. Va en su propia partición por
     /// IP, y no bajo la política <c>alta</c>: esa cuenta los inicios del alta, y si el paso Empresa gastara del mismo cupo,
     /// quien comparte IP (una oficina tras NAT) se quedaría sin poder iniciar el alta, o perdería lo escrito con un 429.
-    /// El antiabuso propio del paso es el cupo por CIF (<see cref="CupoConsultasCifAlta"/>) y el credencial de 256 bits.
+    /// El antiabuso propio del paso es este techo, el credencial de 256 bits y que cada Solicitud de alta consulta su CIF
+    /// una sola vez; las consultas repetidas de un mismo CIF solo avisan (<see cref="AlertaConsultasCifAlta"/>).
     /// </summary>
     public static RateLimitPartition<string>? ParticionOrganizacion(HttpContext contexto, int permisosPorMinuto)
     {

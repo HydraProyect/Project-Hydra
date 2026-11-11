@@ -52,6 +52,26 @@ public sealed class PreparacionContrasenaAlta(UserManager<ApplicationUser> usuar
             return false;
         }
     }
+
+    /// <summary>
+    /// Hash fijo del proceso para <see cref="CompararFicticia"/>: lo genera el mismo hasher, con sus parámetros vigentes
+    /// (versión, iteraciones, sal), a partir de un valor aleatorio que nadie conoce. Se calcula una vez por proceso, en el
+    /// primer rechazo: solo ese paga un PBKDF2 más.
+    /// </summary>
+    private static string? _hashFicticio;
+
+    public void CompararFicticia(string? contrasena)
+    {
+        var hash = Volatile.Read(ref _hashFicticio);
+        if (hash is null)
+        {
+            var nuevo = usuarios.PasswordHasher.HashPassword(new ApplicationUser(), Convert.ToBase64String(System.Security.Cryptography.RandomNumberGenerator.GetBytes(32)));
+            hash = Interlocked.CompareExchange(ref _hashFicticio, nuevo, null) ?? nuevo;
+        }
+
+        // Una contraseña vacía también paga el PBKDF2: el rechazo real por contraseña vacía pasa por aquí.
+        _ = usuarios.PasswordHasher.VerifyHashedPassword(new ApplicationUser(), hash, string.IsNullOrEmpty(contrasena) ? "-" : contrasena);
+    }
 }
 
 /// <summary>
