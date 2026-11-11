@@ -57,10 +57,16 @@ public class CentrosAltaSelectoresClienteEmpresaTests : BunitContext
         public IReadOnlyList<ClienteSelectorDto> Clientes { get; set; } =
             [new(ClienteConUnaEmpresa, RazonClienteUno), new(ClienteConVariasEmpresas, RazonClienteVarias)];
 
-        public Task<TResponse> Send<TResponse>(IRequest<TResponse> request, CancellationToken cancellationToken = default)
+        /// <summary>Si está puesta, la carga de Empresas de ese Cliente empresarial espera a que el test la abra.</summary>
+        public Dictionary<Guid, TaskCompletionSource> PuertasEmpresasDe { get; } = [];
+
+        public async Task<TResponse> Send<TResponse>(IRequest<TResponse> request, CancellationToken cancellationToken = default)
         {
             Enviadas.Add(request);
-            return Task.FromResult((TResponse)(object)(request switch
+            if (request is ObtenerEmpresasParaSelectorQuery { ClienteId: { } conPuerta } && PuertasEmpresasDe.TryGetValue(conPuerta, out var puerta))
+                await puerta.Task;
+
+            return (TResponse)(object)(request switch
             {
                 ObtenerClientesAutorizadosQuery => (IReadOnlyList<ClienteAutorizadoDto>)[new ClienteAutorizadoDto(Guid.NewGuid(), "Propia", EsOrigen: true)],
                 ObtenerCentrosQuery q => new ResultadoPaginado<CentroListaDto>([], 0, q.Pagina, q.TamanoPagina),
@@ -71,7 +77,7 @@ public class CentrosAltaSelectoresClienteEmpresaTests : BunitContext
                 ObtenerEmpresasParaSelectorQuery q => EmpresasDe(q.ClienteId),
                 CrearCentroCommand => Result.Exito(Guid.NewGuid()),
                 _ => throw new NotSupportedException($"Consulta no prevista en este test: {request.GetType().Name}.")
-            }));
+            });
         }
 
         private static IReadOnlyList<EmpresaSelectorDto> EmpresasDe(Guid? clienteId)
@@ -183,6 +189,8 @@ public class CentrosAltaSelectoresClienteEmpresaTests : BunitContext
             .Should().Contain(Regla(HojaDelKit("CampoTexto.razor.css"), ".campo-input:focus"), "el foco se ve igual que en los vecinos");
         Regla(HojaDelKit("SelectorEntidad.razor.css"), ".campo-input:disabled")
             .Should().Contain(Regla(HojaDelKit("CampoTexto.razor.css"), ".campo-input:disabled"), "la Empresa deshabilitada se ve igual que un campo deshabilitado");
+        HojaDelKit("SelectorEntidad.razor.css").Should().MatchRegex(@"@media \(max-width: 767px\)\s*\{\s*\.campo-input\s*\{\s*font-size: 1rem;",
+            "en un iPhone el campo no hace zoom al enfocarlo, como CampoTexto");
     }
 
     [Fact]
@@ -247,6 +255,34 @@ public class CentrosAltaSelectoresClienteEmpresaTests : BunitContext
         await ElegirAsync(cut, "Cliente", RazonClienteVarias);
         Control(cut, "Empresa").GetAttribute("value").Should().BeNullOrEmpty(
             "la Empresa única del otro Cliente empresarial no es de este, y entre varias no se elige ninguna");
+    }
+
+    [Fact]
+    public async Task La_respuesta_tardia_de_un_Cliente_anterior_no_deja_sus_Empresas_ni_su_Empresa_unica_bajo_el_nuevo()
+    {
+        var puerta = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        _mediador.PuertasEmpresasDe[ClienteConUnaEmpresa] = puerta;
+        var cut = await AbrirAltaAsync(Renderizar());
+
+        // El clic en el primer Cliente empresarial no se espera: su carga de Empresas queda en vuelo tras la puerta.
+        await Control(cut, "Cliente").InputAsync(new ChangeEventArgs { Value = RazonClienteUno[..4] });
+        var primerClic = cut.FindAll("li.selector-entidad-opcion").Single(li => li.TextContent.Trim() == RazonClienteUno)
+            .ClickAsync(new MouseEventArgs());
+        await ElegirAsync(cut, "Cliente", RazonClienteVarias);
+        await cut.InvokeAsync(puerta.SetResult);
+        await primerClic;
+
+        cut.WaitForAssertion(() => _mediador.Enviadas.OfType<ObtenerEmpresasParaSelectorQuery>()
+            .Count(q => q.ClienteId == ClienteConUnaEmpresa).Should().Be(1));
+        Control(cut, "Cliente").GetAttribute("value").Should().Be(RazonClienteVarias, "barrera: el Cliente empresarial del alta es el segundo");
+        Control(cut, "Empresa").GetAttribute("value").Should().BeNullOrEmpty("la Empresa única era del Cliente empresarial anterior");
+
+        await Control(cut, "Empresa").InputAsync(new ChangeEventArgs { Value = "Instal" });
+        cut.FindAll("li.selector-entidad-opcion:not(.selector-entidad-opcion-crear)").Select(li => li.TextContent.Trim()).Should()
+            .BeEquivalentTo([RazonEmpresaNorte, RazonEmpresaSur], "las opciones son las del Cliente empresarial vigente");
+        await Control(cut, "Empresa").InputAsync(new ChangeEventArgs { Value = "Mont" });
+        cut.FindAll("li.selector-entidad-opcion:not(.selector-entidad-opcion-crear)").Should().BeEmpty(
+            "la Empresa del Cliente empresarial anterior no se ofrece");
     }
 
     [Fact]

@@ -1165,7 +1165,8 @@ public partial class Centros : CaeManager.Web.Components.PaginaInteractiva
     /// <summary>
     /// Recarga el selector de Empresa acotado al Cliente elegido — o al
     /// catálogo completo si todavía no hay Cliente. Se llama al abrir el
-    /// Drawer y cada vez que el usuario cambia el Cliente en modo creación.
+    /// Drawer y en el encadenado; el cambio de Cliente empresarial en modo
+    /// creación carga por su cuenta para descartar respuestas tardías.
     /// </summary>
     private async Task CargarEmpresasDisponiblesAsync(Guid? clienteId)
     {
@@ -1188,7 +1189,15 @@ public partial class Centros : CaeManager.Web.Components.PaginaInteractiva
             _mensajeErrorFormulario = null;
 
         var clienteId = Guid.TryParse(valor, out var id) ? id : (Guid?)null;
-        await CargarEmpresasDisponiblesAsync(clienteId);
+        var empresas = await Mediator.Send(new ObtenerEmpresasParaSelectorQuery(clienteId));
+
+        // Otro Cliente empresarial elegido mientras cargaban estas Empresas: su propia llamada pone la lista y decide la
+        // Empresa. Sin esto, una respuesta tardía dejaría las Empresas (y la única, elegida) de un Cliente empresarial que
+        // ya no es el del alta.
+        if (_clienteId != valor)
+            return;
+
+        _empresasDisponibles = empresas;
 
         if (!_empresasDisponibles.Any(e => e.Id.ToString() == _empresaId))
             _empresaId = string.Empty;
