@@ -210,7 +210,9 @@ public class AptAcotadoEnCiTests
         var indiceSed = dockerfile.FindIndex(l => l.Contains("${ESPEJO_UBUNTU}", StringComparison.Ordinal));
         indiceCase.Should().BeGreaterThan(-1, "el valor se filtra con un case de patrones literales");
         indiceCase.Should().BeLessThan(indiceSed, "el filtro va antes de interpolar el valor en sed");
-        dockerfile.Should().Contain(l => l.Contains("grep -vqxF \"URIs: $ESPEJO_UBUNTU\"", StringComparison.Ordinal),
+        dockerfile.Should().Contain(l => l.StartsWith("*)", StringComparison.Ordinal) && l.Contains("exit 1", StringComparison.Ordinal),
+            "un valor fuera de la lista blanca tiene que abortar el RUN, no seguir hasta el sed");
+        dockerfile.Should().Contain(l => l.Contains("&& ! grep '^URIs:' /etc/apt/sources.list.d/ubuntu.sources | grep -vqxF \"URIs: $ESPEJO_UBUNTU\"", StringComparison.Ordinal),
             "cada URIs: tiene que quedar exactamente en el espejo");
         dockerfile.Should().Contain(l => l.Contains("= \"$firmas\" ]", StringComparison.Ordinal),
             "la reescritura no puede perder ningún Signed-By");
@@ -233,12 +235,13 @@ public class AptAcotadoEnCiTests
             "con un espejo de terceros, apt no puede correr con reintentos activos");
         accion.Should().Contain("apuntar_fuentes_a \"$base\" || return 1",
             "un fallo al reescribir las fuentes no puede quedar oculto");
-        accion.Should().Contain(l => l.Contains("grep -vqxF \"URIs: $1\"", StringComparison.Ordinal),
-            "cada URIs: tiene que quedar exactamente en la base elegida");
+        accion.Should().Contain("! grep '^URIs:' \"$fuentes\" | grep -vqxF \"URIs: $1\" || return 1",
+            "cada URIs: tiene que quedar exactamente en la base elegida; sin el ! la reserva fallaría siempre");
         accion.Should().Contain(l => l.Contains("= \"$firmas\" ] || return 1", StringComparison.Ordinal),
             "la reescritura no puede perder ningún Signed-By");
-        accion.Should().NotContain("usar_archivo_directo",
-            "llamar a la preparación sin comprobarla deja correr apt con la preparación fallida");
+        accion.Where(l => l.Contains("usar_archivo_directo", StringComparison.Ordinal)).Should().BeEquivalentTo(
+            ["usar_archivo_directo() {", "usar_archivo_directo && return 0"],
+            "la preparación solo se llama desde preparar_o_fallar, que corta antes de ejecutar apt");
         accion.Count(l => l.Contains("preparar_o_fallar", StringComparison.Ordinal)).Should().BeGreaterThanOrEqualTo(3,
             "la definición, la salida de Azure y cada reintento pasan por la preparación comprobada");
     }
