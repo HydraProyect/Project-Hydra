@@ -1204,6 +1204,7 @@ public class DesconectarBuzonCommandHandlerTests
 
         resultado.Error.Codigo.Should().Be(DesconectarBuzonCommandHandler.CodigoMarcaHuecoNoGuardada);
         graph.SuscripcionesEliminadas.Should().Equal(["sub-1"], "control: el DELETE se pidió y tuvo éxito");
+        porRegistrarGuardado.Should().Be(reloj.AhoraUtc, "control: el valor por registrar viajó con la Deshabilitada");
         descarte.Veces.Should().Be(2 * DesconectarBuzonCommandHandler.IntentosGuardadoMarca, "el intento y el reintento");
         interno.VecesGuardado.Should().Be(1, "solo la desconexión");
         logger.Entradas.Should().ContainSingle(e => e.Nivel == LogLevel.Critical)

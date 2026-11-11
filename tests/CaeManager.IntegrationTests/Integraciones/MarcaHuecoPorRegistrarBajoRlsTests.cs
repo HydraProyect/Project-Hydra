@@ -112,6 +112,24 @@ public class MarcaHuecoPorRegistrarBajoRlsTests : IAsyncLifetime
     }
 
     /// <summary>
+    /// Fallo cerrado: sin ámbito de Tenant, <c>app.tenant_id</c> queda en NULL y la política no iguala ninguna fila. La
+    /// consulta no devuelve las marcadas de los dos Tenants, y sin filtro global de EF RLS tampoco deja ver ninguna.
+    /// </summary>
+    [Fact]
+    public async Task Sin_ambito_de_Tenant_no_devuelve_ninguna()
+    {
+        AmbitoTenantExplicito.TenantIdActual.Should().BeNull("control: el test corre fuera de cualquier ámbito");
+        await using var runtime = CrearRuntime(new TenantActualPorAmbito());
+
+        var ids = await new ConexionIntegracionRepository(runtime).ObtenerIdsConMarcaHuecoPorRegistrarAsync();
+
+        ids.Should().BeEmpty();
+        (await runtime.ConexionesIntegracion.IgnoreQueryFilters()
+                .CountAsync(c => c.Id == _marcadaPropia || c.Id == _marcadaAjena))
+            .Should().Be(0, "sin filtro global de EF, es RLS quien no deja ver ninguna");
+    }
+
+    /// <summary>
     /// Una Deshabilitada con la marca y otra Deshabilitada sin ella (la desconexión sin suscripción que borrar no deja
     /// nada por registrar), selladas en <paramref name="tenantId"/>.
     /// </summary>
