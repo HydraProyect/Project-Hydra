@@ -59,10 +59,19 @@ public sealed class DividirPdfPantallaTests : BunitContext
         Options.Create(new OpcionesPresupuestoMemoriaDocumentos()), TimeProvider.System);
 
     /// <summary>
-    /// Las vistas previas leen el original página a página, cada una en su <c>Task.Run</c>: con el CI cargado tardan más que
-    /// el segundo por defecto de <c>WaitForAssertion</c>, y la prueba caía antes de que soltaran su reserva.
+    /// Las vistas previas leen el original página a página, cada una en su <c>Task.Run</c>, y sueltan su reserva fuera del
+    /// renderizador. <c>WaitForAssertion</c> solo vuelve a mirar cuando el componente se renderiza, así que si la reserva se
+    /// suelta después del último renderizado no la ve nunca, dé el plazo que dé: se espera sondeando el presupuesto.
     /// </summary>
     private static readonly TimeSpan PlazoVistasPrevias = TimeSpan.FromSeconds(15);
+
+    private static async Task EsperarSinReservaAsync(Func<long> reservado, string motivo)
+    {
+        var plazo = DateTime.UtcNow + PlazoVistasPrevias;
+        while (reservado() > 0 && DateTime.UtcNow < plazo)
+            await Task.Delay(20);
+        reservado().Should().Be(0, motivo);
+    }
 
     public DividirPdfPantallaTests() => JSInterop.Mode = JSRuntimeMode.Loose;
 
@@ -428,7 +437,7 @@ public sealed class DividirPdfPantallaTests : BunitContext
         var pendiente = descarga.SetupVoid("descargarPdf", _ => true);
         var cut = Renderizar(presupuesto: contado);
         await SubirAsync(cut);
-        cut.WaitForAssertion(() => _presupuesto.Reservado.Should().Be(0, "las vistas previas ya soltaron su reserva"), PlazoVistasPrevias);
+        await EsperarSinReservaAsync(() => _presupuesto.Reservado, "las vistas previas ya soltaron su reserva");
         var peticionesAntes = contado.Peticiones;
 
         Pulsar(cut, "Descargar 3 PDF");
@@ -467,7 +476,7 @@ public sealed class DividirPdfPantallaTests : BunitContext
         descarga.SetupVoid("descargarPdf", _ => true).SetVoidResult();
         var cut = Renderizar();
         await SubirAsync(cut);
-        cut.WaitForAssertion(() => _presupuesto.Reservado.Should().Be(0, "las vistas previas ya leyeron el original"), PlazoVistasPrevias);
+        await EsperarSinReservaAsync(() => _presupuesto.Reservado, "las vistas previas ya leyeron el original");
         var proceso = Services.GetRequiredService<CuotaSubidaMasiva>().DirectorioProceso;
         foreach (var directorio in Directory.GetDirectories(proceso))
             foreach (var fichero in Directory.GetFiles(directorio))
@@ -490,7 +499,7 @@ public sealed class DividirPdfPantallaTests : BunitContext
             Options.Create(new OpcionesPresupuestoMemoriaDocumentos { EsperaMaxima = TimeSpan.FromMilliseconds(100) }), TimeProvider.System);
         var cut = Renderizar(presupuesto: corto);
         await SubirAsync(cut);
-        cut.WaitForAssertion(() => corto.Reservado.Should().Be(0, "las vistas previas ya soltaron su reserva"), PlazoVistasPrevias);
+        await EsperarSinReservaAsync(() => corto.Reservado, "las vistas previas ya soltaron su reserva");
         // Una reserva ajena de todo el presupuesto: la del primer tramo espera y agota el plazo.
         using var ocupado = await corto.ReservarAsync(corto.Maximo);
 
