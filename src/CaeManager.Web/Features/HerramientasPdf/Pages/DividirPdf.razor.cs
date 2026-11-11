@@ -13,13 +13,15 @@ using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Forms;
 using Microsoft.Extensions.Localization;
 using Microsoft.Extensions.Logging;
+using Microsoft.JSInterop;
 
 namespace CaeManager.Web.Features.HerramientasPdf.Pages;
 
 /// <summary>
-/// Dividir un PDF con varios documentos: elegir el PDF, marcar los cortes, un paso por documento, revisar y crear. La
-/// detección es local y solo sugiere; cada alta pasa por <see cref="CrearDocumentosDesdeDivisionCommand"/>, que delega en
-/// el alta normal. La Empresa gestionada sale del selector de la barra lateral, y sin selección no se puede subir nada;
+/// Dividir un PDF con varios documentos: elegir el PDF, marcar los cortes y elegir la salida. «Guardar en TALVEG» sigue
+/// con un paso por documento, revisar y crear; «Descargar» entrega cada tramo como un PDF aparte (con
+/// <see cref="ExtraerTramoPdfQuery"/>) y no guarda nada. La detección es local y solo sugiere; cada alta pasa por
+/// <see cref="CrearDocumentosDesdeDivisionCommand"/>, que delega en el alta normal. La Empresa gestionada sale del selector de la barra lateral, y sin selección no se puede subir nada;
 /// solo si de ahí no se deduce una sola y hay varias Empresas propias se elige aquí.
 ///
 /// El original vive en el almacén temporal del circuito, no en memoria, y desaparece al crear o al salir: no se conserva.
@@ -49,6 +51,8 @@ public partial class DividirPdf : CaeManager.Web.Components.PaginaInteractiva, I
     [Inject] private IPresupuestoMemoriaDocumentos PresupuestoMemoria { get; set; } = default!;
     [Inject] private CaeManager.Application.DocumentosIa.Common.IRasterizadorPaginasPdfService Rasterizador { get; set; } = default!;
     [Inject] private IDisponibilidadHerramientasPdf Disponibilidad { get; set; } = default!;
+    [Inject] private IJSRuntime JS { get; set; } = default!;
+    [Inject] private TimeProvider Reloj { get; set; } = default!;
     [Inject] private ILogger<DividirPdf> Logger { get; set; } = default!;
     [Inject] private IStringLocalizer<TextosHerramientasPdf> Textos { get; set; } = default!;
 
@@ -65,6 +69,9 @@ public partial class DividirPdf : CaeManager.Web.Components.PaginaInteractiva, I
     private bool _selectorVisible;
     private bool _cargando;
     private bool _creando;
+    private bool _descargando;
+    private int? _descargados;
+    private IJSObjectReference? _modulo;
     private bool _firmado;
     private bool _textoLegible = true;
     private bool _desechado;
@@ -424,6 +431,88 @@ public partial class DividirPdf : CaeManager.Web.Components.PaginaInteractiva, I
         }
     }
 
+    /// <summary>
+    /// Lo que se espera a que el navegador lea cada tramo. Como en Unir PDF: pasar un token propio anula el plazo por
+    /// defecto de JS, y sin él un navegador que no tira del flujo retendría la reserva mientras viva el circuito.
+    /// </summary>
+    private static readonly TimeSpan PlazoDescarga = TimeSpan.FromMinutes(1);
+
+    /// <summary>
+    /// La salida «Descargar»: cada tramo, en orden, como un PDF aparte, sin crear ningún Documento. La reserva cubre el
+    /// original leído y el tramo en curso, que nunca son más de uno a la vez: cada uno se suelta al entregarlo. Un tramo
+    /// que falla corta la serie y se dice cuál, para no dejar a medias una descarga que parezca completa.
+    /// </summary>
+    private async Task DescargarTramosAsync()
+    {
+        if (_descargando || _creando || _division is not { } division || _almacen is not { } almacen
+            || _original is not { } original || _empresaId is not { } empresaId)
+            return;
+
+        var rangos = division.Rangos;
+        var nombre = _nombreOriginal;
+        var token = _ciclo.Token;
+        var entregados = 0;
+        _descargando = true;
+        _descargados = null;
+        _error = null;
+        try
+        {
+            using (await PresupuestoMemoria.ReservarAsync(original.TamanoBytes * 2, token))
+            {
+                var contenido = await almacen.LeerAsync(original, token);
+                foreach (var rango in rangos)
+                {
+                    var tramo = await Mediator.Send(
+                        new ExtraerTramoPdfQuery(contenido, nombre, empresaId, rango.Inicial, rango.Final), token);
+                    if (tramo.EsFallido || !await EntregarTramoAsync(tramo.Valor, token))
+                    {
+                        _error = Textos["ErrorDescargaTramo", rango.Inicial, rango.Final];
+                        break;
+                    }
+
+                    entregados++;
+                }
+            }
+        }
+        catch (PresupuestoMemoriaAgotadoException)
+        {
+            _error = Textos["ErrorSinEspacio"];
+        }
+        catch (OperationCanceledException) when (token.IsCancellationRequested)
+        {
+            // La pantalla se ha desechado: no queda nadie a quien avisar.
+        }
+        finally
+        {
+            _descargando = false;
+            _descargados = entregados > 0 ? entregados : null;
+        }
+    }
+
+    /// <summary>Entrega un tramo al navegador como flujo; vuelve cuando lo ha leído, ha fallado o vence el plazo.</summary>
+    private async Task<bool> EntregarTramoAsync(TramoPdfExtraido tramo, CancellationToken token)
+    {
+        using var vencimiento = new CancellationTokenSource(PlazoDescarga, Reloj);
+        using var plazo = CancellationTokenSource.CreateLinkedTokenSource(token, vencimiento.Token);
+        try
+        {
+            _modulo ??= await JS.InvokeAsync<IJSObjectReference>("import", plazo.Token, "./js/descarga-pdf-unido.js");
+            using var referencia = new DotNetStreamReference(new MemoryStream(tramo.Contenido, writable: false));
+            await _modulo.InvokeVoidAsync("descargarPdf", plazo.Token, tramo.NombreArchivo, referencia);
+            return true;
+        }
+        catch (OperationCanceledException) when (!token.IsCancellationRequested && vencimiento.IsCancellationRequested)
+        {
+            Logger.LogWarning("Dividir PDF: el navegador no leyó un tramo en {Plazo}; se suelta.", PlazoDescarga);
+            return false;
+        }
+        catch (JSException ex)
+        {
+            Logger.LogWarning(ex, "Dividir PDF no pudo iniciar la descarga de un tramo");
+            return false;
+        }
+    }
+
     private void RetirarOriginal()
     {
         _vistas?.Cancel();
@@ -441,6 +530,7 @@ public partial class DividirPdf : CaeManager.Web.Components.PaginaInteractiva, I
         _grandesPedidas.Clear();
         _resultados = [];
         _error = null;
+        _descargados = null;
         _firmado = false;
         _textoLegible = true;
         _indiceTramo = 0;
@@ -485,5 +575,7 @@ public partial class DividirPdf : CaeManager.Web.Components.PaginaInteractiva, I
         _vistas?.Dispose();
         _almacen?.Dispose();
         _ciclo.Dispose();
+        if (_modulo is not null)
+            _ = _modulo.DisposeAsync().AsTask().ContinueWith(_ => { }, TaskScheduler.Default);
     }
 }

@@ -211,7 +211,7 @@ public class CrearDocumentosDesdeDivisionCommandHandler(
         $"Creado con Dividir: páginas {tramo.PaginaInicial}-{tramo.PaginaFinal} del PDF original.";
 
     private static string NombreDelTramo(string nombreOriginal, TramoACrear tramo) =>
-        $"{Path.GetFileNameWithoutExtension(nombreOriginal)}-pag-{tramo.PaginaInicial}-{tramo.PaginaFinal}.pdf";
+        NombresTramoPdf.De(nombreOriginal, tramo.PaginaInicial, tramo.PaginaFinal);
 
     private async Task EliminarSinOcultarAsync(string archivoUrl)
     {

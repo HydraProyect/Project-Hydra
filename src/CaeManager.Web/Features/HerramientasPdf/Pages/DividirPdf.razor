@@ -253,10 +253,16 @@
                 }
             </div>
         </section>
+        @if (_descargados is { } descargados)
+        {
+            <div class="aviso-dividir salida-descargada" role="status"><Icono Nombre="check" /><span>@Textos["DescargadosResultado", descargados]</span></div>
+        }
+        <p class="texto-suave salida-dividir">@Textos["SalidaDividir"]</p>
         <div class="barra-acciones-dividir">
             <span>@Textos["ResumenDivision", division.Rangos.Count, division.Rangos.Min(r => r.Paginas), division.Rangos.Max(r => r.Paginas)]</span>
-            <Boton Variante="VarianteBoton.Fantasma" OnClick="ReiniciarAsync">@Textos["CambiarPdf"]</Boton>
-            @BotonPrincipal(Textos[division.Rangos.Count == 1 ? "AsignarUno" : "AsignarVarios"], EventCallback.Factory.Create(this, IrAAsignar))
+            <Boton Variante="VarianteBoton.Fantasma" Deshabilitado="_descargando" OnClick="ReiniciarAsync">@Textos["CambiarPdf"]</Boton>
+            <Boton Variante="VarianteBoton.Secundario" Cargando="_descargando" OnClick="DescargarTramosAsync">@Textos[division.Rangos.Count == 1 ? "DescargarUno" : "DescargarVarios", division.Rangos.Count]</Boton>
+            @BotonPrincipal(Textos[division.Rangos.Count == 1 ? "AsignarUno" : "AsignarVarios"], EventCallback.Factory.Create(this, IrAAsignar), deshabilitado: _descargando)
         </div>
     </text>;
 

@@ -22,7 +22,7 @@
     <value>Dividir un PDF amb diversos documents</value>
   </data>
   <data name="PortadaDividirDescripcion" xml:space="preserve">
-    <value>TALVEG proposa on comença cada document i de qui és. Ho revises tot abans de crear res.</value>
+    <value>TALVEG proposa on comença cada document i de qui és. Els deses a TALVEG, després de revisar-ho tot, o els baixes per separat.</value>
   </data>
   <data name="PortadaDividirAccion" xml:space="preserve">
     <value>Divideix un PDF</value>
@@ -43,7 +43,7 @@
     <value>Tria el PDF amb diversos documents</value>
   </data>
   <data name="SubirDescripcion" xml:space="preserve">
-    <value>TALVEG proposa on comença cada document i de qui és. Ho revises tot abans de crear res.</value>
+    <value>TALVEG proposa on comença cada document i de qui és. Els deses a TALVEG, després de revisar-ho tot, o els baixes per separat.</value>
   </data>
   <data name="SubirPie" xml:space="preserve">
     <value>L'original no es conserva: desapareix en crear els documents o en sortir d'aquesta pantalla.</value>
@@ -172,10 +172,10 @@
     <value>Canvia el PDF</value>
   </data>
   <data name="AsignarUno" xml:space="preserve">
-    <value>Assigna el document</value>
+    <value>Desa a TALVEG</value>
   </data>
   <data name="AsignarVarios" xml:space="preserve">
-    <value>Assigna els documents</value>
+    <value>Desa a TALVEG</value>
   </data>
   <data name="PaginaAmpliada" xml:space="preserve">
     <value>Pàgina {0}</value>
@@ -720,5 +720,20 @@
   </data>
   <data name="FotoErrorDescarga" xml:space="preserve">
     <value>El PDF està llest, però el navegador no l'ha pogut descarregar. Torna-ho a provar.</value>
+  </data>
+  <data name="SalidaDividir" xml:space="preserve">
+    <value>Tria què vols fer: desar a TALVEG, indicant de qui és i què és cada document, o baixar cada document com un PDF a part, sense desar res.</value>
+  </data>
+  <data name="DescargarUno" xml:space="preserve">
+    <value>Baixa el PDF</value>
+  </data>
+  <data name="DescargarVarios" xml:space="preserve">
+    <value>Baixa {0} PDF</value>
+  </data>
+  <data name="DescargadosResultado" xml:space="preserve">
+    <value>PDF baixats: {0}. No s&apos;ha desat res a TALVEG.</value>
+  </data>
+  <data name="ErrorDescargaTramo" xml:space="preserve">
+    <value>No s&apos;han pogut baixar les pàgines {0} a {1}, ni les següents. Torna-ho a provar.</value>
   </data>
 </root>

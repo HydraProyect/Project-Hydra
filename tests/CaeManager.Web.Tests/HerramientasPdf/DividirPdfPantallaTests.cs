@@ -15,6 +15,7 @@ using MediatR;
 using Microsoft.AspNetCore.Components.Authorization;
 using Microsoft.AspNetCore.Components.Forms;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
@@ -63,6 +64,8 @@ public sealed class DividirPdfPantallaTests : BunitContext
         public IReadOnlyList<EmpresaSelectorDto> Empresas { get; set; } = [new EmpresaSelectorDto(EmpresaId, "Montajes Norte S.L.")];
         public Result<PreparacionDivisionPdf> Preparacion { get; set; } = Result.Exito(DividirPdfPantallaTests.Preparacion);
         public List<CrearDocumentosDesdeDivisionCommand> Creaciones { get; } = [];
+        public List<ExtraerTramoPdfQuery> Extracciones { get; } = [];
+        public int? PaginaQueFallaAlExtraer { get; set; }
 
         private object Responder(object peticion)
         {
@@ -80,6 +83,11 @@ public sealed class DividirPdfPantallaTests : BunitContext
                         .Select(t => new ResultadoTramoCreado(t.PaginaInicial, t.PaginaFinal, EstadoTramoCreado.Creado, Guid.NewGuid(), null))
                         .ToList();
                     return Result.Exito(resultados);
+                case ExtraerTramoPdfQuery extraccion:
+                    Extracciones.Add(extraccion);
+                    return extraccion.PaginaInicial == PaginaQueFallaAlExtraer
+                        ? Result.Fallo<TramoPdfExtraido>(Error.Crear("Prueba.Extraccion", "No se pudo extraer."))
+                        : Result.Exito(new TramoPdfExtraido($"paquete-pag-{extraccion.PaginaInicial}-{extraccion.PaginaFinal}.pdf", [1]));
                 default:
                     throw new NotSupportedException(peticion.GetType().Name);
             }
@@ -157,8 +165,82 @@ public sealed class DividirPdfPantallaTests : BunitContext
         })));
         Services.AddSingleton<IPresupuestoMemoriaDocumentos>(new PresupuestoMemoriaDocumentos(
             Options.Create(new OpcionesPresupuestoMemoriaDocumentos()), TimeProvider.System));
+        Services.TryAddSingleton(TimeProvider.System);
 
         return Render<DividirPdf>();
+    }
+
+    [Fact]
+    public async Task Tras_dividir_se_elige_entre_guardar_en_TALVEG_y_descargar()
+    {
+        var cut = Renderizar();
+        await SubirAsync(cut);
+
+        cut.Find(".salida-dividir").TextContent.Should().Contain("guardar en TALVEG").And.Contain("descargar cada documento como un PDF aparte");
+        var botones = cut.FindAll(".barra-acciones-dividir button").Select(b => b.TextContent.Trim()).ToList();
+        botones.Should().Contain(["Descargar 3 PDF", "Guardar en TALVEG"]);
+    }
+
+    [Fact]
+    public async Task Descargar_entrega_cada_tramo_como_un_PDF_aparte_y_no_crea_ningun_Documento()
+    {
+        var descarga = JSInterop.SetupModule("./js/descarga-pdf-unido.js");
+        descarga.SetupVoid("descargarPdf", _ => true).SetVoidResult();
+        var cut = Renderizar();
+        await SubirAsync(cut);
+
+        Pulsar(cut, "Descargar 3 PDF");
+
+        cut.WaitForAssertion(() => cut.Find(".salida-descargada").TextContent.Should().Contain("PDF descargados: 3. No se ha guardado nada en TALVEG."));
+        _mediador.Extracciones.Select(e => (e.PaginaInicial, e.PaginaFinal)).Should().Equal((1, 2), (3, 3), (4, 4));
+        _mediador.Extracciones.Should().OnlyContain(e => e.EmpresaGestionadaId == EmpresaId && e.NombreOriginal == "paquete.pdf");
+        descarga.Invocations.Select(i => i.Arguments[0]).Should().Equal("paquete-pag-1-2.pdf", "paquete-pag-3-3.pdf", "paquete-pag-4-4.pdf");
+        _mediador.Creaciones.Should().BeEmpty("descargar no guarda nada en TALVEG");
+        cut.FindAll("button").Should().Contain(b => b.TextContent.Trim() == "Guardar en TALVEG", "después de descargar se puede seguir guardando");
+    }
+
+    [Fact]
+    public async Task Si_un_tramo_no_se_puede_extraer_se_corta_la_serie_y_se_dice_cual()
+    {
+        var descarga = JSInterop.SetupModule("./js/descarga-pdf-unido.js");
+        descarga.SetupVoid("descargarPdf", _ => true).SetVoidResult();
+        _mediador.PaginaQueFallaAlExtraer = 3;
+        var cut = Renderizar();
+        await SubirAsync(cut);
+
+        Pulsar(cut, "Descargar 3 PDF");
+
+        cut.WaitForAssertion(() => cut.Find(".aviso-error").TextContent.Should().Contain("No se han podido descargar las páginas 3 a 3, ni las siguientes."));
+        _mediador.Extracciones.Select(e => e.PaginaInicial).Should().Equal(1, 3);
+        descarga.Invocations.Should().ContainSingle();
+        cut.Find(".salida-descargada").TextContent.Should().Contain("PDF descargados: 1.");
+    }
+
+    [Fact]
+    public async Task Si_el_navegador_no_recibe_un_tramo_se_avisa_sin_dar_la_descarga_por_hecha()
+    {
+        var descarga = JSInterop.SetupModule("./js/descarga-pdf-unido.js");
+        descarga.SetupVoid("descargarPdf", _ => true).SetException(new Microsoft.JSInterop.JSException("el navegador no pudo"));
+        var cut = Renderizar();
+        await SubirAsync(cut);
+
+        Pulsar(cut, "Descargar 3 PDF");
+
+        cut.WaitForAssertion(() => cut.Find(".aviso-error").TextContent.Should().Contain("No se han podido descargar las páginas 1 a 2"));
+        cut.FindAll(".salida-descargada").Should().BeEmpty();
+        _mediador.Creaciones.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task El_rotulo_dice_Empresa_y_no_Empresa_gestionada()
+    {
+        var cut = Renderizar();
+        await SubirAsync(cut);
+
+        cut.Find(".cabecera-dividir").TextContent.Should().Contain("Empresa:").And.NotContain("gestionada");
+        Pulsar(cut, "Guardar en TALVEG");
+        cut.WaitForAssertion(() => cut.FindAll("label").Should().Contain(l => l.TextContent.Trim() == "Empresa", "«Es de» ofrece «Empresa», no «Empresa gestionada»"));
+        cut.Markup.Should().NotContain("Empresa gestionada");
     }
 
     private static async Task SubirAsync(IRenderedComponent<DividirPdf> cut)
@@ -301,7 +383,7 @@ public sealed class DividirPdfPantallaTests : BunitContext
 
         cut.Find("button.tijera[aria-label='Quitar la división tras la página 3']").Click();
         cut.WaitForAssertion(() => cut.FindAll("button.tijera-sugerida").Should().HaveCount(1));
-        Pulsar(cut, "Asignar documentos");
+        Pulsar(cut, "Guardar en TALVEG");
         PonerEmision(cut);
 
         Pulsar(cut, "Volver a dividir");
@@ -309,7 +391,7 @@ public sealed class DividirPdfPantallaTests : BunitContext
         cut.WaitForAssertion(() => cut.FindAll("button.tijera-sugerida").Should().HaveCount(1, "el corte retirado sigue retirado"));
         cut.Find("button.tijera[aria-label='Dividir tras la página 3']").Should().NotBeNull();
 
-        Pulsar(cut, "Asignar documentos");
+        Pulsar(cut, "Guardar en TALVEG");
 
         cut.WaitForAssertion(() => cut.FindAll("input[placeholder=\"dd/mm/aaaa\"]")[0].GetAttribute("value").Should().Be("15/01/2026"));
     }
@@ -321,7 +403,7 @@ public sealed class DividirPdfPantallaTests : BunitContext
         cut.WaitForAssertion(() => cut.FindAll(".zona-soltar-archivo").Should().ContainSingle());
         await SubirAsync(cut);
         cut.Find("button.tijera[aria-label='Quitar la división tras la página 3']").Click();
-        Pulsar(cut, "Asignar documentos");
+        Pulsar(cut, "Guardar en TALVEG");
 
         PonerEmision(cut);
         Pulsar(cut, "Siguiente documento");
@@ -346,7 +428,7 @@ public sealed class DividirPdfPantallaTests : BunitContext
         var cut = Renderizar();
         cut.WaitForAssertion(() => cut.FindAll(".zona-soltar-archivo").Should().ContainSingle());
         await SubirAsync(cut);
-        Pulsar(cut, "Asignar documentos");
+        Pulsar(cut, "Guardar en TALVEG");
         cut.WaitForAssertion(() => cut.FindAll(".marca-omitir input").Should().NotBeEmpty());
         cut.Find(".marca-omitir input").Change(true);
         Pulsar(cut, "Siguiente documento");
@@ -364,7 +446,7 @@ public sealed class DividirPdfPantallaTests : BunitContext
         var cut = Renderizar();
         cut.WaitForAssertion(() => cut.FindAll(".zona-soltar-archivo").Should().ContainSingle());
         await SubirAsync(cut);
-        Pulsar(cut, "Asignar documentos");
+        Pulsar(cut, "Guardar en TALVEG");
         Pulsar(cut, "Siguiente documento");
         Pulsar(cut, "Siguiente documento");
         Pulsar(cut, "Revisar y crear");
@@ -380,7 +462,7 @@ public sealed class DividirPdfPantallaTests : BunitContext
         var cut = Renderizar();
         cut.WaitForAssertion(() => cut.FindAll(".zona-soltar-archivo").Should().ContainSingle());
         await SubirAsync(cut);
-        Pulsar(cut, "Asignar documentos");
+        Pulsar(cut, "Guardar en TALVEG");
         Pulsar(cut, "Siguiente documento");
         Pulsar(cut, "Siguiente documento");
 
