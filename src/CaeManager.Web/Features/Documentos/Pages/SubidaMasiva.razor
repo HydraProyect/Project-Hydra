@@ -46,11 +46,13 @@
     }
     else
     {
-        <section class="@(_items.Count > 0 ? "zona-subida-masiva zona-subida-masiva-con-lote" : "zona-subida-masiva")" aria-label="@Textos["ZonaEtiqueta"]">
-            <span class="icono-zona-subida-masiva"><Icono Nombre="adjunto" Tamano="TamanoIcono.Grande" /></span>
-            <h2>@Textos["ZonaTitulo"]</h2>
-            <p>@Textos["IndicacionLimites", MaximoArchivosPorLote, LimitesArchivoSubido.TamanoMaximoMb]</p>
-            <ZonaSoltarArchivo Titulo="@Textos["ZonaEtiqueta"]" OnChange="ManejarArchivosSeleccionadosAsync" Multiple="true" Accept=".pdf,.jpg,.jpeg,.png,.docx,.zip" FormatosTexto="@Textos["ZonaFormatos"]" Cargando="@(_procesandoLote || HayArchivosEnCurso)" />
+        @* Una sola zona de subida: la compartida, con el título y el límite propios de la subida
+           múltiple. Esta sección ya no pinta marco, icono, título ni formatos: eso era una segunda
+           zona discontinua alrededor de la primera y repetía los formatos. *@
+        <section class="zona-subida-masiva" aria-label="@Textos["ZonaEtiqueta"]">
+            <ZonaSoltarArchivo Titulo="@Textos["ZonaTitulo"]" OnChange="ManejarArchivosSeleccionadosAsync" Multiple="true" Accept=".pdf,.jpg,.jpeg,.png,.docx,.zip"
+                               FormatosTexto="@Textos["IndicacionLimites", MaximoArchivosPorLote, LimitesArchivoSubido.TamanoMaximoMb]"
+                               TamanoMaximoBytes="LimitesArchivoSubido.TamanoMaximoBytes" Cargando="@(_procesandoLote || HayArchivosEnCurso)" />
             <span class="aviso-memoria-subida"><span class="indicador-sistema" aria-hidden="true"></span>@Textos["ZonaAviso"]</span>
         </section>
     }

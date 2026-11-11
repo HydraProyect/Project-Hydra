@@ -110,6 +110,33 @@ public partial class DrawerGestionDocumento : ComponentBase
     /// </summary>
     private bool _archivoNoAdjuntado;
 
+    /// <summary>
+    /// Los archivos de la última subida que sí se adjuntó (nombre y tamaño de lo que eligió el
+    /// Gestor CAE; varios se combinaron en un PDF). Solo se enseñan mientras
+    /// <see cref="_archivoUrlSubidoSinAdoptar"/> apunte a esa subida.
+    /// </summary>
+    private IReadOnlyList<ArchivoAdjuntoVista> _archivosElegidos = [];
+
+    /// <summary>
+    /// Lo que la zona de subida enseña como adjunto: null (zona vacía) si no hay archivo o el
+    /// último elegido no se adjuntó; la lista de lo subido en esta sesión del formulario; o, al
+    /// editar sin elegir otro, el archivo que el Documento ya tenía.
+    /// </summary>
+    private IReadOnlyList<ArchivoAdjuntoVista>? ArchivosAdjuntosVista
+    {
+        get
+        {
+            if (_archivoUrl is null || _archivoNoAdjuntado) return null;
+            if (_archivoUrlSubidoSinAdoptar is not null && _archivosElegidos.Count > 0) return _archivosElegidos;
+            return [new ArchivoAdjuntoVista(TextosDrawerGestionDocumento.Texto("ArchivoActualDelDocumento"), null, "PDF")];
+        }
+    }
+
+    private string? AvisoCombinacionArchivos =>
+        _archivoUrlSubidoSinAdoptar is not null && _archivosElegidos.Count > 1 && ArchivosAdjuntosVista is not null
+            ? string.Format(System.Globalization.CultureInfo.CurrentCulture, TextosDrawerGestionDocumento.Texto("ArchivosCombinados"), _archivosElegidos.Count)
+            : null;
+
     private bool _subiendoArchivo;
     private bool _detectandoCampos;
     private string? _aliasSugerido;
@@ -198,6 +225,7 @@ public partial class DrawerGestionDocumento : ComponentBase
         _archivoUrl = null;
         _archivoUrlDelDocumento = null;
         _archivoNoAdjuntado = false;
+        _archivosElegidos = [];
         _comentarios = string.Empty;
         _glosarioDescripcion = null;
         _glosarioCriteriosValidacion = null;
@@ -428,6 +456,7 @@ public partial class DrawerGestionDocumento : ComponentBase
         _archivoUrl = documento.ArchivoUrl;
         _archivoUrlDelDocumento = documento.ArchivoUrl;
         _archivoNoAdjuntado = false;
+        _archivosElegidos = [];
         _comentarios = documento.Comentarios ?? string.Empty;
         _glosarioDescripcion = documento.TipoDocumentoDescripcion;
         _glosarioCriteriosValidacion = documento.TipoDocumentoCriteriosValidacion;
@@ -694,6 +723,7 @@ public partial class DrawerGestionDocumento : ComponentBase
             using var flujoPdf = new MemoryStream(pdfUnificado);
             _archivoUrl = await AlmacenamientoArchivos.GuardarAsync(flujoPdf, "documento.pdf");
             _archivoUrlSubidoSinAdoptar = _archivoUrl;
+            _archivosElegidos = archivos.Select(archivo => new ArchivoAdjuntoVista(archivo.Name, archivo.Size)).ToList();
             QuitarBloqueoArchivoNoAdjuntado();
             if (_editandoId is not null)
             {
@@ -939,7 +969,19 @@ public partial class DrawerGestionDocumento : ComponentBase
         // va a adoptar ya: si no se borra aquí, guardar lo dejaría huérfano.
         await DescartarArchivoSinAdoptarAsync();
         _archivoUrl = _archivoUrlDelDocumento;
+        _archivosElegidos = [];
         QuitarBloqueoArchivoNoAdjuntado();
+    }
+
+    /// <summary>
+    /// «Quitar» de la zona de subida: mismo efecto que «seguir sin archivo» tras un fallo, pero
+    /// pedido a propósito sobre un archivo que sí se adjuntó. Con un guardado o una subida en
+    /// curso no se toca nada (la zona ya los deshabilita).
+    /// </summary>
+    private async Task QuitarArchivoAdjuntoAsync()
+    {
+        if (_guardando || _subiendoArchivo) return;
+        await DescartarArchivoNoAdjuntadoAsync();
     }
 
     private async Task GuardarInternoAsync()

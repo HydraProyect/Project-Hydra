@@ -64,10 +64,29 @@ public sealed class SubidaMasivaGen2Tests : BunitContext
 
         cut.FindAll(".miga-subida-masiva").Should().ContainSingle();
         cut.FindAll(".zona-subida-masiva").Should().ContainSingle();
-        cut.FindAll(".zona-subida-masiva h2").Should().ContainSingle().Which.TextContent.Should().Be("Arrastra aquí los documentos de trabajador");
-        cut.Find(".zona-subida-masiva p").TextContent.Should().Be("PDF · JPG · PNG · DOCX · ZIP — hasta 60 archivos, 10 MB cada uno",
+        cut.Find(".zona-soltar-archivo-titulo").TextContent.Should().Be("Arrastra aquí los documentos de trabajador");
+        cut.Find(".zona-soltar-archivo-formatos").TextContent.Should().Be("PDF · JPG · PNG · DOCX · ZIP — hasta 60 archivos, 10 MB cada uno",
             "la indicación sale del recurso con los límites que de verdad se aplican");
         cut.FindAll("a.enlace-exportar").Select(a => a.TextContent.Trim()).Should().HaveCount(2).And.Contain("Importar desde Excel").And.Contain("Revisión IA →");
+    }
+
+    /// <summary>
+    /// Defecto de Chris (11-11): la página pintaba una zona discontinua grande («Arrastra aquí…», con
+    /// sus formatos) y, dentro, la zona compartida («Seleccionar archivos · o busca archivos»),
+    /// con los formatos repetidos. Tiene que haber una sola zona de subida.
+    /// </summary>
+    [Fact]
+    public void La_pagina_tiene_una_sola_zona_de_subida_sin_marco_exterior_ni_formatos_repetidos()
+    {
+        var cut = Render<SubidaMasiva>();
+
+        cut.FindAll(".zona-soltar-archivo").Should().ContainSingle("la única zona es el componente compartido");
+        cut.FindAll("input[type=file]").Should().ContainSingle();
+        cut.FindAll(".zona-subida-masiva h2, .icono-zona-subida-masiva").Should().BeEmpty("el marco exterior con su propio título e icono ya no existe");
+        cut.Markup.Split("PDF · JPG · PNG · DOCX · ZIP").Length.Should().Be(2, "los formatos salen una sola vez");
+        cut.Markup.Split("Seleccionar archivos").Length.Should().Be(2, "solo la etiqueta accesible de la sección, no un segundo título");
+        cut.Markup.Should().Contain("Nada se guarda hasta que confirmas cada archivo.");
+        cut.Markup.Should().Contain("Ctrl");
     }
 
     [Fact]
