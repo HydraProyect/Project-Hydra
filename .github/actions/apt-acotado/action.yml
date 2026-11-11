@@ -54,12 +54,19 @@ runs:
 
         # Sin esto, apt espera 120 s por conexión y el cerrojo de dpkg de un
         # intento anterior haría fallar el siguiente en vez de esperar.
-        printf '%s\n' \
-          'Acquire::Retries "1";' \
-          'Acquire::http::Timeout "30";' \
-          'Acquire::https::Timeout "30";' \
-          'DPkg::Lock::Timeout "60";' \
-          | sudo tee /etc/apt/apt.conf.d/99-ci-apt-acotado > /dev/null
+        # Con un espejo de reserva de terceros, Acquire::Retries baja a 0: el
+        # CVE-2026-109518 (ver el Dockerfile) deja colar un paquete no verificado
+        # en un reintento de descarga desde un espejo malicioso. Los tres intentos
+        # de abajo ya cubren los fallos de red.
+        escribir_conf_apt() {
+          printf '%s\n' \
+            "Acquire::Retries \"$1\";" \
+            'Acquire::http::Timeout "30";' \
+            'Acquire::https::Timeout "30";' \
+            'DPkg::Lock::Timeout "60";' \
+            | sudo tee /etc/apt/apt.conf.d/99-ci-apt-acotado > /dev/null
+        }
+        escribir_conf_apt 1
 
         # Apunta cada URI de Ubuntu de las fuentes deb822 (el mirror+file de
         # Azure, archive, security o un espejo elegido antes, todos acabados en
@@ -76,12 +83,15 @@ runs:
           if base="$(bash "$GITHUB_ACTION_PATH/elegir-espejo.sh" "$VERSION_CODENAME")"; then
             case "$base" in
               https://archive.ubuntu.com/*)
+                escribir_conf_apt 1
                 echo "::warning::apt usará archive.ubuntu.com directamente." ;;
               *)
+                escribir_conf_apt 0
                 echo "::warning::Ni Azure ni archive.ubuntu.com responden: apt usará el espejo de reserva ${base}" ;;
             esac
           else
             base=https://archive.ubuntu.com/ubuntu/
+            escribir_conf_apt 1
             echo "::warning::Ningún archivo de Ubuntu responde a la sonda: apt probará archive.ubuntu.com igualmente."
           fi
           apuntar_fuentes_a "$base"

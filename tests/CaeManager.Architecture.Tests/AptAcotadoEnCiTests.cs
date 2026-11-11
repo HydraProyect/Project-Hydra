@@ -112,7 +112,8 @@ public class AptAcotadoEnCiTests
             .ToList();
         var prohibido = new Regex(
             @"trusted\s*=\s*yes|Trusted:\s*yes|AllowInsecureRepositories|AllowDowngradeToInsecureRepositories|" +
-            @"allow-unauthenticated|AllowUnauthenticated|allow-insecure",
+            @"allow-unauthenticated|AllowUnauthenticated|allow-insecure|allow-weak|AllowWeak|--force-yes|" +
+            @"Verify-Peer\W+false|Verify-Host\W+false|Check-Valid-Until\W+(false|no)",
             RegexOptions.IgnoreCase | RegexOptions.Compiled);
 
         var hallazgos = ficheros
@@ -135,16 +136,28 @@ public class AptAcotadoEnCiTests
     public void El_espejo_de_la_imagen_va_vacio_por_defecto_y_solo_lo_pasa_la_sonda_del_ci()
     {
         var raiz = RaizDelRepositorio();
-        var dockerfile = File.ReadAllLines(Path.Combine(raiz, "Dockerfile"));
-        var ci = File.ReadAllText(Path.Combine(raiz, ".github", "workflows", "ci.yml"));
+        var dockerfile = LineasSinComentario(Path.Combine(raiz, "Dockerfile"));
+        var ci = LineasSinComentario(Path.Combine(raiz, ".github", "workflows", "ci.yml"));
+        var accion = LineasSinComentario(Path.Combine(raiz, ".github", "actions", "apt-acotado", "action.yml"));
+        var despliegue = File.ReadAllText(Path.Combine(raiz, ".github", "workflows", "deploy.yml"));
 
-        dockerfile.Select(l => l.Trim()).Should().Contain("ARG ESPEJO_UBUNTU=",
+        dockerfile.Should().Contain("ARG ESPEJO_UBUNTU=",
             "sin valor por defecto vacío, la imagen de producción dejaría de usar archive.ubuntu.com");
         ci.Should().Contain("build-args: ${{ steps.espejo-ubuntu.outputs.build-args }}",
             "el job de imagen tiene que pasar el espejo que eligió su sonda");
-        ci.Should().Contain("bash .github/actions/apt-acotado/elegir-espejo.sh",
+        ci.Should().Contain(l => l.Contains("bash .github/actions/apt-acotado/elegir-espejo.sh", StringComparison.Ordinal),
             "la sonda de la imagen usa la misma lista de espejos que apt-acotado");
+        accion.Should().Contain(l => l.Contains("bash \"$GITHUB_ACTION_PATH/elegir-espejo.sh\"", StringComparison.Ordinal),
+            "apt-acotado tiene que invocar la sonda de espejos, no solo nombrarla en un comentario");
+        despliegue.Should().NotContain("ESPEJO_UBUNTU",
+            "el despliegue construye con las fuentes de la base; pasarle un espejo es una decisión aparte");
     }
+
+    private static List<string> LineasSinComentario(string ruta) =>
+        File.ReadAllLines(ruta)
+            .Select(l => l.Trim())
+            .Where(l => !l.StartsWith('#'))
+            .ToList();
 
     private static IEnumerable<string> PasoDe(string[] lineas, int indice)
     {

@@ -1252,11 +1252,11 @@ jobs:
 
       # Desde el 2026-11-11 hay runners que no resuelven *.ubuntu.com y el
       # apt-get del Dockerfile falla con «Could not resolve 'archive.ubuntu.com'».
-      # Se sondea desde el runner, con el codename de la etapa final del
-      # Dockerfile, la misma lista de apt-acotado (elegir-espejo.sh). Si
-      # archive.ubuntu.com responde, no se pasa ningún build-arg y la imagen se
-      # construye igual que en deploy.yml. Si no, se pasa ESPEJO_UBUNTU con el
-      # primer espejo oficial de reserva que responda (ver el Dockerfile).
+      # Se sondean desde el runner, con el codename de la etapa final del
+      # Dockerfile, las dos fuentes http que trae esa base (archive y security).
+      # Si responden, no se pasa ningún build-arg y la imagen se construye igual
+      # que en deploy.yml. Si no, se pasa ESPEJO_UBUNTU con el primer espejo
+      # oficial de reserva de apt-acotado (elegir-espejo.sh) que responda.
       - name: Elegir el archivo de Ubuntu para la imagen
         id: espejo-ubuntu
         run: |
@@ -1264,17 +1264,16 @@ jobs:
           base_final="$(sed -nE 's/^FROM[[:space:]]+([^[:space:]]+)[[:space:]]+AS[[:space:]]+final[[:space:]]*$/\1/p' Dockerfile)"
           [ -n "$base_final" ] || { echo "::error::No encuentro la etapa «final» del Dockerfile."; exit 1; }
           codename="$(docker run --rm --entrypoint sh "$base_final" -c '. /etc/os-release && echo "$VERSION_CODENAME"')"
-          if ! base="$(bash .github/actions/apt-acotado/elegir-espejo.sh "$codename")"; then
+          if curl -fsS --max-time 10 -o /dev/null "http://archive.ubuntu.com/ubuntu/dists/${codename}/InRelease" \
+            && curl -fsS --max-time 10 -o /dev/null "http://security.ubuntu.com/ubuntu/dists/${codename}-security/InRelease"; then
+            echo "build-args=" >> "$GITHUB_OUTPUT"
+          elif base="$(bash .github/actions/apt-acotado/elegir-espejo.sh "$codename" solo-reserva)"; then
+            echo "::warning::*.ubuntu.com no responde desde el runner: la imagen (${codename}) se construye con el espejo de reserva ${base}"
+            echo "build-args=ESPEJO_UBUNTU=${base}" >> "$GITHUB_OUTPUT"
+          else
             echo "::warning::Ningún archivo de Ubuntu responde a la sonda para ${codename}: la imagen se construye con las fuentes de su base."
-            base=""
+            echo "build-args=" >> "$GITHUB_OUTPUT"
           fi
-          case "$base" in
-            ""|https://archive.ubuntu.com/*)
-              echo "build-args=" >> "$GITHUB_OUTPUT" ;;
-            *)
-              echo "::warning::archive.ubuntu.com no responde desde el runner: la imagen (${codename}) se construye con el espejo de reserva ${base}"
-              echo "build-args=ESPEJO_UBUNTU=${base}" >> "$GITHUB_OUTPUT" ;;
-          esac
 
       # Reconstruye exactamente la imagen que se despliega en el VPS (mismo
       # Dockerfile, mismo -r linux-x64 --self-contained false de la Fase 22)

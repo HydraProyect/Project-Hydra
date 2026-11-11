@@ -3,7 +3,7 @@
 # runner para el codename dado, y termina con 0. Si ninguno responde, no
 # imprime nada y termina con 1.
 #
-# Uso: elegir-espejo.sh <codename>     (p. ej. noble, resolute)
+# Uso: elegir-espejo.sh <codename> [solo-reserva]     (p. ej. noble, resolute)
 #
 # Orden: archive.ubuntu.com y, detrás, espejos oficiales de Ubuntu alojados
 # fuera de ubuntu.com. Desde el 2026-11-11 hay runners de GitHub que no
@@ -20,7 +20,7 @@
 # dejaría la imagen o el runner sin las correcciones de seguridad.
 set -uo pipefail
 
-codename="${1:?Uso: elegir-espejo.sh <codename>}"
+codename="${1:?Uso: elegir-espejo.sh <codename> [solo-reserva]}"
 
 candidatos=(
   https://archive.ubuntu.com/ubuntu/
@@ -28,6 +28,13 @@ candidatos=(
   https://mirror.init7.net/ubuntu/
   https://mirrors.mit.edu/ubuntu/
 )
+
+# solo-reserva: quien llama ya sabe que *.ubuntu.com no le sirve (el job de la
+# imagen Docker, que sondea antes las fuentes http de la base) y solo quiere un
+# espejo de fuera de ubuntu.com.
+if [ "${2:-}" = solo-reserva ]; then
+  candidatos=("${candidatos[@]:1}")
+fi
 
 for base in "${candidatos[@]}"; do
   if curl -fsS --max-time 10 -o /dev/null "${base}dists/${codename}/InRelease" \

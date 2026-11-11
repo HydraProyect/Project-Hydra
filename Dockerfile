@@ -116,12 +116,13 @@ LABEL es.talveg.guarda-correo="1"
 # Se mantiene aunque una base futura traiga apt corregido: cuesta un fallo de red
 # más visible a cambio de no depender de qué versión de apt trae el digest.
 #
-# ESPEJO_UBUNTU: vacío por defecto, y así lo dejan deploy.yml, ci-deploy.sh y todo
-# despliegue: la imagen usa las fuentes de la base (archive y security.ubuntu.com).
-# Solo el job «Build de la imagen de despliegue» del CI lo rellena, y solo cuando
-# la sonda del runner (.github/actions/apt-acotado/elegir-espejo.sh) no alcanza
-# archive.ubuntu.com: entonces trae la base de un espejo oficial de Ubuntu fuera de
-# ubuntu.com y las dos estrofas (con security) pasan a él. Solo cambia la URL: cada
+# ESPEJO_UBUNTU: vacío por defecto, y así lo dejan deploy.yml, trivy-nocturno.yml,
+# ci-deploy.sh y todo despliegue: la imagen usa las fuentes de la base (archive y
+# security.ubuntu.com), y si el runner no resuelve ubuntu.com esos builds fallan igual
+# que antes. Solo el job «Build de la imagen de despliegue» del CI lo rellena, y solo
+# cuando la sonda del runner no alcanza esas fuentes: entonces trae la base de un
+# espejo oficial de Ubuntu fuera de ubuntu.com (.github/actions/apt-acotado/
+# elegir-espejo.sh) y las dos estrofas (con security) pasan a él. Solo cambia la URL: cada
 # estrofa conserva su Signed-By y apt verifica la firma de cada InRelease con las
 # claves de Ubuntu de la base. Un valor que no sea https://<host>/ubuntu/ aborta.
 ARG ESPEJO_UBUNTU=
