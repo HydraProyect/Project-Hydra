@@ -419,7 +419,7 @@
                     <RespuestaSugeridaPanel @ref="_panelSugerencia" @key="@($"sugerencia:{_detalle.Id}")"ConversacionId="_detalle.Id" PuedeSugerir="PuedeSugerirRespuesta"
                                             UltimoEntranteId="UltimoMensajeEntranteId" Version="_detalle.FechaUltimoMensajeUtc"
                                             TextoRedactor="@_textoRespuesta" EsWhatsApp="_detalle.Canal == CanalConversacion.WhatsApp"
-                                            OnInsertar="InsertarSugerenciaAsync" OnEstadoCambiado="() => StateHasChanged()" />
+                                            OnInsertar="InsertarSugerenciaAsync" OnDescartada="SugerenciaDescartadaAsync"OnEstadoCambiado="() => StateHasChanged()" />
 
                   <SoloConEscritura>
                     <RecordatorioPropuesto ConversacionId="_detalle.Id" Asunto="@_detalle.Asunto" Estado="_detalle.Estado"                                           FechaUltimoMensajeUtc="_detalle.FechaUltimoMensajeUtc" OnEnviado="CargarDetalleAsync" />

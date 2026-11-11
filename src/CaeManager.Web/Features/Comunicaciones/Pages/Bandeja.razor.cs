@@ -5,6 +5,7 @@ using CaeManager.Web.Features.Documentos.Recursos;
 using CaeManager.Application.Common;
 using CaeManager.Web.Features.Comunicaciones.Components;
 using CaeManager.Web.Features.Comunicaciones;
+using CaeManager.Application.Comunicaciones.Queries.ObtenerRespuestaSugerida;
 using CaeManager.Application.Clientes.Queries.ObtenerClientePorId;
 using CaeManager.Application.Clientes.Queries.ObtenerClientesParaSelector;
 using CaeManager.Application.Comunicaciones.Commands.ActualizarDocumentoDesdeAdjunto;
@@ -977,10 +978,25 @@ public partial class Bandeja : CaeManager.Web.Components.PaginaInteractiva, IAsy
         DirectorioUsuarios.ObtenerNombresVisiblesAsync(ids.ToList(), _ciclo.Token);
 
     /// <summary>«Insertar para revisar»: el texto va al redactor y no se envía nada. Si ya había algo, el panel ha preguntado antes.</summary>
-    private Task InsertarSugerenciaAsync(string texto)
+    private Task InsertarSugerenciaAsync(RespuestaSugeridaDto sugerencia)
     {
-        _textoRespuesta = texto;
+        // Una devolución tardía de otra conversación no escribe en el redactor de la que está abierta.
+        if (_detalle?.Id != sugerencia.ConversacionId) return Task.CompletedTask;
+
+        _textoRespuesta = sugerencia.Texto;
         _notaInternaActiva = false;
+        return Task.CompletedTask;
+    }
+
+    /// <summary>
+    /// Tras descartar, el redactor no se queda con el texto descartado: el servidor sigue bloqueando enviarlo y la persona
+    /// acabaría ante un rechazo de algo que acaba de descartar. Si ya lo editó más del umbral, es suyo y se respeta.
+    /// </summary>
+    private Task SugerenciaDescartadaAsync(RespuestaSugeridaDto sugerencia)
+    {
+        if (_detalle?.Id == sugerencia.ConversacionId && !RevisionRespuestaSugerida.EditadaLoSuficiente(_textoRespuesta, sugerencia.Texto))
+            _textoRespuesta = string.Empty;
+
         return Task.CompletedTask;
     }
 

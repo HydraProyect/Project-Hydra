@@ -10,6 +10,7 @@
 @using Microsoft.Extensions.Localization
 @inject IStringLocalizer<TextosNotaFijaContacto> Textos
 @inject IStringLocalizer<TextosNotasInternas> TextosNotas
+@inject NavigationManager Navegacion
 
 @if (Notas.Count > 0)
 {
@@ -21,7 +22,7 @@
         @foreach (var nota in Notas)
         {
             var autor = Autores.TryGetValue(nota.AutorUsuarioId, out var nombre) ? nombre : TextosNotas["AutorDesconocido"].Value;
-            <a class="notas-equipo-nota" href="@($"#{UnifiedTimeline.IdDeNota(nota.Id)}")" title="@Textos["IrANota"]">
+            <a class="notas-equipo-nota" href="@EnlaceANota(nota.Id)" title="@Textos["IrANota"]">
                 <span class="notas-equipo-meta">@autor · @Cuando(nota.FechaUtc)</span>
                 <span class="notas-equipo-texto">@nota.Texto</span>
             </a>
@@ -33,6 +34,17 @@
     [Parameter] public IReadOnlyList<NotaInternaDetalleDto> Notas { get; set; } = [];
 
     [Parameter] public IReadOnlyDictionary<Guid, string> Autores { get; set; } = new Dictionary<Guid, string>();
+
+    /// <summary>
+    /// Con <c>&lt;base href="/"&gt;</c>, un enlace de solo fragmento se resuelve contra la raíz y Blazor lo trataría como
+    /// salir de la pantalla. Se ancla a la URL actual (sin su fragmento) para que sea un desplazamiento dentro de ella.
+    /// </summary>
+    private string EnlaceANota(Guid notaId)
+    {
+        var uri = Navegacion.Uri;
+        var almohadilla = uri.IndexOf('#');
+        return $"{(almohadilla >= 0 ? uri[..almohadilla] : uri)}#{UnifiedTimeline.IdDeNota(notaId)}";
+    }
 
     private static string Cuando(DateTime fechaUtc)
     {

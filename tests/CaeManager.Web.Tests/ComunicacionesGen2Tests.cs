@@ -473,6 +473,22 @@ public class ComunicacionesGen2Tests : BunitContext
     }
 
     [Fact]
+    public async Task Descartar_una_sugerencia_sin_revisar_vacia_el_redactor_y_no_deja_enviar_su_texto()
+    {
+        var (escenario, _) = EscenarioConSugerencia();
+        var (cut, mediador) = Renderizar(escenario);
+        await SeleccionarFila(cut, "Documentación pendiente");
+        cut.WaitForAssertion(() => cut.FindAll(".rs-bloque").Should().ContainSingle());
+        await Boton(cut, ".rs-bloque button", "Insertar para revisar").ClickAsync(new MouseEventArgs());
+
+        await Boton(cut, ".rs-sinrevisar button", "Descartar").ClickAsync(new MouseEventArgs());
+
+        escenario.AccionesSobreSugerencia.Should().Equal(AccionRespuestaSugerida.Insertar, AccionRespuestaSugerida.Descartar);
+        EnviarDeshabilitado(cut).Should().BeTrue("el redactor ya no tiene el texto descartado, que el servidor seguiría rechazando");
+        mediador.Enviados.OfType<ResponderConversacionCommand>().Should().BeEmpty();
+    }
+
+    [Fact]
     public async Task Cambiar_una_letra_de_la_sugerencia_no_basta_para_enviarla()
     {
         var (escenario, _) = EscenarioConSugerencia();
@@ -635,7 +651,8 @@ public class ComunicacionesGen2Tests : BunitContext
         cut.WaitForAssertion(() => cut.FindAll(".notas-equipo").Should().ContainSingle());
         var enlace = cut.Find(".notas-equipo a.notas-equipo-nota");
         enlace.TextContent.Should().Contain("Pedir el TC2 antes del viernes.");
-        enlace.GetAttribute("href").Should().Be($"#nota-interna-{nota.Id}");
+        enlace.GetAttribute("href").Should().EndWith($"/comunicaciones#nota-interna-{nota.Id}",
+            "con <base href=\"/\"> un enlace de solo fragmento saldría de la pantalla: se ancla a la URL actual");
         cut.FindAll($"#nota-interna-{nota.Id}").Should().ContainSingle("el enlace apunta a una fila real del hilo");
     }
 

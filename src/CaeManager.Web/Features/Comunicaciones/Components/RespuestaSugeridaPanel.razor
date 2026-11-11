@@ -30,7 +30,7 @@
             @if (string.IsNullOrWhiteSpace(TextoRedactor))
             {
                 <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" Deshabilitado="_resolviendo"
-                       OnClick="() => OnInsertar.InvokeAsync(sinRevisar.Texto)">@Textos["PonerEnRedactor"]</Boton>
+                       OnClick="() => OnInsertar.InvokeAsync(sinRevisar)">@Textos["PonerEnRedactor"]</Boton>
             }
             <Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno" Cargando="_resolviendo"
                    OnClick="() => ResolverAsync(AccionRespuestaSugerida.Confirmar)">@Textos["LoHeRevisado"]</Boton>
@@ -133,7 +133,10 @@ else if (_cargado && PuedeSugerir && _puedeEscribir)
     [Parameter] public string TextoRedactor { get; set; } = string.Empty;
 
     /// <summary>La página pone el texto de la sugerencia en el redactor. Esto no envía nada.</summary>
-    [Parameter] public EventCallback<string> OnInsertar { get; set; }
+    [Parameter] public EventCallback<RespuestaSugeridaDto> OnInsertar { get; set; }
+
+    /// <summary>Se descartó una sugerencia: si el redactor aún tiene su texto, la página lo vacía (el servidor sigue bloqueando ese texto).</summary>
+    [Parameter] public EventCallback<RespuestaSugeridaDto> OnDescartada { get; set; }
 
     /// <summary>Cambia el estado de la sugerencia (insertada, revisada, descartada): la página reevalúa si Enviar se ofrece.</summary>
     [Parameter] public EventCallback OnEstadoCambiado { get; set; }
@@ -275,7 +278,7 @@ else if (_cargado && PuedeSugerir && _puedeEscribir)
             _confirmaSustituir = false;
             // Primero el estado (sin revisar) y después el texto: así la página ya bloquea Enviar cuando pinta el redactor.
             await CargarAsync(ConversacionId);
-            await OnInsertar.InvokeAsync(sugerencia.Texto);
+            await OnInsertar.InvokeAsync(sugerencia);
         }
         catch (Exception ex)
         {
@@ -304,7 +307,10 @@ else if (_cargado && PuedeSugerir && _puedeEscribir)
             }
 
             if (accion == AccionRespuestaSugerida.Descartar)
+            {
                 ToastService.Mostrar(Textos["ToastDescartada"].Value, TonoToast.Exito);
+                await OnDescartada.InvokeAsync(sugerencia);
+            }
 
             await CargarAsync(ConversacionId);
         }
