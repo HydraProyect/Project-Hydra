@@ -33,11 +33,7 @@ public sealed class DestinatarioSolicitudDemo
 
         if (!ValidadorSolicitudDemo.CorreoValido(valor))
         {
-            logger.LogWarning(
-                "El ajuste {Clave} no es una dirección de correo válida; las solicitudes de demo van a la dirección de reserva. " +
-                "Con la guarda {Guarda} en SoloPermitidos, la de reserva tiene que estar también en la lista.",
-                ClaveConfiguracion,
-                "EnvioCorreo__Modo");
+            logger.LogWarning("El ajuste {Clave} no es una dirección de correo válida; las solicitudes de demo van a la dirección de reserva. Con {Guarda}=SoloPermitidos, la de reserva tiene que estar también en la lista.", ClaveConfiguracion, "EnvioCorreo__Modo");
             return new DestinatarioSolicitudDemo(DireccionPorDefecto);
         }
 
