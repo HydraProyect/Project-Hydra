@@ -21,9 +21,10 @@ namespace CaeManager.Application.Centros.Commands.EstablecerRelacionDeEntradaCen
 /// error no nombra el ancla ni a X, pero el rechazo en sí sigue distinguiéndose del éxito que tendría el mismo
 /// comando sin ancla: es un oráculo residual aceptado (DECISION_LOG, 2026-11-11, punto 11 a); quien no ve a X no
 /// pisa el ancla. Si la arista anclada ya se cerró, el ancla no da papel (punto 11 b) y el comando la trata como
-/// si no hubiera ancla, sin exigir ver a su X. Para que eso no abra otro oráculo, quitar responde igual y guarda
-/// igual con o sin ancla previa: <see cref="Centro.QuitarAnclaDeEntrada"/> renueva siempre la versión del Centro, de
-/// modo que leer la versión, quitar y releer no distingue un ancla cerrada de un Centro sin ancla. La arista se busca en el
+/// si no hubiera ancla, sin exigir ver a su X. Para que eso no abra otro oráculo, quitar responde y guarda igual con
+/// un ancla cerrada que sin ancla: <see cref="Centro.QuitarAnclaDeEntrada"/> renueva siempre la versión del Centro, de
+/// modo que leer la versión, quitar y releer no distingue esos dos casos (el ancla vigente con X no visible sigue en
+/// el oráculo residual de arriba). La arista se busca en el
 /// Tenant propietario actual (filtro global y RLS) y su cliente X tiene que estar entre los Clientes
 /// empresariales visibles de quien la fija: una arista de otro Tenant, inexistente o con X fuera de su cartera
 /// responde lo mismo, para no revelar cuál de las tres es. La FK compuesta con <c>TenantId</c> repite en la base
