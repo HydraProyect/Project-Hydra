@@ -95,7 +95,9 @@ public class LimpiezaSolicitudesAltaBajoRuntimeTests : IAsyncLifetime
     public async Task Un_CaducaEnUtc_adelantado_no_caduca_antes_de_los_7_dias_desde_la_creacion(string estado)
     {
         // app_alta_iniciar_solicitud admite un CaducaEnUtc posterior a la creación pero inferior a siete días.
-        var adelantada = await SembrarAsync(estado, edadHoras: 2 * 24, haceHorasDelUltimoCambio: 24, caducaEnHoras: -1);
+        // 100 h de edad y 97 h desde el último cambio: PendientePago ya cumplió sus 96 h, así que solo la regla de las 168 h
+        // desde la creación protege la fila en los cuatro estados.
+        var adelantada = await SembrarAsync(estado, edadHoras: 100, haceHorasDelUltimoCambio: 97, caducaEnHoras: -1);
         var antes = await LeerAsync(adelantada);
 
         (await CaducarAsync()).Should().Be(0, "el plazo de 7 días desde la creación está escrito en la función, no solo en CaducaEnUtc");
@@ -106,6 +108,9 @@ public class LimpiezaSolicitudesAltaBajoRuntimeTests : IAsyncLifetime
     // Una zona que cambia la hora dentro de los plazos desplazaría una hora los intervalos en días naturales (95 h o 97 h
     // en vez de 96, 719 h o 721 h en vez de 720, 167 h o 169 h en vez de 168): la prueba cubre varias zonas porque la
     // ventana en la que el cambio de hora cae dentro de los plazos depende de la fecha en la que corre.
+    // La sensibilidad es estacional: con los plazos de 96 h y 168 h solo detecta una regresión a días naturales en las
+    // semanas siguientes a un cambio de hora de alguna de estas zonas; fuera de ellas protegen los tests de texto de
+    // Architecture y el contrato de catálogo (TimeZone=UTC).
     [Theory]
     [InlineData("Europe/Madrid")]
     [InlineData("America/New_York")]
