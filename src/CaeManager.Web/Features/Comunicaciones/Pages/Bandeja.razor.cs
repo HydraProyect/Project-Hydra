@@ -832,6 +832,8 @@ public partial class Bandeja : CaeManager.Web.Components.PaginaInteractiva, IAsy
         if (_conversacionSeleccionadaId is not { } id) return;
 
         var carga = ++_cargaDetalleVigente;
+        var esRecarga = _detalle?.Id == id;
+        var clienteAntes = _detalle?.ClienteId;
         _cargandoDetalle = true;
         _errorDetalle = false;
         StateHasChanged();
@@ -922,7 +924,10 @@ public partial class Bandeja : CaeManager.Web.Components.PaginaInteractiva, IAsy
             // Si el detalle en memoria ES el de esta conversación (una recarga: un mensaje nuevo, un envío), se conserva con su
             // contexto: vaciarlo desmontaría el panel y destruiría el borrador de la nota fija sin pasar por la confirmación de
             // abandono (revisión Codex r1 de la #2167, MEDIO 2). El error se avisa igualmente con el toast.
-            if (_detalle?.Id != id)
+            // «Es de esta conversación» se mide ANTES de la carga (esRecarga): _detalle se asigna a mitad de ella, antes de las
+            // consultas del Cliente empresarial y los selectores, y a partir de ahí su Id ya es el de la conversación nueva aunque
+            // el contexto siga siendo el de la anterior (revisión puente del delta r1 de la #2167, MEDIO).
+            if (!esRecarga || _detalle?.ClienteId != clienteAntes)
             {
                 _detalle = null;
                 _clienteActivo = null;

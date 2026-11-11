@@ -483,7 +483,8 @@
       ],
       "contexto": "rótulos de la lista de conversaciones de Comunicaciones",
       "motivo": "Decisión del propietario del 2026-11-11 (E24, punto 13 del DECISION_LOG de ese día), posterior a la del 2026-10-09 y limitada a esta pantalla: el rótulo de la bandeja de Comunicaciones pasa de «Cliente» a «Cliente empresarial». Solo estas claves de la lista de conversaciones (la columna Empresa, el «Sin Cliente empresarial asignado» y el cierre de identificar al remitente); el resto de la interfaz sigue diciendo «Cliente». Los rótulos de espera (EsperandoCliente, EsperarClienteCierre y el estado EsperandoRespuestaExterna) nombran al Interlocutor, por decisión de Chris del 2026-11-11: valen para Inbound y Outbound, y por eso ya no están aquí. La excepción se limita a los ficheros de la lista porque el aplicador autoriza el producto de ficheros por claves."
-    },    {
+    },
+    {
       "id": "cliente-empresarial-en-la-pagina-de-la-bandeja",
       "prohibidos": [
         "cliente-empresarial-en-pantalla"

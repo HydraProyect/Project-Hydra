@@ -985,6 +985,31 @@ public class ComunicacionesGen2Tests : BunitContext
         cut.Find(".bandeja-centro").TextContent.Should().Contain("Segunda conversación");
     }
 
+    /// <summary>
+    /// Revisión puente del delta r1 de la #2167 (MEDIO): al abrir otra conversación, el detalle nuevo se asigna antes de las
+    /// consultas de su Cliente empresarial. Si una de ellas falla, el contexto de la conversación anterior no puede quedar bajo
+    /// el hilo nuevo (la ficha, los centros y los selectores serían de otra): solo una recarga del mismo hilo conserva su contexto.
+    /// </summary>
+    [Fact]
+    public async Task Si_falla_el_contexto_del_Cliente_de_la_conversacion_nueva_no_queda_el_de_la_anterior()
+    {
+        var escenario = new Escenario();
+        var primera = Conversacion("Primera conversación", ClienteRefrielectric);
+        var segunda = Conversacion("Segunda conversación", ClienteEbro);
+        escenario.Conversaciones.AddRange([primera, segunda]);
+        escenario.Detalle = id => DetalleDe(escenario.Conversaciones.Single(c => c.Id == id));
+        var (cut, _) = Renderizar(escenario);
+        await SeleccionarFila(cut, "Primera conversación");
+        cut.FindAll(".bandeja-cliente").Should().NotBeEmpty("control positivo: con la primera abierta hay columna de contexto");
+
+        escenario.Interceptar = p => p is ObtenerClientePorIdQuery q && q.Id == ClienteEbro.Id
+            ? Task.FromException<object?>(new InvalidOperationException("boom"))
+            : null;
+        await SeleccionarFila(cut, "Segunda conversación");
+
+        cut.Find(".bandeja-centro .estado-vacio h3").TextContent.Trim().Should().Be("No pudimos abrir la conversación");
+        cut.FindAll(".bandeja-cliente").Should().BeEmpty("el contexto del Cliente empresarial de la primera no puede quedar bajo la segunda");
+    }
     [Fact]
     public async Task El_filtro_de_estado_viaja_a_la_URL_al_elegirlo()
     {
