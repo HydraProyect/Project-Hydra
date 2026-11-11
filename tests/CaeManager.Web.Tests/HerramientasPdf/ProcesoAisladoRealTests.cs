@@ -125,10 +125,43 @@ public sealed class ProcesoAisladoRealTests
         YaNoExiste(_arrancados[0]).Should().BeTrue();
     }
 
-    /// <summary>Un proceso que no lee nada y tarda 60 s en acabar, en Windows y en Linux.</summary>
+    [Fact]
+    public async Task Un_proceso_que_escribe_de_mas_se_mata_sin_leer_el_resto()
+    {
+        var reloj = Stopwatch.StartNew();
+
+        var salida = await Lanzador().EjecutarAsync(ProcesoQueEscribeSinParar(), (_, _) => Task.CompletedTask,
+            TimeSpan.FromMinutes(5), 4096, CancellationToken.None);
+
+        salida.Desenlace.Should().Be(DesenlaceProcesoAislado.SalidaDemasiadoGrande);
+        reloj.Elapsed.Should().BeLessThan(TimeSpan.FromSeconds(8), "escribe sin parar: solo vuelve antes si se mata");
+        YaNoExiste(salida.IdProceso).Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task Quinientas_paginas_legitimas_se_unen_dentro_del_limite_por_defecto()
+    {
+        var unidor = Unidor(new OpcionesProcesoHerramientasPdf { RutaEnsamblado = Path.Combine(AppContext.BaseDirectory, "CaeManager.Web.dll") });
+        var doscientas = UnionSobrePdfRealTests.Pdf(Enumerable.Range(1, 200).Select(i => $"Pagina {i}").ToArray());
+        var trescientas = UnionSobrePdfRealTests.Pdf(Enumerable.Range(1, 300).Select(i => $"Hoja {i}").ToArray());
+
+        var unido = await unidor.UnirAsync([doscientas, trescientas], CancellationToken.None);
+
+        unido.Valor.NumeroPaginas.Should().Be(LimitesUnionPdf.MaximoPaginasTotales, unido.EsExitoso ? "" : unido.Error.Codigo);
+    }
+
+    /// <summary>
+    /// Un proceso que no escribe nada y tarda 60 s en acabar porque espera a un nieto, en Windows y en Linux: comprueba que
+    /// el plazo no depende de que el hijo escriba y que se mata el árbol (el nieto hereda la salida estándar; si siguiera
+    /// vivo, la lectura no terminaría).
+    /// </summary>
     private static ProcessStartInfo ProcesoQueEspera() => OperatingSystem.IsWindows()
-        ? new ProcessStartInfo("ping") { ArgumentList = { "-n", "60", "127.0.0.1" } }
-        : new ProcessStartInfo("sleep") { ArgumentList = { "60" } };
+        ? new ProcessStartInfo("cmd") { ArgumentList = { "/c", "ping -n 60 127.0.0.1 >NUL" } }
+        : new ProcessStartInfo("sh") { ArgumentList = { "-c", "sleep 60; true" } };
+
+    private static ProcessStartInfo ProcesoQueEscribeSinParar() => OperatingSystem.IsWindows()
+        ? new ProcessStartInfo("cmd") { ArgumentList = { "/c", "for /l %i in (0,0,1) do @echo xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx" } }
+        : new ProcessStartInfo("yes");
 
     private static bool YaNoExiste(int id)
     {

@@ -65,6 +65,7 @@ GlobalFontSettings.FontResolver = new EmbeddedFontResolver();
 // y termina, antes de leer configuración, conectar con la base de datos o configurar el registro.
 if (args is [CaeManager.Infrastructure.HerramientasPdf.ProcesoHerramientasPdf.Argumento])
 {
+    CaeManager.Infrastructure.HerramientasPdf.ProcesoHerramientasPdf.PreferirComoVictimaDeFaltaDeMemoria();
     using var entradaProcesoPdf = Console.OpenStandardInput();
     using var salidaProcesoPdf = Console.OpenStandardOutput();
     Environment.Exit(CaeManager.Infrastructure.HerramientasPdf.ProcesoHerramientasPdf.Ejecutar(entradaProcesoPdf, salidaProcesoPdf));

@@ -62,6 +62,10 @@ public sealed class LanzadorProcesoAislado(ILogger<LanzadorProcesoAislado> logge
         var errores = proceso.StandardError.BaseStream.CopyToAsync(Stream.Null, CancellationToken.None);
 
         using var plazo = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        // Al vencer el plazo o cancelar el llamante se mata el árbol en el acto, sin esperar a que la lectura vea el token:
+        // una lectura ya bloqueada en la tubería no siempre se interrumpe, y un hijo que gira sin escribir la dejaría
+        // esperando. Con el hijo muerto la tubería se cierra y la lectura vuelve.
+        using var matarAlVencer = plazo.Token.Register(() => MatarArbolSinEsperar(proceso));
         plazo.CancelAfter(tiempoMaximo);
         var escritura = EscribirAsync(proceso.StandardInput.BaseStream, escribirEntrada, plazo.Token);
 
@@ -72,6 +76,8 @@ public sealed class LanzadorProcesoAislado(ILogger<LanzadorProcesoAislado> logge
                 return new SalidaProcesoAislado(DesenlaceProcesoAislado.SalidaDemasiadoGrande, null, ReadOnlyMemory<byte>.Empty, id);
 
             await proceso.WaitForExitAsync(plazo.Token);
+            // La lectura pudo volver porque el plazo mató al hijo justo antes: eso no es terminar solo.
+            plazo.Token.ThrowIfCancellationRequested();
             return new SalidaProcesoAislado(DesenlaceProcesoAislado.Terminado, proceso.ExitCode, salida.Value, id);
         }
         catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
@@ -125,6 +131,19 @@ public sealed class LanzadorProcesoAislado(ILogger<LanzadorProcesoAislado> logge
 
         // Sin copiar: el búfer queda vivo mientras lo retenga quien lea la respuesta.
         return new ReadOnlyMemory<byte>(leido.GetBuffer(), 0, (int)leido.Length);
+    }
+
+    private static void MatarArbolSinEsperar(Process proceso)
+    {
+        try
+        {
+            if (!proceso.HasExited)
+                proceso.Kill(entireProcessTree: true);
+        }
+        catch (Exception)
+        {
+            // Lo reintenta y lo registra MatarArbolAsync en el finally.
+        }
     }
 
     private async Task MatarArbolAsync(Process proceso)
