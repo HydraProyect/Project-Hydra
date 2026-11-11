@@ -58,7 +58,10 @@ public class CrearAsignacionesCommandValidator : AbstractValidator<CrearAsignaci
 public class CrearAsignacionesCommandHandler(
     IAsignacionRepository repositorio, IAsignacionesQueryContext asignacionesContext,
     IAutoridadAsignacionesService autoridad, IAltaAcreditacionesPlataformaService altaAcreditaciones,
-    IUnitOfWork unitOfWork, ISerializacionAltasAcreditacionEmpresa serializacionAltas)
+    IUnitOfWork unitOfWork, ISerializacionAltasAcreditacionEmpresa serializacionAltas,
+    // Opcional solo mientras la PR #2104 cambia los tests que construyen este handler: el contenedor siempre lo resuelve
+    // (InvalidadorAlcanceInerte por defecto, el AlcanceDatosService del circuito en la Web). Issue #2118.
+    IInvalidadorAlcance? invalidadorAlcance = null)
     : IRequestHandler<CrearAsignacionesCommand, Result<ResultadoAsignacionLoteDto>>
 {
     public async Task<Result<ResultadoAsignacionLoteDto>> Handle(CrearAsignacionesCommand request, CancellationToken cancellationToken)
@@ -82,15 +85,6 @@ public class CrearAsignacionesCommandHandler(
         var centroIdsValidos = await autoridad.FiltrarCentrosConAutoridadAsync(
             centroIdsSolicitados, cancellationToken);
 
-        var errores = new List<string>();
-        var trabajadoresFaltantes = trabajadorIdsSolicitados.Count - trabajadorIdsValidos.Count;
-        if (trabajadoresFaltantes > 0)
-            errores.Add($"{trabajadoresFaltantes} trabajador(es) ya no existían.");
-
-        var centrosFaltantes = centroIdsSolicitados.Count - centroIdsValidos.Count;
-        if (centrosFaltantes > 0)
-            errores.Add($"{centrosFaltantes} centro(s) ya no existían.");
-
         var creadas = 0;
         var yaActivas = 0;
         var solapadas = 0;
@@ -107,6 +101,17 @@ public class CrearAsignacionesCommandHandler(
         {
             var guardado = await serializacionAltas.EjecutarAsync(async ct =>
             {
+                // La autoridad (Asignación de Cartera) se vuelve a filtrar bajo el candado: pudo revocarse mientras se
+                // esperaba, y el alcance memoizado (en Blazor Server, el del circuito) es de antes; se descarta, igual
+                // que en BloqueoRespuestaSugerida.ComprobarEnvioPorBuzonAsync (issue #2118). Lo que sale aquí cuenta
+                // como lo que se descartó fuera.
+                invalidadorAlcance?.Invalidar();
+                trabajadorIdsValidos = await autoridad.FiltrarTrabajadoresConAutoridadAsync(trabajadorIdsValidos, ct);
+                centroIdsValidos = await autoridad.FiltrarCentrosConAutoridadAsync(centroIdsValidos, ct);
+                (creadas, yaActivas, solapadas) = (0, 0, 0);
+                if (trabajadorIdsValidos.Count == 0 || centroIdsValidos.Count == 0)
+                    return Result.Exito();
+
                 List<Asignacion> asignacionesNuevas;
                 (asignacionesNuevas, creadas, yaActivas, solapadas) =
                     await PlanificarAsync(request, trabajadorIdsValidos, centroIdsValidos, ct);
@@ -122,6 +127,15 @@ public class CrearAsignacionesCommandHandler(
             if (guardado.EsFallido)
                 return Result.Fallo<ResultadoAsignacionLoteDto>(guardado.Error);
         }
+
+        var errores = new List<string>();
+        var trabajadoresFaltantes = trabajadorIdsSolicitados.Count - trabajadorIdsValidos.Count;
+        if (trabajadoresFaltantes > 0)
+            errores.Add($"{trabajadoresFaltantes} trabajador(es) ya no existían.");
+
+        var centrosFaltantes = centroIdsSolicitados.Count - centroIdsValidos.Count;
+        if (centrosFaltantes > 0)
+            errores.Add($"{centrosFaltantes} centro(s) ya no existían.");
 
         if (solapadas > 0)
             errores.Add(
