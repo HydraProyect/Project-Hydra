@@ -1,7 +1,7 @@
 name: Apt acotado
 description: >
   Ejecuta un comando que usa apt con tiempo limitado, reintentos y sin depender
-  del espejo de Azure cuando este no responde.
+  del espejo de Azure ni de *.ubuntu.com cuando no responden.
 
 # Por qué existe: la imagen ubuntu-24.04 de GitHub declara sus fuentes como
 # `mirror+file:/etc/apt/apt-mirrors.txt`, con azure.archive.ubuntu.com delante.
@@ -12,7 +12,18 @@ description: >
 # Reproducido bloqueando ese espejo con iptables en un runner: `apt-get update`
 # seguía parado a los 300 s; con archive.ubuntu.com directo, instalar tardó 28 s.
 #
-# Cada comando con apt del CI pasa por aquí: AptAcotadoEnCiTests lo exige.
+# Desde el 2026-11-11 hay runners que no resuelven ningún nombre de ubuntu.com
+# («Temporary failure resolving 'archive.ubuntu.com'») y sí NuGet y npm: pasar a
+# archive.ubuntu.com ya no basta. Si Azure no responde, elegir-espejo.sh sondea
+# archive.ubuntu.com y, detrás, espejos oficiales de Ubuntu fuera de ubuntu.com,
+# y todas las fuentes de Ubuntu (incluido el pocket de security) pasan al primero
+# que responda. Solo cambia la URL: cada estrofa conserva su Signed-By y apt sigue
+# verificando la firma de cada InRelease con las claves de Ubuntu de la imagen.
+# Nunca trusted=yes ni verificación desactivada: AptAcotadoEnCiTests lo vigila.
+#
+# Cada comando con apt del CI pasa por aquí: AptAcotadoEnCiTests lo exige. Los
+# que llaman a apt por dentro (`playwright install --with-deps`) heredan las
+# fuentes ya reescritas, porque el comando corre después de elegir el archivo.
 # El sondeo evita el cuelgue conocido; el límite por intento cubre el resto.
 
 inputs:
@@ -50,8 +61,30 @@ runs:
           'DPkg::Lock::Timeout "60";' \
           | sudo tee /etc/apt/apt.conf.d/99-ci-apt-acotado > /dev/null
 
+        # Apunta cada URI de Ubuntu de las fuentes deb822 (el mirror+file de
+        # Azure, archive, security o un espejo elegido antes, todos acabados en
+        # /ubuntu) a una sola base. No toca Signed-By ni añade opciones.
+        apuntar_fuentes_a() {
+          sudo sed -E -i "/^URIs:/ s#[^[:space:]]+(apt-mirrors\.txt|/ubuntu/?)([[:space:]]|\$)#${1}\2#g" "$fuentes"
+          grep '^URIs:' "$fuentes"
+        }
+
+        # Fuera de Azure: archive.ubuntu.com o, si tampoco responde, el primer
+        # espejo oficial de reserva que responda (elegir-espejo.sh).
         usar_archivo_directo() {
-          sudo sed -i 's|mirror+file:/etc/apt/apt-mirrors.txt|https://archive.ubuntu.com/ubuntu/|' "$fuentes"
+          local base
+          if base="$(bash "$GITHUB_ACTION_PATH/elegir-espejo.sh" "$VERSION_CODENAME")"; then
+            case "$base" in
+              https://archive.ubuntu.com/*)
+                echo "::warning::apt usará archive.ubuntu.com directamente." ;;
+              *)
+                echo "::warning::Ni Azure ni archive.ubuntu.com responden: apt usará el espejo de reserva ${base}" ;;
+            esac
+          else
+            base=https://archive.ubuntu.com/ubuntu/
+            echo "::warning::Ningún archivo de Ubuntu responde a la sonda: apt probará archive.ubuntu.com igualmente."
+          fi
+          apuntar_fuentes_a "$base"
         }
 
         # `timeout` corre como runner y no puede matar a los procesos de root
@@ -64,7 +97,7 @@ runs:
         }
 
         if ! curl -fsS --max-time 10 -o /dev/null "$sonda"; then
-          echo "::warning::El espejo de Azure no responde: apt usará archive.ubuntu.com directamente."
+          echo "::warning::El espejo de Azure no responde: apt sale de Azure."
           usar_archivo_directo
         fi
 

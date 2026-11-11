@@ -115,7 +115,25 @@ LABEL es.talveg.guarda-correo="1"
 # ninguna descarga y la vulnerabilidad no es explotable (ubuntu.com/blog/apt-vulnerability-fixes-available).
 # Se mantiene aunque una base futura traiga apt corregido: cuesta un fallo de red
 # más visible a cambio de no depender de qué versión de apt trae el digest.
-RUN apt-get -o Acquire::Retries=0 update \
+#
+# ESPEJO_UBUNTU: vacío por defecto, y así lo dejan deploy.yml, ci-deploy.sh y todo
+# despliegue: la imagen usa las fuentes de la base (archive y security.ubuntu.com).
+# Solo el job «Build de la imagen de despliegue» del CI lo rellena, y solo cuando
+# la sonda del runner (.github/actions/apt-acotado/elegir-espejo.sh) no alcanza
+# archive.ubuntu.com: entonces trae la base de un espejo oficial de Ubuntu fuera de
+# ubuntu.com y las dos estrofas (con security) pasan a él. Solo cambia la URL: cada
+# estrofa conserva su Signed-By y apt verifica la firma de cada InRelease con las
+# claves de Ubuntu de la base. Un valor que no sea https://<host>/ubuntu/ aborta.
+ARG ESPEJO_UBUNTU=
+RUN if [ -n "$ESPEJO_UBUNTU" ]; then \
+        printf '%s\n' "$ESPEJO_UBUNTU" | grep -Eqx 'https://[a-z0-9.-]+/ubuntu/' \
+        || { echo "ESPEJO_UBUNTU no es https://<host>/ubuntu/: $ESPEJO_UBUNTU" >&2; exit 1; }; \
+        sed -E -i "/^URIs:/ s#https?://(archive|security)\.ubuntu\.com/ubuntu/?#${ESPEJO_UBUNTU}#g" /etc/apt/sources.list.d/ubuntu.sources \
+        && grep '^URIs:' /etc/apt/sources.list.d/ubuntu.sources \
+        && ! grep -Eq '^URIs:.*ubuntu\.com' /etc/apt/sources.list.d/ubuntu.sources \
+        || { echo "No se pudieron apuntar las fuentes de Ubuntu a $ESPEJO_UBUNTU" >&2; exit 1; }; \
+    fi \
+    && apt-get -o Acquire::Retries=0 update \
     && apt-get -o Acquire::Retries=0 install -y --no-install-recommends libreoffice-writer curl ca-certificates gosu tzdata libssl3t64 openssl \
     && rm -rf /var/lib/apt/lists/* \
     && dpkg --purge apt libapt-pkg6.0t64 \
