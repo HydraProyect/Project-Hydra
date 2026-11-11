@@ -570,4 +570,174 @@
   <data name="ErrorAnalisisSinTenant" xml:space="preserve"><value>No se ha podido determinar con qué organización trabajas en esta sesión. Vuelve a iniciar sesión e inténtalo de nuevo.</value></data>
   <data name="ErrorLimiteFilas" xml:space="preserve"><value>El archivo supera el máximo de filas permitido por hoja.</value></data>
   <data name="ErrorLimiteCeldas" xml:space="preserve"><value>El archivo supera el máximo de celdas permitido.</value></data>
+  <data name="EstAriaPasos" xml:space="preserve"><value>Pasos del Paso 1</value></data>
+  <data name="EstCompletado" xml:space="preserve"><value>Completado:</value></data>
+  <data name="EstPasoPlantilla" xml:space="preserve"><value>Plantilla</value></data>
+  <data name="EstPasoSubir" xml:space="preserve"><value>Subir</value></data>
+  <data name="EstPasoValidar" xml:space="preserve"><value>Validar</value></data>
+  <data name="EstPasoVistaPrevia" xml:space="preserve"><value>Vista previa</value></data>
+  <data name="EstPasoConfirmar" xml:space="preserve"><value>Confirmar</value></data>
+  <data name="EstPasoInforme" xml:space="preserve"><value>Informe</value></data>
+  <data name="EstSubtitulo" xml:space="preserve"><value>Paso 1 · Estructura. Cargas la estructura de la actividad con una plantilla Excel cerrada. Nada se escribe hasta que confirmas.</value></data>
+  <data name="EstSubAnalizando" xml:space="preserve"><value>Paso 1 · Estructura. Se analiza el archivo sin escribir nada en TALVEG.</value></data>
+  <data name="EstSubValidacion" xml:space="preserve"><value>Paso 1 · Estructura. Análisis terminado: nada se ha escrito todavía.</value></data>
+  <data name="EstSubVistaPrevia" xml:space="preserve"><value>Paso 1 · Estructura. Esto es lo que se hará. Todavía no se ha escrito nada.</value></data>
+  <data name="EstSubEscribiendo" xml:space="preserve"><value>Paso 1 · Estructura. Se está escribiendo la importación.</value></data>
+  <data name="EstSubInforme" xml:space="preserve"><value>Paso 1 · Estructura terminado.</value></data>
+  <data name="EstTituloDescarga" xml:space="preserve"><value>1 · Descarga la plantilla maestra</value></data>
+  <data name="EstTextoDescarga" xml:space="preserve"><value>Una sola plantilla para todas las entidades. Rellénala con los datos de tu actividad.</value></data>
+  <data name="EstVersion" xml:space="preserve"><value>Versión 1</value></data>
+  <data name="EstDetallePlantilla" xml:space="preserve"><value>10 hojas (Instrucciones y 9 de datos) · un asterisco marca las columnas obligatorias · ejemplos ficticios en la fila 2</value></data>
+  <data name="EstBotonDescargar" xml:space="preserve"><value>Descargar plantilla</value></data>
+  <data name="EstAriaHojasPlantilla" xml:space="preserve"><value>Hojas de datos de la plantilla</value></data>
+  <data name="EstSinCredencialesTitulo" xml:space="preserve"><value>Sin credenciales.</value></data>
+  <data name="EstSinCredencialesTexto" xml:space="preserve"><value>La plantilla no tiene columnas de usuario ni contraseña, y el Excel de credenciales de plataformas no se sube nunca a TALVEG.</value></data>
+  <data name="EstNadaMedicoTitulo" xml:space="preserve"><value>Nada médico.</value></data>
+  <data name="EstNadaMedicoTexto" xml:space="preserve"><value>No escribas diagnósticos, bajas ni restricciones en Observaciones o Notas. Solo la aptitud se gestiona, y como Documento en el Paso 2.</value></data>
+  <data name="EstTituloSubida" xml:space="preserve"><value>2 · Sube el Excel rellenado</value></data>
+  <data name="EstTextoSubida" xml:space="preserve"><value>Se analiza sin escribir nada. Verás errores por hoja y fila antes de confirmar.</value></data>
+  <data name="EstArchivoNoAceptado" xml:space="preserve"><value>Archivo no aceptado</value></data>
+  <data name="EstZonaTitulo" xml:space="preserve"><value>Arrastra aquí el archivo .xlsx</value></data>
+  <data name="EstZonaFormatos" xml:space="preserve"><value>Solo .xlsx · hasta {0} MB · un archivo corresponde a una sola organización</value></data>
+  <data name="EstTituloQueCrea" xml:space="preserve"><value>Qué crea el Paso 1</value></data>
+  <data name="EstQueCreaEmpresas" xml:space="preserve"><value>Empresas, con su CIF.</value></data>
+  <data name="EstQueCreaClientes" xml:space="preserve"><value>Clientes, su relación con la Empresa y sus Centros.</value></data>
+  <data name="EstQueCreaTrabajadores" xml:space="preserve"><value>Trabajadores, con su identidad (DNI, NIE o pasaporte).</value></data>
+  <data name="EstTituloQueNoHace" xml:space="preserve"><value>Qué no hace</value></data>
+  <data name="EstNoHacePendientes" xml:space="preserve"><value>Subcontratas, Accesos por Centro, Asignaciones, Vehículos y Tipos de documento: el análisis reconoce esas hojas y las cuenta, pero esta versión todavía no las importa.</value></data>
+  <data name="EstNoHacePdf" xml:space="preserve"><value>No importa ningún PDF: los documentos se suben en el Paso 2 (próximamente).</value></data>
+  <data name="EstNoHaceDuplica" xml:space="preserve"><value>No duplica si repites el archivo: deduplica por CIF, identidad y Cliente + nombre del Centro.</value></data>
+  <data name="EstYaImportaste" xml:space="preserve"><value>¿Ya importaste antes? Consulta el</value></data>
+  <data name="EstEnlaceHistorial" xml:space="preserve"><value>historial de importaciones</value></data>
+  <data name="EstSistemaAnalizando" xml:space="preserve"><value>El sistema está analizando</value></data>
+  <data name="EstAnalizandoTitulo" xml:space="preserve"><value>Analizando, sin escribir nada.</value></data>
+  <data name="EstAnalizandoTexto" xml:space="preserve"><value>Comprueba la estructura de las hojas, CIF, DNI y NIE, duplicados y referencias entre hojas.</value></data>
+  <data name="EstAriaProgresoAnalisis" xml:space="preserve"><value>Análisis del archivo en curso</value></data>
+  <data name="EstAnalizandoPista" xml:space="preserve"><value>Suele tardar menos de un minuto.</value></data>
+  <data name="EstBotonCancelarAnalisis" xml:space="preserve"><value>Cancelar análisis</value></data>
+  <data name="EstErroresUno" xml:space="preserve"><value>1 fila tiene errores y no se importará.</value></data>
+  <data name="EstErroresVarios" xml:space="preserve"><value>{0} filas tienen errores y no se importarán.</value></data>
+  <data name="EstErroresConsejo" xml:space="preserve"><value>Corrige el Excel y vuelve a subirlo: repetir el archivo no duplica nada. Si continúas sin esas filas, quedarán en el informe con su motivo.</value></data>
+  <data name="EstSinValidasTitulo" xml:space="preserve"><value>Ninguna fila válida.</value></data>
+  <data name="EstSinValidasTexto" xml:space="preserve"><value>El archivo no trae filas que importar. Revisa que has rellenado las hojas de la plantilla y vuelve a subirlo.</value></data>
+  <data name="EstSinErroresTitulo" xml:space="preserve"><value>Sin errores.</value></data>
+  <data name="EstSinErroresTexto" xml:space="preserve"><value>Todas las filas leídas son válidas. Continúa para ver qué se hará antes de escribir nada.</value></data>
+  <data name="EstPendientesTitulo" xml:space="preserve"><value>Hojas reconocidas que todavía no se importan.</value></data>
+  <data name="EstPendientesTexto" xml:space="preserve"><value>Se cuentan, pero esta versión no las importa: {0}.</value></data>
+  <data name="EstKpiLeidas" xml:space="preserve"><value>Filas leídas</value></data>
+  <data name="EstKpiValidas" xml:space="preserve"><value>Válidas</value></data>
+  <data name="EstKpiConError" xml:space="preserve"><value>Con error</value></data>
+  <data name="EstKpiConAviso" xml:space="preserve"><value>Con aviso</value></data>
+  <data name="EstAriaHojas" xml:space="preserve"><value>Hojas del archivo</value></data>
+  <data name="EstHojaPendiente" xml:space="preserve"><value>no se importa</value></data>
+  <data name="EstHojaAvisos" xml:space="preserve"><value>avisos</value></data>
+  <data name="EstHojaVacia" xml:space="preserve"><value>vacía</value></data>
+  <data name="EstTituloHoja" xml:space="preserve"><value>{0} · {1} errores y {2} avisos</value></data>
+  <data name="EstHojaPendienteTexto" xml:space="preserve"><value>{0} filas leídas. Esta hoja se reconoce y se cuenta, pero esta versión todavía no la importa.</value></data>
+  <data name="EstHojaLeidas" xml:space="preserve"><value>{0} filas leídas. Cada fila indica la hoja y el número de fila tal como están en tu Excel.</value></data>
+  <data name="EstBuscarEnHoja" xml:space="preserve"><value>Buscar en esta hoja</value></data>
+  <data name="EstBotonDescargarErrores" xml:space="preserve"><value>Descargar errores (CSV)</value></data>
+  <data name="EstHojaSinIncidencias" xml:space="preserve"><value>Esta hoja no tiene errores ni avisos que mostrar.</value></data>
+  <data name="EstAriaTabla" xml:space="preserve"><value>Tabla con desplazamiento</value></data>
+  <data name="EstColFila" xml:space="preserve"><value>Fila</value></data>
+  <data name="EstColElemento" xml:space="preserve"><value>Elemento</value></data>
+  <data name="EstColMotivo" xml:space="preserve"><value>Motivo</value></data>
+  <data name="EstColGravedad" xml:space="preserve"><value>Gravedad</value></data>
+  <data name="EstError" xml:space="preserve"><value>Error</value></data>
+  <data name="EstAviso" xml:space="preserve"><value>Aviso</value></data>
+  <data name="EstMostrandoDe" xml:space="preserve"><value>Mostrando {0} de {1}. Ver todo en el CSV descargable.</value></data>
+  <data name="EstBotonReintentar" xml:space="preserve"><value>Reintentar</value></data>
+  <data name="EstKpiSeCrearan" xml:space="preserve"><value>Se crearán</value></data>
+  <data name="EstKpiSeActualizaran" xml:space="preserve"><value>Se actualizarán</value></data>
+  <data name="EstKpiSinCambios" xml:space="preserve"><value>Sin cambios</value></data>
+  <data name="EstKpiSeOmitiran" xml:space="preserve"><value>Se omitirán</value></data>
+  <data name="EstTituloEntidades" xml:space="preserve"><value>Qué pasará con cada entidad</value></data>
+  <data name="EstTextoEntidades" xml:space="preserve"><value>«Se omitirán» son las filas con error: quedan en el informe con hoja, fila y motivo.</value></data>
+  <data name="EstColEntidad" xml:space="preserve"><value>Entidad</value></data>
+  <data name="EstColCrear" xml:space="preserve"><value>Crear</value></data>
+  <data name="EstColActualizar" xml:space="preserve"><value>Actualizar</value></data>
+  <data name="EstColSinCambios" xml:space="preserve"><value>Sin cambios</value></data>
+  <data name="EstColOmitir" xml:space="preserve"><value>Omitir</value></data>
+  <data name="EstColIdentifica" xml:space="preserve"><value>Cómo se identifica</value></data>
+  <data name="EstEntEmpresas" xml:space="preserve"><value>Empresas</value></data>
+  <data name="EstEntClientes" xml:space="preserve"><value>Clientes</value></data>
+  <data name="EstEntRelaciones" xml:space="preserve"><value>Relaciones Empresa - Cliente</value></data>
+  <data name="EstEntCentros" xml:space="preserve"><value>Centros</value></data>
+  <data name="EstEntTrabajadores" xml:space="preserve"><value>Trabajadores</value></data>
+  <data name="EstIdCif" xml:space="preserve"><value>CIF</value></data>
+  <data name="EstIdRelacion" xml:space="preserve"><value>CIF del Cliente + CIF de la Empresa</value></data>
+  <data name="EstIdCentro" xml:space="preserve"><value>Cliente + nombre del Centro</value></data>
+  <data name="EstIdTrabajador" xml:space="preserve"><value>DNI, NIE o pasaporte</value></data>
+  <data name="EstTituloModo" xml:space="preserve"><value>Si un dato ya existe</value></data>
+  <data name="EstModoCompletar" xml:space="preserve"><value>Completar datos vacíos (recomendado)</value></data>
+  <data name="EstModoCompletarTexto" xml:space="preserve"><value>Rellena lo que falte y no pisa nada de lo que ya tiene TALVEG.</value></data>
+  <data name="EstModoReemplazar" xml:space="preserve"><value>Reemplazar con lo del Excel</value></data>
+  <data name="EstModoReemplazarTexto" xml:space="preserve"><value>Sobrescribe los campos que difieran. Se anotan en el informe uno a uno.</value></data>
+  <data name="EstReemplazarNoRevierte" xml:space="preserve"><value>Reemplazar no se puede revertir.</value></data>
+  <data name="EstReemplazarNadaCambia" xml:space="preserve"><value>Con este archivo no cambiaría ningún valor que ya exista (con «Completar»: 0).</value></data>
+  <data name="EstReemplazarCambiarian" xml:space="preserve"><value>Cambiarían {0} campos en {1} registros (con «Completar»: 0).</value></data>
+  <data name="EstReemplazarDescarga" xml:space="preserve"><value>Descarga antes la lista de valores previos.</value></data>
+  <data name="EstBotonValoresPrevios" xml:space="preserve"><value>Valores previos (CSV)</value></data>
+  <data name="EstVerValoresPrevios" xml:space="preserve"><value>Ver los {0} valores que se sobrescribirían</value></data>
+  <data name="EstColHoja" xml:space="preserve"><value>Hoja</value></data>
+  <data name="EstColCampo" xml:space="preserve"><value>Campo</value></data>
+  <data name="EstColValorPrevio" xml:space="preserve"><value>Valor previo</value></data>
+  <data name="EstColValorNuevo" xml:space="preserve"><value>Valor nuevo</value></data>
+  <data name="EstTituloConfirmar" xml:space="preserve"><value>Confirmar la importación</value></data>
+  <data name="EstTextoConfirmar" xml:space="preserve"><value>Se escribe en tu organización. Confirmar dos veces la misma importación no duplica nada.</value></data>
+  <data name="EstBotonDescartar" xml:space="preserve"><value>Descartar esta importación</value></data>
+  <data name="EstBotonVolver" xml:space="preserve"><value>Volver</value></data>
+  <data name="EstAriaAcciones" xml:space="preserve"><value>Acciones del paso</value></data>
+  <data name="EstBotonContinuarSinErrores" xml:space="preserve"><value>Continuar sin las filas con error</value></data>
+  <data name="EstSistemaEscribiendo" xml:space="preserve"><value>El sistema está escribiendo</value></data>
+  <data name="EstEscribiendoTitulo" xml:space="preserve"><value>Escribiendo…</value></data>
+  <data name="EstAriaProgresoEscritura" xml:space="preserve"><value>Escritura de la importación en curso</value></data>
+  <data name="EstEscribiendoTexto" xml:space="preserve"><value>Esta importación no se puede pausar ni cancelar desde aquí. Confirmar de nuevo la misma importación no duplica nada.</value></data>
+  <data name="EstYaEjecutadaTitulo" xml:space="preserve"><value>Esta importación ya se había confirmado.</value></data>
+  <data name="EstYaEjecutadaTexto" xml:space="preserve"><value>Otra confirmación de esta misma importación ya la guardó: no se ha vuelto a escribir nada y esta pantalla no tiene el informe de lo que se escribió.</value></data>
+  <data name="EstYaEjecutadaEnlace" xml:space="preserve"><value>Consulta el historial de importaciones</value></data>
+  <data name="EstInformeCompletadaSinOmitidas" xml:space="preserve"><value>Importación completada sin filas omitidas.</value></data>
+  <data name="EstInformeCompletadaUnaOmitida" xml:space="preserve"><value>Importación completada con 1 fila omitida.</value></data>
+  <data name="EstInformeCompletadaOmitidas" xml:space="preserve"><value>Importación completada con {0} filas omitidas.</value></data>
+  <data name="EstInformeTexto" xml:space="preserve"><value>Se aplicó lo válido; las omitidas están en el informe con hoja, fila y motivo. Nada se descartó en silencio.</value></data>
+  <data name="EstKpiCreados" xml:space="preserve"><value>Creados</value></data>
+  <data name="EstKpiActualizados" xml:space="preserve"><value>Actualizados</value></data>
+  <data name="EstKpiOmitidos" xml:space="preserve"><value>Omitidos</value></data>
+  <data name="EstTituloDetalle" xml:space="preserve"><value>Detalle por entidad</value></data>
+  <data name="EstDetalleOperacion" xml:space="preserve"><value>Operación {0} · archivo {1}</value></data>
+  <data name="EstBotonInformeCompleto" xml:space="preserve"><value>Informe completo (CSV)</value></data>
+  <data name="EstBotonSoloOmitidas" xml:space="preserve"><value>Solo filas omitidas (CSV)</value></data>
+  <data name="EstColCreados" xml:space="preserve"><value>Creados</value></data>
+  <data name="EstColActualizados" xml:space="preserve"><value>Actualizados</value></data>
+  <data name="EstColOmitidos" xml:space="preserve"><value>Omitidos</value></data>
+  <data name="EstColAvisos" xml:space="preserve"><value>Avisos</value></data>
+  <data name="EstNAvisos" xml:space="preserve"><value>{0} avisos</value></data>
+  <data name="EstHojaClientes" xml:space="preserve"><value>Clientes empresariales</value></data>  <data name="EstHojaAccesos" xml:space="preserve"><value>Accesos por Centro</value></data>
+  <data name="EstHojaVehiculos" xml:space="preserve"><value>Vehículos</value></data>
+  <data name="EstHojaTiposDocumento" xml:space="preserve"><value>Tipos de documento</value></data>
+  <data name="EstSinAvisosGuion" xml:space="preserve"><value>—</value></data>
+  <data name="EstInformeCampos" xml:space="preserve"><value>Campos vacíos rellenados: {0}. Valores existentes sobrescritos: {1}.</value></data>
+  <data name="EstDialogoTitulo" xml:space="preserve"><value>¿Sobrescribir valores existentes?</value></data>
+  <data name="EstDialogoMensaje" xml:space="preserve"><value>Reemplazar cambia {0} campos de {1} registros y no se puede revertir. ¿Importar de todos modos?</value></data>
+  <data name="EstDialogoConfirmar" xml:space="preserve"><value>Sí, reemplazar e importar</value></data>
+  <data name="EstErrorExtension" xml:space="preserve"><value>Solo se admiten archivos .xlsx.</value></data>
+  <data name="EstErrorVariosArchivos" xml:space="preserve"><value>Sube un solo archivo .xlsx cada vez.</value></data>
+  <data name="EstErrorTamano" xml:space="preserve"><value>El archivo pesa más de {0} MB.</value></data>
+  <data name="EstErrorPrevia" xml:space="preserve"><value>No pudimos calcular la vista previa. Inténtalo de nuevo.</value></data>
+  <data name="EstVistaPreviaCambiada" xml:space="preserve"><value>Los datos han cambiado desde la vista previa (por ejemplo, otra persona ha editado un registro). No se ha escrito nada: revisa la vista previa actualizada y vuelve a confirmar.</value></data>
+  <data name="EstTituloOmitidasPrevia" xml:space="preserve"><value>Filas que se omitirán al confirmar</value></data>
+  <data name="EstTextoOmitidasPrevia" xml:space="preserve"><value>Las filas con error de la validación y las que la escritura no podrá aplicar (por ejemplo, una razón social ya ocupada), cada una con su motivo. Ninguna se escribe.</value></data>
+  <data name="EstBotonOmitidasPrevia" xml:space="preserve"><value>Filas omitidas (CSV)</value></data>
+  <data name="EstErrorDescarga" xml:space="preserve"><value>No pudimos preparar la descarga.</value></data>
+  <data name="EstSobrescrito" xml:space="preserve"><value>Sobrescrito</value></data>
+  <data name="EstBotonValidar" xml:space="preserve"><value>Validar archivo</value></data>
+  <data name="EstBotonCorregir" xml:space="preserve"><value>Corregir y subir de nuevo</value></data>
+  <data name="EstBotonContinuarVistaPrevia" xml:space="preserve"><value>Continuar a la vista previa</value></data>
+  <data name="EstBotonConfirmar" xml:space="preserve"><value>Confirmar e importar (cambios: {0})</value></data>
+  <data name="EstBotonOtraImportacion" xml:space="preserve"><value>Hacer otra importación</value></data>
+  <data name="EstNavAria" xml:space="preserve"><value>Importación</value></data>
+  <data name="EstNavPaso1" xml:space="preserve"><value>Paso 1 · Estructura (Excel)</value></data>
+  <data name="EstNavPaso2" xml:space="preserve"><value>Paso 2 · Documentos (PDF)</value></data>
+  <data name="EstNavPaso2Proximamente" xml:space="preserve"><value>próximamente</value></data>
+  <data name="EstNavHistorial" xml:space="preserve"><value>Historial y otras plantillas</value></data>
 </root>

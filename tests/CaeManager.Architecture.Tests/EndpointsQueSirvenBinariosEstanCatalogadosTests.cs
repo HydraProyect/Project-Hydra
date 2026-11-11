@@ -81,6 +81,7 @@ public class EndpointsQueSirvenBinariosEstanCatalogadosTests
         ["src/CaeManager.Web/Features/Empresas/EmpresasEndpoints.cs"] = (2, "sin Id: exportación; con Id: paquete documental"),
         ["src/CaeManager.Web/Features/Facturacion/FacturacionEndpoints.cs"] = (2, "sin Id de ruta: exportaciones; una recibe clienteId por query, sin prueba entre Tenants aquí"),
         ["src/CaeManager.Web/Features/Gestiones/GestionesEndpoints.cs"] = (1, "sin Id: exportación"),
+        ["src/CaeManager.Web/Features/Importacion/ImportacionEndpoints.cs"] = (1, "sin Id: plantilla maestra en blanco, generada en memoria"),
         ["src/CaeManager.Web/Features/Incidencias/IncidenciasEndpoints.cs"] = (1, "sin Id: exportación"),
         ["src/CaeManager.Web/Features/Proyectos/ProyectosEndpoints.cs"] = (1, "sin Id: exportación"),
         ["src/CaeManager.Web/Features/Trabajadores/TrabajadoresEndpoints.cs"] = (1, "sin Id: exportación"),
