@@ -473,6 +473,17 @@ public class FronterasEntrePersistenciaDeFeaturesTests
         ("HerramientasPdf.ObtenerCatalogoDivisionPdfQueryHandler", "ITiposDocumentoQueryContext"),
         ("HerramientasPdf.ObtenerCatalogoDivisionPdfQueryHandler", "ITrabajadoresQueryContext"),
         ("HerramientasPdf.ObtenerCatalogoDivisionPdfQueryHandler", "IVehiculosQueryContext"),
+        // Unir PDF lista y lee los Documentos de la Empresa gestionada (el universo del paquete de Empresa 360) bajo el alcance de
+        // cartera; solo lee, y lo que sale de la Empresa deja el registro de acceso de siempre.
+        ("HerramientasPdf.ListarDocumentosParaUnirQueryHandler", "IDocumentosQueryContext"),
+        ("HerramientasPdf.ListarDocumentosParaUnirQueryHandler", "IEmpresasQueryContext"),
+        ("HerramientasPdf.ListarDocumentosParaUnirQueryHandler", "IProyectosQueryContext"),
+        ("HerramientasPdf.ListarDocumentosParaUnirQueryHandler", "ITiposDocumentoQueryContext"),
+        ("HerramientasPdf.ListarDocumentosParaUnirQueryHandler", "ITrabajadoresQueryContext"),
+        ("HerramientasPdf.UnirPdfQueryHandler", "IDocumentosQueryContext"),
+        ("HerramientasPdf.UnirPdfQueryHandler", "IEmpresasQueryContext"),
+        ("HerramientasPdf.UnirPdfQueryHandler", "IProyectosQueryContext"),
+        ("HerramientasPdf.UnirPdfQueryHandler", "ITrabajadoresQueryContext"),
         ("Documentos.AplicarDeteccionIaDocumentoCommandHandler", "IAuditoriaExtraccionIaRepository"),
         ("Documentos.AplicarDeteccionIaDocumentoCommandHandler", "IProyectosQueryContext"),
         ("Documentos.AplicarDeteccionIaDocumentoCommandHandler", "ITiposDocumentoQueryContext"),
