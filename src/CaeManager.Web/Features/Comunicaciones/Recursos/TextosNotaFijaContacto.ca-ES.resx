@@ -1,0 +1,54 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <data name="Titulo" xml:space="preserve">
+    <value>Nota fixa · {0}</value>
+  </data>
+  <data name="Editar" xml:space="preserve">
+    <value>Edita</value>
+  </data>
+  <data name="Anadir" xml:space="preserve">
+    <value>Afegeix una nota fixa</value>
+  </data>
+  <data name="Guardar" xml:space="preserve">
+    <value>Desa la nota fixa</value>
+  </data>
+  <data name="Cancelar" xml:space="preserve">
+    <value>Cancel·la</value>
+  </data>
+  <data name="Vacia" xml:space="preserve">
+    <value>Aquest contacte no té nota fixa. Escriu el que qui l&apos;atengui hagi de saber sempre: horaris, preferències, a qui avisar.</value>
+  </data>
+  <data name="Meta" xml:space="preserve">
+    <value>Agenda · {0} · {1}</value>
+  </data>
+  <data name="Alcance" xml:space="preserve">
+    <value>Es veu a totes les converses d&apos;aquest contacte. Només la veu el teu equip.</value>
+  </data>
+  <data name="EtiquetaCampo" xml:space="preserve">
+    <value>Nota fixa de {0}</value>
+  </data>
+  <data name="ToastGuardada" xml:space="preserve">
+    <value>Nota fixa desada a l&apos;Agenda de {0}</value>
+  </data>
+  <data name="ErrorGuardar" xml:space="preserve">
+    <value>No hem pogut desar la nota fixa. Torna-ho a provar.</value>
+  </data>
+  <data name="NotasEquipoTitulo" xml:space="preserve">
+    <value>Notes de l&apos;equip sobre aquesta conversa</value>
+  </data>
+  <data name="IrANota" xml:space="preserve">
+    <value>Ves a aquesta nota al fil</value>
+  </data>
+</root>

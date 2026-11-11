@@ -1,0 +1,89 @@
+/* Nota fija del contacto (maqueta 2026-11-01, `.bl.bl-nota`, `.ag-t`, `.ag-txt`, `.area`): bloque de 12 px de radio y
+   relleno con los tokens de nota (el amarillo es exclusivo de las notas). El texto secundario usa el color de la nota y no
+   el gris apagado: sobre el fondo amarillo, en oscuro, el gris no llega a 4,5:1. */
+.nota-fija {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+    padding: var(--space-3);
+    border: 1px solid var(--color-nota-borde);
+    border-radius: var(--radius-card-sm);
+    background: var(--color-nota-fondo);
+    color: var(--color-nota-texto);
+}
+
+.nota-fija-cabecera {
+    margin: 0;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-2);
+    font: 600 13px/18px var(--font-sans);
+}
+
+.nota-fija-titulo {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    min-width: 0;
+    color: var(--color-nota-texto);
+}
+
+.nota-fija-texto-boton {
+    height: 32px;
+    padding: 0 var(--space-2);
+    border: 0;
+    border-radius: var(--radius-md);
+    background: transparent;
+    color: var(--color-nota-texto);
+    font: 600 12px/16px var(--font-sans);
+    text-decoration: underline;
+    white-space: nowrap;
+    cursor: pointer;
+}
+
+.nota-fija-texto-boton:hover {
+    filter: brightness(0.95);
+}
+
+.nota-fija-texto-boton:focus-visible {
+    outline: 2px solid var(--color-nota-texto);
+    outline-offset: 1px;
+}
+
+.nota-fija-texto {
+    margin: 0;
+    font: 400 13px/18px var(--font-sans);
+    white-space: pre-line;
+    overflow-wrap: anywhere;
+}
+
+.nota-fija-meta {
+    font: 500 12px/16px var(--font-sans);
+    color: var(--color-nota-texto);
+}
+
+.nota-fija-area {
+    width: 100%;
+    min-height: 88px;
+    max-height: min(40vh, 200px);
+    resize: vertical;
+    padding: var(--space-2) var(--space-3);
+    border: 1px solid var(--color-border-control);
+    border-radius: var(--radius-lg);
+    background: var(--color-surface);
+    color: var(--color-text);
+    font: 400 14px/20px var(--font-sans);
+}
+
+.nota-fija-area:focus-visible {
+    outline: 2px solid var(--color-primary-500);
+    outline-offset: 1px;
+}
+
+.nota-fija-acciones {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--space-2);
+}

@@ -1,0 +1,163 @@
+@*
+    Nota fija del contacto de la Agenda (maqueta 2026-11-01, `.bl-nota`, E21): visible en el panel de contexto con autor y
+    fecha, editable por quien escribe. Se guarda por contacto, no por conversación: la ven todas las conversaciones de ese
+    contacto. Lee ObtenerNotaContactoQuery (que decide el alcance y la audiencia) y escribe con FijarNotaContactoAgendaCommand;
+    si el interlocutor no está en la Agenda o el rol no lee notas internas, no pinta nada.
+*@
+@using CaeManager.Application.Contactos.Commands.FijarNotaContactoAgenda
+@using CaeManager.Application.Contactos.Queries.ObtenerAgendaContactos
+@using CaeManager.Application.Contactos.Queries.ObtenerNotaContacto
+@using CaeManager.Domain.Common
+@using CaeManager.Domain.Contactos
+@using CaeManager.Web.Features.Comunicaciones.Recursos
+@using MediatR
+@using Microsoft.AspNetCore.Components.Authorization
+@using Microsoft.Extensions.Localization
+@inject IMediator Mediator
+@inject ToastService ToastService
+@inject IStringLocalizer<TextosNotaFijaContacto> Textos
+@inject IStringLocalizer<TextosNotasInternas> TextosNotas
+@inject ILogger<NotaFijaContacto> Logger
+
+@if (_nota is not null)
+{
+    <section class="nota-fija" aria-label="@string.Format(Textos["Titulo"].Value, _nota.Nombre)">
+        <h2 class="nota-fija-cabecera">
+            <span class="nota-fija-titulo">
+                <svg width="14" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M6 3h12v18l-6-4-6 4z"></path></svg>
+                @string.Format(Textos["Titulo"].Value, _nota.Nombre)
+            </span>
+            @if (_puedeEscribir && !_editando)
+            {
+                <button type="button" class="nota-fija-texto-boton" @onclick="Editar">
+                    @(string.IsNullOrWhiteSpace(_nota.Notas) ? Textos["Anadir"] : Textos["Editar"])
+                </button>
+            }
+        </h2>
+
+        @if (_editando)
+        {
+            <textarea class="nota-fija-area" rows="3" maxlength="@ContactoAgenda.LongitudMaximaNotas"
+                      aria-label="@string.Format(Textos["EtiquetaCampo"].Value, _nota.Nombre)"
+                      value="@_texto" @oninput="e => _texto = e.Value?.ToString() ?? string.Empty"></textarea>
+            <div class="nota-fija-acciones">
+                @* Secundario y no primario: la vista ya tiene «Enviar» como único primario. *@
+                <Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno" Cargando="_guardando"
+                       Deshabilitado="@(string.IsNullOrWhiteSpace(_texto))" OnClick="GuardarAsync">@Textos["Guardar"]</Boton>
+                <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" Deshabilitado="_guardando"
+                       OnClick="Cancelar">@Textos["Cancelar"]</Boton>
+            </div>
+        }
+        else if (string.IsNullOrWhiteSpace(_nota.Notas))
+        {
+            <span class="nota-fija-meta">@Textos["Vacia"]</span>
+        }
+        else
+        {
+            <p class="nota-fija-texto">@_nota.Notas</p>
+            <span class="nota-fija-meta">@string.Format(Textos["Meta"].Value, _autor, Fecha(_nota.ActualizadaEnUtc))</span>
+        }
+
+        <span class="nota-fija-meta">@Textos["Alcance"]</span>
+    </section>
+}
+
+@code {
+    [CascadingParameter] private Task<AuthenticationState>? EstadoAutenticacion { get; set; }
+
+    [Parameter, EditorRequired] public TipoPropietarioAgenda Tipo { get; set; }
+    [Parameter, EditorRequired] public Guid PropietarioId { get; set; }
+
+    /// <summary>Correo del interlocutor: la consulta lo busca en la Agenda de la entidad.</summary>
+    [Parameter, EditorRequired] public string Email { get; set; } = string.Empty;
+
+    /// <summary>Nombre visible de los autores (directorio del Tenant). Sin él, o si el autor ya no está, se pinta un rótulo genérico.</summary>
+    [Parameter] public Func<IReadOnlyCollection<Guid>, Task<IReadOnlyDictionary<Guid, string>>>? ResolverAutores { get; set; }
+
+    private NotaContactoDto? _nota;
+    private string _autor = string.Empty;
+    private bool _puedeEscribir;
+    private bool _editando;
+    private bool _guardando;
+    private string _texto = string.Empty;
+    private (TipoPropietarioAgenda, Guid, string)? _cargada;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        var clave = (Tipo, PropietarioId, Email);
+        if (_cargada == clave) return;
+
+        _cargada = clave;
+        _editando = false;
+        _puedeEscribir = await SoloConEscritura.PuedeEscribirAsync(EstadoAutenticacion);
+        await CargarAsync();
+    }
+
+    private async Task CargarAsync()
+    {
+        var clave = (Tipo, PropietarioId, Email);
+        try
+        {
+            var nota = await Mediator.Send(new ObtenerNotaContactoQuery(Tipo, PropietarioId, Email));
+            if (_cargada != clave) return;
+
+            _nota = nota;
+            _autor = await NombreDelAutorAsync(nota);
+        }
+        catch (Exception ex)
+        {
+            // La nota fija es contexto, no condición: sin ella, la conversación se sigue atendiendo.
+            Logger.LogError(ex, "Error al cargar la nota fija del contacto en la entidad {PropietarioId}.", PropietarioId);
+            if (_cargada != clave) return;
+            _nota = null;
+        }
+    }
+
+    private async Task<string> NombreDelAutorAsync(NotaContactoDto? nota)
+    {
+        if (nota?.AutorUsuarioId is not { } autorId || ResolverAutores is null) return TextosNotas["AutorDesconocido"].Value;
+
+        var nombres = await ResolverAutores([autorId]);
+        return nombres.TryGetValue(autorId, out var nombre) ? nombre : TextosNotas["AutorDesconocido"].Value;
+    }
+
+    private static string Fecha(DateTime? fechaUtc) =>
+        fechaUtc is { } f ? f.EnHoraPeninsular().ToString("dd/MM/yyyy") : string.Empty;
+
+    private void Editar()
+    {
+        _texto = _nota?.Notas ?? string.Empty;
+        _editando = true;
+    }
+
+    private void Cancelar() => _editando = false;
+
+    private async Task GuardarAsync()
+    {
+        if (_guardando || _nota is null || string.IsNullOrWhiteSpace(_texto)) return;
+
+        _guardando = true;
+        try
+        {
+            var resultado = await Mediator.Send(new FijarNotaContactoAgendaCommand(Tipo, PropietarioId, _nota.ContactoId, _texto.Trim()));
+            if (resultado.EsFallido)
+            {
+                ToastService.MostrarError(resultado.Error);
+                return;
+            }
+
+            _editando = false;
+            ToastService.Mostrar(string.Format(Textos["ToastGuardada"].Value, _nota.Nombre), TonoToast.Exito);
+            await CargarAsync();
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error al guardar la nota fija del contacto {ContactoId}.", _nota?.ContactoId);
+            ToastService.Mostrar(Textos["ErrorGuardar"].Value, TonoToast.Error);
+        }
+        finally
+        {
+            _guardando = false;
+        }
+    }
+}

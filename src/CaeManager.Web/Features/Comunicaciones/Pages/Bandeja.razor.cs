@@ -4,6 +4,7 @@ using CaeManager.Application.Comunicaciones;
 using CaeManager.Web.Features.Documentos.Recursos;
 using CaeManager.Application.Common;
 using CaeManager.Web.Features.Comunicaciones.Components;
+using CaeManager.Web.Features.Comunicaciones;
 using CaeManager.Application.Clientes.Queries.ObtenerClientePorId;
 using CaeManager.Application.Clientes.Queries.ObtenerClientesParaSelector;
 using CaeManager.Application.Comunicaciones.Commands.ActualizarDocumentoDesdeAdjunto;
@@ -934,6 +935,62 @@ public partial class Bandeja : CaeManager.Web.Components.PaginaInteractiva, IAsy
 
     private bool _aplicandoMacro;
 
+    // ---- Respuesta sugerida por Vega (E18) y nota fija del contacto (E21) ----
+
+    private RespuestaSugeridaPanel? _panelSugerencia;
+
+    /// <summary>Mensaje que contestaría una sugerencia: el último entrante del hilo abierto.</summary>
+    private Guid? UltimoMensajeEntranteId => _detalle?.Mensajes
+        .Where(m => m.Direccion == DireccionMensaje.Entrante)
+        .OrderByDescending(m => m.FechaUtc)
+        .Select(m => (Guid?)m.Id)
+        .FirstOrDefault();
+
+    /// <summary>
+    /// Se ofrece pedir una sugerencia si la conversación sigue viva y su último mensaje es del contacto. Es la misma regla que
+    /// aplica GenerarRespuestaSugeridaCommand (que además ignora los mensajes automáticos, que este DTO no distingue): aquí
+    /// solo decide si se muestra el botón; el servidor decide en firme.
+    /// </summary>
+    private bool PuedeSugerirRespuesta =>
+        _detalle is { Estado: not (EstadoConversacion.Resuelta or EstadoConversacion.Cerrada) } detalle
+        && detalle.Mensajes.OrderByDescending(m => m.FechaUtc).FirstOrDefault()?.Direccion == DireccionMensaje.Entrante;
+
+    private ConversacionDetalleDto? _detalleDelInterlocutor;
+    private InterlocutorNotaFija.Interlocutor? _interlocutorNotaFija;
+
+    private InterlocutorNotaFija.Interlocutor? InterlocutorNotaFijaActual
+    {
+        get
+        {
+            if (_detalle is null) return null;
+            if (!ReferenceEquals(_detalleDelInterlocutor, _detalle))
+            {
+                _detalleDelInterlocutor = _detalle;
+                _interlocutorNotaFija = InterlocutorNotaFija.De(_detalle);
+            }
+
+            return _interlocutorNotaFija;
+        }
+    }
+
+    private Task<IReadOnlyDictionary<Guid, string>> ResolverNombresAutoresAsync(IReadOnlyCollection<Guid> ids) =>
+        DirectorioUsuarios.ObtenerNombresVisiblesAsync(ids.ToList(), _ciclo.Token);
+
+    /// <summary>«Insertar para revisar»: el texto va al redactor y no se envía nada. Si ya había algo, el panel ha preguntado antes.</summary>
+    private Task InsertarSugerenciaAsync(string texto)
+    {
+        _textoRespuesta = texto;
+        _notaInternaActiva = false;
+        return Task.CompletedTask;
+    }
+
+    /// <summary>
+    /// Antes de enviar: una sugerencia insertada y editada más allá del umbral cuenta como revisada y se confirma en el
+    /// servidor, que bloquea todo envío mientras siga sin revisar. <c>false</c>: no se envía.
+    /// </summary>
+    private Task<bool> AsegurarSugerenciaRevisadaAsync() =>
+        _panelSugerencia is { } panel ? panel.ConfirmarSiEditadaAsync(_textoRespuesta) : Task.FromResult(true);
+
     private async Task AplicarMacro(string macroIdTexto)
     {
         if (string.IsNullOrWhiteSpace(macroIdTexto))
@@ -1031,6 +1088,8 @@ public partial class Bandeja : CaeManager.Web.Components.PaginaInteractiva, IAsy
         _enviando = true;
         try
         {
+            if (!await AsegurarSugerenciaRevisadaAsync()) return;
+
             var resultado = _detalle?.Canal == CanalConversacion.WhatsApp
                 ? await Mediator.Send(new ResponderConversacionWhatsAppCommand(_conversacionSeleccionadaId.Value, _textoRespuesta.Trim()), _ciclo.Token)
                 : await Mediator.Send(new ResponderConversacionCommand(
@@ -1087,6 +1146,8 @@ public partial class Bandeja : CaeManager.Web.Components.PaginaInteractiva, IAsy
         _enviando = true;
         try
         {
+            if (!await AsegurarSugerenciaRevisadaAsync()) return;
+
             var resultado = await Mediator.Send(new MigrarConversacionACorreoCommand(
                 _conversacionSeleccionadaId.Value, _emailFallback.Trim(), _textoRespuesta), _ciclo.Token);
             if (resultado.EsFallido)

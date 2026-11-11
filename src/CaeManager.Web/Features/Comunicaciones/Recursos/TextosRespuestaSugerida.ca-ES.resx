@@ -1,0 +1,99 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <data name="Titulo" xml:space="preserve">
+    <value>Resposta suggerida per Vega</value>
+  </data>
+  <data name="OrigenVega" xml:space="preserve">
+    <value>Redactat per Vega</value>
+  </data>
+  <data name="OrigenMacro" xml:space="preserve">
+    <value>Macro</value>
+  </data>
+  <data name="OrigenVegaAyuda" xml:space="preserve">
+    <value>No hi ha cap macro aplicable: Vega redacta el text a partir de l&apos;assumpte i de l&apos;últim missatge del contacte.</value>
+  </data>
+  <data name="OrigenMacroAyuda" xml:space="preserve">
+    <value>Text d&apos;una macro emplenada amb les dades de la conversa.</value>
+  </data>
+  <data name="LeerEntera" xml:space="preserve">
+    <value>Llegeix-la sencera</value>
+  </data>
+  <data name="Reducir" xml:space="preserve">
+    <value>Redueix</value>
+  </data>
+  <data name="InsertarParaRevisar" xml:space="preserve">
+    <value>Insereix per revisar</value>
+  </data>
+  <data name="InsertarAyuda" xml:space="preserve">
+    <value>Només col·loca el text al redactor perquè el revisis. No envia res.</value>
+  </data>
+  <data name="Descartar" xml:space="preserve">
+    <value>Descarta</value>
+  </data>
+  <data name="ToastDescartada" xml:space="preserve">
+    <value>Resposta suggerida descartada</value>
+  </data>
+  <data name="PedirSugerencia" xml:space="preserve">
+    <value>Demana una resposta suggerida</value>
+  </data>
+  <data name="PedirOtra" xml:space="preserve">
+    <value>Demana&apos;n una altra</value>
+  </data>
+  <data name="PedirAyuda" xml:space="preserve">
+    <value>Vega llegeix l&apos;assumpte i l&apos;últim missatge del contacte i redacta un esborrany. No envia res.</value>
+  </data>
+  <data name="Pidiendo" xml:space="preserve">
+    <value>Vega està redactant…</value>
+  </data>
+  <data name="SinRevisarTexto" xml:space="preserve">
+    <value>Suggeriment sense revisar · prem «L&apos;he revisat» o edita més de 15 caràcters</value>
+  </data>
+  <data name="SinRevisarAyuda" xml:space="preserve">
+    <value>Per poder enviar, llegeix-la i prem «L&apos;he revisat», o canvia més de 15 caràcters del text. Una lletra solta no n&apos;hi ha prou.</value>
+  </data>
+  <data name="LoHeRevisado" xml:space="preserve">
+    <value>L&apos;he revisat</value>
+  </data>
+  <data name="PonerEnRedactor" xml:space="preserve">
+    <value>Posa-la al redactor</value>
+  </data>
+  <data name="SustituirPregunta" xml:space="preserve">
+    <value>Ja hi ha text al teu esborrany. Vols substituir-lo per la resposta suggerida?</value>
+  </data>
+  <data name="Sustituir" xml:space="preserve">
+    <value>Substitueix</value>
+  </data>
+  <data name="ConservarMiTexto" xml:space="preserve">
+    <value>Conserva el meu text</value>
+  </data>
+  <data name="MensajeNuevo" xml:space="preserve">
+    <value>Ha arribat un missatge nou després d&apos;aquest suggeriment. Descarta&apos;l o demana&apos;n un altre.</value>
+  </data>
+  <data name="SoloConsulta" xml:space="preserve">
+    <value>Amb el rol Consulta pots llegir-la, però no usar-la.</value>
+  </data>
+  <data name="NoDisponible" xml:space="preserve">
+    <value>Vega no ha pogut redactar una resposta ara mateix. Pot faltar l&apos;autorització de tractament amb IA de la teva organització o que el servei no respongui. Escriu la resposta a mà o fes servir una macro.</value>
+  </data>
+  <data name="NoProcede" xml:space="preserve">
+    <value>Només se suggereix resposta a una conversa sense resoldre l&apos;últim missatge de la qual és del contacte.</value>
+  </data>
+  <data name="ErrorCargar" xml:space="preserve">
+    <value>No hem pogut carregar la resposta suggerida.</value>
+  </data>
+  <data name="ErrorGenerico" xml:space="preserve">
+    <value>No hem pogut completar l&apos;acció. Torna-ho a provar.</value>
+  </data>
+</root>

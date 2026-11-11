@@ -1,0 +1,42 @@
+@*
+    «Notas del equipo sobre esta conversación» del panel de contexto (maqueta 2026-11-01, `.bl-nota` + `.nota-eq`, E21): cada
+    nota con su autor y su hora, y un enlace a la nota dentro del hilo. Son las mismas notas internas del Unified Timeline
+    (ObtenerNotasInternasConversacionQuery decide la audiencia: quien no las lee recibe la lista vacía y este bloque no se
+    pinta), solo que resumidas junto al contexto del contacto.
+*@
+@using CaeManager.Application.Comunicaciones.Queries.ObtenerNotasInternasConversacion
+@using CaeManager.Domain.Common
+@using CaeManager.Web.Features.Comunicaciones.Recursos
+@using Microsoft.Extensions.Localization
+@inject IStringLocalizer<TextosNotaFijaContacto> Textos
+@inject IStringLocalizer<TextosNotasInternas> TextosNotas
+
+@if (Notas.Count > 0)
+{
+    <section class="notas-equipo" aria-label="@Textos["NotasEquipoTitulo"]">
+        <h2 class="notas-equipo-cabecera">
+            <span class="notas-equipo-titulo">@Textos["NotasEquipoTitulo"]</span>
+            <span class="notas-equipo-recuento">@Notas.Count</span>
+        </h2>
+        @foreach (var nota in Notas)
+        {
+            var autor = Autores.TryGetValue(nota.AutorUsuarioId, out var nombre) ? nombre : TextosNotas["AutorDesconocido"].Value;
+            <a class="notas-equipo-nota" href="@($"#{UnifiedTimeline.IdDeNota(nota.Id)}")" title="@Textos["IrANota"]">
+                <span class="notas-equipo-meta">@autor · @Cuando(nota.FechaUtc)</span>
+                <span class="notas-equipo-texto">@nota.Texto</span>
+            </a>
+        }
+    </section>
+}
+
+@code {
+    [Parameter] public IReadOnlyList<NotaInternaDetalleDto> Notas { get; set; } = [];
+
+    [Parameter] public IReadOnlyDictionary<Guid, string> Autores { get; set; } = new Dictionary<Guid, string>();
+
+    private static string Cuando(DateTime fechaUtc)
+    {
+        var local = fechaUtc.EnHoraPeninsular();
+        return DiaDeNegocio.De(fechaUtc) == DiaDeNegocio.Hoy() ? local.ToString("HH:mm") : local.ToString("dd/MM/yyyy HH:mm");
+    }
+}

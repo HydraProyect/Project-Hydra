@@ -24,6 +24,11 @@ using CaeManager.Application.Comunicaciones.Queries.ObtenerMacros;
 using CaeManager.Application.Comunicaciones.Queries.ObtenerMensajesBuzonPersonal;
 using CaeManager.Application.Comunicaciones.Queries.ObtenerNotasInternasConversacion;
 using CaeManager.Application.Comunicaciones.Queries.ObtenerRecordatorioPropuestoConversacion;
+using CaeManager.Application.Comunicaciones.Queries.ObtenerRespuestaSugerida;
+using CaeManager.Application.Comunicaciones.Commands.GenerarRespuestaSugerida;
+using CaeManager.Application.Comunicaciones.Commands.ResolverRespuestaSugerida;
+using CaeManager.Application.Contactos.Commands.FijarNotaContactoAgenda;
+using CaeManager.Application.Contactos.Queries.ObtenerNotaContacto;
 using CaeManager.Web.Features.Comunicaciones.Components;
 using CaeManager.Application.Telemetria.Queries.ObtenerTiempoGestionConversacion;
 using CaeManager.Application.TiposDocumento.Queries.ObtenerTiposDocumento;
@@ -226,6 +231,49 @@ public class ComunicacionesGen2Tests : BunitContext
 
         public Func<ResponderConversacionCommand, Result> AlResponder { get; set; } = _ => Result.Exito();
 
+        /// <summary>La sugerencia activa del hilo: <c>ResolverRespuestaSugeridaCommand</c> la mueve de estado como el handler real.</summary>
+        public RespuestaSugeridaDto? Sugerencia { get; set; }
+
+        public Result<Guid> ResultadoGenerar { get; set; } =
+            Result.Fallo<Guid>(Error.Crear("Sugerencia.NoDisponible", "Sin proveedor de IA."));
+
+        /// <summary>Lo que existe tras pedir una sugerencia con éxito.</summary>
+        public RespuestaSugeridaDto? SugerenciaAlGenerar { get; set; }
+
+        public int Generaciones { get; private set; }
+
+        private Result<Guid> GenerarSugerencia()
+        {
+            Generaciones++;
+            if (ResultadoGenerar.EsExitoso) Sugerencia = SugerenciaAlGenerar;
+            return ResultadoGenerar;
+        }
+
+        public List<AccionRespuestaSugerida> AccionesSobreSugerencia { get; } = [];
+
+        public NotaContactoDto? NotaContacto { get; set; }
+
+        public List<FijarNotaContactoAgendaCommand> NotasFijadas { get; } = [];
+
+        private Result ResolverSugerencia(ResolverRespuestaSugeridaCommand comando)
+        {
+            AccionesSobreSugerencia.Add(comando.Accion);
+            Sugerencia = Sugerencia is null ? null : comando.Accion switch
+            {
+                AccionRespuestaSugerida.Insertar => Sugerencia with { Estado = EstadoRespuestaSugerida.SinRevisar },
+                AccionRespuestaSugerida.Confirmar => Sugerencia with { Estado = EstadoRespuestaSugerida.Revisada },
+                _ => null
+            };
+            return Result.Exito();
+        }
+
+        private Result GuardarNotaContacto(FijarNotaContactoAgendaCommand comando)
+        {
+            NotasFijadas.Add(comando);
+            NotaContacto = NotaContacto is null ? null : NotaContacto with { Notas = comando.Texto, ActualizadaEnUtc = DateTime.UtcNow };
+            return Result.Exito();
+        }
+
         /// <summary>Si devuelve una tarea, esa petición se resuelve cuando el test lo diga.</summary>
         public Func<object, Task<object?>?> Interceptar { get; set; } = _ => null;
 
@@ -248,6 +296,11 @@ public class ComunicacionesGen2Tests : BunitContext
                 ObtenerNotasInternasConversacionQuery => NotasInternas.ToList(),
                 CaeManager.Application.Comunicaciones.AlertasCriticas.ObtenerAlertaCriticaQuery => null,
                 ObtenerRecordatorioPropuestoConversacionQuery => null,
+                ObtenerRespuestaSugeridaQuery => Sugerencia,
+                ObtenerNotaContactoQuery => NotaContacto,
+                GenerarRespuestaSugeridaCommand => GenerarSugerencia(),
+                ResolverRespuestaSugeridaCommand c => ResolverSugerencia(c),
+                FijarNotaContactoAgendaCommand c => GuardarNotaContacto(c),
                 ResponderConversacionCommand c => AlResponder(c),
                 CambiarEstadoConversacionCommand => Result.Exito(),
                 _ => throw new NotSupportedException($"Petición no prevista en este test: {peticion.GetType().Name}.")
@@ -357,6 +410,234 @@ public class ComunicacionesGen2Tests : BunitContext
 
     private static Task Escribir(IRenderedComponent<Bandeja> cut, string texto) =>
         cut.Find(".composer-correo textarea").InputAsync(new ChangeEventArgs { Value = texto });
+
+    // ---------------------------------------------------------------- revisión 1:1, incremento 2: E18 (respuesta sugerida) y E21 (notas)
+
+    private const string TextoSugerido =
+        "Buenos días, Carmen. Recibimos la documentación y la revisaremos hoy mismo; le confirmamos el resultado mañana por la mañana.";
+
+    private static RespuestaSugeridaDto PropuestaPara(ConversacionDetalleDto detalle, string texto = TextoSugerido) =>
+        new(Guid.NewGuid(), detalle.Id, detalle.Mensajes[0].Id, OrigenRespuestaSugerida.Vega, null, texto,
+            EstadoRespuestaSugerida.Propuesta, Guid.NewGuid(), DateTime.UtcNow);
+
+    private (Escenario Escenario, ConversacionDetalleDto Detalle) EscenarioConSugerencia()
+    {
+        var conversacion = Conversacion("Documentación pendiente", ClienteRefrielectric);
+        var detalle = DetalleDe(conversacion);
+        var escenario = new Escenario { Detalle = _ => detalle };
+        escenario.Conversaciones.Add(conversacion);
+        escenario.Sugerencia = PropuestaPara(detalle);
+        return (escenario, detalle);
+    }
+
+    private static bool EnviarDeshabilitado(IRenderedComponent<Bandeja> cut) =>
+        Boton(cut, ".composer-acciones button", "Enviar").HasAttribute("disabled");
+
+    private static int Posicion<T>(MediadorControlado mediador) => mediador.Enviados.FindIndex(p => p is T);
+
+    [Fact]
+    public async Task La_respuesta_sugerida_solo_se_propone_y_no_envia_nada()
+    {
+        var (escenario, _) = EscenarioConSugerencia();
+        var (cut, mediador) = Renderizar(escenario);
+        await SeleccionarFila(cut, "Documentación pendiente");
+
+        cut.WaitForAssertion(() => cut.Find(".rs-bloque").TextContent.Should().Contain("Respuesta sugerida por Vega").And.Contain("Buenos días, Carmen"));
+        await Boton(cut, ".rs-bloque button", "Insertar para revisar").ClickAsync(new MouseEventArgs());
+
+        escenario.AccionesSobreSugerencia.Should().Equal(AccionRespuestaSugerida.Insertar);
+        mediador.Enviados.OfType<ResponderConversacionCommand>().Should().BeEmpty("insertar coloca el texto en el redactor: no envía");
+        cut.Find(".rs-sinrevisar").TextContent.Should().Contain("Sugerencia sin revisar");
+    }
+
+    [Fact]
+    public async Task Una_sugerencia_sin_revisar_bloquea_Enviar_y_Ctrl_Intro_hasta_confirmarla()
+    {
+        var (escenario, _) = EscenarioConSugerencia();
+        var (cut, mediador) = Renderizar(escenario);
+        await SeleccionarFila(cut, "Documentación pendiente");
+        cut.WaitForAssertion(() => cut.FindAll(".rs-bloque").Should().ContainSingle());
+        await Boton(cut, ".rs-bloque button", "Insertar para revisar").ClickAsync(new MouseEventArgs());
+
+        EnviarDeshabilitado(cut).Should().BeTrue("hay texto, pero es una sugerencia que nadie ha revisado");
+        await cut.Find(".composer-correo").KeyDownAsync(new KeyboardEventArgs { Key = "Enter", CtrlKey = true });
+        mediador.Enviados.OfType<ResponderConversacionCommand>().Should().BeEmpty("Ctrl+Intro respeta el mismo bloqueo que el botón");
+
+        await Boton(cut, ".rs-sinrevisar button", "Lo he revisado").ClickAsync(new MouseEventArgs());
+
+        escenario.AccionesSobreSugerencia.Should().Equal(AccionRespuestaSugerida.Insertar, AccionRespuestaSugerida.Confirmar);
+        cut.FindAll(".rs-sinrevisar").Should().BeEmpty();
+        EnviarDeshabilitado(cut).Should().BeFalse();
+        await Enviar(cut);
+        mediador.Enviados.OfType<ResponderConversacionCommand>().Should().ContainSingle();
+    }
+
+    [Fact]
+    public async Task Cambiar_una_letra_de_la_sugerencia_no_basta_para_enviarla()
+    {
+        var (escenario, _) = EscenarioConSugerencia();
+        var (cut, _) = Renderizar(escenario);
+        await SeleccionarFila(cut, "Documentación pendiente");
+        cut.WaitForAssertion(() => cut.FindAll(".rs-bloque").Should().ContainSingle());
+        await Boton(cut, ".rs-bloque button", "Insertar para revisar").ClickAsync(new MouseEventArgs());
+
+        await Escribir(cut, TextoSugerido + "!");
+
+        EnviarDeshabilitado(cut).Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task Una_sugerencia_editada_mas_del_umbral_se_confirma_en_el_servidor_antes_de_enviar()
+    {
+        var (escenario, _) = EscenarioConSugerencia();
+        var (cut, mediador) = Renderizar(escenario);
+        await SeleccionarFila(cut, "Documentación pendiente");
+        cut.WaitForAssertion(() => cut.FindAll(".rs-bloque").Should().ContainSingle());
+        await Boton(cut, ".rs-bloque button", "Insertar para revisar").ClickAsync(new MouseEventArgs());
+
+        await Escribir(cut, "Hola Carmen, recibido todo. Lo miramos esta tarde y mañana le decimos algo sin falta.");
+        EnviarDeshabilitado(cut).Should().BeFalse("el texto se apartó más de 15 caracteres de lo sugerido");
+        await Enviar(cut);
+
+        escenario.AccionesSobreSugerencia.Should().Equal(AccionRespuestaSugerida.Insertar, AccionRespuestaSugerida.Confirmar);
+        Posicion<ResolverRespuestaSugeridaCommand>(mediador).Should().BeGreaterThan(-1);
+        mediador.Enviados.FindLastIndex(p => p is ResolverRespuestaSugeridaCommand { Accion: AccionRespuestaSugerida.Confirmar })
+            .Should().BeLessThan(Posicion<ResponderConversacionCommand>(mediador), "el servidor bloquea el envío mientras siga sin revisar");
+        mediador.Enviados.OfType<ResponderConversacionCommand>().Should().ContainSingle();
+    }
+
+    [Fact]
+    public async Task Sin_proveedor_de_IA_pedir_la_sugerencia_degrada_con_un_aviso_y_el_redactor_sigue_sirviendo()
+    {
+        var conversacion = Conversacion("Documentación pendiente", ClienteRefrielectric);
+        var escenario = new Escenario { Detalle = _ => DetalleDe(conversacion) };
+        escenario.Conversaciones.Add(conversacion);
+        var (cut, mediador) = Renderizar(escenario);
+        await SeleccionarFila(cut, "Documentación pendiente");
+        cut.WaitForAssertion(() => cut.FindAll(".rs-vacio").Should().ContainSingle());
+
+        await Boton(cut, ".rs-vacio button", "Pedir respuesta sugerida").ClickAsync(new MouseEventArgs());
+
+        escenario.Generaciones.Should().Be(1);
+        cut.Find(".rs-aviso-error").TextContent.Should().Contain("Vega no ha podido redactar una respuesta ahora mismo");
+        await Escribir(cut, "Recibido, gracias.");
+        EnviarDeshabilitado(cut).Should().BeFalse("la IA es opcional: escribir a mano sigue funcionando");
+        await Enviar(cut);
+        mediador.Enviados.OfType<ResponderConversacionCommand>().Should().ContainSingle();
+    }
+
+    [Fact]
+    public async Task Pedir_una_sugerencia_la_muestra_sin_enviarla_y_descartarla_vuelve_a_ofrecer_pedirla()
+    {
+        var conversacion = Conversacion("Documentación pendiente", ClienteRefrielectric);
+        var detalle = DetalleDe(conversacion);
+        var escenario = new Escenario { Detalle = _ => detalle, ResultadoGenerar = Result.Exito(Guid.NewGuid()) };
+        escenario.SugerenciaAlGenerar = PropuestaPara(detalle);
+        escenario.Conversaciones.Add(conversacion);
+        var (cut, mediador) = Renderizar(escenario);
+        await SeleccionarFila(cut, "Documentación pendiente");
+        cut.WaitForAssertion(() => cut.FindAll(".rs-vacio").Should().ContainSingle());
+
+        await Boton(cut, ".rs-vacio button", "Pedir respuesta sugerida").ClickAsync(new MouseEventArgs());
+        cut.Find(".rs-bloque").TextContent.Should().Contain("Buenos días, Carmen");
+        mediador.Enviados.OfType<ResponderConversacionCommand>().Should().BeEmpty();
+
+        await Boton(cut, ".rs-bloque button", "Descartar").ClickAsync(new MouseEventArgs());
+
+        escenario.AccionesSobreSugerencia.Should().Equal(AccionRespuestaSugerida.Descartar);
+        cut.FindAll(".rs-vacio").Should().ContainSingle();
+    }
+
+    [Fact]
+    public async Task Una_conversacion_resuelta_no_ofrece_pedir_una_sugerencia()
+    {
+        var conversacion = Conversacion("Documentación pendiente", ClienteRefrielectric, estado: EstadoConversacion.Resuelta);
+        var escenario = new Escenario { Detalle = _ => DetalleDe(conversacion) };
+        escenario.Conversaciones.Add(conversacion);
+        var (cut, _) = Renderizar(escenario);
+        await SeleccionarFila(cut, "Documentación pendiente");
+
+        cut.WaitForAssertion(() => cut.FindAll(".bandeja-centro-acciones").Should().NotBeEmpty());
+        cut.FindAll(".rs-bloque").Should().BeEmpty();
+    }
+
+    private static NotaContactoDto NotaDeCarmen(string? texto = "Prefiere que la llamen por la mañana.") =>
+        new(Guid.NewGuid(), "Carmen Ruiz", texto, null, new DateTime(2026, 11, 3, 10, 0, 0, DateTimeKind.Utc));
+
+    [Fact]
+    public async Task La_nota_fija_del_contacto_se_muestra_con_su_origen_y_se_edita_sin_perder_el_resto()
+    {
+        var conversacion = Conversacion("Documentación pendiente", ClienteRefrielectric);
+        var escenario = new Escenario { Detalle = _ => DetalleDe(conversacion), NotaContacto = NotaDeCarmen() };
+        escenario.Conversaciones.Add(conversacion);
+        var (cut, mediador) = Renderizar(escenario);
+        await SeleccionarFila(cut, "Documentación pendiente");
+
+        cut.WaitForAssertion(() => cut.FindAll(".nota-fija").Should().ContainSingle());
+        var nota = cut.Find(".nota-fija");
+        nota.TextContent.Should().Contain("Nota fija · Carmen Ruiz").And.Contain("Prefiere que la llamen por la mañana.")
+            .And.Contain("Agenda ·").And.Contain("03/11/2026");
+        mediador.Enviados.OfType<ObtenerNotaContactoQuery>().Should().ContainSingle().Which.Email.Should().Be("carmen.ruiz@refrielectric.es");
+
+        await Boton(cut, ".nota-fija button", "Editar").ClickAsync(new MouseEventArgs());
+        await cut.Find(".nota-fija-area").InputAsync(new ChangeEventArgs { Value = "Llamar por la tarde." });
+        await Boton(cut, ".nota-fija button", "Guardar nota fija").ClickAsync(new MouseEventArgs());
+
+        escenario.NotasFijadas.Should().ContainSingle().Which.Texto.Should().Be("Llamar por la tarde.");
+        cut.Find(".nota-fija").TextContent.Should().Contain("Llamar por la tarde.");
+        cut.FindAll(".nota-fija-area").Should().BeEmpty("al guardar se sale de la edición");
+    }
+
+    [Fact]
+    public async Task La_nota_fija_no_se_guarda_vacia_y_cancelar_conserva_la_anterior()
+    {
+        var conversacion = Conversacion("Documentación pendiente", ClienteRefrielectric);
+        var escenario = new Escenario { Detalle = _ => DetalleDe(conversacion), NotaContacto = NotaDeCarmen() };
+        escenario.Conversaciones.Add(conversacion);
+        var (cut, _) = Renderizar(escenario);
+        await SeleccionarFila(cut, "Documentación pendiente");
+        cut.WaitForAssertion(() => cut.FindAll(".nota-fija").Should().ContainSingle());
+
+        await Boton(cut, ".nota-fija button", "Editar").ClickAsync(new MouseEventArgs());
+        await cut.Find(".nota-fija-area").InputAsync(new ChangeEventArgs { Value = "   " });
+        Boton(cut, ".nota-fija button", "Guardar nota fija").HasAttribute("disabled").Should().BeTrue();
+
+        await Boton(cut, ".nota-fija button", "Cancelar").ClickAsync(new MouseEventArgs());
+
+        escenario.NotasFijadas.Should().BeEmpty();
+        cut.Find(".nota-fija").TextContent.Should().Contain("Prefiere que la llamen por la mañana.");
+    }
+
+    [Fact]
+    public async Task Sin_contacto_en_la_agenda_no_se_pinta_la_nota_fija()
+    {
+        var conversacion = Conversacion("Documentación pendiente", ClienteRefrielectric);
+        var escenario = new Escenario { Detalle = _ => DetalleDe(conversacion), NotaContacto = null };
+        escenario.Conversaciones.Add(conversacion);
+        var (cut, mediador) = Renderizar(escenario);
+        await SeleccionarFila(cut, "Documentación pendiente");
+
+        cut.WaitForAssertion(() => mediador.Enviados.OfType<ObtenerNotaContactoQuery>().Should().NotBeEmpty());
+        cut.FindAll(".nota-fija").Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task Las_notas_del_equipo_enlazan_con_la_nota_dentro_del_hilo()
+    {
+        var conversacion = Conversacion("Documentación pendiente", ClienteRefrielectric);
+        var escenario = new Escenario { Detalle = _ => DetalleDe(conversacion) };
+        var nota = new NotaInternaDetalleDto(Guid.NewGuid(), Guid.NewGuid(), "Pedir el TC2 antes del viernes.", DateTime.UtcNow);
+        escenario.NotasInternas.Add(nota);
+        escenario.Conversaciones.Add(conversacion);
+        var (cut, _) = Renderizar(escenario);
+        await SeleccionarFila(cut, "Documentación pendiente");
+
+        cut.WaitForAssertion(() => cut.FindAll(".notas-equipo").Should().ContainSingle());
+        var enlace = cut.Find(".notas-equipo a.notas-equipo-nota");
+        enlace.TextContent.Should().Contain("Pedir el TC2 antes del viernes.");
+        enlace.GetAttribute("href").Should().Be($"#nota-interna-{nota.Id}");
+        cut.FindAll($"#nota-interna-{nota.Id}").Should().ContainSingle("el enlace apunta a una fila real del hilo");
+    }
 
     // ---------------------------------------------------------------- mockup Gen 2
 

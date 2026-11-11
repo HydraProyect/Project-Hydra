@@ -1,0 +1,68 @@
+/* Notas del equipo sobre la conversación (maqueta 2026-11-01, `.bl.bl-nota` y `.nota-eq`): el mismo bloque amarillo que la nota
+   fija; cada nota es un enlace de ancho completo con su autor y hora y el texto recortado a tres líneas. */
+.notas-equipo {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+    padding: var(--space-3);
+    border: 1px solid var(--color-nota-borde);
+    border-radius: var(--radius-card-sm);
+    background: var(--color-nota-fondo);
+    color: var(--color-nota-texto);
+}
+
+.notas-equipo-cabecera {
+    margin: 0;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-2);
+    font: 600 13px/18px var(--font-sans);
+}
+
+.notas-equipo-titulo {
+    color: var(--color-nota-texto);
+}
+
+.notas-equipo-recuento {
+    font: 500 12px/16px var(--font-sans);
+    color: var(--color-nota-texto);
+}
+
+.notas-equipo-nota {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    width: 100%;
+    padding: 6px var(--space-2);
+    border-top: 1px solid var(--color-nota-borde);
+    border-radius: var(--radius-md);
+    color: var(--color-nota-texto);
+    text-align: left;
+    text-decoration: none;
+}
+
+.notas-equipo-nota:first-of-type {
+    border-top: 0;
+}
+
+.notas-equipo-nota:hover {
+    filter: brightness(0.95);
+}
+
+.notas-equipo-nota:focus-visible {
+    outline: 2px solid var(--color-nota-texto);
+    outline-offset: 1px;
+}
+
+.notas-equipo-meta {
+    font: 500 12px/16px var(--font-sans);
+}
+
+.notas-equipo-texto {
+    display: -webkit-box;
+    -webkit-line-clamp: 3;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+    font: 400 13px/18px var(--font-sans);
+}

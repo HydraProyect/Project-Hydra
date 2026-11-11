@@ -1,0 +1,99 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <data name="Titulo" xml:space="preserve">
+    <value>Respuesta sugerida por Vega</value>
+  </data>
+  <data name="OrigenVega" xml:space="preserve">
+    <value>Redactado por Vega</value>
+  </data>
+  <data name="OrigenMacro" xml:space="preserve">
+    <value>Macro</value>
+  </data>
+  <data name="OrigenVegaAyuda" xml:space="preserve">
+    <value>No hay macro aplicable: Vega redacta el texto a partir del asunto y del último mensaje del contacto.</value>
+  </data>
+  <data name="OrigenMacroAyuda" xml:space="preserve">
+    <value>Texto de una macro rellenada con los datos de la conversación.</value>
+  </data>
+  <data name="LeerEntera" xml:space="preserve">
+    <value>Leer entera</value>
+  </data>
+  <data name="Reducir" xml:space="preserve">
+    <value>Reducir</value>
+  </data>
+  <data name="InsertarParaRevisar" xml:space="preserve">
+    <value>Insertar para revisar</value>
+  </data>
+  <data name="InsertarAyuda" xml:space="preserve">
+    <value>Solo coloca el texto en el redactor para que lo revises. No envía nada.</value>
+  </data>
+  <data name="Descartar" xml:space="preserve">
+    <value>Descartar</value>
+  </data>
+  <data name="ToastDescartada" xml:space="preserve">
+    <value>Respuesta sugerida descartada</value>
+  </data>
+  <data name="PedirSugerencia" xml:space="preserve">
+    <value>Pedir respuesta sugerida</value>
+  </data>
+  <data name="PedirOtra" xml:space="preserve">
+    <value>Pedir otra</value>
+  </data>
+  <data name="PedirAyuda" xml:space="preserve">
+    <value>Vega lee el asunto y el último mensaje del contacto y redacta un borrador. No envía nada.</value>
+  </data>
+  <data name="Pidiendo" xml:space="preserve">
+    <value>Vega está redactando…</value>
+  </data>
+  <data name="SinRevisarTexto" xml:space="preserve">
+    <value>Sugerencia sin revisar · pulsa «Lo he revisado» o edita más de 15 caracteres</value>
+  </data>
+  <data name="SinRevisarAyuda" xml:space="preserve">
+    <value>Para poder enviar, léela y pulsa «Lo he revisado», o cambia más de 15 caracteres del texto. Una letra suelta no basta.</value>
+  </data>
+  <data name="LoHeRevisado" xml:space="preserve">
+    <value>Lo he revisado</value>
+  </data>
+  <data name="PonerEnRedactor" xml:space="preserve">
+    <value>Poner en el redactor</value>
+  </data>
+  <data name="SustituirPregunta" xml:space="preserve">
+    <value>Ya hay texto en tu borrador. ¿Sustituirlo por la respuesta sugerida?</value>
+  </data>
+  <data name="Sustituir" xml:space="preserve">
+    <value>Sustituir</value>
+  </data>
+  <data name="ConservarMiTexto" xml:space="preserve">
+    <value>Conservar mi texto</value>
+  </data>
+  <data name="MensajeNuevo" xml:space="preserve">
+    <value>Ha llegado un mensaje nuevo después de esta sugerencia. Descártala o pide otra.</value>
+  </data>
+  <data name="SoloConsulta" xml:space="preserve">
+    <value>Con el rol Consulta puedes leerla, pero no usarla.</value>
+  </data>
+  <data name="NoDisponible" xml:space="preserve">
+    <value>Vega no ha podido redactar una respuesta ahora mismo. Puede faltar la autorización de tratamiento con IA de tu organización o que el servicio no responda. Escribe la respuesta a mano o usa una macro.</value>
+  </data>
+  <data name="NoProcede" xml:space="preserve">
+    <value>Solo se sugiere respuesta a una conversación sin resolver cuyo último mensaje es del contacto.</value>
+  </data>
+  <data name="ErrorCargar" xml:space="preserve">
+    <value>No pudimos cargar la respuesta sugerida.</value>
+  </data>
+  <data name="ErrorGenerico" xml:space="preserve">
+    <value>No pudimos completar la acción. Vuelve a intentarlo.</value>
+  </data>
+</root>
