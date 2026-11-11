@@ -105,7 +105,7 @@ public partial class ImportacionEstructura : ComponentBase, IDisposable
     /// <summary>Paso de la fila de pasos (1 a 6) que corresponde a la fase.</summary>
     private int PasoActual => _fase switch
     {
-        Fase.Subir => HayArchivo && _rechazo is null ? 2 : 1,
+        Fase.Subir => HayArchivo && !RechazoDelArchivo ? 2 : 1,
         Fase.Analizando or Fase.Validacion => 3,
         Fase.VistaPrevia => 4,
         Fase.Escribiendo => 5,
