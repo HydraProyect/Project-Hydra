@@ -378,8 +378,27 @@ public class AptAcotadoEnCiTests
             "comprobar_reintentos_efectivos() {",
             "local R=",
             consultaAptConfig,
+            "echo \"::error::apt-config da R=«${R}» en lugar de 0. Claves de reintentos que ve apt y ficheros que las fijan:\"",
+            "apt-config dump | grep -iF '::retries'",
+            "sudo grep -rinF '::retries' /etc/apt/apt.conf /etc/apt/apt.conf.d",
+            "echo \"APT_CONFIG=${APT_CONFIG-}\"",
+            "return 1",
+            "}",
         ]).Should().BeGreaterThan(-1,
-            "la comprobación evalúa la salida de apt-config en una variable local y compara el valor, no el texto");
+            "la comprobación evalúa la salida de apt-config en una variable local, compara el valor y, si no es 0, falla");
+        // Run 43083162162: con el fichero en 99-ci-apt-acotado, apt leía Acquire::Retries "1"
+        // fijado por la imagen en un fichero que se carga después. El fichero propio ordena el
+        // último de apt.conf.d y el 0 se repite al final de /etc/apt/apt.conf, que apt lee
+        // después de apt.conf.d.
+        IndiceDeSecuencia(accion,
+        [
+            "| sudo tee /etc/apt/apt.conf.d/zz-99-ci-apt-acotado > /dev/null \\",
+            "&& printf '%s\\n' 'Acquire::Retries \"0\";' | sudo tee -a /etc/apt/apt.conf > /dev/null \\",
+            "&& comprobar_reintentos_efectivos",
+        ]).Should().BeGreaterThan(-1,
+            "la configuración propia se carga la última y la comprobación corre después de escribirla");
+        accion.Should().NotContain(l => l.Contains("/etc/apt/apt.conf.d/99-", StringComparison.Ordinal),
+            "un fichero 99-… pierde frente a otros 99… de la imagen");
         accion.Should().Contain("&& comprobar_reintentos_efectivos",
             "la acción comprueba, después de escribir el fichero, que el valor que apt lee de verdad es 0");
         accion.Should().NotContain(l => l.Contains("apt-config shell", StringComparison.Ordinal) && l.Contains("='0'", StringComparison.Ordinal),

@@ -68,11 +68,20 @@ runs:
         # verdad, no solo el contenido de este fichero. La salida de `apt-config
         # shell` está hecha para eval y su entrecomillado no es un contrato: se
         # evalúa en una variable local y se compara el valor, no el texto.
+        #
+        # En el run 43083162162 apt seguía leyendo Acquire::Retries "1" con el 0
+        # ya escrito en 99-ci-apt-acotado: algo de la imagen lo fija después. apt
+        # lee apt.conf.d en orden alfabético y /etc/apt/apt.conf al final, así que
+        # el fichero se llama zz-99-ci-apt-acotado (ordena detrás de cualquier
+        # 99…) y el 0 también se añade al final de /etc/apt/apt.conf. Si aun así
+        # no queda en 0, se listan los ficheros que lo fijan.
         comprobar_reintentos_efectivos() {
           local R=
           eval "$(apt-config shell R Acquire::Retries)" && [ "$R" = 0 ] && return 0
-          echo "::error::apt-config da R=«${R}» en lugar de 0. Claves de reintentos que ve apt:"
+          echo "::error::apt-config da R=«${R}» en lugar de 0. Claves de reintentos que ve apt y ficheros que las fijan:"
           apt-config dump | grep -iF '::retries'
+          sudo grep -rinF '::retries' /etc/apt/apt.conf /etc/apt/apt.conf.d
+          echo "APT_CONFIG=${APT_CONFIG-}"
           return 1
         }
         escribir_conf_apt() {
@@ -82,7 +91,8 @@ runs:
             'Acquire::http::Timeout "30";' \
             'Acquire::https::Timeout "30";' \
             'DPkg::Lock::Timeout "60";' \
-            | sudo tee /etc/apt/apt.conf.d/99-ci-apt-acotado > /dev/null \
+            | sudo tee /etc/apt/apt.conf.d/zz-99-ci-apt-acotado > /dev/null \
+            && printf '%s\n' 'Acquire::Retries "0";' | sudo tee -a /etc/apt/apt.conf > /dev/null \
             && comprobar_reintentos_efectivos
         }
         # Sin errexit, cada preparación se comprueba a mano y falla cerrada: apt
