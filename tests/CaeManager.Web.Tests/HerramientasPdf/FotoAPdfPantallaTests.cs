@@ -157,6 +157,18 @@ public sealed class FotoAPdfPantallaTests : BunitContext
             .Should().ContainSingle(), TimeSpan.FromSeconds(20));
         cut.FindAll("button").First(b => b.TextContent.Trim() == texto).Click();
     }
+
+    /// <summary>
+    /// Espera a que el procesador reciba las fotos. No se hace con WaitForAssertion: el render que lo comprobaría ocurre al
+    /// empezar a generar, antes de que el hilo del procesador llegue a anotar la composición, y no habría otro render que
+    /// repitiera la comprobación (bajo carga, el test esperaba el plazo entero y fallaba).
+    /// </summary>
+    private void EsperarComposicion()
+    {
+        SpinWait.SpinUntil(() => _procesador.Composiciones.Count > 0, TimeSpan.FromSeconds(20)).Should().BeTrue();
+        _procesador.Composiciones.Should().ContainSingle();
+    }
+
     [Fact]
     public void Solo_pueden_entrar_los_roles_de_gestion_y_la_pantalla_pide_autenticacion()
     {
@@ -320,7 +332,7 @@ public sealed class FotoAPdfPantallaTests : BunitContext
 
         PulsarDescargar(cut, "Descargar PDF de 2 páginas");
 
-        cut.WaitForAssertion(() => _procesador.Composiciones.Should().ContainSingle());
+        EsperarComposicion();
         _procesador.Composiciones[0].Should().HaveCount(2);
         _procesador.Composiciones[0][0].Should().Equal(b);
         _procesador.Composiciones[0][1].Should().Equal(a);
@@ -377,7 +389,7 @@ public sealed class FotoAPdfPantallaTests : BunitContext
         await SubirAsync(cut, ("a.jpg", Jpeg(10, 10)));
         cut.WaitForAssertion(() => Nombres(cut).Should().Equal("a.jpg"), TimeSpan.FromSeconds(20));
         PulsarDescargar(cut, "Descargar PDF de 1 página");
-        cut.WaitForAssertion(() => _procesador.Composiciones.Should().ContainSingle(), TimeSpan.FromSeconds(20));
+        EsperarComposicion();
 
         await SubirAsync(cut, ("b.jpg", Jpeg(20, 20)));
         await Task.Delay(500);
