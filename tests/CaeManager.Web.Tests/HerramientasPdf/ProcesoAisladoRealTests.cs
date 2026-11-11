@@ -103,7 +103,7 @@ public sealed class ProcesoAisladoRealTests
         var reloj = Stopwatch.StartNew();
 
         var salida = await Lanzador().EjecutarAsync(ProcesoQueEspera(), (_, _) => Task.CompletedTask,
-            TimeSpan.FromMilliseconds(300), 1024, CancellationToken.None);
+            TimeSpan.FromMilliseconds(300), 1_000_000, CancellationToken.None);
 
         salida.Desenlace.Should().Be(DesenlaceProcesoAislado.TiempoAgotado);
         reloj.Elapsed.Should().BeLessThan(TimeSpan.FromSeconds(8), "el proceso espera 60 s: solo vuelve antes si se mata");
@@ -117,7 +117,7 @@ public sealed class ProcesoAisladoRealTests
         var reloj = Stopwatch.StartNew();
 
         var ejecutar = () => Lanzador().EjecutarAsync(ProcesoQueEspera(), (_, _) => Task.CompletedTask,
-            TimeSpan.FromMinutes(5), 1024, cancelacion.Token);
+            TimeSpan.FromMinutes(5), 1_000_000, cancelacion.Token);
 
         await ejecutar.Should().ThrowAsync<OperationCanceledException>();
         reloj.Elapsed.Should().BeLessThan(TimeSpan.FromSeconds(8));
