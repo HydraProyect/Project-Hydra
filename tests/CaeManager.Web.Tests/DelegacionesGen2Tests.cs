@@ -220,6 +220,7 @@ public partial class DelegacionesGen2Tests : BunitContext
         Services.AddScoped<PuertaAccesoDatos>();
         Services.AddScoped<ILecturaPersonasDelegadas>(_ => new LecturaFalsa(_cuentasConocidas, _lotesPedidos));
         Services.AddScoped<IClienteActivoSeleccionado>(_ => new Seleccion(_tenantSeleccionado));
+        JSInterop.Mode = JSRuntimeMode.Loose; // la página monta TituloDePaginaSinPrerender, que importa un módulo JS
         Services.AddLocalization();
         // BotonCopiar («Copiar enlace de autorización») importa clipboard.js al pintarse.
         JSInterop.SetupModule("./js/clipboard.js");

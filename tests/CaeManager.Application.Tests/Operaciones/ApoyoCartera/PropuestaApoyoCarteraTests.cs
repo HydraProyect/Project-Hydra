@@ -135,20 +135,23 @@ public class PropuestaApoyoCarteraTests
             .Where(c => c.Cartera.EsPrincipal).Select(c => (Guid?)c.Cartera.UsuarioId).SingleOrDefault();
 
         /// <summary>
-        /// La sesión de <paramref name="usuarioId"/>: su rol sale de Identity (<see cref="Roles"/>);
-        /// <paramref name="rolDeSesion"/> es el claim, que dentro de un Workspace operativo derivado es el
-        /// de la cartera y no decide nada.
+        /// La sesión de <paramref name="usuarioId"/>: <paramref name="rolDeSesion"/> es su rol efectivo en
+        /// el ámbito del Tenant de origen, el que decide (decisión P7), e Identity (<see cref="Roles"/>)
+        /// lo confirma; <paramref name="rolFueraDelOrigen"/>, el claim de la cartera dentro de un Workspace
+        /// operativo derivado, que aquí no decide nada.
         /// </summary>
-        public CurrentUserServicePorAmbito Como(Guid usuarioId, Guid? origen = null, string? rolDeSesion = "GestorCae") =>
-            new(usuarioId, origen ?? Operador, rolDeSesion, rolDeSesion);
+        public CurrentUserServicePorAmbito Como(
+            Guid usuarioId, Guid? origen = null, string? rolDeSesion = "GestorCae", string? rolFueraDelOrigen = null) =>
+            new(usuarioId, origen ?? Operador, rolDeSesion, rolFueraDelOrigen ?? rolDeSesion);
 
-        public Task<Result<Guid>> Proponer(Guid actor, Guid destinatario, Guid? operacion = null, Guid? origen = null, string? rolDeSesion = "GestorCae") =>
-            new ProponerApoyoCarteraCommandHandler(Como(actor, origen, rolDeSesion), Roles, Catalogo, Repositorio)
+        public Task<Result<Guid>> Proponer(Guid actor, Guid destinatario, Guid? operacion = null, Guid? origen = null, string? rolDeSesion = "GestorCae", string? rolFueraDelOrigen = null) =>
+            new ProponerApoyoCarteraCommandHandler(Como(actor, origen, rolDeSesion, rolFueraDelOrigen), Roles, Catalogo, Repositorio)
                 .Handle(new ProponerApoyoCarteraCommand(operacion ?? Operacion.Id, destinatario), default);
 
-        public Task<Result> Aceptar(Guid actor, Guid propuestaId, Guid? origen = null, string? rolDeSesion = "GestorCae") =>
+        public Task<Result> Aceptar(
+            Guid actor, Guid propuestaId, Guid? origen = null, string? rolDeSesion = "GestorCae", string? rolFueraDelOrigen = null) =>
             new AceptarPropuestaApoyoCarteraCommandHandler(
-                    Como(actor, origen, rolDeSesion), new DirectorioConTraza(Roles, Eventos), Catalogo, Repositorio, Transaccion, Bloqueo,
+                    Como(actor, origen, rolDeSesion, rolFueraDelOrigen), new DirectorioConTraza(Roles, Eventos), Catalogo, Repositorio, Transaccion, Bloqueo,
                     Cuentas, Notificaciones, Tenants, UnitOfWork,
                     NullLogger<AceptarPropuestaApoyoCarteraCommandHandler>.Instance)
                 .Handle(new AceptarPropuestaApoyoCarteraCommand(propuestaId), default);
@@ -263,21 +266,25 @@ public class PropuestaApoyoCarteraTests
     }
 
     [Fact]
-    public async Task El_rol_de_quien_propone_sale_de_Identity_y_no_del_claim()
+    public async Task El_rol_de_quien_propone_es_el_de_la_sesion_en_origen_e_Identity_lo_confirma()
     {
         // Dentro de un Workspace operativo derivado el claim es el de la cartera en ese Tenant
-        // propietario. Ni un claim «menor» impide proponer, ni uno de Gestor CAE lo permite a
-        // quien ya no lo es en su Tenant de origen.
+        // propietario y no decide: en el ámbito de origen manda el rol de sesión conservado.
         var conClaimAjeno = new Escenario();
+        var permitido = await conClaimAjeno.Proponer(GestorA, GestorB, rolDeSesion: "GestorCae", rolFueraDelOrigen: "Consulta");
+        permitido.EsExitoso.Should().BeTrue();
+
+        // Identity ya no le da Gestor CAE en su Tenant de origen: la sesión viva no basta.
         var sinRolEnOrigen = new Escenario();
         sinRolEnOrigen.Roles.Asignar(GestorA, Operador, "Consulta");
-
-        var permitido = await conClaimAjeno.Proponer(GestorA, GestorB, rolDeSesion: "Consulta");
-        var denegado = await sinRolEnOrigen.Proponer(GestorA, GestorB, rolDeSesion: "GestorCae");
-
-        permitido.EsExitoso.Should().BeTrue();
-        denegado.Error.Should().Be(ErroresPropuestaApoyo.SinPermiso);
+        (await sinRolEnOrigen.Proponer(GestorA, GestorB, rolDeSesion: "GestorCae")).Error.Should().Be(ErroresPropuestaApoyo.SinPermiso);
         sinRolEnOrigen.Repositorio.Propuestas.Should().BeEmpty();
+
+        // Decisión P7 (OWASP ASVS 4.0.3 V4.1.3 y V4.2.1): una sesión limitada a Consulta no propone
+        // con el rol de Gestor CAE que la cuenta tiene en Identity.
+        var limitada = new Escenario();
+        (await limitada.Proponer(GestorA, GestorB, rolDeSesion: "Consulta")).Error.Should().Be(ErroresPropuestaApoyo.SinPermiso);
+        limitada.Repositorio.Propuestas.Should().BeEmpty();
     }
 
     [Fact]
@@ -741,10 +748,25 @@ public class PropuestaApoyoCarteraTests
         var e = new Escenario();
         var propuesta = e.PropuestaPendiente();
 
-        var resultado = await e.Aceptar(GestorB, propuesta.Id, rolDeSesion: "Consulta");
+        var resultado = await e.Aceptar(GestorB, propuesta.Id, rolDeSesion: "GestorCae", rolFueraDelOrigen: "Consulta");
 
         resultado.EsExitoso.Should().BeTrue();
         propuesta.Estado.Should().Be(EstadoPropuestaApoyoCartera.Aceptada);
+    }
+
+    [Fact]
+    public async Task Una_sesion_limitada_a_Consulta_no_acepta_con_el_rol_de_Identity()
+    {
+        // Decisión P7 (OWASP ASVS 4.0.3 V4.1.3 y V4.2.1): en el ámbito de origen la sesión es de
+        // Consulta, aunque la cuenta sea Gestor CAE en Identity.
+        var e = new Escenario();
+        var propuesta = e.PropuestaPendiente();
+        var carterasAntes = e.Catalogo.CarterasVivas.Count;
+
+        (await e.Aceptar(GestorB, propuesta.Id, rolDeSesion: "Consulta")).Error.Should().Be(ErroresPropuestaApoyo.SinPermiso);
+
+        propuesta.Estado.Should().Be(EstadoPropuestaApoyoCartera.Pendiente);
+        e.Catalogo.CarterasVivas.Should().HaveCount(carterasAntes);
     }
 
     // ================= Rechazar y retirar =================

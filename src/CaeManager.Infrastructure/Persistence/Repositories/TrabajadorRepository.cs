@@ -8,6 +8,9 @@ public class TrabajadorRepository(CaeManagerDbContext dbContext) : ITrabajadorRe
     public Task<Trabajador?> ObtenerPorIdAsync(Guid id, CancellationToken cancellationToken = default) =>
         dbContext.ObtenerActualAsync(dbContext.Trabajadores.Where(t => t.Id == id), cancellationToken);
 
+    public async Task<IReadOnlyList<Trabajador>> ListarConIdentidadActualizadosAsync(CancellationToken cancellationToken = default) =>
+        await dbContext.ListarActualesAsync(dbContext.Trabajadores, t => !t.EstaEliminado && t.Dni != null, cancellationToken);
+
     public Task<bool> ExisteConDniAsync(string dni, Guid? excluirId = null, CancellationToken cancellationToken = default) =>
         dbContext.Trabajadores.AnyAsync(
             t => t.Dni == dni && (excluirId == null || t.Id != excluirId),

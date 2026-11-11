@@ -18,6 +18,7 @@ using CaeManager.Domain.Plantillas;
 using CaeManager.Domain.Trabajadores;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 
 namespace CaeManager.Application.Plantillas.Commands.GenerarDocumentoIndividual;
 
@@ -47,7 +48,11 @@ public class GenerarDocumentoIndividualCommandHandler(
     ISerializacionAltasAcreditacionEmpresa serializacionAltas,
     IAltaAcreditacionesPlataformaService altaAcreditaciones,
     IUnitOfWork unitOfWork,
-    INacimientoGestionAutomaticaService gestionAutomatica)
+    INacimientoGestionAutomaticaService gestionAutomatica,
+    ILogger<GenerarDocumentoIndividualCommandHandler> logger,
+    // Opcional solo mientras la PR #2104 cambia los tests que construyen este handler: el contenedor siempre lo resuelve
+    // (InvalidadorAlcanceInerte por defecto, el AlcanceDatosService del circuito en la Web). Issue #2118.
+    IInvalidadorAlcance? invalidadorAlcance = null)
     : IRequestHandler<GenerarDocumentoIndividualCommand, Result<GenerarDocumentoIndividualResultadoDto>>
 {
     public async Task<Result<GenerarDocumentoIndividualResultadoDto>> Handle(
@@ -247,10 +252,32 @@ public class GenerarDocumentoIndividualCommandHandler(
         // alta se serializa con la de un acceso de plataforma, igual que en CrearDocumentoCommandHandler (ver
         // ISerializacionAltasAcreditacionEmpresa).
         var guardado = plantilla.AmbitoAplicacion == AmbitoAplicacion.Empresa
-            ? await serializacionAltas.EjecutarAsync(ct => GuardarAsync(documento, documentoGenerado, ct), cancellationToken)
+            ? await serializacionAltas.EjecutarAsync(async ct =>
+            {
+                // Bajo el candado se vuelve a decidir la Asignación de Cartera sobre la Empresa y el Centro: pudo
+                // revocarse mientras se esperaba, y el alcance memoizado (en Blazor Server, el del circuito) es de
+                // antes; se descarta, igual que en BloqueoRespuestaSugerida.ComprobarEnvioPorBuzonAsync (issue #2118).
+                // Un rechazo aquí deja el PDF ya guardado sin ningún Documento que lo referencie: se elimina abajo.
+                invalidadorAlcance?.Invalidar();
+                if (!await alcanceDatos.EmpresaParaGestionVisibleAsync(request.OwnerId, ct))
+                    return Result.Fallo(Error.Crear("Plantilla.PropietarioNoEncontrado", "No encontramos a quién pertenece este documento."));
+                if (request.CentroId is { } centroBajoCandado && !await alcanceDatos.CentroVisibleAsync(centroBajoCandado, ct))
+                    return Result.Fallo(Error.Crear("Plantilla.CentroNoEncontrado", "No encontramos este centro."));
+                return await GuardarAsync(documento, documentoGenerado, ct);
+            }, cancellationToken)
             : await GuardarAsync(documento, documentoGenerado, cancellationToken);
         if (guardado.EsFallido)
+        {
+            // GuardarAsync solo devuelve éxito o lanza: un fallo aquí es el rechazo de la Asignación de Cartera bajo el
+            // candado. El PDF guardado arriba puede llevar datos de la Empresa y de sus contactos a los que quien lo pidió
+            // ya no tiene acceso, así que se elimina si ningún Documento lo referencia. Que este intento rechazara no lo
+            // prueba: si un commit anterior se confirmó en la base pero devolvió un error transitorio, la estrategia de
+            // reintentos repitió la operación y este rechazo llega sobre un Documento ya confirmado. Por eso se pregunta a
+            // la base, ya fuera de la transacción, por el Id de este Documento (el mismo en todos los intentos).
+            // Las excepciones tras guardar el PDF no se compensan aquí (issue #2123).
+            await EliminarPdfSiNingunDocumentoLoReferenciaAsync(archivoUrl, documento.Id, version.Id);
             return Result.Fallo<GenerarDocumentoIndividualResultadoDto>(guardado.Error);
+        }
 
         return Result.Exito(new GenerarDocumentoIndividualResultadoDto(
             documentoGenerado.Id, documento.Id, camposObligatoriosVacios, valoresNoReconocidos));
@@ -274,6 +301,47 @@ public class GenerarDocumentoIndividualCommandHandler(
 
         await unitOfWork.SaveChangesAsync(cancellationToken);
         return Result.Exito();
+    }
+
+    // Sin el token de la petición y sin dejar escapar ninguna excepción, tampoco una cancelación: el fallo real ya es el
+    // rechazo de la cartera, y perderlo por un problema al limpiar dejaría al llamador sin explicación. Mismo patrón de
+    // compensación best-effort que AgregarVersionPlantillaCommandHandler: si la comprobación o la limpieza fallan, el PDF
+    // queda huérfano sin más reintento, que es preferible a borrar el de un Documento confirmado. Se registra la versión
+    // de plantilla por Id y el tipo de la excepción: ni la clave del archivo ni el mensaje de la excepción deben acabar
+    // en los registros.
+    private async Task EliminarPdfSiNingunDocumentoLoReferenciaAsync(string archivoUrl, Guid documentoId, Guid versionId)
+    {
+        bool podriaExistir;
+        try
+        {
+            podriaExistir = await documentoRepositorio.PodriaExistirAsync(documentoId, CancellationToken.None);
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(
+                "No se pudo comprobar si consta el Documento generado desde la versión de plantilla {PlantillaDocumentoVersionId} tras rechazarse su alta ({TipoExcepcion}): se conserva el PDF.",
+                versionId, ex.GetType().Name);
+            return;
+        }
+
+        if (podriaExistir)
+        {
+            logger.LogWarning(
+                "Se rechazó el alta generada desde la versión de plantilla {PlantillaDocumentoVersionId} pero su Documento consta en la base, o no hay Tenant propietario para comprobarlo: se conserva el PDF.",
+                versionId);
+            return;
+        }
+
+        try
+        {
+            await almacenamientoArchivos.EliminarAsync(archivoUrl, CancellationToken.None);
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(
+                "No se pudo eliminar el PDF generado desde la versión de plantilla {PlantillaDocumentoVersionId} tras rechazarse su alta ({TipoExcepcion}).",
+                versionId, ex.GetType().Name);
+        }
     }
 
     /// <summary>Si varios contactos comparten el mismo rol, se queda con el primero — comportamiento razonable para MVP, sin criterio de desempate.</summary>

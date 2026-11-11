@@ -38,6 +38,8 @@ public static class ApplicationServiceCollectionExtensions
         // Scoped: una puerta por petición HTTP o circuito de Blazor — la
         // misma que usan los accesos a datos que no pasan por MediatR.
         services.AddScoped<PuertaAccesoDatos>();
+        // Coste de acceso a datos del mismo scope (lo lee la cabecera Server-Timing).
+        services.AddScoped<CosteCarga>();
         services.AddScoped<CaeManager.Application.Integraciones.ConectoresPlataformaCae.IOperacionesConectorPlataformaCae,
             CaeManager.Application.Integraciones.ConectoresPlataformaCae.OperacionesConectorPlataformaCae>();
         services.AddScoped<CaeManager.Application.Dashboard.Queries.MedicionMensualCuadroDireccion>();
@@ -52,6 +54,7 @@ public static class ApplicationServiceCollectionExtensions
         services.AddSingleton<CaeManager.Application.Plataforma.OrdenMenu.CacheOrdenMenuLateral>();
         // Esqueleto común de los Commands que cambian una tarea del asistente de flujos.
         services.AddScoped<CaeManager.Application.AsistenteIa.Tareas.ModificacionTareaAsistente>();
+        services.AddScoped<CaeManager.Application.AsistenteIa.Edicion.RevisionPlanAsistente>();
         services.AddScoped<CaeManager.Application.Clientes.ReasignadorCarteraCliente>();
         // Webhook de Stripe: aplica el estado actual de la Subscription, no la copia del evento.
         services.AddScoped<CaeManager.Application.Comercial.Common.IProcesadorWebhookSuscripcion,
@@ -96,6 +99,10 @@ public static class ApplicationServiceCollectionExtensions
         services.AddScoped<IAutorizacionEscrituraEfectiva, AutorizacionEscrituraEfectiva>();
         services.AddScoped<Importacion.RecorteDeAnalisisAlAmbito>();
         services.AddSingleton<CaeManager.Application.HerramientasPdf.IDisponibilidadHerramientasPdf, CaeManager.Application.HerramientasPdf.DisponibilidadHerramientasPdf>();
+        // Foto a PDF: fuera de MediatR, para no retener la puerta de acceso a datos del circuito mientras decodifica.
+        services.AddSingleton<CaeManager.Application.HerramientasPdf.GeneradorPdfDesdeFotos>();
+        // Un solo limitador de CPU por proceso para Herramientas PDF (miniaturas y composición), no uno por circuito.
+        services.AddSingleton<CaeManager.Application.HerramientasPdf.LimitadorConversionesPdf>();
         // Valor por defecto: la implementación real (Infrastructure) es la misma instancia scoped de
         // AlcanceDatosService, que es quien memoiza.
         services.TryAddScoped<IInvalidadorAlcance, InvalidadorAlcanceInerte>();
@@ -140,7 +147,8 @@ public static class ApplicationServiceCollectionExtensions
                     + "administración sin que lo supieran ni las exclusiones ni la auditoría. La señal la da la misma "
                     + "clase que resuelve el rol efectivo."),
             });
-        // Orden importa. LoggingBehavior va el primero de todos: mide lo que
+        // Orden importa. Por fuera de todo solo va CosteCargaBehavior, que únicamente cuenta
+        // despachos. Después, LoggingBehavior, el primero de los que actúan: mide lo que
         // el usuario espera de verdad, incluido el tiempo en la cola de
         // acceso a datos, y su ámbito de log correlaciona todo lo que
         // registren los behaviors de dentro. Puede ir ahí porque no toca la
@@ -154,6 +162,9 @@ public static class ApplicationServiceCollectionExtensions
         // validarse — y GateComercialTenantBehavior (Horizonte 1.7) va justo
         // a continuación por el mismo motivo, con el estado del TENANT en
         // vez del rol del usuario.
+        // CosteCargaBehavior, por fuera de todos: solo suma un despacho al acumulador del scope
+        // (Server-Timing «med»), no toca la base ni cambia el resultado.
+        services.AddTransient(typeof(MediatR.IPipelineBehavior<,>), typeof(CosteCargaBehavior<,>));
         services.AddTransient(typeof(MediatR.IPipelineBehavior<,>), typeof(LoggingBehavior<,>));
         services.AddTransient(typeof(MediatR.IPipelineBehavior<,>), typeof(SerializacionAccesoDatosBehavior<,>));
         // InvalidacionAlcanceBehavior, dentro de la serialización: antes y después de cada Command
@@ -225,6 +236,7 @@ public static class ApplicationServiceCollectionExtensions
         services.AddScoped<Gestiones.INacimientoGestionAutomaticaService, Gestiones.NacimientoGestionAutomaticaService>();
         services.AddScoped<CaeManager.Application.Common.Archivos.IVerificadorArchivoAlmacenado, CaeManager.Application.Common.Archivos.VerificadorArchivoAlmacenado>();
         services.AddScoped<IPaqueteDocumentalVisitaService, PaqueteDocumentalVisitaService>();
+        services.AddScoped<CaeManager.Application.Empresas.PaqueteDocumental.IPaqueteDocumentalEmpresaService, CaeManager.Application.Empresas.PaqueteDocumental.PaqueteDocumentalEmpresaService>();
         services.AddScoped<IEvaluadorExpedienteVisitaService, EvaluadorExpedienteVisitaService>();
         services.AddScoped<IVerificacionIaDocumentoService, VerificacionIaDocumentoService>();
         services.AddScoped<CaeManager.Application.Cumplimiento.IInstruccionTratamientoIaService, CaeManager.Application.Cumplimiento.InstruccionTratamientoIaService>();

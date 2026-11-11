@@ -1,0 +1,110 @@
+@page "/herramientas-pdf/foto"
+@* Sin prerender (como Dividir un PDF): la página carga en el ciclo de vida y no persiste su estado. *@
+@rendermode @(new InteractiveServerRenderMode(prerender: false))
+@inherits CaeManager.Web.Components.PaginaInteractiva
+@using CaeManager.Application.HerramientasPdf
+@using CaeManager.Web.Features.HerramientasPdf.Recursos
+@using Microsoft.AspNetCore.Components.Forms
+@attribute [Authorize(Roles = $"{CaeManager.Infrastructure.Identity.Roles.Administrador},{CaeManager.Infrastructure.Identity.Roles.DireccionCae},{CaeManager.Infrastructure.Identity.Roles.CoordinadorCae},{CaeManager.Infrastructure.Identity.Roles.GestorCae}")]
+
+<LimiteDeErrores Pagina="this">
+    <PageTitle>@Textos["FotoPestana"] — @Marca.Nombre</PageTitle>
+    <TituloDePaginaSinPrerender Titulo="@($"{Textos["FotoPestana"]} — {Marca.Nombre}")" />
+    <div class="contenedor-pagina foto-a-pdf">
+        <a class="volver-herramientas" href="herramientas-pdf"><Icono Nombre="volver" />@Textos["Herramientas"]</a>
+
+        @if (_inicializando)
+        {
+            <p class="texto-suave" role="status">@Textos["Cargando"]</p>
+        }
+        else if (!_disponible)
+        {
+            <EstadoVacio Titulo="@Textos["NoDisponibleTitulo"]" Descripcion="@Textos["NoDisponibleDescripcion"]" NombreIcono="documentos" />
+        }
+        else
+        {
+            <div class="cabecera-foto">
+                <h1>@Textos["FotoTitulo"]</h1>
+                <p>@Textos["FotoDescripcion"]</p>
+            </div>
+
+            <div class="aviso-foto" role="note"><Icono Nombre="info" /><span>@Textos["FotoAvisoNoSeGuarda"]</span></div>
+
+            @if (!string.IsNullOrEmpty(_error))
+            {
+                <div class="aviso-foto aviso-error" role="alert"><Icono Nombre="advertencia" /><span>@_error</span></div>
+            }
+
+            @if (_rechazadas.Count > 0)
+            {
+                <div class="aviso-foto aviso-error" role="alert">
+                    <Icono Nombre="advertencia" />
+                    <div>
+                        <strong>@Textos["FotoRechazadasTitulo"]</strong>
+                        <ul class="lista-rechazadas">
+                            @foreach (var rechazada in _rechazadas)
+                            {
+                                <li>@rechazada</li>
+                            }
+                        </ul>
+                    </div>
+                </div>
+            }
+
+            <section class="isla-foto" aria-labelledby="titulo-subir-fotos">
+                <h2 id="titulo-subir-fotos">@Textos["FotoSubirTitulo"]</h2>
+                @if (HayHuecoParaMasFotos)
+                {
+                    <ZonaSoltarArchivo Titulo="@Textos["FotoZonaTitulo"]"
+                                       FormatosTexto="@Textos["FotoZonaFormatos", LimitesFotoAPdf.MaximoFotos, LimitesFotoAPdf.TamanoMaximoFotoMb]"
+                                       Accept=".jpg,.jpeg,.png,image/jpeg,image/png" Multiple="true" Cargando="@(_cargando || _generando)" OnChange="AnadirFotosAsync" />
+                }
+                else
+                {
+                    <p class="texto-suave" role="status">@Textos["FotoLimiteAlcanzado", LimitesFotoAPdf.MaximoFotos]</p>
+                }
+            </section>
+
+            @if (_fotos.Count > 0)
+            {
+                <section class="isla-foto" aria-labelledby="titulo-orden-fotos">
+                    <h2 id="titulo-orden-fotos">@Textos["FotoListaTitulo"] <span class="texto-suave">· @Textos[_fotos.Count == 1 ? "FotoResumenUna" : "FotoResumenVarias", _fotos.Count]</span></h2>
+                    <ol class="lista-fotos">
+                        @{ var claves = new ClavesDeHermanos(); }
+                        @foreach (var (foto, posicion) in _fotos.Select((f, i) => (f, i)))
+                        {
+                            var actual = foto;
+                            var indice = posicion;
+                            @* @key: mover o quitar una foto permuta o retira su fila sin volver a enviar el src (la cadena data:) de las demás. *@
+                            <li class="foto-fila" @key="claves.De(actual.Archivo)">
+                                <span class="foto-numero">@Textos["FotoPagina", indice + 1]</span>
+                                <span class="foto-miniatura">
+                                    @if (actual.UrlMiniatura is { } urlMiniatura)
+                                    {
+                                        <img src="@urlMiniatura" alt="@Textos["FotoMiniaturaAlt", actual.Nombre]" />
+                                    }
+                                </span>
+                                <span class="foto-datos">
+                                    <strong class="foto-nombre">@actual.Nombre</strong>
+                                    <span class="texto-suave">@Textos["FotoMedidas", actual.Datos.Ancho, actual.Datos.Alto, TextoTamano(actual.Bytes)]</span>
+                                </span>
+                                <span class="foto-acciones">
+                                    <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" Deshabilitado="@(indice == 0 || _generando)"
+                                           OnClick="() => Mover(indice, -1)" aria-label="@Textos["FotoMoverArribaDe", actual.Nombre]">@Textos["FotoMoverArriba"]</Boton>
+                                    <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" Deshabilitado="@(indice == _fotos.Count - 1 || _generando)"
+                                           OnClick="() => Mover(indice, 1)" aria-label="@Textos["FotoMoverAbajoDe", actual.Nombre]">@Textos["FotoMoverAbajo"]</Boton>
+                                    <Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno" Deshabilitado="_generando"
+                                           OnClick="() => Quitar(actual)" aria-label="@Textos["FotoQuitarDe", actual.Nombre]">@Textos["FotoQuitar"]</Boton>
+                                </span>
+                            </li>
+                        }
+                    </ol>
+                    <div class="barra-acciones-foto">
+                        <Boton Variante="VarianteBoton.Fantasma" Deshabilitado="_generando" OnClick="QuitarTodas">@Textos["FotoQuitarTodas"]</Boton>
+                        <Boton Variante="VarianteBoton.Primario" Cargando="_generando" Deshabilitado="_cargando" OnClick="DescargarAsync">@Textos[_fotos.Count == 1 ? "FotoDescargarUna" : "FotoDescargarVarias", _fotos.Count]</Boton>
+                    </div>
+                </section>
+            }
+        }
+    </div>
+</LimiteDeErrores>

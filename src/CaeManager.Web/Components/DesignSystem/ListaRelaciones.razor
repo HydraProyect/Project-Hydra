@@ -15,8 +15,18 @@
     línea de encabezado encima («Mostrando 3 de 4 · del peor estado al mejor»)
     y una nota debajo. Es el contenedor de las filas en rejilla de
     <FilaRelacion>.
+
+    Anidada (2026-11-08): la lista del segundo nivel, dentro del bloque
+    desplegado de una <FilaRelacion>. Sin caja, sin borde y sin fondo: es la
+    misma superficie que la fila de arriba. Gana a EnTarjeta.
 *@
-@if (EnTarjeta)
+@if (Anidada)
+{
+    <ul class="lista-relaciones lista-relaciones-sin-caja lista-relaciones-anidada" data-pieza="lista-anidada" aria-label="@Etiqueta">
+        @ChildContent
+    </ul>
+}
+else if (EnTarjeta)
 {
     <div class="lista-relaciones-tarjeta" data-pieza="tarjeta">
         @if (Encabezado is not null)
@@ -48,6 +58,12 @@ else
 
     /// <summary>Pinta la lista como contenido de una tarjeta. Falso por defecto: ningún consumidor existente cambia.</summary>
     [Parameter] public bool EnTarjeta { get; set; }
+
+    /// <summary>
+    /// Lista del segundo nivel, dentro del bloque desplegado de una fila: sin caja ni fondo propios.
+    /// Gana a <see cref="EnTarjeta"/>.
+    /// </summary>
+    [Parameter] public bool Anidada { get; set; }
 
     /// <summary>Línea sobre las filas. Solo con <see cref="EnTarjeta"/>.</summary>
     [Parameter] public RenderFragment? Encabezado { get; set; }

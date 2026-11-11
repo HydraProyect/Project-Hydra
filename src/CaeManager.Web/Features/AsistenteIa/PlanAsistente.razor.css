@@ -137,8 +137,67 @@
 
 .plan-tenants {
     display: flex;
-    flex-wrap: wrap;
+    flex-direction: column;
+    gap: var(--space-1);
+}
+
+/* Controles para completar el plan a mano: mismo borde y foco que el resto de formularios. */
+.plan-control {
+    width: 100%;
+    min-width: 0;
+    border: var(--border-control);
+    border-radius: var(--radius-md);
+    background-color: var(--color-surface);
+    color: var(--color-text);
+    padding: var(--space-1) var(--space-2);
+    font: var(--font-body-sm);
+}
+
+.plan-control:focus-visible {
+    outline: var(--border-focus);
+    outline-offset: 1px;
+}
+
+.plan-control:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+.plan-dato-editable {
+    flex: 1 1 14rem;
+    min-width: 0;
+}
+
+.plan-trabajador {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: var(--space-1);
+}
+
+.plan-trabajador > :last-child {
+    grid-column: 1 / -1;
+}
+
+.plan-multiple {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-1);
+    max-height: 10rem;
+    overflow-y: auto;
+    border: var(--border-control);
+    border-radius: var(--radius-md);
+    padding: var(--space-1) var(--space-2);
+}
+
+.plan-casilla {
+    display: flex;
+    align-items: center;
     gap: var(--space-2);
+    font: var(--font-body-sm);
+}
+
+.plan-paso-fallo {
+    color: var(--color-danger-700);
 }
 
 .plan-opcion {

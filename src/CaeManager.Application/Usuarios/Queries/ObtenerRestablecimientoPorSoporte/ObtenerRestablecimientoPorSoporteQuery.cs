@@ -20,7 +20,10 @@ public record RestablecimientoPorSoporteDto(AdministradorUnicoActivo? Administra
 /// al Tenant objetivo: fuera de ese caso la sección no existe. No autoriza nada: la
 /// acción la decide <c>RestablecerSegundoFactorCommand</c> y la vuelve a comprobar la
 /// base. Solo expone a quién se restablecería, porque el técnico tiene que poder
-/// confirmarlo con quien pide ayuda.
+/// confirmarlo con quien pide ayuda. Revalida la sesión como la autorización del
+/// comando: con la memo de <c>ObtenerAsync</c>, una concesión revocada o una sesión
+/// cerrada en otra pestaña seguiría mostrando al Administrador del Tenant objetivo
+/// hasta la siguiente revalidación del circuito.
 /// </summary>
 public record ObtenerRestablecimientoPorSoporteQuery : IRequest<RestablecimientoPorSoporteDto?>;
 
@@ -33,7 +36,7 @@ public class ObtenerRestablecimientoPorSoporteQueryHandler(
     public async Task<RestablecimientoPorSoporteDto?> Handle(
         ObtenerRestablecimientoPorSoporteQuery request, CancellationToken cancellationToken)
     {
-        if (await sesionPrivilegiadaActual.ObtenerAsync(cancellationToken) is not { } sesion
+        if (await sesionPrivilegiadaActual.RevalidarAsync(cancellationToken) is not { } sesion
             || sesion.Capacidad != CapacidadPrivilegio.RestablecimientoSegundoFactor
             || sesion.UsuarioSimuladoId is not null
             || tenantActual.TenantId != sesion.TenantObjetivoId)

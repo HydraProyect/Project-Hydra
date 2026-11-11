@@ -127,7 +127,9 @@ echo "$SALIDA4" | grep -q "Fin del muestreo: muestras=11 stats_ok=11 t_primera=[
 echo "$SALIDA4" | grep -q "psi_some_total_us=4242 oom_kill=7" || fallo "faltan los contadores del host por muestra"
 echo "$SALIDA4" | grep -q "memory.peak: 123456" || fallo "falta la lectura de cgroup (estado inicial/final)"
 echo "$SALIDA4" | grep -q "caemanager-db" || fallo "falta el contenedor caemanager-db"
-if echo "$SALIDA4" | grep -q "otro-contenedor"; then fallo "se leyó un contenedor que no es caemanager-*"; fi
+# Pruebas negativas con `<<<`, no `echo | grep -q`: con pipefail, el SIGPIPE de
+# echo daría un falso «no está» justo cuando el texto sí estaba.
+if grep -q "otro-contenedor" <<< "$SALIDA4"; then fallo "se leyó un contenedor que no es caemanager-*"; fi
 echo 0 > "$CONTADOR_STATS"
 muestreo_memoria 420 2 >/dev/null 2>&1
 [ "$(cat "$CONTADOR_STATS")" = "211" ] || fallo "420 s a 2 s debían dar 211 muestras, dieron $(cat "$CONTADOR_STATS")"
@@ -170,7 +172,7 @@ ESTADO8=0
 SALIDA8="$(muestreo_memoria 60 2 2>&1)" || ESTADO8=$?
 [ "$ESTADO8" -eq 4 ] || fallo "un muestreo cortado por un despliegue debe devolver 4, devolvió $ESTADO8"
 echo "$SALIDA8" | grep -q "Muestreo INTERRUMPIDO tras 3 muestras" || fallo "no avisó del corte"
-echo "$SALIDA8" | grep -q "Fin del muestreo" && fallo "un muestreo cortado no puede cerrar con «Fin del muestreo»"
+grep -q "Fin del muestreo" <<< "$SALIDA8" && fallo "un muestreo cortado no puede cerrar con «Fin del muestreo»"
 [ "$(cat "$CONTADOR_STATS")" = "3" ] || fallo "debía cortar tras 3 muestras (la sonda 5 ya ve el despliegue), hizo $(cat "$CONTADOR_STATS")"
 echo "$SALIDA8" | grep -q "Estado final de los contenedores" || fallo "tras el corte sigue faltando la lectura final"
 echo "OK: corta tras 3 muestras, devuelve 4, no cierra como completo y deja la lectura final"
@@ -218,7 +220,7 @@ echo "$SALIDA10" | grep -q "volcado cortado: agotado el plazo" || fallo "el volc
 echo "$SALIDA10" | grep -q "volcado no iniciado: agotado el plazo" || fallo "el volcado final no respetó el plazo: $SALIDA10"
 [ "$(cat "$CONTADOR_STATS")" = "0" ] || fallo "con el plazo agotado no debía muestrear, hizo $(cat "$CONTADOR_STATS")"
 [ "$ESTADO10" -eq 5 ] || fallo "un muestreo sin ninguna muestra debía devolver 5, devolvió $ESTADO10"
-echo "$SALIDA10" | grep -q "Fin del muestreo" && fallo "un muestreo sin muestras no puede cerrar con «Fin del muestreo»"
+grep -q "Fin del muestreo" <<< "$SALIDA10" && fallo "un muestreo sin muestras no puede cerrar con «Fin del muestreo»"
 echo "OK: los volcados de cgroup respetan el plazo total"
 
 echo "=== Caso 11: el bucle deja el tramo final (duración/10, tope 15 s) para la lectura final ==="
@@ -253,7 +255,7 @@ docker() { if [ "$1" = stats ]; then return 1; fi; docker_base "$@"; }
 ESTADO13=0; SALIDA13="$(muestreo_memoria 20 2 2>&1)" || ESTADO13=$?
 [ "$ESTADO13" -eq 5 ] || fallo "con docker stats siempre fallando debía devolver 5, devolvió $ESTADO13"
 echo "$SALIDA13" | grep -q "Muestreo SIN lecturas de docker stats (muestras=11 stats_ok=0" || fallo "debía decir muestras=11 stats_ok=0: $(echo "$SALIDA13" | grep -a "Muestreo SIN")"
-echo "$SALIDA13" | grep -q "Fin del muestreo" && fallo "0 lecturas útiles no pueden cerrar con «Fin del muestreo»"
+grep -q "Fin del muestreo" <<< "$SALIDA13" && fallo "0 lecturas útiles no pueden cerrar con «Fin del muestreo»"
 # b) docker stats sale con 0 pero SIN filas (contenedores parados, lectura vacía): tampoco cuenta.
 docker() { if [ "$1" = stats ]; then return 0; fi; docker_base "$@"; }
 ESTADO13=0; SALIDA13="$(muestreo_memoria 20 2 2>&1)" || ESTADO13=$?

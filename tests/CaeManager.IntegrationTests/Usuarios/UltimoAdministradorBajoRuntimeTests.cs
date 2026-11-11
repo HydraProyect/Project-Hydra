@@ -196,6 +196,40 @@ public class UltimoAdministradorBajoRuntimeTests
             "control positivo: terminada la transacción, el candado queda libre");
     }
 
+    /// <summary>
+    /// Una transacción de Command abierta dentro de otra (el paso de un plan de Vega que envía
+    /// un Command con transacción propia) se une a la de fuera en vez de lanzar por una segunda
+    /// BeginTransaction, y no la confirma: la confirma o la deshace quien la abrió.
+    /// </summary>
+    [Fact]
+    public async Task Una_transaccion_de_Command_dentro_de_otra_se_une_a_la_de_fuera()
+    {
+        await using var arnes = await CrearArnesAsync(Guid.NewGuid());
+        using var ambito = arnes.Servicios.CreateScope();
+        var contexto = ambito.ServiceProvider.GetRequiredService<CaeManagerDbContext>();
+        var transaccion = new TransaccionDeComando(contexto);
+        object? fuera = null;
+        object? dentro = null;
+        object? alVolver = null;
+
+        var resultado = await transaccion.EjecutarAsync(async ct =>
+        {
+            fuera = contexto.Database.CurrentTransaction;
+            var interno = await transaccion.EjecutarAsync(_ =>
+            {
+                dentro = contexto.Database.CurrentTransaction;
+                return Task.FromResult(Result.Exito());
+            }, ct);
+            alVolver = contexto.Database.CurrentTransaction;
+            return interno;
+        });
+
+        resultado.EsExitoso.Should().BeTrue();
+        dentro.Should().NotBeNull().And.BeSameAs(fuera);
+        alVolver.Should().BeSameAs(fuera, "la de dentro no confirma la de fuera");
+        contexto.Database.CurrentTransaction.Should().BeNull("terminada la de fuera, queda confirmada");
+    }
+
     [Fact]
     public async Task El_candado_fuera_de_una_transaccion_se_niega()
     {

@@ -188,6 +188,21 @@ public class ConexionesGen2Tests : BunitContext
     }
 
     [Fact]
+    public void La_cabecera_tiene_subtitulo_corto_pie_y_conserva_el_explorador_tecnico_y_el_enlace_de_conexion()
+    {
+        var cut = Renderizar();
+
+        // E31 queda pendiente: «Añadir buzón» en la cabecera arrancaría la conexión sin ver el propietario elegido más abajo.
+        var conectar = cut.Find("a.enlace-conectar-microsoft");
+        conectar.TextContent.Trim().Should().Contain("Conectar buzón de Microsoft 365");
+        conectar.Closest(".acciones-conexion-buzon").Should().NotBeNull("el enlace sigue junto a los selectores de propietario");
+
+        cut.Markup.Should().NotContain("solo lee", "TALVEG también envía con estas conexiones: el subtítulo no afirma un permiso que no es");
+        cut.Markup.Should().Contain("Buzones de Microsoft 365 conectados a Comunicaciones.");
+        cut.Find("a[href='/comunicaciones/buzon']").TextContent.Should().Contain("explorador técnico del buzón");
+        cut.Find("p.pie-buzones").TextContent.Should().Contain("solo lo ve su propietario");
+    }
+    [Fact]
     public async Task Los_selectores_de_propietario_son_excluyentes_y_conservan_la_url_correcta()
     {
         var cut = Renderizar();

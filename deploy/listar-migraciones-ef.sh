@@ -38,7 +38,13 @@ if [ -z "$ids" ]; then
     echo "listar-migraciones-ef: ninguna migración en $dir" >&2
     exit 1
 fi
-if printf '%s\n' "$ids" | grep -qE '^$|[,[:space:]]'; then
+# Comparado en bash, sin proceso externo: con `printf | grep -q` bajo
+# pipefail, el SIGPIPE de un inventario largo hacía que la guarda no saltara
+# justo cuando había un identificador malo, y con `grep <<<` un fichero
+# temporal que no se puede crear daba 1 («ninguno malo»). Los saltos de línea
+# separan identificadores: se quitan antes de buscar espacios, y una línea
+# vacía se busca aparte.
+if [[ "${ids//$'\n'/}" == *[,[:space:]]* || $'\n'"$ids"$'\n' == *$'\n\n'* ]]; then
     echo "listar-migraciones-ef: identificador de migración vacío o con coma o espacio" >&2
     exit 1
 fi

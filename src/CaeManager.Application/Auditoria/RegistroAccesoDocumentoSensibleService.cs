@@ -20,6 +20,59 @@ public class RegistroAccesoDocumentoSensibleService(
     public async Task RegistrarSiSensibleAsync(
         Guid documentoId, TipoAccesoDocumentoSensible tipoAcceso, CancellationToken cancellationToken = default)
     {
+        if (await RegistrarSinSenalAsync(documentoId, tipoAcceso, cancellationToken) is { } senal)
+            await EmitirAsync(senal, cancellationToken);
+    }
+
+    public async Task RegistrarSiSensibleAsync(
+        Guid recursoId, Guid tipoDocumentoId, TipoAccesoDocumentoSensible tipoAcceso, CancellationToken cancellationToken = default)
+    {
+        if (await RegistrarSinSenalAsync(recursoId, tipoDocumentoId, tipoAcceso, cancellationToken) is { } senal)
+            await EmitirAsync(senal, cancellationToken);
+    }
+
+    public ILoteAccesosSensibles IniciarLote() => new LoteDeAccesos(this);
+
+    /// <summary>
+    /// Lo que ya consta registrado y falta anunciar a la señal de extracción masiva: quién y en qué Tenant activo. Se calcula
+    /// al registrar, no al emitir, para que la identidad sea la del momento del acceso.
+    /// </summary>
+    private readonly record struct SenalPendiente(Guid ActorRealUsuarioId, Guid? TenantId);
+
+    private async Task EmitirAsync(SenalPendiente senal, CancellationToken cancellationToken)
+    {
+        if (senalesIncidente is not null)
+            await senalesIncidente.DocumentoSensibleAbiertoAsync(senal.ActorRealUsuarioId, senal.TenantId, cancellationToken);
+    }
+
+    /// <summary>
+    /// Aperturas de un mismo paquete dentro de una transacción de varios guardados: cada una se registra al momento (la
+    /// transacción las agrupa), pero la señal de extracción masiva —un contador en memoria que ningún rollback deshace— se
+    /// retiene hasta <see cref="EmitirSenalesAsync"/>, que quien abrió el lote llama solo tras confirmar. Un lote por intento.
+    /// </summary>
+    private sealed class LoteDeAccesos(RegistroAccesoDocumentoSensibleService servicio) : ILoteAccesosSensibles
+    {
+        private readonly List<SenalPendiente> _pendientes = [];
+
+        public async Task RegistrarSiSensibleAsync(
+            Guid documentoId, TipoAccesoDocumentoSensible tipoAcceso, CancellationToken cancellationToken = default)
+        {
+            if (await servicio.RegistrarSinSenalAsync(documentoId, tipoAcceso, cancellationToken) is { } senal)
+                _pendientes.Add(senal);
+        }
+
+        public async Task EmitirSenalesAsync(CancellationToken cancellationToken = default)
+        {
+            var pendientes = _pendientes.ToArray();
+            _pendientes.Clear();
+            foreach (var senal in pendientes)
+                await servicio.EmitirAsync(senal, cancellationToken);
+        }
+    }
+
+    private async Task<SenalPendiente?> RegistrarSinSenalAsync(
+        Guid documentoId, TipoAccesoDocumentoSensible tipoAcceso, CancellationToken cancellationToken)
+    {
         // Un solo roundtrip adicional: el TipoDocumentoId del Documento y, con
         // él, la Sensibilidad del catálogo — el punto único de consulta de
         // REC-132. Sin navegación EF (Documento no expone TipoDocumento como
@@ -36,15 +89,14 @@ public class RegistroAccesoDocumentoSensibleService(
         // RegistrarSiSensibleAsync en la interfaz.
         if (tipoDocumentoId is not { } id)
         {
-            await RegistrarAsync(documentoId, SensibilidadDocumental.CategoriaEspecialSalud, tipoAcceso, cancellationToken);
-            return;
+            return await RegistrarAsync(documentoId, SensibilidadDocumental.CategoriaEspecialSalud, tipoAcceso, cancellationToken);
         }
 
-        await RegistrarSiSensibleAsync(documentoId, id, tipoAcceso, cancellationToken);
+        return await RegistrarSinSenalAsync(documentoId, id, tipoAcceso, cancellationToken);
     }
 
-    public async Task RegistrarSiSensibleAsync(
-        Guid recursoId, Guid tipoDocumentoId, TipoAccesoDocumentoSensible tipoAcceso, CancellationToken cancellationToken = default)
+    private async Task<SenalPendiente?> RegistrarSinSenalAsync(
+        Guid recursoId, Guid tipoDocumentoId, TipoAccesoDocumentoSensible tipoAcceso, CancellationToken cancellationToken)
     {
         var sensibilidadResuelta = await tiposDocumentoContext.TiposDocumento
             .Where(t => t.Id == tipoDocumentoId)
@@ -55,16 +107,16 @@ public class RegistroAccesoDocumentoSensibleService(
         // caso raro): mismo criterio protector que el Documento no resuelto.
         var sensibilidad = sensibilidadResuelta ?? SensibilidadDocumental.CategoriaEspecialSalud;
 
-        await RegistrarAsync(recursoId, sensibilidad, tipoAcceso, cancellationToken);
+        return await RegistrarAsync(recursoId, sensibilidad, tipoAcceso, cancellationToken);
     }
 
-    private async Task RegistrarAsync(
+    private async Task<SenalPendiente?> RegistrarAsync(
         Guid recursoId, SensibilidadDocumental sensibilidad, TipoAccesoDocumentoSensible tipoAcceso, CancellationToken cancellationToken)
     {
         // "Nunca registrar de más" (DEC-36): un documento sin datos
         // personales no genera fila.
         if (sensibilidad == SensibilidadDocumental.SinDatosPersonales)
-            return;
+            return null;
 
         var actor = await actorAuditoria.ObtenerAsync();
 
@@ -88,8 +140,8 @@ public class RegistroAccesoDocumentoSensibleService(
             throw new AccesoDocumentoSensibleNoRegistradoException(recursoId);
 
         // Señal de extracción masiva (documentos sensibles abiertos o descargados por el
-        // actor real), solo tras quedar registrado el acceso.
-        if (senalesIncidente is not null && actor.ActorRealUsuarioId is { } actorReal)
-            await senalesIncidente.DocumentoSensibleAbiertoAsync(actorReal, tenantActual?.TenantId, cancellationToken);
+        // actor real), solo tras quedar registrado el acceso. Se devuelve en vez de emitirse aquí para que quien agrupa varios
+        // registros en una transacción la emita solo tras confirmar.
+        return actor.ActorRealUsuarioId is { } actorReal ? new SenalPendiente(actorReal, tenantActual?.TenantId) : null;
     }
 }

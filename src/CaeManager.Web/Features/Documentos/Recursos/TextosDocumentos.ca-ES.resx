@@ -420,6 +420,7 @@
   <data name="TituloPagina" xml:space="preserve"><value>Documents</value></data>
   <data name="ListaNoCaduca" xml:space="preserve"><value>Sense caducitat</value></data>
   <data name="ListaVer" xml:space="preserve"><value>Veure</value></data>
+  <data name="PestanaIncidencias" xml:space="preserve"><value>Incidències</value></data>
   <data name="ListaSinAdjunto" xml:space="preserve"><value>Sense adjunt</value></data>
   <data name="ListaVencimientoSinConfirmar" xml:space="preserve"><value>Sense confirmar</value></data>
   <data name="ListaEmisionFecha" xml:space="preserve"><value>Emissió {0}</value></data>

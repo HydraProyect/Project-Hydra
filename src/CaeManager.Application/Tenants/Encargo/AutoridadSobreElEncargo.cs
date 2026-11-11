@@ -73,8 +73,23 @@ public class AutoridadSobreElEncargo(
     /// La autoridad de quien actúa sobre los encargos de
     /// <paramref name="propietarioTenantId"/>, o <c>null</c> si no la tiene.
     /// </summary>
-    public async Task<AutoridadParaElEncargo?> ResolverAsync(
-        Guid propietarioTenantId, CancellationToken cancellationToken = default)
+    public Task<AutoridadParaElEncargo?> ResolverAsync(
+        Guid propietarioTenantId, CancellationToken cancellationToken = default) =>
+        ResolverAsync(propietarioTenantId, revalidarSesion: false, cancellationToken);
+
+    /// <summary>
+    /// <see cref="ResolverAsync(Guid, CancellationToken)"/> para una consulta: nada ha revalidado
+    /// la Sesión Privilegiada antes, y con la memo del circuito una concesión revocada o una
+    /// sesión cerrada en otra pestaña seguiría mostrando los encargos del Tenant propietario
+    /// hasta la siguiente revalidación periódica. Una consulta no eleva la conexión, así que
+    /// revalidar aquí no tropieza con los permisos de cae_app_aprovisionamiento.
+    /// </summary>
+    public Task<AutoridadParaElEncargo?> ResolverEnConsultaAsync(
+        Guid propietarioTenantId, CancellationToken cancellationToken = default) =>
+        ResolverAsync(propietarioTenantId, revalidarSesion: true, cancellationToken);
+
+    private async Task<AutoridadParaElEncargo?> ResolverAsync(
+        Guid propietarioTenantId, bool revalidarSesion, CancellationToken cancellationToken)
     {
         if (propietarioTenantId == Guid.Empty) return null;
 
@@ -82,10 +97,13 @@ public class AutoridadSobreElEncargo(
         if (actor.ActorRealUsuarioId is not { } actorReal || actor.UsuarioSimuladoId is not null)
             return null;
 
-        // ObtenerAsync y no RevalidarAsync, mismo motivo que AutorizacionLogoTenant: el pipeline del
-        // comando acaba de revalidar la sesión en este ámbito, y volver a leer la tabla de sesiones
-        // con la conexión ya elevada a cae_app_aprovisionamiento fallaría por permisos.
-        if (await sesionPrivilegiadaActual.ObtenerAsync(cancellationToken) is { } sesion)
+        // En un comando, ObtenerAsync y no RevalidarAsync, mismo motivo que AutorizacionLogoTenant:
+        // el pipeline del comando acaba de revalidar la sesión en este ámbito, y volver a leer la
+        // tabla de sesiones con la conexión ya elevada a cae_app_aprovisionamiento fallaría por permisos.
+        var sesionActual = revalidarSesion
+            ? await sesionPrivilegiadaActual.RevalidarAsync(cancellationToken)
+            : await sesionPrivilegiadaActual.ObtenerAsync(cancellationToken);
+        if (sesionActual is { } sesion)
             return sesion.Capacidad == CapacidadPrivilegio.Aprovisionamiento
                    && sesion.TieneCaminoDeEscritura
                    && sesion.TenantObjetivoId == propietarioTenantId

@@ -1,4 +1,5 @@
 using CaeManager.Application.AsistenteIa.Candidatos;
+using CaeManager.Application.AsistenteIa.Edicion;
 using CaeManager.Application.AsistenteIa.Preparacion;
 using CaeManager.Application.AsistenteIa.Queries.PreguntarAlAsistente;
 using CaeManager.Application.AsistenteIa.Queries.ProponerPlan;
@@ -627,7 +628,7 @@ public partial class AsistenteIa : IDisposable
         vista.Version = null;
 
         var guardado = await Mediator.Send(new GuardarPlanTareaAsistenteCommand(
-            vista.TareaId!.Value, [PlanPropuestoATareaAsistente.APaso(vista.Plan)], AsistidoPorIa: true));
+            vista.TareaId!.Value, PlanPropuestoATareaAsistente.APasos(vista.Plan), AsistidoPorIa: true));
         if (guardado.EsFallido)
         {
             vista.ErrorGuardado = guardado.Error.Mensaje;
@@ -636,14 +637,110 @@ public partial class AsistenteIa : IDisposable
 
         var tarea = await Mediator.Send(new ObtenerTareaAsistenteQuery(vista.TareaId.Value));
         if (tarea.EsFallido)
+        {
             vista.ErrorGuardado = tarea.Error.Mensaje;
-        else
-            vista.Version = tarea.Valor.Version;
+            return;
+        }
+
+        vista.Version = tarea.Valor.Version;
+        await PrepararEdicionAsync(vista);
     }
 
     /// <summary>
-    /// El Enter. Confirmar registra la confirmación del plan en la Tarea del asistente y
-    /// nada más: los pasos no se ejecutan desde aquí (ver <c>Plan_ConfirmadoSinEjecucion</c>).
+    /// Deja el plan listo para completarlo a mano en el Tenant de la pantalla: carga las
+    /// opciones de la cartera y se queda solo con los valores de Vega que están entre
+    /// ellas. Si Vega no pudo decidir el Tenant (situación «Elegir»), el de la pantalla es
+    /// el de serie y el plan se normaliza con él; uno mezclado, discrepante o distinto de
+    /// la pantalla se resuelve primero con el selector de Tenant.
+    /// </summary>
+    private async Task PrepararEdicionAsync(VistaPlanAsistente vista)
+    {
+        vista.TenantPantalla = TenantActual.TenantId;
+        vista.AvisoEdicion = null;
+        vista.Opciones = null;
+        vista.Valores.Clear();
+        if (!vista.Plan.Ejecutable || vista.Plan.OrdenId is not { } ordenId) return;
+
+        var destino = vista.Plan.Destino;
+        var porElegir = destino is { Situacion: SituacionTenantDestino.Elegir };
+        if (!porElegir && !(destino is { Situacion: SituacionTenantDestino.Unico } && vista.Plan.DestinoEsLaPantalla)) return;
+
+        var opciones = await Mediator.Send(new ObtenerOpcionesPlanAsistenteQuery(ordenId));
+        if (opciones.Tenant is null)
+        {
+            vista.AvisoEdicion = Textos["Plan_SinEmpresaGestionada"];
+            return;
+        }
+
+        vista.Opciones = opciones;
+        var descartado = false;
+        foreach (var valor in PlanPropuestoATareaAsistente.Valores(vista.Plan))
+        {
+            var deLaCartera = valor switch
+            {
+                { Id: { } id } => opciones.Buscar(valor.Campo, id) is not null,
+                { Ids: { } ids } => ids.All(i => opciones.Buscar(valor.Campo, i) is not null),
+                _ => true,
+            };
+            if (deLaCartera) vista.Valores[valor.Campo] = valor;
+            else descartado = true;
+        }
+
+        if (porElegir || descartado)
+            await CompletarAsync(vista, valorNuevo: null);
+    }
+
+    /// <summary>
+    /// La persona cambia un dato del plan. Se revisa y se guarda en el servidor
+    /// (<see cref="CompletarPlanTareaAsistenteCommand"/>, sin IA); el plan que vuelve es el
+    /// que manda, con sus avisos. Si se rechaza, el dato se queda como estaba.
+    /// </summary>
+    private async Task CompletarAsync(VistaPlanAsistente vista, ValorDatoPlanDto? valorNuevo)
+    {
+        if (vista.TareaId is null || vista.Version is null || TenantEfectivoCambiado()) return;
+
+        var valores = new Dictionary<string, ValorDatoPlanDto>(vista.Valores, StringComparer.Ordinal);
+        if (valorNuevo is not null)
+        {
+            if (valorNuevo.Completo || valorNuevo.Trabajador is not null) valores[valorNuevo.Campo] = valorNuevo;
+            else valores.Remove(valorNuevo.Campo);
+        }
+
+        vista.ErrorGuardado = null;
+        var resultado = await Mediator.Send(new CompletarPlanTareaAsistenteCommand(
+            vista.TareaId.Value, vista.Version.Value, vista.Plan.ConfianzaOrden, valores.Values.ToList()));
+        if (resultado.EsFallido)
+        {
+            vista.ErrorGuardado = resultado.Error.Mensaje;
+            return;
+        }
+
+        vista.Plan = resultado.Valor.Plan;
+        vista.Version = resultado.Valor.Version;
+        vista.Valores.Clear();
+        foreach (var dato in vista.Plan.Datos.Where(d => d.Valor is not null))
+            vista.Valores[dato.Campo] = dato.Valor!;
+    }
+
+    private async Task CambiarDatoAsync(VistaPlanAsistente vista, ValorDatoPlanDto valor)
+    {
+        if (_enviando || !vista.Editable) return;
+
+        _enviando = true;
+        try
+        {
+            await CompletarAsync(vista, valor);
+        }
+        finally
+        {
+            _enviando = false;
+        }
+    }
+
+    /// <summary>
+    /// El Enter. Confirma el plan en la Tarea del asistente y, a continuación, Vega lo
+    /// ejecuta paso a paso por los Commands del catálogo, con su autorización
+    /// (<see cref="EjecutarPlanTareaAsistenteCommand"/>).
     /// </summary>
     private async Task ConfirmarAsync(VistaPlanAsistente vista)
     {
@@ -654,10 +751,42 @@ public partial class AsistenteIa : IDisposable
         {
             vista.ErrorGuardado = null;
             var resultado = await Mediator.Send(new ConfirmarPlanTareaAsistenteCommand(vista.TareaId!.Value, vista.Version!.Value));
-            if (resultado.EsExitoso)
-                vista.Estado = EstadoVistaPlan.Confirmado;
-            else
+            if (resultado.EsFallido)
+            {
                 vista.ErrorGuardado = resultado.Error.Mensaje;
+                return;
+            }
+
+            vista.Estado = EstadoVistaPlan.Confirmado;
+            await EjecutarPlanAsync(vista);
+        }
+        finally
+        {
+            _enviando = false;
+        }
+    }
+
+    private async Task EjecutarPlanAsync(VistaPlanAsistente vista)
+    {
+        if (vista.TareaId is null || TenantEfectivoCambiado()) return;
+
+        vista.ErrorGuardado = null;
+        var ejecucion = await Mediator.Send(new EjecutarPlanTareaAsistenteCommand(vista.TareaId.Value));
+        if (ejecucion.EsFallido)
+            vista.ErrorGuardado = ejecucion.Error.Mensaje;
+        else
+            vista.Ejecucion = ejecucion.Valor;
+    }
+
+    /// <summary>Vuelve a ejecutar los pasos que fallaron o quedaron sin hacer; los hechos no se repiten.</summary>
+    private async Task ReintentarAsync(VistaPlanAsistente vista)
+    {
+        if (_enviando || vista.Estado != EstadoVistaPlan.Confirmado) return;
+
+        _enviando = true;
+        try
+        {
+            await EjecutarPlanAsync(vista);
         }
         finally
         {
@@ -767,6 +896,34 @@ public partial class AsistenteIa : IDisposable
         {
             _borradores = [];
             _mensajeError = resultado.Error.Mensaje;
+        }
+    }
+
+    private bool _ejecutandoBorrador;
+
+    /// <summary>
+    /// Vuelve a ejecutar los pasos pendientes de un plan confirmado que ya no está en el hilo
+    /// (recarga, otra conversación). El Command salta lo ya hecho y comprueba otra vez la
+    /// cartera y el Tenant efectivo.
+    /// </summary>
+    private async Task ReintentarBorradorAsync(Guid tareaId)
+    {
+        if (_ejecutandoBorrador || TenantEfectivoCambiado()) return;
+        _ejecutandoBorrador = true;
+        _mensajeError = null;
+        try
+        {
+            var resultado = await Mediator.Send(new EjecutarPlanTareaAsistenteCommand(tareaId));
+            if (resultado.EsFallido)
+                _mensajeError = resultado.Error.Mensaje;
+            else if (!resultado.Valor.Terminada)
+                _mensajeError = resultado.Valor.Pasos.FirstOrDefault(p => p.Motivo is not null)?.Motivo
+                    ?? Textos["Plan_EjecucionIncompleta"];
+            await CargarBorradoresAsync();
+        }
+        finally
+        {
+            _ejecutandoBorrador = false;
         }
     }
 

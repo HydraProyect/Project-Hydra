@@ -7,7 +7,9 @@
     reimplementa.
 *@
 @page "/centros/{CentroId:guid}"
-@rendermode InteractiveServer
+@* Sin prerender (como Mi trabajo, M-23): la página carga en el ciclo de vida y no persiste su estado; con prerender
+   corría dos veces en cada visita. *@
+@rendermode @(new InteractiveServerRenderMode(prerender: false))
 @inherits CaeManager.Web.Components.PaginaInteractiva
 @attribute [Authorize]
 @using CaeManager.Application.Centros
@@ -22,6 +24,7 @@
 
 <LimiteDeErrores Pagina="this">
 <PageTitle>@(_detalle?.Nombre ?? "Centro") — @Marca.Nombre</PageTitle>
+<TituloDePaginaSinPrerender Titulo="@($"{(_detalle?.Nombre ?? "Centro")} — {Marca.Nombre}")" />
 
 <div class="contenedor-pagina">
     <Breadcrumb Elementos="Miguero" ElementoSeleccionadoChanged="IrABreadcrumb" EtiquetaNavegacion="@Textos["RutaCentro360"]" />
@@ -244,23 +247,30 @@
                         }
                         else if (_requisitosCentro.Count == 0)
                         {
-                            <EstadoVacio Titulo="@Textos["RequisitosCentroVacio360"]" />
+                            @* Sin requisitos es justo cuando hace falta abrir el panel: «Gestionar requisitos» también aquí (salvo sin gestión CAE, que no exige nada). *@
+                            @if (_detalle.GestionCae == ModalidadGestionCae.SinGestionCae)
+                            {
+                                <EstadoVacio Titulo="@Textos["RequisitosCentroVacio360"]" />
+                            }
+                            else
+                            {
+                                <EstadoVacio Titulo="@Textos["RequisitosCentroVacio360"]">
+                                    <Accion><SoloConEscritura><Boton Variante="VarianteBoton.Secundario" OnClick="AbrirRequisitos">@Textos["GestionarRequisitos360"]</Boton></SoloConEscritura></Accion>
+                                </EstadoVacio>
+                            }
                         }
                         else
                         {
-                            <ListaRelaciones EnTarjeta="true" Etiqueta="@Textos["PestanaRequisitos360"]">
-                                @foreach (var requisito in _requisitosCentro)
-                                {
-                                    <FilaRelacion @key="requisito.TipoDocumentoId" Nombre="@requisito.Nombre">
-                                        <Detalle>
-                                            @Textos[requisito.AmbitoAplicacion == AmbitoAplicacion.Empresa ? "RequisitoCentroEmpresa360" : "RequisitoCentroTrabajador360"]
-                                            · @Textos["RequisitoCentroTolerancia360", ReglaBloqueoDeAcceso.ResolverToleranciaDias(requisito.ToleranciaDias, requisito.ToleranciaHeredadaDias)]
-                                        </Detalle>
-                                        <Estado>@Textos[requisito.BloqueaAcceso ? "RequisitoCentroBloquea360" : "RequisitoCentroNoBloquea360"]</Estado>
-                                        <Acciones><Boton360 Nombre="@requisito.Nombre" OnClick="() => IrATipoDocumento(requisito.TipoDocumentoId)" /></Acciones>
-                                    </FilaRelacion>
-                                }
-                            </ListaRelaciones>
+                            @* Maqueta Centro360.dc.html (pestaña Requisitos): filtro y «Gestionar requisitos» arriba, y dos bloques (Empresa y Trabajador). *@
+                            <div class="centro-requisitos-barra">
+                                <BuscadorLista Placeholder="@Textos["FiltrarRequisitos360"]" Valor="@_filtroRequisitos" ValorChanged="FiltrarRequisitos" />
+                                <SoloConEscritura><Boton Variante="VarianteBoton.Secundario" OnClick="AbrirRequisitos">@Textos["GestionarRequisitos360"]</Boton></SoloConEscritura>
+                            </div>
+                            <p class="centro-requisitos-intro">@Textos["RequisitosCentroIntro360"]</p>
+                            <div class="centro-requisitos-bloques">
+                                @BloqueRequisitos(AmbitoAplicacion.Empresa)
+                                @BloqueRequisitos(AmbitoAplicacion.Trabajador)
+                            </div>
                         }
                     }
                     <div class="centro-ficha-canales" hidden="@(_pestana != PestanaFicha)">
@@ -317,6 +327,8 @@
     }
 </div>
 
+<CaeManager.Web.Features.Documentos.Components.VisorDocumento Visible="_visorVisible" VisibleChanged="v => _visorVisible = v" DocumentoId="_visorDocumentoId" Titulo="@_visorTitulo" />
+
 <DialogoConfirmacion Visible="_confirmarEliminarVisible"
                      VisibleChanged="v => _confirmarEliminarVisible = v"
                      Titulo="@Textos["EliminarCentroTitulo", _detalle?.Nombre ?? string.Empty].Value"
@@ -330,6 +342,66 @@
 </LimiteDeErrores>
 
 @code {
+    /// <summary>
+    /// Un bloque de la pestaña «Requisitos» (Empresa o Trabajador): título y recuento, los 5 primeros con los que bloquean
+    /// delante y «Ver los N restantes». El recuento y el despliegue respetan «Filtrar requisitos».
+    /// </summary>
+    private RenderFragment<AmbitoAplicacion> BloqueRequisitos => ambito => @<text>
+        @{
+            var esEmpresa = ambito == AmbitoAplicacion.Empresa;
+            var requisitos = RequisitosDelBloque(ambito);
+            var desplegado = _requisitosDesplegados.Contains(ambito);
+            var visibles = desplegado ? requisitos : requisitos.Take(RequisitosVisiblesPorBloque).ToList();
+            var restantes = requisitos.Count - visibles.Count;
+            var titulo = Textos[esEmpresa ? "RequisitosBloqueEmpresa360" : "RequisitosBloqueTrabajador360"];
+        }
+        <details class="centro-requisitos-bloque" open data-bloque="@(esEmpresa ? "empresa" : "trabajador")">
+            <summary class="centro-requisitos-cabecera">
+                <h3 class="centro-requisitos-titulo">@titulo</h3>
+                <Badge Tono="TonoBadge.Info" class="centro-requisitos-recuento">@requisitos.Count</Badge>
+                <span class="centro-requisitos-chevron" aria-hidden="true"><Icono Nombre="chevron" Tamano="TamanoIcono.Pequeno" /></span>
+            </summary>
+            @if (requisitos.Count == 0)
+            {
+                <p class="centro-requisitos-vacio">@Textos[string.IsNullOrWhiteSpace(_filtroRequisitos) ? "RequisitosBloqueVacio360" : "RequisitosBloqueSinCoincidencias360"]</p>
+            }
+            @foreach (var requisito in visibles)
+            {
+                var bloquea = BloqueaElAcceso(requisito);
+                <div class="centro-requisito" data-requisito="@requisito.TipoDocumentoId" @key="requisito.TipoDocumentoId">
+                    <div class="centro-requisito-texto">
+                        <a class="centro-requisito-nombre @(bloquea ? "centro-requisito-nombre-bloquea" : null)" href="/documentos/tipos/@requisito.TipoDocumentoId">@requisito.Nombre</a>
+                        <span class="centro-requisito-meta" data-pieza="requisito-tolerancia">@TextoToleranciaRequisito(requisito)</span>
+                        @if (requisito.Archivado && requisito.NombreSustituto is { } sustituto)
+                        {
+                            <span class="centro-requisito-meta">@Textos["RequisitoSustituidoPor360", sustituto]</span>
+                        }
+                    </div>
+                    @if (requisito.Archivado)
+                    {
+                        @* Un archivado sin sustituto no está «sustituido»: nada lo cubre; solo está retirado del catálogo. *@
+                        <Badge Tono="TonoBadge.Advertencia" class="centro-requisito-estado" data-estado="@(requisito.NombreSustituto is null ? "archivado" : "sustituido")">@Textos[requisito.NombreSustituto is null ? "RequisitoCentroArchivado360" : "RequisitoCentroSustituido360"]</Badge>
+                    }
+                    else if (bloquea)
+                    {
+                        <Badge Tono="TonoBadge.Peligro" class="centro-requisito-estado" data-estado="bloquea">@Textos["RequisitoCentroBloquea360"]</Badge>
+                    }
+                    else
+                    {
+                        <span class="centro-requisito-estado centro-requisito-no-bloquea" data-estado="no-bloquea">@Textos["RequisitoCentroNoBloquea360"]</span>
+                    }
+                </div>
+            }
+            @if (requisitos.Count > RequisitosVisiblesPorBloque)
+            {
+                <button type="button" class="centro-requisitos-mas" data-accion="ver-restantes" aria-expanded="@(desplegado ? "true" : "false")"
+                        @onclick="() => AlternarRestantesRequisitos(ambito)">
+                    @(desplegado ? Textos["RequisitosVerMenos360"] : Textos[restantes == 1 ? "RequisitosVerRestanteUno360" : "RequisitosVerRestantes360", restantes])
+                </button>
+            }
+        </details>
+    </text>;
+
     /// <summary>Una fila de la tabla de documentación de Empresa (la de una Empresa del Centro o la de una Subcontrata).</summary>
     private RenderFragment<(DocumentacionEmpresaCentroDto Empresa, DocumentoEmpresaCentroDto Documento, ClavesDeHermanos Claves)> FilaDocumentoEmpresa => fila => @<text>
         @{ var (empresa, documento, clavesDocumentos) = fila; }
@@ -337,7 +409,17 @@
                                                 <span role="cell" class="centro-documentacion-identidad">
                                                     <span class="centro-documentacion-t" data-estado="@EstadoDocumentoFicha360.Tono(documento.Estado)" title="@Textos["PlataformaTalveg360", EstadoDocumentoFicha360.Texto(documento.Estado)]" aria-label="@Textos["PlataformaTalveg360", EstadoDocumentoFicha360.Texto(documento.Estado)]">T</span>
                                                     <span class="centro-documentacion-nombre">
-                                                        <span>@documento.Nombre</span>
+                                                        @* Con Documento, el nombre lleva a su ficha 360 (DocumentoDetalle); el requisito sin Documento (Faltante) es texto. *@
+                                                        <span>
+                                                            @if (documento.DocumentoId is { } enlaceDocumentoId)
+                                                            {
+                                                                <a class="centro-documentacion-enlace" href="@RutaFichaDocumento(enlaceDocumentoId)">@documento.Nombre</a>
+                                                            }
+                                                            else
+                                                            {
+                                                                @documento.Nombre
+                                                            }
+                                                        </span>
                                                         <span class="centro-documentacion-empresa">
                                                             <button type="button" class="enlace-nombre-fila" @onclick="() => AbrirEmpresaDocumentacion(empresa)">@empresa.Nombre</button>
                                                             <Boton360 Nombre="@empresa.Nombre" OnClick="() => IrAEmpresaDocumentacion(empresa)" />
@@ -374,6 +456,14 @@
                                                                                     Acreditacion="acreditacion" DocumentoNombre="@documento.Nombre"
                                                                                     TitularNombre="@empresa.Nombre" OnCambio="RecargarTrasCambioPlataformaAsync" />
                                                         }
+                                                    }
+                                                    @* «Ver» abre el PDF en el visor sin salir del Centro, para todo rol que ve la ficha; solo en filas con Documento. *@
+                                                    @if (documento.DocumentoId is { } verDocumentoId)
+                                                    {
+                                                        <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" class="accion-fila-enlace"
+                                                               data-accion="ver-documento-empresa"
+                                                               aria-label="@Textos["DocumentoVerAria360", documento.Nombre, empresa.Nombre]"
+                                                               OnClick="() => AbrirVisorDocumento(verDocumentoId, documento.Nombre)">@Textos["DocumentoVer360"]</Boton>
                                                     }
                                                 </span>
                                             </div>
@@ -487,7 +577,7 @@
                         <RejillaDatos>
                             @if (!string.IsNullOrWhiteSpace(detalle.Direccion))
                             {
-                                <DatoRejilla Etiqueta="@Textos["FichaDireccionCentro"]"><BotonCopiar Valor="@detalle.Direccion" Texto="@detalle.Direccion" Etiqueta="@Textos["FichaDireccionCentro"]" NombreAccesible="@Textos["FichaCopiarDato", Textos["FichaDireccionCentro"]]" /></DatoRejilla>
+                                <DatoRejilla Etiqueta="@Textos["FichaDireccionCentro"]"><BotonCopiar EnLinea="true" Valor="@detalle.Direccion" Texto="@detalle.Direccion" Etiqueta="@Textos["FichaDireccionCentro"]" NombreAccesible="@Textos["FichaCopiarDato", Textos["FichaDireccionCentro"]]" /></DatoRejilla>
                             }
                             @if (detalle.FichaVisible && detalle.HorarioAcceso is not null)
                             {
@@ -499,7 +589,7 @@
                             }
                             @if (detalle.FichaVisible && detalle.ControlAccesosTelefono is not null)
                             {
-                                <DatoRejilla Etiqueta="@Textos["FichaControlAccesosTelefono"]"><BotonCopiar Valor="@detalle.ControlAccesosTelefono" Texto="@detalle.ControlAccesosTelefono" Etiqueta="@Textos["FichaControlAccesosTelefono"]" NombreAccesible="@Textos["FichaCopiarDato", Textos["FichaControlAccesosTelefono"]]" /></DatoRejilla>
+                                <DatoRejilla Etiqueta="@Textos["FichaControlAccesosTelefono"]"><BotonCopiar EnLinea="true" Valor="@detalle.ControlAccesosTelefono" Texto="@detalle.ControlAccesosTelefono" Etiqueta="@Textos["FichaControlAccesosTelefono"]" NombreAccesible="@Textos["FichaCopiarDato", Textos["FichaControlAccesosTelefono"]]" /></DatoRejilla>
                             }
                         </RejillaDatos>
                     }
@@ -535,11 +625,11 @@
                             }
                             @if (detalle.TecnicoPrevencionTelefono is not null)
                             {
-                                <DatoRejilla Etiqueta="@Textos["FichaTecnicoPrevencionTelefono"]"><BotonCopiar Valor="@detalle.TecnicoPrevencionTelefono" Texto="@detalle.TecnicoPrevencionTelefono" Etiqueta="@Textos["FichaTecnicoPrevencionTelefono"]" NombreAccesible="@Textos["FichaCopiarDato", Textos["FichaTecnicoPrevencionTelefono"]]" /></DatoRejilla>
+                                <DatoRejilla Etiqueta="@Textos["FichaTecnicoPrevencionTelefono"]"><BotonCopiar EnLinea="true" Valor="@detalle.TecnicoPrevencionTelefono" Texto="@detalle.TecnicoPrevencionTelefono" Etiqueta="@Textos["FichaTecnicoPrevencionTelefono"]" NombreAccesible="@Textos["FichaCopiarDato", Textos["FichaTecnicoPrevencionTelefono"]]" /></DatoRejilla>
                             }
                             @if (detalle.TecnicoPrevencionCorreo is not null)
                             {
-                                <DatoRejilla Etiqueta="@Textos["FichaTecnicoPrevencionCorreo"]"><BotonCopiar Valor="@detalle.TecnicoPrevencionCorreo" Texto="@detalle.TecnicoPrevencionCorreo" Etiqueta="@Textos["FichaTecnicoPrevencionCorreo"]" NombreAccesible="@Textos["FichaCopiarDato", Textos["FichaTecnicoPrevencionCorreo"]]" /></DatoRejilla>
+                                <DatoRejilla Etiqueta="@Textos["FichaTecnicoPrevencionCorreo"]"><BotonCopiar EnLinea="true" Valor="@detalle.TecnicoPrevencionCorreo" Texto="@detalle.TecnicoPrevencionCorreo" Etiqueta="@Textos["FichaTecnicoPrevencionCorreo"]" NombreAccesible="@Textos["FichaCopiarDato", Textos["FichaTecnicoPrevencionCorreo"]]" /></DatoRejilla>
                             }
                             @if (detalle.TrabajosEnAltura is { } valorTrabajosEnAltura)
                             {

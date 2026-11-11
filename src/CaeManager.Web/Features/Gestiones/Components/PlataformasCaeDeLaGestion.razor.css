@@ -11,7 +11,6 @@
 }
 
 .plataforma-etiqueta-vista-rapida-gestion,
-.plataforma-centro-vista-rapida-gestion,
 .plataforma-proposito-vista-rapida-gestion {
     font: var(--font-caption);
     color: var(--color-text-muted);

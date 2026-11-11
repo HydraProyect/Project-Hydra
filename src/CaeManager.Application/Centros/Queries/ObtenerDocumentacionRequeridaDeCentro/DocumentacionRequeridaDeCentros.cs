@@ -16,11 +16,19 @@ namespace CaeManager.Application.Centros.Queries.ObtenerDocumentacionRequeridaDe
 /// </summary>
 internal static class DocumentacionRequeridaDeCentros
 {
-    /// <summary>Un tipo del catálogo con su criterio global (<c>TipoDocumento.CuentaParaCumplimiento</c>).</summary>
+    /// <summary>
+    /// Un tipo del catálogo con su criterio global (<c>TipoDocumento.CuentaParaCumplimiento</c>) y, si está retirado del
+    /// catálogo, su <see cref="SustitutoId"/>.
+    /// </summary>
     internal sealed record TipoDelCatalogo(
-        Guid Id, string Nombre, AmbitoAplicacion AmbitoAplicacion, bool CuentaParaCumplimiento, bool EsCertificadoTgss = false);
+        Guid Id, string Nombre, AmbitoAplicacion AmbitoAplicacion, bool CuentaParaCumplimiento, bool EsCertificadoTgss = false,
+        bool Archivado = false, Guid? SustitutoId = null);
 
-    /// <summary>Catálogo de tipos de Trabajador y de Empresa del Tenant, por ámbito y por orden del catálogo.</summary>
+    /// <summary>
+    /// Catálogo de tipos de Trabajador y de Empresa del Tenant, por ámbito y por orden del catálogo. Incluye los archivados
+    /// (los Centros que ya los exigen los siguen contando); quién los OFRECE al marcar es la pestaña «Requisitos», no esta
+    /// lectura compartida.
+    /// </summary>
     internal static Task<List<TipoDelCatalogo>> CargarCatalogoAsync(
         ITiposDocumentoQueryContext contexto, CancellationToken cancellationToken) =>
         contexto.TiposDocumento
@@ -28,7 +36,8 @@ internal static class DocumentacionRequeridaDeCentros
             .OrderBy(t => t.AmbitoAplicacion).ThenBy(t => t.Orden)
             .Select(t => new TipoDelCatalogo(
                 t.Id, t.Nombre, t.AmbitoAplicacion, t.Requerido == RequisitoDocumental.Si,
-                t.PerfilDocumentoOficial == PerfilDocumentoOficial.CorrienteTgss))
+                t.PerfilDocumentoOficial == PerfilDocumentoOficial.CorrienteTgss,
+                t.Archivado, t.SustitutoId))
             .ToListAsync(cancellationToken);
 
     /// <summary>Filas explícitas de <see cref="TipoDocumentoCentro"/> de esos Centros, en una sola lectura, por (tipo, Centro).</summary>

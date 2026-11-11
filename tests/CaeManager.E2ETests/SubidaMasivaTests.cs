@@ -101,8 +101,9 @@ public class SubidaMasivaTests(WebAppFixture fixture)
             await confirmacion.WaitForAsync(new LocatorWaitForOptions { Timeout = 10_000 });
 
             await Expect(confirmacion.Locator(".error-campo-subida")).ToBeVisibleAsync();
-            await confirmacion.GetByLabel("Trabajador", new LocatorGetByLabelOptions { Exact = true })
-                .FillAsync($"{nombreTrabajador} {apellidosTrabajador} ({razonSocialEmpresa})");
+            await Ayudas.ElegirOpcionEnSelectorAvanzadoPorTextoAsync(page,
+                confirmacion.GetByLabel("Trabajador", new LocatorGetByLabelOptions { Exact = true }),
+                $"{nombreTrabajador} {apellidosTrabajador} ({razonSocialEmpresa})");
             await Expect(confirmacion.Locator(".error-campo-subida")).Not.ToBeVisibleAsync();
 
             await confirmacion.GetByLabel("Tipo de documento").SelectOptionAsync(new SelectOptionValue { Label = "Certificado de aptitud médica" });

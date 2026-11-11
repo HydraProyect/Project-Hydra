@@ -120,8 +120,10 @@ public partial class DocumentosGen2Tests
         var (cut, _) = Renderizar(ConDocumentos(DocumentoDeFila()), rol: rol);
         cut.WaitForAssertion(() => cut.Find("tbody button.enlace-nombre-fila"));
 
+        // «Incidencias» (pantalla hermana) vive ahora en esta misma barra, para quien la abre; el rol Cliente no la ve.
+        var seis = new[] { "Estado", "Plataformas CAE", "Reclamaciones", "Preventivo", "Revisión IA", "Plantillas" };
         Pestanas(cut).Select(p => string.Concat(p.ChildNodes.Where(n => n.NodeType == NodeType.Text).Select(n => n.TextContent)).Trim()).Should().Equal(
-            "Estado", "Plataformas CAE", "Reclamaciones", "Preventivo", "Revisión IA", "Plantillas");
+            rol == "Cliente" ? seis : [.. seis, "Incidencias"]);
         cut.FindAll("tbody button.enlace-nombre-fila").Should().Contain(b => b.TextContent == "Javier Salas Moreno");
         cut.FindAll("tbody button").Should().Contain(b => b.TextContent.Trim() == "Ver",
             "Consulta conserva el acceso de lectura al archivo");
