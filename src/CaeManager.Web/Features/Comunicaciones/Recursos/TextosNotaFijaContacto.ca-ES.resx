@@ -51,6 +51,12 @@
   <data name="ErrorGuardar" xml:space="preserve">
     <value>No hem pogut desar la nota fixa. Torna-ho a provar.</value>
   </data>
+  <data name="ErrorCarga" xml:space="preserve">
+    <value>No hem pogut carregar la nota fixa d&apos;aquest contacte.</value>
+  </data>
+  <data name="Reintentar" xml:space="preserve">
+    <value>Torna-ho a provar</value>
+  </data>
   <data name="NotasEquipoTitulo" xml:space="preserve">
     <value>Notes de l&apos;equip sobre aquesta conversa</value>
   </data>

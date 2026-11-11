@@ -1920,4 +1920,16 @@ public partial class Bandeja : CaeManager.Web.Components.PaginaInteractiva, IAsy
     /// Recargar la misma conversación (tras enviar, por ejemplo) no lo oculta: el Id no cambia.
     /// </summary>
     private bool DetalleEsDeLaSeleccion => _detalle is not null && _detalle.Id == _conversacionSeleccionadaId;
+
+    /// <summary>
+    /// El contexto en memoria (ficha, centros, selectores y acciones) es el de este detalle y su Cliente empresarial. Que el detalle
+    /// sea el de la selección no basta: <c>CargarDetalleAsync</c> lo asigna antes de esperar el contexto nuevo, y durante esa espera
+    /// la ficha y los selectores aún son los del Cliente empresarial anterior (revisión Codex r2 de la #2167, MEDIO 1). Hasta que la
+    /// carga fija el par (conversación, Cliente) no se pinta nada del contexto.
+    /// </summary>
+    private bool ContextoEsDelDetalle => DetalleEsDeLaSeleccion && ContextoEs(_detalle!.Id, ClienteDelDetalle(_detalle));
+
+    // Macros y centros del compositor salen de ese mismo contexto: hasta que es el del detalle no se ofrecen los del hilo anterior.
+    private IReadOnlyList<MacroListaDto> MacrosDelContexto => ContextoEsDelDetalle ? _macrosDisponibles : [];
+    private IReadOnlyList<CentroSelectorDto> CentrosDelContexto => ContextoEsDelDetalle ? _centrosClienteActivo : [];
 }

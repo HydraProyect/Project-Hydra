@@ -426,8 +426,8 @@
                     <div class="bandeja-editor-publico" hidden="@_notaInternaActiva">
                     <ComposerBar Canal="_detalle.Canal" VentanaAbierta="VentanaAbierta" CierreVentanaLocal="@CierreVentanaLocal"
                                  Texto="@_textoRespuesta" TextoChanged="v => _textoRespuesta = v" Enviando="_enviando" OnEnviar="EnviarAsync"
-                                 Macros="_macrosDisponibles" MacroSeleccionadaId="@_macroSeleccionadaId" OnAplicarMacro="AplicarMacro"
-                                 Centros="_centrosClienteActivo" CentroFormatosSeleccionado="@_centroFormatosSeleccionado" OnCompartirFormatos="CompartirFormatosCentroAsync"
+                                 Macros="MacrosDelContexto" MacroSeleccionadaId="@_macroSeleccionadaId" OnAplicarMacro="AplicarMacro"
+                                 Centros="CentrosDelContexto" CentroFormatosSeleccionado="@_centroFormatosSeleccionado" OnCompartirFormatos="CompartirFormatosCentroAsync"
                                  AdjuntosPendientes="_adjuntosPendientes" ErrorAdjuntos="@_errorAdjuntos"
                                  OnArchivosSeleccionados="ManejarArchivosAdjuntosAsync" OnQuitarAdjunto="QuitarAdjuntoPendiente"
                                  EmailFallback="@_emailFallback" EmailFallbackChanged="v => _emailFallback = v" OnEnviarFallbackCorreo="EnviarFallbackCorreoAsync" />
@@ -474,9 +474,10 @@
             }
         </section>
 
-        @* Solo con el detalle de la conversación seleccionada: mientras carga otra, el panel de contexto de la anterior (sus
-           acciones, su nota fija y sus notas del equipo) no se pinta, y no se puede editar ni guardar bajo la selección nueva. *@
-        @if (_vista == "clientes" && DetalleEsDeLaSeleccion && (_clienteActivo is not null || HayAccionesPendientes || HayNotasDeContexto))
+        @* Solo con el contexto del detalle de la conversación seleccionada (ContextoEsDelDetalle): mientras carga otra, el panel de
+           contexto de la anterior (ficha y selectores del Cliente empresarial, acciones, nota fija y notas del equipo) no se pinta, y
+           no se puede editar ni guardar bajo la selección nueva. *@
+        @if (_vista == "clientes" && ContextoEsDelDetalle && (_clienteActivo is not null || HayAccionesPendientes || HayNotasDeContexto))
         {
             <aside class="bandeja-columna bandeja-cliente">
                 <AccionCenter SugerenciasVisita="SugerenciasVisitaPendientes" SugerenciasGestion="SugerenciasGestionPendientes"

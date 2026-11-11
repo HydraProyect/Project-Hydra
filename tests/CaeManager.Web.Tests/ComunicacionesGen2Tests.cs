@@ -1010,6 +1010,45 @@ public class ComunicacionesGen2Tests : BunitContext
         cut.Find(".bandeja-centro .estado-vacio h3").TextContent.Trim().Should().Be("No pudimos abrir la conversación");
         cut.FindAll(".bandeja-cliente").Should().BeEmpty("el contexto del Cliente empresarial de la primera no puede quedar bajo la segunda");
     }
+
+    /// <summary>
+    /// Revisión Codex r2 de la #2167, MEDIO 1: <c>CargarDetalleAsync</c> asigna el detalle de la conversación nueva antes de esperar
+    /// el contexto de su Cliente empresarial. Con esa espera en vuelo, la columna de contexto no puede pintar la ficha ni los
+    /// selectores del Cliente empresarial de la conversación anterior; al llegar, se pinta la del nuevo. Detecta volver a decidir
+    /// el pintado solo por «el detalle es el de la selección».
+    /// </summary>
+    [Fact]
+    public async Task Mientras_carga_el_contexto_de_la_conversacion_nueva_no_se_pinta_el_del_Cliente_de_la_anterior()
+    {
+        var escenario = new Escenario();
+        var primera = Conversacion("Primera conversación", ClienteRefrielectric);
+        var segunda = Conversacion("Segunda conversación", ClienteEbro);
+        escenario.Conversaciones.AddRange([primera, segunda]);
+        escenario.Detalle = id => DetalleDe(escenario.Conversaciones.Single(c => c.Id == id));
+        var (cut, _) = Renderizar(escenario);
+        await SeleccionarFila(cut, "Primera conversación");
+        cut.Find(".bandeja-cliente").TextContent.Should().Contain(ClienteRefrielectric.RazonSocial, "control positivo: con la primera abierta se ve su ficha");
+
+        var clienteDeLaSegunda = new TaskCompletionSource<object?>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var consultas = 0;
+        escenario.Interceptar = p => p is ObtenerClientePorIdQuery q && q.Id == ClienteEbro.Id ? Retener(clienteDeLaSegunda.Task) : null;
+        Task<object?> Retener(Task<object?> tarea)
+        {
+            consultas++;
+            return tarea;
+        }
+        var apertura = SeleccionarFila(cut, "Segunda conversación");
+        cut.WaitForAssertion(() => consultas.Should().Be(1, "el detalle de la segunda ya está asignado y la carga espera a su Cliente empresarial"));
+
+        cut.FindAll(".bandeja-cliente").Should().BeEmpty("el contexto del Cliente empresarial de la primera no puede verse bajo la segunda");
+
+        await cut.InvokeAsync(() => clienteDeLaSegunda.SetResult(new ClienteDetalleDto(
+            ClienteEbro.Id, ClienteEbro.RazonSocial, "A22222222", false, null, DateTime.UtcNow, null, Guid.NewGuid())));
+        await apertura;
+
+        cut.WaitForAssertion(() => cut.Find(".bandeja-cliente").TextContent.Should().Contain(ClienteEbro.RazonSocial).And.NotContain(ClienteRefrielectric.RazonSocial));
+    }
+
     /// <summary>
     /// Segunda pasada de la revisión puente del delta r1 de la #2167 (MEDIO): dos cargas solapadas de la misma conversación. La
     /// primera (al abrirla desde otra) ya asignó el detalle pero espera el contexto de su Cliente empresarial; entra un mensaje
