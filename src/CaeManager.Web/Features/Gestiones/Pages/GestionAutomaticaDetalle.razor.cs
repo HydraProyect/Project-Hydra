@@ -471,7 +471,8 @@ public partial class GestionAutomaticaDetalle : CaeManager.Web.Components.Pagina
                     resultado = await Mediator.Send(new MarcarAcreditacionRechazadaCommand(paso.AcreditacionId, causa, _motivo.Trim()));
                     break;
                 case OpcionNoPide:
-                    resultado = await Mediator.Send(new MarcarAcreditacionNoRequeridaCommand(paso.AcreditacionId));
+                    // El estado que se tenía delante: si cambió entretanto, el comando no lo sobrescribe a ciegas.
+                    resultado = await Mediator.Send(new MarcarAcreditacionNoRequeridaCommand(paso.AcreditacionId, paso.Estado));
                     break;
                 default:
                     return;

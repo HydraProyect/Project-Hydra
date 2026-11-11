@@ -506,6 +506,9 @@
   <data name="GpDatosNota" xml:space="preserve">
     <value>Un clic en un dato lo copia con el formato que piden los portales. «Completar» abre la ficha sin salir de la Gestión.</value>
   </data>
+  <data name="GpDatosNotaCentro" xml:space="preserve">
+    <value>Un clic en un dato lo copia con el formato que piden los portales. «Completar» abre Centro 360, fuera de la Gestión.</value>
+  </data>
   <data name="GpDatosNotaConsulta" xml:space="preserve">
     <value>Un clic en un dato lo copia con el formato que piden los portales.</value>
   </data>

@@ -27,16 +27,24 @@ namespace CaeManager.Application.Documentos.Commands.MarcarAcreditacionNoRequeri
 /// Sale de cualquier estado, también de un rechazo: el portal puede haber rechazado justo porque no lo pedía. Lo que no
 /// hace es sobrevivir a una renovación: <see cref="AcreditacionDocumentoPlataforma.ReiniciarPorRenovacionDocumento"/>
 /// devuelve todas las acreditaciones a Pendiente de subir, y por eso la ventana dice «hasta que se renueve el
-/// documento». Para deshacerlo, «Cambiar» de Centro 360 la lleva a cualquiera de los cuatro estados del portal.
+/// documento». Para deshacerlo, «Cambiar» de Centro 360 la lleva a cualquiera de los cuatro estados del portal; la
+/// vigencia que hubiera confirmada en la plataforma no vuelve.
+/// </para>
+///
+/// <para>
+/// <paramref name="EstadoVisto"/> es el estado del paso que tenía delante quien lo marca. Si la acreditación ha cambiado
+/// desde entonces (otro Gestor CAE o la extensión la ha marcado rechazada, por ejemplo), no se sobrescribe a ciegas: falla
+/// con <see cref="CambiadaDesdeQueSeAbrio"/> y no escribe. Se lee de nuevo de la base para compararlo.
 /// </para>
 /// </summary>
-public record MarcarAcreditacionNoRequeridaCommand(Guid AcreditacionId) : ICommand;
+public record MarcarAcreditacionNoRequeridaCommand(Guid AcreditacionId, EstadoAcreditacion EstadoVisto) : ICommand;
 
 public class MarcarAcreditacionNoRequeridaCommandValidator : AbstractValidator<MarcarAcreditacionNoRequeridaCommand>
 {
     public MarcarAcreditacionNoRequeridaCommandValidator()
     {
         RuleFor(c => c.AcreditacionId).NotEmpty();
+        RuleFor(c => c.EstadoVisto).IsInEnum();
     }
 }
 
@@ -45,16 +53,24 @@ public class MarcarAcreditacionNoRequeridaCommandHandler(
     IAlcanceDatosService alcanceDatos, IProyectosQueryContext proyectosContext, ICentrosQueryContext centrosContext, IUnitOfWork unitOfWork)
     : IRequestHandler<MarcarAcreditacionNoRequeridaCommand, Result>
 {
+    public static readonly Error CambiadaDesdeQueSeAbrio = Error.Crear(
+        "Acreditacion.CambiadaDesdeQueSeAbrio",
+        "Este paso ha cambiado desde que abriste la Gestión. Vuelve a cargarla para ver cómo está.");
+
     public async Task<Result> Handle(MarcarAcreditacionNoRequeridaCommand request, CancellationToken cancellationToken)
     {
         var acreditacion = await AcreditacionSubible.CargarVisibleAsync(
             request.AcreditacionId, acreditacionRepositorio, documentoRepositorio, alcanceDatos, proyectosContext,
-            centrosContext, recargar: false, cancellationToken);
+            centrosContext, recargar: true, cancellationToken);
         if (acreditacion is null)
             return Result.Fallo(AcreditacionSubible.NoEncontrada);
 
+        // Ya está como se pide: nada que sobrescribir, sea cual sea el estado que se vio.
         if (acreditacion.Estado == EstadoAcreditacion.NoRequerida)
             return Result.Exito();
+
+        if (acreditacion.Estado != request.EstadoVisto)
+            return Result.Fallo(CambiadaDesdeQueSeAbrio);
 
         acreditacion.MarcarNoRequerida();
         await unitOfWork.SaveChangesAsync(cancellationToken);

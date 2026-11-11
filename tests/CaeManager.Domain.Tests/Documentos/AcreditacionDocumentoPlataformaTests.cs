@@ -129,6 +129,27 @@ public class AcreditacionDocumentoPlataformaTests
     }
 
     [Fact]
+    public void Una_no_requerida_no_admite_vigencia_ni_por_anotacion_ni_por_deshacer()
+    {
+        var acreditacion = CrearAcreditacion();
+        acreditacion.MarcarNoRequerida();
+        var pasada = VigenciaEnPlataforma.VenceEl(new DateOnly(2020, 1, 1));
+
+        acreditacion.PuedeConfirmarVigencia.Should().BeFalse();
+        ((Action)(() => acreditacion.ConfirmarVigencia(pasada))).Should().Throw<InvalidOperationException>();
+        acreditacion.PuedeDeshacerAnotacion(EstadoAcreditacion.NoRequerida, pasada).Should().BeFalse();
+        acreditacion.PuedeDeshacerAnotacion(EstadoAcreditacion.NoRequerida, VigenciaEnPlataforma.SinConfirmar).Should()
+            .BeTrue("control positivo: sin vigencia sí");
+        acreditacion.Vigencia.EstaSinConfirmar.Should().BeTrue();
+
+        var validada = CrearAcreditacion();
+        validada.MarcarAceptada(VigenciaEnPlataforma.SinConfirmar);
+        validada.PuedeConfirmarVigencia.Should().BeTrue("control positivo");
+        validada.ConfirmarVigencia(pasada);
+        validada.FechaVencimientoEnPlataforma.Should().Be(new DateOnly(2020, 1, 1));
+    }
+
+    [Fact]
     public void Volver_de_validada_a_enviada_borra_la_vigencia_confirmada()
     {
         var acreditacion = CrearAcreditacion();

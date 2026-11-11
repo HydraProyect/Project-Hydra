@@ -115,8 +115,21 @@ public class AcreditacionDocumentoPlataforma : EntidadBase, IAccionAuditoriaProp
     /// Corregir la vigencia sin volver a tocar el estado de la acreditación: el
     /// Gestor entra en la plataforma más veces que una, y la primera vez puede
     /// no haber mirado la fecha.
+    /// <para>
+    /// Una No requerida no tiene vigencia que anotar: la plataforma no pide el documento, y una fecha pasada pondría el
+    /// Centro en rojo por algo que nadie exige (<see cref="MarcarNoRequerida"/>). Invariante: No requerida implica
+    /// vigencia Sin confirmar.
+    /// </para>
     /// </summary>
-    public void ConfirmarVigencia(VigenciaEnPlataforma vigencia) => AnotarVigencia(vigencia);
+    public bool PuedeConfirmarVigencia => Estado != EstadoAcreditacion.NoRequerida;
+
+    public void ConfirmarVigencia(VigenciaEnPlataforma vigencia)
+    {
+        if (!PuedeConfirmarVigencia)
+            throw new InvalidOperationException("Una acreditación que la plataforma no pide no tiene vigencia que anotar.");
+
+        AnotarVigencia(vigencia);
+    }
 
     private void AnotarVigencia(VigenciaEnPlataforma vigencia)
     {
@@ -132,6 +145,7 @@ public class AcreditacionDocumentoPlataforma : EntidadBase, IAccionAuditoriaProp
     /// atrás; si no, solo se corrige la vigencia y el estado previo debe ser el actual.</item>
     /// <item>Rechazada exige un rechazo en el historial y vigencia Sin confirmar, el valor que
     /// fija <see cref="Rechazar"/>.</item>
+    /// <item>No requerida exige vigencia Sin confirmar, el valor que fija <see cref="MarcarNoRequerida"/>.</item>
     /// <item>La vigencia debe ser interpretable (<see cref="VigenciaEnPlataforma.Rehidratar"/>).</item>
     /// </list>
     /// </summary>
@@ -141,6 +155,9 @@ public class AcreditacionDocumentoPlataforma : EntidadBase, IAccionAuditoriaProp
         if (estadoPrevio != Estado && Estado != EstadoAcreditacion.Aceptada) return false;
         if (estadoPrevio == EstadoAcreditacion.Rechazada
             && (_historialRechazos.Count == 0 || !vigenciaPrevia.EstaSinConfirmar))
+            return false;
+        // No requerida implica vigencia Sin confirmar (ConfirmarVigencia): tampoco se restaura otra.
+        if (estadoPrevio == EstadoAcreditacion.NoRequerida && !vigenciaPrevia.EstaSinConfirmar)
             return false;
 
         try

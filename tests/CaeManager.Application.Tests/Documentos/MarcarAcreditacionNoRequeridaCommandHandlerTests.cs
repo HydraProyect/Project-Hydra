@@ -32,7 +32,7 @@ public class MarcarAcreditacionNoRequeridaCommandHandlerTests
         var escenario = Escenario.Nuevo();
         escenario.Poner(estado);
 
-        var resultado = await escenario.Handler().Handle(new MarcarAcreditacionNoRequeridaCommand(escenario.Acreditacion.Id), CancellationToken.None);
+        var resultado = await escenario.Handler().Handle(new MarcarAcreditacionNoRequeridaCommand(escenario.Acreditacion.Id, escenario.Acreditacion.Estado), CancellationToken.None);
 
         resultado.EsExitoso.Should().BeTrue();
         escenario.Acreditacion.Estado.Should().Be(EstadoAcreditacion.NoRequerida);
@@ -46,7 +46,7 @@ public class MarcarAcreditacionNoRequeridaCommandHandlerTests
         var escenario = Escenario.Nuevo();
         escenario.Acreditacion.MarcarAceptada(VigenciaEnPlataforma.VenceEl(new DateOnly(2020, 1, 1)));
 
-        var resultado = await escenario.Handler().Handle(new MarcarAcreditacionNoRequeridaCommand(escenario.Acreditacion.Id), CancellationToken.None);
+        var resultado = await escenario.Handler().Handle(new MarcarAcreditacionNoRequeridaCommand(escenario.Acreditacion.Id, escenario.Acreditacion.Estado), CancellationToken.None);
 
         resultado.EsExitoso.Should().BeTrue();
         escenario.Acreditacion.Estado.Should().Be(EstadoAcreditacion.NoRequerida);
@@ -56,12 +56,28 @@ public class MarcarAcreditacionNoRequeridaCommandHandlerTests
     }
 
     [Fact]
+    public async Task Si_el_paso_cambio_desde_que_se_vio_no_lo_sobrescribe_a_ciegas()
+    {
+        // Se abrió la Gestión con el paso Pendiente de subir; entretanto otro Gestor CAE lo marcó rechazado por el portal.
+        var escenario = Escenario.Nuevo();
+        escenario.Poner(EstadoAcreditacion.Rechazada);
+
+        var resultado = await escenario.Handler().Handle(
+            new MarcarAcreditacionNoRequeridaCommand(escenario.Acreditacion.Id, EstadoAcreditacion.PendienteDeSubir), CancellationToken.None);
+
+        resultado.EsFallido.Should().BeTrue();
+        resultado.Error.Codigo.Should().Be("Acreditacion.CambiadaDesdeQueSeAbrio");
+        escenario.Acreditacion.Estado.Should().Be(EstadoAcreditacion.Rechazada, "el rechazo no sale de la cola sin aviso");
+        escenario.UnitOfWork.VecesGuardado.Should().Be(0);
+    }
+
+    [Fact]
     public async Task Ya_no_requerida_no_escribe_nada()
     {
         var escenario = Escenario.Nuevo();
         escenario.Acreditacion.MarcarNoRequerida();
 
-        var resultado = await escenario.Handler().Handle(new MarcarAcreditacionNoRequeridaCommand(escenario.Acreditacion.Id), CancellationToken.None);
+        var resultado = await escenario.Handler().Handle(new MarcarAcreditacionNoRequeridaCommand(escenario.Acreditacion.Id, escenario.Acreditacion.Estado), CancellationToken.None);
 
         resultado.EsExitoso.Should().BeTrue();
         escenario.UnitOfWork.VecesGuardado.Should().Be(0);
@@ -79,7 +95,7 @@ public class MarcarAcreditacionNoRequeridaCommandHandlerTests
         var fueraDeCartera = new AlcanceDatosServiceFalso(centroIdsParaGestion: [otroCentroId]);
 
         var resultado = await escenario.Handler(fueraDeCartera)
-            .Handle(new MarcarAcreditacionNoRequeridaCommand(escenario.Acreditacion.Id), CancellationToken.None);
+            .Handle(new MarcarAcreditacionNoRequeridaCommand(escenario.Acreditacion.Id, escenario.Acreditacion.Estado), CancellationToken.None);
 
         resultado.EsFallido.Should().BeTrue();
         resultado.Error.Codigo.Should().Be("Acreditacion.NoEncontrada");
@@ -95,7 +111,7 @@ public class MarcarAcreditacionNoRequeridaCommandHandlerTests
             tieneAccesoTotal: false, trabajadorIdsVisibles: [Guid.NewGuid()], centroIdsParaGestion: [escenario.CentroId]);
 
         var resultado = await escenario.Handler(documentoFuera)
-            .Handle(new MarcarAcreditacionNoRequeridaCommand(escenario.Acreditacion.Id), CancellationToken.None);
+            .Handle(new MarcarAcreditacionNoRequeridaCommand(escenario.Acreditacion.Id, escenario.Acreditacion.Estado), CancellationToken.None);
 
         resultado.Error.Codigo.Should().Be("Acreditacion.NoEncontrada");
         escenario.Acreditacion.Estado.Should().Be(EstadoAcreditacion.PendienteDeSubir);
@@ -110,7 +126,7 @@ public class MarcarAcreditacionNoRequeridaCommandHandlerTests
         var enCartera = new AlcanceDatosServiceFalso(centroIdsParaGestion: [escenario.CentroId]);
 
         var resultado = await escenario.Handler(enCartera)
-            .Handle(new MarcarAcreditacionNoRequeridaCommand(escenario.Acreditacion.Id), CancellationToken.None);
+            .Handle(new MarcarAcreditacionNoRequeridaCommand(escenario.Acreditacion.Id, escenario.Acreditacion.Estado), CancellationToken.None);
 
         resultado.EsExitoso.Should().BeTrue();
         escenario.Acreditacion.Estado.Should().Be(EstadoAcreditacion.NoRequerida);
@@ -121,7 +137,7 @@ public class MarcarAcreditacionNoRequeridaCommandHandlerTests
     {
         var escenario = Escenario.Nuevo();
 
-        var resultado = await escenario.Handler().Handle(new MarcarAcreditacionNoRequeridaCommand(Guid.NewGuid()), CancellationToken.None);
+        var resultado = await escenario.Handler().Handle(new MarcarAcreditacionNoRequeridaCommand(Guid.NewGuid(), EstadoAcreditacion.PendienteDeSubir), CancellationToken.None);
 
         resultado.Error.Codigo.Should().Be("Acreditacion.NoEncontrada");
         escenario.UnitOfWork.VecesGuardado.Should().Be(0);
@@ -132,8 +148,9 @@ public class MarcarAcreditacionNoRequeridaCommandHandlerTests
     {
         var validador = new MarcarAcreditacionNoRequeridaCommandValidator();
 
-        validador.Validate(new MarcarAcreditacionNoRequeridaCommand(Guid.Empty)).IsValid.Should().BeFalse();
-        validador.Validate(new MarcarAcreditacionNoRequeridaCommand(Guid.NewGuid())).IsValid.Should().BeTrue();
+        validador.Validate(new MarcarAcreditacionNoRequeridaCommand(Guid.Empty, EstadoAcreditacion.PendienteDeSubir)).IsValid.Should().BeFalse();
+        validador.Validate(new MarcarAcreditacionNoRequeridaCommand(Guid.NewGuid(), EstadoAcreditacion.PendienteDeSubir)).IsValid.Should().BeTrue();
+        validador.Validate(new MarcarAcreditacionNoRequeridaCommand(Guid.NewGuid(), (EstadoAcreditacion)99)).IsValid.Should().BeFalse();
     }
 
     [Theory]
@@ -165,7 +182,7 @@ public class MarcarAcreditacionNoRequeridaCommandHandlerTests
         var llego = false;
 
         var resultado = await behavior.Handle(
-            new MarcarAcreditacionNoRequeridaCommand(Guid.NewGuid()),
+            new MarcarAcreditacionNoRequeridaCommand(Guid.NewGuid(), EstadoAcreditacion.PendienteDeSubir),
             _ =>
             {
                 llego = true;

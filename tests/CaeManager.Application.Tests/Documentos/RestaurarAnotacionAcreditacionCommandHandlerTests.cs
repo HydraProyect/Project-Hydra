@@ -96,6 +96,24 @@ public class RestaurarAnotacionAcreditacionCommandHandlerTests
     }
 
     [Fact]
+    public async Task Anotar_la_vigencia_de_una_que_la_plataforma_no_pide_falla_y_no_escribe()
+    {
+        // Pantalla vieja: se abrió validada y, entretanto, alguien marcó «Esta plataforma no lo pide». Una fecha pasada la
+        // pondría en rojo por un documento que nadie exige.
+        var m = new Mundo();
+        m.Acreditacion.MarcarNoRequerida();
+
+        var r = await m.SoloVigencia().Handle(
+            new ConfirmarVigenciaAcreditacionCommand(m.Acreditacion.Id, VigenciaEnPlataforma.VenceEl(new DateOnly(2020, 1, 1))),
+            CancellationToken.None);
+
+        r.EsFallido.Should().BeTrue();
+        r.Error.Codigo.Should().Be("Acreditacion.NoRequerida");
+        m.Acreditacion.Vigencia.EstaSinConfirmar.Should().BeTrue();
+        m.UnitOfWork.VecesGuardado.Should().Be(0);
+    }
+
+    [Fact]
     public async Task Rechaza_si_la_acreditacion_cambio_desde_la_anotacion_y_no_escribe()
     {
         var m = new Mundo();

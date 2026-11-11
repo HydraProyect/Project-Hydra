@@ -176,6 +176,9 @@ public partial class GestionesAutomaticasPantallaTests
         }, "sin Asignación no hay fecha de inicio que enseñar, y eso no es un dato que falte");
         cut.Find("[data-pestana='centro'] [data-faltan]").TextContent.Should().Be("· 2");
         cut.Find("[data-dato='GpDatoCodigoCentro'] a[data-completar]").GetAttribute("href").Should().Be($"centros/{pasos[0].CentroId}");
+        cut.Find("[data-datos-nota]").TextContent.Should().Be(
+            "Un clic en un dato lo copia con el formato que piden los portales. «Completar» abre Centro 360, fuera de la Gestión.",
+            "en esta pestaña «Completar» sí sale de la Gestión, y la nota no puede decir lo contrario");
     }
 
     [Fact]
@@ -236,7 +239,8 @@ public partial class GestionesAutomaticasPantallaTests
         cut.Find("[data-accion='primario']").Click();
 
         cut.WaitForAssertion(() => m.Enviados.OfType<MarcarAcreditacionNoRequeridaCommand>().Should().ContainSingle()
-            .Which.AcreditacionId.Should().Be(pasos[0].AcreditacionId));
+            .Which.Should().Be(new MarcarAcreditacionNoRequeridaCommand(pasos[0].AcreditacionId, pasos[0].Estado),
+                "lleva el estado que se tenía delante, para no sobrescribir a ciegas"));
         Toasts.Mensajes.Should().ContainSingle().Which.Tono.Should().Be(TonoToast.Exito);
         cut.Find("[data-paso-abierto]").GetAttribute("data-paso-abierto").Should().Be(pasos[1].AcreditacionId.ToString());
     }

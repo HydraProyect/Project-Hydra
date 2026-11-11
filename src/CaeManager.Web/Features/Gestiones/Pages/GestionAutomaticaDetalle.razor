@@ -24,7 +24,9 @@
     Incremento 1 de la ventana (Gestion Pasos por tipo TALVEG.dc.html, G-3/G-4): el CIF de la Empresa gestionada en la
     cabecera, «Datos a mano» con las pestañas Trabajador y Centro, y «Esta plataforma no lo pide» con su comando.
     Lo que la consulta no trae no se pinta ni se inventa: nombre de quien la creó, historial de rechazos por paso, aviso
-    de las 48 horas y las pestañas Empleador y Cliente de «Datos a mano».
+    de las 48 horas, las pestañas Empleador y Cliente de «Datos a mano» y el marcador «● lo pide este paso» (TALVEG no
+    sabe qué datos pide cada portal). «Completar» del Centro no tiene editor en panel: abre Centro 360, fuera de la
+    Gestión, y la nota de esa pestaña lo dice (GpDatosNotaCentro).
 *@
 <LimiteDeErrores Pagina="this">
 <PageTitle>@TituloGestion — @Marca.Nombre</PageTitle>
@@ -324,7 +326,7 @@
                                     </div>
                                 }
                             </div>
-                            <span class="gp-nota" data-datos-nota="">@Textos[_puedeEscribir ? "GpDatosNota" : "GpDatosNotaConsulta"]</span>
+                            <span class="gp-nota" data-datos-nota="">@Textos[!_puedeEscribir ? "GpDatosNotaConsulta" : pestana == PestanaTrabajador ? "GpDatosNota" : "GpDatosNotaCentro"]</span>
                         </section>
 
                         @if (!string.IsNullOrWhiteSpace(abierto.Notas))
