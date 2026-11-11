@@ -129,6 +129,15 @@
   <data name="AriaVistaPrevia" xml:space="preserve">
     <value>Vista previa del informe</value>
   </data>
+  <data name="AriaZonaDesplazableVistaPrevia" xml:space="preserve">
+    <value>Vista previa del informe, con desplazamiento</value>
+  </data>
+  <data name="AriaIrAlPrincipio" xml:space="preserve">
+    <value>Ir al principio</value>
+  </data>
+  <data name="AriaIrAlFinal" xml:space="preserve">
+    <value>Ir al final</value>
+  </data>
   <data name="HojaTituloAsignaciones" xml:space="preserve">
     <value>Informe de asignaciones activas</value>
   </data>
