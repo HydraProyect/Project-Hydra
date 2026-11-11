@@ -57,10 +57,14 @@ public interface ILanzadorProcesoAislado
 /// </summary>
 public sealed class LanzadorProcesoAislado(ILogger<LanzadorProcesoAislado> logger) : ILanzadorProcesoAislado
 {
-    private static readonly TimeSpan EsperaDeMuerte = TimeSpan.FromSeconds(10);
+    /// <summary>Lo que se espera a que el hijo salga tras matarlo, y a cada tarea de sus tuberías. Para los tests, más corto.</summary>
+    internal TimeSpan EsperaDeMuerte { get; init; } = TimeSpan.FromSeconds(10);
 
     /// <summary>Para los tests: el identificador del hijo en cuanto arranca, también si luego se cancela.</summary>
     internal Action<int>? AlArrancar { get; init; }
+
+    /// <summary>Para los tests: sustituye a matar el árbol, para simular un sistema que no deja matar al hijo.</summary>
+    internal Action<Process>? Matar { get; init; }
 
     public async Task<SalidaProcesoAislado> EjecutarAsync(ProcessStartInfo inicio, Func<Stream, CancellationToken, Task> escribirEntrada,
         TimeSpan tiempoMaximo, int maximoBytesSalida, CancellationToken cancellationToken)
@@ -71,28 +75,33 @@ public sealed class LanzadorProcesoAislado(ILogger<LanzadorProcesoAislado> logge
         inicio.RedirectStandardOutput = true;
         inicio.RedirectStandardError = true;
 
+        using var plazo = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         using var proceso = new Process { StartInfo = inicio };
         proceso.Start();
         var id = proceso.Id;
-        AlArrancar?.Invoke(id);
 
-        // Sin el token del llamante: estas tareas terminan solas cuando el proceso muere y sus tuberías se cierran.
-        var errores = proceso.StandardError.BaseStream.CopyToAsync(Stream.Null, CancellationToken.None);
-
-        using var plazo = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-        // Al vencer el plazo o cancelar el llamante se mata el árbol en el acto, sin esperar a que la lectura vea el token:
-        // una lectura ya bloqueada en la tubería no siempre se interrumpe, y un hijo que gira sin escribir la dejaría
-        // esperando. Con el hijo muerto la tubería se cierra y la lectura vuelve.
-        using var matarAlVencer = plazo.Token.Register(() => MatarArbolSinEsperar(proceso));
-        plazo.CancelAfter(tiempoMaximo);
-        var escritura = EscribirAsync(proceso.StandardInput.BaseStream, escribirEntrada, plazo.Token);
-        var lectura = LeerConTopeAsync(proceso.StandardOutput.BaseStream, maximoBytesSalida, plazo.Token);
-
+        Task errores = Task.CompletedTask, escritura = Task.CompletedTask, lectura = Task.CompletedTask;
+        var matarAlVencer = default(CancellationTokenRegistration);
         SalidaProcesoAislado? desenlace = null;
         ExceptionDispatchInfo? fallo = null;
+        // Todo lo que sigue a Start va dentro: cualquier fallo, también antes de leer, pasa por confirmar la muerte del hijo.
         try
         {
-            desenlace = await DesenlaceAsync(proceso, lectura, plazo.Token, cancellationToken, id);
+            AlArrancar?.Invoke(id);
+
+            // Sin el token del llamante: estas tareas terminan solas cuando el proceso muere y sus tuberías se cierran.
+            errores = proceso.StandardError.BaseStream.CopyToAsync(Stream.Null, CancellationToken.None);
+
+            // Al vencer el plazo o cancelar el llamante se mata el árbol en el acto, sin esperar a que la lectura vea el
+            // token: una lectura ya bloqueada en la tubería no siempre se interrumpe, y un hijo que gira sin escribir la
+            // dejaría esperando. Con el hijo muerto la tubería se cierra y la lectura vuelve.
+            matarAlVencer = plazo.Token.Register(() => MatarArbolSinEsperar(proceso));
+            plazo.CancelAfter(tiempoMaximo);
+            escritura = EscribirAsync(proceso.StandardInput.BaseStream, escribirEntrada, plazo.Token);
+            var leyendo = LeerConTopeAsync(proceso.StandardOutput.BaseStream, maximoBytesSalida, plazo.Token);
+            lectura = leyendo;
+
+            desenlace = await DesenlaceAsync(proceso, leyendo, plazo.Token, cancellationToken, id);
         }
         catch (Exception ex)
         {
@@ -105,6 +114,7 @@ public sealed class LanzadorProcesoAislado(ILogger<LanzadorProcesoAislado> logge
         await ObservarAsync(lectura);
         await ObservarAsync(escritura);
         await ObservarAsync(errores);
+        matarAlVencer.Dispose();
 
         // Sustituye al desenlace que hubiera: sin la muerte confirmada, el turno de quien llama no puede soltarse.
         if (!terminado)
@@ -182,53 +192,71 @@ public sealed class LanzadorProcesoAislado(ILogger<LanzadorProcesoAislado> logge
         return new ReadOnlyMemory<byte>(leido.GetBuffer(), 0, (int)leido.Length);
     }
 
-    private static void MatarArbolSinEsperar(Process proceso)
+    private void MatarArbolSinEsperar(Process proceso)
     {
         try
         {
             if (!proceso.HasExited)
-                proceso.Kill(entireProcessTree: true);
+                MatarArbol(proceso);
         }
         catch (Exception)
         {
-            // Lo reintenta y lo registra MatarArbolAsync en el finally.
+            // Lo reintenta y lo registra MatarArbolAsync al confirmar la muerte.
         }
+    }
+
+    private void MatarArbol(Process proceso)
+    {
+        if (Matar is { } matar)
+            matar(proceso);
+        else
+            proceso.Kill(entireProcessTree: true);
     }
 
     private Task<bool> MatarArbolAsync(Process proceso, int id) =>
         ConfirmarTerminadoAsync(
             () => proceso.HasExited,
-            () => proceso.Kill(entireProcessTree: true),
+            () => MatarArbol(proceso),
             proceso.WaitForExitAsync,
             EsperaDeMuerte,
-            ex => logger.LogWarning(ex, "No se pudo terminar un proceso aislado ({Id}); puede seguir vivo.", id));
+            ex => logger.LogWarning(ex, "No se pudo confirmar que terminara un proceso aislado ({Id}); puede seguir vivo.", id));
 
     /// <summary>
-    /// <c>true</c> solo si el hijo consta terminado: ya había salido, o se mató y salió dentro de <paramref name="margen"/>.
-    /// Si falla <paramref name="matar"/> o la espera vence, <c>false</c>; ningún fallo se deja escapar, porque llegamos aquí
-    /// ya cancelando o agotando el tiempo y el motivo real lo decide el llamante.
+    /// <c>true</c> solo si el hijo consta terminado: ya había salido, o salió dentro de <paramref name="margen"/> tras
+    /// <paramref name="matar"/>. Lo que cuenta es la salida, no que matar no falle: un hijo que ya estaba saliendo puede hacer
+    /// que matar lance, y entonces la espera vuelve en el acto. Si la espera vence, <c>false</c>. Ningún fallo se deja
+    /// escapar, porque llegamos aquí ya cancelando o agotando el tiempo y el motivo real lo decide el llamante.
     /// </summary>
     internal static async Task<bool> ConfirmarTerminadoAsync(Func<bool> haTerminado, Action matar,
         Func<CancellationToken, Task> esperarSalida, TimeSpan margen, Action<Exception> registrar)
     {
+        Exception? falloAlMatar = null;
         try
         {
             if (haTerminado())
                 return true;
 
-            matar();
+            try
+            {
+                matar();
+            }
+            catch (Exception ex)
+            {
+                falloAlMatar = ex;
+            }
+
             using var espera = new CancellationTokenSource(margen);
             await esperarSalida(espera.Token);
             return true;
         }
         catch (Exception ex)
         {
-            registrar(ex);
+            registrar(falloAlMatar ?? ex);
             return false;
         }
     }
 
-    private static async Task ObservarAsync(Task tarea)
+    private async Task ObservarAsync(Task tarea)
     {
         try
         {

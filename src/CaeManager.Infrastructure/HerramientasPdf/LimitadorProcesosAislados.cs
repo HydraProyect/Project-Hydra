@@ -7,8 +7,10 @@ namespace CaeManager.Infrastructure.HerramientasPdf;
 ///
 /// Esa cota solo vale si cada turno se suelta con su hijo ya muerto. Por eso un turno cuyo hijo no se pudo confirmar
 /// terminado no se suelta nunca (<see cref="TurnoProcesoAislado.RetenerPorHijoSinConfirmar"/>) y el limitador pasa a
-/// degradado: desde entonces no da turnos, y quien lo pida recibe <c>null</c> en el acto, sin lanzar nada. No hay reactivación
-/// automática: la instancia se recupera al reiniciarse, que es lo que garantiza que ese hijo ya no existe.
+/// degradado: desde entonces no da turnos, y quien lo pida recibe <c>null</c> en el acto, sin lanzar nada. Quien ya esperaba
+/// hueco cuando se degradó tampoco lo recibe: con capacidad 1 agota su espera (el hueco retenido no vuelve) y con más
+/// capacidad lo devuelve al despertar. No hay reactivación automática: la instancia se recupera al reiniciarse, que es lo que
+/// garantiza que ese hijo ya no existe.
 /// </summary>
 public sealed class LimitadorProcesosAislados(int capacidad)
 {

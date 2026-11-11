@@ -126,6 +126,70 @@ public sealed class ProcesoAisladoRealTests
     }
 
     [Fact]
+    public async Task Si_no_se_puede_matar_al_hijo_el_plazo_no_da_un_desenlace_sino_la_excepcion_con_su_PID()
+    {
+        // El sistema no deja matarlo: Kill lanza siempre. El hijo real sigue vivo hasta que el test lo mata al final.
+        var lanzador = LanzadorQueNoPuedeMatar(_ => throw new System.ComponentModel.Win32Exception("sin permiso"));
+        try
+        {
+            var ejecutar = () => lanzador.EjecutarAsync(ProcesoQueEspera(), (_, _) => Task.CompletedTask,
+                TimeSpan.FromMilliseconds(300), 1_000_000, CancellationToken.None);
+
+            (await ejecutar.Should().ThrowAsync<ProcesoAisladoSinTerminarException>("un tiempo agotado soltaría el turno"))
+                .Which.IdProceso.Should().Be(_arrancados.Single());
+            YaNoExiste(_arrancados[0]).Should().BeFalse("el hijo sigue vivo: por eso no se puede soltar su turno");
+        }
+        finally
+        {
+            MatarDeVerdad();
+        }
+    }
+
+    [Fact]
+    public async Task Si_el_hijo_no_sale_tras_matarlo_y_el_llamante_cancela_gana_la_excepcion_y_no_la_cancelacion()
+    {
+        // Kill no lanza pero no surte efecto: el hijo no sale en el margen.
+        var lanzador = LanzadorQueNoPuedeMatar(_ => { });
+        using var cancelacion = new CancellationTokenSource(TimeSpan.FromMilliseconds(300));
+        try
+        {
+            var ejecutar = () => lanzador.EjecutarAsync(ProcesoQueEspera(), (_, _) => Task.CompletedTask,
+                TimeSpan.FromMinutes(5), 1_000_000, cancelacion.Token);
+
+            await ejecutar.Should().ThrowAsync<ProcesoAisladoSinTerminarException>("la cancelación soltaría el turno");
+        }
+        finally
+        {
+            MatarDeVerdad();
+        }
+    }
+
+    private LanzadorProcesoAislado LanzadorQueNoPuedeMatar(Action<Process> matar) =>
+        new(NullLogger<LanzadorProcesoAislado>.Instance)
+        {
+            AlArrancar = id => _arrancados.Add(id),
+            Matar = matar,
+            EsperaDeMuerte = TimeSpan.FromMilliseconds(300),
+        };
+
+    private void MatarDeVerdad()
+    {
+        foreach (var id in _arrancados)
+        {
+            try
+            {
+                using var proceso = Process.GetProcessById(id);
+                proceso.Kill(entireProcessTree: true);
+                proceso.WaitForExit(TimeSpan.FromSeconds(10));
+            }
+            catch (Exception ex) when (ex is ArgumentException or InvalidOperationException)
+            {
+                // Ya no existe.
+            }
+        }
+    }
+
+    [Fact]
     public async Task Un_proceso_que_escribe_de_mas_se_mata_sin_leer_el_resto()
     {
         var reloj = Stopwatch.StartNew();

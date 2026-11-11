@@ -39,18 +39,26 @@ public sealed class LanzadorProcesoAisladoPlazoTests
     }
 
     [Fact]
-    public async Task Si_Kill_falla_el_hijo_no_consta_terminado_y_se_registra()
+    public async Task Si_Kill_falla_y_el_hijo_no_sale_no_consta_terminado_y_se_registra_el_fallo_al_matar()
     {
         Exception? registrado = null;
-        var esperado = false;
 
         var terminado = await LanzadorProcesoAislado.ConfirmarTerminadoAsync(
-            () => false, () => throw new InvalidOperationException("sin permiso"), _ => { esperado = true; return Task.CompletedTask; },
-            Margen, ex => registrado = ex);
+            () => false, () => throw new InvalidOperationException("sin permiso"), token => Task.Delay(Timeout.Infinite, token),
+            Margen, ex => registrado = ex).WaitAsync(TimeSpan.FromSeconds(5));
 
         terminado.Should().BeFalse();
-        esperado.Should().BeFalse("sin matarlo no hay salida que esperar");
-        registrado.Should().BeOfType<InvalidOperationException>();
+        registrado.Should().BeOfType<InvalidOperationException>("el motivo útil es el fallo al matar, no la espera vencida");
+    }
+
+    [Fact]
+    public async Task Si_Kill_falla_porque_el_hijo_ya_estaba_saliendo_consta_terminado()
+    {
+        // La carrera del plazo: el callback ya mató al hijo y el segundo Kill lanza mientras sale. Cuenta la salida.
+        var terminado = await LanzadorProcesoAislado.ConfirmarTerminadoAsync(
+            () => false, () => throw new InvalidOperationException("ya salió"), _ => Task.CompletedTask, Margen, _ => { });
+
+        terminado.Should().BeTrue();
     }
 
     [Fact]
