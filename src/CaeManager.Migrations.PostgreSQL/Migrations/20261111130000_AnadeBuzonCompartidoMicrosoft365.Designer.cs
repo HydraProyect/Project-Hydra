@@ -13,7 +13,7 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace CaeManager.Migrations.PostgreSQL.Migrations
 {
     [DbContext(typeof(CaeManagerDbContext))]
-    [Migration("20261111100000_AnadeBuzonCompartidoMicrosoft365")]
+    [Migration("20261111130000_AnadeBuzonCompartidoMicrosoft365")]
     partial class AnadeBuzonCompartidoMicrosoft365
     {
         /// <inheritdoc />

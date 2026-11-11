@@ -92,7 +92,7 @@ public class SoporteSinLecturaDeCredencialesTests : IAsyncLifetime
             "Id", "AcuseAutomaticoActivo", "BuzonEmail", "ClienteId", "CreadoEnUtc", "EliminadoEnUtc", "EliminadoPorUsuarioId",
             "EstaEliminado", "Estado", "FechaConectadaUtc", "GestorPropietarioId", "Nombre", "Proveedor", "ResponsableUsuarioId",
             "TenantId", "Version",
-            // Buzón compartido de Microsoft 365 (migraciones 20261111100000, 20261111110000, 20261111120000 y
+            // Buzón compartido de Microsoft 365 (migraciones 20261111130000, 20261111140000, 20261111150000 y
             // 20261111175947): ninguna es un secreto (identificadores de directorio y de buzón, quién consintió y fechas de
             // verificación, hueco, hueco por registrar y reintento), y Soporte TALVEG las necesita para cargar la entidad
             // sin 42501.

@@ -31,13 +31,13 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
             //
             // Soporte TALVEG lee esta tabla columna a columna (SoporteSinColumnasSecretasRestantes): sin este grant,
             // cargar la entidad bajo cae_app_soporte daría 42501. Es una fecha, no un secreto. Mismo patrón que
-            // 20261111110000_AnadeIdentidadVerificadaConexion.
+            // 20261111140000_AnadeIdentidadVerificadaConexion.
             migrationBuilder.Sql("""
                 GRANT SELECT ("HuecoPendienteDesdeUtc", "ReintentoVerificacionNoAntesDeUtc") ON TABLE public."ConexionesIntegracion" TO cae_app_soporte;
                 """);
 
             // Guarda transitoria del alta de buzones compartidos (ReclamacionBuzonIntegracion.CuentaParaGuardaTransitoria).
-            // Las reclamaciones anteriores a IdentidadBuzon (20261111100000) no están en su índice único: mientras quede
+            // Las reclamaciones anteriores a IdentidadBuzon (20261111130000) no están en su índice único: mientras quede
             // alguna sin completar en la plataforma, un alias de su buzón podría reclamarse como compartido en otro Tenant
             // propietario. La restricción de exclusión rechaza una reclamación compartida mientras exista una heredada que
             // cuente, y la inversa. PostgreSQL la comprueba como los índices únicos de la tabla: en la misma escritura, con

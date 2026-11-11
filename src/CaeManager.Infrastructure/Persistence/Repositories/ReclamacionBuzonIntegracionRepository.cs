@@ -21,7 +21,7 @@ public class ReclamacionBuzonIntegracionRepository(CaeManagerDbContext dbContext
     /// <summary>
     /// Restricción de exclusión de la guarda transitoria (ver
     /// <see cref="ReclamacionBuzonIntegracion.CuentaParaGuardaTransitoria"/>): una reclamación de buzón compartido no
-    /// convive con ninguna heredada sin identidad que cuente. La crea la migración 20261111120000.
+    /// convive con ninguna heredada sin identidad que cuente. La crea la migración 20261111150000.
     /// </summary>
     public const string RestriccionGuardaTransitoria = "EX_ReclamacionesBuzonIntegracion_GuardaTransitoriaCompartidos";
 

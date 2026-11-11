@@ -26,7 +26,7 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
 
             // Soporte TALVEG lee esta tabla columna a columna (SoporteSinColumnasSecretasRestantes): sin este grant, cargar
             // la entidad o el listado de Conexiones bajo cae_app_soporte daría 42501. Es una fecha, no un secreto. Mismo
-            // patrón que 20261111120000_AnadeHuecoPendienteConexion; no cambia políticas RLS ni roles.
+            // patrón que 20261111150000_AnadeHuecoPendienteConexion; no cambia políticas RLS ni roles.
             migrationBuilder.Sql("""
                 GRANT SELECT ("MarcaHuecoPorRegistrarDesdeUtc") ON TABLE public."ConexionesIntegracion" TO cae_app_soporte;
                 """);

@@ -13,7 +13,7 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace CaeManager.Migrations.PostgreSQL.Migrations
 {
     [DbContext(typeof(CaeManagerDbContext))]
-    [Migration("20261111110000_AnadeIdentidadVerificadaConexion")]
+    [Migration("20261111140000_AnadeIdentidadVerificadaConexion")]
     partial class AnadeIdentidadVerificadaConexion
     {
         /// <inheritdoc />

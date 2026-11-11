@@ -29,7 +29,7 @@ public class ReclamacionBuzonIntegracionConfiguration : IEntityTypeConfiguration
             .HasDatabaseName(ReclamacionBuzonIntegracionRepository.IndiceUnicoIdentidadBuzon);
 
         // Guarda transitoria del alta de buzones compartidos (ver ReclamacionBuzonIntegracion.CuentaParaGuardaTransitoria).
-        // La restricción de exclusión que la aplica no la modela EF: la crea la migración 20261111120000 en SQL, con el
+        // La restricción de exclusión que la aplica no la modela EF: la crea la migración 20261111150000 en SQL, con el
         // nombre que el repositorio compara al traducir su 23P01 (mismo caso que EX_Asignaciones_SinSolapeVigencia).
         builder.Property(r => r.EsBuzonCompartido);
         builder.Property(r => r.FueraDeGuardaTransitoriaUtc);

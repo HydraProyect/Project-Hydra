@@ -13,7 +13,7 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace CaeManager.Migrations.PostgreSQL.Migrations
 {
     [DbContext(typeof(CaeManagerDbContext))]
-    [Migration("20261111120000_AnadeHuecoPendienteConexion")]
+    [Migration("20261111150000_AnadeHuecoPendienteConexion")]
     partial class AnadeHuecoPendienteConexion
     {
         /// <inheritdoc />
