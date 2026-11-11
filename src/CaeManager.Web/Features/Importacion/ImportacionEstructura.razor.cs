@@ -489,11 +489,14 @@ public partial class ImportacionEstructura : ComponentBase, IDisposable
 
     // ---------------------------------------------------------------- acción principal (la única etiqueta Primario)
 
+    /// <summary>Hay un rechazo vigente y es del archivo (no de la operación): el archivo ya no sirve. El campo solo vale con un rechazo vigente.</summary>
+    private bool RechazoDelArchivo => _rechazo is not null && _rechazoEsDelArchivo;
+
     /// <summary>Hay algo que continuar: el archivo es analizable, el plan tiene filas válidas o la vista previa ya está calculada.</summary>
     private bool PuedeContinuar => _fase switch
     {
         // Un rechazo que no es del archivo (limitador ocupado, error de Application) conserva el archivo para reintentar.
-        Fase.Subir => HayArchivo && (_rechazo is null || !_rechazoEsDelArchivo),
+        Fase.Subir => HayArchivo && !RechazoDelArchivo,
         Fase.Validacion => TotalValidas > 0,
         Fase.VistaPrevia => _previa is not null && !_previaCargando && !_importando,
         _ => true

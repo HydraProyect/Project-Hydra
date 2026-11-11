@@ -486,6 +486,20 @@ public class ImportacionEstructuraTests : BunitContext
     }
 
     [Fact]
+    public async Task Subida_UnArchivoValidoTrasUnoRechazadoSeMuestraListoYSePuedeValidar()
+    {
+        var (cut, _) = Renderizar();
+        await Subir(cut, "datos.csv");
+        cut.FindAll(".badge").Select(Texto).Should().Contain("Archivo no aceptado");
+
+        await Subir(cut, "buena.xlsx");
+
+        cut.FindAll("[data-testid='est-archivo-listo']").Should().ContainSingle();
+        cut.FindAll(".badge").Select(Texto).Should().NotContain("Archivo no aceptado");
+        Primario(cut).HasAttribute("disabled").Should().BeFalse();
+    }
+
+    [Fact]
     public async Task Analisis_ElLimitePorHojaSeMuestraSinNombreDeArchivo()
     {
         var servidor = new Servidor { FalloDeAnalisis = new LimiteHojaImportacionException(filas: true) };

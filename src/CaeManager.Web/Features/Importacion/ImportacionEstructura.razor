@@ -78,7 +78,7 @@
                             <h2 id="est-titulo-subida">@Textos["EstTituloSubida"]</h2>
                             <p>@Textos["EstTextoSubida"]</p>
                         </div>
-                        @if (_rechazo is not null && _rechazoEsDelArchivo)
+                        @if (RechazoDelArchivo)
                         {
                             <Badge Tono="TonoBadge.Peligro">@Textos["EstArchivoNoAceptado"]</Badge>
                         }
@@ -91,7 +91,7 @@
                     {
                         <div class="alerta-formulario" role="alert">@_rechazo</div>
                     }
-                    @if (HayArchivo && !_rechazoEsDelArchivo)
+                    @if (HayArchivo && !RechazoDelArchivo)
                     {
                         <div class="aviso-est aviso-est-ok" role="status" data-testid="est-archivo-listo">
                             <span class="icono-aviso-est" aria-hidden="true"><Icono Nombre="check" /></span>
