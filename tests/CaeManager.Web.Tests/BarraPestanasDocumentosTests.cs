@@ -70,17 +70,21 @@ public class BarraPestanasDocumentosTests : BunitContext
     }
 
     [Theory]
-    [InlineData(Roles.Administrador, true)]
-    [InlineData(Roles.DireccionCae, true)]
-    [InlineData(Roles.CoordinadorCae, true)]
-    [InlineData(Roles.GestorCae, true)]
-    [InlineData(Roles.Consulta, true)]
-    [InlineData(Roles.Cliente, false)]
-    public void Incidencias_solo_se_ofrece_a_los_roles_que_abre_esa_pantalla(string rol, bool conIncidencias)
+    [InlineData(Roles.Administrador, true, true)]
+    [InlineData(Roles.DireccionCae, true, true)]
+    [InlineData(Roles.CoordinadorCae, true, true)]
+    [InlineData(Roles.GestorCae, true, true)]
+    [InlineData(Roles.Consulta, false, true)]
+    [InlineData(Roles.Cliente, false, false)]
+    public void Revision_IA_e_Incidencias_conservan_la_regla_de_rol_que_ya_tenian_en_la_barra_de_seccion(
+        string rol, bool conRevisionIa, bool conIncidencias)
     {
         var cut = Pintar(rol, "listado");
 
-        Rotulos(cut).Should().Equal(conIncidencias ? SietePestanas : SeisPestanas);
+        var esperadas = SietePestanas
+            .Where(r => (r != "Revisión IA" || conRevisionIa) && (r != "Incidencias" || conIncidencias))
+            .ToList();
+        Rotulos(cut).Should().Equal(esperadas);
     }
 
     [Theory]

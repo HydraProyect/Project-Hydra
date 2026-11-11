@@ -14,7 +14,8 @@
 
     Los Ids son estables y viajan en la URL (<c>/documentos?pestana=</c>): no se tocan al cambiar un rótulo.
     «Incidencias» es una pantalla hermana, no una vista de Documentos: su pestaña lleva a /incidencias y solo se
-    ofrece a los roles que esa pantalla abre (CatalogoSeccionesMenu.RolesDeIncidencias, los de su [Authorize]).
+    ofrece a los roles que esa pantalla abre (CatalogoSeccionesMenu.RolesDeIncidencias, los de su [Authorize]);
+    «Revisión IA» conserva igual su regla de la barra de sección (RolesDeRevisionIa).
     La barra solo señala: cada pantalla de destino se autoriza por su cuenta y una pestaña nunca concede nada.
 *@
 <Pestanas Definiciones="Definiciones" PestanaActiva="@PestanaActiva" PestanaActivaChanged="CambiarAsync"
@@ -48,12 +49,14 @@
     [Parameter] public RenderFragment? ChildContent { get; set; }
 
     private bool _puedeVerIncidencias;
+    private bool _puedeVerRevisionIa;
 
     protected override async Task OnInitializedAsync()
     {
         if (EstadoAutenticacion is null) return;
         var usuario = (await EstadoAutenticacion).User;
         _puedeVerIncidencias = CatalogoSeccionesMenu.RolesDeIncidencias.Split(',').Any(usuario.IsInRole);
+        _puedeVerRevisionIa = CatalogoSeccionesMenu.RolesDeRevisionIa.Split(',').Any(usuario.IsInRole);
     }
 
     private IReadOnlyList<PestanaDefinicion> Definiciones
@@ -71,9 +74,14 @@
                 new(IdPlataformas, Textos["PestanaPlataformasCae"].Value, "plataforma"),
                 new(IdReclamaciones, Textos["PestanaReclamaciones"].Value, "correo"),
                 new(IdPreventivo, Textos["PestanaPreventivo"].Value, "reloj"),
-                new(IdRevisionIa, Textos["PestanaRevisionIa"].Value, "ia"),
                 new(IdPlantillas, Textos["PestanaPlantillas"].Value, "plantilla"),
             ];
+
+            // Las dos pestañas que la barra de sección del marco ya condicionaba a un rol conservan esa regla, para
+            // que unificar las barras no enseñe a nadie una pestaña que su rol no veía: Revisión IA (los roles de
+            // gestión, no Consulta ni Cliente) e Incidencias (los de su pantalla). Mantiene su sitio en la tira.
+            if (_puedeVerRevisionIa)
+                pestanas.Insert(pestanas.FindIndex(p => p.Id == IdPlantillas), new(IdRevisionIa, Textos["PestanaRevisionIa"].Value, "ia"));
 
             if (_puedeVerIncidencias)
                 pestanas.Add(new(IdIncidencias, Textos["PestanaIncidencias"].Value, "incidencias"));

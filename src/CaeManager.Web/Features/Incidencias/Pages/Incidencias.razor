@@ -65,8 +65,6 @@
             }
         </Chips>
     </BarraFiltros>
-    <FiltrosGuardadosDeListado Conexion="_filtrosGuardados" Pantalla="@PantallaDeFiltrosGuardados" ParametrosDeVista="ParametrosDeVista"
-                               OnAplicar="AplicarVistaGuardadaAsync" AlCambiar="StateHasChanged" />
     <VistaRecordadaDeListado Conexion="_vistaRecordada" Pantalla="@CaeManager.Application.Configuracion.PantallasConVistaRecordada.Incidencias"
                              ParametrosDeVista="ParametrosDeVista" ParametroDeBusqueda="q" OnAplicar="AplicarVistaGuardadaAsync" AlCambiar="StateHasChanged" />
 
@@ -184,6 +182,9 @@
         }
     }
     </BarraPestanasDocumentos>
+    @* Fuera de la barra, a nivel de página: el modal «Guardar filtro» no es de ninguna pestaña, y registrarlo en su ámbito haría preguntar al cambiar de pestaña. *@
+    <FiltrosGuardadosDeListado Conexion="_filtrosGuardados" Pantalla="@PantallaDeFiltrosGuardados" ParametrosDeVista="ParametrosDeVista"
+                               OnAplicar="AplicarVistaGuardadaAsync" AlCambiar="StateHasChanged" />
 </div>
 
 <DrawerFormulario Visible="_drawerVisible" VisibleChanged="CerrarDrawerAsync"
