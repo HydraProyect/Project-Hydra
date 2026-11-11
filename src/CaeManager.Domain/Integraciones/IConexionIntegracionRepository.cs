@@ -20,5 +20,11 @@ public interface IConexionIntegracionRepository
     /// </summary>
     Task<bool> SigueOperativaVerificadaAsync(Guid id, DateTime ahoraUtc, CancellationToken cancellationToken = default);
 
+    /// <summary>
+    /// Las conexiones del Tenant actual (filtro de Tenant y RLS) con una
+    /// <see cref="ConexionIntegracion.MarcaHuecoPorRegistrarDesdeUtc"/> puesta, para que el ciclo diario las repare.
+    /// </summary>
+    Task<IReadOnlyList<Guid>> ObtenerIdsConMarcaHuecoPorRegistrarAsync(CancellationToken cancellationToken = default);
+
     void Agregar(ConexionIntegracion conexion);
 }

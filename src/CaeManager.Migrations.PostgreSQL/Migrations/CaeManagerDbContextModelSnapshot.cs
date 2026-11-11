@@ -7861,6 +7861,9 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                     b.Property<DateTime?>("IdentidadVerificadaUtc")
                         .HasColumnType("timestamp with time zone");
 
+                    b.Property<DateTime?>("MarcaHuecoPorRegistrarDesdeUtc")
+                        .HasColumnType("timestamp with time zone");
+
                     b.Property<string>("Nombre")
                         .IsRequired()
                         .HasMaxLength(200)

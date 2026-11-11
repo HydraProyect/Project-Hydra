@@ -63,4 +63,19 @@
   <data name="PieBuzones" xml:space="preserve">
     <value>El buzón personal de un Gestor CAE solo lo ve su propietario; el resto de buzones alimentan las conversaciones compartidas de Comunicaciones.</value>
   </data>
+  <data name="AvisoHuecoSinRegistrar" xml:space="preserve">
+    <value>Hueco sin registrar: al desconectar no pudimos guardar desde cuándo dejó de recibirse el correo de este buzón. Pulsa Reparar para registrarlo.</value>
+  </data>
+  <data name="AccionRepararHueco" xml:space="preserve">
+    <value>Reparar</value>
+  </data>
+  <data name="HuecoReparado" xml:space="preserve">
+    <value>Hueco registrado.</value>
+  </data>
+  <data name="ErrorRepararHueco" xml:space="preserve">
+    <value>No pudimos registrar el hueco. Inténtalo de nuevo.</value>
+  </data>
+  <data name="AvisoRecargaFallida" xml:space="preserve">
+    <value>No pudimos actualizar el listado de conexiones. Recarga la página para ver su estado.</value>
+  </data>
 </root>

@@ -82,5 +82,8 @@ public class ConexionIntegracionRepositorioFalso : IConexionIntegracionRepositor
             && conexion.OperativaVerificada(ahoraUtc));
     }
 
+    public Task<IReadOnlyList<Guid>> ObtenerIdsConMarcaHuecoPorRegistrarAsync(CancellationToken cancellationToken = default) =>
+        Task.FromResult<IReadOnlyList<Guid>>(Conexiones.Where(c => c.MarcaHuecoPorRegistrarDesdeUtc != null).Select(c => c.Id).ToList());
+
     public void Agregar(ConexionIntegracion conexion) => Conexiones.Add(conexion);
 }

@@ -118,12 +118,30 @@ public class ConexionIntegracion : EntidadBase
     /// min(marca, expiración, ahora), guardada antes de llamar a Graph (<see cref="RegistrarHuecoAlObservarSuscripcion"/>);</item>
     /// <item>(c) la conexión pasa a ConError: el momento del ConError (<see cref="MarcarConError"/>).</item>
     /// </list>
+    /// Además, la reparación de una desconexión cuyo último guardado no llegó a la base registra
+    /// <see cref="MarcaHuecoPorRegistrarDesdeUtc"/> (<see cref="RegistrarMarcaHuecoPorRegistrar"/>).
     /// La simple caducidad de la verificación no la fija: mientras la conexión está sin verificar su correo espera en la
     /// cola (Pendiente o Retenido) y no se pierde; si después se descarta, lo marca (a). Cada escritor solo la retrasa,
     /// nunca la adelanta. Mientras esté puesta, Conexiones avisa de posible correo no recuperado desde esa fecha. El hueco
     /// queda declarado, no recuperado: nada lee ese correo ni limpia la marca. Null: sin hueco.
     /// </summary>
     public DateTime? HuecoPendienteDesdeUtc { get; private set; }
+
+    /// <summary>
+    /// Comienzo del hueco que Desconectar todavía no ha podido registrar en <see cref="HuecoPendienteDesdeUtc"/>. Se fija
+    /// en el MISMO guardado que deja la conexión Deshabilitada (<see cref="Deshabilitar"/>), antes del DELETE de la
+    /// suscripción en Graph, con la hora de antes de ese guardado: desde ahí la ingesta descarta las notificaciones y el
+    /// resultado del borrado aún no se conoce. Si la marca ya está en esa hora o antes (la suscripción había expirado o la
+    /// conexión no estaba Habilitada, y la marca viaja en el mismo guardado), no se fija: no quedaría nada por registrar. Desconectar la vacía en el guardado que
+    /// registra la marca del borrado (o que confirma que no había hueco que registrar). Si ese guardado no llega a la base,
+    /// queda puesta: no hay ningún camino en que la conexión quede Deshabilitada sin la marca ni este valor (Codex, ronda
+    /// 18). La reparan, sin depender de lo que quede en memoria ni de una notificación que llegue después, Desconectar
+    /// repetido sobre la Deshabilitada, la acción Reparar de Conexiones (el mismo comando) y el ciclo diario de
+    /// suscripciones (<c>ReparacionMarcaHuecoService</c>), con <see cref="RegistrarMarcaHuecoPorRegistrar"/>; y
+    /// <see cref="Rehabilitar"/> la registra antes de volver a Habilitada. Solo en conexiones que verifican identidad, como
+    /// la marca. Null: nada por registrar.
+    /// </summary>
+    public DateTime? MarcaHuecoPorRegistrarDesdeUtc { get; private set; }
 
     /// <summary>
     /// Ninguna verificación automática de la identidad (el ciclo diario ni el reintento) se intenta antes de esta hora.
@@ -220,8 +238,9 @@ public class ConexionIntegracion : EntidadBase
     /// <summary>
     /// Disparador (b), regla conservadora única: la única fuente de la marca en los caminos que observan o sustituyen la
     /// suscripción de Graph (Reactivar, la rehabilitación de <c>SuscripcionAlRehabilitarService</c>, la renovación diaria
-    /// y Desconectar, antes de llamar a Graph, otra vez tras confirmar la desconexión si la suscripción ya expiró, otra
-    /// si el borrado falla, y al repetir la desconexión sobre una conexión ya Deshabilitada si la suscripción ya expiró).
+    /// y Desconectar, antes de llamar a Graph, otra vez tras confirmar la desconexión si la suscripción ya expiró y otra
+    /// si el borrado falla). La reparación de una desconexión ya Deshabilitada no la usa: registra
+    /// <see cref="MarcaHuecoPorRegistrarDesdeUtc"/>.
     /// Si en <paramref name="observadaUtc"/> la conexión no está Habilitada (ConError o Deshabilitada) o su suscripción
     /// guardada ya expiró, la marca pasa a min(marca,
     /// <paramref name="expiracionSuscripcionUtc"/>, <paramref name="observadaUtc"/>). Sin suscripción guardada (null)
@@ -428,14 +447,60 @@ public class ConexionIntegracion : EntidadBase
     /// Desconectar a propósito: lo que llegue mientras tanto no se ingiere. Una marca de hueco que hubiera se conserva
     /// tal cual (<see cref="HuecoPendienteDesdeUtc"/>): el correo de antes de desconectar puede seguir sin entrar.
     /// </summary>
-    public void Deshabilitar()
+    /// <param name="huecoPorRegistrarDesdeUtc">Si la desconexión aún tiene que borrar una suscripción en Graph, el
+    /// comienzo del hueco que habrá que registrar si ese borrado no se confirma: queda en
+    /// <see cref="MarcaHuecoPorRegistrarDesdeUtc"/> (solo retrocede) en el mismo guardado que la Deshabilitada. Si la
+    /// marca ya está en esa fecha o antes, no queda nada por registrar: cualquier marca posterior sería min(marca, …) y no
+    /// la movería.</param>
+    public void Deshabilitar(DateTime? huecoPorRegistrarDesdeUtc = null)
     {
         Estado = EstadoConexionIntegracion.Deshabilitada;
+        if (huecoPorRegistrarDesdeUtc is { } desdeUtc && RequiereVerificacionIdentidad
+            && (HuecoPendienteDesdeUtc is not { } marca || desdeUtc < marca)
+            && (MarcaHuecoPorRegistrarDesdeUtc is not { } actual || desdeUtc < actual))
+            MarcaHuecoPorRegistrarDesdeUtc = desdeUtc;
     }
 
-    /// <summary>Vuelve a Habilitada. No toca <see cref="HuecoPendienteDesdeUtc"/>: el hueco no se recupera al rehabilitar.</summary>
+    /// <summary>
+    /// Desconectar ya conoce el resultado del borrado: con <paramref name="registrarHueco"/> aplica la regla conservadora
+    /// (<see cref="RegistrarHuecoAlObservarSuscripcion"/>) sobre la observación y, en cualquier caso, vacía
+    /// <see cref="MarcaHuecoPorRegistrarDesdeUtc"/>, de forma que las dos cosas viajan en el mismo guardado.
+    /// </summary>
+    /// <returns>true si cambió algo que guardar.</returns>
+    public bool ResolverMarcaHuecoPorRegistrar(DateTime? expiracionSuscripcionUtc, DateTime observadaUtc, bool registrarHueco)
+    {
+        var cambio = registrarHueco && RegistrarHuecoAlObservarSuscripcion(expiracionSuscripcionUtc, observadaUtc);
+        if (MarcaHuecoPorRegistrarDesdeUtc is null)
+            return cambio;
+
+        MarcaHuecoPorRegistrarDesdeUtc = null;
+        return true;
+    }
+
+    /// <summary>
+    /// Reparación de una desconexión cuyo último guardado no llegó a la base: la marca pasa a min(marca,
+    /// <see cref="MarcaHuecoPorRegistrarDesdeUtc"/>) y el valor se vacía. No sabe qué respondió Graph, así que registra
+    /// el comienzo guardado: puede avisar de más (un borrado que sí se confirmó), nunca de menos.
+    /// </summary>
+    /// <returns>true si había algo por registrar.</returns>
+    public bool RegistrarMarcaHuecoPorRegistrar()
+    {
+        if (MarcaHuecoPorRegistrarDesdeUtc is not { } desdeUtc)
+            return false;
+
+        RegistrarHuecoDesde(desdeUtc);
+        MarcaHuecoPorRegistrarDesdeUtc = null;
+        return true;
+    }
+
+    /// <summary>
+    /// Vuelve a Habilitada. No toca <see cref="HuecoPendienteDesdeUtc"/>: el hueco no se recupera al rehabilitar. Una
+    /// <see cref="MarcaHuecoPorRegistrarDesdeUtc"/> que quedara de la desconexión se registra antes
+    /// (<see cref="RegistrarMarcaHuecoPorRegistrar"/>): una conexión Habilitada nunca la lleva.
+    /// </summary>
     public void Rehabilitar()
     {
+        RegistrarMarcaHuecoPorRegistrar();
         Estado = EstadoConexionIntegracion.Habilitada;
         UltimoError = null;
     }

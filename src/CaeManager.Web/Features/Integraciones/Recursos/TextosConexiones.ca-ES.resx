@@ -63,4 +63,19 @@
   <data name="PieBuzones" xml:space="preserve">
     <value>La bústia personal d'un Gestor CAE només la veu el seu propietari; la resta de bústies alimenten les converses compartides de Comunicacions.</value>
   </data>
+  <data name="AvisoHuecoSinRegistrar" xml:space="preserve">
+    <value>Buit sense registrar: en desconnectar no vam poder desar des de quan va deixar de rebre's el correu d'aquesta bústia. Prem Reparar per registrar-ho.</value>
+  </data>
+  <data name="AccionRepararHueco" xml:space="preserve">
+    <value>Reparar</value>
+  </data>
+  <data name="HuecoReparado" xml:space="preserve">
+    <value>Buit registrat.</value>
+  </data>
+  <data name="ErrorRepararHueco" xml:space="preserve">
+    <value>No vam poder registrar el buit. Torna-ho a provar.</value>
+  </data>
+  <data name="AvisoRecargaFallida" xml:space="preserve">
+    <value>No vam poder actualitzar el llistat de connexions. Recarrega la pàgina per veure'n l'estat.</value>
+  </data>
 </root>

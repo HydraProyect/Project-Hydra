@@ -23,5 +23,11 @@ public class ConexionIntegracionRepository(CaeManagerDbContext dbContext) : ICon
             && ConexionIntegracion.EsOperativaVerificada(estado.Estado, estado.Proveedor, estado.IdentidadVerificadaUtc, ahoraUtc);
     }
 
+    public async Task<IReadOnlyList<Guid>> ObtenerIdsConMarcaHuecoPorRegistrarAsync(CancellationToken cancellationToken = default) =>
+        await dbContext.ConexionesIntegracion.AsNoTracking()
+            .Where(c => c.MarcaHuecoPorRegistrarDesdeUtc != null)
+            .Select(c => c.Id)
+            .ToListAsync(cancellationToken);
+
     public void Agregar(ConexionIntegracion conexion) => dbContext.ConexionesIntegracion.Add(conexion);
 }

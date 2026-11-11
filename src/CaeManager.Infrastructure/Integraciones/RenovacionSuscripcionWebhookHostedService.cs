@@ -16,8 +16,9 @@ namespace CaeManager.Infrastructure.Integraciones;
 /// <c>Microsoft365GraphClient</c>) — un sondeo diario es de sobra frente a
 /// esa ventana. Envuelto en elección de líder (P3-30), igual que
 /// <see cref="IngestaWebhookHostedService"/>.
-/// Solo los Tenants propietarios activos verifican identidad y renuevan; los no activos pasan únicamente por el barrido
-/// de la guarda transitoria de buzones compartidos (ver <see cref="RecorrerTenantsAsync"/>).
+/// Solo los Tenants propietarios activos verifican identidad, reparan las marcas de hueco por registrar
+/// (<see cref="ReparacionMarcaHuecoService"/>) y renuevan; los no activos pasan únicamente por el barrido de la guarda
+/// transitoria de buzones compartidos (ver <see cref="RecorrerTenantsAsync"/>).
 /// </summary>
 public class RenovacionSuscripcionWebhookHostedService(
     IServiceScopeFactory ambitoFactory, IEleccionLiderService eleccionLider, ILogger<RenovacionSuscripcionWebhookHostedService> logger)
@@ -190,6 +191,25 @@ public class RenovacionSuscripcionWebhookHostedService(
         // ConError (regla en CompletarIdentidadBuzonService.MarcarConErrorDeRenovacion).
         using var ambito = ambitoFactory.CreateScope();
         using var _ = AmbitoTenantExplicito.Establecer(tenantId);
+
+        // Mismo ámbito y misma RLS del Tenant propietario: antes de renovar se reparan las desconexiones cuya marca de
+        // hueco quedó por registrar (ConexionIntegracion.MarcaHuecoPorRegistrarDesdeUtc), cada una con el cerrojo de su
+        // conexión. Un fallo aquí no salta la renovación: lo que no se repare se reintenta en el ciclo siguiente.
+        try
+        {
+            await ambito.ServiceProvider.GetRequiredService<ReparacionMarcaHuecoService>()
+                .RepararDelTenantActualAsync(stoppingToken);
+        }
+        catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "Falló la reparación de marcas de hueco del tenant {TenantId}; se renueva igualmente.", tenantId);
+            ambito.ServiceProvider.GetRequiredService<IDescarteCambiosPendientes>().DescartarCambiosPendientes();
+        }
+
         await ambito.ServiceProvider.GetRequiredService<RenovacionSuscripcionesWebhookService>()
             .RenovarProximasAExpirarAsync(VentanaRenovacion, stoppingToken);
     }

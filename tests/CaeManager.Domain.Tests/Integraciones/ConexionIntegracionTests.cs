@@ -490,4 +490,72 @@ public class ConexionIntegracionTests
             .Should().Be(esperado);
         ConexionIntegracion.EsOperativaVerificada(estado, ProveedorIntegracion.Microsoft365, null, ahora).Should().BeFalse();
     }
+
+    // Codex, ronda 18: la marca del hueco por registrar vive en la conexión, no en memoria.
+
+    [Fact]
+    public void Deshabilitar_guarda_el_comienzo_por_registrar_solo_si_retrocede_la_marca()
+    {
+        var ahora = new DateTime(2026, 11, 11, 10, 0, 0, DateTimeKind.Utc);
+        var sinMarca = new ConexionIntegracion("cae@cliente.com", "Buzón CAE");
+        sinMarca.Deshabilitar(ahora);
+        sinMarca.Estado.Should().Be(EstadoConexionIntegracion.Deshabilitada);
+        sinMarca.MarcaHuecoPorRegistrarDesdeUtc.Should().Be(ahora);
+        sinMarca.Deshabilitar(ahora.AddMinutes(5));
+        sinMarca.MarcaHuecoPorRegistrarDesdeUtc.Should().Be(ahora, "solo retrocede");
+
+        var conMarcaAnterior = new ConexionIntegracion("cae@cliente.com", "Buzón CAE");
+        conMarcaAnterior.RegistrarNotificacionDescartada(ahora).Should().BeTrue("control: marca anterior a la desconexión");
+        conMarcaAnterior.Deshabilitar(ahora);
+        conMarcaAnterior.MarcaHuecoPorRegistrarDesdeUtc.Should().BeNull("la marca ya cubre ese comienzo");
+
+        var sinBorradoPendiente = new ConexionIntegracion("cae@cliente.com", "Buzón CAE");
+        sinBorradoPendiente.Deshabilitar();
+        sinBorradoPendiente.MarcaHuecoPorRegistrarDesdeUtc.Should().BeNull();
+    }
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void Resolver_vacia_lo_que_quedaba_por_registrar_y_solo_marca_si_se_pide(bool registrarHueco)
+    {
+        var ahora = new DateTime(2026, 11, 11, 10, 0, 0, DateTimeKind.Utc);
+        var conexion = new ConexionIntegracion("cae@cliente.com", "Buzón CAE");
+        conexion.Deshabilitar(ahora);
+
+        conexion.ResolverMarcaHuecoPorRegistrar(ahora.AddDays(2), ahora.AddMinutes(1), registrarHueco).Should().BeTrue();
+
+        conexion.MarcaHuecoPorRegistrarDesdeUtc.Should().BeNull();
+        conexion.HuecoPendienteDesdeUtc.Should().Be(registrarHueco ? ahora.AddMinutes(1) : null);
+        conexion.ResolverMarcaHuecoPorRegistrar(ahora.AddDays(2), ahora.AddMinutes(1), registrarHueco: false)
+            .Should().BeFalse("ya no queda nada que guardar");
+    }
+
+    [Fact]
+    public void Registrar_lo_que_quedaba_por_registrar_pone_la_marca_en_ese_comienzo_y_lo_vacia()
+    {
+        var ahora = new DateTime(2026, 11, 11, 10, 0, 0, DateTimeKind.Utc);
+        var conexion = new ConexionIntegracion("cae@cliente.com", "Buzón CAE");
+        conexion.Deshabilitar(ahora);
+
+        conexion.RegistrarMarcaHuecoPorRegistrar().Should().BeTrue();
+
+        conexion.HuecoPendienteDesdeUtc.Should().Be(ahora);
+        conexion.MarcaHuecoPorRegistrarDesdeUtc.Should().BeNull();
+        conexion.RegistrarMarcaHuecoPorRegistrar().Should().BeFalse("nada más por registrar");
+    }
+
+    [Fact]
+    public void Rehabilitar_registra_lo_que_quedaba_por_registrar()
+    {
+        var ahora = new DateTime(2026, 11, 11, 10, 0, 0, DateTimeKind.Utc);
+        var conexion = new ConexionIntegracion("cae@cliente.com", "Buzón CAE");
+        conexion.Deshabilitar(ahora);
+
+        conexion.Rehabilitar();
+
+        conexion.Estado.Should().Be(EstadoConexionIntegracion.Habilitada);
+        conexion.HuecoPendienteDesdeUtc.Should().Be(ahora);
+        conexion.MarcaHuecoPorRegistrarDesdeUtc.Should().BeNull("una conexión Habilitada nunca la lleva");
+    }
 }

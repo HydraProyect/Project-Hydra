@@ -23,11 +23,16 @@ public record ObtenerConexionesIntegracionQuery(bool SoloPropiasYGenerales = fal
 /// <see cref="ConexionIntegracion.HuecoPendienteDesdeUtc"/>: el aviso «posible correo no recuperado desde» esa fecha. El
 /// hueco queda declarado, no recuperado, así que el aviso dura mientras la marca exista.
 /// </param>
+/// <param name="HuecoSinRegistrar">
+/// <see cref="ConexionIntegracion.MarcaHuecoPorRegistrarDesdeUtc"/> puesta: la desconexión no llegó a registrar la marca
+/// del hueco. Conexiones avisa «Hueco sin registrar» y ofrece Reparar (Desconectar sobre la Deshabilitada).
+/// </param>
 public record ConexionIntegracionListaDto(
     Guid Id, string BuzonEmail, string Nombre, Guid? ClienteId, string? ClienteNombre, EstadoConexionIntegracion Estado,
     DateTime FechaConectadaUtc, Guid? GestorPropietarioId, string? UltimoError, Guid? ResponsableUsuarioId = null,
     bool AcuseAutomaticoActivo = false, bool EsBuzonCompartido = false, bool IdentidadSinVerificar = false,
-    DateTime? CorreoNoRecuperadoDesdeUtc = null, bool CorreoRetenido = false, bool CorreoDescartado = false);
+    DateTime? CorreoNoRecuperadoDesdeUtc = null, bool CorreoRetenido = false, bool CorreoDescartado = false,
+    bool HuecoSinRegistrar = false);
 
 /// <remarks>
 /// <c>UltimoError</c> se lee en una consulta aparte y solo fuera de Sesión Privilegiada: es el texto que
@@ -73,7 +78,8 @@ public class ObtenerConexionesIntegracionQueryHandler(
                 conexion.AcuseAutomaticoActivo, conexion.EsBuzonCompartido,
                 conexion.Proveedor == ProveedorIntegracion.Microsoft365 && conexion.Estado == EstadoConexionIntegracion.Habilitada &&
                 (conexion.IdentidadVerificadaUtc == null || conexion.IdentidadVerificadaUtc < limiteVerificacion),
-                conexion.HuecoPendienteDesdeUtc);
+                conexion.HuecoPendienteDesdeUtc, false, false,
+                conexion.MarcaHuecoPorRegistrarDesdeUtc != null);
 
         var conexiones = await query.ToListAsync(cancellationToken);
         if (conexiones.Count == 0 || clienteActivoSeleccionado.SesionPrivilegiadaIdSeleccionada is not null)

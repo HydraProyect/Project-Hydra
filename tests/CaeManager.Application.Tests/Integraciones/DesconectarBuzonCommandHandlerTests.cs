@@ -20,9 +20,19 @@ public class DesconectarBuzonCommandHandlerTests
         AlcanceDatosServiceFalso alcanceDatos, Microsoft365GraphClientFalso graphClient, CredencialIntegracionRepositorioFalso credencialRepositorio,
         IUnitOfWork unitOfWork, CerrojoVerificacionBuzonFalso? cerrojo = null, IDescarteCambiosPendientes? descarte = null,
         TimeProvider? reloj = null, ILogger<DesconectarBuzonCommandHandler>? logger = null) =>
+        CrearHandlerCon(conexionRepositorio, suscripcionRepositorio, reclamacionRepositorio, alcanceDatos, graphClient,
+            credencialRepositorio, unitOfWork, cerrojo ?? new CerrojoVerificacionBuzonFalso(), descarte ?? new DescarteContado(),
+            reloj, logger);
+
+    private static DesconectarBuzonCommandHandler CrearHandlerCon(
+        ConexionIntegracionRepositorioFalso conexionRepositorio, SuscripcionWebhookRepositorioFalso suscripcionRepositorio,
+        ReclamacionBuzonIntegracionRepositorioFalso reclamacionRepositorio,
+        AlcanceDatosServiceFalso alcanceDatos, Microsoft365GraphClientFalso graphClient, CredencialIntegracionRepositorioFalso credencialRepositorio,
+        IUnitOfWork unitOfWork, CerrojoVerificacionBuzonFalso cerrojo, IDescarteCambiosPendientes descarte,
+        TimeProvider? reloj, ILogger<DesconectarBuzonCommandHandler>? logger) =>
         new(conexionRepositorio, suscripcionRepositorio, reclamacionRepositorio, alcanceDatos, graphClient,
-            new AccesoGraphService(credencialRepositorio, graphClient), unitOfWork,
-            cerrojo ?? new CerrojoVerificacionBuzonFalso(), descarte ?? new DescarteContado(),
+            new AccesoGraphService(credencialRepositorio, graphClient), unitOfWork, cerrojo, descarte,
+            new ReparacionMarcaHuecoService(conexionRepositorio, unitOfWork, cerrojo, descarte, NullLogger<ReparacionMarcaHuecoService>.Instance),
             reloj ?? TimeProvider.System, logger ?? NullLogger<DesconectarBuzonCommandHandler>.Instance);
 
     private sealed class LoggerCaptura : ILogger<DesconectarBuzonCommandHandler>
@@ -87,12 +97,14 @@ public class DesconectarBuzonCommandHandlerTests
         }
     }
 
-    private static ConexionIntegracion Copia(ConexionIntegracion original, bool deshabilitada)
+    /// <param name="porRegistrarDesdeUtc">Lo que la desconexión guardó en
+    /// <see cref="ConexionIntegracion.MarcaHuecoPorRegistrarDesdeUtc"/> junto a la Deshabilitada.</param>
+    private static ConexionIntegracion Copia(ConexionIntegracion original, bool deshabilitada, DateTime? porRegistrarDesdeUtc = null)
     {
         var copia = new ConexionIntegracion(original.BuzonEmail, original.Nombre);
         typeof(Entity).GetProperty(nameof(Entity.Id))!.SetValue(copia, original.Id);
         if (deshabilitada)
-            copia.Deshabilitar();
+            copia.Deshabilitar(porRegistrarDesdeUtc);
         return copia;
     }
 
@@ -688,8 +700,9 @@ public class DesconectarBuzonCommandHandlerTests
 
         resultado.EsExitoso.Should().BeTrue();
         graph.SuscripcionesEliminadas.Should().Equal(["sub-1"]);
-        unitOfWork.VecesGuardado.Should().Be(1, "solo la desconexión");
+        unitOfWork.VecesGuardado.Should().Be(2, "la desconexión y el vaciado de lo que quedaba por registrar");
         conexion.HuecoPendienteDesdeUtc.Should().BeNull();
+        conexion.MarcaHuecoPorRegistrarDesdeUtc.Should().BeNull("el borrado se confirmó");
     }
 
     /// <summary>
@@ -920,7 +933,7 @@ public class DesconectarBuzonCommandHandlerTests
         reactivada!.Estado.Should().Be(EstadoConexionIntegracion.Deshabilitada, "se desconecta la versión releída, no la obsoleta");
         reclamaciones.Reclamaciones.Should().BeEmpty("la reclamación que existe ahora se libera junto a la Deshabilitada");
         graph.SuscripcionesEliminadas.Should().Equal("sub-nueva");
-        unitOfWork.VecesGuardado.Should().Be(1);
+        unitOfWork.VecesGuardado.Should().Be(2, "la desconexión y el vaciado tras el borrado confirmado");
     }
 
     [Fact]
@@ -951,12 +964,14 @@ public class DesconectarBuzonCommandHandlerTests
     /// <summary>
     /// El escenario entero: la primera desconexión devuelve el fallo de la marca (la suscripción expiró durante el
     /// guardado de la desconexión, el guardado de la marca y su recarga fallan, el DELETE tiene éxito) y la segunda,
-    /// sobre la conexión ya Deshabilitada, guarda la marca en la expiración sin volver a llamar a Graph.
+    /// sobre la conexión ya Deshabilitada, registra lo que la desconexión guardó por registrar (la hora de antes del
+    /// guardado, anterior a la expiración: avisa de más, nunca de menos) sin volver a llamar a Graph (Codex, ronda 18).
     /// </summary>
     [Fact]
-    public async Task Tras_el_fallo_de_la_marca_volver_a_desconectar_la_guarda_en_su_expiracion()
+    public async Task Tras_el_fallo_de_la_marca_volver_a_desconectar_registra_el_comienzo_guardado()
     {
         var reloj = new RelojFalso(DateTime.UtcNow);
+        var antesDelGuardado = reloj.AhoraUtc;
         var expiracion = reloj.AhoraUtc.AddMinutes(1);
         var (conexion, conexiones, suscripciones) = BuzonCompartidoQueExpiraEn(expiracion, reloj.AhoraUtc.AddHours(-1));
         var graph = new Microsoft365GraphClientFalso();
@@ -972,11 +987,13 @@ public class DesconectarBuzonCommandHandlerTests
             if (recargaRota)
                 throw new InvalidOperationException("base caída");
         };
-        // La base guarda la Deshabilitada sin marca: es lo que se lee después de cada descarte.
+        // La base guarda la Deshabilitada sin marca y con lo que quedó por registrar: es lo que se lee tras cada descarte.
+        DateTime? porRegistrarGuardado = null;
+        interno.AlGuardar += () => porRegistrarGuardado ??= conexion.MarcaHuecoPorRegistrarDesdeUtc;
         var descarte = new DescarteContado(() =>
         {
             recargaRota = true;
-            conexiones.Conexiones[0] = Copia(conexion, deshabilitada: true);
+            conexiones.Conexiones[0] = Copia(conexion, deshabilitada: true, porRegistrarGuardado);
         });
         var handler = CrearHandler(conexiones, suscripciones, new ReclamacionBuzonIntegracionRepositorioFalso(), new AlcanceDatosServiceFalso(),
             graph, new CredencialIntegracionRepositorioFalso(),
@@ -985,6 +1002,7 @@ public class DesconectarBuzonCommandHandlerTests
         var primero = await handler.Handle(new DesconectarBuzonCommand(conexion.Id), CancellationToken.None);
 
         primero.Error.Codigo.Should().Be(DesconectarBuzonCommandHandler.CodigoMarcaHuecoNoGuardada, "control: el primer intento no la guardó");
+        porRegistrarGuardado.Should().Be(antesDelGuardado, "viaja en el mismo guardado que la Deshabilitada");
         conexiones.Conexiones[0].Estado.Should().Be(EstadoConexionIntegracion.Deshabilitada, "control");
         conexiones.Conexiones[0].HuecoPendienteDesdeUtc.Should().BeNull("control: la marca no llegó a la base");
 
@@ -992,7 +1010,8 @@ public class DesconectarBuzonCommandHandlerTests
         var segundo = await handler.Handle(new DesconectarBuzonCommand(conexion.Id), CancellationToken.None);
 
         segundo.EsExitoso.Should().BeTrue();
-        conexiones.Conexiones[0].HuecoPendienteDesdeUtc.Should().Be(expiracion);
+        conexiones.Conexiones[0].HuecoPendienteDesdeUtc.Should().Be(antesDelGuardado);
+        conexiones.Conexiones[0].MarcaHuecoPorRegistrarDesdeUtc.Should().BeNull();
         interno.VecesGuardado.Should().Be(2, "la desconexión del primer intento y la marca reparada en el segundo");
         graph.SuscripcionesEliminadas.Should().Equal(["sub-1"], "el segundo intento no vuelve a llamar a Graph");
     }
@@ -1003,12 +1022,13 @@ public class DesconectarBuzonCommandHandlerTests
     {
         var reloj = new RelojFalso(DateTime.UtcNow);
         var expiracion = reloj.AhoraUtc.AddMinutes(-5);
+        var porRegistrar = reloj.AhoraUtc.AddMinutes(-10);
         var (conexion, conexiones, suscripciones) = BuzonCompartidoQueExpiraEn(expiracion, reloj.AhoraUtc.AddHours(-1));
-        conexion.Deshabilitar();
+        conexion.Deshabilitar(porRegistrar);
         var graph = new Microsoft365GraphClientFalso();
         var interno = new UnitOfWorkFalso { ExcepcionAlGuardar = new InvalidOperationException("base caída") };
         // Tras cada descarte se lee la versión de la base, sin la marca que el intento dejó en memoria.
-        var descarte = new DescarteContado(() => conexiones.Conexiones[0] = Copia(conexion, deshabilitada: true));
+        var descarte = new DescarteContado(() => conexiones.Conexiones[0] = Copia(conexion, deshabilitada: true, porRegistrar));
         var logger = new LoggerCaptura();
         var handler = CrearHandler(conexiones, suscripciones, new ReclamacionBuzonIntegracionRepositorioFalso(), new AlcanceDatosServiceFalso(),
             graph, new CredencialIntegracionRepositorioFalso(), interno, descarte: descarte, reloj: reloj, logger: logger);
@@ -1017,15 +1037,16 @@ public class DesconectarBuzonCommandHandlerTests
 
         resultado.EsFallido.Should().BeTrue();
         resultado.Error.Codigo.Should().Be(DesconectarBuzonCommandHandler.CodigoMarcaHuecoNoGuardada);
-        descarte.Veces.Should().Be(2, "el intento sobre la releída y el reintento sobre la recargada");
+        descarte.Veces.Should().Be(ReparacionMarcaHuecoService.IntentosGuardado, "cada intento parte de la base");
+        conexiones.Conexiones[0].MarcaHuecoPorRegistrarDesdeUtc.Should().Be(porRegistrar, "sigue guardada para la próxima reparación");
         graph.SuscripcionesEliminadas.Should().BeEmpty();
         logger.Entradas.Should().ContainSingle(e => e.Nivel == LogLevel.Critical)
             .Which.Mensaje.Should().Contain(conexion.Id.ToString());
     }
 
     /// <summary>
-    /// Con la suscripción vigente, repetir la desconexión no deja marca: la conexión pudo desconectarse sin problemas, y
-    /// la regla sobre una no Habilitada marcaría también una suscripción vigente. Tampoco se guarda si la marca ya está.
+    /// Sin nada por registrar en la conexión, repetir la desconexión no deja marca ni guarda, esté la suscripción vigente
+    /// o expirada: la conexión se desconectó sin problemas (o su marca ya está).
     /// </summary>
     [Theory]
     [InlineData(false)]
@@ -1049,6 +1070,81 @@ public class DesconectarBuzonCommandHandlerTests
         unitOfWork.VecesGuardado.Should().Be(0);
         conexion.HuecoPendienteDesdeUtc.Should().Be(expiradaYaMarcada ? expiracion : null);
         graph.SuscripcionesEliminadas.Should().BeEmpty();
+    }
+
+    /// <summary>
+    /// Codex, ronda 18, hallazgo medio (DesconectarBuzonCommand.cs:155): el borrado de Graph falla, el guardado de la marca
+    /// y su reintento también, y la primera desconexión devuelve MarcaHuecoNoGuardada. Repetirla con la suscripción aún
+    /// vigente devolvía éxito sin guardar nada, a la espera de una notificación que no está garantizada. Ahora la base
+    /// guarda el comienzo por registrar con la Deshabilitada, y la repetición lo registra aunque la suscripción siga
+    /// vigente y sin volver a llamar a Graph.
+    /// </summary>
+    [Fact]
+    public async Task Con_la_suscripcion_vigente_repetir_la_desconexion_tras_un_borrado_fallido_registra_el_comienzo_guardado()
+    {
+        var reloj = new RelojFalso(DateTime.UtcNow);
+        var antesDelGuardado = reloj.AhoraUtc;
+        var (conexion, conexiones, suscripciones) = BuzonCompartidoQueExpiraEn(reloj.AhoraUtc.AddDays(2), reloj.AhoraUtc.AddHours(-1));
+        var graph = new Microsoft365GraphClientFalso { ErrorEliminacion = CaeManager.Domain.Common.Error.Crear("x", "503") };
+        var interno = new UnitOfWorkFalso();
+        DateTime? porRegistrarGuardado = null;
+        interno.AlGuardar = () =>
+        {
+            porRegistrarGuardado ??= conexion.MarcaHuecoPorRegistrarDesdeUtc;
+            reloj.Avanzar(TimeSpan.FromSeconds(1));
+        };
+        var recargaRota = false;
+        conexiones.AlLeerActual = _ =>
+        {
+            if (recargaRota)
+                throw new InvalidOperationException("base caída");
+        };
+        var descarte = new DescarteContado(() =>
+        {
+            recargaRota = true;
+            conexiones.Conexiones[0] = Copia(conexion, deshabilitada: true, porRegistrarGuardado);
+        });
+        var handler = CrearHandler(conexiones, suscripciones, new ReclamacionBuzonIntegracionRepositorioFalso(), new AlcanceDatosServiceFalso(),
+            graph, new CredencialIntegracionRepositorioFalso(),
+            new UnitOfWorkQueFallaEn(interno, 2, new InvalidOperationException("base caída")), descarte: descarte, reloj: reloj);
+
+        var primero = await handler.Handle(new DesconectarBuzonCommand(conexion.Id), CancellationToken.None);
+
+        primero.Error.Codigo.Should().Be(DesconectarBuzonCommandHandler.CodigoMarcaHuecoNoGuardada, "control: la marca no llegó");
+        graph.SuscripcionesEliminadas.Should().Equal(["sub-1"], "control: el DELETE se pidió y falló");
+        conexiones.Conexiones[0].HuecoPendienteDesdeUtc.Should().BeNull("control: la marca no llegó a la base");
+        conexiones.Conexiones[0].MarcaHuecoPorRegistrarDesdeUtc.Should().Be(antesDelGuardado, "se guardó con la Deshabilitada");
+
+        recargaRota = false;
+        var segundo = await handler.Handle(new DesconectarBuzonCommand(conexion.Id), CancellationToken.None);
+
+        segundo.EsExitoso.Should().BeTrue();
+        conexiones.Conexiones[0].HuecoPendienteDesdeUtc.Should().Be(antesDelGuardado, "el comienzo real del hueco, no la expiración");
+        conexiones.Conexiones[0].MarcaHuecoPorRegistrarDesdeUtc.Should().BeNull();
+        graph.SuscripcionesEliminadas.Should().Equal(["sub-1"], "la repetición no vuelve a llamar a Graph");
+    }
+
+    /// <summary>
+    /// Un borrado confirmado con la suscripción vigente no deja nada por registrar en la base: el guardado de después del
+    /// DELETE vacía el valor que viajó con la Deshabilitada, sin marca.
+    /// </summary>
+    [Fact]
+    public async Task Un_borrado_con_exito_y_la_suscripcion_vigente_vacia_lo_que_quedaba_por_registrar()
+    {
+        var reloj = new RelojFalso(DateTime.UtcNow);
+        var (conexion, conexiones, suscripciones) = BuzonCompartidoQueExpiraEn(reloj.AhoraUtc.AddDays(2), reloj.AhoraUtc.AddHours(-1));
+        var graph = new Microsoft365GraphClientFalso();
+        var interno = new UnitOfWorkFalso();
+        var porRegistrarEnCadaGuardado = new List<DateTime?>();
+        interno.AlGuardar = () => porRegistrarEnCadaGuardado.Add(conexion.MarcaHuecoPorRegistrarDesdeUtc);
+        var handler = CrearHandler(conexiones, suscripciones, new ReclamacionBuzonIntegracionRepositorioFalso(), new AlcanceDatosServiceFalso(),
+            graph, new CredencialIntegracionRepositorioFalso(), interno, reloj: reloj);
+
+        var resultado = await handler.Handle(new DesconectarBuzonCommand(conexion.Id), CancellationToken.None);
+
+        resultado.EsExitoso.Should().BeTrue();
+        porRegistrarEnCadaGuardado.Should().Equal([reloj.AhoraUtc, null], "con la Deshabilitada y vaciado tras el DELETE");
+        conexion.HuecoPendienteDesdeUtc.Should().BeNull("no hubo hueco");
     }
 
     // Ronda 10, hallazgo medio: primero se guarda la desconexión y después se borra en Graph.

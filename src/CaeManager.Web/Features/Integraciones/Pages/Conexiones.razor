@@ -117,6 +117,10 @@
                             {
                                 <span class="texto-aviso-verificacion" data-testid="aviso-correo-no-recuperado">@Textos["AvisoCorreoNoRecuperado", noRecuperadoDesde.EnHoraPeninsular().ToString("dd/MM/yyyy HH:mm")]</span>
                             }
+                            @if (conexion.HuecoSinRegistrar)
+                            {
+                                <span class="texto-aviso-verificacion" data-testid="aviso-hueco-sin-registrar">@Textos["AvisoHuecoSinRegistrar"]</span>
+                            }
                         </td>
                         <td>@conexion.FechaConectadaUtc.EnHoraPeninsular().ToString("dd/MM/yyyy")</td>
                         <td class="acciones-conexion">
@@ -132,6 +136,13 @@
                                 <Boton Tamano="TamanoBoton.Pequeno" Variante="VarianteBoton.Destructivo"
                                        Deshabilitado="@(_procesandoId is not null)" OnClick="() => AbrirDesconexion(conexion)" Cargando="@(_procesandoId == conexion.Id)">
                                     Desconectar
+                                </Boton>
+                            }
+                            else if (conexion.HuecoSinRegistrar)
+                            {
+                                <Boton Tamano="TamanoBoton.Pequeno" Variante="VarianteBoton.Secundario" data-testid="accion-reparar-hueco"
+                                       Deshabilitado="@(_procesandoId is not null)" OnClick="() => RepararHuecoAsync(conexion)" Cargando="@(_procesandoId == conexion.Id)">
+                                    @Textos["AccionRepararHueco"]
                                 </Boton>
                             }
                         </td>

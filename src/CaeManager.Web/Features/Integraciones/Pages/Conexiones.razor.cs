@@ -325,11 +325,12 @@ public partial class Conexiones : CaeManager.Web.Components.PaginaIntegrableConf
             if (resultado.EsFallido)
             {
                 // Un fallo no implica que nada cambiara: con ConexionIntegracion.MarcaHuecoNoGuardada la conexión ya
-                // está Deshabilitada. Se recarga para mostrar el estado real; el aviso de error se
-                // conserva y el modal sigue abierto, y volver a desconectar desde él repara la marca (Codex, ronda 17,
-                // hallazgo medio).
+                // está Deshabilitada. Se recarga para mostrar el estado real; el aviso de error se conserva y el modal
+                // sigue abierto (Codex, ronda 17). Si se cierra, la fila de la Deshabilitada muestra «Hueco sin registrar»
+                // con Reparar, que sale de lo guardado en la conexión (Codex, ronda 18). Una recarga que falla no tapa el
+                // error: avisa aparte (RecargarSinPropagarAsync).
                 ToastService.MostrarError(resultado.Error);
-                await CargarConexionesAsync();
+                await RecargarSinPropagarAsync();
                 return;
             }
 
@@ -344,6 +345,59 @@ public partial class Conexiones : CaeManager.Web.Components.PaginaIntegrableConf
                 _desconectando = false;
                 _procesandoId = null;
             }
+        }
+    }
+
+    /// <summary>
+    /// Recarga tras un fallo de Desconectar o tras Reparar: las consultas pueden fallar también (la misma base que no guardó la
+    /// marca). La excepción no sale del manejador, el error del comando sigue visible y un aviso aparte dice que el listado
+    /// no se pudo actualizar (Codex, ronda 18, hallazgo medio).
+    /// </summary>
+    private async Task RecargarSinPropagarAsync()
+    {
+        try
+        {
+            await CargarConexionesAsync();
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error al recargar las conexiones tras un fallo.");
+            ToastService.Mostrar(Textos["AvisoRecargaFallida"], TonoToast.Error);
+        }
+    }
+
+    /// <summary>
+    /// Reparar en la fila de una conexión Deshabilitada con la marca del hueco por registrar: es Desconectar sobre la
+    /// Deshabilitada, que registra lo guardado en la conexión (DesconectarBuzonCommandHandler). Sin modal: no desconecta
+    /// nada que no esté ya desconectado.
+    /// </summary>
+    private async Task RepararHuecoAsync(ConexionIntegracionListaDto conexion)
+    {
+        if (_procesandoId is not null || _desconectando) return;
+        _procesandoId = conexion.Id;
+        StateHasChanged();
+
+        try
+        {
+            var resultado = await Mediator.Send(new DesconectarBuzonCommand(conexion.Id));
+            if (resultado.EsFallido)
+            {
+                ToastService.MostrarError(resultado.Error);
+                await RecargarSinPropagarAsync();
+                return;
+            }
+
+            ToastService.Mostrar(Textos["HuecoReparado"], TonoToast.Exito);
+            await CargarConexionesAsync();
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error al reparar la marca del hueco de la conexión {ConexionId}.", conexion.Id);
+            ToastService.Mostrar(Textos["ErrorRepararHueco"], TonoToast.Error);
+        }
+        finally
+        {
+            _procesandoId = null;
         }
     }
 
