@@ -450,6 +450,7 @@ public class DesconectarBuzonCommandHandlerTests
     public async Task Si_falla_el_guardado_de_la_marca_tras_confirmar_el_del_borrado_fallido_la_guarda_sobre_la_version_recargada()
     {
         var reloj = new RelojFalso(DateTime.UtcNow);
+        var antesDelGuardado = reloj.AhoraUtc;
         var expiracion = reloj.AhoraUtc.AddMinutes(1);
         var (conexion, conexiones, suscripciones) = BuzonCompartidoQueExpiraEn(expiracion, reloj.AhoraUtc.AddHours(-1));
         var graph = new Microsoft365GraphClientFalso { ErrorEliminacion = CaeManager.Domain.Common.Error.Crear("x", "503") };
@@ -473,7 +474,8 @@ public class DesconectarBuzonCommandHandlerTests
         descarte.Veces.Should().Be(1);
         var recargada = conexiones.Conexiones[0];
         recargada.Should().NotBeSameAs(conexion, "control: se recargó la versión de la base");
-        recargada.HuecoPendienteDesdeUtc.Should().Be(expiracion);
+        // Ronda 19: el borrado fallido marca desde el comienzo guardado con la Deshabilitada, anterior a la expiración.
+        recargada.HuecoPendienteDesdeUtc.Should().Be(antesDelGuardado);
         interno.VecesGuardado.Should().Be(2, "la desconexión y la marca del borrado fallido sobre la versión recargada");
     }
 
@@ -596,6 +598,7 @@ public class DesconectarBuzonCommandHandlerTests
     public async Task Si_fallan_la_marca_tras_confirmar_el_DELETE_y_la_recarga_el_reintento_la_guarda_o_devuelve_un_fallo(bool recargaSiempreRota)
     {
         var reloj = new RelojFalso(DateTime.UtcNow);
+        var antesDelGuardado = reloj.AhoraUtc;
         var expiracion = reloj.AhoraUtc.AddMinutes(1);
         var (conexion, conexiones, suscripciones) = BuzonCompartidoQueExpiraEn(expiracion, reloj.AhoraUtc.AddHours(-1));
         var graph = new Microsoft365GraphClientFalso { ErrorEliminacion = CaeManager.Domain.Common.Error.Crear("x", "503") };
@@ -646,7 +649,8 @@ public class DesconectarBuzonCommandHandlerTests
             interno.VecesGuardado.Should().Be(2, "la desconexión y la marca reintentada");
             var recargada = conexiones.Conexiones[0];
             recargada.Should().NotBeSameAs(conexion, "control: el reintento va sobre la versión de la base");
-            recargada.HuecoPendienteDesdeUtc.Should().Be(expiracion, "la marca del borrado sobre una suscripción ya expirada");
+            // Ronda 19: el borrado fallido marca desde el comienzo guardado con la Deshabilitada, anterior a la expiración.
+            recargada.HuecoPendienteDesdeUtc.Should().Be(antesDelGuardado, "la marca del borrado fallido, desde el comienzo guardado");
             logger.Entradas.Should().NotContain(e => e.Nivel == LogLevel.Critical);
         }
     }
@@ -1238,7 +1242,7 @@ public class DesconectarBuzonCommandHandlerTests
     }
 
     [Fact]
-    public async Task Si_el_borrado_falla_la_marca_queda_en_el_momento_del_borrado_y_sigue_Deshabilitada()
+    public async Task Si_el_borrado_falla_la_marca_queda_en_el_comienzo_guardado_y_sigue_Deshabilitada()
     {
         var conexion = new ConexionIntegracion("cae@operador.test", "Buzón CAE");
         var conexiones = new ConexionIntegracionRepositorioFalso();
@@ -1257,6 +1261,67 @@ public class DesconectarBuzonCommandHandlerTests
         conexion.Estado.Should().Be(EstadoConexionIntegracion.Deshabilitada);
         conexion.HuecoPendienteDesdeUtc.Should().BeOnOrAfter(antes).And.BeOnOrBefore(DateTime.UtcNow);
         unitOfWork.VecesGuardado.Should().Be(2);
+    }
+
+    // Codex, ronda 19, hallazgo medio (DesconectarBuzonCommand.cs:293-295): tras un DELETE fallido se registraba la hora
+    // posterior al fallo y se vaciaba la pendiente, así que un DELETE lento retrasaba el comienzo del aviso más allá del
+    // momento en que la ingesta dejó de aceptar correo.
+
+    /// <summary>Un DELETE que tarda y falla: la marca queda en el comienzo guardado con la Deshabilitada, no después.</summary>
+    [Fact]
+    public async Task Un_borrado_lento_que_falla_marca_el_hueco_desde_el_comienzo_guardado_con_la_Deshabilitada()
+    {
+        var reloj = new RelojFalso(DateTime.UtcNow);
+        var antesDelGuardado = reloj.AhoraUtc;
+        var (conexion, conexiones, suscripciones) = BuzonCompartidoQueExpiraEn(reloj.AhoraUtc.AddDays(2), reloj.AhoraUtc.AddHours(-1));
+        var graph = new Microsoft365GraphClientFalso { ErrorEliminacion = CaeManager.Domain.Common.Error.Crear("x", "504") };
+        graph.AlEliminarSuscripcion = () => reloj.Avanzar(TimeSpan.FromMinutes(5));
+        var interno = new UnitOfWorkFalso();
+        DateTime? porRegistrarGuardado = null;
+        interno.AlGuardar = () => porRegistrarGuardado ??= conexion.MarcaHuecoPorRegistrarDesdeUtc;
+        var handler = CrearHandler(conexiones, suscripciones, new ReclamacionBuzonIntegracionRepositorioFalso(), new AlcanceDatosServiceFalso(),
+            graph, new CredencialIntegracionRepositorioFalso(), interno, reloj: reloj);
+
+        var resultado = await handler.Handle(new DesconectarBuzonCommand(conexion.Id), CancellationToken.None);
+
+        resultado.EsExitoso.Should().BeTrue();
+        porRegistrarGuardado.Should().Be(antesDelGuardado, "control: es el comienzo que viajó con la Deshabilitada");
+        graph.SuscripcionesEliminadas.Should().Equal(["sub-1"], "control: el DELETE se pidió y falló");
+        conexion.HuecoPendienteDesdeUtc.Should().Be(antesDelGuardado, "no la hora posterior al fallo");
+        conexion.MarcaHuecoPorRegistrarDesdeUtc.Should().BeNull();
+    }
+
+    /// <summary>
+    /// La suscripción expira entre el guardado de la Deshabilitada y la confirmación: el guardado de la expiración vacía
+    /// el valor por registrar, y después el DELETE falla. El comienzo sigue siendo el guardado con la Deshabilitada,
+    /// anterior a la expiración: el valor local, no lo que quede en la conexión.
+    /// </summary>
+    [Fact]
+    public async Task Con_la_expiracion_ya_marcada_tras_confirmar_un_borrado_fallido_retrocede_al_comienzo_guardado()
+    {
+        var reloj = new RelojFalso(DateTime.UtcNow);
+        var antesDelGuardado = reloj.AhoraUtc;
+        var expiracion = reloj.AhoraUtc.AddMinutes(1);
+        var (conexion, conexiones, suscripciones) = BuzonCompartidoQueExpiraEn(expiracion, reloj.AhoraUtc.AddHours(-1));
+        var graph = new Microsoft365GraphClientFalso { ErrorEliminacion = CaeManager.Domain.Common.Error.Crear("x", "503") };
+        var interno = new UnitOfWorkFalso();
+        var marcaEnCadaGuardado = new List<DateTime?>();
+        interno.AlGuardar = () =>
+        {
+            marcaEnCadaGuardado.Add(conexion.HuecoPendienteDesdeUtc);
+            if (interno.VecesGuardado == 0)
+                reloj.Avanzar(TimeSpan.FromMinutes(2));
+        };
+        var handler = CrearHandler(conexiones, suscripciones, new ReclamacionBuzonIntegracionRepositorioFalso(), new AlcanceDatosServiceFalso(),
+            graph, new CredencialIntegracionRepositorioFalso(), interno, reloj: reloj);
+
+        var resultado = await handler.Handle(new DesconectarBuzonCommand(conexion.Id), CancellationToken.None);
+
+        resultado.EsExitoso.Should().BeTrue();
+        marcaEnCadaGuardado.Should().Equal([null, expiracion, antesDelGuardado],
+            "la Deshabilitada, la expiración tras confirmar y el borrado fallido desde el comienzo guardado");
+        conexion.HuecoPendienteDesdeUtc.Should().Be(antesDelGuardado);
+        conexion.MarcaHuecoPorRegistrarDesdeUtc.Should().BeNull();
     }
 
     [Fact]
