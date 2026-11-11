@@ -216,6 +216,19 @@ public partial class Importacion : CaeManager.Web.Components.PaginaIntegrableCon
     [SupplyParameterFromQuery(Name = "flujo")]
     private string? FlujoInicial { get; set; }
 
+    /// <summary>
+    /// <c>?vista=estructura</c> abre el Paso 1 · Estructura (plantilla maestra, incremento I-2). Sin él, la pantalla es la de
+    /// siempre (plantillas clásicas y su Historial): la vista nueva no sustituye a la vieja hasta que el Paso 1 la cubra entera.
+    /// Es contexto de navegación, no de autorización: la autoriza la página (<c>ConCargaMasivaCsv</c>) y, en cada acción, Application.
+    /// </summary>
+    [SupplyParameterFromQuery(Name = "vista")]
+    private string? VistaInicial { get; set; }
+
+    // Integrada en Configuración los enlaces relativos (?vista=…) apuntarían a la página anfitriona, que no los conoce.
+    private bool MostrarNavegacionVistas => !IntegradaEnConfiguracion && !EsImportacionDocumentos && !DesdeClientes;
+
+    private bool EsVistaEstructura => MostrarNavegacionVistas && string.Equals(VistaInicial, "estructura", StringComparison.Ordinal);
+
     private int _step = 1;
     private int _pasoMaximoAlcanzado = 1;
     private string _plantillaId = "cae";

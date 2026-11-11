@@ -45,3 +45,10 @@ Plataforma CAE
 #
 # 2026-11-07 (capa «Jornada intensiva» de /calendario): «jornada intensiva» se escribe igual en catalán.
 Jornada intensiva
+#
+# 2026-11-11 (Paso 1 del Importador): los cuatro son nombres literales de hojas del libro de la plantilla maestra, que el lector del backend
+# localiza por ese nombre; traducirlos rompería la correspondencia con el archivo. No son castellano sin traducir.
+Importación
+Accesos por Centro
+Clientes empresariales
+Tipos de documento
