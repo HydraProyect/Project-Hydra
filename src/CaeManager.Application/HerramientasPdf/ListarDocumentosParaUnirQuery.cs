@@ -17,7 +17,11 @@ namespace CaeManager.Application.HerramientasPdf;
 /// Los Documentos de una Empresa gestionada que se pueden unir: sus archivos vigentes y los de sus Trabajadores. Solo
 /// lista; leer el contenido y dejar constancia de ello es de <see cref="UnirPdfQuery"/>.
 /// </summary>
-public record ListarDocumentosParaUnirQuery(Guid EmpresaGestionadaId) : IRequest<Result<IReadOnlyList<DocumentoParaUnirDto>>>;
+public record ListarDocumentosParaUnirQuery(Guid EmpresaGestionadaId) : IRequest<Result<DocumentosParaUnirDto>>;
+
+/// <param name="Documentos">Los PDF legibles más recientes, hasta <see cref="DocumentosUnibles.MaximoListados"/>.</param>
+/// <param name="HayMas">Quedan PDF legibles fuera del tope: la pantalla lo dice en vez de recortar en silencio.</param>
+public record DocumentosParaUnirDto(IReadOnlyList<DocumentoParaUnirDto> Documentos, bool HayMas);
 
 /// <param name="TitularNombre">El Trabajador, si el Documento es suyo; <c>null</c> si es de la propia Empresa.</param>
 public record DocumentoParaUnirDto(
@@ -89,32 +93,45 @@ public class ListarDocumentosParaUnirQueryHandler(
     IAlcanceDatosService alcanceDatos,
     ICurrentUserService currentUserService,
     ISesionPrivilegiadaActual sesionPrivilegiadaActual)
-    : IRequestHandler<ListarDocumentosParaUnirQuery, Result<IReadOnlyList<DocumentoParaUnirDto>>>
+    : IRequestHandler<ListarDocumentosParaUnirQuery, Result<DocumentosParaUnirDto>>
 {
-    public async Task<Result<IReadOnlyList<DocumentoParaUnirDto>>> Handle(
+    public async Task<Result<DocumentosParaUnirDto>> Handle(
         ListarDocumentosParaUnirQuery request, CancellationToken cancellationToken)
     {
         if (!await disponibilidad.EstaDisponibleAsync(cancellationToken))
-            return Result.Fallo<IReadOnlyList<DocumentoParaUnirDto>>(Error.Crear(ErroresUnirPdf.NoDisponible, "Herramientas PDF no está disponible."));
+            return Result.Fallo<DocumentosParaUnirDto>(Error.Crear(ErroresUnirPdf.NoDisponible, "Herramientas PDF no está disponible."));
 
         if (await DocumentosUnibles.EmpresaGestionableAsync(request.EmpresaGestionadaId, empresasContext, alcanceDatos, cancellationToken) is null)
-            return Result.Fallo<IReadOnlyList<DocumentoParaUnirDto>>(Error.Crear(
+            return Result.Fallo<DocumentosParaUnirDto>(Error.Crear(
                 ErroresUnirPdf.EmpresaNoGestionable, "La Empresa gestionada no existe o queda fuera de tu cartera."));
 
         if (await DocumentosUnibles.RechazoDeLecturaAsync(sesionPrivilegiadaActual, currentUserService, cancellationToken) is { } rechazo)
-            return Result.Fallo<IReadOnlyList<DocumentoParaUnirDto>>(rechazo);
+            return Result.Fallo<DocumentosParaUnirDto>(rechazo);
 
         var trabajadorIds = await DocumentosUnibles.TrabajadorIdsAsync(request.EmpresaGestionadaId, trabajadoresContext, alcanceDatos, cancellationToken);
-        var candidatos = await DocumentosUnibles.De(documentosContext, request.EmpresaGestionadaId, trabajadorIds)
+
+        // Se filtra antes de recortar: primero solo los PDF (el almacenamiento guarda la extensión original en la clave) y
+        // solo los legibles, con la misma puerta que abre un Documento suelto; después, el tope. Así el tope no deja fuera
+        // Documentos elegibles por culpa de otros que no se podían ofrecer, y si aun así hay más, la pantalla lo dice.
+        var ids = await DocumentosUnibles.De(documentosContext, request.EmpresaGestionadaId, trabajadorIds)
+            .Where(d => d.ArchivoUrl!.ToLower().EndsWith(".pdf"))
             .OrderByDescending(d => d.FechaEmision).ThenBy(d => d.Id)
-            .Take(DocumentosUnibles.MaximoListados)
-            .Select(d => new { d.Id, d.TipoDocumentoId, d.TrabajadorId, d.FechaEmision, d.FechaVencimiento })
+            .Select(d => d.Id)
             .ToListAsync(cancellationToken);
 
-        // La misma puerta de lectura que abre un Documento suelto: lo que no se puede leer no se ofrece.
-        var legibles = await alcanceDatos.DocumentosLegiblesAsync(
-            candidatos.Select(d => d.Id).ToList(), documentosContext, proyectosContext, cancellationToken);
-        candidatos = candidatos.Where(d => legibles.Contains(d.Id)).ToList();
+        var legibles = await alcanceDatos.DocumentosLegiblesAsync(ids, documentosContext, proyectosContext, cancellationToken);
+        var elegidos = ids.Where(legibles.Contains).Take(DocumentosUnibles.MaximoListados + 1).ToList();
+        var hayMas = elegidos.Count > DocumentosUnibles.MaximoListados;
+        if (hayMas)
+            elegidos.RemoveAt(elegidos.Count - 1);
+
+        var orden = elegidos.Select((id, posicion) => (id, posicion)).ToDictionary(x => x.id, x => x.posicion);
+        var candidatos = (await DocumentosUnibles.De(documentosContext, request.EmpresaGestionadaId, trabajadorIds)
+                .Where(d => elegidos.Contains(d.Id))
+                .Select(d => new { d.Id, d.TipoDocumentoId, d.TrabajadorId, d.FechaEmision, d.FechaVencimiento })
+                .ToListAsync(cancellationToken))
+            .OrderBy(d => orden[d.Id])
+            .ToList();
 
         var tipoIds = candidatos.Select(d => d.TipoDocumentoId).Distinct().ToList();
         var tipos = await tiposContext.TiposDocumento
@@ -137,6 +154,6 @@ public class ListarDocumentosParaUnirQueryHandler(
                 d.FechaEmision, d.FechaVencimiento))
             .ToList();
 
-        return Result.Exito(lista);
+        return Result.Exito(new DocumentosParaUnirDto(lista, hayMas));
     }
 }

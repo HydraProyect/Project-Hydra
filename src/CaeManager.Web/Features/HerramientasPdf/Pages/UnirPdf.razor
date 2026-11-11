@@ -81,8 +81,8 @@
                         <strong>@Textos["UnirFirmasTitulo"]</strong>
                         @Textos["UnirFirmasPierden", string.Join(", ", _firmasPendientes.Select(NombreEnPosicion))]
                     </span>
-                    <Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno" OnClick="() => _firmasPendientes = []">@Textos["UnirRevisarLista"]</Boton>
-                    <Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno" Cargando="_uniendo" OnClick="() => UnirAsync(true)">@Textos["UnirIgualmente"]</Boton>
+                    <Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno" OnClick="OlvidarFirmas">@Textos["UnirRevisarLista"]</Boton>
+                    <Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno" Cargando="_uniendo" OnClick="() => UnirAsync(_huellaFirmas)">@Textos["UnirIgualmente"]</Boton>
                 </div>
             }
             else if (_elementos.Any(e => e.Firmado))
@@ -138,6 +138,10 @@
                                     </li>
                                 }
                             </ul>
+                            @if (_hayMasDocumentos)
+                            {
+                                <p class="texto-suave" role="note">@Textos["UnirDocumentosTruncados", _documentos.Count]</p>
+                            }
                         }
                     </div>
                 }
@@ -184,7 +188,7 @@
 
             <div class="barra-acciones-unir">
                 <span>@Textos[_elementos.Count == 1 ? "UnirResumenUno" : "UnirResumenVarios", _elementos.Count]</span>
-                <Boton Variante="VarianteBoton.Primario" Deshabilitado="@(!PuedeUnir)" Cargando="_uniendo" OnClick="() => UnirAsync(false)">@Textos["UnirAccion"]</Boton>
+                <Boton Variante="VarianteBoton.Primario" Deshabilitado="@(!PuedeUnir)" Cargando="_uniendo" OnClick="() => UnirAsync(null)">@Textos["UnirAccion"]</Boton>
             </div>
         }
     </div>

@@ -1,3 +1,4 @@
+using CaeManager.Application.Common.Archivos;
 using CaeManager.Domain.Common;
 
 namespace CaeManager.Application.HerramientasPdf;
@@ -22,6 +23,27 @@ public static class LimitesUnionPdf
 
     /// <summary>Un PDF unido tiene al menos dos de origen: con uno no hay nada que unir.</summary>
     public const int MinimoFicheros = 2;
+
+    /// <summary>
+    /// Objetos que un PDF puede declarar (los de texto plano más los de sus flujos de objetos). PDFsharp los carga todos al
+    /// abrirlo, también en modo importación, así que un PDF pequeño con millones de objetos comprimidos agotaría memoria y
+    /// CPU antes de poder contar sus páginas. Un PDF real de 500 páginas ronda las decenas de miles: el tope lo dobla con
+    /// holgura y sigue acotando el coste.
+    /// </summary>
+    public const int MaximoObjetosPorPdf = 200_000;
+
+    /// <summary>
+    /// Bytes que se descomprimen de los flujos de objetos y de las tablas de referencias comprimidas de un PDF (lo que
+    /// PDFsharp analiza al abrirlo, aparte de sus bytes en bruto). Uno real ocupa unos cientos de KB; una bomba de
+    /// descompresión pasa de aquí y se rechaza sin terminar de descomprimir.
+    /// </summary>
+    public const long MaximoBytesEstructuraPorPdf = 32L * 1024 * 1024;
+
+    /// <summary>
+    /// Veces el tamaño de cada PDF que una unión retiene en el presupuesto de memoria de documentos: la copia, lo que
+    /// PDFsharp construye al abrirlo y su parte del PDF unido. El mismo factor que el análisis de un archivo almacenado.
+    /// </summary>
+    public const int FactorMemoriaUnion = LecturaAlmacenadaParaAnalisis.FactorMemoriaAnalisis;
 }
 
 /// <summary>
@@ -36,6 +58,9 @@ public static class ErroresUnirPdf
     public const string NoEsPdf = "UnirPdf.NoEsPdf";
     public const string DemasiadoGrande = "UnirPdf.DemasiadoGrande";
     public const string DemasiadasPaginas = "UnirPdf.DemasiadasPaginas";
+
+    /// <summary>El PDF declara más objetos o más estructura comprimida de la que se analiza sin riesgo.</summary>
+    public const string DemasiadoComplejo = "UnirPdf.DemasiadoComplejo";
     public const string DocumentoNoDisponible = "UnirPdf.DocumentoNoDisponible";
     public const string ArchivoNoDisponible = "UnirPdf.ArchivoNoDisponible";
 
@@ -55,7 +80,11 @@ public static class ErroresUnirPdf
 /// <param name="EstaFirmado">
 /// Lleva firma electrónica; al unirlo la pierde (el unido es un PDF nuevo), así que la pantalla avisa antes.
 /// </param>
-public record InfoPdfParaUnir(int NumeroPaginas, bool EstaFirmado);
+/// <param name="BytesEstructura">
+/// Lo que se descomprime de su estructura al abrirlo (<see cref="LimitesUnionPdf.MaximoBytesEstructuraPorPdf"/>); cuenta en el
+/// presupuesto de memoria de la unión.
+/// </param>
+public record InfoPdfParaUnir(int NumeroPaginas, bool EstaFirmado, long BytesEstructura = 0);
 
 public record PdfUnido(byte[] Contenido, int NumeroPaginas);
 

@@ -70,6 +70,8 @@ public partial class UnirPdf : CaeManager.Web.Components.PaginaInteractiva, IDis
     private IReadOnlyList<EmpresaSelectorDto> _empresas = [];
     private IReadOnlyList<DocumentoParaUnirDto> _documentos = [];
     private IReadOnlyList<int> _firmasPendientes = [];
+    private string? _huellaFirmas;
+    private bool _hayMasDocumentos;
     private AlmacenTemporalSubidaMasiva? _almacen;
     private IJSObjectReference? _modulo;
 
@@ -134,7 +136,8 @@ public partial class UnirPdf : CaeManager.Web.Components.PaginaInteractiva, IDis
         // Los Documentos de la Empresa anterior no se unen en la nueva.
         _empresaId = nueva;
         _documentos = [];
-        _firmasPendientes = [];
+        _hayMasDocumentos = false;
+        OlvidarFirmas();
         _error = null;
         _elementos.RemoveAll(e => e.DocumentoId is not null);
         if (_documentosAbiertos)
@@ -162,11 +165,13 @@ public partial class UnirPdf : CaeManager.Web.Components.PaginaInteractiva, IDis
             if (lista.EsFallido)
             {
                 _documentos = [];
+                _hayMasDocumentos = false;
                 _error = MensajeDeOperacion(lista.Error);
                 return;
             }
 
-            _documentos = lista.Valor;
+            _documentos = lista.Valor.Documentos;
+            _hayMasDocumentos = lista.Valor.HayMas;
         }
         finally
         {
@@ -180,7 +185,7 @@ public partial class UnirPdf : CaeManager.Web.Components.PaginaInteractiva, IDis
         if (_uniendo || _elementos.Count >= LimitesUnionPdf.MaximoFicheros || _elementos.Any(e => e.DocumentoId == documento.Id))
             return;
 
-        _firmasPendientes = [];
+        OlvidarFirmas();
         _elementos.Add(new ElementoUnion(
             documento.TitularNombre is { } titular ? $"{documento.TipoNombre} · {titular}" : documento.TipoNombre,
             documento.Id, null, null, false));
@@ -203,7 +208,7 @@ public partial class UnirPdf : CaeManager.Web.Components.PaginaInteractiva, IDis
         }
 
         _error = null;
-        _firmasPendientes = [];
+        OlvidarFirmas();
         _cargando = true;
         await InvokeAsync(StateHasChanged);
 
@@ -287,7 +292,7 @@ public partial class UnirPdf : CaeManager.Web.Components.PaginaInteractiva, IDis
         if (_uniendo || posicion < 0 || posicion >= _elementos.Count || destino < 0 || destino >= _elementos.Count)
             return;
 
-        _firmasPendientes = [];
+        OlvidarFirmas();
         (_elementos[posicion], _elementos[destino]) = (_elementos[destino], _elementos[posicion]);
     }
 
@@ -296,20 +301,28 @@ public partial class UnirPdf : CaeManager.Web.Components.PaginaInteractiva, IDis
         if (_uniendo || posicion < 0 || posicion >= _elementos.Count)
             return;
 
-        _firmasPendientes = [];
+        OlvidarFirmas();
         if (_elementos[posicion].Archivo is { } archivo)
             _almacen?.Eliminar(archivo);
         _elementos.RemoveAt(posicion);
     }
 
-    private async Task UnirAsync(bool confirmaFirmas)
+    /// <summary>Un cambio en la lista invalida el aviso de firmas y su confirmación: la huella era de la lista anterior.</summary>
+    private void OlvidarFirmas()
+    {
+        _firmasPendientes = [];
+        _huellaFirmas = null;
+    }
+
+    /// <param name="firmasConfirmadas">La huella del aviso de firmas que la persona acepta; <c>null</c> al unir sin aviso previo.</param>
+    private async Task UnirAsync(string? firmasConfirmadas)
     {
         if (_uniendo || !PuedeUnir || _almacen is null || _empresaId is not { } empresaId || _tenantEsperadoId is not { } tenantId)
             return;
 
         _uniendo = true;
         _error = null;
-        _firmasPendientes = [];
+        OlvidarFirmas();
         try
         {
             var subidos = _elementos.Where(e => e.Archivo is not null).Sum(e => e.Archivo!.TamanoBytes);
@@ -325,7 +338,7 @@ public partial class UnirPdf : CaeManager.Web.Components.PaginaInteractiva, IDis
                 }
 
                 var respuesta = await PuertaAccesoDatos.EjecutarAsync(
-                    () => Mediator.Send(new UnirPdfQuery(entradas, tenantId, empresaId, confirmaFirmas), _ciclo.Token));
+                    () => Mediator.Send(new UnirPdfQuery(entradas, tenantId, empresaId, firmasConfirmadas), _ciclo.Token));
                 if (respuesta.EsFallido)
                 {
                     _error = MensajeDeOperacion(respuesta.Error);
@@ -339,6 +352,7 @@ public partial class UnirPdf : CaeManager.Web.Components.PaginaInteractiva, IDis
             {
                 case EstadoUnionPdf.FirmasSinConfirmar:
                     _firmasPendientes = resultado.Posiciones;
+                    _huellaFirmas = resultado.HuellaFirmas;
                     break;
                 case EstadoUnionPdf.EntradaRechazada:
                     _error = TextoDeEntrada(resultado.CodigoRechazo!, NombreEnPosicion(resultado.Posiciones[0]));
@@ -401,7 +415,7 @@ public partial class UnirPdf : CaeManager.Web.Components.PaginaInteractiva, IDis
         RetirarSubidos();
         _unido = false;
         _error = null;
-        _firmasPendientes = [];
+        OlvidarFirmas();
         _nombreUnido = string.Empty;
         _paginasUnido = 0;
         return Task.CompletedTask;
@@ -417,6 +431,7 @@ public partial class UnirPdf : CaeManager.Web.Components.PaginaInteractiva, IDis
         ErroresUnirPdf.NoEsPdf => Textos["UnirErrorNoEsPdf", nombre],
         ErroresUnirPdf.DemasiadoGrande => Textos["UnirErrorDemasiadoGrande", nombre, LimiteSubidaMb],
         ErroresUnirPdf.DemasiadasPaginas => Textos["UnirErrorDemasiadasPaginas", nombre, LimitesUnionPdf.MaximoPaginasTotales],
+        ErroresUnirPdf.DemasiadoComplejo => Textos["UnirErrorDemasiadoComplejo", nombre],
         ErroresUnirPdf.DocumentoNoDisponible => Textos["UnirErrorDocumentoNoDisponible", nombre],
         ErroresUnirPdf.ArchivoNoDisponible => Textos["UnirErrorArchivoNoDisponible", nombre],
         _ => Textos["UnirErrorIlegible", nombre],

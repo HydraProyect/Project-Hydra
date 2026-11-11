@@ -16,6 +16,7 @@ using CaeManager.Domain.Empresas;
 using CaeManager.Domain.Plataforma;
 using CaeManager.Domain.Trabajadores;
 using FluentAssertions;
+using Microsoft.Extensions.Options;
 using Xunit;
 
 namespace CaeManager.Application.Tests.HerramientasPdf;
@@ -47,12 +48,13 @@ public class UnirPdfQueryHandlerTests
     private string? _rol = "GestorCae";
     private SesionPrivilegiadaActiva? _sesionPrivilegiada;
     private bool _disponible = true;
+    private IFileStorageService? _otroAlmacen;
     private Guid _tenantActual;
 
     public UnirPdfQueryHandlerTests()
     {
         _tenantActual = _tenantId;
-        _registro = new RegistroQueAnota(_transaccion);
+        _registro = new RegistroQueAnota(_transaccion, documentoId => _documentos.ListaDocumentos.FirstOrDefault(d => d.Id == documentoId)?.TipoDocumentoId);
         _alcance = new AlcanceDatosServiceFalso();
         _ana = Trabajador.DeEmpresa(_empresa.Id, "Ana", "Garcia", "12345678Z");
         _empresas.ListaEmpresas.AddRange([_empresa, _otraEmpresa]);
@@ -380,11 +382,16 @@ public class UnirPdfQueryHandlerTests
     {
         var seguro = DocumentoDeEmpresa("SEGURO[firmado]");
 
-        var resultado = await UnirAsync([Subido("a.pdf", "A"), new EntradaUnionDocumento(seguro.Id)], confirmaPerderFirmas: true);
+        var entradas = new List<EntradaUnionPdf> { Subido("a.pdf", "A"), new EntradaUnionDocumento(seguro.Id) };
+        var aviso = await UnirAsync(entradas);
+        aviso.Valor.Estado.Should().Be(EstadoUnionPdf.FirmasSinConfirmar);
+
+        var resultado = await UnirAsync(entradas, aviso.Valor.HuellaFirmas);
 
         resultado.Valor.Estado.Should().Be(EstadoUnionPdf.Unido);
         _unidor.Unidos.Should().Equal("A", "SEGURO[firmado]");
-        _registro.Registrados.Should().Equal([(seguro.Id, TipoAccesoDocumentoSensible.Apertura)]);
+        _registro.Registrados.Should().Equal([(seguro.Id, TipoAccesoDocumentoSensible.Apertura), (seguro.Id, TipoAccesoDocumentoSensible.Apertura)],
+            "el aviso y la unión confirmada leen el Documento cada uno: dos aperturas");
     }
 
     // ---- Registro de acceso (DEC-36)
@@ -465,15 +472,202 @@ public class UnirPdfQueryHandlerTests
             "el archivo se abrió para comprobarlo: es una lectura aunque no salga PDF");
     }
 
+    // ---- Confirmación de firmas ligada a lo mostrado
+
+    [Fact]
+    public async Task La_confirmacion_de_firmas_no_vale_si_cambia_el_contenido_de_un_PDF_firmado()
+    {
+        var aviso = await UnirAsync([Subido("a.pdf", "A[firmado]"), Subido("b.pdf", "B")]);
+        aviso.Valor.HuellaFirmas.Should().NotBeNullOrEmpty();
+
+        var otro = await UnirAsync([Subido("a.pdf", "A2[firmado]"), Subido("b.pdf", "B")], aviso.Valor.HuellaFirmas);
+
+        otro.Valor.Estado.Should().Be(EstadoUnionPdf.FirmasSinConfirmar, "la firma que se aceptó no es la de este PDF");
+        otro.Valor.HuellaFirmas.Should().NotBe(aviso.Valor.HuellaFirmas);
+        _unidor.Unidos.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task La_confirmacion_de_firmas_no_vale_si_aparece_otro_PDF_firmado_o_cambia_el_orden()
+    {
+        var aviso = await UnirAsync([Subido("a.pdf", "A[firmado]"), Subido("b.pdf", "B")]);
+
+        (await UnirAsync([Subido("a.pdf", "A[firmado]"), Subido("b.pdf", "B[firmado]")], aviso.Valor.HuellaFirmas))
+            .Valor.Estado.Should().Be(EstadoUnionPdf.FirmasSinConfirmar);
+        (await UnirAsync([Subido("b.pdf", "B"), Subido("a.pdf", "A[firmado]")], aviso.Valor.HuellaFirmas))
+            .Valor.Estado.Should().Be(EstadoUnionPdf.FirmasSinConfirmar);
+        _unidor.Unidos.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task La_confirmacion_de_firmas_no_vale_si_el_archivo_vigente_del_Documento_es_otro()
+    {
+        var seguro = DocumentoDeEmpresa("SEGURO[firmado]");
+        var entradas = new List<EntradaUnionPdf> { Subido("a.pdf", "A"), new EntradaUnionDocumento(seguro.Id) };
+        var aviso = await UnirAsync(entradas);
+
+        // Entre el aviso y la confirmación, el Documento pasa a tener otro archivo vigente, también firmado.
+        _otroAlmacen = new AlmacenConContenidoFijo(Pdf("SEGURO-NUEVO[firmado]"));
+        var resultado = await UnirAsync(entradas, aviso.Valor.HuellaFirmas);
+
+        resultado.Valor.Estado.Should().Be(EstadoUnionPdf.FirmasSinConfirmar);
+        _unidor.Unidos.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task Sin_PDF_firmados_la_huella_no_hace_falta()
+    {
+        (await UnirAsync([Subido("a.pdf", "A"), Subido("b.pdf", "B")])).Valor.Estado.Should().Be(EstadoUnionPdf.Unido);
+    }
+
+    // ---- Lectura acotada de Documentos
+
+    [Fact]
+    public async Task Un_Documento_que_declara_mas_del_total_no_se_lee_ni_se_registra()
+    {
+        var seguro = DocumentoDeEmpresa("SEGURO");
+        var almacen = new AlmacenQueMideLaLectura(LimitesUnionPdf.TamanoMaximoTotalBytes + 1, seekable: true);
+        _otroAlmacen = almacen;
+
+        var resultado = await UnirAsync([new EntradaUnionDocumento(seguro.Id), Subido("a.pdf", "A")]);
+
+        resultado.Valor.CodigoRechazo.Should().Be(ErroresUnirPdf.DemasiadoGrande);
+        almacen.MaximosPedidos.Should().Equal(LimitesUnionPdf.TamanoMaximoTotalBytes);
+        almacen.BytesLeidos.Should().Be(0, "el tamaño almacenado decide antes de leer nada");
+        _registro.Registrados.Should().BeEmpty("no se llegó a leer el Documento");
+    }
+
+    [Fact]
+    public async Task El_tope_que_se_pide_al_abrir_es_lo_que_queda_del_total()
+    {
+        var seguro = DocumentoDeEmpresa("SEGURO");
+        var almacen = new AlmacenQueMideLaLectura(1024, seekable: true);
+        _otroAlmacen = almacen;
+        var subido = Subido("a.pdf", "A");
+
+        await UnirAsync([subido, new EntradaUnionDocumento(seguro.Id)]);
+
+        almacen.MaximosPedidos.Should().Equal(LimitesUnionPdf.TamanoMaximoTotalBytes - subido.Contenido.Length);
+    }
+
+    [Fact]
+    public async Task Un_flujo_sin_longitud_que_entrega_de_mas_se_corta_al_pasar_del_tope()
+    {
+        var seguro = DocumentoDeEmpresa("SEGURO");
+        var almacen = new AlmacenQueMideLaLectura(3L * LimitesUnionPdf.TamanoMaximoTotalBytes, seekable: false);
+        _otroAlmacen = almacen;
+
+        var resultado = await UnirAsync([new EntradaUnionDocumento(seguro.Id), Subido("a.pdf", "A")]);
+
+        resultado.Valor.CodigoRechazo.Should().Be(ErroresUnirPdf.DemasiadoGrande);
+        almacen.BytesLeidos.Should().BeLessThanOrEqualTo(LimitesUnionPdf.TamanoMaximoTotalBytes + 81_920,
+            "la copia se para en cuanto pasa del tope, no lee el archivo entero");
+    }
+
+    // ---- Cancelación
+
+    [Fact]
+    public async Task Si_la_peticion_se_cancela_tras_leer_el_Documento_la_Apertura_queda_registrada()
+    {
+        var seguro = DocumentoDeEmpresa("SEGURO");
+        using var cancelacion = new CancellationTokenSource();
+        _unidor.AlUnir = cancelacion.Cancel;
+
+        var resultado = await UnirAsync([new EntradaUnionDocumento(seguro.Id), Subido("a.pdf", "A")], cancellationToken: cancelacion.Token);
+
+        resultado.Valor.Estado.Should().Be(EstadoUnionPdf.Unido);
+        _registro.Registrados.Should().Equal([(seguro.Id, TipoAccesoDocumentoSensible.Apertura)],
+            "el Documento ya se leyó: la desconexión no puede dejarlo sin constancia");
+        _transaccion.Confirmadas.Should().Be(1);
+    }
+
+    // ---- DEC-36: nunca registrar de más
+
+    [Fact]
+    public async Task Un_Documento_sin_datos_personales_se_une_pero_no_deja_registro_y_el_sensible_si()
+    {
+        var seguro = DocumentoDeEmpresa("SEGURO");
+        var reconocimiento = DocumentoDeTrabajador(_ana, "RECONOCIMIENTO");
+        _registro.TiposSinDatosPersonales.Add(seguro.TipoDocumentoId);
+
+        var resultado = await UnirAsync([new EntradaUnionDocumento(seguro.Id), new EntradaUnionDocumento(reconocimiento.Id)]);
+
+        resultado.Valor.Estado.Should().Be(EstadoUnionPdf.Unido);
+        _unidor.Unidos.Should().Equal("SEGURO", "RECONOCIMIENTO");
+        _registro.Registrados.Should().Equal([(reconocimiento.Id, TipoAccesoDocumentoSensible.Apertura)],
+            "DEC-36: un Documento SinDatosPersonales no genera fila; el sensible sí");
+    }
+
+    /// <summary>Devuelve siempre el mismo contenido: el archivo vigente de cualquier Documento ha pasado a ser este.</summary>
+    private sealed class AlmacenConContenidoFijo(byte[] contenido) : IFileStorageService
+    {
+        public Task<string> GuardarAsync(Stream contenidoNuevo, string nombreArchivoOriginal, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+        public Task<Stream> AbrirAsync(string identificador, CancellationToken cancellationToken = default) => Task.FromResult<Stream>(new MemoryStream(contenido, writable: false));
+        public Task EliminarAsync(string identificador, CancellationToken cancellationToken = default) => Task.CompletedTask;
+    }
+
+    /// <summary>
+    /// Un archivo de <c>longitud</c> bytes que se genera al leerlo (nunca está entero en memoria) y cuenta lo que se lee. Con
+    /// longitud declarada, <see cref="AbrirHastaAsync"/> rechaza antes de entregar el flujo, como el almacenamiento real; sin
+    /// ella, solo la copia acotada puede pararlo.
+    /// </summary>
+    private sealed class AlmacenQueMideLaLectura(long longitud, bool seekable) : IFileStorageService
+    {
+        public List<long> MaximosPedidos { get; } = [];
+        public long BytesLeidos { get; private set; }
+
+        public Task<string> GuardarAsync(Stream contenido, string nombreArchivoOriginal, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+        public Task<Stream> AbrirAsync(string identificador, CancellationToken cancellationToken = default) => Task.FromResult<Stream>(new FlujoGenerado(this, longitud, seekable));
+        public Task EliminarAsync(string identificador, CancellationToken cancellationToken = default) => Task.CompletedTask;
+
+        public Task<Stream> AbrirHastaAsync(string identificador, long maximoBytes, CancellationToken cancellationToken = default)
+        {
+            MaximosPedidos.Add(maximoBytes);
+            if (seekable && longitud > maximoBytes)
+                throw new ArchivoAlmacenadoDemasiadoGrandeException();
+            return AbrirAsync(identificador, cancellationToken);
+        }
+
+        private sealed class FlujoGenerado(AlmacenQueMideLaLectura almacen, long longitud, bool seekable) : Stream
+        {
+            private long _posicion;
+            public override bool CanRead => true;
+            public override bool CanSeek => seekable;
+            public override bool CanWrite => false;
+            public override long Length => seekable ? longitud : throw new NotSupportedException();
+            public override long Position { get => _posicion; set => throw new NotSupportedException(); }
+
+            public override int Read(byte[] buffer, int offset, int count)
+            {
+                var leidos = (int)Math.Min(count, longitud - _posicion);
+                if (leidos <= 0) return 0;
+                if (_posicion == 0 && leidos >= 9) "%PDF-1.4 "u8.CopyTo(buffer.AsSpan(offset));
+                _posicion += leidos;
+                almacen.BytesLeidos += leidos;
+                return leidos;
+            }
+
+            public override void Flush() { }
+            public override long Seek(long offset, SeekOrigin origin) => throw new NotSupportedException();
+            public override void SetLength(long value) => throw new NotSupportedException();
+            public override void Write(byte[] buffer, int offset, int count) => throw new NotSupportedException();
+        }
+    }
+
     // ---- Montaje
 
     private Task<Result<ResultadoUnionPdf>> UnirAsync(
-        IReadOnlyList<EntradaUnionPdf> entradas, bool confirmaPerderFirmas = false, Guid? empresaId = null) =>
-        Handler().Handle(new UnirPdfQuery(entradas, _tenantId, empresaId ?? _empresa.Id, confirmaPerderFirmas), CancellationToken.None);
+        IReadOnlyList<EntradaUnionPdf> entradas, string? firmasConfirmadas = null, Guid? empresaId = null,
+        CancellationToken cancellationToken = default) =>
+        Handler().Handle(new UnirPdfQuery(entradas, _tenantId, empresaId ?? _empresa.Id, firmasConfirmadas), cancellationToken);
 
     private UnirPdfQueryHandler Handler() => new(
         new Disponibilidad(_disponible), new TenantActualFijo(_tenantActual), _empresas, _documentos, _trabajadores, _proyectos, _alcance,
-        new CurrentUserServiceFalso(rol: _rol), new SesionPrivilegiadaFija(_sesionPrivilegiada), _almacenamiento, _unidor, _registro, _transaccion);
+        new CurrentUserServiceFalso(rol: _rol), new SesionPrivilegiadaFija(_sesionPrivilegiada), _otroAlmacen ?? _almacenamiento,
+        new PresupuestoMemoriaDocumentos(
+            Options.Create(new OpcionesPresupuestoMemoriaDocumentos { MaximoBytes = 2L * 1024 * 1024 * 1024, EsperaMaxima = TimeSpan.FromMilliseconds(100) }),
+            TimeProvider.System),
+        _unidor, _registro, _transaccion);
 
     private static EntradaUnionSubida Subido(string nombre, string marca) => new(Pdf(marca), nombre);
 
@@ -509,6 +703,7 @@ public class UnirPdfQueryHandlerTests
     private sealed class UnidorPdfFalso : IUnidorPdf
     {
         public List<string> Unidos { get; } = [];
+        public Action? AlUnir { get; set; }
 
         public Result<InfoPdfParaUnir> Inspeccionar(byte[] contenidoPdf)
         {
@@ -521,6 +716,7 @@ public class UnirPdfQueryHandlerTests
 
         public Result<PdfUnido> Unir(IReadOnlyList<byte[]> pdfs)
         {
+            AlUnir?.Invoke();
             var paginas = 0;
             foreach (var pdf in pdfs)
             {
@@ -541,17 +737,22 @@ public class UnirPdfQueryHandlerTests
         }
     }
 
-    /// <summary>Anota qué Documentos se registran y si la transacción seguía abierta; con <see cref="Falla"/> lanza en cerrado.</summary>
-    private sealed class RegistroQueAnota(TransaccionConEstado transaccion) : IRegistroAccesoDocumentoSensibleService
+    /// <summary>
+    /// Anota qué Documentos se registran y si la transacción seguía abierta; con <see cref="Falla"/> lanza en cerrado. Como el
+    /// servicio real (DEC-36, «nunca registrar de más»), no registra un Documento cuyo tipo está en <see cref="TiposSinDatosPersonales"/>.
+    /// </summary>
+    private sealed class RegistroQueAnota(TransaccionConEstado transaccion, Func<Guid, Guid?> tipoDe) : IRegistroAccesoDocumentoSensibleService
     {
         public List<(Guid DocumentoId, TipoAccesoDocumentoSensible Tipo)> Registrados { get; } = [];
         public List<bool> ConTransaccionAbierta { get; } = [];
         public bool Falla { get; set; }
+        public HashSet<Guid> TiposSinDatosPersonales { get; } = [];
 
         public Task RegistrarSiSensibleAsync(Guid documentoId, TipoAccesoDocumentoSensible tipoAcceso, CancellationToken cancellationToken = default)
         {
             ConTransaccionAbierta.Add(transaccion.Abierta);
             if (Falla) throw new AccesoDocumentoSensibleNoRegistradoException(documentoId);
+            if (tipoDe(documentoId) is { } tipo && TiposSinDatosPersonales.Contains(tipo)) return Task.CompletedTask;
             Registrados.Add((documentoId, tipoAcceso));
             return Task.CompletedTask;
         }
@@ -568,6 +769,8 @@ public class UnirPdfQueryHandlerTests
 
         public async Task<Result> EjecutarAsync(Func<CancellationToken, Task<Result>> operacion, CancellationToken cancellationToken = default)
         {
+            // Como la transacción real, que usa el token al empezar y al confirmar.
+            cancellationToken.ThrowIfCancellationRequested();
             Ejecutadas++;
             Abierta = true;
             try

@@ -46,6 +46,7 @@ public sealed class UnirPdfPantallaTests : BunitContext
         public IReadOnlyList<ClienteAutorizadoDto> Autorizados { get; set; } = [];
         public IReadOnlyList<EmpresaSelectorDto> Empresas { get; set; } = [new EmpresaSelectorDto(EmpresaId, "Montajes Norte S.L.")];
         public IReadOnlyList<DocumentoParaUnirDto> Documentos { get; set; } = [];
+        public bool HayMasDocumentos { get; set; }
         public Func<PrepararUnionPdfQuery, Result<InfoPdfParaUnir>> Preparar { get; set; } = _ => Result.Exito(new InfoPdfParaUnir(2, false));
         public Func<UnirPdfQuery, Result<ResultadoUnionPdf>> Unir { get; set; } = q =>
             Result.Exito(new ResultadoUnionPdf(EstadoUnionPdf.Unido, [1, 2, 3], "Montajes-Norte-S.L._unido_2026-11-10.pdf", 4, [], null));
@@ -63,7 +64,7 @@ public sealed class UnirPdfPantallaTests : BunitContext
                 case PrepararUnionPdfQuery preparar:
                     return Preparar(preparar);
                 case ListarDocumentosParaUnirQuery:
-                    return Result.Exito(Documentos);
+                    return Result.Exito(new DocumentosParaUnirDto(Documentos, HayMasDocumentos));
                 case UnirPdfQuery unir:
                     Uniones.Add(unir);
                     if (ExcepcionAlUnir is not null) throw ExcepcionAlUnir;
@@ -276,7 +277,7 @@ public sealed class UnirPdfPantallaTests : BunitContext
         _mediador.Uniones[0].Entradas.OfType<EntradaUnionSubida>().Select(e => e.NombreArchivo).Should().Equal("b.pdf", "c.pdf", "a.pdf");
         _mediador.Uniones[0].EmpresaGestionadaId.Should().Be(EmpresaId);
         _mediador.Uniones[0].TenantEsperadoId.Should().Be(TenantAId);
-        _mediador.Uniones[0].ConfirmaPerderFirmas.Should().BeFalse();
+        _mediador.Uniones[0].FirmasConfirmadas.Should().BeNull();
     }
 
     [Fact]
@@ -334,9 +335,9 @@ public sealed class UnirPdfPantallaTests : BunitContext
     {
         var cut = Renderizar();
         await SubirAsync(cut, "a.pdf", "b.pdf");
-        _mediador.Unir = q => q.ConfirmaPerderFirmas
+        _mediador.Unir = q => q.FirmasConfirmadas == "HUELLA-1"
             ? Result.Exito(new ResultadoUnionPdf(EstadoUnionPdf.Unido, [1], "unido.pdf", 4, [], null))
-            : Result.Exito(ResultadoUnionPdf.ConFirmas([1]));
+            : Result.Exito(ResultadoUnionPdf.ConFirmas([1], "HUELLA-1"));
 
         PulsarBoton(cut, "Unir y descargar");
 
@@ -346,7 +347,7 @@ public sealed class UnirPdfPantallaTests : BunitContext
         PulsarBoton(cut, "Unir igualmente");
 
         EsperarSinErrores(cut, () => cut.Find("h1").TextContent.Should().Contain("PDF unido: 4 páginas"));
-        _mediador.Uniones.Select(u => u.ConfirmaPerderFirmas).Should().Equal(false, true);
+        _mediador.Uniones.Select(u => u.FirmasConfirmadas).Should().Equal(null, "HUELLA-1");
         _descarga.VerifyInvoke("descargarPdf");
     }
 
@@ -355,7 +356,7 @@ public sealed class UnirPdfPantallaTests : BunitContext
     {
         var cut = Renderizar();
         await SubirAsync(cut, "a.pdf", "b.pdf");
-        _mediador.Unir = _ => Result.Exito(ResultadoUnionPdf.ConFirmas([0]));
+        _mediador.Unir = _ => Result.Exito(ResultadoUnionPdf.ConFirmas([0], "HUELLA-1"));
 
         PulsarBoton(cut, "Unir y descargar");
         cut.WaitForAssertion(() => cut.FindAll("[role=alertdialog]").Should().ContainSingle());
@@ -363,6 +364,62 @@ public sealed class UnirPdfPantallaTests : BunitContext
 
         cut.FindAll("[role=alertdialog]").Should().BeEmpty();
         _mediador.Uniones.Should().ContainSingle();
+
+        // La confirmación no sobrevive al aviso cerrado: unir de nuevo vuelve a preguntar.
+        PulsarBoton(cut, "Unir y descargar");
+        cut.WaitForAssertion(() => _mediador.Uniones.Should().HaveCount(2));
+        _mediador.Uniones[1].FirmasConfirmadas.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task Si_al_confirmar_los_PDF_firmados_ya_no_son_los_del_aviso_se_vuelve_a_preguntar_y_no_se_descarga()
+    {
+        var cut = Renderizar();
+        await SubirAsync(cut, "a.pdf", "b.pdf");
+        // La segunda respuesta trae otra huella: entre el aviso y la confirmación cambió un PDF firmado.
+        var respuestas = new Queue<string>(["HUELLA-1", "HUELLA-2"]);
+        _mediador.Unir = q => q.FirmasConfirmadas == "HUELLA-2"
+            ? Result.Exito(new ResultadoUnionPdf(EstadoUnionPdf.Unido, [1], "unido.pdf", 4, [], null))
+            : Result.Exito(ResultadoUnionPdf.ConFirmas([1], respuestas.Dequeue()));
+
+        PulsarBoton(cut, "Unir y descargar");
+        cut.WaitForAssertion(() => cut.FindAll("[role=alertdialog]").Should().ContainSingle());
+        PulsarBoton(cut, "Unir igualmente");
+
+        cut.WaitForAssertion(() => _mediador.Uniones.Should().HaveCount(2));
+        _mediador.Uniones.Select(u => u.FirmasConfirmadas).Should().Equal(null, "HUELLA-1");
+        cut.WaitForAssertion(() => cut.FindAll("[role=alertdialog]").Should().ContainSingle("se vuelve a pedir la confirmación"));
+        _descarga.Invocations.Should().BeEmpty();
+
+        PulsarBoton(cut, "Unir igualmente");
+        cut.WaitForAssertion(() => _mediador.Uniones.Should().HaveCount(3));
+        _mediador.Uniones[2].FirmasConfirmadas.Should().Be("HUELLA-2", "se confirma la huella del último aviso, no la del primero");
+        EsperarSinErrores(cut, () => cut.Find("h1").TextContent.Should().Contain("PDF unido: 4 páginas"));
+        _descarga.VerifyInvoke("descargarPdf");
+    }
+
+    [Fact]
+    public void Si_hay_mas_Documentos_que_el_tope_del_listado_la_pantalla_lo_dice()
+    {
+        _mediador.Documentos = [new DocumentoParaUnirDto(Guid.NewGuid(), "Seguro RC", null, new DateOnly(2026, 1, 15), null)];
+        _mediador.HayMasDocumentos = true;
+        var cut = Renderizar();
+
+        PulsarBoton(cut, "Elegir de Documentos");
+
+        cut.WaitForAssertion(() => cut.Find(".documentos-unir [role=note]").TextContent.Should().Contain("Hay más"));
+    }
+
+    [Fact]
+    public void Sin_mas_Documentos_que_el_tope_no_hay_aviso_de_recorte()
+    {
+        _mediador.Documentos = [new DocumentoParaUnirDto(Guid.NewGuid(), "Seguro RC", null, new DateOnly(2026, 1, 15), null)];
+        var cut = Renderizar();
+
+        PulsarBoton(cut, "Elegir de Documentos");
+
+        cut.WaitForAssertion(() => cut.Find(".documentos-unir").TextContent.Should().Contain("Seguro RC"));
+        cut.FindAll(".documentos-unir [role=note]").Should().BeEmpty();
     }
 
     // ---- Resultado

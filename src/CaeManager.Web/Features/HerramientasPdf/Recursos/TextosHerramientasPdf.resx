@@ -600,4 +600,10 @@
   <data name="UnirErrorDescarga" xml:space="preserve">
     <value>El PDF se ha unido pero el navegador no ha podido descargarlo. Inténtalo de nuevo.</value>
   </data>
+  <data name="UnirErrorDemasiadoComplejo" xml:space="preserve">
+    <value>{0} tiene una estructura interna demasiado grande para unirlo sin riesgo. Ábrelo y guárdalo de nuevo como PDF (por ejemplo, imprimiéndolo a PDF) y vuelve a probar.</value>
+  </data>
+  <data name="UnirDocumentosTruncados" xml:space="preserve">
+    <value>Se muestran los {0} Documentos más recientes. Hay más: si no ves el que buscas, súbelo como PDF.</value>
+  </data>
 </root>

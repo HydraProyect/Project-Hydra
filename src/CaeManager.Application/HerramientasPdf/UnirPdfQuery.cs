@@ -1,3 +1,5 @@
+using System.Security.Cryptography;
+using System.Text;
 using CaeManager.Application.Common;
 using CaeManager.Application.Common.Archivos;
 using CaeManager.Application.Documentos;
@@ -33,16 +35,24 @@ public sealed record EntradaUnionDocumento(Guid DocumentoId) : EntradaUnionPdf;
 /// <item>Rol: solo los que escriben leen documentos para sacarlos de TALVEG (lista blanca, como el paquete de Empresa 360); una
 /// Sesión Privilegiada de plataforma no lee Documentos aquí (la misma decisión provisional que ese paquete).</item>
 /// </list>
-/// DEC-36: cada Documento cuyo archivo se abre cuenta como una apertura y se registra si es sensible, igual que una descarga
-/// normal, salga o no el PDF unido (un PDF rechazado o una firma sin confirmar también revelan algo del Documento), y antes de
-/// devolver nada. El registro falla en cerrado y es atómico; un Documento que no se llegó a abrir no deja registro.
+/// DEC-36: cada Documento cuyo archivo se lee cuenta como una apertura, igual que una descarga normal, salga o no el PDF
+/// unido (un PDF rechazado o una firma sin confirmar también revelan algo del Documento), y se registra antes de devolver
+/// nada si es sensible: uno de un tipo <c>SinDatosPersonales</c> no deja fila («nunca registrar de más», lo decide
+/// <see cref="IRegistroAccesoDocumentoSensibleService.RegistrarSiSensibleAsync(Guid, TipoAccesoDocumentoSensible, CancellationToken)"/>).
+/// El registro falla en cerrado, es atómico y no se cancela con la petición: un Documento ya leído deja su constancia
+/// aunque quien pidió se haya ido. Un Documento que no se llegó a leer no deja registro.
+///
+/// Memoria (OWASP API4:2023): cada Documento se abre solo si su tamaño almacenado cabe en lo que queda del total, la copia
+/// se corta al pasar de ahí y lo que la unión retiene de cada PDF cuenta en el presupuesto de memoria de documentos.
 /// </summary>
-/// <param name="ConfirmaPerderFirmas">
+/// <param name="FirmasConfirmadas">
 /// Si algún PDF lleva firma electrónica, sin esto no se une: se responde <see cref="EstadoUnionPdf.FirmasSinConfirmar"/> con
-/// las posiciones afectadas, sin unir nada (los Documentos ya abiertos para comprobarlo sí dejan su registro de apertura).
+/// las posiciones afectadas y su <see cref="ResultadoUnionPdf.HuellaFirmas"/>, sin unir nada (los Documentos ya leídos para
+/// comprobarlo sí dejan su registro de apertura). Para unir hay que devolver esa huella: liga la confirmación a los PDF
+/// firmados que se mostraron (posición, origen y contenido). Si cambia cualquiera, se vuelve a pedir.
 /// </param>
 public record UnirPdfQuery(
-    IReadOnlyList<EntradaUnionPdf> Entradas, Guid TenantEsperadoId, Guid EmpresaGestionadaId, bool ConfirmaPerderFirmas)
+    IReadOnlyList<EntradaUnionPdf> Entradas, Guid TenantEsperadoId, Guid EmpresaGestionadaId, string? FirmasConfirmadas)
     : IRequest<Result<ResultadoUnionPdf>>;
 
 public enum EstadoUnionPdf
@@ -57,15 +67,16 @@ public enum EstadoUnionPdf
 }
 
 /// <param name="Posiciones">Posiciones (desde 0) en la lista de entradas a las que se refiere el estado.</param>
+/// <param name="HuellaFirmas">Con <see cref="EstadoUnionPdf.FirmasSinConfirmar"/>, lo que se devuelve en <see cref="UnirPdfQuery.FirmasConfirmadas"/> para unir esos mismos PDF.</param>
 public record ResultadoUnionPdf(
     EstadoUnionPdf Estado, byte[]? Contenido, string? NombreArchivo, int NumeroPaginas,
-    IReadOnlyList<int> Posiciones, string? CodigoRechazo)
+    IReadOnlyList<int> Posiciones, string? CodigoRechazo, string? HuellaFirmas = null)
 {
     public static ResultadoUnionPdf Rechazada(int posicion, string codigo) =>
         new(EstadoUnionPdf.EntradaRechazada, null, null, 0, [posicion], codigo);
 
-    public static ResultadoUnionPdf ConFirmas(IReadOnlyList<int> posiciones) =>
-        new(EstadoUnionPdf.FirmasSinConfirmar, null, null, 0, posiciones, null);
+    public static ResultadoUnionPdf ConFirmas(IReadOnlyList<int> posiciones, string huella) =>
+        new(EstadoUnionPdf.FirmasSinConfirmar, null, null, 0, posiciones, null, huella);
 }
 
 public class UnirPdfQueryHandler(
@@ -79,6 +90,7 @@ public class UnirPdfQueryHandler(
     ICurrentUserService currentUserService,
     ISesionPrivilegiadaActual sesionPrivilegiadaActual,
     IFileStorageService almacenamiento,
+    IPresupuestoMemoriaDocumentos presupuestoMemoria,
     IUnidorPdf unidor,
     IRegistroAccesoDocumentoSensibleService registroAcceso,
     ITransaccionDeComando transaccion)
@@ -94,26 +106,29 @@ public class UnirPdfQueryHandler(
         }
         catch
         {
-            // Una excepción tras abrir un Documento no borra la lectura: queda constancia y la excepción sigue su camino.
+            // Una excepción tras leer un Documento no borra la lectura: queda constancia y la excepción sigue su camino.
             if (abiertos.Count > 0)
-                await RegistrarAperturasAsync(abiertos, CancellationToken.None);
+                await RegistrarAperturasAsync(abiertos);
             throw;
         }
 
         if (abiertos.Count == 0)
             return resultado;
 
-        var confirmada = await RegistrarAperturasAsync(abiertos, cancellationToken);
+        var confirmada = await RegistrarAperturasAsync(abiertos);
         return confirmada.EsFallido ? Result.Fallo<ResultadoUnionPdf>(confirmada.Error) : resultado;
     }
 
     /// <summary>
-    /// DEC-36: abrir el archivo de un Documento es leerlo, salga o no el PDF unido (un PDF rechazado, una firma sin confirmar
-    /// o un tope superado también revelan algo de él). Todas las aperturas o ninguna, y antes de devolver nada: sin
-    /// constancia no hay resultado. La señal de extracción masiva se emite solo tras confirmar (ver
+    /// DEC-36: leer el archivo de un Documento es una apertura, salga o no el PDF unido (un PDF rechazado, una firma sin
+    /// confirmar o un tope superado también revelan algo de él). Todas las aperturas o ninguna, y antes de devolver nada:
+    /// sin constancia no hay resultado. La señal de extracción masiva se emite solo tras confirmar (ver
     /// DescargarPaqueteEmpresaQueryHandler, del que se copia el mecanismo).
+    ///
+    /// Sin el token de la petición, como el registro tras una excepción: los Documentos ya se leyeron, y una desconexión
+    /// entre la lectura y la confirmación no puede dejarlos sin constancia ni deshacerla a medias.
     /// </summary>
-    private async Task<Result> RegistrarAperturasAsync(IReadOnlyCollection<Guid> abiertos, CancellationToken cancellationToken)
+    private async Task<Result> RegistrarAperturasAsync(IReadOnlyCollection<Guid> abiertos)
     {
         ILoteAccesosSensibles? lote = null;
         var confirmada = await transaccion.EjecutarAsync(async ct =>
@@ -122,7 +137,7 @@ public class UnirPdfQueryHandler(
             foreach (var documentoId in abiertos)
                 await lote.RegistrarSiSensibleAsync(documentoId, TipoAccesoDocumentoSensible.Apertura, ct);
             return Result.Exito();
-        }, cancellationToken);
+        }, CancellationToken.None);
 
         if (confirmada.EsFallido)
             return confirmada;
@@ -162,6 +177,7 @@ public class UnirPdfQueryHandler(
         var contenidos = new List<byte[]>(entradas.Count);
         var infos = new List<InfoPdfParaUnir>(entradas.Count);
         var lecturaDeDocumentos = new Dictionary<Guid, byte[]>();
+        var reservas = new List<IDisposable>();
         long total = 0;
         var paginas = 0;
 
@@ -169,9 +185,15 @@ public class UnirPdfQueryHandler(
         {
             for (var posicion = 0; posicion < entradas.Count; posicion++)
             {
-                var leido = await LeerAsync(entradas[posicion], archivos, lecturaDeDocumentos, abiertos, cancellationToken);
+                var restante = LimitesUnionPdf.TamanoMaximoTotalBytes - total;
+                var leido = await LeerAsync(entradas[posicion], archivos, lecturaDeDocumentos, abiertos, restante, reservas, cancellationToken);
                 if (leido.Rechazo is { } rechazo)
-                    return Result.Exito(ResultadoUnionPdf.Rechazada(posicion, rechazo));
+                {
+                    // Un Documento que no cabe en lo que queda tras los anteriores: lo que se pasa es el total.
+                    return rechazo == NoCabeEnElTotal
+                        ? Fallo(ErroresUnirPdf.TotalDemasiadoGrande, "Los PDF pesan juntos más de lo que se puede unir.")
+                        : Result.Exito(ResultadoUnionPdf.Rechazada(posicion, rechazo));
+                }
 
                 var contenido = leido.Contenido!;
                 total += contenido.Length;
@@ -182,6 +204,10 @@ public class UnirPdfQueryHandler(
                 if (!info.EsExitoso)
                     return Result.Exito(ResultadoUnionPdf.Rechazada(posicion, CodigoDeEntrada(info.Error.Codigo)));
 
+                // Lo que PDFsharp descomprime de su estructura al abrirlo también se retiene mientras dura la unión.
+                if (info.Valor.BytesEstructura > 0)
+                    reservas.Add(Reservar(info.Valor.BytesEstructura));
+
                 paginas += info.Valor.NumeroPaginas;
                 if (paginas > LimitesUnionPdf.MaximoPaginasTotales)
                     return Fallo(ErroresUnirPdf.TotalDemasiadasPaginas, "El PDF unido pasaría del máximo de páginas.");
@@ -189,24 +215,56 @@ public class UnirPdfQueryHandler(
                 contenidos.Add(contenido);
                 infos.Add(info.Valor);
             }
+
+            var firmados = infos.Select((info, posicion) => (info, posicion)).Where(x => x.info.EstaFirmado).Select(x => x.posicion).ToList();
+            if (firmados.Count > 0)
+            {
+                var huella = HuellaDeFirmas(entradas, contenidos, firmados);
+                if (!string.Equals(request.FirmasConfirmadas, huella, StringComparison.Ordinal))
+                    return Result.Exito(ResultadoUnionPdf.ConFirmas(firmados, huella));
+            }
+
+            var unido = await Task.Run(() => unidor.Unir(contenidos), cancellationToken);
+            if (!unido.EsExitoso)
+                return Result.Exito(ResultadoUnionPdf.Rechazada(0, CodigoDeEntrada(unido.Error.Codigo)));
+
+            var nombre = $"{ArmadoPaqueteDocumental.SanearSegmento(empresa.RazonSocial).Replace(' ', '-')}_unido_{DiaDeNegocio.Hoy():yyyy-MM-dd}.pdf";
+            return Result.Exito(new ResultadoUnionPdf(EstadoUnionPdf.Unido, unido.Valor.Contenido, nombre, unido.Valor.NumeroPaginas, [], null));
         }
         catch (PresupuestoMemoriaAgotadoException)
         {
-            // Transitorio: sin hueco en el presupuesto de memoria de documentos del proceso. No se registra acceso alguno.
+            // Transitorio: sin hueco en el presupuesto de memoria de documentos del proceso. Los Documentos ya leídos sí
+            // dejan su registro (lo hace Handle); uno que no llegó a leerse, no.
             return Fallo(ErroresUnirPdf.SinEspacio, "No hay memoria libre para unir ahora mismo. Inténtalo de nuevo en unos segundos.");
         }
-
-        var firmados = infos.Select((info, posicion) => (info, posicion)).Where(x => x.info.EstaFirmado).Select(x => x.posicion).ToList();
-        if (firmados.Count > 0 && !request.ConfirmaPerderFirmas)
-            return Result.Exito(ResultadoUnionPdf.ConFirmas(firmados));
-
-        var unido = await Task.Run(() => unidor.Unir(contenidos), cancellationToken);
-        if (!unido.EsExitoso)
-            return Result.Exito(ResultadoUnionPdf.Rechazada(0, CodigoDeEntrada(unido.Error.Codigo)));
-
-        var nombre = $"{ArmadoPaqueteDocumental.SanearSegmento(empresa.RazonSocial).Replace(' ', '-')}_unido_{DiaDeNegocio.Hoy():yyyy-MM-dd}.pdf";
-        return Result.Exito(new ResultadoUnionPdf(EstadoUnionPdf.Unido, unido.Valor.Contenido, nombre, unido.Valor.NumeroPaginas, [], null));
+        finally
+        {
+            foreach (var reserva in reservas)
+                reserva.Dispose();
+        }
     }
+
+    /// <summary>
+    /// Huella de los PDF firmados tal como se mostraron: por cada uno, su posición, de dónde viene (el Id del Documento o
+    /// una subida) y el SHA-256 de su contenido. Si cambia el orden, se quita o se añade uno firmado, o el archivo vigente de
+    /// un Documento es otro, la huella cambia y la confirmación anterior ya no vale.
+    /// </summary>
+    internal static string HuellaDeFirmas(IReadOnlyList<EntradaUnionPdf> entradas, IReadOnlyList<byte[]> contenidos, IReadOnlyList<int> firmados)
+    {
+        var texto = new StringBuilder();
+        foreach (var posicion in firmados)
+        {
+            var origen = entradas[posicion] is EntradaUnionDocumento documento ? documento.DocumentoId.ToString("N") : "subida";
+            texto.Append(posicion).Append(':').Append(origen).Append(':')
+                .Append(Convert.ToHexString(SHA256.HashData(contenidos[posicion]))).Append('\n');
+        }
+
+        return Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(texto.ToString())));
+    }
+
+    /// <summary>Reserva sin esperar: la unión ya retiene otras y esperar reteniendo bloquea a las demás (ver <see cref="IPresupuestoMemoriaDocumentos.TryReservar"/>).</summary>
+    private ReservaMemoriaDocumentos Reservar(long bytes) =>
+        presupuestoMemoria.TryReservar(bytes, out var reserva) ? reserva : throw new PresupuestoMemoriaAgotadoException();
 
     /// <summary>Id de Documento a clave de su archivo, solo de los que están en el universo de la Empresa y que esta sesión puede leer.</summary>
     private async Task<Dictionary<Guid, string>> ArchivosDeLosDocumentosAsync(
@@ -224,39 +282,52 @@ public class UnirPdfQueryHandler(
         return enUniverso.Where(d => legibles.Contains(d.Id)).ToDictionary(d => d.Id, d => d.ArchivoUrl);
     }
 
+    /// <param name="restante">Bytes que quedan del total de la unión: un Documento que no cabe ahí no se carga.</param>
+    /// <param name="reservas">Donde se dejan las reservas de memoria de lo que se lee; las devuelve quien llama, al terminar.</param>
     private async Task<(byte[]? Contenido, string? Rechazo)> LeerAsync(
         EntradaUnionPdf entrada, Dictionary<Guid, string> archivos, Dictionary<Guid, byte[]> yaLeidos, HashSet<Guid> abiertos,
-        CancellationToken cancellationToken)
+        long restante, List<IDisposable> reservas, CancellationToken cancellationToken)
     {
         switch (entrada)
         {
             case EntradaUnionSubida subida:
                 var rechazo = ValidacionPdfSubidoParaUnir.Rechazo(subida.Contenido, subida.NombreArchivo);
-                return rechazo is null ? (subida.Contenido, null) : (null, rechazo);
+                if (rechazo is not null)
+                    return (null, rechazo);
+                // La pantalla ya reserva una vez lo subido; aquí, lo que PDFsharp deriva de él.
+                reservas.Add(Reservar((LimitesUnionPdf.FactorMemoriaUnion - 1L) * subida.Contenido.Length));
+                return (subida.Contenido, null);
 
             case EntradaUnionDocumento documento:
                 if (yaLeidos.TryGetValue(documento.DocumentoId, out var repetido))
+                {
+                    // El mismo array, pero PDFsharp lo vuelve a abrir al unir.
+                    reservas.Add(Reservar((LimitesUnionPdf.FactorMemoriaUnion - 1L) * repetido.Length));
                     return (repetido, null);
+                }
                 if (!archivos.TryGetValue(documento.DocumentoId, out var clave))
                     return (null, ErroresUnirPdf.DocumentoNoDisponible);
 
-                byte[] contenido;
+                LecturaAlmacenadaParaAnalisis lectura;
                 try
                 {
-                    await using var flujo = await almacenamiento.AbrirAsync(clave, cancellationToken);
-                    abiertos.Add(documento.DocumentoId);
-                    // Lo almacenado puede pasar del tope por archivo de una subida (un PDF unificado), pero nunca del total.
-                    if (flujo.CanSeek && flujo.Length > LimitesUnionPdf.TamanoMaximoTotalBytes)
-                        return (null, ErroresUnirPdf.DemasiadoGrande);
-                    using var memoria = new MemoryStream();
-                    await flujo.CopyToAsync(memoria, cancellationToken);
-                    contenido = memoria.ToArray();
+                    // Lo almacenado puede pasar del tope por archivo de una subida (un PDF unificado), pero nunca de lo que
+                    // queda del total: se comprueba con el tamaño almacenado, antes de cargarlo, y la copia se corta ahí.
+                    lectura = await LecturaAlmacenadaParaAnalisis.LeerHastaAsync(
+                        almacenamiento, presupuestoMemoria, clave, restante, LimitesUnionPdf.FactorMemoriaUnion, cancellationToken);
+                }
+                catch (ArchivoAlmacenadoDemasiadoGrandeException)
+                {
+                    return (null, restante < LimitesUnionPdf.TamanoMaximoTotalBytes ? NoCabeEnElTotal : ErroresUnirPdf.DemasiadoGrande);
                 }
                 catch (FileNotFoundException)
                 {
                     return (null, ErroresUnirPdf.ArchivoNoDisponible);
                 }
 
+                reservas.Add(lectura);
+                abiertos.Add(documento.DocumentoId);
+                var contenido = lectura.Contenido;
                 if (contenido.Length == 0 || !ValidadorFirmaArchivo.TieneFirmaValida(contenido, "documento.pdf"))
                     return (null, ErroresUnirPdf.NoEsPdf);
 
@@ -268,9 +339,13 @@ public class UnirPdfQueryHandler(
         }
     }
 
+    /// <summary>Marca interna de <see cref="LeerAsync"/>: el Documento no cabe en lo que queda del total; no sale de aquí.</summary>
+    private const string NoCabeEnElTotal = "UnirPdf.Interno.NoCabeEnElTotal";
+
     private static string CodigoDeEntrada(string codigo) => codigo switch
     {
-        ErroresUnirPdf.ConContrasena or ErroresUnirPdf.DemasiadoGrande or ErroresUnirPdf.DemasiadasPaginas => codigo,
+        ErroresUnirPdf.ConContrasena or ErroresUnirPdf.DemasiadoGrande or ErroresUnirPdf.DemasiadasPaginas
+            or ErroresUnirPdf.DemasiadoComplejo => codigo,
         _ => ErroresUnirPdf.Ilegible,
     };
 

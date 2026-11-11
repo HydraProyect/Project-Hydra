@@ -84,7 +84,7 @@ public class ListarYPrepararUnionPdfTests
         var ajenoTrabajador = Documento.DeTrabajador(_deOtra.Id, _reconocimiento.Id, Hoy.AddDays(-1), VigenciaDocumento.NoCaduca, "eva.pdf");
         _documentos.ListaDocumentos.AddRange([seguro, deAna, ajenoEmpresa, ajenoTrabajador]);
 
-        var lista = (await ListarAsync(_empresa.Id)).Valor;
+        var lista = (await ListarAsync(_empresa.Id)).Valor.Documentos;
 
         lista.Select(d => d.Id).Should().Equal(seguro.Id, deAna.Id);
         lista[0].Should().Be(new DocumentoParaUnirDto(seguro.Id, "Seguro RC", null, Hoy.AddDays(-5), Hoy.AddDays(100)));
@@ -102,10 +102,39 @@ public class ListarYPrepararUnionPdfTests
         var alcance = new AlcanceDatosServiceFalso(
             tieneAccesoTotal: false, empresaIdsParaGestion: [_empresa.Id], empresaIdsVisibles: [_empresa.Id], trabajadorIdsVisibles: [_ana.Id]);
 
-        var lista = (await ListarAsync(_empresa.Id, alcance)).Valor;
+        var lista = (await ListarAsync(_empresa.Id, alcance)).Valor.Documentos;
 
         lista.Select(d => d.Id).Should().BeEquivalentTo([seguro.Id, deAna.Id]);
         lista.Select(d => d.Id).Should().NotContain(deLuis.Id);
+    }
+
+    [Fact]
+    public async Task Solo_lista_PDF_y_el_tope_se_aplica_despues_de_filtrar_sin_dejar_fuera_PDF_elegibles()
+    {
+        // Diez Documentos más recientes que no son PDF no pueden quitar sitio a los PDF del tope.
+        const int tope = 500;
+        _documentos.ListaDocumentos.AddRange(Enumerable.Range(0, 10).Select(i =>
+            Documento.DeEmpresa(_empresa.Id, _seguro.Id, Hoy.AddDays(-1), VigenciaDocumento.NoCaduca, $"foto{i}.jpg")));
+        _documentos.ListaDocumentos.AddRange(Enumerable.Range(0, tope).Select(i =>
+            Documento.DeEmpresa(_empresa.Id, _seguro.Id, Hoy.AddDays(-10 - i), VigenciaDocumento.NoCaduca, $"seguro{i}.PDF")));
+
+        var resultado = (await ListarAsync(_empresa.Id)).Valor;
+
+        resultado.Documentos.Should().HaveCount(tope);
+        resultado.HayMas.Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task Si_hay_mas_PDF_legibles_que_el_tope_lo_dice_para_que_la_pantalla_avise()
+    {
+        _documentos.ListaDocumentos.AddRange(Enumerable.Range(0, 501).Select(i =>
+            Documento.DeEmpresa(_empresa.Id, _seguro.Id, Hoy.AddDays(-10 - i), VigenciaDocumento.NoCaduca, $"seguro{i}.pdf")));
+
+        var resultado = (await ListarAsync(_empresa.Id)).Valor;
+
+        resultado.Documentos.Should().HaveCount(500);
+        resultado.HayMas.Should().BeTrue();
+        resultado.Documentos[0].FechaEmision.Should().Be(Hoy.AddDays(-10), "se conservan los más recientes");
     }
 
     [Fact]
@@ -191,7 +220,7 @@ public class ListarYPrepararUnionPdfTests
 
     // ---- Montaje
 
-    private Task<Result<IReadOnlyList<DocumentoParaUnirDto>>> ListarAsync(Guid empresaId, AlcanceDatosServiceFalso? alcance = null) =>
+    private Task<Result<DocumentosParaUnirDto>> ListarAsync(Guid empresaId, AlcanceDatosServiceFalso? alcance = null) =>
         new ListarDocumentosParaUnirQueryHandler(
             new Disponibilidad(_disponible), _empresas, _documentos, _trabajadores, _tipos, _proyectos, alcance ?? new AlcanceDatosServiceFalso(),
             new CurrentUserServiceFalso(rol: _rol), new SesionPrivilegiadaFija(_sesionPrivilegiada))

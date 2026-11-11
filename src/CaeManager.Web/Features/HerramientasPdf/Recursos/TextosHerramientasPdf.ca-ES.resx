@@ -600,4 +600,10 @@
   <data name="UnirErrorDescarga" xml:space="preserve">
     <value>El PDF s&apos;ha unit però el navegador no ha pogut descarregar-lo. Torna-ho a provar.</value>
   </data>
+  <data name="UnirErrorDemasiadoComplejo" xml:space="preserve">
+    <value>{0} té una estructura interna massa gran per unir-lo sense risc. Obre'l i desa'l de nou com a PDF (per exemple, imprimint-lo a PDF) i torna-ho a provar.</value>
+  </data>
+  <data name="UnirDocumentosTruncados" xml:space="preserve">
+    <value>Es mostren els {0} Documents més recents. N'hi ha més: si no veus el que cerques, puja'l com a PDF.</value>
+  </data>
 </root>
