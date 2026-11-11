@@ -200,11 +200,12 @@ public class UnirPdfQueryHandler(
                 if (total > LimitesUnionPdf.TamanoMaximoTotalBytes)
                     return Fallo(ErroresUnirPdf.TotalDemasiadoGrande, "Los PDF pesan juntos más de lo que se puede unir.");
 
-                var info = await Task.Run(() => unidor.Inspeccionar(contenido), cancellationToken);
+                var info = await unidor.InspeccionarAsync(contenido, cancellationToken);
                 if (!info.EsExitoso)
                     return Result.Exito(ResultadoUnionPdf.Rechazada(posicion, CodigoDeEntrada(info.Error.Codigo)));
 
-                // Lo que PDFsharp descomprime de su estructura al abrirlo también se retiene mientras dura la unión.
+                // Lo que PDFsharp descomprime de su estructura al abrirlo también se retiene mientras dura la unión. Ocurre en
+                // el proceso aparte, pero ese proceso vive en el mismo contenedor y comparte su techo de memoria.
                 if (info.Valor.BytesEstructura > 0)
                     reservas.Add(Reservar(info.Valor.BytesEstructura));
 
@@ -224,7 +225,7 @@ public class UnirPdfQueryHandler(
                     return Result.Exito(ResultadoUnionPdf.ConFirmas(firmados, huella));
             }
 
-            var unido = await Task.Run(() => unidor.Unir(contenidos), cancellationToken);
+            var unido = await unidor.UnirAsync(contenidos, cancellationToken);
             if (!unido.EsExitoso)
                 return Result.Exito(ResultadoUnionPdf.Rechazada(0, CodigoDeEntrada(unido.Error.Codigo)));
 

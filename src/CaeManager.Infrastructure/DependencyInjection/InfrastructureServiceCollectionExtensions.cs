@@ -413,7 +413,12 @@ public static class InfrastructureServiceCollectionExtensions
         services.AddSingleton<IExtractorTextoDigitalService, PdfSharpExtractorTextoDigitalService>();
         services.AddSingleton<CaeManager.Application.Trabajadores.Extraccion.IExtractorPalabrasPdf, PdfPigExtractorPalabrasPdf>();
         services.AddSingleton<CaeManager.Application.HerramientasPdf.IDivisorPdf, CaeManager.Infrastructure.HerramientasPdf.PdfSharpDivisorPdf>();
-        services.AddSingleton<CaeManager.Application.HerramientasPdf.IUnidorPdf, CaeManager.Infrastructure.HerramientasPdf.PdfSharpUnidorPdf>();
+        // Unir abre PDF ajenos en un proceso aparte con límite de memoria y de tiempo, de uno en uno: el techo que añade al
+        // contenedor es un proceso por su límite (OpcionesProcesoHerramientasPdf.MemoriaMaximaBytes).
+        services.AddSingleton(new CaeManager.Infrastructure.HerramientasPdf.OpcionesProcesoHerramientasPdf());
+        services.AddSingleton(new CaeManager.Infrastructure.HerramientasPdf.LimitadorProcesosAislados(capacidad: 1));
+        services.AddSingleton<CaeManager.Infrastructure.HerramientasPdf.ILanzadorProcesoAislado, CaeManager.Infrastructure.HerramientasPdf.LanzadorProcesoAislado>();
+        services.AddSingleton<CaeManager.Application.HerramientasPdf.IUnidorPdf, CaeManager.Infrastructure.HerramientasPdf.UnidorPdfEnProcesoAparte>();
         services.AddSingleton<IRasterizadorPaginasPdfService, PdfToPngRasterizadorPaginasPdfService>();
         services.AddSingleton(AlmacenConfianzaFirmas.AdministracionEspanola());
         services.AddSingleton<IVerificadorFirmaPdfService, VerificadorFirmaPdfService>();

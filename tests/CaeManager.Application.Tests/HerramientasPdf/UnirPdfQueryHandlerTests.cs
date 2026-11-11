@@ -180,6 +180,18 @@ public class UnirPdfQueryHandlerTests
     }
 
     [Fact]
+    public async Task Sin_turno_para_el_proceso_aparte_pide_reintentar_y_el_Documento_ya_abierto_deja_su_Apertura()
+    {
+        var seguro = DocumentoDeEmpresa("SEGURO");
+
+        var resultado = await UnirAsync([new EntradaUnionDocumento(seguro.Id), Subido("b.pdf", "B[sin-turno]")]);
+
+        resultado.Error.Codigo.Should().Be(ErroresUnirPdf.SinEspacio, "sin turno es un transitorio, no un PDF ilegible");
+        _registro.Registrados.Should().Equal([(seguro.Id, TipoAccesoDocumentoSensible.Apertura)]);
+        _unidor.Unidos.Should().BeEmpty();
+    }
+
+    [Fact]
     public async Task Si_el_total_pasa_de_cincuenta_megas_el_Documento_ya_abierto_deja_su_Apertura()
     {
         var seguro = DocumentoDeEmpresa("SEGURO");
@@ -780,10 +792,17 @@ public class UnirPdfQueryHandlerTests
         public List<string> Unidos { get; } = [];
         public Action? AlUnir { get; set; }
 
-        public Result<InfoPdfParaUnir> Inspeccionar(byte[] contenidoPdf)
+        public Task<Result<InfoPdfParaUnir>> InspeccionarAsync(byte[] contenidoPdf, CancellationToken cancellationToken) =>
+            Task.FromResult(Inspeccionar(contenidoPdf));
+
+        public Task<Result<PdfUnido>> UnirAsync(IReadOnlyList<byte[]> pdfs, CancellationToken cancellationToken) =>
+            Task.FromResult(Unir(pdfs));
+
+        private Result<InfoPdfParaUnir> Inspeccionar(byte[] contenidoPdf)
         {
             var texto = Texto(contenidoPdf);
             if (texto.Contains("[explota]")) throw new InvalidOperationException("fallo inesperado del unidor");
+            if (texto.Contains("[sin-turno]")) throw new PresupuestoMemoriaAgotadoException();
             if (texto.Contains("[clave]")) return Result.Fallo<InfoPdfParaUnir>(Error.Crear(ErroresUnirPdf.ConContrasena, "con contraseña"));
             if (texto.Contains("[ilegible]")) return Result.Fallo<InfoPdfParaUnir>(Error.Crear(ErroresUnirPdf.Ilegible, "ilegible"));
             var estructura = System.Text.RegularExpressions.Regex.Match(texto, @"\[estructura=(\d+)\]");
@@ -791,7 +810,7 @@ public class UnirPdfQueryHandlerTests
                 Paginas(texto), texto.Contains("[firmado]"), estructura.Success ? long.Parse(estructura.Groups[1].Value) : 0));
         }
 
-        public Result<PdfUnido> Unir(IReadOnlyList<byte[]> pdfs)
+        private Result<PdfUnido> Unir(IReadOnlyList<byte[]> pdfs)
         {
             AlUnir?.Invoke();
             var paginas = 0;

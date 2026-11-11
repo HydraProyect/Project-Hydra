@@ -41,7 +41,7 @@ public class PrepararUnionPdfQueryHandler(IDisponibilidadHerramientasPdf disponi
         if (ValidacionPdfSubidoParaUnir.Rechazo(request.ContenidoPdf, request.NombreArchivo) is { } rechazo)
             return Result.Fallo<InfoPdfParaUnir>(Error.Crear(rechazo, "El PDF no sirve para unirlo."));
 
-        // PDFsharp es síncrono y trabaja con la CPU: en un circuito de Blazor bloquearía la pantalla.
-        return await Task.Run(() => unidor.Inspeccionar(request.ContenidoPdf), cancellationToken);
+        // El PDF se abre en un proceso aparte (IUnidorPdf); aquí solo se espera su respuesta.
+        return await unidor.InspeccionarAsync(request.ContenidoPdf, cancellationToken);
     }
 }

@@ -89,14 +89,20 @@ public record InfoPdfParaUnir(int NumeroPaginas, bool EstaFirmado, long BytesEst
 public record PdfUnido(byte[] Contenido, int NumeroPaginas);
 
 /// <summary>
-/// Inspecciona y une PDF. Trabaja solo en este proceso: ni los PDF ni sus páginas salen de TALVEG. Los PDF llegan ya
-/// acotados en tamaño por el llamante; aquí se acota por páginas.
+/// Inspecciona y une PDF. Ni los PDF ni sus páginas salen del servidor de TALVEG, pero un PDF ajeno no se abre en el
+/// proceso web: la implementación lo analiza en un proceso aparte con un límite duro de memoria y de tiempo, de modo que un
+/// PDF hostil agota ese proceso y no la aplicación (decisión de Chris del 2026-11-11 sobre la bomba de PDF). Los PDF llegan
+/// ya acotados en tamaño por el llamante; aquí se acota por páginas.
+///
+/// Un PDF que agota la memoria o el tiempo del análisis sale como <see cref="ErroresUnirPdf.DemasiadoComplejo"/>. Si no hay
+/// turno libre para el proceso aparte a tiempo, lanza <see cref="Common.PresupuestoMemoriaAgotadoException"/>, el mismo
+/// transitorio que el presupuesto de memoria de documentos («inténtalo de nuevo»).
 /// </summary>
 public interface IUnidorPdf
 {
     /// <summary>Abre el PDF solo para contar páginas y detectar la firma; no devuelve nada que lo reproduzca.</summary>
-    Result<InfoPdfParaUnir> Inspeccionar(byte[] contenidoPdf);
+    Task<Result<InfoPdfParaUnir>> InspeccionarAsync(byte[] contenidoPdf, CancellationToken cancellationToken);
 
     /// <summary>Une los PDF en el orden recibido en uno nuevo: las páginas se copian, la firma electrónica no se conserva.</summary>
-    Result<PdfUnido> Unir(IReadOnlyList<byte[]> pdfs);
+    Task<Result<PdfUnido>> UnirAsync(IReadOnlyList<byte[]> pdfs, CancellationToken cancellationToken);
 }

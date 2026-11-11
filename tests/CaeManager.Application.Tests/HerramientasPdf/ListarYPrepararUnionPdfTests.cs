@@ -245,12 +245,13 @@ public class ListarYPrepararUnionPdfTests
     {
         public int Inspecciones { get; private set; }
 
-        public Result<InfoPdfParaUnir> Inspeccionar(byte[] contenidoPdf)
+        public Task<Result<InfoPdfParaUnir>> InspeccionarAsync(byte[] contenidoPdf, CancellationToken cancellationToken)
         {
             Inspecciones++;
-            return respuesta;
+            return Task.FromResult(respuesta);
         }
 
-        public Result<PdfUnido> Unir(IReadOnlyList<byte[]> pdfs) => throw new NotSupportedException();
+        public Task<Result<PdfUnido>> UnirAsync(IReadOnlyList<byte[]> pdfs, CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
     }
 }

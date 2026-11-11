@@ -22,7 +22,7 @@ public sealed class UnionSobrePdfRealTests
     private readonly PdfSharpUnidorPdf _unidor = new(NullLogger<PdfSharpUnidorPdf>.Instance);
 
     /// <summary>Un PDF con una página por texto.</summary>
-    private static byte[] Pdf(params string[] textos)
+    internal static byte[] Pdf(params string[] textos)
     {
         var constructor = new PdfDocumentBuilder();
         var fuente = constructor.AddStandard14Font(Standard14Font.Helvetica);
@@ -245,7 +245,7 @@ public sealed class UnionSobrePdfRealTests
     }
 
     /// <summary>Un PDF clásico escrito a mano, con un objeto por texto (el 1 es el catálogo) y su tabla de referencias.</summary>
-    private static byte[] PdfACano(params string[] objetos)
+    internal static byte[] PdfACano(params string[] objetos)
     {
         var pdf = new StringBuilder("%PDF-1.4\n");
         var posiciones = new List<int>();

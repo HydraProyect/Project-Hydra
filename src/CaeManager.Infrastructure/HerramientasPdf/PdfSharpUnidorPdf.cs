@@ -8,11 +8,16 @@ using PdfSharp.Pdf.IO;
 namespace CaeManager.Infrastructure.HerramientasPdf;
 
 /// <summary>
-/// Une PDF con PDFsharp, en este proceso. Los PDF los sube un tercero, así que se acotan antes de abrirlos: por tamaño, por
-/// páginas declaradas y por el coste de su estructura (<see cref="AcotadorEstructuraPdf"/>: objetos declarados y lo que se
-/// descomprime de flujos de objetos y tablas comprimidas, que PDFsharp carga entero al abrir y no deja interrumpir). Después,
-/// por las páginas reales y por el total del unido. Los mensajes de excepción no se registran porque pueden reproducir
-/// contenido del documento.
+/// El motor que une PDF con PDFsharp. No es <see cref="IUnidorPdf"/> a propósito: solo corre dentro del proceso aparte
+/// (<see cref="ProcesoHerramientasPdf"/>), con su límite duro de memoria y de tiempo, porque PDFsharp carga todos los objetos
+/// al abrir y no deja acotar ni interrumpir ese trabajo. El proceso web llega aquí a través de
+/// <see cref="UnidorPdfEnProcesoAparte"/>.
+///
+/// Los PDF los sube un tercero, así que se acotan antes de abrirlos: por tamaño, por páginas declaradas y por el coste de su
+/// estructura (<see cref="AcotadorEstructuraPdf"/>: objetos declarados y lo que se descomprime de flujos de objetos y tablas
+/// comprimidas). El acotador es una primera barrera barata, no la garantía: la revisión encontró formas de pasarlo, y lo que
+/// lo pase agota el proceso aparte, no la aplicación. Después, por las páginas reales y por el total del unido. Los mensajes
+/// de excepción no se registran porque pueden reproducir contenido del documento.
 ///
 /// Un PDF unido es un documento nuevo: copia las páginas y no conserva la firma electrónica de ninguno. La firma se detecta
 /// por la estructura del PDF ya abierto, sin validarla: un campo <c>/FT /Sig</c> con valor, o un diccionario de firma
@@ -20,7 +25,7 @@ namespace CaeManager.Infrastructure.HerramientasPdf;
 /// es <c>/ByteRange</c>), así que un nombre codificado no esconde la firma, y un comentario con esas letras no la finge.
 /// Solo sirve para avisar de que se pierde.
 /// </summary>
-public sealed class PdfSharpUnidorPdf(ILogger<PdfSharpUnidorPdf> logger) : IUnidorPdf
+public sealed class PdfSharpUnidorPdf(ILogger<PdfSharpUnidorPdf> logger)
 {
     public Result<InfoPdfParaUnir> Inspeccionar(byte[] contenidoPdf)
     {
