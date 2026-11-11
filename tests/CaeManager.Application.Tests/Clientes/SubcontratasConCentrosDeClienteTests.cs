@@ -39,8 +39,9 @@ public class SubcontratasConCentrosDeClienteTests
         m.Enviadas.OfType<ObtenerCentrosDeClienteQuery>().Should().ContainSingle().Which.ClienteId.Should().Be(_cliente);
         m.Enviadas.OfType<ObtenerSubcontratasDeClienteQuery>().Should().ContainSingle().Which.ClienteId.Should().Be(_cliente);
         m.Enviadas.OfType<ObtenerCentrosConActividadDeSubcontrataQuery>().Should().ContainSingle().Which.SubcontrataId.Should().Be(_empresa);
-        var documental = m.Enviadas.OfType<ObtenerAsignacionesDocumentacionPorCentroQuery>().Should().ContainSingle().Which;
-        documental.CentroId.Should().Be(_centro);
+        var documental = m.Enviadas.OfType<ObtenerCumplimientoDeAsignacionesPorCentrosQuery>().Should().ContainSingle().Which;
+        documental.CentroIds.Should().BeEquivalentTo([_centro]);
+        m.Enviadas.OfType<ObtenerAsignacionesDocumentacionPorCentroQuery>().Should().BeEmpty();
         documental.EmpresaEmpleadoraSubcontratistaId.Should().Be(_empresa);
         m.Enviadas.OfType<ObtenerCentrosConCumplimientoDeSubcontrataQuery>().Should().BeEmpty();
     }
@@ -57,6 +58,7 @@ public class SubcontratasConCentrosDeClienteTests
         var m = Datos();
         var resultado = await Leer(m, new(tieneAccesoTotal: false, clienteIdsVisibles: [_cliente], subcontrataIdsVisibles: [_empresa], centroIdsVisibles: []));
         resultado.Should().ContainSingle().Which.Centros.Should().BeEmpty();
+        m.Enviadas.OfType<ObtenerCumplimientoDeAsignacionesPorCentrosQuery>().Should().BeEmpty();
         m.Enviadas.OfType<ObtenerAsignacionesDocumentacionPorCentroQuery>().Should().BeEmpty();
         m.Enviadas.OfType<ObtenerCentrosConCumplimientoDeSubcontrataQuery>().Should().BeEmpty();
     }
@@ -79,12 +81,62 @@ public class SubcontratasConCentrosDeClienteTests
         }
         (await Leer(m)).Single().Centros.Should().HaveCount(202);
     }
+    [Fact]
+    public async Task Varios_Centros_y_Subcontratas_leen_el_cumplimiento_una_vez_por_Subcontrata_con_el_mismo_resultado()
+    {
+        var m = Datos();
+        var segundoCentro = Guid.NewGuid();
+        var segundaEmpresa = Guid.NewGuid();
+        m.Propios.Add(new(segundoCentro, "Otro centro", "Empresa propia"));
+        m.Centros.Add(new(new(segundoCentro, "Otro centro", "Cliente", 1), new(2, 5), EstadoDocumento.Vencido));
+        m.Subcontratas.Add(new(segundaEmpresa, "Segunda contraparte"));
+        var resultado = await Leer(m);
+        resultado.Select(r => r.Subcontrata.Id).Should().Equal(_empresa, segundaEmpresa);
+        foreach (var r in resultado)
+        {
+            r.Centros.Select(c => c.Centro.Id).Should().Equal(_centro, segundoCentro);
+            r.Centros.Select(c => c.Cumplimiento).Should().Equal(new FraccionCumplimiento(1, 2), new FraccionCumplimiento(2, 5));
+            r.Centros.Select(c => c.PeorEstado).Should().Equal(EstadoDocumento.Faltante, EstadoDocumento.Vencido);
+        }
+        var lotes = m.Enviadas.OfType<ObtenerCumplimientoDeAsignacionesPorCentrosQuery>().ToList();
+        lotes.Should().HaveCount(2);
+        lotes.Select(l => l.EmpresaEmpleadoraSubcontratistaId).Should().Equal(_empresa, segundaEmpresa);
+        lotes.Should().OnlyContain(l => l.CentroIds.Count == 2);
+        m.Enviadas.OfType<ObtenerAsignacionesDocumentacionPorCentroQuery>().Should().BeEmpty();
+    }
+    [Fact]
+    public async Task Centro_visible_sin_Trabajadores_sigue_en_el_resultado_con_cero_de_cero()
+    {
+        var m = Datos();
+        var vacio = Guid.NewGuid();
+        m.Propios.Add(new(vacio, "Sin trabajadores", "Empresa propia"));
+        m.Centros.Add(new(new(vacio, "Sin trabajadores", "Cliente", 1), new(0, 0), null));
+        m.SinTrabajadores.Add(vacio);
+        var centros = (await Leer(m)).Single().Centros;
+        centros.Select(c => c.Centro.Id).Should().Equal(_centro, vacio);
+        centros[1].Cumplimiento.Should().Be(new FraccionCumplimiento(0, 0));
+        centros[1].PeorEstado.Should().BeNull();
+    }
+    [Fact]
+    public async Task Usuario_fuera_de_cartera_solo_pide_el_lote_de_sus_Centros_visibles()
+    {
+        var m = Datos();
+        var ajeno = Guid.NewGuid();
+        m.Propios.Add(new(ajeno, "Fuera de cartera", "Empresa propia"));
+        m.Centros.Add(new(new(ajeno, "Fuera de cartera", "Cliente", 1), new(0, 4), EstadoDocumento.Faltante));
+        var resultado = await Leer(m, new(tieneAccesoTotal: false, clienteIdsVisibles: [_cliente], subcontrataIdsVisibles: [_empresa], centroIdsVisibles: [_centro]));
+        resultado.Single().Centros.Select(c => c.Centro.Id).Should().Equal(_centro);
+        m.Enviadas.OfType<ObtenerCumplimientoDeAsignacionesPorCentrosQuery>().Should().ContainSingle()
+            .Which.CentroIds.Should().BeEquivalentTo([_centro]);
+    }
     private sealed class Mediador : IMediator
     {
         public List<CentroDeClienteDto> Propios { get; } = [];
         public List<SubcontrataDeClienteDto> Subcontratas { get; } = [];
         public List<CentroCumplimientoSubcontrataDto> Centros { get; } = [];
         public List<object> Enviadas { get; } = [];
+        /// <summary>Como el lote real: un Centro sin Asignación activa no trae clave en el diccionario.</summary>
+        public HashSet<Guid> SinTrabajadores { get; } = [];
         public Task<TResponse> Send<TResponse>(IRequest<TResponse> request, CancellationToken ct = default)
         {
             Enviadas.Add(request);
@@ -93,16 +145,15 @@ public class SubcontratasConCentrosDeClienteTests
                 ObtenerCentrosDeClienteQuery => Propios,
                 ObtenerSubcontratasDeClienteQuery => Subcontratas,
                 ObtenerCentrosConActividadDeSubcontrataQuery => Centros.Select(c => c.Centro).ToList(),
-                ObtenerAsignacionesDocumentacionPorCentroQuery q => Documentos(q.CentroId),
+                ObtenerCumplimientoDeAsignacionesPorCentrosQuery q => (IReadOnlyDictionary<Guid, IReadOnlyList<CumplimientoDeAsignacionDto>>)q.CentroIds.Where(id => !SinTrabajadores.Contains(id)).ToDictionary(id => id, id => Documentos(id)),
                 _ => throw new NotSupportedException()
             };
             return Task.FromResult((TResponse)respuesta);
         }
-        private IReadOnlyList<TrabajadorAsignacionDocumentacionDto> Documentos(Guid id)
+        private IReadOnlyList<CumplimientoDeAsignacionDto> Documentos(Guid id)
         {
             var centro = Centros.Single(c => c.Centro.Id == id);
-            return [new(Guid.NewGuid(), Guid.NewGuid(), "Trabajador", new DateOnly(2026, 1, 1),
-                centro.PeorEstado ?? EstadoDocumento.Vigente, [], centro.Cumplimiento)];
+            return [new(Guid.NewGuid(), centro.PeorEstado ?? EstadoDocumento.Vigente, centro.Cumplimiento)];
         }
         public Task Send<TRequest>(TRequest request, CancellationToken ct = default) where TRequest : IRequest => Task.CompletedTask;
         public Task<object?> Send(object request, CancellationToken ct = default) => throw new NotSupportedException();

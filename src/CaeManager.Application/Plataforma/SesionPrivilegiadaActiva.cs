@@ -36,8 +36,9 @@ public readonly record struct SesionPrivilegiadaActiva(
     /// de soporte y la administración de plataforma no tocan datos de un
     /// cliente, así que <c>SoporteLectura</c>, <c>AdminPlataforma</c> e
     /// <c>Impersonacion</c> quedan fuera. También <c>RestablecimientoSegundoFactor</c>
-    /// (ADR-011 § 8.7, punto 3), <c>RevocacionOperadorCaeExterno</c> (enmienda de ADR-004 § 12.2 del 2026-10-26)
-    /// y <c>ConcesionAdministrador</c> (decisión del 2026-10-30):
+    /// (ADR-011 § 8.7, punto 3), <c>RevocacionOperadorCaeExterno</c> (enmienda de ADR-004 § 12.2 del 2026-10-26),
+    /// <c>ConcesionAdministrador</c> (decisión del 2026-10-30) y <c>AjusteSegundoFactorTenant</c>
+    /// (decisión del 2026-11-08):
     /// no escriben en el modelo por EF, sino un único acto cada una por su función de la base, y
     /// <c>AutorizacionEscrituraBehavior</c> las trata aparte.
     ///

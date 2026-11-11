@@ -160,8 +160,469 @@
     margin-top: var(--space-2);
 }
 
+/*
+  Cabecera de sección del drawer de Centro: el título (h3) a la izquierda y, si la hay, la acción a la derecha con hueco.
+  Con poco ancho la acción baja de línea en vez de montarse sobre el título; el h3 va sin margen para centrarse en vertical con el botón.
+*/
 .workspace-cabecera-seccion {
     display: flex;
-    justify-content: flex-end;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-2) var(--space-3);
     margin-bottom: var(--space-3);
+}
+
+.workspace-cabecera-seccion > h3 {
+    flex: 1 1 12rem;
+    min-width: 0;
+    margin: 0;
+}
+
+/*
+  Requisitos del Centro (rediseño del modal, maqueta aprobada 2026-11-09): solo lo configurado en el Centro,
+  agrupado por ámbito, con filas compactas (lápiz y papelera), panel de ajustes bajo la fila y los excluidos plegados.
+  Todo sale de tokens; ningún texto se corta con puntos suspensivos: los nombres largos se parten en líneas.
+*/
+.requisitos-centro {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-5);
+}
+
+.requisitos-barra {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: var(--space-4);
+}
+
+.requisitos-ayuda {
+    margin: 0;
+    font: var(--font-body-sm);
+    color: var(--color-text-muted);
+    overflow-wrap: anywhere;
+}
+
+/* Contenedor sin caja: solo corta la propagación del teclado de la pregunta «¿Descartar cambios?». */
+.requisitos-sin-caja {
+    display: contents;
+}
+
+/* Región viva del buscador: la oyen los lectores de pantalla y no se ve (la cabecera visible ya dice lo mismo). */
+.requisitos-anuncio {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    margin: -1px;
+    padding: 0;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
+}
+
+.requisitos-barra .requisitos-ayuda {
+    flex: 1 1 12rem;
+}
+
+.requisitos-grupos {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-5);
+}
+
+.requisitos-grupos.atenuado {
+    opacity: 0.45;
+}
+
+.requisitos-grupo-cabecera {
+    display: flex;
+    align-items: baseline;
+    gap: var(--space-3);
+    padding-bottom: var(--space-1);
+}
+
+.requisitos-grupo-cabecera h4 {
+    margin: 0;
+    font: var(--font-heading-sm);
+    color: var(--color-text);
+}
+
+.requisitos-lista {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+}
+
+.requisitos-fila {
+    border-top: var(--border-default);
+}
+
+.requisitos-fila-linea {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    padding: var(--space-2) 0 var(--space-2) var(--space-1);
+}
+
+.requisitos-fila-texto {
+    flex: 1;
+    min-width: 0;
+}
+
+.requisitos-nombre {
+    font: var(--font-body-md);
+    font-weight: 600;
+    color: var(--color-text);
+    overflow-wrap: anywhere;
+}
+
+.requisitos-meta {
+    margin-top: 2px;
+    font: var(--font-body-sm);
+    color: var(--color-text-muted);
+    overflow-wrap: anywhere;
+}
+
+/* Botón de icono: 44 × 44 de zona táctil, sin borde (lápiz y papelera de cada fila). */
+.requisitos-icono {
+    flex: none;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 44px;
+    height: 44px;
+    padding: 0;
+    border: 0;
+    border-radius: var(--radius-md);
+    background: transparent;
+    color: var(--color-text-muted);
+    cursor: pointer;
+}
+
+.requisitos-icono:hover:not(:disabled) {
+    background: var(--color-fila-hover);
+}
+
+.requisitos-icono:focus-visible {
+    outline: var(--border-focus);
+    outline-offset: 2px;
+}
+
+.requisitos-icono:disabled {
+    cursor: not-allowed;
+    opacity: 0.5;
+}
+
+.requisitos-icono.activo {
+    background: var(--color-primary-50);
+    color: var(--color-primary-500);
+}
+
+.requisitos-icono-compacto {
+    width: 32px;
+    height: 32px;
+}
+
+.requisitos-enlace {
+    min-height: 44px;
+    padding: 0 var(--space-3);
+    border: 0;
+    border-radius: var(--radius-md);
+    background: none;
+    color: var(--color-primary-500);
+    font: var(--font-body-md);
+    font-weight: 600;
+    cursor: pointer;
+}
+
+.requisitos-enlace:hover {
+    background: var(--color-fila-hover);
+}
+
+.requisitos-enlace:focus-visible {
+    outline: var(--border-focus);
+    outline-offset: 2px;
+}
+
+.requisitos-enlace-izquierda {
+    margin-right: auto;
+}
+
+.requisitos-edicion {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-4);
+    margin: 0 0 var(--space-3);
+    padding: var(--space-4) var(--space-5);
+    border-radius: var(--radius-lg);
+    background: var(--color-surface-subtle);
+}
+
+.requisitos-edicion-grupo {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-1);
+    margin: 0;
+    padding: 0;
+    border: 0;
+}
+
+.requisitos-edicion-grupo legend,
+.requisitos-etiqueta {
+    padding: 0;
+    margin-bottom: 2px;
+    font: var(--font-label-md);
+    color: var(--color-text);
+}
+
+.requisitos-radios {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-2) var(--space-6);
+}
+
+.requisitos-radios label {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    min-height: 36px;
+    font: var(--font-body-md);
+}
+
+.requisitos-edicion-rejilla {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr));
+    gap: var(--space-4);
+}
+
+.requisitos-edicion-celda {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-1);
+    min-width: 0;
+}
+
+.requisitos-casilla {
+    display: flex;
+    align-items: flex-start;
+    gap: var(--space-3);
+    font: var(--font-body-md);
+}
+
+.requisitos-casilla input {
+    flex: none;
+    width: 18px;
+    height: 18px;
+    margin-top: 3px;
+}
+
+.requisitos-archivo {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--space-1);
+}
+
+.requisitos-archivo-nombre {
+    padding: var(--space-1) var(--space-3);
+    border-radius: var(--radius-sm);
+    background: var(--color-surface);
+    color: var(--color-text);
+    font: var(--font-label-md);
+    overflow-wrap: anywhere;
+}
+
+.requisitos-edicion-pie {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: flex-end;
+    gap: var(--space-2);
+}
+
+.requisitos-excluidos {
+    border-top: var(--border-default);
+}
+
+.requisitos-excluidos summary {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    min-height: 48px;
+    list-style: none;
+    cursor: pointer;
+    font: var(--font-body-md);
+    font-weight: 600;
+    color: var(--color-text-muted);
+}
+
+.requisitos-excluidos summary::-webkit-details-marker {
+    display: none;
+}
+
+.requisitos-excluidos summary .icono {
+    transform: rotate(-90deg);
+}
+
+.requisitos-excluidos[open] summary .icono {
+    transform: none;
+}
+
+.requisitos-excluidos .requisitos-nombre {
+    color: var(--color-text-muted);
+}
+
+.requisitos-vacio {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: var(--space-2);
+    padding: var(--space-12) var(--space-8);
+    border: var(--border-default);
+    border-radius: var(--radius-lg);
+    background: var(--color-surface-subtle);
+    color: var(--color-text-muted);
+    text-align: center;
+}
+
+.requisitos-vacio h3 {
+    margin: var(--space-2) 0 0;
+    font: var(--font-heading-md);
+    color: var(--color-text);
+}
+
+.requisitos-vacio p {
+    margin: 0;
+    max-width: 32rem;
+    font: var(--font-body-md);
+    color: var(--color-text-muted);
+}
+
+.requisitos-vacio .boton {
+    margin-top: var(--space-3);
+}
+
+.requisitos-buscador {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+}
+
+.requisitos-buscador-etiqueta {
+    font: var(--font-label-md);
+    color: var(--color-text);
+}
+
+.requisitos-buscador-caja {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    min-height: 48px;
+    padding: 0 var(--space-3);
+    border: var(--border-control);
+    border-radius: var(--radius-md);
+    background: var(--color-surface);
+    color: var(--color-text-muted);
+}
+
+.requisitos-buscador-caja:focus-within {
+    border-color: var(--color-primary-500);
+    box-shadow: 0 0 0 3px var(--color-primary-100);
+}
+
+.requisitos-buscador-entrada {
+    flex: 1;
+    min-width: 0;
+    border: 0;
+    outline: 0;
+    background: transparent;
+    color: var(--color-text);
+    font: var(--font-body-md);
+}
+
+.requisitos-resultados {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    max-height: 20rem;
+    overflow-y: auto;
+    border: var(--border-default);
+    border-radius: var(--radius-lg);
+    background: var(--color-surface);
+}
+
+.requisitos-resultados-cabecera {
+    padding: var(--space-2) var(--space-4);
+    background: var(--color-surface-subtle);
+    font: var(--font-body-sm);
+    color: var(--color-text-muted);
+}
+
+.requisitos-opcion {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: var(--space-3);
+    width: 100%;
+    min-height: 52px;
+    padding: var(--space-2) var(--space-4);
+    border: 0;
+    border-top: var(--border-default);
+    background: var(--color-surface);
+    color: var(--color-text);
+    font: var(--font-body-md);
+    text-align: left;
+    cursor: pointer;
+}
+
+.requisitos-opcion:hover:not(:disabled) {
+    background: var(--color-fila-hover);
+}
+
+.requisitos-opcion:disabled {
+    cursor: default;
+}
+
+.requisitos-opcion:focus-visible {
+    outline: var(--border-focus);
+    outline-offset: -2px;
+}
+
+.requisitos-opcion-nombre {
+    flex: 1 1 10rem;
+    min-width: 0;
+    font-weight: 600;
+    overflow-wrap: anywhere;
+}
+
+.requisitos-opcion-accion {
+    font-weight: 600;
+    color: var(--color-primary-500);
+}
+
+.requisitos-sin-coincidencias {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: var(--space-2);
+    padding: var(--space-6) var(--space-4);
+    border: var(--border-default);
+    border-radius: var(--radius-lg);
+    background: var(--color-surface);
+    color: var(--color-text-muted);
+    text-align: center;
+}
+
+.requisitos-sin-coincidencias-titulo {
+    font: var(--font-body-lg);
+    font-weight: 600;
+    color: var(--color-text);
+    overflow-wrap: anywhere;
+}
+
+.requisitos-sin-coincidencias p {
+    margin: 0 0 var(--space-2);
+    font: var(--font-body-md);
 }

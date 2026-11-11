@@ -48,13 +48,13 @@ public partial class GestionesListaGen2Tests
         cut.FindAll("aside.vista-rapida-gestion [data-plataforma-cae] .boton-copiar").Select(b => b.TextContent.Trim());
 
     [Fact]
-    public async Task La_vista_rapida_dice_en_que_Plataforma_CAE_hay_que_hacer_la_Gestion_y_de_que_Centro()
+    public async Task La_vista_rapida_dice_en_que_Plataforma_CAE_hay_que_hacer_la_Gestion()
     {
         var (cut, mediador, gestion) = await VistaRapidaConCanales(CanalDePlataforma("app.nalanda.test/login"));
 
         var bloque = cut.Find("aside.vista-rapida-gestion [data-plataforma-cae]");
         bloque.TextContent.Should().Contain("Plataforma CAE").And.Contain("Nalanda").And.Contain("Principal")
-            .And.Contain("Centro: Centro Logístico Sur");
+            .And.NotContain("Centro Logístico Sur", "el Centro lo dice la celda «Centro» de la rejilla, justo debajo");
         mediador.Enviadas.OfType<ObtenerCanalesGestionDeCentroQuery>().Should().ContainSingle()
             .Which.CentroId.Should().Be(gestion.CentroId, "se piden los canales del Centro de ESA Gestión");
 

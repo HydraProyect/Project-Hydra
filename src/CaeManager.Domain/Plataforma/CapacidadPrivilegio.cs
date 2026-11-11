@@ -115,5 +115,21 @@ public enum CapacidadPrivilegio
     /// (<c>app_conceder_administrador_por_plataforma</c>). No convierte al actor en Administrador
     /// del Tenant ni en Gestor CAE.
     /// </summary>
-    ConcesionAdministrador = 7
+    ConcesionAdministrador = 7,
+
+    /// <summary>
+    /// Un Actor de Plataforma TALVEG cambia la exigencia de segundo factor para todos los perfiles
+    /// de un Tenant (decisiones del 2026-11-08, «Segundo factor configurable también por TALVEG» y
+    /// «Capacidad acotada para que TALVEG edite el segundo factor de un Tenant»). Cuarta capacidad
+    /// de acción acotada de ADR-011 § 8.7, punto 3, con el mismo régimen que
+    /// <see cref="ConcesionAdministrador"/>: concesión por Tenant, nunca global, solo por
+    /// <c>ConcederPrivilegioCommand</c> (de un AdminPlataforma a otro usuario de plataforma);
+    /// ejercida desde una <see cref="SesionPrivilegiada"/> que sigue leyendo con el rol de solo
+    /// lectura; un único comando, <c>CambiarSegundoFactorDelTenantPorPlataformaCommand</c>, con
+    /// motivo obligatorio, y la escritura la hace una función de la base que lo vuelve a comprobar
+    /// todo (<c>app_cambiar_segundo_factor_tenant_por_plataforma</c>). Solo toca esa exigencia: el
+    /// plazo de inactividad lo sigue fijando el Administrador del Tenant. No convierte al actor en
+    /// Administrador del Tenant ni en Gestor CAE.
+    /// </summary>
+    AjusteSegundoFactorTenant = 8
 }

@@ -18,7 +18,8 @@ public record DestinatarioDeApoyoDto(Guid UsuarioId, string Nombre);
 /// <para>
 /// Es una ayuda para elegir, no la autorización: <c>ProponerApoyoCarteraCommand</c> vuelve a
 /// comprobarlo todo. El Operador CAE sale del Tenant de origen de la sesión, nunca de la
-/// petición; el rol, de Identity sobre ese Tenant y no del claim.
+/// petición; el rol, el efectivo de la sesión en ese Tenant confirmado por Identity
+/// (<see cref="ContextoOperadorCae"/>), no el claim.
 /// </para>
 /// </summary>
 public record ObtenerDestinatariosDeApoyoQuery(Guid AsignacionOperacionId) : IRequest<IReadOnlyList<DestinatarioDeApoyoDto>>;

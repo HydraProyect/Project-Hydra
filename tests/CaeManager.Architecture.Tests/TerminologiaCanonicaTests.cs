@@ -516,7 +516,10 @@ public class TerminologiaCanonicaTests
         // 92 (antes 89, 2026-10-31): CambiarContrasena, ConfigurarAutenticadorDosFactores y RestablecerContrasena deniegan
         // con esa misma señal (IClienteActivoSeleccionado ×1 cada una): consumidores de la interfaz existente; ningún
         // nombre nuevo lleva el término.
-        ["ClienteActivo"] = 92,
+        // 93 (antes 92, 2026-11-09): ContextoMarcoDelAmbito lee la selección (IClienteActivoSeleccionado ×1) para que la
+        // clave del contexto del marco lleve el Tenant beneficiario y la Asignación de Operación: consumidor de la
+        // interfaz existente; ningún nombre nuevo lleva el término.
+        ["ClienteActivo"] = 93,
     };
 
     [Theory]

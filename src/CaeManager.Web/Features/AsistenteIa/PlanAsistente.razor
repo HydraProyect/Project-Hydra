@@ -1,11 +1,14 @@
 @using CaeManager.Application.AsistenteIa.Candidatos
+@using CaeManager.Application.AsistenteIa.Edicion
+@using CaeManager.Domain.AsistenteIa
 @using CaeManager.Web.Features.AsistenteIa.Recursos
 @using Microsoft.Extensions.Localization
 @inject IStringLocalizer<TextosAsistenteIa> Textos
 
 @* Plan que propone el agente, según «Asistente TALVEG.dc.html» (estados «plan listo»,
-   «borrador», «¿en qué Tenant?» y «mezcla», más el plan cerrado). Propone, no ejecuta:
-   confirmar registra la confirmación en la Tarea del asistente y nada más. *@
+   «borrador», «¿en qué Tenant?» y «mezcla», más el plan cerrado). La persona completa
+   los datos que faltan, confirma con Enter y Vega ejecuta los pasos por los Commands
+   del catálogo, con su autorización; el plan cerrado enseña el resultado de cada paso. *@
 @if (Vista.Estado == EstadoVistaPlan.Propuesto)
 {
     <div class="plan plan-@ClaseEstado" role="group" aria-label="@Titulo" @onkeydown="ManejarTeclaAsync">
@@ -40,37 +43,137 @@
 
         @if (Vista.Cartera.Count > 1)
         {
-            <div class="plan-tenants" role="group" aria-label="@Textos["Plan_ElegirTenantEtiqueta"]">
-                @foreach (var tenant in Vista.Cartera)
-                {
-                    var pulsado = Vista.Plan.Destino?.Tenant?.TenantId == tenant.TenantId;
-                    <button type="button" class="plan-opcion" aria-pressed="@(pulsado ? "true" : "false")" disabled="@Ocupado"
-                            @onclick="() => ElegirTenant(tenant.TenantId)" @onkeydown="TeclaEnBotonAsync" @onkeydown:stopPropagation="true">
-                        @tenant.Nombre
-                    </button>
-                }
+            @* Un desplegable, no un botón por Empresa gestionada: con una cartera grande los botones
+               no caben. Preseleccionado con el destino del plan o, si no lo hay, con la Empresa
+               gestionada abierta en «Trabajando en». *@
+            <div class="plan-tenants">
+                <label class="plan-dato-campo" for="@IdControl("tenant")">@Textos["Plan_ElegirTenantEtiqueta"]</label>
+                <select id="@IdControl("tenant")" class="plan-control" disabled="@Ocupado"
+                        @onchange="CambiarTenantAsync" @onkeydown="TeclaEnBotonAsync" @onkeydown:stopPropagation="true">
+                    @if (TenantSeleccionado is null)
+                    {
+                        <option value="" selected>@Textos["Plan_ElegirOpcion"]</option>
+                    }
+                    @foreach (var tenant in Vista.Cartera)
+                    {
+                        <option value="@tenant.TenantId" selected="@(TenantSeleccionado == tenant.TenantId)">
+                            @tenant.Nombre@(tenant.TenantId == Vista.TenantPantalla ? Textos["Plan_TenantDeLaPantalla"].Value : "")
+                        </option>
+                    }
+                </select>
             </div>
         }
 
+        @if (Vista.Plan.Destino is { Situacion: SituacionTenantDestino.Unico } && !Vista.Plan.DestinoEsLaPantalla)
+        {
+            <div class="plan-aviso plan-aviso-peligro" role="alert">@Textos["Plan_DestinoNoEsLaPantalla", NombreTenant]</div>
+        }
+        else if (Vista.AvisoEdicion is not null)
+        {
+            <div class="plan-aviso plan-aviso-peligro" role="alert">@Vista.AvisoEdicion</div>
+        }
+
         <div class="plan-seccion">
-            <span class="plan-seccion-titulo">@Textos["Plan_LoQueEntendi"]</span>
+            <span class="plan-seccion-titulo">@Textos[Vista.Editable ? "Plan_CompletaDatos" : "Plan_LoQueEntendi"]</span>
             @foreach (var dato in Vista.Plan.Datos)
             {
+                var tipo = TipoDe(dato);
                 <div class="plan-dato @(DatoFalta(dato) ? "plan-dato-falta" : "")">
-                    <span class="plan-dato-campo">@Textos[$"Campo_{dato.Campo}"]</span>
-                    <span class="plan-dato-valor">
-                        @if (dato.CandidatoId is not null)
-                        {
-                            <strong>@dato.Nombre</strong>
-                        }
-                        else
-                        {
-                            <span>@TextoDatoSinValor(dato)</span>
-                        }
-                    </span>
+                    @if (Vista.Editable && tipo != TipoDatoPlan.SinEdicion)
+                    {
+                        <label class="plan-dato-campo" for="@IdControl(dato.Campo)">
+                            @Textos[$"Campo_{dato.Campo}"]@if (dato.Obligatorio){<span aria-hidden="true"> *</span>}
+                        </label>
+                        <span class="plan-dato-valor plan-dato-editable">
+                            @switch (tipo)
+                            {
+                                case TipoDatoPlan.Seleccion:
+                                    <select id="@IdControl(dato.Campo)" class="plan-control" disabled="@Ocupado" aria-required="@(dato.Obligatorio ? "true" : "false")"
+                                            @onchange="e => CambiarSeleccionAsync(dato.Campo, e)" @onkeydown="TeclaEnBotonAsync" @onkeydown:stopPropagation="true">
+                                        <option value="" selected="@(dato.CandidatoId is null)">@Textos["Plan_ElegirOpcion"]</option>
+                                        @foreach (var opcion in OpcionesDe(dato.Campo))
+                                        {
+                                            <option value="@opcion.Id" selected="@(dato.CandidatoId == opcion.Id)">@opcion.Etiqueta</option>
+                                        }
+                                    </select>
+                                    break;
+
+                                case TipoDatoPlan.SeleccionMultiple:
+                                    <span id="@IdControl(dato.Campo)" class="plan-multiple" role="group" aria-label="@Textos[$"Campo_{dato.Campo}"]">
+                                        @foreach (var opcion in OpcionesDe(dato.Campo))
+                                        {
+                                            var marcado = dato.Valor?.Ids?.Contains(opcion.Id) == true;
+                                            <label class="plan-casilla">
+                                                <input type="checkbox" checked="@marcado" disabled="@Ocupado"
+                                                       @onchange="e => CambiarMultipleAsync(dato, opcion.Id, e)" @onkeydown="TeclaEnBotonAsync" @onkeydown:stopPropagation="true" />
+                                                @opcion.Etiqueta
+                                            </label>
+                                        }
+                                    </span>
+                                    break;
+
+                                case TipoDatoPlan.Fecha:
+                                    <input id="@IdControl(dato.Campo)" type="date" class="plan-control" disabled="@Ocupado"
+                                           value="@(dato.Valor?.Fecha?.ToString("yyyy-MM-dd"))" aria-required="@(dato.Obligatorio ? "true" : "false")"
+                                           @onchange="e => CambiarFechaAsync(dato.Campo, e)" @onkeydown="TeclaEnBotonAsync" @onkeydown:stopPropagation="true" />
+                                    break;
+
+                                case TipoDatoPlan.SiNo:
+                                    <select id="@IdControl(dato.Campo)" class="plan-control" disabled="@Ocupado"
+                                            @onchange="e => CambiarSiNoAsync(dato.Campo, e)" @onkeydown="TeclaEnBotonAsync" @onkeydown:stopPropagation="true">
+                                        <option value="" selected="@(dato.Valor?.SiNo is null)">@Textos["Plan_ElegirOpcion"]</option>
+                                        <option value="true" selected="@(dato.Valor?.SiNo == true)">@Textos["Plan_Si"]</option>
+                                        <option value="false" selected="@(dato.Valor?.SiNo == false)">@Textos["Plan_No"]</option>
+                                    </select>
+                                    break;
+
+                                case TipoDatoPlan.TrabajadorNuevo:
+                                    <span class="plan-trabajador">
+                                        <input id="@IdControl(dato.Campo)" type="text" class="plan-control" disabled="@Ocupado" maxlength="100" autocomplete="off"
+                                               placeholder="@Textos["Plan_TrabajadorNombre"]" aria-label="@Textos["Plan_TrabajadorNombre"]" value="@dato.Valor?.Trabajador?.Nombre"
+                                               @onchange="e => CambiarTrabajadorAsync(dato, nombre: Texto(e))" @onkeydown="TeclaEnBotonAsync" @onkeydown:stopPropagation="true" />
+                                        <input type="text" class="plan-control" disabled="@Ocupado" maxlength="150" autocomplete="off"
+                                               placeholder="@Textos["Plan_TrabajadorApellidos"]" aria-label="@Textos["Plan_TrabajadorApellidos"]" value="@dato.Valor?.Trabajador?.Apellidos"
+                                               @onchange="e => CambiarTrabajadorAsync(dato, apellidos: Texto(e))" @onkeydown="TeclaEnBotonAsync" @onkeydown:stopPropagation="true" />
+                                        <input type="text" class="plan-control" disabled="@Ocupado" maxlength="20" autocomplete="off"
+                                               placeholder="@Textos["Plan_TrabajadorDocumento"]" aria-label="@Textos["Plan_TrabajadorDocumento"]" value="@dato.Valor?.Trabajador?.Documento"
+                                               @onchange="e => CambiarTrabajadorAsync(dato, documento: Texto(e))" @onkeydown="TeclaEnBotonAsync" @onkeydown:stopPropagation="true" />
+                                    </span>
+                                    break;
+
+                                default:
+                                    <input id="@IdControl(dato.Campo)" type="text" class="plan-control" disabled="@Ocupado" maxlength="@TiposDatoPlan.LongitudMaximaTexto"
+                                           value="@dato.Valor?.Texto" aria-required="@(dato.Obligatorio ? "true" : "false")"
+                                           @onchange="e => CambiarTextoAsync(dato.Campo, e)" @onkeydown="TeclaEnBotonAsync" @onkeydown:stopPropagation="true" />
+                                    break;
+                            }
+                        </span>
+                    }
+                    else
+                    {
+                        <span class="plan-dato-campo">@Textos[$"Campo_{dato.Campo}"]</span>
+                        <span class="plan-dato-valor">
+                            @if (dato.Completo && dato.Nombre is not null)
+                            {
+                                <strong>@dato.Nombre</strong>
+                            }
+                            else
+                            {
+                                <span>@TextoDatoSinValor(dato)</span>
+                            }
+                        </span>
+                    }
                 </div>
             }
         </div>
+
+        @foreach (var aviso in Vista.Plan.Avisos ?? [])
+        {
+            <div class="plan-aviso @(aviso.Gravedad == GravedadAvisoPasoTareaAsistente.Bloqueante ? "plan-aviso-peligro" : "")"
+                 role="@(aviso.Gravedad == GravedadAvisoPasoTareaAsistente.Bloqueante ? "alert" : "status")">
+                @aviso.Texto
+            </div>
+        }
 
         <div class="plan-seccion">
             <span class="plan-seccion-titulo">@Textos["Plan_QueHare"]</span>
@@ -124,7 +227,46 @@ else if (Vista.Estado == EstadoVistaPlan.Confirmado)
             <span class="plan-titulo"><span class="plan-ok" aria-hidden="true">&#10004;</span> @Textos["Plan_Cerrado", Titulo]</span>
             <span class="plan-chip"><span class="plan-chip-ini" aria-hidden="true">@IniciaTenant</span>@NombreTenant</span>
         </div>
-        <p class="plan-nota" role="status">@Textos["Plan_ConfirmadoSinEjecucion"]</p>
+        @if (Vista.Ejecucion is { } ejecucion)
+        {
+            <ol class="plan-pasos" aria-label="@Textos["Plan_ResultadoEjecucion"]">
+                @foreach (var paso in ejecucion.Pasos)
+                {
+                    var hecho = paso.Estado == CaeManager.Domain.AsistenteIa.EstadoPasoTareaAsistente.Ejecutado;
+                    var fallo = paso.Estado == CaeManager.Domain.AsistenteIa.EstadoPasoTareaAsistente.Fallido;
+                    <li class="@(fallo ? "plan-paso-fallo" : "")">
+                        <span class="plan-paso-marca @(hecho ? "plan-ok" : "")" role="img"
+                              aria-label="@Textos[hecho ? "Plan_PasoHecho" : fallo ? "Plan_PasoFallido" : "Plan_PasoPendiente"]">@(hecho ? "✔" : fallo ? "✖" : "◯")</span>
+                        <span>
+                            @Textos[$"Paso_{paso.Operacion}"]
+                            @if (fallo && paso.Motivo is not null)
+                            {
+                                <span class="plan-nota"> · @paso.Motivo</span>
+                            }
+                        </span>
+                    </li>
+                }
+            </ol>
+            <p class="plan-nota" role="status">@Textos[ejecucion.Terminada ? "Plan_EjecucionTerminada" : "Plan_EjecucionIncompleta"]</p>
+        }
+        else
+        {
+            <p class="plan-nota" role="status">@Textos[Ocupado ? "Plan_Ejecutando" : "Plan_SinEjecutar"]</p>
+        }
+
+        @if (Vista.ErrorGuardado is not null)
+        {
+            <div class="plan-aviso plan-aviso-peligro" role="alert">@Vista.ErrorGuardado</div>
+        }
+
+        @if (Vista.Ejecucion is not { Terminada: true })
+        {
+            <div class="plan-acciones">
+                <button type="button" class="plan-confirmar" disabled="@Ocupado" @onclick="ReintentarAsync" @onkeydown="TeclaEnBotonAsync" @onkeydown:stopPropagation="true">
+                    @Textos[Vista.Ejecucion is null ? "Plan_Ejecutar" : "Plan_Reintentar"]
+                </button>
+            </div>
+        }
     </div>
 }
 else

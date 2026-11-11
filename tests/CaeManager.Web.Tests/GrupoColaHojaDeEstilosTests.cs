@@ -24,6 +24,41 @@ public class GrupoColaHojaDeEstilosTests
             "el panel de VentanaContexto de la cabecera se abre fuera de la tarjeta y quedaría cortado");
     }
 
+    /// <summary>
+    /// Inicio a 1024 y 375 px: con los badges en <c>flex: none</c> robaban el ancho al título (el nombre de la
+    /// Empresa salía en tres líneas, el resumen con una palabra por línea) y se cortaban por la derecha. El bloque
+    /// de badges tiene que poder encoger y envolver, el título tiene una base mínima y la cabecera envuelve.
+    /// </summary>
+    [Fact]
+    public void Los_badges_de_la_cabecera_pueden_encoger_y_envolver_y_el_titulo_conserva_una_base()
+    {
+        var css = File.ReadAllText(RutaDeLaHoja());
+
+        var badges = CuerpoDe(css, ".grupo-cola-badges");
+        badges.Should().NotMatchRegex(@"flex\s*:\s*(none|0\s+0)", "con flex: none el bloque no encoge y roba el ancho al título");
+        badges.Should().MatchRegex(@"flex\s*:\s*0\s+1\s+auto");
+        badges.Should().MatchRegex(@"min-width\s*:\s*0");
+        badges.Should().MatchRegex(@"flex-wrap\s*:\s*wrap");
+
+        var info = CuerpoDe(css, ".grupo-cola-info");
+        info.Should().MatchRegex(@"flex\s*:\s*1\s+1\s+(?!0)\d*\.?\d+(rem|em|px|ch)\b",
+            "el título necesita una base de ancho positiva: con base 0 (flex: 1, 1 1 0, auto) los badges vuelven a competir por el ancho en una sola línea");
+        info.Should().MatchRegex(@"min-width\s*:\s*0");
+
+        CuerpoDe(css, ".grupo-cola-cabecera").Should().MatchRegex(@"flex-wrap\s*:\s*wrap",
+            "sin envolver, el título y los badges comparten una sola línea a cualquier ancho");
+
+        // Contenedor de consulta prohibido en la tarjeta: ancla las position: fixed de la hoja móvil de VentanaContexto.
+        css.Should().NotMatchRegex(@"container-type\s*:", "container-type haría de la tarjeta el bloque contenedor de la hoja inferior de VentanaContexto");
+    }
+
+    private static string CuerpoDe(string css, string selector)
+    {
+        var m = System.Text.RegularExpressions.Regex.Match(css, @"(?m)^" + System.Text.RegularExpressions.Regex.Escape(selector) + @"\s*\{(?<cuerpo>[^}]*)\}");
+        m.Success.Should().BeTrue($"la regla {selector} existe en la hoja (control positivo del instrumento)");
+        return m.Groups["cuerpo"].Value;
+    }
+
     private static string RutaDeLaHoja()
     {
         var dir = AppContext.BaseDirectory;

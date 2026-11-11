@@ -1,0 +1,341 @@
+using Bunit;
+using CaeManager.Application.Asignaciones.Queries.ObtenerAsignacionesDocumentacionPorCentro;
+using CaeManager.Application.Centros.Queries.ObtenerDocumentacionBloqueantePendiente;
+using CaeManager.Application.Documentos.Queries.ObtenerDocumentos;
+using CaeManager.Domain.Common;
+using CaeManager.Domain.Documentos;
+using CaeManager.Infrastructure.Identity;
+using CaeManager.Web.Components.DesignSystem;
+using CaeManager.Web.Features.Bandeja.Components;
+using CaeManager.Web.Features.Centros.Components;
+using FluentAssertions;
+using Microsoft.AspNetCore.Components.Web;
+
+namespace CaeManager.Web.Tests;
+
+/// <summary>
+/// Pestaña «Trabajadores» de Centro 360 (maqueta «Centro 360 TALVEG»): el primer nivel es una línea de resumen sin botones y el
+/// segundo nivel, el desplegable, lleva los motivos y «Gestionar» por documento. Corrige «esto se ve deforme» (2026-11-09).
+/// </summary>
+public partial class Centro360Gen2Tests
+{
+    private static readonly DateOnly HoyDeLaPestana = DiaDeNegocio.Hoy();
+
+    private sealed record EscenarioTrabajadores(Guid CentroId, TrabajadorAsignacionDocumentacionDto Trabajador, Guid EmpresaId);
+
+    /// <summary>
+    /// Un Trabajador con dos bloqueos propios (uno ausente, otro vencido), uno de la Empresa que ninguna fila recoge, un
+    /// pendiente que no bloquea y un documento al día.
+    /// </summary>
+    private EscenarioTrabajadores MontarTrabajadorBloqueado()
+    {
+        var id = Guid.NewGuid();
+        var aptitud = Documento("Certificado de aptitud médica", EstadoDocumento.Faltante);
+        var prl = Documento("Formación PRL", EstadoDocumento.Vencido, HoyDeLaPestana.AddDays(-10));
+        var epi = Documento("Entrega de EPI", EstadoDocumento.Urgente, HoyDeLaPestana.AddDays(3));
+        var contrato = Documento("Contrato de trabajo", EstadoDocumento.Vigente, HoyDeLaPestana.AddDays(400));
+        var trabajador = Asignado("Ruiz Peña, Ana", EstadoDocumento.Vencido, aptitud, prl, epi, contrato);
+        var empresaId = Guid.NewGuid();
+        var mediador = Registrar(new MediatorFalso());
+        mediador.Asignaciones[id] = [trabajador];
+        mediador.Bloqueos[id] =
+        [
+            new(id, "Centro Norte", trabajador.TrabajadorId, trabajador.TrabajadorNombre, aptitud.TipoDocumentoId, aptitud.TipoDocumentoNombre,
+                Situacion: SituacionDeRequisitoBloqueante.Ausente),
+            new(id, "Centro Norte", trabajador.TrabajadorId, trabajador.TrabajadorNombre, prl.TipoDocumentoId, prl.TipoDocumentoNombre,
+                Situacion: SituacionDeRequisitoBloqueante.Vencido),
+            new(id, "Centro Norte", trabajador.TrabajadorId, trabajador.TrabajadorNombre, Guid.NewGuid(), "Seguro de responsabilidad civil",
+                EmpresaId: empresaId, Ambito: AmbitoAplicacion.Empresa, Situacion: SituacionDeRequisitoBloqueante.Vencido)
+        ];
+        return new EscenarioTrabajadores(id, trabajador, empresaId);
+    }
+
+    private IRenderedComponent<AcordeonAsignacionesCentro> Renderizar360(Guid centroId, bool totales = false) =>
+        Render<AcordeonAsignacionesCentro>(p => p.Add(x => x.CentroId, centroId).Add(x => x.CentroNombre, "Centro Norte")
+            .Add(x => x.MostrarEstadoPlataforma, true).Add(x => x.MostrarTotales, totales));
+
+    private async Task<IRenderedComponent<AcordeonAsignacionesCentro>> Desplegado360Async(Guid centroId, bool totales = false)
+    {
+        var cut = Renderizar360(centroId, totales);
+        cut.WaitForAssertion(() => cut.FindAll(".fila-relacion-rejilla").Should().NotBeEmpty());
+        await cut.Find("button.fila-relacion-desplegar").ClickAsync(new MouseEventArgs());
+        return cut;
+    }
+
+    [Fact]
+    public void El_primer_nivel_dice_una_linea_sin_botones_y_no_repite_los_motivos()
+    {
+        var escenario = MontarTrabajadorBloqueado();
+        var cut = Renderizar360(escenario.CentroId);
+        cut.WaitForAssertion(() => cut.FindAll(".fila-relacion-rejilla").Should().NotBeEmpty());
+
+        var fila = cut.Find(".lista-trabajadores-acordeon .fila-relacion-rejilla");
+        fila.QuerySelector(".fila-relacion-nombre")!.TextContent.Should().Contain("Ruiz Peña, Ana");
+        var resumen = fila.QuerySelector("[data-resumen-fila]")!;
+        resumen.TextContent.Trim().Should().Be("Certificado de aptitud médica y 2 más bloquean el acceso", "como el motivo de una línea de la maqueta: el primero y cuántos más");
+        resumen.GetAttribute("title").Should().Be("Certificado de aptitud médica · Formación PRL · Seguro de responsabilidad civil", "con la línea cortada se lee entera");
+        fila.QuerySelector(".fila-relacion-estado .badge")!.TextContent.Trim().Should().Be("Bloqueado");
+        fila.QuerySelector(".fila-trabajador-fraccion").Should().NotBeNull("el recuento al día sigue en la fila");
+
+        fila.QuerySelectorAll(".fila-relacion-detalle button, .fila-relacion-detalle a").Should().BeEmpty("el resumen no lleva botones");
+        cut.FindAll(".motivo-bloqueo, .motivo-bloqueo-pedir").Should().BeEmpty("los motivos viven solo en el desplegable");
+        cut.Markup.Should().NotContain("Además, por atender", "ese texto era el segundo bloque del primer nivel");
+        // Lo único que lleva la columna de acciones de la fila es el icono 360, con nombre accesible.
+        var acciones = fila.QuerySelectorAll(".fila-relacion-acciones button, .fila-relacion-acciones a").ToList();
+        acciones.Should().ContainSingle().Which.ClassList.Should().Contain("boton-360");
+        acciones[0].GetAttribute("aria-label").Should().Contain("Ruiz Peña, Ana");
+        acciones[0].TextContent.Trim().Should().BeEmpty("es solo un icono");
+    }
+
+    [Fact]
+    public void El_resumen_del_primer_nivel_usa_el_singular_con_un_solo_documento_que_bloquea()
+    {
+        var id = Guid.NewGuid();
+        var prl = Documento("Formación PRL", EstadoDocumento.Vencido, HoyDeLaPestana.AddDays(-10));
+        var trabajador = Asignado("Ruiz Peña, Ana", EstadoDocumento.Vencido, prl);
+        var mediador = Registrar(new MediatorFalso());
+        mediador.Asignaciones[id] = [trabajador];
+        mediador.Bloqueos[id] = [new(id, "Centro Norte", trabajador.TrabajadorId, trabajador.TrabajadorNombre, prl.TipoDocumentoId, prl.TipoDocumentoNombre,
+            Situacion: SituacionDeRequisitoBloqueante.Vencido)];
+        var cut = Renderizar360(id);
+        cut.WaitForAssertion(() => cut.Find("[data-resumen-fila]").TextContent.Trim().Should().Be("Formación PRL bloquea el acceso"));
+    }
+
+    [Fact]
+    public void El_resumen_cuenta_una_vez_el_Tipo_que_bloquea_por_acceso_y_por_plataforma_y_nombra_el_bloqueo_solo_de_plataforma()
+    {
+        var id = Guid.NewGuid();
+        var rechazada = new[] { new AcreditacionResumenDto(Guid.NewGuid(), "Nalanda", EstadoAcreditacion.Rechazada) };
+        var prl = Documento("Formación PRL", EstadoDocumento.Vencido, HoyDeLaPestana.AddDays(-10)) with { AcreditacionesEnElCentro = rechazada };
+        var soloPlataforma = Documento("Reconocimiento médico", EstadoDocumento.Vigente, HoyDeLaPestana.AddDays(300)) with { AcreditacionesEnElCentro = rechazada };
+        var trabajador = Asignado("Ruiz Peña, Ana", EstadoDocumento.Vencido, prl, soloPlataforma);
+        var mediador = Registrar(new MediatorFalso());
+        mediador.Asignaciones[id] = [trabajador];
+        mediador.Bloqueos[id] = [new(id, "Centro Norte", trabajador.TrabajadorId, trabajador.TrabajadorNombre, prl.TipoDocumentoId, prl.TipoDocumentoNombre,
+            Situacion: SituacionDeRequisitoBloqueante.Vencido)];
+        var cut = Renderizar360(id);
+        cut.WaitForAssertion(() => cut.Find("[data-resumen-fila]").TextContent.Trim()
+            .Should().Be("Formación PRL y 1 más bloquean el acceso", "el Tipo bloqueado por acceso y por plataforma cuenta una vez"));
+    }
+
+    [Fact]
+    public void Sin_bloqueos_el_primer_nivel_dice_el_peor_documento_en_una_linea()
+    {
+        var id = Guid.NewGuid();
+        var trabajador = Asignado("Ruiz Peña, Ana", EstadoDocumento.Urgente, Documento("Entrega de EPI", EstadoDocumento.Urgente, HoyDeLaPestana.AddDays(3)));
+        Registrar(new MediatorFalso()).Asignaciones[id] = [trabajador];
+        var cut = Renderizar360(id);
+        cut.WaitForAssertion(() => cut.Find("[data-resumen-fila]").TextContent.Should().Contain("Entrega de EPI").And.NotContain("bloque"));
+        cut.FindAll(".fila-relacion-detalle button").Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task Un_bloqueo_que_no_se_puede_pedir_desde_aqui_no_se_convierte_en_Gestionar_aunque_el_documento_sea_reclamable()
+    {
+        var id = Guid.NewGuid();
+        var epi = Documento("Entrega de EPI", EstadoDocumento.Urgente, HoyDeLaPestana.AddDays(3));
+        var trabajador = Asignado("Ruiz Peña, Ana", EstadoDocumento.Urgente, epi);
+        var mediador = Registrar(new MediatorFalso());
+        mediador.Asignaciones[id] = [trabajador];
+        mediador.Bloqueos[id] = [new(id, "Centro Norte", trabajador.TrabajadorId, trabajador.TrabajadorNombre, epi.TipoDocumentoId, epi.TipoDocumentoNombre,
+            Situacion: SituacionDeRequisitoBloqueante.PendienteDeSubirAPlataforma)];
+        var cut = Renderizar360(id);
+        cut.WaitForAssertion(() => cut.FindAll(".fila-relacion-rejilla").Should().NotBeEmpty());
+        await cut.Find("button.fila-relacion-desplegar").ClickAsync(new MouseEventArgs());
+
+        cut.FindAll(".fila-plataforma-centro").Should().ContainSingle();
+        cut.FindAll("[data-accion=gestionar-documento]").Should().BeEmpty("la regla del primer nivel solo pedía Vencido o Ausente");
+    }
+
+    [Fact]
+    public async Task Gestionar_convive_en_la_misma_celda_con_las_acciones_de_la_plataforma()
+    {
+        var id = Guid.NewGuid();
+        var pendiente = new[] { new AcreditacionResumenDto(Guid.NewGuid(), "Nalanda", EstadoAcreditacion.PendienteDeSubir) };
+        var epi = Documento("Entrega de EPI", EstadoDocumento.Urgente, HoyDeLaPestana.AddDays(3)) with { AcreditacionesEnElCentro = pendiente };
+        var trabajador = Asignado("Ruiz Peña, Ana", EstadoDocumento.Urgente, epi);
+        Registrar(new MediatorFalso()).Asignaciones[id] = [trabajador];
+        var cut = Renderizar360(id);
+        cut.WaitForAssertion(() => cut.FindAll(".fila-relacion-rejilla").Should().NotBeEmpty());
+        await cut.Find("button.fila-relacion-desplegar").ClickAsync(new MouseEventArgs());
+
+        var celda = cut.Find(".fila-plataforma-centro .celda-accion-plataforma");
+        celda.QuerySelectorAll("[data-accion=gestionar-documento]").Should().ContainSingle();
+        celda.QuerySelector("[data-acciones-plataforma]").Should().NotBeNull("«Marcar subido» y «Cambiar» siguen en la celda");
+        celda.QuerySelectorAll("[data-accion=gestionar-documento]").Single().ClassList.Should().Contain("boton-secundario");
+    }
+
+    [Fact]
+    public async Task El_desplegable_ofrece_un_Gestionar_por_cada_documento_pendiente_y_ninguno_al_resto()
+    {
+        var escenario = MontarTrabajadorBloqueado();
+        var cut = await Desplegado360Async(escenario.CentroId);
+
+        var filas = cut.FindAll(".fila-plataforma-centro");
+        filas.Should().HaveCount(4);
+        string Nombre(AngleSharp.Dom.IElement f) => f.QuerySelector(".identidad-documento-plataforma")!.TextContent;
+        var conGestionar = filas.Where(f => f.QuerySelector("[data-accion=gestionar-documento]") is not null).Select(Nombre).ToList();
+        conGestionar.Should().HaveCount(3);
+        conGestionar.Should().Contain(n => n.Contains("Certificado de aptitud médica"))
+            .And.Contain(n => n.Contains("Formación PRL")).And.Contain(n => n.Contains("Entrega de EPI"));
+        var alDia = filas.Single(f => Nombre(f).Contains("Contrato de trabajo"));
+        alDia.QuerySelector(".celda-accion-plataforma")!.QuerySelectorAll("button, a").Should().BeEmpty("sin nada que gestionar no hay acción");
+
+        foreach (var boton in cut.FindAll("[data-accion=gestionar-documento]"))
+        {
+            boton.TextContent.Trim().Should().Be("Gestionar");
+            boton.ClassList.Should().Contain("boton-secundario").And.Contain("boton-pequeno").And.NotContain("boton-primario");
+        }
+        cut.Find(".fila-plataforma-centro [data-accion=gestionar-documento][aria-label='Gestionar Formación PRL']").Should().NotBeNull();
+    }
+
+    [Fact]
+    public async Task El_enlace_de_texto_Actualizar_en_Trabajador_360_ya_no_existe_en_el_desplegable()
+    {
+        var escenario = MontarTrabajadorBloqueado();
+        var cut = await Desplegado360Async(escenario.CentroId);
+
+        cut.FindAll("[data-accion=actualizar-en-ficha]").Should().BeEmpty();
+        cut.Markup.Should().NotContain("Actualizar en Trabajador 360");
+        cut.FindAll(".fila-plataforma-centro a[href^='/trabajadores/']").Should().BeEmpty("a la ficha se va con el icono 360 de la fila");
+    }
+
+    [Fact]
+    public async Task Todas_las_filas_del_desplegable_reservan_la_celda_de_accion_aunque_este_vacia()
+    {
+        var escenario = MontarTrabajadorBloqueado();
+        var cut = await Desplegado360Async(escenario.CentroId);
+
+        var filas = cut.FindAll(".fila-plataforma-centro");
+        filas.Should().OnlyContain(f => f.QuerySelectorAll("[role=cell]").Length == 5, "Documento, Estado, Caducidad, Bloquea y Acción en todas");
+        filas.Should().OnlyContain(f => f.QuerySelector(".celda-accion-plataforma") != null);
+        var contrato = filas.Single(f => f.TextContent.Contains("Contrato de trabajo"));
+        contrato.QuerySelector(".celda-accion-plataforma")!.Children.Should().BeEmpty("vacía, pero presente");
+    }
+
+    [Fact]
+    public async Task Gestionar_de_un_documento_abre_el_mismo_flujo_de_reclamacion_apuntado_al_Trabajador()
+    {
+        var escenario = MontarTrabajadorBloqueado();
+        var cut = await Desplegado360Async(escenario.CentroId);
+
+        await cut.Find("[data-accion=gestionar-documento][aria-label='Gestionar Formación PRL']").ClickAsync(new MouseEventArgs());
+
+        var drawer = cut.FindComponent<DrawerReclamacionLote>().Instance;
+        drawer.Visible.Should().BeTrue();
+        drawer.AmbitoInicial.Should().Be(AmbitoAplicacion.Trabajador);
+        drawer.EntidadIdInicial.Should().Be(escenario.Trabajador.TrabajadorId);
+    }
+
+    [Fact]
+    public async Task El_bloqueo_de_la_Empresa_que_ninguna_fila_recoge_conserva_su_motivo_y_su_Gestionar_dentro_del_desplegable()
+    {
+        var escenario = MontarTrabajadorBloqueado();
+        var cut = await Desplegado360Async(escenario.CentroId);
+
+        var motivo = cut.Find(".fila-relacion-desplegado .motivo-bloqueo");
+        motivo.TextContent.Should().Contain("Seguro de responsabilidad civil");
+        motivo.QuerySelectorAll(".motivo-bloqueo-linea").Should().ContainSingle("solo lo que no tiene fila propia");
+        await motivo.QuerySelector(".motivo-bloqueo-pedir")!.ClickAsync(new MouseEventArgs());
+
+        var drawer = cut.FindComponent<DrawerReclamacionLote>().Instance;
+        drawer.AmbitoInicial.Should().Be(AmbitoAplicacion.Empresa);
+        drawer.EntidadIdInicial.Should().Be(escenario.EmpresaId);
+    }
+
+    [Fact]
+    public async Task Consulta_ve_el_resumen_y_la_tabla_pero_ningun_Gestionar()
+    {
+        this.ConRolDeEscritura(Roles.Consulta);
+        var escenario = MontarTrabajadorBloqueado();
+        var cut = await Desplegado360Async(escenario.CentroId);
+
+        cut.Find("[data-resumen-fila]").TextContent.Should().Contain("bloquean el acceso");
+        cut.FindAll(".fila-plataforma-centro").Should().HaveCount(4);
+        cut.FindAll("[data-accion=gestionar-documento], .motivo-bloqueo-pedir").Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task La_pestana_conserva_chevron_selector_asignar_y_filtro_de_estado()
+    {
+        var escenario = MontarTrabajadorBloqueado();
+        var cut = Renderizar360(escenario.CentroId, totales: true);
+        cut.WaitForAssertion(() => cut.FindAll(".fila-relacion-rejilla").Should().NotBeEmpty());
+
+        var chevron = cut.Find("button.fila-relacion-desplegar");
+        chevron.GetAttribute("aria-expanded").Should().Be("false");
+        await chevron.ClickAsync(new MouseEventArgs());
+        cut.Find("button.fila-relacion-desplegar").GetAttribute("aria-expanded").Should().Be("true");
+
+        cut.Find("[data-recurso=trabajadores]").TextContent.Should().Contain("Trabajadores");
+        cut.Find("[data-recurso=vehiculos]").TextContent.Should().Contain("Vehículos");
+        cut.FindAll("button").Select(b => b.TextContent.Trim()).Should().Contain("+ Asignar trabajador");
+        cut.FindAll(".fila-relacion-estado .badge").Select(b => b.TextContent.Trim()).Should().Contain("Bloqueado");
+        cut.FindComponent<FranjaEstado>().Instance.Recuentos!["Bloqueado"].Should().Be(1);
+    }
+
+    [Fact]
+    public void El_pie_separa_las_cifras_de_la_nota_de_lista_completa()
+    {
+        var escenario = MontarTrabajadorBloqueado();
+        var cut = Renderizar360(escenario.CentroId, totales: true);
+        cut.WaitForAssertion(() => cut.FindAll("[data-totales-documentales]").Should().NotBeEmpty());
+
+        var pie = cut.Find("[data-totales-documentales]");
+        pie.QuerySelector(".totales-cifras")!.TextContent.Should().Contain("exigidos").And.NotContain("Se calcula");
+        pie.QuerySelector("[data-totales-nota]")!.TextContent.Trim().Should().Be("Se calcula sobre la lista completa, no sobre la filtrada.");
+        pie.QuerySelector("[data-totales-nota]")!.ParentElement!.HasAttribute("data-totales-documentales").Should()
+            .BeTrue("la nota es un elemento hermano de las cifras, no texto pegado a «… pendientes»");
+        pie.QuerySelector(".totales-cifras")!.NextElementSibling!.HasAttribute("data-totales-nota").Should().BeTrue();
+    }
+
+    [Fact]
+    public void Un_Trabajador_al_dia_no_repite_texto_en_la_fila_y_las_filas_son_homogeneas()
+    {
+        var id = Guid.NewGuid();
+        var uno = Asignado("Alba Uno, Eva", EstadoDocumento.Vigente, Documento("Contrato de trabajo", EstadoDocumento.Vigente, HoyDeLaPestana.AddDays(400)));
+        var dos = Asignado("Alba Dos, Eva", EstadoDocumento.Vigente, Documento("Contrato de trabajo", EstadoDocumento.Vigente, HoyDeLaPestana.AddDays(400)));
+        var mediador = Registrar(new MediatorFalso());
+        mediador.Asignaciones[id] = [uno, dos];
+        mediador.Empleadores[id] = [new(uno.TrabajadorId, uno.TrabajadorNombre, "Montajes Largos y Muy Largos del Norte S.L.", new DateOnly(2026, 1, 9)),
+            new(dos.TrabajadorId, dos.TrabajadorNombre, "Eco S.L.", new DateOnly(2026, 1, 9))];
+        var cut = Renderizar360(id);
+        cut.WaitForAssertion(() => cut.FindAll(".lista-trabajadores-acordeon .fila-relacion-rejilla").Should().HaveCount(2));
+
+        cut.FindAll("[data-resumen-fila]").Should().BeEmpty("al día no repite «Toda la documentación… vigente» en cada fila");
+        cut.Markup.Should().NotContain("vigente");
+        cut.FindAll(".fila-relacion-estado .badge").Should().HaveCount(2).And.OnlyContain(b => b.TextContent.Trim() == "Vigente");
+        // Misma estructura en todas las filas: el empleador siempre dentro de la línea del nombre.
+        cut.FindAll(".fila-relacion-titulo").Should().OnlyContain(t => t.QuerySelector(".fila-relacion-nombre") != null && t.QuerySelector("[data-empleador]") != null);
+    }
+
+    [Fact]
+    public void El_autonomo_no_repite_su_nombre_como_Empresa_empleadora()
+    {
+        var id = Guid.NewGuid();
+        var autonomo = Asignado("Ruiz Peña, Ana", EstadoDocumento.Vigente, Documento("Contrato de trabajo", EstadoDocumento.Vigente, HoyDeLaPestana.AddDays(400)));
+        var asalariado = Asignado("Gil Mora, Luis", EstadoDocumento.Vigente, Documento("Contrato de trabajo", EstadoDocumento.Vigente, HoyDeLaPestana.AddDays(400)));
+        var mediador = Registrar(new MediatorFalso());
+        mediador.Asignaciones[id] = [autonomo, asalariado];
+        mediador.Empleadores[id] = [new(autonomo.TrabajadorId, autonomo.TrabajadorNombre, "ANA RUIZ PEÑA", new DateOnly(2026, 1, 9)),
+            new(asalariado.TrabajadorId, asalariado.TrabajadorNombre, "Eco S.L.", new DateOnly(2026, 1, 9))];
+        var cut = Renderizar360(id);
+        cut.WaitForAssertion(() => cut.FindAll("[data-empleador]").Should().ContainSingle().Which.TextContent.Should().Be("Eco S.L."));
+        // El empleador se corta con puntos suspensivos en pantallas estrechas: el nombre completo queda en el title.
+        cut.Find("[data-empleador]").GetAttribute("title").Should().Be("Eco S.L.");
+    }
+
+    [Fact]
+    public void La_barra_de_la_pestana_agrupa_selector_y_Asignar_en_una_cabecera_que_envuelve_a_375_px()
+    {
+        // bUnit no aplica CSS: se fija la estructura y las clases que lo hacen caber (list-page.css: flex-wrap, nowrap del rótulo).
+        var escenario = MontarTrabajadorBloqueado();
+        var cut = Renderizar360(escenario.CentroId);
+        cut.WaitForAssertion(() => cut.FindAll(".fila-relacion-rejilla").Should().NotBeEmpty());
+
+        var cabecera = cut.Find(".acordeon-asignaciones-cabecera-recursos");
+        cabecera.QuerySelectorAll(".selector-recurso-centro .selector-recurso-opcion").Should().HaveCount(2);
+        cabecera.QuerySelectorAll(".selector-recurso-opcion").Select(o => o.TextContent.Trim()).Should().Equal("Trabajadores · 1", "Vehículos · 0");
+        cabecera.QuerySelector(".acordeon-asignaciones-cabecera")!.TextContent.Should().Contain("+ Asignar trabajador");
+    }
+}

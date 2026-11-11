@@ -976,7 +976,7 @@ WHERE n.nspname = 'public' AND c.relkind IN ('r', 'p') AND c.relrowsecurity;";
                 .. TopeDeVigenciaEnElAlta], []),
         ("privilegio_cierre_de_vigente", 'w', ["app_ctx_usuario_id()", "Revocada", "Expirada"], ["Vigente"]),
         ("privilegio_concesion_a_tercero", 'a',
-            ["app_ctx_usuario_id()", "app_es_admin_plataforma(", "RevocacionOperadorCaeExterno", "ConcesionAdministrador", "VigenciaHasta",
+            ["app_ctx_usuario_id()", "app_es_admin_plataforma(", "RevocacionOperadorCaeExterno", "ConcesionAdministrador", "AjusteSegundoFactorTenant", "VigenciaHasta",
                 .. TopeDeVigenciaEnElAlta], []),
     ];
 

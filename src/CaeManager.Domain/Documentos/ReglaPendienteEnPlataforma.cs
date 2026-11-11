@@ -9,6 +9,11 @@ namespace CaeManager.Domain.Documentos;
 /// <list type="bullet">
 /// <item><b>Solo Centros con plataforma.</b> Las acreditaciones existen solo ante un acceso de tipo Plataforma de un
 /// Centro (<c>AltaAcreditacionesPlataformaService</c>); un Centro sin plataforma nunca tiene un Pendiente.</item>
+/// <item><b>Un Centro sin Trabajadores asignados también puede estar Pendiente</b> (decisión del 2026-11-08): un Centro puede
+/// exigir solo documentos de Empresa, y el de Empresa pendiente cuenta en los Centros de su Empresa aunque nadie esté
+/// asignado. Solo el de Trabajador exige actividad en el Centro (<c>PendientesEnPlataformaDeCentros</c>). Esta regla
+/// cuenta las acreditaciones que existen; que nazcan para un Centro sin Trabajadores es cosa de la regla de alta
+/// (<c>AltaAcreditacionesPlataformaService</c>).</item>
 /// <item><b>Rechazada no es Pendiente</b>: es un «no» de la plataforma y sigue siendo causa propia del estado Bloqueado del
 /// Centro (D-7). Validada en la plataforma (<see cref="EstadoAcreditacion.Aceptada"/>) y
 /// <see cref="EstadoAcreditacion.NoRequerida"/> no son trabajo pendiente.</item>

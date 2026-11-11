@@ -55,4 +55,46 @@
     <value>No tens permís per tancar aquesta sessió de suport o la sessió ja ha canviat.</value>
   </data>
   <data name="MotivoConfirmacion" xml:space="preserve"><value>Marca la casella per confirmar.</value></data>
+  <data name="AjusteSegundoFactorTitulo" xml:space="preserve">
+    <value>Verificació en dos passos per a tots els perfils</value>
+  </data>
+  <data name="AjusteSegundoFactorExplicacion" xml:space="preserve">
+    <value>Decideix si aquesta organització exigeix la verificació en dos passos a tots els seus comptes. L'Administrador la té sempre obligatòria. El termini d'inactivitat no es canvia des d'aquí: el fixa l'Administrador de l'organització.</value>
+  </data>
+  <data name="AjusteSegundoFactorCampoEstado" xml:space="preserve">
+    <value>Estat actual</value>
+  </data>
+  <data name="AjusteSegundoFactorExigida" xml:space="preserve">
+    <value>Exigida a tots els perfils</value>
+  </data>
+  <data name="AjusteSegundoFactorNoExigida" xml:space="preserve">
+    <value>Obligatòria només per a l'Administrador</value>
+  </data>
+  <data name="AjusteSegundoFactorActivar" xml:space="preserve">
+    <value>Exigir-la a tots els perfils</value>
+  </data>
+  <data name="AjusteSegundoFactorDesactivar" xml:space="preserve">
+    <value>Deixar d'exigir-la a tots els perfils</value>
+  </data>
+  <data name="AjusteSegundoFactorConfirmacionActivar" xml:space="preserve">
+    <value>Tots els comptes d'aquesta organització hauran de fer servir la verificació en dos passos. Les sessions obertes ho reben en un minut com a màxim.</value>
+  </data>
+  <data name="AjusteSegundoFactorConfirmacionDesactivar" xml:space="preserve">
+    <value>Només l'Administrador continuarà tenint la verificació en dos passos obligatòria. Les sessions obertes ho reben en un minut com a màxim.</value>
+  </data>
+  <data name="AjusteSegundoFactorMotivo" xml:space="preserve">
+    <value>Motiu i referència de la petició</value>
+  </data>
+  <data name="AjusteSegundoFactorMotivoObligatorio" xml:space="preserve">
+    <value>Indica el motiu i la referència de la petició.</value>
+  </data>
+  <data name="AjusteSegundoFactorExito" xml:space="preserve">
+    <value>Ajust canviat. Queda registrat amb la teva identitat i aquesta sessió de suport.</value>
+  </data>
+  <data name="AjusteSegundoFactorCancelar" xml:space="preserve">
+    <value>Cancel·la</value>
+  </data>
+  <data name="AjusteSegundoFactorConfirmar" xml:space="preserve">
+    <value>Confirma el canvi</value>
+  </data>
 </root>

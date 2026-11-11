@@ -9,37 +9,33 @@ namespace CaeManager.E2ETests.Rendimiento;
 ///
 /// <para>
 /// <b>Línea base medida</b> (Gestor CAE de Refrielectric, con
-/// <see cref="MedidorConsultasSql"/>, 3 repeticiones idénticas): una
-/// navegación mejorada ejecuta la pantalla dos veces —una en la pasada de
+/// <see cref="MedidorConsultasSql"/>): con el prerender de <c>InteractiveServer</c>, una
+/// navegación mejorada ejecutaba la pantalla dos veces —una en la pasada de
 /// prerender y otra al conectar el circuito, cada una con su
-/// <c>DbContext</c>—. La consulta de la lista son dos comandos por pasada
-/// (el <c>count(*)</c> y la página), es decir 2 en un GET crudo y 4 en la
-/// navegación; esta prueba cuenta el <c>count(*)</c> (en Subcontratas, el <c>SELECT</c>
-/// de la lista, que ya no lleva <c>count(*)</c>), que es <b>1 por pasada:
-/// 1 en el prerender y 2 en la navegación</b>, en las tres pantallas. Es el
-/// coste de hoy y la prueba lo fija como techo. Empresas ya no se prerenderiza:
-/// 0 en el GET crudo y 1 en la navegación, y la prueba fija también ese 0.
+/// <c>DbContext</c>—. Las tres pantallas ya no se prerenderizan
+/// (<c>InteractiveServerRenderMode(prerender: false)</c>, como Mi trabajo): la lista se
+/// consulta una sola vez, en el circuito. La prueba cuenta el <c>count(*)</c> de la lista
+/// (en Subcontratas, el <c>SELECT</c> de la lista, que ya no lleva <c>count(*)</c>) y
+/// fija <b>0 en el GET crudo y 1 en la navegación</b>.
 /// </para>
 ///
 /// <para>
-/// <b>Qué protege y qué no.</b> Se pone en rojo si alguien hace que una
-/// pasada ejecute la consulta de la lista más de una vez (recarga doble en
-/// <c>OnInitializedAsync</c>, una consulta repetida al cambiar un parámetro,
-/// un handler que la lanza dos veces). Cuenta comandos SQL sobre la tabla de
-/// la pantalla, no milisegundos: un N+1 por fila que consulte OTRA tabla no
-/// lo ve. Si un cambio legítimo añade una consulta, se actualiza el techo en
+/// <b>Qué protege y qué no.</b> Se pone en rojo si alguien devuelve el prerender a una de
+/// estas pantallas (el GET crudo volvería a consultar la lista) o hace que la navegación
+/// ejecute la consulta más de una vez (recarga doble en <c>OnInitializedAsync</c>, una
+/// consulta repetida al cambiar un parámetro, un handler que la lanza dos veces). Cuenta
+/// comandos SQL sobre la tabla de la pantalla, no milisegundos: un N+1 por fila que consulte
+/// OTRA tabla no lo ve. Si un cambio legítimo añade una consulta, se actualiza el techo en
 /// el mismo cambio y se dice por qué.
 /// </para>
 ///
 /// <para>
-/// Un intento de eliminar la segunda pasada (recoger el resultado del
-/// prerender en el circuito con <c>PersistentComponentState</c>) bajaba 4 a 2
-/// pero ahorraba solo 18–30 ms de esqueleto de carga al usuario, y se
-/// descartó (#752) para las listas de pantalla que mide esta clase. El layout
-/// sí lo usa desde el encargo 31 (migas, selector de Tenant beneficiario y gate
-/// de términos): son lecturas pequeñas que se repiten en cada visita, y solo se
-/// reutilizan con el mismo contexto y dentro de la caducidad de los memos del
-/// layout.
+/// Antes de quitar el prerender se probó recoger su resultado en el circuito con
+/// <c>PersistentComponentState</c>: bajaba 4 a 2 pero ahorraba solo 18–30 ms de esqueleto de
+/// carga al usuario, y se descartó (#752). El layout sí lo usa desde el encargo 31 (migas,
+/// selector de Tenant beneficiario y gate de términos): son lecturas pequeñas que se repiten en
+/// cada visita, y solo se reutilizan con el mismo contexto y dentro de la caducidad de los
+/// memos del layout.
 /// </para>
 /// </summary>
 [Collection("AppCollectionConsultasSql")]
@@ -51,15 +47,10 @@ public class ConsultasPorNavegacionTests(WebAppFixtureConConsultasSql fixture)
     // consulta» de «no había nada»).
     private const string Email = Ayudas.EmailGestorRefrielectric;
 
-    // Techos medidos: count(*) de la lista en un GET crudo (prerender) y en
-    // una navegación mejorada (prerender + circuito). Una pantalla sin prerender
-    // (Empresas, desde que pasó a InteractiveServerRenderMode(prerender: false) para
-    // no cargar dos veces en cada navegación) no consulta la lista en el GET crudo y
-    // la consulta una sola vez, en el circuito.
-    private const int TechoPrerender = 1;
-    private const int TechoNavegacion = 2;
-    private const int TechoNavegacionSinPrerender = 1;
-
+    // Techos: count(*) de la lista en un GET crudo (sin prerender, ninguna) y en una navegación
+    // mejorada (una, la del circuito).
+    private const int TechoPrerender = 0;
+    private const int TechoNavegacion = 1;
     public static TheoryData<string, string, string> Pantallas => new()
     {
         { "empresas", "SELECT count(*)::int FROM \"Empresas\" AS e", ".tarjeta-fila-acordeon" },
@@ -70,8 +61,6 @@ public class ConsultasPorNavegacionTests(WebAppFixtureConConsultasSql fixture)
         { "subcontratas", "SELECT e.\"Id\", e.\"RazonSocial\", e.\"Cif\", e.\"CreadoEnUtc\", e.\"NivelServicio\"", ".tarjeta-fila-acordeon" },
         { "incidencias", "SELECT count(*)::int FROM \"Incidencias\" AS i", "table.tabla-datos tbody tr" },
     };
-
-    private static readonly HashSet<string> PantallasSinPrerender = ["empresas"];
 
     [Theory]
     [MemberData(nameof(Pantallas))]
@@ -86,15 +75,15 @@ public class ConsultasPorNavegacionTests(WebAppFixtureConConsultasSql fixture)
         var medidor = new MedidorConsultasSql(fixture.DirectorioLogs, fixture.PatronFicheroLog);
         await medidor.EsperarSilencioAsync(TimeSpan.FromSeconds(2), TimeSpan.FromSeconds(30));
 
-        // Solo prerender: GET crudo, sin circuito.
+        // GET crudo, sin circuito: sin prerender no debe consultar la lista.
         var marcaPrerender = medidor.MarcarAhora();
         var respuesta = await contexto.APIRequest.GetAsync($"{fixture.BaseUrl}/{ruta}");
         Assert.Equal(200, respuesta.Status);
         await medidor.EsperarSilencioAsync(TimeSpan.FromSeconds(2), TimeSpan.FromSeconds(30));
-        var consultasDelPrerender = MedidorConsultasSql.Contar(medidor.ComandosDesde(marcaPrerender), fragmentoSql);
+        var consultasDelGetCrudo = MedidorConsultasSql.Contar(medidor.ComandosDesde(marcaPrerender), fragmentoSql);
 
         // Incidencias ya no es entrada del menú (Design, 2026-10-17): es pestaña de la sección Documentos, en la
-        // barra de 48 px bajo la cabecera. Se llega a Documentos antes de medir, para medir solo la navegación a la pestaña.
+        // barra de pestañas de la propia página Documentos (la de sección del marco no se pinta ahí). Se llega a Documentos antes de medir, para medir solo la navegación a la pestaña.
         var esPestanaDeDocumentos = ruta == "incidencias";
         if (esPestanaDeDocumentos)
         {
@@ -104,10 +93,10 @@ public class ConsultasPorNavegacionTests(WebAppFixtureConConsultasSql fixture)
             await medidor.EsperarSilencioAsync(TimeSpan.FromSeconds(2), TimeSpan.FromSeconds(30));
         }
 
-        // Navegación mejorada (NavLink): prerender + circuito.
+        // Navegación mejorada (NavLink): solo el circuito.
         var marcaNavegacion = medidor.MarcarAhora();
         var enlace = (esPestanaDeDocumentos
-            ? page.Locator($"a.barra-seccion-enlace[href='{ruta}']")
+            ? page.GetByRole(AriaRole.Tab, new() { Name = "Incidencias" })
             : page.Locator($"a.nav-item[href='{ruta}']")).First;
         await Assertions.Expect(enlace).ToBeVisibleAsync(new LocatorAssertionsToBeVisibleOptions { Timeout = 15_000 });
         await enlace.ClickAsync();
@@ -119,37 +108,18 @@ public class ConsultasPorNavegacionTests(WebAppFixtureConConsultasSql fixture)
         await Assertions.Expect(page.Locator(selectorFila).First).ToBeVisibleAsync(
             new LocatorAssertionsToBeVisibleOptions { Timeout = 15_000 });
 
-        if (PantallasSinPrerender.Contains(ruta))
-        {
-            // Control positivo en el circuito: el instrumento ve la consulta de la navegación.
-            Assert.True(
-                consultasDeLaNavegacion >= 1,
-                $"Control positivo: la navegación a /{ruta} no ejecutó ninguna consulta «{fragmentoSql}»: el instrumento no ve la lista.");
-            Assert.True(
-                consultasDelPrerender == 0,
-                $"/{ruta} no se prerenderiza, pero el GET crudo ejecutó {consultasDelPrerender} consultas «{fragmentoSql}»: " +
-                "ha vuelto el prerender y con él la carga doble en cada navegación.");
-            Assert.True(
-                consultasDeLaNavegacion <= TechoNavegacionSinPrerender,
-                $"/{ruta}: la navegación mejorada ejecutó {consultasDeLaNavegacion} consultas «{fragmentoSql}» y el techo sin prerender " +
-                $"es {TechoNavegacionSinPrerender}: la lista se consulta más de una vez.");
-            return;
-        }
-
-        // Control positivo: el instrumento ve la consulta, y la pantalla tiene
-        // filas (una lista vacía también ejecuta la consulta, pero no
-        // demuestra que la pantalla llegó a pintar datos).
+        // Control positivo en el circuito: el instrumento ve la consulta de la navegación, y la pantalla
+        // tiene filas (una lista vacía también ejecuta la consulta, pero no demuestra que llegó a pintar datos).
         Assert.True(
-            consultasDelPrerender >= 1,
-            $"Control positivo: el prerender de /{ruta} no ejecutó ninguna consulta «{fragmentoSql}»: el instrumento no ve la lista.");
-
+            consultasDeLaNavegacion >= 1,
+            $"Control positivo: la navegación a /{ruta} no ejecutó ninguna consulta «{fragmentoSql}»: el instrumento no ve la lista.");
         Assert.True(
-            consultasDelPrerender <= TechoPrerender,
-            $"/{ruta}: el prerender solo ejecutó {consultasDelPrerender} consultas «{fragmentoSql}» y el techo medido es {TechoPrerender}: " +
-            "una pasada ejecuta la consulta de la lista más veces que la línea base.");
+            consultasDelGetCrudo <= TechoPrerender,
+            $"/{ruta} no se prerenderiza, pero el GET crudo ejecutó {consultasDelGetCrudo} consultas «{fragmentoSql}»: " +
+            "ha vuelto el prerender y con él la carga doble en cada navegación.");
         Assert.True(
             consultasDeLaNavegacion <= TechoNavegacion,
-            $"/{ruta}: la navegación mejorada ejecutó {consultasDeLaNavegacion} consultas «{fragmentoSql}» y el techo medido es {TechoNavegacion} " +
-            "(prerender + circuito): la lista se consulta más veces que la línea base.");
+            $"/{ruta}: la navegación mejorada ejecutó {consultasDeLaNavegacion} consultas «{fragmentoSql}» y el techo sin prerender " +
+            $"es {TechoNavegacion}: la lista se consulta más de una vez.");
     }
 }

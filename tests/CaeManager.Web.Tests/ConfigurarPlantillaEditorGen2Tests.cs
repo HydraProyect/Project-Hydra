@@ -294,6 +294,38 @@ public partial class ConfigurarPlantillaEditorGen2Tests : BunitContext
         cut.FindAll("[data-testid='aviso-firma-sin-firmante']").Should().BeEmpty();
     }
 
+    [Fact]
+    public async Task Anadir_campo_en_borrador_AcroForm_selecciona_la_caja_nueva_y_muestra_su_panel()
+    {
+        var cut = Renderizar(new MediatorFalso { Version = Result.Exito(Detalle(_versionId)) });
+
+        await Boton(cut, "+ Añadir campo").ClickAsync(new MouseEventArgs());
+
+        CajaDe(cut, "Nuevo campo").GetAttribute("aria-pressed").Should().Be("true");
+        cut.Markup.Should().Contain("Nombre del campo AcroForm");
+    }
+
+    /// <summary>
+    /// Defecto 2026-11-10: un comentario Razor <c>@* … *@</c> dentro de la etiqueta de la caja se emitía
+    /// como nombre de atributo, y el navegador rechazaba el lote de render (InvalidCharacterError en
+    /// <c>setAttribute</c>) al pintar una caja nueva. El DOM de bUnit lo acepta sin quejarse, así que el
+    /// test comprueba los nombres de atributo contra la gramática de XML Name que exige <c>setAttribute</c>.
+    /// </summary>
+    [Fact]
+    public async Task Ningun_elemento_del_editor_lleva_un_nombre_de_atributo_que_el_navegador_rechace()
+    {
+        var cut = Renderizar(new MediatorFalso { Version = Result.Exito(Detalle(_versionId)) });
+        await Boton(cut, "+ Añadir campo").ClickAsync(new MouseEventArgs());
+
+        var invalidos = cut.FindAll("*")
+            .SelectMany(e => e.Attributes.Select(a => a.Name))
+            .Where(n => !System.Text.RegularExpressions.Regex.IsMatch(n, @"^[A-Za-z_:][A-Za-z0-9_:.\-]*$"))
+            .Distinct()
+            .ToList();
+
+        invalidos.Should().BeEmpty("setAttribute lanza InvalidCharacterError con estos nombres y tumba el circuito");
+    }
+
     /// <summary>
     /// Decisión del 2026-09-24 (DNI residual, S4, mantener): «Trabajador — DNI» es una fuente de
     /// mapeo, no una vista del DNI de nadie. Los documentos generados que se entregan al Cliente

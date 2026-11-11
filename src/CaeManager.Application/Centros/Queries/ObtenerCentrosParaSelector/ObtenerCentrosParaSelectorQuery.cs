@@ -9,7 +9,11 @@ namespace CaeManager.Application.Centros.Queries.ObtenerCentrosParaSelector;
 public record ObtenerCentrosParaSelectorQuery(Guid? ClienteId = null, Guid? EmpresaId = null)
     : IRequest<IReadOnlyList<CentroSelectorDto>>;
 
-public record CentroSelectorDto(Guid Id, string Nombre, string ClienteRazonSocial, string EmpresaRazonSocial);
+/// <param name="ClienteId">
+/// El Cliente empresarial del Centro. Opcional en el constructor para no obligar a los
+/// llamadores que solo pintan nombres; la Query lo informa siempre.
+/// </param>
+public record CentroSelectorDto(Guid Id, string Nombre, string ClienteRazonSocial, string EmpresaRazonSocial, Guid ClienteEmpresarialId = default);
 
 public class ObtenerCentrosParaSelectorQueryHandler(ICentrosQueryContext centrosContext, IEmpresasQueryContext empresasContext, IAlcanceDatosService alcanceDatos)
     : IRequestHandler<ObtenerCentrosParaSelectorQuery, IReadOnlyList<CentroSelectorDto>>
@@ -36,7 +40,7 @@ public class ObtenerCentrosParaSelectorQueryHandler(ICentrosQueryContext centros
 
         return await consulta
             .OrderBy(x => x.cliente.RazonSocial).ThenBy(x => x.centro.Nombre)
-            .Select(x => new CentroSelectorDto(x.centro.Id, x.centro.Nombre, x.cliente.RazonSocial, x.empresa.RazonSocial))
+            .Select(x => new CentroSelectorDto(x.centro.Id, x.centro.Nombre, x.cliente.RazonSocial, x.empresa.RazonSocial, x.cliente.Id))
             .ToListAsync(cancellationToken);
     }
 }

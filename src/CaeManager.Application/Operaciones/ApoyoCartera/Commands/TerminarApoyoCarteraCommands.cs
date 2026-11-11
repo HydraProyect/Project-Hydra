@@ -46,9 +46,20 @@ public record RevocarApoyoCarteraCommand(Guid PropuestaId) : ICommand;
 /// </para>
 ///
 /// <para>
-/// <b>Autoridad</b>, leída en Identity sobre el Tenant de origen y nunca en el claim —dentro
-/// del Tenant propietario el claim es el de la cartera, y una cuenta desactivada no debe
-/// seguir escribiendo—, y decidida dentro de la transacción, ya con el candado.
+/// <b>Autoridad</b>, resuelta sobre el Tenant de origen —una cuenta desactivada no debe seguir
+/// escribiendo—. En las tres vías decide el rol efectivo de la sesión en origen e Identity lo
+/// confirma: para revocar, con <see cref="AutoridadSobreCarteraDeGestorCae.RolDeAutoridadAsync"/>;
+/// para desasignarse y retirar lo concedido, con <see cref="ContextoOperadorCae"/>, que aplica la
+/// misma regla. Se resuelve una vez antes de abrir la transacción, para fallar pronto y saber en
+/// qué Operador CAE cargar la propuesta, y <b>se vuelve a resolver dentro, ya con el candado</b>:
+/// si el rol o la activación de la cuenta cambiaron entre medias, no escribe. La jerarquía para
+/// revocar también se lee dentro. Ventana que queda, entre esa segunda lectura y el cierre de esta
+/// transacción: el único candado es el exclusivo del Gestor CAE de apoyo. Al desasignarse, quien
+/// actúa es ese Gestor CAE, y la desactivación de su cuenta, que toma el mismo exclusivo, sí se
+/// serializa; al revocar o retirar lo concedido, la desactivación de quien actúa no se serializa.
+/// Un cambio de rol no toma ningún candado de cartera, así que en ninguna vía se serializa. No se
+/// añade un candado compartido sobre quien actúa: con retiradas y revocaciones cruzadas entre dos
+/// personas formaría un ciclo con el exclusivo del apoyo (OWASP ASVS 4.0.3 V4.1.3 y V4.2.1).
 /// </para>
 ///
 /// <para>
@@ -88,7 +99,7 @@ public class TerminarApoyoCarteraCommandHandler(
         Revocar,
     }
 
-    /// <summary>Quién actúa, desde qué Operador CAE y con qué rol en él (leído en Identity).</summary>
+    /// <summary>Quién actúa, desde qué Operador CAE y con qué rol en él (lo resuelve <c>ResolverActorAsync</c>).</summary>
     private sealed record Actor(Guid UsuarioId, Guid OperadorTenantId, string Rol);
 
     public Task<Result> Handle(DesasignarmeDeApoyoCommand request, CancellationToken cancellationToken) =>
@@ -137,6 +148,12 @@ public class TerminarApoyoCarteraCommandHandler(
                         return Result.Fallo(ErroresPropuestaApoyo.ApoyoNoEncontrado);
 
                     await bloqueoCartera.BloquearExclusivoAsync(propuesta.DestinatarioUsuarioId, ct);
+
+                    // El rol y la cuenta se vuelven a leer ya dentro de la transacción: si la
+                    // cuenta se desactivó o perdió el rol desde la primera lectura, no escribe.
+                    // OWASP ASVS 4.0.3 V4.1.3 y V4.2.1.
+                    if (await ResolverActorAsync(via, ct) != actor)
+                        return Result.Fallo(ErroresPropuestaApoyo.SinPermiso);
 
                     // La jerarquía de hoy, no la de cuando se propuso.
                     if (via == Via.Revocar

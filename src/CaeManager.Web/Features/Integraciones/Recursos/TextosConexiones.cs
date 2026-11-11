@@ -1,10 +1,9 @@
 namespace CaeManager.Web.Features.Integraciones.Recursos;
 
 /// <summary>
-/// Marcador de <c>IStringLocalizer&lt;TextosConexiones&gt;</c>: los textos de la pantalla de Conexiones.
-/// <c>TextosConexiones.resx</c> es el neutral (español) y <c>TextosConexiones.ca-ES.resx</c> el catalán,
-/// con las mismas claves (<c>LocalizacionRecursosYRegistroTests</c>, Architecture.Tests). Por ahora solo
-/// cubre los textos del buzón compartido; el resto de la pantalla sigue en el trinquete de textos sin
-/// localizar.
+/// Marcador de <c>IStringLocalizer&lt;TextosConexiones&gt;</c>: los textos de la cabecera y del pie de la página de
+/// Buzones (<c>/integraciones</c>) y los del buzón compartido. <c>TextosConexiones.resx</c> es el neutral (español) y
+/// <c>TextosConexiones.ca-ES.resx</c> el catalán, con las mismas claves (<c>LocalizacionRecursosYRegistroTests</c>,
+/// Architecture.Tests). El resto de la página sigue en el recuento de <c>TextosSinLocalizarCongeladosTests</c>.
 /// </summary>
 public sealed class TextosConexiones;

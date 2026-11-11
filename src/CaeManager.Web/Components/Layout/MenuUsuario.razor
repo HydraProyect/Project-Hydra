@@ -1,10 +1,8 @@
 @using CaeManager.Web.Components.Account
 @using CaeManager.Web.Recursos
-@using CaeManager.Application.Usuarios.Queries.ObtenerAvatarPropio
-@using MediatR
 @using Microsoft.Extensions.Localization
 @inject IStringLocalizer<TextosComunes> Textos
-@inject IMediator Mediator
+@inject ContextoMarcoDelAmbito ContextoMarco
 @inject ILogger<MenuUsuario> Logger
 
 @*
@@ -68,7 +66,9 @@
     {
         try
         {
-            _avatar = await Mediator.Send(new ObtenerAvatarPropioQuery());
+            // Del contexto del marco, compartido con el resto del marco en un despacho por ámbito. Si el avatar no se
+            // pudo leer, el contexto ya viene sin él; esto cubre que falle el contexto entero.
+            _avatar = (await ContextoMarco.ObtenerAsync()).Avatar;
         }
         catch (Exception excepcion) when (excepcion is not OperationCanceledException)
         {

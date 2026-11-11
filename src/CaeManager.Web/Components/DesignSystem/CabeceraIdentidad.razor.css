@@ -2,6 +2,9 @@
 .cabecera-identidad {
     display: flex;
     align-items: center;
+    /* Con muchas acciones (Empresa 360 lleva cinco) el bloque del nombre quedaba en 250 px y el título se partía en tres líneas:
+       si no cabe con su mínimo (.cabecera-identidad-texto), las acciones pasan a su propia fila bajo el nombre. */
+    flex-wrap: wrap;
     gap: var(--space-6);
     min-width: 0;
     margin-bottom: var(--space-3);
@@ -19,7 +22,9 @@
 
 .cabecera-identidad-texto {
     flex: 1;
-    min-width: 0;
+    /* Mínimo del nombre antes de que las acciones salten de fila (min-width y no flex-basis: en columna, a ≤600 px, una base fija
+       se volvería altura; ver CabeceraIdentidadFlexBasisMovilTests). */
+    min-width: min(100%, 22rem);
 }
 
 .cabecera-identidad-kicker {
@@ -34,6 +39,13 @@
     margin: 2px 0 0;
     font: var(--font-heading-lg);
     overflow-wrap: anywhere;
+    /* Como mucho dos líneas (maqueta .tarjeta.ident): una razón social larguísima se corta con elipsis y el nombre completo
+       va en el title del h1, en vez de ocupar tres líneas de la cabecera. */
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+    line-clamp: 2;
+    overflow: hidden;
 }
 
 .cabecera-identidad-titular {
@@ -59,6 +71,8 @@
     display: flex;
     align-items: center;
     gap: var(--space-2);
+    /* Si pasan a su propia fila, a la derecha como antes de envolver. */
+    margin-left: auto;
 }
 
 /*

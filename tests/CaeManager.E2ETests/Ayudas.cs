@@ -251,6 +251,22 @@ public static class Ayudas
         await page.Locator($"[id='{idLista}'] [role=option][data-valor='{valor}']").ClickAsync();
     }
 
+    /// <summary>
+    /// Igual que <see cref="ElegirOpcionEnSelectorAvanzadoAsync"/>, pero por el texto visible: abre el combobox, escribe el
+    /// texto en su buscador (si lo tiene) para filtrar la lista y pulsa la opción cuyo texto es exactamente ese.
+    /// </summary>
+    public static async Task ElegirOpcionEnSelectorAvanzadoPorTextoAsync(IPage page, ILocator combobox, string texto)
+    {
+        var idLista = await combobox.GetAttributeAsync("aria-controls");
+        await combobox.ClickAsync();
+        // Se espera a que el panel esté pintado antes de mirar si tiene buscador: contar en seco tras el clic
+        // saltaría el filtrado si el circuito aún no ha respondido.
+        await page.Locator($"[id='{idLista}']").WaitForAsync();
+        var buscador = page.Locator($"input.csa-buscador[aria-controls='{idLista}']");
+        if (await buscador.CountAsync() > 0) await buscador.FillAsync(texto);
+        await page.Locator($"[id='{idLista}']").GetByRole(AriaRole.Option, new() { Name = texto, Exact = true }).ClickAsync();
+    }
+
     public static ILocator DisparadorSelectorTenant(IPage page) => page.Locator(".selector-tenant-disparador");
 
     public static async Task<string> TenantActivoIdAsync(IPage page) =>

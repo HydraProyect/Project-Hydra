@@ -95,6 +95,7 @@ public class VistaRecordadaE2ETests(WebAppFixtureListados fixture)
             // --- Salir por el menú escribe la vista en el acto; al volver sin parámetros, está el orden
             //     y no la búsqueda, que no se recuerda. ---
             await SalirAOtraPantallaAsync(page, placeholder);
+            await EsperarVistaRecordadaGuardadaAsync("Vehiculos", "orden", "matricula-desc");
             await Ayudas.NavegarYEsperarAsync(page, listado);
             await EsperarVistaEnLaUrlAsync(page, ("orden", "matricula-desc"));
             await CircuitoAtendiendoAsync(page, pastilla);
@@ -174,6 +175,7 @@ public class VistaRecordadaE2ETests(WebAppFixtureListados fixture)
             // --- Salir por el menú escribe la vista en el acto; al volver sin parámetros, está la
             //     agrupación y no la búsqueda, que no se recuerda: la lista vuelve a ser la entera. ---
             await SalirAOtraPantallaAsync(page, placeholder);
+            await EsperarVistaRecordadaGuardadaAsync("Centros", "agrupar", "cliente");
             await Ayudas.NavegarYEsperarAsync(page, listado);
             await EsperarVistaEnLaUrlAsync(page, ("agrupar", "cliente"));
             await Expect(buscador).ToHaveValueAsync(string.Empty);
@@ -234,6 +236,7 @@ public class VistaRecordadaE2ETests(WebAppFixtureListados fixture)
             await Ayudas.ElegirAgrupacionAsync(page, "Por Cliente", AgrupadoPorCliente);
             await EsperarVistaEnLaUrlAsync(page, ("agrupar", "cliente"));
             await SalirAOtraPantallaAsync(page, placeholder);
+            await EsperarVistaRecordadaGuardadaAsync("Centros", "agrupar", "cliente");
 
             // Control: la vista consta recordada, porque una carga en frío sin parámetros la restaura.
             await Ayudas.NavegarYEsperarAsync(page, listado);
@@ -247,6 +250,48 @@ public class VistaRecordadaE2ETests(WebAppFixtureListados fixture)
         await CircuitoAtendiendoAsync(otraPagina, pastilla);
         Assert.Empty(ParametrosDe(otraPagina.Url));
         await Expect(EnlaceRestablecer(otraPagina)).ToHaveCountAsync(0);
+    }
+
+    /// <summary>
+    /// Mismo literal que <c>FiltroGuardado.NombreVistaRecordada</c> (CaeManager.Domain), duplicado como en
+    /// <see cref="WebAppFixture"/>: este proyecto no referencia Domain.
+    /// </summary>
+    private const string NombreVistaRecordada = "__vista_recordada__";
+
+    /// <summary>
+    /// Barrera tras salir por el menú, antes de recargar el documento: la vista recordada del Gestor CAE en esa
+    /// pantalla consta en la base con ese valor. La página la escribe al salir, pero sin esperarla: la escritura
+    /// hace cola en la puerta de acceso a datos del circuito (<c>PuertaAccesoDatos</c>) detrás de lo que cargue la
+    /// pantalla de destino, y recargar el documento cierra el circuito y cancela lo que esté en cola. Medido en
+    /// el run 42906090079 (#2156): el clic en el menú y el <c>Goto</c> del test van separados por unos 100 ms, el
+    /// log de la aplicación trae «No se pudo recordar la vista de la pantalla Centros» con la puerta cerrada y
+    /// la carga en frío ya no tuvo nada que restaurar. Ni la URL ni el DOM de la pantalla de destino dicen que
+    /// la escritura terminó, así que se mira su efecto. Es el mismo guardado por el circuito que espera
+    /// <c>EncargoAdministracionE2ETests</c>: se sondea la fila con plazo, y agotarlo falla con lo último leído.
+    /// </summary>
+    private async Task EsperarVistaRecordadaGuardadaAsync(string pantalla, string parametro, string valor)
+    {
+        const string sql =
+            """
+            SELECT (count(*) > 0)::text
+            FROM "FiltrosGuardados" f
+            JOIN "AspNetUsers" u ON u."Id" = f."UsuarioId"
+            WHERE u."NormalizedEmail" = upper(@email) AND f."Nombre" = @nombre AND f."Pantalla" = @pantalla
+              AND f."ValoresJson"::jsonb ->> @parametro = @valor
+            """;
+        (string, string)[] parametros =
+            [("email", Gestor), ("nombre", NombreVistaRecordada), ("pantalla", pantalla), ("parametro", parametro), ("valor", valor)];
+
+        var limite = DateTime.UtcNow.AddSeconds(15);
+        var consta = await fixture.LeerValorSqlAsync(sql, parametros);
+        while (consta != "true" && DateTime.UtcNow < limite)
+        {
+            await Task.Delay(100);
+            consta = await fixture.LeerValorSqlAsync(sql, parametros);
+        }
+
+        Assert.True(consta == "true",
+            $"Tras salir de «{pantalla}» no llegó a constar en la base la vista recordada {parametro}={valor} (última lectura: {consta}).");
     }
 
     private static ILocator EnlaceRestablecer(IPage page) =>

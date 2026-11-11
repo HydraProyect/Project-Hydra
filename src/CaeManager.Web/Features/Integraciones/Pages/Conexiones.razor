@@ -1,5 +1,7 @@
 @page "/integraciones"
-@rendermode InteractiveServer
+@* Sin prerender (como Mi trabajo, M-23): la página carga en el ciclo de vida y no persiste su estado; con prerender
+   corría dos veces en cada visita. *@
+@rendermode @(new InteractiveServerRenderMode(prerender: false))
 @attribute [Authorize(Roles = CaeManager.Infrastructure.Identity.Roles.Administrador)]
 @inherits CaeManager.Web.Components.PaginaIntegrableConfiguracionBase
 @using CaeManager.Domain.Integraciones
@@ -7,21 +9,20 @@
 @using Microsoft.Extensions.Localization
 @inject IStringLocalizer<TextosConexiones> Textos
 
+
 <LimiteDeErrores Pagina="this">
 @if (!IntegradaEnConfiguracion)
 {
     <PageTitle>Conexiones de integración — @Marca.Nombre</PageTitle>
+    <TituloDePaginaSinPrerender Titulo="@($"Conexiones de integración — {Marca.Nombre}")" />
 }
 
 <div class="@ClaseContenedorPagina">
     <CabeceraPagina Titulo="Conexiones de integración" Integrada="@IntegradaEnConfiguracion">
         <Descripcion>
-            Buzones de Microsoft 365 conectados para la bandeja de correo compartida (Comunicaciones).
-            Cada conexión pertenece a una empresa sin rol CAE concreta, a la organización propia si se deja en blanco
-            o al buzón personal de un Gestor CAE.
+            @Textos["Subtitulo"]
             @Textos["AyudaBuzonCompartido"]
-            Para investigar una conexión en concreto —carpetas, mensajes en Graph que aún no llegaron por
-            webhook—, usa el <a href="/comunicaciones/buzon">explorador técnico del buzón (diagnóstico)</a>.
+            @Textos["EnlaceDiagnostico"] <a href="/comunicaciones/buzon">@Textos["EnlaceDiagnosticoVinculo"]</a>.
         </Descripcion>
     </CabeceraPagina>
 
@@ -141,6 +142,7 @@
                     </Contenido>
                 </TarjetaListado>
     }
+    <p class="texto-descriptivo pie-buzones">@Textos["PieBuzones"]</p>
     </section>
 
     <section class="seccion-conexiones seccion-lineas-whatsapp" aria-labelledby="titulo-lineas-whatsapp"

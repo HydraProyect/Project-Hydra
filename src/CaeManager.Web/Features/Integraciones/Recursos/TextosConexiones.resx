@@ -51,4 +51,16 @@
   <data name="ErrorAltaCompartidaEnPausa" xml:space="preserve">
     <value>Alta de buzones compartidos en pausa temporal mientras se completa la verificación; vuelve a intentarlo en unas horas.</value>
   </data>
+  <data name="Subtitulo" xml:space="preserve">
+    <value>Buzones de Microsoft 365 conectados a Comunicaciones. Cada conexión pertenece a una Empresa sin rol CAE, a la organización propia o al buzón personal de un Gestor CAE.</value>
+  </data>
+  <data name="EnlaceDiagnostico" xml:space="preserve">
+    <value>Para investigar una conexión en concreto (carpetas, mensajes en Graph que aún no llegaron por webhook), usa el</value>
+  </data>
+  <data name="EnlaceDiagnosticoVinculo" xml:space="preserve">
+    <value>explorador técnico del buzón (diagnóstico)</value>
+  </data>
+  <data name="PieBuzones" xml:space="preserve">
+    <value>El buzón personal de un Gestor CAE solo lo ve su propietario; el resto de buzones alimentan las conversaciones compartidas de Comunicaciones.</value>
+  </data>
 </root>
