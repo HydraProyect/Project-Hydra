@@ -336,12 +336,27 @@ public partial class DividirPdf : CaeManager.Web.Components.PaginaInteractiva, I
     private static Action<ChangeEventArgs> AlMarcarSinCaducidad(AsignacionTramo asignacion) =>
         e => asignacion.SinCaducidad = e.Value is true;
 
-    private void AlternarCorte(int pagina) => _division?.AlternarCorte(pagina);
+    // Durante una descarga no se tocan los cortes: la serie entrega los rangos con los que empezó.
+    private void AlternarCorte(int pagina)
+    {
+        if (_descargando)
+            return;
+        _division?.AlternarCorte(pagina);
+        _descargados = null;
+    }
 
-    private void ConfirmarPropuestas() => _division?.ConfirmarPropuestas();
+    private void ConfirmarPropuestas()
+    {
+        if (_descargando)
+            return;
+        _division?.ConfirmarPropuestas();
+        _descargados = null;
+    }
 
     private void IrAAsignar()
     {
+        if (_descargando)
+            return;
         _indiceTramo = 0;
         _error = null;
         _paso = PasoAsistente.Asignar;
@@ -438,9 +453,10 @@ public partial class DividirPdf : CaeManager.Web.Components.PaginaInteractiva, I
     private static readonly TimeSpan PlazoDescarga = TimeSpan.FromMinutes(1);
 
     /// <summary>
-    /// La salida «Descargar»: cada tramo, en orden, como un PDF aparte, sin crear ningún Documento. La reserva cubre el
-    /// original leído y el tramo en curso, que nunca son más de uno a la vez: cada uno se suelta al entregarlo. Un tramo
-    /// que falla corta la serie y se dice cuál, para no dejar a medias una descarga que parezca completa.
+    /// La salida «Descargar»: cada tramo, en orden, como un PDF aparte, sin crear ningún Documento. Por tramo hay dos
+    /// reservas sucesivas, nunca a la vez: el doble del original mientras se lee y se extrae (el original y lo que PDFsharp
+    /// construye con él), y solo el tramo mientras el navegador lo recibe, así que la espera del navegador no retiene el
+    /// original. Un tramo que falla corta la serie y se dice cuál, para no dejar a medias una descarga que parezca completa.
     /// </summary>
     private async Task DescargarTramosAsync()
     {
@@ -452,31 +468,49 @@ public partial class DividirPdf : CaeManager.Web.Components.PaginaInteractiva, I
         var nombre = _nombreOriginal;
         var token = _ciclo.Token;
         var entregados = 0;
+        RangoPaginas? enCurso = null;
         _descargando = true;
         _descargados = null;
         _error = null;
         try
         {
-            using (await PresupuestoMemoria.ReservarAsync(original.TamanoBytes * 2, token))
+            foreach (var rango in rangos)
             {
-                var contenido = await almacen.LeerAsync(original, token);
-                foreach (var rango in rangos)
+                enCurso = rango;
+                Result<TramoPdfExtraido> tramo;
+                using (await PresupuestoMemoria.ReservarAsync(original.TamanoBytes * 2, token))
                 {
-                    var tramo = await Mediator.Send(
+                    var contenido = await almacen.LeerAsync(original, token);
+                    tramo = await Mediator.Send(
                         new ExtraerTramoPdfQuery(contenido, nombre, empresaId, rango.Inicial, rango.Final), token);
-                    if (tramo.EsFallido || !await EntregarTramoAsync(tramo.Valor, token))
-                    {
-                        _error = Textos["ErrorDescargaTramo", rango.Inicial, rango.Final];
-                        break;
-                    }
-
-                    entregados++;
                 }
+
+                if (tramo.EsFallido)
+                    break;
+
+                using (await PresupuestoMemoria.ReservarAsync(tramo.Valor.Contenido.Length, token))
+                {
+                    if (!await EntregarTramoAsync(tramo.Valor, token))
+                        break;
+                }
+
+                entregados++;
+                enCurso = null;
             }
+
+            if (enCurso is { } fallido)
+                _error = Textos["ErrorDescargaTramo", fallido.Inicial, fallido.Final];
         }
         catch (PresupuestoMemoriaAgotadoException)
         {
             _error = Textos["ErrorSinEspacio"];
+        }
+        catch (IOException ex)
+        {
+            // El temporal del original ha desaparecido o el disco ha fallado: se dice qué tramo no salió.
+            Logger.LogWarning(ex, "Dividir PDF no pudo leer el original para descargar un tramo");
+            if (enCurso is { } fallido)
+                _error = Textos["ErrorDescargaTramo", fallido.Inicial, fallido.Final];
         }
         catch (OperationCanceledException) when (token.IsCancellationRequested)
         {
@@ -485,7 +519,8 @@ public partial class DividirPdf : CaeManager.Web.Components.PaginaInteractiva, I
         finally
         {
             _descargando = false;
-            _descargados = entregados > 0 ? entregados : null;
+            // Si a mitad se cambió de PDF, el recuento ya no describe lo que hay en pantalla.
+            _descargados = entregados > 0 && ReferenceEquals(_division, division) ? entregados : null;
         }
     }
 
@@ -523,6 +558,8 @@ public partial class DividirPdf : CaeManager.Web.Components.PaginaInteractiva, I
 
     private Task ReiniciarAsync()
     {
+        if (_descargando)
+            return Task.CompletedTask;
         RetirarOriginal();
         _division = null;
         _miniaturas.Clear();

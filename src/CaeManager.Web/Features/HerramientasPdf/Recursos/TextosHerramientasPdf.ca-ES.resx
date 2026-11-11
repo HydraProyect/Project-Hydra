@@ -22,7 +22,7 @@
     <value>Dividir un PDF amb diversos documents</value>
   </data>
   <data name="PortadaDividirDescripcion" xml:space="preserve">
-    <value>TALVEG proposa on comença cada document i de qui és. Els deses a TALVEG, després de revisar-ho tot, o els baixes per separat.</value>
+    <value>TALVEG proposa on comença cada document i de qui és. Els deses a TALVEG, després de revisar-ho tot, o els descarregues per separat.</value>
   </data>
   <data name="PortadaDividirAccion" xml:space="preserve">
     <value>Divideix un PDF</value>
@@ -43,7 +43,7 @@
     <value>Tria el PDF amb diversos documents</value>
   </data>
   <data name="SubirDescripcion" xml:space="preserve">
-    <value>TALVEG proposa on comença cada document i de qui és. Els deses a TALVEG, després de revisar-ho tot, o els baixes per separat.</value>
+    <value>TALVEG proposa on comença cada document i de qui és. Els deses a TALVEG, després de revisar-ho tot, o els descarregues per separat.</value>
   </data>
   <data name="SubirPie" xml:space="preserve">
     <value>L'original no es conserva: desapareix en crear els documents o en sortir d'aquesta pantalla.</value>
@@ -722,18 +722,18 @@
     <value>El PDF està llest, però el navegador no l'ha pogut descarregar. Torna-ho a provar.</value>
   </data>
   <data name="SalidaDividir" xml:space="preserve">
-    <value>Tria què vols fer: desar a TALVEG, indicant de qui és i què és cada document, o baixar cada document com un PDF a part, sense desar res.</value>
+    <value>Tria què vols fer: desar a TALVEG, indicant de qui és i què és cada document, o descarregar cada document com un PDF a part, sense desar res.</value>
   </data>
   <data name="DescargarUno" xml:space="preserve">
-    <value>Baixa el PDF</value>
+    <value>Descarrega el PDF</value>
   </data>
   <data name="DescargarVarios" xml:space="preserve">
-    <value>Baixa {0} PDF</value>
+    <value>Descarrega {0} PDF</value>
   </data>
   <data name="DescargadosResultado" xml:space="preserve">
-    <value>PDF baixats: {0}. No s&apos;ha desat res a TALVEG.</value>
+    <value>PDF enviats al navegador: {0}. No s&apos;ha desat res a TALVEG. Si el navegador demana permís per descarregar diversos arxius, accepta&apos;l.</value>
   </data>
   <data name="ErrorDescargaTramo" xml:space="preserve">
-    <value>No s&apos;han pogut baixar les pàgines {0} a {1}, ni les següents. Torna-ho a provar.</value>
+    <value>No s&apos;han pogut descarregar les pàgines {0} a {1}, ni les següents. Torna-ho a provar.</value>
   </data>
 </root>

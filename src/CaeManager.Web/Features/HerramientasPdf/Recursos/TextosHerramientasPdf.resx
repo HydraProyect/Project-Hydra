@@ -731,7 +731,7 @@
     <value>Descargar {0} PDF</value>
   </data>
   <data name="DescargadosResultado" xml:space="preserve">
-    <value>PDF descargados: {0}. No se ha guardado nada en TALVEG.</value>
+    <value>PDF enviados al navegador: {0}. No se ha guardado nada en TALVEG. Si el navegador pide permiso para descargar varios archivos, acéptalo.</value>
   </data>
   <data name="ErrorDescargaTramo" xml:space="preserve">
     <value>No se han podido descargar las páginas {0} a {1}, ni las siguientes. Inténtalo de nuevo.</value>

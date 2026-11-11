@@ -55,6 +55,8 @@ public sealed class DividirPdfPantallaTests : BunitContext
         Catalogo);
 
     private readonly MediadorFalso _mediador = new();
+    private readonly PresupuestoMemoriaDocumentos _presupuesto = new(
+        Options.Create(new OpcionesPresupuestoMemoriaDocumentos()), TimeProvider.System);
 
     public DividirPdfPantallaTests() => JSInterop.Mode = JSRuntimeMode.Loose;
 
@@ -163,8 +165,7 @@ public sealed class DividirPdfPantallaTests : BunitContext
         {
             DirectorioTemporal = Path.Combine(Path.GetTempPath(), "talveg-dividir-pdf-tests"),
         })));
-        Services.AddSingleton<IPresupuestoMemoriaDocumentos>(new PresupuestoMemoriaDocumentos(
-            Options.Create(new OpcionesPresupuestoMemoriaDocumentos()), TimeProvider.System));
+        Services.AddSingleton<IPresupuestoMemoriaDocumentos>(_presupuesto);
         Services.TryAddSingleton(TimeProvider.System);
 
         return Render<DividirPdf>();
@@ -191,12 +192,33 @@ public sealed class DividirPdfPantallaTests : BunitContext
 
         Pulsar(cut, "Descargar 3 PDF");
 
-        cut.WaitForAssertion(() => cut.Find(".salida-descargada").TextContent.Should().Contain("PDF descargados: 3. No se ha guardado nada en TALVEG."));
+        cut.WaitForAssertion(() => cut.Find(".salida-descargada").TextContent.Should().Contain("PDF enviados al navegador: 3. No se ha guardado nada en TALVEG."));
         _mediador.Extracciones.Select(e => (e.PaginaInicial, e.PaginaFinal)).Should().Equal((1, 2), (3, 3), (4, 4));
         _mediador.Extracciones.Should().OnlyContain(e => e.EmpresaGestionadaId == EmpresaId && e.NombreOriginal == "paquete.pdf");
         descarga.Invocations.Select(i => i.Arguments[0]).Should().Equal("paquete-pag-1-2.pdf", "paquete-pag-3-3.pdf", "paquete-pag-4-4.pdf");
         _mediador.Creaciones.Should().BeEmpty("descargar no guarda nada en TALVEG");
         cut.FindAll("button").Should().Contain(b => b.TextContent.Trim() == "Guardar en TALVEG", "después de descargar se puede seguir guardando");
+        _presupuesto.Reservado.Should().Be(0, "cada reserva se suelta al entregar su tramo");
+    }
+
+    [Fact]
+    public async Task Si_la_pantalla_se_desecha_durante_la_descarga_la_reserva_se_devuelve()
+    {
+        var descarga = JSInterop.SetupModule("./js/descarga-pdf-unido.js");
+        var pendiente = descarga.SetupVoid("descargarPdf", _ => true);
+        var cut = Renderizar();
+        await SubirAsync(cut);
+
+        Pulsar(cut, "Descargar 3 PDF");
+        cut.WaitForAssertion(() => pendiente.Invocations.Should().ContainSingle());
+        _presupuesto.Reservado.Should().BeGreaterThan(0, "el tramo en curso tiene su reserva mientras el navegador lo recibe");
+
+        await DisposeComponentsAsync();
+
+        var plazo = DateTime.UtcNow.AddSeconds(5);
+        while (_presupuesto.Reservado > 0 && DateTime.UtcNow < plazo)
+            await Task.Delay(20);
+        _presupuesto.Reservado.Should().Be(0, "la descarga se corta con la pantalla y nadie más devolvería la reserva");
     }
 
     [Fact]
@@ -213,7 +235,7 @@ public sealed class DividirPdfPantallaTests : BunitContext
         cut.WaitForAssertion(() => cut.Find(".aviso-error").TextContent.Should().Contain("No se han podido descargar las páginas 3 a 3, ni las siguientes."));
         _mediador.Extracciones.Select(e => e.PaginaInicial).Should().Equal(1, 3);
         descarga.Invocations.Should().ContainSingle();
-        cut.Find(".salida-descargada").TextContent.Should().Contain("PDF descargados: 1.");
+        cut.Find(".salida-descargada").TextContent.Should().Contain("PDF enviados al navegador: 1.");
     }
 
     [Fact]
@@ -229,6 +251,7 @@ public sealed class DividirPdfPantallaTests : BunitContext
         cut.WaitForAssertion(() => cut.Find(".aviso-error").TextContent.Should().Contain("No se han podido descargar las páginas 1 a 2"));
         cut.FindAll(".salida-descargada").Should().BeEmpty();
         _mediador.Creaciones.Should().BeEmpty();
+        _presupuesto.Reservado.Should().Be(0, "un fallo del navegador también suelta la reserva");
     }
 
     [Fact]
