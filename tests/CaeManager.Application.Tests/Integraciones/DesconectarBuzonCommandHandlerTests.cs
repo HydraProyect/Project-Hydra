@@ -226,6 +226,89 @@ public class DesconectarBuzonCommandHandlerTests
         conexion.HuecoPendienteDesdeUtc.Should().Be(expiracion);
     }
 
+    /// <summary>
+    /// Medio del revisor-puente (ronda 13): con la suscripción ya expirada, Graph responde 404 al DELETE y el cliente lo
+    /// cuenta como borrado con éxito. La pérdida entre la expiración y la desconexión se marca igual, en la expiración, y
+    /// llega a la base antes de pedir el token y de borrar.
+    /// </summary>
+    [Fact]
+    public async Task Con_la_suscripcion_ya_expirada_y_un_borrado_con_exito_la_marca_se_guarda_en_su_expiracion_antes_de_Graph()
+    {
+        var expiracion = DateTime.UtcNow.AddHours(-3);
+        var conexion = ConexionIntegracion.CrearBuzonCompartido(
+            "cae@operador.test", "Buzón CAE", "11111111-2222-3333-4444-555555555555", Guid.NewGuid());
+        conexion.FijarIdentidadBuzon("inbox-cae");
+        conexion.MarcarIdentidadVerificada(DateTime.UtcNow.AddHours(-1));
+        var conexiones = new ConexionIntegracionRepositorioFalso();
+        conexiones.Agregar(conexion);
+        var suscripciones = new SuscripcionWebhookRepositorioFalso();
+        suscripciones.Agregar(new SuscripcionWebhook(conexion.Id, "sub-1", "estado", expiracion));
+
+        // El cliente de Graph cuenta el 404 de una suscripción ya expirada como borrado con éxito.
+        var graph = new Microsoft365GraphClientFalso();
+        var unitOfWork = new UnitOfWorkFalso();
+        var marcasGuardadas = new List<DateTime?>();
+        unitOfWork.AlGuardar = () => marcasGuardadas.Add(conexion.HuecoPendienteDesdeUtc);
+        var guardadasAlPedirToken = -1;
+        graph.AlObtenerTokenAplicacion = () => guardadasAlPedirToken = marcasGuardadas.Count;
+        var guardadasAlBorrar = -1;
+        graph.AlEliminarSuscripcion = () => guardadasAlBorrar = marcasGuardadas.Count;
+        var handler = CrearHandler(conexiones, suscripciones, new ReclamacionBuzonIntegracionRepositorioFalso(), new AlcanceDatosServiceFalso(),
+            graph, new CredencialIntegracionRepositorioFalso(), unitOfWork);
+
+        var resultado = await handler.Handle(new DesconectarBuzonCommand(conexion.Id), CancellationToken.None);
+
+        resultado.EsExitoso.Should().BeTrue();
+        graph.SuscripcionesEliminadas.Should().Equal(["sub-1"]);
+        guardadasAlPedirToken.Should().Be(1, "la marca ya estaba guardada cuando se pidió el token");
+        guardadasAlBorrar.Should().Be(2, "la marca y la desconexión, antes del DELETE");
+        marcasGuardadas[0].Should().Be(expiracion);
+        unitOfWork.TokensDeGuardado[0].Should().Be(CancellationToken.None);
+        conexion.Estado.Should().Be(EstadoConexionIntegracion.Deshabilitada);
+        conexion.HuecoPendienteDesdeUtc.Should().Be(expiracion, "un borrado con éxito no la borra ni la adelanta");
+    }
+
+    /// <summary>
+    /// La suscripción expira mientras se pide el token: la regla se vuelve a aplicar sobre la conexión aún sin
+    /// deshabilitar y la marca viaja en el guardado de la desconexión, antes del DELETE.
+    /// </summary>
+    [Fact]
+    public async Task Una_suscripcion_que_expira_mientras_se_pide_el_token_se_marca_en_el_guardado_de_la_desconexion()
+    {
+        var expiracion = DateTime.UtcNow.AddSeconds(1);
+        var conexion = ConexionIntegracion.CrearBuzonCompartido(
+            "cae@operador.test", "Buzón CAE", "11111111-2222-3333-4444-555555555555", Guid.NewGuid());
+        conexion.FijarIdentidadBuzon("inbox-cae");
+        conexion.MarcarIdentidadVerificada(DateTime.UtcNow.AddHours(-1));
+        var conexiones = new ConexionIntegracionRepositorioFalso();
+        conexiones.Agregar(conexion);
+        var suscripciones = new SuscripcionWebhookRepositorioFalso();
+        suscripciones.Agregar(new SuscripcionWebhook(conexion.Id, "sub-1", "estado", expiracion));
+        var graph = new Microsoft365GraphClientFalso();
+        var unitOfWork = new UnitOfWorkFalso();
+        var marcasGuardadas = new List<DateTime?>();
+        unitOfWork.AlGuardar = () => marcasGuardadas.Add(conexion.HuecoPendienteDesdeUtc);
+        var guardadasAlPedirToken = -1;
+        graph.AlObtenerTokenAplicacion = () =>
+        {
+            guardadasAlPedirToken = marcasGuardadas.Count;
+            while (DateTime.UtcNow <= expiracion)
+                Thread.Sleep(10);
+        };
+        var guardadasAlBorrar = -1;
+        graph.AlEliminarSuscripcion = () => guardadasAlBorrar = marcasGuardadas.Count;
+        var handler = CrearHandler(conexiones, suscripciones, new ReclamacionBuzonIntegracionRepositorioFalso(), new AlcanceDatosServiceFalso(),
+            graph, new CredencialIntegracionRepositorioFalso(), unitOfWork);
+
+        var resultado = await handler.Handle(new DesconectarBuzonCommand(conexion.Id), CancellationToken.None);
+
+        resultado.EsExitoso.Should().BeTrue();
+        guardadasAlPedirToken.Should().Be(0, "control: al pedir el token aún no había expirado y no había nada que guardar");
+        guardadasAlBorrar.Should().Be(1, "solo la desconexión, que ya lleva la marca");
+        marcasGuardadas[0].Should().Be(expiracion);
+        conexion.Estado.Should().Be(EstadoConexionIntegracion.Deshabilitada);
+    }
+
     /// <summary>Bajo B5 del revisor-puente (ronda 13): la visibilidad se vuelve a comprobar con el estado releído en el cerrojo.</summary>
     [Fact]
     public async Task La_visibilidad_se_vuelve_a_comprobar_dentro_del_cerrojo()

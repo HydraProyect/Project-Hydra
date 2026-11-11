@@ -350,6 +350,65 @@ public class RenovacionSuscripcionesWebhookServiceTests
         escenario.UnitOfWork.VecesGuardado.Should().Be(2, "la marca previa y la observación");
     }
 
+    // Ronda 14: los medios de la ronda 13 que quedaron declarados como huecos en #2124.
+
+    /// <summary>
+    /// Codex, ronda 13, medio 1: la consulta del lote deja rastreada la suscripción y Reactivar la sustituye (mismo
+    /// registro, otro identificador de Graph) antes de que el ciclo llegue a ella. La renovación lee la de la base: no
+    /// pide el PATCH del identificador antiguo, y su 404 no pone en ConError la conexión recién rehabilitada.
+    /// </summary>
+    [Fact]
+    public async Task Una_suscripcion_sustituida_tras_cargar_el_lote_se_renueva_la_nueva_y_no_pone_ConError()
+    {
+        var escenario = new Escenario();
+        escenario.Suscripciones.SimularRastreo = true;
+        var (conexion, _) = escenario.Agregar("a@operador.test", "sub-vieja", DateTime.UtcNow.AddHours(2));
+        escenario.Graph.ErroresRenovacion["sub-vieja"] = FalloDefinitivo;
+        escenario.Suscripciones.AlListarProximasAExpirar = () =>
+            escenario.Suscripciones.SustituirEnBase(conexion.Id, "sub-nueva", DateTime.UtcNow.AddHours(20));
+
+        await escenario.Servicio().RenovarProximasAExpirarAsync(Ventana, CancellationToken.None);
+
+        escenario.Graph.SuscripcionesRenovadas.Should().Equal(["sub-nueva"]);
+        conexion.Estado.Should().Be(EstadoConexionIntegracion.Habilitada);
+        conexion.UltimoError.Should().BeNull();
+        conexion.HuecoPendienteDesdeUtc.Should().BeNull();
+        escenario.Suscripciones.Suscripciones.Single().FechaExpiracionUtc.Should().BeAfter(DateTime.UtcNow.AddDays(2));
+    }
+
+    /// <summary>
+    /// Codex, ronda 13, medio 2: la suscripción expira mientras se pide el token. La regla se vuelve a aplicar y a guardar
+    /// justo antes del PATCH, así que la llamada de renovación ya no sale con una pérdida sin su marca en la base.
+    /// </summary>
+    [Fact]
+    public async Task Una_suscripcion_que_expira_mientras_se_pide_el_token_guarda_la_marca_antes_del_PATCH()
+    {
+        var escenario = new Escenario();
+        var expiracion = DateTime.UtcNow.AddSeconds(1);
+        var (conexion, _) = escenario.Agregar("a@operador.test", "sub-a", expiracion);
+        escenario.Graph.ErroresRenovacion["sub-a"] = Error.Crear(CodigosErrorMicrosoft365.Transitorio, "503");
+        var marcasGuardadas = new List<DateTime?>();
+        escenario.UnitOfWork.AlGuardar = () => marcasGuardadas.Add(conexion.HuecoPendienteDesdeUtc);
+        var guardadasAlPedirToken = -1;
+        escenario.Graph.AlObtenerTokenAplicacion = () =>
+        {
+            guardadasAlPedirToken = marcasGuardadas.Count;
+            while (DateTime.UtcNow <= expiracion)
+                Thread.Sleep(10);
+        };
+        var guardadasAlRenovar = -1;
+        escenario.Graph.AlRenovarSuscripcion = _ => guardadasAlRenovar = marcasGuardadas.Count;
+
+        await escenario.Servicio().RenovarProximasAExpirarAsync(Ventana, CancellationToken.None);
+
+        guardadasAlPedirToken.Should().Be(0, "control: al pedir el token aún no había expirado y no había nada que guardar");
+        guardadasAlRenovar.Should().Be(1, "la marca ya estaba guardada cuando salió el PATCH");
+        marcasGuardadas[0].Should().Be(expiracion);
+        escenario.UnitOfWork.TokensDeGuardado[0].Should().Be(CancellationToken.None);
+        conexion.HuecoPendienteDesdeUtc.Should().Be(expiracion);
+        conexion.Estado.Should().Be(EstadoConexionIntegracion.Habilitada, "un fallo transitorio no pasa a ConError");
+    }
+
     [Fact]
     public async Task Una_conexion_Deshabilitada_no_se_renueva_ni_se_marca()
     {

@@ -38,9 +38,19 @@ public class SuscripcionWebhookRepositorioFalso : ISuscripcionWebhookRepository
         return nueva;
     }
 
-    public Task<IReadOnlyList<SuscripcionWebhook>> ObtenerProximasAExpirarAsync(TimeSpan dentroDe, CancellationToken cancellationToken = default) =>
-        Task.FromResult<IReadOnlyList<SuscripcionWebhook>>(
-            Suscripciones.Where(s => s.FechaExpiracionUtc <= DateTime.UtcNow.Add(dentroDe)).ToList());
+    /// <summary>Como la consulta de EF, deja rastreadas (con <see cref="SimularRastreo"/>) las suscripciones del lote.</summary>
+    public Task<IReadOnlyList<SuscripcionWebhook>> ObtenerProximasAExpirarAsync(TimeSpan dentroDe, CancellationToken cancellationToken = default)
+    {
+        var lote = Suscripciones.Where(s => s.FechaExpiracionUtc <= DateTime.UtcNow.Add(dentroDe)).ToList();
+        foreach (var suscripcion in lote)
+            Rastrear(suscripcion);
+
+        AlListarProximasAExpirar?.Invoke();
+        return Task.FromResult<IReadOnlyList<SuscripcionWebhook>>(lote);
+    }
+
+    /// <summary>Se invoca tras cargar el lote: otra operación escribe en la «base» antes de que se procese.</summary>
+    public Action? AlListarProximasAExpirar { get; set; }
 
     public void Agregar(SuscripcionWebhook suscripcion) => Suscripciones.Add(suscripcion);
 }

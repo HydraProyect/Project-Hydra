@@ -54,10 +54,14 @@ public class Microsoft365GraphClientFalso : IMicrosoft365GraphClient
     public Task<Result<TokenAplicacionGraphDto>> ObtenerTokenAplicacionAsync(string directorioId, CancellationToken cancellationToken)
     {
         DirectoriosConTokenDeAplicacion.Add(directorioId);
+        AlObtenerTokenAplicacion?.Invoke();
         return Task.FromResult(FallaTokenAplicacion
             ? Result.Fallo<TokenAplicacionGraphDto>(Error.Crear("Integraciones.Microsoft365.PermisoSinAcotar", "fallo simulado"))
             : Result.Exito(new TokenAplicacionGraphDto("token-aplicacion-falso", DateTime.UtcNow.AddHours(1))));
     }
+
+    /// <summary>Se invoca al pedir el token de aplicación, antes de responder: simula lo que pasa mientras se pide.</summary>
+    public Action? AlObtenerTokenAplicacion { get; set; }
 
     /// <summary>El directorio no da token de aplicación (sin consentimiento o con permiso de correo sin acotar).</summary>
     public bool FallaTokenAplicacion { get; set; }

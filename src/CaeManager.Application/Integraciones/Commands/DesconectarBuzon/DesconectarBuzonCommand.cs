@@ -125,11 +125,32 @@ public class DesconectarBuzonCommandHandler(
         var graphSubscriptionId = suscripcion?.GraphSubscriptionId;
         var expiracionSuscripcionUtc = suscripcion?.FechaExpiracionUtc;
 
-        // El token se pide antes del primer guardado: AccesoGraphService no guarda, y el refresh token que rote viaja
-        // en ese guardado.
+        // Regla conservadora del hueco sobre la suscripción observada, guardada antes de cualquier llamada externa (el
+        // token incluido): si ya expiró o la conexión no está Habilitada, el correo dejó de entrar antes de desconectar,
+        // y eso no depende de lo que responda el DELETE. Un 404 cuenta como borrado confirmado (la suscripción expirada
+        // ya no existe en Graph), así que sin esto la pérdida entre la expiración y la desconexión no se declaraba
+        // (revisor-puente, ronda 13, hallazgo medio). Con la conexión Habilitada y la suscripción vigente no guarda nada.
+        // Si choca y recarga, se sigue con la versión recargada; agotados los intentos, la excepción sale sin llamar a
+        // nada externo ni deshabilitar, como en la renovación.
+        if (graphSubscriptionId is not null)
+        {
+            if (await RegistrarMarcaAsync(conexion, expiracionSuscripcionUtc, DateTime.UtcNow, lanzarSiSeAgota: true, CancellationToken.None)
+                is not { } conMarca)
+                return Result.Fallo(Error.Crear("ConexionIntegracion.NoEncontrada", "No encontramos esta conexión."));
+
+            conexion = conMarca;
+        }
+
+        // El token se pide antes del guardado de la desconexión: AccesoGraphService no guarda, y el refresh token que
+        // rote viaja en ese guardado.
         var accessTokenResultado = graphSubscriptionId is null
             ? null
             : await accesoGraph.ObtenerAccessTokenVigenteAsync(conexion, cancellationToken);
+
+        // La suscripción pudo expirar mientras se pedía el token: la regla se vuelve a aplicar sobre la conexión aún sin
+        // deshabilitar y viaja en el mismo guardado de la desconexión, antes del DELETE.
+        if (graphSubscriptionId is not null)
+            conexion.RegistrarHuecoAlObservarSuscripcion(expiracionSuscripcionUtc, DateTime.UtcNow);
 
         // Primero se guarda la desconexión y después se borra en Graph: si el borrado fuera primero y el guardado
         // fallase, la conexión seguiría Habilitada sin suscripción y sin aviso. Deshabilitada nunca pasa a ConError.
@@ -157,7 +178,9 @@ public class DesconectarBuzonCommandHandler(
         // Best-effort: si Graph no responde, la suscripción expira sola en unos días (la renovación deja de renovarla
         // porque la conexión está deshabilitada) y no bloquea la desconexión, que ya está guardada. Un borrado fallido o
         // de resultado incierto (error, tiempo agotado, excepción, cancelación) deja siempre la marca del hueco en el
-        // momento del borrado: desde ahí el correo de este buzón no entra.
+        // momento del borrado: desde ahí el correo de este buzón no entra. Un borrado con éxito (también el 404 de una
+        // suscripción ya expirada) no añade nada: la pérdida anterior ya quedó marcada antes del token o, si la expiración cayó mientras se pedía, en el guardado de
+        // la desconexión.
         string? motivoFallo;
         try
         {
@@ -187,7 +210,7 @@ public class DesconectarBuzonCommandHandler(
         // Deshabilitada y su reclamación liberada.
         try
         {
-            await RegistrarMarcaAsync(conexion, expiracionSuscripcionUtc, DateTime.UtcNow, CancellationToken.None);
+            await RegistrarMarcaAsync(conexion, expiracionSuscripcionUtc, DateTime.UtcNow, lanzarSiSeAgota: false, CancellationToken.None);
         }
         catch (Exception ex)
         {
@@ -211,25 +234,32 @@ public class DesconectarBuzonCommandHandler(
     }
 
     /// <summary>
-    /// Disparador (b) en el momento del borrado fallido, con la regla conservadora sobre la conexión ya Deshabilitada:
-    /// min(marca, expiración de la suscripción que no se pudo borrar, ahora). Si el guardado choca por concurrencia (la
-    /// ingesta escribió la conexión entre los dos guardados), se descarta lo pendiente, se recarga la conexión y se
+    /// Regla conservadora (<see cref="ConexionIntegracion.RegistrarHuecoAlObservarSuscripcion"/>) sobre la suscripción
+    /// observada, en dos momentos: antes de cualquier llamada externa, con la conexión aún sin deshabilitar (marca si la
+    /// suscripción ya expiró o la conexión no está Habilitada), y tras un borrado fallido, con la conexión ya Deshabilitada
+    /// (disparador b: min(marca, expiración de la suscripción que no se pudo borrar, ahora)). Si el guardado choca por
+    /// concurrencia (la ingesta escribió la conexión entretanto), se descarta lo pendiente, se recarga la conexión y se
     /// vuelve a poner la marca, hasta <see cref="IntentosGuardadoMarca"/> guardados: no se cuenta con que otra
     /// notificación la reponga. La marca solo retrocede, así que reaplicarla sobre la versión recargada es idempotente.
     /// </summary>
-    private async Task RegistrarMarcaAsync(
-        ConexionIntegracion conexion, DateTime? expiracionSuscripcionUtc, DateTime ahoraUtc, CancellationToken cancellationToken)
+    /// <param name="lanzarSiSeAgota">Antes de Graph, true: agotados los intentos la colisión sale y no se llama a nada
+    /// externo sin la marca guardada. Tras el borrado fallido, false: se registra y no tapa la desconexión ya guardada.</param>
+    /// <returns>La conexión con la que seguir (la recargada si hubo colisión), o null si al recargar ya no existe o si,
+    /// sin lanzar, se agotaron los intentos.</returns>
+    private async Task<ConexionIntegracion?> RegistrarMarcaAsync(
+        ConexionIntegracion conexion, DateTime? expiracionSuscripcionUtc, DateTime ahoraUtc, bool lanzarSiSeAgota,
+        CancellationToken cancellationToken)
     {
         var actual = conexion;
         for (var intento = 1; ; intento++)
         {
             if (!actual.RegistrarHuecoAlObservarSuscripcion(expiracionSuscripcionUtc, ahoraUtc))
-                return;
+                return actual;
 
             try
             {
                 await unitOfWork.SaveChangesAsync(cancellationToken);
-                return;
+                return actual;
             }
             catch (DbUpdateConcurrencyException ex)
             {
@@ -237,16 +267,19 @@ public class DesconectarBuzonCommandHandler(
                 if (intento >= IntentosGuardadoMarca)
                 {
                     logger.LogError(
-                        ex, "No se pudo guardar la marca de hueco de {ConexionId} tras desconectar: {Intentos} colisiones seguidas.",
+                        ex, "No se pudo guardar la marca de hueco de {ConexionId} al desconectar: {Intentos} colisiones seguidas.",
                         conexion.Id, intento);
-                    return;
+                    if (lanzarSiSeAgota)
+                        throw;
+
+                    return null;
                 }
 
                 logger.LogWarning(
                     "Colisión de concurrencia al guardar la marca de hueco de {ConexionId} (intento {Intento}): se recarga y se vuelve a poner.",
                     conexion.Id, intento);
                 if (await conexionRepositorio.ObtenerActualPorIdAsync(conexion.Id, cancellationToken) is not { } recargada)
-                    return;
+                    return null;
 
                 actual = recargada;
             }
