@@ -15,7 +15,8 @@ namespace CaeManager.Application.Tests.HerramientasPdf;
 /// <summary>
 /// La salida «Descargar» de Dividir: extrae un tramo del PDF subido sin crear nada, y solo con Herramientas PDF
 /// disponible, el Tenant del inicio de la pantalla y una Empresa propia de ese Tenant dentro del alcance de gestión,
-/// igual que guardar la división. Ninguna negativa llega a abrir el PDF.
+/// igual que guardar la división. Ninguna negativa previa llega a abrir el PDF, y las mismas comprobaciones repetidas
+/// tras la extracción impiden entregar el tramo si el acceso cambió mientras tanto.
 /// </summary>
 public class ExtraerTramoPdfQueryHandlerTests
 {
