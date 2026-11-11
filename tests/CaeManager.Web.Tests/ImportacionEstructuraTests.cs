@@ -985,11 +985,14 @@ public class ImportacionEstructuraTests : BunitContext
     }
 
     [Theory]
-    [InlineData("87.654.321-X", "X-1234567-L")]
-    [InlineData("87 654 321 X", "X 1234567 L")]
-    [InlineData("87-654-321-X", "Y.1.234.567/L")]
-    [InlineData("87654321 - X", "x-1.234.567-l")]
-    public async Task Descargas_ElDniConSeparadoresEscritoEnTextoLibreTambienSaleEnmascaradoEnLosCuatroCsv(string dni, string nie)
+    [InlineData("87.654.321-X", "X-1234567-L", "****321X", "654")]
+    [InlineData("87 654 321 X", "X 1234567 L", "****321X", "654")]
+    [InlineData("87-654-321-X", "Y.1.234.567/L", "****321X", "654")]
+    [InlineData("87654321 - X", "x-1.234.567-l", "****321X", "654")]
+    [InlineData("7.654.321-K", "X-1234567-L", "****321K", "654")]
+    [InlineData("87-65-4321-X", "X-1234567-L", "****321X", "87-65")]
+    [InlineData("87.654.321\u2013X", "X\n1234567\nL", "****321X", "654")]
+    public async Task Descargas_ElDniConSeparadoresEscritoEnTextoLibreTambienSaleEnmascaradoEnLosCuatroCsv(string dni, string nie, string mascaraDni, string huella)
     {
         // Revisión Codex de la PR #2164, r5, MEDIO: «12.345.678-Z» o «12 345 678 Z» en Observaciones salía completo.
         // Decisión de Chris del 2026-11-11: el DNI va SIEMPRE enmascarado en el CSV, sea cual sea su forma de escribirlo.
@@ -1016,8 +1019,8 @@ public class ImportacionEstructuraTests : BunitContext
         csvs.Should().HaveCount(4, "errores, filas omitidas de la vista previa, valores previos e informe completo");
         foreach (var csv in csvs)
         {
-            csv.Should().Contain("****321X").And.Contain("****567", "el DNI y el NIE salen enmascarados");
-            csv.Should().NotContain(dni).And.NotContain(nie).And.NotContain("654").And.NotContain("234");
+            csv.Should().Contain(mascaraDni).And.Contain("****567", "el DNI y el NIE salen enmascarados");
+            csv.Should().NotContain(dni).And.NotContain(nie).And.NotContain(huella).And.NotContain("234");
         }
     }
 
