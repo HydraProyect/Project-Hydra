@@ -479,6 +479,27 @@ public sealed class UnirPdfPantallaTests : BunitContext
     }
 
     [Fact]
+    public async Task Un_Documento_demasiado_grande_cita_el_tope_del_total_y_una_subida_el_suyo()
+    {
+        // Un Documento almacenado puede pasar de 10 MB: solo se rechaza al pasar de lo que cabe en la unión.
+        _mediador.Documentos = [new DocumentoParaUnirDto(Guid.NewGuid(), "Seguro RC", null, new DateOnly(2026, 1, 15), null)];
+        var cut = Renderizar();
+        await SubirAsync(cut, "carta.pdf");
+        PulsarBoton(cut, "Elegir de Documentos");
+        cut.WaitForAssertion(() => cut.Find(".documentos-unir").TextContent.Should().Contain("Seguro RC"));
+        PulsarBoton(cut, "Añadir");
+        cut.WaitForAssertion(() => NombresEnLista(cut).Should().Equal("carta.pdf", "Seguro RC"));
+
+        _mediador.Unir = _ => Result.Exito(ResultadoUnionPdf.Rechazada(1, ErroresUnirPdf.DemasiadoGrande));
+        PulsarBoton(cut, "Unir y descargar");
+        cut.WaitForAssertion(() => cut.Find("[role=alert]").TextContent.Should().Contain("Seguro RC pesa más de 50 MB").And.NotContain("10 MB"));
+
+        _mediador.Unir = _ => Result.Exito(ResultadoUnionPdf.Rechazada(0, ErroresUnirPdf.DemasiadoGrande));
+        PulsarBoton(cut, "Unir y descargar");
+        cut.WaitForAssertion(() => cut.Find("[role=alert]").TextContent.Should().Contain("carta.pdf pesa más de 10 MB"));
+    }
+
+    [Fact]
     public async Task Sin_constancia_del_acceso_a_Documentos_no_se_entrega_el_PDF_y_se_puede_repetir()
     {
         var cut = Renderizar();

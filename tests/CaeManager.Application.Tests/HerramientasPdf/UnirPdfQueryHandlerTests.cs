@@ -564,6 +564,69 @@ public class UnirPdfQueryHandlerTests
             "la copia se para en cuanto pasa del tope, no lee el archivo entero");
     }
 
+    // ---- Presupuesto de memoria
+
+    [Theory]
+    [InlineData("unido")]
+    [InlineData("rechazado por ilegible")]
+    [InlineData("firma sin confirmar")]
+    [InlineData("excepcion del unidor")]
+    [InlineData("documento que no es PDF")]
+    public async Task Al_terminar_sea_cual_sea_el_desenlace_no_queda_nada_reservado_del_presupuesto(string desenlace)
+    {
+        var seguro = DocumentoDeEmpresa(desenlace == "firma sin confirmar" ? "SEGURO[firmado][estructura=1000000]" : "SEGURO[estructura=1000000]");
+        var corrupto = Documento.DeEmpresa(_empresa.Id, Guid.NewGuid(), Hoy.AddDays(-10), VigenciaDocumento.NoCaduca, Guardar("no es pdf", conCabecera: false));
+        _documentos.ListaDocumentos.Add(corrupto);
+        EntradaUnionPdf segunda = desenlace switch
+        {
+            "rechazado por ilegible" => Subido("b.pdf", "B[ilegible]"),
+            "excepcion del unidor" => Subido("b.pdf", "B[explota]"),
+            "documento que no es PDF" => new EntradaUnionDocumento(corrupto.Id),
+            _ => Subido("b.pdf", "B"),
+        };
+
+        var llamada = async () => await UnirAsync([new EntradaUnionDocumento(seguro.Id), segunda]);
+        if (desenlace == "excepcion del unidor")
+            await llamada.Should().ThrowAsync<InvalidOperationException>();
+        else
+            await llamada();
+
+        PresupuestoLibre().Should().BeTrue("las reservas de lectura, de copias y de estructura se devuelven siempre");
+    }
+
+    [Fact]
+    public async Task Mientras_se_une_el_presupuesto_retiene_la_estructura_que_el_unidor_midio()
+    {
+        // Con la mitad del presupuesto como estructura y contenidos diminutos, sin la reserva de estructura casi todo seguiría libre.
+        var estructura = MaximoPresupuesto / 2;
+        var libreMientrasSeUne = new List<bool>();
+        _unidor.AlUnir = () =>
+        {
+            if (_presupuesto.TryReservar(MaximoPresupuesto - estructura + 1, out var demasiado))
+            {
+                demasiado.Dispose();
+                libreMientrasSeUne.Add(true);
+            }
+            else
+                libreMientrasSeUne.Add(false);
+        };
+
+        var resultado = await UnirAsync([Subido("a.pdf", $"A[estructura={estructura}]"), Subido("b.pdf", "B")]);
+
+        resultado.Valor.Estado.Should().Be(EstadoUnionPdf.Unido);
+        libreMientrasSeUne.Should().Equal(false);
+    }
+
+    [Fact]
+    public async Task Una_estructura_que_no_cabe_en_el_presupuesto_pide_reintentar_y_no_une_nada()
+    {
+        var resultado = await UnirAsync([Subido("a.pdf", $"A[estructura={MaximoPresupuesto + 1}]"), Subido("b.pdf", "B")]);
+
+        resultado.Error.Codigo.Should().Be(ErroresUnirPdf.SinEspacio);
+        _unidor.Unidos.Should().BeEmpty();
+        PresupuestoLibre().Should().BeTrue();
+    }
+
     // ---- Cancelación
 
     [Fact]
@@ -664,10 +727,22 @@ public class UnirPdfQueryHandlerTests
     private UnirPdfQueryHandler Handler() => new(
         new Disponibilidad(_disponible), new TenantActualFijo(_tenantActual), _empresas, _documentos, _trabajadores, _proyectos, _alcance,
         new CurrentUserServiceFalso(rol: _rol), new SesionPrivilegiadaFija(_sesionPrivilegiada), _otroAlmacen ?? _almacenamiento,
-        new PresupuestoMemoriaDocumentos(
-            Options.Create(new OpcionesPresupuestoMemoriaDocumentos { MaximoBytes = 2L * 1024 * 1024 * 1024, EsperaMaxima = TimeSpan.FromMilliseconds(100) }),
-            TimeProvider.System),
-        _unidor, _registro, _transaccion);
+        _presupuesto, _unidor, _registro, _transaccion);
+
+    private const long MaximoPresupuesto = 2L * 1024 * 1024 * 1024;
+
+    private readonly PresupuestoMemoriaDocumentos _presupuesto = new(
+        Options.Create(new OpcionesPresupuestoMemoriaDocumentos { MaximoBytes = MaximoPresupuesto, EsperaMaxima = TimeSpan.FromMilliseconds(100) }),
+        TimeProvider.System);
+
+    /// <summary>Verdadero si no queda nada reservado: el presupuesto entero cabe ahora mismo (lo que se reserva se devuelve al terminar).</summary>
+    private bool PresupuestoLibre()
+    {
+        if (!_presupuesto.TryReservar(_presupuesto.Maximo, out var todo))
+            return false;
+        todo.Dispose();
+        return true;
+    }
 
     private static EntradaUnionSubida Subido(string nombre, string marca) => new(Pdf(marca), nombre);
 
@@ -711,7 +786,9 @@ public class UnirPdfQueryHandlerTests
             if (texto.Contains("[explota]")) throw new InvalidOperationException("fallo inesperado del unidor");
             if (texto.Contains("[clave]")) return Result.Fallo<InfoPdfParaUnir>(Error.Crear(ErroresUnirPdf.ConContrasena, "con contraseña"));
             if (texto.Contains("[ilegible]")) return Result.Fallo<InfoPdfParaUnir>(Error.Crear(ErroresUnirPdf.Ilegible, "ilegible"));
-            return Result.Exito(new InfoPdfParaUnir(Paginas(texto), texto.Contains("[firmado]")));
+            var estructura = System.Text.RegularExpressions.Regex.Match(texto, @"\[estructura=(\d+)\]");
+            return Result.Exito(new InfoPdfParaUnir(
+                Paginas(texto), texto.Contains("[firmado]"), estructura.Success ? long.Parse(estructura.Groups[1].Value) : 0));
         }
 
         public Result<PdfUnido> Unir(IReadOnlyList<byte[]> pdfs)

@@ -1,5 +1,6 @@
 using System.Text;
 using CaeManager.Application.HerramientasPdf;
+using CaeManager.Domain.Common;
 using CaeManager.Infrastructure.HerramientasPdf;
 using FluentAssertions;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -105,6 +106,28 @@ public sealed class UnionSobrePdfRealTests
 
         Encoding.ASCII.GetString(firmado).Should().NotContain("/ByteRange");
         _unidor.Inspeccionar(firmado).Valor.Should().Be(new InfoPdfParaUnir(1, true));
+    }
+
+    [Theory]
+    [InlineData("<< /FT 7 /V 3 0 R >>")]
+    [InlineData("<< /FT [/Sig] /V 3 0 R >>")]
+    [InlineData("<< /Type (Sig) /ByteRange [0 1 2 3] >>")]
+    [InlineData("<< /Type 12 /ByteRange [0 1 2 3] >>")]
+    public void Un_PDF_con_claves_de_firma_que_no_son_nombres_se_trata_como_ilegible_y_no_lanza(string objetoHostil)
+    {
+        // Un PDF ajeno puede poner en /FT o /Type cualquier cosa; recorrerlo para buscar firmas no puede escapar del tratamiento de errores.
+        var hostil = PdfACano(
+            "<< /Type /Catalog /Pages 2 0 R >>",
+            "<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
+            "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] >>",
+            objetoHostil);
+
+        Result<InfoPdfParaUnir>? resultado = null;
+        var inspeccionar = () => resultado = _unidor.Inspeccionar(hostil);
+
+        inspeccionar.Should().NotThrow();
+        if (resultado!.EsFallido)
+            resultado.Error.Codigo.Should().Be(ErroresUnirPdf.Ilegible);
     }
 
     // ---- Coste de la estructura (bombas PDF)

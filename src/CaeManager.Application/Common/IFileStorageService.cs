@@ -28,6 +28,10 @@ public interface IFileStorageService
     /// dobles de prueba, abre y mide después.
     /// </summary>
     /// <exception cref="ArchivoAlmacenadoDemasiadoGrandeException">Pasa de <paramref name="maximoBytes"/>.</exception>
+    /// <exception cref="PresupuestoMemoriaAgotadoException">
+    /// Sin hueco ahora mismo en el presupuesto de memoria: a diferencia de <see cref="AbrirAsync"/>, la implementación real no
+    /// espera hueco, porque quien abre con tope retiene ya otras reservas de la misma operación.
+    /// </exception>
     async Task<Stream> AbrirHastaAsync(string identificador, long maximoBytes, CancellationToken cancellationToken = default)
     {
         var flujo = await AbrirAsync(identificador, cancellationToken);

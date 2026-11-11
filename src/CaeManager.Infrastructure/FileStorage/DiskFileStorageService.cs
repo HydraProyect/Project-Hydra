@@ -369,7 +369,15 @@ public class DiskFileStorageService : IFileStorageService, IAlmacenOriginalesInb
         if (longitud > maximoBytes + MargenCifradoBytes)
             throw new ArchivoAlmacenadoDemasiadoGrandeException();
 
-        var reserva = await _presupuestoMemoria.ReservarAsync(FactorClaroYCifrado * longitud + MargenCifradoBytes, cancellationToken);
+        // Con tope, quien abre ya retiene reservas de otros archivos de la misma operación (Unir PDF): esperar hueco con
+        // ellas retenidas haría que varias operaciones se esperasen entre sí hasta agotar el plazo. Sin tope, como siempre.
+        var pico = FactorClaroYCifrado * longitud + MargenCifradoBytes;
+        ReservaMemoriaDocumentos reserva;
+        if (maximoBytes is null)
+            reserva = await _presupuestoMemoria.ReservarAsync(pico, cancellationToken);
+        else if (!_presupuestoMemoria.TryReservar(pico, out reserva))
+            throw new PresupuestoMemoriaAgotadoException();
+
         try
         {
             var bytes = new byte[longitud];

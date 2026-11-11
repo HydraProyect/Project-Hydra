@@ -29,7 +29,17 @@ public sealed class PdfSharpUnidorPdf(ILogger<PdfSharpUnidorPdf> logger) : IUnid
             return Result.Fallo<InfoPdfParaUnir>(abierto.Error);
 
         using var documento = abierto.Valor.Documento;
-        return Result.Exito(new InfoPdfParaUnir(documento.PageCount, EstaFirmado(documento), abierto.Valor.BytesEstructura));
+        try
+        {
+            // Recorrer los objetos de un PDF ajeno también puede lanzar (un /FT o un /V que no tienen la forma esperada):
+            // es un archivo ilegible, no un fallo de la herramienta.
+            return Result.Exito(new InfoPdfParaUnir(documento.PageCount, EstaFirmado(documento), abierto.Valor.BytesEstructura));
+        }
+        catch (Exception ex) when (ex is not OutOfMemoryException)
+        {
+            logger.LogInformation("No se pudo inspeccionar un PDF para unir ({Tipo}).", ex.GetType().Name);
+            return Fallo<InfoPdfParaUnir>(ErroresUnirPdf.Ilegible, "No hemos podido leer este PDF.");
+        }
     }
 
     public Result<PdfUnido> Unir(IReadOnlyList<byte[]> pdfs)

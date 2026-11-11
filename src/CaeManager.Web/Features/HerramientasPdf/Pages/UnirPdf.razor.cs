@@ -355,7 +355,8 @@ public partial class UnirPdf : CaeManager.Web.Components.PaginaInteractiva, IDis
                     _huellaFirmas = resultado.HuellaFirmas;
                     break;
                 case EstadoUnionPdf.EntradaRechazada:
-                    _error = TextoDeEntrada(resultado.CodigoRechazo!, NombreEnPosicion(resultado.Posiciones[0]));
+                    _error = TextoDeEntrada(
+                        resultado.CodigoRechazo!, NombreEnPosicion(resultado.Posiciones[0]), EsDocumentoEnPosicion(resultado.Posiciones[0]));
                     break;
                 default:
                     await DescargarAsync(resultado);
@@ -424,12 +425,19 @@ public partial class UnirPdf : CaeManager.Web.Components.PaginaInteractiva, IDis
     private string NombreEnPosicion(int posicion) =>
         posicion >= 0 && posicion < _elementos.Count ? _elementos[posicion].Nombre : Textos["UnirElPdf"];
 
-    /// <summary>El texto del fallo de un PDF concreto, con su nombre.</summary>
-    private string TextoDeEntrada(string codigo, string nombre) => codigo switch
+    private bool EsDocumentoEnPosicion(int posicion) =>
+        posicion >= 0 && posicion < _elementos.Count && _elementos[posicion].DocumentoId is not null;
+
+    /// <summary>
+    /// El texto del fallo de un PDF concreto, con su nombre. Un Documento almacenado puede pasar del tope de una subida
+    /// (10 MB) y solo se rechaza por pasar del total de la unión, así que el tope que se cita depende del origen.
+    /// </summary>
+    private string TextoDeEntrada(string codigo, string nombre, bool esDocumento = false) => codigo switch
     {
         ErroresUnirPdf.ConContrasena => Textos["UnirErrorContrasena", nombre],
         ErroresUnirPdf.NoEsPdf => Textos["UnirErrorNoEsPdf", nombre],
-        ErroresUnirPdf.DemasiadoGrande => Textos["UnirErrorDemasiadoGrande", nombre, LimiteSubidaMb],
+        ErroresUnirPdf.DemasiadoGrande => Textos["UnirErrorDemasiadoGrande", nombre,
+            esDocumento ? LimitesUnionPdf.TamanoMaximoTotalMb : LimiteSubidaMb],
         ErroresUnirPdf.DemasiadasPaginas => Textos["UnirErrorDemasiadasPaginas", nombre, LimitesUnionPdf.MaximoPaginasTotales],
         ErroresUnirPdf.DemasiadoComplejo => Textos["UnirErrorDemasiadoComplejo", nombre],
         ErroresUnirPdf.DocumentoNoDisponible => Textos["UnirErrorDocumentoNoDisponible", nombre],
