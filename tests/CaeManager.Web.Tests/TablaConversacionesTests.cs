@@ -43,6 +43,18 @@ public class TablaConversacionesTests : BunitContext
         cut.Markup.Should().NotContain("SLA");
     }
 
+    [Fact]
+    public void La_prioridad_lleva_un_punto_decorativo_y_el_estado_es_texto_plano_sin_pastilla()
+    {
+        var cut = Render<TablaConversaciones>(p => p.Add(c => c.Conversaciones, [CrearConversacion()]));
+
+        var prioridad = cut.Find("[role=cell].tabla-prioridad");
+        prioridad.QuerySelector(".tabla-prioridad-punto")!.GetAttribute("aria-hidden").Should().Be("true");
+        prioridad.TextContent.Trim().Should().NotBeEmpty("el punto no sustituye al texto de la prioridad");
+        cut.Find("[role=cell].tabla-estado").TextContent.Should().Be("Abierta");
+        cut.FindAll("[data-pieza='pastilla']").Should().BeEmpty();
+    }
+
     private static ConversacionListaDto CrearConversacion() => new(
         Guid.NewGuid(), Guid.NewGuid(), "Empresa de prueba", "Documentación pendiente", EstadoConversacion.Abierta,
         null, "contacto@example.invalid", "Adjunto documentos.", DateTime.UtcNow, 1,

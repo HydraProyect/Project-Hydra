@@ -53,7 +53,10 @@ public class EstablecerDocumentacionRequeridaCentroCommandHandler(
     IAlcanceDatosService alcanceDatos,
     IUnitOfWork unitOfWork,
     IVerificadorArchivoAlmacenado verificadorArchivo,
-    ISerializacionAltasAcreditacionEmpresa serializacionAltas)
+    ISerializacionAltasAcreditacionEmpresa serializacionAltas,
+    // Opcional solo mientras la PR #2104 cambia los tests que construyen este handler: el contenedor siempre lo resuelve
+    // (InvalidadorAlcanceInerte por defecto, el AlcanceDatosService del circuito en la Web). Issue #2118.
+    IInvalidadorAlcance? invalidadorAlcance = null)
     : IRequestHandler<EstablecerDocumentacionRequeridaCentroCommand, Result>
 {
     public async Task<Result> Handle(EstablecerDocumentacionRequeridaCentroCommand request, CancellationToken cancellationToken)
@@ -64,7 +67,7 @@ public class EstablecerDocumentacionRequeridaCentroCommandHandler(
         var centro = await centrosContext.Centros.Where(c => c.Id == request.CentroId)
             .Select(c => new { c.TenantId }).FirstOrDefaultAsync(cancellationToken);
         if (centro is null || !await alcanceDatos.CentroParaGestionVisibleAsync(request.CentroId, cancellationToken))
-            return Result.Fallo(Error.Crear("DocumentacionRequeridaCentro.CentroNoEncontrado", "No encontramos este centro."));
+            return CentroNoEncontrado();
 
         var tipo = await tiposDocumentoContext.TiposDocumento
             .Where(t => t.Id == request.TipoDocumentoId)
@@ -130,6 +133,13 @@ public class EstablecerDocumentacionRequeridaCentroCommandHandler(
         // SaveChangesAsync que la fila.
         async Task<Result> GuardarAsync(CancellationToken ct)
         {
+            // La Asignación de Cartera se vuelve a decidir bajo el candado: pudo revocarse mientras se esperaba, y el
+            // alcance memoizado (en Blazor Server, el del circuito) es de antes; se descarta, igual que en
+            // BloqueoRespuestaSugerida.ComprobarEnvioPorBuzonAsync (issue #2118).
+            invalidadorAlcance?.Invalidar();
+            if (!await alcanceDatos.CentroParaGestionVisibleAsync(request.CentroId, ct))
+                return CentroNoEncontrado();
+
             // Se vuelve a leer bajo el candado, con lo confirmado en la base: la fila de arriba (o la que el contexto,
             // uno por circuito, rastreara antes) puede tener el Incluido de antes de esperar. Con ese valor viejo, pedir
             // lo que otra operación acababa de cambiar no sería un cambio para EF, que no guardaría nada, y el comando
@@ -171,6 +181,9 @@ public class EstablecerDocumentacionRequeridaCentroCommandHandler(
         // hallazgo 2).
         return await serializacionAltas.EjecutarAsync(GuardarAsync, cancellationToken);
     }
+
+    private static Result CentroNoEncontrado() =>
+        Result.Fallo(Error.Crear("DocumentacionRequeridaCentro.CentroNoEncontrado", "No encontramos este centro."));
 
     private static Result ArchivoNoValido() =>
         Result.Fallo(Error.Crear("DocumentacionRequeridaCentro.ArchivoNoValido", ValidadorFirmaArchivo.MensajeRequisitoNoValido));

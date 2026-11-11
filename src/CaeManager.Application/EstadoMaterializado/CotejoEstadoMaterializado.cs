@@ -6,8 +6,11 @@ namespace CaeManager.Application.EstadoMaterializado;
 /// <summary>
 /// Comparación del cotejo nocturno (diseño § 7.2): un lote del recálculo completo frente a lo guardado en su mismo alcance
 /// (el del escritor, <see cref="CalculoEstadoMaterializado"/>). Compara las columnas calculadas; <c>DiaCalculo</c> y
-/// <c>CalculadoEnUtc</c> no cuentan (una fila igual calculada otro día no es un defecto), y una fila escrita con otra
-/// versión de la regla cuenta como distinta. Cada diferencia da la raíz que la rehace, por encima, nunca por debajo.
+/// <c>CalculadoEnUtc</c> no cuentan (una fila igual calculada otro día no es un defecto). Una fila con las mismas columnas
+/// escrita con otra versión de la regla no es una discrepancia sino el recálculo previsto al subir
+/// <see cref="CalculoEstadoMaterializado.VersionDeLaRegla"/>: se cuenta aparte (<see cref="RecuentoCotejo.DeOtraVersion"/>),
+/// fuera de <see cref="RecuentoCotejo.Total"/>, y da su raíz igual para que se reescriba. Si además sus columnas difieren,
+/// es distinta, sea cual sea su versión. Cada fila por corregir da la raíz que la rehace, por encima, nunca por debajo.
 /// </summary>
 public static class CotejoEstadoMaterializado
 {
@@ -57,9 +60,15 @@ public static class CotejoEstadoMaterializado
                 recuento.Sobran++;
                 raiz(guardada.Fila);
             }
-            else if (guardada.VersionCalculo != CalculoEstadoMaterializado.VersionDeLaRegla || !EqualityComparer<TFila>.Default.Equals(calculada, guardada.Fila))
+            else if (!EqualityComparer<TFila>.Default.Equals(calculada, guardada.Fila))
             {
                 recuento.Distintas++;
+                raiz(calculada);
+            }
+            else if (guardada.VersionCalculo != CalculoEstadoMaterializado.VersionDeLaRegla)
+            {
+                // Los mismos valores con otra versión de la regla: recálculo previsto, no discrepancia.
+                recuento.DeOtraVersion++;
                 raiz(calculada);
             }
         }
@@ -74,15 +83,23 @@ public static class CotejoEstadoMaterializado
     }
 }
 
-/// <summary>Filas que faltan (el recálculo las trae y no están), sobran (están y el recálculo no las trae) o son distintas.</summary>
+/// <summary>
+/// Filas que faltan (el recálculo las trae y no están), sobran (están y el recálculo no las trae) o son distintas: las
+/// discrepancias (<see cref="Total"/>). Aparte, las que solo son de otra versión de la regla (<see cref="DeOtraVersion"/>).
+/// </summary>
 public sealed class RecuentoCotejo
 {
     public int Faltan { get; set; }
     public int Sobran { get; set; }
     public int Distintas { get; set; }
+
+    /// <summary>Filas con las mismas columnas que el recálculo, escritas con otra versión de la regla: no son discrepancias.</summary>
+    public int DeOtraVersion { get; set; }
+
+    /// <summary>Las discrepancias: no incluye <see cref="DeOtraVersion"/>.</summary>
     public int Total => Faltan + Sobran + Distintas;
 
-    public override string ToString() => $"{Faltan} faltan, {Sobran} sobran, {Distintas} distintas";
+    public override string ToString() => $"{Faltan} faltan, {Sobran} sobran, {Distintas} distintas, {DeOtraVersion} solo de otra versión";
 }
 
 /// <summary>
@@ -102,7 +119,14 @@ public sealed class DiferenciasCotejo
     /// <summary>Filas de Centros, Trabajadores o Empresas que ya no existen.</summary>
     public int Huerfanas { get; set; }
 
+    /// <summary>Las discrepancias, que piden aviso: no incluye las filas que solo son de otra versión de la regla.</summary>
     public int Total => Pares.Total + Plataforma.Total + Entidades.Total + Huerfanas;
+
+    /// <summary>Filas con los mismos valores escritas con otra versión de la regla: el recálculo previsto tras subirla.</summary>
+    public int DeOtraVersion => Pares.DeOtraVersion + Plataforma.DeOtraVersion + Entidades.DeOtraVersion;
+
+    /// <summary>Si hay algo que reescribir: discrepancias o filas de otra versión de la regla.</summary>
+    public bool HayQueCorregir => Total > 0 || DeOtraVersion > 0;
 
     public RaicesDeRecalculo Raices => new(_centros.ToList(), _trabajadores.ToList(), _empresas.ToList());
 

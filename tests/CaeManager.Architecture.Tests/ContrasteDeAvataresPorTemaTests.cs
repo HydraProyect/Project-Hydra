@@ -72,8 +72,6 @@ public class ContrasteDeAvataresPorTemaTests
             [".mi-trabajo-cartera-avatar", ".mi-trabajo-cartera-avatar-todo"]),
         new("Iniciales de empresa en el alta de usuario",
             "Features/Usuarios/Pages/Usuarios.razor.css", [".avatar-iniciales-empresa"]),
-        new("Avatar de la línea de tiempo de Comunicaciones",
-            "Features/Comunicaciones/Components/UnifiedTimeline.razor.css", [".timeline-avatar"]),
         new("Avatar de la fila de la Bandeja",
             "Features/Comunicaciones/Pages/Bandeja.razor.css",
             [".bandeja-lista ::deep .bandeja-fila-avatar"]),

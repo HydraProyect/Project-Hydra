@@ -14,7 +14,10 @@ namespace CaeManager.Application.Common;
 /// conjuntos de cartera se calculen dentro de ella y no vengan memoizados de un momento anterior; y, por la misma
 /// razón, los escritores de la regla A-1 que vuelven a comprobar la Asignación de Cartera bajo el candado de
 /// <c>ISerializacionAltasAcreditacionEmpresa</c> (RestaurarDocumento, RestaurarCentro,
-/// EliminarDocumentacionRequeridaCentro), para no decidir con el alcance de antes de esperarlo. Solo la
+/// EliminarDocumentacionRequeridaCentro, EstablecerDocumentacionRequeridaCentro, EstablecerGestionCaeCentro,
+/// CrearCanalGestion, CrearDocumento, RenovarDocumento, EditarTipoDocumento, CrearAsignacion, CrearAsignaciones,
+/// ReactivarAsignacion y GenerarDocumentoIndividual; EjecutarImportacion sigue pendiente, issue #2118), para no
+/// decidir con el alcance de antes de esperarlo. Solo la
 /// memoización de esta instancia: no toca el ámbito de Tenant, la cartera ni la autorización.
 /// </summary>
 public interface IInvalidadorAlcance
