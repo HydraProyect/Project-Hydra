@@ -1250,6 +1250,39 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
+      # Desde el 2026-11-11 hay runners que no resuelven *.ubuntu.com y el
+      # apt-get del Dockerfile falla con «Could not resolve 'archive.ubuntu.com'».
+      # Se sondean desde el runner, con el codename de la etapa final del
+      # Dockerfile, las dos fuentes http que trae esa base (archive y security).
+      # Si responden, no se pasa ningún build-arg y la imagen se construye igual
+      # que en deploy.yml. Si no, se pasa ESPEJO_UBUNTU con el primer espejo
+      # oficial de reserva de apt-acotado (elegir-espejo.sh) que responda.
+      - name: Elegir el archivo de Ubuntu para la imagen
+        id: espejo-ubuntu
+        run: |
+          set -euo pipefail
+          base_final="$(sed -nE 's/^FROM[[:space:]]+([^[:space:]]+)[[:space:]]+AS[[:space:]]+final[[:space:]]*$/\1/p' Dockerfile)"
+          [ -n "$base_final" ] || { echo "::error::No encuentro la etapa «final» del Dockerfile."; exit 1; }
+          codename="$(docker run --rm --entrypoint sh "$base_final" -c '. /etc/os-release && echo "$VERSION_CODENAME"')"
+          # Solo vale un 200 final con la descarga completa: sin -L curl no sigue
+          # un 3xx, y con -f lo daría por bueno sin haber alcanzado el InRelease. El
+          # código de salida de curl también cuenta (un 200 cortado no vale).
+          responde_200() {
+            local codigo
+            codigo="$(curl -sS --max-time 10 --max-redirs 0 -o /dev/null -w '%{http_code}' "$1")" || return 1
+            [ "$codigo" = "200" ]
+          }
+          if responde_200 "http://archive.ubuntu.com/ubuntu/dists/${codename}/InRelease" \
+            && responde_200 "http://security.ubuntu.com/ubuntu/dists/${codename}-security/InRelease"; then
+            echo "build-args=" >> "$GITHUB_OUTPUT"
+          elif base="$(bash .github/actions/apt-acotado/elegir-espejo.sh "$codename" solo-reserva)"; then
+            echo "::warning::*.ubuntu.com no responde desde el runner: la imagen (${codename}) se construye con el espejo de reserva ${base}"
+            echo "build-args=ESPEJO_UBUNTU=${base}" >> "$GITHUB_OUTPUT"
+          else
+            echo "::warning::Ningún archivo de Ubuntu responde a la sonda para ${codename}: la imagen se construye con las fuentes de su base."
+            echo "build-args=" >> "$GITHUB_OUTPUT"
+          fi
+
       # Reconstruye exactamente la imagen que se despliega en el VPS (mismo
       # Dockerfile, mismo -r linux-x64 --self-contained false de la Fase 22)
       # — así un SDK band distinto o un asset de framework faltante se
@@ -1266,6 +1299,7 @@ jobs:
           push: false
           load: true
           tags: caemanager:ci
+          build-args: ${{ steps.espejo-ubuntu.outputs.build-args }}
 
       # El publish sin blazor.web.js termina bien y deja la interactividad
       # rota en silencio (ver el comentario del publish en el Dockerfile).
