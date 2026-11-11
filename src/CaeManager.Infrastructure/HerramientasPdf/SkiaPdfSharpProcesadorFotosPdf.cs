@@ -1,3 +1,4 @@
+using CaeManager.Application.Common;
 using CaeManager.Application.HerramientasPdf;
 using CaeManager.Domain.Common;
 using Microsoft.Extensions.Logging;
@@ -19,50 +20,113 @@ namespace CaeManager.Infrastructure.HerramientasPdf;
 /// <see cref="LimitesFotoAPdf"/> aunque el generador ya lo hiciera: son las que usa el decodificador, y un fichero que
 /// engañe a un lector de cabeceras no tiene por qué engañar al otro. No se usa disco: todo ocurre en memoria. Los
 /// mensajes de excepción no se registran, porque pueden reproducir contenido del fichero.
+///
+/// <para>
+/// <b>Memoria.</b> El procesador reserva él mismo en el <see cref="IPresupuestoMemoriaDocumentos"/> lo que usa, sin
+/// esperar (quien lo llama ya retiene las fotos leídas; esperar reteniendo bloquea a varias operaciones entre sí), y si no
+/// cabe lanza <see cref="PresupuestoMemoriaAgotadoException"/>. Lo que cuesta cada foto se conoce por su cabecera
+/// (decodificación y lienzo, 4 bytes por píxel de cada uno) salvo el JPEG de salida, que NO se deduce del tamaño de la foto
+/// subida (un PNG de 170 KB con un patrón repetido da un JPEG de varios MB): se reserva por trozos a medida que el
+/// codificador lo escribe, y si el presupuesto se agota se descarta lo que falta y se falla al terminar. Del PDF se
+/// reservan la copia de cada JPEG que retiene el documento (<see cref="LimitesFotoAPdf.CopiasDelJpegEnElDocumento"/>) y el
+/// flujo de salida, que se entrega tal cual a la pantalla sin copiarlo a otro array.
+/// </para>
+///
+/// <para>
+/// <b>Cancelación.</b> Skia decodifica en una sola llamada nativa que no mira ningún token (y su decodificación por
+/// líneas no existe para PNG en esta versión: devuelve «no implementado»), pero lee los bytes de la foto por el flujo que
+/// se le da. Ese flujo (<see cref="FlujoDeEntrada"/>) devuelve fin de datos en cuanto el token se cancela: el decodificador
+/// lo toma por una entrada truncada y termina a los pocos KB, y el procesador lanza entonces
+/// <see cref="OperationCanceledException"/>. Además el token se comprueba entre etapas (decodificar, dibujar, codificar).
+/// Lo que sigue sin poder interrumpirse son las llamadas nativas que ya no leen entrada: dibujar la imagen reducida y
+/// codificar el JPEG; están acotadas por el tope de píxeles y duran una fracción de segundo.
+/// </para>
 /// </summary>
-public sealed class SkiaPdfSharpProcesadorFotosPdf(ILogger<SkiaPdfSharpProcesadorFotosPdf> logger) : IProcesadorFotosPdf
+public sealed class SkiaPdfSharpProcesadorFotosPdf(
+    ILogger<SkiaPdfSharpProcesadorFotosPdf> logger, IPresupuestoMemoriaDocumentos presupuesto) : IProcesadorFotosPdf
 {
     private const int CalidadJpeg = 90;
 
     /// <summary>5 mm de margen en cada lado de la página, para que una impresora doméstica no recorte la foto.</summary>
     private const double MargenPuntos = 14.17;
 
-    public Result<byte[]> ComponerPdf(IReadOnlyList<byte[]> fotos, CancellationToken cancellationToken)
+    /// <summary>Lo que el PDF añade a los JPEG que incrusta: cabecera, catálogo, tabla de referencias y diccionarios de página.</summary>
+    private const long SobrecosteFijoPdfBytes = 64 * 1024;
+
+    private const long SobrecostePorPaginaBytes = 8 * 1024;
+
+    /// <summary>
+    /// Solo para los tests: se llama con el nombre de cada etapa que termina («decodificada», «dibujada», «codificada») y
+    /// con «lectura» cada vez que el decodificador pide bytes de la foto, de modo que un test pueda cancelar en una
+    /// frontera concreta y comprobar que no se pasa de ella.
+    /// </summary>
+    internal Action<string>? AlTerminarEtapa { get; set; }
+
+    public Result<PdfDeFotos> ComponerPdf(IReadOnlyList<byte[]> fotos, CancellationToken cancellationToken)
     {
         if (fotos.Count == 0)
-            return Fallo(ErroresFotoAPdf.SinFotos, "No hay fotos.");
+            return FalloPdf(ErroresFotoAPdf.SinFotos, "No hay fotos.");
 
+        var cuentaPdf = new Cuenta(presupuesto);
+        MemoryStream? salida = null;
+        var entregado = false;
         try
         {
-            using var documento = new PdfDocument();
-            for (var i = 0; i < fotos.Count; i++)
+            long totalJpeg = 0;
+            using (var cuentaDocumento = new Cuenta(presupuesto))
+            using (var documento = new PdfDocument())
             {
+                for (var i = 0; i < fotos.Count; i++)
+                {
+                    cancellationToken.ThrowIfCancellationRequested();
+
+                    // El JPEG de cada foto queda reservado en cuentaPdf: es la parte que ocupará en el PDF de salida.
+                    var normalizada = Normalizar(fotos[i], LimitesFotoAPdf.LadoMaximoEnPdfPixeles, cuentaPdf, cancellationToken);
+                    if (normalizada.EsFallido)
+                        return FalloPdf(normalizada.Error.Codigo, $"Foto {i + 1}: {normalizada.Error.Mensaje}");
+
+                    var longitud = normalizada.Valor.Jpeg.LongLength;
+                    cuentaDocumento.Reservar(LimitesFotoAPdf.CopiasDelJpegEnElDocumento * longitud);
+                    AnadirPagina(documento, normalizada.Valor);
+                    totalJpeg += longitud;
+                }
+
                 cancellationToken.ThrowIfCancellationRequested();
 
-                var normalizada = Normalizar(fotos[i], LimitesFotoAPdf.LadoMaximoEnPdfPixeles);
-                if (normalizada.EsFallido)
-                    return Fallo(normalizada.Error.Codigo, $"Foto {i + 1}: {normalizada.Error.Mensaje}");
+                var capacidad = totalJpeg + SobrecosteFijoPdfBytes + SobrecostePorPaginaBytes * fotos.Count;
+                cuentaPdf.Reservar(capacidad - totalJpeg);
+                salida = new MemoryStream(checked((int)capacidad));
+                documento.Save(salida, closeStream: false);
 
-                AnadirPagina(documento, normalizada.Valor);
+                // Si el PDF pasó de lo previsto, el flujo creció: se cuenta lo que ocupa de verdad.
+                if (salida.Capacity > capacidad)
+                    cuentaPdf.Reservar(salida.Capacity - capacidad);
             }
 
-            using var salida = new MemoryStream();
-            documento.Save(salida, closeStream: false);
-            return Result.Exito(salida.ToArray());
+            salida.Position = 0;
+            entregado = true;
+            return Result.Exito(new PdfDeFotos(salida, cuentaPdf));
         }
-        catch (Exception ex) when (ex is not (OutOfMemoryException or OperationCanceledException))
+        catch (Exception ex) when (ex is not (OutOfMemoryException or OperationCanceledException or PresupuestoMemoriaAgotadoException))
         {
             // Componer la página y guardar el PDF son de PDFsharp, que lanza excepciones de varios tipos: ninguna debe
             // cruzar al circuito. Solo el tipo, nunca el contenido de la foto.
             logger.LogInformation("No se pudo componer el PDF de fotos ({Tipo}).", ex.GetType().Name);
-            return Fallo(ErroresFotoAPdf.NoSePudoGenerar, "No hemos podido crear el PDF.");
+            return FalloPdf(ErroresFotoAPdf.NoSePudoGenerar, "No hemos podido crear el PDF.");
+        }
+        finally
+        {
+            if (!entregado)
+            {
+                salida?.Dispose();
+                cuentaPdf.Dispose();
+            }
         }
     }
 
     public Result<byte[]> CrearMiniatura(byte[] foto, int ladoMaximoPixeles, CancellationToken cancellationToken)
     {
-        cancellationToken.ThrowIfCancellationRequested();
-        var normalizada = Normalizar(foto, ladoMaximoPixeles);
+        var normalizada = Normalizar(foto, ladoMaximoPixeles, cancellationToken);
         return normalizada.EsFallido ? Result.Fallo<byte[]>(normalizada.Error) : Result.Exito(normalizada.Valor.Jpeg);
     }
 
@@ -71,14 +135,28 @@ public sealed class SkiaPdfSharpProcesadorFotosPdf(ILogger<SkiaPdfSharpProcesado
 
     /// <summary>
     /// Decodifica, aplica la orientación EXIF a los píxeles, reduce al lado máximo (nunca amplía) y recodifica como JPEG.
-    /// Público para que un test compruebe píxeles y metadatos sin pasar por el PDF.
+    /// Público para que un test compruebe píxeles y metadatos sin pasar por el PDF. Reserva lo que usa y lo devuelve al
+    /// volver: el JPEG que entrega ya no está contado (<see cref="ComponerPdf"/> sí lo cuenta).
     /// </summary>
-    public Result<FotoNormalizada> Normalizar(byte[] foto, int ladoMaximoPixeles)
+    public Result<FotoNormalizada> Normalizar(byte[] foto, int ladoMaximoPixeles, CancellationToken cancellationToken = default)
+    {
+        using var cuentaSalida = new Cuenta(presupuesto);
+        return Normalizar(foto, ladoMaximoPixeles, cuentaSalida, cancellationToken);
+    }
+
+    /// <summary>La reserva del JPEG resultante queda en <paramref name="cuentaSalida"/>: la devuelve quien la creó.</summary>
+    private Result<FotoNormalizada> Normalizar(byte[] foto, int ladoMaximoPixeles, Cuenta cuentaSalida, CancellationToken cancellationToken)
     {
         try
         {
-            using var datos = SKData.CreateCopy(foto);
-            using var codec = SKCodec.Create(datos);
+            cancellationToken.ThrowIfCancellationRequested();
+
+            // Sobre los bytes tal cual, sin la copia que haría SKData.CreateCopy.
+            using var origen = new SKManagedStream(
+                new FlujoDeEntrada(new MemoryStream(foto, writable: false), cancellationToken, () => AlTerminarEtapa?.Invoke("lectura")),
+                disposeManagedStream: true);
+            using var codec = SKCodec.Create(origen);
+            cancellationToken.ThrowIfCancellationRequested();
             if (codec is null || codec.EncodedFormat is not (SKEncodedImageFormat.Jpeg or SKEncodedImageFormat.Png))
                 return FalloNormalizacion(ErroresFotoAPdf.FormatoNoSoportado, "Solo se admiten fotos JPEG y PNG.");
 
@@ -88,39 +166,67 @@ public sealed class SkiaPdfSharpProcesadorFotosPdf(ILogger<SkiaPdfSharpProcesado
                 || (long)info.Width * info.Height > LimitesFotoAPdf.MaximoPixeles)
                 return FalloNormalizacion(ErroresFotoAPdf.DemasiadosPixeles, "La foto declara más píxeles de los admitidos.");
 
-            var origen = codec.EncodedOrigin;
-            using var bitmap = SKBitmap.Decode(codec, new SKImageInfo(info.Width, info.Height, SKColorType.Rgba8888, SKAlphaType.Premul));
-            if (bitmap is null)
-                return FalloNormalizacion(ErroresFotoAPdf.FotoIlegible, "No hemos podido leer esta foto.");
-
+            var origenExif = codec.EncodedOrigin;
             var escala = Math.Min(1.0, (double)Math.Max(1, ladoMaximoPixeles) / Math.Max(info.Width, info.Height));
             var ancho = Math.Max(1, (int)Math.Round(info.Width * escala));
             var alto = Math.Max(1, (int)Math.Round(info.Height * escala));
-            var girada = EsGiroDeCuartoDeVuelta(origen);
+            var girada = EsGiroDeCuartoDeVuelta(origenExif);
             var anchoSalida = girada ? alto : ancho;
             var altoSalida = girada ? ancho : alto;
 
+            // Lo que cuestan decodificar y dibujar se sabe por la cabecera: se reserva ANTES de pedir esa memoria.
+            using var cuentaDecodificacion = new Cuenta(presupuesto);
+            using var cuentaLienzo = new Cuenta(presupuesto);
+            cuentaDecodificacion.Reservar((long)info.Width * info.Height * LimitesFotoAPdf.BytesPorPixelDecodificado);
+            cuentaLienzo.Reservar((long)anchoSalida * altoSalida * LimitesFotoAPdf.BytesPorPixelDecodificado);
+
             using var destino = new SKBitmap(new SKImageInfo(anchoSalida, altoSalida, SKColorType.Rgba8888, SKAlphaType.Opaque));
-            using (var lienzo = new SKCanvas(destino))
+            using (var bitmap = SKBitmap.Decode(codec, new SKImageInfo(info.Width, info.Height, SKColorType.Rgba8888, SKAlphaType.Premul)))
             {
+                // Si se canceló durante la decodificación, el flujo cortó la entrada y lo decodificado es parcial: se descarta.
+                cancellationToken.ThrowIfCancellationRequested();
+                if (bitmap is null)
+                    return FalloNormalizacion(ErroresFotoAPdf.FotoIlegible, "No hemos podido leer esta foto.");
+
+                AlTerminarEtapa?.Invoke("decodificada");
+                cancellationToken.ThrowIfCancellationRequested();
+
+                using var lienzo = new SKCanvas(destino);
                 lienzo.Clear(SKColors.White);
-                lienzo.SetMatrix(MatrizDeOrientacion(origen, info.Width, info.Height, escala));
+                lienzo.SetMatrix(MatrizDeOrientacion(origenExif, info.Width, info.Height, escala));
                 // Inmutable: SKImage.FromBitmap comparte los píxeles en vez de copiarlos (la reserva cuenta una sola copia).
                 bitmap.SetImmutable();
                 using var imagen = SKImage.FromBitmap(bitmap);
                 lienzo.DrawImage(imagen, 0, 0, new SKSamplingOptions(SKFilterMode.Linear, SKMipmapMode.Linear));
             }
 
-            using var flujo = new SKDynamicMemoryWStream();
-            using var pixeles = destino.PeekPixels();
-            var opciones = new SKJpegEncoderOptions(CalidadJpeg, SKJpegEncoderDownsample.Downsample444, SKJpegEncoderAlphaOption.Ignore);
-            if (!pixeles.Encode(flujo, opciones))
-                return FalloNormalizacion(ErroresFotoAPdf.NoSePudoGenerar, "No hemos podido procesar esta foto.");
+            // La decodificación ya no existe: su reserva vuelve antes de codificar.
+            cuentaDecodificacion.Dispose();
+            AlTerminarEtapa?.Invoke("dibujada");
+            cancellationToken.ThrowIfCancellationRequested();
 
-            using var jpeg = flujo.DetachAsData();
-            return Result.Exito(new FotoNormalizada(jpeg.ToArray(), anchoSalida, altoSalida));
+            using var cuentaCodificacion = new Cuenta(presupuesto);
+            using var flujo = new FlujoJpegContado(cuentaCodificacion);
+            using (var destinoNativo = new SKManagedWStream(flujo, disposeManagedStream: false))
+            using (var pixeles = destino.PeekPixels())
+            {
+                var opciones = new SKJpegEncoderOptions(CalidadJpeg, SKJpegEncoderDownsample.Downsample444, SKJpegEncoderAlphaOption.Ignore);
+                if (!pixeles.Encode(destinoNativo, opciones))
+                    return FalloNormalizacion(ErroresFotoAPdf.NoSePudoGenerar, "No hemos podido procesar esta foto.");
+            }
+
+            AlTerminarEtapa?.Invoke("codificada");
+            cancellationToken.ThrowIfCancellationRequested();
+
+            // El presupuesto se agotó mientras se codificaba: lo que faltaba se descartó y el JPEG no está completo.
+            if (flujo.Agotado)
+                throw new PresupuestoMemoriaAgotadoException();
+
+            // Reservado el array exacto mientras los trozos siguen contados: nunca hay memoria sin reserva.
+            cuentaSalida.Reservar(flujo.Longitud);
+            return Result.Exito(new FotoNormalizada(flujo.ToArray(), anchoSalida, altoSalida));
         }
-        catch (Exception ex) when (ex is not (OutOfMemoryException or OperationCanceledException))
+        catch (Exception ex) when (ex is not (OutOfMemoryException or OperationCanceledException or PresupuestoMemoriaAgotadoException))
         {
             logger.LogInformation("Foto no procesable para el PDF ({Tipo}).", ex.GetType().Name);
             return FalloNormalizacion(ErroresFotoAPdf.FotoIlegible, "No hemos podido leer esta foto.");
@@ -186,8 +292,163 @@ public sealed class SkiaPdfSharpProcesadorFotosPdf(ILogger<SkiaPdfSharpProcesado
             anchoFinal, altoFinal);
     }
 
-    private static Result<byte[]> Fallo(string codigo, string mensaje) => Result.Fallo<byte[]>(Error.Crear(codigo, mensaje));
+    private static Result<PdfDeFotos> FalloPdf(string codigo, string mensaje) => Result.Fallo<PdfDeFotos>(Error.Crear(codigo, mensaje));
 
     private static Result<FotoNormalizada> FalloNormalizacion(string codigo, string mensaje) =>
         Result.Fallo<FotoNormalizada>(Error.Crear(codigo, mensaje));
+
+    /// <summary>Reservas del presupuesto de memoria que se devuelven juntas. Sin esperar: si no cabe, falla cerrado.</summary>
+    internal sealed class Cuenta(IPresupuestoMemoriaDocumentos presupuesto) : IDisposable
+    {
+        private readonly List<ReservaMemoriaDocumentos> _reservas = [];
+
+        public bool TryReservar(long bytes)
+        {
+            if (bytes <= 0)
+                return true;
+            if (!presupuesto.TryReservar(bytes, out var reserva))
+                return false;
+            _reservas.Add(reserva);
+            return true;
+        }
+
+        public void Reservar(long bytes)
+        {
+            if (!TryReservar(bytes))
+                throw new PresupuestoMemoriaAgotadoException();
+        }
+
+        public void Dispose()
+        {
+            foreach (var reserva in _reservas)
+                reserva.Dispose();
+            _reservas.Clear();
+        }
+    }
+
+    /// <summary>
+    /// Flujo de escritura del codificador que guarda el JPEG en trozos y reserva cada trozo ANTES de pedirlo. Si no cabe,
+    /// deja de guardar y se marca <see cref="Agotado"/>: una excepción dentro de la llamada nativa del codificador no es
+    /// una opción, así que el fallo se declara al volver.
+    /// </summary>
+    internal sealed class FlujoJpegContado(Cuenta cuenta) : Stream
+    {
+        public const int Trozo = 256 * 1024;
+
+        private readonly List<byte[]> _trozos = [];
+        private int _usadoEnElUltimo;
+
+        public long Longitud { get; private set; }
+
+        public bool Agotado { get; private set; }
+
+        public byte[] ToArray()
+        {
+            var resultado = new byte[Longitud];
+            var posicion = 0;
+            foreach (var trozo in _trozos)
+            {
+                var n = (int)Math.Min(trozo.Length, Longitud - posicion);
+                Array.Copy(trozo, 0, resultado, posicion, n);
+                posicion += n;
+            }
+
+            return resultado;
+        }
+
+        public override void Write(ReadOnlySpan<byte> datos)
+        {
+            while (!datos.IsEmpty && !Agotado)
+            {
+                if (_trozos.Count == 0 || _usadoEnElUltimo == Trozo)
+                {
+                    if (!cuenta.TryReservar(Trozo))
+                    {
+                        Agotado = true;
+                        return;
+                    }
+
+                    _trozos.Add(new byte[Trozo]);
+                    _usadoEnElUltimo = 0;
+                }
+
+                var n = Math.Min(Trozo - _usadoEnElUltimo, datos.Length);
+                datos[..n].CopyTo(_trozos[^1].AsSpan(_usadoEnElUltimo));
+                _usadoEnElUltimo += n;
+                Longitud += n;
+                datos = datos[n..];
+            }
+        }
+
+        public override void Write(byte[] buffer, int offset, int count) => Write(buffer.AsSpan(offset, count));
+
+        public override bool CanRead => false;
+        public override bool CanSeek => false;
+        public override bool CanWrite => true;
+        public override long Length => Longitud;
+
+        public override long Position
+        {
+            get => Longitud;
+            set => throw new NotSupportedException();
+        }
+
+        public override void Flush()
+        {
+        }
+
+        public override int Read(byte[] buffer, int offset, int count) => throw new NotSupportedException();
+
+        public override long Seek(long offset, SeekOrigin origin) => throw new NotSupportedException();
+
+        public override void SetLength(long value) => throw new NotSupportedException();
+    }
+
+    /// <summary>
+    /// Los bytes de la foto tal como los lee Skia, con la cancelación incorporada: en cuanto el token se cancela devuelve
+    /// fin de datos, y el decodificador (que no mira ningún token) cree que la entrada terminó y sale a los pocos KB. No
+    /// lanza: una excepción dentro de la llamada nativa no es una opción.
+    /// </summary>
+    internal sealed class FlujoDeEntrada(Stream interno, CancellationToken cancellationToken, Action? alLeer = null) : Stream
+    {
+        public override int Read(Span<byte> destino)
+        {
+            if (cancellationToken.IsCancellationRequested)
+                return 0;
+
+            var leidos = interno.Read(destino);
+            alLeer?.Invoke();
+            return leidos;
+        }
+
+        public override int Read(byte[] buffer, int offset, int count) => Read(buffer.AsSpan(offset, count));
+
+        public override bool CanRead => true;
+        public override bool CanSeek => interno.CanSeek;
+        public override bool CanWrite => false;
+        public override long Length => interno.Length;
+
+        public override long Position
+        {
+            get => interno.Position;
+            set => interno.Position = value;
+        }
+
+        public override long Seek(long offset, SeekOrigin origin) => interno.Seek(offset, origin);
+
+        public override void Flush()
+        {
+        }
+
+        public override void SetLength(long value) => throw new NotSupportedException();
+
+        public override void Write(byte[] buffer, int offset, int count) => throw new NotSupportedException();
+
+        protected override void Dispose(bool disposing)
+        {
+            if (disposing)
+                interno.Dispose();
+            base.Dispose(disposing);
+        }
+    }
 }

@@ -32,11 +32,16 @@ public static class LimitesFotoAPdf
     /// <summary>Tope por lado: una tira de 1 x 40 millones de píxeles cabe en <see cref="MaximoPixeles"/> y no es una foto.</summary>
     public const int MaximoLadoPixeles = 12_000;
 
+    /// <summary>Memoria de un píxel decodificado o dibujado (RGBA de 8 bits por canal).</summary>
+    public const long BytesPorPixelDecodificado = 4;
+
     /// <summary>
-    /// Memoria que cuesta procesar un píxel de la mayor foto (decodificación RGBA más el lienzo de salida, ya reducido),
-    /// con margen: la cuenta del presupuesto de memoria es una cota, no una medida.
+    /// Copias del JPEG recodificado que retiene el documento PDF en memoria mientras se compone (el flujo que lee la
+    /// imagen y el objeto de imagen del documento), medidas con PDFsharp; la cuenta se redondea hacia arriba. Se suman a
+    /// la copia que ya es el PDF final. El tamaño del JPEG NO se deduce del de la foto subida (un PNG de 170 KB con un
+    /// patrón repetido da un JPEG de varios MB): se cuenta lo que el codificador produce de verdad.
     /// </summary>
-    public const long BytesPorPixelEnProceso = 8;
+    public const long CopiasDelJpegEnElDocumento = 2;
 
     /// <summary>Lado mayor de la imagen que entra en el PDF (A4 a 300 ppp); una foto más grande se reduce y una menor no se amplía.</summary>
     public const int LadoMaximoEnPdfPixeles = 3508;
@@ -208,9 +213,31 @@ public static class ValidadorFotoAPdf
 /// </summary>
 public interface IProcesadorFotosPdf
 {
-    /// <summary>Un PDF con una página por foto y en el orden recibido. Las fotos ya pasaron por <see cref="ValidadorFotoAPdf"/>.</summary>
-    Result<byte[]> ComponerPdf(IReadOnlyList<byte[]> fotos, CancellationToken cancellationToken);
+    /// <summary>
+    /// Un PDF con una página por foto y en el orden recibido. Las fotos ya pasaron por <see cref="ValidadorFotoAPdf"/>.
+    /// El procesador reserva en el presupuesto de memoria (<see cref="Common.IPresupuestoMemoriaDocumentos"/>) lo que
+    /// decodifica, lo que codifica y lo que retiene, y sin esperar (quien llama ya retiene las fotos leídas): si no cabe,
+    /// lanza <see cref="Common.PresupuestoMemoriaAgotadoException"/> antes de reservar de más. Cancelar interrumpe entre
+    /// bandas de decodificación y entre etapas, y lanza <see cref="OperationCanceledException"/>.
+    /// </summary>
+    Result<PdfDeFotos> ComponerPdf(IReadOnlyList<byte[]> fotos, CancellationToken cancellationToken);
 
-    /// <summary>Miniatura JPEG, ya orientada, con el lado mayor de <paramref name="ladoMaximoPixeles"/> como mucho.</summary>
+    /// <summary>Miniatura JPEG, ya orientada, con el lado mayor de <paramref name="ladoMaximoPixeles"/> como mucho. Mismas reglas de memoria y cancelación que <see cref="ComponerPdf"/>.</summary>
     Result<byte[]> CrearMiniatura(byte[] foto, int ladoMaximoPixeles, CancellationToken cancellationToken);
+}
+
+/// <summary>
+/// El PDF ya compuesto, como flujo en posición 0 que se entrega tal cual (sin copiarlo a otro array), junto con la reserva
+/// del presupuesto de memoria que lo cubre: quien lo recibe lo desecha cuando el navegador ya lo tiene y la reserva vuelve
+/// al presupuesto con él.
+/// </summary>
+public sealed class PdfDeFotos(MemoryStream flujo, IDisposable reserva) : IDisposable
+{
+    public MemoryStream Flujo { get; } = flujo;
+
+    public void Dispose()
+    {
+        Flujo.Dispose();
+        reserva.Dispose();
+    }
 }

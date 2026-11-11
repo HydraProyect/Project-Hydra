@@ -1,7 +1,10 @@
+using CaeManager.Application.Common;
 using CaeManager.Application.HerramientasPdf;
+using CaeManager.Domain.Common;
 using CaeManager.Infrastructure.HerramientasPdf;
 using FluentAssertions;
 using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Options;
 using PdfSharp.Drawing;
 using PdfSharp.Pdf;
 using PdfSharp.Pdf.IO;
@@ -19,7 +22,73 @@ public sealed class ProcesadorFotosPdfTests
 {
     private const string CanarioGps = "GPSLatitude=41.3851N;GPSLongitude=2.1734E;Make=TalvegCam";
 
-    private readonly SkiaPdfSharpProcesadorFotosPdf _procesador = new(NullLogger<SkiaPdfSharpProcesadorFotosPdf>.Instance);
+    private readonly SkiaPdfSharpProcesadorFotosPdf _procesador;
+
+    public ProcesadorFotosPdfTests() => _procesador = Procesador(new PresupuestoMemoriaDocumentos(
+        Options.Create(new OpcionesPresupuestoMemoriaDocumentos()), TimeProvider.System));
+
+    private static SkiaPdfSharpProcesadorFotosPdf Procesador(IPresupuestoMemoriaDocumentos presupuesto) =>
+        new(NullLogger<SkiaPdfSharpProcesadorFotosPdf>.Instance, presupuesto);
+
+    private static PresupuestoMemoriaDocumentos PresupuestoDe(long maximoBytes) =>
+        new(Options.Create(new OpcionesPresupuestoMemoriaDocumentos { MaximoBytes = maximoBytes }), TimeProvider.System);
+
+    /// <summary>Deja pasar al presupuesto real y apunta lo máximo que hubo reservado a la vez.</summary>
+    private sealed class PresupuestoConPico(PresupuestoMemoriaDocumentos real) : IPresupuestoMemoriaDocumentos
+    {
+        public long Pico { get; private set; }
+
+        public long Maximo => real.Maximo;
+
+        public ValueTask<ReservaMemoriaDocumentos> ReservarAsync(long bytes, CancellationToken cancellationToken = default) =>
+            real.ReservarAsync(bytes, cancellationToken);
+
+        public bool TryReservar(long bytes, out ReservaMemoriaDocumentos reserva)
+        {
+            var cabe = real.TryReservar(bytes, out reserva);
+            Pico = Math.Max(Pico, real.Reservado);
+            return cabe;
+        }
+    }
+
+    /// <summary>Los bytes del PDF compuesto; desecha el resultado como lo haría la pantalla.</summary>
+    private static byte[] BytesDelPdf(Result<PdfDeFotos> r)
+    {
+        r.EsExitoso.Should().BeTrue();
+        using var pdf = r.Valor;
+        pdf.Flujo.Position.Should().Be(0, "el flujo se entrega listo para leerlo desde el principio");
+        return pdf.Flujo.ToArray();
+    }
+
+    /// <summary>
+    /// Una imagen que se comprime muy bien como PNG (un mosaico de ruido de 64 x 64 repetido: deflate lo encuentra a
+    /// 32 KB de distancia) y muy mal como JPEG: su JPEG es órdenes de magnitud mayor que el fichero subido.
+    /// </summary>
+    private static byte[] PngDeMosaicoDeRuido(int lado)
+    {
+        var rnd = new Random(7);
+        var tesela = new byte[64 * 64 * 4];
+        rnd.NextBytes(tesela);
+        using var bitmap = new SKBitmap(new SKImageInfo(lado, lado, SKColorType.Rgba8888, SKAlphaType.Opaque));
+        var fila = new byte[lado * 4];
+        for (var y = 0; y < lado; y++)
+        {
+            for (var x = 0; x < lado; x++)
+            {
+                var origen = ((y % 64) * 64 + (x % 64)) * 4;
+                fila[x * 4] = tesela[origen];
+                fila[x * 4 + 1] = tesela[origen + 1];
+                fila[x * 4 + 2] = tesela[origen + 2];
+                fila[x * 4 + 3] = 255;
+            }
+
+            System.Runtime.InteropServices.Marshal.Copy(fila, 0, bitmap.GetPixels() + y * bitmap.RowBytes, fila.Length);
+        }
+
+        using var imagen = SKImage.FromBitmap(bitmap);
+        using var datos = imagen.Encode(SKEncodedImageFormat.Png, 100);
+        return datos.ToArray();
+    }
 
     /// <summary>Mitad izquierda roja y mitad derecha azul: cualquier giro o espejo cambia dónde queda el rojo.</summary>
     private static byte[] FotoBicolor(int ancho, int alto, SKEncodedImageFormat formato = SKEncodedImageFormat.Jpeg)
@@ -198,14 +267,13 @@ public sealed class ProcesadorFotosPdfTests
         // control dejara de encontrarlo, la prueba de debajo habría dejado de ser sensible.
         Contiene(PdfDirectoDelOriginal(original), CanarioGps).Should().BeTrue("el instrumento puede ver el GPS en un PDF que lo lleve");
 
-        var r = _procesador.ComponerPdf([original, original], CancellationToken.None);
+        var pdf = BytesDelPdf(_procesador.ComponerPdf([original, original], CancellationToken.None));
 
-        r.EsExitoso.Should().BeTrue();
-        Contiene(r.Valor, CanarioGps).Should().BeFalse();
-        Contiene(r.Valor, "TalvegCam").Should().BeFalse();
-        Contiene(r.Valor, "Exif").Should().BeFalse();
-        Contiene(r.Valor, "GPS").Should().BeFalse();
-        Contiene(r.Valor, "/Image").Should().BeTrue("el PDF sí lleva las imágenes");
+        Contiene(pdf, CanarioGps).Should().BeFalse();
+        Contiene(pdf, "TalvegCam").Should().BeFalse();
+        Contiene(pdf, "Exif").Should().BeFalse();
+        Contiene(pdf, "GPS").Should().BeFalse();
+        Contiene(pdf, "/Image").Should().BeTrue("el PDF sí lleva las imágenes");
     }
 
     private static byte[] PdfDirectoDelOriginal(byte[] jpeg)
@@ -228,10 +296,9 @@ public sealed class ProcesadorFotosPdfTests
         var ancha = FotoBicolor(40, 20);
         var alta = FotoBicolor(20, 40);
 
-        var r = _procesador.ComponerPdf([alta, ancha, alta], CancellationToken.None);
+        var pdf = BytesDelPdf(_procesador.ComponerPdf([alta, ancha, alta], CancellationToken.None));
 
-        r.EsExitoso.Should().BeTrue();
-        using var leido = PdfReader.Open(new MemoryStream(r.Valor), PdfDocumentOpenMode.Import);
+        using var leido = PdfReader.Open(new MemoryStream(pdf), PdfDocumentOpenMode.Import);
         leido.PageCount.Should().Be(3);
         leido.Pages[0].Width.Point.Should().BeLessThan(leido.Pages[0].Height.Point);
         leido.Pages[1].Width.Point.Should().BeGreaterThan(leido.Pages[1].Height.Point);
@@ -242,9 +309,9 @@ public sealed class ProcesadorFotosPdfTests
     public void Una_foto_con_orientacion_EXIF_de_cuarto_de_vuelta_sale_derecha_en_su_pagina()
     {
         // Apaisada en bruto (40 x 20) pero con orientación 6: el móvil estaba en vertical. La página tiene que ser derecha.
-        var r = _procesador.ComponerPdf([ConExif(FotoBicolor(40, 20), 6)], CancellationToken.None);
+        var pdf = BytesDelPdf(_procesador.ComponerPdf([ConExif(FotoBicolor(40, 20), 6)], CancellationToken.None));
 
-        using var leido = PdfReader.Open(new MemoryStream(r.Valor), PdfDocumentOpenMode.Import);
+        using var leido = PdfReader.Open(new MemoryStream(pdf), PdfDocumentOpenMode.Import);
         leido.Pages[0].Width.Point.Should().BeLessThan(leido.Pages[0].Height.Point);
     }
 
@@ -323,5 +390,346 @@ public sealed class ProcesadorFotosPdfTests
         r.EsExitoso.Should().BeTrue();
         using var bitmap = SKBitmap.Decode(r.Valor);
         (bitmap.Width, bitmap.Height).Should().Be((50, 100));
+    }
+
+    [Fact]
+    public void Una_foto_alta_sale_con_la_orientacion_aplicada_igual_que_una_pequena()
+    {
+        var r = _procesador.Normalizar(ConExif(FotoCuadrantes(60, 400), 6), 3508);
+
+        r.EsExitoso.Should().BeTrue();
+        (r.Valor.Ancho, r.Valor.Alto).Should().Be((400, 60));
+        var (a, h) = (r.Valor.Ancho, r.Valor.Alto);
+        new string(
+        [
+            Cuadrante(Pixel(r.Valor.Jpeg, a / 4, h / 4)),
+            Cuadrante(Pixel(r.Valor.Jpeg, 3 * a / 4, h / 4)),
+            Cuadrante(Pixel(r.Valor.Jpeg, a / 4, 3 * h / 4)),
+            Cuadrante(Pixel(r.Valor.Jpeg, 3 * a / 4, 3 * h / 4)),
+        ]).Should().Be("BRYG");
+    }
+
+    // --- Memoria: se cuenta lo que SALE, no lo que se subió ---
+
+    [Fact]
+    public void El_JPEG_recodificado_puede_ser_mucho_mayor_que_la_foto_subida()
+    {
+        // Instrumento: sin esto, «la reserva cubre el JPEG» podría ser cierto porque el JPEG siempre fuera pequeño.
+        var png = PngDeMosaicoDeRuido(1200);
+
+        var r = _procesador.Normalizar(png, 3508);
+
+        r.EsExitoso.Should().BeTrue();
+        r.Valor.Jpeg.Length.Should().BeGreaterThan(5 * png.Length, "el PNG se comprime por su patrón y el JPEG no");
+    }
+
+    [Fact]
+    public void El_presupuesto_cuenta_el_JPEG_que_retiene_el_PDF_y_no_el_tamano_de_la_foto_subida()
+    {
+        var png = PngDeMosaicoDeRuido(1200);
+        var real = PresupuestoDe(512L * 1024 * 1024);
+        var presupuesto = new PresupuestoConPico(real);
+        var procesador = Procesador(presupuesto);
+        var jpeg = procesador.Normalizar(png, 3508).Valor.Jpeg.LongLength;
+        real.Reservado.Should().Be(0, "Normalizar devuelve todo lo que reservó");
+
+        // Lo que presupuestaba la pantalla antes: 2 x bytes subidos + 8 x píxeles de la mayor. Con cuatro fotos de este tipo
+        // el PDF solo retiene ya más que eso.
+        var presupuestoAnterior = 2 * 4L * png.Length + 8L * 1200 * 1200;
+        var r = procesador.ComponerPdf([png, png, png, png], CancellationToken.None);
+
+        r.EsExitoso.Should().BeTrue();
+        presupuesto.Pico.Should().BeGreaterThan(presupuestoAnterior, "el presupuesto antiguo no cubría lo que ocupa el PDF");
+        presupuesto.Pico.Should().BeGreaterThanOrEqualTo(4 * jpeg * (1 + LimitesFotoAPdf.CopiasDelJpegEnElDocumento));
+        real.Reservado.Should().BeGreaterThanOrEqualTo(r.Valor.Flujo.Length, "el PDF que se entrega sigue reservado hasta que se deseche");
+
+        r.Valor.Dispose();
+        real.Reservado.Should().Be(0);
+    }
+
+    [Fact]
+    public void Si_lo_que_retiene_el_PDF_no_cabe_en_el_presupuesto_falla_cerrado_y_lo_devuelve_todo()
+    {
+        var png = PngDeMosaicoDeRuido(1200);
+        // Cabe decodificar y dibujar una foto (8 bytes por píxel) y unos MB más; el PDF de cuatro no cabe.
+        var real = PresupuestoDe(8L * 1200 * 1200 + 1024 * 1024);
+        var procesador = Procesador(real);
+
+        var accion = () => procesador.ComponerPdf([png, png, png, png], CancellationToken.None);
+
+        accion.Should().Throw<PresupuestoMemoriaAgotadoException>();
+        real.Reservado.Should().Be(0, "ni las reservas de las fotos hechas ni el flujo a medias se quedan");
+    }
+
+    [Fact]
+    public void Sin_hueco_para_decodificar_y_dibujar_falla_antes_de_decodificar_nada()
+    {
+        var png = PngDeMosaicoDeRuido(600);
+        var real = PresupuestoDe(4L * 600 * 600); // solo cabe una de las dos (decodificación y lienzo)
+        var etapas = new List<string>();
+        var procesador = Procesador(real);
+        procesador.AlTerminarEtapa = etapas.Add;
+
+        var accion = () => procesador.Normalizar(png, 3508);
+
+        accion.Should().Throw<PresupuestoMemoriaAgotadoException>();
+        etapas.Should().NotContain("decodificada", "solo se leyó la cabecera; la decodificación no empezó");        real.Reservado.Should().Be(0);
+    }
+
+    [Fact]
+    public void La_miniatura_tambien_reserva_en_el_presupuesto()
+    {
+        var png = PngDeMosaicoDeRuido(600);
+        var real = PresupuestoDe(4L * 600 * 600);
+
+        var accion = () => Procesador(real).CrearMiniatura(png, 128, CancellationToken.None);
+
+        accion.Should().Throw<PresupuestoMemoriaAgotadoException>();
+        real.Reservado.Should().Be(0);
+    }
+
+    [Fact]
+    public void El_flujo_del_JPEG_reserva_cada_trozo_antes_de_pedirlo_y_se_declara_agotado_sin_lanzar()
+    {
+        var trozo = SkiaPdfSharpProcesadorFotosPdf.FlujoJpegContado.Trozo;
+        var real = PresupuestoDe(2L * trozo); // caben dos trozos
+        using var cuenta = new SkiaPdfSharpProcesadorFotosPdf.Cuenta(real);
+        using var flujo = new SkiaPdfSharpProcesadorFotosPdf.FlujoJpegContado(cuenta);
+        var datos = new byte[trozo + 10];
+        new Random(3).NextBytes(datos);
+
+        flujo.Write(datos, 0, datos.Length);
+
+        flujo.Agotado.Should().BeFalse();
+        flujo.Longitud.Should().Be(datos.Length);
+        real.Reservado.Should().Be(2L * trozo);
+        flujo.ToArray().Should().Equal(datos);
+
+        // Un tercer trozo ya no cabe: no se reserva, no se guarda, no se lanza (estamos dentro de una llamada nativa).
+        flujo.Write(new byte[2 * trozo], 0, 2 * trozo);
+        flujo.Agotado.Should().BeTrue();
+        real.Reservado.Should().Be(2L * trozo, "no se reservó de más");
+        flujo.Longitud.Should().BeLessThan(datos.Length + 2L * trozo);
+    }
+
+    // --- Cancelación ---
+
+    /// <summary>Una foto cuya decodificación pide muchas lecturas: sirve para cancelar a mitad de decodificar.</summary>
+    private byte[] FotoGrande(SKEncodedImageFormat formato)
+    {
+        var png = PngDeMosaicoDeRuido(1200);
+        return formato == SKEncodedImageFormat.Png ? png : _procesador.Normalizar(png, 3508).Valor.Jpeg;
+    }
+
+    /// <summary>Cuántas lecturas de bytes pide el decodificador para una foto, sin cancelar.</summary>
+    private int LecturasDeUnaDecodificacionCompleta(byte[] foto)
+    {
+        var lecturas = 0;
+        var procesador = Procesador(PresupuestoDe(512L * 1024 * 1024));
+        procesador.AlTerminarEtapa = etapa => lecturas += etapa == "lectura" ? 1 : 0;
+        procesador.Normalizar(foto, 3508).EsExitoso.Should().BeTrue();
+        return lecturas;
+    }
+
+    [Theory]
+    [InlineData(SKEncodedImageFormat.Jpeg)]
+    [InlineData(SKEncodedImageFormat.Png)]
+    public void Cancelar_interrumpe_la_decodificacion_en_curso_a_los_pocos_KB(SKEncodedImageFormat formato)
+    {
+        var foto = FotoGrande(formato);
+        var total = LecturasDeUnaDecodificacionCompleta(foto);
+        total.Should().BeGreaterThan(20, "instrumento: la decodificación completa pide bastantes lecturas, así que cortar a las 5 es cortar a mitad");
+
+        using var cts = new CancellationTokenSource();
+        var real = PresupuestoDe(512L * 1024 * 1024);
+        var procesador = Procesador(real);
+        var etapas = new List<string>();
+        var lecturas = 0;
+        procesador.AlTerminarEtapa = etapa =>
+        {
+            etapas.Add(etapa);
+            if (etapa == "lectura" && ++lecturas == 5)
+                cts.Cancel();
+        };
+
+        var accion = () => procesador.Normalizar(foto, 3508, cts.Token);
+
+        accion.Should().Throw<OperationCanceledException>();
+        lecturas.Should().Be(5, "tras cancelar, el flujo no sirve ni un byte más");
+        etapas.Should().NotContain("decodificada", "la foto no llegó a decodificarse entera");
+        real.Reservado.Should().Be(0, "la reserva de la foto cancelada vuelve al presupuesto");
+    }
+
+    [Theory]
+    [InlineData("decodificada", "dibujada")]
+    [InlineData("dibujada", "codificada")]
+    [InlineData("codificada", "")]
+    public void Cancelar_en_una_etapa_impide_empezar_la_siguiente(string cancelaEn, string noDebeVerse)
+    {
+        using var cts = new CancellationTokenSource();
+        var real = PresupuestoDe(512L * 1024 * 1024);
+        var procesador = Procesador(real);
+        var etapas = new List<string>();
+        procesador.AlTerminarEtapa = etapa =>
+        {
+            etapas.Add(etapa);
+            if (etapa == cancelaEn)
+                cts.Cancel();
+        };
+
+        var accion = () => procesador.Normalizar(FotoBicolor(40, 20), 3508, cts.Token);
+
+        accion.Should().Throw<OperationCanceledException>();
+        etapas.Should().Contain(cancelaEn);
+        if (noDebeVerse.Length > 0)
+            etapas.Should().NotContain(noDebeVerse);
+        real.Reservado.Should().Be(0);
+    }
+
+    [Fact]
+    public void Cancelar_componiendo_el_PDF_interrumpe_la_foto_en_curso_y_no_deja_reservas()
+    {
+        using var cts = new CancellationTokenSource();
+        var real = PresupuestoDe(512L * 1024 * 1024);
+        var procesador = Procesador(real);
+        var lecturas = 0;
+        procesador.AlTerminarEtapa = etapa =>
+        {
+            if (etapa == "lectura" && ++lecturas == 5)
+                cts.Cancel();
+        };
+
+        var accion = () => procesador.ComponerPdf([FotoGrande(SKEncodedImageFormat.Jpeg), FotoBicolor(40, 20)], cts.Token);
+
+        accion.Should().Throw<OperationCanceledException>();
+        lecturas.Should().Be(5, "la primera foto no llegó a terminar de decodificarse y la segunda ni se abrió");
+        real.Reservado.Should().Be(0);
+    }
+
+    [Fact]
+    public void Con_el_token_ya_cancelado_no_se_decodifica_nada()
+    {
+        var etapas = new List<string>();
+        var procesador = Procesador(PresupuestoDe(512L * 1024 * 1024));
+        procesador.AlTerminarEtapa = etapas.Add;
+
+        var accion = () => procesador.CrearMiniatura(FotoBicolor(40, 20), 128, new CancellationToken(canceled: true));
+
+        accion.Should().Throw<OperationCanceledException>();
+        etapas.Should().BeEmpty();
+    }
+
+    // --- Metadatos: más allá del canario ASCII en un EXIF ---
+
+    private static byte[] ConSegmentoJpeg(byte[] jpeg, byte marcador, byte[] carga)
+    {
+        var longitud = carga.Length + 2;
+        byte[] segmento = [0xFF, marcador, (byte)(longitud >> 8), (byte)longitud, .. carga];
+        return [.. jpeg.Take(2), .. segmento, .. jpeg.Skip(2)];
+    }
+
+    /// <summary>EXIF con un IFD de GPS de verdad (GPSLatitudeRef y GPSLatitude como tres racionales), no solo texto.</summary>
+    private static byte[] CargaExifConGpsEstructurado()
+    {
+        byte[] tiff =
+        [
+            0x4D, 0x4D, 0x00, 0x2A, 0, 0, 0, 8,
+            // IFD0: una entrada, GPSInfo (0x8825, LONG) apuntando al IFD de GPS en el desplazamiento 26
+            0, 1, 0x88, 0x25, 0, 4, 0, 0, 0, 1, 0, 0, 0, 26,
+            0, 0, 0, 0,
+            // IFD de GPS: GPSLatitudeRef = "N" y GPSLatitude = 3 racionales en el desplazamiento 56
+            0, 2,
+            0, 1, 0, 2, 0, 0, 0, 2, (byte)'N', 0, 0, 0,
+            0, 2, 0, 5, 0, 0, 0, 3, 0, 0, 0, 56,
+            0, 0, 0, 0,
+            0, 0, 0, 41, 0, 0, 0, 1, 0, 0, 0, 23, 0, 0, 0, 1, 0, 0, 0, 6, 0, 0, 0, 1,
+        ];
+        return [.. "Exif\0\0"u8.ToArray(), .. tiff];
+    }
+
+    /// <summary>Marcadores de la cabecera del JPEG (hasta SOS), como valores del segundo byte.</summary>
+    private static List<byte> MarcadoresDeCabecera(byte[] jpeg)
+    {
+        var marcadores = new List<byte>();
+        var i = 2;
+        while (i + 4 <= jpeg.Length && jpeg[i] == 0xFF)
+        {
+            var m = jpeg[i + 1];
+            marcadores.Add(m);
+            if (m == 0xDA)
+                break;
+            i += 2 + ((jpeg[i + 2] << 8) | jpeg[i + 3]);
+        }
+
+        return marcadores;
+    }
+
+    [Fact]
+    public void Ni_el_GPS_estructurado_ni_el_XMP_ni_el_perfil_ICC_ni_un_comentario_llegan_a_la_foto_normalizada()
+    {
+        var original = FotoBicolor(40, 20);
+        original = ConSegmentoJpeg(original, 0xE1, CargaExifConGpsEstructurado());
+        original = ConSegmentoJpeg(original, 0xE1, [.. "http://ns.adobe.com/xap/1.0/\0"u8.ToArray(), .. "<x:xmpmeta><exif:GPSLatitude>41,23.1N</exif:GPSLatitude><xmp:CreatorTool>TalvegCam</xmp:CreatorTool></x:xmpmeta>"u8.ToArray()]);
+        original = ConSegmentoJpeg(original, 0xE2, [.. "ICC_PROFILE\0\u0001\u0001"u8.ToArray(), .. "PerfilTalvegCam"u8.ToArray()]);
+        original = ConSegmentoJpeg(original, 0xFE, "ComentarioTalvegCam"u8.ToArray());
+
+        // Instrumento: el original lleva de verdad los cuatro tipos de segmento.
+        MarcadoresDeCabecera(original).Should().Contain([(byte)0xE1, (byte)0xE2, (byte)0xFE]);
+        Contiene(original, "xmpmeta").Should().BeTrue();
+
+        var r = _procesador.Normalizar(original, 3508);
+
+        r.EsExitoso.Should().BeTrue();
+        MarcadoresDeCabecera(r.Valor.Jpeg).Should().NotContain(m => (m >= 0xE1 && m <= 0xEF) || m == 0xFE, "solo quedan JFIF, tablas y la imagen");
+        foreach (var rastro in new[] { "Exif", "xmpmeta", "GPSLatitude", "ICC_PROFILE", "TalvegCam", "Comentario" })
+            Contiene(r.Valor.Jpeg, rastro).Should().BeFalse(rastro);
+    }
+
+    private static uint Crc32(ReadOnlySpan<byte> datos)
+    {
+        var crc = 0xFFFFFFFFu;
+        foreach (var b in datos)
+        {
+            crc ^= b;
+            for (var k = 0; k < 8; k++)
+                crc = (crc & 1) != 0 ? (crc >> 1) ^ 0xEDB88320u : crc >> 1;
+        }
+
+        return ~crc;
+    }
+
+    /// <summary>Un trozo PNG con su CRC, insertado justo tras IHDR.</summary>
+    private static byte[] ConTrozoPng(byte[] png, string tipo, byte[] carga)
+    {
+        var cuerpo = new byte[4 + carga.Length];
+        System.Text.Encoding.ASCII.GetBytes(tipo).CopyTo(cuerpo, 0);
+        carga.CopyTo(cuerpo, 4);
+        var trozo = new byte[12 + carga.Length];
+        System.Buffers.Binary.BinaryPrimitives.WriteUInt32BigEndian(trozo, (uint)carga.Length);
+        cuerpo.CopyTo(trozo, 4);
+        System.Buffers.Binary.BinaryPrimitives.WriteUInt32BigEndian(trozo.AsSpan(8 + carga.Length), Crc32(cuerpo));
+        const int finDeIhdr = 8 + 25;
+        return [.. png.Take(finDeIhdr), .. trozo, .. png.Skip(finDeIhdr)];
+    }
+
+    [Fact]
+    public void Los_metadatos_de_un_PNG_tEXt_zTXt_iTXt_y_eXIf_no_llegan_a_la_foto_normalizada()
+    {
+        var original = FotoBicolor(40, 20, SKEncodedImageFormat.Png);
+        original = ConTrozoPng(original, "tEXt", [.. "Comment\0"u8.ToArray(), .. "GPSLatitude=41.3851N TalvegCam"u8.ToArray()]);
+        original = ConTrozoPng(original, "iTXt", [.. "XML:com.adobe.xmp\0\0\0\0\0"u8.ToArray(), .. "<x:xmpmeta>TalvegCam</x:xmpmeta>"u8.ToArray()]);
+        original = ConTrozoPng(original, "eXIf", CargaExifConGpsEstructurado()[6..]);
+
+        // Instrumento: Skia lee ese PNG sin problema y el original lleva los rastros.
+        Contiene(original, "TalvegCam").Should().BeTrue();
+        Contiene(original, "eXIf").Should().BeTrue();
+        SKBitmap.Decode(original).Should().NotBeNull("los trozos añadidos están bien formados");
+
+        var r = _procesador.Normalizar(original, 3508);
+
+        r.EsExitoso.Should().BeTrue();
+        MarcadoresDeCabecera(r.Valor.Jpeg).Should().NotContain(m => (m >= 0xE1 && m <= 0xEF) || m == 0xFE);
+        foreach (var rastro in new[] { "Exif", "xmpmeta", "GPSLatitude", "TalvegCam", "Comment" })
+            Contiene(r.Valor.Jpeg, rastro).Should().BeFalse(rastro);
     }
 }

@@ -153,13 +153,9 @@ public partial class FotoAPdf : CaeManager.Web.Components.PaginaInteractiva, IAs
                 }
                 else
                 {
-                    // La miniatura decodifica la foto entera: se reserva lo que costará, calculado con la cabecera ya comprobada.
-                    // Quien ya retiene una reserva amplía sin esperar (TryReservar): esperar reteniendo bloquea a varias
-                    // operaciones entre sí hasta agotar el plazo.
-                    if (!PresupuestoMemoria.TryReservar(validada.Valor.Pixeles * LimitesFotoAPdf.BytesPorPixelEnProceso, out var reserva))
-                        throw new PresupuestoMemoriaAgotadoException();
-
-                    using var _ = reserva;
+                    // La miniatura decodifica la foto entera: el procesador reserva lo que cuesta (decodificación, lienzo y el
+                    // JPEG que produce) sin esperar, porque esta operación ya retiene la reserva del fichero leído, y lanza
+                    // PresupuestoMemoriaAgotadoException si no cabe. Cancelar interrumpe la decodificación entre bandas.
                     var miniatura = await Task.Run(() => Procesador.CrearMiniatura(contenido, LadoMiniaturaPixeles, token), token);
                     if (miniatura.EsFallido)
                         codigoRechazo = miniatura.Error.Codigo;
@@ -180,6 +176,14 @@ public partial class FotoAPdf : CaeManager.Web.Components.PaginaInteractiva, IAs
         catch (ArchivoTemporalDemasiadoGrandeException)
         {
             _rechazadas.Add($"{nombre}: {MensajeDe(ErroresFotoAPdf.FotoDemasiadoGrande)}");
+        }
+        catch (IOException)
+        {
+            // La lectura de la subida se cortó (el navegador cerró la conexión o el fichero cambió): esa foto no entra,
+            // pero las que ya estaban aceptadas y las demás de la selección siguen su curso.
+            if (guardado is not null && _fotos.TrueForAll(f => f.Archivo != guardado))
+                almacen.Eliminar(guardado);
+            _rechazadas.Add($"{nombre}: {MensajeDe(ErroresFotoAPdf.FotoIlegible)}");
         }
         catch
         {
@@ -236,11 +240,11 @@ public partial class FotoAPdf : CaeManager.Web.Components.PaginaInteractiva, IAs
             // Una copia: la reserva y la lectura se calculan sobre las mismas fotos aunque la lista cambie mientras se espera.
             var elegidas = _fotos.ToList();
             var bytes = elegidas.Sum(f => f.Bytes);
-            var mayorPixeles = elegidas.Max(f => f.Datos.Pixeles);
 
-            // Las fotos leídas, el PDF que sale y la decodificación de la mayor.
-            using var reserva = await PresupuestoMemoria.ReservarAsync(
-                2 * bytes + mayorPixeles * LimitesFotoAPdf.BytesPorPixelEnProceso, token);
+            // Las fotos leídas, que se retienen mientras se compone. Lo demás (decodificar, el JPEG recodificado, lo que
+            // retiene el documento y el PDF de salida) lo reserva el procesador a medida que lo produce: el tamaño del
+            // JPEG no se deduce de los bytes subidos ni de los píxeles, así que no se puede presupuestar de antemano.
+            using var reserva = await PresupuestoMemoria.ReservarAsync(bytes, token);
 
             var contenidos = new List<byte[]>(elegidas.Count);
             foreach (var foto in elegidas)
@@ -253,9 +257,10 @@ public partial class FotoAPdf : CaeManager.Web.Components.PaginaInteractiva, IAs
                 return;
             }
 
-            // El PDF no se guarda: va al navegador como flujo y esta referencia es lo último que lo retiene.
-            using var flujo = new MemoryStream(resultado.Valor, writable: false);
-            using var referencia = new DotNetStreamReference(flujo);
+            // El PDF no se guarda: va al navegador como flujo, sin copiarlo, y esto es lo último que lo retiene. Al desecharlo
+            // vuelve también su reserva del presupuesto.
+            using var pdf = resultado.Valor;
+            using var referencia = new DotNetStreamReference(pdf.Flujo, leaveOpen: true);
             _modulo ??= await JS.InvokeAsync<IJSObjectReference>("import", "./js/foto-a-pdf.js");
             await _modulo.InvokeVoidAsync("descargar", token, Textos["FotoNombreArchivo"].Value, referencia);
         }

@@ -31,6 +31,9 @@ public sealed class FotoAPdfPantallaTests : BunitContext
 
     private readonly ProcesadorFalso _procesador = new();
 
+    private readonly PresupuestoMemoriaDocumentos _presupuesto = new(
+        Options.Create(new OpcionesPresupuestoMemoriaDocumentos()), TimeProvider.System);
+
     public FotoAPdfPantallaTests() => JSInterop.Mode = JSRuntimeMode.Loose;
 
     private sealed class UsuarioFalso(string rol) : ICurrentUserService
@@ -45,16 +48,37 @@ public sealed class FotoAPdfPantallaTests : BunitContext
     private sealed class ProcesadorFalso : IProcesadorFotosPdf
     {
         public List<IReadOnlyList<byte[]>> Composiciones { get; } = [];
-        public Result<byte[]> Respuesta { get; set; } = Result.Exito(new byte[] { 0x25, 0x50, 0x44, 0x46 });
+        public Result<PdfDeFotos>? Respuesta { get; set; }
+
+        public bool LanzarSinPresupuesto { get; set; }
+
+        /// <summary>Si se pone, la reserva que acompaña al PDF devuelto (para comprobar que la pantalla la devuelve).</summary>
+        public IDisposable? ReservaDelPdf { get; set; }
+
+        /// <summary>Lo que recibió el navegador: el flujo que se le pasó, antes de desecharlo.</summary>
+        public MemoryStream? FlujoEntregado { get; private set; }
 
         /// <summary>Si se pone, componer espera aquí: deja la pantalla «generando» el tiempo que haga falta.</summary>
         public ManualResetEventSlim? Pausa { get; set; }
 
-        public Result<byte[]> ComponerPdf(IReadOnlyList<byte[]> fotos, CancellationToken cancellationToken)
+        public Result<PdfDeFotos> ComponerPdf(IReadOnlyList<byte[]> fotos, CancellationToken cancellationToken)
         {
             Composiciones.Add(fotos);
             Pausa?.Wait(TimeSpan.FromSeconds(20), cancellationToken);
-            return Respuesta;
+            if (LanzarSinPresupuesto)
+                throw new PresupuestoMemoriaAgotadoException();
+            if (Respuesta is { } r)
+                return r;
+
+            FlujoEntregado = new MemoryStream([0x25, 0x50, 0x44, 0x46]);
+            return Result.Exito(new PdfDeFotos(FlujoEntregado, ReservaDelPdf ?? new ReservaNula()));
+        }
+
+        private sealed class ReservaNula : IDisposable
+        {
+            public void Dispose()
+            {
+            }
         }
 
         public Result<byte[]> CrearMiniatura(byte[] foto, int ladoMaximoPixeles, CancellationToken cancellationToken) =>
@@ -98,8 +122,7 @@ public sealed class FotoAPdfPantallaTests : BunitContext
         {
             DirectorioTemporal = Path.Combine(Path.GetTempPath(), "talveg-foto-a-pdf-tests"),
         })));
-        Services.AddSingleton<IPresupuestoMemoriaDocumentos>(new PresupuestoMemoriaDocumentos(
-            Options.Create(new OpcionesPresupuestoMemoriaDocumentos()), TimeProvider.System));
+        Services.AddSingleton<IPresupuestoMemoriaDocumentos>(_presupuesto);
 
         return Render<FotoAPdf>();
     }
@@ -294,6 +317,42 @@ public sealed class FotoAPdfPantallaTests : BunitContext
     }
 
     [Fact]
+    public async Task Tras_entregar_el_PDF_al_navegador_se_cierra_el_flujo_y_vuelve_su_reserva_de_memoria()
+    {
+        var modulo = JSInterop.SetupModule("./js/foto-a-pdf.js");
+        modulo.SetupVoid("descargar", _ => true).SetVoidResult();
+        _presupuesto.TryReservar(7 * 1024 * 1024, out var reservaDelPdf).Should().BeTrue();
+        _procesador.ReservaDelPdf = reservaDelPdf;
+        var cut = Renderizar();
+        await SubirAsync(cut, ("a.jpg", Jpeg(10, 10)));
+        cut.WaitForAssertion(() => Nombres(cut).Should().HaveCount(1));
+
+        cut.FindAll("button").First(b => b.TextContent.Trim() == "Descargar PDF de 1 página").Click();
+
+        cut.WaitForAssertion(() => modulo.Invocations["descargar"].Should().ContainSingle());
+        cut.WaitForAssertion(() => _presupuesto.Reservado.Should().Be(0, "el PDF y lo reservado para él se sueltan juntos al terminar"));
+        _procesador.FlujoEntregado!.CanRead.Should().BeFalse("el PDF no se queda en memoria tras la descarga");
+    }
+
+    [Fact]
+    public async Task Si_el_procesador_no_encuentra_hueco_en_el_presupuesto_se_avisa_sin_descargar_nada()
+    {
+        var modulo = JSInterop.SetupModule("./js/foto-a-pdf.js");
+        modulo.SetupVoid("descargar", _ => true).SetVoidResult();
+        _procesador.LanzarSinPresupuesto = true;
+        var cut = Renderizar();
+        await SubirAsync(cut, ("a.jpg", Jpeg(10, 10)));
+        cut.WaitForAssertion(() => Nombres(cut).Should().HaveCount(1));
+
+        cut.FindAll("button").First(b => b.TextContent.Trim() == "Descargar PDF de 1 página").Click();
+
+        cut.WaitForAssertion(() => cut.Find(".aviso-error[role=alert]").TextContent.Should().Contain("no hay espacio"));
+        modulo.Invocations["descargar"].Should().BeEmpty();
+        _presupuesto.Reservado.Should().Be(0, "la reserva de las fotos leídas también se devuelve");
+        Nombres(cut).Should().Equal("a.jpg");
+    }
+
+    [Fact]
     public async Task Mientras_se_genera_el_PDF_no_se_pueden_anadir_fotos()
     {
         var modulo = JSInterop.SetupModule("./js/foto-a-pdf.js");
@@ -321,7 +380,7 @@ public sealed class FotoAPdfPantallaTests : BunitContext
     {
         var modulo = JSInterop.SetupModule("./js/foto-a-pdf.js");
         modulo.SetupVoid("descargar", _ => true).SetVoidResult();
-        _procesador.Respuesta = Result.Fallo<byte[]>(Error.Crear(ErroresFotoAPdf.NoSePudoGenerar, "x"));
+        _procesador.Respuesta = Result.Fallo<PdfDeFotos>(Error.Crear(ErroresFotoAPdf.NoSePudoGenerar, "x"));
         var cut = Renderizar();
         await SubirAsync(cut, ("a.jpg", Jpeg(10, 10)));
         cut.WaitForAssertion(() => Nombres(cut).Should().HaveCount(1));

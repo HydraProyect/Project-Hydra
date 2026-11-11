@@ -1,4 +1,5 @@
 using System.Buffers.Binary;
+using CaeManager.Application.Common;
 using CaeManager.Application.HerramientasPdf;
 using CaeManager.Domain.Common;
 using FluentAssertions;
@@ -268,17 +269,24 @@ public sealed class FotosAPdfTests
     {
         public List<IReadOnlyList<byte[]>> Llamadas { get; } = [];
 
-        public Result<byte[]> ComponerPdf(IReadOnlyList<byte[]> fotos, CancellationToken cancellationToken)
+        public Result<PdfDeFotos> ComponerPdf(IReadOnlyList<byte[]> fotos, CancellationToken cancellationToken)
         {
             Llamadas.Add(fotos);
-            return Result.Exito<byte[]>([1, 2, 3]);
+            return Result.Exito(new PdfDeFotos(new MemoryStream([1, 2, 3]), new Nada()));
         }
 
         public Result<byte[]> CrearMiniatura(byte[] foto, int ladoMaximoPixeles, CancellationToken cancellationToken) =>
             Result.Exito<byte[]>([9]);
+
+        private sealed class Nada : IDisposable
+        {
+            public void Dispose()
+            {
+            }
+        }
     }
 
-    private static Task<Result<byte[]>> Generar(ProcesadorFalso procesador, IReadOnlyList<byte[]> fotos, bool disponible = true) =>
+    private static Task<Result<PdfDeFotos>> Generar(ProcesadorFalso procesador, IReadOnlyList<byte[]> fotos, bool disponible = true) =>
         new GeneradorPdfDesdeFotos(new Disponibilidad(disponible), procesador)
             .GenerarAsync(fotos, CancellationToken.None);
 
@@ -293,8 +301,24 @@ public sealed class FotosAPdfTests
         var r = await Generar(procesador, [b, c, a]);
 
         r.EsExitoso.Should().BeTrue();
-        r.Valor.Should().Equal(1, 2, 3);
+        r.Valor.Flujo.ToArray().Should().Equal(1, 2, 3);
         procesador.Llamadas.Should().ContainSingle().Which.Should().Equal(b, c, a);
+    }
+
+    [Fact]
+    public void Desechar_el_PDF_cierra_el_flujo_y_devuelve_su_reserva_de_memoria()
+    {
+        var presupuesto = new PresupuestoMemoriaDocumentos(
+            Microsoft.Extensions.Options.Options.Create(new OpcionesPresupuestoMemoriaDocumentos()), TimeProvider.System);
+        presupuesto.TryReservar(5 * 1024 * 1024, out var reserva).Should().BeTrue();
+        var flujo = new MemoryStream([1, 2, 3]);
+        var pdf = new PdfDeFotos(flujo, reserva);
+        presupuesto.Reservado.Should().Be(5 * 1024 * 1024);
+
+        pdf.Dispose();
+
+        presupuesto.Reservado.Should().Be(0, "el PDF y su reserva viajan juntos");
+        flujo.CanRead.Should().BeFalse();
     }
 
     [Fact]

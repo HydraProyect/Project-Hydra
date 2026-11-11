@@ -15,7 +15,7 @@ namespace CaeManager.Application.HerramientasPdf;
 /// </summary>
 public class GeneradorPdfDesdeFotos(IDisponibilidadHerramientasPdf disponibilidad, IProcesadorFotosPdf procesador)
 {
-    public async Task<Result<byte[]>> GenerarAsync(IReadOnlyList<byte[]> fotos, CancellationToken cancellationToken)
+    public async Task<Result<PdfDeFotos>> GenerarAsync(IReadOnlyList<byte[]> fotos, CancellationToken cancellationToken)
     {
         if (!await disponibilidad.EstaDisponibleAsync(cancellationToken))
             return Fallo(ErroresFotoAPdf.NoDisponible, "Herramientas PDF no está disponible.");
@@ -43,5 +43,5 @@ public class GeneradorPdfDesdeFotos(IDisponibilidadHerramientasPdf disponibilida
         return await Task.Run(() => procesador.ComponerPdf(fotos, cancellationToken), cancellationToken);
     }
 
-    private static Result<byte[]> Fallo(string codigo, string mensaje) => Result.Fallo<byte[]>(Error.Crear(codigo, mensaje));
+    private static Result<PdfDeFotos> Fallo(string codigo, string mensaje) => Result.Fallo<PdfDeFotos>(Error.Crear(codigo, mensaje));
 }
