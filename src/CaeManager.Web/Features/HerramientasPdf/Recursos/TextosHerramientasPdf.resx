@@ -420,4 +420,116 @@
   <data name="ResultadoDocumentos" xml:space="preserve">
     <value>Documentos</value>
   </data>
+  <!-- Foto a PDF: bloque propio al final del fichero, para que un conflicto de fusión con otra herramienta sea trivial. -->
+  <data name="PortadaFotoTitulo" xml:space="preserve">
+    <value>Foto a PDF</value>
+  </data>
+  <data name="PortadaFotoDescripcion" xml:space="preserve">
+    <value>Sube las fotos hechas con el móvil, ordénalas y descarga un PDF con una página por foto. No se guarda en TALVEG.</value>
+  </data>
+  <data name="PortadaFotoAccion" xml:space="preserve">
+    <value>Crear un PDF con fotos</value>
+  </data>
+  <data name="FotoPestana" xml:space="preserve">
+    <value>Foto a PDF</value>
+  </data>
+  <data name="FotoTitulo" xml:space="preserve">
+    <value>Foto a PDF</value>
+  </data>
+  <data name="FotoDescripcion" xml:space="preserve">
+    <value>Sube las fotos hechas con el móvil, ordénalas y descarga un PDF con una página por foto.</value>
+  </data>
+  <data name="FotoAvisoNoSeGuarda" xml:space="preserve">
+    <value>El PDF no se guarda en TALVEG: se genera aquí, se descarga y desaparece. Las fotos se borran al salir de esta pantalla. El PDF no conserva los datos de la cámara ni la ubicación de las fotos.</value>
+  </data>
+  <data name="FotoRechazadasTitulo" xml:space="preserve">
+    <value>No se han podido añadir estas fotos</value>
+  </data>
+  <data name="FotoSubirTitulo" xml:space="preserve">
+    <value>Añadir fotos</value>
+  </data>
+  <data name="FotoZonaTitulo" xml:space="preserve">
+    <value>Suelta aquí tus fotos</value>
+  </data>
+  <data name="FotoZonaFormatos" xml:space="preserve">
+    <value>JPEG o PNG, hasta {0} fotos de {1} MB cada una.</value>
+  </data>
+  <data name="FotoLimiteAlcanzado" xml:space="preserve">
+    <value>Has llegado al máximo de {0} fotos. Quita alguna para añadir otras.</value>
+  </data>
+  <data name="FotoListaTitulo" xml:space="preserve">
+    <value>Orden de las páginas</value>
+  </data>
+  <data name="FotoResumenUna" xml:space="preserve">
+    <value>1 foto, 1 página</value>
+  </data>
+  <data name="FotoResumenVarias" xml:space="preserve">
+    <value>{0} fotos, {0} páginas</value>
+  </data>
+  <data name="FotoPagina" xml:space="preserve">
+    <value>Página {0}</value>
+  </data>
+  <data name="FotoMiniaturaAlt" xml:space="preserve">
+    <value>Vista previa de {0}</value>
+  </data>
+  <data name="FotoMedidas" xml:space="preserve">
+    <value>{0} × {1} px · {2}</value>
+  </data>
+  <data name="FotoMoverArriba" xml:space="preserve">
+    <value>Arriba</value>
+  </data>
+  <data name="FotoMoverAbajo" xml:space="preserve">
+    <value>Abajo</value>
+  </data>
+  <data name="FotoQuitar" xml:space="preserve">
+    <value>Quitar</value>
+  </data>
+  <data name="FotoMoverArribaDe" xml:space="preserve">
+    <value>Subir de posición {0}</value>
+  </data>
+  <data name="FotoMoverAbajoDe" xml:space="preserve">
+    <value>Bajar de posición {0}</value>
+  </data>
+  <data name="FotoQuitarDe" xml:space="preserve">
+    <value>Quitar {0}</value>
+  </data>
+  <data name="FotoQuitarTodas" xml:space="preserve">
+    <value>Quitar todas</value>
+  </data>
+  <data name="FotoDescargarUna" xml:space="preserve">
+    <value>Descargar PDF de 1 página</value>
+  </data>
+  <data name="FotoDescargarVarias" xml:space="preserve">
+    <value>Descargar PDF de {0} páginas</value>
+  </data>
+  <data name="FotoNombreArchivo" xml:space="preserve">
+    <value>fotos.pdf</value>
+  </data>
+  <data name="FotoErrorDemasiadas" xml:space="preserve">
+    <value>Solo caben {0} fotos en cada PDF.</value>
+  </data>
+  <data name="FotoErrorDemasiadoGrande" xml:space="preserve">
+    <value>La foto supera los {0} MB. Reduce su tamaño y vuelve a subirla.</value>
+  </data>
+  <data name="FotoErrorTotal" xml:space="preserve">
+    <value>Entre todas las fotos no pueden pasar de {0} MB. Quita alguna o genera el PDF en dos partes.</value>
+  </data>
+  <data name="FotoErrorFormato" xml:space="preserve">
+    <value>Solo se admiten fotos JPEG y PNG.</value>
+  </data>
+  <data name="FotoErrorHeic" xml:space="preserve">
+    <value>Las fotos HEIC no se admiten. En el iPhone, en Ajustes, Cámara, Formatos, elige «Más compatible», o compártela como JPEG.</value>
+  </data>
+  <data name="FotoErrorPixeles" xml:space="preserve">
+    <value>La foto tiene demasiada resolución (máximo {0} megapíxeles). Redúcela y vuelve a subirla.</value>
+  </data>
+  <data name="FotoErrorIlegible" xml:space="preserve">
+    <value>No hemos podido leer esta foto. Comprueba que no esté dañada.</value>
+  </data>
+  <data name="FotoErrorGenerar" xml:space="preserve">
+    <value>No hemos podido crear el PDF. Vuelve a intentarlo o quita alguna foto.</value>
+  </data>
+  <data name="FotoErrorDescarga" xml:space="preserve">
+    <value>El PDF está listo, pero el navegador no ha podido descargarlo. Vuelve a intentarlo.</value>
+  </data>
 </root>
