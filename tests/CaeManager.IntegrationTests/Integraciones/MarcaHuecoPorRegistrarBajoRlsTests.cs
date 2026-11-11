@@ -112,7 +112,8 @@ public class MarcaHuecoPorRegistrarBajoRlsTests : IAsyncLifetime
     }
 
     /// <summary>
-    /// Fallo cerrado: sin ámbito de Tenant, <c>app.tenant_id</c> queda en NULL y la política no iguala ninguna fila. La
+    /// Fallo cerrado: sin ámbito de Tenant, el contexto RLS de la conexión no lleva Tenant y la política no iguala ninguna
+    /// fila. La
     /// consulta no devuelve las marcadas de los dos Tenants, y sin filtro global de EF RLS tampoco deja ver ninguna.
     /// </summary>
     [Fact]
