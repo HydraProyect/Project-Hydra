@@ -71,6 +71,35 @@ public class ServicioDatosOrganizacionAltaTests
         registro.Entradas.Should().BeEmpty();
     }
 
+    [Theory]
+    [InlineData(null)]
+    [InlineData("corto")]
+    [InlineData("AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA+")]
+    public async Task Consultar_la_continuacion_con_un_credencial_sin_forma_no_llega_a_la_base(string? credencial)
+    {
+        var (servicio, acceso, _) = Crear(new TransicionDatosOrganizacionAlta(ResultadoDatosOrganizacionAlta.DatosCompletos, Guid.NewGuid()));
+        acceso.Continuacion = EstadoContinuacionAlta.DatosCompletos;
+
+        (await servicio.ConsultarContinuacionAsync(credencial, CancellationToken.None)).Should().Be(EstadoContinuacionAlta.NoValido);
+        acceso.ConsultasContinuacion.Should().Be(0);
+    }
+
+    [Theory]
+    [InlineData(EstadoContinuacionAlta.CorreoVerificado)]
+    [InlineData(EstadoContinuacionAlta.DatosCompletos)]
+    [InlineData(EstadoContinuacionAlta.Caducada)]
+    [InlineData(EstadoContinuacionAlta.NoValido)]
+    public async Task Consultar_la_continuacion_devuelve_lo_que_dice_la_base(EstadoContinuacionAlta estado)
+    {
+        var (servicio, acceso, registro) = Crear(new TransicionDatosOrganizacionAlta(ResultadoDatosOrganizacionAlta.DatosCompletos, Guid.NewGuid()));
+        acceso.Continuacion = estado;
+
+        (await servicio.ConsultarContinuacionAsync(ServicioRegistroAlta.NuevoToken(), CancellationToken.None)).Should().Be(estado);
+        acceso.ConsultasContinuacion.Should().Be(1);
+        acceso.Completados.Should().Be(0, "consultar no transiciona");
+        registro.Entradas.Should().BeEmpty();
+    }
+
     private static void NoContieneDatosPersonales(Entrada entrada)
     {
         foreach (var dato in new[] { RazonSocial, Cif, Domicilio, Telefono })

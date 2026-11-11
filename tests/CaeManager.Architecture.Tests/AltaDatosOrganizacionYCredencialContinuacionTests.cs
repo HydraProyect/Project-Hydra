@@ -14,6 +14,7 @@ public class AltaDatosOrganizacionYCredencialContinuacionTests
     private const string FirmaConsultar = "app_alta_consultar_enlace(text)";
     private const string FirmaVerificar = "app_alta_verificar_correo(text, text, text)";
     private const string FirmaCompletar = "app_alta_completar_datos_organizacion(text, text, text, text, text, text, boolean, boolean)";
+    private const string FirmaContinuacion = "app_alta_consultar_continuacion(text)";
 
     private static string Up => new AltaDatosOrganizacionYCredencialContinuacion()
         .UpOperations.OfType<SqlOperation>().Should().ContainSingle().Subject.Sql;
@@ -32,6 +33,7 @@ public class AltaDatosOrganizacionYCredencialContinuacionTests
     [InlineData("app_alta_consultar_enlace")]
     [InlineData("app_alta_verificar_correo")]
     [InlineData("app_alta_completar_datos_organizacion")]
+    [InlineData("app_alta_consultar_continuacion")]
     public void Cada_funcion_es_definidora_con_search_path_fijo_y_exige_el_contexto_firmado(string nombre)
     {
         Cuerpo(nombre).Should().Contain("SECURITY DEFINER")
@@ -44,20 +46,60 @@ public class AltaDatosOrganizacionYCredencialContinuacionTests
     [Fact]
     public void Solo_las_ejecuta_el_runtime_la_tabla_no_se_abre_y_Down_deja_la_verificacion_de_un_argumento()
     {
-        foreach (var firma in new[] { FirmaConsultar, FirmaVerificar, FirmaCompletar })
+        foreach (var firma in new[] { FirmaConsultar, FirmaVerificar, FirmaCompletar, FirmaContinuacion })
         {
             Up.Should().Contain($"REVOKE ALL ON FUNCTION public.{firma}")
                 .And.Contain($"GRANT EXECUTE ON FUNCTION public.{firma}");
             Down.Should().Contain($"DROP FUNCTION public.{firma};");
         }
 
-        Up.TrimStart().Should().StartWith("DROP FUNCTION public.app_alta_verificar_correo(text);");
         Up.Should().NotContain("CREATE POLICY", "las tablas siguen sin políticas")
             .And.NotContain("ON TABLE", "las tablas siguen sin privilegios para los roles de la aplicación")
             .And.NotContain("app_alta_caducar", "la caducidad es de A8")
             .And.NotContain("app_alta_borrar", "la limpieza es de A8");
-        Down.Should().Contain("CREATE FUNCTION public.app_alta_verificar_correo(p_hash_token text) RETURNS text")
-            .And.Contain("GRANT EXECUTE ON FUNCTION public.app_alta_verificar_correo(text) TO cae_app_runtime;");
+        Down.Should().Contain("CREATE OR REPLACE FUNCTION public.app_alta_verificar_correo(p_hash_token text) RETURNS text")
+            .And.Contain("v_estado <> 'Iniciada'", "Down devuelve el cuerpo de A3, que sí verifica")
+            .And.Contain("GRANT EXECUTE ON FUNCTION public.app_alta_verificar_correo(text) TO cae_app_runtime;")
+            .And.NotContain("DROP FUNCTION public.app_alta_verificar_correo(text);");
+    }
+
+    [Fact]
+    public void La_verificacion_de_un_argumento_sigue_para_la_ranura_anterior_pero_nunca_verifica()
+    {
+        // B6(c): la ranura anterior llama a la firma de un argumento durante el relevo; quitarla le haría fallar, y
+        // dejarla verificando sin contraseña reabriría el pre-secuestro.
+        Up.Should().NotContain("DROP FUNCTION public.app_alta_verificar_correo(text)");
+        const string inicio = "CREATE OR REPLACE FUNCTION public.app_alta_verificar_correo(p_hash_token text) RETURNS text";
+        var desde = Up.IndexOf(inicio, StringComparison.Ordinal);
+        desde.Should().BeGreaterThan(-1);
+        var cuerpo = Up[desde..Up.IndexOf("$$;", desde, StringComparison.Ordinal)];
+        cuerpo.Should().Contain("SECURITY DEFINER")
+            .And.Contain("SET search_path TO 'pg_catalog', 'pg_temp'")
+            .And.Contain("RETURN 'NoValido';")
+            .And.NotContain("UPDATE ", "no cambia ninguna Solicitud de alta")
+            .And.NotContain("SolicitudesAlta", "ni siquiera la lee")
+            .And.NotContain("'Verificado'");
+    }
+
+    [Fact]
+    public void Consultar_la_continuacion_solo_lee_y_solo_devuelve_el_estado()
+    {
+        var cuerpo = Cuerpo("app_alta_consultar_continuacion");
+        cuerpo.Should().Contain("RETURNS text")
+            .And.Contain("WHERE s.\"HashCredencialContinuacion\" = p_hash_credencial")
+            .And.NotContain("UPDATE ", "consultar no escribe")
+            .And.NotContain("FOR UPDATE", "ni bloquea")
+            .And.NotContain("\"TenantId\"")
+            .And.NotContain("CifsPropietarioTenant")
+            .And.NotContain("\"Empresas\"");
+
+        // Lo único que sale es uno de los cuatro estados, como literal.
+        foreach (var salida in cuerpo.Split("RETURN ").Skip(1))
+            salida[..salida.IndexOf(';')].Trim().Should().MatchRegex(@"^'(NoValido|Caducada|CorreoVerificado|DatosCompletos)'$");
+
+        // La caducidad del credencial y la de la Solicitud de alta se miran antes que el estado.
+        cuerpo.IndexOf("'Caducada'", StringComparison.Ordinal).Should().BeLessThan(cuerpo.IndexOf("'CorreoVerificado'", StringComparison.Ordinal));
+        cuerpo.Should().Contain("v_ahora >= v_credencial_caduca OR v_ahora >= v_caduca");
     }
 
     [Fact]
@@ -106,6 +148,7 @@ public class AltaDatosOrganizacionYCredencialContinuacionTests
         var cuerpo = Cuerpo("app_alta_completar_datos_organizacion");
         cuerpo.Should().Contain("RETURNS TABLE(resultado text, solicitud_alta_id uuid)")
             .And.Contain("SELECT 1 FROM public.\"CifsPropietarioTenant\" c WHERE c.\"Cif\" = p_cif_nif")
+            .And.Contain("WHERE e.\"EsPropia\" AND NOT e.\"EstaEliminado\"", "B6(d): el CIF de la Empresa propia de un Tenant anterior a A1 también ocupa")
             .And.Contain("v_estado <> 'CorreoVerificado'")
             .And.Contain("\"Estado\" = 'DerivadaAAcceso'")
             .And.Contain("\"Estado\" = 'DatosCompletos'")

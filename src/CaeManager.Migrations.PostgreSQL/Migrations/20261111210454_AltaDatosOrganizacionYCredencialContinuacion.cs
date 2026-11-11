@@ -15,10 +15,13 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations;
 /// <item><c>app_alta_consultar_enlace</c>: con el token vigente y la Solicitud de alta en <c>Iniciada</c>, devuelve el
 /// hash de la contraseña para que la aplicación la compare con el hasher de Identity; a nadie más.</item>
 /// <item><c>app_alta_verificar_correo</c> pasa a tres argumentos: bajo candado exige que el hash comparado siga siendo
-/// el guardado y guarda el hash del credencial de continuación.</item>
+/// el guardado y guarda el hash del credencial de continuación. La firma de un argumento se conserva para la ranura
+/// anterior durante el relevo, pero siempre responde <c>NoValido</c>; se elimina en una migración posterior.</item>
 /// <item><c>app_alta_completar_datos_organizacion</c>: con el credencial, guarda los datos y pasa a
-/// <c>DatosCompletos</c> o, si el CIF ya está en <c>CifsPropietarioTenant</c>, a <c>DerivadaAAcceso</c>. Devuelve solo el
-/// resultado y el Id de la propia Solicitud de alta.</item>
+/// <c>DatosCompletos</c> o, si el CIF ya está en <c>CifsPropietarioTenant</c> o es el de una Empresa propia de algún
+/// Tenant, a <c>DerivadaAAcceso</c>. Devuelve solo el resultado y el Id de la propia Solicitud de alta.</item>
+/// <item><c>app_alta_consultar_continuacion</c>: el estado de la continuación (sin escribir), para recargar o reenviar
+/// el paso sin volver a transicionar.</item>
 /// </list>
 /// </summary>
 public partial class AltaDatosOrganizacionYCredencialContinuacion : Migration
@@ -46,7 +49,19 @@ public partial class AltaDatosOrganizacionYCredencialContinuacion : Migration
             filter: "\"HashCredencialContinuacion\" IS NOT NULL");
 
         migrationBuilder.Sql("""
-            DROP FUNCTION public.app_alta_verificar_correo(text);
+            -- Relevo de ranuras: la versión anterior desplegada (A3) sigue llamando a la verificación de un argumento
+            -- mientras conviven las dos ranuras, así que la firma se conserva. Ya no verifica nada: verificar sin comprobar
+            -- la contraseña reabriría el pre-secuestro de la cuenta. Se elimina en una migración posterior, cuando no quede
+            -- ninguna ranura con el código de A3. Conserva propietario y privilegios (CREATE OR REPLACE).
+            CREATE OR REPLACE FUNCTION public.app_alta_verificar_correo(p_hash_token text) RETURNS text
+                LANGUAGE plpgsql SECURITY DEFINER
+                SET search_path TO 'pg_catalog', 'pg_temp'
+                AS $$
+            BEGIN
+                PERFORM public.app_exigir_contexto_firmado();
+                RETURN 'NoValido';
+            END;
+            $$;
 
             -- Primer tiempo de la verificación (A4, pre-secuestro): con el SHA-256 del token del enlace, dice si el
             -- enlace vale y, solo si vale y la Solicitud de alta sigue en Iniciada, devuelve el hash de la contraseña para
@@ -161,6 +176,11 @@ public partial class AltaDatosOrganizacionYCredencialContinuacion : Migration
             -- decide bajo candado si el CIF ya tiene Tenant propietario. Devuelve solo el resultado y el Id de la propia
             -- Solicitud de alta (para el aviso a Soporte TALVEG): nada del Tenant, ni su Id, ni su nombre, ni quién lo
             -- gestiona. Otra Solicitud de alta con el mismo CIF no cuenta aquí: la reserva del CIF es de A6.
+            -- El CIF está ocupado si está en CifsPropietarioTenant o si es el de una Empresa propia (EsPropia, no
+            -- eliminada) de cualquier Tenant: los Tenants creados antes de A1 no tienen fila en CifsPropietarioTenant, y
+            -- sin esto su CIF pasaría por libre (DM-5). Empresas."Cif" se guardó con Trim y mayúsculas, no con
+            -- ValidadorIdentificacion.Normalizar: aquí se le quitan espacios, puntos y guiones, se pasa a mayúsculas y se
+            -- repone el cero de un DNI de siete dígitos, como hace Normalizar.
             CREATE FUNCTION public.app_alta_completar_datos_organizacion(
                     p_hash_credencial text, p_razon_social text, p_cif_nif text, p_domicilio_fiscal text, p_telefono text,
                     p_tramo text, p_declara_representacion boolean, p_declara_actividad_profesional boolean)
@@ -212,7 +232,12 @@ public partial class AltaDatosOrganizacionYCredencialContinuacion : Migration
                     RETURN;
                 END IF;
 
-                IF EXISTS (SELECT 1 FROM public."CifsPropietarioTenant" c WHERE c."Cif" = p_cif_nif) THEN
+                IF EXISTS (SELECT 1 FROM public."CifsPropietarioTenant" c WHERE c."Cif" = p_cif_nif)
+                   OR EXISTS (SELECT 1
+                                FROM public."Empresas" e
+                                CROSS JOIN LATERAL (SELECT pg_catalog.upper(pg_catalog.regexp_replace(e."Cif", '[[:space:].-]', '', 'g')) AS limpio) n
+                               WHERE e."EsPropia" AND NOT e."EstaEliminado" AND e."Cif" IS NOT NULL
+                                 AND (CASE WHEN n.limpio ~ '^[0-9]{7}[A-Z]$' THEN '0' || n.limpio ELSE n.limpio END) = p_cif_nif) THEN
                     -- Estado final: se guarda el CIF para la petición de acceso y el credencial deja de servir.
                     UPDATE public."SolicitudesAlta"
                        SET "Estado" = 'DerivadaAAcceso',
@@ -242,6 +267,53 @@ public partial class AltaDatosOrganizacionYCredencialContinuacion : Migration
             END;
             $$;
 
+            -- En qué punto está la Solicitud de alta de un credencial de continuación, para que la página del paso
+            -- «Empresa» pinte el formulario, lo ya guardado o el aviso de volver a empezar al recargar o reenviar. No
+            -- bloquea ni escribe, y devuelve solo el estado: ningún dato de la Solicitud de alta ni del Tenant.
+            CREATE FUNCTION public.app_alta_consultar_continuacion(p_hash_credencial text)
+                RETURNS text
+                LANGUAGE plpgsql SECURITY DEFINER
+                SET search_path TO 'pg_catalog', 'pg_temp'
+                AS $$
+            DECLARE
+                v_estado text;
+                v_caduca timestamp with time zone;
+                v_credencial_caduca timestamp with time zone;
+                v_ahora timestamp with time zone;
+            BEGIN
+                PERFORM public.app_exigir_contexto_firmado();
+                IF NOT EXISTS (SELECT 1 FROM pg_catalog.pg_roles
+                                WHERE rolname = current_user AND (rolsuper OR rolbypassrls)) THEN
+                    RAISE EXCEPTION 'El rol % no evita la RLS: no vería ninguna Solicitud de alta', current_user;
+                END IF;
+                IF p_hash_credencial IS NULL OR p_hash_credencial !~ '^[0-9a-f]{64}$' THEN
+                    RETURN 'NoValido';
+                END IF;
+
+                SELECT s."Estado", s."CaducaEnUtc", s."CredencialContinuacionCaducaEnUtc"
+                  INTO v_estado, v_caduca, v_credencial_caduca
+                  FROM public."SolicitudesAlta" s
+                 WHERE s."HashCredencialContinuacion" = p_hash_credencial;
+                IF NOT FOUND THEN
+                    RETURN 'NoValido';
+                END IF;
+
+                v_ahora := pg_catalog.clock_timestamp();
+                IF v_credencial_caduca IS NULL OR v_ahora >= v_credencial_caduca OR v_ahora >= v_caduca THEN
+                    RETURN 'Caducada';
+                END IF;
+                IF v_estado = 'CorreoVerificado' THEN
+                    RETURN 'CorreoVerificado';
+                END IF;
+                IF v_estado = 'DatosCompletos' THEN
+                    RETURN 'DatosCompletos';
+                END IF;
+                RETURN 'NoValido';
+            END;
+            $$;
+
+            REVOKE ALL ON FUNCTION public.app_alta_consultar_continuacion(text) FROM PUBLIC, cae_app_soporte, cae_app_aprovisionamiento;
+            GRANT EXECUTE ON FUNCTION public.app_alta_consultar_continuacion(text) TO cae_app_runtime;
             REVOKE ALL ON FUNCTION public.app_alta_consultar_enlace(text) FROM PUBLIC, cae_app_soporte, cae_app_aprovisionamiento;
             GRANT EXECUTE ON FUNCTION public.app_alta_consultar_enlace(text) TO cae_app_runtime;
             REVOKE ALL ON FUNCTION public.app_alta_verificar_correo(text, text, text) FROM PUBLIC, cae_app_soporte, cae_app_aprovisionamiento;
@@ -262,11 +334,13 @@ public partial class AltaDatosOrganizacionYCredencialContinuacion : Migration
                   JOIN pg_catalog.pg_roles r ON r.oid = p.proowner
                  WHERE p.oid IN ('public.app_alta_consultar_enlace(text)'::regprocedure,
                                  'public.app_alta_verificar_correo(text, text, text)'::regprocedure,
-                                 'public.app_alta_completar_datos_organizacion(text, text, text, text, text, text, boolean, boolean)'::regprocedure)
+                                 'public.app_alta_completar_datos_organizacion(text, text, text, text, text, text, boolean, boolean)'::regprocedure,
+                                 'public.app_alta_consultar_continuacion(text)'::regprocedure)
                    AND NOT ((r.rolsuper OR r.rolbypassrls)
                             AND pg_catalog.has_table_privilege(p.proowner, 'public."SolicitudesAlta"', 'SELECT')
                             AND pg_catalog.has_table_privilege(p.proowner, 'public."SolicitudesAlta"', 'UPDATE')
-                            AND pg_catalog.has_table_privilege(p.proowner, 'public."CifsPropietarioTenant"', 'SELECT'));
+                            AND pg_catalog.has_table_privilege(p.proowner, 'public."CifsPropietarioTenant"', 'SELECT')
+                            AND pg_catalog.has_table_privilege(p.proowner, 'public."Empresas"', 'SELECT'));
                 IF v_incumplen IS NOT NULL THEN
                     RAISE EXCEPTION 'SolicitudesAlta: el propietario de % no puede leer o escribir la Solicitud de alta', v_incumplen;
                 END IF;
@@ -278,10 +352,12 @@ public partial class AltaDatosOrganizacionYCredencialContinuacion : Migration
     protected override void Down(MigrationBuilder migrationBuilder)
     {
         migrationBuilder.Sql("""
+            DROP FUNCTION public.app_alta_consultar_continuacion(text);
             DROP FUNCTION public.app_alta_completar_datos_organizacion(text, text, text, text, text, text, boolean, boolean);
             DROP FUNCTION public.app_alta_verificar_correo(text, text, text);
             DROP FUNCTION public.app_alta_consultar_enlace(text);
-            CREATE FUNCTION public.app_alta_verificar_correo(p_hash_token text) RETURNS text
+            -- Up conservó la firma de un argumento con un cuerpo que no verifica: se le devuelve el de A3.
+            CREATE OR REPLACE FUNCTION public.app_alta_verificar_correo(p_hash_token text) RETURNS text
                 LANGUAGE plpgsql SECURITY DEFINER
                 SET search_path TO 'pg_catalog', 'pg_temp'
                 AS $$

@@ -36,6 +36,12 @@ public interface IAccesoSolicitudesAlta
     /// </summary>
     Task<TransicionDatosOrganizacionAlta> CompletarDatosOrganizacionAsync(
         string credencialContinuacion, DatosOrganizacionAlta datos, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// En qué punto está la Solicitud de alta del credencial de continuación, sin bloquear ni escribir. Solo el estado,
+    /// nunca un dato de la Solicitud de alta ni del Tenant.
+    /// </summary>
+    Task<EstadoContinuacionAlta> ConsultarContinuacionAsync(string credencialContinuacion, CancellationToken cancellationToken);
 }
 
 /// <summary>

@@ -34,15 +34,23 @@ public sealed class PreparacionContrasenaAlta(UserManager<ApplicationUser> usuar
 
     /// <summary>
     /// Mismo hasher que creó el hash (PBKDF2 de Identity, comparación en tiempo constante). Un hash de una versión antigua
-    /// que pida volver a calcularse también casa: la cuenta aún no existe y el hash se copiará tal cual en el alta.
+    /// que pida volver a calcularse también casa: la cuenta aún no existe y el hash se copiará tal cual en el alta. Un hash
+    /// que no es Base64 hace lanzar <see cref="FormatException"/> al hasher de Identity: aquí es «no casa», no un error 500.
     /// </summary>
     public bool Coincide(string hashContrasena, string contrasena)
     {
         if (string.IsNullOrEmpty(hashContrasena) || string.IsNullOrEmpty(contrasena))
             return false;
 
-        return usuarios.PasswordHasher.VerifyHashedPassword(new ApplicationUser(), hashContrasena, contrasena)
-            != PasswordVerificationResult.Failed;
+        try
+        {
+            return usuarios.PasswordHasher.VerifyHashedPassword(new ApplicationUser(), hashContrasena, contrasena)
+                != PasswordVerificationResult.Failed;
+        }
+        catch (FormatException)
+        {
+            return false;
+        }
     }
 }
 
@@ -123,6 +131,22 @@ public sealed class AccesoSolicitudesAlta(CaeManagerDbContext contexto) : IAcces
         return Enum.TryParse<ResultadoDatosOrganizacionAlta>(fila.Resultado, out var valor) && Enum.IsDefined(valor)
             ? new TransicionDatosOrganizacionAlta(valor, valor == ResultadoDatosOrganizacionAlta.NoValido ? null : fila.SolicitudAltaId)
             : throw new InvalidOperationException($"Resultado de los datos de la organización desconocido: {fila.Resultado}.");
+    }
+
+    public async Task<EstadoContinuacionAlta> ConsultarContinuacionAsync(string credencialContinuacion, CancellationToken cancellationToken)
+    {
+        if (HashOrNull(credencialContinuacion) is not { } hashCredencial)
+            return EstadoContinuacionAlta.NoValido;
+
+        var resultado = (await contexto.Database
+            .SqlQuery<string>($"""
+                SELECT public.app_alta_consultar_continuacion({hashCredencial}) AS "Value"
+                """)
+            .ToListAsync(cancellationToken)).Single();
+
+        return Enum.TryParse<EstadoContinuacionAlta>(resultado, out var valor) && Enum.IsDefined(valor)
+            ? valor
+            : throw new InvalidOperationException($"Estado de la continuación del alta desconocido: {resultado}.");
     }
 
     private static string? HashOrNull(string valor)

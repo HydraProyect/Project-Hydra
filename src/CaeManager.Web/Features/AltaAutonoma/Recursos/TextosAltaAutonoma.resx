@@ -244,7 +244,7 @@
     <value>Con un NIF de persona física, declara que actúas en el ejercicio de tu actividad profesional.</value>
   </data>
   <data name="ErrorLimiteCif" xml:space="preserve">
-    <value>Hoy ya se ha consultado este CIF o NIF demasiadas veces. Vuelve a intentarlo mañana o escribe a Soporte TALVEG.</value>
+    <value>Ahora mismo no podemos comprobar estos datos. Vuelve a intentarlo mañana o escribe a Soporte TALVEG.</value>
   </data>
   <data name="DatosGuardadosTitulo" xml:space="preserve">
     <value>Datos guardados</value>
@@ -253,10 +253,10 @@
     <value>Hemos guardado los datos de tu organización. El siguiente paso es elegir el plan.</value>
   </data>
   <data name="DerivadaTitulo" xml:space="preserve">
-    <value>Esta organización ya está en TALVEG</value>
+    <value>Esta organización ya tiene cuenta en TALVEG</value>
   </data>
   <data name="DerivadaExplica" xml:space="preserve">
-    <value>Si necesitas acceso, Soporte TALVEG contactará con quien la gestiona. No hace falta que hagas nada más con esta solicitud.</value>
+    <value>Si necesitas acceso, escribe a Soporte TALVEG y te ayudaremos.</value>
   </data>
   <data name="ContinuacionNoValidaTitulo" xml:space="preserve">
     <value>No podemos seguir con esta alta</value>

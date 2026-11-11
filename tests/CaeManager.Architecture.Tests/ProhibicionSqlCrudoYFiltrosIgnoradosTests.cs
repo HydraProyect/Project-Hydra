@@ -230,11 +230,12 @@ public class ProhibicionSqlCrudoYFiltrosIgnoradosTests
             "await contexto.Database.ExecuteSqlAsync($\"\"\"")] = 1,
         // A4 (migración AltaDatosOrganizacionYCredencialContinuacion): la verificación pasa a dos funciones (mirar el
         // enlace sin gastarlo, para comparar la contraseña en la aplicación, y verificar), y el paso «Empresa» a una
-        // tercera que responde solo el resultado y el Id de la propia Solicitud de alta, nada del Tenant propietario.
+        // tercera que responde solo el resultado y el Id de la propia Solicitud de alta, nada del Tenant propietario. La
+        // cuarta (app_alta_consultar_continuacion) solo lee el estado de la continuación para recargar sin transicionar.
         [("src/CaeManager.Infrastructure/AltaAutonoma/AccesoSolicitudesAlta.cs",
             ".SqlQuery<FilaEnlace>($\"\"\"")] = 1,
         [("src/CaeManager.Infrastructure/AltaAutonoma/AccesoSolicitudesAlta.cs",
-            ".SqlQuery<string>($\"\"\"")] = 1,
+            ".SqlQuery<string>($\"\"\"")] = 2,
         [("src/CaeManager.Infrastructure/AltaAutonoma/AccesoSolicitudesAlta.cs",
             ".SqlQuery<FilaDatosOrganizacion>($\"\"\"")] = 1,
         [("src/CaeManager.Infrastructure/AltaAutonoma/AccesoSolicitudesAlta.cs",

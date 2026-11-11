@@ -191,6 +191,152 @@ public class OrganizacionAltaTests : BunitContext
         segundo.Find("[role=alert]").TextContent.Should().Be(Texto("ErrorLimiteCif"));
     }
 
+    // ── M1: el cupo por CIF solo lo gasta una transición que la base aceptó ──
+
+    [Fact]
+    public void Un_credencial_que_la_base_no_acepta_no_gasta_el_cupo_del_CIF()
+    {
+        Configurar(habilitada: true, consultasPorCif: 1);
+        ConCookie(ServicioRegistroAlta.NuevoToken());
+        _acceso.ResultadoDatos = ResultadoDatosOrganizacionAlta.NoValido;
+
+        foreach (var _ in Enumerable.Range(0, 3))
+        {
+            var ajeno = Pintar();
+            Rellenar(ajeno);
+            ajeno.Find("form").Submit();
+            ajeno.Markup.Should().NotContain(Texto("ErrorLimiteCif"));
+        }
+
+        _acceso.ResultadoDatos = ResultadoDatosOrganizacionAlta.DatosCompletos;
+        var legitimo = Pintar();
+        Rellenar(legitimo);
+        legitimo.Find("form").Submit();
+
+        _acceso.Completados.Should().HaveCount(4, "tres envíos con un credencial que la base no aceptó no agotan el cupo de 1");
+        legitimo.Markup.Should().Contain(Texto("DatosGuardadosTitulo"));
+    }
+
+    [Fact]
+    public void Una_derivacion_a_acceso_si_gasta_el_cupo_del_CIF()
+    {
+        Configurar(habilitada: true, consultasPorCif: 1);
+        ConCookie(ServicioRegistroAlta.NuevoToken());
+        _acceso.ResultadoDatos = ResultadoDatosOrganizacionAlta.DerivadaAAcceso;
+
+        var primero = Pintar();
+        Rellenar(primero);
+        primero.Find("form").Submit();
+        var segundo = Pintar();
+        Rellenar(segundo);
+        segundo.Find("form").Submit();
+
+        _acceso.Completados.Should().ContainSingle();
+        segundo.Find("[role=alert]").TextContent.Should().Be(Texto("ErrorLimiteCif"));
+    }
+
+    [Theory]
+    [InlineData("es-ES")]
+    [InlineData("ca-ES")]
+    public void El_mensaje_de_cupo_agotado_no_habla_del_CIF_ni_de_consultas(string cultura)
+    {
+        var texto = EnCultura(cultura, "ErrorLimiteCif");
+
+        texto.Should().NotContainAny("CIF", "NIF", "consultado", "consultat");
+    }
+
+    // ── M2: recargar o reenviar tras DatosCompletos no transiciona ni borra la cookie ──
+
+    [Fact]
+    public void Recargar_tras_DatosCompletos_muestra_lo_guardado_sin_transicionar_ni_borrar_la_cookie()
+    {
+        Configurar(habilitada: true, consultasPorCif: 3);
+        ConCookie(ServicioRegistroAlta.NuevoToken());
+        _acceso.Continuacion = EstadoContinuacionAlta.DatosCompletos;
+
+        var corte = Pintar();
+
+        corte.FindAll("form").Should().BeEmpty();
+        corte.Markup.Should().Contain(Texto("DatosGuardadosTitulo"));
+        _acceso.Completados.Should().BeEmpty();
+        _http.Response.Headers.SetCookie.ToString().Should().NotContain(CookieContinuacionAlta.Nombre, "A5 necesita la cookie");
+    }
+
+    [Fact]
+    public void Reenviar_cuando_la_base_ya_tiene_los_datos_muestra_lo_guardado_y_conserva_la_cookie()
+    {
+        Configurar(habilitada: true, consultasPorCif: 3);
+        ConCookie(ServicioRegistroAlta.NuevoToken());
+        _acceso.ResultadoDatos = ResultadoDatosOrganizacionAlta.NoValido;
+        _acceso.ContinuacionTrasCompletar = EstadoContinuacionAlta.DatosCompletos;
+
+        var corte = Pintar();
+        Rellenar(corte);
+        corte.Find("form").Submit();
+
+        corte.Markup.Should().Contain(Texto("DatosGuardadosTitulo")).And.NotContain(Texto("ContinuacionNoValidaTitulo"));
+        _http.Response.Headers.SetCookie.ToString().Should().NotContain(CookieContinuacionAlta.Nombre, "A5 necesita la cookie");
+    }
+
+    [Fact]
+    public void Un_credencial_caducado_pide_volver_a_empezar_y_borra_la_cookie()
+    {
+        Configurar(habilitada: true, consultasPorCif: 3);
+        ConCookie(ServicioRegistroAlta.NuevoToken());
+        _acceso.Continuacion = EstadoContinuacionAlta.Caducada;
+
+        var corte = Pintar();
+
+        corte.FindAll("form").Should().BeEmpty();
+        corte.Markup.Should().Contain(Texto("ContinuacionNoValidaTitulo"));
+        _http.Response.Headers.SetCookie.ToString().Should().Contain(CookieContinuacionAlta.Nombre + "=;")
+            .And.Contain("path=/alta");
+    }
+
+    [Fact]
+    public void Un_credencial_que_la_base_no_reconoce_pide_volver_a_empezar_sin_borrar_la_cookie()
+    {
+        Configurar(habilitada: true, consultasPorCif: 3);
+        ConCookie(ServicioRegistroAlta.NuevoToken());
+        _acceso.Continuacion = EstadoContinuacionAlta.NoValido;
+
+        var corte = Pintar();
+
+        corte.FindAll("form").Should().BeEmpty();
+        corte.Markup.Should().Contain(Texto("ContinuacionNoValidaTitulo"));
+        _http.Response.Headers.SetCookie.ToString().Should().NotContain(CookieContinuacionAlta.Nombre);
+    }
+
+    // ── M3: la pantalla de CIF ocupado no dice que alguien gestiona la organización ──
+
+    [Theory]
+    [InlineData("es-ES", "Soporte TALVEG")]
+    [InlineData("ca-ES", "Suport TALVEG")]
+    public void La_pantalla_de_CIF_ocupado_ofrece_escribir_a_Soporte_sin_mencionar_a_quien_la_gestiona(string cultura, string soporte)
+    {
+        var titulo = EnCultura(cultura, "DerivadaTitulo");
+        var explica = EnCultura(cultura, "DerivadaExplica");
+
+        foreach (var texto in new[] { titulo, explica })
+            texto.Should().NotContainAny("gestion", "gestor", "gestora", "Operador", "contactará", "contactarà");
+        explica.Should().Contain(soporte);
+        titulo.Should().Contain("TALVEG");
+    }
+
+    private string EnCultura(string cultura, string clave)
+    {
+        var anterior = System.Globalization.CultureInfo.CurrentUICulture;
+        try
+        {
+            System.Globalization.CultureInfo.CurrentUICulture = new System.Globalization.CultureInfo(cultura);
+            return Services.GetRequiredService<IStringLocalizer<TextosAltaAutonoma>>()[clave].Value;
+        }
+        finally
+        {
+            System.Globalization.CultureInfo.CurrentUICulture = anterior;
+        }
+    }
+
     private void Configurar(bool habilitada, int consultasPorCif)
     {
         Services.AddSingleton(Options.Create(new AltaAutonomaOptions { Habilitada = habilitada }));

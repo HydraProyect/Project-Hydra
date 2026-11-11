@@ -244,7 +244,7 @@
     <value>Amb un NIF de persona física, declara que actues en l&apos;exercici de la teva activitat professional.</value>
   </data>
   <data name="ErrorLimiteCif" xml:space="preserve">
-    <value>Avui ja s&apos;ha consultat aquest CIF o NIF massa vegades. Torna-ho a provar demà o escriu a Suport TALVEG.</value>
+    <value>Ara mateix no podem comprovar aquestes dades. Torna-ho a provar demà o escriu a Suport TALVEG.</value>
   </data>
   <data name="DatosGuardadosTitulo" xml:space="preserve">
     <value>Dades desades</value>
@@ -253,10 +253,10 @@
     <value>Hem desat les dades de la teva organització. El pas següent és triar el pla.</value>
   </data>
   <data name="DerivadaTitulo" xml:space="preserve">
-    <value>Aquesta organització ja és a TALVEG</value>
+    <value>Aquesta organització ja té compte a TALVEG</value>
   </data>
   <data name="DerivadaExplica" xml:space="preserve">
-    <value>Si necessites accés, Suport TALVEG contactarà amb qui la gestiona. No cal que facis res més amb aquesta sol·licitud.</value>
+    <value>Si necessites accés, escriu a Suport TALVEG i t&apos;ajudarem.</value>
   </data>
   <data name="ContinuacionNoValidaTitulo" xml:space="preserve">
     <value>No podem continuar amb aquesta alta</value>

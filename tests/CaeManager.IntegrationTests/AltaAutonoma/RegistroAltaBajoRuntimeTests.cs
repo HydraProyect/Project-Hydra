@@ -1,6 +1,7 @@
 using CaeManager.Application.AltaAutonoma;
 using CaeManager.Application.Common;
 using CaeManager.Domain.AltaAutonoma;
+using CaeManager.Domain.Empresas;
 using CaeManager.Domain.Tenants;
 using CaeManager.Infrastructure.AltaAutonoma;
 using CaeManager.Infrastructure.MultiTenancy;
@@ -244,7 +245,7 @@ public class RegistroAltaBajoRuntimeTests : IAsyncLifetime
                    has_function_privilege('cae_app_aprovisionamiento', p.oid, 'EXECUTE'),
                    p.proacl IS NULL OR EXISTS (SELECT 1 FROM aclexplode(p.proacl) a WHERE a.grantee = 0)
             FROM pg_proc p
-            WHERE p.proname IN ('app_alta_iniciar_solicitud', 'app_alta_verificar_correo', 'app_alta_consultar_enlace', 'app_alta_completar_datos_organizacion') AND p.pronamespace = 'public'::regnamespace
+            WHERE p.proname IN ('app_alta_iniciar_solicitud', 'app_alta_verificar_correo', 'app_alta_consultar_enlace', 'app_alta_completar_datos_organizacion', 'app_alta_consultar_continuacion') AND p.pronamespace = 'public'::regnamespace
             """, propietario);
 
         var vistas = 0;
@@ -261,7 +262,146 @@ public class RegistroAltaBajoRuntimeTests : IAsyncLifetime
             lector.GetBoolean(6).Should().BeFalse($"{nombre}: REVOKE ALL ... FROM PUBLIC");
         }
 
-        vistas.Should().Be(4, "las cuatro funciones existen, con una sola sobrecarga: la verificación de un argumento ya no está");
+        vistas.Should().Be(6, "cinco funciones, y la verificación con dos sobrecargas: la de un argumento sigue para la ranura anterior");
+    }
+
+    [Fact]
+    public async Task La_verificacion_de_un_argumento_de_la_ranura_anterior_responde_NoValido_y_no_gasta_el_enlace()
+    {
+        var token = ServicioRegistroAlta.NuevoToken();
+        var solicitud = Nueva(token);
+        await using (var conexion = await AbrirComoRuntimeFirmadoAsync())
+        {
+            await using (var contexto = ContextoSobre(conexion))
+                await new AccesoSolicitudesAlta(contexto).IniciarAsync(solicitud, CancellationToken.None);
+
+            await using var orden = new NpgsqlCommand("SELECT app_alta_verificar_correo(@h)", conexion);
+            orden.Parameters.AddWithValue("h", SolicitudAlta.CalcularHashToken(token));
+            ((string)(await orden.ExecuteScalarAsync())!).Should().Be("NoValido", "sin la contraseña no se verifica (pre-secuestro)");
+        }
+
+        var fila = await LeerAsync(solicitud.Id);
+        fila.Estado.Should().Be("Iniciada");
+        fila.HashToken.Should().Be(SolicitudAlta.CalcularHashToken(token), "el enlace sigue valiendo para la verificación con contraseña");
+    }
+
+    [Fact]
+    public async Task Consultar_la_continuacion_dice_el_estado_sin_cambiar_nada()
+    {
+        var (solicitud, credencial) = await VerificadaAsync();
+
+        (await ContinuacionAsync(ServicioRegistroAlta.NuevoToken())).Should().Be(EstadoContinuacionAlta.NoValido, "credencial ajeno");
+        (await ContinuacionAsync(credencial)).Should().Be(EstadoContinuacionAlta.CorreoVerificado);
+        (await LeerAsync(solicitud.Id)).Version.Should().Be(1, "consultar no escribe");
+
+        (await CompletarAsync(credencial, "B12345674")).Resultado.Should().Be(ResultadoDatosOrganizacionAlta.DatosCompletos);
+        (await ContinuacionAsync(credencial)).Should().Be(EstadoContinuacionAlta.DatosCompletos, "recargar muestra lo guardado");
+        (await LeerAsync(solicitud.Id)).Version.Should().Be(2);
+
+        await EjecutarComoPropietarioAsync(
+            $"UPDATE \"SolicitudesAlta\" SET \"CredencialContinuacionCaducaEnUtc\" = now() - interval '1 second' WHERE \"Id\" = '{solicitud.Id}'");
+        (await ContinuacionAsync(credencial)).Should().Be(EstadoContinuacionAlta.Caducada);
+    }
+
+    [Fact]
+    public async Task Consultar_la_continuacion_de_una_Solicitud_vencida_dice_Caducada_y_tras_derivar_NoValido()
+    {
+        var (vencida, credencialVencida) = await VerificadaAsync();
+        await EjecutarComoPropietarioAsync(
+            $"UPDATE \"SolicitudesAlta\" SET \"CaducaEnUtc\" = now() - interval '1 second' WHERE \"Id\" = '{vencida.Id}'");
+        (await ContinuacionAsync(credencialVencida)).Should().Be(EstadoContinuacionAlta.Caducada);
+
+        await TenantConCifAsync("B12345674");
+        var (_, credencial) = await VerificadaAsync();
+        (await CompletarAsync(credencial, "B12345674")).Resultado.Should().Be(ResultadoDatosOrganizacionAlta.DerivadaAAcceso);
+        (await ContinuacionAsync(credencial)).Should().Be(EstadoContinuacionAlta.NoValido, "derivada, el credencial ya no existe");
+    }
+
+    [Fact]
+    public async Task Sin_contexto_firmado_la_consulta_de_la_continuacion_no_responde()
+    {
+        await using var conexion = await AbrirComoRuntimeAsync();
+        var hash = SolicitudAlta.CalcularHashToken(ServicioRegistroAlta.NuevoToken());
+
+        (await RechazoAsync(conexion, $"SELECT app_alta_consultar_continuacion('{hash}')")).SqlState.Should().Be("42501");
+        (await RechazoAsync(conexion, $"SELECT app_alta_verificar_correo('{hash}')")).SqlState.Should().Be("42501");
+    }
+
+    // B6(d): los Tenants creados antes de A1 no tienen fila en CifsPropietarioTenant; su CIF es el de su Empresa propia.
+    [Theory]
+    [InlineData("B12345674", "B12345674")]
+    [InlineData("b12345674", "B12345674")]
+    [InlineData("1234567L", "01234567L")]
+    public async Task El_CIF_de_la_Empresa_propia_de_un_Tenant_sin_fila_de_CIF_propietario_deriva_a_acceso(string guardado, string enviado)
+    {
+        var tenant = await TenantConEmpresaAsync(enviado, esPropia: true);
+        await EjecutarComoPropietarioAsync($"UPDATE \"Empresas\" SET \"Cif\" = '{guardado}' WHERE \"TenantId\" = '{tenant}'");
+        await ExigirSinCifPropietarioAsync(tenant);
+        var (solicitud, credencial) = await VerificadaAsync();
+
+        (await CompletarAsync(credencial, enviado))
+            .Should().Be(new TransicionDatosOrganizacionAlta(ResultadoDatosOrganizacionAlta.DerivadaAAcceso, solicitud.Id));
+        (await LeerAsync(solicitud.Id)).Estado.Should().Be("DerivadaAAcceso");
+    }
+
+    [Theory]
+    [InlineData(false, false)]
+    [InlineData(true, true)]
+    public async Task El_CIF_de_una_Empresa_contraparte_o_de_una_Empresa_propia_eliminada_no_ocupa(bool esPropia, bool eliminada)
+    {
+        var tenant = await TenantConEmpresaAsync("B12345674", esPropia);
+        if (eliminada)
+            await EjecutarComoPropietarioAsync($"UPDATE \"Empresas\" SET \"EstaEliminado\" = true WHERE \"TenantId\" = '{tenant}'");
+        var (_, credencial) = await VerificadaAsync();
+
+        (await CompletarAsync(credencial, "B12345674")).Resultado.Should().Be(ResultadoDatosOrganizacionAlta.DatosCompletos);
+    }
+
+    private async Task<Guid> TenantConEmpresaAsync(string cif, bool esPropia)
+    {
+        var tenant = new Tenant("Anterior a A1 " + Guid.NewGuid());
+        var opciones = new DbContextOptionsBuilder<CaeManagerDbContext>().UseNpgsql(_cadenaConexion).Options;
+        await using (var contexto = new CaeManagerDbContext(opciones, new EphemeralDataProtectionProvider(), new TenantActualAmbiental { TenantId = Guid.NewGuid() }))
+        {
+            contexto.Tenants.Add(tenant);
+            await contexto.SaveChangesAsync();
+        }
+
+        var actual = new TenantActualAmbiental { TenantId = tenant.Id };
+        var opcionesSelladas = new DbContextOptionsBuilder<CaeManagerDbContext>().UseNpgsql(_cadenaConexion)
+            .AddInterceptors(new TenantSelladoInterceptor(actual)).Options;
+        await using (var contexto = new CaeManagerDbContext(opcionesSelladas, new EphemeralDataProtectionProvider(), actual))
+        {
+            contexto.Empresas.Add(esPropia
+                ? new Empresa("Empresa propia anterior a A1 SL", cif)
+                : Empresa.CrearComoCliente("Cliente empresarial SL", cif, esCritico: false, notas: null, ejecutivoUsuarioId: null));
+            await contexto.SaveChangesAsync();
+        }
+
+        await using var conexion = new NpgsqlConnection(_cadenaConexion);
+        await conexion.OpenAsync();
+        await using var orden = new NpgsqlCommand(
+            "SELECT count(*) FROM \"Empresas\" WHERE \"TenantId\" = @t AND \"EsPropia\" = @p", conexion);
+        orden.Parameters.AddWithValue("t", tenant.Id);
+        orden.Parameters.AddWithValue("p", esPropia);
+        ((long)(await orden.ExecuteScalarAsync())!).Should().Be(1, "guarda del instrumento: la Empresa quedó en ese Tenant");
+        return tenant.Id;
+    }
+
+    private async Task ExigirSinCifPropietarioAsync(Guid tenant)
+    {
+        await using var conexion = new NpgsqlConnection(_cadenaConexion);
+        await conexion.OpenAsync();
+        await using var orden = new NpgsqlCommand("SELECT count(*) FROM \"CifsPropietarioTenant\" WHERE \"TenantId\" = @t", conexion);
+        orden.Parameters.AddWithValue("t", tenant);
+        ((long)(await orden.ExecuteScalarAsync())!).Should().Be(0, "el caso es un Tenant sin fila de CIF propietario");
+    }
+
+    private async Task<EstadoContinuacionAlta> ContinuacionAsync(string credencial)
+    {
+        await using var conexion = await AbrirComoRuntimeFirmadoAsync();
+        await using var contexto = ContextoSobre(conexion);
+        return await new AccesoSolicitudesAlta(contexto).ConsultarContinuacionAsync(credencial, CancellationToken.None);
     }
 
     // ── Paso «Empresa» (A4) ──

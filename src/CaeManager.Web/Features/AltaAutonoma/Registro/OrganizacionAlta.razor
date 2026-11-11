@@ -134,7 +134,7 @@
     private string? _error;
     private Pantalla _pantalla;
 
-    protected override void OnInitialized()
+    protected override async Task OnInitializedAsync()
     {
         // DA-10: con la bandera apagada la ruta no existe, ni para pintar ni para enviar.
         _habilitada = OpcionesAlta.Value.Habilitada;
@@ -144,12 +144,38 @@
             return;
         }
 
-        // Sin credencial con la forma debida no hay nada que continuar. Si tiene la forma pero ya no vale (caducado,
-        // ajeno o de una Solicitud de alta que ya pasó este paso), lo dice la base al enviar.
-        _pantalla = ServicioDatosOrganizacionAlta.EsCredencialBienFormado(CookieContinuacionAlta.Leer(HttpContext))
-            ? Pantalla.Formulario
-            : Pantalla.ContinuacionNoValida;
         Entrada ??= new DatosEntrada();
+
+        // Al pintar y al enviar se mira primero en qué punto está la Solicitud de alta: recargar o reenviar después de
+        // DatosCompletos muestra lo ya guardado, sin volver a transicionar y sin perder la cookie que necesita A5 (M2).
+        // Un credencial sin la forma debida no llega a la base.
+        Aplicar(await Servicio.ConsultarContinuacionAsync(CookieContinuacionAlta.Leer(HttpContext), CancellationToken.None));
+    }
+
+    /// <summary>
+    /// Pinta lo que corresponde al estado de la continuación. La cookie solo se borra cuando el credencial caducó (aquí) o
+    /// la Solicitud de alta quedó derivada a acceso (en <see cref="EnviarAsync"/>); un credencial que la base no reconoce
+    /// no se borra, porque la cookie podría ser de una Solicitud de alta más adelantada.
+    /// </summary>
+    private void Aplicar(EstadoContinuacionAlta estado)
+    {
+        switch (estado)
+        {
+            case EstadoContinuacionAlta.CorreoVerificado:
+                _pantalla = Pantalla.Formulario;
+                break;
+            case EstadoContinuacionAlta.DatosCompletos:
+                _pantalla = Pantalla.DatosCompletos;
+                break;
+            case EstadoContinuacionAlta.Caducada:
+                if (HttpContext is not null)
+                    CookieContinuacionAlta.Borrar(HttpContext);
+                _pantalla = Pantalla.ContinuacionNoValida;
+                break;
+            default:
+                _pantalla = Pantalla.ContinuacionNoValida;
+                break;
+        }
     }
 
     private async Task EnviarAsync()
@@ -170,9 +196,12 @@
             return;
         }
 
-        // Límite de consultas por CIF (§ 4.1 del plan): se cuenta antes de preguntar a la base, que es la que sabe si el
-        // CIF tiene Tenant propietario. Cuenta el CIF ya normalizado, para que «b12345678» y «B-12345678» sumen juntos.
-        if (!CupoCif.IntentarConsumir(datos.CifNif))
+        // Límite de consultas por CIF (§ 4.1 del plan): se mira antes de preguntar a la base, que es la que sabe si el
+        // CIF tiene Tenant propietario, y se gasta solo si la base aceptó el credencial e hizo la transición (M1): quien
+        // no tiene un credencial vigente no agota el cupo de un CIF ajeno. Cuenta el CIF ya normalizado, para que
+        // «b12345678» y «B-12345678» sumen juntos. El mensaje no habla del CIF: que el cupo esté agotado solo dice que hoy
+        // hubo varias transiciones con él, y eso se declara como riesgo residual.
+        if (!CupoCif.QuedaCupo(datos.CifNif))
         {
             _error = T["ErrorLimiteCif"];
             return;
@@ -183,16 +212,19 @@
         {
             case ResultadoDatosOrganizacionAlta.DatosCompletos:
                 // El credencial sigue: lo necesita el paso siguiente (plan y condiciones).
+                CupoCif.Gastar(datos.CifNif);
                 _pantalla = Pantalla.DatosCompletos;
                 break;
             case ResultadoDatosOrganizacionAlta.DerivadaAAcceso:
                 // Estado final: la base ya borró el hash del credencial; la cookie se va también.
+                CupoCif.Gastar(datos.CifNif);
                 CookieContinuacionAlta.Borrar(HttpContext);
                 _pantalla = Pantalla.DerivadaAAcceso;
                 break;
             default:
-                CookieContinuacionAlta.Borrar(HttpContext);
-                _pantalla = Pantalla.ContinuacionNoValida;
+                // La base no hizo nada: o la Solicitud de alta ya pasó este paso (otra pestaña, un reenvío) o el
+                // credencial caducó entre la consulta y el envío. Se pinta lo que diga su estado.
+                Aplicar(await Servicio.ConsultarContinuacionAsync(CookieContinuacionAlta.Leer(HttpContext), CancellationToken.None));
                 break;
         }
     }

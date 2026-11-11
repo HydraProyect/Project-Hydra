@@ -183,6 +183,15 @@ public class ServicioRegistroAltaTests
             Completados++;
             return Task.FromResult(Transicion);
         }
+
+        public EstadoContinuacionAlta Continuacion { get; set; } = EstadoContinuacionAlta.CorreoVerificado;
+        public int ConsultasContinuacion { get; private set; }
+
+        public Task<EstadoContinuacionAlta> ConsultarContinuacionAsync(string credencialContinuacion, CancellationToken cancellationToken)
+        {
+            ConsultasContinuacion++;
+            return Task.FromResult(Continuacion);
+        }
     }
 
     /// <summary>Solo «la-buena» casa con «hash-guardado».</summary>

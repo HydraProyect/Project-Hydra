@@ -12,8 +12,9 @@ namespace CaeManager.Web.Features.AltaAutonoma.Antiabuso;
 ///
 /// <para>
 /// No es una política de <c>AddRateLimiter</c>: el CIF viaja en el cuerpo del formulario, y el limitador decide antes de
-/// leerlo. Lo consulta la página, después de validar el CIF (formato y dígito de control) y antes de llamar a la base:
-/// un CIF mal escrito no gasta cupo, porque no consulta nada.
+/// leerlo. La página mira si queda cupo después de validar el CIF (formato y dígito de control) y antes de llamar a la
+/// base, y lo gasta solo si la base hizo la transición: un CIF mal escrito o un credencial que la base no acepta no
+/// gastan cupo.
 /// </para>
 ///
 /// <para>
@@ -39,14 +40,27 @@ public sealed class CupoConsultasCifAlta : IDisposable
             RateLimitPartition.Get(clave, _ => LimitadorAlta.VentanaFija(consultasPorDia, ventana)));
 
     /// <summary>
-    /// Gasta una consulta del CIF ya normalizado. <c>false</c> si ese CIF agotó su cupo del día: entonces la página no
-    /// consulta la base y responde lo mismo exista o no un Tenant propietario con ese CIF.
+    /// ¿Le queda al CIF ya normalizado alguna consulta hoy? No gasta nada (una adquisición de cero permisos solo mira el
+    /// contador). <c>false</c>: la página no consulta la base y responde lo mismo exista o no un Tenant propietario con ese
+    /// CIF.
     /// </summary>
-    public bool IntentarConsumir(string cifNormalizado)
+    public bool QuedaCupo(string cifNormalizado)
     {
         ArgumentException.ThrowIfNullOrEmpty(cifNormalizado);
-        using var concesion = _limitador.AttemptAcquire(Clave(cifNormalizado));
+        using var concesion = _limitador.AttemptAcquire(Clave(cifNormalizado), 0);
         return concesion.IsAcquired;
+    }
+
+    /// <summary>
+    /// Gasta una consulta del CIF ya normalizado. La página la gasta solo cuando la base aceptó el credencial de
+    /// continuación e hizo la transición: un credencial ajeno, caducado o inventado no consume el cupo de un CIF ajeno
+    /// (hallazgo M1 de la revisión de A4). Dos envíos simultáneos con credenciales distintos pueden pasar los dos por
+    /// <see cref="QuedaCupo"/> antes de gastar: el exceso queda acotado por la concurrencia y por la limitación por IP.
+    /// </summary>
+    public void Gastar(string cifNormalizado)
+    {
+        ArgumentException.ThrowIfNullOrEmpty(cifNormalizado);
+        using var _ = _limitador.AttemptAcquire(Clave(cifNormalizado));
     }
 
     private string Clave(string cifNormalizado) =>

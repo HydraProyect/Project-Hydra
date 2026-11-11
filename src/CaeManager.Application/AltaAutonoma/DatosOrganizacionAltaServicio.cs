@@ -22,6 +22,28 @@ public enum ResultadoDatosOrganizacionAlta
     NoValido,
 }
 
+/// <summary>
+/// En qué punto está la Solicitud de alta de un credencial de continuación, sin cambiar nada: lo que la página del paso
+/// «Empresa» necesita para pintar el formulario, lo ya guardado o el aviso de volver a empezar al recargar o reenviar.
+/// </summary>
+public enum EstadoContinuacionAlta
+{
+    /// <summary>Credencial desconocido o de una Solicitud de alta en un estado sin este paso.</summary>
+    NoValido,
+
+    /// <summary>
+    /// El credencial existe pero caducó (sus dos horas o la Solicitud de alta): es el único caso, con
+    /// <see cref="ResultadoDatosOrganizacionAlta.DerivadaAAcceso"/>, en que la página borra la cookie.
+    /// </summary>
+    Caducada,
+
+    /// <summary>Correo verificado y datos de la organización por completar: se pinta el formulario.</summary>
+    CorreoVerificado,
+
+    /// <summary>Los datos ya están guardados: se pinta lo guardado, sin volver a transicionar, y la cookie sigue para A5.</summary>
+    DatosCompletos,
+}
+
 /// <summary>Lo que responde la función de la base: el resultado y el Id de la propia Solicitud de alta (nulo si no vale).</summary>
 public sealed record TransicionDatosOrganizacionAlta(ResultadoDatosOrganizacionAlta Resultado, Guid? SolicitudAltaId);
 
@@ -37,8 +59,8 @@ public sealed record TransicionDatosOrganizacionAlta(ResultadoDatosOrganizacionA
 /// </para>
 /// <para>
 /// No es un <c>ICommand</c> de MediatR por lo mismo que <see cref="ServicioRegistroAlta"/>: quien lo usa es anónimo. No
-/// crea cuenta, ni sesión de Identity, ni Tenant (DA-2). El límite de consultas por CIF lo aplica la página antes de
-/// llamar, porque vive con el resto del antiabuso de la Web.
+/// crea cuenta, ni sesión de Identity, ni Tenant (DA-2). El límite de consultas por CIF lo aplica la página (mira el cupo
+/// antes de llamar y lo gasta solo si la base hizo la transición), porque vive con el resto del antiabuso de la Web.
 /// </para>
 /// </summary>
 public sealed class ServicioDatosOrganizacionAlta(
@@ -74,6 +96,15 @@ public sealed class ServicioDatosOrganizacionAlta(
 
         return transicion.Resultado;
     }
+
+    /// <summary>
+    /// Lee en la base en qué punto está la Solicitud de alta del credencial, sin bloquear ni escribir. Un credencial sin la
+    /// forma debida no llega a la base.
+    /// </summary>
+    public Task<EstadoContinuacionAlta> ConsultarContinuacionAsync(string? credencialContinuacion, CancellationToken cancellationToken) =>
+        EsCredencialBienFormado(credencialContinuacion)
+            ? acceso.ConsultarContinuacionAsync(credencialContinuacion!, cancellationToken)
+            : Task.FromResult(EstadoContinuacionAlta.NoValido);
 
     /// <summary>Forma de <see cref="ServicioRegistroAlta.NuevoToken"/>: 43 caracteres Base64url.</summary>
     public static bool EsCredencialBienFormado(string? credencial) =>

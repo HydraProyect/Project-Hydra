@@ -167,8 +167,19 @@ public class RegistroYVerificacionAltaTests : BunitContext
             string credencialContinuacion, DatosOrganizacionAlta datos, CancellationToken cancellationToken)
         {
             Completados.Enqueue(datos);
+            if (ContinuacionTrasCompletar is { } siguiente)
+                Continuacion = siguiente;
             return Task.FromResult(new TransicionDatosOrganizacionAlta(ResultadoDatos, Guid.NewGuid()));
         }
+
+        /// <summary>Lo que responde la consulta del credencial de continuación (al pintar el paso «Empresa»).</summary>
+        public EstadoContinuacionAlta Continuacion { get; set; } = EstadoContinuacionAlta.CorreoVerificado;
+
+        /// <summary>Si no es nulo, el estado que queda tras un envío, como lo dejaría otra pestaña o el envío anterior.</summary>
+        public EstadoContinuacionAlta? ContinuacionTrasCompletar { get; set; }
+
+        public Task<EstadoContinuacionAlta> ConsultarContinuacionAsync(string credencialContinuacion, CancellationToken cancellationToken) =>
+            Task.FromResult(Continuacion);
     }
 
     /// <summary>Solo «la-buena» casa con el hash que devuelve <see cref="AccesoQueCuenta"/>.</summary>
