@@ -73,7 +73,7 @@
                 }
             </div>
             <div class="campo-fecha-rejilla" @onkeydown="AlPulsarEnRejillaAsync">
-                @for (var hueco = 0; hueco < HuecosIniciales; hueco++)
+                @foreach (var _ in Enumerable.Range(0, HuecosIniciales))
                 {
                     <span class="campo-fecha-hueco"></span>
                 }
