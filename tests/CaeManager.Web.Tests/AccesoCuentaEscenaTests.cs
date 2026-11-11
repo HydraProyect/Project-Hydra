@@ -8,6 +8,7 @@ using CaeManager.Application.Seguridad.Incidentes;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Notificaciones;
 using CaeManager.Infrastructure.Coordinacion;
+using CaeManager.Infrastructure.Email;
 using CaeManager.Infrastructure.Identity;
 using CaeManager.Infrastructure.Persistence;
 using CaeManager.Infrastructure.Seguridad;
@@ -1505,6 +1506,43 @@ public class AccesoCuentaEscenaTests : BunitContext
         escena.Contexto.Guardadas.Should().ContainSingle();
     }
 
+    /// <summary>
+    /// El enlace de contraseña nueva lleva un token de restablecimiento: su base es
+    /// <c>Smtp:UrlBasePublica</c>, no el Host de la petición, que controla quien la envía
+    /// (OWASP ASVS 4.0.3 V2.5, V5.1.5).
+    /// </summary>
+    [Fact]
+    public async Task No_he_sido_yo_con_un_Host_forjado_manda_el_enlace_a_la_url_publica_configurada()
+    {
+        var escena = new EscenaNoHeSidoYo(this);
+
+        await escena.ConfirmarAsync();
+
+        var cuerpo = escena.Correos.Enviados.Single(c => c.Destinatario == escena.Usuario.Email).Cuerpo;
+        cuerpo.Should().Contain("https://cuentas.example/cuenta/restablecer-contrasena?userId=")
+            .And.NotContain(EscenaNoHeSidoYo.HostForjado);
+        escena.Correos.Enviados.Should().NotContain(c => c.Cuerpo.Contains(EscenaNoHeSidoYo.HostForjado));
+    }
+
+    /// <summary>
+    /// Fuera de Development, sin URL pública válida no hay enlace: nunca se recurre al Host de la
+    /// petición. La persona queda protegida, sin correo, y el fallo se registra.
+    /// </summary>
+    [Theory]
+    [InlineData(null)]
+    [InlineData("http://cuentas.example/")]
+    public async Task No_he_sido_yo_sin_url_publica_valida_fuera_de_Development_no_usa_el_Host_de_la_peticion(string? url)
+    {
+        var escena = new EscenaNoHeSidoYo(this, urlBasePublica: url);
+
+        var resultado = await escena.ConfirmarAsync();
+
+        resultado.Should().Be(ResultadoNoHeSidoYo.ProtegidaSinCorreo);
+        escena.Correos.Enviados.Should().NotContain(c => c.Destinatario == escena.Usuario.Email);
+        escena.Correos.Enviados.Should().NotContain(c => c.Cuerpo.Contains(EscenaNoHeSidoYo.HostForjado));
+        escena.Registro.Errores.Should().NotBeEmpty();
+    }
+
     /// <summary>Una cuenta solo de Microsoft no recibe enlace, pero tampoco lee que esté protegida.</summary>
     [Fact]
     public async Task No_he_sido_yo_sin_revocar_en_una_cuenta_solo_Microsoft_da_senal_y_aviso_sin_enlace()
@@ -1566,7 +1604,11 @@ public class AccesoCuentaEscenaTests : BunitContext
         private readonly VigilanciaInicioSesionService _vigilancia;
         private readonly UserManager<ApplicationUser> _usuarios;
 
-        public EscenaNoHeSidoYo(AccesoCuentaEscenaTests pruebas, bool conContrasena = true, bool conRegistroReal = false)
+        /// <summary>Host que fuerza quien envía la petición; ningún enlace debe llevarlo.</summary>
+        public const string HostForjado = "atacante.example.test";
+
+        public EscenaNoHeSidoYo(AccesoCuentaEscenaTests pruebas, bool conContrasena = true, bool conRegistroReal = false,
+            string? urlBasePublica = "https://cuentas.example/", string entorno = "Production")
         {
             _usuarios = pruebas._usuarios;
             Usuario = new ApplicationUser
@@ -1600,9 +1642,11 @@ public class AccesoCuentaEscenaTests : BunitContext
 
             var peticion = new DefaultHttpContext();
             peticion.Request.Scheme = "https";
-            peticion.Request.Host = new HostString("app.example.test");
+            peticion.Request.Host = new HostString(HostForjado);
             _vigilancia = new VigilanciaInicioSesionService(
-                new HttpContextAccessor { HttpContext = peticion }, ambitos, null!, null!, null!, null!, Registro, Senales);
+                new HttpContextAccessor { HttpContext = peticion }, ambitos, null!, null!, null!, null!, Registro, Senales,
+                Options.Create(new SmtpEmailOptions { UrlBasePublica = urlBasePublica }),
+                new Microsoft.Extensions.Hosting.Internal.HostingEnvironment { EnvironmentName = entorno });
         }
 
         public ApplicationUser Usuario { get; }
