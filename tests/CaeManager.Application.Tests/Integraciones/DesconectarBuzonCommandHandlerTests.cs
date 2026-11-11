@@ -573,6 +573,73 @@ public class DesconectarBuzonCommandHandlerTests
     }
 
     /// <summary>
+    /// Fila 9 del inventario de la ronda 16 (bajo del revisor-puente): fallan el guardado de la marca tras confirmar, el
+    /// DELETE y la recarga del intento del borrado. Ese intento parte de la base (no de la instancia descartada, que ya
+    /// lleva la marca en memoria) y, si la recarga se rompe una sola vez, el reintento la guarda; si sigue rota, no hay
+    /// éxito silencioso.
+    /// </summary>
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Si_fallan_la_marca_tras_confirmar_el_DELETE_y_la_recarga_el_reintento_la_guarda_o_devuelve_un_fallo(bool recargaSiempreRota)
+    {
+        var reloj = new RelojFalso(DateTime.UtcNow);
+        var expiracion = reloj.AhoraUtc.AddMinutes(1);
+        var (conexion, conexiones, suscripciones) = BuzonCompartidoQueExpiraEn(expiracion, reloj.AhoraUtc.AddHours(-1));
+        var graph = new Microsoft365GraphClientFalso { ErrorEliminacion = CaeManager.Domain.Common.Error.Crear("x", "503") };
+        var interno = new UnitOfWorkFalso();
+        interno.AlGuardar = () =>
+        {
+            if (interno.VecesGuardado == 0)
+                reloj.Avanzar(TimeSpan.FromMinutes(2));
+        };
+        var recargaRota = false;
+        var lecturasRotas = 0;
+        conexiones.AlLeerActual = _ =>
+        {
+            if (!recargaRota)
+                return;
+            lecturasRotas++;
+            if (!recargaSiempreRota)
+                recargaRota = false;
+            throw new InvalidOperationException("base caída");
+        };
+        // La base guarda la Deshabilitada sin marca; tras el primer descarte, la recarga se rompe.
+        var descarte = new DescarteContado(() =>
+        {
+            conexiones.Conexiones[0] = Copia(conexion, deshabilitada: true);
+            if (lecturasRotas == 0)
+                recargaRota = true;
+        });
+        var logger = new LoggerCaptura();
+        var handler = CrearHandler(conexiones, suscripciones, new ReclamacionBuzonIntegracionRepositorioFalso(), new AlcanceDatosServiceFalso(),
+            graph, new CredencialIntegracionRepositorioFalso(),
+            new UnitOfWorkQueFallaEn(interno, 2, new InvalidOperationException("base caída")), descarte: descarte, reloj: reloj,
+            logger: logger);
+
+        var resultado = await handler.Handle(new DesconectarBuzonCommand(conexion.Id), CancellationToken.None);
+
+        graph.SuscripcionesEliminadas.Should().BeEmpty("control: el DELETE falló");
+        lecturasRotas.Should().BeGreaterThan(0, "control: la recarga del intento del borrado se rompió");
+        if (recargaSiempreRota)
+        {
+            resultado.EsFallido.Should().BeTrue();
+            resultado.Error.Codigo.Should().Be(DesconectarBuzonCommandHandler.CodigoMarcaHuecoNoGuardada);
+            interno.VecesGuardado.Should().Be(1, "solo la desconexión");
+            logger.Entradas.Should().ContainSingle(e => e.Nivel == LogLevel.Critical);
+        }
+        else
+        {
+            resultado.EsExitoso.Should().BeTrue();
+            interno.VecesGuardado.Should().Be(2, "la desconexión y la marca reintentada");
+            var recargada = conexiones.Conexiones[0];
+            recargada.Should().NotBeSameAs(conexion, "control: el reintento va sobre la versión de la base");
+            recargada.HuecoPendienteDesdeUtc.Should().Be(expiracion, "la marca del borrado sobre una suscripción ya expirada");
+            logger.Entradas.Should().NotContain(e => e.Nivel == LogLevel.Critical);
+        }
+    }
+
+    /// <summary>
     /// Codex, ronda 16 (variante): la cancelación pedida durante el borrado no tapa una marca que no llegó a la base: el
     /// fallo propio prevalece sobre la cancelación, porque la desconexión ya está guardada.
     /// </summary>
