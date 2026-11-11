@@ -272,7 +272,8 @@ public class GestionesAutomaticasBajoRlsTests : IAsyncLifetime
 
         await using var runtime = CrearRuntime();
         var alcance = Alcance(runtime);
-        var detalle = await new ObtenerGestionAutomaticaQueryHandler(runtime, runtime, runtime, runtime, runtime, runtime, runtime, runtime, alcance)
+        var detalle = await new ObtenerGestionAutomaticaQueryHandler(runtime, runtime, runtime, runtime, runtime, runtime, runtime, runtime, alcance,
+                new SinNotaInterna())
             .Handle(new ObtenerGestionAutomaticaQuery(ajena), CancellationToken.None);
         var listado = await new ObtenerGestionesAutomaticasQueryHandler(runtime, runtime, runtime, runtime, runtime, runtime, runtime, alcance)
             .Handle(new ObtenerGestionesAutomaticasQuery(), CancellationToken.None);
@@ -450,6 +451,14 @@ public class GestionesAutomaticasBajoRlsTests : IAsyncLifetime
         public Guid? TenantIdSeleccionado => null;
         public Guid? AsignacionOperacionIdSeleccionada => null;
         public Guid? SesionPrivilegiadaIdSeleccionada => null;
+    }
+
+    /// <summary>Lo que se prueba aquí es el aislamiento entre Tenants, no la política de la nota interna.</summary>
+    private sealed class SinNotaInterna : IPoliticaNotaInterna
+    {
+        public Task<bool> PuedeLeerAsync(CancellationToken cancellationToken = default) => Task.FromResult(false);
+
+        public Task<bool> TieneAccesoTotalAlTenantAsync(CancellationToken cancellationToken = default) => Task.FromResult(false);
     }
 
     private sealed class SesionPrivilegiadaAusente : ISesionPrivilegiadaActual

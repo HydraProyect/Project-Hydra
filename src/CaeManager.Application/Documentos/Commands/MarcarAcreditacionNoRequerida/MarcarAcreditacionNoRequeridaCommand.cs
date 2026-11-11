@@ -13,7 +13,8 @@ namespace CaeManager.Application.Documentos.Commands.MarcarAcreditacionNoRequeri
 /// «Esta plataforma no lo pide» de la ventana de una Gestión automática (DECISION_LOG 2026-11-08, punto 3): el Gestor CAE
 /// ha mirado el portal y esa plataforma no pide este documento en ese Centro. Deja la acreditación en
 /// <see cref="EstadoAcreditacion.NoRequerida"/>, que cuenta como paso hecho; nunca toca el Documento ni su vigencia en
-/// TALVEG.
+/// TALVEG. La vigencia en la plataforma sí se pierde (queda Sin confirmar): una fecha vencida de un documento que no se
+/// pide no debe poner el Centro en rojo.
 ///
 /// <para>
 /// Mismo alcance que «Marcar subido» (<see cref="AcreditacionSubible"/>): el Centro del acceso tiene que estar en la

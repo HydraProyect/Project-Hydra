@@ -184,10 +184,16 @@ public class AcreditacionDocumentoPlataforma : EntidadBase, IAccionAuditoriaProp
         return accion;
     }
 
+    /// <summary>
+    /// «Esta plataforma no lo pide»: el documento no se exige en este acceso. La vigencia que se hubiera
+    /// confirmado en la plataforma se pierde, igual que en las demás transiciones: una fecha vencida de un
+    /// documento que no se pide no debe poner el Centro en rojo.
+    /// </summary>
     public void MarcarNoRequerida()
     {
         Estado = EstadoAcreditacion.NoRequerida;
         UltimoCambioEstadoAManoId = null;
+        AnotarVigencia(VigenciaEnPlataforma.SinConfirmar);
     }
 
     /// <summary>

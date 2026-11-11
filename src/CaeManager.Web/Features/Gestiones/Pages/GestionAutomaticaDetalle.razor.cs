@@ -231,7 +231,8 @@ public partial class GestionAutomaticaDetalle : CaeManager.Web.Components.Pagina
             yield return ("GpDatoContratacion", Texto(t.TipoVinculo));
             yield return ("GpDatoAltaEmpresa", Fecha(t.FechaAltaEmpresa));
             yield return ("GpDatoRnt", Texto(t.FiguraEnRnt));
-            yield return ("GpDatoPermiso", Texto(t.TipoPermisoTrabajo));
+            // Sin la política de la nota interna el permiso no llega (null) y no es un dato que falte: ni fila ni «Completar».
+            if (t.PermisoTrabajoVisible) yield return ("GpDatoPermiso", Texto(t.TipoPermisoTrabajo));
             if (t.FechaBajaEmpresa is { } baja) yield return ("GpDatoBaja", baja.ToString("dd/MM/yyyy"));
             yield break;
         }
@@ -393,7 +394,15 @@ public partial class GestionAutomaticaDetalle : CaeManager.Web.Components.Pagina
         _pestana = null;
     }
 
-    private void ElegirOpcion(string clave) => _opcion = clave;
+    /// <summary>
+    /// Cambiar de opción borra la confirmación de «no lo pide»: volver a esa opción exige confirmarla otra vez. Elegir
+    /// la misma opción no la borra.
+    /// </summary>
+    private void ElegirOpcion(string clave)
+    {
+        if (_opcion != clave) _confirmaNoPide = false;
+        _opcion = clave;
+    }
 
     private void Anterior()
     {

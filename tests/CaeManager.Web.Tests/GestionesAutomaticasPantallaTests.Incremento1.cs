@@ -18,10 +18,11 @@ public partial class GestionesAutomaticasPantallaTests
 {
     private static DatosTrabajadorDeGestionDto TrabajadorCompleto(DateOnly? baja = null) => new(
         TrabajadorId, "Laura Gil Pardo", "73215489-k", new DateOnly(1988, 2, 21), "501234567890", "Española",
-        "Técnica de mantenimiento", "Indefinido", new DateOnly(2019, 3, 1), "Sí", "No necesita", baja);
+        "Técnica de mantenimiento", "Indefinido", new DateOnly(2019, 3, 1), "Sí", "No necesita", baja, PermisoTrabajoVisible: true);
 
     private static DatosTrabajadorDeGestionDto TrabajadorIncompleto() => new(
-        TrabajadorId, "Laura Gil Pardo", "73215489K", null, null, "Española", "Técnica de mantenimiento", null, null, null, null, null);
+        TrabajadorId, "Laura Gil Pardo", "73215489K", null, null, "Española", "Técnica de mantenimiento", null, null, null, null, null,
+        PermisoTrabajoVisible: true);
 
     private static List<PasoGestionAutomaticaDto> PasosConCentroCompleto()
     {
@@ -124,6 +125,18 @@ public partial class GestionesAutomaticasPantallaTests
             .Which.Id.Should().Be(TrabajadorId));
         cut.FindAll("[data-paso-abierto]").Should().NotBeEmpty("Completar no saca de la Gestión");
         m.DetallesPedidos.Should().ContainSingle("abrir la ficha no vuelve a leer la Gestión; solo guardarla");
+    }
+
+    [Fact]
+    public void Sin_permiso_de_trabajo_visible_no_sale_su_fila_ni_cuenta_como_dato_que_falta_ni_ofrece_Completar()
+    {
+        // El servidor lo manda null cuando quien consulta no lee la nota interna: no es «Falta en TALVEG».
+        var m = Montar();
+        var cut = Detallar(m, Detalle(SeisPasosNuevos()) with { Trabajador = TrabajadorIncompleto() with { PermisoTrabajoVisible = false } });
+
+        Datos(cut).Keys.Should().NotContain("GpDatoPermiso");
+        cut.FindAll("[data-dato='GpDatoPermiso']").Should().BeEmpty();
+        cut.Find("[data-pestana='trabajador'] [data-faltan]").TextContent.Should().Be("· 5");
     }
 
     [Fact]
@@ -244,6 +257,26 @@ public partial class GestionesAutomaticasPantallaTests
 
         cut.Find("[data-campos-opcion='nopide'] input[type='checkbox']").HasAttribute("checked").Should().BeFalse();
         cut.Find("[data-accion='guardar']").HasAttribute("disabled").Should().BeTrue();
+    }
+
+    [Fact]
+    public void Cambiar_de_opcion_borra_la_confirmacion_de_no_lo_pide()
+    {
+        var m = Montar();
+        var cut = Detallar(m, Detalle(SeisPasosNuevos()));
+
+        cut.Find("[data-opcion='nopide']").Click();
+        cut.Find("[data-campos-opcion='nopide'] input[type='checkbox']").Change(true);
+        cut.Find("[data-opcion='nopide']").Click();
+        cut.Find("[data-campos-opcion='nopide'] input[type='checkbox']").HasAttribute("checked").Should()
+            .BeTrue("elegir otra vez la misma opción no la borra");
+
+        cut.Find("[data-opcion='subido']").Click();
+        cut.Find("[data-opcion='nopide']").Click();
+
+        cut.Find("[data-campos-opcion='nopide'] input[type='checkbox']").HasAttribute("checked").Should().BeFalse();
+        cut.Find("[data-accion='guardar']").HasAttribute("disabled").Should().BeTrue("sin confirmar otra vez no se guarda");
+        m.Enviados.OfType<MarcarAcreditacionNoRequeridaCommand>().Should().BeEmpty();
     }
 
     [Fact]

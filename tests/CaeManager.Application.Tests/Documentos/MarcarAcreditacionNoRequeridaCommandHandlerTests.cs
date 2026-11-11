@@ -41,6 +41,21 @@ public class MarcarAcreditacionNoRequeridaCommandHandlerTests
     }
 
     [Fact]
+    public async Task Desde_validada_con_una_fecha_vencida_borra_la_vigencia_para_no_poner_el_Centro_en_rojo()
+    {
+        var escenario = Escenario.Nuevo();
+        escenario.Acreditacion.MarcarAceptada(VigenciaEnPlataforma.VenceEl(new DateOnly(2020, 1, 1)));
+
+        var resultado = await escenario.Handler().Handle(new MarcarAcreditacionNoRequeridaCommand(escenario.Acreditacion.Id), CancellationToken.None);
+
+        resultado.EsExitoso.Should().BeTrue();
+        escenario.Acreditacion.Estado.Should().Be(EstadoAcreditacion.NoRequerida);
+        escenario.Acreditacion.Vigencia.EstaSinConfirmar.Should().BeTrue();
+        escenario.Acreditacion.FechaVencimientoEnPlataforma.Should().BeNull();
+        escenario.UnitOfWork.VecesGuardado.Should().Be(1);
+    }
+
+    [Fact]
     public async Task Ya_no_requerida_no_escribe_nada()
     {
         var escenario = Escenario.Nuevo();

@@ -1,6 +1,7 @@
 using CaeManager.Application.Gestiones;
 using CaeManager.Application.Gestiones.Queries.GestionesAutomaticas;
 using CaeManager.Application.Tests.Clientes;
+using CaeManager.Application.Tests.ContratosAcceso;
 using CaeManager.Application.Tests.Documentos;
 using CaeManager.Application.Tests.Integraciones;
 using CaeManager.Application.Tests.Plantillas;
@@ -638,7 +639,28 @@ public class GestionesAutomaticasTests
         datos.FechaAltaEmpresa.Should().Be(new DateOnly(2019, 3, 1));
         datos.FiguraEnRnt.Should().Be("Sí");
         datos.TipoPermisoTrabajo.Should().BeNull("un dato vacío llega null: la pantalla dice «Falta en TALVEG»");
+        datos.PermisoTrabajoVisible.Should().BeTrue("quien consulta lee la nota interna");
         datos.FechaBajaEmpresa.Should().BeNull();
+    }
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task El_tipo_de_permiso_de_trabajo_solo_sale_a_quien_lee_la_nota_interna_como_en_la_ficha(bool leeNotaInterna)
+    {
+        // La misma regla que ObtenerTrabajadorPorIdQueryHandler (decisión de Chris del 2026-10-15): el resto de datos sí
+        // llega, y el permiso solo con la política.
+        _trabajador.ActualizarFicha(null, null, null, null, null, null, null, null, "Residencia y trabajo", null, null);
+        _trabajador.TipoPermisoTrabajo.Should().Be("Residencia y trabajo", "precondición: la ficha tiene el permiso");
+        var documento = DocumentoDelTrabajador();
+        Acreditar(documento, AccesoPlataforma(Centro("Planta Norte"), "Nalanda"));
+        await Nacer(documento);
+
+        var datos = (await Detalle(_gestiones.Lista.Single().Id, new AlcanceDatosServiceFalso(), leeNotaInterna))!.Trabajador!;
+
+        datos.Dni.Should().Be("77189989B", "los datos que no lleva la política sí llegan");
+        datos.PermisoTrabajoVisible.Should().Be(leeNotaInterna);
+        datos.TipoPermisoTrabajo.Should().Be(leeNotaInterna ? "Residencia y trabajo" : null);
     }
 
     [Fact]
@@ -684,6 +706,27 @@ public class GestionesAutomaticasTests
         enAlmacen.InicioAsignacion.Should().BeNull("la Asignación de otro Trabajador no es la del titular");
     }
 
+    [Fact]
+    public async Task Sin_Asignacion_activa_el_inicio_es_el_de_la_mas_reciente_de_las_de_baja()
+    {
+        // Desempate «ninguna activa, gana la más reciente por FechaAlta»: la más antigua va primero en la lista, para que
+        // quedarse con la primera, o con la de baja más tardía, no pase inadvertido.
+        var documento = DocumentoDelTrabajador();
+        var planta = Centro("Planta Norte");
+        Acreditar(documento, AccesoPlataforma(planta, "Nalanda"));
+        await Nacer(documento);
+        var antigua = new Asignacion(_trabajador.Id, planta.Id, new DateOnly(2022, 3, 1));
+        antigua.DarDeBaja(new DateOnly(2025, 12, 31));
+        var reciente = new Asignacion(_trabajador.Id, planta.Id, new DateOnly(2024, 2, 5));
+        reciente.DarDeBaja(new DateOnly(2024, 8, 31));
+        _asignaciones.ListaAsignaciones.Add(antigua);
+        _asignaciones.ListaAsignaciones.Add(reciente);
+
+        var paso = (await Detalle(_gestiones.Lista.Single().Id, new AlcanceDatosServiceFalso()))!.Pasos.Single();
+
+        paso.InicioAsignacion.Should().Be(new DateOnly(2024, 2, 5));
+    }
+
     // ---------- Montaje ----------
 
     private async Task<GestionAutomatica?> Nacer(Documento documento, Documento? sustituido = null)
@@ -701,9 +744,10 @@ public class GestionesAutomaticasTests
                 _gestiones, _documentos, _centros, _proveedores, _trabajadores, _empresas, _tipos, alcance)
             .Handle(new ObtenerGestionesAutomaticasQuery(estado), CancellationToken.None);
 
-    private Task<GestionAutomaticaDetalleDto?> Detalle(Guid id, AlcanceDatosServiceFalso alcance) =>
+    private Task<GestionAutomaticaDetalleDto?> Detalle(Guid id, AlcanceDatosServiceFalso alcance, bool leeNotaInterna = true) =>
         new ObtenerGestionAutomaticaQueryHandler(
-                _gestiones, _documentos, _centros, _proveedores, _trabajadores, _empresas, _tipos, _asignaciones, alcance)
+                _gestiones, _documentos, _centros, _proveedores, _trabajadores, _empresas, _tipos, _asignaciones, alcance,
+                new PoliticaNotaInternaFalsa(leeNotaInterna))
             .Handle(new ObtenerGestionAutomaticaQuery(id), CancellationToken.None);
 
     private Documento DocumentoDelTrabajador(string? archivoUrl = "tenant/reconocimiento.pdf")

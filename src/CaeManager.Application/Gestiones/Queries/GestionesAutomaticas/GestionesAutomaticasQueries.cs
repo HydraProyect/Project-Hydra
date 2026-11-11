@@ -49,12 +49,15 @@ public sealed record PasoGestionAutomaticaDto(
 
 /// <summary>
 /// Pestaña Trabajador de «Datos a mano» (ventana de la Gestión, § 1.1): lo que los portales piden del Trabajador titular,
-/// tal como está en su ficha. Un dato null es «Falta en TALVEG».
+/// tal como está en su ficha. Un dato null es «Falta en TALVEG», salvo <paramref name="TipoPermisoTrabajo"/> cuando
+/// <paramref name="PermisoTrabajoVisible"/> es false: entonces quien consulta no puede leerlo (la misma
+/// <see cref="IPoliticaNotaInterna"/> que la ficha del Trabajador) y la pantalla no lo enseña ni ofrece completarlo. El
+/// false por defecto hace que quien construya el DTO sin pasar por esa regla oculte, no enseñe.
 /// </summary>
 public sealed record DatosTrabajadorDeGestionDto(
     Guid Id, string NombreCompleto, string? Dni, DateOnly? FechaNacimiento, string? NumeroAfiliacionSeguridadSocial,
     string? Nacionalidad, string? Puesto, string? TipoVinculo, DateOnly? FechaAltaEmpresa, string? FiguraEnRnt,
-    string? TipoPermisoTrabajo, DateOnly? FechaBajaEmpresa);
+    string? TipoPermisoTrabajo, DateOnly? FechaBajaEmpresa, bool PermisoTrabajoVisible = false);
 
 /// <summary>
 /// Detalle de una Gestión automática. <paramref name="EmpresaGestionadaCif"/> es el CIF de la Empresa gestionada de la
@@ -119,7 +122,7 @@ public class ObtenerGestionAutomaticaQueryHandler(
     ICentrosQueryContext centrosContext, IProveedoresPlataformaCaeQueryContext proveedoresContext,
     ITrabajadoresQueryContext trabajadoresContext, IEmpresasQueryContext empresasContext,
     ITiposDocumentoQueryContext tiposDocumentoContext, IAsignacionesQueryContext asignacionesContext,
-    IAlcanceDatosService alcanceDatos)
+    IAlcanceDatosService alcanceDatos, IPoliticaNotaInterna politicaNotaInterna)
     : IRequestHandler<ObtenerGestionAutomaticaQuery, GestionAutomaticaDetalleDto?>
 {
     public async Task<GestionAutomaticaDetalleDto?> Handle(ObtenerGestionAutomaticaQuery request, CancellationToken cancellationToken)
@@ -247,20 +250,28 @@ public class ObtenerGestionAutomaticaQueryHandler(
     /// La pestaña Trabajador: los mismos datos que su ficha. No necesita otra comprobación de alcance porque el universo de
     /// la Gestión ya la hace: <see cref="PasosVisiblesDeGestionesAutomaticas.CargarAsync"/> solo admite Documentos de
     /// Trabajador cuyo Trabajador está en <see cref="IAlcanceDatosService.ObtenerTrabajadorIdsVisiblesAsync"/>, y sin pasos
-    /// visibles el detalle es null.
+    /// visibles el detalle es null. El tipo de permiso de trabajo sí lleva la regla propia de la ficha
+    /// (<c>ObtenerTrabajadorPorIdQueryHandler</c>, decisión de Chris del 2026-10-15): solo sale del servidor si quien
+    /// consulta lee la nota interna (<see cref="IPoliticaNotaInterna"/>).
     /// </summary>
     private async Task<DatosTrabajadorDeGestionDto?> DatosDelTrabajadorAsync(Guid? trabajadorId, CancellationToken cancellationToken)
     {
         if (trabajadorId is not { } id)
             return null;
 
-        return await trabajadoresContext.Trabajadores
+        var datos = await trabajadoresContext.Trabajadores
             .Where(t => t.Id == id)
             .Select(t => new DatosTrabajadorDeGestionDto(
                 t.Id, t.Nombre + " " + t.Apellidos, t.Dni, t.FechaNacimiento, t.NumeroAfiliacionSeguridadSocial,
                 t.Nacionalidad, t.Puesto, t.TipoVinculo, t.FechaAltaEmpresa, t.FiguraEnRnt, t.TipoPermisoTrabajo,
-                t.FechaBajaEmpresa))
+                t.FechaBajaEmpresa, false))
             .FirstOrDefaultAsync(cancellationToken);
+        if (datos is null)
+            return null;
+
+        return await politicaNotaInterna.PuedeLeerAsync(cancellationToken)
+            ? datos with { PermisoTrabajoVisible = true }
+            : datos with { TipoPermisoTrabajo = null, PermisoTrabajoVisible = false };
     }
 }
 

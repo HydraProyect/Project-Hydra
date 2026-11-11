@@ -115,6 +115,20 @@ public class AcreditacionDocumentoPlataformaTests
     }
 
     [Fact]
+    public void Marcar_no_requerida_desde_validada_con_una_fecha_vencida_borra_la_vigencia_confirmada()
+    {
+        var acreditacion = CrearAcreditacion();
+        acreditacion.MarcarAceptada(VigenciaEnPlataforma.VenceEl(new DateOnly(2020, 1, 1)));
+        acreditacion.Vigencia.EstaSinConfirmar.Should().BeFalse("el escenario parte de una fecha confirmada");
+
+        acreditacion.MarcarNoRequerida();
+
+        acreditacion.Estado.Should().Be(EstadoAcreditacion.NoRequerida);
+        acreditacion.Vigencia.EstaSinConfirmar.Should().BeTrue("un documento que no se pide no pone el Centro en rojo");
+        acreditacion.FechaVencimientoEnPlataforma.Should().BeNull();
+    }
+
+    [Fact]
     public void Volver_de_validada_a_enviada_borra_la_vigencia_confirmada()
     {
         var acreditacion = CrearAcreditacion();
