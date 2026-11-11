@@ -28,10 +28,10 @@
     <value>Verificació en dos passos restablerta per a {0}. L'haurà de tornar a configurar.</value>
   </data>
   <data name="DesactivarTitulo" xml:space="preserve">
-    <value>¿Desactivar a {0}?</value>
+    <value>Vols desactivar {0}?</value>
   </data>
   <data name="DesactivarMensaje" xml:space="preserve">
-    <value>Perderá el acceso en cuanto confirmes: su sesión abierta se cierra. Podrás reactivarla después.</value>
+    <value>Perdrà l'accés en el moment que confirmis: la seva sessió oberta es tanca. Podràs reactivar-la després.</value>
   </data>
   <data name="DesactivarCarteraUniversal" xml:space="preserve">
     <value>La seva Assignació de Cartera és tota l'operació d'aquesta organització. Continua oberta i la conserva el seu Coordinador CAE.</value>

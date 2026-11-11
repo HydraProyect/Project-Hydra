@@ -13,25 +13,25 @@
     <value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
   </resheader>
   <data name="TituloModal" xml:space="preserve">
-    <value>Términos y Condiciones</value>
+    <value>Termes i Condicions</value>
   </data>
   <data name="TextoConsentimiento" xml:space="preserve">
-    <value>Antes de continuar, confirma que has leído y aceptas los Términos y Condiciones de uso y la Política de Privacidad de {0} — incluida la responsabilidad de tu organización sobre la gestión y el tratamiento de los datos de sus clientes y trabajadores que introduzcas en la plataforma.</value>
+    <value>Abans de continuar, confirma que has llegit i acceptes els Termes i Condicions d'ús i la Política de Privacitat de {0} — inclosa la responsabilitat de la teva organització sobre la gestió i el tractament de les dades dels seus clients i treballadors que introdueixis a la plataforma.</value>
   </data>
   <data name="EnlaceTerminos" xml:space="preserve">
-    <value>Leer Términos y Condiciones completos ↗</value>
+    <value>Llegir els Termes i Condicions complets ↗</value>
   </data>
   <data name="EnlacePrivacidad" xml:space="preserve">
-    <value>Leer Política de Privacidad completa ↗</value>
+    <value>Llegir la Política de Privacitat completa ↗</value>
   </data>
   <data name="CasillaAceptacion" xml:space="preserve">
-    <value>He leído y acepto los Términos y Condiciones y la Política de Privacidad.</value>
+    <value>He llegit i accepto els Termes i Condicions i la Política de Privacitat.</value>
   </data>
   <data name="BotonAceptar" xml:space="preserve">
-    <value>Aceptar y continuar</value>
+    <value>Acceptar i continuar</value>
   </data>
   <data name="ErrorRegistro" xml:space="preserve">
-    <value>No pudimos registrar tu aceptación. Intenta nuevamente.</value>
+    <value>No hem pogut registrar la teva acceptació. Torna-ho a provar.</value>
   </data>
   <data name="MotivoAceptar" xml:space="preserve"><value>Marca la casella per acceptar.</value></data>
 </root>
