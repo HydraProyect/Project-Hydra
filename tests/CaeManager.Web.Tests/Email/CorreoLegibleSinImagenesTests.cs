@@ -38,7 +38,7 @@ public class CorreoLegibleSinImagenesTests
 
         html.Should().NotContainEquivalentOf("<img", "la marca es texto: con las imágenes bloqueadas un <img> deja un hueco");
         ProblemasSinImagenes(html).Should().BeEmpty();
-        html.Should().Contain(">TALVEG<", "el nombre de la marca se lee como texto");
+        html.Should().Contain("letter-spacing:2.2px;\">TALVEG</div>", "el nombre de la marca se lee como texto en la franja, no solo en el <title>");
     }
 
     [Fact]
@@ -98,6 +98,16 @@ public class CorreoLegibleSinImagenesTests
 
         texto.Should().Contain("Empresa &lt;Norte&gt; & Cía");
         texto.Should().Contain("Ver &lt;ya&gt; (https://x.example/?a=1&amp;b=2)");
+    }
+
+    [Fact]
+    public void La_salida_sin_expresiones_regulares_quita_etiquetas_y_la_cabecera()
+    {
+        var texto = TextoPlanoDeCorreo.SinEtiquetas(
+            "<html><head><style>.a{color:red}</style><title>t</title></head><body><p>Hola &amp; adiós</p></body></html>");
+
+        texto.Should().NotContain("color").And.NotContain("<").And.NotContain(">");
+        texto.Should().Contain("Hola &amp; adiós", "la decodificación de entidades la hace DesdeHtml, una sola vez");
     }
 
     [Fact]

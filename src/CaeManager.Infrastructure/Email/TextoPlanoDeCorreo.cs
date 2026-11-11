@@ -97,8 +97,13 @@ internal static partial class TextoPlanoDeCorreo
         return $"{texto} ({href})";
     }
 
-    private static string SinEtiquetas(string html)
+    internal static string SinEtiquetas(string html)
     {
+        // Sin regex: lo anterior al cierre de <head> (estilos y título de la plantilla) no es texto del mensaje.
+        var finCabecera = html.IndexOf("</head>", StringComparison.OrdinalIgnoreCase);
+        if (finCabecera >= 0)
+            html = html[(finCabecera + "</head>".Length)..];
+
         var sb = new StringBuilder(html.Length);
         var dentro = false;
         foreach (var c in html)

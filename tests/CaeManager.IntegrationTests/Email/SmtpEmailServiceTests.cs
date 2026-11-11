@@ -316,7 +316,7 @@ public class SmtpEmailServiceEnvolverEnPlantillaDeMarcaTests
 
         html.Should().NotContain("<img");
         html.Should().NotContain("franja-marca.png");
-        html.Should().Contain(">TALVEG<");
+        html.Should().Contain("letter-spacing:2.2px;\">TALVEG</div>");
     }
 
     [Fact]

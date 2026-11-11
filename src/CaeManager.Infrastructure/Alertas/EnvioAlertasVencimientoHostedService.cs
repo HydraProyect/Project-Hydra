@@ -1,4 +1,3 @@
-using System.Net;
 using CaeManager.Application.Alertas;
 using CaeManager.Application.Alertas.Queries.ObtenerAlertas;
 using CaeManager.Application.Asignaciones;
@@ -224,9 +223,12 @@ public class EnvioAlertasVencimientoHostedService(
 
         var asunto = $"{Marca.Nombre} — {alertas.Count} alerta(s) de documentación pendientes de revisión";
 
-        var enlace = string.IsNullOrWhiteSpace(urlBase)
+        // AlertasPorCorreo:UrlBase no tiene validador de arranque: una URL que no sea absoluta http(s) se trata
+        // como «sin configurar» (resumen sin enlace) en vez de impedir el resumen del Tenant.
+        var enlace = !Uri.TryCreate(urlBase?.Trim(), UriKind.Absolute, out var destino)
+                     || (destino.Scheme != Uri.UriSchemeHttps && destino.Scheme != Uri.UriSchemeHttp)
             ? string.Empty
-            : BotonCorreo.Html("Ver el detalle en Alertas", $"{urlBase.TrimEnd('/')}/alertas");
+            : BotonCorreo.Html("Ver el detalle en Alertas", $"{destino.AbsoluteUri.TrimEnd('/')}/alertas");
 
         var cuerpo = $"""
             <p>Resumen diario de documentación pendiente en {Marca.Nombre}:</p>
