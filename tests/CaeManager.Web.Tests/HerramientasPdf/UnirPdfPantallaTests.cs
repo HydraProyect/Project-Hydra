@@ -206,22 +206,23 @@ public sealed class UnirPdfPantallaTests : BunitContext
 
     [Theory]
     [InlineData(null, 400L)]
-    [InlineData(0, 100L)]
+    [InlineData(0, 0L)]
     [InlineData(1, 300L)]
-    [InlineData(2, 0L)]
+    [InlineData(2, 100L)]
     public async Task Si_al_unir_queda_retenido_un_proceso_solo_se_retiene_lo_subido_de_las_posiciones_que_tenia(int? posicion, long retenido)
     {
-        // a.pdf (100 bytes) y b.pdf (300 bytes) subidos y un Documento en la posición 2, que la pantalla no reserva. Sin
-        // posiciones (la unión) se retiene todo lo subido; con una, solo lo de esa subida, y nada si es el Documento.
+        // Un Documento en la posición 0, que la pantalla no reserva, y después a.pdf (300 bytes) y b.pdf (100 bytes). Sin
+        // posiciones (la unión) se retiene todo lo subido; con una, solo lo de esa subida, y nada si es el Documento. Con el
+        // Documento delante, la posición en la lista no coincide con el orden entre las subidas: contar solo estas fallaría.
         _mediador.Documentos = [new DocumentoParaUnirDto(Guid.NewGuid(), "Seguro RC", null, new DateOnly(2026, 1, 15), null)];
         var cut = Renderizar();
-        cut.WaitForAssertion(() => cut.FindAll(".zona-soltar-archivo").Should().ContainSingle());
-        await cut.InvokeAsync(() => cut.FindComponent<InputFile>().UploadFiles(PdfDe("a.pdf", 100), PdfDe("b.pdf", 300)));
-        cut.WaitForAssertion(() => cut.FindAll("ol.lista-unir li").Should().HaveCount(2));
         PulsarBoton(cut, "Elegir de Documentos");
         cut.WaitForAssertion(() => cut.Find(".documentos-unir").TextContent.Should().Contain("Seguro RC"));
         PulsarBoton(cut, "Añadir");
-        cut.WaitForAssertion(() => NombresEnLista(cut).Should().Equal("a.pdf", "b.pdf", "Seguro RC"));
+        cut.WaitForAssertion(() => NombresEnLista(cut).Should().Equal("Seguro RC"));
+        cut.WaitForAssertion(() => cut.FindAll(".zona-soltar-archivo").Should().ContainSingle());
+        await cut.InvokeAsync(() => cut.FindComponent<InputFile>().UploadFiles(PdfDe("a.pdf", 300), PdfDe("b.pdf", 100)));
+        cut.WaitForAssertion(() => NombresEnLista(cut).Should().Equal("Seguro RC", "a.pdf", "b.pdf"));
         _presupuesto.Reservado.Should().Be(0, "tras preparar, la reserva de cada subida se devuelve");
         _mediador.ExcepcionAlUnir = posicion is { } p ? new EntradaPdfRetenidaException([p], null) : new EntradaPdfRetenidaException();
 
