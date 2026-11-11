@@ -828,19 +828,22 @@ public partial class Bandeja : CaeManager.Web.Components.PaginaInteractiva, IAsy
     }
 
     /// <summary>
-    /// Conversación a la que pertenece el contexto en memoria (Cliente empresarial, macros, centros y selectores). <c>_detalle</c>
-    /// se asigna a mitad de la carga, antes que ese contexto: su Id no dice de quién es el contexto (revisión puente del delta r1
-    /// de la #2167). Solo una recarga de la conversación a la que el contexto ya pertenece conserva el contexto si falla.
+    /// Conversación y Cliente empresarial a los que pertenece el contexto en memoria (ficha, macros, centros y selectores).
+    /// <c>_detalle</c> se asigna a mitad de la carga, antes que ese contexto: su Id no dice de quién es el contexto, y una carga
+    /// solapada puede dejarlo a medias (revisión puente del delta r1 de la #2167, tres pasadas). Se invalida al asignar un
+    /// detalle que no es el de ese par y se fija al terminar la carga con éxito; si una carga falla, solo se conserva el detalle
+    /// con el contexto cuando el par coincide.
     /// </summary>
-    private Guid? _contextoDeId;
+    private (Guid ConversacionId, Guid? ClienteId)? _contextoDe;
+
+    private bool ContextoEs(Guid conversacionId, Guid? clienteId) =>
+        _contextoDe is { } c && c.ConversacionId == conversacionId && c.ClienteId == clienteId;
 
     private async Task CargarDetalleAsync()
     {
         if (_conversacionSeleccionadaId is not { } id) return;
 
         var carga = ++_cargaDetalleVigente;
-        var esRecarga = _detalle?.Id == id && _contextoDeId == id;
-        var clienteAntes = _detalle?.ClienteId;
         _cargandoDetalle = true;
         _errorDetalle = false;
         StateHasChanged();
@@ -867,6 +870,7 @@ public partial class Bandeja : CaeManager.Web.Components.PaginaInteractiva, IAsy
             if (carga != _cargaDetalleVigente) return;
 
             _detalle = detalle;
+            if (detalle is not null && !ContextoEs(id, detalle.ClienteId)) _contextoDe = null;
             _notasInternas = notas;
             _autoresNotas = autores;
             _avataresNotas = avatares;
@@ -917,7 +921,7 @@ public partial class Bandeja : CaeManager.Web.Components.PaginaInteractiva, IAsy
 
             _tiposDocumentoSelector = tiposDocumento;
             _trabajadoresSelector = trabajadores;
-            _contextoDeId = id;
+            _contextoDe = (id, detalle.ClienteId);
         }
         catch (OperationCanceledException)
         {
@@ -932,12 +936,11 @@ public partial class Bandeja : CaeManager.Web.Components.PaginaInteractiva, IAsy
             // Si el detalle en memoria ES el de esta conversación (una recarga: un mensaje nuevo, un envío), se conserva con su
             // contexto: vaciarlo desmontaría el panel y destruiría el borrador de la nota fija sin pasar por la confirmación de
             // abandono (revisión Codex r1 de la #2167, MEDIO 2). El error se avisa igualmente con el toast.
-            // «Es de esta conversación» se mide ANTES de la carga (esRecarga): _detalle se asigna a mitad de ella, antes de las
-            // consultas del Cliente empresarial y los selectores, y a partir de ahí su Id ya es el de la conversación nueva aunque
-            // el contexto siga siendo el de la anterior (revisión puente del delta r1 de la #2167, MEDIO).
-            if (!esRecarga || _detalle?.ClienteId != clienteAntes)
+            // Una recarga que falla conserva el detalle y su contexto solo si el contexto en memoria es el de ESTA conversación y
+            // este Cliente empresarial (_contextoDe); si no, el contexto sería de otro hilo (revisión puente del delta r1 de la #2167).
+            if (!(_detalle is { } actual && ContextoEs(id, actual.ClienteId)))
             {
-                _contextoDeId = null;
+                _contextoDe = null;
                 _detalle = null;
                 _clienteActivo = null;
             }

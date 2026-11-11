@@ -1049,6 +1049,45 @@ public class ComunicacionesGen2Tests : BunitContext
         await cut.InvokeAsync(() => clienteDeLaSegunda.SetException(new InvalidOperationException("tarde")));
         await apertura;
     }
+    /// <summary>
+    /// Tercera pasada de la revisión puente del delta r1 de la #2167 (MEDIO): la conversación abierta pasa a otro Cliente
+    /// empresarial (desde la triage) y la recarga espera el contexto del nuevo; entra un mensaje y la segunda recarga falla. El
+    /// detalle ya es el del Cliente nuevo, pero el contexto en memoria sigue siendo el del anterior y no puede quedar bajo el hilo.
+    /// </summary>
+    [Fact]
+    public async Task Una_recarga_fallida_tras_cambiar_el_Cliente_de_la_conversacion_no_deja_el_contexto_del_anterior()
+    {
+        var escenario = new Escenario();
+        var primera = Conversacion("Primera conversación", ClienteRefrielectric);
+        escenario.Conversaciones.Add(primera);
+        escenario.Detalle = _ => DetalleDe(primera);
+        var (cut, _) = Renderizar(escenario);
+        await SeleccionarFila(cut, "Primera conversación");
+        cut.FindAll(".bandeja-cliente").Should().NotBeEmpty("control positivo: con la conversación abierta hay columna de contexto");
+
+        escenario.Detalle = _ => DetalleDe(primera) with { ClienteId = ClienteEbro.Id, ClienteRazonSocial = ClienteEbro.RazonSocial };
+        var clienteNuevo = new TaskCompletionSource<object?>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var lecturas = 0;
+        escenario.Interceptar = p => p switch
+        {
+            ObtenerClientePorIdQuery q when q.Id == ClienteEbro.Id => clienteNuevo.Task,
+            ObtenerConversacionPorIdQuery q when q.Id == primera.Id && ++lecturas > 1 =>
+                Task.FromException<object?>(new InvalidOperationException("boom")),
+            _ => null
+        };
+        Task Recibir() => cut.InvokeAsync(() => (Task)typeof(Bandeja).GetMethod("AlRecibirMensajeAsync", BindingFlags.Instance | BindingFlags.NonPublic)!
+            .Invoke(cut.Instance, [new MensajeWhatsAppRecibidoEvent(Guid.NewGuid(), primera.Id)])!);
+        var primeraRecarga = Recibir();
+        cut.WaitForAssertion(() => lecturas.Should().Be(1, "la primera recarga ya asignó el detalle y espera al Cliente empresarial nuevo"));
+
+        await Recibir();
+
+        cut.WaitForAssertion(() => cut.Find(".bandeja-centro .estado-vacio h3").TextContent.Trim().Should().Be("No pudimos abrir la conversación"));
+        cut.FindAll(".bandeja-cliente").Should().BeEmpty("el contexto del Cliente empresarial anterior no puede quedar bajo el hilo del nuevo");
+
+        await cut.InvokeAsync(() => clienteNuevo.SetException(new InvalidOperationException("tarde")));
+        await primeraRecarga;
+    }
     [Fact]
     public async Task El_filtro_de_estado_viaja_a_la_URL_al_elegirlo()
     {
