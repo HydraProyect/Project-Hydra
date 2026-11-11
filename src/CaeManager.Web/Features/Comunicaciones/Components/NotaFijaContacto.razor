@@ -43,10 +43,12 @@
                       value="@_texto" @oninput="e => CambiarTextoAsync(e.Value?.ToString() ?? string.Empty)"></textarea>
             <div class="nota-fija-acciones">
                 @* Secundario y no primario: la vista ya tiene «Enviar» como único primario. *@
+                @* Campo vacío sobre una nota existente: la acción es retirarla (el comando define el texto vacío como retirada).
+                   Campo vacío sobre una nota que no existe: no hay nada que guardar. *@
                 <Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno" Cargando="_guardando"
-                       Deshabilitado="@(string.IsNullOrWhiteSpace(_texto))" OnClick="GuardarAsync">@Textos["Guardar"]</Boton>
+                       Deshabilitado="@(!HayAlgoQueGuardar)" OnClick="GuardarAsync">@(RetiraLaNota ? Textos["Retirar"] : Textos["Guardar"])</Boton>
                 <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" Deshabilitado="_guardando"
-                       OnClick="Cancelar">@Textos["Cancelar"]</Boton>
+                       OnClick="CancelarAsync">@Textos["Cancelar"]</Boton>
             </div>
         }
         else if (string.IsNullOrWhiteSpace(_nota.Notas))
@@ -83,6 +85,13 @@
     private string _texto = string.Empty;
     private (TipoPropietarioAgenda, Guid, string)? _cargada;
 
+    /// <summary>
+    /// Generación de la carga vigente (revisión Codex r1 de la #2167, MEDIO 1). La clave sola no basta: con A, luego B y de nuevo A,
+    /// una lectura antigua de A vuelve a coincidir con la clave y sustituiría la nota de la lectura más reciente. Cada cambio de
+    /// clave y cada carga nueva suben el contador, y solo aplica su resultado la carga que aún es la última.
+    /// </summary>
+    private int _cargaVigente;
+
     protected override async Task OnParametersSetAsync()
     {
         var clave = (Tipo, PropietarioId, Email);
@@ -91,6 +100,7 @@
         // Revisión Codex r1 (#2163, MEDIO 4): la nota del contacto anterior desaparece en el acto, antes de esperar a la del
         // nuevo. Si siguiera pintada, se podría editar y guardar con su ContactoId bajo la entidad del contacto nuevo.
         _cargada = clave;
+        _cargaVigente++;
         _nota = null;
         _autor = string.Empty;
         _editando = false;
@@ -131,14 +141,15 @@
     private async Task CargarAsync()
     {
         var clave = (Tipo, PropietarioId, Email);
+        var carga = ++_cargaVigente;
         try
         {
             var nota = await Mediator.Send(new ObtenerNotaContactoQuery(Tipo, PropietarioId, Email));
-            if (_cargada != clave) return;
+            if (_cargada != clave || carga != _cargaVigente) return;
 
             // El autor se resuelve antes de pintar, y bajo la misma guarda: un nombre que llega tarde no es de esta nota.
             var autor = await NombreDelAutorAsync(nota);
-            if (_cargada != clave) return;
+            if (_cargada != clave || carga != _cargaVigente) return;
 
             _nota = nota;
             _autor = autor;
@@ -147,7 +158,7 @@
         {
             // La nota fija es contexto, no condición: sin ella, la conversación se sigue atendiendo.
             Logger.LogError(ex, "Error al cargar la nota fija del contacto en la entidad {PropietarioId}.", PropietarioId);
-            if (_cargada != clave) return;
+            if (_cargada != clave || carga != _cargaVigente) return;
             _nota = null;
         }
     }
@@ -171,11 +182,21 @@
         _editando = true;
     }
 
-    private void Cancelar() => _editando = false;
+    private async Task CancelarAsync()
+    {
+        _editando = false;
+        await OnTextoCambiado.InvokeAsync();
+    }
+
+    /// <summary>Texto vacío sobre una nota existente: guardar es retirarla (BAJO 4 de la r1 de la #2167).</summary>
+    private bool RetiraLaNota => string.IsNullOrWhiteSpace(_texto) && !string.IsNullOrWhiteSpace(_nota?.Notas);
+
+    private bool HayAlgoQueGuardar => !string.IsNullOrWhiteSpace(_texto) || RetiraLaNota;
 
     private async Task GuardarAsync()
     {
-        if (_guardando || _nota is not { } nota || _cargada is not { } clave || string.IsNullOrWhiteSpace(_texto)) return;
+        if (_guardando || _nota is not { } nota || _cargada is not { } clave || !HayAlgoQueGuardar) return;
+        var retira = RetiraLaNota;
 
         // Entidad y contacto salen de la misma carga (la nota pintada es la de la clave vigente): nunca uno de cada contacto.
         var (tipo, propietarioId, _) = clave;
@@ -194,7 +215,7 @@
             // Si aun así llegó texto nuevo mientras se guardaba (un evento en cola), no se pierde: la edición sigue abierta
             // con él y cuenta como cambio sin guardar. Solo se sale de la edición si lo guardado es lo que hay.
             _editando = !string.Equals(_texto.Trim(), guardado, StringComparison.Ordinal);
-            ToastService.Mostrar(string.Format(Textos["ToastGuardada"].Value, nota.Nombre), TonoToast.Exito);
+            ToastService.Mostrar(string.Format(Textos[retira ? "ToastRetirada" : "ToastGuardada"].Value, nota.Nombre), TonoToast.Exito);
             await CargarAsync();
         }
         catch (Exception ex)
@@ -205,6 +226,10 @@
         finally
         {
             _guardando = false;
+
+            // BAJO 5 de la r1 de la #2167: la página aplaza el cambio de interlocutor mientras la nota se edita o se guarda. Al
+            // terminar se lo dice, para que recalcule el interlocutor aunque la recarga que lo cambió ya hubiera acabado.
+            await OnTextoCambiado.InvokeAsync();
         }
     }
 }

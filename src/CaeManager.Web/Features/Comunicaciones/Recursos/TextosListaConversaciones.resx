@@ -43,7 +43,7 @@
   <data name="NotaInterna" xml:space="preserve"><value>Nota interna</value></data>
   <data name="Todas" xml:space="preserve"><value>Todas</value></data>
   <data name="Mias" xml:space="preserve"><value>Mías</value></data>
-  <data name="EsperandoCliente" xml:space="preserve"><value>Esperando al Cliente empresarial</value></data>
+  <data name="EsperandoCliente" xml:space="preserve"><value>Esperando respuesta del Interlocutor</value></data>
   <data name="BuscarBuzon" xml:space="preserve"><value>Buscar en el buzón</value></data>
   <data name="BuscarPlaceholder" xml:space="preserve"><value>Buscar en el asunto y en el texto de los mensajes</value></data>
   <data name="RecuentoConversacion" xml:space="preserve"><value>{0} conversación</value></data>
@@ -53,7 +53,7 @@
   <data name="ParaCerrarlaFalta" xml:space="preserve"><value>Para cerrarla falta</value></data>
   <data name="SinAccionesCierre" xml:space="preserve"><value>No quedan acciones de cierre.</value></data>
   <data name="IdentificarClienteCierre" xml:space="preserve"><value>Identificar al remitente y asignar el Cliente empresarial antes de tramitar la conversación.</value></data>
-  <data name="EsperarClienteCierre" xml:space="preserve"><value>Recibir la respuesta del Cliente empresarial y revisar lo recibido.</value></data>
+  <data name="EsperarClienteCierre" xml:space="preserve"><value>Recibir la respuesta del Interlocutor y revisar lo recibido.</value></data>
   <data name="EsperarTerceroCierre" xml:space="preserve"><value>Recibir la respuesta del tercero y revisar lo recibido.</value></data>
   <data name="RevisarCierre" xml:space="preserve"><value>Revisar el hilo y confirmar que la gestión está resuelta.</value></data>
   <data name="NuevoCorreo" xml:space="preserve"><value>Nuevo correo</value></data>

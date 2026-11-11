@@ -403,7 +403,7 @@ public class ComunicacionesGen2Tests : BunitContext
     }
 
     [Fact]
-    public async Task La_nota_fija_no_se_guarda_vacia_y_cancelar_conserva_la_anterior()
+    public async Task Cancelar_la_edicion_de_la_nota_fija_vaciada_conserva_la_anterior()
     {
         var conversacion = Conversacion("Documentación pendiente", ClienteRefrielectric);
         var escenario = new Escenario { Detalle = _ => DetalleDe(conversacion), NotaContacto = NotaDeCarmen() };
@@ -414,7 +414,8 @@ public class ComunicacionesGen2Tests : BunitContext
 
         await Boton(cut, ".nota-fija button", "Editar").ClickAsync(new MouseEventArgs());
         await cut.Find(".nota-fija-area").InputAsync(new ChangeEventArgs { Value = "   " });
-        Boton(cut, ".nota-fija button", "Guardar nota fija").HasAttribute("disabled").Should().BeTrue();
+        // Con el campo vacío sobre una nota existente, el botón retira (BAJO 4 de la r1 de la #2167); cancelar no retira nada.
+        cut.FindAll(".nota-fija button").Should().NotContain(b => b.TextContent.Trim() == "Guardar nota fija");
 
         await Boton(cut, ".nota-fija button", "Cancelar").ClickAsync(new MouseEventArgs());
 
@@ -625,6 +626,114 @@ public class ComunicacionesGen2Tests : BunitContext
         escenario.NotasFijadas.Should().ContainSingle().Which.ContactoId.Should().Be(carmen.ContactoId);
     }
 
+    /// <summary>
+    /// Revisión Codex r1 de la #2167, MEDIO 2: con la nota fija en edición, la recarga del mismo hilo (un mensaje nuevo) falla.
+    /// El detalle y el borrador se conservan, el error se avisa y lo escrito se puede guardar; vaciar el detalle desmontaba el
+    /// panel y destruía el borrador sin pasar por la confirmación de abandono.
+    /// </summary>
+    [Fact]
+    public async Task Una_recarga_fallida_del_hilo_no_destruye_el_borrador_de_la_nota_fija()
+    {
+        var conversacion = Conversacion("Documentación pendiente", ClienteRefrielectric);
+        var escenario = new Escenario { Detalle = _ => DetalleDe(conversacion), NotaContacto = NotaDeCarmen() };
+        escenario.Conversaciones.Add(conversacion);
+        var (cut, _) = Renderizar(escenario);
+        await SeleccionarFila(cut, "Documentación pendiente");
+        cut.WaitForAssertion(() => cut.FindAll(".nota-fija").Should().ContainSingle());
+        await Boton(cut, ".nota-fija button", "Editar").ClickAsync(new MouseEventArgs());
+        await cut.Find(".nota-fija-area").InputAsync(new ChangeEventArgs { Value = "Llamar por la tarde." });
+
+        escenario.Interceptar = p => p is ObtenerConversacionPorIdQuery
+            ? Task.FromException<object?>(new InvalidOperationException("boom"))
+            : null;
+        await cut.InvokeAsync(() => (Task)typeof(Bandeja).GetMethod("AlRecibirMensajeAsync", BindingFlags.Instance | BindingFlags.NonPublic)!
+            .Invoke(cut.Instance, [new MensajeWhatsAppRecibidoEvent(Guid.NewGuid(), conversacion.Id)])!);
+
+        cut.WaitForAssertion(() => Services.GetRequiredService<ToastService>().Mensajes.Should().ContainSingle(
+            m => m.Mensaje.StartsWith("No pudimos abrir la conversación"), "el fallo de la recarga se avisa"));
+        cut.Find(".nota-fija-area").GetAttribute("value").Should().Be("Llamar por la tarde.", "el borrador sobrevive a la recarga fallida");
+        cut.FindComponent<NotaFijaContacto>().Instance.TieneTextoSinGuardar.Should().BeTrue();
+        cut.Find(".bandeja-centro-titulo-fila h2").TextContent.Trim().Should().Be("Documentación pendiente", "el hilo abierto sigue en pantalla");
+
+        escenario.Interceptar = _ => null;
+        await Boton(cut, ".nota-fija button", "Guardar nota fija").ClickAsync(new MouseEventArgs());
+        escenario.NotasFijadas.Should().ContainSingle().Which.Texto.Should().Be("Llamar por la tarde.");
+    }
+
+    /// <summary>
+    /// Revisión Codex r1 de la #2167, BAJO 4: vaciar el campo de una nota existente la retira (el comando define el texto vacío
+    /// como retirada); sobre una nota que no existe, no hay nada que guardar.
+    /// </summary>
+    [Fact]
+    public async Task Vaciar_el_campo_de_la_nota_fija_la_retira()
+    {
+        var conversacion = Conversacion("Documentación pendiente", ClienteRefrielectric);
+        var escenario = new Escenario { Detalle = _ => DetalleDe(conversacion), NotaContacto = NotaDeCarmen() };
+        escenario.Conversaciones.Add(conversacion);
+        var (cut, _) = Renderizar(escenario);
+        await SeleccionarFila(cut, "Documentación pendiente");
+        cut.WaitForAssertion(() => cut.FindAll(".nota-fija").Should().ContainSingle());
+
+        await Boton(cut, ".nota-fija button", "Editar").ClickAsync(new MouseEventArgs());
+        await cut.Find(".nota-fija-area").InputAsync(new ChangeEventArgs { Value = "   " });
+        var retirar = Boton(cut, ".nota-fija button", "Retirar nota fija");
+        retirar.HasAttribute("disabled").Should().BeFalse("con el campo vacío, la acción sobre una nota existente es retirarla");
+        await retirar.ClickAsync(new MouseEventArgs());
+
+        escenario.NotasFijadas.Should().ContainSingle().Which.Texto.Should().BeEmpty();
+        cut.FindAll(".nota-fija-area").Should().BeEmpty("al retirar se sale de la edición");
+        cut.Find(".nota-fija").TextContent.Should().NotContain("Prefiere que la llamen por la mañana.").And.Contain("no tiene nota fija");
+    }
+
+    [Fact]
+    public async Task Sobre_una_nota_fija_inexistente_el_campo_vacio_no_ofrece_guardar_nada()
+    {
+        var conversacion = Conversacion("Documentación pendiente", ClienteRefrielectric);
+        var escenario = new Escenario { Detalle = _ => DetalleDe(conversacion), NotaContacto = NotaDeCarmen(texto: null) };
+        escenario.Conversaciones.Add(conversacion);
+        var (cut, _) = Renderizar(escenario);
+        await SeleccionarFila(cut, "Documentación pendiente");
+        cut.WaitForAssertion(() => cut.FindAll(".nota-fija").Should().ContainSingle());
+
+        await Boton(cut, ".nota-fija button", "Añadir nota fija").ClickAsync(new MouseEventArgs());
+
+        Boton(cut, ".nota-fija button", "Guardar nota fija").HasAttribute("disabled").Should().BeTrue();
+    }
+
+    /// <summary>
+    /// Revisión Codex r1 de la #2167, BAJO 5: llega un mensaje de otro participante mientras se edita la nota fija; la edición
+    /// no se vacía. Al terminarla (aquí, cancelándola) el componente avisa a la página, que recalcula el interlocutor: la
+    /// nota que se ve es la de Laura, sin esperar a otro render de la Bandeja.
+    /// </summary>
+    [Fact]
+    public async Task Al_terminar_la_edicion_la_nota_fija_pasa_al_interlocutor_del_ultimo_mensaje()
+    {
+        var conversacion = Conversacion("Documentación pendiente", ClienteRefrielectric);
+        var deLaura = Conversacion("Documentación pendiente", ClienteRefrielectric, "laura.gil@refrielectric.es");
+        var detalle = DetalleDe(conversacion);
+        var escenario = new Escenario { Detalle = _ => detalle };
+        escenario.Conversaciones.Add(conversacion);
+        escenario.Interceptar = p => p switch
+        {
+            ObtenerNotaContactoQuery { Email: "carmen.ruiz@refrielectric.es" } => Ya(NotaDeCarmen()),
+            ObtenerNotaContactoQuery { Email: "laura.gil@refrielectric.es" } => Ya(NotaDeLaura()),
+            _ => null
+        };
+        var (cut, _) = Renderizar(escenario);
+        await SeleccionarFila(cut, "Documentación pendiente");
+        cut.WaitForAssertion(() => cut.Find(".nota-fija").TextContent.Should().Contain("Carmen Ruiz"));
+        await Boton(cut, ".nota-fija button", "Editar").ClickAsync(new MouseEventArgs());
+
+        var mensajeDeLaura = DetalleDe(deLaura).Mensajes[0] with { FechaUtc = DateTime.UtcNow.AddMinutes(5) };
+        detalle = detalle with { Id = conversacion.Id, Mensajes = [.. detalle.Mensajes, mensajeDeLaura] };
+        await cut.InvokeAsync(() => (Task)typeof(Bandeja).GetMethod("AlRecibirMensajeAsync", BindingFlags.Instance | BindingFlags.NonPublic)!
+            .Invoke(cut.Instance, [new MensajeWhatsAppRecibidoEvent(Guid.NewGuid(), conversacion.Id)])!);
+        cut.Find(".nota-fija").TextContent.Should().Contain("Carmen Ruiz", "mientras se edita, el interlocutor no cambia");
+
+        await Boton(cut, ".nota-fija button", "Cancelar").ClickAsync(new MouseEventArgs());
+
+        cut.WaitForAssertion(() => cut.Find(".nota-fija").TextContent.Should().Contain("Laura Gil"));
+    }
     /// <summary>MEDIO 7: una nota fija editada y sin guardar cuenta como cambio sin guardar al abrir otra conversación.</summary>
     [Fact]
     public async Task Abrir_otra_conversacion_con_la_nota_fija_a_medias_pregunta_antes_de_descartarla()
@@ -903,7 +1012,7 @@ public class ComunicacionesGen2Tests : BunitContext
         opciones.Select(o => o.GetAttribute("value")).Should().Equal(
             "", "Abierta", "Pendiente", "EsperandoRespuestaExterna", "EnEsperaDeTercero", "Resuelta", "Cerrada");
         opciones.Select(o => o.TextContent.Trim()).Should().Equal(
-            "Todos los estados", "Abierta", "Pendiente", "Esperando al Cliente empresarial", "En espera de tercero", "Resuelta", "Cerrada");
+            "Todos los estados", "Abierta", "Pendiente", "Esperando respuesta del Interlocutor", "En espera de tercero", "Resuelta", "Cerrada");
     }
 
     [Fact]
@@ -920,7 +1029,7 @@ public class ComunicacionesGen2Tests : BunitContext
     }
 
     [Theory]
-    [InlineData(EstadoConversacion.EsperandoRespuestaExterna, "Esperando al Cliente empresarial")]
+    [InlineData(EstadoConversacion.EsperandoRespuestaExterna, "Esperando respuesta del Interlocutor")]
     [InlineData(EstadoConversacion.EnEsperaDeTercero, "En espera de tercero")]
     public async Task El_chip_de_la_fila_y_el_de_la_cabecera_dicen_el_estado_en_castellano_y_con_tono_de_advertencia(
         EstadoConversacion estado, string texto)
@@ -965,7 +1074,7 @@ public class ComunicacionesGen2Tests : BunitContext
         await SeleccionarFila(cut, "Documentación pendiente");
 
         SelectorCambiarEstado(cut).QuerySelectorAll("option").Select(o => o.TextContent.Trim()).Should().Equal(
-            "Abierta", "Esperando al Cliente empresarial", "En espera de tercero", "Resuelta", "Cerrada");
+            "Abierta", "Esperando respuesta del Interlocutor", "En espera de tercero", "Resuelta", "Cerrada");
         SelectorCambiarEstado(cut).QuerySelector("option[value=Cerrada]")!.HasAttribute("disabled").Should().BeTrue();
         await SelectorCambiarEstado(cut).ChangeAsync(new ChangeEventArgs { Value = nameof(EstadoConversacion.EsperandoRespuestaExterna) });
 
@@ -1220,7 +1329,8 @@ public class ComunicacionesGen2Tests : BunitContext
     /// Empresarial es el <b>Cliente empresarial</b>. Fuera de la bandeja la pantalla
     /// lo rotula «Cliente» (decisión de rótulo del 2026-10-09); en la bandeja de
     /// Comunicaciones, «Cliente empresarial» (decisión E24 del 2026-11-11): con
-    /// mayúscula y artículo, nunca las formas sueltas anteriores ni «Cliente» a secas.
+    /// mayúscula y artículo, nunca las formas sueltas anteriores ni «Cliente» a secas. El rótulo de espera, en cambio, nombra al
+    /// Interlocutor (decisión de Chris del 2026-11-11, hallazgo MEDIO 3 de la r1 de la #2167): vale para Inbound y Outbound.
     /// </summary>
     [Fact]
     public void Los_rotulos_de_la_bandeja_nombran_al_Cliente_empresarial_con_su_rotulo_de_pantalla()
@@ -1228,7 +1338,7 @@ public class ComunicacionesGen2Tests : BunitContext
         var (cut, _) = Renderizar(new Escenario());
 
         cut.Markup.Should()
-            .Contain("Esperando al Cliente empresarial")
+            .Contain("Esperando respuesta del Interlocutor")
             .And.Contain("Todos los Clientes empresariales")
             .And.Contain("Los mensajes nuevos aparecerán aquí.");
 

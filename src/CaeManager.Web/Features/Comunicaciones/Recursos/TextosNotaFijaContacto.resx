@@ -24,6 +24,12 @@
   <data name="Guardar" xml:space="preserve">
     <value>Guardar nota fija</value>
   </data>
+  <data name="Retirar" xml:space="preserve">
+    <value>Retirar nota fija</value>
+  </data>
+  <data name="ToastRetirada" xml:space="preserve">
+    <value>Nota fija retirada de la Agenda de {0}</value>
+  </data>
   <data name="Cancelar" xml:space="preserve">
     <value>Cancelar</value>
   </data>

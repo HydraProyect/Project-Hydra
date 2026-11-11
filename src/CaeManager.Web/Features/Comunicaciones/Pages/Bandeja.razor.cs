@@ -919,8 +919,14 @@ public partial class Bandeja : CaeManager.Web.Components.PaginaInteractiva, IAsy
 
             _errorDetalle = true;
             // Sin hilo ni contexto de la conversación anterior: la columna de acciones no puede operar sobre otra (revisión puente).
-            _detalle = null;
-            _clienteActivo = null;
+            // Si el detalle en memoria ES el de esta conversación (una recarga: un mensaje nuevo, un envío), se conserva con su
+            // contexto: vaciarlo desmontaría el panel y destruiría el borrador de la nota fija sin pasar por la confirmación de
+            // abandono (revisión Codex r1 de la #2167, MEDIO 2). El error se avisa igualmente con el toast.
+            if (_detalle?.Id != id)
+            {
+                _detalle = null;
+                _clienteActivo = null;
+            }
             ToastService.Mostrar(ErroresTextos["ErrorAbrirConversacion"].Value, TonoToast.Error);
         }
         finally

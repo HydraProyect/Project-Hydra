@@ -43,7 +43,7 @@
   <data name="NotaInterna" xml:space="preserve"><value>Nota interna</value></data>
   <data name="Todas" xml:space="preserve"><value>Totes</value></data>
   <data name="Mias" xml:space="preserve"><value>Meves</value></data>
-  <data name="EsperandoCliente" xml:space="preserve"><value>Esperant el Client empresarial</value></data>
+  <data name="EsperandoCliente" xml:space="preserve"><value>Esperant resposta de l'Interlocutor</value></data>
   <data name="BuscarBuzon" xml:space="preserve"><value>Cercar a la bústia</value></data>
   <data name="BuscarPlaceholder" xml:space="preserve"><value>Cercar a l’assumpte i al text dels missatges</value></data>
   <data name="RecuentoConversacion" xml:space="preserve"><value>{0} conversa</value></data>
@@ -53,7 +53,7 @@
   <data name="ParaCerrarlaFalta" xml:space="preserve"><value>Per tancar-la falta</value></data>
   <data name="SinAccionesCierre" xml:space="preserve"><value>No queden accions de tancament.</value></data>
   <data name="IdentificarClienteCierre" xml:space="preserve"><value>Identificar el remitent i assignar el Client empresarial abans de tramitar la conversa.</value></data>
-  <data name="EsperarClienteCierre" xml:space="preserve"><value>Rebre la resposta del Client empresarial i revisar el que s'ha rebut.</value></data>
+  <data name="EsperarClienteCierre" xml:space="preserve"><value>Rebre la resposta de l'Interlocutor i revisar el que s'ha rebut.</value></data>
   <data name="EsperarTerceroCierre" xml:space="preserve"><value>Rebre la resposta del tercer i revisar el que s'ha rebut.</value></data>
   <data name="RevisarCierre" xml:space="preserve"><value>Revisar el fil i confirmar que la gestió està resolta.</value></data>
   <data name="NuevoCorreo" xml:space="preserve"><value>Nou correu</value></data>
