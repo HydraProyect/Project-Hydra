@@ -21,13 +21,13 @@ public sealed record PapelDeEntradaDto(
 /// ancla <c>Centro.RelacionEmpresarialEntradaId</c> en la misma sentencia SQL; no hay columna de rol (ADR-011). Esa
 /// consulta lee la arista en el Tenant propietario del Centro y vuelve a comprobar lo que fijó
 /// <c>Centro.AnclarRelacionDeEntrada</c> (proveedora = Empresa del Centro, cliente ≠ titular): un ancla que ya no
-/// cumpla llega aquí como X = null y da contratista principal, que no enseña nada. La vigencia no se vuelve a
-/// comprobar: si la arista se cierra después, el papel sigue saliendo hasta que alguien quite o cambie el ancla
-/// (pendiente de decisión). Quien llama ya ha comprobado que el Centro es visible.
+/// cumpla llega aquí como X = null y da contratista principal, que no enseña nada. Lo mismo ocurre si la arista se
+/// cerró después de anclarla (<c>VigenciaHasta</c> informada): el papel se oculta sin tocar el ancla (DECISION_LOG,
+/// 2026-11-11, punto 11 b). Quien llama ya ha comprobado que el Centro es visible.
 ///
 /// <para>
 /// El badge es para el lado de gestión CAE (DECISION_LOG: «para que el Gestor CAE sepa…»): al rol Cliente
-/// (portal) le llega contratista principal, que no enseña nada, hasta que se decida otra cosa.
+/// (portal) le llega contratista principal, que no enseña nada (DECISION_LOG, 2026-11-11, punto 11 c).
 /// </para>
 /// </summary>
 public static class PapelDeEntradaEnCentro

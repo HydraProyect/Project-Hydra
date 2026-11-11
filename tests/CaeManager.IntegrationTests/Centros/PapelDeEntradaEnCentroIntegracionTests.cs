@@ -92,6 +92,44 @@ public class PapelDeEntradaEnCentroIntegracionTests : IAsyncLifetime
         conAncla.Should().Be(PapelDeEntradaDto.ContratistaPrincipal);
     }
 
+    /// <summary>
+    /// La arista anclada se cierra en la base después de fijar el ancla: la ficha deja de dar papel (DECISION_LOG,
+    /// 2026-11-11, punto 11 b), igual que la de un Centro gemelo sin ancla, y el ancla sigue guardada.
+    /// </summary>
+    [Fact]
+    public async Task La_ficha_oculta_el_papel_si_la_arista_anclada_se_cierra()
+    {
+        var anclado = await SembrarAsync(_tenant);
+        var sinAncla = await SembrarAsync(_tenant);
+        await using (var contexto = CrearContexto(_tenant))
+        {
+            var centro = await contexto.Centros.SingleAsync(c => c.Id == anclado.CentroId);
+            var relacion = await contexto.RelacionesEmpresariales.SingleAsync(r => r.Id == anclado.RelacionId);
+            centro.AnclarRelacionDeEntrada(relacion).EsExitoso.Should().BeTrue();
+            await contexto.SaveChangesAsync();
+        }
+
+        (await PapelEnLaFichaAsync(anclado.CentroId, new AlcanceDatosServiceFalso()))
+            .Should().Be(new PapelDeEntradaDto(true, anclado.ContratistaPrincipalId, anclado.ContratistaPrincipalRazonSocial),
+                "antes de cerrarla la arista vigente sí da papel");
+
+        await using (var contexto = CrearContexto(_tenant))
+        {
+            var relacion = await contexto.RelacionesEmpresariales.SingleAsync(r => r.Id == anclado.RelacionId);
+            relacion.Cerrar(DateTime.UtcNow);
+            await contexto.SaveChangesAsync();
+        }
+
+        var conAnclaCerrada = await PapelEnLaFichaAsync(anclado.CentroId, new AlcanceDatosServiceFalso());
+        var gemelo = await PapelEnLaFichaAsync(sinAncla.CentroId, new AlcanceDatosServiceFalso());
+        conAnclaCerrada.Should().Be(gemelo);
+        conAnclaCerrada.Should().Be(PapelDeEntradaDto.ContratistaPrincipal);
+
+        await using var lectura = CrearContexto(_tenant);
+        (await lectura.Centros.SingleAsync(c => c.Id == anclado.CentroId))
+            .RelacionEmpresarialEntradaId.Should().Be(anclado.RelacionId);
+    }
+
     private async Task<PapelDeEntradaDto?> PapelEnLaFichaAsync(Guid centroId, AlcanceDatosServiceFalso alcance)
     {
         await using var contexto = CrearContexto(_tenant);

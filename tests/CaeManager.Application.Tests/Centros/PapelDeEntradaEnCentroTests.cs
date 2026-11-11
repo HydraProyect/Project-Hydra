@@ -297,8 +297,8 @@ public class PapelDeEntradaEnCentroTests
 
     /// <summary>
     /// Quitar el ancla cuya X no ve responde con el mismo error, código y mensaje, que el Centro fuera de alcance de
-    /// gestión, y no con uno propio que nombre el ancla. El rechazo frente al éxito sin ancla sigue siendo un oráculo
-    /// residual, pendiente de decisión (cabecera del comando); este test fija solo la forma del error.
+    /// gestión, y no con uno propio que nombre el ancla. El rechazo frente al éxito sin ancla es un oráculo residual
+    /// aceptado (DECISION_LOG, 2026-11-11, punto 11 a; cabecera del comando); este test fija solo la forma del error.
     /// </summary>
     [Fact]
     public async Task Quitar_un_ancla_cuya_X_no_se_ve_responde_como_un_Centro_fuera_de_alcance()
@@ -326,6 +326,30 @@ public class PapelDeEntradaEnCentroTests
 
         dto!.PapelDeEntrada.Should().Be(new PapelDeEntradaDto(true, _contratistaPrincipal.Id, "Contratista Principal SL"));
         dto.EmpresaRazonSocial.Should().Be("Empresa del Centro");
+    }
+
+    /// <summary>
+    /// La arista anclada se cierra después de fijar el ancla: el papel se oculta (DECISION_LOG, 2026-11-11, punto 11 b)
+    /// y queda igual, campo a campo, que el de un Centro gemelo sin ancla. El ancla no se toca.
+    /// </summary>
+    [Fact]
+    public async Task Con_la_arista_anclada_cerrada_el_papel_es_igual_que_sin_ancla()
+    {
+        var e = Montar();
+        e.Centro.AnclarRelacionDeEntrada(e.Relacion).EsExitoso.Should().BeTrue();
+        (await PapelEnLaFicha(e, e.Centro, new AlcanceDatosServiceFalso()))
+            .Should().Be(new PapelDeEntradaDto(true, _contratistaPrincipal.Id, "Contratista Principal SL"),
+                "antes de cerrarla la arista vigente sí da papel");
+
+        e.Relacion.Cerrar(DateTime.UtcNow);
+        var gemeloSinAncla = NuevoCentro();
+
+        var conAnclaCerrada = await PapelEnLaFicha(e, e.Centro, new AlcanceDatosServiceFalso());
+        var sinAncla = await PapelEnLaFicha(e, gemeloSinAncla, new AlcanceDatosServiceFalso());
+
+        conAnclaCerrada.Should().Be(sinAncla);
+        conAnclaCerrada.Should().Be(PapelDeEntradaDto.ContratistaPrincipal);
+        e.Centro.RelacionEmpresarialEntradaId.Should().Be(e.Relacion.Id);
     }
 
     [Fact]

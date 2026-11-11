@@ -19,8 +19,8 @@ namespace CaeManager.Application.Centros.Commands.EstablecerRelacionDeEntradaCen
 /// CAE sobre el Centro; fuera de alcance responde igual que un Centro inexistente, y lo mismo si el Centro ya
 /// tiene un ancla cuya X no está entre los Clientes empresariales visibles de quien la quita o la cambia. Ese
 /// error no nombra el ancla ni a X, pero el rechazo en sí sigue distinguiéndose del éxito que tendría el mismo
-/// comando sin ancla: es un oráculo residual aceptado hasta que se decida si quien no ve a X puede pisar el ancla
-/// (pendiente de decisión). La arista se busca en el
+/// comando sin ancla: es un oráculo residual aceptado (DECISION_LOG, 2026-11-11, punto 11 a); quien no ve a X no
+/// pisa el ancla. La arista se busca en el
 /// Tenant propietario actual (filtro global y RLS) y su cliente X tiene que estar entre los Clientes
 /// empresariales visibles de quien la fija: una arista de otro Tenant, inexistente o con X fuera de su cartera
 /// responde lo mismo, para no revelar cuál de las tres es. La FK compuesta con <c>TenantId</c> repite en la base

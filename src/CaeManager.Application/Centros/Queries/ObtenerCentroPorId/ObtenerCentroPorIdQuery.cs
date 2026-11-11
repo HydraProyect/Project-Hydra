@@ -64,12 +64,15 @@ public class ObtenerCentroPorIdQueryHandler(ICentrosQueryContext centrosContext,
             where centro.Id == request.Id
             // Papel por Centro: el ancla y su X se leen en esta misma sentencia (sin SQL aparte para la ficha), en el
             // Tenant propietario del Centro y con lo que fijó Centro.AnclarRelacionDeEntrada vuelto a comprobar.
+            // Una arista anclada que se cerró después (VigenciaHasta informada, RelacionEmpresarial.EstaVigente falso)
+            // no da papel (DECISION_LOG, 2026-11-11, punto 11 b).
             // Si X está o no en la cartera de quien mira lo decide PapelDeEntradaEnCentro.ResolverAsync.
             from ancla in empresasContext.RelacionesEmpresariales
                 .Where(r => r.Id == centro.RelacionEmpresarialEntradaId
                     && r.TenantId == centro.TenantId
                     && r.ProveedoraId == centro.EmpresaId
-                    && r.ClienteId != centro.ClienteId)
+                    && r.ClienteId != centro.ClienteId
+                    && r.VigenciaHasta == null)
                 .DefaultIfEmpty()
             from contratistaPrincipal in empresasContext.Empresas
                 .Where(x => ancla != null && x.Id == ancla.ClienteId)
