@@ -149,6 +149,49 @@ public class SolicitudDemoEndpointsTests
         aviso.Texto.Should().Contain("Contacto:DestinatarioSolicitudDemo").And.NotContain("secreto-mal-escrito");
     }
 
+    [Fact]
+    public async Task El_aviso_de_un_ajuste_roto_sale_en_el_arranque_y_una_sola_vez()
+    {
+        var registro = new RegistroCapturado();
+        await using var servidor = await ServidorSolicitudDemo.ArrancarAsync(
+            destinatarioConfigurado: "secreto-mal-escrito", registro: registro);
+
+        registro.Entradas.Where(e => e.Texto.Contains("Contacto:DestinatarioSolicitudDemo")).Should().ContainSingle(
+            "se resuelve al mapear el endpoint, antes de la primera solicitud");
+
+        (await servidor.PostAsync(CuerpoBueno())).Dispose();
+        (await servidor.PostAsync(CuerpoBueno())).Dispose();
+
+        registro.Entradas.Where(e => e.Texto.Contains("Contacto:DestinatarioSolicitudDemo")).Should().ContainSingle(
+            "es un singleton: ni un aviso por petición");
+        registro.Entradas.Should().AllSatisfy(e => e.Texto.Should().NotContain("secreto-mal-escrito"));
+    }
+
+    [Fact]
+    public async Task Con_la_guarda_en_solo_permitidos_el_ajuste_valido_en_la_lista_sale()
+    {
+        await using var servidor = await ServidorSolicitudDemo.ArrancarAsync(
+            destinatarioConfigurado: "demo@example.com", soloPermitidos: ["demo@example.com"]);
+
+        using var respuesta = await servidor.PostAsync(CuerpoBueno());
+
+        respuesta.StatusCode.Should().Be(HttpStatusCode.Accepted);
+        servidor.Correo.Enviados.Should().ContainSingle().Which.Destinatario.Should().Be("demo@example.com");
+    }
+
+    [Fact]
+    public async Task Con_la_guarda_en_solo_permitidos_un_ajuste_invalido_cae_a_info_y_la_guarda_lo_bloquea()
+    {
+        // Interacción documentada en el aviso: la reserva también pasa por la guarda.
+        await using var servidor = await ServidorSolicitudDemo.ArrancarAsync(
+            destinatarioConfigurado: "no-es-un-correo", soloPermitidos: ["demo@example.com"]);
+
+        using var respuesta = await servidor.PostAsync(CuerpoBueno());
+
+        respuesta.StatusCode.Should().Be(HttpStatusCode.ServiceUnavailable);
+        servidor.Correo.Enviados.Should().BeEmpty("info@talveg.es no está en la lista permitida");
+    }
+
     [Theory]
     [InlineData(null)]
     [InlineData("")]
@@ -529,12 +572,14 @@ public class SolicitudDemoEndpointsTests
 
         public static async Task<ServidorSolicitudDemo> ArrancarAsync(
             int limitePorIp = 50, int limiteGlobalPorHora = 50, bool guardaCerrada = false,
-            string? destinatarioConfigurado = null)
+            string? destinatarioConfigurado = null, string[]? soloPermitidos = null, RegistroCapturado? registro = null)
         {
             var correo = new CorreoFalso();
             var builder = WebApplication.CreateBuilder(new WebApplicationOptions { EnvironmentName = "Production" });
             builder.WebHost.UseKestrel(opciones => opciones.Listen(IPAddress.Loopback, 0));
             builder.Logging.ClearProviders();
+            if (registro is not null)
+                builder.Logging.AddProvider(new ProveedorCapturado(registro));
             var ajustes = new Dictionary<string, string?>
             {
                 ["RateLimiting:SolicitudDemo:LimitePorIp"] = limitePorIp.ToString(),
@@ -544,8 +589,11 @@ public class SolicitudDemoEndpointsTests
                 ajustes[DestinatarioSolicitudDemo.ClaveConfiguracion] = destinatarioConfigurado;
             builder.Configuration.AddInMemoryCollection(ajustes);
             builder.Services.AddSolicitudDemo(builder.Configuration);
-            builder.Services.AddSingleton<IEmailService>(guardaCerrada
-                ? new GuardaEnvioEmailService(correo, Options.Create(new EnvioCorreoOptions()), NullLogger<GuardaEnvioEmailService>.Instance)
+            var opcionesGuarda = soloPermitidos is not null
+                ? new EnvioCorreoOptions { Modo = "SoloPermitidos", DestinatariosPermitidos = soloPermitidos }
+                : guardaCerrada ? new EnvioCorreoOptions() : null;
+            builder.Services.AddSingleton<IEmailService>(opcionesGuarda is not null
+                ? new GuardaEnvioEmailService(correo, Options.Create(opcionesGuarda), NullLogger<GuardaEnvioEmailService>.Instance)
                 : correo);
 
             var app = builder.Build();
@@ -621,15 +669,36 @@ public class SolicitudDemoEndpointsTests
 
     private sealed class RegistroCapturado : ILogger
     {
-        public List<(LogLevel Nivel, string Texto)> Entradas { get; } = [];
+        private readonly List<(LogLevel Nivel, string Texto)> entradas = [];
+
+        public IReadOnlyList<(LogLevel Nivel, string Texto)> Entradas
+        {
+            get
+            {
+                lock (entradas)
+                    return [.. entradas];
+            }
+        }
 
         public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
 
         public bool IsEnabled(LogLevel logLevel) => true;
 
         public void Log<TState>(
-            LogLevel logLevel, EventId eventId, TState state, Exception? exception, Func<TState, Exception?, string> formatter) =>
-            Entradas.Add((logLevel, formatter(state, exception)));
+            LogLevel logLevel, EventId eventId, TState state, Exception? exception, Func<TState, Exception?, string> formatter)
+        {
+            lock (entradas)
+                entradas.Add((logLevel, formatter(state, exception)));
+        }
+    }
+
+    private sealed class ProveedorCapturado(RegistroCapturado registro) : ILoggerProvider
+    {
+        public ILogger CreateLogger(string categoryName) => registro;
+
+        public void Dispose()
+        {
+        }
     }
 
     private sealed class ContenidoSinLongitud(byte[] cuerpo) : HttpContent

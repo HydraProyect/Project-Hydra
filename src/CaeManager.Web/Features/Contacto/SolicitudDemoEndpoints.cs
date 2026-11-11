@@ -135,8 +135,9 @@ public static class SolicitudDemoEndpoints
 
         services.AddSingleton(new CupoGlobalSolicitudDemo(limiteGlobalPorHora, TimeProvider.System));
 
-        // Se resuelve una vez, en la primera solicitud: el aviso de un ajuste roto sale
-        // una sola vez y no por petición.
+        // Singleton: el ajuste se resuelve una sola vez, y MapSolicitudDemoEndpoints lo
+        // resuelve ya en el arranque para que el aviso de un ajuste roto salga al
+        // desplegar y no con la primera solicitud.
         services.AddSingleton(proveedor => DestinatarioSolicitudDemo.Resolver(
             configuration[DestinatarioSolicitudDemo.ClaveConfiguracion],
             proveedor.GetRequiredService<ILoggerFactory>().CreateLogger<DestinatarioSolicitudDemo>()));
@@ -145,6 +146,9 @@ public static class SolicitudDemoEndpoints
 
     public static IEndpointRouteBuilder MapSolicitudDemoEndpoints(this IEndpointRouteBuilder endpoints)
     {
+        // Arranque, no primera petición: un ajuste mal escrito se avisa al desplegar.
+        _ = endpoints.ServiceProvider.GetRequiredService<DestinatarioSolicitudDemo>();
+
         var ruta = endpoints.MapGroup(Ruta).AllowAnonymous();
 
         ruta.MapPost(string.Empty, RecibirAsync)
