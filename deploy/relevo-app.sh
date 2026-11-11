@@ -635,7 +635,14 @@ desplegar() {
     export IMAGEN_TAG="$sha"
     # Servicios sin perfil (db, migrador, seq y caddy en producción) más la
     # ranura nueva. La activa no se nombra: Compose no la toca.
-    mapfile -t servicios < <(docker compose "${args[@]}" config --services)
+    # Capturados con su estado antes del mapfile: dentro de `< <(…)` un fallo de
+    # `docker compose config` se perdía y se arrancaba solo parte de los servicios.
+    local lista_servicios
+    if ! lista_servicios="$(docker compose "${args[@]}" config --services)"; then
+        echo "No se pudo leer la lista de servicios (docker compose config --services): no se arranca $cont_nueva." >&2
+        return 1
+    fi
+    mapfile -t servicios < <(printf '%s\n' "$lista_servicios")
     if ! docker compose "${args[@]}" up -d --wait --wait-timeout "$RELEVO_ESPERA_SALUD" --no-build \
             "${servicios[@]}" "app-$nueva"; then
         echo "La ranura nueva $cont_nueva no llegó a sana: Caddy sigue en ${activa_:-<ninguna>}." >&2

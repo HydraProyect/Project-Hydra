@@ -167,13 +167,34 @@ retener_imagenes() {
         podar_colgantes_de_despliegue
         return 0
     fi
-    # Las que usa cualquier contenedor, aunque esté parado.
-    conservar+="$(docker ps -a --format '{{.Image}}' | sed -n "s/^${REPOSITORIO_IMAGEN_DESPLIEGUE}://p")"$'\n'
+    # Las que usa cualquier contenedor, aunque esté parado. Si `docker ps` falla
+    # no se sabe cuáles son, y no se retira ninguna (como sin historial).
+    local en_uso
+    if ! en_uso="$(docker ps -a --format '{{.Image}}')"; then
+        echo "::warning::retención de imágenes omitida: no se pudo listar los contenedores (docker ps -a). No se retira ninguna ${REPOSITORIO_IMAGEN_DESPLIEGUE}:<sha>." >&2
+        podar_colgantes_de_despliegue
+        return 0
+    fi
+    # `printf | sed`, no `sed <<<`: si Bash no pudiera crear el fichero temporal
+    # del here-string, sed no correría y las imágenes en uso quedarían fuera de
+    # `conservar`. sed lee la entrada entera (sin SIGPIPE) y su estado se mira.
+    local en_uso_despliegue
+    if ! en_uso_despliegue="$(printf '%s\n' "$en_uso" | sed -n "s/^${REPOSITORIO_IMAGEN_DESPLIEGUE}://p")"; then
+        echo "::warning::retención de imágenes omitida: no se pudo filtrar la lista de contenedores. No se retira ninguna ${REPOSITORIO_IMAGEN_DESPLIEGUE}:<sha>." >&2
+        podar_colgantes_de_despliegue
+        return 0
+    fi
+    conservar+="$en_uso_despliegue"$'\n'
 
     echo "Retención de imágenes: se conservan las $n últimas de cada entorno y las que usa un contenedor."
     while read -r etiqueta; do
         es_sha "$etiqueta" || continue
-        if printf '%s' "$conservar" | grep -qx -- "$etiqueta"; then
+        # Línea exacta comparada en bash, sin proceso externo: con
+        # `printf | grep -q` bajo pipefail, el SIGPIPE de una lista larga
+        # convertía «se conserva» en «se retira»; con `grep <<<`, un fichero
+        # temporal que no se puede crear (disco lleno) daba 1, otra vez «se
+        # retira». `conservar` acaba siempre en salto de línea.
+        if [[ $'\n'"$conservar" == *$'\n'"$etiqueta"$'\n'* ]]; then
             continue
         fi
         echo "  retirando ${REPOSITORIO_IMAGEN_DESPLIEGUE}:${etiqueta}"

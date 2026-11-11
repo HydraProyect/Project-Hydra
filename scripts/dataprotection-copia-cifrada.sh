@@ -41,8 +41,10 @@ resumen_claves() {   # resumen_claves DIR_CON_XML
     for f in "$1"/key-*.xml; do
         [ -e "$f" ] || continue
         n=$((n + 1))
-        id=$(sed -n 's/.*<key id="\([^"]*\)".*/\1/p' "$f" | head -1)
-        caduca=$(sed -n 's/.*<expirationDate>\([^<]*\)<.*/\1/p' "$f" | head -1)
+        # La primera coincidencia la elige sed (`q`), sin `| head -1`: con
+        # pipefail, el SIGPIPE de sed al cerrar head abortaba la copia.
+        id=$(sed -n '/.*<key id="\([^"]*\)".*/{s//\1/p;q;}' "$f")
+        caduca=$(sed -n '/.*<expirationDate>\([^<]*\)<.*/{s//\1/p;q;}' "$f")
         echo "    clave $id — caduca ${caduca:-?}"
     done
     echo "    total: $n clave(s)"

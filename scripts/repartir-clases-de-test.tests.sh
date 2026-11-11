@@ -95,10 +95,12 @@ comprobar "bloque fuera de rango sale con error de uso" "2" "$?"
 FIJADAS=$(mktemp)
 bloque_de() {
   # bloque_de <clase> [fichero de fijadas]: en que bloque de 2 cae la clase.
-  local b
+  local b filtro
   for b in 1 2; do
-    if REPARTO_FIJADAS="${2:-}" LISTADO_DE_TESTS="$LISTADO" bash "$GUION" proyecto 2 "$b" 2>/dev/null \
-         | tr '|' '\n' | grep -qxF "FullyQualifiedName~$1."; then
+    # Salida capturada antes de buscar: `| grep -q` con pipefail daría fallo por
+    # SIGPIPE si el productor sigue escribiendo tras el primer acierto.
+    if filtro="$(REPARTO_FIJADAS="${2:-}" LISTADO_DE_TESTS="$LISTADO" bash "$GUION" proyecto 2 "$b" 2>/dev/null)" \
+         && grep -qxF "FullyQualifiedName~$1." <<<"${filtro//|/$'\n'}"; then
       printf '%s' "$b"
     fi
   done

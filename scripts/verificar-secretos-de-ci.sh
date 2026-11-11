@@ -53,7 +53,33 @@ if [ ! -d "$DIR" ]; then
 fi
 
 # Un directorio existente sin ningún .yml es un instrumento ciego, no un verde.
-mapfile -t FICHEROS < <(find "$DIR" -maxdepth 1 -type f \( -name '*.yml' -o -name '*.yaml' \) | sort)
+# Cada lectura que decide se captura con su estado ANTES de usarla: dentro de
+# `< <(…)` el fallo del productor se perdía, y un `find` o un `awk` cortado a
+# medias dejaba revisar solo una parte (revisión Codex de #2106, ronda 2). Los
+# bucles leen después de un `printf` del propio Bash sobre la variable ya
+# validada. Las búsquedas van con `aparece`, nunca con `grep <<<`: Bash puede
+# volcar el here-string a un fichero temporal y, si no lo crea, grep no corre y
+# su 1 se leería como «no usa secretos».
+fallar_lectura() {
+  echo "ERROR: $1 — no se comprobó nada." >&2
+  exit 1
+}
+
+# 0 = el patrón aparece en el texto, 1 = no aparece; otro estado de grep aborta.
+# Sin -q, grep lee la entrada entera y el printf no escribe en una tubería cerrada.
+aparece() {
+  local texto="$1" estado=0
+  shift
+  printf '%s\n' "$texto" | grep "$@" >/dev/null || estado=$?
+  (( estado <= 1 )) || fallar_lectura "la búsqueda 'grep $*' falló con estado $estado"
+  return "$estado"
+}
+
+LISTA_FICHEROS="$(find "$DIR" -maxdepth 1 -type f \( -name '*.yml' -o -name '*.yaml' \) | sort)" \
+  || fallar_lectura "no se pudo listar entero el directorio de workflows '$DIR'"
+# Vacío = ningún elemento (no uno vacío); find no escribe líneas vacías.
+FICHEROS=()
+[ -z "$LISTA_FICHEROS" ] || mapfile -t FICHEROS < <(printf '%s\n' "$LISTA_FICHEROS")
 if [ "${#FICHEROS[@]}" -eq 0 ]; then
   echo "ERROR: '$DIR' no contiene ningún workflow — sin ficheros que leer no se comprobó nada." >&2
   exit 1
@@ -111,7 +137,11 @@ error() {
 
 for fichero in "${FICHEROS[@]}"; do
   nombre="$(basename "$fichero")"
-  sin_comentarios="$(grep -v '^[[:space:]]*#' "$fichero")"
+  # grep -v da 1 si todo son comentarios (texto vacío, legítimo); otro estado es
+  # que no se pudo leer el fichero, y eso no es «no usa secretos».
+  estado_lectura=0
+  sin_comentarios="$(grep -v '^[[:space:]]*#' "$fichero")" || estado_lectura=$?
+  (( estado_lectura <= 1 )) || fallar_lectura "no se pudo leer $nombre"
 
   # Una clave de producción de Stripe con forma real (sk_/rk_ + live + cuerpo).
   # El cuerpo mínimo de 10 evita marcar un prefijo citado en un comentario o en
@@ -120,9 +150,14 @@ for fichero in "${FICHEROS[@]}"; do
     error "$nombre contiene algo con forma de clave de producción de Stripe (sk_live_/rk_live_) — en CI solo modo prueba."
   fi
 
-  mapfile -t DISPARADORES < <(disparadores_de "$fichero")
+  disparadores="$(disparadores_de "$fichero")" \
+    || fallar_lectura "no se pudieron leer los disparadores de $nombre"
+  # Vacío = ningún disparador; el awk no escribe líneas vacías (split por
+  # espacios y claves con nombre).
+  DISPARADORES=()
+  [ -z "$disparadores" ] || mapfile -t DISPARADORES < <(printf '%s\n' "$disparadores")
   usa_restringidos=false
-  if grep -Eq "$SECRETOS_RESTRINGIDOS" <<<"$sin_comentarios"; then
+  if aparece "$sin_comentarios" -E -e "$SECRETOS_RESTRINGIDOS"; then
     usa_restringidos=true
   fi
 
@@ -142,16 +177,18 @@ for fichero in "${FICHEROS[@]}"; do
     for d in "${no_confiables[@]+"${no_confiables[@]}"}"; do
       error "$nombre usa un secreto restringido y se dispara con '$d' — solo push, merge_group, workflow_dispatch o schedule."
     done
+    jobs_sin_entorno="$(jobs_con_secreto_sin_entorno "$fichero")" \
+      || fallar_lectura "no se pudieron leer los jobs de $nombre"
     while IFS= read -r job; do
       [ -n "$job" ] || continue
       error "$nombre: el job '$job' cita un secreto restringido sin declarar 'environment: $ENTORNO_EXIGIDO' — sin la política de ramas del environment, cualquier rama con escritura los leería."
-    done < <(jobs_con_secreto_sin_entorno "$fichero")
+    done < <(printf '%s\n' "$jobs_sin_entorno")
   fi
 
   # Un disparador que controla un PR (o ilegible) + acceso dinámico a secretos:
   # el nombre no aparece, pero el secreto llega igual.
   if [ "${#no_confiables[@]}" -gt 0 ] || [ "${#DISPARADORES[@]}" -eq 0 ]; then
-    if grep -Eiq "$ACCESO_DINAMICO_A_SECRETOS" <<<"$sin_comentarios"; then
+    if aparece "$sin_comentarios" -Ei -e "$ACCESO_DINAMICO_A_SECRETOS"; then
       error "$nombre tiene un disparador que un PR puede controlar (o ilegible) y accede a los secretos de forma dinámica (secrets[...], toJSON(secrets), secrets: inherit) — no se puede demostrar que no alcance CI_ANTHROPIC_API_KEY/CI_STRIPE_TEST_API_KEY."
     fi
   fi
