@@ -1,4 +1,5 @@
 using CaeManager.Application.Common;
+using CaeManager.Application.Empresas;
 using CaeManager.Domain.Common;
 using CaeManager.Application.Importacion;
 using CaeManager.Application.Importacion.Commands.EjecutarImportacionMaestra;
@@ -231,6 +232,41 @@ public class EjecutarImportacionMaestraTests
         revisada.ValoresSobrescritos.Should().Contain(new ValorPrevioDto("Empresas", 3, "CNAE", "9999", "4321"));
         (await e.ConfirmarAsync(plan, reemplazar: true, revisada.CalcularHuella())).EsExitoso.Should().BeTrue();
         existente.Cnae.Should().Be("4321");
+    }
+
+    [Fact]
+    public async Task La_vista_previa_identifica_con_su_motivo_cada_fila_que_la_escritura_omitira_por_una_razon_social_ocupada()
+    {
+        // Revisión Codex de la PR #2164, r1, MEDIO 2, en la capa que lo garantiza: la vista previa corre la MISMA pasada
+        // que la escritura (ProcesarAsync), así que la omisión por razón social ocupada, y la del Trabajador que depende
+        // de esa Empresa, se ven con hoja, fila y motivo antes de confirmar. La prueba bUnit lo comprueba con un mediador
+        // simulado; esta, con el handler real.
+        var e = new Escenario();
+        var otra = new Empresa("Industrias Ficticias, S.L.", CifCliente, cnae: null, convenioAplicable: null);
+        e.EmpresaRepositorio.Empresas.Add(otra);
+        e.Empresas.ListaEmpresas.Add(otra);
+        var plan = Plan([FilaEmpresa(fila: 4)], trabajadores: [FilaTrabajador(fila: 6)]);
+        var motivoRazonSocial = DuplicadosEmpresa.ErrorRazonSocialDuplicada(dadaDeBaja: false).Mensaje;
+
+        var previa = (await e.PrevisualizarAsync(plan)).Valor;
+
+        previa.EmpresasCreadas.Should().Be(0);
+        previa.TrabajadoresCreados.Should().Be(0);
+        previa.Omitidos.Should().BeEquivalentTo(
+            [
+                new ItemImportacionDto("Empresas", 4, "Industrias Ficticias, S.L.", motivoRazonSocial),
+                new ItemImportacionDto("Trabajadores", 6, "Nombre Ficticio Apellido Ejemplo",
+                    $"No se pudo crear o encontrar la Empresa gestionada con CIF \"{CifGestionada}\".")
+            ], o => o.WithStrictOrdering());
+        e.EmpresaRepositorio.Empresas.Should().ContainSingle("la vista previa no escribe");
+
+        var confirmado = await e.ConfirmarAsync(plan, reemplazar: false, previa.CalcularHuella());
+
+        confirmado.EsExitoso.Should().BeTrue();
+        confirmado.Valor.Omitidos.Should().BeEquivalentTo(previa.Omitidos, o => o.WithStrictOrdering(),
+            "la escritura omite exactamente las filas, y por los motivos, que mostró la vista previa");
+        e.EmpresaRepositorio.Empresas.Should().ContainSingle().Which.Should().BeSameAs(otra);
+        e.TrabajadorRepositorio.Trabajadores.Should().BeEmpty();
     }
 
     [Fact]
