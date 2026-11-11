@@ -221,7 +221,7 @@ public class AptAcotadoEnCiTests
     /// <summary>
     /// La acción corre sin errexit para conservar los reintentos: cada preparación de apt
     /// (configuración y fuentes) se comprueba a mano y, si falla, apt no llega a correr
-    /// con reintentos activos ante un espejo de terceros ni con fuentes a medias.
+    /// sin su configuración ni con fuentes a medias.
     /// </summary>
     [Fact]
     public void La_preparacion_de_apt_falla_cerrada()
@@ -229,10 +229,13 @@ public class AptAcotadoEnCiTests
         var accion = LineasSinComentario(Path.Combine(
             RaizDelRepositorio(), ".github", "actions", "apt-acotado", "action.yml"));
 
-        accion.Should().Contain(l => l.StartsWith("fijar_reintentos || {", StringComparison.Ordinal),
-            "sin la configuración inicial, apt esperaría 120 s por conexión");
-        accion.Should().Contain("escribir_conf_apt 0 || return 1",
-            "con un espejo de terceros, apt no puede correr con reintentos activos");
+        var indiceConfiguracion = accion.FindIndex(l => l.StartsWith("escribir_conf_apt || {", StringComparison.Ordinal));
+        var indiceSondaAzure = accion.FindIndex(l => l.StartsWith("if ! responde_200 \"$sonda\"", StringComparison.Ordinal));
+        indiceConfiguracion.Should().BeGreaterThan(-1,
+            "sin la configuración inicial, apt esperaría 120 s por conexión y reintentaría descargas");
+        indiceConfiguracion.Should().BeLessThan(indiceSondaAzure,
+            "la configuración se escribe antes de cualquier camino que llegue a ejecutar apt");
+        accion[indiceConfiguracion].Should().Contain("exit 1", "un fallo al escribir la configuración corta el paso");
         accion.Should().Contain("apuntar_fuentes_a \"$base\" || return 1",
             "un fallo al reescribir las fuentes no puede quedar oculto");
         accion.Should().Contain("! grep '^URIs:' \"$fuentes\" | grep -vqxF \"URIs: $1\" || return 1",
@@ -309,106 +312,96 @@ public class AptAcotadoEnCiTests
     }
 
     /// <summary>
-    /// Codex r2 (#2168): una invocación anterior del mismo job puede dejar las fuentes en
-    /// un espejo de terceros; si después Azure vuelve a responder, la acción ya no las
-    /// reescribe. Por eso <c>Acquire::Retries</c> se decide por las fuentes efectivas, nunca
-    /// por el camino que toma la invocación: vale 1 solo si todas las URIs (y las del
-    /// <c>mirror+file</c> de la imagen) son de ubuntu.com, y 0 en cualquier otro caso.
+    /// Codex r3 (#2168): el CVE-2026-109518 (ver el Dockerfile) deja colar un paquete no
+    /// verificado en un reintento de descarga, sea desde un espejo de terceros o desde un
+    /// atacante en la ruta de una fuente HTTP. Decidir los reintentos leyendo las fuentes
+    /// admitía HTTP y no veía todas las fuentes de apt, así que ningún apt del CI ni de la
+    /// imagen reintenta: todo <c>Acquire::Retries</c> que no sea comentario vale 0.
     ///
     /// <para>
-    /// Este test lee el texto de la acción y comprueba en .NET la expresión que usa awk
-    /// (ERE sin construcciones que .NET interprete distinto); no ejecuta bash ni awk ni
-    /// monta escenarios con fuentes reales.
+    /// Lee el texto de los workflows, de las acciones y del Dockerfile; no ejecuta apt ni
+    /// mira la configuración que traiga la imagen del runner.
     /// </para>
     /// </summary>
     [Fact]
-    public void Los_reintentos_de_apt_dependen_de_las_fuentes_efectivas_y_fallan_cerrados()
+    public void Ningun_apt_del_ci_ni_de_la_imagen_reintenta_descargas()
     {
-        var accion = LineasSinComentario(Path.Combine(
-            RaizDelRepositorio(), ".github", "actions", "apt-acotado", "action.yml"));
+        var raiz = RaizDelRepositorio();
+        var rutas = Directory.EnumerateFiles(Path.Combine(raiz, ".github"), "*", SearchOption.AllDirectories)
+            .Where(r => r.EndsWith(".yml", StringComparison.Ordinal)
+                || r.EndsWith(".yaml", StringComparison.Ordinal)
+                || r.EndsWith(".sh", StringComparison.Ordinal))
+            .Append(Path.Combine(raiz, "Dockerfile"))
+            .ToList();
+        var reintentos = new Regex(@"Acquire::Retries", RegexOptions.IgnoreCase | RegexOptions.Compiled);
+        var valeCero = new Regex(@"\GAcquire::Retries(=0(?![0-9])|\s+\\?""0\\?"";)", RegexOptions.IgnoreCase | RegexOptions.Compiled);
 
-        accion.Should().NotContain(l => Regex.IsMatch(l, @"escribir_conf_apt\s+1\b"),
-            "ningún camino puede activar los reintentos sin mirar las fuentes que quedan");
-        accion.Should().Contain("case \"$1\" in 0|1) ;; *) return 1 ;; esac",
-            "un valor vacío o inesperado no puede llegar a Acquire::Retries");
-        // El cuerpo entero, línea a línea: set -f, el rechazo de continuaciones y de
-        // «uris:» con otras mayúsculas, el «|| echo ilegible» que hace fallar un
-        // mirror+file ilegible, «ajena = 1» y el orden echo 1 / echo 0. Cualquier
-        // cambio, aunque sea inocuo, obliga a revisar de nuevo este control.
-        string[] decision =
-        [
-            "reintentos_segun_fuentes() (",
-            "set -f",
-            "if grep -qE '^[[:space:]]+[^[:space:]]' \"$fuentes\" || grep -iE '^uris:' \"$fuentes\" | grep -vqE '^URIs:'; then",
-            "echo 0",
-            "exit 0",
-            "fi",
-            "efectivas=\"\"",
-            "for uri in $(sed -n 's/^URIs://p' \"$fuentes\" 2>/dev/null); do",
-            "if [ \"$uri\" = \"mirror+file:/etc/apt/apt-mirrors.txt\" ]; then",
-            "efectivas+=\"$(cat /etc/apt/apt-mirrors.txt 2>/dev/null || echo ilegible)\"$'\\n'",
-            "else",
-            "efectivas+=\"$uri\"$'\\n'",
-            "fi",
-            "done",
-            "if printf '%s' \"$efectivas\" | awk '",
-            @"NF && $1 !~ /^#/ { n++; if ($1 !~ /^https?:\/\/([a-z0-9-]+\.)*ubuntu\.com\/ubuntu\/?$/) ajena = 1 }",
-            "END { exit (n == 0 || ajena) }'; then",
-            "echo 1",
-            "else",
-            "echo 0",
-            "fi",
-            ")",
-        ];
-        IndiceDeSecuencia(accion, decision).Should().BeGreaterThan(-1,
-            "la decisión de Acquire::Retries lee las fuentes efectivas y falla cerrada");
-        IndiceDeSecuencia(accion,
-        [
-            "fijar_reintentos() {",
-            "local reintentos",
-            "reintentos=\"$(reintentos_segun_fuentes)\"",
-            "escribir_conf_apt \"$reintentos\" || return 1",
-        ]).Should().BeGreaterThan(-1, "los reintentos salen de las fuentes efectivas y un fallo al escribirlos no queda oculto");
+        var apariciones = rutas
+            .SelectMany(r => LineasSinComentario(r).Select(l => (fichero: Path.GetRelativePath(raiz, r), linea: l)))
+            .SelectMany(x => reintentos.Matches(x.linea).Select(m => (x.fichero, x.linea, m.Index)))
+            .ToList();
 
-        var indiceDefinicion = accion.IndexOf("usar_archivo_directo() {");
-        indiceDefinicion.Should().BeGreaterThan(-1, "el test tiene que encontrar la preparación de fuentes");
-        var indiceAntes = accion.FindIndex(indiceDefinicion, l => l == "escribir_conf_apt 0 || return 1");
-        var indiceFuentes = accion.FindIndex(indiceDefinicion, l => l == "apuntar_fuentes_a \"$base\" || return 1");
-        var indiceDespues = accion.FindIndex(indiceDefinicion, l => l == "fijar_reintentos || return 1");
-        indiceAntes.Should().BeInRange(indiceDefinicion + 1, indiceFuentes - 1,
-            "los reintentos bajan a 0 antes de tocar las fuentes");
-        indiceDespues.Should().BeGreaterThan(indiceFuentes,
-            "solo se recalculan con las fuentes ya reescritas");
+        apariciones.Should().Contain(x => x.fichero.EndsWith("action.yml", StringComparison.Ordinal),
+            "el test tiene que estar mirando la configuración de apt-acotado");
+        apariciones.Count(x => x.fichero == "Dockerfile").Should().BeGreaterThanOrEqualTo(2,
+            "el test tiene que estar mirando el update y el install de la imagen");
+        apariciones.Should().OnlyContain(x => valeCero.IsMatch(x.linea, x.Index),
+            "ningún apt del CI ni de la imagen puede reintentar descargas (CVE-2026-109518)");
 
-        var indiceInicial = accion.FindIndex(l => l.StartsWith("fijar_reintentos || {", StringComparison.Ordinal));
-        var indiceSondaAzure = accion.FindIndex(l => l.StartsWith("if ! responde_200 \"$sonda\"", StringComparison.Ordinal));
-        indiceInicial.Should().BeGreaterThan(-1, "cada invocación fija los reintentos según las fuentes que encuentra");
-        indiceInicial.Should().BeLessThan(indiceSondaAzure,
-            "si Azure responde no se reescriben las fuentes: la decisión tiene que estar tomada antes");
-
-        var expresion = Regex.Match(string.Join('\n', accion), @"\$1 !~ /(\^https.+?\$)/\)").Groups[1].Value;
-        expresion.Should().NotBeNullOrEmpty("el test tiene que leer la expresión de awk de verdad");
-        var oficial = new Regex(expresion.Replace(@"\/", "/", StringComparison.Ordinal));
-
-        string[] admitidas =
-        [
-            "http://azure.archive.ubuntu.com/ubuntu/",
-            "https://archive.ubuntu.com/ubuntu/",
-            "http://security.ubuntu.com/ubuntu",
-        ];
-        string[] ajenas =
-        [
-            "https://mirrors.edge.kernel.org/ubuntu/",
-            "https://mirror.init7.net/ubuntu/",
-            "https://evilubuntu.com/ubuntu/",
-            "https://archive.ubuntu.com.ejemplo.net/ubuntu/",
-            "https://archive.ubuntu.com/ubuntu/../otro/",
-            "mirror+file:/etc/apt/apt-mirrors.txt",
-            "ilegible",
-        ];
-        admitidas.Should().OnlyContain(u => oficial.IsMatch(u), "las fuentes oficiales mantienen los reintentos");
-        ajenas.Should().NotContain(u => oficial.IsMatch(u), "cualquier otra fuente deja los reintentos a 0");
+        var accion = LineasSinComentario(Path.Combine(raiz, ".github", "actions", "apt-acotado", "action.yml"));
+        accion.Should().Contain("'Acquire::Retries \"0\";' \\",
+            "apt-acotado escribe 0 literal, sin variable que otro camino pueda subir");
+        accion.Should().Contain(l => l.Contains("grep -qxF 'Acquire::Retries \"0\";' /etc/apt/apt.conf.d/99-ci-apt-acotado", StringComparison.Ordinal),
+            "la acción comprueba que el 0 quedó escrito antes de ejecutar apt");
+        accion.Should().NotContain(l => l.Contains("reintentos_segun_fuentes", StringComparison.Ordinal)
+                || l.Contains("fijar_reintentos", StringComparison.Ordinal),
+            "ya no hay decisión de reintentos por fuentes que mantener");
     }
+
+    /// <summary>
+    /// Codex r3 (#2168): contar las llamadas a <c>responde_200</c> no basta; con <c>||</c>
+    /// en vez de <c>&amp;&amp;</c> se elegiría un espejo (o se daría por buena la base) sin
+    /// que su <c>-security</c> responda. En elegir-espejo.sh y en la sonda del job de la
+    /// imagen, la del pocket principal y la de security van unidas con <c>&amp;&amp;</c>
+    /// en la misma condición y ninguna llamada usa <c>||</c>.
+    ///
+    /// <para>
+    /// Lee el texto de los guiones; no ejecuta bash.
+    /// </para>
+    /// </summary>
+    [Fact]
+    public void Las_dos_sondas_de_cada_archivo_se_exigen_a_la_vez()
+    {
+        var raiz = RaizDelRepositorio();
+        var lineasCi = File.ReadAllLines(Path.Combine(raiz, ".github", "workflows", "ci.yml"));
+        var indicePasoImagen = Array.FindIndex(lineasCi, l => l.Trim() == "id: espejo-ubuntu");
+        indicePasoImagen.Should().BeGreaterThan(-1, "el test tiene que encontrar el paso de la sonda de la imagen");
+
+        var fuentes = new Dictionary<string, (List<string> lineas, string principal, string seguridad)>
+        {
+            ["elegir-espejo.sh"] = (
+                LineasSinComentario(Path.Combine(raiz, ".github", "actions", "apt-acotado", "elegir-espejo.sh")),
+                "if responde_200 \"${base}dists/${codename}/InRelease\" \\",
+                "&& responde_200 \"${base}dists/${codename}-security/InRelease\"; then"),
+            ["ci.yml (espejo-ubuntu)"] = (
+                PasoDe(lineasCi, indicePasoImagen).Select(l => l.Trim()).Where(l => !l.StartsWith('#')).ToList(),
+                "if responde_200 \"http://archive.ubuntu.com/ubuntu/dists/${codename}/InRelease\" \\",
+                "&& responde_200 \"http://security.ubuntu.com/ubuntu/dists/${codename}-security/InRelease\"; then"),
+        };
+
+        foreach (var (nombre, (lineas, principal, seguridad)) in fuentes)
+        {
+            var llamadas = lineas.Where(l => Regex.IsMatch(l, @"\bresponde_200\s+""")).ToList();
+
+            IndiceDeSecuencia(lineas, [principal, seguridad]).Should().BeGreaterThan(-1,
+                $"{nombre}: la sonda del pocket principal y la de security van unidas con && en la misma condición");
+            llamadas.Should().BeEquivalentTo([principal, seguridad],
+                $"{nombre}: no hay otra sonda que decida por su cuenta");
+            llamadas.Should().NotContain(l => l.Contains("||", StringComparison.Ordinal),
+                $"{nombre}: con || bastaría una de las dos sondas");
+        }
+    }
+
 
     private static int IndiceDeSecuencia(List<string> lineas, string[] secuencia)
     {

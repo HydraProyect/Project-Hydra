@@ -54,61 +54,27 @@ runs:
 
         # Sin esto, apt espera 120 s por conexión y el cerrojo de dpkg de un
         # intento anterior haría fallar el siguiente en vez de esperar.
-        # Con un espejo de reserva de terceros, Acquire::Retries baja a 0: el
-        # CVE-2026-109518 (ver el Dockerfile) deja colar un paquete no verificado
-        # en un reintento de descarga desde un espejo malicioso. Los tres intentos
-        # de abajo ya cubren los fallos de red.
+        #
+        # Acquire::Retries es siempre 0 (en main valía 1; el Dockerfile ya usa 0).
+        # El CVE-2026-109518 (ver el Dockerfile) deja colar un paquete no
+        # verificado en un reintento de descarga, y eso lo aprovecha tanto un
+        # espejo de terceros como un atacante en la ruta de cualquier fuente HTTP,
+        # Azure y security.ubuntu.com incluidos. Antes se decidía 0 o 1 leyendo
+        # las fuentes, pero esa lectura admitía HTTP y no veía todas las fuentes
+        # de apt (Codex r3, #2168); con 0 fijo no hay nada que decidir. Los tres
+        # intentos de abajo, cada uno con su sondeo, ya cubren los fallos de red.
         escribir_conf_apt() {
-          case "$1" in 0|1) ;; *) return 1 ;; esac
           printf '%s\n' \
-            "Acquire::Retries \"$1\";" \
+            'Acquire::Retries "0";' \
             'Acquire::http::Timeout "30";' \
             'Acquire::https::Timeout "30";' \
             'DPkg::Lock::Timeout "60";' \
             | sudo tee /etc/apt/apt.conf.d/99-ci-apt-acotado > /dev/null \
-            && grep -qxF "Acquire::Retries \"$1\";" /etc/apt/apt.conf.d/99-ci-apt-acotado
-        }
-        # Los reintentos los deciden las fuentes que quedan configuradas, no el
-        # camino que tomó esta invocación: una invocación anterior del mismo job
-        # puede haber dejado un espejo de terceros aunque Azure vuelva a responder.
-        # Imprime 1 solo si hay alguna URI y todas (incluidas las del mirror+file
-        # de la imagen) son de ubuntu.com, Azure incluido; si no, o si no puede
-        # leerlas, imprime 0. Sin expansión de comodines (set -f, en subshell).
-        # Deb822 admite líneas de continuación y nombres de campo sin distinguir
-        # mayúsculas: si aparece cualquiera de las dos cosas no se interpreta y queda 0.
-        reintentos_segun_fuentes() (
-          set -f
-          if grep -qE '^[[:space:]]+[^[:space:]]' "$fuentes" || grep -iE '^uris:' "$fuentes" | grep -vqE '^URIs:'; then
-            echo 0
-            exit 0
-          fi
-          efectivas=""
-          for uri in $(sed -n 's/^URIs://p' "$fuentes" 2>/dev/null); do
-            if [ "$uri" = "mirror+file:/etc/apt/apt-mirrors.txt" ]; then
-              efectivas+="$(cat /etc/apt/apt-mirrors.txt 2>/dev/null || echo ilegible)"$'\n'
-            else
-              efectivas+="$uri"$'\n'
-            fi
-          done
-          if printf '%s' "$efectivas" | awk '
-              NF && $1 !~ /^#/ { n++; if ($1 !~ /^https?:\/\/([a-z0-9-]+\.)*ubuntu\.com\/ubuntu\/?$/) ajena = 1 }
-              END { exit (n == 0 || ajena) }'; then
-            echo 1
-          else
-            echo 0
-          fi
-        )
-        # Escribe la configuración según las fuentes efectivas y lo deja en el log.
-        fijar_reintentos() {
-          local reintentos
-          reintentos="$(reintentos_segun_fuentes)"
-          escribir_conf_apt "$reintentos" || return 1
-          echo "Acquire::Retries ${reintentos} según las fuentes de Ubuntu configuradas."
+            && grep -qxF 'Acquire::Retries "0";' /etc/apt/apt.conf.d/99-ci-apt-acotado
         }
         # Sin errexit, cada preparación se comprueba a mano y falla cerrada: apt
-        # nunca corre con reintentos activos ante un espejo de terceros ni con
-        # unas fuentes a medio reescribir.
-        fijar_reintentos || { echo "::error::No se pudo escribir la configuración de apt."; exit 1; }
+        # nunca corre sin esta configuración ni con unas fuentes a medio reescribir.
+        escribir_conf_apt || { echo "::error::No se pudo escribir la configuración de apt."; exit 1; }
 
         # Apunta cada URI de Ubuntu de las fuentes deb822 (el mirror+file de
         # Azure, archive, security o un espejo elegido antes, todos acabados en
@@ -125,11 +91,8 @@ runs:
 
         # Fuera de Azure: archive.ubuntu.com o, si tampoco responde, el primer
         # espejo oficial de reserva que responda (elegir-espejo.sh).
-        # Retries baja a 0 antes de tocar las fuentes y solo vuelve a subir si las
-        # fuentes ya reescritas son todas de ubuntu.com.
         usar_archivo_directo() {
           local base
-          escribir_conf_apt 0 || return 1
           if base="$(bash "$GITHUB_ACTION_PATH/elegir-espejo.sh" "$VERSION_CODENAME")"; then
             case "$base" in
               https://archive.ubuntu.com/*)
@@ -142,7 +105,6 @@ runs:
             echo "::warning::Ningún archivo de Ubuntu responde a la sonda: apt probará archive.ubuntu.com igualmente."
           fi
           apuntar_fuentes_a "$base" || return 1
-          fijar_reintentos || return 1
         }
         preparar_o_fallar() {
           usar_archivo_directo && return 0
