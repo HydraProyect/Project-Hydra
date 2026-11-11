@@ -7,6 +7,7 @@ using CaeManager.Application.Common;
 using CaeManager.Application.Seguridad.Incidentes;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Notificaciones;
+using CaeManager.Domain.Seguridad;
 using CaeManager.Infrastructure.Coordinacion;
 using CaeManager.Infrastructure.Email;
 using CaeManager.Infrastructure.Identity;
@@ -1540,7 +1541,57 @@ public class AccesoCuentaEscenaTests : BunitContext
         resultado.Should().Be(ResultadoNoHeSidoYo.ProtegidaSinCorreo);
         escena.Correos.Enviados.Should().NotContain(c => c.Destinatario == escena.Usuario.Email);
         escena.Correos.Enviados.Should().NotContain(c => c.Cuerpo.Contains(EscenaNoHeSidoYo.HostForjado));
-        escena.Registro.Errores.Should().NotBeEmpty();
+        escena.Registro.Errores.Should().Contain(e => e.Contains("Smtp:UrlBasePublica"));
+    }
+
+    /// <summary>
+    /// El aviso de inicio de sesión inusual lleva el token de «No he sido yo»: su enlace sale de
+    /// <c>Smtp:UrlBasePublica</c> aunque la petición del inicio de sesión llegue con un Host forjado
+    /// (OWASP ASVS 4.0.3 V2.5, V5.1.5).
+    /// </summary>
+    [Fact]
+    public async Task El_aviso_de_inicio_inusual_con_un_Host_forjado_enlaza_a_la_url_publica_configurada()
+    {
+        var escena = new EscenaNoHeSidoYo(this);
+
+        await escena.AvisarInicioInusualAsync();
+
+        escena.Registro.Errores.Should().BeEmpty();
+        var aviso = escena.Correos.Enviados.Should().ContainSingle(c => c.Destinatario == escena.Usuario.Email).Subject;
+        aviso.Cuerpo.Should().Contain("https://cuentas.example/cuenta/no-he-sido-yo?userId=")
+            .And.NotContain(EscenaNoHeSidoYo.HostForjado);
+        escena.Correos.Enviados.Should().NotContain(c => c.Cuerpo.Contains(EscenaNoHeSidoYo.HostForjado));
+    }
+
+    /// <summary>Fuera de Development, sin URL pública válida el aviso a la persona no sale: nunca con el Host de la petición.</summary>
+    [Theory]
+    [InlineData(null)]
+    [InlineData("http://cuentas.example/")]
+    public async Task El_aviso_de_inicio_inusual_sin_url_publica_valida_fuera_de_Development_no_usa_el_Host_de_la_peticion(string? url)
+    {
+        var escena = new EscenaNoHeSidoYo(this, urlBasePublica: url);
+
+        await escena.AvisarInicioInusualAsync();
+
+        escena.Correos.Enviados.Should().NotContain(c => c.Destinatario == escena.Usuario.Email);
+        escena.Correos.Enviados.Should().NotContain(c => c.Cuerpo.Contains(EscenaNoHeSidoYo.HostForjado));
+        escena.Registro.Errores.Should().Contain(e => e.Contains("Smtp:UrlBasePublica"));
+    }
+
+    /// <summary>
+    /// Solo en Development y solo sin base configurada se usa la base de la petición (enlaces
+    /// locales); con base configurada, también en Development manda la configurada.
+    /// </summary>
+    [Theory]
+    [InlineData(null, "https://" + EscenaNoHeSidoYo.HostForjado + "/cuenta/no-he-sido-yo?userId=")]
+    [InlineData("http://localhost:5186/", "http://localhost:5186/cuenta/no-he-sido-yo?userId=")]
+    public async Task En_Development_el_aviso_usa_la_base_de_la_peticion_solo_sin_base_configurada(string? url, string enlaceEsperado)
+    {
+        var escena = new EscenaNoHeSidoYo(this, urlBasePublica: url, entorno: "Development");
+
+        await escena.AvisarInicioInusualAsync();
+
+        escena.Correos.Enviados.Single(c => c.Destinatario == escena.Usuario.Email).Cuerpo.Should().Contain(enlaceEsperado);
     }
 
     /// <summary>Una cuenta solo de Microsoft no recibe enlace, pero tampoco lee que esté protegida.</summary>
@@ -1616,6 +1667,7 @@ public class AccesoCuentaEscenaTests : BunitContext
                 Id = Guid.NewGuid(),
                 TenantId = Guid.NewGuid(),
                 Email = "marta@example.test",
+                EmailConfirmed = true,
                 SecurityStamp = "sello-inicial",
             };
             pruebas._almacen.Usuario = Usuario;
@@ -1644,7 +1696,8 @@ public class AccesoCuentaEscenaTests : BunitContext
             peticion.Request.Scheme = "https";
             peticion.Request.Host = new HostString(HostForjado);
             _vigilancia = new VigilanciaInicioSesionService(
-                new HttpContextAccessor { HttpContext = peticion }, ambitos, null!, null!, null!, null!, Registro, Senales,
+                new HttpContextAccessor { HttpContext = peticion }, ambitos, null!, null!, new ActorSinResolver(),
+                Options.Create(new OpcionesInicioSesionSeguro()), Registro, Senales,
                 Options.Create(new SmtpEmailOptions { UrlBasePublica = urlBasePublica }),
                 new Microsoft.Extensions.Hosting.Internal.HostingEnvironment { EnvironmentName = entorno });
         }
@@ -1654,6 +1707,14 @@ public class AccesoCuentaEscenaTests : BunitContext
         public SenalesCapturadas Senales { get; } = new();
         public CorreosCapturados Correos { get; } = new();
         public RegistroCapturado Registro { get; } = new();
+
+        /// <summary>
+        /// Inicio de sesión correcto con una señal ya conocida (país nuevo): sin origen capturado ni
+        /// historial, basta para que <c>RegistrarAsync</c> lo dé por sospechoso y avise a la persona.
+        /// </summary>
+        public Task AvisarInicioInusualAsync() =>
+            _vigilancia.RegistrarAsync(Usuario.Id, Usuario.TenantId, MetodoInicioSesion.Contrasena,
+                ResultadoInicioSesion.Correcto, SenalesInicioSesion.PaisNuevo);
 
         public Task<ResultadoNoHeSidoYo> ConfirmarAsync() =>
             _vigilancia.ConfirmarNoHeSidoYoAsync(Usuario.Id.ToString(), WebEncoders.Base64UrlEncode(Encoding.UTF8.GetBytes("token")));
@@ -1684,6 +1745,10 @@ public class AccesoCuentaEscenaTests : BunitContext
         public override ValueTask<InterceptionResult<DbDataReader>> ReaderExecutingAsync(
             DbCommand command, CommandEventData eventData, InterceptionResult<DbDataReader> result, CancellationToken cancellationToken = default)
         {
+            // El historial de inicios de sesión (RegistrarAsync) llega vacío: primer inicio conocido.
+            if (command.CommandText.Contains("HuellaDispositivo", StringComparison.Ordinal))
+                return ValueTask.FromResult(InterceptionResult<DbDataReader>.SuppressWithResult(new DataTable().CreateDataReader()));
+
             var filas = new DataTable();
             filas.Columns.Add("Id", typeof(Guid));
             filas.Columns.Add("Email", typeof(string));
@@ -1705,6 +1770,12 @@ public class AccesoCuentaEscenaTests : BunitContext
             Guardadas.AddRange(ChangeTracker.Entries<NotificacionUsuario>().Select(e => e.Entity));
             return Task.FromResult(Guardadas.Count);
         }
+    }
+
+    private sealed class ActorSinResolver : IActorAuditoria
+    {
+        public Task<ActorAuditoria> ObtenerAsync() => throw new NotSupportedException();
+        public ActorAuditoria? ObtenerSiYaEstaResuelto() => null;
     }
 
     private sealed class SenalesCapturadas : ISenalesIncidenteSeguridad
