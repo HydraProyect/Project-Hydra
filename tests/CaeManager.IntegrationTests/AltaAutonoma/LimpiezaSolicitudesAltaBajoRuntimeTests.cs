@@ -87,6 +87,61 @@ public class LimpiezaSolicitudesAltaBajoRuntimeTests : IAsyncLifetime
         (await LeerAsync(terminada)).Estado.Should().Be("Caducada");
     }
 
+    [Theory]
+    [InlineData("Iniciada")]
+    [InlineData("CorreoVerificado")]
+    [InlineData("DatosCompletos")]
+    [InlineData("PendientePago")]
+    public async Task Un_CaducaEnUtc_adelantado_no_caduca_antes_de_los_7_dias_desde_la_creacion(string estado)
+    {
+        // app_alta_iniciar_solicitud admite un CaducaEnUtc posterior a la creación pero inferior a siete días.
+        var adelantada = await SembrarAsync(estado, edadHoras: 2 * 24, haceHorasDelUltimoCambio: 24, caducaEnHoras: -1);
+        var antes = await LeerAsync(adelantada);
+
+        (await CaducarAsync()).Should().Be(0, "el plazo de 7 días desde la creación está escrito en la función, no solo en CaducaEnUtc");
+
+        (await LeerAsync(adelantada)).Should().Be(antes, "ni el estado ni VersionFila");
+    }
+
+    // Una zona que cambia la hora dentro de los plazos desplazaría una hora los intervalos en días naturales (95 h o 97 h
+    // en vez de 96, 719 h o 721 h en vez de 720, 167 h o 169 h en vez de 168): la prueba cubre varias zonas porque la
+    // ventana en la que el cambio de hora cae dentro de los plazos depende de la fecha en la que corre.
+    [Theory]
+    [InlineData("Europe/Madrid")]
+    [InlineData("America/New_York")]
+    [InlineData("Australia/Sydney")]
+    [InlineData("Pacific/Auckland")]
+    public async Task Los_plazos_de_caducidad_son_horas_exactas_con_cualquier_zona_horaria_de_la_sesion(string zona)
+    {
+        var pagoAntes = await SembrarAsync("PendientePago", edadHoras: 8 * 24, haceHorasDelUltimoCambio: 95.5);
+        var pagoDespues = await SembrarAsync("PendientePago", edadHoras: 8 * 24, haceHorasDelUltimoCambio: 96.5);
+        var creacionAntes = await SembrarAsync("Iniciada", edadHoras: 167.5, haceHorasDelUltimoCambio: 24, caducaEnHoras: -1);
+        var creacionDespues = await SembrarAsync("Iniciada", edadHoras: 168.5, haceHorasDelUltimoCambio: 24, caducaEnHoras: -1);
+
+        (await CaducarAsync(zona)).Should().Be(2);
+
+        (await LeerAsync(pagoAntes)).Estado.Should().Be("PendientePago", "lleva 95,5 horas, no 96");
+        (await LeerAsync(pagoDespues)).Estado.Should().Be("Caducada", "lleva 96,5 horas");
+        (await LeerAsync(creacionAntes)).Estado.Should().Be("Iniciada", "lleva 167,5 horas, no 168");
+        (await LeerAsync(creacionDespues)).Estado.Should().Be("Caducada", "lleva 168,5 horas");
+    }
+
+    [Theory]
+    [InlineData("Europe/Madrid")]
+    [InlineData("America/New_York")]
+    [InlineData("Australia/Sydney")]
+    [InlineData("Pacific/Auckland")]
+    public async Task El_plazo_de_borrado_son_720_horas_exactas_con_cualquier_zona_horaria_de_la_sesion(string zona)
+    {
+        var antes = await SembrarAsync("Caducada", edadHoras: 719.5, haceHorasDelUltimoCambio: 22 * 24, conAceptaciones: true);
+        var despues = await SembrarAsync("Caducada", edadHoras: 720.5, haceHorasDelUltimoCambio: 23 * 24, conAceptaciones: true);
+        var filaAntes = await LeerAsync(antes);
+
+        (await BorrarAsync(zona)).Should().Be(1);
+
+        (await LeerAsync(antes)).Should().Be(filaAntes, "lleva 719,5 horas, no 720");
+        (await LeerAsync(despues)).Correo.Should().BeNull("lleva 720,5 horas");
+    }
     [Fact]
     public async Task Caducar_incrementa_VersionFila_y_un_escritor_optimista_que_leyo_antes_ya_no_pisa_la_fila()
     {
@@ -306,7 +361,7 @@ public class LimpiezaSolicitudesAltaBajoRuntimeTests : IAsyncLifetime
             var nombre = lector.GetString(0);
             vistas++;
             lector.GetBoolean(1).Should().BeTrue($"{nombre}: SECURITY DEFINER");
-            lector.GetString(2).Should().Be("search_path=pg_catalog, pg_temp", nombre);
+            lector.GetString(2).Should().Be("search_path=pg_catalog, pg_temp;TimeZone=UTC", $"{nombre}: search_path fijo y zona horaria UTC, para que los plazos no dependan de la conexión");
             lector.GetBoolean(3).Should().BeTrue($"{nombre}: cae_app_runtime");
             lector.GetBoolean(4).Should().BeFalse($"{nombre}: cae_app_soporte");
             lector.GetBoolean(5).Should().BeFalse($"{nombre}: cae_app_aprovisionamiento");
@@ -364,10 +419,12 @@ public class LimpiezaSolicitudesAltaBajoRuntimeTests : IAsyncLifetime
     }
 
     /// <summary>
-    /// Siembra una Solicitud de alta de la edad dada (<c>CaducaEnUtc</c> = creación + 7 días) con todos los datos
+    /// Siembra una Solicitud de alta de la edad dada (<c>CaducaEnUtc</c> = creación + 7 días, o ahora más
+    /// <paramref name="caducaEnHoras"/> si se indica, para sembrar un plazo adelantado) con todos los datos
     /// personales rellenos y <c>VersionFila</c> 3. El último cambio de estado es hace <paramref name="haceHorasDelUltimoCambio"/>.
     /// </summary>
-    private async Task<Guid> SembrarAsync(string estado, double edadHoras, double haceHorasDelUltimoCambio, bool conAceptaciones = false)
+    private async Task<Guid> SembrarAsync(
+        string estado, double edadHoras, double haceHorasDelUltimoCambio, bool conAceptaciones = false, double? caducaEnHoras = null)
     {
         var id = Guid.NewGuid();
         await using var conexion = await AbrirComoPropietarioAsync();
@@ -382,7 +439,8 @@ public class LimpiezaSolicitudesAltaBajoRuntimeTests : IAsyncLifetime
             VALUES (
                 @id, @estado, @correo, upper(@correo), 'AQAAAAIAAYagAAAAEHash', @hashToken,
                 now() + interval '1 day', '203.0.113.9', 'Navegador de prueba',
-                now() - @edad * interval '1 hour', now() - @edad * interval '1 hour' + interval '7 days',
+                now() - @edad * interval '1 hour',
+                COALESCE(now() + @caducaEn * interval '1 hour', now() - @edad * interval '1 hour' + interval '7 days'),
                 now() - @cambio * interval '1 hour', 'Empresa de prueba SL', 'B12345674', 'Calle Falsa 1', '600000000',
                 'De1A10', 'Mensual', true, false, 'cs_test_1', @tenant, @motivo, 3)
             """, conexion))
@@ -393,6 +451,7 @@ public class LimpiezaSolicitudesAltaBajoRuntimeTests : IAsyncLifetime
             orden.Parameters.AddWithValue("hashToken", Convert.ToHexStringLower(System.Security.Cryptography.SHA256.HashData(id.ToByteArray())));
             orden.Parameters.AddWithValue("edad", edadHoras);
             orden.Parameters.AddWithValue("cambio", haceHorasDelUltimoCambio);
+            orden.Parameters.Add(new NpgsqlParameter("caducaEn", NpgsqlTypes.NpgsqlDbType.Double) { Value = caducaEnHoras is { } c ? c : DBNull.Value });
             orden.Parameters.AddWithValue("tenant", estado == "Completada" ? Guid.NewGuid() : DBNull.Value);
             orden.Parameters.AddWithValue("motivo", estado is "Bloqueada" or "Reembolsada" ? "motivo de prueba" : DBNull.Value);
             await orden.ExecuteNonQueryAsync();
@@ -413,16 +472,30 @@ public class LimpiezaSolicitudesAltaBajoRuntimeTests : IAsyncLifetime
         return id;
     }
 
-    private async Task<int> CaducarAsync()
+    private async Task<int> CaducarAsync(string? zonaHoraria = null)
     {
         await using var conexion = await AbrirComoRuntimeAsync();
+        await FijarZonaHorariaAsync(conexion, zonaHoraria);
         return await EscalarAsync(conexion, $"SELECT app_alta_caducar_solicitudes({Lote})");
     }
 
-    private async Task<int> BorrarAsync()
+    private async Task<int> BorrarAsync(string? zonaHoraria = null)
     {
         await using var conexion = await AbrirComoRuntimeAsync();
+        await FijarZonaHorariaAsync(conexion, zonaHoraria);
         return await EscalarAsync(conexion, $"SELECT app_alta_borrar_datos_personales({Lote})");
+    }
+
+    /// <summary>La zona de la sesión es entrada adversaria: las funciones fijan la suya y no deben notarla.</summary>
+    private static async Task FijarZonaHorariaAsync(NpgsqlConnection conexion, string? zonaHoraria)
+    {
+        if (zonaHoraria is null)
+            return;
+
+        await using (var fijar = new NpgsqlCommand($"SET TimeZone = '{zonaHoraria}'", conexion))
+            await fijar.ExecuteNonQueryAsync();
+        await using var leer = new NpgsqlCommand("SELECT current_setting('TimeZone')", conexion);
+        ((string)(await leer.ExecuteScalarAsync())!).Should().Be(zonaHoraria, "la sesión usa la zona horaria que pide la prueba");
     }
 
     private static async Task<int> EscalarAsync(NpgsqlConnection conexion, string sql)

@@ -38,6 +38,7 @@ public class CaducidadYBorradoSolicitudesAltaTests
     {
         Cuerpo(nombre).Should().Contain("SECURITY DEFINER")
             .And.Contain("SET search_path TO 'pg_catalog', 'pg_temp'")
+            .And.Contain("SET TimeZone TO 'UTC'", "los plazos no dependen de la zona horaria de la conexión")
             .And.Contain("(p_lote integer) RETURNS integer")
             .And.Contain("p_lote < 1 OR p_lote > 1000")
             .And.Contain("LIMIT p_lote")
@@ -45,7 +46,8 @@ public class CaducidadYBorradoSolicitudesAltaTests
             .And.Contain("\"VersionFila\" = s.\"VersionFila\" + 1", "la transición incrementa el token de concurrencia")
             .And.Contain("rolsuper OR rolbypassrls", "avisa si el propietario no evita la RLS")
             .And.Contain("pg_catalog.clock_timestamp()", "decide con el reloj de la base")
-            .And.NotContain("now()", "el reloj de la aplicación no entra, y el de la transacción tampoco");
+            .And.NotContain("now()", "el reloj de la aplicación no entra, y el de la transacción tampoco")
+            .And.NotContain(" days'", "los plazos son horas exactas, no días naturales");
     }
 
     [Fact]
@@ -72,9 +74,10 @@ public class CaducidadYBorradoSolicitudesAltaTests
         var cuerpo = Cuerpo("app_alta_caducar_solicitudes");
 
         cuerpo.Should().Contain("\"CaducaEnUtc\" <= v_ahora")
+            .And.Contain("s.\"CreadaEnUtc\" <= v_ahora - interval '168 hours'", "un CaducaEnUtc adelantado no caduca antes de siete días")
             .And.Contain("'Iniciada', 'CorreoVerificado', 'DatosCompletos'")
             .And.Contain("s.\"Estado\" = 'PendientePago'")
-            .And.Contain("s.\"UltimoCambioEstadoEnUtc\" <= v_ahora - interval '4 days'",
+            .And.Contain("s.\"UltimoCambioEstadoEnUtc\" <= v_ahora - interval '96 hours'",
                 "una sesión de Checkout pagable o un aviso de pago por llegar no pueden encontrarse la fila ya caducada")
             .And.Contain("\"Estado\" = 'Caducada'")
             .And.NotContain("DELETE ")
@@ -86,11 +89,11 @@ public class CaducidadYBorradoSolicitudesAltaTests
     }
 
     [Fact]
-    public void Borrar_solo_alcanza_lo_caducado_con_30_dias_desde_la_creacion_y_deja_traza()
+    public void Borrar_solo_alcanza_lo_caducado_con_720_horas_desde_la_creacion_y_deja_traza()
     {
         var cuerpo = Cuerpo("app_alta_borrar_datos_personales");
 
-        cuerpo.Should().Contain("interval '30 days'")
+        cuerpo.Should().Contain("interval '720 hours'")
             .And.Contain("s.\"Estado\" = 'Caducada'")
             .And.Contain("s.\"DatosPersonalesBorradosEnUtc\" IS NULL", "repetirlo no cambia nada")
             .And.Contain("s.\"CreadaEnUtc\" <= v_corte")

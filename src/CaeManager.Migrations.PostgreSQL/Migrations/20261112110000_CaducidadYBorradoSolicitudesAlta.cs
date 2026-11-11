@@ -12,7 +12,9 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations;
 /// <list type="bullet">
 /// <item><c>app_alta_caducar_solicitudes</c> pasa a <c>Caducada</c> las Solicitudes de alta de <c>Iniciada</c>,
 /// <c>CorreoVerificado</c>, <c>DatosCompletos</c> y <c>PendientePago</c> cuyo plazo (<c>CaducaEnUtc</c>, 7 días desde
-/// <c>CreadaEnUtc</c>) ya venció según el reloj de la base. Espejo de <c>SolicitudAlta.Caducar</c>: nada que esté en
+/// <c>CreadaEnUtc</c>) ya venció según el reloj de la base y que además llevan creadas al menos 168 horas
+/// (un <c>CaducaEnUtc</c> adelantado no basta). Los plazos de las dos funciones son horas exactas y las dos fijan
+/// <c>TimeZone</c> a UTC, para que un cambio de hora de la zona de la conexión no los desplace. Espejo de <c>SolicitudAlta.Caducar</c>: nada que esté en
 /// <c>Pagada</c>, <c>Completada</c>, <c>Reembolsada</c>, <c>DerivadaAAcceso</c> ni <c>Bloqueada</c>. Una Solicitud de
 /// alta en <c>PendientePago</c> espera además 4 días desde que entró en ese estado: <c>MarcarPagada</c> solo parte de
 /// <c>PendientePago</c> y el dominio fija que lo pagado está pagado aunque el plazo haya vencido, así que caducar una
@@ -57,6 +59,7 @@ public partial class CaducidadYBorradoSolicitudesAlta : Migration
             CREATE FUNCTION public.app_alta_caducar_solicitudes(p_lote integer) RETURNS integer
                 LANGUAGE plpgsql SECURITY DEFINER
                 SET search_path TO 'pg_catalog', 'pg_temp'
+                SET TimeZone TO 'UTC'
                 AS $$
             DECLARE
                 v_ahora timestamp with time zone;
@@ -74,14 +77,19 @@ public partial class CaducidadYBorradoSolicitudesAlta : Migration
 
                 -- SKIP LOCKED: una fila que otra transacción tiene bloqueada (otra instancia, la verificación del
                 -- correo) se deja para la siguiente pasada en vez de esperarla. Los plazos se comparan con el reloj
-                -- de la base. PendientePago espera 4 días desde que entró: ver el comentario de la migración.
+                -- de la base. PendientePago espera 96 horas desde que entró: ver el comentario de la migración.
+                -- Los plazos son horas exactas, no días naturales (con otra zona horaria un cambio de hora daría
+                -- 95 o 97 horas), y la función fija TimeZone a UTC. El plazo de 168 horas desde la creación está
+                -- escrito aquí además de en CaducaEnUtc: app_alta_iniciar_solicitud admite un CaducaEnUtc posterior
+                -- a la creación pero inferior a siete días, y esa fila no puede caducar antes de plazo.
                 WITH lote AS (
                     SELECT s."Id"
                       FROM public."SolicitudesAlta" s
                      WHERE s."CaducaEnUtc" <= v_ahora
+                       AND s."CreadaEnUtc" <= v_ahora - interval '168 hours'
                        AND (s."Estado" IN ('Iniciada', 'CorreoVerificado', 'DatosCompletos')
                             OR (s."Estado" = 'PendientePago'
-                                AND s."UltimoCambioEstadoEnUtc" <= v_ahora - interval '4 days'))
+                                AND s."UltimoCambioEstadoEnUtc" <= v_ahora - interval '96 hours'))
                      ORDER BY s."CaducaEnUtc", s."Id"
                      LIMIT p_lote
                        FOR UPDATE SKIP LOCKED)
@@ -100,6 +108,7 @@ public partial class CaducidadYBorradoSolicitudesAlta : Migration
             CREATE FUNCTION public.app_alta_borrar_datos_personales(p_lote integer) RETURNS integer
                 LANGUAGE plpgsql SECURITY DEFINER
                 SET search_path TO 'pg_catalog', 'pg_temp'
+                SET TimeZone TO 'UTC'
                 AS $$
             DECLARE
                 v_ahora timestamp with time zone;
@@ -116,7 +125,7 @@ public partial class CaducidadYBorradoSolicitudesAlta : Migration
                 END IF;
 
                 v_ahora := pg_catalog.clock_timestamp();
-                v_corte := v_ahora - interval '30 days';
+                v_corte := v_ahora - interval '720 hours';
 
                 -- Los Id se bloquean primero y las dos escrituras van sobre ese mismo conjunto: las aceptaciones
                 -- se borran exactamente para las Solicitudes de alta que se limpian.
