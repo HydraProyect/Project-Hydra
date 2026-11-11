@@ -233,7 +233,13 @@ public partial class PanelDarAcceso
         _mensajeErrorFormulario = null;
     }
 
-    private void AlCambiarUltimoDiaNoValido(bool noValido) => _ultimoDiaNoValido = noValido;
+    // Al volver a ser una fecha entera (o quedar vacía), el aviso «no es una fecha» de un envío anterior ya no es cierto.
+    private void AlCambiarUltimoDiaNoValido(bool noValido)
+    {
+        _ultimoDiaNoValido = noValido;
+        if (!noValido)
+            _mensajeErrorFormulario = null;
+    }
 
     private void AlElegirDestinatario(string valor)
     {

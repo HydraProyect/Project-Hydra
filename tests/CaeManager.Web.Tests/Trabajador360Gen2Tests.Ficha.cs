@@ -406,6 +406,27 @@ public partial class Trabajador360Gen2Tests
         campo.MensajeError.Should().Be("Introduce una fecha válida.");
     }
 
+    // Ronda 3: una fecha a medias es lo escrito sin guardar aunque el formulario siga con el valor cargado (el campo entrega «»
+    // y, sin alta cargada, «» es lo que ya había): Escape tiene que preguntar antes de descartarla.
+    [Fact]
+    public async Task Una_fecha_a_medias_cuenta_como_cambio_sin_guardar_aunque_el_valor_no_cambie()
+    {
+        var id = Guid.NewGuid(); ConTrabajador(id);
+        var cut = Renderizar(id); var drawer = await AbrirEditorFicha(cut);
+        await IrAPasoFicha(drawer, "Trabajo");
+        drawer.FindComponent<DrawerFormulario>().Instance.HayCambios().Should().BeFalse("control: sin tocar nada no hay nada que descartar");
+
+        await CambiarCampoFicha(drawer, "Alta en la empresa", "15/03");
+
+        drawer.FindComponents<CampoTexto>().Single(c => c.Instance.Etiqueta == "Alta en la empresa").Instance.Valor
+            .Should().BeEmpty("el valor del formulario no ha cambiado: solo el campo sabe que hay texto");
+        drawer.FindComponent<DrawerFormulario>().Instance.HayCambios().Should().BeTrue();
+
+        await CambiarCampoFicha(drawer, "Alta en la empresa", "");
+
+        drawer.FindComponent<DrawerFormulario>().Instance.HayCambios().Should().BeFalse("borrado el texto a medias, vuelve a no haber nada");
+    }
+
     // Hallazgo de la revisión (ronda 2): al dejar el paso, el campo se destruye con su texto. La marca no puede sobrevivirle
     // (al guardar saldría un aviso bajo un campo vacío y válido), y la fecha vuelve a la cargada: el campo había entregado «»
     // y guardar así borraría el alta sin que nadie lo viera.

@@ -278,6 +278,47 @@ public class PanelDarAccesoTests : BunitContext
             .Which.UltimoDia.Should().Be(ultimoDia);
     }
 
+    // El 31/12/9999 es una fecha entera para el campo, pero no hay un «último día» posterior que dé fin al acceso: no se
+    // propone (sería un acceso sin fin en la práctica) y el aviso es el del plazo máximo, no el de formato.
+    [Fact]
+    public async Task Proponer_con_el_ultimo_dia_representable_no_envia_nada_y_dice_el_limite()
+    {
+        var lucia = new DestinatarioDeApoyoDto(Guid.NewGuid(), "Lucía");
+        _mediador.Operaciones = [Operacion("Empresa Mía", Yo)];
+        _mediador.Destinatarios = [lucia];
+        var cut = Render<PanelDarAcceso>();
+        await cut.InvokeAsync(() => cut.Find("[data-dar-acceso-operacion] > button").Click());
+
+        cut.Find("select").Change(lucia.UsuarioId.ToString());
+        await cut.Find("input[data-campo-fecha]").InputAsync(new Microsoft.AspNetCore.Components.ChangeEventArgs { Value = "31/12/9999" });
+        await cut.Find("input[data-campo-fecha]").BlurAsync(new Microsoft.AspNetCore.Components.Web.FocusEventArgs());
+        await cut.InvokeAsync(() => Boton(cut, "Proponer").Click());
+
+        _mediador.Enviadas.OfType<ProponerApoyoCarteraCommand>().Should().BeEmpty();
+        cut.FindComponent<DrawerFormulario>().Instance.MensajeError.Should().StartWith("Elige un último día anterior al 31/12/9999");
+    }
+
+    // El aviso «no es una fecha» de un envío anterior deja de ser cierto cuando el campo vuelve a no tener texto a medias:
+    // borrar lo escrito no cambia el valor (sigue «»), así que solo el cambio de estado del campo puede retirarlo.
+    [Fact]
+    public async Task Al_borrar_el_texto_a_medias_se_retira_el_aviso_de_que_no_es_una_fecha()
+    {
+        var lucia = new DestinatarioDeApoyoDto(Guid.NewGuid(), "Lucía");
+        _mediador.Operaciones = [Operacion("Empresa Mía", Yo)];
+        _mediador.Destinatarios = [lucia];
+        var cut = Render<PanelDarAcceso>();
+        await cut.InvokeAsync(() => cut.Find("[data-dar-acceso-operacion] > button").Click());
+        cut.Find("select").Change(lucia.UsuarioId.ToString());
+        await cut.Find("input[data-campo-fecha]").InputAsync(new Microsoft.AspNetCore.Components.ChangeEventArgs { Value = "15/03" });
+        await cut.Find("input[data-campo-fecha]").BlurAsync(new Microsoft.AspNetCore.Components.Web.FocusEventArgs());
+        await cut.InvokeAsync(() => Boton(cut, "Proponer").Click());
+        cut.FindComponent<DrawerFormulario>().Instance.MensajeError.Should().StartWith("El último día no es una fecha", "control positivo: el aviso estaba");
+
+        await cut.Find("input[data-campo-fecha]").InputAsync(new Microsoft.AspNetCore.Components.ChangeEventArgs { Value = "" });
+
+        cut.FindComponent<DrawerFormulario>().Instance.MensajeError.Should().BeNull();
+    }
+
     // El «min» que acotaba el selector nativo pasa al calendario de CampoFecha: los días anteriores a hoy no se eligen.
     [Fact]
     public async Task El_calendario_no_deja_elegir_un_dia_anterior_a_hoy()

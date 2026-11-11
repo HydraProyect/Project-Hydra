@@ -477,8 +477,30 @@ public class ClavesApiGen2Tests : BunitContext
         await cut.FindAll("button").Single(b => b.TextContent.Trim() == "Generar").ClickAsync(new MouseEventArgs());
 
         mediator.Enviadas.OfType<GenerarClaveApiCommand>().Should().BeEmpty();
-        cut.Markup.Should().NotContain("La caducidad no es una fecha válida", "la fecha está bien escrita: no es un aviso de formato");
-        cut.Markup.Should().Contain("como máximo dentro de 364 días");
+        // El texto de ayuda del modal ya dice «como máximo dentro de 364 días»: se mira el aviso del formulario, no el Markup.
+        var aviso = cut.FindComponents<ModalFormulario>().Single(m => m.Instance.Visible).Instance.MensajeError;
+        aviso.Should().StartWith("Elige hasta qué día vale la clave").And.Contain("364 días");
+        aviso.Should().NotContain("no es una fecha válida", "la fecha está bien escrita: no es un aviso de formato");
+    }
+
+    // Borrar el texto a medias no cambia el valor (sigue «»): solo el cambio de estado del campo puede retirar el aviso.
+    [Fact]
+    public async Task Al_borrar_la_caducidad_a_medias_se_retira_el_aviso_de_que_no_es_una_fecha()
+    {
+        var (cut, mediator) = Renderizar();
+        await Seleccionar(cut, mediator.DelegacionId);
+        await cut.FindAll("button").Single(b => b.TextContent.Trim() == "Generar clave").ClickAsync(new MouseEventArgs());
+        await Campo(cut, "Nombre").InputAsync(new ChangeEventArgs { Value = "Integración ERP" });
+        await Campo(cut, "Motivo de la emisión").InputAsync(new ChangeEventArgs { Value = "Alta del conector del ERP" });
+        await Campo(cut, "Válida hasta").InputAsync(new ChangeEventArgs { Value = "15/03" });
+        await Campo(cut, "Válida hasta").BlurAsync(new FocusEventArgs());
+        await cut.FindAll("button").Single(b => b.TextContent.Trim() == "Generar").ClickAsync(new MouseEventArgs());
+        cut.FindComponents<ModalFormulario>().Single(m => m.Instance.Visible).Instance.MensajeError
+            .Should().StartWith("La caducidad no es una fecha válida", "control positivo: el aviso estaba");
+
+        await Campo(cut, "Válida hasta").InputAsync(new ChangeEventArgs { Value = "" });
+
+        cut.FindComponents<ModalFormulario>().Single(m => m.Instance.Visible).Instance.MensajeError.Should().BeNull();
     }
 
     // CampoFecha entrega «» mientras lo escrito no es una fecha entera: sin el bloqueo, «15/03» saldría como una clave

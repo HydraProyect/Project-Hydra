@@ -13,7 +13,7 @@
 @inject IStringLocalizer<TextosTrabajadores> Textos
 
 <DrawerFormulario Visible="Visible" VisibleChanged="VisibleChanged" Titulo="@Textos["FichaEditarTitulo"]"
-    Cargando="_cargando" HayCambios="() => Visible && _lista && _instantanea.Difiere(Instantanea())"
+    Cargando="_cargando" HayCambios="() => Visible && _lista && (_fechasNoValidas.Count > 0 || _instantanea.Difiere(Instantanea()))"
     Guardando="_guardando" MensajeError="@_error" HayErroresDeCampo="@HayErroresDelPasoVisible"
     MotivoGuardarDeshabilitado="@(!_lista ? Textos["FichaNoDisponible"].Value : null)" OnGuardar="GuardarAsync"
     TextoGuardar="@Textos["BotonGuardar"]" TextoCancelar="@Textos["BotonCancelar"]"

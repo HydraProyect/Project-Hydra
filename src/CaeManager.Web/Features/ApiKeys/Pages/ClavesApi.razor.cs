@@ -102,6 +102,8 @@ public partial class ClavesApi : CaeManager.Web.Components.PaginaIntegrableConfi
     private void CambiarMotivoNuevaClave(string valor) { _motivoNuevaClave = valor; _errorGenerar = null; }
     private void CambiarCaducidadNuevaClave(string valor) { _caducidadNuevaClave = valor; _errorGenerar = null; }
     // «Cancelar» cierra como la X (D-05): con el nombre escrito pregunta antes de descartarlo; lo hace el ModalFormulario.
+    // Al volver a ser una fecha entera (o quedar vacía), el aviso «no es una fecha» de un envío anterior ya no es cierto.
+    private void CambiarCaducidadNoValida(bool noValida) { _caducidadNoValida = noValida; if (!noValida) _errorGenerar = null; }
     private void CerrarFormularioGenerar(bool visible) { if (!visible && !_generando) { _mostrarFormularioGenerar = false; _nombreNuevaClave = string.Empty; _motivoNuevaClave = string.Empty; _caducidadNuevaClave = string.Empty; _caducidadNoValida = false; _errorGenerar = null; } }
     private void CerrarClaveGenerada(bool visible) { if (!visible) _claveGenerada = null; }
     private void PedirRevocacion(ClaveApiDto clave) { if (!_revocando) _claveARevocar = clave; }
