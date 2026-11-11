@@ -54,6 +54,7 @@ public class ReclamacionConsolidadaEmpresaEmpleadoraTests : IAsyncLifetime
     private readonly Guid _tenantAgenda = Guid.NewGuid();
     private readonly Guid _tenantSinBloqueo = Guid.NewGuid();
     private readonly Guid _tenantVigente = Guid.NewGuid();
+    private readonly Guid _tenantAgendaVigente = Guid.NewGuid();
     private readonly Guid _usuario = Guid.NewGuid();
     private readonly List<CaeManagerDbContext> _contextosRuntime = [];
 
@@ -65,6 +66,7 @@ public class ReclamacionConsolidadaEmpresaEmpleadoraTests : IAsyncLifetime
     private Escenario _agenda = null!;
     private EscenarioSinBloqueo _sinBloqueo = null!;
     private Escenario _vigente = null!;
+    private Escenario _agendaVigente = null!;
 
     /// <summary>Un Centro que exige sin marcar nada «bloquea el acceso»: Ana con el certificado vencido, Bea sin él y el Plan vencido.</summary>
     private sealed record EscenarioSinBloqueo(
@@ -98,6 +100,8 @@ public class ReclamacionConsolidadaEmpresaEmpleadoraTests : IAsyncLifetime
         _agenda = await SembrarAsync(_tenantAgenda, conPlanDePrevencion: true, conAgendaPorTipo: true);
         _sinBloqueo = await SembrarSinBloqueoAsync(_tenantSinBloqueo);
         _vigente = await SembrarAsync(_tenantVigente, conPlanDePrevencion: true, beaVigente: true);
+        _agendaVigente = await SembrarAsync(
+            _tenantAgendaVigente, conPlanDePrevencion: true, conAgendaPorTipo: true, beaVigente: true, planVigente: true, conDuenoDeLaFormacion: true);
     }
 
     public async Task DisposeAsync()
@@ -260,6 +264,25 @@ public class ReclamacionConsolidadaEmpresaEmpleadoraTests : IAsyncLifetime
         preventiva.Lotes.Single(l => l.EmpresaEmpleadora?.DelegacionEmpresaId == v.MalagaId).Documentos
             .Should().ContainSingle(d => d.DocumentoId == v.DocBeaCertificadoId && d.Estado == EstadoDocumento.Vigente,
                 "la preventiva sigue con su ventana de 3 meses: el filtro es solo de la reclamación por acceso");
+    }
+
+    [Fact]
+    public async Task Por_acceso_sin_lo_vigente_ni_lo_no_exigido_la_agenda_solo_ofrece_a_quien_recibe_lo_que_viaja()
+    {
+        // Agenda con un predeterminado, la dueña del Plan y el dueño de la formación. El Plan de la Empresa y el certificado
+        // de Bea están vigentes (dentro de la ventana) y la formación de Ana no la exige el Centro: solo viaja el certificado
+        // de Ana. Si los destinatarios se resolvieran antes de quitar todo eso, el cajón ofrecería a la dueña del Plan y al
+        // dueño de la formación, y el envío los rechazaría por desactualizados.
+        var v = _agendaVigente;
+        var arnes = new Arnes(Runtime(_tenantAgendaVigente), new AlcanceDatosServiceFalso());
+
+        var lotes = await arnes.PorAcceso.Handle(
+            new ObtenerReclamacionPorAccesoQuery(v.EmpresaId, v.CentroId, [v.AnaId, v.BeaId]), CancellationToken.None);
+
+        var lote = lotes.Should().ContainSingle("lo de la Empresa está vigente: ni su tarjeta ni fusión en la de la agenda").Subject;
+        lote.EmpresaEmpleadora!.DelegacionEmpresaId.Should().BeNull();
+        lote.Documentos.Select(d => d.DocumentoId).Should().BeEquivalentTo([v.DocAnaCertificadoId]);
+        lote.Destinatarios!.Select(d => d.Email).Should().BeEquivalentTo(["agenda@contratista.test"]);
     }
 
     // ---------- Envío ----------
@@ -462,7 +485,8 @@ public class ReclamacionConsolidadaEmpresaEmpleadoraTests : IAsyncLifetime
     // ---------- Siembra ----------
 
     private async Task<Escenario> SembrarAsync(
-        Guid tenant, bool conPlanDePrevencion, bool conPlataforma = false, bool conAgendaPorTipo = false, bool beaVigente = false)
+        Guid tenant, bool conPlanDePrevencion, bool conPlataforma = false, bool conAgendaPorTipo = false, bool beaVigente = false,
+        bool planVigente = false, bool conDuenoDeLaFormacion = false)
     {
         using var ambito = AmbitoTenantExplicito.Establecer(tenant);
         var c = _propietario;
@@ -499,6 +523,13 @@ public class ReclamacionConsolidadaEmpresaEmpleadoraTests : IAsyncLifetime
             var duenaDelPlan = ContactoAgenda.DeEmpresa(empresa.Id, "Dueña del plan", "plan@contratista.test", esPredeterminado: false);
             duenaDelPlan.EstablecerTiposDocumento([plan.Id]);
             c.ContactosAgenda.Add(duenaDelPlan);
+            if (conDuenoDeLaFormacion)
+            {
+                // Dueño de un Tipo que llega en los lotes del Centro pero que el Centro no exige: no viaja, así que no se le ofrece.
+                var duenoDeLaFormacion = ContactoAgenda.DeEmpresa(empresa.Id, "Dueño de la formación", "formacion@contratista.test", esPredeterminado: false);
+                duenoDeLaFormacion.EstablecerTiposDocumento([formacion.Id]);
+                c.ContactosAgenda.Add(duenoDeLaFormacion);
+            }
         }
         else
         {
@@ -526,7 +557,7 @@ public class ReclamacionConsolidadaEmpresaEmpleadoraTests : IAsyncLifetime
         Documento? docPlan = null;
         if (conPlanDePrevencion)
         {
-            docPlan = Documento.DeEmpresa(empresa.Id, plan.Id, hoy.AddMonths(-10), porVencer);
+            docPlan = Documento.DeEmpresa(empresa.Id, plan.Id, hoy.AddMonths(-10), planVigente ? VigenciaDocumento.VenceEl(hoy.AddMonths(2)) : porVencer);
             c.Documentos.Add(docPlan);
         }
         await c.SaveChangesAsync();
