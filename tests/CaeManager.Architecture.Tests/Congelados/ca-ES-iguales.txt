@@ -1,4 +1,5 @@
 src/CaeManager.Web/Features/AsistenteIa/Recursos/TextosAsistenteIa.resx :: Paso_CrearVisitaCommand = 1
+src/CaeManager.Web/Features/AtajosGlobales/Recursos/TextosAtajosGlobales.resx :: ListaMarcarFila = 1
 src/CaeManager.Web/Features/AtajosGlobales/Recursos/TextosAtajosGlobales.resx :: TeclaAltClic = 1
 src/CaeManager.Web/Features/Bandeja/Recursos/TextosMiTrabajo.resx :: EmpresasConsultadasUna = 1
 src/CaeManager.Web/Features/Calendario/Recursos/TextosCalendario.resx :: LeyendaVisita = 1
