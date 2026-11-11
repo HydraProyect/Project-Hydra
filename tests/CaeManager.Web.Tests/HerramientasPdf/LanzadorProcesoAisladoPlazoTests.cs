@@ -129,6 +129,98 @@ public sealed class LanzadorProcesoAisladoPlazoTests
 
     private const string MarcaFalloTardio = "fallo tardío de una tubería abandonada";
 
+    [Fact]
+    public async Task Una_tarea_que_falla_justo_despues_de_vencer_su_espera_consta_terminada_y_su_excepcion_queda_observada()
+    {
+        // La espera vence y, antes de que el filtro mire IsCompleted, la tarea falla: lo capturado es el vencimiento, no su
+        // excepción. Un contexto de sincronización hace que el fallo ocurra exactamente en ese hueco.
+        var sinObservar = new List<string>();
+        EventHandler<UnobservedTaskExceptionEventArgs> anotar = (_, e) =>
+        {
+            lock (sinObservar)
+                sinObservar.AddRange(e.Exception.InnerExceptions.Select(ex => ex.Message));
+        };
+        TaskScheduler.UnobservedTaskException += anotar;
+        try
+        {
+            var (terminada, publicaciones) = await FallarJustoTrasVencerAsync();
+            DejarUnFalloSinObservar();
+            for (var intento = 0; intento < 5 && !Contiene(sinObservar, MarcaControl); intento++)
+            {
+                GC.Collect();
+                GC.WaitForPendingFinalizers();
+            }
+
+            terminada.Should().BeTrue("la tarea terminó, aunque fuera después de vencer la espera");
+            publicaciones.Should().Be(1, "la tarea falló en el hueco entre el vencimiento y el filtro");
+            Contiene(sinObservar, MarcaControl).Should().BeTrue("el instrumento ve una excepción que nadie observó");
+            Contiene(sinObservar, MarcaFalloEnElHueco).Should().BeFalse("la excepción de la tarea se observa aunque se capturara el vencimiento");
+        }
+        finally
+        {
+            TaskScheduler.UnobservedTaskException -= anotar;
+        }
+    }
+
+    private const string MarcaFalloEnElHueco = "fallo de una tubería justo tras vencer su espera";
+    private const string MarcaControl = "control: fallo que nadie observa";
+
+    private static bool Contiene(List<string> mensajes, string marca)
+    {
+        lock (mensajes)
+            return mensajes.Contains(marca);
+    }
+
+    [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.NoInlining)]
+    private static void DejarUnFalloSinObservar()
+    {
+        var fuente = new TaskCompletionSource();
+        fuente.SetException(new IOException(MarcaControl));
+    }
+
+    [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.NoInlining)]
+    private static async Task<(bool Terminada, int Publicaciones)> FallarJustoTrasVencerAsync()
+    {
+        var tarea = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var contexto = new ContextoQueFallaAntesDeSeguir(() => tarea.TrySetException(new IOException(MarcaFalloEnElHueco)));
+        var anterior = SynchronizationContext.Current;
+        Task<bool> terminaEn;
+        SynchronizationContext.SetSynchronizationContext(contexto);
+        try
+        {
+            terminaEn = LanzadorProcesoAislado.TerminaEnAsync(tarea.Task, Margen);
+        }
+        finally
+        {
+            SynchronizationContext.SetSynchronizationContext(anterior);
+        }
+
+        var terminada = await terminaEn.WaitAsync(TimeSpan.FromSeconds(5));
+        return (terminada, contexto.Publicaciones);
+    }
+
+    /// <summary>
+    /// Al reanudar tras la espera, primero hace fallar la tarea y luego sigue: el hueco antes del filtro. En otro hilo y con
+    /// una pausa, para que <c>WaitAsync</c> haya retirado ya su continuación de la tarea (si siguiera puesta, ella observaría
+    /// la excepción y el test no distinguiría nada).
+    /// </summary>
+    private sealed class ContextoQueFallaAntesDeSeguir(Action alPublicar) : SynchronizationContext
+    {
+        private int _publicaciones;
+        public int Publicaciones => Volatile.Read(ref _publicaciones);
+
+        public override void Post(SendOrPostCallback d, object? state)
+        {
+            Interlocked.Increment(ref _publicaciones);
+            ThreadPool.QueueUserWorkItem(_ =>
+            {
+                Thread.Sleep(100);
+                alPublicar();
+                d(state);
+            });
+        }
+    }
+
     [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.NoInlining)]
     private static async Task AbandonarYFallarDespuesAsync()
     {

@@ -78,6 +78,17 @@ public sealed class UnidorPdfEnProcesoAparte(
 {
     private static readonly string[] VariablesHeredadas = ["PATH", "LANG", "LC_ALL", "SystemRoot", "windir"];
 
+    /// <summary>
+    /// Solo con capacidad 1. Con más, otro turno podría degradar la instancia después de que este pasara la comprobación de
+    /// <see cref="LimitadorProcesosAislados.EntrarAsync"/> y antes de lanzar, y se lanzaría un proceso con la herramienta ya
+    /// desactivada. Hacer atómicas la comprobación y el arranque obligaría a sostener un candado mientras el lanzador arranca
+    /// el hijo, que es justo el tramo que puede bloquearse. Subir la capacidad exige rediseñar esto antes; por eso falla aquí.
+    /// </summary>
+    private readonly LimitadorProcesosAislados _limitador = limitador.Capacidad == 1
+        ? limitador
+        : throw new ArgumentOutOfRangeException(nameof(limitador), limitador.Capacidad,
+            "Unir PDF solo admite un proceso aislado a la vez: con más, degradar la instancia no impide un lanzamiento ya en curso.");
+
     public async Task<Result<InfoPdfParaUnir>> InspeccionarAsync(byte[] contenidoPdf, CancellationToken cancellationToken)
     {
         var salida = await EjecutarAsync(ProtocoloProcesoHerramientasPdf.OperacionInspeccionar, [contenidoPdf],
@@ -126,26 +137,18 @@ public sealed class UnidorPdfEnProcesoAparte(
 
         // Sin turno a tiempo, o con el limitador degradado, es el mismo transitorio que un presupuesto de memoria lleno: la
         // pantalla pide reintentar más tarde, y no se lanza nada.
-        var turno = await limitador.EntrarAsync(opciones.EsperaMaximaTurno, cancellationToken)
+        var turno = await _limitador.EntrarAsync(opciones.EsperaMaximaTurno, cancellationToken)
             ?? throw new PresupuestoMemoriaAgotadoException();
 
         // El turno no va en un using: se suelta solo en el camino en que consta que no queda nada vivo de la ejecución.
         var seguimiento = new SeguimientoProcesoAislado();
         // En otro hilo: el tramo síncrono del lanzador (Process.Start, registrar la cancelación) también queda dentro de la
         // espera acotada de abajo, aunque se bloquee antes de devolver su tarea.
-        var ejecucion = Task.Run(() =>
-        {
-            // Con capacidad > 1 la instancia pudo degradarse después de dar este turno: ya no se lanza nada más.
-            if (limitador.Degradado)
-            {
-                seguimiento.ConfirmarTerminado();
-                throw new PresupuestoMemoriaAgotadoException();
-            }
-
-            return lanzador.EjecutarAsync(inicio,
-                (entrada, token) => ProtocoloProcesoHerramientasPdf.EscribirPeticionAsync(entrada, operacion, pdfs, token),
-                tiempoMaximo, maximoBytesSalida, cancellationToken, seguimiento);
-        }, CancellationToken.None);
+        // Con capacidad 1 (ver el constructor) nadie más tiene turno mientras este se usa, así que nadie puede degradar la
+        // instancia entre la última comprobación de EntrarAsync y el lanzamiento: no hace falta volver a mirarlo aquí.
+        var ejecucion = Task.Run(() => lanzador.EjecutarAsync(inicio,
+            (entrada, token) => ProtocoloProcesoHerramientasPdf.EscribirPeticionAsync(entrada, operacion, pdfs, token),
+            tiempoMaximo, maximoBytesSalida, cancellationToken, seguimiento), CancellationToken.None);
 
         // Sin el token del llamante: al cancelar, el lanzador mata al hijo y vuelve. Esta espera solo acota el caso en que el
         // lanzador no vuelve, que no confirma nada. Sin lanzar: lo que decide es el seguimiento, no el tipo de excepción.

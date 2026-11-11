@@ -12,6 +12,7 @@ using CaeManager.Domain.Auditoria;
 using CaeManager.Domain.Common;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 
 namespace CaeManager.Application.HerramientasPdf;
 
@@ -109,7 +110,8 @@ public class UnirPdfQueryHandler(
     IPresupuestoMemoriaDocumentos presupuestoMemoria,
     IUnidorPdf unidor,
     IRegistroAccesoDocumentoSensibleService registroAcceso,
-    ITransaccionDeComando transaccion)
+    ITransaccionDeComando transaccion,
+    ILogger<UnirPdfQueryHandler> logger)
     : IRequestHandler<UnirPdfQuery, Result<ResultadoUnionPdf>>
 {
     public async Task<Result<ResultadoUnionPdf>> Handle(UnirPdfQuery request, CancellationToken cancellationToken)
@@ -129,10 +131,15 @@ public class UnirPdfQueryHandler(
                 {
                     await RegistrarAperturasAsync(abiertos);
                 }
-                catch (Exception) when (excepcion is EntradaPdfRetenidaException)
+                catch (Exception falloDelRegistro) when (excepcion is EntradaPdfRetenidaException)
                 {
                     // La retención manda: si un fallo del registro la sustituyera, la pantalla devolvería su reserva con
-                    // los PDF quizá aún referenciados. El PDF no sale, así que no hay entrega sin constancia.
+                    // los PDF quizá aún referenciados. El PDF no sale, pero los Documentos ya se leyeron y pueden quedar sin
+                    // constancia de su apertura (DEC-36): el fallo no se calla, se registra como crítico para quien supervisa.
+                    logger.LogCritical(
+                        falloDelRegistro,
+                        "Unir PDF no pudo registrar la apertura de {NumeroDocumentos} Documentos ya leídos ({Documentos}) tras retener la entrada del proceso aparte.",
+                        abiertos.Count, string.Join(",", abiertos));
                 }
             }
 
@@ -224,16 +231,21 @@ public class UnirPdfQueryHandler(
         // Se lee y se valida en el orden pedido para que el primer PDF que no sirve sea el que se señala.
         var contenidos = new List<byte[]>(entradas.Count);
         var infos = new List<InfoPdfParaUnir>(entradas.Count);
-        var lecturaDeDocumentos = new Dictionary<Guid, byte[]>();
+        var lecturaDeDocumentos = new Dictionary<Guid, LecturaAlmacenadaParaAnalisis>();
         var reservas = new List<IDisposable>();
         long total = 0;
         var paginas = 0;
+
+        // Las reservas que cubren lo que tiene el proceso aparte en curso: si no consta que termine, solo esas se retienen.
+        // Las de una inspección ya terminada cubren PDF que ningún proceso vivo referencia y se devuelven en el finally.
+        IReadOnlyList<IDisposable> enElProceso = [];
 
         try
         {
             for (var posicion = 0; posicion < entradas.Count; posicion++)
             {
                 var restante = LimitesUnionPdf.TamanoMaximoTotalBytes - total;
+                var reservasAntes = reservas.Count;
                 var leido = await LeerAsync(entradas[posicion], archivos, lecturaDeDocumentos, abiertos, restante, reservas, cancellationToken);
                 if (leido.Rechazo is { } rechazo)
                 {
@@ -248,7 +260,9 @@ public class UnirPdfQueryHandler(
                 if (total > LimitesUnionPdf.TamanoMaximoTotalBytes)
                     return Fallo(ErroresUnirPdf.TotalDemasiadoGrande, "Los PDF pesan juntos más de lo que se puede unir.");
 
+                enElProceso = ReservasDeLaEntrada(entradas[posicion], reservas, reservasAntes, lecturaDeDocumentos);
                 var info = await unidor.InspeccionarAsync(contenido, cancellationToken);
+                enElProceso = [];
                 if (!info.EsExitoso)
                     return Result.Exito(ResultadoUnionPdf.Rechazada(posicion, CodigoDeEntrada(info.Error.Codigo)));
 
@@ -273,7 +287,10 @@ public class UnirPdfQueryHandler(
                     return Result.Exito(ResultadoUnionPdf.ConFirmas(firmados, huella));
             }
 
+            // El proceso de la unión recibe todos los PDF y vuelve a abrir su estructura: le corresponde todo lo reservado.
+            enElProceso = [.. reservas];
             var unido = await unidor.UnirAsync(contenidos, cancellationToken);
+            enElProceso = [];
             if (!unido.EsExitoso)
                 return Result.Exito(ResultadoUnionPdf.Rechazada(0, CodigoDeEntrada(unido.Error.Codigo)));
 
@@ -291,10 +308,14 @@ public class UnirPdfQueryHandler(
         catch (EntradaPdfRetenidaException)
         {
             // El proceso aparte que recibió estos PDF no consta terminado: pueden seguir referenciados, así que lo reservado
-            // para ellos no se devuelve (ni en el finally). La excepción sigue para que la pantalla retenga también lo suyo.
-            foreach (var reserva in reservas)
+            // para ellos no se devuelve (ni en el finally). Lo de inspecciones anteriores, cuyo proceso sí consta terminado, se
+            // devuelve: retenerlo dejaría inmovilizado presupuesto compartido sin nada que lo use. La excepción sigue para que
+            // la pantalla retenga también lo suyo.
+            foreach (var reserva in enElProceso)
+            {
                 EntradaPdfRetenidaException.Retener(reserva);
-            reservas.Clear();
+                reservas.Remove(reserva);
+            }
             throw;
         }
         catch (PresupuestoMemoriaAgotadoException)
@@ -328,6 +349,20 @@ public class UnirPdfQueryHandler(
         return Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(texto.ToString())));
     }
 
+    /// <summary>
+    /// Las reservas que cubren lo que recibe el proceso que inspecciona <paramref name="entrada"/>: las que añadió su lectura
+    /// (desde <paramref name="desde"/>) y, si es un Documento repetido, también la lectura que cubre su array, que es el mismo.
+    /// </summary>
+    private static List<IDisposable> ReservasDeLaEntrada(
+        EntradaUnionPdf entrada, List<IDisposable> reservas, int desde, Dictionary<Guid, LecturaAlmacenadaParaAnalisis> lecturas)
+    {
+        var deLaEntrada = reservas.GetRange(desde, reservas.Count - desde);
+        if (entrada is EntradaUnionDocumento documento && lecturas.TryGetValue(documento.DocumentoId, out var lectura)
+            && !deLaEntrada.Contains(lectura))
+            deLaEntrada.Add(lectura);
+        return deLaEntrada;
+    }
+
     /// <summary>Reserva sin esperar: la unión ya retiene otras y esperar reteniendo bloquea a las demás (ver <see cref="IPresupuestoMemoriaDocumentos.TryReservar"/>).</summary>
     private ReservaMemoriaDocumentos Reservar(long bytes) =>
         presupuestoMemoria.TryReservar(bytes, out var reserva) ? reserva : throw new PresupuestoMemoriaAgotadoException();
@@ -351,7 +386,7 @@ public class UnirPdfQueryHandler(
     /// <param name="restante">Bytes que quedan del total de la unión: un Documento que no cabe ahí no se carga.</param>
     /// <param name="reservas">Donde se dejan las reservas de memoria de lo que se lee; las devuelve quien llama, al terminar.</param>
     private async Task<(byte[]? Contenido, string? Rechazo)> LeerAsync(
-        EntradaUnionPdf entrada, Dictionary<Guid, string> archivos, Dictionary<Guid, byte[]> yaLeidos, HashSet<Guid> abiertos,
+        EntradaUnionPdf entrada, Dictionary<Guid, string> archivos, Dictionary<Guid, LecturaAlmacenadaParaAnalisis> yaLeidos, HashSet<Guid> abiertos,
         long restante, List<IDisposable> reservas, CancellationToken cancellationToken)
     {
         switch (entrada)
@@ -368,8 +403,8 @@ public class UnirPdfQueryHandler(
                 if (yaLeidos.TryGetValue(documento.DocumentoId, out var repetido))
                 {
                     // El mismo array, pero PDFsharp lo vuelve a abrir al unir.
-                    reservas.Add(Reservar((LimitesUnionPdf.FactorMemoriaUnion - 1L) * repetido.Length));
-                    return (repetido, null);
+                    reservas.Add(Reservar((LimitesUnionPdf.FactorMemoriaUnion - 1L) * repetido.Contenido.Length));
+                    return (repetido.Contenido, null);
                 }
                 if (!archivos.TryGetValue(documento.DocumentoId, out var clave))
                     return (null, ErroresUnirPdf.DocumentoNoDisponible);
@@ -397,7 +432,7 @@ public class UnirPdfQueryHandler(
                 if (contenido.Length == 0 || !ValidadorFirmaArchivo.TieneFirmaValida(contenido, "documento.pdf"))
                     return (null, ErroresUnirPdf.NoEsPdf);
 
-                yaLeidos[documento.DocumentoId] = contenido;
+                yaLeidos[documento.DocumentoId] = lectura;
                 return (contenido, null);
 
             default:

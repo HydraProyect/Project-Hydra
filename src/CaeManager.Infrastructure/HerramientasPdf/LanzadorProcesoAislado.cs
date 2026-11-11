@@ -344,7 +344,9 @@ public sealed class LanzadorProcesoAislado(ILogger<LanzadorProcesoAislado> logge
         }
         catch (Exception) when (tarea.IsCompleted)
         {
-            // Terminó con excepción: ya está observada aquí y el desenlace lo decide el llamante.
+            // Terminó, quizá con excepción, y el desenlace lo decide el llamante. Lo capturado puede ser el vencimiento de la
+            // espera si la tarea falló justo después: su excepción se observa aquí igualmente, para que no quede sin observar.
+            _ = tarea.Exception;
             return true;
         }
         catch (Exception)

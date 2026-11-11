@@ -2,6 +2,7 @@ using System.Diagnostics;
 using CaeManager.Application.Common;
 using CaeManager.Application.HerramientasPdf;
 using CaeManager.Domain.Common;
+using CaeManager.Infrastructure.DependencyInjection;
 using CaeManager.Infrastructure.HerramientasPdf;
 using FluentAssertions;
 using Microsoft.Extensions.Logging;
@@ -292,21 +293,38 @@ public sealed class UnidorPdfEnProcesoAparteTests
         }
     }
 
-    [Fact]
-    public async Task Con_capacidad_dos_quien_ya_tenia_turno_cuando_se_degrado_no_lanza()
+    [Theory]
+    [InlineData(2)]
+    [InlineData(4)]
+    public void Con_capacidad_mayor_que_uno_no_se_construye(int capacidad)
     {
-        var limitador = new LimitadorProcesosAislados(2);
-        var otro = await limitador.EntrarAsync(TimeSpan.Zero, CancellationToken.None);
-        // La otra unión degrada la instancia justo después de que esta pasara la última comprobación del limitador.
-        limitador.AlDarTurno = () => otro!.RetenerPorHijoSinConfirmar();
-        var lanzador = new LanzadorDoble(_ => Terminado(0, []));
-        var unidor = new UnidorPdfEnProcesoAparte(_opciones, limitador, lanzador, NullLogger<UnidorPdfEnProcesoAparte>.Instance);
+        // Con más de un turno, otro podría degradar la instancia entre la comprobación del limitador y el lanzamiento.
+        var construir = () => new UnidorPdfEnProcesoAparte(
+            _opciones, new LimitadorProcesosAislados(capacidad), new LanzadorDoble(_ => Terminado(0, [])),
+            NullLogger<UnidorPdfEnProcesoAparte>.Instance);
 
-        var inspeccionar = () => unidor.InspeccionarAsync(PdfA, CancellationToken.None);
+        construir.Should().Throw<ArgumentOutOfRangeException>().WithParameterName("limitador");
+    }
 
-        await inspeccionar.Should().ThrowAsync<PresupuestoMemoriaAgotadoException>();
-        lanzador.Llamadas.Should().Be(0, "degradada la instancia no se lanza ningún proceso más");
-        limitador.Libres.Should().Be(1, "el turno que no se usó vuelve; el retenido no");
+    [Fact]
+    public void La_composicion_real_registra_un_solo_proceso_aislado_a_la_vez()
+    {
+        var servicios = new Microsoft.Extensions.DependencyInjection.ServiceCollection();
+        servicios.AddInfrastructure(new Microsoft.Extensions.Configuration.ConfigurationBuilder().Build(), new EntornoFalso());
+
+        var registro = servicios.Single(s => s.ServiceType == typeof(LimitadorProcesosAislados));
+
+        registro.ImplementationInstance.Should().BeOfType<LimitadorProcesosAislados>()
+            .Which.Capacidad.Should().Be(1, "UnidorPdfEnProcesoAparte no admite más; subirla exige rediseñar la degradación");
+    }
+
+    private sealed class EntornoFalso : Microsoft.Extensions.Hosting.IHostEnvironment
+    {
+        public string EnvironmentName { get; set; } = "Testing";
+        public string ApplicationName { get; set; } = "CaeManager";
+        public string ContentRootPath { get; set; } = Path.GetTempPath();
+        public Microsoft.Extensions.FileProviders.IFileProvider ContentRootFileProvider { get; set; } =
+            new Microsoft.Extensions.FileProviders.NullFileProvider();
     }
 
     [Fact]

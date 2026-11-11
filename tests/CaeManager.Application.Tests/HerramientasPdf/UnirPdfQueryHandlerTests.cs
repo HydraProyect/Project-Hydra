@@ -16,6 +16,7 @@ using CaeManager.Domain.Empresas;
 using CaeManager.Domain.Plataforma;
 using CaeManager.Domain.Trabajadores;
 using FluentAssertions;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Xunit;
 
@@ -621,24 +622,74 @@ public class UnirPdfQueryHandlerTests
         PresupuestoLibre().Should().BeTrue("las reservas de lectura, de copias y de estructura se devuelven siempre");
     }
 
-    [Fact]
-    public async Task Si_el_proceso_que_recibio_los_PDF_no_consta_terminado_sus_reservas_no_se_devuelven_y_la_excepcion_sigue()
-    {
-        // Una escritura del proceso aparte puede seguir referenciando los PDF: lo reservado para ellos se queda retenido.
-        var seguro = DocumentoDeEmpresa("SEGURO[estructura=1000000]");
-        var retenidasAntes = EntradaPdfRetenidaException.NumeroRetenidas;
+    private const long Factor = LimitesUnionPdf.FactorMemoriaUnion;
 
-        var llamada = async () => await UnirAsync([new EntradaUnionDocumento(seguro.Id), Subido("b.pdf", "B[retenida]")]);
+    [Fact]
+    public async Task Si_el_proceso_de_una_inspeccion_no_consta_terminado_solo_se_retiene_lo_de_su_entrada_y_la_excepcion_sigue()
+    {
+        // Una escritura del proceso aparte puede seguir referenciando el PDF que recibió: lo reservado para él se queda
+        // retenido. Lo del Documento anterior, cuyo proceso de inspección sí terminó, se devuelve.
+        var seguro = DocumentoDeEmpresa("SEGURO[estructura=1000000]");
+        var subido = Subido("b.pdf", "B[retenida]");
+
+        var llamada = async () => await UnirAsync([new EntradaUnionDocumento(seguro.Id), subido]);
 
         await llamada.Should().ThrowAsync<EntradaPdfRetenidaException>("la pantalla tiene que retener también lo suyo");
-        PresupuestoLibre().Should().BeFalse("la lectura del Documento, su estructura y la copia de lo subido siguen reservadas");
-        EntradaPdfRetenidaException.NumeroRetenidas.Should().BeGreaterThanOrEqualTo(retenidasAntes + 3);
+        _presupuesto.Reservado.Should().Be((Factor - 1) * subido.Contenido.Length,
+            "solo queda la copia de lo subido que recibió el proceso sin terminar; la lectura y la estructura del Documento se devuelven");
     }
 
     [Fact]
-    public async Task Si_ademas_falla_el_registro_de_aperturas_la_entrada_retenida_no_se_pierde()
+    public async Task Varias_inspecciones_ya_terminadas_devuelven_lo_suyo_aunque_la_ultima_quede_retenida()
     {
-        // Si el fallo del registro sustituyera a la retención, la pantalla devolvería su reserva de lo subido.
+        // Con 512 MiB compartidos y hasta 32 MiB de estructura por PDF, retenerlo todo inmovilizaría casi todo el presupuesto.
+        var a = DocumentoDeEmpresa("A[estructura=30000000]");
+        var b = DocumentoDeEmpresa("B[estructura=30000000]");
+        var c = Subido("c.pdf", "C[estructura=30000000]");
+        var retenido = Subido("d.pdf", "D[retenida]");
+
+        var llamada = async () => await UnirAsync([new EntradaUnionDocumento(a.Id), new EntradaUnionDocumento(b.Id), c, retenido]);
+
+        await llamada.Should().ThrowAsync<EntradaPdfRetenidaException>();
+        _presupuesto.Reservado.Should().Be((Factor - 1) * retenido.Contenido.Length);
+    }
+
+    [Fact]
+    public async Task Un_Documento_repetido_cuyo_proceso_queda_retenido_retiene_tambien_la_lectura_de_su_array()
+    {
+        // El repetido es el mismo array que la primera lectura: si el proceso lo sigue referenciando, esa lectura tampoco vuelve.
+        var seguro = DocumentoDeEmpresa("SEGURO[estructura=1000000]");
+        var longitud = Pdf("SEGURO[estructura=1000000]").Length;
+        _unidor.RetenerEnInspeccion = 3;
+
+        var llamada = async () => await UnirAsync(
+            [new EntradaUnionDocumento(seguro.Id), Subido("b.pdf", "B[estructura=1000000]"), new EntradaUnionDocumento(seguro.Id)]);
+
+        await llamada.Should().ThrowAsync<EntradaPdfRetenidaException>();
+        _presupuesto.Reservado.Should().Be(Factor * longitud + (Factor - 1) * longitud,
+            "la lectura del Documento y la copia del repetido; ni las estructuras ni la copia de lo subido");
+    }
+
+    [Fact]
+    public async Task Si_el_proceso_de_la_union_no_consta_terminado_se_retiene_todo_lo_que_recibio()
+    {
+        // El proceso que une recibe todos los PDF y vuelve a abrir su estructura: todo lo reservado le corresponde.
+        var seguro = DocumentoDeEmpresa("SEGURO[estructura=1000000]");
+        var subido = Subido("b.pdf", "B[estructura=2000]");
+        _unidor.AlUnir = () => throw new EntradaPdfRetenidaException();
+
+        var llamada = async () => await UnirAsync([new EntradaUnionDocumento(seguro.Id), subido]);
+
+        await llamada.Should().ThrowAsync<EntradaPdfRetenidaException>();
+        _presupuesto.Reservado.Should().Be(
+            Factor * Pdf("SEGURO[estructura=1000000]").Length + 1000000 + (Factor - 1) * subido.Contenido.Length + 2000);
+    }
+
+    [Fact]
+    public async Task Si_ademas_falla_el_registro_de_aperturas_la_entrada_retenida_no_se_pierde_y_el_fallo_queda_registrado()
+    {
+        // Si el fallo del registro sustituyera a la retención, la pantalla devolvería su reserva de lo subido. Pero los
+        // Documentos ya se leyeron y pueden quedar sin constancia: ese fallo tiene que verlo quien supervisa.
         var seguro = DocumentoDeEmpresa("SEGURO");
         _registro.Falla = true;
 
@@ -646,6 +697,9 @@ public class UnirPdfQueryHandlerTests
 
         await llamada.Should().ThrowAsync<EntradaPdfRetenidaException>();
         PresupuestoLibre().Should().BeFalse();
+        _logger.Entradas.Should().ContainSingle(e => e.Nivel == LogLevel.Critical)
+            .Which.Should().Match<(LogLevel Nivel, string Mensaje, Exception? Excepcion)>(e =>
+                e.Excepcion is AccesoDocumentoSensibleNoRegistradoException && e.Mensaje.Contains(seguro.Id.ToString()));
     }
 
     [Fact]
@@ -819,7 +873,19 @@ public class UnirPdfQueryHandlerTests
     private UnirPdfQueryHandler Handler() => new(
         new Disponibilidad(_disponible), new TenantActualFijo(_tenantActual), _empresas, _documentos, _trabajadores, _proyectos, _alcance,
         new CurrentUserServiceFalso(rol: _rol), new SesionPrivilegiadaFija(_sesionPrivilegiada), _otroAlmacen ?? _almacenamiento,
-        _presupuesto, _unidor, _registro, _transaccion);
+        _presupuesto, _unidor, _registro, _transaccion, _logger);
+
+    private readonly LoggerQueAnota _logger = new();
+
+    private sealed class LoggerQueAnota : ILogger<UnirPdfQueryHandler>
+    {
+        public List<(LogLevel Nivel, string Mensaje, Exception? Excepcion)> Entradas { get; } = [];
+        public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
+        public bool IsEnabled(LogLevel logLevel) => true;
+
+        public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception? exception, Func<TState, Exception?, string> formatter) =>
+            Entradas.Add((logLevel, formatter(state, exception), exception));
+    }
 
     private const long MaximoPresupuesto = 2L * 1024 * 1024 * 1024;
 
@@ -872,8 +938,16 @@ public class UnirPdfQueryHandlerTests
         public List<string> Unidos { get; } = [];
         public Action? AlUnir { get; set; }
 
-        public Task<Result<InfoPdfParaUnir>> InspeccionarAsync(byte[] contenidoPdf, CancellationToken cancellationToken) =>
-            Task.FromResult(Inspeccionar(contenidoPdf));
+        /// <summary>Si se fija, la inspección número N (desde 1) lanza <see cref="EntradaPdfRetenidaException"/>.</summary>
+        public int? RetenerEnInspeccion { get; set; }
+
+        private int _inspecciones;
+
+        public Task<Result<InfoPdfParaUnir>> InspeccionarAsync(byte[] contenidoPdf, CancellationToken cancellationToken)
+        {
+            if (++_inspecciones == RetenerEnInspeccion) throw new EntradaPdfRetenidaException();
+            return Task.FromResult(Inspeccionar(contenidoPdf));
+        }
 
         public Task<Result<PdfUnido>> UnirAsync(IReadOnlyList<byte[]> pdfs, CancellationToken cancellationToken) =>
             Task.FromResult(Unir(pdfs));
