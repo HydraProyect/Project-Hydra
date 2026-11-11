@@ -96,10 +96,70 @@ public class SolicitudDemoEndpointsTests
         (await LeerJson(respuesta)).GetProperty("estado").GetString().Should().Be("recibida");
 
         var enviado = servidor.Correo.Enviados.Should().ContainSingle().Subject;
-        enviado.Destinatario.Should().Be("info@talveg.es");
+        enviado.Destinatario.Should().Be("info@talveg.es", "sin ajuste, la dirección de reserva");
         enviado.ResponderA.Should().Be("ana@empresa.es");
         enviado.Asunto.Should().Be("Solicitud de demo desde talveg.es: Operador CAE externo");
         enviado.Cuerpo.Should().Contain(WebUtility.HtmlEncode("Ana Pérez")).And.Contain("600112233");
+    }
+
+    [Theory]
+    [InlineData("demo@example.com", "demo@example.com")]
+    [InlineData("  demo.ventas@example.com  ", "demo.ventas@example.com")]
+    public async Task Con_el_ajuste_puesto_el_correo_va_a_esa_direccion_y_no_a_info(string configurado, string esperado)
+    {
+        await using var servidor = await ServidorSolicitudDemo.ArrancarAsync(destinatarioConfigurado: configurado);
+
+        using var respuesta = await servidor.PostAsync(CuerpoBueno());
+
+        respuesta.StatusCode.Should().Be(HttpStatusCode.Accepted);
+        var enviado = servidor.Correo.Enviados.Should().ContainSingle().Subject;
+        enviado.Destinatario.Should().Be(esperado);
+        enviado.ResponderA.Should().Be("ana@empresa.es", "Reply-To sigue siendo quien escribe, no el destinatario");
+    }
+
+    [Theory]
+    [InlineData("")]
+    [InlineData("   ")]
+    [InlineData("no-es-un-correo")]
+    [InlineData("Nombre Visible <demo@example.com>")]
+    [InlineData("uno@example.com,otro@example.com")]
+    [InlineData("demo@example")]
+    [InlineData("démo@example.com")]
+    [InlineData("demo@example.com\r\nBcc: otro@example.com")]
+    public async Task Con_el_ajuste_vacio_o_invalido_el_correo_va_a_info_y_nunca_a_la_direccion_rota(string configurado)
+    {
+        await using var servidor = await ServidorSolicitudDemo.ArrancarAsync(destinatarioConfigurado: configurado);
+
+        using var respuesta = await servidor.PostAsync(CuerpoBueno());
+
+        respuesta.StatusCode.Should().Be(HttpStatusCode.Accepted);
+        servidor.Correo.Enviados.Should().ContainSingle().Which.Destinatario.Should().Be("info@talveg.es");
+    }
+
+    [Fact]
+    public void Un_ajuste_invalido_se_avisa_sin_escribir_el_valor_en_el_registro()
+    {
+        var registro = new RegistroCapturado();
+
+        var destinatario = DestinatarioSolicitudDemo.Resolver("secreto-mal-escrito", registro);
+
+        destinatario.Direccion.Should().Be("info@talveg.es");
+        var aviso = registro.Entradas.Should().ContainSingle().Subject;
+        aviso.Nivel.Should().Be(LogLevel.Warning);
+        aviso.Texto.Should().Contain("Contacto:DestinatarioSolicitudDemo").And.NotContain("secreto-mal-escrito");
+    }
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData("demo@example.com")]
+    public void Un_ajuste_ausente_vacio_o_valido_no_genera_aviso(string? configurado)
+    {
+        var registro = new RegistroCapturado();
+
+        DestinatarioSolicitudDemo.Resolver(configurado, registro);
+
+        registro.Entradas.Should().BeEmpty();
     }
 
     [Theory]
@@ -385,7 +445,8 @@ public class SolicitudDemoEndpointsTests
         contexto.Request.Body = new MemoryStream(JsonSerializer.SerializeToUtf8Bytes(CuerpoBueno()));
 
         var recibir = () => SolicitudDemoEndpoints.RecibirAsync(
-            contexto, correo, cupo, NullLogger<SolicitudDemoPeticion>.Instance, CancellationToken.None);
+            contexto, correo, cupo, DestinatarioSolicitudDemo.Resolver(null, NullLogger.Instance),
+            NullLogger<SolicitudDemoPeticion>.Instance, CancellationToken.None);
 
         await recibir.Should().ThrowAsync<OperationCanceledException>();
         cupo.IntentarReservar(out _, out _, out _).Should().BeFalse(
@@ -467,17 +528,21 @@ public class SolicitudDemoEndpointsTests
         public CorreoFalso Correo { get; }
 
         public static async Task<ServidorSolicitudDemo> ArrancarAsync(
-            int limitePorIp = 50, int limiteGlobalPorHora = 50, bool guardaCerrada = false)
+            int limitePorIp = 50, int limiteGlobalPorHora = 50, bool guardaCerrada = false,
+            string? destinatarioConfigurado = null)
         {
             var correo = new CorreoFalso();
             var builder = WebApplication.CreateBuilder(new WebApplicationOptions { EnvironmentName = "Production" });
             builder.WebHost.UseKestrel(opciones => opciones.Listen(IPAddress.Loopback, 0));
             builder.Logging.ClearProviders();
-            builder.Configuration.AddInMemoryCollection(new Dictionary<string, string?>
+            var ajustes = new Dictionary<string, string?>
             {
                 ["RateLimiting:SolicitudDemo:LimitePorIp"] = limitePorIp.ToString(),
                 ["RateLimiting:SolicitudDemo:LimiteGlobalPorHora"] = limiteGlobalPorHora.ToString(),
-            });
+            };
+            if (destinatarioConfigurado is not null)
+                ajustes[DestinatarioSolicitudDemo.ClaveConfiguracion] = destinatarioConfigurado;
+            builder.Configuration.AddInMemoryCollection(ajustes);
             builder.Services.AddSolicitudDemo(builder.Configuration);
             builder.Services.AddSingleton<IEmailService>(guardaCerrada
                 ? new GuardaEnvioEmailService(correo, Options.Create(new EnvioCorreoOptions()), NullLogger<GuardaEnvioEmailService>.Instance)
@@ -552,6 +617,19 @@ public class SolicitudDemoEndpointsTests
                 Enviados.Add((destinatarioEmail, asunto, cuerpoHtml, responderA));
             return Task.FromResult(Respuesta);
         }
+    }
+
+    private sealed class RegistroCapturado : ILogger
+    {
+        public List<(LogLevel Nivel, string Texto)> Entradas { get; } = [];
+
+        public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
+
+        public bool IsEnabled(LogLevel logLevel) => true;
+
+        public void Log<TState>(
+            LogLevel logLevel, EventId eventId, TState state, Exception? exception, Func<TState, Exception?, string> formatter) =>
+            Entradas.Add((logLevel, formatter(state, exception)));
     }
 
     private sealed class ContenidoSinLongitud(byte[] cuerpo) : HttpContent

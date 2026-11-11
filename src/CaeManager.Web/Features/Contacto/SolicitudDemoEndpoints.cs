@@ -15,9 +15,11 @@ namespace CaeManager.Web.Features.Contacto;
 
 /// <summary>
 /// Endpoint público, sin sesión, que recibe el formulario «Pedir una demo» de
-/// la web estática talveg.es y lo reenvía por correo a info@talveg.es. No
+/// la web estática talveg.es y lo reenvía por correo a la dirección del ajuste
+/// <c>Contacto:DestinatarioSolicitudDemo</c> (info@talveg.es si falta o no es válida, ver
+/// <see cref="DestinatarioSolicitudDemo"/>). No
 /// pertenece a ningún Tenant ni toca la base de datos de la aplicación. Los
-/// datos personales sí quedan en el buzón info@talveg.es (y en sus copias): su
+/// datos personales sí quedan en el buzón de destino (y en sus copias): su
 /// retención la fija la política de ese buzón, que esta clase no controla, así
 /// que no se atribuye aquí el cumplimiento de ASVS 4.0.3 V8.3.8.
 ///
@@ -37,13 +39,14 @@ namespace CaeManager.Web.Features.Contacto;
 /// <see cref="ValidadorSolicitudDemo"/>.</item>
 /// <item>Límite de frecuencia por IP (IPv6 agrupada por /64) que solo cuenta peticiones con un
 /// <c>Origin</c> permitido, para que otra página no pueda gastar la cuota de sus visitantes; y un cupo
-/// global por hora que acota el correo que llega a info@talveg.es aunque el envío venga de muchas IP
+/// global por hora que acota el correo que llega al buzón de destino aunque el envío venga de muchas IP
 /// (V11.1.4).</item>
 /// <item>Campo trampa antispam (V11.1.4): con valor se descarta sin enviar y con la misma respuesta.</item>
 /// <item>Funcionalidad no autenticada protegida por antiautomatización (V4.2.2): límite por IP, cupo
 /// global y campo trampa. No hay CSRF que defender: no lee cookies ni sesión y no actúa con la
 /// autoridad de nadie (V13.2.3 no aplica); exigir JSON obliga además al navegador a hacer preflight.</item>
-/// <item>Correo sin inyección: asunto fijo, destinatario fijo, valores codificados para HTML y el
+/// <item>Correo sin inyección: asunto fijo, destinatario de la configuración del servidor (nunca de la
+/// petición) y validado como dirección exacta antes de usarse, valores codificados para HTML y el
 /// correo de quien escribe validado como dirección ASCII exacta antes de ir a <c>Reply-To</c>
 /// (V5.2.3, V5.3.1).</item>
 /// <item>Respuestas JSON genéricas con un código corto, sin trazas ni mensajes internos, también ante
@@ -57,14 +60,14 @@ namespace CaeManager.Web.Features.Contacto;
 /// <para>
 /// El envío pasa por la guarda de correo (<c>EnvioCorreo__Modo</c>, C-04), cerrada por defecto en
 /// todo entorno: en staging y en local el endpoint contesta 503 sin que salga nada. En producción
-/// sale solo con la guarda abierta, o con <c>SoloPermitidos</c> si la lista incluye info@talveg.es.
+/// sale solo con la guarda abierta, o con <c>SoloPermitidos</c> si la lista incluye la dirección de destino.
 /// </para>
 ///
 /// <para>
 /// <b>Riesgo asumido</b>: quien mande formularios válidos desde varias particiones del límite por IP
 /// agota el cupo global y deja el formulario en 503 <c>cupo-agotado</c> mientras siga haciéndolo. No
 /// hacen falta muchos equipos: un solo prefijo IPv6 /48 da 65.536 particiones /64, y bastan 12 para
-/// gastar las 60 plazas de una hora. Es el precio de acotar el correo que llega a info@talveg.es. El
+/// gastar las 60 plazas de una hora. Es el precio de acotar el correo que llega al buzón de destino. El
 /// agotamiento se registra como error una vez por episodio, no en cada rechazo, para que avise sin
 /// volverse ruido. También cierra el formulario una caída del SMTP: <c>Email.ErrorRed</c> no
 /// distingue un fallo de conexión de un corte durante <c>SendAsync</c>, así que conserva la plaza, y
@@ -82,8 +85,6 @@ public static class SolicitudDemoEndpoints
     public const string PoliticaCors = "WebPublicaTalveg";
 
     public const string PoliticaLimite = "SolicitudDemoPorIp";
-
-    public const string Destinatario = "info@talveg.es";
 
     /// <summary>Un formulario lleno al máximo de todos los campos ronda 1,5 KB en UTF-8; el resto es margen.</summary>
     public const int MaximoBytes = 8 * 1024;
@@ -133,6 +134,12 @@ public static class SolicitudDemoEndpoints
             limitePorIp, TimeSpan.FromMinutes(ventanaPorIpMinutos))));
 
         services.AddSingleton(new CupoGlobalSolicitudDemo(limiteGlobalPorHora, TimeProvider.System));
+
+        // Se resuelve una vez, en la primera solicitud: el aviso de un ajuste roto sale
+        // una sola vez y no por petición.
+        services.AddSingleton(proveedor => DestinatarioSolicitudDemo.Resolver(
+            configuration[DestinatarioSolicitudDemo.ClaveConfiguracion],
+            proveedor.GetRequiredService<ILoggerFactory>().CreateLogger<DestinatarioSolicitudDemo>()));
         return services;
     }
 
@@ -168,6 +175,7 @@ public static class SolicitudDemoEndpoints
         HttpContext contexto,
         IEmailService emailService,
         CupoGlobalSolicitudDemo cupoGlobal,
+        DestinatarioSolicitudDemo destinatario,
         ILogger<SolicitudDemoPeticion> logger,
         CancellationToken cancellationToken)
     {
@@ -248,7 +256,7 @@ public static class SolicitudDemoEndpoints
         try
         {
             resultado = await emailService.EnviarAsync(
-                Destinatario,
+                destinatario.Direccion,
                 CorreoSolicitudDemo.Asunto(solicitud),
                 CorreoSolicitudDemo.CuerpoHtml(solicitud),
                 TipoAvisoCorreo.Transaccional,
