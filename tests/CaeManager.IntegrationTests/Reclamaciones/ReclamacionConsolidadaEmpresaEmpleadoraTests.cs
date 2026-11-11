@@ -596,6 +596,12 @@ public class ReclamacionConsolidadaEmpresaEmpleadoraTests : IAsyncLifetime
         var anaFormacion = DeTrabajador(ana, formacion, conDuenoDeLaFormacion ? VigenciaDocumento.VenceEl(hoy.AddMonths(2)) : null);
         var beaCertificado = DeTrabajador(bea, certificado, beaVigente ? VigenciaDocumento.VenceEl(hoy.AddMonths(2)) : null);
         c.Documentos.AddRange(anaCertificado, anaFormacion, beaCertificado);
+        if (conDuenoDeLaFormacion)
+        {
+            // El Centro exige la formación: sin la de Bea, vigente, saldría como pendiente y el dueño de la formación
+            // recibiría el lote con razón.
+            c.Documentos.Add(DeTrabajador(bea, formacion, VigenciaDocumento.VenceEl(hoy.AddMonths(2))));
+        }
         Documento? docPlan = null;
         if (conPlanDePrevencion)
         {
