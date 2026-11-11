@@ -309,6 +309,11 @@ public class EjecutarImportacionMaestraTests
         baseR.CalcularHuella().Should().NotBe((baseR with { Omitidos = [new ItemImportacionDto("Empresas", 4, "X", "Otro motivo")] }).CalcularHuella());
         baseR.CalcularHuella().Should().NotBe((baseR with { CamposRellenados = 2 }).CalcularHuella());
         baseR.CalcularHuella().Should().NotBe((baseR with { Omitidos = [], Advertencias = [new ItemImportacionDto("Empresas", 4, "X", "Motivo")] }).CalcularHuella());
+
+        var conAlta = baseR with { DetalleEscrituras = [new EscrituraImportacionDto(EscrituraImportacionDto.Alta, "Centros", 3, "A|Planta Norte|B")] };
+        conAlta.CalcularHuella().Should().NotBe(baseR.CalcularHuella());
+        conAlta.CalcularHuella().Should().NotBe((conAlta with { DetalleEscrituras = [new EscrituraImportacionDto(EscrituraImportacionDto.Alta, "Centros", 4, "A|Planta Sur|B")] }).CalcularHuella());
+        conAlta.CalcularHuella().Should().NotBe((conAlta with { DetalleEscrituras = [new EscrituraImportacionDto(EscrituraImportacionDto.Actualizacion, "Centros", 3, "A|Planta Norte|B")] }).CalcularHuella());
     }
 
     [Fact]
@@ -320,8 +325,9 @@ public class EjecutarImportacionMaestraTests
         (await e.EjecutarAsync(plan)).Valor.EmpresasCreadas.Should().Be(1);
         var segunda = (await e.EjecutarAsync(plan)).Valor;
 
+        segunda.YaConfirmadaAntes.Should().BeTrue("otra llamada la guardó y esta no tiene el informe: se dice, sin cifras que lo parezcan");
         segunda.EmpresasCreadas.Should().Be(0);
-        segunda.Omitidos.Should().ContainSingle().Which.Motivo.Should().Contain("ya se había confirmado antes");
+        segunda.Omitidos.Should().BeEmpty("no hay ninguna fila omitida: no se inventa una para avisar");
         e.EmpresaRepositorio.Empresas.Should().ContainSingle();
     }
 
@@ -643,7 +649,7 @@ public class EjecutarImportacionMaestraTests
         var r = await e.EjecutarAsync(plan, reemplazar: true);
 
         r.EsExitoso.Should().BeTrue("para quien llama es «ya ejecutada»");
-        r.Valor.Omitidos.Should().ContainSingle().Which.Motivo.Should().Contain("ya se había confirmado");
+        r.Valor.YaConfirmadaAntes.Should().BeTrue("la guardó otra confirmación: esta no tiene su informe");
         e.Serializacion.UltimoResultado!.EsFallido.Should().BeTrue("la transacción del candado se deshace");
     }
 
@@ -668,7 +674,7 @@ public class EjecutarImportacionMaestraTests
         var r = await e.ConfirmarAsync(plan, reemplazar: false, previa.CalcularHuella());
 
         r.EsExitoso.Should().BeTrue("para quien llama es «ya ejecutada»");
-        r.Valor.Omitidos.Should().ContainSingle().Which.Motivo.Should().Contain("ya se había confirmado");
+        r.Valor.YaConfirmadaAntes.Should().BeTrue("la guardó otra confirmación: esta no tiene su informe");
         e.Serializacion.UltimoResultado!.EsFallido.Should().BeTrue("la transacción del candado se deshace");
     }
 
@@ -700,24 +706,124 @@ public class EjecutarImportacionMaestraTests
     }
 
     [Fact]
-    public async Task Un_reintento_tras_confirmar_bajo_el_candado_responde_ya_ejecutada_y_no_vuelve_a_crear()
+    public async Task Un_reintento_tras_confirmar_bajo_el_candado_devuelve_el_informe_de_lo_escrito_y_no_vuelve_a_crear()
     {
         // La estrategia de reintentos repite la operación cuando el primer intento confirmó pero se comunicó como un error
         // transitorio. El reintento relee y vería el Centro que el primero creó: sin comprobar antes la operación bajo el
-        // candado, respondería «la vista previa cambió» por una importación que sí se hizo.
+        // candado, respondería «la vista previa cambió» por una importación que sí se hizo. Y no responde con cifras a cero:
+        // devuelve el informe de lo que el primer intento escribió (revisión Codex de la PR #2164, r3, MEDIO 2).
         var e = new Escenario();
         var gestionada = GestionadaExistente();
         var cliente = Empresa.CrearComoCliente("Distribuciones Ficticias, S.A.", CifCliente, esCritico: false, notas: null, ejecutivoUsuarioId: null);
         e.Empresas.ListaEmpresas.Add(gestionada);
         e.Empresas.ListaEmpresas.Add(cliente);
         var plan = Plan([FilaEmpresa() with { YaExiste = true }], [FilaCliente() with { YaExiste = true }], [FilaCentro()]);
+        var previa = (await e.PrevisualizarAsync(plan)).Valor;
         e.Serializacion.AntesDeReintentarTrasConfirmar = () => { };
 
-        var r = await e.EjecutarAsync(plan);
+        var r = await e.ConfirmarAsync(plan, reemplazar: false, previa.CalcularHuella());
 
         r.EsExitoso.Should().BeTrue();
-        r.Valor.Omitidos.Should().ContainSingle().Which.Motivo.Should().Contain("ya se había confirmado");
+        e.Serializacion.Llamadas.Should().Be(1);
+        r.Valor.YaConfirmadaAntes.Should().BeFalse("esta misma confirmación lo escribió: es su informe");
+        r.Valor.CentrosCreados.Should().Be(1);
+        r.Valor.CamposRellenados.Should().Be(previa.CamposRellenados);
+        r.Valor.CalcularHuella().Should().Be(previa.CalcularHuella(), "el informe es exactamente lo que se escribió, que es lo mostrado");
         e.CentroRepositorio.Centros.Should().ContainSingle(c => c.Nombre == "Planta Norte");
+    }
+
+    [Fact]
+    public async Task Altas_y_bajas_compensadas_de_Centros_entre_la_vista_previa_y_confirmar_piden_revisarla()
+    {
+        // Revisión Codex de la PR #2164, r3, MEDIO 1: la vista previa iba a crear el Centro A (no existía) y a dejar el B
+        // como estaba. Otra sesión crea A y da de baja B antes de confirmar. Las cifras no cambian (un Centro creado), pero
+        // el que se crearía es otro.
+        var e = new Escenario();
+        var gestionada = GestionadaExistente();
+        var cliente = Empresa.CrearComoCliente("Distribuciones Ficticias, S.A.", CifCliente, esCritico: false, notas: null, ejecutivoUsuarioId: null);
+        e.Empresas.ListaEmpresas.Add(gestionada);
+        e.Empresas.ListaEmpresas.Add(cliente);
+        var filaA = FilaCentro(fila: 3) with { Nombre = "Planta Norte" };
+        var filaB = FilaCentro(fila: 4) with { Nombre = "Planta Sur" };
+        var b = new Centro(cliente.Id, gestionada.Id, filaB.Nombre, filaB.CodigoCentro, filaB.Direccion, filaB.Contacto);
+        e.CentroRepositorio.Centros.Add(b);
+        var plan = Plan([FilaEmpresa() with { YaExiste = true }], [FilaCliente() with { YaExiste = true }], [filaA, filaB]);
+        var previa = (await e.PrevisualizarAsync(plan)).Valor;
+        previa.CentrosCreados.Should().Be(1);
+        previa.CentrosActualizados.Should().Be(0);
+        previa.DetalleEscrituras.Should().ContainSingle(w => w.Hoja == "Centros")
+            .Which.Should().Be(new EscrituraImportacionDto(EscrituraImportacionDto.Alta, "Centros", 3, $"{CifCliente}|Planta Norte|{CifGestionada}"));
+
+        e.CentroRepositorio.Centros.Add(new Centro(cliente.Id, gestionada.Id, filaA.Nombre, filaA.CodigoCentro, filaA.Direccion, filaA.Contacto));
+        e.CentroRepositorio.Centros.Remove(b);
+        var compensada = (await e.PrevisualizarAsync(plan)).Valor;
+        compensada.CentrosCreados.Should().Be(1, "las cifras de la vista previa no cambian");
+        compensada.CentrosActualizados.Should().Be(0);
+        compensada.CamposRellenados.Should().Be(previa.CamposRellenados);
+
+        var r = await e.ConfirmarAsync(plan, reemplazar: false, previa.CalcularHuella());
+
+        r.Error.Should().Be(ErroresImportacionMaestra.VistaPreviaCambiada);
+        e.CentroRepositorio.Centros.Should().NotContain(c => c.Nombre == "Planta Sur", "no se crea un Centro que la vista previa no mostró");
+        (await e.Operaciones.ExisteAsync(plan.OperacionId)).Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task Relaciones_Empresariales_compensadas_entre_la_vista_previa_y_confirmar_piden_revisarla()
+    {
+        // Revisión Codex de la PR #2164, r3, MEDIO 1: la vista previa iba a crear la Relación Empresarial gestionada → Y (la
+        // de gestionada → Z ya estaba vigente). Otra operación crea gestionada → Y y termina gestionada → Z antes de
+        // confirmar. Sigue habiendo una relación creada, pero sería otra pareja.
+        const string cifZ = "A28017895";
+        var e = new Escenario();
+        var gestionada = GestionadaExistente();
+        var y = Empresa.CrearComoCliente("Distribuciones Ficticias, S.A.", CifCliente, esCritico: false, notas: null, ejecutivoUsuarioId: null);
+        var z = Empresa.CrearComoCliente("Suministros Ficticios, S.A.", cifZ, esCritico: false, notas: null, ejecutivoUsuarioId: null);
+        e.Empresas.ListaEmpresas.Add(gestionada);
+        e.Empresas.ListaEmpresas.Add(y);
+        e.Empresas.ListaEmpresas.Add(z);
+        var gestionadaZ = CaeManager.Domain.RelacionesEmpresariales.RelacionEmpresarial.Crear(gestionada.Id, z.Id, DateTime.UtcNow);
+        e.Empresas.ListaRelacionesEmpresariales.Add(gestionadaZ);
+        var plan = Plan([FilaEmpresa() with { YaExiste = true }],
+            [FilaCliente() with { YaExiste = true },
+             new ClienteEmpresarialMaestraDto(4, "Suministros Ficticios, S.A.", cifZ, EsCritico: false, CifGestionada, null, YaExiste: true)]);
+        var previa = (await e.PrevisualizarAsync(plan)).Valor;
+        previa.RelacionesCreadas.Should().Be(1);
+        previa.DetalleEscrituras.Should().ContainSingle(w => w.Operacion == EscrituraImportacionDto.Relacion)
+            .Which.Clave.Should().Be($"{CifGestionada} → {CifCliente}");
+
+        e.Empresas.ListaRelacionesEmpresariales.Add(
+            CaeManager.Domain.RelacionesEmpresariales.RelacionEmpresarial.Crear(gestionada.Id, y.Id, DateTime.UtcNow));
+        gestionadaZ.Cerrar(DateTime.UtcNow);
+        var compensada = (await e.PrevisualizarAsync(plan)).Valor;
+        compensada.RelacionesCreadas.Should().Be(1, "las cifras de la vista previa no cambian");
+
+        var r = await e.ConfirmarAsync(plan, reemplazar: false, previa.CalcularHuella());
+
+        r.Error.Should().Be(ErroresImportacionMaestra.VistaPreviaCambiada);
+        e.Relaciones.Agregadas.Should().BeEmpty("no se crea una Relación Empresarial que la vista previa no mostró");
+        (await e.Operaciones.ExisteAsync(plan.OperacionId)).Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task Cada_cifra_de_escritura_tiene_su_lista_de_altas_actualizaciones_y_relaciones()
+    {
+        // Ninguna cifra queda sin la lista que identifica lo que hay detrás (revisión Codex de la PR #2164, r3, MEDIO 1).
+        var e = new Escenario();
+        var gestionada = GestionadaExistente();
+        e.Empresas.ListaEmpresas.Add(gestionada);
+        var plan = Plan([FilaEmpresa() with { YaExiste = true }], [FilaCliente()], [FilaCentro()], [FilaTrabajador()]);
+
+        var r = (await e.PrevisualizarAsync(plan)).Valor;
+
+        int Cuantas(string operacion, string hoja) => r.DetalleEscrituras.Count(w => w.Operacion == operacion && w.Hoja == hoja);
+        Cuantas(EscrituraImportacionDto.Actualizacion, "Empresas").Should().Be(r.EmpresasActualizadas).And.Be(1);
+        Cuantas(EscrituraImportacionDto.Alta, "Clientes empresariales").Should().Be(r.ClientesCreados).And.Be(1);
+        Cuantas(EscrituraImportacionDto.Relacion, "Clientes empresariales").Should().Be(r.RelacionesCreadas).And.Be(1);
+        Cuantas(EscrituraImportacionDto.Alta, "Centros").Should().Be(r.CentrosCreados).And.Be(1);
+        Cuantas(EscrituraImportacionDto.Alta, "Trabajadores").Should().Be(r.TrabajadoresCreados).And.Be(1);
+        r.DetalleEscrituras.Should().HaveCount(5);
+        r.DetalleCamposRellenados.Should().HaveCount(r.CamposRellenados);
     }
 
     [Fact]

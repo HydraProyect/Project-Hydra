@@ -492,7 +492,10 @@
         {
             <div class="aviso-est aviso-est-sy" role="status" data-testid="est-informe-ya-ejecutada">
                 <span class="icono-aviso-est" aria-hidden="true"><Icono Nombre="info" /></span>
-                <div class="relleno-est"><b>@Textos["EstYaEjecutadaTitulo"]</b> @Textos["EstYaEjecutadaTexto"]</div>
+                <div class="relleno-est">
+                    <b>@Textos["EstYaEjecutadaTitulo"]</b> @Textos["EstYaEjecutadaTexto"]
+                    <a href="/importacion" data-testid="est-informe-ya-ejecutada-historial">@Textos["EstYaEjecutadaEnlace"]</a>.
+                </div>
             </div>
         }
         else

@@ -37,7 +37,6 @@ public partial class ImportacionEstructura : ComponentBase, IDisposable
     // Los nombres de hoja de dos palabras o con tilde son el contrato del libro (lo que el lector del backend lee y devuelve en
     // Hoja): viven en el .resx con el mismo valor en es-ES y ca-ES, no se traducen. Evitan texto de interfaz escrito a mano.
     private string HojaClientes => Textos["EstHojaClientes"].Value;
-    private string HojaImportacion => Textos["EstHojaImportacion"].Value;
 
     private string[] OrdenHojas =>
         [HojaEmpresas, "Subcontratas", HojaClientes, HojaCentros, Textos["EstHojaAccesos"].Value, HojaTrabajadores, "Asignaciones",
@@ -459,9 +458,11 @@ public partial class ImportacionEstructura : ComponentBase, IDisposable
     private static int ActualizadosDe(ResultadoImportacionMaestraDto r) =>
         r.EmpresasActualizadas + r.ClientesActualizados + r.CentrosActualizados + r.TrabajadoresActualizados;
 
-    /// <summary>Confirmación repetida de una operación ya confirmada (ver <see cref="ResultadoImportacionMaestraDto.YaEjecutada"/>).</summary>
-    private bool EsYaEjecutada(ResultadoImportacionMaestraDto r) =>
-        CreadosDe(r) + ActualizadosDe(r) == 0 && r.Omitidos.Any(o => o.Hoja == HojaImportacion && o.Fila == 0);
+    /// <summary>
+    /// Confirmación de una operación que otra confirmación ya guardó, sin el informe de lo escrito (ver
+    /// <see cref="ResultadoImportacionMaestraDto.YaEjecutada"/>): se muestra como tal, nunca como un informe con cifras a cero.
+    /// </summary>
+    private static bool EsYaEjecutada(ResultadoImportacionMaestraDto r) => r.YaConfirmadaAntes;
 
     private int OmitidasDe(ResultadoImportacionMaestraDto r, string hoja) => r.Omitidos.Count(o => o.Hoja == hoja);
 
@@ -606,12 +607,17 @@ public partial class ImportacionEstructura : ComponentBase, IDisposable
             }
 
             var r = resultado.Valor;
-            await RegistrarExitoAsync(nombreArchivo, CreadosDe(r), r.Advertencias.Count, r.Omitidos.Count);
+            // «Ya confirmada» no trae lo que se escribió: ni se registra en el Historial como un éxito con cifras a cero (el
+            // registro que haya es el de la confirmación que la guardó) ni se anuncia como completada; la vista remite al
+            // Historial. Revisión Codex de la PR #2164, r3, MEDIO 2.
+            if (!EsYaEjecutada(r))
+                await RegistrarExitoAsync(nombreArchivo, CreadosDe(r), r.Advertencias.Count, r.Omitidos.Count);
             if (_desechada) return;
             _resultado = r;
             _momentoInforme = DateTime.UtcNow;
             _fase = Fase.Informe;
-            ToastService.Mostrar(Textos["ToastImportacionCompletada"], TonoToast.Exito);
+            if (!EsYaEjecutada(r))
+                ToastService.Mostrar(Textos["ToastImportacionCompletada"], TonoToast.Exito);
         }
         catch (Exception ex)
         {

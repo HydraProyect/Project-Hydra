@@ -694,7 +694,8 @@
   <data name="EstAriaProgresoEscritura" xml:space="preserve"><value>Escriptura de la importació en curs</value></data>
   <data name="EstEscribiendoTexto" xml:space="preserve"><value>Aquesta importació no es pot pausar ni cancel·lar des d'aquí. Confirmar de nou la mateixa importació no duplica res.</value></data>
   <data name="EstYaEjecutadaTitulo" xml:space="preserve"><value>Aquesta importació ja s'havia confirmat.</value></data>
-  <data name="EstYaEjecutadaTexto" xml:space="preserve"><value>És un reintent o una doble confirmació: no s'ha tornat a crear res.</value></data>
+  <data name="EstYaEjecutadaTexto" xml:space="preserve"><value>Una altra confirmació d'aquesta mateixa importació ja la va desar: no s'ha tornat a escriure res i aquesta pantalla no té l'informe del que es va escriure.</value></data>
+  <data name="EstYaEjecutadaEnlace" xml:space="preserve"><value>Consulta l'historial d'importacions</value></data>
   <data name="EstInformeCompletadaSinOmitidas" xml:space="preserve"><value>Importació completada sense files omeses.</value></data>
   <data name="EstInformeCompletadaUnaOmitida" xml:space="preserve"><value>Importació completada amb 1 fila omesa.</value></data>
   <data name="EstInformeCompletadaOmitidas" xml:space="preserve"><value>Importació completada amb {0} files omeses.</value></data>
@@ -711,9 +712,7 @@
   <data name="EstColOmitidos" xml:space="preserve"><value>Omesos</value></data>
   <data name="EstColAvisos" xml:space="preserve"><value>Avisos</value></data>
   <data name="EstNAvisos" xml:space="preserve"><value>{0} avisos</value></data>
-  <data name="EstHojaClientes" xml:space="preserve"><value>Clientes empresariales</value></data>
-  <data name="EstHojaImportacion" xml:space="preserve"><value>Importación</value></data>
-  <data name="EstHojaAccesos" xml:space="preserve"><value>Accesos por Centro</value></data>
+  <data name="EstHojaClientes" xml:space="preserve"><value>Clientes empresariales</value></data>  <data name="EstHojaAccesos" xml:space="preserve"><value>Accesos por Centro</value></data>
   <data name="EstHojaVehiculos" xml:space="preserve"><value>Vehículos</value></data>
   <data name="EstHojaTiposDocumento" xml:space="preserve"><value>Tipos de documento</value></data>
   <data name="EstSinAvisosGuion" xml:space="preserve"><value>—</value></data>

@@ -902,8 +902,13 @@ public class ImportacionEstructuraTests : BunitContext
 
         await Pulsar(Primario(cut));
 
+        // Revisión Codex de la PR #2164, r3, MEDIO 2: «ya confirmada» no es un informe con cifras a cero ni un éxito nuevo.
         cut.FindAll("[data-testid='est-informe-ya-ejecutada']").Should().ContainSingle();
         cut.FindAll("[data-testid='est-informe-completada']").Should().BeEmpty();
+        cut.FindAll(".rejilla-kpi-est").Should().BeEmpty("sin el informe de lo escrito no se muestran cifras");
+        cut.Markup.Should().NotContain("Informe completo (CSV)");
+        cut.Find("[data-testid='est-informe-ya-ejecutada-historial']").GetAttribute("href").Should().Be("/importacion");
+        servidor.De<RegistrarHistorialImportacionCommand>().Should().BeEmpty("no se registra en el Historial un éxito con cifras a cero");
     }
 
     [Fact]

@@ -29,7 +29,9 @@ namespace CaeManager.Application.Importacion.Commands.EjecutarImportacionMaestra
 /// sin reversión en v1. Una celda vacía del archivo nunca borra un dato.
 ///
 /// Idempotencia: misma que la plantilla combinada — <c>Plan.OperacionId</c> y el índice único de
-/// <see cref="OperacionImportacion"/> en el MISMO <c>SaveChangesAsync</c> que las altas.
+/// <see cref="OperacionImportacion"/> en el MISMO <c>SaveChangesAsync</c> que las altas. Un reintento de la estrategia
+/// dentro de la misma confirmación devuelve lo que guardó su intento anterior; una confirmación distinta de una operación
+/// ya guardada devuelve <see cref="ResultadoImportacionMaestraDto.YaEjecutada"/>, marcada como tal y sin informe.
 /// Autorización: <see cref="IAutorizacionEscrituraEfectiva.EsActoDeAdministradorAsync"/>, como el resto de importaciones.
 /// A diferencia de la plantilla combinada, NO es <see cref="IComandoDeAprovisionamiento"/>: ampliar esa lista explícita
 /// es una decisión de autorización que este incremento no toma.
@@ -75,10 +77,34 @@ public record ResultadoImportacionMaestraDto(
     IReadOnlyList<ItemImportacionDto> Advertencias,
     IReadOnlyList<ItemImportacionDto> Omitidos)
 {
-    /// <summary>Confirmación repetida de una operación ya confirmada: no crea ni omite nada.</summary>
-    public static ResultadoImportacionMaestraDto YaEjecutada() => new(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, [], [],
-        [new ItemImportacionDto("Importación", 0, "Archivo completo",
-            "Esta importación ya se había confirmado antes (reintento o doble confirmación); no se ha vuelto a crear nada.")]);
+    /// <summary>
+    /// Confirmación repetida de una operación que ya estaba guardada cuando esta llamada no tiene en memoria lo que se
+    /// escribió (otra llamada la confirmó: doble confirmación, o un reintento de la página tras un fallo). No se escribe
+    /// nada y NO es un informe: <see cref="YaConfirmadaAntes"/> lo dice explícitamente y las cifras, todas a cero, no
+    /// describen lo escrito; quien lo muestre remite al Historial. El reintento de la estrategia dentro de la MISMA
+    /// confirmación no llega aquí: devuelve el resultado real de lo escrito. Revisión Codex de la PR #2164, r3, MEDIO 2.
+    /// </summary>
+    public static ResultadoImportacionMaestraDto YaEjecutada() => new(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, [], [], [])
+    {
+        YaConfirmadaAntes = true
+    };
+
+    /// <summary>
+    /// La operación ya estaba guardada por otra confirmación y este resultado no trae lo que se escribió (ver
+    /// <see cref="YaEjecutada"/>): sus cifras no son un informe.
+    /// </summary>
+    public bool YaConfirmadaAntes { get; init; }
+
+    /// <summary>
+    /// Un elemento por cada registro que se crea o se actualiza y por cada Relación Empresarial que se crea, en el orden
+    /// en que se procesa: operación (<see cref="EscrituraImportacionDto.Alta"/>, <see cref="EscrituraImportacionDto.Actualizacion"/>
+    /// o <see cref="EscrituraImportacionDto.Relacion"/>), hoja, fila y clave natural (CIF; CIF del Cliente empresarial y
+    /// nombre del Centro; identidad del Trabajador; la pareja de CIF de la relación). Identifica QUÉ se escribe detrás de
+    /// cada recuento: dos vistas previas con las mismas cifras pero altas o relaciones distintas (se iba a crear el Centro
+    /// A y ahora el B, porque otra sesión creó A y dio de baja B) no se confunden. Solo entra en <see cref="CalcularHuella"/>.
+    /// Revisión Codex de la PR #2164, r3, MEDIO 1.
+    /// </summary>
+    public IReadOnlyList<EscrituraImportacionDto> DetalleEscrituras { get; init; } = [];
 
     /// <summary>
     /// Un elemento por cada campo vacío que se rellena, en el orden en que se rellena (hoja, fila, campo y valor nuevo):
@@ -89,9 +115,10 @@ public record ResultadoImportacionMaestraDto(
     public IReadOnlyList<CampoRellenadoDto> DetalleCamposRellenados { get; init; } = [];
 
     /// <summary>
-    /// Huella de TODO lo que este resultado dice que se hará: las cifras, cada campo que se rellena (hoja, fila, campo y
-    /// valor nuevo), cada valor sobrescrito (con su valor previo y el nuevo), cada fila omitida con su motivo y cada
-    /// advertencia. Dos resultados con la misma huella muestran y escriben lo mismo. La hoja identifica la entidad y la
+    /// Huella de TODO lo que este resultado dice que se hará: las cifras, cada alta, actualización y Relación Empresarial
+    /// con su clave natural, cada campo que se rellena (hoja, fila, campo y valor nuevo), cada valor sobrescrito (con su
+    /// valor previo y el nuevo), cada fila omitida con su motivo y cada advertencia. Ninguna cifra queda sin la lista que
+    /// la identifica. Dos resultados con la misma huella muestran y escriben lo mismo. La hoja identifica la entidad y la
     /// fila, su clave natural dentro del mismo plan. Cada campo va precedido de su longitud, así que dos contenidos
     /// distintos nunca se serializan igual. Solo se compara en memoria; nunca se registra.
     /// </summary>
@@ -112,6 +139,8 @@ public record ResultadoImportacionMaestraDto(
                      CentrosCreados, CentrosActualizados, TrabajadoresCreados, TrabajadoresActualizados, CamposRellenados
                  })
             Numero(cifra);
+        Numero(DetalleEscrituras.Count);
+        foreach (var w in DetalleEscrituras) { Campo(w.Operacion); Campo(w.Hoja); Numero(w.Fila); Campo(w.Clave); }
         Numero(DetalleCamposRellenados.Count);
         foreach (var r in DetalleCamposRellenados) { Campo(r.Hoja); Numero(r.Fila); Campo(r.Campo); Campo(r.ValorNuevo); }
         Numero(ValoresSobrescritos.Count);
@@ -125,6 +154,15 @@ public record ResultadoImportacionMaestraDto(
 public record ValorPrevioDto(string Hoja, int Fila, string Campo, string ValorPrevio, string? ValorNuevo);
 
 public record CampoRellenadoDto(string Hoja, int Fila, string Campo, string ValorNuevo);
+
+/// <param name="Operacion"><see cref="Alta"/>, <see cref="Actualizacion"/> o <see cref="Relacion"/>.</param>
+/// <param name="Clave">Clave natural del registro escrito; en una relación, «CIF de la Empresa gestionada → CIF del Cliente empresarial».</param>
+public record EscrituraImportacionDto(string Operacion, string Hoja, int Fila, string Clave)
+{
+    public const string Alta = "Alta";
+    public const string Actualizacion = "Actualización";
+    public const string Relacion = "Relación Empresarial";
+}
 
 public class EjecutarImportacionMaestraCommandHandler(
     IEmpresaRepository empresaRepositorio,
@@ -148,6 +186,13 @@ public class EjecutarImportacionMaestraCommandHandler(
     // cada ejecución, por si el handler se reutiliza.
     private bool operacionYaEjecutada;
 
+    // Lo que un intento de ESTA confirmación guardó junto con la marca de la operación. Si la estrategia de reintentos
+    // repite la operación porque el commit se comunicó como un error transitorio pero sí llegó a la base, el reintento
+    // encuentra la operación guardada y devuelve esto, el informe real de lo escrito, en vez de unas cifras a cero
+    // (revisión Codex de la PR #2164, r3, MEDIO 2). Es lo escrito: todo intento que llega al guardado tiene la huella
+    // de la vista previa confirmada. Se reinicia en cada ejecución, por si el handler se reutiliza.
+    private ResultadoImportacionMaestraDto? resultadoGuardado;
+
     public Task<Result<ResultadoImportacionMaestraDto>> Handle(
         EjecutarImportacionMaestraCommand request, CancellationToken cancellationToken) =>
         EjecutarAsync(request.Plan, request.ReemplazarExistentes, request.HuellaVistaPrevia, cancellationToken);
@@ -162,6 +207,7 @@ public class EjecutarImportacionMaestraCommandHandler(
     {
         var escribir = huellaVistaPrevia is not null;
         operacionYaEjecutada = false;
+        resultadoGuardado = null;
         if (!await autorizacionEscrituraEfectiva.EsActoDeAdministradorAsync(cancellationToken))
             return Result.Fallo<ResultadoImportacionMaestraDto>(Error.Crear(
                 "Importacion.SoloAdministrador", "Solo Administrador puede ejecutar la importación de la plantilla maestra."));
@@ -227,11 +273,12 @@ public class EjecutarImportacionMaestraCommandHandler(
     {
         // Releída bajo el candado: otra confirmación de la misma operación, o el primer intento de esta si la estrategia
         // de reintentos repite la operación tras confirmar, ya la guardó. Sin esto, la relectura vería lo que ella creó y
-        // respondería «la vista previa cambió» por una importación que sí se hizo.
+        // respondería «la vista previa cambió» por una importación que sí se hizo. Si fue un intento anterior de esta misma
+        // confirmación, se devuelve lo que guardó; si no, «ya confirmada», sin informe.
         if (await operacionImportacionRepositorio.ExisteAsync(plan.OperacionId, cancellationToken))
         {
             operacionYaEjecutada = true;
-            return ResultadoImportacionMaestraDto.YaEjecutada();
+            return resultadoGuardado ?? ResultadoImportacionMaestraDto.YaEjecutada();
         }
 
         var actual = await ProcesarAsync(plan, reemplazar, huellaEsperada: null, cancellationToken);
@@ -251,6 +298,9 @@ public class EjecutarImportacionMaestraCommandHandler(
         var omitidos = new List<ItemImportacionDto>();
         var sobrescritos = new List<ValorPrevioDto>();
         var rellenados = new List<CampoRellenadoDto>();
+        // Cada alta, actualización y Relación Empresarial, con su clave natural: identifica lo que hay detrás de cada cifra.
+        var escrituras = new List<EscrituraImportacionDto>();
+        void Escrita(string operacion, string hoja, int fila, string clave) => escrituras.Add(new(operacion, hoja, fila, clave));
         var ahora = DateTime.UtcNow;
 
         // Valor resultante de un campo de texto bajo el modo elegido, contando rellenos y sobrescrituras.
@@ -361,6 +411,7 @@ public class EjecutarImportacionMaestraCommandHandler(
                     {
                         razonesEscritas.Add(razonSocial.Trim());
                         empresasActualizadas++;
+                        Escrita(EscrituraImportacionDto.Actualizacion, HojaEmpresas, fila.Fila, fila.Cif);
                     }
                     else
                     {
@@ -384,6 +435,7 @@ public class EjecutarImportacionMaestraCommandHandler(
                 gestionadasPorCif[fila.Cif] = empresa;
                 razonesEscritas.Add(empresa.RazonSocial);
                 empresasCreadas++;
+                Escrita(EscrituraImportacionDto.Alta, HojaEmpresas, fila.Fila, fila.Cif);
             }
             catch (ArgumentException ex)
             {
@@ -448,6 +500,7 @@ public class EjecutarImportacionMaestraCommandHandler(
                         {
                             razonesEscritas.Add(razonSocial.Trim());
                             clientesActualizados++;
+                            Escrita(EscrituraImportacionDto.Actualizacion, HojaClientes, fila.Fila, fila.Cif);
                         }
                         else
                         {
@@ -480,6 +533,7 @@ public class EjecutarImportacionMaestraCommandHandler(
                 clientesTratados.Add(fila.Cif);
                 razonesEscritas.Add(cliente.RazonSocial);
                 clientesCreados++;
+                Escrita(EscrituraImportacionDto.Alta, HojaClientes, fila.Fila, fila.Cif);
             }
 
             // Relación Empresa gestionada → Cliente empresarial, una por pareja y solo si no estaba vigente.
@@ -489,12 +543,16 @@ public class EjecutarImportacionMaestraCommandHandler(
                 if (escribir)
                     await relacionEmpresarialRepositorio.AgregarSiNoVigenteAsync(gestionada.Id, cliente.Id, ahora, cancellationToken: cancellationToken);
                 relacionesCreadas++;
+                // La pareja, por la clave natural de sus dos Empresas (el Id de una Empresa que se crea cambia en cada pasada).
+                Escrita(EscrituraImportacionDto.Relacion, HojaClientes, fila.Fila, $"{fila.CifEmpresaGestionada} → {fila.Cif}");
             }
         }
 
         // ---- Centros (Cliente empresarial + nombre) ----
         var clientePorId = todas.Concat(clientesPorCif.Values).Concat(gestionadasPorCif.Values).DistinctBy(e => e.Id).ToDictionary(e => e.Id);
         static string ClaveCentro(Guid idDelCliente, string nombre) => $"{idDelCliente:N}|{nombre}";
+        // Para la huella: CIF del Cliente empresarial y nombre (la clave de la fila), y la Empresa gestionada a la que va.
+        static string ClaveNaturalCentro(CentroMaestraDto fila) => $"{fila.CifCliente}|{fila.Nombre}|{fila.CifEmpresaGestionada}";
         // Releídos los que el contexto (uno por circuito en Blazor Server) ya rastreaba: la modalidad de gestión CAE que
         // decide si un Centro vuelve a ella (regla A-1) tiene que ser la de la base bajo el candado, no la de antes.
         var centrosPorClave = CatalogoPorNombre<Centro>.De(
@@ -563,6 +621,7 @@ public class EjecutarImportacionMaestraCommandHandler(
                             }, out var error))
                     {
                         centrosActualizados++;
+                        Escrita(EscrituraImportacionDto.Actualizacion, HojaCentros, fila.Fila, ClaveNaturalCentro(fila));
                         if (escribir && modalidad0 == ModalidadGestionCae.SinGestionCae
                             && modalidadResultante == ModalidadGestionCae.ConGestionCae)
                             centrosQueVuelvenAGestionCae.Add(existente);
@@ -583,6 +642,7 @@ public class EjecutarImportacionMaestraCommandHandler(
                 if (escribir) centroRepositorio.Agregar(centro);
                 centrosPorClave.Agregar(ClaveCentro(cliente.Id, fila.Nombre), centro);
                 centrosCreados++;
+                Escrita(EscrituraImportacionDto.Alta, HojaCentros, fila.Fila, ClaveNaturalCentro(fila));
             }
             catch (ArgumentException ex)
             {
@@ -658,7 +718,11 @@ public class EjecutarImportacionMaestraCommandHandler(
                             }))
                     {
                         AjustarTelefonoSobrescrito(fila.Fila, sobrescritosAntes, telefono0, telefonoPersistido);
-                        if (cambioReal) trabajadoresActualizados++;
+                        if (cambioReal)
+                        {
+                            trabajadoresActualizados++;
+                            Escrita(EscrituraImportacionDto.Actualizacion, HojaTrabajadores, fila.Fila, fila.Identidad);
+                        }
                     }
                     else
                     {
@@ -676,6 +740,7 @@ public class EjecutarImportacionMaestraCommandHandler(
                 if (escribir) trabajadorRepositorio.Agregar(trabajador);
                 trabajadoresPorIdentidad[fila.Identidad] = trabajador;
                 trabajadoresCreados++;
+                Escrita(EscrituraImportacionDto.Alta, HojaTrabajadores, fila.Fila, fila.Identidad);
             }
             catch (ArgumentException ex)
             {
@@ -692,7 +757,8 @@ public class EjecutarImportacionMaestraCommandHandler(
             centrosCreados, centrosActualizados, trabajadoresCreados, trabajadoresActualizados, rellenados.Count,
             sobrescritos, plan.Advertencias, [.. plan.Omitidos, .. omitidos])
         {
-            DetalleCamposRellenados = rellenados
+            DetalleCamposRellenados = rellenados,
+            DetalleEscrituras = escrituras
         };
 
         if (!escribir) return resultado;
@@ -730,7 +796,10 @@ public class EjecutarImportacionMaestraCommandHandler(
         // Todo lo pendiente junto con la marca de la operación en un único guardado: si dos confirmaciones de la
         // MISMA operación compiten, la perdedora choca en el índice único y no escribe nada.
         if (await operacionImportacionRepositorio.GuardarSiOperacionNuevaAsync(cancellationToken))
+        {
+            resultadoGuardado = resultado;
             return resultado;
+        }
 
         operacionYaEjecutada = true;
         return ResultadoImportacionMaestraDto.YaEjecutada();
