@@ -21,9 +21,9 @@ namespace CaeManager.Web.Features.HerramientasPdf.Pages;
 /// ANTES de decodificarla; al generar, el generador lo repite. Las miniaturas salen del mismo procesador que el PDF, así que
 /// ya van giradas según el EXIF. La miniatura de cada foto vive en el circuito como la cadena data: con la que se pinta
 /// (se convierte una sola vez, no en cada render), con el JPEG acotado por
-/// <see cref="LimitesFotoAPdf.TamanoMaximoMiniaturaBytes"/>, y reserva en el presupuesto de memoria esa cadena (UTF-16) y
-/// su copia en el lote de render pendiente de confirmar (<see cref="BytesReservadosPorCaracter"/>) hasta que el navegador
-/// confirma el render que la quita, o hasta desechar la pantalla.
+/// <see cref="LimitesFotoAPdf.TamanoMaximoMiniaturaBytes"/>, y reserva en el presupuesto de memoria, ANTES de crearla, el pico
+/// de esa cadena (<see cref="BytesReservadosPorCaracter"/>, con su cálculo en la constante) hasta que el navegador confirma
+/// el render que la quita, o hasta desechar la pantalla.
 ///
 /// <para>
 /// El trabajo de CPU (miniaturas y composición) pasa por <see cref="LimitadorConversionesPdf"/>, un límite del proceso.
@@ -48,8 +48,9 @@ public partial class FotoAPdf : CaeManager.Web.Components.PaginaInteractiva, IAs
     /// <summary>
     /// Por cada carácter de la cadena data: de una miniatura se reservan 4 bytes, que es el pico real al crearla:
     /// <c>Convert.ToBase64String</c> devuelve una cadena UTF-16 (2 bytes por carácter) y concatenarla con el prefijo crea
-    /// otra (otros 2), de modo que durante la concatenación coexisten 4 bytes por carácter, además del array JPEG que ya
-    /// retiene el procesador (acotado por <see cref="LimitesFotoAPdf.TamanoMaximoMiniaturaBytes"/>). Ya creada, lo que queda
+    /// otra (otros 2), de modo que durante la concatenación coexisten 4 bytes por carácter. El array JPEG de la miniatura
+    /// (acotado por <see cref="LimitesFotoAPdf.TamanoMaximoMiniaturaBytes"/>) no entra en esta reserva: la del procesador
+    /// terminó al devolverlo. Ya creada, lo que queda
     /// vivo son 3: la cadena retenida (2) y su copia en el lote de render pendiente de confirmar (1, UTF-8: el Base64 es
     /// ASCII); la reserva se mantiene en 4 hasta quitar la foto, del lado seguro. Cada cadena viaja en UN solo lote: las filas
     /// llevan <c>@key</c>, así que mover o quitar fotos permuta o retira filas sin volver a enviar el <c>src</c> de las demás.
