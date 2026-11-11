@@ -180,6 +180,69 @@ public class AptAcotadoEnCiTests
             "un segundo argumento desconocido tiene que fallar, no tratarse como la lista completa");
     }
 
+    /// <summary>
+    /// ESPEJO_UBUNTU se interpola en un programa de sed: solo puede llegar a él un valor
+    /// que sea, entero, uno de los espejos de reserva de elegir-espejo.sh. Un <c>case</c>
+    /// con patrones literales compara el valor completo, así que tampoco pasa uno
+    /// multilínea; una expresión por líneas (grep -x) no bastaba. Tras el sed, cada
+    /// URIs: tiene que ser exactamente el espejo y no puede perderse ningún Signed-By.
+    /// </summary>
+    [Fact]
+    public void La_lista_blanca_del_Dockerfile_es_exactamente_la_de_reservas_y_va_antes_del_sed()
+    {
+        var raiz = RaizDelRepositorio();
+        var guion = File.ReadAllText(Path.Combine(raiz, ".github", "actions", "apt-acotado", "elegir-espejo.sh"));
+        var reservas = Regex.Matches(guion, @"^\s*(https://[a-z0-9.-]+/ubuntu/)\s*$", RegexOptions.Multiline)
+            .Select(m => m.Groups[1].Value)
+            .Skip(1)
+            .ToList();
+        var dockerfile = LineasSinComentario(Path.Combine(raiz, "Dockerfile"));
+
+        var lineaDeAdmitidos = dockerfile.Single(l => l.StartsWith("https://", StringComparison.Ordinal) && l.Contains(") ;;", StringComparison.Ordinal));
+        var admitidos = lineaDeAdmitidos[..lineaDeAdmitidos.IndexOf(')', StringComparison.Ordinal)].Split('|');
+
+        reservas.Should().NotBeEmpty("el test tiene que estar leyendo la lista de candidatos de verdad");
+        admitidos.Should().Equal(reservas, "la lista blanca del Dockerfile y la de elegir-espejo.sh no pueden divergir");
+        admitidos.Should().OnlyContain(a => Regex.IsMatch(a, @"^https://[a-z0-9.-]+/ubuntu/$"),
+            "sin comodines: cada patrón del case es un espejo literal");
+
+        var indiceCase = dockerfile.FindIndex(l => l.StartsWith("case \"$ESPEJO_UBUNTU\" in", StringComparison.Ordinal));
+        var indiceSed = dockerfile.FindIndex(l => l.Contains("${ESPEJO_UBUNTU}", StringComparison.Ordinal));
+        indiceCase.Should().BeGreaterThan(-1, "el valor se filtra con un case de patrones literales");
+        indiceCase.Should().BeLessThan(indiceSed, "el filtro va antes de interpolar el valor en sed");
+        dockerfile.Should().Contain(l => l.Contains("grep -vqxF \"URIs: $ESPEJO_UBUNTU\"", StringComparison.Ordinal),
+            "cada URIs: tiene que quedar exactamente en el espejo");
+        dockerfile.Should().Contain(l => l.Contains("= \"$firmas\" ]", StringComparison.Ordinal),
+            "la reescritura no puede perder ningún Signed-By");
+    }
+
+    /// <summary>
+    /// La acción corre sin errexit para conservar los reintentos: cada preparación de apt
+    /// (configuración y fuentes) se comprueba a mano y, si falla, apt no llega a correr
+    /// con reintentos activos ante un espejo de terceros ni con fuentes a medias.
+    /// </summary>
+    [Fact]
+    public void La_preparacion_de_apt_falla_cerrada()
+    {
+        var accion = LineasSinComentario(Path.Combine(
+            RaizDelRepositorio(), ".github", "actions", "apt-acotado", "action.yml"));
+
+        accion.Should().Contain(l => l.StartsWith("escribir_conf_apt 1 || {", StringComparison.Ordinal),
+            "sin la configuración inicial, apt esperaría 120 s por conexión");
+        accion.Should().Contain("escribir_conf_apt 0 || return 1",
+            "con un espejo de terceros, apt no puede correr con reintentos activos");
+        accion.Should().Contain("apuntar_fuentes_a \"$base\" || return 1",
+            "un fallo al reescribir las fuentes no puede quedar oculto");
+        accion.Should().Contain(l => l.Contains("grep -vqxF \"URIs: $1\"", StringComparison.Ordinal),
+            "cada URIs: tiene que quedar exactamente en la base elegida");
+        accion.Should().Contain(l => l.Contains("= \"$firmas\" ] || return 1", StringComparison.Ordinal),
+            "la reescritura no puede perder ningún Signed-By");
+        accion.Should().NotContain("usar_archivo_directo",
+            "llamar a la preparación sin comprobarla deja correr apt con la preparación fallida");
+        accion.Count(l => l.Contains("preparar_o_fallar", StringComparison.Ordinal)).Should().BeGreaterThanOrEqualTo(3,
+            "la definición, la salida de Azure y cada reintento pasan por la preparación comprobada");
+    }
+
     private static List<string> LineasSinComentario(string ruta) =>
         File.ReadAllLines(ruta)
             .Select(l => l.Trim())

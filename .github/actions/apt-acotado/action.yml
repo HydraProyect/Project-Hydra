@@ -64,16 +64,25 @@ runs:
             'Acquire::http::Timeout "30";' \
             'Acquire::https::Timeout "30";' \
             'DPkg::Lock::Timeout "60";' \
-            | sudo tee /etc/apt/apt.conf.d/99-ci-apt-acotado > /dev/null
+            | sudo tee /etc/apt/apt.conf.d/99-ci-apt-acotado > /dev/null \
+            && grep -qxF "Acquire::Retries \"$1\";" /etc/apt/apt.conf.d/99-ci-apt-acotado
         }
-        escribir_conf_apt 1
+        # Sin errexit, cada preparación se comprueba a mano y falla cerrada: apt
+        # nunca corre con reintentos activos ante un espejo de terceros ni con
+        # unas fuentes a medio reescribir.
+        escribir_conf_apt 1 || { echo "::error::No se pudo escribir la configuración de apt."; exit 1; }
 
         # Apunta cada URI de Ubuntu de las fuentes deb822 (el mirror+file de
         # Azure, archive, security o un espejo elegido antes, todos acabados en
         # /ubuntu) a una sola base. No toca Signed-By ni añade opciones.
         apuntar_fuentes_a() {
-          sudo sed -E -i "/^URIs:/ s#[^[:space:]]+(apt-mirrors\.txt|/ubuntu/?)([[:space:]]|\$)#${1}\2#g" "$fuentes"
-          grep '^URIs:' "$fuentes"
+          local firmas
+          firmas="$(grep -c '^Signed-By:' "$fuentes")"
+          sudo sed -E -i "/^URIs:/ s#[^[:space:]]+(apt-mirrors\.txt|/ubuntu/?)([[:space:]]|\$)#${1}\2#g" "$fuentes" || return 1
+          grep '^URIs:' "$fuentes" || return 1
+          # Cada URIs: es exactamente la base elegida y no se pierde ningún Signed-By.
+          ! grep '^URIs:' "$fuentes" | grep -vqxF "URIs: $1" || return 1
+          [ "$(grep -c '^Signed-By:' "$fuentes")" = "$firmas" ] || return 1
         }
 
         # Fuera de Azure: archive.ubuntu.com o, si tampoco responde, el primer
@@ -83,18 +92,23 @@ runs:
           if base="$(bash "$GITHUB_ACTION_PATH/elegir-espejo.sh" "$VERSION_CODENAME")"; then
             case "$base" in
               https://archive.ubuntu.com/*)
-                escribir_conf_apt 1
+                escribir_conf_apt 1 || return 1
                 echo "::warning::apt usará archive.ubuntu.com directamente." ;;
               *)
-                escribir_conf_apt 0
+                escribir_conf_apt 0 || return 1
                 echo "::warning::Ni Azure ni archive.ubuntu.com responden: apt usará el espejo de reserva ${base}" ;;
             esac
           else
             base=https://archive.ubuntu.com/ubuntu/
-            escribir_conf_apt 1
+            escribir_conf_apt 1 || return 1
             echo "::warning::Ningún archivo de Ubuntu responde a la sonda: apt probará archive.ubuntu.com igualmente."
           fi
-          apuntar_fuentes_a "$base"
+          apuntar_fuentes_a "$base" || return 1
+        }
+        preparar_o_fallar() {
+          usar_archivo_directo && return 0
+          echo "::error::No se pudieron preparar la configuración o las fuentes de apt: no se ejecuta apt."
+          exit 1
         }
 
         # `timeout` corre como runner y no puede matar a los procesos de root
@@ -108,7 +122,7 @@ runs:
 
         if ! curl -fsS --max-time 10 -o /dev/null "$sonda"; then
           echo "::warning::El espejo de Azure no responde: apt sale de Azure."
-          usar_archivo_directo
+          preparar_o_fallar
         fi
 
         for intento in 1 2 3; do
@@ -116,7 +130,7 @@ runs:
           codigo=$?
           echo "::warning::Intento $intento de 3 terminó con código $codigo (124 o 137: superó ${LIMITE} s)."
           limpiar_apt
-          usar_archivo_directo
+          [ "$intento" -lt 3 ] && preparar_o_fallar
           [ "$intento" -lt 3 ] && sleep $((intento * 10))
         done
 
