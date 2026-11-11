@@ -61,10 +61,10 @@
     <comment>Columna Vigència de la fila d'Empresa quan Estat és null: un rebuig a la plataforma ni venç ni "no caduca" (AcordeonAsignacionesCentro.razor.cs, TextoVigenciaEmpresa).</comment>
   </data>
   <data name="ToastLoteRestaurados" xml:space="preserve">
-    <value>{0} centro(s) restaurado(s).</value>
+    <value>{0} centre(s) restaurat(s).</value>
   </data>
   <data name="ToastLoteRestauradosConErrores" xml:space="preserve">
-    <value>{0} restaurado(s). {1} no se pudieron restaurar: {2}</value>
+    <value>{0} restaurat(s). {1} no s'han pogut restaurar: {2}</value>
   </data>
   <data name="ToastAccionDeshacer" xml:space="preserve">
     <value>Deshacer</value>
@@ -172,22 +172,22 @@
     <value>{0} documents amb bloqueig de plataforma</value>
   </data>
   <data name="MenuEliminarCentro" xml:space="preserve">
-    <value>Eliminar centro</value>
+    <value>Eliminar centre</value>
   </data>
   <data name="EliminarCentroTitulo" xml:space="preserve">
-    <value>¿Eliminar el centro «{0}»?</value>
+    <value>Vols eliminar el centre «{0}»?</value>
   </data>
   <data name="EliminarCentroMensaje" xml:space="preserve">
-    <value>Se ocultará de las listas activas y sus asignaciones activas quedarán dadas de baja. Podrás deshacer la eliminación desde el aviso que aparecerá, pero las asignaciones seguirán de baja; después, solo un Administrador de esta organización puede recuperarlo desde Auditoría.</value>
+    <value>S'ocultarà de les llistes actives i les seves assignacions actives quedaran donades de baixa. Podràs desfer l'eliminació des de l'avís que apareixerà, però les assignacions seguiran de baixa; després, només un Administrador d'aquesta organització pot recuperar-lo des d'Auditoria.</value>
   </data>
   <data name="ToastCentroEliminado" xml:space="preserve">
-    <value>Centro «{0}» eliminado.</value>
+    <value>Centre «{0}» eliminat.</value>
   </data>
   <data name="ToastCentroEliminadoError" xml:space="preserve">
-    <value>No pudimos eliminar el centro. Intenta nuevamente.</value>
+    <value>No hem pogut eliminar el centre. Torna-ho a provar.</value>
   </data>
   <data name="ToastCentroRestaurado" xml:space="preserve">
-    <value>Centro restaurado. Sus asignaciones siguen de baja.</value>
+    <value>Centre restaurat. Les seves assignacions segueixen de baixa.</value>
   </data>
   <data name="RequisitoVigenciaPropia" xml:space="preserve">
     <value>Vigència: la del propi document</value>

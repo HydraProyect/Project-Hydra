@@ -31,10 +31,10 @@
     <value>Cambiar</value>
   </data>
   <data name="IdiomaNoCambiadoTitulo" xml:space="preserve">
-    <value>No se pudo cambiar el idioma</value>
+    <value>No s'ha pogut canviar l'idioma</value>
   </data>
   <data name="IdiomaNoCambiadoDetalle" xml:space="preserve">
-    <value>Tu preferencia de idioma no se ha guardado y la interfaz sigue en el idioma anterior. Inténtalo de nuevo en unos segundos.</value>
+    <value>La teva preferència d'idioma no s'ha desat i la interfície continua en l'idioma anterior. Torna-ho a provar d'aquí a uns segons.</value>
   </data>
   <data name="AvisosRestantesTitulo" xml:space="preserve">
     <value>+{0}: {1}. Es veuen a la pàgina de {2}</value>
@@ -253,7 +253,7 @@
     <value>No hem pogut desar el filtre. Si ja en tens un amb aquest nom, tria'n un altre; si no, torna-ho a provar d'aquí a uns segons.</value>
   </data>
   <data name="SoporteEnlaceLogoOrganizacion" xml:space="preserve">
-    <value>Logo de la organización</value>
+    <value>Logotip de l'organització</value>
   </data>
   <data name="VolverAMiTrabajo" xml:space="preserve">
     <value>Tornar a La meva feina</value>

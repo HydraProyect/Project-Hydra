@@ -13,7 +13,7 @@
     <value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
   </resheader>
   <data name="NombreHoja" xml:space="preserve">
-    <value>Asignaciones</value>
+    <value>Assignacions</value>
   </data>
   <data name="ColumnaTrabajador" xml:space="preserve">
     <value>Trabajador</value>
@@ -25,7 +25,7 @@
     <value>Client</value>
   </data>
   <data name="ColumnaFechaAlta" xml:space="preserve">
-    <value>Fecha de alta</value>
+    <value>Data d'alta</value>
   </data>
   <data name="ColumnaEstado" xml:space="preserve">
     <value>Estado</value>
