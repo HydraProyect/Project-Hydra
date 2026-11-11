@@ -119,7 +119,9 @@ LABEL es.talveg.guarda-correo="1"
 # ESPEJO_UBUNTU: vacío por defecto, y así lo dejan deploy.yml, trivy-nocturno.yml,
 # ci-deploy.sh y todo despliegue: la imagen usa las fuentes de la base (archive y
 # security.ubuntu.com), y si el runner no resuelve ubuntu.com esos builds fallan igual
-# que antes. Solo el job «Build de la imagen de despliegue» del CI lo rellena, y solo
+# que antes, a propósito: la imagen de producción solo se construye con las fuentes
+# oficiales y, si el DNS no vuelve, el despliegue espera (decisión del 2026-11-11,
+# AptAcotadoEnCiTests). Solo el job «Build de la imagen de despliegue» del CI lo rellena, y solo
 # cuando la sonda del runner no alcanza esas fuentes: entonces trae la base de un
 # espejo oficial de Ubuntu fuera de ubuntu.com (.github/actions/apt-acotado/
 # elegir-espejo.sh) y las dos estrofas (con security) pasan a él. Solo cambia la URL: cada

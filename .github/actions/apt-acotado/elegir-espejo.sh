@@ -32,9 +32,14 @@ candidatos=(
 # solo-reserva: quien llama ya sabe que *.ubuntu.com no le sirve (el job de la
 # imagen Docker, que sondea antes las fuentes http de la base) y solo quiere un
 # espejo de fuera de ubuntu.com.
-if [ "${2:-}" = solo-reserva ]; then
-  candidatos=("${candidatos[@]:1}")
-fi
+case "${2:-}" in
+  "") ;;
+  solo-reserva)
+    candidatos=("${candidatos[@]:1}") ;;
+  *)
+    echo "elegir-espejo.sh: segundo argumento desconocido «$2» (solo se admite solo-reserva)." >&2
+    exit 2 ;;
+esac
 
 for base in "${candidatos[@]}"; do
   if curl -fsS --max-time 10 -o /dev/null "${base}dists/${codename}/InRelease" \

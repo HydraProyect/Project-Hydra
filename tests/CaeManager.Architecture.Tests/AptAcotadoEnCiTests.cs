@@ -140,6 +140,7 @@ public class AptAcotadoEnCiTests
         var ci = LineasSinComentario(Path.Combine(raiz, ".github", "workflows", "ci.yml"));
         var accion = LineasSinComentario(Path.Combine(raiz, ".github", "actions", "apt-acotado", "action.yml"));
         var despliegue = File.ReadAllText(Path.Combine(raiz, ".github", "workflows", "deploy.yml"));
+        var nocturno = File.ReadAllText(Path.Combine(raiz, ".github", "workflows", "trivy-nocturno.yml"));
 
         dockerfile.Should().Contain("ARG ESPEJO_UBUNTU=",
             "sin valor por defecto vacío, la imagen de producción dejaría de usar archive.ubuntu.com");
@@ -149,8 +150,34 @@ public class AptAcotadoEnCiTests
             "la sonda de la imagen usa la misma lista de espejos que apt-acotado");
         accion.Should().Contain(l => l.Contains("bash \"$GITHUB_ACTION_PATH/elegir-espejo.sh\"", StringComparison.Ordinal),
             "apt-acotado tiene que invocar la sonda de espejos, no solo nombrarla en un comentario");
+        // Decisión de la coordinadora (2026-11-11): la imagen de producción y la del
+        // escaneo nocturno solo se construyen con las fuentes oficiales de la base; si el
+        // DNS de ubuntu.com no vuelve, el despliegue espera.
         despliegue.Should().NotContain("ESPEJO_UBUNTU",
-            "el despliegue construye con las fuentes de la base; pasarle un espejo es una decisión aparte");
+            "la imagen de producción solo se construye con las fuentes oficiales de su base");
+        nocturno.Should().NotContain("ESPEJO_UBUNTU",
+            "el escaneo nocturno construye la misma imagen que producción, con sus fuentes oficiales");
+    }
+
+    /// <summary>
+    /// El job de imagen ya ha sondeado las fuentes http de la base cuando llama a la lista:
+    /// sin <c>solo-reserva</c> le volvería archive.ubuntu.com, que el Dockerfile rechaza. El
+    /// guion tiene que quitar de verdad ese candidato y no ignorar un argumento mal escrito.
+    /// </summary>
+    [Fact]
+    public void El_job_de_imagen_pide_solo_reservas_y_el_guion_las_filtra()
+    {
+        var raiz = RaizDelRepositorio();
+        var ci = LineasSinComentario(Path.Combine(raiz, ".github", "workflows", "ci.yml"));
+        var guion = LineasSinComentario(Path.Combine(raiz, ".github", "actions", "apt-acotado", "elegir-espejo.sh"));
+
+        ci.Should().Contain(
+            l => l.Contains("elegir-espejo.sh", StringComparison.Ordinal) && l.Contains("solo-reserva", StringComparison.Ordinal),
+            "el job de imagen solo puede recibir un espejo fuera de ubuntu.com");
+        guion.Should().Contain("candidatos=(\"${candidatos[@]:1}\") ;;",
+            "solo-reserva tiene que quitar archive.ubuntu.com de la lista");
+        guion.Should().Contain(l => l.StartsWith("exit 2", StringComparison.Ordinal),
+            "un segundo argumento desconocido tiene que fallar, no tratarse como la lista completa");
     }
 
     private static List<string> LineasSinComentario(string ruta) =>
