@@ -38,9 +38,13 @@ public class ConexionIntegracionRepositorioFalso : IConexionIntegracionRepositor
         return Task.FromResult(Rastrear(Conexiones.FirstOrDefault(c => c.Id == id)));
     }
 
+    /// <summary>Se invoca en cada lectura de la versión de la base, con su número (1 = la primera); puede lanzar.</summary>
+    public Action<int>? AlLeerActual { get; set; }
+
     public Task<ConexionIntegracion?> ObtenerActualPorIdAsync(Guid id, CancellationToken cancellationToken = default)
     {
         VecesLeidaActual++;
+        AlLeerActual?.Invoke(VecesLeidaActual);
         return Task.FromResult(Rastrear(Conexiones.FirstOrDefault(c => c.Id == id)));
     }
 
