@@ -383,6 +383,26 @@ public class AltaAcreditacionesPlataformaServiceTests
     }
 
     [Fact]
+    public async Task Una_posicion_retirada_de_un_centro_de_la_empresa_sin_trabajadores_acredita_sus_documentos_de_empresa()
+    {
+        var mundo = new MundoAcreditaciones();
+        var tipo = mundo.Tipo(RequisitoDocumental.Si, AmbitoAplicacion.Empresa, "Seguro RC");
+        var deEmpresa = mundo.DocumentoDeEmpresa(tipo);
+        var centro = mundo.Centro("Planta sin personal", mundo.EmpresaId);
+        var acceso = mundo.AccesoPlataforma(centro);
+        var filaRetirada = mundo.Requisito(tipo, centro, incluido: false);
+        var centroAjeno = mundo.Centro("Planta de otra Empresa");
+        mundo.AccesoPlataforma(centroAjeno);
+        var filaAjena = mundo.Requisito(tipo, centroAjeno, incluido: false);
+
+        // El Command borra las filas en el mismo guardado: el Centro vuelve al valor general del tipo (Sí).
+        await mundo.Servicio().AgregarPendientesAsync(new AltasConAcreditacion { RequisitosRetirados = [filaRetirada, filaAjena] });
+
+        mundo.Agregadas.Should().BeEquivalentTo([(deEmpresa.Id, acceso.Id)],
+            "el Centro de otra Empresa sin Trabajadores suyos no acredita aunque su posición también se retire");
+    }
+
+    [Fact]
     public async Task Un_documento_de_empresa_suma_sus_centros_a_los_de_sus_trabajadores_asignados_sin_quitar_ninguno()
     {
         var mundo = new MundoAcreditaciones();
