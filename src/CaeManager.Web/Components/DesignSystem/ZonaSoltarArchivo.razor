@@ -194,7 +194,10 @@ else if (!TieneArchivos && !string.IsNullOrWhiteSpace(NombreArchivoActual))
     {
         // El InputFile va con disabled="@Cargando": quitar el atributo en el DOM no puede ejecutar la acción.
         if (Cargando)
+        {
+            _origenPendiente = null;
             return;
+        }
 
         _errorEntrada = null;
         if (e.FileCount > 0)

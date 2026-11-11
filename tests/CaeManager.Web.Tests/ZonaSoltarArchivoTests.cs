@@ -280,6 +280,35 @@ public class ZonaSoltarArchivoTests : BunitContext
     }
 
     [Fact]
+    public void Mientras_carga_un_cambio_que_llega_igualmente_no_llega_a_quien_usa_la_zona_ni_se_anuncia()
+    {
+        // El input va deshabilitado, pero quitar `disabled` en el DOM no puede ejecutar la acción (CWE-602):
+        // el servidor vuelve a comprobar Cargando.
+        var recibidos = 0;
+        var cut = Render<ZonaSoltarArchivo>(p => p
+            .Add(z => z.Cargando, true)
+            .Add(z => z.OnChange, EventCallback.Factory.Create<InputFileChangeEventArgs>(this, _ => recibidos++)));
+
+        Subir(cut, "foto.png");
+
+        recibidos.Should().Be(0);
+        Anuncio(cut).Should().BeEmpty();
+    }
+
+    [Fact]
+    public void Con_la_zona_libre_el_mismo_cambio_si_llega_a_quien_la_usa()
+    {
+        // Control positivo del caso anterior: sin él, una zona que ignorase todo daría verde.
+        var recibidos = 0;
+        var cut = Render<ZonaSoltarArchivo>(p => p
+            .Add(z => z.OnChange, EventCallback.Factory.Create<InputFileChangeEventArgs>(this, _ => recibidos++)));
+
+        Subir(cut, "foto.png");
+
+        cut.WaitForAssertion(() => recibidos.Should().Be(1));
+    }
+
+    [Fact]
     public void Sin_anunciar_el_nombre_el_aviso_no_deja_el_nombre_del_archivo_en_la_pagina()
     {
         var cut = Zona(p => p.Add(z => z.AnunciarNombre, false));
