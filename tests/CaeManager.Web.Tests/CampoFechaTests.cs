@@ -319,4 +319,229 @@ public class CampoFechaTests : BunitContext
         await cut.Find("input[data-campo-fecha]").InputAsync(new ChangeEventArgs { Value = string.Empty });
         recibidos.Should().Equal("2026-03-15", string.Empty);
     }
+
+    // Hallazgo 2 de la revisión: el texto que no es fecha llegaba tal cual al formulario, y unos 35 DateOnly.TryParse
+    // sensibles a la cultura leían «1/2/26» como 01/02/2026. Contrato: el formulario recibe «» (como el campo nativo),
+    // FechaNoValidaChanged lo dice y el aviso lo da el propio campo al salir.
+    [Theory]
+    [InlineData("1/2/26")]
+    [InlineData("15/03")]
+    [InlineData("10/12/202")]
+    [InlineData("31/02/2026")]
+    public async Task CampoTexto_Type_date_entrega_vacio_y_no_el_texto_cuando_no_es_una_fecha(string tecleado)
+    {
+        var recibidos = new List<string>();
+        var noValida = new List<bool>();
+        var cut = Render<CampoTexto>(p => p
+            .Add(c => c.Type, "date")
+            .Add(c => c.Valor, "2026-03-01")
+            .Add(c => c.ValorChanged, v => recibidos.Add(v))
+            .Add(c => c.FechaNoValidaChanged, v => noValida.Add(v)));
+
+        await cut.Find("input[data-campo-fecha]").InputAsync(new ChangeEventArgs { Value = tecleado });
+        await cut.Find("input[data-campo-fecha]").BlurAsync(new FocusEventArgs());
+
+        recibidos.Should().Equal(new[] { string.Empty }, "lo que no es fecha es «sin fecha», nunca el texto");
+        noValida.Should().Equal(true);
+        cut.Find(".campo-mensaje-error").TextContent.Should().Contain("dd/mm/aaaa");
+    }
+
+    // Hallazgo 1: tras un texto no válido, vaciar el campo tenía que notificar el vacío (quitar la Baja de la ficha).
+    [Fact]
+    public async Task CampoTexto_Type_date_tras_un_texto_no_valido_vaciar_deja_el_valor_vacio_y_valido()
+    {
+        var recibidos = new List<string>();
+        var noValida = new List<bool>();
+        var cut = Render<CampoTexto>(p => p
+            .Add(c => c.Type, "date")
+            .Add(c => c.Valor, "2026-03-01")
+            .Add(c => c.ValorChanged, v => recibidos.Add(v))
+            .Add(c => c.FechaNoValidaChanged, v => noValida.Add(v)));
+
+        await cut.Find("input[data-campo-fecha]").InputAsync(new ChangeEventArgs { Value = "31/02/2026" });
+        await cut.Find("input[data-campo-fecha]").BlurAsync(new FocusEventArgs());
+        await cut.Find("input[data-campo-fecha]").InputAsync(new ChangeEventArgs { Value = string.Empty });
+        await cut.Find("input[data-campo-fecha]").BlurAsync(new FocusEventArgs());
+
+        recibidos.Should().Equal(new[] { string.Empty }, "el último valor del formulario es «», no «31/02/2026»");
+        noValida.Should().Equal(true, false);
+        cut.FindAll(".campo-mensaje-error").Should().BeEmpty();
+    }
+
+    // Hallazgo 4: salir otra vez del campo con el mismo texto no válido no vuelve a notificar (recargaba Auditoría y
+    // borraba el error de RevisionIaTab). OnBlur sí: es «perdió el foco».
+    [Fact]
+    public async Task Salir_otra_vez_con_el_mismo_texto_no_valido_no_vuelve_a_notificar()
+    {
+        var recibidos = new List<string>();
+        var salidas = 0;
+        var cut = Render<CampoTexto>(p => p
+            .Add(c => c.Type, "date")
+            .Add(c => c.Valor, "2026-03-01")
+            .Add(c => c.ValorChanged, v => recibidos.Add(v))
+            .Add(c => c.OnBlur, () => salidas++));
+
+        await cut.Find("input[data-campo-fecha]").InputAsync(new ChangeEventArgs { Value = "15/03" });
+        await cut.Find("input[data-campo-fecha]").BlurAsync(new FocusEventArgs());
+        await cut.Find("input[data-campo-fecha]").BlurAsync(new FocusEventArgs());
+        await cut.Find("input[data-campo-fecha]").BlurAsync(new FocusEventArgs());
+
+        recibidos.Should().ContainSingle();
+        salidas.Should().Be(3);
+    }
+
+    [Fact]
+    public async Task NoValidoChanged_avisa_solo_al_cambiar_mientras_se_escribe()
+    {
+        var noValido = new List<bool>();
+        var cut = Render<CampoFecha>(p => p.Add(c => c.NoValidoChanged, v => noValido.Add(v)));
+
+        foreach (var texto in new[] { "1", "10", "10/1", "10/12", "10/12/2", "10/12/2026" })
+            await cut.Find("input").InputAsync(new ChangeEventArgs { Value = texto });
+
+        noValido.Should().Equal(true, false);
+    }
+
+    // Hallazgo 3: el padre que deja el campo en el mismo valor (null tras un texto no válido) no se distingue de un
+    // re-render cualquiera; al deshabilitarse («Sin caducidad», «No lo sé») el campo sí vuelve a su valor.
+    [Fact]
+    public async Task Al_deshabilitarse_el_campo_vuelve_al_valor_del_padre_y_quita_el_aviso()
+    {
+        var noValido = new List<bool>();
+        var cut = Render<CampoFecha>(p => p
+            .Add(c => c.Valor, (DateOnly?)null)
+            .Add(c => c.NoValidoChanged, v => noValido.Add(v)));
+        await cut.Find("input").InputAsync(new ChangeEventArgs { Value = "15" });
+        await cut.Find("input").BlurAsync(new FocusEventArgs());
+        cut.FindAll(".campo-mensaje-error").Should().ContainSingle("control positivo");
+
+        cut.Render(p => p.Add(c => c.Valor, (DateOnly?)null).Add(c => c.Deshabilitado, true));
+
+        cut.FindAll(".campo-mensaje-error").Should().BeEmpty();
+        cut.Find("input").GetAttribute("value").Should().BeEmpty();
+        noValido.Should().Equal(true, false);
+
+        cut.Render(p => p.Add(c => c.Valor, (DateOnly?)null).Add(c => c.Deshabilitado, false));
+        await cut.Find("input").BlurAsync(new FocusEventArgs());
+        cut.FindAll(".campo-mensaje-error").Should().BeEmpty("al volver a habilitarse el campo está vacío");
+    }
+
+    // Hallazgo 6: en los extremos del calendario (0001 y 9999) moverse fuera no tira el circuito: no se mueve.
+    [Theory]
+    [InlineData("01/01/0001", "ArrowLeft")]
+    [InlineData("01/01/0001", "ArrowUp")]
+    [InlineData("01/01/0001", "PageUp")]
+    [InlineData("31/12/9999", "ArrowRight")]
+    [InlineData("31/12/9999", "ArrowDown")]
+    [InlineData("31/12/9999", "End")]
+    [InlineData("31/12/9999", "PageDown")]
+    public async Task En_los_extremos_del_calendario_moverse_fuera_no_hace_nada(string fecha, string tecla)
+    {
+        var cut = Render<CampoFecha>();
+        await cut.Find("input").InputAsync(new ChangeEventArgs { Value = fecha });
+        await cut.Find("button[data-campo-fecha-boton]").ClickAsync(new MouseEventArgs());
+        var antes = cut.Find(".campo-fecha-dia[tabindex='0']").GetAttribute("data-fecha");
+
+        await cut.Find(".campo-fecha-rejilla").KeyDownAsync(new KeyboardEventArgs { Key = tecla });
+
+        cut.Find(".campo-fecha-dia[tabindex='0']").GetAttribute("data-fecha").Should().Be(antes);
+    }
+
+    [Theory]
+    [InlineData("01/01/0001", -1)]
+    [InlineData("31/12/9999", 1)]
+    public async Task En_los_extremos_cambiar_de_mes_no_hace_nada(string fecha, int sentido)
+    {
+        var cut = Render<CampoFecha>();
+        await cut.Find("input").InputAsync(new ChangeEventArgs { Value = fecha });
+        await cut.Find("button[data-campo-fecha-boton]").ClickAsync(new MouseEventArgs());
+        var titulo = cut.Find(".campo-fecha-titulo").TextContent;
+
+        await cut.FindAll("button.campo-fecha-mes")[sentido < 0 ? 0 : 1].ClickAsync(new MouseEventArgs());
+
+        cut.Find(".campo-fecha-titulo").TextContent.Should().Be(titulo);
+    }
+
+    [Fact]
+    public async Task Minimo_y_Maximo_acotan_los_dias_elegibles()
+    {
+        var recibidos = new List<DateOnly?>();
+        var cut = Render<CampoFecha>(p => p
+            .Add(c => c.Valor, new DateOnly(2026, 3, 15))
+            .Add(c => c.Minimo, new DateOnly(2026, 3, 10))
+            .Add(c => c.Maximo, new DateOnly(2026, 3, 20))
+            .Add(c => c.ValorChanged, v => recibidos.Add(v)));
+        await cut.Find("button[data-campo-fecha-boton]").ClickAsync(new MouseEventArgs());
+
+        cut.Find(".campo-fecha-dia[data-fecha='2026-03-09']").GetAttribute("aria-disabled").Should().Be("true");
+        cut.Find(".campo-fecha-dia[data-fecha='2026-03-21']").GetAttribute("aria-disabled").Should().Be("true");
+        cut.Find(".campo-fecha-dia[data-fecha='2026-03-10']").HasAttribute("aria-disabled").Should().BeFalse();
+        await cut.Find(".campo-fecha-dia[data-fecha='2026-03-09']").ClickAsync(new MouseEventArgs());
+        recibidos.Should().BeEmpty();
+
+        await cut.Find(".campo-fecha-dia[data-fecha='2026-03-20']").ClickAsync(new MouseEventArgs());
+        recibidos.Should().Equal(new DateOnly(2026, 3, 20));
+    }
+
+    [Fact]
+    public void CampoTexto_Type_date_pasa_min_y_max_al_calendario_y_no_al_input()
+    {
+        var cut = Render<CampoTexto>(p => p
+            .Add(c => c.Type, "date")
+            .AddUnmatched("min", "2026-03-10")
+            .AddUnmatched("max", "2026-03-20"));
+
+        var campo = cut.FindComponent<CampoFecha>().Instance;
+        campo.Minimo.Should().Be(new DateOnly(2026, 3, 10));
+        campo.Maximo.Should().Be(new DateOnly(2026, 3, 20));
+        cut.Find("input").HasAttribute("min").Should().BeFalse();
+        cut.Find("input").HasAttribute("max").Should().BeFalse();
+    }
+
+    // Hallazgo 6: salir del calendario con Tab lo cierra sin devolver el foco al campo (el navegador ya lo llevó al
+    // control siguiente); Mayúsculas+Tab desde el mes anterior, igual.
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Salir_del_calendario_con_Tab_lo_cierra_sin_robar_el_foco(bool haciaAtras)
+    {
+        var cut = Render<CampoFecha>(p => p.Add(c => c.Valor, new DateOnly(2026, 12, 10)));
+        await cut.Find("button[data-campo-fecha-boton]").ClickAsync(new MouseEventArgs());
+
+        if (haciaAtras)
+            await cut.FindAll("button.campo-fecha-mes")[0].KeyDownAsync(new KeyboardEventArgs { Key = "Tab", ShiftKey = true });
+        else
+            await cut.Find(".campo-fecha-rejilla").KeyDownAsync(new KeyboardEventArgs { Key = "Tab" });
+
+        cut.FindAll("[role=dialog]").Should().BeEmpty();
+        JSInterop.VerifyFocusAsyncInvoke(calledTimes: 1); // solo el del día al abrir; ninguno al cerrar
+    }
+
+    [Fact]
+    public async Task Mayusculas_Tab_dentro_de_la_rejilla_no_cierra_el_calendario()
+    {
+        var cut = Render<CampoFecha>(p => p.Add(c => c.Valor, new DateOnly(2026, 12, 10)));
+        await cut.Find("button[data-campo-fecha-boton]").ClickAsync(new MouseEventArgs());
+
+        await cut.Find(".campo-fecha-rejilla").KeyDownAsync(new KeyboardEventArgs { Key = "Tab", ShiftKey = true });
+
+        cut.FindAll("[role=dialog]").Should().ContainSingle("vuelve al botón del mes siguiente, dentro del calendario");
+    }
+
+    // Hallazgo 5: el calendario se ancla a la capa superior del navegador (Popover API) al abrir y se suelta al cerrar.
+    [Fact]
+    public async Task El_calendario_se_ancla_a_la_capa_superior_al_abrir_y_se_suelta_al_cerrar()
+    {
+        var cut = Render<CampoFecha>(p => p.Add(c => c.Valor, new DateOnly(2026, 12, 10)));
+        await cut.Find("button[data-campo-fecha-boton]").ClickAsync(new MouseEventArgs());
+        var id = cut.Find("[role=dialog]").Id;
+
+        var anclar = JSInterop.VerifyInvoke("talvegCampoFecha.anclar");
+        anclar.Arguments.Should().HaveCount(3);
+        anclar.Arguments[2].Should().Be(id);
+
+        await cut.Find("[role=dialog]").KeyDownAsync(new KeyboardEventArgs { Key = "Escape" });
+
+        JSInterop.VerifyInvoke("talvegCampoFecha.soltar").Arguments.Should().Equal(id);
+    }
 }

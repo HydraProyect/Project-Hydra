@@ -31,7 +31,7 @@
         }
         <CampoTexto Etiqueta="@Textos["EtiquetaNombre"]" Valor="@_nombre" ValorChanged="v => _nombre = v" MensajeError="@Error(nameof(EditarFichaTrabajadorCommand.Nombre))" />
         <CampoTexto Etiqueta="@Textos["EtiquetaApellidos"]" Valor="@_apellidos" ValorChanged="v => _apellidos = v" MensajeError="@Error(nameof(EditarFichaTrabajadorCommand.Apellidos))" />
-        <CampoTexto Etiqueta="@Textos["EtiquetaFechaNacimiento"]" Type="date" Valor="@_nacimiento" ValorChanged="v => _nacimiento = v" MensajeError="@Error(nameof(EditarFichaTrabajadorCommand.FechaNacimiento))" />
+        <CampoTexto Etiqueta="@Textos["EtiquetaFechaNacimiento"]" Type="date" Valor="@_nacimiento" ValorChanged="v => _nacimiento = v" FechaNoValidaChanged="v => MarcarFechaNoValida(nameof(EditarFichaTrabajadorCommand.FechaNacimiento), v)" MensajeError="@Error(nameof(EditarFichaTrabajadorCommand.FechaNacimiento))" />
         <CampoTexto Etiqueta="@Textos["FichaNacionalidad"]" Valor="@_nacionalidad" ValorChanged="v => _nacionalidad = v" MensajeError="@Error(nameof(EditarFichaTrabajadorCommand.Nacionalidad))" />
     }
     else if (_paso == PasoTrabajo)
@@ -55,8 +55,8 @@
             <option value="Voluntario">@Textos["TipoContratacionVoluntario"]</option>
         </CampoSelect>
         <CampoTexto Etiqueta="@Textos["FichaTipoVinculo"]" Valor="@_vinculo" ValorChanged="v => _vinculo = v" MensajeError="@Error(nameof(EditarFichaTrabajadorCommand.TipoVinculo))" />
-        <CampoTexto Etiqueta="@Textos["FichaAltaEmpresa"]" Type="date" Valor="@_alta" ValorChanged="v => _alta = v" MensajeError="@Error(nameof(EditarFichaTrabajadorCommand.FechaAltaEmpresa))" />
-        <CampoTexto Etiqueta="@Textos["FichaBaja"]" Type="date" Valor="@_baja" ValorChanged="v => _baja = v" MensajeError="@Error(nameof(EditarFichaTrabajadorCommand.FechaBajaEmpresa))" />
+        <CampoTexto Etiqueta="@Textos["FichaAltaEmpresa"]" Type="date" Valor="@_alta" ValorChanged="v => _alta = v" FechaNoValidaChanged="v => MarcarFechaNoValida(nameof(EditarFichaTrabajadorCommand.FechaAltaEmpresa), v)" MensajeError="@Error(nameof(EditarFichaTrabajadorCommand.FechaAltaEmpresa))" />
+        <CampoTexto Etiqueta="@Textos["FichaBaja"]" Type="date" Valor="@_baja" ValorChanged="v => _baja = v" FechaNoValidaChanged="v => MarcarFechaNoValida(nameof(EditarFichaTrabajadorCommand.FechaBajaEmpresa), v)" MensajeError="@Error(nameof(EditarFichaTrabajadorCommand.FechaBajaEmpresa))" />
     }
     else if (_paso == PasoContacto)
     {
@@ -70,7 +70,7 @@
         <CampoTexto Etiqueta="@Textos["FichaAfiliacion"]" Valor="@_afiliacion" ValorChanged="v => _afiliacion = v" MensajeError="@Error(nameof(EditarFichaTrabajadorCommand.NumeroAfiliacionSeguridadSocial))" />
         <CampoTexto Etiqueta="@Textos["FichaFiguraRnt"]" Valor="@_rnt" ValorChanged="v => _rnt = v" MensajeError="@Error(nameof(EditarFichaTrabajadorCommand.FiguraEnRnt))" />
         <CampoTexto Etiqueta="@Textos["FichaTipoPermiso"]" Valor="@_permiso" ValorChanged="v => _permiso = v" MensajeError="@Error(nameof(EditarFichaTrabajadorCommand.TipoPermisoTrabajo))" />
-        <CampoTexto Etiqueta="@Textos["FichaCaduca"]" Type="date" Valor="@_caducidad" ValorChanged="v => _caducidad = v" MensajeError="@Error(nameof(EditarFichaTrabajadorCommand.CaducidadPermisoTrabajo))" />
+        <CampoTexto Etiqueta="@Textos["FichaCaduca"]" Type="date" Valor="@_caducidad" ValorChanged="v => _caducidad = v" FechaNoValidaChanged="v => MarcarFechaNoValida(nameof(EditarFichaTrabajadorCommand.CaducidadPermisoTrabajo), v)" MensajeError="@Error(nameof(EditarFichaTrabajadorCommand.CaducidadPermisoTrabajo))" />
         <CampoTexto Etiqueta="@Textos["FichaMotivo"]" Valor="@_motivo" ValorChanged="v => _motivo = v" MensajeError="@Error(nameof(EditarFichaTrabajadorCommand.MotivoPermisoTrabajo))" />
         @* «Trabajador extranjero (cobrable)» (decisión de Chris, 2026-10-20): con la misma política que el contacto de
            emergencia. La casilla enseña el valor efectivo; si no se toca, la orden no la cambia, y si se deja igual que lo
@@ -242,8 +242,26 @@
         return fallos;
     }
 
+    /// <summary>
+    /// Campos de fecha cuyo texto no es una fecha entera: CampoTexto Type="date" los entrega como «» (lo que daba el campo
+    /// nativo), y sin esto guardar la ficha borraría la fecha que la persona cree estar corrigiendo.
+    /// </summary>
+    private readonly HashSet<string> _fechasNoValidas = [];
+
+    private void MarcarFechaNoValida(string campo, bool noValida)
+    {
+        if (noValida) _fechasNoValidas.Add(campo);
+        else _fechasNoValidas.Remove(campo);
+    }
+
     private DateOnly? Fecha(string valor, string campo, List<FluentValidation.Results.ValidationFailure> fallos)
     {
+        if (_fechasNoValidas.Contains(campo))
+        {
+            fallos.Add(new FluentValidation.Results.ValidationFailure(campo, Textos["FichaFechaInvalida"]));
+            return null;
+        }
+
         if (string.IsNullOrWhiteSpace(valor)) return null;
         if (DateOnly.TryParseExact(valor, "yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture,
             System.Globalization.DateTimeStyles.None, out var fecha)) return fecha;
@@ -294,6 +312,7 @@
         _guardando = _lista = false;
         _error = null;
         _errores.Clear();
+        _fechasNoValidas.Clear();
         _paso = PasoBasico;
         _pasosVistos.Clear();
         try

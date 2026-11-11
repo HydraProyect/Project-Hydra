@@ -79,5 +79,68 @@
         }
     }, true);
 
-    window.talvegCampoFecha = { aplicar: aplicar };
+    // Calendario en la capa superior del navegador (Popover API, mismo criterio que campo-select-avanzado.js): así no
+    // queda bajo la cabecera ni el lateral, ni lo recorta el overflow de un Drawer o un Modal. Se coloca bajo el campo,
+    // alineado a su borde derecho, y encima si abajo no cabe. Sin Popover API se queda en la posición absoluta del CSS.
+    var MARGEN = 8;
+    var HUECO = 4;
+    var anclajes = {};
+
+    function colocar(panel, fila) {
+        var caja = fila.getBoundingClientRect();
+        var anchoVentana = window.innerWidth;
+        var altoVentana = window.innerHeight;
+        var ancho = Math.min(panel.offsetWidth, anchoVentana - 2 * MARGEN);
+        var izquierda = Math.min(Math.max(caja.right - ancho, MARGEN), anchoVentana - ancho - MARGEN);
+        var alto = panel.offsetHeight;
+        var abajo = altoVentana - caja.bottom - MARGEN - HUECO;
+        var arriba = caja.top - MARGEN - HUECO;
+        var voltear = alto > abajo && arriba > abajo;
+
+        panel.style.position = 'fixed';
+        panel.style.margin = '0';
+        panel.style.right = 'auto';
+        panel.style.bottom = 'auto';
+        panel.style.left = izquierda + 'px';
+        panel.style.top = (voltear ? Math.max(caja.top - HUECO - alto, MARGEN) : caja.bottom + HUECO) + 'px';
+        panel.dataset.lado = voltear ? 'arriba' : 'abajo';
+    }
+
+    function soltar(id) {
+        var anclaje = anclajes[id];
+        if (!anclaje) return;
+        delete anclajes[id];
+        anclaje();
+    }
+
+    function anclar(panel, fila, id) {
+        soltar(id);
+        if (!panel || !fila) return;
+        if (typeof panel.showPopover === 'function') {
+            panel.setAttribute('popover', 'manual');
+            try { panel.showPopover(); } catch (_) { /* ya visible */ }
+        } else {
+            return;
+        }
+        colocar(panel, fila);
+
+        var cuadro = 0;
+        var recolocar = function () {
+            cancelAnimationFrame(cuadro);
+            cuadro = requestAnimationFrame(function () {
+                // Si Blazor quitó el calendario sin pasar por soltar (el componente se desechó abierto), se limpia solo.
+                if (!panel.isConnected) { soltar(id); return; }
+                colocar(panel, fila);
+            });
+        };
+        window.addEventListener('resize', recolocar);
+        window.addEventListener('scroll', recolocar, true);
+        anclajes[id] = function () {
+            cancelAnimationFrame(cuadro);
+            window.removeEventListener('resize', recolocar);
+            window.removeEventListener('scroll', recolocar, true);
+        };
+    }
+
+    window.talvegCampoFecha = { aplicar: aplicar, anclar: anclar, soltar: soltar };
 })();

@@ -2,16 +2,19 @@
 @if (EsFecha)
 {
     @* Type="date" ya no es el input nativo: es CampoFecha (dd/mm/aaaa con máscara y calendario), con el mismo contrato
-       de texto ISO yyyy-MM-dd que daba el navegador, para que las pantallas que lo usan no cambien. *@
+       que daba el navegador para que las pantallas que lo usan no cambien: texto ISO yyyy-MM-dd, o «» mientras lo escrito
+       no es una fecha entera (FechaNoValidaChanged lo dice); min y max, en ISO, acotan los días del calendario. *@
     <CampoFecha Etiqueta="@Etiqueta"
                 Valor="@MascaraFecha.DesdeIso(Valor)"
                 ValorChanged="FechaCambiadaAsync"
-                TextoNoValido="TextoFechaNoValidoAsync"
+                NoValidoChanged="FechaNoValidaChanged"
+                Minimo="@MascaraFecha.DesdeIso(AtributoFecha("min"))"
+                Maximo="@MascaraFecha.DesdeIso(AtributoFecha("max"))"
                 Placeholder="@Placeholder"
                 Deshabilitado="@Deshabilitado"
                 MensajeError="@MensajeError"
                 OnBlur="OnBlur"
-                @attributes="AtributosAdicionales" />
+                @attributes="AtributosFecha" />
 }
 else
 {
@@ -58,12 +61,17 @@ else
         return ValorChanged.InvokeAsync(iso);
     }
 
-    private Task TextoFechaNoValidoAsync(string texto)
-    {
-        _ultimoValor = texto;
-        _ultimoValorNotificado = texto;
-        return ValorChanged.InvokeAsync(texto);
-    }
+    /// <summary>Solo con Type="date": true mientras el campo tiene un texto que no es una fecha entera (y el valor es «»).</summary>
+    [Parameter] public EventCallback<bool> FechaNoValidaChanged { get; set; }
+
+    private string? AtributoFecha(string nombre) =>
+        AtributosAdicionales is not null && AtributosAdicionales.TryGetValue(nombre, out var valor) ? valor?.ToString() : null;
+
+    /// <summary>min y max no significan nada en un input de texto: pasan a ser Minimo y Maximo del calendario.</summary>
+    private Dictionary<string, object>? AtributosFecha =>
+        AtributosAdicionales is null || (!AtributosAdicionales.ContainsKey("min") && !AtributosAdicionales.ContainsKey("max"))
+            ? AtributosAdicionales
+            : AtributosAdicionales.Where(kvp => kvp.Key is not ("min" or "max")).ToDictionary(kvp => kvp.Key, kvp => kvp.Value);
 
     private readonly string _id = $"campo-{Guid.NewGuid():N}";
     private CancellationTokenSource? _debounceCts;

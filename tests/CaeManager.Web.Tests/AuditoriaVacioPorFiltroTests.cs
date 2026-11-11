@@ -169,6 +169,21 @@ public class AuditoriaVacioPorFiltroTests : BunitContext
         cut.Markup.Should().NotContain("Ningún registro con este filtro");
     }
 
+    // «Hasta» ya era «» antes del texto no válido: quitar el filtro lo deja igual, y aun así el campo tiene que limpiarse.
+    [Fact]
+    public async Task Quitar_el_filtro_limpia_tambien_una_fecha_no_valida()
+    {
+        var cut = Renderizar();
+        await cut.FindAll("input[data-campo-fecha]")[1].InputAsync(new ChangeEventArgs { Value = "15" });
+        await cut.FindAll("input[data-campo-fecha]")[1].BlurAsync(new Microsoft.AspNetCore.Components.Web.FocusEventArgs());
+        cut.FindAll(".campo-mensaje-error").Should().ContainSingle("control positivo: «15» se señala");
+
+        await cut.Find(".estado-vacio button").ClickAsync(new Microsoft.AspNetCore.Components.Web.MouseEventArgs());
+
+        cut.FindAll(".campo-mensaje-error").Should().BeEmpty("lo escrito se fue con el filtro");
+        cut.FindAll("input[data-campo-fecha]").Should().OnlyContain(i => string.IsNullOrEmpty(i.GetAttribute("value")));
+    }
+
     [Fact]
     public void Con_registros_no_se_pinta_ningun_estado_vacio()
     {

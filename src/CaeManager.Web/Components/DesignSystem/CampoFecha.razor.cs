@@ -13,6 +13,8 @@ public partial class CampoFecha
 
     private ElementReference _refInput;
     private ElementReference _refDia;
+    private ElementReference _refFila;
+    private ElementReference _refCalendario;
 
     /// <summary>Lo que el navegador tiene ahora en el input, según lo último que llegó de él o que se le impuso.</summary>
     private string _texto = string.Empty;
@@ -23,6 +25,8 @@ public partial class CampoFecha
     private int _generacion;
     private DateOnly? _ultimoNotificado;
     private bool _parametrosRecibidos;
+    private bool _deshabilitadoAntes;
+    private bool _noValidoNotificado;
     private string? _errorPropio;
 
     private bool _abierto;
@@ -30,6 +34,8 @@ public partial class CampoFecha
     private DateOnly _diaEnfoco;
     private bool _enfocarDia;
     private bool _enfocarInput;
+    private bool _anclarPendiente;
+    private bool _anclado;
 
     [Parameter] public string? Etiqueta { get; set; }
     [Parameter] public DateOnly? Valor { get; set; }
@@ -42,11 +48,16 @@ public partial class CampoFecha
     [Parameter] public EventCallback OnBlur { get; set; }
 
     /// <summary>
-    /// Opcional: al salir con un texto que no es fecha, en vez de notificar null se entrega ese texto. Lo usa CampoTexto
-    /// Type="date" para que el formulario que enlaza texto lo reciba tal cual y su propia validación lo rechace ("Introduce
-    /// una fecha válida"), en lugar de recibir un vacío que guardaría la fecha borrada.
+    /// Opcional: avisa cuando el campo pasa a tener (true) o deja de tener (false) un texto que no es una fecha entera: a
+    /// medias («15/03») o imposible («31/02/2026»). Mientras es true el valor notificado es null, como el «» de un campo de
+    /// fecha nativo, y el formulario que no deba enviar «sin fecha» por error (una caducidad, una baja) lo usa para
+    /// bloquear el envío. Solo se notifica el cambio, no cada pulsación.
     /// </summary>
-    [Parameter] public EventCallback<string> TextoNoValido { get; set; }
+    [Parameter] public EventCallback<bool> NoValidoChanged { get; set; }
+
+    /// <summary>Opcional: primer y último día elegibles en el calendario (lo que hacía <c>min</c>/<c>max</c> en el campo nativo). Lo escrito a mano no se recorta: lo valida el formulario.</summary>
+    [Parameter] public DateOnly? Minimo { get; set; }
+    [Parameter] public DateOnly? Maximo { get; set; }
 
     [Parameter(CaptureUnmatchedValues = true)]
     public Dictionary<string, object>? AtributosAdicionales { get; set; }
@@ -98,15 +109,44 @@ public partial class CampoFecha
     /// El texto se resincroniza con <see cref="Valor"/> solo cuando el padre lo cambia por su cuenta (limpia el formulario,
     /// propone hoy, carga otro registro). Si el valor que llega es el último que este campo notificó, lo que hay en pantalla
     /// manda: es justo lo que el usuario está escribiendo.
+    ///
+    /// <para>
+    /// Un reinicio del padre al mismo valor (null tras un texto no válido) no se distingue de un re-render cualquiera. Se
+    /// cubren los dos casos que lo necesitan: al deshabilitarse, el campo vuelve al valor del padre (lo no válido de un
+    /// campo apagado no se puede corregir); y el padre que limpia un formulario entero recrea el campo con <c>@key</c>
+    /// (Auditoría, «Quitar el filtro»).
+    /// </para>
     /// </summary>
-    protected override void OnParametersSet()
+    protected override async Task OnParametersSetAsync()
     {
-        if (_parametrosRecibidos && Valor == _ultimoNotificado) return;
+        var seDeshabilita = Deshabilitado && !_deshabilitadoAntes;
+        _deshabilitadoAntes = Deshabilitado;
+        if (_parametrosRecibidos && Valor == _ultimoNotificado && !seDeshabilita) return;
 
         _parametrosRecibidos = true;
         _ultimoNotificado = Valor;
         _errorPropio = null;
+        if (seDeshabilita) _abierto = false;
         MostrarTexto(MascaraFecha.Formatear(Valor));
+        await NotificarEstadoAsync();
+    }
+
+    /// <summary>Hay texto y no es todavía (o no es) una fecha entera dd/mm/aaaa.</summary>
+    private bool TextoNoValido
+    {
+        get
+        {
+            var mascara = MascaraFecha.Aplicar(_texto);
+            return mascara.Length > 0 && !MascaraFecha.EsCompleta(mascara, out _);
+        }
+    }
+
+    private async Task NotificarEstadoAsync()
+    {
+        var noValido = TextoNoValido;
+        if (noValido == _noValidoNotificado) return;
+        _noValidoNotificado = noValido;
+        await NoValidoChanged.InvokeAsync(noValido);
     }
 
     /// <summary>
@@ -136,6 +176,7 @@ public partial class CampoFecha
             await NotificarAsync(null);
         else if (MascaraFecha.EsCompleta(mascara, out var fecha))
             await NotificarAsync(fecha);
+        await NotificarEstadoAsync();
     }
 
     private async Task AlSalirAsync()
@@ -161,19 +202,17 @@ public partial class CampoFecha
         }
         else
         {
+            // Como el campo nativo: lo que no es fecha llega al padre como «sin fecha» (nunca el texto, que los formularios
+            // interpretarían cada uno a su manera) y el aviso lo da el propio campo. Solo si cambia: salir otra vez del
+            // campo con el mismo texto no vuelve a notificar.
             _errorPropio = Comunes["CampoFechaInvalida"];
-            if (TextoNoValido.HasDelegate)
-            {
-                _ultimoNotificado = null;
-                await TextoNoValido.InvokeAsync(mascara);
-            }
-            else
-            {
-                await NotificarAsync(null);
-            }
+            await NotificarAsync(null);
         }
+
+        await NotificarEstadoAsync();
     }
 
+    /// <summary>Solo notifica un cambio de valor: un mismo null tras otro no recarga la lista ni borra el error del padre.</summary>
     private async Task NotificarAsync(DateOnly? fecha)
     {
         if (fecha == _ultimoNotificado) return;
@@ -195,12 +234,14 @@ public partial class CampoFecha
         _mesVisible = new DateOnly(inicial.Year, inicial.Month, 1);
         _abierto = true;
         _enfocarDia = true;
+        _anclarPendiente = true;
     }
 
-    private void Cerrar()
+    /// <param name="devolverFoco">false al salir con Tab: el navegador ya llevó el foco al control siguiente.</param>
+    private void Cerrar(bool devolverFoco = true)
     {
         _abierto = false;
-        _enfocarInput = true;
+        _enfocarInput = devolverFoco;
     }
 
     private Task CerrarYVolverAsync()
@@ -211,17 +252,35 @@ public partial class CampoFecha
 
     private async Task ElegirAsync(DateOnly fecha)
     {
+        if (!EsElegible(fecha)) return;
         MostrarTexto(MascaraFecha.Formatear(fecha));
         _errorPropio = null;
         Cerrar();
         await NotificarAsync(fecha);
+        await NotificarEstadoAsync();
     }
+
+    private bool EsElegible(DateOnly fecha) => (Minimo is not { } min || fecha >= min) && (Maximo is not { } max || fecha <= max);
 
     private void CambiarMes(int meses)
     {
-        _mesVisible = _mesVisible.AddMonths(meses);
+        if (Desplazar(() => _mesVisible.AddMonths(meses)) is not { } mes) return;
+        _mesVisible = mes;
         var dia = Math.Min(_diaEnfoco.Day, DateTime.DaysInMonth(_mesVisible.Year, _mesVisible.Month));
         _diaEnfoco = new DateOnly(_mesVisible.Year, _mesVisible.Month, dia);
+    }
+
+    /// <summary>Un paso del calendario que se sale de 0001-9999 no mueve nada, en vez de tirar el circuito.</summary>
+    private static DateOnly? Desplazar(Func<DateOnly> paso)
+    {
+        try
+        {
+            return paso();
+        }
+        catch (ArgumentOutOfRangeException)
+        {
+            return null;
+        }
     }
 
     private Task AlPulsarEnCalendarioAsync(KeyboardEventArgs e)
@@ -230,19 +289,33 @@ public partial class CampoFecha
         return Task.CompletedTask;
     }
 
+    /// <summary>Mayúsculas+Tab desde el primer control del calendario lo deja: se cierra, como al salir con Tab de la rejilla.</summary>
+    private Task AlPulsarEnMesAnteriorAsync(KeyboardEventArgs e)
+    {
+        if (e.Key == "Tab" && e.ShiftKey) Cerrar(devolverFoco: false);
+        return Task.CompletedTask;
+    }
+
     private Task AlPulsarEnRejillaAsync(KeyboardEventArgs e)
     {
-        var lunes = _diaEnfoco.AddDays(-DiaDeLaSemana(_diaEnfoco));
+        if (e.Key == "Tab")
+        {
+            // La rejilla es el último control del calendario: Tab sale de él (Mayúsculas+Tab vuelve al mes siguiente).
+            if (!e.ShiftKey) Cerrar(devolverFoco: false);
+            return Task.CompletedTask;
+        }
+
+        var actual = _diaEnfoco;
         DateOnly? destino = e.Key switch
         {
-            "ArrowLeft" => _diaEnfoco.AddDays(-1),
-            "ArrowRight" => _diaEnfoco.AddDays(1),
-            "ArrowUp" => _diaEnfoco.AddDays(-7),
-            "ArrowDown" => _diaEnfoco.AddDays(7),
-            "Home" => lunes,
-            "End" => lunes.AddDays(6),
-            "PageUp" => _diaEnfoco.AddMonths(-1),
-            "PageDown" => _diaEnfoco.AddMonths(1),
+            "ArrowLeft" => Desplazar(() => actual.AddDays(-1)),
+            "ArrowRight" => Desplazar(() => actual.AddDays(1)),
+            "ArrowUp" => Desplazar(() => actual.AddDays(-7)),
+            "ArrowDown" => Desplazar(() => actual.AddDays(7)),
+            "Home" => Desplazar(() => actual.AddDays(-DiaDeLaSemana(actual))),
+            "End" => Desplazar(() => actual.AddDays(6 - DiaDeLaSemana(actual))),
+            "PageUp" => Desplazar(() => actual.AddMonths(-1)),
+            "PageDown" => Desplazar(() => actual.AddMonths(1)),
             _ => null,
         };
         if (destino is { } d)
@@ -257,6 +330,18 @@ public partial class CampoFecha
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
+        if (_abierto && _anclarPendiente)
+        {
+            _anclarPendiente = false;
+            _anclado = await LlamarScriptAsync("talvegCampoFecha.anclar", _refCalendario, _refFila, IdCalendario);
+        }
+        else if (!_abierto && _anclado)
+        {
+            // Por id: el calendario ya salió del DOM y su ElementReference no se resolvería.
+            _anclado = false;
+            await LlamarScriptAsync("talvegCampoFecha.soltar", IdCalendario);
+        }
+
         if (_enfocarDia && _abierto)
         {
             _enfocarDia = false;
@@ -266,6 +351,24 @@ public partial class CampoFecha
         {
             _enfocarInput = false;
             await EnfocarAsync(_refInput);
+        }
+    }
+
+    /// <summary>
+    /// El calendario pasa a la capa superior del navegador (Popover API, como CampoSelectAvanzado): así no queda bajo la
+    /// cabecera ni el lateral ni lo recorta el overflow de un Drawer o un Modal. Sin el script (bUnit, script bloqueado) cae
+    /// a la posición absoluta del CSS y sigue siendo usable.
+    /// </summary>
+    private async Task<bool> LlamarScriptAsync(string funcion, params object[] argumentos)
+    {
+        try
+        {
+            await JS.InvokeVoidAsync(funcion, argumentos);
+            return true;
+        }
+        catch (Exception ex) when (ex is JSException or JSDisconnectedException or InvalidOperationException or TaskCanceledException)
+        {
+            return false;
         }
     }
 
@@ -321,6 +424,8 @@ public partial class CampoFecha
             ["data-fecha"] = MascaraFecha.AIso(fecha),
         };
         if (fecha == Hoy()) atributos["aria-current"] = "date";
+        // aria-disabled y no disabled: el día fuera de rango sigue enfocable para moverse por la rejilla con las flechas.
+        if (!EsElegible(fecha)) atributos["aria-disabled"] = "true";
         return atributos;
     }
 }

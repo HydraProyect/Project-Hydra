@@ -249,6 +249,30 @@ public class PanelDarAccesoTests : BunitContext
         cut.FindComponent<DrawerFormulario>().Instance.MensajeError.Should().Be("La fecha de fin del apoyo no puede ser anterior a hoy.");
     }
 
+    // El «min» que acotaba el selector nativo pasa al calendario de CampoFecha: los días anteriores a hoy no se eligen.
+    [Fact]
+    public async Task El_calendario_no_deja_elegir_un_dia_anterior_a_hoy()
+    {
+        _mediador.Operaciones = [Operacion("Empresa Mía", Yo)];
+        _mediador.Destinatarios = [new DestinatarioDeApoyoDto(Guid.NewGuid(), "Lucía")];
+        var cut = Render<PanelDarAcceso>();
+        await cut.InvokeAsync(() => cut.Find("[data-dar-acceso-operacion] > button").Click());
+        cut.Find("input[data-campo-fecha]").HasAttribute("min").Should().BeFalse("en un input de texto «min» no hace nada");
+
+        await cut.Find("button[data-campo-fecha-boton]").ClickAsync(new Microsoft.AspNetCore.Components.Web.MouseEventArgs());
+        var hoy = DiaDeNegocio.Hoy();
+        var ayer = hoy.AddDays(-1);
+        if (ayer.Month != hoy.Month) await cut.Find("button.campo-fecha-mes").ClickAsync(new Microsoft.AspNetCore.Components.Web.MouseEventArgs());
+
+        var diaAyer = cut.Find($".campo-fecha-dia[data-fecha='{ayer:yyyy-MM-dd}']");
+        diaAyer.GetAttribute("aria-disabled").Should().Be("true");
+        cut.Find($".campo-fecha-dia[data-fecha='{hoy:yyyy-MM-dd}']").HasAttribute("aria-disabled").Should().BeFalse();
+        await diaAyer.ClickAsync(new Microsoft.AspNetCore.Components.Web.MouseEventArgs());
+
+        cut.FindAll("[role=dialog].campo-fecha-calendario").Should().ContainSingle("pulsar un día fuera de rango no elige nada");
+        cut.Find("input[data-campo-fecha]").GetAttribute("value").Should().BeNullOrEmpty();
+    }
+
     [Fact]
     public void El_rotulo_es_Apoyo_hasta_la_fecha_solo_si_la_cartera_lleva_fecha_de_fin()
     {

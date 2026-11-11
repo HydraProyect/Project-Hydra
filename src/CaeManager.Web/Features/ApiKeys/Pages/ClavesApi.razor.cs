@@ -34,6 +34,7 @@ public partial class ClavesApi : CaeManager.Web.Components.PaginaIntegrableConfi
     private string _caducidadNuevaClave = string.Empty;
     private bool _generando;
     private string? _errorGenerar;
+    private bool _caducidadNoValida;
     private string? _claveGenerada;
     private ClaveApiDto? _claveARevocar;
     private bool _revocando;
@@ -58,7 +59,7 @@ public partial class ClavesApi : CaeManager.Web.Components.PaginaIntegrableConfi
 
     private void ReiniciarContexto()
     {
-        _generacionContexto++; _versionCarga++; _claves = []; _idEnfocado = null; _cargandoClaves = false; _mostrarFormularioGenerar = false; _nombreNuevaClave = string.Empty; _motivoNuevaClave = string.Empty; _caducidadNuevaClave = string.Empty; _generando = false; _errorGenerar = null; _claveGenerada = null; _claveARevocar = null; _revocando = false; _procesandoId = null;
+        _generacionContexto++; _versionCarga++; _claves = []; _idEnfocado = null; _cargandoClaves = false; _mostrarFormularioGenerar = false; _nombreNuevaClave = string.Empty; _motivoNuevaClave = string.Empty; _caducidadNuevaClave = string.Empty; _caducidadNoValida = false; _generando = false; _errorGenerar = null; _claveGenerada = null; _claveARevocar = null; _revocando = false; _procesandoId = null;
     }
 
     private bool EsContextoVigente(int generacionContexto, Guid delegacionId) => !_desechado && _generacionContexto == generacionContexto && _delegacionSeleccionadaId == delegacionId;
@@ -101,7 +102,7 @@ public partial class ClavesApi : CaeManager.Web.Components.PaginaIntegrableConfi
     private void CambiarMotivoNuevaClave(string valor) { _motivoNuevaClave = valor; _errorGenerar = null; }
     private void CambiarCaducidadNuevaClave(string valor) { _caducidadNuevaClave = valor; _errorGenerar = null; }
     // «Cancelar» cierra como la X (D-05): con el nombre escrito pregunta antes de descartarlo; lo hace el ModalFormulario.
-    private void CerrarFormularioGenerar(bool visible) { if (!visible && !_generando) { _mostrarFormularioGenerar = false; _nombreNuevaClave = string.Empty; _motivoNuevaClave = string.Empty; _caducidadNuevaClave = string.Empty; _errorGenerar = null; } }
+    private void CerrarFormularioGenerar(bool visible) { if (!visible && !_generando) { _mostrarFormularioGenerar = false; _nombreNuevaClave = string.Empty; _motivoNuevaClave = string.Empty; _caducidadNuevaClave = string.Empty; _caducidadNoValida = false; _errorGenerar = null; } }
     private void CerrarClaveGenerada(bool visible) { if (!visible) _claveGenerada = null; }
     private void PedirRevocacion(ClaveApiDto clave) { if (!_revocando) _claveARevocar = clave; }
     private void CerrarRevocacion(bool visible) { if (!visible && !_revocando) _claveARevocar = null; }
@@ -109,6 +110,9 @@ public partial class ClavesApi : CaeManager.Web.Components.PaginaIntegrableConfi
     private async Task GenerarAsync()
     {
         if (_generando || _delegacionSeleccionadaId is not { } delegacionId) return;
+        // Lo escrito en «Caducidad» que no es una fecha llega aquí como «»; emitir con eso sería emitir sin la caducidad
+        // que la persona cree haber puesto.
+        if (_caducidadNoValida) { _errorGenerar = "La caducidad no es una fecha válida: escríbela como dd/mm/aaaa o elígela en el calendario."; return; }
         var generacionContexto = _generacionContexto;
         var nombreOrganizacion = NombreOrganizacion(delegacionId);
         _generando = true; _errorGenerar = null;

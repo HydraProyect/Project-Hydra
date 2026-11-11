@@ -59,15 +59,21 @@
     color: var(--color-text);
 }
 
+/* Cierra al pulsar fuera, como CampoSelectAvanzado: capa transparente por encima de la cabecera y el lateral. */
 .campo-fecha-velo {
     position: fixed;
     inset: 0;
-    z-index: 40;
+    z-index: 1030;
 }
 
+/* Sin script (o sin Popover API) cae aquí: absoluto bajo el campo. Con el script pasa a la capa superior del navegador
+   (campo-fecha.js fija left/top en línea) y ni la cabecera ni el overflow de un Drawer lo tapan; los restos de
+   [popover] (margen automático, inset) se pisan a propósito. */
 .campo-fecha-calendario {
     position: absolute;
-    z-index: 41;
+    z-index: 1031;
+    box-sizing: border-box;
+    color: var(--color-text);
     top: 100%;
     right: 0;
     margin-top: var(--space-1);
@@ -136,6 +142,16 @@
 .campo-fecha-dia[aria-current="date"] {
     font-weight: 600;
     text-decoration: underline;
+}
+
+.campo-fecha-dia[aria-disabled="true"] {
+    color: var(--color-text-muted);
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.campo-fecha-dia[aria-disabled="true"]:hover {
+    background: transparent;
 }
 
 .campo-fecha-dia-elegido,

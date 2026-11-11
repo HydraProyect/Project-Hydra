@@ -235,6 +235,28 @@ public class AuditoriaPantallaTests : BunitContext
             .Should().Be("/auditoria/exportar.xlsx?desde=2026-01-15&hasta=2026-02-20");
     }
 
+    // Lo que no es una fecha entera llega a la página como «» (nunca «1/2/26» leído como 01/02/2026), y salir otra vez del
+    // campo con el mismo texto no vuelve a recargar la lista.
+    [Theory]
+    [InlineData("1/2/26")]
+    [InlineData("31/02/2026")]
+    public async Task Una_fecha_no_valida_consulta_sin_esa_cota_y_salir_otra_vez_no_recarga(string tecleado)
+    {
+        var cut = Renderizar();
+        var campo = () => cut.FindAll("input[data-campo-fecha]")[0];
+
+        await campo().InputAsync(new ChangeEventArgs { Value = tecleado });
+        await campo().BlurAsync(new FocusEventArgs());
+        var consultas = _mediador.Consultas.Count;
+        _mediador.Consultas[^1].DesdeUtc.Should().BeNull("el campo entrega «»: «Desde» queda sin cota");
+        cut.Find(".campo-mensaje-error").TextContent.Should().Contain("dd/mm/aaaa");
+
+        await campo().BlurAsync(new FocusEventArgs());
+        await campo().BlurAsync(new FocusEventArgs());
+
+        _mediador.Consultas.Should().HaveCount(consultas, "el valor no cambió: no hay nada que recargar");
+    }
+
     [Fact]
     public async Task Vaciar_desde_consulta_todo_el_historial_y_lo_avisa()
     {

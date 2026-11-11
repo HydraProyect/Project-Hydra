@@ -576,6 +576,31 @@ public partial class GestionesAutomaticasPantallaTests : BunitContext
         Toasts.Mensajes.Should().ContainSingle().Which.TextoAccion.Should().Be("Deshacer");
     }
 
+    // Una fecha que deja de serlo (a medias o «1/2/26») vuelve a «sin fecha»: no se guarda la anterior, y «No lo sé», que
+    // apaga el campo, se lleva también lo escrito y su aviso.
+    [Fact]
+    public void Validado_con_la_fecha_a_medias_no_se_guarda_y_No_lo_se_limpia_el_campo()
+    {
+        var m = Montar();
+        var cut = Detallar(m, Detalle(SeisPasosNuevos()));
+        cut.Find("[data-opcion='validado']").Click();
+        var campo = () => cut.Find("[data-campos-opcion='validado'] input[data-campo-fecha]");
+        campo().Input("2027-10-14");
+        cut.Find("[data-accion='primario']").HasAttribute("disabled").Should().BeFalse("control positivo: con fecha se puede guardar");
+
+        campo().Input("1/2/26");
+        campo().Blur();
+
+        cut.Find("[data-accion='primario']").HasAttribute("disabled").Should().BeTrue("«1/2/26» no es la fecha 01/02/2026");
+        cut.Find("[data-campos-opcion='validado'] .campo-mensaje-error").TextContent.Should().Contain("dd/mm/aaaa");
+
+        cut.Find("[data-campos-opcion='validado'] input[type='checkbox']").Change(true);
+
+        cut.FindAll("[data-campos-opcion='validado'] .campo-mensaje-error").Should().BeEmpty("el campo apagado vuelve a su valor");
+        campo().GetAttribute("value").Should().BeNullOrEmpty();
+        m.Enviados.OfType<MarcarAcreditacionAceptadaCommand>().Should().BeEmpty();
+    }
+
     [Fact]
     public void Validado_con_No_lo_se_guarda_la_vigencia_sin_confirmar()
     {

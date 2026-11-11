@@ -319,16 +319,40 @@ public sealed class DividirPdfPantallaTests : BunitContext
         Pulsar(cut, "Asignar documentos");
         cut.WaitForAssertion(() => cut.FindAll("input[placeholder=\"dd/mm/aaaa\"]")[0].GetAttribute("value").Should().Be("15/01/2026"));
 
+        // CampoFecha no tiene retardo: lo tecleado a medias no se notifica y la pantalla no se re-renderiza con un vacío.
         await cut.FindAll("input[placeholder=\"dd/mm/aaaa\"]")[0].InputAsync(new ChangeEventArgs { Value = "15/01/202" });
-        await Task.Delay(450);
         cut.FindAll("input[placeholder=\"dd/mm/aaaa\"]")[0].GetAttribute("value").Should().NotBeEmpty(
-            "al vencer el retardo Blazor no puede vaciar lo que se está escribiendo");
+            "mientras se escribe Blazor no puede vaciar el campo");
 
         await cut.FindAll("input[placeholder=\"dd/mm/aaaa\"]")[0].InputAsync(new ChangeEventArgs { Value = "15/0" });
         await cut.FindAll("input[placeholder=\"dd/mm/aaaa\"]")[0].BlurAsync(new FocusEventArgs());
         cut.FindAll("input[placeholder=\"dd/mm/aaaa\"]")[0].GetAttribute("value").Should().NotBeEmpty(
             "ni al salir del campo: lo escrito se conserva para corregirlo");
         cut.Find(".campos-tramo .campo-mensaje-error").TextContent.Should().Contain("dd/mm/aaaa", "y se avisa de que no es una fecha");
+    }
+
+    /// <summary>
+    /// Hallazgo de la revisión: «Sin caducidad» apaga la caducidad, que ya valía null tras un texto no válido; el mismo
+    /// valor no es un cambio, así que sin más el texto y su aviso se quedaban en un campo que ya no se puede corregir.
+    /// </summary>
+    [Fact]
+    public async Task Sin_caducidad_limpia_lo_escrito_que_no_era_fecha()
+    {
+        var cut = Renderizar();
+        cut.WaitForAssertion(() => cut.FindAll(".zona-soltar-archivo").Should().ContainSingle());
+        await SubirAsync(cut);
+        Pulsar(cut, "Asignar documentos");
+        cut.WaitForAssertion(() => cut.FindAll("input[placeholder=\"dd/mm/aaaa\"]").Should().HaveCountGreaterThanOrEqualTo(2));
+        var caducidad = () => cut.FindAll("input[placeholder=\"dd/mm/aaaa\"]")[1];
+
+        await caducidad().InputAsync(new ChangeEventArgs { Value = "15" });
+        await caducidad().BlurAsync(new FocusEventArgs());
+        cut.FindAll(".campos-tramo .campo-mensaje-error").Should().ContainSingle("control positivo: «15» se señala");
+
+        await cut.Find("label.marca-tramo input[type=checkbox]").ChangeAsync(new ChangeEventArgs { Value = true });
+
+        caducidad().HasAttribute("disabled").Should().BeTrue();
+        cut.FindAll(".campos-tramo .campo-mensaje-error").Should().BeEmpty("el campo apagado vuelve a su valor, sin aviso");
     }
 
     [Fact]
