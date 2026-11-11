@@ -360,17 +360,56 @@ public class DesconectarBuzonCommandHandlerTests
         graph.AlEliminarSuscripcion = () => guardadosAlBorrar = guardados.Count;
         var handler = CrearHandler(conexiones, suscripciones, new ReclamacionBuzonIntegracionRepositorioFalso(), new AlcanceDatosServiceFalso(),
             graph, new CredencialIntegracionRepositorioFalso(), unitOfWork, reloj: reloj);
+        // Un token del llamador vivo y distinto de None: el guardado de la marca no debe usarlo.
+        using var cancelacion = new CancellationTokenSource();
 
-        var resultado = await handler.Handle(new DesconectarBuzonCommand(conexion.Id), CancellationToken.None);
+        var resultado = await handler.Handle(new DesconectarBuzonCommand(conexion.Id), cancelacion.Token);
 
         resultado.EsExitoso.Should().BeTrue();
         guardados.Should().Equal(
             [(null, EstadoConexionIntegracion.Deshabilitada), (expiracion, EstadoConexionIntegracion.Deshabilitada)],
             "control: al confirmar aún no había marca; la del hueco se guarda justo después");
         guardadosAlBorrar.Should().Be(2, "la marca ya estaba en la base cuando salió el DELETE");
-        unitOfWork.TokensDeGuardado[1].Should().Be(CancellationToken.None);
+        unitOfWork.TokensDeGuardado[0].Should().Be(cancelacion.Token, "control: la desconexión usa el token del llamador");
+        unitOfWork.TokensDeGuardado[1].Should().Be(CancellationToken.None, "la marca se guarda sin la cancelación del llamador");
         graph.SuscripcionesEliminadas.Should().Equal(["sub-1"]);
         conexion.HuecoPendienteDesdeUtc.Should().Be(expiracion);
+    }
+
+    /// <summary>
+    /// Medio del revisor-puente (ronda 15): la suscripción expira durante el guardado de la desconexión, el guardado de la
+    /// marca de justo después falla y el DELETE también. El intento de la marca del borrado fallido sigue con la versión
+    /// recargada de la base, no con la instancia descartada que ya lleva la marca en memoria, y la marca llega a la base.
+    /// </summary>
+    [Fact]
+    public async Task Si_falla_el_guardado_de_la_marca_tras_confirmar_el_del_borrado_fallido_la_guarda_sobre_la_version_recargada()
+    {
+        var reloj = new RelojFalso(DateTime.UtcNow);
+        var expiracion = reloj.AhoraUtc.AddMinutes(1);
+        var (conexion, conexiones, suscripciones) = BuzonCompartidoQueExpiraEn(expiracion, reloj.AhoraUtc.AddHours(-1));
+        var graph = new Microsoft365GraphClientFalso { ErrorEliminacion = CaeManager.Domain.Common.Error.Crear("x", "503") };
+        var interno = new UnitOfWorkFalso();
+        // La expiración cae dentro del guardado que confirma la desconexión (el primero que llega al interno).
+        interno.AlGuardar = () =>
+        {
+            if (interno.VecesGuardado == 0)
+                reloj.Avanzar(TimeSpan.FromMinutes(2));
+        };
+        // La base guarda la Deshabilitada sin marca: es lo que se recarga tras descartar.
+        var descarte = new DescarteContado(() => conexiones.Conexiones[0] = Copia(conexion, deshabilitada: true));
+        var handler = CrearHandler(conexiones, suscripciones, new ReclamacionBuzonIntegracionRepositorioFalso(), new AlcanceDatosServiceFalso(),
+            graph, new CredencialIntegracionRepositorioFalso(),
+            new UnitOfWorkQueFallaEn(interno, 2, new InvalidOperationException("base caída")), descarte: descarte, reloj: reloj);
+
+        var resultado = await handler.Handle(new DesconectarBuzonCommand(conexion.Id), CancellationToken.None);
+
+        resultado.EsExitoso.Should().BeTrue("la desconexión ya quedó guardada");
+        graph.SuscripcionesEliminadas.Should().Equal(["sub-1"]);
+        descarte.Veces.Should().Be(1);
+        var recargada = conexiones.Conexiones[0];
+        recargada.Should().NotBeSameAs(conexion, "control: se recargó la versión de la base");
+        recargada.HuecoPendienteDesdeUtc.Should().Be(expiracion);
+        interno.VecesGuardado.Should().Be(2, "la desconexión y la marca del borrado fallido sobre la versión recargada");
     }
 
     /// <summary>

@@ -231,19 +231,33 @@ public class DesconectarBuzonCommandHandler(
     /// llamador. Un fallo de ese guardado (sea cual sea, no solo una colisión) se registra, descarta lo rastreado y no
     /// tapa el resultado ya confirmado: la conexión está Deshabilitada y su reclamación liberada.
     /// </summary>
-    /// <returns>La conexión con la que seguir: la recargada si hubo colisión; si no, la recibida.</returns>
+    /// <returns>La conexión con la que seguir: la recargada si hubo colisión o si el guardado no llegó a la base; si no, la
+    /// recibida.</returns>
     private async Task<ConexionIntegracion> GuardarMarcaTrasDesconexionAsync(
         ConexionIntegracion conexion, DateTime? expiracionSuscripcionUtc, DateTime observadaUtc)
     {
         try
         {
-            return await RegistrarMarcaAsync(conexion, expiracionSuscripcionUtc, observadaUtc, lanzarSiSeAgota: false, CancellationToken.None)
-                ?? conexion;
+            if (await RegistrarMarcaAsync(conexion, expiracionSuscripcionUtc, observadaUtc, lanzarSiSeAgota: false, CancellationToken.None)
+                is { } guardada)
+                return guardada;
         }
         catch (Exception ex)
         {
             logger.LogError(ex, "No se pudo guardar la marca de hueco de {ConexionId} tras desconectar.", conexion.Id);
             descarteCambios.DescartarCambiosPendientes();
+        }
+
+        // El guardado no llegó a la base, pero la instancia ya lleva la marca en memoria y está descartada: reutilizarla
+        // haría que el siguiente intento (el del borrado fallido, tras la marca posterior a la confirmación) viera la marca
+        // como puesta y no guardase nada (revisor-puente, ronda 15, hallazgo medio). Se sigue con la versión de la base.
+        try
+        {
+            return await conexionRepositorio.ObtenerActualPorIdAsync(conexion.Id, CancellationToken.None) ?? conexion;
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "No se pudo recargar {ConexionId} tras fallar el guardado de la marca de hueco.", conexion.Id);
             return conexion;
         }
     }
