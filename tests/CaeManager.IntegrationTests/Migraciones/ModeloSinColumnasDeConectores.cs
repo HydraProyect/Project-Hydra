@@ -1,3 +1,4 @@
+using CaeManager.Domain.Centros;
 using CaeManager.Domain.Integraciones;
 using CaeManager.Domain.Tenants;
 using CaeManager.Infrastructure.Persistence;
@@ -12,7 +13,9 @@ namespace CaeManager.IntegrationTests.Migraciones;
 /// actual, que ya pide columnas de migraciones posteriores. Este modelo prescinde de las que añadió
 /// AnadeConexionesPlataformaCae y de las que añadieron CortesTenantYVentanaClaveApi,
 /// AnadeClavesIntegracionTenant y AnadeSolicitudesAltaYCifPropietario, porque ninguna de esas pruebas las necesita y sin esto no podrían
-/// insertar un Tenant ni leer un proveedor sobre el esquema antiguo.
+/// insertar un Tenant ni leer un proveedor sobre el esquema antiguo. Por lo mismo prescinde del ancla del papel por Centro
+/// (<c>Centros.RelacionEmpresarialEntradaId</c>, AnadeAnclaPapelEntradaCentro), con su índice y su FK compuesta: sin esto
+/// no podrían insertar un Centro.
 /// </summary>
 internal static class ModeloSinColumnasDeConectores
 {
@@ -31,6 +34,13 @@ internal static class ModeloSinColumnasDeConectores
             modelBuilder.Entity<Tenant>().Ignore(t => t.IntegracionHabilitada);
             modelBuilder.Entity<Tenant>().Ignore(t => t.TipoTenant);
             modelBuilder.Entity<ProveedorPlataformaCae>().Ignore(p => p.ConectorApiActivo);
+            // La columna es miembro de una FK compuesta y de un índice explícitos (CentroConfiguration): con un Ignore
+            // a secas la propiedad sigue en el modelo, así que primero se quitan la FK y el índice que la contienen.
+            var centro = modelBuilder.Entity<Centro>().Metadata;
+            var ancla = centro.FindProperty(nameof(Centro.RelacionEmpresarialEntradaId))!;
+            foreach (var fk in ancla.GetContainingForeignKeys().ToList()) centro.RemoveForeignKey(fk);
+            foreach (var indice in ancla.GetContainingIndexes().ToList()) centro.RemoveIndex(indice);
+            modelBuilder.Entity<Centro>().Ignore(c => c.RelacionEmpresarialEntradaId);
         }
     }
 }

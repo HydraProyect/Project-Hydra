@@ -1,5 +1,6 @@
 using CaeManager.Domain.Centros;
 using CaeManager.Domain.Empresas;
+using CaeManager.Domain.RelacionesEmpresariales;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
@@ -51,6 +52,16 @@ public class CentroConfiguration : IEntityTypeConfiguration<Centro>
         builder.HasOne<Empresa>().WithMany()
             .HasForeignKey(c => new { c.TenantId, c.EmpresaId })
             .HasPrincipalKey(e => new { e.TenantId, e.Id })
+            .OnDelete(DeleteBehavior.Restrict);
+
+        // Papel por Centro (DECISION_LOG, 2026-11-08): ancla opcional hacia la Relación Empresarial por la que
+        // la Empresa del Centro entra como subcontrata. FK compuesta con TenantId, como las demás: la base
+        // rechaza una arista de otro Tenant propietario. MATCH SIMPLE: con la columna a NULL no se comprueba.
+        // Restrict: una arista no se borra (se cierra), y si algún día se borrara no puede dejar el Centro colgando.
+        builder.HasIndex(c => new { c.TenantId, c.RelacionEmpresarialEntradaId });
+        builder.HasOne<RelacionEmpresarial>().WithMany()
+            .HasForeignKey(c => new { c.TenantId, c.RelacionEmpresarialEntradaId })
+            .HasPrincipalKey(r => new { r.TenantId, r.Id })
             .OnDelete(DeleteBehavior.Restrict);
 
         // Prerequisito de las FKs que Visita/... declaran hacia Centro.
