@@ -319,7 +319,8 @@ public class AptAcotadoEnCiTests
     /// imagen reintenta: toda asignación de <c>Acquire::Retries</c> (o
     /// <c>APT::Acquire::Retries</c>) que no sea comentario vale 0, no hay ningún
     /// <c>Retries</c> suelto (la sintaxis de bloque de apt, que este test no sabría leer) y
-    /// apt-acotado comprueba con apt-config el valor que apt lee de verdad.
+    /// apt-acotado comprueba con apt-config el valor de <c>Acquire::Retries</c> que apt lee
+    /// de verdad, evaluando su salida en vez de compararla como texto.
     ///
     /// <para>
     /// Lee el texto de todo <c>.github</c> y de los Dockerfile de la raíz; no ejecuta apt ni
@@ -341,7 +342,7 @@ public class AptAcotadoEnCiTests
         // leer (con = o con espacio, con o sin comillas y con o sin :: final); la única
         // excepción es la línea exacta de la consulta con apt-config, fijada más abajo.
         const string consultaAptConfig =
-            "&& [ \"$(apt-config shell R Acquire::Retries A APT::Acquire::Retries)\" = \"R='0'\"$'\\n'\"A='0'\" ]";
+            "eval \"$(apt-config shell R Acquire::Retries)\" && [ \"$R\" = 0 ] && return 0";
         var aparicion = new Regex(@"Acquire::Retries", RegexOptions.IgnoreCase | RegexOptions.Compiled);
         var asignacion = new Regex(@"\GAcquire::Retries(::)?(\s*=\s*|\s+)\\?[""']?(?<valor>[^""'\\\s;]*)",
             RegexOptions.IgnoreCase | RegexOptions.Compiled);
@@ -369,8 +370,20 @@ public class AptAcotadoEnCiTests
             "'Acquire::Retries \"0\";' \\",
             "'APT::Acquire::Retries \"0\";' \\",
         ]).Should().BeGreaterThan(-1, "apt-acotado escribe 0 literal en las dos claves, sin variable que otro camino pueda subir");
-        accion.Should().Contain(consultaAptConfig,
-            "la acción comprueba, después de escribir el fichero, que el valor que apt lee de verdad es 0 en las dos claves");
+        // Run 43080277576: comparar el texto de `apt-config shell` con «R='0'» y otra clave
+        // hizo fallar apt-acotado en todos los jobs. Se fija la forma que no depende del
+        // entrecomillado: eval en una variable local y comparación del valor.
+        IndiceDeSecuencia(accion,
+        [
+            "comprobar_reintentos_efectivos() {",
+            "local R=",
+            consultaAptConfig,
+        ]).Should().BeGreaterThan(-1,
+            "la comprobación evalúa la salida de apt-config en una variable local y compara el valor, no el texto");
+        accion.Should().Contain("&& comprobar_reintentos_efectivos",
+            "la acción comprueba, después de escribir el fichero, que el valor que apt lee de verdad es 0");
+        accion.Should().NotContain(l => l.Contains("apt-config shell", StringComparison.Ordinal) && l.Contains("='0'", StringComparison.Ordinal),
+            "comparar el texto de apt-config shell con un entrecomillado concreto ya rompió el CI");
         accion.Should().NotContain(l => l.Contains("reintentos_segun_fuentes", StringComparison.Ordinal)
                 || l.Contains("fijar_reintentos", StringComparison.Ordinal),
             "ya no hay decisión de reintentos por fuentes que mantener");

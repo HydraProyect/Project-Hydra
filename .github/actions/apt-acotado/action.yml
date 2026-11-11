@@ -63,8 +63,18 @@ runs:
         # admitía HTTP y no veía todas las fuentes de apt; con 0 fijo no hay nada
         # que decidir. Los tres intentos de abajo, cada uno con su sondeo, ya
         # cubren los fallos de red. APT::Acquire::Retries también va a 0 por si
-        # otro fichero de la imagen lo fija, y lo que se comprueba es el valor que
-        # apt lee de verdad (apt-config), no solo el contenido de este fichero.
+        # otro fichero de la imagen lo fija. Lo que se comprueba es el valor de
+        # Acquire::Retries (la clave que usan las descargas de apt) que apt lee de
+        # verdad, no solo el contenido de este fichero. La salida de `apt-config
+        # shell` está hecha para eval y su entrecomillado no es un contrato: se
+        # evalúa en una variable local y se compara el valor, no el texto.
+        comprobar_reintentos_efectivos() {
+          local R=
+          eval "$(apt-config shell R Acquire::Retries)" && [ "$R" = 0 ] && return 0
+          echo "::error::apt-config da R=«${R}» en lugar de 0. Claves de reintentos que ve apt:"
+          apt-config dump | grep -iF '::retries'
+          return 1
+        }
         escribir_conf_apt() {
           printf '%s\n' \
             'Acquire::Retries "0";' \
@@ -73,7 +83,7 @@ runs:
             'Acquire::https::Timeout "30";' \
             'DPkg::Lock::Timeout "60";' \
             | sudo tee /etc/apt/apt.conf.d/99-ci-apt-acotado > /dev/null \
-            && [ "$(apt-config shell R Acquire::Retries A APT::Acquire::Retries)" = "R='0'"$'\n'"A='0'" ]
+            && comprobar_reintentos_efectivos
         }
         # Sin errexit, cada preparación se comprueba a mano y falla cerrada: apt
         # nunca corre sin esta configuración ni con unas fuentes a medio reescribir.
