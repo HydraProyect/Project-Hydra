@@ -146,6 +146,16 @@ public partial class ImportacionEstructura : ComponentBase, IDisposable
 
         // Un archivo nuevo es un plan nuevo: lo analizado sobre el anterior deja de valer.
         DescartarAnalisis();
+
+        // El puente de arrastrar y soltar entrega la lista entera de archivos soltados, y InputFileChangeEventArgs.File
+        // lanza si no hay exactamente uno: se rechaza con aviso, como el tope de archivos de las demás subidas, en vez de
+        // dejar escapar la excepción al circuito (revisión Codex de la PR #2164, r2, BAJO 2).
+        if (e.FileCount != 1)
+        {
+            Rechazar(Textos["EstErrorVariosArchivos"].Value);
+            return;
+        }
+
         var archivo = e.File;
 
         if (!archivo.Name.EndsWith(".xlsx", StringComparison.OrdinalIgnoreCase))
@@ -456,15 +466,19 @@ public partial class ImportacionEstructura : ComponentBase, IDisposable
     private int OmitidasDe(ResultadoImportacionMaestraDto r, string hoja) => r.Omitidos.Count(o => o.Hoja == hoja);
 
     /// <summary>
-    /// Filas que ya existían (<c>YaExiste</c>) y no cambian: ni se actualizan ni se omiten en la escritura. El plan trae
-    /// qué existe; el resultado, qué se actualiza y qué se omite por hoja y fila.
+    /// Registros de la hoja que ni se crean, ni se actualizan, ni se omiten. Sale solo del resultado (la vista previa
+    /// releída o la escritura), no de <c>YaExiste</c> del análisis, que puede haber quedado obsoleto si otra sesión creó o
+    /// dio de baja un registro entre ambos pasos (revisión Codex de la PR #2164, r2, BAJO 1). Del plan solo se toma qué
+    /// filas trae la hoja y su clave natural: varias filas con la misma clave (un Cliente empresarial en varias parejas)
+    /// son un solo registro.
     /// </summary>
     private int SinCambiosDe(
-        ResultadoImportacionMaestraDto r, string hoja, IEnumerable<(int Fila, bool YaExiste)> filas, int actualizadas)
+        ResultadoImportacionMaestraDto r, string hoja, IEnumerable<(int Fila, string Clave)> filas, int creadas, int actualizadas)
     {
         if (EsYaEjecutada(r)) return 0;
         var omitidas = r.Omitidos.Where(o => o.Hoja == hoja).Select(o => o.Fila).ToHashSet();
-        return Math.Max(0, filas.Count(f => f.YaExiste && !omitidas.Contains(f.Fila)) - actualizadas);
+        var registros = filas.Where(f => !omitidas.Contains(f.Fila)).Select(f => f.Clave).Distinct(StringComparer.OrdinalIgnoreCase).Count();
+        return Math.Max(0, registros - creadas - actualizadas);
     }
 
     private IReadOnlyList<FilaEntidad> FilasPorEntidad(ResultadoImportacionMaestraDto r)
@@ -473,14 +487,14 @@ public partial class ImportacionEstructura : ComponentBase, IDisposable
         return
         [
             new("EstEntEmpresas", "EstIdCif", HojaEmpresas, r.EmpresasCreadas, r.EmpresasActualizadas,
-                SinCambiosDe(r, HojaEmpresas, plan.Empresas.Select(e => (e.Fila, e.YaExiste)), r.EmpresasActualizadas), OmitidasDe(r, HojaEmpresas)),
+                SinCambiosDe(r, HojaEmpresas, plan.Empresas.Select(e => (e.Fila, e.Cif)), r.EmpresasCreadas, r.EmpresasActualizadas), OmitidasDe(r, HojaEmpresas)),
             new("EstEntClientes", "EstIdCif", HojaClientes, r.ClientesCreados, r.ClientesActualizados,
-                SinCambiosDe(r, HojaClientes, plan.Clientes.Select(c => (c.Fila, c.YaExiste)), r.ClientesActualizados), OmitidasDe(r, HojaClientes)),
+                SinCambiosDe(r, HojaClientes, plan.Clientes.Select(c => (c.Fila, c.Cif)), r.ClientesCreados, r.ClientesActualizados), OmitidasDe(r, HojaClientes)),
             new("EstEntRelaciones", "EstIdRelacion", string.Empty, r.RelacionesCreadas, 0, 0, 0),
             new("EstEntCentros", "EstIdCentro", HojaCentros, r.CentrosCreados, r.CentrosActualizados,
-                SinCambiosDe(r, HojaCentros, plan.Centros.Select(c => (c.Fila, c.YaExiste)), r.CentrosActualizados), OmitidasDe(r, HojaCentros)),
+                SinCambiosDe(r, HojaCentros, plan.Centros.Select(c => (c.Fila, $"{c.CifCliente}|{c.Nombre}")), r.CentrosCreados, r.CentrosActualizados), OmitidasDe(r, HojaCentros)),
             new("EstEntTrabajadores", "EstIdTrabajador", HojaTrabajadores, r.TrabajadoresCreados, r.TrabajadoresActualizados,
-                SinCambiosDe(r, HojaTrabajadores, plan.Trabajadores.Select(t => (t.Fila, t.YaExiste)), r.TrabajadoresActualizados), OmitidasDe(r, HojaTrabajadores))
+                SinCambiosDe(r, HojaTrabajadores, plan.Trabajadores.Select(t => (t.Fila, t.Identidad)), r.TrabajadoresCreados, r.TrabajadoresActualizados), OmitidasDe(r, HojaTrabajadores))
         ];
     }
 

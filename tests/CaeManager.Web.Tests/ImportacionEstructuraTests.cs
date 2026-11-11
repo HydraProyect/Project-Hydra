@@ -97,6 +97,8 @@ public class ImportacionEstructuraTests : BunitContext
         public List<ResultadoImportacionMaestraDto> Previas { get; } = [];
         public Func<Task>? RetenerPrevia { get; set; }
         public Func<Task>? RetenerEscritura { get; set; }
+        /// <summary>Lo que la vista previa, al releer la base, ve distinto del análisis (otra sesión creó o dio de baja algo).</summary>
+        public Func<ResultadoImportacionMaestraDto, ResultadoImportacionMaestraDto>? AjustarPrevia { get; set; }
         public Func<int, Result<ResultadoImportacionMaestraDto>?>? FalloDeEscritura { get; set; }
         public List<object> Recibidas { get; } = [];
         private readonly HashSet<Guid> _confirmadas = [];
@@ -115,6 +117,7 @@ public class ImportacionEstructuraTests : BunitContext
                 case PrevisualizarImportacionMaestraCommand p:
                     if (RetenerPrevia is { } esperaPrevia) await esperaPrevia();
                     var previa = Simular(p.Plan, p.ReemplazarExistentes);
+                    if (AjustarPrevia is not null) previa = AjustarPrevia(previa);
                     Previas.Add(previa);
                     return Result.Exito(previa);
                 case EjecutarImportacionMaestraCommand e:
@@ -296,6 +299,25 @@ public class ImportacionEstructuraTests : BunitContext
         var (cut, _) = Renderizar();
 
         cut.Markup.Should().Contain("hasta 10 MB");
+    }
+
+    [Fact]
+    public async Task Subida_SoltarVariosArchivos_SeRechazaConAvisoSinLanzarNiLlamarAlMediador()
+    {
+        // Revisión Codex de la PR #2164, r2, BAJO 2: el puente de arrastrar y soltar entrega todos los archivos soltados y
+        // InputFileChangeEventArgs.File lanza si hay más de uno.
+        var (cut, servidor) = Renderizar();
+        await Subir(cut, "primero.xlsx");
+        var entrada = cut.FindComponent<InputFile>();
+
+        await cut.InvokeAsync(() => entrada.Instance.OnChange.InvokeAsync(
+            new InputFileChangeEventArgs([new ArchivoDoble("uno.xlsx"), new ArchivoDoble("dos.xlsx")])));
+
+        Texto(cut.Find(".alerta-formulario")).Should().Be("Sube un solo archivo .xlsx cada vez.");
+        cut.FindAll("[data-testid='est-archivo-listo']").Should().BeEmpty("no se conserva el archivo anterior");
+        Primario(cut).HasAttribute("disabled").Should().BeTrue();
+        servidor.Recibidas.Should().BeEmpty();
+        Fase(cut).Should().Be("Subir");
     }
 
     [Fact]
@@ -584,6 +606,19 @@ public class ImportacionEstructuraTests : BunitContext
         Celdas(cut, "EstEntRelaciones").Should().Equal("Relaciones Empresa - Cliente", "1", "0", "0", "0");
         Celdas(cut, "EstEntCentros").Should().Equal("Centros", "1", "0", "0", "0");
         Celdas(cut, "EstEntTrabajadores").Should().Equal("Trabajadores", "1", "0", "0", "0");
+    }
+
+    [Fact]
+    public async Task VistaPrevia_SinCambiosSaleDeLaVistaPreviaReleidaNoDelAnalisis()
+    {
+        // Revisión Codex de la PR #2164, r2, BAJO 1: el análisis dio la Empresa de la fila 3 por existente; al calcular la
+        // vista previa ya no existe (otra sesión la retiró) y se crearía. «Sin cambios» no puede seguir contándola.
+        var servidor = new Servidor { AjustarPrevia = r => r with { EmpresasCreadas = 2 } };
+
+        var (cut, _) = await HastaVistaPreviaAsync(servidor);
+
+        Celdas(cut, "EstEntEmpresas").Should().Equal("Empresas", "2", "0", "0", "0");
+        Metrica(cut, "Sin cambios").Should().Be("0");
     }
 
     private static IEnumerable<string> Celdas(IRenderedComponent<ImportacionEstructura> cut, string entidad) =>

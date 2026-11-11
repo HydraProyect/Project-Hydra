@@ -722,6 +722,7 @@
   <data name="EstDialogoMensaje" xml:space="preserve"><value>Reemplaçar canvia {0} camps de {1} registres i no es pot revertir. Importar igualment?</value></data>
   <data name="EstDialogoConfirmar" xml:space="preserve"><value>Sí, reemplaça i importa</value></data>
   <data name="EstErrorExtension" xml:space="preserve"><value>Només s'admeten fitxers .xlsx.</value></data>
+  <data name="EstErrorVariosArchivos" xml:space="preserve"><value>Puja un sol fitxer .xlsx cada vegada.</value></data>
   <data name="EstErrorTamano" xml:space="preserve"><value>El fitxer pesa més de {0} MB.</value></data>
   <data name="EstErrorPrevia" xml:space="preserve"><value>No hem pogut calcular la vista prèvia. Torna-ho a provar.</value></data>
   <data name="EstVistaPreviaCambiada" xml:space="preserve"><value>Les dades han canviat des de la vista prèvia (per exemple, una altra persona ha editat un registre). No s'ha escrit res: revisa la vista prèvia actualitzada i torna a confirmar.</value></data>

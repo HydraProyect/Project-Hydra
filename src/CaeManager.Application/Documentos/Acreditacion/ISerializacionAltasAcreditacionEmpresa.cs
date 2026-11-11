@@ -7,7 +7,7 @@ namespace CaeManager.Application.Documentos.Acreditacion;
 /// Centros (regla A-1): el alta de un Documento de Empresa (crear, renovar con archivo, generar desde plantilla) y toda
 /// operación que cambie a qué Centros llega: el alta de un acceso de plataforma, empezar a exigir un tipo en un Centro o
 /// de serie (EstablecerDocumentacionRequeridaCentro, EliminarDocumentacionRequeridaCentro, EditarTipoDocumento), volver
-/// a gestión CAE (EstablecerGestionCaeCentro, EjecutarImportacionMaestra reemplazando), restaurar un Centro o un
+/// a gestión CAE (EstablecerGestionCaeCentro, EjecutarImportacionMaestra al confirmar, en los dos modos), restaurar un Centro o un
 /// Documento de Empresa (RestaurarCentro, RestaurarDocumento) y crear o reabrir una Asignación (CrearAsignacion,
 /// CrearAsignaciones, ReactivarAsignacion, EjecutarImportacion con una hoja de Asignaciones). Revisión Codex de la PR
 /// #2074, ronda 3, hallazgos 2 a 4.

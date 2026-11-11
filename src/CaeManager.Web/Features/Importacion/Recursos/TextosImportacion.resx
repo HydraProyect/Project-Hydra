@@ -722,6 +722,7 @@
   <data name="EstDialogoMensaje" xml:space="preserve"><value>Reemplazar cambia {0} campos de {1} registros y no se puede revertir. ¿Importar de todos modos?</value></data>
   <data name="EstDialogoConfirmar" xml:space="preserve"><value>Sí, reemplazar e importar</value></data>
   <data name="EstErrorExtension" xml:space="preserve"><value>Solo se admiten archivos .xlsx.</value></data>
+  <data name="EstErrorVariosArchivos" xml:space="preserve"><value>Sube un solo archivo .xlsx cada vez.</value></data>
   <data name="EstErrorTamano" xml:space="preserve"><value>El archivo pesa más de {0} MB.</value></data>
   <data name="EstErrorPrevia" xml:space="preserve"><value>No pudimos calcular la vista previa. Inténtalo de nuevo.</value></data>
   <data name="EstVistaPreviaCambiada" xml:space="preserve"><value>Los datos han cambiado desde la vista previa (por ejemplo, otra persona ha editado un registro). No se ha escrito nada: revisa la vista previa actualizada y vuelve a confirmar.</value></data>

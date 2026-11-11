@@ -81,10 +81,19 @@ public record ResultadoImportacionMaestraDto(
             "Esta importación ya se había confirmado antes (reintento o doble confirmación); no se ha vuelto a crear nada.")]);
 
     /// <summary>
-    /// Huella de TODO lo que este resultado dice que se hará: las cifras, cada valor sobrescrito (con su valor previo y el
-    /// nuevo), cada fila omitida con su motivo y cada advertencia. Dos resultados con la misma huella muestran lo mismo.
-    /// Cada campo va precedido de su longitud, así que dos contenidos distintos nunca se serializan igual. Solo se compara
-    /// en memoria; nunca se registra.
+    /// Un elemento por cada campo vacío que se rellena, en el orden en que se rellena (hoja, fila, campo y valor nuevo):
+    /// identifica QUÉ se rellena, no solo cuántos (<see cref="CamposRellenados"/>). Solo entra en
+    /// <see cref="CalcularHuella"/>: dos vistas previas con el mismo recuento pero distintos campos rellenados (rellenar el
+    /// de una fila y vaciar el de otra) no se confunden. Revisión Codex de la PR #2164, r2, MEDIO 1.
+    /// </summary>
+    public IReadOnlyList<CampoRellenadoDto> DetalleCamposRellenados { get; init; } = [];
+
+    /// <summary>
+    /// Huella de TODO lo que este resultado dice que se hará: las cifras, cada campo que se rellena (hoja, fila, campo y
+    /// valor nuevo), cada valor sobrescrito (con su valor previo y el nuevo), cada fila omitida con su motivo y cada
+    /// advertencia. Dos resultados con la misma huella muestran y escriben lo mismo. La hoja identifica la entidad y la
+    /// fila, su clave natural dentro del mismo plan. Cada campo va precedido de su longitud, así que dos contenidos
+    /// distintos nunca se serializan igual. Solo se compara en memoria; nunca se registra.
     /// </summary>
     public string CalcularHuella()
     {
@@ -103,6 +112,8 @@ public record ResultadoImportacionMaestraDto(
                      CentrosCreados, CentrosActualizados, TrabajadoresCreados, TrabajadoresActualizados, CamposRellenados
                  })
             Numero(cifra);
+        Numero(DetalleCamposRellenados.Count);
+        foreach (var r in DetalleCamposRellenados) { Campo(r.Hoja); Numero(r.Fila); Campo(r.Campo); Campo(r.ValorNuevo); }
         Numero(ValoresSobrescritos.Count);
         foreach (var v in ValoresSobrescritos) { Campo(v.Hoja); Numero(v.Fila); Campo(v.Campo); Campo(v.ValorPrevio); Campo(v.ValorNuevo); }
         Items(Advertencias);
@@ -112,6 +123,8 @@ public record ResultadoImportacionMaestraDto(
 }
 
 public record ValorPrevioDto(string Hoja, int Fila, string Campo, string ValorPrevio, string? ValorNuevo);
+
+public record CampoRellenadoDto(string Hoja, int Fila, string Campo, string ValorNuevo);
 
 public class EjecutarImportacionMaestraCommandHandler(
     IEmpresaRepository empresaRepositorio,
@@ -167,15 +180,18 @@ public class EjecutarImportacionMaestraCommandHandler(
 
         try
         {
-            // Solo reemplazando se cambia la modalidad de un Centro existente, y solo una fila con gestión CAE puede
-            // devolverlo a ella: entonces sus accesos de plataforma reciben los Documentos de Empresa que exige (regla
-            // A-1), igual que en EstablecerGestionCaeCentro. Se serializa con el alta de un Documento de Empresa (ver
-            // ISerializacionAltasAcreditacionEmpresa), y se decide por el plan, no por una lectura: así toda la
-            // importación, desde la lectura de los Centros existentes, corre bajo el candado.
+            // Confirmar corre SIEMPRE bajo el candado del Tenant (ISerializacionAltasAcreditacionEmpresa), en los dos modos,
+            // desde la relectura de lo existente hasta el guardado:
+            // - Reemplazando, una fila con gestión CAE puede devolver un Centro existente a ella y sus accesos de
+            //   plataforma reciben los Documentos de Empresa que exige (regla A-1), igual que en EstablecerGestionCaeCentro.
+            // - En los dos modos, la comparación con la vista previa protege también las AUSENCIAS (un Centro que se va a
+            //   crear porque no existe): otra importación maestra del mismo Tenant que cree ese Centro espera a que esta
+            //   guarde, y al releer lo ve, así que su vista previa ya no coincide y no escribe. Sin el candado, las dos
+            //   pasarían la comparación y el Centro quedaría duplicado: no hay índice único por Cliente empresarial y
+            //   nombre del Centro. Revisión Codex de la PR #2164, r2, MEDIO 2. El alta manual de un Centro y la plantilla
+            //   combinada sin hoja de Asignaciones no toman este candado: frente a ellas la carrera sigue abierta.
             if (!escribir)
                 return await ProcesarAsync(plan, reemplazar, huellaEsperada: null, cancellationToken);
-            if (!reemplazar || plan.Centros.All(c => c.SinGestionCae))
-                return await ComprobarYEscribirAsync(plan, reemplazar, huellaVistaPrevia!, cancellationToken);
 
             Result<ResultadoImportacionMaestraDto>? procesado = null;
             var serializado = await serializacionAltas.EjecutarAsync(async ct =>
@@ -202,13 +218,22 @@ public class EjecutarImportacionMaestraCommandHandler(
     }
 
     /// <summary>
-    /// Confirmar: primero recalcula la vista previa con los datos de ahora (bajo el candado, si lo hay) sin tocar ninguna
-    /// entidad; si ya no coincide con la mostrada, para ahí. Si coincide, escribe, y la escritura vuelve a comparar su
-    /// propio resultado antes de guardar (cierra el hueco entre las dos lecturas).
+    /// Confirmar: primero recalcula la vista previa con los datos de ahora (bajo el candado) sin tocar ninguna entidad; si
+    /// ya no coincide con la mostrada, para ahí. Si coincide, escribe, y la escritura vuelve a comparar su propio resultado
+    /// antes de guardar (cierra el hueco entre las dos lecturas).
     /// </summary>
     private async Task<Result<ResultadoImportacionMaestraDto>> ComprobarYEscribirAsync(
         PlanImportacionMaestraDto plan, bool reemplazar, string huellaVistaPrevia, CancellationToken cancellationToken)
     {
+        // Releída bajo el candado: otra confirmación de la misma operación, o el primer intento de esta si la estrategia
+        // de reintentos repite la operación tras confirmar, ya la guardó. Sin esto, la relectura vería lo que ella creó y
+        // respondería «la vista previa cambió» por una importación que sí se hizo.
+        if (await operacionImportacionRepositorio.ExisteAsync(plan.OperacionId, cancellationToken))
+        {
+            operacionYaEjecutada = true;
+            return ResultadoImportacionMaestraDto.YaEjecutada();
+        }
+
         var actual = await ProcesarAsync(plan, reemplazar, huellaEsperada: null, cancellationToken);
         if (actual.EsFallido) return actual;
         if (actual.Valor.CalcularHuella() != huellaVistaPrevia)
@@ -225,14 +250,14 @@ public class EjecutarImportacionMaestraCommandHandler(
 
         var omitidos = new List<ItemImportacionDto>();
         var sobrescritos = new List<ValorPrevioDto>();
-        var rellenados = 0;
+        var rellenados = new List<CampoRellenadoDto>();
         var ahora = DateTime.UtcNow;
 
         // Valor resultante de un campo de texto bajo el modo elegido, contando rellenos y sobrescrituras.
         string? Texto(string hoja, int fila, string campo, string? actual, string? archivo)
         {
             if (string.IsNullOrWhiteSpace(archivo)) return actual;
-            if (string.IsNullOrWhiteSpace(actual)) { rellenados++; return archivo; }
+            if (string.IsNullOrWhiteSpace(actual)) { rellenados.Add(new(hoja, fila, campo, archivo)); return archivo; }
             if (!reemplazar || actual == archivo) return actual;
             sobrescritos.Add(new ValorPrevioDto(hoja, fila, campo, actual, archivo));
             return archivo;
@@ -241,7 +266,7 @@ public class EjecutarImportacionMaestraCommandHandler(
         DateOnly? Fecha(string hoja, int fila, string campo, DateOnly? actual, DateOnly? archivo)
         {
             if (archivo is null) return actual;
-            if (actual is null) { rellenados++; return archivo; }
+            if (actual is null) { rellenados.Add(new(hoja, fila, campo, archivo.Value.ToString("yyyy-MM-dd"))); return archivo; }
             if (!reemplazar || actual == archivo) return actual;
             sobrescritos.Add(new ValorPrevioDto(hoja, fila, campo, actual.Value.ToString("yyyy-MM-dd"), archivo.Value.ToString("yyyy-MM-dd")));
             return archivo;
@@ -285,7 +310,7 @@ public class EjecutarImportacionMaestraCommandHandler(
         // Deshace lo contado por una fila que acaba omitida (rellenos y sobrescrituras de esa fila).
         void DescartarFila(int rellenadosAntes, int sobrescritosAntes)
         {
-            rellenados = rellenadosAntes;
+            if (rellenados.Count > rellenadosAntes) rellenados.RemoveRange(rellenadosAntes, rellenados.Count - rellenadosAntes);
             if (sobrescritos.Count > sobrescritosAntes) sobrescritos.RemoveRange(sobrescritosAntes, sobrescritos.Count - sobrescritosAntes);
         }
 
@@ -308,7 +333,7 @@ public class EjecutarImportacionMaestraCommandHandler(
         {
             if (gestionadasPorCif.TryGetValue(fila.Cif, out var existente))
             {
-                var rellenadosAntes = rellenados;
+                var rellenadosAntes = rellenados.Count;
                 var sobrescritosAntes = sobrescritos.Count;
                 var razonSocial = Texto(HojaEmpresas, fila.Fila, "Razón social", existente.RazonSocial, fila.RazonSocial)!;
                 if (razonSocial != existente.RazonSocial && await RazonSocialOcupadaAsync(razonSocial, existente.Id) is { } ocupada)
@@ -395,7 +420,7 @@ public class EjecutarImportacionMaestraCommandHandler(
                 // fila se rechaza, no cuenta como tratada: la siguiente del mismo Cliente empresarial lo intenta.
                 if (clientesTratados.Add(fila.Cif))
                 {
-                    var rellenadosAntes = rellenados;
+                    var rellenadosAntes = rellenados.Count;
                     var sobrescritosAntes = sobrescritos.Count;
                     var razonSocial = Texto(HojaClientes, fila.Fila, "Razón social", existente.RazonSocial, fila.RazonSocial)!;
                     var notas = Texto(HojaClientes, fila.Fila, "Nota interna", existente.Notas, fila.Nota);
@@ -504,7 +529,7 @@ public class EjecutarImportacionMaestraCommandHandler(
                     continue;
                 }
 
-                var rellenadosAntes = rellenados;
+                var rellenadosAntes = rellenados.Count;
                 var sobrescritosAntes = sobrescritos.Count;
                 var codigo = Texto(HojaCentros, fila.Fila, "Código del Centro", existente.CodigoCentro, fila.CodigoCentro);
                 var direccion = Texto(HojaCentros, fila.Fila, "Dirección", existente.Direccion, fila.Direccion);
@@ -600,7 +625,7 @@ public class EjecutarImportacionMaestraCommandHandler(
                     continue;
                 }
 
-                var rellenadosAntes = rellenados;
+                var rellenadosAntes = rellenados.Count;
                 var sobrescritosAntes = sobrescritos.Count;
                 var nombre = Texto(HojaTrabajadores, fila.Fila, "Nombre", existente.Nombre, fila.Nombre)!;
                 var apellidos = Texto(HojaTrabajadores, fila.Fila, "Apellidos", existente.Apellidos, fila.Apellidos)!;
@@ -664,8 +689,11 @@ public class EjecutarImportacionMaestraCommandHandler(
 
         var resultado = new ResultadoImportacionMaestraDto(
             empresasCreadas, empresasActualizadas, clientesCreados, clientesActualizados, relacionesCreadas,
-            centrosCreados, centrosActualizados, trabajadoresCreados, trabajadoresActualizados, rellenados,
-            sobrescritos, plan.Advertencias, [.. plan.Omitidos, .. omitidos]);
+            centrosCreados, centrosActualizados, trabajadoresCreados, trabajadoresActualizados, rellenados.Count,
+            sobrescritos, plan.Advertencias, [.. plan.Omitidos, .. omitidos])
+        {
+            DetalleCamposRellenados = rellenados
+        };
 
         if (!escribir) return resultado;
 
