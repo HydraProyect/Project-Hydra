@@ -54,8 +54,10 @@ public sealed record TransicionDatosOrganizacionAlta(ResultadoDatosOrganizacionA
 /// (<see cref="ResultadoDatosOrganizacionAlta.DerivadaAAcceso"/>).
 /// <para>
 /// Aviso a Soporte TALVEG, versión mínima: un registro estructurado con <see cref="EventoDerivadaAAcceso"/> y el
-/// <c>SolicitudAltaId</c>, sin datos personales (ni correo, ni CIF, ni razón social): los datos quedan en la propia
-/// Solicitud de alta, que Soporte TALVEG consultará en el panel de altas (A10). Sin correo de ningún tipo.
+/// <c>SolicitudAltaId</c>, sin datos personales (ni correo, ni CIF, ni razón social). En <c>DerivadaAAcceso</c> la
+/// Solicitud de alta guarda solo el correo (ya estaba) y el CIF o NIF; la razón social, el domicilio, el teléfono, el
+/// tramo y las declaraciones se descartan. Eso es lo que Soporte TALVEG consultará en el panel de altas (A10). Sin
+/// correo de ningún tipo.
 /// </para>
 /// <para>
 /// No es un <c>ICommand</c> de MediatR por lo mismo que <see cref="ServicioRegistroAlta"/>: quien lo usa es anónimo. No

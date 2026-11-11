@@ -1,14 +1,12 @@
 @page "/alta/organizacion"
 @layout CaeManager.Web.Components.Layout.AccesoLayout
 @attribute [AllowAnonymous]
-@attribute [EnableRateLimiting(LimitadorAlta.Politica)]
 @using CaeManager.Application.AltaAutonoma
 @using CaeManager.Domain.AltaAutonoma
 @using CaeManager.Web.Components.Account
 @using CaeManager.Web.Features.AltaAutonoma.Antiabuso
 @using CaeManager.Web.Features.AltaAutonoma.Recursos
 @using Microsoft.AspNetCore.Authorization
-@using Microsoft.AspNetCore.RateLimiting
 @using Microsoft.Extensions.Localization
 @using Microsoft.Extensions.Options
 @inject IOptions<AltaAutonomaOptions> OpcionesAlta
@@ -17,8 +15,9 @@
 @inject CupoConsultasCifAlta CupoCif
 @inject NavigationManager Navigation
 
-@* Paso 2 del alta autónoma, «Empresa» (A4). Formulario SSR estático, para que el envío pase por la política «alta» del
-   limitador. Quien llega aquí no tiene cuenta ni sesión: lo que le deja seguir es el credencial de continuación que dejó
+@* Paso 2 del alta autónoma, «Empresa» (A4). Formulario SSR estático, para que el envío pase por el techo por IP del
+   limitador global (LimitadorAlta.ParticionOrganizacion), que cubre también el GET porque pintar consulta la base. No
+   lleva la política «alta»: esa cuenta los inicios del alta y no debe gastarse en este paso. Quien llega aquí no tiene cuenta ni sesión: lo que le deja seguir es el credencial de continuación que dejó
    la verificación del correo en una cookie HttpOnly (CookieContinuacionAlta). La página valida con las reglas del
    dominio (DatosOrganizacionAlta), aplica el límite de consultas por CIF y deja que la base decida, bajo candado, si el
    CIF ya tiene Tenant propietario. Si lo tiene, el mensaje es genérico: ni qué Tenant es ni quién lo gestiona

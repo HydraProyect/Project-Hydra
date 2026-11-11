@@ -88,6 +88,30 @@ public class RegistroYVerificacionAltaTests : BunitContext
     }
 
     [Fact]
+    public void Verificar_con_la_contrasena_buena_deja_el_credencial_en_la_cookie_y_lleva_al_paso_Empresa()
+    {
+        // Esta página es el único escritor de la cookie de continuación: sin ella, quien verifica gasta el enlace y se
+        // queda sin poder seguir con el alta.
+        var http = new Microsoft.AspNetCore.Http.DefaultHttpContext();
+        http.Request.IsHttps = true;
+        var navegacion = Services.GetRequiredService<Microsoft.AspNetCore.Components.NavigationManager>();
+        var token = ServicioRegistroAlta.NuevoToken();
+        navegacion.NavigateTo($"alta/verificar?token={token}");
+        var corte = Render<VerificarCorreoAlta>(p => p.AddCascadingValue<Microsoft.AspNetCore.Http.HttpContext>(http));
+
+        corte.Find("#alta-verificar-contrasena").Change("la-buena");
+        corte.Find("form").Submit();
+
+        _acceso.Verificaciones.Should().ContainSingle().Which.Should().Be(token);
+        var cookie = Microsoft.Net.Http.Headers.SetCookieHeaderValue.ParseList(http.Response.Headers.SetCookie.ToArray())
+            .Should().ContainSingle(c => c.Name.Value == CookieContinuacionAlta.Nombre).Which;
+        cookie.Value.Value.Should().NotBeNullOrEmpty().And.NotBe(token, "el credencial no es el token del enlace");
+        cookie.Path.Value.Should().Be("/alta");
+        cookie.HttpOnly.Should().BeTrue();
+        new Uri(navegacion.Uri).AbsolutePath.Should().Be(OrganizacionAlta.Ruta);
+    }
+
+    [Fact]
     public void Con_la_bandera_apagada_el_enlace_de_verificacion_no_pinta_nada()
     {
         Services.AddSingleton(Options.Create(new AltaAutonomaOptions { Habilitada = false }));
