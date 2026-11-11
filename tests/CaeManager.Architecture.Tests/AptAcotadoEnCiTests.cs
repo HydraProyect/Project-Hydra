@@ -337,12 +337,20 @@ public class AptAcotadoEnCiTests
         var lineas = rutas
             .SelectMany(r => LineasSinComentario(r).Select(l => (fichero: Path.GetRelativePath(raiz, r), linea: l)))
             .ToList();
-        var asignacion = new Regex(@"Acquire::Retries(\s*=\s*|\s+\\?"")(?<valor>[^""\\\s;]*)",
+        // Toda aparición de Acquire::Retries tiene que ser una asignación que este test sepa
+        // leer (con = o con espacio, con o sin comillas y con o sin :: final); la única
+        // excepción es la línea exacta de la consulta con apt-config, fijada más abajo.
+        const string consultaAptConfig =
+            "&& [ \"$(apt-config shell R Acquire::Retries A APT::Acquire::Retries)\" = \"R='0'\"$'\\n'\"A='0'\" ]";
+        var aparicion = new Regex(@"Acquire::Retries", RegexOptions.IgnoreCase | RegexOptions.Compiled);
+        var asignacion = new Regex(@"\GAcquire::Retries(::)?(\s*=\s*|\s+)\\?[""']?(?<valor>[^""'\\\s;]*)",
             RegexOptions.IgnoreCase | RegexOptions.Compiled);
         var suelto = new Regex(@"(?<![-\w:])Retries\b", RegexOptions.IgnoreCase | RegexOptions.Compiled);
 
         var asignaciones = lineas
-            .SelectMany(x => asignacion.Matches(x.linea).Select(m => (x.fichero, x.linea, valor: m.Groups["valor"].Value)))
+            .Where(x => x.linea != consultaAptConfig)
+            .SelectMany(x => aparicion.Matches(x.linea).Select(m => asignacion.Match(x.linea, m.Index)).Select(a =>
+                (x.fichero, x.linea, valor: a.Success ? a.Groups["valor"].Value : "<no es una asignación legible>")))
             .ToList();
 
         asignaciones.Count(x => x.fichero.EndsWith("action.yml", StringComparison.Ordinal)).Should().BeGreaterThanOrEqualTo(2,
@@ -361,7 +369,7 @@ public class AptAcotadoEnCiTests
             "'Acquire::Retries \"0\";' \\",
             "'APT::Acquire::Retries \"0\";' \\",
         ]).Should().BeGreaterThan(-1, "apt-acotado escribe 0 literal en las dos claves, sin variable que otro camino pueda subir");
-        accion.Should().Contain("&& [ \"$(apt-config shell R Acquire::Retries A APT::Acquire::Retries)\" = \"R='0'\"$'\\n'\"A='0'\" ]",
+        accion.Should().Contain(consultaAptConfig,
             "la acción comprueba, después de escribir el fichero, que el valor que apt lee de verdad es 0 en las dos claves");
         accion.Should().NotContain(l => l.Contains("reintentos_segun_fuentes", StringComparison.Ordinal)
                 || l.Contains("fijar_reintentos", StringComparison.Ordinal),
