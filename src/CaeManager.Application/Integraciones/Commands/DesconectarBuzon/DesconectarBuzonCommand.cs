@@ -134,9 +134,10 @@ public class DesconectarBuzonCommandHandler(
     /// <para>
     /// La regla es la misma que aplica la desconexión justo después de confirmarse: solo se marca, en su expiración, la
     /// suscripción releída que ya expiró. La base no guarda cuándo se desconectó, así que no se distingue una expiración
-    /// anterior a la desconexión de una posterior: puede avisar de más, nunca de menos. Límite conocido: la fila de la
-    /// suscripción sigue en la base tras una desconexión limpia, así que repetir la desconexión días después (desde otra
-    /// pestaña que aún la mostraba Habilitada) marca en esa expiración aunque no se perdiera nada. Con la suscripción vigente no se marca nada, como hoy: la regla sobre una
+    /// anterior a la desconexión de una posterior: puede avisar de más y, con la suscripción expirada, nunca de menos.
+    /// Límite conocido: la fila de la suscripción sigue en la base tras una desconexión limpia, así que repetir la
+    /// desconexión días después (desde otra pestaña que aún la mostraba Habilitada) marca en esa expiración aunque no se
+    /// perdiera nada. Con la suscripción vigente no se marca nada, como hoy: la regla sobre una
     /// conexión no Habilitada marcaría también una suscripción vigente, y una segunda desconexión de una conexión
     /// desconectada sin problemas no debe dejar aviso. La marca pendiente de un borrado fallido con la suscripción aún
     /// vigente no se repara aquí: esa suscripción sigue viva en Graph, y cada notificación que llegue a la conexión
