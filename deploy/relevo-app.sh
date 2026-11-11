@@ -341,8 +341,9 @@ volcar_ranura_fallida() {
 # ausente, igual que los trata la aplicación.
 #
 # Con un tercer argumento, además sale con 3 si la clave no vale exactamente uno
-# de esos valores (separados por «|»), si dos grafías de la clave no valen lo
-# mismo o si una línea del entorno no se puede leer. El nombre se compara como lo
+# de esos valores (separados por «|») o si dos grafías de la clave no valen lo
+# mismo, y con 5 si una línea del entorno no se puede leer: no es un modo leído,
+# y retirar_sin_guarda_pendientes solo para algo con un 3. El nombre se compara como lo
 # ve la aplicación: sin distinguir mayúsculas y con «:» igual a «__», así que
 # cualquier otra grafía cuenta (podría decidir el modo efectivo). El valor se
 # compara entero, solo sin los espacios de alrededor ni un par de comillas YAML
@@ -417,7 +418,8 @@ clave_con_valor_en_servicio() {
         END {
             if (!visto) exit 2
             if (!presente) exit 1
-            if (discrepa || ilegible) exit 3
+            if (ilegible) exit 5
+            if (discrepa) exit 3
             if (lista_mala || (modo_con_lista != "" && modo == modo_con_lista && !direcciones)) exit 4
             exit 0
         }'
@@ -495,10 +497,11 @@ exigir_guarda_de_correo() {
     case "$resultado" in
         0) return 0 ;;
         2) echo "::error::Relevo de $entorno abortado: no se pudo resolver la configuración efectiva de $servicio para comprobar $CLAVE_GUARDA_CORREO (revisa $fichero y docker-compose.$entorno.yml; el error de Compose no se imprime porque puede citar valores). $intacto" >&2 ;;
+        5) echo "::error::Relevo de $entorno abortado: una línea del entorno efectivo de $servicio no tiene la forma «nombre: valor», así que no se puede comprobar $CLAVE_GUARDA_CORREO (revisa $fichero y docker-compose.$entorno.yml; la línea no se imprime porque puede llevar valores). $intacto" >&2 ;;
         4) echo "::error::Relevo de $entorno abortado: la lista ${CLAVE_LISTA_CORREO}__<n> del entorno efectivo de $servicio no vale: con $MODO_CORREO_CON_LISTA tiene que llevar al menos una dirección, y con cualquier modo cada entrada tiene que ser ${CLAVE_LISTA_CORREO}__<número> con una dirección exacta (sin nombre visible, sin espacios, una por entrada). Corrígelo en $fichero en el servidor y repite la operación. $intacto" >&2 ;;
         3)
             if [ "$entorno" = staging ]; then
-                echo "::error::Relevo de $entorno abortado: $CLAVE_GUARDA_CORREO no es ${MODOS_CORREO_STAGING//|/ ni } en el entorno efectivo de $servicio (o dos grafías de la clave no coinciden, o una línea del entorno no se puede leer), y en staging no se admite otro modo, para que no salga correo real a quien no esté en la lista. Corrígelo en $fichero en el servidor y repite la operación. $intacto" >&2
+                echo "::error::Relevo de $entorno abortado: $CLAVE_GUARDA_CORREO no es ${MODOS_CORREO_STAGING//|/ ni } en el entorno efectivo de $servicio (o dos grafías de la clave no coinciden), y en staging no se admite otro modo, para que no salga correo real a quien no esté en la lista. Corrígelo en $fichero en el servidor y repite la operación. $intacto" >&2
             else
                 echo "::error::Relevo de $entorno abortado: caemanager:$sha no declara $ETIQUETA_GUARDA_CORREO y $CLAVE_GUARDA_CORREO no es $MODO_CORREO_SIN_GUARDA en el entorno efectivo de $servicio: esa imagen ignoraría el modo y enviaría correo igualmente. Elige una imagen que declare la guarda. $intacto" >&2
             fi ;;

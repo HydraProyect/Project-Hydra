@@ -537,12 +537,12 @@ $LISTA_UNA" \
       EnvioCorreo__Modo: Cerrado" \
             "Cerrado y la clave con «:» con Abierto|      EnvioCorreo__Modo: Cerrado
       EnvioCorreo:Modo: Abierto" \
+            "Cerrado y la clave con «:» entrecomillada con Abierto|      EnvioCorreo__Modo: Cerrado
+      \"EnvioCorreo:Modo\": Abierto" \
             "Solo Permitidos, con un espacio dentro, y lista|      EnvioCorreo__Modo: Solo Permitidos
 $LISTA_UNA" \
             "SoloPermitidos con comillas dentro y lista|      EnvioCorreo__Modo: Solo\"Permitidos
-$LISTA_UNA" \
-            "Cerrado y una línea del entorno que no se puede leer|      EnvioCorreo__Modo: Cerrado
-      LINEA_SIN_SEPARADOR"; do
+$LISTA_UNA"; do
   escenario_correo; relevo "CORREO_VERDE=${caso#*|}" -- desplegar staging "$B"
   comprobar "staging con ${caso%%|*}: aborta sin up, sin recarga, sin drenaje y sin tocar la activa" "1 0 0 0 to caemanager-staging-app-azul:8080 true" "$codigo $(sin_tocar_nada staging)"
   comprobar "  dice qué exige y dónde" si "$(contiene "EnvioCorreo__Modo no es Cerrado ni SoloPermitidos en el entorno efectivo de app-verde" "$salida")"
@@ -580,6 +580,11 @@ escenario_correo; relevo "CORREO_VERDE=      EnvioCorreo__Modo: Cerrado
       EnvioCorreo__DestinatariosPermitidos__0: \"\"" -- desplegar staging "$B"
 comprobar "staging con Cerrado y una entrada de lista que la aplicación rechazaría: aborta antes de tocar nada" "1 0 0 0 to caemanager-staging-app-azul:8080 true" "$codigo $(sin_tocar_nada staging)"
 comprobar "  y lo dice" si "$(contiene "la lista EnvioCorreo__DestinatariosPermitidos__<n> del entorno efectivo de app-verde no vale" "$salida")"
+escenario_correo; relevo "CORREO_VERDE=      EnvioCorreo__Modo: Cerrado
+      LINEA_SIN_SEPARADOR SECRETO_CENTINELA" -- desplegar staging "$B"
+comprobar "staging con una línea del entorno que no se puede leer: aborta antes de tocar nada" "1 0 0 0 to caemanager-staging-app-azul:8080 true" "$codigo $(sin_tocar_nada staging)"
+comprobar "  lo dice con su propio mensaje" si "$(contiene "una línea del entorno efectivo de app-verde no tiene la forma «nombre: valor»" "$salida")"
+comprobar "  sin imprimir la línea" 0 "$(printf '%s\n' "$salida" | grep -c 'SECRETO_CENTINELA')"
 
 for caso in "una dirección|$LISTA_UNA" \
             "dos direcciones|$LISTA_UNA
@@ -780,6 +785,10 @@ comprobar "  si Caddy no acepta la recarga, no para nada: sale con 1" "1 true 0 
 interrumpida; relevo CONFIG_FALLA=1 RECARGA_FALLA=1 -- retirar-sin-guarda staging "$B"
 comprobar "  si tampoco se puede leer el modo, no para nada: sale con 1" "1 true 0 si" \
   "$codigo $(en_marcha "$AZUL_STG") $(stops_de "$AZUL_STG") $(contiene "::error::no se pudo leer EnvioCorreo__Modo" "$salida")"
+interrumpida; relevo "CORREO_AZUL=      EnvioCorreo__Modo: Abierto
+      LINEA_SIN_SEPARADOR" -- retirar-sin-guarda staging "$B"
+comprobar "  una línea del entorno ilegible no cuenta como modo leído distinto de Abierto: no para nada" "1 true 0 si" \
+  "$codigo $(en_marcha "$AZUL_STG") $(stops_de "$AZUL_STG") $(contiene "::error::no se pudo leer EnvioCorreo__Modo" "$salida")"
 saliente_staging; relevo -- retirar-sin-guarda staging "$A"
 comprobar "  la imagen que sirve sin la guarda con modo Cerrado no se da por buena ni se para" "1 true 0 si" \
   "$codigo $(en_marcha "$AZUL_STG") $(stops_de "$AZUL_STG") $(contiene "::error::$AZUL_STG sirve staging e ignora" "$salida")"
@@ -951,7 +960,7 @@ if [ -z "${RELEVO_GUION:-}" ]; then
   mutar "staging no exige Cerrado ni SoloPermitidos" \
     's#^    \[ "\$entorno" = staging \] \&\& modo_exigido="\$MODOS_CORREO_STAGING" #    [ "$entorno" = staging ] \&\& #' esc_staging comp_staging
   mutar "un modo distinto de los admitidos no aborta" \
-    's#if (discrepa || ilegible) exit 3#if (ilegible) exit 3#' esc_staging comp_staging
+    's#if (discrepa) exit 3#if (0) exit 3#' esc_staging comp_staging
   mutar "la comparación con los modos admitidos va al revés" \
     's#if (v == partes\[i\]) return 1#if (v != partes[i]) return 1#' esc_staging comp_staging
   mutar "staging admite Abierto" \
@@ -965,9 +974,18 @@ if [ -z "${RELEVO_GUION:-}" ]; then
   mutar "«:» en el nombre no cuenta como «__»" \
     's#gsub(/:/, "__", nombre)#nombre = nombre#' esc_staging comp_staging
   CORREO_MUTANTE='      EnvioCorreo__Modo: Cerrado
+      "EnvioCorreo:Modo": Abierto'
+  mutar "un nombre entrecomillado no cuenta" \
+    's#nombre = substr(nombre, 2, length(nombre) - 2)#nombre = nombre#' esc_staging comp_staging
+  CORREO_MUTANTE='      EnvioCorreo__Modo: Cerrado
       LINEA_SIN_SEPARADOR'
   mutar "una línea ilegible no aborta" \
-    's#if (discrepa || ilegible) exit 3#if (discrepa) exit 3#' esc_staging comp_staging
+    's#if (ilegible) exit 5#if (0) exit 5#' esc_staging comp_staging
+  esc_ilegible_retirar() { interrumpida; CORREO_AZUL='      EnvioCorreo__Modo: Abierto
+      LINEA_SIN_SEPARADOR' bash "$1" retirar-sin-guarda staging "$B" > /dev/null 2>&1; }
+  comp_ilegible_retirar() { [ "$(en_marcha "$AZUL_STG")" = false ] && echo si || echo no; }
+  mutar "una línea ilegible cuenta como modo leído distinto de Abierto" \
+    's#if (ilegible) exit 5#if (ilegible) exit 3#' esc_ilegible_retirar comp_ilegible_retirar
   CORREO_MUTANTE='      EnvioCorreo__Modo: Solo Permitidos
       EnvioCorreo__DestinatariosPermitidos__0: una@ejemplo.invalid'
   mutar "el modo se compara sin los espacios de dentro" \
