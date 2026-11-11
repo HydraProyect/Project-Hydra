@@ -55,7 +55,7 @@
         else
         {
             <p class="nota-fija-texto">@_nota.Notas</p>
-            <span class="nota-fija-meta">@string.Format(Textos["Meta"].Value, _autor, Fecha(_nota.ActualizadaEnUtc))</span>
+            <span class="nota-fija-meta">@TextoMeta(_nota)</span>
         }
 
         <span class="nota-fija-meta">@Textos["Alcance"]</span>
@@ -120,6 +120,8 @@
         var nombres = await ResolverAutores([autorId]);
         return nombres.TryGetValue(autorId, out var nombre) ? nombre : TextosNotas["AutorDesconocido"].Value;
     }
+
+    private string TextoMeta(NotaContactoDto nota) => string.Format(Textos["Meta"].Value, _autor, Fecha(nota.ActualizadaEnUtc));
 
     private static string Fecha(DateTime? fechaUtc) =>
         fechaUtc is { } f ? f.EnHoraPeninsular().ToString("dd/MM/yyyy") : string.Empty;

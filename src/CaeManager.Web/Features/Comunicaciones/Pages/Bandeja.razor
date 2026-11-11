@@ -416,7 +416,7 @@
                 {
                   @* Respuesta sugerida por Vega (E18): solo propone, el envío sigue siendo del Gestor CAE. Fuera de SoloConEscritura
                      para que el rol Consulta pueda leerla; el propio componente oculta las acciones a quien no escribe. *@
-                    <RespuestaSugeridaPanel @ref="_panelSugerencia" @key="@($"sugerencia:{_detalle.Id}")"ConversacionId="_detalle.Id" PuedeSugerir="PuedeSugerirRespuesta"
+                    <RespuestaSugeridaPanel @ref="_panelSugerencia" ConversacionId="_detalle.Id" PuedeSugerir="PuedeSugerirRespuesta"
                                             UltimoEntranteId="UltimoMensajeEntranteId" Version="_detalle.FechaUltimoMensajeUtc"
                                             TextoRedactor="@_textoRespuesta" EsWhatsApp="_detalle.Canal == CanalConversacion.WhatsApp"
                                             OnInsertar="InsertarSugerenciaAsync" OnDescartada="SugerenciaDescartadaAsync"OnEstadoCambiado="() => StateHasChanged()" />
@@ -497,7 +497,7 @@
                 @* Nota fija del contacto y notas del equipo (E21), como en la maqueta: lo primero del contexto. *@
                 @if (InterlocutorNotaFijaActual is { } interlocutor)
                 {
-                    <NotaFijaContacto @key="@($"{_detalle!.Id}:{interlocutor.Email}")" Tipo="interlocutor.Tipo" PropietarioId="interlocutor.PropietarioId"
+                    <NotaFijaContacto Tipo="interlocutor.Tipo" PropietarioId="interlocutor.PropietarioId"
                                       Email="@interlocutor.Email" ResolverAutores="ResolverNombresAutoresAsync" />
                 }
                 <NotasEquipoConversacion Notas="_notasInternas" Autores="_autoresNotas" />
