@@ -45,12 +45,8 @@ public sealed class LimitadorProcesosAislados(int capacidad)
             return null;
         }
 
-        AlDarTurno?.Invoke();
         return new TurnoProcesoAislado(this);
     }
-
-    /// <summary>Para los tests: justo antes de devolver un turno, ya pasada la última comprobación de <see cref="Degradado"/>.</summary>
-    internal Action? AlDarTurno { get; set; }
 
     internal void Soltar() => _huecos.Release();
 

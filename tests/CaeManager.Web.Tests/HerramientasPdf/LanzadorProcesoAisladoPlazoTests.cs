@@ -151,6 +151,10 @@ public sealed class LanzadorProcesoAisladoPlazoTests
                 GC.WaitForPendingFinalizers();
             }
 
+            // Una pasada más tras ver el control: la tarea del hueco se soltó antes que él y ya debería estar finalizada.
+            GC.Collect();
+            GC.WaitForPendingFinalizers();
+
             terminada.Should().BeTrue("la tarea terminó, aunque fuera después de vencer la espera");
             publicaciones.Should().Be(1, "la tarea falló en el hueco entre el vencimiento y el filtro");
             Contiene(sinObservar, MarcaControl).Should().BeTrue("el instrumento ve una excepción que nadie observó");

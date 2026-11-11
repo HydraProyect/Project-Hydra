@@ -136,10 +136,17 @@ public class UnirPdfQueryHandler(
                     // La retención manda: si un fallo del registro la sustituyera, la pantalla devolvería su reserva con
                     // los PDF quizá aún referenciados. El PDF no sale, pero los Documentos ya se leyeron y pueden quedar sin
                     // constancia de su apertura (DEC-36): el fallo no se calla, se registra como crítico para quien supervisa.
-                    logger.LogCritical(
-                        falloDelRegistro,
-                        "Unir PDF no pudo registrar la apertura de {NumeroDocumentos} Documentos ya leídos ({Documentos}) tras retener la entrada del proceso aparte.",
-                        abiertos.Count, string.Join(",", abiertos));
+                    try
+                    {
+                        logger.LogCritical(
+                            falloDelRegistro,
+                            "Unir PDF no pudo registrar la apertura de {NumeroDocumentos} Documentos ya leídos ({Documentos}) tras retener la entrada del proceso aparte.",
+                            abiertos.Count, string.Join(",", abiertos));
+                    }
+                    catch (Exception)
+                    {
+                        // Un proveedor de registro que lanza tampoco sustituye a la retención.
+                    }
                 }
             }
 

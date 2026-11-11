@@ -640,6 +640,20 @@ public class UnirPdfQueryHandlerTests
     }
 
     [Fact]
+    public async Task Si_queda_retenida_la_inspeccion_de_un_Documento_recien_leido_se_retiene_su_lectura()
+    {
+        // La lectura del Documento cubre el array que recibió el proceso sin terminar; lo de la subida anterior se devuelve.
+        var subido = Subido("a.pdf", "A[estructura=1000000]");
+        var retenido = DocumentoDeEmpresa("X[retenida]");
+
+        var llamada = async () => await UnirAsync([subido, new EntradaUnionDocumento(retenido.Id)]);
+
+        await llamada.Should().ThrowAsync<EntradaPdfRetenidaException>();
+        _presupuesto.Reservado.Should().Be(Factor * Pdf("X[retenida]").Length,
+            "solo la lectura del Documento; ni la copia ni la estructura de la subida, cuya inspección terminó");
+    }
+
+    [Fact]
     public async Task Varias_inspecciones_ya_terminadas_devuelven_lo_suyo_aunque_la_ultima_quede_retenida()
     {
         // Con 512 MiB compartidos y hasta 32 MiB de estructura por PDF, retenerlo todo inmovilizaría casi todo el presupuesto.
@@ -700,6 +714,19 @@ public class UnirPdfQueryHandlerTests
         _logger.Entradas.Should().ContainSingle(e => e.Nivel == LogLevel.Critical)
             .Which.Should().Match<(LogLevel Nivel, string Mensaje, Exception? Excepcion)>(e =>
                 e.Excepcion is AccesoDocumentoSensibleNoRegistradoException && e.Mensaje.Contains(seguro.Id.ToString()));
+    }
+
+    [Fact]
+    public async Task Si_tambien_falla_el_proveedor_de_registro_la_entrada_retenida_sigue_siendo_la_excepcion()
+    {
+        var seguro = DocumentoDeEmpresa("SEGURO");
+        _registro.Falla = true;
+        _logger.Lanza = true;
+
+        var llamada = async () => await UnirAsync([new EntradaUnionDocumento(seguro.Id), Subido("b.pdf", "B[retenida]")]);
+
+        await llamada.Should().ThrowExactlyAsync<EntradaPdfRetenidaException>("la pantalla tiene que retener lo suyo aunque el registro falle");
+        PresupuestoLibre().Should().BeFalse();
     }
 
     [Fact]
@@ -883,8 +910,13 @@ public class UnirPdfQueryHandlerTests
         public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
         public bool IsEnabled(LogLevel logLevel) => true;
 
-        public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception? exception, Func<TState, Exception?, string> formatter) =>
+        public bool Lanza { get; set; }
+
+        public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception? exception, Func<TState, Exception?, string> formatter)
+        {
+            if (Lanza) throw new AggregateException(new InvalidOperationException("proveedor de registro roto"));
             Entradas.Add((logLevel, formatter(state, exception), exception));
+        }
     }
 
     private const long MaximoPresupuesto = 2L * 1024 * 1024 * 1024;
