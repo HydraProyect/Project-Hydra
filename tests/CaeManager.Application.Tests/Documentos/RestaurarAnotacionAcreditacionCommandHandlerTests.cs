@@ -151,6 +151,14 @@ public class RestaurarAnotacionAcreditacionCommandHandlerTests
         r.EsExitoso.Should().BeTrue("«Deshacer» no queda roto en esas filas");
         m.Acreditacion.Estado.Should().Be(EstadoAcreditacion.NoRequerida);
         m.Acreditacion.Vigencia.EstaSinConfirmar.Should().BeTrue("la fecha de un documento que no se pide no vuelve");
+
+        // Segundo Deshacer con el mismo recibo (doble clic, otra pestaña): idempotente, aunque el recibo traiga la fecha.
+        var guardados = m.UnitOfWork.VecesGuardado;
+        var otra = await m.Restaurar().Handle(
+            new RestaurarAnotacionAcreditacionCommand(recibo.AcreditacionId, recibo.EstadoPrevio, recibo.VigenciaPrevia, Guid.NewGuid()),
+            CancellationToken.None);
+        otra.EsExitoso.Should().BeTrue();
+        m.UnitOfWork.VecesGuardado.Should().Be(guardados, "no escribe otra vez");
     }
 
     [Fact]

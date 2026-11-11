@@ -325,7 +325,43 @@ public class GestionesAutomaticasBajoRlsTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task Bajo_RLS_el_detalle_y_los_tres_comandos_de_la_ventana_no_alcanzan_una_acreditacion_de_otro_Tenant()
+    public async Task Una_vigencia_confirmada_en_otra_sesion_mueve_la_version_y_no_lo_pide_con_la_vista_vieja_no_la_borra()
+    {
+        // Hallazgo ALTO de Codex (r1) con EF real: es el interceptor de concurrencia quien renueva la versión que la pantalla
+        // compara. Dos sesiones como cae_app_runtime sobre la misma acreditación.
+        var propia = await NacerComoPropietarioAsync(_tenantSesion, _propio.Documento);
+        Guid vista;
+        await using (var pantalla = CrearRuntime())
+            vista = (await DetalleAsync(pantalla, propia, new SinNotaInterna()))!.Pasos.Single().VersionAcreditacion;
+
+        var confirmada = VigenciaEnPlataforma.VenceEl(DiaDeNegocio.Hoy().AddMonths(6));
+        await using (var otra = CrearRuntime())
+        {
+            var acreditacion = await otra.AcreditacionesDocumentoPlataforma.SingleAsync(a => a.Id == _propio.Acreditacion);
+            acreditacion.MarcarAceptada(VigenciaEnPlataforma.SinConfirmar);
+            acreditacion.ConfirmarVigencia(confirmada);
+            await otra.SaveChangesAsync();
+        }
+
+        await using (var runtime = CrearRuntime())
+            (await NoPide(runtime).Handle(new MarcarAcreditacionNoRequeridaCommand(_propio.Acreditacion, vista), CancellationToken.None))
+                .Error.Codigo.Should().Be("Acreditacion.CambiadaDesdeQueSeAbrio");
+
+        using (AmbitoTenantExplicito.Establecer(_tenantSesion))
+        {
+            var fila = await _propietario.AcreditacionesDocumentoPlataforma.AsNoTracking().SingleAsync(a => a.Id == _propio.Acreditacion);
+            fila.Estado.Should().Be(EstadoAcreditacion.Aceptada);
+            fila.Vigencia.Should().Be(confirmada, "la vigencia anotada en la otra sesión sigue ahí");
+            fila.Version.Should().NotBe(vista);
+        }
+    }
+
+    /// <summary>
+    /// La frontera entre Tenants de la ventana de la Gestión tal como la ve el código de producción: el filtro global de
+    /// EF y la política RLS a la vez (la RLS sola, sin el filtro, la aíslan los tests de inserción de esta clase).
+    /// </summary>
+    [Fact]
+    public async Task Como_runtime_el_detalle_y_los_tres_comandos_de_la_ventana_no_alcanzan_una_acreditacion_de_otro_Tenant()
     {
         await CompletarFichaYAsignacionAsync(_tenantAjeno, _ajeno, DiaDeNegocio.Hoy(), "Permiso del Tenant ajeno");
         var ajena = await NacerComoPropietarioAsync(_tenantAjeno, _ajeno.Documento);

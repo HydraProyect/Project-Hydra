@@ -117,6 +117,24 @@ public class MarcarAcreditacionNoRequeridaCommandHandlerTests
     }
 
     [Fact]
+    public async Task Un_segundo_rechazo_sobre_una_ya_rechazada_tampoco_se_sobrescribe()
+    {
+        // Ronda puente: el segundo rechazo no cambia ninguna columna de la raíz (el motivo va en otra tabla). Sin interceptor
+        // simulado: es el dominio quien renueva la versión.
+        var escenario = Escenario.Nuevo();
+        escenario.Poner(EstadoAcreditacion.Rechazada);
+        var vista = escenario.Acreditacion.Version;
+        escenario.Acreditacion.Rechazar(CausaRechazoAcreditacion.Otro, "Falta la firma del médico", DateTime.UtcNow);
+
+        var resultado = await escenario.Handler().Handle(
+            new MarcarAcreditacionNoRequeridaCommand(escenario.Acreditacion.Id, vista), CancellationToken.None);
+
+        resultado.Error.Codigo.Should().Be("Acreditacion.CambiadaDesdeQueSeAbrio");
+        escenario.Acreditacion.Estado.Should().Be(EstadoAcreditacion.Rechazada);
+        escenario.UnitOfWork.VecesGuardado.Should().Be(0);
+    }
+
+    [Fact]
     public async Task Con_una_version_vacia_falla_y_no_escribe()
     {
         // Guid.Empty es «sin comprobación» en ConcurrenciaOptimista: aquí, aunque se saltara el validador, no pasa.

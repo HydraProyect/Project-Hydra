@@ -195,9 +195,10 @@ public class AcreditacionDocumentoPlataforma : EntidadBase, IAccionAuditoriaProp
     /// La vigencia con la que se vuelve a un estado anterior en los dos «Deshacer» (<see cref="DeshacerAnotacion"/> y
     /// <see cref="DeshacerCambioEstado"/>): la guardada, salvo al volver a No requerida, que no tiene vigencia que anotar
     /// (invariante de <see cref="ConfirmarVigencia"/>). La guardada puede traer una fecha de una fila anterior a esa
-    /// invariante; restaurarla pondría el Centro en rojo por un documento que la plataforma no pide.
+    /// invariante; restaurarla pondría el Centro en rojo por un documento que la plataforma no pide. Pública para que la
+    /// idempotencia de <c>RestaurarAnotacionAcreditacionCommand</c> compare contra lo que de verdad deja el Deshacer.
     /// </summary>
-    private static VigenciaEnPlataforma VigenciaAlVolverA(EstadoAcreditacion estado, VigenciaEnPlataforma guardada) =>
+    public static VigenciaEnPlataforma VigenciaAlVolverA(EstadoAcreditacion estado, VigenciaEnPlataforma guardada) =>
         estado == EstadoAcreditacion.NoRequerida ? VigenciaEnPlataforma.SinConfirmar : guardada;
 
     // Solo campo: sin propiedad, EF no lo mapea y nunca llega a la base de datos.
@@ -265,6 +266,9 @@ public class AcreditacionDocumentoPlataforma : EntidadBase, IAccionAuditoriaProp
         // respaldando algo que no está acreditado.
         AnotarVigencia(VigenciaEnPlataforma.SinConfirmar);
         _historialRechazos.Add(rechazo);
+        // Un segundo rechazo sobre una ya rechazada no cambia ninguna columna de la raíz (el motivo vive en otra tabla):
+        // sin esto la versión no se renovaría y una pantalla abierta antes («no lo pide») lo pisaría sin haberlo visto.
+        RenovarVersion();
     }
 
     /// <summary>

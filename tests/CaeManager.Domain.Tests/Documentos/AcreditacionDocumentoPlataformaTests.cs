@@ -178,6 +178,19 @@ public class AcreditacionDocumentoPlataformaTests
     }
 
     [Fact]
+    public void Un_segundo_rechazo_renueva_la_version_aunque_no_cambie_ninguna_columna_de_la_raiz()
+    {
+        var acreditacion = CrearAcreditacion();
+        acreditacion.Rechazar(CausaRechazoAcreditacion.Ilegible, "Firma ilegible", DateTime.UtcNow);
+        var antes = acreditacion.Version;
+
+        acreditacion.Rechazar(CausaRechazoAcreditacion.Otro, "Falta la firma del médico", DateTime.UtcNow);
+
+        acreditacion.Version.Should().NotBe(antes, "una pantalla abierta antes del segundo rechazo no lo puede pisar");
+        acreditacion.HistorialRechazos.Should().HaveCount(2);
+    }
+
+    [Fact]
     public void Deshacer_un_cambio_a_mano_hacia_validada_si_devuelve_su_fecha()
     {
         // Control positivo: la excepción es solo para No requerida.
