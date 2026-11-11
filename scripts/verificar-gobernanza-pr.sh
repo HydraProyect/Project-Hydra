@@ -126,6 +126,22 @@ extraer_seccion_variantes() {
   extraer_seccion "$fichero" "${titulos[0]}"
 }
 
+# 0 = el patrón aparece en el texto, 1 = no aparece; cualquier otro estado de
+# grep aborta el check (no decide nada). Ni `grep <<<` (Bash puede volcar el
+# here-string a un fichero temporal y, si no lo crea, grep no corre y su 1 se
+# leería como «sin marcador provisional») ni `printf | grep -q` (con pipefail,
+# el SIGPIPE del printf al cortar grep): sin -q, grep lee la entrada entera.
+aparece() {
+  local texto="$1" estado=0
+  shift
+  printf '%s\n' "$texto" | grep "$@" >/dev/null || estado=$?
+  if (( estado > 1 )); then
+    echo "ERROR: la búsqueda 'grep $*' falló con estado $estado; no se decide nada" >&2
+    exit 2
+  fi
+  return "$estado"
+}
+
 seccion_no_vacia() {
   # Quita comentarios HTML de una sola línea antes de mirar si queda
   # contenido visible: "<!-- -->" no es texto real, y GitHub lo renderiza
@@ -134,7 +150,9 @@ seccion_no_vacia() {
   # esta misma PR). No cubre comentarios HTML repartidos en varias líneas:
   # ese caso queda como hueco aceptado, no vale la complejidad para un check
   # que no es `required`.
-  printf '%s' "$1" | sed -E 's/<!--.*-->//g' | grep -qE '[^[:space:]]'
+  local sin_comentarios
+  sin_comentarios="$(printf '%s\n' "$1" | sed -E 's/<!--.*-->//g')"
+  aparece "$sin_comentarios" -E -e '[^[:space:]]'
 }
 
 PROBLEMAS=0
@@ -153,10 +171,10 @@ elif grep -qxF "$FICHERO_ROLES_CLUSTER" "$FICHEROS"; then
          "cae_app_aprovisionamiento de #674 rompió staging porque ningún adaptador de" \
          "despliegue ejecuta roles-de-cluster.sql — el paso manual hay que declararlo."
     PROBLEMAS=$((PROBLEMAS + 1))
-  elif ! printf '%s' "$SECCION" | grep -qi 'staging'; then
+  elif ! aparece "$SECCION" -i -e 'staging'; then
     echo "PROBLEMA  La sección 'Paso operativo en servidores' no menciona 'staging'."
     PROBLEMAS=$((PROBLEMAS + 1))
-  elif ! printf '%s' "$SECCION" | grep -qi 'producci'; then
+  elif ! aparece "$SECCION" -i -e 'producci'; then
     echo "PROBLEMA  La sección 'Paso operativo en servidores' no menciona 'producción'."
     PROBLEMAS=$((PROBLEMAS + 1))
   else
@@ -180,7 +198,7 @@ else
          "Protocolo § 24.2 / skill protocolo-hydra-multimodelo: líneas 'Revisor:'," \
          "'Refutación:' y el veredicto ('sin hallazgos' o 'aceptados N, rechazados M')."
     PROBLEMAS=$((PROBLEMAS + 1))
-  elif printf '%s' "$SECCION" | grep -qiE 'resultados?[[:space:]-]+abajo'; then
+  elif aparece "$SECCION" -iE -e 'resultados?[[:space:]-]+abajo'; then
     echo "PROBLEMA  La sección 'Revisión Codex' tiene el marcador provisional 'resultado abajo'" \
          "(el mismo que #673 dejó sin rellenar)."
     PROBLEMAS=$((PROBLEMAS + 1))
@@ -189,10 +207,10 @@ else
   # runs 35831818412 y 35832823379: "sin hallazgos nuevos pendientes de esta
   # pasada" dio rojo sin ser un marcador de relleno). El \b de cierre limita
   # la detección a la palabra exacta "pendiente".
-  elif printf '%s' "$SECCION" | grep -qiE '\bpendiente\b'; then
+  elif aparece "$SECCION" -iE -e '\bpendiente\b'; then
     echo "PROBLEMA  La sección 'Revisión Codex' tiene el marcador provisional 'pendiente'."
     PROBLEMAS=$((PROBLEMAS + 1))
-  elif printf '%s' "$SECCION" | grep -qE '\bTODOs?\b'; then
+  elif aparece "$SECCION" -E -e '\bTODOs?\b'; then
     echo "PROBLEMA  La sección 'Revisión Codex' tiene el marcador provisional 'TODO'."
     PROBLEMAS=$((PROBLEMAS + 1))
   # Las tres comprobaciones siguientes miran la FORMA, no la verdad: suben el
@@ -206,17 +224,18 @@ else
   #     "no usé Codex" y "Codexx" no cuenten.
   #   - `refutaci[^:[:space:]]{1,3}n` cubre refutacion/refutación en NFC y NFD,
   #     en UTF-8 y en locale C (ó = 2 bytes; o + U+0301 = 3).
-  #   - grep sobre here-string, no `printf | grep -q`: con pipefail, el SIGPIPE de
-  #     un grep que sale antes de tiempo daría falso negativo en secciones grandes.
-  elif ! grep -qiE '^[[:space:]>*_0-9.-]*Revisor[*_]*[[:space:]]*:[*_]*[[:space:]]*[`*_]*(revisor-puente|codex)([[:space:]:;,.()*_`]|$)' <<<"$SECCION_LIMPIA"; then
+  #   - grep con `aparece`, no `printf | grep -q` ni `grep <<<`: con pipefail, el
+  #     SIGPIPE de un grep que sale antes de tiempo daría falso negativo en
+  #     secciones grandes, y un here-string sin fichero temporal, otro.
+  elif ! aparece "$SECCION_LIMPIA" -iE -e '^[[:space:]>*_0-9.-]*Revisor[*_]*[[:space:]]*:[*_]*[[:space:]]*[`*_]*(revisor-puente|codex)([[:space:]:;,.()*_`]|$)'; then
     echo "PROBLEMA  La sección 'Revisión Codex' no nombra al revisor: falta una línea" \
          "'Revisor: revisor-puente' o 'Revisor: Codex'."
     PROBLEMAS=$((PROBLEMAS + 1))
-  elif ! grep -qiE '^[[:space:]>*_0-9.-]*(intentos[[:space:]]+de[[:space:]]+)?refutaci[^:[:space:]]{1,3}n[*_]*[[:space:]]*:[*_]*[[:space:]]*[^[:space:]*_]' <<<"$SECCION_LIMPIA"; then
+  elif ! aparece "$SECCION_LIMPIA" -iE -e '^[[:space:]>*_0-9.-]*(intentos[[:space:]]+de[[:space:]]+)?refutaci[^:[:space:]]{1,3}n[*_]*[[:space:]]*:[*_]*[[:space:]]*[^[:space:]*_]'; then
     echo "PROBLEMA  La sección 'Revisión Codex' no dice qué se intentó refutar: falta una" \
          "línea 'Refutación: <qué se intentó romper>' con contenido."
     PROBLEMAS=$((PROBLEMAS + 1))
-  elif ! grep -qiE 'sin[[:space:]]+hallazgos|aceptad[oa]s?[^0-9]*[0-9]+.*rechazad[oa]s?[^0-9]*[0-9]+|rechazad[oa]s?[^0-9]*[0-9]+.*aceptad[oa]s?[^0-9]*[0-9]+' <<<"$SECCION_LIMPIA"; then
+  elif ! aparece "$SECCION_LIMPIA" -iE -e 'sin[[:space:]]+hallazgos|aceptad[oa]s?[^0-9]*[0-9]+.*rechazad[oa]s?[^0-9]*[0-9]+|rechazad[oa]s?[^0-9]*[0-9]+.*aceptad[oa]s?[^0-9]*[0-9]+'; then
     echo "PROBLEMA  La sección 'Revisión Codex' no da el veredicto contable: falta" \
          "'sin hallazgos' o 'aceptados N, rechazados M' (con números, en una sola línea)."
     PROBLEMAS=$((PROBLEMAS + 1))

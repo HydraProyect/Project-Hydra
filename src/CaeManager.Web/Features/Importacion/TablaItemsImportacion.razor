@@ -17,7 +17,7 @@
         @foreach (var item in Items)
         {
             <tr>
-                <td><Badge Tono="Tono">@item.Hoja</Badge></td>
+                <td><Badge Tono="Tono">@MascaraDni.Aplicar(item.Hoja, DniCompleto)</Badge></td>
                 <td>@(item.Fila == 0 ? "—" : item.Fila.ToString())</td>
                 <td>@MascaraDni.Aplicar(item.Descripcion, DniCompleto)</td>
                 <td>@MascaraDni.Aplicar(item.Motivo, DniCompleto)</td>

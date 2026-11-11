@@ -8,9 +8,11 @@ namespace CaeManager.Web.Features.Plataforma.Recursos;
 ///
 /// <para>
 /// Por ahora solo contiene la sección de restablecimiento de la verificación en
-/// dos pasos por Soporte TALVEG; el resto de la pantalla sigue sin localizar y
-/// congelado en <c>TextosSinLocalizarCongeladosTests</c>. El catalán es copia
-/// idéntica del neutral: la traducción es un incremento propio.
+/// dos pasos por Soporte TALVEG y la del ajuste de la exigencia de verificación en
+/// dos pasos de la organización por un Actor de Plataforma TALVEG; el resto de la pantalla sigue sin localizar y
+/// congelado en <c>TextosSinLocalizarCongeladosTests</c>. El catalán del
+/// restablecimiento es copia idéntica del neutral (congelada en <c>ca-ES-iguales</c>;
+/// su traducción es un incremento propio); el del ajuste ya está traducido.
 /// </para>
 /// </summary>
 public sealed class TextosPlataforma;

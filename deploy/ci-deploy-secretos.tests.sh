@@ -25,6 +25,24 @@ DIR="$(mktemp -d)"
 trap 'rm -rf "$DIR"' EXIT
 export FICHERO_ENV_SECRETOS_PRODUCCION="$DIR/.env"
 
+# contiene_texto <fragmento> <texto>: 0 si el texto contiene el fragmento, 1 si
+# no. Las pruebas negativas («la salida NO contiene el valor») van con esto y
+# nunca con `printf | grep -q`: con pipefail, grep -q sale al primer acierto,
+# printf muere por SIGPIPE si aún escribe y la tubería da «no está» justo cuando
+# el fragmento sí estaba. Tampoco con `grep <<<` (revisión Codex de #2106, ronda
+# 2): Bash puede volcar el here-string a un fichero temporal y, si no lo crea,
+# grep no corre y su 1 se lee como «no está». La comparación de Bash no crea
+# ficheros ni procesos, y solo puede dar 0 o 1.
+contiene_texto() {
+  [[ "$2" == *"$1"* ]]
+}
+# Control del instrumento: 1 MB con el fragmento en la primera línea tiene que
+# dar «sí»; la forma `printf | grep -q` daba «no» aquí.
+TEXTO_GRANDE="SINTETICA-al-principio"$'\n'"$(printf 'relleno-%07d\n' $(seq 1 60000))"
+contiene_texto "SINTETICA" "$TEXTO_GRANDE" || { echo "FALLO: contiene_texto no ve un fragmento al principio de una salida grande" >&2; exit 1; }
+if contiene_texto "NO-ESTA" "$TEXTO_GRANDE"; then echo "FALLO: contiene_texto ve un fragmento que no está" >&2; exit 1; fi
+unset TEXTO_GRANDE
+
 cat > "$FICHERO_ENV_SECRETOS_PRODUCCION" <<'ENVEOF'
 DOMINIO=app.talveg.es
 POSTGRES_PASSWORD=viejo123
@@ -293,7 +311,7 @@ if SALIDA13="$(printf 'Anthropic__ApiKey=sk-buena-123\nStripe__ApiKey=%s\n' "$SE
   exit 1
 fi
 printf '%s' "$SALIDA13" | grep -qF "'Stripe__ApiKey' no tiene la forma esperada" || { echo "FALLO: el rechazo no fue por la forma del valor" >&2; printf '%s\n' "$SALIDA13" >&2; exit 1; }
-printf '%s' "$SALIDA13" | grep -qF "SINTETICO" && { echo "FALLO: el mensaje de error imprimió (parte de) el valor" >&2; exit 1; }
+contiene_texto "SINTETICO" "$SALIDA13" && { echo "FALLO: el mensaje de error imprimió (parte de) el valor" >&2; exit 1; }
 [ "$ANTES13" = "$(cat "$FICHERO_ENV_SECRETOS_PRODUCCION")" ] || { echo "FALLO: .env cambió pese al rechazo" >&2; exit 1; }
 echo "OK: rechazo entero, .env intacto, el mensaje no contiene el valor"
 
@@ -305,7 +323,7 @@ if SALIDA14="$(printf 'Stripe__WebhookSecret=%s\n' "$CLAVE_STRIPE_LIVE" | actual
   exit 1
 fi
 printf '%s' "$SALIDA14" | grep -qF "'Stripe__WebhookSecret' no tiene la forma esperada" || { echo "FALLO: el rechazo no fue por la forma del valor" >&2; exit 1; }
-printf '%s' "$SALIDA14" | grep -qF "SINTETICA" && { echo "FALLO: el mensaje de error imprimió (parte de) el valor" >&2; exit 1; }
+contiene_texto "SINTETICA" "$SALIDA14" && { echo "FALLO: el mensaje de error imprimió (parte de) el valor" >&2; exit 1; }
 echo "OK: whsec_ solo vale como secreto de webhook"
 
 echo "=== Caso 15: verificar_secretos_de_stripe informa de presencia y forma, y NUNCA del valor ==="
@@ -320,7 +338,7 @@ comprobar() {  # <etiqueta> <entorno> <fragmento-esperado> ; el .env ya está en
   salida="$(verificar_secretos_de_stripe "$PRUEBA_FICHERO" "$entorno" 2>&1)" || { echo "FALLO [$etiqueta]: la comprobación devolvió error" >&2; exit 1; }
   printf '%s' "$salida" | grep -qF -- "$esperado" || { echo "FALLO [$etiqueta]: falta '$esperado' en:" >&2; printf '%s\n' "$salida" >&2; exit 1; }
   for fragmento in SINTETICA SINTETICO 1111111 0000000; do
-    printf '%s' "$salida" | grep -qF -- "$fragmento" && { echo "FALLO [$etiqueta]: la salida contiene un fragmento del valor ($fragmento)" >&2; exit 1; }
+    contiene_texto "$fragmento" "$salida" && { echo "FALLO [$etiqueta]: la salida contiene un fragmento del valor ($fragmento)" >&2; exit 1; }
   done
   echo "OK   [$etiqueta]"
 }
@@ -352,7 +370,8 @@ comprobar "staging con clave live avisa" staging "::warning::Stripe__ApiKey de S
 
 printf 'Stripe__ApiKey=%s\n' "$CLAVE_STRIPE_PRUEBA" > "$PRUEBA_FICHERO"
 comprobar "staging con clave de prueba: sin aviso de producción" staging "Stripe__ApiKey: modo prueba"
-if verificar_secretos_de_stripe "$PRUEBA_FICHERO" staging 2>&1 | grep -qF "::warning::"; then
+SALIDA_STAGING_PRUEBA="$(verificar_secretos_de_stripe "$PRUEBA_FICHERO" staging 2>&1)" || { echo "FALLO: la comprobación de staging devolvió error" >&2; exit 1; }
+if contiene_texto "::warning::" "$SALIDA_STAGING_PRUEBA"; then
   echo "FALLO: staging con clave de prueba no debe avisar" >&2
   exit 1
 fi
@@ -404,7 +423,7 @@ BLOQUE_APP="$(bloque_de_servicio app-azul)"
 grep -q '^    env_file: \.env' <<< "$BLOQUE_APP" || { echo "FALLO: el extractor no ve el env_file de 'app' — el caso no observa lo que dice observar" >&2; exit 1; }
 BLOQUE_CADDY="$(bloque_de_servicio caddy)"
 [ -n "$BLOQUE_CADDY" ] || { echo "FALLO: no se encontró el bloque del servicio caddy" >&2; exit 1; }
-if grep -q '^    env_file:' <<< "$BLOQUE_CADDY"; then
+if contiene_texto $'\n''    env_file:' $'\n'"$BLOQUE_CADDY"; then
   echo "FALLO: el servicio caddy vuelve a cargar un env_file entero" >&2
   exit 1
 fi
@@ -425,7 +444,7 @@ for valor in "sk_""live_""SINTETICA2222222222" "sk_""test_""SINTETICA3333333333"
     exit 1
   fi
   printf '%s' "$SALIDA18" | grep -qF "'Stripe__ApiKey' no tiene la forma esperada" || { echo "FALLO: el rechazo no fue por la forma del valor" >&2; exit 1; }
-  printf '%s' "$SALIDA18" | grep -qF "SINTETICA" && { echo "FALLO: el mensaje de error imprimió (parte de) el valor" >&2; exit 1; }
+  contiene_texto "SINTETICA" "$SALIDA18" && { echo "FALLO: el mensaje de error imprimió (parte de) el valor" >&2; exit 1; }
   [ "$ANTES18" = "$(cat "$FICHERO_ENV_SECRETOS_PRODUCCION")" ] || { echo "FALLO: .env cambió pese al rechazo" >&2; exit 1; }
 done
 echo "OK: sk_live_, sk_test_ y rk_test_ rechazados; rk_live_ sigue entrando (caso 12)"
@@ -452,7 +471,7 @@ for compose19 in docker-compose.produccion.yml docker-compose.staging.yml; do
   grep -q '^    command: \["--preparar-arranque"\]' <<< "$MIGRADOR19" \
     || { echo "FALLO: $compose19: el migrador no prepara el arranque (--preparar-arranque): 'app' tendría que sembrar sin la credencial" >&2; exit 1; }
   [ -n "$APP19" ] || { echo "FALLO: $compose19: no se encontró el bloque del servicio app" >&2; exit 1; }
-  if grep -qE 'Username=postgres|\$\{POSTGRES_PASSWORD' <<< "$APP19"; then
+  if contiene_texto 'Username=postgres' "$APP19" || contiene_texto '${POSTGRES_PASSWORD' "$APP19"; then
     echo "FALLO: $compose19: el servicio app vuelve a recibir la credencial del superusuario postgres" >&2
     exit 1
   fi
@@ -486,7 +505,7 @@ if docker compose version >/dev/null 2>&1; then
     for ranura19 in app-azul app-verde; do
       APP19="$(bloque_de_servicio_en "$EFECTIVA19" "$ranura19")"
       [ -n "$APP19" ] || { echo "FALLO: $1 (efectiva): no se encontró el bloque del servicio $ranura19" >&2; exit 1; }
-      if grep -q 'SINTETICA_SUPERUSUARIO_19' <<< "$APP19"; then
+      if contiene_texto 'SINTETICA_SUPERUSUARIO_19' "$APP19"; then
         echo "FALLO: $1 (efectiva): $ranura19 recibe la credencial del superusuario (por environment o por env_file)" >&2
         exit 1
       fi

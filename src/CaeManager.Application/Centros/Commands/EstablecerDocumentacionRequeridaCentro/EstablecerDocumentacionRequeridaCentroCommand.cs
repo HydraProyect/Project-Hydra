@@ -53,7 +53,10 @@ public class EstablecerDocumentacionRequeridaCentroCommandHandler(
     IAlcanceDatosService alcanceDatos,
     IUnitOfWork unitOfWork,
     IVerificadorArchivoAlmacenado verificadorArchivo,
-    ISerializacionAltasAcreditacionEmpresa serializacionAltas)
+    ISerializacionAltasAcreditacionEmpresa serializacionAltas,
+    // Opcional solo mientras la PR #2104 cambia los tests que construyen este handler: el contenedor siempre lo resuelve
+    // (InvalidadorAlcanceInerte por defecto, el AlcanceDatosService del circuito en la Web). Issue #2118.
+    IInvalidadorAlcance? invalidadorAlcance = null)
     : IRequestHandler<EstablecerDocumentacionRequeridaCentroCommand, Result>
 {
     public async Task<Result> Handle(EstablecerDocumentacionRequeridaCentroCommand request, CancellationToken cancellationToken)
@@ -64,7 +67,7 @@ public class EstablecerDocumentacionRequeridaCentroCommandHandler(
         var centro = await centrosContext.Centros.Where(c => c.Id == request.CentroId)
             .Select(c => new { c.TenantId }).FirstOrDefaultAsync(cancellationToken);
         if (centro is null || !await alcanceDatos.CentroParaGestionVisibleAsync(request.CentroId, cancellationToken))
-            return Result.Fallo(Error.Crear("DocumentacionRequeridaCentro.CentroNoEncontrado", "No encontramos este centro."));
+            return CentroNoEncontrado();
 
         var tipo = await tiposDocumentoContext.TiposDocumento
             .Where(t => t.Id == request.TipoDocumentoId)
@@ -99,9 +102,12 @@ public class EstablecerDocumentacionRequeridaCentroCommandHandler(
         // candado: otra operación puede cambiar la clave mientras esta espera, y la clave pedida deja entonces de ser la
         // existente (revisión Codex de la PR #2074, ronda 6). Por eso la comprobación se hace dos veces: aquí, contra lo
         // confirmado antes de esperar, solo para rechazar pronto sin tomar el candado (un rechazo no escribe nada); y
-        // dentro de GuardarAsync, contra la fila releída, que es la única que puede admitir la clave. Lo único que se
-        // reutiliza entre las dos es el veredicto sobre el contenido almacenado bajo esa clave, que no depende de la fila.
-        bool? contenidoValido = null;
+        // dentro de GuardarAsync, contra la fila releída, que es la única que puede admitir la clave. El contenido
+        // almacenado también se vuelve a abrir bajo el candado, sin reutilizar el veredicto de antes de esperar: si otra
+        // operación borró el archivo durante la espera, se guardaría una clave que ya no se puede descargar (issue #2094,
+        // B1). La purga no toma este candado, así que un borrado entre esta comprobación y el guardado sigue siendo
+        // posible, como en main; esto solo deja fuera la espera. El precio es que esa segunda apertura (descifrado y
+        // reserva de memoria) ocurre con el candado del Tenant tomado, y solo cuando la clave es nueva frente a la fila.
         async Task<bool> ArchivoAdmitidoFrenteAAsync(TipoDocumentoCentro? frente, CancellationToken ct)
         {
             if (request.ArchivoUrl is not { } archivoUrl)
@@ -114,8 +120,7 @@ public class EstablecerDocumentacionRequeridaCentroCommandHandler(
                 return true;
             if (centro.TenantId == Guid.Empty || !OriginalesInbound.EsDelTenant(archivoUrl, centro.TenantId))
                 return false;
-            contenidoValido ??= await ArchivoRequisitoEsValidoAsync(archivoUrl, ct);
-            return contenidoValido.Value;
+            return await ArchivoRequisitoEsValidoAsync(archivoUrl, ct);
         }
 
         if (!await ArchivoAdmitidoFrenteAAsync(fila, cancellationToken))
@@ -128,6 +133,13 @@ public class EstablecerDocumentacionRequeridaCentroCommandHandler(
         // SaveChangesAsync que la fila.
         async Task<Result> GuardarAsync(CancellationToken ct)
         {
+            // La Asignación de Cartera se vuelve a decidir bajo el candado: pudo revocarse mientras se esperaba, y el
+            // alcance memoizado (en Blazor Server, el del circuito) es de antes; se descarta, igual que en
+            // BloqueoRespuestaSugerida.ComprobarEnvioPorBuzonAsync (issue #2118).
+            invalidadorAlcance?.Invalidar();
+            if (!await alcanceDatos.CentroParaGestionVisibleAsync(request.CentroId, ct))
+                return CentroNoEncontrado();
+
             // Se vuelve a leer bajo el candado, con lo confirmado en la base: la fila de arriba (o la que el contexto,
             // uno por circuito, rastreara antes) puede tener el Incluido de antes de esperar. Con ese valor viejo, pedir
             // lo que otra operación acababa de cambiar no sería un cambio para EF, que no guardaría nada, y el comando
@@ -169,6 +181,9 @@ public class EstablecerDocumentacionRequeridaCentroCommandHandler(
         // hallazgo 2).
         return await serializacionAltas.EjecutarAsync(GuardarAsync, cancellationToken);
     }
+
+    private static Result CentroNoEncontrado() =>
+        Result.Fallo(Error.Crear("DocumentacionRequeridaCentro.CentroNoEncontrado", "No encontramos este centro."));
 
     private static Result ArchivoNoValido() =>
         Result.Fallo(Error.Crear("DocumentacionRequeridaCentro.ArchivoNoValido", ValidadorFirmaArchivo.MensajeRequisitoNoValido));

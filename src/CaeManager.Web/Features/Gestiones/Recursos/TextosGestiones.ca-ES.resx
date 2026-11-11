@@ -197,5 +197,415 @@
   <data name="PlataformaCargando" xml:space="preserve"><value>Carregant la Plataforma CAE…</value></data>
   <data name="PlataformaErrorCarga" xml:space="preserve"><value>No s'ha pogut carregar la Plataforma CAE</value></data>
   <data name="PlataformaPrincipal" xml:space="preserve"><value>Principal</value></data>
-  <data name="PlataformaDelCentro" xml:space="preserve"><value>Centre: {0}</value></data>
+  <data name="AutoAriaFiltroEstado" xml:space="preserve">
+    <value>Filtrar per estat</value>
+  </data>
+  <data name="AutoAriaMigas" xml:space="preserve">
+    <value>Engrunes de pa</value>
+  </data>
+  <data name="AutoCargando" xml:space="preserve">
+    <value>Carregant</value>
+  </data>
+  <data name="AutoColumnaAcciones" xml:space="preserve">
+    <value>Accions</value>
+  </data>
+  <data name="AutoColumnaAvance" xml:space="preserve">
+    <value>Avanç</value>
+  </data>
+  <data name="AutoColumnaEstado" xml:space="preserve">
+    <value>Estat</value>
+  </data>
+  <data name="AutoColumnaGestion" xml:space="preserve">
+    <value>Gestió</value>
+  </data>
+  <data name="AutoColumnaOrigen" xml:space="preserve">
+    <value>Origen</value>
+  </data>
+  <data name="AutoColumnaPlataformas" xml:space="preserve">
+    <value>Plataformes</value>
+  </data>
+  <data name="AutoContinuar" xml:space="preserve">
+    <value>Continuar</value>
+  </data>
+  <data name="AutoErrorDescripcion" xml:space="preserve">
+    <value>El teu avanç no s&apos;ha perdut. Torna-ho a provar.</value>
+  </data>
+  <data name="AutoErrorTitulo" xml:space="preserve">
+    <value>No s&apos;han pogut carregar les Gestions</value>
+  </data>
+  <data name="AutoEstadoCerrada" xml:space="preserve">
+    <value>Tancada</value>
+  </data>
+  <data name="AutoEstadoEnCurso" xml:space="preserve">
+    <value>En curs</value>
+  </data>
+  <data name="AutoEstadoPendienteDeValidar" xml:space="preserve">
+    <value>Pendent de validar</value>
+  </data>
+  <data name="AutoEstadoSustituida" xml:space="preserve">
+    <value>Substituïda</value>
+  </data>
+  <data name="AutoHayRechazo" xml:space="preserve">
+    <value>Rebuig</value>
+  </data>
+  <data name="AutoMigaGestiones" xml:space="preserve">
+    <value>Gestions</value>
+  </data>
+  <data name="AutoMigaOperacion" xml:space="preserve">
+    <value>Operació</value>
+  </data>
+  <data name="AutoOrigenAlta" xml:space="preserve">
+    <value>Alta de document</value>
+  </data>
+  <data name="AutoOrigenRenovacion" xml:space="preserve">
+    <value>Renovació</value>
+  </data>
+  <data name="AutoSubtitulo" xml:space="preserve">
+    <value>Neixen soles en pujar o renovar un document que es demana en plataformes CAE externes.</value>
+  </data>
+  <data name="AutoTituloAlta" xml:space="preserve">
+    <value>Pujar {0} de {1}</value>
+  </data>
+  <data name="AutoTituloPagina" xml:space="preserve">
+    <value>Gestions automàtiques</value>
+  </data>
+  <data name="AutoTituloRenovacion" xml:space="preserve">
+    <value>Actualitzar {0} de {1}</value>
+  </data>
+  <data name="AutoVacioDescripcion" xml:space="preserve">
+    <value>No hi ha Gestions amb aquest estat a la teva cartera.</value>
+  </data>
+  <data name="AutoVacioTitulo" xml:space="preserve">
+    <value>Sense Gestions</value>
+  </data>
+  <data name="AutoVer" xml:space="preserve">
+    <value>Veure</value>
+  </data>
+  <data name="GpAnterior" xml:space="preserve">
+    <value>Anterior</value>
+  </data>
+  <data name="GpAriaFiltrarPasos" xml:space="preserve">
+    <value>Filtrar passos</value>
+  </data>
+  <data name="GpAriaPasoAbierto" xml:space="preserve">
+    <value>Pas obert</value>
+  </data>
+  <data name="GpAriaPasos" xml:space="preserve">
+    <value>Passos de la Gestió</value>
+  </data>
+  <data name="GpAriaResumen" xml:space="preserve">
+    <value>Resum de la Gestió</value>
+  </data>
+  <data name="GpAvanceUnoUno" xml:space="preserve">
+    <value>{0} de {1} passos fets · {2} validat, {3} pendent de validar a la plataforma</value>
+  </data>
+  <data name="GpAvanceUnoVarios" xml:space="preserve">
+    <value>{0} de {1} passos fets · {2} validat, {3} pendents de validar a la plataforma</value>
+  </data>
+  <data name="GpAvanceVariosUno" xml:space="preserve">
+    <value>{0} de {1} passos fets · {2} validats, {3} pendent de validar a la plataforma</value>
+  </data>
+  <data name="GpAvanceVariosVarios" xml:space="preserve">
+    <value>{0} de {1} passos fets · {2} validats, {3} pendents de validar a la plataforma</value>
+  </data>
+  <data name="GpCampoCif" xml:space="preserve">
+    <value>CIF de l&apos;entitat titular</value>
+  </data>
+  <data name="GpCampoDni" xml:space="preserve">
+    <value>DNI de la persona titular</value>
+  </data>
+  <data name="GpCampoEmision" xml:space="preserve">
+    <value>Data d&apos;emissió</value>
+  </data>
+  <data name="GpCampoEstadoTalveg" xml:space="preserve">
+    <value>Estat a TALVEG</value>
+  </data>
+  <data name="GpCampoTipo" xml:space="preserve">
+    <value>Tipus</value>
+  </data>
+  <data name="GpCampoTitular" xml:space="preserve">
+    <value>Titular</value>
+  </data>
+  <data name="GpCampoVencimiento" xml:space="preserve">
+    <value>Data de venciment</value>
+  </data>
+  <data name="GpCausa" xml:space="preserve">
+    <value>Causa</value>
+  </data>
+  <data name="GpCausaCaducado" xml:space="preserve">
+    <value>Document caducat</value>
+  </data>
+  <data name="GpCausaDatos" xml:space="preserve">
+    <value>Dades incorrectes</value>
+  </data>
+  <data name="GpCausaIlegible" xml:space="preserve">
+    <value>Document il·legible</value>
+  </data>
+  <data name="GpCausaNoCorresponde" xml:space="preserve">
+    <value>No correspon al lloc</value>
+  </data>
+  <data name="GpCausaOtra" xml:space="preserve">
+    <value>Una altra</value>
+  </data>
+  <data name="GpCliente" xml:space="preserve">
+    <value>Client: {0}</value>
+  </data>
+  <data name="GpComoHaQuedado" xml:space="preserve">
+    <value>Com ha quedat?</value>
+  </data>
+  <data name="GpConsultaNoCopia" xml:space="preserve">
+    <value>Amb el rol Consulta pots obrir la plataforma, però no copiar-ne les credencials.</value>
+  </data>
+  <data name="GpConsultaNoMarca" xml:space="preserve">
+    <value>Amb el rol Consulta veus l&apos;avanç de la Gestió, però no pots marcar l&apos;estat dels passos.</value>
+  </data>
+  <data name="GpCopiarCampo" xml:space="preserve">
+    <value>Copiar {0}</value>
+  </data>
+  <data name="GpDescargarDocumento" xml:space="preserve">
+    <value>Descarregar document</value>
+  </data>
+  <data name="GpDeshacer" xml:space="preserve">
+    <value>Desfer</value>
+  </data>
+  <data name="GpElDocumento" xml:space="preserve">
+    <value>El document</value>
+  </data>
+  <data name="GpElegirCausa" xml:space="preserve">
+    <value>Tria una causa</value>
+  </data>
+  <data name="GpEntrarPlataforma" xml:space="preserve">
+    <value>Entrar a la plataforma</value>
+  </data>
+  <data name="GpErrorDescripcion" xml:space="preserve">
+    <value>El teu avanç no s&apos;ha perdut: el que has desat a cada pas continua a Centre 360. Torna-ho a provar.</value>
+  </data>
+  <data name="GpErrorGuardadoDescripcion" xml:space="preserve">
+    <value>No s&apos;ha pogut desar. Torna-ho a provar.</value>
+  </data>
+  <data name="GpErrorGuardadoTitulo" xml:space="preserve">
+    <value>No s&apos;ha desat el pas.</value>
+  </data>
+  <data name="GpErrorTitulo" xml:space="preserve">
+    <value>No s&apos;ha pogut carregar la Gestió</value>
+  </data>
+  <data name="GpFinCerradaTexto" xml:space="preserve">
+    <value>Tots els passos estan validats a la seva plataforma.</value>
+  </data>
+  <data name="GpFinCerradaTitulo" xml:space="preserve">
+    <value>Gestió tancada</value>
+  </data>
+  <data name="GpFinPendienteTexto" xml:space="preserve">
+    <value>Has acabat aquesta Gestió. {0} passos estan pendents que la plataforma els validi (sol trigar de 24 a 48 hores). La Gestió continua oberta fins aleshores.</value>
+  </data>
+  <data name="GpFinPendienteTextoUno" xml:space="preserve">
+    <value>Has acabat aquesta Gestió. {0} pas està pendent que la plataforma el validi (sol trigar de 24 a 48 hores). La Gestió continua oberta fins aleshores.</value>
+  </data>
+  <data name="GpFinPendienteTitulo" xml:space="preserve">
+    <value>Has fet tot el que depèn de tu</value>
+  </data>
+  <data name="GpGuardar" xml:space="preserve">
+    <value>Desar</value>
+  </data>
+  <data name="GpGuardarSiguienteGestion" xml:space="preserve">
+    <value>Desar · Següent Gestió</value>
+  </data>
+  <data name="GpGuardarYSiguiente" xml:space="preserve">
+    <value>Desar i següent</value>
+  </data>
+  <data name="GpHechosDeTotal" xml:space="preserve">
+    <value>{0} de {1} fets</value>
+  </data>
+  <data name="GpIrALaNueva" xml:space="preserve">
+    <value>Anar a la Gestió nova</value>
+  </data>
+  <data name="GpIrAlRechazado" xml:space="preserve">
+    <value>Anar al pas rebutjat</value>
+  </data>
+  <data name="GpLeyendaSubido" xml:space="preserve">
+    <value>Pujat, pendent de validar</value>
+  </data>
+  <data name="GpLeyendaValidado" xml:space="preserve">
+    <value>Validat</value>
+  </data>
+  <data name="GpMasAcciones" xml:space="preserve">
+    <value>Més accions</value>
+  </data>
+  <data name="GpMismaSeccionCentro360" xml:space="preserve">
+    <value>La mateixa secció d&apos;accessos de Centre 360</value>
+  </data>
+  <data name="GpMotivo" xml:space="preserve">
+    <value>Motiu que dona la plataforma</value>
+  </data>
+  <data name="GpMotivoPlaceholder" xml:space="preserve">
+    <value>Copia&apos;l tal qual, per exemple: «No es llegeix la data d&apos;emissió»</value>
+  </data>
+  <data name="GpNoCaduca" xml:space="preserve">
+    <value>No caduca</value>
+  </data>
+  <data name="GpNoExisteDescripcion" xml:space="preserve">
+    <value>No hi ha passos dels Centres de la teva cartera en aquesta Gestió. Continua amb la següent Gestió en curs.</value>
+  </data>
+  <data name="GpNoExisteTitulo" xml:space="preserve">
+    <value>Aquesta Gestió no té passos que atendre</value>
+  </data>
+  <data name="GpNoLoSe" xml:space="preserve">
+    <value>No ho sé</value>
+  </data>
+  <data name="GpNotasAcceso" xml:space="preserve">
+    <value>Notes de l&apos;accés</value>
+  </data>
+  <data name="GpNoVigente" xml:space="preserve">
+    <value>Aquest document no està vigent a TALVEG: renova&apos;l a la fitxa de</value>
+  </data>
+  <data name="GpNoVigenteValor" xml:space="preserve">
+    <value>No vigent</value>
+  </data>
+  <data name="GpObligatorio" xml:space="preserve">
+    <value>(obligatori)</value>
+  </data>
+  <data name="GpOpcionesNoVigente" xml:space="preserve">
+    <value>«Pujat» i «Validat» estan desactivats mentre el document no estigui vigent a TALVEG.</value>
+  </data>
+  <data name="GpOpcionSubidoRechazada" xml:space="preserve">
+    <value>La plataforma va rebutjar aquest pas: per marcar-lo «Pujat» cal pujar abans una versió corregida del document.</value>
+  </data>
+  <data name="GpOpcionNoPideDescripcion" xml:space="preserve">
+    <value>No es tornarà a demanar en aquest accés.</value>
+  </data>
+  <data name="GpOpcionNoPideProximamente" xml:space="preserve">
+    <value>Disponible aviat.</value>
+  </data>
+  <data name="GpOpcionNoPideTitulo" xml:space="preserve">
+    <value>Aquesta plataforma no ho demana</value>
+  </data>
+  <data name="GpOpcionRechazadoDescripcion" xml:space="preserve">
+    <value>Indica la causa i copia el motiu que dona la plataforma.</value>
+  </data>
+  <data name="GpOpcionRechazadoTitulo" xml:space="preserve">
+    <value>Rebutjat per la plataforma</value>
+  </data>
+  <data name="GpOpcionSubidoDescripcion" xml:space="preserve">
+    <value>La plataforma encara no l&apos;ha revisat.</value>
+  </data>
+  <data name="GpOpcionSubidoTitulo" xml:space="preserve">
+    <value>Pujat, pendent de validar</value>
+  </data>
+  <data name="GpOpcionValidadoDescripcion" xml:space="preserve">
+    <value>La plataforma ja l&apos;ha acceptat. Indica fins quan hi val.</value>
+  </data>
+  <data name="GpOpcionValidadoTitulo" xml:space="preserve">
+    <value>Validat a la plataforma</value>
+  </data>
+  <data name="GpOrigenAlta" xml:space="preserve">
+    <value>Va néixer en pujar el document el {0} a les {1}.</value>
+  </data>
+  <data name="GpOrigenRenovacion" xml:space="preserve">
+    <value>Va néixer en renovar el document el {0} a les {1}.</value>
+  </data>
+  <data name="GpPasoGuardado" xml:space="preserve">
+    <value>Pas desat. Centre 360 ja mostra l&apos;estat nou.</value>
+  </data>
+  <data name="GpPasoNDeM" xml:space="preserve">
+    <value>Pas {0} de {1}</value>
+  </data>
+  <data name="GpPasosRechazados" xml:space="preserve">
+    <value>{0} passos rebutjats</value>
+  </data>
+  <data name="GpPorHacer" xml:space="preserve">
+    <value>Per fer ({0})</value>
+  </data>
+  <data name="GpReabiertaTexto" xml:space="preserve">
+    <value>{0}</value>
+  </data>
+  <data name="GpReabiertaTitulo" xml:space="preserve">
+    <value>La Gestió s&apos;ha tornat a obrir.</value>
+  </data>
+  <data name="GpRechazadoEn" xml:space="preserve">
+    <value>{0} ha rebutjat el pas de {1}.</value>
+  </data>
+  <data name="GpSiguiente" xml:space="preserve">
+    <value>Següent</value>
+  </data>
+  <data name="GpSiguienteGestion" xml:space="preserve">
+    <value>Següent Gestió</value>
+  </data>
+  <data name="GpSinCredenciales" xml:space="preserve">
+    <value>Aquest accés no té usuari desat. Afegeix-lo a</value>
+  </data>
+  <data name="GpSinCredencialesEnlace" xml:space="preserve">
+    <value>Centre 360 › Accessos</value>
+  </data>
+  <data name="GpSinDireccion" xml:space="preserve">
+    <value>Aquest accés no té adreça desada.</value>
+  </data>
+  <data name="GpSinPorHacer" xml:space="preserve">
+    <value>No queda cap pas per fer. Passa a «Tots» per revisar-los.</value>
+  </data>
+  <data name="GpSustituida" xml:space="preserve">
+    <value>Aquesta Gestió es va tancar perquè el document es va renovar el {0}. Continua a la Gestió nova.</value>
+  </data>
+  <data name="GpTodos" xml:space="preserve">
+    <value>Tots ({0})</value>
+  </data>
+  <data name="GpUnPasoRechazado" xml:space="preserve">
+    <value>{0} pas rebutjat</value>
+  </data>
+  <data name="GpValidoHasta" xml:space="preserve">
+    <value>Vàlid a la plataforma fins al</value>
+  </data>
+  <data name="GpVencidoEl" xml:space="preserve">
+    <value>Vençut el {0}</value>
+  </data>
+  <data name="GpVerCentro360" xml:space="preserve">
+    <value>Veure a Centre 360 · {0}</value>
+  </data>
+  <data name="GpVerDocumento" xml:space="preserve">
+    <value>Veure document</value>
+  </data>
+  <data name="GpVerFichaTitular" xml:space="preserve">
+    <value>Veure la fitxa de {0}</value>
+  </data>
+  <data name="GpVigente" xml:space="preserve">
+    <value>Vigent</value>
+  </data>
+  <data name="GpVigenteHasta" xml:space="preserve">
+    <value>Vigent fins al {0}</value>
+  </data>
+  <data name="GpVolverMiTrabajo" xml:space="preserve">
+    <value>Tornar a El meu treball</value>
+  </data>
+  <data name="PasoNoSePide" xml:space="preserve">
+    <value>No es demana aquí</value>
+  </data>
+  <data name="PasoPendienteDeSubir" xml:space="preserve">
+    <value>Pendent de pujar</value>
+  </data>
+  <data name="PasoPendienteDeValidar" xml:space="preserve">
+    <value>Pendent de validar</value>
+  </data>
+  <data name="PasoRechazado" xml:space="preserve">
+    <value>Rebutjat</value>
+  </data>
+  <data name="PasoValidado" xml:space="preserve">
+    <value>Validat</value>
+  </data>
+  <data name="PasoValidadoHasta" xml:space="preserve">
+    <value>Validat fins al {0}</value>
+  </data>
+  <data name="PasoDetalleValidadoHasta" xml:space="preserve">
+    <value>validat fins al {0}</value>
+  </data>
+  <data name="AutoAriaAvance" xml:space="preserve">
+    <value>Avanç de la Gestió</value>
+  </data>
+  <data name="GpAriaAtajos" xml:space="preserve">
+    <value>Dreceres de teclat</value>
+  </data>
+  <data name="GpAtajoSubido" xml:space="preserve">
+    <value>Pujat</value>
+  </data>
+  <data name="GpAtajoValidado" xml:space="preserve">
+    <value>Validat</value>
+  </data>
 </root>

@@ -1,5 +1,7 @@
 @page "/trabajadores"
-@rendermode InteractiveServer
+@* Sin prerender (como Mi trabajo, M-23): OnInitializedAsync carga la lista y no persiste su estado; con prerender
+   corría dos veces en cada visita. *@
+@rendermode @(new InteractiveServerRenderMode(prerender: false))
 @inherits CaeManager.Web.Components.PaginaInteractiva
 @attribute [Authorize]
 @using CaeManager.Application.Trabajadores.Commands.CrearTrabajador
@@ -28,6 +30,7 @@
 
 <LimiteDeErrores Pagina="this">
 <PageTitle>@TituloPagina — @Marca.Nombre</PageTitle>
+<TituloDePaginaSinPrerender Titulo="@($"{TituloPagina} — {Marca.Nombre}")" />
 
 <div class="contenedor-pagina lista-design">
     @* Lista 1:1 con «Lista Trabajadores TALVEG.dc.html» del export de Design (DDL-083, 2026-10-18), con el mismo molde que

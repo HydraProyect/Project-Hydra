@@ -91,6 +91,10 @@ public static class CatalogoSeccionesMenu
         // Reclamaciones, Preventivo, Plantillas— siguen dentro de ella). «Revisión IA» e Incidencias salieron
         // de Operación y del propio menú: ahora son pestañas de sección. Revisión IA abre la pestaña de
         // Documentos con su deep-link; /documentos/revision-ia sigue vivo para enlaces guardados.
+        // BarraSeccion NO pinta esta sección sobre /documentos: esa página lleva su propia barra de pestañas
+        // (con Revisión IA e Incidencias dentro) y dos barras repetían «Revisión IA». La barra de sección sigue
+        // en las pantallas hermanas (/incidencias, /documentos/revision-ia). Este catálogo no cambia: sigue
+        // sirviendo a las migas y a esas pantallas.
         new("documentos", "SeccionDocumentos", "documentos",
         [
             new("documentos-todos", "SeccionTodosLosDocumentos", "documentos", RolesDeDocumentos,

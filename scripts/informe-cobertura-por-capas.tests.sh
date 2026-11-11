@@ -97,7 +97,9 @@ CABECERA
 assert_contiene() {
   local descripcion="$1" patron="$2" salida="$3"
   PRUEBAS=$((PRUEBAS + 1))
-  if printf '%s' "$salida" | grep -qF -- "$patron"; then
+  # `grep <<<`, no `printf | grep -q`: con pipefail, el printf que sigue
+  # escribiendo tras el primer acierto recibe SIGPIPE y falsea el resultado.
+  if grep -qF -- "$patron" <<<"$salida"; then
     echo "OK: $descripcion"
   else
     echo "FALLO: $descripcion — no se encontró: $patron" >&2
@@ -108,7 +110,7 @@ assert_contiene() {
 assert_no_contiene() {
   local descripcion="$1" patron="$2" salida="$3"
   PRUEBAS=$((PRUEBAS + 1))
-  if printf '%s' "$salida" | grep -qF -- "$patron"; then
+  if grep -qF -- "$patron" <<<"$salida"; then
     echo "FALLO: $descripcion — apareció y no debía: $patron" >&2
     FALLOS=$((FALLOS + 1))
   else

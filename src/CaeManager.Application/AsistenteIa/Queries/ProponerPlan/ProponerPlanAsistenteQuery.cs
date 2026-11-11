@@ -1,8 +1,10 @@
 using CaeManager.Application.AsistenteIa.Candidatos;
 using CaeManager.Application.AsistenteIa.Decisiones;
+using CaeManager.Application.AsistenteIa.Edicion;
 using CaeManager.Application.AsistenteIa.Ordenes;
 using CaeManager.Application.Common;
 using CaeManager.Application.Cumplimiento;
+using CaeManager.Domain.AsistenteIa;
 using CaeManager.Domain.Common;
 using MediatR;
 
@@ -45,6 +47,8 @@ public enum SituacionPlan
 /// Un dato de la orden. Con <paramref name="CandidatoId"/> el asistente ha elegido
 /// un valor de la cartera; sin él, o el modelo se abstuvo o el dato todavía no se
 /// resuelve aquí (<paramref name="Pendiente"/> dice por qué).
+/// <paramref name="Valor"/> es lo que el Gestor CAE completó a mano en el plan
+/// (<see cref="CompletarPlanTareaAsistenteCommand"/>); un dato con valor ya no falta.
 /// </summary>
 public record DatoPropuestoDto(
     string Campo,
@@ -54,8 +58,18 @@ public record DatoPropuestoDto(
     string? Nombre,
     Guid? TenantId,
     int Confianza,
-    string? Pendiente);
+    string? Pendiente,
+    ValorDatoPlanDto? Valor = null)
+{
+    public bool Completo => CandidatoId is not null || Valor is { Completo: true };
+}
 
+/// <param name="DestinoEsLaPantalla">
+/// El Tenant destino es el Tenant efectivo de la sesión (la Empresa gestionada abierta en
+/// «Trabajando en»). Vega solo ejecuta ahí: con otro destino el plan no se confirma y la
+/// persona tiene que cambiar primero la Empresa gestionada.
+/// </param>
+/// <param name="Avisos">Avisos de los datos completados a mano; uno bloqueante impide confirmar.</param>
 public record PlanPropuestoDto(
     SituacionPlan Situacion,
     string? OrdenId,
@@ -63,17 +77,22 @@ public record PlanPropuestoDto(
     IReadOnlyList<DatoPropuestoDto> Datos,
     TenantDestinoDto? Destino,
     bool Ejecutable,
-    string? Limitacion)
+    string? Limitacion,
+    bool DestinoEsLaPantalla = true,
+    IReadOnlyList<AvisoPasoTareaAsistente>? Avisos = null)
 {
     /// <summary>
     /// Se puede confirmar con Enter: la orden es ejecutable, el Tenant no bloquea
-    /// ni está por elegir y no falta ningún dato obligatorio.
+    /// ni está por elegir y es el de la pantalla, no falta ningún dato obligatorio y
+    /// no hay ningún aviso bloqueante.
     /// </summary>
     public bool Confirmable =>
         Situacion == SituacionPlan.Propuesto
         && Ejecutable
         && Destino is { Situacion: SituacionTenantDestino.Unico }
-        && Datos.Where(d => d.Obligatorio).All(d => d.CandidatoId is not null);
+        && DestinoEsLaPantalla
+        && Datos.Where(d => d.Obligatorio).All(d => d.Completo)
+        && (Avisos ?? []).All(a => a.Gravedad != GravedadAvisoPasoTareaAsistente.Bloqueante);
 }
 
 public class ProponerPlanAsistenteQueryHandler(
@@ -173,9 +192,16 @@ public class ProponerPlanAsistenteQueryHandler(
 
         var porCampo = elegidos.ToDictionary(s => s.Campo, StringComparer.Ordinal);
         var datos = campos.Select(c => Dato(c, porCampo, candidatos)).ToList();
+        // Ejecutable de verdad: la orden lo es en el catálogo Y Vega sabe ejecutarla
+        // (EjecucionPlanAsistente). Las que no, se dicen en lenguaje de producto.
+        var ejecutable = orden.Ejecutable && EjecucionPlanAsistente.SabeEjecutar(orden.Id);
+        var limitacion = !ejecutable
+            ? EjecucionPlanAsistente.TextoNoLaHaceVega
+            : string.IsNullOrWhiteSpace(orden.Limitacion) ? null : orden.Limitacion;
         return new PlanPropuestoDto(
             SituacionPlan.Propuesto, orden.Id, clasificacion.Valor.Confianza, datos, destino,
-            orden.Ejecutable, string.IsNullOrWhiteSpace(orden.Limitacion) ? null : orden.Limitacion);
+            ejecutable, limitacion,
+            DestinoEsLaPantalla: destino.Tenant is null || destino.Tenant.TenantId == tenantPantalla);
     }
 
     private static DatoPropuestoDto Dato(

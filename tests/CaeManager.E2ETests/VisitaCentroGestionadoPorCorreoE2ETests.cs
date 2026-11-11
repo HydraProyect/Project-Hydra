@@ -99,9 +99,10 @@ public class VisitaCentroGestionadoPorCorreoE2ETests(WebAppFixture fixture)
         await page.GetByRole(AriaRole.Button, new PageGetByRoleOptions { Name = "Selección múltiple", Exact = true }).ClickAsync();
         await filaTrabajador.Locator("input[type=\"checkbox\"]").CheckAsync();
         await page.Locator(".barra-acciones-lote").GetByRole(AriaRole.Button, new() { Name = "Asignar a un centro", Exact = true }).ClickAsync();
-        await page.Locator(".modal-cuerpo").GetByLabel("Centro", new LocatorGetByLabelOptions { Exact = true })
-            .FillAsync($"{nombreCentro} ({razonSocialCliente})");
-        // El aviso confirma que terminó el debounce del selector y la consulta de faltantes.
+        await Ayudas.ElegirOpcionEnSelectorAvanzadoPorTextoAsync(page,
+            page.Locator(".modal-cuerpo").GetByLabel("Centro", new LocatorGetByLabelOptions { Exact = true }),
+            $"{nombreCentro} ({razonSocialCliente})");
+        // El aviso confirma que terminó la consulta de faltantes del Centro elegido.
         await Expect(page.Locator(".alerta-preflight-asignacion"))
             .ToContainTextAsync($"{nombreTrabajador} {apellidosTrabajador}", new LocatorAssertionsToContainTextOptions { Timeout = 15_000 });
         await page.Locator(".modal-pie").GetByRole(AriaRole.Button, new() { NameRegex = new System.Text.RegularExpressions.Regex("^Asignar") }).ClickAsync();

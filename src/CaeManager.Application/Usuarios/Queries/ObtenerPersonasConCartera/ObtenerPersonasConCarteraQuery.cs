@@ -1,5 +1,6 @@
 using CaeManager.Application.Common;
 using CaeManager.Application.Operaciones;
+using CaeManager.Application.Usuarios.Commands.AsignarCarteraGestorCae;
 using MediatR;
 
 namespace CaeManager.Application.Usuarios.Queries.ObtenerPersonasConCartera;
@@ -32,8 +33,9 @@ public record CarterasDeOperacion(
 /// por Asignación de Operación (ADR-011 § 2.7, enmienda 2026-10-08); con
 /// <paramref name="TenantId"/>, solo las de ese Tenant propietario. Acotada al propio Operador
 /// CAE: el Tenant de origen de la sesión, nunca un dato de la petición. Vacía si quien pregunta
-/// no es una cuenta activa del Operador CAE con rol de gestión CAE, leído en Identity sobre el
-/// Tenant de origen; en particular, vacía para un usuario del propio Tenant propietario, cuya
+/// no tiene, como rol efectivo de la sesión en el Tenant de origen, un rol de gestión CAE que
+/// Identity confirme sobre la cuenta activa del Operador CAE
+/// (<see cref="AutoridadSobreCarteraDeGestorCae.RolDeAutoridadAsync"/>); en particular, vacía para un usuario del propio Tenant propietario, cuya
 /// lectura es <c>ObtenerOperadoresCaeDeMiTenantQuery</c>. Es lectura: quién puede cambiar el
 /// principal lo decide <c>DesignarGestorCaePrincipalCommand</c>.
 /// </summary>
@@ -57,21 +59,10 @@ public class ObtenerPersonasConCarteraQueryHandler(
 
         using (AmbitoTenantExplicito.Establecer(origen.Value))
         {
-            // Falla cerrado sin rol de negocio en la sesión: Soporte TALVEG nunca es Operador CAE.
-            if (await currentUserService.ObtenerRolEfectivoAsync() is null)
-                return [];
-
-            var autorizado = false;
-            foreach (var rol in RolesQueLeen)
-            {
-                if (await directorioUsuarios.EsCuentaActivaConRolAsync(actorId.Value, origen.Value, rol, cancellationToken))
-                {
-                    autorizado = true;
-                    break;
-                }
-            }
-
-            if (!autorizado)
+            // Rol efectivo de la sesión en el Tenant de origen, confirmado en Identity. Sin rol de
+            // negocio falla cerrado: Soporte TALVEG nunca es Operador CAE.
+            if (await AutoridadSobreCarteraDeGestorCae.RolDeAutoridadAsync(
+                    actorId.Value, origen.Value, RolesQueLeen, currentUserService, directorioUsuarios, cancellationToken) is null)
                 return [];
 
             var carteras = await catalogo.ObtenerCarterasVivasAsync(origen.Value, request.TenantId, cancellationToken);

@@ -7,8 +7,8 @@ namespace CaeManager.Web.Tests;
 
 /// <summary>
 /// Fase A4 — crear inline desde cualquier selector, sin tener que abandonar
-/// la pantalla. A diferencia de CampoBuscarSelect (que usa &lt;datalist&gt;),
-/// SelectorEntidad pinta su propia lista para poder ofrecer una fila de
+/// la pantalla. A diferencia de CampoBuscarSelect (el combobox del kit, sin
+/// creación), SelectorEntidad pinta su propia lista para poder ofrecer una fila de
 /// acción ("+ Crear «texto»"). El punto que este archivo protege de verdad:
 /// las opciones se seleccionan con @@onmousedown:preventDefault, así que el
 /// clic nunca se pierde por un blur de por medio — ver el comentario de
@@ -36,6 +36,19 @@ public class SelectorEntidadTests : BunitContext
         filas.Should().HaveCount(2);
         cut.Markup.Should().Contain("Cadena Industrial Iberia").And.Contain("Retail Iberia");
         cut.Markup.Should().NotContain("Bebidas del Norte");
+    }
+
+    [Fact]
+    public void Escribir_filtra_sin_mayusculas_ni_tildes_como_el_combobox_del_kit()
+    {
+        var cut = Render<SelectorEntidad>(parametros => parametros
+            .Add(p => p.Opciones, [new OpcionBuscable("1", "Construcciones Peñíscola S.L."), new OpcionBuscable("2", "Bebidas del Norte S.A.")])
+            .Add(p => p.Valor, string.Empty));
+
+        cut.Find("input").Input("PENISCOLA");
+
+        cut.FindAll(".selector-entidad-opcion").Should().ContainSingle()
+            .Which.TextContent.Should().Contain("Construcciones Peñíscola S.L.");
     }
 
     [Fact]

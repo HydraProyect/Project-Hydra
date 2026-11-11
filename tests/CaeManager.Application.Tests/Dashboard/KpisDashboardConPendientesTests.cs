@@ -68,6 +68,60 @@ public class KpisDashboardConPendientesTests
         kpis.TienePendientesDocumentales.Should().Be(visible);
     }
 
+    /// <summary>
+    /// Próximo es el umbral «todavía no urgente» que la cola de trabajo deja fuera (ObtenerBandejaGestorQuery) y que la tasa
+    /// cuenta como al día: con él, Inicio decía «Hay pendientes» bajo «Nada pendiente ahora mismo» (revisión 1:1 del
+    /// 2026-11-09). Urgente y Vencido sí son pendientes. Umbrales del arnés: ámbar 30 días, rojo 7.
+    /// </summary>
+    [Theory]
+    [InlineData(10, false)]
+    [InlineData(3, true)]
+    [InlineData(-1, true)]
+    public async Task Un_documento_de_Empresa_es_pendiente_cuando_es_urgente_o_vencido_y_no_cuando_es_proximo(int dias, bool pendiente)
+    {
+        var mundo = new MundoAcreditaciones();
+        var empresa = new Empresa("Talleres Aurora");
+        var empresas = new EmpresasQueryContextFalso();
+        empresas.ListaEmpresas.Add(empresa);
+        var tipo = mundo.Tipo(RequisitoDocumental.Si, AmbitoAplicacion.Empresa);
+        mundo.DocumentosContexto.ListaDocumentos.Add(Documento.DeEmpresa(empresa.Id, tipo.Id,
+            DiaDeNegocio.Hoy().AddYears(-1), VigenciaDocumento.VenceEl(DiaDeNegocio.Hoy().AddDays(dias))));
+
+        var kpis = await Handler(mundo, new AlcanceDatosServiceFalso(), empresas)
+            .Handle(new ObtenerKpisDashboardQuery(), CancellationToken.None);
+
+        (kpis.DocumentosEmpresaProximos + kpis.DocumentosEmpresaUrgentes + kpis.DocumentosEmpresaVencidos)
+            .Should().Be(1, "control: el documento entra en la selección de Alertas en el estado que toca");
+        kpis.TienePendientesDocumentales.Should().Be(pendiente);
+    }
+
+    /// <summary>
+    /// El mismo corte en el Centro de Trabajo: un Centro cuyo peor documento exigido está Próximo no es un pendiente; uno
+    /// Urgente o Vencido, sí.
+    /// </summary>
+    [Theory]
+    [InlineData(10, false)]
+    [InlineData(3, true)]
+    [InlineData(-1, true)]
+    public async Task Un_Centro_es_pendiente_cuando_su_documentacion_es_urgente_o_vencida_y_no_cuando_es_proxima(int dias, bool pendiente)
+    {
+        var mundo = new MundoAcreditaciones();
+        var centro = mundo.Centro();
+        var trabajador = mundo.Trabajador();
+        var tipo = mundo.Tipo(RequisitoDocumental.Si);
+        mundo.Requisito(tipo, centro, incluido: true);
+        mundo.Asignacion(trabajador, centro);
+        mundo.DocumentosContexto.ListaDocumentos.Add(Documento.DeTrabajador(trabajador.Id, tipo.Id,
+            DiaDeNegocio.Hoy().AddYears(-1), VigenciaDocumento.VenceEl(DiaDeNegocio.Hoy().AddDays(dias))));
+
+        var kpis = await Handler(mundo, new AlcanceDatosServiceFalso()).Handle(new ObtenerKpisDashboardQuery(), CancellationToken.None);
+
+        (kpis.DocumentosProximos + kpis.DocumentosUrgentes + kpis.DocumentosVencidos)
+            .Should().Be(1, "control: el documento entra en la tasa en el estado que toca");
+        kpis.CentrosBloqueados.Should().Be(0, "control: sin plataforma el Centro no se bloquea");
+        kpis.TienePendientesDocumentales.Should().Be(pendiente);
+    }
+
     [Fact]
     public async Task Los_documentos_vencidos_de_una_Empresa_dada_de_baja_no_son_un_pendiente_sin_fila_en_Mi_trabajo()
     {

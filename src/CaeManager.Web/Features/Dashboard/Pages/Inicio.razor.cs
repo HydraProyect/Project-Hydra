@@ -117,10 +117,13 @@ public partial class Inicio : CaeManager.Web.Components.PaginaInteractiva, IDisp
     private bool _hayTrabajoPendiente;
 
     // El porcentaje documental no acredita que se haya terminado el trabajo pendiente (decisión Outbound 3).
-    // Se oculta el 100 %, en vez de inventar un porcentaje, si hay trabajo por atender.
+    // Se oculta el 100 %, en vez de inventar un porcentaje, si hay trabajo por atender. Un vencimiento próximo no lo es: la
+    // cola lo deja fuera a propósito (ObtenerBandejaGestorQuery), el anillo lo cuenta como al día y el cierre de «Requiere
+    // atención» lo anuncia como «Próximo vencimiento» bajo «Nada pendiente ahora mismo»; contarlo aquí hacía que el anillo
+    // dijera «Hay pendientes» justo debajo, en un Tenant beneficiario con todo al día.
     private bool CumplimientoCompletoConPendientes => _kpis is { TasaCumplimientoDocumental: 100 } k
         && (k.TienePendientesDocumentales || k.CentrosBloqueados > 0 || k.TrabajadoresBloqueados > 0
-            || k.DocumentosVencidos > 0 || k.DocumentosUrgentes > 0 || k.DocumentosProximos > 0
+            || k.DocumentosVencidos > 0 || k.DocumentosUrgentes > 0
             || k.DocumentosSinConfirmar > 0 || k.VisitasUrgentes > 0
             || _pendientePorPlataforma.Any(p => p.PendientesDeSubir > 0 || p.Rechazadas > 0)
             || _hayTrabajoPendiente
@@ -512,8 +515,10 @@ public partial class Inicio : CaeManager.Web.Components.PaginaInteractiva, IDisp
 
     /// <summary>
     /// Pista de «Vigentes»: reparte el resto de los Documentos de Trabajador medidos por conformidad, con la única definición
-    /// de <see cref="CaeManager.Domain.Documentos.CumplimientoDocumental"/>. Vigentes + «más al día» = el «al día» del anillo,
-    /// y + «no al día» = su denominador (<see cref="KpisDashboardDto.Fraccion"/>): las tres cifras cuadran a la vista. Antes
+    /// de <see cref="CaeManager.Domain.Documentos.CumplimientoDocumental"/>. Vigentes + «por vencer o sin caducidad» = el «al día»
+    /// del anillo, y + «no al día» = su denominador (<see cref="KpisDashboardDto.Fraccion"/>). La pista escribe la suma y el
+    /// total («+7 … = 18 al día · 15 de 33 no al día»): con solo los sumandos, «Vigentes 11 · 7 más al día · 15 no al día» no
+    /// se leía como una cuenta (revisión 1:1 del 2026-11-09). Antes
     /// se repartía por cercanía a la fecha («vencidos o por vencer», «sin confirmar o sin caducidad») y cada parte mezclaba
     /// documentos al día con otros que no lo están.
     /// </summary>
@@ -526,8 +531,10 @@ public partial class Inicio : CaeManager.Web.Components.PaginaInteractiva, IDisp
             var masAlDia = fraccion.AlDia - _kpis.DocumentosVigentes;
             var noAlDia = fraccion.Requeridos - fraccion.AlDia;
             var partes = new List<string>();
-            if (masAlDia > 0) partes.Add(Textos["KpiVigentesAlDia", masAlDia].Value);
-            if (noAlDia > 0) partes.Add(Textos["KpiVigentesNoAlDia", noAlDia].Value);
+            if (masAlDia > 0)
+                partes.Add(Textos["KpiVigentesAlDia", masAlDia.ToString("N0"), fraccion.AlDia.ToString("N0")].Value);
+            if (noAlDia > 0)
+                partes.Add(Textos["KpiVigentesNoAlDia", noAlDia.ToString("N0"), fraccion.Requeridos.ToString("N0")].Value);
             return partes.Count == 0 ? null : string.Join(" · ", partes);
         }
     }
@@ -553,7 +560,7 @@ public partial class Inicio : CaeManager.Web.Components.PaginaInteractiva, IDisp
         && k.TrabajadoresActivos == 0 && k.Centros == 0
         && k.DocumentosVigentes == 0 && k.DocumentosVencidos == 0
         && k.DocumentosUrgentes == 0 && k.DocumentosProximos == 0
-        && !k.TienePendientesDocumentales
+        && !k.TienePendientesDocumentales && k.DocumentosEmpresaProximos == 0
         && k.VisitasProgramadas == 0 && k.VisitasUrgentes == 0
         && _queLlegoSinVer.Count == 0 && _pendientePorPlataforma.Count == 0
         && _sinRespuesta.Count == 0 && _proximamente.Count == 0

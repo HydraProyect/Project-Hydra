@@ -354,4 +354,61 @@
   <data name="SesionPrivilegiada" xml:space="preserve">
     <value>El asistente no está disponible en una sesión de soporte.</value>
   </data>
+  <data name="Plan_ElegirOpcion" xml:space="preserve">
+    <value>— Elige —</value>
+  </data>
+  <data name="Plan_TenantDeLaPantalla" xml:space="preserve">
+    <value> (la que tienes abierta)</value>
+  </data>
+  <data name="Plan_DestinoNoEsLaPantalla" xml:space="preserve">
+    <value>Este plan es para {0}, y Vega solo ejecuta en la Empresa gestionada que tienes abierta. Cámbiala arriba, en «Trabajando en», o elige aquí la que tienes abierta.</value>
+  </data>
+  <data name="Plan_SinEmpresaGestionada" xml:space="preserve">
+    <value>Para completar el plan, abre arriba, en «Trabajando en», la Empresa gestionada en la que quieres hacerlo.</value>
+  </data>
+  <data name="Plan_CompletaDatos" xml:space="preserve">
+    <value>Revisa y completa los datos</value>
+  </data>
+  <data name="Plan_Si" xml:space="preserve">
+    <value>Sí</value>
+  </data>
+  <data name="Plan_No" xml:space="preserve">
+    <value>No</value>
+  </data>
+  <data name="Plan_TrabajadorNombre" xml:space="preserve">
+    <value>Nombre</value>
+  </data>
+  <data name="Plan_TrabajadorApellidos" xml:space="preserve">
+    <value>Apellidos</value>
+  </data>
+  <data name="Plan_TrabajadorDocumento" xml:space="preserve">
+    <value>DNI, NIE o pasaporte</value>
+  </data>
+  <data name="Plan_ResultadoEjecucion" xml:space="preserve">
+    <value>Resultado de cada paso</value>
+  </data>
+  <data name="Plan_PasoHecho" xml:space="preserve">
+    <value>Hecho</value>
+  </data>
+  <data name="Plan_PasoFallido" xml:space="preserve">
+    <value>No se ha podido hacer</value>
+  </data>
+  <data name="Plan_EjecucionTerminada" xml:space="preserve">
+    <value>Hecho. Puedes revisarlo en su pantalla.</value>
+  </data>
+  <data name="Plan_EjecucionIncompleta" xml:space="preserve">
+    <value>Algún paso no se ha podido hacer. Lo que ya está hecho no se repite al reintentar.</value>
+  </data>
+  <data name="Plan_Ejecutando" xml:space="preserve">
+    <value>Vega está haciendo los pasos…</value>
+  </data>
+  <data name="Plan_SinEjecutar" xml:space="preserve">
+    <value>Plan confirmado. Los pasos todavía no se han hecho.</value>
+  </data>
+  <data name="Plan_Ejecutar" xml:space="preserve">
+    <value>Hacer los pasos</value>
+  </data>
+  <data name="Plan_Reintentar" xml:space="preserve">
+    <value>Reintentar</value>
+  </data>
 </root>

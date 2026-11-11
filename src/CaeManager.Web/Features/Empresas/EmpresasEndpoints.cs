@@ -1,5 +1,8 @@
 using CaeManager.Application.Common;
 using CaeManager.Application.Empresas.Queries.ObtenerEmpresas;
+using CaeManager.Application.Empresas.Queries.PaqueteDocumentalEmpresa;
+using CaeManager.Domain.Common;
+using CaeManager.Web.Services;
 using CaeManager.Application.Tenants.Queries.ObtenerClientesAutorizados;
 using CaeManager.Web.Exportacion;
 using CaeManager.Web.Features.Documentos;
@@ -16,8 +19,54 @@ public static class EmpresasEndpoints
     public static IEndpointRouteBuilder MapEmpresasEndpoints(this IEndpointRouteBuilder endpoints)
     {
         endpoints.MapGet("/empresas/exportar.xlsx", ExportarAsync);
+        endpoints.MapGet("/empresas/{id:guid}/paquete-documental.zip", ServirPaqueteAsync);
 
         return endpoints;
+    }
+
+    /// <summary>
+    /// Descarga del «Preparar paquete» de Empresa 360, por el mismo mecanismo que el zip de una Visita
+    /// (<c>VisitasEndpoints.ServirPaqueteAsync</c>): endpoint autenticado (FallbackPolicy global), sin caché y nunca un
+    /// archivo estático. Autorización, selección y registro de accesos sensibles (DEC-36) viven en
+    /// <see cref="DescargarPaqueteEmpresaQuery"/>. <paramref name="cliente"/> vacío es «Todo lo vigente».
+    /// </summary>
+    public static async Task<IResult> ServirPaqueteAsync(
+        Guid id, HttpContext contexto, IMediator mediator, ILoggerFactory fabricaRegistro, CancellationToken cancellationToken, string? cliente = null)
+    {
+        Guid? clienteEmpresarialId = null;
+        if (!string.IsNullOrWhiteSpace(cliente))
+        {
+            if (!Guid.TryParse(cliente, out var destinoId))
+                return Results.BadRequest();
+            clienteEmpresarialId = destinoId;
+        }
+
+        Result<PaqueteEmpresaDescargaDto> resultado;
+        try
+        {
+            resultado = await mediator.Send(new DescargarPaqueteEmpresaQuery(id, clienteEmpresarialId), cancellationToken);
+        }
+        catch (Exception ex) when (ErroresLecturaSensible.EsMapeable(ex))
+        {
+            return ErroresLecturaSensible.Responder(contexto, ex, id, fabricaRegistro.CreateLogger(typeof(EmpresasEndpoints).FullName!));
+        }
+
+        if (resultado.EsFallido)
+        {
+            // Fuera de alcance o de otro Tenant responde igual que inexistente; un rol que no descarga o una Sesión
+            // Privilegiada, 403; el resto son estados del paquete que el Gestor CAE puede entender. El diálogo descarga por
+            // fetch y enseña este texto en pantalla.
+            if (resultado.Error.Equals(AutorizacionPaqueteEmpresa.NoEncontrada))
+                return Results.NotFound();
+            CabecerasArchivoSensible.ProhibirCache(contexto);
+            var prohibido = resultado.Error.Equals(AutorizacionPaqueteEmpresa.RolSinDescarga)
+                || resultado.Error.Equals(AutorizacionPaqueteEmpresa.SesionPrivilegiadaSinDescarga);
+            return Results.Text(resultado.Error.Mensaje, "text/plain; charset=utf-8",
+                statusCode: prohibido ? StatusCodes.Status403Forbidden : StatusCodes.Status409Conflict);
+        }
+
+        CabecerasArchivoSensible.ProhibirCache(contexto);
+        return Results.File(resultado.Valor.Contenido, "application/zip", resultado.Valor.NombreArchivo);
     }
 
     public static async Task<IResult> ExportarAsync(

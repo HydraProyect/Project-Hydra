@@ -148,7 +148,7 @@ else
                       OnNombre="() => AbrirAsync(vehiculo)" OnAbrir360="() => AbrirAsync(vehiculo)"
                       Desplegada="desplegado" DesplegadaChanged="_ => Alternar(vehiculo.VehiculoId)"
                       EtiquetaDesplegar="@Textos["AriaDocumentosVehiculo360", NombreVisible(vehiculo)]">
-            <JuntoAlNombre><span class="fila-trabajador-empleador" data-empleador>@vehiculo.EmpleadorNombre</span></JuntoAlNombre>
+            <JuntoAlNombre><span class="fila-trabajador-empleador" data-empleador title="@vehiculo.EmpleadorNombre">@vehiculo.EmpleadorNombre</span></JuntoAlNombre>
             <Detalle><span>@Motivo(vehiculo)</span></Detalle>
             <Cifra><span class="fila-trabajador-fraccion" data-fraccion-validados>@(vehiculo.Documentos.Count == 0 ? "—" : Textos["FraccionDocumental360", Validados(vehiculo), vehiculo.Documentos.Count].Value)</span></Cifra>
             <Estado><Badge Tono="pastilla.Tono">@pastilla.Texto</Badge></Estado>

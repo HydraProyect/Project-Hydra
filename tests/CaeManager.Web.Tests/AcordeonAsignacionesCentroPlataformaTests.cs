@@ -51,4 +51,28 @@ public partial class AcordeonAsignacionesCentroVigenciaSinConfirmarTests
         celdas[3].TextContent.Trim().Should().Be("—");
         cut.Find(".fila-trabajador-fraccion").TextContent.Should().Be("1/1");
     }
+
+    /// <summary>
+    /// En pestaña estrecha la cabecera de la tabla se oculta y «Sí» quedaba suelto: las celdas Caducidad y Bloquea llevan su rótulo en
+    /// data-etiqueta-celda (el CSS lo pinta como prefijo) y el texto de la celda no cambia.
+    /// </summary>
+    [Fact]
+    public async Task Centro_360_etiqueta_las_celdas_Caducidad_y_Bloquea_sin_cambiar_su_texto()
+    {
+        var trabajador = new TrabajadorAsignacionDocumentacionDto(Guid.NewGuid(), Guid.NewGuid(), "Ruiz Peña, Ana",
+            new DateOnly(2026, 1, 15), EstadoDocumento.Vigente,
+            [new DocumentoRequeridoDto(Guid.NewGuid(), Guid.NewGuid(), "Formación PRL", EstadoDocumento.Vigente,
+                new DateOnly(2027, 1, 1), AcreditacionesEnElCentro: [new AcreditacionResumenDto(Guid.NewGuid(), "Nalanda", EstadoAcreditacion.Rechazada)])],
+            CumplimientoDocumental.Evaluar([EstadoDocumento.Vigente]));
+        RegistrarServicios(new MediatorFalso { Trabajadores = [trabajador] });
+        var cut = Render<AcordeonAsignacionesCentro>(p => p.Add(c => c.CentroId, Guid.NewGuid()).Add(c => c.MostrarEstadoPlataforma, true));
+        cut.WaitForAssertion(() => cut.FindAll(".fila-relacion").Should().NotBeEmpty());
+        await cut.Find("button.fila-relacion-desplegar").ClickAsync(new MouseEventArgs());
+
+        var celdas = cut.FindAll(".fila-plataforma-centro [role=cell]");
+        celdas[2].GetAttribute("data-etiqueta-celda").Should().Be("Caducidad");
+        celdas[3].GetAttribute("data-etiqueta-celda").Should().Be("Bloquea");
+        celdas[3].TextContent.Trim().Should().Be("Sí", "la etiqueta es un prefijo visual del CSS, no texto de la celda");
+        celdas[0].HasAttribute("data-etiqueta-celda").Should().BeFalse("Documento, Estado y Acción ya se leen solos");
+    }
 }

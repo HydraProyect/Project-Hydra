@@ -369,7 +369,18 @@ public class LlamadaAlAlcanceDeCarteraEnEscrituraTests
         ["AsistenteIa.AgregarTurnoTareaAsistenteCommandHandler"] = new(
             "mismo motivo que ActualizarPasoTareaAsistenteCommandHandler", Guardas: TareaDeLaPersona),
         ["AsistenteIa.ConfirmarPlanTareaAsistenteCommandHandler"] = new(
-            "mismo motivo que ActualizarPasoTareaAsistenteCommandHandler; confirmar el plan no ejecuta sus pasos",
+            "mismo motivo que ActualizarPasoTareaAsistenteCommandHandler; confirmar el plan no ejecuta sus pasos " +
+            "(los ejecuta EjecutarPlanTareaAsistenteCommandHandler)",
+            Guardas: TareaDeLaPersona),
+        ["AsistenteIa.CompletarPlanTareaAsistenteCommandHandler"] = new(
+            "mismo motivo que ActualizarPasoTareaAsistenteCommandHandler; los valores elegidos se validan contra las " +
+            "opciones de la cartera en el Tenant efectivo (RevisionPlanAsistente) y solo se guardan en la tarea",
+            Guardas: TareaDeLaPersona),
+        ["AsistenteIa.EjecutarPlanTareaAsistenteCommandHandler"] = new(
+            "registra el resultado en la TareaAsistente de la propia persona y delega cada escritura con cartera en el " +
+            "Command real del catálogo (CrearTrabajador, CrearAsignacion, CrearVisita, CrearCentro, CrearCliente), " +
+            "que comprueba su propia cartera y autorización",
+            DelegaEn: typeof(CaeManager.Application.Asignaciones.Commands.CrearAsignacion.CrearAsignacionCommand),
             Guardas: TareaDeLaPersona),
         ["AsistenteIa.DescartarTareaAsistenteCommandHandler"] = new(
             "mismo motivo que ActualizarPasoTareaAsistenteCommandHandler", Guardas: TareaDeLaPersona),
@@ -520,7 +531,7 @@ public class LlamadaAlAlcanceDeCarteraEnEscrituraTests
     /// Tope de <see cref="Exentos"/>: una exención nueva tiene que subir este número en el diff, para que
     /// la revisión la vea. Si bajan, baja también.
     /// </summary>
-    private const int MaximoDeExentos = 43;
+    private const int MaximoDeExentos = 45;
 
     /// <summary>De <see cref="Exentos"/>, los que no tienen nada verificable: solo su motivo escrito.</summary>
     private const int MaximoDeExentosSoloConMotivo = 4;

@@ -1,34 +1,22 @@
-@implements IDisposable
-<div class="campo">
-    @if (!string.IsNullOrWhiteSpace(Etiqueta))
-    {
-        <label for="@_id">@Etiqueta</label>
-    }
-    <input id="@_id"
-           type="text"
-           class="campo-input"
-           list="@_listaId"
-           value="@_texto"
-           placeholder="@Marcador"
-           disabled="@Deshabilitado"
-           autocomplete="off"
-           @oninput="ManejarEscrituraAsync" />
-    <datalist id="@_listaId">
-        @foreach (var opcion in Opciones)
-        {
-            <option value="@opcion.Texto"></option>
-        }
-    </datalist>
-</div>
+@*
+    Campo de una sola elección con búsqueda sobre una lista larga (Trabajador, Centro, Cliente empresarial…). Es el
+    mismo combobox que el «Tipo de documento»: se escribe en el propio campo y la lista se filtra sin mayúsculas ni
+    tildes; se elige una opción de la lista, nunca un texto libre. Antes era un input con <datalist>, que solo elegía
+    si el texto coincidía exactamente con una opción, dejaba sin elegir a dos homónimos y no decía «sin
+    coincidencias». La API (Valor, ValorChanged, Opciones, Etiqueta, Marcador, Deshabilitado) no cambia.
+    Lo que no hace el combobox es vaciar la elección: el campo solo cambia de una opción a otra. La pantalla que
+    necesite «sin elección» pone su propio botón (Reportes, «Quitar filtro»).
+*@
+@using CaeManager.Web.Recursos
+@using Microsoft.Extensions.Localization
+@inject IStringLocalizer<TextosComunes> Comunes
+<CampoSelectAvanzado Etiqueta="@Etiqueta" Marcador="@Marcador" Valor="@Valor" ValorChanged="ValorChanged"
+                     Deshabilitado="@Deshabilitado" Buscable="true" Opciones="@_opciones"
+                     TextoSinResultados="@Comunes["SelectorSinCoincidencias"]" />
 
 @code {
-    private readonly string _id = $"campo-buscar-{Guid.NewGuid():N}";
-    private readonly string _listaId = $"campo-buscar-lista-{Guid.NewGuid():N}";
-    private string _texto = string.Empty;
-    private string _ultimoTextoTecleado = string.Empty;
-    private string _ultimoValorNotificado = string.Empty;
-    private bool _textoPendienteDeResolver;
-    private CancellationTokenSource? _debounceCts;
+    private IReadOnlyList<OpcionBuscable>? _origen;
+    private IReadOnlyList<OpcionSelect> _opciones = [];
 
     [Parameter] public string? Etiqueta { get; set; }
     [Parameter] public string Valor { get; set; } = string.Empty;
@@ -38,67 +26,13 @@
     [Parameter, EditorRequired] public IReadOnlyList<OpcionBuscable> Opciones { get; set; } = [];
 
     /// <summary>
-    /// Mismo patrón que <c>CampoTexto</c>: solo se resincroniza el texto
-    /// visible con el Id recibido por parámetro cuando ese Id no vino de
-    /// nuestro propio evento (p. ej. lo fija el padre tras una detección
-    /// automática, o al reabrir el formulario) — si se resincronizara en
-    /// cada render, se borraría lo que el usuario está escribiendo antes
-    /// de que su texto llegue a coincidir con una opción del datalist.
+    /// Las opciones se traducen solo cuando cambia la lista recibida: un render del padre con la misma lista no
+    /// rehace el array ni obliga al combobox a recalcular.
     /// </summary>
     protected override void OnParametersSet()
     {
-        if (Deshabilitado) _debounceCts?.Cancel();
-        if (Valor == _ultimoValorNotificado && !_textoPendienteDeResolver)
-            return;
-
-        // Un Id que llega antes que sus opciones (el padre preselecciona y carga la lista después)
-        // queda pendiente y se reintenta en cada render hasta que su opción aparece: darlo por
-        // sincronizado con texto vacío dejaba el campo en blanco con la entidad ya elegida. Deja de
-        // estar pendiente en cuanto la persona escribe, que es quien manda desde entonces.
-        _ultimoValorNotificado = Valor;
-        var opcion = Opciones.FirstOrDefault(o => o.Id == Valor);
-        _texto = opcion?.Texto ?? string.Empty;
-        _textoPendienteDeResolver = opcion is null && !string.IsNullOrEmpty(Valor);
-    }
-
-    private async Task ManejarEscrituraAsync(ChangeEventArgs e)
-    {
-        if (Deshabilitado) return;
-        // _texto (lo que se pinta en value="@_texto") no se toca aquí —
-        // mismo motivo que CampoTexto.ManejarCambioAsync: el navegador ya
-        // tiene el valor correcto en su propio DOM, y reflejarlo de vuelta
-        // en cada pulsación es lo que permite que un render en cola bajo
-        // latencia sobrescriba visualmente lo que el usuario ya ve con una
-        // versión más corta.
-        _ultimoTextoTecleado = e.Value?.ToString() ?? string.Empty;
-        _textoPendienteDeResolver = false;
-
-        _debounceCts?.Cancel();
-        _debounceCts?.Dispose();
-        var cts = new CancellationTokenSource();
-        _debounceCts = cts;
-
-        try
-        {
-            await Task.Delay(150, cts.Token);
-        }
-        catch (TaskCanceledException)
-        {
-            return;
-        }
-
-        // Solo una coincidencia exacta y única elige. Con dos opciones de mismo texto, quedarse con
-        // la primera asignaría en silencio la otra entidad (p. ej. un Documento al Trabajador
-        // homónimo): se deja sin elegir y la pantalla pide elegir, como con un texto sin coincidencia.
-        if (cts.Token.IsCancellationRequested || Deshabilitado) return;
-        var coincidencias = Opciones.Where(o => o.Texto == _ultimoTextoTecleado).Take(2).ToList();
-        _ultimoValorNotificado = coincidencias.Count == 1 ? coincidencias[0].Id : string.Empty;
-        await ValorChanged.InvokeAsync(_ultimoValorNotificado);
-    }
-
-    public void Dispose()
-    {
-        _debounceCts?.Cancel();
-        _debounceCts?.Dispose();
+        if (ReferenceEquals(_origen, Opciones)) return;
+        _origen = Opciones;
+        _opciones = Opciones.Select(o => new OpcionSelect(o.Id, o.Texto)).ToList();
     }
 }

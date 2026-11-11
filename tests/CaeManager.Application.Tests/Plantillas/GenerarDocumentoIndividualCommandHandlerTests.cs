@@ -18,6 +18,7 @@ using CaeManager.Domain.Empresas;
 using CaeManager.Domain.Plantillas;
 using CaeManager.Domain.Trabajadores;
 using FluentAssertions;
+using Microsoft.Extensions.Logging.Abstractions;
 using Xunit;
 
 namespace CaeManager.Application.Tests.Plantillas;
@@ -60,12 +61,13 @@ public class GenerarDocumentoIndividualCommandHandlerTests
         public SerializacionAltasAcreditacionEmpresaFalsa Serializacion { get; } = new();
 
         public GenerarDocumentoIndividualCommandHandler CrearHandler(
-            Guid? usuarioActualId = null, IAlcanceDatosService? alcanceDatos = null, bool sinUsuario = false) => new(
+            Guid? usuarioActualId = null, IAlcanceDatosService? alcanceDatos = null, bool sinUsuario = false,
+            IInvalidadorAlcance? invalidadorAlcance = null) => new(
             Versiones, Plantillas, Documentos, new DocumentoGeneradoRepositorioFalso(), TiposDocumento,
             Empresas, Trabajadores, Centros, Contactos, Rellenador, Almacenamiento,
             new CurrentUserServiceFalso(sinUsuario ? null : usuarioActualId ?? Guid.NewGuid()),
             alcanceDatos ?? new AlcanceDatosServiceFalso(), Asignaciones, Serializacion, AltaAcreditaciones, UnitOfWork,
-            GestionAutomatica);
+            GestionAutomatica, NullLogger<GenerarDocumentoIndividualCommandHandler>.Instance, invalidadorAlcance ?? new InvalidadorAlcanceInerte());
 
         public UnitOfWorkFalso UnitOfWork { get; } = new();
 
@@ -213,15 +215,181 @@ public class GenerarDocumentoIndividualCommandHandlerTests
             usuarioId);
         (int Documentos, int Altas)? alTomarElCandado = null;
         entorno.Serializacion.AlTomarElCandado = () => alTomarElCandado = (entorno.Documentos.Documentos.Count, alta.Recibidas.Count);
+        var archivosAntes = entorno.Almacenamiento.ArchivosGuardados;
 
         var resultado = await entorno.CrearHandler(usuarioId).Handle(
             new GenerarDocumentoIndividualCommand(entorno.Version.Id, empresa.Id), CancellationToken.None);
 
         resultado.EsExitoso.Should().BeTrue();
+        // Revisión puente de la ronda 2 sobre la PR #2121: la compensación del PDF solo actúa ante el rechazo.
+        entorno.Almacenamiento.ArchivosGuardados.Should().Be(archivosAntes + 1, "el PDF del Documento confirmado se conserva");
+        await using (var _ = await entorno.Almacenamiento.AbrirAsync(entorno.Documentos.Documentos.Single().ArchivoUrl!)) { }
         entorno.Serializacion.Llamadas.Should().Be(1, "el alta de un Documento de Empresa se serializa con la de un acceso de plataforma");
         alTomarElCandado.Should().Be((0, 0), "el Documento y sus acreditaciones se agregan dentro de la operación serializada");
         entorno.Documentos.Documentos.Should().ContainSingle().Which.Id.Should().Be(resultado.Valor.DocumentoId);
         alta.Recibidas.Should().ContainSingle().Which.Documentos.Should().ContainSingle().Which.Id.Should().Be(resultado.Valor.DocumentoId);
+    }
+
+    [Fact]
+    public async Task Generar_un_documento_de_empresa_cuya_cartera_se_revoca_mientras_espera_el_candado_no_lo_guarda()
+    {
+        // Issue #2118: la Asignación de Cartera se vuelve a decidir bajo el candado, sin el alcance memoizado de antes.
+        var tipo = new TipoDocumento("Plan de prevención", null, false, 1, AmbitoAplicacion.Empresa);
+        var entorno = await ConstruirEntornoAsync(tipo, AmbitoAplicacion.Empresa);
+        var empresa = new Empresa("Contratista SL", "B12345674");
+        entorno.Empresas.ListaEmpresas.Add(empresa);
+        var alta = new AltaAcreditacionesPlataformaServiceFalso();
+        entorno.AltaAcreditaciones = alta;
+        var usuarioId = Guid.NewGuid();
+        Confirmar(entorno.Version,
+            [new PlantillaElemento(entorno.Version.Id, TipoElementoPlantilla.Texto, 1, 0, 0, 10, 10, "Razón social", FuenteDatoPlantilla.EmpresaRazonSocial)],
+            usuarioId);
+        var alcance = new AlcanceMemoizadoRevocableFalso(new AlcanceDatosServiceFalso());
+        entorno.Serializacion.AlTomarElCandado = alcance.Revocar;
+        var archivosAntes = entorno.Almacenamiento.ArchivosGuardados;
+
+        var resultado = await entorno.CrearHandler(usuarioId, alcance, invalidadorAlcance: alcance).Handle(
+            new GenerarDocumentoIndividualCommand(entorno.Version.Id, empresa.Id), CancellationToken.None);
+
+        entorno.Serializacion.Llamadas.Should().Be(1, "la primera comprobación, con la cartera aún vigente, deja pasar hasta el candado");
+        resultado.Error.Codigo.Should().Be("Plantilla.PropietarioNoEncontrado");
+        entorno.Documentos.Documentos.Should().BeEmpty();
+        entorno.UnitOfWork.VecesGuardado.Should().Be(0);
+        alta.Recibidas.Should().BeEmpty();
+        // Ronda 1 de Codex sobre la PR #2121: el PDF se guarda antes del candado y ningún Documento llega a referenciarlo.
+        entorno.Almacenamiento.ArchivosGuardados.Should().Be(archivosAntes, "el PDF generado se elimina al rechazarse el alta");
+    }
+
+    [Fact]
+    public async Task Generar_un_documento_de_empresa_cuyo_centro_sale_de_la_cartera_mientras_espera_el_candado_no_lo_guarda()
+    {
+        // Ronda 1 de Codex sobre la PR #2121: la Empresa sigue en la cartera y solo el Centro deja de estarlo; lo tiene
+        // que ver la comprobación del Centro bajo el candado, no la de la Empresa.
+        var tipo = new TipoDocumento("Plan de prevención", null, false, 1, AmbitoAplicacion.Empresa);
+        var entorno = await ConstruirEntornoAsync(tipo, AmbitoAplicacion.Empresa);
+        var cliente = Empresa.CrearComoCliente("Cliente SA", "B12345674", false, null, null);
+        var empresa = new Empresa("Contratista SL", "B12345674");
+        entorno.Empresas.ListaEmpresas.AddRange([cliente, empresa]);
+        var centro = new Centro(cliente.Id, empresa.Id, "Centro Norte");
+        entorno.Centros.ListaCentros.Add(centro);
+        var alta = new AltaAcreditacionesPlataformaServiceFalso();
+        entorno.AltaAcreditaciones = alta;
+        var usuarioId = Guid.NewGuid();
+        Confirmar(entorno.Version,
+            [new PlantillaElemento(entorno.Version.Id, TipoElementoPlantilla.Texto, 1, 0, 0, 10, 10, "Razón social", FuenteDatoPlantilla.EmpresaRazonSocial)],
+            usuarioId);
+        var alcance = new AlcanceMemoizadoRevocableFalso(
+            new AlcanceDatosServiceFalso(tieneAccesoTotal: false, empresaIdsVisibles: [empresa.Id], centroIdsVisibles: [centro.Id]),
+            revocado: new AlcanceDatosServiceFalso(tieneAccesoTotal: false, empresaIdsVisibles: [empresa.Id], centroIdsVisibles: []));
+        entorno.Serializacion.AlTomarElCandado = alcance.Revocar;
+        var archivosAntes = entorno.Almacenamiento.ArchivosGuardados;
+
+        var resultado = await entorno.CrearHandler(usuarioId, alcance, invalidadorAlcance: alcance).Handle(
+            new GenerarDocumentoIndividualCommand(entorno.Version.Id, empresa.Id, CentroId: centro.Id), CancellationToken.None);
+
+        entorno.Serializacion.Llamadas.Should().Be(1, "la primera comprobación, con el Centro aún en la cartera, deja pasar hasta el candado");
+        resultado.Error.Codigo.Should().Be("Plantilla.CentroNoEncontrado");
+        entorno.Documentos.Documentos.Should().BeEmpty();
+        entorno.UnitOfWork.VecesGuardado.Should().Be(0);
+        alta.Recibidas.Should().BeEmpty();
+        entorno.Almacenamiento.ArchivosGuardados.Should().Be(archivosAntes, "el PDF generado se elimina al rechazarse el alta");
+    }
+
+    [Fact]
+    public async Task Si_no_se_puede_eliminar_el_pdf_tras_revocarse_la_cartera_devuelve_igualmente_el_rechazo()
+    {
+        // La limpieza es best-effort, como en AgregarVersionPlantillaCommandHandler: su fallo no tapa el rechazo real.
+        var tipo = new TipoDocumento("Plan de prevención", null, false, 1, AmbitoAplicacion.Empresa);
+        var entorno = await ConstruirEntornoAsync(tipo, AmbitoAplicacion.Empresa);
+        var empresa = new Empresa("Contratista SL", "B12345674");
+        entorno.Empresas.ListaEmpresas.Add(empresa);
+        var usuarioId = Guid.NewGuid();
+        Confirmar(entorno.Version,
+            [new PlantillaElemento(entorno.Version.Id, TipoElementoPlantilla.Texto, 1, 0, 0, 10, 10, "Razón social", FuenteDatoPlantilla.EmpresaRazonSocial)],
+            usuarioId);
+        var alcance = new AlcanceMemoizadoRevocableFalso(new AlcanceDatosServiceFalso());
+        entorno.Serializacion.AlTomarElCandado = alcance.Revocar;
+        entorno.Almacenamiento.ExcepcionAlEliminar = new IOException("almacenamiento caído");
+
+        var resultado = await entorno.CrearHandler(usuarioId, alcance, invalidadorAlcance: alcance).Handle(
+            new GenerarDocumentoIndividualCommand(entorno.Version.Id, empresa.Id), CancellationToken.None);
+
+        resultado.Error.Codigo.Should().Be("Plantilla.PropietarioNoEncontrado");
+        entorno.Documentos.Documentos.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task Si_la_limpieza_del_pdf_se_cancela_tras_revocarse_la_cartera_devuelve_igualmente_el_rechazo()
+    {
+        // Ronda 2 de Codex sobre la PR #2121: una cancelación al limpiar tampoco sustituye al rechazo de la cartera.
+        var tipo = new TipoDocumento("Plan de prevención", null, false, 1, AmbitoAplicacion.Empresa);
+        var entorno = await ConstruirEntornoAsync(tipo, AmbitoAplicacion.Empresa);
+        var empresa = new Empresa("Contratista SL", "B12345674");
+        entorno.Empresas.ListaEmpresas.Add(empresa);
+        var usuarioId = Guid.NewGuid();
+        Confirmar(entorno.Version,
+            [new PlantillaElemento(entorno.Version.Id, TipoElementoPlantilla.Texto, 1, 0, 0, 10, 10, "Razón social", FuenteDatoPlantilla.EmpresaRazonSocial)],
+            usuarioId);
+        var alcance = new AlcanceMemoizadoRevocableFalso(new AlcanceDatosServiceFalso());
+        entorno.Serializacion.AlTomarElCandado = alcance.Revocar;
+        entorno.Almacenamiento.ExcepcionAlEliminar = new OperationCanceledException();
+
+        var resultado = await entorno.CrearHandler(usuarioId, alcance, invalidadorAlcance: alcance).Handle(
+            new GenerarDocumentoIndividualCommand(entorno.Version.Id, empresa.Id), CancellationToken.None);
+
+        resultado.Error.Codigo.Should().Be("Plantilla.PropietarioNoEncontrado");
+        entorno.Documentos.Documentos.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task Si_no_se_puede_comprobar_si_consta_el_documento_tras_revocarse_la_cartera_se_conserva_el_pdf()
+    {
+        // Revisión puente de la ronda 3 sobre la PR #2121: ante la duda no se borra, porque podría ser el PDF de un
+        // Documento confirmado en un commit ambiguo.
+        var tipo = new TipoDocumento("Plan de prevención", null, false, 1, AmbitoAplicacion.Empresa);
+        var entorno = await ConstruirEntornoAsync(tipo, AmbitoAplicacion.Empresa);
+        var empresa = new Empresa("Contratista SL", "B12345674");
+        entorno.Empresas.ListaEmpresas.Add(empresa);
+        var usuarioId = Guid.NewGuid();
+        Confirmar(entorno.Version,
+            [new PlantillaElemento(entorno.Version.Id, TipoElementoPlantilla.Texto, 1, 0, 0, 10, 10, "Razón social", FuenteDatoPlantilla.EmpresaRazonSocial)],
+            usuarioId);
+        var alcance = new AlcanceMemoizadoRevocableFalso(new AlcanceDatosServiceFalso());
+        entorno.Serializacion.AlTomarElCandado = alcance.Revocar;
+        entorno.Documentos.ExcepcionAlComprobar = new InvalidOperationException("base caída");
+        var archivosAntes = entorno.Almacenamiento.ArchivosGuardados;
+
+        var resultado = await entorno.CrearHandler(usuarioId, alcance, invalidadorAlcance: alcance).Handle(
+            new GenerarDocumentoIndividualCommand(entorno.Version.Id, empresa.Id), CancellationToken.None);
+
+        resultado.Error.Codigo.Should().Be("Plantilla.PropietarioNoEncontrado");
+        entorno.Almacenamiento.ArchivosGuardados.Should().Be(archivosAntes + 1, "sin comprobar que ningún Documento lo referencia, el PDF se conserva");
+    }
+
+    [Fact]
+    public async Task Un_reintento_rechazado_por_la_cartera_tras_un_commit_confirmado_no_borra_el_pdf_del_documento()
+    {
+        // Ronda 2 de Codex sobre la PR #2121: el commit se confirma pero comunica un error transitorio, la cartera se
+        // revoca antes del reintento y este rechaza. El Documento confirmado sigue referenciando su PDF.
+        var tipo = new TipoDocumento("Plan de prevención", null, false, 1, AmbitoAplicacion.Empresa);
+        var entorno = await ConstruirEntornoAsync(tipo, AmbitoAplicacion.Empresa);
+        var empresa = new Empresa("Contratista SL", "B12345674");
+        entorno.Empresas.ListaEmpresas.Add(empresa);
+        var usuarioId = Guid.NewGuid();
+        Confirmar(entorno.Version,
+            [new PlantillaElemento(entorno.Version.Id, TipoElementoPlantilla.Texto, 1, 0, 0, 10, 10, "Razón social", FuenteDatoPlantilla.EmpresaRazonSocial)],
+            usuarioId);
+        var alcance = new AlcanceMemoizadoRevocableFalso(new AlcanceDatosServiceFalso());
+        entorno.Serializacion.AntesDeReintentarTrasConfirmar = alcance.Revocar;
+        var archivosAntes = entorno.Almacenamiento.ArchivosGuardados;
+
+        var resultado = await entorno.CrearHandler(usuarioId, alcance, invalidadorAlcance: alcance).Handle(
+            new GenerarDocumentoIndividualCommand(entorno.Version.Id, empresa.Id), CancellationToken.None);
+
+        resultado.Error.Codigo.Should().Be("Plantilla.PropietarioNoEncontrado", "el reintento rechaza con la cartera ya revocada");
+        var documento = entorno.Documentos.Documentos.Should().ContainSingle("el primer intento lo confirmó").Subject;
+        entorno.Almacenamiento.ArchivosGuardados.Should().Be(archivosAntes + 1, "el PDF del Documento confirmado se conserva");
+        await using (var _ = await entorno.Almacenamiento.AbrirAsync(documento.ArchivoUrl!)) { }
     }
 
     [Fact]
@@ -528,7 +696,8 @@ public class GenerarDocumentoIndividualCommandHandlerTests
             entorno.Empresas, entorno.Trabajadores, entorno.Centros, entorno.Contactos,
             entorno.Rellenador, entorno.Almacenamiento, new CurrentUserServiceFalso(usuarioId),
             new AlcanceDatosServiceFalso(), entorno.Asignaciones, new SerializacionAltasAcreditacionEmpresaFalsa(),
-            new AltaAcreditacionesPlataformaServiceFalso(), new UnitOfWorkFalso(), new NacimientoGestionAutomaticaQueRegistra());
+            new AltaAcreditacionesPlataformaServiceFalso(), new UnitOfWorkFalso(), new NacimientoGestionAutomaticaQueRegistra(),
+            NullLogger<GenerarDocumentoIndividualCommandHandler>.Instance);
 
         var resultado = await handler.Handle(
             new GenerarDocumentoIndividualCommand(entorno.Version.Id, trabajador.Id), CancellationToken.None);
@@ -574,12 +743,15 @@ public class GenerarDocumentoIndividualCommandHandlerTests
             new PlantillaElemento(entorno.Version.Id, TipoElementoPlantilla.Texto, 1, 0, 0, 10, 10, "Nombre completo", FuenteDatoPlantilla.TrabajadorNombreCompleto, obligatorio: true),
         ], Guid.NewGuid());
         var handler = entorno.CrearHandler();
+        var archivosAntes = entorno.Almacenamiento.ArchivosGuardados;
 
         var resultado = await handler.Handle(
             new GenerarDocumentoIndividualCommand(entorno.Version.Id, trabajador.Id), CancellationToken.None);
 
         resultado.EsExitoso.Should().BeTrue();
         resultado.Valor.CamposObligatoriosVacios.Should().BeEmpty();
+        entorno.Almacenamiento.ArchivosGuardados.Should().Be(archivosAntes + 1, "el PDF del Documento confirmado se conserva");
+        await using (var _ = await entorno.Almacenamiento.AbrirAsync(entorno.Documentos.Documentos.Single().ArchivoUrl!)) { }
     }
 
     [Fact]
@@ -718,7 +890,8 @@ public class GenerarDocumentoIndividualCommandHandlerTests
             entorno.Empresas, entorno.Trabajadores, entorno.Centros, entorno.Contactos,
             entorno.Rellenador, entorno.Almacenamiento, new CurrentUserServiceFalso(usuarioId),
             new AlcanceDatosServiceFalso(), entorno.Asignaciones, new SerializacionAltasAcreditacionEmpresaFalsa(),
-            new AltaAcreditacionesPlataformaServiceFalso(), new UnitOfWorkFalso(), new NacimientoGestionAutomaticaQueRegistra());
+            new AltaAcreditacionesPlataformaServiceFalso(), new UnitOfWorkFalso(), new NacimientoGestionAutomaticaQueRegistra(),
+            NullLogger<GenerarDocumentoIndividualCommandHandler>.Instance);
 
         await handler.Handle(new GenerarDocumentoIndividualCommand(entorno.Version.Id, trabajador.Id), CancellationToken.None);
 
@@ -748,7 +921,8 @@ public class GenerarDocumentoIndividualCommandHandlerTests
             entorno.Empresas, entorno.Trabajadores, entorno.Centros, entorno.Contactos,
             entorno.Rellenador, entorno.Almacenamiento, new CurrentUserServiceFalso(usuarioId),
             new AlcanceDatosServiceFalso(), entorno.Asignaciones, new SerializacionAltasAcreditacionEmpresaFalsa(),
-            new AltaAcreditacionesPlataformaServiceFalso(), new UnitOfWorkFalso(), new NacimientoGestionAutomaticaQueRegistra());
+            new AltaAcreditacionesPlataformaServiceFalso(), new UnitOfWorkFalso(), new NacimientoGestionAutomaticaQueRegistra(),
+            NullLogger<GenerarDocumentoIndividualCommandHandler>.Instance);
 
         await handler.Handle(new GenerarDocumentoIndividualCommand(entorno.Version.Id, trabajador.Id), CancellationToken.None);
 
@@ -773,7 +947,8 @@ public class GenerarDocumentoIndividualCommandHandlerTests
             entorno.Empresas, entorno.Trabajadores, entorno.Centros, entorno.Contactos,
             entorno.Rellenador, entorno.Almacenamiento, new CurrentUserServiceFalso(usuarioId),
             new AlcanceDatosServiceFalso(), entorno.Asignaciones, new SerializacionAltasAcreditacionEmpresaFalsa(),
-            new AltaAcreditacionesPlataformaServiceFalso(), new UnitOfWorkFalso(), new NacimientoGestionAutomaticaQueRegistra());
+            new AltaAcreditacionesPlataformaServiceFalso(), new UnitOfWorkFalso(), new NacimientoGestionAutomaticaQueRegistra(),
+            NullLogger<GenerarDocumentoIndividualCommandHandler>.Instance);
 
         await handler.Handle(new GenerarDocumentoIndividualCommand(entorno.Version.Id, trabajador.Id), CancellationToken.None);
 

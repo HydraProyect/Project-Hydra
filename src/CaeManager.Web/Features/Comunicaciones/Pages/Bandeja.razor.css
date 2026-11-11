@@ -37,7 +37,8 @@
     grid-template-columns: var(--bandeja-ancho-lista) minmax(0, 1fr);
     gap: var(--space-5);
     align-items: start;
-    height: calc(100vh - 120px);
+    /* 120 px de marco de la página + 64 px de la cabecera de página (52 px de banda y 12 px de aire). */
+    height: calc(100vh - 184px);
     min-height: 480px;
 }
 
@@ -90,28 +91,181 @@
     border-bottom: var(--border-default);
 }
 
-/* Cabecera de la columna de la lista (Gen 2): título de la pantalla y
-   "Redactar", como en el mockup. */
-.bandeja-lista-cabecera {
+/* Cabecera de página (maqueta 2026-11-01, `.cab`): banda de 52 px con el título (16/20 700), el buscador
+   (máx. 420 px, 36 px de alto) y «Nuevo correo» a la derecha. */
+.bandeja-cabecera-pagina {
     display: flex;
     align-items: center;
-    justify-content: space-between;
-    gap: var(--space-3);
-    padding: var(--space-4) var(--space-4) 0;
+    gap: 12px;
+    min-height: 52px;
+    padding: 0 var(--space-4);
+    margin-bottom: 12px;
+    border: var(--border-default);
+    border-radius: var(--radius-lg);
+    background-color: var(--color-surface);
+}
+
+.bandeja-cabecera-pagina ::deep .boton {
+    margin-left: auto;
+    flex: none;
 }
 
 .bandeja-lista-titulo {
     margin: 0;
-    font: var(--font-heading-sm);
+    flex: none;
+    font: 700 16px/20px var(--font-family);
     color: var(--color-text);
 }
 
-/* Toggle "Clientes | Mi buzón personal" — siempre visible encima de los
-   filtros, que solo aplican a la vista de Clientes. */
-.bandeja-vista-toggle {
+/* Ámbito de la bandeja (maqueta, `.it`): «Clientes» y «Mi buzón personal» son ítems de navegación de 32 px,
+   13/18, con el activo en primary-50 / primary-700 600 (E6). Siempre visibles encima de los filtros, que solo
+   aplican al ámbito de Clientes. */
+.bandeja-nav {
     display: flex;
-    gap: var(--space-2);
-    padding: var(--space-3) var(--space-4) 0;
+    flex-direction: column;
+    gap: 2px;
+    padding: var(--space-3) var(--space-2) 0;
+}
+
+.bandeja-nav-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    width: 100%;
+    min-height: 32px;
+    padding: 4px 8px;
+    border: 0;
+    border-radius: var(--radius-lg);
+    background: transparent;
+    color: var(--color-text);
+    font: 400 13px/18px var(--font-family);
+    text-align: left;
+    cursor: pointer;
+}
+
+.bandeja-nav-item:hover {
+    background-color: var(--color-fila-hover);
+}
+
+.bandeja-nav-item:focus-visible {
+    outline: 2px solid var(--color-primary-500);
+    outline-offset: -2px;
+}
+
+.bandeja-nav-item-activo,
+.bandeja-nav-item-activo:hover {
+    background-color: var(--color-primary-50);
+    color: var(--color-primary-700);
+    font-weight: 600;
+}
+
+.bandeja-nav-item-texto {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+/* Encabezado de la lista (maqueta, `.lis-cab`, E9): título 14/20 600, recuento 12/16 y «Tabla». */
+.bandeja-lis-cab {
+    flex: none;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 12px;
+    border-bottom: 1px solid var(--color-fila-divisor);
+}
+
+.bandeja-lis-cab-t {
+    flex: 1;
+    min-width: 0;
+}
+
+.bandeja-lis-cab-titulo {
+    margin: 0;
+    overflow: hidden;
+    font: 600 14px/20px var(--font-family);
+    color: var(--color-text);
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.bandeja-lis-cab-t small {
+    display: block;
+    font: 500 12px/16px var(--font-family);
+    color: var(--color-text-muted);
+}
+
+/* Botón pequeño de la maqueta (`.mini`): 32 px, 12/16 500, radius-md (la regla única de radios de la maqueta la sitúa
+   ahí, no en radius-sm). Borde de control (3:1, DDL-062/063) en vez del border-strong de la maqueta. */
+.bandeja-mini {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    height: 32px;
+    padding: 0 8px;
+    border: var(--border-control);
+    border-radius: var(--radius-md);
+    background: var(--color-surface);
+    color: var(--color-text);
+    font: 500 12px/16px var(--font-family);
+    white-space: nowrap;
+    cursor: pointer;
+}
+
+.bandeja-mini:hover {
+    background: var(--color-surface-hover);
+}
+
+.bandeja-cargando-texto {
+    margin: 0;
+    padding: 0 12px;
+    font: 500 12px/16px var(--font-family);
+    color: var(--color-text-muted);
+}
+
+/* Estados vacío y de error de la bandeja (maqueta, `.vacio`, E14): relleno de 32 px, 8 px entre piezas, título 18/26 600
+   y altura mínima de 200 px centrada. EstadoVacio es compartido (relleno de 48 px y título 22/30), por eso se acota aquí. */
+.bandeja-centro ::deep .estado-vacio,
+.bandeja-lista ::deep .estado-vacio {
+    flex: 1;
+    justify-content: center;
+    min-height: 200px;
+    padding: 32px;
+}
+
+.bandeja-centro ::deep .estado-vacio h3,
+.bandeja-lista ::deep .estado-vacio h3 {
+    font: 600 18px/26px var(--font-family);
+}
+
+.bandeja-centro ::deep .estado-vacio-accion,
+.bandeja-lista ::deep .estado-vacio-accion {
+    margin-top: 0;
+}
+
+/* Bloque del vacío de la lista (maqueta, `.vacio`): «Al día» y el EstadoVacio comparten un bloque centrado, 8 px entre
+   piezas; el EstadoVacio pierde aquí su relleno y su altura mínima, que pasan al bloque. */
+.bandeja-vacio-bloque {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    min-height: 200px;
+    padding: 32px;
+}
+
+.bandeja-vacio-bloque ::deep .estado-vacio {
+    flex: none;
+    min-height: 0;
+    padding: 0;
+}
+
+.bandeja-al-dia {
+    display: flex;
+    justify-content: center;
 }
 
 .bandeja-vista-personal-descripcion {
@@ -148,19 +302,6 @@
     font: var(--font-label-md);
     cursor: pointer;
     transition: border-color var(--motion-fast) var(--ease-standard), color var(--motion-fast) var(--ease-standard), background-color var(--motion-fast) var(--ease-standard);
-}
-
-/* Solo los dos conmutadores de ámbito (no los chips de filtro, que comparten la
-   clase): se reparten el ancho de la columna y su rótulo puede ocupar dos líneas;
-   con height fija de 32px «Clientes» se salía del botón. */
-.bandeja-vista-toggle .bandeja-toggle {
-    flex: 1 1 0;
-    min-width: 0;
-    height: auto;
-    min-height: 32px;
-    padding: var(--space-1) var(--space-3);
-    line-height: 1.2;
-    text-align: center;
 }
 
 .bandeja-toggle:hover {
@@ -733,7 +874,7 @@ a.bandeja-documento-citado-nombre:hover {
     }
 }
 
-@media (max-width: 1023px) {
+@media (max-width: 1099px) {
     .bandeja-layout,
     .bandeja-layout:has(.bandeja-cliente) {
         grid-template-columns: 1fr;
@@ -746,7 +887,7 @@ a.bandeja-documento-citado-nombre:hover {
     }
 }
 
-@media (max-width: 1023px) {
+@media (max-width: 1099px) {
     .bandeja-divisor {
         display: none;
     }
@@ -945,7 +1086,7 @@ a.bandeja-documento-citado-nombre:hover {
 
 /* Apilado (<= 1023 px, la columna ya no tiene alto fijo): el hilo crece con su contenido y la página se desplaza;
    con max-height 70vh y overflow oculto el pie del editor quedaba recortado. */
-@media (max-width: 1023px) {
+@media (max-width: 1099px) {
     .bandeja-modo-hilo .bandeja-centro {
         max-height: none;
     }
@@ -993,7 +1134,7 @@ a.bandeja-documento-citado-nombre:hover {
     }
 }
 
-@media (max-width: 760px) {
+@media (max-width: 1099px) {
     .bandeja-modo-hilo,
     .bandeja-modo-hilo:has(.bandeja-cliente) {
         grid-template-columns: 1fr;
@@ -1012,7 +1153,7 @@ a.bandeja-documento-citado-nombre:hover {
     grid-template-columns: var(--bandeja-ancho-lista) minmax(0, 1fr);
 }
 
-@media (max-width: 1023px) {
+@media (max-width: 1099px) {
     .bandeja-modo-tabla {
         grid-template-columns: 1fr;
     }
@@ -1027,16 +1168,11 @@ a.bandeja-documento-citado-nombre:hover {
     display: none;
 }
 
+/* Tabla a sangre (maqueta, `.tabla-w`, E13): sin relleno propio; el encabezado de la lista y la tabla llegan al borde. */
 .bandeja-modo-tabla .bandeja-centro {
-    padding: 24px 28px;
-    gap: 16px;
+    padding: 0;
+    gap: 0;
     overflow-y: auto;
-}
-
-.bandeja-tabla-cabecera {
-    display: flex;
-    flex-direction: column;
-    gap: 4px;
 }
 
 .bandeja-modo-tabla .bandeja-toggles {
@@ -1049,22 +1185,24 @@ a.bandeja-documento-citado-nombre:hover {
     text-align: left;
 }
 
+/* Buscador de la cabecera de página (maqueta, `.bus`, E3): 36 px de alto, hasta 420 px, texto 13/18. */
 .bandeja-buscar {
     display: flex;
     align-items: center;
+    flex: 1 1 240px;
     gap: 8px;
-    width: min(100%, 360px);
-    min-height: 40px;
-    padding: 0 12px;
-    border: var(--border-default);
-    border-radius: var(--radius-md);
+    max-width: 420px;
+    height: 36px;
+    padding: 0 8px;
+    border: var(--border-control);
+    border-radius: var(--radius-lg);
     background: var(--color-surface);
     color: var(--color-text-muted);
 }
 
 .bandeja-buscar:focus-within {
     outline: 2px solid var(--color-primary-500);
-    outline-offset: 2px;
+    outline-offset: 1px;
 }
 
 .bandeja-buscar input {
@@ -1075,17 +1213,7 @@ a.bandeja-documento-citado-nombre:hover {
     outline: 0;
     background: none;
     color: var(--color-text);
-    font: var(--font-body-md);
-}
-
-.bandeja-tabla-cabecera h2 {
-    margin: 0;
-    font: var(--font-heading-lg);
-}
-
-.bandeja-tabla-cabecera > span {
-    color: var(--color-text-muted);
-    font: var(--font-body-sm);
+    font: 400 13px/18px var(--font-family);
 }
 
 .bandeja-volver {
@@ -1119,5 +1247,48 @@ a.bandeja-documento-citado-nombre:hover {
 
     .bandeja-modo-tabla .bandeja-centro {
         padding: 16px;
+    }
+}
+
+/* Puntos de corte de la maqueta 2026-11-01 (E27, lo que es CSS): la columna de contexto mide 304 px desde 1600 y
+   320 px desde 1760, y la lista del hilo 344 y 380 px; por debajo de 1100 px la pantalla pasa a una columna (la
+   lista y el hilo se alternan con «Volver») y desde 760 px la lista tiene al menos 60vh y el buscador ocupa la
+   fila entera. El cajón de contexto (<1440) y el de la cartera (<1280) no existen aún: dependen de E4 y de E1. */
+@media (min-width: 1600px) {
+    .bandeja-modo-hilo,
+    .bandeja-modo-hilo:has(.bandeja-cliente) {
+        --bandeja-ancho-lista: 344px;
+    }
+
+    .bandeja-modo-hilo:has(.bandeja-cliente) {
+        grid-template-columns: var(--bandeja-ancho-lista) minmax(0, 1fr) 304px;
+    }
+}
+
+@media (min-width: 1760px) {
+    .bandeja-modo-hilo,
+    .bandeja-modo-hilo:has(.bandeja-cliente) {
+        --bandeja-ancho-lista: 380px;
+    }
+
+    .bandeja-modo-hilo:has(.bandeja-cliente) {
+        grid-template-columns: var(--bandeja-ancho-lista) minmax(0, 1fr) 320px;
+    }
+}
+
+@media (max-width: 760px) {
+    .bandeja-cabecera-pagina {
+        flex-wrap: wrap;
+        padding: 8px var(--space-4);
+    }
+
+    .bandeja-cabecera-pagina .bandeja-buscar {
+        flex: 1 1 100%;
+        max-width: none;
+        order: 3;
+    }
+
+    .bandeja-modo-hilo .bandeja-filtros {
+        min-height: 60vh;
     }
 }

@@ -123,12 +123,13 @@ public class Fidelidad360FichasTests(WebAppFixtureFichas360 fixture)
         // Esa escritura es la señal exacta de que el circuito ya aplicó (o quitó) data-theme:
         // un tema impuesto antes sería pisado después, y dos mediciones seguidas diferirían.
         //
-        // La ficha es otra isla interactiva (@rendermode InteractiveServer) y el circuito no
-        // reutiliza el DOM del prerender: lo sustituye por su primer render, que es «Cargando»
-        // (sin ninguna pieza) hasta que terminan sus consultas. La tarjeta del lateral que se ve
-        // al cargar es la del prerender, y el tema aplicado no dice nada de la ficha: medir
-        // entonces da dos lecturas vacías iguales (INSTRUMENTO CIEGO). Por eso se apunta también
-        // cuándo inserta el circuito, ya con el documento parseado, la tarjeta del lateral.
+        // La ficha es otra isla interactiva (@rendermode InteractiveServer) y su primer render en el
+        // circuito es «Cargando» (sin ninguna pieza) hasta que terminan sus consultas. Las fichas
+        // ya no se prerenderizan (prerender: false) y el observador se conserva como guarda: si una
+        // ficha volviera a prerenderizarse, la tarjeta del lateral que se ve al cargar sería la del
+        // HTML y el tema aplicado no diría nada de la ficha: medir entonces da dos lecturas vacías
+        // iguales (INSTRUMENTO CIEGO). Por eso se apunta también cuándo inserta el circuito, ya con
+        // el documento parseado, la tarjeta del lateral.
         // readyState se lee al entregarse el registro, no al insertarse el nodo: vale porque
         // App.razor carga scripts síncronos tras el cuerpo, y cada uno entrega los registros del
         // analizador aún en 'loading'. Si esos scripts pasan a defer/async, esto hay que revisarlo.

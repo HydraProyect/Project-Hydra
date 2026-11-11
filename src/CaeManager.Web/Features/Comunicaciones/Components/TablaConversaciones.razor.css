@@ -1,35 +1,31 @@
+/* Tabla a sangre (maqueta 2026-11-01, `.tabla-w`, E13): sin tarjeta ni borde propios, cabecera 12/16 600 en
+   minúsculas sobre surface-subtle con relleno 8/12, celdas 13/18 con relleno 8/12 y un ancho mínimo de 860 px. */
 .tabla-conversaciones {
-    border: var(--border-default);
-    border-radius: var(--radius-lg);
     background: var(--color-surface);
-    overflow: hidden;
 }
 
 .tabla-conversaciones-fila {
     display: grid;
     grid-template-columns: 92px minmax(0, 1.7fr) minmax(0, 1fr) 168px 116px;
-    align-items: center;
+    align-items: start;
     gap: 14px;
-    min-height: 60px;
-    padding: 10px 16px;
-    border-top: var(--border-default);
-    font: var(--font-body-md);
+    padding: 8px 12px;
+    border-bottom: 1px solid var(--color-fila-divisor);
+    font: 400 13px/18px var(--font-family);
     color: var(--color-text);
 }
 
 .tabla-conversaciones-cabecera {
-    min-height: 34px;
-    border-top: 0;
+    position: sticky;
+    top: 0;
+    z-index: 1;
     background: var(--color-surface-subtle);
     color: var(--color-text-muted);
-    font: var(--font-caption);
-    text-transform: uppercase;
-    letter-spacing: .05em;
+    font: 600 12px/16px var(--font-family);
 }
-
 .tabla-conversaciones-fila:has(button):hover,
 .tabla-conversaciones-fila:focus-within {
-    background: var(--color-primary-50);
+    background: var(--color-fila-hover);
 }
 
 .tabla-conversaciones-asunto {
@@ -45,7 +41,7 @@
     border: 0;
     padding: 0;
     background: none;
-    color: var(--color-text);
+    color: var(--color-primary-500);
     font: inherit;
     font-weight: 600;
     text-align: left;
@@ -77,17 +73,39 @@
     font: var(--font-caption);
 }
 
+/* Prioridad = punto de 10 px + texto (maqueta, .prio y .cu): el texto va en el color base y solo el punto lleva el color de la prioridad (gris de control, rojo si es urgente), con 4 px entre ambos. */
 .tabla-prioridad {
-    color: var(--color-primary-700);
-    font: var(--font-label);
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    color: var(--color-text);
+    font: 400 13px/18px var(--font-family);
+    white-space: nowrap;
 }
 
-.tabla-prioridad-urgente,
-.tabla-prioridad-critica {
-    color: var(--color-danger-700);
+.tabla-prioridad-punto {
+    flex: none;
+    width: 10px;
+    height: 10px;
+    border-radius: var(--radius-full);
+    background: var(--color-border-control);
 }
 
-@media (max-width: 1180px) {
+.tabla-prioridad-urgente .tabla-prioridad-punto,
+.tabla-prioridad-critica .tabla-prioridad-punto {
+    background: var(--color-danger-500);
+}
+
+/* El ancho mínimo de 860 px de la maqueta solo cabe cuando la columna central lo tiene. A 1440 px son 876 (menú de 260,
+   relleno de 2 x 32 y filtros de 240), pero la barra vertical de 15 px lo deja en 861: sin margen. Desde 1460 px sobran 21 px
+   con la barra puesta. Por debajo, la tabla pasa a la composición apilada en vez de desbordar con una barra horizontal. */
+@media (min-width: 1460px) {
+    .tabla-conversaciones {
+        min-width: 860px;
+    }
+}
+
+@media (max-width: 1459px) {
     .tabla-conversaciones-fila {
         grid-template-columns: 76px minmax(0, 1.6fr) minmax(0, 1fr);
     }

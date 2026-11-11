@@ -1,4 +1,4 @@
-﻿using CaeManager.Application.Common;
+using CaeManager.Application.Common;
 using CaeManager.Application.Documentos.Acreditacion;
 using CaeManager.Domain.Asignaciones;
 using CaeManager.Domain.Common;
@@ -21,30 +21,16 @@ public class CrearAsignacionCommandValidator : AbstractValidator<CrearAsignacion
 public class CrearAsignacionCommandHandler(
     IAsignacionRepository repositorio, IAutoridadAsignacionesService autoridad,
     IAltaAcreditacionesPlataformaService altaAcreditaciones, IUnitOfWork unitOfWork,
-    ISerializacionAltasAcreditacionEmpresa serializacionAltas)
+    ISerializacionAltasAcreditacionEmpresa serializacionAltas,
+    // Opcional solo mientras la PR #2104 cambia los tests que construyen este handler: el contenedor siempre lo resuelve
+    // (InvalidadorAlcanceInerte por defecto, el AlcanceDatosService del circuito en la Web). Issue #2118.
+    IInvalidadorAlcance? invalidadorAlcance = null)
     : IRequestHandler<CrearAsignacionCommand, Result<Guid>>
 {
     public async Task<Result<Guid>> Handle(CrearAsignacionCommand request, CancellationToken cancellationToken)
     {
-        // Autoridad sobre el trabajador, no solo existencia (auditoría Módulo
-        // 5, hallazgo crítico 6/9): antes bastaba con que el trabajador
-        // existiera en el tenant, así que un trabajador fuera de la cartera
-        // del actor quedaba "secuestrado" hacia ella en cuanto se le
-        // asignaba, exponiendo DNI, contacto y documentación médica. Mismo
-        // error que "no encontrado" a propósito — ver PuedeModificarAsignacionesDelCentroAsync.
-        if (!await autoridad.PuedeModificarAsignacionesDelTrabajadorAsync(request.TrabajadorId, cancellationToken))
-            return Result.Fallo<Guid>(Error.Crear("Asignacion.TrabajadorNoEncontrado", "No encontramos este trabajador."));
-
-        // Autoridad sobre el centro, no solo existencia (decision del
-        // propietario, 2026-08-29): un gestor no asigna a un centro fuera de su
-        // arbol. Antes bastaba con que el centro existiera en el tenant, asi
-        // que cualquier gestor podia dar de alta a un trabajador en el centro
-        // de otro con solo conocer su Id.
-        //
-        // Mismo error que "no encontrado" a proposito: distinguir <<no existe>>
-        // de <<no es tuyo>> confirma la existencia de un centro ajeno.
-        if (!await autoridad.PuedeModificarAsignacionesDelCentroAsync(request.CentroId, cancellationToken))
-            return Result.Fallo<Guid>(Error.Crear("Asignacion.CentroNoEncontrado", "No encontramos este centro."));
+        if (await ComprobarAutoridadAsync(request, cancellationToken) is { } rechazo)
+            return Result.Fallo<Guid>(rechazo);
 
         var asignacion = new Asignacion(request.TrabajadorId, request.CentroId, request.FechaAlta);
 
@@ -62,6 +48,13 @@ public class CrearAsignacionCommandHandler(
         // esperaba se ve (revisión Codex de la PR #2074, ronda 4).
         var guardado = await serializacionAltas.EjecutarAsync(async ct =>
         {
+            // La autoridad (Asignación de Cartera) también se vuelve a decidir: pudo revocarse mientras se esperaba, y
+            // el alcance memoizado (en Blazor Server, el del circuito) es de antes; se descarta, igual que en
+            // BloqueoRespuestaSugerida.ComprobarEnvioPorBuzonAsync (issue #2118).
+            invalidadorAlcance?.Invalidar();
+            if (await ComprobarAutoridadAsync(request, ct) is { } rechazoBajoCandado)
+                return Result.Fallo(rechazoBajoCandado);
+
             if (await repositorio.ExisteActivaAsync(request.TrabajadorId, request.CentroId, ct))
                 return Result.Fallo(Error.Crear(
                     "Asignacion.YaActiva", "Este trabajador ya está dado de alta en este centro."));
@@ -82,5 +75,30 @@ public class CrearAsignacionCommandHandler(
         }, cancellationToken);
 
         return guardado.EsExitoso ? Result.Exito(asignacion.Id) : Result.Fallo<Guid>(guardado.Error);
+    }
+
+    private async Task<Error?> ComprobarAutoridadAsync(CrearAsignacionCommand request, CancellationToken cancellationToken)
+    {
+        // Autoridad sobre el trabajador, no solo existencia (auditoría Módulo
+        // 5, hallazgo crítico 6/9): antes bastaba con que el trabajador
+        // existiera en el tenant, así que un trabajador fuera de la cartera
+        // del actor quedaba "secuestrado" hacia ella en cuanto se le
+        // asignaba, exponiendo DNI, contacto y documentación médica. Mismo
+        // error que "no encontrado" a propósito — ver PuedeModificarAsignacionesDelCentroAsync.
+        if (!await autoridad.PuedeModificarAsignacionesDelTrabajadorAsync(request.TrabajadorId, cancellationToken))
+            return Error.Crear("Asignacion.TrabajadorNoEncontrado", "No encontramos este trabajador.");
+
+        // Autoridad sobre el centro, no solo existencia (decision del
+        // propietario, 2026-08-29): un gestor no asigna a un centro fuera de su
+        // arbol. Antes bastaba con que el centro existiera en el tenant, asi
+        // que cualquier gestor podia dar de alta a un trabajador en el centro
+        // de otro con solo conocer su Id.
+        //
+        // Mismo error que "no encontrado" a proposito: distinguir <<no existe>>
+        // de <<no es tuyo>> confirma la existencia de un centro ajeno.
+        if (!await autoridad.PuedeModificarAsignacionesDelCentroAsync(request.CentroId, cancellationToken))
+            return Error.Crear("Asignacion.CentroNoEncontrado", "No encontramos este centro.");
+
+        return null;
     }
 }

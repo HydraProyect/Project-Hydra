@@ -816,3 +816,37 @@
     text-align: center;
     padding: var(--space-4);
 }
+
+/* Vistas de la pantalla (Paso 1 · Estructura / Historial y otras plantillas): pestañas de la maqueta del Importador. */
+.nav-vistas-importacion {
+    display: flex;
+    gap: var(--space-1);
+    border-bottom: 1px solid var(--color-border-strong);
+    margin-top: var(--space-4);
+    overflow-x: auto;
+}
+
+.vista-importacion {
+    padding: var(--space-3) var(--space-4);
+    min-height: 40px;
+    border: 0;
+    border-bottom: 2px solid transparent;
+    margin-bottom: -1px;
+    background: transparent;
+    color: var(--color-text-muted);
+    font: inherit;
+    font-size: 13px;
+    font-weight: 600;
+    text-decoration: none;
+    white-space: nowrap;
+}
+
+.vista-importacion-actual {
+    color: var(--color-primary-500);
+    border-bottom-color: var(--color-primary-500);
+}
+
+.vista-importacion-proxima:disabled {
+    cursor: not-allowed;
+    opacity: .6;
+}

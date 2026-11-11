@@ -36,7 +36,13 @@ public interface ISesionPrivilegiadaActual
     /// revocó o se cerró: no hay enforcement en la capa de datos que acote la
     /// vigencia de la sesión, el rol de solo lectura y RLS solo acotan el
     /// Tenant objetivo. Nunca debe usarse para decidir si una escritura se
-    /// autoriza ni para revalidar: usa <see cref="RevalidarAsync"/>.
+    /// autoriza ni para revalidar: usa <see cref="RevalidarAsync"/>. Tampoco
+    /// en una consulta en la que la sesión <b>concede</b> o <b>exime</b> la
+    /// lectura de datos del Tenant objetivo (la sección de restablecimiento de
+    /// Soporte TALVEG, el paquete documental de una Visita, la lista de
+    /// encargos): ahí la memo seguiría mostrándolos hasta el siguiente tick, y
+    /// la consulta revalida como su comando. Donde la sesión solo restringe o
+    /// pinta un indicador, la memo basta.
     /// </summary>
     Task<SesionPrivilegiadaActiva?> ObtenerAsync(CancellationToken cancellationToken = default);
 

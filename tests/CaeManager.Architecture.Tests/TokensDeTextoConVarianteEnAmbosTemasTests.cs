@@ -117,7 +117,7 @@ public class TokensDeTextoConVarianteEnAmbosTemasTests
             + "WCAG pide a un componente gráfico (no es texto de lectura).",
 
         ["--color-secondary-600"] =
-            "par fijo con su fondo, en sus dos papeles. Como texto (.timeline-avatar y .bandeja-fila-avatar) "
+            "par fijo con su fondo, en sus dos papeles. Como texto (.bandeja-fila-avatar) "
             + "va sobre --color-secondary-100, que tampoco cambia entre temas: 8,53:1 en claro y en oscuro; "
             + "darle variante oscura sin dársela al fondo lo hundiría hasta ~1:1. Y a través de "
             + "--color-info-600 es el fondo sólido de .toast-info bajo texto --color-neutral-0 fijo: 10,51:1 "

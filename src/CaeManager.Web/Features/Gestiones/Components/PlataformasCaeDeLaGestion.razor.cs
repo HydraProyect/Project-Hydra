@@ -19,8 +19,6 @@ public partial class PlataformasCaeDeLaGestion : ComponentBase, IDisposable
     /// <summary>El Centro de la Gestión: sus canales de gestión de tipo Plataforma son «dónde hay que hacerla».</summary>
     [Parameter, EditorRequired] public Guid CentroId { get; set; }
 
-    [Parameter] public string? CentroNombre { get; set; }
-
     public void Dispose()
     {
         _ciclo.Cancel();

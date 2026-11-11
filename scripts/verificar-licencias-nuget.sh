@@ -35,6 +35,29 @@
 # Es lo que permite probar este guion sin red — ver verificar-licencias-nuget.tests.sh.
 set -euo pipefail
 
+# Nunca `productor | grep -q` ni `| head`: con pipefail, el consumidor que corta
+# al primer acierto deja al productor escribiendo en una tubería cerrada (SIGPIPE
+# o «write error: Broken pipe») y la tubería entera da fallo aunque el patrón
+# estuviera. Así se perdió una vez la marca «[exige aceptar términos]» en CI. La
+# entrada se materializa antes en una variable, comprobando el estado de quien la
+# produce, y se busca con `aparece`. Tampoco `grep <<<`: Bash puede volcar el
+# here-string a un fichero temporal y, si no lo crea, grep no corre y su 1 se lee
+# como «no aparece».
+
+# 0 = el patrón aparece en el texto, 1 = no aparece; cualquier otro estado de
+# grep aborta la verificación (no decide nada). Sin -q, grep lee la entrada
+# entera y el printf nunca escribe en una tubería cerrada.
+aparece() {
+  local texto="$1" estado=0
+  shift
+  printf '%s\n' "$texto" | grep "$@" >/dev/null || estado=$?
+  if (( estado > 1 )); then
+    echo "ERROR: la búsqueda 'grep $*' falló con estado $estado; no se decide nada" >&2
+    exit 2
+  fi
+  return "$estado"
+}
+
 # Licencias libres aceptadas sin revisión. Deliberadamente corta: ampliarla es
 # una decisión consciente, no un parche para silenciar un rojo.
 # `PostgreSQL` (la de Npgsql) es la licencia del propio PostgreSQL: permisiva
@@ -59,7 +82,16 @@ EXCEPCIONES="${EXCEPCIONES:-$(dirname "${BASH_SOURCE[0]}")/licencias-revisadas.t
 esta_exceptuado() {
   local id="$1" version="$2"
   [[ -f "$EXCEPCIONES" ]] || return 1
-  tr -d '\r' <"$EXCEPCIONES" | grep -qE "^[[:space:]]*${id}[[:space:]]+${version}([[:space:]]|$)"
+  local contenido
+  # Se llama dentro de un `if`, donde `set -e` no actúa: sin esta comprobación,
+  # un `tr` que fallara tras escribir media lista dejaría buscar en la salida
+  # parcial y aceptar la excepción. Si no se puede leer la lista entera, la
+  # verificación no decide nada y falla.
+  if ! contenido="$(tr -d '\r' <"$EXCEPCIONES")"; then
+    echo "ERROR: no se pudo leer entera la lista de excepciones $EXCEPCIONES; no se decide si $id $version está revisado" >&2
+    exit 2
+  fi
+  aparece "$contenido" -E -e "^[[:space:]]*${id}[[:space:]]+${version}([[:space:]]|$)"
 }
 
 obtener_nuspec() {
@@ -77,9 +109,11 @@ obtener_nuspec() {
 # Extrae el valor de <license type="X">Y</license> como "X|Y".
 # Tolera atributos en cualquier orden y espacios; si no hay <license>, "|".
 leer_licencia() {
-  local nuspec="$1"
+  local nuspec="${1//$'\r'/}"
   local linea
-  linea="$(printf '%s' "$nuspec" | tr -d '\r' | grep -o '<license[^>]*>[^<]*</license>' | head -1 || true)"
+  # Sin coincidencia (o si grep falla) queda vacío y sale "|": PROBLEMA, nunca OK.
+  linea="$(printf '%s\n' "$nuspec" | grep -o '<license[^>]*>[^<]*</license>' || true)"
+  linea="${linea%%$'\n'*}"
   [[ -n "$linea" ]] || { printf '|'; return; }
   local tipo valor
   tipo="$(printf '%s' "$linea" | sed -n 's/.*type="\([^"]*\)".*/\1/p')"
@@ -88,8 +122,7 @@ leer_licencia() {
 }
 
 exige_aceptacion() {
-  printf '%s' "$1" | tr -d '\r' \
-    | grep -qi '<requireLicenseAcceptance>[[:space:]]*true[[:space:]]*</requireLicenseAcceptance>'
+  aparece "${1//$'\r'/}" -i -e '<requireLicenseAcceptance>[[:space:]]*true[[:space:]]*</requireLicenseAcceptance>'
 }
 
 es_permitida() {
@@ -102,6 +135,19 @@ es_permitida() {
 
 PROBLEMAS=0
 REVISADOS=0
+
+# La lista se lee entera ANTES del bucle y comprobando el estado de `tr`: con
+# `done < <(tr …)` el estado se perdía, y un `tr` que fallara a medias dejaba
+# revisar solo parte de los paquetes y salir con 0. El bucle lee después de un
+# `printf` del propio Bash sobre la variable ya validada, sin fichero temporal.
+# La lista puede venir de una herramienta que escriba finales CRLF (visto con
+# `dotnet list package` procesado en Windows): un '\r' pegado a la versión
+# produce una URL que no existe, y el guion habría marcado los 50 paquetes
+# como problema por un motivo que no era el suyo.
+if ! PAQUETES="$(tr -d '\r' <"$LISTA")"; then
+  echo "ERROR: no se pudo leer entera la lista de paquetes $LISTA; no se decide nada" >&2
+  exit 2
+fi
 
 while read -r id version _resto; do
   # Salta líneas vacías y comentarios.
@@ -117,7 +163,9 @@ while read -r id version _resto; do
     continue
   fi
 
-  IFS='|' read -r tipo valor <<<"$(leer_licencia "$nuspec")"
+  licencia="$(leer_licencia "$nuspec")"
+  tipo="${licencia%%|*}"
+  valor="${licencia#*|}"
   aceptacion=""
   exige_aceptacion "$nuspec" && aceptacion=" [exige aceptar términos]"
 
@@ -149,11 +197,7 @@ while read -r id version _resto; do
       PROBLEMAS=$((PROBLEMAS + 1))
       ;;
   esac
-  # La lista puede venir de una herramienta que escriba finales CRLF (visto con
-  # `dotnet list package` procesado en Windows): un '\r' pegado a la versión
-  # produce una URL que no existe, y el guion habría marcado los 50 paquetes
-  # como problema por un motivo que no era el suyo.
-done < <(tr -d '\r' <"$LISTA")
+done < <(printf '%s\n' "$PAQUETES")
 
 echo
 echo "Revisados: $REVISADOS · Problemas: $PROBLEMAS"

@@ -6,7 +6,9 @@ namespace CaeManager.Web.Features.Importacion;
 /// Enmascara el DNI/NIE que el Importador enseña en pantalla (plan, avisos, omitidos). Decisión provisional del
 /// 2026-11-02, pendiente de Chris: el DNI completo del plan solo lo ve el Administrador (decisión S3 del 2026-09-24);
 /// Dirección CAE y Coordinador CAE, que ejecutan cargas masivas desde el 2026-11-01, lo ven enmascarado. Conserva los
-/// tres últimos dígitos y la letra, suficientes para reconocer la fila en su propio fichero.
+/// tres últimos dígitos y la letra, suficientes para reconocer la fila en su propio fichero. Los CSV de la importación
+/// maestra (errores, filas omitidas de la vista previa, valores previos e informe) lo llevan SIEMPRE enmascarado, sea
+/// cual sea el rol: decisión de Chris del 2026-11-11 (DECISION_LOG de Negocio).
 /// </summary>
 public static partial class MascaraDni
 {
@@ -34,7 +36,9 @@ public static partial class MascaraDni
 
     private static string Reemplazar(Match m)
     {
-        var valor = m.Value;
+        // Sin los separadores («12.345.678-Z» → «12345678Z») para que la máscara conserve siempre los tres últimos
+        // dígitos y la letra, y no «78-Z».
+        var valor = string.Concat(m.Value.Where(char.IsLetterOrDigit));
         return "****" + valor[^4..];
     }
 
@@ -53,6 +57,41 @@ public static partial class MascaraDni
     [GeneratedRegex(@"^(?=[A-Za-z0-9]*\d)[A-Za-z0-9]{5,}(?= (?:—|→))")]
     private static partial Regex PatronPasaporteInicio();
 
-    [GeneratedRegex(@"(?<![A-Za-z0-9])(?:[XYZxyz]?\d{7,8}[A-Za-z]|\d{8})(?![A-Za-z0-9])")]
+    // Separadores admitidos dentro de un DNI/NIE escrito a mano: punto, guion (también los largos y el signo menos),
+    // barra, y cualquier espacio en blanco (incluidos el duro, el fino, el tabulador y el salto de línea de una celda de
+    // Excel) y los caracteres invisibles de formato que deja pegar desde una web o un PDF (espacio de ancho cero, guion\r\n    // blando), hasta tres seguidos («12.345.678 - Z»). Entre el último dígito y la letra de control también se admiten
+    // paréntesis («12.345.678 (Z)»). No se exige que la letra de control sea válida: más vale enmascarar de más.
+    // Los separadores no se solapan con cifras ni letras, así que el patrón no retrocede de forma combinatoria.
+    private const string Sep = @"[\s\p{Pd}\p{Cf}\u2212./]{0,3}";
+    private const string SepLetra = @"[\s\p{Pd}\p{Cf}\u2212./()]{0,3}";
+
+    // Una fecha «12/11/2026» o «2026-11-12» tiene ocho cifras con separadores (siete con «1/11/2026»); seguida de una
+    // palabra de una letra («y», «a») parecería un DNI, así que la forma con letra separada la excluye. Una letra pegada
+    // o tras un único signo («12-34-5678-Z») sí se enmascara.
+    private const string NoEsFecha = @"(?!\d{1,2}[./\-]\d{1,2}[./\-]\d{4}(?!\d))(?!\d{4}[./\-]\d{1,2}[./\-]\d{1,2}(?!\d))";
+
+    // La forma con letra separada exige un separador DENTRO de las cifras, u ocho cifras seguidas de un signo o de una letra
+    // mayúscula separada («12345678 - Z», «12345678 Z»): sin eso, «1234567 y» (un código de siete cifras y una palabra de
+    // una letra) no es un DNI escrito con separadores, y la forma contigua ya tiene su rama.
+    private const string SoloConSeparadores =
+        @"(?=\d+[\s\p{Pd}\p{Cf}\u2212./]+\d|\d{8}[\s\p{Cf}]*[\p{Pd}\u2212./(]|\d{8}[\s\p{Cf}]{1,3}[A-Z](?![A-Za-z0-9]))";
+
+    // Siete u ocho cifras con separadores y sin letra solo se enmascaran tras un rótulo de documento («DNI», «D.N.I.», «NIE»,
+    // «NIF», «documento», «doc.»), también con «nº» o «n.º» y signos de puntuación en medio.
+    private const string TrasRotuloDeDocumento =
+        @"(?<=\b(?i:DNI|NIE|NIF|D\.N\.I\.|N\.I\.E\.|N\.I\.F\.|documento|doc\.?)(?:[\s:.\-]|(?i:n)\.?[º°o]\.?){0,5})";
+    /// <summary>
+    /// DNI/NIE: sin separadores (forma original: NIE con prefijo, 7-8 cifras y letra, u ocho cifras sin letra) o con
+    /// separadores entre cualquiera de sus partes (7 u 8 cifras + letra, o X/Y/Z + 7 cifras + letra). Siete u ocho cifras con
+    /// separadores y sin letra solo se enmascaran tras un rótulo de documento (ver <see cref="TrasRotuloDeDocumento"/>): sin ese contexto no se distinguen de un
+    /// teléfono o un importe.
+    /// </summary>
+    [GeneratedRegex(
+        @"(?<![A-Za-z0-9])(?:"
+        + @"[XYZxyz]" + Sep + @"\d(?:" + Sep + @"\d){6}" + SepLetra + "[A-Za-z]"
+        + @"|\d(?:" + Sep + @"\d){6,7}[.\-/]?[A-Za-z]"
+        + "|" + NoEsFecha + SoloConSeparadores + @"\d(?:" + Sep + @"\d){6,7}" + SepLetra + "[A-Za-z]"
+        + @"|[XYZxyz]?\d{7,8}[A-Za-z]|\d{8}"
+        + "|" + TrasRotuloDeDocumento + @"\d(?:" + Sep + @"\d){6,7})(?![A-Za-z0-9])")]
     private static partial Regex PatronDni();
 }
