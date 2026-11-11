@@ -183,6 +183,15 @@ public partial class ImportacionEstructura : ComponentBase, IDisposable
             if (version != _versionAnalisis) return;
             Rechazar(Textos["EstErrorTamano", TamanoMaximoMb].Value);
         }
+        catch (JSDisconnectedException)
+        {
+            // El circuito ya no existe: no hay a quién mostrar nada.
+        }
+        catch (Exception ex) when (ex is TimeoutException or InvalidOperationException)
+        {
+            if (version != _versionAnalisis) return;
+            Rechazar(Textos["ErrorLecturaArchivo"].Value);
+        }
     }
 
     // ---------------------------------------------------------------- análisis
@@ -483,7 +492,8 @@ public partial class ImportacionEstructura : ComponentBase, IDisposable
     /// <summary>Hay algo que continuar: el archivo es analizable, el plan tiene filas válidas o la vista previa ya está calculada.</summary>
     private bool PuedeContinuar => _fase switch
     {
-        Fase.Subir => HayArchivo && _rechazo is null,
+        // Un rechazo que no es del archivo (limitador ocupado, error de Application) conserva el archivo para reintentar.
+        Fase.Subir => HayArchivo && (_rechazo is null || !_rechazoEsDelArchivo),
         Fase.Validacion => TotalValidas > 0,
         Fase.VistaPrevia => _previa is not null && !_previaCargando && !_importando,
         _ => true

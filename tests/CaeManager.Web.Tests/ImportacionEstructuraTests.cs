@@ -464,6 +464,10 @@ public class ImportacionEstructuraTests : BunitContext
 
         Fase(cut).Should().Be("Subir");
         Texto(cut.Find(".alerta-formulario")).Should().Be("Solo Administrador puede analizar la plantilla maestra.");
+        // El archivo sigue en memoria y se puede reintentar: no es un rechazo del archivo.
+        cut.FindAll("[data-testid='est-archivo-listo']").Should().ContainSingle();
+        Primario(cut).HasAttribute("disabled").Should().BeFalse("el fallo no es del archivo: se puede volver a validar");
+        cut.FindAll(".badge").Select(Texto).Should().NotContain("Archivo no aceptado");
     }
 
     [Fact]
@@ -486,12 +490,14 @@ public class ImportacionEstructuraTests : BunitContext
     {
         var servidor = new Servidor { FalloDeAnalisis = new LimiteHojaImportacionException(filas: true) };
         var (cut, _) = Renderizar(servidor);
-        await Subir(cut);
+        await Subir(cut, "nomina-de-alguien.xlsx");
 
         await Pulsar(Primario(cut));
 
         Fase(cut).Should().Be("Subir");
-        cut.FindAll(".alerta-formulario").Should().ContainSingle();
+        Texto(cut.Find(".alerta-formulario")).Should().Be("El archivo supera el máximo de filas permitido por hoja.");
+        cut.FindAll("[data-testid='est-archivo-listo']").Should().BeEmpty("un archivo fuera de límite se suelta");
+        cut.Markup.Should().NotContain("nomina-de-alguien");
     }
 
     [Fact]
@@ -834,6 +840,30 @@ public class ImportacionEstructuraTests : BunitContext
         var csv = (string)llamada.Arguments[1]!;
         csv.Should().Contain("\"'=HYPERLINK(").And.NotContain("\"=HYPERLINK(");
         csv.Split("\r\n", StringSplitOptions.RemoveEmptyEntries).Should().HaveCount(2, "cabecera y una fila");
+    }
+
+    [Fact]
+    public async Task Descargas_LosTresCsvEnmascaranElDniSalvoPermiso()
+    {
+        var plan = PlanConErrores();
+        var servidor = new Servidor { Plan = plan };
+        servidor.ValoresPrevios.Add(new ValorPrevioDto("Trabajadores", 7, "Observaciones", "Documento 12345678Z", "Documento 87654321X"));
+        var modulo = JSInterop.SetupModule("./js/importacion-descarga.js");
+        modulo.SetupVoid("descargarTexto", _ => true).SetVoidResult();
+        var (cut, _) = await HastaValidacionAsync(servidor, dniCompleto: false);
+
+        await Pulsar(Boton(cut, "Descargar errores (CSV)"));
+        await Pulsar(Boton(cut, "Continuar sin las filas con error"));
+        await ElegirModo(cut, "reemplazar");
+        await Pulsar(Boton(cut, "Valores previos (CSV)"));
+        await Pulsar(Primario(cut));
+        await Pulsar(Boton(cut, "Sí, reemplazar e importar"));
+        await Pulsar(Boton(cut, "Informe completo (CSV)"));
+
+        var csvs = modulo.Invocations["descargarTexto"].Select(i => (string)i.Arguments[1]!).ToList();
+        csvs.Should().HaveCount(3, "errores, valores previos e informe completo");
+        foreach (var csv in csvs)
+            csv.Should().Contain("****678Z", "el DNI sale enmascarado").And.NotContain("12345678Z").And.NotContain("87654321X");
     }
 
     [Fact]

@@ -91,7 +91,7 @@
                     {
                         <div class="alerta-formulario" role="alert">@_rechazo</div>
                     }
-                    else if (HayArchivo)
+                    @if (HayArchivo && !_rechazoEsDelArchivo)
                     {
                         <div class="aviso-est aviso-est-ok" role="status" data-testid="est-archivo-listo">
                             <span class="icono-aviso-est" aria-hidden="true"><Icono Nombre="check" /></span>
