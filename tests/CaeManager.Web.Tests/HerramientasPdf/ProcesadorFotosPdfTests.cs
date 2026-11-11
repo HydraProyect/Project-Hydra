@@ -473,7 +473,8 @@ public sealed class ProcesadorFotosPdfTests
         var accion = () => procesador.Normalizar(png, 3508);
 
         accion.Should().Throw<PresupuestoMemoriaAgotadoException>();
-        etapas.Should().NotContain("decodificada", "solo se leyó la cabecera; la decodificación no empezó");        real.Reservado.Should().Be(0);
+        etapas.Should().NotContain("decodificada", "solo se leyó la cabecera; la decodificación no empezó");
+        real.Reservado.Should().Be(0);
     }
 
     [Fact]
