@@ -34,13 +34,14 @@
   </ItemGroup>
 
   <ItemGroup>
-    <!-- Suelo de hilos del ThreadPool. Cada continuaciÃ³n de un componente de bUnit (el await que
-         vuelve al Dispatcher del renderer) y cada comprobaciÃ³n de WaitForAssertion necesitan un hilo
-         del pool, y las clases de prueba corren en paralelo con tantos hilos como nÃºcleos (2-4 en CI)
-         mientras unas esperan de forma sÃ­ncrona. Con el suelo por defecto (= nÃºcleos) el pool inyecta
-         hilos nuevos a ~1 por segundo, y el WaitForAssertion de 1 s caducaba sin haber llegado a
-         comprobar nada (Check count: 0, issue #2171). Subir el suelo no alarga ninguna espera: quita
-         la inanición del pool que las hacÃ­a caducar. -->
+    <!-- Suelo de hilos del ThreadPool (issue #2171, HIPÓTESIS no demostrada por instrumentación del pool).
+         Los WaitForAssertion de 1 s de bUnit caducaban solo en CI con «Check count: 0». Con el suelo por defecto
+         (= núcleos, 2-4 en CI) el pool inyecta hilos nuevos a ~1 por segundo si todos están ocupados, y la
+         continuación del componente y la comprobación necesitan uno. Quién los ocupa no está identificado
+         (xunit corre los tests en hilos propios, no del pool). Evidencia: con DOTNET_PROCESSOR_COUNT=2 la suite
+         entera fallaba en WaitForAssertion de tests ajenos al issue, y con este suelo no. Si #2171 reaparece, el
+         suelo no era la causa: medir ThreadPool.ThreadCount y PendingWorkItemCount en el fallo.
+         Efecto asumido: un test que dependiera de un hilo libre del pool ya no lo delataría por intermitencia. -->
     <RuntimeHostConfigurationOption Include="System.Threading.ThreadPool.MinThreads" Value="64" />
   </ItemGroup>
 
