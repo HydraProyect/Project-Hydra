@@ -127,7 +127,7 @@
     <value>Confirma el teu correu</value>
   </data>
   <data name="ConfirmarCorreoExplica" xml:space="preserve">
-    <value>Prem el botó per confirmar el correu i continuar amb l&apos;alta.</value>
+    <value>Escriu la contrasenya que vas triar en crear el compte i prem el botó per confirmar el correu.</value>
   </data>
   <data name="ConfirmarCorreoBoton" xml:space="preserve">
     <value>Confirmar el meu correu</value>
@@ -161,5 +161,116 @@
   </data>
   <data name="AyudaSoporte" xml:space="preserve">
     <value>Si necessites ajuda, escriu a Suport TALVEG.</value>
+  </data>
+  <data name="OrganizacionTituloPagina" xml:space="preserve">
+    <value>Dades de l&apos;empresa</value>
+  </data>
+  <data name="PasoEmpresaDetalle" xml:space="preserve">
+    <value>Pas 2 de 5: Empresa</value>
+  </data>
+  <data name="OrganizacionTitulo" xml:space="preserve">
+    <value>Dades de la teva organització</value>
+  </data>
+  <data name="OrganizacionExplica" xml:space="preserve">
+    <value>Amb aquestes dades prepararem l&apos;alta. Amb el CIF o NIF comprovem que l&apos;organització encara no és a TALVEG.</value>
+  </data>
+  <data name="RazonSocialEtiqueta" xml:space="preserve">
+    <value>Raó social</value>
+  </data>
+  <data name="CifNifEtiqueta" xml:space="preserve">
+    <value>CIF o NIF</value>
+  </data>
+  <data name="CifNifAyuda" xml:space="preserve">
+    <value>Si treballes com a autònom, el teu NIF.</value>
+  </data>
+  <data name="DomicilioFiscalEtiqueta" xml:space="preserve">
+    <value>Domicili fiscal</value>
+  </data>
+  <data name="TramoEtiqueta" xml:space="preserve">
+    <value>Treballadors actius</value>
+  </data>
+  <data name="TramoAyuda" xml:space="preserve">
+    <value>Les persones treballadores de la teva organització que gestionaràs a TALVEG. Si en són més de 300, escriu a Suport TALVEG per demanar pressupost.</value>
+  </data>
+  <data name="TramoElige" xml:space="preserve">
+    <value>Tria un interval</value>
+  </data>
+  <data name="TramoDe1A10" xml:space="preserve">
+    <value>D&apos;1 a 10</value>
+  </data>
+  <data name="TramoDe11A40" xml:space="preserve">
+    <value>D&apos;11 a 40</value>
+  </data>
+  <data name="TramoDe41A80" xml:space="preserve">
+    <value>De 41 a 80</value>
+  </data>
+  <data name="TramoDe81A150" xml:space="preserve">
+    <value>De 81 a 150</value>
+  </data>
+  <data name="TramoDe151A300" xml:space="preserve">
+    <value>De 151 a 300</value>
+  </data>
+  <data name="TelefonoEtiqueta" xml:space="preserve">
+    <value>Telèfon (opcional)</value>
+  </data>
+  <data name="DeclaraRepresentacionTexto" xml:space="preserve">
+    <value>Declaro que represento aquesta organització i que les dades són certes.</value>
+  </data>
+  <data name="DeclaraActividadTexto" xml:space="preserve">
+    <value>Només si el NIF és d&apos;una persona física: declaro que actuo en l&apos;exercici de la meva activitat professional.</value>
+  </data>
+  <data name="OrganizacionBoton" xml:space="preserve">
+    <value>Continua</value>
+  </data>
+  <data name="ErrorRazonSocial" xml:space="preserve">
+    <value>Escriu la raó social, de fins a 200 caràcters.</value>
+  </data>
+  <data name="ErrorCifNif" xml:space="preserve">
+    <value>El CIF o NIF no és vàlid. Revisa que sigui complet i que la lletra o el dígit de control siguin correctes.</value>
+  </data>
+  <data name="ErrorDomicilioFiscal" xml:space="preserve">
+    <value>Escriu el domicili fiscal, de fins a 500 caràcters.</value>
+  </data>
+  <data name="ErrorTramo" xml:space="preserve">
+    <value>Tria l&apos;interval de treballadors actius.</value>
+  </data>
+  <data name="ErrorTelefono" xml:space="preserve">
+    <value>El telèfon només admet dígits, espais, «+», «-», «.» i parèntesis, fins a 30 caràcters.</value>
+  </data>
+  <data name="ErrorDeclaraRepresentacion" xml:space="preserve">
+    <value>Per continuar, declara que representes l&apos;organització.</value>
+  </data>
+  <data name="ErrorDeclaraActividad" xml:space="preserve">
+    <value>Amb un NIF de persona física, declara que actues en l&apos;exercici de la teva activitat professional.</value>
+  </data>
+  <data name="ErrorLimiteCif" xml:space="preserve">
+    <value>Avui ja s&apos;ha consultat aquest CIF o NIF massa vegades. Torna-ho a provar demà o escriu a Suport TALVEG.</value>
+  </data>
+  <data name="DatosGuardadosTitulo" xml:space="preserve">
+    <value>Dades desades</value>
+  </data>
+  <data name="DatosGuardadosExplica" xml:space="preserve">
+    <value>Hem desat les dades de la teva organització. El pas següent és triar el pla.</value>
+  </data>
+  <data name="DerivadaTitulo" xml:space="preserve">
+    <value>Aquesta organització ja és a TALVEG</value>
+  </data>
+  <data name="DerivadaExplica" xml:space="preserve">
+    <value>Si necessites accés, Suport TALVEG contactarà amb qui la gestiona. No cal que facis res més amb aquesta sol·licitud.</value>
+  </data>
+  <data name="ContinuacionNoValidaTitulo" xml:space="preserve">
+    <value>No podem continuar amb aquesta alta</value>
+  </data>
+  <data name="ContinuacionNoValidaExplica" xml:space="preserve">
+    <value>Ha passat massa temps des que vas confirmar el correu, o aquesta alta ja no admet canvis. Torna a començar per crear el compte.</value>
+  </data>
+  <data name="ConfirmarCorreoContrasenaEtiqueta" xml:space="preserve">
+    <value>Contrasenya</value>
+  </data>
+  <data name="ConfirmarCorreoContrasenaAyuda" xml:space="preserve">
+    <value>La que vas triar en crear el compte. Així comprovem que qui confirma el correu és qui va començar l&apos;alta.</value>
+  </data>
+  <data name="ConfirmarCorreoNoValido" xml:space="preserve">
+    <value>No hem pogut confirmar el correu. Revisa la contrasenya; si l&apos;enllaç ja s&apos;ha fet servir o no és vàlid, torna a començar.</value>
   </data>
 </root>

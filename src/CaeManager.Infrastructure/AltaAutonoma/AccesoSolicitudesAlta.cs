@@ -31,6 +31,19 @@ public sealed class PreparacionContrasenaAlta(UserManager<ApplicationUser> usuar
 
         return usuarios.PasswordHasher.HashPassword(candidata, contrasena);
     }
+
+    /// <summary>
+    /// Mismo hasher que creó el hash (PBKDF2 de Identity, comparación en tiempo constante). Un hash de una versión antigua
+    /// que pida volver a calcularse también casa: la cuenta aún no existe y el hash se copiará tal cual en el alta.
+    /// </summary>
+    public bool Coincide(string hashContrasena, string contrasena)
+    {
+        if (string.IsNullOrEmpty(hashContrasena) || string.IsNullOrEmpty(contrasena))
+            return false;
+
+        return usuarios.PasswordHasher.VerifyHashedPassword(new ApplicationUser(), hashContrasena, contrasena)
+            != PasswordVerificationResult.Failed;
+    }
 }
 
 /// <summary>
@@ -54,25 +67,91 @@ public sealed class AccesoSolicitudesAlta(CaeManagerDbContext contexto) : IAcces
             """, cancellationToken);
     }
 
-    public async Task<ResultadoVerificacionCorreoAlta> VerificarCorreoAsync(string token, CancellationToken cancellationToken)
+    public async Task<EnlaceVerificacionAlta> ConsultarEnlaceAsync(string token, CancellationToken cancellationToken)
     {
-        string hash;
+        if (HashOrNull(token) is not { } hash)
+            return EnlaceVerificacionAlta.NoValido;
+
+        var fila = (await contexto.Database
+            .SqlQuery<FilaEnlace>($"""
+                SELECT resultado AS "Resultado", hash_contrasena AS "HashContrasena"
+                  FROM public.app_alta_consultar_enlace({hash})
+                """)
+            .ToListAsync(cancellationToken)).Single();
+
+        return fila.Resultado == "Vigente"
+            ? new EnlaceVerificacionAlta(null, fila.HashContrasena)
+            : new EnlaceVerificacionAlta(ResultadoVerificacion(fila.Resultado), null);
+    }
+
+    public async Task<ResultadoVerificacionCorreoAlta> VerificarCorreoAsync(
+        string token, string hashContrasenaComprobado, string credencialContinuacion, CancellationToken cancellationToken)
+    {
+        ArgumentException.ThrowIfNullOrEmpty(hashContrasenaComprobado);
+        if (HashOrNull(token) is not { } hash)
+            return ResultadoVerificacionCorreoAlta.NoValido;
+
+        // El credencial lo genera la aplicación (ServicioRegistroAlta.NuevoToken): si fuera corto es un fallo de programa.
+        var hashCredencial = SolicitudAlta.CalcularHashToken(credencialContinuacion);
+
+        var resultado = (await contexto.Database
+            .SqlQuery<string>($"""
+                SELECT public.app_alta_verificar_correo({hash}, {hashContrasenaComprobado}, {hashCredencial}) AS "Value"
+                """)
+            .ToListAsync(cancellationToken)).Single();
+
+        return ResultadoVerificacion(resultado);
+    }
+
+    public async Task<TransicionDatosOrganizacionAlta> CompletarDatosOrganizacionAsync(
+        string credencialContinuacion, DatosOrganizacionAlta datos, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(datos);
+        if (HashOrNull(credencialContinuacion) is not { } hashCredencial)
+            return new TransicionDatosOrganizacionAlta(ResultadoDatosOrganizacionAlta.NoValido, null);
+
+        var tramo = datos.Tramo.ToString();
+        var fila = (await contexto.Database
+            .SqlQuery<FilaDatosOrganizacion>($"""
+                SELECT resultado AS "Resultado", solicitud_alta_id AS "SolicitudAltaId"
+                  FROM public.app_alta_completar_datos_organizacion(
+                      {hashCredencial}, {datos.RazonSocial}, {datos.CifNif}, {datos.DomicilioFiscal}, {datos.Telefono},
+                      {tramo}, {datos.DeclaraRepresentacion}, {datos.DeclaraActividadProfesional})
+                """)
+            .ToListAsync(cancellationToken)).Single();
+
+        return Enum.TryParse<ResultadoDatosOrganizacionAlta>(fila.Resultado, out var valor) && Enum.IsDefined(valor)
+            ? new TransicionDatosOrganizacionAlta(valor, valor == ResultadoDatosOrganizacionAlta.NoValido ? null : fila.SolicitudAltaId)
+            : throw new InvalidOperationException($"Resultado de los datos de la organización desconocido: {fila.Resultado}.");
+    }
+
+    private static string? HashOrNull(string valor)
+    {
         try
         {
-            hash = SolicitudAlta.CalcularHashToken(token);
+            return SolicitudAlta.CalcularHashToken(valor);
         }
         catch (ArgumentException)
         {
-            return ResultadoVerificacionCorreoAlta.NoValido;
+            return null;
         }
+    }
 
-        var resultado = await contexto.Database
-            .SqlQuery<string>($"SELECT public.app_alta_verificar_correo({hash}) AS \"Value\"")
-            .SingleAsync(cancellationToken);
-
-        return Enum.TryParse<ResultadoVerificacionCorreoAlta>(resultado, out var valor)
+    private static ResultadoVerificacionCorreoAlta ResultadoVerificacion(string resultado) =>
+        Enum.TryParse<ResultadoVerificacionCorreoAlta>(resultado, out var valor) && Enum.IsDefined(valor)
             ? valor
             : throw new InvalidOperationException($"Resultado de verificación desconocido: {resultado}.");
+
+    internal sealed class FilaEnlace
+    {
+        public string Resultado { get; set; } = string.Empty;
+        public string? HashContrasena { get; set; }
+    }
+
+    internal sealed class FilaDatosOrganizacion
+    {
+        public string Resultado { get; set; } = string.Empty;
+        public Guid? SolicitudAltaId { get; set; }
     }
 }
 

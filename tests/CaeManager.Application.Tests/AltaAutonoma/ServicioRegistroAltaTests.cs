@@ -53,8 +53,65 @@ public class ServicioRegistroAltaTests
     {
         var (servicio, acceso, _) = Crear(existeCuenta: false);
 
-        (await servicio.VerificarCorreoAsync(token, CancellationToken.None)).Should().Be(ResultadoVerificacionCorreoAlta.NoValido);
+        (await servicio.VerificarCorreoAsync(token, "contraseña", CancellationToken.None)).Resultado
+            .Should().Be(ResultadoVerificacionCorreoAlta.NoValido);
+        acceso.Consultas.Should().Be(0);
         acceso.Verificaciones.Should().Be(0);
+    }
+
+    [Fact]
+    public async Task Con_token_y_contrasena_que_casan_verifica_y_entrega_un_credencial_de_continuacion_de_256_bits()
+    {
+        var (servicio, acceso, _) = Crear(existeCuenta: false);
+
+        var verificacion = await servicio.VerificarCorreoAsync(ServicioRegistroAlta.NuevoToken(), "la-buena", CancellationToken.None);
+
+        verificacion.Resultado.Should().Be(ResultadoVerificacionCorreoAlta.Verificado);
+        verificacion.CredencialContinuacion.Should().MatchRegex("^[A-Za-z0-9_-]{43}$");
+        acceso.Verificaciones.Should().Be(1);
+        acceso.HashComprobado.Should().Be("hash-guardado", "la segunda función recibe el mismo hash que se comparó");
+        acceso.CredencialRecibido.Should().Be(verificacion.CredencialContinuacion);
+    }
+
+    [Theory]
+    [InlineData("la-mala")]
+    [InlineData("")]
+    [InlineData(null)]
+    public async Task Una_contrasena_que_no_casa_responde_como_un_enlace_no_valido_y_no_gasta_el_enlace(string? contrasena)
+    {
+        var (servicio, acceso, _) = Crear(existeCuenta: false);
+
+        var verificacion = await servicio.VerificarCorreoAsync(ServicioRegistroAlta.NuevoToken(), contrasena, CancellationToken.None);
+
+        verificacion.Should().Be(new VerificacionCorreoAlta(ResultadoVerificacionCorreoAlta.NoValido, null));
+        acceso.Consultas.Should().Be(1);
+        acceso.Verificaciones.Should().Be(0, "sin la contraseña el enlace no se gasta");
+    }
+
+    [Theory]
+    [InlineData(ResultadoVerificacionCorreoAlta.NoValido)]
+    [InlineData(ResultadoVerificacionCorreoAlta.EnlaceCaducado)]
+    [InlineData(ResultadoVerificacionCorreoAlta.SolicitudCaducada)]
+    public async Task Un_enlace_rechazado_no_compara_la_contrasena_ni_verifica(ResultadoVerificacionCorreoAlta rechazo)
+    {
+        var (servicio, acceso, _) = Crear(existeCuenta: false);
+        acceso.Enlace = new EnlaceVerificacionAlta(rechazo, null);
+
+        var verificacion = await servicio.VerificarCorreoAsync(ServicioRegistroAlta.NuevoToken(), "la-buena", CancellationToken.None);
+
+        verificacion.Should().Be(new VerificacionCorreoAlta(rechazo, null));
+        acceso.Verificaciones.Should().Be(0);
+    }
+
+    [Fact]
+    public async Task Si_la_base_no_verifica_bajo_candado_no_se_entrega_credencial()
+    {
+        var (servicio, acceso, _) = Crear(existeCuenta: false);
+        acceso.ResultadoVerificacion = ResultadoVerificacionCorreoAlta.NoValido;
+
+        var verificacion = await servicio.VerificarCorreoAsync(ServicioRegistroAlta.NuevoToken(), "la-buena", CancellationToken.None);
+
+        verificacion.Should().Be(new VerificacionCorreoAlta(ResultadoVerificacionCorreoAlta.NoValido, null));
     }
 
     [Fact]
@@ -82,15 +139,22 @@ public class ServicioRegistroAltaTests
     {
         var acceso = new AccesoFalso();
         var remitente = new RemitenteFalso();
-        var servicio = new ServicioRegistroAlta(acceso, new CuentasFalsas(existeCuenta), remitente, TimeProvider.System,
-            NullLogger<ServicioRegistroAlta>.Instance);
+        var servicio = new ServicioRegistroAlta(acceso, new CuentasFalsas(existeCuenta), remitente, new ContrasenasFalsas(),
+            TimeProvider.System, NullLogger<ServicioRegistroAlta>.Instance);
         return (servicio, acceso, remitente);
     }
 
-    private sealed class AccesoFalso : IAccesoSolicitudesAlta
+    internal sealed class AccesoFalso : IAccesoSolicitudesAlta
     {
         public List<SolicitudAlta> Iniciadas { get; } = [];
+        public int Consultas { get; private set; }
         public int Verificaciones { get; private set; }
+        public string? HashComprobado { get; private set; }
+        public string? CredencialRecibido { get; private set; }
+        public EnlaceVerificacionAlta Enlace { get; set; } = new(null, "hash-guardado");
+        public ResultadoVerificacionCorreoAlta ResultadoVerificacion { get; set; } = ResultadoVerificacionCorreoAlta.Verificado;
+        public TransicionDatosOrganizacionAlta Transicion { get; set; } = new(ResultadoDatosOrganizacionAlta.DatosCompletos, Guid.NewGuid());
+        public int Completados { get; private set; }
 
         public Task IniciarAsync(SolicitudAlta solicitud, CancellationToken cancellationToken)
         {
@@ -98,11 +162,35 @@ public class ServicioRegistroAltaTests
             return Task.CompletedTask;
         }
 
-        public Task<ResultadoVerificacionCorreoAlta> VerificarCorreoAsync(string token, CancellationToken cancellationToken)
+        public Task<EnlaceVerificacionAlta> ConsultarEnlaceAsync(string token, CancellationToken cancellationToken)
+        {
+            Consultas++;
+            return Task.FromResult(Enlace);
+        }
+
+        public Task<ResultadoVerificacionCorreoAlta> VerificarCorreoAsync(
+            string token, string hashContrasenaComprobado, string credencialContinuacion, CancellationToken cancellationToken)
         {
             Verificaciones++;
-            return Task.FromResult(ResultadoVerificacionCorreoAlta.Verificado);
+            HashComprobado = hashContrasenaComprobado;
+            CredencialRecibido = credencialContinuacion;
+            return Task.FromResult(ResultadoVerificacion);
         }
+
+        public Task<TransicionDatosOrganizacionAlta> CompletarDatosOrganizacionAsync(
+            string credencialContinuacion, DatosOrganizacionAlta datos, CancellationToken cancellationToken)
+        {
+            Completados++;
+            return Task.FromResult(Transicion);
+        }
+    }
+
+    /// <summary>Solo «la-buena» casa con «hash-guardado».</summary>
+    private sealed class ContrasenasFalsas : IPreparacionContrasenaAlta
+    {
+        public Task<string?> ValidarYHashearAsync(string correo, string contrasena) => Task.FromResult<string?>("hash-de-identity");
+
+        public bool Coincide(string hashContrasena, string contrasena) => hashContrasena == "hash-guardado" && contrasena == "la-buena";
     }
 
     private sealed class CuentasFalsas(bool existe) : IExistenciaCuentaPorCorreo

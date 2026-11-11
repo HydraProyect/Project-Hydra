@@ -16,6 +16,12 @@ public sealed class OpcionesAntiabusoAlta
     public int IniciosPorDiaPorIp { get; set; } = 20;
 
     /// <summary>
+    /// Consultas al día de un mismo CIF o NIF en el paso «Empresa» (§ 4.1 del plan: 3), sumando todas las IP
+    /// (<see cref="CupoConsultasCifAlta"/>).
+    /// </summary>
+    public int ConsultasPorDiaPorCif { get; set; } = 3;
+
+    /// <summary>
     /// Bits cero iniciales que exige el reto de prueba de trabajo. Cada bit duplica el trabajo esperado: con 2^n
     /// intentos de media, 15 bits son unos 33.000 hashes. Medido en un portátil con Node 24 y <c>crypto.subtle</c> por
     /// lotes, como el Web Worker: unos 24.000 hashes por segundo, así que 15 bits salen a 1,4 s de media (la búsqueda es
@@ -57,6 +63,7 @@ public sealed class OpcionesAntiabusoAlta
     public bool EsValida() =>
         IniciosPorHoraPorIp is >= 1 and <= 10_000
         && IniciosPorDiaPorIp >= IniciosPorHoraPorIp && IniciosPorDiaPorIp <= 100_000
+        && ConsultasPorDiaPorCif is >= 1 and <= 1_000
         && DificultadBits is >= 8 and <= 28
         && VigenciaReto >= TimeSpan.FromMinutes(1) && VigenciaReto <= TimeSpan.FromHours(2)
         && TiempoMinimoEnvio >= TimeSpan.Zero && TiempoMinimoEnvio <= TimeSpan.FromMinutes(1)

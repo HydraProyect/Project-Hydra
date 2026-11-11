@@ -228,8 +228,15 @@ public class ProhibicionSqlCrudoYFiltrosIgnoradosTests
         // propia (Guid.Empty). Solo devuelven sí/no o el resultado; todos los parámetros van por EF.
         [("src/CaeManager.Infrastructure/AltaAutonoma/AccesoSolicitudesAlta.cs",
             "await contexto.Database.ExecuteSqlAsync($\"\"\"")] = 1,
+        // A4 (migración AltaDatosOrganizacionYCredencialContinuacion): la verificación pasa a dos funciones (mirar el
+        // enlace sin gastarlo, para comparar la contraseña en la aplicación, y verificar), y el paso «Empresa» a una
+        // tercera que responde solo el resultado y el Id de la propia Solicitud de alta, nada del Tenant propietario.
         [("src/CaeManager.Infrastructure/AltaAutonoma/AccesoSolicitudesAlta.cs",
-            """.SqlQuery<string>($"SELECT public.app_alta_verificar_correo({hash}) AS \"Value\"")""")] = 1,
+            ".SqlQuery<FilaEnlace>($\"\"\"")] = 1,
+        [("src/CaeManager.Infrastructure/AltaAutonoma/AccesoSolicitudesAlta.cs",
+            ".SqlQuery<string>($\"\"\"")] = 1,
+        [("src/CaeManager.Infrastructure/AltaAutonoma/AccesoSolicitudesAlta.cs",
+            ".SqlQuery<FilaDatosOrganizacion>($\"\"\"")] = 1,
         [("src/CaeManager.Infrastructure/AltaAutonoma/AccesoSolicitudesAlta.cs",
             """.SqlQuery<bool>($"SELECT app_correo_en_uso_por_otra_cuenta({correoNormalizado}, {Guid.Empty}) AS \"Value\"")""")] = 1,
 

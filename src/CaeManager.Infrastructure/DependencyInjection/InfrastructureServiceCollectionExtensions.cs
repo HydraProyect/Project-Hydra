@@ -783,6 +783,7 @@ public static class InfrastructureServiceCollectionExtensions
         services.AddScoped<CaeManager.Application.AltaAutonoma.IAccesoSolicitudesAlta, AltaAutonoma.AccesoSolicitudesAlta>();
         services.AddScoped<CaeManager.Application.AltaAutonoma.IExistenciaCuentaPorCorreo, AltaAutonoma.ExistenciaCuentaPorCorreo>();
         services.AddScoped<CaeManager.Application.AltaAutonoma.ServicioRegistroAlta>();
+        services.AddScoped<CaeManager.Application.AltaAutonoma.ServicioDatosOrganizacionAlta>();
         services.AddScoped<CaeManager.Application.AltaAutonoma.IPreparacionContrasenaAlta, AltaAutonoma.PreparacionContrasenaAlta>();
 
         // Kill switch de la detección previa a clasificación de Documento

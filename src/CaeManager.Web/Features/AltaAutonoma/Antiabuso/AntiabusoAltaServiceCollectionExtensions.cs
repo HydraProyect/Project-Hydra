@@ -19,6 +19,7 @@ public static class AntiabusoAltaServiceCollectionExtensions
         services.TryAddSingleton(TimeProvider.System);
         services.AddSingleton<RegistroRetosUsados>();
         services.AddSingleton(sp => new CupoDiarioAlta(sp.GetRequiredService<Microsoft.Extensions.Options.IOptions<OpcionesAntiabusoAlta>>()));
+        services.AddSingleton(sp => new CupoConsultasCifAlta(sp.GetRequiredService<Microsoft.Extensions.Options.IOptions<OpcionesAntiabusoAlta>>()));
         services.AddSingleton<ServicioRetoPruebaTrabajo>();
         services.AddSingleton<ServicioTrampasFormulario>();
         services.AddSingleton(_ => new ValidadorDominiosDesechables());
