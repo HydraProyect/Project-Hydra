@@ -1535,6 +1535,9 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                         .HasMaxLength(2000)
                         .HasColumnType("character varying(2000)");
 
+                    b.Property<Guid?>("RelacionEmpresarialEntradaId")
+                        .HasColumnType("uuid");
+
                     b.Property<string>("TecnicoPrevencionCorreo")
                         .HasMaxLength(254)
                         .HasColumnType("character varying(254)");
@@ -1569,6 +1572,8 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
 
                     b.HasIndex("TenantId", "Id")
                         .IsUnique();
+
+                    b.HasIndex("TenantId", "RelacionEmpresarialEntradaId");
 
                     b.ToTable("Centros", (string)null);
                 });
@@ -12153,6 +12158,12 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                         .HasPrincipalKey("TenantId", "Id")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
+
+                    b.HasOne("CaeManager.Domain.RelacionesEmpresariales.RelacionEmpresarial", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId", "RelacionEmpresarialEntradaId")
+                        .HasPrincipalKey("TenantId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict);
                 });
 
             modelBuilder.Entity("CaeManager.Domain.Comunicaciones.AdjuntoMensaje", b =>

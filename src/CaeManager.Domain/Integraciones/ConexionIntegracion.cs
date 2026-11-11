@@ -132,8 +132,11 @@ public class ConexionIntegracion : EntidadBase
     /// en el MISMO guardado que deja la conexión Deshabilitada (<see cref="Deshabilitar"/>), antes del DELETE de la
     /// suscripción en Graph, con la hora de antes de ese guardado: desde ahí la ingesta descarta las notificaciones y el
     /// resultado del borrado aún no se conoce. Si la marca ya está en esa hora o antes (la suscripción había expirado o la
-    /// conexión no estaba Habilitada, y la marca viaja en el mismo guardado), no se fija: no quedaría nada por registrar. Desconectar la vacía en el guardado que
-    /// registra la marca del borrado (o que confirma que no había hueco que registrar). Si ese guardado no llega a la base,
+    /// conexión no estaba Habilitada, y la marca viaja en el mismo guardado), no se fija: no quedaría nada por registrar. Desconectar solo la vacía en el guardado
+    /// del resultado definitivo del borrado, el que registra su marca o confirma que no había hueco que registrar
+    /// (<see cref="ResolverMarcaHuecoPorRegistrar"/>); el guardado de una expiración observada tras confirmar la
+    /// desconexión no la toca, porque esa expiración es posterior a este comienzo (Codex, ronda 20). Si el guardado del
+    /// resultado no llega a la base, o el proceso se cae antes,
     /// queda puesta: no hay ningún camino en que la conexión quede Deshabilitada sin la marca ni este valor (Codex, ronda
     /// 18). La reparan, sin depender de lo que quede en memoria ni de una notificación que llegue después, Desconectar
     /// repetido sobre la Deshabilitada, la acción Reparar de Conexiones (un comando propio, que solo repara una conexión
@@ -465,7 +468,9 @@ public class ConexionIntegracion : EntidadBase
     /// <summary>
     /// Desconectar ya conoce el resultado del borrado: con <paramref name="registrarHueco"/> aplica la regla conservadora
     /// (<see cref="RegistrarHuecoAlObservarSuscripcion"/>) sobre la observación y, en cualquier caso, vacía
-    /// <see cref="MarcaHuecoPorRegistrarDesdeUtc"/>, de forma que las dos cosas viajan en el mismo guardado.
+    /// <see cref="MarcaHuecoPorRegistrarDesdeUtc"/>, de forma que las dos cosas viajan en el mismo guardado. Solo para el
+    /// resultado definitivo: una observación intermedia (la expiración tras confirmar) usa
+    /// <see cref="RegistrarHuecoAlObservarSuscripcion"/>, que deja ese valor intacto.
     /// </summary>
     /// <returns>true si cambió algo que guardar.</returns>
     public bool ResolverMarcaHuecoPorRegistrar(DateTime? expiracionSuscripcionUtc, DateTime observadaUtc, bool registrarHueco)

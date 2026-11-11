@@ -99,13 +99,32 @@ public class DesconectarBuzonCommandHandlerTests
 
     /// <param name="porRegistrarDesdeUtc">Lo que la desconexión guardó en
     /// <see cref="ConexionIntegracion.MarcaHuecoPorRegistrarDesdeUtc"/> junto a la Deshabilitada.</param>
-    private static ConexionIntegracion Copia(ConexionIntegracion original, bool deshabilitada, DateTime? porRegistrarDesdeUtc = null)
+    /// <param name="marcaDesdeUtc">La marca de hueco que la base ya tenía guardada.</param>
+    private static ConexionIntegracion Copia(
+        ConexionIntegracion original, bool deshabilitada, DateTime? porRegistrarDesdeUtc = null, DateTime? marcaDesdeUtc = null)
     {
         var copia = new ConexionIntegracion(original.BuzonEmail, original.Nombre);
         typeof(Entity).GetProperty(nameof(Entity.Id))!.SetValue(copia, original.Id);
         if (deshabilitada)
             copia.Deshabilitar(porRegistrarDesdeUtc);
+        // Con la conexión ya Deshabilitada, la regla del hueco registra la observación tal cual.
+        if (marcaDesdeUtc is { } marca)
+            copia.RegistrarHuecoAlObservarSuscripcion(null, marca);
         return copia;
+    }
+
+    /// <summary>
+    /// Lanza en todos los guardados a partir del indicado (1 = el primero) y delega los anteriores, hasta que la base se
+    /// recupera (<see cref="Recuperada"/>): desde entonces delega todos.
+    /// </summary>
+    private sealed class UnitOfWorkQueFallaDesde(UnitOfWorkFalso interno, int guardado, Exception excepcion) : IUnitOfWork
+    {
+        private int _llamadas;
+
+        public bool Recuperada { get; set; }
+
+        public Task<int> SaveChangesAsync(CancellationToken cancellationToken = default) =>
+            ++_llamadas >= guardado && !Recuperada ? throw excepcion : interno.SaveChangesAsync(cancellationToken);
     }
 
     private static (ConexionIntegracion Conexion, ConexionIntegracionRepositorioFalso Conexiones, SuscripcionWebhookRepositorioFalso Suscripciones) ConSuscripcion(string graphId = "sub-1")
@@ -432,13 +451,19 @@ public class DesconectarBuzonCommandHandlerTests
 
         resultado.EsExitoso.Should().BeTrue();
         guardados.Should().Equal(
-            [(null, EstadoConexionIntegracion.Deshabilitada), (expiracion, EstadoConexionIntegracion.Deshabilitada)],
-            "control: al confirmar aún no había marca; la del hueco se guarda justo después");
+            [
+                (null, EstadoConexionIntegracion.Deshabilitada), (expiracion, EstadoConexionIntegracion.Deshabilitada),
+                (expiracion, EstadoConexionIntegracion.Deshabilitada),
+            ],
+            "control: al confirmar aún no había marca; la del hueco se guarda justo después, y el resultado del borrado " +
+            "vacía después la hora inicial por registrar sin mover la marca (Codex, ronda 20)");
         guardadosAlBorrar.Should().Be(2, "la marca ya estaba en la base cuando salió el DELETE");
         unitOfWork.TokensDeGuardado[0].Should().Be(cancelacion.Token, "control: la desconexión usa el token del llamador");
         unitOfWork.TokensDeGuardado[1].Should().Be(CancellationToken.None, "la marca se guarda sin la cancelación del llamador");
+        unitOfWork.TokensDeGuardado[2].Should().Be(CancellationToken.None, "el resultado tampoco usa la cancelación del llamador");
         graph.SuscripcionesEliminadas.Should().Equal(["sub-1"]);
         conexion.HuecoPendienteDesdeUtc.Should().Be(expiracion);
+        conexion.MarcaHuecoPorRegistrarDesdeUtc.Should().BeNull();
     }
 
     /// <summary>
@@ -1292,9 +1317,8 @@ public class DesconectarBuzonCommandHandlerTests
     }
 
     /// <summary>
-    /// La suscripción expira entre el guardado de la Deshabilitada y la confirmación: el guardado de la expiración vacía
-    /// el valor por registrar, y después el DELETE falla. El comienzo sigue siendo el guardado con la Deshabilitada,
-    /// anterior a la expiración: el valor local, no lo que quede en la conexión.
+    /// La suscripción expira entre el guardado de la Deshabilitada y la confirmación: se guarda la expiración y después el
+    /// DELETE falla. El comienzo sigue siendo el guardado con la Deshabilitada, anterior a la expiración.
     /// </summary>
     [Fact]
     public async Task Con_la_expiracion_ya_marcada_tras_confirmar_un_borrado_fallido_retrocede_al_comienzo_guardado()
@@ -1322,6 +1346,94 @@ public class DesconectarBuzonCommandHandlerTests
             "la Deshabilitada, la expiración tras confirmar y el borrado fallido desde el comienzo guardado");
         conexion.HuecoPendienteDesdeUtc.Should().Be(antesDelGuardado);
         conexion.MarcaHuecoPorRegistrarDesdeUtc.Should().BeNull();
+    }
+
+    // Codex, ronda 20, hallazgo medio (DesconectarBuzonCommand.cs:265): el guardado de la expiración tras confirmar vaciaba
+    // la hora inicial por registrar antes del DELETE. Si después fallaban el DELETE y los guardados de su resultado, o el
+    // proceso caía tras ese guardado, la base quedaba con la marca en la expiración, posterior al comienzo, y sin nada que
+    // Reparar ni el ciclo diario pudieran registrar.
+
+    /// <summary>
+    /// Prepara el escenario: la suscripción expira durante el guardado de la Deshabilitada, y los guardados desde
+    /// <paramref name="primerGuardadoQueFalla"/> no llegan a la base. Lo que la base tiene es lo del último guardado que sí
+    /// llegó (<c>EnBase</c>), y tras cada descarte el repositorio devuelve esa versión.
+    /// </summary>
+    private static (ConexionIntegracion Conexion, ConexionIntegracionRepositorioFalso Conexiones, DesconectarBuzonCommandHandler Handler,
+        UnitOfWorkQueFallaDesde Base, Func<(DateTime? Marca, DateTime? PorRegistrar)> EnBase, DateTime AntesDelGuardado, DateTime Expiracion)
+        ExpiraDuranteLaConfirmacion(int primerGuardadoQueFalla, Microsoft365GraphClientFalso graph)
+    {
+        var reloj = new RelojFalso(DateTime.UtcNow);
+        var antesDelGuardado = reloj.AhoraUtc;
+        var expiracion = reloj.AhoraUtc.AddMinutes(1);
+        var (conexion, conexiones, suscripciones) = BuzonCompartidoQueExpiraEn(expiracion, reloj.AhoraUtc.AddHours(-1));
+        var interno = new UnitOfWorkFalso();
+        (DateTime? Marca, DateTime? PorRegistrar) enBase = (null, null);
+        interno.AlGuardar = () =>
+        {
+            if (interno.VecesGuardado == 0)
+                reloj.Avanzar(TimeSpan.FromMinutes(2));
+            var guardada = conexiones.Conexiones[0];
+            enBase = (guardada.HuecoPendienteDesdeUtc, guardada.MarcaHuecoPorRegistrarDesdeUtc);
+        };
+        var descarte = new DescarteContado(() =>
+            conexiones.Conexiones[0] = Copia(conexion, deshabilitada: true, enBase.PorRegistrar, enBase.Marca));
+        var unitOfWork = new UnitOfWorkQueFallaDesde(interno, primerGuardadoQueFalla, new InvalidOperationException("base caída"));
+        var handler = CrearHandler(conexiones, suscripciones, new ReclamacionBuzonIntegracionRepositorioFalso(), new AlcanceDatosServiceFalso(),
+            graph, new CredencialIntegracionRepositorioFalso(), unitOfWork, descarte: descarte, reloj: reloj);
+        return (conexion, conexiones, handler, unitOfWork, () => enBase, antesDelGuardado, expiracion);
+    }
+
+    /// <summary>
+    /// (a) La expiración tras confirmar llega a la base, y después fallan el DELETE y todos los guardados de su resultado:
+    /// la hora inicial por registrar sobrevive en la base y repetir la desconexión la registra.
+    /// </summary>
+    [Fact]
+    public async Task Si_tras_guardar_la_expiracion_fallan_el_borrado_y_sus_guardados_la_hora_inicial_sobrevive_en_la_base()
+    {
+        var graph = new Microsoft365GraphClientFalso { ErrorEliminacion = CaeManager.Domain.Common.Error.Crear("x", "503") };
+        var (conexion, conexiones, handler, baseDatos, enBase, antesDelGuardado, expiracion) = ExpiraDuranteLaConfirmacion(3, graph);
+
+        var primero = await handler.Handle(new DesconectarBuzonCommand(conexion.Id), CancellationToken.None);
+
+        primero.Error.Codigo.Should().Be(DesconectarBuzonCommandHandler.CodigoMarcaHuecoNoGuardada, "control: el resultado no llegó");
+        graph.SuscripcionesEliminadas.Should().Equal(["sub-1"], "control: el DELETE se pidió y falló");
+        enBase().Marca.Should().Be(expiracion, "control: la expiración tras confirmar sí llegó a la base");
+        enBase().PorRegistrar.Should().Be(antesDelGuardado, "el guardado de la expiración no vacía la hora inicial");
+
+        baseDatos.Recuperada = true;
+        var segundo = await handler.Handle(new DesconectarBuzonCommand(conexion.Id), CancellationToken.None);
+
+        segundo.EsExitoso.Should().BeTrue();
+        conexiones.Conexiones[0].HuecoPendienteDesdeUtc.Should().Be(antesDelGuardado, "el comienzo real, no la expiración");
+        conexiones.Conexiones[0].MarcaHuecoPorRegistrarDesdeUtc.Should().BeNull();
+        graph.SuscripcionesEliminadas.Should().Equal(["sub-1"], "la repetición no vuelve a llamar a Graph");
+    }
+
+    /// <summary>
+    /// (b) El proceso cae justo tras guardar la expiración: lo que queda en la base es ese guardado. El ciclo diario la
+    /// encuentra y registra la hora inicial, no la expiración.
+    /// </summary>
+    [Fact]
+    public async Task Si_el_proceso_cae_tras_guardar_la_expiracion_el_ciclo_diario_registra_la_hora_inicial()
+    {
+        var graph = new Microsoft365GraphClientFalso();
+        var (conexion, _, handler, _, enBase, antesDelGuardado, expiracion) = ExpiraDuranteLaConfirmacion(3, graph);
+
+        // Todo lo posterior al guardado de la expiración no llega a la base: es lo mismo que una caída tras él.
+        await handler.Handle(new DesconectarBuzonCommand(conexion.Id), CancellationToken.None);
+        enBase().Marca.Should().Be(expiracion, "control: el último guardado que llegó es el de la expiración");
+
+        var tras = new ConexionIntegracionRepositorioFalso();
+        tras.Agregar(Copia(conexion, deshabilitada: true, enBase().PorRegistrar, enBase().Marca));
+        var unitOfWork = new UnitOfWorkFalso();
+        var ciclo = new ReparacionMarcaHuecoService(tras, unitOfWork, new CerrojoVerificacionBuzonFalso(), new DescarteContado(),
+            NullLogger<ReparacionMarcaHuecoService>.Instance);
+
+        await ciclo.RepararDelTenantActualAsync(CancellationToken.None);
+
+        tras.Conexiones[0].HuecoPendienteDesdeUtc.Should().Be(antesDelGuardado, "el comienzo real, no la expiración");
+        tras.Conexiones[0].MarcaHuecoPorRegistrarDesdeUtc.Should().BeNull();
+        unitOfWork.VecesGuardado.Should().Be(1);
     }
 
     [Fact]
