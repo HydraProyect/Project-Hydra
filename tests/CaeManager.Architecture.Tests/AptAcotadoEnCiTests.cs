@@ -316,11 +316,15 @@ public class AptAcotadoEnCiTests
     /// verificado en un reintento de descarga, sea desde un espejo de terceros o desde un
     /// atacante en la ruta de una fuente HTTP. Decidir los reintentos leyendo las fuentes
     /// admitía HTTP y no veía todas las fuentes de apt, así que ningún apt del CI ni de la
-    /// imagen reintenta: todo <c>Acquire::Retries</c> que no sea comentario vale 0.
+    /// imagen reintenta: toda asignación de <c>Acquire::Retries</c> (o
+    /// <c>APT::Acquire::Retries</c>) que no sea comentario vale 0, no hay ningún
+    /// <c>Retries</c> suelto (la sintaxis de bloque de apt, que este test no sabría leer) y
+    /// apt-acotado comprueba con apt-config el valor que apt lee de verdad.
     ///
     /// <para>
-    /// Lee el texto de los workflows, de las acciones y del Dockerfile; no ejecuta apt ni
-    /// mira la configuración que traiga la imagen del runner.
+    /// Lee el texto de todo <c>.github</c> y de los Dockerfile de la raíz; no ejecuta apt ni
+    /// mira la configuración que traiga la imagen del runner (eso lo comprueba la acción
+    /// con apt-config en cada job).
     /// </para>
     /// </summary>
     [Fact]
@@ -328,31 +332,37 @@ public class AptAcotadoEnCiTests
     {
         var raiz = RaizDelRepositorio();
         var rutas = Directory.EnumerateFiles(Path.Combine(raiz, ".github"), "*", SearchOption.AllDirectories)
-            .Where(r => r.EndsWith(".yml", StringComparison.Ordinal)
-                || r.EndsWith(".yaml", StringComparison.Ordinal)
-                || r.EndsWith(".sh", StringComparison.Ordinal))
-            .Append(Path.Combine(raiz, "Dockerfile"))
+            .Concat(Directory.EnumerateFiles(raiz, "Dockerfile*", SearchOption.TopDirectoryOnly))
             .ToList();
-        var reintentos = new Regex(@"Acquire::Retries", RegexOptions.IgnoreCase | RegexOptions.Compiled);
-        var valeCero = new Regex(@"\GAcquire::Retries(=0(?![0-9])|\s+\\?""0\\?"";)", RegexOptions.IgnoreCase | RegexOptions.Compiled);
-
-        var apariciones = rutas
+        var lineas = rutas
             .SelectMany(r => LineasSinComentario(r).Select(l => (fichero: Path.GetRelativePath(raiz, r), linea: l)))
-            .SelectMany(x => reintentos.Matches(x.linea).Select(m => (x.fichero, x.linea, m.Index)))
+            .ToList();
+        var asignacion = new Regex(@"Acquire::Retries(\s*=\s*|\s+\\?"")(?<valor>[^""\\\s;]*)",
+            RegexOptions.IgnoreCase | RegexOptions.Compiled);
+        var suelto = new Regex(@"(?<![-\w:])Retries\b", RegexOptions.IgnoreCase | RegexOptions.Compiled);
+
+        var asignaciones = lineas
+            .SelectMany(x => asignacion.Matches(x.linea).Select(m => (x.fichero, x.linea, valor: m.Groups["valor"].Value)))
             .ToList();
 
-        apariciones.Should().Contain(x => x.fichero.EndsWith("action.yml", StringComparison.Ordinal),
-            "el test tiene que estar mirando la configuración de apt-acotado");
-        apariciones.Count(x => x.fichero == "Dockerfile").Should().BeGreaterThanOrEqualTo(2,
+        asignaciones.Count(x => x.fichero.EndsWith("action.yml", StringComparison.Ordinal)).Should().BeGreaterThanOrEqualTo(2,
+            "el test tiene que estar mirando Acquire::Retries y APT::Acquire::Retries de apt-acotado");
+        asignaciones.Count(x => x.fichero == "Dockerfile").Should().BeGreaterThanOrEqualTo(2,
             "el test tiene que estar mirando el update y el install de la imagen");
-        apariciones.Should().OnlyContain(x => valeCero.IsMatch(x.linea, x.Index),
+        asignaciones.Should().OnlyContain(x => x.valor == "0",
             "ningún apt del CI ni de la imagen puede reintentar descargas (CVE-2026-109518)");
+        lineas.Should().NotContain(x => suelto.IsMatch(x.linea),
+            "un Retries fuera de Acquire::Retries (sintaxis de bloque de apt) escaparía a este test");
 
         var accion = LineasSinComentario(Path.Combine(raiz, ".github", "actions", "apt-acotado", "action.yml"));
-        accion.Should().Contain("'Acquire::Retries \"0\";' \\",
-            "apt-acotado escribe 0 literal, sin variable que otro camino pueda subir");
-        accion.Should().Contain(l => l.Contains("grep -qxF 'Acquire::Retries \"0\";' /etc/apt/apt.conf.d/99-ci-apt-acotado", StringComparison.Ordinal),
-            "la acción comprueba que el 0 quedó escrito antes de ejecutar apt");
+        IndiceDeSecuencia(accion,
+        [
+            "printf '%s\\n' \\",
+            "'Acquire::Retries \"0\";' \\",
+            "'APT::Acquire::Retries \"0\";' \\",
+        ]).Should().BeGreaterThan(-1, "apt-acotado escribe 0 literal en las dos claves, sin variable que otro camino pueda subir");
+        accion.Should().Contain("&& [ \"$(apt-config shell R Acquire::Retries A APT::Acquire::Retries)\" = \"R='0'\"$'\\n'\"A='0'\" ]",
+            "la acción comprueba, después de escribir el fichero, que el valor que apt lee de verdad es 0 en las dos claves");
         accion.Should().NotContain(l => l.Contains("reintentos_segun_fuentes", StringComparison.Ordinal)
                 || l.Contains("fijar_reintentos", StringComparison.Ordinal),
             "ya no hay decisión de reintentos por fuentes que mantener");
