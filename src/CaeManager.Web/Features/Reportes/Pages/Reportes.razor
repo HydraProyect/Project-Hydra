@@ -212,7 +212,7 @@
                    botones flotan sobre el panel, fuera del contenido que desplaza,
                    y solo se activan cuando hay desbordamiento. *@
                 <div class="panel-vista-previa-informe">
-                <div class="mesa-vista-previa-informe" @ref="_mesaVistaPrevia" tabindex="0" role="region"
+                <div class="mesa-vista-previa-informe" @ref="_mesaVistaPrevia" tabindex="@(_vistaPreviaDesborda ? "0" : null)" role="region"
                      aria-label="@Textos["AriaZonaDesplazableVistaPrevia"]">
                     <article class="hoja-informe" aria-label="@Textos["AriaVistaPrevia"]">
                         <header class="cabecera-hoja-informe">

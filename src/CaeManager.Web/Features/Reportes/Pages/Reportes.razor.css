@@ -351,8 +351,11 @@ a.boton-exportar-informe:hover {
     display: flex;
     flex-direction: column;
     min-height: 0;
-    max-height: max(20rem, calc(100vh - 9rem));
-    max-height: max(20rem, calc(100dvh - 9rem));
+    /* 13rem = cabecera de la app, relleno y título de la página que quedan por encima
+       del panel antes de pegarse, más un margen: así su borde inferior (y los botones)
+       caben en la primera pantalla sin desplazar. */
+    max-height: max(20rem, calc(100vh - 13rem));
+    max-height: max(20rem, calc(100dvh - 13rem));
 }
 
 /* La vista previa del mockup: una hoja sobre una mesa atenuada. */
@@ -368,7 +371,6 @@ a.boton-exportar-informe:hover {
     flex: 1 1 auto;
     min-height: 0;
     overflow-y: auto;
-    overscroll-behavior: contain;
 }
 
 /* Sin esto la hoja, hija flex de altura intrínseca, se encogería para caber. */
@@ -421,6 +423,18 @@ a.boton-exportar-informe:hover {
     opacity: .5;
     box-shadow: none;
     cursor: not-allowed;
+}
+
+/* En móvil la tabla llega a ~40 px del borde derecho: los botones se pegan al borde para no tapar la última columna. */
+@media (max-width: 768px) {
+    .botones-desplazamiento-informe {
+        right: var(--space-1);
+    }
+
+    .boton-desplazamiento-informe {
+        width: 32px;
+        height: 32px;
+    }
 }
 
 @media (prefers-reduced-motion: no-preference) {

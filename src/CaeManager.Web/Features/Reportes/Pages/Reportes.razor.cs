@@ -277,9 +277,19 @@ public partial class Reportes : CaeManager.Web.Components.PaginaInteractiva
             if (TienePlan && !_observandoVistaPrevia)
             {
                 _observandoVistaPrevia = true;
-                _moduloVistaPrevia ??= await JsRuntime.InvokeAsync<IJSObjectReference>("import", ModuloVistaPrevia);
+                var modulo = _moduloVistaPrevia ??= await JsRuntime.InvokeAsync<IJSObjectReference>("import", ModuloVistaPrevia);
+
+                // Se salió de la página mientras llegaba el módulo: DisposeAsync ya pasó sin
+                // nada que retirar y lo que se cree ahora no lo libraría nadie.
+                if (_desechado)
+                {
+                    _moduloVistaPrevia = null;
+                    await modulo.DisposeAsync();
+                    return;
+                }
+
                 _referenciaDotNet ??= DotNetObjectReference.Create(this);
-                await _moduloVistaPrevia.InvokeVoidAsync("observarDesbordamiento", _mesaVistaPrevia, _referenciaDotNet);
+                await modulo.InvokeVoidAsync("observarDesbordamiento", _mesaVistaPrevia, _referenciaDotNet);
             }
             else if (!TienePlan && _observandoVistaPrevia)
             {
@@ -339,8 +349,10 @@ public partial class Reportes : CaeManager.Web.Components.PaginaInteractiva
         catch (JSException) { }
         catch (JSDisconnectedException) { }
         catch (OperationCanceledException) { }
-
-        _referenciaDotNet?.Dispose();
+        finally
+        {
+            _referenciaDotNet?.Dispose();
+        }
     }
 
     private async Task CambiarClienteAsync(string clienteId)

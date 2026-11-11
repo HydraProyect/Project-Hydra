@@ -887,7 +887,11 @@ public class ReportesGen2Tests : BunitContext
         var panel = cut.Find(".panel-vista-previa-informe");
         var mesa = panel.Children.SingleOrDefault(c => c.ClassList.Contains("mesa-vista-previa-informe"));
         mesa.Should().NotBeNull("la mesa con la hoja es lo que desplaza dentro del panel");
-        mesa!.GetAttribute("tabindex").Should().Be("0", "una zona con desplazamiento tiene que poder recibir el foco para desplazarla con el teclado");
+        mesa!.HasAttribute("tabindex").Should().BeFalse("si la hoja cabe no hay nada que desplazar: no es una parada de tabulador sin función");
+        await cut.InvokeAsync(() => cut.Instance.CambiarDesbordamientoVistaPrevia(true));
+        cut.Find(".mesa-vista-previa-informe").GetAttribute("tabindex").Should().Be("0",
+            "una zona con desplazamiento tiene que poder recibir el foco para desplazarla con el teclado");
+        mesa = cut.Find(".mesa-vista-previa-informe");
         mesa.GetAttribute("role").Should().Be("region");
         mesa.GetAttribute("aria-label").Should().Be("Vista previa del informe, con desplazamiento");
         mesa.QuerySelector("article.hoja-informe").Should().NotBeNull();
@@ -990,6 +994,25 @@ public class ReportesGen2Tests : BunitContext
         await BotonDeDesplazamiento(cut, "Ir al final").ClickAsync(new MouseEventArgs());
 
         modulo.Invocations["desplazar"].Should().BeEmpty();
+    }
+
+    /// <summary>
+    /// El módulo se simula en modo Loose y la página traga los JSException: sin esto, renombrar el
+    /// fichero o un export dejaría los botones desactivados para siempre con todos los tests en verde.
+    /// </summary>
+    [Fact]
+    public void El_modulo_js_existe_y_exporta_lo_que_la_pagina_invoca()
+    {
+        var dir = AppContext.BaseDirectory;
+        while (dir is not null && !File.Exists(Path.Combine(dir, "CaeManager.slnx")))
+            dir = Path.GetDirectoryName(dir);
+        var js = File.ReadAllText(Path.Combine(dir!, "src", "CaeManager.Web", "wwwroot", "js", "vista-previa-informe.js"));
+
+        foreach (var nombre in new[] { "observarDesbordamiento", "desconectar", "desplazar" })
+            js.Should().MatchRegex($@"export\s+function\s+{nombre}\s*\(", $"la página invoca «{nombre}»");
+        js.Should().Contain("'CambiarDesbordamientoVistaPrevia'", "es el [JSInvokable] de la página");
+        typeof(ReportesPagina).GetMethod("CambiarDesbordamientoVistaPrevia")!
+            .GetCustomAttributes(typeof(Microsoft.JSInterop.JSInvokableAttribute), false).Should().NotBeEmpty();
     }
 
     [Fact]
