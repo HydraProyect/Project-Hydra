@@ -326,7 +326,7 @@ public class DesconectarBuzonCommandHandler(
         // de más, nunca de menos. Excepción: si la suscripción expiró antes de confirmar, el guardado de la expiración llegó
         // a la base (y vació ese valor) y luego fallan el DELETE y todos los guardados del borrado fallido, la base queda
         // con la marca en la expiración, posterior al comienzo guardado, y sin nada por registrar. El usuario ve el fallo;
-        // el desfase no pasa de lo que tardó la confirmación (revisión puente de la ronda 19, bajo, declarado en la PR).
+        // el desfase no pasa de lo que tardó la confirmación, y se acepta como hueco conocido de este fallo combinado.
         if (sinGuardar is { } pendiente
             && await GuardarMarcaTrasDesconexionAsync(null, conexion.Id, expiracionSuscripcionUtc, pendiente.ObservadaUtc, pendiente.Registrar) is null)
         {

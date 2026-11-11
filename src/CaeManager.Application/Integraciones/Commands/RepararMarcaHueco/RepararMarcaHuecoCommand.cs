@@ -64,7 +64,9 @@ public class RepararMarcaHuecoCommandHandler(
     {
         var actual = await conexionRepositorio.ObtenerActualPorIdAsync(conexionId, cancellationToken);
 
-        // La visibilidad se vuelve a comprobar sobre el estado releído, como en Desconectar y Reactivar.
+        // La visibilidad se vuelve a comprobar sobre el estado releído, como en Desconectar y Reactivar. La parte de cartera
+        // es defensiva: ClienteId solo se asigna al crear la conexión y el alcance de datos es el de esta petición, así que
+        // lo que puede cambiar entre las dos comprobaciones es la visibilidad por conexión.
         if (actual is null || !await DesconectarBuzonCommandHandler.ConexionVisibleAsync(alcanceDatos, actual, cancellationToken))
             return NoEncontrada();
 
