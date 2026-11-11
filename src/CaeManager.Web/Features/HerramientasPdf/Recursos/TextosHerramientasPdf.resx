@@ -739,4 +739,13 @@
   <data name="ErrorSinEspacioTramo" xml:space="preserve">
     <value>Ahora mismo no hay espacio para preparar las páginas {0} a {1}, ni las siguientes. Vuelve a intentarlo en unos minutos.</value>
   </data>
+  <data name="ErrorDemasiadoComplejo" xml:space="preserve">
+    <value>Este PDF tiene una estructura interna demasiado grande para dividirlo sin riesgo. Ábrelo y guárdalo de nuevo como PDF (por ejemplo, imprimiéndolo a PDF) y vuelve a subirlo.</value>
+  </data>
+  <data name="ErrorTenantCambiadoDescarga" xml:space="preserve">
+    <value>La Empresa del selector ha cambiado desde que subiste el PDF. Se han descargado {0} de {1} PDF y los demás no: vuelve a subirlo.</value>
+  </data>
+  <data name="ErrorTramoDemasiadoGrande" xml:space="preserve">
+    <value>Las páginas {0} a {1} ocupan demasiado al separarlas en un PDF aparte (al separarlas, algunos PDF crecen mucho), así que no se han descargado ni ellas ni las siguientes. Volver a intentarlo no lo arregla: divide en tramos más pequeños.</value>
+  </data>
 </root>

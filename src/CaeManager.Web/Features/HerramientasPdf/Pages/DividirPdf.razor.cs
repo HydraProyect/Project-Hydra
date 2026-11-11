@@ -270,6 +270,7 @@ public partial class DividirPdf : CaeManager.Web.Components.PaginaInteractiva, I
     {
         ErroresDivisorPdf.ConContrasena => Textos["ErrorContrasena"],
         ErroresDivisorPdf.DemasiadoGrande => Textos["ErrorDemasiadoGrande", LimitesDivisionPdf.TamanoMaximoOriginalMb],
+        ErroresDivisorPdf.DemasiadoComplejo => Textos["ErrorDemasiadoComplejo"],
         ErroresDivisorPdf.Ilegible or ErroresDivisorPdf.DemasiadasPaginas => Textos["ErrorIlegible"],
         _ => error.Mensaje,
     };
@@ -471,6 +472,7 @@ public partial class DividirPdf : CaeManager.Web.Components.PaginaInteractiva, I
         var entregados = 0;
         RangoPaginas? enCurso = null;
         var tenantCambiado = false;
+        var tramoDemasiadoGrande = false;
         _descargando = true;
         _descargados = null;
         _error = null;
@@ -484,6 +486,7 @@ public partial class DividirPdf : CaeManager.Web.Components.PaginaInteractiva, I
                 if (tramo.EsFallido)
                 {
                     tenantCambiado = tramo.Error.Codigo == CrearDocumentosDesdeDivisionCommandHandler.ErrorTenantCruzado;
+                    tramoDemasiadoGrande = tramo.Error.Codigo == ErroresDivisorPdf.DemasiadoGrande;
                     break;
                 }
 
@@ -502,11 +505,14 @@ public partial class DividirPdf : CaeManager.Web.Components.PaginaInteractiva, I
                 enCurso = null;
             }
 
-            // Con otro Tenant en el selector, reintentar no sirve: se dice lo mismo que al guardar.
+            // Con otro Tenant en el selector, reintentar no sirve, y lo ya descargado no se puede deshacer: se dice cuánto
+            // salió. Un tramo demasiado grande tampoco cabe al reintentarlo igual, solo con tramos más pequeños.
             if (tenantCambiado)
-                _error = Textos["ErrorTenantCambiado"];
+                _error = Textos["ErrorTenantCambiadoDescarga", entregados, rangos.Count];
             else if (enCurso is { } fallido)
-                _error = Textos["ErrorDescargaTramo", fallido.Inicial, fallido.Final];
+                _error = tramoDemasiadoGrande
+                    ? Textos["ErrorTramoDemasiadoGrande", fallido.Inicial, fallido.Final]
+                    : Textos["ErrorDescargaTramo", fallido.Inicial, fallido.Final];
         }
         catch (PresupuestoMemoriaAgotadoException)
         {

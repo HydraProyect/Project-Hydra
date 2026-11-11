@@ -156,9 +156,14 @@ public class CrearDocumentosDesdeDivisionCommandHandler(
     private async Task<ResultadoTramoCreado> CrearTramoAsync(
         CrearDocumentosDesdeDivisionCommand request, IPdfParaDividir pdf, TramoACrear tramo, CancellationToken cancellationToken)
     {
-        var extraido = pdf.ExtraerPaginas(tramo.PaginaInicial, tramo.PaginaFinal);
+        // La cota es la del alta: un tramo que no cabría como Documento se corta mientras se escribe, sin ocupar más.
+        var extraido = pdf.ExtraerPaginas(tramo.PaginaInicial, tramo.PaginaFinal, LimitesArchivoSubido.TamanoMaximoBytes);
         if (!extraido.EsExitoso)
-            return Resultado(tramo, EstadoTramoCreado.Rechazado, null, extraido.Error.Mensaje);
+        {
+            return extraido.Error.Codigo == ErroresDivisorPdf.DemasiadoGrande
+                ? Resultado(tramo, EstadoTramoCreado.DemasiadoGrande, null, null)
+                : Resultado(tramo, EstadoTramoCreado.Rechazado, null, extraido.Error.Mensaje);
+        }
 
         if (extraido.Valor.Length > LimitesArchivoSubido.TamanoMaximoBytes)
             return Resultado(tramo, EstadoTramoCreado.DemasiadoGrande, null, null);

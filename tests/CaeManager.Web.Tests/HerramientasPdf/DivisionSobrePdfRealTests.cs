@@ -105,7 +105,7 @@ public sealed class DivisionSobrePdfRealTests
         var pdf = Pdf(Hacienda, ["Segunda pagina del paquete"], ["Tercera pagina del paquete"], Formacion);
         using var abierto = _divisor.Abrir(pdf).Valor;
 
-        var tramo = abierto.ExtraerPaginas(2, 3);
+        var tramo = abierto.ExtraerPaginas(2, 3, long.MaxValue);
 
         tramo.EsExitoso.Should().BeTrue();
         var paginas = _extractor.ExtraerPalabras(tramo.Valor).Valor;
@@ -123,9 +123,9 @@ public sealed class DivisionSobrePdfRealTests
         var pdf = Pdf(Hacienda, Formacion, Hacienda);
         using var abierto = _divisor.Abrir(pdf).Valor;
 
-        Paginas(abierto.ExtraerPaginas(1, 1).Valor).Should().Be(1);
-        Paginas(abierto.ExtraerPaginas(2, 3).Valor).Should().Be(2);
-        Paginas(abierto.ExtraerPaginas(1, 3).Valor).Should().Be(3);
+        Paginas(abierto.ExtraerPaginas(1, 1, long.MaxValue).Valor).Should().Be(1);
+        Paginas(abierto.ExtraerPaginas(2, 3, long.MaxValue).Valor).Should().Be(2);
+        Paginas(abierto.ExtraerPaginas(1, 3, long.MaxValue).Valor).Should().Be(3);
     }
 
     [Theory]
@@ -136,7 +136,7 @@ public sealed class DivisionSobrePdfRealTests
     {
         using var abierto = _divisor.Abrir(Pdf(Hacienda, Formacion, Hacienda)).Valor;
 
-        abierto.ExtraerPaginas(inicial, final).Error.Codigo.Should().Be(ErroresDivisorPdf.RangoInvalido);
+        abierto.ExtraerPaginas(inicial, final, long.MaxValue).Error.Codigo.Should().Be(ErroresDivisorPdf.RangoInvalido);
     }
 
     [Fact]
@@ -186,7 +186,7 @@ public sealed class DivisionSobrePdfRealTests
         using (var abierto = _divisor.Abrir(original).Valor)
         {
             // Sin cota, el tramo pasa con mucho del máximo que se reserva para descargarlo: esta prueba sí lo ejercita.
-            ((long)abierto.ExtraerPaginas(1, 1).Valor.Length).Should().BeGreaterThan(LimitesDivisionPdf.TamanoMaximoTramo(original.Length));
+            ((long)abierto.ExtraerPaginas(1, 1, long.MaxValue).Valor.Length).Should().BeGreaterThan(LimitesDivisionPdf.TamanoMaximoTramo(original.Length));
         }
 
         var descarga = ExtraccionTramoPdf.Extraer(_divisor, original, 1, 1, NullLogger.Instance);
@@ -198,7 +198,7 @@ public sealed class DivisionSobrePdfRealTests
     public void La_cota_del_tramo_se_aplica_mientras_se_escribe_y_un_tramo_justo_en_la_cota_sale_entero()
     {
         using var abierto = _divisor.Abrir(Pdf(Hacienda, Formacion)).Valor;
-        var sinCota = abierto.ExtraerPaginas(1, 2).Valor;
+        var sinCota = abierto.ExtraerPaginas(1, 2, long.MaxValue).Valor;
 
         abierto.ExtraerPaginas(1, 2, sinCota.Length - 1).Error.Codigo.Should().Be(ErroresDivisorPdf.DemasiadoGrande);
         abierto.ExtraerPaginas(1, 2, sinCota.Length).Valor.Length.Should().Be(sinCota.Length);
@@ -221,12 +221,68 @@ public sealed class DivisionSobrePdfRealTests
         flujo.Capacity.Should().Be(1000, "el búfer dobla, pero nunca por encima de la cota");
     }
 
+    [Fact]
+    public void El_flujo_acotado_corta_tambien_el_byte_suelto_y_el_cambio_de_longitud_que_pasarian_la_cota()
+    {
+        using var flujo = new FlujoMemoriaAcotado(10);
+        flujo.Write(new byte[9]);
+        flujo.WriteByte(1);
+        flujo.Length.Should().Be(10, "el byte que llega justo a la cota cabe");
+
+        var otroByte = () => flujo.WriteByte(2);
+        otroByte.Should().Throw<IOException>();
+        flujo.Length.Should().Be(10, "el byte que pasaría la cota no se escribe");
+        flujo.CotaSuperada.Should().BeTrue();
+
+        using var alargado = new FlujoMemoriaAcotado(10);
+        alargado.SetLength(10);
+        alargado.Length.Should().Be(10);
+        var alargar = () => alargado.SetLength(11);
+        alargar.Should().Throw<IOException>();
+        alargado.Length.Should().Be(10, "alargar por encima de la cota no reserva nada");
+        alargado.Capacity.Should().BeLessThanOrEqualTo(10);
+        alargado.CotaSuperada.Should().BeTrue();
+    }
+
+    [Fact]
+    public void Un_guardado_que_se_traga_el_corte_de_la_cota_y_termina_falla_igual_como_demasiado_grande()
+    {
+        // PDFsharp podría capturar la excepción del flujo y seguir: lo que quedó escrito no es un tramo completo.
+        var tragado = PdfSharpDivisorPdf.GuardarConCota(salida =>
+        {
+            salida.Write(new byte[8]);
+            try
+            {
+                salida.Write(new byte[8]);
+            }
+            catch (IOException)
+            {
+            }
+        }, cota: 10);
+
+        tragado.Error.Codigo.Should().Be(ErroresDivisorPdf.DemasiadoGrande);
+        PdfSharpDivisorPdf.GuardarConCota(salida => salida.Write(new byte[10]), cota: 10).Valor.Should().HaveCount(10);
+    }
+
+    [Fact]
+    public void Abrir_rechaza_antes_de_PDFsharp_un_PDF_cuya_estructura_comprimida_pasa_de_los_topes()
+    {
+        var bomba = PdfQueSeExpandeAlReescribirse(elementos: 10, objetosDeclarados: LimitesUnionPdf.MaximoObjetosPorPdf + 1);
+
+        _divisor.Abrir(bomba).Error.Codigo.Should().Be(ErroresDivisorPdf.DemasiadoComplejo);
+        ExtraccionTramoPdf.Extraer(_divisor, bomba, 1, 1, NullLogger.Instance).Error.Codigo.Should().Be(ErroresDivisorPdf.DemasiadoComplejo,
+            "descargar un tramo abre con la misma cota");
+
+        using var normal = _divisor.Abrir(PdfQueSeExpandeAlReescribirse(elementos: 10)).Valor;
+        normal.NumeroPaginas.Should().Be(1, "un flujo de objetos dentro de los topes se sigue abriendo");
+    }
+
     /// <summary>
     /// PDF 1.5 cuya única página guarda sus recursos en un flujo de objetos comprimido, con la tabla de referencias también
     /// como flujo. PDFsharp lo abre y, al reescribir el tramo, saca esos recursos sin comprimir: el tramo ocupa mucho más
     /// que el original, como pasa con PDF reales que comprimen sus objetos.
     /// </summary>
-    private static byte[] PdfQueSeExpandeAlReescribirse(int elementos)
+    private static byte[] PdfQueSeExpandeAlReescribirse(int elementos, int objetosDeclarados = 1)
     {
         const string cabeceraFlujoObjetos = "4 0 ";
         var recursos = Encoding.ASCII.GetBytes(cabeceraFlujoObjetos + "<< /Relleno [" + string.Join(' ', Enumerable.Repeat("0", elementos)) + "] >>");
@@ -252,7 +308,7 @@ public sealed class DivisionSobrePdfRealTests
         Objeto(2, "<< /Type /Pages /Kids [3 0 R] /Count 1 >>");
         Objeto(3, "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Resources 4 0 R >>");
         desplazamientos[5] = pdf.Position;
-        Escribir($"5 0 obj\n<< /Type /ObjStm /N 1 /First {cabeceraFlujoObjetos.Length} /Filter /FlateDecode /Length {comprimido.Length} >>\nstream\n");
+        Escribir($"5 0 obj\n<< /Type /ObjStm /N {objetosDeclarados} /First {cabeceraFlujoObjetos.Length} /Filter /FlateDecode /Length {comprimido.Length} >>\nstream\n");
         pdf.Write(comprimido);
         Escribir("\nendstream\nendobj\n");
         desplazamientos[6] = pdf.Position;

@@ -184,6 +184,22 @@ public class CrearDocumentosDesdeDivisionCommandHandlerTests
     }
 
     [Fact]
+    public async Task Guardar_extrae_cada_tramo_con_la_cota_del_alta_y_el_que_la_pasa_al_escribirse_avisa_de_tamano()
+    {
+        _divisor.PaginaEnorme = 2;
+        _divisor.RespetaCota = true;
+
+        var resultado = await Handler().Handle(Comando(
+            Tramo(1, 1, ClaseTitular.EmpresaGestionada, _empresaId),
+            Tramo(2, 2, ClaseTitular.EmpresaGestionada, _empresaId)), CancellationToken.None);
+
+        _divisor.Cotas.Should().Equal([LimitesArchivoSubido.TamanoMaximoBytes, LimitesArchivoSubido.TamanoMaximoBytes],
+            "el tramo se corta mientras se escribe, sin ocupar más de lo que cabe en un Documento");
+        resultado.Valor.Select(r => r.Estado).Should().Equal(EstadoTramoCreado.Creado, EstadoTramoCreado.DemasiadoGrande);
+        _almacen.Guardados.Should().HaveCount(1);
+    }
+
+    [Fact]
     public async Task Exactamente_10_MB_si_se_crea()
     {
         _divisor.PaginaEnorme = 1;
@@ -313,6 +329,10 @@ public class CrearDocumentosDesdeDivisionCommandHandlerTests
         public int? PaginaEnorme { get; set; }
         public long TamanoEnorme { get; set; } = LimitesArchivoSubido.TamanoMaximoBytes + 1;
 
+        /// <summary>Como el divisor real: un tramo que pasaría la cota pedida falla con DemasiadoGrande al escribirse.</summary>
+        public bool RespetaCota { get; set; }
+        public List<long> Cotas { get; } = [];
+
         public Result<IPdfParaDividir> Abrir(byte[] contenidoPdf) => Result.Exito<IPdfParaDividir>(new Abierto(this));
 
         private sealed class Abierto(DivisorFalso divisor) : IPdfParaDividir
@@ -323,7 +343,11 @@ public class CrearDocumentosDesdeDivisionCommandHandlerTests
             public Result<byte[]> ExtraerPaginas(int paginaInicial, int paginaFinal, long tamanoMaximoBytes)
             {
                 divisor.Extraidos.Add((paginaInicial, paginaFinal));
-                return Result.Exito(new byte[paginaInicial == divisor.PaginaEnorme ? divisor.TamanoEnorme : 8]);
+                divisor.Cotas.Add(tamanoMaximoBytes);
+                var tamano = paginaInicial == divisor.PaginaEnorme ? divisor.TamanoEnorme : 8;
+                return divisor.RespetaCota && tamano > tamanoMaximoBytes
+                    ? Result.Fallo<byte[]>(Error.Crear(ErroresDivisorPdf.DemasiadoGrande, "El tramo supera el tamaño que se puede preparar."))
+                    : Result.Exito(new byte[tamano]);
             }
 
             public void Dispose()

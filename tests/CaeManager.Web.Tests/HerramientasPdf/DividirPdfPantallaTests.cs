@@ -353,7 +353,27 @@ public sealed class DividirPdfPantallaTests : BunitContext
 
         cut.WaitForAssertion(() => cut.Find(".aviso-error").TextContent.Should().Contain("La Empresa del selector ha cambiado desde que subiste el PDF."));
         cut.Find(".aviso-error").TextContent.Should().NotContain("Inténtalo de nuevo", "reintentar con otro Tenant no sirve");
+        cut.Find(".aviso-error").TextContent.Should().Contain("Se han descargado 1 de 3 PDF y los demás no")
+            .And.NotContain("No se ha creado nada", "el primer tramo ya salió al navegador");
         _mediador.Extracciones.Select(e => e.PaginaInicial).Should().Equal(1, 3);
+    }
+
+    [Fact]
+    public async Task Si_un_tramo_es_demasiado_grande_se_dice_asi_y_no_se_invita_a_reintentar()
+    {
+        var descarga = JSInterop.SetupModule("./js/descarga-pdf-unido.js");
+        descarga.SetupVoid("descargarPdf", _ => true).SetVoidResult();
+        _mediador.PaginaQueFallaAlExtraer = 3;
+        _mediador.CodigoFalloExtraccion = ErroresDivisorPdf.DemasiadoGrande;
+        var cut = Renderizar();
+        await SubirAsync(cut);
+
+        Pulsar(cut, "Descargar 3 PDF");
+
+        cut.WaitForAssertion(() => cut.Find(".aviso-error").TextContent.Should().Contain("Las páginas 3 a 3 ocupan demasiado al separarlas"));
+        cut.Find(".aviso-error").TextContent.Should().NotContain("Inténtalo de nuevo").And.Contain("divide en tramos más pequeños");
+        cut.Find(".salida-descargada").TextContent.Should().Contain("PDF enviados al navegador: 1.");
+        _presupuesto.Reservado.Should().Be(0);
     }
 
     [Fact]
@@ -593,6 +613,19 @@ public sealed class DividirPdfPantallaTests : BunitContext
         await cut.InvokeAsync(() => cut.FindComponent<InputFile>().UploadFiles(InputFileContent.CreateFromBinary([1], "cerrado.pdf")));
 
         cut.WaitForAssertion(() => cut.Markup.Should().Contain("El PDF tiene contraseña"));
+        cut.FindAll("button.tijera").Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task Un_PDF_con_una_estructura_demasiado_grande_se_avisa_con_su_motivo_y_no_avanza()
+    {
+        _mediador.Preparacion = Result.Fallo<PreparacionDivisionPdf>(Error.Crear(ErroresDivisorPdf.DemasiadoComplejo, "x"));
+        var cut = Renderizar();
+        cut.WaitForAssertion(() => cut.FindAll(".zona-soltar-archivo").Should().ContainSingle());
+
+        await cut.InvokeAsync(() => cut.FindComponent<InputFile>().UploadFiles(InputFileContent.CreateFromBinary([1], "bomba.pdf")));
+
+        cut.WaitForAssertion(() => cut.Markup.Should().Contain("estructura interna demasiado grande para dividirlo"));
         cut.FindAll("button.tijera").Should().BeEmpty();
     }
 
