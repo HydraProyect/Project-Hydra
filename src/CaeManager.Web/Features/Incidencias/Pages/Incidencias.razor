@@ -19,6 +19,7 @@
 @using MediatR
 @using Microsoft.AspNetCore.Components.QuickGrid
 @using CaeManager.Web.Components.Workspace
+@using CaeManager.Web.Features.Documentos.Components
 @using CaeManager.Web.Features.Incidencias.Recursos
 @using Microsoft.Extensions.Localization
 @inject IMediator Mediator
@@ -43,6 +44,8 @@
         </Primaria>
     </CabeceraListado>
 
+    @* Incidencias es una pestaña de la sección Documentos: la misma barra que pinta Documentos, bajo el título y las acciones. *@
+    <BarraPestanasDocumentos PestanaActiva="@BarraPestanasDocumentos.IdIncidencias">
     @* El estado se filtra en la franja (Sin resolver / Resueltas), que ya dice cuál está marcado: sin pastillas. El fragmento
        vacío mantiene la barra en modo pastillas. *@
     <BarraFiltros Busqueda="@_busqueda" BusquedaChanged="BuscarAsync" PlaceholderBuscador="@Textos["PlaceholderBusqueda"]"
@@ -180,6 +183,7 @@
             </EstadoVacio>
         }
     }
+    </BarraPestanasDocumentos>
 </div>
 
 <DrawerFormulario Visible="_drawerVisible" VisibleChanged="CerrarDrawerAsync"

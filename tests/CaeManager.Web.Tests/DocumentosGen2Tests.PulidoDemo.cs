@@ -31,6 +31,9 @@ public partial class DocumentosGen2Tests
         cut.WaitForAssertion(() => cut.Find("tbody button.enlace-nombre-fila"));
 
         cut.FindAll("[role=tablist]").Should().ContainSingle("la página lleva una sola tira de pestañas; que el marco no pinte la suya sobre /documentos lo fija BarraSeccionTests");
+        cut.FindComponents<CaeManager.Web.Features.Documentos.Components.BarraPestanasDocumentos>().Should().ContainSingle(
+            "la tira es el componente compartido de la sección, el mismo que pintan Incidencias y la pantalla heredada de Revisión IA");
+        BarraPestanasDocumentosTests.Activa(cut).Should().Be("Estado");
         var etiquetas = Pestanas(cut).Select(EtiquetaDePestana).ToList();
         etiquetas.Count(e => e == "Revisión IA").Should().Be(1);
         etiquetas.Should().StartWith(["Estado", "Plataformas CAE", "Reclamaciones", "Preventivo", "Revisión IA", "Plantillas"]);
