@@ -25,7 +25,9 @@ namespace CaeManager.Infrastructure.HerramientasPdf;
 /// <b>Memoria.</b> El procesador reserva él mismo en el <see cref="IPresupuestoMemoriaDocumentos"/> lo que usa, sin
 /// esperar (quien lo llama ya retiene las fotos leídas; esperar reteniendo bloquea a varias operaciones entre sí), y si no
 /// cabe lanza <see cref="PresupuestoMemoriaAgotadoException"/>. Lo que cuesta cada foto se conoce por su cabecera
-/// (decodificación y lienzo, 4 bytes por píxel de cada uno) salvo el JPEG de salida, que NO se deduce del tamaño de la foto
+/// (decodificación y lienzo, 4 bytes por píxel de cada uno, más el búfer de coeficientes que libjpeg guarda en memoria
+/// nativa para un JPEG progresivo o de varios barridos: <see cref="CabeceraJpeg.BytesDeBufferDeCoeficientes"/>, hasta
+/// 6 bytes por píxel, que se reserva antes de decodificar y se devuelve cuando el decodificador ya se liberó) salvo el JPEG de salida, que NO se deduce del tamaño de la foto
 /// subida (un PNG de 170 KB con un patrón repetido da un JPEG de varios MB): se reserva por trozos a medida que el
 /// codificador lo escribe, y si el presupuesto se agota se descarta lo que falta y se falla al terminar. Del PDF se
 /// reservan la copia de cada JPEG que retiene el documento (<see cref="LimitesFotoAPdf.CopiasDelJpegEnElDocumento"/>) y el
@@ -39,7 +41,8 @@ namespace CaeManager.Infrastructure.HerramientasPdf;
 /// lo toma por una entrada truncada y termina a los pocos KB, y el procesador lanza entonces
 /// <see cref="OperationCanceledException"/>. Además el token se comprueba entre etapas (decodificar, dibujar, codificar).
 /// Lo que sigue sin poder interrumpirse son las llamadas nativas que ya no leen entrada: dibujar la imagen reducida y
-/// codificar el JPEG; están acotadas por el tope de píxeles y duran una fracción de segundo.
+/// codificar el JPEG; están acotadas por el tope de píxeles y duran una fracción de segundo. Guardar el PDF tampoco se
+/// interrumpe, pero el token se comprueba al terminar y un PDF cuyo guardado coincidió con la cancelación no se entrega.
 /// </para>
 /// </summary>
 public sealed class SkiaPdfSharpProcesadorFotosPdf(
@@ -56,7 +59,8 @@ public sealed class SkiaPdfSharpProcesadorFotosPdf(
     private const long SobrecostePorPaginaBytes = 8 * 1024;
 
     /// <summary>
-    /// Solo para los tests: se llama con el nombre de cada etapa que termina («decodificada», «dibujada», «codificada») y
+    /// Solo para los tests: se llama con el nombre de cada etapa que termina («decodificada», «dibujada», «codificada»,
+    /// «guardado» al volver <c>PdfDocument.Save</c>) y
     /// con «lectura» cada vez que el decodificador pide bytes de la foto, de modo que un test pueda cancelar en una
     /// frontera concreta y comprobar que no se pasa de ella.
     /// </summary>
@@ -97,6 +101,12 @@ public sealed class SkiaPdfSharpProcesadorFotosPdf(
                 cuentaPdf.Reservar(capacidad - totalJpeg);
                 salida = new MemoryStream(checked((int)capacidad));
                 documento.Save(salida, closeStream: false);
+
+                // Guardar es una sola llamada de PDFsharp que no mira el token: si se canceló mientras tanto, el PDF no se
+                // entrega. El finally libera el flujo y la reserva; sin esto el éxito prolongaría el trabajo y la retención
+                // de un PDF que nadie va a descargar.
+                AlTerminarEtapa?.Invoke("guardado");
+                cancellationToken.ThrowIfCancellationRequested();
 
                 // Si el PDF pasó de lo previsto, el flujo creció: se cuenta lo que ocupa de verdad.
                 if (salida.Capacity > capacidad)
@@ -151,6 +161,10 @@ public sealed class SkiaPdfSharpProcesadorFotosPdf(
         {
             cancellationToken.ThrowIfCancellationRequested();
 
+            // Declarada ANTES que el decodificador: se desecha DESPUÉS que él, así que su reserva no vuelve al presupuesto
+            // mientras el decodificador siga reteniendo memoria nativa (el búfer de coeficientes de un JPEG progresivo).
+            using var cuentaDecodificacion = new Cuenta(presupuesto);
+
             // Sobre los bytes tal cual, sin la copia que haría SKData.CreateCopy.
             using var origen = new SKManagedStream(
                 new FlujoDeEntrada(new MemoryStream(foto, writable: false), cancellationToken, () => AlTerminarEtapa?.Invoke("lectura")),
@@ -174,10 +188,20 @@ public sealed class SkiaPdfSharpProcesadorFotosPdf(
             var anchoSalida = girada ? alto : ancho;
             var altoSalida = girada ? ancho : alto;
 
-            // Lo que cuestan decodificar y dibujar se sabe por la cabecera: se reserva ANTES de pedir esa memoria.
-            using var cuentaDecodificacion = new Cuenta(presupuesto);
+            // Lo que cuestan decodificar y dibujar se sabe por la cabecera: se reserva ANTES de pedir esa memoria. A los píxeles
+            // decodificados se suma, en un JPEG progresivo o de varios barridos, el búfer de coeficientes que libjpeg guarda
+            // en memoria nativa (hasta 6 bytes por píxel): no es un bitmap de Skia, pero ocupa el proceso igual.
+            long bytesDeCoeficientes = 0;
+            if (codec.EncodedFormat == SKEncodedImageFormat.Jpeg)
+            {
+                // Sin una cabecera legible no hay forma de presupuestar la decodificación: se rechaza.
+                if (CabeceraJpeg.Leer(foto) is not { } cabecera)
+                    return FalloNormalizacion(ErroresFotoAPdf.FotoIlegible, "No hemos podido leer esta foto.");
+                bytesDeCoeficientes = cabecera.BytesDeBufferDeCoeficientes;
+            }
+
             using var cuentaLienzo = new Cuenta(presupuesto);
-            cuentaDecodificacion.Reservar((long)info.Width * info.Height * LimitesFotoAPdf.BytesPorPixelDecodificado);
+            cuentaDecodificacion.Reservar((long)info.Width * info.Height * LimitesFotoAPdf.BytesPorPixelDecodificado + bytesDeCoeficientes);
             cuentaLienzo.Reservar((long)anchoSalida * altoSalida * LimitesFotoAPdf.BytesPorPixelDecodificado);
 
             using var destino = new SKBitmap(new SKImageInfo(anchoSalida, altoSalida, SKColorType.Rgba8888, SKAlphaType.Opaque));
@@ -200,7 +224,9 @@ public sealed class SkiaPdfSharpProcesadorFotosPdf(
                 lienzo.DrawImage(imagen, 0, 0, new SKSamplingOptions(SKFilterMode.Linear, SKMipmapMode.Linear));
             }
 
-            // La decodificación ya no existe: su reserva vuelve antes de codificar.
+            // La decodificación ya no existe: se libera el decodificador (y con él su búfer de coeficientes) y SOLO entonces
+            // vuelve su reserva, antes de codificar.
+            codec.Dispose();
             cuentaDecodificacion.Dispose();
             AlTerminarEtapa?.Invoke("dibujada");
             cancellationToken.ThrowIfCancellationRequested();

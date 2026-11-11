@@ -79,7 +79,7 @@
                                 <span class="foto-miniatura">
                                     @if (actual.Miniatura is { } miniatura)
                                     {
-                                        <img src="data:image/jpeg;base64,@miniatura" alt="@Textos["FotoMiniaturaAlt", actual.Nombre]" />
+                                        <img src="data:image/jpeg;base64,@Convert.ToBase64String(miniatura)" alt="@Textos["FotoMiniaturaAlt", actual.Nombre]" />
                                     }
                                 </span>
                                 <span class="foto-datos">

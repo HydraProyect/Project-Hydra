@@ -489,6 +489,123 @@ public sealed class ProcesadorFotosPdfTests
         real.Reservado.Should().Be(0);
     }
 
+    /// <summary>Un JPEG progresivo REAL (Pillow, 64 x 48, 4:4:4, SOF2 con varios barridos): Skia lo decodifica de verdad.</summary>
+    private const string JpegProgresivo444Base64 = "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";
+
+    private static byte[] JpegProgresivo() => Convert.FromBase64String(JpegProgresivo444Base64);
+
+    /// <summary>Misma cabecera con otras dimensiones en el SOF: lo que lee un decodificador antes de empezar, sin datos que las sostengan.</summary>
+    private static byte[] ConDimensionesDeSof(byte[] jpeg, ushort ancho, ushort alto)
+    {
+        var copia = jpeg.ToArray();
+        var sof = -1;
+        for (var i = 0; i + 4 < copia.Length && sof < 0; i++)
+            if (copia[i] == 0xFF && copia[i + 1] == 0xC2 && copia[i + 2] == 0x00 && copia[i + 3] == 0x11)
+                sof = i;
+
+        sof.Should().BeGreaterThan(0, "el fixture es progresivo y tiene su SOF2");
+        System.Buffers.Binary.BinaryPrimitives.WriteUInt16BigEndian(copia.AsSpan(sof + 5), alto);
+        System.Buffers.Binary.BinaryPrimitives.WriteUInt16BigEndian(copia.AsSpan(sof + 7), ancho);
+        return copia;
+    }
+
+    /// <summary>Deja pasar al presupuesto real y apunta cada petición de reserva, quepa o no.</summary>
+    private sealed class PresupuestoRegistrador(PresupuestoMemoriaDocumentos real) : IPresupuestoMemoriaDocumentos
+    {
+        public List<long> Pedidos { get; } = [];
+
+        public long Maximo => real.Maximo;
+
+        public ValueTask<ReservaMemoriaDocumentos> ReservarAsync(long bytes, CancellationToken cancellationToken = default) =>
+            real.ReservarAsync(bytes, cancellationToken);
+
+        public bool TryReservar(long bytes, out ReservaMemoriaDocumentos reserva)
+        {
+            Pedidos.Add(bytes);
+            return real.TryReservar(bytes, out reserva);
+        }
+    }
+
+    [Fact]
+    public void Un_JPEG_progresivo_reserva_ademas_el_buffer_de_coeficientes_que_guarda_libjpeg()
+    {
+        var progresivo = JpegProgresivo();
+        var cabecera = CabeceraJpeg.Leer(progresivo)!;
+        cabecera.Progresivo.Should().BeTrue("instrumento: el fixture es de verdad progresivo");
+        cabecera.BytesDeBufferDeCoeficientes.Should().Be(8L * 6 * 3 * 128, "64 x 48 en 4:4:4: 8 x 6 bloques por componente");
+
+        var real = PresupuestoDe(512L * 1024 * 1024);
+        var conProgresivo = new PresupuestoRegistrador(real);
+        var r = Procesador(conProgresivo).Normalizar(progresivo, 3508);
+        r.EsExitoso.Should().BeTrue("Skia decodifica el progresivo de verdad");
+
+        // Contraste: la misma foto como JPEG de una pasada reserva solo los píxeles decodificados.
+        var conBase = new PresupuestoRegistrador(real);
+        Procesador(conBase).Normalizar(FotoBicolor(64, 48), 3508).EsExitoso.Should().BeTrue();
+
+        const long Pixeles = 64L * 48 * 4;
+        conBase.Pedidos.Should().Contain(Pixeles).And.NotContain(Pixeles + 18432);
+        conProgresivo.Pedidos.Should().Contain(Pixeles + 18432, "la decodificación del progresivo suma su búfer de coeficientes");
+        real.Reservado.Should().Be(0);
+    }
+
+    [Fact]
+    public void Un_JPEG_progresivo_cuyo_buffer_de_coeficientes_no_cabe_falla_cerrado_antes_de_decodificar()
+    {
+        // 6000 x 6000 en 4:4:4: 144 MB de píxeles y 216 MB de coeficientes; el presupuesto admite los píxeles y el lienzo
+        // (193 MB) pero no los coeficientes. Sin contarlos, la reserva pasaba y se decodificaba.
+        var grande = ConDimensionesDeSof(JpegProgresivo(), 6000, 6000);
+        var real = PresupuestoDe(300L * 1000 * 1000);
+        var registrador = new PresupuestoRegistrador(real);
+        var etapas = new List<string>();
+        var procesador = Procesador(registrador);
+        procesador.AlTerminarEtapa = etapas.Add;
+
+        var accion = () => procesador.Normalizar(grande, 3508);
+
+        accion.Should().Throw<PresupuestoMemoriaAgotadoException>();
+        registrador.Pedidos[0].Should().Be(6000L * 6000 * 4 + 6000L * 6000 * 6);
+        etapas.Should().NotContain("decodificada");
+        real.Reservado.Should().Be(0);
+    }
+
+    [Fact]
+    public void Cancelar_mientras_se_guarda_el_PDF_no_devuelve_exito_y_libera_las_reservas()
+    {
+        using var cts = new CancellationTokenSource();
+        var real = PresupuestoDe(512L * 1024 * 1024);
+        var procesador = Procesador(real);
+        var vistas = new List<string>();
+        procesador.AlTerminarEtapa = etapa =>
+        {
+            vistas.Add(etapa);
+            if (etapa == "guardado")
+                cts.Cancel();
+        };
+
+        var accion = () => procesador.ComponerPdf([FotoBicolor(40, 20)], cts.Token);
+
+        accion.Should().Throw<OperationCanceledException>();
+        vistas.Should().Contain("guardado", "instrumento: la cancelación llegó DURANTE el guardado, no antes");
+        real.Reservado.Should().Be(0, "ni el PDF ni su reserva quedan retenidos por un resultado que nadie va a recoger");
+    }
+
+    [Fact]
+    public void Sin_cancelar_el_guardado_el_PDF_se_entrega_y_conserva_su_reserva_hasta_desecharlo()
+    {
+        var real = PresupuestoDe(512L * 1024 * 1024);
+        var vistas = new List<string>();
+        var procesador = Procesador(real);
+        procesador.AlTerminarEtapa = vistas.Add;
+
+        var r = procesador.ComponerPdf([FotoBicolor(40, 20)], CancellationToken.None);
+
+        r.EsExitoso.Should().BeTrue();
+        vistas.Should().Contain("guardado");
+        real.Reservado.Should().BeGreaterThan(0);
+        r.Valor.Dispose();
+        real.Reservado.Should().Be(0);
+    }
     [Fact]
     public void El_flujo_del_JPEG_reserva_cada_trozo_antes_de_pedirlo_y_se_declara_agotado_sin_lanzar()
     {
@@ -718,19 +835,43 @@ public sealed class ProcesadorFotosPdfTests
     {
         var original = FotoBicolor(40, 20, SKEncodedImageFormat.Png);
         original = ConTrozoPng(original, "tEXt", [.. "Comment\0"u8.ToArray(), .. "GPSLatitude=41.3851N TalvegCam"u8.ToArray()]);
+        original = ConTrozoPng(original, "zTXt", CargaZtxt("Description", "GPSLongitude=2.1734E TalvegZtxt"));
         original = ConTrozoPng(original, "iTXt", [.. "XML:com.adobe.xmp\0\0\0\0\0"u8.ToArray(), .. "<x:xmpmeta>TalvegCam</x:xmpmeta>"u8.ToArray()]);
         original = ConTrozoPng(original, "eXIf", CargaExifConGpsEstructurado()[6..]);
 
-        // Instrumento: Skia lee ese PNG sin problema y el original lleva los rastros.
+        // Instrumento: Skia lee ese PNG sin problema y el original lleva los rastros. El texto de zTXt va comprimido: no
+        // se ve en los bytes, así que se comprueba que el trozo existe y que descomprimido lleva el canario.
         Contiene(original, "TalvegCam").Should().BeTrue();
         Contiene(original, "eXIf").Should().BeTrue();
+        Contiene(original, "zTXt").Should().BeTrue();
+        Contiene(original, "TalvegZtxt").Should().BeFalse("va comprimido con zlib");
+        System.Text.Encoding.ASCII.GetString(DescomprimirZlib(CargaZtxt("Description", "GPSLongitude=2.1734E TalvegZtxt")[13..]))
+            .Should().Contain("TalvegZtxt");
         SKBitmap.Decode(original).Should().NotBeNull("los trozos añadidos están bien formados");
 
         var r = _procesador.Normalizar(original, 3508);
 
         r.EsExitoso.Should().BeTrue();
         MarcadoresDeCabecera(r.Valor.Jpeg).Should().NotContain(m => (m >= 0xE1 && m <= 0xEF) || m == 0xFE);
-        foreach (var rastro in new[] { "Exif", "xmpmeta", "GPSLatitude", "TalvegCam", "Comment" })
+        foreach (var rastro in new[] { "Exif", "xmpmeta", "GPSLatitude", "TalvegCam", "Comment", "zTXt", "TalvegZtxt", "Description" })
             Contiene(r.Valor.Jpeg, rastro).Should().BeFalse(rastro);
+    }
+
+    /// <summary>Carga de un trozo zTXt: palabra clave, byte nulo, método de compresión 0 y el texto comprimido con zlib.</summary>
+    private static byte[] CargaZtxt(string palabraClave, string texto)
+    {
+        using var comprimido = new MemoryStream();
+        using (var zlib = new System.IO.Compression.ZLibStream(comprimido, System.IO.Compression.CompressionLevel.Optimal, leaveOpen: true))
+            zlib.Write(System.Text.Encoding.ASCII.GetBytes(texto));
+        return [.. System.Text.Encoding.ASCII.GetBytes(palabraClave), 0, 0, .. comprimido.ToArray()];
+    }
+
+    private static byte[] DescomprimirZlib(byte[] datos)
+    {
+        using var origen = new MemoryStream(datos);
+        using var zlib = new System.IO.Compression.ZLibStream(origen, System.IO.Compression.CompressionMode.Decompress);
+        using var salida = new MemoryStream();
+        zlib.CopyTo(salida);
+        return salida.ToArray();
     }
 }

@@ -43,6 +43,15 @@ public static class LimitesFotoAPdf
     /// </summary>
     public const long CopiasDelJpegEnElDocumento = 2;
 
+    /// <summary>
+    /// Bytes máximos de la miniatura JPEG que la pantalla retiene en el circuito mientras la foto está en la lista. Se
+    /// guarda como bytes (no como Base64, que en memoria ocupa más del doble) y se reserva en el presupuesto de memoria
+    /// con su tamaño real hasta quitar la foto o desechar la pantalla; una miniatura mayor no se retiene (la foto entra
+    /// igual, sin vista previa). Una de 128 px a calidad 90 ocupa de 5 a 15 KB, y 32 KB cubre incluso una foto de ruido;
+    /// con 20 fotos son 640 KB por circuito como máximo.
+    /// </summary>
+    public const long TamanoMaximoMiniaturaBytes = 32 * 1024;
+
     /// <summary>Lado mayor de la imagen que entra en el PDF (A4 a 300 ppp); una foto más grande se reduce y una menor no se amplía.</summary>
     public const int LadoMaximoEnPdfPixeles = 3508;
 }

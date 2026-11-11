@@ -81,8 +81,11 @@ public sealed class FotoAPdfPantallaTests : BunitContext
             }
         }
 
+        /// <summary>Lo que devuelve como miniatura: la pantalla la retiene y reserva su tamaño.</summary>
+        public byte[] Miniatura { get; set; } = [1, 2, 3];
+
         public Result<byte[]> CrearMiniatura(byte[] foto, int ladoMaximoPixeles, CancellationToken cancellationToken) =>
-            Result.Exito<byte[]>([1, 2, 3]);
+            Result.Exito(Miniatura);
     }
 
     private sealed class Disponibilidad(bool disponible) : IDisponibilidadHerramientasPdf
@@ -330,7 +333,8 @@ public sealed class FotoAPdfPantallaTests : BunitContext
         cut.FindAll("button").First(b => b.TextContent.Trim() == "Descargar PDF de 1 página").Click();
 
         cut.WaitForAssertion(() => modulo.Invocations["descargar"].Should().ContainSingle());
-        cut.WaitForAssertion(() => _presupuesto.Reservado.Should().Be(0, "el PDF y lo reservado para él se sueltan juntos al terminar"));
+        cut.WaitForAssertion(() => _presupuesto.Reservado.Should().Be(3,
+            "el PDF y lo reservado para él se sueltan juntos al terminar; solo queda la miniatura de la foto que sigue en la lista"));
         _procesador.FlujoEntregado!.CanRead.Should().BeFalse("el PDF no se queda en memoria tras la descarga");
     }
 
@@ -348,7 +352,7 @@ public sealed class FotoAPdfPantallaTests : BunitContext
 
         cut.WaitForAssertion(() => cut.Find(".aviso-error[role=alert]").TextContent.Should().Contain("no hay espacio"));
         modulo.Invocations["descargar"].Should().BeEmpty();
-        _presupuesto.Reservado.Should().Be(0, "la reserva de las fotos leídas también se devuelve");
+        _presupuesto.Reservado.Should().Be(3, "la reserva de las fotos leídas también se devuelve; solo queda la miniatura de la foto de la lista");
         Nombres(cut).Should().Equal("a.jpg");
     }
 
@@ -390,5 +394,82 @@ public sealed class FotoAPdfPantallaTests : BunitContext
         cut.WaitForAssertion(() => cut.Find(".aviso-error[role=alert]").TextContent.Should().Contain("No hemos podido crear el PDF"));
         modulo.Invocations["descargar"].Should().BeEmpty();
         Nombres(cut).Should().Equal("a.jpg");
+    }
+
+    [Fact]
+    public async Task La_miniatura_retenida_reserva_su_tamano_real_y_lo_devuelve_al_quitar_la_foto_y_al_desechar_la_pantalla()
+    {
+        _procesador.Miniatura = new byte[100];
+        var cut = Renderizar();
+
+        await SubirAsync(cut, ("a.jpg", Jpeg(10, 10)), ("b.jpg", Jpeg(20, 20)));
+
+        cut.WaitForAssertion(() => Nombres(cut).Should().Equal("a.jpg", "b.jpg"));
+        _presupuesto.Reservado.Should().Be(200, "cada miniatura que vive en el circuito cuenta con sus bytes reales");
+
+        Pulsar(cut, "Quitar a.jpg");
+        cut.WaitForAssertion(() => _presupuesto.Reservado.Should().Be(100));
+
+        await DisposeComponentsAsync();
+        _presupuesto.Reservado.Should().Be(0, "desechar la pantalla devuelve las miniaturas que quedaban");
+    }
+
+    [Fact]
+    public async Task Quitar_todas_devuelve_la_reserva_de_todas_las_miniaturas()
+    {
+        _procesador.Miniatura = new byte[100];
+        var cut = Renderizar();
+        await SubirAsync(cut, ("a.jpg", Jpeg(10, 10)), ("b.jpg", Jpeg(20, 20)));
+        cut.WaitForAssertion(() => _presupuesto.Reservado.Should().Be(200));
+
+        cut.FindAll("button").First(b => b.TextContent.Trim() == "Quitar todas").Click();
+
+        cut.WaitForAssertion(() => _presupuesto.Reservado.Should().Be(0));
+    }
+
+    [Fact]
+    public async Task Una_miniatura_mayor_que_el_tope_no_se_retiene_y_la_foto_entra_sin_vista_previa()
+    {
+        _procesador.Miniatura = new byte[LimitesFotoAPdf.TamanoMaximoMiniaturaBytes + 1];
+        var cut = Renderizar();
+
+        await SubirAsync(cut, ("a.jpg", Jpeg(10, 10)));
+
+        cut.WaitForAssertion(() => Nombres(cut).Should().Equal("a.jpg"));
+        cut.FindAll("li.foto-fila .foto-miniatura img").Should().BeEmpty();
+        _presupuesto.Reservado.Should().Be(0);
+    }
+
+    [Fact]
+    public async Task Si_la_miniatura_no_cabe_en_el_presupuesto_la_foto_no_entra_y_se_avisa()
+    {
+        _procesador.Miniatura = new byte[100];
+        // Queda sitio para leer la foto (unas decenas de bytes) pero no para retener la miniatura.
+        _presupuesto.TryReservar(_presupuesto.Maximo - 60, out var relleno).Should().BeTrue();
+        using var _ = relleno;
+        var cut = Renderizar();
+
+        await SubirAsync(cut, ("a.jpg", Jpeg(10, 10)));
+
+        cut.WaitForAssertion(() => cut.Find(".aviso-error[role=alert]").TextContent.Should().Contain("no hay espacio"));
+        cut.FindAll("li.foto-fila").Should().BeEmpty();
+        _presupuesto.Reservado.Should().Be(_presupuesto.Maximo - 60, "ni la miniatura ni la foto leída se quedan reservadas");
+    }
+
+    [Fact]
+    public async Task Descargar_pasa_el_token_del_circuito_tambien_a_la_importacion_del_modulo()
+    {
+        var modulo = JSInterop.SetupModule("./js/foto-a-pdf.js");
+        modulo.SetupVoid("descargar", _ => true).SetVoidResult();
+        var cut = Renderizar();
+        await SubirAsync(cut, ("a.jpg", Jpeg(10, 10)));
+        cut.WaitForAssertion(() => Nombres(cut).Should().HaveCount(1));
+
+        cut.FindAll("button").First(b => b.TextContent.Trim() == "Descargar PDF de 1 página").Click();
+
+        cut.WaitForAssertion(() => modulo.Invocations["descargar"].Should().ContainSingle());
+        var importacion = JSInterop.Invocations.Where(i => i.Identifier == "import" && i.Arguments.Contains("./js/foto-a-pdf.js")).Should().ContainSingle().Subject;
+        (importacion.CancellationToken is { CanBeCanceled: true }).Should().BeTrue(
+            "sin token, cerrar el circuito durante la importación dejaría la descarga esperando");
     }
 }

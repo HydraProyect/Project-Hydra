@@ -19,14 +19,21 @@ namespace CaeManager.Web.Features.HerramientasPdf.Pages;
 /// Las fotos esperan en el almacén temporal del circuito (el mismo de Dividir un PDF, con su cuota y su borrado al
 /// salir), no en memoria. Cada una se comprueba al añadirla por su firma de bytes y por las dimensiones de su cabecera,
 /// ANTES de decodificarla; al generar, el generador lo repite. Las miniaturas salen del mismo procesador que el PDF, así que
-/// ya van giradas según el EXIF.
+/// ya van giradas según el EXIF. La miniatura de cada foto vive en el circuito como bytes, acotada por
+/// <see cref="LimitesFotoAPdf.TamanoMaximoMiniaturaBytes"/>, y reserva su tamaño real en el presupuesto de memoria hasta quitar
+/// la foto o desechar la pantalla.
 /// </summary>
 public partial class FotoAPdf : CaeManager.Web.Components.PaginaInteractiva, IAsyncDisposable
 {
     private const int LadoMiniaturaPixeles = 128;
 
-    /// <summary>Una foto ya aceptada: su fichero temporal, lo que declara su cabecera y su vista previa.</summary>
-    private sealed record FotoElegida(ArchivoTemporal Archivo, string Nombre, long Bytes, FotoValidada Datos, string? Miniatura);
+    /// <summary>
+    /// Una foto ya aceptada: su fichero temporal, lo que declara su cabecera y su vista previa (bytes JPEG, acotados por
+    /// <see cref="LimitesFotoAPdf.TamanoMaximoMiniaturaBytes"/>), con la reserva del presupuesto de memoria que la cubre
+    /// mientras viva en el circuito.
+    /// </summary>
+    private sealed record FotoElegida(
+        ArchivoTemporal Archivo, string Nombre, long Bytes, FotoValidada Datos, byte[]? Miniatura, IDisposable? ReservaMiniatura);
 
     [Inject] private GeneradorPdfDesdeFotos Generador { get; set; } = default!;
     [Inject] private ICurrentUserService CurrentUserService { get; set; } = default!;
@@ -141,7 +148,8 @@ public partial class FotoAPdf : CaeManager.Web.Components.PaginaInteractiva, IAs
                 () => archivo.OpenReadStream(LimitesFotoAPdf.TamanoMaximoFotoBytes, token),
                 archivo.Size, LimitesFotoAPdf.TamanoMaximoFotoBytes, cancellationToken: token);
 
-            FotoElegida? aceptada = null;
+            FotoValidada? datos = null;
+            byte[]? bytesMiniatura = null;
             string? codigoRechazo = null;
             using (await PresupuestoMemoria.ReservarAsync(guardado.TamanoBytes, token))
             {
@@ -159,19 +167,44 @@ public partial class FotoAPdf : CaeManager.Web.Components.PaginaInteractiva, IAs
                     var miniatura = await Task.Run(() => Procesador.CrearMiniatura(contenido, LadoMiniaturaPixeles, token), token);
                     if (miniatura.EsFallido)
                         codigoRechazo = miniatura.Error.Codigo;
-                    else
-                        aceptada = new FotoElegida(guardado, nombre, guardado.TamanoBytes, validada.Valor, Convert.ToBase64String(miniatura.Valor));
+                    {
+                        datos = validada.Valor;
+                        bytesMiniatura = miniatura.Valor;
+                    }
                 }
             }
 
-            if (aceptada is null)
+            if (datos is not { } datosFoto)
             {
                 almacen.Eliminar(guardado);
                 _rechazadas.Add($"{nombre}: {MensajeDe(codigoRechazo ?? ErroresFotoAPdf.FotoIlegible)}");
                 return;
             }
 
-            _fotos.Add(aceptada);
+            // La miniatura vive en el circuito hasta quitar la foto o desechar la pantalla, y la reserva del procesador terminó
+            // al devolverla: se reserva aquí su tamaño real (sin esperar, para no esperar a una reserva ajena desde un circuito)
+            // y se devuelve con la foto. Una miniatura que pasa del tope no se retiene: la foto entra sin vista previa.
+            IDisposable? reservaMiniatura = null;
+            if (bytesMiniatura is { Length: > 0 } && bytesMiniatura.Length <= LimitesFotoAPdf.TamanoMaximoMiniaturaBytes)
+            {
+                if (!PresupuestoMemoria.TryReservar(bytesMiniatura.Length, out var reserva))
+                    throw new PresupuestoMemoriaAgotadoException();
+                reservaMiniatura = reserva;
+            }
+            else
+            {
+                bytesMiniatura = null;
+            }
+
+            // La pantalla se desechó mientras se procesaba: nadie liberaría esta foto ni su reserva.
+            if (_desechado)
+            {
+                reservaMiniatura?.Dispose();
+                almacen.Eliminar(guardado);
+                return;
+            }
+
+            _fotos.Add(new FotoElegida(guardado, nombre, guardado.TamanoBytes, datosFoto, bytesMiniatura, reservaMiniatura));
         }
         catch (ArchivoTemporalDemasiadoGrandeException)
         {
@@ -209,6 +242,7 @@ public partial class FotoAPdf : CaeManager.Web.Components.PaginaInteractiva, IAs
             return;
 
         _almacen?.Eliminar(foto.Archivo);
+        foto.ReservaMiniatura?.Dispose();
         _error = null;
         _rechazadas.Clear();
     }
@@ -219,7 +253,11 @@ public partial class FotoAPdf : CaeManager.Web.Components.PaginaInteractiva, IAs
             return;
 
         foreach (var foto in _fotos)
+        {
             _almacen?.Eliminar(foto.Archivo);
+            foto.ReservaMiniatura?.Dispose();
+        }
+
         _fotos.Clear();
         _error = null;
         _rechazadas.Clear();
@@ -260,8 +298,9 @@ public partial class FotoAPdf : CaeManager.Web.Components.PaginaInteractiva, IAs
             // El PDF no se guarda: va al navegador como flujo, sin copiarlo, y esto es lo último que lo retiene. Al desecharlo
             // vuelve también su reserva del presupuesto.
             using var pdf = resultado.Valor;
+            token.ThrowIfCancellationRequested();
             using var referencia = new DotNetStreamReference(pdf.Flujo, leaveOpen: true);
-            _modulo ??= await JS.InvokeAsync<IJSObjectReference>("import", "./js/foto-a-pdf.js");
+            _modulo ??= await JS.InvokeAsync<IJSObjectReference>("import", token, "./js/foto-a-pdf.js");
             await _modulo.InvokeVoidAsync("descargar", token, Textos["FotoNombreArchivo"].Value, referencia);
         }
         catch (OperationCanceledException) when (token.IsCancellationRequested)
@@ -305,6 +344,8 @@ public partial class FotoAPdf : CaeManager.Web.Components.PaginaInteractiva, IAs
         _desechado = true;
         _ciclo.Cancel();
         _almacen?.Dispose();
+        foreach (var foto in _fotos)
+            foto.ReservaMiniatura?.Dispose();
         _ciclo.Dispose();
 
         if (_modulo is not null)
