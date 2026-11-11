@@ -22,11 +22,17 @@ src/CaeManager.Application/Centros/CalculoEstadoCentroService.cs :: ClienteId = 
 src/CaeManager.Application/Centros/ClienteEmpresarialDelCentro.cs :: ClienteId = 1
 src/CaeManager.Application/Centros/Commands/CrearCentro/CrearCentroCommand.cs :: ClienteId = 6
 src/CaeManager.Application/Centros/Commands/EditarCentro/EditarCentroCommand.cs :: ClienteId = 1
+# Papel por Centro (DECISION_LOG 2026-11-08): compara la posición cliente de la Relación Empresarial anclada
+# (X, la contratista principal) con Centro.ClienteId (el titular) y filtra X por los Clientes empresariales
+# visibles; sin entidad nueva ni cambio de propiedad.
+src/CaeManager.Application/Centros/Commands/EstablecerRelacionDeEntradaCentro/EstablecerRelacionDeEntradaCentroCommand.cs :: ClienteId = 2
 src/CaeManager.Application/Centros/Commands/RestaurarCentro/RestaurarCentroCommand.cs :: ClienteId = 1
 src/CaeManager.Application/Centros/EvaluacionDeAccesoPorCentroService.cs :: ClienteId = 1
 src/CaeManager.Application/Centros/PendientesEnPlataformaDeCentros.cs :: ClienteId = 1
 src/CaeManager.Application/Centros/Queries/ContratistasDeSubcontratasEnCentro.cs :: ClienteId = 1
-src/CaeManager.Application/Centros/Queries/ObtenerCentroPorId/ObtenerCentroPorIdQuery.cs :: ClienteId = 3
+# Papel por Centro: la ficha lee el ancla y su X en su propia sentencia (presupuesto SQL de Centro 360), así que
+# las comparaciones de la arista con el titular viven aquí y no en PapelDeEntradaEnCentro.
+src/CaeManager.Application/Centros/Queries/ObtenerCentroPorId/ObtenerCentroPorIdQuery.cs :: ClienteId = 7
 src/CaeManager.Application/Centros/Queries/ObtenerCentros/ObtenerCentrosQuery.cs :: ClienteId = 11
 src/CaeManager.Application/Centros/Queries/ObtenerCentrosParaSelector/ObtenerCentrosParaSelectorQuery.cs :: ClienteId = 5
 src/CaeManager.Application/Centros/Queries/ObtenerDocumentacionBloqueantePendiente/ObtenerDocumentacionBloqueantePendienteQuery.cs :: ClienteId = 5
@@ -336,7 +342,7 @@ src/CaeManager.Application/Visitas/TrabajadoresAdmisiblesEnVisita.cs :: ClienteI
 src/CaeManager.Domain/ApiKeys/CriterioSoporteClaveApi.cs :: TenantClienteId = 1
 src/CaeManager.Domain/Blindaje42/SolicitudCertificacionTgss.cs :: ClienteId = 2
 src/CaeManager.Domain/Blindaje42/SolicitudCertificacionTgss.cs :: clienteId = 4
-src/CaeManager.Domain/Centros/Centro.cs :: ClienteId = 2
+src/CaeManager.Domain/Centros/Centro.cs :: ClienteId = 4
 src/CaeManager.Domain/Centros/Centro.cs :: clienteId = 4
 src/CaeManager.Domain/Centros/ICentroRepository.cs :: clienteId = 1
 src/CaeManager.Domain/Comunicaciones/ContactoWhatsApp.cs :: ClienteId = 2
