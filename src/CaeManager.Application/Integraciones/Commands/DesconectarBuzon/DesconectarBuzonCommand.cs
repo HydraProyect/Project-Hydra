@@ -323,7 +323,10 @@ public class DesconectarBuzonCommandHandler(
         // prevalece sobre la cancelación pedida durante el borrado, porque la desconexión ya está guardada y lo que falta es
         // justo el aviso del hueco. La base conserva MarcaHuecoPorRegistrarDesdeUtc, que se guardó con la Deshabilitada: la
         // reparación no depende de esta instancia ni de este proceso. Con un borrado confirmado esa reparación puede avisar
-        // de más, nunca de menos.
+        // de más, nunca de menos. Excepción: si la suscripción expiró antes de confirmar, el guardado de la expiración llegó
+        // a la base (y vació ese valor) y luego fallan el DELETE y todos los guardados del borrado fallido, la base queda
+        // con la marca en la expiración, posterior al comienzo guardado, y sin nada por registrar. El usuario ve el fallo;
+        // el desfase no pasa de lo que tardó la confirmación (revisión puente de la ronda 19, bajo, declarado en la PR).
         if (sinGuardar is { } pendiente
             && await GuardarMarcaTrasDesconexionAsync(null, conexion.Id, expiracionSuscripcionUtc, pendiente.ObservadaUtc, pendiente.Registrar) is null)
         {

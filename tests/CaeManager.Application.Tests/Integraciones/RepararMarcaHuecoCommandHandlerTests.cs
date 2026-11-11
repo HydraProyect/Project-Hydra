@@ -170,4 +170,48 @@ public class RepararMarcaHuecoCommandHandlerTests
         cerrojo.Pedidos.Should().BeEmpty();
         unitOfWork.VecesGuardado.Should().Be(0);
     }
+
+    [Fact]
+    public async Task Una_conexion_de_un_cliente_fuera_de_la_cartera_visible_no_se_repara()
+    {
+        // Revisión puente de la ronda 19, medio: la comprobación por cartera (ClienteOpcionalVisibleAsync) no tenía test;
+        // el buzón compartido tiene ClienteId null y solo ejercita la comprobación por conexión.
+        var porRegistrar = DateTime.UtcNow.AddMinutes(-10);
+        var conexion = new ConexionIntegracion("cae@cliente.test", "Buzón CAE", clienteId: Guid.NewGuid());
+        conexion.Deshabilitar(porRegistrar);
+        var conexiones = new ConexionIntegracionRepositorioFalso();
+        conexiones.Agregar(conexion);
+        var unitOfWork = new UnitOfWorkFalso();
+        var cerrojo = new CerrojoVerificacionBuzonFalso();
+        var handler = CrearHandler(conexiones, unitOfWork, cerrojo,
+            new AlcanceDatosServiceFalso(tieneAccesoTotal: false, clienteIdsVisibles: [Guid.NewGuid()]));
+
+        var resultado = await handler.Handle(new RepararMarcaHuecoCommand(conexion.Id), CancellationToken.None);
+
+        resultado.Error.Codigo.Should().Be("ConexionIntegracion.NoEncontrada");
+        cerrojo.Pedidos.Should().BeEmpty("se corta antes del cerrojo");
+        unitOfWork.VecesGuardado.Should().Be(0);
+        conexion.MarcaHuecoPorRegistrarDesdeUtc.Should().Be(porRegistrar, "control: había algo que reparar");
+    }
+
+    [Fact]
+    public async Task Una_conexion_que_deja_de_ser_visible_al_tomar_el_cerrojo_no_se_repara()
+    {
+        // Revisión puente de la ronda 19, medio: la visibilidad se vuelve a comprobar sobre la conexión releída bajo el
+        // cerrojo. Fuera del cerrojo es visible; al tomarlo pasa a ser ajena.
+        var porRegistrar = DateTime.UtcNow.AddMinutes(-10);
+        var (conexion, conexiones) = Deshabilitada(porRegistrar);
+        var unitOfWork = new UnitOfWorkFalso();
+        var ajenas = new List<Guid>();
+        var cerrojo = new CerrojoVerificacionBuzonFalso();
+        cerrojo.AlTomar = id => ajenas.Add(id);
+        var handler = CrearHandler(conexiones, unitOfWork, cerrojo, new AlcanceDatosServiceFalso(conexionesIntegracionAjenas: ajenas));
+
+        var resultado = await handler.Handle(new RepararMarcaHuecoCommand(conexion.Id), CancellationToken.None);
+
+        resultado.Error.Codigo.Should().Be("ConexionIntegracion.NoEncontrada");
+        cerrojo.Pedidos.Should().Equal([conexion.Id], "control: era visible fuera del cerrojo");
+        unitOfWork.VecesGuardado.Should().Be(0);
+        conexion.MarcaHuecoPorRegistrarDesdeUtc.Should().Be(porRegistrar);
+    }
 }
