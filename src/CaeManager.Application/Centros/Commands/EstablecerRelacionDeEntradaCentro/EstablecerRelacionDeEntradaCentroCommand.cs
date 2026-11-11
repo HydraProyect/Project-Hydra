@@ -20,7 +20,8 @@ namespace CaeManager.Application.Centros.Commands.EstablecerRelacionDeEntradaCen
 /// tiene un ancla cuya X no está entre los Clientes empresariales visibles de quien la quita o la cambia. Ese
 /// error no nombra el ancla ni a X, pero el rechazo en sí sigue distinguiéndose del éxito que tendría el mismo
 /// comando sin ancla: es un oráculo residual aceptado (DECISION_LOG, 2026-11-11, punto 11 a); quien no ve a X no
-/// pisa el ancla. La arista se busca en el
+/// pisa el ancla. Si la arista anclada ya se cerró, el ancla no da papel (punto 11 b) y el comando la trata como
+/// si no hubiera ancla, sin exigir ver a su X. La arista se busca en el
 /// Tenant propietario actual (filtro global y RLS) y su cliente X tiene que estar entre los Clientes
 /// empresariales visibles de quien la fija: una arista de otro Tenant, inexistente o con X fuera de su cartera
 /// responde lo mismo, para no revelar cuál de las tres es. La FK compuesta con <c>TenantId</c> repite en la base
@@ -69,11 +70,13 @@ public class EstablecerRelacionDeEntradaCentroCommandHandler(
 
         // Quitar o cambiar un ancla también exige ver a su X: quien no la ve no pisa lo que no sabe que hay. Responde
         // con el mismo error de arriba, que no nombra el ancla ni a X; el rechazo frente al éxito sin ancla es el
-        // oráculo residual descrito en la cabecera.
+        // oráculo residual descrito en la cabecera. Un ancla cuya arista ya se cerró (VigenciaHasta informada) no da
+        // papel en la ficha (DECISION_LOG, 2026-11-11, punto 11 b) y aquí cuenta igual que sin ancla: se puede quitar
+        // o sustituir sin ver a su X, y el comando responde lo mismo que en un Centro sin ancla.
         if (centro.RelacionEmpresarialEntradaId is { } anclaActual)
         {
             var xActual = await empresasContext.RelacionesEmpresariales.AsNoTracking()
-                .Where(r => r.Id == anclaActual && r.TenantId == centro.TenantId)
+                .Where(r => r.Id == anclaActual && r.TenantId == centro.TenantId && r.VigenciaHasta == null)
                 .Select(r => (Guid?)r.ClienteId)
                 .FirstOrDefaultAsync(cancellationToken);
             if (xActual is { } x && !await alcanceDatos.ClienteVisibleAsync(x, cancellationToken))

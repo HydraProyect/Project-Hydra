@@ -315,6 +315,27 @@ public class PapelDeEntradaEnCentroTests
         e.Uow.VecesGuardado.Should().Be(0);
     }
 
+    /// <summary>
+    /// Con la arista anclada ya cerrada, el ancla no da papel (DECISION_LOG, 2026-11-11, punto 11 b) y el comando la
+    /// trata como si no hubiera ancla: quien no ve a X puede quitarla, con el mismo éxito que en un Centro sin ancla.
+    /// Antes de cerrarla, el mismo actor recibe el rechazo del oráculo residual aceptado (punto 11 a).
+    /// </summary>
+    [Fact]
+    public async Task Quitar_un_ancla_cuya_arista_se_cerro_no_exige_ver_a_X()
+    {
+        var e = Montar();
+        e.Centro.AnclarRelacionDeEntrada(e.Relacion).EsExitoso.Should().BeTrue();
+        (await Ejecutar(e, null, SinCarteraSobreX(e.Centro))).EsExitoso
+            .Should().BeFalse("con la arista vigente quien no ve a X no pisa el ancla");
+
+        e.Relacion.Cerrar(DateTime.UtcNow);
+        var resultado = await Ejecutar(e, null, SinCarteraSobreX(e.Centro));
+
+        resultado.EsExitoso.Should().BeTrue();
+        e.Centro.RelacionEmpresarialEntradaId.Should().BeNull();
+        e.Uow.VecesGuardado.Should().Be(1);
+    }
+
     [Fact]
     public async Task La_ficha_del_Centro_lleva_el_papel_calculado_con_la_razon_social_de_X()
     {
