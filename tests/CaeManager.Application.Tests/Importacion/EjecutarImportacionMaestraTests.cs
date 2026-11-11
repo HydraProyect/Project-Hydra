@@ -258,15 +258,16 @@ public class EjecutarImportacionMaestraTests
                 new ItemImportacionDto("Trabajadores", 6, "Nombre Ficticio Apellido Ejemplo",
                     $"No se pudo crear o encontrar la Empresa gestionada con CIF \"{CifGestionada}\".")
             ], o => o.WithStrictOrdering());
-        e.EmpresaRepositorio.Empresas.Should().ContainSingle("la vista previa no escribe");
 
         var confirmado = await e.ConfirmarAsync(plan, reemplazar: false, previa.CalcularHuella());
 
         confirmado.EsExitoso.Should().BeTrue();
         confirmado.Valor.Omitidos.Should().BeEquivalentTo(previa.Omitidos, o => o.WithStrictOrdering(),
             "la escritura omite exactamente las filas, y por los motivos, que mostró la vista previa");
-        e.EmpresaRepositorio.Empresas.Should().ContainSingle().Which.Should().BeSameAs(otra);
-        e.TrabajadorRepositorio.Trabajadores.Should().BeEmpty();
+        // Estado final; lo que distingue el comportamiento es la igualdad estricta de Omitidos y las cifras a cero de
+        // arriba (que la vista previa no escribe lo prueba La_vista_previa_no_escribe_nada_y_cuenta_lo_mismo_que_confirmar).
+        e.EmpresaRepositorio.Empresas.Should().ContainSingle("estado final: solo la Empresa que ya ocupaba la razón social").Which.Should().BeSameAs(otra);
+        e.TrabajadorRepositorio.Trabajadores.Should().BeEmpty("estado final: el Trabajador omitido no se da de alta");
     }
 
     [Fact]
