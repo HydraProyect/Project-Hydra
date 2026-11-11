@@ -54,8 +54,14 @@ function elegirZonaParaPegar(destino) {
     // Fuera de las zonas, un campo de texto se queda con su Ctrl+V.
     if (esCampoDeTexto(destino)) return null;
 
-    for (let i = zonas.length - 1; i >= 0; i--) {
-        if (estaVisible(zonas[i].zonaElement) && estaActiva(zonas[i])) return zonas[i];
+    // Con un diálogo modal abierto (drawer, modal), solo cuentan las zonas de dentro: pegar con el
+    // foco en el cuerpo no puede subir el archivo a la página que queda detrás.
+    const modal = document.querySelector('[aria-modal="true"]');
+    const candidatas = modal ? zonas.filter(zona => modal.contains(zona.zonaElement)) : zonas;
+
+    // Responde la última visible; si está ocupada (cargando) se ignora el pegado, no se cae a otra zona.
+    for (let i = candidatas.length - 1; i >= 0; i--) {
+        if (estaVisible(candidatas[i].zonaElement)) return estaActiva(candidatas[i]) ? candidatas[i] : null;
     }
     return null;
 }

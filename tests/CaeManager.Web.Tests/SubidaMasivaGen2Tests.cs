@@ -82,7 +82,8 @@ public sealed class SubidaMasivaGen2Tests : BunitContext
 
         cut.FindAll(".zona-soltar-archivo").Should().ContainSingle("la única zona es el componente compartido");
         cut.FindAll("input[type=file]").Should().ContainSingle();
-        cut.FindAll(".zona-subida-masiva h2, .icono-zona-subida-masiva").Should().BeEmpty("el marco exterior con su propio título e icono ya no existe");
+        cut.FindAll(".icono-zona-subida-masiva").Should().BeEmpty("el marco exterior con su propio icono ya no existe");
+        cut.FindAll("h2").Where(h => h.TextContent.Contains("Arrastra aquí")).Should().ContainSingle("el título es el de la zona compartida, y sigue siendo un encabezado");
         cut.Markup.Split("PDF · JPG · PNG · DOCX · ZIP").Length.Should().Be(2, "los formatos salen una sola vez");
         cut.Markup.Split("Seleccionar archivos").Length.Should().Be(2, "solo la etiqueta accesible de la sección, no un segundo título");
         cut.Markup.Should().Contain("Nada se guarda hasta que confirmas cada archivo.");

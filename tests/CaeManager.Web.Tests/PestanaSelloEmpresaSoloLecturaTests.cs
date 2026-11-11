@@ -46,6 +46,8 @@ public class PestanaSelloEmpresaSoloLecturaTests : BunitContext
     private IRenderedComponent<PestanaSelloEmpresa> Renderizar(string rol, SelloEmpresaDto? sello)
     {
         JSInterop.Mode = JSRuntimeMode.Loose;
+        // ZonaSoltarArchivo (la zona del sello) localiza sus textos con TextosComunes.
+        Services.AddLocalization();
         this.ConRolDeEscritura(rol);
         Services.AddScoped<IMediator>(_ => new MediatorDelSello(sello));
         Services.AddScoped<ToastService>();

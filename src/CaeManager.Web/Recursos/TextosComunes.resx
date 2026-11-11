@@ -818,7 +818,7 @@
     <value>Subir documentos</value>
   </data>
   <data name="ZonaSoltarEstadoAdjunto" xml:space="preserve">
-    <value>Archivo adjuntado</value>
+    <value>Archivo adjuntado correctamente.</value>
   </data>
   <data name="ZonaSoltarEstadoAdjuntos" xml:space="preserve">
     <value>{0} archivos adjuntados</value>

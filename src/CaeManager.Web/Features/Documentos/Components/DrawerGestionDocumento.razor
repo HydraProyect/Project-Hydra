@@ -193,7 +193,7 @@
                 TamanoMaximoBytes="LimitesArchivoSubido.TamanoMaximoBytes"
                 ArchivosAdjuntos="ArchivosAdjuntosVista"
                 AvisoCombinacion="@AvisoCombinacionArchivos"
-                PermitirQuitar="@(_archivoUrlSubidoSinAdoptar is not null)"
+                PermitirQuitar="@(_archivoUrlSubidoSinAdoptar is not null && _editandoId is null && !_guardando)"
                 OnQuitar="QuitarArchivoAdjuntoAsync" />
             @if (_archivoNoAdjuntado && !_subiendoArchivo)
             {

@@ -83,6 +83,11 @@
 }
 
 /* Estado con archivo: la zona deja de pedir un archivo y enseña el que hay (borde continuo, tono de éxito). */
+.zona-soltar-archivo-con-archivo.zona-soltar-archivo-activa {
+    border-color: var(--color-primary-400);
+    background: var(--color-primary-50);
+}
+
 .zona-soltar-archivo-con-archivo {
     border-style: solid;
     border-color: var(--color-success-500);

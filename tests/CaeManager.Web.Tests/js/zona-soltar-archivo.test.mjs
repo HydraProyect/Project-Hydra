@@ -52,6 +52,8 @@ beforeEach(() => {
     documentoFalso = {
         addEventListener: (tipo, f) => { (oyentesDocumento[tipo] ??= []).push(f); },
         removeEventListener: (tipo, f) => { oyentesDocumento[tipo] = (oyentesDocumento[tipo] ?? []).filter(x => x !== f); },
+        modalAbierto: null,
+        querySelector(selector) { return selector === '[aria-modal="true"]' ? this.modalAbierto : null; },
     };
     globalThis.document = documentoFalso;
     globalThis.Element = ElementoFalso;
@@ -298,6 +300,33 @@ test('«Cambiar» abre el selector con el clic del usuario', async () => {
     clic({ target: new ElementoFalso('button') });
 
     assert.equal(input.clics, 1, 'solo el botón marcado con data-zona-cambiar');
+});
+
+test('con un diálogo modal abierto, el pegado no sube el archivo a la zona de la página de detrás', async () => {
+    const m = await cargarModulo();
+    const pagina = montar(m);
+    const modal = new ElementoFalso('div');
+    documentoFalso.modalAbierto = modal;
+
+    pegar(cuerpo(), [archivo('a.pdf', 'application/pdf')]);
+    assert.equal(pagina.input.cambios, 0, 'el modal abierto no tiene zona: no se pega en la de detrás');
+
+    const dentro = montar(m);
+    modal.hijos.push(dentro.zona);
+    pegar(cuerpo(), [archivo('b.pdf', 'application/pdf')]);
+    assert.equal(dentro.input.cambios, 1, 'la zona de dentro del modal sí');
+    assert.equal(pagina.input.cambios, 0);
+});
+
+test('si la última zona está ocupada no se cae a otra zona anterior', async () => {
+    const m = await cargarModulo();
+    const pagina = montar(m);
+    const drawer = montar(m, { deshabilitada: true });
+
+    pegar(cuerpo(), [archivo('a.pdf', 'application/pdf')]);
+
+    assert.equal(drawer.input.cambios, 0);
+    assert.equal(pagina.input.cambios, 0, 'el archivo no acaba en la zona de detrás');
 });
 
 test('tras desmontar, la zona ya no avisa a .NET', async () => {

@@ -76,7 +76,14 @@
             <span class="zona-soltar-archivo-icono">
                 <Icono Nombre="imagen" Tamano="TamanoIcono.Grande" />
             </span>
-            <p class="zona-soltar-archivo-titulo">@Titulo</p>
+            @if (NivelEncabezado == 2)
+            {
+                <h2 class="zona-soltar-archivo-titulo">@Titulo</h2>
+            }
+            else
+            {
+                <p class="zona-soltar-archivo-titulo">@Titulo</p>
+            }
             <p class="zona-soltar-archivo-subtitulo">
                 o <span class="zona-soltar-archivo-enlace">busca archivos</span> · o pega con <kbd>Ctrl</kbd> + <kbd>V</kbd>
             </p>
@@ -115,6 +122,7 @@ else if (!TieneArchivos && !string.IsNullOrWhiteSpace(NombreArchivoActual))
     private string? _anuncio;
     private string? _origenPendiente;
     private int _contadorAnuncios;
+    private bool _desmontada;
 
     [Parameter] public string Titulo { get; set; } = "Suelta tu archivo aquí";
     [Parameter] public string? FormatosTexto { get; set; }
@@ -139,6 +147,9 @@ else if (!TieneArchivos && !string.IsNullOrWhiteSpace(NombreArchivoActual))
     /// <summary>Permite ocultar «Quitar» aunque haya OnQuitar (p. ej. el archivo que el Documento ya tenía).</summary>
     [Parameter] public bool PermitirQuitar { get; set; } = true;
 
+    /// <summary>2 pinta el título de la zona vacía como encabezado h2 (páginas cuya zona ES el contenido); otro valor, párrafo.</summary>
+    [Parameter] public int? NivelEncabezado { get; set; }
+
     /// <summary>
     /// Tamaño máximo por archivo, solo para avisar al pegar o soltar en la propia zona (la
     /// validación de verdad sigue siendo la de quien la usa, en el servidor). Null: no se comprueba.
@@ -156,6 +167,10 @@ else if (!TieneArchivos && !string.IsNullOrWhiteSpace(NombreArchivoActual))
             _referencia = DotNetObjectReference.Create(this);
             _modulo = await JS.InvokeAsync<IJSObjectReference>("import", "./js/zona-soltar-archivo.js");
             _instancia = await _modulo.InvokeAsync<IJSObjectReference>("inicializar", _zonaRef, inputElement, _referencia);
+            // Desmontada mientras inicializaba (drawer abierto y cerrado enseguida): DisposeAsync ya
+            // pasó sin instancia que soltar, así que la zona recién registrada se suelta aquí.
+            if (_desmontada && _instancia is not null)
+                await _instancia.InvokeVoidAsync("dispose");
         }
         catch (Exception)
         {
@@ -251,6 +266,7 @@ else if (!TieneArchivos && !string.IsNullOrWhiteSpace(NombreArchivoActual))
 
     public async ValueTask DisposeAsync()
     {
+        _desmontada = true;
         try
         {
             if (_instancia is not null)

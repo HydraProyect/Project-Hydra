@@ -803,7 +803,7 @@
     <value>Pujar documents</value>
   </data>
   <data name="ZonaSoltarEstadoAdjunto" xml:space="preserve">
-    <value>Fitxer adjuntat</value>
+    <value>Fitxer adjuntat correctament.</value>
   </data>
   <data name="ZonaSoltarEstadoAdjuntos" xml:space="preserve">
     <value>{0} fitxers adjuntats</value>
