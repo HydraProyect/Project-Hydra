@@ -1810,6 +1810,20 @@ public class ComunicacionesGen2Tests : BunitContext
 
     private static TaskCompletionSource<object?> Retenida() => new(TaskCreationOptions.RunContinuationsAsynchronously);
 
+    /// <summary>
+    /// Completa una respuesta retenida y espera a que la página la haya procesado hasta su siguiente espera, sin tiempos.
+    /// <see cref="Retenida"/> no ejecuta las continuaciones en línea: al completarse, la continuación del mediador falso (que
+    /// capturó el contexto del renderer) se encola en el despachador de bUnit, que procesa en orden de llegada. La invocación
+    /// vacía que se encola después corre, por tanto, cuando la página ya pasó por esa continuación y quedó en su siguiente
+    /// <c>await</c> (o terminó). Se encolan dos para cubrir un salto más de contexto sin depender de cuántos haya exactamente.
+    /// </summary>
+    private static async Task CompletarYProcesarAsync(IRenderedComponent<Bandeja> cut, TaskCompletionSource<object?> retenida, object? valor)
+    {
+        await cut.InvokeAsync(() => retenida.SetResult(valor));
+        await cut.InvokeAsync(() => { });
+        await cut.InvokeAsync(() => { });
+    }
+
     private static ArchivoRetenido ArchivoListo(string nombre) => new(nombre, [1, 2, 3], Task.CompletedTask);
 
     private static Task AdjuntarAsync(IRenderedComponent<Bandeja> cut, ArchivoRetenido archivo) =>
@@ -1965,12 +1979,15 @@ public class ComunicacionesGen2Tests : BunitContext
     /// reabre para el mismo Centro. El borrador de la primera apertura no se ofrece ni apaga el indicador de carga de la segunda.
     /// Con la respuesta antigua primero, detecta quitar la condición del <c>finally</c> (apagaría el indicador de la reapertura);
     /// con la nueva primero, detecta quitar el <c>return</c> tras el await de <c>AbrirPedirPrioridadAsync</c> (la antigua
-    /// sobrescribiría el borrador ya mostrado).
+    /// sobrescribiría el borrador ya mostrado). Con la cancelada fallando (revisión Codex r7 de la #2167, BAJO), detecta quitar la
+    /// guarda del <c>catch</c>: el error de la apertura cancelada saldría en el Drawer reabierto.
     /// </summary>
     [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public async Task El_borrador_de_prioridad_de_una_apertura_cancelada_no_se_ofrece_en_la_reapertura(bool reaperturaResponde_primero)
+    [InlineData(false, false)]
+    [InlineData(true, false)]
+    [InlineData(false, true)]
+    [InlineData(true, true)]
+    public async Task El_borrador_de_prioridad_de_una_apertura_cancelada_no_se_ofrece_en_la_reapertura(bool reaperturaResponde_primero, bool canceladaFalla)
     {
         var conversacion = Conversacion("Documentación pendiente", ClienteRefrielectric);
         var escenario = new Escenario { Detalle = _ => DetalleDe(conversacion) };
@@ -1991,8 +2008,12 @@ public class ComunicacionesGen2Tests : BunitContext
         var segundaApertura = cut.FindAll("button").Single(b => b.TextContent.Trim() == "Pedir prioridad de validación").ClickAsync(new MouseEventArgs());
         cut.WaitForAssertion(() => Volatile.Read(ref pedidos).Should().Be(2, "control positivo: dos aperturas para el mismo Centro"));
 
-        Task ResponderLaCancelada() => cut.InvokeAsync(() => primero.SetResult(Result.Exito(new BorradorPedirPrioridadDto(
-            "validacion@example.invalid", "Prioridad de la apertura cancelada", "<p>Antiguo.</p>", true, null, 2))));
+        Task ResponderLaCancelada() => cut.InvokeAsync(() =>
+        {
+            if (canceladaFalla) primero.SetException(new InvalidOperationException("Fallo de la apertura cancelada."));
+            else primero.SetResult(Result.Exito(new BorradorPedirPrioridadDto(
+                "validacion@example.invalid", "Prioridad de la apertura cancelada", "<p>Antiguo.</p>", true, null, 2)));
+        });
         Task ResponderLaReapertura() => cut.InvokeAsync(() => segundo.SetResult(BorradorDelCentroNorte()));
 
         if (reaperturaResponde_primero)
@@ -2019,6 +2040,7 @@ public class ComunicacionesGen2Tests : BunitContext
         var campos = cut.FindComponents<CampoTexto>();
         campos.Should().NotContain(c => c.Instance.Valor == "Prioridad de la apertura cancelada", "el borrador era de la apertura cancelada");
         campos.Should().Contain(c => c.Instance.Valor == "Prioridad Centro Norte", "queda el borrador de la reapertura");
+        CampoPrivado<string?>(cut, "_mensajeErrorPrioridad").Should().BeNull("el desenlace de la apertura cancelada no toca el Drawer reabierto");
     }
 
     /// <summary>
@@ -2054,6 +2076,290 @@ public class ComunicacionesGen2Tests : BunitContext
 
         cut.FindAll(".modal-actualizar-documento-formulario").Should().BeEmpty("las Empresas del modal eran del Cliente empresarial anterior");
         HayToast(this, "La conversación se ha actualizado y se ha cerrado «Actualizar documentación»").Should().BeTrue("se dice por qué se cerró");
+    }
+
+    // ---------------------------------------------------------------- revisión Codex r7 de la #2167
+
+    /// <summary>
+    /// Revisión Codex r7 de la #2167, MEDIO 1: el resumen de formatos de un Centro llega MIENTRAS una recarga del detalle está en
+    /// curso. Hasta que esa recarga termina no se sabe con qué Cliente empresarial queda la conversación, así que no se añade al
+    /// borrador; al terminar, se añade solo si el Cliente empresarial no cambió (control) y se descarta con aviso si cambió.
+    /// Detecta volver a comprobar el contexto sin esperar a la recarga (<c>ContextoConfirmadoAsync</c>).
+    /// </summary>
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Los_formatos_que_llegan_durante_una_recarga_esperan_a_saber_su_Cliente_empresarial(bool cambiaCliente)
+    {
+        var conversacion = Conversacion("Documentación pendiente", ClienteRefrielectric);
+        var escenario = new Escenario { Detalle = _ => DetalleDe(conversacion) };
+        escenario.Conversaciones.Add(conversacion);
+        var formatos = Retenida();
+        var recarga = Retenida();
+        var retenerDetalle = false;
+        escenario.Interceptar = p => p switch
+        {
+            ObtenerCentrosParaSelectorQuery => Ya(new List<CentroSelectorDto>
+                { new(CentroNorteId, "Centro Norte", ClienteRefrielectric.RazonSocial, "Refrielectric S.A.") }),
+            ObtenerClientePorIdQuery q when q.Id == ClienteEbro.Id => Ya(FichaDeEbro()),
+            ObtenerFormatosRequeridosCentroQuery => formatos.Task,
+            ObtenerConversacionPorIdQuery when Volatile.Read(ref retenerDetalle) => recarga.Task,
+            _ => null
+        };
+        var (cut, mediador) = Renderizar(escenario);
+        await SeleccionarFila(cut, "Documentación pendiente");
+        cut.WaitForAssertion(() => cut.FindAll(".composer-correo-prellenados select").Should().ContainSingle());
+
+        var comparticion = cut.Find(".composer-correo-prellenados select").ChangeAsync(new ChangeEventArgs { Value = CentroNorteId.ToString() });
+        cut.WaitForAssertion(() => mediador.Enviados.OfType<ObtenerFormatosRequeridosCentroQuery>().Should().ContainSingle("el resumen está en vuelo"));
+
+        Volatile.Write(ref retenerDetalle, true);
+        var detallesAntes = DetallesPedidos(mediador, conversacion.Id);
+        var aviso = RecibirMensajeAsync(cut, conversacion.Id);
+        cut.WaitForAssertion(() => DetallesPedidos(mediador, conversacion.Id).Should().Be(detallesAntes + 1, "control positivo: la recarga está en vuelo"));
+
+        // La continuación del resumen corre fuera de esta llamada: se espera a que llegue a la guarda sin dar tiempos.
+        await CompletarYProcesarAsync(cut, formatos, "FORMATOS DEL CENTRO NORTE");
+        cut.Render();
+        CampoPrivado<string>(cut, "_textoRespuesta").Should().BeEmpty(
+            "con la recarga en curso aún no se sabe de qué Cliente empresarial es la conversación");
+
+        await cut.InvokeAsync(() => recarga.SetResult(cambiaCliente ? DetalleConEbro(conversacion) : DetalleDe(conversacion)));
+        await aviso;
+        await comparticion;
+        cut.Render();
+
+        cut.FindComponent<ComposerBar>().Instance.Texto.Should().Be(cambiaCliente ? string.Empty : "FORMATOS DEL CENTRO NORTE",
+            "con el mismo Cliente empresarial se añade al terminar la recarga (control); con otro, no");
+        HayToast(this, "La conversación se ha actualizado mientras se preparaba el resumen del Centro").Should().Be(cambiaCliente);
+    }
+
+    /// <summary>
+    /// Control del instrumento de la teoría anterior: sin recarga en curso, <see cref="CompletarYProcesarAsync"/> basta para que
+    /// el resumen pase la guarda y llegue al borrador sin esperar a que termine el manejador. Si este control falla, la
+    /// comprobación «aún vacío» de la teoría anterior podría pasar solo porque la continuación no había llegado a la guarda.
+    /// </summary>
+    [Fact]
+    public async Task Control_completar_y_procesar_lleva_el_resumen_al_borrador_sin_recarga_en_curso()
+    {
+        var conversacion = Conversacion("Documentación pendiente", ClienteRefrielectric);
+        var escenario = new Escenario { Detalle = _ => DetalleDe(conversacion) };
+        escenario.Conversaciones.Add(conversacion);
+        var formatos = Retenida();
+        escenario.Interceptar = p => p switch
+        {
+            ObtenerCentrosParaSelectorQuery => Ya(new List<CentroSelectorDto>
+                { new(CentroNorteId, "Centro Norte", ClienteRefrielectric.RazonSocial, "Refrielectric S.A.") }),
+            ObtenerFormatosRequeridosCentroQuery => formatos.Task,
+            _ => null
+        };
+        var (cut, mediador) = Renderizar(escenario);
+        await SeleccionarFila(cut, "Documentación pendiente");
+        cut.WaitForAssertion(() => cut.FindAll(".composer-correo-prellenados select").Should().ContainSingle());
+
+        var comparticion = cut.Find(".composer-correo-prellenados select").ChangeAsync(new ChangeEventArgs { Value = CentroNorteId.ToString() });
+        cut.WaitForAssertion(() => mediador.Enviados.OfType<ObtenerFormatosRequeridosCentroQuery>().Should().ContainSingle("el resumen está en vuelo"));
+
+        await CompletarYProcesarAsync(cut, formatos, "FORMATOS DEL CENTRO NORTE");
+        CampoPrivado<string>(cut, "_textoRespuesta").Should().Be("FORMATOS DEL CENTRO NORTE",
+            "sin recarga en curso, la continuación ya pasó la guarda cuando vuelve CompletarYProcesarAsync");
+
+        await comparticion;
+    }
+
+    /// <summary>
+    /// Revisión Codex r7 de la #2167, MEDIO 1 (plantilla): mismo caso que el anterior con «Aplicar plantilla». Detecta quitar la
+    /// espera a la recarga en <c>AplicarMacro</c>.
+    /// </summary>
+    [Fact]
+    public async Task Una_plantilla_que_llega_durante_una_recarga_que_cambia_el_Cliente_empresarial_no_acaba_en_la_respuesta()
+    {
+        var macro = PlantillaCertificado();
+        var (escenario, primera, _) = DosConversacionesConPlantilla(macro);
+        var plantilla = Retenida();
+        var recarga = Retenida();
+        var retenerDetalle = false;
+        escenario.Interceptar = p => p switch
+        {
+            AplicarMacroCommand => plantilla.Task,
+            ObtenerConversacionPorIdQuery when Volatile.Read(ref retenerDetalle) => recarga.Task,
+            _ => null
+        };
+        var (cut, mediador) = Renderizar(escenario);
+        await SeleccionarFila(cut, "Primera conversación");
+
+        var aplicacion = cut.Find(".composer-macro-campo select").ChangeAsync(new ChangeEventArgs { Value = macro.Id.ToString() });
+        cut.WaitForAssertion(() => mediador.Enviados.OfType<AplicarMacroCommand>().Should().ContainSingle("la plantilla está en vuelo"));
+
+        Volatile.Write(ref retenerDetalle, true);
+        var detallesAntes = DetallesPedidos(mediador, primera.Id);
+        var aviso = RecibirMensajeAsync(cut, primera.Id);
+        cut.WaitForAssertion(() => DetallesPedidos(mediador, primera.Id).Should().Be(detallesAntes + 1, "control positivo: la recarga está en vuelo"));
+
+        await CompletarYProcesarAsync(cut, plantilla, Result.Exito("<p>Plantilla con los datos de Refrielectric.</p>"));
+        Volatile.Write(ref retenerDetalle, false);
+        await cut.InvokeAsync(() => recarga.SetResult(DetalleConEbro(primera)));
+        await aviso;
+        await aplicacion;
+        cut.Render();
+
+        cut.FindComponent<ComposerBar>().Instance.Texto.Should().BeEmpty("la recarga terminó con otro Cliente empresarial");
+        HayToast(this, "La conversación se ha actualizado mientras se preparaba la plantilla").Should().BeTrue("se dice por qué no se añadió");
+    }
+
+    /// <summary>
+    /// Revisión Codex r7 de la #2167, MEDIO 2: tras enviar la respuesta, el medidor cierra el tramo y el Gestor CAE abre otra
+    /// conversación y empieza una nota interna. Al terminar el medidor no se recarga la abierta (desmontaría su nota interna).
+    /// Detecta quitar la comprobación de la apertura tras <c>RegistrarAccionMedidaAsync</c> en <c>EnviarAsync</c>.
+    /// </summary>
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Enviar_con_el_medidor_en_vuelo_y_otra_conversacion_abierta_no_recarga_su_detalle(bool cambiaApertura)
+    {
+        var (escenario, a, _, c) = TresConversaciones();
+        Services.AddSingleton<IAlertaOperativa>(new AlertaQueRelanza());
+        var tramo = Retenida();
+        escenario.Interceptar = p => p switch
+        {
+            ObtenerTiempoGestionConversacionQuery => Ya(new TiempoGestionConversacionDto(true, 0, 3600)),
+            RegistrarTramoGestionCommand => tramo.Task,
+            _ => null
+        };
+        var (cut, mediador) = Renderizar(escenario, "comunicaciones?estado=Abierta", medidorActivo: true);
+        await SeleccionarFila(cut, a.Asunto);
+        // El tramo del medidor cuenta segundos enteros desde que se abrió la conversación: sin ellos no registra nada.
+        await Task.Delay(1200);
+        await Escribir(cut, "Respuesta de A.");
+
+        var envio = Enviar(cut);
+        cut.WaitForAssertion(() => mediador.Enviados.OfType<RegistrarTramoGestionCommand>().Should().NotBeEmpty("el medidor está cerrando el tramo"));
+        var abierta = a;
+        if (cambiaApertura)
+        {
+            await AbrirPorIdAsync(cut, c);
+            abierta = c;
+            await cut.Find(".composer-nota-interna textarea").InputAsync(new ChangeEventArgs { Value = "Nota de C a medias." });
+        }
+        var detallesAntes = DetallesPedidos(mediador, abierta.Id);
+
+        await cut.InvokeAsync(() => tramo.SetResult(Result.Exito()));
+        await envio;
+        cut.Render();
+
+        DetallesPedidos(mediador, abierta.Id).Should().Be(detallesAntes + (cambiaApertura ? 0 : 1),
+            "con la misma apertura se recarga el detalle (control); con otra conversación abierta, no");
+        if (cambiaApertura)
+            cut.FindComponent<ComposerNotaInterna>().Instance.TieneTextoSinGuardar.Should().BeTrue("la nota interna de C sigue escrita");
+    }
+
+    /// <summary>
+    /// Revisión Codex r7 de la #2167, MEDIO 3: el recordatorio propuesto de A se está enviando y el Gestor CAE abre C y empieza
+    /// una nota interna. Al terminar, el aviso del componente hijo no recarga C. Detecta volver a pasarle a
+    /// <c>RecordatorioPropuesto</c> una recarga que no lleve la apertura con la que se pintó.
+    /// </summary>
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Un_recordatorio_enviado_con_otra_conversacion_abierta_no_recarga_su_detalle(bool cambiaApertura)
+    {
+        var (escenario, a, _, c) = TresConversaciones();
+        var aprobacion = Retenida();
+        escenario.Interceptar = p => p switch
+        {
+            ObtenerRecordatorioPropuestoConversacionQuery q when q.ConversacionId == a.Id => Ya(new RecordatorioPropuestoDto(
+                Guid.NewGuid(), new DateTime(2026, 10, 16, 8, 0, 0, DateTimeKind.Utc), new DateTime(2026, 10, 20, 5, 0, 0, DateTimeKind.Utc),
+                "cae@mnorte.example")),
+            CaeManager.Application.Comunicaciones.Commands.AprobarRecordatorioConversacion.AprobarRecordatorioConversacionCommand => aprobacion.Task,
+            _ => null
+        };
+        var (cut, mediador) = Renderizar(escenario);
+        await SeleccionarFila(cut, a.Asunto);
+        cut.WaitForAssertion(() => cut.FindAll(".recordatorio-propuesto").Should().ContainSingle("A tiene un recordatorio propuesto"));
+        var recordatorio = cut.FindComponent<RecordatorioPropuesto>();
+        await recordatorio.FindAll("button").Single(b => b.TextContent.Trim() == "Revisar").ClickAsync(new MouseEventArgs());
+        var envio = recordatorio.FindAll(".drawer-pie button").Single(b => b.TextContent.Trim() == "Aprobar y enviar").ClickAsync(new MouseEventArgs());
+        cut.WaitForAssertion(() => mediador.Enviados
+            .OfType<CaeManager.Application.Comunicaciones.Commands.AprobarRecordatorioConversacion.AprobarRecordatorioConversacionCommand>()
+            .Should().ContainSingle("el recordatorio está en vuelo"));
+        var abierta = a;
+        if (cambiaApertura)
+        {
+            await AbrirPorIdAsync(cut, c);
+            abierta = c;
+            await cut.Find(".composer-nota-interna textarea").InputAsync(new ChangeEventArgs { Value = "Nota de C a medias." });
+        }
+        var detallesAntes = DetallesPedidos(mediador, abierta.Id);
+
+        await cut.InvokeAsync(() => aprobacion.SetResult(Result.Exito()));
+        await envio;
+        cut.Render();
+
+        DetallesPedidos(mediador, abierta.Id).Should().Be(detallesAntes + (cambiaApertura ? 0 : 1),
+            "con la misma apertura se recarga el hilo con el recordatorio enviado (control); con otra conversación abierta, no");
+        if (cambiaApertura)
+            cut.FindComponent<ComposerNotaInterna>().Instance.TieneTextoSinGuardar.Should().BeTrue("la nota interna de C sigue escrita");
+    }
+
+    /// <summary>
+    /// Revisión Codex r7 de la #2167, MEDIO 4: con «Actualizar documentación» cargado, una recarga cambia el Cliente empresarial.
+    /// Sin cambios del Gestor CAE el modal se cierra y se avisa (control); con cambios, no se cierra en silencio: sigue abierto
+    /// con lo escrito, «Aplicar» bloqueado con el motivo y el aviso a la vista, y aplicar no envía nada. Detecta quitar la
+    /// excepción de <c>CambiarContexto</c> o el bloqueo de <c>AplicarActualizacionDocumentoAsync</c>.
+    /// </summary>
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Una_recarga_que_cambia_el_Cliente_empresarial_no_cierra_en_silencio_Actualizar_documentacion_editado(bool conCambios)
+    {
+        var conversacion = Conversacion("Documentación pendiente", ClienteRefrielectric);
+        var escenario = new Escenario { Detalle = _ => ConAdjuntoTc2(DetalleDe(conversacion)) };
+        escenario.Conversaciones.Add(conversacion);
+        var tipoId = Guid.NewGuid();
+        var empresaId = Guid.NewGuid();
+        escenario.Interceptar = peticion => peticion switch
+        {
+            ObtenerEmpresasParaSelectorQuery => Ya(new List<EmpresaSelectorDto> { new(empresaId, "Instalaciones Norte S.L.") }),
+            DetectarActualizacionDocumentoDesdeAdjuntoQuery => Ya(Result.Exito(new DeteccionActualizacionDocumentoDto(
+                AdjuntoId, tipoId, null, CaeManager.Domain.Documentos.AmbitoAplicacion.Empresa, null, null, empresaId, null, null, null, 80))),
+            _ => null,
+        };
+        var (cut, mediador) = Renderizar(escenario);
+        await SeleccionarFila(cut, "Documentación pendiente");
+        await cut.Find(".timeline-adjunto-actualizar-documento").ClickAsync(new MouseEventArgs());
+        cut.WaitForAssertion(() => cut.FindAll(".modal-actualizar-documento-formulario").Should().ContainSingle("el modal está cargado"));
+        if (conCambios)
+            await cut.Find(".modal-actualizar-documento-formulario textarea").InputAsync(new ChangeEventArgs { Value = "Renovado en septiembre." });
+
+        escenario.Detalle = _ => ConAdjuntoTc2(DetalleConEbro(conversacion));
+        await RecibirMensajeAsync(cut, conversacion.Id);
+        cut.WaitForAssertion(() => cut.Find(".bandeja-cliente-identidad").TextContent.Should().Contain(ClienteEbro.RazonSocial));
+        const string motivo = "La conversación se ha actualizado y este formulario ya no corresponde a sus datos actuales";
+
+        if (!conCambios)
+        {
+            cut.FindAll(".modal-actualizar-documento-formulario").Should().BeEmpty("sin cambios, el modal del contexto anterior se cierra");
+            HayToast(this, "La conversación se ha actualizado y se ha cerrado «Actualizar documentación»").Should().BeTrue();
+            return;
+        }
+
+        cut.FindAll(".modal-actualizar-documento-formulario").Should().ContainSingle("con lo escrito, el modal no se cierra en silencio");
+        CampoPrivado<string>(cut, "_comentariosDocumentoFormulario").Should().Be("Renovado en septiembre.", "lo escrito se conserva para copiarlo");
+        HayToast(this, "La conversación se ha actualizado y se ha cerrado «Actualizar documentación»").Should().BeFalse("no se ha cerrado");
+        var aplicar = cut.FindAll(".modal-pie button").Single(b => b.TextContent.Contains("Aplicar y registrar"));
+        aplicar.HasAttribute("disabled").Should().BeTrue("«Aplicar» se bloquea: el formulario es del contexto anterior");
+        aplicar.GetAttribute("title").Should().StartWith(motivo);
+        cut.Markup.Should().Contain(motivo, "el aviso está a la vista dentro del modal");
+
+        await InvocarPrivado(cut, "AplicarActualizacionDocumentoAsync");
+        mediador.Enviados.OfType<ActualizarDocumentoDesdeAdjuntoCommand>().Should().BeEmpty("aplicar por otra vía tampoco envía nada");
+
+        // Al cerrarlo (descartando lo escrito) y reabrirlo, el formulario vuelve a poder aplicarse con los datos actuales.
+        await PulsarCancelarEnAsync(cut, ".modal-pie");
+        await cut.ComprobarQuePreguntaYDescartarAsync(".modal-actualizar-documento-formulario");
+        await cut.Find(".timeline-adjunto-actualizar-documento").ClickAsync(new MouseEventArgs());
+        cut.WaitForAssertion(() => cut.FindAll(".modal-actualizar-documento-formulario").Should().ContainSingle());
+        cut.FindAll(".modal-pie button").Single(b => b.TextContent.Contains("Aplicar y registrar")).HasAttribute("disabled").Should().BeFalse();
     }
 
     /// <summary>

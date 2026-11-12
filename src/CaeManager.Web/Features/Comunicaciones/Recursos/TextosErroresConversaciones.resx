@@ -21,6 +21,9 @@
   <data name="AvisoActualizarDocumentoContextoCambiado" xml:space="preserve">
     <value>La conversación se ha actualizado y se ha cerrado «Actualizar documentación». Vuelve a abrirlo para revisar el adjunto con los datos actuales.</value>
   </data>
+  <data name="AvisoActualizarDocumentoContextoCaducado" xml:space="preserve">
+    <value>La conversación se ha actualizado y este formulario ya no corresponde a sus datos actuales, así que no se puede aplicar. Copia lo que hayas escrito y ciérralo; vuelve a abrirlo para revisar el adjunto con los datos actuales.</value>
+  </data>
   <data name="AvisoFormatosContextoCambiado" xml:space="preserve">
     <value>La conversación se ha actualizado mientras se preparaba el resumen del Centro. Vuelve a elegirlo en «Compartir formatos de centro»: tu respuesta no se ha modificado.</value>
   </data>

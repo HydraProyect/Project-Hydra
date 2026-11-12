@@ -418,7 +418,7 @@
                 @if (_vista == "clientes")
                 {
                   <SoloConEscritura>
-                    <RecordatorioPropuesto ConversacionId="_detalle.Id" Asunto="@_detalle.Asunto" Estado="_detalle.Estado"                                           FechaUltimoMensajeUtc="_detalle.FechaUltimoMensajeUtc" OnEnviado="CargarDetalleAsync" />
+                    <RecordatorioPropuesto ConversacionId="_detalle.Id" Asunto="@_detalle.Asunto" Estado="_detalle.Estado"                                           FechaUltimoMensajeUtc="_detalle.FechaUltimoMensajeUtc" OnEnviado="@RecargaDeEstaApertura()" />
 
                     <div class="hilo-editor-cabecera">
                         <div class="bandeja-editor-tabs" role="group" aria-label="@TextosLista["TipoMensaje"]">
@@ -572,7 +572,9 @@
 
     <ModalFormulario HayCambios="() => HayCambiosActualizarDocumento" Visible="_modalActualizarDocumentoVisible" VisibleChanged="v => { if (!v) CerrarModalActualizarDocumento(); }"
                     Titulo="Actualizar documentación" Ancho="AnchoModal.Grande" Guardando="_aplicandoDocumento" Cargando="_detectandoDocumento" FilasCargando="4" MensajeError="@_errorActualizarDocumento"
-                    TextoCancelar="Cancelar" TextoGuardar="Aplicar y registrar" OnGuardar="AplicarActualizacionDocumentoAsync">
+                    TextoCancelar="Cancelar" TextoGuardar="Aplicar y registrar" OnGuardar="AplicarActualizacionDocumentoAsync"
+                    MotivoGuardarDeshabilitado="@MotivoAplicarDocumentoDeshabilitado"
+                    Aviso="@AvisoActualizarDocumentoCaducado">
         <ChildContent>
             @if (_confianzaDeteccionDocumento > 0)
             {
