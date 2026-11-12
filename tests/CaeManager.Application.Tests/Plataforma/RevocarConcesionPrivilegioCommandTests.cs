@@ -1,4 +1,4 @@
-﻿using CaeManager.Application.Common;
+using CaeManager.Application.Common;
 using CaeManager.Application.Plataforma;
 using CaeManager.Application.Plataforma.Commands.RevocarConcesionPrivilegio;
 using CaeManager.Application.Tests.Integraciones;
@@ -158,6 +158,7 @@ public class RevocarConcesionPrivilegioCommandTests
     [InlineData(CapacidadPrivilegio.RestablecimientoSegundoFactor, "Autorizacion.ComandoFueraDelRestablecimiento")]
     [InlineData(CapacidadPrivilegio.RevocacionOperadorCaeExterno, "Autorizacion.ComandoFueraDeLaRevocacion")]
     [InlineData(CapacidadPrivilegio.ConcesionAdministrador, "Autorizacion.ComandoFueraDeLaConcesionAdministrador")]
+    [InlineData(CapacidadPrivilegio.AjusteSegundoFactorTenant, "Autorizacion.ComandoFueraDelAjusteSegundoFactor")]
     public async Task Dentro_de_una_Sesion_Privilegiada_el_comando_se_rechaza_con_cualquier_capacidad(
         CapacidadPrivilegio capacidad, string codigo)
     {

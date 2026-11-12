@@ -249,3 +249,8 @@
         width: 80%;
     }
 }
+
+/* La línea de jornada intensiva (MarcasCapasDia) se coloca al pie de la celda: la celda es su referencia. */
+.calendario-celda {
+    position: relative;
+}

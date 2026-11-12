@@ -41,6 +41,9 @@ public class LecturasDelRastreadorDeEfEstanCatalogadasTests
         ["src/CaeManager.Infrastructure/Persistence/Seed/CoberturaPantallasSeeder.cs"] = (2, "siembra, sin circuito"),
         ["src/CaeManager.Infrastructure/Persistence/Seed/ComunicacionesDatosPruebaSeeder.cs"] = (1, "no es DbSet.Local: valor de enumeración de la siembra"),
         ["src/CaeManager.Infrastructure/Persistence/Seed/EscenariosDireccionDemoSeeder.cs"] = (1, "no es DbSet.Local: miembro de EmailsEquipo de la siembra"),
+        ["src/CaeManager.Domain/CalendarioLaboral/FestivoOficial.cs"] = (2, "no es DbSet.Local: valor AmbitoFestivo.Local (festivo local)"),
+        ["src/CaeManager.Domain/CalendarioLaboral/CatalogoFestivosOficiales.cs"] = (1, "no es DbSet.Local: valor AmbitoFestivo.Local (festivo local)"),
+        ["src/CaeManager.Application/Calendario/Queries/ObtenerCapasCalendarioQuery.cs"] = (1, "no es DbSet.Local: valor AmbitoFestivo.Local (festivo local)"),
     };
 
     [Fact]

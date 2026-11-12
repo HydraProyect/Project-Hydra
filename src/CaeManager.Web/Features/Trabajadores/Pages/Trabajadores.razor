@@ -1,5 +1,7 @@
 @page "/trabajadores"
-@rendermode InteractiveServer
+@* Sin prerender (como Mi trabajo, M-23): OnInitializedAsync carga la lista y no persiste su estado; con prerender
+   corría dos veces en cada visita. *@
+@rendermode @(new InteractiveServerRenderMode(prerender: false))
 @inherits CaeManager.Web.Components.PaginaInteractiva
 @attribute [Authorize]
 @using CaeManager.Application.Trabajadores.Commands.CrearTrabajador
@@ -28,6 +30,7 @@
 
 <LimiteDeErrores Pagina="this">
 <PageTitle>@TituloPagina — @Marca.Nombre</PageTitle>
+<TituloDePaginaSinPrerender Titulo="@($"{TituloPagina} — {Marca.Nombre}")" />
 
 <div class="contenedor-pagina lista-design">
     @* Lista 1:1 con «Lista Trabajadores TALVEG.dc.html» del export de Design (DDL-083, 2026-10-18), con el mismo molde que
@@ -220,12 +223,12 @@
                 {
                     <span class="seleccion-trabajador"><input type="checkbox" aria-label="@Textos["AriaSeleccionarPagina"]" checked="@TodosSeleccionados" @onchange="e => AlternarSeleccionTodos((bool)e.Value!)" /></span>
                 }
-                <span></span>
+                <span class="hueco-cabecera-trabajador"></span>
                 @(CabeceraOrdenable(nameof(TrabajadorListaDto.Apellidos), Textos["ListaColumnaTrabajador"]))
                 @(CabeceraOrdenable(nameof(TrabajadorListaDto.EmpleadorNombre), Textos["ListaColumnaEmpleador"]))
                 <span class="col-registrados-vigentes">@Textos["ListaColumnaRegistradosVigentes"]</span>
                 @(CabeceraOrdenable(nameof(TrabajadorListaDto.EstadoDocumental), Textos["ListaColumnaEstadoDocumental"], "col-estado"))
-                <span></span>
+                <span class="hueco-cabecera-trabajador"></span>
             </div>
 
             <div class="lista-filas-acordeon" aria-busy="@(_cargando ? "true" : "false")">
@@ -260,7 +263,7 @@
                             }
                             @if (context.Incidencias.Count > 0)
                             {
-                                <button type="button" class="@("boton-expandir-fila" + (expandido ? " boton-expandir-fila-abierta" : ""))"
+                                <button type="button" class="@("boton-expandir-fila celda-chevron-trabajador" + (expandido ? " boton-expandir-fila-abierta" : ""))"
                                         aria-label="@Textos["DesplegarIncidenciasTrabajador", NombreCompleto(context)]" aria-expanded="@(expandido ? "true" : "false")"
                                         @onclick="() => AlternarExpansion(context.Id)" @onclick:stopPropagation="true">
                                     <Icono Nombre="chevron" Tamano="TamanoIcono.Pequeno" />
@@ -268,7 +271,7 @@
                             }
                             else
                             {
-                                <span></span>
+                                <span class="celda-chevron-trabajador"></span>
                             }
                             @* Celda «Trabajador»: «Nombre Apellidos» (abre la vista rápida) con, si es voluntario sin evento, su pastilla, y
                                debajo el DNI, sin prefijo, copiable con un clic, sin abrir la fila. *@
@@ -417,7 +420,8 @@
     <CampoTexto Etiqueta="@Textos["EtiquetaNombre"]" Valor="@_nombre" ValorChanged="v => _nombre = v" OnBlur="ValidarNombreAsync" MensajeError="@ObtenerError(nameof(CrearTrabajadorCommand.Nombre))" />
     <CampoTexto Etiqueta="@Textos["EtiquetaApellidos"]" Valor="@_apellidos" ValorChanged="v => _apellidos = v" OnBlur="ValidarApellidosAsync" MensajeError="@ObtenerError(nameof(CrearTrabajadorCommand.Apellidos))" />
     <CampoTexto Etiqueta="@Textos["EtiquetaAliasOpcional"]" Placeholder="@Textos["PlaceholderAlias"]" Valor="@_alias" ValorChanged="v => _alias = v" OnBlur="ValidarAliasAsync" MensajeError="@ObtenerError(nameof(CrearTrabajadorCommand.Alias))" />
-    <CampoTexto Etiqueta="@Textos["EtiquetaFechaNacimiento"]" Type="date" Valor="@_fechaNacimiento" ValorChanged="v => _fechaNacimiento = v" />
+    <CampoTexto Etiqueta="@Textos["EtiquetaFechaNacimiento"]" Type="date" Valor="@_fechaNacimiento" ValorChanged="v => _fechaNacimiento = v"
+                FechaNoValida="_fechaNacimientoNoValida" FechaNoValidaChanged="AlCambiarFechaNacimientoNoValida" />
     }
     else if (_pasoAlta == PasoAltaTrabajo)
     {
@@ -555,7 +559,7 @@
 @code {
     // Rótulo de columna que ordena. Sin roles de tabla (la lista no lo es), así que el sentido del orden lo dice la
     // flecha de la clase y el nombre accesible del botón. Agrupada «Por Empresa» manda el orden del grupo: ninguna columna lo marca.
-    private RenderFragment CabeceraOrdenable(string propiedad, string titulo, string clase = "") => @<span class="@(clase + (!Agrupado && _orden.Propiedad == propiedad ? (_orden.Direccion == SortDirection.Descending ? " col-sort-desc" : " col-sort-asc") : ""))">
+    private RenderFragment CabeceraOrdenable(string propiedad, string titulo, string clase = "") => @<span class="@("cabecera-orden-trabajador " + clase + (!Agrupado && _orden.Propiedad == propiedad ? (_orden.Direccion == SortDirection.Descending ? " col-sort-desc" : " col-sort-asc") : ""))">
         <button type="button" class="col-title" title="@Textos["OrdenarPorColumna"]" @onclick="() => OrdenarAsync(propiedad)"><span class="col-title-text">@titulo</span></button>
     </span>;
 }

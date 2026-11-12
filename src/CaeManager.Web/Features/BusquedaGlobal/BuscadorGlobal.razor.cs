@@ -47,6 +47,13 @@ public partial class BuscadorGlobal
     /// </summary>
     private string _valorMostrado = string.Empty;
 
+    /// <summary>
+    /// Tope de espera de una búsqueda ya lanzada (tras el debounce). Pasado, «Buscando…» se sustituye por el
+    /// error (se reintenta volviendo a escribir): una consulta lenta o colgada nunca deja la paleta en «Buscando…» para siempre.
+    /// Parámetro solo para que las pruebas no esperen el tiempo real.
+    /// </summary>
+    [Parameter] public TimeSpan TiempoMaximoBusqueda { get; set; } = TimeSpan.FromSeconds(10);
+
     private bool _buscando;
     private ResultadoBusquedaGlobalDto? _resultado;
     private int _indiceSeleccionado = -1;
@@ -386,7 +393,14 @@ public partial class BuscadorGlobal
 
         try
         {
-            _vencenEstaSemana[empresaId] = await Mediator.Send(new ContarVencenEstaSemanaDeEmpresaQuery(empresaId), token);
+            // Con tope: un recuento que no vuelve se trata como uno que falla (la acción va sin subtítulo), sin
+            // tumbar un resultado de búsqueda que ya llegó bien.
+            // Token propio para cancelar solo el recuento al vencer el tope: si no, seguiría vivo sobre el DbContext y
+            // la siguiente búsqueda esperaría a una consulta que nadie ha pedido parar.
+            using var propio = CancellationTokenSource.CreateLinkedTokenSource(token);
+            var recuento = Mediator.Send(new ContarVencenEstaSemanaDeEmpresaQuery(empresaId), propio.Token);
+            await EsperarConTopeAsync(recuento, token, propio);
+            _vencenEstaSemana[empresaId] = await recuento;
         }
         catch (OperationCanceledException)
         {
@@ -1259,7 +1273,19 @@ public partial class BuscadorGlobal
             _buscando = true;
             await Task.Delay(RetardoDebounce, token);
 
-            var resultado = await Mediator.Send(new BuscarGlobalQuery(termino), token);
+            // «Buscando…» no puede ser un estado sin salida: WaitAsync suelta la espera al cumplirse el tope
+            // aunque el handler no respete el token (cancelar es una petición, no una garantía), y el
+            // fallo se pinta como error con la misma vía que cualquier otro (se reintenta volviendo a escribir).
+            // El recuento «vencen esta semana» (segunda consulta de la misma búsqueda) lleva el mismo tope.
+            // El DbContext es scoped por circuito: si una consulta abandonada por el tope sigue desenrollándose, la
+            // siguiente no puede arrancar encima (sería «A second operation was started on this context»). Solo se
+            // espera a la abandonada por tope; las superadas por una pulsación nueva siguen sin bloquear a la vigente.
+            if (_consultaAbandonada is { IsCompleted: false } abandonada)
+                await abandonada.WaitAsync(TiempoMaximoBusqueda, token);
+
+            var busqueda = Mediator.Send(new BuscarGlobalQuery(termino), token);
+            await EsperarConTopeAsync(busqueda, token);
+            var resultado = await busqueda;
             if (generacion == _generacionBusqueda)
                 await CargarVencenEstaSemanaAsync(termino, token);
 
@@ -1272,16 +1298,22 @@ public partial class BuscadorGlobal
 
             _resultado = resultado;
         }
-        catch (OperationCanceledException)
+        catch (OperationCanceledException) when (token.IsCancellationRequested)
         {
             // Se canceló porque el usuario siguió escribiendo, cerró el
-            // palette o el componente se está destruyendo — ignorar.
+            // palette o el componente se está destruyendo — ignorar. Una
+            // cancelación que NO viene de nuestro token (un handler que se
+            // cancela por su cuenta) es un fallo y cae en el catch de abajo:
+            // decir «Sin resultados» cuando la búsqueda no terminó engaña.
         }
-        catch (Exception) when (generacion == _generacionBusqueda)
+        catch (Exception ex) when (generacion == _generacionBusqueda)
         {
             // Un fallo no puede acabar mostrándose como "sin resultados".
             _resultado = null;
             _errorBusqueda = "No se pudo completar la búsqueda. Vuelve a intentarlo.";
+
+            // Si fue el tope de espera, la consulta que sigue en vuelo ya no interesa a nadie.
+            if (ex is TimeoutException) enlazado.Cancel();
         }
         catch
         {
@@ -1300,6 +1332,36 @@ public partial class BuscadorGlobal
                 StateHasChanged();
             }
         }
+    }
+
+    /// <summary>Consulta soltada por el tope que aún no terminó: la siguiente búsqueda espera a que acabe de desenrollarse.</summary>
+    private Task? _consultaAbandonada;
+
+    private async Task EsperarConTopeAsync(Task consulta, CancellationToken token, CancellationTokenSource? alVencer = null)
+    {
+        try
+        {
+            await consulta.WaitAsync(TiempoMaximoBusqueda, token);
+        }
+        catch (TimeoutException)
+        {
+            alVencer?.Cancel();
+            _consultaAbandonada = Observar(consulta);
+            throw;
+        }
+        catch (OperationCanceledException)
+        {
+            // Superada o cancelada: no se espera por ella, pero su fallo tardío no puede quedar sin observar.
+            _ = Observar(consulta);
+            throw;
+        }
+    }
+
+    // Observa el desenlace de la consulta abandonada para que su fallo tardío no quede sin observar.
+    private static async Task Observar(Task consulta)
+    {
+        try { await consulta; }
+        catch { /* ya se informó del fallo por el tope */ }
     }
 
     public async ValueTask DisposeAsync()

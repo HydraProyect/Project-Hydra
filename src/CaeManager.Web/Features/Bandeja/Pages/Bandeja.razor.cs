@@ -5,6 +5,7 @@ using CaeManager.Domain.Documentos;
 using CaeManager.Domain.Tenants;
 using CaeManager.Web.Components;
 using CaeManager.Web.Components.DesignSystem;
+using CaeManager.Web.Components.Layout;
 using Microsoft.AspNetCore.Components;
 
 namespace CaeManager.Web.Features.Bandeja.Pages;
@@ -168,8 +169,18 @@ public partial class Bandeja : CaeManager.Web.Components.PaginaInteractiva, IDis
         }
     }
 
+    [Inject] private IServiceProvider ServiciosMiTrabajo { get; set; } = default!;
+
     protected override async Task OnInitializedAsync()
     {
+        // Mi trabajo oculto para la demo (MiTrabajoVisibilidad): la ruta, el aviso guardado o el marcador
+        // antiguo que llegue aquí acaban en Gestiones. Mismo patrón que Comunicaciones congelado.
+        if (MiTrabajoVisibilidad.EstaOculto(ServiciosMiTrabajo))
+        {
+            NavigationManager.NavigateTo(MiTrabajoVisibilidad.RutaAlternativa, replace: true);
+            return;
+        }
+
         await CargarAsync();
         AbrirPedirDeLaUrl();
     }

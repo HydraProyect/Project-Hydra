@@ -34,20 +34,13 @@
     es «pendiente», y eso es decisión de producto/modelo.
 *@
 @using System.Security.Claims
-@using CaeManager.Application.Tenants.Queries.EsAdministradorPlataforma
-@using CaeManager.Application.Tenants.Queries.ObtenerClientesAutorizados
 @using CaeManager.Application.VistaDemo
-@using CaeManager.Application.Operaciones.IncorporacionCartera.Queries
-@using CaeManager.Application.Tenants.Queries.ObtenerPerfilVocabularioActual
-@using CaeManager.Application.Tenants.Queries.UsaRotulosPrimeraPersona
-@using CaeManager.Application.Plataforma.OrdenMenu
 @using CaeManager.Infrastructure.Comunicaciones
-@using MediatR
 @using Microsoft.Extensions.Localization
 @using Microsoft.Extensions.Options
 @using CaeManager.Web.Recursos
 @inject IOptions<ComunicacionesOptions> OpcionesComunicaciones
-@inject IMediator Mediator
+@inject ContextoMarcoDelAmbito ContextoMarco
 @inject IServiceProvider Servicios
 @inject IStringLocalizer<TextosComunes> Textos
 @inject NavigationManager Navigation
@@ -185,7 +178,8 @@
 
     private ContextoMenuLateral? _contexto;
     private Task<AuthenticationState>? _estadoEvaluado;
-    private OrdenMenuLateralDto? _orden;
+    private IReadOnlyList<string>? _ordenGrupos;
+    private IReadOnlyList<string>? _ordenEnlaces;
     private IReadOnlyList<CatalogoMenuLateral.GrupoVisible> _grupos = [];
     private IReadOnlyList<CatalogoMenuLateral.SubopcionVisible> _subopciones = [];
 
@@ -194,36 +188,35 @@
 
     protected override async Task OnInitializedAsync()
     {
-        var perfil = await Mediator.Send(new ObtenerPerfilVocabularioActualQuery());
-        var rotulosPrimeraPersona = await Mediator.Send(new UsaRotulosPrimeraPersonaQuery());
+        // Vocabulario, rótulos, señal de AdminPlataforma, Tenants beneficiarios autorizados, orden del menú y
+        // participación en la incorporación a cartera: el contexto del marco, un despacho por ámbito compartido con el
+        // resto del marco (ObtenerContextoMarcoQuery). Las Queries y su autorización son las de siempre.
+        var marco = await ContextoMarco.ObtenerAsync();
         // Lente de demo (ver MenuPorVista): solo puede ocultar entradas, nunca mostrar una que la
         // autorización real de la cuenta no mostraría. Opcional a propósito: sin la lente
         // registrada (otro host, tests) el menú es el real.
         VistaDemo? vista = null;
         if (Servicios.GetService<IVistaDemoActual>() is { } vistaDemoActual)
             vista = (await vistaDemoActual.ObtenerEfectivaAsync())?.Vista;
-        // Mismo criterio de autorización que CrearClienteDeleganteCommand y que el botón "Nueva
-        // delegación" de Delegaciones.razor: decide si el grupo "Plataforma" aparece para alguien
-        // sin el rol Administrador.
-        var esAdministradorPlataforma = await Mediator.Send(new EsAdministradorPlataformaQuery());
-        var organizaciones = await Mediator.Send(new ObtenerClientesAutorizadosQuery());
-        // Orden global del Actor de Plataforma TALVEG (decisión del 2026-09-23): el mismo para
-        // todos los Tenants, de una caché de proceso. Solo recoloca: la visibilidad sigue siendo la
-        // de cada enlace.
-        _orden = await Mediator.Send(new ObtenerOrdenMenuLateralQuery());
-        // Gestor o Coordinador CAE en su Operador CAE: IsInRole no lo sabe dentro de un Workspace
-        // operativo derivado, donde el claim es el rol de la cartera en ese Tenant propietario.
-        var participaEnIncorporacionCartera = await Mediator.Send(new ParticipaEnIncorporacionCarteraQuery());
+        // EsAdministradorPlataforma: mismo criterio de autorización que CrearClienteDeleganteCommand y que el botón
+        // "Nueva delegación" de Delegaciones.razor; decide si el grupo "Plataforma" aparece para alguien sin el rol
+        // Administrador. Orden global del Actor de Plataforma TALVEG (decisión del 2026-09-23): el mismo para todos
+        // los Tenants; solo recoloca, la visibilidad sigue siendo la de cada enlace. ParticipaEnIncorporacionCartera:
+        // Gestor o Coordinador CAE en su Operador CAE; IsInRole no lo sabe dentro de un Workspace operativo derivado,
+        // donde el claim es el rol de la cartera en ese Tenant propietario.
+        _ordenGrupos = marco.OrdenGrupos;
+        _ordenEnlaces = marco.OrdenEnlaces;
         // Opcional como la lente de demo: en un host sin el servicio el menú sigue siendo el de siempre.
         var herramientasPdfDisponibles = Servicios.GetService<CaeManager.Application.HerramientasPdf.IDisponibilidadHerramientasPdf>() is not { } disponibilidadPdf
             || await disponibilidadPdf.EstaDisponibleAsync();
 
         _contexto = new ContextoMenuLateral(
             new ClaimsPrincipal(new ClaimsIdentity()), vista, OpcionesComunicaciones.Value.Activo,
-            esAdministradorPlataforma, perfil, VariosTenants: organizaciones.Count > 1,
-            ParticipaEnIncorporacionCartera: participaEnIncorporacionCartera,
-            RotulosPrimeraPersona: rotulosPrimeraPersona,
-            HerramientasPdfDisponibles: herramientasPdfDisponibles);
+            marco.EsAdministradorPlataforma, marco.PerfilVocabulario, VariosTenants: marco.ClientesAutorizados.Count > 1,
+            ParticipaEnIncorporacionCartera: marco.ParticipaEnIncorporacionCartera,
+            RotulosPrimeraPersona: marco.RotulosPrimeraPersona,
+            HerramientasPdfDisponibles: herramientasPdfDisponibles,
+            MiTrabajoOculto: MiTrabajoVisibilidad.EstaOculto(Servicios));
     }
 
     // El usuario se relee en cada estado de autenticación en cascada, no solo al inicializar: en el
@@ -239,7 +232,7 @@
             ? new ClaimsPrincipal(new ClaimsIdentity())
             : (await EstadoAutenticacion).User;
         _contexto = _contexto with { Usuario = usuario };
-        _grupos = CatalogoMenuLateral.Visibles(_contexto, _orden?.Grupos, _orden?.Enlaces);
+        _grupos = CatalogoMenuLateral.Visibles(_contexto, _ordenGrupos, _ordenEnlaces);
         _subopciones = CatalogoMenuLateral.SubopcionesVisibles(_contexto, _grupos);
     }
 }

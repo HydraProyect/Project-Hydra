@@ -65,12 +65,29 @@ namespace CaeManager.Infrastructure.DependencyInjection;
 
 public static class InfrastructureServiceCollectionExtensions
 {
+    /// <summary>
+    /// Regla A-1: el alta de un Documento de Empresa y la de un acceso de plataforma no se pierden el par entre sí.
+    /// Registra la serialización y la transacción de Command de la que depende (TryAdd: si ya está registrada, se
+    /// respeta). Exige un <see cref="CaeManagerDbContext"/> y un <see cref="ITenantActual"/> registrados; los contenedores
+    /// de prueba que montan <c>AddApplication()</c> a mano lo llaman para no divergir del registro de producción.
+    /// </summary>
+    public static IServiceCollection AddSerializacionAltasAcreditacionEmpresa(this IServiceCollection services)
+    {
+        Microsoft.Extensions.DependencyInjection.Extensions.ServiceCollectionDescriptorExtensions
+            .TryAddScoped<ITransaccionDeComando, TransaccionDeComando>(services);
+        services.AddScoped<CaeManager.Application.Documentos.Acreditacion.ISerializacionAltasAcreditacionEmpresa, SerializacionAltasAcreditacionEmpresa>();
+        return services;
+    }
+
     public static IServiceCollection AddInfrastructure(
         this IServiceCollection services, IConfiguration configuration, IHostEnvironment entorno)
     {
         services.AddScoped<AuditoriaInterceptor>();
         services.AddScoped<TenantSelladoInterceptor>();
         services.AddScoped<TenantRlsConnectionInterceptor>();
+        // Solo medición (Server-Timing): cuentan comandos y aperturas en el CosteCarga del scope.
+        services.AddScoped<MedicionCosteComandosInterceptor>();
+        services.AddScoped<MedicionCosteConexionesInterceptor>();
         services.AddScoped<CaeManager.Infrastructure.EstadoMaterializado.DetectorCambiosEstadoInterceptor>();
         services.AddScoped<CaeManager.Infrastructure.EstadoMaterializado.RecalculoEstadoEnLinea>();
         services.AddScoped<CaeManager.Infrastructure.EstadoMaterializado.ProcesadorColaEstadoMaterializado>();
@@ -302,9 +319,10 @@ public static class InfrastructureServiceCollectionExtensions
         {
             services.AddHostedService<IngestaWebhookHostedService>();
             services.AddHostedService<RenovacionSuscripcionWebhookHostedService>();
+            services.AddHostedService<ReintentoVerificacionIdentidadBuzonHostedService>();
         }
 
-        // Configuración a medias (p. ej. una sola de las dos rutas del certificado): los dos
+        // Configuración a medias (p. ej. una sola de las dos rutas del certificado): los
         // servicios de arriba no se registran y, sin este aviso, nada lo diría. Va por el
         // mecanismo genérico, como el resto de gates; solo mira y avisa.
         services.AvisarSiConfiguracionAMedias(Microsoft365GraphOptions.SeccionConfiguracion, opcionesMicrosoft365,
@@ -395,7 +413,15 @@ public static class InfrastructureServiceCollectionExtensions
         services.AddSingleton<IClasificadorDocumentoService, PdfSharpClasificadorDocumentoService>();
         services.AddSingleton<IExtractorTextoDigitalService, PdfSharpExtractorTextoDigitalService>();
         services.AddSingleton<CaeManager.Application.Trabajadores.Extraccion.IExtractorPalabrasPdf, PdfPigExtractorPalabrasPdf>();
-        services.AddSingleton<CaeManager.Application.HerramientasPdf.IDivisorPdf, CaeManager.Infrastructure.HerramientasPdf.PdfSharpDivisorPdf>();
+        // Unir y Dividir abren PDF ajenos en un proceso aparte con límite de memoria y de tiempo, de uno en uno y con el mismo
+        // limitador para las dos: el techo que añade al contenedor es un proceso por su límite
+        // (OpcionesProcesoHerramientasPdf.MemoriaMaximaBytes).
+        services.AddSingleton(new CaeManager.Infrastructure.HerramientasPdf.OpcionesProcesoHerramientasPdf());
+        services.AddSingleton(new CaeManager.Infrastructure.HerramientasPdf.LimitadorProcesosAislados(capacidad: 1));
+        services.AddSingleton<CaeManager.Infrastructure.HerramientasPdf.ILanzadorProcesoAislado, CaeManager.Infrastructure.HerramientasPdf.LanzadorProcesoAislado>();
+        services.AddSingleton<CaeManager.Application.HerramientasPdf.IUnidorPdf, CaeManager.Infrastructure.HerramientasPdf.UnidorPdfEnProcesoAparte>();
+        services.AddSingleton<CaeManager.Application.HerramientasPdf.IDivisorPdf, CaeManager.Infrastructure.HerramientasPdf.DivisorPdfEnProcesoAparte>();
+        services.AddSingleton<CaeManager.Application.HerramientasPdf.IProcesadorFotosPdf, CaeManager.Infrastructure.HerramientasPdf.SkiaPdfSharpProcesadorFotosPdf>();
         services.AddSingleton<IRasterizadorPaginasPdfService, PdfToPngRasterizadorPaginasPdfService>();
         services.AddSingleton(AlmacenConfianzaFirmas.AdministracionEspanola());
         services.AddSingleton<IVerificadorFirmaPdfService, VerificadorFirmaPdfService>();
@@ -426,6 +452,7 @@ public static class InfrastructureServiceCollectionExtensions
         services.AddScoped<IDelegacionTenantRepository, DelegacionTenantRepository>();
         services.AddScoped<CaeManager.Domain.VigilanciaNormativa.IAvisoRevisionNormativaRepository, CaeManager.Infrastructure.Persistence.Repositories.AvisoRevisionNormativaRepository>();
         services.AddScoped<CaeManager.Application.VigilanciaNormativa.IVigilanciaNormativaQueryContext>(sp => sp.GetRequiredService<CaeManagerDbContext>());
+        services.AddScoped<CaeManager.Application.Calendario.ICalendarioLaboralQueryContext>(sp => sp.GetRequiredService<CaeManagerDbContext>());
         services.AddScoped<IAsignacionOperadorDelegadoRepository, AsignacionOperadorDelegadoRepository>();
         services.AddScoped<CaeManager.Domain.Operaciones.ISolicitudIncorporacionCarteraRepository, SolicitudIncorporacionCarteraRepository>();
         services.AddScoped<CaeManager.Domain.Tenants.IEncargoAdministracionRepository, EncargoAdministracionRepository>();
@@ -488,6 +515,7 @@ public static class InfrastructureServiceCollectionExtensions
             .AplicarResilienciaHttpIa(TimeSpan.FromSeconds(30));
         services.AddScoped<CaeManager.Domain.Comunicaciones.IClasificacionRelevanciaCaeRepository, ClasificacionRelevanciaCaeRepository>();
         services.AddScoped<CaeManager.Domain.Gestiones.IGestionRepository, GestionRepository>();
+        services.AddScoped<CaeManager.Domain.Gestiones.IGestionAutomaticaRepository, GestionAutomaticaRepository>();
         services.AddScoped<CaeManager.Domain.Integraciones.IConexionIntegracionRepository, ConexionIntegracionRepository>();
         services.AddScoped<CaeManager.Domain.Integraciones.ICredencialIntegracionRepository, CredencialIntegracionRepository>();
         services.AddScoped<CaeManager.Domain.Integraciones.ISuscripcionWebhookRepository, SuscripcionWebhookRepository>();
@@ -500,6 +528,12 @@ public static class InfrastructureServiceCollectionExtensions
         services.AddScoped<CaeManager.Domain.Plataforma.IOrdenMenuLateralRepository, OrdenMenuLateralRepository>();
         services.AddScoped<CaeManager.Domain.Comunicaciones.IContactoWhatsAppRepository, ContactoWhatsAppRepository>();
         services.AddScoped<CaeManager.Application.Integraciones.AccesoGraphService>();
+        services.AddScoped<CaeManager.Application.Integraciones.AltaBuzonMicrosoft365Service>();
+        services.AddScoped<CaeManager.Application.Integraciones.CompletarIdentidadBuzonService>();
+        services.AddScoped<CaeManager.Application.Integraciones.SuscripcionAlRehabilitarService>();
+        services.AddScoped<CaeManager.Application.Integraciones.RenovacionSuscripcionesWebhookService>();
+        services.AddScoped<CaeManager.Application.Integraciones.ReparacionMarcaHuecoService>();
+        services.AddSingleton<CaeManager.Application.Integraciones.ICerrojoVerificacionBuzon, CerrojoVerificacionBuzonPostgres>();
         services.AddScoped<CaeManager.Application.Integraciones.IngestaWebhookService>();
         services.AddScoped<CaeManager.Application.Integraciones.AcuseAutomaticoBuzonService>();
         services.AddScoped<CaeManager.Application.Integraciones.IWebhookTenantResolver, WebhookTenantResolver>();
@@ -518,6 +552,7 @@ public static class InfrastructureServiceCollectionExtensions
         services.AddScoped<CaeManager.Application.Clientes.IBloqueoCarteraUsuario, BloqueoCarteraUsuario>();
         services.AddScoped<CaeManager.Application.Comercial.Common.IBloqueoSuscripcionStripe, BloqueoSuscripcionStripe>();
         services.AddScoped<CaeManager.Application.Tenants.IBloqueoEstadoOperativoTenant, BloqueoEstadoOperativoTenant>();
+        services.AddSerializacionAltasAcreditacionEmpresa();
         services.AddScoped<CaeManager.Application.Tenants.IEstadoOperativoTenant, EstadoOperativoTenant>();
         services.AddScoped<CaeManager.Application.Usuarios.IAdministradoresDelTenant, AdministradoresDelTenant>();
         services.AddScoped<CaeManager.Application.EstadoMaterializado.IEscritorEstadoMaterializado, CaeManager.Infrastructure.EstadoMaterializado.EscritorEstadoMaterializado>();
@@ -635,6 +670,8 @@ public static class InfrastructureServiceCollectionExtensions
         services.AddScoped<CaeManager.Application.Usuarios.ISegundoFactorDeCuentas, SegundoFactorDeCuentasIdentity>();
         services.AddScoped<CaeManager.Application.Plataforma.IConcesionAdministradorPorPlataforma,
             CaeManager.Infrastructure.Plataforma.ConcesionAdministradorPorPlataforma>();
+        services.AddScoped<CaeManager.Application.Plataforma.IAjusteSegundoFactorPorPlataforma,
+            CaeManager.Infrastructure.Plataforma.AjusteSegundoFactorPorPlataforma>();
         services.AddScoped<CaeManager.Application.Plataforma.IRevocacionOperadorCaeExternoPorSoporte,
             CaeManager.Infrastructure.Plataforma.RevocacionOperadorCaeExternoPorSoporte>();
         services.AddScoped<CaeManager.Application.ContactosSeguridad.IContactosSeguridadPlataforma,
@@ -754,7 +791,14 @@ public static class InfrastructureServiceCollectionExtensions
         services.AddScoped<CaeManager.Application.AltaAutonoma.IAccesoSolicitudesAlta, AltaAutonoma.AccesoSolicitudesAlta>();
         services.AddScoped<CaeManager.Application.AltaAutonoma.IExistenciaCuentaPorCorreo, AltaAutonoma.ExistenciaCuentaPorCorreo>();
         services.AddScoped<CaeManager.Application.AltaAutonoma.ServicioRegistroAlta>();
+        services.AddScoped<CaeManager.Application.AltaAutonoma.ServicioDatosOrganizacionAlta>();
         services.AddScoped<CaeManager.Application.AltaAutonoma.IPreparacionContrasenaAlta, AltaAutonoma.PreparacionContrasenaAlta>();
+        // Caducidad y borrado de datos de las Solicitudes de alta (A8, DA-7): servicio de fondo con elección de líder.
+        services.Configure<CaeManager.Application.AltaAutonoma.LimpiezaSolicitudesAltaOptions>(
+            configuration.GetSection(CaeManager.Application.AltaAutonoma.LimpiezaSolicitudesAltaOptions.SeccionConfiguracion));
+        services.AddScoped<CaeManager.Application.AltaAutonoma.ILimpiezaSolicitudesAlta, AltaAutonoma.LimpiezaSolicitudesAlta>();
+        services.AddScoped<CaeManager.Application.AltaAutonoma.ServicioLimpiezaSolicitudesAlta>();
+        services.AddHostedService<AltaAutonoma.LimpiezaSolicitudesAltaHostedService>();
 
         // Kill switch de la detección previa a clasificación de Documento
         // (ver DeteccionPreviaDocumentoOptions) — apagado por defecto hasta
@@ -809,6 +853,18 @@ public static class InfrastructureServiceCollectionExtensions
         // Cierre automático de las conversaciones que llevan 4 días Resueltas (decisión de producto 2026-10-17, hueco 2 de
         // Comunicaciones), auditado como Sistema. Sin interruptor: es la regla de la bandeja, no una automatización opcional.
         services.AddHostedService<Comunicaciones.CierreConversacionesResueltasHostedService>();
+
+        // Conciliación de la regla A-1 (acreditaciones de los Documentos de Empresa en todos los Centros de plataforma
+        // de su Empresa): una pasada al arrancar, solo si quien despliega la enciende. Apagada por defecto (ver
+        // ConciliacionAcreditacionesEmpresaOptions): cuándo corre en producción no lo decide el código.
+        var opcionesConciliacionAcreditaciones = new Documentos.ConciliacionAcreditacionesEmpresaOptions();
+        configuration.GetSection(Documentos.ConciliacionAcreditacionesEmpresaOptions.SeccionConfiguracion)
+            .Bind(opcionesConciliacionAcreditaciones);
+        if (opcionesConciliacionAcreditaciones.EjecutarAlArrancar)
+        {
+            services.AddSingleton(opcionesConciliacionAcreditaciones);
+            services.AddHostedService<Documentos.ConciliacionAcreditacionesEmpresaHostedService>();
+        }
 
         // Tramo 1 bis del MVP-1 de formatos (corte mínimo, 2026-08-14):
         // sondeo del sumario diario del BOE. El cliente HTTP se registra

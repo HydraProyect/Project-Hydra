@@ -13,7 +13,10 @@ namespace CaeManager.Application.Importacion.Commands.RegistrarHistorialImportac
 /// a propósito: esos dos comandos ya existen, están probados y no conocen
 /// el concepto de "plantilla" (nombre libre del wizard) ni necesitan
 /// conocerlo — la Web dispara este comando aparte justo después de recibir
-/// su resultado, sin tocar su lógica de escritura.
+/// su resultado, sin tocar su lógica de escritura. La importación maestra
+/// (EjecutarImportacionMaestraCommand) NO registra su éxito por aquí: lo
+/// escribe su propio handler en el mismo guardado que la importación; la
+/// página solo usa este comando para sus fallos.
 ///
 /// <see cref="IComandoDeAprovisionamiento" /> (PD-A3), y NO es opcional: los
 /// dos comandos de importación arriba ya llevan el marcador, y

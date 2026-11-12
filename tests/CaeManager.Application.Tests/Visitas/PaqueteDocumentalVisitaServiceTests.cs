@@ -7,6 +7,7 @@ using CaeManager.Application.Tests.Comunicaciones;
 using CaeManager.Application.Tests.Documentos;
 using CaeManager.Application.Tests.Integraciones;
 using CaeManager.Application.Tests.Plantillas;
+using CaeManager.Application.Tests.Plataforma;
 using CaeManager.Application.Tests.TiposDocumento;
 using CaeManager.Application.Visitas;
 using CaeManager.Application.Visitas.PaqueteDocumental;
@@ -17,6 +18,7 @@ using CaeManager.Domain.Centros;
 using CaeManager.Domain.Comunicaciones;
 using CaeManager.Domain.Documentos;
 using CaeManager.Domain.Empresas;
+using CaeManager.Domain.Plataforma;
 using CaeManager.Domain.Trabajadores;
 using CaeManager.Domain.Visitas;
 using FluentAssertions;
@@ -735,6 +737,26 @@ public class PaqueteDocumentalVisitaServiceTests
         resultado.EsExitoso.Should().BeTrue();
         LeerZip(resultado.Valor.Contenido).Values.Should().BeEquivalentTo(["incluido"]);
         _registro.Registrados.Should().Equal((incluido.Id, TipoAccesoDocumentoSensible.Apertura));
+    }
+
+    [Fact]
+    public async Task Con_la_Sesion_Privilegiada_cerrada_en_otra_pestana_Soporte_no_descarga_aunque_la_memo_la_conserve()
+    {
+        DocumentoDeTrabajador(_ana, _reconocimiento, Hoy.AddDays(-30), VigenciaDocumento.NoCaduca, "incluido");
+        _centros.ListaCanalesGestionDocumental.Add(CanalGestionDocumental.PorEmail(_centro.Id, "Acceso", "acceso@example.com", null));
+        var servicio = new PaqueteDocumentalVisitaService(
+            _visitas, _centros, _documentos, _tipos, _empresas, _trabajadores, _conversaciones, _almacenamiento, _alcance, _registro, _logger);
+        // Actor de Plataforma TALVEG: sin rol efectivo en el Tenant objetivo.
+        var sesionMemoizada = new SesionMemoizadaRevocada(new SesionPrivilegiadaActiva(
+            Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), CapacidadPrivilegio.SoporteLectura, null));
+        var handler = new ObtenerPaqueteDocumentalVisitaQueryHandler(
+            _visitas, _centros, _alcance, servicio, new CurrentUserServiceFalso(Guid.NewGuid()), sesionMemoizada);
+
+        var resultado = await handler.Handle(new ObtenerPaqueteDocumentalVisitaQuery(_visita.Id), CancellationToken.None);
+
+        resultado.EsExitoso.Should().BeFalse();
+        resultado.Error.Codigo.Should().Be(ObtenerPaqueteDocumentalVisitaQueryHandler.RolSinDescarga.Codigo);
+        _registro.Registrados.Should().BeEmpty();
     }
 
     [Fact]

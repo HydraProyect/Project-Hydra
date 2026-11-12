@@ -39,9 +39,13 @@ public class DetectorDePdfNoDependeDeIaTests
 
     private static readonly string[] ImplementacionesDeLaDeteccion =
     [
+        "CaeManager.Infrastructure.HerramientasPdf.DivisorPdfEnProcesoAparte",
         "CaeManager.Infrastructure.HerramientasPdf.PdfSharpDivisorPdf",
         "CaeManager.Infrastructure.DocumentosIa.PdfPigExtractorPalabrasPdf",
     ];
+
+    private static readonly string[] DependenciasDelProcesoAparte =
+        ["OpcionesProcesoHerramientasPdf", "LimitadorProcesosAislados", "ILanzadorProcesoAislado"];
 
     /// <summary>Misma lista que <c>ConsumidoresDeIaConsultanLaInstruccionDeTratamientoTests.PuertosDeIa</c>.</summary>
     private static readonly string[] PuertosDeIa =
@@ -118,7 +122,9 @@ public class DetectorDePdfNoDependeDeIaTests
             .SelectMany(t => t.GetConstructors().SelectMany(c => c.GetParameters()).Select(p => p.ParameterType))
             .ToList();
 
-        dependencias.Should().OnlyContain(t => t.Name.StartsWith("ILogger", StringComparison.Ordinal));
+        // El envoltorio de Dividir recibe además lo que lanza el proceso aparte, que es local: ni red ni proveedor.
+        dependencias.Should().OnlyContain(t => t.Name.StartsWith("ILogger", StringComparison.Ordinal)
+            || DependenciasDelProcesoAparte.Contains(t.Name));
     }
 
     [Fact]

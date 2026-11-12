@@ -32,5 +32,11 @@ public class AcreditacionDocumentoPlataformaRepository(CaeManagerDbContext dbCon
             .Where(a => a.DocumentoId == documentoId)
             .ToListAsync(cancellationToken);
 
+    public IReadOnlyList<AcreditacionDocumentoPlataforma> AgregadasSinGuardar(Guid documentoId) =>
+        dbContext.ChangeTracker.Entries<AcreditacionDocumentoPlataforma>()
+            .Where(e => e.State == EntityState.Added && e.Entity.DocumentoId == documentoId)
+            .Select(e => e.Entity)
+            .ToList();
+
     public void Agregar(AcreditacionDocumentoPlataforma acreditacion) => dbContext.AcreditacionesDocumentoPlataforma.Add(acreditacion);
 }

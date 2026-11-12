@@ -100,7 +100,7 @@ public class AvisoCambiosSinGuardarEnPestanasTests : BunitContext
         await cut.SalirYComprobarQuePreguntaAsync(Navegacion);
         await cut.PulsarEnElAvisoAsync("Seguir editando");
 
-        await cut.Find(".modal-cerrar").ClickAsync(new MouseEventArgs());
+        await cut.Find(".drawer-cerrar").ClickAsync(new MouseEventArgs());
         _contactoVisible.Should().BeTrue("la X con cambios pregunta «¿Descartar cambios?» antes de cerrar");
         cut.FindAll("h2").Should().Contain(h => h.TextContent.Trim() == "¿Descartar cambios?");
     }
@@ -113,14 +113,14 @@ public class AvisoCambiosSinGuardarEnPestanasTests : BunitContext
         await cut.FindComponents<CampoTexto>().First(c => c.Instance.Etiqueta == "Nombre").Find("input")
             .InputAsync(new ChangeEventArgs { Value = "Marta Ruiz" });
 
-        await cut.FindAll(".modal-pie button").Single(b => b.TextContent.Trim() == "Cancelar").ClickAsync(new MouseEventArgs());
+        await cut.FindAll(".drawer-pie button").Single(b => b.TextContent.Trim() == "Cancelar").ClickAsync(new MouseEventArgs());
 
         _contactoVisible.Should().BeTrue("Cancelar con cambios pregunta «¿Descartar cambios?» antes de cerrar");
         cut.FindAll("h2").Should().Contain(h => h.TextContent.Trim() == "¿Descartar cambios?");
 
         _contactoVisible = true;
         var limpio = RenderizarContacto();
-        await limpio.FindAll(".modal-pie button").Single(b => b.TextContent.Trim() == "Cancelar").ClickAsync(new MouseEventArgs());
+        await limpio.FindAll(".drawer-pie button").Single(b => b.TextContent.Trim() == "Cancelar").ClickAsync(new MouseEventArgs());
         _contactoVisible.Should().BeFalse("sin cambios no hay nada que perder");
     }
 
@@ -129,7 +129,7 @@ public class AvisoCambiosSinGuardarEnPestanasTests : BunitContext
     public async Task Los_avisos_de_nombre_y_email_obligatorios_desaparecen_al_rellenarlos()
     {
         var cut = RenderizarContacto();
-        await cut.FindAll(".modal-pie button").Single(b => b.TextContent.Trim() == "Guardar").ClickAsync(new MouseEventArgs());
+        await cut.FindAll(".drawer-pie button").Single(b => b.TextContent.Trim() == "Siguiente").ClickAsync(new MouseEventArgs());
         cut.Markup.Should().Contain("El nombre es obligatorio.").And.Contain("El email es obligatorio",
             "control positivo: los avisos existen antes de rellenar");
 
@@ -145,12 +145,17 @@ public class AvisoCambiosSinGuardarEnPestanasTests : BunitContext
 
     /// <summary>D-08: las casillas tenían el nombre accesible «on» (valor por defecto de la casilla).</summary>
     [Fact]
-    public void Todas_las_casillas_del_contacto_llevan_nombre_accesible_con_su_texto_visible()
+    public async Task Todas_las_casillas_del_contacto_llevan_nombre_accesible_con_su_texto_visible()
     {
         var cut = RenderizarContacto();
+        await cut.FindComponents<CampoTexto>().First(c => c.Instance.Etiqueta == "Nombre").Find("input")
+            .InputAsync(new ChangeEventArgs { Value = "Marta Ruiz" });
+        await cut.FindComponents<CampoTexto>().First(c => c.Instance.Etiqueta == "Email").Find("input")
+            .InputAsync(new ChangeEventArgs { Value = "marta@example.com" });
+        await cut.FindAll(".drawer-pie button").Single(b => b.TextContent.Trim() == "Siguiente").ClickAsync(new MouseEventArgs());
 
-        var casillas = cut.FindAll(".modal-cuerpo input[type=checkbox]");
-        casillas.Should().HaveCountGreaterThanOrEqualTo(6, "tres de envío y tres roles, más las del selector de tipos si hay catálogo");
+        var casillas = cut.FindAll(".drawer-cuerpo input[type=checkbox]");
+        casillas.Should().HaveCountGreaterThanOrEqualTo(6, "tres de envío y tres roles (paso «Qué recibe»), más las del selector de tipos si hay catálogo");
         foreach (var casilla in casillas)
         {
             casilla.Id.Should().NotBeNullOrWhiteSpace("la etiqueta se asocia por for/id");

@@ -1,4 +1,4 @@
-using System.Security.Claims;
+﻿using System.Security.Claims;
 using Bunit;
 using CaeManager.Application.Common;
 using CaeManager.Application.Dashboard;
@@ -472,6 +472,20 @@ public partial class CuadroDireccionTests : BunitContext
 
         opciones.Should().Equal("Todo el Operador CAE", "Equipo Marta Gestora");
         opciones.Should().NotContain(o => o.Contains("Refrielectric") || o.Contains("Montajes Ebro"));
+    }
+
+    [Fact]
+    public void Los_botones_de_la_cabecera_son_del_sistema_de_diseno_y_conservan_su_clase_propia()
+    {
+        var cut = Pintar(Cuadro(EstadoCifraMensual.Parcial), Roles.DireccionCae, out _);
+
+        // «Class» con mayúscula no se combinaba con las clases del Boton: el botón se pintaba sin .boton (nativo, sin estilo).
+        var presentar = cut.Find("button.cuadro-presentar");
+        presentar.ClassList.Should().Contain(["boton", "boton-secundario", "cuadro-presentar"]);
+
+        // Los <button> de la barra y el enlace de exportación (un <a> con Href) son Boton del sistema de diseño; el interruptor, el periodo y el menú «⋯» son propios de la maqueta.
+        cut.Find("a.cuadro-exportar-extranjeros").ClassList.Should().Contain("boton");
+        cut.FindAll(".cuadro-barra > button:not(.cuadro-interruptor)").Should().OnlyContain(b => b.ClassList.Contains("boton"));
     }
 
     [Fact]

@@ -148,6 +148,7 @@
 /* .mini del mockup: aviso de la tarjeta de credenciales con su acción a la derecha. */
 .subcontrata360-aviso {
     display: flex;
+    flex-wrap: wrap;
     align-items: center;
     gap: var(--space-3);
     margin: 0;
@@ -162,6 +163,8 @@
 
 .subcontrata360-aviso > :last-child {
     margin-left: auto;
+    /* Sin esto el botón se encoge con el texto y .boton (overflow: hidden) le recorta la etiqueta («er credenciale»). */
+    flex: none;
 }
 
 .subcontrata360-filtros {

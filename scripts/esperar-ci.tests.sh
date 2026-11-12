@@ -107,6 +107,36 @@ ejecutar 100 --hasta checks
 assert_veredicto "los tres obligatorios en verde -> VERDE" VERDE 0 "AAA"
 
 echo
+echo "=== Revisión Codex de #2106, ronda 2: 'gh pr checks' que escribe filas y luego falla NO da VERDE ==="
+# Las tres filas llegan en pass, pero gh sale con error: la lectura puede estar
+# incompleta. Mutación que lo pone en rojo: volver a `done < <(pr_checks_requeridos_tsv)`
+# (el estado de gh se pierde y sale VERDE).
+nueva_fixture_dir
+fixture PR_VIEW 1 "OPEN	AAA	CLEAN		"
+fixture_branch_protection 1
+fixture PR_CHECKS 1 "MOCK_PARCIAL_ERROR" $'Check A\tpass' $'Check B\tpass' $'Check C\tpass'
+ejecutar 153 --hasta checks
+assert_veredicto "filas en pass seguidas de un fallo de gh -> TIMEOUT, no VERDE" TIMEOUT 3 "sin una lectura completa"
+
+# Un check en fail es un ROJO cierto aunque gh salga con error (revisión puente,
+# ronda 3): no se degrada a TIMEOUT.
+nueva_fixture_dir
+fixture PR_VIEW 1 "OPEN	AAA	CLEAN		"
+fixture_branch_protection 1
+fixture PR_CHECKS 1 "MOCK_PARCIAL_ERROR" $'Check A\tpass' $'Check B\tfail'
+ejecutar 155 --hasta checks
+assert_veredicto "fila fail con gh saliendo con error -> ROJO, no TIMEOUT" ROJO 1 "Check B"
+
+# Si la siguiente lectura sale entera, el vigía sigue y da VERDE.
+nueva_fixture_dir
+fixture PR_VIEW 1 "OPEN	AAA	CLEAN		"
+fixture_branch_protection 1
+fixture PR_CHECKS 1 "MOCK_PARCIAL_ERROR" $'Check A\tpass'
+fixture PR_CHECKS 2 $'Check A\tpass' $'Check B\tpass' $'Check C\tpass'
+TIMEOUT_S_PRUEBA=20 ejecutar 154 --hasta checks
+assert_veredicto "lectura parcial descartada y la siguiente entera -> VERDE" VERDE 0 "AAA"
+
+echo
 echo "=== Alcance del CI (2026-10-09): un obligatorio saltado cuenta como satisfecho; cancelado o pendiente, no ==="
 nueva_fixture_dir
 fixture PR_VIEW 1 "OPEN	AAA	CLEAN		"
@@ -321,6 +351,28 @@ ejecutar 110 --hasta despliegue
 assert_veredicto "mensaje de run obsoleto en el log -> OBSOLETO, no ROJO" OBSOLETO 4 "997"
 
 echo
+echo "=== Revisión Codex de #2106: un fallo leyendo el log NO se clasifica como ROJO (ni como OBSOLETO) ==="
+# Primera lectura del log falla (MOCK_ERROR); la segunda trae el mensaje de
+# obsoleto. Antes el fallo de `gh` se leía como «no obsoleto» y salía ROJO.
+nueva_fixture_dir
+fixture PR_VIEW 1 "MERGED	AAA	MERGED	SHAVIEJO	2026-09-17T10:00:00Z"
+fixture RUN_LIST 1 $'993\tcompleted\tfailure\t2026-09-17T10:05:00Z'
+fixture RUN_VIEW_JOBS 1 $'Desplegar a staging\tcompleted\tfailure'
+fixture RUN_LOG_FAILED 1 "MOCK_ERROR"
+fixture RUN_LOG_FAILED 2 '::error::run obsoleto para despliegue — SHAVIEJO ya no es la punta de main (SHANUEVO)'
+TIMEOUT_S_PRUEBA=20 ejecutar 125 --hasta despliegue
+assert_veredicto "log ilegible una vez y luego obsoleto -> OBSOLETO tras reintentar" OBSOLETO 4 "993"
+
+# Si el log no se puede leer nunca, INDETERMINADO: no se sabe si es ROJO u OBSOLETO.
+nueva_fixture_dir
+fixture PR_VIEW 1 "MERGED	AAA	MERGED	SHAVIEJO	2026-09-17T10:00:00Z"
+fixture RUN_LIST 1 $'992\tcompleted\tfailure\t2026-09-17T10:05:00Z'
+fixture RUN_VIEW_JOBS 1 $'Desplegar a staging\tcompleted\tfailure'
+fixture RUN_LOG_FAILED 1 "MOCK_ERROR"
+TIMEOUT_S_PRUEBA=40 ejecutar 126 --hasta despliegue
+assert_veredicto "log siempre ilegible -> INDETERMINADO, no ROJO" INDETERMINADO 5 "run_log_failed"
+
+echo
 echo "=== 'Datos del árbol equivocado' (despliegue): un run todavía no existe para el SHA -> sigue esperando, no falso VERDE ni falso OBSOLETO ==="
 nueva_fixture_dir
 fixture PR_VIEW 1 "MERGED	AAA	MERGED	SHANUEVO	2026-09-17T10:00:00Z"
@@ -443,7 +495,7 @@ nueva_fixture_dir
 fixture PR_VIEW 1 "MOCK_ERROR"
 TIMEOUT_S_PRUEBA=600 ejecutar 130 --hasta merge
 PRUEBAS=$((PRUEBAS + 1))
-if [[ "$CODIGO" == "64" ]] && ! printf '%s\n' "$SALIDA" | grep -q '^VEREDICTO:' \
+if [[ "$CODIGO" == "64" ]] && ! grep -q '^VEREDICTO:' <<<"$SALIDA" \
    && ! grep -q "releyendo" "$TMP_ROOT/ultimo-stderr.log"; then
   echo "OK: PR ilegible desde el principio -> 64 sin VEREDICTO y sin reintentos"
 else

@@ -12,8 +12,8 @@
 
     QUIÉN RECIBE DATOS lo deciden las consultas, como en CabeceraGestorCae:
     - ObtenerPersonasConCarteraQuery: cuenta activa del Operador CAE externo que gestiona este Tenant
-      con rol Administrador, Dirección CAE, Coordinador CAE o Gestor CAE, leído en Identity sobre su
-      Tenant de origen.
+      con rol Administrador, Dirección CAE, Coordinador CAE o Gestor CAE: decide el rol efectivo de la
+      sesión en su Tenant de origen e Identity lo confirma.
     - ObtenerOperadoresCaeDeMiTenantQuery: el Administrador del Tenant propietario.
     Con las dos vacías (Consulta, Usuario de Cliente, un Tenant de operación interna, Soporte TALVEG)
     la fila no se pinta.

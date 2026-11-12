@@ -16,6 +16,12 @@ public static class MemoPorContexto
 {
     /// <summary>Vida máxima de una entrada desde que empezó a calcularse.</summary>
     public static readonly TimeSpan Caducidad = TimeSpan.FromSeconds(10);
+
+    /// <summary>
+    /// <c>true</c> en el flujo asíncrono de un cálculo de cualquier memo (y en sus tareas hijas). Ahí una llamada
+    /// nunca se une a un cálculo en vuelo: así ninguna espera entre memos puede cerrar un ciclo.
+    /// </summary>
+    internal static readonly AsyncLocal<bool> DentroDeUnCalculo = new();
 }
 
 /// <summary>
@@ -42,6 +48,29 @@ public static class MemoPorContexto
 /// después de cada Command, igual que con el alcance.
 /// </para>
 ///
+/// <para>
+/// <b>Una sola lectura en vuelo por clave.</b> La entrada se guarda en cuanto empieza el cálculo, no cuando
+/// termina: una llamada con la misma clave que llega mientras otra calcula espera esa misma lectura en vez de
+/// lanzar la suya. Compartirla equivale a un acierto del memo, porque la clave es la misma y con ella el contexto.
+/// El cálculo es de quien lo empieza: corre en su flujo asíncrono (dentro de su <see cref="PuertaAccesoDatos"/>)
+/// y con su <see cref="CancellationToken"/>, y quien lo empieza lo espera hasta el final, así que nunca sigue
+/// tocando el <c>DbContext</c> después de que su llamada suelte la puerta. Quien se une espera con su propio token:
+/// si se cancela, solo se va él. Si el cálculo compartido falla, todos los que esperaban reciben el mismo error;
+/// si lo cancela el token de quien lo empezó, quien se unió y no se canceló vuelve a intentarlo por su cuenta. Ni
+/// un fallo ni una cancelación quedan guardados: la entrada se retira antes de completarse.
+/// </para>
+///
+/// <para>
+/// <b>Sin interbloqueo con la puerta.</b> Todo despacho de MediatR pasa por <see cref="PuertaAccesoDatos"/>
+/// (<see cref="SerializacionAccesoDatosBehavior{TRequest,TResponse}"/>), así que quien empieza un cálculo ya está
+/// dentro de ella y su cálculo no tiene que esperar a nadie para tomarla. Dentro de un cálculo de cualquier memo
+/// (o de una tarea hija suya), una llamada no se une nunca a un cálculo en vuelo: usa un valor ya resuelto, empieza
+/// uno si no hay entrada o, si la hay en vuelo, calcula aparte sin guardar. Así no hay ciclo de esperas posible:
+/// solo espera a otro quien no está calculando nada, y a quien no calcula nada no lo espera nadie. Cubre la llamada
+/// anidada con la misma clave (se esperaría a sí misma) y la de dos memos que se piden uno al otro desde flujos
+/// hermanos.
+/// </para>
+///
 /// Lo memoizado no autoriza nada por sí solo: los endpoints, los Commands y RLS siguen decidiendo con el dato
 /// vigente.
 /// </summary>
@@ -49,53 +78,118 @@ public abstract class MemoPorContexto<TValor>(TimeProvider? reloj = null) : IMem
 {
     private readonly TimeProvider _reloj = reloj ?? TimeProvider.System;
     private readonly object _cerrojo = new();
+
+    // Una entrada por clave, en vuelo o ya resuelta. Invalidar las retira todas: un cálculo que empezó antes de una
+    // invalidación se devuelve a quien lo pidió (y a quien se unió antes de ella), pero ya no está en el diccionario,
+    // así que nadie más lo recibe y no pisa la entrada nueva.
     private readonly Dictionary<ClaveContextoMemo, Entrada> _entradas = new();
 
-    // Cambia en cada Invalidar. Un cálculo que empezó antes de una invalidación se devuelve a quien lo pidió, pero
-    // no se guarda: podría haberse leído antes de la escritura que la provocó.
-    private long _generacion;
-
-    private sealed record Entrada(long Inicio, TValor Valor);
+    private sealed record Entrada(long Inicio, Task<TValor> Tarea);
 
     /// <summary>
-    /// El valor memoizado para <paramref name="clave"/> si sigue vigente; si no, lo calcula con
-    /// <paramref name="calcular"/> y lo guarda. El valor se comparte entre llamadas: lo que guarda es lo que
-    /// devuelve <see cref="Congelar"/>.
+    /// El valor memoizado para <paramref name="clave"/> si sigue vigente, el del cálculo en vuelo si otra llamada
+    /// ya lo está calculando, o, si no hay ninguno, lo calcula con <paramref name="calcular"/> y lo guarda. El valor
+    /// se comparte entre llamadas: lo que guarda es lo que devuelve <see cref="Congelar"/>.
     /// </summary>
     public async Task<TValor> ObtenerOCalcularAsync(
         ClaveContextoMemo clave,
         Func<CancellationToken, Task<TValor>> calcular,
         CancellationToken cancellationToken)
     {
-        long generacion;
-        long inicio;
-        lock (_cerrojo)
+        while (true)
         {
-            if (_entradas.TryGetValue(clave, out var entrada))
+            Task<TValor>? compartida = null;
+            TaskCompletionSource<TValor>? propia = null;
+            Entrada? nueva = null;
+            var aparte = false;
+            lock (_cerrojo)
             {
-                if (_reloj.GetElapsedTime(entrada.Inicio) < MemoPorContexto.Caducidad) return entrada.Valor;
-                _entradas.Remove(clave);
+                if (_entradas.TryGetValue(clave, out var entrada)
+                    && _reloj.GetElapsedTime(entrada.Inicio) < MemoPorContexto.Caducidad)
+                {
+                    // Una entrada fallida o cancelada nunca está en el diccionario (se retira antes de completarse):
+                    // resuelta, es un acierto. En vuelo, dentro de un cálculo no se espera (ver la clase).
+                    if (entrada.Tarea.IsCompletedSuccessfully || !MemoPorContexto.DentroDeUnCalculo.Value)
+                        compartida = entrada.Tarea;
+                    else
+                        aparte = true;
+                }
+                else
+                {
+                    // Sin crecer sin límite en un circuito largo: fuera lo caducado, de esta clave y de las demás.
+                    foreach (var caducada in _entradas
+                                 .Where(e => _reloj.GetElapsedTime(e.Value.Inicio) >= MemoPorContexto.Caducidad)
+                                 .Select(e => e.Key).ToList())
+                        _entradas.Remove(caducada);
+
+                    propia = new TaskCompletionSource<TValor>(TaskCreationOptions.RunContinuationsAsynchronously);
+                    nueva = new Entrada(_reloj.GetTimestamp(), propia.Task);
+                    _entradas[clave] = nueva;
+                }
             }
 
-            generacion = _generacion;
-            inicio = _reloj.GetTimestamp();
-        }
+            if (aparte)
+                return Congelar(await calcular(cancellationToken));
 
-        var valor = Congelar(await calcular(cancellationToken));
+            if (propia is not null)
+                return await CalcularYPublicarAsync(clave, nueva!, propia, calcular, cancellationToken);
 
-        lock (_cerrojo)
-        {
-            if (generacion == _generacion)
+            try
             {
-                // Sin crecer sin límite en un circuito largo: fuera lo caducado de otras claves.
-                foreach (var caducada in _entradas.Where(e => _reloj.GetElapsedTime(e.Value.Inicio) >= MemoPorContexto.Caducidad)
-                             .Select(e => e.Key).ToList())
-                    _entradas.Remove(caducada);
-                _entradas[clave] = new Entrada(inicio, valor);
+                // Resuelta, WaitAsync la devuelve tal cual (un acierto no mira el token, como antes).
+                return await compartida!.WaitAsync(cancellationToken);
+            }
+            catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
+            {
+                // Lo canceló el token de quien lo empezó, no el nuestro: la entrada ya se retiró; se vuelve a
+                // intentar (uniéndose a otro cálculo en vuelo o empezando uno).
             }
         }
+    }
 
+    private async Task<TValor> CalcularYPublicarAsync(
+        ClaveContextoMemo clave, Entrada entrada, TaskCompletionSource<TValor> publicacion,
+        Func<CancellationToken, Task<TValor>> calcular, CancellationToken cancellationToken)
+    {
+        // El cambio de un AsyncLocal dentro de un método async solo lo ven el propio método y lo que llama; al
+        // volver, quien llamó conserva su valor.
+        MemoPorContexto.DentroDeUnCalculo.Value = true;
+
+        TValor valor;
+        try
+        {
+            valor = Congelar(await calcular(cancellationToken));
+        }
+        catch (Exception error) when (error is OperationCanceledException || cancellationToken.IsCancellationRequested)
+        {
+            // Con el token de quien lo empezó ya cancelado, el proveedor puede expresar la cancelación con otra
+            // excepción (una de E/S, un objeto ya dispuesto): para quien se unió sigue siendo una cancelación
+            // ajena y reintenta.
+            Retirar(clave, entrada);
+            publicacion.TrySetCanceled();
+            throw;
+        }
+        catch (Exception error)
+        {
+            Retirar(clave, entrada);
+            publicacion.TrySetException(error);
+            // Leer Exception la marca observada: sin nadie unido, no saldría como UnobservedTaskException.
+            _ = publicacion.Task.Exception;
+            throw;
+        }
+
+        publicacion.TrySetResult(valor);
         return valor;
+    }
+
+    /// <summary>Retira la entrada si sigue siendo la de este cálculo (no la de uno posterior a un Invalidar).</summary>
+    private void Retirar(ClaveContextoMemo clave, Entrada entrada)
+    {
+        lock (_cerrojo)
+        {
+            if (_entradas.TryGetValue(clave, out var actual) && ReferenceEquals(actual, entrada))
+                _entradas.Remove(clave);
+        }
     }
 
     /// <summary>
@@ -108,10 +202,7 @@ public abstract class MemoPorContexto<TValor>(TimeProvider? reloj = null) : IMem
     public void Invalidar()
     {
         lock (_cerrojo)
-        {
-            _generacion++;
             _entradas.Clear();
-        }
     }
 }
 

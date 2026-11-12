@@ -314,4 +314,77 @@ public class ObtenerEntidadesAsociadasDeDocumentosTests
             e.Documentos.ListaAcreditacionesDocumentoPlataforma.Select(x => x.Id));
         fila.Acreditaciones.Should().OnlyContain(x => x.Estado == EstadoAcreditacion.PendienteDeSubir);
     }
+
+    // ASVS 4.0.3 V4.2.1: las acreditaciones de la fila (Plataforma CAE y estado) se acotan a los Centros visibles,
+    // igual que el destino por Centro. Un Documento acreditado en un Centro visible y en otro de un Cliente
+    // empresarial distinto, fuera del alcance de quien mira.
+    private static (Escenario Escenario, AcreditacionDocumentoPlataforma Visible, Guid EmpresaId, Guid ClienteVisibleId, Guid CentroVisibleId)
+        DocumentoAcreditadoEnCentroVisibleYEnCentroAjeno()
+    {
+        var e = new Escenario();
+        var empresa = e.ConEmpresa("Contratista");
+        var documento = e.Documentos.ListaDocumentos.Single();
+        var clienteVisible = new Empresa("Cliente empresarial visible");
+        var clienteAjeno = new Empresa("Cliente empresarial ajeno");
+        e.Empresas.ListaEmpresas.AddRange([clienteVisible, clienteAjeno]);
+        var centroVisible = new Centro(clienteVisible.Id, empresa.Id, "Centro visible");
+        var centroAjeno = new Centro(clienteAjeno.Id, empresa.Id, "Centro ajeno");
+        e.Centros.ListaCentros.AddRange([centroVisible, centroAjeno]);
+        var nalanda = new ProveedorPlataformaCae("nalanda", "Nalanda");
+        var ctaima = new ProveedorPlataformaCae("ctaima", "CTAIMA");
+        e.Proveedores.ListaProveedores.AddRange([nalanda, ctaima]);
+        AcreditacionDocumentoPlataforma? visible = null;
+        foreach (var (centro, proveedor) in new[] { (centroVisible, nalanda), (centroAjeno, ctaima) })
+        {
+            var canal = CanalGestionDocumental.DePlataforma(centro.Id, "Documentación", proveedor.Id, null, null, null);
+            e.Centros.ListaCanalesGestionDocumental.Add(canal);
+            var acreditacion = new AcreditacionDocumentoPlataforma(documento.Id, canal.Id);
+            e.Documentos.ListaAcreditacionesDocumentoPlataforma.Add(acreditacion);
+            visible ??= acreditacion;
+        }
+        return (e, visible!, empresa.Id, clienteVisible.Id, centroVisible.Id);
+    }
+
+    [Fact]
+    public async Task Un_Gestor_CAE_con_cartera_limitada_solo_ve_las_acreditaciones_de_sus_Centros_visibles()
+    {
+        var (e, visible, empresaId, clienteVisibleId, centroVisibleId) = DocumentoAcreditadoEnCentroVisibleYEnCentroAjeno();
+        var gestorConCartera = new AlcanceDatosServiceFalso(tieneAccesoTotal: false, clienteIdsVisibles: [clienteVisibleId],
+            empresaIdsVisibles: [empresaId], centroIdsVisibles: [centroVisibleId]);
+
+        var resultado = await e.Handler(gestorConCartera).Handle(new ObtenerDocumentosQuery(null, null, null), default);
+
+        var acreditacion = resultado.Elementos.Should().ContainSingle().Which.Acreditaciones.Should().ContainSingle().Which;
+        acreditacion.Id.Should().Be(visible.Id);
+        acreditacion.NombrePlataforma.Should().Be("Nalanda", "la Plataforma CAE del Centro ajeno no aparece");
+    }
+
+    [Fact]
+    public async Task Un_Usuario_de_Cliente_solo_ve_las_acreditaciones_de_los_Centros_de_su_Cliente_empresarial()
+    {
+        var (e, visible, empresaId, clienteVisibleId, centroVisibleId) = DocumentoAcreditadoEnCentroVisibleYEnCentroAjeno();
+        // Usuario de portal: lee los Centros de su Cliente empresarial, pero no opera desde el lado de gestión.
+        var usuarioDeCliente = new AlcanceDatosServiceFalso(tieneAccesoTotal: false, clienteIdsVisibles: [clienteVisibleId],
+            empresaIdsVisibles: [empresaId], centroIdsVisibles: [centroVisibleId],
+            empresaIdsParaGestion: [], centroIdsParaGestion: [], ladoDeGestion: false);
+
+        var resultado = await e.Handler(usuarioDeCliente).Handle(
+            new ObtenerDocumentosQuery(null, null, null, DocumentoId: e.Documentos.ListaDocumentos.Single().Id), default);
+
+        var acreditacion = resultado.Elementos.Should().ContainSingle().Which.Acreditaciones.Should().ContainSingle().Which;
+        acreditacion.Id.Should().Be(visible.Id);
+        acreditacion.NombrePlataforma.Should().Be("Nalanda", "la Plataforma CAE del Centro de otro Cliente empresarial no aparece");
+    }
+
+    [Fact]
+    public async Task Sin_ningun_Centro_visible_la_fila_no_trae_acreditaciones()
+    {
+        var (e, _, empresaId, _, _) = DocumentoAcreditadoEnCentroVisibleYEnCentroAjeno();
+        // Lista vacía, no null: fallo cerrado. null es el único valor que significa «sin restricción».
+        var sinCentros = new AlcanceDatosServiceFalso(tieneAccesoTotal: false, empresaIdsVisibles: [empresaId], centroIdsVisibles: []);
+
+        var resultado = await e.Handler(sinCentros).Handle(new ObtenerDocumentosQuery(null, null, null), default);
+
+        resultado.Elementos.Should().ContainSingle().Which.Acreditaciones.Should().BeEmpty();
+    }
 }

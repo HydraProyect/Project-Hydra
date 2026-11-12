@@ -10,7 +10,9 @@
     «Información». Quién ve la nota interna lo decide el servidor (ObtenerVehiculoPorIdQuery).
 *@
 @page "/vehiculos/{VehiculoId:guid}"
-@rendermode InteractiveServer
+@* Sin prerender (como Mi trabajo, M-23): la página carga en el ciclo de vida y no persiste su estado; con prerender
+   corría dos veces en cada visita. *@
+@rendermode @(new InteractiveServerRenderMode(prerender: false))
 @inherits CaeManager.Web.Components.PaginaInteractiva
 @attribute [Authorize(Policy = CaeManager.Web.Services.Autorizacion.PoliticasFichas360.Vehiculo)]
 @using CaeManager.Domain.Documentos
@@ -25,6 +27,7 @@
 
 <LimiteDeErrores Pagina="this">
 <PageTitle>@(_detalle?.Nombre ?? Textos["FichaKicker"]) — @Marca.Nombre</PageTitle>
+<TituloDePaginaSinPrerender Titulo="@($"{(_detalle?.Nombre ?? Textos["FichaKicker"])} — {Marca.Nombre}")" />
 
 <div class="contenedor-pagina vehiculo360">
     <Breadcrumb Elementos="Miguero" ElementoSeleccionadoChanged="IrABreadcrumb" EtiquetaNavegacion="@Textos["FichaRutaNavegacion"]" />

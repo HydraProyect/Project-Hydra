@@ -89,14 +89,19 @@ public class SuperficiesAnonimasClasificadasPorActorTests
         ["CaeManager.Web/Components/Account/Pages/RestablecerContrasena.razor"] = (1, Categoria.PersonaSinSesion),
         // Enlace «no he sido yo» del aviso de inicio de sesión inusual: la persona, con el token del correo.
         ["CaeManager.Web/Components/Account/Pages/NoHeSidoYo.razor"] = (1, Categoria.PersonaSinSesion),
-        // Alta autónoma: el registro (abre una Solicitud de alta) y la verificación del correo con el token del enlace.
+        // Alta autónoma: el registro (abre una Solicitud de alta), la verificación del correo con el token del enlace y la
+        // contraseña, y el paso «Empresa» con el credencial de continuación de la cookie (A4).
         ["CaeManager.Web/Features/AltaAutonoma/Registro/Alta.razor"] = (1, Categoria.PersonaSinSesion),
         ["CaeManager.Web/Features/AltaAutonoma/Registro/VerificarCorreoAlta.razor"] = (1, Categoria.PersonaSinSesion),
+        ["CaeManager.Web/Features/AltaAutonoma/Registro/OrganizacionAlta.razor"] = (1, Categoria.PersonaSinSesion),
 
         ["CaeManager.Web/Components/Legal/PoliticaPrivacidad.razor"] = (1, Categoria.NoEscribe),
         ["CaeManager.Web/Components/Legal/TerminosCondiciones.razor"] = (1, Categoria.NoEscribe),
         ["CaeManager.Web/Components/Pages/Error.razor"] = (1, Categoria.NoEscribe),
         ["CaeManager.Web/Components/Pages/NotFound.razor"] = (1, Categoria.NoEscribe),
+        // Formulario «Pedir una demo» de talveg.es: una persona sin sesión, pero solo reenvía un
+        // correo a info@talveg.es; no toca la base, así que no produce filas de auditoría.
+        ["CaeManager.Web/Features/Contacto/SolicitudDemoEndpoints.cs"] = (1, Categoria.NoEscribe),
         // Recursos estáticos, /salud y el contrato OpenAPI.
         ["CaeManager.Web/Program.cs"] = (3, Categoria.NoEscribe),
     };

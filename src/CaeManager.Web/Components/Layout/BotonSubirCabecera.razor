@@ -1,0 +1,30 @@
+@using CaeManager.Infrastructure.Identity
+@using CaeManager.Web.Features.AtajosGlobales
+@using CaeManager.Web.Recursos
+@using Microsoft.Extensions.Localization
+@inject IStringLocalizer<TextosComunes> Textos
+
+@* Botón primario «Subir» de la cabecera, antes del buscador (marco de Design, marco-talveg.js:
+   .tvm-subir). No construye un flujo propio: lleva a la pantalla de subida de documentos que ya
+   existe (la misma a la que lleva el atajo «u», CatalogoAtajos.RutaSubida). Se ofrece solo a los
+   roles que pueden subir: el rol Consulta entra a esa pantalla en solo lectura y no se le invita.
+   La pantalla sigue autorizando por su cuenta; este AuthorizeView solo evita ofrecer un destino
+   que no sirve, y no concede nada. *@
+<AuthorizeView Roles="@RolesQueSuben">
+    <Authorized>
+        <a class="boton-subir-cabecera" href="@CatalogoAtajos.RutaSubida" title="@Textos["SubirCabeceraTitulo"]"
+           aria-label="@Textos["SubirCabeceraTitulo"]" data-subir-cabecera>
+            <Icono Nombre="subir" Tamano="TamanoIcono.Pequeno" />
+            <span class="boton-subir-cabecera-texto">@Textos["SubirCabecera"]</span>
+        </a>
+    </Authorized>
+</AuthorizeView>
+
+@code {
+    /// <summary>
+    /// Quién ve el botón: los roles que escriben en la subida (el <c>[Authorize]</c> de
+    /// <c>SubidaMasiva</c> añade <c>Consulta</c>, que solo lee). Un test vigila que sigan siendo un
+    /// subconjunto de los que la página admite.
+    /// </summary>
+    public const string RolesQueSuben = Roles.ConEscrituraCsv;
+}

@@ -9,7 +9,8 @@ namespace CaeManager.Application.AutorizacionesLectura.Commands.ConcederAutoriza
 
 /// <summary>
 /// El Tenant de la Empresa contratista autoriza al Tenant del Cliente empresarial a leer, para un contrato de acceso,
-/// los Documentos de estos Trabajadores y, si se marca, los de su Empresa propia.
+/// los Documentos de estos Trabajadores y, si se marca, los de su Empresa propia. La lectura solo da estos últimos si
+/// el Tenant tiene una única Empresa propia no eliminada (<c>AutorizacionLecturaDocumental.IncluyeDocumentosEmpresa</c>).
 /// </summary>
 /// <param name="TenantDestinatarioId">El Tenant del Cliente empresarial. Cómo se conoce es la decisión DN-1, abierta: el comando lo recibe como parámetro y no hay pantalla.</param>
 /// <param name="ContratoAccesoId">El contrato de acceso del Tenant destinatario; también por DN-1.</param>

@@ -463,7 +463,7 @@ public class CalendarioTests : BunitContext
         cut.FindAll("[role=dialog] a").Single(a => a.TextContent.Trim() == "Renovar").GetAttribute("href")
             .Should().Be($"/documentos?documentoId={vencimiento.DocumentoId}");
         cut.FindAll("[role=dialog] .detalle-dia-reclamar").Should().BeEmpty(
-            "el Mes no sabe de qué Empresa es cada documento: no ofrece Reclamar");
+            "sin autenticación en el árbol y con la consulta sin Reclamable, el Mes no ofrece Reclamar (el caso con rol: CalendarioReclamarMesTests)");
     }
 
     /// <summary>

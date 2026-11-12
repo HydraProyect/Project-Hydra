@@ -1,4 +1,4 @@
-/* El borde discontinuo es el mismo lenguaje que la nota en el timeline
+/* El amarillo de la nota es el mismo lenguaje que la nota en el timeline
    (UnifiedTimeline.razor.css): lo que se escribe aquí no sale del equipo. */
 .composer-nota-interna {
     display: flex;

@@ -79,7 +79,7 @@ public class EditarTipoDocumentoConCentroExcluidoTests : IAsyncLifetime
         // La exclusión, dada de alta como lo haría "Requisitos del Centro" (Gestionar en vivo).
         var establecerHandler = new EstablecerDocumentacionRequeridaCentroCommandHandler(
             new TipoDocumentoCentroRepository(contexto), contexto, contexto, AltaAcreditacionesDePrueba.Con(contexto),
-            new AlcanceDatosServiceFalso(), contexto, new VerificadorArchivoAlmacenadoPermisivo());
+            new AlcanceDatosServiceFalso(), contexto, new VerificadorArchivoAlmacenadoPermisivo(), new SerializacionAltasSinBloqueo());
         var resultadoExclusion = await establecerHandler.Handle(
             new EstablecerDocumentacionRequeridaCentroCommand(
                 centro.Id, tipo.Id, Incluido: false, PeriodicidadEspecialMeses: 6, BloqueaAcceso: true,
@@ -97,7 +97,7 @@ public class EditarTipoDocumentoConCentroExcluidoTests : IAsyncLifetime
         var (tipo, centro) = await CrearTipoYCentroConExclusionAsync(contexto);
 
         var editarHandler = new EditarTipoDocumentoCommandHandler(
-            new TipoDocumentoRepository(contexto), new TipoDocumentoCentroRepository(contexto), contexto, AltaAcreditacionesDePrueba.Con(contexto), new AlcanceDatosServiceFalso(), contexto);
+            new TipoDocumentoRepository(contexto), new TipoDocumentoCentroRepository(contexto), contexto, AltaAcreditacionesDePrueba.Con(contexto), new AlcanceDatosServiceFalso(), contexto, new SerializacionAltasSinBloqueo());
 
         var resultado = await editarHandler.Handle(
             new EditarTipoDocumentoCommand(
@@ -116,7 +116,7 @@ public class EditarTipoDocumentoConCentroExcluidoTests : IAsyncLifetime
         var (tipo, centro) = await CrearTipoYCentroConExclusionAsync(contexto);
 
         var editarHandler = new EditarTipoDocumentoCommandHandler(
-            new TipoDocumentoRepository(contexto), new TipoDocumentoCentroRepository(contexto), contexto, AltaAcreditacionesDePrueba.Con(contexto), new AlcanceDatosServiceFalso(), contexto);
+            new TipoDocumentoRepository(contexto), new TipoDocumentoCentroRepository(contexto), contexto, AltaAcreditacionesDePrueba.Con(contexto), new AlcanceDatosServiceFalso(), contexto, new SerializacionAltasSinBloqueo());
 
         await editarHandler.Handle(
             new EditarTipoDocumentoCommand(
@@ -149,7 +149,7 @@ public class EditarTipoDocumentoConCentroExcluidoTests : IAsyncLifetime
         var (tipo, centro) = await CrearTipoYCentroConExclusionAsync(contexto);
 
         var editarHandler = new EditarTipoDocumentoCommandHandler(
-            new TipoDocumentoRepository(contexto), new TipoDocumentoCentroRepository(contexto), contexto, AltaAcreditacionesDePrueba.Con(contexto), new AlcanceDatosServiceFalso(), contexto);
+            new TipoDocumentoRepository(contexto), new TipoDocumentoCentroRepository(contexto), contexto, AltaAcreditacionesDePrueba.Con(contexto), new AlcanceDatosServiceFalso(), contexto, new SerializacionAltasSinBloqueo());
 
         // Ningún centro marcado en el picker: la exclusión no se ve desde aquí y no debe borrarse.
         var resultado = await editarHandler.Handle(

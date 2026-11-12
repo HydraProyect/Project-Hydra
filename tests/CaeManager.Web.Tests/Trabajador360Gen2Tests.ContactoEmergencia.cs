@@ -71,7 +71,8 @@ public partial class Trabajador360Gen2Tests
         };
         var cut = Renderizar(id); var drawer = await AbrirEditorFicha(cut);
 
-        drawer.FindComponents<CampoTexto>().Should().HaveCount(15);
+        await IrAPasoFicha(drawer, "Contacto");
+        EtiquetasDelPasoFicha(drawer).Should().Equal("Contacto de emergencia", "Teléfono de emergencia");
         drawer.FindComponents<CampoTexto>().Single(c => c.Instance.Etiqueta == "Contacto de emergencia").Instance.Valor
             .Should().Be("Lucía Moreno");
         drawer.FindComponents<CampoTexto>().Single(c => c.Instance.Etiqueta == "Teléfono de emergencia").Instance.Type
@@ -91,7 +92,10 @@ public partial class Trabajador360Gen2Tests
         m.Detalles[id] = m.Detalles[id] with { ContactoEmergenciaVisible = true };
         var cut = Renderizar(id); var drawer = await AbrirEditorFicha(cut);
 
+        await IrAPasoFicha(drawer, "Contacto");
         await CambiarCampoFicha(drawer, "Teléfono de emergencia", "llamar a su madre");
+        await PulsarFicha(drawer, "Siguiente");
+        PasoActivoFicha(drawer).Should().Be("Contacto", "el teléfono sin formato bloquea el paso");
         await GuardarFicha(drawer);
 
         m.Enviadas.OfType<EditarFichaTrabajadorCommand>().Should().BeEmpty();
@@ -109,6 +113,8 @@ public partial class Trabajador360Gen2Tests
         var id = Guid.NewGuid(); var m = ConTrabajador(id);
         var cut = Renderizar(id); var drawer = await AbrirEditorFicha(cut);
 
+        drawer.FindAll("ol.indicador-pasos li .indicador-pasos-titulo").Select(t => t.TextContent.Trim())
+            .Should().NotContain("Contacto", "sin contacto visible no hay paso Contacto");
         drawer.FindComponents<CampoTexto>().Select(c => c.Instance.Etiqueta)
             .Should().NotContain(["Contacto de emergencia", "Teléfono de emergencia"]);
         await CambiarCampoFicha(drawer, "Nacionalidad", "Colombiana");

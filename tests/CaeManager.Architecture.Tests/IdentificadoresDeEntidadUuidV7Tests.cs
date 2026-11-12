@@ -112,9 +112,9 @@ public class IdentificadoresDeEntidadUuidV7Tests
         ["src/CaeManager.Web/Components/DesignSystem/ToastService.cs"] = 1,
         ["src/CaeManager.Web/Features/Documentos/Pages/SubidaMasiva.razor.cs"] = 1,
         // Atributos id de HTML únicos por instancia de componente.
-        ["src/CaeManager.Web/Components/DesignSystem/CampoBuscarSelect.razor"] = 2,
         ["src/CaeManager.Web/Components/DesignSystem/CampoSelect.razor"] = 1,
         ["src/CaeManager.Web/Components/DesignSystem/CampoSelectAvanzado.razor"] = 1,
+        ["src/CaeManager.Web/Components/DesignSystem/CampoFecha.razor.cs"] = 1,
         ["src/CaeManager.Web/Components/DesignSystem/CampoTextarea.razor"] = 1,
         ["src/CaeManager.Web/Components/DesignSystem/CampoTexto.razor"] = 1,
         ["src/CaeManager.Web/Components/DesignSystem/Drawer.razor"] = 1,

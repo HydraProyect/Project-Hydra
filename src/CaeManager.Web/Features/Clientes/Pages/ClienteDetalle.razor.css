@@ -23,6 +23,18 @@
     gap: var(--space-2);
 }
 
+/*
+  A 375 px la cabecera compartida pasa a columna (CabeceraIdentidad.razor.css, max-width: 600px): el 1 1 300px de arriba
+  deja de ser un ancho mínimo y se convierte en una ALTURA de 300 px para el bloque del nombre. En columna el bloque mide
+  lo que su contenido. Mismo defecto y misma anulación que Centro 360 (PR #2088); la vigila CabeceraIdentidadFlexBasisMovilTests.
+*/
+@media (max-width: 600px) {
+    .contenedor-pagina ::deep .cabecera-identidad-texto {
+        flex: none;
+        min-width: 0;
+    }
+}
+
 .contenedor-pagina ::deep .cabecera-identidad-kicker {
     font: var(--font-caption);
 }

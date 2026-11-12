@@ -49,6 +49,7 @@
 @inject ContextWorkspaceService WorkspaceService
 @inject ToastService ToastService
 @inject IStringLocalizer<TextosCentros> Textos
+@inject IStringLocalizer<CaeManager.Web.Recursos.TextosComunes> Comunes
 @inject IFileStorageService AlmacenamientoArchivos
 @inject IServiceProvider Servicios
 @inject ILogger<CentroWorkspacePanel> Logger
@@ -152,7 +153,8 @@ else
                         <CampoTexto Etiqueta="Código de centro" Valor="@_codigoCentroInfo" ValorChanged="v => _codigoCentroInfo = v" />
                         <CampoTexto Etiqueta="Dirección" Valor="@_direccionInfo" ValorChanged="v => _direccionInfo = v" />
                         <CampoTexto Etiqueta="Contacto" Valor="@_contactoInfo" ValorChanged="v => _contactoInfo = v" />
-                        <CampoTexto Etiqueta="Contrato vigente hasta" Type="date" Valor="@_contratoVigenteHastaInfo" ValorChanged="v => _contratoVigenteHastaInfo = v" />
+                        <CampoTexto Etiqueta="Contrato vigente hasta" Type="date" Valor="@_contratoVigenteHastaInfo" ValorChanged="v => _contratoVigenteHastaInfo = v"
+                                    FechaNoValida="_contratoVigenteHastaNoValido" FechaNoValidaChanged="AlCambiarContratoVigenteHastaNoValido" />
                     </div>
                     <div class="workspace-acciones-edicion">
                         <Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno" Deshabilitado="_guardandoInformacion" OnClick="CancelarEdicionInformacion">Cancelar</Boton>
@@ -223,7 +225,7 @@ else
                 {
                     <EstadoVacio Titulo="No pudimos cargar la documentación requerida" Descripcion="Intenta nuevamente en unos segundos.">
                         <Accion>
-                            <Boton Variante="VarianteBoton.Primario" OnClick="CargarDocumentacionAsync">Reintentar</Boton>
+                            <Boton Variante="VarianteBoton.Secundario" OnClick="CargarDocumentacionAsync">Reintentar</Boton>
                         </Accion>
                     </EstadoVacio>
                 }
@@ -233,53 +235,70 @@ else
                 }
                 else if (_documentacion is not null)
                 {
-                    <p class="workspace-nota-contextual">
-                        Los tipos que se piden siempre («¿Se pide?: Sí, siempre» en /tipos-documento) ya aparecen "Incluido" — desmárcalos para excluirlos solo de este centro.
-                        Marca cualquier otro para exigirlo además, solo aquí.
-                    </p>
-                    <ul class="workspace-lista-requisitos">
-                        @foreach (var item in _documentacion)
+                    @* Rediseño del modal «Requisitos del Centro» (maqueta aprobada 2026-11-09): solo lo configurado en este Centro,
+                       agrupado por ámbito, con lápiz (ajustes en la propia fila) y papelera (quitar el requisito). *@
+                    <div class="requisitos-centro">
+                        @if (_buscadorAbierto)
                         {
-                            <li class="workspace-tarjeta-requisito" @key="item.TipoDocumentoId">
-                                <div class="workspace-tarjeta-requisito-cabecera">
-                                    <span>@item.Nombre</span>
-                                    <Badge Tono="TonoBadge.Neutro">@(item.AmbitoAplicacion == AmbitoAplicacion.Empresa ? "Empresa" : "Trabajador")</Badge>
-                                    <Badge Tono="@(item.Aplica ? TonoBadge.Exito : TonoBadge.Neutro)">@(item.Aplica ? "Incluido" : "Excluido")</Badge>
-                                    @if (item.BloqueaAcceso)
-                                    {
-                                        <Badge Tono="TonoBadge.Peligro">Bloquea acceso</Badge>
-                                    }
-                                </div>
-                                @if (item.PeriodicidadEspecialMeses is { } meses)
-                                {
-                                    <p class="workspace-metrica-inline">Renovación cada @meses mes(es) en este centro</p>
-                                }
-                                else if (item.Incluido is not null)
-                                {
-                                    <p class="workspace-metrica-inline">@Textos["RequisitoVigenciaPropia"]</p>
-                                }
-                                @if (item.BloqueaAcceso)
-                                {
-                                    <p class="workspace-metrica-inline">@TextoToleranciaRequisito(item)</p>
-                                }
-                                @if (item.ArchivoUrl is not null)
-                                {
-                                    <p class="workspace-metrica-inline">
-                                        <a href="/requisitos-documentales/@item.TipoDocumentoId/archivo" target="_blank">
-                                            @(item.NombreArchivoOriginal ?? "Ver formulario")
-                                        </a>
-                                    </p>
-                                }
-                                <div class="workspace-tarjeta-requisito-acciones">
-                                    <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" OnClick="() => AbrirConfigurarAsync(item)">Configurar</Boton>
-                                    @if (item.Incluido is not null)
-                                    {
-                                        <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" OnClick="() => PedirQuitarAjuste(item)">Quitar ajuste</Boton>
-                                    }
-                                </div>
-                            </li>
+                            @BuscadorRequisitos()
                         }
-                    </ul>
+                        else if (HayRequisitosConfigurados)
+                        {
+                            <div class="requisitos-barra">
+                                @BotonAnadirRequisito
+                                <p class="requisitos-ayuda">@Textos["ReqAyudaCabecera"]</p>
+                            </div>
+                        }
+
+                        @if (!HayRequisitosConfigurados)
+                        {
+                            <div class="requisitos-vacio">
+                                <Icono Nombre="documentos" Tamano="TamanoIcono.Grande" />
+                                <h3>@Textos["ReqVacioTitulo"]</h3>
+                                <p>@Textos["ReqVacioTexto"]</p>
+                                @if (!_buscadorAbierto)
+                                {
+                                    @BotonAnadirRequisito
+                                }
+                            </div>
+                        }
+                        else
+                        {
+                            <div class="requisitos-grupos @(BuscadorConTermino ? "atenuado" : "")" inert="@BuscadorConTermino">
+                                @foreach (var grupo in GruposDeRequisitos)
+                                {
+                                    <section class="requisitos-grupo" aria-label="@grupo.Titulo">
+                                        <div class="requisitos-grupo-cabecera">
+                                            <h4>@grupo.Titulo</h4>
+                                            <Badge Tono="TonoBadge.Info">@grupo.Items.Count</Badge>
+                                        </div>
+                                        <ul class="requisitos-lista">
+                                            @foreach (var item in grupo.Items)
+                                            {
+                                                @FilaRequisito(item, false)
+                                            }
+                                        </ul>
+                                    </section>
+                                }
+
+                                @if (RequisitosExcluidos.Count > 0)
+                                {
+                                    <details class="requisitos-excluidos">
+                                        <summary>
+                                            <Icono Nombre="chevron" Tamano="TamanoIcono.Pequeno" />
+                                            @Textos["ReqExcluidosResumen", RequisitosExcluidos.Count]
+                                        </summary>
+                                        <ul class="requisitos-lista">
+                                            @foreach (var item in RequisitosExcluidos)
+                                            {
+                                                @FilaRequisito(item, true)
+                                            }
+                                        </ul>
+                                    </details>
+                                }
+                            </div>
+                        }
+                    </div>
                 }
                 break;
 
@@ -469,76 +488,6 @@ else
         }
     </Pestanas>
 
-    <DrawerFormulario HayCambios="() => !_saliendoAConfigurarSegundoFactor && _instantaneaDoc.Difiere(ValoresDocumentacion())" Visible="_drawerDocVisible" VisibleChanged="v => _drawerDocVisible = v"
-            Titulo="@Textos["ConfigurarRequisitoTitulo"]"
-            Guardando="_guardandoDocumentacion" MensajeError="@_mensajeErrorDocumentacion" OnGuardar="GuardarDocumentacionAsync" TextoGuardar="Guardar" TextoCancelar="Cancelar"
-            MotivoGuardarDeshabilitado="@(_subiendoArchivoEdicion ? Textos["SubiendoArchivoMotivoGuardar"].Value : null)">
-        <ChildContent>
-            @* _incluidoEdicion parte de item.Aplica (ResolucionTipoDocumentoCentro.Aplica): puede
-               llegar marcado sin que este centro tenga fila propia, solo porque el tipo se pide
-               siempre por defecto (nota de la lista, arriba). "Este centro lo exige" atribuía la
-               marca inicial al centro incluso cuando venía del valor general del tipo. *@
-            <p class="workspace-metrica-inline">@_nombreTipoDocumentoEditando</p>
-            <label class="campo-checkbox">
-                <input type="checkbox" @bind="_incluidoEdicion" /> Incluido en este centro
-            </label>
-            <p class="workspace-nota-contextual">@Textos["IncluidoAyudaRequisito"]</p>
-
-            <CampoSelect Etiqueta="Periodo especial de renovación" Valor="@_periodicidadSeleccionEdicion" ValorChanged="v => _periodicidadSeleccionEdicion = v">
-                <option value="">@Textos["PeriodicidadSinPropia"]</option>
-                @foreach (var meses in PeriodicidadesPredefinidas)
-                {
-                    <option value="@meses">@meses mes(es)</option>
-                }
-                <option value="personalizado">Personalizado…</option>
-            </CampoSelect>
-            @if (_periodicidadSeleccionEdicion == "personalizado")
-            {
-                <CampoTexto Etiqueta="Meses (número entero)" Type="number" Valor="@_periodicidadPersonalizadaEdicion" ValorChanged="v => _periodicidadPersonalizadaEdicion = v" />
-            }
-
-            <label class="campo-checkbox">
-                <input type="checkbox" @bind="_bloqueaAccesoEdicion" /> @Textos["BloqueaAccesoCasilla"]
-            </label>
-
-            @if (_bloqueaAccesoEdicion)
-            {
-                <CampoSelect Etiqueta="@Textos["ToleranciaEtiqueta"]" Valor="@_toleranciaSeleccionEdicion" ValorChanged="v => _toleranciaSeleccionEdicion = v">
-                    <option value="">@Textos["ToleranciaOpcionHeredada", _toleranciaHeredadaEdicion]</option>
-                    @foreach (var dias in ToleranciasPredefinidas)
-                    {
-                        <option value="@dias">@Textos["ToleranciaOpcionDias", dias]</option>
-                    }
-                    <option value="personalizado">@Textos["ToleranciaOpcionPersonalizada"]</option>
-                </CampoSelect>
-                @if (_toleranciaSeleccionEdicion == "personalizado")
-                {
-                    <CampoTexto Etiqueta="@Textos["ToleranciaEtiquetaPersonalizada"]" Type="number" Valor="@_toleranciaPersonalizadaEdicion" ValorChanged="v => _toleranciaPersonalizadaEdicion = v" />
-                }
-            }
-
-            <div class="campo">
-                <label>@Textos["ArchivoCentroEtiqueta"]</label>
-                <p class="workspace-metrica-inline">@Textos["ArchivoCentroAyuda"]</p>
-                @if (_archivoUrlEdicion is not null)
-                {
-                    <p class="workspace-metrica-inline">
-                        @_nombreArchivoEdicion
-                        <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" OnClick="QuitarArchivoDocumentacionEdicion">Quitar</Boton>
-                    </p>
-                }
-                else
-                {
-                    <ZonaSoltarArchivo
-                        OnChange="ManejarArchivoDocumentacionSeleccionadoAsync"
-                        Accept=".pdf,application/pdf,.docx,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-                        FormatosTexto="PDF · DOCX"
-                        Cargando="_subiendoArchivoEdicion" />
-                }
-            </div>
-        </ChildContent>
-    </DrawerFormulario>
-
     <DialogoConfirmacion
         Visible="_confirmarEliminarCanalVisible"
         VisibleChanged="v => _confirmarEliminarCanalVisible = v"
@@ -547,14 +496,28 @@ else
         EnProgreso="_eliminandoCanal"
         OnConfirmar="ConfirmarEliminarCanalAsync" />
 
-    <DialogoConfirmacion
-        Visible="_ajusteAQuitar is not null"
-        VisibleChanged="CerrarConfirmacionQuitarAjuste"
-        Titulo="@Textos["QuitarAjusteTitulo", _ajusteAQuitar?.Nombre ?? string.Empty]"
-        Mensaje="@MensajeQuitarAjuste"
-        TextoBotonConfirmar="@Textos["QuitarAjusteConfirmar"]"
-        EnProgreso="_quitandoAjuste"
-        OnConfirmar="ConfirmarQuitarAjusteAsync" />
+    @* El Escape de estas preguntas (descartar y quitar ajuste, las dos del panel de ajustes de una fila) es de la pregunta: sin este corte sube
+       al aside del panel de contexto (ManejarTeclaGlobalAsync), que lo toma por «cerrar el panel» y abre una segunda pregunta.
+       El contenedor no tiene caja (display: contents). *@
+    <div class="requisitos-sin-caja" @onkeydown:stopPropagation="true">
+        <DialogoConfirmacion
+            Visible="_confirmarDescarteEdicion"
+            VisibleChanged="CerrarConfirmacionDescarteEdicion"
+            Titulo="@Textos["ReqDescartarTitulo"]"
+            Mensaje="@Textos["ReqDescartarMensaje"]"
+            TextoBotonConfirmar="@Textos["ReqDescartarConfirmar"]"
+            TextoBotonDescartar="@Textos["ReqDescartarSeguir"]"
+            OnConfirmar="ConfirmarDescarteEdicion" />
+
+        <DialogoConfirmacion
+            Visible="_ajusteAQuitar is not null"
+            VisibleChanged="CerrarConfirmacionQuitarAjuste"
+            Titulo="@Textos["QuitarAjusteTitulo", _ajusteAQuitar?.Nombre ?? string.Empty]"
+            Mensaje="@MensajeQuitarAjuste"
+            TextoBotonConfirmar="@Textos["QuitarAjusteConfirmar"]"
+            EnProgreso="_quitandoAjuste"
+            OnConfirmar="ConfirmarQuitarAjusteAsync" />
+    </div>
 
     <DrawerFormulario HayCambios="() => !_saliendoAConfigurarSegundoFactor && _instantaneaCanal.Difiere(ValoresCanal())" Visible="_drawerCanalVisible" VisibleChanged="v => _drawerCanalVisible = v"
             Titulo="@(_canalIdEditando is null ? "Añadir acceso de gestión documental" : "Editar acceso de gestión documental")"
@@ -786,6 +749,9 @@ else
     private string _direccionInfo = string.Empty;
     private string _contactoInfo = string.Empty;
     private string _contratoVigenteHastaInfo = string.Empty;
+
+    /// <summary>El campo tiene un texto que no es una fecha entera (entrega «»): Guardar no borra la fecha guardada.</summary>
+    private bool _contratoVigenteHastaNoValido;
     private bool _guardandoInformacion;
     private string? _mensajeErrorInformacion;
     private Dictionary<string, string> _erroresInformacion = new();
@@ -799,14 +765,476 @@ else
             ? Textos["RequisitoToleranciaPropia", propia]
             : Textos["RequisitoToleranciaHeredada", item.ToleranciaHeredadaDias];
 
+    // ——— Requisitos del Centro: modal rediseñado (maqueta aprobada 2026-11-09) ———
+    // Solo se muestra lo configurado en este Centro: lo que se exige (Aplica: fila propia con Incluido o tipo que el
+    // catálogo pide siempre) y, plegado al final, lo que este Centro excluye de forma expresa (fila con Incluido = false).
+    // El resto del catálogo solo se ve en el buscador de «Añadir requisito».
+    private sealed record GrupoRequisitos(string Titulo, List<DocumentacionRequeridaCentroDto> Items);
+
+    private bool _buscadorAbierto;
+    private string _terminoBusqueda = string.Empty;
+    private bool _enfocarBuscador;
+    private bool _anadiendoRequisito;
+    private bool _excluyendoRequisito;
+    private ElementReference _entradaBusqueda;
+    private string? _archivoGuardadoEdicion;
+    private bool _sustituyendoArchivoEdicion;
+
+    private bool HayRequisitosConfigurados => _documentacion?.Any(r => r.Aplica || r.Incluido == false) ?? false;
+
+    private bool BuscadorConTermino => _buscadorAbierto && !string.IsNullOrWhiteSpace(_terminoBusqueda);
+
+    private IReadOnlyList<DocumentacionRequeridaCentroDto> RequisitosExcluidos =>
+        _documentacion?.Where(r => !r.Aplica && r.Incluido == false).OrderBy(r => r.Nombre, StringComparer.CurrentCultureIgnoreCase).ToList() ?? [];
+
+    private IEnumerable<GrupoRequisitos> GruposDeRequisitos
+    {
+        get
+        {
+            var activos = _documentacion?.Where(r => r.Aplica).OrderBy(r => r.Nombre, StringComparer.CurrentCultureIgnoreCase).ToList() ?? [];
+            var empresa = activos.Where(r => r.AmbitoAplicacion == AmbitoAplicacion.Empresa).ToList();
+            var trabajador = activos.Where(r => r.AmbitoAplicacion != AmbitoAplicacion.Empresa).ToList();
+            if (empresa.Count > 0)
+                yield return new GrupoRequisitos(Textos["ReqGrupoEmpresa"].Value, empresa);
+            if (trabajador.Count > 0)
+                yield return new GrupoRequisitos(Textos["ReqGrupoTrabajador"].Value, trabajador);
+        }
+    }
+
+    private string AmbitoTexto(DocumentacionRequeridaCentroDto item) =>
+        item.AmbitoAplicacion == AmbitoAplicacion.Empresa ? Textos["ReqGrupoEmpresa"].Value : Textos["ReqGrupoTrabajador"].Value;
+
+    private static string IdPanelRequisito(DocumentacionRequeridaCentroDto item) => $"requisito-panel-{item.TipoDocumentoId}";
+
+    private bool EdicionAbiertaDe(DocumentacionRequeridaCentroDto item) =>
+        _edicionRequisitoAbierta && _tipoDocumentoIdEditando == item.TipoDocumentoId;
+
+    /// <summary>Renovación, tolerancia y bloqueo de un requisito, en una línea. Un requisito excluido solo dice que se excluye.</summary>
+    private string MetaRequisito(DocumentacionRequeridaCentroDto item)
+    {
+        if (!item.Aplica)
+            return Textos["ReqMetaExcluido"].Value;
+
+        var partes = new List<string>
+        {
+            item.PeriodicidadEspecialMeses switch
+            {
+                1 => Textos["ReqMetaRenovacionMensual"].Value,
+                { } meses => Textos["ReqMetaRenovacion", meses].Value,
+                _ => Textos["RequisitoVigenciaPropia"].Value
+            }
+        };
+        if (item.BloqueaAcceso)
+        {
+            partes.Add(TextoToleranciaRequisito(item));
+            partes.Add(Textos["ReqMetaBloquea"].Value);
+        }
+
+        return string.Join(" · ", partes);
+    }
+
+    /// <summary>Un tipo con fila propia se puede devolver al criterio del catálogo desde el panel de ajustes (la papelera no siempre hace eso).</summary>
+    private static bool OfreceQuitarAjusteEnPanel(DocumentacionRequeridaCentroDto item) =>
+        item.Incluido is not null && (item.EsObligatorioGlobal || !item.Aplica);
+
+    private IReadOnlyList<DocumentacionRequeridaCentroDto> ResultadosBuscador() =>
+        _documentacion?
+            .Where(t => !t.Archivado && TextoDeBusqueda.Contiene(t.Nombre, _terminoBusqueda.Trim()))
+            .OrderBy(t => t.Nombre, StringComparer.CurrentCultureIgnoreCase)
+            .ToList() ?? [];
+
+    private string TextoCoincidencias(int total) =>
+        total == 1 ? Textos["ReqCoincidenciaUna"].Value : Textos["ReqCoincidencias", total].Value;
+
+    /// <summary>Texto de la región viva del buscador (siempre montada): el recuento de coincidencias o, sin ellas, el título del estado «sin coincidencias».</summary>
+    private string AnuncioResultadosBuscador()
+    {
+        if (!BuscadorConTermino)
+            return string.Empty;
+
+        var total = ResultadosBuscador().Count;
+        return total > 0 ? TextoCoincidencias(total) : Textos["ReqSinCoincidenciasTitulo", _terminoBusqueda.Trim()].Value;
+    }
+
+    private void AbrirBuscadorRequisito()
+    {
+        _buscadorAbierto = true;
+        _terminoBusqueda = string.Empty;
+        _enfocarBuscador = true;
+    }
+
+    private void CerrarBuscadorRequisito()
+    {
+        _buscadorAbierto = false;
+        _terminoBusqueda = string.Empty;
+    }
+
+    private void BorrarBusquedaRequisito()
+    {
+        _terminoBusqueda = string.Empty;
+        _enfocarBuscador = true;
+    }
+
+    private void TeclaBuscadorRequisito(KeyboardEventArgs e)
+    {
+        if (e.Key == "Escape")
+            CerrarBuscadorRequisito();
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!_enfocarBuscador)
+            return;
+
+        _enfocarBuscador = false;
+        try
+        {
+            await _entradaBusqueda.FocusAsync();
+        }
+        catch (Exception)
+        {
+            // El foco es una comodidad: sin circuito o sin elemento (ya cerrado) no hay nada que hacer.
+        }
+    }
+
+    private bool EdicionRequisitoConCambios => _edicionRequisitoAbierta && _instantaneaDoc.Difiere(ValoresDocumentacion());
+
+    private bool _confirmarDescarteEdicion;
+    private Action? _accionTrasDescartarEdicion;
+
+    /// <summary>El panel de una fila ya no es un drawer modal: lo que se editó sin guardar se descarta solo tras preguntar (D-05).</summary>
+    private void SiSePuedeDescartarEdicion(Action accion)
+    {
+        if (EdicionRequisitoConCambios)
+        {
+            _accionTrasDescartarEdicion = accion;
+            _confirmarDescarteEdicion = true;
+        }
+        else
+        {
+            accion();
+        }
+    }
+
+    private void CerrarConfirmacionDescarteEdicion(bool visible)
+    {
+        if (visible)
+            return;
+
+        _confirmarDescarteEdicion = false;
+        _accionTrasDescartarEdicion = null;
+    }
+
+    private void ConfirmarDescarteEdicion()
+    {
+        var accion = _accionTrasDescartarEdicion;
+        _confirmarDescarteEdicion = false;
+        _accionTrasDescartarEdicion = null;
+        accion?.Invoke();
+    }
+
+    private void AlternarEdicionRequisito(DocumentacionRequeridaCentroDto item)
+    {
+        // Una subida en vuelo pertenece a la fila abierta: no se salta a otra hasta que termine.
+        if (_subiendoArchivoEdicion)
+            return;
+
+        if (EdicionAbiertaDe(item))
+            SiSePuedeDescartarEdicion(() => _edicionRequisitoAbierta = false);
+        else
+            SiSePuedeDescartarEdicion(() => AbrirConfigurar(item));
+    }
+
+    private void CancelarEdicionRequisito() => SiSePuedeDescartarEdicion(() => _edicionRequisitoAbierta = false);
+
+    private RenderFragment BotonAnadirRequisito =>
+        @<Boton Variante="VarianteBoton.Primario" OnClick="AbrirBuscadorRequisito"><Icono Nombre="mas" Tamano="TamanoIcono.Pequeno" />@Textos["ReqAnadir"]</Boton>;
+
+    private RenderFragment BuscadorRequisitos() => @<div class="requisitos-buscador">
+        <label for="requisitos-busqueda" class="requisitos-buscador-etiqueta">@Textos["ReqBuscadorEtiqueta"]</label>
+        <div class="requisitos-buscador-caja">
+            <Icono Nombre="buscar" Tamano="TamanoIcono.Pequeno" />
+            <input id="requisitos-busqueda" type="text" class="requisitos-buscador-entrada" autocomplete="off"
+                   @ref="_entradaBusqueda" value="@_terminoBusqueda"
+                   @oninput="e => _terminoBusqueda = e.Value?.ToString() ?? string.Empty"
+                   @onkeydown="TeclaBuscadorRequisito" @onkeydown:stopPropagation="true" />
+            @if (!string.IsNullOrEmpty(_terminoBusqueda))
+            {
+                <button type="button" class="requisitos-enlace" @onclick="BorrarBusquedaRequisito">@Textos["ReqBuscadorBorrar"]</button>
+            }
+            <button type="button" class="requisitos-icono requisitos-icono-compacto" aria-label="@Textos["ReqBuscadorCerrar"]" title="@Textos["ReqBuscadorCerrar"]" @onclick="CerrarBuscadorRequisito"><Icono Nombre="cerrar" Tamano="TamanoIcono.Pequeno" /></button>
+        </div>
+        @* Región viva fuera de la lista: anuncia «N coincidencias» al teclear. Va siempre montada (una región que aparece ya con su texto no se anuncia). *@
+        <div class="requisitos-anuncio" role="status">@AnuncioResultadosBuscador()</div>
+        @if (BuscadorConTermino)
+        {
+            var resultados = ResultadosBuscador();
+            if (resultados.Count > 0)
+            {
+                <ul class="requisitos-resultados" aria-label="@Textos["ReqResultadosAria"]">
+                    <li class="requisitos-resultados-cabecera">@TextoCoincidencias(resultados.Count)</li>
+                    @foreach (var resultado in resultados)
+                    {
+                        <li @key="resultado.TipoDocumentoId">
+                            <button type="button" class="requisitos-opcion" disabled="@(resultado.Aplica || resultado.Incluido is not null || _anadiendoRequisito)"
+                                    @onclick="() => AnadirRequisitoAsync(resultado)">
+                                <span class="requisitos-opcion-nombre"><TextoResaltado Texto="@resultado.Nombre" Termino="@_terminoBusqueda" /></span>
+                                <Badge Tono="TonoBadge.Neutro">@AmbitoTexto(resultado)</Badge>
+                                @if (resultado.Aplica)
+                                {
+                                    <Badge Tono="TonoBadge.Info">@Textos["ReqYaSeExige"]</Badge>
+                                }
+                                else if (resultado.Incluido is not null)
+                                {
+                                    <Badge Tono="TonoBadge.Neutro">@Textos["ReqExcluidoAqui"]</Badge>
+                                }
+                                else
+                                {
+                                    <span class="requisitos-opcion-accion">@Textos["ReqAnadirOpcion"]</span>
+                                }
+                            </button>
+                        </li>
+                    }
+                </ul>
+            }
+            else
+            {
+                <div class="requisitos-sin-coincidencias">
+                    <Icono Nombre="buscar" Tamano="TamanoIcono.Grande" />
+                    <div class="requisitos-sin-coincidencias-titulo">@Textos["ReqSinCoincidenciasTitulo", _terminoBusqueda.Trim()]</div>
+                    <p>@Textos["ReqSinCoincidenciasAyuda"]</p>
+                    <Boton Variante="VarianteBoton.Secundario" Href="/tipos-documento">@Textos["ReqVerCatalogo"]</Boton>
+                </div>
+            }
+        }
+        <p class="requisitos-ayuda">@Textos["ReqArchivadosNoAparecen"]</p>
+    </div>;
+
+    private RenderFragment FilaRequisito(DocumentacionRequeridaCentroDto item, bool excluido) => @<li class="requisitos-fila" @key="item.TipoDocumentoId">
+        <div class="requisitos-fila-linea">
+            <div class="requisitos-fila-texto">
+                <div class="requisitos-nombre">@(excluido ? $"{item.Nombre} · {AmbitoTexto(item)}" : item.Nombre)</div>
+                <div class="requisitos-meta">@MetaRequisito(item)</div>
+                @if (item.Archivado && item.Aplica)
+                {
+                    @* Solo llega aquí un archivado que este Centro ya exige: se puede excluir, no volver a exigir. *@
+                    <div class="requisitos-meta" data-testid="requisito-archivado">
+                        @(item.NombreSustituto is { } sustituto ? Textos["RequisitoArchivadoConSustituto", sustituto] : Textos["RequisitoArchivadoSinSustituto"])
+                    </div>
+                }
+            </div>
+            <button type="button" class="requisitos-icono @(EdicionAbiertaDe(item) ? "activo" : "")"
+                    aria-label="@Textos["ReqEditarAria", item.Nombre]" title="@Textos["ReqEditarAria", item.Nombre]"
+                    aria-expanded="@(EdicionAbiertaDe(item) ? "true" : "false")" aria-controls="@IdPanelRequisito(item)"
+                    @onclick="() => AlternarEdicionRequisito(item)"><Icono Nombre="editar" /></button>
+            @if (!excluido)
+            {
+                <button type="button" class="requisitos-icono requisitos-icono-quitar"
+                        aria-label="@Textos["ReqQuitarAria", item.Nombre]" title="@Textos["ReqQuitarAria", item.Nombre]"
+                        disabled="@_excluyendoRequisito"
+                        @onclick="() => PedirQuitarRequisitoAsync(item)"><Icono Nombre="papelera" /></button>
+            }
+        </div>
+        @if (EdicionAbiertaDe(item))
+        {
+            @PanelEdicionRequisito(item)
+        }
+    </li>;
+
+    private RenderFragment PanelEdicionRequisito(DocumentacionRequeridaCentroDto item) => @<div class="requisitos-edicion" id="@IdPanelRequisito(item)">
+        @if (_mensajeErrorDocumentacion is not null)
+        {
+            <div class="alerta-formulario" role="alert">@_mensajeErrorDocumentacion</div>
+        }
+        @if (_archivadoEdicion)
+        {
+            <p class="requisitos-ayuda">@(_nombreSustitutoEdicion is { } sustituto ? Textos["RequisitoArchivadoDrawerConSustituto", sustituto] : Textos["RequisitoArchivadoDrawerSinSustituto"])</p>
+        }
+
+        <fieldset class="requisitos-edicion-grupo">
+            <legend>@Textos["ReqLeyendaExige"]</legend>
+            <div class="requisitos-radios">
+                <label><input type="radio" name="@($"requisito-incluido-{item.TipoDocumentoId}")" checked="@_incluidoEdicion" @onchange="() => _incluidoEdicion = true" /> @Textos["ReqSeExige"]</label>
+                <label><input type="radio" name="@($"requisito-incluido-{item.TipoDocumentoId}")" checked="@(!_incluidoEdicion)" @onchange="() => _incluidoEdicion = false" /> @Textos["ReqSeExcluye"]</label>
+            </div>
+            <span class="requisitos-ayuda">@Textos["ReqSeExigeAyuda"]</span>
+        </fieldset>
+
+        <div class="requisitos-edicion-rejilla">
+            <div class="requisitos-edicion-celda">
+                <CampoSelect Etiqueta="@Textos["ReqPeriodicidadEtiqueta"]" Valor="@_periodicidadSeleccionEdicion" ValorChanged="v => _periodicidadSeleccionEdicion = v">
+                    <option value="">@Textos["PeriodicidadSinPropia"]</option>
+                    @foreach (var meses in PeriodicidadesPredefinidas)
+                    {
+                        <option value="@meses">@meses mes(es)</option>
+                    }
+                    <option value="personalizado">Personalizado…</option>
+                </CampoSelect>
+                @if (_periodicidadSeleccionEdicion == "personalizado")
+                {
+                    <CampoTexto Etiqueta="Meses (número entero)" Type="number" Valor="@_periodicidadPersonalizadaEdicion" ValorChanged="v => _periodicidadPersonalizadaEdicion = v" />
+                }
+                <span class="requisitos-ayuda">@Textos["ReqPeriodicidadAyuda"]</span>
+            </div>
+            @if (_bloqueaAccesoEdicion)
+            {
+                <div class="requisitos-edicion-celda">
+                    <CampoSelect Etiqueta="@Textos["ToleranciaEtiqueta"]" Valor="@_toleranciaSeleccionEdicion" ValorChanged="v => _toleranciaSeleccionEdicion = v">
+                        <option value="">@Textos["ToleranciaOpcionHeredada", _toleranciaHeredadaEdicion]</option>
+                        @foreach (var dias in ToleranciasPredefinidas)
+                        {
+                            <option value="@dias">@Textos["ToleranciaOpcionDias", dias]</option>
+                        }
+                        <option value="personalizado">@Textos["ToleranciaOpcionPersonalizada"]</option>
+                    </CampoSelect>
+                    @if (_toleranciaSeleccionEdicion == "personalizado")
+                    {
+                        <CampoTexto Etiqueta="@Textos["ToleranciaEtiquetaPersonalizada"]" Type="number" Valor="@_toleranciaPersonalizadaEdicion" ValorChanged="v => _toleranciaPersonalizadaEdicion = v" />
+                    }
+                    <span class="requisitos-ayuda">@Textos["ReqToleranciaAyuda"]</span>
+                </div>
+            }
+        </div>
+
+        <label class="requisitos-casilla">
+            <input type="checkbox" @bind="_bloqueaAccesoEdicion" />
+            <span><strong>@Textos["ReqBloqueaEtiqueta"]</strong><br /><span class="requisitos-ayuda">@Textos["ReqBloqueaAyuda"]</span></span>
+        </label>
+
+        <div class="campo">
+            <span class="requisitos-etiqueta">@Textos["ReqPlantillaEtiqueta"]</span>
+            <span class="requisitos-ayuda">@Textos["ReqPlantillaAyuda"]</span>
+            @if (_archivoUrlEdicion is not null)
+            {
+                <div class="requisitos-archivo">
+                    @if (_archivoUrlEdicion == _archivoGuardadoEdicion)
+                    {
+                        <a class="requisitos-archivo-nombre" href="/requisitos-documentales/@item.TipoDocumentoId/archivo" target="_blank" rel="noopener">@(_nombreArchivoEdicion ?? Textos["ReqPlantillaVer"].Value)</a>
+                    }
+                    else
+                    {
+                        <span class="requisitos-archivo-nombre">@_nombreArchivoEdicion</span>
+                    }
+                    <button type="button" class="requisitos-enlace" @onclick="() => _sustituyendoArchivoEdicion = !_sustituyendoArchivoEdicion">@Textos["ReqPlantillaSustituir"]</button>
+                    <button type="button" class="requisitos-enlace" @onclick="QuitarArchivoDocumentacionEdicion">@Textos["ReqPlantillaQuitar"]</button>
+                </div>
+            }
+            @if (_archivoUrlEdicion is null || _sustituyendoArchivoEdicion)
+            {
+                <ZonaSoltarArchivo
+                    OnChange="ManejarArchivoDocumentacionSeleccionadoAsync"
+                    Accept=".pdf,application/pdf,.docx,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+                    FormatosTexto="PDF · DOCX"
+                    Cargando="_subiendoArchivoEdicion" />
+            }
+        </div>
+
+        <div class="requisitos-edicion-pie">
+            @if (OfreceQuitarAjusteEnPanel(item))
+            {
+                <button type="button" class="requisitos-enlace requisitos-enlace-izquierda" aria-label="@Textos["ReqQuitarAjusteAria", item.Nombre]"
+                        @onclick="() => PedirQuitarAjuste(item)">@Textos["QuitarAjusteConfirmar"]</button>
+            }
+            <Boton Variante="VarianteBoton.Secundario" Deshabilitado="_guardandoDocumentacion" OnClick="CancelarEdicionRequisito">@Textos["ReqCancelar"]</Boton>
+            <Boton Variante="VarianteBoton.Secundario" Cargando="_guardandoDocumentacion" Deshabilitado="_subiendoArchivoEdicion" OnClick="GuardarDocumentacionAsync">@Textos["ReqGuardar"]</Boton>
+        </div>
+    </div>;
+
+    /// <summary>
+    /// La papelera de un requisito. Un tipo que el catálogo pide siempre no se borra: se excluye en este Centro (lo mismo que
+    /// desmarcarlo en los ajustes). Uno que solo exige este Centro pierde su fila: es «Quitar ajuste», con su confirmación.
+    /// </summary>
+    private async Task PedirQuitarRequisitoAsync(DocumentacionRequeridaCentroDto item)
+    {
+        if (item.EsObligatorioGlobal)
+            await ExcluirRequisitoAsync(item);
+        else
+            PedirQuitarAjuste(item);
+    }
+
+    private async Task ExcluirRequisitoAsync(DocumentacionRequeridaCentroDto item)
+    {
+        if (_excluyendoRequisito)
+            return;
+
+        _excluyendoRequisito = true;
+        try
+        {
+            var resultado = await Mediator.Send(new EstablecerDocumentacionRequeridaCentroCommand(
+                EntidadId, item.TipoDocumentoId, false, item.PeriodicidadEspecialMeses, item.BloqueaAcceso,
+                item.ArchivoUrl, item.NombreArchivoOriginal, item.ToleranciaDias));
+            if (resultado.EsFallido)
+            {
+                ToastService.MostrarError(resultado.Error);
+                return;
+            }
+
+            ToastService.Mostrar(Textos["ReqExcluidoToast", item.Nombre].Value, TonoToast.Exito);
+            WorkspaceService.NotificarEntidadGuardada(EntidadWorkspace.Centro, EntidadId);
+            if (EdicionAbiertaDe(item))
+                _edicionRequisitoAbierta = false;
+            await CargarDocumentacionAsync();
+            await CargarEstadoAsync();
+        }
+        catch (Exception)
+        {
+            ToastService.Mostrar(Textos["ReqErrorGuardar"].Value, TonoToast.Error);
+        }
+        finally
+        {
+            _excluyendoRequisito = false;
+        }
+    }
+
+    /// <summary>Elegir un tipo en el buscador lo incluye en este Centro con el Command de siempre y abre sus ajustes.</summary>
+    private async Task AnadirRequisitoAsync(DocumentacionRequeridaCentroDto tipo)
+    {
+        if (_anadiendoRequisito || tipo.Aplica || tipo.Incluido is not null || tipo.Archivado)
+            return;
+
+        _anadiendoRequisito = true;
+        try
+        {
+            var resultado = await Mediator.Send(new EstablecerDocumentacionRequeridaCentroCommand(
+                EntidadId, tipo.TipoDocumentoId, true, null, false, null, null, null));
+            if (resultado.EsFallido)
+            {
+                ToastService.MostrarError(resultado.Error);
+                return;
+            }
+
+            ToastService.Mostrar(Textos["ReqAnadidoToast", tipo.Nombre].Value, TonoToast.Exito);
+            WorkspaceService.NotificarEntidadGuardada(EntidadWorkspace.Centro, EntidadId);
+            CerrarBuscadorRequisito();
+            await CargarDocumentacionAsync();
+            await CargarEstadoAsync();
+            // Con ajustes de otra fila a medias no se pisan: el requisito se añade y sus ajustes se abren a mano con el lápiz.
+            // Se decide aquí, tras las recargas, y no antes de los await: durante ellas se pudo empezar a editar otra fila.
+            var abrirAjustes = !EdicionRequisitoConCambios && !_subiendoArchivoEdicion;
+            if (abrirAjustes && _documentacion?.FirstOrDefault(r => r.TipoDocumentoId == tipo.TipoDocumentoId) is { } incluido)
+                AbrirConfigurar(incluido);
+        }
+        catch (Exception)
+        {
+            ToastService.Mostrar(Textos["ReqErrorGuardar"].Value, TonoToast.Error);
+        }
+        finally
+        {
+            _anadiendoRequisito = false;
+        }
+    }
+
     private IReadOnlyList<DocumentacionRequeridaCentroDto>? _documentacion;
     private bool _cargandoDocumentacion;
     private bool _errorDocumentacion;
 
-    private bool _drawerDocVisible;
+    private bool _edicionRequisitoAbierta;
     private Guid _tipoDocumentoIdEditando;
     private string _nombreTipoDocumentoEditando = string.Empty;
     private bool _incluidoEdicion;
+    // Un tipo archivado ya exigido solo se puede desmarcar: el Command rechaza Incluido = true aunque la fila ya lo tuviera.
+    private bool _archivadoEdicion;
+    private string? _nombreSustitutoEdicion;
     private string _periodicidadSeleccionEdicion = string.Empty;
     private string _periodicidadPersonalizadaEdicion = string.Empty;
     private bool _bloqueaAccesoEdicion;
@@ -881,7 +1309,9 @@ else
     /// </summary>
     private bool HayCambiosSinGuardar =>
         !_saliendoAConfigurarSegundoFactor
-        && (HayCambiosEnLosDrawers || (_editandoInformacion && _instantaneaInformacion.Difiere(ValoresInformacion())));
+        && (HayCambiosEnLosDrawers
+            || (_editandoInformacion && (_instantaneaInformacion.Difiere(ValoresInformacion()) || _contratoVigenteHastaNoValido))
+            || (PestanaActiva == "requisitos" && EdicionRequisitoConCambios));
 
     private object?[] ValoresInformacion() =>
         [_nombreInfo, _codigoCentroInfo, _direccionInfo, _contactoInfo, _contratoVigenteHastaInfo];
@@ -892,8 +1322,7 @@ else
     /// </summary>
 
     private bool HayCambiosEnLosDrawers =>
-        (_drawerDocVisible && _instantaneaDoc.Difiere(ValoresDocumentacion()))
-        || (_drawerCanalVisible && _instantaneaCanal.Difiere(ValoresCanal()))
+        (_drawerCanalVisible && _instantaneaCanal.Difiere(ValoresCanal()))
         || (_drawerPrioridadVisible && _instantaneaPrioridad.Difiere(ValoresPrioridad()))
         || (_drawerReclamacionCentroVisible && _instantaneaReclamacion.Difiere(ValoresReclamacion()));
 
@@ -938,7 +1367,7 @@ else
     private void CerrarDrawersDescartando()
     {
         _editandoInformacion = false;
-        _drawerDocVisible = false;
+        _edicionRequisitoAbierta = false;
         _drawerCanalVisible = false;
         _drawerPrioridadVisible = false;
         _drawerReclamacionCentroVisible = false;
@@ -1008,6 +1437,9 @@ else
             _estadoCentro = null;
             _bloqueos = [];
             _editandoInformacion = false;
+            _edicionRequisitoAbierta = false;
+            _buscadorAbierto = false;
+            _terminoBusqueda = string.Empty;
             await CargarCabeceraAsync();
             await CargarEstadoAsync();
         }
@@ -1091,6 +1523,7 @@ else
         _direccionInfo = _detalle.Direccion ?? string.Empty;
         _contactoInfo = _detalle.Contacto ?? string.Empty;
         _contratoVigenteHastaInfo = _detalle.ContratoVigenteHasta?.ToString("yyyy-MM-dd") ?? string.Empty;
+        _contratoVigenteHastaNoValido = false;
         _mensajeErrorInformacion = null;
         _erroresInformacion = new Dictionary<string, string>();
         _editandoInformacion = true;
@@ -1099,11 +1532,26 @@ else
 
     private void CancelarEdicionInformacion() => _editandoInformacion = false;
 
+    // Al volver a ser una fecha entera (o quedar vacía), el aviso «no es una fecha» de un envío anterior ya no es cierto.
+    private void AlCambiarContratoVigenteHastaNoValido(bool noValido)
+    {
+        _contratoVigenteHastaNoValido = noValido;
+        if (!noValido && _mensajeErrorInformacion == Comunes["CampoFechaCorregirAntes"])
+            _mensajeErrorInformacion = null;
+    }
+
     private string? ObtenerErrorInformacion(string campo) => _erroresInformacion.GetValueOrDefault(campo);
 
     private async Task GuardarInformacionAsync()
     {
         if (_detalle is null) return;
+
+        // «Contrato vigente hasta» a medias o ilegible llega como «»: sin este bloqueo se borraría la fecha guardada.
+        if (_contratoVigenteHastaNoValido)
+        {
+            _mensajeErrorInformacion = Comunes["CampoFechaCorregirAntes"];
+            return;
+        }
 
         _guardandoInformacion = true;
         _mensajeErrorInformacion = null;
@@ -1193,7 +1641,9 @@ else
         {
             var resultado = await Mediator.Send(new ObtenerDocumentacionRequeridaDeCentroQuery(idSolicitado));
             if (idSolicitado == EntidadId)
-                _documentacion = resultado ?? [];
+                // Un tipo archivado que este centro no exige no se ofrece para marcarlo (el Command lo rechaza); la Query
+                // ya no lo devuelve, y esta guarda evita ofrecerlo si algún día lo devolviera.
+                _documentacion = (resultado ?? []).Where(r => !r.Archivado || r.Aplica).ToList();
         }
         catch (Exception)
         {
@@ -1207,10 +1657,12 @@ else
         }
     }
 
-    private Task AbrirConfigurarAsync(DocumentacionRequeridaCentroDto item)
+    private void AbrirConfigurar(DocumentacionRequeridaCentroDto item)
     {
         _tipoDocumentoIdEditando = item.TipoDocumentoId;
         _nombreTipoDocumentoEditando = item.Nombre;
+        _archivadoEdicion = item.Archivado;
+        _nombreSustitutoEdicion = item.NombreSustituto;
         _incluidoEdicion = item.Aplica;
         _periodicidadSeleccionEdicion = item.PeriodicidadEspecialMeses switch
         {
@@ -1233,9 +1685,10 @@ else
         _archivoUrlEdicion = item.ArchivoUrl;
         _nombreArchivoEdicion = item.NombreArchivoOriginal;
         _mensajeErrorDocumentacion = null;
-        _drawerDocVisible = true;
+        _archivoGuardadoEdicion = item.ArchivoUrl;
+        _sustituyendoArchivoEdicion = false;
+        _edicionRequisitoAbierta = true;
         _instantaneaDoc.Fijar(ValoresDocumentacion());
-        return Task.CompletedTask;
     }
 
     /// <summary>
@@ -1261,6 +1714,7 @@ else
         }
 
         _subiendoArchivoEdicion = true;
+        var tipoDeLaSubida = _tipoDocumentoIdEditando;
         StateHasChanged();
 
         try
@@ -1285,8 +1739,17 @@ else
             }
 
             using var flujoOriginal = new MemoryStream(contenido);
-            _archivoUrlEdicion = await AlmacenamientoArchivos.GuardarAsync(flujoOriginal, archivo.Name);
+            var urlGuardada = await AlmacenamientoArchivos.GuardarAsync(flujoOriginal, archivo.Name);
+            if (!_edicionRequisitoAbierta || _tipoDocumentoIdEditando != tipoDeLaSubida)
+            {
+                // El panel se cerró o pasó a otra fila mientras subía: la plantilla no es de lo que hay abierto.
+                await AlmacenamientoArchivos.EliminarAsync(urlGuardada);
+                return;
+            }
+
+            _archivoUrlEdicion = urlGuardada;
             _nombreArchivoEdicion = archivo.Name;
+            _sustituyendoArchivoEdicion = false;
         }
         catch (PresupuestoMemoriaAgotadoException)
         {
@@ -1308,6 +1771,7 @@ else
     {
         _archivoUrlEdicion = null;
         _nombreArchivoEdicion = null;
+        _sustituyendoArchivoEdicion = false;
     }
 
     private async Task GuardarDocumentacionAsync()
@@ -1323,6 +1787,14 @@ else
                 "personalizado" => int.TryParse(_periodicidadPersonalizadaEdicion, out var personalizado) ? personalizado : null,
                 var seleccion => int.Parse(seleccion)
             };
+
+            if (_archivadoEdicion && _incluidoEdicion)
+            {
+                _mensajeErrorDocumentacion = _nombreSustitutoEdicion is { } sustituto
+                    ? Textos["RequisitoArchivadoGuardarConSustituto", sustituto].Value
+                    : Textos["RequisitoArchivadoGuardarSinSustituto"].Value;
+                return;
+            }
 
             if (_periodicidadSeleccionEdicion == "personalizado" && periodicidadMeses is null)
             {
@@ -1354,8 +1826,10 @@ else
             }
 
             ToastService.Mostrar(Textos["RequisitoGuardadoToast"].Value, TonoToast.Exito);
+            // La pestaña «Requisitos» de Centro 360 se recarga con este aviso (el panel guarda sin pasar por la página).
+            WorkspaceService.NotificarEntidadGuardada(EntidadWorkspace.Centro, EntidadId);
 
-            _drawerDocVisible = false;
+            _edicionRequisitoAbierta = false;
             await CargarDocumentacionAsync();
             await CargarEstadoAsync();
         }
@@ -1418,6 +1892,9 @@ else
         }
 
         ToastService.Mostrar($"\"{item.Nombre}\" vuelve a seguir el criterio global del tenant.", TonoToast.Exito);
+        WorkspaceService.NotificarEntidadGuardada(EntidadWorkspace.Centro, EntidadId);
+        if (EdicionAbiertaDe(item))
+            _edicionRequisitoAbierta = false;
         await CargarDocumentacionAsync();
         await CargarEstadoAsync();
     }

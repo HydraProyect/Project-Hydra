@@ -5,8 +5,10 @@
 */
 .cuadro {
     padding: 24px;
-    max-width: 1440px;
-    margin-inline: auto;
+    /* Ancho completo del área de contenido, como la maqueta (su <main> no fija ancho máximo): con max-width y margin-inline:auto
+       a 1920 px quedaban dos franjas vacías a los lados. Es un panel de gráficos y tablas que gana con el ancho; las columnas de
+       los KPI bajan por contenedor (@container) y las tablas hacen scroll propio. */
+    max-width: none;
     display: grid;
     /* Una sola columna que puede encogerse: sin minmax(0, 1fr) el contenido ancho (tablas, gráficos) ensancha la página. */
     grid-template-columns: minmax(0, 1fr);
@@ -146,9 +148,22 @@
     line-height: 20px;
     color: var(--color-text);
     background-color: var(--color-surface);
-    border: 1px solid var(--color-border-control);
+    /* Mismo borde, foco y estados que el select del sistema de diseño (CampoSelect): solo cambia el alto (38, medida de la maqueta). */
+    border: var(--border-control);
     border-radius: var(--radius-md);
+    transition: border-color var(--motion-fast) var(--ease-standard), box-shadow var(--motion-fast) var(--ease-standard);
 }
+
+.cuadro-select:focus {
+    outline: var(--border-focus);
+    outline-offset: -1px;
+    box-shadow: 0 0 0 4px var(--color-primary-100);
+}
+
+.cuadro-select:disabled { opacity: 0.6; cursor: not-allowed; }
+
+/* Evita el zoom automático de iOS al enfocar un campo con font-size < 16px (igual que CampoSelect). */
+@media (max-width: 767px) { .cuadro-select { font-size: 1rem; } }
 
 /* Más acciones (Reabrir un mes cerrado), fuera de la barra principal. */
 .cuadro-mas { position: relative; }
@@ -548,9 +563,11 @@
     .cuadro-bloque ::deep .tarjeta { padding: 16px; }
     .cuadro ::deep .pestanas-lista-envuelta { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: thin; }
     .cuadro-barra > * { flex: 1 1 auto; min-width: 0; }
-    .cuadro-periodo { display: flex; }
-    .cuadro-momento { flex: 1 1 auto; justify-content: space-between; }
-    .cuadro-momento button { padding: 0 8px; }
+    /* Los tres momentos se apilan en columna con las flechas a los lados (maqueta a 375: .tv-seg de 3 filas de
+       34 px). En fila, «Año 3 sep 2026» desbordaba la caja de 266 px y quedaba debajo de «›». */
+    .cuadro-periodo { display: flex; justify-content: center; height: auto; }
+    .cuadro-momento { flex: 0 1 auto; flex-direction: column; align-items: stretch; height: auto; }
+    .cuadro-momento button { text-align: left; line-height: 22px; }
     .cuadro-select { width: 100%; }
     .cuadro-espaciador { display: none; }
     .cuadro-barra ::deep .boton { width: 100%; }

@@ -52,7 +52,8 @@ public class TipoArchivadoYRenunciaEnSuperficiesTests
             documentos, mundo.TiposDocumentoContexto, mundo.TrabajadoresContexto, new VehiculosVacios(),
             new ProyectosQueryContextFalso(), new EmpresasQueryContextFalso(), new UnitOfWorkFalso(),
             new CaminosDeAltaAcreditacionesTests.ColaAnalisisSinUso(), new CurrentUserServiceFalso(), mundo.Servicio(),
-            new PublisherFalso(), new AlcanceDatosServiceFalso(), new VerificadorArchivoAlmacenadoPermisivo());
+            new PublisherFalso(), new AlcanceDatosServiceFalso(), new VerificadorArchivoAlmacenadoPermisivo(), new CaeManager.Application.Tests.Documentos.SerializacionAltasAcreditacionEmpresaFalsa(),
+            mundo.GestionAutomatica());
 
         var resultado = await handler.Handle(
             new CrearDocumentoCommand(trabajador.Id, null, null, null, null, tipo.Id, Hoy, null, null, null),
@@ -89,7 +90,8 @@ public class TipoArchivadoYRenunciaEnSuperficiesTests
         var handler = new RenovarDocumentoCommandHandler(
             documentos, mundo.TiposDocumentoContexto, new AlcanceDatosServiceFalso(), new ProyectosQueryContextFalso(),
             new CaminosDeAltaAcreditacionesTests.ColaAnalisisSinUso(), new CurrentUserServiceFalso(), mundo.Acreditaciones,
-            mundo.Servicio(), new PublisherFalso(), new UnitOfWorkFalso(), new VerificadorArchivoAlmacenadoPermisivo());
+            mundo.Servicio(), new SerializacionAltasAcreditacionEmpresaFalsa(), new PublisherFalso(), new UnitOfWorkFalso(),
+            new VerificadorArchivoAlmacenadoPermisivo(), mundo.GestionAutomatica());
 
         var resultado = await handler.Handle(
             new RenovarDocumentoCommand(documento.Id, Hoy, null, conArchivoNuevo ? "blob://renovado.pdf" : null, null, NoCaduca: true),
@@ -118,7 +120,7 @@ public class TipoArchivadoYRenunciaEnSuperficiesTests
         tipo.Archivar(null);
         var handler = new EstablecerDocumentacionRequeridaCentroCommandHandler(
             new TipoDocumentoCentroRepositorioFalso(), mundo.CentrosContexto, mundo.TiposDocumentoContexto,
-            mundo.Servicio(), new AlcanceDatosServiceFalso(), new UnitOfWorkFalso(), new Common.VerificadorArchivoAlmacenadoPermisivo());
+            mundo.Servicio(), new AlcanceDatosServiceFalso(), new UnitOfWorkFalso(), new Common.VerificadorArchivoAlmacenadoPermisivo(), new CaeManager.Application.Tests.Documentos.SerializacionAltasAcreditacionEmpresaFalsa());
 
         var exigir = await handler.Handle(
             new EstablecerDocumentacionRequeridaCentroCommand(centro.Id, tipo.Id, Incluido: true, null, false, null, null, ToleranciaDias: null),

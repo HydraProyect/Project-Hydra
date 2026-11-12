@@ -151,6 +151,13 @@ public partial class Centro360Gen2Tests : BunitContext
             ObtenerTrabajadoresAsignadosDeCentroQuery q => (IReadOnlyList<TrabajadorAsignadoDto>)(Empleadores.GetValueOrDefault(q.CentroId) ?? []),
             ObtenerDocumentacionVehiculosDeCentroQuery q => (IReadOnlyList<VehiculoDocumentacionCentroDto>)(Vehiculos.GetValueOrDefault(q.CentroId) ?? []),
             ObtenerDocumentosFaltantesParaAsignacionQuery => new List<DocumentoFaltanteDto>(),
+            // El selector del DrawerReclamacionLote, que se monta al pulsar «Gestionar»: un catálogo vacío basta para ver a quién apunta.
+            CaeManager.Application.TiposDocumento.Queries.ObtenerTiposDocumento.ObtenerTiposDocumentoQuery =>
+                (IReadOnlyList<CaeManager.Application.TiposDocumento.Queries.ObtenerTiposDocumento.TipoDocumentoListaDto>)[],
+            CaeManager.Application.Trabajadores.Queries.ObtenerTrabajadoresParaSelector.ObtenerTrabajadoresParaSelectorQuery =>
+                (IReadOnlyList<CaeManager.Application.Trabajadores.Queries.ObtenerTrabajadoresParaSelector.TrabajadorSelectorDto>)[],
+            CaeManager.Application.Empresas.Queries.ObtenerEmpresasParaSelector.ObtenerEmpresasParaSelectorQuery =>
+                (IReadOnlyList<CaeManager.Application.Empresas.Queries.ObtenerEmpresasParaSelector.EmpresaSelectorDto>)[],
             CaeManager.Application.Centros.Queries.ObtenerCambiosEstadoPlataformaDeCentro.ObtenerCambiosEstadoPlataformaDeCentroQuery =>
                 (IReadOnlyList<CaeManager.Application.Centros.Queries.ObtenerCambiosEstadoPlataformaDeCentro.CambioEstadoPlataformaCentroDto>)[],
             DarDeBajaAsignacionesCommand => ResultadoBaja,
@@ -365,6 +372,71 @@ public partial class Centro360Gen2Tests : BunitContext
         var contador = cut.FindAll("[role=tab]")[0].QuerySelector(".pestanas-contador")!;
         contador.TextContent.Trim().Should().Be(texto);
         contador.ClassList.Contains("pestanas-contador-alerta").Should().Be(enAlerta);
+    }
+
+    private static IncidenciaCentroDto PorVencerDe(Guid trabajador, EstadoDocumento estado = EstadoDocumento.Proximo) =>
+        Incidencia("Formación", AmbitoCausa.Trabajador) with { Estado = estado, TrabajadorId = trabajador };
+
+    /// <summary>
+    /// Demo con IT (2026-11-10), DECISION_LOG 2026-11-07 punto 3: un Trabajador cuyos documentos solo están «Por vencer» no
+    /// cuenta como incidencia ni se pinta en alerta (misma regla que el bloque Empresa, <c>IncidenciaCentroDto.HayIncidencia</c>).
+    /// </summary>
+    [Theory]
+    [InlineData(1, "1 trabajador por vencer")]
+    [InlineData(2, "2 trabajadores por vencer")]
+    public void Con_Trabajadores_solo_por_vencer_el_contador_no_habla_de_incidencia_ni_va_en_alerta(int cantidad, string texto)
+    {
+        var id = Guid.NewGuid();
+        var mediador = Registrar(new MediatorFalso());
+        mediador.Detalles[id] = Detalle(id, "Centro Norte");
+        var trabajadores = Enumerable.Range(0, cantidad).Select(_ => Guid.NewGuid()).ToList();
+        mediador.Resumenes[id] = Resumen(id, "Centro Norte", estado: EstadoCentro.Proximo,
+            proximas: trabajadores.Select((t, i) => PorVencerDe(t, i % 2 == 0 ? EstadoDocumento.Proximo : EstadoDocumento.Urgente)).ToList());
+
+        var cut = Renderizar(id);
+
+        var contador = cut.FindAll("[role=tab]")[0].QuerySelector(".pestanas-contador")!;
+        contador.TextContent.Trim().Should().Be(texto);
+        contador.ClassList.Contains("pestanas-contador-alerta").Should().BeFalse("«Por vencer» no es una incidencia");
+    }
+
+    /// <summary>Un pendiente (Faltante) o un bloqueo de plataforma (Estado null) de un Trabajador sí es incidencia, no «por vencer».</summary>
+    [Theory]
+    [InlineData(EstadoDocumento.Faltante)]
+    [InlineData(null)]
+    public void Un_Trabajador_con_un_pendiente_o_un_bloqueo_cuenta_como_incidencia_y_no_como_por_vencer(EstadoDocumento? estado)
+    {
+        var id = Guid.NewGuid();
+        var mediador = Registrar(new MediatorFalso());
+        mediador.Detalles[id] = Detalle(id, "Centro Norte");
+        mediador.Resumenes[id] = Resumen(id, "Centro Norte",
+            vencidas: [Incidencia("PRL") with { Estado = estado, TrabajadorId = Guid.NewGuid() }]);
+
+        var cut = Renderizar(id);
+
+        var contador = cut.FindAll("[role=tab]")[0].QuerySelector(".pestanas-contador")!;
+        contador.TextContent.Trim().Should().Be("1 trabajador con incidencias");
+        contador.ClassList.Contains("pestanas-contador-alerta").Should().BeTrue();
+    }
+
+    [Fact]
+    public void El_contador_de_Trabajadores_solo_cuenta_los_que_tienen_un_vencido_aunque_otros_esten_por_vencer()
+    {
+        var id = Guid.NewGuid();
+        var conVencido = Guid.NewGuid();
+        var mixto = Guid.NewGuid();
+        var soloPorVencer = Guid.NewGuid();
+        var mediador = Registrar(new MediatorFalso());
+        mediador.Detalles[id] = Detalle(id, "Centro Norte");
+        mediador.Resumenes[id] = Resumen(id, "Centro Norte",
+            vencidas: [Incidencia("PRL") with { TrabajadorId = conVencido }, Incidencia("Aptitud") with { TrabajadorId = mixto }],
+            proximas: [PorVencerDe(mixto), PorVencerDe(soloPorVencer)]);
+
+        var cut = Renderizar(id);
+
+        var contador = cut.FindAll("[role=tab]")[0].QuerySelector(".pestanas-contador")!;
+        contador.TextContent.Trim().Should().Be("2 trabajadores con incidencias");
+        contador.ClassList.Contains("pestanas-contador-alerta").Should().BeTrue();
     }
 
     [Fact]
@@ -628,6 +700,49 @@ public partial class Centro360Gen2Tests : BunitContext
         var pestana = cut.WaitForElements("[role=tab]").Single(p => p.TextContent.Contains("Documentación Empresa"));
         pestana.TextContent.Should().Contain("2", "los dos documentos de Empresa con incidencia, no el de Trabajador");
         cut.FindAll("[data-bloque-empresa]").Should().BeEmpty("el bloque «Empresa» ya no abre la pestaña Trabajadores");
+    }
+
+    /// <summary>
+    /// Demo con IT (2026-11-10): con solo documentos de Empresa por vencer, la pestaña «Documentación Empresa» no se pinta en alerta
+    /// ni habla de incidencia (misma regla que el bloque Empresa de /centros: <c>IncidenciaCentroDto.HayIncidencia</c>).
+    /// </summary>
+    [Fact]
+    public void Con_solo_documentos_de_Empresa_por_vencer_el_contador_de_Documentacion_Empresa_no_esta_en_alerta()
+    {
+        var id = Guid.NewGuid();
+        var mediador = Registrar(new MediatorFalso());
+        mediador.Detalles[id] = Detalle(id, "Centro Norte");
+        mediador.Resumenes[id] = Resumen(id, "Centro Norte", estado: EstadoCentro.Proximo, proximas:
+        [
+            Incidencia("Seguro de responsabilidad civil — Empresa", AmbitoCausa.Empresa) with { Estado = EstadoDocumento.Proximo },
+            Incidencia("Certificado TGSS — Empresa", AmbitoCausa.Empresa) with { Estado = EstadoDocumento.Proximo }
+        ]);
+
+        var cut = Renderizar(id);
+
+        var pestana = cut.WaitForElements("[role=tab]").Single(p => p.TextContent.Contains("Documentación Empresa"));
+        var contador = pestana.QuerySelector(".pestanas-contador")!;
+        contador.TextContent.Trim().Should().Be("2 documentos de Empresa por vencer");
+        contador.ClassList.Contains("pestanas-contador-alerta").Should().BeFalse("«Por vencer» no es una incidencia");
+    }
+
+    [Fact]
+    public void Con_un_solo_documento_de_Empresa_por_vencer_el_contador_va_en_singular_y_sin_alerta()
+    {
+        var id = Guid.NewGuid();
+        var mediador = Registrar(new MediatorFalso());
+        mediador.Detalles[id] = Detalle(id, "Centro Norte");
+        mediador.Resumenes[id] = Resumen(id, "Centro Norte", estado: EstadoCentro.Proximo, proximas:
+        [
+            Incidencia("Seguro — Empresa", AmbitoCausa.Empresa) with { Estado = EstadoDocumento.Urgente }
+        ]);
+
+        var cut = Renderizar(id);
+
+        var pestana = cut.WaitForElements("[role=tab]").Single(p => p.TextContent.Contains("Documentación Empresa"));
+        var contador = pestana.QuerySelector(".pestanas-contador")!;
+        contador.TextContent.Trim().Should().Be("1 documento de Empresa por vencer");
+        contador.ClassList.Contains("pestanas-contador-alerta").Should().BeFalse();
     }
 
     [Fact]

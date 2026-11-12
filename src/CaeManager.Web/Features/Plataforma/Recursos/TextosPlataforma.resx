@@ -55,4 +55,46 @@
     <value>No tienes permiso para cerrar esa sesión de soporte o la sesión ya ha cambiado.</value>
   </data>
   <data name="MotivoConfirmacion" xml:space="preserve"><value>Marca la casilla para confirmar.</value></data>
+  <data name="AjusteSegundoFactorTitulo" xml:space="preserve">
+    <value>Verificación en dos pasos para todos los perfiles</value>
+  </data>
+  <data name="AjusteSegundoFactorExplicacion" xml:space="preserve">
+    <value>Decide si esta organización exige la verificación en dos pasos a todas sus cuentas. El Administrador la tiene siempre obligatoria. El plazo de inactividad no se cambia desde aquí: lo fija el Administrador de la organización.</value>
+  </data>
+  <data name="AjusteSegundoFactorCampoEstado" xml:space="preserve">
+    <value>Estado actual</value>
+  </data>
+  <data name="AjusteSegundoFactorExigida" xml:space="preserve">
+    <value>Exigida a todos los perfiles</value>
+  </data>
+  <data name="AjusteSegundoFactorNoExigida" xml:space="preserve">
+    <value>Obligatoria solo para el Administrador</value>
+  </data>
+  <data name="AjusteSegundoFactorActivar" xml:space="preserve">
+    <value>Exigir a todos los perfiles</value>
+  </data>
+  <data name="AjusteSegundoFactorDesactivar" xml:space="preserve">
+    <value>Dejar de exigirla a todos los perfiles</value>
+  </data>
+  <data name="AjusteSegundoFactorConfirmacionActivar" xml:space="preserve">
+    <value>Todas las cuentas de esta organización tendrán que usar la verificación en dos pasos. Las sesiones abiertas lo reciben en un minuto como mucho.</value>
+  </data>
+  <data name="AjusteSegundoFactorConfirmacionDesactivar" xml:space="preserve">
+    <value>Solo el Administrador seguirá teniendo la verificación en dos pasos obligatoria. Las sesiones abiertas lo reciben en un minuto como mucho.</value>
+  </data>
+  <data name="AjusteSegundoFactorMotivo" xml:space="preserve">
+    <value>Motivo y referencia de la petición</value>
+  </data>
+  <data name="AjusteSegundoFactorMotivoObligatorio" xml:space="preserve">
+    <value>Indica el motivo y la referencia de la petición.</value>
+  </data>
+  <data name="AjusteSegundoFactorExito" xml:space="preserve">
+    <value>Ajuste cambiado. Queda registrado con tu identidad y esta sesión de soporte.</value>
+  </data>
+  <data name="AjusteSegundoFactorCancelar" xml:space="preserve">
+    <value>Cancelar</value>
+  </data>
+  <data name="AjusteSegundoFactorConfirmar" xml:space="preserve">
+    <value>Confirmar el cambio</value>
+  </data>
 </root>

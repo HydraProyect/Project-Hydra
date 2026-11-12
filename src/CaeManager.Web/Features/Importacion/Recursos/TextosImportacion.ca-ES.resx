@@ -570,4 +570,174 @@
   <data name="ErrorAnalisisSinTenant" xml:space="preserve"><value>No s’ha pogut determinar amb quina organització treballes en aquesta sessió. Torna a iniciar la sessió i torna-ho a provar.</value></data>
   <data name="ErrorLimiteFilas" xml:space="preserve"><value>El fitxer supera el màxim de files permès per full.</value></data>
   <data name="ErrorLimiteCeldas" xml:space="preserve"><value>El fitxer supera el màxim de cel·les permès.</value></data>
+  <data name="EstAriaPasos" xml:space="preserve"><value>Passos del Pas 1</value></data>
+  <data name="EstCompletado" xml:space="preserve"><value>Completat:</value></data>
+  <data name="EstPasoPlantilla" xml:space="preserve"><value>Plantilla</value></data>
+  <data name="EstPasoSubir" xml:space="preserve"><value>Pujar</value></data>
+  <data name="EstPasoValidar" xml:space="preserve"><value>Validar</value></data>
+  <data name="EstPasoVistaPrevia" xml:space="preserve"><value>Vista prèvia</value></data>
+  <data name="EstPasoConfirmar" xml:space="preserve"><value>Confirmar</value></data>
+  <data name="EstPasoInforme" xml:space="preserve"><value>Informe</value></data>
+  <data name="EstSubtitulo" xml:space="preserve"><value>Pas 1 · Estructura. Carregues l'estructura de l'activitat amb una plantilla Excel tancada. No s'escriu res fins que confirmes.</value></data>
+  <data name="EstSubAnalizando" xml:space="preserve"><value>Pas 1 · Estructura. S'analitza el fitxer sense escriure res a TALVEG.</value></data>
+  <data name="EstSubValidacion" xml:space="preserve"><value>Pas 1 · Estructura. Anàlisi acabada: encara no s'ha escrit res.</value></data>
+  <data name="EstSubVistaPrevia" xml:space="preserve"><value>Pas 1 · Estructura. Això és el que es farà. Encara no s'ha escrit res.</value></data>
+  <data name="EstSubEscribiendo" xml:space="preserve"><value>Pas 1 · Estructura. S'està escrivint la importació.</value></data>
+  <data name="EstSubInforme" xml:space="preserve"><value>Pas 1 · Estructura acabat.</value></data>
+  <data name="EstTituloDescarga" xml:space="preserve"><value>1 · Descarrega la plantilla mestra</value></data>
+  <data name="EstTextoDescarga" xml:space="preserve"><value>Una sola plantilla per a totes les entitats. Omple-la amb les dades de la teva activitat.</value></data>
+  <data name="EstVersion" xml:space="preserve"><value>Versió 1</value></data>
+  <data name="EstDetallePlantilla" xml:space="preserve"><value>10 fulls (Instruccions i 9 de dades) · un asterisc marca les columnes obligatòries · exemples fictícis a la fila 2</value></data>
+  <data name="EstBotonDescargar" xml:space="preserve"><value>Descarrega la plantilla</value></data>
+  <data name="EstAriaHojasPlantilla" xml:space="preserve"><value>Fulls de dades de la plantilla</value></data>
+  <data name="EstSinCredencialesTitulo" xml:space="preserve"><value>Sense credencials.</value></data>
+  <data name="EstSinCredencialesTexto" xml:space="preserve"><value>La plantilla no té columnes d'usuari ni de contrasenya, i l'Excel de credencials de plataformes no es puja mai a TALVEG.</value></data>
+  <data name="EstNadaMedicoTitulo" xml:space="preserve"><value>Res mèdic.</value></data>
+  <data name="EstNadaMedicoTexto" xml:space="preserve"><value>No escriguis diagnòstics, baixes ni restriccions a Observacions o Notes. Només l'aptitud es gestiona, i com a Document al Pas 2.</value></data>
+  <data name="EstTituloSubida" xml:space="preserve"><value>2 · Puja l'Excel emplenat</value></data>
+  <data name="EstTextoSubida" xml:space="preserve"><value>S'analitza sense escriure res. Veuràs errors per full i fila abans de confirmar.</value></data>
+  <data name="EstArchivoNoAceptado" xml:space="preserve"><value>Fitxer no acceptat</value></data>
+  <data name="EstZonaTitulo" xml:space="preserve"><value>Arrossega aquí el fitxer .xlsx</value></data>
+  <data name="EstZonaFormatos" xml:space="preserve"><value>Només .xlsx · fins a {0} MB · un fitxer correspon a una sola organització</value></data>
+  <data name="EstTituloQueCrea" xml:space="preserve"><value>Què crea el Pas 1</value></data>
+  <data name="EstQueCreaEmpresas" xml:space="preserve"><value>Empreses, amb el seu CIF.</value></data>
+  <data name="EstQueCreaClientes" xml:space="preserve"><value>Clients, la seva relació amb l'Empresa i els seus Centres.</value></data>
+  <data name="EstQueCreaTrabajadores" xml:space="preserve"><value>Treballadors, amb la seva identitat (DNI, NIE o passaport).</value></data>
+  <data name="EstTituloQueNoHace" xml:space="preserve"><value>Què no fa</value></data>
+  <data name="EstNoHacePendientes" xml:space="preserve"><value>Subcontractes, Accessos per Centre, Assignacions, Vehicles i Tipus de document: l'anàlisi reconeix aquests fulls i els compta, però aquesta versió encara no els importa.</value></data>
+  <data name="EstNoHacePdf" xml:space="preserve"><value>No importa cap PDF: els documents es pugen al Pas 2 (properament).</value></data>
+  <data name="EstNoHaceDuplica" xml:space="preserve"><value>No duplica si repeteixes el fitxer: deduplica per CIF, identitat i Client + nom del Centre.</value></data>
+  <data name="EstYaImportaste" xml:space="preserve"><value>Ja has importat abans? Consulta l'</value></data>
+  <data name="EstEnlaceHistorial" xml:space="preserve"><value>historial d'importacions</value></data>
+  <data name="EstSistemaAnalizando" xml:space="preserve"><value>El sistema està analitzant</value></data>
+  <data name="EstAnalizandoTitulo" xml:space="preserve"><value>Analitzant, sense escriure res.</value></data>
+  <data name="EstAnalizandoTexto" xml:space="preserve"><value>Comprova l'estructura dels fulls, CIF, DNI i NIE, duplicats i referències entre fulls.</value></data>
+  <data name="EstAriaProgresoAnalisis" xml:space="preserve"><value>Anàlisi del fitxer en curs</value></data>
+  <data name="EstAnalizandoPista" xml:space="preserve"><value>Sol trigar menys d'un minut.</value></data>
+  <data name="EstBotonCancelarAnalisis" xml:space="preserve"><value>Cancel·la l'anàlisi</value></data>
+  <data name="EstErroresUno" xml:space="preserve"><value>1 fila té errors i no s'importarà.</value></data>
+  <data name="EstErroresVarios" xml:space="preserve"><value>{0} files tenen errors i no s'importaran.</value></data>
+  <data name="EstErroresConsejo" xml:space="preserve"><value>Corregeix l'Excel i torna a pujar-lo: repetir el fitxer no duplica res. Si continues sense aquestes files, quedaran a l'informe amb el seu motiu.</value></data>
+  <data name="EstSinValidasTitulo" xml:space="preserve"><value>Cap fila vàlida.</value></data>
+  <data name="EstSinValidasTexto" xml:space="preserve"><value>El fitxer no porta files per importar. Revisa que has omplert els fulls de la plantilla i torna a pujar-lo.</value></data>
+  <data name="EstSinErroresTitulo" xml:space="preserve"><value>Sense errors.</value></data>
+  <data name="EstSinErroresTexto" xml:space="preserve"><value>Totes les files llegides són vàlides. Continua per veure què es farà abans d'escriure res.</value></data>
+  <data name="EstPendientesTitulo" xml:space="preserve"><value>Fulls reconeguts que encara no s'importen.</value></data>
+  <data name="EstPendientesTexto" xml:space="preserve"><value>Es compten, però aquesta versió no els importa: {0}.</value></data>
+  <data name="EstKpiLeidas" xml:space="preserve"><value>Files llegides</value></data>
+  <data name="EstKpiValidas" xml:space="preserve"><value>Vàlides</value></data>
+  <data name="EstKpiConError" xml:space="preserve"><value>Amb error</value></data>
+  <data name="EstKpiConAviso" xml:space="preserve"><value>Amb avís</value></data>
+  <data name="EstAriaHojas" xml:space="preserve"><value>Fulls del fitxer</value></data>
+  <data name="EstHojaPendiente" xml:space="preserve"><value>no s'importa</value></data>
+  <data name="EstHojaAvisos" xml:space="preserve"><value>avisos</value></data>
+  <data name="EstHojaVacia" xml:space="preserve"><value>buit</value></data>
+  <data name="EstTituloHoja" xml:space="preserve"><value>{0} · {1} errors i {2} avisos</value></data>
+  <data name="EstHojaPendienteTexto" xml:space="preserve"><value>{0} files llegides. Aquest full es reconeix i es compta, però aquesta versió encara no l'importa.</value></data>
+  <data name="EstHojaLeidas" xml:space="preserve"><value>{0} files llegides. Cada fila indica el full i el número de fila tal com són al teu Excel.</value></data>
+  <data name="EstBuscarEnHoja" xml:space="preserve"><value>Cerca en aquest full</value></data>
+  <data name="EstBotonDescargarErrores" xml:space="preserve"><value>Descarrega els errors (CSV)</value></data>
+  <data name="EstHojaSinIncidencias" xml:space="preserve"><value>Aquest full no té errors ni avisos per mostrar.</value></data>
+  <data name="EstAriaTabla" xml:space="preserve"><value>Taula amb desplaçament</value></data>
+  <data name="EstColFila" xml:space="preserve"><value>Fila</value></data>
+  <data name="EstColElemento" xml:space="preserve"><value>Element</value></data>
+  <data name="EstColMotivo" xml:space="preserve"><value>Motiu</value></data>
+  <data name="EstColGravedad" xml:space="preserve"><value>Gravetat</value></data>
+  <data name="EstError" xml:space="preserve"><value>Error</value></data>
+  <data name="EstAviso" xml:space="preserve"><value>Avís</value></data>
+  <data name="EstMostrandoDe" xml:space="preserve"><value>Mostrant {0} de {1}. Veure-ho tot al CSV descarregable.</value></data>
+  <data name="EstBotonReintentar" xml:space="preserve"><value>Reintenta</value></data>
+  <data name="EstKpiSeCrearan" xml:space="preserve"><value>Es crearan</value></data>
+  <data name="EstKpiSeActualizaran" xml:space="preserve"><value>S'actualitzaran</value></data>
+  <data name="EstKpiSinCambios" xml:space="preserve"><value>Sense canvis</value></data>
+  <data name="EstKpiSeOmitiran" xml:space="preserve"><value>S'ometran</value></data>
+  <data name="EstTituloEntidades" xml:space="preserve"><value>Què passarà amb cada entitat</value></data>
+  <data name="EstTextoEntidades" xml:space="preserve"><value>«S'ometran» són les files amb error: queden a l'informe amb full, fila i motiu.</value></data>
+  <data name="EstColEntidad" xml:space="preserve"><value>Entitat</value></data>
+  <data name="EstColCrear" xml:space="preserve"><value>Crear</value></data>
+  <data name="EstColActualizar" xml:space="preserve"><value>Actualitzar</value></data>
+  <data name="EstColSinCambios" xml:space="preserve"><value>Sense canvis</value></data>
+  <data name="EstColOmitir" xml:space="preserve"><value>Ometre</value></data>
+  <data name="EstColIdentifica" xml:space="preserve"><value>Com s'identifica</value></data>
+  <data name="EstEntEmpresas" xml:space="preserve"><value>Empreses</value></data>
+  <data name="EstEntClientes" xml:space="preserve"><value>Clients</value></data>
+  <data name="EstEntRelaciones" xml:space="preserve"><value>Relacions Empresa - Client</value></data>
+  <data name="EstEntCentros" xml:space="preserve"><value>Centres</value></data>
+  <data name="EstEntTrabajadores" xml:space="preserve"><value>Treballadors</value></data>
+  <data name="EstIdCif" xml:space="preserve"><value>CIF</value></data>
+  <data name="EstIdRelacion" xml:space="preserve"><value>CIF del Client + CIF de l'Empresa</value></data>
+  <data name="EstIdCentro" xml:space="preserve"><value>Client + nom del Centre</value></data>
+  <data name="EstIdTrabajador" xml:space="preserve"><value>DNI, NIE o passaport</value></data>
+  <data name="EstTituloModo" xml:space="preserve"><value>Si una dada ja existeix</value></data>
+  <data name="EstModoCompletar" xml:space="preserve"><value>Completar dades buides (recomanat)</value></data>
+  <data name="EstModoCompletarTexto" xml:space="preserve"><value>Omple el que falti i no trepitja res del que ja té TALVEG.</value></data>
+  <data name="EstModoReemplazar" xml:space="preserve"><value>Reemplaçar amb el de l'Excel</value></data>
+  <data name="EstModoReemplazarTexto" xml:space="preserve"><value>Sobreescriu els camps que difereixin. S'anoten a l'informe un a un.</value></data>
+  <data name="EstReemplazarNoRevierte" xml:space="preserve"><value>Reemplaçar no es pot revertir.</value></data>
+  <data name="EstReemplazarNadaCambia" xml:space="preserve"><value>Amb aquest fitxer no canviaria cap valor que ja existeixi (amb «Completar»: 0).</value></data>
+  <data name="EstReemplazarCambiarian" xml:space="preserve"><value>Canviarien {0} camps en {1} registres (amb «Completar»: 0).</value></data>
+  <data name="EstReemplazarDescarga" xml:space="preserve"><value>Descarrega abans la llista de valors previs.</value></data>
+  <data name="EstBotonValoresPrevios" xml:space="preserve"><value>Valors previs (CSV)</value></data>
+  <data name="EstVerValoresPrevios" xml:space="preserve"><value>Veure els {0} valors que se sobreescriurien</value></data>
+  <data name="EstColHoja" xml:space="preserve"><value>Full</value></data>
+  <data name="EstColCampo" xml:space="preserve"><value>Camp</value></data>
+  <data name="EstColValorPrevio" xml:space="preserve"><value>Valor previ</value></data>
+  <data name="EstColValorNuevo" xml:space="preserve"><value>Valor nou</value></data>
+  <data name="EstTituloConfirmar" xml:space="preserve"><value>Confirmar la importació</value></data>
+  <data name="EstTextoConfirmar" xml:space="preserve"><value>S'escriu a la teva organització. Confirmar dues vegades la mateixa importació no duplica res.</value></data>
+  <data name="EstBotonDescartar" xml:space="preserve"><value>Descarta aquesta importació</value></data>
+  <data name="EstBotonVolver" xml:space="preserve"><value>Tornar</value></data>
+  <data name="EstAriaAcciones" xml:space="preserve"><value>Accions del pas</value></data>
+  <data name="EstBotonContinuarSinErrores" xml:space="preserve"><value>Continuar sense les files amb error</value></data>
+  <data name="EstSistemaEscribiendo" xml:space="preserve"><value>El sistema està escrivint</value></data>
+  <data name="EstEscribiendoTitulo" xml:space="preserve"><value>Escrivint…</value></data>
+  <data name="EstAriaProgresoEscritura" xml:space="preserve"><value>Escriptura de la importació en curs</value></data>
+  <data name="EstEscribiendoTexto" xml:space="preserve"><value>Aquesta importació no es pot pausar ni cancel·lar des d'aquí. Confirmar de nou la mateixa importació no duplica res.</value></data>
+  <data name="EstYaEjecutadaTitulo" xml:space="preserve"><value>Aquesta importació ja s'havia confirmat.</value></data>
+  <data name="EstYaEjecutadaTexto" xml:space="preserve"><value>Una altra confirmació d'aquesta mateixa importació ja la va desar: no s'ha tornat a escriure res i aquesta pantalla no té l'informe del que es va escriure.</value></data>
+  <data name="EstYaEjecutadaEnlace" xml:space="preserve"><value>Consulta l'historial d'importacions</value></data>
+  <data name="EstInformeCompletadaSinOmitidas" xml:space="preserve"><value>Importació completada sense files omeses.</value></data>
+  <data name="EstInformeCompletadaUnaOmitida" xml:space="preserve"><value>Importació completada amb 1 fila omesa.</value></data>
+  <data name="EstInformeCompletadaOmitidas" xml:space="preserve"><value>Importació completada amb {0} files omeses.</value></data>
+  <data name="EstInformeTexto" xml:space="preserve"><value>S'ha aplicat el vàlid; les omeses són a l'informe amb full, fila i motiu. No s'ha descartat res en silenci.</value></data>
+  <data name="EstKpiCreados" xml:space="preserve"><value>Creats</value></data>
+  <data name="EstKpiActualizados" xml:space="preserve"><value>Actualitzats</value></data>
+  <data name="EstKpiOmitidos" xml:space="preserve"><value>Omesos</value></data>
+  <data name="EstTituloDetalle" xml:space="preserve"><value>Detall per entitat</value></data>
+  <data name="EstDetalleOperacion" xml:space="preserve"><value>Operació {0} · fitxer {1}</value></data>
+  <data name="EstBotonInformeCompleto" xml:space="preserve"><value>Informe complet (CSV)</value></data>
+  <data name="EstBotonSoloOmitidas" xml:space="preserve"><value>Només files omeses (CSV)</value></data>
+  <data name="EstColCreados" xml:space="preserve"><value>Creats</value></data>
+  <data name="EstColActualizados" xml:space="preserve"><value>Actualitzats</value></data>
+  <data name="EstColOmitidos" xml:space="preserve"><value>Omesos</value></data>
+  <data name="EstColAvisos" xml:space="preserve"><value>Avisos</value></data>
+  <data name="EstNAvisos" xml:space="preserve"><value>{0} avisos</value></data>
+  <data name="EstHojaClientes" xml:space="preserve"><value>Clientes empresariales</value></data>  <data name="EstHojaAccesos" xml:space="preserve"><value>Accesos por Centro</value></data>
+  <data name="EstHojaVehiculos" xml:space="preserve"><value>Vehículos</value></data>
+  <data name="EstHojaTiposDocumento" xml:space="preserve"><value>Tipos de documento</value></data>
+  <data name="EstSinAvisosGuion" xml:space="preserve"><value>—</value></data>
+  <data name="EstInformeCampos" xml:space="preserve"><value>Camps buits omplerts: {0}. Valors existents sobreescrits: {1}.</value></data>
+  <data name="EstDialogoTitulo" xml:space="preserve"><value>Sobreescriure valors existents?</value></data>
+  <data name="EstDialogoMensaje" xml:space="preserve"><value>Reemplaçar canvia {0} camps de {1} registres i no es pot revertir. Importar igualment?</value></data>
+  <data name="EstDialogoConfirmar" xml:space="preserve"><value>Sí, reemplaça i importa</value></data>
+  <data name="EstErrorExtension" xml:space="preserve"><value>Només s'admeten fitxers .xlsx.</value></data>
+  <data name="EstErrorVariosArchivos" xml:space="preserve"><value>Puja un sol fitxer .xlsx cada vegada.</value></data>
+  <data name="EstErrorTamano" xml:space="preserve"><value>El fitxer pesa més de {0} MB.</value></data>
+  <data name="EstErrorPrevia" xml:space="preserve"><value>No hem pogut calcular la vista prèvia. Torna-ho a provar.</value></data>
+  <data name="EstVistaPreviaCambiada" xml:space="preserve"><value>Les dades han canviat des de la vista prèvia (per exemple, una altra persona ha editat un registre). No s'ha escrit res: revisa la vista prèvia actualitzada i torna a confirmar.</value></data>
+  <data name="EstTituloOmitidasPrevia" xml:space="preserve"><value>Files que s'ometran en confirmar</value></data>
+  <data name="EstTextoOmitidasPrevia" xml:space="preserve"><value>Les files amb error de la validació i les que l'escriptura no podrà aplicar (per exemple, una raó social ja ocupada), cadascuna amb el seu motiu. Cap no s'escriu.</value></data>
+  <data name="EstBotonOmitidasPrevia" xml:space="preserve"><value>Files omeses (CSV)</value></data>
+  <data name="EstErrorDescarga" xml:space="preserve"><value>No hem pogut preparar la descàrrega.</value></data>
+  <data name="EstSobrescrito" xml:space="preserve"><value>Sobreescrit</value></data>
+  <data name="EstBotonValidar" xml:space="preserve"><value>Validar el fitxer</value></data>
+  <data name="EstBotonCorregir" xml:space="preserve"><value>Corregir i pujar de nou</value></data>
+  <data name="EstBotonContinuarVistaPrevia" xml:space="preserve"><value>Continuar a la vista prèvia</value></data>
+  <data name="EstBotonConfirmar" xml:space="preserve"><value>Confirmar i importar (canvis: {0})</value></data>
+  <data name="EstBotonOtraImportacion" xml:space="preserve"><value>Fer una altra importació</value></data>
+  <data name="EstNavAria" xml:space="preserve"><value>Importació</value></data>
+  <data name="EstNavPaso1" xml:space="preserve"><value>Pas 1 · Estructura (Excel)</value></data>
+  <data name="EstNavPaso2" xml:space="preserve"><value>Pas 2 · Documents (PDF)</value></data>
+  <data name="EstNavPaso2Proximamente" xml:space="preserve"><value>properament</value></data>
+  <data name="EstNavHistorial" xml:space="preserve"><value>Historial i altres plantilles</value></data>
 </root>

@@ -21,10 +21,18 @@
     border-left: 4px solid var(--color-danger-500);
 }
 
+/*
+  La cabecera envuelve (flex-wrap) en vez de apilar con una consulta de medios o de contenedor: el título tiene una base
+  mínima legible (.grupo-cola-info) y, si los badges no caben a su lado, bajan a una segunda línea. Una consulta de
+  contenedor aquí (container-type) metería la tarjeta en un bloque contenedor para sus descendientes con position: fixed,
+  y la hoja inferior de VentanaContexto en móvil dejaría de anclarse al viewport. A 1024 y a 375 px los badges competían
+  con el título por el ancho (flex: none) y el nombre de la Empresa salía en tres líneas.
+*/
 .grupo-cola-cabecera {
     display: flex;
+    flex-wrap: wrap;
     align-items: center;
-    gap: var(--space-3);
+    gap: var(--space-2) var(--space-3);
     width: 100%;
     padding: var(--space-3) var(--space-4);
     background: none;
@@ -60,8 +68,9 @@
     transform: rotate(0deg);
 }
 
+/* Base de 14rem: por debajo de ese ancho el título no se aprieta más, los badges pasan a la línea siguiente. */
 .grupo-cola-info {
-    flex: 1;
+    flex: 1 1 14rem;
     min-width: 0;
     display: flex;
     flex-direction: column;
@@ -72,6 +81,8 @@
     font: var(--font-body-md);
     font-weight: 600;
     color: var(--color-text);
+    /* Un nombre sin espacios (razón social larga, un CIF pegado) no debe salirse de la tarjeta. */
+    overflow-wrap: anywhere;
 }
 
 .grupo-cola-resumen {
@@ -79,8 +90,11 @@
     color: var(--color-text-muted);
 }
 
+/* Pueden encoger y envolver: con `flex: none` el bloque robaba el ancho al título y se cortaba por la derecha. A la
+   derecha del título si caben en su línea (lo empuja el flex-grow de .grupo-cola-info); a la izquierda en la segunda. */
 .grupo-cola-badges {
-    flex: none;
+    flex: 0 1 auto;
+    min-width: 0;
     display: flex;
     align-items: center;
     gap: var(--space-2);

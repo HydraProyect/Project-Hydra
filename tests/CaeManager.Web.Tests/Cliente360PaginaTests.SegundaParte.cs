@@ -114,7 +114,8 @@ public partial class Cliente360PaginaTests
 
         var fila = Renderizar(id).Find("li.fila-relacion");
 
-        fila.QuerySelector(".cliente360-bloqueo-plataforma")!.TextContent.Should().Be("Bloqueo de la plataforma CAE");
+        // El bloqueo lo dice la pastilla de estado; el rótulo junto al nombre no lo repite (2026-11-08).
+        fila.QuerySelector(".fila-relacion-estado")!.TextContent.Trim().Should().Be("Bloqueo de la plataforma CAE");
         fila.QuerySelector(".fila-relacion-detalle")!.TextContent.Should().Contain("1 documento bloquea el acceso")
             .And.NotContain("Todo validado");
     }

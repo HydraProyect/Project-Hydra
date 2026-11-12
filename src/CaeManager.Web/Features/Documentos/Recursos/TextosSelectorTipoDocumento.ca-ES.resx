@@ -12,12 +12,6 @@
   <resheader name="writer">
     <value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
   </resheader>
-  <data name="EtiquetaBuscador" xml:space="preserve">
-    <value>Cerca tipus</value>
-  </data>
-  <data name="MarcadorBuscador" xml:space="preserve">
-    <value>Escriu una part del nom…</value>
-  </data>
   <data name="EtiquetaTipo" xml:space="preserve">
     <value>Tipus de document</value>
   </data>
@@ -34,6 +28,6 @@
     <value>Altres</value>
   </data>
   <data name="SinCoincidencias" xml:space="preserve">
-    <value>Cap tipus coincideix amb «{0}».</value>
+    <value>Sense coincidències</value>
   </data>
 </root>

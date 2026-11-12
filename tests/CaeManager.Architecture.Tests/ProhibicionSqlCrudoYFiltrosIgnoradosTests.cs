@@ -75,17 +75,30 @@ public class ProhibicionSqlCrudoYFiltrosIgnoradosTests
         // El índice (TenantId, Dni) incluye a los Trabajadores de la Papelera; la importación los detecta antes de dar de alta
         // y repone explícitamente el Tenant propietario en la misma consulta, sin devolver más que los DNI pedidos.
         [("src/CaeManager.Infrastructure/Persistence/Repositories/TrabajadorRepository.cs", "var enPapelera = await dbContext.Trabajadores.IgnoreQueryFilters().AsNoTracking()")] = 1,
+        // Antes de compensar el PDF de un alta rechazada se pregunta si su Documento consta, también eliminado (conserva su
+        // archivo): solo responde sí o no por un Id, y repone explícitamente el Tenant propietario en la misma consulta.
+        [("src/CaeManager.Infrastructure/Persistence/Repositories/DocumentoRepository.cs", "|| await dbContext.Documentos.IgnoreQueryFilters().AsNoTracking()")] = 1,
         // Fase D "deshacer al eliminar": el registro borrado (soft-delete)
         // queda fuera del filtro global de tenant/borrado — hay que saltarlo
         // a propósito para poder restaurarlo, con el TenantId comprobado a mano.
         [("src/CaeManager.Application/Clientes/Commands/RestaurarCliente/RestaurarClienteCommand.cs", ".IgnoreQueryFilters()")] = 1,
-        [("src/CaeManager.Application/Centros/Commands/RestaurarCentro/RestaurarCentroCommand.cs", ".IgnoreQueryFilters()")] = 1,
         [("src/CaeManager.Application/Empresas/Commands/RestaurarEmpresa/RestaurarEmpresaCommand.cs", ".IgnoreQueryFilters()")] = 1,
         [("src/CaeManager.Application/Trabajadores/Commands/RestaurarTrabajador/RestaurarTrabajadorCommand.cs", ".IgnoreQueryFilters()")] = 1,
-        // 2: el Documento eliminado, y el Proyecto dueño, que puede estar eliminado también (EliminarProyecto no
-        // arrastra sus Documentos) y del que se lee solo el Cliente empresarial para la Asignación de Cartera;
-        // las dos consultas van acotadas al Tenant actual.
-        [("src/CaeManager.Application/Documentos/Commands/RestaurarDocumento/RestaurarDocumentoCommand.cs", ".IgnoreQueryFilters()")] = 2,
+        // El Proyecto dueño, que puede estar eliminado (EliminarProyecto no arrastra sus Documentos) y del que se lee solo
+        // el Cliente empresarial para la Asignación de Cartera, acotado al Tenant actual. El Documento eliminado se lee con
+        // DocumentoRepository.ObtenerIncluidoEliminadoActualizadoAsync.
+        [("src/CaeManager.Application/Documentos/Commands/RestaurarDocumento/RestaurarDocumentoCommand.cs", ".IgnoreQueryFilters()")] = 1,
+        // RestaurarCentro y RestaurarDocumento leen bajo el candado de la regla A-1 el Centro o el Documento eliminado, releído
+        // si el contexto ya lo rastreaba; reponen el TenantId en la misma consulta y RLS sigue aplicando.
+        [("src/CaeManager.Infrastructure/Persistence/Repositories/CentroRepository.cs", "dbContext.Centros.IgnoreQueryFilters().Where(c => c.Id == id && c.TenantId == tenantId), cancellationToken);")] = 1,
+        [("src/CaeManager.Infrastructure/Persistence/Repositories/DocumentoRepository.cs", "dbContext.Documentos.IgnoreQueryFilters().Where(d => d.Id == id && d.TenantId == tenantId), cancellationToken);")] = 1,
+        // La guarda de historial de «no lo pide» (MarcarAcreditacionNoRequerida, revisión Codex r3 de la PR #2172) lee el
+        // Documento sin rastrear, también eliminado, y lo vuelve a leer bajo FOR SHARE dentro de su transacción después de
+        // guardar la marca y antes de confirmar (bloquear antes del UPDATE interbloquearía con la corrección del Documento,
+        // que EF ordena acreditaciones primero): EF no expresa el bloqueo. Id y TenantId repuestos a mano en las dos; RLS
+        // sigue aplicando.
+        [("src/CaeManager.Infrastructure/Persistence/Repositories/DocumentoRepository.cs", "dbContext.Documentos.IgnoreQueryFilters().AsNoTracking()")] = 1,
+        [("src/CaeManager.Infrastructure/Persistence/Repositories/DocumentoRepository.cs", "var bloqueadas = await dbContext.Database.SqlQuery<Guid>($\"\"\"")] = 1,
         [("src/CaeManager.Application/Subcontratas/Commands/RestaurarSubcontrata/RestaurarSubcontrataCommand.cs", ".IgnoreQueryFilters()")] = 1,
         // Antes de borrar la copia de un adjunto comprueba que no haya fila con el Id reservado, tampoco entre las eliminadas,
         // que son restaurables y conservan su archivo. Solo Id y Tenant actual explícito; RLS sigue aplicando.
@@ -222,10 +235,26 @@ public class ProhibicionSqlCrudoYFiltrosIgnoradosTests
         // propia (Guid.Empty). Solo devuelven sí/no o el resultado; todos los parámetros van por EF.
         [("src/CaeManager.Infrastructure/AltaAutonoma/AccesoSolicitudesAlta.cs",
             "await contexto.Database.ExecuteSqlAsync($\"\"\"")] = 1,
+        // A4 (migración AltaDatosOrganizacionYCredencialContinuacion): la verificación pasa a dos funciones (mirar el
+        // enlace sin gastarlo, para comparar la contraseña en la aplicación, y verificar), y el paso «Empresa» a una
+        // tercera que responde solo el resultado y el Id de la propia Solicitud de alta, nada del Tenant propietario. La
+        // cuarta (app_alta_consultar_continuacion) solo lee el estado de la continuación para recargar sin transicionar.
         [("src/CaeManager.Infrastructure/AltaAutonoma/AccesoSolicitudesAlta.cs",
-            """.SqlQuery<string>($"SELECT public.app_alta_verificar_correo({hash}) AS \"Value\"")""")] = 1,
+            ".SqlQuery<FilaEnlace>($\"\"\"")] = 1,
+        [("src/CaeManager.Infrastructure/AltaAutonoma/AccesoSolicitudesAlta.cs",
+            ".SqlQuery<string>($\"\"\"")] = 2,
+        [("src/CaeManager.Infrastructure/AltaAutonoma/AccesoSolicitudesAlta.cs",
+            ".SqlQuery<FilaDatosOrganizacion>($\"\"\"")] = 1,
         [("src/CaeManager.Infrastructure/AltaAutonoma/AccesoSolicitudesAlta.cs",
             """.SqlQuery<bool>($"SELECT app_correo_en_uso_por_otra_cuenta({correoNormalizado}, {Guid.Empty}) AS \"Value\"")""")] = 1,
+
+        // Alta autónoma (A8, DA-7): caducidad y borrado de datos personales de SolicitudesAlta, que sigue cerrada. Dos
+        // funciones SECURITY DEFINER (migración CaducidadYBorradoSolicitudesAlta) con los plazos y el estado de origen
+        // escritos dentro; el único parámetro, el tamaño del lote, va por EF. Solo devuelven un recuento.
+        [("src/CaeManager.Infrastructure/AltaAutonoma/LimpiezaSolicitudesAlta.cs",
+            """.SqlQuery<int>($"SELECT public.app_alta_caducar_solicitudes({tamanoLote}) AS \"Value\"")""")] = 1,
+        [("src/CaeManager.Infrastructure/AltaAutonoma/LimpiezaSolicitudesAlta.cs",
+            """.SqlQuery<int>($"SELECT public.app_alta_borrar_datos_personales({tamanoLote}) AS \"Value\"")""")] = 1,
 
         // ADR-011 § 8.7, punto 3: Soporte TALVEG restablece la 2FA del Administrador único
         // desde una Sesión Privilegiada. Esa conexión lleva cae_app_soporte (solo
@@ -235,6 +264,7 @@ public class ProhibicionSqlCrudoYFiltrosIgnoradosTests
         // por ese rol, que vuelve a comprobar sesión, concesión y cuenta contra el
         // contexto RLS firmado antes de escribir. No lee filas: devuelve un código.
         // Los dos Guid van parametrizados por EF.
+        [("src/CaeManager.Infrastructure/Plataforma/AjusteSegundoFactorPorPlataforma.cs", ".SqlQuery<string>(")] = 1,          // Decisiones del 2026-11-08: el código de app_cambiar_segundo_factor_tenant_por_plataforma, con la conexión de cae_app_soporte (solo SELECT). La función SECURITY DEFINER repite sesión, capacidad, Tenant objetivo, actor y motivo; los tres valores van parametrizados por EF.
         [("src/CaeManager.Infrastructure/Plataforma/ConcesionAdministradorPorPlataforma.cs", ".SqlQuery<string>(")] = 1,          // Decisión del 2026-10-30: el código de app_conceder_administrador_por_plataforma.
         [("src/CaeManager.Infrastructure/Plataforma/RevocacionOperadorCaeExternoPorSoporte.cs", ".SqlQuery<string>(")] = 1,          // Enmienda de ADR-004 § 12.2 (2026-10-26): Soporte TALVEG revoca la Delegación del Operador CAE externo con la conexión de cae_app_soporte (solo SELECT); la escritura es la función SECURITY DEFINER app_revocar_operador_cae_externo_por_soporte, que repite sesión, capacidad, Tenant objetivo y motivo, y devuelve un código. Mismo patrón que el segundo factor.
         [("src/CaeManager.Infrastructure/Identity/SegundoFactorDeCuentasIdentity.cs",
@@ -536,6 +566,10 @@ public class ProhibicionSqlCrudoYFiltrosIgnoradosTests
 
         // Decisión D-3: mismo candado, para que suspender y reactivar un Tenant no se pisen.
         [("src/CaeManager.Infrastructure/Persistence/BloqueoEstadoOperativoTenant.cs", "return dbContext.Database.ExecuteSqlAsync(")] = 1,
+
+        // Regla A-1 (revisión Codex de la PR #2074): mismo candado, por Tenant, para que el alta de un
+        // Documento de Empresa y la de un acceso de plataforma no se pierdan el par. No toca filas.
+        [("src/CaeManager.Infrastructure/Persistence/SerializacionAltasAcreditacionEmpresa.cs", "await dbContext.Database.ExecuteSqlAsync(")] = 1,
 
         // Decisión del 2026-10-30, un Tenant no se queda sin Administrador: el candado de
         // los Administradores del Tenant (misma clave que app_bloquear_administradores_de_tenant,

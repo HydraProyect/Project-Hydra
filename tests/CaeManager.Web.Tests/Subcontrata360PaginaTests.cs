@@ -201,6 +201,41 @@ public class Subcontrata360PaginaTests : BunitContext
         cut.Markup.Should().NotContain("Cadena de subcontratación");
     }
 
+    /// <summary>
+    /// Un dato opcional sin valor no se pinta —ni su etiqueta ni un «—»— ni en la cabecera ni en la tarjeta de información del lateral.
+    /// Hasta ahora solo lo cubrían los tests del panel; esta es la página.
+    /// </summary>
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData("   ")]
+    public void El_CIF_y_Contratada_por_vacios_no_se_pintan_en_la_cabecera_ni_en_el_lateral(string? cif)
+    {
+        Montar(ajustar: m => m.Detalle = Detalle() with { Cif = cif, EmpresaIds = [] });
+
+        var cut = Renderizar();
+
+        var cabecera = cut.Find(".cabecera-identidad-datos").TextContent;
+        var lateral = cut.Find(".cuerpo-con-lateral-lateral").TextContent;
+        cabecera.Should().NotContain("CIF").And.NotContain("Contratada por");
+        lateral.Should().NotContain("Identificación fiscal").And.NotContain("Contratada por");
+        // La tarjeta sigue viva con lo que sí se tiene.
+        lateral.Should().Contain("Razón social").And.Contain("Alta");
+    }
+
+    [Fact]
+    public void Con_CIF_y_Empresas_contratantes_la_cabecera_y_el_lateral_los_pintan()
+    {
+        // Control del instrumento: sin él, el test de arriba pasaría aunque la página no pintara nunca estos datos.
+        Montar(ajustar: m => m.Detalle = Detalle() with { EmpresaIds = [Guid.NewGuid()] });
+
+        var cut = Renderizar();
+
+        var cabecera = cut.Find(".cabecera-identidad-datos").TextContent;
+        cabecera.Should().Contain("CIF").And.Contain("B70005204").And.Contain("Contratada por");
+        cut.Find(".cuerpo-con-lateral-lateral").TextContent.Should().Contain("Identificación fiscal").And.Contain("Contratada por");
+    }
+
     [Fact]
     public void La_URL_ficha_abre_la_Ficha_con_la_caja_de_cadena()
     {
@@ -728,6 +763,10 @@ public class Subcontrata360PaginaTests : BunitContext
             cut.FindAll(".cabecera-identidad-acciones button").Select(b => b.TextContent).Should().NotContain(t => t.Contains("Registrar verificación"));
             seccion.TextContent.Should().Contain("Gestionada: tu equipo guarda y renueva").And.Contain("RNT gestionado").And.Contain("Seguro gestionado");
             seccion.QuerySelectorAll(".fila-relacion .badge").Select(b => b.TextContent.Trim()).Should().Equal("Vencido", "Vigente");
+            // El icono de cada documento tiene que existir en el catálogo de Icono: un nombre inexistente pinta un cuadro vacío a la izquierda de la fila.
+            var iconos = seccion.QuerySelectorAll(".fila-relacion .fila-relacion-icono svg").ToList();
+            iconos.Should().HaveCount(2);
+            iconos.Should().OnlyContain(i => i.QuerySelectorAll("*").Length > 0, "el icono de la fila de Gestión no puede salir vacío");
             seccion.QuerySelectorAll(".fila-relacion").First().GetAttribute("data-tono").Should().Be("peligro");
             var q = m.Enviadas.OfType<ObtenerDocumentosQuery>().Should().ContainSingle().Which;
             q.PropietarioId.Should().Be(SubcontrataId);

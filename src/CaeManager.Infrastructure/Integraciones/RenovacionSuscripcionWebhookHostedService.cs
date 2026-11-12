@@ -1,7 +1,6 @@
 using CaeManager.Application.Common;
 using CaeManager.Application.Integraciones;
 using CaeManager.Application.Tenants;
-using CaeManager.Domain.Integraciones;
 using CaeManager.Domain.Tenants;
 using CaeManager.Infrastructure.Coordinacion;
 using Microsoft.EntityFrameworkCore;
@@ -17,6 +16,9 @@ namespace CaeManager.Infrastructure.Integraciones;
 /// <c>Microsoft365GraphClient</c>) — un sondeo diario es de sobra frente a
 /// esa ventana. Envuelto en elección de líder (P3-30), igual que
 /// <see cref="IngestaWebhookHostedService"/>.
+/// Solo los Tenants propietarios activos verifican identidad, reparan las marcas de hueco por registrar
+/// (<see cref="ReparacionMarcaHuecoService"/>) y renuevan; los no activos pasan únicamente por el barrido de la guarda
+/// transitoria de buzones compartidos (ver <see cref="RecorrerTenantsAsync"/>).
 /// </summary>
 public class RenovacionSuscripcionWebhookHostedService(
     IServiceScopeFactory ambitoFactory, IEleccionLiderService eleccionLider, ILogger<RenovacionSuscripcionWebhookHostedService> logger)
@@ -69,16 +71,54 @@ public class RenovacionSuscripcionWebhookHostedService(
 
     private async Task RenovarTodosLosTenantsAsync(CancellationToken stoppingToken)
     {
-        List<Guid> tenantsActivos;
+        List<TenantDelCiclo> tenants;
         using (var ambito = ambitoFactory.CreateScope())
         {
-            tenantsActivos = await ambito.ServiceProvider.GetRequiredService<ITenantsQueryContext>()
-                .Tenants.Where(t => t.Estado == EstadoTenant.Activo)
-                .Select(t => t.Id)
-                .ToListAsync(stoppingToken);
+            tenants = (await ambito.ServiceProvider.GetRequiredService<ITenantsQueryContext>()
+                    .Tenants.Select(t => new { t.Id, t.Estado })
+                    .ToListAsync(stoppingToken))
+                .Select(t => DelTenant(t.Id, t.Estado))
+                .ToList();
         }
 
-        foreach (var tenantId in tenantsActivos)
+        await RecorrerTenantsAsync(
+            tenants, RenovarPendientesDelTenantAsync, SacarDeGuardaTransitoriaTenantNoActivoAsync, logger, stoppingToken);
+    }
+
+    /// <summary>Un Tenant propietario que recorre el ciclo, y si está Activo.</summary>
+    internal readonly record struct TenantDelCiclo(Guid TenantId, bool Activo);
+
+    /// <summary>
+    /// Solo un Tenant <see cref="EstadoTenant.Activo"/> verifica y renueva; cualquier otro estado (hoy, Suspendido) va al
+    /// barrido, porque sus suscripciones no se renuevan.
+    /// </summary>
+    internal static TenantDelCiclo DelTenant(Guid tenantId, EstadoTenant estado) => new(tenantId, estado == EstadoTenant.Activo);
+
+    /// <summary>
+    /// El barrido de un Tenant no activo trata como terminal toda reclamación suya que cuente (<c>tenantActivo: false</c>):
+    /// sus suscripciones no se renuevan, así que ninguna de sus conexiones volverá a estar operativa sin pasar por
+    /// Reactivar. Recibe el método del servicio, no una lambda, para que el valor solo se decida aquí.
+    /// </summary>
+    internal static Task BarrerTenantNoActivoAsync(
+        Func<bool, CancellationToken, Task> sacarTerminalesDeGuardaTransitoria, CancellationToken stoppingToken) =>
+        sacarTerminalesDeGuardaTransitoria(false, stoppingToken);
+
+    /// <summary>
+    /// Reparte el ciclo entre los Tenants propietarios. Los activos, primero, completan la identidad de sus buzones y
+    /// renuevan sus suscripciones (<paramref name="cicloTenantActivo"/>). Los no activos solo pasan por el barrido de la
+    /// guarda transitoria (<paramref name="barridoTenantNoActivo"/>): ni se verifica su identidad ni se renueva su
+    /// suscripción, que caduca. Sin ese barrido, una reclamación heredada de un Tenant no activo contaría para siempre y
+    /// el alta de buzones compartidos quedaría en pausa en toda la plataforma
+    /// (ver <see cref="CompletarIdentidadBuzonService.SacarTerminalesDeGuardaTransitoriaAsync"/>).
+    /// </summary>
+    internal static async Task RecorrerTenantsAsync(
+        IReadOnlyList<TenantDelCiclo> tenants,
+        Func<Guid, CancellationToken, Task> cicloTenantActivo,
+        Func<Guid, CancellationToken, Task> barridoTenantNoActivo,
+        ILogger logger,
+        CancellationToken stoppingToken)
+    {
+        foreach (var tenant in tenants.OrderByDescending(t => t.Activo))
         {
             stoppingToken.ThrowIfCancellationRequested();
 
@@ -91,7 +131,10 @@ public class RenovacionSuscripcionWebhookHostedService(
             // margen antes de Graph expirar la suscripción de verdad.
             try
             {
-                await RenovarPendientesDelTenantAsync(tenantId, stoppingToken);
+                if (tenant.Activo)
+                    await cicloTenantActivo(tenant.TenantId, stoppingToken);
+                else
+                    await barridoTenantNoActivo(tenant.TenantId, stoppingToken);
             }
             catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
             {
@@ -100,68 +143,74 @@ public class RenovacionSuscripcionWebhookHostedService(
             catch (Exception ex)
             {
                 logger.LogError(ex,
-                    "Falló la renovación de suscripciones de webhook del tenant {TenantId}; se continúa con el resto de tenants en este ciclo.",
-                    tenantId);
+                    "Falló el ciclo de suscripciones de webhook del tenant {TenantId} (activo: {Activo}); se continúa con el resto de tenants en este ciclo.",
+                    tenant.TenantId, tenant.Activo);
             }
         }
     }
 
-    private async Task RenovarPendientesDelTenantAsync(Guid tenantId, CancellationToken stoppingToken)
+    /// <summary>
+    /// Tenant propietario no activo: solo el barrido de la guarda transitoria, en su propio ámbito y bajo su RLS, con
+    /// toda conexión suya terminal. Sin CompletarAsync ni renovación.
+    /// </summary>
+    private async Task SacarDeGuardaTransitoriaTenantNoActivoAsync(Guid tenantId, CancellationToken stoppingToken)
     {
         using var ambito = ambitoFactory.CreateScope();
         using var _ = AmbitoTenantExplicito.Establecer(tenantId);
+        await BarrerTenantNoActivoAsync(
+            ambito.ServiceProvider.GetRequiredService<CompletarIdentidadBuzonService>().SacarTerminalesDeGuardaTransitoriaAsync,
+            stoppingToken);
+    }
 
-        var suscripcionRepositorio = ambito.ServiceProvider.GetRequiredService<ISuscripcionWebhookRepository>();
-        var proximasAExpirar = await suscripcionRepositorio.ObtenerProximasAExpirarAsync(VentanaRenovacion, stoppingToken);
-        if (proximasAExpirar.Count == 0) return;
-
-        var conexionRepositorio = ambito.ServiceProvider.GetRequiredService<IConexionIntegracionRepository>();
-        var accesoGraph = ambito.ServiceProvider.GetRequiredService<AccesoGraphService>();
-        var graphClient = ambito.ServiceProvider.GetRequiredService<IMicrosoft365GraphClient>();
-
-        foreach (var suscripcion in proximasAExpirar)
+    private async Task RenovarPendientesDelTenantAsync(Guid tenantId, CancellationToken stoppingToken)
+    {
+        // En su propio ámbito y antes de renovar: un choque de identidad descarta los cambios en memoria de su
+        // DbContext, y no debe llevarse por delante los de la renovación. Un fallo aquí no salta la renovación
+        // del Tenant (dos ciclos perdidos dejarían expirar una suscripción): solo deja sin verificar sus buzones.
+        // La comprobación rehabilita por sí misma la conexión en ConError que verifica en este ciclo, esté o no su
+        // suscripción en la ventana de renovación: aquí ya no se rehabilita nada.
+        try
         {
-            var conexion = await conexionRepositorio.ObtenerPorIdAsync(suscripcion.ConexionIntegracionId, stoppingToken);
-
-            // Deshabilitada por el usuario (Desconectar) o borrada: no hay
-            // nada que renovar ni ninguna razón para marcarla con error —
-            // antes de este fichero cablear salud de plataforma (A-07),
-            // este bucle ignoraba el estado de la conexión y lo intentaba
-            // igual, contradiciendo el comentario de DesconectarBuzonCommand
-            // que ya prometía este comportamiento.
-            if (conexion is null || conexion.Estado == EstadoConexionIntegracion.Deshabilitada)
-                continue;
-
-            var accessTokenResultado = await accesoGraph.ObtenerAccessTokenVigenteAsync(suscripcion.ConexionIntegracionId, stoppingToken);
-            if (accessTokenResultado.EsFallido)
-            {
-                logger.LogWarning(
-                    "No se pudo renovar la suscripción {SubscriptionId} (conexión {ConexionId}): {Error}",
-                    suscripcion.GraphSubscriptionId, suscripcion.ConexionIntegracionId, accessTokenResultado.Error.Mensaje);
-                conexion.MarcarConError(accessTokenResultado.Error.Mensaje);
-                continue;
-            }
-
-            var renovacionResultado = await graphClient.RenovarSuscripcionAsync(
-                accessTokenResultado.Valor, suscripcion.GraphSubscriptionId, stoppingToken);
-            if (renovacionResultado.EsFallido)
-            {
-                logger.LogWarning(
-                    "No se pudo renovar la suscripción {SubscriptionId} (conexión {ConexionId}): {Error}",
-                    suscripcion.GraphSubscriptionId, suscripcion.ConexionIntegracionId, renovacionResultado.Error.Mensaje);
-                conexion.MarcarConError(renovacionResultado.Error.Mensaje);
-                continue;
-            }
-
-            suscripcion.ActualizarTrasRenovacion(renovacionResultado.Valor.GraphSubscriptionId, renovacionResultado.Valor.FechaExpiracionUtc);
-
-            // Recuperación automática: si la conexión había quedado ConError
-            // por un ciclo anterior y esta renovación funcionó, no hace
-            // falta que un administrador pulse "Reactivar" a mano.
-            if (conexion.Estado == EstadoConexionIntegracion.ConError)
-                conexion.Rehabilitar();
+            using var ambitoIdentidad = ambitoFactory.CreateScope();
+            using var __ = AmbitoTenantExplicito.Establecer(tenantId);
+            await ambitoIdentidad.ServiceProvider.GetRequiredService<CompletarIdentidadBuzonService>()
+                .CompletarAsync(stoppingToken);
+        }
+        catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "Falló la comprobación de identidad de los buzones del tenant {TenantId}; se renueva sin rehabilitar ninguno.", tenantId);
         }
 
-        await ambito.ServiceProvider.GetRequiredService<IUnitOfWork>().SaveChangesAsync(stoppingToken);
+        // Cada conexión se guarda por separado y aislada, y una colisión de concurrencia se resuelve recargando y
+        // volviendo a aplicar lo observado: ver RenovacionSuscripcionesWebhookService. Un fallo transitorio (429, 5xx,
+        // red, tiempo agotado) se reintenta en el siguiente ciclo; uno definitivo marca el hueco y pasa la conexión a
+        // ConError (regla en CompletarIdentidadBuzonService.MarcarConErrorDeRenovacion).
+        using var ambito = ambitoFactory.CreateScope();
+        using var _ = AmbitoTenantExplicito.Establecer(tenantId);
+
+        // Mismo ámbito y misma RLS del Tenant propietario: antes de renovar se reparan las desconexiones cuya marca de
+        // hueco quedó por registrar (ConexionIntegracion.MarcaHuecoPorRegistrarDesdeUtc), cada una con el cerrojo de su
+        // conexión. Un fallo aquí no salta la renovación: lo que no se repare se reintenta en el ciclo siguiente.
+        try
+        {
+            await ambito.ServiceProvider.GetRequiredService<ReparacionMarcaHuecoService>()
+                .RepararDelTenantActualAsync(stoppingToken);
+        }
+        catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "Falló la reparación de marcas de hueco del tenant {TenantId}; se renueva igualmente.", tenantId);
+            ambito.ServiceProvider.GetRequiredService<IDescarteCambiosPendientes>().DescartarCambiosPendientes();
+        }
+
+        await ambito.ServiceProvider.GetRequiredService<RenovacionSuscripcionesWebhookService>()
+            .RenovarProximasAExpirarAsync(VentanaRenovacion, stoppingToken);
     }
 }

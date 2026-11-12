@@ -114,6 +114,12 @@ public class FronterasEntrePersistenciaDeFeaturesTests
         ("Asignaciones.ObtenerAsignacionesDocumentacionPorCentroQueryHandler", "IDocumentosQueryContext"),
         ("Asignaciones.ObtenerAsignacionesDocumentacionPorCentroQueryHandler", "ITiposDocumentoQueryContext"),
         ("Asignaciones.ObtenerAsignacionesDocumentacionPorCentroQueryHandler", "ITrabajadoresQueryContext"),
+        // El lote de Subcontrata 360: el mismo cálculo que la consulta de un Centro (lo delega en ella), con sus mismos contextos.
+        ("Asignaciones.ObtenerCumplimientoDeAsignacionesPorCentrosQueryHandler", "ICentrosQueryContext"),
+        ("Asignaciones.ObtenerCumplimientoDeAsignacionesPorCentrosQueryHandler", "IConfiguracionQueryContext"),
+        ("Asignaciones.ObtenerCumplimientoDeAsignacionesPorCentrosQueryHandler", "IDocumentosQueryContext"),
+        ("Asignaciones.ObtenerCumplimientoDeAsignacionesPorCentrosQueryHandler", "ITiposDocumentoQueryContext"),
+        ("Asignaciones.ObtenerCumplimientoDeAsignacionesPorCentrosQueryHandler", "ITrabajadoresQueryContext"),
         ("Asignaciones.ObtenerAsignacionesQueryHandler", "ICentrosQueryContext"),
         ("Asignaciones.ObtenerAsignacionesQueryHandler", "IClientesQueryContext"),
         ("Asignaciones.ObtenerAsignacionesQueryHandler", "ITrabajadoresQueryContext"),
@@ -168,6 +174,13 @@ public class FronterasEntrePersistenciaDeFeaturesTests
         ("Calendario.ObtenerVencimientosMesQueryHandler", "IDocumentosQueryContext"),
         ("Calendario.ObtenerVencimientosMesQueryHandler", "ITiposDocumentoQueryContext"),
         ("Calendario.ObtenerVencimientosMesQueryHandler", "ITrabajadoresQueryContext"),
+        // El Mes compone la Empresa empleadora de cada vencimiento y su «Reclamar» con la regla de la Semana por Empresa; solo lee.
+        ("Calendario.ObtenerVencimientosMesQueryHandler", "IEmpresasQueryContext"),
+        // Y excluye de «Reclamar» a los voluntarios inactivos (ActividadVoluntarios), como la Semana; solo lee.
+        ("Calendario.ObtenerVencimientosMesQueryHandler", "IProyectosQueryContext"),
+        // Y solo ofrece «Reclamar» con la Asignación reclamable del lote (AsignacionesReclamables); solo lee.
+        ("Calendario.ObtenerVencimientosMesQueryHandler", "IAsignacionesQueryContext"),
+        ("Calendario.ObtenerVencimientosMesQueryHandler", "ICentrosQueryContext"),
         // Semana por Empresa compone vencimientos visibles y el historial de envío; no escribe fuera de Calendario.
         ("Calendario.ObtenerSemanaPorEmpresaQueryHandler", "IDocumentosQueryContext"),
         ("Calendario.ObtenerSemanaPorEmpresaQueryHandler", "IEmpresasQueryContext"),
@@ -181,6 +194,8 @@ public class FronterasEntrePersistenciaDeFeaturesTests
         ("Centros.CrearCentroCommandHandler", "ITipoDocumentoCentroRepository"),
         ("Centros.CrearCentroCommandHandler", "ITiposDocumentoQueryContext"),
         ("Centros.EditarCanalGestionCommandHandler", "IProveedoresPlataformaCaeQueryContext"),
+        // Papel por Centro (2026-11-08): lee la Relación Empresarial que se ancla al Centro.
+        ("Centros.EstablecerRelacionDeEntradaCentroCommandHandler", "IEmpresasQueryContext"),
         ("Centros.EliminarCentroCommandHandler", "IAsignacionRepository"),
         ("Centros.EliminarCentrosCommandHandler", "IAsignacionRepository"),
         ("Centros.EliminarDocumentacionRequeridaCentroCommandHandler", "ITipoDocumentoCentroRepository"),
@@ -458,6 +473,20 @@ public class FronterasEntrePersistenciaDeFeaturesTests
         ("HerramientasPdf.ObtenerCatalogoDivisionPdfQueryHandler", "ITiposDocumentoQueryContext"),
         ("HerramientasPdf.ObtenerCatalogoDivisionPdfQueryHandler", "ITrabajadoresQueryContext"),
         ("HerramientasPdf.ObtenerCatalogoDivisionPdfQueryHandler", "IVehiculosQueryContext"),
+        // «Descargar» de Dividir lee la Empresa gestionada con la misma comprobación que el catálogo (existe en el Tenant y
+        // es propia) antes de abrir el PDF; solo lee.
+        ("HerramientasPdf.ExtraerTramoPdfQueryHandler", "IEmpresasQueryContext"),
+        // Unir PDF lista y lee los Documentos de la Empresa gestionada (el universo del paquete de Empresa 360) bajo el alcance de
+        // cartera; solo lee, y lo que sale de la Empresa deja el registro de acceso de siempre.
+        ("HerramientasPdf.ListarDocumentosParaUnirQueryHandler", "IDocumentosQueryContext"),
+        ("HerramientasPdf.ListarDocumentosParaUnirQueryHandler", "IEmpresasQueryContext"),
+        ("HerramientasPdf.ListarDocumentosParaUnirQueryHandler", "IProyectosQueryContext"),
+        ("HerramientasPdf.ListarDocumentosParaUnirQueryHandler", "ITiposDocumentoQueryContext"),
+        ("HerramientasPdf.ListarDocumentosParaUnirQueryHandler", "ITrabajadoresQueryContext"),
+        ("HerramientasPdf.UnirPdfQueryHandler", "IDocumentosQueryContext"),
+        ("HerramientasPdf.UnirPdfQueryHandler", "IEmpresasQueryContext"),
+        ("HerramientasPdf.UnirPdfQueryHandler", "IProyectosQueryContext"),
+        ("HerramientasPdf.UnirPdfQueryHandler", "ITrabajadoresQueryContext"),
         ("Documentos.AplicarDeteccionIaDocumentoCommandHandler", "IAuditoriaExtraccionIaRepository"),
         ("Documentos.AplicarDeteccionIaDocumentoCommandHandler", "IProyectosQueryContext"),
         ("Documentos.AplicarDeteccionIaDocumentoCommandHandler", "ITiposDocumentoQueryContext"),
@@ -495,6 +524,7 @@ public class FronterasEntrePersistenciaDeFeaturesTests
         // El resto de comandos de acreditación (AcreditacionSubible.CargarVisibleAsync) resuelven el Centro del canal
         // (ICentrosQueryContext) para exigir que esté en la Asignación de Cartera de quien anota (ASVS V4.2.1).
         ("Documentos.MarcarAcreditacionSubidaCommandHandler", "ICentrosQueryContext"),
+        ("Documentos.MarcarAcreditacionNoRequeridaCommandHandler", "ICentrosQueryContext"),
         ("Documentos.MarcarAcreditacionAceptadaCommandHandler", "ICentrosQueryContext"),
         ("Documentos.MarcarAcreditacionRechazadaCommandHandler", "ICentrosQueryContext"),
         ("Documentos.MarcarAcreditacionPendienteDeSubirCommandHandler", "ICentrosQueryContext"),
@@ -518,6 +548,7 @@ public class FronterasEntrePersistenciaDeFeaturesTests
         ("Documentos.ConfirmarSubidaDesdeExtensionCommandHandler", "IProyectosQueryContext"),
         ("Documentos.DeshacerSubidaDesdeExtensionCommandHandler", "IProyectosQueryContext"),
         ("Documentos.MarcarAcreditacionSubidaCommandHandler", "IProyectosQueryContext"),
+        ("Documentos.MarcarAcreditacionNoRequeridaCommandHandler", "IProyectosQueryContext"),
         // La puerta de lectura por Id (DocumentoLegibleAsync) resuelve el Cliente empresarial de un Documento de Proyecto.
         ("Documentos.ObtenerFirmasEnCampoDocumentoQueryHandler", "IProyectosQueryContext"),
         ("Documentos.ObtenerValidacionOficialDocumentoQueryHandler", "IProyectosQueryContext"),
@@ -620,6 +651,23 @@ public class FronterasEntrePersistenciaDeFeaturesTests
         ("Gestiones.ObtenerGestionesQueryHandler", "ICentrosQueryContext"),
         ("Gestiones.ObtenerGestionesQueryHandler", "ITiposDocumentoQueryContext"),
         ("Gestiones.ObtenerGestionesQueryHandler", "ITrabajadoresQueryContext"),
+        // Gestión automática (especificación de Gestión de varios pasos, § 4.1): agrupa las acreditaciones en
+        // plataforma de un Documento, así que sus consultas leen Documentos y accesos de Centro y resuelven además la
+        // cabecera (Tipo, titular, Empresa gestionada) y el nombre de la plataforma.
+        // «Datos a mano» › Centro: el inicio de la Asignación del Trabajador titular a cada Centro de los pasos.
+        ("Gestiones.ObtenerGestionAutomaticaQueryHandler", "IAsignacionesQueryContext"),
+        ("Gestiones.ObtenerGestionAutomaticaQueryHandler", "ICentrosQueryContext"),
+        ("Gestiones.ObtenerGestionAutomaticaQueryHandler", "IDocumentosQueryContext"),
+        ("Gestiones.ObtenerGestionAutomaticaQueryHandler", "IEmpresasQueryContext"),
+        ("Gestiones.ObtenerGestionAutomaticaQueryHandler", "IProveedoresPlataformaCaeQueryContext"),
+        ("Gestiones.ObtenerGestionAutomaticaQueryHandler", "ITiposDocumentoQueryContext"),
+        ("Gestiones.ObtenerGestionAutomaticaQueryHandler", "ITrabajadoresQueryContext"),
+        ("Gestiones.ObtenerGestionesAutomaticasQueryHandler", "ICentrosQueryContext"),
+        ("Gestiones.ObtenerGestionesAutomaticasQueryHandler", "IDocumentosQueryContext"),
+        ("Gestiones.ObtenerGestionesAutomaticasQueryHandler", "IEmpresasQueryContext"),
+        ("Gestiones.ObtenerGestionesAutomaticasQueryHandler", "IProveedoresPlataformaCaeQueryContext"),
+        ("Gestiones.ObtenerGestionesAutomaticasQueryHandler", "ITiposDocumentoQueryContext"),
+        ("Gestiones.ObtenerGestionesAutomaticasQueryHandler", "ITrabajadoresQueryContext"),
         ("Importacion.EjecutarImportacionCombinadaCommandHandler", "ICentroRepository"),
         ("Importacion.EjecutarImportacionCombinadaCommandHandler", "ICentrosQueryContext"),
         ("Importacion.EjecutarImportacionCombinadaCommandHandler", "IEmpresaRepository"),
@@ -634,7 +682,6 @@ public class FronterasEntrePersistenciaDeFeaturesTests
         ("Importacion.EjecutarImportacionMaestraCommandHandler", "IEmpresaRepository"),
         ("Importacion.EjecutarImportacionMaestraCommandHandler", "IEmpresasQueryContext"),
         ("Importacion.EjecutarImportacionMaestraCommandHandler", "IRelacionEmpresarialRepository"),
-        ("Importacion.EjecutarImportacionMaestraCommandHandler", "ITrabajadoresQueryContext"),
         ("Importacion.EjecutarImportacionMaestraCommandHandler", "ITrabajadorRepository"),
         ("Importacion.EjecutarImportacionCommandHandler", "IAsignacionesQueryContext"),
         ("Importacion.EjecutarImportacionCommandHandler", "IAsignacionRepository"),
@@ -680,6 +727,11 @@ public class FronterasEntrePersistenciaDeFeaturesTests
         // SoporteLectura cubre cualquier Guid, así que la apertura comprueba que
         // el Tenant objetivo existe. Solo lee Tenants, nunca contenido del Tenant.
         ("Plataforma.AbrirSesionPrivilegiadaCommandHandler", "ITenantsQueryContext"),
+        // Segundo factor configurable por TALVEG (decisión del 2026-11-08): el comando rechaza un Tenant
+        // de plataforma como objetivo y la pantalla lee el valor vigente de la exigencia, como
+        // AutoridadSeguridadAcceso y ObtenerSeguridadAccesoQuery. La escritura es de la función de la base.
+        ("Plataforma.CambiarSegundoFactorDelTenantPorPlataformaCommandHandler", "ITenantsQueryContext"),
+        ("Plataforma.ObtenerAjusteSegundoFactorPorPlataformaQueryHandler", "IConfiguracionQueryContext"),
         ("Proyectos.AsignarTecnicoProyectoCommandHandler","ITrabajadoresQueryContext"),
         ("Proyectos.CrearProyectoCommandHandler", "ICentrosQueryContext"),
         // Alta de un contrato de acceso (Inbound M1): como CrearProyecto, comprueba que el Centro es del Cliente y que la

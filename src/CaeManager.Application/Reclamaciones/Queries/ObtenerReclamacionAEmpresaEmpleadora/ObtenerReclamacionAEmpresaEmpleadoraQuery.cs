@@ -23,7 +23,9 @@ namespace CaeManager.Application.Reclamaciones.Queries.ObtenerReclamacionAEmpres
 /// (<see cref="ICalculoEstadoCentroService.ObtenerParesExigidosAsync"/>, los mismos que el Centro 360), no solo los requisitos
 /// que bloquean el acceso: un Centro sin ningún tipo «bloquea el acceso» también exige; qué es reclamable y a quién va, los lotes de
 /// siempre (<see cref="ObtenerLoteReclamacionQuery"/>, <see cref="ObtenerLoteReclamacionEmpresaQuery"/> y
-/// <see cref="ReclamacionEmpresaEmpleadoraService"/>). Esta query solo intersecta: no recuenta ni amplía nada.
+/// <see cref="ReclamacionEmpresaEmpleadoraService"/>). Esta query solo intersecta y deja fuera lo vigente
+/// (<see cref="DocumentoReclamablePorAcceso"/>: la ventana de los lotes trae documentos «Vigente» que aquí no se reclaman);
+/// no recuenta ni amplía nada.
 /// </summary>
 /// <remarks>
 /// Lo de la Empresa viaja en el lote de los Trabajadores cuando hay uno solo, o en el que va a la agenda de la Empresa si
@@ -111,24 +113,28 @@ public class ObtenerReclamacionPorAccesoQueryHandler(
         var exigidosTrabajador = paresExigidos.Select(p => (p.TrabajadorId, p.TipoDocumentoId)).ToHashSet();
         var exigidosEmpresa = await TiposDeEmpresaExigidosAsync(request.CentroId, request.EmpresaId, trabajadores, cancellationToken);
 
-        var lotesCliente = await mediator.Send(new ObtenerLoteReclamacionQuery(CentroId: request.CentroId, IncluirPendientesSinFecha: true), cancellationToken);
-        var reagrupados = await empresaEmpleadora.ReagruparAsync(lotesCliente, cancellationToken);
-        var lotes = reagrupados.LotesEmpresaEmpleadora
-            .Where(l => l.TitularId == request.EmpresaId)
+        // Lo exigido y reclamable se acota ANTES de reagrupar: ReagruparAsync resuelve los destinatarios de la agenda por los
+        // Tipos del lote, y si recibiera también lo que luego se quita (lo vigente, que la ventana de los lotes trae, o lo que el
+        // Centro no exige) ofrecería contactos dueños de Tipos que no viajan, que el envío rechaza por desactualizados.
+        var lotesCliente = (await mediator.Send(new ObtenerLoteReclamacionQuery(CentroId: request.CentroId, IncluirPendientesSinFecha: true), cancellationToken))
             .Select(l => l with
             {
-                Documentos = [.. l.Documentos.Where(d => d.TrabajadorId is { } t && exigidosTrabajador.Contains((t, d.TipoDocumentoId)))],
+                Documentos = [.. l.Documentos.Where(d => d.TrabajadorId is { } t && exigidosTrabajador.Contains((t, d.TipoDocumentoId))
+                                                        && DocumentoReclamablePorAcceso.SeReclama(d))],
                 PendientesSinFecha = [.. (l.PendientesSinFecha ?? []).Where(p => p.TrabajadorId is { } t && exigidosTrabajador.Contains((t, p.TipoDocumentoId)))],
             })
             .Where(l => l.Documentos.Count > 0 || l.PendientesSinFecha!.Count > 0)
+            .ToList();
+        var reagrupados = await empresaEmpleadora.ReagruparAsync(lotesCliente, cancellationToken);
+        var lotes = reagrupados.LotesEmpresaEmpleadora
+            .Where(l => l.TitularId == request.EmpresaId)
+            .Where(l => l.Documentos.Count > 0 || (l.PendientesSinFecha ?? []).Count > 0)
             .ToList();
 
         if (exigidosEmpresa.Count == 0)
             return lotes;
 
-        var deEmpresa = (await mediator.Send(
-                new ObtenerLoteReclamacionEmpresaQuery(request.EmpresaId, [.. exigidosEmpresa], IncluirPendientesSinFecha: true), cancellationToken))
-            .FirstOrDefault(l => l.EmpresaId == request.EmpresaId);
+        var deEmpresa = await LoteReclamableDeEmpresaAsync(request.EmpresaId, [.. exigidosEmpresa], cancellationToken);
         if (deEmpresa is null || (deEmpresa.Documentos.Count == 0 && (deEmpresa.PendientesSinFecha ?? []).Count == 0))
             return lotes;
 
@@ -155,6 +161,38 @@ public class ObtenerReclamacionPorAccesoQueryHandler(
             request.EmpresaId, receptor.EmpresaEmpleadora?.DelegacionEmpresaId, tipos, cancellationToken);
         unido = unido with { Destinatarios = destino.EsFallido ? [] : destino.Valor.Destinatarios };
         return [.. lotes.Select(l => ReferenceEquals(l, receptor) ? unido : l)];
+    }
+
+    /// <summary>
+    /// El lote de la Empresa sin lo vigente. Sus destinatarios salen de la agenda por los Tipos que se piden: si quitar lo
+    /// vigente deja fuera algún Tipo, se vuelve a pedir el lote solo con los Tipos que quedan, para que la misma consulta
+    /// resuelva los contactos de lo que de verdad viaja (y no ofrezca al dueño de un Tipo que ya no está).
+    /// </summary>
+    private async Task<LoteReclamacionEmpresaDto?> LoteReclamableDeEmpresaAsync(
+        Guid empresaId, IReadOnlyList<Guid> tipoDocumentoIds, CancellationToken cancellationToken)
+    {
+        async Task<LoteReclamacionEmpresaDto?> PedirAsync(IReadOnlyList<Guid> tipos)
+        {
+            var lote = (await mediator.Send(new ObtenerLoteReclamacionEmpresaQuery(empresaId, tipos, IncluirPendientesSinFecha: true), cancellationToken))
+                .FirstOrDefault(l => l.EmpresaId == empresaId);
+            return lote is null ? null : lote with { Documentos = [.. lote.Documentos.Where(DocumentoReclamablePorAcceso.SeReclama)] };
+        }
+
+        var deEmpresa = await PedirAsync(tipoDocumentoIds);
+        if (deEmpresa is null)
+            return null;
+
+        var tiposQueQuedan = deEmpresa.Documentos.Select(d => d.TipoDocumentoId)
+            .Concat((deEmpresa.PendientesSinFecha ?? []).Select(p => p.TipoDocumentoId))
+            .ToHashSet();
+        if (tiposQueQuedan.Count == 0)
+            return null;
+
+        // Si viaja exactamente lo pedido, los destinatarios ya son los de lo que viaja; si no, se resuelven de nuevo con lo que
+        // queda (la segunda petición trae los mismos documentos y pendientes de esos Tipos, y lo vigente se vuelve a quitar).
+        return tiposQueQuedan.SetEquals(tipoDocumentoIds)
+            ? deEmpresa
+            : await PedirAsync([.. tiposQueQuedan]);
     }
 
     /// <summary>

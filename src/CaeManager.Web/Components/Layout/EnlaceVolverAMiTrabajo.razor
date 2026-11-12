@@ -8,8 +8,10 @@
 @using Microsoft.AspNetCore.WebUtilities
 @inject NavigationManager Navegacion
 @inject IStringLocalizer<TextosComunes> Textos
+@inject IServiceProvider Servicios
 
-@if (Vuelta is { } vuelta)
+@* Con Mi trabajo oculto (MiTrabajoVisibilidad) no hay a dónde volver: un ?volver= antiguo no pinta nada. *@
+@if (!MiTrabajoVisibilidad.EstaOculto(Servicios) && Vuelta is { } vuelta)
 {
     <div class="enlace-volver-mi-trabajo">
         <a href="@vuelta" data-enlace="volver-mi-trabajo">← @Textos["VolverAMiTrabajo"]</a>

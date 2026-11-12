@@ -440,7 +440,7 @@ public partial class CentrosListaPatronTests : BunitContext
             .Should().Equal(["Cliente", "Empresa", "Filtros guardados", "Agrupar: no"],
                 "sin valor aplicado la pastilla dice solo el nombre del filtro; «Agrupar» cierra la barra, como en Trabajadores");
         cut.RotulosDeFranja().Should().Equal(
-            "Todos", "Bloqueo de la plataforma CAE", "Vencido", "Pendiente", "Por vencer", "Vigente", "No requiere gestión CAE");
+            "Todos", "Bloqueo CAE", "Vencido", "Pendiente", "Por vencer", "Vigente", "No requiere gestión CAE");
         cut.MarcadosEnFranja().Should().Equal(["Todos"], "sin filtro de estado, el marcado es «Todos»");
     }
 

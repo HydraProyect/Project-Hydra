@@ -38,6 +38,16 @@ public partial class Documento360Gen2Tests
         await cut.SalirYComprobarQuePreguntaAsync(Navegacion);
     }
 
+    // Un vencimiento a medias no cambia el valor del formulario («»), pero es texto que se pierde al salir.
+    [Fact]
+    public async Task Aviso_un_vencimiento_a_medias_pregunta_al_salir()
+    {
+        var cut = await RenovarAsync();
+        await cut.FindAll("input[data-campo-fecha]")[1].InputAsync(new ChangeEventArgs { Value = "15/0" });
+
+        await cut.SalirYComprobarQuePreguntaAsync(Navegacion);
+    }
+
     [Fact]
     public async Task Aviso_abrir_la_renovacion_sin_tocar_nada_no_pregunta()
     {

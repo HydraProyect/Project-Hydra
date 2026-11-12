@@ -129,7 +129,7 @@ if [ -n "${REPARTO_FIJADAS:-}" ]; then
     fijadas[$nombre]=$destino
   done < "$REPARTO_FIJADAS"
   for nombre in "${!fijadas[@]}"; do
-    if ! printf '%s\n' "$clases" | grep -qxF "$nombre"; then
+    if ! grep -qxF "$nombre" <<<"$clases"; then
       echo "Aviso: la clase fijada $nombre no está en el listado; su línea de $REPARTO_FIJADAS ha caducado." >&2
     fi
   done

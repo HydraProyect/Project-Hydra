@@ -17,7 +17,21 @@
 @using CaeManager.Application.Documentos.Queries.ObtenerDocumentos
 @using CaeManager.Domain.Documentos
 
-@if (Acreditaciones.Count > 0)
+@if (Acreditaciones.Count > 0 && Resumen)
+{
+    @* Una línea de altura fija para las filas de un listado: la plataforma más urgente y «+N» con las demás
+       (la ventana de contexto de la fila las lista todas con su estado). *@
+    <span class="badges-acreditacion badges-acreditacion-resumen">
+        <Badge Tono="TonoDe(Principal.Estado)" Tamano="TamanoBadge.Pequeno" title="@TextoDe(Principal)">
+            @TextoDe(Principal)
+        </Badge>
+        @if (Resto.Count > 0)
+        {
+            <span class="badges-acreditacion-resto" title="@string.Join(", ", Resto.Select(TextoDe))">+@Resto.Count</span>
+        }
+    </span>
+}
+else if (Acreditaciones.Count > 0)
 {
     <span class="badges-acreditacion">
         @foreach (var acreditacion in Acreditaciones)
@@ -31,6 +45,27 @@
 
 @code {
     [Parameter, EditorRequired] public IReadOnlyList<AcreditacionResumenDto> Acreditaciones { get; set; } = [];
+
+    /// <summary>Una sola pastilla (la más urgente) y «+N», para que las filas de un listado midan lo mismo. Falso por defecto.</summary>
+    [Parameter] public bool Resumen { get; set; }
+
+    /// <summary>La pastilla del resumen: la acreditación más grave.</summary>
+    private AcreditacionResumenDto Principal => Acreditaciones.OrderBy(a => Prioridad(a.Estado)).First();
+
+    private IReadOnlyList<AcreditacionResumenDto> Resto => Acreditaciones.Where(a => a.Id != Principal.Id).ToList();
+
+    /// <summary>«Plataforma: estado», el mismo texto que lleva la pastilla.</summary>
+    private static string TextoDe(AcreditacionResumenDto acreditacion) =>
+        acreditacion.NombrePlataforma + ": " + EstadoAcreditacionUi.Texto(acreditacion.Estado);
+
+    private static int Prioridad(EstadoAcreditacion estado) => estado switch
+    {
+        EstadoAcreditacion.Rechazada => 0,
+        EstadoAcreditacion.PendienteDeSubir => 1,
+        EstadoAcreditacion.Subida => 2,
+        EstadoAcreditacion.Aceptada => 3,
+        _ => 4
+    };
 
     private static TonoBadge TonoDe(EstadoAcreditacion estado) => estado switch
     {

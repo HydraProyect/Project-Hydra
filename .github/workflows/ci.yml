@@ -183,7 +183,7 @@ jobs:
       # propia versión de ASP.NET Core; con otro SDK el lock deja de cuadrar
       # y NuGet reevaluaba Web en silencio (ver Directory.Build.props).
       - name: Instalar .NET SDK
-        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6
+        uses: actions/setup-dotnet@0f4a354dd5547a28c70b7853dbd95d5b67886e73 # v6
         with:
           global-json-file: global.json
 
@@ -501,7 +501,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
       - name: Instalar .NET SDK
-        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6
+        uses: actions/setup-dotnet@0f4a354dd5547a28c70b7853dbd95d5b67886e73 # v6
         with:
           global-json-file: global.json
 
@@ -551,7 +551,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
       - name: Instalar .NET SDK
-        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6
+        uses: actions/setup-dotnet@0f4a354dd5547a28c70b7853dbd95d5b67886e73 # v6
         with:
           global-json-file: global.json
 
@@ -637,7 +637,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
       - name: Instalar .NET SDK
-        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6
+        uses: actions/setup-dotnet@0f4a354dd5547a28c70b7853dbd95d5b67886e73 # v6
         with:
           global-json-file: global.json
 
@@ -863,7 +863,7 @@ jobs:
         run: bash scripts/ci-exigir-dependencias.sh
 
       - name: Instalar .NET SDK
-        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6
+        uses: actions/setup-dotnet@0f4a354dd5547a28c70b7853dbd95d5b67886e73 # v6
         with:
           global-json-file: global.json
 
@@ -1224,7 +1224,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
       - name: Instalar .NET SDK
-        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6
+        uses: actions/setup-dotnet@0f4a354dd5547a28c70b7853dbd95d5b67886e73 # v6
         with:
           global-json-file: global.json
 
@@ -1250,6 +1250,39 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
+      # Desde el 2026-11-11 hay runners que no resuelven *.ubuntu.com y el
+      # apt-get del Dockerfile falla con «Could not resolve 'archive.ubuntu.com'».
+      # Se sondean desde el runner, con el codename de la etapa final del
+      # Dockerfile, las dos fuentes http que trae esa base (archive y security).
+      # Si responden, no se pasa ningún build-arg y la imagen se construye igual
+      # que en deploy.yml. Si no, se pasa ESPEJO_UBUNTU con el primer espejo
+      # oficial de reserva de apt-acotado (elegir-espejo.sh) que responda.
+      - name: Elegir el archivo de Ubuntu para la imagen
+        id: espejo-ubuntu
+        run: |
+          set -euo pipefail
+          base_final="$(sed -nE 's/^FROM[[:space:]]+([^[:space:]]+)[[:space:]]+AS[[:space:]]+final[[:space:]]*$/\1/p' Dockerfile)"
+          [ -n "$base_final" ] || { echo "::error::No encuentro la etapa «final» del Dockerfile."; exit 1; }
+          codename="$(docker run --rm --entrypoint sh "$base_final" -c '. /etc/os-release && echo "$VERSION_CODENAME"')"
+          # Solo vale un 200 final con la descarga completa: sin -L curl no sigue
+          # un 3xx, y con -f lo daría por bueno sin haber alcanzado el InRelease. El
+          # código de salida de curl también cuenta (un 200 cortado no vale).
+          responde_200() {
+            local codigo
+            codigo="$(curl -sS --max-time 10 --max-redirs 0 -o /dev/null -w '%{http_code}' "$1")" || return 1
+            [ "$codigo" = "200" ]
+          }
+          if responde_200 "http://archive.ubuntu.com/ubuntu/dists/${codename}/InRelease" \
+            && responde_200 "http://security.ubuntu.com/ubuntu/dists/${codename}-security/InRelease"; then
+            echo "build-args=" >> "$GITHUB_OUTPUT"
+          elif base="$(bash .github/actions/apt-acotado/elegir-espejo.sh "$codename" solo-reserva)"; then
+            echo "::warning::*.ubuntu.com no responde desde el runner: la imagen (${codename}) se construye con el espejo de reserva ${base}"
+            echo "build-args=ESPEJO_UBUNTU=${base}" >> "$GITHUB_OUTPUT"
+          else
+            echo "::warning::Ningún archivo de Ubuntu responde a la sonda para ${codename}: la imagen se construye con las fuentes de su base."
+            echo "build-args=" >> "$GITHUB_OUTPUT"
+          fi
+
       # Reconstruye exactamente la imagen que se despliega en el VPS (mismo
       # Dockerfile, mismo -r linux-x64 --self-contained false de la Fase 22)
       # — así un SDK band distinto o un asset de framework faltante se
@@ -1266,6 +1299,7 @@ jobs:
           push: false
           load: true
           tags: caemanager:ci
+          build-args: ${{ steps.espejo-ubuntu.outputs.build-args }}
 
       # El publish sin blazor.web.js termina bien y deja la interactividad
       # rota en silencio (ver el comentario del publish en el Dockerfile).
@@ -1316,7 +1350,7 @@ jobs:
 
       - name: Recuperar la base de CVE del día
         id: cache-cve
-        uses: actions/cache/restore@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ${{ runner.temp }}/trivy-cache
           key: trivy-db-${{ steps.fecha-cve.outputs.fecha }}
@@ -1339,7 +1373,7 @@ jobs:
 
       - name: Guardar la base de CVE del día
         if: steps.cache-cve.outputs.cache-hit != 'true'
-        uses: actions/cache/save@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ${{ runner.temp }}/trivy-cache
           key: trivy-db-${{ steps.fecha-cve.outputs.fecha }}
@@ -1372,7 +1406,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
       - name: Instalar .NET SDK
-        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6
+        uses: actions/setup-dotnet@0f4a354dd5547a28c70b7853dbd95d5b67886e73 # v6
         with:
           global-json-file: global.json
 
@@ -1471,7 +1505,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
       - name: Instalar .NET SDK
-        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6
+        uses: actions/setup-dotnet@0f4a354dd5547a28c70b7853dbd95d5b67886e73 # v6
         with:
           global-json-file: global.json
 
@@ -1836,7 +1870,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
       - name: Instalar .NET SDK
-        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6
+        uses: actions/setup-dotnet@0f4a354dd5547a28c70b7853dbd95d5b67886e73 # v6
         with:
           global-json-file: global.json
 
@@ -1962,6 +1996,7 @@ jobs:
           set -euo pipefail
           archivo="gitleaks_${VERSION}_linux_x64.tar.gz"
           curl --proto '=https' --tlsv1.2 --location --fail --silent --show-error \
+            --retry 5 --retry-delay 5 --retry-all-errors --connect-timeout 20 \
             --output "/tmp/$archivo" \
             "https://github.com/gitleaks/gitleaks/releases/download/v${VERSION}/${archivo}"
           echo "${SHA256}  /tmp/$archivo" | sha256sum -c -
@@ -2277,7 +2312,7 @@ jobs:
         run: bash scripts/verificar-licencias-nuget.tests.sh
 
       - name: Instalar .NET SDK
-        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6
+        uses: actions/setup-dotnet@0f4a354dd5547a28c70b7853dbd95d5b67886e73 # v6
         with:
           global-json-file: global.json
 
@@ -2311,7 +2346,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
       - name: Instalar .NET SDK
-        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6
+        uses: actions/setup-dotnet@0f4a354dd5547a28c70b7853dbd95d5b67886e73 # v6
         with:
           global-json-file: global.json
 

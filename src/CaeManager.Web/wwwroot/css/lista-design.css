@@ -84,7 +84,7 @@
     height: 32px;
     min-height: 32px;
     padding: 0 12px;
-    border: 1px solid var(--color-border-strong);
+    border: 1px solid var(--color-border-control);
     border-radius: var(--radius-md);
     background: var(--color-surface);
     color: var(--color-text);
@@ -241,10 +241,14 @@
 /* Respuesta al puntero: las reglas de arriba fijan fondo y borde con más especificidad que el :hover de cada componente, así que se repone aquí con tokens */
 .lista-design.lista-design .acciones-cabecera .cabecera-listado-icono:hover,
 .lista-design.lista-design .acciones-cabecera .menu-acciones-disparador-borde:hover,
-.lista-design.lista-design .barra-filtros-pastillas-fila .menu-acciones-disparador-pastilla:hover,
-.lista-design.lista-design .barra-herramientas-lista button:hover {
+.lista-design.lista-design .barra-filtros-pastillas-fila .menu-acciones-disparador-pastilla:hover {
     background: var(--color-surface-hover);
     border-color: var(--color-border-strong);
+}
+/* «Expandir todo» y compañeros: el borde de control (3:1 contra el fondo, WCAG 1.4.11) se mantiene también bajo el puntero */
+.lista-design.lista-design .barra-herramientas-lista button:hover {
+    background: var(--color-surface-hover);
+    border-color: var(--color-border-control);
 }
 .lista-design.lista-design .franja-estado .franja-estado-boton:not([aria-pressed="true"]):hover {
     background: var(--color-surface-hover);

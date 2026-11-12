@@ -1,11 +1,14 @@
 @*
-    Formulario de alta/edición de un contacto de agenda, en modal.
+    Formulario de alta/edición de un contacto de agenda, en el panel lateral por pasos.
 
     Vive aparte de PestanaAgendaContactos porque tiene dos consumidores: la
     pestaña "Agenda" de las fichas y el "añadir contacto" inline de la
     reclamación documental — el gestor que está a punto de reclamar y ve que
     falta el destinatario tiene que poder crearlo sin abandonar la pantalla
     (requisito del usuario, 2026-08-13).
+
+    El nombre del componente («Modal…») es histórico: lo consumen tres pantallas y varios tests, y renombrarlo es un incremento
+    propio. Ya no es un modal.
 *@
 @using CaeManager.Application.Contactos.Commands.GuardarContactoAgenda
 @using CaeManager.Application.Contactos.Queries.ObtenerAgendaContactos
@@ -16,66 +19,92 @@
 @inject ToastService Toasts
 @inject Microsoft.Extensions.Localization.IStringLocalizer<CaeManager.Web.Recursos.TextosComunes> Comunes
 
-@* ModalFormulario: guardián, «Cancelar» como la X (D-05), primario único con su estado, aviso del formulario (el error del servidor) y aviso de
-   navegación vienen del kit; los errores de campo (nombre, email) los pintan los campos. Con 13 controles se sale del «uno a tres campos» para el
-   que el kit está pensado (un formulario así de largo sería DrawerFormulario o página); se mantiene en Modal Grande para no cambiar de contenedor
-   en este incremento. A diferencia del Modal anterior, el clic fuera ya puede cerrarlo (con datos escritos pregunta antes). *@
-<ModalFormulario Visible="Visible" VisibleChanged="CerrarAsync" Titulo="@(Contacto is null ? "Nuevo contacto" : "Editar contacto")"
-                 Ancho="AnchoModal.Grande" HayCambios="() => HayCambiosSinGuardar" Guardando="_guardando"
-                 MensajeError="@_errorGuardar" HayErroresDeCampo="@(_errorNombre is not null || _errorEmail is not null)"
-                 OnGuardar="GuardarAsync" TextoGuardar="Guardar" TextoCancelar="Cancelar">
-    <CampoTexto Etiqueta="Nombre" Valor="@_nombre" ValorChanged="AlCambiarNombre" MensajeError="@_errorNombre" />
-    <CampoTexto Etiqueta="Email" Type="email" Valor="@_email" ValorChanged="AlCambiarEmail" MensajeError="@_errorEmail" />
-    <CampoTexto Etiqueta="Teléfono (WhatsApp)" Type="tel" Valor="@_telefono" ValorChanged="v => { _telefono = v; _errorGuardar = null; }"
-                Placeholder="+34 600 00 00 00" />
-    <CampoTexto Etiqueta="Cargo" Valor="@_cargo" ValorChanged="v => { _cargo = v; _errorGuardar = null; }"
-                Placeholder="Finanzas, PRL, Vigilancia de la Salud…" />
-    @* Solo con la nota permitida (ContactoAgendaDto.NotaVisible): un campo vacío diría «sin nota» a quien no puede verla. *@
-    @if (_notaEditable)
+@* DrawerFormulario en modo pasos («Panel Formulario TALVEG», como el alta de Trabajador): con 13 controles y un catálogo de decenas de tipos de
+   documento, un modal con todo apilado obligaba a desplazarse dentro del propio modal. Los pasos ordenan el formulario, no lo parten: «Guardar» y
+   «Guardar y terminar» llaman al mismo OnGuardar, una sola transacción (GuardarContactoAgendaCommand). Guardián de cambios sin guardar, «Cancelar»
+   como la X (D-05), primario único con su estado, aviso del formulario (el error del servidor) y aviso de navegación vienen del kit; los errores de
+   campo (nombre, email) los pintan los campos y «Siguiente» no avanza con ellos. *@
+<DrawerFormulario Visible="Visible" VisibleChanged="CerrarAsync" Titulo="@(Contacto is null ? "Nuevo contacto" : "Editar contacto")"
+                  HayCambios="() => HayCambiosSinGuardar" Guardando="_guardando"
+                  MensajeError="@_errorGuardar" HayErroresDeCampo="@HayErroresDelPasoVisible"
+                  OnGuardar="GuardarAsync" TextoGuardar="Guardar" TextoCancelar="Cancelar"
+                  Pasos="Pasos" PasoActual="@_paso" PasosCompletados="_pasosVistos" EtiquetaPasos="@Comunes["AgendaContactoEtiquetaPasos"]"
+                  OnPasoSeleccionado="IrAPaso" OnSiguiente="SiguienteAsync" OnAtras="Atras">
+    @if (_paso == PasoDatos)
     {
-        <CampoTextarea Etiqueta="@Comunes["AgendaNotaComunicaciones"]" Placeholder="@Comunes["AgendaNotaPlaceholder"]"
-                       Valor="@_notas" ValorChanged="v => { _notas = v; _errorGuardar = null; }" />
-        <p class="agenda-nota-ayuda">@Comunes["AgendaNotaAyuda"]</p>
+        <CampoTexto Etiqueta="Nombre" Valor="@_nombre" ValorChanged="AlCambiarNombre" MensajeError="@_errorNombre" />
+        <CampoTexto Etiqueta="Email" Type="email" Valor="@_email" ValorChanged="AlCambiarEmail" MensajeError="@_errorEmail" />
+        <CampoTexto Etiqueta="Teléfono (WhatsApp)" Type="tel" Valor="@_telefono" ValorChanged="v => { _telefono = v; _errorGuardar = null; }"
+                    Placeholder="+34 600 00 00 00" />
+        <CampoTexto Etiqueta="Cargo" Valor="@_cargo" ValorChanged="v => { _cargo = v; _errorGuardar = null; }"
+                    Placeholder="Finanzas, PRL, Vigilancia de la Salud…" />
     }
+    else if (_paso == PasoRecibe)
+    {
+        <div class="campo" role="group" aria-labelledby="@($"{_idBase}-grupo-recibe")">
+            <label id="@($"{_idBase}-grupo-recibe")">@Comunes["AgendaContactoGrupoRecibe"]</label>
+            <div class="lista-seleccion-multiple lista-seleccion-multiple-natural">
+                <label class="campo-checkbox" for="@($"{_idBase}-predeterminado")">
+                    <input type="checkbox" id="@($"{_idBase}-predeterminado")" checked="@_esPredeterminado"
+                           @onchange="e => { _esPredeterminado = e.Value is bool m && m; _errorGuardar = null; }" />
+                    Contacto predeterminado — recibe lo que no tenga destinatario propio
+                </label>
+                <label class="campo-checkbox" for="@($"{_idBase}-programacion")">
+                    <input type="checkbox" id="@($"{_idBase}-programacion")" checked="@_recibeProgramacionVisitas"
+                           @onchange="e => { _recibeProgramacionVisitas = e.Value is bool m && m; _errorGuardar = null; }" />
+                    Recibe la programación de visitas
+                </label>
+                <label class="campo-checkbox" for="@($"{_idBase}-facturacion")">
+                    <input type="checkbox" id="@($"{_idBase}-facturacion")" checked="@_recibeFacturacion"
+                           @onchange="e => { _recibeFacturacion = e.Value is bool m && m; _errorGuardar = null; }" />
+                    Recibe la facturación
+                </label>
+            </div>
+        </div>
 
-    <label class="campo-checkbox" for="@($"{_idBase}-predeterminado")">
-        <input type="checkbox" id="@($"{_idBase}-predeterminado")" checked="@_esPredeterminado"
-               @onchange="e => { _esPredeterminado = e.Value is bool m && m; _errorGuardar = null; }" />
-        Contacto predeterminado — recibe lo que no tenga destinatario propio
-    </label>
-    <label class="campo-checkbox" for="@($"{_idBase}-programacion")">
-        <input type="checkbox" id="@($"{_idBase}-programacion")" checked="@_recibeProgramacionVisitas"
-               @onchange="e => { _recibeProgramacionVisitas = e.Value is bool m && m; _errorGuardar = null; }" />
-        Recibe la programación de visitas
-    </label>
-    <label class="campo-checkbox" for="@($"{_idBase}-facturacion")">
-        <input type="checkbox" id="@($"{_idBase}-facturacion")" checked="@_recibeFacturacion"
-               @onchange="e => { _recibeFacturacion = e.Value is bool m && m; _errorGuardar = null; }" />
-        Recibe la facturación
-    </label>
+        <div class="campo" role="group" aria-labelledby="@($"{_idBase}-grupo-rol")">
+            <label id="@($"{_idBase}-grupo-rol")">@Comunes["AgendaContactoGrupoRol"]</label>
+            <div class="lista-seleccion-multiple lista-seleccion-multiple-natural">
+                <label class="campo-checkbox" for="@($"{_idBase}-prl")">
+                    <input type="checkbox" id="@($"{_idBase}-prl")" checked="@_roles.Contains(RolContacto.ResponsablePrl)"
+                           @onchange="e => AlternarRol(RolContacto.ResponsablePrl, e.Value is bool m && m)" />
+                    Responsable de PRL
+                </label>
+                <label class="campo-checkbox" for="@($"{_idBase}-representante")">
+                    <input type="checkbox" id="@($"{_idBase}-representante")" checked="@_roles.Contains(RolContacto.RepresentanteLegal)"
+                           @onchange="e => AlternarRol(RolContacto.RepresentanteLegal, e.Value is bool m && m)" />
+                    Representante legal
+                </label>
+                <label class="campo-checkbox" for="@($"{_idBase}-cae")">
+                    <input type="checkbox" id="@($"{_idBase}-cae")" checked="@_roles.Contains(RolContacto.ContactoCae)"
+                           @onchange="e => AlternarRol(RolContacto.ContactoCae, e.Value is bool m && m)" />
+                    Contacto CAE
+                </label>
+            </div>
+        </div>
 
-    <label class="campo-checkbox" for="@($"{_idBase}-prl")">
-        <input type="checkbox" id="@($"{_idBase}-prl")" checked="@_roles.Contains(RolContacto.ResponsablePrl)"
-               @onchange="e => AlternarRol(RolContacto.ResponsablePrl, e.Value is bool m && m)" />
-        Responsable de PRL
-    </label>
-    <label class="campo-checkbox" for="@($"{_idBase}-representante")">
-        <input type="checkbox" id="@($"{_idBase}-representante")" checked="@_roles.Contains(RolContacto.RepresentanteLegal)"
-               @onchange="e => AlternarRol(RolContacto.RepresentanteLegal, e.Value is bool m && m)" />
-        Representante legal
-    </label>
-    <label class="campo-checkbox" for="@($"{_idBase}-cae")">
-        <input type="checkbox" id="@($"{_idBase}-cae")" checked="@_roles.Contains(RolContacto.ContactoCae)"
-               @onchange="e => AlternarRol(RolContacto.ContactoCae, e.Value is bool m && m)" />
-        Contacto CAE
-    </label>
-
-    <SelectorMultiple Etiqueta="Documentación que se le pide"
-                      Elementos="_opcionesTipoDocumento"
-                      Seleccionados="_tiposSeleccionados"
-                      OnAlternar="AlternarTipoDocumento"
-                      TextoVacio="No hay tipos de documento configurados." />
-</ModalFormulario>
+        @* Solo con la nota permitida (ContactoAgendaDto.NotaVisible): un campo vacío diría «sin nota» a quien no puede verla. *@
+        @if (_notaEditable)
+        {
+            <CampoTextarea Etiqueta="@Comunes["AgendaNotaComunicaciones"]" Placeholder="@Comunes["AgendaNotaPlaceholder"]"
+                           Valor="@_notas" ValorChanged="v => { _notas = v; _errorGuardar = null; }" />
+            <p class="agenda-nota-ayuda">@Comunes["AgendaNotaAyuda"]</p>
+        }
+    }
+    else
+    {
+        @* Sin paginar: el catálogo entero está en su paso (la lista tiene su propio desplazamiento interno); el «Siguiente» de un paginador convivía en
+           pantalla con el del pie. El buscador y «Solo mostrar relacionados» siguen siendo la manera de acotarlo. *@
+        <div class="agenda-contacto-documentacion">
+            <SelectorMultiple Etiqueta="Documentación que se le pide"
+                              Elementos="_opcionesTipoDocumento"
+                              Seleccionados="_tiposSeleccionados"
+                              OnAlternar="AlternarTipoDocumento"
+                              ItemsPorPagina="int.MaxValue"
+                              TextoVacio="No hay tipos de documento configurados." />
+        </div>
+    }
+</DrawerFormulario>
 
 @code {
     [Parameter] public bool Visible { get; set; }
@@ -95,8 +124,53 @@
     private IReadOnlyList<ElementoSeleccionable> _opcionesTipoDocumento = [];
     private bool _guardando;
 
-    /// <summary>Error del servidor al guardar: se ve en el aviso fijo del ModalFormulario (D-20), no en un toast que desaparece.</summary>
+    /// <summary>Error del servidor al guardar: se ve en el aviso fijo del DrawerFormulario (D-20), no en un toast que desaparece.</summary>
     private string? _errorGuardar;
+
+    // Los tres pasos del formulario. «Datos» es el único con campos obligatorios: «Siguiente» no avanza hasta que están bien.
+    private const string PasoDatos = "datos";
+    private const string PasoRecibe = "recibe";
+    private const string PasoDocumentacion = "documentacion";
+
+    private string _paso = PasoDatos;
+    private readonly HashSet<string> _pasosVistos = [];
+
+    private IReadOnlyList<PasoDefinicion> Pasos =>
+    [
+        new(PasoDatos, Comunes["AgendaContactoPasoDatos"]),
+        new(PasoRecibe, Comunes["AgendaContactoPasoRecibe"]),
+        new(PasoDocumentacion, Comunes["AgendaContactoPasoDocumentacion"]),
+    ];
+
+    private int IndicePaso => Math.Max(0, Pasos.ToList().FindIndex(p => p.Clave == _paso));
+
+    /// <summary>
+    /// «Siguiente» valida lo del paso con las mismas reglas y mensajes que «Guardar»: solo «Datos» tiene obligatorios. El paso no se da por
+    /// visto hasta que está bien.
+    /// </summary>
+    private Task SiguienteAsync()
+    {
+        _errorGuardar = null;
+        var pasos = Pasos;
+        var indice = IndicePaso;
+        if (indice >= pasos.Count - 1) return Task.CompletedTask;
+        if (_paso == PasoDatos && !ValidarDatos()) return Task.CompletedTask;
+
+        _pasosVistos.Add(_paso);
+        _paso = pasos[indice + 1].Clave;
+        return Task.CompletedTask;
+    }
+
+    private void Atras()
+    {
+        var indice = IndicePaso;
+        if (indice > 0) _paso = Pasos[indice - 1].Clave;
+    }
+
+    private void IrAPaso(string clave) => _paso = clave;
+
+    /// <summary>Los errores de campo solo cuentan donde se ven: los del paso «Datos» no deben bloquear Escape ni el clic fuera desde otro paso.</summary>
+    private bool HayErroresDelPasoVisible => _paso == PasoDatos && (_errorNombre is not null || _errorEmail is not null);
 
     // Prefijo de los id de las casillas: la etiqueta se asocia por for/id (D-08).
     private static int _contador;
@@ -151,7 +225,7 @@
 
     /// <summary>
     /// P1-E2b: único punto de verdad de «hay cambios» en el contacto que se está dando de
-    /// alta o editando. Lo lee el ModalFormulario (X, Escape, «Cancelar» y el aviso de navegación:
+    /// alta o editando. Lo lee el DrawerFormulario (X, Escape, «Cancelar» y el aviso de navegación:
     /// salir de la página o cambiar de pestaña; la agenda y la reclamación viven dentro de pestañas).
     /// </summary>
     private bool HayCambiosSinGuardar => Visible && _instantanea.Difiere(ValoresFormulario());
@@ -180,6 +254,16 @@
         _errorNombre = null;
         _errorEmail = null;
         _errorGuardar = null;
+
+        // Siempre se abre en «Datos». Un contacto que se edita ya tiene los tres pasos escritos: se marcan vistos para poder saltar a
+        // cualquiera desde el indicador sin recorrerlos uno a uno; un alta los va desbloqueando con «Siguiente».
+        _paso = PasoDatos;
+        _pasosVistos.Clear();
+        if (Contacto is not null)
+        {
+            _pasosVistos.Add(PasoRecibe);
+            _pasosVistos.Add(PasoDocumentacion);
+        }
     }
 
     /// <summary>
@@ -221,15 +305,26 @@
     private Task CerrarAsync(bool visible) =>
         _guardando ? Task.CompletedTask : VisibleChanged.InvokeAsync(visible);
 
-    private async Task GuardarAsync()
+    /// <summary>Las reglas de «Datos» (nombre y email obligatorios), una sola vez para «Siguiente» y para «Guardar».</summary>
+    private bool ValidarDatos()
     {
-        _errorGuardar = null;
         _errorNombre = string.IsNullOrWhiteSpace(_nombre) ? "El nombre es obligatorio." : null;
         _errorEmail = string.IsNullOrWhiteSpace(_email)
             ? "El email es obligatorio — la solicitud se envía siempre por correo."
             : null;
 
-        if (_errorNombre is not null || _errorEmail is not null) return;
+        return _errorNombre is null && _errorEmail is null;
+    }
+
+    private async Task GuardarAsync()
+    {
+        _errorGuardar = null;
+        if (!ValidarDatos())
+        {
+            // «Guardar y terminar» desde otro paso: los errores están en «Datos», y allí se enseñan.
+            _paso = PasoDatos;
+            return;
+        }
 
         _guardando = true;
 

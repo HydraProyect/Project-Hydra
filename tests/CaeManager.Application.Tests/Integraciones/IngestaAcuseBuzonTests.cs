@@ -17,7 +17,7 @@ public class IngestaAcuseBuzonTests
 
     private ConexionIntegracion Buzon(bool activo = true, string email = "cae@ejemplo.test")
     {
-        var conexion = new ConexionIntegracion(email, "Buzón CAE");
+        var conexion = new ConexionIntegracion(email, "Buzón CAE").Verificada();
         conexion.FijarAcuseAutomatico(activo);
         _conexiones.Agregar(conexion);
         return conexion;
@@ -248,7 +248,7 @@ public class IngestaAcuseBuzonTests
     [Fact]
     public void Un_buzon_personal_no_lleva_acuse_aunque_la_columna_diga_lo_contrario()
     {
-        var personal = new ConexionIntegracion("gestora@ejemplo.test", "Personal", gestorPropietarioId: Guid.NewGuid());
+        var personal = new ConexionIntegracion("gestora@ejemplo.test", "Personal", gestorPropietarioId: Guid.NewGuid()).Verificada();
         typeof(ConexionIntegracion).GetProperty(nameof(ConexionIntegracion.AcuseAutomaticoActivo))!.SetValue(personal, true);
 
         ReglaAcuseBuzon.Procede(personal, Mensaje(), dominioDePlataformaCae: false).Should().BeFalse();

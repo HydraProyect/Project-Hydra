@@ -31,10 +31,13 @@
     <value>Cambiar</value>
   </data>
   <data name="IdiomaNoCambiadoTitulo" xml:space="preserve">
-    <value>No se pudo cambiar el idioma</value>
+    <value>No s'ha pogut canviar l'idioma</value>
   </data>
   <data name="IdiomaNoCambiadoDetalle" xml:space="preserve">
-    <value>Tu preferencia de idioma no se ha guardado y la interfaz sigue en el idioma anterior. Inténtalo de nuevo en unos segundos.</value>
+    <value>La teva preferència d'idioma no s'ha desat i la interfície continua en l'idioma anterior. Torna-ho a provar d'aquí a uns segons.</value>
+  </data>
+  <data name="AvisosRestantesTitulo" xml:space="preserve">
+    <value>+{0}: {1}. Es veuen a la pàgina de {2}</value>
   </data>
   <data name="IrAPaginaDe" xml:space="preserve">
     <value>Anar a la pàgina de {0}</value>
@@ -250,7 +253,7 @@
     <value>No hem pogut desar el filtre. Si ja en tens un amb aquest nom, tria'n un altre; si no, torna-ho a provar d'aquí a uns segons.</value>
   </data>
   <data name="SoporteEnlaceLogoOrganizacion" xml:space="preserve">
-    <value>Logo de la organización</value>
+    <value>Logotip de l'organització</value>
   </data>
   <data name="VolverAMiTrabajo" xml:space="preserve">
     <value>Tornar a La meva feina</value>
@@ -269,6 +272,9 @@
   </data>
   <data name="SelectorSinResultados" xml:space="preserve">
     <value>Cap opció coincideix amb la cerca.</value>
+  </data>
+  <data name="SelectorSinCoincidencias" xml:space="preserve">
+    <value>Sense coincidències</value>
   </data>
   <data name="SelectorResultados" xml:space="preserve">
     <value>{0} resultats</value>
@@ -685,6 +691,24 @@
   <data name="TarjetasRestablecer" xml:space="preserve"><value>Restablir ordre</value></data>
   <data name="TarjetasMover" xml:space="preserve"><value>Moure la targeta {0}. Utilitza les fletxes amunt i avall.</value></data>
   <data name="TarjetasArrastrar" xml:space="preserve"><value>Arrossega ⠿ per reordenar les targetes</value></data>
+  <data name="AgendaContactoPasoDatos" xml:space="preserve">
+    <value>Dades</value>
+  </data>
+  <data name="AgendaContactoPasoRecibe" xml:space="preserve">
+    <value>Què rep</value>
+  </data>
+  <data name="AgendaContactoPasoDocumentacion" xml:space="preserve">
+    <value>Documentació</value>
+  </data>
+  <data name="AgendaContactoEtiquetaPasos" xml:space="preserve">
+    <value>Alta de contacte</value>
+  </data>
+  <data name="AgendaContactoGrupoRecibe" xml:space="preserve">
+    <value>Rep</value>
+  </data>
+  <data name="AgendaContactoGrupoRol" xml:space="preserve">
+    <value>Rol del contacte</value>
+  </data>
   <data name="AgendaNotaComunicaciones" xml:space="preserve">
     <value>Nota per a Comunicacions</value>
   </data>
@@ -771,5 +795,35 @@
   </data>
   <data name="ArchivoSubidoNoLeido" xml:space="preserve">
     <value>No hem pogut llegir "{0}". Torna a triar-lo.</value>
+  </data>
+  <data name="SubirCabecera" xml:space="preserve">
+    <value>Pujar</value>
+  </data>
+  <data name="SubirCabeceraTitulo" xml:space="preserve">
+    <value>Pujar documents</value>
+  </data>
+  <data name="CampoFechaFormato" xml:space="preserve">
+    <value>dd/mm/aaaa</value>
+  </data>
+  <data name="CampoFechaInvalida" xml:space="preserve">
+    <value>Escriu una data que existeixi, amb el format dd/mm/aaaa.</value>
+  </data>
+  <data name="CampoFechaAbrirCalendario" xml:space="preserve">
+    <value>Obrir el calendari</value>
+  </data>
+  <data name="CampoFechaCalendario" xml:space="preserve">
+    <value>Triar data</value>
+  </data>
+  <data name="CampoFechaMesAnterior" xml:space="preserve">
+    <value>Mes anterior</value>
+  </data>
+  <data name="CampoFechaMesSiguiente" xml:space="preserve">
+    <value>Mes següent</value>
+  </data>
+  <data name="CampoFechaCorregirAntes" xml:space="preserve">
+    <value>Hi ha una data que no és vàlida. Corregeix-la amb el format dd/mm/aaaa o deixa-la buida.</value>
+  </data>
+  <data name="CampoFechaInstrucciones" xml:space="preserve">
+    <value>Fletxes: canviar de dia. Re Pàg i Av Pàg: canviar de mes. Inici i Fi: principi o final de la setmana. Retorn: triar. Esc: tancar.</value>
   </data>
 </root>

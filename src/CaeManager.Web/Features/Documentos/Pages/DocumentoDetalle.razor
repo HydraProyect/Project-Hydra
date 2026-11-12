@@ -3,7 +3,9 @@
     .razor.cs: una sola consulta, que también autoriza, y qué queda fuera de este incremento.
 *@
 @page "/documentos/{DocumentoId:guid}"
-@rendermode InteractiveServer
+@* Sin prerender (como Mi trabajo, M-23): la página carga en el ciclo de vida y no persiste su estado; con prerender
+   corría dos veces en cada visita. *@
+@rendermode @(new InteractiveServerRenderMode(prerender: false))
 @inherits CaeManager.Web.Components.PaginaInteractiva
 @attribute [Authorize]
 @using CaeManager.Application.Documentos.Queries.ObtenerFichaDocumento360
@@ -18,6 +20,7 @@
 
 <LimiteDeErrores Pagina="this">
 <PageTitle>@(_ficha?.Documento.TipoDocumentoNombre ?? Textos["TituloPestanaNavegador"]) — @Marca.Nombre</PageTitle>
+<TituloDePaginaSinPrerender Titulo="@($"{(_ficha?.Documento.TipoDocumentoNombre ?? Textos["TituloPestanaNavegador"])} — {Marca.Nombre}")" />
 
 <div class="contenedor-pagina">
     <Breadcrumb Elementos="Miguero" ElementoSeleccionadoChanged="IrABreadcrumb" EtiquetaNavegacion="@Textos["EtiquetaMigas"]" />

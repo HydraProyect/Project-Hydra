@@ -26,8 +26,8 @@ public class ReclamacionBuzonIntegracionRlsTests : IAsyncLifetime
             .Options;
         await using var contexto = new CaeManagerDbContext(opciones, new EphemeralDataProtectionProvider(), new TenantActualAmbiental());
         await contexto.Database.MigrateAsync();
-        var a = new ReclamacionBuzonIntegracion("a@example.com", _tenantA, _conexionA, DateTime.UtcNow);
-        var b = new ReclamacionBuzonIntegracion("b@example.com", _tenantB, Guid.NewGuid(), DateTime.UtcNow);
+        var a = new ReclamacionBuzonIntegracion("a@example.com", null, _tenantA, _conexionA, DateTime.UtcNow);
+        var b = new ReclamacionBuzonIntegracion("b@example.com", null, _tenantB, Guid.NewGuid(), DateTime.UtcNow);
         contexto.ReclamacionesBuzonIntegracion.AddRange(a, b);
         await contexto.SaveChangesAsync();
         _idA = a.Id;
@@ -109,9 +109,9 @@ public class ReclamacionBuzonIntegracionRlsTests : IAsyncLifetime
         await using var contexto = CrearContexto(conexion);
         var repositorio = new ReclamacionBuzonIntegracionRepository(contexto);
 
-        repositorio.Reclamar(new ReclamacionBuzonIntegracion("A@Example.com", _tenantB, Guid.NewGuid(), DateTime.UtcNow));
+        repositorio.Reclamar(new ReclamacionBuzonIntegracion("A@Example.com", null, _tenantB, Guid.NewGuid(), DateTime.UtcNow));
 
-        (await repositorio.GuardarCambiosSiBuzonLibreAsync()).Should().BeFalse();
+        (await repositorio.GuardarCambiosSiBuzonLibreAsync()).Should().Be(ResultadoReclamacionBuzon.BuzonYaReclamado);
     }
 
     /// <summary>

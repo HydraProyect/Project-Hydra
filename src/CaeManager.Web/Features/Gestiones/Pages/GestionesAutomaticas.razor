@@ -1,0 +1,186 @@
+﻿@page "/gestiones/automaticas"
+@* Sin prerender (como Gestiones y Mi trabajo): la página carga en el ciclo de vida y no persiste su estado; con prerender
+   corría dos veces en cada visita. *@
+@rendermode @(new InteractiveServerRenderMode(prerender: false))
+@inherits CaeManager.Web.Components.PaginaInteractiva
+@attribute [Authorize(Roles = $"{CaeManager.Infrastructure.Identity.Roles.Administrador},{CaeManager.Infrastructure.Identity.Roles.DireccionCae},{CaeManager.Infrastructure.Identity.Roles.CoordinadorCae},{CaeManager.Infrastructure.Identity.Roles.GestorCae},{CaeManager.Infrastructure.Identity.Roles.Consulta}")]
+@using CaeManager.Application.Gestiones.Queries.GestionesAutomaticas
+@using CaeManager.Domain.Gestiones
+@using CaeManager.Web.Components.DesignSystem
+@using CaeManager.Web.Features.Gestiones.Components
+@using CaeManager.Web.Features.Gestiones.Recursos
+@using Microsoft.Extensions.Localization
+@using MediatR
+@inject IMediator Mediator
+@inject IStringLocalizer<TextosGestiones> Textos
+
+@*
+    Listado de Gestiones automáticas (Gestion Pasos TALVEG.dc.html, § 5.2 de la especificación del 23/10): una fila por
+    Gestión —no por Trabajador × Centro—, con Origen, Avance de dos tramos, Plataformas y Estado. Filtro de Estado con su
+    recuento; los recuentos y las filas salen de la misma consulta (ObtenerGestionesAutomaticasQuery), es decir, del
+    mismo universo de pasos visibles. No hay «Nueva gestión» ni «Reasignar» (D-1, D-8): las Gestiones nacen solas.
+*@
+<LimiteDeErrores Pagina="this">
+<PageTitle>@Textos["AutoTituloPagina"] — @Marca.Nombre</PageTitle>
+<TituloDePaginaSinPrerender Titulo="@($"{Textos["AutoTituloPagina"]} — {Marca.Nombre}")" />
+
+<div class="contenedor-pagina ga-lista">
+    <nav class="ga-migas" aria-label="@Textos["AutoAriaMigas"]">
+        <span>@Textos["AutoMigaOperacion"]</span><span aria-hidden="true" class="ga-miga-sep">›</span>
+        <a href="gestiones">@Textos["AutoMigaGestiones"]</a><span aria-hidden="true" class="ga-miga-sep">›</span>
+        <span class="ga-miga-actual">@Textos["AutoTituloPagina"]</span>
+    </nav>
+
+    <header class="ga-cabecera">
+        <h1>@Textos["AutoTituloPagina"]</h1>
+        <p>@Textos["AutoSubtitulo"]</p>
+    </header>
+
+    @if (_error)
+    {
+        <div class="ga-estado" role="alert" data-estado="error">
+            <h3>@Textos["AutoErrorTitulo"]</h3>
+            <p>@Textos["AutoErrorDescripcion"]</p>
+            <Boton Variante="VarianteBoton.Primario" OnClick="CargarAsync">@Textos["BotonReintentar"]</Boton>
+        </div>
+    }
+    else if (_cargando)
+    {
+        <div class="ga-esqueleto" aria-busy="true" aria-label="@Textos["AutoCargando"]">
+            <div></div><div></div><div></div>
+        </div>
+    }
+    else
+    {
+        <div class="ga-filtros" role="group" aria-label="@Textos["AutoAriaFiltroEstado"]">
+            @foreach (var (estado, clave) in Estados)
+            {
+                var activo = _filtro == estado;
+                <button type="button" class="ga-filtro" aria-pressed="@(activo ? "true" : "false")" data-filtro-estado="@estado"
+                        @onclick="() => FiltrarAsync(estado)">
+                    @Textos[clave] <span class="ga-filtro-n">@(_recuentos.GetValueOrDefault(estado))</span>
+                </button>
+            }
+        </div>
+
+        @if (_filas.Count == 0)
+        {
+            <div class="ga-estado" data-estado="vacio">
+                <h3>@Textos["AutoVacioTitulo"]</h3>
+                <p>@Textos["AutoVacioDescripcion"]</p>
+            </div>
+        }
+        else
+        {
+            <div class="ga-tabla-marco">
+                <table class="ga-tabla">
+                    <thead>
+                        <tr>
+                            <th scope="col">@Textos["AutoColumnaGestion"]</th>
+                            <th scope="col">@Textos["AutoColumnaOrigen"]</th>
+                            <th scope="col">@Textos["AutoColumnaAvance"]</th>
+                            <th scope="col" class="ga-oculta-estrecha">@Textos["AutoColumnaPlataformas"]</th>
+                            <th scope="col">@Textos["AutoColumnaEstado"]</th>
+                            <th scope="col" class="ga-accion"><span class="ga-solo-lectores">@Textos["AutoColumnaAcciones"]</span></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var fila in _filas)
+                        {
+                            <tr @key="fila.Id" data-gestion-id="@fila.Id">
+                                <td>
+                                    <a class="ga-titulo-fila" href="gestiones/@fila.Id">@TituloDe(fila)</a>
+                                    <span class="ga-empresa">@fila.EmpresaGestionadaNombre</span>
+                                </td>
+                                <td data-celda="origen">@Textos[fila.Origen == OrigenGestionAutomatica.RenovacionDocumento ? "AutoOrigenRenovacion" : "AutoOrigenAlta"]</td>
+                                <td data-celda="avance">
+                                    <BarraAvanceGestion Avance="fila.Avance" Compacta="true" AriaLabel="@Textos["AutoAriaAvance"]" />
+                                    <span class="ga-avance-n">@fila.Avance.Hechos/@fila.Avance.Pasos</span>
+                                    @if (fila.TieneRechazo)
+                                    {
+                                        <span class="ga-rechazo" data-rechazo="">@Textos["AutoHayRechazo"]</span>
+                                    }
+                                </td>
+                                <td class="ga-oculta-estrecha" data-celda="plataformas">
+                                    @foreach (var plataforma in fila.Plataformas)
+                                    {
+                                        <span class="ga-chip">@plataforma</span>
+                                    }
+                                </td>
+                                <td data-celda="estado"><span class="ga-pastilla" data-tono="@PresentacionGestionAutomatica.TonoEstado(fila.Estado)">@Textos[PresentacionGestionAutomatica.ClaveEstado(fila.Estado)]</span></td>
+                                <td class="ga-accion">
+                                    <Boton Variante="@VarianteAccionFila(fila)" Tamano="TamanoBoton.Pequeno" Href="@($"gestiones/{fila.Id}")" data-accion-fila="">
+                                        @Textos[Pendiente(fila) ? "AutoContinuar" : "AutoVer"]
+                                    </Boton>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        }
+    }
+</div>
+</LimiteDeErrores>
+
+@code {
+    private static readonly (EstadoGestionAutomatica Estado, string Clave)[] Estados =
+    [
+        (EstadoGestionAutomatica.EnCurso, "AutoEstadoEnCurso"),
+        (EstadoGestionAutomatica.PendienteDeValidar, "AutoEstadoPendienteDeValidar"),
+        (EstadoGestionAutomatica.Cerrada, "AutoEstadoCerrada"),
+        (EstadoGestionAutomatica.Sustituida, "AutoEstadoSustituida")
+    ];
+
+    // La acción de cada fila: «Continuar» (principal) mientras la Gestión sigue abierta, «Ver» (secundaria) cuando ya no.
+    private static bool Pendiente(GestionAutomaticaResumenDto fila) =>
+        fila.Estado is EstadoGestionAutomatica.EnCurso or EstadoGestionAutomatica.PendienteDeValidar;
+
+    private static VarianteBoton VarianteAccionFila(GestionAutomaticaResumenDto fila) =>
+        Pendiente(fila) ? VarianteBoton.Primario : VarianteBoton.Secundario;
+
+    private IReadOnlyList<GestionAutomaticaResumenDto> _filas = [];
+    private IReadOnlyDictionary<EstadoGestionAutomatica, int> _recuentos = new Dictionary<EstadoGestionAutomatica, int>();
+    private EstadoGestionAutomatica _filtro = EstadoGestionAutomatica.EnCurso;
+    private bool _cargando = true;
+    private bool _error;
+
+    protected override Task OnInitializedAsync() => CargarAsync();
+
+    private Task FiltrarAsync(EstadoGestionAutomatica estado)
+    {
+        _filtro = estado;
+        return CargarAsync();
+    }
+
+    private bool _cargadoAlgunaVez;
+
+    private async Task CargarAsync()
+    {
+        // El esqueleto solo en la primera carga: al filtrar, la barra de filtros sigue en su sitio y el botón pulsado
+        // conserva el foco. Una respuesta de un filtro que ya no es el elegido (dos clics seguidos) se descarta.
+        var pedido = _filtro;
+        _cargando = !_cargadoAlgunaVez;
+        _error = false;
+        try
+        {
+            var listado = await Mediator.Send(new ObtenerGestionesAutomaticasQuery(pedido));
+            if (pedido != _filtro) return;
+            _filas = listado.Filas;
+            _recuentos = listado.RecuentosPorEstado;
+            _cargadoAlgunaVez = true;
+        }
+        catch (Exception)
+        {
+            if (pedido == _filtro) _error = true;
+        }
+        finally
+        {
+            if (pedido == _filtro) _cargando = false;
+        }
+    }
+
+    /// <summary>«Actualizar {tipo} de {titular}» al renovar, «Subir {tipo} de {titular}» al subir (§ 4.1).</summary>
+    internal string TituloDe(GestionAutomaticaResumenDto g) =>
+        Textos[g.Origen == OrigenGestionAutomatica.RenovacionDocumento ? "AutoTituloRenovacion" : "AutoTituloAlta", g.TipoDocumentoNombre, g.TitularNombre];
+}

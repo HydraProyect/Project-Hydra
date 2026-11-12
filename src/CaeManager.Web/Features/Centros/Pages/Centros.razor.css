@@ -19,9 +19,26 @@
     align-items: center;
 }
 
-/* Con selección múltiple entra una casilla delante y las columnas se corren. */
+/*
+  Con selección múltiple entra una casilla delante y las columnas se corren. La casilla y su hueco (44 px) se pagan
+  con los mínimos de Centro, Empresa y Estado (180, 160 y 150 en vez de 200, 180 y 170): la rejilla pide 840 px y no 900,
+  y cabe en la tarjeta de un viewport de 1200 px con barra de desplazamiento (1200 - 326 - 15 = 859 px), donde la
+  rejilla de escritorio ya manda. Con más ancho las pistas salen de las fracciones y no de los mínimos.
+*/
 .rejilla-centros-seleccion {
-    grid-template-columns: 28px 24px minmax(200px, 2fr) minmax(180px, 1.5fr) minmax(130px, 1fr) minmax(170px, 1.3fr) 40px;
+    grid-template-columns: 28px 24px minmax(180px, 2fr) minmax(160px, 1.5fr) minmax(130px, 1fr) minmax(150px, 1.3fr) 40px;
+}
+
+/*
+  Sin la columna «Empresa» (una sola Empresa en los Centros visibles, ver MostrarColumnaEmpresa): mismas pistas sin la
+  tercera; Centro gana el ancho que dejaba.
+*/
+.rejilla-centros-sin-empresa {
+    grid-template-columns: 24px minmax(220px, 2.5fr) minmax(130px, 1fr) minmax(170px, 1.3fr) 40px;
+}
+
+.rejilla-centros-seleccion.rejilla-centros-sin-empresa {
+    grid-template-columns: 28px 24px minmax(200px, 2.5fr) minmax(130px, 1fr) minmax(150px, 1.3fr) 40px;
 }
 
 /* Casilla de selección: misma caja en la cabecera y en la fila (16 px). */
@@ -87,9 +104,10 @@
 }
 
 .marco-lista-centros .tarjeta-fila-acordeon-contenido {
-    border-top: 0;
+    /* Segundo nivel (2026-11-08): la misma superficie que la fila, separada por su raya. */
+    border-top: 1px solid var(--color-fila-divisor);
     border-radius: 0;
-    background: color-mix(in srgb, var(--color-surface-subtle) 60%, var(--color-surface));
+    background: var(--color-surface);
     padding: 4px var(--space-4) 4px 56px;
 }
 
@@ -223,7 +241,7 @@
   Celda de estado: no desborda su pista. El motivo de EstadoFila recorta lo que no cabe (una línea con puntos
   suspensivos); aquí contiene las ventanas de contexto de las incidencias, cuyo panel sale de la caja: recortado
   no se vería. Como no puede recortar, parte por sus piezas («24 pendientes · 2 bloqueos de plataforma · 2 por
-  vencer» ocupa dos o tres líneas en la pista de 170 px) en vez de salirse por el borde y pisar el icono 360.
+  vencer» ocupa dos o tres líneas en la pista de 170 px, o de 150 con la selección múltiple) en vez de salirse por el borde y pisar el icono 360.
 */
 .celda-estado-centro {
     min-width: 0;
@@ -238,6 +256,16 @@
     max-width: 100%;
     overflow: visible;
     white-space: normal;
+}
+
+/*
+  Objetivo táctil de 24 px (WCAG 2.5.8): el disparador de cada parte del motivo («N vencidos · M por vencer») mide como el
+  texto, unos 20 px de alto. Mientras la pista de Estado era estrecha las partes partían en líneas y quedaban separadas;
+  sin la columna «Empresa» la pista gana ancho, las partes caben en una línea y quedan a menos de 24 px unas de otras, y
+  axe (target-size) las cuenta. Con 24 px de alto cada disparador cumple por tamaño, vaya donde vaya el salto de línea.
+*/
+.celda-estado-centro ::deep .ventana-contexto-disparador {
+    min-height: 24px;
 }
 
 /* El color no es el único portador: el texto ya dice «vencidos» o «por vencer». */
@@ -257,4 +285,84 @@
 
 .motivo-recuento-proximos {
     color: var(--color-warning-700);
+}
+
+/*
+  Pantalla estrecha (≤ 1199 px, el mismo corte que la lista de Empresas en #2063, rama pantallas/empresas-lista-375, para
+  que las dos listas cambien a la vez; la maqueta, en cambio, conserva la tabla con 860 px mínimos y scroll horizontal): la rejilla de seis pistas pide 856 px (24 + 200 +
+  180 + 130 + 170 + 40 de pistas mínimas, cinco huecos de 16 y 16 + 16 de relleno de la fila); con la casilla de
+  selección múltiple (28 px y otro hueco) serían 900, y por eso .rejilla-centros-seleccion rebaja sus mínimos y pide 840.
+  Con la barra lateral visible (desde 1024 px) la tarjeta mide el viewport menos ~326 px: a 1024 px, 698 px de tarjeta
+  frente a 840 de rejilla, que desbordaba SIN scroll con Cumplimiento y Estado fuera de pantalla (a 901 px, 835 frente
+  a 840). Por eso el apilado se aplica hasta 1199 px y no solo en móvil. Además, por debajo de 900 px lista-design.css
+  (.lista-design.lista-design .tarjeta-listado-contenido > *) da 860 px mínimos al marco y la tarjeta desplaza en
+  horizontal: aquí se quita ese mínimo (con más especificidad, sin tocar lista-design.css).
+  Se sigue la salida de TablaConversaciones (Comunicaciones): una columna por fila con las
+  celdas apiladas, y la cabecera de columnas deja solo lo que actúa. Cada fila pasa a ser una caja flexible: chevron, Centro y icono 360 en la primera línea, y debajo,
+  con la sangría del chevron, Empresa, Cumplimiento y Estado. El orden de la fila en el documento no cambia (teclado y
+  lectores de pantalla siguen leyendo Centro, Empresa, Cumplimiento, Estado); solo se recoloca con `order`.
+  Los selectores llevan `.marco-lista-centros` para ganar a `.rejilla-centros` (grid) sin tocar list-page.css.
+*/
+@media (max-width: 1199px) {
+    /* lista-design.css (.lista-design.lista-design .tarjeta-listado-contenido > *, 0,3,0) fija min-width: 860px: se gana con más especificidad. */
+    .lista-design.lista-design .tarjeta-listado-contenido > .marco-lista-centros {
+        min-width: 0;
+    }
+
+    .marco-lista-centros .rejilla-centros {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 6px 12px;
+    }
+
+    /* Cabecera: la casilla «seleccionar página» y los dos rótulos que ordenan; «Centro», «Estado» y los huecos sobran. */
+    .marco-lista-centros .cabecera-columnas-centros > span:not(.seleccion-centro):not(.columna-empresa-centro-cabecera):not(.columna-cumplimiento-centro) {
+        display: none;
+    }
+
+    .marco-lista-centros .cabecera-columnas-centros {
+        gap: 6px var(--space-4);
+    }
+
+    .marco-lista-centros .rejilla-centros > .seleccion-centro {
+        flex: none;
+    }
+
+    .marco-lista-centros .tarjeta-fila-acordeon-cabecera > .celda-chevron-centro {
+        flex: 0 0 24px;
+        width: 24px;
+    }
+
+    .marco-lista-centros .tarjeta-fila-acordeon-cabecera > .celda-identidad-centro {
+        flex: 1 1 0;
+        min-width: 0;
+    }
+
+    .marco-lista-centros .tarjeta-fila-acordeon-cabecera > .tarjeta-fila-acordeon-acciones {
+        flex: none;
+    }
+
+    /* Empresa, Cumplimiento y Estado: cada uno en su línea, bajo el nombre del Centro (24 px de chevron + 12 px de hueco). */
+    .marco-lista-centros .tarjeta-fila-acordeon-cabecera > .columna-empresa-centro,
+    .marco-lista-centros .tarjeta-fila-acordeon-cabecera > .columna-cumplimiento-centro,
+    .marco-lista-centros .tarjeta-fila-acordeon-cabecera > .celda-estado-centro {
+        order: 2;
+        flex: 1 1 100%;
+        box-sizing: border-box;
+        padding-left: 36px;
+    }
+
+    /* Con selección múltiple entra la casilla (16 px + 12 px de hueco) delante del chevron. */
+    .marco-lista-centros .rejilla-centros-seleccion.tarjeta-fila-acordeon-cabecera > .columna-empresa-centro,
+    .marco-lista-centros .rejilla-centros-seleccion.tarjeta-fila-acordeon-cabecera > .columna-cumplimiento-centro,
+    .marco-lista-centros .rejilla-centros-seleccion.tarjeta-fila-acordeon-cabecera > .celda-estado-centro {
+        padding-left: 64px;
+    }
+
+    /* La fila desplegada no necesita la sangría de escritorio (56/100 px): la fila es ya una tarjeta estrecha (en 375 px dejaría la mitad del ancho vacía; de 901 a 1199 px, como en Empresas, el detalle no cuelga bajo el nombre). */
+    .marco-lista-centros .tarjeta-fila-acordeon-contenido,
+    .marco-lista-centros .tarjeta-fila-acordeon-contenido.contenido-con-seleccion {
+        padding-left: var(--space-4);
+    }
 }

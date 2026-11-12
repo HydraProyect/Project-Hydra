@@ -326,6 +326,32 @@ public class BuscadorGlobalGen2Tests : BunitContext
             "el recuento es por sujeto y apertura, no por tecla");
     }
 
+    /// <summary>
+    /// El recuento «vencen esta semana» lleva el mismo tope que la búsqueda, pero su fallo degrada igual que antes: la
+    /// acción va sin subtítulo y no se tumba un resultado que ya llegó bien ni se pinta el error de búsqueda.
+    /// </summary>
+    [Fact]
+    public async Task Un_recuento_que_no_vuelve_deja_la_accion_sin_subtitulo_y_sin_error()
+    {
+        var mediador = new MediadorControlado { Recientes = RecientesConSujeto };
+        var cut = await RenderizarYAbrir(mediador, tiempoMaximoBusqueda: TimeSpan.FromSeconds(2));
+        _ = mediador.Retener(r => r is ContarVencenEstaSemanaDeEmpresaQuery); // no vuelve y no mira el token
+
+        var escritura = Input(cut).EscribirAsync("reclamar");
+        (await Task.WhenAny(escritura, Task.Delay(TimeSpan.FromSeconds(8)))).Should().BeSameAs(escritura,
+            "el recuento que no vuelve tiene que terminar por el tope de espera");
+        await escritura;
+
+        cut.FindAll(".buscador-mensaje-error").Should().BeEmpty("el recuento no es la búsqueda: su tope no pinta el error");
+        cut.Markup.Should().NotContain("Buscando…");
+        Filas(cut).Should().Contain(("Reclamar a Obras y Estructuras del Ebro S.L.", string.Empty, "/comunicaciones"));
+
+        // Se cancela solo el recuento: si siguiera vivo, la siguiente búsqueda esperaría a una consulta que nadie quiere.
+        var indice = mediador.Enviados.ToList().FindIndex(e => e is ContarVencenEstaSemanaDeEmpresaQuery);
+        mediador.TokensRecibidos.ElementAt(indice).IsCancellationRequested.Should().BeTrue(
+            "al vencer el tope del recuento se cancela esa consulta, igual que la de la búsqueda");
+    }
+
     [Fact]
     public async Task Sin_recuento_la_accion_de_reclamar_va_sin_subtitulo()
     {
@@ -607,19 +633,22 @@ public class BuscadorGlobalGen2Tests : BunitContext
             where TNotification : INotification => Task.CompletedTask;
     }
 
-    private IRenderedComponent<BuscadorGlobal> Renderizar(MediadorControlado mediador, bool conEscritura = true)
+    private IRenderedComponent<BuscadorGlobal> Renderizar(MediadorControlado mediador, bool conEscritura = true, TimeSpan? tiempoMaximoBusqueda = null)
     {
         // «Subir documento para…» solo se ofrece con escritura (SoloConEscritura): por defecto, un rol que escribe.
         if (conEscritura) this.ConRolDeEscritura(); else this.ConRolDeEscritura(CaeManager.Infrastructure.Identity.Roles.Consulta);
         Services.AddScoped<IMediator>(_ => mediador);
         Services.AddScoped<BusquedaGlobalService>();
         Services.AddScoped<CaeManager.Application.Common.ITenantActual, TenantActualDePaletaFalso>();
-        return Render<BuscadorGlobal>();
+        return Render<BuscadorGlobal>(p =>
+        {
+            if (tiempoMaximoBusqueda is { } tope) p.Add(c => c.TiempoMaximoBusqueda, tope);
+        });
     }
 
-    private async Task<IRenderedComponent<BuscadorGlobal>> RenderizarYAbrir(MediadorControlado mediador, bool conEscritura = true)
+    private async Task<IRenderedComponent<BuscadorGlobal>> RenderizarYAbrir(MediadorControlado mediador, bool conEscritura = true, TimeSpan? tiempoMaximoBusqueda = null)
     {
-        var cut = Renderizar(mediador, conEscritura);
+        var cut = Renderizar(mediador, conEscritura, tiempoMaximoBusqueda);
         await cut.InvokeAsync(() => cut.Instance.AbrirDesdeJs());
         return cut;
     }
@@ -1073,6 +1102,66 @@ public class BuscadorGlobalGen2Tests : BunitContext
         cut.Markup.Should().NotContain("Buscando…");
     }
 
+    /// <summary>
+    /// «Buscando…» no puede quedarse para siempre: una consulta que no vuelve (lenta o colgada, y que además ignora
+    /// el token de cancelación) acaba en el mensaje de error con opción de reintentar. Antes del tope de espera, la
+    /// paleta se quedaba en «Buscando…» indefinidamente (defecto de la auditoría visual del 07-11).
+    /// </summary>
+    [Fact]
+    public async Task Una_busqueda_que_no_vuelve_no_deja_la_paleta_en_Buscando_para_siempre()
+    {
+        var mediador = new MediadorControlado();
+        var cut = await RenderizarYAbrir(mediador, tiempoMaximoBusqueda: TimeSpan.FromSeconds(2));
+        _ = mediador.Retener(r => r is BuscarGlobalQuery); // nunca se completa y no mira el token
+
+        // Sin await: el evento no termina hasta que la búsqueda acaba (aquí, por el tope).
+        var escritura = Input(cut).EscribirAsync("raccoon");
+        await EsperarA(() => mediador.Enviados.OfType<BuscarGlobalQuery>().Any(), "que la búsqueda llegase al mediador");
+        cut.Markup.Should().Contain("Buscando…", "mientras no vence el tope, la búsqueda sigue en vuelo");
+
+        // Con el tope vencido el evento termina; sin él, esta espera no acaba nunca y el test falla por tiempo.
+        (await Task.WhenAny(escritura, Task.Delay(TimeSpan.FromSeconds(8)))).Should().BeSameAs(escritura,
+            "la búsqueda que no vuelve tiene que terminar por el tope de espera");
+        await escritura;
+
+        cut.Markup.Should().NotContain("Buscando…");
+        cut.Find(".buscador-mensaje-error").TextContent.Should().Contain("No se pudo completar la búsqueda");
+        mediador.TokensRecibidos.Any(t => t.IsCancellationRequested).Should().BeTrue(
+            "al vencer el tope se cancela la consulta que seguía en vuelo");
+    }
+
+    /// <summary>
+    /// El DbContext es scoped por circuito: una consulta soltada por el tope que aún no terminó (aquí, un handler que
+    /// ignora el token) no puede convivir con la siguiente búsqueda («A second operation was started on this context»).
+    /// La siguiente espera a que la abandonada acabe y entonces sí se lanza.
+    /// </summary>
+    [Fact]
+    public async Task Tras_el_tope_la_siguiente_busqueda_espera_a_que_la_abandonada_termine()
+    {
+        var mediador = new MediadorControlado { Resultado = UnTrabajador };
+        // Tope holgado frente a los 700 ms de la comprobación: un runner lento no debe convertir la espera en tope.
+        var cut = await RenderizarYAbrir(mediador, tiempoMaximoBusqueda: TimeSpan.FromSeconds(4));
+        var abandonada = mediador.Retener(r => r is BuscarGlobalQuery); // no mira el token: sigue viva tras el tope
+
+        var primera = Input(cut).EscribirAsync("raccoon");
+        await EsperarA(() => mediador.Enviados.OfType<BuscarGlobalQuery>().Any(), "que la primera búsqueda llegase al mediador");
+        await primera; // termina por el tope, con la consulta aún en vuelo
+        cut.Find(".buscador-mensaje-error");
+
+        var segunda = Input(cut).EscribirAsync("juan");
+        await Task.Delay(TimeSpan.FromMilliseconds(700));
+        mediador.Enviados.OfType<BuscarGlobalQuery>().Should().ContainSingle(
+            "mientras la consulta abandonada siga viva, la nueva no puede arrancar sobre el mismo DbContext");
+
+        await cut.InvokeAsync(() => abandonada.TrySetResult(UnClienteEmpresarial));
+        await EsperarA(() => mediador.Enviados.OfType<BuscarGlobalQuery>().Count() == 2,
+            "que la segunda búsqueda se lance al terminar la abandonada");
+        await segunda;
+
+        cut.FindAll(".buscador-mensaje-error").Should().BeEmpty();
+        cut.Find(".buscador-item-titulo").TextContent.Should().Contain("Juan Pérez");
+    }
+
     /// <summary>El token del ciclo de vida viaja en TODAS las llamadas al mediador, no solo en la búsqueda.</summary>
     [Fact]
     public async Task El_token_del_ciclo_de_vida_viaja_en_la_busqueda_y_en_los_recientes()
@@ -1277,6 +1366,25 @@ public class BuscadorGlobalGen2Tests : BunitContext
         cut.FindAll(".buscador-mensaje-error").Should().ContainSingle();
         cut.Markup.Should().NotContain("Sin resultados",
             "un fallo no es la misma noticia que «no hay nada»");
+    }
+
+    /// <summary>
+    /// Una cancelación que no viene del usuario (un handler que se cancela por su cuenta, un timeout interno que
+    /// se propaga como cancelación) tampoco puede disfrazarse de «Sin resultados»: solo se calla la cancelación
+    /// del token del propio componente. Antes, todo <see cref="OperationCanceledException"/> se ignoraba.
+    /// </summary>
+    [Fact]
+    public async Task Una_busqueda_cancelada_por_el_handler_sin_cancelar_el_token_se_dice_como_error()
+    {
+        var mediador = new MediadorControlado { FalloDeBusqueda = new OperationCanceledException("cancelada por el handler") };
+        var cut = await RenderizarYAbrir(mediador);
+
+        await Input(cut).EscribirAsync("refri");
+
+        cut.FindAll(".buscador-mensaje-error").Should().ContainSingle();
+        cut.Markup.Should().NotContain("Sin resultados",
+            "una cancelación ajena al usuario no es lo mismo que «no hay nada»");
+        cut.Markup.Should().NotContain("Buscando…");
     }
 
     /// <summary>"Sin resultados" nombra lo que se escribió: no es lo mismo que decir que no hay nada en la cartera.</summary>

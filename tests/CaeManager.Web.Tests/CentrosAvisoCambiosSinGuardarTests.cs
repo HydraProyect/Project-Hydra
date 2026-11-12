@@ -35,6 +35,10 @@ public class CentrosAvisoCambiosSinGuardarTests : BunitContext
     private static readonly Guid ClienteId = Guid.NewGuid();
     private static readonly Guid EmpresaId = Guid.NewGuid();
 
+    /// <summary>Un Cliente empresarial con varias Empresas: ninguna queda elegida sola.</summary>
+    private static readonly IReadOnlyList<EmpresaSelectorDto> DosEmpresas =
+        [new EmpresaSelectorDto(EmpresaId, "Montajes Ebro S.L."), new EmpresaSelectorDto(Guid.NewGuid(), "Montajes Jalón S.L.")];
+
     public CentrosAvisoCambiosSinGuardarTests()
     {
         JSInterop.Mode = JSRuntimeMode.Loose;
@@ -50,6 +54,12 @@ public class CentrosAvisoCambiosSinGuardarTests : BunitContext
         /// trae la URL; la primera es el catálogo completo al abrir) espera a que el test la abra.
         /// </summary>
         public TaskCompletionSource? PuertaSegundaCargaEmpresas { get; set; }
+
+        /// <summary>
+        /// Si está puesta, Empresas del Cliente empresarial elegido (la carga acotada). Sin ella, una sola: el selector la
+        /// deja elegida al elegir el Cliente empresarial. Los tests del aviso «Selecciona una empresa.» necesitan varias.
+        /// </summary>
+        public IReadOnlyList<EmpresaSelectorDto>? EmpresasDelCliente { get; set; }
 
         private int _cargasEmpresas;
 
@@ -67,6 +77,7 @@ public class CentrosAvisoCambiosSinGuardarTests : BunitContext
                 ObtenerAlcanceCeroQuery => false,
                 ObtenerCandidatosIncorporacionCarteraQuery => Result.Exito<IReadOnlyList<CandidatoIncorporacionCarteraDto>>([]),
                 ObtenerClientesParaSelectorQuery => (IReadOnlyList<ClienteSelectorDto>)[new ClienteSelectorDto(ClienteId, "Refrielectric S.A.")],
+                ObtenerEmpresasParaSelectorQuery { ClienteId: not null } when EmpresasDelCliente is { } varias => varias,
                 ObtenerEmpresasParaSelectorQuery => (IReadOnlyList<EmpresaSelectorDto>)[new EmpresaSelectorDto(EmpresaId, "Montajes Ebro S.L.")],
                 CrearCentroCommand => Result.Exito(Guid.NewGuid()),
                 CrearClienteCommand => Result.Exito(Guid.NewGuid()),
@@ -415,6 +426,7 @@ public class CentrosAvisoCambiosSinGuardarTests : BunitContext
     [Fact]
     public async Task El_aviso_de_empresa_sin_elegir_desaparece_al_elegir_la_empresa()
     {
+        _mediador.EmpresasDelCliente = DosEmpresas;
         var cut = await AbrirAltaAsync(Renderizar());
         await ElegirEnElSelectorAsync(cut, "Busca o crea un Cliente…", "Refrielectric S.A.");
         await EscribirAsync(cut, "Nombre", "Planta Zaragoza");
@@ -431,6 +443,7 @@ public class CentrosAvisoCambiosSinGuardarTests : BunitContext
     [Fact]
     public async Task El_aviso_de_cliente_sin_elegir_desaparece_al_elegir_el_cliente_pero_el_de_empresa_no_se_borra_al_cambiar_de_cliente()
     {
+        _mediador.EmpresasDelCliente = DosEmpresas;
         var cut = await AbrirAltaAsync(Renderizar());
         await EscribirAsync(cut, "Nombre", "Planta Zaragoza");
         await cut.FindAll("button").Single(b => b.TextContent.Trim() == "Guardar").ClickAsync(new MouseEventArgs());

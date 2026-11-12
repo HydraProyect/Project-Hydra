@@ -173,12 +173,13 @@ public class PendientesDeReclamacionService(
 
         var filas = new List<(Guid ClienteId, string ClienteNombre, DocumentoPendienteDto Pendiente)>();
 
-        // «Sin confirmar» sin fecha: el Documento existe.
+        // «Sin confirmar» sin fecha: el Documento existe. Solo de un Tipo de ámbito Trabajador, la regla del lote por vencimiento
+        // y del envío (TiposDocumentoReclamablesDeTrabajador); los faltantes ya la cumplen (DocumentosFaltantesService).
         var trabajadorIdsConPar = pares.Select(p => p.TrabajadorId).Distinct().ToList();
         var sinConfirmar = await (
             from documento in documentosContext.Documentos.SinConfirmarSinFecha()
             where documento.TrabajadorId != null && trabajadorIdsConPar.Contains(documento.TrabajadorId!.Value)
-            join tipo in tiposDocumentoContext.TiposDocumento on documento.TipoDocumentoId equals tipo.Id
+            join tipo in TiposDocumentoReclamablesDeTrabajador.De(tiposDocumentoContext.TiposDocumento) on documento.TipoDocumentoId equals tipo.Id
             where tipoDocumentoIds == null || tipoDocumentoIds.Contains(tipo.Id)
             select new { DocumentoId = documento.Id, TrabajadorId = documento.TrabajadorId!.Value, TipoId = tipo.Id, TipoNombre = tipo.Nombre })
             .ToListAsync(cancellationToken);

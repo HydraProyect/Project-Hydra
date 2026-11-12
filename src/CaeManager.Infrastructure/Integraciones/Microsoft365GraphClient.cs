@@ -17,9 +17,11 @@ namespace CaeManager.Infrastructure.Integraciones;
 /// 5/12) — flujo delegado (authorization code + offline_access), no
 /// client-credentials como <c>GraphEmailService</c>: aquí no hay "el propio
 /// buzón de Hydra", cada <c>ConexionIntegracion</c> es el buzón real de un
-/// cliente distinto, consentido por su propio administrador. Por eso todas
-/// las llamadas usan <c>/me/...</c> (resuelto por el token, no por un UPN
-/// en la URL) en vez de <c>/users/{upn}/...</c>.
+/// cliente distinto, consentido por su propio administrador. Las llamadas
+/// sobre el buzón propio de quien consintió usan <c>/me/...</c> (resuelto por
+/// el token, no por un UPN en la URL); las de un buzón compartido usan
+/// <c>/users/{dirección}/...</c> con el token de aplicación del directorio
+/// (<see cref="ObtenerTokenAplicacionAsync"/>; ver <see cref="RutaBuzon"/>).
 /// </summary>
 public class Microsoft365GraphClient(
     HttpClient httpClient,
@@ -28,7 +30,16 @@ public class Microsoft365GraphClient(
 {
     private const string EndpointAutorizacion = "https://login.microsoftonline.com/common/oauth2/v2.0/authorize";
     private const string EndpointToken = "https://login.microsoftonline.com/common/oauth2/v2.0/token";
-    private const string ScopesDelegados = "offline_access https://graph.microsoft.com/Mail.Read https://graph.microsoft.com/Mail.Send";
+    // Solo el buzón propio de quien consiente. Los buzones compartidos no van por aquí: usan el
+    // token de aplicación del directorio (ObtenerTokenAplicacionAsync), acotado en Exchange.
+    internal const string ScopesDelegados =
+        "offline_access https://graph.microsoft.com/Mail.Read https://graph.microsoft.com/Mail.Send";
+
+    private const string ScopeAplicacion = "https://graph.microsoft.com/.default";
+
+    private static readonly System.Collections.Concurrent.ConcurrentDictionary<string, TokenAplicacionGraphDto> TokensAplicacion = new();
+
+    private const string RaizGraph = "https://graph.microsoft.com/v1.0/";
 
     // Máximo permitido por Graph para suscripciones sobre mensajes de
     // correo (~2.94 días) — ver RenovacionSuscripcionWebhookHostedService,
@@ -61,7 +72,7 @@ public class Microsoft365GraphClient(
             ["scope"] = ScopesDelegados,
         };
 
-        var credencial = AgregarCredencialDeCliente(contenido);
+        var credencial = AgregarCredencialDeCliente(contenido, EndpointToken);
         if (credencial.EsFallido)
             return Result.Fallo<TokensGraphDto>(credencial.Error);
 
@@ -77,11 +88,95 @@ public class Microsoft365GraphClient(
             ["scope"] = ScopesDelegados,
         };
 
-        var credencial = AgregarCredencialDeCliente(contenido);
+        var credencial = AgregarCredencialDeCliente(contenido, EndpointToken);
         if (credencial.EsFallido)
             return Result.Fallo<TokensGraphDto>(credencial.Error);
 
         return await PedirTokensAsync(contenido, cancellationToken);
+    }
+
+    public async Task<Result<TokenAplicacionGraphDto>> ObtenerTokenAplicacionAsync(string directorioId, CancellationToken cancellationToken)
+    {
+        // El identificador va en la ruta del endpoint: solo un GUID, para que no pueda apuntar a otro
+        // sitio ni a /common u /organizations (que no admiten client credentials con sentido aquí).
+        if (!Guid.TryParse(directorioId, out var directorio) || directorio == Guid.Empty)
+            return Result.Fallo<TokenAplicacionGraphDto>(Error.Crear(
+                "Integraciones.Microsoft365.DirectorioInvalido", "El directorio de Microsoft no es válido."));
+
+        // Un token por directorio para todos sus buzones compartidos: sin esta caché cada lectura, envío o
+        // notificación pediría uno nuevo a Entra. Se descarta cinco minutos antes de caducar.
+        var claveCache = $"{opciones.Value.ClientId}|{directorio:D}";
+        if (TokensAplicacion.TryGetValue(claveCache, out var cacheado) && cacheado.ExpiraUtc > DateTime.UtcNow.AddMinutes(5))
+            return Result.Exito(cacheado);
+
+        var endpoint = $"https://login.microsoftonline.com/{directorio:D}/oauth2/v2.0/token";
+        var contenido = new Dictionary<string, string>
+        {
+            ["grant_type"] = "client_credentials",
+            ["scope"] = ScopeAplicacion,
+        };
+
+        var credencial = AgregarCredencialDeCliente(contenido, endpoint);
+        if (credencial.EsFallido)
+            return Result.Fallo<TokenAplicacionGraphDto>(credencial.Error);
+
+        using var peticion = new HttpRequestMessage(HttpMethod.Post, endpoint) { Content = new FormUrlEncodedContent(contenido) };
+        try
+        {
+            using var respuesta = await httpClient.SendAsync(peticion, cancellationToken);
+            if (!respuesta.IsSuccessStatusCode)
+            {
+                var cuerpoError = await respuesta.Content.ReadAsStringAsync(cancellationToken);
+                logger.LogError(
+                    "Microsoft Entra ID devolvió {StatusCode} al pedir un token de aplicación: {CodigoError}",
+                    (int)respuesta.StatusCode, CodigoErrorGraph.Extraer(cuerpoError));
+                return Result.Fallo<TokenAplicacionGraphDto>(EsRespuestaTransitoria(respuesta.StatusCode)
+                    ? ConEsperaPedida(ErrorTransitorio, respuesta)
+                    : Error.Crear("Integraciones.Microsoft365.ErrorAutenticacion", "No pudimos autenticar con Microsoft."));
+            }
+
+            // Un 200 con JSON válido pero sin el token no es un rechazo de Entra (que respondería 4xx): es una respuesta
+            // incompleta, como una ilegible, y se reintenta sin pasar la conexión a ConError.
+            var cuerpo = await respuesta.Content.ReadFromJsonAsync<RespuestaTokenGraph>(cancellationToken);
+            if (string.IsNullOrWhiteSpace(cuerpo?.AccessToken))
+            {
+                logger.LogError("Microsoft Entra ID devolvió un 200 sin access_token al pedir un token de aplicación.");
+                return Result.Fallo<TokenAplicacionGraphDto>(ErrorTransitorio);
+            }
+
+            // La concesión de Entra y la de Exchange se suman: con un permiso de aplicación de buzón en Entra el
+            // token abre todos los buzones del directorio y el ámbito de RBAC for Applications deja de acotar
+            // nada. Esos permisos viajan en el claim «roles»; los de Exchange no. Este flujo no necesita ninguno
+            // de Entra, así que cualquiera hace fallar cerrado.
+            if (TokenAplicacion.TienePermisosDeEntraOEsIlegible(cuerpo.AccessToken))
+            {
+                logger.LogError(
+                    "El token de aplicación del directorio {Directorio} trae permisos de aplicación concedidos en Entra: no se usa.", directorio);
+                return Result.Fallo<TokenAplicacionGraphDto>(Error.Crear(
+                    "Integraciones.Microsoft365.PermisoSinAcotar",
+                    "La aplicación tiene en ese directorio permisos de aplicación concedidos en Entra que no acota Exchange: el administrador debe retirarlos."));
+            }
+
+            var token = new TokenAplicacionGraphDto(cuerpo.AccessToken, DateTime.UtcNow.AddSeconds(cuerpo.ExpiresIn ?? 3600));
+            TokensAplicacion[claveCache] = token;
+            return Result.Exito(token);
+        }
+        catch (HttpRequestException ex)
+        {
+            logger.LogError(ex, "Fallo de red al pedir un token de aplicación a Microsoft Entra ID.");
+            return Result.Fallo<TokenAplicacionGraphDto>(Error.Crear("Integraciones.Microsoft365.ErrorRed", "No pudimos conectar con Microsoft."));
+        }
+        catch (TaskCanceledException ex) when (!cancellationToken.IsCancellationRequested)
+        {
+            logger.LogError(ex, "Microsoft Entra ID no respondió a tiempo al pedir un token de aplicación.");
+            return Result.Fallo<TokenAplicacionGraphDto>(ErrorTiempoAgotado);
+        }
+        catch (Exception ex) when (ex is JsonException or NotSupportedException or InvalidOperationException)
+        {
+            // Un 200 ilegible no es un rechazo de Entra: se reintenta.
+            logger.LogError(ex, "Microsoft Entra ID devolvió una respuesta ilegible al pedir un token de aplicación.");
+            return Result.Fallo<TokenAplicacionGraphDto>(ErrorTransitorio);
+        }
     }
 
     /// <summary>
@@ -92,7 +187,7 @@ public class Microsoft365GraphClient(
     /// Se genera un aserto NUEVO en cada llamada (<c>jti</c> único): Entra rechaza la
     /// reutilización de un mismo aserto.
     /// </summary>
-    private Result AgregarCredencialDeCliente(Dictionary<string, string> contenido)
+    private Result AgregarCredencialDeCliente(Dictionary<string, string> contenido, string endpointToken)
     {
         var config = opciones.Value;
         contenido["client_id"] = config.ClientId!;
@@ -113,7 +208,7 @@ public class Microsoft365GraphClient(
         }
 
         var aserto = AsertoClienteMicrosoft365.Crear(
-            config.ClientId!, EndpointToken, config.CertificadoRuta!, config.ClavePrivadaRuta!, DateTimeOffset.UtcNow);
+            config.ClientId!, endpointToken, config.CertificadoRuta!, config.ClavePrivadaRuta!, DateTimeOffset.UtcNow);
         if (aserto.EsFallido)
         {
             logger.LogError("No se pudo generar el aserto de cliente de Microsoft 365 con el certificado configurado: {Codigo}.", aserto.Error.Codigo);
@@ -138,23 +233,47 @@ public class Microsoft365GraphClient(
             {
                 var cuerpoError = await respuesta.Content.ReadAsStringAsync(cancellationToken);
                 logger.LogError("Microsoft Entra ID devolvió {StatusCode} al canjear tokens: {CodigoError}", (int)respuesta.StatusCode, CodigoErrorGraph.Extraer(cuerpoError));
-                return Result.Fallo<TokensGraphDto>(Error.Crear("Integraciones.Microsoft365.ErrorAutenticacion", "No pudimos autenticar con Microsoft."));
+                return Result.Fallo<TokensGraphDto>(EsRespuestaTransitoria(respuesta.StatusCode)
+                    ? ConEsperaPedida(ErrorTransitorio, respuesta)
+                    : Error.Crear("Integraciones.Microsoft365.ErrorAutenticacion", "No pudimos autenticar con Microsoft."));
             }
 
+            // Un 200 con JSON válido pero sin alguno de los dos tokens no es un rechazo de Entra (que respondería 4xx):
+            // es una respuesta incompleta, como una ilegible, y se reintenta sin pasar la conexión a ConError.
             var cuerpo = await respuesta.Content.ReadFromJsonAsync<RespuestaTokenGraph>(cancellationToken);
-            if (cuerpo?.AccessToken is null || cuerpo.RefreshToken is null)
-                return Result.Fallo<TokensGraphDto>(Error.Crear("Integraciones.Microsoft365.ErrorAutenticacion", "No pudimos autenticar con Microsoft."));
+            if (string.IsNullOrWhiteSpace(cuerpo?.AccessToken) || string.IsNullOrWhiteSpace(cuerpo.RefreshToken))
+            {
+                logger.LogError("Microsoft Entra ID devolvió un 200 sin access_token o sin refresh_token al canjear tokens.");
+                return Result.Fallo<TokensGraphDto>(ErrorTransitorio);
+            }
 
             // expires_in casi siempre viaja (Entra ID lo manda de serie), pero
             // ante su ausencia se asume el mínimo típico de Graph (1 h) en vez
             // de fallar el canje por un campo que no es indispensable.
             var expiraUtc = DateTime.UtcNow.AddSeconds(cuerpo.ExpiresIn ?? 3600);
-            return Result.Exito(new TokensGraphDto(cuerpo.AccessToken, cuerpo.RefreshToken, expiraUtc));
+
+            // El directorio de quien inició sesión es el claim «tid» del access token que Entra devuelve en ESTA
+            // respuesta del endpoint de tokens (los scopes no piden openid, así que no hay id_token). Se lee sin
+            // validar la firma por el mismo motivo que TokenAplicacion: el token llega directamente de Entra por
+            // TLS en respuesta a nuestra petición. Nunca sale del navegador, de «state» ni de la query del callback.
+            return Result.Exito(new TokensGraphDto(
+                cuerpo.AccessToken, cuerpo.RefreshToken, expiraUtc, TokenAplicacion.LeerDirectorio(cuerpo.AccessToken)));
         }
         catch (HttpRequestException ex)
         {
             logger.LogError(ex, "Fallo de red al canjear tokens con Microsoft Entra ID.");
             return Result.Fallo<TokensGraphDto>(Error.Crear("Integraciones.Microsoft365.ErrorRed", "No pudimos conectar con Microsoft."));
+        }
+        catch (TaskCanceledException ex) when (!cancellationToken.IsCancellationRequested)
+        {
+            logger.LogError(ex, "Microsoft Entra ID no respondió a tiempo al canjear tokens.");
+            return Result.Fallo<TokensGraphDto>(ErrorTiempoAgotado);
+        }
+        catch (Exception ex) when (ex is JsonException or NotSupportedException or InvalidOperationException)
+        {
+            // Un 200 con un cuerpo ilegible (JSON roto o charset inválido) no es un rechazo de Entra: se reintenta.
+            logger.LogError(ex, "Microsoft Entra ID devolvió una respuesta de tokens ilegible.");
+            return Result.Fallo<TokensGraphDto>(ErrorTransitorio);
         }
     }
 
@@ -181,8 +300,108 @@ public class Microsoft365GraphClient(
         }
     }
 
+    public async Task<Result<string>> ObtenerIdentidadBuzonAsync(string accessToken, BuzonGraph buzon, CancellationToken cancellationToken)
+    {
+        using var peticion = NuevaPeticionGraph(
+            HttpMethod.Get, $"{RutaBuzon(buzon)}/mailFolders('Inbox')?$select=id", accessToken);
+        // NuevaPeticionGraph ya pide el Id inmutable (Prefer: IdType="ImmutableId"), que no cambia aunque la
+        // carpeta se mueva ni depende de la dirección por la que se abra el buzón: es lo que hace de él una
+        // identidad y no solo una prueba de acceso.
+
+        try
+        {
+            using var respuesta = await httpClient.SendAsync(peticion, cancellationToken);
+            if (respuesta.IsSuccessStatusCode)
+            {
+                var carpeta = await respuesta.Content.ReadFromJsonAsync<CarpetaIdGraph>(cancellationToken);
+                return string.IsNullOrWhiteSpace(carpeta?.Id) || carpeta.Id.Length > LongitudMaximaIdentidadBuzon
+                    ? Result.Fallo<string>(Error.Crear("Integraciones.Microsoft365.ErrorApi", "No pudimos leer el buzón conectado."))
+                    : Result.Exito(carpeta.Id);
+            }
+
+            var cuerpoError = await respuesta.Content.ReadAsStringAsync(cancellationToken);
+            logger.LogWarning(
+                "Microsoft Graph devolvió {StatusCode} al comprobar el acceso a un buzón (compartido: {EsCompartido}): {CodigoError}",
+                (int)respuesta.StatusCode, buzon.EsCompartido, CodigoErrorGraph.Extraer(cuerpoError));
+
+            // 403/404: el buzón está fuera del ámbito de RBAC for Applications que el administrador de
+            // Exchange asignó a la aplicación en ese directorio, o la dirección no existe. Graph no
+            // distingue los dos casos de forma fiable, así que el mensaje los nombra a la vez.
+            return respuesta.StatusCode is System.Net.HttpStatusCode.Forbidden or System.Net.HttpStatusCode.NotFound
+                ? Result.Fallo<string>(Error.Crear(
+                    "Integraciones.Microsoft365.SinAccesoBuzon",
+                    "No podemos abrir ese buzón: comprueba la dirección y que el administrador de Exchange haya incluido el buzón en el ámbito de la aplicación TALVEG."))
+                : Result.Fallo<string>(ConEsperaPedida(
+                    Error.Crear("Integraciones.Microsoft365.ErrorApi", "No pudimos leer el buzón conectado."), respuesta));
+        }
+        catch (HttpRequestException ex)
+        {
+            logger.LogError(ex, "Fallo de red al comprobar el acceso a un buzón vía Microsoft Graph.");
+            return Result.Fallo<string>(Error.Crear("Integraciones.Microsoft365.ErrorRed", "No pudimos conectar con Microsoft."));
+        }
+        catch (TaskCanceledException ex) when (!cancellationToken.IsCancellationRequested)
+        {
+            logger.LogError(ex, "Microsoft Graph no respondió a tiempo al comprobar el acceso a un buzón.");
+            return Result.Fallo<string>(ErrorTiempoAgotado);
+        }
+        catch (Exception ex) when (ex is JsonException or NotSupportedException or InvalidOperationException)
+        {
+            return Result.Fallo<string>(Error.Crear("Integraciones.Microsoft365.ErrorApi", "No pudimos leer el buzón conectado."));
+        }
+    }
+
+    /// <summary>Tope de la identidad del buzón en la reclamación; un Id inmutable de carpeta ronda los 150 caracteres.</summary>
+    internal const int LongitudMaximaIdentidadBuzon = CaeManager.Domain.Integraciones.ReclamacionBuzonIntegracion.LongitudMaximaIdentidadBuzon;
+
+    /// <summary>
+    /// Un timeout del <see cref="HttpClient"/> llega como <see cref="TaskCanceledException"/> sin que nadie haya
+    /// cancelado: es un fallo recuperable de Microsoft, no una cancelación, y no debe cortar la desconexión de un
+    /// buzón ni la renovación del resto del Tenant. La cancelación pedida de verdad se sigue propagando.
+    /// </summary>
+    private static readonly Error ErrorTiempoAgotado =
+        Error.Crear(CodigosErrorMicrosoft365.TiempoAgotado, "Microsoft no respondió a tiempo.");
+
+    /// <summary>
+    /// Microsoft no rechazó la petición, solo no pudo atenderla ahora (<see cref="EsRespuestaTransitoria"/>, o un 200
+    /// de tokens ilegible). Quien renueva o verifica lo reintenta en el siguiente ciclo sin pasar la conexión a ConError.
+    /// </summary>
+    private static readonly Error ErrorTransitorio =
+        Error.Crear(CodigosErrorMicrosoft365.Transitorio, "Microsoft no ha podido atender la petición ahora; se reintentará.");
+
+    /// <summary>
+    /// Un 429 con <c>Retry-After</c> (en segundos o como fecha): el error lleva esa espera
+    /// (<see cref="Error.ReintentarTras"/>) para que la verificación de la identidad no vuelva antes. Sin la cabecera, o
+    /// en otro código, el error tal cual.
+    /// </summary>
+    internal static Error ConEsperaPedida(Error error, HttpResponseMessage respuesta)
+    {
+        if (respuesta.StatusCode != System.Net.HttpStatusCode.TooManyRequests || respuesta.Headers.RetryAfter is not { } reintento)
+            return error;
+
+        var espera = reintento.Delta
+            ?? (reintento.Date is { } fecha ? fecha - DateTimeOffset.UtcNow : (TimeSpan?)null);
+        return espera is { } valor && valor > TimeSpan.Zero ? error.ConReintentarTras(valor) : error;
+    }
+
+    /// <summary>408, 429 o 5xx: la respuesta no dice nada de la credencial ni de la suscripción.</summary>
+    internal static bool EsRespuestaTransitoria(System.Net.HttpStatusCode codigo) =>
+        codigo is System.Net.HttpStatusCode.RequestTimeout or System.Net.HttpStatusCode.TooManyRequests || (int)codigo >= 500;
+
+    private sealed record CarpetaIdGraph(string? Id);
+
+    /// <summary>
+    /// Raíz de las llamadas sobre un buzón: <c>/me</c> para el propio de quien consintió (resuelto por
+    /// el token, sin depender de que <c>mail</c> coincida con el UPN) y <c>/users/{dirección}</c> para
+    /// uno compartido. La dirección se escapa: viene de lo que escribió quien conectó el buzón.
+    /// </summary>
+    internal static string RutaBuzon(BuzonGraph buzon) => RaizGraph + RecursoBuzon(buzon);
+
+    /// <summary>La misma raíz sin el prefijo de Graph: es como la quiere el <c>resource</c> de una suscripción.</summary>
+    internal static string RecursoBuzon(BuzonGraph buzon) =>
+        buzon.EsCompartido ? $"users/{Uri.EscapeDataString(buzon.Direccion)}" : "me";
+
     public async Task<Result> EnviarRespuestaAsync(
-        string accessToken, string buzonEmail, string mensajeExternoIdOrigen, string cuerpoHtml,
+        string accessToken, BuzonGraph buzon, string mensajeExternoIdOrigen, string cuerpoHtml,
         IReadOnlyList<AdjuntoParaEnviarDto>? adjuntos, CancellationToken cancellationToken)
     {
         // /reply preserva conversationId/threading automáticamente — nunca
@@ -191,7 +410,7 @@ public class Microsoft365GraphClient(
         // "message" — es la forma en que Graph permite adjuntar algo más al
         // responder, en vez de solo el comentario de texto.
         using var peticion = NuevaPeticionGraph(
-            HttpMethod.Post, $"https://graph.microsoft.com/v1.0/me/messages/{Uri.EscapeDataString(mensajeExternoIdOrigen)}/reply", accessToken);
+            HttpMethod.Post, $"{RutaBuzon(buzon)}/messages/{Uri.EscapeDataString(mensajeExternoIdOrigen)}/reply", accessToken);
         peticion.Content = JsonContent.Create(new SolicitudRespuestaGraph(
             cuerpoHtml, ConstruirMensajeConAdjuntos(adjuntos)));
 
@@ -215,11 +434,14 @@ public class Microsoft365GraphClient(
     }
 
     public async Task<Result<MensajeEnviadoGraphDto>> EnviarNuevoMensajeAsync(
-        string accessToken, string buzonEmail, IReadOnlyList<string> destinatarios, string asunto, string cuerpoHtml,
-        IReadOnlyList<AdjuntoParaEnviarDto>? adjuntos, CancellationToken cancellationToken,
-        IReadOnlyList<string>? copia = null)
+        string accessToken, BuzonGraph buzon, IReadOnlyList<string> destinatarios, string asunto, string cuerpoHtml,
+        IReadOnlyList<AdjuntoParaEnviarDto>? adjuntos, Func<CancellationToken, Task<bool>> puertaAntesDeEnviar,
+        CancellationToken cancellationToken, IReadOnlyList<string>? copia = null)
     {
-        using var peticionBorrador = NuevaPeticionGraph(HttpMethod.Post, "https://graph.microsoft.com/v1.0/me/messages", accessToken);
+        // En un buzón compartido el borrador se crea en SUS Borradores: Exchange lo envía entonces
+        // como el compartido (Send As) o en su nombre (Send on Behalf), según el permiso que tenga
+        // quien consintió, sin necesidad de fijar "from" a mano.
+        using var peticionBorrador = NuevaPeticionGraph(HttpMethod.Post, $"{RutaBuzon(buzon)}/messages", accessToken);
 
         // Los Ids de mensaje de Graph NO son estables: al enviar el borrador,
         // el mensaje se mueve de Borradores a Elementos enviados y cambia de
@@ -248,7 +470,14 @@ public class Microsoft365GraphClient(
                 logger.LogError(
                     "Microsoft Graph devolvió {StatusCode} al crear un borrador: {CodigoError}",
                     (int)respuestaBorrador.StatusCode, CodigoErrorGraph.Extraer(cuerpoError));
-                return Result.Fallo<MensajeEnviadoGraphDto>(Error.Crear("Integraciones.Microsoft365.ErrorEnvio", "No pudimos enviar el mensaje."));
+                // Un compartido con solo «Application Mail.Read» y «Application Mail.Send» en Exchange lee
+                // y responde, pero no puede crear el borrador de un mensaje nuevo: le falta
+                // «Application Mail.ReadWrite». Se nombra para que no parezca un fallo de Microsoft.
+                return Result.Fallo<MensajeEnviadoGraphDto>(
+                    buzon.EsCompartido && respuestaBorrador.StatusCode == System.Net.HttpStatusCode.Forbidden
+                        ? Error.Crear(CodigosErrorMicrosoft365.SinPermisoEscritura,
+                            "Este buzón compartido no permite enviar mensajes nuevos desde TALVEG: el administrador de Exchange debe concederle a la aplicación permiso de escritura (Mail.ReadWrite).")
+                        : Error.Crear("Integraciones.Microsoft365.ErrorEnvio", "No pudimos enviar el mensaje."));
             }
 
             var borrador = await respuestaBorrador.Content.ReadFromJsonAsync<RespuestaCrearMensajeGraph>(cancellationToken);
@@ -261,8 +490,19 @@ public class Microsoft365GraphClient(
             var mensajeExternoId = borrador.Id!;
             var hiloExternoId = borrador.ConversationId!;
 
+            // Puerta entre crear y enviar: crear el borrador es una llamada a Graph, y mientras tanto la conexión puede
+            // haber pasado a ConError o haberse desconectado. Si ya no está operativa (o no se puede comprobar), el
+            // borrador no sale: se borra y el envío falla como cualquier otro envío desde un buzón sin verificar.
+            if (!await PasaPuertaAsync(puertaAntesDeEnviar, cancellationToken))
+            {
+                logger.LogWarning(
+                    "La conexión dejó de estar operativa entre crear el borrador {MensajeId} y enviarlo: no se envía.", mensajeExternoId);
+                await EliminarBorradorAsync(accessToken, buzon, mensajeExternoId, cancellationToken);
+                return Result.Fallo<MensajeEnviadoGraphDto>(ErroresBuzonSinVerificar.Crear());
+            }
+
             using var peticionEnvio = NuevaPeticionGraph(
-                HttpMethod.Post, $"https://graph.microsoft.com/v1.0/me/messages/{Uri.EscapeDataString(mensajeExternoId)}/send", accessToken);
+                HttpMethod.Post, $"{RutaBuzon(buzon)}/messages/{Uri.EscapeDataString(mensajeExternoId)}/send", accessToken);
             // La preferencia va también aquí: Graph solo interpreta un Id
             // inmutable en la URL si la petición la declara. Sin esto, un Id
             // inmutable se leería como Id normal y la llamada fallaría.
@@ -276,18 +516,7 @@ public class Microsoft365GraphClient(
                     "Microsoft Graph devolvió {StatusCode} al enviar el borrador {MensajeId}: {CodigoError}",
                     (int)respuestaEnvio.StatusCode, mensajeExternoId, CodigoErrorGraph.Extraer(cuerpoError));
 
-                try
-                {
-                    using var peticionEliminar = NuevaPeticionGraph(
-                        HttpMethod.Delete, $"https://graph.microsoft.com/v1.0/me/messages/{Uri.EscapeDataString(mensajeExternoId)}", accessToken);
-                    peticionEliminar.Headers.TryAddWithoutValidation("Prefer", "IdType=\"ImmutableId\"");
-                    await httpClient.SendAsync(peticionEliminar, cancellationToken);
-                }
-                catch (Exception ex)
-                {
-                    logger.LogWarning(ex, "No se pudo eliminar el borrador huérfano {MensajeId}.", mensajeExternoId);
-                }
-
+                await EliminarBorradorAsync(accessToken, buzon, mensajeExternoId, cancellationToken);
                 return Result.Fallo<MensajeEnviadoGraphDto>(Error.Crear("Integraciones.Microsoft365.ErrorEnvio", "No pudimos enviar el mensaje."));
             }
 
@@ -300,6 +529,46 @@ public class Microsoft365GraphClient(
         }
     }
 
+    /// <summary>
+    /// Falla cerrado: una puerta que lanza (la base no responde) cuenta como no superada. La cancelación de la propia
+    /// operación sí se propaga.
+    /// </summary>
+    private async Task<bool> PasaPuertaAsync(
+        Func<CancellationToken, Task<bool>> puerta, CancellationToken cancellationToken)
+    {
+        try
+        {
+            return await puerta(cancellationToken);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException || !cancellationToken.IsCancellationRequested)
+        {
+            logger.LogError(ex, "No se pudo comprobar la conexión antes de la siguiente llamada a Graph: no se hace.");
+            return false;
+        }
+    }
+
+    /// <summary>
+    /// Mejor esfuerzo: un borrador que no se envió no debe quedarse en Borradores del buzón. Si el borrado falla, el
+    /// borrador se queda allí sin enviar; no hay reintento. La cancelación pedida no es un fallo del borrado: se propaga.
+    /// </summary>
+    private async Task EliminarBorradorAsync(string accessToken, BuzonGraph buzon, string mensajeExternoId, CancellationToken cancellationToken)
+    {
+        try
+        {
+            using var peticionEliminar = NuevaPeticionGraph(
+                HttpMethod.Delete, $"{RutaBuzon(buzon)}/messages/{Uri.EscapeDataString(mensajeExternoId)}", accessToken);
+            peticionEliminar.Headers.TryAddWithoutValidation("Prefer", "IdType=\"ImmutableId\"");
+            using var respuesta = await httpClient.SendAsync(peticionEliminar, cancellationToken);
+            if (!respuesta.IsSuccessStatusCode)
+                logger.LogWarning(
+                    "Microsoft Graph devolvió {StatusCode} al eliminar el borrador sin enviar {MensajeId}.", (int)respuesta.StatusCode, mensajeExternoId);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException || !cancellationToken.IsCancellationRequested)
+        {
+            logger.LogWarning(ex, "No se pudo eliminar el borrador huérfano {MensajeId}.", mensajeExternoId);
+        }
+    }
+
     private static MensajeConAdjuntosGraph? ConstruirMensajeConAdjuntos(IReadOnlyList<AdjuntoParaEnviarDto>? adjuntos) =>
         adjuntos is { Count: > 0 } ? new MensajeConAdjuntosGraph(ConstruirAdjuntosGraph(adjuntos)) : null;
 
@@ -309,14 +578,14 @@ public class Microsoft365GraphClient(
             : null;
 
     public async Task<Result<MensajeGraphDto>> ObtenerMensajeAsync(
-        string accessToken, string buzonEmail, string mensajeId, CancellationToken cancellationToken)
+        string accessToken, BuzonGraph buzon, string mensajeId, CancellationToken cancellationToken)
     {
         // $expand=attachments trae los metadatos de los adjuntos en el mismo
         // viaje — el contenido en sí (contentBytes) no, por eso
         // ObtenerContenidoAdjuntoAsync es una llamada aparte: descargar el
         // contenido de todos los adjuntos de un mensaje que quizás nadie
         // vaya a abrir sería desperdiciar ancho de banda en el caso común.
-        var url = $"https://graph.microsoft.com/v1.0/me/messages/{Uri.EscapeDataString(mensajeId)}" +
+        var url = $"{RutaBuzon(buzon)}/messages/{Uri.EscapeDataString(mensajeId)}" +
             "?$select=subject,from,replyTo,toRecipients,ccRecipients,body,receivedDateTime,conversationId,hasAttachments,internetMessageHeaders" +
             "&$expand=attachments($select=id,name,contentType,size)";
         using var peticion = NuevaPeticionGraph(HttpMethod.Get, url, accessToken);
@@ -325,27 +594,71 @@ public class Microsoft365GraphClient(
         {
             using var respuesta = await httpClient.SendAsync(peticion, cancellationToken);
             if (!respuesta.IsSuccessStatusCode)
-                return Result.Fallo<MensajeGraphDto>(Error.Crear("Integraciones.Microsoft365.ErrorApi", "No pudimos leer el mensaje."));
+            {
+                // Un 403, un 429 o un 5xx no dicen nada del mensaje, y tratarlos como borrado perdería la
+                // notificación: la ingesta los reintenta. Un 404 tampoco basta: /users/{buzón}/messages/{id} da 404
+                // también si el buzón ya no existe. Solo ErrorItemNotFound dice que falta el mensaje (borrado entre la
+                // notificación y la lectura); cualquier otro código de 404, o uno ilegible, puede ser del buzón y
+                // deja el evento sin resolver.
+                if (respuesta.StatusCode != System.Net.HttpStatusCode.NotFound)
+                    return Result.Fallo<MensajeGraphDto>(Error.Crear("Integraciones.Microsoft365.ErrorApi", "No pudimos leer el mensaje."));
 
-            var mensaje = await respuesta.Content.ReadFromJsonAsync<MensajeDetalleGraph>(cancellationToken);
+                var codigoError = CodigoErrorGraph.Extraer(await respuesta.Content.ReadAsStringAsync(cancellationToken));
+                if (string.Equals(codigoError, CodigoGraphElementoNoEncontrado, StringComparison.Ordinal))
+                    return Result.Fallo<MensajeGraphDto>(Error.Crear(CodigoMensajeNoEncontrado, "El mensaje ya no está en el buzón."));
+
+                logger.LogWarning(
+                    "Microsoft Graph devolvió 404 ({CodigoError}) al leer el mensaje {MensajeId}: puede faltar el buzón, no se da por borrado.",
+                    codigoError, mensajeId);
+                return Result.Fallo<MensajeGraphDto>(Error.Crear(
+                    CodigosErrorMicrosoft365.BuzonNoEncontrado, "Microsoft 365 no encuentra el buzón de este mensaje."));
+            }
+
+            // Un 200 cuyo JSON no es un objeto (`null`, una lista, un número) es JSON válido sin ninguno de los campos
+            // obligatorios: mensaje incompleto, como el que no trae remitente. Espera sin gastar intento (Retenido a las
+            // 72 h) en vez de agotar intentos hasta DescartadoDefinitivo. Solo un cuerpo que ni siquiera es JSON sigue
+            // siendo ilegible (ErrorApi, abajo).
+            using var documento = await JsonDocument.ParseAsync(
+                await respuesta.Content.ReadAsStreamAsync(cancellationToken), cancellationToken: cancellationToken);
+            var mensaje = documento.RootElement.ValueKind == JsonValueKind.Object
+                ? documento.RootElement.Deserialize<MensajeDetalleGraph>(OpcionesJsonWeb)
+                : null;
             if (mensaje is null)
-                return Result.Fallo<MensajeGraphDto>(Error.Crear("Integraciones.Microsoft365.ErrorApi", "No pudimos leer el mensaje."));
+            {
+                logger.LogWarning(
+                    "Microsoft Graph devolvió el mensaje {MensajeId} como JSON {Tipo}, no como objeto: se reintentará sin darlo por procesado.",
+                    mensajeId, documento.RootElement.ValueKind);
+                return Result.Fallo<MensajeGraphDto>(Error.Crear(
+                    CodigosErrorMicrosoft365.MensajeIncompleto, "Microsoft 365 devolvió el mensaje incompleto."));
+            }
+
+            // Campos obligatorios (CodigosErrorMicrosoft365.MensajeIncompleto): sin ellos no se inventa remitente, fecha
+            // ni hilo; el evento espera sin gastar intento y sin marcarse procesado.
+            if (CampoObligatorioAusente(mensaje) is { } campoAusente)
+            {
+                logger.LogWarning(
+                    "Microsoft Graph devolvió el mensaje {MensajeId} sin {Campo}: se reintentará sin darlo por procesado.",
+                    mensajeId, campoAusente);
+                return Result.Fallo<MensajeGraphDto>(Error.Crear(
+                    CodigosErrorMicrosoft365.MensajeIncompleto, "Microsoft 365 devolvió el mensaje incompleto."));
+            }
 
             var participantes = new List<ParticipanteGraphDto>();
             if (!string.IsNullOrWhiteSpace(mensaje.From?.EmailAddress?.Address))
                 participantes.Add(new ParticipanteGraphDto(mensaje.From.EmailAddress.Address, RolParticipante.De));
+            // Cada elemento de las listas puede venir null (`"toRecipients":[null]` es JSON válido): se salta, no rompe el lote.
             participantes.AddRange((mensaje.ToRecipients ?? [])
-                .Where(r => !string.IsNullOrWhiteSpace(r.EmailAddress?.Address))
-                .Select(r => new ParticipanteGraphDto(r.EmailAddress!.Address!, RolParticipante.Para)));
+                .Where(r => !string.IsNullOrWhiteSpace(r?.EmailAddress?.Address))
+                .Select(r => new ParticipanteGraphDto(r!.EmailAddress!.Address!, RolParticipante.Para)));
             participantes.AddRange((mensaje.CcRecipients ?? [])
-                .Where(r => !string.IsNullOrWhiteSpace(r.EmailAddress?.Address))
-                .Select(r => new ParticipanteGraphDto(r.EmailAddress!.Address!, RolParticipante.Cc)));
+                .Where(r => !string.IsNullOrWhiteSpace(r?.EmailAddress?.Address))
+                .Select(r => new ParticipanteGraphDto(r!.EmailAddress!.Address!, RolParticipante.Cc)));
 
             var asunto = string.IsNullOrWhiteSpace(mensaje.Subject) ? "(sin asunto)" : mensaje.Subject;
 
             var adjuntos = (mensaje.Attachments ?? [])
-                .Where(a => !string.IsNullOrWhiteSpace(a.Id) && !string.IsNullOrWhiteSpace(a.Name))
-                .Select(a => new AdjuntoGraphDto(a.Id!, a.Name!, a.ContentType ?? "application/octet-stream", a.Size ?? 0))
+                .Where(a => !string.IsNullOrWhiteSpace(a?.Id) && !string.IsNullOrWhiteSpace(a.Name))
+                .Select(a => new AdjuntoGraphDto(a!.Id!, a.Name!, a.ContentType ?? "application/octet-stream", a.Size ?? 0))
                 .ToList();
 
             return Result.Exito(new MensajeGraphDto(
@@ -357,20 +670,59 @@ public class Microsoft365GraphClient(
                 FechaUtc: mensaje.ReceivedDateTime ?? DateTime.UtcNow,
                 Participantes: participantes,
                 Adjuntos: adjuntos,
-                Cabeceras: mensaje.InternetMessageHeaders?.Select(c => new CabeceraCorreoDto(c.Name ?? string.Empty, c.Value ?? string.Empty)).ToList(),
+                Cabeceras: mensaje.InternetMessageHeaders?.Where(c => c is not null)
+                    .Select(c => new CabeceraCorreoDto(c!.Name ?? string.Empty, c.Value ?? string.Empty)).ToList(),
                 ResponderA: (mensaje.ReplyTo ?? [])
-                    .Where(r => !string.IsNullOrWhiteSpace(r.EmailAddress?.Address))
-                    .Select(r => r.EmailAddress!.Address!).ToList()));
+                    .Where(r => !string.IsNullOrWhiteSpace(r?.EmailAddress?.Address))
+                    .Select(r => r!.EmailAddress!.Address!).ToList()));
         }
         catch (HttpRequestException ex)
         {
             logger.LogError(ex, "Fallo de red al leer el mensaje {MensajeId} vía Microsoft Graph.", mensajeId);
             return Result.Fallo<MensajeGraphDto>(Error.Crear("Integraciones.Microsoft365.ErrorRed", "No pudimos conectar con Microsoft."));
         }
+        catch (TaskCanceledException ex) when (!cancellationToken.IsCancellationRequested)
+        {
+            logger.LogError(ex, "Microsoft Graph no respondió a tiempo al leer el mensaje {MensajeId}.", mensajeId);
+            return Result.Fallo<MensajeGraphDto>(ErrorTiempoAgotado);
+        }
+        catch (Exception ex) when (ex is JsonException or NotSupportedException or InvalidOperationException)
+        {
+            // Un 200 con un cuerpo ilegible es un fallo de Graph como otro cualquiera: se devuelve, para que la ingesta
+            // siga con los demás mensajes del lote y reintente este.
+            logger.LogError(ex, "Microsoft Graph devolvió un mensaje {MensajeId} ilegible.", mensajeId);
+            return Result.Fallo<MensajeGraphDto>(Error.Crear("Integraciones.Microsoft365.ErrorApi", "No pudimos leer el mensaje."));
+        }
     }
 
+    /// <summary>Las mismas opciones que usa <c>ReadFromJsonAsync</c> (nombres en camelCase, sin distinguir mayúsculas).</summary>
+    private static readonly JsonSerializerOptions OpcionesJsonWeb = new(JsonSerializerDefaults.Web);
+
+    /// <summary>El primer campo obligatorio que falta (ver <see cref="CodigosErrorMicrosoft365.MensajeIncompleto"/>), o null.</summary>
+    private static string? CampoObligatorioAusente(MensajeDetalleGraph mensaje)
+    {
+        if (string.IsNullOrWhiteSpace(mensaje.From?.EmailAddress?.Address))
+            return "from.emailAddress.address";
+        if (mensaje.ReceivedDateTime is null)
+            return "receivedDateTime";
+        if (string.IsNullOrWhiteSpace(mensaje.ConversationId))
+            return "conversationId";
+        if (mensaje.Body?.Content is null)
+            return "body.content";
+        if (mensaje.Attachments is null)
+            return "attachments";
+        if (mensaje.Attachments.Any(a => a is null || string.IsNullOrWhiteSpace(a.Id) || string.IsNullOrWhiteSpace(a.Name)))
+            return "attachments[].id/name";
+        return null;
+    }
+
+    private const string CodigoMensajeNoEncontrado = CodigosErrorMicrosoft365.MensajeNoEncontrado;
+
+    /// <summary>Código de Graph (Exchange) para un elemento que no está en el buzón; el del buzón inexistente es otro.</summary>
+    internal const string CodigoGraphElementoNoEncontrado = "ErrorItemNotFound";
+
     public async Task<Result<byte[]>> ObtenerContenidoAdjuntoAsync(
-        string accessToken, string mensajeId, string adjuntoExternoId, CancellationToken cancellationToken)
+        string accessToken, BuzonGraph buzon, string mensajeId, string adjuntoExternoId, CancellationToken cancellationToken)
     {
         // $value devuelve el binario crudo — a diferencia de $select=contentBytes
         // (que envolvía el contenido en JSON como base64, con ~33% de
@@ -378,7 +730,7 @@ public class Microsoft365GraphClient(
         // empezar a decodificar nada), esto permite copiar con límite real
         // mientras se descarga en vez de confiar solo en el tamaño declarado
         // por el llamador (auditoría módulo 6).
-        var url = "https://graph.microsoft.com/v1.0/me/messages/" +
+        var url = $"{RutaBuzon(buzon)}/messages/" +
             $"{Uri.EscapeDataString(mensajeId)}/attachments/{Uri.EscapeDataString(adjuntoExternoId)}/$value";
         using var peticion = NuevaPeticionGraph(HttpMethod.Get, url, accessToken);
 
@@ -412,14 +764,15 @@ public class Microsoft365GraphClient(
         }
     }
 
-    public async Task<Result<IReadOnlyList<CarpetaGraphDto>>> ListarCarpetasAsync(string accessToken, CancellationToken cancellationToken)
+    public async Task<Result<IReadOnlyList<CarpetaGraphDto>>> ListarCarpetasAsync(
+        string accessToken, BuzonGraph buzon, Func<CancellationToken, Task<bool>> puertaEntrePeticiones, CancellationToken cancellationToken)
     {
         const string seleccion = "$select=id,displayName,parentFolderId,unreadItemCount,totalItemCount";
 
         try
         {
             var carpetasNivel1 = await ObtenerPaginaCarpetasAsync(
-                accessToken, $"https://graph.microsoft.com/v1.0/me/mailFolders?{seleccion}&$top=100", cancellationToken);
+                accessToken, $"{RutaBuzon(buzon)}/mailFolders?{seleccion}&$top=100", cancellationToken);
             if (carpetasNivel1.EsFallido)
                 return Result.Fallo<IReadOnlyList<CarpetaGraphDto>>(carpetasNivel1.Error);
 
@@ -429,9 +782,17 @@ public class Microsoft365GraphClient(
             // real de un buzón de gestión CAE (ver comentario de la interfaz).
             foreach (var carpeta in carpetasNivel1.Valor)
             {
+                // Puerta antes de cada petición de hijas: la conexión pudo pasar a ConError o desconectarse mientras
+                // tanto, y entonces no se sigue leyendo el buzón ni se devuelve lo ya leído.
+                if (!await PasaPuertaAsync(puertaEntrePeticiones, cancellationToken))
+                {
+                    logger.LogWarning("La conexión dejó de estar operativa mientras se listaban las carpetas del buzón: se corta.");
+                    return Result.Fallo<IReadOnlyList<CarpetaGraphDto>>(ErroresBuzonSinVerificar.Crear());
+                }
+
                 var hijas = await ObtenerPaginaCarpetasAsync(
                     accessToken,
-                    $"https://graph.microsoft.com/v1.0/me/mailFolders/{Uri.EscapeDataString(carpeta.CarpetaExternoId)}/childFolders?{seleccion}&$top=100",
+                    $"{RutaBuzon(buzon)}/mailFolders/{Uri.EscapeDataString(carpeta.CarpetaExternoId)}/childFolders?{seleccion}&$top=100",
                     cancellationToken);
 
                 if (hijas.EsExitoso)
@@ -465,9 +826,9 @@ public class Microsoft365GraphClient(
     }
 
     public async Task<Result<IReadOnlyList<MensajeResumenGraphDto>>> ListarMensajesAsync(
-        string accessToken, string carpetaExternoId, int top, int skip, CancellationToken cancellationToken)
+        string accessToken, BuzonGraph buzon, string carpetaExternoId, int top, int skip, CancellationToken cancellationToken)
     {
-        var url = $"https://graph.microsoft.com/v1.0/me/mailFolders/{Uri.EscapeDataString(carpetaExternoId)}/messages" +
+        var url = $"{RutaBuzon(buzon)}/mailFolders/{Uri.EscapeDataString(carpetaExternoId)}/messages" +
             "?$select=id,subject,from,receivedDateTime,conversationId,hasAttachments" +
             $"&$orderby=receivedDateTime desc&$top={top}&$skip={skip}";
         using var peticion = NuevaPeticionGraph(HttpMethod.Get, url, accessToken);
@@ -497,14 +858,27 @@ public class Microsoft365GraphClient(
             logger.LogError(ex, "Fallo de red al listar mensajes de la carpeta {CarpetaId} vía Microsoft Graph.", carpetaExternoId);
             return Result.Fallo<IReadOnlyList<MensajeResumenGraphDto>>(Error.Crear("Integraciones.Microsoft365.ErrorRed", "No pudimos conectar con Microsoft."));
         }
+        catch (TaskCanceledException ex) when (!cancellationToken.IsCancellationRequested)
+        {
+            logger.LogError(ex, "Microsoft Graph no respondió a tiempo al listar mensajes de la carpeta {CarpetaId}.", carpetaExternoId);
+            return Result.Fallo<IReadOnlyList<MensajeResumenGraphDto>>(ErrorTiempoAgotado);
+        }
+        catch (Exception ex) when (ex is JsonException or NotSupportedException or InvalidOperationException)
+        {
+            logger.LogError(ex, "Microsoft Graph devolvió un historial ilegible de la carpeta {CarpetaId}.", carpetaExternoId);
+            return Result.Fallo<IReadOnlyList<MensajeResumenGraphDto>>(Error.Crear("Integraciones.Microsoft365.ErrorApi", "No pudimos leer el historial de esta carpeta."));
+        }
     }
 
     public async Task<Result<SuscripcionGraphDto>> CrearSuscripcionAsync(
-        string accessToken, string buzonEmail, string notificationUrl, string clientState, CancellationToken cancellationToken)
+        string accessToken, BuzonGraph buzon, string notificationUrl, string clientState, CancellationToken cancellationToken)
     {
+        // Microsoft Learn (outlook-change-notifications-overview, «Request permissions»): un buzón
+        // compartido solo se puede suscribir con permiso de aplicación, así que el accessToken de un
+        // compartido es el de aplicación de su directorio; el del buzón propio es el delegado.
         var expiracion = DateTime.UtcNow.Add(DuracionMaximaSuscripcion);
         var solicitud = new SolicitudSuscripcionGraph(
-            "created,updated", notificationUrl, "me/mailFolders('Inbox')/messages", expiracion, clientState);
+            "created,updated", notificationUrl, $"{RecursoBuzon(buzon)}/mailFolders('Inbox')/messages", expiracion, clientState);
 
         using var peticion = NuevaPeticionGraph(HttpMethod.Post, "https://graph.microsoft.com/v1.0/subscriptions", accessToken);
         peticion.Content = JsonContent.Create(solicitud);
@@ -518,21 +892,41 @@ public class Microsoft365GraphClient(
                 logger.LogError(
                     "Microsoft Graph devolvió {StatusCode} al crear la suscripción del buzón: {CodigoError}",
                     (int)respuesta.StatusCode, CodigoErrorGraph.Extraer(cuerpoError));
-                return Result.Fallo<SuscripcionGraphDto>(Error.Crear("Integraciones.Microsoft365.ErrorSuscripcion", "No pudimos activar las notificaciones de este buzón."));
+                // 429/5xx es transitorio: rehabilitar una conexión espera en vez de dejarla en ConError
+                // (SuscripcionAlRehabilitarService). El resto (403, 400 de validación del webhook) es definitivo.
+                return Result.Fallo<SuscripcionGraphDto>(EsRespuestaTransitoria(respuesta.StatusCode)
+                    ? ErrorTransitorio
+                    : Error.Crear("Integraciones.Microsoft365.ErrorSuscripcion", "No pudimos activar las notificaciones de este buzón."));
             }
 
             var suscripcion = await respuesta.Content.ReadFromJsonAsync<SuscripcionDetalleGraph>(cancellationToken);
             if (suscripcion?.Id is null || suscripcion.ExpirationDateTime is null)
-                return Result.Fallo<SuscripcionGraphDto>(Error.Crear("Integraciones.Microsoft365.ErrorSuscripcion", "No pudimos activar las notificaciones de este buzón."));
+                return Result.Fallo<SuscripcionGraphDto>(ErrorTransitorio);
 
             return Result.Exito(new SuscripcionGraphDto(suscripcion.Id, suscripcion.ExpirationDateTime.Value));
         }
         catch (HttpRequestException ex)
         {
             logger.LogError(ex, "Fallo de red al crear la suscripción del buzón vía Microsoft Graph.");
-            return Result.Fallo<SuscripcionGraphDto>(Error.Crear("Integraciones.Microsoft365.ErrorRed", "No pudimos conectar con Microsoft."));
+            return Result.Fallo<SuscripcionGraphDto>(Error.Crear(CodigosErrorMicrosoft365.ErrorRed, "No pudimos conectar con Microsoft."));
+        }
+        catch (TaskCanceledException ex) when (!cancellationToken.IsCancellationRequested)
+        {
+            logger.LogError(ex, "Microsoft Graph no respondió a tiempo al crear la suscripción del buzón.");
+            return Result.Fallo<SuscripcionGraphDto>(ErrorTiempoAgotado);
+        }
+        catch (Exception ex) when (ex is JsonException or NotSupportedException)
+        {
+            // Un 200 ilegible no dice si la suscripción existe: transitorio, para no dejar la conexión en ConError.
+            logger.LogError(ex, "Microsoft Graph devolvió una suscripción ilegible.");
+            return Result.Fallo<SuscripcionGraphDto>(ErrorTransitorio);
         }
     }
+
+    public string? UrlNotificacion(Guid conexionId) =>
+        string.IsNullOrWhiteSpace(opciones.Value.UrlPublicaBase)
+            ? null
+            : $"{opciones.Value.UrlPublicaBase.TrimEnd('/')}/api/integraciones/webhooks/microsoft365/{conexionId}";
 
     public async Task<Result<SuscripcionGraphDto>> RenovarSuscripcionAsync(
         string accessToken, string graphSubscriptionId, CancellationToken cancellationToken)
@@ -551,7 +945,9 @@ public class Microsoft365GraphClient(
                 logger.LogError(
                     "Microsoft Graph devolvió {StatusCode} al renovar la suscripción {SubscriptionId}: {CodigoError}",
                     (int)respuesta.StatusCode, graphSubscriptionId, CodigoErrorGraph.Extraer(cuerpoError));
-                return Result.Fallo<SuscripcionGraphDto>(Error.Crear("Integraciones.Microsoft365.ErrorSuscripcion", "No pudimos renovar las notificaciones de este buzón."));
+                return Result.Fallo<SuscripcionGraphDto>(EsRespuestaTransitoria(respuesta.StatusCode)
+                    ? ErrorTransitorio
+                    : Error.Crear("Integraciones.Microsoft365.ErrorSuscripcion", "No pudimos renovar las notificaciones de este buzón."));
             }
 
             return Result.Exito(new SuscripcionGraphDto(graphSubscriptionId, expiracion));
@@ -560,6 +956,11 @@ public class Microsoft365GraphClient(
         {
             logger.LogError(ex, "Fallo de red al renovar la suscripción {SubscriptionId} vía Microsoft Graph.", graphSubscriptionId);
             return Result.Fallo<SuscripcionGraphDto>(Error.Crear("Integraciones.Microsoft365.ErrorRed", "No pudimos conectar con Microsoft."));
+        }
+        catch (TaskCanceledException ex) when (!cancellationToken.IsCancellationRequested)
+        {
+            logger.LogError(ex, "Microsoft Graph no respondió a tiempo al renovar la suscripción {SubscriptionId}.", graphSubscriptionId);
+            return Result.Fallo<SuscripcionGraphDto>(ErrorTiempoAgotado);
         }
     }
 
@@ -585,6 +986,12 @@ public class Microsoft365GraphClient(
             logger.LogError(ex, "Fallo de red al eliminar la suscripción {SubscriptionId} vía Microsoft Graph.", graphSubscriptionId);
             return Result.Fallo(Error.Crear("Integraciones.Microsoft365.ErrorRed", "No pudimos conectar con Microsoft."));
         }
+        catch (TaskCanceledException ex) when (!cancellationToken.IsCancellationRequested)
+        {
+            // Resultado incierto: el borrado pudo llegar o no. Quien desconecta lo trata como fallido y deja la marca.
+            logger.LogError(ex, "Microsoft Graph no respondió a tiempo al eliminar la suscripción {SubscriptionId}.", graphSubscriptionId);
+            return Result.Fallo(ErrorTiempoAgotado);
+        }
     }
 
     public IReadOnlyList<string> ExtraerMensajeIdsDeNotificacion(string payloadJson)
@@ -593,8 +1000,8 @@ public class Microsoft365GraphClient(
         {
             var notificacion = JsonSerializer.Deserialize<NotificacionesGraph>(payloadJson);
             return notificacion?.Value?
-                .Where(n => !string.IsNullOrWhiteSpace(n.ResourceData?.Id))
-                .Select(n => n.ResourceData!.Id!)
+                .Where(n => !string.IsNullOrWhiteSpace(n?.ResourceData?.Id))
+                .Select(n => n!.ResourceData!.Id!)
                 .ToList() ?? [];
         }
         catch (JsonException ex)

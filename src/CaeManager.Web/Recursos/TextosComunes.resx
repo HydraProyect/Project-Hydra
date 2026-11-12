@@ -36,6 +36,10 @@
   <data name="IdiomaNoCambiadoDetalle" xml:space="preserve">
     <value>Tu preferencia de idioma no se ha guardado y la interfaz sigue en el idioma anterior. Inténtalo de nuevo en unos segundos.</value>
   </data>
+  <data name="AvisosRestantesTitulo" xml:space="preserve">
+    <value>+{0}: {1}. Se ven en la página de {2}</value>
+    <comment>Título y nombre accesible del indicador «+N» de AvisosRecortados. {0}: número de avisos ocultos; {1}: avisos ocultos separados por « · »; {2}: nombre de la entidad.</comment>
+  </data>
   <data name="IrAPaginaDe" xml:space="preserve">
     <value>Ir a la página de {0}</value>
     <comment>Título del nombre enlazado en una fila de relación (FilaRelacion). {0}: nombre de la entidad.</comment>
@@ -272,6 +276,9 @@
   </data>
   <data name="SelectorSinResultados" xml:space="preserve">
     <value>Ninguna opción coincide con la búsqueda.</value>
+  </data>
+  <data name="SelectorSinCoincidencias" xml:space="preserve">
+    <value>Sin coincidencias</value>
   </data>
   <data name="SelectorResultados" xml:space="preserve">
     <value>{0} resultados</value>
@@ -699,6 +706,24 @@
   <data name="TarjetasRestablecer" xml:space="preserve"><value>Restablecer orden</value></data>
   <data name="TarjetasMover" xml:space="preserve"><value>Mover la tarjeta {0}. Usa las flechas arriba y abajo.</value></data>
   <data name="TarjetasArrastrar" xml:space="preserve"><value>Arrastra ⠿ para reordenar las tarjetas</value></data>
+  <data name="AgendaContactoPasoDatos" xml:space="preserve">
+    <value>Datos</value>
+  </data>
+  <data name="AgendaContactoPasoRecibe" xml:space="preserve">
+    <value>Qué recibe</value>
+  </data>
+  <data name="AgendaContactoPasoDocumentacion" xml:space="preserve">
+    <value>Documentación</value>
+  </data>
+  <data name="AgendaContactoEtiquetaPasos" xml:space="preserve">
+    <value>Alta de contacto</value>
+  </data>
+  <data name="AgendaContactoGrupoRecibe" xml:space="preserve">
+    <value>Recibe</value>
+  </data>
+  <data name="AgendaContactoGrupoRol" xml:space="preserve">
+    <value>Rol del contacto</value>
+  </data>
   <data name="AgendaNotaComunicaciones" xml:space="preserve">
     <value>Nota para Comunicaciones</value>
   </data>
@@ -785,5 +810,35 @@
   </data>
   <data name="ArchivoSubidoNoLeido" xml:space="preserve">
     <value>No pudimos leer "{0}". Vuelve a elegirlo.</value>
+  </data>
+  <data name="SubirCabecera" xml:space="preserve">
+    <value>Subir</value>
+  </data>
+  <data name="SubirCabeceraTitulo" xml:space="preserve">
+    <value>Subir documentos</value>
+  </data>
+  <data name="CampoFechaFormato" xml:space="preserve">
+    <value>dd/mm/aaaa</value>
+  </data>
+  <data name="CampoFechaInvalida" xml:space="preserve">
+    <value>Escribe una fecha que exista, con el formato dd/mm/aaaa.</value>
+  </data>
+  <data name="CampoFechaAbrirCalendario" xml:space="preserve">
+    <value>Abrir el calendario</value>
+  </data>
+  <data name="CampoFechaCalendario" xml:space="preserve">
+    <value>Elegir fecha</value>
+  </data>
+  <data name="CampoFechaMesAnterior" xml:space="preserve">
+    <value>Mes anterior</value>
+  </data>
+  <data name="CampoFechaMesSiguiente" xml:space="preserve">
+    <value>Mes siguiente</value>
+  </data>
+  <data name="CampoFechaCorregirAntes" xml:space="preserve">
+    <value>Hay una fecha que no es válida. Corrígela con el formato dd/mm/aaaa o déjala vacía.</value>
+  </data>
+  <data name="CampoFechaInstrucciones" xml:space="preserve">
+    <value>Flechas: cambiar de día. Re Pág y Av Pág: cambiar de mes. Inicio y Fin: principio o final de la semana. Intro: elegir. Esc: cerrar.</value>
   </data>
 </root>

@@ -46,7 +46,7 @@
     [Parameter] public bool Enfocada { get; set; }
     [Parameter] public EventCallback<Guid> OnSeleccionar { get; set; }
 
-    /// <summary>Mismo criterio que UnifiedTimeline.ObtenerIniciales: dos letras del remitente para el avatar, sin depender de un nombre completo que este DTO no siempre trae.</summary>
+    /// <summary>Dos letras del correo (local-part) o del teléfono del remitente para el avatar, sin depender de un nombre completo que este DTO no siempre trae.</summary>
     private static string ObtenerIniciales(string remitente)
     {
         var local = remitente.Split('@')[0];

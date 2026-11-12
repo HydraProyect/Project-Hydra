@@ -80,8 +80,17 @@
     color: var(--color-text-muted);
 }
 
-.tarjeta-kpi {
-    margin-bottom: var(--space-5);
+/* La raíz de <Tarjeta> es de otro componente: sin ::deep la regla no le llega y las tarjetas iban pegadas.
+   La maqueta separa 32 px. */
+.contenedor-pagina ::deep .tarjeta-kpi {
+    margin-bottom: var(--space-8);
+}
+
+/* Título de 26/700/32 como la maqueta; el .titulo-pagina global de base.css da 36 px. Lo pinta CabeceraPagina,
+   así que necesita ::deep. */
+.contenedor-pagina ::deep .titulo-pagina {
+    font: 700 26px/32px var(--font-family);
+    letter-spacing: -.01em;
 }
 
 /* Alcance distinto del resto del panel: la consulta que alimenta este KPI no
@@ -90,6 +99,13 @@
     margin: 0 0 var(--space-3);
     font: var(--font-body-sm);
     color: var(--color-text-muted);
+}
+
+/* Estado vacío de los indicadores sin medir: un solo bloque sobre la superficie de las tarjetas, sin cifras ni gráficos. */
+.bloque-sin-medir {
+    background-color: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
 }
 
 /* ------------------------------------------------------------------ donut */

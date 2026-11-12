@@ -42,17 +42,13 @@ public partial class PestanaReclamarEmpresa
         string Clave, string LoteClave, Guid? TrabajadorId, string? Trabajador, string Tipo, Categoria Categoria, string Detalle,
         TonoBadge Tono, string Insignia);
 
-    private sealed record Ficha(Categoria Categoria, string Rotulo, int Total);
-
     private sealed record Grupo(string Clave, string Titulo, string Subtitulo, LoteReclamacionAgrupadoDto? Lote, IReadOnlyList<Fila> Filas);
 
     private sealed record FilaSubir(string Clave, string Tipo, string Titular, string Centro);
 
-    private sealed record Vista(
-        int EmpresaVencidosOPendientes, int TrabajadoresAfectados, IReadOnlyList<Ficha> Fichas,
-        IReadOnlyList<Grupo> Grupos, string TextoRecuento, int TotalFilas)
+    private sealed record Vista(int EmpresaVencidosOPendientes, int TrabajadoresAfectados, IReadOnlyList<Grupo> Grupos, int TotalFilas)
     {
-        public static readonly Vista Vacia = new(0, 0, [], [], string.Empty, 0);
+        public static readonly Vista Vacia = new(0, 0, [], 0);
     }
 
     private readonly CancellationTokenSource _ciclo = new();
@@ -70,7 +66,7 @@ public partial class PestanaReclamarEmpresa
 
     private Guid? _sedeId;
     private Guid? _oficioId;
-    private Categoria? _estado;
+    private readonly HashSet<Categoria> _estados = [];
     private Agrupacion? _agrupacion;
     private readonly HashSet<string> _abiertos = [];
 
@@ -83,7 +79,7 @@ public partial class PestanaReclamarEmpresa
 
     private bool HayFiltroDeServidor => _sedeId is not null || _oficioId is not null;
 
-    private bool HayFiltros => HayFiltroDeServidor || _estado is not null;
+    private bool HayFiltrosActivos => HayFiltroDeServidor || _estados.Count > 0;
 
     /// <summary>Sin Delegaciones no hay nada que agrupar por ellas: se agrupa por Trabajador.</summary>
     private Agrupacion AgrupacionActiva => _agrupacion switch
@@ -109,7 +105,7 @@ public partial class PestanaReclamarEmpresa
         _vista = Vista.Vacia;
         _sedeId = null;
         _oficioId = null;
-        _estado = null;
+        _estados.Clear();
         _agrupacion = null;
         _abiertos.Clear();
         _cajonVisible = false;
@@ -235,27 +231,74 @@ public partial class PestanaReclamarEmpresa
             return;
         }
 
-        var visibles = _estado is { } estado ? [.. _filas.Where(f => f.Categoria == estado)] : _filas;
+        var visibles = FilasVisibles();
 
         // Los Trabajadores se cuentan por Id, no por nombre: dos homónimos en una misma Empresa son dos personas.
-        var trabajadores = visibles.Where(f => f.TrabajadorId is not null).Select(f => f.TrabajadorId).Distinct().Count();
-        var recuento = Recuento(visibles.Count);
-        if (trabajadores > 0)
-            recuento += " · " + (trabajadores == 1 ? Textos["RecuentoTrabajadoresUno"] : Textos["RecuentoTrabajadoresVarios", trabajadores]);
-
         var deTrabajador = _filas.Where(f => f.TrabajadorId is not null).ToList();
-        var fichas = new[]
-        {
-            new Ficha(Categoria.Vencido, Textos["TileVencidos"], deTrabajador.Count(f => f.Categoria == Categoria.Vencido)),
-            new Ficha(Categoria.PorVencer, Textos["TilePorVencer"], deTrabajador.Count(f => f.Categoria == Categoria.PorVencer)),
-            new Ficha(Categoria.Pendiente, Textos["TilePendientes"], deTrabajador.Count(f => f.Categoria == Categoria.Pendiente)),
-        };
-
         _vista = new Vista(
             _filas.Count(f => f.TrabajadorId is null),
             deTrabajador.Select(f => f.TrabajadorId).Distinct().Count(),
-            fichas, ConstruirGrupos(visibles), recuento, visibles.Count);
+            ConstruirGrupos(visibles), visibles.Count);
     }
+
+    /// <summary>Las filas que dejan pasar los chips de estado; sin ninguno marcado, todas (equivale a «Todos»).</summary>
+    private IReadOnlyList<Fila> FilasVisibles() =>
+        _estados.Count == 0 ? _filas : [.. _filas.Where(f => _estados.Contains(f.Categoria))];
+
+    /// <summary>Chips de estado (<see cref="FiltroEstadosMultiple"/>): el recuento es de todo lo que devolvió la consulta, el mismo universo que filtran.</summary>
+    private IReadOnlyList<OpcionEstadoRecuento> OpcionesDeEstado =>
+    [
+        new(nameof(Categoria.Vencido), Textos["EstadoVencido"], _filas.Count(f => f.Categoria == Categoria.Vencido)),
+        new(nameof(Categoria.Pendiente), Textos["EstadoPendiente"], _filas.Count(f => f.Categoria == Categoria.Pendiente)),
+        new(nameof(Categoria.PorVencer), Textos["EstadoPorVencer"], _filas.Count(f => f.Categoria == Categoria.PorVencer)),
+    ];
+
+    private IReadOnlySet<string> EstadosMarcados => _estados.Select(e => e.ToString()).ToHashSet();
+
+    private IReadOnlyList<OpcionEstado> OpcionesDeSede => [.. Sedes.Select(s => new OpcionEstado(s.Id.ToString(), s.Nombre))];
+
+    private IReadOnlyList<OpcionEstado> OpcionesDeOficio => [.. (_dto?.Oficios ?? []).Select(o => new OpcionEstado(o.Id.ToString(), o.Nombre))];
+
+    private IReadOnlyList<OpcionEstado> OpcionesDeAgrupacion =>
+    [
+        .. HaySedes ? [new OpcionEstado(nameof(Agrupacion.Sede), Textos["AgruparSede"])] : Array.Empty<OpcionEstado>(),
+        new OpcionEstado(nameof(Agrupacion.Trabajador), Textos["AgruparTrabajador"]),
+        new OpcionEstado(nameof(Agrupacion.Tipo), Textos["AgruparTipo"]),
+    ];
+
+    /// <summary>
+    /// La fila más grave del grupo: su insignia es la del grupo. El orden es la categoría (Vencido primero) y, a igualdad, la
+    /// gravedad real de la insignia (una «Falta» roja pesa más que un «Sin confirmar» ámbar de la misma categoría).
+    /// </summary>
+    private static Fila PeorFila(Grupo grupo) =>
+        grupo.Filas.OrderBy(f => f.Categoria).ThenBy(f => GravedadDeTono(f.Tono)).First();
+
+    private static int GravedadDeTono(TonoBadge tono) => tono switch
+    {
+        TonoBadge.Peligro => 0,
+        TonoBadge.Advertencia => 1,
+        _ => 2,
+    };
+
+    /// <summary>El tono de la fila de grupo se deriva de la insignia de la fila elegida, para que ambos nunca se contradigan.</summary>
+    private static TonoFila TonoDeGrupo(Grupo grupo) =>
+        PeorFila(grupo).Tono == TonoBadge.Peligro ? TonoFila.Peligro : TonoFila.Advertencia;
+
+    private static string Iniciales(string nombre) => string.Concat(nombre
+        .Split(' ', StringSplitOptions.RemoveEmptyEntries)
+        .Where(p => char.IsLetter(p[0]))
+        .Take(2)
+        .Select(p => char.ToUpperInvariant(p[0])));
+
+    private string? NombreIconoDeGrupo(Grupo grupo) => AgrupacionActiva switch
+    {
+        Agrupacion.Sede => grupo.Lote?.EmpresaEmpleadora is null ? "empresas" : "delegacion",
+        Agrupacion.Trabajador => grupo.Clave == "empresa" ? "empresas" : null,
+        _ => "documentos",
+    };
+
+    private string? InicialesDeGrupo(Grupo grupo) =>
+        AgrupacionActiva == Agrupacion.Trabajador && grupo.Clave != "empresa" ? Iniciales(grupo.Titulo) : null;
 
     private IReadOnlyList<Grupo> ConstruirGrupos(IReadOnlyList<Fila> visibles)
     {
@@ -306,7 +349,7 @@ public partial class PestanaReclamarEmpresa
                 ? Textos["GrupoDelegacion", sede]
                 : Textos["GrupoContactosEmpresa"];
 
-    /// <summary>Con el grupo plegado la cabecera debe decir qué hay dentro: « · 1 vencido · 2 por vencer».</summary>
+    /// <summary>Con el grupo plegado la fila debe decir qué hay dentro: «1 vencidos · 2 por vencer».</summary>
     private string DesgloseDeGrupo(Grupo grupo)
     {
         var partes = new List<string>();
@@ -320,7 +363,7 @@ public partial class PestanaReclamarEmpresa
         if (porVencer > 0)
             partes.Add(Textos["DesglosePorVencer", porVencer]);
 
-        return partes.Count == 0 ? string.Empty : " · " + string.Join(" · ", partes);
+        return string.Join(" · ", partes);
     }
 
     private string Recuento(int total) => total == 1 ? Textos["RecuentoDocumentosUno"] : Textos["RecuentoDocumentosVarios", total];
@@ -367,15 +410,15 @@ public partial class PestanaReclamarEmpresa
         await CargarAsync();
     }
 
-    private void CambiarEstado(string? valor)
+    private void CambiarEstados(IReadOnlySet<string> marcados)
     {
-        _estado = Enum.TryParse<Categoria>(valor, out var categoria) ? categoria : null;
-        Reconstruir();
-    }
+        _estados.Clear();
+        foreach (var valor in marcados)
+        {
+            if (Enum.TryParse<Categoria>(valor, out var categoria))
+                _estados.Add(categoria);
+        }
 
-    private void AlternarEstado(Categoria categoria)
-    {
-        _estado = _estado == categoria ? null : categoria;
         Reconstruir();
     }
 
@@ -386,8 +429,11 @@ public partial class PestanaReclamarEmpresa
             _abiertos.Add(clave);
     }
 
-    private void Agrupar(Agrupacion agrupacion)
+    private void Agrupar(string valor)
     {
+        if (!Enum.TryParse<Agrupacion>(valor, out var agrupacion))
+            return;
+
         _agrupacion = agrupacion;
         Reconstruir();
     }
@@ -395,7 +441,7 @@ public partial class PestanaReclamarEmpresa
     private async Task QuitarFiltrosAsync()
     {
         var recargar = HayFiltroDeServidor;
-        _estado = null;
+        _estados.Clear();
         _sedeId = null;
         _oficioId = null;
         if (recargar)
@@ -415,7 +461,7 @@ public partial class PestanaReclamarEmpresa
         if (_dto is null)
             return [];
 
-        var claves = (_estado is { } estado ? _filas.Where(f => f.Categoria == estado) : _filas).Select(f => f.Clave).ToHashSet();
+        var claves = FilasVisibles().Select(f => f.Clave).ToHashSet();
         var lotes = new List<LoteReclamacionAgrupadoDto>();
         foreach (var lote in _dto.Lotes.Where(l => claveLote is null || l.Clave == claveLote))
         {

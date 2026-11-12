@@ -44,7 +44,7 @@ public class RetiradaTenantDemoServiceTests
                 using var ambito = AmbitoTenantExplicito.Establecer(tenant.Id);
                 db.Tenants.Add(tenant);
                 db.ReclamacionesBuzonIntegracion.Add(new ReclamacionBuzonIntegracion(
-                    tenant == retirado ? "retirado@example.com" : "ajeno@example.com", tenant.Id, Guid.NewGuid(), DateTime.UtcNow));
+                    tenant == retirado ? "retirado@example.com" : "ajeno@example.com", null, tenant.Id, Guid.NewGuid(), DateTime.UtcNow));
                 await db.SaveChangesAsync();
                 db.ChangeTracker.Clear();
                 (await db.ReclamacionesBuzonIntegracion.CountAsync()).Should().Be(1);
@@ -68,7 +68,7 @@ public class RetiradaTenantDemoServiceTests
             {
                 (await db.ReclamacionesBuzonIntegracion.SingleAsync()).BuzonEmail.Should().Be("ajeno@example.com");
                 db.ReclamacionesBuzonIntegracion.Add(new ReclamacionBuzonIntegracion(
-                    "retirado@example.com", ajeno.Id, Guid.NewGuid(), DateTime.UtcNow));
+                    "retirado@example.com", null, ajeno.Id, Guid.NewGuid(), DateTime.UtcNow));
                 await db.SaveChangesAsync();
             }
         }

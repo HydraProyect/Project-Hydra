@@ -38,8 +38,13 @@ public class AlcancePorIdTests : IAsyncLifetime
     private Documento _documentoDeTrabajadorAjeno = null!;
     private Guid _trabajadorVisibleId;
 
+    // Instante único del test: la siembra y las superficies que se miden leen el mismo día de negocio aunque la ejecución cruce
+    // la medianoche de Europe/Madrid (RelojDePrueba, issue #2073). Se fija dentro del cuerpo de cada test, no solo en InitializeAsync.
+    private readonly DateTimeOffset _instante = DateTimeOffset.UtcNow;
+
     public async Task InitializeAsync()
     {
+        using var reloj = RelojDePrueba.FijarEn(_instante);
         var tenantActual = new TenantActualAmbiental { TenantId = TenantSeedData.IdPorDefecto };
         var options = new DbContextOptionsBuilder<CaeManagerDbContext>()
             .UseNpgsql(_cadenaConexion, npgsql => npgsql.MigrationsAssembly("CaeManager.Migrations.PostgreSQL"))
@@ -93,6 +98,7 @@ public class AlcancePorIdTests : IAsyncLifetime
     [Fact]
     public async Task Un_documento_de_Proyecto_borrado_logicamente_devuelve_null_sin_excepcion()
     {
+        using var reloj = RelojDePrueba.FijarEn(_instante);
         var centro = await _dbContext.Centros.FirstAsync(c => c.ClienteId == _clienteVisible.Id);
         var proyecto = CaeManager.Domain.Proyectos.Proyecto.Crear(
             _clienteVisible.Id, centro.Id, "Obra eliminada", DiaDeNegocio.Hoy(), null, null);
@@ -124,6 +130,7 @@ public class AlcancePorIdTests : IAsyncLifetime
     [Fact]
     public async Task Devuelve_el_cliente_cuando_esta_dentro_de_la_cartera_visible()
     {
+        using var reloj = RelojDePrueba.FijarEn(_instante);
         var alcance = new AlcanceDatosServiceFalso(clienteIds: [_clienteVisible.Id]);
         var handler = new ObtenerClientePorIdQueryHandler(_dbContext, alcance, PoliticaNotaInternaPruebas.Con("GestorCae"));
 
@@ -136,6 +143,7 @@ public class AlcancePorIdTests : IAsyncLifetime
     [Fact]
     public async Task Devuelve_null_al_pedir_un_cliente_fuera_de_la_cartera_visible_aunque_exista()
     {
+        using var reloj = RelojDePrueba.FijarEn(_instante);
         // Cartera restringida a _clienteVisible únicamente — _clienteAjeno existe
         // de verdad en la base de datos, pero no debe ser legible por este usuario.
         var alcance = new AlcanceDatosServiceFalso(clienteIds: [_clienteVisible.Id]);
@@ -149,6 +157,7 @@ public class AlcancePorIdTests : IAsyncLifetime
     [Fact]
     public async Task Un_rol_sin_restriccion_ve_cualquier_cliente()
     {
+        using var reloj = RelojDePrueba.FijarEn(_instante);
         var alcance = new AlcanceDatosServiceFalso(); // todo null = sin restricción (Administrador/DireccionCae/Consulta)
         var handler = new ObtenerClientePorIdQueryHandler(_dbContext, alcance, PoliticaNotaInternaPruebas.Con("GestorCae"));
 
@@ -160,6 +169,7 @@ public class AlcancePorIdTests : IAsyncLifetime
     [Fact]
     public async Task Devuelve_el_documento_de_un_trabajador_dentro_de_la_cartera_visible()
     {
+        using var reloj = RelojDePrueba.FijarEn(_instante);
         var alcance = new AlcanceDatosServiceFalso(trabajadorIds: [_trabajadorVisibleId]);
         var handler = new ObtenerDocumentoPorIdQueryHandler(
             _dbContext, _dbContext, _dbContext, _dbContext, _dbContext, _dbContext, alcance);
@@ -173,6 +183,7 @@ public class AlcancePorIdTests : IAsyncLifetime
     [Fact]
     public async Task Devuelve_null_al_pedir_el_documento_de_salud_de_un_trabajador_fuera_de_cartera()
     {
+        using var reloj = RelojDePrueba.FijarEn(_instante);
         // Este es el caso concreto del Issue #18: sin el fix, un Gestor CAE con
         // cartera restringida a un trabajador podía leer igualmente el PDF de
         // vigilancia de la salud de un trabajador de otra cartera con solo
@@ -190,6 +201,7 @@ public class AlcancePorIdTests : IAsyncLifetime
     [Fact]
     public async Task Una_cartera_vacia_no_ve_ningun_documento_de_trabajador()
     {
+        using var reloj = RelojDePrueba.FijarEn(_instante);
         // Lista vacía = cartera sin asignar todavía (p. ej. un Gestor CAE recién
         // creado) — nunca debe confundirse con "sin restricción".
         var alcance = new AlcanceDatosServiceFalso(trabajadorIds: []);
@@ -205,6 +217,7 @@ public class AlcancePorIdTests : IAsyncLifetime
     [Fact]
     public async Task La_documentacion_base_solo_sale_de_los_trabajadores_visibles_y_cuenta_sus_documentos()
     {
+        using var reloj = RelojDePrueba.FijarEn(_instante);
         var tipo = await _dbContext.TiposDocumento.FirstOrDefaultAsync(t => t.Nombre == "Entrega de EPI")
             ?? new TipoDocumento("Entrega de EPI", 12, true, 95, AmbitoAplicacion.Trabajador);
         if (_dbContext.Entry(tipo).State == EntityState.Detached)
@@ -232,6 +245,7 @@ public class AlcancePorIdTests : IAsyncLifetime
     [Fact]
     public async Task El_nombre_de_descarga_lleva_Apellidos_Nombre_sin_DNI_y_v2_para_el_segundo_documento_del_mismo_dia()
     {
+        using var reloj = RelojDePrueba.FijarEn(_instante);
         var segundo = Documento.DeTrabajador(
             _trabajadorVisibleId, _documentoDeTrabajadorVisible.TipoDocumentoId, DiaDeNegocio.Hoy(), VigenciaDocumento.NoCaduca);
         _dbContext.Documentos.Add(segundo);
@@ -252,6 +266,7 @@ public class AlcancePorIdTests : IAsyncLifetime
     [Fact]
     public async Task Dos_tipos_con_el_mismo_nombre_canonico_el_mismo_dia_reciben_sufijo_distinto()
     {
+        using var reloj = RelojDePrueba.FijarEn(_instante);
         // «Aptitud médica» y «Reconocimiento médico» son TipoDocumentoId distintos que dan el mismo
         // componente de fichero: el ordinal debe agruparlos igual que el nombre, o chocarían.
         var tipoA = new TipoDocumento("Aptitud médica", 12, true, 90, AmbitoAplicacion.Trabajador);

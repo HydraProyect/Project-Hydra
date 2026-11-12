@@ -9,9 +9,32 @@ public class RangoFechasAuditoriaTests
     [Fact]
     public void Por_defecto_arranca_90_dias_antes_del_dia_de_negocio_de_hoy()
     {
+        using var reloj = RelojDePrueba.FijarEn(DateTimeOffset.UtcNow);
         RangoFechasAuditoria.DesdePorDefecto().Should().Be(DiaDeNegocio.Hoy().AddDays(-90));
     }
 
+    [Fact]
+    public void A_las_23_59_59_9_de_Madrid_las_lecturas_del_rango_ven_el_mismo_dia_con_el_reloj_fijado()
+    {
+        // 15/07/2026 23:59:59.9 en Madrid (CEST, +02:00): el último décimo antes de la medianoche. Con el reloj del flujo fijado,
+        // la lectura del rango y la de la aserción ven el 15/07 aunque entre una y otra pase la medianoche real.
+        var instante = new DateTimeOffset(2026, 7, 15, 23, 59, 59, 900, TimeSpan.FromHours(2));
+        using var reloj = RelojDePrueba.FijarEn(instante);
+
+        var desde = RangoFechasAuditoria.DesdePorDefecto();
+
+        DiaDeNegocio.Hoy().Should().Be(new DateOnly(2026, 7, 15));
+        desde.Should().Be(new DateOnly(2026, 7, 15).AddDays(-90));
+    }
+
+    [Fact]
+    public void Entre_las_00_00_y_las_02_00_de_Madrid_el_rango_usa_el_dia_de_Madrid_y_no_el_dia_UTC()
+    {
+        // 2026-07-15T22:30:00Z son las 00:30 del 16/07 en Madrid: el día UTC (15) y el de negocio (16) difieren.
+        using var reloj = RelojDePrueba.FijarEn(new DateTimeOffset(2026, 7, 15, 22, 30, 0, TimeSpan.Zero));
+
+        RangoFechasAuditoria.DesdePorDefecto().Should().Be(new DateOnly(2026, 7, 16).AddDays(-90));
+    }
     [Theory]
     [InlineData("2026-01-15", true)]
     [InlineData("", false)]
@@ -41,5 +64,14 @@ public class RangoFechasAuditoriaTests
     {
         RangoFechasAuditoria.DesdeUtc(null).Should().BeNull();
         RangoFechasAuditoria.HastaUtcExclusivo(null).Should().BeNull();
+    }
+
+    // «hasta el 31/12/9999» no tiene día siguiente; antes AddDays lanzaba y tiraba la
+    // pantalla. No hay registro después, así que es lo mismo que no poner límite.
+    [Fact]
+    public void Hasta_el_ultimo_dia_representable_es_sin_limite_y_no_lanza()
+    {
+        RangoFechasAuditoria.HastaUtcExclusivo(DateOnly.MaxValue).Should().BeNull();
+        RangoFechasAuditoria.HastaUtcExclusivo(DateOnly.MaxValue.AddDays(-1)).Should().NotBeNull("control: el día anterior sí tiene siguiente");
     }
 }
