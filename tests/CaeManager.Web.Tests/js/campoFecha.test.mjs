@@ -117,7 +117,7 @@ test('las flechas no desplazan la página dentro de la rejilla del calendario, y
 });
 
 // El calendario anclado: panel y campo falsos, con el reloj de cuadros síncrono y un MutationObserver que el test dispara.
-function calendarioAnclado({ conObservador = true } = {}) {
+function calendarioAnclado({ conObservador = true, altoVentana = 600, campoArriba = 540, campoAbajo = 570, altoPanel = 300 } = {}) {
     const observadores = [];
     class ObservadorFalso {
         constructor(llamada) { this.llamada = llamada; this.opciones = null; this.desconectado = false; observadores.push(this); }
@@ -126,12 +126,12 @@ function calendarioAnclado({ conObservador = true } = {}) {
     }
     const globales = { requestAnimationFrame: (f) => { f(); return 1; }, cancelAnimationFrame: () => {} };
     if (conObservador) globales.MutationObserver = ObservadorFalso;
-    const ventana = { innerWidth: 1000, innerHeight: 600, addEventListener() {}, removeEventListener() {} };
+    const ventana = { innerWidth: 1000, innerHeight: altoVentana, addEventListener() {}, removeEventListener() {} };
     const { calendario } = entorno(globales, ventana);
-    // El campo está pegado al borde inferior de la ventana: abajo no cabe el calendario y se coloca encima.
-    const fila = { getBoundingClientRect: () => ({ top: 540, bottom: 570, right: 900 }) };
+    // Por defecto el campo está pegado al borde inferior de la ventana: abajo no cabe el calendario y se coloca encima.
+    const fila = { getBoundingClientRect: () => ({ top: campoArriba, bottom: campoAbajo, right: 900 }) };
     const panel = {
-        offsetWidth: 300, offsetHeight: 300, isConnected: true, style: {}, dataset: {},
+        offsetWidth: 300, offsetHeight: altoPanel, isConnected: true, style: {}, dataset: {},
         setAttribute() {}, showPopover() {},
     };
     calendario.anclar(panel, fila, 'cf-1');
@@ -163,8 +163,33 @@ test('al soltar el calendario se deja de observar', () => {
     assert.equal(observadores[0].desconectado, true);
 });
 
-test('sin MutationObserver el calendario se ancla igual (se coloca al abrir, en resize y en scroll)', () => {
+test('sin MutationObserver el calendario se ancla igual y se coloca al abrir', () => {
     const { panel } = calendarioAnclado({ conObservador: false });
 
     assert.equal(panel.dataset.lado, 'arriba');
+    assert.equal(panel.style.top, (540 - 4 - 300) + 'px');
+});
+
+test('si no cabe ni encima ni debajo, el panel se acota al lado elegido y no monta su borde sobre el campo', () => {
+    // Ventana baja y campo a media altura: debajo quedan 240 px, encima 288 y el calendario de 6 filas mide 360.
+    const { panel } = calendarioAnclado({ altoVentana: 600, campoArriba: 300, campoAbajo: 348, altoPanel: 360 });
+
+    assert.equal(panel.dataset.lado, 'arriba');
+    assert.equal(panel.style.maxHeight, '288px', 'el tope es el hueco de encima del campo');
+    assert.equal(panel.style.overflowY, 'auto', 'lo que no cabe se desplaza por dentro');
+    const arriba = parseFloat(panel.style.top);
+    assert.ok(arriba >= 8, 'no sale por arriba de la ventana');
+    assert.ok(arriba + 288 <= 300 - 4, 'el borde de abajo queda por encima del campo');
+});
+
+test('si cabe, el panel no lleva tope ni scroll propio, y vuelve a no llevarlos al encoger tras haberlos tenido', () => {
+    const { panel, observadores } = calendarioAnclado({ altoVentana: 600, campoArriba: 300, campoAbajo: 348, altoPanel: 360 });
+    assert.equal(panel.style.maxHeight, '288px', 'control: con 6 filas va acotado');
+
+    panel.offsetHeight = 280; // el mes siguiente tiene 4 o 5 filas y cabe encima
+    observadores[0].llamada([]);
+
+    assert.equal(panel.style.maxHeight, '', 'ya cabe: sin tope');
+    assert.equal(panel.style.overflowY, '');
+    assert.equal(panel.style.top, (300 - 4 - 280) + 'px');
 });

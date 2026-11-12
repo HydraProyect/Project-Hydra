@@ -94,10 +94,24 @@
         var altoVentana = window.innerHeight;
         var ancho = Math.min(panel.offsetWidth, anchoVentana - 2 * MARGEN);
         var izquierda = Math.min(Math.max(caja.right - ancho, MARGEN), anchoVentana - ancho - MARGEN);
+        // Alto natural: sin el tope de una colocación anterior (se conserva el scroll del panel, que medir lo reiniciaría).
+        var desplazamiento = panel.scrollTop;
+        panel.style.maxHeight = '';
         var alto = panel.offsetHeight;
         var abajo = altoVentana - caja.bottom - MARGEN - HUECO;
         var arriba = caja.top - MARGEN - HUECO;
         var voltear = alto > abajo && arriba > abajo;
+        // Si no cabe ni encima ni debajo, el panel se acota al lado elegido y se desplaza por dentro: así nunca monta su borde
+        // sobre el campo (como CampoSelectAvanzado).
+        var disponible = Math.max(voltear ? arriba : abajo, 96);
+        if (alto > disponible) {
+            panel.style.maxHeight = disponible + 'px';
+            panel.style.overflowY = 'auto';
+            panel.scrollTop = desplazamiento;
+            alto = disponible;
+        } else {
+            panel.style.overflowY = '';
+        }
 
         panel.style.position = 'fixed';
         panel.style.margin = '0';

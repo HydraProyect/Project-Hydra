@@ -135,6 +135,21 @@ public class TrabajadorWorkspacePanelAvisoCambiosSinGuardarTests : BunitContext
         cut.Markup.Should().NotContain("no es válida", "vaciar el campo también deja el texto a medias");
     }
 
+    // La secuencia directa, sin pasar antes por una fecha entera: el valor es «» antes y después de borrar el texto, así que
+    // solo el cambio de la bandera puede retirar el aviso.
+    [Fact]
+    public async Task El_aviso_de_fecha_no_valida_se_retira_al_vaciar_el_texto_sin_haber_pasado_por_una_fecha_entera()
+    {
+        var cut = await EditarInformacionAsync(sinFechaDeNacimiento: true);
+        await EscribirFechaAsync(cut, "15/03");
+        await GuardarAsync(cut);
+        cut.Markup.Should().Contain("no es válida", "control: el intento rechazado avisa");
+
+        await EscribirFechaAsync(cut, "");
+
+        cut.Markup.Should().NotContain("no es válida");
+    }
+
     // Con la fecha de nacimiento vacía al empezar, el campo entrega «» con el texto a medias: el valor no cambia y solo la
     // bandera sabe que hay algo sin guardar.
     [Fact]
