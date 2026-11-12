@@ -127,9 +127,9 @@ public class CrearDocumentosDesdeDivisionCommandHandler(
                 // Documento creado, sí lanza: la pantalla avisa y conserva el original para reintentar.
                 logger.LogWarning("Dividir PDF cortó el lote sin turno en el proceso aparte ({Excepcion}).", ex.GetType().Name);
                 var retenida = ex is EntradaPdfRetenidaException;
-                resultados.AddRange(request.Tramos.Skip(resultados.Count).Select(pendiente =>
-                    Resultado(pendiente, EstadoTramoCreado.Rechazado, null, "No se ha podido preparar este documento ahora. Inténtalo más tarde.")
-                        with { EntradaRetenida = retenida }));
+                const string detalle = "No se ha podido preparar este documento ahora. Inténtalo más tarde.";
+                foreach (var pendiente in request.Tramos.Skip(resultados.Count).ToList())
+                    resultados.Add(Resultado(pendiente, EstadoTramoCreado.Rechazado, null, detalle) with { EntradaRetenida = retenida });
                 break;
             }
         }
