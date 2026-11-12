@@ -1,5 +1,6 @@
 using System.Net;
 using System.Text.RegularExpressions;
+using AngleSharp.Html.Parser;
 using CaeManager.Application.Common;
 using CaeManager.Infrastructure.Email;
 using FluentAssertions;
@@ -177,7 +178,7 @@ public class CorreoLegibleSinImagenesTests
         ficheros.Should().Contain(f => f.EndsWith("BotonCorreo.cs"), "el barrido tiene que estar mirando el árbol de src");
 
         var problemas = ficheros
-            .SelectMany(f => ProblemasSinImagenes(File.ReadAllText(f))
+            .SelectMany(f => ProblemasSinImagenes(SinComentariosDeLinea(File.ReadAllText(f)))
                 .Select(p => $"{Path.GetRelativePath(raiz, f)}: {p}"))
             .ToList();
 
@@ -198,9 +199,41 @@ public class CorreoLegibleSinImagenesTests
     [InlineData("""<a href="https://x.example"></a>""", "enlace sin texto")]
     [InlineData("""<a href="https://x.example"> <img src="b.png" alt=""> </a>""", "enlace sin texto")]
     [InlineData("""<a href="">Entrar</a>""", "enlace sin destino")]
+    [InlineData("""<a href=''>Entrar</a>""", "enlace sin destino")]
+    [InlineData("""<a href=>Entrar</a>""", "enlace sin destino")]
+    [InlineData("""<a href=" ">Entrar</a>""", "enlace sin destino")]
+    [InlineData("""<a>Entrar</a>""", "enlace sin destino")]
+    [InlineData("""<a name="inicio">Entrar</a>""", "enlace sin destino")]
+    [InlineData("""<A HREF=''>Entrar</A>""", "enlace sin destino")]
+    [InlineData("""<a href='https://x.example'></a>""", "enlace sin texto")]
+    [InlineData("""<a href=https://x.example> </a>""", "enlace sin texto")]
+    [InlineData("""<a href='https://x.example'><img src='b.png' alt=''></a>""", "enlace sin texto")]
+    [InlineData("""<img src='logo.png'>""", "imagen sin alt")]
+    [InlineData("""<img src=logo.png alt=>""", "imagen sin alt")]
+    [InlineData("""<td background=x.png>""", "imagen de fondo")]
+    [InlineData("""<td background='x.png'>""", "imagen de fondo")]
     public void El_validador_detecta_cada_defecto(string html, string defecto)
     {
         ProblemasSinImagenes(html).Should().Contain(p => p.StartsWith(defecto));
+    }
+
+    [Theory]
+    [InlineData("""<a href='https://x.example'>Entrar</a>""")]
+    [InlineData("""<a href=https://x.example>Entrar</a>""")]
+    [InlineData("""<a class="b" href = 'mailto:info@talveg.es' >info@talveg.es</a>""")]
+    [InlineData("""<img src='l.png' alt='TALVEG'>""")]
+    [InlineData("""<img src=l.png alt=TALVEG>""")]
+    public void El_validador_acepta_comillas_simples_dobles_y_ausentes(string html)
+    {
+        ProblemasSinImagenes(html).Should().BeEmpty();
+    }
+
+    [Fact]
+    public void El_validador_no_se_deja_tragar_el_resto_del_fichero_por_un_style_o_un_script()
+    {
+        var problemas = ProblemasSinImagenes("""<style>.a{color:red}</style><script>var x = 1;</script><title>t</title><a href=''>Entrar</a>""");
+
+        problemas.Should().Contain(p => p.StartsWith("enlace sin destino"));
     }
 
     [Fact]
@@ -210,32 +243,53 @@ public class CorreoLegibleSinImagenesTests
             .Should().BeEmpty();
     }
 
+    /// <summary>
+    /// Las imágenes y los enlaces se leen con un analizador HTML (AngleSharp), no con expresiones
+    /// regulares: así valen comillas dobles, simples o ausentes, y un <c>&lt;a&gt;</c> sin
+    /// <c>href</c> o con <c>href</c> vacío es un fallo. El barrido también le pasa ficheros
+    /// <c>.cs</c>, donde el analizador tomaría <c>&lt;style&gt;</c>, <c>&lt;script&gt;</c> o
+    /// <c>&lt;title&gt;</c> como texto sin etiquetas y se tragaría el resto del fichero; por eso
+    /// esas aperturas se renombran antes de analizar. Las imágenes de fondo siguen con expresión
+    /// regular porque un <c>&lt;td background&gt;</c> suelto, sin tabla, el analizador lo descarta.
+    /// </summary>
     private static List<string> ProblemasSinImagenes(string html)
     {
         var problemas = new List<string>();
 
-        foreach (Match img in Regex.Matches(html, @"<img\s[^>]*>", RegexOptions.IgnoreCase))
-        {
-            var alt = Regex.Match(img.Value, """\balt\s*=\s*(?:"([^"]*)"|'([^']*)')""", RegexOptions.IgnoreCase);
-            if (!alt.Success || string.IsNullOrWhiteSpace(alt.Groups[1].Value + alt.Groups[2].Value))
-                problemas.Add($"imagen sin alt: {img.Value}");
-        }
-
-        foreach (Match fondo in Regex.Matches(html, @"background(-image)?\s*:[^;""']*url\(|\sbackground\s*=\s*[""'][^""']+[""']", RegexOptions.IgnoreCase))
+        foreach (Match fondo in Regex.Matches(html, @"background(-image)?\s*:[^;""']*url\(|\sbackground\s*=\s*(?:""[^""]+""|'[^']+'|[^\s>""']+)", RegexOptions.IgnoreCase))
             problemas.Add($"imagen de fondo: {fondo.Value}");
 
-        foreach (Match a in Regex.Matches(html, """<a\s[^>]*?href\s*=\s*"([^"]*)"[^>]*>(.*?)</a\s*>""", RegexOptions.IgnoreCase | RegexOptions.Singleline))
-        {
-            if (string.IsNullOrWhiteSpace(a.Groups[1].Value))
-                problemas.Add($"enlace sin destino: {a.Value}");
+        var neutralizado = Regex.Replace(
+            html, @"<(/?)(script|style|textarea|title|xmp|iframe|noembed|noframes|noscript|plaintext)\b", "<$1x-$2", RegexOptions.IgnoreCase);
+        var documento = new HtmlParser().ParseDocument(neutralizado);
 
-            var textoVisible = Regex.Replace(a.Groups[2].Value, "<[^>]+>", string.Empty);
-            if (string.IsNullOrWhiteSpace(textoVisible))
-                problemas.Add($"enlace sin texto: {a.Value}");
+        foreach (var img in documento.QuerySelectorAll("img"))
+        {
+            if (string.IsNullOrWhiteSpace(img.GetAttribute("alt")))
+                problemas.Add($"imagen sin alt: {img.OuterHtml}");
+        }
+
+        foreach (var a in documento.QuerySelectorAll("a"))
+        {
+            if (string.IsNullOrWhiteSpace(a.GetAttribute("href")))
+                problemas.Add($"enlace sin destino: {a.OuterHtml}");
+
+            if (string.IsNullOrWhiteSpace(a.TextContent))
+                problemas.Add($"enlace sin texto: {a.OuterHtml}");
         }
 
         return problemas;
     }
+
+    /// <summary>
+    /// Un comentario de C# que nombra una etiqueta (<c>// se renderiza en un &lt;a href&gt;</c>) no es
+    /// una plantilla y el analizador HTML lo leería como tal. Se descartan las líneas que son solo comentario.
+    /// Tampoco son etiquetas los grupos con nombre de una expresión regular (<c>(?&lt;a&gt;…)</c>,
+    /// <c>(?&lt;!…)</c>): se rompe su apertura <c>(?&lt;</c> para que el analizador no los lea como <c>&lt;a&gt;</c>.
+    /// </summary>
+    private static string SinComentariosDeLinea(string codigo) =>
+        string.Join('\n', codigo.Split('\n').Where(l => !l.TrimStart().StartsWith("//", StringComparison.Ordinal)))
+            .Replace("(?<", "(?[", StringComparison.Ordinal);
 
     private static string RaizDelRepositorio()
     {

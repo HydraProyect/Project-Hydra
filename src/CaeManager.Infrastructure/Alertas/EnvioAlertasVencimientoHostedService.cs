@@ -214,7 +214,8 @@ public class EnvioAlertasVencimientoHostedService(
         return (mensajeError, alertas.Count);
     }
 
-    private static (string Asunto, string CuerpoHtml) ConstruirCorreo(IReadOnlyList<AlertaDto> alertas, string? urlBase)
+    // internal para poder probar la normalización de la URL base sin levantar el servicio (InternalsVisibleTo de Web.Tests).
+    internal static (string Asunto, string CuerpoHtml) ConstruirCorreo(IReadOnlyList<AlertaDto> alertas, string? urlBase)
     {
         var vencidos = alertas.Count(a => a.Estado == EstadoDocumento.Vencido);
         var urgentes = alertas.Count(a => a.Estado == EstadoDocumento.Urgente);
