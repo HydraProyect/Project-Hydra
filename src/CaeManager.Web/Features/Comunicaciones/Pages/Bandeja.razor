@@ -460,7 +460,7 @@
                         falta que el gestor haya elegido uno antes de poder pedir
                         prioridad sobre él.
                     *@
-                    @if (!string.IsNullOrEmpty(_centroFormatosSeleccionado))
+                    @if (CentroSeleccionadoVigente is not null)
                     {
                         <div class="acordeon-asignaciones-cabecera">
                             <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" OnClick="AbrirPedirPrioridadAsync">

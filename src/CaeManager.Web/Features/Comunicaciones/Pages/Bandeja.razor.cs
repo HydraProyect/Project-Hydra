@@ -905,6 +905,7 @@ public partial class Bandeja : CaeManager.Web.Components.PaginaInteractiva, IAsy
                 _clienteActivo = clienteActivo;
                 _macrosDisponibles = macros;
                 _centrosClienteActivo = centros;
+                RetirarCentroNoDisponible(centros);
             }
             else
             {
@@ -916,6 +917,7 @@ public partial class Bandeja : CaeManager.Web.Components.PaginaInteractiva, IAsy
                 _clienteActivo = null;
                 _macrosDisponibles = macros;
                 _centrosClienteActivo = [];
+                RetirarCentroNoDisponible([]);
             }
 
             // Selectores del Action Center (Project-Hydra-Negocio/tecnico/docs/COMUNICACIONES.md § 12.6): se
@@ -970,6 +972,17 @@ public partial class Bandeja : CaeManager.Web.Components.PaginaInteractiva, IAsy
         }
     }
 
+    /// <summary>
+    /// Una recarga que cambia el Cliente empresarial sustituye los Centros disponibles: si el elegido en «Compartir formatos de
+    /// centro» ya no está entre ellos, se retira la selección y «Pedir prioridad» deja de ofrecerse sobre él (revisión Codex r5
+    /// de la #2167, MEDIO 3).
+    /// </summary>
+    private void RetirarCentroNoDisponible(IReadOnlyList<CentroSelectorDto> disponibles)
+    {
+        if (!Guid.TryParse(_centroFormatosSeleccionado, out var elegido) || disponibles.All(c => c.Id != elegido))
+            _centroFormatosSeleccionado = string.Empty;
+    }
+
     private bool _aplicandoMacro;
 
     private async Task AplicarMacro(string macroIdTexto)
@@ -982,10 +995,22 @@ public partial class Bandeja : CaeManager.Web.Components.PaginaInteractiva, IAsy
         if (_aplicandoMacro || _conversacionSeleccionadaId is not { } conversacionId ||
             !Guid.TryParse(macroIdTexto, out var macroId)) return;
         _aplicandoMacro = true;
+        // Misma guarda que «Compartir formatos de centro» (CompartirFormatosCentroAsync): comparar solo la conversación deja pasar
+        // A→B→A y un Cliente empresarial cambiado en una recarga durante la espera (revisión Codex r5 de la #2167, MEDIO 1). La
+        // plantilla se rellenó con los datos de la carga que la pidió; si esa carga ya no es la vigente, no se añade al borrador.
+        var carga = _cargaDetalleVigente;
         try
         {
             var resultado = await Mediator.Send(new AplicarMacroCommand(conversacionId, macroId), _ciclo.Token);
-            if (_conversacionSeleccionadaId != conversacionId) return;
+            if (carga != _cargaDetalleVigente)
+            {
+                if (_conversacionSeleccionadaId == conversacionId)
+                {
+                    _macroSeleccionadaId = string.Empty;
+                    ToastService.Mostrar(ErroresTextos["AvisoPlantillaContextoCambiado"].Value, TonoToast.Info);
+                }
+                return;
+            }
             if (resultado.EsFallido)
             {
                 ToastService.MostrarError(resultado.Error);
@@ -1013,6 +1038,9 @@ public partial class Bandeja : CaeManager.Web.Components.PaginaInteractiva, IAsy
     private async Task CompartirFormatosCentroAsync(string centroIdTexto)
     {
         _centroFormatosSeleccionado = centroIdTexto;
+        // Toda elección es una petición nueva, también volver a «Selecciona un centro…»: la respuesta de una petición anterior
+        // deja de ser la vigente aunque esta no llegue a salir (revisión Codex r5 de la #2167, MEDIO 2).
+        var solicitud = ++_solicitudFormatosVigente;
         if (!Guid.TryParse(centroIdTexto, out var centroId)) return;
 
         // El resumen solo se añade al borrador del mismo contexto que lo pidió (revisión Codex r3 y r4 de la #2167, MEDIO 4).
@@ -1025,7 +1053,6 @@ public partial class Bandeja : CaeManager.Web.Components.PaginaInteractiva, IAsy
         //   del Centro anterior ya no es la vigente.
         var conversacionId = _conversacionSeleccionadaId;
         var carga = _cargaDetalleVigente;
-        var solicitud = ++_solicitudFormatosVigente;
         try
         {
             var formatos = await Mediator.Send(new ObtenerFormatosRequeridosCentroQuery(centroId), _ciclo.Token);
@@ -1064,7 +1091,25 @@ public partial class Bandeja : CaeManager.Web.Components.PaginaInteractiva, IAsy
     /// </summary>
     private async Task ManejarArchivosAdjuntosAsync(InputFileChangeEventArgs e)
     {
-        _errorAdjuntos = AdjuntosCorreo.Mensaje(await _cargaAdjuntos.AgregarAsync(e, _adjuntosPendientes), ErroresTextos);
+        // La lectura de los archivos espera al navegador: se hace sobre una copia y solo se incorpora al borrador si la carga del
+        // detalle que la empezó sigue siendo la vigente. Sin esto, los archivos elegidos en una conversación acababan en el
+        // borrador de otra, o en el de la misma reabierta (A→B→A), porque la lista es la misma instancia (revisión Codex r5 de la
+        // #2167, inventario de caminos asíncronos). Mismo criterio que CompartirFormatosCentroAsync.
+        var conversacionId = _conversacionSeleccionadaId;
+        var carga = _cargaDetalleVigente;
+        var lote = _adjuntosPendientes.ToList();
+        var previos = lote.Count;
+        var rechazo = await _cargaAdjuntos.AgregarAsync(e, lote);
+        if (carga != _cargaDetalleVigente)
+        {
+            if (_conversacionSeleccionadaId == conversacionId)
+                ToastService.Mostrar(ErroresTextos["AvisoAdjuntosContextoCambiado"].Value, TonoToast.Info);
+            return;
+        }
+
+        // Solo lo leído en esta selección; si el Gestor CAE quitó un adjunto mientras tanto, no vuelve.
+        _adjuntosPendientes.AddRange(lote.Skip(previos));
+        _errorAdjuntos = AdjuntosCorreo.Mensaje(rechazo, ErroresTextos);
     }
 
     private void QuitarAdjuntoPendiente(AdjuntoParaEnviarDto adjunto)
@@ -1090,12 +1135,14 @@ public partial class Bandeja : CaeManager.Web.Components.PaginaInteractiva, IAsy
         if (_conversacionSeleccionadaId is null || string.IsNullOrWhiteSpace(_textoRespuesta)) return;
 
         _enviando = true;
+        var conversacionId = _conversacionSeleccionadaId.Value;
+        var textoEnviado = _textoRespuesta;
         try
         {
             var resultado = _detalle?.Canal == CanalConversacion.WhatsApp
-                ? await Mediator.Send(new ResponderConversacionWhatsAppCommand(_conversacionSeleccionadaId.Value, _textoRespuesta.Trim()), _ciclo.Token)
+                ? await Mediator.Send(new ResponderConversacionWhatsAppCommand(conversacionId, textoEnviado.Trim()), _ciclo.Token)
                 : await Mediator.Send(new ResponderConversacionCommand(
-                    _conversacionSeleccionadaId.Value, _textoRespuesta, _adjuntosPendientes.Count > 0 ? _adjuntosPendientes.ToList() : null), _ciclo.Token);
+                    conversacionId, textoEnviado, _adjuntosPendientes.Count > 0 ? _adjuntosPendientes.ToList() : null), _ciclo.Token);
 
             if (resultado.EsFallido)
             {
@@ -1106,10 +1153,17 @@ public partial class Bandeja : CaeManager.Web.Components.PaginaInteractiva, IAsy
                 return;
             }
 
-            _textoRespuesta = string.Empty;
-            _macroSeleccionadaId = string.Empty;
-            _adjuntosPendientes.Clear();
-            _errorAdjuntos = null;
+            // Se vacía el borrador que se envió, no el que haya ahora: si durante el envío el Gestor CAE abrió otra conversación
+            // (o la misma otra vez) y empezó otra respuesta, esa no se toca (revisión Codex r5 de la #2167, inventario de caminos
+            // asíncronos). No se compara la carga del detalle: una recarga por un mensaje entrante dejaría lo enviado en el
+            // composer, listo para mandarse dos veces.
+            if (BorradorSigueSiendo(conversacionId, textoEnviado))
+            {
+                _textoRespuesta = string.Empty;
+                _macroSeleccionadaId = string.Empty;
+                _adjuntosPendientes.Clear();
+                _errorAdjuntos = null;
+            }
             ToastService.Mostrar("Respuesta enviada.", TonoToast.Exito);
 
             await RegistrarAccionMedidaAsync();
@@ -1146,18 +1200,24 @@ public partial class Bandeja : CaeManager.Web.Components.PaginaInteractiva, IAsy
             return;
 
         _enviando = true;
+        var conversacionId = _conversacionSeleccionadaId.Value;
+        var textoEnviado = _textoRespuesta;
         try
         {
             var resultado = await Mediator.Send(new MigrarConversacionACorreoCommand(
-                _conversacionSeleccionadaId.Value, _emailFallback.Trim(), _textoRespuesta), _ciclo.Token);
+                conversacionId, _emailFallback.Trim(), textoEnviado), _ciclo.Token);
             if (resultado.EsFallido)
             {
                 ToastService.MostrarError(resultado.Error);
                 return;
             }
 
-            _textoRespuesta = string.Empty;
-            _emailFallback = string.Empty;
+            // Ver EnviarAsync: solo se vacía el borrador que se envió.
+            if (BorradorSigueSiendo(conversacionId, textoEnviado))
+            {
+                _textoRespuesta = string.Empty;
+                _emailFallback = string.Empty;
+            }
             ToastService.Mostrar("Mensaje enviado por correo — la conversación continúa en este mismo hilo.", TonoToast.Exito);
 
             await CargarDetalleAsync();
@@ -1668,10 +1728,14 @@ public partial class Bandeja : CaeManager.Web.Components.PaginaInteractiva, IAsy
     private string _asuntoPrioridad = string.Empty;
     private string _cuerpoPrioridad = string.Empty;
 
+    /// <summary>Centro para el que se preparó el borrador abierto en el Drawer de «Pedir prioridad».</summary>
+    private Guid? _centroPrioridadId;
+
     private async Task AbrirPedirPrioridadAsync()
     {
-        if (!Guid.TryParse(_centroFormatosSeleccionado, out var centroId)) return;
+        if (CentroSeleccionadoVigente is not { } centroId) return;
 
+        _centroPrioridadId = centroId;
         _drawerPrioridadVisible = true;
         _cargandoBorradorPrioridad = true;
         _mensajeErrorPrioridad = null;
@@ -1681,6 +1745,12 @@ public partial class Bandeja : CaeManager.Web.Components.PaginaInteractiva, IAsy
         try
         {
             var resultado = await Mediator.Send(new ObtenerBorradorPedirPrioridadQuery(centroId), _ciclo.Token);
+            // Una recarga durante la espera pudo retirar el Centro (otro Cliente empresarial): su borrador no se ofrece.
+            if (_centroPrioridadId != centroId || CentroSeleccionadoVigente != centroId)
+            {
+                if (_centroPrioridadId == centroId) _mensajeErrorPrioridad = ErroresTextos["AvisoPrioridadCentroRetirado"].Value;
+                return;
+            }
             if (resultado.EsFallido)
             {
                 _mensajeErrorPrioridad = resultado.Error.Mensaje;
@@ -1709,7 +1779,13 @@ public partial class Bandeja : CaeManager.Web.Components.PaginaInteractiva, IAsy
     {
         // Ver EnviarAsync: dos clics no pueden pedir prioridad dos veces.
         if (_enviandoPrioridad) return;
-        if (!Guid.TryParse(_centroFormatosSeleccionado, out var centroId)) return;
+        // Solo sobre el Centro del borrador y mientras siga entre los del contexto vigente: una recarga que cambia el Cliente
+        // empresarial con el Drawer abierto lo retira (revisión Codex r5 de la #2167, MEDIO 3).
+        if (_centroPrioridadId is not { } centroId || CentroSeleccionadoVigente != centroId)
+        {
+            _mensajeErrorPrioridad = ErroresTextos["AvisoPrioridadCentroRetirado"].Value;
+            return;
+        }
 
         var destinatarios = _destinatarioPrioridad
             .Split([',', ';'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
@@ -1982,4 +2058,15 @@ public partial class Bandeja : CaeManager.Web.Components.PaginaInteractiva, IAsy
     // Macros y centros del compositor salen de ese mismo contexto: hasta que es el del detalle no se ofrecen los del hilo anterior.
     private IReadOnlyList<MacroListaDto> MacrosDelContexto => ContextoEsDelDetalle ? _macrosDisponibles : [];
     private IReadOnlyList<CentroSelectorDto> CentrosDelContexto => ContextoEsDelDetalle ? _centrosClienteActivo : [];
+
+    /// <summary>
+    /// Centro elegido en «Compartir formatos de centro» mientras siga entre los Centros del contexto vigente; si no, ninguno.
+    /// «Pedir prioridad» solo se ofrece, prepara y envía sobre este Centro (revisión Codex r5 de la #2167, MEDIO 3).
+    /// </summary>
+    private Guid? CentroSeleccionadoVigente =>
+        Guid.TryParse(_centroFormatosSeleccionado, out var id) && CentrosDelContexto.Any(c => c.Id == id) ? id : null;
+
+    /// <summary>El borrador del composer es el que se envió desde esta conversación: tras un envío, solo ese se vacía.</summary>
+    private bool BorradorSigueSiendo(Guid conversacionId, string textoEnviado) =>
+        _conversacionSeleccionadaId == conversacionId && _textoRespuesta == textoEnviado;
 }

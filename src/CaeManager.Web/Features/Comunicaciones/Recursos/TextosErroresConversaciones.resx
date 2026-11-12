@@ -21,6 +21,15 @@
   <data name="AvisoFormatosContextoCambiado" xml:space="preserve">
     <value>La conversación se ha actualizado mientras se preparaba el resumen del Centro. Vuelve a elegirlo en «Compartir formatos de centro»: tu respuesta no se ha modificado.</value>
   </data>
+  <data name="AvisoPlantillaContextoCambiado" xml:space="preserve">
+    <value>La conversación se ha actualizado mientras se preparaba la plantilla. Vuelve a elegirla: tu respuesta no se ha modificado.</value>
+  </data>
+  <data name="AvisoAdjuntosContextoCambiado" xml:space="preserve">
+    <value>La conversación se ha actualizado mientras se leían los archivos. Vuelve a adjuntarlos: tu respuesta no se ha modificado.</value>
+  </data>
+  <data name="AvisoPrioridadCentroRetirado" xml:space="preserve">
+    <value>El Centro elegido ya no es de esta conversación. Cierra y vuelve a elegirlo en «Compartir formatos de centro».</value>
+  </data>
   <data name="ErrorEnviarRespuesta" xml:space="preserve">
     <value>No se envió la respuesta. Tu texto y los adjuntos siguen en el redactor: comprueba tu conexión y pulsa Enviar otra vez.</value>
   </data>

@@ -46,6 +46,7 @@ using FluentValidation;
 using FluentValidation.Results;
 using MediatR;
 using Microsoft.AspNetCore.Components;
+using Microsoft.AspNetCore.Components.Forms;
 using Microsoft.AspNetCore.Components.Routing;
 using Microsoft.AspNetCore.Components.Web;
 using Microsoft.AspNetCore.DataProtection;
@@ -1397,6 +1398,13 @@ public class ComunicacionesGen2Tests : BunitContext
 
         TituloAbierto(cut).Should().Be("Documentación pendiente");
         cut.FindComponent<ComposerBar>().Instance.Texto.Should().BeEmpty("el Centro pedido era del Cliente empresarial anterior");
+
+        // Hueco de la r4: el aviso y el selector liberado. El Centro sigue entre los disponibles tras la recarga (el doble devuelve
+        // el mismo para cualquier Cliente), así que lo que vacía el selector es la guarda de los formatos, no la de los Centros.
+        Services.GetRequiredService<ToastService>().Mensajes.Should().Contain(
+            m => m.Mensaje.StartsWith("La conversación se ha actualizado mientras se preparaba el resumen del Centro"),
+            "el Gestor CAE sabe por qué no se añadió nada");
+        cut.FindComponent<ComposerBar>().Instance.CentroFormatosSeleccionado.Should().BeEmpty("el selector queda libre para volver a elegirlo");
     }
 
     /// <summary>
@@ -1436,6 +1444,356 @@ public class ComunicacionesGen2Tests : BunitContext
         cut.Render();
 
         cut.FindComponent<ComposerBar>().Instance.Texto.Should().Be("FORMATOS DEL CENTRO SUR", "el Centro sustituido no se añade");
+    }
+
+    // ---------------------------------------------------------------- revisión Codex r5 de la #2167: inventario de caminos asíncronos
+
+    private static readonly Guid CentroSurEbroId = Guid.NewGuid();
+
+    /// <summary>Centros por Cliente empresarial: Refrielectric tiene el Centro Norte; Ebro, solo el Centro Sur.</summary>
+    private static Task<object?>? CentrosPorCliente(object peticion) => peticion switch
+    {
+        ObtenerCentrosParaSelectorQuery q when q.ClienteId == ClienteEbro.Id => Ya(new List<CentroSelectorDto>
+            { new(CentroSurEbroId, "Centro Sur", ClienteEbro.RazonSocial, ClienteEbro.RazonSocial) }),
+        ObtenerCentrosParaSelectorQuery => Ya(new List<CentroSelectorDto>
+            { new(CentroNorteId, "Centro Norte", ClienteRefrielectric.RazonSocial, "Refrielectric S.A.") }),
+        ObtenerFormatosRequeridosCentroQuery => Ya("FORMATOS DEL CENTRO NORTE"),
+        ObtenerBorradorPedirPrioridadQuery => Ya(BorradorDelCentroNorte()),
+        PedirPrioridadValidacionCommand => Ya(Result.Exito()),
+        _ => null
+    };
+
+    private static Result<BorradorPedirPrioridadDto> BorradorDelCentroNorte() => Result.Exito(new BorradorPedirPrioridadDto(
+        "validacion@example.invalid", "Prioridad Centro Norte", "<p>Rogamos prioridad.</p>", true, null, 2));
+
+    private static ConversacionDetalleDto DetalleConEbro(ConversacionListaDto conversacion) =>
+        DetalleDe(conversacion) with { ClienteId = ClienteEbro.Id, ClienteRazonSocial = ClienteEbro.RazonSocial };
+
+    private static bool HayBotonPedirPrioridad(IRenderedComponent<Bandeja> cut) =>
+        cut.FindAll("button").Any(b => b.TextContent.Trim() == "Pedir prioridad de validación");
+
+    private static bool HayToast(BunitContext contexto, string inicio) =>
+        contexto.Services.GetRequiredService<ToastService>().Mensajes.Any(m => m.Mensaje.StartsWith(inicio));
+
+    /// <summary>
+    /// Revisión Codex r5 de la #2167, MEDIO 2: el Gestor CAE elige un Centro y, mientras espera, vuelve a «Selecciona un centro…».
+    /// La respuesta del Centro retirado no se añade. Detecta incrementar la petición vigente solo después de leer el Centro.
+    /// </summary>
+    [Fact]
+    public async Task Los_formatos_de_un_centro_retirado_del_selector_durante_la_espera_no_acaban_en_la_respuesta()
+    {
+        var conversacion = Conversacion("Documentación pendiente", ClienteRefrielectric);
+        var escenario = new Escenario { Detalle = _ => DetalleDe(conversacion) };
+        escenario.Conversaciones.Add(conversacion);
+        var formatosNorte = new TaskCompletionSource<object?>(TaskCreationOptions.RunContinuationsAsynchronously);
+        escenario.Interceptar = p => p is ObtenerFormatosRequeridosCentroQuery ? formatosNorte.Task : CentrosPorCliente(p);
+        var (cut, _) = Renderizar(escenario);
+        await SeleccionarFila(cut, "Documentación pendiente");
+        cut.WaitForAssertion(() => cut.FindAll(".composer-correo-prellenados select").Should().ContainSingle());
+
+        var comparticion = cut.Find(".composer-correo-prellenados select").ChangeAsync(new ChangeEventArgs { Value = CentroNorteId.ToString() });
+        await cut.Find(".composer-correo-prellenados select").ChangeAsync(new ChangeEventArgs { Value = string.Empty });
+        cut.FindComponent<ComposerBar>().Instance.CentroFormatosSeleccionado.Should().BeEmpty("control positivo: la selección se retiró");
+
+        await cut.InvokeAsync(() => formatosNorte.SetResult("FORMATOS DEL CENTRO NORTE"));
+        await comparticion;
+        cut.Render();
+
+        cut.FindComponent<ComposerBar>().Instance.Texto.Should().BeEmpty("el Centro retirado del selector no se añade");
+    }
+
+    /// <summary>
+    /// Revisión Codex r5 de la #2167, MEDIO 3: una recarga cambia el Cliente empresarial y sus Centros ya no incluyen el elegido.
+    /// La selección se vacía y «Pedir prioridad» deja de ofrecerse. Detecta quitar el vaciado de <c>CargarDetalleAsync</c>.
+    /// </summary>
+    [Fact]
+    public async Task Si_la_recarga_cambia_el_Cliente_y_el_centro_elegido_ya_no_esta_se_retira_la_seleccion()
+    {
+        var conversacion = Conversacion("Documentación pendiente", ClienteRefrielectric);
+        var escenario = new Escenario { Detalle = _ => DetalleDe(conversacion), Interceptar = CentrosPorCliente };
+        escenario.Conversaciones.Add(conversacion);
+        var (cut, _) = Renderizar(escenario);
+        await SeleccionarFila(cut, "Documentación pendiente");
+        cut.WaitForAssertion(() => cut.FindAll(".composer-correo-prellenados select").Should().ContainSingle());
+        await cut.Find(".composer-correo-prellenados select").ChangeAsync(new ChangeEventArgs { Value = CentroNorteId.ToString() });
+        HayBotonPedirPrioridad(cut).Should().BeTrue("control positivo: con el Centro elegido se ofrece pedir prioridad");
+
+        escenario.Detalle = _ => DetalleConEbro(conversacion);
+        await RecibirMensajeAsync(cut, conversacion.Id);
+        cut.WaitForAssertion(() => cut.Find(".bandeja-cliente-identidad").TextContent.Should().Contain(ClienteEbro.RazonSocial));
+
+        cut.FindComponent<ComposerBar>().Instance.CentroFormatosSeleccionado.Should().BeEmpty("el Centro Norte no es del Cliente empresarial nuevo");
+        HayBotonPedirPrioridad(cut).Should().BeFalse("«Pedir prioridad» no puede operar sobre el Centro del Cliente empresarial anterior");
+    }
+
+    /// <summary>
+    /// Revisión Codex r5 de la #2167, MEDIO 3 (Drawer abierto): con el borrador de prioridad ya en pantalla, una recarga cambia el
+    /// Cliente empresarial y retira el Centro. «Enviar» no manda la petición y dice por qué. Detecta quitar la guarda de
+    /// <c>EnviarPrioridadAsync</c> (sin ella, el envío se descarta en silencio).
+    /// </summary>
+    [Fact]
+    public async Task Pedir_prioridad_no_se_envia_si_una_recarga_retira_el_centro_con_el_borrador_abierto()
+    {
+        var conversacion = Conversacion("Documentación pendiente", ClienteRefrielectric);
+        var escenario = new Escenario { Detalle = _ => DetalleDe(conversacion), Interceptar = CentrosPorCliente };
+        escenario.Conversaciones.Add(conversacion);
+        var (cut, mediador) = Renderizar(escenario);
+        await SeleccionarFila(cut, "Documentación pendiente");
+        cut.WaitForAssertion(() => cut.FindAll(".composer-correo-prellenados select").Should().ContainSingle());
+        await cut.Find(".composer-correo-prellenados select").ChangeAsync(new ChangeEventArgs { Value = CentroNorteId.ToString() });
+        await cut.FindAll("button").Single(b => b.TextContent.Trim() == "Pedir prioridad de validación").ClickAsync(new MouseEventArgs());
+        cut.WaitForAssertion(() => cut.FindComponents<CampoTexto>().Should().Contain(c => c.Instance.Valor == "Prioridad Centro Norte"));
+
+        escenario.Detalle = _ => DetalleConEbro(conversacion);
+        await RecibirMensajeAsync(cut, conversacion.Id);
+        cut.WaitForAssertion(() => cut.Find(".bandeja-cliente-identidad").TextContent.Should().Contain(ClienteEbro.RazonSocial));
+
+        await Boton(cut, ".drawer-pie button", "Enviar").ClickAsync(new MouseEventArgs());
+
+        mediador.Enviados.OfType<PedirPrioridadValidacionCommand>().Should().BeEmpty("el Centro del borrador ya no es de esta conversación");
+        cut.Find(".drawer-panel").TextContent.Should().Contain("El Centro elegido ya no es de esta conversación");
+    }
+
+    /// <summary>
+    /// Revisión Codex r5 de la #2167, MEDIO 3 (borrador en vuelo): mientras se prepara el borrador de prioridad, una recarga cambia
+    /// el Cliente empresarial y retira el Centro. El borrador que llega tarde no se ofrece. Detecta quitar la comprobación tras el
+    /// await de <c>AbrirPedirPrioridadAsync</c>.
+    /// </summary>
+    [Fact]
+    public async Task El_borrador_de_prioridad_que_llega_tras_retirarse_el_centro_no_se_ofrece()
+    {
+        var conversacion = Conversacion("Documentación pendiente", ClienteRefrielectric);
+        var escenario = new Escenario { Detalle = _ => DetalleDe(conversacion) };
+        escenario.Conversaciones.Add(conversacion);
+        var borrador = new TaskCompletionSource<object?>(TaskCreationOptions.RunContinuationsAsynchronously);
+        escenario.Interceptar = p => p is ObtenerBorradorPedirPrioridadQuery ? borrador.Task : CentrosPorCliente(p);
+        var (cut, _) = Renderizar(escenario);
+        await SeleccionarFila(cut, "Documentación pendiente");
+        cut.WaitForAssertion(() => cut.FindAll(".composer-correo-prellenados select").Should().ContainSingle());
+        await cut.Find(".composer-correo-prellenados select").ChangeAsync(new ChangeEventArgs { Value = CentroNorteId.ToString() });
+        var apertura = cut.FindAll("button").Single(b => b.TextContent.Trim() == "Pedir prioridad de validación").ClickAsync(new MouseEventArgs());
+
+        escenario.Detalle = _ => DetalleConEbro(conversacion);
+        await RecibirMensajeAsync(cut, conversacion.Id);
+        cut.WaitForAssertion(() => cut.Find(".bandeja-cliente-identidad").TextContent.Should().Contain(ClienteEbro.RazonSocial));
+
+        await cut.InvokeAsync(() => borrador.SetResult(BorradorDelCentroNorte()));
+        await apertura;
+        cut.Render();
+
+        cut.FindComponents<CampoTexto>().Should().NotContain(c => c.Instance.Valor == "Prioridad Centro Norte",
+            "el borrador era del Centro del Cliente empresarial anterior");
+        cut.Find(".drawer-panel").TextContent.Should().Contain("El Centro elegido ya no es de esta conversación");
+    }
+
+    private static (Escenario Escenario, ConversacionListaDto Primera, ConversacionListaDto Segunda) DosConversacionesConPlantilla(MacroListaDto macro)
+    {
+        var escenario = new Escenario();
+        var primera = Conversacion("Primera conversación", ClienteRefrielectric);
+        var segunda = Conversacion("Segunda conversación", ClienteRefrielectric, "laura.gil@refrielectric.es");
+        escenario.Conversaciones.AddRange([primera, segunda]);
+        escenario.Detalle = id => DetalleDe(escenario.Conversaciones.Single(c => c.Id == id));
+        escenario.Macros.Add(macro);
+        return (escenario, primera, segunda);
+    }
+
+    private static MacroListaDto PlantillaCertificado() =>
+        new(Guid.NewGuid(), null, null, "Certificado", "<p>Falta el certificado.</p>", Guid.NewGuid());
+
+    /// <summary>
+    /// Revisión Codex r5 de la #2167, MEDIO 1 (A→B→A): la plantilla pedida en la primera apertura de A llega con A abierta otra
+    /// vez. No se añade al borrador de la apertura actual. Detecta volver a comparar solo la conversación tras el await.
+    /// </summary>
+    [Fact]
+    public async Task Una_plantilla_pedida_en_una_apertura_anterior_de_la_misma_conversacion_no_acaba_en_la_respuesta()
+    {
+        var macro = PlantillaCertificado();
+        var (escenario, _, _) = DosConversacionesConPlantilla(macro);
+        var plantilla = new TaskCompletionSource<object?>(TaskCreationOptions.RunContinuationsAsynchronously);
+        escenario.Interceptar = p => p is AplicarMacroCommand ? plantilla.Task : null;
+        var (cut, mediador) = Renderizar(escenario);
+        await SeleccionarFila(cut, "Primera conversación");
+
+        var aplicacion = cut.Find(".composer-macro-campo select").ChangeAsync(new ChangeEventArgs { Value = macro.Id.ToString() });
+        cut.WaitForAssertion(() => mediador.Enviados.OfType<AplicarMacroCommand>().Should().ContainSingle("la plantilla está en vuelo"));
+        await SeleccionarFila(cut, "Segunda conversación");
+        cut.WaitForAssertion(() => TituloAbierto(cut).Should().Be("Segunda conversación"));
+        await SeleccionarFila(cut, "Primera conversación");
+        cut.WaitForAssertion(() => cut.FindAll(".composer-macro-campo select").Should().ContainSingle(
+            "control positivo: la primera conversación está abierta otra vez con su composer"));
+
+        await cut.InvokeAsync(() => plantilla.SetResult(Result.Exito("<p>Plantilla de la apertura anterior.</p>")));
+        await aplicacion;
+        cut.Render();
+
+        TituloAbierto(cut).Should().Be("Primera conversación");
+        cut.FindComponent<ComposerBar>().Instance.Texto.Should().BeEmpty("la plantilla pedida en una apertura anterior no se añade al borrador de la actual");
+    }
+
+    /// <summary>
+    /// Revisión Codex r5 de la #2167, MEDIO 1 (Cliente empresarial): mientras se rellena la plantilla, una recarga de la misma
+    /// conversación cambia su Cliente empresarial. La plantilla rellenada con el contexto anterior no se añade y se avisa.
+    /// </summary>
+    [Fact]
+    public async Task Una_plantilla_que_llega_tras_cambiar_el_Cliente_empresarial_no_acaba_en_la_respuesta()
+    {
+        var macro = PlantillaCertificado();
+        var (escenario, primera, _) = DosConversacionesConPlantilla(macro);
+        var plantilla = new TaskCompletionSource<object?>(TaskCreationOptions.RunContinuationsAsynchronously);
+        escenario.Interceptar = p => p is AplicarMacroCommand ? plantilla.Task : null;
+        var (cut, mediador) = Renderizar(escenario);
+        await SeleccionarFila(cut, "Primera conversación");
+
+        var aplicacion = cut.Find(".composer-macro-campo select").ChangeAsync(new ChangeEventArgs { Value = macro.Id.ToString() });
+        cut.WaitForAssertion(() => mediador.Enviados.OfType<AplicarMacroCommand>().Should().ContainSingle("la plantilla está en vuelo"));
+        escenario.Detalle = id => id == primera.Id ? DetalleConEbro(primera) : DetalleDe(escenario.Conversaciones.Single(c => c.Id == id));
+        await RecibirMensajeAsync(cut, primera.Id);
+        cut.WaitForAssertion(() => cut.Find(".bandeja-cliente-identidad").TextContent.Should().Contain(ClienteEbro.RazonSocial,
+            "control positivo: la recarga ya fijó el Cliente empresarial nuevo"));
+
+        await cut.InvokeAsync(() => plantilla.SetResult(Result.Exito("<p>Plantilla con los datos de Refrielectric.</p>")));
+        await aplicacion;
+        cut.Render();
+
+        cut.FindComponent<ComposerBar>().Instance.Texto.Should().BeEmpty("la plantilla se rellenó con el Cliente empresarial anterior");
+        HayToast(this, "La conversación se ha actualizado mientras se preparaba la plantilla").Should().BeTrue("se dice por qué no se añadió");
+    }
+
+    /// <summary>
+    /// Inventario de la r5 de la #2167 (adjuntos): la lectura de un archivo espera al navegador. Si mientras tanto se abre otra
+    /// conversación, el archivo no acaba en su borrador. Detecta volver a leer sobre la lista del borrador o quitar la guarda.
+    /// </summary>
+    [Fact]
+    public async Task Un_archivo_que_termina_de_leerse_tras_cambiar_de_conversacion_no_acaba_en_el_borrador_de_la_otra()
+    {
+        var (escenario, _, _) = DosConversacionesConPlantilla(PlantillaCertificado());
+        var (cut, _) = Renderizar(escenario);
+        await SeleccionarFila(cut, "Primera conversación");
+
+        var puerta = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var archivo = new ArchivoRetenido("tc2.pdf", [1, 2, 3], puerta.Task);
+        var composer = cut.FindComponent<ComposerBar>();
+        var lectura = cut.InvokeAsync(() => composer.Instance.OnArchivosSeleccionados.InvokeAsync(new InputFileChangeEventArgs([archivo])));
+        cut.WaitForAssertion(() => archivo.Abierto.Should().BeTrue("la lectura está en curso"));
+        await SeleccionarFila(cut, "Segunda conversación");
+        cut.WaitForAssertion(() => TituloAbierto(cut).Should().Be("Segunda conversación"));
+
+        puerta.SetResult();
+        await lectura;
+        cut.Render();
+        cut.FindComponent<ComposerBar>().Instance.AdjuntosPendientes.Should().BeEmpty("el archivo se eligió en la primera conversación");
+
+        // Control positivo: sin cambiar de conversación, lo leído sí se adjunta.
+        var otro = new ArchivoRetenido("dni.pdf", [4, 5], Task.CompletedTask);
+        await cut.InvokeAsync(() => cut.FindComponent<ComposerBar>().Instance.OnArchivosSeleccionados.InvokeAsync(new InputFileChangeEventArgs([otro])));
+        cut.FindComponent<ComposerBar>().Instance.AdjuntosPendientes.Select(a => a.NombreArchivo).Should().Equal("dni.pdf");
+    }
+
+    /// <summary>
+    /// Inventario de la r5 de la #2167 (envío): la respuesta de A se está enviando y el Gestor CAE abre B (descartando) y empieza
+    /// otra respuesta. Al terminar el envío de A, el borrador de B no se vacía. Detecta volver a vaciar sin comprobar el borrador.
+    /// </summary>
+    [Fact]
+    public async Task Una_respuesta_que_termina_de_enviarse_tras_cambiar_de_conversacion_no_vacia_el_borrador_de_la_otra()
+    {
+        var (escenario, _, _) = DosConversacionesConPlantilla(PlantillaCertificado());
+        var envio = new TaskCompletionSource<object?>(TaskCreationOptions.RunContinuationsAsynchronously);
+        escenario.Interceptar = p => p is ResponderConversacionCommand ? envio.Task : null;
+        var (cut, mediador) = Renderizar(escenario);
+        await SeleccionarFila(cut, "Primera conversación");
+        await Escribir(cut, "Respuesta de la primera.");
+
+        var envioPrimera = Enviar(cut);
+        mediador.Enviados.OfType<ResponderConversacionCommand>().Should().ContainSingle("control positivo: el envío está en vuelo");
+        await AbrirDescartandoAsync(cut, "Segunda conversación");
+        await cut.InvokeAsync(() => cut.FindComponent<ComposerBar>().Instance.TextoChanged.InvokeAsync("Borrador de la segunda."));
+
+        await cut.InvokeAsync(() => envio.SetResult(Result.Exito()));
+        await envioPrimera;
+        cut.Render();
+
+        TituloAbierto(cut).Should().Be("Segunda conversación");
+        cut.FindComponent<ComposerBar>().Instance.Texto.Should().Be("Borrador de la segunda.", "el envío de la primera no vacía la respuesta de la segunda");
+    }
+
+    /// <summary>Mismo caso que el anterior por el fallback WhatsApp→correo (<c>EnviarFallbackCorreoAsync</c>).</summary>
+    [Fact]
+    public async Task Un_fallback_por_correo_que_termina_tras_cambiar_de_conversacion_no_vacia_el_borrador_de_la_otra()
+    {
+        var (escenario, _, _) = DosConversacionesConPlantilla(PlantillaCertificado());
+        var envio = new TaskCompletionSource<object?>(TaskCreationOptions.RunContinuationsAsynchronously);
+        escenario.Interceptar = p => p is CaeManager.Application.Comunicaciones.Commands.MigrarConversacionACorreo.MigrarConversacionACorreoCommand ? envio.Task : null;
+        var (cut, mediador) = Renderizar(escenario);
+        await SeleccionarFila(cut, "Primera conversación");
+        var composer = cut.FindComponent<ComposerBar>();
+        await cut.InvokeAsync(() => composer.Instance.TextoChanged.InvokeAsync("Respuesta de la primera."));
+        await cut.InvokeAsync(() => composer.Instance.EmailFallbackChanged.InvokeAsync("carmen.ruiz@refrielectric.es"));
+
+        var envioPrimera = cut.InvokeAsync(() => cut.FindComponent<ComposerBar>().Instance.OnEnviarFallbackCorreo.InvokeAsync());
+        cut.WaitForAssertion(() => mediador.Enviados.OfType<CaeManager.Application.Comunicaciones.Commands.MigrarConversacionACorreo.MigrarConversacionACorreoCommand>().Should().ContainSingle("control positivo: el envío está en vuelo"));
+        await AbrirDescartandoAsync(cut, "Segunda conversación");
+        await cut.InvokeAsync(() => cut.FindComponent<ComposerBar>().Instance.TextoChanged.InvokeAsync("Borrador de la segunda."));
+        await cut.InvokeAsync(() => cut.FindComponent<ComposerBar>().Instance.EmailFallbackChanged.InvokeAsync("laura.gil@refrielectric.es"));
+
+        await cut.InvokeAsync(() => envio.SetResult(Result.Exito()));
+        await envioPrimera;
+        cut.Render();
+
+        var actual = cut.FindComponent<ComposerBar>().Instance;
+        actual.Texto.Should().Be("Borrador de la segunda.", "el fallback de la primera no vacía la respuesta de la segunda");
+        actual.EmailFallback.Should().Be("laura.gil@refrielectric.es");
+    }
+
+    private static async Task AbrirDescartandoAsync(IRenderedComponent<Bandeja> cut, string asunto)
+    {
+        var seleccion = SeleccionarFila(cut, asunto);
+        cut.WaitForAssertion(() => cut.FindAll(".modal-pie button").Should().Contain(b => b.TextContent.Trim() == "Salir y descartar"));
+        await cut.PulsarEnElAvisoAsync("Salir y descartar");
+        await seleccion;
+        cut.WaitForAssertion(() => TituloAbierto(cut).Should().Be(asunto));
+    }
+
+    /// <summary>Archivo del navegador cuya lectura no avanza hasta que se abre la puerta.</summary>
+    private sealed class ArchivoRetenido(string nombre, byte[] contenido, Task puerta) : IBrowserFile
+    {
+        public bool Abierto { get; private set; }
+        public string Name => nombre;
+        public DateTimeOffset LastModified => DateTimeOffset.UnixEpoch;
+        public long Size => contenido.Length;
+        public string ContentType => "application/pdf";
+
+        public Stream OpenReadStream(long maxAllowedSize = 512000, CancellationToken cancellationToken = default)
+        {
+            Abierto = true;
+            return new FlujoRetenido(new MemoryStream(contenido), puerta);
+        }
+    }
+
+    private sealed class FlujoRetenido(MemoryStream contenido, Task puerta) : Stream
+    {
+        public override bool CanRead => true;
+        public override bool CanSeek => false;
+        public override bool CanWrite => false;
+        public override long Length => contenido.Length;
+        public override long Position { get => contenido.Position; set => throw new NotSupportedException(); }
+        public override void Flush() { }
+        public override int Read(byte[] buffer, int offset, int count) => contenido.Read(buffer, offset, count);
+
+        public override async ValueTask<int> ReadAsync(Memory<byte> buffer, CancellationToken cancellationToken = default)
+        {
+            await puerta;
+            return await contenido.ReadAsync(buffer, cancellationToken);
+        }
+
+        public override long Seek(long offset, SeekOrigin origin) => throw new NotSupportedException();
+        public override void SetLength(long value) => throw new NotSupportedException();
+        public override void Write(byte[] buffer, int offset, int count) => throw new NotSupportedException();
+
+        protected override void Dispose(bool disposing)
+        {
+            if (disposing) contenido.Dispose();
+            base.Dispose(disposing);
+        }
     }
 
     [Fact]
