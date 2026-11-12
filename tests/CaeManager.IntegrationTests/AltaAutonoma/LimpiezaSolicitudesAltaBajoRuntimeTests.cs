@@ -204,6 +204,41 @@ public class LimpiezaSolicitudesAltaBajoRuntimeTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task Borra_tambien_el_credencial_de_continuacion_y_su_caducidad()
+    {
+        // Caducar ya vacía el credencial en el dominio, pero el borrado no puede depender de ello: una fila Caducada
+        // que lo conserve (sembrada así, o caducada por la función SQL) tiene que quedar sin él.
+        var id = await SembrarAsync("Caducada", edadHoras: 31 * 24, haceHorasDelUltimoCambio: 24 * 24);
+        await using (var propietario = await AbrirComoPropietarioAsync())
+        await using (var credencial = new NpgsqlCommand(
+            """
+            UPDATE "SolicitudesAlta"
+               SET "HashCredencialContinuacion" = @hash, "CredencialContinuacionCaducaEnUtc" = now() - interval '29 days'
+             WHERE "Id" = @id
+            """, propietario))
+        {
+            credencial.Parameters.AddWithValue("hash", Convert.ToHexStringLower(System.Security.Cryptography.SHA256.HashData(Guid.NewGuid().ToByteArray())));
+            credencial.Parameters.AddWithValue("id", id);
+            (await credencial.ExecuteNonQueryAsync()).Should().Be(1);
+        }
+
+        (await BorrarAsync()).Should().Be(1);
+
+        await using var lectura = await AbrirComoPropietarioAsync();
+        await using var orden = new NpgsqlCommand(
+            """
+            SELECT "HashCredencialContinuacion" IS NULL, "CredencialContinuacionCaducaEnUtc" IS NULL, "DatosPersonalesBorradosEnUtc" IS NOT NULL
+              FROM "SolicitudesAlta" WHERE "Id" = @id
+            """, lectura);
+        orden.Parameters.AddWithValue("id", id);
+        await using var lector = await orden.ExecuteReaderAsync();
+        (await lector.ReadAsync()).Should().BeTrue();
+        lector.GetBoolean(0).Should().BeTrue("el hash del credencial de continuación se borra con los demás datos");
+        lector.GetBoolean(1).Should().BeTrue("y su caducidad también");
+        lector.GetBoolean(2).Should().BeTrue();
+    }
+
+    [Fact]
     public async Task Es_idempotente_y_deja_una_traza_con_el_recuento()
     {
         await SembrarAsync("Caducada", edadHoras: 31 * 24, haceHorasDelUltimoCambio: 24 * 24, conAceptaciones: true);

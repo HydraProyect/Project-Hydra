@@ -1,3 +1,6 @@
+using System.Reflection;
+using System.Text.RegularExpressions;
+using CaeManager.Domain.AltaAutonoma;
 using CaeManager.Migrations.PostgreSQL.Migrations;
 using FluentAssertions;
 using Microsoft.EntityFrameworkCore.Migrations.Operations;
@@ -55,8 +58,7 @@ public class AltaDatosOrganizacionYCredencialContinuacionTests
 
         Up.Should().NotContain("CREATE POLICY", "las tablas siguen sin políticas")
             .And.NotContain("ON TABLE", "las tablas siguen sin privilegios para los roles de la aplicación")
-            .And.NotContain("app_alta_caducar", "la caducidad es de A8")
-            .And.NotContain("app_alta_borrar", "la limpieza es de A8");
+            .And.NotContain("app_alta_caducar", "la caducidad es de A8");
         Down.Should().Contain("CREATE OR REPLACE FUNCTION public.app_alta_verificar_correo(p_hash_token text) RETURNS text")
             .And.Contain("v_estado <> 'Iniciada'", "Down devuelve el cuerpo de A3, que sí verifica")
             .And.Contain("GRANT EXECUTE ON FUNCTION public.app_alta_verificar_correo(text) TO cae_app_runtime;")
@@ -162,5 +164,93 @@ public class AltaDatosOrganizacionYCredencialContinuacionTests
         // Derivada es final: el credencial deja de servir en la misma sentencia.
         var derivada = cuerpo[cuerpo.IndexOf("\"Estado\" = 'DerivadaAAcceso'", StringComparison.Ordinal)..];
         derivada[..derivada.IndexOf("WHERE", StringComparison.Ordinal)].Should().Contain("\"HashCredencialContinuacion\" = NULL");
+    }
+
+    [Fact]
+    public void El_borrado_de_A8_vacia_tambien_el_credencial_de_continuacion_y_no_cambia_nada_mas()
+    {
+        var nuevo = Funcion(Up, InicioBorrar);
+
+        // Fuera de las dos columnas, el cuerpo es el de A8: mismos plazos, lote, candado, comprobación del rol y traza.
+        var sinCredencial = string.Join('\n', nuevo.Split('\n')
+            .Where(linea => !ColumnasCredencial.Any(c => linea.Trim() == $"\"{c}\" = NULL,")));
+        sinCredencial.Should().Be(BorrarDeA8);
+        ColumnasANull(nuevo).Should().BeEquivalentTo(ColumnasANull(BorrarDeA8).Concat(ColumnasCredencial));
+
+        Up.Should().Contain($"REVOKE ALL ON FUNCTION public.{FirmaBorrar} FROM PUBLIC, cae_app_soporte, cae_app_aprovisionamiento;")
+            .And.Contain($"GRANT EXECUTE ON FUNCTION public.{FirmaBorrar} TO cae_app_runtime;")
+            .And.NotContain($"DROP FUNCTION public.{FirmaBorrar}", "la firma y el propietario de A8 se conservan");
+    }
+
+    [Fact]
+    public void El_borrado_SQL_deja_a_NULL_los_mismos_campos_que_BorrarDatosPersonales_del_dominio()
+    {
+        ColumnasANull(Funcion(Up, InicioBorrar)).Should().BeEquivalentTo(PropiedadesQueBorrarDatosPersonalesDejaANull(),
+            "si el dominio borra un dato personal, la versión de A4 de la función SQL tiene que borrarlo también (y al revés); " +
+            "una migración posterior que la redefina necesita su propia comprobación");
+    }
+
+    [Fact]
+    public void Down_devuelve_el_borrado_de_A8_antes_de_quitar_las_columnas_del_credencial()
+    {
+        var operaciones = new AltaDatosOrganizacionYCredencialContinuacion().DownOperations.ToList();
+        var sql = operaciones.OfType<SqlOperation>().Should().ContainSingle().Subject;
+
+        Funcion(sql.Sql, InicioBorrar).Should().Be(BorrarDeA8);
+        sql.Sql.Should().NotContain("CredencialContinuacion", "nada de lo que queda tras Down nombra las columnas que quita")
+            .And.Contain($"REVOKE ALL ON FUNCTION public.{FirmaBorrar} FROM PUBLIC, cae_app_soporte, cae_app_aprovisionamiento;")
+            .And.Contain($"GRANT EXECUTE ON FUNCTION public.{FirmaBorrar} TO cae_app_runtime;")
+            .And.NotContain($"DROP FUNCTION public.{FirmaBorrar}", "la función es de A8 y su Down la quita");
+        operaciones.IndexOf(sql).Should().BeLessThan(operaciones.FindIndex(o => o is DropColumnOperation),
+            "la función deja de nombrar las columnas antes de que desaparezcan");
+    }
+
+    private const string FirmaBorrar = "app_alta_borrar_datos_personales(integer)";
+
+    private const string InicioBorrar =
+        "CREATE OR REPLACE FUNCTION public.app_alta_borrar_datos_personales(p_lote integer) RETURNS integer";
+
+    private static readonly string[] ColumnasCredencial = ["HashCredencialContinuacion", "CredencialContinuacionCaducaEnUtc"];
+
+    /// <summary>El cuerpo de la función de borrado tal como lo creó A8, escrito como <c>CREATE OR REPLACE</c>.</summary>
+    private static string BorrarDeA8 => Funcion(
+            new CaducidadYBorradoSolicitudesAlta().UpOperations.OfType<SqlOperation>().Should().ContainSingle().Subject.Sql,
+            "CREATE FUNCTION public.app_alta_borrar_datos_personales(")
+        .Replace("CREATE FUNCTION", "CREATE OR REPLACE FUNCTION", StringComparison.Ordinal);
+
+    private static string Funcion(string sql, string inicio)
+    {
+        var desde = sql.IndexOf(inicio, StringComparison.Ordinal);
+        desde.Should().BeGreaterThan(-1, inicio);
+        sql.IndexOf(inicio, desde + 1, StringComparison.Ordinal).Should().Be(-1, "la función se define una sola vez");
+        return sql[desde..(sql.IndexOf("$$;", desde, StringComparison.Ordinal) + 3)];
+    }
+
+    private static HashSet<string> ColumnasANull(string cuerpo) =>
+        Regex.Matches(cuerpo, "\"(?<columna>\\w+)\" = NULL").Select(m => m.Groups["columna"].Value).ToHashSet();
+
+    /// <summary>
+    /// Las propiedades que <c>BorrarDatosPersonales</c> deja a null por sí mismo. <c>Caducar</c> ya vacía el credencial
+    /// (estado final), y una Solicitud de alta real no llega a tener todos los campos rellenos a la vez: antes de borrar
+    /// se rellenan todas las que admiten null, salvo la marca de borrado, que es la que lo anota.
+    /// </summary>
+    private static HashSet<string> PropiedadesQueBorrarDatosPersonalesDejaANull()
+    {
+        var ahora = DateTime.UtcNow;
+        var solicitud = SolicitudAlta.Iniciar(
+            "persona@empresa.test", "AQAAAAIAAYagAAAAEHash", new string('t', 40), "203.0.113.9", "Navegador", ahora);
+        solicitud.Caducar(ahora + SolicitudAlta.PlazoCaducidad);
+
+        var propiedades = typeof(SolicitudAlta).GetProperties(BindingFlags.Public | BindingFlags.Instance)
+            .Where(p => p.SetMethod is not null && p.Name != nameof(SolicitudAlta.DatosPersonalesBorradosEnUtc)
+                && (p.PropertyType == typeof(string) || Nullable.GetUnderlyingType(p.PropertyType) is not null))
+            .ToList();
+        foreach (var p in propiedades.Where(p => p.GetValue(solicitud) is null))
+            p.SetValue(solicitud, p.PropertyType == typeof(string) ? "x" : Activator.CreateInstance(Nullable.GetUnderlyingType(p.PropertyType)!));
+        propiedades.Should().OnlyContain(p => p.GetValue(solicitud) != null);
+
+        solicitud.BorrarDatosPersonales(ahora + TimeSpan.FromDays(30));
+
+        return propiedades.Where(p => p.GetValue(solicitud) is null).Select(p => p.Name).ToHashSet();
     }
 }

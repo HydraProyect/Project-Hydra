@@ -22,6 +22,9 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations;
 /// Tenant, a <c>DerivadaAAcceso</c>. Devuelve solo el resultado y el Id de la propia Solicitud de alta.</item>
 /// <item><c>app_alta_consultar_continuacion</c>: el estado de la continuación (sin escribir), para recargar o reenviar
 /// el paso sin volver a transicionar.</item>
+/// <item><c>app_alta_borrar_datos_personales</c> (de A8) vacía también <c>HashCredencialContinuacion</c> y
+/// <c>CredencialContinuacionCaducaEnUtc</c>, como <c>SolicitudAlta.BorrarDatosPersonales</c>. Down le devuelve el cuerpo
+/// de A8 antes de quitar las columnas.</item>
 /// </list>
 /// </summary>
 public partial class AltaDatosOrganizacionYCredencialContinuacion : Migration
@@ -317,6 +320,85 @@ public partial class AltaDatosOrganizacionYCredencialContinuacion : Migration
             END;
             $$;
 
+            -- El borrado de datos personales de A8 (DA-7) vacía también el credencial de continuación y su caducidad,
+            -- como SolicitudAlta.BorrarDatosPersonales: sin esto una Caducada con los datos borrados conservaría el hash.
+            -- Es el cuerpo de A8 con esas dos columnas más; propietario y privilegios se conservan (CREATE OR REPLACE) y
+            -- se reafirman abajo. Down devuelve el de A8 antes de quitar las columnas.
+            CREATE OR REPLACE FUNCTION public.app_alta_borrar_datos_personales(p_lote integer) RETURNS integer
+                LANGUAGE plpgsql SECURITY DEFINER
+                SET search_path TO 'pg_catalog', 'pg_temp'
+                SET TimeZone TO 'UTC'
+                AS $$
+            DECLARE
+                v_ahora timestamp with time zone;
+                v_corte timestamp with time zone;
+                v_ids uuid[];
+                v_filas integer;
+            BEGIN
+                IF NOT EXISTS (SELECT 1 FROM pg_catalog.pg_roles
+                                WHERE rolname = current_user AND (rolsuper OR rolbypassrls)) THEN
+                    RAISE EXCEPTION 'El rol % no evita la RLS: no vería ninguna Solicitud de alta', current_user;
+                END IF;
+                IF p_lote IS NULL OR p_lote < 1 OR p_lote > 1000 THEN
+                    RAISE EXCEPTION 'El tamaño del lote tiene que estar entre 1 y 1000' USING ERRCODE = '22023';
+                END IF;
+
+                v_ahora := pg_catalog.clock_timestamp();
+                v_corte := v_ahora - interval '720 hours';
+
+                -- Los Id se bloquean primero y las dos escrituras van sobre ese mismo conjunto: las aceptaciones
+                -- se borran exactamente para las Solicitudes de alta que se limpian.
+                SELECT pg_catalog.array_agg(x."Id") INTO v_ids
+                  FROM (SELECT s."Id"
+                          FROM public."SolicitudesAlta" s
+                         WHERE s."Estado" = 'Caducada'
+                           AND s."DatosPersonalesBorradosEnUtc" IS NULL
+                           AND s."CreadaEnUtc" <= v_corte
+                         ORDER BY s."CreadaEnUtc", s."Id"
+                         LIMIT p_lote
+                           FOR UPDATE SKIP LOCKED) x;
+                IF v_ids IS NULL THEN
+                    RETURN 0;
+                END IF;
+
+                DELETE FROM public."AceptacionesSolicitudAlta" a
+                 WHERE a."SolicitudAltaId" = ANY (v_ids);
+
+                UPDATE public."SolicitudesAlta" s
+                   SET "Correo" = NULL,
+                       "CorreoNormalizado" = NULL,
+                       "HashContrasena" = NULL,
+                       "HashTokenVerificacion" = NULL,
+                       "TokenVerificacionCaducaEnUtc" = NULL,
+                       "HashCredencialContinuacion" = NULL,
+                       "CredencialContinuacionCaducaEnUtc" = NULL,
+                       "IpOrigen" = NULL,
+                       "UserAgentOrigen" = NULL,
+                       "RazonSocial" = NULL,
+                       "CifNif" = NULL,
+                       "DomicilioFiscal" = NULL,
+                       "Telefono" = NULL,
+                       "CheckoutSessionId" = NULL,
+                       "DatosPersonalesBorradosEnUtc" = v_ahora,
+                       "VersionFila" = s."VersionFila" + 1
+                 WHERE s."Id" = ANY (v_ids)
+                   AND s."Estado" = 'Caducada'
+                   AND s."DatosPersonalesBorradosEnUtc" IS NULL;
+                GET DIAGNOSTICS v_filas = ROW_COUNT;
+
+                IF v_filas > 0 THEN
+                    INSERT INTO public."TrazasPurga" ("Purga", "OcurridaEnUtc", "CorteUtc", "Filas", "Rol")
+                    VALUES ('SolicitudesAlta', pg_catalog.clock_timestamp(), v_corte, v_filas,
+                            CASE WHEN pg_catalog.current_setting('role') = 'cae_app_runtime'
+                                       OR (pg_catalog.current_setting('role') = 'none' AND session_user = 'cae_app_runtime')
+                                 THEN 'cae_app_runtime' ELSE 'otro' END);
+                END IF;
+                RETURN v_filas;
+            END;
+            $$;
+
+            REVOKE ALL ON FUNCTION public.app_alta_borrar_datos_personales(integer) FROM PUBLIC, cae_app_soporte, cae_app_aprovisionamiento;
+            GRANT EXECUTE ON FUNCTION public.app_alta_borrar_datos_personales(integer) TO cae_app_runtime;
             REVOKE ALL ON FUNCTION public.app_alta_consultar_continuacion(text) FROM PUBLIC, cae_app_soporte, cae_app_aprovisionamiento;
             GRANT EXECUTE ON FUNCTION public.app_alta_consultar_continuacion(text) TO cae_app_runtime;
             REVOKE ALL ON FUNCTION public.app_alta_consultar_enlace(text) FROM PUBLIC, cae_app_soporte, cae_app_aprovisionamiento;
@@ -357,6 +439,81 @@ public partial class AltaDatosOrganizacionYCredencialContinuacion : Migration
     protected override void Down(MigrationBuilder migrationBuilder)
     {
         migrationBuilder.Sql("""
+            -- Antes de quitar las columnas del credencial, el borrado de datos personales vuelve al cuerpo exacto de A8,
+            -- que no las nombra: si no, la primera pasada del trabajo de limpieza fallaría por columna inexistente.
+            CREATE OR REPLACE FUNCTION public.app_alta_borrar_datos_personales(p_lote integer) RETURNS integer
+                LANGUAGE plpgsql SECURITY DEFINER
+                SET search_path TO 'pg_catalog', 'pg_temp'
+                SET TimeZone TO 'UTC'
+                AS $$
+            DECLARE
+                v_ahora timestamp with time zone;
+                v_corte timestamp with time zone;
+                v_ids uuid[];
+                v_filas integer;
+            BEGIN
+                IF NOT EXISTS (SELECT 1 FROM pg_catalog.pg_roles
+                                WHERE rolname = current_user AND (rolsuper OR rolbypassrls)) THEN
+                    RAISE EXCEPTION 'El rol % no evita la RLS: no vería ninguna Solicitud de alta', current_user;
+                END IF;
+                IF p_lote IS NULL OR p_lote < 1 OR p_lote > 1000 THEN
+                    RAISE EXCEPTION 'El tamaño del lote tiene que estar entre 1 y 1000' USING ERRCODE = '22023';
+                END IF;
+
+                v_ahora := pg_catalog.clock_timestamp();
+                v_corte := v_ahora - interval '720 hours';
+
+                -- Los Id se bloquean primero y las dos escrituras van sobre ese mismo conjunto: las aceptaciones
+                -- se borran exactamente para las Solicitudes de alta que se limpian.
+                SELECT pg_catalog.array_agg(x."Id") INTO v_ids
+                  FROM (SELECT s."Id"
+                          FROM public."SolicitudesAlta" s
+                         WHERE s."Estado" = 'Caducada'
+                           AND s."DatosPersonalesBorradosEnUtc" IS NULL
+                           AND s."CreadaEnUtc" <= v_corte
+                         ORDER BY s."CreadaEnUtc", s."Id"
+                         LIMIT p_lote
+                           FOR UPDATE SKIP LOCKED) x;
+                IF v_ids IS NULL THEN
+                    RETURN 0;
+                END IF;
+
+                DELETE FROM public."AceptacionesSolicitudAlta" a
+                 WHERE a."SolicitudAltaId" = ANY (v_ids);
+
+                UPDATE public."SolicitudesAlta" s
+                   SET "Correo" = NULL,
+                       "CorreoNormalizado" = NULL,
+                       "HashContrasena" = NULL,
+                       "HashTokenVerificacion" = NULL,
+                       "TokenVerificacionCaducaEnUtc" = NULL,
+                       "IpOrigen" = NULL,
+                       "UserAgentOrigen" = NULL,
+                       "RazonSocial" = NULL,
+                       "CifNif" = NULL,
+                       "DomicilioFiscal" = NULL,
+                       "Telefono" = NULL,
+                       "CheckoutSessionId" = NULL,
+                       "DatosPersonalesBorradosEnUtc" = v_ahora,
+                       "VersionFila" = s."VersionFila" + 1
+                 WHERE s."Id" = ANY (v_ids)
+                   AND s."Estado" = 'Caducada'
+                   AND s."DatosPersonalesBorradosEnUtc" IS NULL;
+                GET DIAGNOSTICS v_filas = ROW_COUNT;
+
+                IF v_filas > 0 THEN
+                    INSERT INTO public."TrazasPurga" ("Purga", "OcurridaEnUtc", "CorteUtc", "Filas", "Rol")
+                    VALUES ('SolicitudesAlta', pg_catalog.clock_timestamp(), v_corte, v_filas,
+                            CASE WHEN pg_catalog.current_setting('role') = 'cae_app_runtime'
+                                       OR (pg_catalog.current_setting('role') = 'none' AND session_user = 'cae_app_runtime')
+                                 THEN 'cae_app_runtime' ELSE 'otro' END);
+                END IF;
+                RETURN v_filas;
+            END;
+            $$;
+            REVOKE ALL ON FUNCTION public.app_alta_borrar_datos_personales(integer) FROM PUBLIC, cae_app_soporte, cae_app_aprovisionamiento;
+            GRANT EXECUTE ON FUNCTION public.app_alta_borrar_datos_personales(integer) TO cae_app_runtime;
+
             DROP FUNCTION public.app_alta_consultar_continuacion(text);
             DROP FUNCTION public.app_alta_completar_datos_organizacion(text, text, text, text, text, text, boolean, boolean);
             DROP FUNCTION public.app_alta_verificar_correo(text, text, text);
