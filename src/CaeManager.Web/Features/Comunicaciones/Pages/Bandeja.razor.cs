@@ -1812,14 +1812,15 @@ public partial class Bandeja : CaeManager.Web.Components.PaginaInteractiva, IAsy
         _actualizarDocumentoContextoCaducado ? ErroresTextos["AvisoActualizarDocumentoContextoCaducado"].Value : null;
 
     // El mismo motivo, a la vista dentro del modal (el title del botón no basta para explicar por qué no se aplica).
-    private RenderFragment? AvisoActualizarDocumentoCaducado => MotivoAplicarDocumentoDeshabilitado is { } motivo
-        ? builder =>
-        {
-            builder.OpenComponent<AvisoFormulario>(0);
-            builder.AddAttribute(1, nameof(AvisoFormulario.Mensaje), motivo);
-            builder.CloseComponent();
-        }
-        : null;
+    private RenderFragment? AvisoActualizarDocumentoCaducado =>
+        MotivoAplicarDocumentoDeshabilitado is { } motivo ? AvisoFormularioCon(motivo) : null;
+
+    private static RenderFragment AvisoFormularioCon(string mensaje) => builder =>
+    {
+        builder.OpenComponent<AvisoFormulario>(0);
+        builder.AddAttribute(1, nameof(AvisoFormulario.Mensaje), mensaje);
+        builder.CloseComponent();
+    };
 
     // Al volver a ser una fecha entera (o quedar vacía), el aviso «no es una fecha» de un envío anterior ya no es cierto.
     private void AlCambiarEmisionDocumentoNoValida(bool noValida)
