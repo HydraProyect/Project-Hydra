@@ -226,16 +226,18 @@ public class ObtenerDocumentosAgrupadosPorVinculoTests
         // Cada combinación de alcance y agrupación informa por separado: un fallo no oculta los demás.
         using var _ = new AssertionScope();
         foreach (var (quien, alcance) in new[] { ("Gestor CAE", gestor), ("Usuario de Cliente", usuarioDeCliente) })
-        foreach (var agrupacion in agrupaciones)
         {
-            var resultado = await e.Handler(alcance).Handle(Agrupado(agrupacion), default);
-            var filas = resultado.Elementos.Where(x => x.Id == documento.Id).ToList();
-            filas.Should().NotBeEmpty($"{quien} ve el Documento por el Centro de dentro ({agrupacion})");
-            filas.Should().OnlyContain(x => x.Acreditaciones.Count == 1 && x.Acreditaciones[0].Id == dentro.Id
-                    && x.Acreditaciones[0].NombrePlataforma == "Nalanda"
-                    && x.Acreditaciones[0].Estado == EstadoAcreditacion.PendienteDeSubir,
-                $"{quien} no recibe ni la Plataforma CAE ni el estado de la acreditación del Centro de fuera ({agrupacion})");
-            resultado.Elementos.SelectMany(x => x.Acreditaciones).Should().NotContain(a => a.Id == fuera.Id || a.NombrePlataforma == "Ctaima");
+            foreach (var agrupacion in agrupaciones)
+            {
+                var resultado = await e.Handler(alcance).Handle(Agrupado(agrupacion), default);
+                var filas = resultado.Elementos.Where(x => x.Id == documento.Id).ToList();
+                filas.Should().NotBeEmpty($"{quien} ve el Documento por el Centro de dentro ({agrupacion})");
+                filas.Should().OnlyContain(x => x.Acreditaciones.Count == 1 && x.Acreditaciones[0].Id == dentro.Id
+                        && x.Acreditaciones[0].NombrePlataforma == "Nalanda"
+                        && x.Acreditaciones[0].Estado == EstadoAcreditacion.PendienteDeSubir,
+                    $"{quien} no recibe ni la Plataforma CAE ni el estado de la acreditación del Centro de fuera ({agrupacion})");
+                resultado.Elementos.SelectMany(x => x.Acreditaciones).Should().NotContain(a => a.Id == fuera.Id || a.NombrePlataforma == "Ctaima");
+            }
         }
     }
 
