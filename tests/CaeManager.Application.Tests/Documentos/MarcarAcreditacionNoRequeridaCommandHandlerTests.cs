@@ -158,6 +158,28 @@ public class MarcarAcreditacionNoRequeridaCommandHandlerTests
     }
 
     [Fact]
+    public async Task Una_sustitucion_que_solo_ve_la_relectura_del_Documento_basta_para_negarse_con_el_historial()
+    {
+        // Hallazgo 4 (33b156b78): la instancia rastreada del circuito sigue operativa; la sustitución confirmada por otra
+        // sesión solo aparece al releer de la base (CambioEnLaBase lo ve solo la lectura «…Actualizado», como EF).
+        var escenario = Escenario.Nuevo();
+        var nuevo = escenario.Documento.NuevoDelMismoTitular(
+            new DateOnly(2026, 2, 1), VigenciaDocumento.NoCaduca, "tenant/renovado.pdf", null, null);
+        escenario.Documentos.CambioEnLaBase = d =>
+        {
+            if (DocumentoOperativo.Es(d))
+                d.SustituirPor(nuevo, MotivoSustitucionDocumento.Renovacion, DateTime.UtcNow);
+        };
+
+        var resultado = await escenario.Handler().Handle(
+            new MarcarAcreditacionNoRequeridaCommand(escenario.Acreditacion.Id, escenario.Acreditacion.Version), CancellationToken.None);
+
+        resultado.Error.Codigo.Should().Be("Documento.EnHistorial");
+        escenario.Acreditacion.Estado.Should().Be(EstadoAcreditacion.PendienteDeSubir);
+        escenario.UnitOfWork.VecesGuardado.Should().Be(0);
+    }
+
+    [Fact]
     public async Task Con_una_version_vacia_falla_y_no_escribe()
     {
         // Guid.Empty es «sin comprobación» en ConcurrenciaOptimista: aquí, aunque se saltara el validador, no pasa.
