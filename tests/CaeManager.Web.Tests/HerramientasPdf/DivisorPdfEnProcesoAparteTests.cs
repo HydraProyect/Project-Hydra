@@ -226,36 +226,85 @@ public sealed class DivisorPdfEnProcesoAparteTests
         // Quien cancela es el cierre del circuito, que espera 10 s a la operación en vuelo y luego dispone el scope. Un
         // lanzador que no confirma la muerte del hijo no puede retener la operación hasta el tiempo de la extracción más su
         // margen: se abandona en cuanto vence la espera de cancelación, con el turno retenido como cualquier hijo sin confirmar.
+        // Sin volver nunca, pasado después el tope de siempre (aquí 1 s), la herramienta se desactiva como con cualquier hijo
+        // que no consta terminado.
+        var lanzador = new LanzadorQueTarda(confirmaTras: null);
+        var abrir = await CancelarYMedirAsync(lanzador, TimeSpan.FromSeconds(1));
+
+        await abrir.Should().ThrowAsync<EntradaPdfRetenidaException>("el hijo no consta muerto: quien reservó memoria para el PDF la retiene");
+        _limitador.Libres.Should().Be(0, "el turno no se suelta sin confirmar la muerte del hijo");
+        var plazo = DateTime.UtcNow.AddSeconds(5);
+        while (!_limitador.Degradado && DateTime.UtcNow < plazo)
+            await Task.Delay(20);
+        _limitador.Degradado.Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task Al_cancelar_una_muerte_lenta_que_el_lanzador_acaba_confirmando_no_desactiva_la_herramienta()
+    {
+        // El hijo tarda en morir más que la espera de cancelación pero menos que el tope: quien llama ya se fue, y el turno se
+        // suelta cuando el lanzador lo confirma, sin dejar la instancia sin Unir ni Dividir hasta reiniciarla.
+        var lanzador = new LanzadorQueTarda(confirmaTras: TimeSpan.FromMilliseconds(800));
+        var abrir = await CancelarYMedirAsync(lanzador, TimeSpan.FromMinutes(10));
+
+        await abrir.Should().ThrowAsync<EntradaPdfRetenidaException>("al irse, aún no constaba muerto");
+        var plazo = DateTime.UtcNow.AddSeconds(5);
+        while (_limitador.Libres == 0 && DateTime.UtcNow < plazo)
+            await Task.Delay(20);
+        _limitador.Libres.Should().Be(1);
+        _limitador.Degradado.Should().BeFalse();
+    }
+
+    /// <summary>
+    /// Abre con un lanzador que tarda, cancela en cuanto arranca y devuelve la espera de la apertura, que tiene que acabar en
+    /// menos de 3 s desde la cancelación con una espera de cancelación de 200 ms.
+    /// </summary>
+    private async Task<Func<Task>> CancelarYMedirAsync(LanzadorQueTarda lanzador, TimeSpan tiempoMaximo)
+    {
         var opciones = _opciones with
         {
-            TiempoMaximoAbrirParaDividir = TimeSpan.FromMinutes(10),
+            TiempoMaximoAbrirParaDividir = tiempoMaximo,
+            MargenConfirmacionTerminado = TimeSpan.Zero,
             EsperaConfirmacionAlCancelar = TimeSpan.FromMilliseconds(200),
         };
-        var lanzador = new LanzadorQueNoVuelve();
         var divisor = new DivisorPdfEnProcesoAparte(opciones, _limitador, lanzador, NullLogger<DivisorPdfEnProcesoAparte>.Instance);
         using var cancelar = new CancellationTokenSource();
 
         var abrir = divisor.AbrirAsync(Original, cancelar.Token);
         await lanzador.Lanzado.Task.WaitAsync(TimeSpan.FromSeconds(5));
-        cancelar.Cancel();
+        await cancelar.CancelAsync();
         var reloj = System.Diagnostics.Stopwatch.StartNew();
+        try
+        {
+            await abrir.WaitAsync(TimeSpan.FromSeconds(5));
+        }
+        catch (EntradaPdfRetenidaException)
+        {
+        }
 
-        var esperar = () => abrir.WaitAsync(TimeSpan.FromSeconds(5));
-        await esperar.Should().ThrowAsync<EntradaPdfRetenidaException>("el hijo no consta muerto: quien reservó memoria para el PDF la retiene");
-        reloj.Elapsed.Should().BeLessThan(TimeSpan.FromSeconds(3));
-        _limitador.Degradado.Should().BeTrue();
+        reloj.Elapsed.Should().BeLessThan(TimeSpan.FromSeconds(3), "el cierre del circuito solo espera 10 s");
+        return () => abrir;
     }
 
-    /// <summary>Un lanzador que no vuelve ni atiende la cancelación: el sistema no deja matar al hijo o no lo confirma.</summary>
-    private sealed class LanzadorQueNoVuelve : ILanzadorProcesoAislado
+    /// <summary>
+    /// Un lanzador que no atiende la cancelación: o no vuelve nunca (el sistema no deja matar al hijo), o confirma la muerte
+    /// del hijo pasado <c>confirmaTras</c> y relanza la cancelación, como el de verdad.
+    /// </summary>
+    private sealed class LanzadorQueTarda(TimeSpan? confirmaTras) : ILanzadorProcesoAislado
     {
         public TaskCompletionSource Lanzado { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
 
-        public Task<SalidaProcesoAislado> EjecutarAsync(System.Diagnostics.ProcessStartInfo inicio, Func<Stream, CancellationToken, Task> escribirEntrada,
+        public async Task<SalidaProcesoAislado> EjecutarAsync(System.Diagnostics.ProcessStartInfo inicio, Func<Stream, CancellationToken, Task> escribirEntrada,
             TimeSpan tiempoMaximo, int maximoBytesSalida, CancellationToken cancellationToken, SeguimientoProcesoAislado? seguimiento = null)
         {
+            seguimiento?.Arrancado(4321);
             Lanzado.TrySetResult();
-            return new TaskCompletionSource<SalidaProcesoAislado>().Task;
+            if (confirmaTras is not { } retraso)
+                return await new TaskCompletionSource<SalidaProcesoAislado>().Task;
+
+            await Task.Delay(retraso, CancellationToken.None);
+            seguimiento?.ConfirmarTerminado();
+            throw new OperationCanceledException(cancellationToken);
         }
     }
 

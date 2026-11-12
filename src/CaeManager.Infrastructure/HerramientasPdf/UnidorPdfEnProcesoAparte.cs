@@ -44,11 +44,12 @@ public sealed record OpcionesProcesoHerramientasPdf
 
     /// <summary>
     /// Lo que se espera al lanzador, una vez cancelada la operación, a que confirme que el hijo murió. Al cancelar, el
-    /// lanzador mata el árbol del hijo en el acto (<c>Kill(entireProcessTree: true)</c>), y morir tras eso es cuestión de
-    /// milisegundos. Tiene que quedar bastante por debajo de lo que el cierre del circuito espera a la operación en vuelo
-    /// (10 s, <c>LiberacionDeAccesoADatosAlCerrarCircuito.EsperaMaxima</c>): si no se confirma en este plazo, la ejecución se
-    /// abandona como cualquier hijo que no consta terminado (turno retenido, herramienta desactivada) y quien llama recibe
-    /// <see cref="EntradaPdfRetenidaException"/> sin esperar más, antes de que el scope del circuito se disponga.
+    /// lanzador mata el árbol del hijo en el acto (<c>Kill(entireProcessTree: true)</c>), y lo normal es confirmarlo en
+    /// milisegundos, aunque el lanzador se da hasta 10 s por paso. Tiene que quedar bastante por debajo de lo que el cierre del
+    /// circuito espera a la operación en vuelo (10 s, <c>LiberacionDeAccesoADatosAlCerrarCircuito.EsperaMaxima</c>): si no se
+    /// confirma en este plazo, quien llama recibe <see cref="EntradaPdfRetenidaException"/> sin esperar más, antes de que el
+    /// scope del circuito se disponga, y retiene su reserva. El turno se decide después, sin él: se suelta si el lanzador
+    /// acaba confirmando la muerte dentro de <see cref="MargenConfirmacionTerminado"/>, y si no, la herramienta se desactiva.
     /// </summary>
     public TimeSpan EsperaConfirmacionAlCancelar { get; init; } = TimeSpan.FromSeconds(3);
 

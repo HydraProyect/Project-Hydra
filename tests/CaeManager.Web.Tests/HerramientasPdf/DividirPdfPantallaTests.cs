@@ -609,7 +609,8 @@ public sealed class DividirPdfPantallaTests : BunitContext
             "el resultado parcial solo viviría en la pantalla: cortado, la persona no vería lo creado y lo duplicaría al repetir");
         _mediador.CreacionRetenida!.SetResult();
         await EsperarSinReservaAsync(() => _presupuesto.Reservado, "el lote termina tras salir y devuelve la reserva del original");
-        _mediador.Creaciones.Should().ContainSingle();
+        _mediador.Creaciones.Should().ContainSingle().Which.Indice.Should().Be(0,
+            "la pantalla envía un Command por tramo (CreacionDivisionPdfPorTramos), no el lote entero, para no retener la puerta");
 
         // La pantalla ya desechada no toca su estado ni sus recursos dispuestos: solo deja el resultado en el registro.
         var plazo = DateTime.UtcNow.AddSeconds(5);

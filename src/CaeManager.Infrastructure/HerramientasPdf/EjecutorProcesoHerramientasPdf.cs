@@ -100,14 +100,28 @@ internal sealed class EjecutorProcesoHerramientasPdf
         // confirma nada: sin cancelar, hasta el tiempo de la operación más su margen; cancelada, solo
         // EsperaConfirmacionAlCancelar más, porque quien cancela es el cierre del circuito, que espera 10 s y luego dispone el
         // scope. Sin lanzar: lo que decide es el seguimiento, no el tipo de excepción.
+        var tope = tiempoMaximo + _opciones.MargenConfirmacionTerminado;
+        var inicioEspera = Stopwatch.GetTimestamp();
         using (var alCancelar = new CancellationTokenSource())
         using (cancellationToken.Register(() => alCancelar.CancelAfter(_opciones.EsperaConfirmacionAlCancelar)))
         {
-            await ((Task)ejecucion.WaitAsync(tiempoMaximo + _opciones.MargenConfirmacionTerminado, alCancelar.Token))
+            await ((Task)ejecucion.WaitAsync(tope, alCancelar.Token))
                 .ConfigureAwait(ConfigureAwaitOptions.SuppressThrowing);
         }
 
-        if (!ejecucion.IsCompleted || !seguimiento.ConstaTerminado)
+        // Si lo que venció fue el tope de siempre, y no la espera de cancelación, se decide ya, como sin cancelar.
+        var restante = tope - Stopwatch.GetElapsedTime(inicioEspera);
+        if (!ejecucion.IsCompleted && cancellationToken.IsCancellationRequested && restante > TimeSpan.Zero)
+        {
+            // Cancelada y sin confirmar aún: quien llama no espera más (el scope del circuito se va a disponer) y retiene su
+            // reserva, porque la escritura del lanzador quizá sigue con los PDF. El turno no se decide aquí: se suelta si el
+            // lanzador acaba confirmando la muerte del hijo antes de que venza el tope de siempre, y si no, se degrada como siempre.
+            // Así una muerte lenta (de 3 a 10 s) no deja la instancia sin Unir ni Dividir hasta reiniciarla.
+            _ = DecidirTurnoTrasAbandonarAsync(ejecucion, turno, seguimiento, restante);
+            throw new EntradaPdfRetenidaException();
+        }
+
+        if (!seguimiento.ConstaTerminado)
         {
             // La ejecución se abandona (si no volvió), con su excepción observada.
             _ = ejecucion.ContinueWith(static tarea => _ = tarea.Exception, CancellationToken.None,
@@ -118,6 +132,27 @@ internal sealed class EjecutorProcesoHerramientasPdf
         turno.Dispose();
         // Devuelve la salida o relanza lo que lanzó el lanzador (la cancelación del llamante, entre otras), ya con el turno suelto.
         return await ejecucion;
+    }
+
+    /// <summary>
+    /// Tras abandonar una ejecución cancelada: espera al lanzador, sin nadie esperando ya el resultado, lo que queda del tope
+    /// de siempre. Si confirma que no queda nada vivo, suelta el turno; si no vuelve o no lo confirma, degrada como siempre. No
+    /// toca nada del scope de quien llamó: solo el turno, el seguimiento y el registro, que no son del circuito.
+    /// </summary>
+    private async Task DecidirTurnoTrasAbandonarAsync(Task<SalidaProcesoAislado> ejecucion, TurnoProcesoAislado turno,
+        SeguimientoProcesoAislado seguimiento, TimeSpan tope)
+    {
+        await ((Task)ejecucion.WaitAsync(tope)).ConfigureAwait(ConfigureAwaitOptions.SuppressThrowing);
+        if (ejecucion.IsCompleted)
+            _ = ejecucion.Exception;
+        else
+            _ = ejecucion.ContinueWith(static tarea => _ = tarea.Exception, CancellationToken.None,
+                TaskContinuationOptions.OnlyOnFaulted | TaskContinuationOptions.ExecuteSynchronously, TaskScheduler.Default);
+
+        if (ejecucion.IsCompleted && seguimiento.ConstaTerminado)
+            turno.Dispose();
+        else
+            _ = Degradar(turno, seguimiento.IdProceso);
     }
 
     /// <summary>

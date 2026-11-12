@@ -639,6 +639,70 @@ public class CrearDocumentosDesdeDivisionCommandHandlerTests
         _divisor.Extraidos.Should().Equal([(1, 1), (2, 2)]);
     }
 
+    private Task<Result<IReadOnlyList<ResultadoTramoCreado>>> PorTramosAsync(CrearDocumentosDesdeDivisionCommandHandler handler) =>
+        CreacionDivisionPdfPorTramos.CrearAsync(new PantallaPorLaPuerta(new PuertaAccesoDatos(), handler), [1, 2, 3], "paquete.pdf",
+            _tenantId, _empresaId, TresTramos(), NullLogger.Instance, CancellationToken.None);
+
+    [Fact]
+    public async Task Por_tramos_un_proceso_aparte_sin_confirmar_tras_un_tramo_creado_retiene_la_entrada_en_los_que_faltan()
+    {
+        _divisor.LanzarAlExtraer = (2, new EntradaPdfRetenidaException());
+
+        var resultado = await PorTramosAsync(Handler());
+
+        resultado.Valor.Select(r => r.Estado).Should().Equal(EstadoTramoCreado.Creado, EstadoTramoCreado.Rechazado, EstadoTramoCreado.Rechazado);
+        resultado.Valor.Skip(1).Should().OnlyContain(r => r.EntradaRetenida
+            && r.CodigoError == CrearDocumentosDesdeDivisionCommandHandler.PrefijoNoIntentado + CrearDocumentosDesdeDivisionCommandHandler.ErrorSinTurno);
+        _divisor.Extraidos.Should().Equal([(1, 1)]);
+    }
+
+    [Fact]
+    public async Task Por_tramos_un_alta_sin_confirmar_cuenta_como_creada_y_la_falta_de_turno_despues_corta_sin_lanzar()
+    {
+        _mediator.LanzarEnAlta = intento => intento == 1 ? new TimeoutException("sin respuesta") : null;
+        _divisor.LanzarAlExtraer = (2, new PresupuestoMemoriaAgotadoException());
+
+        var resultado = await PorTramosAsync(Handler());
+
+        resultado.Valor.Select(r => r.Estado).Should().Equal(EstadoTramoCreado.SinConfirmar, EstadoTramoCreado.Rechazado, EstadoTramoCreado.Rechazado);
+        resultado.Valor.Should().OnlyContain(r => !r.EntradaRetenida);
+    }
+
+    [Fact]
+    public async Task Por_tramos_sin_turno_en_el_primer_tramo_lanza_para_que_la_pantalla_conserve_el_original()
+    {
+        _divisor.LanzarAlExtraer = (1, new PresupuestoMemoriaAgotadoException());
+
+        var crear = () => PorTramosAsync(Handler());
+
+        await crear.Should().ThrowAsync<PresupuestoMemoriaAgotadoException>();
+        _mediator.Altas.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task Por_tramos_un_fallo_antes_de_crear_nada_devuelve_ese_fallo_sin_seguir()
+    {
+        var resultado = await PorTramosAsync(Handler(tenant: Guid.NewGuid()));
+
+        resultado.Error.Codigo.Should().Be(CrearDocumentosDesdeDivisionCommandHandler.ErrorTenantCruzado);
+        _divisor.Extraidos.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task Por_tramos_una_excepcion_al_comprobar_un_tramo_con_otro_ya_creado_corta_sin_perder_lo_creado()
+    {
+        // Las comprobaciones corren ya en cada tramo: una conexión que se cae al leer el catálogo del segundo no puede tirar la
+        // lista de lo creado, o la persona repetiría el lote y duplicaría el primero.
+        _mediator.LanzarEnCatalogo = lectura => lectura == 2 ? new InvalidOperationException("conexión rota") : null;
+
+        var resultado = await PorTramosAsync(Handler());
+
+        resultado.Valor.Select(r => r.Estado).Should().Equal(EstadoTramoCreado.Creado, EstadoTramoCreado.Rechazado, EstadoTramoCreado.Rechazado);
+        resultado.Valor.Skip(1).Should().OnlyContain(r => r.CodigoError ==
+            CrearDocumentosDesdeDivisionCommandHandler.PrefijoNoIntentado + CrearDocumentosDesdeDivisionCommandHandler.ErrorFalloInterno);
+        _mediator.Altas.Should().ContainSingle();
+    }
+
     /// <summary>
     /// Como la pantalla con el pipeline real: cada Command pasa por <see cref="SerializacionAccesoDatosBehavior{TRequest,TResponse}"/>
     /// con la misma <see cref="PuertaAccesoDatos"/> que la revalidación, hasta el handler de verdad.
@@ -782,10 +846,17 @@ public class CrearDocumentosDesdeDivisionCommandHandlerTests
         public List<CrearDocumentoCommand> Altas { get; } = [];
         public Func<int, Error?> RechazarAlta { get; set; } = _ => null;
         public Func<int, Exception?> LanzarEnAlta { get; set; } = _ => null;
+
+        /// <summary>Si devuelve algo, lo lanza esa lectura del catálogo (la primera es 1): una conexión que se cae, por ejemplo.</summary>
+        public Func<int, Exception?> LanzarEnCatalogo { get; set; } = _ => null;
         private int _intentos;
+        private int _catalogos;
 
         public Task<TResponse> Send<TResponse>(IRequest<TResponse> request, CancellationToken cancellationToken = default)
         {
+            if (request is ObtenerCatalogoDivisionPdfQuery && LanzarEnCatalogo(++_catalogos) is { } fallo)
+                throw fallo;
+
             object respuesta = request switch // el tipo real lo fija el handler
             {
                 ObtenerCatalogoDivisionPdfQuery => Catalogo!,

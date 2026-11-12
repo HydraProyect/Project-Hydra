@@ -1,4 +1,4 @@
-﻿using CaeManager.Application.Common;
+using CaeManager.Application.Common;
 using CaeManager.Application.Documentos.Commands.CrearDocumento;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Documentos;
@@ -201,12 +201,15 @@ public class CrearDocumentosDesdeDivisionCommandHandler(
     public const string ErrorLoteCancelado = "DivisionPdf.LoteCancelado";
     public const string ErrorSinTurno = "DivisionPdf.SinTurno";
 
+    /// <summary>Un fallo inesperado al preparar un tramo, con Documentos ya creados en el lote (ver <see cref="CreacionDivisionPdfPorTramos"/>).</summary>
+    public const string ErrorFalloInterno = "DivisionPdf.FalloInterno";
+
     internal const string DetalleSinTurno = "No se ha podido preparar este documento ahora. Inténtalo más tarde.";
     internal const string DetalleTenantCambiado = "La Empresa ha cambiado. Vuelve a empezar para no crear documentos en otra.";
     internal const string DetalleCancelado = "No se ha preparado este documento: la operación se ha cancelado.";
     private const string DetalleTrasPdfDemasiadoComplejo =
         "No se ha preparado este documento: el PDF no se pudo procesar al separar un documento anterior.";
-    private const string DetalleTrasFalloInterno =
+    internal const string DetalleTrasFalloInterno =
         "No se ha preparado este documento: un fallo interno de TALVEG impidió separar uno anterior. Inténtalo más tarde.";
 
     /// <summary>
@@ -489,6 +492,14 @@ public static class CreacionDivisionPdfPorTramos
                 retenida = ex is EntradaPdfRetenidaException;
                 detalle = CrearDocumentosDesdeDivisionCommandHandler.DetalleSinTurno;
                 causa = CrearDocumentosDesdeDivisionCommandHandler.ErrorSinTurno;
+            }
+            catch (Exception ex) when (HayDocumentosCreados(resultados) && ex is not OutOfMemoryException)
+            {
+                // Las comprobaciones de cada tramo (cartera, catálogo, apertura, pipeline) corren ya con Documentos creados: un
+                // fallo que lance en ellas no puede perder la lista de lo creado, o la persona lo duplicaría al repetir.
+                logger.LogWarning("Dividir PDF cortó el lote por un fallo al preparar un tramo ({Excepcion}).", ex.GetType().Name);
+                detalle = CrearDocumentosDesdeDivisionCommandHandler.DetalleTrasFalloInterno;
+                causa = CrearDocumentosDesdeDivisionCommandHandler.ErrorFalloInterno;
             }
 
             resultados.AddRange(CrearDocumentosDesdeDivisionCommandHandler.Restantes(tramos.Skip(indice), detalle, causa, retenida));
