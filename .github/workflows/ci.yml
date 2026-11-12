@@ -1404,7 +1404,8 @@ jobs:
     # de main del 2026-11-11 y 2026-11-12: 4,7 a 7,1 min, p90 6,7. 30 es 4,5×
     # ese p90 y cubre los 20 del paso «Tests de componentes Blazor» más una
     # restauración lenta. Sin esto, el techo es el de GitHub, 6 h: en la PR
-    # #2182 un test colgado tuvo el job bloqueado más de 2 h.
+    # #2182 el job estuvo colgado de 17:59 a 22:57 UTC del 2026-11-12, casi
+    # 5 h, hasta que se canceló.
     timeout-minutes: 30
     permissions:
       contents: read
