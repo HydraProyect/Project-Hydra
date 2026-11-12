@@ -43,11 +43,26 @@ public class ObtenerEstructuraBuzonQueryHandler(
             return Result.Fallo<IReadOnlyList<CarpetaGraphDto>>(
                 Error.Crear("ConexionIntegracion.NoDisponible", "Este buzón no está disponible."));
 
-        var tokenResultado = await accesoGraph.ObtenerAccessTokenVigenteAsync(conexion.Id, cancellationToken);
+        // Sin identidad verificada en la ventana, la dirección puede corresponder hoy a otro buzón: no se muestra.
+        if (!conexion.OperativaVerificada(DateTime.UtcNow))
+            return Result.Fallo<IReadOnlyList<CarpetaGraphDto>>(ErroresBuzonSinVerificar.Crear());
+
+        var tokenResultado = await accesoGraph.ObtenerAccessTokenVigenteAsync(conexion, cancellationToken);
         if (tokenResultado.EsFallido)
             return Result.Fallo<IReadOnlyList<CarpetaGraphDto>>(tokenResultado.Error);
 
-        var carpetasResultado = await graphClient.ListarCarpetasAsync(tokenResultado.Valor, cancellationToken);
+        // Pedir el token puede tardar (y rotar el refresh token): se relee la conexión de la base justo antes de llamar a
+        // Graph, y otra vez antes de cada petición de carpetas hijas. Si otra operación la desconectó o la pasó a ConError
+        // entre medias, no se muestra el buzón. El token rotado se guarda igual.
+        if (!await conexionRepositorio.SigueOperativaVerificadaAsync(conexion.Id, DateTime.UtcNow, cancellationToken))
+        {
+            await unitOfWork.SaveChangesAsync(cancellationToken);
+            return Result.Fallo<IReadOnlyList<CarpetaGraphDto>>(ErroresBuzonSinVerificar.Crear());
+        }
+
+        var carpetasResultado = await graphClient.ListarCarpetasAsync(
+            tokenResultado.Valor, BuzonGraph.De(conexion),
+            ct => conexionRepositorio.SigueOperativaVerificadaAsync(conexion.Id, DateTime.UtcNow, ct), cancellationToken);
 
         await unitOfWork.SaveChangesAsync(cancellationToken);
 

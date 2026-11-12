@@ -1,0 +1,265 @@
+@page "/alta/organizacion"
+@layout CaeManager.Web.Components.Layout.AccesoLayout
+@attribute [AllowAnonymous]
+@using CaeManager.Application.AltaAutonoma
+@using CaeManager.Domain.AltaAutonoma
+@using CaeManager.Web.Components.Account
+@using CaeManager.Web.Features.AltaAutonoma.Antiabuso
+@using CaeManager.Web.Features.AltaAutonoma.Recursos
+@using Microsoft.AspNetCore.Authorization
+@using Microsoft.Extensions.Localization
+@using Microsoft.Extensions.Options
+@inject IOptions<AltaAutonomaOptions> OpcionesAlta
+@inject IStringLocalizer<TextosAltaAutonoma> T
+@inject ServicioDatosOrganizacionAlta Servicio
+@inject AlertaConsultasCifAlta AlertaCif
+@inject NavigationManager Navigation
+
+@* Paso 2 del alta autónoma, «Empresa» (A4). Formulario SSR estático, para que el envío pase por el techo por IP del
+   limitador global (LimitadorAlta.ParticionOrganizacion), que cubre también el GET porque pintar consulta la base. No
+   lleva la política «alta»: esa cuenta los inicios del alta y no debe gastarse en este paso. Quien llega aquí no tiene cuenta ni sesión: lo que le deja seguir es el credencial de continuación que dejó
+   la verificación del correo en una cookie HttpOnly (CookieContinuacionAlta). La página valida con las reglas del
+   dominio (DatosOrganizacionAlta), cuenta la consulta para la alerta de barrido de CIF, que no bloquea
+   (AlertaConsultasCifAlta), y deja que la base decida, bajo candado, si el
+   CIF ya tiene Tenant propietario. Si lo tiene, el mensaje es genérico: ni qué Tenant es ni quién lo gestiona
+   (RQ-13, RQ-28).
+
+   Las declaraciones de representación (DA-3) y de actividad profesional con NIF de persona física (DA-11) se piden
+   aquí porque SolicitudAlta.CompletarDatos las exige en esta transición; la de facultades sigue en Condiciones. *@
+
+<PageTitle>@T["OrganizacionTituloPagina"] — @Marca.Nombre</PageTitle>
+
+@if (_habilitada)
+{
+    <div class="acceso-tarjeta">
+        <CabeceraAcceso />
+        @switch (_pantalla)
+        {
+            case Pantalla.Formulario:
+                <PasosAlta Detalle="@T["PasoEmpresaDetalle"]" Actual="2" />
+                <h2 class="acceso-titulo">@T["OrganizacionTitulo"]</h2>
+                <p class="acceso-explica">@T["OrganizacionExplica"]</p>
+
+                @if (_error is not null)
+                {
+                    <p class="acceso-alerta" role="alert">@_error</p>
+                }
+
+                <EditForm Model="Entrada" method="post" OnSubmit="EnviarAsync" FormName="alta-organizacion" novalidate>
+                    <div class="acceso-campo">
+                        <label for="alta-razon-social">@T["RazonSocialEtiqueta"]</label>
+                        <InputText id="alta-razon-social" @bind-Value="Entrada!.RazonSocial" autocomplete="organization"
+                                   maxlength="@SolicitudAlta.LongitudMaximaRazonSocial" />
+                    </div>
+
+                    <div class="acceso-campo">
+                        <label for="alta-cif">@T["CifNifEtiqueta"]</label>
+                        <InputText id="alta-cif" @bind-Value="Entrada!.CifNif" autocomplete="off" aria-describedby="alta-cif-ayuda" />
+                        <p id="alta-cif-ayuda" class="acceso-nota">@T["CifNifAyuda"]</p>
+                    </div>
+
+                    <div class="acceso-campo">
+                        <label for="alta-domicilio">@T["DomicilioFiscalEtiqueta"]</label>
+                        <InputText id="alta-domicilio" @bind-Value="Entrada!.DomicilioFiscal" autocomplete="street-address"
+                                   maxlength="@SolicitudAlta.LongitudMaximaDomicilioFiscal" />
+                    </div>
+
+                    <div class="acceso-campo">
+                        <label for="alta-tramo">@T["TramoEtiqueta"]</label>
+                        <InputSelect id="alta-tramo" @bind-Value="Entrada!.Tramo" aria-describedby="alta-tramo-ayuda">
+                            <option value="">@T["TramoElige"]</option>
+                            @foreach (var tramo in Tramos)
+                            {
+                                <option value="@tramo.ToString()">@T[ClaveTramo(tramo)]</option>
+                            }
+                        </InputSelect>
+                        <p id="alta-tramo-ayuda" class="acceso-nota">@T["TramoAyuda"]</p>
+                    </div>
+
+                    <div class="acceso-campo">
+                        <label for="alta-telefono">@T["TelefonoEtiqueta"]</label>
+                        <InputText id="alta-telefono" @bind-Value="Entrada!.Telefono" type="tel" autocomplete="tel"
+                                   maxlength="@SolicitudAlta.LongitudMaximaTelefono" />
+                    </div>
+
+                    <div class="acceso-campo">
+                        <label>
+                            <InputCheckbox id="alta-declara-representacion" @bind-Value="Entrada!.DeclaraRepresentacion" />
+                            @T["DeclaraRepresentacionTexto"]
+                        </label>
+                    </div>
+
+                    <div class="acceso-campo">
+                        <label>
+                            <InputCheckbox id="alta-declara-actividad" @bind-Value="Entrada!.DeclaraActividadProfesional" />
+                            @T["DeclaraActividadTexto"]
+                        </label>
+                    </div>
+
+                    <button type="submit" class="acceso-entrar">@T["OrganizacionBoton"]</button>
+                </EditForm>
+                break;
+            case Pantalla.DatosCompletos:
+                <PasosAlta Detalle="@T["PasoEmpresaDetalle"]" Actual="2" />
+                <h2 class="acceso-titulo">@T["DatosGuardadosTitulo"]</h2>
+                <p class="acceso-explica">@T["DatosGuardadosExplica"]</p>
+                break;
+            case Pantalla.DerivadaAAcceso:
+                <h2 class="acceso-titulo">@T["DerivadaTitulo"]</h2>
+                <p class="acceso-explica">@T["DerivadaExplica"]</p>
+                break;
+            default:
+                <h2 class="acceso-titulo">@T["ContinuacionNoValidaTitulo"]</h2>
+                <p class="acceso-explica">@T["ContinuacionNoValidaExplica"]</p>
+                <p class="acceso-olvido"><a href="/alta">@T["VolverAEmpezar"]</a></p>
+                break;
+        }
+    </div>
+}
+
+@code {
+    public const string Ruta = "/alta/organizacion";
+
+    private static readonly TramoTrabajadoresActivos[] Tramos = Enum.GetValues<TramoTrabajadoresActivos>();
+
+    /// <summary>Clave del texto de cada tramo en el recurso: TramoDe1A10, TramoDe11A40…</summary>
+    private static string ClaveTramo(TramoTrabajadoresActivos tramo) => $"Tramo{tramo}";
+
+    [CascadingParameter] private HttpContext? HttpContext { get; set; }
+
+    [SupplyParameterFromForm(FormName = "alta-organizacion")]
+    private DatosEntrada? Entrada { get; set; }
+
+    private bool _habilitada;
+    private string? _error;
+    private Pantalla _pantalla;
+
+    protected override async Task OnInitializedAsync()
+    {
+        // DA-10: con la bandera apagada la ruta no existe, ni para pintar ni para enviar.
+        _habilitada = OpcionesAlta.Value.Habilitada;
+        if (!_habilitada)
+        {
+            Navigation.NotFound();
+            return;
+        }
+
+        Entrada ??= new DatosEntrada();
+
+        // Al pintar y al enviar se mira primero en qué punto está la Solicitud de alta: recargar o reenviar después de
+        // DatosCompletos muestra lo ya guardado, sin volver a transicionar y sin perder la cookie que necesita A5 (M2).
+        // Un credencial sin la forma debida no llega a la base.
+        Aplicar(await Servicio.ConsultarContinuacionAsync(CookieContinuacionAlta.Leer(HttpContext), CancellationToken.None));
+    }
+
+    /// <summary>
+    /// Pinta lo que corresponde al estado de la continuación. La cookie solo se borra cuando el credencial caducó (aquí) o
+    /// la Solicitud de alta quedó derivada a acceso (en <see cref="EnviarAsync"/>); un credencial que la base no reconoce
+    /// no se borra, porque la cookie podría ser de una Solicitud de alta más adelantada.
+    /// </summary>
+    private void Aplicar(EstadoContinuacionAlta estado)
+    {
+        switch (estado)
+        {
+            case EstadoContinuacionAlta.CorreoVerificado:
+                _pantalla = Pantalla.Formulario;
+                break;
+            case EstadoContinuacionAlta.DatosCompletos:
+                _pantalla = Pantalla.DatosCompletos;
+                break;
+            case EstadoContinuacionAlta.Caducada:
+                if (HttpContext is not null)
+                    CookieContinuacionAlta.Borrar(HttpContext);
+                _pantalla = Pantalla.ContinuacionNoValida;
+                break;
+            default:
+                _pantalla = Pantalla.ContinuacionNoValida;
+                break;
+        }
+    }
+
+    private async Task EnviarAsync()
+    {
+        if (!_habilitada || Entrada is null || HttpContext is null || _pantalla != Pantalla.Formulario)
+            return;
+
+        DatosOrganizacionAlta datos;
+        try
+        {
+            datos = DatosOrganizacionAlta.Crear(
+                Entrada.RazonSocial, Entrada.CifNif, Entrada.DomicilioFiscal, LeerTramo(Entrada.Tramo),
+                Entrada.DeclaraRepresentacion, Entrada.DeclaraActividadProfesional, Entrada.Telefono);
+        }
+        catch (ArgumentException ex)
+        {
+            _error = T[ClaveError(ex.ParamName)];
+            return;
+        }
+
+        // Sin cupo por CIF que bloquee: un contador por CIF compartido entre Solicitudes de alta distintas haría que la
+        // respuesta a una Solicitud dependiera de lo que hicieron otras. Cada Solicitud consulta su CIF con resultado una
+        // sola vez (la base solo transiciona desde CorreoVerificado), y una consulta con resultado cuenta para la alerta
+        // de barrido (AlertaConsultasCifAlta), que solo escribe en el registro. Cuenta el CIF ya normalizado, para que
+        // «b12345678» y «B-12345678» sumen juntos.
+        var resultado = await Servicio.CompletarAsync(CookieContinuacionAlta.Leer(HttpContext), datos, CancellationToken.None);
+        switch (resultado)
+        {
+            case ResultadoDatosOrganizacionAlta.DatosCompletos:
+                // El credencial sigue: lo necesita el paso siguiente (plan y condiciones).
+                AlertaCif.Registrar(datos.CifNif);
+                _pantalla = Pantalla.DatosCompletos;
+                break;
+            case ResultadoDatosOrganizacionAlta.DerivadaAAcceso:
+                // Estado final: la base ya borró el hash del credencial; la cookie se va también.
+                AlertaCif.Registrar(datos.CifNif);
+                CookieContinuacionAlta.Borrar(HttpContext);
+                _pantalla = Pantalla.DerivadaAAcceso;
+                break;
+            default:
+                // La base no hizo nada: o la Solicitud de alta ya pasó este paso (otra pestaña, un reenvío) o el
+                // credencial caducó entre la consulta y el envío. Se pinta lo que diga su estado.
+                Aplicar(await Servicio.ConsultarContinuacionAsync(CookieContinuacionAlta.Leer(HttpContext), CancellationToken.None));
+                break;
+        }
+    }
+
+    /// <summary>
+    /// Solo los nombres del enum: <see cref="Enum.TryParse{TEnum}(string, out TEnum)"/> aceptaría también «0» o «7», y
+    /// un valor fuera de la lista debe llegar al dominio como desconocido.
+    /// </summary>
+    private static TramoTrabajadoresActivos LeerTramo(string? valor) =>
+        valor is not null && Enum.GetNames<TramoTrabajadoresActivos>().Contains(valor, StringComparer.Ordinal)
+            ? Enum.Parse<TramoTrabajadoresActivos>(valor)
+            : (TramoTrabajadoresActivos)(-1);
+
+    private static string ClaveError(string? parametro) => parametro switch
+    {
+        "razonSocial" => "ErrorRazonSocial",
+        "domicilioFiscal" => "ErrorDomicilioFiscal",
+        "tramo" => "ErrorTramo",
+        "cifNif" => "ErrorCifNif",
+        "telefono" => "ErrorTelefono",
+        "declaraRepresentacion" => "ErrorDeclaraRepresentacion",
+        "declaraActividadProfesional" => "ErrorDeclaraActividad",
+        _ => "ErrorCifNif",
+    };
+
+    private enum Pantalla
+    {
+        ContinuacionNoValida,
+        Formulario,
+        DatosCompletos,
+        DerivadaAAcceso,
+    }
+
+    private sealed class DatosEntrada
+    {
+        public string RazonSocial { get; set; } = string.Empty;
+        public string CifNif { get; set; } = string.Empty;
+        public string DomicilioFiscal { get; set; } = string.Empty;
+        public string? Tramo { get; set; }
+        public string? Telefono { get; set; }
+        public bool DeclaraRepresentacion { get; set; }
+        public bool DeclaraActividadProfesional { get; set; }
+    }
+}

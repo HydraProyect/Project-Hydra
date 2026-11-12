@@ -13,16 +13,16 @@
     <value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
   </resheader>
   <data name="ConfirmarEliminarLoteMensaje" xml:space="preserve">
-    <value>Se ocultarán de las listas activas. Podrás deshacer la eliminación desde el aviso que aparecerá; después, solo un Administrador de esta organización puede recuperarlos desde Auditoría.</value>
+    <value>S'ocultaran de les llistes actives. Podràs desfer l'eliminació des de l'avís que apareixerà; després, només un Administrador d'aquesta organització pot recuperar-los des d'Auditoria.</value>
   </data>
   <data name="ToastAccionDeshacer" xml:space="preserve">
     <value>Deshacer</value>
   </data>
   <data name="ToastLoteRestaurados" xml:space="preserve">
-    <value>{0} documento(s) restaurado(s).</value>
+    <value>{0} document(s) restaurat(s).</value>
   </data>
   <data name="ToastLoteRestauradosConErrores" xml:space="preserve">
-    <value>{0} documento(s) restaurado(s); {1} no se pudieron restaurar: {2}</value>
+    <value>{0} document(s) restaurat(s); {1} no s'han pogut restaurar: {2}</value>
   </data>
   <data name="Documento360DescargarPdf" xml:space="preserve">
     <value>Descarregar el PDF</value>
@@ -421,6 +421,13 @@
   <data name="ListaNoCaduca" xml:space="preserve"><value>Sense caducitat</value></data>
   <data name="ListaVer" xml:space="preserve"><value>Veure</value></data>
   <data name="PestanaIncidencias" xml:space="preserve"><value>Incidències</value></data>
+  <data name="PestanasEtiquetaGrupo" xml:space="preserve"><value>Seccions de documents</value></data>
+  <data name="PestanaEstado" xml:space="preserve"><value>Estat</value></data>
+  <data name="PestanaPlataformasCae" xml:space="preserve"><value>Plataformes CAE</value></data>
+  <data name="PestanaReclamaciones" xml:space="preserve"><value>Reclamacions</value></data>
+  <data name="PestanaPreventivo" xml:space="preserve"><value>Preventiu</value></data>
+  <data name="PestanaRevisionIa" xml:space="preserve"><value>Revisió IA</value></data>
+  <data name="PestanaPlantillas" xml:space="preserve"><value>Plantilles</value></data>
   <data name="ListaSinAdjunto" xml:space="preserve"><value>Sense adjunt</value></data>
   <data name="ListaVencimientoSinConfirmar" xml:space="preserve"><value>Sense confirmar</value></data>
   <data name="ListaEmisionFecha" xml:space="preserve"><value>Emissió {0}</value></data>

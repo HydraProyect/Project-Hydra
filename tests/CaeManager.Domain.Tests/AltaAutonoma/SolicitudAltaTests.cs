@@ -7,6 +7,37 @@ namespace CaeManager.Domain.Tests.AltaAutonoma;
 
 public class SolicitudAltaTests
 {
+    /// <summary>
+    /// Revisión de A4: la base compara el CIF enviado con Empresas."Cif" reducido a ASCII alfanumérico en mayúsculas. Eso
+    /// solo es un superconjunto seguro si todo CIF o NIF que la aplicación acepta y normaliza es ASCII [0-9A-Z], también
+    /// cuando llega con espacios Unicode (U+00A0, U+2007, U+3000), tabuladores, puntos o guiones.
+    /// </summary>
+    [Theory]
+    [InlineData("B12345674", "B12345674")]
+    [InlineData("b\u00A012345674", "B12345674")]
+    [InlineData("B\u200712.345.674", "B12345674")]
+    [InlineData("\u3000b-12345674\t", "B12345674")]
+    [InlineData("1234567\u00A0l", "01234567L")]
+    [InlineData("x1234567l", "X1234567L")]
+    public void El_CIF_normalizado_que_se_compara_en_la_base_es_ASCII_alfanumerico_en_mayusculas(string escrito, string esperado)
+    {
+        var normalizado = SolicitudAlta.NormalizarCifNif(escrito);
+
+        normalizado.Should().Be(esperado).And.MatchRegex("^[0-9A-Z]+$");
+        normalizado.All(char.IsAscii).Should().BeTrue();
+    }
+
+    [Theory]
+    [InlineData("B\uFF11\uFF12\uFF13\uFF14\uFF15\uFF16\uFF17\uFF14")]
+    [InlineData("\uFF2212345674")]
+    [InlineData("B12345674\u200B")]
+    public void Un_CIF_con_caracteres_que_no_son_ASCII_no_se_acepta(string escrito)
+    {
+        var accion = () => SolicitudAlta.NormalizarCifNif(escrito);
+
+        accion.Should().Throw<ArgumentException>();
+    }
+
     private static readonly DateTime Inicio = new(2026, 11, 4, 10, 0, 0, DateTimeKind.Utc);
     private static readonly string Token = new('t', 43);
     private const string CifEmpresa = "B12345674";
@@ -235,6 +266,107 @@ public class SolicitudAltaTests
         accion.Should().Throw<TransicionSolicitudAltaNoPermitidaException>();
     }
 
+    // ── Credencial de continuación (A4) ──
+
+    [Fact]
+    public void Verificar_guarda_solo_el_hash_del_credencial_de_continuacion_y_le_da_dos_horas()
+    {
+        var s = Iniciada();
+        var credencial = new string('c', 43);
+
+        s.VerificarCorreo(Token, Inicio.AddHours(1), credencial).Should().BeTrue();
+
+        s.HashCredencialContinuacion.Should().Be(SolicitudAlta.CalcularHashToken(credencial)).And.NotBe(credencial);
+        s.CredencialContinuacionCaducaEnUtc.Should().Be(Inicio.AddHours(3));
+    }
+
+    [Fact]
+    public void El_credencial_de_continuacion_no_dura_mas_que_la_Solicitud_de_alta()
+    {
+        var s = Iniciada();
+        var nuevo = new string('n', 43);
+        s.RenovarTokenVerificacion(nuevo, s.CaducaEnUtc.AddHours(-3));
+
+        s.VerificarCorreo(nuevo, s.CaducaEnUtc.AddHours(-1), new string('c', 43)).Should().BeTrue();
+
+        s.CredencialContinuacionCaducaEnUtc.Should().Be(s.CaducaEnUtc);
+    }
+
+    [Fact]
+    public void Un_token_que_no_casa_no_guarda_credencial()
+    {
+        var s = Iniciada();
+
+        s.VerificarCorreo(new string('x', 43), Inicio.AddHours(1), new string('c', 43)).Should().BeFalse();
+
+        s.HashCredencialContinuacion.Should().BeNull();
+        s.CredencialContinuacionCaducaEnUtc.Should().BeNull();
+    }
+
+    [Fact]
+    public void El_credencial_sigue_en_DatosCompletos_y_se_borra_al_derivar_a_acceso()
+    {
+        var completa = Iniciada();
+        completa.VerificarCorreo(Token, Inicio.AddHours(1), new string('c', 43));
+        completa.CompletarDatos("Construcciones Ejemplo SL", CifEmpresa, "Calle Mayor 1, Tortosa", TramoTrabajadoresActivos.De11A40, true, false, Inicio.AddHours(1));
+        completa.HashCredencialContinuacion.Should().NotBeNull("el paso siguiente lo necesita");
+
+        var derivada = Iniciada();
+        derivada.VerificarCorreo(Token, Inicio.AddHours(1), new string('c', 43));
+        derivada.DerivarAAcceso(CifEmpresa, Inicio.AddHours(1));
+        derivada.HashCredencialContinuacion.Should().BeNull("un estado final no admite más pasos");
+        derivada.CredencialContinuacionCaducaEnUtc.Should().BeNull();
+    }
+
+    [Fact]
+    public void Caducar_y_borrar_los_datos_personales_quita_el_credencial()
+    {
+        var s = Iniciada();
+        s.VerificarCorreo(Token, Inicio.AddHours(1), new string('c', 43));
+
+        s.Caducar(s.CaducaEnUtc);
+        s.BorrarDatosPersonales(s.CaducaEnUtc.AddDays(1));
+
+        s.HashCredencialContinuacion.Should().BeNull();
+        s.CredencialContinuacionCaducaEnUtc.Should().BeNull();
+    }
+
+    [Theory]
+    [InlineData("", "B12345674", "Calle 1", true, false, null, "razonSocial")]
+    [InlineData("Empresa SL", "B12345670", "Calle 1", true, false, null, "cifNif")]
+    [InlineData("Empresa SL", "B12345674", " ", true, false, null, "domicilioFiscal")]
+    [InlineData("Empresa SL", "B12345674", "Calle 1", true, false, "abc", "telefono")]
+    [InlineData("Empresa SL", "B12345674", "Calle 1", false, false, null, "declaraRepresentacion")]
+    [InlineData("Empresa SL", "12345678Z", "Calle 1", true, false, null, "declaraActividadProfesional")]
+    public void DatosOrganizacionAlta_rechaza_con_el_nombre_del_campo_que_falla(
+        string razonSocial, string cif, string domicilio, bool representacion, bool actividad, string? telefono, string campo)
+    {
+        var accion = () => DatosOrganizacionAlta.Crear(razonSocial, cif, domicilio, TramoTrabajadoresActivos.De1A10, representacion, actividad, telefono);
+
+        accion.Should().Throw<ArgumentException>().Which.ParamName.Should().Be(campo);
+    }
+
+    [Fact]
+    public void DatosOrganizacionAlta_rechaza_un_tramo_fuera_del_enum()
+    {
+        var accion = () => DatosOrganizacionAlta.Crear("Empresa SL", CifEmpresa, "Calle 1", (TramoTrabajadoresActivos)99, true, false);
+
+        accion.Should().Throw<ArgumentOutOfRangeException>().Which.ParamName.Should().Be("tramo");
+    }
+
+    [Fact]
+    public void DatosOrganizacionAlta_normaliza_como_el_agregado()
+    {
+        var datos = DatosOrganizacionAlta.Crear(" Empresa SL ", "b-1234567-4", " Calle 1 ", TramoTrabajadoresActivos.De81A150, true, false, "  ");
+
+        datos.RazonSocial.Should().Be("Empresa SL");
+        datos.CifNif.Should().Be(CifEmpresa);
+        datos.DomicilioFiscal.Should().Be("Calle 1");
+        datos.Telefono.Should().BeNull();
+        datos.EsPersonaFisica.Should().BeFalse();
+        DatosOrganizacionAlta.Crear("Ana", Dni, "Calle 1", TramoTrabajadoresActivos.De1A10, true, true).EsPersonaFisica.Should().BeTrue();
+    }
+
     // ── Datos de la organización ──
 
     [Fact]
@@ -254,7 +386,7 @@ public class SolicitudAltaTests
 
     [Theory]
     [InlineData("B12345675")]
-    [InlineData("B١٢٣4٥674")]
+    [InlineData("B\u0661\u0662\u06634\u0665674")]
     [InlineData("12345678A")]
     [InlineData("ABC123456")]
     [InlineData("")]

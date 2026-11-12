@@ -13,6 +13,7 @@ namespace CaeManager.Application.Tests.Comunicaciones;
 public class MigrarConversacionACorreoCommandHandlerTests
 {
     private const string Telefono = "+34600111222";
+    private const string Directorio = "11111111-2222-3333-4444-555555555555";
 
     private readonly ConversacionRepositorioFalso _conversaciones = new();
     private readonly IntegracionesQueryContextFalso _integraciones = new();
@@ -35,7 +36,7 @@ public class MigrarConversacionACorreoCommandHandlerTests
 
     private ConexionIntegracion AgregarBuzonHabilitado(Guid? clienteId = null)
     {
-        var conexion = new ConexionIntegracion("cae@cliente.com", "Buzón CAE", clienteId);
+        var conexion = new ConexionIntegracion("cae@cliente.com", "Buzón CAE", clienteId).Verificada();
         _conexiones.Agregar(conexion);
         _integraciones.ConexionesLista.Add(conexion);
         return conexion;
@@ -83,6 +84,66 @@ public class MigrarConversacionACorreoCommandHandlerTests
     }
 
     [Fact]
+    public async Task Si_la_conexion_dejo_de_estar_operativa_en_la_base_antes_del_envio_no_migra()
+    {
+        var conversacion = CrearConversacionWhatsAppConVentanaCerrada();
+        var conexion = AgregarBuzonHabilitado();
+        _conexiones.NoOperativasEnBase.Add(conexion.Id);
+
+        var resultado = await CrearHandler().Handle(
+            new MigrarConversacionACorreoCommand(conversacion.Id, "contacto@tenant.com", "<p>Hola</p>"), CancellationToken.None);
+
+        resultado.EsFallido.Should().BeTrue();
+        resultado.Error.Codigo.Should().Be(CaeManager.Application.Integraciones.ErroresBuzonSinVerificar.Codigo);
+        _graphClient.VecesEnviado.Should().Be(0);
+        conversacion.Mensajes.Should().NotContain(m => m.Canal == CanalConversacion.Correo);
+    }
+
+    /// <summary>
+    /// Dos buzones compartidos del Tenant: el más antiguo sin verificar no tapa al verificado. El desempate por
+    /// antigüedad solo decide entre los que están en la misma situación.
+    /// </summary>
+    [Fact]
+    public async Task Un_compartido_antiguo_sin_verificar_no_tapa_a_uno_verificado()
+    {
+        var conversacion = CrearConversacionWhatsAppConVentanaCerrada();
+        var antiguo = ConexionIntegracion.CrearBuzonCompartido("antiguo@operador.test", "Buzón antiguo", Directorio, Guid.NewGuid());
+        antiguo.FijarIdentidadBuzon("inbox-antiguo");
+        typeof(ConexionIntegracion).GetProperty(nameof(ConexionIntegracion.FechaConectadaUtc))!
+            .SetValue(antiguo, DateTime.UtcNow.AddDays(-30));
+        var verificado = ConexionIntegracion.CrearBuzonCompartido("cae@operador.test", "Buzón CAE", Directorio, Guid.NewGuid()).Verificada();
+        foreach (var conexion in new[] { antiguo, verificado })
+        {
+            _conexiones.Agregar(conexion);
+            _integraciones.ConexionesLista.Add(conexion);
+        }
+
+        var resultado = await CrearHandler().Handle(
+            new MigrarConversacionACorreoCommand(conversacion.Id, "contacto@tenant.com", "<p>Hola</p>"), CancellationToken.None);
+
+        resultado.EsExitoso.Should().BeTrue();
+        _graphClient.VecesEnviado.Should().Be(1);
+        _graphClient.BuzonesUsados.Should().OnlyContain(b => b.Direccion == "cae@operador.test");
+    }
+
+    [Fact]
+    public async Task Con_la_identidad_del_buzon_sin_verificar_no_migra_ni_deja_fila_de_salida()
+    {
+        var conversacion = CrearConversacionWhatsAppConVentanaCerrada();
+        var conexion = new ConexionIntegracion("cae@cliente.com", "Buzón CAE");
+        _conexiones.Agregar(conexion);
+        _integraciones.ConexionesLista.Add(conexion);
+
+        var resultado = await CrearHandler().Handle(
+            new MigrarConversacionACorreoCommand(conversacion.Id, "cliente@ejemplo.com", "<p>Hola</p>"), CancellationToken.None);
+
+        resultado.EsFallido.Should().BeTrue();
+        resultado.Error.Codigo.Should().Be(CaeManager.Application.Integraciones.ErroresBuzonSinVerificar.Codigo);
+        _registro.Filas.Should().BeEmpty();
+        _unitOfWork.VecesGuardado.Should().Be(0);
+    }
+
+    [Fact]
     public async Task Con_ventana_abierta_devuelve_fallo_y_no_persiste_nada()
     {
         var conexionWhatsApp = new ConexionIntegracion("+34686543364", "Línea", proveedor: ProveedorIntegracion.WhatsApp);
@@ -124,6 +185,31 @@ public class MigrarConversacionACorreoCommandHandlerTests
 
         resultado.EsFallido.Should().BeTrue();
         resultado.Error.Codigo.Should().Be("Conversacion.CanalIncorrecto");
+    }
+
+    /// <summary>Un buzón compartido no tiene credencial: la migración sale por su dirección y con el token de aplicación de su directorio.</summary>
+    [Fact]
+    public async Task Con_un_buzon_compartido_envia_por_su_direccion_y_con_el_token_de_aplicacion_del_directorio()
+    {
+        var conversacion = CrearConversacionWhatsAppConVentanaCerrada();
+        var directorio = Guid.NewGuid().ToString("D");
+        var compartido = ConexionIntegracion.CrearBuzonCompartido("piloto@tenant.com", "Buzón piloto", directorio, Guid.NewGuid()).Verificada();
+        _conexiones.Agregar(compartido);
+        _integraciones.ConexionesLista.Add(compartido);
+        var handler = new MigrarConversacionACorreoCommandHandler(
+            _conversaciones, new ComunicacionesQueryContextFalso(), _integraciones, _conexiones, new AlcanceDatosServiceFalso(), _graphClient,
+            new AccesoGraphService(new CredencialIntegracionRepositorioFalso(), _graphClient),
+            new ResolucionParticipanteConversacionServiceFalso(), _unitOfWork, _registro);
+
+        var resultado = await handler.Handle(
+            new MigrarConversacionACorreoCommand(conversacion.Id, "contacto@tenant.com", "<p>Seguimos por aquí.</p>"),
+            CancellationToken.None);
+
+        resultado.EsExitoso.Should().BeTrue();
+        _graphClient.BuzonesUsados.Should().ContainSingle().Which.Should().Be(new BuzonGraph("piloto@tenant.com", true));
+        _graphClient.DirectoriosConTokenDeAplicacion.Should().Equal(directorio);
+        _graphClient.VecesRefrescado.Should().Be(0, "no hay token delegado que refrescar");
+        conversacion.Mensajes.Should().Contain(m => m.Canal == CanalConversacion.Correo && m.Remitente == "piloto@tenant.com");
     }
 
     [Fact]
