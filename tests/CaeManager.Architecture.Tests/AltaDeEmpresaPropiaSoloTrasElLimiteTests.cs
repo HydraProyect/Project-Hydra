@@ -34,8 +34,9 @@ namespace CaeManager.Architecture.Tests;
 /// entre comprobación y guardado, ni que se use el resultado de la comprobación, ni que <c>n</c> cuente de verdad las
 /// Empresas propias añadidas, ni otros llamantes sin candado de un método alcanzado. En PostgreSQL,
 /// <c>CandadoEmpresaPropiaTests</c> (integración, en CI) prueba que guardan con el candado tomado el alta,
-/// <c>RestaurarEmpresa</c> y la importación simple; para <c>RestaurarCliente</c>, <c>RestaurarSubcontrata</c> y las
-/// importaciones combinada y maestra, el guardián es este instrumento y sus tests unitarios con el candado en memoria.
+/// <c>RestaurarEmpresa</c> y la importación simple. Para <c>RestaurarCliente</c>, <c>RestaurarSubcontrata</c> y las
+/// importaciones combinada y maestra, que el guardado vaya dentro del candado solo lo vigila este instrumento: sus tests
+/// unitarios con el candado en memoria prueban que el recuento se repite dentro, no dónde se guarda.
 /// </para>
 /// </summary>
 public class AltaDeEmpresaPropiaSoloTrasElLimiteTests
@@ -297,6 +298,56 @@ public class AltaDeEmpresaPropiaSoloTrasElLimiteTests
                     await unitOfWork.SaveChangesAsync(c);
                     return Result.Exito();
                 }, ct);
+            }
+        }
+        """)]
+    [InlineData("borrado inmediato antes del candado", """
+        class H(ILimiteEmpresaPropia limite, IUnitOfWork unitOfWork)
+        {
+            async Task<Result> M(C c, CancellationToken ct)
+            {
+                repositorio.Agregar(new Empresa("x"));
+                await c.Empresas.ExecuteDeleteAsync(ct);
+                return await limite.SerializarAsync(async k =>
+                    await limite.ComprobarAltaAsync(0, true, k) is { } e ? Result.Fallo(e) : await unitOfWork.SaveChangesAsync(k) > 0 ? Result.Exito() : Result.Exito(), ct);
+            }
+        }
+        """)]
+    [InlineData("SQL crudo antes del candado", """
+        class H(ILimiteEmpresaPropia limite, IUnitOfWork unitOfWork)
+        {
+            async Task<Result> M(D d, CancellationToken ct)
+            {
+                repositorio.Agregar(new Empresa("x"));
+                await d.ExecuteSqlRawAsync("SELECT 1", ct);
+                return await limite.SerializarAsync(async k =>
+                    await limite.ComprobarAltaAsync(0, true, k) is { } e ? Result.Fallo(e) : await unitOfWork.SaveChangesAsync(k) > 0 ? Result.Exito() : Result.Exito(), ct);
+            }
+        }
+        """)]
+    [InlineData("guardado sin receptor antes del candado", """
+        class H(ILimiteEmpresaPropia limite) : DbContext
+        {
+            async Task<Result> M(CancellationToken ct)
+            {
+                Empresas.Add(new Empresa("x"));
+                await SaveChangesAsync(ct);
+                return await limite.SerializarAsync(async k =>
+                    await limite.ComprobarAltaAsync(0, true, k) is { } e ? Result.Fallo(e) : await this.Guardar(k), ct);
+            }
+
+            async Task<Result> Guardar(CancellationToken ct) { await base.SaveChangesAsync(ct); return Result.Exito(); }
+        }
+        """)]
+    [InlineData("guardado con acceso condicional antes del candado", """
+        class H(ILimiteEmpresaPropia limite, IUnitOfWork? unitOfWork)
+        {
+            async Task<Result> M(CancellationToken ct)
+            {
+                repositorio.Agregar(new Empresa("x"));
+                await (unitOfWork?.SaveChangesAsync(ct) ?? Task.FromResult(0));
+                return await limite.SerializarAsync(async k =>
+                    await limite.ComprobarAltaAsync(0, true, k) is { } e ? Result.Fallo(e) : await unitOfWork!.SaveChangesAsync(k) > 0 ? Result.Exito() : Result.Exito(), ct);
             }
         }
         """)]
@@ -626,6 +677,8 @@ internal static class EscriturasDeEmpresaPropia
         private static bool EsGuardado(InvocationExpressionSyntax llamada) => llamada.Expression switch
         {
             MemberAccessExpressionSyntax m => Guardados.Contains(m.Name.Identifier.ValueText),
+            // contexto?.SaveChangesAsync(ct)
+            MemberBindingExpressionSyntax b => Guardados.Contains(b.Name.Identifier.ValueText),
             // SaveChangesAsync(ct) sin receptor, dentro del propio contexto.
             IdentifierNameSyntax n => Guardados.Contains(n.Identifier.ValueText),
             _ => false,
