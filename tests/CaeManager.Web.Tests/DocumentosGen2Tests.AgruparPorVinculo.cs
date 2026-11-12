@@ -134,9 +134,9 @@ public partial class DocumentosGen2Tests
     [InlineData("GestorCae", true, "Por Plataforma CAE")]
     [InlineData("Consulta", false, "Por Plataforma CAE")]
     [InlineData("Cliente", false, "Por Plataforma CAE")]
-    [InlineData("Administrador", true, "Por Cliente empresarial")]
-    [InlineData("Consulta", false, "Por Cliente empresarial")]
-    [InlineData("Cliente", false, "Por Cliente empresarial")]
+    [InlineData("Administrador", true, "Por Cliente")]
+    [InlineData("Consulta", false, "Por Cliente")]
+    [InlineData("Cliente", false, "Por Cliente")]
     public async Task Agrupar_por_vinculo_conserva_la_fila_y_las_acciones_de_main_por_rol(string rol, bool escritura, string agrupacion)
     {
         var e = ConVinculos();
@@ -182,7 +182,7 @@ public partial class DocumentosGen2Tests
 
         await cut.Find("button[aria-label='Agrupar: no']").ClickAsync(new MouseEventArgs());
         cut.FindAll("[role=menuitemradio]").Select(b => b.TextContent.Trim())
-            .Should().Equal("Sin agrupar", "Por ámbito", "Por Plataforma CAE", "Por Cliente empresarial");
+            .Should().Equal("Sin agrupar", "Por ámbito", "Por Plataforma CAE", "Por Cliente");
         await cut.FindAll("[role=menuitemradio]").Single(b => b.TextContent.Trim() == "Por Plataforma CAE").ClickAsync(new MouseEventArgs());
 
         cut.WaitForAssertion(() => UltimaConsultaDeDocumentos(mediador).AgruparPor.Should().Be(AgrupacionDocumentos.PlataformaCae));
@@ -191,9 +191,9 @@ public partial class DocumentosGen2Tests
             "agrupada por vínculo, la pantalla también pide todas las filas filtradas");
         cut.WaitForAssertion(() => cut.FindAll("button[aria-label^='Agrupar']").Select(b => b.GetAttribute("aria-label")).Should().Equal("Agrupar por: Plataforma CAE"));
 
-        await Agrupar(cut, "Por Cliente empresarial");
+        await Agrupar(cut, "Por Cliente");
         cut.WaitForAssertion(() => UltimaConsultaDeDocumentos(mediador).AgruparPor.Should().Be(AgrupacionDocumentos.ClienteEmpresarial));
-        cut.WaitForAssertion(() => cut.FindAll("button[aria-label^='Agrupar']").Select(b => b.GetAttribute("aria-label")).Should().Equal("Agrupar por: Cliente empresarial"));
+        cut.WaitForAssertion(() => cut.FindAll("button[aria-label^='Agrupar']").Select(b => b.GetAttribute("aria-label")).Should().Equal("Agrupar por: Cliente"));
 
         await Agrupar(cut, "Por ámbito");
         cut.WaitForAssertion(() => UltimaConsultaDeDocumentos(mediador).AgruparPorAmbito.Should().BeTrue());
@@ -251,12 +251,12 @@ public partial class DocumentosGen2Tests
         var (cut, _) = Renderizar(e.Mediador);
         cut.WaitForAssertion(() => cut.Find("tbody button.enlace-nombre-fila"));
 
-        await Agrupar(cut, "Por Cliente empresarial");
+        await Agrupar(cut, "Por Cliente");
 
-        cut.WaitForAssertion(() => NombresDeVinculo(cut).Should().Equal("Cliente Norte", "Sin Cliente empresarial"));
+        cut.WaitForAssertion(() => NombresDeVinculo(cut).Should().Equal("Cliente Norte", "Sin Cliente"));
         var norte = CabeceraDeVinculo(cut, ClienteNorteId.ToString());
         ResumenDeVinculo(norte).Should().Equal("3 vencidos", "1 urgente");
-        norte.QuerySelector(".grupo-lista-subtitulo")!.TextContent.Trim().Should().Be("Cliente empresarial · 12 documentos");
+        norte.QuerySelector(".grupo-lista-subtitulo")!.TextContent.Trim().Should().Be("Cliente · 12 documentos");
         cut.FindAll(".documentos-abrir-portal").Should().BeEmpty("«Abrir portal» es de los grupos por Plataforma CAE");
         cut.FindAll(".documentos-anotar-vigencia").Should().BeEmpty();
         cut.FindAll("tbody .documentos-celda-en-plataforma").Should().BeEmpty();

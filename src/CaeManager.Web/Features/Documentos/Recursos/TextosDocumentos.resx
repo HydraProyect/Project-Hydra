@@ -394,9 +394,9 @@
   <data name="ListaVence" xml:space="preserve"><value>Vence</value></data>
   <data name="PorAmbito" xml:space="preserve"><value>Por ámbito</value></data>
   <data name="PorPlataformaCae" xml:space="preserve"><value>Por Plataforma CAE</value></data>
-  <data name="PorClienteEmpresarial" xml:space="preserve"><value>Por Cliente empresarial</value></data>
+  <data name="PorClienteEmpresarial" xml:space="preserve"><value>Por Cliente</value></data>
   <data name="AgruparPorPlataformaCaeEtiqueta" xml:space="preserve"><value>Agrupar por: Plataforma CAE</value></data>
-  <data name="AgruparPorClienteEmpresarialEtiqueta" xml:space="preserve"><value>Agrupar por: Cliente empresarial</value></data>
+  <data name="AgruparPorClienteEmpresarialEtiqueta" xml:space="preserve"><value>Agrupar por: Cliente</value></data>
   <data name="ListaEstadoEnPlataforma" xml:space="preserve"><value>Estado en la plataforma</value></data>
   <data name="EstadoPlataformaPendienteDeSubir" xml:space="preserve"><value>Pendiente de subir</value></data>
   <data name="EstadoPlataformaRechazado" xml:space="preserve"><value>Rechazado</value></data>
@@ -414,9 +414,9 @@
   <data name="GrupoUrgentes" xml:space="preserve"><value>{0} urgentes</value></data>
   <data name="GrupoDocumentoUno" xml:space="preserve"><value>1 documento</value></data>
   <data name="GrupoDocumentos" xml:space="preserve"><value>{0} documentos</value></data>
-  <data name="GrupoClienteEmpresarialDocumentos" xml:space="preserve"><value>Cliente empresarial · {0}</value></data>
+  <data name="GrupoClienteEmpresarialDocumentos" xml:space="preserve"><value>Cliente · {0}</value></data>
   <data name="GrupoSinPlataformaCae" xml:space="preserve"><value>Sin Plataforma CAE</value></data>
-  <data name="GrupoSinClienteEmpresarial" xml:space="preserve"><value>Sin Cliente empresarial</value></data>
+  <data name="GrupoSinClienteEmpresarial" xml:space="preserve"><value>Sin Cliente</value></data>
   <data name="GrupoAnotarVigencia" xml:space="preserve"><value>Anotar vigencia ({0})</value></data>
   <data name="QuitarFiltroPropietario" xml:space="preserve"><value>Quitar filtro de propietario</value></data>
   <data name="SinAgrupar" xml:space="preserve"><value>Sin agrupar</value></data>
