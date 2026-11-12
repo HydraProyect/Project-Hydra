@@ -571,6 +571,10 @@ public class ProhibicionSqlCrudoYFiltrosIgnoradosTests
         // Documento de Empresa y la de un acceso de plataforma no se pierdan el par. No toca filas.
         [("src/CaeManager.Infrastructure/Persistence/SerializacionAltasAcreditacionEmpresa.cs", "await dbContext.Database.ExecuteSqlAsync(")] = 1,
 
+        // D-P11 (revisión Codex r1 de la PR #2193, ALTO): mismo candado, por Tenant propietario, para que dos altas o
+        // restauraciones concurrentes no dejen dos Empresas propias activas. Solo toma pg_advisory_xact_lock; no toca filas.
+        [("src/CaeManager.Infrastructure/Persistence/CandadoEmpresaPropia.cs", "await dbContext.Database.ExecuteSqlAsync(")] = 1,
+
         // Decisión del 2026-10-30, un Tenant no se queda sin Administrador: el candado de
         // los Administradores del Tenant (misma clave que app_bloquear_administradores_de_tenant,
         // que el runtime no puede ejecutar). Mismo régimen que el de cartera: no lee ni

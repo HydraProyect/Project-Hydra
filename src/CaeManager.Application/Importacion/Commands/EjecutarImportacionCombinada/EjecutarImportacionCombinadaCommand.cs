@@ -656,8 +656,31 @@ public class EjecutarImportacionCombinadaCommandHandler(
 
         // Guarda TODO lo pendiente junto con la marca de la operación en un único SaveChangesAsync: si dos
         // confirmaciones de la MISMA operación compiten, la perdedora choca en el índice único y no escribe nada.
-        if (!await operacionImportacionRepositorio.GuardarSiOperacionNuevaAsync(cancellationToken))
-            return ResultadoImportacionCombinadaDto.YaEjecutada();
+        // D-P11: con Empresas propias nuevas, el guardado va bajo el candado de Empresa propia del Tenant y repite el
+        // recuento que decide contra lo que otra operación haya confirmado desde el de cada fila, que va sin candado.
+        if (empresasCreadas == 0)
+        {
+            if (!await operacionImportacionRepositorio.GuardarSiOperacionNuevaAsync(cancellationToken))
+                return ResultadoImportacionCombinadaDto.YaEjecutada();
+        }
+        else
+        {
+            var yaEjecutada = false;
+            var guardado = await limiteEmpresaPropia.SerializarAsync(async ct =>
+            {
+                if (await limiteEmpresaPropia.ComprobarGuardadoAsync(empresasCreadas, ct) is { } limite)
+                    return Result.Fallo(limite);
+                if (await operacionImportacionRepositorio.GuardarSiOperacionNuevaAsync(ct))
+                    return Result.Exito();
+                // Fallo para que la transacción del candado se deshaga; abajo se traduce a «ya ejecutada».
+                yaEjecutada = true;
+                return Result.Fallo(Error.Crear("Importacion.YaEjecutada", "Esta importación ya se había ejecutado."));
+            }, cancellationToken);
+            if (yaEjecutada)
+                return ResultadoImportacionCombinadaDto.YaEjecutada();
+            if (guardado.EsFallido)
+                return Result.Fallo<ResultadoImportacionCombinadaDto>(guardado.Error);
+        }
 
         return new ResultadoImportacionCombinadaDto(
             clientesCreados, clientesActualizados, empresasCreadas, empresasActualizadas,

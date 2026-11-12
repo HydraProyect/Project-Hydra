@@ -80,25 +80,32 @@ public class CrearEmpresaCommandHandler(
             || !await alcanceDatos.TodosLosClientesVisiblesAsync(clienteIds, cancellationToken))
             return Result.Fallo<Guid>(Error.Crear("Empresa.ClienteNoEncontrado", "Alguno de los Clientes seleccionados no existe."));
 
-        // D-P11: una sola Empresa propia por Tenant propietario (ver ILimiteEmpresaPropia).
-        if (await limiteEmpresaPropia.ComprobarAltaAsync(0, esIntento: true, cancellationToken) is { } limite)
-            return Result.Fallo<Guid>(limite);
+        // D-P11: una sola Empresa propia por Tenant propietario (ver ILimiteEmpresaPropia). El recuento y el guardado van
+        // bajo el candado del Tenant: otra alta o restauración concurrente espera al COMMIT y cuenta esta.
+        Guid empresaId = default;
+        var resultado = await limiteEmpresaPropia.SerializarAsync(async ct =>
+        {
+            if (await limiteEmpresaPropia.ComprobarAltaAsync(0, esIntento: true, ct) is { } limite)
+                return Result.Fallo(limite);
 
-        var empresa = new Empresa(request.RazonSocial, request.Cif, request.Cnae, request.ConvenioAplicable, request.EsActividadAnexoI);
-        repositorio.Agregar(empresa);
+            var empresa = new Empresa(request.RazonSocial, request.Cif, request.Cnae, request.ConvenioAplicable, request.EsActividadAnexoI);
+            repositorio.Agregar(empresa);
+            empresaId = empresa.Id;
 
-        // F4.2c — RelacionEmpresarial es la ÚNICA fuente de escritura (R6
-        // aceptada 2026-08-27; la tabla legacy EmpresaCliente ya no recibe
-        // altas). Solo el alta de ClienteIds toca la arista: RazonSocial/Cif/
-        // Cnae/ConvenioAplicable/EsActividadAnexoI son identidad de Empresa,
-        // no de la relación.
-        var ahora = DateTime.UtcNow;
-        foreach (var clienteId in clienteIds)
-            await relacionEmpresarialRepositorio.AgregarSiNoVigenteAsync(
-                empresa.Id, clienteId, ahora, cancellationToken: cancellationToken);
+            // F4.2c — RelacionEmpresarial es la ÚNICA fuente de escritura (R6
+            // aceptada 2026-08-27; la tabla legacy EmpresaCliente ya no recibe
+            // altas). Solo el alta de ClienteIds toca la arista: RazonSocial/Cif/
+            // Cnae/ConvenioAplicable/EsActividadAnexoI son identidad de Empresa,
+            // no de la relación.
+            var ahora = DateTime.UtcNow;
+            foreach (var clienteId in clienteIds)
+                await relacionEmpresarialRepositorio.AgregarSiNoVigenteAsync(
+                    empresa.Id, clienteId, ahora, cancellationToken: ct);
 
-        await unitOfWork.SaveChangesAsync(cancellationToken);
+            await unitOfWork.SaveChangesAsync(ct);
+            return Result.Exito();
+        }, cancellationToken);
 
-        return Result.Exito(empresa.Id);
+        return resultado.EsExitoso ? Result.Exito(empresaId) : Result.Fallo<Guid>(resultado.Error);
     }
 }

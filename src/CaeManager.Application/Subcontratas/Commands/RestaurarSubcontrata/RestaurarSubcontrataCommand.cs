@@ -39,14 +39,16 @@ public class RestaurarSubcontrataCommandHandler(
             return Result.Fallo(Error.Crear("Subcontrata.NoEncontrada", "No encontramos esta subcontrata eliminada."));
 
         // D-P11: una Subcontrata nace con EsPropia = false, pero el comando no lo exige; si la fila fuera propia,
-        // restaurarla pasa por el mismo límite que RestaurarEmpresaCommand.
-        if (subcontrata.EsPropia
-            && await limiteEmpresaPropia.ComprobarAltaAsync(0, esIntento: true, cancellationToken) is { } limite)
-            return Result.Fallo(limite);
+        // restaurarla pasa por el mismo límite que RestaurarEmpresaCommand, bajo el mismo candado.
+        return await limiteEmpresaPropia.SerializarAsync(async ct =>
+        {
+            if (subcontrata.EsPropia
+                && await limiteEmpresaPropia.ComprobarAltaAsync(0, esIntento: true, ct) is { } limite)
+                return Result.Fallo(limite);
 
-        subcontrata.Restaurar();
-        await unitOfWork.SaveChangesAsync(cancellationToken);
-
-        return Result.Exito();
+            subcontrata.Restaurar();
+            await unitOfWork.SaveChangesAsync(ct);
+            return Result.Exito();
+        }, cancellationToken);
     }
 }

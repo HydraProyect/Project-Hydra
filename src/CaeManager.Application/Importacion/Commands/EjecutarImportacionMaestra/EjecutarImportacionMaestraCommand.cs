@@ -268,10 +268,13 @@ public class EjecutarImportacionMaestraCommandHandler(
             if (!escribir)
                 return await ProcesarAsync(plan, reemplazar, huellaEsperada: null, cancellationToken);
 
+            // D-P11: dentro, también el candado de Empresa propia del Tenant (después del de altas, el orden de
+            // ILimiteEmpresaPropia): el recuento de cada fila de la hoja de Empresas gestionadas y el guardado quedan
+            // bajo él, y otra alta o restauración de una Empresa propia espera al COMMIT.
             Result<ResultadoImportacionMaestraDto>? procesado = null;
-            var serializado = await serializacionAltas.EjecutarAsync(async ct =>
+            var serializado = await serializacionAltas.EjecutarAsync(ct => limiteEmpresaPropia.SerializarAsync(async c =>
             {
-                procesado = await ComprobarYEscribirAsync(plan, reemplazar, huellaVistaPrevia!, ct);
+                procesado = await ComprobarYEscribirAsync(plan, reemplazar, huellaVistaPrevia!, c);
                 if (procesado.EsFallido)
                     return Result.Fallo(procesado.Error);
                 // La perdedora de dos confirmaciones de la misma operación devuelve «ya ejecutada», que es un éxito para
@@ -279,7 +282,7 @@ public class EjecutarImportacionMaestraCommandHandler(
                 return operacionYaEjecutada
                     ? Result.Fallo(Error.Crear("Importacion.YaEjecutada", "Esta importación ya se había ejecutado."))
                     : Result.Exito();
-            }, cancellationToken);
+            }, ct), cancellationToken);
             if (serializado.EsExitoso || operacionYaEjecutada)
                 return procesado!;
             return procesado is { EsFallido: true } ? procesado : Result.Fallo<ResultadoImportacionMaestraDto>(serializado.Error);

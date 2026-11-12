@@ -12,4 +12,11 @@ internal sealed class LimiteEmpresaPropiaSinAplicar : ILimiteEmpresaPropia
 {
     public Task<Error?> ComprobarAltaAsync(int propiasAnadidasSinGuardar, bool esIntento, CancellationToken cancellationToken = default) =>
         Task.FromResult<Error?>(null);
+
+    public Task<Error?> ComprobarGuardadoAsync(int propiasSinGuardar, CancellationToken cancellationToken = default) =>
+        Task.FromResult<Error?>(null);
+
+    // Sin candado: estas pruebas no compiten por el límite, y su transacción, si la hay, es la del propio escritor.
+    public Task<Result> SerializarAsync(Func<CancellationToken, Task<Result>> operacion, CancellationToken cancellationToken = default) =>
+        operacion(cancellationToken);
 }

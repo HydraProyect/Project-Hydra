@@ -8,6 +8,7 @@ using CaeManager.Application.Empresas.Commands.CrearEmpresa;
 using CaeManager.Application.Empresas.Commands.RestaurarEmpresa;
 using CaeManager.Application.Importacion;
 using CaeManager.Application.Importacion.Commands.EjecutarImportacion;
+using CaeManager.Application.Importacion.Commands.EjecutarImportacionCombinada;
 using CaeManager.Application.Subcontratas.Commands.CrearSubcontrata;
 using CaeManager.Application.Subcontratas.Commands.RestaurarSubcontrata;
 using CaeManager.Application.Tests.Clientes;
@@ -311,6 +312,95 @@ public class LimiteEmpresaPropiaTests
         resultado.EsExitoso.Should().BeTrue();
         eliminada.EstaEliminado.Should().BeFalse();
         alertas.Alertas.Should().BeEmpty();
+    }
+
+    // ---------------------------------------------------------------- Candado (revisión Codex r1 de la PR #2193, ALTO 1)
+    // AlTomarlo simula otra operación del mismo Tenant que confirmó una Empresa propia mientras esta esperaba el
+    // candado. Si el escritor contara antes de SerializarAsync, o guardara sin repetir el recuento, no la vería y
+    // guardaría la segunda. El candado de verdad, en PostgreSQL, se prueba en CandadoEmpresaPropiaTests (integración).
+
+    [Fact]
+    public async Task CrearEmpresa_cuenta_dentro_del_candado_y_rechaza_si_otra_alta_se_le_adelanto()
+    {
+        var tenantId = Guid.NewGuid();
+        var empresas = new EmpresasQueryContextFalso();
+        var candado = new LimitesDePrueba.CandadoEnMemoria { AlTomarlo = () => empresas.ListaEmpresas.Add(ConTenant(PropiaActiva(), tenantId)) };
+        var repo = new EmpresaRepositorioFalso();
+        var uow = new UnitOfWorkFalso();
+
+        var resultado = await CrearEmpresa(repo, empresas, uow, LimitesDePrueba.Sobre(empresas, new AlertaOperativaFalsa(), tenantId, candado));
+
+        candado.Ejecuciones.Should().Be(1);
+        resultado.Error.Codigo.Should().Be(CodigoLimite);
+        uow.VecesGuardado.Should().Be(0);
+        repo.Empresas.Should().BeEmpty();
+    }
+
+    [Theory]
+    [MemberData(nameof(Restauraciones))]
+    public async Task Restaurar_cuenta_dentro_del_candado_y_rechaza_si_otra_alta_se_le_adelanto(string comando)
+    {
+        var tenantId = Guid.NewGuid();
+        var empresas = new EmpresasQueryContextFalso();
+        var eliminada = ConTenant(EliminadaParaRestaurar(comando, esPropia: true), tenantId);
+        empresas.ListaEmpresas.Add(eliminada);
+        var candado = new LimitesDePrueba.CandadoEnMemoria { AlTomarlo = () => empresas.ListaEmpresas.Add(ConTenant(PropiaActiva(), tenantId)) };
+        var uow = new UnitOfWorkFalso();
+
+        var resultado = await Restaurar(comando, eliminada.Id, empresas, tenantId, uow,
+            LimitesDePrueba.Sobre(empresas, new AlertaOperativaFalsa(), tenantId, candado));
+
+        candado.Ejecuciones.Should().Be(1);
+        resultado.Error.Codigo.Should().Be(CodigoLimite);
+        eliminada.EstaEliminado.Should().BeTrue();
+        uow.VecesGuardado.Should().Be(0);
+    }
+
+    [Fact]
+    public async Task EjecutarImportacion_repite_el_recuento_bajo_el_candado_y_falla_si_otra_alta_se_le_adelanto()
+    {
+        var empresas = new EmpresasQueryContextFalso();
+        var candado = new LimitesDePrueba.CandadoEnMemoria { AlTomarlo = () => empresas.ListaEmpresas.Add(PropiaActiva()) };
+        var plan = PlanSimple(new EmpresaImportadaDto("Primera propia, S.L.", false, Fila: 2));
+
+        var resultado = await ImportacionSimple(new EmpresaRepositorioFalso(), empresas,
+                LimitesDePrueba.Sobre(empresas, new AlertaOperativaFalsa(), candado: candado))
+            .Handle(new EjecutarImportacionCommand(plan), default);
+
+        candado.Ejecuciones.Should().Be(1);
+        resultado.EsExitoso.Should().BeFalse("la fila pasó el recuento sin candado, pero el que decide ve la otra");
+        resultado.Error.Codigo.Should().Be(CodigoLimite);
+    }
+
+    [Fact]
+    public async Task EjecutarImportacion_sin_Empresas_propias_nuevas_no_toma_el_candado()
+    {
+        var empresas = new EmpresasQueryContextFalso();
+        var candado = new LimitesDePrueba.CandadoEnMemoria();
+
+        var resultado = await ImportacionSimple(new EmpresaRepositorioFalso(), empresas,
+                LimitesDePrueba.Sobre(empresas, new AlertaOperativaFalsa(), candado: candado))
+            .Handle(new EjecutarImportacionCommand(PlanSimple()), default);
+
+        resultado.EsExitoso.Should().BeTrue();
+        candado.Ejecuciones.Should().Be(0);
+    }
+
+    [Fact]
+    public async Task EjecutarImportacionCombinada_repite_el_recuento_bajo_el_candado_y_falla_si_otra_alta_se_le_adelanto()
+    {
+        var escenario = new EscenarioImportacionCombinada();
+        var propias = new EmpresasQueryContextFalso();
+        var candado = new LimitesDePrueba.CandadoEnMemoria { AlTomarlo = () => propias.ListaEmpresas.Add(PropiaActiva()) };
+        escenario.Limite = LimitesDePrueba.Sobre(propias, new AlertaOperativaFalsa(), candado: candado);
+
+        var resultado = await escenario.Handler().Handle(new EjecutarImportacionCombinadaCommand(
+            EscenarioImportacionCombinada.Plan(empresas: [new EmpresaCombinadaImportadaDto("Primera propia, S.L.", [], false, 2)]),
+            false), CancellationToken.None);
+
+        candado.Ejecuciones.Should().Be(1);
+        resultado.EsExitoso.Should().BeFalse();
+        resultado.Error.Codigo.Should().Be(CodigoLimite);
     }
 
     private static Empresa EliminadaParaRestaurar(string comando, bool esPropia)

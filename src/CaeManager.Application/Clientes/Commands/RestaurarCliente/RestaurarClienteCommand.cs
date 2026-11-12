@@ -47,14 +47,16 @@ public class RestaurarClienteCommandHandler(
             return Result.Fallo(Error.Crear("Cliente.NoEncontrado", "No encontramos este Cliente eliminado."));
 
         // D-P11: este comando no comprueba el papel de la Empresa, así que también puede devolver a activa una
-        // Empresa propia; entonces pasa por el mismo límite que RestaurarEmpresaCommand.
-        if (empresa.EsPropia
-            && await limiteEmpresaPropia.ComprobarAltaAsync(0, esIntento: true, cancellationToken) is { } limite)
-            return Result.Fallo(limite);
+        // Empresa propia; entonces pasa por el mismo límite que RestaurarEmpresaCommand, bajo el mismo candado.
+        return await limiteEmpresaPropia.SerializarAsync(async ct =>
+        {
+            if (empresa.EsPropia
+                && await limiteEmpresaPropia.ComprobarAltaAsync(0, esIntento: true, ct) is { } limite)
+                return Result.Fallo(limite);
 
-        empresa.Restaurar();
-        await unitOfWork.SaveChangesAsync(cancellationToken);
-
-        return Result.Exito();
+            empresa.Restaurar();
+            await unitOfWork.SaveChangesAsync(ct);
+            return Result.Exito();
+        }, cancellationToken);
     }
 }

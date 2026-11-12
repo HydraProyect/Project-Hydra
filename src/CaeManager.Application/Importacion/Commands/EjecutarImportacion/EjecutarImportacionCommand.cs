@@ -698,6 +698,19 @@ public class EjecutarImportacionCommandHandler(
                 Trabajadores = trabajadoresNuevos,
             }, ct);
 
+            // D-P11: el recuento de cada fila de Empresas va sin candado; el que decide se repite aquí, bajo el candado de
+            // Empresa propia del Tenant y hasta el COMMIT, contra lo que otra operación haya confirmado entretanto. Sin
+            // Empresas propias nuevas no hace falta. Con Asignaciones, este candado va después del de las altas.
+            if (empresasCreadas == 0)
+                return await GuardarOperacionAsync(ct);
+            return await limiteEmpresaPropia.SerializarAsync(async c =>
+                await limiteEmpresaPropia.ComprobarGuardadoAsync(empresasCreadas, c) is { } limite
+                    ? Result.Fallo(limite)
+                    : await GuardarOperacionAsync(c), ct);
+        }
+
+        async Task<Result> GuardarOperacionAsync(CancellationToken ct)
+        {
             if (await operacionImportacionRepositorio.GuardarSiOperacionNuevaAsync(ct))
                 return Result.Exito();
 
@@ -714,17 +727,19 @@ public class EjecutarImportacionCommandHandler(
         // nueva (todas omitidas) también lo toma: solo se sabe después de leer. Lo importado ya está agregado al contexto,
         // así que la serialización no reintenta: un fallo transitorio falla la importación en vez de confirmar solo
         // una parte, y la hoja de Asignaciones no se recorre dos veces.
-        if (plan.Asignaciones.Count > 0)
-            await serializacionAltas.EjecutarAsync(async ct =>
+        var guardado = plan.Asignaciones.Count > 0
+            ? await serializacionAltas.EjecutarAsync(async ct =>
             {
                 await AgregarAsignacionesAsync(ct);
                 return await GuardarAsync(ct);
-            }, cancellationToken);
-        else
-            await GuardarAsync(cancellationToken);
+            }, cancellationToken)
+            : await GuardarAsync(cancellationToken);
 
         if (yaEjecutada)
             return ResultadoImportacionDto.YaEjecutada();
+        // El límite de Empresa propia rechazado en el guardado (carrera perdida): no se ha escrito nada.
+        if (guardado.EsFallido)
+            return Result.Fallo<ResultadoImportacionDto>(guardado.Error);
 
         return new ResultadoImportacionDto(
             clientesCreados, centrosCreados, empresasCreadas, trabajadoresCreados, documentosCreados, asignacionesCreadas,

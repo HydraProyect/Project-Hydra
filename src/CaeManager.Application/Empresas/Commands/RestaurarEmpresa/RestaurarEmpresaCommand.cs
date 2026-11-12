@@ -30,14 +30,17 @@ public class RestaurarEmpresaCommandHandler(
         if (!await alcanceDatos.EmpresaParaGestionVisibleAsync(empresa.Id, cancellationToken))
             return Result.Fallo(Error.Crear("Empresa.NoEncontrada", "No encontramos esta empresa eliminada."));
 
-        // D-P11: devolver a activa una Empresa propia es tener una más; la de la Papelera no contaba.
-        if (empresa.EsPropia
-            && await limiteEmpresaPropia.ComprobarAltaAsync(0, esIntento: true, cancellationToken) is { } limite)
-            return Result.Fallo(limite);
+        // D-P11: devolver a activa una Empresa propia es tener una más; la de la Papelera no contaba. Recuento y guardado
+        // bajo el candado del Tenant, como el alta.
+        return await limiteEmpresaPropia.SerializarAsync(async ct =>
+        {
+            if (empresa.EsPropia
+                && await limiteEmpresaPropia.ComprobarAltaAsync(0, esIntento: true, ct) is { } limite)
+                return Result.Fallo(limite);
 
-        empresa.Restaurar();
-        await unitOfWork.SaveChangesAsync(cancellationToken);
-
-        return Result.Exito();
+            empresa.Restaurar();
+            await unitOfWork.SaveChangesAsync(ct);
+            return Result.Exito();
+        }, cancellationToken);
     }
 }
