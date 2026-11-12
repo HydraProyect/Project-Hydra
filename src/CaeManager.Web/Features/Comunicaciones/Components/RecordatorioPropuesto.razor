@@ -160,6 +160,9 @@
         if (_ocupado || _propuesta is null || string.IsNullOrWhiteSpace(_borrador)) return;
 
         var destinatario = _propuesta.Destinatario;
+        // El aviso a la página es el de cuando se aprobó: la página lo pinta con su apertura y, si mientras se envía se pinta otro
+        // (otra conversación abierta), recargaría la que no era (revisión Codex r7 de la #2167, MEDIO 3).
+        var alEnviar = OnEnviado;
         _enviando = true;
         _mensajeError = null;
         try
@@ -179,7 +182,7 @@
             AplicarPropuesta(null);
             ToastService.Mostrar(string.IsNullOrWhiteSpace(destinatario)
                 ? Textos["ToastEnviado"] : Textos["ToastEnviadoA", destinatario], TonoToast.Exito);
-            await OnEnviado.InvokeAsync();
+            await alEnviar.InvokeAsync();
         }
         catch (ValidationException ex)
         {

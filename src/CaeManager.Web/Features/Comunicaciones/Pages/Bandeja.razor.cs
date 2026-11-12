@@ -304,14 +304,66 @@ public partial class Bandeja : CaeManager.Web.Components.PaginaInteractiva, IAsy
     /// El contexto de la conversación abierta ya no es el que era. El modal de «Actualizar documentación», cargado o cargándose,
     /// ofrece Empresas y lo detectado de ese contexto: se cierra (su solicitud deja de ser la vigente) y, si la conversación sigue
     /// abierta, se avisa para que se vuelva a abrir con los datos actuales (revisión Codex r6 de la #2167, MEDIO 4).
+    /// Excepción, con la misma conversación abierta: si el Gestor CAE ya cambió algo en el modal (fechas, comentarios), no se
+    /// cierra en silencio, porque perdería lo escrito. Queda abierto con sus valores, «Aplicar» bloqueado y el aviso de contexto
+    /// cambiado; lo cierra él cuando haya copiado lo que necesite (revisión Codex r7 de la #2167, MEDIO 4). Cambiar de apertura
+    /// (otra conversación, volver, otra vista) ya pasó por la confirmación de abandono, así que ahí se cierra como siempre.
     /// </summary>
     private void CambiarContexto(bool conAviso = true)
     {
         ++_contextoVigente;
         if (!_modalActualizarDocumentoVisible) return;
 
+        if (conAviso && !_detectandoDocumento && HayCambiosActualizarDocumento)
+        {
+            _actualizarDocumentoContextoCaducado = true;
+            return;
+        }
+
         CerrarModalActualizarDocumento();
         if (conAviso) ToastService.Mostrar(ErroresTextos["AvisoActualizarDocumentoContextoCambiado"].Value, TonoToast.Info);
+    }
+
+    /// <summary>
+    /// Recarga del detalle en curso (la que pinta el esqueleto, <c>_cargandoDetalle</c>). Se crea al empezar una carga y se completa
+    /// cuando la carga vigente termina o se abandona (<see cref="TerminarRecargaDetalle"/>).
+    /// </summary>
+    private TaskCompletionSource? _recargaDetalle;
+
+    private void TerminarRecargaDetalle()
+    {
+        var recarga = _recargaDetalle;
+        _recargaDetalle = null;
+        recarga?.TrySetResult();
+    }
+
+    /// <summary>
+    /// Lo que depende del Cliente empresarial (una plantilla, el resumen de formatos de un Centro) y llega con una recarga del
+    /// detalle en curso no se aplica todavía: esa recarga puede descubrir otro Cliente empresarial, y el contexto solo cambia
+    /// cuando lo asigna (CambiarContexto). Se espera a que termine (y a las que empiecen mientras tanto) y se devuelve si el
+    /// contexto sigue siendo el capturado (revisión Codex r7 de la #2167, MEDIO 1).
+    /// </summary>
+    private async Task<bool> ContextoConfirmadoAsync(Vigencia vigencia)
+    {
+        while (MismoContexto(vigencia) && _recargaDetalle is { } recarga)
+            await recarga.Task;
+        return MismoContexto(vigencia);
+    }
+
+    /// <summary>
+    /// Callback de un componente hijo que, tras su propia espera, pide recargar el hilo (el recordatorio propuesto, ya enviado).
+    /// La apertura viaja con el callback desde que se pintó: si el hijo era de otra apertura (se desmontó al abrir otra
+    /// conversación), no se recarga la que hay ahora, que desmontaría su nota interna a medias (revisión Codex r7 de la #2167,
+    /// MEDIO 3).
+    /// </summary>
+    private Task RecargarSiMismaAperturaAsync(int apertura) =>
+        apertura == _aperturaVigente ? CargarDetalleAsync() : Task.CompletedTask;
+
+    /// <summary>El callback lleva la apertura del momento en que se pinta, no la del momento en que el hijo lo invoca.</summary>
+    private EventCallback RecargaDeEstaApertura()
+    {
+        var apertura = _aperturaVigente;
+        return EventCallback.Factory.Create(this, () => RecargarSiMismaAperturaAsync(apertura));
     }
 
     private bool VentanaAbierta =>
@@ -507,6 +559,9 @@ public partial class Bandeja : CaeManager.Web.Components.PaginaInteractiva, IAsy
         _conversacionSeleccionadaId = null;
         _detalle = null;
         CambiarApertura();
+        // La carga abandonada ya no llegará a su finally como vigente: lo que esperaba a que terminara se libera aquí (con el
+        // contexto ya cambiado, así que descarta lo suyo).
+        TerminarRecargaDetalle();
     }
 
     /// <summary>
@@ -938,6 +993,7 @@ public partial class Bandeja : CaeManager.Web.Components.PaginaInteractiva, IAsy
 
         var carga = ++_cargaDetalleVigente;
         _cargandoDetalle = true;
+        _recargaDetalle ??= new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         _errorDetalle = false;
         StateHasChanged();
 
@@ -1062,6 +1118,7 @@ public partial class Bandeja : CaeManager.Web.Components.PaginaInteractiva, IAsy
             if (carga == _cargaDetalleVigente)
             {
                 _cargandoDetalle = false;
+                TerminarRecargaDetalle();
                 StateHasChanged();
             }
         }
@@ -1098,7 +1155,8 @@ public partial class Bandeja : CaeManager.Web.Components.PaginaInteractiva, IAsy
         try
         {
             var resultado = await Mediator.Send(new AplicarMacroCommand(conversacionId, macroId), _ciclo.Token);
-            if (!MismoContexto(vigencia))
+            // Si llega con una recarga en curso, espera a saber con qué Cliente empresarial termina (ContextoConfirmadoAsync).
+            if (!await ContextoConfirmadoAsync(vigencia))
             {
                 // Misma apertura, contexto recargado: se avisa y se libera el selector.
                 if (MismaApertura(vigencia))
@@ -1145,6 +1203,8 @@ public partial class Bandeja : CaeManager.Web.Components.PaginaInteractiva, IAsy
         // - MismoContexto: cubre otra conversación, la misma reabierta (A→B→A), otra vista y un Cliente empresarial que cambió
         //   en una recarga durante la espera. El composer no se pinta mientras carga el detalle (Bandeja.razor, rama
         //   _cargandoDetalle), así que la petición no puede salir en mitad de una carga y su contexto es el que esa carga fijó.
+        //   Pero una recarga sí puede EMPEZAR durante la espera, y el contexto solo cambia cuando esa recarga asigna el detalle:
+        //   una respuesta que llega antes se retiene hasta que la recarga termina (ContextoConfirmadoAsync, revisión Codex r7).
         // - _solicitudFormatosVigente sube en cada petición: si el Gestor CAE elige otro Centro mientras espera, la respuesta
         //   del Centro anterior ya no es la vigente.
         var vigencia = CapturarVigencia();
@@ -1152,7 +1212,8 @@ public partial class Bandeja : CaeManager.Web.Components.PaginaInteractiva, IAsy
         {
             var formatos = await Mediator.Send(new ObtenerFormatosRequeridosCentroQuery(centroId), _ciclo.Token);
             if (solicitud != _solicitudFormatosVigente) return;
-            if (!MismoContexto(vigencia))
+            // Mientras se espera a la recarga el composer no se pinta: no puede llegar otra elección de Centro.
+            if (!await ContextoConfirmadoAsync(vigencia))
             {
                 // Misma apertura, contexto recargado: se avisa y se libera el selector para que pueda volver a elegirse.
                 if (MismaApertura(vigencia))
@@ -1256,11 +1317,13 @@ public partial class Bandeja : CaeManager.Web.Components.PaginaInteractiva, IAsy
             LimpiarLoEnviado(enviado);
             ToastService.Mostrar("Respuesta enviada.", TonoToast.Exito);
 
-            // El medidor y el detalle son los de la conversación pintada: con otra apertura, solo la lista.
+            // El medidor y el detalle son los de la conversación pintada: con otra apertura, solo la lista. Se comprueba tras cada
+            // espera, como en CambiarEstadoAsync: si mientras el medidor cierra el tramo se abre otra conversación, recargarla
+            // desmontaría su nota interna a medias (revisión Codex r7 de la #2167, MEDIO 2).
             if (MismaApertura(enviado.Vigencia))
             {
                 await RegistrarAccionMedidaAsync();
-                await CargarDetalleAsync();
+                if (MismaApertura(enviado.Vigencia)) await CargarDetalleAsync();
             }
             await CargarListaAsync();
         }
@@ -1651,6 +1714,7 @@ public partial class Bandeja : CaeManager.Web.Components.PaginaInteractiva, IAsy
     {
         _adjuntoParaActualizarDocumentoId = adjuntoId;
         _modalActualizarDocumentoVisible = true;
+        _actualizarDocumentoContextoCaducado = false;
         _errorActualizarDocumento = null;
         _tipoDocumentoIdFormulario = string.Empty;
         _propietarioDocumentoFormulario = nameof(AmbitoAplicacion.Trabajador);
@@ -1734,8 +1798,28 @@ public partial class Bandeja : CaeManager.Web.Components.PaginaInteractiva, IAsy
     {
         _modalActualizarDocumentoVisible = false;
         _detectandoDocumento = false;
+        _actualizarDocumentoContextoCaducado = false;
         ++_solicitudActualizarDocumentoVigente;
     }
+
+    /// <summary>
+    /// El modal sigue abierto con lo que el Gestor CAE escribió, pero su contexto ya no es el de la conversación (CambiarContexto):
+    /// «Aplicar» queda bloqueado con este motivo hasta que lo cierre.
+    /// </summary>
+    private bool _actualizarDocumentoContextoCaducado;
+
+    private string? MotivoAplicarDocumentoDeshabilitado =>
+        _actualizarDocumentoContextoCaducado ? ErroresTextos["AvisoActualizarDocumentoContextoCaducado"].Value : null;
+
+    // El mismo motivo, a la vista dentro del modal (el title del botón no basta para explicar por qué no se aplica).
+    private RenderFragment? AvisoActualizarDocumentoCaducado => MotivoAplicarDocumentoDeshabilitado is { } motivo
+        ? builder =>
+        {
+            builder.OpenComponent<AvisoFormulario>(0);
+            builder.AddAttribute(1, nameof(AvisoFormulario.Mensaje), motivo);
+            builder.CloseComponent();
+        }
+        : null;
 
     // Al volver a ser una fecha entera (o quedar vacía), el aviso «no es una fecha» de un envío anterior ya no es cierto.
     private void AlCambiarEmisionDocumentoNoValida(bool noValida)
@@ -1754,6 +1838,9 @@ public partial class Bandeja : CaeManager.Web.Components.PaginaInteractiva, IAsy
 
     private async Task AplicarActualizacionDocumentoAsync()
     {
+        // Con el contexto caducado el botón ya está deshabilitado; esto cubre cualquier otra vía de envío del formulario.
+        if (_actualizarDocumentoContextoCaducado) return;
+
         if (!Guid.TryParse(_tipoDocumentoIdFormulario, out var tipoDocumentoId))
         {
             _errorActualizarDocumento = "Selecciona un tipo de documento.";
