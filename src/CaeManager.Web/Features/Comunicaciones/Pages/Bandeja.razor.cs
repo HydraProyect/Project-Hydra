@@ -1581,7 +1581,6 @@ public partial class Bandeja : CaeManager.Web.Components.PaginaInteractiva, IAsy
         var solicitud = ++_solicitudActualizarDocumentoVigente;
         var carga = _cargaDetalleVigente;
         var conversacionId = _conversacionSeleccionadaId;
-        var clienteId = _detalle?.ClienteId;
         bool Vigente() => solicitud == _solicitudActualizarDocumentoVigente && carga == _cargaDetalleVigente;
 
         try
@@ -1594,7 +1593,8 @@ public partial class Bandeja : CaeManager.Web.Components.PaginaInteractiva, IAsy
             if (!Vigente()) { DescartarActualizarDocumento(solicitud, conversacionId); return; }
             _trabajadoresSelector = trabajadores;
 
-            var empresas = await Mediator.Send(new ObtenerEmpresasParaSelectorQuery(clienteId), _ciclo.Token);
+            // Vigente() tras la espera anterior: _detalle sigue siendo el de la carga que abrió el modal.
+            var empresas = await Mediator.Send(new ObtenerEmpresasParaSelectorQuery(_detalle?.ClienteId), _ciclo.Token);
             if (!Vigente()) { DescartarActualizarDocumento(solicitud, conversacionId); return; }
             _empresasSelector = empresas;
 
