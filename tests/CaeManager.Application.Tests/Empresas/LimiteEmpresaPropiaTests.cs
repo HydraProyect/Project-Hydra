@@ -536,6 +536,117 @@ public class LimiteEmpresaPropiaTests
         alertas.Alertas.Should().ContainSingle("un aviso por comando, no por fila");
     }
 
+    // Revisión puente de la PR #2193, BAJO 3: el aviso de las filas omitidas sale solo de la confirmación que guarda la
+    // marca de su operación, y después de guardarla. Con la marca perdida a otra confirmación, o con un guardado que
+    // falla, no avisa; AlGuardar deja ver cuántos avisos había en el momento de guardar.
+
+    private static EmpresaImportadaDto[] FilaOmitidaPorElLimite() => [new("Otra propia, S.L.", false, Fila: 2)];
+
+    [Fact]
+    public async Task EjecutarImportacion_el_aviso_sale_despues_de_guardar_la_marca_y_no_antes()
+    {
+        var empresas = new EmpresasQueryContextFalso();
+        empresas.ListaEmpresas.Add(PropiaActiva());
+        var alertas = new AlertaOperativaFalsa();
+        var operaciones = new OperacionImportacionRepositorioFalso();
+        var avisosAlGuardar = -1;
+        operaciones.AlGuardar = () => avisosAlGuardar = alertas.Alertas.Count();
+
+        var resultado = await ImportacionSimple(new EmpresaRepositorioFalso(), empresas, LimitesDePrueba.Sobre(empresas, alertas), operaciones)
+            .Handle(new EjecutarImportacionCommand(PlanSimple(FilaOmitidaPorElLimite())), default);
+
+        resultado.EsExitoso.Should().BeTrue();
+        avisosAlGuardar.Should().Be(0, "al guardar la marca el aviso aún no ha salido");
+        alertas.Alertas.Should().ContainSingle();
+    }
+
+    [Fact]
+    public async Task EjecutarImportacion_si_otra_confirmacion_gana_la_marca_en_el_guardado_no_avisa()
+    {
+        var empresas = new EmpresasQueryContextFalso();
+        empresas.ListaEmpresas.Add(PropiaActiva());
+        var alertas = new AlertaOperativaFalsa();
+        var operaciones = new OperacionImportacionRepositorioFalso();
+        var plan = PlanSimple(FilaOmitidaPorElLimite());
+        operaciones.AlGuardar = () => operaciones.ConfirmarDesdeOtraEjecucion(plan.OperacionId);
+
+        var resultado = await ImportacionSimple(new EmpresaRepositorioFalso(), empresas, LimitesDePrueba.Sobre(empresas, alertas), operaciones)
+            .Handle(new EjecutarImportacionCommand(plan), default);
+
+        resultado.Valor.Should().BeEquivalentTo(ResultadoImportacionDto.YaEjecutada());
+        alertas.Alertas.Should().BeEmpty("esta confirmación no guardó la marca");
+    }
+
+    [Fact]
+    public async Task EjecutarImportacion_si_falla_el_guardado_de_la_marca_no_avisa()
+    {
+        var empresas = new EmpresasQueryContextFalso();
+        empresas.ListaEmpresas.Add(PropiaActiva());
+        var alertas = new AlertaOperativaFalsa();
+        var operaciones = new OperacionImportacionRepositorioFalso { AlGuardar = () => throw new InvalidOperationException("guardado fallido") };
+
+        var act = () => ImportacionSimple(new EmpresaRepositorioFalso(), empresas, LimitesDePrueba.Sobre(empresas, alertas), operaciones)
+            .Handle(new EjecutarImportacionCommand(PlanSimple(FilaOmitidaPorElLimite())), default);
+
+        await act.Should().ThrowAsync<InvalidOperationException>();
+        alertas.Alertas.Should().BeEmpty();
+    }
+
+    private static EscenarioImportacionCombinada CombinadaConLaPropia(AlertaOperativaFalsa alertas)
+    {
+        var escenario = new EscenarioImportacionCombinada();
+        var propias = new EmpresasQueryContextFalso();
+        propias.ListaEmpresas.Add(PropiaActiva());
+        escenario.Limite = LimitesDePrueba.Sobre(propias, alertas);
+        return escenario;
+    }
+
+    private static PlanImportacionCombinadaDto PlanCombinadaOmitida() =>
+        EscenarioImportacionCombinada.Plan(empresas: [new EmpresaCombinadaImportadaDto("Otra propia, S.L.", [], false, 2)]);
+
+    [Fact]
+    public async Task EjecutarImportacionCombinada_el_aviso_sale_despues_de_guardar_la_marca_y_no_antes()
+    {
+        var alertas = new AlertaOperativaFalsa();
+        var escenario = CombinadaConLaPropia(alertas);
+        var avisosAlGuardar = -1;
+        escenario.OperacionImportacionRepositorio.AlGuardar = () => avisosAlGuardar = alertas.Alertas.Count();
+
+        var resultado = await escenario.EjecutarAsync(PlanCombinadaOmitida());
+
+        resultado.Omitidos.Should().ContainSingle();
+        avisosAlGuardar.Should().Be(0, "al guardar la marca el aviso aún no ha salido");
+        alertas.Alertas.Should().ContainSingle();
+    }
+
+    [Fact]
+    public async Task EjecutarImportacionCombinada_si_otra_confirmacion_gana_la_marca_en_el_guardado_no_avisa()
+    {
+        var alertas = new AlertaOperativaFalsa();
+        var escenario = CombinadaConLaPropia(alertas);
+        var plan = PlanCombinadaOmitida();
+        escenario.OperacionImportacionRepositorio.AlGuardar =
+            () => escenario.OperacionImportacionRepositorio.ConfirmarDesdeOtraEjecucion(plan.OperacionId);
+
+        var resultado = await escenario.Handler().Handle(new EjecutarImportacionCombinadaCommand(plan, false), CancellationToken.None);
+
+        resultado.Valor.Should().BeEquivalentTo(ResultadoImportacionCombinadaDto.YaEjecutada());
+        alertas.Alertas.Should().BeEmpty("esta confirmación no guardó la marca");
+    }
+
+    [Fact]
+    public async Task EjecutarImportacionCombinada_si_falla_el_guardado_de_la_marca_no_avisa()
+    {
+        var alertas = new AlertaOperativaFalsa();
+        var escenario = CombinadaConLaPropia(alertas);
+        escenario.OperacionImportacionRepositorio.AlGuardar = () => throw new InvalidOperationException("guardado fallido");
+
+        var act = () => escenario.Handler().Handle(new EjecutarImportacionCombinadaCommand(PlanCombinadaOmitida(), false), CancellationToken.None);
+
+        await act.Should().ThrowAsync<InvalidOperationException>();
+        alertas.Alertas.Should().BeEmpty();
+    }
+
     private static Empresa EliminadaParaRestaurar(string comando, bool esPropia)
     {
         var empresa = comando switch

@@ -407,6 +407,23 @@ public class AltaDeEmpresaPropiaSoloTrasElLimiteTests
             }
         }
         """)]
+    // Revisión puente de la PR #2193, BAJO 2: con paréntesis, la disyunción tampoco vale.
+    [InlineData("guardado fuera en una disyunción con la rama de cero entre paréntesis", """
+        class H(ILimiteEmpresaPropia limite, IUnitOfWork unitOfWork)
+        {
+            async Task<Result> M(int nuevas, bool otra, CancellationToken ct)
+            {
+                repositorio.Agregar(new Empresa("x"));
+                if (otra || (nuevas == 0)) await unitOfWork.SaveChangesAsync(ct);
+                return await limite.SerializarAsync(async c =>
+                {
+                    if (await limite.ComprobarGuardadoAsync(nuevas, c) is { } e) return Result.Fallo(e);
+                    await unitOfWork.SaveChangesAsync(c);
+                    return Result.Exito();
+                }, ct);
+            }
+        }
+        """)]
     public void El_instrumento_exige_comprobacion_y_guardado_dentro_del_candado_del_limite(string caso, string codigo)
     {
         EscriturasDeEmpresaPropia.Analizar("Fragmento.cs", codigo)
@@ -505,6 +522,27 @@ public class AltaDeEmpresaPropiaSoloTrasElLimiteTests
                 if (await limiteEmpresaPropia.ComprobarAltaAsync(empresasCreadas, false, ct) is null) { repositorio.Agregar(new Empresa("x")); empresasCreadas++; }
                 else limiteRechazado = true;
                 if (empresasCreadas == 0 && !limiteRechazado)
+                    return await operaciones.GuardarSiOperacionNuevaAsync(ct) ? Result.Exito() : Result.Fallo(null!);
+                return await limiteEmpresaPropia.SerializarAsync(async c =>
+                {
+                    if (await limiteEmpresaPropia.ComprobarGuardadoAsync(empresasCreadas, c) is { } e) return Result.Fallo(e);
+                    await operaciones.GuardarSiOperacionNuevaAsync(c);
+                    return Result.Exito();
+                }, ct);
+            }
+        }
+        """)]
+    // Revisión puente de la PR #2193, BAJO 2: el recuento a cero a la derecha de la conjunción y entre paréntesis.
+    [InlineData("rama de cero a la derecha de la conjunción y entre paréntesis", """
+        class H(ILimiteEmpresaPropia limiteEmpresaPropia, IOperacionImportacionRepository operaciones)
+        {
+            async Task<Result> M(CancellationToken ct)
+            {
+                var empresasCreadas = 0;
+                var limiteRechazado = false;
+                if (await limiteEmpresaPropia.ComprobarAltaAsync(empresasCreadas, false, ct) is null) { repositorio.Agregar(new Empresa("x")); empresasCreadas++; }
+                else limiteRechazado = true;
+                if (!limiteRechazado && (empresasCreadas == 0))
                     return await operaciones.GuardarSiOperacionNuevaAsync(ct) ? Result.Exito() : Result.Fallo(null!);
                 return await limiteEmpresaPropia.SerializarAsync(async c =>
                 {
