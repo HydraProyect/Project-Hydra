@@ -104,7 +104,7 @@ internal sealed class GrabacionDeTraza(TramosDeTraza tramos, OperacionesDeTraza 
 /// Qué se hace con los tramos de la traza de Playwright de <c>TrazaAlFallar</c>, sin navegador: dónde se escribe
 /// cada tramo, qué se borra, qué se publica y cuándo se deja un <c>…-sin-traza.txt</c> (#2194). Va aparte de
 /// <c>TrazaAlFallar</c> para poder probarlo sin servidor ni navegador: CaeManager.Web.Tests enlaza este fichero
-/// (ver su csproj) y lo prueba en TramosDeTrazaTests, que corre en el job de bUnit.
+/// (ver su csproj) y lo prueba en TramosDeTrazaTests y GrabacionDeTrazaTests, que corren en el job de bUnit.
 /// <para>
 /// Cada tramo se escribe primero en un directorio provisional que CI no publica (bajo obj/ del proyecto de E2E, en el
 /// mismo sistema de ficheros que TestResults para que el movimiento final sea un renombrado) y solo pasa al directorio
