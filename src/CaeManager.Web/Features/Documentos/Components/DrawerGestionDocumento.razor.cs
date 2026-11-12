@@ -80,6 +80,9 @@ public partial class DrawerGestionDocumento : ComponentBase
     /// avisar su estado, así que no queda una marca obsoleta si se destruye (otro tipo de documento) y se vuelve a crear.
     /// </summary>
     private bool _vencimientoManualNoValido;
+
+    /// <summary>La fecha de emisión tiene un texto que no es una fecha entera (ver BloquearGuardadoSiVencimientoNoValido).</summary>
+    private bool _emisionNoValida;
     private bool _noCaduca;
     private string? _glosarioDescripcion;
     private string? _glosarioCriteriosValidacion;
@@ -201,7 +204,7 @@ public partial class DrawerGestionDocumento : ComponentBase
         _fechaEmision = DiaDeNegocio.Hoy().ToString("yyyy-MM-dd");
         _fechaEmisionOriginal = null;
         _fechaVencimientoManual = string.Empty;
-        _vencimientoManualNoValido = false;
+        _vencimientoManualNoValido = false; _emisionNoValida = false;
         _noCaduca = false;
         _archivoUrl = null;
         _archivoUrlDelDocumento = null;
@@ -430,7 +433,7 @@ public partial class DrawerGestionDocumento : ComponentBase
         _fechaEmision = documento.FechaEmision.ToString("yyyy-MM-dd");
         _fechaEmisionOriginal = documento.FechaEmision;
         _fechaVencimientoManual = documento.FechaVencimiento?.ToString("yyyy-MM-dd") ?? string.Empty;
-        _vencimientoManualNoValido = false;
+        _vencimientoManualNoValido = false; _emisionNoValida = false;
         // Renovar sin tocar la vigencia no puede perder la confirmación de
         // «no caduca»: se precarga y viaja de vuelta en el comando.
         _noCaduca = documento.EstadoVigencia == EstadoVigenciaDocumento.NoCaduca;
@@ -490,7 +493,7 @@ public partial class DrawerGestionDocumento : ComponentBase
         // aviso «no es una fecha» de un envío anterior ya no tiene a qué referirse.
         if (!RequiereVencimientoManual)
         {
-            _vencimientoManualNoValido = false;
+            _vencimientoManualNoValido = false; _emisionNoValida = false;
             if (_mensajeErrorFormulario == Comunes["CampoFechaCorregirAntes"])
                 _mensajeErrorFormulario = null;
         }
@@ -509,6 +512,7 @@ public partial class DrawerGestionDocumento : ComponentBase
         _drawerVisible
         && (_subiendoArchivo
             || (_vencimientoManualNoValido && RequiereVencimientoManual)
+            || _emisionNoValida
             || (_instantaneaAlAbrir is not null && InstantaneaFormulario() != _instantaneaAlAbrir));
 
     private string InstantaneaFormulario() => string.Join('\u001f',
@@ -969,9 +973,13 @@ public partial class DrawerGestionDocumento : ComponentBase
     /// tenía al renovar) sin que nadie lo decidiera. Solo cuenta si el tipo pide el vencimiento a mano, que es cuando el
     /// campo existe.
     /// </summary>
+    /// <remarks>
+    /// La emisión a medias también: ya llega como «» (Guardar la rechazaría y el vencimiento automático no se calcula de la
+    /// emisión anterior), y la marca da el aviso de corregirla antes de llegar ahí.
+    /// </remarks>
     private bool BloquearGuardadoSiVencimientoNoValido()
     {
-        if (!_vencimientoManualNoValido || !RequiereVencimientoManual) return false;
+        if (!_emisionNoValida && (!_vencimientoManualNoValido || !RequiereVencimientoManual)) return false;
 
         _erroresCampo = new Dictionary<string, string>();
         _mensajeErrorFormulario = Comunes["CampoFechaCorregirAntes"];
@@ -979,10 +987,17 @@ public partial class DrawerGestionDocumento : ComponentBase
     }
 
     // Al volver a ser una fecha entera (o quedar vacía), el aviso de un envío anterior ya no es cierto.
+    private void AlCambiarEmisionNoValida(bool noValida)
+    {
+        _emisionNoValida = noValida;
+        if (!noValida && !_vencimientoManualNoValido && _mensajeErrorFormulario == Comunes["CampoFechaCorregirAntes"])
+            _mensajeErrorFormulario = null;
+    }
+
     private void AlCambiarVencimientoManualNoValido(bool noValido)
     {
         _vencimientoManualNoValido = noValido;
-        if (!noValido && _mensajeErrorFormulario == Comunes["CampoFechaCorregirAntes"])
+        if (!noValido && !_emisionNoValida && _mensajeErrorFormulario == Comunes["CampoFechaCorregirAntes"])
             _mensajeErrorFormulario = null;
     }
 

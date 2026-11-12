@@ -1,0 +1,25 @@
+# CampoFecha (o CampoTexto Type="date") sin NoValidoChanged / FechaNoValidaChanged (PR #2185, CamposFechaEnlazanLaMarcaDeNoValidoTests).
+# Solo baja. Cada línea lleva encima su «# motivo: …». Un formulario que guarda no se añade: enlaza la marca y bloquea el guardado.
+# Con CampoFecha fail-closed, un texto a medias ya llega a estos padres como «» (lo mismo que daba el input type=date nativo),
+# así que los «pendiente de migrar» no guardan la fecha anterior; les falta el aviso «corrige la fecha» y distinguir «a medias» de «vacío».
+# Medida: 'ruta :: CampoFecha sin marca = n' con n campos sin la marca en ese fichero.
+# motivo: filtro de solo lectura (Desde/Hasta del listado de auditoría; no escribe nada)
+src/CaeManager.Web/Features/Auditoria/Pages/Auditoria.razor :: CampoFecha sin marca = 2
+# motivo: pendiente de migrar (fecha de la nueva solicitud y de respuesta de Blindaje 42)
+src/CaeManager.Web/Features/Blindaje42/Components/DrawerBlindaje42.razor :: CampoFecha sin marca = 2
+# motivo: pendiente de migrar (fecha de alta de la asignación masiva a Centro)
+src/CaeManager.Web/Features/Centros/Components/DrawerAsignacionMasiva.razor :: CampoFecha sin marca = 1
+# motivo: pendiente de migrar (Desde/Hasta editados en el centro de acciones de Comunicaciones)
+src/CaeManager.Web/Features/Comunicaciones/Components/AccionCenter.razor :: CampoFecha sin marca = 2
+# motivo: filtro de solo lectura (rango personalizado del cuadro de mando ejecutivo; solo vuelve a consultar)
+src/CaeManager.Web/Features/DashboardEjecutivo/Pages/DashboardEjecutivo.razor :: CampoFecha sin marca = 2
+# motivo: pendiente de migrar (fecha de ocurrencia de la Incidencia)
+src/CaeManager.Web/Features/Incidencias/Pages/Incidencias.razor :: CampoFecha sin marca = 1
+# motivo: pendiente de migrar (fecha de alta al asignar el Trabajador a un Centro, ficha)
+src/CaeManager.Web/Features/Trabajadores/Pages/TrabajadorDetalle.razor :: CampoFecha sin marca = 1
+# motivo: pendiente de migrar (fecha de alta al asignar el Trabajador a un Centro, listado)
+src/CaeManager.Web/Features/Trabajadores/Pages/Trabajadores.razor :: CampoFecha sin marca = 1
+# motivo: pendiente de migrar (inicio y fin de la Visita, edición)
+src/CaeManager.Web/Features/Visitas/Components/EditarVisitaDrawer.razor :: CampoFecha sin marca = 2
+# motivo: pendiente de migrar (inicio y fin de la Visita, alta)
+src/CaeManager.Web/Features/Visitas/Pages/Visitas.razor :: CampoFecha sin marca = 2

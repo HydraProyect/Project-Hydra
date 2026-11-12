@@ -6,16 +6,16 @@
 @inject IJSRuntime JS
 @*
     Campo de fecha de TALVEG: se escribe como dd/mm/aaaa (las barras entran solas, ver MascaraFecha) o se elige en el
-    calendario del botón contiguo. Enlaza un DateOnly? y solo lo notifica cuando el texto es una fecha entera o está vacío:
-    lo tecleado a medias se queda en el campo, nunca vuelve del padre convertido en «» (el defecto del 11-11 en Dividir un
-    PDF). Solo vale la fecha entera dd/mm/aaaa (dos cifras de día, dos de mes, cuatro de año; «10/1/2030» no se completa).
-    Un texto a medias, imposible (31/02) o sin cifras («mañana» pegado) se queda a la vista, se avisa al salir del campo y
-    no mientras se escribe, y se notifica como null (lo que daba el campo nativo) para que el formulario no guarde la
-    anterior creyendo que sigue en pantalla. Solo el campo vacío de verdad (borrado a mano) es «sin fecha».
-    NoValidoChanged avisa en cada cambio de estado, también antes de salir del campo: todo formulario que guarde lo
-    consume y bloquea el envío mientras sea true. Salvo con NoValidoPrevio: el campo que el padre recrea (cambio de tramo,
-    fila plegada) nace con la marca del padre, muestra el aviso y no avisa de su estado inicial, para no borrar la marca
-    que el padre conserva; NoValidoPrevio null (los demás consumidores) mantiene el aviso al crearse.
+    calendario del botón contiguo. Enlaza un DateOnly?: lo tecleado a medias se queda en el campo y nunca vuelve del padre
+    convertido en «» (el defecto del 11-11 en Dividir un PDF). Solo vale la fecha entera dd/mm/aaaa (dos cifras de día, dos
+    de mes, cuatro de año; «10/1/2030» no se completa). Fail-closed, como el campo nativo: en la misma pulsación en que el
+    texto deja de ser una fecha entera (a medias, imposible como 31/02, o sin cifras como «mañana» pegado), el padre recibe
+    null y NoValidoChanged(true), sin esperar a salir del campo; el aviso visible sí llega al salir. Así el padre nunca
+    guarda la fecha anterior creyendo que sigue en pantalla. Solo el campo vacío de verdad (borrado a mano) es «sin fecha»
+    sin marca. Todo formulario que guarde enlaza NoValidoChanged y bloquea el envío mientras sea true (trinquete
+    CamposFechaEnlazanLaMarcaDeNoValidoTests). Con NoValidoPrevio=true, el campo que el padre recrea (cambio de tramo,
+    fila plegada) nace con la marca y el aviso, vacío y con null en el padre, sea cual sea Valor; NoValidoPrevio null (los
+    demás consumidores) avisa su estado al crearse.
 *@
 @* Con el calendario abierto, Escape lo cierra a él y no al Drawer o Modal que lo contiene (mismo criterio que
    CampoSelectAvanzado). *@

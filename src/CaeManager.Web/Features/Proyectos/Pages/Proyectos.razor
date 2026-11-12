@@ -452,7 +452,8 @@
                                         <option value="@trabajador.Id">@trabajador.Texto</option>
                                     }
                                 </CampoSelect>
-                                <CampoTexto Etiqueta="@Textos["EtiquetaFechaAlta"]" Type="date" Valor="@_nuevoTecnicoFechaAlta" ValorChanged="v => _nuevoTecnicoFechaAlta = v" />
+                                <CampoTexto Etiqueta="@Textos["EtiquetaFechaAlta"]" Type="date" Valor="@_nuevoTecnicoFechaAlta" ValorChanged="v => _nuevoTecnicoFechaAlta = v"
+                                            FechaNoValidaChanged="v => _nuevoTecnicoFechaAltaNoValida = v" />
                             </div>
                             <div class="acciones-formulario">
                                 <Boton Variante="VarianteBoton.Primario" OnClick="AsignarTecnicoAsync" Cargando="_guardando">@Textos["BotonAsignar"]</Boton>
@@ -530,7 +531,8 @@
         <CampoTexto Etiqueta="@Textos["EtiquetaNombreProyecto"]" Valor="@_nuevoNombre" ValorChanged="v => _nuevoNombre = v"
                     MensajeError="@(_erroresCampo.GetValueOrDefault("Nombre"))" />
 
-        <CampoTexto Etiqueta="@Textos["EtiquetaFechaInicio"]" Type="date" Valor="@_nuevaFechaInicio" ValorChanged="v => _nuevaFechaInicio = v" />
+        <CampoTexto Etiqueta="@Textos["EtiquetaFechaInicio"]" Type="date" Valor="@_nuevaFechaInicio" ValorChanged="v => _nuevaFechaInicio = v"
+                    FechaNoValidaChanged="v => _nuevaFechaInicioNoValida = v" />
 
         <CampoTexto Etiqueta="@(NuevoEsEvento ? Textos["EtiquetaFinEvento"] : Textos["EtiquetaFinPrevistoOpcionalAlta"])" Type="date" Valor="@_nuevaFechaFinPrevista" ValorChanged="v => _nuevaFechaFinPrevista = v"
                     FechaNoValidaChanged="AlCambiarNuevaFechaFinPrevistaNoValida" />
@@ -573,7 +575,8 @@
                  HayCambios="() => HayCambiosEnElModalDeCierre" Guardando="_guardando" MensajeError="@_errorCierre"
                  OnGuardar="ConfirmarCerrarAsync" TextoGuardar="@Textos["AccionCerrarProyecto"]" TextoCancelar="@Textos["BotonCancelar"]">
     <p>@Textos["ModalCerrarExplicacion"]</p>
-    <CampoTexto Etiqueta="@Textos["EtiquetaFechaCierre"]" Type="date" Valor="@_fechaCierre" ValorChanged="v => { _fechaCierre = v; _errorCierre = null; }" />
+    <CampoTexto Etiqueta="@Textos["EtiquetaFechaCierre"]" Type="date" Valor="@_fechaCierre" ValorChanged="v => { _fechaCierre = v; _errorCierre = null; }"
+                FechaNoValidaChanged="v => _fechaCierreNoValida = v" />
 </ModalFormulario>
 
 <DialogoConfirmacion
@@ -589,7 +592,8 @@
     {
         <p>@Textos["ReabrirEventoExplicacion"]</p>
         <CampoTexto Etiqueta="@Textos["EtiquetaNuevaFechaFinReabrir"]" Type="date" Valor="@_nuevaFechaFinReabrir"
-                    ValorChanged="v => { _nuevaFechaFinReabrir = v; _errorReabrir = null; }" MensajeError="@_errorReabrir" />
+                    ValorChanged="v => { _nuevaFechaFinReabrir = v; _errorReabrir = null; }" MensajeError="@_errorReabrir"
+                    FechaNoValidaChanged="v => _nuevaFechaFinReabrirNoValida = v" />
     }
 </DialogoConfirmacion>
 

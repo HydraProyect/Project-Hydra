@@ -61,11 +61,13 @@ public partial class CampoFecha
     [Parameter] public EventCallback OnBlur { get; set; }
 
     /// <summary>
-    /// Opcional: avisa cuando el campo pasa a tener (true) o deja de tener (false) un texto que no es una fecha entera: a
-    /// medias («15/03», «10/1/2030»), imposible («31/02/2026») o sin cifras («mañana»). Al salir del campo el valor
-    /// notificado es null, como el «» de un campo de fecha nativo; antes de salir, el padre aún tiene la fecha anterior.
-    /// Por eso todo formulario que guarde lo consume y bloquea el envío mientras sea true. Solo se notifica el cambio, no
-    /// cada pulsación.
+    /// Avisa cuando el campo pasa a tener (true) o deja de tener (false) un texto que no es una fecha entera: a medias
+    /// («15/03», «10/1/2030»), imposible («31/02/2026») o sin cifras («mañana»). Fail-closed y con la semántica del campo
+    /// de fecha nativo: en la misma pulsación en que el texto deja de ser una fecha entera, el campo emite
+    /// <see cref="ValorChanged"/> con null y luego esta marca a true, sin esperar a que se pierda el foco. El padre nunca
+    /// conserva la fecha anterior mientras se ve otra cosa; pero null también es «sin fecha» voluntario, y solo esta marca
+    /// los distingue. Por eso todo formulario que guarde la enlaza y bloquea el envío mientras sea true (lo exige
+    /// <c>CamposFechaEnlazanLaMarcaDeNoValidoTests</c>). Solo se notifica el cambio, no cada pulsación.
     /// </summary>
     [Parameter] public EventCallback<bool> NoValidoChanged { get; set; }
 
@@ -73,11 +75,12 @@ public partial class CampoFecha
     /// Opcional, para el formulario que conserva la marca de <see cref="NoValidoChanged"/> más allá de la vida del campo
     /// (una lista de tramos o de filas cuyos campos se destruyen al cambiar de tramo o plegar la fila): lo que el padre
     /// tiene marcado ahora para este campo. Con un valor (true o false) el campo recién creado no retira una marca que no
-    /// observó él: no avisa de su estado inicial (salvo true con fecha o apagado, donde no hay nada que corregir y avisa
-    /// false para retirarla). Con true y sin fecha, nace con el aviso «no es una fecha» a la
-    /// vista y la marca se mantiene hasta que la persona teclee o elija una fecha; salir del campo sin tocarlo no la quita.
-    /// Con null (por defecto) el campo avisa su estado al crearse, como siempre: es lo que necesita el formulario que
-    /// reinicia su marca al abrirse.
+    /// observó él: no avisa de su estado inicial. Con true nace con la marca y el aviso «no es una fecha» a la vista sea
+    /// cual sea <see cref="Valor"/>: el texto a medias se perdió con el campo anterior, así que se muestra vacío y, si el
+    /// padre aún tenía una fecha, se le notifica null (nunca se guarda una fecha que no se ve). La marca solo la retiran
+    /// teclear una fecha entera, elegir un día, vaciar el campo a propósito o deshabilitarlo (un campo apagado nace sin
+    /// ella y avisa false); entrar y salir sin tocarlo no la quita. Con null (por defecto) el campo avisa su estado al
+    /// crearse: es lo que necesita el formulario que reinicia su marca al abrirse.
     /// </summary>
     [Parameter] public bool? NoValidoPrevio { get; set; }
 
@@ -155,14 +158,25 @@ public partial class CampoFecha
         _errorPropio = null;
         _marcaHeredada = false;
         if (seDeshabilita) _abierto = false;
-        MostrarTexto(MascaraFecha.Formatear(Valor));
         if (primera && NoValidoPrevio is { } previo)
         {
-            // El padre ya sabe cómo está esta fecha: el campo nuevo no lo contradice. Un campo apagado o con fecha no
-            // hereda la marca (nada que corregir): avisa false y la retira, como antes.
-            _marcaHeredada = previo && Valor is null && !Deshabilitado;
+            // El padre ya sabe cómo está esta fecha: el campo nuevo no lo contradice. Solo un campo apagado no hereda la
+            // marca (lo no válido de un campo apagado no se puede corregir): avisa false y la retira.
+            _marcaHeredada = previo && !Deshabilitado;
             _noValidoNotificado = _marcaHeredada ? true : previo ? null : false;
-            if (_marcaHeredada) _errorPropio = Comunes["CampoFechaInvalida"];
+        }
+
+        if (_marcaHeredada)
+        {
+            // Fail-closed: lo que se ve es «no es una fecha», así que el padre no se queda con una fecha (la anterior a la
+            // edición a medias que se perdió al destruirse el campo).
+            _errorPropio = Comunes["CampoFechaInvalida"];
+            MostrarTexto(string.Empty);
+            await NotificarAsync(null);
+        }
+        else
+        {
+            MostrarTexto(MascaraFecha.Formatear(Valor));
         }
 
         await NotificarEstadoAsync();
@@ -208,11 +222,11 @@ public partial class CampoFecha
 
         _errorPropio = null;
 
-        // Solo el campo vacío de verdad (Supr o Retroceso hasta dejarlo en blanco) es «sin fecha».
-        if (crudo.Length == 0)
-            await NotificarAsync(null);
-        else if (MascaraFecha.EsCompleta(mascara, out var fecha))
-            await NotificarAsync(fecha);
+        // Fail-closed, como el campo de fecha nativo: lo que no es una fecha entera llega al padre como null en esta misma
+        // pulsación, no al salir del campo; si no, guardar sin perder el foco, o destruir el campo (cambiar de tramo,
+        // plegar la fila), dejaría en el padre la fecha anterior a la edición. Solo el campo vacío de verdad (Supr o
+        // Retroceso hasta dejarlo en blanco) es «sin fecha» voluntario; lo demás lleva además la marca de no válido.
+        await NotificarAsync(MascaraFecha.EsCompleta(mascara, out var fecha) ? fecha : null);
         await NotificarEstadoAsync();
     }
 

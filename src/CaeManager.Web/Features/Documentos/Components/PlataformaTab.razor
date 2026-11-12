@@ -240,7 +240,8 @@ else
     @if (_estadoVigencia == nameof(EstadoVigenciaEnPlataforma.VenceEnFecha))
     {
         <CampoTexto Etiqueta="Fecha de vencimiento" Type="date" Valor="@_fechaVigencia"
-                    ValorChanged="v => { _fechaVigencia = v; _errorServidorVigencia = null; _errorVigencia = null; }" MensajeError="@_errorVigencia" />
+                    ValorChanged="v => { _fechaVigencia = v; _errorServidorVigencia = null; _errorVigencia = null; }" MensajeError="@_errorVigencia"
+                    FechaNoValidaChanged="v => _fechaVigenciaNoValida = v" />
     }
 </ModalFormulario>
 
@@ -264,7 +265,10 @@ else
     /// rechazo (el detalle), o su confirmación en curso. La causa del rechazo y el estado de la vigencia vienen preseleccionados y
     /// elegir otro valor sin escribir nada no se pierde de forma que cueste recuperarlo.
     /// </summary>
-    private bool HayCambiosVigencia => _vigenciaVisible && (_confirmandoVigencia || !string.IsNullOrWhiteSpace(_fechaVigencia));
+    private bool HayCambiosVigencia => _vigenciaVisible && (_confirmandoVigencia || !string.IsNullOrWhiteSpace(_fechaVigencia) || _fechaVigenciaNoValida);
+
+    /// <summary>La fecha de vencimiento tiene un texto que no es una fecha entera (su valor es «»): no se confirma nada.</summary>
+    private bool _fechaVigenciaNoValida;
 
     private bool HayCambiosRechazo => _rechazoVisible && (_rechazando || !string.IsNullOrWhiteSpace(_motivoRechazo));
 
@@ -510,7 +514,9 @@ else
         _errorServidorVigencia = null;
 
         var vigencia = VigenciaElegida();
-        if (vigencia is null)
+        if (vigencia is null
+            || (_fechaVigenciaNoValida && _estadoVigencia != nameof(EstadoVigenciaEnPlataforma.NoVenceAqui)
+                && _estadoVigencia != nameof(EstadoVigenciaEnPlataforma.SinConfirmar)))
         {
             // Sin fecha legible no se manda nada: dejar pasar el "vence en
             // fecha" vacío lo guardaría como SinConfirmar, y el Gestor se

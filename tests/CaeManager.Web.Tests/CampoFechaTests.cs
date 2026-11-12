@@ -551,19 +551,42 @@ public class CampoFechaTests : BunitContext
     }
 
     [Fact]
-    public void Con_NoValidoPrevio_en_true_y_Valor_no_nulo_el_campo_nace_sin_aviso_y_retira_la_marca()
+    public void Con_NoValidoPrevio_en_true_y_Valor_no_nulo_el_campo_nace_con_la_marca_el_aviso_y_null_en_el_padre()
     {
-        // Safari sin blur: el padre conserva la fecha antigua mientras la marca esta activa. Lo visible es la fecha
-        // del Valor (la que se guardaria), asi que no hay aviso y la marca se retira.
+        // Ronda 3 de #2185: recrear el campo (cambio de tramo, fila plegada) con la marca y una fecha aún en el padre
+        // retiraba la marca, y se guardaba esa fecha, que no era la escrita. Fail-closed: la marca y el aviso siguen, el
+        // campo nace vacío y el padre recibe null.
         var noValido = new List<bool>();
+        var valores = new List<DateOnly?>();
         var cut = Render<CampoFecha>(p => p
             .Add(c => c.Valor, (DateOnly?)new DateOnly(2030, 1, 2))
             .Add(c => c.NoValidoPrevio, true)
+            .Add(c => c.ValorChanged, v => valores.Add(v))
             .Add(c => c.NoValidoChanged, v => noValido.Add(v)));
 
-        noValido.Should().Equal(false);
-        cut.FindAll(".campo-mensaje-error").Should().BeEmpty();
-        cut.Find("input").GetAttribute("value").Should().Be("02/01/2030");
+        noValido.Should().BeEmpty("la marca del padre se conserva: no se retira al crearse");
+        valores.Should().Equal([(DateOnly?)null], "el padre no se queda con una fecha que no se ve");
+        cut.Find(".campo-mensaje-error").TextContent.Should().NotBeNullOrWhiteSpace();
+        cut.Find("input").GetAttribute("value").Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task Teclear_una_fecha_a_medias_notifica_null_y_la_marca_en_la_misma_pulsacion_sin_esperar_al_blur()
+    {
+        // Rondas 1 a 3 de #2185: con el texto a medias el padre conservaba la fecha anterior hasta el blur, y guardar sin
+        // salir del campo la enviaba. Ahora el padre tiene null en cuanto el texto deja de ser una fecha entera.
+        var noValido = new List<bool>();
+        var valores = new List<DateOnly?>();
+        var cut = Render<CampoFecha>(p => p
+            .Add(c => c.Valor, (DateOnly?)new DateOnly(2030, 12, 10))
+            .Add(c => c.ValorChanged, v => valores.Add(v))
+            .Add(c => c.NoValidoChanged, v => noValido.Add(v)));
+        noValido.Should().Equal([false], "control: nace válido");
+
+        await cut.Find("input").InputAsync(new ChangeEventArgs { Value = "10/1/2030" });
+
+        valores.Should().Equal([(DateOnly?)null], "sin blur, el padre ya no tiene 10/12/2030");
+        noValido.Should().Equal(false, true);
     }
 
     [Fact]

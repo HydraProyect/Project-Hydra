@@ -37,6 +37,7 @@
 @implements IDisposable
 @inject IMediator Mediator
 @inject IStringLocalizer<TextosSubcontratas> Textos
+@inject IStringLocalizer<CaeManager.Web.Recursos.TextosComunes> Comunes
 @inject ToastService ToastService
 
 <DrawerFormulario Visible="_visible" VisibleChanged="CambiarVisibilidad"
@@ -83,8 +84,12 @@
         <option value="@nameof(ResultadoVerificacionExterna.NoEncontrado)">@Textos["ResultadoVerificacionNoEncontrado"]</option>
     </CampoSelect>
 
-    <CampoTexto Etiqueta="@Textos["RotuloFechaVerificacion"]" Type="date" Valor="@_fecha" ValorChanged="v => _fecha = v" />
-    <CampoTexto Etiqueta="@Textos["RotuloValidoHasta"]" Type="date" Valor="@_validoHasta" ValorChanged="v => _validoHasta = v" />
+    @* FechaNoValidaChanged: un «válido hasta» a medias llega como «», y registrarlo dejaría la verificación sin fecha de
+       fin; Guardar se bloquea mientras alguna de las dos fechas no sea una fecha entera. *@
+    <CampoTexto Etiqueta="@Textos["RotuloFechaVerificacion"]" Type="date" Valor="@_fecha" ValorChanged="v => _fecha = v"
+                FechaNoValidaChanged="v => AlCambiarFechaNoValida(ref _fechaNoValida, v)" />
+    <CampoTexto Etiqueta="@Textos["RotuloValidoHasta"]" Type="date" Valor="@_validoHasta" ValorChanged="v => _validoHasta = v"
+                FechaNoValidaChanged="v => AlCambiarFechaNoValida(ref _validoHastaNoValido, v)" />
     <CampoTextarea Etiqueta="@Textos["RotuloObservaciones"]" Valor="@_observaciones" ValorChanged="v => _observaciones = v" Filas="3" />
 
     <div class="campo">
@@ -167,7 +172,18 @@
 
     private bool Editando => _editando is not null;
 
-    private bool HayCambios => _visible && _instantanea.Difiere(Valores());
+    /// <summary>La fecha de verificación o el «válido hasta» tienen un texto que no es una fecha entera (su valor es «»).</summary>
+    private bool _fechaNoValida, _validoHastaNoValido;
+
+    private bool HayCambios => _visible && (_instantanea.Difiere(Valores()) || _fechaNoValida || _validoHastaNoValido);
+
+    // Al volver a ser una fecha entera (o quedar vacía), el aviso «no es una fecha» de un envío anterior ya no es cierto.
+    private void AlCambiarFechaNoValida(ref bool marca, bool noValida)
+    {
+        marca = noValida;
+        if (!_fechaNoValida && !_validoHastaNoValido && _mensajeError == Comunes["CampoFechaCorregirAntes"])
+            _mensajeError = null;
+    }
 
     // La evidencia cuenta por su nombre: se lee a memoria y solo se sube al registrar, así que
     // descartar no deja ningún archivo en el almacenamiento.
@@ -208,6 +224,7 @@
             _errorEvidencia = null;
             _editando = null;
             _mensajeError = null;
+            _fechaNoValida = _validoHastaNoValido = false;
             _visible = true;
             _instantanea.Fijar(Valores());
             StateHasChanged();
@@ -248,6 +265,7 @@
         _evidenciaExistente = verificacion.TieneEvidencia ? verificacion.EvidenciaNombreArchivo ?? Textos["RotuloEvidenciaVerificacion"].Value : null;
         _errorEvidencia = null;
         _mensajeError = null;
+        _fechaNoValida = _validoHastaNoValido = false;
         _visible = true;
         _instantanea.Fijar(Valores());
         StateHasChanged();
@@ -293,6 +311,13 @@
         if (!Guid.TryParse(_tipoId, out var tipoId))
         {
             _mensajeError = Textos["ErrorSeleccionaTipoDocumento"];
+            return;
+        }
+
+        // Fecha a medias (su valor ya es «»): sin esto, un «válido hasta» a medias se registraría como verificación sin fin.
+        if (_fechaNoValida || _validoHastaNoValido)
+        {
+            _mensajeError = Comunes["CampoFechaCorregirAntes"];
             return;
         }
 

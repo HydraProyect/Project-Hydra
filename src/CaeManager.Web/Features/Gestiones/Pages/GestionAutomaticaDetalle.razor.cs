@@ -252,8 +252,8 @@ public partial class GestionAutomaticaDetalle : CaeManager.Web.Components.Pagina
     private bool PuedeGuardar => _opcion switch
     {
         OpcionSubido => true,
-        // Con el texto de «Válido hasta» a medias, _hasta conserva la fecha anterior hasta salir del campo: la bandera del
-        // campo bloquea ya mientras se escribe. «No lo sé» deshabilita el campo y la retira.
+        // Con el texto de «Válido hasta» a medias, _hasta es null y la bandera del campo dice que no es un vaciado
+        // voluntario: las dos bloquean ya mientras se escribe. «No lo sé» deshabilita el campo y la retira.
         OpcionValidado => _noSe || (_hasta is not null && !_hastaNoValido),
         OpcionRechazado => !string.IsNullOrEmpty(_causa) && !string.IsNullOrWhiteSpace(_motivo),
         _ => false

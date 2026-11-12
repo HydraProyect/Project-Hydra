@@ -109,8 +109,27 @@
     /// </summary>
     private readonly HashSet<AsignacionTramo> _caducidadesNoValidas = new(ReferenceEqualityComparer.Instance);
 
+    /// <summary>
+    /// Lo mismo para la fecha de emisión. Una emisión a medias ya llega como null y deja el tramo sin emisión (no se puede
+    /// crear); la marca conserva además el aviso al volver al tramo y bloquea Crear aunque un tramo omitido se rehabilite.
+    /// </summary>
+    private readonly HashSet<AsignacionTramo> _emisionesNoValidas = new(ReferenceEqualityComparer.Instance);
+
     private bool HayCaducidadNoValida(EstadoDivisionPdf division) =>
-        division.Rangos.Select(division.Asignacion).Any(a => CaducidadNoValidaVigente(division, a));
+        division.Rangos.Select(division.Asignacion).Any(a => CaducidadNoValidaVigente(division, a)
+            || (!a.Omitido && _emisionesNoValidas.Contains(a)));
+
+    private void AlCambiarEmision(AsignacionTramo asignacion, DateOnly? fecha)
+    {
+        asignacion.FechaEmision = fecha;
+        if (fecha is not null) _emisionesNoValidas.Remove(asignacion);
+    }
+
+    private void AlCambiarEmisionNoValida(AsignacionTramo asignacion, bool noValida)
+    {
+        if (noValida) _emisionesNoValidas.Add(asignacion);
+        else _emisionesNoValidas.Remove(asignacion);
+    }
 
     /// <summary>
     /// La marca solo cuenta mientras la caducidad se escribe a mano: con «No crear», «Sin caducidad» o un tipo de vencimiento
@@ -397,7 +416,11 @@
                     @* Los CampoFecha se recrean al cambiar de tramo (@key): si no, Blazor reutilizaría los mismos campos y un texto de
                        fecha a medias (o no válido) del tramo anterior pasaría al siguiente. La clave va en los campos y no en la ficha
                        para no recrear los botones de navegación, que perderían el foco del teclado al pulsar «Siguiente documento». *@
-                    <CampoFecha @key="claves.De(rango.Clave)" Etiqueta="@Textos["FechaEmision"]" Deshabilitado="asignacion.Omitido" Valor="asignacion.FechaEmision" ValorChanged="v => asignacion.FechaEmision = v" />
+                    @* La emisión a medias llega como null (falta la emisión: el tramo no está listo) y su marca la conserva el
+                       padre entre tramos, como la caducidad: con vencimiento automático, la caducidad sale de esta fecha. *@
+                    <CampoFecha @key="claves.De(rango.Clave)" Etiqueta="@Textos["FechaEmision"]" Deshabilitado="asignacion.Omitido" Valor="asignacion.FechaEmision"
+                                ValorChanged="v => AlCambiarEmision(asignacion, v)" NoValidoChanged="v => AlCambiarEmisionNoValida(asignacion, v)"
+                                NoValidoPrevio="@_emisionesNoValidas.Contains(asignacion)" />
 
                     @if (division.Tipo(asignacion.TipoDocumentoId) is { VencimientoAutomatico: true })
                     {

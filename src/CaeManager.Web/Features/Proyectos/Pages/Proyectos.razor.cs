@@ -708,6 +708,7 @@ public partial class Proyectos : CaeManager.Web.Components.PaginaInteractiva, ID
         _nuevoCentroId = string.Empty;
         _nuevoNombre = string.Empty;
         _nuevaFechaInicio = Hoy.ToString("yyyy-MM-dd");
+        _nuevaFechaInicioNoValida = false;
         _nuevaFechaFinPrevista = string.Empty;
         _nuevaFechaFinPrevistaNoValida = false;
         _nuevasNotas = string.Empty;
@@ -774,9 +775,15 @@ public partial class Proyectos : CaeManager.Web.Components.PaginaInteractiva, ID
 
     // Una fecha a medias no cambia el valor del formulario («»), pero es texto que se pierde al cerrar.
     private bool HayCambiosEnElDrawer =>
-        _drawerVisible && (_instantanea.Difiere(ValoresFormulario()) || _nuevaFechaFinPrevistaNoValida);
+        _drawerVisible && (_instantanea.Difiere(ValoresFormulario()) || _nuevaFechaFinPrevistaNoValida || _nuevaFechaInicioNoValida);
 
-    private bool HayCambiosEnElModalDeCierre => _mostrarCerrarConfirm && _instantaneaCierre.Difiere(_fechaCierre);
+    private bool HayCambiosEnElModalDeCierre => _mostrarCerrarConfirm && (_instantaneaCierre.Difiere(_fechaCierre) || _fechaCierreNoValida);
+
+    /// <summary>
+    /// Inicio, cierre, nueva fecha de fin al reabrir y alta del técnico con un texto que no es una fecha entera: su valor ya
+    /// es «» (no se confirma la fecha propuesta anterior) y la marca bloquea el envío con el aviso de corregirla.
+    /// </summary>
+    private bool _nuevaFechaInicioNoValida, _fechaCierreNoValida, _nuevaFechaFinReabrirNoValida, _nuevoTecnicoFechaAltaNoValida;
 
     /// <summary>
     /// La edición de la información y el alta de técnico del panel de detalle: cerrar el panel,
@@ -785,7 +792,7 @@ public partial class Proyectos : CaeManager.Web.Components.PaginaInteractiva, ID
     /// </summary>
     private bool HayCambiosEnElDetalle =>
         (_editandoInfo && (_instantaneaEdicionInfo.Difiere(ValoresEdicionInfo()) || _editFechaFinPrevistaNoValida))
-        || (_mostrarFormularioTecnico && _instantaneaTecnico.Difiere(ValoresTecnico()));
+        || (_mostrarFormularioTecnico && (_instantaneaTecnico.Difiere(ValoresTecnico()) || _nuevoTecnicoFechaAltaNoValida));
 
     private object?[] ValoresEdicionInfo() => [_editNombre, _editFechaFinPrevista, _editNotas];
 
@@ -907,9 +914,10 @@ public partial class Proyectos : CaeManager.Web.Components.PaginaInteractiva, ID
                 return;
             }
 
-            if (!DateOnly.TryParse(_nuevaFechaInicio, out var fechaInicio))
+            // Un inicio a medias ya llega como «» (no se guarda el propuesto anterior); la marca pide corregirlo.
+            if (_nuevaFechaInicioNoValida || !DateOnly.TryParse(_nuevaFechaInicio, out var fechaInicio))
             {
-                _mensajeErrorFormulario = Textos["ErrorFechaInicio"];
+                _mensajeErrorFormulario = _nuevaFechaInicioNoValida ? ComunesLista["CampoFechaCorregirAntes"] : Textos["ErrorFechaInicio"];
                 return;
             }
 
@@ -1268,6 +1276,7 @@ public partial class Proyectos : CaeManager.Web.Components.PaginaInteractiva, ID
         _idACerrar = id;
         _fechaCierre = Hoy.ToString("yyyy-MM-dd");
         _errorCierre = null;
+        _fechaCierreNoValida = false;
         _mostrarCerrarConfirm = true;
         _instantaneaCierre.Fijar(_fechaCierre);
     }
@@ -1276,9 +1285,10 @@ public partial class Proyectos : CaeManager.Web.Components.PaginaInteractiva, ID
     {
         if (_idACerrar is not { } idACerrar) return;
 
-        if (!DateOnly.TryParse(_fechaCierre, out var fechaCierre))
+        // Un cierre a medias ya llega como «» (no se cierra con la fecha propuesta); la marca pide corregirlo.
+        if (_fechaCierreNoValida || !DateOnly.TryParse(_fechaCierre, out var fechaCierre))
         {
-            _errorCierre = Textos["ErrorFechaCierre"];
+            _errorCierre = _fechaCierreNoValida ? ComunesLista["CampoFechaCorregirAntes"] : Textos["ErrorFechaCierre"];
             return;
         }
 
@@ -1335,6 +1345,7 @@ public partial class Proyectos : CaeManager.Web.Components.PaginaInteractiva, ID
         _reabrirPideFechaFin = ReabrirEvento.PideNuevaFechaFin(tipo, fin, Hoy);
         _nuevaFechaFinReabrir = string.Empty;
         _errorReabrir = null;
+        _nuevaFechaFinReabrirNoValida = false;
         _confirmarReabrirVisible = true;
     }
 
@@ -1349,7 +1360,8 @@ public partial class Proyectos : CaeManager.Web.Components.PaginaInteractiva, ID
     private async Task ConfirmarReabrirAsync()
     {
         if (_reabriendo) return;
-        if (!ReabrirEvento.LeerNuevaFechaFin(_reabrirPideFechaFin, _nuevaFechaFinReabrir, Hoy, out var nuevaFin))
+        if ((_reabrirPideFechaFin && _nuevaFechaFinReabrirNoValida)
+            || !ReabrirEvento.LeerNuevaFechaFin(_reabrirPideFechaFin, _nuevaFechaFinReabrir, Hoy, out var nuevaFin))
         {
             _errorReabrir = Textos["ErrorNuevaFechaFinReabrir"];
             return;
@@ -1497,6 +1509,7 @@ public partial class Proyectos : CaeManager.Web.Components.PaginaInteractiva, ID
         _nuevoTecnicoTrabajadorId = string.Empty;
         _nuevoTecnicoFechaAlta = Hoy.ToString("yyyy-MM-dd");
         _errorTecnico = null;
+        _nuevoTecnicoFechaAltaNoValida = false;
         _mostrarFormularioTecnico = true;
         _instantaneaTecnico.Fijar(ValoresTecnico());
     }
@@ -1511,9 +1524,9 @@ public partial class Proyectos : CaeManager.Web.Components.PaginaInteractiva, ID
             return;
         }
 
-        if (!DateOnly.TryParse(_nuevoTecnicoFechaAlta, out var fechaAlta))
+        if (_nuevoTecnicoFechaAltaNoValida || !DateOnly.TryParse(_nuevoTecnicoFechaAlta, out var fechaAlta))
         {
-            _errorTecnico = Textos["ErrorFechaAlta"];
+            _errorTecnico = _nuevoTecnicoFechaAltaNoValida ? ComunesLista["CampoFechaCorregirAntes"] : Textos["ErrorFechaAlta"];
             return;
         }
 

@@ -1017,8 +1017,8 @@ public partial class AcordeonAsignacionesCentro : ComponentBase, IDisposable
     private bool HayCambiosSinGuardar => _confirmarBajaLoteVisible && (_instantaneaBajaLote.Difiere(_fechaBajaLote) || _fechaBajaLoteNoValida);
 
     /// <summary>
-    /// true mientras la fecha de baja tiene un texto a medias o ilegible: el padre aún ve la fecha anterior y la instantánea
-    /// no lo notaría, pero la persona ha editado el campo y cerrar sin avisar lo perdería.
+    /// true mientras la fecha de baja tiene un texto a medias o ilegible (el padre tiene entonces null): la persona ha
+    /// editado el campo y cerrar sin avisar lo perdería, aunque la instantánea también fuera null.
     /// </summary>
     private bool _fechaBajaLoteNoValida;
 

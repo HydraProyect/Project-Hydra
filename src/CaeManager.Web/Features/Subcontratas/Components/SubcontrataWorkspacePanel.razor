@@ -560,8 +560,10 @@ else
                 <option value="@nameof(ResultadoVerificacionExterna.NoEncontrado)">@Textos["ResultadoVerificacionNoEncontrado"]</option>
             </CampoSelect>
 
-            <CampoTexto Etiqueta="@Textos["RotuloFechaVerificacion"]" Type="date" Valor="@_verificacionFecha" ValorChanged="v => _verificacionFecha = v" />
-            <CampoTexto Etiqueta="@Textos["RotuloValidoHasta"]" Type="date" Valor="@_verificacionValidoHasta" ValorChanged="v => _verificacionValidoHasta = v" />
+            <CampoTexto Etiqueta="@Textos["RotuloFechaVerificacion"]" Type="date" Valor="@_verificacionFecha" ValorChanged="v => _verificacionFecha = v"
+                        FechaNoValidaChanged="v => AlCambiarVerificacionFechaNoValida(ref _verificacionFechaNoValida, v)" />
+            <CampoTexto Etiqueta="@Textos["RotuloValidoHasta"]" Type="date" Valor="@_verificacionValidoHasta" ValorChanged="v => _verificacionValidoHasta = v"
+                        FechaNoValidaChanged="v => AlCambiarVerificacionFechaNoValida(ref _verificacionValidoHastaNoValido, v)" />
             <CampoTextarea Etiqueta="@Textos["RotuloObservaciones"]" Valor="@_verificacionObservaciones" ValorChanged="v => _verificacionObservaciones = v" Filas="3" />
 
             <div class="campo">
@@ -770,7 +772,18 @@ else
     /// se pierde al cerrarlo y no debe hacerle preguntar.
     /// </summary>
     private bool HayCambiosEnElDrawer =>
-        _drawerVerificacionVisible && _instantaneaVerificacion.Difiere(ValoresVerificacion());
+        _drawerVerificacionVisible && (_instantaneaVerificacion.Difiere(ValoresVerificacion()) || _verificacionFechaNoValida || _verificacionValidoHastaNoValido);
+
+    /// <summary>La fecha de verificación o el «válido hasta» tienen un texto que no es una fecha entera (su valor es «»).</summary>
+    private bool _verificacionFechaNoValida, _verificacionValidoHastaNoValido;
+
+    // Al volver a ser una fecha entera (o quedar vacía), el aviso «no es una fecha» de un envío anterior ya no es cierto.
+    private void AlCambiarVerificacionFechaNoValida(ref bool marca, bool noValida)
+    {
+        marca = noValida;
+        if (!_verificacionFechaNoValida && !_verificacionValidoHastaNoValido && _mensajeErrorVerificacion == Comunes["CampoFechaCorregirAntes"])
+            _mensajeErrorVerificacion = null;
+    }
 
     private object?[] ValoresInformacion() => [_razonSocialInfo, _cifInfo, _clienteIdsInfo, _empresaIdsInfo];
 
@@ -1559,6 +1572,7 @@ else
             _evidenciaContenido = null;
             _evidenciaNombre = null;
             _mensajeErrorVerificacion = null;
+            _verificacionFechaNoValida = _verificacionValidoHastaNoValido = false;
             _drawerVerificacionVisible = true;
             _instantaneaVerificacion.Fijar(ValoresVerificacion());
         }
@@ -1610,6 +1624,13 @@ else
         if (!Guid.TryParse(_verificacionTipoId, out var tipoId))
         {
             _mensajeErrorVerificacion = Textos["ErrorSeleccionaTipoDocumento"];
+            return;
+        }
+
+        // Fecha a medias (su valor ya es «»): sin esto, un «válido hasta» a medias se registraría como verificación sin fin.
+        if (_verificacionFechaNoValida || _verificacionValidoHastaNoValido)
+        {
+            _mensajeErrorVerificacion = Comunes["CampoFechaCorregirAntes"];
             return;
         }
 

@@ -186,8 +186,8 @@ public partial class Retencion : CaeManager.Web.Components.PaginaIntegrableConfi
     private readonly InstantaneaFormulario _instantaneaProgramar = new();
 
     /// <summary>
-    /// true mientras la fecha de ejecución tiene un texto a medias o ilegible: el padre aún ve la fecha anterior, así que
-    /// la instantánea no lo notaría, pero la persona ha editado el campo y cerrar sin avisar lo perdería.
+    /// true mientras la fecha de ejecución tiene un texto a medias o ilegible (el padre tiene entonces null): la persona ha
+    /// editado el campo y cerrar sin avisar lo perdería, aunque la instantánea propuesta también fuera null.
     /// </summary>
     private bool _fechaEjecucionNoValida;
 

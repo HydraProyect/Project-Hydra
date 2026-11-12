@@ -232,14 +232,16 @@
             <option value="@trabajador.Id">@trabajador.Texto</option>
         }
     </CampoSelect>
-    <CampoTexto Etiqueta="@Textos["EtiquetaFechaAlta"]" Type="date" Valor="@_nuevoTecnicoFechaAlta" ValorChanged="v => { _nuevoTecnicoFechaAlta = v; _errorTecnico = null; }" />
+    <CampoTexto Etiqueta="@Textos["EtiquetaFechaAlta"]" Type="date" Valor="@_nuevoTecnicoFechaAlta" ValorChanged="v => { _nuevoTecnicoFechaAlta = v; _errorTecnico = null; }"
+                FechaNoValidaChanged="v => _nuevoTecnicoFechaAltaNoValida = v" />
 </DrawerFormulario>
 
 <ModalFormulario Visible="_cerrarVisible" VisibleChanged="v => _cerrarVisible = v" Titulo="@Textos["AccionCerrarProyecto"]"
                  HayCambios="() => HayCambiosEnElModalDeCierre" Guardando="_cerrando" MensajeError="@_errorCierre"
                  OnGuardar="ConfirmarCerrarAsync" TextoGuardar="@Textos["AccionCerrarProyecto"]" TextoCancelar="@Textos["BotonCancelar"]">
     <p>@Textos["ModalCerrarExplicacion"]</p>
-    <CampoTexto Etiqueta="@Textos["EtiquetaFechaCierre"]" Type="date" Valor="@_fechaCierre" ValorChanged="v => { _fechaCierre = v; _errorCierre = null; }" />
+    <CampoTexto Etiqueta="@Textos["EtiquetaFechaCierre"]" Type="date" Valor="@_fechaCierre" ValorChanged="v => { _fechaCierre = v; _errorCierre = null; }"
+                FechaNoValidaChanged="v => _fechaCierreNoValida = v" />
 </ModalFormulario>
 
 <DialogoConfirmacion
@@ -255,7 +257,8 @@
     {
         <p>@Textos["ReabrirEventoExplicacion"]</p>
         <CampoTexto Etiqueta="@Textos["EtiquetaNuevaFechaFinReabrir"]" Type="date" Valor="@_nuevaFechaFinReabrir"
-                    ValorChanged="v => { _nuevaFechaFinReabrir = v; _errorReabrir = null; }" MensajeError="@_errorReabrir" />
+                    ValorChanged="v => { _nuevaFechaFinReabrir = v; _errorReabrir = null; }" MensajeError="@_errorReabrir"
+                    FechaNoValidaChanged="v => _nuevaFechaFinReabrirNoValida = v" />
     }
 </DialogoConfirmacion>
 

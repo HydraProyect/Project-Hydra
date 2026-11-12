@@ -165,7 +165,8 @@
             </div>
         }
 
-        <CampoTexto Etiqueta="Fecha de emisión" Type="date" Valor="@_fechaEmision" ValorChanged="v => _fechaEmision = v" />
+        <CampoTexto Etiqueta="Fecha de emisión" Type="date" Valor="@_fechaEmision" ValorChanged="v => _fechaEmision = v"
+                    FechaNoValidaChanged="AlCambiarEmisionNoValida" />
 
         @if (RequiereVencimientoManual)
         {

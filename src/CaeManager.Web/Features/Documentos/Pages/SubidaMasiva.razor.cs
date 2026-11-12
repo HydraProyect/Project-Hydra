@@ -147,6 +147,12 @@ public partial class SubidaMasiva : CaeManager.Web.Components.PaginaInteractiva,
         public bool VencimientoManualNoValido { get; set; }
 
         /// <summary>
+        /// Lo mismo para la emisión: su valor ya es «» (no hay Documento sin emisión, y el vencimiento automático no se
+        /// calcula de la anterior); la marca sobrevive a plegar la fila y da el aviso de corregirla.
+        /// </summary>
+        public bool EmisionNoValida { get; set; }
+
+        /// <summary>
         /// Confirmación expresa de la persona de que el documento no caduca. La
         /// IA nunca la propone: sin fecha y sin esta marca, la vigencia queda
         /// sin confirmar.
@@ -951,6 +957,13 @@ public partial class SubidaMasiva : CaeManager.Web.Components.PaginaInteractiva,
         if (!Guid.TryParse(item.TipoDocumentoId, out var tipoDocumentoId))
         {
             ToastService.Mostrar(Textos["FaltaTipo"], TonoToast.Error);
+            return;
+        }
+
+        // Una emisión a medias llega como «»: se pide corregirla, no «falta la fecha».
+        if (item.EmisionNoValida)
+        {
+            ToastService.Mostrar(Comunes["CampoFechaCorregirAntes"], TonoToast.Error);
             return;
         }
 
