@@ -34,6 +34,9 @@ else
         }
     </span>
     <div class="paginador-centro">@Centro</div>
+    @* Sin opciones (una lista que no pagina, como Documentos agrupada) no hay tamaño de página que elegir. *@
+    @if (OpcionesTamanoPagina.Count > 0)
+    {
     <span class="paginador-opciones-tamano" role="group" aria-label="@(EtiquetaTamanoPagina ?? TextosPie["PaginadorFilasPorPagina"].Value)">
         <span>@(EtiquetaTamanoPagina ?? TextosPie["PaginadorFilasPorPagina"].Value)</span>
         @foreach (var opcion in OpcionesTamanoPagina)
@@ -45,6 +48,7 @@ else
             <button type="button" aria-pressed="@(TamanoPagina == opcion ? "true" : "false")" disabled="@(!TamanoPaginaChanged.HasDelegate)" @onclick="() => TamanoPaginaChanged.InvokeAsync(opcion)">@opcion</button>
         }
     </span>
+    }
 </div>
 
 }

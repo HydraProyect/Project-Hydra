@@ -48,7 +48,8 @@ public class AcreditacionAlcanceCentroTests
                 : null;
             if (operacion == "pendiente") acreditacion.MarcarSubida();
             // Restaurar deshace una anotación: solo devuelve el estado previo desde Aceptada.
-            if (operacion == "restaurar") acreditacion.MarcarAceptada(VigenciaEnPlataforma.NoVenceAqui);
+            // Anotar vigencia solo vale sobre una acreditación Aceptada.
+            if (operacion is "restaurar" or "vigencia") acreditacion.MarcarAceptada(VigenciaEnPlataforma.NoVenceAqui);
             var documentos = new DocumentoRepositorioFalso();
             documentos.Agregar(documento);
             var acreditaciones = new AcreditacionDocumentoPlataformaRepositorioFalso();
