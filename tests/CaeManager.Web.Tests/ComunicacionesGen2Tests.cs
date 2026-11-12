@@ -1629,7 +1629,7 @@ public class ComunicacionesGen2Tests : BunitContext
 
         cut.Markup.Should().NotContain("Instalaciones del Cliente anterior S.L.", "el selector no ofrece Empresas del Cliente empresarial anterior");
         cut.FindAll(".modal-actualizar-documento-formulario").Should().BeEmpty("los selectores del modal eran de la carga anterior");
-        HayToast(this, "La conversación se ha actualizado mientras se analizaba el adjunto").Should().BeTrue("se dice por qué se cerró");
+        HayToast(this, "La conversación se ha actualizado y se ha cerrado «Actualizar documentación»").Should().BeTrue("se dice por qué se cerró");
     }
 
     private static (Escenario Escenario, ConversacionListaDto Primera, ConversacionListaDto Segunda) DosConversacionesConPlantilla(MacroListaDto macro)
@@ -1788,6 +1788,290 @@ public class ComunicacionesGen2Tests : BunitContext
         var actual = cut.FindComponent<ComposerBar>().Instance;
         actual.Texto.Should().Be("Borrador de la segunda.", "el fallback de la primera no vacía la respuesta de la segunda");
         actual.EmailFallback.Should().Be("laura.gil@refrielectric.es");
+    }
+
+    // ---------------------------------------------------------------- revisión Codex r6 de la #2167: apertura y contexto uniformes
+
+    private static T CampoPrivado<T>(IRenderedComponent<Bandeja> cut, string nombre) =>
+        (T)typeof(Bandeja).GetField(nombre, BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(cut.Instance)!;
+
+    private static TaskCompletionSource<object?> Retenida() => new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+    private static ArchivoRetenido ArchivoListo(string nombre) => new(nombre, [1, 2, 3], Task.CompletedTask);
+
+    private static Task AdjuntarAsync(IRenderedComponent<Bandeja> cut, ArchivoRetenido archivo) =>
+        cut.InvokeAsync(() => cut.FindComponent<ComposerBar>().Instance.OnArchivosSeleccionados.InvokeAsync(new InputFileChangeEventArgs([archivo])));
+
+    private static ConversacionDetalleDto ConAdjuntoTc2(ConversacionDetalleDto detalle) => detalle with
+    {
+        Mensajes = [detalle.Mensajes[0] with { Adjuntos = [new AdjuntoDetalleDto(AdjuntoId, "tc2.pdf", "application/pdf", 2048)] }],
+    };
+
+    /// <summary>
+    /// Revisión Codex r6 de la #2167, MEDIO 1: el detalle de una conversación está en vuelo y el Gestor CAE cambia a «Mi buzón
+    /// personal». El detalle que llega tarde no queda como detalle vigente sin selección. Detecta quitar el
+    /// <c>++_cargaDetalleVigente</c> de <c>CambiarVistaAsync</c>.
+    /// </summary>
+    [Fact]
+    public async Task Cambiar_de_vista_con_el_detalle_en_vuelo_no_deja_la_conversacion_abandonada_como_detalle()
+    {
+        var conversacion = Conversacion("Documentación pendiente", ClienteRefrielectric);
+        var escenario = new Escenario { Detalle = _ => DetalleDe(conversacion) };
+        escenario.Conversaciones.Add(conversacion);
+        var detalle = Retenida();
+        escenario.Interceptar = p => p is ObtenerConversacionPorIdQuery ? detalle.Task : null;
+        var (cut, mediador) = Renderizar(escenario);
+
+        var apertura = SeleccionarFila(cut, "Documentación pendiente");
+        cut.WaitForAssertion(() => mediador.Enviados.OfType<ObtenerConversacionPorIdQuery>().Should().ContainSingle("el detalle está en vuelo"));
+        await cut.FindAll("nav.bandeja-nav .bandeja-nav-item")[1].ClickAsync(new MouseEventArgs());
+        mediador.Enviados.OfType<ObtenerMensajesBuzonPersonalQuery>().Should().ContainSingle("control positivo: la vista cambió");
+
+        await cut.InvokeAsync(() => detalle.SetResult(DetalleDe(conversacion)));
+        await apertura;
+        cut.Render();
+
+        CampoPrivado<ConversacionDetalleDto?>(cut, "_detalle").Should().BeNull("el detalle era de la conversación que se abandonó al cambiar de vista");
+    }
+
+    /// <summary>
+    /// Revisión Codex r6 de la #2167, MEDIO 1 (plantilla): la plantilla está en vuelo y el Gestor CAE cambia de vista. No se añade a
+    /// ningún borrador. Detecta quitar <c>CambiarApertura()</c> de <c>CambiarVistaAsync</c>.
+    /// </summary>
+    [Fact]
+    public async Task Una_plantilla_en_vuelo_al_cambiar_de_vista_no_acaba_en_ningun_borrador()
+    {
+        var macro = PlantillaCertificado();
+        var (escenario, _, _) = DosConversacionesConPlantilla(macro);
+        var plantilla = Retenida();
+        escenario.Interceptar = p => p is AplicarMacroCommand ? plantilla.Task : null;
+        var (cut, mediador) = Renderizar(escenario);
+        await SeleccionarFila(cut, "Primera conversación");
+
+        var aplicacion = cut.Find(".composer-macro-campo select").ChangeAsync(new ChangeEventArgs { Value = macro.Id.ToString() });
+        cut.WaitForAssertion(() => mediador.Enviados.OfType<AplicarMacroCommand>().Should().ContainSingle("la plantilla está en vuelo"));
+        await cut.FindAll("nav.bandeja-nav .bandeja-nav-item")[1].ClickAsync(new MouseEventArgs());
+        mediador.Enviados.OfType<ObtenerMensajesBuzonPersonalQuery>().Should().ContainSingle("control positivo: la vista cambió");
+
+        await cut.InvokeAsync(() => plantilla.SetResult(Result.Exito("<p>Plantilla de la vista anterior.</p>")));
+        await aplicacion;
+        cut.Render();
+
+        CampoPrivado<string>(cut, "_textoRespuesta").Should().BeEmpty("la plantilla se pidió para la conversación abandonada");
+    }
+
+    /// <summary>
+    /// Revisión Codex r6 de la #2167, MEDIO 2: durante el envío el Gestor CAE añade otro adjunto. Al terminar se quita solo lo
+    /// enviado. Detecta volver a vaciar todos los adjuntos en <c>LimpiarLoEnviado</c>.
+    /// </summary>
+    [Fact]
+    public async Task Un_adjunto_anadido_durante_el_envio_sigue_en_el_borrador()
+    {
+        var (escenario, _, _) = DosConversacionesConPlantilla(PlantillaCertificado());
+        var envio = Retenida();
+        escenario.Interceptar = p => p is ResponderConversacionCommand ? envio.Task : null;
+        var (cut, mediador) = Renderizar(escenario);
+        await SeleccionarFila(cut, "Primera conversación");
+        await Escribir(cut, "Respuesta con el TC2.");
+        await AdjuntarAsync(cut, ArchivoListo("tc2.pdf"));
+
+        var envioPrimera = Enviar(cut);
+        mediador.Enviados.OfType<ResponderConversacionCommand>().Should().ContainSingle("control positivo: el envío está en vuelo");
+        await AdjuntarAsync(cut, ArchivoListo("dni.pdf"));
+
+        await cut.InvokeAsync(() => envio.SetResult(Result.Exito()));
+        await envioPrimera;
+        cut.Render();
+
+        var composer = cut.FindComponent<ComposerBar>().Instance;
+        composer.Texto.Should().BeEmpty("el texto enviado se retira");
+        composer.AdjuntosPendientes.Select(a => a.NombreArchivo).Should().Equal(["dni.pdf"], "solo se retira el adjunto enviado");
+    }
+
+    /// <summary>
+    /// Revisión Codex r6 de la #2167, MEDIO 2 (A→B→A con el mismo texto): el borrador de la reapertura no es el enviado aunque el
+    /// texto coincida. Detecta comparar solo conversación y texto en <c>LimpiarLoEnviado</c>.
+    /// </summary>
+    [Fact]
+    public async Task Un_envio_que_termina_tras_reabrir_la_conversacion_no_vacia_el_borrador_nuevo_con_el_mismo_texto()
+    {
+        var (escenario, _, _) = DosConversacionesConPlantilla(PlantillaCertificado());
+        var envio = Retenida();
+        escenario.Interceptar = p => p is ResponderConversacionCommand ? envio.Task : null;
+        var (cut, mediador) = Renderizar(escenario);
+        await SeleccionarFila(cut, "Primera conversación");
+        await Escribir(cut, "Te lo envío hoy.");
+
+        var envioPrimera = Enviar(cut);
+        mediador.Enviados.OfType<ResponderConversacionCommand>().Should().ContainSingle("control positivo: el envío está en vuelo");
+        await AbrirDescartandoAsync(cut, "Segunda conversación");
+        await SeleccionarFila(cut, "Primera conversación");
+        cut.WaitForAssertion(() => TituloAbierto(cut).Should().Be("Primera conversación"));
+        await cut.InvokeAsync(() => cut.FindComponent<ComposerBar>().Instance.TextoChanged.InvokeAsync("Te lo envío hoy."));
+
+        await cut.InvokeAsync(() => envio.SetResult(Result.Exito()));
+        await envioPrimera;
+        cut.Render();
+
+        cut.FindComponent<ComposerBar>().Instance.Texto.Should().Be("Te lo envío hoy.", "el borrador es de otra apertura");
+    }
+
+    /// <summary>
+    /// Revisión Codex r6 de la #2167, MEDIO 2 (fallback): durante el envío por correo el Gestor CAE corrige la dirección. Al
+    /// terminar se vacía el texto enviado y se conserva la dirección nueva. Detecta vaciar la dirección sin compararla.
+    /// </summary>
+    [Fact]
+    public async Task Una_direccion_corregida_durante_el_fallback_por_correo_se_conserva()
+    {
+        var (escenario, _, _) = DosConversacionesConPlantilla(PlantillaCertificado());
+        var envio = Retenida();
+        escenario.Interceptar = p => p is CaeManager.Application.Comunicaciones.Commands.MigrarConversacionACorreo.MigrarConversacionACorreoCommand ? envio.Task : null;
+        var (cut, mediador) = Renderizar(escenario);
+        await SeleccionarFila(cut, "Primera conversación");
+        var composer = cut.FindComponent<ComposerBar>();
+        await cut.InvokeAsync(() => composer.Instance.TextoChanged.InvokeAsync("Respuesta de la primera."));
+        await cut.InvokeAsync(() => composer.Instance.EmailFallbackChanged.InvokeAsync("carmen.ruiz@refrielectric.es"));
+
+        var envioPrimera = cut.InvokeAsync(() => cut.FindComponent<ComposerBar>().Instance.OnEnviarFallbackCorreo.InvokeAsync());
+        cut.WaitForAssertion(() => mediador.Enviados.OfType<CaeManager.Application.Comunicaciones.Commands.MigrarConversacionACorreo.MigrarConversacionACorreoCommand>().Should().ContainSingle("control positivo: el envío está en vuelo"));
+        await cut.InvokeAsync(() => cut.FindComponent<ComposerBar>().Instance.EmailFallbackChanged.InvokeAsync("carmen.ruiz@example.invalid"));
+
+        await cut.InvokeAsync(() => envio.SetResult(Result.Exito()));
+        await envioPrimera;
+        cut.Render();
+
+        var actual = cut.FindComponent<ComposerBar>().Instance;
+        actual.Texto.Should().BeEmpty("el texto enviado se retira");
+        actual.EmailFallback.Should().Be("carmen.ruiz@example.invalid", "la dirección corregida no es la enviada");
+    }
+
+    /// <summary>
+    /// Revisión Codex r6 de la #2167, MEDIO 3: el Gestor CAE cancela el Drawer de prioridad mientras se prepara el borrador y lo
+    /// reabre para el mismo Centro. El borrador de la primera apertura no se ofrece ni apaga el indicador de carga de la segunda.
+    /// Detecta quitar la comprobación de <c>_solicitudPrioridadVigente</c> tras el await de <c>AbrirPedirPrioridadAsync</c>.
+    /// </summary>
+    [Fact]
+    public async Task El_borrador_de_prioridad_de_una_apertura_cancelada_no_se_ofrece_en_la_reapertura()
+    {
+        var conversacion = Conversacion("Documentación pendiente", ClienteRefrielectric);
+        var escenario = new Escenario { Detalle = _ => DetalleDe(conversacion) };
+        escenario.Conversaciones.Add(conversacion);
+        var primero = Retenida();
+        var segundo = Retenida();
+        var pedidos = 0;
+        escenario.Interceptar = p => p is ObtenerBorradorPedirPrioridadQuery
+            ? (Interlocked.Increment(ref pedidos) == 1 ? primero.Task : segundo.Task)
+            : CentrosPorCliente(p);
+        var (cut, _) = Renderizar(escenario);
+        await SeleccionarFila(cut, "Documentación pendiente");
+        cut.WaitForAssertion(() => cut.FindAll(".composer-correo-prellenados select").Should().ContainSingle());
+        await cut.Find(".composer-correo-prellenados select").ChangeAsync(new ChangeEventArgs { Value = CentroNorteId.ToString() });
+
+        var primeraApertura = cut.FindAll("button").Single(b => b.TextContent.Trim() == "Pedir prioridad de validación").ClickAsync(new MouseEventArgs());
+        await PulsarCancelarEnAsync(cut, ".drawer-pie");
+        var segundaApertura = cut.FindAll("button").Single(b => b.TextContent.Trim() == "Pedir prioridad de validación").ClickAsync(new MouseEventArgs());
+        cut.WaitForAssertion(() => Volatile.Read(ref pedidos).Should().Be(2, "control positivo: dos aperturas para el mismo Centro"));
+
+        await cut.InvokeAsync(() => primero.SetResult(Result.Exito(new BorradorPedirPrioridadDto(
+            "validacion@example.invalid", "Prioridad de la apertura cancelada", "<p>Antiguo.</p>", true, null, 2))));
+        await primeraApertura;
+        cut.Render();
+
+        cut.FindComponents<CampoTexto>().Should().NotContain(c => c.Instance.Valor == "Prioridad de la apertura cancelada",
+            "el borrador era de la apertura cancelada");
+        CampoPrivado<bool>(cut, "_cargandoBorradorPrioridad").Should().BeTrue("la reapertura sigue esperando su borrador");
+
+        await cut.InvokeAsync(() => segundo.SetResult(BorradorDelCentroNorte()));
+        await segundaApertura;
+        cut.WaitForAssertion(() => cut.FindComponents<CampoTexto>().Should().Contain(c => c.Instance.Valor == "Prioridad Centro Norte"));
+    }
+
+    /// <summary>
+    /// Revisión Codex r6 de la #2167, MEDIO 4: con «Actualizar documentación» ya cargado, una recarga cambia el Cliente empresarial.
+    /// El modal se cierra y se avisa; una recarga sin cambio de Cliente empresarial no lo cierra. Detecta quitar el cierre del
+    /// modal de <c>CambiarContexto</c>.
+    /// </summary>
+    [Fact]
+    public async Task Una_recarga_que_cambia_el_Cliente_empresarial_cierra_Actualizar_documentacion_ya_cargado()
+    {
+        var conversacion = Conversacion("Documentación pendiente", ClienteRefrielectric);
+        var escenario = new Escenario { Detalle = _ => ConAdjuntoTc2(DetalleDe(conversacion)) };
+        escenario.Conversaciones.Add(conversacion);
+        escenario.Interceptar = peticion => peticion switch
+        {
+            ObtenerEmpresasParaSelectorQuery => Ya(new List<EmpresaSelectorDto> { new(Guid.NewGuid(), "Instalaciones Norte S.L.") }),
+            DetectarActualizacionDocumentoDesdeAdjuntoQuery => Ya(Result.Exito(new DeteccionActualizacionDocumentoDto(
+                AdjuntoId, null, null, CaeManager.Domain.Documentos.AmbitoAplicacion.Empresa, null, null, null, null, null, null, 80))),
+            _ => null,
+        };
+        var (cut, _) = Renderizar(escenario);
+        await SeleccionarFila(cut, "Documentación pendiente");
+        await cut.Find(".timeline-adjunto-actualizar-documento").ClickAsync(new MouseEventArgs());
+        cut.WaitForAssertion(() => cut.FindAll(".modal-actualizar-documento-formulario").Should().ContainSingle("el modal está cargado"));
+
+        await RecibirMensajeAsync(cut, conversacion.Id);
+        cut.Render();
+        cut.FindAll(".modal-actualizar-documento-formulario").Should().ContainSingle("control: una recarga con el mismo Cliente empresarial no lo cierra");
+
+        escenario.Detalle = _ => ConAdjuntoTc2(DetalleConEbro(conversacion));
+        await RecibirMensajeAsync(cut, conversacion.Id);
+        cut.WaitForAssertion(() => cut.Find(".bandeja-cliente-identidad").TextContent.Should().Contain(ClienteEbro.RazonSocial));
+
+        cut.FindAll(".modal-actualizar-documento-formulario").Should().BeEmpty("las Empresas del modal eran del Cliente empresarial anterior");
+        HayToast(this, "La conversación se ha actualizado y se ha cerrado «Actualizar documentación»").Should().BeTrue("se dice por qué se cerró");
+    }
+
+    /// <summary>
+    /// Inventario de la r6 de la #2167, camino no señalado (cambio de estado A→B→A): «Resuelta» está en vuelo, el Gestor CAE abre
+    /// otra conversación y vuelve a la primera. Al terminar no se salta a la sucesora desde la reapertura. Detecta volver a comparar
+    /// solo el id de la conversación en <c>CambiarEstadoAsync</c>.
+    /// </summary>
+    [Fact]
+    public async Task Resolver_en_vuelo_y_reabrir_la_misma_conversacion_no_salta_a_la_sucesora()
+    {
+        var (escenario, _, _) = DosConversacionesConPlantilla(PlantillaCertificado());
+        var cambio = Retenida();
+        escenario.Interceptar = p => p is CambiarEstadoConversacionCommand ? cambio.Task : null;
+        var (cut, mediador) = Renderizar(escenario);
+        await SeleccionarFila(cut, "Primera conversación");
+
+        var resolucion = SelectorCambiarEstado(cut).ChangeAsync(new ChangeEventArgs { Value = nameof(EstadoConversacion.Resuelta) });
+        cut.WaitForAssertion(() => mediador.Enviados.OfType<CambiarEstadoConversacionCommand>().Should().ContainSingle("el cambio está en vuelo"));
+        await SeleccionarFila(cut, "Segunda conversación");
+        cut.WaitForAssertion(() => TituloAbierto(cut).Should().Be("Segunda conversación"));
+        await SeleccionarFila(cut, "Primera conversación");
+        cut.WaitForAssertion(() => TituloAbierto(cut).Should().Be("Primera conversación"));
+
+        await cut.InvokeAsync(() => cambio.SetResult(Result.Exito()));
+        await resolucion;
+        cut.Render();
+
+        TituloAbierto(cut).Should().Be("Primera conversación", "la reapertura no es la apertura que pidió resolver");
+    }
+
+    /// <summary>
+    /// Inventario de la r6 de la #2167, camino no señalado (vista «Mi buzón personal»): mientras se carga el buzón llega un aviso de
+    /// tiempo real. El refresco recarga el buzón, no la lista de Clientes, y el buzón se muestra. Detecta quitar la delegación de
+    /// <c>CargarListaAsync</c> a <c>CargarBuzonPersonalAsync</c>.
+    /// </summary>
+    [Fact]
+    public async Task Un_aviso_de_tiempo_real_durante_la_carga_del_buzon_personal_no_lo_deja_vacio()
+    {
+        var escenario = new Escenario();
+        escenario.BuzonPersonal.Add(new MensajeBuzonPersonalDto(Guid.NewGuid(), Guid.NewGuid(), "Aviso del buzón personal",
+            "plataforma@example.invalid", "<p>Aviso.</p>", DateTime.UtcNow, true, null, default));
+        var primeraCarga = Retenida();
+        var lecturas = 0;
+        escenario.Interceptar = p => p is ObtenerMensajesBuzonPersonalQuery && Interlocked.Increment(ref lecturas) == 1 ? primeraCarga.Task : null;
+        var (cut, mediador) = Renderizar(escenario, "comunicaciones?vista=personal");
+        cut.WaitForAssertion(() => Volatile.Read(ref lecturas).Should().Be(1, "la primera carga del buzón está en vuelo"));
+
+        await cut.InvokeAsync(() => RefrescoDeFondo(cut));
+        await cut.InvokeAsync(() => primeraCarga.SetResult(escenario.BuzonPersonal.ToList()));
+        cut.Render();
+
+        mediador.Enviados.OfType<ObtenerConversacionesQuery>().Should().BeEmpty("en «Mi buzón personal» el refresco no pide la lista de Clientes");
+        cut.WaitForAssertion(() => cut.Markup.Should().Contain("Aviso del buzón personal"));
     }
 
     private static async Task AbrirDescartandoAsync(IRenderedComponent<Bandeja> cut, string asunto)

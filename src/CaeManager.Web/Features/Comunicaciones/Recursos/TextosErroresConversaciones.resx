@@ -19,7 +19,7 @@
     <value>No pudimos generar el resumen de documentación del Centro. Vuelve a elegirlo en «Compartir formatos de centro»: tu respuesta no se ha modificado.</value>
   </data>
   <data name="AvisoActualizarDocumentoContextoCambiado" xml:space="preserve">
-    <value>La conversación se ha actualizado mientras se analizaba el adjunto. Vuelve a abrir «Actualizar documentación» para revisarlo con los datos actuales.</value>
+    <value>La conversación se ha actualizado y se ha cerrado «Actualizar documentación». Vuelve a abrirlo para revisar el adjunto con los datos actuales.</value>
   </data>
   <data name="AvisoFormatosContextoCambiado" xml:space="preserve">
     <value>La conversación se ha actualizado mientras se preparaba el resumen del Centro. Vuelve a elegirlo en «Compartir formatos de centro»: tu respuesta no se ha modificado.</value>

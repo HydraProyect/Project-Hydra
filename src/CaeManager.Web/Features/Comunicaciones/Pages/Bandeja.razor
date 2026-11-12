@@ -660,7 +660,7 @@
     </DrawerFormulario>
 
     @* "Pedir prioridad" a nivel conversación — mismo Drawer que ya usa CentroWorkspacePanel, aquí sobre el Centro elegido en el composer. *@
-    <DrawerFormulario HayCambios="() => HayCambiosPrioridad" Visible="_drawerPrioridadVisible" VisibleChanged="v => _drawerPrioridadVisible = v"
+    <DrawerFormulario HayCambios="() => HayCambiosPrioridad" Visible="_drawerPrioridadVisible" VisibleChanged="v => { if (!v) CerrarDrawerPrioridad(); }"
             Titulo="Pedir prioridad de validación" Guardando="_enviandoPrioridad" Cargando="_cargandoBorradorPrioridad" FilasCargando="3"
             MensajeError="@(_borradorPrioridad is null ? null : _mensajeErrorPrioridad)" SinContenido="SinBorradorPrioridad"
             MotivoGuardarDeshabilitado="@(_borradorPrioridad is null ? (_mensajeErrorPrioridad ?? ErroresTextos["ErrorBorradorPrioridad"].Value) : null)"

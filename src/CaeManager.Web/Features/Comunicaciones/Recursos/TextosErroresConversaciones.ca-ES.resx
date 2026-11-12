@@ -19,7 +19,7 @@
     <value>No hem pogut generar el resum de documentació del Centre. Torna a triar-lo a «Compartir formats de centre»: la teva resposta no s'ha modificat.</value>
   </data>
   <data name="AvisoActualizarDocumentoContextoCambiado" xml:space="preserve">
-    <value>La conversa s'ha actualitzat mentre s'analitzava l'adjunt. Torna a obrir «Actualitzar documentació» per revisar-lo amb les dades actuals.</value>
+    <value>La conversa s'ha actualitzat i s'ha tancat «Actualitzar documentació». Torna a obrir-lo per revisar l'adjunt amb les dades actuals.</value>
   </data>
   <data name="AvisoFormatosContextoCambiado" xml:space="preserve">
     <value>La conversa s'ha actualitzat mentre es preparava el resum del Centre. Torna a triar-lo a «Compartir formats de centre»: la teva resposta no s'ha modificat.</value>

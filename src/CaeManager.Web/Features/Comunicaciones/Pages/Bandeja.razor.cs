@@ -141,11 +141,13 @@ public partial class Bandeja : CaeManager.Web.Components.PaginaInteractiva, IAsy
     {
         if (_cambiandoPrioridad || _detalle is null || !Enum.TryParse<PrioridadConversacion>(valor, out var prioridad)) return;
         _cambiandoPrioridad = true;
+        var vigencia = CapturarVigencia();
         try
         {
             var resultado = await Mediator.Send(new CaeManager.Application.Comunicaciones.Commands.CambiarPrioridadConversacion.CambiarPrioridadConversacionCommand(_detalle.Id, prioridad), _ciclo.Token);
             if (resultado.EsFallido) { ToastService.MostrarError(resultado.Error); return; }
-            await CargarDetalleAsync();
+            // Con otra conversación abierta, su detalle no cambió: solo la lista.
+            if (MismaApertura(vigencia)) await CargarDetalleAsync();
             await CargarListaAsync();
         }
         finally { _cambiandoPrioridad = false; }
@@ -262,6 +264,55 @@ public partial class Bandeja : CaeManager.Web.Components.PaginaInteractiva, IAsy
 
     /// <summary>Número de la última petición de «Compartir formatos» — ver <see cref="CompartirFormatosCentroAsync"/>.</summary>
     private int _solicitudFormatosVigente;
+
+    /// <summary>Número de la última apertura del Drawer de «Pedir prioridad»; sube también al cerrarlo — ver <see cref="AbrirPedirPrioridadAsync"/>.</summary>
+    private int _solicitudPrioridadVigente;
+
+    // --- Vigencia de lo que espera (inventario de caminos asíncronos de la revisión Codex r6 de la #2167) ---
+    //
+    // Toda operación que escribe estado, borrador o selección después de una espera captura su Vigencia ANTES de esperar y la
+    // comprueba DESPUÉS con MismaApertura o MismoContexto. Dos generaciones, subidas solo desde CambiarApertura y CambiarContexto:
+    // - Apertura: sube al abrir otra conversación, al volver a la bandeja, al cambiar de vista y cuando la conversación abierta
+    //   desaparece. Lo que pertenece al borrador o a la conversación abierta (adjuntos, lo enviado, la sucesora tras resolver, el
+    //   destino de una vinculación, el medidor) solo se escribe con la misma apertura. Una recarga no la cambia: el borrador sigue
+    //   siendo el mismo.
+    // - Contexto: sube con cada apertura y además cuando una recarga cambia el Cliente empresarial de la conversación (o la deja sin
+    //   contexto). Lo que depende de ese Cliente empresarial (plantilla, formatos de un Centro, Empresas y detección del adjunto,
+    //   borrador de prioridad) solo se escribe con el mismo contexto.
+    // Las operaciones que se pueden repetir o cancelar (otra elección de Centro, cerrar y reabrir un modal o un Drawer) llevan
+    // además su propia solicitud. La carga del detalle conserva la suya (_cargaDetalleVigente), que sube con cada carga.
+
+    private int _aperturaVigente;
+    private int _contextoVigente;
+
+    private readonly record struct Vigencia(int Apertura, int Contexto, Guid? ConversacionId);
+
+    private Vigencia CapturarVigencia() => new(_aperturaVigente, _contextoVigente, _conversacionSeleccionadaId);
+
+    private bool MismaApertura(Vigencia vigencia) => vigencia.Apertura == _aperturaVigente;
+
+    private bool MismoContexto(Vigencia vigencia) => vigencia.Contexto == _contextoVigente;
+
+    /// <summary>La conversación abierta deja de ser la misma: también cambia su contexto.</summary>
+    private void CambiarApertura()
+    {
+        ++_aperturaVigente;
+        CambiarContexto(conAviso: false);
+    }
+
+    /// <summary>
+    /// El contexto de la conversación abierta ya no es el que era. El modal de «Actualizar documentación», cargado o cargándose,
+    /// ofrece Empresas y lo detectado de ese contexto: se cierra (su solicitud deja de ser la vigente) y, si la conversación sigue
+    /// abierta, se avisa para que se vuelva a abrir con los datos actuales (revisión Codex r6 de la #2167, MEDIO 4).
+    /// </summary>
+    private void CambiarContexto(bool conAviso = true)
+    {
+        ++_contextoVigente;
+        if (!_modalActualizarDocumentoVisible) return;
+
+        CerrarModalActualizarDocumento();
+        if (conAviso) ToastService.Mostrar(ErroresTextos["AvisoActualizarDocumentoContextoCambiado"].Value, TonoToast.Info);
+    }
 
     private bool VentanaAbierta =>
         _detalle?.Canal == CanalConversacion.WhatsApp &&
@@ -452,8 +503,14 @@ public partial class Bandeja : CaeManager.Web.Components.PaginaInteractiva, IAsy
         if (!await _ambitoConversacion.ConfirmarAbandonoAsync()) return;
 
         _vista = vista;
+        // Igual que VolverABandejaAsync: la carga del detalle en vuelo deja de ser la vigente y todo lo que espera sobre la
+        // conversación abandonada (plantilla, formatos, adjuntos, modal) deja de escribir (revisión Codex r6 de la #2167, MEDIO 1).
+        ++_cargaDetalleVigente;
+        _cargandoDetalle = false;
+        _errorDetalle = false;
         _conversacionSeleccionadaId = null;
         _detalle = null;
+        CambiarApertura();
         NavigationManager.ActualizarFiltrosEnUrl(new Dictionary<string, string?>
         {
             ["vista"] = vista == "clientes" ? null : vista,
@@ -503,6 +560,15 @@ public partial class Bandeja : CaeManager.Web.Components.PaginaInteractiva, IAsy
 
     private async Task CargarListaAsync()
     {
+        // En «Mi buzón personal» la lista de la vista es el buzón: un aviso de tiempo real, un reintento o una acción sobre un
+        // hilo abierto desde el buzón no puede cargar la lista de Clientes, que además dejaría de ser vigente la carga del buzón en
+        // vuelo y apagaría su indicador con el buzón vacío (inventario de la revisión Codex r6 de la #2167).
+        if (_vista == "personal")
+        {
+            await CargarBuzonPersonalAsync();
+            return;
+        }
+
         var carga = ++_cargaListaVigente;
         _cargandoLista = true;
         _errorCargaLista = false;
@@ -697,12 +763,13 @@ public partial class Bandeja : CaeManager.Web.Components.PaginaInteractiva, IAsy
         if (_pagina < TotalPaginas)
         {
             if (!await _ambitoConversacion.ConfirmarAbandonoAsync()) return;
-            var id = _conversacionSeleccionadaId;
+            var vigencia = CapturarVigencia();
             _pagina++;
             // Un refresco de fondo no invalida esta carga: lo que cuenta es que la lista aplicada
-            // sea posterior a la petición y que el Gestor CAE no haya navegado a otra conversación.
+            // sea posterior a la petición y que el Gestor CAE no haya navegado a otra conversación
+            // (ni reabierto la misma: comparar el id dejaba pasar A→B→A).
             var cargada = await RecargarListaFrescaAsync();
-            if (cargada && _conversacionSeleccionadaId == id && _conversaciones.FirstOrDefault() is { } siguiente)
+            if (cargada && MismaApertura(vigencia) && _conversaciones.FirstOrDefault() is { } siguiente)
                 await SeleccionarConversacionAsync(siguiente.Id);
         }
     }
@@ -761,6 +828,7 @@ public partial class Bandeja : CaeManager.Web.Components.PaginaInteractiva, IAsy
         _errorDetalle = false;
         _conversacionSeleccionadaId = null;
         _detalle = null;
+        CambiarApertura();
         _clienteActivo = null;
         _notaInternaActiva = false;
         _textoRespuesta = string.Empty;
@@ -782,6 +850,7 @@ public partial class Bandeja : CaeManager.Web.Components.PaginaInteractiva, IAsy
         if (!await _ambitoConversacion.ConfirmarAbandonoAsync()) return;
 
         _conversacionSeleccionadaId = id;
+        CambiarApertura();
         _idEnfocado = id;
         _notaInternaActiva = false;
         _textoRespuesta = string.Empty;
@@ -883,7 +952,13 @@ public partial class Bandeja : CaeManager.Web.Components.PaginaInteractiva, IAsy
             if (carga != _cargaDetalleVigente) return;
 
             _detalle = detalle;
-            if (detalle is not null && !ContextoEs(id, ClienteDelDetalle(detalle))) _contextoDe = null;
+            // Otra conversación o el mismo hilo con otro Cliente empresarial: el contexto en memoria deja de ser el suyo y lo que
+            // espera sobre el anterior deja de escribir (CambiarContexto, también cierra el modal de documentación cargado).
+            if (detalle is not null && !ContextoEs(id, ClienteDelDetalle(detalle)))
+            {
+                _contextoDe = null;
+                CambiarContexto();
+            }
             _notasInternas = notas;
             _autoresNotas = autores;
             _avataresNotas = avatares;
@@ -896,6 +971,7 @@ public partial class Bandeja : CaeManager.Web.Components.PaginaInteractiva, IAsy
             if (_detalle is null)
             {
                 _conversacionSeleccionadaId = null;
+                CambiarApertura();
                 NavigationManager.ActualizarFiltroEnUrl("conversacion", null);
                 return;
             }
@@ -960,6 +1036,7 @@ public partial class Bandeja : CaeManager.Web.Components.PaginaInteractiva, IAsy
             if (!(_detalle is { } actual && ContextoEs(id, ClienteDelDetalle(actual))))
             {
                 _contextoDe = null;
+                CambiarContexto();
                 _clienteActivo = null;
 
                 // Excepción: con la nota fija de esta conversación en edición el detalle se conserva sin contexto (el panel solo
@@ -1004,14 +1081,16 @@ public partial class Bandeja : CaeManager.Web.Components.PaginaInteractiva, IAsy
         _aplicandoMacro = true;
         // Misma guarda que «Compartir formatos de centro» (CompartirFormatosCentroAsync): comparar solo la conversación deja pasar
         // A→B→A y un Cliente empresarial cambiado en una recarga durante la espera (revisión Codex r5 de la #2167, MEDIO 1). La
-        // plantilla se rellenó con los datos de la carga que la pidió; si esa carga ya no es la vigente, no se añade al borrador.
-        var carga = _cargaDetalleVigente;
+        // plantilla se rellenó con la conversación y el Cliente empresarial del contexto que la pidió; si ese contexto ya no es el
+        // vigente (otra apertura, otra vista o una recarga que cambió el Cliente empresarial), no se añade al borrador.
+        var vigencia = CapturarVigencia();
         try
         {
             var resultado = await Mediator.Send(new AplicarMacroCommand(conversacionId, macroId), _ciclo.Token);
-            if (carga != _cargaDetalleVigente)
+            if (!MismoContexto(vigencia))
             {
-                if (_conversacionSeleccionadaId == conversacionId)
+                // Misma apertura, contexto recargado: se avisa y se libera el selector.
+                if (MismaApertura(vigencia))
                 {
                     _macroSeleccionadaId = string.Empty;
                     ToastService.Mostrar(ErroresTextos["AvisoPlantillaContextoCambiado"].Value, TonoToast.Info);
@@ -1051,23 +1130,21 @@ public partial class Bandeja : CaeManager.Web.Components.PaginaInteractiva, IAsy
         if (!Guid.TryParse(centroIdTexto, out var centroId)) return;
 
         // El resumen solo se añade al borrador del mismo contexto que lo pidió (revisión Codex r3 y r4 de la #2167, MEDIO 4).
-        // Dos generaciones, capturadas antes del await y comparadas después:
-        // - _cargaDetalleVigente sube en cada apertura, cierre y recarga del detalle. Cubre otra conversación, la misma
-        //   conversación reabierta (A→B→A) y un Cliente empresarial que cambió en una recarga durante la espera. El composer no
-        //   se pinta mientras carga el detalle (Bandeja.razor, rama _cargandoDetalle), así que la petición no puede salir en
-        //   mitad de una carga y su contexto es el que esa carga fijó.
+        // Dos comprobaciones tras la espera:
+        // - MismoContexto: cubre otra conversación, la misma reabierta (A→B→A), otra vista y un Cliente empresarial que cambió
+        //   en una recarga durante la espera. El composer no se pinta mientras carga el detalle (Bandeja.razor, rama
+        //   _cargandoDetalle), así que la petición no puede salir en mitad de una carga y su contexto es el que esa carga fijó.
         // - _solicitudFormatosVigente sube en cada petición: si el Gestor CAE elige otro Centro mientras espera, la respuesta
         //   del Centro anterior ya no es la vigente.
-        var conversacionId = _conversacionSeleccionadaId;
-        var carga = _cargaDetalleVigente;
+        var vigencia = CapturarVigencia();
         try
         {
             var formatos = await Mediator.Send(new ObtenerFormatosRequeridosCentroQuery(centroId), _ciclo.Token);
             if (solicitud != _solicitudFormatosVigente) return;
-            if (carga != _cargaDetalleVigente)
+            if (!MismoContexto(vigencia))
             {
-                // Misma conversación, contexto recargado: se avisa y se libera el selector para que pueda volver a elegirse.
-                if (_conversacionSeleccionadaId == conversacionId)
+                // Misma apertura, contexto recargado: se avisa y se libera el selector para que pueda volver a elegirse.
+                if (MismaApertura(vigencia))
                 {
                     _centroFormatosSeleccionado = string.Empty;
                     ToastService.Mostrar(ErroresTextos["AvisoFormatosContextoCambiado"].Value, TonoToast.Info);
@@ -1098,18 +1175,17 @@ public partial class Bandeja : CaeManager.Web.Components.PaginaInteractiva, IAsy
     /// </summary>
     private async Task ManejarArchivosAdjuntosAsync(InputFileChangeEventArgs e)
     {
-        // La lectura de los archivos espera al navegador: se hace sobre una copia y solo se incorpora al borrador si la carga del
-        // detalle que la empezó sigue siendo la vigente. Sin esto, los archivos elegidos en una conversación acababan en el
-        // borrador de otra, o en el de la misma reabierta (A→B→A), porque la lista es la misma instancia (revisión Codex r5 de la
-        // #2167, inventario de caminos asíncronos). Mismo criterio que CompartirFormatosCentroAsync.
-        var conversacionId = _conversacionSeleccionadaId;
-        var carga = _cargaDetalleVigente;
+        // La lectura de los archivos espera al navegador: se hace sobre una copia y solo se incorpora al borrador si sigue siendo
+        // el de la apertura que la empezó. Sin esto, los archivos elegidos en una conversación acababan en el borrador de otra, o
+        // en el de la misma reabierta (A→B→A), porque la lista es la misma instancia (revisión Codex r5 de la #2167, inventario de
+        // caminos asíncronos). Una recarga del detalle no cambia el borrador, así que no tira el archivo.
+        var vigencia = CapturarVigencia();
         var lote = _adjuntosPendientes.ToList();
         var previos = lote.Count;
         var rechazo = await _cargaAdjuntos.AgregarAsync(e, lote);
-        if (carga != _cargaDetalleVigente)
+        if (!MismaApertura(vigencia))
         {
-            if (_conversacionSeleccionadaId == conversacionId)
+            if (_conversacionSeleccionadaId == vigencia.ConversacionId)
                 ToastService.Mostrar(ErroresTextos["AvisoAdjuntosContextoCambiado"].Value, TonoToast.Info);
             return;
         }
@@ -1143,13 +1219,15 @@ public partial class Bandeja : CaeManager.Web.Components.PaginaInteractiva, IAsy
 
         _enviando = true;
         var conversacionId = _conversacionSeleccionadaId.Value;
-        var textoEnviado = _textoRespuesta;
+        // Instantánea exacta de lo que sale: con éxito se limpia solo eso (LimpiarLoEnviado). WhatsApp no lleva adjuntos.
+        var enviado = new BorradorEnviado(CapturarVigencia(), _textoRespuesta,
+            _detalle?.Canal == CanalConversacion.WhatsApp ? [] : _adjuntosPendientes.ToList(), _errorAdjuntos, EmailFallback: null);
         try
         {
             var resultado = _detalle?.Canal == CanalConversacion.WhatsApp
-                ? await Mediator.Send(new ResponderConversacionWhatsAppCommand(conversacionId, textoEnviado.Trim()), _ciclo.Token)
+                ? await Mediator.Send(new ResponderConversacionWhatsAppCommand(conversacionId, enviado.Texto.Trim()), _ciclo.Token)
                 : await Mediator.Send(new ResponderConversacionCommand(
-                    conversacionId, textoEnviado, _adjuntosPendientes.Count > 0 ? _adjuntosPendientes.ToList() : null), _ciclo.Token);
+                    conversacionId, enviado.Texto, enviado.Adjuntos.Count > 0 ? enviado.Adjuntos.ToList() : null), _ciclo.Token);
 
             if (resultado.EsFallido)
             {
@@ -1160,21 +1238,19 @@ public partial class Bandeja : CaeManager.Web.Components.PaginaInteractiva, IAsy
                 return;
             }
 
-            // Se vacía el borrador que se envió, no el que haya ahora: si durante el envío el Gestor CAE abrió otra conversación
-            // (o la misma otra vez) y empezó otra respuesta, esa no se toca (revisión Codex r5 de la #2167, inventario de caminos
-            // asíncronos). No se compara la carga del detalle: una recarga por un mensaje entrante dejaría lo enviado en el
-            // composer, listo para mandarse dos veces.
-            if (BorradorSigueSiendo(conversacionId, textoEnviado))
-            {
-                _textoRespuesta = string.Empty;
-                _macroSeleccionadaId = string.Empty;
-                _adjuntosPendientes.Clear();
-                _errorAdjuntos = null;
-            }
+            // Se vacía lo que se envió, no lo que haya ahora (LimpiarLoEnviado): un adjunto añadido o una dirección cambiada
+            // mientras viajaba el envío se conservan, y otra apertura (otra conversación, o la misma reabierta con el mismo texto)
+            // no se toca (revisión Codex r6 de la #2167, MEDIO 2). No se compara la carga del detalle: una recarga por un mensaje
+            // entrante dejaría lo enviado en el composer, listo para mandarse dos veces.
+            LimpiarLoEnviado(enviado);
             ToastService.Mostrar("Respuesta enviada.", TonoToast.Exito);
 
-            await RegistrarAccionMedidaAsync();
-            await CargarDetalleAsync();
+            // El medidor y el detalle son los de la conversación pintada: con otra apertura, solo la lista.
+            if (MismaApertura(enviado.Vigencia))
+            {
+                await RegistrarAccionMedidaAsync();
+                await CargarDetalleAsync();
+            }
             await CargarListaAsync();
         }
         catch (OperationCanceledException)
@@ -1190,7 +1266,7 @@ public partial class Bandeja : CaeManager.Web.Components.PaginaInteractiva, IAsy
         }
         catch (Exception ex)
         {
-            Logger.LogError(ex, "Error al responder en la conversación {ConversacionId}.", _conversacionSeleccionadaId);
+            Logger.LogError(ex, "Error al responder en la conversación {ConversacionId}.", conversacionId);
             ToastService.Mostrar(ErroresTextos["ErrorEnviarRespuesta"].Value, TonoToast.Error);
         }
         finally
@@ -1208,26 +1284,23 @@ public partial class Bandeja : CaeManager.Web.Components.PaginaInteractiva, IAsy
 
         _enviando = true;
         var conversacionId = _conversacionSeleccionadaId.Value;
-        var textoEnviado = _textoRespuesta;
+        // El fallback no lleva adjuntos: la instantánea es el texto y la dirección.
+        var enviado = new BorradorEnviado(CapturarVigencia(), _textoRespuesta, [], ErrorAdjuntos: null, _emailFallback);
         try
         {
             var resultado = await Mediator.Send(new MigrarConversacionACorreoCommand(
-                conversacionId, _emailFallback.Trim(), textoEnviado), _ciclo.Token);
+                conversacionId, enviado.EmailFallback!.Trim(), enviado.Texto), _ciclo.Token);
             if (resultado.EsFallido)
             {
                 ToastService.MostrarError(resultado.Error);
                 return;
             }
 
-            // Ver EnviarAsync: solo se vacía el borrador que se envió.
-            if (BorradorSigueSiendo(conversacionId, textoEnviado))
-            {
-                _textoRespuesta = string.Empty;
-                _emailFallback = string.Empty;
-            }
+            // Ver EnviarAsync: solo se vacía lo que se envió (una dirección nueva escrita durante el envío se conserva).
+            LimpiarLoEnviado(enviado);
             ToastService.Mostrar("Mensaje enviado por correo — la conversación continúa en este mismo hilo.", TonoToast.Exito);
 
-            await CargarDetalleAsync();
+            if (MismaApertura(enviado.Vigencia)) await CargarDetalleAsync();
             await CargarListaAsync();
         }
         catch (OperationCanceledException)
@@ -1239,7 +1312,7 @@ public partial class Bandeja : CaeManager.Web.Components.PaginaInteractiva, IAsy
         }
         catch (Exception ex)
         {
-            Logger.LogError(ex, "Error al migrar a correo la conversación {ConversacionId}.", _conversacionSeleccionadaId);
+            Logger.LogError(ex, "Error al migrar a correo la conversación {ConversacionId}.", conversacionId);
             ToastService.Mostrar(ErroresTextos["ErrorEnviarCorreoFallback"].Value, TonoToast.Error);
         }
         finally
@@ -1320,25 +1393,27 @@ public partial class Bandeja : CaeManager.Web.Components.PaginaInteractiva, IAsy
             : null;
 
         _cambiandoEstado = true;
+        var vigencia = CapturarVigencia();
         try
         {
-            var resultado = await Mediator.Send(new CambiarEstadoConversacionCommand(_conversacionSeleccionadaId.Value, nuevoEstado), _ciclo.Token);
+            var resultado = await Mediator.Send(new CambiarEstadoConversacionCommand(id, nuevoEstado), _ciclo.Token);
             if (resultado.EsFallido)
             {
                 ToastService.MostrarError(resultado.Error);
                 return;
             }
 
-            // Solo importa si el Gestor CAE navegó a otra conversación mientras el comando viajaba:
-            // los refrescos de fondo de la lista no son motivo para dejar de registrar ni de recargar.
-            if (_conversacionSeleccionadaId != id)
+            // Solo importa si el Gestor CAE navegó a otra conversación (o reabrió la misma: comparar el id dejaba pasar A→B→A
+            // y saltar a la sucesora desde la reapertura) mientras el comando viajaba. Los refrescos de fondo de la lista no son
+            // motivo para dejar de registrar ni de recargar.
+            if (!MismaApertura(vigencia))
             {
                 await CargarListaAsync();
                 return;
             }
 
             await RegistrarAccionMedidaAsync();
-            if (_conversacionSeleccionadaId != id)
+            if (!MismaApertura(vigencia))
             {
                 await CargarListaAsync();
                 return;
@@ -1346,7 +1421,7 @@ public partial class Bandeja : CaeManager.Web.Components.PaginaInteractiva, IAsy
 
             await CargarDetalleAsync();
             var listaFresca = await RecargarListaFrescaAsync();
-            if (_conversacionSeleccionadaId != id || !listaFresca) return;
+            if (!MismaApertura(vigencia) || !listaFresca) return;
             if (nuevoEstado is EstadoConversacion.Resuelta or EstadoConversacion.Cerrada
                 && sucesoraId is { } sucesora && _conversaciones.Any(c => c.Id == sucesora))
                 await SeleccionarConversacionAsync(sucesora);
@@ -1386,6 +1461,7 @@ public partial class Bandeja : CaeManager.Web.Components.PaginaInteractiva, IAsy
         if (_conversacionSeleccionadaId is null || !Guid.TryParse(_clienteTriageSeleccionado, out var clienteId)) return;
 
         _asignandoCliente = true;
+        var vigencia = CapturarVigencia();
         try
         {
             var resultado = await Mediator.Send(new AsignarClienteConversacionCommand(_conversacionSeleccionadaId.Value, clienteId), _ciclo.Token);
@@ -1396,7 +1472,8 @@ public partial class Bandeja : CaeManager.Web.Components.PaginaInteractiva, IAsy
             }
 
             ToastService.Mostrar("Conversación asignada al Cliente.", TonoToast.Exito);
-            await CargarDetalleAsync();
+            // Mismo criterio que el resto de acciones sobre el hilo: con otra apertura, solo la lista.
+            if (MismaApertura(vigencia)) await CargarDetalleAsync();
             await CargarListaAsync();
         }
         finally
@@ -1423,6 +1500,7 @@ public partial class Bandeja : CaeManager.Web.Components.PaginaInteractiva, IAsy
 
     private async Task DescartarSugerenciaVisitaAsync(Guid sugerenciaId)
     {
+        var vigencia = CapturarVigencia();
         try
         {
             var resultado = await Mediator.Send(new DescartarSugerenciaVisitaCorreoCommand(sugerenciaId), _ciclo.Token);
@@ -1432,7 +1510,7 @@ public partial class Bandeja : CaeManager.Web.Components.PaginaInteractiva, IAsy
                 return;
             }
 
-            if (_conversacionSeleccionadaId is not null)
+            if (MismaApertura(vigencia) && _conversacionSeleccionadaId is not null)
                 await CargarDetalleAsync();
         }
         catch (Exception ex)
@@ -1451,6 +1529,7 @@ public partial class Bandeja : CaeManager.Web.Components.PaginaInteractiva, IAsy
     /// </summary>
     private async Task GenerarGestionesDesdeSugerenciaAsync(Guid sugerenciaId, Guid trabajadorId, Guid tipoDocumentoId)
     {
+        var vigencia = CapturarVigencia();
         try
         {
             var resultado = await Mediator.Send(new CrearGestionesParaTrabajadorCommand(trabajadorId, tipoDocumentoId, sugerenciaId), _ciclo.Token);
@@ -1462,7 +1541,7 @@ public partial class Bandeja : CaeManager.Web.Components.PaginaInteractiva, IAsy
 
             ToastService.Mostrar($"Se generaron {resultado.Valor.Creadas} gestión(es).", TonoToast.Exito);
 
-            if (_conversacionSeleccionadaId is not null)
+            if (MismaApertura(vigencia) && _conversacionSeleccionadaId is not null)
                 await CargarDetalleAsync();
         }
         catch (Exception ex)
@@ -1482,6 +1561,7 @@ public partial class Bandeja : CaeManager.Web.Components.PaginaInteractiva, IAsy
     {
         if (_conversacionSeleccionadaId is not { } conversacionOrigenId) return;
 
+        var vigencia = CapturarVigencia();
         try
         {
             var resultado = await Mediator.Send(new VincularConversacionCommand(conversacionOrigenId, conversacionDestinoId), _ciclo.Token);
@@ -1492,7 +1572,9 @@ public partial class Bandeja : CaeManager.Web.Components.PaginaInteractiva, IAsy
             }
 
             ToastService.Mostrar("Conversaciones vinculadas.", TonoToast.Exito);
-            await SeleccionarConversacionAsync(conversacionDestinoId);
+            // Si mientras se vinculaba el Gestor CAE abrió otra conversación (o reabrió esta), no se le lleva al destino: se
+            // quedaría sin la que eligió (inventario de la revisión Codex r6 de la #2167).
+            if (MismaApertura(vigencia)) await SeleccionarConversacionAsync(conversacionDestinoId);
             await CargarListaAsync();
         }
         catch (Exception ex)
@@ -1505,6 +1587,7 @@ public partial class Bandeja : CaeManager.Web.Components.PaginaInteractiva, IAsy
     /// <summary>El gestor confirma que un mensaje marcado como ruido (ronda de reducción de ruido en Comunicaciones) sí importa — deja de tratarse como tal.</summary>
     private async Task ConfirmarRuidoAsync(Guid mensajeId)
     {
+        var vigencia = CapturarVigencia();
         try
         {
             var resultado = await Mediator.Send(new ConfirmarClasificacionRuidoMensajeCommand(mensajeId), _ciclo.Token);
@@ -1514,7 +1597,7 @@ public partial class Bandeja : CaeManager.Web.Components.PaginaInteractiva, IAsy
                 return;
             }
 
-            await CargarDetalleAsync();
+            if (MismaApertura(vigencia)) await CargarDetalleAsync();
             await CargarListaAsync();
         }
         catch (Exception ex)
@@ -1526,6 +1609,7 @@ public partial class Bandeja : CaeManager.Web.Components.PaginaInteractiva, IAsy
 
     private async Task DescartarSugerenciaGestionAsync(Guid sugerenciaId)
     {
+        var vigencia = CapturarVigencia();
         try
         {
             var resultado = await Mediator.Send(new DescartarSugerenciaGestionCorreoCommand(sugerenciaId), _ciclo.Token);
@@ -1535,7 +1619,7 @@ public partial class Bandeja : CaeManager.Web.Components.PaginaInteractiva, IAsy
                 return;
             }
 
-            if (_conversacionSeleccionadaId is not null)
+            if (MismaApertura(vigencia) && _conversacionSeleccionadaId is not null)
                 await CargarDetalleAsync();
         }
         catch (Exception ex)
@@ -1568,38 +1652,36 @@ public partial class Bandeja : CaeManager.Web.Components.PaginaInteractiva, IAsy
         _noCaducaDocumentoFormulario = false;
         _comentariosDocumentoFormulario = string.Empty;
         _confianzaDeteccionDocumento = 0;
+        _aplicandoDocumento = false;
         FijarInstantaneaActualizarDocumento();
 
         _detectandoDocumento = true;
         StateHasChanged();
 
-        // Mismo criterio que CompartirFormatosCentroAsync: lo que llega tras cada espera solo se escribe si la carga del detalle que
-        // abrió el modal sigue siendo la vigente. El selector de Empresas se filtra por el Cliente empresarial de esa carga; una
-        // recarga que lo cambie durante la detección dejaría Empresas del anterior (revisión Codex r5 de la #2167, inventario de
-        // caminos asíncronos). Si el contexto cambió, el modal se cierra y se avisa: reabrirlo carga los selectores de nuevo.
-        // _solicitudActualizarDocumentoVigente cubre cerrar y reabrir el modal mientras la primera detección sigue esperando.
+        // Lo que llega tras cada espera solo se escribe si esta apertura del modal sigue siendo la vigente. Cerrarlo, reabrirlo o
+        // cambiar el contexto (otra apertura de la conversación, otra vista, una recarga que cambia el Cliente empresarial) sube
+        // _solicitudActualizarDocumentoVigente: CambiarContexto cierra el modal y avisa (revisión Codex r5 y r6 de la #2167). Una
+        // recarga que no cambia el Cliente empresarial no lo cierra: las Empresas y lo detectado siguen siendo de su contexto.
         var solicitud = ++_solicitudActualizarDocumentoVigente;
-        var carga = _cargaDetalleVigente;
-        var conversacionId = _conversacionSeleccionadaId;
-        bool Vigente() => solicitud == _solicitudActualizarDocumentoVigente && carga == _cargaDetalleVigente;
+        var clienteEmpresas = _detalle?.ClienteId;
+        bool Vigente() => solicitud == _solicitudActualizarDocumentoVigente;
 
         try
         {
             var tipos = await Mediator.Send(new ObtenerTiposDocumentoQuery(ParaAltaNueva: true), _ciclo.Token);
-            if (!Vigente()) { DescartarActualizarDocumento(solicitud, conversacionId); return; }
+            if (!Vigente()) return;
             _tiposDocumentoSelector = tipos;
 
             var trabajadores = await Mediator.Send(new ObtenerTrabajadoresParaSelectorQuery(AlcanceSelectorTrabajadores.Cartera), _ciclo.Token);
-            if (!Vigente()) { DescartarActualizarDocumento(solicitud, conversacionId); return; }
+            if (!Vigente()) return;
             _trabajadoresSelector = trabajadores;
 
-            // Vigente() tras la espera anterior: _detalle sigue siendo el de la carga que abrió el modal.
-            var empresas = await Mediator.Send(new ObtenerEmpresasParaSelectorQuery(_detalle?.ClienteId), _ciclo.Token);
-            if (!Vigente()) { DescartarActualizarDocumento(solicitud, conversacionId); return; }
+            var empresas = await Mediator.Send(new ObtenerEmpresasParaSelectorQuery(clienteEmpresas), _ciclo.Token);
+            if (!Vigente()) return;
             _empresasSelector = empresas;
 
             var deteccion = await Mediator.Send(new DetectarActualizacionDocumentoDesdeAdjuntoQuery(adjuntoId), _ciclo.Token);
-            if (!Vigente()) { DescartarActualizarDocumento(solicitud, conversacionId); return; }
+            if (!Vigente()) return;
             if (deteccion.EsFallido)
             {
                 _errorActualizarDocumento = deteccion.Error.Mensaje;
@@ -1620,8 +1702,6 @@ public partial class Bandeja : CaeManager.Web.Components.PaginaInteractiva, IAsy
             Logger.LogError(ex, "Error al detectar la actualización de documentación del adjunto {AdjuntoId}.", adjuntoId);
             if (Vigente())
                 _errorActualizarDocumento = "No pudimos analizar el adjunto. Puedes rellenar los campos a mano.";
-            else
-                DescartarActualizarDocumento(solicitud, conversacionId);
         }
         finally
         {
@@ -1636,21 +1716,15 @@ public partial class Bandeja : CaeManager.Web.Components.PaginaInteractiva, IAsy
     }
 
     /// <summary>
-    /// La detección que abrió el modal ya no corresponde al contexto vigente. Si una apertura posterior del modal la ha
-    /// sustituido, esa apertura es la dueña del estado y aquí no se toca nada; si no, el modal se cierra (sus selectores y lo
-    /// detectado pertenecen a la carga anterior) y, si la conversación sigue abierta, se avisa para que se vuelva a abrir.
+    /// Cierra el modal y termina su apertura: lo que aún espere de ella (detección, aplicar) deja de escribir en el modal. Lo
+    /// usan «Cancelar» y la X, el descarte de cambios y CambiarContexto.
     /// </summary>
-    private void DescartarActualizarDocumento(int solicitud, Guid? conversacionId)
+    private void CerrarModalActualizarDocumento()
     {
-        if (solicitud != _solicitudActualizarDocumentoVigente) return;
-        _detectandoDocumento = false;
-        if (!_modalActualizarDocumentoVisible) return;
         _modalActualizarDocumentoVisible = false;
-        if (_conversacionSeleccionadaId == conversacionId)
-            ToastService.Mostrar(ErroresTextos["AvisoActualizarDocumentoContextoCambiado"].Value, TonoToast.Info);
+        _detectandoDocumento = false;
+        ++_solicitudActualizarDocumentoVigente;
     }
-
-    private void CerrarModalActualizarDocumento() => _modalActualizarDocumentoVisible = false;
 
     // Al volver a ser una fecha entera (o quedar vacía), el aviso «no es una fecha» de un envío anterior ya no es cierto.
     private void AlCambiarEmisionDocumentoNoValida(bool noValida)
@@ -1708,31 +1782,37 @@ public partial class Bandeja : CaeManager.Web.Components.PaginaInteractiva, IAsy
 
         _aplicandoDocumento = true;
         _errorActualizarDocumento = null;
+        // El error y el cierre son de esta apertura del modal; si un cambio de contexto lo cerró (y quizá se reabrió con otro
+        // adjunto) mientras viajaba el comando, no se escriben en el modal que haya ahora. La validación sigue siendo del servidor.
+        var solicitud = _solicitudActualizarDocumentoVigente;
+        var vigencia = CapturarVigencia();
+        var adjuntoId = _adjuntoParaActualizarDocumentoId;
         try
         {
             var resultado = await Mediator.Send(new ActualizarDocumentoDesdeAdjuntoCommand(
-                _adjuntoParaActualizarDocumentoId, tipoDocumentoId, trabajadorId, empresaId, fechaEmision, fechaVencimientoManual,
+                adjuntoId, tipoDocumentoId, trabajadorId, empresaId, fechaEmision, fechaVencimientoManual,
                 string.IsNullOrWhiteSpace(_comentariosDocumentoFormulario) ? null : _comentariosDocumentoFormulario,
                 _noCaducaDocumentoFormulario), _ciclo.Token);
 
             if (resultado.EsFallido)
             {
-                _errorActualizarDocumento = resultado.Error.Mensaje;
+                if (solicitud == _solicitudActualizarDocumentoVigente) _errorActualizarDocumento = resultado.Error.Mensaje;
                 return;
             }
 
             ToastService.Mostrar("Documentación actualizada.", TonoToast.Exito);
-            _modalActualizarDocumentoVisible = false;
-            await CargarDetalleAsync();
+            if (solicitud == _solicitudActualizarDocumentoVigente) CerrarModalActualizarDocumento();
+            if (MismaApertura(vigencia)) await CargarDetalleAsync();
         }
         catch (Exception ex)
         {
-            Logger.LogError(ex, "Error al actualizar la documentación desde el adjunto {AdjuntoId}.", _adjuntoParaActualizarDocumentoId);
-            _errorActualizarDocumento = ErroresTextos["ErrorActualizarDocumento"].Value;
+            Logger.LogError(ex, "Error al actualizar la documentación desde el adjunto {AdjuntoId}.", adjuntoId);
+            if (solicitud == _solicitudActualizarDocumentoVigente) _errorActualizarDocumento = ErroresTextos["ErrorActualizarDocumento"].Value;
         }
         finally
         {
-            _aplicandoDocumento = false;
+            // Con el modal reabierto, el indicador es de la apertura nueva (que lo puso a false al abrirse) y no se toca.
+            if (!_modalActualizarDocumentoVisible || solicitud == _solicitudActualizarDocumentoVigente) _aplicandoDocumento = false;
         }
     }
 
@@ -1808,6 +1888,10 @@ public partial class Bandeja : CaeManager.Web.Components.PaginaInteractiva, IAsy
     {
         if (CentroSeleccionadoVigente is not { } centroId) return;
 
+        // Cada apertura es una solicitud nueva; cerrar el Drawer también la termina (CerrarDrawerPrioridad). Cancelar y reabrir
+        // para el MISMO Centro deja la primera respuesta sin dueño: no sobrescribe la segunda ni apaga su indicador de carga
+        // (revisión Codex r6 de la #2167, MEDIO 3). Comparar el Centro no lo distinguía.
+        var solicitud = ++_solicitudPrioridadVigente;
         _centroPrioridadId = centroId;
         _drawerPrioridadVisible = true;
         _cargandoBorradorPrioridad = true;
@@ -1818,10 +1902,13 @@ public partial class Bandeja : CaeManager.Web.Components.PaginaInteractiva, IAsy
         try
         {
             var resultado = await Mediator.Send(new ObtenerBorradorPedirPrioridadQuery(centroId), _ciclo.Token);
-            // Una recarga durante la espera pudo retirar el Centro (otro Cliente empresarial): su borrador no se ofrece.
-            if (_centroPrioridadId != centroId || CentroSeleccionadoVigente != centroId)
+            if (solicitud != _solicitudPrioridadVigente) return;
+            // El contexto del borrador es su Centro: CentroSeleccionadoVigente deja de ser este en cuanto una recarga cambia el
+            // Cliente empresarial (o mientras lo recarga) y en cuanto se abre otra conversación, así que no hace falta otra
+            // generación de contexto aquí. Su borrador no se ofrece.
+            if (CentroSeleccionadoVigente != centroId)
             {
-                if (_centroPrioridadId == centroId) _mensajeErrorPrioridad = ErroresTextos["AvisoPrioridadCentroRetirado"].Value;
+                _mensajeErrorPrioridad = ErroresTextos["AvisoPrioridadCentroRetirado"].Value;
                 return;
             }
             if (resultado.EsFallido)
@@ -1840,12 +1927,21 @@ public partial class Bandeja : CaeManager.Web.Components.PaginaInteractiva, IAsy
         catch (Exception ex)
         {
             Logger.LogError(ex, "Error al preparar el borrador de pedir prioridad para el centro {CentroId}.", centroId);
-            _mensajeErrorPrioridad = ErroresTextos["ErrorBorradorPrioridad"].Value;
+            if (solicitud == _solicitudPrioridadVigente) _mensajeErrorPrioridad = ErroresTextos["ErrorBorradorPrioridad"].Value;
         }
         finally
         {
-            _cargandoBorradorPrioridad = false;
+            // El indicador es de la solicitud vigente: la de una apertura anterior no lo apaga antes de tiempo.
+            if (solicitud == _solicitudPrioridadVigente) _cargandoBorradorPrioridad = false;
         }
+    }
+
+    /// <summary>«Cancelar», la X y el descarte de cambios: cerrar el Drawer termina su solicitud.</summary>
+    private void CerrarDrawerPrioridad()
+    {
+        _drawerPrioridadVisible = false;
+        _cargandoBorradorPrioridad = false;
+        ++_solicitudPrioridadVigente;
     }
 
     private async Task EnviarPrioridadAsync()
@@ -1872,6 +1968,8 @@ public partial class Bandeja : CaeManager.Web.Components.PaginaInteractiva, IAsy
 
         _enviandoPrioridad = true;
         _mensajeErrorPrioridad = null;
+        // El error y el cierre son de esta apertura del Drawer, no de una posterior.
+        var solicitud = _solicitudPrioridadVigente;
 
         try
         {
@@ -1880,19 +1978,20 @@ public partial class Bandeja : CaeManager.Web.Components.PaginaInteractiva, IAsy
 
             if (resultado.EsFallido)
             {
-                _mensajeErrorPrioridad = resultado.Error.Mensaje;
+                if (solicitud == _solicitudPrioridadVigente) _mensajeErrorPrioridad = resultado.Error.Mensaje;
                 return;
             }
 
             ToastService.Mostrar("Solicitud de prioridad enviada.", TonoToast.Exito);
-            _drawerPrioridadVisible = false;
+            if (solicitud == _solicitudPrioridadVigente) CerrarDrawerPrioridad();
         }
         catch (OperationCanceledException)
         {
         }
         catch (ValidationException ex)
         {
-            _mensajeErrorPrioridad = string.Join(" ", ex.Errors.Select(e => e.ErrorMessage).Distinct());
+            if (solicitud == _solicitudPrioridadVigente)
+                _mensajeErrorPrioridad = string.Join(" ", ex.Errors.Select(e => e.ErrorMessage).Distinct());
         }
         finally
         {
@@ -2049,9 +2148,9 @@ public partial class Bandeja : CaeManager.Web.Components.PaginaInteractiva, IAsy
 
     private void CerrarFormulariosDescartando()
     {
-        _modalActualizarDocumentoVisible = false;
+        if (_modalActualizarDocumentoVisible) CerrarModalActualizarDocumento();
         _redactarVisible = false;
-        _drawerPrioridadVisible = false;
+        if (_drawerPrioridadVisible) CerrarDrawerPrioridad();
         _textoRespuesta = string.Empty;
         _macroSeleccionadaId = string.Empty;
         _adjuntosPendientes.Clear();
@@ -2141,7 +2240,30 @@ public partial class Bandeja : CaeManager.Web.Components.PaginaInteractiva, IAsy
     private Guid? CentroSeleccionadoVigente =>
         Guid.TryParse(_centroFormatosSeleccionado, out var id) && CentrosDelContexto.Any(c => c.Id == id) ? id : null;
 
-    /// <summary>El borrador del composer es el que se envió desde esta conversación: tras un envío, solo ese se vacía.</summary>
-    private bool BorradorSigueSiendo(Guid conversacionId, string textoEnviado) =>
-        _conversacionSeleccionadaId == conversacionId && _textoRespuesta == textoEnviado;
+    /// <summary>
+    /// Lo que salió en un envío del composer, capturado antes de esperar: la apertura en la que se escribió, el texto, los
+    /// adjuntos por identidad, el aviso de adjuntos que acompañaba a ese borrador y, en el fallback, la dirección.
+    /// </summary>
+    private sealed record BorradorEnviado(
+        Vigencia Vigencia, string Texto, IReadOnlyList<AdjuntoParaEnviarDto> Adjuntos, string? ErrorAdjuntos, string? EmailFallback);
+
+    /// <summary>
+    /// Tras un envío con éxito se vacía exactamente lo enviado, y solo en la apertura que lo envió (revisión Codex r6 de la #2167,
+    /// MEDIO 2): el texto si no ha cambiado, cada adjunto enviado (por referencia: un archivo leído durante el envío es otra
+    /// instancia aunque se llame igual), el aviso de adjuntos si sigue siendo el de entonces y la dirección del fallback si sigue
+    /// siendo la usada. Lo añadido o cambiado mientras viajaba el envío se queda en el composer.
+    /// </summary>
+    private void LimpiarLoEnviado(BorradorEnviado enviado)
+    {
+        if (!MismaApertura(enviado.Vigencia)) return;
+
+        if (_textoRespuesta == enviado.Texto)
+        {
+            _textoRespuesta = string.Empty;
+            _macroSeleccionadaId = string.Empty;
+        }
+        _adjuntosPendientes.RemoveAll(a => enviado.Adjuntos.Any(e => ReferenceEquals(e, a)));
+        if (enviado.ErrorAdjuntos is not null && _errorAdjuntos == enviado.ErrorAdjuntos) _errorAdjuntos = null;
+        if (enviado.EmailFallback is not null && _emailFallback == enviado.EmailFallback) _emailFallback = string.Empty;
+    }
 }
