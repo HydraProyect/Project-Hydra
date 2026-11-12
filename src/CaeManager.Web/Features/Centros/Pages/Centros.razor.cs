@@ -93,6 +93,9 @@ public partial class Centros : CaeManager.Web.Components.PaginaInteractiva
     private string _direccion = string.Empty;
     private string _contacto = string.Empty;
     private string _contratoVigenteHasta = string.Empty;
+
+    /// <summary>El campo tiene un texto que no es una fecha entera (entrega «»): Guardar no crea el Centro «sin fecha».</summary>
+    private bool _contratoVigenteHastaNoValido;
     private bool _guardando;
     private string? _mensajeErrorFormulario;
     private Dictionary<string, string> _erroresCampo = new();
@@ -138,7 +141,8 @@ public partial class Centros : CaeManager.Web.Components.PaginaInteractiva
     /// una sola vez (P1-E2b). Lee _drawerVisible en vivo: el kit recibe el Visible nuevo
     /// un render después.
     /// </summary>
-    private bool HayCambiosCentro => _drawerVisible && _instantanea.Difiere(ValoresFormulario());
+    private bool HayCambiosCentro =>
+        _drawerVisible && (_instantanea.Difiere(ValoresFormulario()) || _contratoVigenteHastaNoValido);
 
     /// <summary>
     /// Algo escrito en el modal de crear Cliente o Empresa abierto encima del drawer. Los
@@ -1155,6 +1159,7 @@ public partial class Centros : CaeManager.Web.Components.PaginaInteractiva
         _direccion = string.Empty;
         _contacto = string.Empty;
         _contratoVigenteHasta = string.Empty;
+        _contratoVigenteHastaNoValido = false;
         _erroresCampo = new Dictionary<string, string>();
         _mensajeErrorFormulario = null;
 
@@ -1289,6 +1294,14 @@ public partial class Centros : CaeManager.Web.Components.PaginaInteractiva
         return Task.CompletedTask;
     }
 
+    // Al volver a ser una fecha entera (o quedar vacía), el aviso «no es una fecha» de un envío anterior ya no es cierto.
+    private void AlCambiarContratoVigenteHastaNoValido(bool noValido)
+    {
+        _contratoVigenteHastaNoValido = noValido;
+        if (!noValido && _mensajeErrorFormulario == Comunes["CampoFechaCorregirAntes"])
+            _mensajeErrorFormulario = null;
+    }
+
     private Task GuardarAsync() => GuardarAsync(crearOtro: false);
 
     /// <summary>
@@ -1311,6 +1324,13 @@ public partial class Centros : CaeManager.Web.Components.PaginaInteractiva
             var codigoCentro = string.IsNullOrWhiteSpace(_codigoCentro) ? null : _codigoCentro;
             var direccion = string.IsNullOrWhiteSpace(_direccion) ? null : _direccion;
             var contacto = string.IsNullOrWhiteSpace(_contacto) ? null : _contacto;
+            // «Contrato vigente hasta» a medias o ilegible llega como «»: sin este bloqueo el Centro se crearía «sin fecha».
+            if (_contratoVigenteHastaNoValido)
+            {
+                _mensajeErrorFormulario = Comunes["CampoFechaCorregirAntes"];
+                return;
+            }
+
             var contratoVigenteHasta = DateOnly.TryParse(_contratoVigenteHasta, out var fecha) ? fecha : (DateOnly?)null;
 
             if (!Guid.TryParse(_clienteId, out var clienteId))

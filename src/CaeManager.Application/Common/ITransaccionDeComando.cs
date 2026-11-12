@@ -14,6 +14,9 @@ namespace CaeManager.Application.Common;
 /// La implementación va envuelta en la estrategia de ejecución del contexto: con
 /// reintentos activados, una transacción abierta a mano sin ella se rechaza. Por eso la
 /// operación puede ejecutarse más de una vez y tiene que leer lo que necesite dentro.
+/// Cada intento empieza con el alcance de datos sin memoizar (<see cref="IInvalidadorAlcance"/>):
+/// lo que la operación autorice con <see cref="IAlcanceDatosService"/> se resuelve de nuevo
+/// en el reintento, y una Asignación de Cartera revocada entre intentos ya no vale.
 ///
 /// Si ya hay una transacción abierta en el contexto, la operación se une a ella y no se
 /// confirma ni se deshace aquí: lo decide quien la abrió, que tiene que deshacer cuando

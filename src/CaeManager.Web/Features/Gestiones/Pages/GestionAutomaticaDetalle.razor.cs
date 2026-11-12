@@ -1,7 +1,9 @@
 using CaeManager.Application.Centros.Queries.ObtenerCanalesGestionDeCentro;
 using CaeManager.Application.Common;
+using CaeManager.Application.Documentos;
 using CaeManager.Application.Documentos.Commands;
 using CaeManager.Application.Documentos.Commands.MarcarAcreditacionAceptada;
+using CaeManager.Application.Documentos.Commands.MarcarAcreditacionNoRequerida;
 using CaeManager.Application.Documentos.Commands.MarcarAcreditacionRechazada;
 using CaeManager.Application.Documentos.Commands.MarcarAcreditacionSubida;
 using CaeManager.Application.Documentos.Commands.RestaurarAnotacionAcreditacion;
@@ -57,11 +59,17 @@ public partial class GestionAutomaticaDetalle : CaeManager.Web.Components.Pagina
 
     private string? _opcion;
     private DateOnly? _hasta;
+    private bool _hastaNoValido;
     private bool _noSe;
     private string _causa = string.Empty;
     private string _motivo = string.Empty;
+    private bool _confirmaNoPide;
     private bool _guardando;
     private string? _errorGuardado;
+
+    // «Datos a mano»: pestaña elegida (null = la del sujeto del paso) y el editor de la ficha del Trabajador.
+    private string? _pestana;
+    private bool _editorTrabajadorVisible;
 
     [Inject] private IMediator Mediator { get; set; } = default!;
     [Inject] private NavigationManager Navegacion { get; set; } = default!;
@@ -191,18 +199,89 @@ public partial class GestionAutomaticaDetalle : CaeManager.Web.Components.Pagina
             yield return ("GpCampoEstadoTalveg", documento.FechaVencimiento is { } v && v < DiaDeNegocio.Hoy() ? Textos["GpVencidoEl", vence!] : Textos["GpNoVigenteValor"], false, "peligro");
     }
 
+    internal const string PestanaTrabajador = "trabajador";
+    internal const string PestanaCentro = "centro";
+
+    /// <summary>
+    /// Pestañas de «Datos a mano» (ventana de la Gestión, § 1.1): Trabajador si el Documento es de un Trabajador que llega
+    /// en el detalle, y Centro siempre. Empleador y Cliente van en un incremento posterior.
+    /// </summary>
+    private IEnumerable<string> Pestanas()
+    {
+        if (_detalle?.Trabajador is not null) yield return PestanaTrabajador;
+        yield return PestanaCentro;
+    }
+
+    /// <summary>La elegida; si no, la del sujeto del paso (en un paso de documento, su titular: el Trabajador).</summary>
+    private string PestanaActual => _pestana is { } elegida && Pestanas().Contains(elegida) ? elegida : Pestanas().First();
+
+    /// <summary>
+    /// Los datos de una pestaña, en el orden de la maqueta (datosDe). Valor null = «Falta en TALVEG». El valor ya va con el
+    /// formato que piden los portales: fechas dd/mm/aaaa y DNI sin guiones ni espacios. Fecha de baja e inicio de la
+    /// asignación solo salen si existen: no son un dato que falte.
+    /// </summary>
+    private IEnumerable<(string Clave, string? Valor)> DatosDe(string pestana, PasoGestionAutomaticaDto paso)
+    {
+        if (pestana == PestanaTrabajador && _detalle?.Trabajador is { } t)
+        {
+            yield return ("GpDatoNombre", t.NombreCompleto);
+            yield return ("GpDatoDni", DniParaPortal(t.Dni));
+            yield return ("GpDatoNacimiento", Fecha(t.FechaNacimiento));
+            yield return ("GpDatoNaf", Texto(t.NumeroAfiliacionSeguridadSocial));
+            yield return ("GpDatoNacionalidad", Texto(t.Nacionalidad));
+            yield return ("GpDatoPuesto", Texto(t.Puesto));
+            yield return ("GpDatoContratacion", Texto(t.TipoVinculo));
+            yield return ("GpDatoAltaEmpresa", Fecha(t.FechaAltaEmpresa));
+            yield return ("GpDatoRnt", Texto(t.FiguraEnRnt));
+            // Sin la política de la nota interna el permiso no llega (null) y no es un dato que falte: ni fila ni «Completar».
+            if (t.PermisoTrabajoVisible) yield return ("GpDatoPermiso", Texto(t.TipoPermisoTrabajo));
+            if (t.FechaBajaEmpresa is { } baja) yield return ("GpDatoBaja", baja.ToString("dd/MM/yyyy"));
+            yield break;
+        }
+
+        yield return ("GpDatoCentro", paso.CentroNombre);
+        yield return ("GpDatoCodigoCentro", Texto(paso.CentroCodigo));
+        yield return ("GpDatoDireccion", Texto(paso.CentroDireccion));
+        if (paso.InicioAsignacion is { } inicio) yield return ("GpDatoInicioAsignacion", inicio.ToString("dd/MM/yyyy"));
+        yield return ("GpDatoAcceso", paso.Plataforma);
+    }
+
+    private int FaltanEn(string pestana, PasoGestionAutomaticaDto paso) => DatosDe(pestana, paso).Count(d => d.Valor is null);
+
+    private static string? Texto(string? valor) => string.IsNullOrWhiteSpace(valor) ? null : valor.Trim();
+
+    private static string? Fecha(DateOnly? fecha) => fecha?.ToString("dd/MM/yyyy");
+
+    /// <summary>
+    /// «DNI sin guiones» (§ 1.1): los portales lo piden pegado y en mayúsculas. Pública solo para poder testearla
+    /// directamente (función pura, sin InternalsVisibleTo en CaeManager.Web).
+    /// </summary>
+    public static string? DniParaPortal(string? dni) =>
+        Texto(dni) is { } d ? new string(d.Where(char.IsLetterOrDigit).ToArray()).ToUpperInvariant() : null;
+
+    /// <summary>
+    /// «Completar» (V-1): el Trabajador abre su editor de ficha en un panel, sin salir de la Gestión, y al guardar se
+    /// vuelve a leer la Gestión. El código y la dirección del Centro no tienen ese editor: se completan en Centro 360.
+    /// </summary>
+    private void CompletarTrabajador() => _editorTrabajadorVisible = true;
+
+    private async Task FichaTrabajadorGuardadaAsync()
+    {
+        _editorTrabajadorVisible = false;
+        await CargarAsync();
+    }
+
     /// <summary>Se pueden marcar pasos: con escritura y en una Gestión no sustituida.</summary>
     private bool PuedeMarcar => _puedeEscribir && _detalle is { } d && d.Resumen.Estado != EstadoGestionAutomatica.Sustituida;
 
     /// <summary>
     /// Opción de «¿Cómo ha quedado?» que no se ofrece. La misma regla para el clic y para su atajo (1, 2). Subido sobre
     /// un paso rechazado lo rechaza el comando (RechazadaSinVersionNueva): hace falta una versión corregida del
-    /// Documento. «No lo pide» espera su comando (D-20).
+    /// Documento. «Esta plataforma no lo pide» se ofrece siempre que se pueda marcar: no afirma nada del Documento.
     /// </summary>
     private bool OpcionDeshabilitada(string clave) =>
         (clave is OpcionSubido or OpcionValidado && _detalle?.Documento.VigenteEnTalveg != true)
-        || (clave == OpcionSubido && PasoRechazado)
-        || clave == OpcionNoPide;
+        || (clave == OpcionSubido && PasoRechazado);
 
     /// <summary>Tecla que elige la opción, o null si no tiene o si ahora no se puede elegir (no se anuncia un atajo muerto).</summary>
     private string? AtajoDeOpcion(string clave) => OpcionDeshabilitada(clave)
@@ -251,8 +330,12 @@ public partial class GestionAutomaticaDetalle : CaeManager.Web.Components.Pagina
     private bool PuedeGuardar => _opcion switch
     {
         OpcionSubido => true,
-        OpcionValidado => _hasta is not null || _noSe,
+        // Con el texto de «Válido hasta» a medias, _hasta es null y la bandera del campo dice que no es un vaciado
+        // voluntario: las dos bloquean ya mientras se escribe. «No lo sé» deshabilita el campo y la retira.
+        OpcionValidado => _noSe || (_hasta is not null && !_hastaNoValido),
         OpcionRechazado => !string.IsNullOrEmpty(_causa) && !string.IsNullOrWhiteSpace(_motivo),
+        // Maqueta (puedeGuardar): «no lo pide» exige marcar «Confirmo que {plataforma} no pide este documento en {Centro}».
+        OpcionNoPide => _confirmaNoPide,
         _ => false
     };
 
@@ -306,14 +389,25 @@ public partial class GestionAutomaticaDetalle : CaeManager.Web.Components.Pagina
         _abiertoId = acreditacionId;
         _opcion = null;
         _hasta = null;
+        _hastaNoValido = false;
         _noSe = false;
         _causa = string.Empty;
         _motivo = string.Empty;
+        _confirmaNoPide = false;
         _errorGuardado = null;
         _menuAbierto = false;
+        _pestana = null;
     }
 
-    private void ElegirOpcion(string clave) => _opcion = clave;
+    /// <summary>
+    /// Cambiar de opción borra la confirmación de «no lo pide»: volver a esa opción exige confirmarla otra vez. Elegir
+    /// la misma opción no la borra.
+    /// </summary>
+    private void ElegirOpcion(string clave)
+    {
+        if (_opcion != clave) _confirmaNoPide = false;
+        _opcion = clave;
+    }
 
     private void Anterior()
     {
@@ -334,6 +428,17 @@ public partial class GestionAutomaticaDetalle : CaeManager.Web.Components.Pagina
     }
 
     private Task GuardarSoloAsync() => GuardarAsync(luegoSiguiente: false);
+
+    /// <summary>
+    /// El paso cambió desde que se abrió la Gestión: lo dice el comando al comparar la versión vista
+    /// (<see cref="MarcarAcreditacionNoRequeridaCommandHandler.CambiadaDesdeQueSeAbrio"/>) o el guardado al chocar con el
+    /// token de concurrencia (<see cref="ConcurrenciaOptimista.CodigoConflicto"/>, de <c>ConcurrenciaBehavior</c>), o el
+    /// Documento se renovó con archivo nuevo y el paso es ya historial (<see cref="DocumentoEnHistorial.Codigo"/>).
+    /// </summary>
+    private static bool EsCambioDesdeQueSeAbrio(Error error) =>
+        error.Codigo == MarcarAcreditacionNoRequeridaCommandHandler.CambiadaDesdeQueSeAbrio.Codigo
+        || error.Codigo == ConcurrenciaOptimista.CodigoConflicto
+        || error.Codigo == DocumentoEnHistorial.Codigo;
 
     private async Task GuardarAsync(bool luegoSiguiente)
     {
@@ -381,6 +486,10 @@ public partial class GestionAutomaticaDetalle : CaeManager.Web.Components.Pagina
 
                     resultado = await Mediator.Send(new MarcarAcreditacionRechazadaCommand(paso.AcreditacionId, causa, _motivo.Trim()));
                     break;
+                case OpcionNoPide:
+                    // La versión que se tenía delante: si cambió entretanto (también la vigencia), el comando no lo sobrescribe a ciegas.
+                    resultado = await Mediator.Send(new MarcarAcreditacionNoRequeridaCommand(paso.AcreditacionId, paso.VersionAcreditacion));
+                    break;
                 default:
                     return;
             }
@@ -388,6 +497,17 @@ public partial class GestionAutomaticaDetalle : CaeManager.Web.Components.Pagina
             if (resultado.EsFallido)
             {
                 _errorGuardado = resultado.Error.Mensaje;
+                // El paso cambió desde que se abrió: se relee para enseñar cómo está de verdad, y «no lo pide» hay que
+                // confirmarlo otra vez sobre ese estado (sin confirmación, «Reintentar» no se ofrece). Es lo mismo si el
+                // choque llega en el guardado (el token de EF, ConcurrenciaBehavior): otra escritura entre la lectura
+                // del comando y su SaveChanges. Mismo aviso y misma recarga, sea cual sea la opción.
+                if (EsCambioDesdeQueSeAbrio(resultado.Error))
+                {
+                    _errorGuardado = MarcarAcreditacionNoRequeridaCommandHandler.CambiadaDesdeQueSeAbrio.Mensaje;
+                    _confirmaNoPide = false;
+                    await CargarAsync();
+                }
+
                 return;
             }
 
@@ -403,9 +523,11 @@ public partial class GestionAutomaticaDetalle : CaeManager.Web.Components.Pagina
 
             _opcion = null;
             _hasta = null;
+            _hastaNoValido = false;
             _noSe = false;
             _causa = string.Empty;
             _motivo = string.Empty;
+            _confirmaNoPide = false;
             await CargarAsync();
 
             // Un rechazo sobre una Gestión que ya no estaba en curso la reabre (D-6).

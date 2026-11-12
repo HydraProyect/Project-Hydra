@@ -15,8 +15,12 @@ public class UnitOfWorkFalso : IUnitOfWork
     /// </summary>
     public Action? AlGuardar { get; set; }
 
+    /// <summary>El token con el que se pidió cada guardado, también los que lanzaron: para fijar cuáles no son cancelables.</summary>
+    public List<CancellationToken> TokensDeGuardado { get; } = [];
+
     public Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
     {
+        TokensDeGuardado.Add(cancellationToken);
         if (ExcepcionAlGuardar is { } excepcion)
             throw excepcion;
 

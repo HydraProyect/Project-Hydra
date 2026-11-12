@@ -11,6 +11,8 @@ public class SolicitudConexionMicrosoft365Configuration : IEntityTypeConfigurati
         builder.ToTable("SolicitudesConexionMicrosoft365");
         builder.HasKey(s => s.Id);
 
+        builder.Property(s => s.BuzonCompartido).HasMaxLength(ConexionIntegracion.LongitudMaximaBuzonEmail);
+
         builder.HasIndex(s => s.FechaExpiracionUtc);
     }
 }

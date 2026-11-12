@@ -471,10 +471,94 @@
     <value>La plataforma rechazó este paso: para marcarlo «Subido» hay que subir antes una versión corregida del documento.</value>
   </data>
   <data name="GpOpcionNoPideDescripcion" xml:space="preserve">
-    <value>No se volverá a pedir en este acceso.</value>
+    <value>No se pedirá en este acceso hasta que se renueve el documento.</value>
   </data>
-  <data name="GpOpcionNoPideProximamente" xml:space="preserve">
-    <value>Disponible próximamente.</value>
+  <data name="GpConfirmoNoPide" xml:space="preserve">
+    <value>Confirmo que {0} no pide este documento en {1}.</value>
+  </data>
+  <data name="GpCif" xml:space="preserve">
+    <value>CIF</value>
+  </data>
+  <data name="GpDatosAMano" xml:space="preserve">
+    <value>Datos a mano</value>
+  </data>
+  <data name="GpAriaDatos" xml:space="preserve">
+    <value>Datos</value>
+  </data>
+  <data name="GpPestanaTrabajador" xml:space="preserve">
+    <value>Trabajador</value>
+  </data>
+  <data name="GpPestanaCentro" xml:space="preserve">
+    <value>Centro</value>
+  </data>
+  <data name="GpPestanaFaltan" xml:space="preserve">
+    <value>· {0}</value>
+  </data>
+  <data name="GpFaltaEnTalveg" xml:space="preserve">
+    <value>Falta en TALVEG</value>
+  </data>
+  <data name="GpCompletar" xml:space="preserve">
+    <value>Completar</value>
+  </data>
+  <data name="GpCompletarDato" xml:space="preserve">
+    <value>Completar {0}</value>
+  </data>
+  <data name="GpDatosNota" xml:space="preserve">
+    <value>Un clic en un dato lo copia con el formato que piden los portales. «Completar» abre la ficha sin salir de la Gestión.</value>
+  </data>
+  <data name="GpDatosNotaCentro" xml:space="preserve">
+    <value>Un clic en un dato lo copia con el formato que piden los portales. «Completar» abre Centro 360, fuera de la Gestión.</value>
+  </data>
+  <data name="GpDatosNotaConsulta" xml:space="preserve">
+    <value>Un clic en un dato lo copia con el formato que piden los portales.</value>
+  </data>
+  <data name="GpDatoNombre" xml:space="preserve">
+    <value>Nombre y apellidos</value>
+  </data>
+  <data name="GpDatoDni" xml:space="preserve">
+    <value>DNI / NIE</value>
+  </data>
+  <data name="GpDatoNacimiento" xml:space="preserve">
+    <value>Fecha de nacimiento</value>
+  </data>
+  <data name="GpDatoNaf" xml:space="preserve">
+    <value>Nº de afiliación (NAF)</value>
+  </data>
+  <data name="GpDatoNacionalidad" xml:space="preserve">
+    <value>Nacionalidad</value>
+  </data>
+  <data name="GpDatoPuesto" xml:space="preserve">
+    <value>Puesto</value>
+  </data>
+  <data name="GpDatoContratacion" xml:space="preserve">
+    <value>Tipo de contratación</value>
+  </data>
+  <data name="GpDatoAltaEmpresa" xml:space="preserve">
+    <value>Alta en la empresa</value>
+  </data>
+  <data name="GpDatoRnt" xml:space="preserve">
+    <value>Figura en el RNT</value>
+  </data>
+  <data name="GpDatoPermiso" xml:space="preserve">
+    <value>Permiso de trabajo</value>
+  </data>
+  <data name="GpDatoBaja" xml:space="preserve">
+    <value>Baja en la empresa</value>
+  </data>
+  <data name="GpDatoCentro" xml:space="preserve">
+    <value>Centro</value>
+  </data>
+  <data name="GpDatoCodigoCentro" xml:space="preserve">
+    <value>Código del centro</value>
+  </data>
+  <data name="GpDatoDireccion" xml:space="preserve">
+    <value>Dirección</value>
+  </data>
+  <data name="GpDatoInicioAsignacion" xml:space="preserve">
+    <value>Inicio de la asignación</value>
+  </data>
+  <data name="GpDatoAcceso" xml:space="preserve">
+    <value>Acceso</value>
   </data>
   <data name="GpOpcionNoPideTitulo" xml:space="preserve">
     <value>Esta plataforma no lo pide</value>

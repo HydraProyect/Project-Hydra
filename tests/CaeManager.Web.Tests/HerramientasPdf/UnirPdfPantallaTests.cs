@@ -296,9 +296,9 @@ public sealed class UnirPdfPantallaTests : BunitContext
 
         var cut = Renderizar(tenantId: TenantOrigenId);
 
-        cut.WaitForAssertion(() => cut.Find(".aviso-unir").TextContent.Should().Contain("Elige primero una Empresa gestionada"));
+        cut.WaitForAssertion(() => cut.Find(".aviso-unir").TextContent.Should().Contain("Elige primero una Empresa"));
         cut.FindAll(".zona-soltar-archivo").Should().BeEmpty();
-        cut.Find(".zona-bloqueada").TextContent.Should().Contain("Elige una Empresa gestionada para poder añadir PDF");
+        cut.Find(".zona-bloqueada").TextContent.Should().Contain("Elige una Empresa para poder añadir PDF");
     }
 
     [Fact]

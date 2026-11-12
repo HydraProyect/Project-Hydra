@@ -231,6 +231,8 @@ public class Microsoft365ConfiguracionIncompletaTests
 
         hospedados.Contains(typeof(IngestaWebhookHostedService)).Should().Be(ingestaYRenovacion);
         hospedados.Contains(typeof(RenovacionSuscripcionWebhookHostedService)).Should().Be(ingestaYRenovacion);
+        hospedados.Contains(typeof(ReintentoVerificacionIdentidadBuzonHostedService)).Should().Be(
+            ingestaYRenovacion, "el reintento de la verificación va con la ingesta y la renovación, ni más ni menos");
         hospedados.Contains(typeof(AvisoConfiguracionMicrosoft365HostedService)).Should().Be(servicioPropio);
         AvisosGenericosDeM365(servicios).Any().Should().Be(avisoGenerico);
     }

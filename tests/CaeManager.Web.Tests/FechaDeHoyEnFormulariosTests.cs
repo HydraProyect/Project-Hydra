@@ -110,7 +110,7 @@ public class FechaDeHoyEnFormulariosTests : BunitContext
             .Add(x => x.ClienteId, Guid.NewGuid())
             .Add(x => x.EmpresaId, Guid.NewGuid()));
 
-        cut.FindAll("input[type=date]").Select(i => i.GetAttribute("value"))
-            .Should().Contain("2026-09-28").And.NotContain("2026-09-27");
+        cut.FindAll("input[data-campo-fecha]").Select(i => i.GetAttribute("value"))
+            .Should().Contain("28/09/2026").And.NotContain("27/09/2026");
     }
 }

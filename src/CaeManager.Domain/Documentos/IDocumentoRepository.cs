@@ -18,5 +18,21 @@ public interface IDocumentoRepository
     /// </summary>
     Task<Documento?> ObtenerIncluidoEliminadoActualizadoAsync(Guid id, Guid? tenantId, CancellationToken cancellationToken = default);
 
+    /// <summary>
+    /// El Documento del Tenant indicado aunque esté eliminado, leído de la base sin rastrear: una instancia nueva aunque el
+    /// contexto ya rastree ese Documento, también con cambios pendientes. Para quien solo decide con él y no lo escribe;
+    /// lo que se haga sobre esta instancia no se guarda.
+    /// </summary>
+    Task<Documento?> ObtenerIncluidoEliminadoSinRastrearAsync(Guid id, Guid? tenantId, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Bloquea la fila del Documento (<c>FOR SHARE</c>) hasta el final de la transacción en curso y lo devuelve leído de la
+    /// base sin rastrear, como <see cref="ObtenerIncluidoEliminadoSinRastrearAsync"/>. Lo que devuelve es lo último
+    /// confirmado y nadie puede cambiarlo hasta que la transacción termine: quien escribe algo que depende de su estado sin
+    /// escribir el Documento (y por eso sin su token de concurrencia) decide con esto antes de confirmar. Exige una
+    /// transacción abierta: sin ella el bloqueo no duraría nada y lanza.
+    /// </summary>
+    Task<Documento?> BloquearYObtenerIncluidoEliminadoSinRastrearAsync(Guid id, Guid? tenantId, CancellationToken cancellationToken = default);
+
     void Agregar(Documento documento);
 }

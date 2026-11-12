@@ -225,6 +225,43 @@ public class CentrosAltaSelectoresClienteEmpresaTests : BunitContext
         alta.EmpresaId.Should().Be(EmpresaUnica);
     }
 
+    /// <summary>
+    /// «Contrato vigente hasta» a medias o ilegible llega como «»: guardar así crearía el Centro «sin fecha». El alta consume la
+    /// bandera del campo y no envía el comando mientras sea true.
+    /// </summary>
+    [Fact]
+    public async Task Un_contrato_vigente_hasta_a_medias_no_crea_el_centro_sin_fecha()
+    {
+        var cut = await AbrirAltaAsync(Renderizar());
+        await ElegirAsync(cut, "Cliente", RazonClienteUno);
+        await Control(cut, "Nombre").InputAsync(new ChangeEventArgs { Value = "Planta Zaragoza" });
+        var contrato = () => cut.Find(".drawer-panel input[data-campo-fecha]");
+
+        await contrato().InputAsync(new ChangeEventArgs { Value = "15/03" });
+        await GuardarAsync(cut);
+
+        _mediador.Enviadas.OfType<CrearCentroCommand>().Should().BeEmpty("el texto a medias llega como «» y se guardaría como «sin fecha»");
+        cut.Markup.Should().Contain("no es válida");
+
+        await contrato().InputAsync(new ChangeEventArgs { Value = "15/03/2030" });
+        cut.Markup.Should().NotContain("no es válida", "el aviso de un intento anterior ya no es cierto");
+        await GuardarAsync(cut);
+
+        _mediador.Enviadas.OfType<CrearCentroCommand>().Should().ContainSingle("control positivo: con la fecha entera sí se crea")
+            .Which.ContratoVigenteHasta.Should().Be(new DateOnly(2030, 3, 15));
+    }
+
+    [Fact]
+    public async Task Cancelar_el_alta_con_el_contrato_vigente_hasta_a_medias_pregunta()
+    {
+        var cut = await AbrirAltaAsync(Renderizar());
+
+        await cut.Find(".drawer-panel input[data-campo-fecha]").InputAsync(new ChangeEventArgs { Value = "15/03" });
+
+        await cut.PulsarCancelarDelPieAsync(".drawer-pie");
+        await cut.ComprobarQuePreguntaYDescartarAsync(".drawer-panel");
+    }
+
     [Fact]
     public async Task Con_varias_Empresas_del_Cliente_no_se_elige_ninguna()
     {

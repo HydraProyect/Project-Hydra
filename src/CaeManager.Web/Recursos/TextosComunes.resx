@@ -865,4 +865,28 @@
   <data name="ZonaSoltarErrorTamano" xml:space="preserve">
     <value>«{0}» supera el tamaño máximo de {1} MB.</value>
   </data>
+  <data name="CampoFechaFormato" xml:space="preserve">
+    <value>dd/mm/aaaa</value>
+  </data>
+  <data name="CampoFechaInvalida" xml:space="preserve">
+    <value>Escribe una fecha que exista, con el formato dd/mm/aaaa.</value>
+  </data>
+  <data name="CampoFechaAbrirCalendario" xml:space="preserve">
+    <value>Abrir el calendario</value>
+  </data>
+  <data name="CampoFechaCalendario" xml:space="preserve">
+    <value>Elegir fecha</value>
+  </data>
+  <data name="CampoFechaMesAnterior" xml:space="preserve">
+    <value>Mes anterior</value>
+  </data>
+  <data name="CampoFechaMesSiguiente" xml:space="preserve">
+    <value>Mes siguiente</value>
+  </data>
+  <data name="CampoFechaCorregirAntes" xml:space="preserve">
+    <value>Hay una fecha que no es válida. Corrígela con el formato dd/mm/aaaa o déjala vacía.</value>
+  </data>
+  <data name="CampoFechaInstrucciones" xml:space="preserve">
+    <value>Flechas: cambiar de día. Re Pág y Av Pág: cambiar de mes. Inicio y Fin: principio o final de la semana. Intro: elegir. Esc: cerrar.</value>
+  </data>
 </root>

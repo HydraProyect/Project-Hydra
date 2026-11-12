@@ -513,7 +513,8 @@
         <CampoTexto Etiqueta="Código de centro" Valor="@_codigoCentro" ValorChanged="v => _codigoCentro = v" />
         <CampoTexto Etiqueta="Dirección" Valor="@_direccion" ValorChanged="v => _direccion = v" />
         <CampoTexto Etiqueta="Contacto" Valor="@_contacto" ValorChanged="v => _contacto = v" />
-        <CampoTexto Etiqueta="Contrato vigente hasta" Type="date" Valor="@_contratoVigenteHasta" ValorChanged="v => _contratoVigenteHasta = v" />
+        <CampoTexto Etiqueta="Contrato vigente hasta" Type="date" Valor="@_contratoVigenteHasta" ValorChanged="v => _contratoVigenteHasta = v"
+                    FechaNoValida="_contratoVigenteHastaNoValido" FechaNoValidaChanged="AlCambiarContratoVigenteHastaNoValido" />
     </ChildContent>
     <PieExtra>
         <Boton Variante="VarianteBoton.Secundario" Cargando="_guardando" OnClick="GuardarYCrearOtroAsync">

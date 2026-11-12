@@ -35,13 +35,26 @@ public class ObtenerMensajesCarpetaQueryHandler(
             return Result.Fallo<IReadOnlyList<MensajeResumenGraphDto>>(
                 Error.Crear("ConexionIntegracion.NoDisponible", "Este buzón no está disponible."));
 
-        var tokenResultado = await accesoGraph.ObtenerAccessTokenVigenteAsync(conexion.Id, cancellationToken);
+        // Sin identidad verificada en la ventana, la dirección puede corresponder hoy a otro buzón: no se muestra.
+        if (!conexion.OperativaVerificada(DateTime.UtcNow))
+            return Result.Fallo<IReadOnlyList<MensajeResumenGraphDto>>(ErroresBuzonSinVerificar.Crear());
+
+        var tokenResultado = await accesoGraph.ObtenerAccessTokenVigenteAsync(conexion, cancellationToken);
         if (tokenResultado.EsFallido)
             return Result.Fallo<IReadOnlyList<MensajeResumenGraphDto>>(tokenResultado.Error);
 
+        // Pedir el token puede tardar (y rotar el refresh token): se relee la conexión de la base justo antes de llamar a
+        // Graph. Si otra operación la desconectó o la pasó a ConError entre medias, no se muestra el buzón. El token rotado
+        // se guarda igual.
+        if (!await conexionRepositorio.SigueOperativaVerificadaAsync(conexion.Id, DateTime.UtcNow, cancellationToken))
+        {
+            await unitOfWork.SaveChangesAsync(cancellationToken);
+            return Result.Fallo<IReadOnlyList<MensajeResumenGraphDto>>(ErroresBuzonSinVerificar.Crear());
+        }
+
         var skip = (Math.Max(1, request.Pagina) - 1) * TamanoPagina;
         var mensajesResultado = await graphClient.ListarMensajesAsync(
-            tokenResultado.Valor, request.CarpetaExternoId, TamanoPagina, skip, cancellationToken);
+            tokenResultado.Valor, BuzonGraph.De(conexion), request.CarpetaExternoId, TamanoPagina, skip, cancellationToken);
 
         await unitOfWork.SaveChangesAsync(cancellationToken);
 

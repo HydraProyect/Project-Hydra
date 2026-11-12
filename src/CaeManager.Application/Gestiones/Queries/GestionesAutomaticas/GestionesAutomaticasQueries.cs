@@ -1,3 +1,4 @@
+using CaeManager.Application.Asignaciones;
 using CaeManager.Application.Centros;
 using CaeManager.Application.Common;
 using CaeManager.Application.Documentos;
@@ -35,14 +36,41 @@ public sealed record DocumentoDeGestionAutomaticaDto(
     Guid Id, Guid? TrabajadorId, Guid? EmpresaId, string? IdentificadorTitular, DateOnly FechaEmision,
     DateOnly? FechaVencimiento, EstadoVigenciaDocumento EstadoVigencia, bool Operativo, bool VigenteEnTalveg, bool TieneArchivo);
 
+/// <summary>
+/// Un paso visible. <paramref name="CentroCodigo"/>, <paramref name="CentroDireccion"/> e <paramref name="InicioAsignacion"/>
+/// son la pestaña Centro de «Datos a mano»: el Centro ya lo da a ver el paso (D-7), y el inicio es el de la Asignación
+/// del Trabajador titular a ese Centro (null en un Documento de Empresa o sin Asignación). <paramref name="VersionAcreditacion"/>
+/// es la versión de la acreditación que se leyó: «Esta plataforma no lo pide» la devuelve para no pisar un cambio posterior
+/// (<c>MarcarAcreditacionNoRequeridaCommand</c>). Vacía, el comando lo rechaza.
+/// </summary>
 public sealed record PasoGestionAutomaticaDto(
     Guid AcreditacionId, EstadoAcreditacion Estado, bool Hecho, DateOnly? FechaVencimientoEnPlataforma,
     Guid CanalId, string Plataforma, string? UrlAcceso, bool TieneUsuario, string? Notas,
-    Guid CentroId, string CentroNombre, string? ClienteNombre);
+    Guid CentroId, string CentroNombre, string? ClienteNombre,
+    string? CentroCodigo = null, string? CentroDireccion = null, DateOnly? InicioAsignacion = null,
+    Guid VersionAcreditacion = default);
 
+/// <summary>
+/// Pestaña Trabajador de «Datos a mano» (ventana de la Gestión, § 1.1): lo que los portales piden del Trabajador titular,
+/// tal como está en su ficha. Un dato null es «Falta en TALVEG», salvo <paramref name="TipoPermisoTrabajo"/> cuando
+/// <paramref name="PermisoTrabajoVisible"/> es false: entonces quien consulta no puede leerlo (la misma
+/// <see cref="IPoliticaNotaInterna"/> que la ficha del Trabajador) y la pantalla no lo enseña ni ofrece completarlo. El
+/// false por defecto hace que quien construya el DTO sin pasar por esa regla oculte, no enseñe.
+/// </summary>
+public sealed record DatosTrabajadorDeGestionDto(
+    Guid Id, string NombreCompleto, string? Dni, DateOnly? FechaNacimiento, string? NumeroAfiliacionSeguridadSocial,
+    string? Nacionalidad, string? Puesto, string? TipoVinculo, DateOnly? FechaAltaEmpresa, string? FiguraEnRnt,
+    string? TipoPermisoTrabajo, DateOnly? FechaBajaEmpresa, bool PermisoTrabajoVisible = false);
+
+/// <summary>
+/// Detalle de una Gestión automática. <paramref name="EmpresaGestionadaCif"/> es el CIF de la Empresa gestionada de la
+/// cabecera y sigue su misma regla de cartera: sin <see cref="GestionAutomaticaResumenDto.EmpresaGestionadaId"/>, null.
+/// <paramref name="Trabajador"/> solo llega si el Documento es de un Trabajador que quien consulta ve.
+/// </summary>
 public sealed record GestionAutomaticaDetalleDto(
     GestionAutomaticaResumenDto Resumen, Guid? NacidaPorUsuarioId, DateTime? SustituidaEnUtc, Guid? SustituidaPorGestionId,
-    DocumentoDeGestionAutomaticaDto Documento, IReadOnlyList<PasoGestionAutomaticaDto> Pasos);
+    DocumentoDeGestionAutomaticaDto Documento, IReadOnlyList<PasoGestionAutomaticaDto> Pasos,
+    string? EmpresaGestionadaCif = null, DatosTrabajadorDeGestionDto? Trabajador = null);
 
 public sealed record ListadoGestionesAutomaticasDto(
     IReadOnlyList<GestionAutomaticaResumenDto> Filas, IReadOnlyDictionary<EstadoGestionAutomatica, int> RecuentosPorEstado);
@@ -96,7 +124,8 @@ public class ObtenerGestionAutomaticaQueryHandler(
     IGestionesQueryContext gestionesContext, IDocumentosQueryContext documentosContext,
     ICentrosQueryContext centrosContext, IProveedoresPlataformaCaeQueryContext proveedoresContext,
     ITrabajadoresQueryContext trabajadoresContext, IEmpresasQueryContext empresasContext,
-    ITiposDocumentoQueryContext tiposDocumentoContext, IAlcanceDatosService alcanceDatos)
+    ITiposDocumentoQueryContext tiposDocumentoContext, IAsignacionesQueryContext asignacionesContext,
+    IAlcanceDatosService alcanceDatos, IPoliticaNotaInterna politicaNotaInterna)
     : IRequestHandler<ObtenerGestionAutomaticaQuery, GestionAutomaticaDetalleDto?>
 {
     public async Task<GestionAutomaticaDetalleDto?> Handle(ObtenerGestionAutomaticaQuery request, CancellationToken cancellationToken)
@@ -172,16 +201,43 @@ public class ObtenerGestionAutomaticaQueryHandler(
             .Select(e => new { e.Id, e.RazonSocial })
             .ToDictionaryAsync(e => e.Id, e => e.RazonSocial, cancellationToken);
 
+        // Pestaña Centro de «Datos a mano»: los Centros ya son los de los pasos visibles (D-7).
+        var centroIds = pasos.Select(p => p.CentroId).Distinct().ToArray();
+        var centros = await centrosContext.Centros
+            .Where(c => centroIds.Contains(c.Id))
+            .Select(c => new { c.Id, c.CodigoCentro, c.Direccion })
+            .ToDictionaryAsync(c => c.Id, cancellationToken);
+
+        // Inicio de la asignación: la Asignación del Trabajador titular a cada Centro; la activa si la hay, si no la última.
+        var inicioPorCentro = documento.TrabajadorId is { } titularId
+            ? (await asignacionesContext.Asignaciones
+                    .Where(a => a.TrabajadorId == titularId && centroIds.Contains(a.CentroId))
+                    .Select(a => new { a.CentroId, a.FechaAlta, Activa = a.FechaBaja == null })
+                    .ToListAsync(cancellationToken))
+                .GroupBy(a => a.CentroId)
+                .ToDictionary(g => g.Key, g => g.OrderByDescending(a => a.Activa).ThenByDescending(a => a.FechaAlta).First().FechaAlta)
+            : new Dictionary<Guid, DateOnly>();
+
         var pasosDto = PasosVisiblesDeGestionesAutomaticas.Ordenar(pasos)
             .Select(p =>
             {
                 var canal = canales.GetValueOrDefault(p.CanalId);
+                var centro = centros.GetValueOrDefault(p.CentroId);
                 return new PasoGestionAutomaticaDto(
                     p.AcreditacionId, p.Estado, GestionAutomatica.PasoHecho(p.Estado), p.FechaVencimientoEnPlataforma,
                     p.CanalId, p.Plataforma, canal?.UrlAcceso, canal?.TieneUsuario ?? false, canal?.Notas,
-                    p.CentroId, p.CentroNombre, clientes.GetValueOrDefault(p.ClienteEmpresarialId));
+                    p.CentroId, p.CentroNombre, clientes.GetValueOrDefault(p.ClienteEmpresarialId),
+                    centro?.CodigoCentro, centro?.Direccion,
+                    inicioPorCentro.TryGetValue(p.CentroId, out var inicio) ? inicio : null,
+                    p.VersionAcreditacion);
             })
             .ToList();
+
+        // El CIF va con el nombre de la cabecera: si la regla de cartera no deja nombrar a la Empresa gestionada
+        // (CabecerasGestionesAutomaticas), tampoco su CIF.
+        var cif = resumen.EmpresaGestionadaId is { } gestionadaId
+            ? await empresasContext.Empresas.Where(e => e.Id == gestionadaId).Select(e => e.Cif).FirstOrDefaultAsync(cancellationToken)
+            : null;
 
         return new GestionAutomaticaDetalleDto(
             resumen, gestion.NacidaPorUsuarioId, sustituidaEnUtc, sustitutaVisible ? sustitutaId : null,
@@ -189,7 +245,37 @@ public class ObtenerGestionAutomaticaQueryHandler(
                 documento.Id, documento.TrabajadorId, documento.EmpresaId, identificador, documento.FechaEmision,
                 documento.FechaVencimiento, documento.EstadoVigencia, operativo, vigente,
                 !string.IsNullOrWhiteSpace(documento.ArchivoUrl)),
-            pasosDto);
+            pasosDto,
+            string.IsNullOrWhiteSpace(cif) ? null : cif,
+            await DatosDelTrabajadorAsync(documento.TrabajadorId, cancellationToken));
+    }
+
+    /// <summary>
+    /// La pestaña Trabajador: los mismos datos que su ficha. No necesita otra comprobación de alcance porque el universo de
+    /// la Gestión ya la hace: <see cref="PasosVisiblesDeGestionesAutomaticas.CargarAsync"/> solo admite Documentos de
+    /// Trabajador cuyo Trabajador está en <see cref="IAlcanceDatosService.ObtenerTrabajadorIdsVisiblesAsync"/>, y sin pasos
+    /// visibles el detalle es null. El tipo de permiso de trabajo sí lleva la regla propia de la ficha
+    /// (<c>ObtenerTrabajadorPorIdQueryHandler</c>, decisión de Chris del 2026-10-15): solo sale del servidor si quien
+    /// consulta lee la nota interna (<see cref="IPoliticaNotaInterna"/>).
+    /// </summary>
+    private async Task<DatosTrabajadorDeGestionDto?> DatosDelTrabajadorAsync(Guid? trabajadorId, CancellationToken cancellationToken)
+    {
+        if (trabajadorId is not { } id)
+            return null;
+
+        var datos = await trabajadoresContext.Trabajadores
+            .Where(t => t.Id == id)
+            .Select(t => new DatosTrabajadorDeGestionDto(
+                t.Id, t.Nombre + " " + t.Apellidos, t.Dni, t.FechaNacimiento, t.NumeroAfiliacionSeguridadSocial,
+                t.Nacionalidad, t.Puesto, t.TipoVinculo, t.FechaAltaEmpresa, t.FiguraEnRnt, t.TipoPermisoTrabajo,
+                t.FechaBajaEmpresa, false))
+            .FirstOrDefaultAsync(cancellationToken);
+        if (datos is null)
+            return null;
+
+        return await politicaNotaInterna.PuedeLeerAsync(cancellationToken)
+            ? datos with { PermisoTrabajoVisible = true }
+            : datos with { TipoPermisoTrabajo = null, PermisoTrabajoVisible = false };
     }
 }
 

@@ -5,9 +5,10 @@ namespace CaeManager.Infrastructure.HerramientasPdf;
 /// <summary>
 /// El lado del proceso aparte: <c>dotnet CaeManager.Web.dll --proceso-herramientas-pdf</c>. Program.cs entra aquí antes de
 /// construir la aplicación (sin configuración, sin base de datos, sin registro), lee una petición de la entrada estándar,
-/// abre los PDF con <see cref="PdfSharpUnidorPdf"/> y escribe la respuesta en la salida estándar
-/// (<see cref="ProtocoloProcesoHerramientasPdf"/>). Corre con el entorno vacío y el límite de memoria que le pone
-/// <see cref="UnidorPdfEnProcesoAparte"/>, que además lo mata si pasa de su tiempo.
+/// abre los PDF con <see cref="PdfSharpUnidorPdf"/> (Unir) o <see cref="PdfSharpDivisorPdf"/> (Dividir) y escribe la
+/// respuesta en la salida estándar (<see cref="ProtocoloProcesoHerramientasPdf"/>). Corre con el entorno vacío y el límite
+/// de memoria que le pone <see cref="EjecutorProcesoHerramientasPdf"/>, que además lo mata si pasa de su tiempo. Es el único
+/// sitio desde el que se llama a esos dos motores (un test de arquitectura lo fija): el proceso web no abre PDF ajenos.
 /// </summary>
 public static class ProcesoHerramientasPdf
 {
@@ -50,11 +51,26 @@ public static class ProcesoHerramientasPdf
             if (peticion is null)
                 return CodigoPeticionInvalida;
 
-            var motor = new PdfSharpUnidorPdf(NullLogger<PdfSharpUnidorPdf>.Instance);
-            if (peticion.Operacion == ProtocoloProcesoHerramientasPdf.OperacionInspeccionar)
-                ProtocoloProcesoHerramientasPdf.EscribirInspeccion(salida, motor.Inspeccionar(peticion.Pdfs[0]));
-            else
-                ProtocoloProcesoHerramientasPdf.EscribirUnion(salida, motor.Unir(peticion.Pdfs));
+            switch (peticion.Operacion)
+            {
+                case ProtocoloProcesoHerramientasPdf.OperacionAbrirParaDividir:
+                    ProtocoloProcesoHerramientasPdf.EscribirApertura(salida, Divisor().AbrirParaMedir(peticion.Pdfs[0]));
+                    break;
+
+                case ProtocoloProcesoHerramientasPdf.OperacionExtraerTramo:
+                    var tramo = peticion.Tramo!;
+                    ProtocoloProcesoHerramientasPdf.EscribirTramo(salida,
+                        Divisor().ExtraerTramo(peticion.Pdfs[0], tramo.PaginaInicial, tramo.PaginaFinal, tramo.Cota));
+                    break;
+
+                case ProtocoloProcesoHerramientasPdf.OperacionInspeccionar:
+                    ProtocoloProcesoHerramientasPdf.EscribirInspeccion(salida, Unidor().Inspeccionar(peticion.Pdfs[0]));
+                    break;
+
+                default:
+                    ProtocoloProcesoHerramientasPdf.EscribirUnion(salida, Unidor().Unir(peticion.Pdfs));
+                    break;
+            }
 
             return CodigoRespuestaEscrita;
         }
@@ -64,4 +80,8 @@ public static class ProcesoHerramientasPdf
             return CodigoSinMemoria;
         }
     }
+
+    private static PdfSharpUnidorPdf Unidor() => new(NullLogger<PdfSharpUnidorPdf>.Instance);
+
+    private static PdfSharpDivisorPdf Divisor() => new(NullLogger<PdfSharpDivisorPdf>.Instance);
 }

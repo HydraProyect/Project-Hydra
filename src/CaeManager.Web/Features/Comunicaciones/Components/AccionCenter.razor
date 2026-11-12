@@ -17,6 +17,9 @@
 @using CaeManager.Application.Comunicaciones.Queries.ObtenerConversacionPorId
 @using CaeManager.Application.Trabajadores.Queries.ObtenerTrabajadoresParaSelector
 @using CaeManager.Application.TiposDocumento.Queries.ObtenerTiposDocumento
+@using CaeManager.Web.Recursos
+@using Microsoft.Extensions.Localization
+@inject IStringLocalizer<TextosComunes> Comunes
 
 @if (TieneAlgo)
 {
@@ -96,6 +99,7 @@
                                   TextoAccionFinal="Ir al formulario de visita"
                                   Consecuencias="@_consecuenciasVisita"
                                   Confirmando="_confirmandoVisita"
+                                  ErrorConfirmar="@_errorConfirmarVisita"
                                   OnConfirmar="() => ConfirmarVisitaAsync(visitaEnRevision)" />
     }
 
@@ -158,6 +162,9 @@
         _centroEditado = sugerencia.CentroId?.ToString() ?? string.Empty;
         _fechaInicioEditada = sugerencia.FechaInicioSugerida?.ToString("yyyy-MM-dd") ?? string.Empty;
         _fechaFinEditada = sugerencia.FechaFinSugerida?.ToString("yyyy-MM-dd") ?? string.Empty;
+        _fechaInicioNoValida = false;
+        _fechaFinNoValida = false;
+        _errorConfirmarVisita = null;
     }
 
     private IReadOnlyList<CampoRevision> CamposRevisionVisita(SugerenciaVisitaDetalleDto s)
@@ -186,12 +193,34 @@
     </CampoSelect>;
 
     private RenderFragment EditorFechas() => @<div class="accion-editor-fechas">
-        <CampoTexto Etiqueta="Desde" Type="date" Valor="@_fechaInicioEditada" ValorChanged="v => _fechaInicioEditada = v" />
-        <CampoTexto Etiqueta="Hasta" Type="date" Valor="@_fechaFinEditada" ValorChanged="v => _fechaFinEditada = v" />
+        <CampoTexto Etiqueta="Desde" Type="date" Valor="@_fechaInicioEditada" ValorChanged="v => _fechaInicioEditada = v"
+                    FechaNoValida="_fechaInicioNoValida" FechaNoValidaChanged="v => AlCambiarFechaNoValida(ref _fechaInicioNoValida, v)" />
+        <CampoTexto Etiqueta="Hasta" Type="date" Valor="@_fechaFinEditada" ValorChanged="v => _fechaFinEditada = v"
+                    FechaNoValida="_fechaFinNoValida" FechaNoValidaChanged="v => AlCambiarFechaNoValida(ref _fechaFinNoValida, v)" />
     </div>;
+
+    // Una fecha a medias llega como «»: sin estas marcas «Ir al formulario de visita» navegaría sin la corrección y el
+    // formulario de la Visita se abriría con la fecha sugerida, no con la que se estaba escribiendo. Los campos viven en un
+    // paso del modal y se recrean al cambiar de paso: nacen con su marca (CampoTexto.FechaNoValida).
+    private bool _fechaInicioNoValida;
+    private bool _fechaFinNoValida;
+    private string? _errorConfirmarVisita;
+
+    private void AlCambiarFechaNoValida(ref bool marca, bool noValida)
+    {
+        marca = noValida;
+        if (!_fechaInicioNoValida && !_fechaFinNoValida) _errorConfirmarVisita = null;
+    }
 
     private async Task ConfirmarVisitaAsync(SugerenciaVisitaDetalleDto sugerencia)
     {
+        if (_fechaInicioNoValida || _fechaFinNoValida)
+        {
+            _errorConfirmarVisita = Comunes["CampoFechaCorregirAntes"];
+            return;
+        }
+
+        _errorConfirmarVisita = null;
         _confirmandoVisita = true;
         try
         {

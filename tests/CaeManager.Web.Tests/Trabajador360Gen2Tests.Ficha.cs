@@ -384,22 +384,179 @@ public partial class Trabajador360Gen2Tests
         m.Enviadas.OfType<EditarFichaTrabajadorCommand>().Should().ContainSingle();
     }
 
-    // Una fecha que el navegador no debería dejar escribir, pero que llega: se señala en su campo y lleva a su paso.
-    [Fact]
-    public async Task Una_fecha_ilegible_se_senala_en_su_campo_sin_enviar()
+    // Una fecha que no existe (o a medias): el campo la entrega como «», como el campo nativo, y no el texto, que cada
+    // pantalla interpretaba a su manera. La ficha no guarda mientras el campo la señala: guardar «» borraría la fecha.
+    [Theory]
+    [InlineData("2023-13-45")]
+    [InlineData("1/2/26")]
+    [InlineData("15/03")]
+    public async Task Una_fecha_ilegible_se_senala_en_su_campo_sin_enviar(string tecleado)
     {
         var id = Guid.NewGuid(); var m = ConTrabajador(id);
         var cut = Renderizar(id); var drawer = await AbrirEditorFicha(cut);
         await IrAPasoFicha(drawer, "Trabajo");
-        await CambiarCampoFicha(drawer, "Alta en la empresa", "2023-13-45");
-        await PulsarFicha(drawer, "Atrás");
+        await CambiarCampoFicha(drawer, "Alta en la empresa", tecleado);
 
         await GuardarFicha(drawer);
 
         m.Enviadas.OfType<EditarFichaTrabajadorCommand>().Should().BeEmpty();
         PasoActivoFicha(drawer).Should().Be("Trabajo");
+        var campo = drawer.FindComponents<CampoTexto>().Single(c => c.Instance.Etiqueta == "Alta en la empresa").Instance;
+        campo.Valor.Should().BeEmpty("el texto que no es fecha no llega al formulario");
+        campo.MensajeError.Should().Be("Introduce una fecha válida.");
+    }
+
+    // El aviso de un «Guardar» rechazado deja de ser cierto en cuanto la fecha vuelve a ser entera (o se vacía).
+    [Fact]
+    public async Task Corregir_la_fecha_retira_el_aviso_de_que_no_es_una_fecha()
+    {
+        var id = Guid.NewGuid(); ConTrabajador(id);
+        var cut = Renderizar(id); var drawer = await AbrirEditorFicha(cut);
+        await IrAPasoFicha(drawer, "Trabajo");
+        await CambiarCampoFicha(drawer, "Alta en la empresa", "15/03");
+        await GuardarFicha(drawer);
+        var campo = () => drawer.FindComponents<CampoTexto>().Single(c => c.Instance.Etiqueta == "Alta en la empresa").Instance;
+        campo().MensajeError.Should().Be("Introduce una fecha válida.", "control: el intento rechazado avisa");
+
+        await CambiarCampoFicha(drawer, "Alta en la empresa", "15/03/2023");
+
+        campo().MensajeError.Should().BeNullOrWhiteSpace("la fecha ya es entera y el aviso del intento anterior no es cierto");
+    }
+
+    // Una fecha a medias es lo escrito sin guardar aunque el formulario siga con el valor cargado (el campo entrega «»
+    // y, sin alta cargada, «» es lo que ya había): Escape tiene que preguntar antes de descartarla.
+    [Fact]
+    public async Task Una_fecha_a_medias_cuenta_como_cambio_sin_guardar_aunque_el_valor_no_cambie()
+    {
+        var id = Guid.NewGuid(); ConTrabajador(id);
+        var cut = Renderizar(id); var drawer = await AbrirEditorFicha(cut);
+        await IrAPasoFicha(drawer, "Trabajo");
+        drawer.FindComponent<DrawerFormulario>().Instance.HayCambios().Should().BeFalse("control: sin tocar nada no hay nada que descartar");
+
+        await CambiarCampoFicha(drawer, "Alta en la empresa", "15/03");
+
+        drawer.FindComponents<CampoTexto>().Single(c => c.Instance.Etiqueta == "Alta en la empresa").Instance.Valor
+            .Should().BeEmpty("el valor del formulario no ha cambiado: solo el campo sabe que hay texto");
+        drawer.FindComponent<DrawerFormulario>().Instance.HayCambios().Should().BeTrue();
+
+        await CambiarCampoFicha(drawer, "Alta en la empresa", "");
+
+        drawer.FindComponent<DrawerFormulario>().Instance.HayCambios().Should().BeFalse("borrado el texto a medias, vuelve a no haber nada");
+    }
+
+    // Al dejar el paso, el campo se destruye con su texto. La marca no puede sobrevivirle
+    // (al guardar saldría un aviso bajo un campo vacío y válido), y la fecha vuelve a la cargada: el campo había entregado «»
+    // y guardar así borraría el alta sin que nadie lo viera.
+    [Fact]
+    public async Task Dejar_el_paso_con_una_fecha_a_medias_vuelve_a_la_cargada_sin_aviso()
+    {
+        var id = Guid.NewGuid(); var m = ConTrabajador(id);
+        m.Detalles[id] = m.Detalles[id] with { FechaAltaEmpresa = new DateOnly(2023, 5, 2) };
+        var cut = Renderizar(id); var drawer = await AbrirEditorFicha(cut);
+        await IrAPasoFicha(drawer, "Trabajo");
+        await CambiarCampoFicha(drawer, "Alta en la empresa", "15/03");
+        // «Siguiente» con la marca puesta registra el aviso del campo: sin él, la aserción de abajo sobre MensajeError no
+        // podría fallar aunque CambiarDePaso dejara el error (nunca habría habido uno que dejar).
+        await PulsarFicha(drawer, "Siguiente");
+        PasoActivoFicha(drawer).Should().Be("Trabajo", "control: la fecha a medias bloquea el paso");
         drawer.FindComponents<CampoTexto>().Single(c => c.Instance.Etiqueta == "Alta en la empresa").Instance.MensajeError
-            .Should().Be("Introduce una fecha válida.");
+            .Should().Be("Introduce una fecha válida.", "control: el aviso estaba antes de dejar el paso");
+        await PulsarFicha(drawer, "Atrás");
+
+        // Al volver, el campo nuevo emite su estado al crearse y eso también retiraría el aviso: por eso el DOM de vuelta no
+        // distingue si CambiarDePaso lo quitó. El estado del formulario se mira antes de volver, con el paso del campo fuera.
+        var errores = (Dictionary<string, string>)typeof(EditarFichaTrabajadorDrawer)
+            .GetField("_errores", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)!
+            .GetValue(drawer.Instance)!;
+        errores.Should().NotContainKey(nameof(EditarFichaTrabajadorCommand.FechaAltaEmpresa), "al dejar el paso, su aviso se va con el campo");
+
+        await IrAPasoFicha(drawer, "Trabajo");
+        var campo = drawer.FindComponents<CampoTexto>().Single(c => c.Instance.Etiqueta == "Alta en la empresa").Instance;
+        campo.Valor.Should().Be("2023-05-02", "el campo vuelve con la fecha cargada");
+        campo.MensajeError.Should().BeNullOrWhiteSpace("la marca no sobrevive al paso y con ella tampoco su aviso");
+
+        await GuardarFicha(drawer);
+
+        m.Enviadas.OfType<EditarFichaTrabajadorCommand>().Should().ContainSingle()
+            .Which.FechaAltaEmpresa.Should().Be(new DateOnly(2023, 5, 2));
+    }
+
+    // Vuelve a la última fecha válida del campo, no a la cargada; una corrección ya hecha no se pierde.
+    [Fact]
+    public async Task Dejar_el_paso_con_una_fecha_a_medias_conserva_la_ultima_corregida()
+    {
+        var id = Guid.NewGuid(); var m = ConTrabajador(id);
+        m.Detalles[id] = m.Detalles[id] with { FechaAltaEmpresa = new DateOnly(2023, 5, 2) };
+        var cut = Renderizar(id); var drawer = await AbrirEditorFicha(cut);
+        await IrAPasoFicha(drawer, "Trabajo");
+        await CambiarCampoFicha(drawer, "Alta en la empresa", "03/06/2024");
+        await CambiarCampoFicha(drawer, "Alta en la empresa", "03/0");
+        await PulsarFicha(drawer, "Atrás");
+
+        await GuardarFicha(drawer);
+
+        m.Enviadas.OfType<EditarFichaTrabajadorCommand>().Should().ContainSingle()
+            .Which.FechaAltaEmpresa.Should().Be(new DateOnly(2024, 6, 3));
+    }
+
+    // Con el rediseño fail-closed el campo entrega «» en la misma pulsación en que deja de ser fecha: la «última válida» que se
+    // restaura es la que había antes del texto, y vaciar a propósito antes de escribir a medias no resucita la guardada.
+    [Fact]
+    public async Task Dejar_el_paso_con_una_fecha_a_medias_tras_vaciarla_a_proposito_no_resucita_la_guardada()
+    {
+        var id = Guid.NewGuid(); var m = ConTrabajador(id);
+        m.Detalles[id] = m.Detalles[id] with { FechaAltaEmpresa = new DateOnly(2023, 5, 2) };
+        var cut = Renderizar(id); var drawer = await AbrirEditorFicha(cut);
+        await IrAPasoFicha(drawer, "Trabajo");
+        await CambiarCampoFicha(drawer, "Alta en la empresa", "");
+        await CambiarCampoFicha(drawer, "Alta en la empresa", "03/0");
+        await PulsarFicha(drawer, "Atrás");
+
+        await GuardarFicha(drawer);
+
+        m.Enviadas.OfType<EditarFichaTrabajadorCommand>().Should().ContainSingle()
+            .Which.FechaAltaEmpresa.Should().BeNull("la persona vació el alta a propósito antes de escribir a medias");
+    }
+
+    // Un «Guardar» rechazado con una fecha no válida en el paso visible no lleva a otro paso con error (eso
+    // destruiría el campo y su texto): el formulario se queda donde está la fecha.
+    [Fact]
+    public async Task Un_guardado_rechazado_no_sale_del_paso_con_la_fecha_no_valida()
+    {
+        var id = Guid.NewGuid(); var m = ConTrabajador(id);
+        var cut = Renderizar(id); var drawer = await AbrirEditorFicha(cut);
+        await IrAPasoFicha(drawer, "Situación");
+        await PulsarFicha(drawer, "Atrás");
+        await PulsarFicha(drawer, "Atrás");
+        // Un error en Lo básico, antes que Trabajo: sin la guarda, el guardado llevaría allí y revertiría la fecha.
+        await CambiarCampoFicha(drawer, "Nombre", "");
+        await drawer.FindAll("button.indicador-pasos-boton").Single(b => b.TextContent.Contains("Trabajo")).ClickAsync(new MouseEventArgs());
+        PasoActivoFicha(drawer).Should().Be("Trabajo", "control: el indicador lleva al paso ya visto");
+        await CambiarCampoFicha(drawer, "Alta en la empresa", "15/03");
+
+        await GuardarFicha(drawer);
+
+        m.Enviadas.OfType<EditarFichaTrabajadorCommand>().Should().BeEmpty();
+        PasoActivoFicha(drawer).Should().Be("Trabajo");
+        drawer.FindComponents<CampoTexto>().Single(c => c.Instance.Etiqueta == "Alta en la empresa")
+            .Instance.MensajeError.Should().Be("Introduce una fecha válida.");
+    }
+
+    // Tras un texto no válido, vaciar el campo tiene que dejar quitar la Baja.
+    [Fact]
+    public async Task Tras_un_texto_no_valido_vaciar_la_baja_la_quita()
+    {
+        var id = Guid.NewGuid(); var m = ConTrabajador(id);
+        m.Detalles[id] = m.Detalles[id] with { FechaAltaEmpresa = new DateOnly(2023, 5, 2), FechaBajaEmpresa = new DateOnly(2024, 1, 31) };
+        var cut = Renderizar(id); var drawer = await AbrirEditorFicha(cut);
+        await IrAPasoFicha(drawer, "Trabajo");
+        await CambiarCampoFicha(drawer, "Baja", "31/02/2024");
+
+        await CambiarCampoFicha(drawer, "Baja", "");
+        await GuardarFicha(drawer);
+
+        m.Enviadas.OfType<EditarFichaTrabajadorCommand>().Should().ContainSingle()
+            .Which.FechaBajaEmpresa.Should().BeNull("vaciar el campo quita la baja");
     }
 
     // Sin contacto de emergencia visible la edición tiene tres pasos; con él, el paso Contacto va antes de Situación.

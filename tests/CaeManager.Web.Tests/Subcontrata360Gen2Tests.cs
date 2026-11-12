@@ -917,6 +917,30 @@ public partial class Subcontrata360Gen2Tests : BunitContext
         Toasts.Should().ContainSingle(m => m.Mensaje == "Verificación registrada." && m.Tono == TonoToast.Exito);
     }
 
+    // Rediseño fail-closed (ronda 3 de Codex): una fecha a medias llega como null en la misma pulsación; Registrar sin haber salido
+    // del campo no puede enviar el Command con null (una verificación sin fecha) ni con la fecha anterior a la edición.
+    [Theory]
+    [InlineData("Fecha de verificación")]
+    [InlineData("Válido hasta (según la plataforma, opcional)")]
+    public async Task Registrar_con_una_fecha_a_medias_sin_salir_del_campo_no_envia_el_comando(string etiqueta)
+    {
+        var escena = PrepararRegistro(new MediatorFalso());
+        var cut = await RellenarRegistroAsync(escena);
+        await Control(cut, "Válido hasta (según la plataforma, opcional)").InputAsync(new ChangeEventArgs { Value = "2027-09-03" });
+        await Control(cut, etiqueta).InputAsync(new ChangeEventArgs { Value = "03/09/202" });
+
+        await BotonDelPie(cut, ".drawer-pie", "Registrar").ClickAsync(new MouseEventArgs());
+
+        escena.Mediador.Enviadas.OfType<RegistrarVerificacionExternaSubcontrataCommand>().Should().BeEmpty(
+            "ni con null ni con la fecha válida anterior a la edición");
+        cut.FindAll(".drawer-panel").Should().ContainSingle("el formulario sigue abierto para corregir la fecha");
+        Toasts.Should().NotContain(m => m.Tono == TonoToast.Exito);
+        // Lo bloquea la marca, no solo la lectura de la fecha (ronda 4 de Codex): la fecha de verificación es obligatoria y su
+        // TryParse ya rechazaría el null con «indica la fecha»; el aviso de la marca es otro, y es el que sale en los dos casos.
+        cut.FindAll(".drawer-panel [role=alert]").Should().Contain(a => a.TextContent.Contains("no es válida"),
+            "el formulario dice que hay una fecha que corregir, no que falta");
+    }
+
     [Fact]
     public async Task Si_el_registro_de_la_verificacion_falla_su_motivo_sale_en_el_formulario_que_sigue_abierto_y_se_puede_reintentar()
     {
