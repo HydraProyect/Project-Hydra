@@ -73,6 +73,13 @@ public partial class DrawerGestionDocumento : ComponentBase
     private string _fechaEmision = string.Empty;
     private DateOnly? _fechaEmisionOriginal;
     private string _fechaVencimientoManual = string.Empty;
+
+    /// <summary>
+    /// El vencimiento manual tiene un texto que no es una fecha entera: entonces entrega «», y «» aquí se guardaría como
+    /// «sin vencimiento» (o lo borraría al renovar). Guardar se bloquea mientras sea true; el campo recién creado vuelve a
+    /// avisar su estado, así que no queda una marca obsoleta si se destruye (otro tipo de documento) y se vuelve a crear.
+    /// </summary>
+    private bool _vencimientoManualNoValido;
     private bool _noCaduca;
     private string? _glosarioDescripcion;
     private string? _glosarioCriteriosValidacion;
@@ -194,6 +201,7 @@ public partial class DrawerGestionDocumento : ComponentBase
         _fechaEmision = DiaDeNegocio.Hoy().ToString("yyyy-MM-dd");
         _fechaEmisionOriginal = null;
         _fechaVencimientoManual = string.Empty;
+        _vencimientoManualNoValido = false;
         _noCaduca = false;
         _archivoUrl = null;
         _archivoUrlDelDocumento = null;
@@ -422,6 +430,7 @@ public partial class DrawerGestionDocumento : ComponentBase
         _fechaEmision = documento.FechaEmision.ToString("yyyy-MM-dd");
         _fechaEmisionOriginal = documento.FechaEmision;
         _fechaVencimientoManual = documento.FechaVencimiento?.ToString("yyyy-MM-dd") ?? string.Empty;
+        _vencimientoManualNoValido = false;
         // Renovar sin tocar la vigencia no puede perder la confirmación de
         // «no caduca»: se precarga y viaja de vuelta en el comando.
         _noCaduca = documento.EstadoVigencia == EstadoVigenciaDocumento.NoCaduca;
@@ -844,6 +853,7 @@ public partial class DrawerGestionDocumento : ComponentBase
         _seguirTrasGuardar = seguir;
 
         if (BloquearGuardadoSiArchivoNoAdjuntado()) return;
+        if (BloquearGuardadoSiVencimientoNoValido()) return;
 
         if (_editandoId is not null
             && _fechaEmisionOriginal is not null
@@ -942,9 +952,32 @@ public partial class DrawerGestionDocumento : ComponentBase
         QuitarBloqueoArchivoNoAdjuntado();
     }
 
+    /// <summary>
+    /// Un vencimiento a medias o ilegible llega como «»: guardarlo crearía el Documento sin vencimiento (o borraría el que
+    /// tenía al renovar) sin que nadie lo decidiera. Solo cuenta si el tipo pide el vencimiento a mano, que es cuando el
+    /// campo existe.
+    /// </summary>
+    private bool BloquearGuardadoSiVencimientoNoValido()
+    {
+        if (!_vencimientoManualNoValido || !RequiereVencimientoManual) return false;
+
+        _erroresCampo = new Dictionary<string, string>();
+        _mensajeErrorFormulario = Comunes["CampoFechaCorregirAntes"];
+        return true;
+    }
+
+    // Al volver a ser una fecha entera (o quedar vacía), el aviso de un envío anterior ya no es cierto.
+    private void AlCambiarVencimientoManualNoValido(bool noValido)
+    {
+        _vencimientoManualNoValido = noValido;
+        if (!noValido && _mensajeErrorFormulario == Comunes["CampoFechaCorregirAntes"])
+            _mensajeErrorFormulario = null;
+    }
+
     private async Task GuardarInternoAsync()
     {
         if (BloquearGuardadoSiArchivoNoAdjuntado()) return;
+        if (BloquearGuardadoSiVencimientoNoValido()) return;
 
         _guardando = true;
         _mensajeErrorFormulario = null;

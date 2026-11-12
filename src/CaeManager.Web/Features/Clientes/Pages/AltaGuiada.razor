@@ -25,6 +25,7 @@
 @inject IValidator<CrearCentroCommand> ValidadorCentroCrear
 @inject IValidator<CrearTrabajadorCommand> ValidadorTrabajadorCrear
 @inject IStringLocalizer<TextosClientes> Textos
+@inject IStringLocalizer<CaeManager.Web.Recursos.TextosComunes> Comunes
 
 <LimiteDeErrores Pagina="this">
 <PageTitle>Alta guiada — @Marca.Nombre</PageTitle>
@@ -225,7 +226,8 @@
             <CampoTexto Etiqueta="Código de centro" Valor="@_codigoCentro" ValorChanged="v => _codigoCentro = v" />
             <CampoTexto Etiqueta="Dirección" Valor="@_direccionCentro" ValorChanged="v => _direccionCentro = v" />
             <CampoTexto Etiqueta="Contacto" Valor="@_contactoCentro" ValorChanged="v => _contactoCentro = v" />
-            <CampoTexto Etiqueta="Contrato vigente hasta" Type="date" Valor="@_contratoVigenteHasta" ValorChanged="v => _contratoVigenteHasta = v" />
+            <CampoTexto Etiqueta="Contrato vigente hasta" Type="date" Valor="@_contratoVigenteHasta" ValorChanged="v => _contratoVigenteHasta = v"
+                        FechaNoValidaChanged="AlCambiarContratoVigenteHastaNoValido" />
 
             <div class="acciones-formulario">
                 <Boton Variante="VarianteBoton.Primario" Cargando="_guardandoCentro" OnClick="GuardarCentroAsync">Guardar centro</Boton>

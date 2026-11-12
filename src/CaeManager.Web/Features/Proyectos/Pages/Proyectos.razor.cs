@@ -677,6 +677,9 @@ public partial class Proyectos : CaeManager.Web.Components.PaginaInteractiva, ID
     private string _nuevoNombre = string.Empty;
     private string _nuevaFechaInicio = string.Empty;
     private string _nuevaFechaFinPrevista = string.Empty;
+
+    /// <summary>El fin previsto del alta tiene un texto que no es una fecha entera (entrega «»): Crear no lo envía como «sin fin».</summary>
+    private bool _nuevaFechaFinPrevistaNoValida;
     private string _nuevasNotas = string.Empty;
 
     /// <summary>Nombre de <see cref="TipoProyecto"/> elegido en el alta; un evento exige fecha de fin y ofrece copiar requisitos.</summary>
@@ -706,6 +709,7 @@ public partial class Proyectos : CaeManager.Web.Components.PaginaInteractiva, ID
         _nuevoNombre = string.Empty;
         _nuevaFechaInicio = Hoy.ToString("yyyy-MM-dd");
         _nuevaFechaFinPrevista = string.Empty;
+        _nuevaFechaFinPrevistaNoValida = false;
         _nuevasNotas = string.Empty;
         _nuevoTipo = tipo;
         _nuevoOrigenRequisitos = string.Empty;
@@ -904,6 +908,13 @@ public partial class Proyectos : CaeManager.Web.Components.PaginaInteractiva, ID
             if (!DateOnly.TryParse(_nuevaFechaInicio, out var fechaInicio))
             {
                 _mensajeErrorFormulario = Textos["ErrorFechaInicio"];
+                return;
+            }
+
+            // El fin previsto a medias o ilegible llega como «»: sin este bloqueo el Proyecto se crearía sin fin previsto.
+            if (_nuevaFechaFinPrevistaNoValida)
+            {
+                _mensajeErrorFormulario = ComunesLista["CampoFechaCorregirAntes"];
                 return;
             }
 
@@ -1129,7 +1140,25 @@ public partial class Proyectos : CaeManager.Web.Components.PaginaInteractiva, ID
     private bool _editandoInfo;
     private string _editNombre = string.Empty;
     private string _editFechaFinPrevista = string.Empty;
+
+    /// <summary>El fin previsto de la edición tiene un texto que no es una fecha entera (entrega «»): Guardar no borra el guardado.</summary>
+    private bool _editFechaFinPrevistaNoValida;
     private string _editNotas = string.Empty;
+
+    // Al volver a ser una fecha entera (o quedar vacía), el aviso «no es una fecha» de un envío anterior ya no es cierto.
+    private void AlCambiarEditFechaFinPrevistaNoValida(bool noValida)
+    {
+        _editFechaFinPrevistaNoValida = noValida;
+        if (!noValida && _editError == ComunesLista["CampoFechaCorregirAntes"])
+            _editError = null;
+    }
+
+    private void AlCambiarNuevaFechaFinPrevistaNoValida(bool noValida)
+    {
+        _nuevaFechaFinPrevistaNoValida = noValida;
+        if (!noValida && _mensajeErrorFormulario == ComunesLista["CampoFechaCorregirAntes"])
+            _mensajeErrorFormulario = null;
+    }
     private Dictionary<string, string> _editErrores = new();
     private string? _editError;
 
@@ -1144,6 +1173,7 @@ public partial class Proyectos : CaeManager.Web.Components.PaginaInteractiva, ID
     private void CancelarEdicionInfo()
     {
         _editandoInfo = false;
+        _editFechaFinPrevistaNoValida = false;
         _editErrores = new();
         _editError = null;
 
@@ -1170,6 +1200,13 @@ public partial class Proyectos : CaeManager.Web.Components.PaginaInteractiva, ID
 
         try
         {
+            // El fin previsto a medias o ilegible llega como «»: sin este bloqueo se borraría el fin previsto guardado.
+            if (_editFechaFinPrevistaNoValida)
+            {
+                _editError = ComunesLista["CampoFechaCorregirAntes"];
+                return;
+            }
+
             DateOnly? fechaFinPrevista = DateOnly.TryParse(_editFechaFinPrevista, out var fv) ? fv : null;
             var notas = string.IsNullOrWhiteSpace(_editNotas) ? null : _editNotas;
 

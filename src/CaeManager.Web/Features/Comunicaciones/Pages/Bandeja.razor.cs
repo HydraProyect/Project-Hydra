@@ -221,6 +221,9 @@ public partial class Bandeja : CaeManager.Web.Components.PaginaInteractiva, IAsy
     private string _empresaDocumentoIdFormulario = string.Empty;
     private string _fechaEmisionDocumentoFormulario = string.Empty;
     private string _fechaVencimientoDocumentoFormulario = string.Empty;
+
+    /// <summary>La caducidad tiene un texto que no es una fecha entera (entrega «»): Aplicar no la envía como «sin caducidad».</summary>
+    private bool _vencimientoDocumentoNoValido;
     private bool _noCaducaDocumentoFormulario;
     private string _comentariosDocumentoFormulario = string.Empty;
     private int _confianzaDeteccionDocumento;
@@ -1435,6 +1438,7 @@ public partial class Bandeja : CaeManager.Web.Components.PaginaInteractiva, IAsy
         _empresaDocumentoIdFormulario = string.Empty;
         _fechaEmisionDocumentoFormulario = FechaDeHoy.ParaCampoFecha(Reloj);
         _fechaVencimientoDocumentoFormulario = string.Empty;
+        _vencimientoDocumentoNoValido = false;
         _noCaducaDocumentoFormulario = false;
         _comentariosDocumentoFormulario = string.Empty;
         _confianzaDeteccionDocumento = 0;
@@ -1481,6 +1485,14 @@ public partial class Bandeja : CaeManager.Web.Components.PaginaInteractiva, IAsy
 
     private void CerrarModalActualizarDocumento() => _modalActualizarDocumentoVisible = false;
 
+    // Al volver a ser una fecha entera (o quedar vacía), el aviso «no es una fecha» de un envío anterior ya no es cierto.
+    private void AlCambiarVencimientoDocumentoNoValido(bool noValido)
+    {
+        _vencimientoDocumentoNoValido = noValido;
+        if (!noValido && _errorActualizarDocumento == TextosComunesPagina["CampoFechaCorregirAntes"])
+            _errorActualizarDocumento = null;
+    }
+
     private async Task AplicarActualizacionDocumentoAsync()
     {
         if (!Guid.TryParse(_tipoDocumentoIdFormulario, out var tipoDocumentoId))
@@ -1502,6 +1514,13 @@ public partial class Bandeja : CaeManager.Web.Components.PaginaInteractiva, IAsy
         if (trabajadorId is null && empresaId is null)
         {
             _errorActualizarDocumento = esTrabajador ? "Selecciona un trabajador." : "Selecciona una empresa.";
+            return;
+        }
+
+        // Un vencimiento a medias o ilegible llega como «»: sin este bloqueo el documento se actualizaría «sin vencimiento».
+        if (_vencimientoDocumentoNoValido)
+        {
+            _errorActualizarDocumento = TextosComunesPagina["CampoFechaCorregirAntes"];
             return;
         }
 

@@ -89,7 +89,8 @@ else
                         <CampoTexto Etiqueta="@Textos["EtiquetaPuestoOficio"]" Valor="@_puestoInfo" ValorChanged="v => _puestoInfo = v" MensajeError="@ObtenerErrorInformacion(nameof(EditarTrabajadorCommand.Puesto))" />
                         <CampoTexto Etiqueta="@Textos["EtiquetaEmail"]" Type="email" Valor="@_emailInfo" ValorChanged="v => _emailInfo = v" MensajeError="@ObtenerErrorInformacion(nameof(EditarTrabajadorCommand.Email))" />
                         <CampoTexto Etiqueta="@Textos["EtiquetaTelefonoWhatsapp"]" Type="tel" Placeholder="+34 600 00 00 00" Valor="@_telefonoInfo" ValorChanged="v => _telefonoInfo = v" MensajeError="@ObtenerErrorInformacion(nameof(EditarTrabajadorCommand.Telefono))" />
-                        <CampoTexto Etiqueta="@Textos["EtiquetaFechaNacimiento"]" Type="date" Valor="@_fechaNacimientoInfo" ValorChanged="v => _fechaNacimientoInfo = v" />
+                        <CampoTexto Etiqueta="@Textos["EtiquetaFechaNacimiento"]" Type="date" Valor="@_fechaNacimientoInfo" ValorChanged="v => _fechaNacimientoInfo = v"
+                                    FechaNoValidaChanged="AlCambiarFechaNacimientoInfoNoValida" />
                         <CampoTextarea Etiqueta="@Textos["EtiquetaObservaciones"]" Valor="@_observacionesInfo" ValorChanged="v => _observacionesInfo = v" Filas="3" />
                     </div>
                     <div class="workspace-acciones-edicion">
@@ -204,6 +205,9 @@ else
     private string _emailInfo = string.Empty;
     private string _telefonoInfo = string.Empty;
     private string _fechaNacimientoInfo = string.Empty;
+
+    /// <summary>La fecha de nacimiento tiene un texto que no es una fecha entera (entrega «»): Guardar no borra la fecha guardada.</summary>
+    private bool _fechaNacimientoInfoNoValida;
     private string _observacionesInfo = string.Empty;
 
     private readonly InstantaneaFormulario _instantaneaInformacion = new();
@@ -356,6 +360,7 @@ else
         _telefonoInfo = _detalle.Telefono ?? string.Empty;
         _fechaNacimientoInfo = _detalle.FechaNacimiento?.ToString("yyyy-MM-dd") ?? string.Empty;
         _observacionesInfo = _detalle.Observaciones ?? string.Empty;
+        _fechaNacimientoInfoNoValida = false;
         _mensajeErrorInformacion = null;
         _erroresInformacion = new Dictionary<string, string>();
         _editandoInformacion = true;
@@ -364,11 +369,26 @@ else
 
     private void CancelarEdicionInformacion() => _editandoInformacion = false;
 
+    // Al volver a ser una fecha entera (o quedar vacía), el aviso «no es una fecha» de un envío anterior ya no es cierto.
+    private void AlCambiarFechaNacimientoInfoNoValida(bool noValida)
+    {
+        _fechaNacimientoInfoNoValida = noValida;
+        if (!noValida && _mensajeErrorInformacion == Comunes["CampoFechaCorregirAntes"])
+            _mensajeErrorInformacion = null;
+    }
+
     private string? ObtenerErrorInformacion(string campo) => _erroresInformacion.GetValueOrDefault(campo);
 
     private async Task GuardarInformacionAsync()
     {
         if (_detalle is null) return;
+
+        // La fecha de nacimiento a medias o ilegible llega como «»: sin este bloqueo se borraría la fecha guardada.
+        if (_fechaNacimientoInfoNoValida)
+        {
+            _mensajeErrorInformacion = Comunes["CampoFechaCorregirAntes"];
+            return;
+        }
 
         _guardandoInformacion = true;
         _mensajeErrorInformacion = null;

@@ -20,6 +20,7 @@ namespace CaeManager.Web.Tests;
 public class TrabajadorWorkspacePanelAvisoCambiosSinGuardarTests : BunitContext
 {
     private readonly List<string> _pestanasPedidas = [];
+    private MediatorFalso _mediador = default!;
 
     public TrabajadorWorkspacePanelAvisoCambiosSinGuardarTests()
     {
@@ -30,10 +31,15 @@ public class TrabajadorWorkspacePanelAvisoCambiosSinGuardarTests : BunitContext
 
     private sealed class MediatorFalso(TrabajadorDetalleDto detalle) : IMediator
     {
-        public Task<TResponse> Send<TResponse>(IRequest<TResponse> request, CancellationToken cancellationToken = default) =>
-            request is ObtenerTrabajadorPorIdQuery
+        public List<object> Enviadas { get; } = [];
+
+        public Task<TResponse> Send<TResponse>(IRequest<TResponse> request, CancellationToken cancellationToken = default)
+        {
+            Enviadas.Add(request);
+            return request is ObtenerTrabajadorPorIdQuery
                 ? Task.FromResult((TResponse)(object)detalle)
                 : throw new NotSupportedException($"Consulta no prevista en este test: {request.GetType().Name}.");
+        }
 
         public Task Send<TRequest>(TRequest request, CancellationToken cancellationToken = default) where TRequest : IRequest => Task.CompletedTask;
         public Task<object?> Send(object request, CancellationToken cancellationToken = default) => Task.FromResult<object?>(null);
@@ -51,7 +57,8 @@ public class TrabajadorWorkspacePanelAvisoCambiosSinGuardarTests : BunitContext
         var detalle = new TrabajadorDetalleDto(
             id, Guid.NewGuid(), null, "Refrielectric S.A.", "Marco", "Vila", "12884021K",
             new DateOnly(1990, 1, 1), null, null, null, null, null, Guid.NewGuid());
-        Services.AddScoped<IMediator>(_ => new MediatorFalso(detalle));
+        _mediador = new MediatorFalso(detalle);
+        Services.AddScoped<IMediator>(_ => _mediador);
         Services.AddScoped<ToastService>();
         Services.AddScoped<ContextWorkspaceService>();
 
@@ -74,6 +81,19 @@ public class TrabajadorWorkspacePanelAvisoCambiosSinGuardarTests : BunitContext
         await Control(cut, "Apellidos").InputAsync(new ChangeEventArgs { Value = "Vila Soto" });
 
         await cut.SalirYComprobarQuePreguntaAsync(Navegacion);
+    }
+
+    [Fact]
+    public async Task Una_fecha_de_nacimiento_a_medias_no_edita_el_trabajador_sin_fecha()
+    {
+        var cut = await EditarInformacionAsync();
+
+        await cut.Find("input[data-campo-fecha]").InputAsync(new ChangeEventArgs { Value = "15/03" });
+        await cut.FindAll("button").First(b => b.TextContent.Trim() == "Guardar").ClickAsync(new MouseEventArgs());
+
+        _mediador.Enviadas.Should().NotContain(o => o.GetType().Name == "EditarTrabajadorCommand",
+            "el texto sin fecha entera llega como «» y borraría la fecha de nacimiento sin que nadie lo decidiera");
+        cut.Markup.Should().Contain("no es válida");
     }
 
     [Fact]

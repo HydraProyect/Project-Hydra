@@ -232,6 +232,23 @@ public class CentroWorkspacePanelAvisoCambiosSinGuardarTests : BunitContext
     }
 
     [Fact]
+    public async Task Un_contrato_vigente_hasta_a_medias_no_edita_el_centro_sin_fecha()
+    {
+        var cut = Renderizar("informacion");
+        await cut.InvokeAsync(() => typeof(CentroWorkspacePanel)
+            .GetMethod("IniciarEdicionInformacion", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)!
+            .Invoke(cut.Instance, null));
+        cut.Render();
+
+        await cut.Find("input[data-campo-fecha]").InputAsync(new ChangeEventArgs { Value = "15/03" });
+        await PulsarAsync(cut, "Guardar");
+
+        _mediador.Enviadas.Should().NotContain(o => o.GetType().Name == "EditarCentroCommand",
+            "el texto sin fecha entera llega como «» y borraría el fin de contrato sin que nadie lo decidiera");
+        cut.Markup.Should().Contain("no es válida");
+    }
+
+    [Fact]
     public async Task Pedir_prioridad_con_el_borrador_sin_tocar_no_pregunta()
     {
         var cut = await AbrirPrioridadAsync();

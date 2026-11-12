@@ -498,7 +498,18 @@ public partial class ProyectoDetalle : CaeManager.Web.Components.PaginaInteracti
     private bool _guardandoEdicion;
     private string _editNombre = string.Empty;
     private string _editFechaFinPrevista = string.Empty;
+
+    /// <summary>El fin previsto tiene un texto que no es una fecha entera (entrega «»): Guardar no borra el fin previsto guardado.</summary>
+    private bool _editFechaFinPrevistaNoValida;
     private string _editNotas = string.Empty;
+
+    // Al volver a ser una fecha entera (o quedar vacía), el aviso «no es una fecha» de un envío anterior ya no es cierto.
+    private void AlCambiarEditFechaFinPrevistaNoValida(bool noValida)
+    {
+        _editFechaFinPrevistaNoValida = noValida;
+        if (!noValida && _editError == Comunes["CampoFechaCorregirAntes"])
+            _editError = null;
+    }
     private Dictionary<string, string> _editErrores = new();
     private string? _editError;
     private readonly InstantaneaFormulario _instantaneaEdicion = new();
@@ -513,6 +524,7 @@ public partial class ProyectoDetalle : CaeManager.Web.Components.PaginaInteracti
         _editNombre = _detalle.Nombre;
         _editFechaFinPrevista = _detalle.FechaFinPrevista?.ToString("yyyy-MM-dd") ?? string.Empty;
         _editNotas = _detalle.Notas ?? string.Empty;
+        _editFechaFinPrevistaNoValida = false;
         _editErrores = new();
         _editError = null;
         _instantaneaEdicion.Fijar(_editNombre, _editFechaFinPrevista, _editNotas);
@@ -536,7 +548,14 @@ public partial class ProyectoDetalle : CaeManager.Web.Components.PaginaInteracti
 
         try
         {
-            // Fecha vacía o no válida se guarda como «sin fin previsto»; notas en blanco, como vacías.
+            // Fecha vacía se guarda como «sin fin previsto»; una a medias o ilegible no (la bandera del campo bloquea antes);
+            // notas en blanco, como vacías.
+            if (_editFechaFinPrevistaNoValida)
+            {
+                _editError = Comunes["CampoFechaCorregirAntes"];
+                return;
+            }
+
             DateOnly? fechaFinPrevista = DateOnly.TryParse(_editFechaFinPrevista, out var fv) ? fv : null;
             var notas = string.IsNullOrWhiteSpace(_editNotas) ? null : _editNotas;
 

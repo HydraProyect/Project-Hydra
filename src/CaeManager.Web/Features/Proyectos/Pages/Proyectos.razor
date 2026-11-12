@@ -394,7 +394,8 @@
                             <div class="rejilla-formulario">
                                 <CampoTexto Etiqueta="@Textos["EtiquetaNombre"]" Valor="@_editNombre" ValorChanged="v => _editNombre = v"
                                             MensajeError="@(_editErrores.GetValueOrDefault("Nombre"))" />
-                                <CampoTexto Etiqueta="@(_detalle?.Tipo == TipoProyecto.Evento ? Textos["EtiquetaFinEvento"] : Textos["EtiquetaFinPrevistoOpcional"])" Type="date" Valor="@_editFechaFinPrevista" ValorChanged="v => _editFechaFinPrevista = v" />
+                                <CampoTexto Etiqueta="@(_detalle?.Tipo == TipoProyecto.Evento ? Textos["EtiquetaFinEvento"] : Textos["EtiquetaFinPrevistoOpcional"])" Type="date" Valor="@_editFechaFinPrevista" ValorChanged="v => _editFechaFinPrevista = v"
+                                            FechaNoValidaChanged="AlCambiarEditFechaFinPrevistaNoValida" />
                                 <CampoTexto Etiqueta="@Textos["EtiquetaNotas"]" Valor="@_editNotas" ValorChanged="v => _editNotas = v" />
                             </div>
                             <div class="acciones-formulario">
@@ -531,7 +532,8 @@
 
         <CampoTexto Etiqueta="@Textos["EtiquetaFechaInicio"]" Type="date" Valor="@_nuevaFechaInicio" ValorChanged="v => _nuevaFechaInicio = v" />
 
-        <CampoTexto Etiqueta="@(NuevoEsEvento ? Textos["EtiquetaFinEvento"] : Textos["EtiquetaFinPrevistoOpcionalAlta"])" Type="date" Valor="@_nuevaFechaFinPrevista" ValorChanged="v => _nuevaFechaFinPrevista = v" />
+        <CampoTexto Etiqueta="@(NuevoEsEvento ? Textos["EtiquetaFinEvento"] : Textos["EtiquetaFinPrevistoOpcionalAlta"])" Type="date" Valor="@_nuevaFechaFinPrevista" ValorChanged="v => _nuevaFechaFinPrevista = v"
+                    FechaNoValidaChanged="AlCambiarNuevaFechaFinPrevistaNoValida" />
 
         @if (NuevoEsEvento)
         {

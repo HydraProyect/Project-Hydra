@@ -964,6 +964,8 @@ public class ComunicacionesGen2Tests : BunitContext
                     Result.Fallo<Guid>(Error.Crear("Mensaje.NoEnviado", "El buzón rechazó el envío."))),
                 EnviarMensajeNuevoCommand => Task.FromResult<object?>(Result.Exito(Guid.NewGuid())),
                 ObtenerEmpresasParaSelectorQuery => Task.FromResult<object?>(new List<EmpresaSelectorDto>()),
+                CaeManager.Application.Comunicaciones.Commands.ActualizarDocumentoDesdeAdjunto.ActualizarDocumentoDesdeAdjuntoCommand =>
+                    Task.FromResult<object?>(Result.Exito(Guid.NewGuid())),
                 DetectarActualizacionDocumentoDesdeAdjuntoQuery => Task.FromResult<object?>(Result.Exito(new DeteccionActualizacionDocumentoDto(
                     AdjuntoId, null, null, null, null, null, null, null,
                     laDeteccionLeeLaFechaDeEmision ? new DateOnly(2026, 9, 1) : null, null, 80))),
@@ -1084,6 +1086,43 @@ public class ComunicacionesGen2Tests : BunitContext
         public override DateTimeOffset GetUtcNow() => new(ahoraUtc, TimeSpan.Zero);
 
         public override TimeZoneInfo LocalTimeZone => TimeZoneInfo.Utc;
+    }
+
+    /// <summary>
+    /// Un vencimiento a medias o ilegible llega al formulario como «»: aplicar así actualizaría el documento «sin vencimiento».
+    /// La pantalla consume la bandera del campo (#2185) y no envía el comando mientras sea true.
+    /// </summary>
+    [Fact]
+    public async Task Un_vencimiento_a_medias_no_actualiza_el_documento_sin_vencimiento()
+    {
+        var (cut, _) = await RenderizarConversacionAbiertaAsync();
+        await cut.Find(".timeline-adjunto-actualizar-documento").ClickAsync(new MouseEventArgs());
+        cut.WaitForAssertion(() => cut.FindAll(".modal-actualizar-documento-formulario").Should().ContainSingle());
+        await cut.InvokeAsync(() =>
+        {
+            var tipo = typeof(Bandeja).GetField("_tipoDocumentoIdFormulario", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)!;
+            var trabajador = typeof(Bandeja).GetField("_trabajadorDocumentoIdFormulario", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)!;
+            tipo.SetValue(cut.Instance, Guid.NewGuid().ToString());
+            trabajador.SetValue(cut.Instance, Guid.NewGuid().ToString());
+        });
+        cut.Render();
+        var mediador = (MediadorControlado)Services.GetRequiredService<IMediator>();
+        var vencimiento = () => cut.FindAll(".modal-actualizar-documento-formulario input[data-campo-fecha]")[1];
+        var aplicar = () => cut.FindAll(".modal-pie button").Single(b => b.TextContent.Trim() == "Aplicar y registrar");
+
+        await vencimiento().InputAsync(new ChangeEventArgs { Value = "15/03" });
+        await aplicar().ClickAsync(new MouseEventArgs());
+
+        mediador.Enviados.OfType<CaeManager.Application.Comunicaciones.Commands.ActualizarDocumentoDesdeAdjunto.ActualizarDocumentoDesdeAdjuntoCommand>()
+            .Should().BeEmpty("el texto a medias llega como «» y se aplicaría como «sin vencimiento»");
+        cut.Markup.Should().Contain("no es válida");
+
+        await vencimiento().InputAsync(new ChangeEventArgs { Value = "15/03/2030" });
+        await aplicar().ClickAsync(new MouseEventArgs());
+
+        mediador.Enviados.OfType<CaeManager.Application.Comunicaciones.Commands.ActualizarDocumentoDesdeAdjunto.ActualizarDocumentoDesdeAdjuntoCommand>()
+            .Should().ContainSingle("control positivo: con la fecha entera sí se aplica")
+            .Which.FechaVencimientoManual.Should().Be(new DateOnly(2030, 3, 15));
     }
 
     [Fact]
