@@ -1,0 +1,35 @@
+/* Etiqueta de festivo (maqueta :141): 10/13 600, tolerancia, recortada con puntos suspensivos. */
+.capas-festivo {
+    max-width: 100%;
+    padding: 1px 6px;
+    border-radius: var(--radius-sm);
+    background-color: var(--color-tolerancia-50);
+    color: var(--color-tolerancia-700);
+    font: 600 10px/13px var(--font-family);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+/* Jornada intensiva (maqueta :143): línea punteada de 3 px al pie de la celda, que es position: relative. */
+.capas-intensiva {
+    position: absolute;
+    left: 8px;
+    right: 8px;
+    bottom: 4px;
+    border-bottom: 3px dotted var(--color-system-indicator);
+    pointer-events: none;
+}
+
+@media (max-width: 640px) {
+    .capas-festivo {
+        padding: 1px 3px;
+        font-size: 9px;
+        line-height: 12px;
+    }
+
+    .capas-intensiva {
+        left: 4px;
+        right: 4px;
+    }
+}

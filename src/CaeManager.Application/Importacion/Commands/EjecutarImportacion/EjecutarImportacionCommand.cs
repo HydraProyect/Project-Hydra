@@ -119,7 +119,8 @@ public class EjecutarImportacionCommandHandler(
     IAsignacionesQueryContext asignacionesContext, ICentrosQueryContext centrosContext, IDocumentosQueryContext documentosContext, IEmpresasQueryContext empresasContext, ITiposDocumentoQueryContext tiposDocumentoContext, ITrabajadoresQueryContext trabajadoresContext,
     IAutorizacionEscrituraEfectiva autorizacionEscrituraEfectiva,
     IAltaAcreditacionesPlataformaService altaAcreditaciones,
-    IAlcanceDatosService alcanceDatos)
+    IAlcanceDatosService alcanceDatos,
+    ISerializacionAltasAcreditacionEmpresa serializacionAltas)
     : IRequestHandler<EjecutarImportacionCommand, Result<ResultadoImportacionDto>>
 {
     // Restaura en Application el límite que ya exponen las 4 páginas de importación (@attribute [Authorize(Roles = ConCargaMasivaCsv)]):
@@ -509,149 +510,156 @@ public class EjecutarImportacionCommandHandler(
             }
         }
 
-        // Trae TODAS las asignaciones existentes, activas o cerradas: DEC-19
-        // exige comprobar solape de rango también contra las ya cerradas, no
-        // solo si el par sigue activo — el hueco que
-        // IX_Asignaciones_TenantId_TrabajadorId_CentroId_Activa nunca cubrió.
-        var asignacionesExistentes = await asignacionesContext.Asignaciones
-            .Select(a => new { a.TrabajadorId, a.CentroId, a.FechaAlta, a.FechaBaja })
-            .ToListAsync(cancellationToken);
-        var clavesAsignacionesActivas = asignacionesExistentes
-            .Where(a => a.FechaBaja is null)
-            .Select(a => (a.TrabajadorId, a.CentroId))
-            .ToHashSet();
-        // Mismo límite exclusivo que Asignacion.SeSolapaCon: la asignación
-        // nueva es un rango abierto [hoy, ∞), así que solapa con una fila ya
-        // cerrada exactamente cuando esa fila se cerró después de hoy. Un
-        // rango vacío (FechaAlta == FechaBaja) no cuenta: no ocupó ni un día.
-        var clavesAsignacionesSolapanConCerrada = asignacionesExistentes
-            .Where(a => a.FechaBaja is not null && a.FechaBaja.Value != a.FechaAlta && hoy < a.FechaBaja.Value)
-            .Select(a => (a.TrabajadorId, a.CentroId))
-            .ToHashSet();
-
-        // A diferencia de las demás hojas, el análisis NO deduplica pares
-        // (trabajador, centro) repetidos dentro del propio archivo: la hoja
-        // Asignaciones se recorre por filas y dos filas con el mismo nombre
-        // completo producen el mismo par. Sin esta pista, la segunda se
-        // confundiría con una asignación aparecida entre analizar y confirmar y
-        // se le daría un motivo falso — dos causales distintas, un solo mensaje.
-        var clavesAsignacionesDelPlan = new HashSet<(Guid, Guid)>();
-
-        foreach (var fila in plan.Asignaciones)
+        // Corre bajo el candado de las altas con acreditación, igual que CrearAsignacion y ReactivarAsignacion: las
+        // Asignaciones que otra operación confirmó mientras esta esperaba cuentan como existentes (revisión puente de la
+        // PR #2074, previa a la ronda 5, hallazgo 3). La lectura es una proyección sin rastreo, así que siempre trae lo
+        // confirmado: no hace falta una lectura «…ActualizadoAsync».
+        async Task AgregarAsignacionesAsync(CancellationToken ct)
         {
-            // La hoja de Asignaciones no crea ni Trabajadores ni Centros: con ámbito acotado, un Trabajador o un Centro que
-            // no existe (o un DNI en la Papelera) se omite con el mismo motivo que uno fuera del ámbito
-            // (MotivoSinDistinguirExistencia). Las causales accionables de DCR-12 B se conservan con autoridad Total.
-            if (!trabajadoresPorDni.TryGetValue(fila.Dni, out var trabajadorId))
+            // Trae TODAS las asignaciones existentes, activas o cerradas: DEC-19
+            // exige comprobar solape de rango también contra las ya cerradas, no
+            // solo si el par sigue activo — el hueco que
+            // IX_Asignaciones_TenantId_TrabajadorId_CentroId_Activa nunca cubrió.
+            var asignacionesExistentes = await asignacionesContext.Asignaciones
+                .Select(a => new { a.TrabajadorId, a.CentroId, a.FechaAlta, a.FechaBaja })
+                .ToListAsync(ct);
+            var clavesAsignacionesActivas = asignacionesExistentes
+                .Where(a => a.FechaBaja is null)
+                .Select(a => (a.TrabajadorId, a.CentroId))
+                .ToHashSet();
+            // Mismo límite exclusivo que Asignacion.SeSolapaCon: la asignación
+            // nueva es un rango abierto [hoy, ∞), así que solapa con una fila ya
+            // cerrada exactamente cuando esa fila se cerró después de hoy. Un
+            // rango vacío (FechaAlta == FechaBaja) no cuenta: no ocupó ni un día.
+            var clavesAsignacionesSolapanConCerrada = asignacionesExistentes
+                .Where(a => a.FechaBaja is not null && a.FechaBaja.Value != a.FechaAlta && hoy < a.FechaBaja.Value)
+                .Select(a => (a.TrabajadorId, a.CentroId))
+                .ToHashSet();
+
+            // A diferencia de las demás hojas, el análisis NO deduplica pares
+            // (trabajador, centro) repetidos dentro del propio archivo: la hoja
+            // Asignaciones se recorre por filas y dos filas con el mismo nombre
+            // completo producen el mismo par. Sin esta pista, la segunda se
+            // confundiría con una asignación aparecida entre analizar y confirmar y
+            // se le daría un motivo falso — dos causales distintas, un solo mensaje.
+            var clavesAsignacionesDelPlan = new HashSet<(Guid, Guid)>();
+
+            foreach (var fila in plan.Asignaciones)
             {
-                omitidosEnEscritura.Add(new ItemImportacionDto(
-                    fila.Hoja, fila.Fila, $"{fila.Dni} — {fila.NombreCentro}",
-                    EstaEnPapelera(fila.Dni)
-                        ? ambito.MotivoPapeleraSinDistinguir(QuePideAsignacion, fila.Dni)
-                        : ambito.MotivoSinDistinguirExistencia(QuePideAsignacion, EntidadDelAmbito.Trabajador,
-                            $"El trabajador con DNI {fila.Dni} no existe y no pudo crearse al importar este archivo; sin él la asignación al centro «{fila.NombreCentro}» no puede crearse.")));
-                continue;
-            }
-
-            // Antes que las causales del Centro: un Trabajador fuera del ámbito con un Centro ambiguo o inexistente
-            // recibiría un motivo distinto del de un DNI inexistente, y delataría que el DNI existe.
-            if (!ambito.Trabajador(trabajadorId))
-            {
-                omitidosEnEscritura.Add(new ItemImportacionDto(
-                    fila.Hoja, fila.Fila, $"{fila.Dni} — {fila.NombreCentro}", AmbitoCargaMasiva.Motivo(QuePideAsignacion)));
-                continue;
-            }
-
-            var busquedaCentro = centrosPorNombre.Buscar(fila.NombreCentro, out var centroId);
-            if (busquedaCentro == ResultadoBusquedaPorNombre.Ambiguo)
-            {
-                // Esta plantilla no recoge el Cliente empresarial del Centro, así que no hay forma de elegir entre
-                // homónimos; asignar a uno cualquiera pondría al trabajador en el Centro equivocado.
-                omitidosEnEscritura.Add(new ItemImportacionDto(
-                    fila.Hoja, fila.Fila, $"{fila.Dni} — {fila.NombreCentro}",
-                    $"Hay varios centros llamados «{fila.NombreCentro}» en el sistema (por ejemplo, de distintos Clientes empresariales); esta plantilla no recoge el Cliente del centro y la importación no puede saber a cuál asignar al trabajador. Haz esta asignación manualmente desde el centro que corresponda."));
-                continue;
-            }
-
-            if (busquedaCentro == ResultadoBusquedaPorNombre.NoExiste)
-            {
-                // DCR-12 B exige distinguir aquí la causal, no dar un motivo común.
-                // Son tres situaciones distintas y el usuario actúa distinto en cada
-                // una: el Centro que este archivo declaraba y no pudo crearse (Fase 10
-                // le exige una Empresa que la plantilla no recoge), el que el archivo
-                // ni siquiera menciona, y el que sí existía al analizar y ha dejado de
-                // existir antes de confirmar — a ese último no se le puede decir que
-                // "no pudo crearse", porque nunca se prometió crearlo.
-                var motivoCentro = centrosDeclaradosEnElArchivo.TryGetValue(fila.NombreCentro, out var existiaAlAnalizar)
-                    ? existiaAlAnalizar
-                        ? $"El centro «{fila.NombreCentro}» existía al analizar el archivo pero ya no existe al confirmar la importación; sin él la asignación no puede crearse."
-                        : $"El centro «{fila.NombreCentro}» venía en la hoja Centros_Plataformas de este archivo pero no pudo crearse al importarlo (ahora requiere una Empresa asociada que esta plantilla no recoge); créalo manualmente en Centros y vuelve a importar para que esta asignación se registre."
-                    : $"El centro «{fila.NombreCentro}» no existe en el sistema y este archivo no lo declara en la hoja Centros_Plataformas; sin él la asignación no puede crearse.";
-
-                omitidosEnEscritura.Add(new ItemImportacionDto(
-                    fila.Hoja, fila.Fila, $"{fila.Dni} — {fila.NombreCentro}",
-                    ambito.MotivoSinDistinguirExistencia(QuePideAsignacion, EntidadDelAmbito.Centro, motivoCentro)));
-                continue;
-            }
-
-            if (!ambito.Trabajador(trabajadorId) || !ambito.Centro(centroId))
-            {
-                omitidosEnEscritura.Add(new ItemImportacionDto(
-                    fila.Hoja, fila.Fila, $"{fila.Dni} — {fila.NombreCentro}",
-                    AmbitoCargaMasiva.Motivo(QuePideAsignacion)));
-                continue;
-            }
-
-            var repetidaEnElArchivo = !clavesAsignacionesDelPlan.Add((trabajadorId, centroId));
-            var clave = (trabajadorId, centroId);
-
-            if (clavesAsignacionesActivas.Contains(clave))
-            {
-                if (repetidaEnElArchivo)
-                    // El propio archivo la trae dos veces (el plan prometió dos altas
-                    // y solo cabe una): se registra para que los contadores cuadren,
-                    // con su causal, no con la de la reaparición entre pasos.
+                // La hoja de Asignaciones no crea ni Trabajadores ni Centros: con ámbito acotado, un Trabajador o un Centro que
+                // no existe (o un DNI en la Papelera) se omite con el mismo motivo que uno fuera del ámbito
+                // (MotivoSinDistinguirExistencia). Las causales accionables de DCR-12 B se conservan con autoridad Total.
+                if (!trabajadoresPorDni.TryGetValue(fila.Dni, out var trabajadorId))
+                {
                     omitidosEnEscritura.Add(new ItemImportacionDto(
                         fila.Hoja, fila.Fila, $"{fila.Dni} — {fila.NombreCentro}",
-                        $"Esta asignación del trabajador {fila.Dni} al centro «{fila.NombreCentro}» ya venía antes en este mismo archivo; se registra una sola vez."));
-                else if (!fila.YaExiste)
-                    // Reutilización que el análisis NO llegó a anunciar (ver nota de la clase).
+                        EstaEnPapelera(fila.Dni)
+                            ? ambito.MotivoPapeleraSinDistinguir(QuePideAsignacion, fila.Dni)
+                            : ambito.MotivoSinDistinguirExistencia(QuePideAsignacion, EntidadDelAmbito.Trabajador,
+                                $"El trabajador con DNI {fila.Dni} no existe y no pudo crearse al importar este archivo; sin él la asignación al centro «{fila.NombreCentro}» no puede crearse.")));
+                    continue;
+                }
+
+                // Antes que las causales del Centro: un Trabajador fuera del ámbito con un Centro ambiguo o inexistente
+                // recibiría un motivo distinto del de un DNI inexistente, y delataría que el DNI existe.
+                if (!ambito.Trabajador(trabajadorId))
+                {
+                    omitidosEnEscritura.Add(new ItemImportacionDto(
+                        fila.Hoja, fila.Fila, $"{fila.Dni} — {fila.NombreCentro}", AmbitoCargaMasiva.Motivo(QuePideAsignacion)));
+                    continue;
+                }
+
+                var busquedaCentro = centrosPorNombre.Buscar(fila.NombreCentro, out var centroId);
+                if (busquedaCentro == ResultadoBusquedaPorNombre.Ambiguo)
+                {
+                    // Esta plantilla no recoge el Cliente empresarial del Centro, así que no hay forma de elegir entre
+                    // homónimos; asignar a uno cualquiera pondría al trabajador en el Centro equivocado.
                     omitidosEnEscritura.Add(new ItemImportacionDto(
                         fila.Hoja, fila.Fila, $"{fila.Dni} — {fila.NombreCentro}",
-                        $"El trabajador {fila.Dni} ya estaba asignado al centro «{fila.NombreCentro}» al confirmar la importación, aunque no lo estaba al analizar el archivo; se conserva la asignación activa que ya había en vez de duplicarla."));
-                continue;
-            }
+                        $"Hay varios centros llamados «{fila.NombreCentro}» en el sistema (por ejemplo, de distintos Clientes empresariales); esta plantilla no recoge el Cliente del centro y la importación no puede saber a cuál asignar al trabajador. Haz esta asignación manualmente desde el centro que corresponda."));
+                    continue;
+                }
 
-            // DEC-19: la nueva alta no puede pisar el rango de una asignación
-            // YA CERRADA del mismo trío — a diferencia del caso de arriba,
-            // aquí no hay nada que "reutilizar"; es una contradicción de
-            // datos y se omite con su propia causal, nunca en silencio
-            // (DCR-12 B). Comprobado antes de intentar crear, no dentro del
-            // catch de ArgumentException: el dominio no conoce el histórico,
-            // solo el repositorio puede detectarlo.
-            if (clavesAsignacionesSolapanConCerrada.Contains(clave))
-            {
-                omitidosEnEscritura.Add(new ItemImportacionDto(
-                    fila.Hoja, fila.Fila, $"{fila.Dni} — {fila.NombreCentro}",
-                    $"El trabajador {fila.Dni} tuvo antes una asignación al centro «{fila.NombreCentro}» cuyo periodo de vigencia se solapa con la fecha de alta de hoy; revisa las fechas del historial antes de reintentar."));
-                continue;
-            }
+                if (busquedaCentro == ResultadoBusquedaPorNombre.NoExiste)
+                {
+                    // DCR-12 B exige distinguir aquí la causal, no dar un motivo común.
+                    // Son tres situaciones distintas y el usuario actúa distinto en cada
+                    // una: el Centro que este archivo declaraba y no pudo crearse (Fase 10
+                    // le exige una Empresa que la plantilla no recoge), el que el archivo
+                    // ni siquiera menciona, y el que sí existía al analizar y ha dejado de
+                    // existir antes de confirmar — a ese último no se le puede decir que
+                    // "no pudo crearse", porque nunca se prometió crearlo.
+                    var motivoCentro = centrosDeclaradosEnElArchivo.TryGetValue(fila.NombreCentro, out var existiaAlAnalizar)
+                        ? existiaAlAnalizar
+                            ? $"El centro «{fila.NombreCentro}» existía al analizar el archivo pero ya no existe al confirmar la importación; sin él la asignación no puede crearse."
+                            : $"El centro «{fila.NombreCentro}» venía en la hoja Centros_Plataformas de este archivo pero no pudo crearse al importarlo (ahora requiere una Empresa asociada que esta plantilla no recoge); créalo manualmente en Centros y vuelve a importar para que esta asignación se registre."
+                        : $"El centro «{fila.NombreCentro}» no existe en el sistema y este archivo no lo declara en la hoja Centros_Plataformas; sin él la asignación no puede crearse.";
 
-            try
-            {
-                var asignacion = new Asignacion(trabajadorId, centroId, hoy);
-                asignacionRepositorio.Agregar(asignacion);
-                asignacionesNuevas.Add(asignacion);
-                // Marca el par como ocupado para que una fila repetida más
-                // adelante en este mismo archivo caiga en la rama de arriba
-                // ("ya venía antes en este mismo archivo") en vez de crear una
-                // segunda asignación activa para el mismo trío.
-                clavesAsignacionesActivas.Add(clave);
-                asignacionesCreadas++;
-            }
-            catch (ArgumentException ex)
-            {
-                omitidosEnEscritura.Add(new ItemImportacionDto(fila.Hoja, fila.Fila, $"{fila.Dni} — {fila.NombreCentro}", ex.Message));
+                    omitidosEnEscritura.Add(new ItemImportacionDto(
+                        fila.Hoja, fila.Fila, $"{fila.Dni} — {fila.NombreCentro}",
+                        ambito.MotivoSinDistinguirExistencia(QuePideAsignacion, EntidadDelAmbito.Centro, motivoCentro)));
+                    continue;
+                }
+
+                if (!ambito.Trabajador(trabajadorId) || !ambito.Centro(centroId))
+                {
+                    omitidosEnEscritura.Add(new ItemImportacionDto(
+                        fila.Hoja, fila.Fila, $"{fila.Dni} — {fila.NombreCentro}",
+                        AmbitoCargaMasiva.Motivo(QuePideAsignacion)));
+                    continue;
+                }
+
+                var repetidaEnElArchivo = !clavesAsignacionesDelPlan.Add((trabajadorId, centroId));
+                var clave = (trabajadorId, centroId);
+
+                if (clavesAsignacionesActivas.Contains(clave))
+                {
+                    if (repetidaEnElArchivo)
+                        // El propio archivo la trae dos veces (el plan prometió dos altas
+                        // y solo cabe una): se registra para que los contadores cuadren,
+                        // con su causal, no con la de la reaparición entre pasos.
+                        omitidosEnEscritura.Add(new ItemImportacionDto(
+                            fila.Hoja, fila.Fila, $"{fila.Dni} — {fila.NombreCentro}",
+                            $"Esta asignación del trabajador {fila.Dni} al centro «{fila.NombreCentro}» ya venía antes en este mismo archivo; se registra una sola vez."));
+                    else if (!fila.YaExiste)
+                        // Reutilización que el análisis NO llegó a anunciar (ver nota de la clase).
+                        omitidosEnEscritura.Add(new ItemImportacionDto(
+                            fila.Hoja, fila.Fila, $"{fila.Dni} — {fila.NombreCentro}",
+                            $"El trabajador {fila.Dni} ya estaba asignado al centro «{fila.NombreCentro}» al confirmar la importación, aunque no lo estaba al analizar el archivo; se conserva la asignación activa que ya había en vez de duplicarla."));
+                    continue;
+                }
+
+                // DEC-19: la nueva alta no puede pisar el rango de una asignación
+                // YA CERRADA del mismo trío — a diferencia del caso de arriba,
+                // aquí no hay nada que "reutilizar"; es una contradicción de
+                // datos y se omite con su propia causal, nunca en silencio
+                // (DCR-12 B). Comprobado antes de intentar crear, no dentro del
+                // catch de ArgumentException: el dominio no conoce el histórico,
+                // solo el repositorio puede detectarlo.
+                if (clavesAsignacionesSolapanConCerrada.Contains(clave))
+                {
+                    omitidosEnEscritura.Add(new ItemImportacionDto(
+                        fila.Hoja, fila.Fila, $"{fila.Dni} — {fila.NombreCentro}",
+                        $"El trabajador {fila.Dni} tuvo antes una asignación al centro «{fila.NombreCentro}» cuyo periodo de vigencia se solapa con la fecha de alta de hoy; revisa las fechas del historial antes de reintentar."));
+                    continue;
+                }
+
+                try
+                {
+                    var asignacion = new Asignacion(trabajadorId, centroId, hoy);
+                    asignacionRepositorio.Agregar(asignacion);
+                    asignacionesNuevas.Add(asignacion);
+                    // Marca el par como ocupado para que una fila repetida más
+                    // adelante en este mismo archivo caiga en la rama de arriba
+                    // ("ya venía antes en este mismo archivo") en vez de crear una
+                    // segunda asignación activa para el mismo trío.
+                    clavesAsignacionesActivas.Add(clave);
+                    asignacionesCreadas++;
+                }
+                catch (ArgumentException ex)
+                {
+                    omitidosEnEscritura.Add(new ItemImportacionDto(fila.Hoja, fila.Fila, $"{fila.Dni} — {fila.NombreCentro}", ex.Message));
+                }
             }
         }
 
@@ -661,13 +669,7 @@ public class EjecutarImportacionCommandHandler(
         // Trabajador y de su Empresa que ese Centro exige. Una importación
         // repetida no crea Documentos ni Asignaciones nuevas, así que tampoco
         // duplica acreditaciones.
-        await altaAcreditaciones.AgregarPendientesAsync(new AltasConAcreditacion
-        {
-            Documentos = documentosNuevos,
-            Asignaciones = asignacionesNuevas,
-            Trabajadores = trabajadoresNuevos,
-        }, cancellationToken);
-
+        //
         // Guarda TODO lo pendiente (Empresa/Trabajador/Documento/Asignación/
         // Acreditación de los bucles de arriba, junto con la fila de OperacionImportacion
         // agregada al principio) en un único SaveChangesAsync — así, si dos
@@ -675,7 +677,42 @@ public class EjecutarImportacionCommandHandler(
         // el índice único de OperacionImportacion y su transacción entera se
         // descarta: ninguna de sus filas llega a escribirse. Ver el comentario
         // de la clase y de OperacionImportacion.cs para el diseño completo.
-        if (!await operacionImportacionRepositorio.GuardarSiOperacionNuevaAsync(cancellationToken))
+        var yaEjecutada = false;
+        async Task<Result> GuardarAsync(CancellationToken ct)
+        {
+            await altaAcreditaciones.AgregarPendientesAsync(new AltasConAcreditacion
+            {
+                Documentos = documentosNuevos,
+                Asignaciones = asignacionesNuevas,
+                Trabajadores = trabajadoresNuevos,
+            }, ct);
+
+            if (await operacionImportacionRepositorio.GuardarSiOperacionNuevaAsync(ct))
+                return Result.Exito();
+
+            // Fallo para que la transacción de la serialización se deshaga; el llamante lo traduce a «ya ejecutada».
+            yaEjecutada = true;
+            return Result.Fallo(Error.Crear("Importacion.YaEjecutada", "Esta importación ya se había ejecutado."));
+        }
+
+        // Una Asignación nueva pone en juego los Documentos de la Empresa del Trabajador en un Centro de otra Empresa:
+        // se serializa con el alta de un Documento de Empresa, igual que CrearAsignacionCommand (revisión Codex de la
+        // PR #2074, ronda 3, hallazgo 4). Un plan con Asignaciones toma el candado antes de leer las existentes, y lo
+        // suelta al confirmar: dentro quedan esa lectura, el recorrido en memoria de la hoja, las acreditaciones y el
+        // guardado; lo demás de la importación corre antes, sin candado. Un plan cuya hoja acaba sin ninguna Asignación
+        // nueva (todas omitidas) también lo toma: solo se sabe después de leer. Lo importado ya está agregado al contexto,
+        // así que la serialización no reintenta: un fallo transitorio falla la importación en vez de confirmar solo
+        // una parte, y la hoja de Asignaciones no se recorre dos veces.
+        if (plan.Asignaciones.Count > 0)
+            await serializacionAltas.EjecutarAsync(async ct =>
+            {
+                await AgregarAsignacionesAsync(ct);
+                return await GuardarAsync(ct);
+            }, cancellationToken);
+        else
+            await GuardarAsync(cancellationToken);
+
+        if (yaEjecutada)
             return ResultadoImportacionDto.YaEjecutada();
 
         return new ResultadoImportacionDto(

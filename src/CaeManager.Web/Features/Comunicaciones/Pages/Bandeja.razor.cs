@@ -171,6 +171,13 @@ public partial class Bandeja : CaeManager.Web.Components.PaginaInteractiva, IAsy
     private Guid? _conversacionSeleccionadaId;
     private ConversacionDetalleDto? _detalle;
     private bool _cargandoDetalle;
+
+    /// <summary>La última carga del detalle falló (maqueta 2026-11-01, E14): se pinta «No pudimos abrir la conversación» con «Reintentar» en vez de dejar el hilo anterior bajo la selección nueva.</summary>
+    private bool _errorDetalle;
+
+    /// <summary>Título del encabezado de la lista (E9): el filtro rápido activo, como hasta ahora.</summary>
+    private string TituloLista =>
+        TextosLista[_soloAsignadasAMi ? "Mias" : _soloSinAsignar ? "SinAsignar" : _soloEsperandoCliente ? "EsperandoCliente" : "Todas"].Value;
     private ClienteDetalleDto? _clienteActivo;
     private IReadOnlyList<MacroListaDto> _macrosDisponibles = [];
     private IReadOnlyList<CentroSelectorDto> _centrosClienteActivo = [];
@@ -214,6 +221,12 @@ public partial class Bandeja : CaeManager.Web.Components.PaginaInteractiva, IAsy
     private string _empresaDocumentoIdFormulario = string.Empty;
     private string _fechaEmisionDocumentoFormulario = string.Empty;
     private string _fechaVencimientoDocumentoFormulario = string.Empty;
+
+    /// <summary>La caducidad tiene un texto que no es una fecha entera (entrega «»): Aplicar no la envía como «sin caducidad».</summary>
+    private bool _vencimientoDocumentoNoValido;
+
+    /// <summary>La fecha de emisión del documento tiene un texto que no es una fecha entera: Actualizar queda bloqueado.</summary>
+    private bool _emisionDocumentoNoValida;
     private bool _noCaducaDocumentoFormulario;
     private string _comentariosDocumentoFormulario = string.Empty;
     private int _confianzaDeteccionDocumento;
@@ -740,6 +753,7 @@ public partial class Bandeja : CaeManager.Web.Components.PaginaInteractiva, IAsy
         if (!await _ambitoConversacion.ConfirmarAbandonoAsync()) return;
         ++_cargaDetalleVigente;
         _cargandoDetalle = false;
+        _errorDetalle = false;
         _conversacionSeleccionadaId = null;
         _detalle = null;
         _clienteActivo = null;
@@ -824,6 +838,7 @@ public partial class Bandeja : CaeManager.Web.Components.PaginaInteractiva, IAsy
 
         var carga = ++_cargaDetalleVigente;
         _cargandoDetalle = true;
+        _errorDetalle = false;
         StateHasChanged();
 
         try
@@ -907,6 +922,10 @@ public partial class Bandeja : CaeManager.Web.Components.PaginaInteractiva, IAsy
             Logger.LogError(ex, "Error al abrir la conversación {ConversacionId}.", id);
             if (carga != _cargaDetalleVigente) return;
 
+            _errorDetalle = true;
+            // Sin hilo ni contexto de la conversación anterior: la columna de acciones no puede operar sobre otra (revisión puente).
+            _detalle = null;
+            _clienteActivo = null;
             ToastService.Mostrar(ErroresTextos["ErrorAbrirConversacion"].Value, TonoToast.Error);
         }
         finally
@@ -1422,6 +1441,8 @@ public partial class Bandeja : CaeManager.Web.Components.PaginaInteractiva, IAsy
         _empresaDocumentoIdFormulario = string.Empty;
         _fechaEmisionDocumentoFormulario = FechaDeHoy.ParaCampoFecha(Reloj);
         _fechaVencimientoDocumentoFormulario = string.Empty;
+        _vencimientoDocumentoNoValido = false;
+        _emisionDocumentoNoValida = false;
         _noCaducaDocumentoFormulario = false;
         _comentariosDocumentoFormulario = string.Empty;
         _confianzaDeteccionDocumento = 0;
@@ -1468,6 +1489,21 @@ public partial class Bandeja : CaeManager.Web.Components.PaginaInteractiva, IAsy
 
     private void CerrarModalActualizarDocumento() => _modalActualizarDocumentoVisible = false;
 
+    // Al volver a ser una fecha entera (o quedar vacía), el aviso «no es una fecha» de un envío anterior ya no es cierto.
+    private void AlCambiarEmisionDocumentoNoValida(bool noValida)
+    {
+        _emisionDocumentoNoValida = noValida;
+        if (!noValida && !_vencimientoDocumentoNoValido && _errorActualizarDocumento == TextosComunesPagina["CampoFechaCorregirAntes"])
+            _errorActualizarDocumento = null;
+    }
+
+    private void AlCambiarVencimientoDocumentoNoValido(bool noValido)
+    {
+        _vencimientoDocumentoNoValido = noValido;
+        if (!noValido && !_emisionDocumentoNoValida && _errorActualizarDocumento == TextosComunesPagina["CampoFechaCorregirAntes"])
+            _errorActualizarDocumento = null;
+    }
+
     private async Task AplicarActualizacionDocumentoAsync()
     {
         if (!Guid.TryParse(_tipoDocumentoIdFormulario, out var tipoDocumentoId))
@@ -1476,9 +1512,10 @@ public partial class Bandeja : CaeManager.Web.Components.PaginaInteractiva, IAsy
             return;
         }
 
-        if (!DateOnly.TryParse(_fechaEmisionDocumentoFormulario, out var fechaEmision))
+        // Una emisión a medias ya llega como «» (no se calcula el vencimiento de la anterior); la marca pide corregirla.
+        if (_emisionDocumentoNoValida || !DateOnly.TryParse(_fechaEmisionDocumentoFormulario, out var fechaEmision))
         {
-            _errorActualizarDocumento = "Indica la fecha de emisión.";
+            _errorActualizarDocumento = _emisionDocumentoNoValida ? TextosComunesPagina["CampoFechaCorregirAntes"] : "Indica la fecha de emisión.";
             return;
         }
 
@@ -1489,6 +1526,13 @@ public partial class Bandeja : CaeManager.Web.Components.PaginaInteractiva, IAsy
         if (trabajadorId is null && empresaId is null)
         {
             _errorActualizarDocumento = esTrabajador ? "Selecciona un trabajador." : "Selecciona una empresa.";
+            return;
+        }
+
+        // Un vencimiento a medias o ilegible llega como «»: sin este bloqueo el documento se actualizaría «sin vencimiento».
+        if (_vencimientoDocumentoNoValido)
+        {
+            _errorActualizarDocumento = TextosComunesPagina["CampoFechaCorregirAntes"];
             return;
         }
 
@@ -1544,7 +1588,7 @@ public partial class Bandeja : CaeManager.Web.Components.PaginaInteractiva, IAsy
         _ => "Del propietario"
     };
 
-    /// <summary>Dos letras de la razón social para el avatar de la columna de contexto — mismo criterio que UnifiedTimeline.ObtenerIniciales.</summary>
+    /// <summary>Dos letras de la razón social para el avatar de la columna de contexto — mismo criterio que FilaConversacion.ObtenerIniciales.</summary>
     private static string ObtenerInicialesCliente(string razonSocial)
     {
         var palabras = razonSocial.Split(' ', StringSplitOptions.RemoveEmptyEntries);
@@ -1775,8 +1819,10 @@ public partial class Bandeja : CaeManager.Web.Components.PaginaInteractiva, IAsy
         || (!_navegandoDentroDeLaPagina && HayRespuestaONotaAMedias);
 
     // Cada Drawer/Modal lee solo el suyo: cerrarlo no descarta la respuesta a medias.
+    // Un vencimiento a medias no cambia el valor del formulario («»), pero es texto que se pierde al cerrar.
     private bool HayCambiosActualizarDocumento =>
-        _modalActualizarDocumentoVisible && _instantaneaActualizarDocumento.Difiere(ValoresActualizarDocumento());
+        _modalActualizarDocumentoVisible
+        && (_instantaneaActualizarDocumento.Difiere(ValoresActualizarDocumento()) || _vencimientoDocumentoNoValido || _emisionDocumentoNoValida);
 
     private bool HayCambiosRedactar => _redactarVisible && _instantaneaRedactar.Difiere(ValoresRedactar());
 

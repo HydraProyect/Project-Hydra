@@ -2,6 +2,7 @@ using System.Text.Json.Serialization;
 using CaeManager.Application.Common;
 using CaeManager.Application.Common.Archivos;
 using CaeManager.Application.Documentos.Acreditacion;
+using CaeManager.Application.Gestiones;
 using CaeManager.Application.Documentos.Eventos;
 using CaeManager.Application.Documentos.Verificacion;
 using CaeManager.Application.Empresas;
@@ -81,7 +82,12 @@ public class CrearDocumentoCommandHandler(
     IAltaAcreditacionesPlataformaService altaAcreditaciones,
     IPublisher publisher,
     IAlcanceDatosService alcanceDatos,
-    IVerificadorArchivoAlmacenado verificadorArchivo)
+    IVerificadorArchivoAlmacenado verificadorArchivo,
+    ISerializacionAltasAcreditacionEmpresa serializacionAltas,
+    INacimientoGestionAutomaticaService gestionAutomatica,
+    // Opcional solo mientras la PR #2104 cambia los tests que construyen este handler: el contenedor siempre lo resuelve
+    // (InvalidadorAlcanceInerte por defecto, el AlcanceDatosService del circuito en la Web). Issue #2118.
+    IInvalidadorAlcance? invalidadorAlcance = null)
     : IRequestHandler<CrearDocumentoCommand, Result<Guid>>
 {
     public async Task<Result<Guid>> Handle(CrearDocumentoCommand request, CancellationToken cancellationToken)
@@ -170,6 +176,39 @@ public class CrearDocumentoCommandHandler(
             && !await verificadorArchivo.EsDocumentoValidoAsync(request.ArchivoUrl, cancellationToken))
             return Result.Fallo<Guid>(Error.Crear("Documento.ArchivoNoValido", ValidadorFirmaArchivo.MensajeDocumentoNoValido));
 
+        // Un Documento de Empresa se acredita en los accesos de plataforma de los Centros de su Empresa (regla A-1):
+        // su alta se serializa con la de un acceso de plataforma para que ninguna de las dos se pierda el par por leer
+        // antes de que la otra confirme (ver ISerializacionAltasAcreditacionEmpresa).
+        var guardado = ambitoSolicitado == AmbitoAplicacion.Empresa
+            ? await serializacionAltas.EjecutarAsync(async ct =>
+            {
+                // Bajo el candado se vuelve a decidir la Asignación de Cartera: pudo revocarse mientras se esperaba, y el
+                // alcance memoizado (en Blazor Server, el del circuito) es de antes; se descarta, igual que en
+                // BloqueoRespuestaSugerida.ComprobarEnvioPorBuzonAsync (issue #2118).
+                invalidadorAlcance?.Invalidar();
+                if (!await alcanceDatos.DocumentoVisibleAsync(documento, proyectosContext, ct))
+                    return Result.Fallo(PropietarioNoEncontrado(ambitoSolicitado));
+                return await GuardarAsync(request, tipoDocumento, ambitoSolicitado, documento, ct);
+            }, cancellationToken)
+            : await GuardarAsync(request, tipoDocumento, ambitoSolicitado, documento, cancellationToken);
+        if (guardado.EsFallido)
+            return Result.Fallo<Guid>(guardado.Error);
+
+        // Después del commit: este documento puede ser el último que le faltaba al
+        // expediente de una visita pendiente (Project-Hydra-Negocio/tecnico/ARQUITECTURA-INTEGRACIONES.md § 6.5).
+        await publisher.Publish(new DocumentacionCambiadaEvent(documento.Id), cancellationToken);
+
+        return Result.Exito(documento.Id);
+    }
+
+    /// <summary>
+    /// El Documento, sus acreditaciones y sus análisis en un solo guardado. Puede ejecutarse más de una vez dentro de la
+    /// serialización (reintento de la transacción): todo lo que guarda se agrega aquí dentro.
+    /// </summary>
+    private async Task<Result> GuardarAsync(
+        CrearDocumentoCommand request, TipoDocumento tipoDocumento, AmbitoAplicacion ambitoSolicitado, Documento documento,
+        CancellationToken cancellationToken)
+    {
         repositorio.Agregar(documento);
 
         // Acreditación por plataforma destino: al nacer el Documento, una
@@ -179,6 +218,10 @@ public class CrearDocumentoCommandHandler(
         // caminos de alta. Mismo SaveChangesAsync que el Documento: o se
         // confirman juntas o ninguna.
         await altaAcreditaciones.AgregarPendientesAsync(new AltasConAcreditacion { Documentos = [documento] }, cancellationToken);
+
+        // Un alta con archivo hace nacer la Gestión automática con las acreditaciones que se acaban de agregar (§ 4.1
+        // de la especificación «Gestión de varios pasos»), en el mismo guardado: o nacen juntos o no nace nada.
+        await gestionAutomatica.AgregarAsync(documento, sustituido: null, cancellationToken);
 
         // Los dos análisis pesados se encolan en vez de ejecutarse aquí: son
         // llamadas a un modelo externo, con su latencia, y hacerlas dentro del
@@ -226,12 +269,7 @@ public class CrearDocumentoCommandHandler(
         }
 
         await unitOfWork.SaveChangesAsync(cancellationToken);
-
-        // Después del commit: este documento puede ser el último que le faltaba al
-        // expediente de una visita pendiente (Project-Hydra-Negocio/tecnico/ARQUITECTURA-INTEGRACIONES.md § 6.5).
-        await publisher.Publish(new DocumentacionCambiadaEvent(documento.Id), cancellationToken);
-
-        return Result.Exito(documento.Id);
+        return Result.Exito();
     }
 
     private static Error PropietarioNoEncontrado(AmbitoAplicacion ambito) => Error.Crear(

@@ -65,12 +65,35 @@ public class EditarTipoDocumentoCommandValidator : AbstractValidator<EditarTipoD
 public class EditarTipoDocumentoCommandHandler(
     ITipoDocumentoRepository repositorio, ITipoDocumentoCentroRepository tipoDocumentoCentroRepositorio,
     ICentrosQueryContext centrosContext, IAltaAcreditacionesPlataformaService altaAcreditaciones,
-    IAlcanceDatosService alcanceDatos, IUnitOfWork unitOfWork)
+    IAlcanceDatosService alcanceDatos, IUnitOfWork unitOfWork,
+    ISerializacionAltasAcreditacionEmpresa serializacionAltas,
+    // Opcional solo mientras la PR #2104 cambia los tests que construyen este handler: el contenedor siempre lo resuelve
+    // (InvalidadorAlcanceInerte por defecto, el AlcanceDatosService del circuito en la Web). Issue #2118.
+    IInvalidadorAlcance? invalidadorAlcance = null)
     : IRequestHandler<EditarTipoDocumentoCommand, Result>
 {
-    public async Task<Result> Handle(EditarTipoDocumentoCommand request, CancellationToken cancellationToken)
+    /// <summary>
+    /// La edición puede empezar a exigir el tipo (de serie o en Centros nuevos), así que se serializa con el alta de un
+    /// Documento de Empresa (ver <see cref="ISerializacionAltasAcreditacionEmpresa"/>): sin ello, el Documento lee el
+    /// requisito antiguo, la edición no ve el Documento y el par se pierde (revisión Codex de la PR #2074, ronda 3,
+    /// hallazgo 2). Saber si la empieza a exigir pide leer el tipo y sus filas, así que se serializa siempre y todo se
+    /// lee dentro: un reintento empieza con el contexto vacío. También la Asignación de Cartera, sin el alcance memoizado
+    /// antes de esperar el candado, igual que en BloqueoRespuestaSugerida.ComprobarEnvioPorBuzonAsync (issue #2118).
+    /// </summary>
+    public Task<Result> Handle(EditarTipoDocumentoCommand request, CancellationToken cancellationToken) =>
+        serializacionAltas.EjecutarAsync(ct =>
+        {
+            invalidadorAlcance?.Invalidar();
+            return EditarAsync(request, ct);
+        }, cancellationToken);
+
+    private async Task<Result> EditarAsync(EditarTipoDocumentoCommand request, CancellationToken cancellationToken)
     {
-        var tipoDocumento = await repositorio.ObtenerPorIdAsync(request.Id, cancellationToken);
+        // Bajo el candado, lo confirmado en la base: el contexto (uno por circuito) puede rastrear el tipo y sus filas
+        // de antes de esperar, con un Requerido o un Incluido viejos. Con ellos, el comando no vería que empieza a
+        // exigir el tipo, y volver a pedir lo que otra edición acababa de quitar no sería un cambio para EF (revisión
+        // Codex de la PR #2074, ronda 4, hallazgos 1 y 2).
+        var tipoDocumento = await repositorio.ObtenerPorIdActualizadoAsync(request.Id, cancellationToken);
         if (tipoDocumento is null)
             return Result.Fallo(Error.Crear("TipoDocumento.NoEncontrado", "No encontramos este tipo de documento."));
 
@@ -81,6 +104,8 @@ public class EditarTipoDocumentoCommandHandler(
         // criterio que EstablecerDocumentacionRequeridaCentroCommand). Se rechaza aquí como Result, antes de mutar nada.
         if (tipoDocumento.Archivado && request.Requerido != RequisitoDocumental.No)
             return Result.Fallo(Error.Crear("TipoDocumento.Archivado", "Este tipo de documento está archivado y no se pide de serie; pide su sustituto."));
+
+        var exigidoDeSerieAntes = tipoDocumento.Requerido == RequisitoDocumental.Si;
 
         tipoDocumento.Actualizar(
             request.Nombre,
@@ -98,8 +123,8 @@ public class EditarTipoDocumentoCommandHandler(
         tipoDocumento.EstablecerAliases(request.Aliases ?? []);
 
         // Restringir la serie no da de baja nada: los Documentos ya creados siguen ahí y solo dejan de exigirse
-        // de serie a quien queda fuera. Ampliarla no crea pendientes de acreditar, igual que cambiar Requerido
-        // (ver IAltaAcreditacionesPlataformaService).
+        // de serie a quien queda fuera. Ampliarla no crea pendientes de acreditar (ver IAltaAcreditacionesPlataformaService);
+        // pasar Requerido a Sí sí los crea, abajo, pero solo de Documentos de Empresa, que no tienen serie.
         if (tipoDocumento.AmbitoAplicacion == AmbitoAplicacion.Trabajador && request.TiposContratacionDeSerie is { } serie)
             tipoDocumento.EstablecerTiposContratacionDeSerie(serie);
 
@@ -112,7 +137,7 @@ public class EditarTipoDocumentoCommandHandler(
         // Incluido=false, no se crea una segunda — se convierte a Incluido=true, que es
         // precisamente lo que marcar ese centro aquí significa: "la fila explícita
         // manda" de § 0.4, no una fila nueva por cada origen.
-        var todasLasFilas = await tipoDocumentoCentroRepositorio.ObtenerPorTipoDocumentoAsync(tipoDocumento.Id, cancellationToken);
+        var todasLasFilas = await tipoDocumentoCentroRepositorio.ObtenerPorTipoDocumentoActualizadoAsync(tipoDocumento.Id, cancellationToken);
         var actuales = todasLasFilas.Where(tc => tc.Incluido).ToList();
         var deseados = request.CentroIds.Distinct().ToHashSet();
         var actualesCentroIds = actuales.Select(tc => tc.CentroId).ToHashSet();
@@ -156,10 +181,20 @@ public class EditarTipoDocumentoCommandHandler(
         }
 
         // Los Centros que pasan a exigir el tipo: los Documentos de ese tipo de
-        // quienes ya trabajan en ellos nacen pendientes de acreditar (misma regla
-        // que EstablecerDocumentacionRequeridaCentroCommand). Cambiar el valor
-        // general de Requerido no se propaga aquí: ver IAltaAcreditacionesPlataformaService.
-        await altaAcreditaciones.AgregarPendientesAsync(new AltasConAcreditacion { Requisitos = requisitosNuevos }, cancellationToken);
+        // quienes ya tienen actividad en ellos nacen pendientes de acreditar (misma regla
+        // que EstablecerDocumentacionRequeridaCentroCommand). Si el valor general de
+        // Requerido pasa a Sí, cada Centro con acceso de plataforma que no tiene fila
+        // propia pasa a exigirlo (la fila, si existe, sigue mandando), y por esa vía solo
+        // se acreditan los Documentos de Empresa: los de Trabajador siguen como antes de
+        // la regla A-1, sin propagación del valor general (decisión del propietario del
+        // producto del 2026-11-08, revisión Codex de la PR #2074, ronda 5). Bajar
+        // Requerido no da de baja nada: ver IAltaAcreditacionesPlataformaService.
+        var pasaAExigirseDeSerie = !exigidoDeSerieAntes && tipoDocumento.Requerido == RequisitoDocumental.Si;
+        await altaAcreditaciones.AgregarPendientesAsync(new AltasConAcreditacion
+        {
+            Requisitos = requisitosNuevos,
+            TiposQuePasanAExigirseDeSerie = pasaAExigirseDeSerie ? [tipoDocumento.Id] : [],
+        }, cancellationToken);
 
         await unitOfWork.SaveChangesAsync(cancellationToken);
 

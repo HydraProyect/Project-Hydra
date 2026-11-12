@@ -72,22 +72,17 @@ public class CrearCanalGestionCommandValidator : AbstractValidator<CrearCanalGes
 public class CrearCanalGestionCommandHandler(
     ICanalGestionDocumentalRepository repositorio, IAlcanceDatosService alcanceDatos,
     IProveedoresPlataformaCaeQueryContext proveedoresContext, ICentrosQueryContext centrosContext,
-    IAltaAcreditacionesPlataformaService altaAcreditaciones, IUnitOfWork unitOfWork)
+    IAltaAcreditacionesPlataformaService altaAcreditaciones, IUnitOfWork unitOfWork,
+    ISerializacionAltasAcreditacionEmpresa serializacionAltas,
+    // Opcional solo mientras la PR #2104 cambia los tests que construyen este handler: el contenedor siempre lo resuelve
+    // (InvalidadorAlcanceInerte por defecto, el AlcanceDatosService del circuito en la Web). Issue #2118.
+    IInvalidadorAlcance? invalidadorAlcance = null)
     : IRequestHandler<CrearCanalGestionCommand, Result<Guid>>
 {
     public async Task<Result<Guid>> Handle(CrearCanalGestionCommand request, CancellationToken cancellationToken)
     {
-        // Verificación de Ids ajenos — ver P0-1 de Project-Hydra-Negocio/MATURITY_REVIEW.md.
-        // Alcance de gestión, no de lectura — ver IAlcanceDatosService.ObtenerCentroIdsParaGestionAsync.
-        if (!await alcanceDatos.CentroParaGestionVisibleAsync(request.CentroId, cancellationToken))
-            return Result.Fallo<Guid>(Error.Crear("CanalGestion.CentroNoEncontrado", "No encontramos este centro."));
-
-        // P1-X2: un Centro sin gestión CAE no recibe documentación, así que un
-        // canal nuevo no tendría a qué servir. Los que ya tuviera se conservan.
-        if (await centrosContext.Centros.AnyAsync(
-                c => c.Id == request.CentroId && c.GestionCae == ModalidadGestionCae.SinGestionCae, cancellationToken))
-            return Result.Fallo<Guid>(Error.Crear(
-                "CanalGestion.CentroSinGestionCae", "Este centro no requiere gestión CAE: no necesita canales de gestión."));
+        if (await ComprobarCentroAsync(request.CentroId, cancellationToken) is { } rechazo)
+            return Result.Fallo<Guid>(rechazo);
 
         if (request.Tipo == TipoCanalGestion.Plataforma
             && !await proveedoresContext.ProveedoresPlataformaCae.AnyAsync(p => p.Id == request.ProveedorPlataformaCaeId, cancellationToken))
@@ -106,16 +101,50 @@ public class CrearCanalGestionCommandHandler(
         if (existentes.Count == 0)
             canal.MarcarComoPrincipal();
 
-        repositorio.Agregar(canal);
-
         // Un acceso de plataforma nuevo es un sitio más donde acreditar: los
         // Documentos que el Centro exige a quienes ya trabajan en él nacen
         // pendientes de subir a este acceso. Un acceso por correo no acredita.
-        // Mismo SaveChangesAsync que el acceso.
-        await altaAcreditaciones.AgregarPendientesAsync(new AltasConAcreditacion { Canales = [canal] }, cancellationToken);
+        // Mismo SaveChangesAsync que el acceso. El de plataforma se serializa con
+        // el alta de un Documento de Empresa (ver ISerializacionAltasAcreditacionEmpresa):
+        // sin ello, las dos altas simultáneas se pierden el par entre sí.
+        async Task<Result> GuardarAsync(CancellationToken ct)
+        {
+            repositorio.Agregar(canal);
+            await altaAcreditaciones.AgregarPendientesAsync(new AltasConAcreditacion { Canales = [canal] }, ct);
+            await unitOfWork.SaveChangesAsync(ct);
+            return Result.Exito();
+        }
 
-        await unitOfWork.SaveChangesAsync(cancellationToken);
+        var guardado = canal.Tipo == TipoCanalGestion.Plataforma
+            ? await serializacionAltas.EjecutarAsync(async ct =>
+            {
+                // Bajo el candado se vuelve a decidir la Asignación de Cartera y la gestión CAE del Centro: pudieron
+                // cambiar mientras se esperaba, y el alcance memoizado (en Blazor Server, el del circuito) es de antes;
+                // se descarta, igual que en BloqueoRespuestaSugerida.ComprobarEnvioPorBuzonAsync (issue #2118).
+                invalidadorAlcance?.Invalidar();
+                if (await ComprobarCentroAsync(request.CentroId, ct) is { } rechazo)
+                    return Result.Fallo(rechazo);
+                return await GuardarAsync(ct);
+            }, cancellationToken)
+            : await GuardarAsync(cancellationToken);
 
-        return Result.Exito(canal.Id);
+        return guardado.EsExitoso ? Result.Exito(canal.Id) : Result.Fallo<Guid>(guardado.Error);
+    }
+
+    private async Task<Error?> ComprobarCentroAsync(Guid centroId, CancellationToken cancellationToken)
+    {
+        // Verificación de Ids ajenos — ver P0-1 de Project-Hydra-Negocio/MATURITY_REVIEW.md.
+        // Alcance de gestión, no de lectura — ver IAlcanceDatosService.ObtenerCentroIdsParaGestionAsync.
+        if (!await alcanceDatos.CentroParaGestionVisibleAsync(centroId, cancellationToken))
+            return Error.Crear("CanalGestion.CentroNoEncontrado", "No encontramos este centro.");
+
+        // P1-X2: un Centro sin gestión CAE no recibe documentación, así que un
+        // canal nuevo no tendría a qué servir. Los que ya tuviera se conservan.
+        if (await centrosContext.Centros.AnyAsync(
+                c => c.Id == centroId && c.GestionCae == ModalidadGestionCae.SinGestionCae, cancellationToken))
+            return Error.Crear(
+                "CanalGestion.CentroSinGestionCae", "Este centro no requiere gestión CAE: no necesita canales de gestión.");
+
+        return null;
     }
 }

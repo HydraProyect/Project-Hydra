@@ -376,9 +376,11 @@
     cursor: not-allowed;
 }
 
+/* El sticky se mide desde el borde de main.contenido, que ya empieza bajo la cabecera fija:
+   los 88 px de antes (64 de cabecera + 24) la dejarían 64 px más abajo. */
 .orden-menu-previa {
     position: sticky;
-    top: 88px;
+    top: var(--space-6);
 }
 
 .orden-menu-previa .orden-menu-tarjeta {

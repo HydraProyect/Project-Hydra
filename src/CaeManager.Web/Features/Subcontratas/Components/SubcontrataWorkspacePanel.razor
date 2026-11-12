@@ -202,19 +202,27 @@ else
                 {
                     <div class="rejilla-info-subcontrata-360">
                         <div class="celda-info-subcontrata-360 celda-info-subcontrata-360-ancha"><span>@Textos["RotuloRazonSocial"]</span><strong>@_detalle.RazonSocial</strong></div>
-                        <div class="celda-info-subcontrata-360">
-                            <span>@Textos["RotuloIdentificacionFiscal"]</span>
-                            <div class="valor-con-copia-subcontrata-360">
-                                <strong>@(string.IsNullOrWhiteSpace(_detalle.Cif) ? "—" : _detalle.Cif)</strong>
-                                @if (!string.IsNullOrWhiteSpace(_detalle.Cif))
-                                {
+                        @* Solo lo que se tiene: un campo opcional sin valor no se pinta (ni como «—»). *@
+                        @if (!string.IsNullOrWhiteSpace(_detalle.Cif))
+                        {
+                            <div class="celda-info-subcontrata-360">
+                                <span>@Textos["RotuloIdentificacionFiscal"]</span>
+                                <div class="valor-con-copia-subcontrata-360">
+                                    <strong>@_detalle.Cif</strong>
                                     <BotonCopiar Valor="@_detalle.Cif" Etiqueta="@Textos["CopiarLaIdentificacionFiscal"]" />
-                                }
+                                </div>
                             </div>
-                        </div>
+                        }
                         <div class="celda-info-subcontrata-360"><span>@Textos["RotuloNivelServicio"]</span><strong>@EstadoSupervisionUi.TextoNivel(Textos, _detalle.NivelServicio)</strong></div>
-                        <div class="celda-info-subcontrata-360"><span>@Textos["RotuloClientesEmpresariales"]</span><strong>@TextoRelaciones(_detalle.ClienteIds, _nombresClientes)</strong></div>
-                        <div class="celda-info-subcontrata-360"><span>@Textos["EtiquetaEmpresasPrestaServicio"]</span><strong>@TextoRelaciones(_detalle.EmpresaIds, _nombresEmpresas)</strong></div>
+                        @{ var clientes = _detalle.ClienteIds; }
+                        @if (clientes.Count > 0)
+                        {
+                            <div class="celda-info-subcontrata-360"><span>@Textos["RotuloClientesEmpresariales"]</span><strong>@TextoRelaciones(clientes, _nombresClientes)</strong></div>
+                        }
+                        @if (_detalle.EmpresaIds.Count > 0)
+                        {
+                            <div class="celda-info-subcontrata-360"><span>@Textos["EtiquetaEmpresasPrestaServicio"]</span><strong>@TextoRelaciones(_detalle.EmpresaIds, _nombresEmpresas)</strong></div>
+                        }
                         <div class="celda-info-subcontrata-360"><span>@Textos["RotuloAlta"]</span><strong>@(_detalle.CreadoEnUtc.EnHoraPeninsular().ToString("dd/MM/yyyy", CultureInfo.CurrentCulture))</strong></div>
                     </div>
 
@@ -552,8 +560,10 @@ else
                 <option value="@nameof(ResultadoVerificacionExterna.NoEncontrado)">@Textos["ResultadoVerificacionNoEncontrado"]</option>
             </CampoSelect>
 
-            <CampoTexto Etiqueta="@Textos["RotuloFechaVerificacion"]" Type="date" Valor="@_verificacionFecha" ValorChanged="v => _verificacionFecha = v" />
-            <CampoTexto Etiqueta="@Textos["RotuloValidoHasta"]" Type="date" Valor="@_verificacionValidoHasta" ValorChanged="v => _verificacionValidoHasta = v" />
+            <CampoTexto Etiqueta="@Textos["RotuloFechaVerificacion"]" Type="date" Valor="@_verificacionFecha" ValorChanged="v => _verificacionFecha = v"
+                        FechaNoValida="_verificacionFechaNoValida" FechaNoValidaChanged="v => AlCambiarVerificacionFechaNoValida(ref _verificacionFechaNoValida, v)" />
+            <CampoTexto Etiqueta="@Textos["RotuloValidoHasta"]" Type="date" Valor="@_verificacionValidoHasta" ValorChanged="v => _verificacionValidoHasta = v"
+                        FechaNoValida="_verificacionValidoHastaNoValido" FechaNoValidaChanged="v => AlCambiarVerificacionFechaNoValida(ref _verificacionValidoHastaNoValido, v)" />
             <CampoTextarea Etiqueta="@Textos["RotuloObservaciones"]" Valor="@_verificacionObservaciones" ValorChanged="v => _verificacionObservaciones = v" Filas="3" />
 
             <div class="campo">
@@ -762,7 +772,18 @@ else
     /// se pierde al cerrarlo y no debe hacerle preguntar.
     /// </summary>
     private bool HayCambiosEnElDrawer =>
-        _drawerVerificacionVisible && _instantaneaVerificacion.Difiere(ValoresVerificacion());
+        _drawerVerificacionVisible && (_instantaneaVerificacion.Difiere(ValoresVerificacion()) || _verificacionFechaNoValida || _verificacionValidoHastaNoValido);
+
+    /// <summary>La fecha de verificación o el «válido hasta» tienen un texto que no es una fecha entera (su valor es «»).</summary>
+    private bool _verificacionFechaNoValida, _verificacionValidoHastaNoValido;
+
+    // Al volver a ser una fecha entera (o quedar vacía), el aviso «no es una fecha» de un envío anterior ya no es cierto.
+    private void AlCambiarVerificacionFechaNoValida(ref bool marca, bool noValida)
+    {
+        marca = noValida;
+        if (!_verificacionFechaNoValida && !_verificacionValidoHastaNoValido && _mensajeErrorVerificacion == Comunes["CampoFechaCorregirAntes"])
+            _mensajeErrorVerificacion = null;
+    }
 
     private object?[] ValoresInformacion() => [_razonSocialInfo, _cifInfo, _clienteIdsInfo, _empresaIdsInfo];
 
@@ -1551,6 +1572,7 @@ else
             _evidenciaContenido = null;
             _evidenciaNombre = null;
             _mensajeErrorVerificacion = null;
+            _verificacionFechaNoValida = _verificacionValidoHastaNoValido = false;
             _drawerVerificacionVisible = true;
             _instantaneaVerificacion.Fijar(ValoresVerificacion());
         }
@@ -1602,6 +1624,13 @@ else
         if (!Guid.TryParse(_verificacionTipoId, out var tipoId))
         {
             _mensajeErrorVerificacion = Textos["ErrorSeleccionaTipoDocumento"];
+            return;
+        }
+
+        // Fecha a medias (su valor ya es «»): sin esto, un «válido hasta» a medias se registraría como verificación sin fin.
+        if (_verificacionFechaNoValida || _verificacionValidoHastaNoValido)
+        {
+            _mensajeErrorVerificacion = Comunes["CampoFechaCorregirAntes"];
             return;
         }
 

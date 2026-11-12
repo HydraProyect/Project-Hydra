@@ -106,6 +106,9 @@ public partial class Documentos : CaeManager.Web.Components.PaginaInteractiva, I
     /// <summary>Filtro «Plataforma» de la rejilla: el Id de la plataforma CAE.</summary>
     [SupplyParameterFromQuery] public string? Plataforma { get; set; }
 
+    /// <summary>Filtro «Estado en la plataforma» (P-1): el nombre de un <see cref="EstadoEnPlataformaFiltro"/>.</summary>
+    [SupplyParameterFromQuery] public string? EstadoPlataforma { get; set; }
+
     // «Propietario» es el rótulo de Design para la entidad asociada al Documento, nunca el Tenant propietario.
     [SupplyParameterFromQuery] public string? Propietario { get; set; }
 
@@ -167,41 +170,6 @@ public partial class Documentos : CaeManager.Web.Components.PaginaInteractiva, I
     [SupplyParameterFromQuery] public Guid? AcreditacionId { get; set; }
 
     private GridItemsProvider<DocumentoListaDto>? _proveedorElementos;
-
-    /// <summary>
-    /// Los Ids son estables y viajan en la URL (<c>?pestana=</c>, deep-link
-    /// desde el timeline de Comunicaciones): las etiquetas se alinean al mockup
-    /// Gen 2, los Ids NO se tocan.
-    ///
-    /// <para>
-    /// Dos rótulos se apartan del mockup por el contrato terminológico, que
-    /// manda sobre el diseño en el vocabulario: «Plataformas CAE» y no
-    /// «Por plataforma» —«plataforma» a secas colisiona con el plano Plataforma
-    /// del ADR-011, el de quien accede excepcionalmente desde TALVEG, mientras
-    /// que aquí se habla de la Plataforma CAE externa (Nalanda, Dokify,
-    /// CTAIMA), que es como la nombra el propio dominio
-    /// (<c>ProveedorPlataformaCae</c>)—; y «Plantillas», que el mockup no
-    /// dibuja pero la pantalla ya tiene: un mockup omite comportamiento, no lo
-    /// deroga.
-    /// </para>
-    ///
-    /// <para>
-    /// No es estática porque la primera pestaña lleva el recuento del mockup, y
-    /// ese número depende de lo cargado.
-    /// </para>
-    /// </summary>
-    private IReadOnlyList<PestanaDefinicion> PestanasDocumentos =>
-    [
-        new("listado", "Estado", "documentos") { Contador = ContadorDeEstado },
-        new("plataforma", "Plataformas CAE", "plataforma"),
-        // "correo" y "reloj" son los más cercanos del catálogo: no hay glifo
-        // propio de reclamación (que sale por correo) ni de preventivo (que
-        // es anticiparse al vencimiento). Si algún día se dibujan, aquí.
-        new("reclamaciones", "Reclamaciones", "correo"),
-        new("sugerencias", "Preventivo", "reloj"),
-        new("revision-ia", "Revisión IA", "ia"),
-        new("plantillas", "Plantillas", "plantilla")
-    ];
 
     /// <summary>Ids de pestaña válidos, sin construir la tira entera para comprobar uno.</summary>
     private static readonly string[] _idsDePestana =
@@ -331,7 +299,9 @@ public partial class Documentos : CaeManager.Web.Components.PaginaInteractiva, I
     // en sitio (mismo criterio que Centros.RefrescarCentroAsync): filtros, orden, página,
     // selección, fila enfocada y desplazamiento no se tocan, y la fila permanece aunque el
     // cambio la saque del filtro activo, hasta la siguiente carga. Los recuentos de la franja
-    // tampoco se recalculan hasta entonces.
+    // tampoco se recalculan hasta entonces. Excepción (P-1): agrupada por Plataforma CAE o por
+    // Cliente empresarial se recarga la lista entera, porque grupos, estados en la plataforma y
+    // recuentos de cabecera solo los trae la consulta de página (ver RefrescarFilaAsync).
 
     /// <summary>
     /// La siguiente petición de QuickGrid se sirve de <see cref="_elementosPagina"/> sin consultar:
@@ -354,6 +324,25 @@ public partial class Documentos : CaeManager.Web.Components.PaginaInteractiva, I
         // fuera firme, la fila conserva el dato anterior hasta la siguiente carga.
         if (_desechado || _grid is null || _cargando || _pestanaActiva != "listado" || !_elementosPagina.Any(e => e.Id == id))
             return;
+
+        // Agrupada por vínculo, cada fila lleva el estado de su acreditación en esa Plataforma CAE o Cliente empresarial y
+        // la cabecera, los recuentos del servidor. Guardar en la vista rápida puede cambiarlos (una versión nueva devuelve
+        // las acreditaciones a «Pendiente de subir»), y la consulta por Id no trae el grupo: conservar el de la fila
+        // arrastraría el estado viejo y «Anotar vigencia (N)» contaría acreditaciones que ya no están «Sin vigencia».
+        // Se recarga la lista entera, que trae grupos, estados y recuentos frescos (y limpia la selección, como toda carga).
+        if (AgrupadaPorVinculo)
+        {
+            try
+            {
+                await RecargarAsync();
+            }
+            catch (Exception)
+            {
+                // Igual que abajo: el guardado ya es firme y el aviso se atiende sin esperar; un fallo al recargar no se
+                // enseña aquí (el proveedor ya pinta su propio error de carga) y la lista queda como estaba.
+            }
+            return;
+        }
 
         var carga = _cargaVigente;
         try
@@ -702,13 +691,14 @@ public partial class Documentos : CaeManager.Web.Components.PaginaInteractiva, I
         _ambitoFiltro = Ambito ?? string.Empty;
         _tipoFiltro = IdValido(Tipo);
         _plataformaFiltro = IdValido(Plataforma);
+        _estadoPlataformaFiltro = EstadoPlataformaValido(EstadoPlataforma);
         _propietarioFiltro = IdValido(Propietario);
         LeerOrden(OrdenInicial);
 
         // Deep-link de pestaña: lo usa el timeline de Comunicaciones para llevar
         // desde el evento de reclamación enviada a su pestaña. Se ignora un
         // valor que no exista en vez de dejar la página en blanco.
-        // Sin «?pestana=» la URL pide el listado, que es lo que «Todos los documentos» (barra de sección)
+        // Sin «?pestana=» la URL pide el listado, que es lo que «Estado» (la barra de las pantallas hermanas) y el menú lateral
         // enlaza: desde cualquier otra pestaña de esta misma instancia, ese enlace solo quita el parámetro.
         if (IdDePestanaDeUrl(Pestana) is { } pestanaDeUrl)
             _pestanaActiva = pestanaDeUrl;
@@ -720,9 +710,26 @@ public partial class Documentos : CaeManager.Web.Components.PaginaInteractiva, I
 
     // H2 (Project-Hydra-Negocio/tecnico/docs/ux-audit/02-clientes.md): paginador único en español, ver Clientes.razor.cs.
     /// <summary>Filas que se piden por página: agrupada, todas las filtradas, para que el tamaño de página no corte los grupos.</summary>
-    private int TamanoPedido => AgrupacionDeLista.TamanoPedido(_agruparPorAmbito, _paginacion.ItemsPerPage);
+    private int TamanoPedido => AgrupacionDeLista.TamanoPedido(Agrupada, _paginacion.ItemsPerPage);
 
     private int TotalPaginas => Math.Max(1, (int)Math.Ceiling(_totalElementos / (double)TamanoPedido));
+
+    /// <summary>
+    /// Agrupada, la consulta trae como mucho <see cref="AgrupacionDeLista.TamanoPaginaAgrupada"/> Documentos y la vista no
+    /// pagina: si el universo filtrado tiene más, el resto no se ve y hay que decirlo.
+    /// </summary>
+    private bool AgrupadaSuperaElTope => Agrupada && _totalElementos > AgrupacionDeLista.TamanoPaginaAgrupada;
+
+    /// <summary>Pie de la vista agrupada con resultados: sin paginar (con cero resultados queda el pie de maqueta de siempre).</summary>
+    private bool PieAgrupado => Agrupada && _totalElementos > 0;
+
+    private static readonly IReadOnlyList<int> TamanosDePagina = [20, 50, 100];
+    private static readonly IReadOnlyList<int> SinTamanosDePagina = [];
+
+    /// <summary>Pie de la vista agrupada: filas y Documentos cargados (por vínculo, un Documento puede salir en varias filas).</summary>
+    private string TextoPieAgrupado => AgrupadaPorVinculo
+        ? Textos["PieAgrupadoFilas", _elementosPagina.Count, _elementosPagina.Select(d => d.Id).Distinct().Count()].Value
+        : Textos["PieAgrupadoDocumentos", _elementosPagina.Count].Value;
 
     /// <summary>Los grupos abiertos de la vista: todos nacen plegados y se recuerdan hasta recargar.</summary>
     private readonly GruposAbiertos _gruposAbiertos = new();
@@ -801,10 +808,144 @@ public partial class Documentos : CaeManager.Web.Components.PaginaInteractiva, I
         SeleccionEstados.Unir(SeleccionEstados.Separar<EstadoDocumento>(seleccion).Select(e => e.ToString())) ?? string.Empty;
 
     private string EtiquetaAmbitoListado(AmbitoAplicacion ambito) =>
-        OpcionesAmbitoListado.FirstOrDefault(o => o.Valor == ambito.ToString())?.Texto ?? ambito.ToString();
+        EtiquetaAmbitoListado(ambito.ToString());
+
+    /// <summary>La clave de grupo del listado «Por Ámbito» es el nombre del <see cref="AmbitoAplicacion"/>.</summary>
+    private string EtiquetaAmbitoListado(string claveAmbito) =>
+        OpcionesAmbitoListado.FirstOrDefault(o => o.Valor == claveAmbito)?.Texto ?? claveAmbito;
 
     private string _busqueda = string.Empty;
-    private bool _agruparPorAmbito;
+
+    /// <summary>
+    /// La agrupación elegida: ninguna, por Ámbito (grupos que nacen plegados) o, desde P-1, por Plataforma CAE o por
+    /// Cliente empresarial (grupos que nacen abiertos salvo el de «Sin …»; su clave viaja en cada fila,
+    /// <see cref="DocumentoListaDto.Grupo"/>, y su cabecera en <see cref="_resumenPorGrupo"/>).
+    /// </summary>
+    private AgrupacionListado _agrupacion = AgrupacionListado.Ninguna;
+
+    private enum AgrupacionListado { Ninguna, Ambito, PlataformaCae, ClienteEmpresarial }
+
+    private bool _agruparPorAmbito => _agrupacion == AgrupacionListado.Ambito;
+    private bool Agrupada => _agrupacion != AgrupacionListado.Ninguna;
+    private bool AgrupadaPorVinculo => _agrupacion is AgrupacionListado.PlataformaCae or AgrupacionListado.ClienteEmpresarial;
+    private bool AgrupadaPorPlataforma => _agrupacion == AgrupacionListado.PlataformaCae;
+
+    private AgrupacionDocumentos? AgrupacionPedida => _agrupacion switch
+    {
+        AgrupacionListado.PlataformaCae => AgrupacionDocumentos.PlataformaCae,
+        AgrupacionListado.ClienteEmpresarial => AgrupacionDocumentos.ClienteEmpresarial,
+        _ => null
+    };
+
+    /// <summary>Cabeceras de los grupos por Plataforma CAE o Cliente empresarial, contadas por el servidor sobre todo el universo filtrado.</summary>
+    private IReadOnlyDictionary<string, ResumenDeGrupo>? _resumenPorGrupo;
+
+    /// <summary>Grupos por vínculo plegados a mano; el de «Sin …» nace plegado, como en la maqueta.</summary>
+    private readonly HashSet<string> _gruposPlegados = [ObtenerDocumentosQuery.GrupoSin];
+
+    /// <summary>Sin agrupar, una sola clave: el listado es un único bloque y conserva el orden elegido entre Ámbitos.</summary>
+    private string ClaveDeGrupo(DocumentoListaDto documento) => _agrupacion switch
+    {
+        AgrupacionListado.Ninguna => string.Empty,
+        AgrupacionListado.Ambito => documento.Ambito.ToString(),
+        _ => documento.Grupo?.Clave ?? ObtenerDocumentosQuery.GrupoSin,
+    };
+
+    private bool GrupoAbierto(string clave) =>
+        !Agrupada || (AgrupadaPorVinculo ? !_gruposPlegados.Contains(clave) : _gruposAbiertos.EstaAbierto(clave));
+
+    /// <summary>Los grupos por vínculo en orden: por nombre y el de «Sin …» al final.</summary>
+    private IEnumerable<IGrouping<string, DocumentoListaDto>> GruposDeLaPagina() =>
+        _elementosPagina.GroupBy(ClaveDeGrupo)
+            .OrderBy(g => AgrupadaPorVinculo && g.Key == ObtenerDocumentosQuery.GrupoSin)
+            .ThenBy(g => AgrupadaPorVinculo ? NombreDeGrupo(g.Key) : string.Empty, StringComparer.CurrentCulture);
+
+    private ResumenDeGrupoDocumental? ResumenDe(string clave) =>
+        _resumenPorGrupo?.GetValueOrDefault(clave) as ResumenDeGrupoDocumental;
+
+    private string NombreDeGrupo(string clave) => clave == ObtenerDocumentosQuery.GrupoSin
+        ? Textos[AgrupadaPorPlataforma ? "GrupoSinPlataformaCae" : "GrupoSinClienteEmpresarial"].Value
+        : ResumenDe(clave)?.Nombre ?? string.Empty;
+
+    /// <summary>Las acreditaciones «Sin vigencia» del grupo cuyas filas están seleccionadas: lo que anota «Anotar vigencia (N)».</summary>
+    private List<Guid> SinVigenciaSeleccionadas(IEnumerable<DocumentoListaDto> filasDelGrupo) =>
+        filasDelGrupo.Where(d => _seleccionados.Contains(d.Id) && d.Grupo?.Acreditacion is { SinVigencia: true })
+            .Select(d => d.Grupo!.Acreditacion!.Id).Distinct().ToList();
+
+    private AnotarVigenciaEnBloque _anotarVigencia = default!;
+
+    /// <summary>
+    /// Resumen de la cabecera de un grupo por vínculo, sin ceros: por Plataforma CAE, pendientes de subir, rechazados y
+    /// sin vigencia; por Cliente empresarial, vencidos y urgentes. Todo sale del recuento del servidor, no de la página.
+    /// </summary>
+    private IReadOnlyList<ResumenEstadoGrupo> ResumenVisible(ResumenDeGrupoDocumental? resumen)
+    {
+        if (resumen is null) return [];
+        var lineas = new List<ResumenEstadoGrupo>();
+        void Anadir(int n, TonoBadge tono, string uno, string varios)
+        {
+            if (n > 0) lineas.Add(new ResumenEstadoGrupo(tono, Textos[n == 1 ? uno : varios, n].Value));
+        }
+
+        if (AgrupadaPorPlataforma)
+        {
+            Anadir(resumen.EnPlataforma.GetValueOrDefault(EstadoEnPlataformaFiltro.PendienteDeSubir), TonoBadge.Advertencia, "GrupoPendienteUno", "GrupoPendientes");
+            Anadir(resumen.EnPlataforma.GetValueOrDefault(EstadoEnPlataformaFiltro.Rechazado), TonoBadge.Peligro, "GrupoRechazadoUno", "GrupoRechazados");
+            Anadir(resumen.EnPlataforma.GetValueOrDefault(EstadoEnPlataformaFiltro.SinVigencia), TonoBadge.Neutro, "GrupoSinVigencia", "GrupoSinVigencia");
+        }
+        else
+        {
+            Anadir(resumen.PorEstado.GetValueOrDefault(nameof(EstadoDocumento.Vencido)), TonoBadge.Peligro, "GrupoVencidoUno", "GrupoVencidos");
+            Anadir(resumen.PorEstado.GetValueOrDefault(nameof(EstadoDocumento.Urgente)), TonoBadge.Advertencia, "GrupoUrgenteUno", "GrupoUrgentes");
+        }
+
+        return lineas;
+    }
+
+    private static TonoBadge TonoEnPlataforma(AcreditacionEnGrupoDto acreditacion) => acreditacion switch
+    {
+        { SinVigencia: true } => TonoBadge.Neutro,
+        { Estado: EstadoAcreditacion.Rechazada } => TonoBadge.Peligro,
+        { Estado: EstadoAcreditacion.PendienteDeSubir } => TonoBadge.Advertencia,
+        { Estado: EstadoAcreditacion.Aceptada } => TonoBadge.Exito,
+        _ => TonoBadge.Info
+    };
+
+    private string TextoEnPlataforma(AcreditacionEnGrupoDto acreditacion) => acreditacion.SinVigencia
+        ? Textos["EstadoPlataformaSinVigencia"].Value
+        : EstadoAcreditacionUi.TextoCapitalizado(acreditacion.Estado);
+
+    private void AlternarGrupoPorVinculo(string clave)
+    {
+        if (!_gruposPlegados.Add(clave)) _gruposPlegados.Remove(clave);
+        var visibles = ElementosVisibles;
+        _seleccionados.IntersectWith(visibles.Select(d => d.Id));
+        if (_idEnfocado is { } enfocado && visibles.All(d => d.Id != enfocado)) _idEnfocado = null;
+    }
+
+    private string _estadoPlataformaFiltro = string.Empty;
+
+    /// <summary>Solo el nombre exacto de un estado: ni números ni listas con coma, que Enum.TryParse aceptaría en silencio.</summary>
+    private static string EstadoPlataformaValido(string? valor) =>
+        valor is not null && Enum.GetNames<EstadoEnPlataformaFiltro>().Contains(valor, StringComparer.Ordinal) ? valor : string.Empty;
+
+    private IReadOnlyList<OpcionEstado> OpcionesEstadoPlataforma =>
+    [
+        new(nameof(EstadoEnPlataformaFiltro.PendienteDeSubir), Textos["EstadoPlataformaPendienteDeSubir"].Value),
+        new(nameof(EstadoEnPlataformaFiltro.Rechazado), Textos["EstadoPlataformaRechazado"].Value),
+        new(nameof(EstadoEnPlataformaFiltro.SinVigencia), Textos["EstadoPlataformaSinVigencia"].Value),
+    ];
+
+    private string EtiquetaFiltroEstadoPlataforma =>
+        Textos["ChipEstadoPlataforma", OpcionesEstadoPlataforma.FirstOrDefault(o => o.Valor == _estadoPlataformaFiltro)?.Texto ?? _estadoPlataformaFiltro].Value;
+
+    private async Task CambiarEstadoPlataformaFiltroAsync(string valor)
+    {
+        _estadoPlataformaFiltro = EstadoPlataformaValido(valor);
+        NavigationManager.ActualizarFiltroEnUrl(nameof(EstadoPlataforma), _estadoPlataformaFiltro);
+        await RecargarAsync();
+    }
+
     private readonly HashSet<Guid> _documentosAbiertos = [];
 
     /// <summary>Documentos desplegados a los que se pidió «Ver los N restantes»: el resto enseña solo los primeros destinos.</summary>
@@ -812,10 +953,12 @@ public partial class Documentos : CaeManager.Web.Components.PaginaInteractiva, I
 
     /// <summary>
     /// Las filas que se ven: sin agrupar, las de la página; agrupada, solo las de los grupos abiertos. La selección masiva,
-    /// el foco y los atajos operan sobre estas, nunca sobre filas ocultas por un grupo plegado.
+    /// el foco y los atajos operan sobre estas, nunca sobre filas ocultas por un grupo plegado. Agrupada, van en el orden
+    /// en que se pintan (el de <see cref="GruposDeLaPagina"/>): por vínculo, los grupos se ordenan por nombre y no por el
+    /// orden de la página, y j/k tienen que bajar por la tabla, no saltar entre grupos.
     /// </summary>
     private List<DocumentoListaDto> ElementosVisibles =>
-        _agruparPorAmbito ? _elementosPagina.Where(d => _gruposAbiertos.EstaAbierto(d.Ambito.ToString())).ToList() : _elementosPagina;
+        Agrupada ? GruposDeLaPagina().Where(g => GrupoAbierto(g.Key)).SelectMany(g => g).ToList() : _elementosPagina;
 
     /// <summary>Abre o pliega un grupo; al plegarlo, sus filas dejan de estar seleccionadas y enfocadas.</summary>
     private void AlternarGrupo(string clave)
@@ -850,9 +993,14 @@ public partial class Documentos : CaeManager.Web.Components.PaginaInteractiva, I
             ? Textos["ToleranciaHasta", hasta.ToString("dd/MM/yyyy")].Value
             : EstadoDocumentoUi.MotivoDeDocumento(destino.Estado, documento.FechaVencimiento, _hoy);
 
-    private async Task CambiarAgrupacionAsync(bool agrupar)
+    private Task CambiarAgrupacionAsync(bool agrupar) =>
+        CambiarAgrupacionAsync(agrupar ? AgrupacionListado.Ambito : AgrupacionListado.Ninguna);
+
+    private async Task CambiarAgrupacionAsync(AgrupacionListado agrupacion)
     {
-        _agruparPorAmbito = agrupar;
+        _agrupacion = agrupacion;
+        _gruposPlegados.Clear();
+        _gruposPlegados.Add(ObtenerDocumentosQuery.GrupoSin);
         // Al agrupar todo nace plegado: la selección y el foco previos apuntarían a filas que ya no se ven.
         _seleccionados.Clear(); _idEnfocado = null;
         await RecargarAsync();
@@ -874,6 +1022,16 @@ public partial class Documentos : CaeManager.Web.Components.PaginaInteractiva, I
 
     /// <summary>Día de negocio con el que la columna de estado cuenta los días del motivo; se fija en cada carga.</summary>
     private DateOnly _hoy = DiaDeNegocio.Hoy();
+
+    /// <summary>
+    /// El motivo bajo la pastilla de Estado de la fila. Con el relativo de la fecha ya en «Vence» («hace 88 días») no se
+    /// repite en «Estado»; sí cuando «Vence» no lo muestra (ordenada por emisión, que pone la fecha de emisión) o no hay
+    /// fecha que mostrar (Sin confirmar, que explica qué falta).
+    /// </summary>
+    private string? MotivoDeLaFila(DocumentoListaDto documento) =>
+        _ordenVigenciaPorEmision || documento.Estado == EstadoDocumento.SinConfirmar
+            ? EstadoDocumentoUi.MotivoDeDocumento(documento.Estado, documento.FechaVencimiento, _hoy)
+            : null;
 
     private string SubtituloVencimiento(DocumentoListaDto documento)
     {
@@ -936,7 +1094,7 @@ public partial class Documentos : CaeManager.Web.Components.PaginaInteractiva, I
         try
         {
             // Agrupada, se piden todas las filas filtradas: el tamaño de página no corta los grupos.
-            var pagina = _agruparPorAmbito ? 1 : (request.StartIndex / _paginacion.ItemsPerPage) + 1;
+            var pagina = Agrupada ? 1 : (request.StartIndex / _paginacion.ItemsPerPage) + 1;
             _ultimaColumnaOrden = request.SortByColumn;
             _ultimoOrdenAscendente = request.SortByAscending;
             var (ordenarPor, descendente) = LecturaOrden.Leer(request);
@@ -964,7 +1122,10 @@ public partial class Documentos : CaeManager.Web.Components.PaginaInteractiva, I
                 TipoDocumentoId: Guid.TryParse(_tipoFiltro, out var tipoFiltro) ? tipoFiltro : null,
                 ProveedorPlataformaCaeId: Guid.TryParse(_plataformaFiltro, out var plataformaFiltro) ? plataformaFiltro : null,
                 AgruparPorAmbito: _agruparPorAmbito,
-                ConDestinosEnCentros: true), token);
+                ConDestinosEnCentros: true,
+                AgruparPor: AgrupacionPedida,
+                EstadosEnPlataforma: Enum.TryParse<EstadoEnPlataformaFiltro>(_estadoPlataformaFiltro, out var estadoPlataforma)
+                    ? [estadoPlataforma] : null), token);
 
             // La respuesta de un filtro ya abandonado no puede pisar el total,
             // las filas ni la selección de la pregunta que sí se está mirando.
@@ -976,6 +1137,7 @@ public partial class Documentos : CaeManager.Web.Components.PaginaInteractiva, I
             _totalElementos = resultado.TotalElementos;
             _totalConocido = resultado.TotalElementos;
             _recuentosPorEstado = resultado.RecuentosPorEstado;
+            _resumenPorGrupo = resultado.ResumenPorGrupo;
             _hoy = DiaDeNegocio.Hoy();
 
             var elementos = resultado.Elementos.ToList();
@@ -1064,7 +1226,8 @@ public partial class Documentos : CaeManager.Web.Components.PaginaInteractiva, I
     private bool HayFiltrosActivos =>
         !string.IsNullOrWhiteSpace(_busqueda) || !string.IsNullOrWhiteSpace(_estadoFiltro)
         || !string.IsNullOrWhiteSpace(_ambitoFiltro) || !string.IsNullOrWhiteSpace(_tipoFiltro)
-        || !string.IsNullOrWhiteSpace(_plataformaFiltro) || !string.IsNullOrWhiteSpace(_propietarioFiltro);
+        || !string.IsNullOrWhiteSpace(_plataformaFiltro) || !string.IsNullOrWhiteSpace(_propietarioFiltro)
+        || !string.IsNullOrWhiteSpace(_estadoPlataformaFiltro);
 
     /// <summary>
     /// Quita todos los filtros, y todos <b>también de la URL</b>. Hasta ahora
@@ -1088,6 +1251,7 @@ public partial class Documentos : CaeManager.Web.Components.PaginaInteractiva, I
         _tipoFiltro = string.Empty;
         _plataformaFiltro = string.Empty;
         _propietarioFiltro = string.Empty;
+        _estadoPlataformaFiltro = string.Empty;
         NavigationManager.ActualizarFiltrosEnUrl(new Dictionary<string, string?>
         {
             ["q"] = null,
@@ -1096,6 +1260,7 @@ public partial class Documentos : CaeManager.Web.Components.PaginaInteractiva, I
             [nameof(Tipo)] = null,
             [nameof(Plataforma)] = null,
             [nameof(Propietario)] = null,
+            [nameof(EstadoPlataforma)] = null,
         });
         await RecargarAsync();
     }
@@ -1288,16 +1453,19 @@ public partial class Documentos : CaeManager.Web.Components.PaginaInteractiva, I
 
         switch (tecla)
         {
+            // j/k recorren Documentos, no filas: agrupada por vínculo, un Documento repite fila y el foco no avanzaría.
             case "j":
                 {
-                    var indiceActual = _idEnfocado is null ? -1 : visibles.FindIndex(e => e.Id == _idEnfocado);
-                    _idEnfocado = visibles[Math.Min(indiceActual + 1, visibles.Count - 1)].Id;
+                    var ids = visibles.Select(e => e.Id).Distinct().ToList();
+                    var indiceActual = _idEnfocado is null ? -1 : ids.IndexOf(_idEnfocado.Value);
+                    _idEnfocado = ids[Math.Min(indiceActual + 1, ids.Count - 1)];
                     break;
                 }
             case "k":
                 {
-                    var indiceActual = _idEnfocado is null ? 0 : visibles.FindIndex(e => e.Id == _idEnfocado);
-                    _idEnfocado = visibles[Math.Max(indiceActual - 1, 0)].Id;
+                    var ids = visibles.Select(e => e.Id).Distinct().ToList();
+                    var indiceActual = _idEnfocado is null ? 0 : ids.IndexOf(_idEnfocado.Value);
+                    _idEnfocado = ids[Math.Max(indiceActual - 1, 0)];
                     break;
                 }
             case "x":
@@ -1587,6 +1755,7 @@ public partial class Documentos : CaeManager.Web.Components.PaginaInteractiva, I
         ["tipo"] = _tipoFiltro,
         ["plataforma"] = _plataformaFiltro,
         ["propietario"] = _propietarioFiltro,
+        ["estadoPlataforma"] = _estadoPlataformaFiltro,
         ["agrupar"] = _agruparPorAmbito ? "ambito" : null,
         ["orden"] = _ordenExportar,
         ["desc"] = _descendenteExportar ? "true" : null,

@@ -695,6 +695,33 @@
     display: flex;
     flex-direction: column;
     gap: var(--space-1);
+    /* Un fieldset nace con min-inline-size: min-content: un correo largo sin
+       espacios lo ensanchaba más que el Drawer y la etiqueta del motivo
+       («Contacto predeterminado») quedaba cortada fuera del panel. */
+    min-width: 0;
+}
+
+/* Cada contacto: la casilla a la izquierda y, a su derecha, «Nombre — correo»
+   y debajo el motivo. El correo se parte donde haga falta antes que ensanchar
+   el bloque. Rejilla y no flex: así el motivo baja siempre a su propia línea,
+   alineado con el nombre, en las cinco superficies que pintan este bloque
+   (cajón «Reclamar en lote», pestaña Reclamaciones, Alertas, Centro 360 y
+   ficha del Trabajador). */
+.reclamacion-destinatarios > .campo-checkbox {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    align-items: start;
+    column-gap: var(--space-2);
+}
+
+.reclamacion-destinatarios > .campo-checkbox > input {
+    align-self: center;
+}
+
+.reclamacion-destinatarios > .campo-checkbox > span {
+    grid-column: 2;
+    min-width: 0;
+    overflow-wrap: anywhere;
 }
 
 .reclamacion-destinatarios legend {
@@ -1039,7 +1066,8 @@
 */
 .tarjeta-fila-acordeon-contenido {
     padding: var(--space-3) var(--space-4) var(--space-4);
-    background-color: var(--color-surface-subtle);
+    /* Segundo nivel (2026-11-08): la misma superficie que la fila, sin gris. */
+    background-color: var(--color-surface);
     border-radius: 0 0 var(--radius-lg) var(--radius-lg);
 }
 
@@ -1267,6 +1295,32 @@
 .selector-recurso-opcion:focus-visible {
     outline: 2px solid var(--color-primary-400);
     outline-offset: 1px;
+}
+
+/* 375 px: el selector, con el rótulo en una línea, y «+ Asignar trabajador» envuelven en vez de salirse de la pantalla. */
+.acordeon-asignaciones-cabecera-recursos {
+    flex-wrap: wrap;
+    row-gap: var(--space-2);
+    max-width: 100%;
+}
+
+.acordeon-asignaciones-cabecera-recursos > * {
+    min-width: 0;
+    max-width: 100%;
+}
+
+.selector-recurso-opcion {
+    white-space: nowrap;
+}
+
+@media (max-width: 480px) {
+    .acordeon-asignaciones-cabecera-recursos .selector-recurso-opcion {
+        padding: 0 8px;
+    }
+
+    .acordeon-asignaciones-cabecera-recursos > .acordeon-asignaciones-cabecera {
+        margin-left: auto;
+    }
 }
 
 /* Búsqueda de trabajadores del cuerpo de Centro 360 (AcordeonAsignacionesCentro) — solo aparece con más de un trabajador en la lista ya filtrada. */
@@ -2203,12 +2257,15 @@
 .cabecera-plataforma-centro,
 .fila-plataforma-centro {
     display: grid;
-    grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr) 96px 56px minmax(150px, auto);
+    /* Última columna de ancho fijo (antes minmax(150px, auto)): cada fila es su propia rejilla, y con «auto» una acción más
+       ancha o una celda vacía movían Estado y Caducidad respecto a las demás filas de la misma tabla. */
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr) 96px 56px minmax(150px, 188px);
     gap: var(--space-3);
     align-items: center;
 }
 .cabecera-plataforma-centro .cabecera-accion-plataforma { text-align: right; }
-.fila-plataforma-centro .celda-accion-plataforma { display: flex; flex-direction: column; align-items: flex-end; gap: 4px; min-width: 0; }
+/* En fila y envolviendo: «Gestionar» y las acciones de plataforma («Marcar subido», «Cambiar») de una acreditación ocupan una o dos líneas. */
+.fila-plataforma-centro .celda-accion-plataforma { display: flex; flex-flow: row wrap; align-items: center; justify-content: flex-end; gap: 4px 6px; min-width: 0; }
 .cabecera-plataforma-centro {
     padding: 8px 0 6px;
     font: var(--font-caption);
@@ -2222,9 +2279,12 @@
     border-top: var(--border-default);
     font: var(--font-caption);
 }
-/* Maqueta del 21-10: el tinte entra suave desde la izquierda, sin borde recto. */
-.fila-plataforma-bloquea { background: linear-gradient(90deg, transparent 0, var(--color-danger-50) 28px, transparent 72%); }
-.fila-plataforma-pendiente { background: linear-gradient(90deg, transparent 0, var(--color-warning-50) 28px, transparent 72%); }
+/* Segundo nivel (decisión de Chris del 2026-11-08): la fila no se tiñe; el estado lo dicen la
+   etiqueta y un acento lateral de 3 px, igual que las subfilas de FilaRelacion. */
+.fila-plataforma-bloquea { box-shadow: inset 3px 0 0 var(--color-danger-500); }
+.fila-plataforma-pendiente { box-shadow: inset 3px 0 0 var(--color-warning-500); }
+/* Dentro del bloque desplegado de una fila, la tabla es esa misma superficie: sin raya ni fondo propios. */
+.fila-relacion-desplegado .tabla-plataforma-centro { border-top: 0; background: none; }
 .identidad-documento-plataforma { display: flex; align-items: center; gap: 8px; min-width: 0; overflow-wrap: anywhere; font-size: 13px; }
 .indicador-talveg { flex: none; width: 18px; height: 18px; box-sizing: border-box; border: 1px solid var(--color-text-muted); border-radius: 50%; text-align: center; font: 700 10px/16px var(--font-family); color: var(--color-text-muted); cursor: help; }
 .estado-documento-plataforma { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; min-width: 0; }
@@ -2241,7 +2301,7 @@
     .fila-plataforma-centro > :nth-child(2),
     .fila-plataforma-centro > .celda-accion-plataforma { grid-column: 1 / -1; }
     /* En la rejilla estrecha la acción ocupa toda la fila, alineada a la izquierda. */
-    .fila-plataforma-centro .celda-accion-plataforma { align-items: flex-start; }
+    .fila-plataforma-centro .celda-accion-plataforma { justify-content: flex-start; }
 }
 
 /* Centro 360 (maqueta del 20-10): la Empresa empleadora junto al nombre del Trabajador, en tono de apoyo. */
@@ -2249,4 +2309,18 @@
     font: var(--font-caption);
     color: var(--color-text-muted);
     overflow-wrap: anywhere;
+}
+
+/* Filas homogéneas: el nombre de la Empresa empleadora va siempre en la línea del Trabajador, cortado con puntos suspensivos si no cabe. */
+.lista-trabajadores-acordeon:not(.lista-trabajadores-acordeon-listado) .fila-trabajador-empleador {
+    min-width: 0;
+    overflow: hidden;
+    overflow-wrap: normal;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+/* Con flex-wrap el salto se decide por el tamaño natural del ítem: sin esto un empleador largo bajaría a una segunda línea. */
+.lista-trabajadores-acordeon:not(.lista-trabajadores-acordeon-listado) .fila-relacion-titulo {
+    flex-wrap: nowrap;
 }

@@ -32,10 +32,23 @@ public sealed record PendienteEnPlataformaDeCentro(
 /// <para>
 /// Contexto, el mismo que el del rechazo en plataforma: solo accesos de tipo Plataforma del Centro (uno sin plataforma
 /// nunca tiene un Pendiente), documentos operativos, un tipo que le aplique al Centro
-/// (<see cref="ResolucionTipoDocumentoCentro.Aplica"/>) y un sujeto con actividad allí — el Trabajador con Asignación
-/// activa en ese Centro, o la Empresa con algún Trabajador suyo con Asignación activa en él (decisión del 2026-10-10: los
-/// Trabajadores de la Empresa que cuentan son los asignados). La acreditación sobrevive a la baja y a que el tipo deje de
-/// exigirse, por eso se vuelve a comprobar aquí.
+/// (<see cref="ResolucionTipoDocumentoCentro.Aplica"/>) y un sujeto que cuente en ese Centro. La acreditación sobrevive a
+/// la baja y a que el tipo deje de exigirse, por eso se vuelve a comprobar aquí.
+/// </para>
+///
+/// <para>
+/// Quién cuenta en el Centro depende del sujeto. El <b>Trabajador</b> solo con actividad allí: Asignación activa en ese
+/// Centro (decisión del 2026-10-10). La <b>Empresa</b> en dos casos: en los Centros de su Empresa
+/// (<c>Centro.EmpresaId</c>) aunque no tengan ningún Trabajador asignado, porque un Centro puede exigir solo documentos de
+/// Empresa (decisión del 2026-11-08, que sustituye al filtro por actividad que la regla del 2026-10-10 aplicaba también a
+/// los documentos de Empresa y que es la misma con la que se da de alta su acreditación,
+/// <see cref="Documentos.Acreditacion.IAltaAcreditacionesPlataformaService"/>); y en cualquier Centro donde tenga
+/// algún Trabajador suyo con Asignación activa (la del Trabajador, o su Subcontrata si no tiene Empresa), que es como cuenta
+/// una Subcontrata en el Centro de otra Empresa. Un
+/// Centro de otra Empresa sin Trabajadores de esta no cuenta. Con esto, la acreditación de Empresa de un Centro de su
+/// Empresa sin Trabajadores no pasa a Bloqueado por rechazo (<see cref="CalculoEstadoCentroService"/>, que no filtra por
+/// actividad) sin haber estado Pendiente. Queda una asimetría conocida: el rechazo de un documento de Empresa cuenta en
+/// cualquier Centro, y el Pendiente no cuenta en un Centro de otra Empresa donde ya no tenga Trabajadores asignados.
 /// </para>
 ///
 /// <para>
@@ -152,11 +165,12 @@ internal static class PendientesEnPlataformaDeCentros
 
         // La vigencia que cuenta es la del requisito en ESE Centro: periodicidad especial y tolerancia (VigenciaEnCentro).
         var centroIdsConFilas = filas.Select(f => f.CentroId).Distinct().ToList();
-        var clientePorCentro = (await centrosContext.Centros
+        var datosDeCentros = await centrosContext.Centros
             .Where(c => centroIdsConFilas.Contains(c.Id))
-            .Select(c => new { c.Id, Titular = c.ClienteId })
-            .ToListAsync(cancellationToken))
-            .ToDictionary(c => c.Id, c => c.Titular);
+            .Select(c => new { c.Id, Titular = c.ClienteId, c.EmpresaId })
+            .ToListAsync(cancellationToken);
+        var clientePorCentro = datosDeCentros.ToDictionary(c => c.Id, c => c.Titular);
+        var empresaDelCentro = datosDeCentros.ToDictionary(c => c.Id, c => c.EmpresaId);
         var toleranciasDeClientes = await VigenciaEnCentro.CargarToleranciasDeClientesAsync(
             tiposDocumentoContext, clientePorCentro.Values.Distinct().ToList(), tipoIds, cancellationToken);
 
@@ -191,7 +205,13 @@ internal static class PendientesEnPlataformaDeCentros
             }
             else if (fila.EmpresaId is { } empresaId)
             {
-                if (!(empresasPorCentro.TryGetValue(fila.CentroId, out var empresas) && empresas.Contains(empresaId)))
+                // Sin Trabajadores asignados cuenta en los Centros de su Empresa (decisión del 2026-11-08); en cualquier otro, solo
+                // si tiene allí algún Trabajador asignado.
+                var esCentroDeSuEmpresa = empresaDelCentro.TryGetValue(fila.CentroId, out var empresaDelCentroId)
+                                          && empresaDelCentroId == empresaId;
+                var tieneTrabajadoresAsignados = empresasPorCentro.TryGetValue(fila.CentroId, out var empresas)
+                                                 && empresas.Contains(empresaId);
+                if (!esCentroDeSuEmpresa && !tieneTrabajadoresAsignados)
                     continue;
                 empresaSujeto = empresaId;
             }

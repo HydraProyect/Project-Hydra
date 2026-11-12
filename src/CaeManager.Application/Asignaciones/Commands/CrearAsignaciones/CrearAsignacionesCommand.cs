@@ -58,7 +58,10 @@ public class CrearAsignacionesCommandValidator : AbstractValidator<CrearAsignaci
 public class CrearAsignacionesCommandHandler(
     IAsignacionRepository repositorio, IAsignacionesQueryContext asignacionesContext,
     IAutoridadAsignacionesService autoridad, IAltaAcreditacionesPlataformaService altaAcreditaciones,
-    IUnitOfWork unitOfWork)
+    IUnitOfWork unitOfWork, ISerializacionAltasAcreditacionEmpresa serializacionAltas,
+    // Opcional solo mientras la PR #2104 cambia los tests que construyen este handler: el contenedor siempre lo resuelve
+    // (InvalidadorAlcanceInerte por defecto, el AlcanceDatosService del circuito en la Web). Issue #2118.
+    IInvalidadorAlcance? invalidadorAlcance = null)
     : IRequestHandler<CrearAsignacionesCommand, Result<ResultadoAsignacionLoteDto>>
 {
     public async Task<Result<ResultadoAsignacionLoteDto>> Handle(CrearAsignacionesCommand request, CancellationToken cancellationToken)
@@ -82,6 +85,49 @@ public class CrearAsignacionesCommandHandler(
         var centroIdsValidos = await autoridad.FiltrarCentrosConAutoridadAsync(
             centroIdsSolicitados, cancellationToken);
 
+        var creadas = 0;
+        var yaActivas = 0;
+        var solapadas = 0;
+
+        // Misma regla que CrearAsignacionCommand, para todo el lote a la vez y en
+        // el mismo SaveChangesAsync, bajo la misma serialización (revisión Codex
+        // de la PR #2074, ronda 3, hallazgo 4). Las comprobaciones de existencia
+        // y de solape también van dentro: otra alta o reapertura del mismo trío
+        // confirmada mientras esta esperaba se ve (ronda 4). Las Asignaciones se
+        // calculan y se agregan dentro: un reintento empieza con el contexto
+        // vacío y vuelve a contarlo todo. Sin ninguna combinación posible no hay
+        // nada que leer ni que serializar.
+        if (trabajadorIdsValidos.Count > 0 && centroIdsValidos.Count > 0)
+        {
+            var guardado = await serializacionAltas.EjecutarAsync(async ct =>
+            {
+                // La autoridad (Asignación de Cartera) se vuelve a filtrar bajo el candado: pudo revocarse mientras se
+                // esperaba, y el alcance memoizado (en Blazor Server, el del circuito) es de antes; se descarta, igual
+                // que en BloqueoRespuestaSugerida.ComprobarEnvioPorBuzonAsync (issue #2118). Lo que sale aquí cuenta
+                // como lo que se descartó fuera.
+                invalidadorAlcance?.Invalidar();
+                trabajadorIdsValidos = await autoridad.FiltrarTrabajadoresConAutoridadAsync(trabajadorIdsValidos, ct);
+                centroIdsValidos = await autoridad.FiltrarCentrosConAutoridadAsync(centroIdsValidos, ct);
+                (creadas, yaActivas, solapadas) = (0, 0, 0);
+                if (trabajadorIdsValidos.Count == 0 || centroIdsValidos.Count == 0)
+                    return Result.Exito();
+
+                List<Asignacion> asignacionesNuevas;
+                (asignacionesNuevas, creadas, yaActivas, solapadas) =
+                    await PlanificarAsync(request, trabajadorIdsValidos, centroIdsValidos, ct);
+                if (asignacionesNuevas.Count == 0)
+                    return Result.Exito();
+
+                foreach (var asignacion in asignacionesNuevas)
+                    repositorio.Agregar(asignacion);
+                await altaAcreditaciones.AgregarPendientesAsync(new AltasConAcreditacion { Asignaciones = asignacionesNuevas }, ct);
+                await unitOfWork.SaveChangesAsync(ct);
+                return Result.Exito();
+            }, cancellationToken);
+            if (guardado.EsFallido)
+                return Result.Fallo<ResultadoAsignacionLoteDto>(guardado.Error);
+        }
+
         var errores = new List<string>();
         var trabajadoresFaltantes = trabajadorIdsSolicitados.Count - trabajadorIdsValidos.Count;
         if (trabajadoresFaltantes > 0)
@@ -91,12 +137,23 @@ public class CrearAsignacionesCommandHandler(
         if (centrosFaltantes > 0)
             errores.Add($"{centrosFaltantes} centro(s) ya no existían.");
 
+        if (solapadas > 0)
+            errores.Add(
+                $"{solapadas} combinación(es) se omitieron: la fecha de alta solapa con un periodo ya registrado (activo o cerrado) para ese mismo trabajador y centro.");
+
+        return Result.Exito(new ResultadoAsignacionLoteDto(creadas, yaActivas, solapadas, errores));
+    }
+
+    private async Task<(List<Asignacion> Nuevas, int Creadas, int YaActivas, int Solapadas)> PlanificarAsync(
+        CrearAsignacionesCommand request, IReadOnlyList<Guid> trabajadorIdsValidos, IReadOnlyList<Guid> centroIdsValidos,
+        CancellationToken cancellationToken)
+    {
         // Una sola consulta para todo el lote en vez de un ExisteActivaAsync
         // (o ExisteSolapeAsync) por combinación — con selecciones de decenas
         // de trabajadores esto evita cientos de ida-y-vueltas a la base de
         // datos. Trae TODAS las filas del par, activas o cerradas: DEC-19
         // exige comprobar solape también contra las cerradas, no solo si hay
-        // una activa.
+        // una activa. Es una proyección: lee lo confirmado, no lo rastreado.
         var existentes = await asignacionesContext.Asignaciones
             .Where(a => trabajadorIdsValidos.Contains(a.TrabajadorId) && centroIdsValidos.Contains(a.CentroId))
             .Select(a => new { a.TrabajadorId, a.CentroId, a.FechaAlta, a.FechaBaja })
@@ -148,22 +205,11 @@ public class CrearAsignacionesCommandHandler(
                 }
 
                 var asignacion = new Asignacion(trabajadorId, centroId, request.FechaAlta);
-                repositorio.Agregar(asignacion);
                 asignacionesNuevas.Add(asignacion);
                 creadas++;
             }
         }
 
-        if (solapadas > 0)
-            errores.Add(
-                $"{solapadas} combinación(es) se omitieron: la fecha de alta solapa con un periodo ya registrado (activo o cerrado) para ese mismo trabajador y centro.");
-
-        // Misma regla que CrearAsignacionCommand, para todo el lote a la vez y en
-        // el mismo SaveChangesAsync.
-        await altaAcreditaciones.AgregarPendientesAsync(new AltasConAcreditacion { Asignaciones = asignacionesNuevas }, cancellationToken);
-
-        await unitOfWork.SaveChangesAsync(cancellationToken);
-
-        return Result.Exito(new ResultadoAsignacionLoteDto(creadas, yaActivas, solapadas, errores));
+        return (asignacionesNuevas, creadas, yaActivas, solapadas);
     }
 }

@@ -1,6 +1,8 @@
 using CaeManager.Application.Common;
+using CaeManager.Application.Documentos.Acreditacion;
 using CaeManager.Application.Proyectos;
 using CaeManager.Domain.Common;
+using CaeManager.Domain.Documentos;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
 
@@ -10,26 +12,60 @@ namespace CaeManager.Application.Documentos.Commands.RestaurarDocumento;
 public record RestaurarDocumentoCommand(Guid Id) : ICommand;
 
 public class RestaurarDocumentoCommandHandler(
-    IDocumentosQueryContext documentosContext, ITenantActual tenantActual, IAlcanceDatosService alcanceDatos,
-    IProyectosQueryContext proyectosContext, IUnitOfWork unitOfWork)
+    IDocumentoRepository documentoRepositorio, ITenantActual tenantActual, IAlcanceDatosService alcanceDatos,
+    IProyectosQueryContext proyectosContext, IUnitOfWork unitOfWork,
+    IAltaAcreditacionesPlataformaService altaAcreditaciones, ISerializacionAltasAcreditacionEmpresa serializacionAltas,
+    IInvalidadorAlcance invalidadorAlcance)
     : IRequestHandler<RestaurarDocumentoCommand, Result>
 {
     public async Task<Result> Handle(RestaurarDocumentoCommand request, CancellationToken cancellationToken)
     {
-        var documento = await documentosContext.Documentos
-            .IgnoreQueryFilters()
-            .FirstOrDefaultAsync(d => d.Id == request.Id && d.TenantId == tenantActual.TenantId, cancellationToken);
-
-        // Asignación de Cartera: fuera de ella el documento eliminado «no existe», igual que en
-        // EliminarDocumentoCommand — deshacer una baja es tan escritura como hacerla.
+        // Lo leído aquí solo sirve para rechazar pronto y para saber el propietario, que no cambia.
+        var documento = await CargarAsync(request.Id, cancellationToken);
         if (documento is null || !documento.EstaEliminado || !await VisibleAsync(documento, cancellationToken))
-            return Result.Fallo(Error.Crear("Documento.NoEncontrado", "No encontramos este documento eliminado."));
+            return NoEncontrado();
 
-        documento.Restaurar();
-        await unitOfWork.SaveChangesAsync(cancellationToken);
+        if (documento.EmpresaId is null)
+        {
+            documento.Restaurar();
+            await unitOfWork.SaveChangesAsync(cancellationToken);
+            return Result.Exito();
+        }
 
-        return Result.Exito();
+        // Un Documento de Empresa restaurado vuelve a acreditarse ante los accesos de plataforma de los Centros donde
+        // su Empresa tiene actividad (regla A-1), también los dados de alta mientras estaba eliminado. Se serializa con
+        // las altas que cambian a qué Centros llega (ver ISerializacionAltasAcreditacionEmpresa), y bajo el candado se
+        // vuelve a decidir si sigue eliminado. Los Documentos de Trabajador no cambian.
+        return await serializacionAltas.EjecutarAsync(async ct =>
+        {
+            // La Asignación de Cartera también se vuelve a decidir: pudo revocarse mientras se esperaba el candado, y el
+            // alcance memoizado (en Blazor Server, el del circuito) es de antes; se descarta, igual que en
+            // BloqueoRespuestaSugerida.ComprobarEnvioPorBuzonAsync. Revisión Codex de la PR #2104, ronda 2.
+            invalidadorAlcance.Invalidar();
+            var actual = await CargarAsync(request.Id, ct);
+            if (actual is null || !actual.EstaEliminado || !await VisibleAsync(actual, ct))
+                return NoEncontrado();
+
+            actual.Restaurar();
+            // Uno que ya estaba en el historial (sustituido) vuelve al historial: no se acredita, igual que en la
+            // conciliación, que solo mira los operativos.
+            if (DocumentoOperativo.Es(actual))
+                await altaAcreditaciones.AgregarPendientesAsync(
+                    new AltasConAcreditacion { Documentos = [actual], SoloDocumentosDeEmpresa = true }, ct);
+            await unitOfWork.SaveChangesAsync(ct);
+            return Result.Exito();
+        }, cancellationToken);
     }
+
+    // Asignación de Cartera: fuera de ella el documento eliminado «no existe», igual que en
+    // EliminarDocumentoCommand — deshacer una baja es tan escritura como hacerla.
+    // Releído aunque el contexto (uno por circuito en Blazor Server) ya lo rastreara: bajo el candado, sin la relectura,
+    // se decidiría con lo que había antes de esperarlo.
+    private Task<Domain.Documentos.Documento?> CargarAsync(Guid id, CancellationToken cancellationToken) =>
+        documentoRepositorio.ObtenerIncluidoEliminadoActualizadoAsync(id, tenantActual.TenantId, cancellationToken);
+
+    private static Result NoEncontrado() =>
+        Result.Fallo(Error.Crear("Documento.NoEncontrado", "No encontramos este documento eliminado."));
 
     /// <summary>
     /// Igual que <see cref="DocumentoAlcanceExtensions.DocumentoVisibleAsync"/>, salvo que el Proyecto

@@ -1,6 +1,8 @@
 @page "/comunicaciones"
 @inject Microsoft.Extensions.Localization.IStringLocalizer<CaeManager.Web.Features.Comunicaciones.Recursos.TextosPlazosConversacion> TextosPlazos
-@rendermode InteractiveServer
+@* Sin prerender (como Mi trabajo, M-23): la página carga en el ciclo de vida y no persiste su estado; con prerender
+   corría dos veces en cada visita. *@
+@rendermode @(new InteractiveServerRenderMode(prerender: false))
 @inherits CaeManager.Web.Components.PaginaInteractiva
 @* Mismos roles que el menú completo de CatalogoMenuLateral: la bandeja es una pantalla de
    gestión CAE y el rol Cliente no entra. Que el menú le oculte el enlace no
@@ -31,49 +33,50 @@
 
 <LimiteDeErrores Pagina="this">
 <PageTitle>Comunicaciones — @Marca.Nombre</PageTitle>
+<TituloDePaginaSinPrerender Titulo="@($"Comunicaciones — {Marca.Nombre}")" />
 
 <div class="contenedor-pagina bandeja-contenedor">
+    @* Cabecera de página (maqueta 2026-11-01, E3): banda de 52 px con el título, el buscador y «Nuevo correo». Esta
+       página NO usa CabeceraPagina como el resto del programa Gen 2: su maqueta es un maestro-detalle a pantalla
+       completa y la banda es la propia de la maqueta, no la del kit. El buscador solo aplica a las conversaciones,
+       por eso no se dibuja en el ámbito del buzón personal. *@
+    <header class="bandeja-cabecera-pagina">
+        <h1 class="bandeja-lista-titulo">Comunicaciones</h1>
+        @if (_vista == "clientes")
+        {
+            <label class="bandeja-buscar bandeja-buscar-cabecera">
+                <Icono Nombre="buscar" Tamano="TamanoIcono.Pequeno" />
+                <input type="search" aria-label="@TextosLista["BuscarBuzon"]" placeholder="@TextosLista["BuscarPlaceholder"]" value="@_busqueda"
+                       @oninput="async e => { _busqueda = e.Value?.ToString() ?? string.Empty; await AplicarFiltrosAsync(); }" />
+            </label>
+        }
+        <SoloConEscritura><Boton Variante="VarianteBoton.Primario" Tamano="TamanoBoton.Pequeno" OnClick="AbrirRedactarAsync">@TextosLista["NuevoCorreo"]</Boton></SoloConEscritura>
+    </header>
+
     <div class="bandeja-layout @(_vista != "clientes" ? "bandeja-modo-personal" : _conversacionSeleccionadaId is null ? "bandeja-modo-tabla" : "bandeja-modo-hilo")">
         <aside class="bandeja-columna bandeja-filtros">
-            @* Gen 2 («Comunicaciones TALVEG.dc.html»): el título de la pantalla
-               y "Redactar" viven en la cabecera de la columna de la lista, no en
-               una banda de cabecera sobre las tres columnas. Por eso esta página
-               NO usa CabeceraPagina como el resto del programa Gen 2: su mockup
-               es un maestro-detalle a pantalla completa y una banda superior le
-               robaría alto a las tres columnas.
-
-               "Buzón completo" (explorador técnico de carpetas M365, /comunicaciones/buzon)
+            @* "Buzón completo" (explorador técnico de carpetas M365, /comunicaciones/buzon)
                se retira de esta barra de trabajo diaria: el modelo aprobado gira en torno
                a conversaciones. El Buzón sigue existiendo como diagnóstico técnico — su
                punto de entrada pasa a Integraciones (propiedad de esa sesión, no de esta
                página). Las macros vuelven al redactor por decisión de producto del
                2026-10-23; su administración conserva la ruta /comunicaciones/macros. *@
-            <div class="bandeja-lista-cabecera">
-                <h1 class="bandeja-lista-titulo">Comunicaciones</h1>
-                <SoloConEscritura><Boton Variante="VarianteBoton.Primario" Tamano="TamanoBoton.Pequeno" OnClick="AbrirRedactarAsync">Redactar</Boton></SoloConEscritura>
-            </div>
-
-            @* Toggle "Clientes | Mi buzón personal" (rediseño acordado, ver
-               memoria hydra-buzon-personal-rediseno-pendiente): sustituye a
-               /comunicaciones/buzon-personal como página aislada — el buzón
-               personal del gestor ahora vive dentro del mismo maestro-detalle,
-               solo que de solo lectura (sin Composer ni Action Center, ver más
-               abajo), porque hoy no existe ningún comando de "responder" para
-               un mensaje del buzón personal. Es la anotación del mockup: «el
-               toggle Clientes / Mi buzón vive dentro de la bandeja, no en una
-               página aparte». /comunicaciones/buzon es OTRA pantalla —
-               explorador de carpetas de Microsoft 365— y no es lo que este
-               toggle abre. *@
-            <div class="bandeja-vista-toggle" role="tablist" aria-label="Ámbito de la bandeja">
-                <button type="button" role="tab" aria-selected="@(_vista == "clientes" ? "true" : "false")"
-                        class="bandeja-toggle @(_vista == "clientes" ? "bandeja-toggle-activo" : null)" @onclick='() => CambiarVistaAsync("clientes")'>
-                    Clientes
+            @* Navegación de ámbito (maqueta 2026-11-01, E6): «Clientes» y «Mi buzón personal» son dos ítems de
+               una lista de navegación, no un conmutador de dos píldoras. El buzón personal del gestor vive dentro
+               del mismo maestro-detalle, de solo lectura (sin Composer ni Action Center, ver más abajo), porque
+               hoy no existe ningún comando de «responder» para un mensaje del buzón personal.
+               /comunicaciones/buzon es OTRA pantalla —explorador de carpetas de Microsoft 365— y no es lo que
+               este ítem abre. *@
+            <nav class="bandeja-nav" aria-label="@TextosLista["OrigenConversaciones"]">
+                <button type="button" aria-current="@(_vista == "clientes" ? "true" : null)"
+                        class="bandeja-nav-item @(_vista == "clientes" ? "bandeja-nav-item-activo" : null)" @onclick='() => CambiarVistaAsync("clientes")'>
+                    <span class="bandeja-nav-item-texto">@TextosLista["NavClientes"]</span>
                 </button>
-                <button type="button" role="tab" aria-selected="@(_vista == "personal" ? "true" : "false")"
-                        class="bandeja-toggle @(_vista == "personal" ? "bandeja-toggle-activo" : null)" @onclick='() => CambiarVistaAsync("personal")'>
-                    Mi buzón personal
+                <button type="button" aria-current="@(_vista == "personal" ? "true" : null)"
+                        class="bandeja-nav-item @(_vista == "personal" ? "bandeja-nav-item-activo" : null)" @onclick='() => CambiarVistaAsync("personal")'>
+                    <span class="bandeja-nav-item-texto">@TextosLista["NavBuzonPersonal"]</span>
                 </button>
-            </div>
+            </nav>
 
             @* «Contactar con un compañero»: correo y teléfono de los demás Gestores CAE de mi mismo
                Operador CAE, copiables. Lo que llega ya viene acotado en Application
@@ -124,11 +127,6 @@
             @if (_vista == "clientes")
             {
                 <div class="bandeja-filtros-form">
-                    @if (_conversacionSeleccionadaId is not null)
-                    {
-                        <CampoTexto Etiqueta="@TextosLista["BuscarBuzon"]" Placeholder="@TextosLista["BuscarPlaceholder"]" Valor="@_busqueda" ValorChanged="async v => { _busqueda = v; await AplicarFiltrosAsync(); }" />
-                    }
-
                     <div class="bandeja-toggles">
                         <button type="button" class="bandeja-toggle @(!_soloAsignadasAMi && !_soloSinAsignar && !_soloEsperandoCliente && !_soloFueraDeSla ? "bandeja-toggle-activo" : null)" @onclick="VerTodasAsync">
                             Todas
@@ -180,15 +178,24 @@
                 @if (_conversacionSeleccionadaId is not null)
                 {
                     <div class="bandeja-lista">
+                        @* Encabezado de la lista (maqueta, E9): título, recuento y «Tabla», que vuelve a la vista de tabla. *@
+                        <div class="bandeja-lis-cab">
+                            <div class="bandeja-lis-cab-t">
+                                <h2 class="bandeja-lis-cab-titulo">@TituloLista</h2>
+                                <small>@TextosLista[_totalConversaciones == 1 ? "RecuentoConversacion" : "RecuentoConversaciones", _totalConversaciones]</small>
+                            </div>
+                            <button type="button" class="bandeja-mini" @onclick="VolverABandejaAsync">@TextosLista["VerTabla"]</button>
+                        </div>
                         @if (_errorCargaLista)
                         {
-                            <EstadoVacio Titulo="@TextosLista["ErrorBuzon"]">
-                                <Accion><Boton Variante="VarianteBoton.Secundario" OnClick="CargarListaAsync">@TextosLista["Reintentar"]</Boton></Accion>
+                            <EstadoVacio SinIcono="true" Titulo="@TextosLista["ErrorBuzon"]" Descripcion="@TextosLista["ErrorBuzonAyuda"]">
+                                <Accion><Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno" OnClick="CargarListaAsync">@TextosLista["Reintentar"]</Boton></Accion>
                             </EstadoVacio>
                         }
                         else if (_cargandoLista)
                         {
                             <EstadoCargando Filas="6" />
+                            <p class="bandeja-cargando-texto" role="status">@TextosLista["Cargando"]</p>
                         }
                         else
                         {
@@ -257,24 +264,23 @@
         <section class="bandeja-columna bandeja-centro" aria-label="@TextosLista["Conversacion"]">
             @if (_conversacionSeleccionadaId is null && _vista == "clientes")
             {
-                <div class="bandeja-tabla-cabecera">
-                    <h2>@TextosLista[_soloAsignadasAMi ? "Mias" : _soloSinAsignar ? "SinAsignar" : _soloEsperandoCliente ? "EsperandoCliente" : "Todas"]</h2>
-                    <span>@TextosLista[_totalConversaciones == 1 ? "RecuentoConversacion" : "RecuentoConversaciones", _totalConversaciones]</span>
-                    <label class="bandeja-buscar">
-                        <Icono Nombre="buscar" Tamano="TamanoIcono.Pequeno" />
-                        <input type="search" aria-label="@TextosLista["BuscarBuzon"]" placeholder="@TextosLista["BuscarPlaceholder"]" value="@_busqueda"
-                               @oninput="async e => { _busqueda = e.Value?.ToString() ?? string.Empty; await AplicarFiltrosAsync(); }" />
-                    </label>
+                @* Encabezado de la lista (maqueta, E9): título y recuento; el buscador vive en la cabecera de la página (E3). *@
+                <div class="bandeja-lis-cab bandeja-tabla-cabecera">
+                    <div class="bandeja-lis-cab-t">
+                        <h2 class="bandeja-lis-cab-titulo">@TituloLista</h2>
+                        <small>@TextosLista[_totalConversaciones == 1 ? "RecuentoConversacion" : "RecuentoConversaciones", _totalConversaciones]</small>
+                    </div>
                 </div>
                 @if (_errorCargaLista)
                 {
-                    <EstadoVacio Titulo="@TextosLista["ErrorBuzon"]" Descripcion="@TextosLista["ErrorBuzonAyuda"]">
-                        <Accion><Boton Variante="VarianteBoton.Primario" OnClick="CargarListaAsync">@TextosLista["Reintentar"]</Boton></Accion>
+                    <EstadoVacio SinIcono="true" Titulo="@TextosLista["ErrorBuzon"]" Descripcion="@TextosLista["ErrorBuzonAyuda"]">
+                        <Accion><Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno" OnClick="CargarListaAsync">@TextosLista["Reintentar"]</Boton></Accion>
                     </EstadoVacio>
                 }
                 else if (_cargandoLista)
                 {
                     <EstadoCargando Filas="6" />
+                    <p class="bandeja-cargando-texto" role="status">@TextosLista["Cargando"]</p>
                 }
                 else if (_conversaciones.Count > 0)
                 {
@@ -287,24 +293,41 @@
                 }
                 else
                 {
-                    <EstadoVacio Titulo="@(HayFiltrosActivos ? TextosLista["SinResultados"] : TextosLista["SinConversaciones"])"
-                                 Descripcion="@(HayFiltrosActivos ? TextosLista["SinResultadosAyuda"] : TextosLista["SinConversacionesAyuda"])">
-                        <Accion>
-                            @if (HayFiltrosActivos)
-                            {
-                                <Boton Variante="VarianteBoton.Secundario" OnClick="LimpiarFiltrosAsync">@TextosLista["QuitarFiltros"]</Boton>
-                            }
-                        </Accion>
-                    </EstadoVacio>
+                    @* «Al día» (maqueta, E14, `.vacio`): solo cuando no hay ningún filtro puesto; con filtros el vacío es «Sin resultados».
+                       El distintivo y el estado vacío van en un mismo bloque centrado, a 8 px entre piezas, como en la maqueta. *@
+                    <div class="bandeja-vacio-bloque">
+                        @if (!HayFiltrosActivos)
+                        {
+                            <div class="bandeja-al-dia"><Badge Tono="TonoBadge.Exito">@TextosLista["AlDia"]</Badge></div>
+                        }
+                        <EstadoVacio SinIcono="true" Titulo="@(HayFiltrosActivos ? TextosLista["SinResultados"] : TextosLista["SinConversaciones"])"
+                                     Descripcion="@(HayFiltrosActivos ? TextosLista["SinResultadosAyuda"] : TextosLista["SinConversacionesAyuda"])">
+                            <Accion>
+                                @if (HayFiltrosActivos)
+                                {
+                                    <Boton Variante="VarianteBoton.Secundario" OnClick="LimpiarFiltrosAsync">@TextosLista["QuitarFiltros"]</Boton>
+                                }
+                            </Accion>
+                        </EstadoVacio>
+                    </div>
                 }
             }
             else if (_conversacionSeleccionadaId is null)
             {
-                <EstadoVacio Titulo="Selecciona una conversación" Descripcion="Elige un hilo de la izquierda para ver los mensajes." />
+                <EstadoVacio SinIcono="true" Titulo="@TextosLista["NingunaConversacion"]" Descripcion="@TextosLista["EligeConversacion"]" />
             }
             else if (_cargandoDetalle)
             {
                 <EstadoCargando Filas="4" />
+                <p class="bandeja-cargando-texto" role="status">@TextosLista["Cargando"]</p>
+            }
+            else if (_errorDetalle && (_detalle is null || _detalle.Id != _conversacionSeleccionadaId))
+            {
+                @* Error al abrir una conversación (maqueta, E14): estado propio con «Reintentar». Sin él, el panel
+                   mostraba el hilo de la conversación abierta antes bajo la selección nueva. *@
+                <EstadoVacio SinIcono="true" Titulo="@TextosLista["ErrorAbrirConversacion"]" Descripcion="@TextosLista["ErrorAbrirConversacionAyuda"]">
+                    <Accion><Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno" OnClick="CargarDetalleAsync">@TextosLista["Reintentar"]</Boton></Accion>
+                </EstadoVacio>
             }
             else if (_detalle is not null)
             {
@@ -569,8 +592,10 @@
                     </CampoSelect>
                 }
 
-                <CampoTexto Etiqueta="Fecha de emisión" Type="date" Valor="@_fechaEmisionDocumentoFormulario" ValorChanged="v => _fechaEmisionDocumentoFormulario = v" />
-                <CampoTexto Etiqueta="Fecha de caducidad (si no se calcula sola)" Type="date" Valor="@_fechaVencimientoDocumentoFormulario" ValorChanged="v => _fechaVencimientoDocumentoFormulario = v" />
+                <CampoTexto Etiqueta="Fecha de emisión" Type="date" Valor="@_fechaEmisionDocumentoFormulario" ValorChanged="v => _fechaEmisionDocumentoFormulario = v"
+                            FechaNoValida="_emisionDocumentoNoValida" FechaNoValidaChanged="AlCambiarEmisionDocumentoNoValida" />
+                <CampoTexto Etiqueta="Fecha de caducidad (si no se calcula sola)" Type="date" Valor="@_fechaVencimientoDocumentoFormulario" ValorChanged="v => _fechaVencimientoDocumentoFormulario = v"
+                            FechaNoValida="_vencimientoDocumentoNoValido" FechaNoValidaChanged="AlCambiarVencimientoDocumentoNoValido" />
                 <label class="campo-checkbox">
                     <input type="checkbox" checked="@_noCaducaDocumentoFormulario" @onchange="e => _noCaducaDocumentoFormulario = e.Value is bool m && m" />
                     @TextosVigenciaDocumento.Texto("NoCaduca")

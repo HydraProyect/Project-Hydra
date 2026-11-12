@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <data name="Capas" xml:space="preserve"><value>Capas</value></data>
+  <data name="CapaFestivos" xml:space="preserve"><value>Festivos</value></data>
+  <data name="CapaFestivosTitulo" xml:space="preserve"><value>Según la ubicación de trabajo de cada persona</value></data>
+  <data name="CapaIntensiva" xml:space="preserve"><value>Jornada intensiva</value></data>
+  <data name="CapaIntensivaTitulo" xml:space="preserve"><value>Cuenta como día completo</value></data>
+  <data name="FestivosDe" xml:space="preserve"><value>Festivos de</value></data>
+  <data name="TodoElEquipo" xml:space="preserve"><value>Todo el equipo</value></data>
+  <data name="NotaPropia" xml:space="preserve"><value>Ves tus festivos.</value></data>
+  <data name="NotaEquipo" xml:space="preserve"><value>Ves los festivos de tu equipo según la ubicación de trabajo de cada persona.</value></data>
+  <data name="SinCatalogoDelAnio" xml:space="preserve"><value>No tenemos el calendario oficial de festivos de {0}: este mes no marca festivos ni jornada intensiva.</value></data>
+  <data name="SinFestivosLocales" xml:space="preserve"><value>Los festivos locales no están incluidos.</value></data>
+  <data name="SinFestivosLocalesConIntensiva" xml:space="preserve"><value>Los festivos locales no están incluidos: la jornada intensiva puede marcarse en un festivo local.</value></data>
+  <data name="SinAutonomicos" xml:space="preserve"><value>Sin festivos autonómicos en el catálogo: {0}. En esa ubicación no se marcan ni esos festivos ni la jornada intensiva.</value></data>
+  <data name="FestivoNacional" xml:space="preserve"><value>{0} · nacional</value></data>
+  <data name="FestivoConLugar" xml:space="preserve"><value>{0} · {1}</value></data>
+  <data name="FestivoAccesible" xml:space="preserve"><value>Festivo: {0}</value></data>
+  <data name="IntensivaAccesible" xml:space="preserve"><value>Jornada intensiva · cuenta como día completo</value></data>
+</root>

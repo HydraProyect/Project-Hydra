@@ -50,7 +50,22 @@ public partial class AcordeonAsignacionesCentro : ComponentBase, IDisposable
     private IReadOnlyDictionary<Guid, string> _empleadoresPorTrabajador = new Dictionary<Guid, string>();
 
     private string? EmpleadorDe(Guid trabajadorId) =>
-        MostrarEstadoPlataforma && _empleadoresPorTrabajador.TryGetValue(trabajadorId, out var empleador) ? empleador : null;
+        MostrarEstadoPlataforma && _empleadoresPorTrabajador.TryGetValue(trabajadorId, out var empleador)
+        && !MismoNombre(empleador, _trabajadores.FirstOrDefault(t => t.TrabajadorId == trabajadorId)?.TrabajadorNombre)
+            ? empleador : null;
+
+    /// <summary>
+    /// Un autónomo es su propia Empresa empleadora: «Ruiz Peña, Ana» y «Ana Ruiz Peña» son el mismo nombre y la fila no lo repite.
+    /// Compara las palabras sin acentos ni mayúsculas y sin importar el orden.
+    /// </summary>
+    internal static bool MismoNombre(string? a, string? b)
+    {
+        static string[] Palabras(string texto) => texto.Normalize(System.Text.NormalizationForm.FormD)
+            .Where(c => System.Globalization.CharUnicodeInfo.GetUnicodeCategory(c) != System.Globalization.UnicodeCategory.NonSpacingMark)
+            .Aggregate(new System.Text.StringBuilder(), (sb, c) => sb.Append(char.IsLetterOrDigit(c) ? char.ToLowerInvariant(c) : ' '))
+            .ToString().Split(' ', StringSplitOptions.RemoveEmptyEntries).Order().ToArray();
+        return !string.IsNullOrWhiteSpace(a) && !string.IsNullOrWhiteSpace(b) && Palabras(a).SequenceEqual(Palabras(b));
+    }
     /// <summary>Plataforma CAE del primer canal de gestión por plataforma del Centro; rotula la columna de estado.</summary>
     [Parameter] public string? NombrePlataforma { get; set; }
     /// <summary>Barra de búsqueda de la página; recibe si la vista es «Vehículos» para rotular el buscador.</summary>
@@ -221,6 +236,68 @@ public partial class AcordeonAsignacionesCentro : ComponentBase, IDisposable
             .ToList();
     }
 
+    /// <summary>
+    /// Centro 360, segundo nivel: a quién le abre «Gestionar» un documento de la tabla, con la MISMA regla que tenía el primer nivel
+    /// (<see cref="MotivoBloqueoTrabajador"/>): si su Tipo es un bloqueo de acceso, la entidad que ese bloqueo pide (solo Vencido o
+    /// Ausente); si no, un pendiente que no bloquea pero se puede reclamar. Null: nada que gestionar, la celda queda vacía.
+    /// </summary>
+    private MotivoBloqueoTrabajador.EntidadAPedir? EntidadAGestionar(TrabajadorAsignacionDocumentacionDto trabajador, DocumentoRequeridoDto documento)
+    {
+        var bloqueosDelTipo = BloqueosDe(trabajador.TrabajadorId).Where(b => b.TipoDocumentoId == documento.TipoDocumentoId).ToList();
+        if (bloqueosDelTipo.Count > 0)
+        {
+            var propio = bloqueosDelTipo.FirstOrDefault(b => b.Ambito == AmbitoAplicacion.Trabajador);
+            return propio is null ? null : MotivoBloqueoTrabajador.EntidadAReclamar(propio);
+        }
+
+        // Lo que falta o está vencido en TALVEG sin ser un bloqueo cubría el antiguo enlace «Actualizar en Trabajador 360»: no se queda sin acción.
+        var gestionable = GestionarEnPlataforma.FaltaEnTalveg(documento.DocumentoId, documento.Estado)
+            || (MotivoBloqueoTrabajador.EsPendienteQueNoBloquea(documento.Estado) && MotivoBloqueoTrabajador.EsReclamable(documento));
+        return gestionable
+            ? new MotivoBloqueoTrabajador.EntidadAPedir(AmbitoAplicacion.Trabajador, trabajador.TrabajadorId)
+            : null;
+    }
+
+    /// <summary>Bloqueos que ninguna fila de la tabla del Trabajador recoge (documentos de la Empresa o Tipos que no exige este Centro): su motivo y su «Gestionar» no se pierden.</summary>
+    private IReadOnlyList<DocumentacionBloqueantePendienteDto> BloqueosSinFilaDe(TrabajadorAsignacionDocumentacionDto trabajador) =>
+        BloqueosDe(trabajador.TrabajadorId)
+            .Where(b => b.Ambito != AmbitoAplicacion.Trabajador || !trabajador.Documentos.Any(d => d.TipoDocumentoId == b.TipoDocumentoId))
+            .ToList();
+
+    /// <summary>
+    /// Primer nivel de Centro 360 (maqueta: «motivo» de una línea, sin botones): cuántos documentos bloquean el acceso, o el peor
+    /// documento si ninguno bloquea. El detalle y sus acciones viven solo en el desplegable.
+    /// </summary>
+    private string ResumenPrimerNivel(TrabajadorAsignacionDocumentacionDto trabajador)
+    {
+        var nombres = NombresQueBloquean(trabajador);
+        return nombres.Count switch
+        {
+            0 when AlDia(trabajador) => string.Empty,
+            0 => MotivoDocumental(trabajador),
+            1 => Textos["ResumenBloqueoUno360", nombres[0]].Value,
+            _ => Textos["ResumenBloqueoVarios360", nombres[0], nombres.Count - 1].Value
+        };
+    }
+
+    /// <summary>Sin exigencias o con todo vigente: no hay nada que decir en la fila (la píldora ya dice «Vigente»).</summary>
+    private static bool AlDia(TrabajadorAsignacionDocumentacionDto trabajador) =>
+        trabajador.Cumplimiento.Requeridos == 0
+        || EstadoDocumentoFicha360.Clave(trabajador.PeorEstado) == EstadoDocumentoFicha360.Clave(EstadoDocumento.Vigente);
+
+    /// <summary>Los Tipos que bloquean al Trabajador en este Centro (bloqueo de acceso o rechazo/pendiente en plataforma), sin repetir, en el orden en que llegan.</summary>
+    private List<string> NombresQueBloquean(TrabajadorAsignacionDocumentacionDto trabajador) =>
+        BloqueosDe(trabajador.TrabajadorId).Select(b => (b.TipoDocumentoId, Nombre: b.TipoDocumentoNombre))
+            .Concat(trabajador.Documentos.Where(BloqueaPlataforma).Select(d => (d.TipoDocumentoId, Nombre: d.TipoDocumentoNombre)))
+            .DistinctBy(t => t.TipoDocumentoId).Select(t => t.Nombre).ToList();
+
+    /// <summary>Resumen completo para el <c>title</c> del primer nivel: con la línea cortada en pantalla estrecha, se lee entero al pasar el cursor.</summary>
+    private string TituloResumenPrimerNivel(TrabajadorAsignacionDocumentacionDto trabajador)
+    {
+        var nombres = NombresQueBloquean(trabajador);
+        return nombres.Count == 0 ? MotivoDocumental(trabajador) : string.Join(" · ", nombres);
+    }
+
     private bool _pedirVisible;
     private AmbitoAplicacion? _pedirAmbito;
     private Guid? _pedirEntidadId;
@@ -368,6 +445,7 @@ public partial class AcordeonAsignacionesCentro : ComponentBase, IDisposable
         _procesandoBajaLote = false;
         _bajaLoteFallida = false;
         _fechaBajaLote = string.Empty;
+        _fechaBajaLoteNoValida = false;
     }
 
     private async Task CargarAsync()
@@ -870,6 +948,45 @@ public partial class AcordeonAsignacionesCentro : ComponentBase, IDisposable
 
     private Task ManejarAsignacionGuardadaAsync() => ManejarDocumentoGuardadoAsync();
 
+    /// <summary>
+    /// El bloque Empresa está con incidencia (rojo, «Con incidencia») solo si alguno de sus documentos está vencido, pendiente
+    /// o es un bloqueo de la plataforma; con solo documentos por vencer es «Por vencer», en ámbar, igual que la fila del Centro
+    /// (<see cref="IncidenciaCentroDto.HayIncidencia"/>).
+    /// </summary>
+    private bool EmpresaConIncidencia => IncidenciaCentroDto.HayIncidencia(IncidenciasEmpresa);
+
+    private string ClaveCifraEmpresa =>
+        (EmpresaConIncidencia, IncidenciasEmpresa.Count == 1) switch
+        {
+            (true, true) => "EmpresaBloqueCifraUno",
+            (true, false) => "EmpresaBloqueCifraVarios",
+            (false, true) => "EmpresaBloqueCifraPorVencerUno",
+            (false, false) => "EmpresaBloqueCifraPorVencerVarios"
+        };
+
+    private TonoFila TonoBloqueEmpresa => EmpresaConIncidencia ? TonoFila.Peligro : TonoFila.Advertencia;
+
+    private const string SufijoEmpresa = " — Empresa";
+
+    /// <summary>
+    /// Título del documento dentro del bloque EMPRESA. La descripción de la causa (<c>CalculoEstadoCentroService</c>) lleva el
+    /// propietario como sufijo («… — Empresa») para las listas que mezclan ámbitos; bajo el encabezado EMPRESA lo repite, así que
+    /// aquí se omite. Solo presentación: el nombre del tipo de documento no cambia en los datos. El sufijo también puede ir
+    /// seguido de la causa («… — Empresa — rechazado por la plataforma»).
+    /// </summary>
+    public static string TituloDocumentoEmpresa(IncidenciaCentroDto incidencia)
+    {
+        var descripcion = incidencia.Descripcion;
+        if (descripcion.EndsWith(SufijoEmpresa, StringComparison.Ordinal))
+            return descripcion[..^SufijoEmpresa.Length];
+
+        var separador = SufijoEmpresa + " — ";
+        // La última aparición: el sufijo del propietario precede a la causa, y un tipo que contuviera «— Empresa —» en su nombre
+        // no debe llevarse el recorte.
+        var posicion = descripcion.LastIndexOf(separador, StringComparison.Ordinal);
+        return posicion < 0 ? descripcion : descripcion.Remove(posicion, SufijoEmpresa.Length);
+    }
+
     private string TextoVigenciaEmpresa(IncidenciaCentroDto incidencia)
     {
         // Un rechazo en plataforma (Estado: null a propósito, ver
@@ -886,6 +1003,7 @@ public partial class AcordeonAsignacionesCentro : ComponentBase, IDisposable
     private void AbrirConfirmarBajaLoteAsync()
     {
         _fechaBajaLote = DiaDeNegocio.Hoy().ToString("yyyy-MM-dd");
+        _fechaBajaLoteNoValida = false;
         _bajaLoteFallida = false;
         _confirmarBajaLoteVisible = true;
         _instantaneaBajaLote.Fijar(_fechaBajaLote);
@@ -896,7 +1014,15 @@ public partial class AcordeonAsignacionesCentro : ComponentBase, IDisposable
     /// un cambio, pero haberla cambiado sí (es lo que se perdería al salir o al cerrar el
     /// modal con la X, Escape o el fondo).
     /// </summary>
-    private bool HayCambiosSinGuardar => _confirmarBajaLoteVisible && _instantaneaBajaLote.Difiere(_fechaBajaLote);
+    private bool HayCambiosSinGuardar => _confirmarBajaLoteVisible && (_instantaneaBajaLote.Difiere(_fechaBajaLote) || _fechaBajaLoteNoValida);
+
+    /// <summary>
+    /// true mientras la fecha de baja tiene un texto a medias o ilegible (el padre tiene entonces null): la persona ha
+    /// editado el campo y cerrar sin avisar lo perdería, aunque la instantánea también fuera null.
+    /// </summary>
+    private bool _fechaBajaLoteNoValida;
+
+    private void AlCambiarFechaBajaLoteNoValida(bool noValida) => _fechaBajaLoteNoValida = noValida;
 
     /// <summary>
     /// Baja en lote. Tres cosas que el botón no puede garantizar por sí solo:
@@ -931,7 +1057,9 @@ public partial class AcordeonAsignacionesCentro : ComponentBase, IDisposable
         if (_procesandoBajaLote)
             return;
 
-        if (!DateOnly.TryParse(_fechaBajaLote, out var fechaBaja))
+        // Con el texto a medias el padre aún tiene la fecha de hoy: sin el blur previo al clic (Safari no enfoca un botón al
+        // pulsarlo) se daría de baja a los seleccionados con una fecha que no es la que se ve.
+        if (_fechaBajaLoteNoValida || !DateOnly.TryParse(_fechaBajaLote, out var fechaBaja))
         {
             ToastService.Mostrar("Introduce una fecha de baja válida.", TonoToast.Error);
             return;

@@ -57,8 +57,8 @@ public record AlertaDePrincipal(bool LaVe, IReadOnlyList<OperacionEnAlertaDePrin
 /// <para>
 /// Es una <b>consulta sobre el catálogo del Operador CAE</b>, no una notificación: se ve desde
 /// cualquier Tenant activo, porque se resuelve con el Tenant de origen. La ven Coordinador CAE,
-/// Dirección CAE y Administrador del Operador CAE, con el rol leído en Identity sobre el Tenant
-/// de origen, nunca en el claim (<see cref="PerfilQueAsume"/>). Lo que se puede asumir lo vuelve
+/// Dirección CAE y Administrador del Operador CAE: decide el rol efectivo de la sesión en el
+/// Tenant de origen e Identity lo confirma (<see cref="PerfilQueAsume"/>). Lo que se puede asumir lo vuelve
 /// a decidir <see cref="AsumirPrincipalDeOperacionCommand"/>.
 /// </para>
 ///
@@ -84,11 +84,10 @@ public class ObtenerOperacionesSinPrincipalQueryHandler(
 
         using (AmbitoTenantExplicito.Establecer(origen.Value))
         {
-            // Falla cerrado sin rol de negocio en la sesión: Soporte TALVEG nunca es Operador CAE.
-            if (await currentUserService.ObtenerRolEfectivoAsync() is null)
-                return AlertaDePrincipal.Ninguna;
-
-            if (!await PerfilQueAsume.LoTieneAsync(actorId.Value, origen.Value, directorioUsuarios, cancellationToken))
+            // Rol efectivo de la sesión en origen, confirmado por Identity; sin rol de negocio
+            // falla cerrado: Soporte TALVEG nunca es Operador CAE.
+            if (!await PerfilQueAsume.LoTieneAsync(
+                    actorId.Value, origen.Value, currentUserService, directorioUsuarios, cancellationToken))
                 return AlertaDePrincipal.Ninguna;
 
             var operaciones = await catalogo.ObtenerAsignablesAsync(origen.Value, cancellationToken);

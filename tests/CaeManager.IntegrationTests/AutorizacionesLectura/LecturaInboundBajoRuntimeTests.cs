@@ -1,3 +1,4 @@
+using System.Text.RegularExpressions;
 using CaeManager.Application.Common;
 using CaeManager.Application.ContratosAcceso.LecturaInbound;
 using CaeManager.Domain.AutorizacionesLectura;
@@ -31,7 +32,7 @@ namespace CaeManager.IntegrationTests.AutorizacionesLectura;
 /// y de las autorizaciones); W, un destinatario que no es X; Z, otro Tenant de Cliente empresarial que vincula por su
 /// cuenta un contrato suyo con Y. Lo que prueba la base: solo las dos mitades del apretón juntas dan lectura, y solo del
 /// alcance autorizado (sin sustituidos, anonimizados ni eliminados, y sin los de Empresa si la autorización no los
-/// incluye); nunca un tipo de categoría especial de salud; el Tenant lector y el usuario salen del token, no de la GUC;
+/// incluye o si Y no tiene exactamente una Empresa propia no eliminada); nunca un tipo de categoría especial de salud; el Tenant lector y el usuario salen del token, no de la GUC;
 /// cada lectura deja su fila en Y, con el Tenant de origen del usuario, y el runtime no la escribe; el lector no llama
 /// dentro de una transacción; y la vigencia del contrato y de la autorización en SQL es la de
 /// <see cref="ContratoAcceso.VigenteEn"/> y <see cref="AutorizacionLecturaDocumental.VigenteEn"/>.
@@ -83,6 +84,9 @@ public class LecturaInboundBajoRuntimeTests : IAsyncLifetime
     private Guid _salud;
     private Guid _eliminadoDoc;
     private Guid _deContraparte;
+    private Guid _empresaPropia;
+    private Guid _empresaPropiaEliminada;
+    private Guid _tipoDeEmpresa;
 
     public async Task InitializeAsync()
     {
@@ -229,6 +233,7 @@ public class LecturaInboundBajoRuntimeTests : IAsyncLifetime
             _deTrabajadorEliminado = documentos[3].Id; _salud = documentos[4].Id; _eliminadoDoc = documentos[5].Id;
             _deContraparte = documentos[6].Id; _sustituido = documentos[7].Id; _anonimizadoDoc = documentos[8].Id;
             _deTrabajadorAnonimizado = documentos[9].Id; _deEmpresaPropiaEliminada = documentos[10].Id;
+            _empresaPropia = propia.Id; _empresaPropiaEliminada = propiaEliminada.Id; _tipoDeEmpresa = deEmpresa.Id;
         }
     }
 
@@ -641,6 +646,148 @@ public class LecturaInboundBajoRuntimeTests : IAsyncLifetime
             ids.Should().NotContain(documento, motivo);
             (await lector.ArchivoAutorizadoAsync(_vigente.Id, documento)).Should().BeNull(motivo);
         }
+    }
+
+    // ---------- EP-6, opción (d), 2026-11-12: Documentos de Empresa solo con una única Empresa propia no eliminada ----------
+    // La autorización no dice qué Empresa propia de Y expone. Con una sola no hay duda; con dos o más (ampliación de grupo)
+    // la base no devuelve ninguna, en vez de dejar leer la de una sociedad hermana que no es parte del contrato.
+
+    [Fact]
+    public async Task Con_una_unica_Empresa_propia_en_el_Tenant_contratista_se_leen_sus_Documentos_de_Empresa()
+    {
+        // Control positivo: la Empresa propia eliminada del fixture deja de ser propia, así que Y tiene exactamente una.
+        await EmpresaDejaDeSerPropiaAsync(_empresaPropiaEliminada);
+        (await EmpresasPropiasDelContratistaAsync()).Should().Equal([(_empresaPropia, false)],
+            "precondición: Y tiene una sola Empresa propia, y no está eliminada");
+
+        await using var contexto = Contexto(_lector.Id, _usuarioLector);
+        var lector = new LectorDocumentosInboundEnBase(contexto);
+
+        (await lector.DocumentosAutorizadosAsync(_vigente.Id)).Select(d => d.DocumentoId)
+            .Should().BeEquivalentTo([_deEmpresa, _deTrabajador], "el de su única Empresa propia y el del Trabajador asignado");
+        (await lector.ArchivoAutorizadoAsync(_vigente.Id, _deEmpresa))
+            .Should().Be(new ArchivoInboundDto(_deEmpresa, _contratista.Id, "y/empresa.pdf", false));
+    }
+
+    [Fact]
+    public async Task Con_dos_Empresas_propias_no_eliminadas_no_se_lee_ningun_Documento_de_Empresa_y_si_los_de_Trabajador()
+    {
+        var deLaHermana = await AnadirEmpresaPropiaConDocumentoAsync();
+        (await EmpresasPropiasDelContratistaAsync()).Count(e => !e.Eliminada).Should().Be(2,
+            "precondición: Y tiene dos Empresas propias no eliminadas, la del fixture y la sociedad hermana");
+
+        await using var contexto = Contexto(_lector.Id, _usuarioLector);
+        var lector = new LectorDocumentosInboundEnBase(contexto);
+
+        (await lector.DocumentosAutorizadosAsync(_vigente.Id)).Select(d => d.DocumentoId)
+            .Should().BeEquivalentTo([_deTrabajador],
+                "la autorización no dice cuál de las dos expone: ninguna (falla cerrado), y el Trabajador asignado sigue");
+        (await lector.ArchivoAutorizadoAsync(_vigente.Id, _deEmpresa)).Should().BeNull("tampoco se abre el de la primera Empresa propia");
+        (await lector.ArchivoAutorizadoAsync(_vigente.Id, deLaHermana)).Should().BeNull("ni el de la sociedad hermana");
+        (await lector.ArchivoAutorizadoAsync(_vigente.Id, _deTrabajador)).Should().NotBeNull("control: el del Trabajador asignado se abre");
+        (await lector.AutorizacionDelContratoAsync(_vigente.Id))!.IncluyeDocumentosEmpresa
+            .Should().BeTrue("la autorización no cambia: es la base la que no encuentra una única Empresa propia");
+    }
+
+    [Fact]
+    public async Task Con_dos_Empresas_propias_y_una_eliminada_cuenta_una_y_se_leen_los_de_la_activa()
+    {
+        // El fixture tal cual: la Empresa propia y la anterior, eliminada.
+        (await EmpresasPropiasDelContratistaAsync()).Should().Equal([(_empresaPropia, false), (_empresaPropiaEliminada, true)],
+            "precondición: dos Empresas propias en Y, una de ellas eliminada");
+
+        await using var contexto = Contexto(_lector.Id, _usuarioLector);
+        var lector = new LectorDocumentosInboundEnBase(contexto);
+
+        (await lector.DocumentosAutorizadosAsync(_vigente.Id)).Select(d => d.DocumentoId)
+            .Should().BeEquivalentTo([_deEmpresa, _deTrabajador], "la eliminada no cuenta: queda una y se leen los suyos");
+        (await lector.ArchivoAutorizadoAsync(_vigente.Id, _deEmpresa)).Should().NotBeNull("se abre el de la activa");
+        (await lector.ArchivoAutorizadoAsync(_vigente.Id, _deEmpresaPropiaEliminada)).Should().BeNull("y no el de la eliminada");
+    }
+
+    [Fact]
+    public async Task La_migracion_de_Empresa_propia_unica_solo_anade_el_recuento_y_su_Down_solo_lo_quita()
+    {
+        // Como la de fallo cerrado: el SQL de la migración sobre el catálogo ya migrado, dentro de una transacción.
+        var migracion = new LecturaInboundEmpresaPropiaUnica();
+        await using var conexion = new NpgsqlConnection(_cadena);
+        await conexion.OpenAsync();
+        await using var transaccion = await conexion.BeginTransactionAsync();
+
+        var vigente = await DelAlcanceAsync(conexion, transaccion);
+        await EjecutarAsync(conexion, transaccion, migracion.DownOperations.OfType<SqlOperation>().Single().Sql);
+        var anterior = await DelAlcanceAsync(conexion, transaccion);
+        await EjecutarAsync(conexion, transaccion, migracion.UpOperations.OfType<SqlOperation>().Single().Sql);
+
+        (await DelAlcanceAsync(conexion, transaccion)).Should().Be(vigente, "el Up deja la función como la deja la migración");
+        anterior.PropietarioYPermisos.Should().Be(vigente.PropietarioYPermisos, "CREATE OR REPLACE conserva propietario y privilegios");
+        RecuentoDeEmpresasPropias.Matches(vigente.Definicion).Should().HaveCount(1, "la rama de Empresa exige una única Empresa propia");
+        anterior.Definicion.Should().NotContain("count(*)", "el Down vuelve a la versión de AnadeEvidenciasInbound");
+        RecuentoDeEmpresasPropias.Replace(vigente.Definicion, "").Should().Be(anterior.Definicion,
+            "fuera del recuento, el cuerpo, la firma, el lenguaje, la volatilidad y el search_path son los mismos");
+
+        await transaccion.RollbackAsync();
+    }
+
+    private static readonly Regex RecuentoDeEmpresasPropias = new(
+        @"\s+AND \(SELECT count\(\*\) FROM public\.""Empresas"" e2\s+WHERE e2\.""TenantId"" = p_tenant AND e2\.""EsPropia"" AND NOT e2\.""EstaEliminado""\) = 1",
+        RegexOptions.CultureInvariant);
+
+    private static async Task<FuncionInbound> DelAlcanceAsync(NpgsqlConnection conexion, NpgsqlTransaction transaccion)
+    {
+        await using var comando = new NpgsqlCommand(
+            """
+            SELECT pg_get_functiondef(oid), pg_get_userbyid(proowner) || ' ' || COALESCE(proacl::text, '')
+            FROM pg_proc
+            WHERE oid = 'public.app_inbound_documentos_del_alcance(uuid,uuid,boolean)'::regprocedure
+            """, conexion, transaccion);
+        await using var fila = await comando.ExecuteReaderAsync();
+        (await fila.ReadAsync()).Should().BeTrue();
+        return new FuncionInbound(fila.GetString(0), fila.GetString(1));
+    }
+
+    private async Task<List<(Guid Id, bool Eliminada)>> EmpresasPropiasDelContratistaAsync()
+    {
+        // Identidad propietaria: ve también las eliminadas, que el filtro de EF ocultaría.
+        await using var conexion = new NpgsqlConnection(_cadena);
+        await conexion.OpenAsync();
+        await using var comando = new NpgsqlCommand(
+            """
+            SELECT "Id", "EstaEliminado" FROM public."Empresas"
+             WHERE "TenantId" = @tenant AND "EsPropia"
+             ORDER BY "EstaEliminado", "Id"
+            """, conexion);
+        comando.Parameters.AddWithValue("tenant", _contratista.Id);
+        var empresas = new List<(Guid Id, bool Eliminada)>();
+        await using var filas = await comando.ExecuteReaderAsync();
+        while (await filas.ReadAsync())
+            empresas.Add((filas.GetGuid(0), filas.GetBoolean(1)));
+        return empresas;
+    }
+
+    private async Task EmpresaDejaDeSerPropiaAsync(Guid empresa)
+    {
+        // El dominio no tiene la operación inversa de EsPropia; para el control positivo basta con la columna.
+        await using var conexion = new NpgsqlConnection(_cadena);
+        await conexion.OpenAsync();
+        await using var comando = new NpgsqlCommand(
+            """UPDATE public."Empresas" SET "EsPropia" = false WHERE "TenantId" = @tenant AND "Id" = @empresa""", conexion);
+        comando.Parameters.AddWithValue("tenant", _contratista.Id);
+        comando.Parameters.AddWithValue("empresa", empresa);
+        (await comando.ExecuteNonQueryAsync()).Should().Be(1);
+    }
+
+    /// <summary>Una segunda Empresa propia no eliminada en Y (la ampliación de grupo de D-P11), con un Documento de Empresa.</summary>
+    private async Task<Guid> AnadirEmpresaPropiaConDocumentoAsync()
+    {
+        await using var contexto = Contexto(_contratista.Id);
+        var hermana = new Empresa("Sociedad hermana de la contratista", "B10380236");
+        contexto.Empresas.Add(hermana);
+        await contexto.SaveChangesAsync();
+        var documento = Documento.DeEmpresa(hermana.Id, _tipoDeEmpresa, _hoy.AddMonths(-1), VigenciaDocumento.NoCaduca, "y/hermana.pdf");
+        contexto.Documentos.Add(documento);
+        await contexto.SaveChangesAsync();
+        return documento.Id;
     }
 
     [Fact]

@@ -74,7 +74,12 @@ public class CoherenciaDelEstadoDeVigenciaEntreSuperficiesTests : IAsyncLifetime
 
     private readonly string _cadenaConexion = BaseDatosPostgresDePruebas.CadenaConexionUnica();
     private readonly Guid _tenant = Guid.NewGuid();
-    private readonly DateOnly _hoy = DiaDeNegocio.Hoy();
+
+    // El «hoy» del test se toma UNA vez y se fija como día de negocio en InitializeAsync y en cada test (RelojDePrueba):
+    // la tabla de casos se siembra relativa a _hoy y las superficies leen DiaDeNegocio.Hoy() en cada consulta, así que
+    // con el reloj real una ejecución que cruzase la medianoche de Europe/Madrid veía «Vence hoy» como Vencido (issue #2073).
+    private readonly DateTimeOffset _instante = DateTimeOffset.UtcNow;
+    private readonly DateOnly _hoy;
 
     private Guid _centroId;
     private List<Caso> _casos = [];
@@ -138,8 +143,14 @@ public class CoherenciaDelEstadoDeVigenciaEntreSuperficiesTests : IAsyncLifetime
         public static bool ConFecha(EstadoDocumento e) => e is not (EstadoDocumento.SinCaducidad or EstadoDocumento.SinConfirmar);
     }
 
+    public CoherenciaDelEstadoDeVigenciaEntreSuperficiesTests()
+    {
+        _hoy = DiaDeNegocio.De(_instante);
+    }
+
     public async Task InitializeAsync()
     {
+        using var reloj = RelojDePrueba.FijarEn(_instante);
         await using var contexto = CrearContexto();
         await contexto.Database.MigrateAsync();
 
@@ -255,6 +266,7 @@ public class CoherenciaDelEstadoDeVigenciaEntreSuperficiesTests : IAsyncLifetime
     [Fact]
     public async Task La_misma_vigencia_da_el_mismo_estado_en_todas_las_superficies()
     {
+        using var reloj = RelojDePrueba.FijarEn(_instante);
         var fallos = new List<string>();
 
         void Comprobar(string superficie, Caso caso, EstadoDocumento? observado, Func<EstadoDocumento, bool> muestra)
@@ -383,7 +395,7 @@ public class CoherenciaDelEstadoDeVigenciaEntreSuperficiesTests : IAsyncLifetime
             Comprobar("Informe de vigencia", caso, filasInforme.GetValueOrDefault(caso.DocumentoTrabajadorId), Muestra.Todo);
 
         // 8. Calendario de vencimientos: solo lo que tiene fecha.
-        var calendario = new ObtenerVencimientosMesQueryHandler(c, c, c, c, alcance);
+        var calendario = new ObtenerVencimientosMesQueryHandler(c, c, c, c, c, c, c, c, alcance);
         var enCalendario = new Dictionary<Guid, EstadoDocumento>();
         foreach (var mes in Enumerable.Range(-1, 4).Select(delta => new DateOnly(_hoy.Year, _hoy.Month, 1).AddMonths(delta)).Distinct())
         {
@@ -500,6 +512,7 @@ public class CoherenciaDelEstadoDeVigenciaEntreSuperficiesTests : IAsyncLifetime
     [Fact]
     public async Task Los_recuentos_por_estado_coinciden_con_su_filtro_y_varios_estados_devuelven_la_union()
     {
+        using var reloj = RelojDePrueba.FijarEn(_instante);
         await using var c = CrearContexto();
         var alcance = new AlcanceDatosServiceFalso();
         var calculoDocumental = new CalculoEstadoDocumentalService(c, c, c);

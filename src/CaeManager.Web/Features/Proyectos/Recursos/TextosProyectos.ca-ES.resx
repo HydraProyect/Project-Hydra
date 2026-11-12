@@ -19,16 +19,16 @@
     <value>Operación</value>
   </data>
   <data name="DescripcionPagina" xml:space="preserve">
-    <value>Documentación de requerimiento para instalaciones y obras nuevas — distinta de la documentación de acceso de mantenimiento tradicional.</value>
+    <value>Documentació de requeriment per a instal·lacions i obres noves — diferent de la documentació d'accés de manteniment tradicional.</value>
   </data>
   <data name="BotonNuevoProyecto" xml:space="preserve">
-    <value>+ Nuevo proyecto</value>
+    <value>+ Nou projecte</value>
   </data>
   <data name="ErrorCargaTitulo" xml:space="preserve">
-    <value>No pudimos cargar los datos</value>
+    <value>No hem pogut carregar les dades</value>
   </data>
   <data name="ErrorCargaDetalle" xml:space="preserve">
-    <value>Intenta nuevamente en unos segundos.</value>
+    <value>Torna-ho a provar d'aquí a uns segons.</value>
   </data>
   <data name="BotonReintentar" xml:space="preserve">
     <value>Reintentar</value>
@@ -49,10 +49,10 @@
     <value>Cerrados</value>
   </data>
   <data name="PlaceholderBusqueda" xml:space="preserve">
-    <value>Buscar por nombre de proyecto o centro…</value>
+    <value>Cerca per nom de projecte o centre…</value>
   </data>
   <data name="AriaBusqueda" xml:space="preserve">
-    <value>Buscar proyecto</value>
+    <value>Cercar projecte</value>
   </data>
   <data name="ChipBusqueda" xml:space="preserve">
     <value>Búsqueda: &quot;{0}&quot;</value>
@@ -61,31 +61,31 @@
     <value>Estado: {0}</value>
   </data>
   <data name="AriaQuitarBusqueda" xml:space="preserve">
-    <value>Quitar el filtro de búsqueda</value>
+    <value>Treure el filtre de cerca</value>
   </data>
   <data name="AriaQuitarEstado" xml:space="preserve">
-    <value>Quitar el filtro de estado</value>
+    <value>Treure el filtre d'estat</value>
   </data>
   <data name="BotonLimpiarTodo" xml:space="preserve">
-    <value>Limpiar todo</value>
+    <value>Netejar tot</value>
   </data>
   <data name="ErrorProyectosTitulo" xml:space="preserve">
-    <value>No pudimos cargar los proyectos</value>
+    <value>No hem pogut carregar els projectes</value>
   </data>
   <data name="VacioTitulo" xml:space="preserve">
-    <value>Sin proyectos</value>
+    <value>Sense projectes</value>
   </data>
   <data name="VacioDescripcion" xml:space="preserve">
-    <value>Este Cliente todavía no tiene ningún proyecto de obra o instalación.</value>
+    <value>Aquest Client encara no té cap projecte d'obra o instal·lació.</value>
   </data>
   <data name="VacioFiltroTitulo" xml:space="preserve">
-    <value>Ningún proyecto con este filtro</value>
+    <value>Cap projecte amb aquest filtre</value>
   </data>
   <data name="VacioFiltroDescripcion" xml:space="preserve">
     <value>Cap projecte coincideix amb la cerca ni amb l'estat seleccionat.</value>
   </data>
   <data name="BotonQuitarFiltros" xml:space="preserve">
-    <value>Quitar los filtros</value>
+    <value>Treure els filtres</value>
   </data>
   <data name="EtiquetaNombre" xml:space="preserve">
     <value>Nombre</value>
@@ -97,7 +97,7 @@
     <value>Inicio</value>
   </data>
   <data name="EtiquetaFinPrevisto" xml:space="preserve">
-    <value>Fin previsto</value>
+    <value>Fi prevista</value>
   </data>
   <data name="ColumnaAcciones" xml:space="preserve">
     <value>Acciones</value>
@@ -112,40 +112,40 @@
     <value>Cerrado</value>
   </data>
   <data name="AccionCerrarProyecto" xml:space="preserve">
-    <value>Cerrar proyecto</value>
+    <value>Tancar projecte</value>
   </data>
   <data name="MenuEliminar" xml:space="preserve">
     <value>Eliminar</value>
   </data>
   <data name="AriaPanelDetalle" xml:space="preserve">
-    <value>Detalle del proyecto</value>
+    <value>Detall del projecte</value>
   </data>
   <data name="EtiquetaCabeceraPanel" xml:space="preserve">
-    <value>Consulta · Proyecto</value>
+    <value>Consulta · Projecte</value>
   </data>
   <data name="Cargando" xml:space="preserve">
     <value>Cargando…</value>
   </data>
   <data name="DetalleNoDisponible" xml:space="preserve">
-    <value>Proyecto no disponible</value>
+    <value>Projecte no disponible</value>
   </data>
   <data name="TecnicosActivosUno" xml:space="preserve">
-    <value>{0} técnico activo</value>
+    <value>{0} tècnic actiu</value>
   </data>
   <data name="TecnicosActivosVarios" xml:space="preserve">
-    <value>{0} técnicos activos</value>
+    <value>{0} tècnics actius</value>
   </data>
   <data name="AriaCerrarPanel" xml:space="preserve">
-    <value>Cerrar el detalle del proyecto</value>
+    <value>Tancar el detall del projecte</value>
   </data>
   <data name="ErrorCargaDetalleProyecto" xml:space="preserve">
-    <value>No pudimos cargar este proyecto.</value>
+    <value>No hem pogut carregar aquest projecte.</value>
   </data>
   <data name="EtiquetaSecciones" xml:space="preserve">
-    <value>Secciones del proyecto</value>
+    <value>Seccions del projecte</value>
   </data>
   <data name="PestanaInformacion" xml:space="preserve">
-    <value>Información</value>
+    <value>Informació</value>
   </data>
   <data name="PestanaTecnicos" xml:space="preserve">
     <value>Técnicos</value>
@@ -157,13 +157,13 @@
     <value>Cerrado ({0:dd/MM/yyyy})</value>
   </data>
   <data name="EtiquetaTecnicosActivos" xml:space="preserve">
-    <value>Técnicos activos</value>
+    <value>Tècnics actius</value>
   </data>
   <data name="EtiquetaDocumentosGestionados" xml:space="preserve">
-    <value>Documentos gestionados</value>
+    <value>Documents gestionats</value>
   </data>
   <data name="EtiquetaDiasAbiertos" xml:space="preserve">
-    <value>Días abiertos</value>
+    <value>Dies oberts</value>
   </data>
   <data name="EtiquetaNotas" xml:space="preserve">
     <value>Notas</value>
@@ -172,7 +172,7 @@
     <value>Sin notas.</value>
   </data>
   <data name="EtiquetaFinPrevistoOpcional" xml:space="preserve">
-    <value>Fin previsto (opcional)</value>
+    <value>Fi prevista (opcional)</value>
   </data>
   <data name="BotonGuardar" xml:space="preserve">
     <value>Guardar</value>
@@ -181,10 +181,10 @@
     <value>Cancelar</value>
   </data>
   <data name="VacioTecnicosTitulo" xml:space="preserve">
-    <value>Sin técnicos asignados</value>
+    <value>Sense tècnics assignats</value>
   </data>
   <data name="VacioTecnicosDescripcion" xml:space="preserve">
-    <value>Asigna los técnicos que trabajan en esta obra para poder facturarlos por proyecto.</value>
+    <value>Assigna els tècnics que treballen en aquesta obra per poder-los facturar per projecte.</value>
   </data>
   <data name="BadgeActivo" xml:space="preserve">
     <value>Activo</value>
@@ -220,46 +220,46 @@
     <value>Técnico</value>
   </data>
   <data name="OpcionElegirTecnico" xml:space="preserve">
-    <value>Selecciona un técnico…</value>
+    <value>Selecciona un tècnic…</value>
   </data>
   <data name="EtiquetaFechaAlta" xml:space="preserve">
-    <value>Fecha de alta</value>
+    <value>Data d'alta</value>
   </data>
   <data name="BotonAsignar" xml:space="preserve">
     <value>Asignar</value>
   </data>
   <data name="BotonAsignarTecnico" xml:space="preserve">
-    <value>+ Asignar técnico</value>
+    <value>+ Assignar tècnic</value>
   </data>
   <data name="AyudaAdjuntarDocumento" xml:space="preserve">
-    <value>Para adjuntar un documento nuevo, ve a Documentos y selecciona ámbito «Proyecto».</value>
+    <value>Per adjuntar un document nou, ves a Documents i selecciona l'àmbit «Projecte».</value>
   </data>
   <data name="EnlaceIrADocumentos" xml:space="preserve">
-    <value>Ir a Documentos →</value>
+    <value>Ves a Documents →</value>
   </data>
   <data name="DrawerNuevoTitulo" xml:space="preserve">
-    <value>Nuevo proyecto</value>
+    <value>Nou projecte</value>
   </data>
   <data name="OpcionElegirCentro" xml:space="preserve">
-    <value>Selecciona un centro…</value>
+    <value>Selecciona un centre…</value>
   </data>
   <data name="EtiquetaNombreProyecto" xml:space="preserve">
-    <value>Nombre del proyecto</value>
+    <value>Nom del projecte</value>
   </data>
   <data name="EtiquetaFechaInicio" xml:space="preserve">
-    <value>Fecha de inicio</value>
+    <value>Data d'inici</value>
   </data>
   <data name="EtiquetaFinPrevistoOpcionalAlta" xml:space="preserve">
-    <value>Fin previsto (opcional — indefinido si se deja vacío)</value>
+    <value>Fi prevista (opcional — indefinida si es deixa buit)</value>
   </data>
   <data name="BotonCrearProyecto" xml:space="preserve">
-    <value>Crear proyecto</value>
+    <value>Crear projecte</value>
   </data>
   <data name="ModalCerrarExplicacion" xml:space="preserve">
-    <value>Tras cerrarlo, este proyecto dejará de contar como abierto para la facturación por días. Puedes seguir consultando sus técnicos y documentos, y reabrirlo desde su detalle si la fecha no era la correcta.</value>
+    <value>Un cop tancat, aquest projecte deixarà de comptar com a obert per a la facturació per dies. Pots continuar consultant-ne els tècnics i documents, i reobrir-lo des del seu detall si la data no era la correcta.</value>
   </data>
   <data name="EtiquetaFechaCierre" xml:space="preserve">
-    <value>Fecha de cierre</value>
+    <value>Data de tancament</value>
   </data>
   <data name="ConfirmarBajaTecnicoTitulo" xml:space="preserve">
     <value>Vols donar de baixa aquest tècnic?</value>
@@ -268,43 +268,43 @@
     <value>{0} deixarà de comptar en aquest projecte des d'avui per a la facturació per dies. La baixa no es pot desfer des de l'aplicació: si torna a l'obra, assigna'l de nou com a tècnic.</value>
   </data>
   <data name="ConfirmarEliminarTitulo" xml:space="preserve">
-    <value>¿Eliminar este proyecto?</value>
+    <value>Vols eliminar aquest projecte?</value>
   </data>
   <data name="ConfirmarEliminarMensaje" xml:space="preserve">
-    <value>El proyecto {0} dejará de aparecer en las listas. Podrás deshacerlo desde el aviso que aparecerá; después, solo un Administrador de esta organización puede recuperarlo desde Auditoría. Si solo ha terminado, ciérralo en lugar de eliminarlo.</value>
+    <value>El projecte {0} deixarà d'aparèixer a les llistes. Podràs desfer-ho des de l'avís que apareixerà; després, només un Administrador d'aquesta organització pot recuperar-lo des d'Auditoria. Si només ha acabat, tanca'l en lloc d'eliminar-lo.</value>
   </data>
   <data name="ErrorFaltaCentro" xml:space="preserve">
-    <value>Selecciona un centro.</value>
+    <value>Selecciona un centre.</value>
   </data>
   <data name="ErrorFechaInicio" xml:space="preserve">
-    <value>Introduce una fecha de inicio válida.</value>
+    <value>Introdueix una data d'inici vàlida.</value>
   </data>
   <data name="ToastCreado" xml:space="preserve">
-    <value>Proyecto creado correctamente.</value>
+    <value>Projecte creat correctament.</value>
   </data>
   <data name="ErrorCrear" xml:space="preserve">
-    <value>No pudimos crear el proyecto. Intenta nuevamente en unos segundos.</value>
+    <value>No hem pogut crear el projecte. Torna-ho a provar d'aquí a uns segons.</value>
   </data>
   <data name="ToastActualizado" xml:space="preserve">
-    <value>Proyecto actualizado correctamente.</value>
+    <value>Projecte actualitzat correctament.</value>
   </data>
   <data name="ErrorGuardar" xml:space="preserve">
-    <value>No pudimos guardar los cambios. Intenta nuevamente en unos segundos.</value>
+    <value>No hem pogut desar els canvis. Torna-ho a provar d'aquí a uns segons.</value>
   </data>
   <data name="ErrorFechaCierre" xml:space="preserve">
-    <value>Introduce una fecha de cierre válida.</value>
+    <value>Introdueix una data de tancament vàlida.</value>
   </data>
   <data name="ToastCerrado" xml:space="preserve">
-    <value>Proyecto cerrado correctamente.</value>
+    <value>Projecte tancat correctament.</value>
   </data>
   <data name="AccionReabrirProyecto" xml:space="preserve">
-    <value>Reabrir proyecto</value>
+    <value>Reobrir projecte</value>
   </data>
   <data name="ToastReabierto" xml:space="preserve">
-    <value>Proyecto reabierto: vuelve a contar como abierto para la facturación por días.</value>
+    <value>Projecte reobert: torna a comptar com a obert per a la facturació per dies.</value>
   </data>
   <data name="ConfirmarReabrirTitulo" xml:space="preserve">
-    <value>¿Reabrir el proyecto?</value>
+    <value>Vols reobrir el projecte?</value>
   </data>
   <data name="ReabrirEventoExplicacion" xml:space="preserve">
     <value>La data de fi d'aquest esdeveniment ja ha passat. Indica la nova data de fi, d'avui o posterior; si no, es tornaria a tancar sol. Els seus participants no es reactiven: torna a assignar-los.</value>
@@ -316,28 +316,28 @@
     <value>Introdueix una data de fi d'avui o posterior.</value>
   </data>
   <data name="ConfirmarReabrirMensaje" xml:space="preserve">
-    <value>El proyecto {0} volverá a contar como abierto y se borrará su fecha de cierre ({1}). Si solo querías corregir la fecha, vuelve a cerrarlo con la correcta.</value>
+    <value>El projecte {0} tornarà a comptar com a obert i se n'esborrarà la data de tancament ({1}). Si només volies corregir la data, torna a tancar-lo amb la correcta.</value>
   </data>
   <data name="ToastEliminado" xml:space="preserve">
-    <value>Proyecto eliminado.</value>
+    <value>Projecte eliminat.</value>
   </data>
   <data name="ErrorEliminar" xml:space="preserve">
-    <value>No pudimos eliminar el proyecto. Intenta nuevamente en unos segundos.</value>
+    <value>No hem pogut eliminar el projecte. Torna-ho a provar d'aquí a uns segons.</value>
   </data>
   <data name="ErrorFaltaTecnico" xml:space="preserve">
-    <value>Selecciona un técnico.</value>
+    <value>Selecciona un tècnic.</value>
   </data>
   <data name="ErrorFechaAlta" xml:space="preserve">
-    <value>Introduce una fecha de alta válida.</value>
+    <value>Introdueix una data d'alta vàlida.</value>
   </data>
   <data name="ToastTecnicoAsignado" xml:space="preserve">
-    <value>Técnico asignado correctamente.</value>
+    <value>Tècnic assignat correctament.</value>
   </data>
   <data name="ToastTecnicoDeBaja" xml:space="preserve">
-    <value>Técnico dado de baja del proyecto.</value>
+    <value>Tècnic donat de baixa del projecte.</value>
   </data>
   <data name="ErrorDarDeBaja" xml:space="preserve">
-    <value>No pudimos dar de baja al técnico. Intenta nuevamente en unos segundos.</value>
+    <value>No hem pogut donar de baixa el tècnic. Torna-ho a provar d'aquí a uns segons.</value>
   </data>
   <data name="SinEmpresaTitulo" xml:space="preserve">
     <value>Selecciona una empresa de la teva cartera</value>

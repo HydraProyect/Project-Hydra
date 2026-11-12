@@ -76,13 +76,33 @@
     font-variant-numeric: tabular-nums;
 }
 
-/* La acción va en la cuarta columna, pegada a la derecha. */
-.panel-doc-base-con-acciones ::deep .accion-fila-enlace {
+/* «Ver» y «Gestionar» comparten la cuarta columna: una línea de acciones de enlace, pegada a la derecha. */
+.panel-doc-base-acciones {
     grid-column: 4;
     justify-self: end;
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+}
+
+/* El nombre enlaza a la ficha 360 del Documento: conserva el color del texto, pero lleva un subrayado punteado en reposo (no es solo color) y sólido al apuntarlo o enfocarlo. */
+.panel-doc-base-enlace {
+    color: inherit;
+    text-decoration: underline dotted;
+    text-underline-offset: 3px;
+}
+
+.panel-doc-base-enlace:hover,
+.panel-doc-base-enlace:focus-visible {
+    color: var(--color-primary-500);
+    text-decoration: underline;
 }
 
 @container (max-width: 640px) {
+    .panel-doc-base-acciones {
+        grid-column: auto;
+    }
+
     .panel-doc-base-fila {
         grid-template-columns: minmax(0, 1fr) auto auto;
         row-gap: 6px;
@@ -90,10 +110,6 @@
 
     .panel-doc-base-nombre {
         grid-column: 1 / -1;
-    }
-
-    .panel-doc-base-con-acciones ::deep .accion-fila-enlace {
-        grid-column: auto;
     }
 }
 

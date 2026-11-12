@@ -17,6 +17,8 @@
         opacity var(--motion-fast) var(--ease-standard),
         transform var(--motion-fast) var(--ease-standard);
     white-space: nowrap;
+    /* Con Href el botón es un <a>: sin esto el navegador lo subraya como un enlace de texto. */
+    text-decoration: none;
 }
 
 .boton:disabled {

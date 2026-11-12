@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <data name="Capas" xml:space="preserve"><value>Capes</value></data>
+  <data name="CapaFestivos" xml:space="preserve"><value>Festius</value></data>
+  <data name="CapaFestivosTitulo" xml:space="preserve"><value>Segons la ubicació de treball de cada persona</value></data>
+  <data name="CapaIntensiva" xml:space="preserve"><value>Jornada intensiva</value></data>
+  <data name="CapaIntensivaTitulo" xml:space="preserve"><value>Compta com a dia complet</value></data>
+  <data name="FestivosDe" xml:space="preserve"><value>Festius de</value></data>
+  <data name="TodoElEquipo" xml:space="preserve"><value>Tot l’equip</value></data>
+  <data name="NotaPropia" xml:space="preserve"><value>Veus els teus festius.</value></data>
+  <data name="NotaEquipo" xml:space="preserve"><value>Veus els festius del teu equip segons la ubicació de treball de cada persona.</value></data>
+  <data name="SinCatalogoDelAnio" xml:space="preserve"><value>No tenim el calendari oficial de festius de {0}: aquest mes no marca festius ni jornada intensiva.</value></data>
+  <data name="SinFestivosLocales" xml:space="preserve"><value>Els festius locals no estan inclosos.</value></data>
+  <data name="SinFestivosLocalesConIntensiva" xml:space="preserve"><value>Els festius locals no estan inclosos: la jornada intensiva es pot marcar en un festiu local.</value></data>
+  <data name="SinAutonomicos" xml:space="preserve"><value>Sense festius autonòmics al catàleg: {0}. En aquesta ubicació no es marquen ni aquests festius ni la jornada intensiva.</value></data>
+  <data name="FestivoNacional" xml:space="preserve"><value>{0} · nacional</value></data>
+  <data name="FestivoConLugar" xml:space="preserve"><value>{0} · {1}</value></data>
+  <data name="FestivoAccesible" xml:space="preserve"><value>Festiu: {0}</value></data>
+  <data name="IntensivaAccesible" xml:space="preserve"><value>Jornada intensiva · compta com a dia complet</value></data>
+</root>

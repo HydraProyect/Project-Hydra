@@ -42,6 +42,8 @@ public class ClosedXmlPlantillaMaestraService(
     private const string ModalidadConGestion = "Con gestión CAE";
     private const string ModalidadSinGestion = "Sin gestión CAE";
 
+    public byte[] GenerarPlantilla() => PlantillaMaestraEnBlanco.Generar();
+
     public async Task<PlanImportacionMaestraDto> AnalizarAsync(Stream archivo, CancellationToken cancellationToken = default)
     {
         // S-C-4: un .xlsx es un .zip; se inspecciona antes de que ClosedXML lo cargue entero.

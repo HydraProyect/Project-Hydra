@@ -52,6 +52,7 @@ public class ObtenerGestionesQueryHandler(
         // filtrar por estado, de modo que cada cifra diga cuántas quedarían al marcar ese estado. Lleva los dos
         // estados aunque uno no tenga ninguna (0): «no hay» no es «no se contó».
         IReadOnlyDictionary<string, int>? recuentosPorEstado = null;
+        int? totalDeLosRecuentos = null;
         if (request.ConRecuentosPorEstado)
         {
             var filasPorEstado = await consulta
@@ -60,12 +61,17 @@ public class ObtenerGestionesQueryHandler(
                 .ToDictionaryAsync(grupo => grupo.Estado, grupo => grupo.Filas, cancellationToken);
             recuentosPorEstado = Enum.GetValues<EstadoGestion>()
                 .ToDictionary(estado => estado.ToString(), estado => filasPorEstado.GetValueOrDefault(estado));
+            // El total sale del mismo agrupado, sin un count(*) aparte: es la misma consulta, con los mismos filtros
+            // (alcance incluido), y el filtro de estado solo se queda con un grupo. Sin estado, la suma de todos.
+            totalDeLosRecuentos = request.Estado is { } estadoPedido
+                ? filasPorEstado.GetValueOrDefault(estadoPedido)
+                : filasPorEstado.Values.Sum();
         }
 
         if (request.Estado is not null)
             consulta = consulta.Where(x => x.gestion.Estado == request.Estado);
 
-        var total = await consulta.CountAsync(cancellationToken);
+        var total = totalDeLosRecuentos ?? await consulta.CountAsync(cancellationToken);
 
         // Lista blanca de columnas ordenables — ver ObtenerClientesQuery.
         var ordenada = (request.OrdenarPor, request.Descendente) switch

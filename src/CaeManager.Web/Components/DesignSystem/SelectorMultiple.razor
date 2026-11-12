@@ -73,7 +73,7 @@
 </div>
 
 @code {
-    private const int ItemsPorPagina = 20;
+    private const int ItemsPorPaginaPorDefecto = 20;
 
     // Las etiquetas se asocian a su casilla por for/id, además de envolverla (D-08: nombre accesible «on»).
     private static int _contador;
@@ -84,6 +84,11 @@
     private int _paginaActual = 1;
 
     [Parameter] public string? Etiqueta { get; set; }
+    /// <summary>
+    /// Elementos por página. Por defecto 20, la paginación de siempre. Un selector que vive solo en su paso de un formulario por pasos (el contacto de
+    /// agenda) lo sube para no paginar: el «Siguiente» del paginador se confundiría con el del pie del formulario.
+    /// </summary>
+    [Parameter] public int ItemsPorPagina { get; set; } = ItemsPorPaginaPorDefecto;
     [Parameter] public IReadOnlyList<ElementoSeleccionable> Elementos { get; set; } = [];
     [Parameter] public IReadOnlySet<Guid> Seleccionados { get; set; } = new HashSet<Guid>();
     [Parameter] public EventCallback<(Guid Id, bool Marcado)> OnAlternar { get; set; }
@@ -115,7 +120,8 @@
 
     private IReadOnlyList<ElementoSeleccionable> ElementosFiltrados =>
         Elementos
-            .Where(e => string.IsNullOrWhiteSpace(_busqueda) || e.Nombre.Contains(_busqueda, StringComparison.OrdinalIgnoreCase))
+            // Sin mayúsculas ni tildes, como el combobox del kit: «construccion» encuentra «Construcción».
+            .Where(e => string.IsNullOrWhiteSpace(_busqueda) || TextoDeBusqueda.Contiene(e.Nombre, _busqueda.Trim()))
             .Where(e => !SoloRelacionadosEfectivo || EsRelacionado(e.Id))
             .ToList();
 
@@ -129,12 +135,12 @@
     /// <summary>Lleva el foco al campo (p. ej. tras un error de validación al guardar).</summary>
     public async Task EnfocarAsync() => await _raiz.FocusAsync();
 
-    private int TotalPaginas => Math.Max(1, (int)Math.Ceiling(ElementosFiltrados.Count / (double)ItemsPorPagina));
+    private int TotalPaginas => Math.Max(1, (int)Math.Ceiling(ElementosFiltrados.Count / (double)Math.Max(1, ItemsPorPagina)));
 
     private int PaginaActualEfectiva => Math.Clamp(_paginaActual, 1, TotalPaginas);
 
     private IReadOnlyList<ElementoSeleccionable> ElementosPagina =>
-        ElementosFiltrados.Skip((PaginaActualEfectiva - 1) * ItemsPorPagina).Take(ItemsPorPagina).ToList();
+        ElementosFiltrados.Skip((PaginaActualEfectiva - 1) * Math.Max(1, ItemsPorPagina)).Take(Math.Max(1, ItemsPorPagina)).ToList();
 
     private Task CambiarBusquedaAsync(string valor)
     {

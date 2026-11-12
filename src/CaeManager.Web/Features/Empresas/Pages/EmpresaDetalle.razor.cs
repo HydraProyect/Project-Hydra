@@ -8,6 +8,8 @@ using CaeManager.Application.Empresas.Queries.ObtenerClientesDeEmpresa;
 using CaeManager.Application.Empresas.Queries.ObtenerCredencialAccesoEmpresaSinContrasena;
 using CaeManager.Application.Empresas.Queries.ObtenerCumplimientoEmpresa;
 using CaeManager.Application.Empresas.Queries.ObtenerEmpresaPorId;
+using CaeManager.Application.Empresas.Queries.ObtenerEmpresas;
+using CaeManager.Web.Features.Empresas.Components;
 using CaeManager.Application.Trabajadores.Queries.ObtenerTrabajadores;
 using CaeManager.Domain.Documentos;
 using CaeManager.Web.Components.DesignSystem;
@@ -126,8 +128,21 @@ public partial class EmpresaDetalle : CaeManager.Web.Components.PaginaInteractiv
 
     private IReadOnlyList<ClienteDeEmpresaDto>? _clientes;
 
-    /// <summary>Incidencias en plataformas que la pestaña Plataformas leyó (contador de la pestaña, como en la maqueta). Null hasta que se abre.</summary>
+    /// <summary>
+    /// Incidencias en plataformas (contador de la pestaña, como en la maqueta). Las cuenta la carga de la ficha con el universo y la regla de
+    /// <see cref="FilasPlataformasEmpresa"/> —los de la pestaña—, y la pestaña, al cargar, las vuelve a decir. Null hasta que hay dato (o si la
+    /// lectura falla: sin contador, nunca un 0 inventado).
+    /// </summary>
     private int? _incidenciasPlataformas;
+    private int _cargaPlataformas;
+
+    /// <summary>
+    /// La fila de esta Empresa en el listado <c>/empresas</c>: de ahí sale el chip de estado documental de la cabecera, con la misma consulta y,
+    /// por tanto, la misma regla que la lista (peor vigencia de sus documentos con los requisitos obligatorios de los Centros encima). Null si la
+    /// consulta no la devuelve (fuera del listado propio o del alcance) o falla: sin chip, no un estado supuesto.
+    /// </summary>
+    private EmpresaListaDto? _filaDelListado;
+    private int _cargaEstadoDocumental;
     private bool _cargandoClientes;
     private bool _errorClientes;
 
@@ -215,6 +230,9 @@ public partial class EmpresaDetalle : CaeManager.Web.Components.PaginaInteractiv
         {
             if (_detalle is null)
                 return;
+            // El chip lee el mismo estado materializado que los recuentos: si vencía algo de la Empresa, se entera aquí. Va antes que
+            // los Trabajadores, de los que es independiente (cada relectura recoge su propio fallo).
+            await CargarEstadoDocumentalAsync(conservarSiFalla: true);
             await CargarTrabajadoresAsync(soloLaLista: false, conservarSiFalla: true);
             StateHasChanged();
         });
@@ -324,6 +342,8 @@ public partial class EmpresaDetalle : CaeManager.Web.Components.PaginaInteractiv
         _cargaClientes++;
         _cargaAcceso++;
         _cargaContacto++;
+        _cargaPlataformas++;
+        _cargaEstadoDocumental++;
     }
 
     /// <summary>Nada de la Empresa anterior sobrevive al cambio.</summary>
@@ -344,6 +364,7 @@ public partial class EmpresaDetalle : CaeManager.Web.Components.PaginaInteractiv
         _pagina = 1;
         _clientes = null;
         _incidenciasPlataformas = null;
+        _filaDelListado = null;
         _contactoPrincipal = null;
         _cargandoClientes = false;
         _errorClientes = false;
@@ -428,11 +449,35 @@ public partial class EmpresaDetalle : CaeManager.Web.Components.PaginaInteractiv
         await CargarClientesAsync();
         await CargarContactoPrincipalAsync();
 
-        // Mismo motivo que CentroDetalle: OnParametersSetAsync también corre
-        // en el prerenderizado estático, y una tarea sin await ahí queda en
-        // vuelo cuando ASP.NET Core ya liberó el scope de DI.
+        // Guarda defensiva, mismo motivo que CentroDetalle: si la página volviera a
+        // prerenderizarse, OnParametersSetAsync correría también en el SSR estático
+        // y una tarea sin await ahí quedaría en vuelo cuando ASP.NET Core ya liberó
+        // el scope de DI. Hoy la página no se prerenderiza y la condición es siempre cierta.
         if (RendererInfo.IsInteractive && carga == _cargaDetalle)
+        {
             _ = CargarAccesoAsync();
+            _ = CargarChipYContadorAsync(carga);
+        }
+    }
+
+    /// <summary>
+    /// El chip de estado documental y el contador de Plataformas, fuera de la carga principal para que el esqueleto no espere a dos
+    /// consultas (lista y acreditaciones) que solo rellenan un chip y una cifra. Van uno tras otro, independientes del acceso a la
+    /// carpeta (la <c>PuertaAccesoDatos</c> serializa los envíos del circuito); si la ficha cambió de Empresa mientras tanto, se corta,
+    /// y una excepción inesperada no sale como tarea sin observar.
+    /// </summary>
+    private async Task CargarChipYContadorAsync(int cargaDetalle)
+    {
+        try
+        {
+            await CargarEstadoDocumentalAsync();
+            if (cargaDetalle != _cargaDetalle) return;
+            await CargarIncidenciasPlataformasAsync();
+        }
+        catch (Exception ex)
+        {
+            Logger.LogWarning("No se pudo completar el chip o el contador de la Empresa {EmpresaId}: {TipoExcepcion}.", EmpresaId, ex.GetType().Name);
+        }
     }
 
     /// <summary>
@@ -569,7 +614,10 @@ public partial class EmpresaDetalle : CaeManager.Web.Components.PaginaInteractiv
         var proximos = await ContarAsync(empresaId, EstadoDocumento.Proximo, busqueda, conCatalogo);
         if (carga != _cargaTrabajadores) return null;
 
-        return (new RecuentoTrabajadores(primera.TotalElementos, vencidos, urgentes, proximos, pendientes), primera.Elementos);
+        var sinConfirmar = await ContarAsync(empresaId, EstadoDocumento.SinConfirmar, busqueda, conCatalogo);
+        if (carga != _cargaTrabajadores) return null;
+
+        return (new RecuentoTrabajadores(primera.TotalElementos, vencidos, urgentes, proximos, pendientes, sinConfirmar), primera.Elementos);
     }
 
     private static ObtenerTrabajadoresQuery ConsultaOrdenada(Guid empresaId, int pagina, string? busqueda, Guid? delegacionId, Guid? oficioId) =>
@@ -922,6 +970,56 @@ public partial class EmpresaDetalle : CaeManager.Web.Components.PaginaInteractiv
         }
     }
 
+    /// <summary>
+    /// El estado documental de la cabecera: la misma pregunta con la que el listado de Empresas refresca una fila por Id
+    /// (<c>ObtenerEmpresasQuery</c> con <c>EmpresaId</c> y <c>ConRecuentosPorEstado</c>; sin esa marca el handler deja sin estado a quien no
+    /// tiene documentos y la ficha diría «Sin documentos» donde la lista dice «Sin incidencias»). Hereda el alcance del listado. Un fallo no tumba la
+    /// página: sin chip.
+    /// </summary>
+    private async Task CargarEstadoDocumentalAsync(bool conservarSiFalla = false)
+    {
+        var carga = ++_cargaEstadoDocumental;
+        var empresaId = EmpresaId;
+        try
+        {
+            var resultado = await Mediator.Send(
+                new ObtenerEmpresasQuery(Busqueda: null, ConRecuentosPorEstado: true, EmpresaId: empresaId), _cancelacion);
+            if (carga == _cargaEstadoDocumental)
+                _filaDelListado = resultado.Elementos.FirstOrDefault(e => e.Id == empresaId);
+        }
+        catch (Exception ex)
+        {
+            Logger.LogWarning("No se pudo leer el estado documental de la Empresa {EmpresaId}: {TipoExcepcion}.", empresaId, ex.GetType().Name);
+            if (carga == _cargaEstadoDocumental && !conservarSiFalla)
+                _filaDelListado = null;
+        }
+        if (carga == _cargaEstadoDocumental)
+            StateHasChanged();
+    }
+
+    /// <summary>
+    /// Las incidencias del contador de la pestaña Plataformas, contadas sin abrirla: misma petición, mismas filas y misma regla que la pestaña
+    /// (<see cref="FilasPlataformasEmpresa"/>). Un fallo deja la pestaña sin contador, y la pestaña, al abrirla, enseña su propio error.
+    /// </summary>
+    private async Task CargarIncidenciasPlataformasAsync()
+    {
+        var carga = ++_cargaPlataformas;
+        var empresaId = EmpresaId;
+        try
+        {
+            var proveedores = await Mediator.Send(FilasPlataformasEmpresa.Consulta(empresaId), _cancelacion);
+            if (carga == _cargaPlataformas)
+                _incidenciasPlataformas = FilasPlataformasEmpresa.Incidencias(FilasPlataformasEmpresa.Construir(proveedores));
+        }
+        catch (Exception)
+        {
+            if (carga == _cargaPlataformas)
+                _incidenciasPlataformas = null;
+        }
+        if (carga == _cargaPlataformas)
+            StateHasChanged();
+    }
+
     private Task IrAAgendaAsync() => CambiarPestanaAsync(PestanaAgenda);
 
     private async Task CargarClientesAsync()
@@ -1032,18 +1130,18 @@ public partial class EmpresaDetalle : CaeManager.Web.Components.PaginaInteractiv
     [
         new(PestanaTrabajadores, Textos["PestanaTrabajadores"])
         {
-            Contador = _recuentos is { } r ? new ContadorPestana(r.Total, Textos["GlosaTrabajadores"]) : null
+            Contador = _recuentos is { } r ? new ContadorPestana(r.Total, Textos[r.Total == 1 ? "GlosaTrabajadorUno" : "GlosaTrabajadores"]) : null
         },
         new(PestanaVigencia, Textos["PestanaVigencia"]),
         new(PestanaClientes, Textos["PestanaClientes"])
         {
-            Contador = _clientes is { Count: > 0 } clientes ? new ContadorPestana(clientes.Count, Textos["GlosaClientes"]) : null
+            Contador = _clientes is { Count: > 0 } clientes ? new ContadorPestana(clientes.Count, Textos[clientes.Count == 1 ? "GlosaClienteUno" : "GlosaClientes"]) : null
         },
         new(PestanaDocumentacion, Textos["PestanaDocumentacion"]),
         new(PestanaReclamar, Textos["PestanaReclamar"]),
         new(PestanaPlataformas, Textos["PestanaPlataformas"])
         {
-            Contador = _incidenciasPlataformas is > 0 and var incidencias ? new ContadorPestana(incidencias, Textos["GlosaPlataformas"]) : null
+            Contador = _incidenciasPlataformas is > 0 and var incidencias ? new ContadorPestana(incidencias, Textos[incidencias == 1 ? "GlosaPlataformasUna" : "GlosaPlataformas"]) : null
         },
         new(PestanaAgenda, Textos["PestanaAgenda"]),
         .. HayCajasDeFicha ? new[] { new PestanaDefinicion(PestanaFicha, Textos["PestanaFicha"]) } : [],
@@ -1178,8 +1276,15 @@ public enum FiltroTrabajadores
 /// documento ya combinado). Los grupos parten el total: cada trabajador está en uno solo, en el orden de la lista
 /// ordenada por estado (Vencido, Pendiente, Urgente, Próximo y el resto).
 /// </summary>
-public sealed record RecuentoTrabajadores(int Total, int Vencidos, int Urgentes, int Proximos, int Pendientes)
+public sealed record RecuentoTrabajadores(int Total, int Vencidos, int Urgentes, int Proximos, int Pendientes, int SinConfirmar = 0)
 {
+    /// <summary>
+    /// De <see cref="AlDia"/>, los Trabajadores cuyo peor estado es «Sin confirmar» (cuentan como al día, con aviso; decisión del
+    /// propietario del 2026-10-01). Sale de la misma consulta que pinta sus filas, no de una resta: el chip lo dice en voz alta para
+    /// que «Al día · N» no contradiga las filas con la pastilla «Sin confirmar».
+    /// </summary>
+    public int AlDiaSinConfirmar => Math.Min(SinConfirmar, AlDia);
+
     public int SinDocumentacionValida => Vencidos + Pendientes;
     public int PorVencer => Urgentes + Proximos;
     public int AlDia => Math.Max(0, Total - SinDocumentacionValida - PorVencer);

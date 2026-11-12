@@ -55,7 +55,8 @@ namespace CaeManager.Application.Common;
 /// scoped que no implementa <see cref="IDisposable"/>. Una operación todavía
 /// en vuelo cuando el circuito se va simplemente termina con normalidad
 /// —adquiere, ejecuta, libera— aunque ya no quede nadie esperando el
-/// resultado.
+/// resultado; la que escucha <see cref="AlCerrarse"/> recibe además la
+/// petición de terminar cuanto antes.
 /// </para>
 /// <para>
 /// <b>Lo que sí hay que esperar es a la operación, no al semáforo.</b> Que una
@@ -82,11 +83,36 @@ public sealed class PuertaAccesoDatos
     private readonly AsyncLocal<bool> _flujoDentro = new();
     private volatile bool _cerrada;
 
+    // Sin Dispose, por lo mismo que el semáforo: sin temporizador ni WaitHandle
+    // (nunca se lee Token.WaitHandle), no retiene nada no administrado.
+    private readonly CancellationTokenSource _cierre = new();
+
+    // Solo medición (Server-Timing «puerta»): cuánto se espera en la cola del
+    // semáforo. No cambia cuándo se entra ni quién entra.
+    private readonly CosteCarga? _coste;
+
+    public PuertaAccesoDatos()
+    {
+    }
+
+    public PuertaAccesoDatos(CosteCarga coste) => _coste = coste;
+
     /// <summary>
     /// <c>true</c> cuando el scope ya no admite operaciones nuevas (ver
     /// <see cref="CerrarAsync"/>).
     /// </summary>
     public bool Cerrada => _cerrada;
+
+    /// <summary>
+    /// Se cancela al empezar <see cref="CerrarAsync"/>, antes de esperar a la
+    /// operación en vuelo. Es para una operación larga que no debe atarse a la
+    /// vida de un componente (salir de la pantalla no la corta a medias) pero sí
+    /// terminar cuanto antes cuando el circuito se va: así acaba dentro del tope
+    /// de la espera, en vez de seguir después con el <c>DbContext</c> ya
+    /// dispuesto. Nadie más lo usa: una operación que no lo reciba termina como
+    /// siempre.
+    /// </summary>
+    public CancellationToken AlCerrarse => _cierre.Token;
 
     /// <summary>
     /// Cierra la puerta y espera a que la operación en vuelo, si la hay, termine.
@@ -100,7 +126,9 @@ public sealed class PuertaAccesoDatos
     /// cola del semáforo— termina con <see cref="OperationCanceledException"/>
     /// sin ejecutarse; es la misma excepción con la que <c>LoggingBehavior</c>
     /// ya reconoce "el circuito se fue" y no lo cuenta como fallo. Una operación
-    /// que ya tenía la puerta —y las anidadas de su mismo flujo— sí termina.
+    /// que ya tenía la puerta —y las anidadas de su mismo flujo— sí termina; si
+    /// escucha <see cref="AlCerrarse"/>, se le pide que lo haga cuanto antes, y
+    /// se le pide antes de empezar a esperarla.
     /// </para>
     ///
     /// <para>
@@ -114,6 +142,14 @@ public sealed class PuertaAccesoDatos
     public async Task<bool> CerrarAsync(TimeSpan esperaMaxima)
     {
         _cerrada = true;
+        try
+        {
+            _cierre.Cancel();
+        }
+        catch (AggregateException)
+        {
+            // Un callback de quien escuchaba AlCerrarse lanzó: no puede impedir el cierre.
+        }
 
         if (!await _puerta.WaitAsync(esperaMaxima))
             return false;
@@ -135,7 +171,9 @@ public sealed class PuertaAccesoDatos
         if (_cerrada)
             throw new OperationCanceledException(MensajePuertaCerrada);
 
+        var inicioEspera = System.Diagnostics.Stopwatch.GetTimestamp();
         await _puerta.WaitAsync(cancellationToken);
+        _coste?.RegistrarEsperaPuerta(System.Diagnostics.Stopwatch.GetElapsedTime(inicioEspera));
         // SemaphoreSlim.WaitAsync puede conceder el semáforo aunque el token ya
         // estuviera cancelado en el momento del Release() de quien lo tenía: es
         // una carrera de la propia BCL entre "cancelar" y "liberar", no algo que

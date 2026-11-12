@@ -60,7 +60,8 @@ public static class ErroresPropuestaApoyo
         "La fecha de fin de ese apoyo ya ha pasado; la propuesta se ha anulado.");
 
     public static readonly Error FechaDeFinNoValida = Error.Crear(
-        "PropuestaApoyo.FechaDeFinNoValida", "La fecha de fin del apoyo no puede ser anterior a hoy.");
+        "PropuestaApoyo.FechaDeFinNoValida",
+        "La fecha de fin del apoyo tiene que ser de hoy en adelante y anterior al 31/12/9999 (sin fecha de fin, el acceso no tiene fin).");
 
     public static readonly Error ApoyoNoEncontrado = Error.Crear(
         "PropuestaApoyo.ApoyoNoEncontrado", "No encontramos ese acceso de apoyo.");

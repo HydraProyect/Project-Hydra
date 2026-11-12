@@ -322,6 +322,13 @@ public class ReglasDeNegocioSinCopiasTests
         // Inbound M1, PR 4: la misma función reescrita con CREATE OR REPLACE para la excepción de salud (Up) y restaurada
         // en su versión de la PR 3 (Down), con la regla idéntica en las dos.
         ["src/CaeManager.Migrations.PostgreSQL/Migrations/20261023195346_AnadeEvidenciasInbound.cs"] = 2,
+        // EP-6, opción (d): la misma función reescrita para exigir una sola Empresa propia en la rama de Empresa (Up) y
+        // restaurada en su versión de la PR 4 (Down), con la regla operativa idéntica en las dos.
+        ["src/CaeManager.Migrations.PostgreSQL/Migrations/20261112170000_LecturaInboundEmpresaPropiaUnica.cs"] = 2,
+        // Gestión automática (segunda ronda de Codex sobre la PR #2072): la cabecera necesita saber si el Documento de la
+        // Gestión ya está sustituido para no darla por abierta (GestionAutomatica.ResolverEstado). No filtra Documentos ni
+        // pregunta si están en uso: la Gestión se lista igual, y la mitad «no eliminado» no aplica a esta pregunta.
+        ["src/CaeManager.Application/Gestiones/Queries/GestionesAutomaticas/GestionesAutomaticasQueries.cs"] = 1,
     };
 
     [Fact]
@@ -401,7 +408,6 @@ public class ReglasDeNegocioSinCopiasTests
         ["src/CaeManager.Application/Comunicaciones/Queries/ObtenerConversacionPorId/ObtenerConversacionPorIdQuery.cs"] = 2,
         ["src/CaeManager.Application/Comunicaciones/Deteccion/ClasificacionRuidoMensajeService.cs"] = 1,
         ["src/CaeManager.Application/Visitas/Antelacion/EvaluadorExpedienteVisitaService.cs"] = 1,
-        ["src/CaeManager.Application/Documentos/Commands/RestaurarDocumento/RestaurarDocumentoCommand.cs"] = 1,
         // Una reclamación enviada nombra Documentos que pudieron renovarse después: se resuelve su Trabajador por Id
         // para derivar a qué Empresa empleadora y Delegación se envió, sea o no operativo hoy.
         // Y a qué Clientes empresariales llegó una reclamación a la Empresa empleadora (rastro de Centro 360): por las líneas que
@@ -415,6 +421,12 @@ public class ReglasDeNegocioSinCopiasTests
         // Historial de Centro 360 (bloque 3 del 21-10): un cambio de estado anotado sobre una versión ya renovada sigue
         // siendo un hecho del Historial; el Documento solo da su tipo y su titular, no decide estado ni cifras.
         ["src/CaeManager.Application/Centros/Queries/ObtenerCambiosEstadoPlataformaDeCentro/ObtenerCambiosEstadoPlataformaDeCentroQuery.cs"] = 1,
+        // Gestión automática (§ 4.1 de la especificación de Gestión de varios pasos): una Gestión Sustituida sigue
+        // listándose y abriéndose con el Documento renovado que la hizo nacer, así que su Documento se resuelve por Id
+        // aunque ya no sea operativo; la ficha dice si lo es con `.Operativos()`. No decide estado ni cifras de Documentos:
+        // que su Documento esté sustituido solo hace Sustituida a la Gestión que siga abierta (GestionAutomatica.ResolverEstado).
+        ["src/CaeManager.Application/Gestiones/Queries/GestionesAutomaticas/GestionesAutomaticasQueries.cs"] = 2,
+        ["src/CaeManager.Application/Gestiones/Queries/GestionesAutomaticas/PasosVisiblesDeGestionesAutomaticas.cs"] = 1,
 
         // --- Verificación y revisión de IA: el análisis tardío de un histórico se registra sin mutarlo (PR 4). ---
         ["src/CaeManager.Application/Documentos/Verificacion/VerificacionIaDocumentoService.cs"] = 1,
@@ -473,6 +485,9 @@ public class ReglasDeNegocioSinCopiasTests
         ["src/CaeManager.Application/Documentos/DocumentoEfectivo.cs"] = 2,
         // Documento 360, pestaña Versiones: presenta el historial de versiones por emisión descendente (otra pregunta: no elige un efectivo).
         ["src/CaeManager.Application/Documentos/Queries/ObtenerFichaDocumento360/ObtenerFichaDocumento360Query.cs"] = 1,
+        // Unir PDF, selector de Documentos de la Empresa gestionada: lista cada Documento (todas las versiones) para que el Gestor CAE
+        // elija cuál añadir al paquete; presenta filas por emisión descendente, no elige un efectivo por par (tipo + sujeto).
+        ["src/CaeManager.Application/HerramientasPdf/ListarDocumentosParaUnirQuery.cs"] = 1,
         // La lista de Documentos ya no escribe a mano ningún orden por emisión (2026-10-19, lista 1:1 con Design):
         // la entrada de ObtenerDocumentosQuery.cs se retira. El orden por emisión sigue en ObtenerDocumentosQuery.cs (rama por
         // defecto del orden, junto a la clave FechaEmision), pero a través del helper OrdenarPor, que el detector no ve como orden escrito a mano.

@@ -73,6 +73,16 @@ public partial class DrawerGestionDocumento : ComponentBase
     private string _fechaEmision = string.Empty;
     private DateOnly? _fechaEmisionOriginal;
     private string _fechaVencimientoManual = string.Empty;
+
+    /// <summary>
+    /// El vencimiento manual tiene un texto que no es una fecha entera: entonces entrega «», y «» aquí se guardaría como
+    /// «sin vencimiento» (o lo borraría al renovar). Guardar se bloquea mientras sea true; el campo recién creado vuelve a
+    /// avisar su estado, así que no queda una marca obsoleta si se destruye (otro tipo de documento) y se vuelve a crear.
+    /// </summary>
+    private bool _vencimientoManualNoValido;
+
+    /// <summary>La fecha de emisión tiene un texto que no es una fecha entera (ver BloquearGuardadoSiVencimientoNoValido).</summary>
+    private bool _emisionNoValida;
     private bool _noCaduca;
     private string? _glosarioDescripcion;
     private string? _glosarioCriteriosValidacion;
@@ -194,6 +204,7 @@ public partial class DrawerGestionDocumento : ComponentBase
         _fechaEmision = DiaDeNegocio.Hoy().ToString("yyyy-MM-dd");
         _fechaEmisionOriginal = null;
         _fechaVencimientoManual = string.Empty;
+        _vencimientoManualNoValido = false; _emisionNoValida = false;
         _noCaduca = false;
         _archivoUrl = null;
         _archivoUrlDelDocumento = null;
@@ -422,6 +433,7 @@ public partial class DrawerGestionDocumento : ComponentBase
         _fechaEmision = documento.FechaEmision.ToString("yyyy-MM-dd");
         _fechaEmisionOriginal = documento.FechaEmision;
         _fechaVencimientoManual = documento.FechaVencimiento?.ToString("yyyy-MM-dd") ?? string.Empty;
+        _vencimientoManualNoValido = false; _emisionNoValida = false;
         // Renovar sin tocar la vigencia no puede perder la confirmación de
         // «no caduca»: se precarga y viaja de vuelta en el comando.
         _noCaduca = documento.EstadoVigencia == EstadoVigenciaDocumento.NoCaduca;
@@ -476,6 +488,14 @@ public partial class DrawerGestionDocumento : ComponentBase
         _glosarioCriteriosValidacion = tipo?.CriteriosValidacion;
         _glosarioSeSolicitaA = tipo?.SeSolicitaA;
         _glosarioObservaciones = tipo?.Observaciones;
+
+        // Con un tipo de vencimiento automático el campo de vencimiento ya no existe, pero su marca se conserva: si se vuelve
+        // a un tipo manual, el campo recreado nace con ella y su aviso (CampoFecha.NoValido), en vez de nacer vacío y sin
+        // marca y dejar guardar el Documento sin el vencimiento que se estaba escribiendo. La guarda de Guardar solo la
+        // aplica con un tipo que use el campo. El aviso del formulario sí se quita si ya no queda ninguna fecha a la vista
+        // que corregir. La emisión no se toca: su campo sigue ahí.
+        if (!RequiereVencimientoManual && !_emisionNoValida && _mensajeErrorFormulario == Comunes["CampoFechaCorregirAntes"])
+            _mensajeErrorFormulario = null;
     }
 
     /// <summary>
@@ -484,11 +504,15 @@ public partial class DrawerGestionDocumento : ComponentBase
     /// drawer cerrado (también tras guardar) nunca hay nada que perder. Subir un archivo
     /// cambia _archivoUrl, así que también cuenta; y mientras la subida está en curso
     /// (lectura, conversión, almacenamiento) _archivoUrl aún no ha cambiado, así que la
-    /// subida en curso cuenta por sí misma.
+    /// subida en curso cuenta por sí misma. Un vencimiento a medias no cambia el valor del formulario («»), pero es
+    /// texto que se pierde al salir.
     /// </summary>
     private bool HayCambiosSinGuardar =>
         _drawerVisible
-        && (_subiendoArchivo || (_instantaneaAlAbrir is not null && InstantaneaFormulario() != _instantaneaAlAbrir));
+        && (_subiendoArchivo
+            || (_vencimientoManualNoValido && RequiereVencimientoManual)
+            || _emisionNoValida
+            || (_instantaneaAlAbrir is not null && InstantaneaFormulario() != _instantaneaAlAbrir));
 
     private string InstantaneaFormulario() => string.Join('\u001f',
         _ambitoAplicacion, _trabajadorId, _clienteId, _empresaId, _vehiculoId, _proyectoId,
@@ -844,6 +868,7 @@ public partial class DrawerGestionDocumento : ComponentBase
         _seguirTrasGuardar = seguir;
 
         if (BloquearGuardadoSiArchivoNoAdjuntado()) return;
+        if (BloquearGuardadoSiVencimientoNoValido()) return;
 
         if (_editandoId is not null
             && _fechaEmisionOriginal is not null
@@ -942,9 +967,43 @@ public partial class DrawerGestionDocumento : ComponentBase
         QuitarBloqueoArchivoNoAdjuntado();
     }
 
+    /// <summary>
+    /// Un vencimiento a medias o ilegible llega como «»: guardarlo crearía el Documento sin vencimiento (o borraría el que
+    /// tenía al renovar) sin que nadie lo decidiera. Solo cuenta si el tipo pide el vencimiento a mano, que es cuando el
+    /// campo existe.
+    /// </summary>
+    /// <remarks>
+    /// La emisión a medias también: ya llega como «» (Guardar la rechazaría y el vencimiento automático no se calcula de la
+    /// emisión anterior), y la marca da el aviso de corregirla antes de llegar ahí.
+    /// </remarks>
+    private bool BloquearGuardadoSiVencimientoNoValido()
+    {
+        if (!_emisionNoValida && (!_vencimientoManualNoValido || !RequiereVencimientoManual)) return false;
+
+        _erroresCampo = new Dictionary<string, string>();
+        _mensajeErrorFormulario = Comunes["CampoFechaCorregirAntes"];
+        return true;
+    }
+
+    // Al volver a ser una fecha entera (o quedar vacía), el aviso de un envío anterior ya no es cierto.
+    private void AlCambiarEmisionNoValida(bool noValida)
+    {
+        _emisionNoValida = noValida;
+        if (!noValida && (!_vencimientoManualNoValido || !RequiereVencimientoManual) && _mensajeErrorFormulario == Comunes["CampoFechaCorregirAntes"])
+            _mensajeErrorFormulario = null;
+    }
+
+    private void AlCambiarVencimientoManualNoValido(bool noValido)
+    {
+        _vencimientoManualNoValido = noValido;
+        if (!noValido && !_emisionNoValida && _mensajeErrorFormulario == Comunes["CampoFechaCorregirAntes"])
+            _mensajeErrorFormulario = null;
+    }
+
     private async Task GuardarInternoAsync()
     {
         if (BloquearGuardadoSiArchivoNoAdjuntado()) return;
+        if (BloquearGuardadoSiVencimientoNoValido()) return;
 
         _guardando = true;
         _mensajeErrorFormulario = null;

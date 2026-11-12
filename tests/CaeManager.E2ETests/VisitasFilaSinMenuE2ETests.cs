@@ -26,7 +26,7 @@ public partial class VisitasFilaSinMenuE2ETests(WebAppFixtureListados fixture)
 
     /// <summary>
     /// Abre /visitas y da de alta una Visita propia del test, por la interfaz, en el primer Centro
-    /// que ofrece el formulario y con el primer Trabajador de su lista. La fecha, lejana y al azar,
+    /// que ofrece el formulario y con el primer Trabajador asignado a ese Centro. La fecha, lejana y al azar,
     /// es lo que distingue su fila: ningún localizador depende de la siembra ni de las Visitas que
     /// dejen otros tests en ese Centro.
     /// </summary>
@@ -46,7 +46,13 @@ public partial class VisitasFilaSinMenuE2ETests(WebAppFixtureListados fixture)
         await alta.GetByLabel("Centro", new LocatorGetByLabelOptions { Exact = true }).SelectOptionAsync(new SelectOptionValue { Index = 1 });
         await alta.GetByLabel("Fecha de inicio", new LocatorGetByLabelOptions { Exact = true }).FillAsync(fecha.ToString("yyyy-MM-dd"));
         await alta.GetByLabel("Fecha de fin", new LocatorGetByLabelOptions { Exact = true }).FillAsync(fecha.ToString("yyyy-MM-dd"));
-        // CrearVisitaCommandValidator exige al menos un Trabajador que entre: vale cualquiera, el primero.
+        // CrearVisitaCommandValidator exige al menos un Trabajador que entre, y no vale cualquiera: solo
+        // entran los de la Empresa del Centro o de sus Subcontratas (TrabajadoresAdmisiblesEnVisita). El
+        // selector ofrece toda la cartera hasta que, ya elegido el Centro, llega la consulta de sus
+        // asignados y marca «Solo mostrar relacionados». Marcar el primero antes de eso podía coger un
+        // Trabajador de otra Empresa, que el servidor rechaza y deja el diálogo abierto (#2076).
+        await Expect(alta.GetByRole(AriaRole.Checkbox, new LocatorGetByRoleOptions { Name = "Solo mostrar relacionados", Exact = true }))
+            .ToBeCheckedAsync();
         await alta.Locator(".lista-seleccion-multiple input[type=checkbox]").First.CheckAsync();
         await alta.GetByRole(AriaRole.Button, new LocatorGetByRoleOptions { Name = "Guardar", Exact = true }).ClickAsync();
         await Expect(alta).ToBeHiddenAsync();
@@ -208,8 +214,9 @@ public partial class VisitasFilaSinMenuE2ETests(WebAppFixtureListados fixture)
 
         var formulario = FormularioEdicion(page);
         await Expect(formulario).ToBeVisibleAsync();
+        // El campo de fecha (CampoFecha) enseña dd/mm/aaaa, no el ISO del antiguo input type="date".
         await Expect(formulario.GetByLabel("Fecha de inicio", new LocatorGetByLabelOptions { Exact = true }))
-            .ToHaveValueAsync(DateOnly.ParseExact(fechas.Trim(), "dd/MM/yyyy").ToString("yyyy-MM-dd"));
+            .ToHaveValueAsync(DateOnly.ParseExact(fechas.Trim(), "dd/MM/yyyy").ToString("dd/MM/yyyy", System.Globalization.CultureInfo.InvariantCulture));
     }
 
     [Fact]

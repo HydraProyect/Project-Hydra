@@ -16,7 +16,7 @@
         </p>
         <div class="revision-ia-reglas" aria-label="Criterios de la cola">
             <span>Ordenadas por confianza ascendente</span>
-            <span>@Textos["RevIaReglaBloque"]</span>
+            <span>@Textos["RevIaReglaBloque", _confianzaMinima]</span>
         </div>
     </div>
     @if (_fallosBloque.Count > 0)
@@ -315,7 +315,8 @@
         @if (RevisionSeleccionada is { } seleccionada)
         {
             <p>@seleccionada.PropietarioNombre · @seleccionada.TipoDocumentoNombre</p>
-            <CampoTexto Etiqueta="Fecha de emisión" Type="date" Valor="@_fechaEmisionManual" ValorChanged="v => { _fechaEmisionManual = v; _errorFechaManual = null; }" MensajeError="@_errorFechaManual" />
+            <CampoTexto Etiqueta="Fecha de emisión" Type="date" Valor="@_fechaEmisionManual" ValorChanged="v => { _fechaEmisionManual = v; _errorFechaManual = null; }" MensajeError="@_errorFechaManual"
+                        FechaNoValida="_emisionManualNoValida" FechaNoValidaChanged="v => _emisionManualNoValida = v" />
             <p class="revision-ia-consecuencia">La IA leyó: @Fecha(seleccionada.FechaEmisionDetectada)</p>
             <p class="revision-ia-consecuencia">Guardar corrige la fecha y cierra el aviso en una sola operación. El vencimiento se recalcula solo cuando el tipo lo hace automáticamente.</p>
         }

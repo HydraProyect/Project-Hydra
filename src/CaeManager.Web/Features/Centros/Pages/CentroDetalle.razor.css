@@ -52,6 +52,18 @@
     min-width: 260px;
 }
 
+/*
+  A 375 px la cabecera compartida pasa a columna (CabeceraIdentidad.razor.css, max-width: 600px): el 1 1 300px de arriba
+  deja de ser un ancho mínimo y se convierte en una ALTURA de 300 px para el bloque del nombre (medido: tarjeta de 518 px
+  con ~165 px vacíos entre el nombre y «Programar visita»). En columna el bloque mide lo que su contenido.
+*/
+@media (max-width: 600px) {
+    .contenedor-pagina ::deep .cabecera-identidad-texto {
+        flex: none;
+        min-width: 0;
+    }
+}
+
 .contenedor-pagina ::deep .cabecera-identidad-acciones {
     flex-shrink: 1;
     max-width: 100%;
@@ -62,6 +74,174 @@
     height: 84px;
 }
 
+
+/*
+  Pestaña «Requisitos» (maqueta Centro360.dc.html): barra con «Filtrar requisitos» y «Gestionar requisitos», y dos bloques
+  —Empresa y Trabajador— en dos columnas, o apilados cuando no caben dos de 20 rem. Ningún nombre se corta: se parte en líneas.
+*/
+.centro-requisitos-barra {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-3);
+}
+
+.centro-requisitos-intro {
+    margin: var(--space-2) 0 var(--space-4);
+    color: var(--color-text-muted);
+    font: var(--font-label-md);
+    font-weight: 400;
+}
+
+.centro-requisitos-bloques {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 20rem), 1fr));
+    gap: var(--space-4);
+    align-items: start;
+}
+
+.centro-requisitos-bloque {
+    min-width: 0;
+    overflow: hidden;
+    background: var(--color-surface);
+    border: var(--border-default);
+    border-radius: var(--radius-lg);
+}
+
+.centro-requisitos-cabecera {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+    min-height: 3.5rem;
+    padding: 0 var(--space-5);
+    cursor: pointer;
+    list-style: none;
+}
+
+.centro-requisitos-cabecera::-webkit-details-marker {
+    display: none;
+}
+
+.centro-requisitos-cabecera:focus-visible {
+    outline: var(--border-focus);
+    outline-offset: -2px;
+}
+
+.centro-requisitos-titulo {
+    margin: 0;
+    font: var(--font-heading-sm);
+    overflow-wrap: anywhere;
+}
+
+.centro-requisitos-chevron {
+    margin-left: auto;
+    display: inline-flex;
+    color: var(--color-text-muted);
+    /* Regla de los chevrons de desplegar (2026-10-18): cerrado a la derecha, abierto hacia abajo. */
+    transition: transform var(--motion-transition) var(--ease-fluid);
+    transform: rotate(-90deg);
+}
+
+.centro-requisitos-bloque[open] > .centro-requisitos-cabecera .centro-requisitos-chevron {
+    transform: rotate(0deg);
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .centro-requisitos-chevron {
+        transition: none;
+    }
+}
+
+.centro-requisito {
+    display: flex;
+    align-items: flex-start;
+    gap: var(--space-3);
+    padding: 0.625rem var(--space-5);
+    border-top: var(--border-default);
+}
+
+.centro-requisito-texto {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+}
+
+.centro-requisito-nombre {
+    font: var(--font-body-md);
+    color: var(--color-text);
+    text-decoration: none;
+    overflow-wrap: anywhere;
+}
+
+.centro-requisito-nombre-bloquea {
+    font-weight: 600;
+}
+
+.centro-requisito-nombre:hover {
+    color: var(--color-primary-500);
+    text-decoration: underline;
+}
+
+.centro-requisito-nombre:focus-visible {
+    outline: var(--border-focus);
+    outline-offset: 1px;
+}
+
+/* «Tolerancia: N días» siempre en su propia línea bajo el nombre. */
+.centro-requisito-meta {
+    display: block;
+    margin-top: 0.125rem;
+    font: var(--font-label-md);
+    font-weight: 400;
+    color: var(--color-text-muted);
+    overflow-wrap: anywhere;
+}
+
+.centro-requisito-estado {
+    flex: none;
+}
+
+.centro-requisito-no-bloquea {
+    font: var(--font-label-md);
+    font-weight: 400;
+    color: var(--color-text-muted);
+    text-align: right;
+    max-width: 8rem;
+}
+
+.centro-requisitos-vacio {
+    margin: 0;
+    padding: var(--space-3) var(--space-5);
+    border-top: var(--border-default);
+    color: var(--color-text-muted);
+    font: var(--font-body-md);
+}
+
+.centro-requisitos-mas {
+    display: flex;
+    align-items: center;
+    width: 100%;
+    min-height: 2.75rem;
+    padding: 0 var(--space-5);
+    border: 0;
+    border-top: var(--border-default);
+    background: none;
+    color: var(--color-primary-500);
+    font: var(--font-label-md);
+    text-align: left;
+    cursor: pointer;
+}
+
+.centro-requisitos-mas:hover {
+    text-decoration: underline;
+}
+
+.centro-requisitos-mas:focus-visible {
+    outline: var(--border-focus);
+    outline-offset: -2px;
+}
 
 .centro-documentacion-intro {
     margin: 0 0 var(--space-3);
@@ -83,7 +263,11 @@
 .centro-documentacion-cabecera,
 .centro-documentacion-fila {
     display: grid;
-    grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr) 96px 56px minmax(150px, auto);
+    /* Cabecera y filas son rejillas distintas que comparten esta definición: ninguna pista se resuelve por contenido (con «auto»
+       las columnas dejarían de caer bajo su rótulo). Caducidad, Bloquea y Acción, de ancho fijo y ajustado (Acción es la
+       «acción 128 px» de la maqueta, con «Ver» bajo el botón de estado); el resto del ancho es para Documento (con su Empresa)
+       y para el estado en la plataforma, en 1,7 a 1,1 (antes 1 a 1,2, y Documento quedaba en ~180 px con la Empresa en tres líneas). */
+    grid-template-columns: minmax(0, 1.7fr) minmax(0, 1.1fr) 88px 56px 132px;
     gap: var(--space-3);
     align-items: center;
     color: var(--color-text-muted);
@@ -125,6 +309,23 @@
 
 .centro-documentacion-empresa {
     gap: 4px;
+}
+
+/* Nombre del documento: enlace a su ficha 360, con el color y el peso del texto que sustituye. */
+.centro-documentacion-enlace {
+    color: inherit;
+    text-decoration: none;
+}
+
+.centro-documentacion-enlace:hover {
+    color: var(--color-primary-500);
+    text-decoration: underline;
+}
+
+.centro-documentacion-enlace:focus-visible {
+    outline: var(--border-focus);
+    outline-offset: 2px;
+    border-radius: var(--radius-sm);
 }
 
 .centro-documentacion-empresa .enlace-nombre-fila {
@@ -253,4 +454,39 @@
 .centro-documentacion-grupo ::deep .grupo-lista {
     border: 0;
     border-radius: 0;
+}
+
+/*
+  Datos copiables de «Información» y de la pestaña «Ficha» (la dirección, los teléfonos, el correo): el botón de copiar
+  lleva `white-space: nowrap`, y una dirección larga llegaba al borde de la tarjeta y se cortaba. Aquí el dato envuelve
+  y se alinea a la izquierda, como el resto de valores de la rejilla.
+*/
+.contenedor-pagina ::deep .dato-rejilla-valor .boton-copiar-en-linea {
+    min-width: 0;
+    max-width: 100%;
+    white-space: normal;
+    overflow-wrap: anywhere;
+    text-align: left;
+}
+
+/*
+  Cajas de la pestaña «Ficha»: un solo flujo de dos columnas (.ficha-cols de la maqueta «Páginas 360 nuevas»), de arriba
+  abajo y sin partir una caja. La rejilla de CajasFicha (modo editable) alinea las filas a la caja más alta y dejaba huecos
+  blancos bajo las más bajas. El orden del DOM —el que arrastra el usuario— no cambia.
+*/
+.centro-ficha-canales ::deep .cajas-ficha-editables {
+    display: block;
+    columns: 2;
+    column-gap: var(--space-4);
+}
+
+.centro-ficha-canales ::deep .cajas-ficha-editables .cajas-ficha-caja {
+    break-inside: avoid;
+    margin: 0 0 var(--space-4);
+}
+
+@media (max-width: 900px) {
+    .centro-ficha-canales ::deep .cajas-ficha-editables {
+        columns: 1;
+    }
 }

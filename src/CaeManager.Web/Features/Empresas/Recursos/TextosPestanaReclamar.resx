@@ -44,18 +44,6 @@
     <value>Trabajadores afectados</value>
     <comment>Rótulo del recuento de Trabajadores con algo que reclamar.</comment>
   </data>
-  <data name="TileVencidos" xml:space="preserve">
-    <value>Vencidos · Trabajadores</value>
-    <comment>Ficha de recuento que filtra por Vencido.</comment>
-  </data>
-  <data name="TilePorVencer" xml:space="preserve">
-    <value>Por vencer · Trabajadores</value>
-    <comment>Ficha de recuento que filtra por Por vencer.</comment>
-  </data>
-  <data name="TilePendientes" xml:space="preserve">
-    <value>Pendientes · Trabajadores</value>
-    <comment>Ficha de recuento que filtra por Pendiente.</comment>
-  </data>
   <data name="FiltroSede" xml:space="preserve">
     <value>Delegación</value>
     <comment>Nombre accesible del filtro de Delegación.</comment>
@@ -75,10 +63,6 @@
   <data name="FiltroEstado" xml:space="preserve">
     <value>Estado</value>
     <comment>Nombre accesible del filtro de estado.</comment>
-  </data>
-  <data name="TodosLosEstados" xml:space="preserve">
-    <value>Todos los estados</value>
-    <comment>Opción sin filtrar del selector de estado.</comment>
   </data>
   <data name="EstadoVencido" xml:space="preserve">
     <value>Vencido</value>
@@ -122,14 +106,6 @@
   </data>
   <data name="RecuentoDocumentosVarios" xml:space="preserve">
     <value>{0} documentos</value>
-    <comment>Recuento plural.</comment>
-  </data>
-  <data name="RecuentoTrabajadoresUno" xml:space="preserve">
-    <value>1 Trabajador</value>
-    <comment>Recuento singular.</comment>
-  </data>
-  <data name="RecuentoTrabajadoresVarios" xml:space="preserve">
-    <value>{0} Trabajadores</value>
     <comment>Recuento plural.</comment>
   </data>
   <data name="GrupoEmpresa" xml:space="preserve">
@@ -208,6 +184,10 @@
     <value>Reclamar lo visible ({0})</value>
     <comment>Botón de la cabecera: abre el cajón con todo lo que se ve.</comment>
   </data>
+  <data name="ReclamarGrupoEtiqueta" xml:space="preserve">
+    <value>Reclamar {0}</value>
+    <comment>Nombre accesible del botón «Reclamar» de un grupo; {0} es el título del grupo.</comment>
+  </data>
   <data name="ReclamarGrupo" xml:space="preserve">
     <value>Reclamar</value>
     <comment>Botón de un grupo (Delegación): abre el cajón con ese grupo.</comment>
@@ -263,5 +243,13 @@
   <data name="SubirError" xml:space="preserve">
     <value>No se pudo cargar lo pendiente de subir a plataformas.</value>
     <comment>Aviso cuando falla la lectura de lo pendiente de subir.</comment>
+  </data>
+  <data name="Mostrando" xml:space="preserve">
+    <value>Mostrando {0} de {1}</value>
+    <comment>Encabezado de la tarjeta de la lista: documentos visibles de los que devolvió la consulta.</comment>
+  </data>
+  <data name="FiltrosDelServidor" xml:space="preserve">
+    <value>Filtros por Delegación y Oficio</value>
+    <comment>Leyenda (oculta) del grupo de pastillas que piden datos al servidor.</comment>
   </data>
 </root>

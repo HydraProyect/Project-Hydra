@@ -185,6 +185,7 @@ public class Empresa360VigenciaPlataformasTests : BunitContext
     [Fact]
     public async Task Vigencia_el_selector_de_fecha_cambia_vencimiento_por_emision()
     {
+        using var reloj = RelojDePrueba.FijarEn(DateTimeOffset.UtcNow);
         var cut = RenderizarVigencia();
         var vencimientoCarla = cut.FindAll("[data-fila]")[2].QuerySelectorAll(".vigencia-celda")[0].TextContent.Trim();
 
@@ -257,26 +258,30 @@ public class Empresa360VigenciaPlataformasTests : BunitContext
     {
         var (_, cut) = RenderizarPlataformas();
 
-        var chips = cut.FindAll(".plataformas-chip");
-        chips[0].TextContent.Trim().Should().Be("Solo incidencias · 3");
-        chips[1].TextContent.Trim().Should().Be("Todo · 5");
-        chips[0].GetAttribute("aria-pressed").Should().Be("true");
+        // Los chips son los de las demás fichas 360 (FiltroEstadosMultiple): «Todo» primero y «Solo incidencias» marcado.
+        var chips = cut.FindAll(".filtro-estados-opcion");
+        Texto(chips[0]).Should().Be("Todo · 5");
+        Texto(chips[1]).Should().Be("Solo incidencias · 3");
+        chips[1].GetAttribute("aria-pressed").Should().Be("true");
+        cut.FindAll("select").Should().BeEmpty();
 
-        cut.FindAll(".plataformas-grupo").Should().HaveCount(2);
-        var grupoZaragoza = cut.FindAll(".plataformas-grupo")[0];
+        cut.FindAll("li.plataformas-grupo").Should().HaveCount(2);
+        var grupoZaragoza = cut.FindAll("li.plataformas-grupo")[0];
         grupoZaragoza.TextContent.Should().Contain("Refrielectric S.A.").And.Contain("Planta Zaragoza").And.Contain("Plataforma Nalanda · 2 incidencias");
-        // Del peor al mejor: Rechazado, Pendiente de subir.
-        grupoZaragoza.QuerySelectorAll(".plataformas-fila").Select(f => f.GetAttribute("data-estado")).Should().Equal("Rechazada", "PendienteDeSubir");
-        grupoZaragoza.QuerySelectorAll(".plataformas-fila")[0].TextContent.Should().Contain("Rechazado").And.Contain("Falta la firma");
         grupoZaragoza.QuerySelector("a.boton")!.GetAttribute("href").Should().Be($"/centros/{C1}");
 
-        var grupoBerriz = cut.FindAll(".plataformas-grupo")[1];
-        grupoBerriz.QuerySelectorAll(".plataformas-fila").Should().ContainSingle().Which.TextContent.Should().Contain("Pendiente de validación");
+        // Del peor al mejor dentro de cada grupo: Rechazado, Pendiente de subir; y el de Berriz, Pendiente de validación.
+        var filas = cut.FindAll("li.fila-relacion");
+        filas.Select(f => Texto(f.QuerySelector(".fila-relacion-nombre")!))
+            .Should().Equal("Relación nominal de trabajadores (RNT)", "Plan de prevención", "Recibo del seguro");
+        filas[0].TextContent.Should().Contain("Rechazado").And.Contain("Falta la firma");
+        filas[2].TextContent.Should().Contain("Pendiente de validación");
+        filas.Should().OnlyContain(f => f.HasAttribute("data-tono"), "toda incidencia tiñe su fila");
 
-        await chips[1].ClickAsync(new MouseEventArgs());
+        await chips[0].ClickAsync(new MouseEventArgs());
 
-        cut.FindAll(".plataformas-fila").Should().HaveCount(5);
-        cut.FindAll(".plataformas-fila").Count(f => f.GetAttribute("data-incidencia") == "false").Should().Be(2);
+        cut.FindAll("li.fila-relacion").Should().HaveCount(5);
+        cut.FindAll("li.fila-relacion").Count(f => !f.HasAttribute("data-tono")).Should().Be(2, "lo validado no se tiñe");
     }
 
     [Fact]
@@ -285,8 +290,8 @@ public class Empresa360VigenciaPlataformasTests : BunitContext
         var (_, cut) = RenderizarPlataformas(todoValidado: true);
 
         cut.Markup.Should().Contain("Sin incidencias en plataformas");
-        cut.FindAll(".plataformas-fila").Should().BeEmpty();
-        cut.FindAll(".plataformas-chip")[1].TextContent.Trim().Should().Be("Todo · 5");
+        cut.FindAll("li.fila-relacion").Should().BeEmpty();
+        Texto(cut.FindAll(".filtro-estados-opcion")[0]).Should().Be("Todo · 5");
     }
 
     // ── Revisión de la PR: regla del dominio, accesibilidad y estados ─────
@@ -295,6 +300,8 @@ public class Empresa360VigenciaPlataformasTests : BunitContext
         new(Guid.NewGuid(), Guid.NewGuid(), "Obras y Estructuras del Ebro S.L.", tipo, EstadoAcreditacion.Aceptada, null,
             EmpresaId: EmpresaId, CentroId: centroId, CentroNombre: centro,
             EstadoVigencia: EstadoVigenciaEnPlataforma.VenceEnFecha, FechaVencimientoEnPlataforma: vencio, VencidaEnPlataforma: true);
+
+    private static string Texto(AngleSharp.Dom.IElement elemento) => System.Text.RegularExpressions.Regex.Replace(elemento.TextContent, @"\s+", " ").Trim();
 
     private static IReadOnlyList<ProveedorAcreditacionesDto> UnProveedor(params AcreditacionDrillDownDto[] documentos) =>
         [new(Guid.NewGuid(), "Nalanda", "NALANDA", [new ClienteAcreditacionesDto(Guid.NewGuid(), "Refrielectric S.A.", documentos)])];
@@ -307,9 +314,9 @@ public class Empresa360VigenciaPlataformasTests : BunitContext
             Vencida("Seguro de responsabilidad civil", C1, "Planta Zaragoza", vencio),
             Documento("Plan de prevención", EstadoAcreditacion.Aceptada, C1, "Planta Zaragoza")));
 
-        cut.FindAll(".plataformas-chip")[0].TextContent.Trim().Should().Be("Solo incidencias · 1");
-        var fila = cut.FindAll(".plataformas-fila").Should().ContainSingle().Subject;
-        fila.GetAttribute("data-estado").Should().Be("VencidaEnPlataforma");
+        Texto(cut.FindAll(".filtro-estados-opcion")[1]).Should().Be("Solo incidencias · 1");
+        var fila = cut.FindAll("li.fila-relacion").Should().ContainSingle().Subject;
+        Texto(fila.QuerySelector(".fila-relacion-estado")!).Should().Be("Vencido en plataforma");
         fila.TextContent.Should().Contain("Vencido en plataforma").And.Contain($"Vencido el {vencio:dd/MM/yyyy}").And.NotContain("Validado");
         cut.Markup.Should().NotContain("Sin incidencias en plataformas");
         cut.Find(".plataformas-grupo-titulo").TextContent.Should().Contain("1 incidencia");
@@ -322,8 +329,9 @@ public class Empresa360VigenciaPlataformasTests : BunitContext
             Documento("Plan de prevención", EstadoAcreditacion.Aceptada, C1, "Planta Zaragoza"),
             Documento("Plan de prevención", EstadoAcreditacion.Rechazada, C1, "Planta Zaragoza", "Sin firma")));
 
-        cut.FindAll(".plataformas-chip")[1].TextContent.Trim().Should().Be("Todo · 1");
-        cut.FindAll(".plataformas-fila").Should().ContainSingle().Which.GetAttribute("data-estado").Should().Be("Rechazada");
+        Texto(cut.FindAll(".filtro-estados-opcion")[0]).Should().Be("Todo · 1");
+        var fila = cut.FindAll("li.fila-relacion").Should().ContainSingle().Subject;
+        Texto(fila.QuerySelector(".fila-relacion-estado")!).Should().Be("Rechazado");
     }
 
     [Fact]
@@ -333,6 +341,8 @@ public class Empresa360VigenciaPlataformasTests : BunitContext
 
         cut.Markup.Should().Contain("Sin documentación en plataformas");
         cut.Find("[data-nota=alcance]").TextContent.Should().Contain("puede deberse a tus permisos de acceso");
+        cut.Find("[data-pieza=plataformas-empresa] .tarjeta, [data-pieza=plataformas-empresa] [data-pieza=tarjeta]").TextContent
+            .Should().Contain("Sin documentación en plataformas", "el estado vacío va dentro de la tarjeta, no suelto en la pestaña");
     }
 
     [Fact]

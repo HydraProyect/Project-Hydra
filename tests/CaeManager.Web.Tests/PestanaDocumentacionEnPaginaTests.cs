@@ -120,9 +120,13 @@ public class PestanaDocumentacionEnPaginaTests : BunitContext
             .Should().BeEquivalentTo("Evaluación de riesgos", "Memoria preventiva");
 
         await cut.FindAll(".documentacion-chip").First().ClickAsync(new Microsoft.AspNetCore.Components.Web.MouseEventArgs());
-        cut.Find(".buscador-lista input[type=search]").Input("seguridad");
-        cut.WaitForAssertion(() => cut.FindAll("li.fila-relacion .fila-relacion-nombre").Select(n => n.TextContent.Trim())
-            .Should().Equal("Certificado de la Seguridad Social"));
+        // CampoTexto notifica tras un debounce real de 300 ms (Task.Delay). Con Input() + WaitForAssertion (1 s por
+        // defecto) el test competía contra ese temporizador: en un runner cargado la notificación llegaba tarde y
+        // fallaba con «Check count: 1» (sin ningún render entre medias, issue #2065). InputAsync espera a que el
+        // manejador termine, incluida la notificación al padre y su render, así que la aserción no depende del reloj.
+        await cut.Find(".buscador-lista input[type=search]").InputAsync("seguridad");
+        cut.FindAll("li.fila-relacion .fila-relacion-nombre").Select(n => n.TextContent.Trim())
+            .Should().Equal("Certificado de la Seguridad Social");
     }
 
     /// <summary>
@@ -187,6 +191,9 @@ public class PestanaDocumentacionEnPaginaTests : BunitContext
         var gestionarVigente = filas[0].QuerySelector(".fila-relacion-acciones button")!;
         gestionarVigente.TextContent.Trim().Should().Be("Gestionar");
         gestionarVigente.ClassList.Should().Contain("gestionar-discreto");
+        // Mismo patrón que Centro 360 › Trabajadores (#2142): botón secundario, no enlace de texto.
+        filas.Select(f => f.QuerySelector(".fila-relacion-acciones button")!).Should()
+            .OnlyContain(b => b.ClassList.Contains("boton-secundario") && b.ClassList.Contains("accion-gestionar-documento"));
         filas[1].QuerySelector(".fila-relacion-acciones button")!.TextContent.Trim().Should().Be("Gestionar");
     }
 

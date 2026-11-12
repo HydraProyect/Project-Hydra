@@ -1,5 +1,7 @@
 @page "/empresas"
-@rendermode InteractiveServer
+@* Sin prerender (como Mi trabajo, M-23): OnInitializedAsync carga la lista y no persiste su estado; con prerender
+   corría dos veces en cada visita, una en el HTML de la navegación mejorada y otra al montar en el circuito. *@
+@rendermode @(new InteractiveServerRenderMode(prerender: false))
 @inherits CaeManager.Web.Components.PaginaInteractiva
 @attribute [Authorize]
 @using CaeManager.Application.Empresas.Commands.CrearEmpresa
@@ -29,6 +31,7 @@
 
 <LimiteDeErrores Pagina="this">
 <PageTitle>@_tituloPagina — @Marca.Nombre</PageTitle>
+<TituloDePaginaSinPrerender Titulo="@($"{_tituloPagina} — {Marca.Nombre}")" />
 
 <div class="contenedor-pagina lista-design">
     @* Rediseño de listados, fase 1: cabecera de una línea (CabeceraListado) con el contador, el
@@ -305,9 +308,10 @@
                                Cada celda va envuelta para que la rejilla tenga SIEMPRE el mismo número
                                de columnas: un componente que no se pinta desalinearía la fila
                                respecto a la cabecera. *@
-                            <span>
+                            <span class="@(empresa.DeteccionesPendientes > 0 ? "celda-detecciones-empresa" : "celda-detecciones-empresa celda-detecciones-vacia")">
                                 @if (empresa.DeteccionesPendientes > 0)
                                 {
+                                    <span class="rotulo-celda-empresa">@Textos["ColDetecciones"]</span>
                                     <button type="button" class="badge-deteccion"
                                             @onclick='() => NavigationManager.NavigateTo($"/empresas/{empresa.Id}/deteccion-trabajadores")'
                                             @onclick:stopPropagation="true">
@@ -319,7 +323,8 @@
                                     <span class="celda-sin-deteccion">—</span>
                                 }
                             </span>
-                            <span>
+                            <span class="celda-cumplimiento-empresa">
+                                <span class="rotulo-celda-empresa">@Textos["ColCumplimiento"]</span>
                                 <BarraCumplimiento Porcentaje="empresa.CumplimientoPorcentaje"
                                                    Etiqueta="@EtiquetaCumplimiento(empresa.CumplimientoPorcentaje)" />
                             </span>
@@ -362,7 +367,7 @@
                                «Detección de trabajadores», la pastilla de la columna Detecciones (misma
                                condición: solo con detecciones pendientes); «Eliminar», la selección
                                múltiple (botón de la barra o tecla «x»). *@
-                            <div class="tarjeta-fila-acordeon-acciones">
+                            <div class="tarjeta-fila-acordeon-acciones celda-acciones-empresa">
                                 <Boton360 Nombre="@empresa.RazonSocial" Href="@($"/empresas/{empresa.Id}")" />
                             </div>
                         </div>

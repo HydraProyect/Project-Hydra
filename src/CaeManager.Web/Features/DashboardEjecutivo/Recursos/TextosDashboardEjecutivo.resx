@@ -297,4 +297,10 @@
   <data name="EnlaceVerFacturas" xml:space="preserve">
     <value>Ver facturación →</value>
   </data>
+  <data name="SinMedirTitulo" xml:space="preserve">
+    <value>Estos indicadores aparecerán con la actividad</value>
+  </data>
+  <data name="SinMedirDescripcion" xml:space="preserve">
+    <value>Todavía no hay datos en este periodo para calcularlos: se miden con las lecturas de documentos por IA, las sugerencias resueltas y las visitas con antelación medida. En cuanto los haya, cada indicador aparecerá aquí con su cifra: {0}.</value>
+  </data>
 </root>

@@ -151,15 +151,28 @@ else
                 {
                     <div class="rejilla-info-empresa-360">
                         <CampoInfo Etiqueta="Razón social" Valor="@_detalle.RazonSocial" />
-                        <CampoInfo Etiqueta="Identificación fiscal" Valor="@_detalle.Cif" />
-                        <CampoInfo Etiqueta="CNAE" Valor="@_detalle.Cnae" />
-                        <CampoInfo Etiqueta="Convenio aplicable" Valor="@_detalle.ConvenioAplicable" />
+                        @* Solo lo que se tiene: un campo opcional sin valor no se pinta (ni como «—»). *@
+                        @if (!string.IsNullOrWhiteSpace(_detalle.Cif))
+                        {
+                            <CampoInfo Etiqueta="Identificación fiscal" Valor="@_detalle.Cif" />
+                        }
+                        @if (!string.IsNullOrWhiteSpace(_detalle.Cnae))
+                        {
+                            <CampoInfo Etiqueta="CNAE" Valor="@_detalle.Cnae" />
+                        }
+                        @if (!string.IsNullOrWhiteSpace(_detalle.ConvenioAplicable))
+                        {
+                            <CampoInfo Etiqueta="Convenio aplicable" Valor="@_detalle.ConvenioAplicable" />
+                        }
                         <CampoInfo Etiqueta="Actividad del Anexo I del RSP" Valor="@(_detalle.EsActividadAnexoI ? "Sí" : "No")" />
                         @* Sale de ObtenerClientesDeEmpresaQuery (alcance de gestión, REC-153), igual que la
                            pestaña: EmpresaDetalleDto.ClienteIds no está acotado y anunciaría una cartera que
                            el actor no puede ver. Una lista vacía no se cuenta: sin alcance de gestión el
                            handler devuelve vacío a propósito, y «0» sería falso (mismo criterio que #810). *@
-                        <CampoInfo Etiqueta="Clientes con los que trabaja" Valor="@(_clientes is { Count: > 0 } clientesInfo ? clientesInfo.Count.ToString() : null)" />
+                        @if (_clientes is { Count: > 0 } clientesInfo)
+                        {
+                            <CampoInfo Etiqueta="Clientes con los que trabaja" Valor="@clientesInfo.Count.ToString()" />
+                        }
                         <CampoInfo Etiqueta="Creada" Valor="@_detalle.CreadoEnUtc.EnHoraPeninsular().ToString("dd/MM/yyyy")" />
                     </div>
                     <div class="acciones-empresa-360">

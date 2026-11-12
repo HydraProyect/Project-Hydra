@@ -16,10 +16,10 @@
     <value>Empresa</value>
   </data>
   <data name="EtiquetaSubcontrata" xml:space="preserve">
-    <value>Subcontrata</value>
+    <value>Subcontracta</value>
   </data>
   <data name="EtiquetaDocumentacion" xml:space="preserve">
-    <value>Documentación</value>
+    <value>Documentació</value>
   </data>
   <data name="EtiquetaNombre" xml:space="preserve">
     <value>Nombre</value>
@@ -31,13 +31,13 @@
     <value>Email</value>
   </data>
   <data name="EtiquetaFechaNacimiento" xml:space="preserve">
-    <value>Fecha de nacimiento</value>
+    <value>Data de naixement</value>
   </data>
   <data name="EtiquetaObservaciones" xml:space="preserve">
-    <value>Observaciones</value>
+    <value>Observacions</value>
   </data>
   <data name="EtiquetaTelefonoWhatsapp" xml:space="preserve">
-    <value>Teléfono (WhatsApp)</value>
+    <value>Telèfon (WhatsApp)</value>
   </data>
   <data name="EtiquetaTelefono" xml:space="preserve">
     <value>Teléfono</value>
@@ -55,40 +55,40 @@
     <value>Guardar</value>
   </data>
   <data name="ErrorCargaDetalle" xml:space="preserve">
-    <value>Intenta nuevamente en unos segundos.</value>
+    <value>Torna-ho a provar d'aquí a uns segons.</value>
   </data>
   <data name="ErrorGuardar" xml:space="preserve">
-    <value>No pudimos guardar los cambios. Intenta nuevamente en unos segundos.</value>
+    <value>No hem pogut desar els canvis. Torna-ho a provar d'aquí a uns segons.</value>
   </data>
   <data name="EnlaceExportarExcel" xml:space="preserve">
     <value>Exportar a Excel</value>
   </data>
   <data name="BotonNuevoTrabajador" xml:space="preserve">
-    <value>+ Nuevo trabajador</value>
+    <value>+ Nou treballador</value>
   </data>
   <data name="OpcionTodas" xml:space="preserve">
     <value>Todas</value>
   </data>
   <data name="AriaQuitarFiltroBusqueda" xml:space="preserve">
-    <value>Quitar filtro de búsqueda</value>
+    <value>Treure el filtre de cerca</value>
   </data>
   <data name="AriaQuitarFiltroDocumentacion" xml:space="preserve">
-    <value>Quitar filtro de documentación</value>
+    <value>Treure el filtre de documentació</value>
   </data>
   <data name="AriaQuitarFiltroEmpresa" xml:space="preserve">
-    <value>Quitar filtro de empresa</value>
+    <value>Treure el filtre d'empresa</value>
   </data>
   <data name="AriaQuitarFiltroSubcontrata" xml:space="preserve">
-    <value>Quitar filtro de subcontrata</value>
+    <value>Treure el filtre de subcontracta</value>
   </data>
   <data name="ErrorCargaListaTitulo" xml:space="preserve">
-    <value>No pudimos cargar los trabajadores</value>
+    <value>No hem pogut carregar els treballadors</value>
   </data>
   <data name="AriaSeleccionarPagina" xml:space="preserve">
-    <value>Seleccionar los trabajadores de esta página</value>
+    <value>Seleccionar els treballadors d'aquesta pàgina</value>
   </data>
   <data name="EtiquetaPaginador" xml:space="preserve">
-    <value>trabajador(es)</value>
+    <value>treballador(s)</value>
   </data>
   <data name="VacioFiltrosTitulo" xml:space="preserve">
     <value>Cap resultat amb aquests filtres</value>
@@ -103,67 +103,67 @@
     <value>Dona d'alta el primer o importa'ls des d'un full de càlcul.</value>
   </data>
   <data name="DrawerNuevoTitulo" xml:space="preserve">
-    <value>Nuevo trabajador</value>
+    <value>Nou treballador</value>
   </data>
   <data name="OpcionSeleccionaEmpresa" xml:space="preserve">
     <value>Selecciona una empresa…</value>
   </data>
   <data name="OpcionSeleccionaSubcontrata" xml:space="preserve">
-    <value>Selecciona una subcontrata…</value>
+    <value>Selecciona una subcontracta…</value>
   </data>
   <data name="EtiquetaDocumentoIdentidad" xml:space="preserve">
-    <value>Documento de identidad (DNI, NIE, TIE o pasaporte)</value>
+    <value>Document d'identitat (DNI, NIE, TIE o passaport)</value>
   </data>
   <data name="EtiquetaAliasOpcional" xml:space="preserve">
-    <value>Alias / nombre con el que firma (opcional)</value>
+    <value>Àlies / nom amb el qual signa (opcional)</value>
   </data>
   <data name="PlaceholderAlias" xml:space="preserve">
-    <value>p. ej. Pancho Villa</value>
+    <value>p. ex. Pancho Villa</value>
   </data>
   <data name="EtiquetaPuestoOpcional" xml:space="preserve">
-    <value>Puesto / oficio (opcional)</value>
+    <value>Lloc / ofici (opcional)</value>
   </data>
   <data name="PlaceholderPuesto" xml:space="preserve">
-    <value>p. ej. Soldador</value>
+    <value>p. ex. Soldador</value>
   </data>
   <data name="BotonAsignarACentro" xml:space="preserve">
     <value>Assignar a un centre</value>
   </data>
   <data name="DialogoEliminarLoteMensaje" xml:space="preserve">
-    <value>Se ocultarán de las listas activas y sus asignaciones activas quedarán dadas de baja. Podrás deshacer la eliminación desde el aviso que aparecerá, pero las asignaciones seguirán de baja; después, solo un Administrador de esta organización puede recuperarlos desde Auditoría.</value>
+    <value>S'ocultaran de les llistes actives i les seves assignacions actives quedaran donades de baixa. Podràs desfer l'eliminació des de l'avís que apareixerà, però les assignacions seguiran de baixa; després, només un Administrador d'aquesta organització pot recuperar-los des d'Auditoria.</value>
   </data>
   <data name="EtiquetaCentro" xml:space="preserve">
     <value>Centro</value>
   </data>
   <data name="PlaceholderCentro" xml:space="preserve">
-    <value>Escribe el nombre del centro…</value>
+    <value>Escriu el nom del centre…</value>
   </data>
   <data name="EtiquetaFechaAlta" xml:space="preserve">
-    <value>Fecha de alta</value>
+    <value>Data d'alta</value>
   </data>
   <data name="PreflightFaltaban" xml:space="preserve">
-    <value>Al comprobarlo faltaban</value>
+    <value>En comprovar-ho faltaven</value>
   </data>
   <data name="PreflightNota" xml:space="preserve">
-    <value>Asignar no crea esos documentos, y que falten no impide la asignación.</value>
+    <value>Assignar no crea aquests documents, i que en faltin no impedeix l'assignació.</value>
   </data>
   <data name="ModalGuardarFiltroTitulo" xml:space="preserve">
-    <value>Guardar filtro actual</value>
+    <value>Desar el filtre actual</value>
   </data>
   <data name="GuardarFiltroSinNombre" xml:space="preserve">
     <value>Escriu un nom per al filtre</value>
   </data>
   <data name="PlaceholderNombreFiltro" xml:space="preserve">
-    <value>Trabajadores de Subcontrata X</value>
+    <value>Treballadors de Subcontracta X</value>
   </data>
   <data name="ChipBusqueda" xml:space="preserve">
     <value>Búsqueda: "{0}"</value>
   </data>
   <data name="AriaSeleccionarTrabajador" xml:space="preserve">
-    <value>Seleccionar a {0}</value>
+    <value>Seleccionar {0}</value>
   </data>
   <data name="DialogoEliminarLoteTitulo" xml:space="preserve">
-    <value>¿Eliminar {0} trabajador(es)?</value>
+    <value>Vols eliminar {0} treballador(s)?</value>
   </data>
   <data name="ModalAsignarCentroTitulo" xml:space="preserve">
     <value>Assignar {0} treballadors a un centre</value>
@@ -172,100 +172,100 @@
     <value>Assignar 1 treballador a un centre</value>
   </data>
   <data name="PreflightDocumentosQueSePiden" xml:space="preserve">
-    <value>{0} documento(s) que se piden</value>
+    <value>{0} document(s) que es demanen</value>
   </data>
   <data name="PreflightYMas" xml:space="preserve">
     <value>y {0} más…</value>
   </data>
   <data name="BotonAsignarIgualmente" xml:space="preserve">
-    <value>Asignar igualmente</value>
+    <value>Assignar igualment</value>
   </data>
   <data name="BotonAsignar" xml:space="preserve">
     <value>Asignar</value>
   </data>
   <data name="TituloPagina" xml:space="preserve">
-    <value>Trabajadores</value>
+    <value>Treballadors</value>
   </data>
   <data name="TituloPaginaClienteDirecto" xml:space="preserve">
-    <value>Mis trabajadores</value>
+    <value>Els meus treballadors</value>
   </data>
   <data name="ErrorSeleccionaEmpresa" xml:space="preserve">
     <value>Selecciona una empresa.</value>
   </data>
   <data name="ErrorSeleccionaSubcontrata" xml:space="preserve">
-    <value>Selecciona una subcontrata.</value>
+    <value>Selecciona una subcontracta.</value>
   </data>
   <data name="ToastVerFicha" xml:space="preserve">
     <value>Veure la fitxa de {0}</value>
   </data>
   <data name="ToastCreado" xml:space="preserve">
-    <value>Trabajador creado correctamente.</value>
+    <value>Treballador creat correctament.</value>
   </data>
   <data name="PistaDniValido" xml:space="preserve">
-    <value>✓ DNI con formato y dígito de control correctos.</value>
+    <value>✓ DNI amb format i dígit de control correctes.</value>
   </data>
   <data name="PistaDniInvalido" xml:space="preserve">
-    <value>✗ Formato de DNI, pero el dígito de control no coincide.</value>
+    <value>✗ Format de DNI, però el dígit de control no coincideix.</value>
   </data>
   <data name="PistaNieValido" xml:space="preserve">
-    <value>✓ NIE con formato y dígito de control correctos.</value>
+    <value>✓ NIE amb format i dígit de control correctes.</value>
   </data>
   <data name="PistaNieInvalido" xml:space="preserve">
-    <value>✗ Formato de NIE, pero el dígito de control no coincide.</value>
+    <value>✗ Format de NIE, però el dígit de control no coincideix.</value>
   </data>
   <data name="PistaDocumentoExtranjero" xml:space="preserve">
-    <value>No coincide con un DNI ni un NIE: se guardará como Pasaporte.</value>
+    <value>No coincideix amb un DNI ni un NIE: es desarà com a Passaport.</value>
   </data>
   <data name="ToastAccionDeshacer" xml:space="preserve">
     <value>Deshacer</value>
   </data>
   <data name="ToastLoteEliminados" xml:space="preserve">
-    <value>{0} trabajador(es) eliminado(s).</value>
+    <value>{0} treballador(s) eliminat(s).</value>
   </data>
   <data name="ToastLoteEliminadosConErrores" xml:space="preserve">
-    <value>{0} eliminado(s). {1} no se pudieron borrar: {2}</value>
+    <value>{0} eliminat(s). {1} no s'han pogut esborrar: {2}</value>
   </data>
   <data name="ToastLoteRestaurados" xml:space="preserve">
-    <value>{0} trabajador(es) restaurado(s).</value>
+    <value>{0} treballador(s) restaurat(s).</value>
   </data>
   <data name="ToastLoteRestauradosConErrores" xml:space="preserve">
-    <value>{0} restaurado(s). {1} no se pudieron restaurar: {2}</value>
+    <value>{0} restaurat(s). {1} no s'han pogut restaurar: {2}</value>
   </data>
   <data name="ErrorEliminarLote" xml:space="preserve">
-    <value>No pudimos eliminar los trabajadores seleccionados. Intenta nuevamente.</value>
+    <value>No hem pogut eliminar els treballadors seleccionats. Torna-ho a provar.</value>
   </data>
   <data name="ErrorSeleccionaCentro" xml:space="preserve">
-    <value>Selecciona un centro.</value>
+    <value>Selecciona un centre.</value>
   </data>
   <data name="ErrorFechaAltaInvalida" xml:space="preserve">
-    <value>Introduce una fecha de alta válida.</value>
+    <value>Introdueix una data d'alta vàlida.</value>
   </data>
   <data name="ToastAsignacionesCreadas" xml:space="preserve">
-    <value>{0} asignación(es) creada(s).</value>
+    <value>Assignacions creades: {0}.</value>
   </data>
   <data name="ToastAsignacionesCreadasConActivas" xml:space="preserve">
-    <value>{0} asignación(es) creada(s), {1} ya estaban activas.</value>
+    <value>Assignacions creades: {0}; {1} ja eren actives.</value>
   </data>
   <data name="ErrorAsignarLote" xml:space="preserve">
     <value>No s'ha pogut assignar els treballadors. Torna-ho a provar.</value>
   </data>
   <data name="ToastFiltroGuardado" xml:space="preserve">
-    <value>Filtro guardado.</value>
+    <value>Filtre desat.</value>
   </data>
   <data name="AriaMigas" xml:space="preserve">
-    <value>Ruta de Trabajador 360</value>
+    <value>Ruta de Treballador 360</value>
   </data>
   <data name="DetalleErrorTitulo" xml:space="preserve">
-    <value>No pudimos cargar este trabajador</value>
+    <value>No hem pogut carregar aquest treballador</value>
   </data>
   <data name="DetalleErrorDescripcion" xml:space="preserve">
-    <value>Puede que ya no exista o que no tengas acceso.</value>
+    <value>Pot ser que ja no existeixi o que no hi tinguis accés.</value>
   </data>
   <data name="EtiquetaCopiarDni" xml:space="preserve">
     <value>el DNI</value>
   </data>
   <data name="BotonSubirDocumento" xml:space="preserve">
-    <value>Subir documento</value>
+    <value>Pujar document</value>
   </data>
   <data name="AccionEditar" xml:space="preserve">
     <value>Editar</value>
@@ -274,16 +274,16 @@
     <value>Gestionar</value>
   </data>
   <data name="AccionCrearGestion" xml:space="preserve">
-    <value>Crear gestión</value>
+    <value>Crear gestió</value>
   </data>
   <data name="AriaSeccionesTrabajador360" xml:space="preserve">
-    <value>Secciones de Trabajador 360</value>
+    <value>Seccions de Treballador 360</value>
   </data>
   <data name="VacioAsignacionesTitulo" xml:space="preserve">
-    <value>Sin asignaciones activas</value>
+    <value>Sense assignacions actives</value>
   </data>
   <data name="VacioAsignacionesDescripcion" xml:space="preserve">
-    <value>Este trabajador no tiene ninguna asignación activa a un centro.</value>
+    <value>Aquest treballador no té cap assignació activa a un centre.</value>
   </data>
   <data name="AsignarCentroAccion" xml:space="preserve">
     <value>Assignar a un centre</value>
@@ -292,7 +292,7 @@
     <value>No s'ha pogut assignar el treballador. Torna-ho a provar.</value>
   </data>
   <data name="TextoCentroSinExigencia" xml:space="preserve">
-    <value>Este centro no exige documentación específica a este trabajador.</value>
+    <value>Aquest centre no exigeix documentació específica a aquest treballador.</value>
   </data>
   <data name="ColumnaVigencia" xml:space="preserve">
     <value>Vigencia</value>
@@ -307,43 +307,43 @@
     <value>Dar de baja</value>
   </data>
   <data name="ConfirmarBajaAsignacionTitulo" xml:space="preserve">
-    <value>¿Dar de baja la asignación?</value>
+    <value>Vols donar de baixa l'assignació?</value>
   </data>
   <data name="ConfirmarBajaAsignacionMensaje" xml:space="preserve">
-    <value>{0} dejará de estar de alta en {1} desde hoy. Podrás deshacerlo desde el aviso que aparecerá; después, habrá que darle de alta de nuevo.</value>
+    <value>{0} deixarà d'estar d'alta a {1} a partir d'avui. Podràs desfer-ho des de l'avís que apareixerà; després, caldrà tornar-lo a donar d'alta.</value>
   </data>
   <data name="SeparadorGestionesPendientes" xml:space="preserve">
-    <value>Gestiones pendientes</value>
+    <value>Gestions pendents</value>
   </data>
   <data name="AccionCompletar" xml:space="preserve">
     <value>Completar</value>
   </data>
   <data name="SeparadorDatosTrabajador" xml:space="preserve">
-    <value>Datos del trabajador</value>
+    <value>Dades del treballador</value>
   </data>
   <data name="EtiquetaCorreo" xml:space="preserve">
-    <value>Correo electrónico</value>
+    <value>Correu electrònic</value>
   </data>
   <data name="SeparadorAgendaEmpleador" xml:space="preserve">
-    <value>Agenda del empleador</value>
+    <value>Agenda de l'empleador</value>
   </data>
   <data name="ModalCrearGestionTitulo" xml:space="preserve">
-    <value>Crear gestión</value>
+    <value>Crear gestió</value>
   </data>
   <data name="NotaCrearGestion" xml:space="preserve">
-    <value>Se creará una gestión pendiente en cada centro donde este trabajador tenga una asignación activa.</value>
+    <value>Es crearà una gestió pendent a cada centre on aquest treballador tingui una assignació activa.</value>
   </data>
   <data name="EtiquetaTipoDocumento" xml:space="preserve">
-    <value>Tipo de documento</value>
+    <value>Tipus de document</value>
   </data>
   <data name="OpcionSeleccionaTipoDocumento" xml:space="preserve">
-    <value>Selecciona un tipo de documento…</value>
+    <value>Selecciona un tipus de document…</value>
   </data>
   <data name="BotonCrear" xml:space="preserve">
     <value>Crear</value>
   </data>
   <data name="ModalReclamarTitulo" xml:space="preserve">
-    <value>Reclamar documentación pendiente</value>
+    <value>Reclamar documentació pendent</value>
   </data>
   <data name="LeyendaClientesEmpresariales" xml:space="preserve">
     <value>Clients</value>
@@ -355,28 +355,28 @@
     <value>Trabajador</value>
   </data>
   <data name="AnilloCumplimiento" xml:space="preserve">
-    <value>{0}% de cumplimiento — documentos al día / exigidos entre todos los centros de este trabajador</value>
+    <value>{0}% de compliment — documents al dia / exigits entre tots els centres d'aquest treballador</value>
   </data>
   <data name="VentanaIncidenciasUno" xml:space="preserve">
-    <value>1 documento con incidencia en {0}</value>
+    <value>1 document amb incidència a {0}</value>
   </data>
   <data name="VentanaIncidenciasVarios" xml:space="preserve">
-    <value>{0} documentos con incidencia en {1}</value>
+    <value>{0} documents amb incidència a {1}</value>
   </data>
   <data name="VentanaProblemaUrgente" xml:space="preserve">
-    <value>Problema más urgente — {0}</value>
+    <value>Problema més urgent — {0}</value>
   </data>
   <data name="BadgeIncidenciasCentroUno" xml:space="preserve">
     <value>1 incidencia — {0}</value>
   </data>
   <data name="BadgeIncidenciasCentroVarios" xml:space="preserve">
-    <value>{0} incidencias — {1}</value>
+    <value>{0} incidències — {1}</value>
   </data>
   <data name="ResumenSinExigencia" xml:space="preserve">
-    <value>Sin documentación exigida</value>
+    <value>Sense documentació exigida</value>
   </data>
   <data name="ResumenExigidosCorrectos" xml:space="preserve">
-    <value>{0} de {1} exigidos correctos</value>
+    <value>{0} de {1} exigits correctes</value>
   </data>
   <data name="BadgeCompleto" xml:space="preserve">
     <value>Completo</value>
@@ -385,10 +385,10 @@
     <value>1 incidencia</value>
   </data>
   <data name="IncidenciasVarios" xml:space="preserve">
-    <value>{0} incidencias</value>
+    <value>{0} incidències</value>
   </data>
   <data name="AriaDocumentacionExigida" xml:space="preserve">
-    <value>Documentación exigida en {0}</value>
+    <value>Documentació exigida a {0}</value>
   </data>
   <data name="AccionSubir" xml:space="preserve">
     <value>Subir</value>
@@ -403,22 +403,22 @@
     <value>{0} té documentació pendent a {1}. S’enviarà una reclamació a aquest Client en confirmar.</value>
   </data>
   <data name="NotaReclamarVarios" xml:space="preserve">
-    <value>{0} tiene documentación pendiente en varios Clientes a la vez. Elige a cuáles reclamar.</value>
+    <value>{0} té documentació pendent a diversos Clients alhora. Tria a quins reclamar.</value>
   </data>
   <data name="DocumentosPendientesUno" xml:space="preserve">
-    <value>1 documento pendiente</value>
+    <value>1 document pendent</value>
   </data>
   <data name="DocumentosPendientesVarios" xml:space="preserve">
-    <value>{0} documentos pendientes</value>
+    <value>{0} documents pendents</value>
   </data>
   <data name="PestanaOperacion" xml:space="preserve">
     <value>Operación</value>
   </data>
   <data name="ContadorIncidenciasUno" xml:space="preserve">
-    <value>documento con incidencia</value>
+    <value>document amb incidència</value>
   </data>
   <data name="ContadorIncidenciasVarios" xml:space="preserve">
-    <value>documentos con incidencia</value>
+    <value>documents amb incidència</value>
   </data>
   <data name="PestanaHistorial" xml:space="preserve">
     <value>Historial</value>
@@ -472,34 +472,34 @@
     <value>Context del treballador</value>
   </data>
   <data name="MigaTrabajadores" xml:space="preserve">
-    <value>Trabajadores</value>
+    <value>Treballadors</value>
   </data>
   <data name="ErrorDarDeBaja" xml:space="preserve">
-    <value>No se dio de baja la asignación.</value>
+    <value>No s'ha donat de baixa l'assignació.</value>
   </data>
   <data name="ToastBajaConAvisos" xml:space="preserve">
-    <value>Asignación dada de baja, con avisos: {0}</value>
+    <value>Assignació donada de baixa, amb avisos: {0}</value>
   </data>
   <data name="ToastBaja" xml:space="preserve">
-    <value>Asignación dada de baja.</value>
+    <value>Assignació donada de baixa.</value>
   </data>
   <data name="ToastBajaDeshecha" xml:space="preserve">
-    <value>Baja deshecha: la asignación vuelve a estar activa.</value>
+    <value>Baixa desfeta: l'assignació torna a estar activa.</value>
   </data>
   <data name="ToastSinConfirmarSinFechaNoReclamable" xml:space="preserve">
     <value>Els documents «Sense confirmar» no tenen data de venciment, així que «Reclamar» no els inclou. Demana’ls des del Centre o des de Mi trabajo, o confirma’n la vigència al document.</value>
   </data>
   <data name="ToastSinPendientesReclamar" xml:space="preserve">
-    <value>No hay documentos pendientes que reclamar.</value>
+    <value>No hi ha documents pendents per reclamar.</value>
   </data>
   <data name="ToastReclamacionEnviadaUno" xml:space="preserve">
-    <value>Reclamación enviada a {0}.</value>
+    <value>Reclamació enviada a {0}.</value>
   </data>
   <data name="ToastReclamacionEnviadaVarios" xml:space="preserve">
-    <value>Reclamación enviada a {0} Clientes: {1}.</value>
+    <value>Reclamació enviada a {0} Clients: {1}.</value>
   </data>
   <data name="ToastGestionCreada" xml:space="preserve">
-    <value>Se creó la gestión en {0} centro(s).</value>
+    <value>S'ha creat la gestió a {0} centre(s).</value>
   </data>
   <data name="MotivoCrearGestionSinTipo" xml:space="preserve">
     <value>Tria un tipus de document</value>
@@ -508,40 +508,40 @@
     <value>Marca almenys un Client</value>
   </data>
   <data name="AriaSeccionesTrabajador" xml:space="preserve">
-    <value>Secciones del trabajador</value>
+    <value>Seccions del treballador</value>
   </data>
   <data name="PestanaInformacion" xml:space="preserve">
-    <value>Información</value>
+    <value>Informació</value>
   </data>
   <data name="ErrorCargaTrabajadorTitulo" xml:space="preserve">
-    <value>No pudimos cargar el trabajador</value>
+    <value>No hem pogut carregar el treballador</value>
   </data>
   <data name="AriaEditarInformacion" xml:space="preserve">
-    <value>Editar información del trabajador</value>
+    <value>Editar la informació del treballador</value>
   </data>
   <data name="EtiquetaPuestoOficio" xml:space="preserve">
-    <value>Puesto / oficio</value>
+    <value>Lloc / ofici</value>
   </data>
   <data name="EtiquetaNombreCompleto" xml:space="preserve">
-    <value>Nombre completo</value>
+    <value>Nom complet</value>
   </data>
   <data name="ErrorCargaVehiculosTitulo" xml:space="preserve">
-    <value>No pudimos cargar los vehículos</value>
+    <value>No hem pogut carregar els vehicles</value>
   </data>
   <data name="VacioVehiculosTitulo" xml:space="preserve">
-    <value>Sin vehículos</value>
+    <value>Sense vehicles</value>
   </data>
   <data name="VacioVehiculosDescripcion" xml:space="preserve">
-    <value>El empleador de este trabajador no tiene vehículos registrados.</value>
+    <value>L'empleador d'aquest treballador no té vehicles registrats.</value>
   </data>
   <data name="NotaVehiculos" xml:space="preserve">
-    <value>Vehículos disponibles de la empresa. La asignación a un trabajador concreto se realiza durante la gestión operativa cuando corresponda.</value>
+    <value>Vehicles disponibles de l'empresa. L'assignació a un treballador concret es fa durant la gestió operativa quan correspongui.</value>
   </data>
   <data name="PestanaVehiculos" xml:space="preserve">
     <value>Vehículos</value>
   </data>
   <data name="ToastActualizado" xml:space="preserve">
-    <value>Trabajador actualizado correctamente.</value>
+    <value>Treballador actualitzat correctament.</value>
   </data>
   <data name="SinEmpresaTitulo" xml:space="preserve">
     <value>Selecciona una empresa de la teva cartera</value>
@@ -592,7 +592,7 @@
     <value>Vigència sense confirmar</value>
   </data>
   <data name="DocBaseSubVigente" xml:space="preserve">
-    <value>Vigent fins al {0}</value>
+    <value>Al dia</value>
   </data>
   <data name="DocBaseSubVigenteSinFecha" xml:space="preserve">
     <value>Al dia</value>
@@ -601,10 +601,10 @@
     <value>Document present</value>
   </data>
   <data name="DocBaseSubProximoAVencer" xml:space="preserve">
-    <value>Venç el {0}</value>
+    <value>Venç aviat</value>
   </data>
   <data name="DocBaseSubVencido" xml:space="preserve">
-    <value>Va vèncer el {0}</value>
+    <value>Cal renovar-lo</value>
   </data>
   <data name="DocBaseSubFalta" xml:space="preserve">
     <value>Sense document pujat</value>
@@ -858,6 +858,12 @@
   </data>
   <data name="EtiquetaPasosAlta" xml:space="preserve">
     <value>Alta de treballador</value>
+  </data>
+  <data name="PasoEditarSituacion" xml:space="preserve">
+    <value>Situació</value>
+  </data>
+  <data name="EtiquetaPasosEditar" xml:space="preserve">
+    <value>Edició de treballador</value>
   </data>
   <data name="AccionCorregirDocumento" xml:space="preserve">
     <value>Corregir el document d&apos;identitat</value>

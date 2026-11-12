@@ -232,6 +232,9 @@ public class AlcanceDeCredencialesDeAccesoTests
         public Task<Empresa?> ObtenerPorIdAsync(Guid id, CancellationToken cancellationToken = default) =>
             Task.FromResult<Empresa?>(empresa);
 
+        public Task<IReadOnlyList<Empresa>> ListarActualizadasAsync(CancellationToken cancellationToken = default) =>
+            Task.FromResult<IReadOnlyList<Empresa>>([empresa]);
+
         public Task<bool> ExisteConRazonSocialAsync(
             string razonSocial, Guid? excluirId = null, CancellationToken cancellationToken = default) =>
             Task.FromResult(false);

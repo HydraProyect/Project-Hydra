@@ -4,7 +4,9 @@
     EmpresaWorkspacePanel, y cómo se cuentan los trabajadores por estado.
 *@
 @page "/empresas/{EmpresaId:guid}"
-@rendermode InteractiveServer
+@* Sin prerender (como Mi trabajo, M-23): la carga de la ficha corre en OnParametersSetAsync y no persiste su
+   estado; con prerender corría dos veces en cada visita. *@
+@rendermode @(new InteractiveServerRenderMode(prerender: false))
 @inherits CaeManager.Web.Components.PaginaInteractiva
 @attribute [Authorize]
 @using CaeManager.Application.Contactos.Queries.ObtenerAgendaContactos
@@ -22,6 +24,7 @@
 
 <LimiteDeErrores Pagina="this">
 <PageTitle>@(_detalle?.RazonSocial ?? Textos["TituloPestanaNavegador"]) — @Marca.Nombre</PageTitle>
+<TituloDePaginaSinPrerender Titulo="@($"{_detalle?.RazonSocial ?? Textos["TituloPestanaNavegador"]} — {Marca.Nombre}")" />
 
 <div class="contenedor-pagina">
     <Breadcrumb Elementos="Miguero" ElementoSeleccionadoChanged="IrABreadcrumb" EtiquetaNavegacion="@Textos["EtiquetaMigas"]" />
@@ -64,7 +67,7 @@
                         <BotonCopiar EnLinea="true" ConIcono="true" ConfirmarConIcono="false" Valor="@_detalle.Cif" Texto="@_detalle.Cif"
                                      Etiqueta="@Textos["CopiarElCif"]" NombreAccesible="@Textos["CopiarCif", _detalle.Cif]" />
                     </span>
-                    @if (_clientes is { Count: > 0 } || _recuentos is not null)
+                    @if (_clientes is { Count: > 0 } || _recuentos is not null || _filaDelListado is not null)
                     {
                         <span aria-hidden="true">·</span>
                     }
@@ -87,10 +90,33 @@
                     }
                     <span>@Plural(recuentosMeta.Total, "MetaTrabajadoresUno", "MetaTrabajadoresVarios")</span>
                 }
+                @* Chip de estado documental de la maqueta (junto al CIF): el de la fila de esta Empresa en /empresas. Misma consulta, mismo
+                   rótulo y mismo tono que la lista (un Vencido que ningún Centro marca obligatorio sigue siendo aviso, no rojo). *@
+                @if (_filaDelListado is { } filaEstado)
+                {
+                    @if (_clientes is { Count: > 0 } || _recuentos is not null)
+                    {
+                        <span aria-hidden="true">·</span>
+                    }
+                    @* Como en la lista: lo correcto se dice en texto sin pastilla de color; el color queda para lo que hay que atender. *@
+                    @if (EstadoDocumentoUi.EsCorrecto(filaEstado.EstadoDocumental))
+                    {
+                        <span>@EstadoDocumentoUi.TextoDocumental(filaEstado.EstadoDocumental)</span>
+                    }
+                    else
+                    {
+                        <Badge Tono="EstadoDocumentoUi.TonoDocumental(filaEstado.EstadoDocumental, filaEstado.VencidoSinBloqueo)" Tamano="TamanoBadge.Pequeno">@EstadoDocumentoUi.TextoDocumental(filaEstado.EstadoDocumental)</Badge>
+                    }
+                }
             </Datos>
             <Acciones>
-                <Boton Variante="VarianteBoton.Secundario" Href="@($"/empresas/{_detalle.Id}/deteccion-trabajadores")">@Textos["AccionDetectar"]</Boton>
-                <Boton Variante="VarianteBoton.Secundario" Href="@($"/empresas/{_detalle.Id}/reclamar-acceso")">@Textos["AccionReclamarAcceso"]</Boton>
+                @* «Preparar paquete» (maqueta, primera acción de la cabecera): el zip sale de TALVEG, así que solo con un rol que escribe,
+                   la misma lista blanca que aplica DescargarPaqueteEmpresaQuery. *@
+                <SoloConEscritura>
+                    <BotonPaqueteEmpresa EmpresaId="_detalle.Id" RazonSocial="@_detalle.RazonSocial" />
+                </SoloConEscritura>
+                <Boton Variante="VarianteBoton.Secundario" class="empresa360-accion-cabecera" Href="@($"/empresas/{_detalle.Id}/deteccion-trabajadores")">@Textos["AccionDetectar"]</Boton>
+                <Boton Variante="VarianteBoton.Secundario" class="empresa360-accion-cabecera" Href="@($"/empresas/{_detalle.Id}/reclamar-acceso")">@Textos["AccionReclamarAcceso"]</Boton>
                 <SoloConEscritura>
                     <Boton Variante="VarianteBoton.Primario" OnClick="SubirDocumentoAsync">@Textos["AccionSubirDocumento"]</Boton>
                 </SoloConEscritura>
@@ -121,7 +147,7 @@
                             @PestanaDeClientes
                             break;
                         case PestanaDocumentacion:
-                            <PestanaDocumentacion Ambito="AmbitoAplicacion.Empresa" PropietarioId="_detalle.Id" EnPagina="true" ConFiltros="true"
+                            <PestanaDocumentacion Ambito="AmbitoAplicacion.Empresa" PropietarioId="_detalle.Id" EnPagina="true" ConFiltros="true" ConVerDocumento="true"
                                                       PlaceholderBuscador="@Textos["BuscadorDocumentos"]" EtiquetaFiltros="@Textos["EtiquetaFiltrosDocumentacion"]"
                                                       TextoSinResultados="@Textos["NingunDocumentoConFiltro"]" />
                             break;
@@ -164,18 +190,21 @@
                     <ChildContent>
                         @* Orden y anchos de la maqueta: identificación fiscal, CNAE y convenio a ancho completo; alta y Anexo I, a media rejilla. *@
                         <RejillaDatos>
-                            <DatoRejilla Etiqueta="@Textos["DatoIdentificacionFiscal"]" Ancho="true">
-                                @if (string.IsNullOrWhiteSpace(_detalle.Cif))
-                                {
-                                    <span>—</span>
-                                }
-                                else
-                                {
+                            @* Solo lo que se tiene: un campo opcional sin valor no se pinta (ni como «—»). *@
+                            @if (!string.IsNullOrWhiteSpace(_detalle.Cif))
+                            {
+                                <DatoRejilla Etiqueta="@Textos["DatoIdentificacionFiscal"]" Ancho="true">
                                     <BotonCopiar EnLinea="true" ConIcono="true" Valor="@_detalle.Cif" Texto="@_detalle.Cif" Etiqueta="@Textos["CopiarElCif"]" NombreAccesible="@Textos["CopiarCif", _detalle.Cif]" />
-                                }
-                            </DatoRejilla>
-                            <DatoRejilla Etiqueta="@Textos["DatoCnae"]" Valor="@(_detalle.Cnae ?? "—")" Ancho="true" />
-                            <DatoRejilla Etiqueta="@Textos["DatoConvenio"]" Valor="@(_detalle.ConvenioAplicable ?? "—")" Ancho="true" />
+                                </DatoRejilla>
+                            }
+                            @if (!string.IsNullOrWhiteSpace(_detalle.Cnae))
+                            {
+                                <DatoRejilla Etiqueta="@Textos["DatoCnae"]" Valor="@_detalle.Cnae" Ancho="true" />
+                            }
+                            @if (!string.IsNullOrWhiteSpace(_detalle.ConvenioAplicable))
+                            {
+                                <DatoRejilla Etiqueta="@Textos["DatoConvenio"]" Valor="@_detalle.ConvenioAplicable" Ancho="true" />
+                            }
                             <DatoRejilla Etiqueta="@Textos["DatoAlta"]" Valor="@_detalle.CreadoEnUtc.EnHoraPeninsular().ToString("dd/MM/yyyy")" />
                             <DatoRejilla Etiqueta="@Textos["DatoAnexoI"]" Valor="@(_detalle.EsActividadAnexoI ? Textos["Si"] : Textos["No"])" />
                         </RejillaDatos>
@@ -420,7 +449,8 @@
                         @Chip(FiltroTrabajadores.Todos, Textos["ChipTodos", r.Total])
                         @Chip(FiltroTrabajadores.SinDocumentacionValida, Textos["ChipSinValida", r.SinDocumentacionValida])
                         @Chip(FiltroTrabajadores.PorVencer, Textos["ChipPorVencer", r.PorVencer])
-                        @Chip(FiltroTrabajadores.AlDia, Textos["ChipAlDia", r.AlDia])
+                        @* «Sin confirmar» cuenta como al día, con aviso: el chip lo dice para no contradecir las filas con esa pastilla. *@
+                        @Chip(FiltroTrabajadores.AlDia, r.AlDiaSinConfirmar > 0 ? Textos["ChipAlDiaConSinConfirmar", r.AlDia, r.AlDiaSinConfirmar] : Textos["ChipAlDia", r.AlDia])
                     </div>
                     <BuscadorLista Placeholder="@Textos["BuscadorTrabajadores"]" Valor="@_busqueda" ValorChanged="BuscarAsync" />
                 </div>

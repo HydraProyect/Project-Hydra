@@ -86,7 +86,7 @@ public class AutoridadSobreAsignacionesTests : IAsyncLifetime
     {
         await using var contexto = CrearContexto();
         var handler = new CrearAsignacionCommandHandler(
-            new AsignacionRepository(contexto), AutoridadSoloSobre(contexto, _centroEnAmbitoId), AltaAcreditacionesDePrueba.Con(contexto), contexto);
+            new AsignacionRepository(contexto), AutoridadSoloSobre(contexto, _centroEnAmbitoId), AltaAcreditacionesDePrueba.Con(contexto), contexto, new SerializacionAltasSinBloqueo());
 
         var resultado = await handler.Handle(
             new CrearAsignacionCommand(_trabajadorId, _centroAjenoId, DiaDeNegocio.Hoy()),
@@ -109,7 +109,7 @@ public class AutoridadSobreAsignacionesTests : IAsyncLifetime
         // «no» a todo pasaría los otros tests sin proteger nada.
         await using var contexto = CrearContexto();
         var handler = new CrearAsignacionCommandHandler(
-            new AsignacionRepository(contexto), AutoridadSoloSobre(contexto, _centroEnAmbitoId), AltaAcreditacionesDePrueba.Con(contexto), contexto);
+            new AsignacionRepository(contexto), AutoridadSoloSobre(contexto, _centroEnAmbitoId), AltaAcreditacionesDePrueba.Con(contexto), contexto, new SerializacionAltasSinBloqueo());
 
         var resultado = await handler.Handle(
             new CrearAsignacionCommand(_trabajadorId, _centroEnAmbitoId, DiaDeNegocio.Hoy()),
@@ -124,7 +124,7 @@ public class AutoridadSobreAsignacionesTests : IAsyncLifetime
         await using var contexto = CrearContexto();
         var handler = new CrearAsignacionesCommandHandler(
             new AsignacionRepository(contexto), contexto,
-            AutoridadSoloSobre(contexto, _centroEnAmbitoId), AltaAcreditacionesDePrueba.Con(contexto), contexto);
+            AutoridadSoloSobre(contexto, _centroEnAmbitoId), AltaAcreditacionesDePrueba.Con(contexto), contexto, new SerializacionAltasSinBloqueo());
 
         var resultado = await handler.Handle(
             new CrearAsignacionesCommand([_trabajadorId], [_centroEnAmbitoId, _centroAjenoId], DiaDeNegocio.Hoy()),
@@ -148,7 +148,7 @@ public class AutoridadSobreAsignacionesTests : IAsyncLifetime
         await using var contexto = CrearContexto();
         var handler = new CrearAsignacionCommandHandler(
             new AsignacionRepository(contexto),
-            AutoridadSoloSobre(contexto, [_centroEnAmbitoId], [_trabajadorId]), AltaAcreditacionesDePrueba.Con(contexto), contexto);
+            AutoridadSoloSobre(contexto, [_centroEnAmbitoId], [_trabajadorId]), AltaAcreditacionesDePrueba.Con(contexto), contexto, new SerializacionAltasSinBloqueo());
 
         var resultado = await handler.Handle(
             new CrearAsignacionCommand(_trabajadorAjenoId, _centroEnAmbitoId, DiaDeNegocio.Hoy()),
@@ -168,7 +168,7 @@ public class AutoridadSobreAsignacionesTests : IAsyncLifetime
         await using var contexto = CrearContexto();
         var handler = new CrearAsignacionesCommandHandler(
             new AsignacionRepository(contexto), contexto,
-            AutoridadSoloSobre(contexto, [_centroEnAmbitoId], [_trabajadorId]), AltaAcreditacionesDePrueba.Con(contexto), contexto);
+            AutoridadSoloSobre(contexto, [_centroEnAmbitoId], [_trabajadorId]), AltaAcreditacionesDePrueba.Con(contexto), contexto, new SerializacionAltasSinBloqueo());
 
         var resultado = await handler.Handle(
             new CrearAsignacionesCommand(

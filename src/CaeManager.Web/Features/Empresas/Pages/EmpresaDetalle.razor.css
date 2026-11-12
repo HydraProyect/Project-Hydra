@@ -97,9 +97,16 @@
     min-width: 2.5em;
     text-align: right;
     margin-right: var(--space-3);
-    font: var(--font-caption);
+    /* Maqueta «Empresa 360»: la cifra de la fila es 14 px peso 400 (no 12/500). */
+    font: 400 0.875rem/1.25rem var(--font-family);
     font-variant-numeric: tabular-nums;
     color: var(--color-text-muted);
+}
+
+/* El DNI/NIE de la fila de trabajador (y el CIF de la de cliente) es de 13 px en la maqueta («.fila-rel-sub»). Acotado a
+   las secciones de lista de Trabajadores y Clientes: no alcanza a Plataformas, Reclamar ni Documentación. */
+.empresa360-seccion ::deep .fila-relacion-detalle {
+    font-size: 13px;
 }
 
 /* Tarjeta «Se pide la documentación a» de la columna lateral (maqueta «Empresa 360»). */
@@ -183,6 +190,15 @@
 
 .empresa360-contacto-pie {
     margin-top: var(--space-2);
+}
+
+/* Acciones de enlace de la cabecera («Detectar altas y bajas», «Reclamar para acceso»): la maqueta «Empresa 360 página» las pinta con la
+   letra de etiqueta de 13 px. El borde se queda en --color-border-control (contraste 3:1 de un control, DDL-062/063), aunque la maqueta
+   pinte #cfd8e3: divergencia consciente. El <a> o <button> lo pinta Boton (los enlaces de arriba y «Preparar paquete», que es un botón),
+   así que el atributo de aislamiento de esta página no llega a él: hace falta ::deep desde el contenedor de la página, y el selector
+   con dos clases gana a .boton-medio de Boton.razor.css. */
+.contenedor-pagina ::deep .boton.empresa360-accion-cabecera {
+    font-size: 0.8125rem;
 }
 
 /* Texto de apoyo bajo la barra de pestañas (.texto-apoyo de la maqueta «Empresa 360»): 13/400, no el pie de 12/500. */

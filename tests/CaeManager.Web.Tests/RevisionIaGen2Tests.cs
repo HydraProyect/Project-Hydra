@@ -18,7 +18,7 @@ using System.Reflection;
 
 namespace CaeManager.Web.Tests;
 
-public class RevisionIaGen2Tests : BunitContext
+public partial class RevisionIaGen2Tests : BunitContext
 {
     public RevisionIaGen2Tests() => JSInterop.Mode = JSRuntimeMode.Loose;
 
@@ -96,6 +96,21 @@ public class RevisionIaGen2Tests : BunitContext
     private static Task InvocarPrivadoAsync(IRenderedComponent<RevisionIaTab> cut, string nombre, params object?[] argumentos) => cut.InvokeAsync(() =>
         (Task)typeof(RevisionIaTab).GetMethod(nombre, BindingFlags.Instance | BindingFlags.NonPublic)!.Invoke(cut.Instance, argumentos)!);
 
+    [Fact]
+    public void El_umbral_de_confirmacion_en_lote_se_lee_como_en_la_maqueta_y_sigue_a_la_confianza_elegida()
+    {
+        // Maqueta «Revision IA»: «Umbral de confirmación en lote: 95 %». La app deja elegir la confianza
+        // (95, 90 u 80 %), así que el rótulo dice la que está elegida y por defecto es la de la maqueta.
+        var cut = Renderizar(new MediadorFalso { Revisiones = [Revision("Ana Ríos", 96, new DateOnly(2026, 9, 1), Guid.NewGuid())] });
+
+        var reglas = cut.Find(".revision-ia-reglas");
+        reglas.TextContent.Should().Contain("Umbral de confirmación en lote: 95 %");
+
+        cut.Find(".revision-ia-seleccion select").Change("90");
+
+        cut.Find(".revision-ia-reglas").TextContent.Should().Contain("Umbral de confirmación en lote: 90 %")
+            .And.NotContain("95 %", "el rótulo sigue a la confianza elegida, no se queda en la de por defecto");
+    }
     [Fact]
     public void La_cola_muestra_los_datos_disponibles_y_no_inventa_campos_del_mockup()
     {
@@ -252,7 +267,7 @@ public class RevisionIaGen2Tests : BunitContext
         cut.FindAll(".modal-contenido").Should().BeEmpty("la fecha precargada sin tocar no es un cambio");
 
         var origen = navegacion.Uri;
-        await cut.Find(".drawer-panel input[type=date]").InputAsync(new ChangeEventArgs { Value = "2026-09-15" });
+        await cut.Find(".drawer-panel input[data-campo-fecha]").InputAsync(new ChangeEventArgs { Value = "2026-09-15" });
         await cut.InvokeAsync(() => navegacion.NavigateTo("/documentos/revision-ia?con-cambio"));
 
         navegacion.Uri.Should().Be(origen, "con la fecha cambiada la navegación se detiene");
@@ -274,7 +289,7 @@ public class RevisionIaGen2Tests : BunitContext
         await Boton(cut, "Corregir a mano…").ClickAsync(new MouseEventArgs());
         await cut.ComprobarQueCancelarSinCambiosCierraAsync(".drawer-pie", ".drawer-panel");
         await Boton(cut, "Corregir a mano…").ClickAsync(new MouseEventArgs());
-        await cut.Find(".drawer-panel input[type=date]").InputAsync(new ChangeEventArgs { Value = "2026-09-15" });
+        await cut.Find(".drawer-panel input[data-campo-fecha]").InputAsync(new ChangeEventArgs { Value = "2026-09-15" });
         await cut.PulsarCancelarDelPieAsync(".drawer-pie");
         await cut.ComprobarQuePreguntaYDescartarAsync(".drawer-panel");
     }
@@ -290,7 +305,7 @@ public class RevisionIaGen2Tests : BunitContext
         var cut = Renderizar(mediador);
 
         await Boton(cut, "Corregir a mano…").ClickAsync(new MouseEventArgs());
-        await cut.Find(".drawer-panel input[type=date]").InputAsync(new ChangeEventArgs { Value = string.Empty });
+        await cut.Find(".drawer-panel input[data-campo-fecha]").InputAsync(new ChangeEventArgs { Value = string.Empty });
         await Boton(cut, "Guardar y cerrar el aviso").ClickAsync(new MouseEventArgs());
 
         cut.Markup.Should().Contain("Indica una fecha de emisión válida.");
@@ -299,7 +314,7 @@ public class RevisionIaGen2Tests : BunitContext
         await cut.Find(".drawer-superposicion").ClickAsync(new MouseEventArgs());
         cut.FindComponents<Drawer>().Should().ContainSingle(d => d.Instance.Visible, "con el error del campo visible el clic fuera no cierra");
 
-        await cut.Find(".drawer-panel input[type=date]").InputAsync(new ChangeEventArgs { Value = "2026-09-15" });
+        await cut.Find(".drawer-panel input[data-campo-fecha]").InputAsync(new ChangeEventArgs { Value = "2026-09-15" });
         cut.Markup.Should().NotContain("Indica una fecha de emisión válida.", "teclear una fecha nueva retira el error");
     }
 

@@ -49,8 +49,5 @@
             </div>
         }
     }
-    @if (!string.IsNullOrWhiteSpace(CentroNombre))
-    {
-        <small class="plataforma-centro-vista-rapida-gestion">@Textos["PlataformaDelCentro", CentroNombre]</small>
-    }
+    @* Sin «Centro: X» al pie: la celda «Centro» de la rejilla, justo debajo, ya lo dice (se veía dos veces seguidas). *@
 </div>

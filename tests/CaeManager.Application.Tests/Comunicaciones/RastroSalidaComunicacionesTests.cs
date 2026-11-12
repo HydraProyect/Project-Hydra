@@ -21,7 +21,7 @@ namespace CaeManager.Application.Tests.Comunicaciones;
 /// <summary>C-11, decisión D-5 (a): cada correo que sale deja una fila, con el destinatario enmascarado y antes de salir.</summary>
 public class RastroSalidaComunicacionesTests
 {
-    private readonly ConexionIntegracion _conexion = new("cae@cliente.com", "Buzón CAE");
+    private readonly ConexionIntegracion _conexion = new ConexionIntegracion("cae@cliente.com", "Buzón CAE").Verificada();
     private readonly Microsoft365GraphClientFalso _graph = new();
     private readonly ConversacionRepositorioFalso _conversaciones = new();
     private readonly DescarteCambiosPendientesFalso _descarte = new();

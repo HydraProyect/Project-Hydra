@@ -79,7 +79,7 @@ else
                     }
                 </Estado>
                 <Desplegable>
-                    <ListaRelaciones Etiqueta="@Textos[ambito == AmbitoAplicacion.Empresa ? "RequisitoGrupoEmpresa" : "RequisitoGrupoTrabajador"]">
+                    <ListaRelaciones Anidada="true" Etiqueta="@Textos[ambito == AmbitoAplicacion.Empresa ? "RequisitoGrupoEmpresa" : "RequisitoGrupoTrabajador"]">
                         @{ var claves = new ClavesDeHermanos(); }
                         @foreach (var fila in VerRestantes.Recortar(filas, _gruposCompletos.Contains(ambito)))
                         {

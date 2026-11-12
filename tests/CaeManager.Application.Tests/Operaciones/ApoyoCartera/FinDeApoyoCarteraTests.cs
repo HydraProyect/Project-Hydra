@@ -1,4 +1,5 @@
 using CaeManager.Application.Clientes;
+using CaeManager.Application.Common;
 using CaeManager.Application.Operaciones;
 using CaeManager.Application.Operaciones.ApoyoCartera;
 using CaeManager.Application.Operaciones.ApoyoCartera.Commands;
@@ -104,7 +105,7 @@ public class FinDeApoyoCarteraTests
         public Guid? Principal => Catalogo.CarterasVivas
             .Where(c => c.Cartera.EsPrincipal).Select(c => (Guid?)c.Cartera.UsuarioId).SingleOrDefault();
 
-        /// <summary>El claim de la sesión; el rol de verdad sale de <see cref="Roles"/>.</summary>
+        /// <summary>La sesión: <paramref name="rolDeSesion"/> es su rol efectivo en origen, el que decide; <see cref="Roles"/> lo confirma.</summary>
         public CurrentUserServicePorAmbito Como(Guid usuarioId, Guid? origen = null, string? rolDeSesion = "GestorCae") =>
             new(usuarioId, origen ?? Operador, rolDeSesion, rolDeSesion);
 
@@ -387,7 +388,7 @@ public class FinDeApoyoCarteraTests
     }
 
     [Fact]
-    public async Task El_rol_para_revocar_sale_de_Identity_y_no_del_claim_de_la_sesion()
+    public async Task El_rol_para_revocar_es_el_efectivo_de_la_sesion_en_origen_y_Identity_lo_confirma()
     {
         var e = new Escenario();
         var propuesta = await e.ApoyoAceptado();
@@ -403,9 +404,16 @@ public class FinDeApoyoCarteraTests
         (await e.Revocar(Direccion, propuesta.Id, rolDeSesion: "DireccionCae")).Error.Should().Be(ErroresPropuestaApoyo.SinPermiso);
         e.ElApoyoSigueIntacto(propuesta);
 
-        // Y al revés: dentro de un Workspace operativo derivado el claim es el de la cartera
-        // («GestorCae»), pero quien es Coordinador CAE en Identity sí revoca.
-        (await e.Revocar(CoordinadorDeA, propuesta.Id, rolDeSesion: "GestorCae")).EsExitoso.Should().BeTrue();
+        // Y al revés: Identity no sube el rol de la sesión. En el Tenant de origen el rol efectivo
+        // es el de la sesión en origen, conservado aunque haya un Workspace operativo derivado
+        // abierto (decisión P7); si es Gestor CAE —una sesión abierta antes de que la cuenta
+        // pasara a Coordinador CAE, o limitada por login local—, no revoca.
+        (await e.Revocar(CoordinadorDeA, propuesta.Id, rolDeSesion: "GestorCae")).Error.Should().Be(ErroresPropuestaApoyo.SinPermiso);
+        (await e.Revocar(CoordinadorDeA, propuesta.Id, rolDeSesion: "Consulta")).Error.Should().Be(ErroresPropuestaApoyo.SinPermiso);
+        e.ElApoyoSigueIntacto(propuesta);
+
+        // Control positivo: con la sesión de Coordinador CAE que Identity confirma, sí revoca.
+        (await e.Revocar(CoordinadorDeA, propuesta.Id, rolDeSesion: "CoordinadorCae")).EsExitoso.Should().BeTrue();
     }
 
     [Fact]
@@ -564,8 +572,17 @@ public class FinDeApoyoCarteraTests
         var e = new Escenario();
 
         (await e.Proponer(GestorA, GestorB, DiaDeNegocio.Hoy().AddDays(-1))).Error.Should().Be(ErroresPropuestaApoyo.FechaDeFinNoValida);
+        // El último día representable no tiene día siguiente: antes HastaElFinalDe lanzaba.
+        (await e.Proponer(GestorA, GestorB, DateOnly.MaxValue)).Error.Should().Be(ErroresPropuestaApoyo.FechaDeFinNoValida);
 
         e.Repositorio.Propuestas.Should().BeEmpty();
+    }
+
+    // El mismo error sirve a la fecha pasada y al 31/12/9999: su texto tiene que ser cierto para las dos, también fuera de la UI.
+    [Fact]
+    public void El_mensaje_de_fecha_de_fin_no_valida_nombra_las_dos_causas()
+    {
+        ErroresPropuestaApoyo.FechaDeFinNoValida.Mensaje.Should().Contain("hoy en adelante").And.Contain("31/12/9999");
     }
 
     [Fact]
@@ -633,5 +650,99 @@ public class FinDeApoyoCarteraTests
         (await e.Apoyos(GestorB)).EstaVacio.Should().BeTrue();
         (await e.Apoyos(GestorA)).EstaVacio.Should().BeTrue();
         (await e.Apoyos(Direccion, "DireccionCae")).EstaVacio.Should().BeTrue();
+    }
+
+    /// <summary>
+    /// Hallazgo 2 de Codex, ronda 1 (OWASP ASVS 4.0.3 V4.1.3 y V4.2.1): la lectura decide con el
+    /// rol efectivo de la sesión en origen, confirmado por Identity, igual que los Commands. Ni los
+    /// datos (nombres de personas y del Tenant propietario) ni las acciones salen con el rol que la
+    /// cuenta tenga en Identity si la sesión no lo tiene.
+    /// </summary>
+    [Theory]
+    [InlineData("CoordinadorDeA", "GestorCae")]    // Coordinador CAE en Identity, sesión de Gestor CAE
+    [InlineData("CoordinadorDeA", "Consulta")]     // sesión limitada a Consulta
+    [InlineData("Direccion", "Consulta")]          // Dirección CAE en Identity, sesión limitada a Consulta
+    [InlineData("Direccion", "Administrador")]     // la sesión dice más de lo que Identity confirma
+    [InlineData("Direccion", "CoordinadorCae")]    // la sesión dice otro rol que Identity no confirma
+    public async Task La_lista_de_apoyos_la_decide_el_rol_de_la_sesion_en_origen_confirmado_por_Identity(
+        string quien, string rolDeSesion)
+    {
+        var e = new Escenario();
+        var propuesta = await e.ApoyoAceptado();
+        var actor = quien == "Direccion" ? Direccion : CoordinadorDeA;
+
+        var apoyos = await e.Apoyos(actor, rolDeSesion);
+
+        apoyos.Should().Be(ApoyosDeCarteraDto.Vacio, "ni datos ni acciones con un rol que la sesión no tiene");
+        // Control: con la sesión de su rol, el mismo actor sí puede revocar ese apoyo.
+        var rolDeSuCuenta = quien == "Direccion" ? "DireccionCae" : "CoordinadorCae";
+        (await e.Apoyos(actor, rolDeSuCuenta)).Revocables.Select(a => a.PropuestaId).Should().Equal([propuesta.Id]);
+        (await e.Revocar(actor, propuesta.Id, rolDeSesion: rolDeSesion)).Error.Should().Be(ErroresPropuestaApoyo.SinPermiso,
+            "la lectura y el Command dicen lo mismo");
+    }
+
+    [Fact]
+    public async Task El_Gestor_CAE_de_apoyo_ascendido_en_Identity_con_la_sesion_viva_no_ve_el_apoyo_con_el_rol_nuevo()
+    {
+        var e = new Escenario();
+        await e.ApoyoAceptado();
+        e.Cuenta(GestorB, "CoordinadorCae", null);
+
+        (await e.Apoyos(GestorB, "GestorCae")).Should().Be(ApoyosDeCarteraDto.Vacio);
+        (await e.Apoyos(GestorB, "CoordinadorCae")).Mios.Should().ContainSingle("con la sesión siguiente, sí");
+    }
+
+    /// <summary>
+    /// Hallazgo 3 de Codex, ronda 1 (OWASP ASVS 4.0.3 V4.1.3 y V4.2.1): la autoridad se vuelve a
+    /// resolver dentro de la transacción, ya con el candado. Si la cuenta se desactiva o pierde el
+    /// rol después de la primera lectura, no se escribe nada.
+    /// </summary>
+    [Theory]
+    [InlineData("Revocar", "desactivada")]
+    [InlineData("Revocar", "sin rol")]
+    [InlineData("Desasignarme", "desactivada")]
+    [InlineData("Desasignarme", "sin rol")]
+    [InlineData("Retirar", "sin rol")]
+    public async Task Si_la_cuenta_cambia_tras_la_primera_lectura_no_se_termina_el_apoyo(string via, string cambio)
+    {
+        var e = new Escenario();
+        var propuesta = await e.ApoyoAceptado();
+        var confirmadasAntes = e.Transaccion.Confirmadas;
+        var (actor, rolDeSesion) = via switch
+        {
+            "Revocar" => (Direccion, "DireccionCae"),
+            "Desasignarme" => (GestorB, "GestorCae"),
+            _ => (GestorA, "GestorCae"),
+        };
+        var transaccion = new TransaccionQueCambiaAlAbrir(e.Transaccion, () =>
+        {
+            if (cambio == "desactivada") e.Roles.Desactivar(actor);
+            else e.Roles.Asignar(actor, Operador, "Consulta");
+        });
+        var handler = new TerminarApoyoCarteraCommandHandler(
+            e.Como(actor, null, rolDeSesion), e.Roles, e.Cuentas, e.Catalogo, e.Repositorio, transaccion, e.Bloqueo,
+            e.Notificaciones, e.Tenants, e.UnitOfWork, NullLogger<TerminarApoyoCarteraCommandHandler>.Instance);
+
+        var resultado = via switch
+        {
+            "Revocar" => await handler.Handle(new RevocarApoyoCarteraCommand(propuesta.Id), default),
+            "Desasignarme" => await handler.Handle(new DesasignarmeDeApoyoCommand(propuesta.Id), default),
+            _ => await handler.Handle(new RetirarApoyoConcedidoCommand(propuesta.Id), default),
+        };
+
+        resultado.Error.Should().Be(ErroresPropuestaApoyo.SinPermiso);
+        e.ElApoyoSigueIntacto(propuesta);
+        e.Transaccion.Confirmadas.Should().Be(confirmadasAntes, "la transacción de terminar se deshizo");
+    }
+
+    /// <summary>Abre la transacción del doble y, justo antes de la operación, cambia la cuenta.</summary>
+    private sealed class TransaccionQueCambiaAlAbrir(ITransaccionDeComando interna, Action alAbrir) : ITransaccionDeComando
+    {
+        public Task<Result> EjecutarAsync(Func<CancellationToken, Task<Result>> operacion, CancellationToken cancellationToken = default) =>
+            interna.EjecutarAsync(ct =>
+            {
+                alAbrir();
+                return operacion(ct);
+            }, cancellationToken);
     }
 }

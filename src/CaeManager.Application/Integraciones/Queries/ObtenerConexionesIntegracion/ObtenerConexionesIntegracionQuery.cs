@@ -19,10 +19,21 @@ namespace CaeManager.Application.Integraciones.Queries.ObtenerConexionesIntegrac
 public record ObtenerConexionesIntegracionQuery(bool SoloPropiasYGenerales = false)
     : IRequest<IReadOnlyList<ConexionIntegracionListaDto>>;
 
+/// <param name="CorreoNoRecuperadoDesdeUtc">
+/// <see cref="ConexionIntegracion.HuecoPendienteDesdeUtc"/>: el aviso «posible correo no recuperado desde» esa fecha. El
+/// hueco queda declarado, no recuperado, así que el aviso dura mientras la marca exista.
+/// </param>
+/// <param name="HuecoSinRegistrar">
+/// <see cref="ConexionIntegracion.MarcaHuecoPorRegistrarDesdeUtc"/> puesta: la desconexión no llegó a registrar la marca
+/// del hueco. Conexiones avisa «Hueco sin registrar» y ofrece Reparar (<c>RepararMarcaHuecoCommand</c>, que solo
+/// repara si la conexión sigue Deshabilitada).
+/// </param>
 public record ConexionIntegracionListaDto(
     Guid Id, string BuzonEmail, string Nombre, Guid? ClienteId, string? ClienteNombre, EstadoConexionIntegracion Estado,
     DateTime FechaConectadaUtc, Guid? GestorPropietarioId, string? UltimoError, Guid? ResponsableUsuarioId = null,
-    bool AcuseAutomaticoActivo = false);
+    bool AcuseAutomaticoActivo = false, bool EsBuzonCompartido = false, bool IdentidadSinVerificar = false,
+    DateTime? CorreoNoRecuperadoDesdeUtc = null, bool CorreoRetenido = false, bool CorreoDescartado = false,
+    bool HuecoSinRegistrar = false);
 
 /// <remarks>
 /// <c>UltimoError</c> se lee en una consulta aparte y solo fuera de Sesión Privilegiada: es el texto que
@@ -47,6 +58,10 @@ public class ObtenerConexionesIntegracionQueryHandler(
             ? await currentUserService.ObtenerUsuarioActualIdAsync()
             : null;
 
+        // Misma regla que ConexionIntegracion.OperativaVerificada: Habilitada pero sin verificar en la ventana, la
+        // ingesta deja el correo entrante en espera y no se envía nada desde el buzón. Conexiones lo avisa.
+        var limiteVerificacion = DateTime.UtcNow - ConexionIntegracion.VentanaVerificacionIdentidad;
+
         var query =
             from conexion in integracionesContext.ConexionesIntegracion
             // Solo buzones M365: las líneas WhatsApp tienen su propia tabla en
@@ -61,7 +76,11 @@ public class ObtenerConexionesIntegracionQueryHandler(
             select new ConexionIntegracionListaDto(
                 conexion.Id, conexion.BuzonEmail, conexion.Nombre, conexion.ClienteId, cliente!.RazonSocial, conexion.Estado,
                 conexion.FechaConectadaUtc, conexion.GestorPropietarioId, null, conexion.ResponsableUsuarioId,
-                conexion.AcuseAutomaticoActivo);
+                conexion.AcuseAutomaticoActivo, conexion.EsBuzonCompartido,
+                conexion.Proveedor == ProveedorIntegracion.Microsoft365 && conexion.Estado == EstadoConexionIntegracion.Habilitada &&
+                (conexion.IdentidadVerificadaUtc == null || conexion.IdentidadVerificadaUtc < limiteVerificacion),
+                conexion.HuecoPendienteDesdeUtc, false, false,
+                conexion.MarcaHuecoPorRegistrarDesdeUtc != null);
 
         var conexiones = await query.ToListAsync(cancellationToken);
         if (conexiones.Count == 0 || clienteActivoSeleccionado.SesionPrivilegiadaIdSeleccionada is not null)
@@ -69,9 +88,35 @@ public class ObtenerConexionesIntegracionQueryHandler(
 
         var ids = conexiones.Select(c => c.Id).ToList();
         var errores = await UltimosErroresAsync(integracionesContext, ids, cancellationToken);
+        var avisos = await AvisosDeEventosAsync(integracionesContext, ids, cancellationToken);
         return conexiones
             .Select(c => errores.TryGetValue(c.Id, out var error) ? c with { UltimoError = error } : c)
+            .Select(c => c with
+            {
+                CorreoRetenido = avisos.Contains((c.Id, EstadoEventoWebhook.Retenido)),
+                CorreoDescartado = avisos.Contains((c.Id, EstadoEventoWebhook.DescartadoDefinitivo)),
+            })
             .ToList();
+    }
+
+    /// <summary>
+    /// Qué conexiones tienen eventos retenidos (cualquiera, sin mirar su verificación: uno puede quedar Retenido
+    /// después de que la conexión se verificase y liberase los suyos) o descartados tras agotar sus intentos. El aviso dura
+    /// mientras exista el evento, sin ventana de tiempo: un evento retenido más de una semana que después agota sus
+    /// intentos también avisa. Fuera de Sesión Privilegiada, como <see cref="UltimosErroresAsync"/>.
+    /// </summary>
+    internal static async Task<HashSet<(Guid ConexionId, EstadoEventoWebhook Estado)>> AvisosDeEventosAsync(
+        IIntegracionesQueryContext integracionesContext, IReadOnlyCollection<Guid> conexionIds, CancellationToken cancellationToken)
+    {
+        var filas = await integracionesContext.EventosWebhook
+            .Where(e => conexionIds.Contains(e.ConexionIntegracionId))
+            .Where(e => e.Estado == EstadoEventoWebhook.Retenido
+                || e.Estado == EstadoEventoWebhook.DescartadoDefinitivo)
+            .Select(e => new { e.ConexionIntegracionId, e.Estado })
+            .Distinct()
+            .ToListAsync(cancellationToken);
+
+        return filas.Select(f => (f.ConexionIntegracionId, f.Estado)).ToHashSet();
     }
 
     /// <summary>

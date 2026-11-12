@@ -1,4 +1,4 @@
-using System.Globalization;
+﻿using System.Globalization;
 using AngleSharp.Dom;
 using Bunit;
 using CaeManager.Application.Common;
@@ -866,16 +866,16 @@ public class DashboardEjecutivoGen2Tests : BunitContext
         var cut = Renderizar(new Escenario()).Cut;
 
         await cut.Find(".dashboard-periodo select").ChangeAsync(new ChangeEventArgs { Value = "Personalizado" });
-        await cut.FindAll(".dashboard-periodo input[type=date]")[0].InputAsync(new ChangeEventArgs { Value = "2026-03-02" });
-        await cut.FindAll(".dashboard-periodo input[type=date]")[1].InputAsync(new ChangeEventArgs { Value = "2026-03-05" });
-        await cut.FindAll(".dashboard-periodo input[type=date]")[1].BlurAsync(new FocusEventArgs());
+        await cut.FindAll(".dashboard-periodo input[data-campo-fecha]")[0].InputAsync(new ChangeEventArgs { Value = "2026-03-02" });
+        await cut.FindAll(".dashboard-periodo input[data-campo-fecha]")[1].InputAsync(new ChangeEventArgs { Value = "2026-03-05" });
+        await cut.FindAll(".dashboard-periodo input[data-campo-fecha]")[1].BlurAsync(new FocusEventArgs());
 
         cut.WaitForAssertion(() => Disparador(cut.Find(".periodo-texto")).Should().Be(
             "Del 2 de marzo de 2026 al 5 de marzo de 2026 · 2 organizaciones"));
 
         // Hasta anterior a Desde: AplicarRangoPersonalizadoAsync no recarga.
-        await cut.FindAll(".dashboard-periodo input[type=date]")[1].InputAsync(new ChangeEventArgs { Value = "2026-01-01" });
-        await cut.FindAll(".dashboard-periodo input[type=date]")[1].BlurAsync(new FocusEventArgs());
+        await cut.FindAll(".dashboard-periodo input[data-campo-fecha]")[1].InputAsync(new ChangeEventArgs { Value = "2026-01-01" });
+        await cut.FindAll(".dashboard-periodo input[data-campo-fecha]")[1].BlurAsync(new FocusEventArgs());
 
         Disparador(cut.Find(".periodo-texto")).Should().Be(
             "Del 2 de marzo de 2026 al 5 de marzo de 2026 · 2 organizaciones",
@@ -925,11 +925,80 @@ public class DashboardEjecutivoGen2Tests : BunitContext
             "No hay tiempo de gestión registrado este mes. La medición de tiempo se activa en Configuración.");
         Vacio("Gestiones automáticas vs manuales").Should().Be("Todavía no hay documentos verificados por IA.");
 
-        // Sin resoluciones no hay porcentaje que enseñar: un 0% mentiría.
-        TilePorEtiqueta(cut, "Índice de palanca IA").Valor.Should().Be("—");
-        TilePorEtiqueta(cut, "Falsos avisos con tiempo").Valor.Should().Be("—");
+        // Sin resoluciones no hay porcentaje que enseñar: un 0% mentiría. Ya no son tarjetas con «—»: un solo bloque
+        // dice qué indicadores aparecerán (ver Sin_lecturas_de_ia_...).
+        var etiquetasTiles = cut.FindAll(".rejilla-kpis-criticos .tarjeta-metrica").Select(t => Tile(t).Etiqueta).ToList();
+        etiquetasTiles.Should().NotContain(["Índice de palanca IA", "Falsos avisos con tiempo"]);
+        var bloque = cut.FindAll("[data-bloque='sin-medir']").Should().ContainSingle().Subject;
+        Texto(bloque).Should().Contain("Índice de palanca IA").And.Contain("Falsos avisos con tiempo");
         Disparador(cut.Find(".pulso-negocio-frase")).Should().Be(
             "Todavía no hay verificaciones de IA resueltas en la organización activa.");
+    }
+
+    [Fact]
+    public void Sin_lecturas_de_ia_un_solo_bloque_de_estado_vacio_reemplaza_las_tarjetas_con_guion()
+    {
+        var escenario = new Escenario();
+        for (var i = 0; i < escenario.Organizaciones.Count; i++)
+        {
+            var organizacion = escenario.Organizaciones[i];
+            escenario.Organizaciones[i] = organizacion with
+            {
+                Valores = organizacion.Valores with
+                {
+                    ConfianzaMediaIa = null,
+                    TiempoMedioProcesamientoIaMs = null,
+                    Bpo = KpisBpoDto.Vacio
+                }
+            };
+        }
+
+        var cut = Renderizar(escenario).Cut;
+
+        var etiquetasTiles = cut.FindAll(".rejilla-kpis-criticos .tarjeta-metrica").Select(t => Tile(t).Etiqueta).ToList();
+        etiquetasTiles.Should().NotContain(
+        [
+            "Confianza media de extracción IA", "Tiempo medio de procesamiento IA",
+            "Índice de palanca IA", "Falsos avisos con tiempo", "Tiempo bloqueado por el Cliente"
+        ], "una tarjeta con «—» parece rota: sin dato, la tarjeta no se pinta");
+        cut.FindAll(".rejilla-kpis-criticos .tarjeta-metrica").Select(t => Tile(t).Valor).Should().NotContain("—");
+
+        var bloque = cut.FindAll("[data-bloque='sin-medir']").Should().ContainSingle("un único bloque, no uno por indicador").Subject;
+        Texto(bloque).Should().Contain("Estos indicadores aparecerán con la actividad")
+            .And.Contain("Confianza media de extracción IA")
+            .And.Contain("Tiempo medio de procesamiento IA");
+
+        // El coste es una suma real: 0,00 € no es una ausencia y la tarjeta se queda donde estaba.
+        etiquetasTiles.Should().Contain("Coste IA del mes");
+    }
+
+    [Fact]
+    public void Con_lecturas_de_ia_pero_sin_datos_de_BPO_el_bloque_solo_nombra_los_pendientes_y_no_niega_las_lecturas()
+    {
+        var escenario = new Escenario();
+        for (var i = 0; i < escenario.Organizaciones.Count; i++)
+        {
+            var organizacion = escenario.Organizaciones[i];
+            escenario.Organizaciones[i] = organizacion with { Valores = organizacion.Valores with { Bpo = KpisBpoDto.Vacio } };
+        }
+
+        var cut = Renderizar(escenario).Cut;
+
+        TilePorEtiqueta(cut, "Confianza media de extracción IA").Valor.Should().NotBe("—", "hay lecturas de IA: su tarjeta se queda");
+        var bloque = Texto(cut.FindAll("[data-bloque='sin-medir']").Should().ContainSingle().Subject);
+        bloque.Should().Contain("Falsos avisos con tiempo").And.Contain("Índice de palanca IA");
+        bloque.Should().NotContain("Confianza media de extracción IA");
+        bloque.Should().NotContain("no hay lecturas", "el texto no puede negar lo que la tarjeta de al lado muestra");
+    }
+
+    [Fact]
+    public void Con_lecturas_de_ia_no_hay_bloque_de_estado_vacio_y_las_tarjetas_vuelven()
+    {
+        var cut = Renderizar(new Escenario()).Cut;
+
+        cut.FindAll("[data-bloque='sin-medir']").Should().BeEmpty();
+        TilePorEtiqueta(cut, "Confianza media de extracción IA").Valor.Should().NotBe("—");
+        TilePorEtiqueta(cut, "Tiempo medio de procesamiento IA").Valor.Should().NotBe("—");
     }
 
     [Fact]

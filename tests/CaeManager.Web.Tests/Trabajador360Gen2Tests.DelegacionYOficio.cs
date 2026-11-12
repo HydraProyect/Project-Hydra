@@ -33,6 +33,7 @@ public partial class Trabajador360Gen2Tests
         var id = Guid.NewGuid(); var m = ConTrabajador(id);
         m.CatalogoEmpresa = CatalogoDePrueba();
         var cut = Renderizar(id); var drawer = await AbrirEditorFicha(cut);
+        await IrAPasoFicha(drawer, "Trabajo");
         drawer.WaitForAssertion(() => drawer.FindAll("option").Select(o => o.TextContent).Should().Contain("Sevilla"));
 
         await drawer.Find("input[role=combobox]").InputAsync(new ChangeEventArgs { Value = "Sold" });
@@ -51,6 +52,7 @@ public partial class Trabajador360Gen2Tests
         m.CatalogoEmpresa = CatalogoDePrueba();
         m.Detalles[id] = m.Detalles[id] with { OficioEmpresaId = OficioSoldador, Puesto = "Soldador" };
         var cut = Renderizar(id); var drawer = await AbrirEditorFicha(cut);
+        await IrAPasoFicha(drawer, "Trabajo");
         drawer.WaitForAssertion(() => drawer.Find("input[role=combobox]").GetAttribute("value").Should().Be("Soldador"));
         drawer.Markup.Should().NotContain("Puesto actual:");
 
@@ -68,6 +70,7 @@ public partial class Trabajador360Gen2Tests
         var id = Guid.NewGuid(); var m = ConTrabajador(id);
         m.Detalles[id] = m.Detalles[id] with { EmpresaId = null, SubcontrataId = Guid.NewGuid(), Puesto = "Peón" };
         var cut = Renderizar(id); var drawer = await AbrirEditorFicha(cut);
+        await IrAPasoFicha(drawer, "Trabajo");
 
         drawer.FindComponents<SelectorDelegacionEmpresaYOficio>().Should().BeEmpty();
         drawer.FindComponents<CampoTexto>().Single(c => c.Instance.Etiqueta == "Puesto u oficio").Instance.Valor.Should().Be("Peón");
@@ -87,6 +90,7 @@ public partial class Trabajador360Gen2Tests
         m.CatalogoEmpresa = null;
         m.Detalles[id] = m.Detalles[id] with { OficioEmpresaId = OficioSoldador, Puesto = "Soldador" };
         var cut = Renderizar(id); var drawer = await AbrirEditorFicha(cut);
+        await IrAPasoFicha(drawer, "Trabajo");
 
         drawer.WaitForAssertion(() => drawer.Markup.Should().Contain("No se pudo cargar el catálogo de la empresa."));
         drawer.Find("input[role=combobox]").HasAttribute("disabled").Should().BeTrue();

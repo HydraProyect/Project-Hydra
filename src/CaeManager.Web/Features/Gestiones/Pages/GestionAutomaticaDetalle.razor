@@ -1,0 +1,448 @@
+﻿@page "/gestiones/{Id:guid}"
+@* Sin prerender (como Gestiones y Mi trabajo): la página carga en el ciclo de vida y no persiste su estado; con prerender
+   corría dos veces en cada visita. *@
+@rendermode @(new InteractiveServerRenderMode(prerender: false))
+@inherits CaeManager.Web.Components.PaginaInteractiva
+@attribute [Authorize(Roles = $"{CaeManager.Infrastructure.Identity.Roles.Administrador},{CaeManager.Infrastructure.Identity.Roles.DireccionCae},{CaeManager.Infrastructure.Identity.Roles.CoordinadorCae},{CaeManager.Infrastructure.Identity.Roles.GestorCae},{CaeManager.Infrastructure.Identity.Roles.Consulta}")]
+@using CaeManager.Application.Gestiones.Queries.GestionesAutomaticas
+@using CaeManager.Domain.Documentos
+@using CaeManager.Domain.Gestiones
+@using CaeManager.Web.Components.DesignSystem
+@using CaeManager.Web.Features.Centros.Components
+@using CaeManager.Web.Features.Gestiones.Components
+@using CaeManager.Web.Features.Gestiones.Recursos
+@using CaeManager.Web.Features.Trabajadores.Components
+@using Microsoft.Extensions.Localization
+@inject IStringLocalizer<TextosGestiones> Textos
+
+@*
+    Pantalla de trabajo de una Gestión automática (Gestion Pasos TALVEG.dc.html, § 5.1): lista de pasos a la izquierda
+    (320 px, agrupados por Plataforma CAE) y el paso abierto a la derecha. El estado de un paso ES el de su acreditación:
+    se marca con los mismos comandos que el panel «Gestionar» de Centro 360, sin copia. «Entrar en la plataforma» es el
+    componente de Centro 360 (CanalPlataformaAcceso): mismo permiso, mismo doble factor, misma traza.
+
+    Incremento 1 de la ventana (Gestion Pasos por tipo TALVEG.dc.html, G-3/G-4): el CIF de la Empresa gestionada en la
+    cabecera, «Datos a mano» con las pestañas Trabajador y Centro, y «Esta plataforma no lo pide» con su comando.
+    Lo que la consulta no trae no se pinta ni se inventa: nombre de quien la creó, historial de rechazos por paso, aviso
+    de las 48 horas, las pestañas Empleador y Cliente de «Datos a mano» y el marcador «● lo pide este paso» (TALVEG no
+    sabe qué datos pide cada portal). «Completar» del Centro no tiene editor en panel: abre Centro 360, fuera de la
+    Gestión, y la nota de esa pestaña lo dice (GpDatosNotaCentro).
+*@
+<LimiteDeErrores Pagina="this">
+<PageTitle>@TituloGestion — @Marca.Nombre</PageTitle>
+<TituloDePaginaSinPrerender Titulo="@($"{TituloGestion} — {Marca.Nombre}")" />
+
+<div class="contenedor-pagina gp-pagina">
+    <AtajosPasosGestion OnAtajo="AtajoAsync" />
+    <nav class="gp-migas" aria-label="@Textos["AutoAriaMigas"]">
+        <span>@Textos["AutoMigaOperacion"]</span><span aria-hidden="true" class="gp-miga-sep">›</span>
+        <a href="gestiones/automaticas">@Textos["AutoMigaGestiones"]</a><span aria-hidden="true" class="gp-miga-sep">›</span>
+        <span class="gp-miga-actual">@TituloGestion</span>
+    </nav>
+
+    @if (_error)
+    {
+        <div class="gp-estado" role="alert" data-estado="error">
+            <span class="gp-estado-icono gp-estado-icono-error" aria-hidden="true">!</span>
+            <h3>@Textos["GpErrorTitulo"]</h3>
+            <p>@Textos["GpErrorDescripcion"]</p>
+            <div class="gp-acciones">
+                <Boton Variante="VarianteBoton.Secundario" OnClick="CargarAsync">@Textos["BotonReintentar"]</Boton>
+                <a class="gp-boton gp-boton-secundario" href="mi-trabajo">@Textos["GpVolverMiTrabajo"]</a>
+            </div>
+        </div>
+    }
+    else if (_cargando)
+    {
+        <div class="gp-esqueleto" aria-busy="true" aria-label="@Textos["AutoCargando"]" data-estado="cargando">
+            <div class="gp-esq-cabecera"></div>
+            <div class="gp-esq-cuerpo"><div class="gp-esq-lista"><div></div><div></div><div></div><div></div><div></div></div><div class="gp-esq-paso"></div></div>
+        </div>
+    }
+    else if (_detalle is null)
+    {
+        <div class="gp-estado" data-estado="vacio">
+            <span class="gp-estado-icono" aria-hidden="true">0</span>
+            <h3>@Textos["GpNoExisteTitulo"]</h3>
+            <p>@Textos["GpNoExisteDescripcion"]</p>
+            <div class="gp-acciones">
+                <Boton Variante="VarianteBoton.Secundario" OnClick="SiguienteGestionAsync">@Textos["GpSiguienteGestion"]</Boton>
+                <a class="gp-boton gp-boton-secundario" href="mi-trabajo">@Textos["GpVolverMiTrabajo"]</a>
+            </div>
+        </div>
+    }
+    else
+    {
+        var resumen = _detalle.Resumen;
+        var avance = resumen.Avance;
+        var estado = resumen.Estado;
+        var abierto = PasoAbierto;
+        var rechazados = Rechazados;
+        <section class="gp-resumen" aria-label="@Textos["GpAriaResumen"]">
+            <div class="gp-resumen-fila">
+                <div class="gp-resumen-texto">
+                    <div class="gp-kicker" data-empresa-gestionada="">@resumen.EmpresaGestionadaNombre@if (_detalle.EmpresaGestionadaCif is { } cif && !string.IsNullOrWhiteSpace(resumen.EmpresaGestionadaNombre)){<text> · </text><span class="gp-kicker-cif" data-cif-empresa=""><BotonCopiar EnLinea="true" ConfirmarConIcono="true" Texto="@cif" Valor="@cif" NombreAccesible="@Textos["GpCopiarCampo", Textos["GpCif"]]" /></span>}</div>
+                    <h1>@TituloGestion</h1>
+                    <span class="gp-origen" data-origen="">@TextoOrigen(resumen)</span>
+                </div>
+                <div class="gp-resumen-acciones">
+                    <span class="gp-pastilla" data-tono="@PresentacionGestionAutomatica.TonoEstado(estado)" data-estado-gestion="@estado">@Textos[PresentacionGestionAutomatica.ClaveEstado(estado)]</span>
+                    @if (rechazados > 0)
+                    {
+                        <span class="gp-pastilla" data-tono="peligro" data-rechazados="">@Textos[rechazados == 1 ? "GpUnPasoRechazado" : "GpPasosRechazados", rechazados]</span>
+                    }
+                    <a class="gp-boton gp-boton-secundario gp-boton-pequeno" href="documentos/@resumen.DocumentoId" data-ver-documento="">@Textos["GpVerDocumento"]</a>
+                    <span class="gp-menu-marco">
+                        <button type="button" class="gp-boton gp-boton-secundario gp-boton-pequeno gp-menu-boton" aria-haspopup="menu"
+                                aria-expanded="@(_menuAbierto ? "true" : "false")" aria-label="@Textos["GpMasAcciones"]" @onclick="() => _menuAbierto = !_menuAbierto">⋯</button>
+                        @if (_menuAbierto && abierto is not null)
+                        {
+                            <div class="gp-menu" role="menu">
+                                <a role="menuitem" href="centros/@abierto.CentroId" data-menu-centro="">@Textos["GpVerCentro360", abierto.CentroNombre]</a>
+                                @if (_detalle.Documento.TrabajadorId is { } trabajadorId)
+                                {
+                                    <a role="menuitem" href="trabajadores/@trabajadorId" data-menu-titular="">@Textos["GpVerFichaTitular", resumen.TitularNombre]</a>
+                                }
+                                else if (_detalle.Documento.EmpresaId is { } empresaId)
+                                {
+                                    <a role="menuitem" href="empresas/@empresaId" data-menu-titular="">@Textos["GpVerFichaTitular", resumen.TitularNombre]</a>
+                                }
+                            </div>
+                        }
+                    </span>
+                </div>
+            </div>
+            <div class="gp-avance">
+                <BarraAvanceGestion Avance="avance" AriaLabel="@Textos["AutoAriaAvance"]" />
+                <div class="gp-avance-texto">
+                    <span class="gp-avance-resumen" data-avance-texto="">@TextoAvance(avance)</span>
+                    <span class="gp-leyenda"><span class="gp-leyenda-cuadro gp-leyenda-validado" aria-hidden="true"></span>@Textos["GpLeyendaValidado"]</span>
+                    <span class="gp-leyenda"><span class="gp-leyenda-cuadro gp-leyenda-subido" aria-hidden="true"></span>@Textos["GpLeyendaSubido"]</span>
+                </div>
+            </div>
+        </section>
+
+        @if (estado == EstadoGestionAutomatica.Sustituida)
+        {
+            <div class="gp-aviso gp-aviso-advertencia" role="status" data-aviso="sustituida">
+                <span>@Textos["GpSustituida", _detalle.SustituidaEnUtc is { } cuando ? cuando.EnHoraPeninsular().ToString("dd/MM/yyyy") : string.Empty]</span>
+                @if (_detalle.SustituidaPorGestionId is { } nueva)
+                {
+                    <a class="gp-boton gp-boton-secundario gp-boton-pequeno" href="gestiones/@nueva">@Textos["GpIrALaNueva"]</a>
+                }
+            </div>
+        }
+
+        @if (_reabierta && estado == EstadoGestionAutomatica.EnCurso)
+        {
+            <div class="gp-aviso gp-aviso-peligro" role="alert" data-aviso="reabierta">
+                <span><b>@Textos["GpReabiertaTitulo"]</b> @Textos["GpReabiertaTexto", _textoReabierta]</span>
+                @if (_detalle.Pasos.FirstOrDefault(p => p.Estado == EstadoAcreditacion.Rechazada) is { } rechazado)
+                {
+                    <button type="button" class="gp-boton gp-boton-secundario gp-boton-pequeno" @onclick="() => Abrir(rechazado.AcreditacionId)">@Textos["GpIrAlRechazado"]</button>
+                }
+            </div>
+        }
+
+        @if (estado is EstadoGestionAutomatica.Cerrada or EstadoGestionAutomatica.PendienteDeValidar)
+        {
+            <div class="gp-fin" role="status" data-aviso="fin">
+                <span class="gp-fin-icono" aria-hidden="true">✓</span>
+                <span class="gp-fin-texto">
+                    <span class="gp-fin-titulo">@Textos[estado == EstadoGestionAutomatica.Cerrada ? "GpFinCerradaTitulo" : "GpFinPendienteTitulo"]</span>
+                    <span>@(estado == EstadoGestionAutomatica.Cerrada ? Textos["GpFinCerradaTexto"] : Textos[avance.PendientesDeValidar == 1 ? "GpFinPendienteTextoUno" : "GpFinPendienteTexto", avance.PendientesDeValidar])</span>
+                </span>
+                <span class="gp-acciones">
+                    <Boton Variante="VarianteBoton.Secundario" OnClick="SiguienteGestionAsync">@Textos["GpSiguienteGestion"]</Boton>
+                    <a class="gp-boton gp-boton-secundario" href="mi-trabajo">@Textos["GpVolverMiTrabajo"]</a>
+                </span>
+            </div>
+        }
+
+        <div class="gp-cuerpo">
+            <aside class="gp-pasos" aria-label="@Textos["GpAriaPasos"]">
+                <div class="gp-filtro" role="group" aria-label="@Textos["GpAriaFiltrarPasos"]">
+                    <button type="button" aria-pressed="@(_soloPorHacer ? "true" : "false")" data-filtro-pasos="por-hacer" @onclick="() => _soloPorHacer = true">@Textos["GpPorHacer", PorHacer]</button>
+                    <button type="button" aria-pressed="@(_soloPorHacer ? "false" : "true")" data-filtro-pasos="todos" @onclick="() => _soloPorHacer = false">@Textos["GpTodos", _detalle.Pasos.Count]</button>
+                </div>
+                <div class="gp-lista">
+                    @foreach (var grupo in Grupos)
+                    {
+                        var (hechosPlataforma, totalPlataforma) = AvanceDePlataforma(grupo.Key);
+                        <div class="gp-grupo" data-plataforma="@grupo.Key">
+                            <div class="gp-grupo-cabecera">
+                                <span class="gp-grupo-nombre">@grupo.Key</span>
+                                <span class="gp-grupo-hechos">@Textos["GpHechosDeTotal", hechosPlataforma, totalPlataforma]</span>
+                            </div>
+                            @foreach (var paso in grupo)
+                            {
+                                var actual = abierto is not null && paso.AcreditacionId == abierto.AcreditacionId;
+                                <button type="button" class="gp-paso @(actual ? "gp-paso-actual" : "")" data-paso="@paso.AcreditacionId" data-estado-paso="@paso.Estado"
+                                        aria-current="@(actual ? "step" : null)" @onclick="() => Abrir(paso.AcreditacionId)">
+                                    <span class="gp-punto" data-tono="@PresentacionGestionAutomatica.TonoPaso(paso.Estado)" aria-hidden="true"></span>
+                                    <span class="gp-paso-texto @(paso.Hecho ? "gp-paso-hecho" : "")">
+                                        <span class="gp-paso-centro">@paso.CentroNombre</span>
+                                        @if (!string.IsNullOrWhiteSpace(paso.ClienteNombre))
+                                        {
+                                            <span class="gp-paso-cliente">@Textos["GpCliente", paso.ClienteNombre]</span>
+                                        }
+                                        <span class="gp-paso-estado" data-tono="@PresentacionGestionAutomatica.TonoPaso(paso.Estado)">@TextoPasoCorto(paso)</span>
+                                    </span>
+                                </button>
+                            }
+                        </div>
+                    }
+                    @if (_soloPorHacer && !Grupos.Any())
+                    {
+                        <div class="gp-sin-por-hacer" data-sin-por-hacer="">@Textos["GpSinPorHacer"]</div>
+                    }
+                </div>
+            </aside>
+
+            @if (abierto is not null)
+            {
+                <section class="gp-detalle-paso" aria-label="@Textos["GpAriaPasoAbierto"]" data-paso-abierto="@abierto.AcreditacionId">
+                    <div class="gp-detalle-contenido">
+                        <div class="gp-paso-cabecera">
+                            <div class="gp-paso-meta">
+                                <span class="gp-paso-n">@Textos["GpPasoNDeM", IndiceAbierto + 1, _detalle.Pasos.Count]</span>
+                                <span class="bp bp-@PresentacionGestionAutomatica.TonoPaso(abierto.Estado)" data-pastilla-paso="">@Textos[PresentacionGestionAutomatica.ClavePasoCorto(abierto.Estado)]</span>
+                                @if (DetallePaso(abierto) is { } detallePaso)
+                                {
+                                    <span data-detalle-paso="">· @detallePaso</span>
+                                }
+                            </div>
+                            <h2>@resumen.TipoDocumentoNombre</h2>
+                            <span class="gp-paso-donde" data-donde="">
+                                <b>@abierto.Plataforma</b> · @abierto.CentroNombre@if (!string.IsNullOrWhiteSpace(abierto.ClienteNombre)){<text> · @Textos["GpCliente", abierto.ClienteNombre]</text>}
+                            </span>
+                        </div>
+
+                        @if (!_detalle.Documento.VigenteEnTalveg)
+                        {
+                            <div class="gp-aviso gp-aviso-advertencia gp-aviso-simple" role="alert" data-aviso="no-vigente">
+                                @Textos["GpNoVigente"] <a href="@RutaFichaTitular">@resumen.TitularNombre</a>.
+                            </div>
+                        }
+
+                        @if (!string.IsNullOrEmpty(_errorGuardado))
+                        {
+                            <div class="gp-aviso gp-aviso-peligro" role="alert" data-aviso="error-guardado">
+                                <span><b>@Textos["GpErrorGuardadoTitulo"]</b> @_errorGuardado</span>
+                                @if (PuedeGuardar)
+                                {
+                                    <button type="button" class="gp-boton gp-boton-secundario gp-boton-pequeno" data-accion="reintentar" @onclick="GuardarSoloAsync">@Textos["BotonReintentar"]</button>
+                                }
+                            </div>
+                        }
+
+                        <section class="gp-bloque gp-plataforma" aria-label="@Textos["GpEntrarPlataforma"]" data-entrar-plataforma="">
+                            <div class="gp-bloque-titulo">
+                                <span class="gp-etiqueta">@Textos["GpEntrarPlataforma"]</span>
+                                <span class="gp-nota">@Textos["GpMismaSeccionCentro360"]</span>
+                            </div>
+                            <div class="gp-plataforma-botones">
+                                <CanalPlataformaAcceso @key="abierto.CanalId" CentroId="abierto.CentroId" Canal="CanalDe(abierto)" />
+                            </div>
+                            @if (string.IsNullOrWhiteSpace(abierto.UrlAcceso))
+                            {
+                                <span class="gp-texto-suave" data-sin-direccion="">@Textos["GpSinDireccion"]</span>
+                            }
+                            @if (!abierto.TieneUsuario && _puedeEscribir)
+                            {
+                                <span class="gp-texto-suave" data-sin-credenciales="">@Textos["GpSinCredenciales"] <a href="centros/@abierto.CentroId">@Textos["GpSinCredencialesEnlace"]</a>.</span>
+                            }
+                            @if (!_puedeEscribir)
+                            {
+                                <span class="gp-nota" data-solo-consulta="">@Textos["GpConsultaNoCopia"]</span>
+                            }
+                        </section>
+
+                        <section class="gp-bloque" aria-label="@Textos["GpElDocumento"]" data-documento="">
+                            <div class="gp-bloque-titulo">
+                                <span class="gp-etiqueta">@Textos["GpElDocumento"]</span>
+                                @if (_detalle.Documento.TieneArchivo)
+                                {
+                                    <a class="gp-boton gp-boton-secundario gp-boton-pequeno" href="documentos/@resumen.DocumentoId/archivo" data-descargar="">@Textos["GpDescargarDocumento"]</a>
+                                }
+                                else
+                                {
+                                    <button type="button" class="gp-boton gp-boton-secundario gp-boton-pequeno" disabled data-descargar="">@Textos["GpDescargarDocumento"]</button>
+                                }
+                            </div>
+                            <div class="gp-campos">
+                                @foreach (var (clave, valor, copiable, tono) in Campos(resumen))
+                                {
+                                    <div class="gp-campo" data-campo="@clave">
+                                        <span class="gp-campo-clave">@Textos[clave]</span>
+                                        @if (copiable)
+                                        {
+                                            <BotonCopiar EnLinea="true" ConfirmarConIcono="true" Texto="@valor" Valor="@valor" NombreAccesible="@Textos["GpCopiarCampo", Textos[clave]]" />
+                                        }
+                                        else
+                                        {
+                                            <span class="gp-campo-valor" data-tono="@tono">@valor</span>
+                                        }
+                                    </div>
+                                }
+                            </div>
+                        </section>
+
+                        @{ var pestana = PestanaActual; }
+                        <section class="gp-bloque" aria-label="@Textos["GpDatosAMano"]" data-datos-a-mano="">
+                            <div class="gp-bloque-titulo">
+                                <span class="gp-etiqueta">@Textos["GpDatosAMano"]</span>
+                                <div class="gp-pestanas" role="tablist" aria-label="@Textos["GpAriaDatos"]">
+                                    @foreach (var p in Pestanas())
+                                    {
+                                        var faltan = FaltanEn(p, abierto);
+                                        <button type="button" role="tab" class="gp-pestana" aria-selected="@(p == pestana ? "true" : "false")" data-pestana="@p"
+                                                @onclick="() => _pestana = p">@Textos[p == PestanaTrabajador ? "GpPestanaTrabajador" : "GpPestanaCentro"]@if (faltan > 0){<text> </text><span class="gp-pestana-faltan" data-faltan="@faltan">@Textos["GpPestanaFaltan", faltan]</span>}</button>
+                                    }
+                                </div>
+                            </div>
+                            <div class="gp-datos" role="tabpanel" data-pestana-abierta="@pestana">
+                                @foreach (var (clave, valor) in DatosDe(pestana, abierto))
+                                {
+                                    <div class="gp-campo" data-dato="@clave">
+                                        <span class="gp-campo-clave">@Textos[clave]</span>
+                                        @if (valor is not null)
+                                        {
+                                            <BotonCopiar EnLinea="true" ConfirmarConIcono="true" Texto="@valor" Valor="@valor" NombreAccesible="@Textos["GpCopiarCampo", Textos[clave]]" />
+                                        }
+                                        else
+                                        {
+                                            <span class="gp-falta" data-falta="">
+                                                <span class="gp-falta-texto">@Textos["GpFaltaEnTalveg"]</span>
+                                                @if (_puedeEscribir && pestana == PestanaTrabajador)
+                                                {
+                                                    <button type="button" class="gp-boton gp-boton-secundario gp-boton-pequeno" data-completar="@clave"
+                                                            aria-label="@Textos["GpCompletarDato", Textos[clave]]" @onclick="CompletarTrabajador">@Textos["GpCompletar"]</button>
+                                                }
+                                                else if (_puedeEscribir)
+                                                {
+                                                    <a class="gp-boton gp-boton-secundario gp-boton-pequeno" href="centros/@abierto.CentroId" data-completar="@clave"
+                                                       aria-label="@Textos["GpCompletarDato", Textos[clave]]">@Textos["GpCompletar"]</a>
+                                                }
+                                            </span>
+                                        }
+                                    </div>
+                                }
+                            </div>
+                            <span class="gp-nota" data-datos-nota="">@Textos[!_puedeEscribir ? "GpDatosNotaConsulta" : pestana == PestanaTrabajador ? "GpDatosNota" : "GpDatosNotaCentro"]</span>
+                        </section>
+
+                        @if (!string.IsNullOrWhiteSpace(abierto.Notas))
+                        {
+                            <section class="gp-bloque" aria-label="@Textos["GpNotasAcceso"]" data-notas="">
+                                <span class="gp-etiqueta">@Textos["GpNotasAcceso"]</span>
+                                <div class="gp-nota-acceso">@abierto.Notas</div>
+                            </section>
+                        }
+
+                        @if (PuedeMarcar)
+                        {
+                            <fieldset class="gp-opciones" role="radiogroup" aria-label="@Textos["GpComoHaQuedado"]" data-opciones="">
+                                <legend class="gp-etiqueta">@Textos["GpComoHaQuedado"]</legend>
+                                @foreach (var (clave, estadoPaso, titulo, descripcion) in Opciones)
+                                {
+                                    <button type="button" role="radio" class="gp-opcion" aria-checked="@(_opcion == clave ? "true" : "false")"
+                                            disabled="@OpcionDeshabilitada(clave)" data-opcion="@clave" aria-keyshortcuts="@AtajoDeOpcion(clave)"
+                                            @onclick="() => ElegirOpcion(clave)">
+                                        <span class="gp-radio" aria-hidden="true"></span>
+                                        <span class="gp-opcion-texto">
+                                            <span class="bp bp-@PresentacionGestionAutomatica.TonoPaso(estadoPaso)">@Textos[titulo]</span>
+                                            <span class="gp-opcion-desc">@Textos[descripcion]</span>
+                                        </span>
+                                    </button>
+                                }
+                            </fieldset>
+                            @if (!_detalle.Documento.VigenteEnTalveg)
+                            {
+                                <span class="gp-nota gp-nota-aviso" data-aviso-opciones="">@Textos["GpOpcionesNoVigente"]</span>
+                            }
+                            else if (PasoRechazado)
+                            {
+                                <span class="gp-nota gp-nota-aviso" data-aviso-subido-rechazado="">@Textos["GpOpcionSubidoRechazada"]</span>
+                            }
+
+                            @if (_opcion == OpcionValidado)
+                            {
+                                <div class="gp-campos-opcion" data-campos-opcion="validado">
+                                    @* CampoFecha lleva su propia etiqueta: envolverlo en un <label> metería su botón de
+                                       calendario dentro de la etiqueta del campo. *@
+                                    <div class="gp-etiqueta-campo">
+                                        <CampoFecha Etiqueta="@Textos["GpValidoHasta"]" Valor="_hasta" ValorChanged="v => _hasta = v" NoValido="_hastaNoValido" NoValidoChanged="v => _hastaNoValido = v" Deshabilitado="_noSe" /></div>
+                                    <label class="gp-check"><input type="checkbox" @bind="_noSe" />@Textos["GpNoLoSe"]</label>
+                                </div>
+                            }
+                            else if (_opcion == OpcionRechazado)
+                            {
+                                <div class="gp-campos-opcion gp-campos-rechazo" data-campos-opcion="rechazado">
+                                    <label class="gp-etiqueta-campo"><span>@Textos["GpCausa"]</span>
+                                        <select class="gp-input" @bind="_causa">
+                                            <option value="">@Textos["GpElegirCausa"]</option>
+                                            @foreach (var causa in Causas)
+                                            {
+                                                <option value="@causa.Valor">@Textos[causa.Clave]</option>
+                                            }
+                                        </select></label>
+                                    <label class="gp-etiqueta-campo"><span>@Textos["GpMotivo"] <span class="gp-nota">@Textos["GpObligatorio"]</span></span>
+                                        <textarea class="gp-input" rows="2" @bind="_motivo" @bind:event="oninput" placeholder="@Textos["GpMotivoPlaceholder"]"></textarea></label>
+                                </div>
+                            }
+                            else if (_opcion == OpcionNoPide)
+                            {
+                                <label class="gp-check" data-campos-opcion="nopide"><input type="checkbox" @bind="_confirmaNoPide" />@Textos["GpConfirmoNoPide", abierto.Plataforma, abierto.CentroNombre]</label>
+                            }
+                        }
+                        else if (!_puedeEscribir)
+                        {
+                            <div class="gp-aviso gp-aviso-simple gp-aviso-neutro" data-aviso="consulta">@Textos["GpConsultaNoMarca"]</div>
+                        }
+                    </div>
+
+                    <div class="gp-pie">
+                        <button type="button" class="gp-boton gp-boton-secundario gp-boton-medio" disabled="@(IndiceAbierto <= 0)" data-accion="anterior"
+                                aria-keyshortcuts="@AtajosPasosGestion.TeclaAnterior" @onclick="Anterior">@Textos["GpAnterior"]</button>
+                        @* Sin opción elegida el primario hace lo mismo que →; con una elegida, guarda, y → no guarda. *@
+                        <Boton Variante="VarianteBoton.Primario" Deshabilitado="@(_opcion is not null && !PuedeGuardar || _guardando)" data-accion="primario"
+                               aria-keyshortcuts="@(_opcion is null ? AtajosPasosGestion.TeclaSiguiente : null)" OnClick="PrimarioAsync">@TextoPrimario</Boton>
+                        @if (_opcion is not null && _puedeEscribir)
+                        {
+                            <button type="button" class="gp-enlace" disabled="@(!PuedeGuardar || _guardando)" data-accion="guardar" @onclick="GuardarSoloAsync">@Textos["GpGuardar"]</button>
+                        }
+                        @* Indicadores del pie (§ 4.5, ATAJOS de la maqueta). Cada uno solo si su tecla hace algo aquí: sin poder
+                           marcar (Consulta, Gestión sustituida) no se enseñan 1 ni 2, ni el de una opción deshabilitada. *@
+                        <span class="gp-atajos" role="group" aria-label="@Textos["GpAriaAtajos"]" data-atajos-pie="">
+                            <span class="gp-atajo" data-atajo="siguiente"><kbd>→</kbd>@Textos["GpSiguiente"]</span>
+                            <span class="gp-atajo" data-atajo="anterior"><kbd>←</kbd>@Textos["GpAnterior"]</span>
+                            @if (PuedeMarcar && !OpcionDeshabilitada(OpcionSubido))
+                            {
+                                <span class="gp-atajo" data-atajo="subido"><kbd>1</kbd>@Textos["GpAtajoSubido"]</span>
+                            }
+                            @if (PuedeMarcar && !OpcionDeshabilitada(OpcionValidado))
+                            {
+                                <span class="gp-atajo" data-atajo="validado"><kbd>2</kbd>@Textos["GpAtajoValidado"]</span>
+                            }
+                        </span>
+                    </div>
+                </section>
+            }
+            else
+            {
+                <section class="gp-detalle-paso" aria-label="@Textos["GpAriaPasoAbierto"]">
+                    <div class="gp-detalle-contenido"><div class="gp-aviso gp-aviso-simple gp-aviso-neutro" data-aviso="sin-pasos">@Textos["GpNoExisteDescripcion"]</div></div>
+                </section>
+            }
+        </div>
+    }
+
+    @if (_editorTrabajadorVisible && _detalle?.Trabajador is { } trabajador)
+    {
+        <EditarFichaTrabajadorDrawer @key="trabajador.Id" TrabajadorId="trabajador.Id" Visible="true"
+                                     VisibleChanged="v => _editorTrabajadorVisible = v" OnGuardada="FichaTrabajadorGuardadaAsync" />
+    }
+
+</div>
+</LimiteDeErrores>

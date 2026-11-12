@@ -58,7 +58,8 @@ public class DocumentoDeSaludNoDisparaLecturaIaTests
             _documentos, _mundo.TiposDocumentoContexto, _mundo.TrabajadoresContexto, new SinVehiculos(),
             new ProyectosQueryContextFalso(), empresas, new UnitOfWorkFalso(),
             _cola, new CurrentUserServiceFalso(), _mundo.Servicio(), new PublisherFalso(),
-            new AlcanceDatosServiceFalso(), new VerificadorArchivoAlmacenadoPermisivo());
+            new AlcanceDatosServiceFalso(), new VerificadorArchivoAlmacenadoPermisivo(), new CaeManager.Application.Tests.Documentos.SerializacionAltasAcreditacionEmpresaFalsa(),
+            _mundo.GestionAutomatica());
 
         var creado = await handler.Handle(comando, CancellationToken.None);
         creado.EsExitoso.Should().BeTrue(creado.Error.Mensaje);

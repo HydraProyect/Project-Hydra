@@ -15,7 +15,12 @@
 @* Enlace de verificación del correo (maqueta A0, artboards CorreoConfirmado y EnlaceCaducado). Abrir el enlace no
    verifica: pinta un botón que envía el token por POST. Los antivirus y las vistas previas de los gestores de correo
    abren los enlaces por su cuenta, y con un GET que verificase gastarían el enlace de un solo uso antes que la
-   persona. El token viaja en la consulta y vuelve en un campo oculto; la base solo guarda su SHA-256. *@
+   persona. El token viaja en la consulta y vuelve en un campo oculto; la base solo guarda su SHA-256.
+
+   A4, pre-secuestro de la cuenta: el POST pide también la contraseña elegida en el registro, y solo verifica si casan
+   token y contraseña. Si no casan, se responde lo mismo que con un enlace no válido y el enlace no se gasta. Verificado,
+   el credencial de continuación va a una cookie HttpOnly y SameSite=Strict (CookieContinuacionAlta) y se redirige al
+   paso «Empresa»: el token deja de estar en la URL. *@
 
 <PageTitle>@T["VerificarTituloPagina"] — @Marca.Nombre</PageTitle>
 
@@ -26,11 +31,22 @@
         @switch (_resultado)
         {
             case null:
+            case ResultadoVerificacionCorreoAlta.NoValido:
                 <PasosAlta Detalle="@T["PasoConfirmarCorreoDetalle"]" />
                 <h2 class="acceso-titulo">@T["ConfirmarCorreoTitulo"]</h2>
                 <p class="acceso-explica">@T["ConfirmarCorreoExplica"]</p>
-                <EditForm Model="Entrada" method="post" OnSubmit="VerificarAsync" FormName="alta-verificar">
+                @if (_resultado is not null)
+                {
+                    <p class="acceso-alerta" role="alert">@T["ConfirmarCorreoNoValido"]</p>
+                }
+                <EditForm Model="Entrada" method="post" OnSubmit="VerificarAsync" FormName="alta-verificar" novalidate>
                     <InputText type="hidden" @bind-Value="Entrada!.Token" />
+                    <div class="acceso-campo">
+                        <label for="alta-verificar-contrasena">@T["ConfirmarCorreoContrasenaEtiqueta"]</label>
+                        <InputText id="alta-verificar-contrasena" @bind-Value="Entrada!.Contrasena" type="password"
+                                   autocomplete="current-password" aria-describedby="alta-verificar-contrasena-ayuda" />
+                        <p id="alta-verificar-contrasena-ayuda" class="acceso-nota">@T["ConfirmarCorreoContrasenaAyuda"]</p>
+                    </div>
                     <button type="submit" class="acceso-entrar">@T["ConfirmarCorreoBoton"]</button>
                 </EditForm>
                 break;
@@ -51,6 +67,7 @@
                 <p class="acceso-explica">@T["AyudaSoporte"]</p>
                 break;
             default:
+                @* Inalcanzable con los valores actuales del enum: NoValido vuelve a pintar el formulario. *@
                 <h2 class="acceso-titulo">@T["EnlaceNoValidoTitulo"]</h2>
                 <p class="acceso-explica">@T["EnlaceNoValidoExplica"]</p>
                 <p class="acceso-olvido"><a href="/alta">@T["VolverAEmpezar"]</a></p>
@@ -60,6 +77,8 @@
 }
 
 @code {
+    [CascadingParameter] private HttpContext? HttpContext { get; set; }
+
     [SupplyParameterFromQuery(Name = "token")]
     private string? TokenConsulta { get; set; }
 
@@ -86,11 +105,22 @@
         if (!_habilitada || Entrada is null)
             return;
 
-        _resultado = await Registro.VerificarCorreoAsync(Entrada.Token, CancellationToken.None);
+        var verificacion = await Registro.VerificarCorreoAsync(Entrada.Token, Entrada.Contrasena, CancellationToken.None);
+        // La contraseña no vuelve nunca a la página: el campo se pinta vacío, también tras un intento fallido.
+        Entrada.Contrasena = string.Empty;
+        _resultado = verificacion.Resultado;
+
+        if (verificacion is { Resultado: ResultadoVerificacionCorreoAlta.Verificado, CredencialContinuacion: { } credencial }
+            && HttpContext is not null)
+        {
+            CookieContinuacionAlta.Escribir(HttpContext, credencial);
+            Navigation.NavigateTo(OrganizacionAlta.Ruta);
+        }
     }
 
     private sealed class DatosEntrada
     {
         public string Token { get; set; } = string.Empty;
+        public string Contrasena { get; set; } = string.Empty;
     }
 }

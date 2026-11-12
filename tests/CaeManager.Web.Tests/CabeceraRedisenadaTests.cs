@@ -59,6 +59,7 @@ public class CabeceraRedisenadaTests : BunitContext
         Services.AddSingleton<ILogger<ExcepcionDeCircuitoDesconectado>>(NullLogger<ExcepcionDeCircuitoDesconectado>.Instance);
         Services.AddSingleton<AntiforgeryStateProvider>(new AntiforgeryFalso());
         Services.AddSingleton<ILogger<MenuUsuario>>(NullLogger<MenuUsuario>.Instance);
+        Services.AddScoped<ContextoMarcoDelAmbito>();
     }
 
     // ---- Iniciales del avatar ----
@@ -309,8 +310,11 @@ public class CabeceraRedisenadaTests : BunitContext
             escenario == "otro-origen" ? Guid.NewGuid() : origen,
             escenario == "otro-perfil" ? "Consulta" : "GestorCae",
             escenario == "otro-tenant" ? Guid.NewGuid() : efectivo, null);
-        _estadoPersistente.Persist("layout-migas-presentacion-v1", new MigasPagina.PresentacionMigas(
-            clave, DateTimeOffset.UtcNow - (escenario == "caducada" ? TimeSpan.FromMinutes(1) : TimeSpan.Zero), true));
+        // Lo que el prerenderizado deja al circuito es el contexto del marco entero (ContextoMarcoDelAmbito).
+        _estadoPersistente.Persist(ContextoMarcoDelAmbito.ClavePersistencia, new ContextoMarcoDelAmbito.ContextoPersistido(
+            new(clave, null), DateTimeOffset.UtcNow - (escenario == "caducada" ? TimeSpan.FromMinutes(1) : TimeSpan.Zero),
+            new CaeManager.Application.Marco.Queries.ObtenerContextoMarco.ContextoMarcoDto(
+                default, RotulosPrimeraPersona: true, false, [], null, null, false, null)));
 
         var cut = Render<MigasPagina>();
 
@@ -1142,6 +1146,9 @@ public class CabeceraRedisenadaTests : BunitContext
         public Task<TResponse> Send<TResponse>(IRequest<TResponse> request, CancellationToken cancellationToken = default)
         {
             Enviadas.Add(request);
+            // El contexto del marco se compone con el handler real sobre las respuestas de este test.
+            if (request is CaeManager.Application.Marco.Queries.ObtenerContextoMarco.ObtenerContextoMarcoQuery)
+                return (Task<TResponse>)(object)ContextoMarcoDePrueba.ComponerAsync(responder, cancellationToken);
             return Task.FromResult((TResponse)responder(request)!);
         }
 

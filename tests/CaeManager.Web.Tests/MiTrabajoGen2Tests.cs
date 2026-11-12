@@ -56,7 +56,7 @@ public partial class MiTrabajoGen2Tests : BunitContext
             .And.OnlyContain(b => b.TextContent.Trim() == "Gestionar");
         cut.FindAll(".propagaciones-fila button.enlace-documento").Should().HaveCount(2);
         cut.FindAll(".mi-trabajo-fila").Should().HaveCount(2);
-        cut.Markup.Should().Contain("Empresa").And.Contain("Prioridad").And.Contain("Cliente");
+        cut.Markup.Should().Contain("Empresa").And.Contain("Impacto").And.Contain("Cliente");
     }
 
     [Fact]
@@ -203,8 +203,9 @@ public partial class MiTrabajoGen2Tests : BunitContext
     private MediadorFijo? _mediador;
 
     /// <summary>
-    /// La pantalla carga con todo plegado (decisión de producto 2026-10-16). La mayoría de los tests miran filas, así
-    /// que parten de «Expandir todas», como haría el Gestor CAE; los que fijan la carga inicial usan <see cref="RenderizarPlegado"/>.
+    /// La pantalla carga con el primer grupo desplegado y los demás plegados (maqueta, 11-06). La mayoría de los tests miran
+    /// filas y «Vista y filtros», así que abren el panel y parten de «Expandir todas», como haría el Gestor CAE; los que fijan
+    /// la carga inicial usan <see cref="RenderizarPlegado"/>.
     /// </summary>
     private IRenderedComponent<MiTrabajoPagina> Renderizar(
         Func<MiTrabajoAgregadoDto>? respuesta = null,
@@ -253,12 +254,23 @@ public partial class MiTrabajoGen2Tests : BunitContext
     /// <summary>La vuelta a Mi trabajo sin filtros que lleva todo destino (RetornoMiTrabajo).</summary>
     private static readonly string Vuelta = $"volver={Uri.EscapeDataString("/mi-trabajo")}";
 
-    /// <summary>La pantalla carga con todo plegado: los tests que miran filas parten de «Expandir todas», como haría el Gestor CAE.</summary>
+    /// <summary>«Vista y filtros» carga plegada salvo que la URL traiga un filtro: se abre para llegar a Empresa, Agrupar por, el filtro y Expandir todas.</summary>
+    private static void AbrirVista(IRenderedComponent<MiTrabajoPagina> cut)
+    {
+        var alternar = cut.FindAll(".mi-trabajo-vista-alternar").FirstOrDefault();
+        if (alternar is not null && alternar.GetAttribute("aria-expanded") != "true") alternar.Click();
+    }
+
+    /// <summary>Los tests que miran filas parten de todo desplegado, como haría el Gestor CAE con «Expandir todas».</summary>
     private static void ExpandirTodas(IRenderedComponent<MiTrabajoPagina> cut)
     {
+        AbrirVista(cut);
         var boton = cut.FindAll(".mi-trabajo-plegar-todas").FirstOrDefault();
-        if (boton is not null && cut.FindAll(".mi-trabajo-grupo-cabecera-tenant").All(c => c.GetAttribute("aria-expanded") == "false"))
-            boton.Click();
+        var cabeceras = cut.FindAll(".mi-trabajo-grupo-cabecera");
+        if (boton is null || cabeceras.Count == 0 || cabeceras.All(c => c.GetAttribute("aria-expanded") == "true")) return;
+        // Con algún grupo desplegado el botón pliega todo (en cualquier cultura): primero pliega y después despliega.
+        if (cabeceras.Any(c => c.GetAttribute("aria-expanded") == "true")) cut.Find(".mi-trabajo-plegar-todas").Click();
+        cut.Find(".mi-trabajo-plegar-todas").Click();
     }
 
     private static IReadOnlyList<string> TitulosVisibles(IRenderedComponent<MiTrabajoPagina> cut) =>
@@ -573,40 +585,45 @@ public partial class MiTrabajoGen2Tests : BunitContext
         cut.FindAll(".mi-trabajo-grupo-nombre").Select(e => e.TextContent).Should().Equal("Laboratorios Dexter");
     }
 
-    /// <summary>Decisión de producto (2026-10-16): Mi trabajo carga SIEMPRE con todos los grupos de Tenant plegados.</summary>
+    /// <summary>Maqueta (decisión del 2026-11-06 para la demo del 10-11): al cargar se despliega el primer grupo; los demás quedan plegados.</summary>
     [Fact]
-    public void La_pantalla_carga_con_todos_los_Tenants_plegados_y_sin_filas()
+    public void La_pantalla_carga_con_el_primer_grupo_desplegado_y_los_demas_plegados()
     {
         var cut = RenderizarPlegado();
 
         var cabeceras = cut.FindAll(".mi-trabajo-grupo-cabecera-tenant");
-        cabeceras.Should().NotBeEmpty();
-        cabeceras.Should().OnlyContain(c => c.GetAttribute("aria-expanded") == "false");
-        cut.FindAll(".mi-trabajo-fila").Should().BeEmpty();
-        cut.Find(".mi-trabajo-plegar-todas").TextContent.Should().Be("Expandir todas");
+        cabeceras.Should().HaveCountGreaterThan(1);
+        cabeceras[0].TextContent.Should().Contain("Refrielectric");
+        cabeceras[0].GetAttribute("aria-expanded").Should().Be("true");
+        cabeceras.Skip(1).Should().OnlyContain(c => c.GetAttribute("aria-expanded") == "false");
+        TitulosVisibles(cut).Should().NotBeEmpty("el primer grupo enseña su trabajo urgente")
+            .And.NotContain("Rechazado por la plataforma", "las filas de una Empresa plegada no se pintan");
+        AbrirVista(cut);
+        cut.Find(".mi-trabajo-plegar-todas").TextContent.Should().Be("Plegar todas", "hay un grupo desplegado");
     }
 
-    /// <summary>Decisión de la coordinadora (2026-10-16): el modo Severidad también carga plegado, con cabeceras plegables y «Expandir todas».</summary>
+    /// <summary>El modo Severidad también carga con la primera cabecera desplegada, con cabeceras plegables y «Expandir/Plegar todas».</summary>
     [Fact]
-    public void El_modo_Severidad_carga_con_todas_las_cabeceras_plegadas_y_se_despliegan_una_a_una_o_todas()
+    public void El_modo_Severidad_carga_con_la_primera_cabecera_desplegada_y_se_despliegan_una_a_una_o_todas()
     {
         var cut = RenderizarPlegado(url: "mi-trabajo?agrupar=severidad");
 
         var cabeceras = cut.FindAll(".mi-trabajo-grupo-cabecera-severidad");
-        cabeceras.Should().NotBeEmpty();
-        cabeceras.Should().OnlyContain(c => c.GetAttribute("aria-expanded") == "false");
-        cut.FindAll(".mi-trabajo-fila").Should().BeEmpty();
-        cut.Find(".mi-trabajo-plegar-todas").TextContent.Should().Be("Expandir todas");
+        cabeceras.Should().HaveCountGreaterThan(2);
+        cabeceras[0].GetAttribute("aria-expanded").Should().Be("true");
+        cabeceras.Skip(1).Should().OnlyContain(c => c.GetAttribute("aria-expanded") == "false");
+        TitulosVisibles(cut).Should().NotBeEmpty();
+        cut.Find(".mi-trabajo-plegar-todas").TextContent.Should().Be("Plegar todas");
 
-        cabeceras[0].Click();
+        cabeceras[1].Click();
 
         var tras = cut.FindAll(".mi-trabajo-grupo-cabecera-severidad");
         tras[0].GetAttribute("aria-expanded").Should().Be("true");
-        tras.Skip(1).Should().OnlyContain(c => c.GetAttribute("aria-expanded") == "false", "abrir una no abre las demás");
-        TitulosVisibles(cut).Should().NotBeEmpty();
+        tras[1].GetAttribute("aria-expanded").Should().Be("true");
+        tras.Skip(2).Should().OnlyContain(c => c.GetAttribute("aria-expanded") == "false", "abrir una no abre las demás");
 
         cut.Find(".mi-trabajo-plegar-todas").Click();
-        cut.Find(".mi-trabajo-plegar-todas").TextContent.Should().Be("Expandir todas", "con una abierta y otras plegadas el botón pliega todo");
+        cut.Find(".mi-trabajo-plegar-todas").TextContent.Should().Be("Expandir todas", "con unas abiertas y otras plegadas el botón pliega todo");
         cut.FindAll(".mi-trabajo-grupo-cabecera-severidad").Should().OnlyContain(c => c.GetAttribute("aria-expanded") == "false");
 
         cut.Find(".mi-trabajo-plegar-todas").Click();
@@ -618,10 +635,18 @@ public partial class MiTrabajoGen2Tests : BunitContext
     }
 
     [Fact]
-    public void Expandir_todas_despliega_todo_y_cambia_su_rotulo_y_Volver_a_plegar_deja_todo_plegado_otra_vez()
+    public void Expandir_todas_despliega_todo_y_cambia_su_rotulo_y_Volver_a_plegar_deja_todo_plegado()
     {
         var cut = RenderizarPlegado();
-        cut.FindAll(".mi-trabajo-volver-plegar").Should().BeEmpty("no hay nada desplegado que volver a plegar");
+        AbrirVista(cut);
+        cut.FindAll(".mi-trabajo-volver-plegar").Should().ContainSingle("el primer grupo está desplegado y se puede volver a plegar");
+        cut.Find(".mi-trabajo-plegar-todas").TextContent.Should().Be("Plegar todas");
+
+        cut.Find(".mi-trabajo-plegar-todas").Click();
+
+        cut.FindAll(".mi-trabajo-grupo-cabecera-tenant").Should().OnlyContain(c => c.GetAttribute("aria-expanded") == "false");
+        cut.Find(".mi-trabajo-plegar-todas").TextContent.Should().Be("Expandir todas");
+        TitulosVisibles(cut).Should().BeEmpty();
 
         cut.Find(".mi-trabajo-plegar-todas").Click();
 
@@ -636,25 +661,59 @@ public partial class MiTrabajoGen2Tests : BunitContext
         TitulosVisibles(cut).Should().BeEmpty();
     }
 
+    [Fact]
+    public void El_primer_grupo_desplegado_de_partida_se_puede_plegar_y_no_se_vuelve_a_abrir_al_repintar()
+    {
+        var cut = RenderizarPlegado();
+
+        cut.FindAll(".mi-trabajo-grupo-cabecera-tenant")[0].Click();
+        cut.Render();
+
+        cut.FindAll(".mi-trabajo-grupo-cabecera-tenant").Should().OnlyContain(c => c.GetAttribute("aria-expanded") == "false");
+        TitulosVisibles(cut).Should().BeEmpty();
+    }
+
+    /// <summary>
+    /// «Reintentar la consulta» vuelve a cargar la cola, pero el primer grupo se abre una sola vez por visita: si el
+    /// Gestor CAE lo plegó, la recarga no se lo vuelve a abrir.
+    /// </summary>
+    [Fact]
+    public void Reintentar_la_consulta_no_vuelve_a_abrir_el_primer_grupo_que_el_Gestor_CAE_plego()
+    {
+        var cartera = Cartera();
+        var cut = RenderizarPlegado(() => new MiTrabajoAgregadoDto(cartera.Tenants, [new TenantNoConsultadoDto(Guid.NewGuid(), "Otra Empresa", false)]));
+        cut.FindAll(".mi-trabajo-grupo-cabecera-tenant")[0].GetAttribute("aria-expanded").Should().Be("true");
+
+        cut.FindAll(".mi-trabajo-grupo-cabecera-tenant")[0].Click();
+        cut.FindAll(".mi-trabajo-grupo-cabecera-tenant").Should().OnlyContain(c => c.GetAttribute("aria-expanded") == "false");
+
+        cut.Find(".mi-trabajo-cartera-incompleta button").Click();
+
+        cut.WaitForAssertion(() => cut.FindAll(".mi-trabajo-grupo-cabecera-tenant").Should().NotBeEmpty());
+        cut.FindAll(".mi-trabajo-grupo-cabecera-tenant").Should().OnlyContain(c => c.GetAttribute("aria-expanded") == "false");
+    }
+
     /// <summary>
     /// Lo que el Gestor CAE despliega vale para su visita a la pantalla y nada más: no se escribe ni se lee ningún
-    /// almacenamiento del navegador, y una instancia nueva de la pantalla (otra carga) vuelve a partir plegada aunque
-    /// la anterior terminara con un Tenant desplegado.
+    /// almacenamiento del navegador, y una instancia nueva de la pantalla (otra carga) vuelve a partir con solo el
+    /// primer grupo desplegado aunque la anterior terminara con otro Tenant desplegado.
     /// </summary>
     [Fact]
     public void Lo_desplegado_en_una_visita_no_se_restaura_en_la_siguiente()
     {
         var cut = RenderizarPlegado();
-        cut.FindAll(".mi-trabajo-grupo-cabecera-tenant").First(c => c.TextContent.Contains("Refrielectric")).Click();
-        cut.FindAll(".mi-trabajo-grupo-cabecera-tenant").First(c => c.TextContent.Contains("Refrielectric"))
+        cut.FindAll(".mi-trabajo-grupo-cabecera-tenant").First(c => c.TextContent.Contains("Laboratorios Dexter")).Click();
+        cut.FindAll(".mi-trabajo-grupo-cabecera-tenant").First(c => c.TextContent.Contains("Laboratorios Dexter"))
             .GetAttribute("aria-expanded").Should().Be("true", "durante la visita se puede desplegar");
-        TitulosVisibles(cut).Should().NotBeEmpty();
+        TitulosVisibles(cut).Should().Contain("Rechazado por la plataforma");
 
         cut.Dispose();
         var siguiente = Render<MiTrabajoPagina>();
 
-        siguiente.FindAll(".mi-trabajo-grupo-cabecera-tenant").Should().OnlyContain(c => c.GetAttribute("aria-expanded") == "false");
-        TitulosVisibles(siguiente).Should().BeEmpty();
+        var cabeceras = siguiente.FindAll(".mi-trabajo-grupo-cabecera-tenant");
+        cabeceras[0].GetAttribute("aria-expanded").Should().Be("true");
+        cabeceras.Skip(1).Should().OnlyContain(c => c.GetAttribute("aria-expanded") == "false");
+        TitulosVisibles(siguiente).Should().NotContain("Rechazado por la plataforma");
         JSInterop.Invocations.Where(i => i.Identifier.Contains("Storage", StringComparison.OrdinalIgnoreCase)).Should()
             .BeEmpty("la expansión no se guarda en localStorage ni en ninguna preferencia");
     }
@@ -670,17 +729,112 @@ public partial class MiTrabajoGen2Tests : BunitContext
         cut.Find(".mi-trabajo-grupo-resumen").TextContent.Should().Be("2 bloqueos · 1 por actuar · 2 en calendario");
     }
 
+    /// <summary>Maqueta: «Ordenar por [Impacto]» arriba a la derecha, en la cabecera; Cliente se conserva como segunda opción.</summary>
     [Fact]
-    public void El_orden_por_Cliente_empresarial_se_rotula_Cliente_y_no_con_el_rotulo_largo()
+    public void Ordenar_por_esta_en_la_cabecera_con_Impacto_y_Cliente_y_ya_no_en_la_barra_de_la_cola()
     {
         var cut = Renderizar();
 
-        var botones = cut.Find("[role=group][aria-label=Ordenar]").QuerySelectorAll("button").Select(b => b.TextContent.Trim());
-
-        botones.Should().Contain("Cliente", "CONTRATO_TERMINOLOGIA § 3.2, decisión de rótulo del 2026-10-09")
-            .And.NotContain("Cliente empresarial");
+        var selector = cut.Find("select[aria-label='Ordenar por']");
+        selector.Closest(".cabecera-pagina").Should().NotBeNull("la maqueta lo pone arriba a la derecha, con el título");
+        var opciones = selector.QuerySelectorAll("option").Select(o => o.TextContent.Trim()).ToList();
+        opciones.Should().Equal("Impacto", "Cliente");
+        opciones.Should().NotContain("Cliente empresarial", "CONTRATO_TERMINOLOGIA § 3.2, decisión de rótulo del 2026-10-09");
+        selector.QuerySelector("option[selected]")!.TextContent.Trim().Should().Be("Impacto");
+        cut.FindAll("[role=group][aria-label=Ordenar]").Should().BeEmpty("el orden ya no es una pestaña de la barra de la cola");
     }
 
+    [Fact]
+    public void Ordenar_por_Cliente_agrupa_las_filas_de_cada_Empresa_por_Cliente_y_Impacto_lo_deshace()
+    {
+        var cut = Renderizar();
+        cut.FindAll(".mi-trabajo-subcabecera").Should().BeEmpty("por Impacto no hay subcabecera de Cliente");
+
+        cut.Find("select[aria-label='Ordenar por']").Change("Cliente");
+
+        cut.FindAll(".mi-trabajo-subcabecera").Should().NotBeEmpty("por Cliente cada Empresa enseña la subcabecera de su Cliente");
+        cut.Find("select[aria-label='Ordenar por']").QuerySelector("option[selected]")!.TextContent.Trim().Should().Be("Cliente");
+
+        cut.Find("select[aria-label='Ordenar por']").Change("Prioridad");
+
+        cut.FindAll(".mi-trabajo-subcabecera").Should().BeEmpty();
+    }
+
+    /// <summary>«Vista y filtros» pliega lo que la maqueta no dibuja (Empresa, Agrupar por, filtro, Expandir todas): carga plegado.</summary>
+    [Fact]
+    public void Vista_y_filtros_carga_plegada_y_la_pantalla_no_dibuja_lo_que_la_maqueta_no_tiene()
+    {
+        var cut = RenderizarPlegado();
+
+        var alternar = cut.Find(".mi-trabajo-vista-alternar");
+        alternar.GetAttribute("aria-expanded").Should().Be("false");
+        alternar.TextContent.Should().Contain("Vista y filtros");
+        cut.FindAll(".mi-trabajo-barra, .mi-trabajo-cartera, .mi-trabajo-filtro, .mi-trabajo-plegar-todas, [aria-label='Agrupar por']").Should().BeEmpty();
+        cut.FindAll(".mi-trabajo-vista-activos").Should().BeEmpty("sin ninguna opción activa no hay contador");
+    }
+
+    /// <summary>Retro: lo que la pantalla tenía en main y ahora vive tras «Vista y filtros» sigue ahí y funciona.</summary>
+    [Fact]
+    public void Vista_y_filtros_conserva_Empresa_Agrupar_por_el_filtro_de_la_cola_y_Expandir_todas()
+    {
+        var cut = RenderizarPlegado();
+
+        cut.Find(".mi-trabajo-vista-alternar").Click();
+
+        cut.Find(".mi-trabajo-vista-alternar").GetAttribute("aria-expanded").Should().Be("true");
+        var panel = cut.Find("#mi-trabajo-vista");
+        panel.QuerySelector(".mi-trabajo-cartera-etiqueta")!.TextContent.Should().Be("Empresa");
+        panel.QuerySelector(".mi-trabajo-cartera-actual")!.TextContent.Should().Be("Toda mi cartera");
+        panel.QuerySelectorAll("[role=group][aria-label='Agrupar por'] button").Select(b => b.TextContent.Trim()).Should().Equal("Empresa", "Severidad");
+        panel.QuerySelector("input[type=search]")!.GetAttribute("placeholder").Should().NotBeNullOrWhiteSpace();
+        panel.QuerySelector(".mi-trabajo-plegar-todas").Should().NotBeNull();
+        cut.FindAll(".mi-trabajo-cartera-fila").Should().HaveCountGreaterThan(1, "Toda mi cartera y cada Empresa");
+
+        panel.QuerySelectorAll("[role=group][aria-label='Agrupar por'] button")[1].Click();
+
+        cut.FindAll(".mi-trabajo-grupo-cabecera-severidad").Should().NotBeEmpty("Agrupar por Severidad sigue funcionando desde el panel");
+        cut.FindAll(".mi-trabajo-grupo-cabecera-tenant").Should().BeEmpty();
+    }
+
+    [Theory]
+    [InlineData("mi-trabajo?agrupar=severidad")]
+    [InlineData("mi-trabajo?q=Rechazado")]
+    [InlineData("mi-trabajo?empresa=b2b2b2b2-0000-0000-0000-000000000002")]
+    public void Un_filtro_de_la_URL_deja_Vista_y_filtros_abierta_de_partida(string url)
+    {
+        var cut = RenderizarPlegado(url: url);
+
+        cut.Find(".mi-trabajo-vista-alternar").GetAttribute("aria-expanded").Should().Be("true", "un filtro activo no queda escondido");
+    }
+
+    [Fact]
+    public void Con_Vista_y_filtros_plegada_el_boton_cuenta_las_opciones_activas()
+    {
+        var cut = RenderizarPlegado();
+        cut.Find(".mi-trabajo-vista-alternar").Click();
+        cut.FindAll("[role=group][aria-label='Agrupar por'] button")[1].Click();
+        cut.Find("input.mi-trabajo-filtro").Input("Rechazado");
+
+        cut.Find(".mi-trabajo-vista-alternar").Click();
+
+        cut.Find(".mi-trabajo-vista-alternar").GetAttribute("aria-expanded").Should().Be("false");
+        cut.Find(".mi-trabajo-vista-activos").TextContent.Should().Be("2", "agrupación y búsqueda activas");
+    }
+
+    [Fact]
+    public void Un_cambio_de_tipo_u_orden_no_reabre_Vista_y_filtros_que_el_Gestor_CAE_plego()
+    {
+        var cut = RenderizarPlegado();
+        cut.Find(".mi-trabajo-vista-alternar").Click();
+        cut.Find("input.mi-trabajo-filtro").Input("Rechazado");
+        cut.Find(".mi-trabajo-vista-alternar").Click();
+
+        cut.FindAll(".mi-trabajo-chip").Single(c => c.TextContent.Trim().StartsWith("Bloquea centro")).Click();
+        cut.Find("select.mi-trabajo-ordenar-select").Change(nameof(OrdenMiTrabajo.Cliente));
+
+        cut.Find(".mi-trabajo-vista-alternar").GetAttribute("aria-expanded").Should().Be("false");
+        cut.Find(".mi-trabajo-vista-activos").TextContent.Should().Be("1");
+    }
     [Fact]
     public void Abrir_una_fila_pinta_el_detalle_con_Tenant_y_Cliente_empresarial_separados_y_rotulados_segun_el_contrato()
     {
@@ -1135,7 +1289,9 @@ public partial class MiTrabajoGen2Tests : BunitContext
         cut.Find("input.mi-trabajo-filtro").GetAttribute("value").Should().Be("Requisito");
         cut.FindAll(".mi-trabajo-chip-activo").Single().TextContent.Should().Contain("Bloquea centro");
         cut.FindAll(".mi-trabajo-cartera-fila-activa").Single().TextContent.Should().Contain("Refrielectric");
-        cut.FindAll(".mi-trabajo-pestana-activa").Select(e => e.TextContent.Trim()).Should().BeEquivalentTo("Severidad", "Cliente");
+        cut.FindAll(".mi-trabajo-pestana-activa").Select(e => e.TextContent.Trim()).Should().BeEquivalentTo("Severidad");
+        cut.Find("select.mi-trabajo-ordenar-select").GetAttribute("aria-label").Should().Be("Ordenar por");
+        cut.FindAll("select.mi-trabajo-ordenar-select option").Single(o => o.HasAttribute("selected")).TextContent.Should().Be("Cliente");
     }
 
     [Fact]
@@ -1166,7 +1322,7 @@ public partial class MiTrabajoGen2Tests : BunitContext
         cut.FindAll(".mi-trabajo-cartera-fila").Single(f => f.TextContent.Contains("Laboratorios Dexter")).Click();
         cut.Find("input.mi-trabajo-filtro").Input("Rechazado");
         cut.FindAll(".mi-trabajo-pestana").Single(b => b.TextContent.Trim() == "Severidad").Click();
-        cut.FindAll(".mi-trabajo-pestana").Single(b => b.TextContent.Trim() == "Cliente").Click();
+        cut.Find("select.mi-trabajo-ordenar-select").Change(nameof(OrdenMiTrabajo.Cliente));
 
         var consulta = Microsoft.AspNetCore.WebUtilities.QueryHelpers.ParseQuery(new Uri(UrlActual).Query);
         consulta["tipo"].ToString().Should().Be("bloqueacentro");
@@ -1395,16 +1551,17 @@ public partial class MiTrabajoGen2Tests : BunitContext
         var cut = RenderizarPlegado();
 
         var bloquea = cut.FindAll(".mi-trabajo-grupo").Where(g => g.ClassList.Contains("mi-trabajo-grupo-bloqueo")).ToList();
-        bloquea.Should().NotBeEmpty("hay Empresas con un Bloqueo");
-        cut.FindAll(".mi-trabajo-fila").Should().BeEmpty("la pantalla carga plegada");
+        bloquea.Should().HaveCountGreaterThan(1, "hay Empresas con un Bloqueo");
+        bloquea[0].QuerySelectorAll(".mi-trabajo-fila").Should().NotBeEmpty("el primer grupo carga desplegado");
+        bloquea[1].QuerySelectorAll(".mi-trabajo-fila").Should().BeEmpty("el segundo carga plegado");
         cut.FindAll(".mi-trabajo-grupo-gestionar").Select(b => b.TextContent.Trim()).Should().OnlyContain(t => t == "Gestionar");
 
-        bloquea[0].QuerySelector(".mi-trabajo-grupo-gestionar")!.Click();
+        bloquea[1].QuerySelector(".mi-trabajo-grupo-gestionar")!.Click();
 
-        cut.FindAll(".mi-trabajo-grupo-bloqueo")[0].QuerySelector(".mi-trabajo-grupo-gestionar")!.GetAttribute("aria-label").Should().StartWith("Gestionar las tareas de ");
+        cut.FindAll(".mi-trabajo-grupo-bloqueo")[1].QuerySelector(".mi-trabajo-grupo-gestionar")!.GetAttribute("aria-label").Should().StartWith("Gestionar las tareas de ");
         cut.FindAll(".mi-trabajo-fila-abierta").Should().ContainSingle("Gestionar abre una tarea del grupo en el detalle");
-        cut.FindAll(".mi-trabajo-grupo-bloqueo")[0].QuerySelector(".mi-trabajo-fila-abierta").Should().NotBeNull("la tarea abierta es del grupo pulsado");
-        cut.FindAll(".mi-trabajo-grupo-bloqueo")[0].QuerySelector(".mi-trabajo-fila-abierta")!.ClassList.Should().Contain("mi-trabajo-fila-bloqueo", "abre la de mayor severidad, la que motiva la banda");
+        cut.FindAll(".mi-trabajo-grupo-bloqueo")[1].QuerySelector(".mi-trabajo-fila-abierta").Should().NotBeNull("la tarea abierta es del grupo pulsado");
+        cut.FindAll(".mi-trabajo-grupo-bloqueo")[1].QuerySelector(".mi-trabajo-fila-abierta")!.ClassList.Should().Contain("mi-trabajo-fila-bloqueo", "abre la de mayor severidad, la que motiva la banda");
         cut.Find(".mi-trabajo-detalle").Should().NotBeNull();
     }
 
@@ -1441,7 +1598,9 @@ public partial class MiTrabajoGen2Tests : BunitContext
         var cut = RenderizarPlegado(() => new MiTrabajoAgregadoDto(
             [Tenant(TenantRefri, "Refrielectric", false, [], [Item("r1", TipoItemBandeja.VencimientoProximo, "EPI por vencer", "Transportes Planet Express")])]),
             url: "/mi-trabajo?agrupar=severidad");
-        cut.FindAll(".mi-trabajo-fila").Should().BeEmpty("el calendario carga plegado");
+        cut.Find(".mi-trabajo-grupo-cabecera-severidad").GetAttribute("aria-expanded").Should().Be("true", "el único grupo carga desplegado");
+        cut.Find(".mi-trabajo-grupo-cabecera-severidad").Click();
+        cut.FindAll(".mi-trabajo-fila").Should().BeEmpty("el calendario, plegado");
 
         cut.Find(".mi-trabajo-grupo-gestionar").Click();
 
@@ -1453,9 +1612,10 @@ public partial class MiTrabajoGen2Tests : BunitContext
     public void Gestionar_dos_veces_sobre_un_grupo_que_estaba_plegado_no_lo_vuelve_a_plegar()
     {
         var cut = RenderizarPlegado();
+        cut.FindAll(".mi-trabajo-grupo-bloqueo")[1].QuerySelectorAll(".mi-trabajo-fila").Should().BeEmpty("el segundo grupo carga plegado");
 
-        cut.FindAll(".mi-trabajo-grupo-bloqueo")[0].QuerySelector(".mi-trabajo-grupo-gestionar")!.Click();
-        cut.FindAll(".mi-trabajo-grupo-bloqueo")[0].QuerySelector(".mi-trabajo-grupo-gestionar")!.Click();
+        cut.FindAll(".mi-trabajo-grupo-bloqueo")[1].QuerySelector(".mi-trabajo-grupo-gestionar")!.Click();
+        cut.FindAll(".mi-trabajo-grupo-bloqueo")[1].QuerySelector(".mi-trabajo-grupo-gestionar")!.Click();
 
         cut.FindAll(".mi-trabajo-fila-abierta").Should().ContainSingle("el segundo clic no repliega ni abre otra tarea");
     }

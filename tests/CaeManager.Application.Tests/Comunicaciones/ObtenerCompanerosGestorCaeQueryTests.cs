@@ -86,7 +86,8 @@ public class ObtenerCompanerosGestorCaeQueryTests
     [Fact]
     public async Task Un_Gestor_CAE_que_opera_el_Workspace_de_un_Tenant_propietario_sigue_viendo_a_los_de_su_Operador_CAE()
     {
-        // Dentro del Workspace el claim es el de la cartera allí (aquí Consulta); lo que manda es su cuenta en Identity.
+        // Dentro del Workspace el claim es el de la cartera allí (aquí Consulta); lo que manda es el rol de sesión
+        // en origen conservado (decisión P7), que Identity confirma.
         var directorio = new DirectorioRolesEnOrigen();
         directorio.Asignar(Gestor, Operador, "GestorCae");
         var companeros = new CompanerosFalso();

@@ -44,10 +44,33 @@ public class EstablecerGestionCaeCentroCommandHandler(
     ICentrosQueryContext centrosContext,
     IAltaAcreditacionesPlataformaService altaAcreditaciones,
     IAlcanceDatosService alcanceDatos,
-    IUnitOfWork unitOfWork)
+    IUnitOfWork unitOfWork,
+    ISerializacionAltasAcreditacionEmpresa serializacionAltas,
+    // Opcional solo mientras la PR #2104 cambia los tests que construyen este handler: el contenedor siempre lo resuelve
+    // (InvalidadorAlcanceInerte por defecto, el AlcanceDatosService del circuito en la Web). Issue #2118.
+    IInvalidadorAlcance? invalidadorAlcance = null)
     : IRequestHandler<EstablecerGestionCaeCentroCommand, Result>
 {
-    public async Task<Result> Handle(EstablecerGestionCaeCentroCommand request, CancellationToken cancellationToken)
+    /// <summary>
+    /// Volver a gestión CAE se serializa con el alta de un Documento de Empresa (ver
+    /// <see cref="ISerializacionAltasAcreditacionEmpresa"/>): sin ello, la reactivación no ve el Documento nuevo, el
+    /// Documento ve todavía el Centro sin gestión CAE y el par se pierde (revisión Codex de la PR #2074, ronda 3,
+    /// hallazgo 3). Se decide por la modalidad pedida, no por la guardada, para no leer antes del candado; dejar la
+    /// gestión CAE no da de alta nada que pueda perderse. Todo se lee dentro: un reintento empieza con el contexto vacío.
+    /// La Asignación de Cartera también se decide dentro, sin el alcance memoizado antes de esperar el candado (en Blazor
+    /// Server, el del circuito, que fija AutorizacionEscrituraBehavior): pudo revocarse mientras se esperaba. Mismo patrón
+    /// que BloqueoRespuestaSugerida.ComprobarEnvioPorBuzonAsync (issue #2118).
+    /// </summary>
+    public async Task<Result> Handle(EstablecerGestionCaeCentroCommand request, CancellationToken cancellationToken) =>
+        request.Modalidad == ModalidadGestionCae.ConGestionCae
+            ? await serializacionAltas.EjecutarAsync(ct =>
+            {
+                invalidadorAlcance?.Invalidar();
+                return EstablecerAsync(request, ct);
+            }, cancellationToken)
+            : await EstablecerAsync(request, cancellationToken);
+
+    private async Task<Result> EstablecerAsync(EstablecerGestionCaeCentroCommand request, CancellationToken cancellationToken)
     {
         var centro = await repositorio.ObtenerPorIdAsync(request.CentroId, cancellationToken);
         if (centro is null || !await alcanceDatos.CentroParaGestionVisibleAsync(centro.Id, cancellationToken))

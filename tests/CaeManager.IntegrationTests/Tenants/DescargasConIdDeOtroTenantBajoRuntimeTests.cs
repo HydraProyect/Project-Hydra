@@ -19,6 +19,7 @@ using CaeManager.Web.Features.Auditoria;
 using CaeManager.Web.Features.Centros;
 using CaeManager.Web.Features.Comunicaciones;
 using CaeManager.Web.Features.Documentos;
+using CaeManager.Web.Features.Empresas;
 using CaeManager.Web.Features.Extension;
 using CaeManager.Web.Features.Subcontratas;
 using CaeManager.Web.Features.Visitas;
@@ -72,6 +73,7 @@ public class DescargasConIdDeOtroTenantBajoRuntimeTests(DescargasEntreTenantsFix
         "/subcontratas/verificaciones/{id:guid}/evidencia",
         "/auditoria/{id:guid}/archivo-anterior",
         "/visitas/{id:guid}/paquete-documental.zip",
+        "/empresas/{id:guid}/paquete-documental.zip",
         "/comunicaciones/adjuntos/{id:guid}/archivo",
         "/requisitos-documentales/{id:guid}/archivo",
         "/empresas/{id:guid}/sello/archivo",
@@ -303,6 +305,8 @@ public sealed class DescargasEntreTenantsFixture : IAsyncLifetime
         _recursosDeB["/subcontratas/verificaciones/{id:guid}/evidencia"] = new(verificacion.Id, evidencia.Bytes);
         _recursosDeB["/auditoria/{id:guid}/archivo-anterior"] = new(registroAnterior, primeraVersion.Bytes);
         _recursosDeB["/visitas/{id:guid}/paquete-documental.zip"] = new(visita.Id, null);
+        // «Todo lo vigente» de la Empresa propia de B: al menos su póliza vigente, así que sale un zip.
+        _recursosDeB["/empresas/{id:guid}/paquete-documental.zip"] = new(propia.Id, null);
         _recursosDeB["/comunicaciones/adjuntos/{id:guid}/archivo"] = new(adjuntoMensaje.Id, adjunto.Bytes);
         _recursosDeB["/requisitos-documentales/{id:guid}/archivo"] = new(requisito.Id, plantilla.Bytes);
         _recursosDeB["/empresas/{id:guid}/sello/archivo"] = new(propia.Id, sello.Bytes);
@@ -352,6 +356,8 @@ public sealed class DescargasEntreTenantsFixture : IAsyncLifetime
                 await AuditoriaEndpoints.ServirArchivoAnteriorAsync(id, contexto, Mediador(), Almacen(), Registro(), Registros(), sp.GetRequiredService<IAlcanceDatosService>(), ct),
             "/visitas/{id:guid}/paquete-documental.zip" =>
                 await VisitasEndpoints.ServirPaqueteAsync(id, contexto, Mediador(), Registros(), ct),
+            "/empresas/{id:guid}/paquete-documental.zip" =>
+                await EmpresasEndpoints.ServirPaqueteAsync(id, contexto, Mediador(), Registros(), ct),
             "/empresas/{id:guid}/sello/archivo" =>
                 await FirmasGuardadasEndpoints.ServirSelloAsync(id, contexto, Mediador(), Almacen(), Registros(), ct),
             "/extension/acreditaciones/{id:guid}/archivo" =>

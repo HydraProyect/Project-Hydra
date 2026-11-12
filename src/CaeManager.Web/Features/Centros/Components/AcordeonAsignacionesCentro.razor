@@ -79,8 +79,10 @@ else
 
     @*
         Ámbito EMPRESA (OD-13, blueprint § 3.3). Aparece solo cuando la empresa
-        del centro tiene documentación con incidencia, y lista únicamente lo que
-        hay que resolver — el resto se consulta desde "Detalles" de la empresa.
+        del centro tiene documentación con incidencia o por vencer, y lista únicamente
+        lo que hay que resolver o vigilar — el resto se consulta desde "Detalles" de
+        la empresa. Con solo documentos por vencer el bloque es «Por vencer» (ámbar),
+        no «Con incidencia» (rojo): ver <c>IncidenciaCentroDto.HayIncidencia</c>.
 
         La nota no es decorativa: sin ella, ver una lista corta se leería como
         "la empresa casi no tiene documentación", cuando lo que dice es "esto es
@@ -92,25 +94,26 @@ else
         @*
             Tarjeta con la misma gramática que la lista de Trabajadores: una fila
             plegable de la Empresa (cifra, estado y «Detalles» en las columnas de la
-            rejilla) y, al desplegarla, sus documentos con incidencia en la misma
+            rejilla) y, al desplegarla, sus documentos con incidencia o por vencer en la misma
             tabla que usa cada Trabajador. Va desplegada de entrada: el bloque solo
-            existe cuando hay algo que resolver, y un vacío nunca se presenta como éxito.
+            existe cuando hay algo que resolver o vigilar, y un vacío nunca se presenta como éxito.
             Contrato de fidelidad 2026-08-09 § 1.5: mismas columnas Documento ·
             Estado · Vigencia · Acción.
         *@
         <div class="bloque-empresa-ambito @(ModoListado ? "bloque-empresa-ambito-listado" : null)" data-bloque-empresa>
             <ListaRelaciones Etiqueta="@($"Empresa · {EmpresaNombre}")" EnTarjeta="true">
-                <FilaRelacion Nombre="@EmpresaNombre" NombreIcono="empresas" Tono="TonoFila.Peligro"
+                <FilaRelacion Nombre="@EmpresaNombre" NombreIcono="empresas" Tono="TonoBloqueEmpresa"
                               OnNombre="AbrirDetalleEmpresa"
                               Desplegada="_empresaDesplegada" DesplegadaChanged="v => _empresaDesplegada = v"
-                              EtiquetaDesplegar="@Textos["EmpresaBloqueDesplegar", EmpresaNombre]">
-                    <Detalle>@Textos["EmpresaBloqueNota"]</Detalle>
+                              EtiquetaDesplegar="@Textos[EmpresaConIncidencia ? "EmpresaBloqueDesplegar" : "EmpresaBloqueDesplegarPorVencer", EmpresaNombre]">
+                    <Detalle>@Textos[EmpresaConIncidencia ? "EmpresaBloqueNota" : "EmpresaBloqueNotaPorVencer"]</Detalle>
                     <Cifra>
                         @* Cifra corta como el «3 de 4» de los Trabajadores: la columna mide 76 px. El nombre completo va en el title. *@
-                        <span class="fila-trabajador-fraccion" title="@Textos[IncidenciasEmpresa.Count == 1 ? "EmpresaBloqueCifraUno" : "EmpresaBloqueCifraVarios", IncidenciasEmpresa.Count]">@IncidenciasEmpresa.Count doc.</span>
+                        <span class="fila-trabajador-fraccion" title="@Textos[ClaveCifraEmpresa, IncidenciasEmpresa.Count]">@IncidenciasEmpresa.Count doc.</span>
                     </Cifra>
                     <Estado>
-                        <Badge Tono="TonoBadge.Peligro">@Textos["EmpresaBloqueEstado"]</Badge>
+                        @* Con solo documentos por vencer el bloque no tiene incidencia: «Por vencer» en ámbar, como la fila del Centro. *@
+                        <Badge Tono="@(EmpresaConIncidencia ? TonoBadge.Peligro : TonoBadge.Advertencia)">@(EmpresaConIncidencia ? Textos["EmpresaBloqueEstado"].Value : EstadoDocumentoUi.PorVencer)</Badge>
                     </Estado>
                     <Acciones>
                         <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" class="accion-fila-enlace" aria-label="@Textos["EmpresaBloqueDetalles", EmpresaNombre]" OnClick="AbrirDetalleEmpresa">
@@ -118,7 +121,7 @@ else
                         </Boton>
                     </Acciones>
                     <Desplegable>
-                        <div class="tabla-documentos-requeridos documentos-trabajador-ficha" role="table" aria-label="@($"Documentación con incidencia de {EmpresaNombre}")">
+                        <div class="tabla-documentos-requeridos documentos-trabajador-ficha" role="table" aria-label="@Textos[EmpresaConIncidencia ? "EmpresaBloqueTabla" : "EmpresaBloqueTablaPorVencer", EmpresaNombre]">
                             <div class="documentos-requeridos-cabecera" role="row">
                                 <span role="columnheader">Documento</span>
                                 <span role="columnheader">Estado</span>
@@ -134,10 +137,10 @@ else
                                         <AuthorizeView Roles="@CaeManager.Infrastructure.Identity.Roles.ConEscrituraCsv" Context="autorizacionNombreEmpresa">
                                             <Authorized>
                                                 <button type="button" class="enlace-nombre-fila" @onclick="() => GestionarEmpresaAsync(incidencia)">
-                                                    @incidencia.Descripcion
+                                                    @TituloDocumentoEmpresa(incidencia)
                                                 </button>
                                             </Authorized>
-                                            <NotAuthorized>@incidencia.Descripcion</NotAuthorized>
+                                            <NotAuthorized>@TituloDocumentoEmpresa(incidencia)</NotAuthorized>
                                         </AuthorizeView>
                                     </span>
                                     @* Estado null: un rechazo en plataforma no tiene vigencia documental que describir (CalculoEstadoCentroService). *@
@@ -165,7 +168,7 @@ else
                                            (ICommand denegados a Consulta), así que a quien solo lee no se le ofrece. *@
                                         <SoloConEscritura>
                                             <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" class="accion-fila-enlace"
-                                                   aria-label="@EstadoDocumentoFicha360.TextoAccionAccesible(incidencia.Descripcion, EmpresaNombre)"
+                                                   aria-label="@EstadoDocumentoFicha360.TextoAccionAccesible(TituloDocumentoEmpresa(incidencia), EmpresaNombre)"
                                                    OnClick="() => GestionarEmpresaAsync(incidencia)">
                                                 Gestionar
                                             </Boton>
@@ -301,11 +304,21 @@ else
                         @* Maqueta de Centro 360: la Empresa empleadora acompaña al Trabajador en la fila. *@
                         @if (EmpleadorDe(trabajador.TrabajadorId) is { } empleador)
                         {
-                            <span class="fila-trabajador-empleador" data-empleador>@empleador</span>
+                            <span class="fila-trabajador-empleador" data-empleador title="@empleador">@empleador</span>
                         }
                     </JuntoAlNombre>
                     <Detalle>
-                        @if (BloqueosDe(trabajador.TrabajadorId).Count > 0)
+                        @if (MostrarEstadoPlataforma && !ModoListado)
+                        {
+                            @* Centro 360 (maqueta): el primer nivel dice una línea sin botones; los motivos y «Gestionar» viven en el desplegable. *@
+                            @* Al día no repite texto en cada fila: basta la píldora de estado. *@
+                            var resumen = ResumenPrimerNivel(trabajador);
+                            @if (resumen.Length > 0)
+                            {
+                                <span class="fila-trabajador-resumen" data-resumen-fila title="@TituloResumenPrimerNivel(trabajador)">@resumen</span>
+                            }
+                        }
+                        else if (BloqueosDe(trabajador.TrabajadorId).Count > 0)
                         {
                             <MotivoBloqueoTrabajador TrabajadorId="trabajador.TrabajadorId"
                                                      Bloqueos="BloqueosDe(trabajador.TrabajadorId)"
@@ -355,6 +368,10 @@ else
                     <Desplegable>
                         @if (expandido)
                         {
+                            @if (MostrarEstadoPlataforma && !ModoListado && BloqueosSinFilaDe(trabajador) is { Count: > 0 } bloqueosSinFila)
+                            {
+                                <MotivoBloqueoTrabajador TrabajadorId="trabajador.TrabajadorId" Bloqueos="bloqueosSinFila" OnPedir="PedirAsync" />
+                            }
                             @if (trabajador.Documentos.Count == 0)
                             {
                                 <p class="texto-vacio-seccion">Este centro no exige documentación específica a este trabajador.</p>
@@ -395,23 +412,28 @@ else
                                                     }
                                                     <CaeManager.Web.Features.Documentos.Components.LineaPlataformaYReclamacion Acreditaciones="null" UltimaReclamacion="documento.UltimaReclamacion" Estado="documento.Estado" LaFilaYaDiceLaPlataforma="false" />
                                                 </span>
-                                                <span role="cell"><TextoFechaCopiable Fecha="documento.FechaVencimiento">@TextoVigencia(documento)</TextoFechaCopiable></span>
-                                                <span role="cell">@(documento.AcreditacionesEnElCentro is not { Count: > 0 } ? "—" : Textos[BloqueaPlataforma(documento) ? "PlataformaBloqueaSi360" : "PlataformaBloqueaNo360"].Value)</span>
+                                                @* data-etiqueta-celda: en pestaña estrecha la cabecera de la tabla se oculta y la celda queda sin rótulo (un «Sí» suelto);
+                                                   el CSS la pinta como prefijo visual sin tocar el texto de la celda. *@
+                                                <span role="cell" data-etiqueta-celda="@Textos["PlataformaCaducidad360"]"><TextoFechaCopiable Fecha="documento.FechaVencimiento">@TextoVigencia(documento)</TextoFechaCopiable></span>
+                                                <span role="cell" data-etiqueta-celda="@Textos["PlataformaBloquea360"]">@(documento.AcreditacionesEnElCentro is not { Count: > 0 } ? "—" : Textos[BloqueaPlataforma(documento) ? "PlataformaBloqueaSi360" : "PlataformaBloqueaNo360"].Value)</span>
                                                 @* Columna «Acción» (bloque 3 del 21-10): el estado en la plataforma solo se cambia aquí, en Centro 360. Desde un
                                                    Centro no se sube nada a TALVEG (regla del 2026-10-19, #1475): si falta en TALVEG, la acción lleva a la ficha 360
                                                    del Trabajador; si no, «Marcar subido / validado» y «Cambiar» anotan el estado en la plataforma de ESTE Centro. *@
+                                                @* 2026-11-09: «Gestionar» (el mismo flujo de reclamación del antiguo primer nivel) sustituye al enlace de texto
+                                                   «Actualizar en Trabajador 360»; a la ficha 360 se va con el icono de la fila. Sin nada que gestionar la celda
+                                                   queda vacía pero se pinta, para que la rejilla no se desalinee. *@
                                                 <span role="cell" class="celda-accion-plataforma">
-                                                    @if (GestionarEnPlataforma.FaltaEnTalveg(documento.DocumentoId, documento.Estado))
+                                                    @if (EntidadAGestionar(trabajador, documento) is { } entidadGestionar)
                                                     {
                                                         <SoloConEscritura>
-                                                            <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" class="accion-fila-enlace"
-                                                                   data-accion="actualizar-en-ficha"
-                                                                   Href="@GestionarEnPlataforma.RutaFicha(esDeEmpresa: false, trabajador.TrabajadorId)">
-                                                                @GestionarEnPlataforma.TextoActualizar(esDeEmpresa: false)
-                                                            </Boton>
+                                                            <Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno" class="accion-gestionar-documento"
+                                                                   data-accion="gestionar-documento"
+                                                                   aria-label="@Textos["MotivoBloqueoPedirDe", documento.TipoDocumentoNombre]"
+                                                                   OnClick="() => PedirAsync(entidadGestionar)">@Textos["MotivoBloqueoPedir"]</Boton>
                                                         </SoloConEscritura>
                                                     }
-                                                    else if (documento.AcreditacionesEnElCentro is { Count: > 0 } acreditacionesAccion)
+                                                    @if (!GestionarEnPlataforma.FaltaEnTalveg(documento.DocumentoId, documento.Estado)
+                                                         && documento.AcreditacionesEnElCentro is { Count: > 0 } acreditacionesAccion)
                                                     {
                                                         @foreach (var acreditacion in acreditacionesAccion)
                                                         {
@@ -573,8 +595,8 @@ else
         *@
         @if (MostrarTotales && TotalesDocumentales.Exigidos > 0)
         {
-            <div class="nota-trabajadores-ocultos" data-totales-documentales>
-                <span>
+            <div class="nota-trabajadores-ocultos nota-totales-documentales" data-totales-documentales>
+                <span class="totales-cifras">
                     Documentación de los trabajadores de este centro:
                     @TotalesDocumentales.Exigidos exigidos · @TotalesDocumentales.AlDia al día
                     @if (TotalesDocumentales.PorVencer > 0)
@@ -587,8 +609,9 @@ else
                     {
                         @(" · " + Textos["TotalesSinValidar", TotalesDocumentales.SinValidar])
                     }
-                    @Textos["TotalesListaCompleta360"]
                 </span>
+                @* Un texto propio y separado de las cifras: pegado a «… pendientes» se leía «pendientesSe calcula…». *@
+                <span class="totales-nota" data-totales-nota>@Textos["TotalesListaCompleta360"]</span>
             </div>
         }
         @if (TrabajadoresOcultosAlDia > 0)
@@ -609,7 +632,7 @@ else
 <ModalFormulario HayCambios="() => HayCambiosSinGuardar" Visible="_confirmarBajaLoteVisible" VisibleChanged="v => _confirmarBajaLoteVisible = v" Titulo="@($"Dar de baja a {_seleccionados.Count} trabajador(es)")"
                  Guardando="_procesandoBajaLote" HayErroresDeCampo="_bajaLoteFallida" GuardarDestructivo="true" TextoGuardar="Dar de baja" TextoCancelar="Cancelar" OnGuardar="ConfirmarBajaLoteAsync">
     <p>Dejarán de estar activos en @CentroNombre a partir de la fecha indicada. El historial de la asignación se conserva.</p>
-    <CampoTexto Etiqueta="Fecha de baja" Type="date" Valor="@_fechaBajaLote" ValorChanged="v => _fechaBajaLote = v" />
+    <CampoTexto Etiqueta="Fecha de baja" Type="date" Valor="@_fechaBajaLote" ValorChanged="v => _fechaBajaLote = v" FechaNoValida="_fechaBajaLoteNoValida" FechaNoValidaChanged="AlCambiarFechaBajaLoteNoValida" />
 </ModalFormulario>
 
 <DrawerGestionDocumento @ref="_drawerGestion" OnGuardado="ManejarDocumentoGuardadoAsync" />

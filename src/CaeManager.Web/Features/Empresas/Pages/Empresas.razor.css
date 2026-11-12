@@ -51,6 +51,83 @@
     min-width: 0;
 }
 
+/* El rótulo de la celda solo se ve cuando la cabecera de columnas no está (rejilla de tarjetas, @media de abajo). */
+.rotulo-celda-empresa {
+    display: none;
+}
+
+/*
+  En pantallas estrechas la lista no cabe en columnas (la rejilla de escritorio suma ~830 px y, a 375 px, la
+  tabla medía 893 px: «Cumplimiento» y «Estado documental» quedaban fuera de pantalla). La cabecera de
+  columnas desaparece y cada fila pasa a tarjeta: chevron, Empresa y 360 en la primera línea y, debajo, ya
+  sangrados hasta el nombre, las detecciones (solo si hay alguna), el cumplimiento y el estado documental, en el
+  orden de las columnas, con su rótulo. El mismo recurso que Subcontratas (el estado baja a otra línea); aquí son
+  tres celdas. Se aplica hasta 1199 px y no solo en móvil: con la barra lateral visible (desde 1024 px) el
+  contenido mide la ventana menos ~326 px y la rejilla de escritorio no cabe hasta ~1152 px (medido a 1024 px: la
+  fila medía 810 en un marco de 698), y con la selección múltiple, que añade una columna, hasta ~1198 px. Las
+  celdas se colocan por clase y no por posición, porque la casilla de la selección múltiple desplaza todas.
+*/
+@media (max-width: 1199px) {
+    .rejilla-empresas {
+        grid-template-columns: 24px minmax(0, 1fr) 40px;
+        row-gap: var(--space-2);
+    }
+
+    .rejilla-empresas-seleccion {
+        grid-template-columns: 28px 24px minmax(0, 1fr) 40px;
+    }
+
+    /* lista-design.css fija 860 px de mínimo a todo hijo de la tarjeta por debajo de 900 px y la hace desplazar en horizontal («como la maqueta»):
+       es lo que dejaba «Cumplimiento» y «Estado documental» fuera de pantalla. Aquí la fila se recoloca y no necesita ese ancho; el override va con
+       más especificidad que la regla global (Documentos hace lo mismo con su cuerpo). */
+    .lista-design.lista-design .tarjeta-listado-contenido > .marco-lista-empresas {
+        min-width: 0;
+    }
+
+    .cabecera-columnas-empresas {
+        display: none;
+    }
+
+    .tarjeta-fila-acordeon-cabecera > .celda-acciones-empresa {
+        grid-row: 1;
+        grid-column: -2 / -1;
+    }
+
+    .tarjeta-fila-acordeon-cabecera > .celda-estado-empresa,
+    .tarjeta-fila-acordeon-cabecera > .celda-cumplimiento-empresa,
+    .tarjeta-fila-acordeon-cabecera > .celda-detecciones-empresa {
+        grid-column: 2 / -1;
+        min-width: 0;
+    }
+
+    .rejilla-empresas-seleccion > .celda-estado-empresa,
+    .rejilla-empresas-seleccion > .celda-cumplimiento-empresa,
+    .rejilla-empresas-seleccion > .celda-detecciones-empresa {
+        grid-column: 3 / -1;
+    }
+
+    /* Sin grid-row: las tres celdas bajan una línea cada una en el orden del DOM (detecciones, cumplimiento, estado: el de las columnas de escritorio),
+       así el orden de tabulación sigue al visual; la fila 1 la ocupan chevron, Empresa y 360. */
+    .celda-detecciones-empresa,
+    .celda-cumplimiento-empresa {
+        display: flex;
+        align-items: center;
+        gap: var(--space-2);
+    }
+
+    /* La cabecera de columnas ya no está: cada celda con rótulo propio (los mismos de la cabecera) lo enseña. */
+    .rotulo-celda-empresa {
+        display: inline;
+        flex: none;
+        font: var(--font-caption);
+        color: var(--color-text-muted);
+    }
+
+    /* Sin detecciones, el guion de la columna sobra: ya no hay columna que mantener cuadrada. */
+    .celda-detecciones-vacia {
+        display: none;
+    }
+}
 /*
   Cabecera de la página en UNA línea en escritorio: el dato «Gestor CAE» encoge (CabeceraGestorCae recorta
   sus nombres y agrupa en «+N» a quien no cabe) en vez de empujar los botones a otra fila. Solo en esta
@@ -131,10 +208,18 @@
 }
 
 .marco-lista-empresas .tarjeta-fila-acordeon-contenido {
-    border-top: 0;
+    /* Segundo nivel (2026-11-08): la misma superficie que la fila, separada por su raya. */
+    border-top: 1px solid var(--color-fila-divisor);
     border-radius: 0;
-    background: color-mix(in srgb, var(--color-surface-subtle) 60%, var(--color-surface));
+    background: var(--color-surface);
     padding: 4px var(--space-4) 4px 56px;
+}
+
+/* El detalle desplegado ya no se sangra bajo el nombre: la fila es una tarjeta estrecha. */
+@media (max-width: 1199px) {
+    .marco-lista-empresas .tarjeta-fila-acordeon-contenido {
+        padding-left: var(--space-4);
+    }
 }
 
 /* Cada celda recorta por su cuenta: sin esto, una razón social larga estira su

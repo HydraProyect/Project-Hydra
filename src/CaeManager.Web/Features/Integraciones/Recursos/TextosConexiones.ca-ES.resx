@@ -1,0 +1,81 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <data name="AyudaBuzonCompartido" xml:space="preserve">
+    <value>Per connectar una bústia compartida de Microsoft 365, escriu-ne l&apos;adreça abans de connectar; deixa-la buida per connectar la teva pròpia bústia. Abans, l&apos;administrador d&apos;Exchange de la teva organització ha d&apos;haver autoritzat TALVEG sobre aquesta bústia.</value>
+  </data>
+  <data name="EtiquetaBuzonCompartido" xml:space="preserve">
+    <value>Bústia compartida (opcional)</value>
+  </data>
+  <data name="PlaceholderBuzonCompartido" xml:space="preserve">
+    <value>nom@domini.cat</value>
+  </data>
+  <data name="AvisoIdentidadSinVerificar" xml:space="preserve">
+    <value>Sense verificar: no hem pogut comprovar en l'últim dia que aquesta adreça continua sent la mateixa bústia. El correu entrant queda en espera, sense perdre's, i no s'envia res des d'aquesta bústia fins que es comprovi en la renovació diària. Si l'avís continua, desconnecta la bústia i torna-la a connectar.</value>
+  </data>
+  <data name="AvisoCorreoNoRecuperado" xml:space="preserve">
+    <value>Possible correu no recuperat des del {0}: mentre la connexió no funcionava podia arribar correu que no ha entrat a l'aplicació i que no es recupera sol. Revisa'l a la mateixa bústia de Microsoft 365.</value>
+  </data>
+  <data name="AvisoCorreoRetenido" xml:space="preserve">
+    <value>Hi ha correu retingut: va arribar mentre no es podia comprovar aquesta bústia i fa més de tres dies que espera. S'ingerirà quan es comprovi; si l'avís continua, desconnecta la bústia i torna-la a connectar.</value>
+  </data>
+  <data name="AvisoCorreoRetenidoDesconectada" xml:space="preserve">
+    <value>Hi ha correu retingut que va arribar abans de desconnectar aquesta bústia: mentre continuï desconnectada no s'ingerirà. Revisa'l a la mateixa bústia de Microsoft 365.</value>
+  </data>
+  <data name="AvisoCorreoDescartado" xml:space="preserve">
+    <value>No hem pogut llegir algun correu d'aquesta bústia després de diversos intents i no es recupera sol. Revisa'l a la mateixa bústia de Microsoft 365.</value>
+  </data>
+  <data name="InsigniaCompartido" xml:space="preserve">
+    <value>Compartida</value>
+  </data>
+  <data name="ErrorBuzonCompartidoInvalido" xml:space="preserve">
+    <value>L&apos;adreça de la bústia compartida no és vàlida.</value>
+  </data>
+  <data name="ErrorSinAccesoCompartido" xml:space="preserve">
+    <value>TALVEG no pot obrir aquesta bústia compartida. Comprova l&apos;adreça i demana a l&apos;administrador d&apos;Exchange de la teva organització que inclogui la bústia a l&apos;àmbit autoritzat per a TALVEG.</value>
+  </data>
+  <data name="ErrorBuzonYaConectado" xml:space="preserve">
+    <value>Aquesta bústia ja està connectada, en aquesta organització o en una altra. Si ha de ser aquí, desconnecta-la primer on sigui.</value>
+  </data>
+  <data name="ErrorAltaCompartidaEnPausa" xml:space="preserve">
+    <value>Alta de bústies compartides en pausa temporal mentre es completa la verificació; torna-ho a provar d'aquí a unes hores.</value>
+  </data>
+  <data name="Subtitulo" xml:space="preserve">
+    <value>Bústies de Microsoft 365 connectades a Comunicacions. Cada connexió pertany a una Empresa sense rol CAE, a l'organització pròpia o a la bústia personal d'un Gestor CAE.</value>
+  </data>
+  <data name="EnlaceDiagnostico" xml:space="preserve">
+    <value>Per investigar una connexió concreta (carpetes, missatges a Graph que encara no han arribat per webhook), fes servir l'</value>
+  </data>
+  <data name="EnlaceDiagnosticoVinculo" xml:space="preserve">
+    <value>explorador tècnic de la bústia (diagnòstic)</value>
+  </data>
+  <data name="PieBuzones" xml:space="preserve">
+    <value>La bústia personal d'un Gestor CAE només la veu el seu propietari; la resta de bústies alimenten les converses compartides de Comunicacions.</value>
+  </data>
+  <data name="AvisoHuecoSinRegistrar" xml:space="preserve">
+    <value>Buit sense registrar: en desconnectar no vam poder desar des de quan va deixar de rebre's el correu d'aquesta bústia. Prem Reparar per registrar-ho.</value>
+  </data>
+  <data name="AccionRepararHueco" xml:space="preserve">
+    <value>Reparar</value>
+  </data>
+  <data name="HuecoReparado" xml:space="preserve">
+    <value>Buit registrat.</value>
+  </data>
+  <data name="ErrorRepararHueco" xml:space="preserve">
+    <value>No vam poder registrar el buit. Torna-ho a provar.</value>
+  </data>
+  <data name="AvisoRecargaFallida" xml:space="preserve">
+    <value>No vam poder actualitzar el llistat de connexions. Recarrega la pàgina per veure'n l'estat.</value>
+  </data>
+</root>

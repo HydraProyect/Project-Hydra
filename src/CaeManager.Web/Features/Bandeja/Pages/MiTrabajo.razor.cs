@@ -87,13 +87,28 @@ public partial class MiTrabajo : CaeManager.Web.Components.PaginaInteractiva, ID
     private OrdenMiTrabajo _orden = OrdenMiTrabajo.Prioridad;
     private readonly HashSet<string> _abiertos = [];
     /// <summary>
-    /// Tenants cuya cabecera el Gestor CAE ha desplegado en esta visita. Parte vacío y no se persiste: la pantalla carga
-    /// siempre con todos los grupos plegados (decisión de producto 2026-10-16).
+    /// Tenants cuya cabecera está desplegada en esta visita. No se persiste: la pantalla carga con el primer grupo
+    /// desplegado (<see cref="AbrirPrimerGrupoUnaVez"/>, como la maqueta) y los demás plegados.
     /// </summary>
     private readonly HashSet<Guid> _tenantsAbiertos = [];
 
     /// <summary>Lo mismo en modo Severidad: las severidades cuya cabecera se ha desplegado en esta visita. Parte vacío y no se persiste.</summary>
     private readonly HashSet<SeveridadMiTrabajo> _severidadesAbiertas = [];
+
+    /// <summary>Filas de «Propagaciones pendientes» que enseña el panel de la maqueta; el resto está tras «Ver todas».</summary>
+    private const int TopePropagaciones = 3;
+    private bool _propagacionesTodas;
+
+    /// <summary>
+    /// «Vista y filtros» (Empresa, Agrupar por, filtro de la cola y Expandir/Plegar todas) está desplegado. Arranca plegado
+    /// salvo que la URL traiga ya una Empresa, una agrupación o una búsqueda: un filtro activo nunca queda escondido de partida.
+    /// </summary>
+    private bool _vistaAbierta;
+
+    /// <summary>Opciones de «Vista y filtros» fuera de su valor por defecto; se cuentan en el botón plegado.</summary>
+    private int VistaActivos => (_tenantFiltro is null ? 0 : 1) + (_agrupar == AgruparMiTrabajo.Tenant ? 0 : 1) + (string.IsNullOrWhiteSpace(_busqueda) ? 0 : 1);
+
+    private bool _primerGrupoAbierto;
     private readonly HashSet<string> _lotesAbiertos = [];
     private string? _idAbierto;
     private string? _idEnfocado;
@@ -224,6 +239,20 @@ public partial class MiTrabajo : CaeManager.Web.Components.PaginaInteractiva, ID
             _busqueda = busqueda;
             _busquedasEscritas.Clear();
         }
+
+        // «Vista y filtros» se abre solo cuando la URL cambia Empresa, agrupación o búsqueda (un enlace profundo, o el eco de
+        // lo que el Gestor CAE acaba de teclear). Un cambio de tipo u orden no la reabre: si la plegó con filtros activos, sigue plegada.
+        var vistaUrl = $"{EmpresaUrl}|{BusquedaUrl}|{AgruparUrl}";
+        if (vistaUrl != _vistaUrlAplicada && VistaActivos > 0) _vistaAbierta = true;
+        _vistaUrlAplicada = vistaUrl;
+    }
+
+    private string? _vistaUrlAplicada;
+
+    private void AlternarVista()
+    {
+        _vistaAbierta = !_vistaAbierta;
+        _carteraAbierta = false; // la lista de Empresas no sobrevive al panel que la contiene
     }
 
     private void EscribirFiltrosEnUrl() => Navegacion.ActualizarFiltrosEnUrl(new Dictionary<string, string?>
@@ -240,8 +269,17 @@ public partial class MiTrabajo : CaeManager.Web.Components.PaginaInteractiva, ID
 
     protected override void OnParametersSet() => AplicarFiltrosDeLaUrl();
 
+    [Inject] private IServiceProvider ServiciosMiTrabajo { get; set; } = default!;
+
     protected override async Task OnInitializedAsync()
     {
+        // Mi trabajo oculto para la demo (MiTrabajoVisibilidad): la URL directa acaba en Gestiones.
+        if (MiTrabajoVisibilidad.EstaOculto(ServiciosMiTrabajo))
+        {
+            Navegacion.NavigateTo(MiTrabajoVisibilidad.RutaAlternativa, replace: true);
+            return;
+        }
+
         _token = AntiforgeryStateProvider.GetAntiforgeryToken();
         if (EstadoAutenticacion is not null)
             _esCoordinadorCae = (await EstadoAutenticacion).User.IsInRole(Roles.CoordinadorCae);
@@ -316,6 +354,7 @@ public partial class MiTrabajo : CaeManager.Web.Components.PaginaInteractiva, ID
 
             // Un recorrido sin Tenants no emite nada más que la apertura: la vista vacía es la de siempre.
             _vista ??= new MiTrabajoVista(new MiTrabajoAgregadoDto([], []));
+            if (EsVigente(carga)) AbrirPrimerGrupoUnaVez();
         }
         catch (Exception) when (!EsVigente(carga))
         {
@@ -373,6 +412,30 @@ public partial class MiTrabajo : CaeManager.Web.Components.PaginaInteractiva, ID
         EscribirFiltrosEnUrl();
     }
 
+    /// <summary>«Ordenar por» de la cabecera (maqueta): el valor de la opción es el nombre del enum; uno desconocido se ignora.</summary>
+    private void CambiarOrdenDesdeSelect(ChangeEventArgs e)
+    {
+        if (ParsearEnum<OrdenMiTrabajo>(e.Value?.ToString()) is { } orden) CambiarOrden(orden);
+    }
+
+    /// <summary>
+    /// Maqueta: al cargar se despliega el primer grupo en el orden de pantalla y los demás quedan plegados. Es el estado
+    /// de partida, una sola vez por visita: el Gestor CAE puede plegarlo, y recargar tras un error o «Reintentar la
+    /// consulta» no lo vuelve a abrir. Si la carga no dejó ningún grupo (p. ej. una Empresa o un tipo sin trabajo en la URL), esa carga no gasta el intento, pero cambiar el filtro después no lo reintenta: no hay recarga y los grupos que aparezcan salen plegados. El primer grupo de partida es el de la agrupación con que se cargó: pasar a Severidad y volver no lo cambia. Cualquier pliegue
+    /// que el Gestor CAE toque antes de que termine la carga (también con la carga a medias) gasta el intento: lo que ve
+    /// manda sobre el estado de partida.
+    /// </summary>
+    private void AbrirPrimerGrupoUnaVez()
+    {
+        if (_primerGrupoAbierto || _errorCarga) return;
+        var primero = Grupos.FirstOrDefault();
+        if (primero is null) return;
+
+        _primerGrupoAbierto = true;
+        if (primero.TenantId is { } tenantId) _tenantsAbiertos.Add(tenantId);
+        else _severidadesAbiertas.Add(Enum.Parse<SeveridadMiTrabajo>(primero.Clave));
+    }
+
     private void CambiarBusqueda(ChangeEventArgs e)
     {
         _busqueda = e.Value?.ToString() ?? string.Empty;
@@ -394,6 +457,7 @@ public partial class MiTrabajo : CaeManager.Web.Components.PaginaInteractiva, ID
 
     private void AlternarSeveridad(string clave)
     {
+        _primerGrupoAbierto = true; // el Gestor CAE ya decidió qué se ve: la apertura de partida no le pisa nada
         var severidad = Enum.Parse<SeveridadMiTrabajo>(clave);
         if (!_severidadesAbiertas.Remove(severidad))
             _severidadesAbiertas.Add(severidad);
@@ -401,12 +465,14 @@ public partial class MiTrabajo : CaeManager.Web.Components.PaginaInteractiva, ID
 
     private void AlternarTenant(Guid tenantId)
     {
+        _primerGrupoAbierto = true;
         if (!_tenantsAbiertos.Remove(tenantId))
             _tenantsAbiertos.Add(tenantId);
     }
 
     private void AlternarTodas()
     {
+        _primerGrupoAbierto = true;
         if (!TodoPlegado)
         {
             _tenantsAbiertos.Clear();
@@ -449,6 +515,7 @@ public partial class MiTrabajo : CaeManager.Web.Components.PaginaInteractiva, ID
 
     private void VolverAPlegar()
     {
+        _primerGrupoAbierto = true;
         _abiertos.Clear();
         _tenantsAbiertos.Clear();
         _severidadesAbiertas.Clear();

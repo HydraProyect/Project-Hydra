@@ -13,16 +13,16 @@
     <value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
   </resheader>
   <data name="ConfirmarEliminarLoteMensaje" xml:space="preserve">
-    <value>Se ocultarán de las listas activas. Podrás deshacer la eliminación desde el aviso que aparecerá; después, solo un Administrador de esta organización puede recuperarlos desde Auditoría.</value>
+    <value>S'ocultaran de les llistes actives. Podràs desfer l'eliminació des de l'avís que apareixerà; després, només un Administrador d'aquesta organització pot recuperar-los des d'Auditoria.</value>
   </data>
   <data name="ToastAccionDeshacer" xml:space="preserve">
     <value>Deshacer</value>
   </data>
   <data name="ToastLoteRestaurados" xml:space="preserve">
-    <value>{0} documento(s) restaurado(s).</value>
+    <value>{0} document(s) restaurat(s).</value>
   </data>
   <data name="ToastLoteRestauradosConErrores" xml:space="preserve">
-    <value>{0} documento(s) restaurado(s); {1} no se pudieron restaurar: {2}</value>
+    <value>{0} document(s) restaurat(s); {1} no s'han pogut restaurar: {2}</value>
   </data>
   <data name="Documento360DescargarPdf" xml:space="preserve">
     <value>Descarregar el PDF</value>
@@ -188,7 +188,7 @@
     <value>{0} de {1} desfetes. {2}</value>
   </data>
   <data name="RevIaReglaBloque" xml:space="preserve">
-    <value>Acceptació en bloc: tries la confiança i confirmes tu</value>
+    <value>Llindar de confirmació en lot: {0} %</value>
   </data>
   <data name="RevIaFallosTitulo" xml:space="preserve">
     <value>No s'han pogut acceptar {0} lectura(es); continuen pendents:</value>
@@ -393,6 +393,36 @@
   <data name="ListaPropietario" xml:space="preserve"><value>Propietari</value></data>
   <data name="ListaVence" xml:space="preserve"><value>Venç</value></data>
   <data name="PorAmbito" xml:space="preserve"><value>Per àmbit</value></data>
+  <data name="PorPlataformaCae" xml:space="preserve"><value>Per Plataforma CAE</value></data>
+  <data name="PorClienteEmpresarial" xml:space="preserve"><value>Per Client</value></data>
+  <data name="AgruparPorPlataformaCaeEtiqueta" xml:space="preserve"><value>Agrupa per: Plataforma CAE</value></data>
+  <data name="AgruparPorClienteEmpresarialEtiqueta" xml:space="preserve"><value>Agrupa per: Client</value></data>
+  <data name="ListaEstadoEnPlataforma" xml:space="preserve"><value>Estat a la plataforma</value></data>
+  <data name="EstadoPlataformaPendienteDeSubir" xml:space="preserve"><value>Pendent de pujar</value></data>
+  <data name="EstadoPlataformaRechazado" xml:space="preserve"><value>Rebutjat</value></data>
+  <data name="EstadoPlataformaSinVigencia" xml:space="preserve"><value>Sense vigència</value></data>
+  <data name="ChipEstadoPlataforma" xml:space="preserve"><value>Estat a la plataforma: {0}</value></data>
+  <data name="QuitarFiltroEstadoPlataforma" xml:space="preserve"><value>Treu el filtre d'estat a la plataforma</value></data>
+  <data name="GrupoPendienteUno" xml:space="preserve"><value>1 pendent de pujar</value></data>
+  <data name="GrupoPendientes" xml:space="preserve"><value>{0} pendents de pujar</value></data>
+  <data name="GrupoRechazadoUno" xml:space="preserve"><value>1 rebutjat</value></data>
+  <data name="GrupoRechazados" xml:space="preserve"><value>{0} rebutjats</value></data>
+  <data name="GrupoSinVigencia" xml:space="preserve"><value>{0} sense vigència</value></data>
+  <data name="GrupoVencidoUno" xml:space="preserve"><value>1 vençut</value></data>
+  <data name="GrupoVencidos" xml:space="preserve"><value>{0} vençuts</value></data>
+  <data name="GrupoUrgenteUno" xml:space="preserve"><value>1 urgent</value></data>
+  <data name="GrupoUrgentes" xml:space="preserve"><value>{0} urgents</value></data>
+  <data name="GrupoDocumentoUno" xml:space="preserve"><value>1 document</value></data>
+  <data name="GrupoDocumentos" xml:space="preserve"><value>{0} documents</value></data>
+  <data name="GrupoClienteEmpresarialDocumentos" xml:space="preserve"><value>Client · {0}</value></data>
+  <data name="GrupoSinPlataformaCae" xml:space="preserve"><value>Sense Plataforma CAE</value></data>
+  <data name="GrupoSinClienteEmpresarial" xml:space="preserve"><value>Sense Client</value></data>
+  <data name="GrupoAnotarVigencia" xml:space="preserve"><value>Anota la vigència ({0})</value></data>
+  <data name="PieAgrupadoFilas" xml:space="preserve"><value>Es mostren {0:N0} files de {1:N0} documents</value></data>
+  <data name="PieAgrupadoDocumentos" xml:space="preserve"><value>Es mostren {0:N0} documents</value></data>
+  <data name="PieAgrupadoTope" xml:space="preserve"><value>Es mostren els primers {0:N0} de {1:N0} documents: afina els filtres per veure la resta.</value></data>
+  <data name="AnotarVigenciaTitulo" xml:space="preserve"><value>Anota la vigència</value></data>
+  <data name="AnotarVigenciaGuardar" xml:space="preserve"><value>Desa la vigència</value></data>
   <data name="QuitarFiltroPropietario" xml:space="preserve"><value>Treu el filtre de propietari</value></data>
   <data name="SinAgrupar" xml:space="preserve"><value>Sense agrupar</value></data>
   <data name="VacioDescripcionDesign" xml:space="preserve"><value>Puja el primer o fes servir la pujada massiva.</value></data>
@@ -420,6 +450,14 @@
   <data name="TituloPagina" xml:space="preserve"><value>Documents</value></data>
   <data name="ListaNoCaduca" xml:space="preserve"><value>Sense caducitat</value></data>
   <data name="ListaVer" xml:space="preserve"><value>Veure</value></data>
+  <data name="PestanaIncidencias" xml:space="preserve"><value>Incidències</value></data>
+  <data name="PestanasEtiquetaGrupo" xml:space="preserve"><value>Seccions de documents</value></data>
+  <data name="PestanaEstado" xml:space="preserve"><value>Estat</value></data>
+  <data name="PestanaPlataformasCae" xml:space="preserve"><value>Plataformes CAE</value></data>
+  <data name="PestanaReclamaciones" xml:space="preserve"><value>Reclamacions</value></data>
+  <data name="PestanaPreventivo" xml:space="preserve"><value>Preventiu</value></data>
+  <data name="PestanaRevisionIa" xml:space="preserve"><value>Revisió IA</value></data>
+  <data name="PestanaPlantillas" xml:space="preserve"><value>Plantilles</value></data>
   <data name="ListaSinAdjunto" xml:space="preserve"><value>Sense adjunt</value></data>
   <data name="ListaVencimientoSinConfirmar" xml:space="preserve"><value>Sense confirmar</value></data>
   <data name="ListaEmisionFecha" xml:space="preserve"><value>Emissió {0}</value></data>

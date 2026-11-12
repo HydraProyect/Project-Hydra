@@ -44,6 +44,12 @@ public class SolicitudAlta : Entity
     /// <summary>Vigencia del enlace de verificación del correo.</summary>
     public static readonly TimeSpan VigenciaTokenVerificacion = TimeSpan.FromHours(24);
 
+    /// <summary>
+    /// Vigencia del credencial de continuación que se entrega al verificar el correo (A4): lo justo para rellenar los
+    /// pasos siguientes en una sentada. Nunca pasa de <see cref="CaducaEnUtc"/>.
+    /// </summary>
+    public static readonly TimeSpan VigenciaCredencialContinuacion = TimeSpan.FromHours(2);
+
     private readonly List<AceptacionCondicionesAlta> _aceptaciones = [];
 
     public EstadoSolicitudAlta Estado { get; private set; }
@@ -60,6 +66,14 @@ public class SolicitudAlta : Entity
     public string? HashTokenVerificacion { get; private set; }
 
     public DateTime? TokenVerificacionCaducaEnUtc { get; private set; }
+
+    /// <summary>
+    /// SHA-256 en hexadecimal del credencial de continuación (A4), nunca el credencial en claro. Solo existe entre la
+    /// verificación del correo y un estado final: <see cref="CambiarEstado"/> lo borra al llegar a uno.
+    /// </summary>
+    public string? HashCredencialContinuacion { get; private set; }
+
+    public DateTime? CredencialContinuacionCaducaEnUtc { get; private set; }
 
     public string? IpOrigen { get; private set; }
     public string? UserAgentOrigen { get; private set; }
@@ -181,8 +195,14 @@ public class SolicitudAlta : Entity
     /// <summary>
     /// Iniciada → CorreoVerificado si el token coincide y no ha caducado. Devuelve false, sin cambiar
     /// nada, si no coincide o ha caducado. El token es de un solo uso: al verificar, su hash se borra.
+    /// <para>
+    /// Con <paramref name="credencialContinuacion"/> (A4) guarda su SHA-256 y su caducidad: dura
+    /// <see cref="VigenciaCredencialContinuacion"/> sin pasar de <see cref="CaducaEnUtc"/>. Es lo único que
+    /// permite seguir al paso «Empresa» sin cuenta ni sesión de Identity. La contraseña no la compara el
+    /// agregado: la compara la aplicación con el hasher de Identity antes de llegar aquí.
+    /// </para>
     /// </summary>
-    public bool VerificarCorreo(string tokenPresentado, DateTime ahoraUtc)
+    public bool VerificarCorreo(string tokenPresentado, DateTime ahoraUtc, string? credencialContinuacion = null)
     {
         ExigirEstadoVigente(ahoraUtc, nameof(VerificarCorreo), EstadoSolicitudAlta.Iniciada);
 
@@ -196,6 +216,13 @@ public class SolicitudAlta : Entity
         var guardado = Encoding.ASCII.GetBytes(HashTokenVerificacion);
         if (!CryptographicOperations.FixedTimeEquals(presentado, guardado))
             return false;
+
+        if (credencialContinuacion is not null)
+        {
+            HashCredencialContinuacion = CalcularHashToken(credencialContinuacion);
+            var caduca = ahoraUtc + VigenciaCredencialContinuacion;
+            CredencialContinuacionCaducaEnUtc = caduca < CaducaEnUtc ? caduca : CaducaEnUtc;
+        }
 
         HashTokenVerificacion = null;
         TokenVerificacionCaducaEnUtc = null;
@@ -216,43 +243,18 @@ public class SolicitudAlta : Entity
     {
         ExigirEstadoVigente(ahoraUtc, nameof(CompletarDatos), EstadoSolicitudAlta.CorreoVerificado);
 
-        var razonSocialLimpia = razonSocial?.Trim();
-        if (string.IsNullOrEmpty(razonSocialLimpia) || razonSocialLimpia.Length > LongitudMaximaRazonSocial)
-            throw new ArgumentException($"La razón social es obligatoria y no puede superar {LongitudMaximaRazonSocial} caracteres.", nameof(razonSocial));
+        // Las reglas viven en DatosOrganizacionAlta para que la aplicación las aplique igual antes de llamar a la
+        // función de la base que hace esta misma transición (A4); mismos mensajes y mismo orden que antes.
+        var datos = DatosOrganizacionAlta.Crear(
+            razonSocial, cifNif, domicilioFiscal, tramo, declaraRepresentacion, declaraActividadProfesional, telefono);
 
-        var domicilioLimpio = domicilioFiscal?.Trim();
-        if (string.IsNullOrEmpty(domicilioLimpio) || domicilioLimpio.Length > LongitudMaximaDomicilioFiscal)
-            throw new ArgumentException($"El domicilio fiscal es obligatorio y no puede superar {LongitudMaximaDomicilioFiscal} caracteres.", nameof(domicilioFiscal));
-
-        if (!Enum.IsDefined(tramo))
-            throw new ArgumentOutOfRangeException(nameof(tramo), tramo, "Tramo desconocido.");
-
-        var cif = NormalizarCifNif(cifNif);
-
-        var telefonoLimpio = string.IsNullOrWhiteSpace(telefono) ? null : telefono.Trim();
-        if (telefonoLimpio is not null
-            && (telefonoLimpio.Length > LongitudMaximaTelefono
-                || !telefonoLimpio.Any(char.IsAsciiDigit)
-                || !telefonoLimpio.All(c => char.IsAsciiDigit(c) || c is ' ' or '+' or '-' or '.' or '(' or ')')))
-            throw new ArgumentException(
-                $"El teléfono solo admite dígitos, espacios, «+», «-», «.» y paréntesis, hasta {LongitudMaximaTelefono} caracteres.",
-                nameof(telefono));
-
-        if (!declaraRepresentacion)
-            throw new ArgumentException("Hace falta declarar que se representa a la organización del CIF.", nameof(declaraRepresentacion));
-
-        if (EsPersonaFisica(cif) && !declaraActividadProfesional)
-            throw new ArgumentException(
-                "Con un NIF de persona física hace falta declarar que se actúa en el ejercicio de la actividad profesional.",
-                nameof(declaraActividadProfesional));
-
-        RazonSocial = razonSocialLimpia;
-        CifNif = cif;
-        DomicilioFiscal = domicilioLimpio;
-        Telefono = telefonoLimpio;
-        Tramo = tramo;
+        RazonSocial = datos.RazonSocial;
+        CifNif = datos.CifNif;
+        DomicilioFiscal = datos.DomicilioFiscal;
+        Telefono = datos.Telefono;
+        Tramo = datos.Tramo;
         DeclaraRepresentacion = true;
-        DeclaraActividadProfesional = declaraActividadProfesional;
+        DeclaraActividadProfesional = datos.DeclaraActividadProfesional;
         CambiarEstado(EstadoSolicitudAlta.DatosCompletos, ahoraUtc);
     }
 
@@ -404,6 +406,8 @@ public class SolicitudAlta : Entity
         HashContrasena = null;
         HashTokenVerificacion = null;
         TokenVerificacionCaducaEnUtc = null;
+        HashCredencialContinuacion = null;
+        CredencialContinuacionCaducaEnUtc = null;
         IpOrigen = null;
         UserAgentOrigen = null;
         RazonSocial = null;
@@ -470,6 +474,13 @@ public class SolicitudAlta : Entity
 
     private void CambiarEstado(EstadoSolicitudAlta nuevo, DateTime ahoraUtc)
     {
+        // Un estado final no admite más pasos: el credencial de continuación deja de servir para nada.
+        if (EsFinal(nuevo))
+        {
+            HashCredencialContinuacion = null;
+            CredencialContinuacionCaducaEnUtc = null;
+        }
+
         Estado = nuevo;
         UltimoCambioEstadoEnUtc = ahoraUtc;
         VersionFila++;

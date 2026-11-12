@@ -80,6 +80,7 @@ public class SemaforoDeCentrosDemoTests
     [Fact]
     public async Task La_siembra_de_demo_reparte_los_centros_en_varios_estados_de_semaforo()
     {
+        using var reloj = RelojDePrueba.FijarEn(DateTimeOffset.UtcNow);
         await using var arnes = await ArnesDeArranqueRuntime.CrearAsync(datosDePruebaActivos: true);
         var tenantId = await CrearTenantConCatalogoAsync(arnes, "Tenant Semaforo Demo A");
         await SembrarAsync(arnes, tenantId);
@@ -117,10 +118,18 @@ public class SemaforoDeCentrosDemoTests
     /// el reparto tiene que ser una propiedad de la siembra, no de la suerte de
     /// una tanda concreta (mismo criterio que
     /// <see cref="DatosPruebaSeederDeterminismoTests"/>).
+    ///
+    /// <para>
+    /// El día de negocio se fija una sola vez para todo el test (<see cref="RelojDePrueba"/>): la semilla es fija
+    /// pero las fechas de los documentos se siembran relativas a <c>DiaDeNegocio.Hoy()</c>, así que si la
+    /// ejecución cruzaba la medianoche de Europe/Madrid entre la primera siembra y la segunda, cada una tomaba un
+    /// «hoy» distinto y los repartos diferían (issue #2073).
+    /// </para>
     /// </summary>
     [Fact]
     public async Task Dos_siembras_independientes_reparten_igual_el_semaforo()
     {
+        using var reloj = RelojDePrueba.FijarEn(DateTimeOffset.UtcNow);
         await using var arnes = await ArnesDeArranqueRuntime.CrearAsync(datosDePruebaActivos: true);
 
         var tenantAId = await CrearTenantConCatalogoAsync(arnes, "Tenant Semaforo Demo B");

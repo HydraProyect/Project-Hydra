@@ -65,6 +65,7 @@ public partial class Auditoria : CaeManager.Web.Components.PaginaIntegrableConfi
     /// </summary>
     private string _desde = RangoFechasAuditoria.DesdePorDefecto().ToString(RangoFechasAuditoria.FormatoFecha);
     private string _hasta = string.Empty;
+    private int _generacionFiltros;
     private int _pagina = 1;
     private const int TamanoPagina = 30;
     private readonly HashSet<Guid> _restaurando = [];
@@ -274,6 +275,7 @@ public partial class Auditoria : CaeManager.Web.Components.PaginaIntegrableConfi
     /// <summary>Quita todo: tipo de entidad y rango. Es la única vía, junto a vaciar «Desde», a todo el historial.</summary>
     private Task LimpiarFiltrosAsync()
     {
+        _generacionFiltros++;
         _desde = string.Empty;
         _hasta = string.Empty;
         return FiltrarPorEntidadAsync(null);

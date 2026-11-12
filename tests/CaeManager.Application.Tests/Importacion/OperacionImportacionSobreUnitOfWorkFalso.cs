@@ -13,6 +13,9 @@ internal sealed class OperacionImportacionSobreUnitOfWorkFalso(UnitOfWorkFalso u
 {
     public Task<bool> ExisteAsync(Guid operacionId, CancellationToken cancellationToken = default) => Task.FromResult(false);
 
+    public Task<bool> EsLaMarcaGuardadaAsync(Guid operacionId, Guid marcaId, CancellationToken cancellationToken = default) =>
+        Task.FromResult(false);
+
     public void Agregar(OperacionImportacion operacion)
     {
     }
