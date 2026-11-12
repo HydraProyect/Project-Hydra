@@ -463,6 +463,13 @@ public partial class Trabajador360Gen2Tests
             .Should().Be("Introduce una fecha válida.", "control: el aviso estaba antes de dejar el paso");
         await PulsarFicha(drawer, "Atrás");
 
+        // Al volver, el campo nuevo emite su estado al crearse y eso también retiraría el aviso: por eso el DOM de vuelta no
+        // distingue si CambiarDePaso lo quitó. El estado del formulario se mira antes de volver, con el paso del campo fuera.
+        var errores = (Dictionary<string, string>)typeof(EditarFichaTrabajadorDrawer)
+            .GetField("_errores", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)!
+            .GetValue(drawer.Instance)!;
+        errores.Should().NotContainKey(nameof(EditarFichaTrabajadorCommand.FechaAltaEmpresa), "al dejar el paso, su aviso se va con el campo");
+
         await IrAPasoFicha(drawer, "Trabajo");
         var campo = drawer.FindComponents<CampoTexto>().Single(c => c.Instance.Etiqueta == "Alta en la empresa").Instance;
         campo.Valor.Should().Be("2023-05-02", "el campo vuelve con la fecha cargada");
