@@ -1083,11 +1083,11 @@ public sealed class DividirPdfPantallaTests : BunitContext
         var cut = Renderizar();
         cut.WaitForAssertion(() => cut.FindAll(".zona-soltar-archivo").Should().ContainSingle());
         await SubirAsync(cut);
-        Pulsar(cut, "Asignar documentos");
+        Pulsar(cut, "Guardar en TALVEG");
         PonerEmision(cut);
         // Ir y volver: el campo nace de nuevo con la fecha guardada y Blazor la pinta en «value».
         Pulsar(cut, "Volver a dividir");
-        Pulsar(cut, "Asignar documentos");
+        Pulsar(cut, "Guardar en TALVEG");
         cut.WaitForAssertion(() => cut.FindAll("input[placeholder=\"dd/mm/aaaa\"]")[0].GetAttribute("value").Should().Be("15/01/2026"));
 
         // CampoFecha no tiene retardo: lo tecleado a medias no se notifica y la pantalla no se re-renderiza con un vacío.
@@ -1112,7 +1112,7 @@ public sealed class DividirPdfPantallaTests : BunitContext
         var cut = Renderizar();
         cut.WaitForAssertion(() => cut.FindAll(".zona-soltar-archivo").Should().ContainSingle());
         await SubirAsync(cut);
-        Pulsar(cut, "Asignar documentos");
+        Pulsar(cut, "Guardar en TALVEG");
         cut.WaitForAssertion(() => cut.FindAll("input[placeholder=\"dd/mm/aaaa\"]").Should().HaveCountGreaterThanOrEqualTo(2));
         var caducidad = () => cut.FindAll("input[placeholder=\"dd/mm/aaaa\"]")[1];
 
@@ -1136,7 +1136,7 @@ public sealed class DividirPdfPantallaTests : BunitContext
         var cut = Renderizar();
         cut.WaitForAssertion(() => cut.FindAll(".zona-soltar-archivo").Should().ContainSingle());
         await SubirAsync(cut);
-        Pulsar(cut, "Asignar documentos");
+        Pulsar(cut, "Guardar en TALVEG");
         cut.WaitForAssertion(() => cut.FindAll("input[placeholder=\"dd/mm/aaaa\"]").Should().NotBeEmpty());
 
         await cut.FindAll("input[placeholder=\"dd/mm/aaaa\"]")[0].InputAsync(new ChangeEventArgs { Value = "15/0" });
@@ -1162,7 +1162,7 @@ public sealed class DividirPdfPantallaTests : BunitContext
         var cut = Renderizar();
         cut.WaitForAssertion(() => cut.FindAll(".zona-soltar-archivo").Should().ContainSingle());
         await SubirAsync(cut);
-        Pulsar(cut, "Asignar documentos");
+        Pulsar(cut, "Guardar en TALVEG");
         cut.WaitForAssertion(() => cut.Find(".barra-en-ficha button"));
 
         var antes = cut.FindComponents<Boton>()
@@ -1188,7 +1188,7 @@ public sealed class DividirPdfPantallaTests : BunitContext
         cut.WaitForAssertion(() => cut.FindAll(".zona-soltar-archivo").Should().ContainSingle());
         await SubirAsync(cut);
         cut.Find("button.tijera[aria-label='Quitar la división tras la página 3']").Click();
-        Pulsar(cut, "Asignar documentos");
+        Pulsar(cut, "Guardar en TALVEG");
         PonerEmision(cut);
         cut.WaitForAssertion(() => cut.FindAll("input[placeholder=\"dd/mm/aaaa\"]").Should().HaveCountGreaterThanOrEqualTo(2));
         await cut.FindAll("input[placeholder=\"dd/mm/aaaa\"]")[1].InputAsync(new ChangeEventArgs { Value = "15/0" });
@@ -1218,7 +1218,7 @@ public sealed class DividirPdfPantallaTests : BunitContext
         cut.WaitForAssertion(() => cut.FindAll(".zona-soltar-archivo").Should().ContainSingle());
         await SubirAsync(cut);
         cut.Find("button.tijera[aria-label='Quitar la división tras la página 3']").Click();
-        Pulsar(cut, "Asignar documentos");
+        Pulsar(cut, "Guardar en TALVEG");
         PonerEmision(cut);
         cut.WaitForAssertion(() => cut.FindAll("input[placeholder=\"dd/mm/aaaa\"]").Should().HaveCountGreaterThanOrEqualTo(2));
         await cut.FindAll("input[placeholder=\"dd/mm/aaaa\"]")[1].InputAsync(new ChangeEventArgs { Value = "15/0" });
@@ -1255,7 +1255,7 @@ public sealed class DividirPdfPantallaTests : BunitContext
         cut.WaitForAssertion(() => cut.FindAll(".zona-soltar-archivo").Should().ContainSingle());
         await SubirAsync(cut);
         cut.Find("button.tijera[aria-label='Quitar la división tras la página 3']").Click();
-        Pulsar(cut, "Asignar documentos");
+        Pulsar(cut, "Guardar en TALVEG");
         PonerEmision(cut);
         cut.WaitForAssertion(() => cut.FindAll("input[placeholder=\"dd/mm/aaaa\"]").Should().HaveCountGreaterThanOrEqualTo(2));
         await cut.FindAll("input[placeholder=\"dd/mm/aaaa\"]")[1].InputAsync(new ChangeEventArgs { Value = "20/01/2027" });
@@ -1290,7 +1290,7 @@ public sealed class DividirPdfPantallaTests : BunitContext
         cut.WaitForAssertion(() => cut.FindAll(".zona-soltar-archivo").Should().ContainSingle());
         await SubirAsync(cut);
         cut.Find("button.tijera[aria-label='Quitar la división tras la página 3']").Click();
-        Pulsar(cut, "Asignar documentos");
+        Pulsar(cut, "Guardar en TALVEG");
         PonerEmision(cut);
         await cut.FindAll("input[placeholder=\"dd/mm/aaaa\"]")[0].InputAsync(new ChangeEventArgs { Value = "15/01/202" });
 
@@ -1323,7 +1323,7 @@ public sealed class DividirPdfPantallaTests : BunitContext
         cut.WaitForAssertion(() => cut.FindAll(".zona-soltar-archivo").Should().ContainSingle());
         await SubirAsync(cut);
         cut.Find("button.tijera[aria-label='Quitar la división tras la página 3']").Click();
-        Pulsar(cut, "Asignar documentos");
+        Pulsar(cut, "Guardar en TALVEG");
         PonerEmision(cut);
         cut.WaitForAssertion(() => cut.FindAll("input[placeholder=\"dd/mm/aaaa\"]").Should().HaveCountGreaterThanOrEqualTo(2));
         await cut.FindAll("input[placeholder=\"dd/mm/aaaa\"]")[1].InputAsync(new ChangeEventArgs { Value = "15/0" });
