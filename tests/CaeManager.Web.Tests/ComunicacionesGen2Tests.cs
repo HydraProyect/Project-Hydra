@@ -1877,7 +1877,9 @@ public class ComunicacionesGen2Tests : BunitContext
 
         var envioPrimera = Enviar(cut);
         mediador.Enviados.OfType<ResponderConversacionCommand>().Should().ContainSingle("control positivo: el envío está en vuelo");
-        await AdjuntarAsync(cut, ArchivoListo("dni.pdf"));
+        // Mismo nombre a propósito: lo enviado se identifica por instancia, no por nombre.
+        await AdjuntarAsync(cut, ArchivoListo("tc2.pdf"));
+        cut.FindComponent<ComposerBar>().Instance.AdjuntosPendientes.Should().HaveCount(2, "control positivo: el segundo adjunto entró durante el envío");
 
         await cut.InvokeAsync(() => envio.SetResult(Result.Exito()));
         await envioPrimera;
@@ -1885,7 +1887,7 @@ public class ComunicacionesGen2Tests : BunitContext
 
         var composer = cut.FindComponent<ComposerBar>().Instance;
         composer.Texto.Should().BeEmpty("el texto enviado se retira");
-        composer.AdjuntosPendientes.Select(a => a.NombreArchivo).Should().Equal(["dni.pdf"], "solo se retira el adjunto enviado");
+        composer.AdjuntosPendientes.Select(a => a.NombreArchivo).Should().Equal(["tc2.pdf"], "solo se retira el adjunto enviado, no el que se llama igual");
     }
 
     /// <summary>
@@ -1948,10 +1950,14 @@ public class ComunicacionesGen2Tests : BunitContext
     /// <summary>
     /// Revisión Codex r6 de la #2167, MEDIO 3: el Gestor CAE cancela el Drawer de prioridad mientras se prepara el borrador y lo
     /// reabre para el mismo Centro. El borrador de la primera apertura no se ofrece ni apaga el indicador de carga de la segunda.
-    /// Detecta quitar la comprobación de <c>_solicitudPrioridadVigente</c> tras el await de <c>AbrirPedirPrioridadAsync</c>.
+    /// Con la respuesta antigua primero, detecta quitar la condición del <c>finally</c> (apagaría el indicador de la reapertura);
+    /// con la nueva primero, detecta quitar el <c>return</c> tras el await de <c>AbrirPedirPrioridadAsync</c> (la antigua
+    /// sobrescribiría el borrador ya mostrado).
     /// </summary>
-    [Fact]
-    public async Task El_borrador_de_prioridad_de_una_apertura_cancelada_no_se_ofrece_en_la_reapertura()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task El_borrador_de_prioridad_de_una_apertura_cancelada_no_se_ofrece_en_la_reapertura(bool reaperturaResponde_primero)
     {
         var conversacion = Conversacion("Documentación pendiente", ClienteRefrielectric);
         var escenario = new Escenario { Detalle = _ => DetalleDe(conversacion) };
@@ -1972,18 +1978,34 @@ public class ComunicacionesGen2Tests : BunitContext
         var segundaApertura = cut.FindAll("button").Single(b => b.TextContent.Trim() == "Pedir prioridad de validación").ClickAsync(new MouseEventArgs());
         cut.WaitForAssertion(() => Volatile.Read(ref pedidos).Should().Be(2, "control positivo: dos aperturas para el mismo Centro"));
 
-        await cut.InvokeAsync(() => primero.SetResult(Result.Exito(new BorradorPedirPrioridadDto(
+        Task ResponderLaCancelada() => cut.InvokeAsync(() => primero.SetResult(Result.Exito(new BorradorPedirPrioridadDto(
             "validacion@example.invalid", "Prioridad de la apertura cancelada", "<p>Antiguo.</p>", true, null, 2))));
-        await primeraApertura;
-        cut.Render();
+        Task ResponderLaReapertura() => cut.InvokeAsync(() => segundo.SetResult(BorradorDelCentroNorte()));
 
-        cut.FindComponents<CampoTexto>().Should().NotContain(c => c.Instance.Valor == "Prioridad de la apertura cancelada",
-            "el borrador era de la apertura cancelada");
-        CampoPrivado<bool>(cut, "_cargandoBorradorPrioridad").Should().BeTrue("la reapertura sigue esperando su borrador");
+        if (reaperturaResponde_primero)
+        {
+            await ResponderLaReapertura();
+            await segundaApertura;
+            cut.WaitForAssertion(() => cut.FindComponents<CampoTexto>().Should().Contain(c => c.Instance.Valor == "Prioridad Centro Norte",
+                "control positivo: la reapertura ya muestra su borrador"));
+            await ResponderLaCancelada();
+            await primeraApertura;
+            cut.Render();
+        }
+        else
+        {
+            await ResponderLaCancelada();
+            await primeraApertura;
+            cut.Render();
+            CampoPrivado<bool>(cut, "_cargandoBorradorPrioridad").Should().BeTrue("la reapertura sigue esperando su borrador");
+            await ResponderLaReapertura();
+            await segundaApertura;
+            cut.Render();
+        }
 
-        await cut.InvokeAsync(() => segundo.SetResult(BorradorDelCentroNorte()));
-        await segundaApertura;
-        cut.WaitForAssertion(() => cut.FindComponents<CampoTexto>().Should().Contain(c => c.Instance.Valor == "Prioridad Centro Norte"));
+        var campos = cut.FindComponents<CampoTexto>();
+        campos.Should().NotContain(c => c.Instance.Valor == "Prioridad de la apertura cancelada", "el borrador era de la apertura cancelada");
+        campos.Should().Contain(c => c.Instance.Valor == "Prioridad Centro Norte", "queda el borrador de la reapertura");
     }
 
     /// <summary>
