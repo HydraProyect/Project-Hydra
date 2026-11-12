@@ -791,46 +791,18 @@ public partial class ImportarClientesGen2Tests : BunitContext
 
     // ---------------------------------------------------------------- carreras
 
+    // Mientras un archivo se analiza, la zona de subida está en «Cargando»: el InputFile sale deshabilitado y
+    // ZonaSoltarArchivo aplica lo mismo en el servidor, de modo que una segunda subida se ignora (no reemplaza
+    // al análisis en vuelo). Los tres primeros tests fijan esa regla; los dos últimos cubren el único camino por
+    // el que un análisis sigue pudiendo quedar descartado en vuelo, el cambio de plantilla.
+
     [Fact]
-    public async Task Un_analisis_anterior_que_termina_tarde_no_pinta_su_plan()
+    public async Task Una_segunda_subida_durante_el_analisis_se_ignora_y_el_analisis_vigente_pinta_su_plan()
     {
-        // Dos análisis a la vez del mismo Tenant: el descartado ignora la cancelación y conserva su hueco hasta terminar.
+        // Dos huecos por Tenant: si la segunda subida no se ignorara, abriría otro análisis y ocuparía el segundo.
         Services.Configure<OpcionesLimitesImportacion>(o => o.AnalisisConcurrentesPorTenant = 2);
-        var escenario = new Escenario { RetenerIgnoraCancelacion = true };
-        escenario.Plan<AnalizarPlantillaClientesQuery>("A", [Fila("Alfa S.L.")]);
-        escenario.Plan<AnalizarPlantillaClientesQuery>("B", [Fila("Beta S.L.")]);
-        var puertaA = Puerta();
-        var puertaB = Puerta();
-        escenario.Retener = p => p is AnalizarPlantillaClientesQuery q
-            ? Encoding.UTF8.GetString(q.ContenidoArchivo) == "A" ? puertaA.Task : puertaB.Task
-            : null;
-        var (cut, mediador) = Renderizar(escenario);
-        await Pulsar(cut, "Continuar con Plantilla de Clientes");
-
-        var subidaA = Subir(cut, "a.xlsx", "A");
-        var subidaB = Subir(cut, "b.xlsx", "B");
-        cut.WaitForAssertion(() => mediador.Recibidas
-            .Should().Contain(r => r.Peticion is AnalizarPlantillaClientesQuery && r.Token.IsCancellationRequested,
-                "el análisis descartado recibe la cancelación aunque la ignore"));
-        puertaB.SetResult();
-        await subidaB;
-        cut.WaitForAssertion(() => Boton(cut, "Ver plan de importación").HasAttribute("disabled").Should().BeFalse());
-
-        puertaA.SetResult();
-        await subidaA;
-
-        await Pulsar(cut, "Ver plan de importación");
-        Texto(cut.Find(".detalle-revision-plan")).Should().Be("b.xlsx · nada escrito todavía");
-        cut.FindAll(".tabla-plan-importacion-envoltorio tbody tr td:first-child").Select(Texto).Distinct()
-            .Should().Equal(["Beta S.L."], "el plan de a.xlsx llegó después, pero ya no era el vigente");
-    }
-
-    [Fact]
-    public async Task Reemplazar_el_archivo_cancela_el_analisis_anterior_y_le_devuelve_su_hueco()
-    {
-        // Configuración por defecto (un análisis por Tenant): si el descartado retuviera su hueco, b.xlsx esperaría
-        // hasta agotar la espera y acabaría en «demasiados análisis».
         var escenario = new Escenario();
+        escenario.Plan<AnalizarPlantillaClientesQuery>("A", [Fila("Alfa S.L.")]);
         escenario.Plan<AnalizarPlantillaClientesQuery>("B", [Fila("Beta S.L.")]);
         var puertaA = Puerta();
         escenario.Retener = p => p is AnalizarPlantillaClientesQuery q && Encoding.UTF8.GetString(q.ContenidoArchivo) == "A"
@@ -840,42 +812,158 @@ public partial class ImportarClientesGen2Tests : BunitContext
         await Pulsar(cut, "Continuar con Plantilla de Clientes");
 
         var subidaA = Subir(cut, "a.xlsx", "A");
-        cut.WaitForAssertion(() => mediador.Recibidas.Should().Contain(r => r.Peticion is AnalizarPlantillaClientesQuery));
-        await Subir(cut, "b.xlsx", "B");
-        await subidaA;
+        cut.WaitForAssertion(() => mediador.Recibidas.Should().ContainSingle(r => r.Peticion is AnalizarPlantillaClientesQuery));
+        cut.FindAll(".progreso-carga").Should().NotBeEmpty("a.xlsx se está analizando");
+
+        await Subir(cut, "b.xlsx", "B").WaitAsync(TimeSpan.FromSeconds(10));
+
+        mediador.Recibidas.Where(r => r.Peticion is AnalizarPlantillaClientesQuery).Should().ContainSingle(
+            "la segunda subida se ignora: no abre otro análisis");
+        mediador.Recibidas.Single(r => r.Peticion is AnalizarPlantillaClientesQuery).Token.IsCancellationRequested
+            .Should().BeFalse("el análisis vigente no se cancela porque llegue otra subida");
+        cut.FindAll(".progreso-carga").Should().NotBeEmpty("el análisis de a.xlsx sigue en curso");
+
+        puertaA.SetResult();
+        await subidaA.WaitAsync(TimeSpan.FromSeconds(10));
 
         cut.WaitForAssertion(() => Boton(cut, "Ver plan de importación").HasAttribute("disabled").Should().BeFalse());
         cut.FindAll(".alerta-formulario").Should().BeEmpty();
-        mediador.Recibidas.First(r => r.Peticion is AnalizarPlantillaClientesQuery).Token.IsCancellationRequested
-            .Should().BeTrue("el análisis de a.xlsx se cancela al reemplazar el archivo");
-        puertaA.Task.IsCompleted.Should().BeFalse("el hueco se devolvió por la cancelación, no porque a.xlsx terminara");
+        await Pulsar(cut, "Ver plan de importación");
+        Texto(cut.Find(".detalle-revision-plan")).Should().Be("a.xlsx · nada escrito todavía");
+        cut.FindAll(".tabla-plan-importacion-envoltorio tbody tr td:first-child").Select(Texto).Distinct()
+            .Should().Equal(["Alfa S.L."], "el plan que se pinta es el del análisis vigente, no el del archivo ignorado");
     }
 
     [Fact]
-    public async Task Un_analisis_anterior_que_falla_tarde_no_pinta_su_error_ni_para_el_progreso_del_vigente()
+    public async Task Una_segunda_subida_durante_el_analisis_no_ocupa_otro_hueco_y_el_del_vigente_vuelve_al_terminar()
     {
-        // Dos análisis a la vez del mismo Tenant: el descartado ignora la cancelación y conserva su hueco hasta terminar.
+        // Configuración por defecto (un análisis por Tenant). Si la segunda subida se colara, esperaría el hueco hasta
+        // agotar la espera y acabaría en «demasiados análisis»; y si el análisis vigente no devolviera su hueco al
+        // terminar, la subida posterior de c.xlsx acabaría igual (propiedad del arreglo #1854).
+        var escenario = new Escenario();
+        escenario.Plan<AnalizarPlantillaClientesQuery>("A", [Fila("Alfa S.L.")]);
+        escenario.Plan<AnalizarPlantillaClientesQuery>("C", [Fila("Gamma S.L.")]);
+        var puertaA = Puerta();
+        escenario.Retener = p => p is AnalizarPlantillaClientesQuery q && Encoding.UTF8.GetString(q.ContenidoArchivo) == "A"
+            ? puertaA.Task
+            : null;
+        var (cut, mediador) = Renderizar(escenario);
+        await Pulsar(cut, "Continuar con Plantilla de Clientes");
+
+        var subidaA = Subir(cut, "a.xlsx", "A");
+        cut.WaitForAssertion(() => mediador.Recibidas.Should().ContainSingle(r => r.Peticion is AnalizarPlantillaClientesQuery));
+        await Subir(cut, "b.xlsx", "B").WaitAsync(TimeSpan.FromSeconds(10));
+
+        cut.FindAll(".alerta-formulario").Should().BeEmpty("la segunda subida no espera ningún hueco: se ignora");
+        mediador.Recibidas.Where(r => r.Peticion is AnalizarPlantillaClientesQuery).Should().ContainSingle();
+
+        puertaA.SetResult();
+        await subidaA.WaitAsync(TimeSpan.FromSeconds(10));
+        cut.WaitForAssertion(() => Boton(cut, "Ver plan de importación").HasAttribute("disabled").Should().BeFalse());
+
+        await Subir(cut, "c.xlsx", "C").WaitAsync(TimeSpan.FromSeconds(10));
+
+        cut.FindAll(".alerta-formulario").Should().BeEmpty("el hueco del primer análisis volvió al limitador al terminar");
+        await Pulsar(cut, "Ver plan de importación");
+        Texto(cut.Find(".detalle-revision-plan")).Should().Be("c.xlsx · nada escrito todavía");
+        cut.FindAll(".tabla-plan-importacion-envoltorio tbody tr td:first-child").Select(Texto).Distinct()
+            .Should().Equal(["Gamma S.L."]);
+    }
+
+    [Fact]
+    public async Task Una_segunda_subida_durante_el_analisis_se_ignora_y_el_fallo_del_vigente_se_pinta_y_para_el_progreso()
+    {
         Services.Configure<OpcionesLimitesImportacion>(o => o.AnalisisConcurrentesPorTenant = 2);
-        var escenario = new Escenario { RetenerIgnoraCancelacion = true };
+        var escenario = new Escenario();
         escenario.Plan<AnalizarPlantillaClientesQuery>("B", [Fila("Beta S.L.")]);
         var puertaA = Puerta();
-        var puertaB = Puerta();
-        escenario.Retener = p => p is AnalizarPlantillaClientesQuery q
-            ? Encoding.UTF8.GetString(q.ContenidoArchivo) == "ilegible" ? puertaA.Task : puertaB.Task
+        // «ilegible» no tiene plan registrado: el escenario lo rechaza como un libro que la plantilla no sabe leer.
+        escenario.Retener = p => p is AnalizarPlantillaClientesQuery q && Encoding.UTF8.GetString(q.ContenidoArchivo) == "ilegible"
+            ? puertaA.Task
             : null;
-        var (cut, _) = Renderizar(escenario);
+        var (cut, mediador) = Renderizar(escenario);
         await Pulsar(cut, "Continuar con Plantilla de Clientes");
 
         var subidaA = Subir(cut, "roto.xlsx", "ilegible");
-        var subidaB = Subir(cut, "b.xlsx", "B");
-        puertaA.SetResult();
-        await subidaA;
+        cut.WaitForAssertion(() => mediador.Recibidas.Should().ContainSingle(r => r.Peticion is AnalizarPlantillaClientesQuery));
+        await Subir(cut, "b.xlsx", "B").WaitAsync(TimeSpan.FromSeconds(10));
 
-        cut.FindAll(".alerta-formulario").Should().BeEmpty("el error es de un archivo que ya no es el vigente");
-        cut.FindAll(".progreso-carga").Should().NotBeEmpty("b.xlsx sigue analizándose");
+        mediador.Recibidas.Where(r => r.Peticion is AnalizarPlantillaClientesQuery).Should().ContainSingle("la segunda subida se ignora");
+        cut.FindAll(".alerta-formulario").Should().BeEmpty("el análisis vigente todavía no ha fallado");
+        cut.FindAll(".progreso-carga").Should().NotBeEmpty("roto.xlsx sigue analizándose");
+
+        puertaA.SetResult();
+        await subidaA.WaitAsync(TimeSpan.FromSeconds(10));
+
+        cut.FindAll(".alerta-formulario").Should().ContainSingle("el fallo es del archivo vigente y sí se muestra");
+        cut.FindAll(".progreso-carga").Should().BeEmpty("al fallar el vigente el progreso se para");
+    }
+
+    [Fact]
+    public async Task Cambiar_de_plantilla_con_el_analisis_en_vuelo_lo_cancela_y_le_devuelve_su_hueco()
+    {
+        // Configuración por defecto (un análisis por Tenant): el análisis descartado por el cambio de plantilla
+        // respeta la cancelación y no se completa solo. Si retuviera su hueco, el archivo de la plantilla nueva
+        // esperaría hasta agotar la espera y acabaría en «demasiados análisis» (arreglo #1854).
+        var escenario = new Escenario();
+        escenario.Plan<AnalizarImportacionExcelQuery>("B", [Fila("Beta S.L.")]);
+        var puertaA = Puerta();
+        escenario.Retener = p => p is AnalizarPlantillaClientesQuery ? puertaA.Task : null;
+        var (cut, mediador) = Renderizar(escenario);
+        await Pulsar(cut, "Continuar con Plantilla de Clientes");
+
+        var subidaA = Subir(cut, "a.xlsx", "A");
+        cut.WaitForAssertion(() => mediador.Recibidas.Should().Contain(r => r.Peticion is AnalizarPlantillaClientesQuery));
+        await Pulsar(cut, "← Cambiar plantilla");
+        await OpcionPlantilla(cut, "cae").ClickAsync(new MouseEventArgs());
+        await Pulsar(cut, "Continuar con Importación CAE completa");
+        await subidaA.WaitAsync(TimeSpan.FromSeconds(10));
+
+        mediador.Recibidas.First(r => r.Peticion is AnalizarPlantillaClientesQuery).Token.IsCancellationRequested
+            .Should().BeTrue("el análisis de a.xlsx se cancela al cambiar de plantilla");
+        puertaA.Task.IsCompleted.Should().BeFalse("el hueco se devolvió por la cancelación, no porque a.xlsx terminara");
+
+        await Subir(cut, "cae.xlsx", "B").WaitAsync(TimeSpan.FromSeconds(10));
+
+        cut.FindAll(".alerta-formulario").Should().BeEmpty("el hueco estaba libre: no hay «demasiados análisis»");
+        cut.WaitForAssertion(() => Boton(cut, "Ver plan de importación").HasAttribute("disabled").Should().BeFalse());
+    }
+
+    [Fact]
+    public async Task Un_analisis_descartado_por_cambio_de_plantilla_que_falla_tarde_no_pinta_su_error_ni_para_el_progreso_del_vigente()
+    {
+        // El descartado ignora la cancelación y conserva su hueco hasta terminar: hacen falta dos huecos.
+        Services.Configure<OpcionesLimitesImportacion>(o => o.AnalisisConcurrentesPorTenant = 2);
+        var escenario = new Escenario { RetenerIgnoraCancelacion = true };
+        escenario.Plan<AnalizarImportacionExcelQuery>("B", [Fila("Beta S.L.")]);
+        var puertaA = Puerta();
+        var puertaB = Puerta();
+        escenario.Retener = p => p switch
+        {
+            AnalizarPlantillaClientesQuery => puertaA.Task,
+            AnalizarImportacionExcelQuery => puertaB.Task,
+            _ => null,
+        };
+        var (cut, mediador) = Renderizar(escenario);
+        await Pulsar(cut, "Continuar con Plantilla de Clientes");
+
+        // «ilegible» no tiene plan registrado: al soltar la puerta, el análisis descartado falla.
+        var subidaA = Subir(cut, "roto.xlsx", "ilegible");
+        cut.WaitForAssertion(() => mediador.Recibidas.Should().Contain(r => r.Peticion is AnalizarPlantillaClientesQuery));
+        await Pulsar(cut, "← Cambiar plantilla");
+        await OpcionPlantilla(cut, "cae").ClickAsync(new MouseEventArgs());
+        await Pulsar(cut, "Continuar con Importación CAE completa");
+        var subidaB = Subir(cut, "cae.xlsx", "B");
+        cut.WaitForAssertion(() => mediador.Recibidas.Should().Contain(r => r.Peticion is AnalizarImportacionExcelQuery));
+
+        puertaA.SetResult();
+        await subidaA.WaitAsync(TimeSpan.FromSeconds(10));
+
+        cut.FindAll(".alerta-formulario").Should().BeEmpty("el error es de un archivo de la plantilla anterior, que ya no es el vigente");
+        cut.FindAll(".progreso-carga").Should().NotBeEmpty("cae.xlsx sigue analizándose");
 
         puertaB.SetResult();
-        await subidaB;
+        await subidaB.WaitAsync(TimeSpan.FromSeconds(10));
         cut.WaitForAssertion(() => Boton(cut, "Ver plan de importación").HasAttribute("disabled").Should().BeFalse());
         cut.FindAll(".alerta-formulario").Should().BeEmpty();
     }
