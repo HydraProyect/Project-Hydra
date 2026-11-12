@@ -35,6 +35,9 @@ public partial class RevisionIaTab : ComponentBase, IDisposable
     private Guid? _documentoIdExpandido;
     private string _fechaEmisionManual = string.Empty;
     private string? _errorFechaManual;
+
+    /// <summary>La fecha de emisión corregida tiene un texto que no es una fecha entera: Guardar no la envía.</summary>
+    private bool _emisionManualNoValida;
     private string? _mensajeErrorCorreccion;
     private FiltroRevision _filtro;
     private CancellationTokenSource? _cargaCts;
@@ -213,7 +216,8 @@ public partial class RevisionIaTab : ComponentBase, IDisposable
             return;
         }
 
-        if (!DateOnly.TryParse(_fechaEmisionManual, out var fechaEmision))
+        // Una emisión a medias ya llega como «»; la marca dice que hay que corregirla, no que falte.
+        if (_emisionManualNoValida || !DateOnly.TryParse(_fechaEmisionManual, out var fechaEmision))
         {
             _errorFechaManual = "Indica una fecha de emisión válida.";
             return;
@@ -414,6 +418,7 @@ public partial class RevisionIaTab : ComponentBase, IDisposable
         _fechaEmisionManual = revision.FechaEmisionIntroducida?.ToString("yyyy-MM-dd") ?? string.Empty;
         _fechaEmisionManualAlAbrir = _fechaEmisionManual;
         _errorFechaManual = null;
+        _emisionManualNoValida = false;
         _mensajeErrorCorreccion = null;
         _correccionManualVisible = true;
     }
@@ -422,7 +427,7 @@ public partial class RevisionIaTab : ComponentBase, IDisposable
     // tecleada frente a la precargada al abrir.
     private string _fechaEmisionManualAlAbrir = string.Empty;
 
-    private bool HayCambiosSinGuardar => _correccionManualVisible && _fechaEmisionManual != _fechaEmisionManualAlAbrir;
+    private bool HayCambiosSinGuardar => _correccionManualVisible && (_fechaEmisionManual != _fechaEmisionManualAlAbrir || _emisionManualNoValida);
 
     private void AlternarPrevisualizacion(Guid documentoId) => _documentoIdExpandido = _documentoIdExpandido == documentoId ? null : documentoId;
 

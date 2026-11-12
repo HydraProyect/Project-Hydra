@@ -13,11 +13,20 @@ namespace CaeManager.Infrastructure.Persistence;
 /// Cada intento empieza con el contexto sin cambios pendientes: un reintento no puede
 /// arrastrar lo que el intento anterior dejó añadido o modificado.
 ///
+/// Cada intento empieza también con el alcance de datos sin memoizar (<see cref="IInvalidadorAlcance"/>):
+/// <c>InvalidacionAlcanceBehavior</c> lo descarta antes del Command, pero eso ocurre una sola vez, fuera de la
+/// estrategia de reintentos. Un cuerpo que autoriza con <see cref="IAlcanceDatosService"/> y cuyo primer intento
+/// falla de forma transitoria volvería a autorizar, en el reintento, con la lista memoizada en el primero: una
+/// Asignación de Cartera revocada entre los dos intentos seguiría valiendo (revisión Codex r4 de la PR #2172).
+/// En el primer intento de un Command es redundante con el behavior y no cambia nada; en una Query solo obliga a
+/// resolver otra vez lo que se pida después.
+///
 /// Es también la envoltura del estado materializado (diseño § 4.3): antes del COMMIT recalcula lo que el detector recogió
 /// de los guardados de la operación, dentro de un SAVEPOINT (<see cref="DetectorCambiosEstadoInterceptor"/>). Un fallo de
 /// ese recálculo no hace fallar la operación: va a la cola.
 /// </remarks>
-public class TransaccionDeComando(CaeManagerDbContext dbContext) : ITransaccionDeComando
+public class TransaccionDeComando(CaeManagerDbContext dbContext, IInvalidadorAlcance? invalidadorAlcance = null)
+    : ITransaccionDeComando
 {
     public Task<Result> EjecutarAsync(Func<CancellationToken, Task<Result>> operacion, CancellationToken cancellationToken = default)
     {
@@ -33,6 +42,7 @@ public class TransaccionDeComando(CaeManagerDbContext dbContext) : ITransaccionD
 
         return estrategia.ExecuteAsync(async ct =>
         {
+            invalidadorAlcance?.Invalidar();
             await using var transaccion = await dbContext.Database.BeginTransactionAsync(ct);
             try
             {

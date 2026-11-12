@@ -218,10 +218,10 @@
     <value>Mostrant {0} de {1} · del pitjor estat al millor</value>
   </data>
   <data name="ToastLoteRestaurados" xml:space="preserve">
-    <value>{0} empresa(s) restaurada(s).</value>
+    <value>Empreses restaurades: {0}.</value>
   </data>
   <data name="ToastLoteRestauradosConErrores" xml:space="preserve">
-    <value>{0} restaurada(s). {1} no se pudieron restaurar: {2}</value>
+    <value>Restaurades: {0}. {1} no s'han pogut restaurar: {2}</value>
   </data>
   <data name="ToastAccionDeshacer" xml:space="preserve">
     <value>Deshacer</value>

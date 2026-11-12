@@ -313,7 +313,22 @@ public class DiskFileStorageService : IFileStorageService, IAlmacenOriginalesInb
         if (rutaCompleta is null || _tenantActual.TenantId is not { } tenantId || !File.Exists(rutaCompleta))
             throw new FileNotFoundException("No encontramos el archivo solicitado.");
 
-        return await AbrirReservandoAsync(rutaCompleta, identificador, tenantId, cancellationToken);
+        return await AbrirReservandoAsync(rutaCompleta, identificador, tenantId, maximoBytes: null, cancellationToken);
+    }
+
+    /// <summary>
+    /// <see cref="IFileStorageService.AbrirHastaAsync"/>: el tamaño en disco (el cifrado, que nunca es menor que el claro
+    /// salvo por el margen del formato) decide antes de reservar, leer o descifrar; tras descifrar, el claro se vuelve a
+    /// medir contra el tope. Mismo «no existe» que <see cref="AbrirAsync"/> para otro Tenant.
+    /// </summary>
+    public async Task<Stream> AbrirHastaAsync(string identificador, long maximoBytes, CancellationToken cancellationToken = default)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegative(maximoBytes);
+        var rutaCompleta = ResolverRutaSegura(identificador);
+        if (rutaCompleta is null || _tenantActual.TenantId is not { } tenantId || !File.Exists(rutaCompleta))
+            throw new FileNotFoundException("No encontramos el archivo solicitado.");
+
+        return await AbrirReservandoAsync(rutaCompleta, identificador, tenantId, maximoBytes, cancellationToken);
     }
 
     /// <summary>
@@ -335,7 +350,7 @@ public class DiskFileStorageService : IFileStorageService, IAlmacenOriginalesInb
         if (rutaCompleta is null || !File.Exists(rutaCompleta))
             throw new FileNotFoundException("No encontramos el archivo solicitado.");
 
-        return await AbrirReservandoAsync(rutaCompleta, identificador, tenantPropietarioId, cancellationToken);
+        return await AbrirReservandoAsync(rutaCompleta, identificador, tenantPropietarioId, maximoBytes: null, cancellationToken);
     }
 
     /// <summary>
@@ -345,13 +360,24 @@ public class DiskFileStorageService : IFileStorageService, IAlmacenOriginalesInb
     /// descifrado falla cerrado. Tras descifrar, la reserva baja a lo que de verdad retiene el
     /// flujo mientras se sirve —el claro—, para que una descarga lenta no bloquee el pico entero.
     /// </summary>
-    private async Task<Stream> AbrirReservandoAsync(string ruta, string identificador, Guid tenantId, CancellationToken cancellationToken)
+    private async Task<Stream> AbrirReservandoAsync(
+        string ruta, string identificador, Guid tenantId, long? maximoBytes, CancellationToken cancellationToken)
     {
         var longitud = new FileInfo(ruta).Length;
         if (longitud > Array.MaxLength)
             throw new InvalidOperationException("El archivo es demasiado grande para abrirse.");
+        if (longitud > maximoBytes + MargenCifradoBytes)
+            throw new ArchivoAlmacenadoDemasiadoGrandeException();
 
-        var reserva = await _presupuestoMemoria.ReservarAsync(FactorClaroYCifrado * longitud + MargenCifradoBytes, cancellationToken);
+        // Con tope, quien abre ya retiene reservas de otros archivos de la misma operación (Unir PDF): esperar hueco con
+        // ellas retenidas haría que varias operaciones se esperasen entre sí hasta agotar el plazo. Sin tope, como siempre.
+        var pico = FactorClaroYCifrado * longitud + MargenCifradoBytes;
+        ReservaMemoriaDocumentos reserva;
+        if (maximoBytes is null)
+            reserva = await _presupuestoMemoria.ReservarAsync(pico, cancellationToken);
+        else if (!_presupuestoMemoria.TryReservar(pico, out reserva))
+            throw new PresupuestoMemoriaAgotadoException();
+
         try
         {
             var bytes = new byte[longitud];
@@ -359,6 +385,8 @@ public class DiskFileStorageService : IFileStorageService, IAlmacenOriginalesInb
                 await archivo.ReadExactlyAsync(bytes, cancellationToken);
 
             var claro = Descifrar(bytes, identificador, tenantId);
+            if (claro.LongLength > maximoBytes)
+                throw new ArchivoAlmacenadoDemasiadoGrandeException();
             reserva.ReducirA(claro.LongLength + MargenCifradoBytes);
             return new FlujoConReserva(claro, reserva);
         }

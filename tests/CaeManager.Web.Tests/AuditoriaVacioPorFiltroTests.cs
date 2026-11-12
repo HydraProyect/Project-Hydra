@@ -122,7 +122,7 @@ public class AuditoriaVacioPorFiltroTests : BunitContext
     public void Sin_filtro_ni_rango_y_sin_registros_sigue_diciendo_que_no_hay_ninguno()
     {
         var cut = Renderizar();
-        cut.FindAll("input[type=date]")[0].Input("");
+        cut.FindAll("input[data-campo-fecha]")[0].Input("");
 
         cut.WaitForAssertion(() => cut.Markup.Should().Contain("No hay registros de auditoría"));
         cut.Markup.Should().NotContain("Ningún registro con este filtro");
@@ -151,7 +151,7 @@ public class AuditoriaVacioPorFiltroTests : BunitContext
     public void El_estado_sin_filtro_ya_no_habla_de_un_filtro_que_no_existe()
     {
         var cut = Renderizar();
-        cut.FindAll("input[type=date]")[0].Input("");
+        cut.FindAll("input[data-campo-fecha]")[0].Input("");
 
         cut.WaitForAssertion(() => cut.Markup.Should().Contain("No hay registros de auditoría"));
         cut.Markup.Should().NotContain("con este filtro");
@@ -167,6 +167,21 @@ public class AuditoriaVacioPorFiltroTests : BunitContext
 
         cut.Markup.Should().Contain("No hay registros de auditoría");
         cut.Markup.Should().NotContain("Ningún registro con este filtro");
+    }
+
+    // «Hasta» ya era «» antes del texto no válido: quitar el filtro lo deja igual, y aun así el campo tiene que limpiarse.
+    [Fact]
+    public async Task Quitar_el_filtro_limpia_tambien_una_fecha_no_valida()
+    {
+        var cut = Renderizar();
+        await cut.FindAll("input[data-campo-fecha]")[1].InputAsync(new ChangeEventArgs { Value = "15" });
+        await cut.FindAll("input[data-campo-fecha]")[1].BlurAsync(new Microsoft.AspNetCore.Components.Web.FocusEventArgs());
+        cut.FindAll(".campo-mensaje-error").Should().ContainSingle("control positivo: «15» se señala");
+
+        await cut.Find(".estado-vacio button").ClickAsync(new Microsoft.AspNetCore.Components.Web.MouseEventArgs());
+
+        cut.FindAll(".campo-mensaje-error").Should().BeEmpty("lo escrito se fue con el filtro");
+        cut.FindAll("input[data-campo-fecha]").Should().OnlyContain(i => string.IsNullOrEmpty(i.GetAttribute("value")));
     }
 
     [Fact]

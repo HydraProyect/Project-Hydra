@@ -30,13 +30,23 @@ public sealed class Error : IEquatable<Error>
     public string Codigo { get; }
     public string Mensaje { get; }
 
-    private Error(string codigo, string mensaje)
+    /// <summary>
+    /// Cuánto pidió esperar el sistema externo antes de volver a intentarlo (cabecera <c>Retry-After</c> de un 429), si
+    /// lo dijo. No forma parte de la identidad del error (<see cref="Equals(Error?)"/> solo mira <see cref="Codigo"/>).
+    /// </summary>
+    public TimeSpan? ReintentarTras { get; }
+
+    private Error(string codigo, string mensaje, TimeSpan? reintentarTras = null)
     {
         Codigo = codigo;
         Mensaje = mensaje;
+        ReintentarTras = reintentarTras;
     }
 
     public static Error Crear(string codigo, string mensaje) => new(codigo, mensaje);
+
+    /// <summary>El mismo error con la espera que pidió el sistema externo (ver <see cref="ReintentarTras"/>).</summary>
+    public Error ConReintentarTras(TimeSpan espera) => new(Codigo, Mensaje, espera);
 
     public bool Equals(Error? other) => other is not null && Codigo == other.Codigo;
     public override bool Equals(object? obj) => Equals(obj as Error);

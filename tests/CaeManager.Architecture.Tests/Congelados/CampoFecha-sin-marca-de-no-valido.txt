@@ -1,0 +1,35 @@
+# CampoFecha (o CampoTexto Type="date") sin la marca entera: NoValido + NoValidoChanged (FechaNoValida + FechaNoValidaChanged),
+# o @bind-NoValido (@bind-FechaNoValida). PR #2185, CamposFechaEnlazanLaMarcaDeNoValidoTests.
+# Solo baja. Una línea por campo (identificado por la expresión de su Valor). Cada línea lleva encima su «# motivo: …» con la
+# consecuencia real de una fecha a medias, que el campo entrega como «» (fail-closed). Un formulario que guarda no se añade:
+# enlaza la marca y bloquea el guardado.
+# Los «pendiente de migrar» son fechas obligatorias: la página rechaza «» con su propio aviso antes del Command, así que la
+# fecha a medias no se guarda ni se sustituye por otra; les falta el aviso «corrige la fecha» del campo.
+# motivo: filtro de solo lectura (Desde del listado de auditoría; no escribe nada)
+src/CaeManager.Web/Features/Auditoria/Pages/Auditoria.razor :: CampoFecha sin marca: Valor=_desde = 1
+# motivo: filtro de solo lectura (Hasta del listado de auditoría; no escribe nada)
+src/CaeManager.Web/Features/Auditoria/Pages/Auditoria.razor :: CampoFecha sin marca: Valor=_hasta = 1
+# motivo: pendiente de migrar; obligatoria, a medias la rechaza DrawerBlindaje42.razor (fecha de solicitud no válida)
+src/CaeManager.Web/Features/Blindaje42/Components/DrawerBlindaje42.razor :: CampoFecha sin marca: Valor=_fechaSolicitud = 1
+# motivo: pendiente de migrar; obligatoria, a medias la rechaza DrawerBlindaje42.razor (fecha de respuesta no válida)
+src/CaeManager.Web/Features/Blindaje42/Components/DrawerBlindaje42.razor :: CampoFecha sin marca: Valor=_fechaRespuesta = 1
+# motivo: pendiente de migrar; obligatoria, a medias la rechaza DrawerAsignacionMasiva.razor.cs (fecha de alta no válida)
+src/CaeManager.Web/Features/Centros/Components/DrawerAsignacionMasiva.razor :: CampoFecha sin marca: Valor=_fechaAlta = 1
+# motivo: filtro de solo lectura (inicio del rango personalizado del cuadro de mando ejecutivo; solo vuelve a consultar)
+src/CaeManager.Web/Features/DashboardEjecutivo/Pages/DashboardEjecutivo.razor :: CampoFecha sin marca: Valor=_desdePersonalizado = 1
+# motivo: filtro de solo lectura (fin del rango personalizado del cuadro de mando ejecutivo; solo vuelve a consultar)
+src/CaeManager.Web/Features/DashboardEjecutivo/Pages/DashboardEjecutivo.razor :: CampoFecha sin marca: Valor=_hastaPersonalizado = 1
+# motivo: pendiente de migrar; obligatoria, a medias la rechaza Incidencias.razor.cs (ErrorFechaInvalida), también al editar
+src/CaeManager.Web/Features/Incidencias/Pages/Incidencias.razor :: CampoFecha sin marca: Valor=_fechaOcurrencia = 1
+# motivo: pendiente de migrar; obligatoria, a medias la rechaza TrabajadorDetalle.razor.cs (ErrorFechaAltaInvalida)
+src/CaeManager.Web/Features/Trabajadores/Pages/TrabajadorDetalle.razor :: CampoFecha sin marca: Valor=_fechaAltaParaAsignar = 1
+# motivo: pendiente de migrar; obligatoria, a medias la rechaza Trabajadores.razor.cs (ErrorFechaAltaInvalida)
+src/CaeManager.Web/Features/Trabajadores/Pages/Trabajadores.razor :: CampoFecha sin marca: Valor=_fechaAltaParaAsignar = 1
+# motivo: pendiente de migrar; obligatoria, a medias la rechaza EditarVisitaDrawer.razor (ErrorFechasNoValidas) sin enviar EditarVisitaCommand
+src/CaeManager.Web/Features/Visitas/Components/EditarVisitaDrawer.razor :: CampoFecha sin marca: Valor=_fechaInicio = 1
+# motivo: pendiente de migrar; obligatoria, a medias la rechaza EditarVisitaDrawer.razor (ErrorFechasNoValidas) sin enviar EditarVisitaCommand
+src/CaeManager.Web/Features/Visitas/Components/EditarVisitaDrawer.razor :: CampoFecha sin marca: Valor=_fechaFin = 1
+# motivo: pendiente de migrar; obligatoria, a medias la rechaza Visitas.razor.cs (ErrorFechasNoValidas) al crear y al editar
+src/CaeManager.Web/Features/Visitas/Pages/Visitas.razor :: CampoFecha sin marca: Valor=_fechaInicio = 1
+# motivo: pendiente de migrar; obligatoria, a medias la rechaza Visitas.razor.cs (ErrorFechasNoValidas) al crear y al editar
+src/CaeManager.Web/Features/Visitas/Pages/Visitas.razor :: CampoFecha sin marca: Valor=_fechaFin = 1
