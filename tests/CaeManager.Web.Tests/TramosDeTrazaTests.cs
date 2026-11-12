@@ -1,3 +1,4 @@
+using System.Text;
 using CaeManager.E2ETests;
 using FluentAssertions;
 
@@ -181,4 +182,221 @@ public sealed class TramosDeTrazaTests : IDisposable
     }
 
     private sealed class PlaywrightSimulada(string mensaje) : Exception(mensaje);
+}
+
+/// <summary>
+/// Cuándo graba la traza de TrazaAlFallar (GrabacionDeTraza, sin navegador), con una traza falsa que, como la real en
+/// el peor caso, sigue grabando si un corte falla. La propiedad que importa en un repositorio público: lo tecleado
+/// durante un inicio de sesión no llega nunca a un fichero publicado, tampoco si el corte previo falló.
+/// </summary>
+public sealed class GrabacionDeTrazaTests : IDisposable
+{
+    private const string Acceso = "formulario-de-acceso-con-contraseña";
+
+    private readonly string _raiz = Path.Combine(Path.GetTempPath(), $"grabacion-traza-{Guid.NewGuid():N}");
+    private readonly TrazaFalsa _traza = new();
+
+    private string Publicado => Path.Combine(_raiz, "publicado");
+
+    public void Dispose()
+    {
+        if (Directory.Exists(_raiz)) Directory.Delete(_raiz, recursive: true);
+    }
+
+    private GrabacionDeTraza Nueva() =>
+        new(new TramosDeTraza("Clase.Prueba", Publicado, Path.Combine(_raiz, "provisional"), TextWriter.Null, TextWriter.Null), _traza.Operaciones());
+
+    private string[] Publicados() => Directory.Exists(Publicado) ? Directory.GetFiles(Publicado) : [];
+
+    private async Task IniciarSesion(GrabacionDeTraza grabacion)
+    {
+        await grabacion.PausarAsync();
+        _traza.Teclear(Acceso);
+        await grabacion.ReanudarAsync();
+    }
+
+    [Fact]
+    public async Task No_graba_hasta_acabar_el_primer_inicio_de_sesion()
+    {
+        var grabacion = Nueva();
+
+        await grabacion.PausarAsync();
+        _traza.Llamadas.Should().BeEmpty();
+        _traza.Teclear(Acceso);
+        await grabacion.ReanudarAsync();
+
+        _traza.Llamadas.Should().Equal("Empezar");
+        grabacion.Grabando.Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task Un_test_que_falla_antes_de_iniciar_sesion_solo_deja_el_aviso()
+    {
+        var grabacion = Nueva();
+
+        await grabacion.TerminarAsync();
+
+        _traza.Llamadas.Should().BeEmpty();
+        Publicados().Should().ContainSingle().Which.Should().EndWith("-sin-traza.txt");
+        File.ReadAllText(Publicados().Single()).Should().Contain("antes de acabar el inicio de sesión");
+    }
+
+    [Fact]
+    public async Task Un_test_fallido_guarda_lo_grabado_tras_el_inicio_de_sesion_y_no_el_acceso()
+    {
+        var grabacion = Nueva();
+        await IniciarSesion(grabacion);
+        _traza.Teclear("accion-1");
+
+        await grabacion.TerminarAsync();
+
+        _traza.Llamadas.Should().Equal("Empezar", "DetenerGuardando");
+        var zip = Publicados().Should().ContainSingle().Subject;
+        File.ReadAllText(zip).Should().Contain("accion-1").And.NotContain(Acceso);
+    }
+
+    [Fact]
+    public async Task Un_segundo_inicio_de_sesion_corta_un_tramo_y_no_graba_el_acceso()
+    {
+        var grabacion = Nueva();
+        await IniciarSesion(grabacion);
+        _traza.Teclear("accion-1");
+        await IniciarSesion(grabacion);
+        _traza.Teclear("accion-2");
+
+        await grabacion.TerminarAsync();
+
+        _traza.Llamadas.Should().Equal("Empezar", "CortarTramo", "EmpezarTramo", "DetenerGuardando");
+        Publicados().Should().HaveCount(2).And.OnlyContain(r => r.EndsWith(".zip"));
+        Publicados().Select(File.ReadAllText).Should().NotContain(c => c.Contains(Acceso));
+        string.Concat(Publicados().Select(File.ReadAllText)).Should().Contain("accion-1").And.Contain("accion-2");
+    }
+
+    [Fact]
+    public async Task Si_el_corte_falla_el_acceso_que_la_traza_siga_grabando_se_descarta_y_no_se_vuelve_a_grabar()
+    {
+        var grabacion = Nueva();
+        await IniciarSesion(grabacion);
+        _traza.Teclear("accion-1");
+        _traza.FallarCorte = true;
+
+        await IniciarSesion(grabacion);
+        _traza.Teclear("accion-2");
+        await grabacion.TerminarAsync();
+
+        // Ni se reanuda (EmpezarTramo) ni se guarda al final (DetenerGuardando): solo se descarta lo que siguiera en marcha.
+        _traza.Llamadas.Should().Equal("Empezar", "CortarTramo", "DetenerDescartando");
+        grabacion.Grabando.Should().BeFalse();
+        Publicados().Should().ContainSingle().Which.Should().EndWith("-sin-traza.txt");
+        Publicados().Select(File.ReadAllText).Should().NotContain(c => c.Contains(Acceso));
+        Directory.GetFiles(_raiz, "*.zip", SearchOption.AllDirectories).Should().BeEmpty("el ZIP parcial del corte fallido se borra");
+    }
+
+    [Fact]
+    public async Task Un_test_superado_descarta_la_traza_y_no_deja_ficheros()
+    {
+        var grabacion = Nueva();
+        await IniciarSesion(grabacion);
+        _traza.Teclear("accion-1");
+        await IniciarSesion(grabacion);
+        grabacion.Superada();
+
+        await grabacion.TerminarAsync();
+
+        _traza.Llamadas.Should().Equal("Empezar", "CortarTramo", "EmpezarTramo", "DetenerDescartando");
+        Directory.GetFiles(_raiz, "*", SearchOption.AllDirectories).Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task Si_no_se_puede_empezar_a_grabar_el_test_fallido_lo_anota()
+    {
+        _traza.FallarEmpezar = true;
+        var grabacion = Nueva();
+        await IniciarSesion(grabacion);
+
+        await grabacion.TerminarAsync();
+
+        grabacion.Grabando.Should().BeFalse();
+        File.ReadAllText(Publicados().Single()).Should().Contain("no se pudo empezar a grabar");
+    }
+
+    [Fact]
+    public async Task Si_detener_la_traza_falla_no_lanza_y_el_test_fallido_lo_anota()
+    {
+        var grabacion = Nueva();
+        await IniciarSesion(grabacion);
+        await grabacion.PausarAsync();
+        _traza.FallarDescartar = true;
+
+        var terminar = () => grabacion.TerminarAsync();
+
+        await terminar.Should().NotThrowAsync();
+        Publicados().Should().Contain(r => r.EndsWith("-tramo1.zip"));
+        File.ReadAllText(Publicados().Single(r => r.EndsWith("-sin-traza.txt"))).Should().Contain("no se pudo detener la traza");
+    }
+
+    /// <summary>Como la traza de Playwright: lo que se hace mientras un tramo está en marcha queda grabado.</summary>
+    private sealed class TrazaFalsa
+    {
+        private readonly StringBuilder _grabado = new();
+        private bool _enMarcha;
+
+        public List<string> Llamadas { get; } = [];
+        public bool FallarCorte { get; set; }
+        public bool FallarEmpezar { get; set; }
+        public bool FallarDescartar { get; set; }
+
+        public void Teclear(string texto)
+        {
+            if (_enMarcha) _grabado.Append(texto).Append(';');
+        }
+
+        public OperacionesDeTraza Operaciones() => new(
+            Empezar: () =>
+            {
+                Llamadas.Add("Empezar");
+                if (FallarEmpezar) throw new InvalidOperationException("la traza no arranca");
+                _enMarcha = true;
+                return Task.CompletedTask;
+            },
+            EmpezarTramo: () =>
+            {
+                Llamadas.Add("EmpezarTramo");
+                _enMarcha = true;
+                return Task.CompletedTask;
+            },
+            CortarTramo: ruta =>
+            {
+                Llamadas.Add("CortarTramo");
+                if (FallarCorte)
+                {
+                    // El peor caso: escribe a medias, falla y la traza sigue en marcha.
+                    File.WriteAllText(ruta, _grabado.ToString());
+                    throw new InvalidOperationException("corte roto");
+                }
+                Volcar(ruta);
+                return Task.CompletedTask;
+            },
+            DetenerGuardando: ruta =>
+            {
+                Llamadas.Add("DetenerGuardando");
+                Volcar(ruta);
+                return Task.CompletedTask;
+            },
+            DetenerDescartando: () =>
+            {
+                Llamadas.Add("DetenerDescartando");
+                if (FallarDescartar) throw new InvalidOperationException("el navegador ya se cerró");
+                _grabado.Clear();
+                _enMarcha = false;
+                return Task.CompletedTask;
+            });
+
+        private void Volcar(string ruta)
+        {
+            File.WriteAllText(ruta, _grabado.ToString());
+            _grabado.Clear();
+            _enMarcha = false;
+        }
+    }
 }

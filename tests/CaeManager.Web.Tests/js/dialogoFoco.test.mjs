@@ -254,6 +254,46 @@ test('al cerrar los dos diálogos anidados, el exterior sigue devolviendo el foc
     assert.equal(documento.activeElement, abridor);
 });
 
+test('con tres diálogos anidados, el foco vuelve al inmediatamente exterior, no al más externo', () => {
+    const escenario = escena();
+    const { documento, dialogo } = escenario;
+    const { trampaDentro, interior } = anidadoConAbridorInteriorRetirado(escenario);
+    // Un tercero dentro del segundo, abierto desde un botón del segundo que también se retira.
+    const botonInterior = elemento('botonInterior', documento, interior);
+    botonInterior.enfocable = true;
+    botonInterior.focus();
+    const tercero = elemento('tercero', documento, interior);
+    tercero.atributos['aria-modal'] = 'true';
+    const campoTercero = elemento('campoTercero', documento, tercero);
+    campoTercero.enfocable = true;
+    campoTercero.focus();
+    // El segundo se repinta: ni su botón ni su campo siguen en el documento; solo queda su contenedor.
+    for (const retirado of interior.hijos.filter(h => h !== tercero)) retirado.padre = null;
+    interior.hijos = [tercero];
+    const trampaTercero = atraparFoco(tercero);
+    trampaTercero.dispose();
+    assert.equal(documento.activeElement, interior);
+    assert.notEqual(documento.activeElement, dialogo);
+    trampaDentro.dispose();
+});
+
+test('un diálogo exterior que desapareció sin liberar su trampa no limita adónde vuelve el foco', () => {
+    const { documento, cuerpo, abridor, dialogo, fecha } = escena();
+    const huerfano = elemento('huerfano', documento, cuerpo);
+    huerfano.atributos['aria-modal'] = 'true';
+    const campoHuerfano = elemento('campoHuerfano', documento, huerfano);
+    campoHuerfano.enfocable = true;
+    atraparFoco(huerfano);
+    // El circuito se cortó: el diálogo sale del DOM sin que nadie llame a dispose.
+    cuerpo.hijos.splice(cuerpo.hijos.indexOf(huerfano), 1);
+    huerfano.padre = null;
+    abridor.focus();
+    fecha.focus();
+    const trampa = atraparFoco(dialogo);
+    trampa.dispose();
+    assert.equal(documento.activeElement, abridor);
+});
+
 test('un panel no modal con trampa (Context Workspace) no limita adónde vuelve el foco de un diálogo abierto encima', () => {
     const { documento, cuerpo, abridor, dialogo, fecha } = escena();
     const panel = elemento('panel', documento, cuerpo);

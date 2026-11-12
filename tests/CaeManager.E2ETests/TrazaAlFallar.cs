@@ -50,17 +50,21 @@ public sealed class TrazaAlFallar : IAsyncDisposable
     private static readonly ConditionalWeakTable<IBrowserContext, TrazaAlFallar> Armadas = new();
 
     private readonly IBrowserContext _contexto;
-    private readonly string _nombre;
-    private readonly TramosDeTraza _tramos;
-    private bool _iniciada;
-    private bool _grabando;
-    private bool _superada;
+    private readonly GrabacionDeTraza _grabacion;
 
     private TrazaAlFallar(IBrowserContext contexto, string nombre)
     {
         _contexto = contexto;
-        _nombre = nombre;
-        _tramos = new TramosDeTraza(nombre, Directorio(), DirectorioProvisional());
+        // Las decisiones (cuándo grabar, qué guardar, qué publicar) viven en GrabacionDeTraza y TramosDeTraza, sin
+        // Playwright, para probarlas sin navegador en CaeManager.Web.Tests; aquí solo se conectan con contexto.Tracing.
+        _grabacion = new GrabacionDeTraza(
+            new TramosDeTraza(nombre, Directorio(), DirectorioProvisional()),
+            new OperacionesDeTraza(
+                Empezar: () => contexto.Tracing.StartAsync(new TracingStartOptions { Title = nombre, Screenshots = true, Snapshots = true }),
+                EmpezarTramo: () => contexto.Tracing.StartChunkAsync(new TracingStartChunkOptions { Title = nombre }),
+                CortarTramo: ruta => contexto.Tracing.StopChunkAsync(new TracingStopChunkOptions { Path = ruta }),
+                DetenerGuardando: ruta => contexto.Tracing.StopAsync(new TracingStopOptions { Path = ruta }),
+                DetenerDescartando: () => contexto.Tracing.StopAsync(new TracingStopOptions { Path = null })));
     }
 
     public static TrazaAlFallar Armar(
@@ -72,42 +76,18 @@ public sealed class TrazaAlFallar : IAsyncDisposable
     }
 
     /// <summary>El test llegó al final: la traza se descarta.</summary>
-    public void Superada() => _superada = true;
+    public void Superada() => _grabacion.Superada();
 
     /// <summary>
     /// Al empezar un inicio de sesión: si el contexto ya estaba grabando, el tramo grabado hasta aquí se guarda aparte
     /// (se borra si el test acaba superado) y se deja de grabar hasta <see cref="ReanudarTrasIniciarSesionAsync"/>.
     /// </summary>
-    internal static async Task PausarParaIniciarSesionAsync(IBrowserContext contexto)
-    {
-        if (!Armadas.TryGetValue(contexto, out var traza) || !traza._grabando) return;
-        // Deja de grabar aunque no se pueda guardar el tramo: lo que no puede pasar es que se guarde el acceso. Si el
-        // corte falla, Playwright quizá siga grabando, pero lo que grabe solo se detiene sin ruta (DetenerAsync) y
-        // TramosDeTraza ya ha borrado lo que el corte llegara a escribir; tampoco se vuelve a grabar en este contexto.
-        traza._grabando = false;
-        await traza._tramos.CortarAsync(
-            ruta => contexto.Tracing.StopChunkAsync(new TracingStopChunkOptions { Path = ruta }),
-            $"tramo{traza._tramos.Completos.Count + 1}");
-    }
+    internal static Task PausarParaIniciarSesionAsync(IBrowserContext contexto) =>
+        Armadas.TryGetValue(contexto, out var traza) ? traza._grabacion.PausarAsync() : Task.CompletedTask;
 
     /// <summary>Al acabar un inicio de sesión: la grabación empieza (o sigue, en un tramo nuevo) a partir de aquí.</summary>
-    internal static async Task ReanudarTrasIniciarSesionAsync(IBrowserContext contexto)
-    {
-        if (!Armadas.TryGetValue(contexto, out var traza) || traza._grabando || traza._tramos.Averia is not null) return;
-        try
-        {
-            if (traza._iniciada)
-                await contexto.Tracing.StartChunkAsync(new TracingStartChunkOptions { Title = traza._nombre });
-            else
-                await contexto.Tracing.StartAsync(new TracingStartOptions { Title = traza._nombre, Screenshots = true, Snapshots = true });
-            traza._iniciada = true;
-            traza._grabando = true;
-        }
-        catch (Exception excepcion) when (excepcion is not OperationCanceledException)
-        {
-            traza._tramos.Averiar($"no se pudo empezar a grabar tras el inicio de sesión: {excepcion.GetType().Name}: {excepcion.Message}");
-        }
-    }
+    internal static Task ReanudarTrasIniciarSesionAsync(IBrowserContext contexto) =>
+        Armadas.TryGetValue(contexto, out var traza) ? traza._grabacion.ReanudarAsync() : Task.CompletedTask;
 
     /// <summary>Ruta en la que se publica la traza de un test fallido.</summary>
     public static string Directorio() => Path.Combine(DirectorioDelProyecto(), "TestResults", "trazas-playwright");
@@ -125,38 +105,6 @@ public sealed class TrazaAlFallar : IAsyncDisposable
     public async ValueTask DisposeAsync()
     {
         Armadas.Remove(_contexto);
-        try
-        {
-            await DetenerAsync();
-        }
-        finally
-        {
-            // Los tramos de un test superado no deben acabar en el artefacto de otro test que falle después.
-            _tramos.Concluir(_superada, _iniciada
-                ? "el test falló sin que quedara ningún tramo grabado"
-                : "el test falló antes de acabar el inicio de sesión, y la traza no graba hasta entonces");
-        }
-    }
-
-    private async Task DetenerAsync()
-    {
-        if (!_iniciada) return;
-        if (!_superada && _grabando)
-        {
-            await _tramos.CortarAsync(ruta => _contexto.Tracing.StopAsync(new TracingStopOptions { Path = ruta }), "final");
-            return;
-        }
-
-        try
-        {
-            // Sin ruta, Playwright descarta el tramo en curso (o no hay ninguno, si se cortó para otro inicio de sesión).
-            await _contexto.Tracing.StopAsync(new TracingStopOptions { Path = null });
-        }
-        catch (Exception excepcion) when (excepcion is not OperationCanceledException)
-        {
-            // El contexto o el navegador ya se cerraron (p. ej. el test falló porque se cayó el navegador): tapar con esto
-            // la excepción original del test sería peor que perder la traza. Si el test falló, Concluir lo anota.
-            if (!_superada) _tramos.Averiar($"no se pudo detener la traza: {excepcion.GetType().Name}: {excepcion.Message}");
-        }
+        await _grabacion.TerminarAsync();
     }
 }

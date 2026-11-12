@@ -78,7 +78,11 @@ function elementoPrevioAlDialogo(contenedor) {
 export function atraparFoco(contenedor, devolverFila = false) {
     rastrearFoco();
     const elementoPrevio = elementoPrevioAlDialogo(contenedor);
-    trampasActivas().push(contenedor);
+    // Fuera de la pila los contenedores que ya no están en el documento: un diálogo que desapareció sin liberar su
+    // trampa (el circuito se cortó antes del dispose) no debe retener su nodo hasta que se recargue la página.
+    const pila = trampasActivas();
+    for (let i = pila.length - 1; i >= 0; i--) if (!document.contains(pila[i])) pila.splice(i, 1);
+    pila.push(contenedor);
 
     const enfocables = () => Array.from(contenedor.querySelectorAll(SELECTOR_ENFOCABLE))
         .filter(el => el.offsetParent !== null);
