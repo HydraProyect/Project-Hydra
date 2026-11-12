@@ -3,12 +3,15 @@
 // Las ejecuta DialogoFocoJsTests (dotnet test) con el Node de la máquina, sin dependencias.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { pathToFileURL, fileURLToPath } from 'node:url';
+import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
 
 const ruta = fileURLToPath(new URL('../../../src/CaeManager.Web/wwwroot/js/dialogo-foco.js', import.meta.url));
 
-// El módulo lee `document` al llamarse, no al importarse: basta con fijar el global antes de cada llamada.
-const { atraparFoco } = await import(pathToFileURL(ruta).href);
+// Como trazaSoporte.test.mjs, el módulo se carga desde su texto (data: URL) para no depender de cómo trate la versión de
+// Node un .js con export fuera de un paquete "module". Lee `document` al llamarse, no al importarse: basta con fijar el
+// global antes de cada llamada.
+const { atraparFoco } = await import('data:text/javascript,' + encodeURIComponent(readFileSync(ruta, 'utf8')));
 
 function elemento(nombre, documento, padre = null) {
     const el = {
