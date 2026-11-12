@@ -42,6 +42,16 @@ public sealed record OpcionesProcesoHerramientasPdf
     /// </summary>
     public TimeSpan MargenConfirmacionTerminado { get; init; } = TimeSpan.FromMinutes(1);
 
+    /// <summary>
+    /// Lo que se espera al lanzador, una vez cancelada la operación, a que confirme que el hijo murió. Al cancelar, el
+    /// lanzador mata el árbol del hijo en el acto (<c>Kill(entireProcessTree: true)</c>), y morir tras eso es cuestión de
+    /// milisegundos. Tiene que quedar bastante por debajo de lo que el cierre del circuito espera a la operación en vuelo
+    /// (10 s, <c>LiberacionDeAccesoADatosAlCerrarCircuito.EsperaMaxima</c>): si no se confirma en este plazo, la ejecución se
+    /// abandona como cualquier hijo que no consta terminado (turno retenido, herramienta desactivada) y quien llama recibe
+    /// <see cref="EntradaPdfRetenidaException"/> sin esperar más, antes de que el scope del circuito se disponga.
+    /// </summary>
+    public TimeSpan EsperaConfirmacionAlCancelar { get; init; } = TimeSpan.FromSeconds(3);
+
     /// <summary>El ejecutable <c>dotnet</c> del runtime que ejecuta esta aplicación.</summary>
     public string Anfitrion { get; init; } = AnfitrionDotnet();
 

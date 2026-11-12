@@ -94,6 +94,9 @@ public sealed class DividirPdfPantallaTests : BunitContext
         /// <summary>Si está, marca el lote como cortado por un proceso aparte que no consta terminado.</summary>
         public bool LoteCortadoConEntradaRetenida { get; set; }
 
+        /// <summary>Si está, el resultado de cada tramo de Guardar.</summary>
+        public Func<TramoACrear, ResultadoTramoCreado>? ResultadoDe { get; set; }
+
         private object Responder(object peticion)
         {
             switch (peticion)
@@ -106,11 +109,13 @@ public sealed class DividirPdfPantallaTests : BunitContext
                     return Preparacion;
                 case CrearDocumentosDesdeDivisionCommand comando:
                     Creaciones.Add(comando);
-                    // Cortado, el tramo queda sin preparar y con la entrada retenida, como lo deja el handler real.
-                    IReadOnlyList<ResultadoTramoCreado> resultados = comando.Tramos
-                        .Select(t => LoteCortadoConEntradaRetenida
+                    // Cortado, el tramo queda sin preparar y con la entrada retenida, como lo deja el handler real. Con
+                    // Indice, como la pantalla lo envía, solo ese tramo.
+                    var pedidos = comando.Indice is { } indice ? comando.Tramos.Skip(indice).Take(1) : comando.Tramos;
+                    IReadOnlyList<ResultadoTramoCreado> resultados = pedidos
+                        .Select(t => ResultadoDe?.Invoke(t) ?? (LoteCortadoConEntradaRetenida
                             ? new ResultadoTramoCreado(t.PaginaInicial, t.PaginaFinal, EstadoTramoCreado.Rechazado, null, "Sin preparar.", EntradaRetenida: true)
-                            : new ResultadoTramoCreado(t.PaginaInicial, t.PaginaFinal, EstadoTramoCreado.Creado, Guid.NewGuid(), null))
+                            : new ResultadoTramoCreado(t.PaginaInicial, t.PaginaFinal, EstadoTramoCreado.Creado, Guid.NewGuid(), null)))
                         .ToList();
                     return Result.Exito(resultados);
                 case ExtraerTramoPdfQuery extraccion:
@@ -611,7 +616,28 @@ public sealed class DividirPdfPantallaTests : BunitContext
         while (!registro.Entradas.Any(e => e.Mensaje.Contains("pantalla ya cerrada")) && DateTime.UtcNow < plazo)
             await Task.Delay(20);
         registro.Entradas.Should().ContainSingle(e => e.Nivel == LogLevel.Information
-            && e.Mensaje.Contains("pantalla ya cerrada: 1 documentos creados."));
+            && e.Mensaje.Contains("pantalla ya cerrada: páginas 1-") && e.Mensaje.Contains("Creado, Documento "));
+    }
+
+    [Fact]
+    public async Task Tras_salir_de_la_pantalla_el_registro_dice_de_cada_tramo_sus_paginas_su_desenlace_y_su_codigo()
+    {
+        // Sin nada del PDF ni del titular: las páginas, el estado y el código bastan para saber qué se creó y qué no.
+        _mediador.ResultadoDe = t => new ResultadoTramoCreado(t.PaginaInicial, t.PaginaFinal, EstadoTramoCreado.Rechazado, null,
+            "Texto que no va al registro.", CodigoError: "Prueba.Rechazo");
+        var registro = new RegistroEspia();
+        await EmpezarLoteDeGuardarRetenidoAsync(registro);
+
+        await DisposeComponentsAsync();
+        _mediador.CreacionRetenida!.SetResult();
+
+        var plazo = DateTime.UtcNow.AddSeconds(5);
+        while (!registro.Entradas.Any(e => e.Mensaje.Contains("pantalla ya cerrada")) && DateTime.UtcNow < plazo)
+            await Task.Delay(20);
+        var entrada = registro.Entradas.Should().ContainSingle(e => e.Mensaje.Contains("pantalla ya cerrada")).Subject;
+        entrada.Nivel.Should().Be(LogLevel.Warning);
+        entrada.Mensaje.Should().Contain("páginas 1-").And.Contain("Rechazado (Prueba.Rechazo)")
+            .And.NotContain("Texto que no va al registro").And.NotContain("paquete");
     }
 
     [Fact]

@@ -96,10 +96,16 @@ internal sealed class EjecutorProcesoHerramientasPdf
         var ejecucion = Task.Run(() => _lanzador.EjecutarAsync(inicio, escribirPeticion,
             tiempoMaximo, maximoBytesSalida, cancellationToken, seguimiento), CancellationToken.None);
 
-        // Sin el token del llamante: al cancelar, el lanzador mata al hijo y vuelve. Esta espera solo acota el caso en que el
-        // lanzador no vuelve, que no confirma nada. Sin lanzar: lo que decide es el seguimiento, no el tipo de excepción.
-        await ((Task)ejecucion.WaitAsync(tiempoMaximo + _opciones.MargenConfirmacionTerminado))
-            .ConfigureAwait(ConfigureAwaitOptions.SuppressThrowing);
+        // Al cancelar, el lanzador mata al hijo y vuelve. Esta espera solo acota el caso en que el lanzador no vuelve, que no
+        // confirma nada: sin cancelar, hasta el tiempo de la operación más su margen; cancelada, solo
+        // EsperaConfirmacionAlCancelar más, porque quien cancela es el cierre del circuito, que espera 10 s y luego dispone el
+        // scope. Sin lanzar: lo que decide es el seguimiento, no el tipo de excepción.
+        using (var alCancelar = new CancellationTokenSource())
+        using (cancellationToken.Register(() => alCancelar.CancelAfter(_opciones.EsperaConfirmacionAlCancelar)))
+        {
+            await ((Task)ejecucion.WaitAsync(tiempoMaximo + _opciones.MargenConfirmacionTerminado, alCancelar.Token))
+                .ConfigureAwait(ConfigureAwaitOptions.SuppressThrowing);
+        }
 
         if (!ejecucion.IsCompleted || !seguimiento.ConstaTerminado)
         {

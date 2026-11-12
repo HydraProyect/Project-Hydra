@@ -221,6 +221,45 @@ public sealed class DivisorPdfEnProcesoAparteTests
     }
 
     [Fact]
+    public async Task Al_cancelar_no_se_espera_a_que_el_lanzador_confirme_mas_que_la_espera_de_cancelacion()
+    {
+        // Quien cancela es el cierre del circuito, que espera 10 s a la operación en vuelo y luego dispone el scope. Un
+        // lanzador que no confirma la muerte del hijo no puede retener la operación hasta el tiempo de la extracción más su
+        // margen: se abandona en cuanto vence la espera de cancelación, con el turno retenido como cualquier hijo sin confirmar.
+        var opciones = _opciones with
+        {
+            TiempoMaximoAbrirParaDividir = TimeSpan.FromMinutes(10),
+            EsperaConfirmacionAlCancelar = TimeSpan.FromMilliseconds(200),
+        };
+        var lanzador = new LanzadorQueNoVuelve();
+        var divisor = new DivisorPdfEnProcesoAparte(opciones, _limitador, lanzador, NullLogger<DivisorPdfEnProcesoAparte>.Instance);
+        using var cancelar = new CancellationTokenSource();
+
+        var abrir = divisor.AbrirAsync(Original, cancelar.Token);
+        await lanzador.Lanzado.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        cancelar.Cancel();
+        var reloj = System.Diagnostics.Stopwatch.StartNew();
+
+        var esperar = () => abrir.WaitAsync(TimeSpan.FromSeconds(5));
+        await esperar.Should().ThrowAsync<EntradaPdfRetenidaException>("el hijo no consta muerto: quien reservó memoria para el PDF la retiene");
+        reloj.Elapsed.Should().BeLessThan(TimeSpan.FromSeconds(3));
+        _limitador.Degradado.Should().BeTrue();
+    }
+
+    /// <summary>Un lanzador que no vuelve ni atiende la cancelación: el sistema no deja matar al hijo o no lo confirma.</summary>
+    private sealed class LanzadorQueNoVuelve : ILanzadorProcesoAislado
+    {
+        public TaskCompletionSource Lanzado { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public Task<SalidaProcesoAislado> EjecutarAsync(System.Diagnostics.ProcessStartInfo inicio, Func<Stream, CancellationToken, Task> escribirEntrada,
+            TimeSpan tiempoMaximo, int maximoBytesSalida, CancellationToken cancellationToken, SeguimientoProcesoAislado? seguimiento = null)
+        {
+            Lanzado.TrySetResult();
+            return new TaskCompletionSource<SalidaProcesoAislado>().Task;
+        }
+    }
+
+    [Fact]
     public async Task Si_el_hijo_de_Dividir_no_consta_terminado_Unir_pide_reintentar_sin_lanzar_nada()
     {
         // El mismo limitador para las dos, como en la composición real: un solo hijo a la vez en la instancia.

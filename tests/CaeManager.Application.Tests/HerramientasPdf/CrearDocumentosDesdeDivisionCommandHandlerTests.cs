@@ -553,6 +553,127 @@ public class CrearDocumentosDesdeDivisionCommandHandlerTests
         validador.Validate(Comando(Tramo(1, 1, ClaseTitular.EmpresaGestionada, _empresaId))).IsValid.Should().BeTrue();
     }
 
+    private TramoACrear[] TresTramos() =>
+    [
+        Tramo(1, 1, ClaseTitular.EmpresaGestionada, _empresaId),
+        Tramo(2, 2, ClaseTitular.EmpresaGestionada, _empresaId),
+        Tramo(3, 3, ClaseTitular.EmpresaGestionada, _empresaId),
+    ];
+
+    /// <summary>
+    /// Fuera del flujo que tiene la puerta: la puerta es reentrante por flujo asíncrono, y una operación lanzada desde dentro
+    /// del lote entraría sin esperar. Así es como llega la revalidación del circuito, desde su propio temporizador.
+    /// </summary>
+    private static Task DesdeOtroFlujo(Func<Task> operacion)
+    {
+        var lanzada = new ManualResetEventSlim();
+        Task tarea;
+        using (ExecutionContext.SuppressFlow())
+            tarea = Task.Run(() =>
+            {
+                lanzada.Set();
+                return operacion();
+            });
+        lanzada.Wait(TimeSpan.FromSeconds(5));
+        // Lo que separa la señal de la espera en el semáforo son unas pocas instrucciones síncronas.
+        Thread.Sleep(100);
+        return tarea;
+    }
+
+    [Fact]
+    public async Task Por_tramos_la_revalidacion_del_circuito_entra_entre_dos_tramos_y_su_revocacion_corta_el_lote()
+    {
+        var tenant = new TenantCambiante(_tenantId);
+        var puerta = new PuertaAccesoDatos();
+        var pantalla = new PantallaPorLaPuerta(puerta, Handler(tenantActual: tenant));
+        Task? revalidacion = null;
+        // Mientras el primer tramo tiene la puerta, vence el intervalo de la revalidación del circuito: espera en la puerta y,
+        // al entrar, retira la selección porque la cartera se revocó.
+        _divisor.DuranteLaExtraccion = pagina =>
+        {
+            if (pagina == 1)
+                revalidacion = DesdeOtroFlujo(() => puerta.EjecutarAsync(() =>
+                {
+                    tenant.TenantId = null;
+                    return Task.CompletedTask;
+                }));
+        };
+
+        var resultado = await CreacionDivisionPdfPorTramos.CrearAsync(
+            pantalla, [1, 2, 3], "paquete.pdf", _tenantId, _empresaId, TresTramos(), NullLogger.Instance, CancellationToken.None);
+
+        await revalidacion!;
+        resultado.Valor.Select(r => r.Estado).Should().Equal(EstadoTramoCreado.Creado, EstadoTramoCreado.Rechazado, EstadoTramoCreado.Rechazado);
+        resultado.Valor.Skip(1).Should().OnlyContain(r => r.CodigoError ==
+            CrearDocumentosDesdeDivisionCommandHandler.PrefijoNoIntentado + CrearDocumentosDesdeDivisionCommandHandler.ErrorTenantCruzado);
+        _mediator.Altas.Should().ContainSingle("tras la revalidación no se crea nada más en el Tenant retirado");
+        _divisor.Extraidos.Should().Equal([(1, 1)]);
+        pantalla.Indices.Should().Equal(0, 1);
+    }
+
+    [Fact]
+    public async Task Al_cerrarse_el_circuito_a_mitad_del_lote_por_tramos_el_cierre_lo_ve_terminar_y_se_conserva_lo_creado()
+    {
+        var puerta = new PuertaAccesoDatos();
+        var pantalla = new PantallaPorLaPuerta(puerta, Handler());
+        Task<bool>? cierre = null;
+        _divisor.DuranteLaExtraccion = pagina =>
+        {
+            if (pagina != 2)
+                return;
+            // Como LiberacionDeAccesoADatosAlCerrarCircuito: cancela AlCerrarse y espera a la operación en vuelo.
+            using (ExecutionContext.SuppressFlow())
+                cierre = Task.Run(() => puerta.CerrarAsync(TimeSpan.FromSeconds(10)));
+            SpinWait.SpinUntil(() => puerta.AlCerrarse.IsCancellationRequested, TimeSpan.FromSeconds(5));
+        };
+
+        var resultado = await CreacionDivisionPdfPorTramos.CrearAsync(
+            pantalla, [1, 2, 3], "paquete.pdf", _tenantId, _empresaId, TresTramos(), NullLogger.Instance, puerta.AlCerrarse);
+
+        (await cierre!).Should().BeTrue("el lote soltó la puerta antes de que el cierre dispusiera el scope");
+        resultado.Valor.Select(r => r.Estado).Should().Equal(EstadoTramoCreado.Creado, EstadoTramoCreado.Rechazado, EstadoTramoCreado.Rechazado);
+        resultado.Valor.Skip(1).Should().OnlyContain(r => r.CodigoError ==
+            CrearDocumentosDesdeDivisionCommandHandler.PrefijoNoIntentado + CrearDocumentosDesdeDivisionCommandHandler.ErrorLoteCancelado);
+        _mediator.Altas.Should().ContainSingle();
+        _almacen.Guardados.Should().ContainSingle("el tramo cancelado antes del alta retira su archivo");
+        _divisor.Extraidos.Should().Equal([(1, 1), (2, 2)]);
+    }
+
+    /// <summary>
+    /// Como la pantalla con el pipeline real: cada Command pasa por <see cref="SerializacionAccesoDatosBehavior{TRequest,TResponse}"/>
+    /// con la misma <see cref="PuertaAccesoDatos"/> que la revalidación, hasta el handler de verdad.
+    /// </summary>
+    private sealed class PantallaPorLaPuerta(PuertaAccesoDatos puerta, CrearDocumentosDesdeDivisionCommandHandler handler) : IMediator
+    {
+        public List<int?> Indices { get; } = [];
+
+        public async Task<TResponse> Send<TResponse>(IRequest<TResponse> request, CancellationToken cancellationToken = default)
+        {
+            var comando = (CrearDocumentosDesdeDivisionCommand)request;
+            Indices.Add(comando.Indice);
+            var serializacion = new SerializacionAccesoDatosBehavior<CrearDocumentosDesdeDivisionCommand, Result<IReadOnlyList<ResultadoTramoCreado>>>(puerta);
+            object respuesta = await serializacion.Handle(comando, token => handler.Handle(comando, token), cancellationToken);
+            return (TResponse)respuesta;
+        }
+
+        public Task Send<TRequest>(TRequest request, CancellationToken cancellationToken = default) where TRequest : IRequest =>
+            throw new NotSupportedException();
+
+        public Task<object?> Send(object request, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+
+        public IAsyncEnumerable<TResponse> CreateStream<TResponse>(IStreamRequest<TResponse> request, CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
+
+        public IAsyncEnumerable<object?> CreateStream(object request, CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
+
+        public Task Publish(object notification, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+
+        public Task Publish<TNotification>(TNotification notification, CancellationToken cancellationToken = default)
+            where TNotification : INotification =>
+            throw new NotSupportedException();
+    }
+
     private sealed class Disponibilidad(bool disponible) : IDisponibilidadHerramientasPdf
     {
         public ValueTask<bool> EstaDisponibleAsync(CancellationToken cancellationToken = default) => ValueTask.FromResult(disponible);
