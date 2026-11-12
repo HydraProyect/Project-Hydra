@@ -679,6 +679,38 @@ public class CrearDocumentosDesdeDivisionCommandHandlerTests
         _mediator.Altas.Should().BeEmpty();
     }
 
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task Por_tramos_una_cancelacion_o_un_proceso_sin_confirmar_en_el_primer_tramo_lanza_sin_seguir(bool retenida)
+    {
+        // Sin nada creado, la pantalla tiene que ver la excepción: la entrada retenida retiene la reserva del original, y la
+        // cancelación es el cierre del circuito. Un resultado parcial vacío soltaría la reserva o seguiría con el lote.
+        Exception excepcion = retenida ? new EntradaPdfRetenidaException() : new OperationCanceledException();
+        _divisor.LanzarAlExtraer = (1, excepcion);
+
+        var crear = () => PorTramosAsync(Handler());
+
+        (await crear.Should().ThrowAsync<Exception>()).Which.Should().BeSameAs(excepcion);
+        _mediator.Altas.Should().BeEmpty();
+        _divisor.Extraidos.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task Por_tramos_un_primer_tramo_rechazado_y_un_corte_en_el_segundo_devuelve_el_fallo_y_no_un_resultado_parcial()
+    {
+        // Sin nada creado no hay lista que conservar: la pantalla sigue con el original y la persona ve por qué se cortó.
+        var tenant = new TenantCambiante(_tenantId);
+        _mediator.RechazarAlta = n => n == 1 ? Error.Crear("Documento.Fallo", "Rechazado por el alta") : null;
+        _mediator.DuranteElAlta = intento => { if (intento == 1) tenant.TenantId = Guid.NewGuid(); };
+
+        var resultado = await PorTramosAsync(Handler(tenantActual: tenant));
+
+        resultado.EsExitoso.Should().BeFalse();
+        resultado.Error.Codigo.Should().Be(CrearDocumentosDesdeDivisionCommandHandler.ErrorTenantCruzado);
+        _mediator.Altas.Should().BeEmpty("la única alta intentada se rechazó, y el segundo tramo se cortó antes de intentar la suya");
+    }
+
     [Fact]
     public async Task Por_tramos_un_fallo_antes_de_crear_nada_devuelve_ese_fallo_sin_seguir()
     {

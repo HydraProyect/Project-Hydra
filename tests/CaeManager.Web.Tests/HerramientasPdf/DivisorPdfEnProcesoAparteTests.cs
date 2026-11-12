@@ -226,14 +226,15 @@ public sealed class DivisorPdfEnProcesoAparteTests
         // Quien cancela es el cierre del circuito, que espera 10 s a la operación en vuelo y luego dispone el scope. Un
         // lanzador que no confirma la muerte del hijo no puede retener la operación hasta el tiempo de la extracción más su
         // margen: se abandona en cuanto vence la espera de cancelación, con el turno retenido como cualquier hijo sin confirmar.
-        // Sin volver nunca, pasado después el tope de siempre (aquí 1 s), la herramienta se desactiva como con cualquier hijo
-        // que no consta terminado.
+        // Sin volver nunca, pasado después el tope de siempre (aquí 4 s, más que los 3 s que se dan a la apertura cancelada:
+        // esperar el tope haría fallar la medida), la herramienta se desactiva como con cualquier hijo que no consta terminado.
         var lanzador = new LanzadorQueTarda(confirmaTras: null);
-        var abrir = await CancelarYMedirAsync(lanzador, TimeSpan.FromSeconds(1));
+        var abrir = await CancelarYMedirAsync(lanzador, TimeSpan.FromSeconds(4));
 
         await abrir.Should().ThrowAsync<EntradaPdfRetenidaException>("el hijo no consta muerto: quien reservó memoria para el PDF la retiene");
         _limitador.Libres.Should().Be(0, "el turno no se suelta sin confirmar la muerte del hijo");
-        var plazo = DateTime.UtcNow.AddSeconds(5);
+        _limitador.Degradado.Should().BeFalse("hasta que vence el tope de siempre, el lanzador aún puede confirmar");
+        var plazo = DateTime.UtcNow.AddSeconds(8);
         while (!_limitador.Degradado && DateTime.UtcNow < plazo)
             await Task.Delay(20);
         _limitador.Degradado.Should().BeTrue();

@@ -121,7 +121,7 @@ internal sealed class EjecutorProcesoHerramientasPdf
             throw new EntradaPdfRetenidaException();
         }
 
-        if (!seguimiento.ConstaTerminado)
+        if (!ejecucion.IsCompleted || !seguimiento.ConstaTerminado)
         {
             // La ejecución se abandona (si no volvió), con su excepción observada.
             _ = ejecucion.ContinueWith(static tarea => _ = tarea.Exception, CancellationToken.None,
