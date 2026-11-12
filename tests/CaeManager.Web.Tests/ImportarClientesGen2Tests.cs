@@ -799,7 +799,8 @@ public partial class ImportarClientesGen2Tests : BunitContext
     [Fact]
     public async Task Una_segunda_subida_durante_el_analisis_se_ignora_y_el_analisis_vigente_pinta_su_plan()
     {
-        // Dos huecos por Tenant: si la segunda subida no se ignorara, abriría otro análisis y ocuparía el segundo.
+        // Dos huecos por Tenant, para que el límite no sea lo que impida la segunda subida: si no se ignorara, cancelaría
+        // el análisis vigente y abriría otro.
         Services.Configure<OpcionesLimitesImportacion>(o => o.AnalisisConcurrentesPorTenant = 2);
         var escenario = new Escenario();
         escenario.Plan<AnalizarPlantillaClientesQuery>("A", [Fila("Alfa S.L.")]);
@@ -835,11 +836,11 @@ public partial class ImportarClientesGen2Tests : BunitContext
     }
 
     [Fact]
-    public async Task Una_segunda_subida_durante_el_analisis_no_ocupa_otro_hueco_y_el_del_vigente_vuelve_al_terminar()
+    public async Task Una_segunda_subida_durante_el_analisis_no_abre_otro_analisis_y_el_hueco_del_vigente_vuelve_al_terminar()
     {
-        // Configuración por defecto (un análisis por Tenant). Si la segunda subida se colara, esperaría el hueco hasta
-        // agotar la espera y acabaría en «demasiados análisis»; y si el análisis vigente no devolviera su hueco al
-        // terminar, la subida posterior de c.xlsx acabaría igual (propiedad del arreglo #1854).
+        // Configuración por defecto (un análisis por Tenant). La primera mitad mide que la segunda subida no abre otro
+        // análisis; la segunda, que el hueco del análisis vigente vuelve al limitador al terminar: si no volviera, la
+        // subida posterior de c.xlsx esperaría hasta agotar la espera y acabaría en «demasiados análisis» (arreglo #1854).
         var escenario = new Escenario();
         escenario.Plan<AnalizarPlantillaClientesQuery>("A", [Fila("Alfa S.L.")]);
         escenario.Plan<AnalizarPlantillaClientesQuery>("C", [Fila("Gamma S.L.")]);
@@ -927,6 +928,46 @@ public partial class ImportarClientesGen2Tests : BunitContext
 
         cut.FindAll(".alerta-formulario").Should().BeEmpty("el hueco estaba libre: no hay «demasiados análisis»");
         cut.WaitForAssertion(() => Boton(cut, "Ver plan de importación").HasAttribute("disabled").Should().BeFalse());
+    }
+
+    [Fact]
+    public async Task Un_analisis_descartado_por_cambio_de_plantilla_que_termina_tarde_no_pinta_su_plan()
+    {
+        // El descartado ignora la cancelación y conserva su hueco hasta terminar: hacen falta dos huecos.
+        Services.Configure<OpcionesLimitesImportacion>(o => o.AnalisisConcurrentesPorTenant = 2);
+        var escenario = new Escenario { RetenerIgnoraCancelacion = true };
+        escenario.Plan<AnalizarPlantillaClientesQuery>("A", [Fila("Alfa S.L.")]);
+        escenario.Plan<AnalizarImportacionExcelQuery>("B", [Fila("Beta S.L.")]);
+        var puertaA = Puerta();
+        var puertaB = Puerta();
+        escenario.Retener = p => p switch
+        {
+            AnalizarPlantillaClientesQuery => puertaA.Task,
+            AnalizarImportacionExcelQuery => puertaB.Task,
+            _ => null,
+        };
+        var (cut, mediador) = Renderizar(escenario);
+        await Pulsar(cut, "Continuar con Plantilla de Clientes");
+
+        var subidaA = Subir(cut, "a.xlsx", "A");
+        cut.WaitForAssertion(() => mediador.Recibidas.Should().Contain(r => r.Peticion is AnalizarPlantillaClientesQuery));
+        await Pulsar(cut, "← Cambiar plantilla");
+        await OpcionPlantilla(cut, "cae").ClickAsync(new MouseEventArgs());
+        await Pulsar(cut, "Continuar con Importación CAE completa");
+        var subidaB = Subir(cut, "cae.xlsx", "B");
+        cut.WaitForAssertion(() => mediador.Recibidas.Should().Contain(r => r.Peticion is AnalizarImportacionExcelQuery));
+
+        puertaB.SetResult();
+        await subidaB.WaitAsync(TimeSpan.FromSeconds(10));
+        cut.WaitForAssertion(() => Boton(cut, "Ver plan de importación").HasAttribute("disabled").Should().BeFalse());
+
+        puertaA.SetResult();
+        await subidaA.WaitAsync(TimeSpan.FromSeconds(10));
+
+        await Pulsar(cut, "Ver plan de importación");
+        Texto(cut.Find(".detalle-revision-plan")).Should().Be("cae.xlsx · nada escrito todavía");
+        cut.FindAll(".tabla-plan-importacion-envoltorio tbody tr td:first-child").Select(Texto).Distinct()
+            .Should().Equal(["Beta S.L."], "el plan de a.xlsx llegó después, pero era de la Plantilla de Clientes y ya no era el vigente");
     }
 
     [Fact]
