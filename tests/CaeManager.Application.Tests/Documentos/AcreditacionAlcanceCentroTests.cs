@@ -1,6 +1,7 @@
 using CaeManager.Application.Documentos.Commands.ConfirmarSubidaDesdeExtension;
 using CaeManager.Application.Documentos.Commands.ConfirmarVigenciaAcreditacion;
 using CaeManager.Application.Documentos.Commands.MarcarAcreditacionAceptada;
+using CaeManager.Application.Documentos.Commands.MarcarAcreditacionNoRequerida;
 using CaeManager.Application.Documentos.Commands.MarcarAcreditacionPendienteDeSubir;
 using CaeManager.Application.Documentos.Commands.MarcarAcreditacionRechazada;
 using CaeManager.Application.Documentos.Commands.MarcarAcreditacionSubida;
@@ -26,6 +27,7 @@ public class AcreditacionAlcanceCentroTests
     [InlineData("aceptada")]
     [InlineData("rechazada")]
     [InlineData("pendiente")]
+    [InlineData("nopide")]
     [InlineData("vigencia")]
     [InlineData("restaurar")]
     public async Task Exige_el_centro_del_canal_en_la_cartera_y_el_documento_visible_y_admite_cartera_total(string operacion)
@@ -84,6 +86,9 @@ public class AcreditacionAlcanceCentroTests
                     .Handle(new(acreditacion.Id, CausaRechazoAcreditacion.Ilegible, "Firma ilegible"), CancellationToken.None),
                 "pendiente" => await new MarcarAcreditacionPendienteDeSubirCommandHandler(acreditaciones, documentos, alcance, proyectos, centros, unit)
                     .Handle(new(acreditacion.Id), CancellationToken.None),
+                "nopide" => await new MarcarAcreditacionNoRequeridaCommandHandler(acreditaciones, documentos, alcance, proyectos, centros, unit,
+                        new TransaccionDeComandoFalsa())
+                    .Handle(new(acreditacion.Id, acreditacion.Version), CancellationToken.None),
                 "vigencia" => await new ConfirmarVigenciaAcreditacionCommandHandler(acreditaciones, documentos, alcance, proyectos, centros, unit)
                     .Handle(new(acreditacion.Id, VigenciaEnPlataforma.NoVenceAqui), CancellationToken.None),
                 _ => await new RestaurarAnotacionAcreditacionCommandHandler(acreditaciones, documentos, alcance, proyectos, centros, unit)

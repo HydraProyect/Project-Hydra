@@ -92,6 +92,13 @@ public class ProhibicionSqlCrudoYFiltrosIgnoradosTests
         // si el contexto ya lo rastreaba; reponen el TenantId en la misma consulta y RLS sigue aplicando.
         [("src/CaeManager.Infrastructure/Persistence/Repositories/CentroRepository.cs", "dbContext.Centros.IgnoreQueryFilters().Where(c => c.Id == id && c.TenantId == tenantId), cancellationToken);")] = 1,
         [("src/CaeManager.Infrastructure/Persistence/Repositories/DocumentoRepository.cs", "dbContext.Documentos.IgnoreQueryFilters().Where(d => d.Id == id && d.TenantId == tenantId), cancellationToken);")] = 1,
+        // La guarda de historial de «no lo pide» (MarcarAcreditacionNoRequerida, revisión Codex r3 de la PR #2172) lee el
+        // Documento sin rastrear, también eliminado, y lo vuelve a leer bajo FOR SHARE dentro de su transacción después de
+        // guardar la marca y antes de confirmar (bloquear antes del UPDATE interbloquearía con la corrección del Documento,
+        // que EF ordena acreditaciones primero): EF no expresa el bloqueo. Id y TenantId repuestos a mano en las dos; RLS
+        // sigue aplicando.
+        [("src/CaeManager.Infrastructure/Persistence/Repositories/DocumentoRepository.cs", "dbContext.Documentos.IgnoreQueryFilters().AsNoTracking()")] = 1,
+        [("src/CaeManager.Infrastructure/Persistence/Repositories/DocumentoRepository.cs", "var bloqueadas = await dbContext.Database.SqlQuery<Guid>($\"\"\"")] = 1,
         [("src/CaeManager.Application/Subcontratas/Commands/RestaurarSubcontrata/RestaurarSubcontrataCommand.cs", ".IgnoreQueryFilters()")] = 1,
         // Antes de borrar la copia de un adjunto comprueba que no haya fila con el Id reservado, tampoco entre las eliminadas,
         // que son restaurables y conservan su archivo. Solo Id y Tenant actual explícito; RLS sigue aplicando.

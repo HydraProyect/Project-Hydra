@@ -32,6 +32,27 @@ public class DocumentoRepositorioFalso : IDocumentoRepository
         return Task.FromResult(documento);
     }
 
+    /// <summary>Lee de la base, como la lectura «…Actualizado»: también ve <see cref="CambioEnLaBase"/>.</summary>
+    public Task<Documento?> ObtenerIncluidoEliminadoSinRastrearAsync(Guid id, Guid? tenantId, CancellationToken cancellationToken = default) =>
+        ObtenerIncluidoEliminadoActualizadoAsync(id, tenantId, cancellationToken);
+
+    /// <summary>
+    /// Cuántas veces se pidió la lectura bloqueada. Aquí no hay bloqueo: que una sustitución posterior espere a que la
+    /// transacción termine lo mide la integración (<c>GestionesAutomaticasBajoRlsTests</c>).
+    /// </summary>
+    public int LecturasBloqueadas { get; private set; }
+
+    /// <summary>Lo que otra sesión confirma justo antes de que se tome el bloqueo: tras las guardas, antes de guardar.</summary>
+    public Action<Documento>? AntesDeBloquear { get; set; }
+
+    public Task<Documento?> BloquearYObtenerIncluidoEliminadoSinRastrearAsync(Guid id, Guid? tenantId, CancellationToken cancellationToken = default)
+    {
+        LecturasBloqueadas++;
+        if (Documentos.FirstOrDefault(d => d.Id == id && d.TenantId == tenantId) is { } documento)
+            AntesDeBloquear?.Invoke(documento);
+        return ObtenerIncluidoEliminadoActualizadoAsync(id, tenantId, cancellationToken);
+    }
+
     public void Agregar(Documento documento)
     {
         if (ExcepcionAlAgregar is { } excepcion)
