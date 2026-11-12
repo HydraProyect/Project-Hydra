@@ -71,8 +71,10 @@ public class SmtpEmailService(
         // Los fallos se registran sin la excepción: su mensaje es la respuesta del
         // servidor SMTP, que puede citar el destinatario, el Reply-To u otros datos
         // personales (ASVS 4.0.3 V7.1.1). Queda el tipo, el código SMTP si lo hay y
-        // este identificador, para casar la entrada con la traza de la petición.
-        var correlacion = Activity.Current?.TraceId.ToHexString() ?? Guid.NewGuid().ToString("N");
+        // este identificador: dentro de una petición es su TraceId y casa la entrada con
+        // la traza; fuera de ella (un servicio en segundo plano) es uno propio del envío.
+        var traza = Activity.Current?.TraceId ?? default;
+        var correlacion = traza != default ? traza.ToHexString() : Guid.NewGuid().ToString("N");
 
         var mensaje = ConstruirMensaje(destinatarioEmail, asunto, cuerpoHtml, tipo, responderA, config, logger);
 
@@ -102,17 +104,16 @@ public class SmtpEmailService(
 
             return Result.Exito();
         }
-        catch (Exception ex) when (cancellationToken.IsCancellationRequested)
+        catch (Exception) when (cancellationToken.IsCancellationRequested)
         {
             // Cancela quien llama: se propaga siempre como OperationCanceledException, sea cual
             // sea la excepción con la que MailKit haya abortado la operación en curso (al cancelar
             // cierra el socket y puede lanzar IOException, SocketException o TimeoutException en
             // vez de OperationCanceledException). Sin esta rama la cancelación se disfrazaba de
             // «error de red» y el llamador la trataba como un envío fallido más.
-            if (ex is OperationCanceledException)
-                throw;
-
-            throw new OperationCanceledException("El envío del correo se canceló.", ex, cancellationToken);
+            // Sin la excepción de MailKit como InnerException: lleva la respuesta del
+            // servidor, y un llamador que registrase la cancelación la arrastraría.
+            throw new OperationCanceledException("El envío del correo se canceló.", cancellationToken);
         }
         catch (Exception ex) when (ex is TimeoutException || ex is OperationCanceledException)
         {

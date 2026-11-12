@@ -74,6 +74,23 @@ public class SmtpEmailServiceRegistroSinDatosPersonalesTests
         aviso.Texto.Should().NotContain(DireccionPersonal).And.Contain(nameof(IOException));
     }
 
+    [Fact]
+    public async Task La_cancelacion_del_llamador_no_arrastra_la_excepcion_del_servidor()
+    {
+        var registro = new RegistroConExcepciones();
+        var cliente = new ClienteSmtpQueFalla { AlConectar = CrearExcepcion("red") };
+        using var cancelacion = new CancellationTokenSource();
+        await cancelacion.CancelAsync();
+
+        var envio = () => CrearServicio(registro, cliente)
+            .EnviarAsync(DireccionPersonal, "Asunto", "<p>Cuerpo</p>", TipoAvisoCorreo.Informativo, cancellationToken: cancelacion.Token);
+
+        var excepcion = (await envio.Should().ThrowAsync<OperationCanceledException>()).Which;
+        excepcion.InnerException.Should().BeNull("un llamador que la registre reproduciría la respuesta del servidor");
+        excepcion.ToString().Should().NotContain(DireccionPersonal);
+        registro.Entradas.Should().BeEmpty();
+    }
+
     private static SmtpEmailService CrearServicio(RegistroConExcepciones registro, ClienteSmtpQueFalla cliente) =>
         new(Options.Create(new SmtpEmailOptions
         {
