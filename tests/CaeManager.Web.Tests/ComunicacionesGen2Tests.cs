@@ -5,6 +5,15 @@ using CaeManager.Application.Centros.Queries.ObtenerCentrosParaSelector;
 using CaeManager.Application.Clientes.Queries.ObtenerClientePorId;
 using CaeManager.Application.Clientes.Queries.ObtenerClientesParaSelector;
 using CaeManager.Application.Common;
+using CaeManager.Application.Comunicaciones.Commands.ActualizarDocumentoDesdeAdjunto;
+using CaeManager.Application.Comunicaciones.Commands.AsignarClienteConversacion;
+using CaeManager.Application.Comunicaciones.Commands.CambiarPrioridadConversacion;
+using CaeManager.Application.Comunicaciones.Commands.ConfirmarClasificacionRuidoMensaje;
+using CaeManager.Application.Comunicaciones.Commands.DescartarSugerenciaGestion;
+using CaeManager.Application.Comunicaciones.Commands.DescartarSugerenciaVisita;
+using CaeManager.Application.Comunicaciones.Commands.VincularConversacion;
+using CaeManager.Application.Gestiones.Commands.CrearGestionesParaTrabajador;
+using CaeManager.Application.Telemetria.Commands.RegistrarTramoGestion;
 using CaeManager.Application.Comunicaciones.Commands.AplicarMacro;
 using CaeManager.Application.Comunicaciones.Commands.CambiarEstadoConversacion;
 using CaeManager.Application.Comunicaciones.Commands.ResponderConversacion;
@@ -317,7 +326,8 @@ public class ComunicacionesGen2Tests : BunitContext
 
     // ---------------------------------------------------------------- arnés
 
-    private (IRenderedComponent<Bandeja> Cut, MediadorControlado Mediador) Renderizar(Escenario escenario, string url = "comunicaciones")
+    private (IRenderedComponent<Bandeja> Cut, MediadorControlado Mediador) Renderizar(
+        Escenario escenario, string url = "comunicaciones", bool medidorActivo = false)
     {
         var mediador = new MediadorControlado(escenario.Responder);
         Services.AddScoped<IMediator>(_ => mediador);
@@ -339,6 +349,9 @@ public class ComunicacionesGen2Tests : BunitContext
         // ese campo rebota 300 ms y deja vivo un temporizador que se traga el
         // clic siguiente (medido en TiposDocumentoVacioPorFiltroTests).
         Services.GetRequiredService<NavigationManager>().NavigateTo(url);
+
+        // Con la medición activa, el medidor consulta RendererInfo: no interactivo, no carga su módulo JS (el tramo se mide igual).
+        if (medidorActivo) SetRendererInfo(new RendererInfo("Server", isInteractive: false));
 
         return (Render<Bandeja>(), mediador);
     }
@@ -2094,6 +2107,598 @@ public class ComunicacionesGen2Tests : BunitContext
 
         mediador.Enviados.OfType<ObtenerConversacionesQuery>().Should().BeEmpty("en «Mi buzón personal» el refresco no pide la lista de Clientes");
         cut.WaitForAssertion(() => cut.Markup.Should().Contain("Aviso del buzón personal"));
+    }
+
+    // ---------------------------------------------------------------- revisión Codex r6 de la #2167, ronda 2: una prueba por guarda
+    //
+    // Patrón de cada prueba: la operación se lanza y su respuesta se retiene; se abre otra conversación (o no: el control con la
+    // misma apertura demuestra que el instrumento ve el efecto cuando la guarda lo permite); se libera la respuesta y se mide
+    // lo que la guarda decide. Los métodos privados se invocan igual que lo hacen los componentes hijos (callbacks de la página).
+
+    private static Task InvocarPrivado(IRenderedComponent<Bandeja> cut, string metodo, params object?[] argumentos) =>
+        cut.InvokeAsync(() => (Task)typeof(Bandeja).GetMethod(metodo, BindingFlags.Instance | BindingFlags.NonPublic)!
+            .Invoke(cut.Instance, argumentos)!);
+
+    private static void FijarCampoPrivado(IRenderedComponent<Bandeja> cut, string nombre, object? valor) =>
+        typeof(Bandeja).GetField(nombre, BindingFlags.Instance | BindingFlags.NonPublic)!.SetValue(cut.Instance, valor);
+
+    /// <summary>Abre otra conversación sin pasar por la lista (que puede estar cargándose); si pregunta por lo escrito, descarta.</summary>
+    private static async Task AbrirPorIdAsync(IRenderedComponent<Bandeja> cut, ConversacionListaDto conversacion)
+    {
+        var seleccion = InvocarPrivado(cut, "SeleccionarConversacionAsync", conversacion.Id);
+        cut.WaitForState(() => seleccion.IsCompleted || cut.FindAll(".modal-pie button").Any(b => b.TextContent.Trim() == "Salir y descartar"));
+        if (!seleccion.IsCompleted) await cut.PulsarEnElAvisoAsync("Salir y descartar");
+        await seleccion;
+        cut.WaitForAssertion(() => TituloAbierto(cut).Should().Be(conversacion.Asunto));
+    }
+
+    private static int DetallesPedidos(MediadorControlado mediador, Guid conversacionId) =>
+        mediador.Enviados.OfType<ObtenerConversacionPorIdQuery>().Count(q => q.Id == conversacionId);
+
+    private static int ListasPedidas(MediadorControlado mediador) => mediador.Enviados.OfType<ObtenerConversacionesQuery>().Count();
+
+    private static (Escenario Escenario, ConversacionListaDto A, ConversacionListaDto B, ConversacionListaDto C) TresConversaciones()
+    {
+        var escenario = new Escenario();
+        var a = Conversacion("Conversación A", ClienteRefrielectric);
+        var b = Conversacion("Conversación B", ClienteRefrielectric, "laura.gil@refrielectric.es");
+        var c = Conversacion("Conversación C", ClienteRefrielectric, "pedro.sanz@refrielectric.es");
+        escenario.Conversaciones.AddRange([a, b, c]);
+        escenario.Detalle = id => DetalleDe(escenario.Conversaciones.Single(x => x.Id == id));
+        return (escenario, a, b, c);
+    }
+
+    /// <summary>El límite de errores de la interfaz contiene la excepción de un componente y la registra aquí: en la prueba, la relanza.</summary>
+    private sealed class AlertaQueRelanza : IAlertaOperativa
+    {
+        public void Emitir(string mensaje, NivelAlertaOperativa nivel) { }
+
+        public void DejarMigaDePan(string mensaje) { }
+
+        public IDisposable IniciarAmbitoDeCaptura() => new Ambito();
+
+        private sealed class Ambito : IDisposable
+        {
+            public void Dispose() { }
+        }
+
+        public void CapturarExcepcion(Exception excepcion) =>
+            System.Runtime.ExceptionServices.ExceptionDispatchInfo.Capture(excepcion).Throw();
+    }
+
+    private sealed record EfectoTrasLiberar(int DetallesDeLaAbierta, int Listas, string Titulo);
+
+    /// <summary>
+    /// Lanza una acción sobre A, retiene la respuesta de su comando, abre C si <paramref name="cambiaApertura"/> y libera la
+    /// respuesta. Devuelve lo que la acción hizo DESPUÉS de liberarla: cuántas veces recargó el detalle de la conversación abierta
+    /// y la lista, y cuál quedó abierta.
+    /// </summary>
+    private async Task<EfectoTrasLiberar> LiberarAccionEnVueloAsync(
+        Func<object, bool> esElComando, object respuesta,
+        Func<IRenderedComponent<Bandeja>, ConversacionListaDto, ConversacionListaDto, Task> lanzar, bool cambiaApertura)
+    {
+        var (escenario, a, b, c) = TresConversaciones();
+        var retenida = Retenida();
+        escenario.Interceptar = p => esElComando(p) ? retenida.Task : null;
+        var (cut, mediador) = Renderizar(escenario);
+        await SeleccionarFila(cut, a.Asunto);
+
+        var accion = lanzar(cut, a, b);
+        cut.WaitForAssertion(() => mediador.Enviados.Any(esElComando).Should().BeTrue("la acción está en vuelo"));
+        var abierta = a;
+        if (cambiaApertura)
+        {
+            await AbrirPorIdAsync(cut, c);
+            abierta = c;
+        }
+        var detallesAntes = DetallesPedidos(mediador, abierta.Id);
+        var listasAntes = ListasPedidas(mediador);
+
+        await cut.InvokeAsync(() => retenida.SetResult(respuesta));
+        await accion;
+        cut.Render();
+
+        return new EfectoTrasLiberar(DetallesPedidos(mediador, abierta.Id) - detallesAntes, ListasPedidas(mediador) - listasAntes, TituloAbierto(cut));
+    }
+
+    /// <summary>
+    /// <c>CambiarPrioridadAsync</c>: <c>if (MismaApertura) CargarDetalleAsync()</c>. Con otra conversación abierta, el detalle que se
+    /// pintaba no cambió: solo se recarga la lista. Si la guarda se quitara, tras abrir C se recargaría el detalle de C.
+    /// </summary>
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Cambiar_la_prioridad_con_otra_conversacion_abierta_solo_recarga_la_lista(bool cambiaApertura)
+    {
+        var efecto = await LiberarAccionEnVueloAsync(p => p is CambiarPrioridadConversacionCommand, Result.Exito(),
+            (cut, _, _) => InvocarPrivado(cut, "CambiarPrioridadAsync", nameof(PrioridadConversacion.Urgente)), cambiaApertura);
+
+        efecto.Listas.Should().Be(1, "la lista se recarga siempre");
+        efecto.DetallesDeLaAbierta.Should().Be(cambiaApertura ? 0 : 1,
+            "con la misma apertura se recarga el detalle (control); con otra conversación abierta, no");
+    }
+
+    /// <summary>
+    /// <c>AsignarClienteTriageAsync</c>: <c>if (MismaApertura) CargarDetalleAsync()</c>. Misma estructura que la prioridad: con otra
+    /// conversación abierta solo se recarga la lista (y el aviso de éxito sale igualmente).
+    /// </summary>
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Asignar_el_Cliente_en_triage_con_otra_conversacion_abierta_solo_recarga_la_lista(bool cambiaApertura)
+    {
+        var efecto = await LiberarAccionEnVueloAsync(p => p is AsignarClienteConversacionCommand, Result.Exito(),
+            (cut, _, _) =>
+            {
+                FijarCampoPrivado(cut, "_clienteTriageSeleccionado", ClienteEbroId.ToString());
+                return InvocarPrivado(cut, "AsignarClienteTriageAsync");
+            }, cambiaApertura);
+
+        HayToast(this, "Conversación asignada al Cliente.").Should().BeTrue("el aviso de éxito sale con cualquier apertura");
+        efecto.Listas.Should().Be(1, "la lista se recarga siempre");
+        efecto.DetallesDeLaAbierta.Should().Be(cambiaApertura ? 0 : 1);
+    }
+
+    /// <summary>
+    /// <c>DescartarSugerenciaVisitaAsync</c>: <c>if (MismaApertura &amp;&amp; …) CargarDetalleAsync()</c>. Descartar una sugerencia de la
+    /// conversación abandonada no recarga la que se abrió después.
+    /// </summary>
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Descartar_una_sugerencia_de_visita_con_otra_conversacion_abierta_no_recarga_su_detalle(bool cambiaApertura)
+    {
+        var efecto = await LiberarAccionEnVueloAsync(p => p is DescartarSugerenciaVisitaCorreoCommand, Result.Exito(),
+            (cut, _, _) => InvocarPrivado(cut, "DescartarSugerenciaVisitaAsync", Guid.NewGuid()), cambiaApertura);
+
+        efecto.DetallesDeLaAbierta.Should().Be(cambiaApertura ? 0 : 1);
+    }
+
+    /// <summary>Ídem para <c>DescartarSugerenciaGestionAsync</c>.</summary>
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Descartar_una_sugerencia_de_gestion_con_otra_conversacion_abierta_no_recarga_su_detalle(bool cambiaApertura)
+    {
+        var efecto = await LiberarAccionEnVueloAsync(p => p is DescartarSugerenciaGestionCorreoCommand, Result.Exito(),
+            (cut, _, _) => InvocarPrivado(cut, "DescartarSugerenciaGestionAsync", Guid.NewGuid()), cambiaApertura);
+
+        efecto.DetallesDeLaAbierta.Should().Be(cambiaApertura ? 0 : 1);
+    }
+
+    /// <summary>Ídem para <c>GenerarGestionesDesdeSugerenciaAsync</c> (el aviso con el número de gestiones sale igualmente).</summary>
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Generar_gestiones_desde_una_sugerencia_con_otra_conversacion_abierta_no_recarga_su_detalle(bool cambiaApertura)
+    {
+        var efecto = await LiberarAccionEnVueloAsync(p => p is CrearGestionesParaTrabajadorCommand, Result.Exito(new ResultadoCrearGestionesDto(2)),
+            (cut, _, _) => InvocarPrivado(cut, "GenerarGestionesDesdeSugerenciaAsync", Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid()), cambiaApertura);
+
+        HayToast(this, "Se generaron 2 gestión(es).").Should().BeTrue("el aviso de éxito sale con cualquier apertura");
+        efecto.DetallesDeLaAbierta.Should().Be(cambiaApertura ? 0 : 1);
+    }
+
+    /// <summary>
+    /// <c>ConfirmarRuidoAsync</c>: <c>if (MismaApertura) CargarDetalleAsync()</c>; la lista se recarga siempre.
+    /// </summary>
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Confirmar_un_mensaje_de_ruido_con_otra_conversacion_abierta_solo_recarga_la_lista(bool cambiaApertura)
+    {
+        var efecto = await LiberarAccionEnVueloAsync(p => p is ConfirmarClasificacionRuidoMensajeCommand, Result.Exito(),
+            (cut, _, _) => InvocarPrivado(cut, "ConfirmarRuidoAsync", Guid.NewGuid()), cambiaApertura);
+
+        efecto.Listas.Should().Be(1, "la lista se recarga siempre");
+        efecto.DetallesDeLaAbierta.Should().Be(cambiaApertura ? 0 : 1);
+    }
+
+    /// <summary>
+    /// <c>VincularConversacionAsync</c>: <c>if (MismaApertura) SeleccionarConversacionAsync(destino)</c>. Con otra conversación abierta,
+    /// vincular no arrastra al Gestor CAE al destino: se queda en la que eligió (la lista se recarga y el aviso sale igualmente).
+    /// </summary>
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Vincular_con_otra_conversacion_abierta_no_lleva_al_destino(bool cambiaApertura)
+    {
+        var efecto = await LiberarAccionEnVueloAsync(p => p is VincularConversacionCommand, Result.Exito(),
+            (cut, _, b) => InvocarPrivado(cut, "VincularConversacionAsync", b.Id), cambiaApertura);
+
+        HayToast(this, "Conversaciones vinculadas.").Should().BeTrue("el aviso de éxito sale con cualquier apertura");
+        efecto.Listas.Should().Be(1, "la lista se recarga siempre");
+        efecto.Titulo.Should().Be(cambiaApertura ? "Conversación C" : "Conversación B",
+            "con la misma apertura se abre el destino (control); con otra, se respeta la elegida");
+    }
+
+    /// <summary>
+    /// <c>SiguienteConversacionAsync</c>: tras cargar la página siguiente, <c>if (cargada &amp;&amp; MismaApertura) Seleccionar(primera)</c>.
+    /// Con la carga en vuelo y otra conversación abierta, no se salta a la primera de la página nueva.
+    /// </summary>
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Siguiente_con_la_pagina_en_vuelo_y_otra_conversacion_abierta_no_salta_a_la_primera_de_la_pagina(bool cambiaApertura)
+    {
+        var escenario = new Escenario();
+        var conversaciones = Enumerable.Range(1, 21).Select(i => Conversacion($"Conversación {i:00}", ClienteRefrielectric)).ToList();
+        escenario.Conversaciones.AddRange(conversaciones);
+        escenario.Detalle = id => DetalleDe(escenario.Conversaciones.Single(x => x.Id == id));
+        var lista = Retenida();
+        var retener = false;
+        ObtenerConversacionesQuery? pedida = null;
+        escenario.Interceptar = p =>
+        {
+            if (!retener || p is not ObtenerConversacionesQuery consulta) return null;
+            pedida = consulta;
+            retener = false;
+            return lista.Task;
+        };
+        var (cut, _) = Renderizar(escenario);
+        await SeleccionarFila(cut, "Conversación 20");
+
+        retener = true;
+        var siguiente = InvocarPrivado(cut, "SiguienteConversacionAsync");
+        cut.WaitForAssertion(() => pedida.Should().NotBeNull("la página siguiente está en vuelo"));
+        pedida!.Pagina.Should().Be(2);
+        if (cambiaApertura) await AbrirPorIdAsync(cut, conversaciones[0]);
+
+        await cut.InvokeAsync(() => lista.SetResult(escenario.Pagina(pedida!)));
+        await siguiente;
+        cut.Render();
+
+        TituloAbierto(cut).Should().Be(cambiaApertura ? "Conversación 01" : "Conversación 21",
+            "con la misma apertura se abre la primera de la página nueva (control); con otra, se respeta la elegida");
+    }
+
+    /// <summary>
+    /// <c>CambiarEstadoAsync</c>, 2.ª comprobación (tras <c>RegistrarAccionMedidaAsync</c>): el medidor cierra el tramo mientras el Gestor
+    /// CAE abre otra conversación. No se recarga el detalle de la abierta ni se sigue a la lista fresca: solo la lista. Si la
+    /// comprobación se quitara, tras abrir C se recargaría el detalle de C.
+    /// </summary>
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Resolver_con_el_medidor_en_vuelo_y_otra_conversacion_abierta_solo_recarga_la_lista(bool cambiaApertura)
+    {
+        var (escenario, a, _, c) = TresConversaciones();
+        Services.AddSingleton<IAlertaOperativa>(new AlertaQueRelanza());
+        var tramo = Retenida();
+        escenario.Interceptar = p => p switch
+        {
+            ObtenerTiempoGestionConversacionQuery => Ya(new TiempoGestionConversacionDto(true, 0, 3600)),
+            RegistrarTramoGestionCommand => tramo.Task,
+            _ => null
+        };
+        var (cut, mediador) = Renderizar(escenario, "comunicaciones?estado=Abierta", medidorActivo: true);
+        await SeleccionarFila(cut, a.Asunto);
+        // El tramo del medidor cuenta segundos enteros desde que se abrió la conversación: sin ellos no registra nada.
+        await Task.Delay(1200);
+
+        var resolucion = SelectorCambiarEstado(cut).ChangeAsync(new ChangeEventArgs { Value = nameof(EstadoConversacion.Resuelta) });
+        cut.WaitForAssertion(() => mediador.Enviados.OfType<RegistrarTramoGestionCommand>().Should().NotBeEmpty("el medidor está cerrando el tramo"));
+        var abierta = a;
+        if (cambiaApertura)
+        {
+            await AbrirPorIdAsync(cut, c);
+            abierta = c;
+        }
+        var detallesAntes = DetallesPedidos(mediador, abierta.Id);
+        var listasAntes = ListasPedidas(mediador);
+
+        await cut.InvokeAsync(() => tramo.SetResult(Result.Exito()));
+        await resolucion;
+        cut.Render();
+
+        DetallesPedidos(mediador, abierta.Id).Should().Be(detallesAntes + (cambiaApertura ? 0 : 1),
+            "con la misma apertura se recarga el detalle (control); con otra conversación abierta, no");
+        if (cambiaApertura) ListasPedidas(mediador).Should().Be(listasAntes + 1, "solo se recarga la lista, sin la recarga fresca");
+    }
+
+    /// <summary>
+    /// <c>CambiarEstadoAsync</c>, 3.ª comprobación (tras la lista fresca): la lista está en vuelo y el Gestor CAE abre otra
+    /// conversación. No se salta a la sucesora de la resuelta. Si la comprobación se quitara, se abriría B sobre C.
+    /// </summary>
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Resolver_con_la_lista_en_vuelo_y_otra_conversacion_abierta_no_salta_a_la_sucesora(bool cambiaApertura)
+    {
+        var (escenario, a, b, c) = TresConversaciones();
+        var lista = Retenida();
+        var retener = false;
+        ObtenerConversacionesQuery? pedida = null;
+        escenario.Interceptar = p =>
+        {
+            if (!retener || p is not ObtenerConversacionesQuery consulta) return null;
+            pedida = consulta;
+            retener = false;
+            return lista.Task;
+        };
+        var (cut, _) = Renderizar(escenario, "comunicaciones?estado=Abierta");
+        await SeleccionarFila(cut, a.Asunto);
+
+        retener = true;
+        var resolucion = SelectorCambiarEstado(cut).ChangeAsync(new ChangeEventArgs { Value = nameof(EstadoConversacion.Resuelta) });
+        cut.WaitForAssertion(() => pedida.Should().NotBeNull("la lista fresca está en vuelo"));
+        if (cambiaApertura) await AbrirPorIdAsync(cut, c);
+
+        await cut.InvokeAsync(() => lista.SetResult(escenario.Pagina(pedida!)));
+        await resolucion;
+        cut.Render();
+
+        TituloAbierto(cut).Should().Be(cambiaApertura ? c.Asunto : b.Asunto,
+            "con la misma apertura se salta a la sucesora (control); con otra conversación abierta, se respeta la elegida");
+    }
+
+    // --- Actualizar documentación: la solicitud del modal (AplicarActualizacionDocumentoAsync) ---
+
+    private static (Escenario Escenario, ConversacionListaDto A, ConversacionListaDto B, ConversacionListaDto C) TresConversacionesConAdjunto()
+    {
+        var tres = TresConversaciones();
+        tres.Escenario.Detalle = id => ConAdjuntoTc2(DetalleDe(tres.Escenario.Conversaciones.Single(x => x.Id == id)));
+        return tres;
+    }
+
+    private static Task<object?>? InterceptarDocumento(object peticion) => peticion switch
+    {
+        ObtenerEmpresasParaSelectorQuery => Ya(new List<EmpresaSelectorDto> { new(Guid.NewGuid(), "Instalaciones Norte S.L.") }),
+        DetectarActualizacionDocumentoDesdeAdjuntoQuery => Ya(Result.Exito(new DeteccionActualizacionDocumentoDto(
+            AdjuntoId, null, null, CaeManager.Domain.Documentos.AmbitoAplicacion.Empresa, null, null, null, null, null, null, 80))),
+        _ => null,
+    };
+
+    /// <summary>Abre «Actualizar documentación» sobre el adjunto de la conversación abierta y rellena el formulario con datos válidos.</summary>
+    private static async Task AbrirYRellenarModalDocumentoAsync(IRenderedComponent<Bandeja> cut)
+    {
+        await cut.Find(".timeline-adjunto-actualizar-documento").ClickAsync(new MouseEventArgs());
+        cut.WaitForAssertion(() => cut.FindAll(".modal-actualizar-documento-formulario").Should().ContainSingle("el modal está cargado"));
+        FijarCampoPrivado(cut, "_tipoDocumentoIdFormulario", Guid.NewGuid().ToString());
+        FijarCampoPrivado(cut, "_propietarioDocumentoFormulario", "Empresa");
+        FijarCampoPrivado(cut, "_empresaDocumentoIdFormulario", Guid.NewGuid().ToString());
+        FijarCampoPrivado(cut, "_fechaEmisionDocumentoFormulario", "2026-11-01");
+    }
+
+    /// <summary>
+    /// Deja una actualización de documentación en vuelo sobre A. Con <paramref name="reabre"/>, abre C (que cierra el modal de A) y
+    /// vuelve a abrir el modal sobre el adjunto de C: la respuesta pendiente es de una apertura anterior del modal.
+    /// </summary>
+    private async Task<(IRenderedComponent<Bandeja> Cut, MediadorControlado Mediador, Task Aplicacion, ConversacionListaDto Abierta, List<TaskCompletionSource<object?>> Comandos)>
+        AplicacionDeDocumentoEnVueloAsync(bool reabre)
+    {
+        var (escenario, a, _, c) = TresConversacionesConAdjunto();
+        var comandos = new List<TaskCompletionSource<object?>>();
+        escenario.Interceptar = p =>
+        {
+            if (p is not ActualizarDocumentoDesdeAdjuntoCommand) return InterceptarDocumento(p);
+            var retenida = Retenida();
+            lock (comandos) comandos.Add(retenida);
+            return retenida.Task;
+        };
+        var (cut, mediador) = Renderizar(escenario);
+        await SeleccionarFila(cut, a.Asunto);
+        await AbrirYRellenarModalDocumentoAsync(cut);
+
+        var aplicacion = InvocarPrivado(cut, "AplicarActualizacionDocumentoAsync");
+        cut.WaitForAssertion(() => mediador.Enviados.OfType<ActualizarDocumentoDesdeAdjuntoCommand>().Should().ContainSingle("la actualización está en vuelo"));
+        var abierta = a;
+        if (reabre)
+        {
+            await AbrirPorIdAsync(cut, c);
+            abierta = c;
+            await AbrirYRellenarModalDocumentoAsync(cut);
+        }
+        return (cut, mediador, aplicacion, abierta, comandos);
+    }
+
+    /// <summary>
+    /// <c>AplicarActualizacionDocumentoAsync</c>, error: <c>if (solicitud == _solicitudActualizarDocumentoVigente) _errorActualizarDocumento = …</c>.
+    /// El fallo de una apertura anterior del modal no aparece en el modal reabierto sobre otra conversación.
+    /// </summary>
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task El_fallo_de_actualizar_la_documentacion_de_una_apertura_anterior_no_sale_en_el_modal_reabierto(bool reabre)
+    {
+        var (cut, _, aplicacion, _, comandos) = await AplicacionDeDocumentoEnVueloAsync(reabre);
+
+        await cut.InvokeAsync(() => comandos[0].SetResult(Result.Fallo<Guid>(Error.Crear("Prueba.Fallo", "Fallo del servidor al actualizar."))));
+        await aplicacion;
+        cut.Render();
+
+        cut.FindAll(".modal-actualizar-documento-formulario").Should().ContainSingle("control: el modal sigue abierto en ambos casos");
+        if (reabre) cut.Markup.Should().NotContain("Fallo del servidor al actualizar.", "el fallo era de la apertura anterior del modal");
+        else cut.Markup.Should().Contain("Fallo del servidor al actualizar.", "control: con la misma apertura, el modal dice el motivo");
+    }
+
+    /// <summary>
+    /// <c>AplicarActualizacionDocumentoAsync</c>, éxito: el cierre del modal (<c>solicitud == vigente</c>) y la recarga
+    /// (<c>MismaApertura</c>). Con el modal reabierto sobre C, ni se cierra el nuevo ni se recarga el detalle de C; el aviso de éxito
+    /// sale igualmente.
+    /// </summary>
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Una_actualizacion_de_documentacion_de_una_apertura_anterior_no_cierra_el_modal_reabierto_ni_recarga_el_detalle(bool reabre)
+    {
+        var (cut, mediador, aplicacion, abierta, comandos) = await AplicacionDeDocumentoEnVueloAsync(reabre);
+        var detallesAntes = DetallesPedidos(mediador, abierta.Id);
+
+        await cut.InvokeAsync(() => comandos[0].SetResult(Result.Exito(Guid.NewGuid())));
+        await aplicacion;
+        cut.Render();
+
+        HayToast(this, "Documentación actualizada.").Should().BeTrue("el aviso de éxito sale con cualquier apertura");
+        cut.FindAll(".modal-actualizar-documento-formulario").Should().HaveCount(reabre ? 1 : 0,
+            "con la misma apertura se cierra (control); el modal reabierto es de otra apertura y sigue abierto");
+        DetallesPedidos(mediador, abierta.Id).Should().Be(detallesAntes + (reabre ? 0 : 1));
+    }
+
+    /// <summary>
+    /// <c>AplicarActualizacionDocumentoAsync</c>, <c>finally</c>: <c>if (!_modalActualizarDocumentoVisible || solicitud == vigente) _aplicandoDocumento = false</c>.
+    /// Con el modal reabierto y aplicando su propia actualización, la que termina de la apertura anterior no apaga el indicador.
+    /// </summary>
+    [Fact]
+    public async Task Una_actualizacion_de_una_apertura_anterior_no_apaga_el_indicador_de_la_del_modal_reabierto()
+    {
+        var (cut, mediador, primera, _, comandos) = await AplicacionDeDocumentoEnVueloAsync(reabre: true);
+        var segunda = InvocarPrivado(cut, "AplicarActualizacionDocumentoAsync");
+        cut.WaitForAssertion(() => mediador.Enviados.OfType<ActualizarDocumentoDesdeAdjuntoCommand>().Should().HaveCount(2, "la del modal reabierto está en vuelo"));
+        CampoPrivado<bool>(cut, "_aplicandoDocumento").Should().BeTrue("control positivo: el modal reabierto está aplicando");
+
+        await cut.InvokeAsync(() => comandos[0].SetResult(Result.Exito(Guid.NewGuid())));
+        await primera;
+        cut.Render();
+
+        CampoPrivado<bool>(cut, "_aplicandoDocumento").Should().BeTrue("la actualización que terminó era de la apertura anterior");
+        await cut.InvokeAsync(() => comandos[1].SetResult(Result.Exito(Guid.NewGuid())));
+        await segunda;
+        cut.Render();
+        CampoPrivado<bool>(cut, "_aplicandoDocumento").Should().BeFalse("control: la propia solicitud sí apaga su indicador");
+    }
+
+    // --- Pedir prioridad: la solicitud del Drawer (EnviarPrioridadAsync) ---
+
+    private static async Task ElegirCentroYAbrirDrawerPrioridadAsync(IRenderedComponent<Bandeja> cut)
+    {
+        cut.WaitForAssertion(() => cut.FindAll(".composer-correo-prellenados select").Should().ContainSingle());
+        await cut.Find(".composer-correo-prellenados select").ChangeAsync(new ChangeEventArgs { Value = CentroNorteId.ToString() });
+        await cut.FindAll("button").Single(b => b.TextContent.Trim() == "Pedir prioridad de validación").ClickAsync(new MouseEventArgs());
+        cut.WaitForAssertion(() => cut.FindComponents<CampoTexto>().Should().Contain(c => c.Instance.Valor == "Prioridad Centro Norte"));
+    }
+
+    /// <summary>
+    /// <c>EnviarPrioridadAsync</c>: tras la espera, el error (resultado fallido y <see cref="ValidationException"/>) y el cierre del
+    /// Drawer solo se escriben si <c>solicitud == _solicitudPrioridadVigente</c>. El Gestor CAE abre B y vuelve a abrir el Drawer
+    /// mientras viaja el envío de A: el desenlace del envío viejo no cierra ni ensucia el Drawer nuevo. Cada desenlace cubre una
+    /// línea distinta de la guarda.
+    /// </summary>
+    [Theory]
+    [InlineData("exito", false)]
+    [InlineData("exito", true)]
+    [InlineData("fallo", false)]
+    [InlineData("fallo", true)]
+    [InlineData("validacion", false)]
+    [InlineData("validacion", true)]
+    public async Task El_desenlace_de_pedir_prioridad_de_una_apertura_anterior_no_toca_el_Drawer_reabierto(string desenlace, bool reabre)
+    {
+        var (escenario, a, b, _) = TresConversaciones();
+        var envio = Retenida();
+        escenario.Interceptar = p => p is PedirPrioridadValidacionCommand ? envio.Task : CentrosPorCliente(p);
+        var (cut, mediador) = Renderizar(escenario);
+        await SeleccionarFila(cut, a.Asunto);
+        await ElegirCentroYAbrirDrawerPrioridadAsync(cut);
+
+        var envioPrimero = Boton(cut, ".drawer-pie button", "Enviar").ClickAsync(new MouseEventArgs());
+        cut.WaitForAssertion(() => mediador.Enviados.OfType<PedirPrioridadValidacionCommand>().Should().ContainSingle("el envío está en vuelo"));
+        if (reabre)
+        {
+            await AbrirPorIdAsync(cut, b);
+            await ElegirCentroYAbrirDrawerPrioridadAsync(cut);
+        }
+
+        await cut.InvokeAsync(() =>
+        {
+            switch (desenlace)
+            {
+                case "exito": envio.SetResult(Result.Exito()); break;
+                case "fallo": envio.SetResult(Result.Fallo(Error.Crear("Prueba.Fallo", "Fallo del servidor al pedir prioridad."))); break;
+                default: envio.SetException(new ValidationException([new ValidationFailure("Asunto", "Asunto demasiado largo.")])); break;
+            }
+        });
+        await envioPrimero;
+        cut.Render();
+
+        if (desenlace == "exito")
+            CampoPrivado<bool>(cut, "_drawerPrioridadVisible").Should().Be(reabre,
+                "con la misma apertura se cierra (control); el Drawer reabierto es de otra apertura y sigue abierto");
+        else
+            CampoPrivado<string?>(cut, "_mensajeErrorPrioridad").Should().Be(
+                reabre ? null : desenlace == "fallo" ? "Fallo del servidor al pedir prioridad." : "Asunto demasiado largo.",
+                "con la misma apertura el Drawer dice el motivo (control); el reabierto no recibe el error de la apertura anterior");
+    }
+
+    // --- Aviso de adjuntos (LimpiarLoEnviado) ---
+
+    private sealed class ArchivoQueNoCabe : IBrowserFile
+    {
+        public string Name => "enorme.pdf";
+        public DateTimeOffset LastModified => DateTimeOffset.UnixEpoch;
+        public long Size => long.MaxValue;
+        public string ContentType => "application/pdf";
+        public Stream OpenReadStream(long maxAllowedSize = 512000, CancellationToken cancellationToken = default) =>
+            throw new InvalidOperationException("Un archivo que no cabe no se abre.");
+    }
+
+    private static Task AdjuntarVariosAsync(IRenderedComponent<Bandeja> cut, IReadOnlyList<IBrowserFile> archivos) =>
+        cut.InvokeAsync(() => cut.FindComponent<ComposerBar>().Instance.OnArchivosSeleccionados.InvokeAsync(new InputFileChangeEventArgs(archivos)));
+
+    /// <summary>
+    /// <c>LimpiarLoEnviado</c>: <c>if (enviado.ErrorAdjuntos is not null &amp;&amp; _errorAdjuntos == enviado.ErrorAdjuntos) _errorAdjuntos = null</c>.
+    /// El aviso que acompañaba al borrador enviado se retira; el aviso nuevo que salió mientras viajaba el envío se conserva.
+    /// </summary>
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task El_aviso_de_adjuntos_del_borrador_enviado_se_retira_y_el_nuevo_se_conserva(bool cambiaElAviso)
+    {
+        var (escenario, a, _, _) = TresConversaciones();
+        var envio = Retenida();
+        escenario.Interceptar = p => p is ResponderConversacionCommand ? envio.Task : null;
+        var (cut, mediador) = Renderizar(escenario);
+        await SeleccionarFila(cut, a.Asunto);
+        await Escribir(cut, "Respuesta con archivos de más.");
+        await AdjuntarVariosAsync(cut, Enumerable.Range(0, CaeManager.Web.Features.Comunicaciones.AdjuntosCorreo.MaximoArchivos + 1)
+            .Select(i => (IBrowserFile)ArchivoListo($"f{i}.pdf")).ToList());
+        var avisoDelEnvio = CampoPrivado<string?>(cut, "_errorAdjuntos");
+        avisoDelEnvio.Should().NotBeNullOrEmpty("control positivo: más archivos que el máximo se rechazan con un aviso");
+
+        var envioEnVuelo = Enviar(cut);
+        mediador.Enviados.OfType<ResponderConversacionCommand>().Should().ContainSingle("control positivo: el envío está en vuelo");
+        if (cambiaElAviso)
+        {
+            await AdjuntarVariosAsync(cut, [new ArchivoQueNoCabe()]);
+            CampoPrivado<string?>(cut, "_errorAdjuntos").Should().NotBe(avisoDelEnvio, "control positivo: salió otro aviso durante el envío");
+        }
+
+        await cut.InvokeAsync(() => envio.SetResult(Result.Exito()));
+        await envioEnVuelo;
+        cut.Render();
+
+        var aviso = CampoPrivado<string?>(cut, "_errorAdjuntos");
+        if (cambiaElAviso) aviso.Should().NotBeNullOrEmpty().And.NotBe(avisoDelEnvio, "el aviso nuevo no era el del borrador enviado");
+        else aviso.Should().BeNull("el aviso del borrador enviado se retira con él");
+    }
+
+    // --- Vista desde la URL (SincronizarFiltrosDesdeUrl, BAJO de la r6) ---
+
+    /// <summary>
+    /// BAJO de la r6 de la #2167: cambiar de vista desde la URL (atrás/adelante, enlace compartido) abandona la conversación abierta
+    /// igual que el botón. La plantilla en vuelo no acaba en ningún borrador y la conversación abandonada deja de estar abierta.
+    /// Detecta quitar <c>DescartarConversacionAbierta()</c> de <c>SincronizarFiltrosDesdeUrl</c>.
+    /// </summary>
+    [Fact]
+    public async Task Cambiar_de_vista_desde_la_URL_con_la_plantilla_en_vuelo_no_la_deja_en_ningun_borrador()
+    {
+        var macro = PlantillaCertificado();
+        var (escenario, _, _) = DosConversacionesConPlantilla(macro);
+        var plantilla = Retenida();
+        escenario.Interceptar = p => p is AplicarMacroCommand ? plantilla.Task : null;
+        var (cut, mediador) = Renderizar(escenario);
+        await SeleccionarFila(cut, "Primera conversación");
+
+        var aplicacion = cut.Find(".composer-macro-campo select").ChangeAsync(new ChangeEventArgs { Value = macro.Id.ToString() });
+        cut.WaitForAssertion(() => mediador.Enviados.OfType<AplicarMacroCommand>().Should().ContainSingle("la plantilla está en vuelo"));
+        await cut.InvokeAsync(() => Services.GetRequiredService<NavigationManager>().NavigateTo("comunicaciones?vista=personal"));
+        cut.WaitForAssertion(() => CampoPrivado<string>(cut, "_vista").Should().Be("personal", "control positivo: la URL cambió la vista"));
+        CampoPrivado<Guid?>(cut, "_conversacionSeleccionadaId").Should().BeNull("la conversación abandonada ya no está abierta");
+
+        await cut.InvokeAsync(() => plantilla.SetResult(Result.Exito("<p>Plantilla de la vista anterior.</p>")));
+        await aplicacion;
+        cut.Render();
+
+        CampoPrivado<string>(cut, "_textoRespuesta").Should().BeEmpty("la plantilla se pidió para la conversación abandonada");
     }
 
     private static async Task AbrirDescartandoAsync(IRenderedComponent<Bandeja> cut, string asunto)

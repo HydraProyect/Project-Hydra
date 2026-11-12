@@ -485,7 +485,28 @@ public partial class Bandeja : CaeManager.Web.Components.PaginaInteractiva, IAsy
         _mesFiltro = MesInicial ?? string.Empty;
         _clienteIdFiltro = ClienteInicial ?? string.Empty;
         _busqueda = BusquedaInicial ?? string.Empty;
-        _vista = VistaInicial == "personal" ? "personal" : "clientes";
+        var vistaUrl = VistaInicial == "personal" ? "personal" : "clientes";
+        if (vistaUrl == _vista) return;
+
+        // La vista cambió desde la URL (atrás/adelante, enlace compartido), no por el botón: lo que espera sobre la conversación
+        // abierta en la otra vista deja de escribir igual que con CambiarVistaAsync (revisión Codex r6 de la #2167, BAJO).
+        _vista = vistaUrl;
+        DescartarConversacionAbierta();
+    }
+
+    /// <summary>
+    /// La conversación abierta se abandona (volver a la bandeja, cambiar de vista por botón o por URL): la carga del detalle en
+    /// vuelo deja de ser la vigente y la apertura y el contexto suben, de modo que nada de lo que esperaba la conversación
+    /// abandonada escribe después (plantilla, formatos, adjuntos, modal de documentación, solicitudes de prioridad).
+    /// </summary>
+    private void DescartarConversacionAbierta()
+    {
+        ++_cargaDetalleVigente;
+        _cargandoDetalle = false;
+        _errorDetalle = false;
+        _conversacionSeleccionadaId = null;
+        _detalle = null;
+        CambiarApertura();
     }
 
     /// <summary>
@@ -505,12 +526,7 @@ public partial class Bandeja : CaeManager.Web.Components.PaginaInteractiva, IAsy
         _vista = vista;
         // Igual que VolverABandejaAsync: la carga del detalle en vuelo deja de ser la vigente y todo lo que espera sobre la
         // conversación abandonada (plantilla, formatos, adjuntos, modal) deja de escribir (revisión Codex r6 de la #2167, MEDIO 1).
-        ++_cargaDetalleVigente;
-        _cargandoDetalle = false;
-        _errorDetalle = false;
-        _conversacionSeleccionadaId = null;
-        _detalle = null;
-        CambiarApertura();
+        DescartarConversacionAbierta();
         NavigationManager.ActualizarFiltrosEnUrl(new Dictionary<string, string?>
         {
             ["vista"] = vista == "clientes" ? null : vista,
@@ -823,12 +839,7 @@ public partial class Bandeja : CaeManager.Web.Components.PaginaInteractiva, IAsy
     private async Task VolverABandejaAsync()
     {
         if (!await _ambitoConversacion.ConfirmarAbandonoAsync()) return;
-        ++_cargaDetalleVigente;
-        _cargandoDetalle = false;
-        _errorDetalle = false;
-        _conversacionSeleccionadaId = null;
-        _detalle = null;
-        CambiarApertura();
+        DescartarConversacionAbierta();
         _clienteActivo = null;
         _notaInternaActiva = false;
         _textoRespuesta = string.Empty;
