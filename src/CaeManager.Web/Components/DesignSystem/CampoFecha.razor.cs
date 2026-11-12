@@ -64,7 +64,8 @@ public partial class CampoFecha
     /// Avisa cuando el campo pasa a tener (true) o deja de tener (false) un texto que no es una fecha entera: a medias
     /// («15/03», «10/1/2030»), imposible («31/02/2026») o sin cifras («mañana»). Fail-closed y con la semántica del campo
     /// de fecha nativo: en la misma pulsación en que el texto deja de ser una fecha entera, el campo emite
-    /// <see cref="ValorChanged"/> con null y luego esta marca a true, sin esperar a que se pierda el foco. El padre nunca
+    /// esta marca a true y luego <see cref="ValorChanged"/> con null, sin esperar a que se pierda el foco (al volver a ser
+    /// fecha entera, primero la fecha y luego la marca a false: la marca cubre toda ventana en que Valor no es fiable). El padre nunca
     /// conserva la fecha anterior mientras se ve otra cosa; pero null también es «sin fecha» voluntario, y solo esta marca
     /// los distingue. Por eso todo formulario que guarde la enlaza y bloquea el envío mientras sea true (lo exige
     /// <c>CamposFechaEnlazanLaMarcaDeNoValidoTests</c>). Solo se notifica el cambio, no cada pulsación.
@@ -226,8 +227,20 @@ public partial class CampoFecha
         // pulsación, no al salir del campo; si no, guardar sin perder el foco, o destruir el campo (cambiar de tramo,
         // plegar la fila), dejaría en el padre la fecha anterior a la edición. Solo el campo vacío de verdad (Supr o
         // Retroceso hasta dejarlo en blanco) es «sin fecha» voluntario; lo demás lleva además la marca de no válido.
-        await NotificarAsync(MascaraFecha.EsCompleta(mascara, out var fecha) ? fecha : null);
-        await NotificarEstadoAsync();
+        // Orden: la marca true cubre toda la ventana en que Valor no es fiable. Al dejar de ser fecha entera, primero la
+        // marca y luego el null (el padre que anota «la fecha que tenía antes del texto» la lee todavía en su sitio, y un
+        // manejador de ValorChanged(null) ya ve la marca puesta); al volver a ser fecha entera, primero la fecha y luego se
+        // retira la marca.
+        if (MascaraFecha.EsCompleta(mascara, out var fecha))
+        {
+            await NotificarAsync(fecha);
+            await NotificarEstadoAsync();
+        }
+        else
+        {
+            await NotificarEstadoAsync();
+            await NotificarAsync(null);
+        }
     }
 
     private async Task AlSalirAsync()

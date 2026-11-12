@@ -499,6 +499,25 @@ public partial class Trabajador360Gen2Tests
             .Which.FechaAltaEmpresa.Should().Be(new DateOnly(2024, 6, 3));
     }
 
+    // Con el rediseño fail-closed el campo entrega «» en la misma pulsación en que deja de ser fecha: la «última válida» que se
+    // restaura es la que había antes del texto, y vaciar a propósito antes de escribir a medias no resucita la guardada.
+    [Fact]
+    public async Task Dejar_el_paso_con_una_fecha_a_medias_tras_vaciarla_a_proposito_no_resucita_la_guardada()
+    {
+        var id = Guid.NewGuid(); var m = ConTrabajador(id);
+        m.Detalles[id] = m.Detalles[id] with { FechaAltaEmpresa = new DateOnly(2023, 5, 2) };
+        var cut = Renderizar(id); var drawer = await AbrirEditorFicha(cut);
+        await IrAPasoFicha(drawer, "Trabajo");
+        await CambiarCampoFicha(drawer, "Alta en la empresa", "");
+        await CambiarCampoFicha(drawer, "Alta en la empresa", "03/0");
+        await PulsarFicha(drawer, "Atrás");
+
+        await GuardarFicha(drawer);
+
+        m.Enviadas.OfType<EditarFichaTrabajadorCommand>().Should().ContainSingle()
+            .Which.FechaAltaEmpresa.Should().BeNull("la persona vació el alta a propósito antes de escribir a medias");
+    }
+
     // Un «Guardar» rechazado con una fecha no válida en el paso visible no lleva a otro paso con error (eso
     // destruiría el campo y su texto): el formulario se queda donde está la fecha.
     [Fact]

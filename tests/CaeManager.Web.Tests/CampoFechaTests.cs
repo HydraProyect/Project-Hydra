@@ -122,7 +122,7 @@ public class CampoFechaTests : BunitContext
             .Add(c => c.NoValidoChanged, v => noValido.Add(v)));
 
         await cut.Find("input").InputAsync(new ChangeEventArgs { Value = tecleado });
-        recibidos.Should().BeEmpty("mientras se escribe solo cuenta la fecha entera dd/mm/aaaa");
+        recibidos.Should().Equal(new DateOnly?[] { null }, "fail-closed: lo que no es una fecha entera dd/mm/aaaa llega como null en la misma pulsación, sin esperar al blur");
         noValido.Should().Equal(false, true);
 
         await cut.Find("input").BlurAsync(new FocusEventArgs());
@@ -131,7 +131,7 @@ public class CampoFechaTests : BunitContext
         // la fecha completada con ceros.
         cut.Find("input").GetAttribute("value").Should().NotBe(normalizado, "no se reescribe como otra fecha");
         cut.Find(".campo-mensaje-error").TextContent.Should().Contain("dd/mm/aaaa");
-        recibidos.Should().Equal(new DateOnly?[] { null }, "ni la fecha anterior ni 10/01/2030");
+        recibidos.Should().Equal(new DateOnly?[] { null }, "ni la fecha anterior ni 10/01/2030, y salir del campo no vuelve a notificar el mismo null");
         noValido.Should().Equal(false, true);
     }
 
@@ -153,7 +153,7 @@ public class CampoFechaTests : BunitContext
 
         await cut.Find("input").InputAsync(new ChangeEventArgs { Value = pegado });
         noValido.Should().Equal(false, true);
-        recibidos.Should().BeEmpty();
+        recibidos.Should().Equal(new DateOnly?[] { null }, "la fecha anterior no sobrevive a un texto que no es fecha, sin esperar al blur");
 
         await cut.Find("input").BlurAsync(new FocusEventArgs());
 
@@ -161,9 +161,10 @@ public class CampoFechaTests : BunitContext
         cut.Find(".campo-mensaje-error").Should().NotBeNull();
         recibidos.Should().Equal(new DateOnly?[] { null });
 
-        // Borrarlo a mano sí es el vaciado voluntario: deja de ser no válido.
+        // Borrarlo a mano sí es el vaciado voluntario: deja de ser no válido (el valor ya era null: no se repite).
         await cut.Find("input").InputAsync(new ChangeEventArgs { Value = string.Empty });
         noValido.Should().Equal(false, true, false);
+        recibidos.Should().Equal(new DateOnly?[] { null });
         cut.FindAll(".campo-mensaje-error").Should().BeEmpty();
     }
 
@@ -205,20 +206,48 @@ public class CampoFechaTests : BunitContext
     }
 
     [Fact]
-    public async Task Borrar_a_medias_no_notifica_y_vaciar_notifica_null()
+    public async Task Borrar_a_medias_emite_null_una_vez_y_la_marca_distingue_a_medias_de_vacio()
     {
         var recibidos = new List<DateOnly?>();
+        var noValido = new List<bool>();
         var cut = Render<CampoFecha>(p => p
             .Add(c => c.Valor, new DateOnly(2026, 12, 10))
-            .Add(c => c.ValorChanged, v => recibidos.Add(v)));
+            .Add(c => c.ValorChanged, v => recibidos.Add(v))
+            .Add(c => c.NoValidoChanged, v => noValido.Add(v)));
         cut.Find("input").GetAttribute("value").Should().Be("10/12/2026");
 
         await cut.Find("input").InputAsync(new ChangeEventArgs { Value = "10/12/202" });
+        recibidos.Should().Equal(new DateOnly?[] { null }, "la primera pulsación que deja de ser fecha entera retira la fecha anterior");
+        noValido.Should().Equal(false, true);
+
         await cut.Find("input").InputAsync(new ChangeEventArgs { Value = "10/1" });
-        recibidos.Should().BeEmpty("borrar cifra a cifra no es todavía una fecha nueva");
+        recibidos.Should().Equal(new DateOnly?[] { null }, "seguir borrando no repite el mismo null");
+        noValido.Should().Equal(new[] { false, true }, "ni la marca");
 
         await cut.Find("input").InputAsync(new ChangeEventArgs { Value = string.Empty });
-        recibidos.Should().Equal((DateOnly?)null);
+        recibidos.Should().Equal(new DateOnly?[] { null }, "vaciar del todo sigue siendo null, que ya tiene el padre");
+        noValido.Should().Equal(false, true, false);
+    }
+
+    // La marca de no válido cubre toda ventana en que Valor no es fiable: al dejar de ser fecha entera, primero la marca y luego el
+    // null (el padre que anota la fecha previa al texto la lee todavía en su sitio); al volver a serlo, primero la fecha y luego se
+    // retira la marca.
+    [Fact]
+    public async Task La_marca_se_pone_antes_de_retirar_la_fecha_y_se_retira_despues_de_entregarla()
+    {
+        var secuencia = new List<string>();
+        var cut = Render<CampoFecha>(p => p
+            .Add(c => c.Valor, new DateOnly(2026, 12, 10))
+            .Add(c => c.ValorChanged, v => secuencia.Add($"valor:{v?.ToString("yyyy-MM-dd") ?? "null"}"))
+            .Add(c => c.NoValidoChanged, v => secuencia.Add($"marca:{v}")));
+        secuencia.Clear();
+        secuencia.Add("inicio");
+
+        await cut.Find("input").InputAsync(new ChangeEventArgs { Value = "10/12/202" });
+        secuencia.Should().Equal("inicio", "marca:True", "valor:null");
+
+        await cut.Find("input").InputAsync(new ChangeEventArgs { Value = "11/12/2026" });
+        secuencia.Should().Equal("inicio", "marca:True", "valor:null", "valor:2026-12-11", "marca:False");
     }
 
     [Fact]

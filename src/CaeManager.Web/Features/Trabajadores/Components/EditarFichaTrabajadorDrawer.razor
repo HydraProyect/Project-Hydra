@@ -263,7 +263,8 @@
 
     /// <summary>
     /// La fecha (ISO o «») que tenía cada campo cuando su texto dejó de ser una fecha. Se toma al marcarlo: mientras se
-    /// escribe, CampoFecha no notifica lo que aún no es fecha, así que el formulario conserva todavía la última válida.
+    /// escribe, CampoFecha avisa la marca de no válido antes de entregar el null de esa pulsación (ver CampoFecha.AlTeclearAsync),
+    /// así que en ese instante el formulario conserva todavía la última válida.
     /// </summary>
     private readonly Dictionary<string, string> _fechaAntesDelTexto = [];
 

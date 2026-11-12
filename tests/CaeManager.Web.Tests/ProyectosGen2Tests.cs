@@ -1538,6 +1538,47 @@ public partial class ProyectosGen2Tests : BunitContext
         await cut.SalirYComprobarQueNoPreguntaAsync(Navegacion, "la fecha de cierre de hoy viene puesta: no es un cambio");
     }
 
+    // Rediseño fail-closed: el modal propone hoy como fecha de cierre; si la persona la deja a medias y confirma sin salir del
+    // campo, no se cierra el proyecto con la fecha propuesta anterior ni con ninguna.
+    [Fact]
+    public async Task Cerrar_proyecto_con_la_fecha_de_cierre_a_medias_sin_salir_del_campo_no_envia_la_propuesta_anterior()
+    {
+        _mediator.Proyectos = [ProyectoAbierto];
+        var cut = await RenderizarConClienteAsync();
+        await CerrarDesdeElPanelAsync(cut, ProyectoAbierto);
+        var campo = () => cut.FindComponents<CampoTexto>().Single(c => c.Instance.Etiqueta == "Fecha de cierre").Find("input[data-campo-fecha]");
+        campo().GetAttribute("value").Should().NotBeNullOrEmpty("control: el modal propone una fecha de cierre");
+
+        await campo().InputAsync(new ChangeEventArgs { Value = "15/03" });
+        await ConfirmarCierre(cut);
+
+        _mediator.Enviados.OfType<CerrarProyectoCommand>().Should().BeEmpty("ni con la fecha propuesta de hoy ni con null");
+        cut.Find("[role=dialog]").TextContent.Should().Contain("no es válida");
+
+        await campo().InputAsync(new ChangeEventArgs { Value = "15/03/2030" });
+        await ConfirmarCierre(cut);
+        _mediator.Enviados.OfType<CerrarProyectoCommand>().Should().ContainSingle("control positivo: con la fecha entera sí se cierra")
+            .Which.Should().Be(new CerrarProyectoCommand(AbiertoId, new DateOnly(2030, 3, 15)));
+    }
+
+    // Rediseño fail-closed: el alta propone hoy como fecha de inicio; a medias y sin salir del campo no se crea el proyecto con
+    // la propuesta anterior.
+    [Fact]
+    public async Task Crear_proyecto_con_la_fecha_de_inicio_a_medias_sin_salir_del_campo_no_envia_la_propuesta_anterior()
+    {
+        var cut = await AbrirNuevoProyectoAsync();
+        await SelectDelAlta(cut, "Centro").ChangeAsync(new ChangeEventArgs { Value = CentroDeA.Id.ToString() });
+        await EscribirNombreDelProyectoAsync(cut, "Montaje cámaras 2026");
+        var inicio = () => cut.FindComponents<CampoTexto>().Single(c => c.Instance.Etiqueta == "Fecha de inicio").Find("input[data-campo-fecha]");
+        inicio().GetAttribute("value").Should().NotBeNullOrEmpty("control: el alta propone una fecha de inicio");
+
+        await inicio().InputAsync(new ChangeEventArgs { Value = "15/03" });
+        await BotonConTexto(cut, ".drawer-panel button", "Crear proyecto").ClickAsync(new MouseEventArgs());
+
+        _mediator.Enviados.OfType<CrearProyectoCommand>().Should().BeEmpty("ni con la fecha de inicio propuesta ni con null");
+        cut.Find(".drawer-panel").TextContent.Should().Contain("no es válida");
+    }
+
     [Fact]
     public async Task Aviso_cerrar_proyecto_con_otra_fecha_pregunta_al_salir()
     {

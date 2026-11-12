@@ -147,6 +147,25 @@ public class DrawerGestionDocumentoVencimientoNoValidoTests : BunitContext
         cut.Markup.Should().Contain("no es válida");
     }
 
+    // Rediseño fail-closed: se parte de un vencimiento VÁLIDO y no nulo y se edita a medias sin salir del campo. Guardar no puede
+    // crear el Documento con el vencimiento anterior a la edición (ni sin vencimiento).
+    [Fact]
+    public async Task Un_vencimiento_manual_a_medias_sobre_uno_valido_no_guarda_el_anterior()
+    {
+        var cut = await AbrirAltaConTipoManualAsync();
+        await EscribirVencimientoAsync(cut, "15/03/2030");
+        // El atributo value no se actualiza al teclear (CampoFecha lo reserva al render); el control lee el estado del drawer.
+        var campo = typeof(DrawerGestionDocumento).GetField("_fechaVencimientoManual", BindingFlags.Instance | BindingFlags.NonPublic);
+        campo.Should().NotBeNull();
+        campo!.GetValue(cut.Instance).Should().Be("2030-03-15", "control: partimos de un vencimiento válido");
+
+        await EscribirVencimientoAsync(cut, "15/03/203");
+        await PulsarGuardarAsync(cut);
+
+        _mediator.Creados.Should().BeEmpty("ni con 15/03/2030 anterior a la edición ni sin vencimiento");
+        cut.Markup.Should().Contain("no es válida");
+    }
+
     // Con un tipo de vencimiento automático el campo desaparece: el aviso de un envío anterior no puede quedarse sin campo.
     [Fact]
     public async Task Cambiar_a_un_tipo_de_vencimiento_automatico_retira_el_aviso_del_vencimiento_manual()

@@ -475,6 +475,75 @@ public sealed class DividirPdfPantallaTests : BunitContext
     }
 
     /// <summary>
+    /// Rediseño fail-closed (ronda 3 de Codex): la caducidad a medias parte de una caducidad VÁLIDA (Valor anterior no nulo), sin
+    /// salir del campo, y el tramo se cambia con el campo aún enfocado. El campo se destruye; al volver nace con la marca y
+    /// vacío, el tramo no conserva la caducidad anterior a la edición y Crear sigue bloqueado.
+    /// </summary>
+    [Fact]
+    public async Task Cambiar_de_tramo_con_la_caducidad_a_medias_sobre_una_caducidad_valida_no_conserva_la_anterior_y_bloquea_crear()
+    {
+        var cut = Renderizar();
+        cut.WaitForAssertion(() => cut.FindAll(".zona-soltar-archivo").Should().ContainSingle());
+        await SubirAsync(cut);
+        cut.Find("button.tijera[aria-label='Quitar la división tras la página 3']").Click();
+        Pulsar(cut, "Asignar documentos");
+        PonerEmision(cut);
+        cut.WaitForAssertion(() => cut.FindAll("input[placeholder=\"dd/mm/aaaa\"]").Should().HaveCountGreaterThanOrEqualTo(2));
+        await cut.FindAll("input[placeholder=\"dd/mm/aaaa\"]")[1].InputAsync(new ChangeEventArgs { Value = "20/01/2027" });
+        await cut.FindAll("input[placeholder=\"dd/mm/aaaa\"]")[1].BlurAsync(new FocusEventArgs());
+        await cut.FindAll("input[placeholder=\"dd/mm/aaaa\"]")[1].InputAsync(new ChangeEventArgs { Value = "20/01/202" });
+
+        Pulsar(cut, "Siguiente documento");
+        cut.WaitForAssertion(() => cut.FindAll(".marca-omitir input").Should().NotBeEmpty());
+        cut.Find(".marca-omitir input").Change(true);
+        Pulsar(cut, "Anterior");
+
+        cut.WaitForAssertion(() => cut.Find(".cabecera-tramo h1").TextContent.Should().Contain("1"));
+        cut.FindAll("input[placeholder=\"dd/mm/aaaa\"]")[1].GetAttribute("value").Should().BeEmpty("ni el texto a medias ni la caducidad anterior a la edición");
+        cut.FindAll(".campos-tramo .campo-mensaje-error").Should().ContainSingle("la persona ve por qué el tramo está bloqueado");
+
+        Pulsar(cut, "Siguiente documento");
+        Pulsar(cut, "Revisar y crear");
+
+        cut.WaitForAssertion(() => cut.FindAll("[data-caducidad-no-valida]").Should().ContainSingle());
+        cut.FindAll("button").Single(b => b.TextContent.Contains("Crear 1 documento")).HasAttribute("disabled").Should().BeTrue();
+        _mediador.Creaciones.Should().BeEmpty("ni sin caducidad ni con la 20/01/2027 anterior a la edición");
+    }
+
+    /// <summary>
+    /// Rediseño fail-closed: la emisión a medias sobre una emisión válida, sin salir del campo, se pierde al cambiar de tramo;
+    /// al volver el campo nace vacío con la marca (el tramo no conserva la emisión anterior) y Crear sigue bloqueado.
+    /// </summary>
+    [Fact]
+    public async Task Cambiar_de_tramo_con_la_emision_a_medias_sobre_una_emision_valida_no_conserva_la_anterior_y_bloquea_crear()
+    {
+        var cut = Renderizar();
+        cut.WaitForAssertion(() => cut.FindAll(".zona-soltar-archivo").Should().ContainSingle());
+        await SubirAsync(cut);
+        cut.Find("button.tijera[aria-label='Quitar la división tras la página 3']").Click();
+        Pulsar(cut, "Asignar documentos");
+        PonerEmision(cut);
+        await cut.FindAll("input[placeholder=\"dd/mm/aaaa\"]")[0].InputAsync(new ChangeEventArgs { Value = "15/01/202" });
+
+        Pulsar(cut, "Siguiente documento");
+        cut.WaitForAssertion(() => cut.FindAll(".marca-omitir input").Should().NotBeEmpty());
+        cut.Find(".marca-omitir input").Change(true);
+        Pulsar(cut, "Anterior");
+
+        cut.WaitForAssertion(() => cut.Find(".cabecera-tramo h1").TextContent.Should().Contain("1"));
+        cut.FindAll("input[placeholder=\"dd/mm/aaaa\"]")[0].GetAttribute("value").Should().BeEmpty("ni el texto a medias ni la emisión anterior a la edición");
+        cut.FindAll(".campos-tramo .campo-mensaje-error").Should().ContainSingle("la persona ve por qué el tramo está bloqueado");
+
+        Pulsar(cut, "Siguiente documento");
+        Pulsar(cut, "Revisar y crear");
+
+        cut.WaitForAssertion(() => cut.FindAll("[data-caducidad-no-valida]").Should().ContainSingle("el aviso de corregir la fecha antes de crear"));
+        cut.FindAll("button").Where(b => b.TextContent.Contains("crear", StringComparison.OrdinalIgnoreCase)).Should().NotBeEmpty("control: el botón principal existe")
+            .And.OnlyContain(b => b.HasAttribute("disabled"));
+        _mediador.Creaciones.Should().BeEmpty("el tramo no se crea con la emisión del 15/01/2026 anterior a la edición");
+    }
+
+    /// <summary>
     /// Ronda 2 de revisión, MEDIO: con la caducidad a medias, cambiar el tipo a uno de vencimiento automático destruye el
     /// campo sin avisar y la marca quedaba bloqueando Crear sin ningún control que la limpiara.
     /// </summary>

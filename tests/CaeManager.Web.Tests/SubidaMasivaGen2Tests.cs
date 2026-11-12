@@ -293,6 +293,74 @@ public sealed class SubidaMasivaGen2Tests : BunitContext
         await DisposeComponentsAsync();
     }
 
+    // Ronda 3 de Codex (rediseño fail-closed): el texto a medias llega como null en la misma pulsación. Confirmar sin haber
+    // salido del campo no puede crear el Documento con el vencimiento anterior a la edición.
+    [Fact]
+    public async Task Confirmar_sin_salir_del_campo_con_un_vencimiento_manual_a_medias_no_crea_el_documento()
+    {
+        var (trabajadorId, tipoId) = PrepararPropuesta(confianza: 100, emision: new DateOnly(2026, 3, 1));
+        _mediador.Tipos = [CrearTipo(tipoId) with { AplicaVencimientoAutomatico = false }];
+        _mediador.Deteccion = new DeteccionCamposDocumentoDto(tipoId, trabajadorId, 100, FechaEmisionLeida: new DateOnly(2026, 3, 1), FechaVencimientoPropuesta: new DateOnly(2028, 3, 1));
+        var cut = Render<SubidaMasiva>();
+        await ProcesarAsync(cut, "manual.pdf");
+        await GestionarAsync(cut);
+
+        var vencimiento = cut.FindAll(".item-subida-masiva-formulario input[data-campo-fecha]")[1];
+        vencimiento.GetAttribute("value").Should().Be("01/03/2028", "control: parte de un vencimiento válido y no nulo");
+        await vencimiento.InputAsync(new ChangeEventArgs { Value = "01/03/202" });
+        await cut.FindAll("button").First(b => b.TextContent.Trim() == "Confirmar y crear").ClickAsync(new MouseEventArgs());
+
+        _mediador.Recibidas.Select(r => r.Peticion).OfType<ConfirmarDocumentoPropuestoPorIaCommand>().Should().BeEmpty(
+            "ni con null ni con el 01/03/2028 anterior a la edición");
+        Services.GetRequiredService<ToastService>().Mensajes.Should().Contain(m => m.Mensaje.Contains("no es válida"));
+        await DisposeComponentsAsync();
+    }
+
+    // Con un tipo de vencimiento automático la fila calcula el vencimiento de la emisión. Con la emisión a medias no se calcula
+    // a partir de la anterior a la edición (se vería un vencimiento que ya no corresponde a lo que hay en el campo), y Confirmar
+    // sin salir del campo no crea el Documento.
+    [Fact]
+    public async Task Una_emision_a_medias_con_vencimiento_automatico_no_calcula_el_vencimiento_de_la_fecha_anterior()
+    {
+        PrepararPropuesta(confianza: 100, emision: new DateOnly(2026, 3, 1));
+        var cut = Render<SubidaMasiva>();
+        await ProcesarAsync(cut, "propuesta.pdf");
+        await GestionarAsync(cut);
+        cut.Find(".vencimiento-subida-masiva").TextContent.Should().Contain("01/03/2027 (emisión + 12 meses)", "control: con la emisión entera sí se calcula");
+        var emision = cut.FindAll(".item-subida-masiva-formulario input[data-campo-fecha]")[0];
+        emision.GetAttribute("value").Should().Be("01/03/2026");
+
+        await emision.InputAsync(new ChangeEventArgs { Value = "01/03/202" });
+
+        cut.Find(".vencimiento-subida-masiva").TextContent.Should().NotContain("01/03/2027").And.NotContain("emisión + 12 meses");
+        await cut.FindAll("button").First(b => b.TextContent.Trim() == "Confirmar y crear").ClickAsync(new MouseEventArgs());
+        _mediador.Recibidas.Select(r => r.Peticion).OfType<ConfirmarDocumentoPropuestoPorIaCommand>().Should().BeEmpty();
+        await DisposeComponentsAsync();
+    }
+
+    // Plegar la fila destruye el campo de emisión: con el texto a medias y una emisión anterior no nula, al desplegar la marca
+    // sigue, el campo nace vacío con su aviso y Confirmar sigue bloqueado (SubidaMasiva enlaza FechaNoValidaPrevia).
+    [Fact]
+    public async Task Una_emision_a_medias_sigue_bloqueando_tras_plegar_y_desplegar_la_fila()
+    {
+        PrepararPropuesta(confianza: 100, emision: new DateOnly(2026, 3, 1));
+        var cut = Render<SubidaMasiva>();
+        await ProcesarAsync(cut, "propuesta.pdf");
+        await GestionarAsync(cut);
+
+        await cut.FindAll(".item-subida-masiva-formulario input[data-campo-fecha]")[0].InputAsync(new ChangeEventArgs { Value = "01/03/202" });
+        await GestionarAsync(cut); // pliega
+        cut.FindAll(".item-subida-masiva-formulario").Should().BeEmpty("control positivo: la fila quedó plegada y el campo se destruyó");
+        await GestionarAsync(cut); // despliega
+
+        cut.FindAll(".item-subida-masiva-formulario input[data-campo-fecha]")[0].GetAttribute("value").Should().BeEmpty("el texto a medias se perdió con el campo anterior");
+        cut.FindAll(".item-subida-masiva-formulario .campo-mensaje-error").Should().NotBeEmpty("la persona ve por qué la fila está bloqueada");
+        await cut.FindAll("button").First(b => b.TextContent.Trim() == "Confirmar y crear").ClickAsync(new MouseEventArgs());
+
+        _mediador.Recibidas.Select(r => r.Peticion).OfType<ConfirmarDocumentoPropuestoPorIaCommand>().Should().BeEmpty();
+        await DisposeComponentsAsync();
+    }
+
     [Fact]
     public async Task Con_un_tipo_de_vencimiento_automatico_el_vencimiento_propuesto_no_cuenta_como_correccion()
     {
