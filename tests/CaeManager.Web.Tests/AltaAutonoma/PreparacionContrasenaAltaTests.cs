@@ -1,6 +1,7 @@
 using CaeManager.Infrastructure.AltaAutonoma;
 using CaeManager.Infrastructure.Identity;
 using FluentAssertions;
+using Microsoft.AspNetCore.Cryptography.KeyDerivation;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.Extensions.Logging.Abstractions;
 using Xunit;
@@ -81,14 +82,17 @@ public class PreparacionContrasenaAltaTests
         hasher.HashesVerificados.Should().OnlyContain(h => EsHashV3ConIteraciones(h, new PasswordHasherOptions().IterationCount));
     }
 
-    /// <summary>Formato V3 de <see cref="PasswordHasher{TUser}"/>: 0x01, PRF, iteraciones y longitud de sal en big-endian.</summary>
+    /// <summary>
+    /// Formato V3 de <see cref="PasswordHasher{TUser}"/> con los valores por defecto de Identity: 0x01, PRF HMACSHA512
+    /// (2), iteraciones y longitud de sal (16) en big-endian, y luego la sal y una subclave de 32 bytes.
+    /// </summary>
     private static bool EsHashV3ConIteraciones(string hash, int iteraciones)
     {
         var bytes = Convert.FromBase64String(hash);
-        if (bytes.Length < 13 + 16 + 32 || bytes[0] != 0x01)
+        if (bytes.Length != 13 + 16 + 32 || bytes[0] != 0x01)
             return false;
-        var leidas = (bytes[5] << 24) | (bytes[6] << 16) | (bytes[7] << 8) | bytes[8];
-        return leidas == iteraciones;
+        static int Leer(byte[] b, int i) => (b[i] << 24) | (b[i + 1] << 16) | (b[i + 2] << 8) | b[i + 3];
+        return Leer(bytes, 1) == (int)KeyDerivationPrf.HMACSHA512 && Leer(bytes, 5) == iteraciones && Leer(bytes, 9) == 16;
     }
 
     private static PreparacionContrasenaAlta Crear(IPasswordHasher<ApplicationUser>? hasher = null) => new(new UserManager<ApplicationUser>(

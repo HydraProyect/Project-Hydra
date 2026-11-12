@@ -141,16 +141,26 @@ public class ServicioRegistroAltaTests
     [InlineData(null, "la-buena")]
     [InlineData("corto", "la-buena")]
     [InlineData("corto", null)]
-    [InlineData("largo", "la-buena")]
     public async Task Un_token_mal_formado_paga_una_comparacion_ficticia(string? token, string? contrasena)
     {
         var (servicio, _, _, contrasenas) = CrearConContrasenas();
-        if (token == "largo")
-            token = new string('t', 129);
 
         await servicio.VerificarCorreoAsync(token, contrasena, CancellationToken.None);
 
         (contrasenas.Reales, contrasenas.Ficticias).Should().Be((0, 1));
+    }
+
+    /// <summary>El techo de longitud del token es 128: hasta ahí llega a la base y compara; desde 129, ficticia.</summary>
+    [Theory]
+    [InlineData(128, 1, 1, 0)]
+    [InlineData(129, 0, 0, 1)]
+    public async Task En_el_techo_de_longitud_del_token_se_paga_un_solo_PBKDF2(int longitud, int consultas, int reales, int ficticias)
+    {
+        var (servicio, acceso, _, contrasenas) = CrearConContrasenas();
+
+        await servicio.VerificarCorreoAsync(new string('t', longitud), "la-mala", CancellationToken.None);
+
+        (acceso.Consultas, contrasenas.Reales, contrasenas.Ficticias).Should().Be((consultas, reales, ficticias));
     }
 
     [Theory]

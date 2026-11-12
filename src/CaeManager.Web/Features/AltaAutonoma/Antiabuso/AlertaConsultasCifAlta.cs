@@ -49,7 +49,8 @@ public sealed class AlertaConsultasCifAlta : IDisposable
     public AlertaConsultasCifAlta(ILogger<AlertaConsultasCifAlta> logger, TimeSpan ventana)
     {
         _logger = logger;
-        _contador = PartitionedRateLimiter.Create<string, string>(clave =>
+        Ventana = ventana;
+        _contador =PartitionedRateLimiter.Create<string, string>(clave =>
             RateLimitPartition.GetSlidingWindowLimiter(clave, _ => new SlidingWindowRateLimiterOptions
             {
                 PermitLimit = Umbral,
@@ -59,6 +60,9 @@ public sealed class AlertaConsultasCifAlta : IDisposable
                 AutoReplenishment = true,
             }));
     }
+
+    /// <summary>Ventana en la que se cuentan las consultas de un mismo CIF.</summary>
+    public TimeSpan Ventana { get; }
 
     /// <summary>
     /// Cuenta una consulta con resultado del CIF ya normalizado y avisa si pasa del umbral. No devuelve nada: quien la

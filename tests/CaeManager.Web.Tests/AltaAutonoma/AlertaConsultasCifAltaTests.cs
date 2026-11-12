@@ -36,16 +36,30 @@ public class AlertaConsultasCifAltaTests
 
         for (var i = 0; i < AlertaConsultasCifAlta.Umbral; i++)
             alerta.Registrar("B12345674");
-        await Task.Delay(TimeSpan.FromSeconds(1));
-        alerta.Registrar("B12345674");
 
-        _registro.Entradas.Should().BeEmpty("las tres consultas de antes quedaron fuera de la ventana");
+        // Sondeo con tope en vez de una espera fija: en un runner cargado los tramos de la ventana pueden reciclarse
+        // tarde. Con una ventana que no expirase (la mutación de ignorarla), cada consulta seguiría avisando hasta el tope.
+        var tope = DateTime.UtcNow + TimeSpan.FromSeconds(10);
+        bool aviso;
+        do
+        {
+            await Task.Delay(50);
+            var antes = _registro.Entradas.Count;
+            alerta.Registrar("B12345674");
+            aviso = _registro.Entradas.Count > antes;
+        }
+        while (aviso && DateTime.UtcNow < tope);
+
+        aviso.Should().BeFalse("pasada la ventana, las tres consultas de antes dejan de contar");
     }
 
     [Fact]
-    public void La_ventana_por_defecto_es_de_un_dia()
+    public void La_ventana_de_produccion_es_de_un_dia()
     {
+        using var alerta = new AlertaConsultasCifAlta(_registro);
+
         AlertaConsultasCifAlta.VentanaPorDefecto.Should().Be(TimeSpan.FromDays(1));
+        alerta.Ventana.Should().Be(TimeSpan.FromDays(1), "el constructor que usa la inyección de dependencias aplica la ventana de 24 h");
     }
 
     [Fact]
