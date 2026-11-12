@@ -47,7 +47,11 @@ public class AutorizacionLecturaDocumental : EntidadConTenant, IVersionable
     /// <summary>El contrato de acceso del Tenant destinatario al que se liga la lectura.</summary>
     public Guid ContratoAccesoId { get; private set; }
 
-    /// <summary>Si la lectura alcanza también los Documentos de la Empresa propia del Tenant de la Empresa contratista.</summary>
+    /// <summary>
+    /// Si la lectura alcanza también los Documentos de la Empresa propia del Tenant de la Empresa contratista. Solo los da
+    /// si ese Tenant tiene exactamente una Empresa propia no eliminada; con dos o más (ampliación de grupo), ninguno, porque
+    /// la autorización no dice cuál expone (EP-6, opción (d), 2026-11-12; <c>app_inbound_documentos_del_alcance</c>).
+    /// </summary>
     public bool IncluyeDocumentosEmpresa { get; private set; }
 
     public DateOnly VigenciaDesde { get; private set; }
