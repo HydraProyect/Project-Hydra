@@ -54,7 +54,8 @@ public class ProponerApoyoCarteraCommandHandler(
         if (request.DestinatarioUsuarioId == ctx.UsuarioId)
             return Result.Fallo<Guid>(ErroresPropuestaApoyo.DestinatarioNoValido);
 
-        if (request.UltimoDia is { } ultimoDia && ultimoDia < DiaDeNegocio.Hoy())
+        // El 31/12/9999 no tiene día siguiente (HastaElFinalDe lanzaría) y equivaldría a un acceso sin fin pedido como fechado.
+        if (request.UltimoDia is { } ultimoDia && (ultimoDia < DiaDeNegocio.Hoy() || ultimoDia == DateOnly.MaxValue))
             return Result.Fallo<Guid>(ErroresPropuestaApoyo.FechaDeFinNoValida);
         DateTime? vigenciaHasta = request.UltimoDia is { } dia ? VigenciaDeApoyo.HastaElFinalDe(dia) : null;
 

@@ -12,7 +12,9 @@ using CaeManager.Web.Documentos;
 using CaeManager.Web.Features.HerramientasPdf.Pages;
 using FluentAssertions;
 using MediatR;
+using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Authorization;
+using Microsoft.AspNetCore.Components.Web;
 using Microsoft.AspNetCore.Components.Forms;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
@@ -36,6 +38,7 @@ public sealed class DividirPdfPantallaTests : BunitContext
     private static readonly Guid HaciendaId = Guid.NewGuid();
     private static readonly Guid AnaId = Guid.NewGuid();
     private static readonly Guid FormacionId = Guid.NewGuid();
+    private static readonly Guid AutomaticoId = Guid.NewGuid();
 
     private static readonly CatalogoDivisionPdf Catalogo = new(
         new EmpresaDivisionPdf(EmpresaId, "Montajes Norte S.L.", null), [],
@@ -43,6 +46,7 @@ public sealed class DividirPdfPantallaTests : BunitContext
         [
             new TipoDocumentoDivisionPdf(HaciendaId, "Certificado de Hacienda", AmbitoAplicacion.Empresa, false, null, []),
             new TipoDocumentoDivisionPdf(FormacionId, "Formación PRL", AmbitoAplicacion.Trabajador, false, null, []),
+            new TipoDocumentoDivisionPdf(AutomaticoId, "Seguro con vigencia automática", AmbitoAplicacion.Empresa, true, 12, []),
         ]);
 
     private static readonly PreparacionDivisionPdf Preparacion = new(
@@ -1059,6 +1063,283 @@ public sealed class DividirPdfPantallaTests : BunitContext
 
         cut.Markup.Should().Contain("Este PDF está firmado");
         cut.FindAll("button.tijera").Should().HaveCount(3);
+    }
+
+    /// <summary>
+    /// Defecto del 11-11: la «Fecha de emisión» del paso 2 se borraba al instante. La pantalla enlazaba un DateOnly? a un
+    /// CampoTexto con una conversión que pierde lo parcial («15» no es fecha, vuelve como null y se pinta como «»); CampoTexto
+    /// toma ese «» como un reinicio venido del padre y recrea el input vacío. Cubre las dos salidas: el debounce vencido sin
+    /// tocar nada más y la pérdida del foco.
+    ///
+    /// <para>
+    /// Instrumento: bUnit no ve lo que el navegador tiene tecleado (ni CampoTexto ni CampoFecha re-renderizan «value» al
+    /// teclear), solo lo que Blazor le manda. Por eso se parte de una fecha ya pintada y se comprueba que, al dejarla a
+    /// medias, Blazor no manda al navegador un «value» vacío: ese envío es justo el borrado que veía la persona.
+    /// </para>
+    /// </summary>
+    [Fact]
+    public async Task Lo_tecleado_a_medias_en_la_fecha_de_emision_no_se_borra()
+    {
+        var cut = Renderizar();
+        cut.WaitForAssertion(() => cut.FindAll(".zona-soltar-archivo").Should().ContainSingle());
+        await SubirAsync(cut);
+        Pulsar(cut, "Guardar en TALVEG");
+        PonerEmision(cut);
+        // Ir y volver: el campo nace de nuevo con la fecha guardada y Blazor la pinta en «value».
+        Pulsar(cut, "Volver a dividir");
+        Pulsar(cut, "Guardar en TALVEG");
+        cut.WaitForAssertion(() => cut.FindAll("input[placeholder=\"dd/mm/aaaa\"]")[0].GetAttribute("value").Should().Be("15/01/2026"));
+
+        // CampoFecha no tiene retardo: lo tecleado a medias no se notifica y la pantalla no se re-renderiza con un vacío.
+        await cut.FindAll("input[placeholder=\"dd/mm/aaaa\"]")[0].InputAsync(new ChangeEventArgs { Value = "15/01/202" });
+        cut.FindAll("input[placeholder=\"dd/mm/aaaa\"]")[0].GetAttribute("value").Should().NotBeEmpty(
+            "mientras se escribe Blazor no puede vaciar el campo");
+
+        await cut.FindAll("input[placeholder=\"dd/mm/aaaa\"]")[0].InputAsync(new ChangeEventArgs { Value = "15/0" });
+        await cut.FindAll("input[placeholder=\"dd/mm/aaaa\"]")[0].BlurAsync(new FocusEventArgs());
+        cut.FindAll("input[placeholder=\"dd/mm/aaaa\"]")[0].GetAttribute("value").Should().NotBeEmpty(
+            "ni al salir del campo: lo escrito se conserva para corregirlo");
+        cut.Find(".campos-tramo .campo-mensaje-error").TextContent.Should().Contain("dd/mm/aaaa", "y se avisa de que no es una fecha");
+    }
+
+    /// <summary>
+    /// Hallazgo de la revisión: «Sin caducidad» apaga la caducidad, que ya valía null tras un texto no válido; el mismo
+    /// valor no es un cambio, así que sin más el texto y su aviso se quedaban en un campo que ya no se puede corregir.
+    /// </summary>
+    [Fact]
+    public async Task Sin_caducidad_limpia_lo_escrito_que_no_era_fecha()
+    {
+        var cut = Renderizar();
+        cut.WaitForAssertion(() => cut.FindAll(".zona-soltar-archivo").Should().ContainSingle());
+        await SubirAsync(cut);
+        Pulsar(cut, "Guardar en TALVEG");
+        cut.WaitForAssertion(() => cut.FindAll("input[placeholder=\"dd/mm/aaaa\"]").Should().HaveCountGreaterThanOrEqualTo(2));
+        var caducidad = () => cut.FindAll("input[placeholder=\"dd/mm/aaaa\"]")[1];
+
+        await caducidad().InputAsync(new ChangeEventArgs { Value = "15" });
+        await caducidad().BlurAsync(new FocusEventArgs());
+        cut.FindAll(".campos-tramo .campo-mensaje-error").Should().ContainSingle("control positivo: «15» se señala");
+
+        await cut.Find("label.marca-tramo input[type=checkbox]").ChangeAsync(new ChangeEventArgs { Value = true });
+
+        caducidad().HasAttribute("disabled").Should().BeTrue();
+        cut.FindAll(".campos-tramo .campo-mensaje-error").Should().BeEmpty("el campo apagado vuelve a su valor, sin aviso");
+    }
+
+    /// <summary>
+    /// Hallazgo de la revisión (ronda 2): sin una clave por tramo, Blazor reutilizaba el mismo CampoFecha al pasar de un
+    /// tramo a otro, y el texto no válido del anterior (con su aviso) aparecía en el siguiente, cuya fecha es otra.
+    /// </summary>
+    [Fact]
+    public async Task Lo_escrito_que_no_es_fecha_no_pasa_al_tramo_siguiente()
+    {
+        var cut = Renderizar();
+        cut.WaitForAssertion(() => cut.FindAll(".zona-soltar-archivo").Should().ContainSingle());
+        await SubirAsync(cut);
+        Pulsar(cut, "Guardar en TALVEG");
+        cut.WaitForAssertion(() => cut.FindAll("input[placeholder=\"dd/mm/aaaa\"]").Should().NotBeEmpty());
+
+        await cut.FindAll("input[placeholder=\"dd/mm/aaaa\"]")[0].InputAsync(new ChangeEventArgs { Value = "15/0" });
+        await cut.FindAll("input[placeholder=\"dd/mm/aaaa\"]")[0].BlurAsync(new FocusEventArgs());
+        cut.FindAll(".campos-tramo .campo-mensaje-error").Should().ContainSingle("control positivo: «15/0» se señala en el tramo 1");
+
+        Pulsar(cut, "Siguiente documento");
+
+        cut.WaitForAssertion(() => cut.Find(".cabecera-tramo h1").TextContent.Should().Contain("2"));
+        cut.FindAll(".campos-tramo .campo-mensaje-error").Should().BeEmpty("el tramo 2 no hereda el texto del 1");
+        cut.FindAll("input[placeholder=\"dd/mm/aaaa\"]")[0].GetAttribute("value").Should().BeEmpty();
+    }
+
+    /// <summary>
+    /// Hallazgo de pérdida de foco: la clave por tramo iba en toda la ficha y recreaba también los botones de navegación, de
+    /// modo que «Siguiente documento» perdía el foco del teclado al pulsarlo. La clave va solo en los CampoFecha. Se compara la
+    /// instancia del componente Boton y no el nodo del DOM: bUnit reconstruye su DOM en cada render y la identidad de los nodos
+    /// no es fiable, mientras que Blazor conserva la instancia del componente solo si no recrea ese subárbol.
+    /// </summary>
+    [Fact]
+    public async Task Los_botones_de_navegacion_no_se_recrean_al_cambiar_de_tramo()
+    {
+        var cut = Renderizar();
+        cut.WaitForAssertion(() => cut.FindAll(".zona-soltar-archivo").Should().ContainSingle());
+        await SubirAsync(cut);
+        Pulsar(cut, "Guardar en TALVEG");
+        cut.WaitForAssertion(() => cut.Find(".barra-en-ficha button"));
+
+        var antes = cut.FindComponents<Boton>()
+            .Where(b => b.Markup.Contains("Siguiente documento") || b.Markup.Contains("Volver a dividir"))
+            .Select(b => b.Instance).ToList();
+        antes.Should().HaveCount(2, "control positivo: Volver a dividir y Siguiente documento del tramo 1");
+
+        Pulsar(cut, "Siguiente documento");
+
+        cut.WaitForAssertion(() => cut.Find(".cabecera-tramo h1").TextContent.Should().Contain("2"));
+        var despues = cut.FindComponents<Boton>().Select(b => b.Instance).ToList();
+        despues.Should().Contain(antes, "los botones de navegación son los mismos componentes y conservan el foco del teclado");
+    }
+
+    /// <summary>
+    /// Ronda 1 de Codex, ALTO 3: la caducidad a medias llegaba como null al salir del campo y Crear daba de alta el
+    /// Documento sin caducidad. Ahora el tramo queda marcado y Crear se bloquea con el aviso hasta corregirla.
+    /// </summary>
+    [Fact]
+    public async Task Una_caducidad_a_medias_bloquea_crear_el_documento()
+    {
+        var cut = Renderizar();
+        cut.WaitForAssertion(() => cut.FindAll(".zona-soltar-archivo").Should().ContainSingle());
+        await SubirAsync(cut);
+        cut.Find("button.tijera[aria-label='Quitar la división tras la página 3']").Click();
+        Pulsar(cut, "Guardar en TALVEG");
+        PonerEmision(cut);
+        cut.WaitForAssertion(() => cut.FindAll("input[placeholder=\"dd/mm/aaaa\"]").Should().HaveCountGreaterThanOrEqualTo(2));
+        await cut.FindAll("input[placeholder=\"dd/mm/aaaa\"]")[1].InputAsync(new ChangeEventArgs { Value = "15/0" });
+        await cut.FindAll("input[placeholder=\"dd/mm/aaaa\"]")[1].BlurAsync(new FocusEventArgs());
+
+        Pulsar(cut, "Siguiente documento");
+        cut.WaitForAssertion(() => cut.FindAll(".marca-omitir input").Should().NotBeEmpty());
+        cut.Find(".marca-omitir input").Change(true);
+        Pulsar(cut, "Revisar y crear");
+
+        cut.WaitForAssertion(() => cut.FindAll("[data-caducidad-no-valida]").Should().ContainSingle());
+        cut.FindAll("[data-caducidad-no-valida-tramo]").Should().ContainSingle("la fila del tramo dice que su caducidad no vale");
+        var crear = cut.FindAll("button").Single(b => b.TextContent.Contains("Crear 1 documento"));
+        crear.HasAttribute("disabled").Should().BeTrue();
+        _mediador.Creaciones.Should().BeEmpty("no se crea un Documento sin la caducidad que se intentó escribir");
+    }
+
+    /// <summary>
+    /// Ronda 2 de Codex, ALTO 1: al volver a un tramo cuya caducidad quedó a medias, el CampoFecha nuevo nacía vacío y
+    /// avisaba false, retirando la marca sin que la persona la corrigiera: Crear daba de alta el Documento sin caducidad.
+    /// Ahora el campo recreado conserva la marca, muestra por qué está bloqueado y Crear sigue bloqueado.
+    /// </summary>
+    [Fact]
+    public async Task Volver_a_un_tramo_con_la_caducidad_a_medias_no_retira_el_bloqueo_de_crear()
+    {
+        var cut = Renderizar();
+        cut.WaitForAssertion(() => cut.FindAll(".zona-soltar-archivo").Should().ContainSingle());
+        await SubirAsync(cut);
+        cut.Find("button.tijera[aria-label='Quitar la división tras la página 3']").Click();
+        Pulsar(cut, "Guardar en TALVEG");
+        PonerEmision(cut);
+        cut.WaitForAssertion(() => cut.FindAll("input[placeholder=\"dd/mm/aaaa\"]").Should().HaveCountGreaterThanOrEqualTo(2));
+        await cut.FindAll("input[placeholder=\"dd/mm/aaaa\"]")[1].InputAsync(new ChangeEventArgs { Value = "15/0" });
+        await cut.FindAll("input[placeholder=\"dd/mm/aaaa\"]")[1].BlurAsync(new FocusEventArgs());
+
+        Pulsar(cut, "Siguiente documento");
+        cut.WaitForAssertion(() => cut.FindAll(".marca-omitir input").Should().NotBeEmpty());
+        cut.Find(".marca-omitir input").Change(true);
+        Pulsar(cut, "Anterior");
+
+        cut.WaitForAssertion(() => cut.Find(".cabecera-tramo h1").TextContent.Should().Contain("1"));
+        cut.FindAll("input[placeholder=\"dd/mm/aaaa\"]")[1].GetAttribute("value").Should().BeEmpty("el texto a medias se perdió con el campo anterior");
+        cut.FindAll(".campos-tramo .campo-mensaje-error").Should().ContainSingle("la persona ve por qué el tramo está bloqueado");
+
+        Pulsar(cut, "Siguiente documento");
+        Pulsar(cut, "Revisar y crear");
+
+        cut.WaitForAssertion(() => cut.FindAll("[data-caducidad-no-valida]").Should().ContainSingle());
+        cut.FindAll("[data-caducidad-no-valida-tramo]").Should().ContainSingle();
+        var crear = cut.FindAll("button").Single(b => b.TextContent.Contains("Crear 1 documento"));
+        crear.HasAttribute("disabled").Should().BeTrue();
+        _mediador.Creaciones.Should().BeEmpty("no se crea un Documento sin la caducidad que se intentó escribir");
+    }
+
+    /// <summary>
+    /// Rediseño fail-closed (ronda 3 de Codex): la caducidad a medias parte de una caducidad VÁLIDA (Valor anterior no nulo), sin
+    /// salir del campo, y el tramo se cambia con el campo aún enfocado. El campo se destruye; al volver nace con la marca y
+    /// vacío, el tramo no conserva la caducidad anterior a la edición y Crear sigue bloqueado.
+    /// </summary>
+    [Fact]
+    public async Task Cambiar_de_tramo_con_la_caducidad_a_medias_sobre_una_caducidad_valida_no_conserva_la_anterior_y_bloquea_crear()
+    {
+        var cut = Renderizar();
+        cut.WaitForAssertion(() => cut.FindAll(".zona-soltar-archivo").Should().ContainSingle());
+        await SubirAsync(cut);
+        cut.Find("button.tijera[aria-label='Quitar la división tras la página 3']").Click();
+        Pulsar(cut, "Guardar en TALVEG");
+        PonerEmision(cut);
+        cut.WaitForAssertion(() => cut.FindAll("input[placeholder=\"dd/mm/aaaa\"]").Should().HaveCountGreaterThanOrEqualTo(2));
+        await cut.FindAll("input[placeholder=\"dd/mm/aaaa\"]")[1].InputAsync(new ChangeEventArgs { Value = "20/01/2027" });
+        await cut.FindAll("input[placeholder=\"dd/mm/aaaa\"]")[1].BlurAsync(new FocusEventArgs());
+        await cut.FindAll("input[placeholder=\"dd/mm/aaaa\"]")[1].InputAsync(new ChangeEventArgs { Value = "20/01/202" });
+
+        Pulsar(cut, "Siguiente documento");
+        cut.WaitForAssertion(() => cut.FindAll(".marca-omitir input").Should().NotBeEmpty());
+        cut.Find(".marca-omitir input").Change(true);
+        Pulsar(cut, "Anterior");
+
+        cut.WaitForAssertion(() => cut.Find(".cabecera-tramo h1").TextContent.Should().Contain("1"));
+        cut.FindAll("input[placeholder=\"dd/mm/aaaa\"]")[1].GetAttribute("value").Should().BeEmpty("ni el texto a medias ni la caducidad anterior a la edición");
+        cut.FindAll(".campos-tramo .campo-mensaje-error").Should().ContainSingle("la persona ve por qué el tramo está bloqueado");
+
+        Pulsar(cut, "Siguiente documento");
+        Pulsar(cut, "Revisar y crear");
+
+        cut.WaitForAssertion(() => cut.FindAll("[data-caducidad-no-valida]").Should().ContainSingle());
+        cut.FindAll("button").Single(b => b.TextContent.Contains("Crear 1 documento")).HasAttribute("disabled").Should().BeTrue();
+        _mediador.Creaciones.Should().BeEmpty("ni sin caducidad ni con la 20/01/2027 anterior a la edición");
+    }
+
+    /// <summary>
+    /// Rediseño fail-closed: la emisión a medias sobre una emisión válida, sin salir del campo, se pierde al cambiar de tramo;
+    /// al volver el campo nace vacío con la marca (el tramo no conserva la emisión anterior) y Crear sigue bloqueado.
+    /// </summary>
+    [Fact]
+    public async Task Cambiar_de_tramo_con_la_emision_a_medias_sobre_una_emision_valida_no_conserva_la_anterior_y_bloquea_crear()
+    {
+        var cut = Renderizar();
+        cut.WaitForAssertion(() => cut.FindAll(".zona-soltar-archivo").Should().ContainSingle());
+        await SubirAsync(cut);
+        cut.Find("button.tijera[aria-label='Quitar la división tras la página 3']").Click();
+        Pulsar(cut, "Guardar en TALVEG");
+        PonerEmision(cut);
+        await cut.FindAll("input[placeholder=\"dd/mm/aaaa\"]")[0].InputAsync(new ChangeEventArgs { Value = "15/01/202" });
+
+        Pulsar(cut, "Siguiente documento");
+        cut.WaitForAssertion(() => cut.FindAll(".marca-omitir input").Should().NotBeEmpty());
+        cut.Find(".marca-omitir input").Change(true);
+        Pulsar(cut, "Anterior");
+
+        cut.WaitForAssertion(() => cut.Find(".cabecera-tramo h1").TextContent.Should().Contain("1"));
+        cut.FindAll("input[placeholder=\"dd/mm/aaaa\"]")[0].GetAttribute("value").Should().BeEmpty("ni el texto a medias ni la emisión anterior a la edición");
+        cut.FindAll(".campos-tramo .campo-mensaje-error").Should().ContainSingle("la persona ve por qué el tramo está bloqueado");
+
+        Pulsar(cut, "Siguiente documento");
+        Pulsar(cut, "Revisar y crear");
+
+        cut.WaitForAssertion(() => cut.FindAll("[data-caducidad-no-valida]").Should().ContainSingle("el aviso de corregir la fecha antes de crear"));
+        cut.FindAll("button").Where(b => b.TextContent.Contains("crear", StringComparison.OrdinalIgnoreCase)).Should().NotBeEmpty("control: el botón principal existe")
+            .And.OnlyContain(b => b.HasAttribute("disabled"));
+        _mediador.Creaciones.Should().BeEmpty("el tramo no se crea con la emisión del 15/01/2026 anterior a la edición");
+    }
+
+    /// <summary>
+    /// Ronda 2 de revisión, MEDIO: con la caducidad a medias, cambiar el tipo a uno de vencimiento automático destruye el
+    /// campo sin avisar y la marca quedaba bloqueando Crear sin ningún control que la limpiara.
+    /// </summary>
+    [Fact]
+    public async Task Una_caducidad_a_medias_no_bloquea_crear_si_el_tipo_pasa_a_vencimiento_automatico()
+    {
+        var cut = Renderizar();
+        cut.WaitForAssertion(() => cut.FindAll(".zona-soltar-archivo").Should().ContainSingle());
+        await SubirAsync(cut);
+        cut.Find("button.tijera[aria-label='Quitar la división tras la página 3']").Click();
+        Pulsar(cut, "Guardar en TALVEG");
+        PonerEmision(cut);
+        cut.WaitForAssertion(() => cut.FindAll("input[placeholder=\"dd/mm/aaaa\"]").Should().HaveCountGreaterThanOrEqualTo(2));
+        await cut.FindAll("input[placeholder=\"dd/mm/aaaa\"]")[1].InputAsync(new ChangeEventArgs { Value = "15/0" });
+        await cut.FindAll("input[placeholder=\"dd/mm/aaaa\"]")[1].BlurAsync(new FocusEventArgs());
+
+        cut.FindAll(".campos-tramo select").Single(s => s.QuerySelector($"option[value='{AutomaticoId}']") is not null).Change(AutomaticoId.ToString());
+        cut.WaitForAssertion(() => cut.FindAll("input[placeholder=\"dd/mm/aaaa\"]").Should().ContainSingle("el campo de caducidad desaparece: solo queda el de emisión"));
+        Pulsar(cut, "Siguiente documento");
+        cut.WaitForAssertion(() => cut.FindAll(".marca-omitir input").Should().NotBeEmpty());
+        cut.Find(".marca-omitir input").Change(true);
+        Pulsar(cut, "Revisar y crear");
+
+        cut.WaitForAssertion(() => cut.FindAll("button").Should().Contain(b => b.TextContent.Contains("Crear 1 documento")));
+        cut.FindAll("[data-caducidad-no-valida]").Should().BeEmpty("la caducidad de este tipo es automática: no hay nada que corregir");
+        cut.FindAll("[data-caducidad-no-valida-tramo]").Should().BeEmpty();
+        cut.FindAll("button").Single(b => b.TextContent.Contains("Crear 1 documento")).HasAttribute("disabled").Should().BeFalse();
     }
 
     [Fact]

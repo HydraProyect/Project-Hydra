@@ -568,13 +568,76 @@ public partial class GestionesAutomaticasPantallaTests : BunitContext
         cut.Find("[data-campos-opcion='validado']").TextContent.Should().Contain("Válido en la plataforma hasta").And.Contain("No lo sé");
         cut.Find("[data-accion='primario']").HasAttribute("disabled").Should().BeTrue("sin fecha ni «No lo sé» no se guarda");
 
-        cut.Find("[data-campos-opcion='validado'] input[type='date']").Input("2027-10-14");
+        cut.Find("[data-campos-opcion='validado'] input[data-campo-fecha]").Input("2027-10-14");
         cut.Find("[data-accion='primario']").HasAttribute("disabled").Should().BeFalse();
         cut.Find("[data-accion='guardar']").Click();
 
         cut.WaitForAssertion(() => m.Enviados.OfType<MarcarAcreditacionAceptadaCommand>().Should().ContainSingle()
             .Which.Vigencia.Should().Be(VigenciaEnPlataforma.VenceEl(new DateOnly(2027, 10, 14))));
         Toasts.Mensajes.Should().ContainSingle().Which.TextoAccion.Should().Be("Deshacer");
+    }
+
+    // Una fecha que deja de serlo (a medias o «1/2/26») vuelve a «sin fecha»: no se guarda la anterior, y «No lo sé», que
+    // apaga el campo, se lleva también lo escrito y su aviso.
+    // Antes de salir del campo, _hasta seguía siendo la fecha anterior y Guardar quedaba
+    // habilitado con ella. La bandera del campo bloquea ya mientras se escribe, sin esperar al blur.
+    [Fact]
+    public void Validado_con_la_fecha_a_medias_bloquea_guardar_antes_de_salir_del_campo()
+    {
+        var m = Montar();
+        var cut = Detallar(m, Detalle(SeisPasosNuevos()));
+        cut.Find("[data-opcion='validado']").Click();
+        var campo = () => cut.Find("[data-campos-opcion='validado'] input[data-campo-fecha]");
+        campo().Input("2027-10-14");
+        cut.Find("[data-accion='guardar']").HasAttribute("disabled").Should().BeFalse("control positivo: con fecha se puede guardar");
+
+        campo().Input("14/10/202");
+
+        cut.Find("[data-accion='primario']").HasAttribute("disabled").Should().BeTrue("sin blur: la fecha anterior no vale");
+        cut.Find("[data-accion='guardar']").HasAttribute("disabled").Should().BeTrue();
+        m.Enviados.OfType<MarcarAcreditacionAceptadaCommand>().Should().BeEmpty();
+    }
+
+    // Cambiar de opción destruía el campo con la marca de no válido puesta, y
+    // el campo nuevo (vacío y válido) no la retiraba: Guardar quedaba bloqueado con una fecha entera a la vista. El campo
+    // recién creado dice su estado.
+    [Fact]
+    public void Cambiar_de_opcion_con_la_fecha_a_medias_no_deja_Guardar_bloqueado_al_volver()
+    {
+        var m = Montar();
+        var cut = Detallar(m, Detalle(SeisPasosNuevos()));
+        cut.Find("[data-opcion='validado']").Click();
+        cut.Find("[data-campos-opcion='validado'] input[data-campo-fecha]").Input("14/10/202");
+        cut.Find("[data-accion='guardar']").HasAttribute("disabled").Should().BeTrue("control positivo: a medias no se guarda");
+
+        cut.Find("[data-opcion='subido']").Click();
+        cut.Find("[data-opcion='validado']").Click();
+        cut.Find("[data-campos-opcion='validado'] input[data-campo-fecha]").Input("2027-10-14");
+
+        cut.Find("[data-accion='guardar']").HasAttribute("disabled").Should().BeFalse();
+    }
+
+    [Fact]
+    public void Validado_con_la_fecha_a_medias_no_se_guarda_y_No_lo_se_limpia_el_campo()
+    {
+        var m = Montar();
+        var cut = Detallar(m, Detalle(SeisPasosNuevos()));
+        cut.Find("[data-opcion='validado']").Click();
+        var campo = () => cut.Find("[data-campos-opcion='validado'] input[data-campo-fecha]");
+        campo().Input("2027-10-14");
+        cut.Find("[data-accion='primario']").HasAttribute("disabled").Should().BeFalse("control positivo: con fecha se puede guardar");
+
+        campo().Input("1/2/26");
+        campo().Blur();
+
+        cut.Find("[data-accion='primario']").HasAttribute("disabled").Should().BeTrue("«1/2/26» no es la fecha 01/02/2026");
+        cut.Find("[data-campos-opcion='validado'] .campo-mensaje-error").TextContent.Should().Contain("dd/mm/aaaa");
+
+        cut.Find("[data-campos-opcion='validado'] input[type='checkbox']").Change(true);
+
+        cut.FindAll("[data-campos-opcion='validado'] .campo-mensaje-error").Should().BeEmpty("el campo apagado vuelve a su valor");
+        campo().GetAttribute("value").Should().BeNullOrEmpty();
+        m.Enviados.OfType<MarcarAcreditacionAceptadaCommand>().Should().BeEmpty();
     }
 
     [Fact]
@@ -585,7 +648,7 @@ public partial class GestionesAutomaticasPantallaTests : BunitContext
 
         cut.Find("[data-opcion='validado']").Click();
         cut.Find("[data-campos-opcion='validado'] input[type='checkbox']").Change(true);
-        cut.Find("[data-campos-opcion='validado'] input[type='date']").HasAttribute("disabled").Should().BeTrue();
+        cut.Find("[data-campos-opcion='validado'] input[data-campo-fecha]").HasAttribute("disabled").Should().BeTrue();
         cut.Find("[data-accion='guardar']").Click();
 
         cut.WaitForAssertion(() => m.Enviados.OfType<MarcarAcreditacionAceptadaCommand>().Should().ContainSingle()

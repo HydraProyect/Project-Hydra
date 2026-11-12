@@ -802,4 +802,28 @@
   <data name="SubirCabeceraTitulo" xml:space="preserve">
     <value>Pujar documents</value>
   </data>
+  <data name="CampoFechaFormato" xml:space="preserve">
+    <value>dd/mm/aaaa</value>
+  </data>
+  <data name="CampoFechaInvalida" xml:space="preserve">
+    <value>Escriu una data que existeixi, amb el format dd/mm/aaaa.</value>
+  </data>
+  <data name="CampoFechaAbrirCalendario" xml:space="preserve">
+    <value>Obrir el calendari</value>
+  </data>
+  <data name="CampoFechaCalendario" xml:space="preserve">
+    <value>Triar data</value>
+  </data>
+  <data name="CampoFechaMesAnterior" xml:space="preserve">
+    <value>Mes anterior</value>
+  </data>
+  <data name="CampoFechaMesSiguiente" xml:space="preserve">
+    <value>Mes següent</value>
+  </data>
+  <data name="CampoFechaCorregirAntes" xml:space="preserve">
+    <value>Hi ha una data que no és vàlida. Corregeix-la amb el format dd/mm/aaaa o deixa-la buida.</value>
+  </data>
+  <data name="CampoFechaInstrucciones" xml:space="preserve">
+    <value>Fletxes: canviar de dia. Re Pàg i Av Pàg: canviar de mes. Inici i Fi: principi o final de la setmana. Retorn: triar. Esc: tancar.</value>
+  </data>
 </root>

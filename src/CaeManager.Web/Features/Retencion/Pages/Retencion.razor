@@ -200,7 +200,8 @@
         </p>
 
         <CampoTexto Etiqueta="Fecha de ejecución" Type="date" Valor="@_fechaEjecucion"
-                    ValorChanged="v => { _fechaEjecucion = v; _errorFormulario = null; }" />
+                    ValorChanged="v => { _fechaEjecucion = v; _errorFormulario = null; }"
+                    FechaNoValida="_fechaEjecucionNoValida" FechaNoValidaChanged="AlCambiarFechaEjecucionNoValida" />
     }
 </ModalFormulario>
 

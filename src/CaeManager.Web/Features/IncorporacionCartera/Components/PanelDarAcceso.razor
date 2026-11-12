@@ -114,7 +114,7 @@
     }
 
     <DrawerFormulario Visible="_operacionDelDrawer is not null" VisibleChanged="CerrarDrawer"
-                      Titulo="@TituloDrawer" HayCambios="() => _destinatarioId.Length > 0 || _ultimoDia.Length > 0"
+                      Titulo="@TituloDrawer" HayCambios="() => _destinatarioId.Length > 0 || _ultimoDia.Length > 0 || _ultimoDiaNoValido"
                       Guardando="_enCurso" MensajeError="@_mensajeErrorFormulario"
                       Cargando="_destinatarios is null"
                       MotivoGuardarDeshabilitado="@MotivoProponerDeshabilitado"
@@ -130,7 +130,7 @@
             }
         </CampoSelect>
         <CampoTexto Etiqueta="@Textos["EtiquetaUltimoDia"]" Type="date" Valor="@_ultimoDia" ValorChanged="AlElegirUltimoDia"
-                    min="@HoyIso" />
+                    FechaNoValida="_ultimoDiaNoValido" FechaNoValidaChanged="AlCambiarUltimoDiaNoValido" min="@HoyIso" />
         <p class="dar-acceso-nota">@Textos["AyudaUltimoDia"]</p>
     </DrawerFormulario>
 

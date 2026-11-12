@@ -461,6 +461,78 @@ public class ClavesApiGen2Tests : BunitContext
             .Which.CaducaEnUtc.Should().BeNull("la página no inventa una caducidad por omisión");
     }
 
+    // El 31/12/9999 es una fecha válida para el campo, pero la clave caduca al empezar el
+    // día siguiente, que no existe; antes AddDays lanzaba. No se emite (sería una clave sin fin) y se dice en el formulario.
+    [Fact]
+    public async Task Con_la_caducidad_en_el_ultimo_dia_representable_no_se_emite_ni_lanza()
+    {
+        var (cut, mediator) = Renderizar();
+        await Seleccionar(cut, mediator.DelegacionId);
+        await cut.FindAll("button").Single(b => b.TextContent.Trim() == "Generar clave").ClickAsync(new MouseEventArgs());
+        await Campo(cut, "Nombre").InputAsync(new ChangeEventArgs { Value = "Integración ERP" });
+        await Campo(cut, "Motivo de la emisión").InputAsync(new ChangeEventArgs { Value = "Alta del conector del ERP" });
+
+        await Campo(cut, "Válida hasta").InputAsync(new ChangeEventArgs { Value = "31/12/9999" });
+        await Campo(cut, "Válida hasta").BlurAsync(new FocusEventArgs());
+        await cut.FindAll("button").Single(b => b.TextContent.Trim() == "Generar").ClickAsync(new MouseEventArgs());
+
+        mediator.Enviadas.OfType<GenerarClaveApiCommand>().Should().BeEmpty();
+        // El texto de ayuda del modal ya dice «como máximo dentro de 364 días»: se mira el aviso del formulario, no el Markup.
+        var aviso = cut.FindComponents<ModalFormulario>().Single(m => m.Instance.Visible).Instance.MensajeError;
+        aviso.Should().StartWith("Elige hasta qué día vale la clave").And.Contain("364 días");
+        aviso.Should().NotContain("no es una fecha válida", "la fecha está bien escrita: no es un aviso de formato");
+    }
+
+    // Borrar el texto a medias no cambia el valor (sigue «»): solo el cambio de estado del campo puede retirar el aviso.
+    [Fact]
+    public async Task Al_borrar_la_caducidad_a_medias_se_retira_el_aviso_de_que_no_es_una_fecha()
+    {
+        var (cut, mediator) = Renderizar();
+        await Seleccionar(cut, mediator.DelegacionId);
+        await cut.FindAll("button").Single(b => b.TextContent.Trim() == "Generar clave").ClickAsync(new MouseEventArgs());
+        await Campo(cut, "Nombre").InputAsync(new ChangeEventArgs { Value = "Integración ERP" });
+        await Campo(cut, "Motivo de la emisión").InputAsync(new ChangeEventArgs { Value = "Alta del conector del ERP" });
+        await Campo(cut, "Válida hasta").InputAsync(new ChangeEventArgs { Value = "15/03" });
+        await Campo(cut, "Válida hasta").BlurAsync(new FocusEventArgs());
+        await cut.FindAll("button").Single(b => b.TextContent.Trim() == "Generar").ClickAsync(new MouseEventArgs());
+        cut.FindComponents<ModalFormulario>().Single(m => m.Instance.Visible).Instance.MensajeError
+            .Should().StartWith("La caducidad no es una fecha válida", "control positivo: el aviso estaba");
+
+        await Campo(cut, "Válida hasta").InputAsync(new ChangeEventArgs { Value = "" });
+
+        cut.FindComponents<ModalFormulario>().Single(m => m.Instance.Visible).Instance.MensajeError.Should().BeNull();
+    }
+
+    // CampoFecha entrega «» mientras lo escrito no es una fecha entera: sin el bloqueo, «15/03» saldría como una clave
+    // sin la caducidad que la persona cree haber puesto. Al corregirla, se emite con la fecha.
+    [Theory]
+    [InlineData("15/03")]
+    [InlineData("1/2/26")]
+    [InlineData("31/02/2026")]
+    public async Task Con_la_caducidad_a_medias_o_imposible_no_se_emite_la_clave(string tecleado)
+    {
+        var (cut, mediator) = Renderizar();
+        await Seleccionar(cut, mediator.DelegacionId);
+        await cut.FindAll("button").Single(b => b.TextContent.Trim() == "Generar clave").ClickAsync(new MouseEventArgs());
+        await Campo(cut, "Nombre").InputAsync(new ChangeEventArgs { Value = "Integración ERP" });
+        await Campo(cut, "Motivo de la emisión").InputAsync(new ChangeEventArgs { Value = "Alta del conector del ERP" });
+
+        await Campo(cut, "Válida hasta").InputAsync(new ChangeEventArgs { Value = tecleado });
+        await Campo(cut, "Válida hasta").BlurAsync(new FocusEventArgs());
+        await cut.FindAll("button").Single(b => b.TextContent.Trim() == "Generar").ClickAsync(new MouseEventArgs());
+
+        mediator.Enviadas.OfType<GenerarClaveApiCommand>().Should().BeEmpty("el campo muestra que la caducidad no es una fecha");
+        cut.Find(".campo-mensaje-error").TextContent.Should().Contain("dd/mm/aaaa");
+        cut.Markup.Should().Contain("La caducidad no es una fecha válida");
+
+        var dia = DiaDeNegocio.Hoy().AddDays(30);
+        await Campo(cut, "Válida hasta").InputAsync(new ChangeEventArgs { Value = dia.ToString("dd/MM/yyyy", CultureInfo.InvariantCulture) });
+        await cut.FindAll("button").Single(b => b.TextContent.Trim() == "Generar").ClickAsync(new MouseEventArgs());
+
+        mediator.Enviadas.OfType<GenerarClaveApiCommand>().Should().ContainSingle()
+            .Which.CaducaEnUtc.Should().Be(DiaDeNegocio.InicioEnUtc(dia.AddDays(1)), "corregida, la caducidad es la escrita");
+    }
+
     [Fact]
     public async Task La_lista_muestra_la_caducidad_y_marca_como_caducada_la_clave_vencida()
     {

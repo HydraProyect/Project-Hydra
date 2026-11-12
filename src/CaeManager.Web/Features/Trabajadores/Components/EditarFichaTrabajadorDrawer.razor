@@ -13,7 +13,7 @@
 @inject IStringLocalizer<TextosTrabajadores> Textos
 
 <DrawerFormulario Visible="Visible" VisibleChanged="VisibleChanged" Titulo="@Textos["FichaEditarTitulo"]"
-    Cargando="_cargando" HayCambios="() => Visible && _lista && _instantanea.Difiere(Instantanea())"
+    Cargando="_cargando" HayCambios="() => Visible && _lista && (_fechasNoValidas.Count > 0 || _instantanea.Difiere(Instantanea()))"
     Guardando="_guardando" MensajeError="@_error" HayErroresDeCampo="@HayErroresDelPasoVisible"
     MotivoGuardarDeshabilitado="@(!_lista ? Textos["FichaNoDisponible"].Value : null)" OnGuardar="GuardarAsync"
     TextoGuardar="@Textos["BotonGuardar"]" TextoCancelar="@Textos["BotonCancelar"]"
@@ -31,7 +31,7 @@
         }
         <CampoTexto Etiqueta="@Textos["EtiquetaNombre"]" Valor="@_nombre" ValorChanged="v => _nombre = v" MensajeError="@Error(nameof(EditarFichaTrabajadorCommand.Nombre))" />
         <CampoTexto Etiqueta="@Textos["EtiquetaApellidos"]" Valor="@_apellidos" ValorChanged="v => _apellidos = v" MensajeError="@Error(nameof(EditarFichaTrabajadorCommand.Apellidos))" />
-        <CampoTexto Etiqueta="@Textos["EtiquetaFechaNacimiento"]" Type="date" Valor="@_nacimiento" ValorChanged="v => _nacimiento = v" MensajeError="@Error(nameof(EditarFichaTrabajadorCommand.FechaNacimiento))" />
+        <CampoTexto Etiqueta="@Textos["EtiquetaFechaNacimiento"]" Type="date" Valor="@_nacimiento" ValorChanged="v => _nacimiento = v" FechaNoValida="@_fechasNoValidas.Contains(nameof(EditarFichaTrabajadorCommand.FechaNacimiento))" FechaNoValidaChanged="v => MarcarFechaNoValida(nameof(EditarFichaTrabajadorCommand.FechaNacimiento), v)" MensajeError="@Error(nameof(EditarFichaTrabajadorCommand.FechaNacimiento))" />
         <CampoTexto Etiqueta="@Textos["FichaNacionalidad"]" Valor="@_nacionalidad" ValorChanged="v => _nacionalidad = v" MensajeError="@Error(nameof(EditarFichaTrabajadorCommand.Nacionalidad))" />
     }
     else if (_paso == PasoTrabajo)
@@ -55,8 +55,8 @@
             <option value="Voluntario">@Textos["TipoContratacionVoluntario"]</option>
         </CampoSelect>
         <CampoTexto Etiqueta="@Textos["FichaTipoVinculo"]" Valor="@_vinculo" ValorChanged="v => _vinculo = v" MensajeError="@Error(nameof(EditarFichaTrabajadorCommand.TipoVinculo))" />
-        <CampoTexto Etiqueta="@Textos["FichaAltaEmpresa"]" Type="date" Valor="@_alta" ValorChanged="v => _alta = v" MensajeError="@Error(nameof(EditarFichaTrabajadorCommand.FechaAltaEmpresa))" />
-        <CampoTexto Etiqueta="@Textos["FichaBaja"]" Type="date" Valor="@_baja" ValorChanged="v => _baja = v" MensajeError="@Error(nameof(EditarFichaTrabajadorCommand.FechaBajaEmpresa))" />
+        <CampoTexto Etiqueta="@Textos["FichaAltaEmpresa"]" Type="date" Valor="@_alta" ValorChanged="v => _alta = v" FechaNoValida="@_fechasNoValidas.Contains(nameof(EditarFichaTrabajadorCommand.FechaAltaEmpresa))" FechaNoValidaChanged="v => MarcarFechaNoValida(nameof(EditarFichaTrabajadorCommand.FechaAltaEmpresa), v)" MensajeError="@Error(nameof(EditarFichaTrabajadorCommand.FechaAltaEmpresa))" />
+        <CampoTexto Etiqueta="@Textos["FichaBaja"]" Type="date" Valor="@_baja" ValorChanged="v => _baja = v" FechaNoValida="@_fechasNoValidas.Contains(nameof(EditarFichaTrabajadorCommand.FechaBajaEmpresa))" FechaNoValidaChanged="v => MarcarFechaNoValida(nameof(EditarFichaTrabajadorCommand.FechaBajaEmpresa), v)" MensajeError="@Error(nameof(EditarFichaTrabajadorCommand.FechaBajaEmpresa))" />
     }
     else if (_paso == PasoContacto)
     {
@@ -70,7 +70,7 @@
         <CampoTexto Etiqueta="@Textos["FichaAfiliacion"]" Valor="@_afiliacion" ValorChanged="v => _afiliacion = v" MensajeError="@Error(nameof(EditarFichaTrabajadorCommand.NumeroAfiliacionSeguridadSocial))" />
         <CampoTexto Etiqueta="@Textos["FichaFiguraRnt"]" Valor="@_rnt" ValorChanged="v => _rnt = v" MensajeError="@Error(nameof(EditarFichaTrabajadorCommand.FiguraEnRnt))" />
         <CampoTexto Etiqueta="@Textos["FichaTipoPermiso"]" Valor="@_permiso" ValorChanged="v => _permiso = v" MensajeError="@Error(nameof(EditarFichaTrabajadorCommand.TipoPermisoTrabajo))" />
-        <CampoTexto Etiqueta="@Textos["FichaCaduca"]" Type="date" Valor="@_caducidad" ValorChanged="v => _caducidad = v" MensajeError="@Error(nameof(EditarFichaTrabajadorCommand.CaducidadPermisoTrabajo))" />
+        <CampoTexto Etiqueta="@Textos["FichaCaduca"]" Type="date" Valor="@_caducidad" ValorChanged="v => _caducidad = v" FechaNoValida="@_fechasNoValidas.Contains(nameof(EditarFichaTrabajadorCommand.CaducidadPermisoTrabajo))" FechaNoValidaChanged="v => MarcarFechaNoValida(nameof(EditarFichaTrabajadorCommand.CaducidadPermisoTrabajo), v)" MensajeError="@Error(nameof(EditarFichaTrabajadorCommand.CaducidadPermisoTrabajo))" />
         <CampoTexto Etiqueta="@Textos["FichaMotivo"]" Valor="@_motivo" ValorChanged="v => _motivo = v" MensajeError="@Error(nameof(EditarFichaTrabajadorCommand.MotivoPermisoTrabajo))" />
         @* «Trabajador extranjero (cobrable)» (decisión de Chris, 2026-10-20): con la misma política que el contacto de
            emergencia. La casilla enseña el valor efectivo; si no se toca, la orden no la cambia, y si se deja igual que lo
@@ -209,17 +209,64 @@
         }
 
         _pasosVistos.Add(_paso);
-        _paso = pasos[indice + 1].Clave;
+        CambiarDePaso(pasos[indice + 1].Clave);
         return Task.CompletedTask;
     }
 
     private void Atras()
     {
         var indice = IndicePaso;
-        if (indice > 0) _paso = PasosEdicion[indice - 1].Clave;
+        if (indice > 0) CambiarDePaso(PasosEdicion[indice - 1].Clave);
     }
 
-    private void IrAPaso(string clave) => _paso = clave;
+    private void IrAPaso(string clave) => CambiarDePaso(clave);
+
+    /// <summary>
+    /// Al dejar un paso sus campos se destruyen y con ellos el texto que no era una fecha: al volver, el campo nace con el
+    /// valor del formulario y no tiene nada que señalar. La marca y su aviso se quitan, y la fecha vuelve a la última válida
+    /// que tenía el campo antes del texto (el campo había entregado «»): abandonar una fecha a medias no puede borrar la
+    /// guardada, ni otra ya corregida, sin que nadie lo vea.
+    /// </summary>
+    private void CambiarDePaso(string clave)
+    {
+        if (clave == _paso) return;
+        foreach (var campo in _fechasNoValidas.Where(c => PasoDelCampo(c) == _paso).ToList())
+        {
+            RestaurarFechaAnterior(campo);
+            _fechasNoValidas.Remove(campo);
+            _errores.Remove(campo);
+        }
+
+        _paso = clave;
+    }
+
+    private void RestaurarFechaAnterior(string campo)
+    {
+        var anterior = _fechaAntesDelTexto.GetValueOrDefault(campo, "");
+        switch (campo)
+        {
+            case nameof(EditarFichaTrabajadorCommand.FechaNacimiento): _nacimiento = anterior; break;
+            case nameof(EditarFichaTrabajadorCommand.FechaAltaEmpresa): _alta = anterior; break;
+            case nameof(EditarFichaTrabajadorCommand.FechaBajaEmpresa): _baja = anterior; break;
+            case nameof(EditarFichaTrabajadorCommand.CaducidadPermisoTrabajo): _caducidad = anterior; break;
+        }
+    }
+
+    private string ValorDeFecha(string campo) => campo switch
+    {
+        nameof(EditarFichaTrabajadorCommand.FechaNacimiento) => _nacimiento,
+        nameof(EditarFichaTrabajadorCommand.FechaAltaEmpresa) => _alta,
+        nameof(EditarFichaTrabajadorCommand.FechaBajaEmpresa) => _baja,
+        nameof(EditarFichaTrabajadorCommand.CaducidadPermisoTrabajo) => _caducidad,
+        _ => "",
+    };
+
+    /// <summary>
+    /// La fecha (ISO o «») que tenía cada campo cuando su texto dejó de ser una fecha. Se toma al marcarlo: mientras se
+    /// escribe, CampoFecha avisa la marca de no válido antes de entregar el null de esa pulsación (ver CampoFecha.AlTeclearAsync),
+    /// así que en ese instante el formulario conserva todavía la última válida.
+    /// </summary>
+    private readonly Dictionary<string, string> _fechaAntesDelTexto = [];
 
     private void AnotarErrores(IEnumerable<FluentValidation.Results.ValidationFailure> fallos) =>
         _errores = fallos.GroupBy(f => f.PropertyName).ToDictionary(g => g.Key, g => g.First().ErrorMessage);
@@ -227,9 +274,12 @@
     /// <summary>Tras un guardado con errores de campo, el formulario se queda en el primer paso que tenga uno.</summary>
     private void IrAlPrimerPasoConError()
     {
+        // Una fecha no válida solo puede estar en el paso visible (CambiarDePaso la quita al salir): si la hay, el formulario se
+        // queda ahí, porque ir a otro paso descartaría el texto que la persona está corrigiendo.
+        if (_fechasNoValidas.Any(c => PasoDelCampo(c) == _paso)) return;
         var conError = _errores.Keys.Select(PasoDelCampo).Where(p => p is not null).ToHashSet();
         var primero = PasosEdicion.FirstOrDefault(p => conError.Contains(p.Clave));
-        if (primero is not null) _paso = primero.Clave;
+        if (primero is not null) CambiarDePaso(primero.Clave);
         else if (_errores.Count > 0 && _error is null) _error = _errores.Values.First();
     }
 
@@ -242,8 +292,35 @@
         return fallos;
     }
 
+    /// <summary>
+    /// Campos de fecha cuyo texto no es una fecha entera: CampoTexto Type="date" los entrega como «» (lo que daba el campo
+    /// nativo), y sin esto guardar la ficha borraría la fecha que la persona cree estar corrigiendo.
+    /// </summary>
+    private readonly HashSet<string> _fechasNoValidas = [];
+
+    private void MarcarFechaNoValida(string campo, bool noValida)
+    {
+        if (noValida)
+        {
+            if (_fechasNoValidas.Add(campo)) _fechaAntesDelTexto[campo] = ValorDeFecha(campo);
+        }
+        else
+        {
+            _fechasNoValidas.Remove(campo);
+            // Al volver a ser una fecha entera (o quedar vacío), el aviso «no es una fecha» de un «Guardar» o «Siguiente»
+            // anterior ya no es cierto.
+            if (_errores.GetValueOrDefault(campo) == Textos["FichaFechaInvalida"].Value) _errores.Remove(campo);
+        }
+    }
+
     private DateOnly? Fecha(string valor, string campo, List<FluentValidation.Results.ValidationFailure> fallos)
     {
+        if (_fechasNoValidas.Contains(campo))
+        {
+            fallos.Add(new FluentValidation.Results.ValidationFailure(campo, Textos["FichaFechaInvalida"]));
+            return null;
+        }
+
         if (string.IsNullOrWhiteSpace(valor)) return null;
         if (DateOnly.TryParseExact(valor, "yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture,
             System.Globalization.DateTimeStyles.None, out var fecha)) return fecha;
@@ -294,6 +371,7 @@
         _guardando = _lista = false;
         _error = null;
         _errores.Clear();
+        _fechasNoValidas.Clear();
         _paso = PasoBasico;
         _pasosVistos.Clear();
         try
@@ -353,7 +431,7 @@
             {
                 // La versión original se conserva: el borrador nunca se reenvía con una versión no revisada.
                 _error = resultado.Error.Mensaje;
-                if (PasoDelCodigoDeError(resultado.Error.Codigo) is { } pasoDelError) _paso = pasoDelError;
+                if (PasoDelCodigoDeError(resultado.Error.Codigo) is { } pasoDelError) CambiarDePaso(pasoDelError);
                 return;
             }
             _instantanea.Fijar(Instantanea());

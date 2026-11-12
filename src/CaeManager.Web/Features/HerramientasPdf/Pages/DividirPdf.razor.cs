@@ -864,12 +864,6 @@ public partial class DividirPdf : CaeManager.Web.Components.PaginaInteractiva, I
 
     private static Guid? Identificador(string valor) => Guid.TryParse(valor, out var id) ? id : null;
 
-    private static string TextoFecha(DateOnly? fecha) =>
-        fecha?.ToString("dd/MM/yyyy", CultureInfo.InvariantCulture) ?? string.Empty;
-
-    private static DateOnly? Fecha(string valor) =>
-        DateOnly.TryParseExact(valor?.Trim(), "dd/MM/yyyy", CultureInfo.InvariantCulture, DateTimeStyles.None, out var fecha) ? fecha : null;
-
     public void Dispose()
     {
         _desechado = true;

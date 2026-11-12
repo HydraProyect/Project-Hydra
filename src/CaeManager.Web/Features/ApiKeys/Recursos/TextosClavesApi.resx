@@ -7,6 +7,7 @@
   <data name="Caducidad" xml:space="preserve"><value>Válida hasta</value></data>
   <data name="Motivo" xml:space="preserve"><value>Motivo de la emisión</value></data>
   <data name="Caducada" xml:space="preserve"><value>Caducada</value></data>
+  <data name="CaducidadNoValida" xml:space="preserve"><value>La caducidad no es una fecha válida: escríbela como dd/mm/aaaa o elígela en el calendario.</value></data>
   <data name="LimiteCaducidad" xml:space="preserve"><value>Elige hasta qué día vale la clave, desde hoy y como máximo dentro de 364 días. Deja de valer antes si se cierra el acceso de soporte en que la generas, si se suspende la organización o si la revocas.</value></data>
   <data name="OrganizacionTitulo" xml:space="preserve"><value>Claves de API de la organización</value></data>
   <data name="OrganizacionDescripcion" xml:space="preserve"><value>Claves de la API pública emitidas para esta organización. Puedes revocar cualquiera. Una clave deja de valer si se cierra la ventana de soporte en que se emitió, si se desactiva la cuenta que la emitió o si se suspende la organización.</value></data>

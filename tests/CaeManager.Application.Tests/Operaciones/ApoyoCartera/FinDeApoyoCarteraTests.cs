@@ -572,8 +572,17 @@ public class FinDeApoyoCarteraTests
         var e = new Escenario();
 
         (await e.Proponer(GestorA, GestorB, DiaDeNegocio.Hoy().AddDays(-1))).Error.Should().Be(ErroresPropuestaApoyo.FechaDeFinNoValida);
+        // El último día representable no tiene día siguiente: antes HastaElFinalDe lanzaba.
+        (await e.Proponer(GestorA, GestorB, DateOnly.MaxValue)).Error.Should().Be(ErroresPropuestaApoyo.FechaDeFinNoValida);
 
         e.Repositorio.Propuestas.Should().BeEmpty();
+    }
+
+    // El mismo error sirve a la fecha pasada y al 31/12/9999: su texto tiene que ser cierto para las dos, también fuera de la UI.
+    [Fact]
+    public void El_mensaje_de_fecha_de_fin_no_valida_nombra_las_dos_causas()
+    {
+        ErroresPropuestaApoyo.FechaDeFinNoValida.Mensaje.Should().Contain("hoy en adelante").And.Contain("31/12/9999");
     }
 
     [Fact]
