@@ -7,7 +7,8 @@
 @using CaeManager.Domain.Integraciones
 @using CaeManager.Web.Features.Integraciones.Recursos
 @using Microsoft.Extensions.Localization
-@inject IStringLocalizer<TextosConexiones> TextosCx
+@inject IStringLocalizer<TextosConexiones> Textos
+
 
 <LimiteDeErrores Pagina="this">
 @if (!IntegradaEnConfiguracion)
@@ -19,8 +20,9 @@
 <div class="@ClaseContenedorPagina">
     <CabeceraPagina Titulo="Conexiones de integración" Integrada="@IntegradaEnConfiguracion">
         <Descripcion>
-            @TextosCx["Subtitulo"]
-            @TextosCx["EnlaceDiagnostico"] <a href="/comunicaciones/buzon">@TextosCx["EnlaceDiagnosticoVinculo"]</a>.
+            @Textos["Subtitulo"]
+            @Textos["AyudaBuzonCompartido"]
+            @Textos["EnlaceDiagnostico"] <a href="/comunicaciones/buzon">@Textos["EnlaceDiagnosticoVinculo"]</a>.
         </Descripcion>
     </CabeceraPagina>
 
@@ -32,7 +34,8 @@
 
     <div class="acciones-conexion-buzon">
         <CampoSelect Etiqueta="Empresa sin rol CAE (opcional)" Valor="@(_clienteSeleccionadoId?.ToString() ?? string.Empty)"
-                     ValorChanged="SeleccionarCliente" Deshabilitado="@(_gestorPropietarioSeleccionadoId is not null)">
+                     ValorChanged="SeleccionarCliente"
+                     Deshabilitado="@(_gestorPropietarioSeleccionadoId is not null || !string.IsNullOrWhiteSpace(_buzonCompartido))">
             <option value="">Buzón de la organización propia</option>
             @foreach (var cliente in _clientes)
             {
@@ -42,7 +45,8 @@
 
         <CampoSelect Etiqueta="Buzón personal de un Gestor CAE (opcional)"
                      Valor="@(_gestorPropietarioSeleccionadoId?.ToString() ?? string.Empty)"
-                     ValorChanged="SeleccionarGestorPropietario" Deshabilitado="@(_clienteSeleccionadoId is not null)">
+                     ValorChanged="SeleccionarGestorPropietario"
+                     Deshabilitado="@(_clienteSeleccionadoId is not null || !string.IsNullOrWhiteSpace(_buzonCompartido))">
             <option value="">—</option>
             @foreach (var gestor in _gestores)
             {
@@ -50,12 +54,20 @@
             }
         </CampoSelect>
 
+        <CampoTexto Etiqueta="@Textos["EtiquetaBuzonCompartido"]" Valor="@_buzonCompartido" ValorChanged="FijarBuzonCompartido"
+                    Placeholder="@Textos["PlaceholderBuzonCompartido"]" Type="email"
+                    Deshabilitado="@(_gestorPropietarioSeleccionadoId is not null || _clienteSeleccionadoId is not null)" />
+
         <a class="enlace-conectar-microsoft" href="@UrlConectar">Conectar buzón de Microsoft 365 <span aria-hidden="true">↗</span></a>
     </div>
 
     @if (_cargando)
     {
         <EstadoCargando Filas="3" />
+    }
+    else if (_cargaFallida)
+    {
+        <p class="texto-error" role="alert" data-testid="aviso-listado-no-actualizado">@Textos["AvisoRecargaFallida"]</p>
     }
     else if (_conexiones.Count == 0)
     {
@@ -79,13 +91,39 @@
                 @foreach (var conexion in _conexiones)
                 {
                     <tr class="@ClaseFilaBuzon(conexion.Id)">
-                        <td>@conexion.BuzonEmail</td>
+                        <td>
+                            @conexion.BuzonEmail
+                            @if (conexion.EsBuzonCompartido)
+                            {
+                                <Badge Tono="TonoBadge.Neutro">@Textos["InsigniaCompartido"]</Badge>
+                            }
+                        </td>
                         <td>@DescribirPropietario(conexion)</td>
                         <td>
                             <Badge Tono="@ObtenerTonoEstado(conexion.Estado)">@ObtenerEtiquetaEstado(conexion.Estado)</Badge>
                             @if (conexion.Estado == EstadoConexionIntegracion.ConError && !string.IsNullOrWhiteSpace(conexion.UltimoError))
                             {
                                 <span class="texto-error">@conexion.UltimoError</span>
+                            }
+                            @if (conexion.IdentidadSinVerificar)
+                            {
+                                <span class="texto-aviso-verificacion" data-testid="aviso-identidad-sin-verificar">@Textos["AvisoIdentidadSinVerificar"]</span>
+                            }
+                            @if (conexion.CorreoRetenido)
+                            {
+                                <span class="texto-aviso-verificacion" data-testid="aviso-correo-retenido">@Textos[conexion.Estado == EstadoConexionIntegracion.Deshabilitada ? "AvisoCorreoRetenidoDesconectada" : "AvisoCorreoRetenido"]</span>
+                            }
+                            @if (conexion.CorreoDescartado)
+                            {
+                                <span class="texto-aviso-verificacion" data-testid="aviso-correo-descartado">@Textos["AvisoCorreoDescartado"]</span>
+                            }
+                            @if (conexion.CorreoNoRecuperadoDesdeUtc is { } noRecuperadoDesde)
+                            {
+                                <span class="texto-aviso-verificacion" data-testid="aviso-correo-no-recuperado">@Textos["AvisoCorreoNoRecuperado", noRecuperadoDesde.EnHoraPeninsular().ToString("dd/MM/yyyy HH:mm")]</span>
+                            }
+                            @if (conexion.HuecoSinRegistrar)
+                            {
+                                <span class="texto-aviso-verificacion" data-testid="aviso-hueco-sin-registrar">@Textos["AvisoHuecoSinRegistrar"]</span>
                             }
                         </td>
                         <td>@conexion.FechaConectadaUtc.EnHoraPeninsular().ToString("dd/MM/yyyy")</td>
@@ -104,6 +142,13 @@
                                     Desconectar
                                 </Boton>
                             }
+                            else if (conexion.HuecoSinRegistrar)
+                            {
+                                <Boton Tamano="TamanoBoton.Pequeno" Variante="VarianteBoton.Secundario" data-testid="accion-reparar-hueco"
+                                       Deshabilitado="@(_procesandoId is not null)" OnClick="() => RepararHuecoAsync(conexion)" Cargando="@(_procesandoId == conexion.Id)">
+                                    @Textos["AccionRepararHueco"]
+                                </Boton>
+                            }
                         </td>
                     </tr>
                 }
@@ -112,7 +157,7 @@
                     </Contenido>
                 </TarjetaListado>
     }
-    <p class="texto-descriptivo pie-buzones">@TextosCx["PieBuzones"]</p>
+    <p class="texto-descriptivo pie-buzones">@Textos["PieBuzones"]</p>
     </section>
 
     <section class="seccion-conexiones seccion-lineas-whatsapp" aria-labelledby="titulo-lineas-whatsapp"
@@ -131,6 +176,10 @@
     @if (_cargando)
     {
         <EstadoCargando Filas="2" />
+    }
+    else if (_cargaFallida)
+    {
+        <p class="texto-error" role="alert" data-testid="aviso-lineas-no-actualizadas">@Textos["AvisoRecargaFallida"]</p>
     }
     else if (_lineas.Count == 0)
     {

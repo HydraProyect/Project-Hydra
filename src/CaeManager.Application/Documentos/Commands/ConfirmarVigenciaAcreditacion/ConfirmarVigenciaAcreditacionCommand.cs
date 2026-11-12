@@ -36,6 +36,11 @@ public class ConfirmarVigenciaAcreditacionCommandHandler(
         if (acreditacion is null)
             return Result.Fallo<ResultadoAnotacionAcreditacionDto>(Error.Crear("Acreditacion.NoEncontrada", "No encontramos esta acreditación."));
 
+        // «Esta plataforma no lo pide» entre que se abrió la pantalla y se anota: no hay vigencia que anotar.
+        if (!acreditacion.PuedeConfirmarVigencia)
+            return Result.Fallo<ResultadoAnotacionAcreditacionDto>(Error.Crear(
+                "Acreditacion.NoRequerida", "Esta plataforma no pide este documento: no hay vigencia que anotar."));
+
         var estadoPrevio = acreditacion.Estado;
         var vigenciaPrevia = acreditacion.Vigencia;
 

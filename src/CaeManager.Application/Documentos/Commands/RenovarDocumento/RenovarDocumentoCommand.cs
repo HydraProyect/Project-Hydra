@@ -186,7 +186,9 @@ public class RenovarDocumentoCommandHandler(
         // Invariante de Project-Hydra-Negocio/tecnico/docs/ux-audit/PLAN-EJECUCION-UX.md § Parte 2 (b): la versión
         // anterior de los datos ya no es la que hay que validar en ningún portal — corregirlos reinicia todas las
         // acreditaciones del documento a Pendiente de subir. El historial de rechazos no se toca (sigue siendo un hecho
-        // pasado real).
+        // pasado real). El reinicio renueva la versión de cada una aunque ya estuviera así: quien la vio antes de la
+        // corrección recibe un conflicto en vez de escribir sobre ella, y si alguien la escribe entre esta lectura y el
+        // guardado, el guardado falla con Concurrencia.Conflicto.
         var acreditaciones = await acreditacionRepositorio.ObtenerPorDocumentoIdAsync(documento.Id, cancellationToken);
         foreach (var acreditacion in acreditaciones)
             acreditacion.ReiniciarPorRenovacionDocumento();

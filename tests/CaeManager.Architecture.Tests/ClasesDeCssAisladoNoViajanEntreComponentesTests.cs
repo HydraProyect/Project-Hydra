@@ -56,9 +56,10 @@ public class ClasesDeCssAisladoNoViajanEntreComponentesTests
     /// <c>&lt;Boton&gt;</c>. Se cierran usando el componente.</item>
     /// <item><b>avisos</b> (4) — <c>aviso-error</c> y <c>aviso-revocacion</c>
     /// copiados entre features; les corresponde una primitiva de aviso.</item>
-    /// <item><b>controles de formulario a pelo</b> (2) —
-    /// <c>campo-input</c>, <c>campo-info-vacio</c>. Los dos de Tipos de
-    /// documento se cerraron con estilo propio en su <c>.razor.css</c>.</item>
+    /// <item><b>controles de formulario a pelo</b> — <c>campo-input</c> y
+    /// <c>campo-info-vacio</c>. Los de Tipos de documento y el de
+    /// <c>SelectorEntidad</c> se cerraron con estilo propio en su
+    /// <c>.razor.css</c>.</item>
     /// <item><b>tres pistas y tres barras de confianza</b> (6) — copiadas de
     /// <c>Trabajadores.razor</c> y de <c>RevisionIa.razor</c>.</item>
     /// </list>
@@ -82,7 +83,6 @@ public class ClasesDeCssAisladoNoViajanEntreComponentesTests
         ["RevisionIaTab.razor::revision-ia-confianza"] = "barra de confianza que la pestana comparte con RevisionIa.razor",
         ["RevisionIaTab.razor::revision-ia-confianza-barra"] = "barra de confianza que la pestana comparte con RevisionIa.razor",
         ["RevisionIaTab.razor::revision-ia-confianza-texto"] = "barra de confianza que la pestana comparte con RevisionIa.razor",
-        ["SelectorEntidad.razor::campo-input"] = "control de formulario a pelo en vez de CampoTexto o CampoBuscarSelect",
         ["Usuarios.razor::pista-documento"] = "pista de validacion copiada de Trabajadores; primitiva de pista pendiente",
         ["Usuarios.razor::pista-documento-error"] = "pista de validacion copiada de Trabajadores; primitiva de pista pendiente",
         ["Usuarios.razor::pista-documento-exito"] = "pista de validacion copiada de Trabajadores; primitiva de pista pendiente",

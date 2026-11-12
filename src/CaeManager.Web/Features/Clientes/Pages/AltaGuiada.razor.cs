@@ -132,6 +132,9 @@ public partial class AltaGuiada : CaeManager.Web.Components.PaginaInteractiva
     private string _direccionCentro = string.Empty;
     private string _contactoCentro = string.Empty;
     private string _contratoVigenteHasta = string.Empty;
+
+    /// <summary>El campo tiene un texto que no es una fecha entera (entrega «»): Guardar centro no crea el Centro «sin fecha».</summary>
+    private bool _contratoVigenteHastaNoValido;
     private bool _guardandoCentro;
     private string? _mensajeErrorCentro;
     private Dictionary<string, string> _erroresCentro = new();
@@ -524,11 +527,26 @@ public partial class AltaGuiada : CaeManager.Web.Components.PaginaInteractiva
             _mensajeErrorCliente = resultado.Error.Mensaje;
     }
 
+    // Al volver a ser una fecha entera (o quedar vacía), el aviso «no es una fecha» de un envío anterior ya no es cierto.
+    private void AlCambiarContratoVigenteHastaNoValido(bool noValido)
+    {
+        _contratoVigenteHastaNoValido = noValido;
+        if (!noValido && _mensajeErrorCentro == Comunes["CampoFechaCorregirAntes"])
+            _mensajeErrorCentro = null;
+    }
+
     private async Task GuardarCentroAsync()
     {
         if (_clienteId is null || _empresaId is null) return;
         // Guarda de reentrada del método, no del botón — ver GuardarEmpresaAsync.
         if (_guardandoCentro) return;
+
+        // «Contrato vigente hasta» a medias o ilegible llega como «»: sin este bloqueo el Centro se crearía «sin fecha».
+        if (_contratoVigenteHastaNoValido)
+        {
+            _mensajeErrorCentro = Comunes["CampoFechaCorregirAntes"];
+            return;
+        }
 
         _guardandoCentro = true;
         _mensajeErrorCentro = null;
@@ -746,7 +764,8 @@ public partial class AltaGuiada : CaeManager.Web.Components.PaginaInteractiva
         "empresa" => _instantaneaEmpresa.Difiere(ValoresPasoEmpresa()),
         // Con el Cliente empresarial ya creado el paso no pinta formulario.
         "cliente" => _clienteId is null && _instantaneaCliente.Difiere(ValoresPasoCliente()),
-        "centro" => _instantaneaCentro.Difiere(ValoresPasoCentro()),
+        // Una fecha a medias no cambia el valor del formulario («»), pero es texto que se pierde al salir.
+        "centro" => _instantaneaCentro.Difiere(ValoresPasoCentro()) || _contratoVigenteHastaNoValido,
         _ => _instantaneaTrabajador.Difiere(ValoresPasoTrabajadores()),
     };
 

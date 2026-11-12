@@ -141,6 +141,16 @@
 .gp-input { width: 100%; min-height: 40px; padding: 8px 12px; border: 1px solid var(--color-border-control); border-radius: var(--radius-md); font: var(--font-body-md); color: var(--color-text); background: var(--color-surface); }
 .gp-check { display: inline-flex; align-items: center; gap: 8px; height: 40px; font: var(--font-body-md); }
 
+/* «Datos a mano» (maqueta G-3/G-4): pestañas en pastilla y la rejilla de datos copiables de la pestaña abierta. */
+.gp-pestanas { display: flex; gap: 6px; flex-wrap: wrap; }
+.gp-pestana { height: 28px; padding: 0 12px; border: 1px solid var(--color-border); border-radius: var(--radius-full); background: var(--color-surface); color: var(--color-text-muted); font: var(--font-label); cursor: pointer; }
+.gp-pestana[aria-selected="true"] { border-color: var(--color-primary-500); background: var(--color-primary-50); color: var(--color-primary-700); }
+.gp-pestana-faltan { color: var(--color-warning-700); }
+.gp-datos { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: var(--space-3) var(--space-4); padding: 14px 16px; border: 1px solid var(--color-border); border-radius: var(--radius-md); }
+.gp-falta { display: inline-flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.gp-falta-texto { font: var(--font-body-md); font-weight: 600; color: var(--color-warning-700); }
+.gp-kicker-cif { text-transform: none; letter-spacing: normal; }
+
 .gp-pie { position: sticky; bottom: 0; z-index: 2; margin-top: var(--space-4); display: flex; align-items: center; gap: var(--space-3); flex-wrap: wrap; padding: 12px 24px; border-top: 1px solid var(--color-border); background: var(--color-surface); border-radius: 0 0 var(--radius-lg) var(--radius-lg); }
 .gp-enlace { border: 0; background: none; padding: 0 4px; color: var(--color-primary-500); font: var(--font-label); cursor: pointer; }
 .gp-enlace:disabled { opacity: .45; cursor: not-allowed; }

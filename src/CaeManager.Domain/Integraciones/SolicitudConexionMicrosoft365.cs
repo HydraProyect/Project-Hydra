@@ -34,14 +34,36 @@ public class SolicitudConexionMicrosoft365 : EntidadConTenant
     public Guid? GestorPropietarioId { get; private set; }
     public DateTime FechaExpiracionUtc { get; private set; }
 
+    /// <summary>
+    /// Dirección del buzón compartido que se quiere conectar, o null para el buzón propio de quien
+    /// consiente. Viaja en la solicitud, no en el <c>state</c> de OAuth, para que el callback no
+    /// acepte una dirección que no eligió quien inició el flujo.
+    /// </summary>
+    public string? BuzonCompartido { get; private set; }
+
     private SolicitudConexionMicrosoft365()
     {
     }
 
-    public SolicitudConexionMicrosoft365(Guid usuarioSolicitanteId, Guid? clienteId, Guid? gestorPropietarioId, DateTime ahoraUtc)
+    public SolicitudConexionMicrosoft365(
+        Guid usuarioSolicitanteId, Guid? clienteId, Guid? gestorPropietarioId, DateTime ahoraUtc, string? buzonCompartido = null)
     {
         if (usuarioSolicitanteId == Guid.Empty)
             throw new ArgumentException("La solicitud debe pertenecer a un usuario.", nameof(usuarioSolicitanteId));
+
+        if (buzonCompartido is not null)
+        {
+            var normalizado = buzonCompartido.Trim();
+            if (normalizado.Length == 0)
+                throw new ArgumentException("El buzón compartido no puede estar vacío.", nameof(buzonCompartido));
+            if (normalizado.Length > ConexionIntegracion.LongitudMaximaBuzonEmail)
+                throw new ArgumentException(
+                    $"El buzón compartido no puede superar {ConexionIntegracion.LongitudMaximaBuzonEmail} caracteres.", nameof(buzonCompartido));
+            if (gestorPropietarioId is not null)
+                throw new ArgumentException("Un buzón compartido no puede ser el buzón personal de un gestor.", nameof(buzonCompartido));
+
+            BuzonCompartido = normalizado;
+        }
 
         UsuarioSolicitanteId = usuarioSolicitanteId;
         ClienteId = clienteId;

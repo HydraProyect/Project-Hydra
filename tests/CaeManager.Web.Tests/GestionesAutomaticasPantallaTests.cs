@@ -43,7 +43,8 @@ public partial class GestionesAutomaticasPantallaTests : BunitContext
         bool usuario = true, string? notas = null, DateOnly? hasta = null) =>
         new(Guid.Parse($"aaaaaaaa-0000-0000-0000-{n:D12}"), estado, GestionAutomatica.PasoHecho(estado), hasta,
             Guid.Parse($"bbbbbbbb-0000-0000-0000-{n:D12}"), plataforma, url, usuario, notas,
-            Guid.Parse($"cccccccc-0000-0000-0000-{n:D12}"), centro, cliente);
+            Guid.Parse($"cccccccc-0000-0000-0000-{n:D12}"), centro, cliente,
+            VersionAcreditacion: Guid.Parse($"dddddddd-0000-0000-0000-{n:D12}"));
 
     private static List<PasoGestionAutomaticaDto> SeisPasosNuevos() =>
     [
@@ -447,7 +448,7 @@ public partial class GestionesAutomaticasPantallaTests : BunitContext
     // ---------- detalle: marcar un paso ----------
 
     [Fact]
-    public void Las_cuatro_opciones_de_como_ha_quedado_con_sus_textos_y_la_cuarta_a_la_espera_de_comando()
+    public void Las_cuatro_opciones_de_como_ha_quedado_con_sus_textos_y_las_cuatro_disponibles()
     {
         var m = Montar();
         var cut = Detallar(m, Detalle(SeisPasosNuevos()));
@@ -458,9 +459,9 @@ public partial class GestionesAutomaticasPantallaTests : BunitContext
         opciones[0].TextContent.Should().Contain("Subido, pendiente de validar").And.Contain("La plataforma aún no lo ha revisado.");
         opciones[1].TextContent.Should().Contain("Validado en la plataforma").And.Contain("La plataforma ya lo ha aceptado. Indica hasta cuándo vale allí.");
         opciones[2].TextContent.Should().Contain("Rechazado por la plataforma").And.Contain("Indica la causa y copia el motivo que da la plataforma.");
-        opciones[3].TextContent.Should().Contain("Esta plataforma no lo pide");
-        opciones[3].HasAttribute("disabled").Should().BeTrue("no existe aún el comando que la marca (D-20): no se ofrece algo que no se puede guardar");
-        opciones.Take(3).Should().OnlyContain(o => !o.HasAttribute("disabled"));
+        opciones[3].TextContent.Should().Contain("Esta plataforma no lo pide").And.Contain("No se pedirá en este acceso hasta que se renueve el documento.");
+        opciones[3].TextContent.Should().NotContain("próximamente");
+        opciones.Should().OnlyContain(o => !o.HasAttribute("disabled"), "«Esta plataforma no lo pide» ya tiene su comando (MarcarAcreditacionNoRequerida)");
     }
 
     [Fact]
@@ -567,13 +568,76 @@ public partial class GestionesAutomaticasPantallaTests : BunitContext
         cut.Find("[data-campos-opcion='validado']").TextContent.Should().Contain("Válido en la plataforma hasta").And.Contain("No lo sé");
         cut.Find("[data-accion='primario']").HasAttribute("disabled").Should().BeTrue("sin fecha ni «No lo sé» no se guarda");
 
-        cut.Find("[data-campos-opcion='validado'] input[type='date']").Input("2027-10-14");
+        cut.Find("[data-campos-opcion='validado'] input[data-campo-fecha]").Input("2027-10-14");
         cut.Find("[data-accion='primario']").HasAttribute("disabled").Should().BeFalse();
         cut.Find("[data-accion='guardar']").Click();
 
         cut.WaitForAssertion(() => m.Enviados.OfType<MarcarAcreditacionAceptadaCommand>().Should().ContainSingle()
             .Which.Vigencia.Should().Be(VigenciaEnPlataforma.VenceEl(new DateOnly(2027, 10, 14))));
         Toasts.Mensajes.Should().ContainSingle().Which.TextoAccion.Should().Be("Deshacer");
+    }
+
+    // Una fecha que deja de serlo (a medias o «1/2/26») vuelve a «sin fecha»: no se guarda la anterior, y «No lo sé», que
+    // apaga el campo, se lleva también lo escrito y su aviso.
+    // Antes de salir del campo, _hasta seguía siendo la fecha anterior y Guardar quedaba
+    // habilitado con ella. La bandera del campo bloquea ya mientras se escribe, sin esperar al blur.
+    [Fact]
+    public void Validado_con_la_fecha_a_medias_bloquea_guardar_antes_de_salir_del_campo()
+    {
+        var m = Montar();
+        var cut = Detallar(m, Detalle(SeisPasosNuevos()));
+        cut.Find("[data-opcion='validado']").Click();
+        var campo = () => cut.Find("[data-campos-opcion='validado'] input[data-campo-fecha]");
+        campo().Input("2027-10-14");
+        cut.Find("[data-accion='guardar']").HasAttribute("disabled").Should().BeFalse("control positivo: con fecha se puede guardar");
+
+        campo().Input("14/10/202");
+
+        cut.Find("[data-accion='primario']").HasAttribute("disabled").Should().BeTrue("sin blur: la fecha anterior no vale");
+        cut.Find("[data-accion='guardar']").HasAttribute("disabled").Should().BeTrue();
+        m.Enviados.OfType<MarcarAcreditacionAceptadaCommand>().Should().BeEmpty();
+    }
+
+    // Cambiar de opción destruía el campo con la marca de no válido puesta, y
+    // el campo nuevo (vacío y válido) no la retiraba: Guardar quedaba bloqueado con una fecha entera a la vista. El campo
+    // recién creado dice su estado.
+    [Fact]
+    public void Cambiar_de_opcion_con_la_fecha_a_medias_no_deja_Guardar_bloqueado_al_volver()
+    {
+        var m = Montar();
+        var cut = Detallar(m, Detalle(SeisPasosNuevos()));
+        cut.Find("[data-opcion='validado']").Click();
+        cut.Find("[data-campos-opcion='validado'] input[data-campo-fecha]").Input("14/10/202");
+        cut.Find("[data-accion='guardar']").HasAttribute("disabled").Should().BeTrue("control positivo: a medias no se guarda");
+
+        cut.Find("[data-opcion='subido']").Click();
+        cut.Find("[data-opcion='validado']").Click();
+        cut.Find("[data-campos-opcion='validado'] input[data-campo-fecha]").Input("2027-10-14");
+
+        cut.Find("[data-accion='guardar']").HasAttribute("disabled").Should().BeFalse();
+    }
+
+    [Fact]
+    public void Validado_con_la_fecha_a_medias_no_se_guarda_y_No_lo_se_limpia_el_campo()
+    {
+        var m = Montar();
+        var cut = Detallar(m, Detalle(SeisPasosNuevos()));
+        cut.Find("[data-opcion='validado']").Click();
+        var campo = () => cut.Find("[data-campos-opcion='validado'] input[data-campo-fecha]");
+        campo().Input("2027-10-14");
+        cut.Find("[data-accion='primario']").HasAttribute("disabled").Should().BeFalse("control positivo: con fecha se puede guardar");
+
+        campo().Input("1/2/26");
+        campo().Blur();
+
+        cut.Find("[data-accion='primario']").HasAttribute("disabled").Should().BeTrue("«1/2/26» no es la fecha 01/02/2026");
+        cut.Find("[data-campos-opcion='validado'] .campo-mensaje-error").TextContent.Should().Contain("dd/mm/aaaa");
+
+        cut.Find("[data-campos-opcion='validado'] input[type='checkbox']").Change(true);
+
+        cut.FindAll("[data-campos-opcion='validado'] .campo-mensaje-error").Should().BeEmpty("el campo apagado vuelve a su valor");
+        campo().GetAttribute("value").Should().BeNullOrEmpty();
+        m.Enviados.OfType<MarcarAcreditacionAceptadaCommand>().Should().BeEmpty();
     }
 
     [Fact]
@@ -584,7 +648,7 @@ public partial class GestionesAutomaticasPantallaTests : BunitContext
 
         cut.Find("[data-opcion='validado']").Click();
         cut.Find("[data-campos-opcion='validado'] input[type='checkbox']").Change(true);
-        cut.Find("[data-campos-opcion='validado'] input[type='date']").HasAttribute("disabled").Should().BeTrue();
+        cut.Find("[data-campos-opcion='validado'] input[data-campo-fecha]").HasAttribute("disabled").Should().BeTrue();
         cut.Find("[data-accion='guardar']").Click();
 
         cut.WaitForAssertion(() => m.Enviados.OfType<MarcarAcreditacionAceptadaCommand>().Should().ContainSingle()
@@ -1014,6 +1078,7 @@ public partial class GestionesAutomaticasPantallaTests : BunitContext
         public bool FallaListado { get; set; }
         public bool FallaDetalle { get; set; }
         public string? FalloAlMarcar { get; set; }
+        public string CodigoFallo { get; set; } = "X";
         public Action? AlMarcar { get; set; }
         public List<object> Enviados { get; } = [];
         public List<Guid> DetallesPedidos { get; } = [];
@@ -1036,14 +1101,19 @@ public partial class GestionesAutomaticasPantallaTests : BunitContext
                     AlMarcar?.Invoke();
                     return Responder<TResponse>(Result.Exito(new ResultadoAnotacionAcreditacionDto(
                         c.AcreditacionId, EstadoAcreditacion.PendienteDeSubir, VigenciaEnPlataforma.SinConfirmar, Version)));
-                case MarcarAcreditacionSubidaCommand or MarcarAcreditacionRechazadaCommand:
+                case MarcarAcreditacionSubidaCommand or MarcarAcreditacionRechazadaCommand
+                    or CaeManager.Application.Documentos.Commands.MarcarAcreditacionNoRequerida.MarcarAcreditacionNoRequeridaCommand:
                     Enviados.Add(request);
-                    if (FalloAlMarcar is not null) return Responder<TResponse>(Result.Fallo(Error.Crear("X", FalloAlMarcar)));
+                    if (FalloAlMarcar is not null) return Responder<TResponse>(Result.Fallo(Error.Crear(CodigoFallo, FalloAlMarcar)));
                     AlMarcar?.Invoke();
                     return Responder<TResponse>(Result.Exito());
                 case CaeManager.Application.Documentos.Commands.RestaurarAnotacionAcreditacion.RestaurarAnotacionAcreditacionCommand r:
                     Enviados.Add(r);
                     return Responder<TResponse>(Result.Exito());
+                case CaeManager.Application.Trabajadores.Queries.ObtenerTrabajadorPorId.ObtenerTrabajadorPorIdQuery t:
+                    // El editor de ficha que abre «Completar»: basta con saber que se pidió la ficha de ese Trabajador.
+                    Enviados.Add(t);
+                    return Responder<TResponse>(null);
                 default:
                     throw new NotSupportedException($"Petición no prevista en este test: {request.GetType().Name}.");
             }

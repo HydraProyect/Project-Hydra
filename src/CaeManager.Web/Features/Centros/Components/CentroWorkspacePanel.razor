@@ -49,6 +49,7 @@
 @inject ContextWorkspaceService WorkspaceService
 @inject ToastService ToastService
 @inject IStringLocalizer<TextosCentros> Textos
+@inject IStringLocalizer<CaeManager.Web.Recursos.TextosComunes> Comunes
 @inject IFileStorageService AlmacenamientoArchivos
 @inject IServiceProvider Servicios
 @inject ILogger<CentroWorkspacePanel> Logger
@@ -152,7 +153,8 @@ else
                         <CampoTexto Etiqueta="Código de centro" Valor="@_codigoCentroInfo" ValorChanged="v => _codigoCentroInfo = v" />
                         <CampoTexto Etiqueta="Dirección" Valor="@_direccionInfo" ValorChanged="v => _direccionInfo = v" />
                         <CampoTexto Etiqueta="Contacto" Valor="@_contactoInfo" ValorChanged="v => _contactoInfo = v" />
-                        <CampoTexto Etiqueta="Contrato vigente hasta" Type="date" Valor="@_contratoVigenteHastaInfo" ValorChanged="v => _contratoVigenteHastaInfo = v" />
+                        <CampoTexto Etiqueta="Contrato vigente hasta" Type="date" Valor="@_contratoVigenteHastaInfo" ValorChanged="v => _contratoVigenteHastaInfo = v"
+                                    FechaNoValida="_contratoVigenteHastaNoValido" FechaNoValidaChanged="AlCambiarContratoVigenteHastaNoValido" />
                     </div>
                     <div class="workspace-acciones-edicion">
                         <Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno" Deshabilitado="_guardandoInformacion" OnClick="CancelarEdicionInformacion">Cancelar</Boton>
@@ -747,6 +749,9 @@ else
     private string _direccionInfo = string.Empty;
     private string _contactoInfo = string.Empty;
     private string _contratoVigenteHastaInfo = string.Empty;
+
+    /// <summary>El campo tiene un texto que no es una fecha entera (entrega «»): Guardar no borra la fecha guardada.</summary>
+    private bool _contratoVigenteHastaNoValido;
     private bool _guardandoInformacion;
     private string? _mensajeErrorInformacion;
     private Dictionary<string, string> _erroresInformacion = new();
@@ -1305,7 +1310,7 @@ else
     private bool HayCambiosSinGuardar =>
         !_saliendoAConfigurarSegundoFactor
         && (HayCambiosEnLosDrawers
-            || (_editandoInformacion && _instantaneaInformacion.Difiere(ValoresInformacion()))
+            || (_editandoInformacion && (_instantaneaInformacion.Difiere(ValoresInformacion()) || _contratoVigenteHastaNoValido))
             || (PestanaActiva == "requisitos" && EdicionRequisitoConCambios));
 
     private object?[] ValoresInformacion() =>
@@ -1518,6 +1523,7 @@ else
         _direccionInfo = _detalle.Direccion ?? string.Empty;
         _contactoInfo = _detalle.Contacto ?? string.Empty;
         _contratoVigenteHastaInfo = _detalle.ContratoVigenteHasta?.ToString("yyyy-MM-dd") ?? string.Empty;
+        _contratoVigenteHastaNoValido = false;
         _mensajeErrorInformacion = null;
         _erroresInformacion = new Dictionary<string, string>();
         _editandoInformacion = true;
@@ -1526,11 +1532,26 @@ else
 
     private void CancelarEdicionInformacion() => _editandoInformacion = false;
 
+    // Al volver a ser una fecha entera (o quedar vacía), el aviso «no es una fecha» de un envío anterior ya no es cierto.
+    private void AlCambiarContratoVigenteHastaNoValido(bool noValido)
+    {
+        _contratoVigenteHastaNoValido = noValido;
+        if (!noValido && _mensajeErrorInformacion == Comunes["CampoFechaCorregirAntes"])
+            _mensajeErrorInformacion = null;
+    }
+
     private string? ObtenerErrorInformacion(string campo) => _erroresInformacion.GetValueOrDefault(campo);
 
     private async Task GuardarInformacionAsync()
     {
         if (_detalle is null) return;
+
+        // «Contrato vigente hasta» a medias o ilegible llega como «»: sin este bloqueo se borraría la fecha guardada.
+        if (_contratoVigenteHastaNoValido)
+        {
+            _mensajeErrorInformacion = Comunes["CampoFechaCorregirAntes"];
+            return;
+        }
 
         _guardandoInformacion = true;
         _mensajeErrorInformacion = null;

@@ -866,16 +866,16 @@ public class DashboardEjecutivoGen2Tests : BunitContext
         var cut = Renderizar(new Escenario()).Cut;
 
         await cut.Find(".dashboard-periodo select").ChangeAsync(new ChangeEventArgs { Value = "Personalizado" });
-        await cut.FindAll(".dashboard-periodo input[type=date]")[0].InputAsync(new ChangeEventArgs { Value = "2026-03-02" });
-        await cut.FindAll(".dashboard-periodo input[type=date]")[1].InputAsync(new ChangeEventArgs { Value = "2026-03-05" });
-        await cut.FindAll(".dashboard-periodo input[type=date]")[1].BlurAsync(new FocusEventArgs());
+        await cut.FindAll(".dashboard-periodo input[data-campo-fecha]")[0].InputAsync(new ChangeEventArgs { Value = "2026-03-02" });
+        await cut.FindAll(".dashboard-periodo input[data-campo-fecha]")[1].InputAsync(new ChangeEventArgs { Value = "2026-03-05" });
+        await cut.FindAll(".dashboard-periodo input[data-campo-fecha]")[1].BlurAsync(new FocusEventArgs());
 
         cut.WaitForAssertion(() => Disparador(cut.Find(".periodo-texto")).Should().Be(
             "Del 2 de marzo de 2026 al 5 de marzo de 2026 · 2 organizaciones"));
 
         // Hasta anterior a Desde: AplicarRangoPersonalizadoAsync no recarga.
-        await cut.FindAll(".dashboard-periodo input[type=date]")[1].InputAsync(new ChangeEventArgs { Value = "2026-01-01" });
-        await cut.FindAll(".dashboard-periodo input[type=date]")[1].BlurAsync(new FocusEventArgs());
+        await cut.FindAll(".dashboard-periodo input[data-campo-fecha]")[1].InputAsync(new ChangeEventArgs { Value = "2026-01-01" });
+        await cut.FindAll(".dashboard-periodo input[data-campo-fecha]")[1].BlurAsync(new FocusEventArgs());
 
         Disparador(cut.Find(".periodo-texto")).Should().Be(
             "Del 2 de marzo de 2026 al 5 de marzo de 2026 · 2 organizaciones",

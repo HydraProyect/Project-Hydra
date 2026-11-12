@@ -156,6 +156,7 @@ public class LlamadaAlAlcanceDeCarteraEnEscrituraTests
         "Documentos.FirmarDocumentoEnCampoCommandHandler",
         "Documentos.GuardarSelloEmpresaCommandHandler",
         "Documentos.MarcarAcreditacionAceptadaCommandHandler",
+        "Documentos.MarcarAcreditacionNoRequeridaCommandHandler",
         "Documentos.MarcarAcreditacionPendienteDeSubirCommandHandler",
         "Documentos.MarcarAcreditacionRechazadaCommandHandler",
         "Documentos.MarcarAcreditacionSubidaCommandHandler",
@@ -206,6 +207,7 @@ public class LlamadaAlAlcanceDeCarteraEnEscrituraTests
         "Integraciones.FijarAcuseAutomaticoBuzonCommandHandler",
         "Integraciones.FijarResponsableBuzonCommandHandler",
         "Integraciones.ReactivarConexionCommandHandler",
+        "Integraciones.RepararMarcaHuecoCommandHandler",
 
         // Plantillas
         "Plantillas.AgregarVersionPlantillaCommandHandler",

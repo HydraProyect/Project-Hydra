@@ -38,6 +38,9 @@ public static class RangoFechasAuditoria
         desde is null ? null : DiaDeNegocio.InicioEnUtc(desde.Value);
 
     /// <summary>Primer instante UTC del día siguiente a <paramref name="hasta"/> (exclusivo): el día elegido entra entero.</summary>
+    /// <remarks>
+    /// «Hasta el 31/12/9999» no tiene día siguiente (AddDays lanzaría): es lo mismo que no poner límite, y así se trata.
+    /// </remarks>
     public static DateTime? HastaUtcExclusivo(DateOnly? hasta) =>
-        hasta is null ? null : DiaDeNegocio.InicioEnUtc(hasta.Value.AddDays(1));
+        hasta is null || hasta.Value == DateOnly.MaxValue ? null : DiaDeNegocio.InicioEnUtc(hasta.Value.AddDays(1));
 }

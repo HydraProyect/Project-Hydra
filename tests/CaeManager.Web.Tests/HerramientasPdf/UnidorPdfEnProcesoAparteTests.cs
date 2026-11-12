@@ -348,25 +348,254 @@ public sealed class UnidorPdfEnProcesoAparteTests
     [Fact]
     public async Task Si_el_lanzador_no_vuelve_y_el_llamante_cancela_gana_la_entrada_retenida_y_la_herramienta_queda_desactivada()
     {
+        // Lo que con el reloj del sistema pasaba a veces (#2188): el tope de siempre vence en la espera y la marca de tiempo aún
+        // dice que queda. Aquí se fuerza: el tope (500 ms) vence antes que la espera de cancelación (3 s) sin mover la marca.
+        // Se decide en el acto, como sin cancelar, y la herramienta ya está desactivada cuando la ejecución vuelve. Se cancela
+        // cuando el lanzador ya escribió la petición y la espera está armada, no a un plazo fijo.
+        var reloj = new RelojDeEsperas();
         var lanzador = new LanzadorDoble(_ => Terminado(0, [])) { NoVolver = true };
-        var opciones = _opciones with { TiempoMaximoInspeccionar = TimeSpan.FromMilliseconds(50), MargenConfirmacionTerminado = TimeSpan.FromMilliseconds(50) };
-        var unidor = new UnidorPdfEnProcesoAparte(opciones, _limitador, lanzador, NullLogger<UnidorPdfEnProcesoAparte>.Instance);
-        using var cancelacion = new CancellationTokenSource(TimeSpan.FromMilliseconds(20));
+        var opciones = _opciones with
+        {
+            TiempoMaximoInspeccionar = TimeSpan.FromMilliseconds(50),
+            MargenConfirmacionTerminado = TimeSpan.FromMilliseconds(450),
+            EsperaConfirmacionAlCancelar = TimeSpan.FromSeconds(3),
+        };
+        using var cancelacion = new CancellationTokenSource();
 
-        var inspeccionar = () => unidor.InspeccionarAsync(PdfA, cancelacion.Token).WaitAsync(TimeSpan.FromSeconds(10));
+        var ejecucion = Ejecutor(opciones, lanzador, reloj).EjecutarAsync(EscribirNada, opciones.TiempoMaximoInspeccionar, 1024, cancelacion.Token);
+        await lanzador.EnEspera.Task.WaitAsync(TimeSpan.FromSeconds(10));
+        await HastaQueAsync(() => reloj.Pendientes.Contains(TimeSpan.FromMilliseconds(500)));
+        ejecucion.IsCompleted.Should().BeFalse("no ha vencido ningún temporizador y el lanzador no vuelve");
+        _limitador.Degradado.Should().BeFalse("aún no se ha decidido nada");
 
-        await inspeccionar.Should().ThrowAsync<EntradaPdfRetenidaException>();
+        await cancelacion.CancelAsync();
+        reloj.Pendientes.Should().Contain(TimeSpan.FromSeconds(3), "cancelar arma la espera de cancelación junto al tope");
+        ejecucion.IsCompleted.Should().BeFalse("cancelada, la espera sigue hasta la espera de cancelación o el tope");
+        _limitador.Degradado.Should().BeFalse("cancelar no decide nada por sí solo");
+
+        reloj.VencerSinMoverLaMarca(TimeSpan.FromMilliseconds(500));
+        var ejecutar = () => ejecucion.WaitAsync(TimeSpan.FromSeconds(10));
+
+        await ejecutar.Should().ThrowAsync<EntradaPdfRetenidaException>();
+        reloj.GetElapsedTime(0).Should().Be(TimeSpan.Zero, "la marca no se movió: por ella, aún quedaba todo el tope");
         _limitador.Libres.Should().Be(0);
-        _limitador.Degradado.Should().BeTrue();
+        _limitador.Degradado.Should().BeTrue("vencido el tope, la decisión no se difiere aunque la marca diga que queda tiempo");
+    }
+
+    [Fact]
+    public async Task Si_el_lanzador_no_vuelve_y_vence_antes_la_espera_de_cancelacion_la_decision_se_difiere_hasta_el_tope()
+    {
+        // El otro desenlace de la espera: vence la espera de cancelación (3 s) con el tope (10 s) lejos. Quien cancela se va con
+        // la entrada retenida, y la herramienta solo se desactiva si el lanzador sigue sin volver cuando vence el tope.
+        var reloj = new RelojDeEsperas();
+        var lanzador = new LanzadorDoble(_ => Terminado(0, [])) { NoVolver = true };
+        var opciones = _opciones with
+        {
+            TiempoMaximoInspeccionar = TimeSpan.FromMilliseconds(50),
+            MargenConfirmacionTerminado = TimeSpan.FromMilliseconds(9950),
+            EsperaConfirmacionAlCancelar = TimeSpan.FromSeconds(3),
+        };
+        using var cancelacion = new CancellationTokenSource();
+
+        var ejecucion = Ejecutor(opciones, lanzador, reloj).EjecutarAsync(EscribirNada, opciones.TiempoMaximoInspeccionar, 1024, cancelacion.Token);
+        await lanzador.EnEspera.Task.WaitAsync(TimeSpan.FromSeconds(10));
+        await HastaQueAsync(() => reloj.Pendientes.Contains(TimeSpan.FromSeconds(10)));
+        await cancelacion.CancelAsync();
+        reloj.Avanzar(TimeSpan.FromSeconds(3));
+        var ejecutar = () => ejecucion.WaitAsync(TimeSpan.FromSeconds(10));
+
+        await ejecutar.Should().ThrowAsync<EntradaPdfRetenidaException>("quien cancela no espera más que la espera de cancelación");
+        _limitador.Degradado.Should().BeFalse("queda tope: el lanzador aún puede confirmar la muerte del hijo");
+
+        reloj.Avanzar(TimeSpan.FromSeconds(7) - TimeSpan.FromTicks(1));
+        _limitador.Degradado.Should().BeFalse("el tope aún no ha vencido");
+
+        reloj.Avanzar(TimeSpan.FromTicks(1));
+        await HastaQueAsync(() => _limitador.Degradado);
+        _limitador.Libres.Should().Be(0, "el único turno se queda con el hijo quizá vivo");
+    }
+
+    [Fact]
+    public async Task Si_vence_la_espera_de_cancelacion_con_el_tope_ya_pasado_por_la_marca_se_degrada_sin_esperar_mas()
+    {
+        // El desfase al revés: la espera de cancelación (3 s) vence primero en sus temporizadores, pero la marca ya pasó el tope
+        // (10 s). Lo que queda del tope no puede ser negativo: la decisión diferida degrada en el acto, sin quedarse a medias.
+        var reloj = new RelojDeEsperas();
+        var lanzador = new LanzadorDoble(_ => Terminado(0, [])) { NoVolver = true };
+        var opciones = _opciones with
+        {
+            TiempoMaximoInspeccionar = TimeSpan.FromMilliseconds(50),
+            MargenConfirmacionTerminado = TimeSpan.FromMilliseconds(9950),
+            EsperaConfirmacionAlCancelar = TimeSpan.FromSeconds(3),
+        };
+        using var cancelacion = new CancellationTokenSource();
+
+        var ejecucion = Ejecutor(opciones, lanzador, reloj).EjecutarAsync(EscribirNada, opciones.TiempoMaximoInspeccionar, 1024, cancelacion.Token);
+        await lanzador.EnEspera.Task.WaitAsync(TimeSpan.FromSeconds(10));
+        await HastaQueAsync(() => reloj.Pendientes.Contains(TimeSpan.FromSeconds(10)));
+        await cancelacion.CancelAsync();
+        reloj.MoverSoloLaMarca(TimeSpan.FromSeconds(11));
+        reloj.Avanzar(TimeSpan.FromSeconds(3));
+        var ejecutar = () => ejecucion.WaitAsync(TimeSpan.FromSeconds(10));
+
+        await ejecutar.Should().ThrowAsync<EntradaPdfRetenidaException>();
+        await HastaQueAsync(() => _limitador.Degradado);
+        _limitador.Libres.Should().Be(0);
+    }
+
+    private EjecutorProcesoHerramientasPdf Ejecutor(OpcionesProcesoHerramientasPdf opciones, LanzadorDoble lanzador, TimeProvider reloj) =>
+        new(opciones, _limitador, lanzador, NullLogger.Instance, reloj);
+
+    private static Task EscribirNada(Stream destino, CancellationToken cancellationToken) => Task.CompletedTask;
+
+    /// <summary>
+    /// Espera a algo que provoca otro hilo sin tocar el reloj del test. El plazo real solo acota un cuelgue: no decide nada,
+    /// porque mientras se espera ningún temporizador del reloj de las esperas puede vencer.
+    /// </summary>
+    private static async Task HastaQueAsync(Func<bool> condicion)
+    {
+        var plazo = Stopwatch.StartNew();
+        while (!condicion())
+        {
+            plazo.Elapsed.Should().BeLessThan(TimeSpan.FromSeconds(10), "lo esperado no llegó");
+            await Task.Delay(5);
+        }
+    }
+
+    /// <summary>
+    /// El reloj de las esperas del ejecutor con sus dos mitades por separado: los temporizadores (el tope de la espera, la
+    /// espera de cancelación, lo que queda del tope al diferir) solo vencen al avanzarlo, y la marca de tiempo, con la que el
+    /// ejecutor mide lo que queda del tope, avanza con ellos salvo con <see cref="VencerSinMoverLaMarca"/> (y sola con
+    /// <see cref="MoverSoloLaMarca"/>). Así se fuerza lo
+    /// que con el reloj del sistema pasaba a veces (#2188): el tope de la espera vence y la marca aún dice que queda tiempo.
+    /// A diferencia de <see cref="RelojManual"/>, atiende <see cref="ITimer.Change"/>, que es como <c>CancelAfter</c> arma
+    /// la espera de cancelación.
+    /// </summary>
+    private sealed class RelojDeEsperas : TimeProvider
+    {
+        private readonly object _cerrojo = new();
+        private readonly List<Temporizador> _temporizadores = [];
+        private long _ahora;
+        private long _marca;
+
+        public override long TimestampFrequency => TimeSpan.TicksPerSecond;
+
+        public override long GetTimestamp()
+        {
+            lock (_cerrojo)
+                return _marca;
+        }
+
+        public override ITimer CreateTimer(TimerCallback callback, object? state, TimeSpan dueTime, TimeSpan period)
+        {
+            var temporizador = new Temporizador(this, callback, state);
+            lock (_cerrojo)
+            {
+                temporizador.Programar(_ahora, dueTime, period);
+                _temporizadores.Add(temporizador);
+            }
+
+            return temporizador;
+        }
+
+        /// <summary>Lo que falta para que venza cada temporizador vivo con un vencimiento programado.</summary>
+        public IReadOnlyList<TimeSpan> Pendientes
+        {
+            get
+            {
+                lock (_cerrojo)
+                    return [.. _temporizadores.Where(t => t.Vence != long.MaxValue).Select(t => TimeSpan.FromTicks(t.Vence - _ahora))];
+            }
+        }
+
+        public void Avanzar(TimeSpan cuanto) => Mover(cuanto, moverMarca: true);
+
+        public void VencerSinMoverLaMarca(TimeSpan cuanto) => Mover(cuanto, moverMarca: false);
+
+        /// <summary>Solo la marca: ningún temporizador vence.</summary>
+        public void MoverSoloLaMarca(TimeSpan cuanto)
+        {
+            lock (_cerrojo)
+                _marca += cuanto.Ticks;
+        }
+
+        private void Mover(TimeSpan cuanto, bool moverMarca)
+        {
+            long destino;
+            lock (_cerrojo)
+                destino = _ahora + cuanto.Ticks;
+
+            while (true)
+            {
+                Temporizador? siguiente;
+                lock (_cerrojo)
+                {
+                    siguiente = _temporizadores.Where(t => t.Vence <= destino).MinBy(t => t.Vence);
+                    var hasta = siguiente?.Vence ?? destino;
+                    if (moverMarca)
+                        _marca += Math.Max(0, hasta - _ahora);
+                    _ahora = Math.Max(_ahora, hasta);
+                    if (siguiente is null)
+                        return;
+                    siguiente.Vencido();
+                }
+
+                // Fuera del cerrojo: lo que despierta puede leer la hora, soltar este temporizador o armar otro.
+                siguiente.Llamar();
+            }
+        }
+
+        private sealed class Temporizador(RelojDeEsperas reloj, TimerCallback callback, object? state) : ITimer
+        {
+            private long _periodo;
+
+            public long Vence { get; private set; } = long.MaxValue;
+
+            /// <summary>Con el cerrojo del reloj tomado.</summary>
+            public void Programar(long ahora, TimeSpan dueTime, TimeSpan period)
+            {
+                Vence = dueTime == Timeout.InfiniteTimeSpan ? long.MaxValue : ahora + dueTime.Ticks;
+                _periodo = period == Timeout.InfiniteTimeSpan ? 0 : period.Ticks;
+            }
+
+            /// <summary>Con el cerrojo del reloj tomado.</summary>
+            public void Vencido() => Vence = _periodo > 0 ? Vence + _periodo : long.MaxValue;
+
+            public void Llamar() => callback(state);
+
+            public bool Change(TimeSpan dueTime, TimeSpan period)
+            {
+                lock (reloj._cerrojo)
+                    Programar(reloj._ahora, dueTime, period);
+                return true;
+            }
+
+            public void Dispose()
+            {
+                lock (reloj._cerrojo)
+                    reloj._temporizadores.Remove(this);
+            }
+
+            public ValueTask DisposeAsync()
+            {
+                Dispose();
+                return ValueTask.CompletedTask;
+            }
+        }
     }
 
     [Fact]
     public async Task Si_el_llamante_cancela_la_cancelacion_sigue_y_el_turno_se_suelta()
     {
+        // Se cancela con el lanzador ya esperando: con un plazo fijo, la cancelación podía llegar antes de escribir la petición,
+        // y el doble no confirma la muerte en ese tramo.
         var lanzador = new LanzadorDoble(_ => Terminado(0, [])) { Esperar = true };
-        using var cancelacion = new CancellationTokenSource(TimeSpan.FromMilliseconds(50));
+        using var cancelacion = new CancellationTokenSource();
 
-        var inspeccionar = () => Unidor(lanzador).InspeccionarAsync(PdfA, cancelacion.Token);
+        var inspeccion = Unidor(lanzador).InspeccionarAsync(PdfA, cancelacion.Token);
+        await lanzador.EnEspera.Task.WaitAsync(TimeSpan.FromSeconds(10));
+        await cancelacion.CancelAsync();
+        var inspeccionar = () => inspeccion;
 
         await inspeccionar.Should().ThrowAsync<OperationCanceledException>();
         _limitador.Libres.Should().Be(1);
@@ -462,9 +691,9 @@ public sealed class UnidorPdfEnProcesoAparteTests
     /// confirma su muerte en el seguimiento al volver, salvo con <see cref="ProcesoAisladoSinTerminarException"/> o con
     /// <see cref="SinConfirmar"/>. Con <see cref="Esperar"/>, no responde hasta que se cancele; con <see cref="NoVolver"/>, no
     /// responde nunca, ni al cancelar (un hijo que no se pudo matar); con <see cref="Bloqueo"/>, se bloquea antes de devolver
-    /// su tarea, como un <c>Process.Start</c> que no vuelve.
+    /// su tarea, como un <c>Process.Start</c> que no vuelve. Lo usa también <see cref="DivisorPdfEnProcesoAparteTests"/>.
     /// </summary>
-    private sealed class LanzadorDoble(Func<byte[], SalidaProcesoAislado> responder) : ILanzadorProcesoAislado
+    internal sealed class LanzadorDoble(Func<byte[], SalidaProcesoAislado> responder) : ILanzadorProcesoAislado
     {
         public const int IdHijo = 4321;
 
@@ -472,6 +701,10 @@ public sealed class UnidorPdfEnProcesoAparteTests
         public bool NoVolver { get; init; }
         public bool SinConfirmar { get; init; }
         public ManualResetEventSlim? Bloqueo { get; init; }
+
+        /// <summary>Con <see cref="Esperar"/> o <see cref="NoVolver"/>: la petición ya está escrita y el doble se queda esperando.</summary>
+        public TaskCompletionSource EnEspera { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
         public int Llamadas { get; private set; }
         public byte[]? Entrada { get; private set; }
         public TimeSpan Tiempo { get; private set; }
@@ -489,6 +722,8 @@ public sealed class UnidorPdfEnProcesoAparteTests
             using var entrada = new MemoryStream();
             await escribirEntrada(entrada, cancellationToken);
             Entrada = entrada.ToArray();
+            if (Esperar || NoVolver)
+                EnEspera.TrySetResult();
             if (Esperar)
             {
                 try

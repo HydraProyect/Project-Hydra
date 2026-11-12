@@ -115,7 +115,36 @@ LABEL es.talveg.guarda-correo="1"
 # ninguna descarga y la vulnerabilidad no es explotable (ubuntu.com/blog/apt-vulnerability-fixes-available).
 # Se mantiene aunque una base futura traiga apt corregido: cuesta un fallo de red
 # más visible a cambio de no depender de qué versión de apt trae el digest.
-RUN apt-get -o Acquire::Retries=0 update \
+#
+# ESPEJO_UBUNTU: vacío por defecto, y así lo dejan deploy.yml, trivy-nocturno.yml,
+# ci-deploy.sh y todo despliegue: la imagen usa las fuentes de la base (archive y
+# security.ubuntu.com), y si el runner no resuelve ubuntu.com esos builds fallan igual
+# que antes, a propósito: la imagen de producción solo se construye con las fuentes
+# oficiales y, si el DNS no vuelve, el despliegue espera (decisión del 2026-11-11,
+# AptAcotadoEnCiTests). Solo el job «Build de la imagen de despliegue» del CI lo rellena, y solo
+# cuando la sonda del runner no alcanza esas fuentes: entonces trae la base de un
+# espejo oficial de Ubuntu fuera de ubuntu.com (.github/actions/apt-acotado/
+# elegir-espejo.sh) y las dos estrofas (con security) pasan a él. Solo cambia la URL: cada
+# estrofa conserva su Signed-By y apt verifica la firma de cada InRelease con las
+# claves de Ubuntu de la base. El valor tiene que ser, entero, uno de los espejos de
+# reserva de elegir-espejo.sh (lista blanca exacta; AptAcotadoEnCiTests la mantiene
+# igual): cualquier otro, incluido uno multilínea, aborta antes de llegar al sed.
+# Después, cada URIs: tiene que ser exactamente el espejo y conservar su Signed-By.
+# El texto nuevo del RUN invalida una vez la caché de esta capa aunque el ARG vaya vacío.
+ARG ESPEJO_UBUNTU=
+RUN if [ -n "$ESPEJO_UBUNTU" ]; then \
+        case "$ESPEJO_UBUNTU" in \
+            https://mirrors.edge.kernel.org/ubuntu/|https://mirror.init7.net/ubuntu/|https://mirrors.mit.edu/ubuntu/) ;; \
+            *) echo "ESPEJO_UBUNTU no es un espejo de reserva admitido" >&2; exit 1 ;; \
+        esac; \
+        firmas="$(grep -c '^Signed-By:' /etc/apt/sources.list.d/ubuntu.sources)"; \
+        sed -E -i "/^URIs:/ s#https?://(archive|security)\.ubuntu\.com/ubuntu/?#${ESPEJO_UBUNTU}#g" /etc/apt/sources.list.d/ubuntu.sources \
+        && grep '^URIs:' /etc/apt/sources.list.d/ubuntu.sources \
+        && ! grep '^URIs:' /etc/apt/sources.list.d/ubuntu.sources | grep -vqxF "URIs: $ESPEJO_UBUNTU" \
+        && [ "$(grep -c '^Signed-By:' /etc/apt/sources.list.d/ubuntu.sources)" = "$firmas" ] \
+        || { echo "No se pudieron apuntar las fuentes de Ubuntu a $ESPEJO_UBUNTU" >&2; exit 1; }; \
+    fi \
+    && apt-get -o Acquire::Retries=0 update \
     && apt-get -o Acquire::Retries=0 install -y --no-install-recommends libreoffice-writer curl ca-certificates gosu tzdata libssl3t64 openssl \
     && rm -rf /var/lib/apt/lists/* \
     && dpkg --purge apt libapt-pkg6.0t64 \

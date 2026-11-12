@@ -124,6 +124,35 @@ public class PuertaAccesoDatosTests
     }
 
     [Fact]
+    public async Task Cerrar_pide_terminar_a_la_operacion_en_vuelo_que_escucha_AlCerrarse_antes_de_esperarla()
+    {
+        // Dividir PDF envía su lote con AlCerrarse para que salir de la pantalla no lo corte; al cerrarse el circuito sí
+        // tiene que cortarse, y dentro del tope de la espera, no después, con el DbContext ya dispuesto.
+        var puerta = new PuertaAccesoDatos();
+        puerta.AlCerrarse.IsCancellationRequested.Should().BeFalse();
+        var entro = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var lote = puerta.EjecutarAsync(async () =>
+        {
+            entro.SetResult();
+            try
+            {
+                await Task.Delay(Timeout.Infinite, puerta.AlCerrarse);
+            }
+            catch (OperationCanceledException)
+            {
+                // Termina el lote como lo haría el handler: devuelve lo que lleve.
+            }
+        });
+        await entro.Task;
+
+        var termino = await puerta.CerrarAsync(TimeSpan.FromSeconds(5));
+
+        termino.Should().BeTrue("la operación en vuelo se cortó y soltó la puerta antes del tope");
+        puerta.AlCerrarse.IsCancellationRequested.Should().BeTrue();
+        await lote;
+    }
+
+    [Fact]
     public async Task Una_espera_en_cola_se_sirve_con_normalidad_sin_ninguna_carrera_de_disposicion()
     {
         // Sin Dispose no hay nada que envenenar: cuando A libera, B

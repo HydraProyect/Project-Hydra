@@ -27,7 +27,7 @@ public partial class Documento360Gen2Tests
         var avisos = this.EscucharAvisosDeGuardado();
 
         await Boton(cut, "Renovar").ClickAsync(new MouseEventArgs());
-        await cut.FindAll("input[type=date]")[0].InputAsync(new ChangeEventArgs { Value = "2026-02-03" });
+        await cut.FindAll("input[data-campo-fecha]")[0].InputAsync(new ChangeEventArgs { Value = "2026-02-03" });
         await Boton(cut, GuardarFechas).ClickAsync(new MouseEventArgs());
 
         mediador.Enviadas.OfType<RenovarDocumentoCommand>().Should().ContainSingle("control positivo: el guardado se envió")
@@ -46,7 +46,7 @@ public partial class Documento360Gen2Tests
         var avisos = this.EscucharAvisosDeGuardado();
 
         await Boton(cut, "Renovar").ClickAsync(new MouseEventArgs());
-        await cut.FindAll("input[type=date]")[0].InputAsync(new ChangeEventArgs { Value = "2026-02-03" });
+        await cut.FindAll("input[data-campo-fecha]")[0].InputAsync(new ChangeEventArgs { Value = "2026-02-03" });
         await Boton(cut, GuardarFechas).ClickAsync(new MouseEventArgs());
 
         mediador.Enviadas.OfType<RenovarDocumentoCommand>().Should().ContainSingle("control positivo: el guardado se envió");

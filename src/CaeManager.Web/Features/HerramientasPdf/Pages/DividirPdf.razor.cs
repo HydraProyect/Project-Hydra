@@ -13,13 +13,15 @@ using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Forms;
 using Microsoft.Extensions.Localization;
 using Microsoft.Extensions.Logging;
+using Microsoft.JSInterop;
 
 namespace CaeManager.Web.Features.HerramientasPdf.Pages;
 
 /// <summary>
-/// Dividir un PDF con varios documentos: elegir el PDF, marcar los cortes, un paso por documento, revisar y crear. La
-/// detección es local y solo sugiere; cada alta pasa por <see cref="CrearDocumentosDesdeDivisionCommand"/>, que delega en
-/// el alta normal. La Empresa gestionada sale del selector de la barra lateral, y sin selección no se puede subir nada;
+/// Dividir un PDF con varios documentos: elegir el PDF, marcar los cortes y elegir la salida. «Guardar en TALVEG» sigue
+/// con un paso por documento, revisar y crear; «Descargar» entrega cada tramo como un PDF aparte (con
+/// <see cref="ExtraerTramoPdfQuery"/>) y no guarda nada. La detección es local y solo sugiere; cada alta pasa por
+/// <see cref="CrearDocumentosDesdeDivisionCommand"/>, que delega en el alta normal. La Empresa gestionada sale del selector de la barra lateral, y sin selección no se puede subir nada;
 /// solo si de ahí no se deduce una sola y hay varias Empresas propias se elige aquí.
 ///
 /// El original vive en el almacén temporal del circuito, no en memoria, y desaparece al crear o al salir: no se conserva.
@@ -49,6 +51,8 @@ public partial class DividirPdf : CaeManager.Web.Components.PaginaInteractiva, I
     [Inject] private IPresupuestoMemoriaDocumentos PresupuestoMemoria { get; set; } = default!;
     [Inject] private CaeManager.Application.DocumentosIa.Common.IRasterizadorPaginasPdfService Rasterizador { get; set; } = default!;
     [Inject] private IDisponibilidadHerramientasPdf Disponibilidad { get; set; } = default!;
+    [Inject] private IJSRuntime JS { get; set; } = default!;
+    [Inject] private TimeProvider Reloj { get; set; } = default!;
     [Inject] private ILogger<DividirPdf> Logger { get; set; } = default!;
     [Inject] private IStringLocalizer<TextosHerramientasPdf> Textos { get; set; } = default!;
 
@@ -65,6 +69,9 @@ public partial class DividirPdf : CaeManager.Web.Components.PaginaInteractiva, I
     private bool _selectorVisible;
     private bool _cargando;
     private bool _creando;
+    private bool _descargando;
+    private int? _descargados;
+    private IJSObjectReference? _modulo;
     private bool _firmado;
     private bool _textoLegible = true;
     private bool _desechado;
@@ -221,10 +228,22 @@ public partial class DividirPdf : CaeManager.Web.Components.PaginaInteractiva, I
                 archivo.Size, LimitesDivisionPdf.TamanoMaximoOriginalBytes, cancellationToken: _ciclo.Token);
 
             Result<PreparacionDivisionPdf> preparacion;
-            using (await PresupuestoMemoria.ReservarAsync(guardado.TamanoBytes, _ciclo.Token))
+            ReservaMemoriaDocumentos? reserva = await PresupuestoMemoria.ReservarAsync(guardado.TamanoBytes, _ciclo.Token);
+            try
             {
                 var contenido = await _almacen.LeerAsync(guardado, _ciclo.Token);
                 preparacion = await Mediator.Send(new PrepararDivisionPdfQuery(contenido, empresaId), _ciclo.Token);
+            }
+            catch (EntradaPdfRetenidaException)
+            {
+                // El proceso aparte que recibió el PDF no consta terminado y puede seguir referenciándolo: no se devuelve.
+                EntradaPdfRetenidaException.Retener(reserva);
+                reserva = null;
+                throw;
+            }
+            finally
+            {
+                reserva?.Dispose();
             }
 
             if (preparacion.EsFallido)
@@ -247,7 +266,7 @@ public partial class DividirPdf : CaeManager.Web.Components.PaginaInteractiva, I
         {
             _error = Textos["ErrorDemasiadoGrande", LimitesDivisionPdf.TamanoMaximoOriginalMb];
         }
-        catch (Exception ex) when (ex is CuotaSubidaMasivaSuperadaException or PresupuestoMemoriaAgotadoException)
+        catch (Exception ex) when (ex is CuotaSubidaMasivaSuperadaException or PresupuestoMemoriaAgotadoException or EntradaPdfRetenidaException)
         {
             if (guardado is not null)
                 _almacen.Eliminar(guardado);
@@ -263,6 +282,7 @@ public partial class DividirPdf : CaeManager.Web.Components.PaginaInteractiva, I
     {
         ErroresDivisorPdf.ConContrasena => Textos["ErrorContrasena"],
         ErroresDivisorPdf.DemasiadoGrande => Textos["ErrorDemasiadoGrande", LimitesDivisionPdf.TamanoMaximoOriginalMb],
+        ErroresDivisorPdf.DemasiadoComplejo => Textos["ErrorDemasiadoComplejo"],
         ErroresDivisorPdf.Ilegible or ErroresDivisorPdf.DemasiadasPaginas => Textos["ErrorIlegible"],
         _ => error.Mensaje,
     };
@@ -329,12 +349,27 @@ public partial class DividirPdf : CaeManager.Web.Components.PaginaInteractiva, I
     private static Action<ChangeEventArgs> AlMarcarSinCaducidad(AsignacionTramo asignacion) =>
         e => asignacion.SinCaducidad = e.Value is true;
 
-    private void AlternarCorte(int pagina) => _division?.AlternarCorte(pagina);
+    // Durante una descarga no se tocan los cortes: la serie entrega los rangos con los que empezó.
+    private void AlternarCorte(int pagina)
+    {
+        if (_descargando)
+            return;
+        _division?.AlternarCorte(pagina);
+        _descargados = null;
+    }
 
-    private void ConfirmarPropuestas() => _division?.ConfirmarPropuestas();
+    private void ConfirmarPropuestas()
+    {
+        if (_descargando)
+            return;
+        _division?.ConfirmarPropuestas();
+        _descargados = null;
+    }
 
     private void IrAAsignar()
     {
+        if (_descargando)
+            return;
         _indiceTramo = 0;
         _error = null;
         _paso = PasoAsistente.Asignar;
@@ -387,16 +422,62 @@ public partial class DividirPdf : CaeManager.Web.Components.PaginaInteractiva, I
         if (tramos.Count == 0)
             return;
 
+        // El almacenamiento pide su propia reserva, con espera, para cifrar cada tramo mientras esta sigue retenida. No
+        // puede esperarse a sí misma: las dos juntas caben en el presupuesto entero, o no se empieza. Lo que espere por las
+        // reservas de otros vence en EsperaMaxima y corta el lote sin perder lo ya creado.
+        if (!CabeEnElPresupuesto(LimitesDivisionPdf.MemoriaGuardarTramos(_original.TamanoBytes)))
+            return;
+
+        // Se toma con la pantalla viva: tras Dispose, _ciclo.Token lanza.
+        var token = _ciclo.Token;
         _creando = true;
         _error = null;
         try
         {
             Result<IReadOnlyList<ResultadoTramoCreado>> creacion;
-            using (await PresupuestoMemoria.ReservarAsync(_original.TamanoBytes, _ciclo.Token))
+            // La copia del original y lo que se recibe del proceso aparte por cada tramo, de uno en uno.
+            ReservaMemoriaDocumentos? reserva = await PresupuestoMemoria.ReservarAsync(
+                LimitesDivisionPdf.MemoriaCreacionTramos(_original.TamanoBytes), token);
+            try
             {
-                var contenido = await _almacen.LeerAsync(_original, _ciclo.Token);
-                creacion = await Mediator.Send(
-                    new CrearDocumentosDesdeDivisionCommand(contenido, _nombreOriginal, tenantId, empresaId, tramos), _ciclo.Token);
+                var contenido = await _almacen.LeerAsync(_original, token);
+                // El lote no se ata a la pantalla: salir de ella a mitad no lo corta, porque el resultado parcial solo
+                // viviría en esta pantalla y la persona, sin verlo, duplicaría al repetir lo ya creado. Cada espera del
+                // lote tiene su propio tope (el proceso aparte, las reservas), como en DividirAdjuntoPdfCommand. Sí se
+                // corta al cerrarse el circuito, antes de que su DbContext se disponga. Un Command por tramo, cada uno por
+                // la puerta de datos: entre un tramo y el siguiente la puerta queda libre, y la revalidación del circuito
+                // entra y puede cortar el lote; la puerta solo se retiene lo que dura un tramo.
+                creacion = await CreacionDivisionPdfPorTramos.CrearAsync(
+                    Mediator, contenido, _nombreOriginal, tenantId, empresaId, tramos, Logger, PuertaAccesoDatos.AlCerrarse);
+                if (creacion.EsExitoso && creacion.Valor.Any(r => r.EntradaRetenida))
+                {
+                    // Lote cortado con Documentos ya creados por un proceso aparte que no consta terminado: el resultado
+                    // se muestra, pero la reserva del original tampoco se devuelve.
+                    EntradaPdfRetenidaException.Retener(reserva);
+                    reserva = null;
+                }
+            }
+            catch (EntradaPdfRetenidaException)
+            {
+                // Sin ningún Documento creado: el proceso aparte no consta terminado y la reserva no se devuelve.
+                EntradaPdfRetenidaException.Retener(reserva);
+                reserva = null;
+                throw;
+            }
+            finally
+            {
+                reserva?.Dispose();
+            }
+
+            if (SinNadieQueLoVea)
+            {
+                // Nadie va a mostrar el resultado: lo creado se ve en Documentos. El registro guarda el desenlace de cada
+                // tramo, para poder reconstruir qué se creó y qué no: páginas, estado, Documento y código, sin nombres ni
+                // contenido. Si la pantalla ya soltó sus recursos, no se toca su estado (RetirarOriginal cancelaría un _vistas
+                // ya dispuesto); si solo se está cerrando el circuito, sigue como siempre y la soltará al desecharse.
+                RegistrarResultadoSinPantalla(tramos, creacion);
+                if (_desechado)
+                    return;
             }
 
             if (creacion.EsFallido)
@@ -414,13 +495,321 @@ public partial class DividirPdf : CaeManager.Web.Components.PaginaInteractiva, I
             _paso = PasoAsistente.Resultado;
             RetirarOriginal();
         }
-        catch (PresupuestoMemoriaAgotadoException)
+        catch (Exception ex) when (ex is PresupuestoMemoriaAgotadoException or EntradaPdfRetenidaException)
         {
+            if (SinNadieQueLoVea)
+                RegistrarCorteSinPantalla(tramos, CrearDocumentosDesdeDivisionCommandHandler.ErrorSinTurno, ex);
             _error = Textos["ErrorSinEspacio"];
+        }
+        catch (Exception ex) when (SinNadieQueLoVea && ex is not OutOfMemoryException)
+        {
+            // Lo que sale de aquí sale sin ningún Documento creado (con Documentos, CreacionDivisionPdfPorTramos corta el lote
+            // y lo devuelve): el cierre del circuito, la salida de la pantalla durante la reserva o un fallo antes del primer
+            // tramo. Nadie lo verá, así que el registro dice que ninguno se intentó; la excepción sigue su curso de siempre.
+            RegistrarCorteSinPantalla(tramos, ex is OperationCanceledException
+                ? CrearDocumentosDesdeDivisionCommandHandler.ErrorLoteCancelado
+                : CrearDocumentosDesdeDivisionCommandHandler.ErrorFalloInterno, ex);
+            throw;
         }
         finally
         {
             _creando = false;
+        }
+    }
+
+    /// <summary>
+    /// Nadie verá el resultado de Guardar: la pantalla ya se desechó, o el circuito se está cerrando, que corta el lote
+    /// (<c>PuertaAccesoDatos.AlCerrarse</c>) antes de desechar la pantalla.
+    /// </summary>
+    private bool SinNadieQueLoVea => _desechado || PuertaAccesoDatos.Cerrada;
+
+    /// <summary>
+    /// El lote de Guardar se cortó sin crear nada con la pantalla ya cerrada: una línea por tramo con sus páginas, «no
+    /// intentado» y el código de la causa (<see cref="CrearDocumentosDesdeDivisionCommandHandler.PrefijoNoIntentado"/>, como
+    /// los que deja el corte del lote), y el tipo de la excepción. Nada del PDF ni del titular.
+    /// </summary>
+    private void RegistrarCorteSinPantalla(IReadOnlyList<TramoACrear> tramos, string causa, Exception? excepcion)
+    {
+        if (excepcion is not null)
+            Logger.LogWarning("Dividir PDF cortó el lote con la pantalla ya cerrada sin crear ningún documento ({Excepcion}).",
+                excepcion.GetType().Name);
+        var codigo = CrearDocumentosDesdeDivisionCommandHandler.PrefijoNoIntentado + causa;
+        foreach (var tramo in tramos)
+            Logger.LogWarning("Dividir PDF, con la pantalla ya cerrada: páginas {PaginaInicial}-{PaginaFinal}, no intentado ({Codigo}).",
+                tramo.PaginaInicial, tramo.PaginaFinal, codigo);
+    }
+
+    /// <summary>
+    /// El resultado de Guardar cuando la pantalla ya se cerró: una línea por tramo con sus páginas, su estado (creado con su
+    /// Documento, rechazado o demasiado grande con su código, sin confirmar) y, si el lote entero falló antes de crear nada, su
+    /// código y cada tramo como no intentado. Nunca el detalle en texto, el nombre del PDF ni el titular: el registro no lleva
+    /// datos personales ni contenido.
+    /// </summary>
+    private void RegistrarResultadoSinPantalla(IReadOnlyList<TramoACrear> tramos, Result<IReadOnlyList<ResultadoTramoCreado>> creacion)
+    {
+        if (creacion.EsFallido)
+        {
+            Logger.LogWarning("Dividir PDF terminó el lote con la pantalla ya cerrada sin crear ningún documento ({Codigo}).",
+                creacion.Error.Codigo);
+            RegistrarCorteSinPantalla(tramos, creacion.Error.Codigo, excepcion: null);
+            return;
+        }
+
+        foreach (var tramo in creacion.Valor)
+        {
+            if (tramo.Estado == EstadoTramoCreado.Creado)
+                Logger.LogInformation(
+                    "Dividir PDF, con la pantalla ya cerrada: páginas {PaginaInicial}-{PaginaFinal}, {Estado}, Documento {DocumentoId}.",
+                    tramo.PaginaInicial, tramo.PaginaFinal, tramo.Estado, tramo.DocumentoId);
+            else
+                Logger.LogWarning(
+                    "Dividir PDF, con la pantalla ya cerrada: páginas {PaginaInicial}-{PaginaFinal}, {Estado} ({Codigo}).",
+                    tramo.PaginaInicial, tramo.PaginaFinal, tramo.Estado, tramo.CodigoError ?? "sin código");
+        }
+    }
+
+    /// <summary>
+    /// Lo que se espera a que el navegador lea cada tramo. Como en Unir PDF: pasar un token propio anula el plazo por
+    /// defecto de JS, y sin él un navegador que no tira del flujo retendría la reserva mientras viva el circuito.
+    /// </summary>
+    private static readonly TimeSpan PlazoDescarga = TimeSpan.FromMinutes(1);
+
+    /// <summary>
+    /// La salida «Descargar»: cada tramo, en orden, como un PDF aparte, sin crear ningún Documento. Por tramo hay una sola
+    /// reserva: mientras se lee y se extrae cubre todo lo que coexiste (<see cref="LimitesDivisionPdf.MemoriaExtraccionTramo"/>),
+    /// y en cuanto el tramo existe se reduce a él, sin soltarse nunca mientras el tramo sigue vivo, así que la espera del
+    /// navegador no retiene el original pero el tramo nunca queda fuera del presupuesto. Un tramo que falla, por el
+    /// motivo que sea, corta la serie y se dice cuál, para no dejar a medias una descarga que parezca completa.
+    /// </summary>
+    private async Task DescargarTramosAsync()
+    {
+        if (_descargando || _creando || _division is not { } division || _almacen is not { } almacen
+            || _original is not { } original || _empresaId is not { } empresaId || _tenantEsperadoId is not { } tenantId)
+            return;
+
+        // Cada tramo reserva su pico entero; si pasa del presupuesto, la reserva se recortaría y no lo cubriría.
+        if (!CabeEnElPresupuesto(LimitesDivisionPdf.MemoriaExtraccionTramo(original.TamanoBytes)))
+            return;
+
+        var rangos = division.Rangos;
+        var nombre = _nombreOriginal;
+        var token = _ciclo.Token;
+        var entregados = 0;
+        RangoPaginas? enCurso = null;
+        var tenantCambiado = false;
+        var tramoDemasiadoGrande = false;
+        var tramoDemasiadoComplejo = false;
+        var falloInterno = false;
+        var empresaFuera = false;
+        _descargando = true;
+        _descargados = null;
+        _error = null;
+        try
+        {
+            foreach (var rango in rangos)
+            {
+                enCurso = rango;
+                // Antes de extraer: así, entre la última comprobación de acceso de la extracción y la entrega del tramo no
+                // queda ninguna espera (ni la del módulo, que solo se importa la primera vez).
+                if (!await ImportarModuloDescargaAsync(token))
+                    break;
+
+                var entregado = await ExtraerYEntregarAsync(almacen, original, nombre, tenantId, empresaId, rango, token);
+                if (entregado.Fallo is { } codigo)
+                {
+                    tenantCambiado = codigo == CrearDocumentosDesdeDivisionCommandHandler.ErrorTenantCruzado;
+                    tramoDemasiadoGrande = codigo == ErroresDivisorPdf.DemasiadoGrande;
+                    tramoDemasiadoComplejo = codigo == ErroresDivisorPdf.DemasiadoComplejo;
+                    falloInterno = codigo == ErroresDivisorPdf.FalloInterno;
+                    empresaFuera = codigo == ObtenerCatalogoDivisionPdfQueryHandler.ErrorEmpresaNoGestionable;
+                    break;
+                }
+
+                if (!entregado.Recibido)
+                    break;
+
+                entregados++;
+                enCurso = null;
+            }
+
+            // Con otro Tenant en el selector o la Empresa fuera de alcance, reintentar no sirve, y lo ya descargado no se
+            // puede deshacer: se dice cuánto salió. Un tramo demasiado grande tampoco cabe al reintentarlo igual.
+            var descargado = entregados == 0 ? Textos["DescargaNinguna"].Value : Textos["DescargaParcial", entregados, rangos.Count].Value;
+            if (tenantCambiado)
+                _error = Textos["ErrorTenantCambiadoDescarga", descargado];
+            else if (empresaFuera)
+                _error = Textos["ErrorEmpresaFueraDescarga", descargado];
+            else if (enCurso is { } fallido)
+                _error = tramoDemasiadoGrande
+                    ? Textos["ErrorTramoDemasiadoGrande", fallido.Inicial, fallido.Final, LimitesArchivoSubido.TamanoMaximoMb]
+                    // El proceso aparte se quedó sin memoria, sin tiempo o murió: reintentar ocuparía otra vez el único turno.
+                    : tramoDemasiadoComplejo
+                        ? Textos["ErrorTramoDemasiadoComplejo", fallido.Inicial, fallido.Final]
+                        // No se pudo usar el proceso aparte: el PDF no se llegó a juzgar, y no se dice que esté dañado.
+                        : falloInterno
+                            ? Textos["ErrorTramoFalloInterno", fallido.Inicial, fallido.Final]
+                            : Textos["ErrorDescargaTramo", fallido.Inicial, fallido.Final];
+        }
+        catch (Exception ex) when (ex is PresupuestoMemoriaAgotadoException or EntradaPdfRetenidaException)
+        {
+            // Solo lanzan la reserva, su ampliación y el proceso aparte (sin turno, o sin constar terminado), dentro del
+            // bucle y con el tramo ya en curso; el aviso genérico es solo por si eso cambiara.
+            _error = enCurso is { } sinEspacio
+                ? Textos["ErrorSinEspacioTramo", sinEspacio.Inicial, sinEspacio.Final]
+                : Textos["ErrorSinEspacio"];
+        }
+        catch (IOException ex)
+        {
+            // El temporal del original ha desaparecido o el disco ha fallado: se dice qué tramo no salió.
+            Logger.LogWarning(ex, "Dividir PDF no pudo leer el original para descargar un tramo");
+            if (enCurso is { } fallido)
+                _error = Textos["ErrorDescargaTramo", fallido.Inicial, fallido.Final];
+        }
+        catch (OperationCanceledException) when (token.IsCancellationRequested)
+        {
+            // La pantalla se ha desechado: no queda nadie a quien avisar.
+        }
+        finally
+        {
+            _descargando = false;
+            // Si a mitad se cambió de PDF, el recuento ya no describe lo que hay en pantalla.
+            _descargados = entregados > 0 && ReferenceEquals(_division, division) ? entregados : null;
+        }
+    }
+
+    /// <summary>
+    /// Un tramo: lo extrae con su reserva, y si sale, lo entrega. <c>Fallo</c> es el código por el que no se entregó sin
+    /// llegar al navegador; <c>Recibido</c>, si el navegador lo leyó.
+    /// </summary>
+    private async Task<(string? Fallo, bool Recibido)> ExtraerYEntregarAsync(AlmacenTemporalSubidaMasiva almacen,
+        ArchivoTemporal original, string nombre, Guid tenantId, Guid empresaId, RangoPaginas rango, CancellationToken token)
+    {
+        ReservaMemoriaDocumentos? reserva = await PresupuestoMemoria.ReservarAsync(LimitesDivisionPdf.MemoriaExtraccionTramo(original.TamanoBytes), token);
+        try
+        {
+            Result<TramoPdfExtraido> tramo;
+            try
+            {
+                tramo = await ExtraerTramoAsync(almacen, original, nombre, tenantId, empresaId, rango, token);
+            }
+            catch (EntradaPdfRetenidaException)
+            {
+                // El proceso aparte que recibió el original no consta terminado y puede seguir referenciándolo.
+                EntradaPdfRetenidaException.Retener(reserva);
+                reserva = null;
+                throw;
+            }
+
+            if (tramo.EsFallido)
+                return (tramo.Error.Codigo, false);
+
+            // Lo último antes de entregar, sin ninguna espera detrás hasta el navegador: si el Tenant activo ya no es el
+            // del inicio, el tramo no sale de TALVEG. La Empresa la acaba de comprobar la extracción, en su última espera.
+            if (TenantActual.TenantId != tenantId)
+                return (CrearDocumentosDesdeDivisionCommandHandler.ErrorTenantCruzado, false);
+
+            using var exceso = CubrirSoloElTramo(reserva, tramo.Valor.Contenido.Length);
+            return (null, await EntregarTramoAsync(tramo.Valor, token));
+        }
+        finally
+        {
+            reserva?.Dispose();
+        }
+    }
+
+    /// <summary>
+    /// <see cref="IPresupuestoMemoriaDocumentos.ReservarAsync"/> recorta al presupuesto entero lo que pase de él: una
+    /// operación cuyo pico no cabe entero no se empieza, porque la reserva no lo cubriría. Se avisa en vez de esperar, porque
+    /// reintentar no lo cambia.
+    /// </summary>
+    private bool CabeEnElPresupuesto(long bytes)
+    {
+        if (bytes <= PresupuestoMemoria.Maximo)
+            return true;
+
+        Logger.LogWarning("Dividir PDF no empieza: necesita {Bytes} bytes y el presupuesto de memoria es de {Maximo}.", bytes, PresupuestoMemoria.Maximo);
+        _descargados = null;
+        _error = Textos["ErrorPdfExcedePresupuesto"];
+        return false;
+    }
+
+    /// <summary>Importa el módulo de descarga la primera vez; <c>false</c> si el navegador no lo carga en el plazo.</summary>
+    private async Task<bool> ImportarModuloDescargaAsync(CancellationToken token)
+    {
+        if (_modulo is not null)
+            return true;
+
+        using var vencimiento = new CancellationTokenSource(PlazoDescarga, Reloj);
+        using var plazo = CancellationTokenSource.CreateLinkedTokenSource(token, vencimiento.Token);
+        try
+        {
+            _modulo = await JS.InvokeAsync<IJSObjectReference>("import", plazo.Token, "./js/descarga-pdf-unido.js");
+            return true;
+        }
+        catch (OperationCanceledException) when (!token.IsCancellationRequested && vencimiento.IsCancellationRequested)
+        {
+            Logger.LogWarning("Dividir PDF: el navegador no cargó el módulo de descarga en {Plazo}.", PlazoDescarga);
+            return false;
+        }
+        catch (JSException ex)
+        {
+            Logger.LogWarning(ex, "Dividir PDF no pudo cargar el módulo de descarga");
+            return false;
+        }
+    }
+
+    /// <summary>Lee el original y extrae un tramo; la copia del original no sobrevive a este método.</summary>
+    private async Task<Result<TramoPdfExtraido>> ExtraerTramoAsync(AlmacenTemporalSubidaMasiva almacen, ArchivoTemporal original,
+        string nombre, Guid tenantId, Guid empresaId, RangoPaginas rango, CancellationToken token)
+    {
+        var contenido = await almacen.LeerAsync(original, token);
+        return await Mediator.Send(
+            new ExtraerTramoPdfQuery(contenido, nombre, tenantId, empresaId, rango.Inicial, rango.Final), token);
+    }
+
+    /// <summary>
+    /// Deja la reserva de la extracción en lo que ocupa el tramo, que sigue vivo hasta que el navegador lo recibe. El tramo
+    /// no puede pasar de <see cref="LimitesDivisionPdf.TamanoMaximoTramo"/>, que la reserva cubre dos veces; si aun así
+    /// ocupara más, amplía sin esperar (esperar reteniendo una reserva puede esperar a sí misma) o falla cerrado.
+    /// </summary>
+    /// <returns>La ampliación, si hizo falta; quien llama la suelta junto con la reserva.</returns>
+    /// <exception cref="PresupuestoMemoriaAgotadoException">El tramo no cabe ahora junto a lo ya reservado.</exception>
+    private ReservaMemoriaDocumentos? CubrirSoloElTramo(ReservaMemoriaDocumentos reserva, long bytesTramo)
+    {
+        if (bytesTramo <= reserva.Bytes)
+        {
+            reserva.ReducirA(bytesTramo);
+            return null;
+        }
+
+        return PresupuestoMemoria.TryReservar(bytesTramo - reserva.Bytes, out var exceso)
+            ? exceso
+            : throw new PresupuestoMemoriaAgotadoException();
+    }
+
+    /// <summary>
+    /// Entrega un tramo al navegador como flujo; vuelve cuando lo ha leído, ha fallado o vence el plazo. El módulo ya está
+    /// importado (<see cref="ImportarModuloDescargaAsync"/>): la primera espera de aquí es ya la entrega.
+    /// </summary>
+    private async Task<bool> EntregarTramoAsync(TramoPdfExtraido tramo, CancellationToken token)
+    {
+        using var vencimiento = new CancellationTokenSource(PlazoDescarga, Reloj);
+        using var plazo = CancellationTokenSource.CreateLinkedTokenSource(token, vencimiento.Token);
+        try
+        {
+            using var referencia = new DotNetStreamReference(new MemoryStream(tramo.Contenido, writable: false));
+            await _modulo!.InvokeVoidAsync("descargarPdf", plazo.Token, tramo.NombreArchivo, referencia);
+            return true;
+        }
+        catch (OperationCanceledException) when (!token.IsCancellationRequested && vencimiento.IsCancellationRequested)
+        {
+            Logger.LogWarning("Dividir PDF: el navegador no leyó un tramo en {Plazo}; se suelta.", PlazoDescarga);
+            return false;
+        }
+        catch (JSException ex)
+        {
+            Logger.LogWarning(ex, "Dividir PDF no pudo iniciar la descarga de un tramo");
+            return false;
         }
     }
 
@@ -434,6 +823,8 @@ public partial class DividirPdf : CaeManager.Web.Components.PaginaInteractiva, I
 
     private Task ReiniciarAsync()
     {
+        if (_descargando)
+            return Task.CompletedTask;
         RetirarOriginal();
         _division = null;
         _miniaturas.Clear();
@@ -441,6 +832,7 @@ public partial class DividirPdf : CaeManager.Web.Components.PaginaInteractiva, I
         _grandesPedidas.Clear();
         _resultados = [];
         _error = null;
+        _descargados = null;
         _firmado = false;
         _textoLegible = true;
         _indiceTramo = 0;
@@ -472,12 +864,6 @@ public partial class DividirPdf : CaeManager.Web.Components.PaginaInteractiva, I
 
     private static Guid? Identificador(string valor) => Guid.TryParse(valor, out var id) ? id : null;
 
-    private static string TextoFecha(DateOnly? fecha) =>
-        fecha?.ToString("dd/MM/yyyy", CultureInfo.InvariantCulture) ?? string.Empty;
-
-    private static DateOnly? Fecha(string valor) =>
-        DateOnly.TryParseExact(valor?.Trim(), "dd/MM/yyyy", CultureInfo.InvariantCulture, DateTimeStyles.None, out var fecha) ? fecha : null;
-
     public void Dispose()
     {
         _desechado = true;
@@ -485,5 +871,7 @@ public partial class DividirPdf : CaeManager.Web.Components.PaginaInteractiva, I
         _vistas?.Dispose();
         _almacen?.Dispose();
         _ciclo.Dispose();
+        if (_modulo is not null)
+            _ = _modulo.DisposeAsync().AsTask().ContinueWith(_ => { }, TaskScheduler.Default);
     }
 }

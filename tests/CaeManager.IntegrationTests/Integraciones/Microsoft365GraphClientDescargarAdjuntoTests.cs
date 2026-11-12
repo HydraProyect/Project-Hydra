@@ -33,7 +33,7 @@ public class Microsoft365GraphClientDescargarAdjuntoTests
             new HttpResponseMessage(HttpStatusCode.OK) { Content = new ByteArrayContent([10, 20, 30]) });
         var cliente = CrearCliente(handler);
 
-        var resultado = await cliente.ObtenerContenidoAdjuntoAsync("token", "mensaje-1", "adjunto-1", CancellationToken.None);
+        var resultado = await cliente.ObtenerContenidoAdjuntoAsync("token", new BuzonGraph("buzon@tenant.example", false), "mensaje-1", "adjunto-1", CancellationToken.None);
 
         resultado.EsExitoso.Should().BeTrue();
         resultado.Valor.Should().Equal(10, 20, 30);
@@ -47,7 +47,7 @@ public class Microsoft365GraphClientDescargarAdjuntoTests
             new HttpResponseMessage(HttpStatusCode.OK) { Content = new ByteArrayContent(contenidoDemasiadoGrande) });
         var cliente = CrearCliente(handler);
 
-        var resultado = await cliente.ObtenerContenidoAdjuntoAsync("token", "mensaje-1", "adjunto-1", CancellationToken.None);
+        var resultado = await cliente.ObtenerContenidoAdjuntoAsync("token", new BuzonGraph("buzon@tenant.example", false), "mensaje-1", "adjunto-1", CancellationToken.None);
 
         resultado.EsFallido.Should().BeTrue();
         resultado.Error.Codigo.Should().Be("Integraciones.Microsoft365.AdjuntoDemasiadoGrande");
@@ -59,7 +59,7 @@ public class Microsoft365GraphClientDescargarAdjuntoTests
         var handler = new RespuestaUnicaHandler(new HttpResponseMessage(HttpStatusCode.NotFound));
         var cliente = CrearCliente(handler);
 
-        var resultado = await cliente.ObtenerContenidoAdjuntoAsync("token", "mensaje-1", "adjunto-1", CancellationToken.None);
+        var resultado = await cliente.ObtenerContenidoAdjuntoAsync("token", new BuzonGraph("buzon@tenant.example", false), "mensaje-1", "adjunto-1", CancellationToken.None);
 
         resultado.EsFallido.Should().BeTrue();
         resultado.Error.Codigo.Should().Be("Integraciones.Microsoft365.ErrorApi");
