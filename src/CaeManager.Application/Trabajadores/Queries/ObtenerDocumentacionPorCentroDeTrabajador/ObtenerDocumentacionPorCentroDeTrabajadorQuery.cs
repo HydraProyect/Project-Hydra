@@ -67,11 +67,19 @@ public class ObtenerDocumentacionPorCentroDeTrabajadorQueryHandler(
         if (!await alcanceDatos.TrabajadorVisibleAsync(request.TrabajadorId, cancellationToken))
             return [];
 
+        // Ver al Trabajador no da acceso a todos sus Centros (ASVS 4.0.3 V4.2.1): un Trabajador visible por un Centro
+        // de la Asignación de Cartera, o del Cliente empresarial del usuario, puede tener además Asignaciones en Centros
+        // que el usuario no ve, y listarlas revelaría esos Centros, su Cliente empresarial y la Plataforma CAE y el estado
+        // de sus acreditaciones. Mismo criterio que el filtro por Centro de ObtenerTrabajadoresQuery. null = sin
+        // restricción; lista vacía = ningún Centro (fallo cerrado).
+        var centrosVisibles = await alcanceDatos.ObtenerCentroIdsVisiblesAsync(cancellationToken);
+
         var asignaciones = await (
             from asignacion in asignacionesContext.Asignaciones
             join centro in centrosContext.Centros on asignacion.CentroId equals centro.Id
             join cliente in empresasContext.Empresas on centro.ClienteId equals cliente.Id
             where asignacion.TrabajadorId == request.TrabajadorId && asignacion.FechaBaja == null
+            where centrosVisibles == null || centrosVisibles.Contains(asignacion.CentroId)
             orderby centro.Nombre
             select new
             {

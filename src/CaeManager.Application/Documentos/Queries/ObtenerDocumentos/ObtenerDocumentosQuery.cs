@@ -954,10 +954,15 @@ public class ObtenerDocumentosQueryHandler(IConfiguracionQueryContext configurac
 
         // El LEFT JOIN conserva los canales sin proveedor (p. ej. por correo), que se rotulan «Plataforma».
         // Proyectar el nombre aquí evita una segunda lectura secuencial por página.
+        // Solo las acreditaciones de Centros visibles del usuario (ASVS 4.0.3 V4.2.1), igual que el destino por Centro
+        // (ObtenerDestinosEnCentrosAsync) y el filtro por Plataforma CAE: sin ello la fila revelaría la plataforma y el
+        // estado de acreditación en Centros fuera de su Asignación de Cartera o de su Cliente empresarial.
+        var centrosVisibles = await alcanceDatos.ObtenerCentroIdsVisiblesAsync(cancellationToken);
         var crudas = await (
             from acreditacion in documentosContext.AcreditacionesDocumentoPlataforma
             where documentoIds.Contains(acreditacion.DocumentoId)
             join canal in centrosContext.CanalesGestionDocumental on acreditacion.CanalGestionDocumentalId equals canal.Id
+            where centrosVisibles == null || centrosVisibles.Contains(canal.CentroId)
             join proveedor in proveedoresContext.ProveedoresPlataformaCae
                 on canal.ProveedorPlataformaCaeId equals (Guid?)proveedor.Id into proveedores
             from proveedor in proveedores.DefaultIfEmpty()
