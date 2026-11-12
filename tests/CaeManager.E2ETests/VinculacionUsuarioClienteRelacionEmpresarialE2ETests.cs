@@ -29,7 +29,7 @@ public class VinculacionUsuarioClienteRelacionEmpresarialE2ETests(WebAppFixture 
         var razonSocialEmpresaPropia = $"F4.2a Refrielectric {sufijo}";
         var razonSocialSubcontrata = $"F4.2a Termico {sufijo}";
         var razonSocialOtroCliente = $"F4.2a Timonel {sufijo}";
-        var razonSocialEmpresaAjena = $"F4.2a Contrapiso {sufijo}";
+        var razonSocialSubcontrataAjena = $"F4.2a Contrapiso {sufijo}";
         var emailPortal = $"portal.f4.2a.{sufijo}@iberojet.test";
         // La contrasena la elige el propio usuario al activar su cuenta: el
         // alta ya no fija ninguna ni la envia por correo.
@@ -58,6 +58,8 @@ public class VinculacionUsuarioClienteRelacionEmpresarialE2ETests(WebAppFixture 
         await drawer.WaitForAsync(new LocatorWaitForOptions { State = WaitForSelectorState.Hidden, Timeout = 15_000 });
 
         // --- Empresa propia que sirve al Cliente real (dual-write F4 -> RelacionEmpresarial) ---
+        // D-P11: el Tenant admite una sola Empresa propia activa; la de un test anterior va a la Papelera antes de esta alta.
+        await fixture.LiberarEmpresaPropiaDelTenantPrincipalAsync();
         await Ayudas.NavegarYEsperarAsync(page, $"{fixture.BaseUrl}/empresas");
         await page.Locator(".cabecera-listado-primaria").GetByRole(AriaRole.Button, new() { Name = "+ Nueva empresa", Exact = true }).ClickAsync();
         await drawer.GetByLabel("Razón social").FillAsync(razonSocialEmpresaPropia);
@@ -66,12 +68,14 @@ public class VinculacionUsuarioClienteRelacionEmpresarialE2ETests(WebAppFixture 
         await drawer.Locator(".drawer-pie").GetByRole(AriaRole.Button, new() { Name = "Guardar", Exact = true }).ClickAsync();
         await drawer.WaitForAsync(new LocatorWaitForOptions { State = WaitForSelectorState.Hidden, Timeout = 15_000 });
 
-        // --- Empresa ajena que sirve solo al OTRO Cliente — control negativo ---
-        await Ayudas.NavegarYEsperarAsync(page, $"{fixture.BaseUrl}/empresas");
-        await page.Locator(".cabecera-listado-primaria").GetByRole(AriaRole.Button, new() { Name = "+ Nueva empresa", Exact = true }).ClickAsync();
-        await drawer.GetByLabel("Razón social").FillAsync(razonSocialEmpresaAjena);
+        // --- Subcontrata ajena que sirve solo al OTRO Cliente — control negativo ---
+        // D-P11: era una segunda Empresa propia, que el límite de una por Tenant ya no deja dar de alta junto a la de
+        // arriba; como Subcontrata conserva el control negativo, ahora en /subcontratas.
+        await Ayudas.NavegarYEsperarAsync(page, $"{fixture.BaseUrl}/subcontratas");
+        await page.Locator(".cabecera-listado-primaria").GetByRole(AriaRole.Button, new() { Name = "+ Nueva subcontrata", Exact = true }).ClickAsync();
+        await drawer.GetByLabel("Razón social").FillAsync(razonSocialSubcontrataAjena);
         await drawer.GetByLabel("Identificación fiscal *", new LocatorGetByLabelOptions { Exact = true }).FillAsync(Ayudas.GenerarCifValido(9_995_005));
-        await MarcarCasillaEnSelectorMultipleAsync(drawer, "Clientes con los que trabaja", razonSocialOtroCliente);
+        await MarcarCasillaEnSelectorMultipleAsync(drawer, "Clientes que la contrataron", razonSocialOtroCliente);
         await drawer.Locator(".drawer-pie").GetByRole(AriaRole.Button, new() { Name = "Guardar", Exact = true }).ClickAsync();
         await drawer.WaitForAsync(new LocatorWaitForOptions { State = WaitForSelectorState.Hidden, Timeout = 15_000 });
 
@@ -200,12 +204,6 @@ public class VinculacionUsuarioClienteRelacionEmpresarialE2ETests(WebAppFixture 
         await paginaPortal.Locator(".tarjeta-fila-acordeon", new PageLocatorOptions { HasText = razonSocialEmpresaPropia })
             .WaitForAsync(new LocatorWaitForOptions { Timeout = 15_000 });
 
-        // Control negativo: la Empresa que sirve al OTRO cliente no aparece,
-        // ni siquiera filtrando por su propio nombre exacto.
-        await paginaPortal.GetByPlaceholder("Filtrar esta pantalla: razón social o CIF").FillAsync(razonSocialEmpresaAjena);
-        await Expect(paginaPortal.Locator(".tarjeta-fila-acordeon", new PageLocatorOptions { HasText = razonSocialEmpresaAjena }))
-            .Not.ToBeVisibleAsync(new LocatorAssertionsToBeVisibleOptions { Timeout = 5_000 });
-
         // Misma razón que arriba: señal concreta de circuito vivo antes de
         // tocar el buscador, no silencio de red.
         await paginaPortal.GotoAsync($"{fixture.BaseUrl}/subcontratas");
@@ -215,6 +213,12 @@ public class VinculacionUsuarioClienteRelacionEmpresarialE2ETests(WebAppFixture 
         await paginaPortal.GetByPlaceholder("Filtrar esta pantalla: razón social o CIF").FillAsync(razonSocialSubcontrata);
         await paginaPortal.Locator(".tarjeta-fila-acordeon", new PageLocatorOptions { HasText = razonSocialSubcontrata })
             .WaitForAsync(new LocatorWaitForOptions { Timeout = 15_000 });
+
+        // Control negativo: la Subcontrata que sirve al OTRO cliente no aparece,
+        // ni siquiera filtrando por su propio nombre exacto.
+        await paginaPortal.GetByPlaceholder("Filtrar esta pantalla: razón social o CIF").FillAsync(razonSocialSubcontrataAjena);
+        await Expect(paginaPortal.Locator(".tarjeta-fila-acordeon", new PageLocatorOptions { HasText = razonSocialSubcontrataAjena }))
+            .Not.ToBeVisibleAsync(new LocatorAssertionsToBeVisibleOptions { Timeout = 5_000 });
     }
 
     /// <summary>

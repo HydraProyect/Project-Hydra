@@ -50,6 +50,8 @@ public class VisitaCentroGestionadoPorCorreoE2ETests(WebAppFixture fixture)
         await drawer.WaitForAsync(new LocatorWaitForOptions { State = WaitForSelectorState.Hidden, Timeout = 15_000 });
 
         // --- Empresa → Cliente → Centro ---
+        // D-P11: el Tenant admite una sola Empresa propia activa; la de un test anterior va a la Papelera antes del paso 1.
+        await fixture.LiberarEmpresaPropiaDelTenantPrincipalAsync();
         await Ayudas.NavegarYEsperarAsync(page, $"{fixture.BaseUrl}/clientes/alta-guiada");
         await page.GetByRole(AriaRole.Heading, new PageGetByRoleOptions { Name = "1. Empresa" }).WaitForAsync();
         await page.GetByLabel("Razón social").FillAsync(razonSocialEmpresa);
