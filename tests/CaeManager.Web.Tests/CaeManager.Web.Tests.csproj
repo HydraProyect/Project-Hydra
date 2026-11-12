@@ -55,6 +55,9 @@
   <ItemGroup>
     <Using Include="Xunit" />
     <Compile Include="..\CaeManager.E2ETests\Rendimiento\MedidorConsultasSql.cs" Link="Rendimiento\MedidorConsultasSql.cs" />
+    <!-- Lo que TrazaAlFallar decide sin navegador (borrar, publicar, anotar el -sin-traza.txt): se prueba aquí, en local
+         y en el job de bUnit, porque el proyecto de E2E solo corre con servidor y navegador (ver TramosDeTrazaTests). -->
+    <Compile Include="..\CaeManager.E2ETests\TramosDeTraza.cs" Link="E2E\TramosDeTraza.cs" />
   </ItemGroup>
 
   <ItemGroup>

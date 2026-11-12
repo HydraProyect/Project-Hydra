@@ -1,6 +1,7 @@
 // Pruebas de src/CaeManager.Web/wwwroot/js/dialogo-foco.js con un document falso: al abrir un diálogo el foco entra en él,
 // pero si ya está en un campo (el usuario o Playwright escribiendo antes de que la trampa se active) no se mueve, y al
-// cerrar vuelve a quien abrió el diálogo aunque el foco ya estuviera dentro al activarse la trampa (#2194).
+// cerrar vuelve a quien abrió el diálogo aunque el foco ya estuviera dentro al activarse la trampa (#2194), sin salir
+// del diálogo modal exterior que siga abierto; sin enfocables, Tab y Mayús+Tab no sacan el foco del diálogo.
 // Las ejecuta DialogoFocoJsTests (dotnet test) con el Node de la máquina, sin dependencias.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -25,6 +26,8 @@ function elemento(nombre, documento, padre = null) {
         hijos: [],
         offsetParent: {},
         oyentes: {},
+        atributos: {},
+        getAttribute(nombreAtributo) { return el.atributos[nombreAtributo] ?? null; },
         // Como el navegador: focusout en el que lo pierde (con el que lo gana como relatedTarget) y focusin en el nuevo.
         focus() {
             const anterior = documento.activeElement;
@@ -64,6 +67,7 @@ function escena({ conCampos = true, rastrear = true } = {}) {
     const abridor = elemento('abridor', documento, cuerpo);
     abridor.enfocable = true;
     const dialogo = elemento('dialogo', documento, cuerpo);
+    dialogo.atributos['aria-modal'] = 'true';
     let primero = null;
     let fecha = null;
     if (conCampos) {
@@ -141,6 +145,30 @@ test('sin enfocables y con el foco fuera, el foco cae en el contenedor', () => {
     assert.equal(documento.activeElement, dialogo);
 });
 
+test('sin enfocables, Tab y Mayús+Tab no sacan el foco del contenedor', () => {
+    const { documento, abridor, dialogo } = escena({ conCampos: false });
+    abridor.focus();
+    atraparFoco(dialogo);
+    const adelante = tab(dialogo);
+    assert.equal(adelante.prevenido, true);
+    assert.equal(documento.activeElement, dialogo);
+    const atras = tab(dialogo, { shiftKey: true });
+    assert.equal(atras.prevenido, true);
+    assert.equal(documento.activeElement, dialogo);
+});
+
+test('sin enfocables y con el foco en un control que se deshabilitó dentro, Tab lo devuelve al contenedor', () => {
+    const { documento, abridor, dialogo } = escena({ conCampos: false });
+    abridor.focus();
+    atraparFoco(dialogo);
+    // Un botón que tenía el foco y se deshabilitó (ya no está entre los enfocables) sigue siendo el elemento activo.
+    const deshabilitado = elemento('deshabilitado', documento, dialogo);
+    deshabilitado.focus();
+    const evento = tab(dialogo);
+    assert.equal(evento.prevenido, true);
+    assert.equal(documento.activeElement, dialogo);
+});
+
 test('sin elemento activo, el foco entra en el diálogo', () => {
     const { documento, dialogo, primero } = escena();
     documento.activeElement = null;
@@ -181,6 +209,64 @@ test('en un diálogo abierto desde otro, al cerrar vuelve al botón del diálogo
     assert.equal(documento.activeElement, primero);
     trampaFuera.dispose();
     assert.equal(documento.activeElement, abridor);
+});
+
+// Interior anidado dentro del exterior, abierto desde un botón del exterior que se repinta (se retira) antes de que la
+// trampa interior se active: el único candidato que sigue en el documento es el abridor de la página, detrás del
+// diálogo exterior todavía abierto.
+function anidadoConAbridorInteriorRetirado(escenario) {
+    const { documento, abridor, dialogo, primero } = escenario;
+    abridor.focus();
+    const trampaFuera = atraparFoco(dialogo);
+    assert.equal(documento.activeElement, primero);
+    const interior = elemento('interior', documento, dialogo);
+    interior.atributos['aria-modal'] = 'true';
+    const campoInterior = elemento('campoInterior', documento, interior);
+    campoInterior.enfocable = true;
+    campoInterior.focus();
+    dialogo.hijos.splice(dialogo.hijos.indexOf(primero), 1);
+    primero.padre = null;
+    const trampaDentro = atraparFoco(interior);
+    return { trampaFuera, trampaDentro, interior };
+}
+
+test('en un diálogo anidado con el abridor interior retirado, al cerrar el foco no sale del diálogo exterior abierto', () => {
+    const escenario = escena();
+    const { documento, abridor, dialogo } = escenario;
+    const { trampaDentro } = anidadoConAbridorInteriorRetirado(escenario);
+    trampaDentro.dispose();
+    assert.notEqual(documento.activeElement, abridor);
+    assert.equal(documento.activeElement, dialogo);
+});
+
+test('al cerrar los dos diálogos anidados, el exterior sigue devolviendo el foco a quien lo abrió y la pila queda vacía', () => {
+    const escenario = escena();
+    const { documento, abridor, dialogo, fecha } = escenario;
+    const { trampaFuera, trampaDentro } = anidadoConAbridorInteriorRetirado(escenario);
+    trampaDentro.dispose();
+    trampaFuera.dispose();
+    assert.equal(documento.activeElement, abridor);
+    // Ya no hay diálogo exterior abierto: un diálogo nuevo con el foco ya dentro vuelve al abridor de la página.
+    abridor.focus();
+    fecha.focus();
+    const trampa = atraparFoco(dialogo);
+    trampa.dispose();
+    assert.equal(documento.activeElement, abridor);
+});
+
+test('un panel no modal con trampa (Context Workspace) no limita adónde vuelve el foco de un diálogo abierto encima', () => {
+    const { documento, cuerpo, abridor, dialogo, fecha } = escena();
+    const panel = elemento('panel', documento, cuerpo);
+    const botonPanel = elemento('botonPanel', documento, panel);
+    botonPanel.enfocable = true;
+    botonPanel.focus();
+    const trampaPanel = atraparFoco(panel, true);
+    abridor.focus();
+    fecha.focus();
+    const trampa = atraparFoco(dialogo);
+    trampa.dispose();
+    assert.equal(documento.activeElement, abridor);
+    trampaPanel.dispose();
 });
 
 test('si el diálogo se abrió desde algo no enfocable, al cerrar no salta a un elemento de fuera más antiguo', () => {

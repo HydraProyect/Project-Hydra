@@ -17,19 +17,27 @@ namespace CaeManager.E2ETests;
 /// No graba el inicio de sesión: armarla no empieza a grabar; empieza al final de <see cref="Ayudas.IniciarSesionAsync"/>,
 /// que además corta la grabación mientras dura otro inicio de sesión en el mismo contexto. Así la traza no lleva la
 /// contraseña ni el código del segundo factor tecleados, ni el formulario de acceso. Son credenciales de prueba
-/// (constantes de <see cref="Ayudas"/>, públicas en este repositorio) contra una instancia de la aplicación que el E2E
-/// levanta en 127.0.0.1 con su propia base de datos de prueba, pero ni así deben acabar en un artefacto. Lo que sí
-/// lleva la red grabada son la cookie de sesión y los tokens de antifalsificación de esa instancia: solo valen contra
-/// ella, y desaparece al acabar el job.
+/// (constantes de <see cref="Ayudas"/>, públicas en este repositorio), pero ni así deben acabar en un artefacto, que en
+/// este repositorio público puede descargar cualquier usuario de GitHub.
 /// </para>
 /// <para>
-/// Si el test no llega a <see cref="Superada"/> (una aserción o una excepción lo cortan), la traza se escribe en
+/// Lo que sí lleva la red grabada (Playwright no deja grabar la traza sin ella) son la cookie de sesión, los tokens de
+/// antifalsificación y lo que la aplicación protege con Data Protection. Solo valen contra la instancia que levanta
+/// <see cref="WebAppFixture"/>: escucha en 127.0.0.1 del runner (ASPNETCORE_URLS), con su propia base de pruebas, y su
+/// llavero de Data Protection lo genera ella misma al arrancar en App_Data/dataprotection-keys bajo su content root
+/// (RegistroDataProtection, sin DataProtection:RutaClaves en la configuración de E2E). Ese llavero no viaja en la
+/// compilación compartida (el job que la empaqueta solo compila), no se publica (el paso de logs sube App_Data/logs, no
+/// el llavero) y desaparece con el runner al acabar el job: no hay una clave de la que dependa ninguna otra ejecución.
+/// </para>
+/// <para>
+/// Si el test no llega a <see cref="Superada"/> (una aserción o una excepción lo cortan), los tramos pasan a
 /// tests/CaeManager.E2ETests/TestResults/trazas-playwright/, que el paso «Publicar logs de CaeManager.Web si el E2E
-/// falla» de ci.yml ya sube como artefacto (sube TestResults entero). Se abre con
-/// <c>pwsh bin/Debug/net10.0/playwright.ps1 show-trace &lt;zip&gt;</c> o en trace.playwright.dev. Si no se puede
-/// guardar, o el test falló antes de que empezara a grabar (en el inicio de sesión), el motivo queda en un
-/// <c>…-sin-traza.txt</c> con el mismo nombre en ese directorio y en la salida de error. Un fallo de la traza (cualquier
-/// excepción salvo una cancelación, que sí se propaga) nunca hace fallar el test ni tapa su excepción.
+/// falla» de ci.yml sube como artefacto (sube TestResults entero). Hasta entonces se escriben en un directorio
+/// provisional que no se publica (ver <see cref="TramosDeTraza"/>): un tramo a medio escribir no llega al artefacto.
+/// Se abre con <c>pwsh bin/Debug/net10.0/playwright.ps1 show-trace &lt;zip&gt;</c> o en trace.playwright.dev. Si no se
+/// puede guardar, o el test falló antes de que empezara a grabar (en el inicio de sesión), el motivo queda en un
+/// <c>…-sin-traza.txt</c> en ese directorio y en la salida de error. Un fallo de la traza (cualquier excepción salvo una
+/// cancelación, que sí se propaga) nunca hace fallar el test ni tapa su excepción.
 /// </para>
 /// <para>
 /// Se arma en los tests que rellenan fechas con <see cref="Ayudas.RellenarFechaAsync"/>, los de la carrera de #2194, y
@@ -43,16 +51,16 @@ public sealed class TrazaAlFallar : IAsyncDisposable
 
     private readonly IBrowserContext _contexto;
     private readonly string _nombre;
-    private readonly List<string> _tramosAnteriores = [];
+    private readonly TramosDeTraza _tramos;
     private bool _iniciada;
     private bool _grabando;
     private bool _superada;
-    private string? _averiada;
 
     private TrazaAlFallar(IBrowserContext contexto, string nombre)
     {
         _contexto = contexto;
         _nombre = nombre;
+        _tramos = new TramosDeTraza(nombre, Directorio(), DirectorioProvisional());
     }
 
     public static TrazaAlFallar Armar(
@@ -73,27 +81,19 @@ public sealed class TrazaAlFallar : IAsyncDisposable
     internal static async Task PausarParaIniciarSesionAsync(IBrowserContext contexto)
     {
         if (!Armadas.TryGetValue(contexto, out var traza) || !traza._grabando) return;
-        // Deja de grabar aunque no se pueda guardar el tramo: lo que no puede pasar es que se grabe el acceso.
+        // Deja de grabar aunque no se pueda guardar el tramo: lo que no puede pasar es que se guarde el acceso. Si el
+        // corte falla, Playwright quizá siga grabando, pero lo que grabe solo se detiene sin ruta (DetenerAsync) y
+        // TramosDeTraza ya ha borrado lo que el corte llegara a escribir; tampoco se vuelve a grabar en este contexto.
         traza._grabando = false;
-        string? ruta = null;
-        try
-        {
-            ruta = traza.RutaNueva($"tramo{traza._tramosAnteriores.Count + 1}");
-            await contexto.Tracing.StopChunkAsync(new TracingStopChunkOptions { Path = ruta });
-            traza._tramosAnteriores.Add(ruta);
-        }
-        catch (Exception excepcion) when (excepcion is not OperationCanceledException)
-        {
-            // La traza es para diagnosticar: un fallo suyo no debe hacer fallar el inicio de sesión del test. Sin saber
-            // si el tramo se cortó, no se vuelve a grabar en este contexto.
-            traza._averiada = $"no se pudo cortar el tramo antes de otro inicio de sesión ({ruta ?? "sin ruta"}): {excepcion.GetType().Name}: {excepcion.Message}";
-        }
+        await traza._tramos.CortarAsync(
+            ruta => contexto.Tracing.StopChunkAsync(new TracingStopChunkOptions { Path = ruta }),
+            $"tramo{traza._tramos.Completos.Count + 1}");
     }
 
     /// <summary>Al acabar un inicio de sesión: la grabación empieza (o sigue, en un tramo nuevo) a partir de aquí.</summary>
     internal static async Task ReanudarTrasIniciarSesionAsync(IBrowserContext contexto)
     {
-        if (!Armadas.TryGetValue(contexto, out var traza) || traza._grabando || traza._averiada is not null) return;
+        if (!Armadas.TryGetValue(contexto, out var traza) || traza._grabando || traza._tramos.Averia is not null) return;
         try
         {
             if (traza._iniciada)
@@ -105,25 +105,21 @@ public sealed class TrazaAlFallar : IAsyncDisposable
         }
         catch (Exception excepcion) when (excepcion is not OperationCanceledException)
         {
-            traza._averiada = $"no se pudo empezar a grabar tras el inicio de sesión: {excepcion.Message}";
+            traza._tramos.Averiar($"no se pudo empezar a grabar tras el inicio de sesión: {excepcion.GetType().Name}: {excepcion.Message}");
         }
     }
 
-    /// <summary>Ruta en la que se escribe la traza de un test fallido.</summary>
-    public static string Directorio()
+    /// <summary>Ruta en la que se publica la traza de un test fallido.</summary>
+    public static string Directorio() => Path.Combine(DirectorioDelProyecto(), "TestResults", "trazas-playwright");
+
+    /// <summary>Ruta en la que se escriben los tramos mientras el test no ha acabado; CI no la publica.</summary>
+    public static string DirectorioProvisional() => Path.Combine(DirectorioDelProyecto(), "obj", "trazas-playwright-provisionales");
+
+    private static string DirectorioDelProyecto()
     {
         var dir = AppContext.BaseDirectory;
         while (dir is not null && !File.Exists(Path.Combine(dir, "CaeManager.slnx"))) dir = Path.GetDirectoryName(dir);
-        return dir is null
-            ? Path.Combine(AppContext.BaseDirectory, "TestResults", "trazas-playwright")
-            : Path.Combine(dir, "tests", "CaeManager.E2ETests", "TestResults", "trazas-playwright");
-    }
-
-    private string RutaNueva(string sufijo)
-    {
-        var directorio = Directorio();
-        Directory.CreateDirectory(directorio);
-        return Path.Combine(directorio, $"{_nombre}-{DateTime.UtcNow:yyyyMMdd-HHmmss}-{sufijo}.zip");
+        return dir is null ? AppContext.BaseDirectory : Path.Combine(dir, "tests", "CaeManager.E2ETests");
     }
 
     public async ValueTask DisposeAsync()
@@ -136,60 +132,31 @@ public sealed class TrazaAlFallar : IAsyncDisposable
         finally
         {
             // Los tramos de un test superado no deben acabar en el artefacto de otro test que falle después.
-            if (_superada)
-                foreach (var tramo in _tramosAnteriores)
-                {
-                    try { File.Delete(tramo); }
-                    catch (Exception excepcion) when (excepcion is not OperationCanceledException) { }
-                }
+            _tramos.Concluir(_superada, _iniciada
+                ? "el test falló sin que quedara ningún tramo grabado"
+                : "el test falló antes de acabar el inicio de sesión, y la traza no graba hasta entonces");
         }
     }
 
     private async Task DetenerAsync()
     {
-        if (!_iniciada)
+        if (!_iniciada) return;
+        if (!_superada && _grabando)
         {
-            // Sin esto, un test que falla en el inicio de sesión (antes de que empiece a grabar) dejaría un artefacto sin
-            // traza y sin explicación.
-            if (!_superada)
-                AnotarSinTraza(_averiada ?? "el test falló antes de acabar el inicio de sesión, y la traza no graba hasta entonces");
+            await _tramos.CortarAsync(ruta => _contexto.Tracing.StopAsync(new TracingStopOptions { Path = ruta }), "final");
             return;
         }
 
-        var ruta = _superada || !_grabando ? null : Path.Combine(Directorio(), $"{_nombre}-{DateTime.UtcNow:yyyyMMdd-HHmmss}.zip");
         try
         {
-            if (ruta is not null) Directory.CreateDirectory(Path.GetDirectoryName(ruta)!);
             // Sin ruta, Playwright descarta el tramo en curso (o no hay ninguno, si se cortó para otro inicio de sesión).
-            await _contexto.Tracing.StopAsync(new TracingStopOptions { Path = ruta });
-            if (_superada) return;
-            foreach (var guardada in _tramosAnteriores.Append(ruta).OfType<string>())
-                Console.WriteLine($"Traza de Playwright del test fallido: {guardada}");
-            if (_averiada is not null) AnotarSinTraza(_averiada);
+            await _contexto.Tracing.StopAsync(new TracingStopOptions { Path = null });
         }
         catch (Exception excepcion) when (excepcion is not OperationCanceledException)
         {
-            // El contexto o el navegador ya se cerraron (p. ej. el test falló porque se cayó el navegador) o no se pudo
-            // escribir el fichero: tapar con esto la excepción original del test sería peor que perder la traza, pero sin
-            // dejar rastro un artefacto sin traza no se distinguiría de un test que no la armó.
-            if (!_superada)
-                AnotarSinTraza($"no se pudo guardar ({ruta ?? "sin ruta"}): {excepcion.GetType().Name}: {excepcion.Message}");
-        }
-    }
-
-    private void AnotarSinTraza(string motivo)
-    {
-        var mensaje = $"Traza de Playwright de {_nombre} incompleta o ausente: {motivo}";
-        Console.Error.WriteLine(mensaje);
-        try
-        {
-            var directorio = Directorio();
-            Directory.CreateDirectory(directorio);
-            File.WriteAllText(Path.Combine(directorio, $"{_nombre}-{DateTime.UtcNow:yyyyMMdd-HHmmss}-sin-traza.txt"), mensaje + Environment.NewLine);
-        }
-        catch (Exception excepcionAlAnotar) when (excepcionAlAnotar is not OperationCanceledException)
-        {
-            Console.Error.WriteLine($"Tampoco se pudo anotar en {Directorio()}: {excepcionAlAnotar.Message}");
+            // El contexto o el navegador ya se cerraron (p. ej. el test falló porque se cayó el navegador): tapar con esto
+            // la excepción original del test sería peor que perder la traza. Si el test falló, Concluir lo anota.
+            if (!_superada) _tramos.Averiar($"no se pudo detener la traza: {excepcion.GetType().Name}: {excepcion.Message}");
         }
     }
 }

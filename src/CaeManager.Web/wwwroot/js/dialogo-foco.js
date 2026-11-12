@@ -33,23 +33,52 @@ export function rastrearFoco(documento = globalThis.document) {
 
 rastrearFoco();
 
+// Contenedores de las trampas activas, de la más antigua a la más reciente, compartidos entre copias del módulo por la
+// misma razón que el historial. Una trampa entra al activarse y sale al liberarse; la de un diálogo que desapareció
+// sin liberarla se ignora porque su contenedor ya no está en el documento.
+const CLAVE_TRAMPAS_ACTIVAS = Symbol.for('talveg.dialogoFoco.trampas');
+
+function trampasActivas() {
+    return (document[CLAVE_TRAMPAS_ACTIVAS] ??= []);
+}
+
+// El diálogo modal que sigue abierto debajo del que se abre ahora: la trampa activa más reciente cuyo contenedor es
+// modal (aria-modal="true") y sigue en el documento. Con varios diálogos anidados es el inmediatamente exterior, el
+// único cuyo contenido queda delante de los demás; un elemento de fuera de él queda detrás de un diálogo modal abierto.
+// Un panel no modal con trampa (el Context Workspace, role="complementary") no cuenta: lo de fuera de él sigue a la vista.
+function dialogoExteriorAbierto(contenedor) {
+    const pila = trampasActivas();
+    for (let i = pila.length - 1; i >= 0; i--) {
+        const exterior = pila[i];
+        if (exterior !== contenedor && exterior.getAttribute?.('aria-modal') === 'true' && document.contains(exterior))
+            return exterior;
+    }
+    return null;
+}
+
 // Quien tenía el foco antes de que entrara en el diálogo: el elemento activo si sigue fuera; si ya está dentro (o es
 // el propio contenedor), el último elemento de fuera que tuvo el foco y sigue en el documento (o el body, que como
-// antes no recibe el foco de vuelta). En un diálogo abierto desde otro, ese es el botón del diálogo de fuera que lo abrió.
+// antes no recibe el foco de vuelta). En un diálogo abierto desde otro, ese es el botón del diálogo de fuera que lo abrió,
+// y la búsqueda no sale de ese diálogo exterior: si el abridor ya no existe, el foco vuelve a su contenedor, no a un
+// elemento que quedó detrás de él.
 function elementoPrevioAlDialogo(contenedor) {
     const activo = document.activeElement;
     if (!contenedor.contains(activo)) return activo;
+    const exterior = dialogoExteriorAbierto(contenedor);
     const historial = document[CLAVE_HISTORIAL_FOCO] ?? [];
     for (let i = historial.length - 1; i >= 0; i--) {
         const candidato = historial[i];
-        if (candidato && !contenedor.contains(candidato) && document.contains(candidato)) return candidato;
+        if (!candidato || contenedor.contains(candidato) || !document.contains(candidato)) continue;
+        if (exterior && !exterior.contains(candidato)) continue;
+        return candidato;
     }
-    return null;
+    return exterior;
 }
 
 export function atraparFoco(contenedor, devolverFila = false) {
     rastrearFoco();
     const elementoPrevio = elementoPrevioAlDialogo(contenedor);
+    trampasActivas().push(contenedor);
 
     const enfocables = () => Array.from(contenedor.querySelectorAll(SELECTOR_ENFOCABLE))
         .filter(el => el.offsetParent !== null);
@@ -73,7 +102,13 @@ export function atraparFoco(contenedor, devolverFila = false) {
         if (evento.key !== 'Tab' || evento.defaultPrevented) return;
 
         const items = enfocables();
-        if (items.length === 0) return;
+        // Sin nada enfocable (solo texto, o todos los controles deshabilitados) el foco se queda en el contenedor: si se
+        // dejara pasar el Tab, saldría a la página de debajo del diálogo modal.
+        if (items.length === 0) {
+            evento.preventDefault();
+            if (document.activeElement !== contenedor) contenedor.focus();
+            return;
+        }
 
         const primero = items[0];
         const ultimo = items[items.length - 1];
@@ -95,6 +130,9 @@ export function atraparFoco(contenedor, devolverFila = false) {
     return {
         dispose: () => {
             contenedor.removeEventListener('keydown', manejarTab);
+            const pila = trampasActivas();
+            const posicion = pila.lastIndexOf(contenedor);
+            if (posicion >= 0) pila.splice(posicion, 1);
             // Puede que el elemento que abrió el diálogo ya no exista (p. ej.
             // se recargó la lista que contenía el botón) — comprobar que
             // sigue en el documento antes de devolverle el foco.
