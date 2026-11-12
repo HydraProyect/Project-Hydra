@@ -27,8 +27,9 @@ namespace CaeManager.E2ETests;
 /// tests/CaeManager.E2ETests/TestResults/trazas-playwright/, que el paso «Publicar logs de CaeManager.Web si el E2E
 /// falla» de ci.yml ya sube como artefacto (sube TestResults entero). Se abre con
 /// <c>pwsh bin/Debug/net10.0/playwright.ps1 show-trace &lt;zip&gt;</c> o en trace.playwright.dev. Si no se puede
-/// guardar, el motivo queda en un .txt con el mismo nombre en ese directorio y en la salida de error, sin tapar el
-/// fallo del test.
+/// guardar, o el test falló antes de que empezara a grabar (en el inicio de sesión), el motivo queda en un
+/// <c>…-sin-traza.txt</c> con el mismo nombre en ese directorio y en la salida de error. Un fallo de la traza nunca hace
+/// fallar el test ni tapa su excepción.
 /// </para>
 /// <para>
 /// Se arma en los tests que rellenan fechas con <see cref="Ayudas.RellenarFechaAsync"/>, los de la carrera de #2194, y
@@ -46,6 +47,7 @@ public sealed class TrazaAlFallar : IAsyncDisposable
     private bool _iniciada;
     private bool _grabando;
     private bool _superada;
+    private string? _averiada;
 
     private TrazaAlFallar(IBrowserContext contexto, string nombre)
     {
@@ -71,22 +73,40 @@ public sealed class TrazaAlFallar : IAsyncDisposable
     internal static async Task PausarParaIniciarSesionAsync(IBrowserContext contexto)
     {
         if (!Armadas.TryGetValue(contexto, out var traza) || !traza._grabando) return;
-        var ruta = traza.RutaNueva($"tramo{traza._tramosAnteriores.Count + 1}");
-        await contexto.Tracing.StopChunkAsync(new TracingStopChunkOptions { Path = ruta });
-        traza._tramosAnteriores.Add(ruta);
+        // Deja de grabar aunque no se pueda guardar el tramo: lo que no puede pasar es que se grabe el acceso.
         traza._grabando = false;
+        string? ruta = null;
+        try
+        {
+            ruta = traza.RutaNueva($"tramo{traza._tramosAnteriores.Count + 1}");
+            await contexto.Tracing.StopChunkAsync(new TracingStopChunkOptions { Path = ruta });
+            traza._tramosAnteriores.Add(ruta);
+        }
+        catch (Exception excepcion) when (excepcion is PlaywrightException or IOException or UnauthorizedAccessException)
+        {
+            // La traza es para diagnosticar: un fallo suyo no debe hacer fallar el inicio de sesión del test. Sin saber
+            // si el tramo se cortó, no se vuelve a grabar en este contexto.
+            traza._averiada = $"no se pudo cortar el tramo antes de otro inicio de sesión ({ruta ?? "sin ruta"}): {excepcion.GetType().Name}: {excepcion.Message}";
+        }
     }
 
     /// <summary>Al acabar un inicio de sesión: la grabación empieza (o sigue, en un tramo nuevo) a partir de aquí.</summary>
     internal static async Task ReanudarTrasIniciarSesionAsync(IBrowserContext contexto)
     {
-        if (!Armadas.TryGetValue(contexto, out var traza) || traza._grabando) return;
-        if (traza._iniciada)
-            await contexto.Tracing.StartChunkAsync(new TracingStartChunkOptions { Title = traza._nombre });
-        else
-            await contexto.Tracing.StartAsync(new TracingStartOptions { Title = traza._nombre, Screenshots = true, Snapshots = true });
-        traza._iniciada = true;
-        traza._grabando = true;
+        if (!Armadas.TryGetValue(contexto, out var traza) || traza._grabando || traza._averiada is not null) return;
+        try
+        {
+            if (traza._iniciada)
+                await contexto.Tracing.StartChunkAsync(new TracingStartChunkOptions { Title = traza._nombre });
+            else
+                await contexto.Tracing.StartAsync(new TracingStartOptions { Title = traza._nombre, Screenshots = true, Snapshots = true });
+            traza._iniciada = true;
+            traza._grabando = true;
+        }
+        catch (PlaywrightException excepcion)
+        {
+            traza._averiada = $"no se pudo empezar a grabar tras el inicio de sesión: {excepcion.Message}";
+        }
     }
 
     /// <summary>Ruta en la que se escribe la traza de un test fallido.</summary>
@@ -109,7 +129,32 @@ public sealed class TrazaAlFallar : IAsyncDisposable
     public async ValueTask DisposeAsync()
     {
         Armadas.Remove(_contexto);
-        if (!_iniciada) return;
+        try
+        {
+            await DetenerAsync();
+        }
+        finally
+        {
+            // Los tramos de un test superado no deben acabar en el artefacto de otro test que falle después.
+            if (_superada)
+                foreach (var tramo in _tramosAnteriores)
+                {
+                    try { File.Delete(tramo); }
+                    catch (Exception excepcion) when (excepcion is IOException or UnauthorizedAccessException) { }
+                }
+        }
+    }
+
+    private async Task DetenerAsync()
+    {
+        if (!_iniciada)
+        {
+            // Sin esto, un test que falla en el inicio de sesión (antes de que empiece a grabar) dejaría un artefacto sin
+            // traza y sin explicación.
+            if (!_superada)
+                AnotarSinTraza(_averiada ?? "el test falló antes de acabar el inicio de sesión, y la traza no graba hasta entonces");
+            return;
+        }
 
         var ruta = _superada || !_grabando ? null : Path.Combine(Directorio(), $"{_nombre}-{DateTime.UtcNow:yyyyMMdd-HHmmss}.zip");
         try
@@ -117,24 +162,24 @@ public sealed class TrazaAlFallar : IAsyncDisposable
             if (ruta is not null) Directory.CreateDirectory(Path.GetDirectoryName(ruta)!);
             // Sin ruta, Playwright descarta el tramo en curso (o no hay ninguno, si se cortó para otro inicio de sesión).
             await _contexto.Tracing.StopAsync(new TracingStopOptions { Path = ruta });
-            if (_superada)
-                foreach (var tramo in _tramosAnteriores) File.Delete(tramo);
-            else
-                foreach (var guardada in _tramosAnteriores.Append(ruta).OfType<string>())
-                    Console.WriteLine($"Traza de Playwright del test fallido: {guardada}");
+            if (_superada) return;
+            foreach (var guardada in _tramosAnteriores.Append(ruta).OfType<string>())
+                Console.WriteLine($"Traza de Playwright del test fallido: {guardada}");
+            if (_averiada is not null) AnotarSinTraza(_averiada);
         }
         catch (Exception excepcion) when (excepcion is PlaywrightException or IOException or UnauthorizedAccessException)
         {
             // El contexto o el navegador ya se cerraron (p. ej. el test falló porque se cayó el navegador) o no se pudo
             // escribir el fichero: tapar con esto la excepción original del test sería peor que perder la traza, pero sin
             // dejar rastro un artefacto sin traza no se distinguiría de un test que no la armó.
-            if (!_superada) AnotarQueNoSeGuardo(ruta, excepcion);
+            if (!_superada)
+                AnotarSinTraza($"no se pudo guardar ({ruta ?? "sin ruta"}): {excepcion.GetType().Name}: {excepcion.Message}");
         }
     }
 
-    private void AnotarQueNoSeGuardo(string? ruta, Exception excepcion)
+    private void AnotarSinTraza(string motivo)
     {
-        var mensaje = $"No se pudo guardar la traza de Playwright de {_nombre} ({ruta ?? "sin ruta"}): {excepcion.GetType().Name}: {excepcion.Message}";
+        var mensaje = $"Traza de Playwright de {_nombre} incompleta o ausente: {motivo}";
         Console.Error.WriteLine(mensaje);
         try
         {
