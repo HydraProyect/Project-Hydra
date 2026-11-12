@@ -375,4 +375,16 @@ public class ObtenerEntidadesAsociadasDeDocumentosTests
         acreditacion.Id.Should().Be(visible.Id);
         acreditacion.NombrePlataforma.Should().Be("Nalanda", "la Plataforma CAE del Centro de otro Cliente empresarial no aparece");
     }
+
+    [Fact]
+    public async Task Sin_ningun_Centro_visible_la_fila_no_trae_acreditaciones()
+    {
+        var (e, _, empresaId, _, _) = DocumentoAcreditadoEnCentroVisibleYEnCentroAjeno();
+        // Lista vacía, no null: fallo cerrado. null es el único valor que significa «sin restricción».
+        var sinCentros = new AlcanceDatosServiceFalso(tieneAccesoTotal: false, empresaIdsVisibles: [empresaId], centroIdsVisibles: []);
+
+        var resultado = await e.Handler(sinCentros).Handle(new ObtenerDocumentosQuery(null, null, null), default);
+
+        resultado.Elementos.Should().ContainSingle().Which.Acreditaciones.Should().BeEmpty();
+    }
 }
