@@ -129,7 +129,10 @@ public class IdiomaPorCuentaTests(WebAppFixtureConCatalan fixture)
             for (var i = 1; i <= meses; i++)
             {
                 var mes = Ayudas.HoyDeNegocio().AddMonths(i).ToString("MMMM yyyy", catalan);
-                await page.Locator("button[aria-label='Mes siguiente']").ClickAsync();
+                // La cuenta está en ca-ES, así que el aria-label sale del recurso
+                // catalán (TextosCalendario.ca-ES.resx, clave MesSiguiente). El E2E
+                // no referencia el proyecto Web y no puede leerlo, de ahí el literal.
+                await page.Locator("button[aria-label='Mes següent']").ClickAsync();
                 await Assertions.Expect(page.Locator(".calendario-titulo-mes"))
                     .ToHaveTextAsync(char.ToUpper(mes[0], catalan) + mes[1..]);
             }

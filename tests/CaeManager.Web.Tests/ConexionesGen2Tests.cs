@@ -5,6 +5,7 @@ using Bunit;
 using CaeManager.Application.Clientes.Queries.ObtenerClientesParaSelector;
 using CaeManager.Application.Integraciones.Commands.CrearLineaWhatsApp;
 using CaeManager.Application.Integraciones.Commands.DesconectarBuzon;
+using CaeManager.Application.Integraciones.Commands.RepararMarcaHueco;
 using CaeManager.Application.Integraciones.Queries.ObtenerConexionesIntegracion;
 using CaeManager.Application.Integraciones.Queries.ObtenerLineasWhatsApp;
 using CaeManager.Application.Tenants;
@@ -46,8 +47,14 @@ public class ConexionesGen2Tests : BunitContext
         public int ComandosCrearLinea { get; private set; }
         public int ComandosDesconexion { get; private set; }
 
+        /// <summary>Si se pone, la consulta del listado de conexiones lanza esta excepción.</summary>
+        public Exception? FalloConsultaConexiones { get; set; }
+
         public async Task<TResponse> Send<TResponse>(IRequest<TResponse> request, CancellationToken cancellationToken = default)
         {
+            if (request is ObtenerConexionesIntegracionQuery && FalloConsultaConexiones is { } fallo)
+                throw fallo;
+
             object respuesta = request switch
             {
                 ObtenerClientesParaSelectorQuery => new[] { new ClienteSelectorDto(Guid.NewGuid(), "Empresa sin rol CAE") },
@@ -55,9 +62,23 @@ public class ConexionesGen2Tests : BunitContext
                 ObtenerLineasWhatsAppQuery => Lineas,
                 CrearLineaWhatsAppCommand => await CrearLineaAsync(),
                 DesconectarBuzonCommand => await DesconectarAsync(),
+                RepararMarcaHuecoCommand => Reparar(),
                 _ => throw new NotSupportedException(request.GetType().Name)
             };
             return (TResponse)respuesta;
+        }
+
+        public int ComandosReparacion { get; private set; }
+
+        /// <summary>Lo que devuelve Reparar; antes de devolverlo aplica <see cref="AlReparar"/> (lo que haya en la base).</summary>
+        public Result ResultadoReparacion { get; set; } = Result.Exito();
+        public Action? AlReparar { get; set; }
+
+        private Result Reparar()
+        {
+            ComandosReparacion++;
+            AlReparar?.Invoke();
+            return ResultadoReparacion;
         }
 
         private async Task<Result<Guid>> CrearLineaAsync()
@@ -130,6 +151,8 @@ public class ConexionesGen2Tests : BunitContext
     [InlineData("cancelado", TonoToast.Info, "Conexión cancelada.")]
     [InlineData("autenticacion", TonoToast.Error, "No pudimos autenticar con Microsoft")]
     [InlineData("solicitud", TonoToast.Error, "No pudimos completar la conexión.")]
+    [InlineData("ya-conectado", TonoToast.Error, "Ese buzón ya está conectado")]
+    [InlineData("sin-acceso-compartido", TonoToast.Error, "TALVEG no puede abrir ese buzón compartido.")]
     public void El_resultado_del_callback_de_Microsoft_sale_con_su_tono(string codigo, TonoToast tono, string texto)
     {
         Services.AddScoped<IMediator>(_ => new MediadorFalso());
@@ -277,6 +300,186 @@ public class ConexionesGen2Tests : BunitContext
         await desconexion.WaitAsync(TimeSpan.FromSeconds(10));
     }
 
+    /// <summary>
+    /// Codex, ronda 17, hallazgo medio: con ConexionIntegracion.MarcaHuecoNoGuardada la conexión ya quedó Deshabilitada,
+    /// pero la pantalla seguía mostrándola Habilitada. Ante cualquier fallo se recarga el listado, el aviso de error se
+    /// conserva y el modal sigue abierto para volver a intentarlo.
+    /// </summary>
+    [Fact]
+    public async Task Un_fallo_al_desconectar_recarga_el_listado_y_conserva_el_error()
+    {
+        var buzon = Buzon("cae");
+        var mediador = new MediadorFalso
+        {
+            Conexiones = [buzon],
+            DesconexionPendiente = new(TaskCreationOptions.RunContinuationsAsynchronously)
+        };
+        var cut = Renderizar(mediador);
+        var instancia = cut.Instance;
+        cut.FindAll("td.acciones-conexion button").Should().ContainSingle("control: antes del fallo se puede desconectar");
+
+        await cut.InvokeAsync(() => Invocar(instancia, "AbrirDesconexion", buzon));
+        var desconexion = cut.InvokeAsync(() => InvocarAsync(instancia, "DesconectarAsync"));
+        await mediador.DesconexionIniciada.Task.WaitAsync(TimeSpan.FromSeconds(10));
+
+        // Lo que hay en la base cuando vuelve el fallo: la desconexión sí se guardó.
+        mediador.Conexiones = [buzon with { Estado = EstadoConexionIntegracion.Deshabilitada }];
+        await cut.InvokeAsync(() => mediador.DesconexionPendiente.TrySetResult(Result.Fallo(Error.Crear(
+            "ConexionIntegracion.MarcaHuecoNoGuardada",
+            "Hemos desconectado el buzón, pero no hemos podido registrar desde cuándo dejó de recibirse su correo."))));
+        await desconexion.WaitAsync(TimeSpan.FromSeconds(10));
+
+        // El desenlace llega por reflexión y no repinta: sin Render se leería la tabla anterior.
+        cut.Render();
+        cut.FindAll("tr").Single(fila => fila.TextContent.Contains(buzon.BuzonEmail)).TextContent.Should().Contain("Deshabilitada");
+        cut.FindAll("td.acciones-conexion button").Should().BeEmpty("una Deshabilitada no ofrece Desconectar en la fila");
+        Services.GetRequiredService<ToastService>().Mensajes.Should().ContainSingle()
+            .Which.Tono.Should().Be(TonoToast.Error);
+        cut.Find(".modal-contenido").TextContent.Should().Contain(buzon.BuzonEmail, "el modal sigue abierto para reintentar");
+    }
+
+    /// <summary>
+    /// Codex, ronda 18, hallazgo medio (Conexiones.razor.cs:332): la recarga tras el fallo solo capturaba la cancelación;
+    /// si la consulta fallaba, la excepción salía del manejador. Ahora el error del comando sigue visible, un aviso aparte
+    /// dice que el listado no se actualizó y el modal sigue abierto.
+    /// </summary>
+    [Fact]
+    public async Task Si_la_recarga_tras_un_fallo_al_desconectar_falla_conserva_el_error_y_avisa_de_la_recarga()
+    {
+        var buzon = Buzon("cae");
+        var mediador = new MediadorFalso
+        {
+            Conexiones = [buzon],
+            DesconexionPendiente = new(TaskCreationOptions.RunContinuationsAsynchronously)
+        };
+        var cut = Renderizar(mediador);
+        var instancia = cut.Instance;
+
+        await cut.InvokeAsync(() => Invocar(instancia, "AbrirDesconexion", buzon));
+        var desconexion = cut.InvokeAsync(() => InvocarAsync(instancia, "DesconectarAsync"));
+        await mediador.DesconexionIniciada.Task.WaitAsync(TimeSpan.FromSeconds(10));
+
+        mediador.FalloConsultaConexiones = new InvalidOperationException("base caída");
+        await cut.InvokeAsync(() => mediador.DesconexionPendiente.TrySetResult(Result.Fallo(Error.Crear(
+            "ConexionIntegracion.MarcaHuecoNoGuardada",
+            "Hemos desconectado el buzón, pero no hemos podido registrar desde cuándo dejó de recibirse su correo."))));
+        var completar = () => desconexion.WaitAsync(TimeSpan.FromSeconds(10));
+        await completar.Should().NotThrowAsync("la excepción de la consulta no sale del manejador");
+
+        cut.Render();
+        var mensajes = Services.GetRequiredService<ToastService>().Mensajes;
+        mensajes.Should().HaveCount(2);
+        mensajes.Should().OnlyContain(m => m.Tono == TonoToast.Error);
+        mensajes.Select(m => m.Mensaje).Should().Contain(t => t.Contains("no hemos podido registrar"), "el error del comando sigue visible");
+        mensajes.Select(m => m.Mensaje).Should().Contain(t => t.Contains("No pudimos actualizar el listado"));
+        cut.Find(".modal-contenido").TextContent.Should().Contain(buzon.BuzonEmail, "el modal sigue abierto para reintentar");
+
+        // Codex, ronda 19, hallazgo medio (Conexiones.razor.cs:168-172): el listado anterior, con la conexión aún
+        // Habilitada y su acción Desconectar, seguía a la vista. Ahora se vacía y queda solo el aviso, sin acciones.
+        await cut.InvokeAsync(() => InvocarAsync(instancia, "CerrarModalDesconexion", false));
+        cut.Render();
+        cut.FindAll("tr").Where(f => f.TextContent.Contains(buzon.BuzonEmail)).Should().BeEmpty("el listado anterior no queda a la vista");
+        cut.FindAll("td.acciones-conexion button").Should().BeEmpty("ninguna acción sobre datos viejos");
+        cut.Find("[data-testid='aviso-listado-no-actualizado']").TextContent.Should().Contain("No pudimos actualizar el listado");
+        cut.FindAll("[data-testid='aviso-lineas-no-actualizadas']").Should().ContainSingle("tampoco las líneas de WhatsApp");
+    }
+
+    /// <summary>
+    /// La siguiente carga que sí termina vuelve a mostrar el listado: el aviso no se queda pegado (control del anterior).
+    /// </summary>
+    [Fact]
+    public async Task Tras_una_carga_fallida_la_siguiente_que_termina_vuelve_a_mostrar_el_listado()
+    {
+        var buzon = Buzon("cae") with { Estado = EstadoConexionIntegracion.Deshabilitada, HuecoSinRegistrar = true };
+        var mediador = new MediadorFalso
+        {
+            Conexiones = [buzon],
+            FalloConsultaConexiones = new InvalidOperationException("base caída"),
+        };
+        var cut = Renderizar(mediador);
+        cut.FindAll("[data-testid='aviso-listado-no-actualizado']").Should().ContainSingle("la carga inicial falló");
+        cut.FindAll("[data-testid='accion-reparar-hueco']").Should().BeEmpty();
+
+        mediador.FalloConsultaConexiones = null;
+        await cut.InvokeAsync(() => InvocarAsync(cut.Instance, "RecargarSinPropagarAsync"));
+        cut.Render();
+
+        cut.FindAll("[data-testid='aviso-listado-no-actualizado']").Should().BeEmpty();
+        cut.FindAll("[data-testid='accion-reparar-hueco']").Should().ContainSingle();
+    }
+
+    /// <summary>
+    /// Codex, ronda 19, hallazgo medio: tras Reparar, una recarga que falla tampoco deja la fila anterior con su acción.
+    /// </summary>
+    [Fact]
+    public async Task Si_la_recarga_tras_Reparar_falla_no_quedan_la_fila_ni_su_accion()
+    {
+        var buzon = Buzon("cae") with { Estado = EstadoConexionIntegracion.Deshabilitada, HuecoSinRegistrar = true };
+        var mediador = new MediadorFalso { Conexiones = [buzon] };
+        mediador.AlReparar = () => mediador.FalloConsultaConexiones = new InvalidOperationException("base caída");
+        var cut = Renderizar(mediador);
+
+        await cut.InvokeAsync(() => cut.Find("[data-testid='accion-reparar-hueco']").Click());
+        cut.Render();
+
+        mediador.ComandosReparacion.Should().Be(1, "control: se reparó");
+        cut.FindAll("[data-testid='accion-reparar-hueco']").Should().BeEmpty();
+        cut.FindAll("tr").Where(f => f.TextContent.Contains(buzon.BuzonEmail)).Should().BeEmpty();
+        cut.FindAll("[data-testid='aviso-listado-no-actualizado']").Should().ContainSingle();
+    }
+
+    /// <summary>
+    /// Codex, ronda 18, hallazgo medio (Conexiones.razor.cs:325): una Deshabilitada no ofrece Desconectar en la fila, así
+    /// que cerrar el modal dejaba sin forma de reparar. Con la marca del hueco por registrar guardada en la conexión, la
+    /// fila avisa «Hueco sin registrar» y ofrece Reparar. Codex, ronda 19, hallazgo alto: Reparar enviaba Desconectar, que
+    /// desconecta si otra sesión reactivó la conexión; ahora envía su propio comando y nunca Desconectar.
+    /// </summary>
+    [Fact]
+    public async Task Una_deshabilitada_con_el_hueco_sin_registrar_avisa_y_Reparar_envia_la_reparacion()
+    {
+        var conHueco = Buzon("cae") with { Estado = EstadoConexionIntegracion.Deshabilitada, HuecoSinRegistrar = true };
+        var sinHueco = Buzon("otro") with { Estado = EstadoConexionIntegracion.Deshabilitada };
+        var mediador = new MediadorFalso { Conexiones = [conHueco, sinHueco] };
+        var cut = Renderizar(mediador);
+
+        var filaConHueco = cut.FindAll("tr").Single(f => f.TextContent.Contains(conHueco.BuzonEmail));
+        filaConHueco.QuerySelector("[data-testid='aviso-hueco-sin-registrar']")!.TextContent.Should().StartWith("Hueco sin registrar");
+        cut.FindAll("tr").Single(f => f.TextContent.Contains(sinHueco.BuzonEmail))
+            .QuerySelectorAll("td.acciones-conexion button").Should().BeEmpty("sin nada que reparar, ninguna acción");
+
+        await cut.InvokeAsync(() => cut.Find("[data-testid='accion-reparar-hueco']").Click());
+
+        mediador.ComandosReparacion.Should().Be(1);
+        mediador.ComandosDesconexion.Should().Be(0, "Reparar nunca envía Desconectar");
+        Services.GetRequiredService<ToastService>().Mensajes.Should().ContainSingle()
+            .Which.Tono.Should().Be(TonoToast.Exito);
+    }
+
+    /// <summary>
+    /// Otra sesión reactivó la conexión después de cargar la fila: Reparar devuelve que ya no está Deshabilitada, la
+    /// pantalla avisa del error y recarga el estado real (Habilitada), sin la acción Reparar.
+    /// </summary>
+    [Fact]
+    public async Task Si_la_conexion_ya_no_esta_Deshabilitada_Reparar_avisa_y_muestra_su_estado_real()
+    {
+        var buzon = Buzon("cae") with { Estado = EstadoConexionIntegracion.Deshabilitada, HuecoSinRegistrar = true };
+        var mediador = new MediadorFalso
+        {
+            Conexiones = [buzon],
+            ResultadoReparacion = Result.Fallo(Error.Crear(RepararMarcaHuecoCommandHandler.CodigoNoDeshabilitada, "Este buzón ya no está desconectado.")),
+        };
+        mediador.AlReparar = () => mediador.Conexiones = [buzon with { Estado = EstadoConexionIntegracion.Habilitada, HuecoSinRegistrar = false }];
+        var cut = Renderizar(mediador);
+
+        await cut.InvokeAsync(() => cut.Find("[data-testid='accion-reparar-hueco']").Click());
+        cut.Render();
+
+        mediador.ComandosDesconexion.Should().Be(0);
+        Services.GetRequiredService<ToastService>().Mensajes.Should().ContainSingle().Which.Tono.Should().Be(TonoToast.Error);
+        cut.FindAll("tr").Single(f => f.TextContent.Contains(buzon.BuzonEmail)).TextContent.Should().Contain("Habilitada");
+        cut.FindAll("[data-testid='accion-reparar-hueco']").Should().BeEmpty();
+    }
+
     [Fact]
     public async Task El_desenlace_de_guardado_obsoleto_no_desbloquea_el_modal_vigente()
     {
@@ -324,6 +527,59 @@ public class ConexionesGen2Tests : BunitContext
     private static LineaWhatsAppListaDto Linea(string nombre) =>
         new(Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), nombre, "+34600000000", $"pnid-{nombre}", $"waba-{nombre}",
             ModoAsignacionLinea.GestorFijo, null, [], null, null, null, EstadoConexionIntegracion.Habilitada, null);
+
+    /// <summary>
+    /// Habilitada pero sin identidad verificada en la ventana: la ingesta deja el correo en espera y no se envía nada
+    /// desde el buzón. Sin este aviso nadie lo vería, porque el estado sigue siendo Habilitada.
+    /// </summary>
+    [Fact]
+    public void Un_buzon_sin_identidad_verificada_muestra_el_aviso_y_uno_verificado_no()
+    {
+        var sinVerificar = Buzon("sinverificar") with { IdentidadSinVerificar = true };
+        var cut = Renderizar(new MediadorFalso { Conexiones = [sinVerificar, Buzon("verificado")] });
+
+        var avisos = cut.FindAll("[data-testid=aviso-identidad-sin-verificar]");
+        avisos.Should().ContainSingle();
+        avisos[0].TextContent.Should().Contain("en espera");
+        avisos[0].Closest("tr")!.TextContent.Should().Contain("sinverificar@ejemplo.test");
+    }
+
+    /// <summary>
+    /// Avisos de correo que no se ve en Bandeja: retenido, descartado tras sus intentos y no recuperado tras una caída.
+    /// Cada uno sale solo en su fila, y una conexión sin ellos no muestra ninguno.
+    /// </summary>
+    [Fact]
+    public void Los_avisos_de_correo_retenido_descartado_y_no_recuperado_salen_en_su_fila()
+    {
+        var retenido = Buzon("retenido") with { CorreoRetenido = true };
+        var descartado = Buzon("descartado") with { CorreoDescartado = true };
+        var noRecuperado = Buzon("norecuperado") with { CorreoNoRecuperadoDesdeUtc = new DateTime(2026, 11, 2, 9, 30, 0, DateTimeKind.Utc) };
+        var cut = Renderizar(new MediadorFalso { Conexiones = [retenido, descartado, noRecuperado, Buzon("sano")] });
+
+        var avisoRetenido = cut.FindAll("[data-testid=aviso-correo-retenido]").Should().ContainSingle().Subject;
+        avisoRetenido.Closest("tr")!.TextContent.Should().Contain("retenido@ejemplo.test");
+        var avisoDescartado = cut.FindAll("[data-testid=aviso-correo-descartado]").Should().ContainSingle().Subject;
+        avisoDescartado.Closest("tr")!.TextContent.Should().Contain("descartado@ejemplo.test");
+        var avisoNoRecuperado = cut.FindAll("[data-testid=aviso-correo-no-recuperado]").Should().ContainSingle().Subject;
+        avisoNoRecuperado.Closest("tr")!.TextContent.Should().Contain("norecuperado@ejemplo.test");
+        avisoNoRecuperado.TextContent.Should().Contain("02/11/2026 10:30", "la fecha se muestra en hora peninsular");
+        avisoNoRecuperado.TextContent.Should().Contain("no se recupera solo", "el hueco queda declarado, no recuperado");
+        avisoRetenido.TextContent.Should().Contain("Se ingerirá en cuanto se compruebe");
+    }
+
+    /// <summary>
+    /// Una conexión Deshabilitada no ingiere nada: su aviso de correo retenido no promete que el correo vaya a entrar.
+    /// </summary>
+    [Fact]
+    public void El_aviso_de_correo_retenido_de_una_conexion_desconectada_no_promete_ingesta()
+    {
+        var desconectada = Buzon("desconectada") with { Estado = EstadoConexionIntegracion.Deshabilitada, CorreoRetenido = true };
+        var cut = Renderizar(new MediadorFalso { Conexiones = [desconectada] });
+
+        var aviso = cut.FindAll("[data-testid=aviso-correo-retenido]").Should().ContainSingle().Subject;
+        aviso.TextContent.Should().Contain("mientras siga desconectado no se ingerirá");
+        aviso.TextContent.Should().NotContain("Se ingerirá en cuanto");
+    }
 
     [Fact]
     public void Sin_foco_previo_ninguna_fila_esta_enfocada()

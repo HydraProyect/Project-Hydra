@@ -445,6 +445,7 @@ public partial class AcordeonAsignacionesCentro : ComponentBase, IDisposable
         _procesandoBajaLote = false;
         _bajaLoteFallida = false;
         _fechaBajaLote = string.Empty;
+        _fechaBajaLoteNoValida = false;
     }
 
     private async Task CargarAsync()
@@ -1002,6 +1003,7 @@ public partial class AcordeonAsignacionesCentro : ComponentBase, IDisposable
     private void AbrirConfirmarBajaLoteAsync()
     {
         _fechaBajaLote = DiaDeNegocio.Hoy().ToString("yyyy-MM-dd");
+        _fechaBajaLoteNoValida = false;
         _bajaLoteFallida = false;
         _confirmarBajaLoteVisible = true;
         _instantaneaBajaLote.Fijar(_fechaBajaLote);
@@ -1012,7 +1014,15 @@ public partial class AcordeonAsignacionesCentro : ComponentBase, IDisposable
     /// un cambio, pero haberla cambiado sí (es lo que se perdería al salir o al cerrar el
     /// modal con la X, Escape o el fondo).
     /// </summary>
-    private bool HayCambiosSinGuardar => _confirmarBajaLoteVisible && _instantaneaBajaLote.Difiere(_fechaBajaLote);
+    private bool HayCambiosSinGuardar => _confirmarBajaLoteVisible && (_instantaneaBajaLote.Difiere(_fechaBajaLote) || _fechaBajaLoteNoValida);
+
+    /// <summary>
+    /// true mientras la fecha de baja tiene un texto a medias o ilegible (el padre tiene entonces null): la persona ha
+    /// editado el campo y cerrar sin avisar lo perdería, aunque la instantánea también fuera null.
+    /// </summary>
+    private bool _fechaBajaLoteNoValida;
+
+    private void AlCambiarFechaBajaLoteNoValida(bool noValida) => _fechaBajaLoteNoValida = noValida;
 
     /// <summary>
     /// Baja en lote. Tres cosas que el botón no puede garantizar por sí solo:
@@ -1047,7 +1057,9 @@ public partial class AcordeonAsignacionesCentro : ComponentBase, IDisposable
         if (_procesandoBajaLote)
             return;
 
-        if (!DateOnly.TryParse(_fechaBajaLote, out var fechaBaja))
+        // Con el texto a medias el padre aún tiene la fecha de hoy: sin el blur previo al clic (Safari no enfoca un botón al
+        // pulsarlo) se daría de baja a los seleccionados con una fecha que no es la que se ve.
+        if (_fechaBajaLoteNoValida || !DateOnly.TryParse(_fechaBajaLote, out var fechaBaja))
         {
             ToastService.Mostrar("Introduce una fecha de baja válida.", TonoToast.Error);
             return;

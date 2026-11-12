@@ -6,6 +6,7 @@
 @using CaeManager.Application.HerramientasPdf
 @using CaeManager.Web.Features.HerramientasPdf.Recursos
 @using Microsoft.AspNetCore.Components.Forms
+@inject Microsoft.Extensions.Localization.IStringLocalizer<CaeManager.Web.Recursos.TextosComunes> Comunes
 @attribute [Authorize(Roles = $"{CaeManager.Infrastructure.Identity.Roles.Administrador},{CaeManager.Infrastructure.Identity.Roles.DireccionCae},{CaeManager.Infrastructure.Identity.Roles.CoordinadorCae},{CaeManager.Infrastructure.Identity.Roles.GestorCae}")]
 
 <LimiteDeErrores Pagina="this">
@@ -62,7 +63,9 @@
                     @PintarDividir(division)
                     break;
                 case PasoAsistente.Asignar:
-                    @PintarAsignar(division)
+                    // Las claves de los dos CampoFecha de la ficha, únicas entre hermanos (punto único de @key).
+                    var claves = new ClavesDeHermanos();
+                    @PintarAsignar(division, claves)
                     break;
                 case PasoAsistente.Revisar:
                     @PintarRevisar(division)
@@ -95,6 +98,59 @@
 </LimiteDeErrores>
 
 @code {
+    /// <summary>
+    /// Tramos cuya caducidad tiene (o tuvo al salir del campo) un texto que no es una fecha entera. Mientras alguno siga
+    /// aquí, Crear queda bloqueado. Se libera al escribir una fecha entera, al vaciar el campo a mano o al marcar «Sin
+    /// caducidad» o «No crear» (el campo, al deshabilitarse, avisa false). Si se sale del tramo con el texto a medias,
+    /// el campo se destruye y su valor es null: la marca sigue, la fila del tramo en Revisar lo dice y Crear sigue
+    /// bloqueado. Al volver a ese tramo, el campo nuevo recibe la marca (CampoFecha.NoValido): no la retira al crearse, sale
+    /// con el aviso «no es una fecha» a la vista y solo la quita la persona al teclear o elegir una fecha. Solo cuentan los tramos de la división actual (un corte quitado o «Cambiar PDF» dejan
+    /// asignaciones que ya no se crean).
+    /// </summary>
+    private readonly HashSet<AsignacionTramo> _caducidadesNoValidas = new(ReferenceEqualityComparer.Instance);
+
+    /// <summary>
+    /// Lo mismo para la fecha de emisión. Una emisión a medias ya llega como null y deja el tramo sin emisión (no se puede
+    /// crear); la marca conserva además el aviso al volver al tramo y bloquea Crear aunque un tramo omitido se rehabilite.
+    /// </summary>
+    private readonly HashSet<AsignacionTramo> _emisionesNoValidas = new(ReferenceEqualityComparer.Instance);
+
+    private bool HayCaducidadNoValida(EstadoDivisionPdf division) =>
+        division.Rangos.Select(division.Asignacion).Any(a => CaducidadNoValidaVigente(division, a)
+            || (!a.Omitido && _emisionesNoValidas.Contains(a)));
+
+    private void AlCambiarEmision(AsignacionTramo asignacion, DateOnly? fecha)
+    {
+        asignacion.FechaEmision = fecha;
+        if (fecha is not null) _emisionesNoValidas.Remove(asignacion);
+    }
+
+    private void AlCambiarEmisionNoValida(AsignacionTramo asignacion, bool noValida)
+    {
+        if (noValida) _emisionesNoValidas.Add(asignacion);
+        else _emisionesNoValidas.Remove(asignacion);
+    }
+
+    /// <summary>
+    /// La marca solo cuenta mientras la caducidad se escribe a mano: con «No crear», «Sin caducidad» o un tipo de vencimiento
+    /// automático (el campo desaparece sin avisar) no hay nada que corregir y la marca no puede bloquear Crear en silencio.
+    /// </summary>
+    private bool CaducidadNoValidaVigente(EstadoDivisionPdf division, AsignacionTramo asignacion) =>
+        !asignacion.Omitido && !asignacion.SinCaducidad && _caducidadesNoValidas.Contains(asignacion)
+        && division.Tipo(asignacion.TipoDocumentoId) is not { VencimientoAutomatico: true };
+
+    private void AlCambiarCaducidad(AsignacionTramo asignacion, DateOnly? fecha)
+    {
+        asignacion.FechaCaducidad = fecha;
+        if (fecha is not null) _caducidadesNoValidas.Remove(asignacion);
+    }
+
+    private void AlCambiarCaducidadNoValida(AsignacionTramo asignacion, bool noValida)
+    {
+        if (noValida) _caducidadesNoValidas.Add(asignacion);
+        else _caducidadesNoValidas.Remove(asignacion);
+    }
+
     /// <summary>La única acción principal de la pantalla: cada paso pinta la suya, y solo se ve un paso a la vez.</summary>
     private RenderFragment BotonPrincipal(string texto, EventCallback accion, bool deshabilitado = false, bool cargando = false, string? href = null) =>
         @<Boton Variante="VarianteBoton.Primario" Deshabilitado="deshabilitado" Cargando="cargando" OnClick="accion" Href="@href">@texto</Boton>;
@@ -253,14 +309,20 @@
                 }
             </div>
         </section>
+        @if (_descargados is { } descargados)
+        {
+            <div class="aviso-dividir salida-descargada" role="status"><Icono Nombre="check" /><span>@Textos["DescargadosResultado", descargados]</span></div>
+        }
+        <p class="texto-suave salida-dividir">@Textos["SalidaDividir"]</p>
         <div class="barra-acciones-dividir">
             <span>@Textos["ResumenDivision", division.Rangos.Count, division.Rangos.Min(r => r.Paginas), division.Rangos.Max(r => r.Paginas)]</span>
-            <Boton Variante="VarianteBoton.Fantasma" OnClick="ReiniciarAsync">@Textos["CambiarPdf"]</Boton>
-            @BotonPrincipal(Textos[division.Rangos.Count == 1 ? "AsignarUno" : "AsignarVarios"], EventCallback.Factory.Create(this, IrAAsignar))
+            <Boton Variante="VarianteBoton.Fantasma" Deshabilitado="_descargando" OnClick="ReiniciarAsync">@Textos["CambiarPdf"]</Boton>
+            <Boton Variante="VarianteBoton.Secundario" Cargando="_descargando" OnClick="DescargarTramosAsync">@Textos[division.Rangos.Count == 1 ? "DescargarUno" : "DescargarVarios", division.Rangos.Count]</Boton>
+            @BotonPrincipal(Textos[division.Rangos.Count == 1 ? "AsignarUno" : "AsignarVarios"], EventCallback.Factory.Create(this, IrAAsignar), deshabilitado: _descargando)
         </div>
     </text>;
 
-    private RenderFragment PintarAsignar(EstadoDivisionPdf division)
+    private RenderFragment PintarAsignar(EstadoDivisionPdf division, ClavesDeHermanos claves)
     {
         var rangos = division.Rangos;
         var rango = rangos[Math.Clamp(_indiceTramo, 0, rangos.Count - 1)];
@@ -357,7 +419,14 @@
                         }
                     </CampoSelect>
 
-                    <CampoTexto Etiqueta="@Textos["FechaEmision"]" Placeholder="dd/mm/aaaa" Deshabilitado="asignacion.Omitido" Valor="@TextoFecha(asignacion.FechaEmision)" ValorChanged="v => asignacion.FechaEmision = Fecha(v)" />
+                    @* Los CampoFecha se recrean al cambiar de tramo (@key): si no, Blazor reutilizaría los mismos campos y un texto de
+                       fecha a medias (o no válido) del tramo anterior pasaría al siguiente. La clave va en los campos y no en la ficha
+                       para no recrear los botones de navegación, que perderían el foco del teclado al pulsar «Siguiente documento». *@
+                    @* La emisión a medias llega como null (falta la emisión: el tramo no está listo) y su marca la conserva el
+                       padre entre tramos, como la caducidad: con vencimiento automático, la caducidad sale de esta fecha. *@
+                    <CampoFecha @key="claves.De(rango.Clave)" Etiqueta="@Textos["FechaEmision"]" Deshabilitado="asignacion.Omitido" Valor="asignacion.FechaEmision"
+                                ValorChanged="v => AlCambiarEmision(asignacion, v)" NoValidoChanged="v => AlCambiarEmisionNoValida(asignacion, v)"
+                                NoValido="@_emisionesNoValidas.Contains(asignacion)" />
 
                     @if (division.Tipo(asignacion.TipoDocumentoId) is { VencimientoAutomatico: true })
                     {
@@ -365,7 +434,11 @@
                     }
                     else
                     {
-                        <CampoTexto Etiqueta="@Textos["FechaCaducidad"]" Placeholder="dd/mm/aaaa" Deshabilitado="@(asignacion.Omitido || asignacion.SinCaducidad)" Valor="@TextoFecha(asignacion.FechaCaducidad)" ValorChanged="v => asignacion.FechaCaducidad = Fecha(v)" />
+                        @* NoValidoChanged: una caducidad a medias o ilegible llega como null y crearía el Documento sin
+                           caducidad. Al marcar «Sin caducidad» u «No crear» el campo se deshabilita y avisa false solo. *@
+                        <CampoFecha @key="claves.De(rango.Clave)" Etiqueta="@Textos["FechaCaducidad"]" Deshabilitado="@(asignacion.Omitido || asignacion.SinCaducidad)" Valor="asignacion.FechaCaducidad"
+                                    ValorChanged="v => AlCambiarCaducidad(asignacion, v)" NoValidoChanged="v => AlCambiarCaducidadNoValida(asignacion, v)"
+                                    NoValido="@_caducidadesNoValidas.Contains(asignacion)" />
                         <label class="marca-tramo">
                             <input type="checkbox" checked="@asignacion.SinCaducidad" disabled="@asignacion.Omitido" @onchange="AlMarcarSinCaducidad(asignacion)" />
                             @Textos["SinCaducidad"]
@@ -420,7 +493,16 @@
                                 <td>@TextoPaginas(rango)</td>
                                 <td>@(division.Tipo(asignacion.TipoDocumentoId)?.Nombre ?? Textos["SinTipo"].Value)</td>
                                 <td>@(division.NombreTitular(asignacion) ?? Textos["SinTitular"].Value)</td>
-                                <td>@TextoCaducidad(division, asignacion)</td>
+                                <td>
+                                    @if (CaducidadNoValidaVigente(division, asignacion))
+                                    {
+                                        <span class="falta-dato" data-caducidad-no-valida-tramo>@Comunes["CampoFechaInvalida"]</span>
+                                    }
+                                    else
+                                    {
+                                        @TextoCaducidad(division, asignacion)
+                                    }
+                                </td>
                                 <td class="accion-revision">
                                     @if (asignacion.Omitido)
                                     {
@@ -442,8 +524,12 @@
                 </table>
                 <div class="barra-acciones-dividir barra-en-ficha">
                     <Boton Variante="VarianteBoton.Secundario" OnClick="() => Corregir(rangos.Count - 1)">@Textos["Anterior"]</Boton>
+                    @if (HayCaducidadNoValida(division))
+                    {
+                        <p class="falta-dato" role="alert" data-caducidad-no-valida>@Comunes["CampoFechaCorregirAntes"]</p>
+                    }
                     @BotonPrincipal(aCrear == 0 ? Textos["NadaQueCrear"] : Textos[aCrear == 1 ? "CrearUno" : "CrearVarios", aCrear],
-                        EventCallback.Factory.Create(this, CrearAsync), deshabilitado: aCrear == 0, cargando: _creando)
+                        EventCallback.Factory.Create(this, CrearAsync), deshabilitado: aCrear == 0 || HayCaducidadNoValida(division), cargando: _creando)
                 </div>
             </div>
         </text>;

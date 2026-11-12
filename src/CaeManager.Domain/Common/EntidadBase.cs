@@ -30,8 +30,9 @@ public abstract class EntidadBase : EntidadConTenant, IVersionable
     /// <summary>
     /// Para el agregado cuyo cambio vive en OTRA tabla (las filas de una unión): sin tocar la
     /// raíz, EF no emite su UPDATE, el token de concurrencia no entra en ningún WHERE y dos
-    /// escrituras simultáneas no se ven. Lo llama un método de dominio con nombre propio, nunca
-    /// un Command.
+    /// escrituras simultáneas no se ven. También para la operación que debe dejar el mismo efecto
+    /// observable haya o no cambio real (<c>Centro.QuitarAnclaDeEntrada</c>, para no revelar si había
+    /// un ancla cerrada). Lo llama un método de dominio con nombre propio, nunca un Command.
     /// </summary>
     protected void RenovarVersion() => Version = Guid.NewGuid();
 

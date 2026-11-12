@@ -15,7 +15,8 @@ namespace CaeManager.Application.Documentos.Commands.RestaurarAnotacionAcreditac
 /// <list type="bullet">
 /// <item>Misma autorización y alcance de datos que las dos anotaciones que deshace.</item>
 /// <item>Devuelve los valores exactos previos: el estado y la vigencia, incluido
-/// «Sin confirmar», que no equivale a una vigencia anotada.</item>
+/// «Sin confirmar», que no equivale a una vigencia anotada. Salvo hacia No requerida, que vuelve Sin confirmar
+/// (<see cref="AcreditacionDocumentoPlataforma.VigenciaAlVolverA"/>).</item>
 /// <item>El valor previo se valida contra el dominio (<c>PuedeDeshacerAnotacion</c>): no es una
 /// vía para poner cualquier estado.</item>
 /// <item>Rechaza si la acreditación cambió desde la anotación (la versión es obligatoria y
@@ -54,7 +55,10 @@ public class RestaurarAnotacionAcreditacionCommandHandler(
         if (acreditacion is null)
             return Result.Fallo(noEncontrada);
 
-        if (acreditacion.Estado == request.EstadoPrevio && acreditacion.Vigencia == request.VigenciaPrevia)
+        // Contra lo que deja el Deshacer, no contra el recibo: hacia No requerida la vigencia vuelve Sin confirmar aunque el
+        // recibo traiga una fecha histórica, y un segundo Deshacer con ese recibo tiene que seguir siendo idempotente.
+        if (acreditacion.Estado == request.EstadoPrevio
+            && acreditacion.Vigencia == AcreditacionDocumentoPlataforma.VigenciaAlVolverA(request.EstadoPrevio, request.VigenciaPrevia))
             return Result.Exito();
 
         if (ConcurrenciaOptimista.Verificar(acreditacion, request.VersionEsperada, "esta acreditación") is not null)

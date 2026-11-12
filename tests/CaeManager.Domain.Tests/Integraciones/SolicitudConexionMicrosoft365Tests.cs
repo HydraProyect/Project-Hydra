@@ -64,4 +64,41 @@ public class SolicitudConexionMicrosoft365Tests
 
         solicitud.EsValidaPara(Guid.NewGuid(), Ahora.AddMinutes(1)).Should().BeFalse();
     }
+
+    [Fact]
+    public void Guarda_el_buzon_compartido_sin_espacios_alrededor()
+    {
+        var solicitud = new SolicitudConexionMicrosoft365(Guid.NewGuid(), null, null, Ahora, "  piloto@tenant.com ");
+
+        solicitud.BuzonCompartido.Should().Be("piloto@tenant.com");
+    }
+
+    [Theory]
+    [InlineData("   ")]
+    [InlineData("")]
+    public void Rechaza_un_buzon_compartido_en_blanco(string buzonCompartido)
+    {
+        var accion = () => new SolicitudConexionMicrosoft365(Guid.NewGuid(), null, null, Ahora, buzonCompartido);
+
+        accion.Should().Throw<ArgumentException>();
+    }
+
+    [Fact]
+    public void Rechaza_un_buzon_compartido_demasiado_largo()
+    {
+        var direccion = new string('a', ConexionIntegracion.LongitudMaximaBuzonEmail) + "@tenant.com";
+
+        var accion = () => new SolicitudConexionMicrosoft365(Guid.NewGuid(), null, null, Ahora, direccion);
+
+        accion.Should().Throw<ArgumentException>();
+    }
+
+    /// <summary>Un buzón compartido no es el buzón personal de un Gestor CAE: las dos cosas a la vez no tienen sentido.</summary>
+    [Fact]
+    public void Rechaza_un_buzon_compartido_con_Gestor_propietario()
+    {
+        var accion = () => new SolicitudConexionMicrosoft365(Guid.NewGuid(), null, Guid.NewGuid(), Ahora, "piloto@tenant.com");
+
+        accion.Should().Throw<ArgumentException>();
+    }
 }

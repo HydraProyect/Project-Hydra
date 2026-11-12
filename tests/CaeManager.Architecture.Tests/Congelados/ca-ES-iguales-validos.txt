@@ -51,3 +51,6 @@ Jornada intensiva
 Accesos por Centro
 Clientes empresariales
 Tipos de documento
+#
+# «Mes anterior» se escribe igual en catalán: botón del calendario de CampoFecha.
+Mes anterior

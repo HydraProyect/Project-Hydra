@@ -6,6 +6,7 @@ using CaeManager.Application.Seguridad.InicioSesion;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Notificaciones;
 using CaeManager.Domain.Seguridad;
+using CaeManager.Infrastructure.Email;
 using CaeManager.Infrastructure.Identity;
 using CaeManager.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Http;
@@ -13,6 +14,7 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.WebUtilities;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
@@ -102,7 +104,9 @@ public sealed class VigilanciaInicioSesionService(
     IActorAuditoria actorAuditoria,
     IOptions<OpcionesInicioSesionSeguro> opciones,
     ILogger<VigilanciaInicioSesionService> logger,
-    CaeManager.Application.Seguridad.Incidentes.ISenalesIncidenteSeguridad senalesIncidente) : IVigilanciaInicioSesion
+    CaeManager.Application.Seguridad.Incidentes.ISenalesIncidenteSeguridad senalesIncidente,
+    IOptions<SmtpEmailOptions> smtp,
+    IHostEnvironment entorno) : IVigilanciaInicioSesion
 {
     /// <summary>Cookie con el identificador aleatorio del navegador (estrictamente necesaria, de seguridad).</summary>
     public const string CookieDispositivo = "talveg_dispositivo";
@@ -483,7 +487,20 @@ public sealed class VigilanciaInicioSesionService(
         return DispositivoDeInicioSesion.Huella(valor!);
     }
 
+    /// <summary>
+    /// Base de los enlaces con token de estos correos: <c>Smtp:UrlBasePublica</c>, nunca el
+    /// Host de la petición fuera de Development (<see cref="UrlBasePublica.Resolver"/>). Sin
+    /// barra final, porque los enlaces se componen con <c>{base}/cuenta/...</c>.
+    /// </summary>
     private string? UrlBase()
+    {
+        var basePublica = UrlBasePublica.Resolver(smtp.Value.UrlBasePublica, BaseDeLaPeticion, entorno.IsDevelopment());
+        if (basePublica is null)
+            logger.LogError("No se puede generar el enlace del aviso de seguridad: falta una URL válida en Smtp:UrlBasePublica.");
+        return basePublica?.AbsoluteUri.TrimEnd('/');
+    }
+
+    private string? BaseDeLaPeticion()
     {
         var peticion = accesoHttp.HttpContext?.Request;
         return peticion is null || !peticion.Host.HasValue ? null : $"{peticion.Scheme}://{peticion.Host}{peticion.PathBase}";

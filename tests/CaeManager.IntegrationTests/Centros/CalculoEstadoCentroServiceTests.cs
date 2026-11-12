@@ -126,6 +126,28 @@ public class CalculoEstadoCentroServiceTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task Una_no_requerida_anterior_a_la_invariante_con_fecha_vencida_no_bloquea_el_Centro()
+    {
+        using var reloj = RelojDePrueba.FijarEn(_instante);
+        // Misma acreditación vencida que la primera prueba de este bloque, pero No requerida: antes se podía anotar vigencia
+        // sobre una No requerida y esas filas siguen en la base. Se fabrica en SQL porque el dominio ya no deja llegar a ella.
+        var id = await SembrarAcreditacionAsync(VigenciaEnPlataforma.VenceEl(DiaDeNegocio.Hoy().AddDays(-1)));
+        await using (var contexto = CrearContexto())
+        {
+            var filas = await contexto.AcreditacionesDocumentoPlataforma
+                .Where(a => a.Id == id)
+                .ExecuteUpdateAsync(s => s.SetProperty(a => a.Estado, EstadoAcreditacion.NoRequerida));
+            filas.Should().Be(1, "precondición: la fila histórica existe");
+        }
+
+        var resultado = await CalcularAsync();
+
+        resultado.Estado.Should().NotBe(EstadoCentro.Bloqueado);
+        resultado.Causas.Should().NotContain(c => c.Descripcion.Contains("vencido en la plataforma"),
+            "un documento que la plataforma no pide no pone el Centro en rojo por su fecha");
+    }
+
+    [Fact]
     public async Task Un_trabajador_desvinculado_no_bloquea_el_Centro_por_su_vigencia_en_la_plataforma()
     {
         using var reloj = RelojDePrueba.FijarEn(_instante);
@@ -327,7 +349,7 @@ public class CalculoEstadoCentroServiceTests : IAsyncLifetime
     /// Así lo único que cambia entre las tres pruebas de arriba es la vigencia
     /// en la plataforma, que es la variable bajo estudio.
     /// </summary>
-    private async Task SembrarAcreditacionAsync(VigenciaEnPlataforma vigencia)
+    private async Task<Guid> SembrarAcreditacionAsync(VigenciaEnPlataforma vigencia)
     {
         await using var contexto = CrearContexto();
 
@@ -349,6 +371,7 @@ public class CalculoEstadoCentroServiceTests : IAsyncLifetime
         acreditacion.MarcarAceptada(vigencia);
         contexto.AcreditacionesDocumentoPlataforma.Add(acreditacion);
         await contexto.SaveChangesAsync();
+        return acreditacion.Id;
     }
 
     [Fact]

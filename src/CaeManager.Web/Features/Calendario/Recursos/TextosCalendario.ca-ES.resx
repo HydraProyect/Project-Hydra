@@ -22,16 +22,16 @@
     <value>Mes anterior</value>
   </data>
   <data name="MesSiguiente" xml:space="preserve">
-    <value>Mes siguiente</value>
+    <value>Mes següent</value>
   </data>
   <data name="Hoy" xml:space="preserve">
     <value>Hoy</value>
   </data>
   <data name="ErrorCargaTitulo" xml:space="preserve">
-    <value>No pudimos cargar el calendario</value>
+    <value>No hem pogut carregar el calendari</value>
   </data>
   <data name="ErrorCargaDetalle" xml:space="preserve">
-    <value>Intenta nuevamente en unos segundos.</value>
+    <value>Torna-ho a provar d'aquí a uns segons.</value>
   </data>
   <data name="DiaLunes" xml:space="preserve">
     <value>Lun</value>
@@ -55,25 +55,25 @@
     <value>Dom</value>
   </data>
   <data name="LeyendaVencidoOUrgente" xml:space="preserve">
-    <value>Algún vencido o urgente</value>
+    <value>Algun vençut o urgent</value>
   </data>
   <data name="LeyendaProximo" xml:space="preserve">
-    <value>Algún próximo, ninguno peor</value>
+    <value>Algun pròxim, cap de pitjor</value>
   </data>
   <data name="LeyendaVigente" xml:space="preserve">
-    <value>Todo vigente</value>
+    <value>Tot vigent</value>
   </data>
   <data name="LeyendaVisita" xml:space="preserve">
     <value>Visita programada</value>
   </data>
   <data name="LeyendaExplicacion" xml:space="preserve">
-    <value>El número es el recuento del día; el color, su peor estado.</value>
+    <value>El número és el recompte del dia; el color, el pitjor estat.</value>
   </data>
   <data name="SubtituloVencimientos" xml:space="preserve">
-    <value>Vencimientos</value>
+    <value>Venciments</value>
   </data>
   <data name="SubtituloVisitas" xml:space="preserve">
-    <value>Visitas programadas</value>
+    <value>Visites programades</value>
   </data>
   <data name="Renovar" xml:space="preserve">
     <value>Renovar</value>
@@ -106,25 +106,25 @@
     <value>Notificada</value>
   </data>
   <data name="NotificadaDetalle" xml:space="preserve">
-    <value>El titular del Centro ya está avisado de la visita</value>
+    <value>El titular del Centre ja ha estat avisat de la visita</value>
   </data>
   <data name="SinNotificar" xml:space="preserve">
-    <value>Sin notificar</value>
+    <value>Sense notificar</value>
   </data>
   <data name="SinNotificarDetalle" xml:space="preserve">
-    <value>El titular del Centro todavía no está avisado de la visita</value>
+    <value>El titular del Centre encara no ha estat avisat de la visita</value>
   </data>
   <data name="VencimientoUno" xml:space="preserve">
-    <value>{0} vencimiento</value>
+    <value>{0} venciment</value>
   </data>
   <data name="VencimientoVarios" xml:space="preserve">
-    <value>{0} vencimientos</value>
+    <value>{0} venciments</value>
   </data>
   <data name="VisitaProgramadaUna" xml:space="preserve">
     <value>{0} visita programada</value>
   </data>
   <data name="VisitaProgramadaVarias" xml:space="preserve">
-    <value>{0} visitas programadas</value>
+    <value>{0} visites programades</value>
   </data>
   <data name="VisitaUna" xml:space="preserve">
     <value>{0} visita</value>
@@ -136,7 +136,7 @@
     <value>{0} trabajador</value>
   </data>
   <data name="TrabajadorVarios" xml:space="preserve">
-    <value>{0} trabajadores</value>
+    <value>{0} treballadors</value>
   </data>
   <data name="EtiquetaDiaPeorEstado" xml:space="preserve">
     <value>{0} (peor estado: {1})</value>

@@ -92,6 +92,13 @@ public class ProhibicionSqlCrudoYFiltrosIgnoradosTests
         // si el contexto ya lo rastreaba; reponen el TenantId en la misma consulta y RLS sigue aplicando.
         [("src/CaeManager.Infrastructure/Persistence/Repositories/CentroRepository.cs", "dbContext.Centros.IgnoreQueryFilters().Where(c => c.Id == id && c.TenantId == tenantId), cancellationToken);")] = 1,
         [("src/CaeManager.Infrastructure/Persistence/Repositories/DocumentoRepository.cs", "dbContext.Documentos.IgnoreQueryFilters().Where(d => d.Id == id && d.TenantId == tenantId), cancellationToken);")] = 1,
+        // La guarda de historial de «no lo pide» (MarcarAcreditacionNoRequerida, revisión Codex r3 de la PR #2172) lee el
+        // Documento sin rastrear, también eliminado, y lo vuelve a leer bajo FOR SHARE dentro de su transacción después de
+        // guardar la marca y antes de confirmar (bloquear antes del UPDATE interbloquearía con la corrección del Documento,
+        // que EF ordena acreditaciones primero): EF no expresa el bloqueo. Id y TenantId repuestos a mano en las dos; RLS
+        // sigue aplicando.
+        [("src/CaeManager.Infrastructure/Persistence/Repositories/DocumentoRepository.cs", "dbContext.Documentos.IgnoreQueryFilters().AsNoTracking()")] = 1,
+        [("src/CaeManager.Infrastructure/Persistence/Repositories/DocumentoRepository.cs", "var bloqueadas = await dbContext.Database.SqlQuery<Guid>($\"\"\"")] = 1,
         [("src/CaeManager.Application/Subcontratas/Commands/RestaurarSubcontrata/RestaurarSubcontrataCommand.cs", ".IgnoreQueryFilters()")] = 1,
         // Antes de borrar la copia de un adjunto comprueba que no haya fila con el Id reservado, tampoco entre las eliminadas,
         // que son restaurables y conservan su archivo. Solo Id y Tenant actual explícito; RLS sigue aplicando.
@@ -228,10 +235,26 @@ public class ProhibicionSqlCrudoYFiltrosIgnoradosTests
         // propia (Guid.Empty). Solo devuelven sí/no o el resultado; todos los parámetros van por EF.
         [("src/CaeManager.Infrastructure/AltaAutonoma/AccesoSolicitudesAlta.cs",
             "await contexto.Database.ExecuteSqlAsync($\"\"\"")] = 1,
+        // A4 (migración AltaDatosOrganizacionYCredencialContinuacion): la verificación pasa a dos funciones (mirar el
+        // enlace sin gastarlo, para comparar la contraseña en la aplicación, y verificar), y el paso «Empresa» a una
+        // tercera que responde solo el resultado y el Id de la propia Solicitud de alta, nada del Tenant propietario. La
+        // cuarta (app_alta_consultar_continuacion) solo lee el estado de la continuación para recargar sin transicionar.
         [("src/CaeManager.Infrastructure/AltaAutonoma/AccesoSolicitudesAlta.cs",
-            """.SqlQuery<string>($"SELECT public.app_alta_verificar_correo({hash}) AS \"Value\"")""")] = 1,
+            ".SqlQuery<FilaEnlace>($\"\"\"")] = 1,
+        [("src/CaeManager.Infrastructure/AltaAutonoma/AccesoSolicitudesAlta.cs",
+            ".SqlQuery<string>($\"\"\"")] = 2,
+        [("src/CaeManager.Infrastructure/AltaAutonoma/AccesoSolicitudesAlta.cs",
+            ".SqlQuery<FilaDatosOrganizacion>($\"\"\"")] = 1,
         [("src/CaeManager.Infrastructure/AltaAutonoma/AccesoSolicitudesAlta.cs",
             """.SqlQuery<bool>($"SELECT app_correo_en_uso_por_otra_cuenta({correoNormalizado}, {Guid.Empty}) AS \"Value\"")""")] = 1,
+
+        // Alta autónoma (A8, DA-7): caducidad y borrado de datos personales de SolicitudesAlta, que sigue cerrada. Dos
+        // funciones SECURITY DEFINER (migración CaducidadYBorradoSolicitudesAlta) con los plazos y el estado de origen
+        // escritos dentro; el único parámetro, el tamaño del lote, va por EF. Solo devuelven un recuento.
+        [("src/CaeManager.Infrastructure/AltaAutonoma/LimpiezaSolicitudesAlta.cs",
+            """.SqlQuery<int>($"SELECT public.app_alta_caducar_solicitudes({tamanoLote}) AS \"Value\"")""")] = 1,
+        [("src/CaeManager.Infrastructure/AltaAutonoma/LimpiezaSolicitudesAlta.cs",
+            """.SqlQuery<int>($"SELECT public.app_alta_borrar_datos_personales({tamanoLote}) AS \"Value\"")""")] = 1,
 
         // ADR-011 § 8.7, punto 3: Soporte TALVEG restablece la 2FA del Administrador único
         // desde una Sesión Privilegiada. Esa conexión lleva cae_app_soporte (solo

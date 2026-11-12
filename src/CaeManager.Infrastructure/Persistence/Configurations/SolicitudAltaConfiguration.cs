@@ -32,6 +32,7 @@ public class SolicitudAltaConfiguration : IEntityTypeConfiguration<SolicitudAlta
         builder.Property(s => s.CorreoNormalizado).HasMaxLength(SolicitudAlta.LongitudMaximaCorreo);
         builder.Property(s => s.HashContrasena).HasMaxLength(SolicitudAlta.LongitudMaximaHashContrasena);
         builder.Property(s => s.HashTokenVerificacion).HasMaxLength(SolicitudAlta.LongitudHashToken);
+        builder.Property(s => s.HashCredencialContinuacion).HasMaxLength(SolicitudAlta.LongitudHashToken);
         builder.Property(s => s.IpOrigen).HasMaxLength(SolicitudAlta.LongitudMaximaIp);
         builder.Property(s => s.UserAgentOrigen).HasMaxLength(SolicitudAlta.LongitudMaximaUserAgent);
         builder.Property(s => s.RazonSocial).HasMaxLength(SolicitudAlta.LongitudMaximaRazonSocial);
@@ -49,6 +50,8 @@ public class SolicitudAltaConfiguration : IEntityTypeConfiguration<SolicitudAlta
         // El enlace de verificación busca por el hash del token (endpoint anónimo) y el trabajo de
         // caducidad por estado y plazo: sin índice, los dos recorrerían la tabla entera.
         builder.HasIndex(s => s.HashTokenVerificacion).IsUnique().HasFilter("\"HashTokenVerificacion\" IS NOT NULL");
+        // El paso «Empresa» (A4) busca la Solicitud de alta por el hash del credencial de continuación.
+        builder.HasIndex(s => s.HashCredencialContinuacion).IsUnique().HasFilter("\"HashCredencialContinuacion\" IS NOT NULL");
         builder.HasIndex(s => new { s.Estado, s.CaducaEnUtc });
 
         builder.HasMany(s => s.Aceptaciones).WithOne()

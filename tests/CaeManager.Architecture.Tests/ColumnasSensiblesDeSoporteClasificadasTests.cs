@@ -100,6 +100,8 @@ public class ColumnasSensiblesDeSoporteClasificadasTests
         ["SolicitudesAlta.HashContrasena"] = new(Decision.Retirada, "Sin SELECT para Soporte TALVEG desde la migración que crea la tabla."),
         ["SolicitudesAlta.HashTokenVerificacion"] = new(Decision.Retirada, "Sin SELECT para Soporte TALVEG desde la migración que crea la tabla."),
         ["SolicitudesAlta.TokenVerificacionCaducaEnUtc"] = new(Decision.Retirada, "Sin SELECT para Soporte TALVEG desde la migración que crea la tabla; no es un secreto, es la caducidad del enlace."),
+        ["SolicitudesAlta.HashCredencialContinuacion"] = new(Decision.Retirada, "Sin SELECT para Soporte TALVEG: la tabla sigue cerrada; solo la busca app_alta_completar_datos_organizacion por su hash."),
+        ["SolicitudesAlta.CredencialContinuacionCaducaEnUtc"] = new(Decision.Retirada, "Sin SELECT para Soporte TALVEG: la tabla sigue cerrada; no es un secreto, es la caducidad del credencial de continuación."),
         ["SuscripcionesWebhook.ClientState"] = new(Decision.Retirada, "Sin SELECT para Soporte TALVEG tras las migraciones vigentes."),
         ["Tenants.LogoArchivoClave"] = new(Decision.ConcedidaPorRevisar, "SELECT vigente; dato operativo o metadato, necesidad por revisar."),
         ["UsosConexionPlataformaCae.ClaveIdempotencia"] = new(Decision.ConcedidaPorRevisar, "SELECT vigente; Guid generado por el servidor para correlacionar el uso, no es secreto."),

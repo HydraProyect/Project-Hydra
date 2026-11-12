@@ -127,7 +127,7 @@
     <value>Confirma tu correo</value>
   </data>
   <data name="ConfirmarCorreoExplica" xml:space="preserve">
-    <value>Pulsa el botón para confirmar tu correo y seguir con el alta.</value>
+    <value>Escribe la contraseña que elegiste al crear la cuenta y pulsa el botón para confirmar tu correo.</value>
   </data>
   <data name="ConfirmarCorreoBoton" xml:space="preserve">
     <value>Confirmar mi correo</value>
@@ -161,5 +161,113 @@
   </data>
   <data name="AyudaSoporte" xml:space="preserve">
     <value>Si necesitas ayuda, escribe a Soporte TALVEG.</value>
+  </data>
+  <data name="OrganizacionTituloPagina" xml:space="preserve">
+    <value>Datos de la empresa</value>
+  </data>
+  <data name="PasoEmpresaDetalle" xml:space="preserve">
+    <value>Paso 2 de 5: Empresa</value>
+  </data>
+  <data name="OrganizacionTitulo" xml:space="preserve">
+    <value>Datos de tu organización</value>
+  </data>
+  <data name="OrganizacionExplica" xml:space="preserve">
+    <value>Con estos datos prepararemos tu alta. Con el CIF o NIF comprobamos que la organización aún no está en TALVEG.</value>
+  </data>
+  <data name="RazonSocialEtiqueta" xml:space="preserve">
+    <value>Razón social</value>
+  </data>
+  <data name="CifNifEtiqueta" xml:space="preserve">
+    <value>CIF o NIF</value>
+  </data>
+  <data name="CifNifAyuda" xml:space="preserve">
+    <value>Si trabajas como autónomo, tu NIF.</value>
+  </data>
+  <data name="DomicilioFiscalEtiqueta" xml:space="preserve">
+    <value>Domicilio fiscal</value>
+  </data>
+  <data name="TramoEtiqueta" xml:space="preserve">
+    <value>Trabajadores activos</value>
+  </data>
+  <data name="TramoAyuda" xml:space="preserve">
+    <value>Las personas trabajadoras de tu organización que gestionarás en TALVEG. Si son más de 300, escribe a Soporte TALVEG para pedir presupuesto.</value>
+  </data>
+  <data name="TramoElige" xml:space="preserve">
+    <value>Elige un rango</value>
+  </data>
+  <data name="TramoDe1A10" xml:space="preserve">
+    <value>De 1 a 10</value>
+  </data>
+  <data name="TramoDe11A40" xml:space="preserve">
+    <value>De 11 a 40</value>
+  </data>
+  <data name="TramoDe41A80" xml:space="preserve">
+    <value>De 41 a 80</value>
+  </data>
+  <data name="TramoDe81A150" xml:space="preserve">
+    <value>De 81 a 150</value>
+  </data>
+  <data name="TramoDe151A300" xml:space="preserve">
+    <value>De 151 a 300</value>
+  </data>
+  <data name="TelefonoEtiqueta" xml:space="preserve">
+    <value>Teléfono (opcional)</value>
+  </data>
+  <data name="DeclaraRepresentacionTexto" xml:space="preserve">
+    <value>Declaro que represento a esta organización y que los datos son ciertos.</value>
+  </data>
+  <data name="DeclaraActividadTexto" xml:space="preserve">
+    <value>Solo si el NIF es de una persona física: declaro que actúo en el ejercicio de mi actividad profesional.</value>
+  </data>
+  <data name="OrganizacionBoton" xml:space="preserve">
+    <value>Continuar</value>
+  </data>
+  <data name="ErrorRazonSocial" xml:space="preserve">
+    <value>Escribe la razón social, de hasta 200 caracteres.</value>
+  </data>
+  <data name="ErrorCifNif" xml:space="preserve">
+    <value>El CIF o NIF no es válido. Revisa que esté completo y que la letra o el dígito de control sean correctos.</value>
+  </data>
+  <data name="ErrorDomicilioFiscal" xml:space="preserve">
+    <value>Escribe el domicilio fiscal, de hasta 500 caracteres.</value>
+  </data>
+  <data name="ErrorTramo" xml:space="preserve">
+    <value>Elige el rango de trabajadores activos.</value>
+  </data>
+  <data name="ErrorTelefono" xml:space="preserve">
+    <value>El teléfono solo admite dígitos, espacios, «+», «-», «.» y paréntesis, hasta 30 caracteres.</value>
+  </data>
+  <data name="ErrorDeclaraRepresentacion" xml:space="preserve">
+    <value>Para seguir, declara que representas a la organización.</value>
+  </data>
+  <data name="ErrorDeclaraActividad" xml:space="preserve">
+    <value>Con un NIF de persona física, declara que actúas en el ejercicio de tu actividad profesional.</value>
+  </data>
+  <data name="DatosGuardadosTitulo" xml:space="preserve">
+    <value>Datos guardados</value>
+  </data>
+  <data name="DatosGuardadosExplica" xml:space="preserve">
+    <value>Hemos guardado los datos de tu organización. El siguiente paso es elegir el plan.</value>
+  </data>
+  <data name="DerivadaTitulo" xml:space="preserve">
+    <value>Esta organización ya tiene cuenta en TALVEG</value>
+  </data>
+  <data name="DerivadaExplica" xml:space="preserve">
+    <value>Si necesitas acceso, escribe a Soporte TALVEG y te ayudaremos.</value>
+  </data>
+  <data name="ContinuacionNoValidaTitulo" xml:space="preserve">
+    <value>No podemos seguir con esta alta</value>
+  </data>
+  <data name="ContinuacionNoValidaExplica" xml:space="preserve">
+    <value>Ha pasado demasiado tiempo desde que confirmaste el correo, o esta alta ya no admite cambios. Vuelve a empezar para crear tu cuenta.</value>
+  </data>
+  <data name="ConfirmarCorreoContrasenaEtiqueta" xml:space="preserve">
+    <value>Contraseña</value>
+  </data>
+  <data name="ConfirmarCorreoContrasenaAyuda" xml:space="preserve">
+    <value>La que elegiste al crear la cuenta. Así comprobamos que quien confirma el correo es quien empezó el alta.</value>
+  </data>
+  <data name="ConfirmarCorreoNoValido" xml:space="preserve">
+    <value>No hemos podido confirmar tu correo. Revisa la contraseña; si el enlace ya se usó o no es válido, vuelve a empezar.</value>
   </data>
 </root>

@@ -34,6 +34,9 @@
         </AuthorizeView>
     </div>
 
-    <RevisionIaTab />
+    @* Pantalla heredada (enlaces guardados): la misma barra de pestañas que Documentos, con Revisión IA activa. *@
+    <BarraPestanasDocumentos PestanaActiva="@BarraPestanasDocumentos.IdRevisionIa">
+        <RevisionIaTab />
+    </BarraPestanasDocumentos>
 </div>
 </LimiteDeErrores>

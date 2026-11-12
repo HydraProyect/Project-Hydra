@@ -240,6 +240,9 @@ public partial class Trabajadores : CaeManager.Web.Components.PaginaInteractiva,
     private string _nombre = string.Empty;
     private string _apellidos = string.Empty;
     private string _fechaNacimiento = string.Empty;
+
+    /// <summary>La fecha de nacimiento del alta tiene un texto que no es una fecha entera (entrega «»): no se sale del paso ni se guarda.</summary>
+    private bool _fechaNacimientoNoValida;
     private string _email = string.Empty;
     private string _telefono = string.Empty;
     private string _observaciones = string.Empty;
@@ -1261,6 +1264,7 @@ public partial class Trabajadores : CaeManager.Web.Components.PaginaInteractiva,
         _delegacionId = string.Empty;
         _tipoContratacion = nameof(CaeManager.Domain.Trabajadores.TipoContratacion.CuentaAjena);
         _fechaNacimiento = string.Empty;
+        _fechaNacimientoNoValida = false;
         _email = string.Empty;
         _telefono = string.Empty;
         _observaciones = string.Empty;
@@ -1305,6 +1309,12 @@ public partial class Trabajadores : CaeManager.Web.Components.PaginaInteractiva,
         if (_pasoAlta == PasoAltaBasico && AvisoDeEmpleadorFaltante() is { } aviso)
         {
             _mensajeErrorFormulario = aviso;
+            return;
+        }
+
+        if (FechaNacimientoNoValidaEnPasoVisible())
+        {
+            _mensajeErrorFormulario = Comunes["CampoFechaCorregirAntes"];
             return;
         }
 
@@ -1363,7 +1373,31 @@ public partial class Trabajadores : CaeManager.Web.Components.PaginaInteractiva,
         if (indice > 0) _pasoAlta = PasosAlta[indice - 1].Clave;
     }
 
-    private void AltaIrAPaso(string clave) => _pasoAlta = clave;
+    private void AltaIrAPaso(string clave)
+    {
+        if (clave != _pasoAlta && FechaNacimientoNoValidaEnPasoVisible())
+        {
+            _mensajeErrorFormulario = Comunes["CampoFechaCorregirAntes"];
+            return;
+        }
+
+        _pasoAlta = clave;
+    }
+
+    /// <summary>
+    /// La fecha de nacimiento (paso Lo básico) tiene un texto que no es una fecha entera. Salir del paso destruiría el
+    /// campo y con él el texto que la persona está corrigiendo, y dejaría la marca obsoleta, así que no se sale: la marca
+    /// solo puede estar en el paso visible.
+    /// </summary>
+    private bool FechaNacimientoNoValidaEnPasoVisible() => _fechaNacimientoNoValida && _pasoAlta == PasoAltaBasico;
+
+    // Al volver a ser una fecha entera (o quedar vacía), el aviso «no es una fecha» de un intento anterior ya no es cierto.
+    private void AlCambiarFechaNacimientoNoValida(bool noValida)
+    {
+        _fechaNacimientoNoValida = noValida;
+        if (!noValida && _mensajeErrorFormulario == Comunes["CampoFechaCorregirAntes"])
+            _mensajeErrorFormulario = null;
+    }
 
     /// <summary>El paso de cada campo del comando: el primero con error es el que se enseña tras un guardado que no pasó.</summary>
     private static int OrdenPasoDeCampo(string campo) => campo switch
@@ -1387,7 +1421,8 @@ public partial class Trabajadores : CaeManager.Web.Components.PaginaInteractiva,
     /// P1-E2b: «hay cambios» del drawer de alta de Trabajador, comparado con cómo se abrió; cerrado (también tras
     /// guardar) nunca hay nada que perder. Lo lee DrawerFormulario, que lleva dentro el guardián de cerrar y de navegar.
     /// </summary>
-    private bool HayCambiosAlta => _drawerVisible && _instantanea.Difiere(ValoresFormulario());
+    private bool HayCambiosAlta =>
+        _drawerVisible && (_instantanea.Difiere(ValoresFormulario()) || _fechaNacimientoNoValida);
 
     /// <summary>
     /// P1-E2b: «hay cambios» del modal de asignar a centro, con sus campos comparados con cómo se
@@ -1473,6 +1508,15 @@ public partial class Trabajadores : CaeManager.Web.Components.PaginaInteractiva,
         // el DNI duplicado). El botón se deshabilita con Cargando, pero el
         // segundo clic puede llegar antes de ese render.
         if (_guardando) return;
+
+        // Una fecha de nacimiento a medias o ilegible llega como «»: sin este bloqueo el Trabajador se daría de alta «sin fecha».
+        if (_fechaNacimientoNoValida)
+        {
+            _pasoAlta = PasoAltaBasico;
+            _mensajeErrorFormulario = Comunes["CampoFechaCorregirAntes"];
+            return;
+        }
+
         _guardando = true;
         _mensajeErrorFormulario = null;
         _erroresCampo = new Dictionary<string, string>();
