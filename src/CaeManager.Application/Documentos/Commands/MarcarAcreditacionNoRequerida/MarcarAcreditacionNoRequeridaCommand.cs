@@ -71,7 +71,9 @@ public class MarcarAcreditacionNoRequeridaCommandHandler(
 
     /// <summary>
     /// En una transacción, que sostiene el bloqueo del Documento de la comprobación final del historial hasta confirmar
-    /// (ver <see cref="MarcarAsync"/>). Todo se lee dentro, porque la estrategia de reintentos puede repetir la operación.
+    /// (ver <see cref="MarcarAsync"/>). Todo se lee dentro, porque la estrategia de reintentos puede repetir la operación;
+    /// también la Asignación de Cartera, que la transacción de Command obliga a resolver de nuevo en cada intento
+    /// (<see cref="ITransaccionDeComando"/>): un reintento no confirma la marca con una cartera revocada entre intentos.
     /// </summary>
     public Task<Result> Handle(MarcarAcreditacionNoRequeridaCommand request, CancellationToken cancellationToken) =>
         transaccion.EjecutarAsync(ct => MarcarAsync(request, ct), cancellationToken);
@@ -108,13 +110,14 @@ public class MarcarAcreditacionNoRequeridaCommandHandler(
 
         // Este comando no escribe el Documento, así que su versión no entra en el guardado y ningún token pararía una
         // sustitución confirmada por otra sesión entre la guarda de arriba y el guardado (revisión Codex r3 de la PR #2172,
-        // hallazgo 1). Antes de guardar se vuelve a decidir con la fila del Documento bloqueada hasta el final de la
-        // transacción: lo que se lee es lo último confirmado, y una sustitución que llegue después espera a que esta
-        // termine, con la marca hecha sobre un Documento que era el vigente; si ya no lo es, el fallo deshace la marca
-        // guardada. El bloqueo va después del UPDATE de la acreditación: EF ordena las sentencias de un guardado por tabla
+        // hallazgo 1). Por eso, DESPUÉS de guardar (el UPDATE de la acreditación ya enviado, la transacción sin confirmar),
+        // se vuelve a decidir con la fila del Documento bloqueada (FOR SHARE) hasta el final de la transacción: lo que se
+        // lee es lo último confirmado, y una sustitución que llegue después espera a que esta termine, con la marca hecha
+        // sobre un Documento que era el vigente; si ya no lo es, el fallo deshace la marca guardada. El orden, primero el
+        // UPDATE y luego el bloqueo, es deliberado: EF ordena las sentencias de un guardado por tabla
         // (ModificationCommandComparer), así que la corrección del Documento (RenovarDocumentoCommand sin archivo) actualiza
-        // sus acreditaciones antes que el Documento. Tomar aquí el Documento primero abriría un interbloqueo con ella
-        // (segunda revisión puente sobre ce2df653f, hallazgo 1).
+        // sus acreditaciones antes que el Documento. Bloquear aquí el Documento antes de guardar abriría un interbloqueo con
+        // ella (segunda revisión puente sobre ce2df653f, hallazgo 1).
         acreditacion.MarcarNoRequerida();
         await unitOfWork.SaveChangesAsync(cancellationToken);
 
