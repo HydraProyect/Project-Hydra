@@ -28,8 +28,8 @@ namespace CaeManager.E2ETests;
 /// falla» de ci.yml ya sube como artefacto (sube TestResults entero). Se abre con
 /// <c>pwsh bin/Debug/net10.0/playwright.ps1 show-trace &lt;zip&gt;</c> o en trace.playwright.dev. Si no se puede
 /// guardar, o el test falló antes de que empezara a grabar (en el inicio de sesión), el motivo queda en un
-/// <c>…-sin-traza.txt</c> con el mismo nombre en ese directorio y en la salida de error. Un fallo de la traza nunca hace
-/// fallar el test ni tapa su excepción.
+/// <c>…-sin-traza.txt</c> con el mismo nombre en ese directorio y en la salida de error. Un fallo de la traza (cualquier
+/// excepción salvo una cancelación, que sí se propaga) nunca hace fallar el test ni tapa su excepción.
 /// </para>
 /// <para>
 /// Se arma en los tests que rellenan fechas con <see cref="Ayudas.RellenarFechaAsync"/>, los de la carrera de #2194, y
@@ -82,7 +82,7 @@ public sealed class TrazaAlFallar : IAsyncDisposable
             await contexto.Tracing.StopChunkAsync(new TracingStopChunkOptions { Path = ruta });
             traza._tramosAnteriores.Add(ruta);
         }
-        catch (Exception excepcion) when (excepcion is PlaywrightException or IOException or UnauthorizedAccessException)
+        catch (Exception excepcion) when (excepcion is not OperationCanceledException)
         {
             // La traza es para diagnosticar: un fallo suyo no debe hacer fallar el inicio de sesión del test. Sin saber
             // si el tramo se cortó, no se vuelve a grabar en este contexto.
@@ -103,7 +103,7 @@ public sealed class TrazaAlFallar : IAsyncDisposable
             traza._iniciada = true;
             traza._grabando = true;
         }
-        catch (PlaywrightException excepcion)
+        catch (Exception excepcion) when (excepcion is not OperationCanceledException)
         {
             traza._averiada = $"no se pudo empezar a grabar tras el inicio de sesión: {excepcion.Message}";
         }
@@ -140,7 +140,7 @@ public sealed class TrazaAlFallar : IAsyncDisposable
                 foreach (var tramo in _tramosAnteriores)
                 {
                     try { File.Delete(tramo); }
-                    catch (Exception excepcion) when (excepcion is IOException or UnauthorizedAccessException) { }
+                    catch (Exception excepcion) when (excepcion is not OperationCanceledException) { }
                 }
         }
     }
@@ -167,7 +167,7 @@ public sealed class TrazaAlFallar : IAsyncDisposable
                 Console.WriteLine($"Traza de Playwright del test fallido: {guardada}");
             if (_averiada is not null) AnotarSinTraza(_averiada);
         }
-        catch (Exception excepcion) when (excepcion is PlaywrightException or IOException or UnauthorizedAccessException)
+        catch (Exception excepcion) when (excepcion is not OperationCanceledException)
         {
             // El contexto o el navegador ya se cerraron (p. ej. el test falló porque se cayó el navegador) o no se pudo
             // escribir el fichero: tapar con esto la excepción original del test sería peor que perder la traza, pero sin
@@ -187,7 +187,7 @@ public sealed class TrazaAlFallar : IAsyncDisposable
             Directory.CreateDirectory(directorio);
             File.WriteAllText(Path.Combine(directorio, $"{_nombre}-{DateTime.UtcNow:yyyyMMdd-HHmmss}-sin-traza.txt"), mensaje + Environment.NewLine);
         }
-        catch (Exception excepcionAlAnotar) when (excepcionAlAnotar is IOException or UnauthorizedAccessException)
+        catch (Exception excepcionAlAnotar) when (excepcionAlAnotar is not OperationCanceledException)
         {
             Console.Error.WriteLine($"Tampoco se pudo anotar en {Directorio()}: {excepcionAlAnotar.Message}");
         }

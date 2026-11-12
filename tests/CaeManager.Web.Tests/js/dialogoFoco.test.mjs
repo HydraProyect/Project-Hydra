@@ -168,10 +168,10 @@ test('con el foco ya en un campo al activarse la trampa, al cerrar vuelve a quie
 });
 
 test('en un diálogo abierto desde otro, al cerrar vuelve al botón del diálogo de fuera aunque el foco ya estuviera dentro', () => {
-    const { documento, cuerpo, abridor, dialogo, primero } = escena();
+    const { documento, abridor, dialogo, primero } = escena();
     abridor.focus();
     const trampaFuera = atraparFoco(dialogo);
-    const interior = elemento('interior', documento, cuerpo);
+    const interior = elemento('interior', documento, dialogo);
     const campoInterior = elemento('campoInterior', documento, interior);
     campoInterior.enfocable = true;
     primero.focus();
@@ -192,6 +192,23 @@ test('si el diálogo se abrió desde algo no enfocable, al cerrar no salta a un 
     trampa.dispose();
     assert.notEqual(documento.activeElement, abridor);
     assert.equal(documento.activeElement, cuerpo);
+});
+
+test('con el foco ya dentro, al cerrar no se devuelve a un elemento de fuera que ya no está en el documento', () => {
+    const { documento, cuerpo, abridor, dialogo, fecha } = escena();
+    const buscador = elemento('buscador', documento, cuerpo);
+    buscador.enfocable = true;
+    buscador.focus();
+    abridor.focus();
+    fecha.focus();
+    // El abridor estaba en una lista que se repintó al abrir: el más reciente de fuera que sigue en el documento es el
+    // buscador (hueco declarado en #2195: antes el foco no volvía a ninguno).
+    cuerpo.hijos.splice(cuerpo.hijos.indexOf(abridor), 1);
+    abridor.padre = null;
+    const trampa = atraparFoco(dialogo);
+    trampa.dispose();
+    assert.notEqual(documento.activeElement, abridor);
+    assert.equal(documento.activeElement, buscador);
 });
 
 test('sin historial del foco (nadie anotó el foco antes de abrir) y con el foco ya dentro, al cerrar no se mueve', () => {
