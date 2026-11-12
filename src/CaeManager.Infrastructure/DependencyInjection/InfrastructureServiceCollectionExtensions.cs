@@ -792,6 +792,12 @@ public static class InfrastructureServiceCollectionExtensions
         services.AddScoped<CaeManager.Application.AltaAutonoma.ServicioRegistroAlta>();
         services.AddScoped<CaeManager.Application.AltaAutonoma.ServicioDatosOrganizacionAlta>();
         services.AddScoped<CaeManager.Application.AltaAutonoma.IPreparacionContrasenaAlta, AltaAutonoma.PreparacionContrasenaAlta>();
+        // Caducidad y borrado de datos de las Solicitudes de alta (A8, DA-7): servicio de fondo con elección de líder.
+        services.Configure<CaeManager.Application.AltaAutonoma.LimpiezaSolicitudesAltaOptions>(
+            configuration.GetSection(CaeManager.Application.AltaAutonoma.LimpiezaSolicitudesAltaOptions.SeccionConfiguracion));
+        services.AddScoped<CaeManager.Application.AltaAutonoma.ILimpiezaSolicitudesAlta, AltaAutonoma.LimpiezaSolicitudesAlta>();
+        services.AddScoped<CaeManager.Application.AltaAutonoma.ServicioLimpiezaSolicitudesAlta>();
+        services.AddHostedService<AltaAutonoma.LimpiezaSolicitudesAltaHostedService>();
 
         // Kill switch de la detección previa a clasificación de Documento
         // (ver DeteccionPreviaDocumentoOptions) — apagado por defecto hasta
