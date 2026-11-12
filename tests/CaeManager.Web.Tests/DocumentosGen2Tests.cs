@@ -1818,7 +1818,7 @@ public partial class DocumentosGen2Tests : BunitContext
         var (cut, mediador) = Renderizar(ConOpcionesDeFiltro());
 
         cut.WaitForAssertion(() => UltimaConsultaDeDocumentos(mediador).Should().NotBeNull());
-        await PastillaDocumentoFase1(cut, "Portal")
+        await PastillaDocumentoFase1(cut, "Plataforma CAE")
             .ClickAsync(new MouseEventArgs());
         await cut.FindAll(".barra-filtros-pastillas [role=menuitemradio]")
             .Single(b => b.TextContent.Trim() == "Nalanda").ClickAsync(new MouseEventArgs());

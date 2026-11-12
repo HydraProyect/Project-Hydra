@@ -201,15 +201,91 @@
 }
 
 .documentos-tabla-desplazable ::deep .documentos-en-plataforma {
-    display: inline-flex;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: 4px 8px;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 2px;
+    min-width: 0;
 }
 
 .documentos-tabla-desplazable ::deep .documentos-en-plataforma-motivo {
+    max-width: 100%;
     color: var(--color-text-muted);
     font-size: 0.8125rem;
+}
+
+/* D-54 (2026-11-13): por Plataforma CAE y por tipo la fila es de una sola línea. Lo que no cabe se corta con «…» y el texto
+   entero va en el tooltip; las acciones no se cortan. */
+.documentos-tabla-desplazable ::deep .documentos-fila-una-linea td:not(.documentos-celda-acciones-fila),
+.documentos-tabla-desplazable ::deep .documentos-fila-una-linea td .documentos-en-plataforma-motivo {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    overflow-wrap: normal;
+}
+
+.documentos-tabla-desplazable ::deep .documentos-fila-una-linea .documentos-vigencia { white-space: nowrap; }
+
+.documentos-tabla-desplazable ::deep .documentos-fila-una-linea .documentos-nombre-una-linea {
+    display: block;
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    text-align: left;
+}
+
+.documentos-tabla-desplazable ::deep .documentos-cliente-empresarial {
+    display: block;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.documentos-tabla-desplazable ::deep .documentos-tabla-por-plataforma .documentos-th-nombre-plataforma { width: 24%; }
+.documentos-tabla-desplazable ::deep .documentos-tabla-por-plataforma .documentos-th-cliente { width: 16%; }
+.documentos-tabla-desplazable ::deep .documentos-tabla-por-tipo .documentos-th-plataformas { width: 34%; }
+
+/* «Plataformas CAE» de la fila por tipo: logotipo pequeño, nombre y estado de cada acreditación, en una línea. */
+.documentos-tabla-desplazable ::deep .documentos-plataformas-tipo {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+    min-width: 0;
+    overflow: hidden;
+}
+
+.documentos-tabla-desplazable ::deep .documentos-plataforma-tipo-item {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-1);
+    flex: 0 0 auto;
+}
+
+.documentos-tabla-desplazable ::deep .documentos-plataforma-tipo-estado {
+    color: var(--color-text-muted);
+}
+
+/* Logotipo de la Plataforma CAE: sobre el blanco de marca del tema (--color-logo-fondo), como en Inicio; sin marca, icono genérico. */
+.documentos-tabla-desplazable ::deep .documentos-logo-plataforma {
+    flex: none;
+    width: 22px;
+    height: 16px;
+    object-fit: contain;
+    background: var(--color-logo-fondo);
+    border-radius: var(--radius-sm);
+}
+
+.documentos-tabla-desplazable ::deep .documentos-logo-plataforma-generico {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background: transparent;
+    color: var(--color-text-muted);
+}
+
+.documentos-tabla-desplazable ::deep .documentos-cabecera-vinculo .documentos-logo-plataforma {
+    margin-right: var(--space-2);
 }
 
 .documentos-tabla-desplazable ::deep th[aria-sort="ascending"] .documentos-orden-grupo::after {

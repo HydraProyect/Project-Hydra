@@ -85,6 +85,12 @@
     /// <summary>Unidad tras el total cuando la maqueta la escribe («· 2 trabajadores»). Sin valor, solo la cifra.</summary>
     [Parameter] public string? UnidadContador { get; set; }
 
+    /// <summary>
+    /// Marca gráfica entre el chevron y el nombre (el logotipo de la Plataforma CAE, el icono del tipo de documento).
+    /// Sin valor, la cabecera es la de siempre.
+    /// </summary>
+    [Parameter] public RenderFragment? Marca { get; set; }
+
     [Parameter] public bool Abierto { get; set; }
 
     /// <summary>El grupo está abierto por algo ajeno a él y la cabecera no puede contraerlo.</summary>
@@ -103,6 +109,7 @@
 
     private RenderFragment Contenido => @<text>
         <span class="grupo-lista-chevron" aria-hidden="true"><Icono Nombre="chevron" Tamano="TamanoIcono.Pequeno" /></span>
+        @Marca
         <span class="grupo-lista-identidad">
         @if (Subtitulo is not null)
         {

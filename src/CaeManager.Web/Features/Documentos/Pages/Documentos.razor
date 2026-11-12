@@ -145,11 +145,12 @@
                                     ValorChanged="CambiarTipoFiltroAsync" Opciones="_opcionesTipo" />
                 </MasFiltros>
                 <Herramientas>
-                    <MenuAcciones Etiqueta="@Textos[_agrupacion switch { AgrupacionListado.Ambito => "AgruparPorAmbitoEtiqueta", AgrupacionListado.PlataformaCae => "AgruparPorPlataformaCaeEtiqueta", AgrupacionListado.ClienteEmpresarial => "AgruparPorClienteEmpresarialEtiqueta", _ => "AgruparNo" }]" Pastilla="true">
+                    <MenuAcciones Etiqueta="@Textos[_agrupacion switch { AgrupacionListado.Ambito => "AgruparPorAmbitoEtiqueta", AgrupacionListado.PlataformaCae => "AgruparPorPlataformaCaeEtiqueta", AgrupacionListado.ClienteEmpresarial => "AgruparPorClienteEmpresarialEtiqueta", AgrupacionListado.TipoDocumento => "AgruparPorTipoDocumentoEtiqueta", _ => "AgruparNo" }]" Pastilla="true">
                         <ItemMenuAccion Marcado="@(!Agrupada)" OnClick="() => CambiarAgrupacionAsync(AgrupacionListado.Ninguna)">@Textos["SinAgrupar"]</ItemMenuAccion>
                         <ItemMenuAccion Marcado="_agruparPorAmbito" OnClick="() => CambiarAgrupacionAsync(AgrupacionListado.Ambito)">@Textos["PorAmbito"]</ItemMenuAccion>
                         <ItemMenuAccion Marcado="AgrupadaPorPlataforma" OnClick="() => CambiarAgrupacionAsync(AgrupacionListado.PlataformaCae)">@Textos["PorPlataformaCae"]</ItemMenuAccion>
                         <ItemMenuAccion Marcado="@(_agrupacion == AgrupacionListado.ClienteEmpresarial)" OnClick="() => CambiarAgrupacionAsync(AgrupacionListado.ClienteEmpresarial)">@Textos["PorClienteEmpresarial"]</ItemMenuAccion>
+                        <ItemMenuAccion Marcado="AgrupadaPorTipo" OnClick="() => CambiarAgrupacionAsync(AgrupacionListado.TipoDocumento)">@Textos["PorTipoDocumento"]</ItemMenuAccion>
                     </MenuAcciones>
                 </Herramientas>
                 <Chips>
@@ -216,14 +217,17 @@
                         {
                             <div class="documentos-orden-superposicion" @onclick="() => _opcionesOrdenVisible = null"></div>
                         }
-                        <table class="@($"tabla-datos documentos-tabla-visible {(_agruparPorAmbito ? "documentos-tabla-agrupada" : null)}")">
+                        <table class="@($"tabla-datos documentos-tabla-visible {(_agruparPorAmbito ? "documentos-tabla-agrupada" : null)}{(AgrupadaPorPlataforma ? " documentos-tabla-por-plataforma documentos-fila-una-linea" : null)}{(AgrupadaPorTipo ? " documentos-tabla-por-tipo documentos-fila-una-linea" : null)}")">
                             <thead><tr>
                                 @if (_seleccionMultiple)
                                 {
                                     <th scope="col" class="documentos-celda-seleccion"><input type="checkbox" aria-label="@Textos["SeleccionarPagina"]" checked="@TodosSeleccionados" @onchange="e => AlternarSeleccionTodos((bool)e.Value!)" /></th>
                                 }
                                 @if (HayDestinos) { <th scope="col" class="documentos-celda-expandir"><span class="documentos-solo-lectores">@Textos["ListaDestino"]</span></th> }
-                                <th scope="col" aria-sort="@AriaOrdenGrupo("tipo")"><button type="button" class="col-title documentos-orden-grupo" @onclick="() => OrdenarGrupoAsync(_columnaTipo)">@Textos["ListaDocumento"]</button></th>
+                                @if (!AgrupadaPorPlataforma && !AgrupadaPorTipo)
+                                {
+                                    <th scope="col" aria-sort="@AriaOrdenGrupo("tipo")"><button type="button" class="col-title documentos-orden-grupo" @onclick="() => OrdenarGrupoAsync(_columnaTipo)">@Textos["ListaDocumento"]</button></th>
+                                }
                                 <th scope="col" aria-sort="@AriaOrdenGrupo("entidad", "ambito")">
                                     <button type="button" class="col-title documentos-orden-grupo" @onclick="() => OrdenarGrupoAsync(_columnaEntidadAsociada)">@Textos[_ordenEntidadAsociadaPorAmbito ? "ListaEntidadAsociadaPorAmbito" : "ListaPropietario"]</button>
                                     <button type="button" class="documentos-opciones-boton" aria-label="@Textos["ListaOrdenarEntidadAsociada"]" aria-expanded="@(_opcionesOrdenVisible == ColumnaOrdenListado.EntidadAsociada ? "true" : "false")" @onclick="() => _opcionesOrdenVisible = _opcionesOrdenVisible == ColumnaOrdenListado.EntidadAsociada ? null : ColumnaOrdenListado.EntidadAsociada"><Icono Nombre="mas-opciones" Tamano="TamanoIcono.Pequeno" /></button>
@@ -235,6 +239,17 @@
                                         </div>
                                     }
                                 </th>
+                                @if (AgrupadaPorPlataforma)
+                                {
+                                    @* Mientras el nombre por Plataforma CAE (B2) no exista como dato, esta columna enseña el del tipo de
+                                       TALVEG y ordena por él. *@
+                                    <th scope="col" class="documentos-th-nombre-plataforma" aria-sort="@AriaOrdenGrupo("tipo")"><button type="button" class="col-title documentos-orden-grupo" @onclick="() => OrdenarGrupoAsync(_columnaTipo)">@Textos["ListaNombreEnPlataforma"]</button></th>
+                                    <th scope="col" class="documentos-th-cliente">@Textos["ListaClienteEmpresarial"]</th>
+                                }
+                                @if (AgrupadaPorTipo)
+                                {
+                                    <th scope="col" class="documentos-th-plataformas">@Textos["ListaPlataformasCae"]</th>
+                                }
                                 <th scope="col" aria-sort="@AriaOrdenGrupo("vencimiento", "emision")">
                                     <button type="button" class="col-title documentos-orden-grupo" @onclick="() => OrdenarGrupoAsync(_columnaVigencia)">@Textos[_ordenVigenciaPorEmision ? "ListaVigenciaPorEmision" : "ListaVence"]</button>
                                     <button type="button" class="documentos-opciones-boton" aria-label="@Textos["ListaOrdenarVencimiento"]" aria-expanded="@(_opcionesOrdenVisible == ColumnaOrdenListado.Vigencia ? "true" : "false")" @onclick="() => _opcionesOrdenVisible = _opcionesOrdenVisible == ColumnaOrdenListado.Vigencia ? null : ColumnaOrdenListado.Vigencia"><Icono Nombre="mas-opciones" Tamano="TamanoIcono.Pequeno" /></button>
@@ -279,6 +294,11 @@
                                            seleccionadas y «Abrir portal» con la dirección del canal. *@
                                         @CabeceraGrupoPorVinculo(grupo.Key, grupo.ToList(), grupoAbierto)
                                     }
+                                    else if (AgrupadaPorTipo)
+                                    {
+                                        @* D-54 (2026-11-13): cabecera por tipo de documento, con tipo, ámbito y número de Documentos. *@
+                                        @CabeceraGrupoPorTipo(grupo.Key, grupo.ToList(), grupoAbierto)
+                                    }
                                     @{ var clavesFilas = new ClavesDeHermanos(); }
                                     @foreach (var documento in grupoAbierto ? grupo : Enumerable.Empty<DocumentoListaDto>())
                                     {
@@ -296,7 +316,19 @@
                                                     }
                                                 </td>
                                             }
-                                            <td>@CeldaDocumento(documento)</td><td>@CeldaPropietario(documento)</td><td>@CeldaVigencia(documento)</td><td class="col-estado">@CeldaEstado(documento)</td>@if (AgrupadaPorPlataforma) { <td class="documentos-celda-en-plataforma">@CeldaEnPlataforma(documento)</td> }<td>@CeldaAcciones(documento)</td>
+                                            @if (AgrupadaPorPlataforma)
+                                            {
+                                                <td>@CeldaPropietarioSolo(documento)</td><td class="documentos-celda-nombre-plataforma">@CeldaNombreEnPlataforma(documento)</td><td class="documentos-celda-cliente">@CeldaClienteEmpresarial(documento)</td><td>@CeldaVigencia(documento)</td><td class="col-estado">@CeldaEstado(documento)</td><td class="documentos-celda-en-plataforma">@CeldaEnPlataforma(documento)</td>
+                                            }
+                                            else if (AgrupadaPorTipo)
+                                            {
+                                                <td>@CeldaPropietarioSolo(documento)</td><td class="documentos-celda-plataformas-tipo">@CeldaPlataformasDelTipo(documento)</td><td>@CeldaVigencia(documento)</td><td class="col-estado">@CeldaEstado(documento)</td>
+                                            }
+                                            else
+                                            {
+                                                <td>@CeldaDocumento(documento)</td><td>@CeldaPropietario(documento)</td><td>@CeldaVigencia(documento)</td><td class="col-estado">@CeldaEstado(documento)</td>
+                                            }
+                                            <td class="documentos-celda-acciones-fila">@CeldaAcciones(documento)</td>
                                         </tr>
                                         @if (_documentosAbiertos.Contains(documento.Id) && documento.DestinosEnCentros?.Count > 0)
                                         {
@@ -534,7 +566,8 @@
                                             @Textos["Gestionar"]
                                         </Boton>
                                     </SoloConEscritura>
-                                    @if (context.TipoDocumentoId != Guid.Empty)
+                                    @* Por tipo de documento el 360 va en la cabecera del grupo («Tipo 360»), no en cada fila. *@
+                                    @if (context.TipoDocumentoId != Guid.Empty && !AgrupadaPorTipo)
                                     {
                                         <AuthorizeView Roles="@TipoDocumentoDetalle.RolesDeLaPagina" Context="autorizacion">
                                             <Boton360 Nombre="@context.TipoDocumentoNombre" Href="@($"/documentos/tipos/{context.TipoDocumentoId}")" />
@@ -551,35 +584,125 @@
     private const string RolesQueAbrenPortal =
         $"{CaeManager.Infrastructure.Identity.Roles.ConEscrituraCsv},{CaeManager.Infrastructure.Identity.Roles.Consulta}";
 
-    /// <summary>Columnas de la tabla: las cinco de siempre, la de selección, la de expandir y, por Plataforma CAE, «Estado en la plataforma».</summary>
-    private int ColumnasTabla => 5 + (_seleccionMultiple ? 1 : 0) + (HayDestinos ? 1 : 0) + (AgrupadaPorPlataforma ? 1 : 0);
+    /// <summary>
+    /// Columnas de la tabla, más la de selección y la de expandir. Las cinco de siempre (Documento, Propietario, Vence, Estado,
+    /// Acciones); por Plataforma CAE siete (Propietario, Nombre en la plataforma, Cliente empresarial, Vence, Estado documental,
+    /// Estado en la plataforma, Acciones); por tipo cinco (Propietario, Plataformas CAE, Vence, Estado documental, Acciones).
+    /// </summary>
+    private int ColumnasTabla => (AgrupadaPorPlataforma ? 7 : 5) + (_seleccionMultiple ? 1 : 0) + (HayDestinos ? 1 : 0);
 
     /// <summary>
-    /// «Estado en la plataforma» de la fila por Plataforma CAE (P-1): el Cliente empresarial del canal y el estado de esa
-    /// acreditación, con el último motivo de rechazo. Una fila del grupo «Sin Plataforma CAE» no tiene acreditación y no pinta nada.
+    /// «Estado en la plataforma» de la fila por Plataforma CAE (P-1, D-54): el estado de esa acreditación y, si está rechazada,
+    /// «Motivo: …» en una línea cortada con «…» y el motivo entero en el tooltip. El Cliente empresarial del canal tiene
+    /// columna propia. Una fila del grupo «Sin Plataforma CAE» no tiene acreditación y no pinta nada.
     /// </summary>
     private RenderFragment<DocumentoListaDto> CeldaEnPlataforma => context => @<text>
                                 @if (context.Grupo?.Acreditacion is { } acreditacion)
                                 {
                                     <span class="documentos-en-plataforma">
-                                        <span class="documentos-en-plataforma-cliente">@acreditacion.ClienteEmpresarialNombre</span>
                                         <Badge Tono="TonoEnPlataforma(acreditacion)" Tamano="TamanoBadge.Pequeno">@TextoEnPlataforma(acreditacion)</Badge>
                                         @if (acreditacion.Estado == EstadoAcreditacion.Rechazada && !string.IsNullOrWhiteSpace(acreditacion.UltimoMotivoRechazo))
                                         {
                                             @* El rol Cliente ve el estado, no el motivo (decisión de Chris del 2026-11-12, opción B): el
                                                servidor ya no se lo manda; la página tampoco lo pinta aunque llegara. *@
                                             <AuthorizeView Roles="@RolesQueAbrenPortal" Context="autorizacionMotivo">
-                                                <span class="documentos-en-plataforma-motivo">@acreditacion.UltimoMotivoRechazo</span>
+                                                <span class="documentos-en-plataforma-motivo" title="@Textos["EnPlataformaMotivo", acreditacion.UltimoMotivoRechazo]">@Textos["EnPlataformaMotivo", acreditacion.UltimoMotivoRechazo]</span>
                                             </AuthorizeView>
                                         }
                                     </span>
                                 }
     </text>;
 
+    /// <summary>Propietario sin las insignias de Plataformas CAE: por Plataforma CAE ya es el grupo, y por tipo tiene columna propia.</summary>
+    private RenderFragment<DocumentoListaDto> CeldaPropietarioSolo => context => @<text>
+                                    <span class="documentos-propietario">
+                                        <button type="button" class="enlace-nombre-fila nombre-fila-entidad nombre-abre-vista-rapida documentos-propietario-nombre" @onclick="() => AbrirPanelAsync(context.Id)"><TextoResaltado Texto="@context.PropietarioNombre" Termino="@_busqueda" /></button>
+                                    </span>
+    </text>;
+
+    /// <summary>
+    /// «Nombre en la plataforma» (D-54): una sola línea, cortada con «…», con el nombre entero y el tipo de TALVEG en el tooltip.
+    /// Abre la vista rápida, como el nombre del Documento en el resto de agrupaciones.
+    /// </summary>
+    private RenderFragment<DocumentoListaDto> CeldaNombreEnPlataforma => context => @<text>
+                                    <button type="button" class="enlace-nombre-fila nombre-fila-entidad nombre-abre-vista-rapida documentos-nombre-una-linea" title="@TituloNombreEnPlataforma(context)" @onclick="() => AbrirPanelAsync(context.Id)"><TextoResaltado Texto="@NombreEnPlataforma(context)" Termino="@_busqueda" /></button>
+    </text>;
+
+    private RenderFragment<DocumentoListaDto> CeldaClienteEmpresarial => context => @<text>
+                                    @if (context.Grupo?.Acreditacion is { } acreditacion)
+                                    {
+                                        <span class="documentos-cliente-empresarial" title="@acreditacion.ClienteEmpresarialNombre">@acreditacion.ClienteEmpresarialNombre</span>
+                                    }
+    </text>;
+
+    /// <summary>
+    /// «Plataformas CAE» de la fila por tipo (D-54): logotipo pequeño (o el icono genérico), nombre y el estado de cada
+    /// acreditación del Documento, en una línea. Sin acreditaciones, vacío.
+    /// </summary>
+    private RenderFragment<DocumentoListaDto> CeldaPlataformasDelTipo => context => @<text>
+                                    @if (context.Acreditaciones.Count > 0)
+                                    {
+                                        <span class="documentos-plataformas-tipo" title="@TituloPlataformasDelTipo(context)">
+                                            @foreach (var acreditacion in context.Acreditaciones)
+                                            {
+                                                <span class="documentos-plataforma-tipo-item" @key="acreditacion.Id">
+                                                    @LogoOIcono(LogoDePlataformaPorNombre(acreditacion.NombrePlataforma))
+                                                    <span class="documentos-plataforma-tipo-nombre">@acreditacion.NombrePlataforma</span>
+                                                    <span class="documentos-plataforma-tipo-estado">· @EstadoAcreditacionUi.TextoCapitalizado(acreditacion.Estado)</span>
+                                                </span>
+                                            }
+                                        </span>
+                                    }
+    </text>;
+
+    /// <summary>El logotipo de la Plataforma CAE (de decoración: el nombre va al lado) o, sin logotipo, el icono genérico.</summary>
+    private static RenderFragment LogoOIcono(string? ruta) => @<text>
+        @if (ruta is not null)
+        {
+            <img class="documentos-logo-plataforma" src="@ruta" alt="" aria-hidden="true" loading="lazy" />
+        }
+        else
+        {
+            <span class="documentos-logo-plataforma documentos-logo-plataforma-generico" aria-hidden="true"><Icono Nombre="plataforma" Tamano="TamanoIcono.Pequeno" /></span>
+        }
+    </text>;
+
+    /// <summary>
+    /// Cabecera de un grupo «Por tipo de documento» (D-54): icono de documentos, el tipo, «Ámbito · N documentos», los
+    /// recuentos de vencidos, urgentes y por vencer de sus Documentos y «Tipo 360» (solo roles de gestión, como el
+    /// botón 360 de la fila). Los nombres por Plataforma CAE (B2) no existen todavía como dato y no se pintan.
+    /// </summary>
+    private RenderFragment CabeceraGrupoPorTipo(string clave, List<DocumentoListaDto> filas, bool abierto)
+    {
+        var primera = filas[0];
+        var nombre = NombreDelTipo(primera);
+        var ambitos = string.Join(", ", filas.Select(f => f.Ambito).Distinct().Select(EtiquetaAmbitoListado));
+        var subtitulo = Textos["GrupoTipoSubtitulo", ambitos, Textos[filas.Count == 1 ? "GrupoDocumentoUno" : "GrupoDocumentos", filas.Count].Value].Value;
+        return @<tr class="documentos-cabecera-grupo documentos-cabecera-grupo-tipo" data-grupo="@clave"><th colspan="@ColumnasTabla" scope="rowgroup">
+            <div class="documentos-cabecera-vinculo">
+                <CabeceraGrupoLista Nombre="@nombre" Total="filas.Count" Resumen="ResumenDeTipo(filas)" Subtitulo="@subtitulo"
+                                    Abierto="abierto" OnAlternar="() => AlternarGrupoPorVinculo(clave)">
+                    <Marca><span class="documentos-logo-plataforma documentos-logo-plataforma-generico" aria-hidden="true"><Icono Nombre="documentos" Tamano="TamanoIcono.Pequeno" /></span></Marca>
+                </CabeceraGrupoLista>
+                @if (primera.TipoDocumentoId != Guid.Empty)
+                {
+                    <span class="documentos-cabecera-vinculo-acciones">
+                        <AuthorizeView Roles="@TipoDocumentoDetalle.RolesDeLaPagina" Context="autorizacionTipo">
+                            <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" class="documentos-tipo-360"
+                                   Href="@($"/documentos/tipos/{primera.TipoDocumentoId}")"
+                                   aria-label="@Textos["GrupoTipo360Etiqueta", nombre]">@Textos["GrupoTipo360"]</Boton>
+                        </AuthorizeView>
+                    </span>
+                }
+            </div>
+        </th></tr>;
+    }
+
     /// <summary>
     /// Cabecera de un grupo por Plataforma CAE o por Cliente empresarial (P-1): nombre, recuentos del servidor sobre todo el
     /// universo filtrado (un cero no se pinta) y, por Plataforma CAE, «Anotar vigencia (N)» con filas «Sin vigencia»
-    /// seleccionadas (solo con escritura, el mismo comando y la misma autorización que la pestaña Plataformas CAE) y
+    /// (con la selección múltiple inactiva, todas las del grupo; activa, solo las marcadas) (solo con escritura, el mismo
+    /// comando y la misma autorización que la pestaña Plataformas CAE) y
     /// «Abrir portal» con la dirección del canal, solo http(s), en pestaña nueva.
     /// </summary>
     private RenderFragment CabeceraGrupoPorVinculo(string clave, List<DocumentoListaDto> filas, bool abierto)
@@ -588,7 +711,7 @@
         var nombre = NombreDeGrupo(clave);
         var esGrupoSin = clave == ObtenerDocumentosQuery.GrupoSin;
         // Solo con el grupo abierto: plegado, sus filas no se ven y no se anota lo que no se ve (una selección hecha en otro grupo).
-        var anotables = AgrupadaPorPlataforma && abierto ? SinVigenciaSeleccionadas(filas) : [];
+        var anotables = AgrupadaPorPlataforma && abierto ? SinVigenciaAnotables(filas) : [];
         var portal = AgrupadaPorPlataforma && !esGrupoSin ? UrlPortalCae.Normalizar(resumen?.UrlPortal) : null;
         var total = resumen?.Total ?? filas.Count;
         var subtitulo = !AgrupadaPorPlataforma && !esGrupoSin
@@ -597,7 +720,15 @@
         return @<tr class="documentos-cabecera-grupo documentos-cabecera-grupo-vinculo" data-grupo="@clave"><th colspan="@ColumnasTabla" scope="rowgroup">
             <div class="documentos-cabecera-vinculo">
                 <CabeceraGrupoLista Nombre="@nombre" Total="total" EnPagina="filas.Count" Resumen="ResumenVisible(resumen)"
-                                    Subtitulo="@subtitulo" Abierto="abierto" OnAlternar="() => AlternarGrupoPorVinculo(clave)" />
+                                    Subtitulo="@subtitulo" Abierto="abierto" OnAlternar="() => AlternarGrupoPorVinculo(clave)">
+                    <Marca>
+                        @if (AgrupadaPorPlataforma)
+                        {
+                            @* Logotipo de la Plataforma CAE; sin marca en el repositorio (o el grupo «Sin …»), el icono genérico. *@
+                            @LogoOIcono(LogoDePlataformaPorId(clave))
+                        }
+                    </Marca>
+                </CabeceraGrupoLista>
                 @if (anotables.Count > 0 || portal is not null)
                 {
                     <span class="documentos-cabecera-vinculo-acciones">

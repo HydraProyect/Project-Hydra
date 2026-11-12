@@ -14,7 +14,8 @@ namespace CaeManager.Application.Documentos.Queries.ObtenerPlataformasEnUso;
 /// </summary>
 public record ObtenerPlataformasEnUsoQuery : IRequest<IReadOnlyList<PlataformaEnUsoDto>>;
 
-public record PlataformaEnUsoDto(Guid Id, string Nombre);
+/// <param name="Codigo">Slug del proveedor (<c>ProveedorPlataformaCae.Codigo</c>): la pantalla lo usa para el logotipo.</param>
+public record PlataformaEnUsoDto(Guid Id, string Nombre, string? Codigo = null);
 
 public class ObtenerPlataformasEnUsoQueryHandler(
     ICentrosQueryContext centrosContext,
@@ -41,7 +42,7 @@ public class ObtenerPlataformasEnUsoQueryHandler(
         return await proveedoresContext.ProveedoresPlataformaCae
             .Where(p => proveedorIds.Contains(p.Id))
             .OrderBy(p => p.Nombre)
-            .Select(p => new PlataformaEnUsoDto(p.Id, p.Nombre))
+            .Select(p => new PlataformaEnUsoDto(p.Id, p.Nombre, p.Codigo))
             .ToListAsync(cancellationToken);
     }
 }

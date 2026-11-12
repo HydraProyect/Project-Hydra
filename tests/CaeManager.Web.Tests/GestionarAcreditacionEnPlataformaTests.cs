@@ -127,7 +127,7 @@ public class GestionarAcreditacionEnPlataformaTests : BunitContext
         var talveg = cut.Find(".tabla-documentos-requeridos [data-linea=talveg]");
         var plataforma = cut.Find(".tabla-documentos-requeridos [data-linea=plataforma]");
         talveg.TextContent.Should().Contain("En TALVEG").And.Contain("Vigente").And.NotContain("Nalanda");
-        plataforma.TextContent.Should().Contain("En la plataforma").And.Contain("Nalanda: pendiente de envío").And.NotContain("Vigente");
+        plataforma.TextContent.Should().Contain("En la plataforma").And.Contain("Nalanda: pendiente de subir").And.NotContain("Vigente");
         cut.Find(".celda-documento-nombre").TextContent.Should().NotContain("Nalanda", "el estado en la plataforma no se repite bajo el nombre");
     }
 
