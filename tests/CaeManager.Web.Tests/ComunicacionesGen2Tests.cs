@@ -2397,6 +2397,50 @@ public class ComunicacionesGen2Tests : BunitContext
     }
 
     /// <summary>
+    /// <c>CambiarEstadoAsync</c>, 1.ª comprobación (justo tras el comando): el Gestor CAE abre otra conversación mientras el
+    /// comando viaja. El medidor de la abierta NO cierra su tramo por una acción que fue de otra apertura: no se envía
+    /// <c>RegistrarTramoGestionCommand</c>. Si la comprobación se quitara, se registraría el tramo de la conversación abierta
+    /// (la 2.ª comprobación solo vería la apertura cambiada después de haber cerrado el tramo).
+    /// </summary>
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Resolver_con_otra_conversacion_abierta_antes_de_volver_el_comando_no_cierra_el_tramo_del_medidor(bool cambiaApertura)
+    {
+        var (escenario, a, _, c) = TresConversaciones();
+        Services.AddSingleton<IAlertaOperativa>(new AlertaQueRelanza());
+        var comando = Retenida();
+        escenario.Interceptar = p => p switch
+        {
+            ObtenerTiempoGestionConversacionQuery => Ya(new TiempoGestionConversacionDto(true, 0, 3600)),
+            CambiarEstadoConversacionCommand => comando.Task,
+            RegistrarTramoGestionCommand => Ya(Result.Exito()),
+            _ => null
+        };
+        var (cut, mediador) = Renderizar(escenario, "comunicaciones?estado=Abierta", medidorActivo: true);
+        await SeleccionarFila(cut, a.Asunto);
+        // El tramo del medidor cuenta segundos enteros desde que se abrió la conversación: sin ellos no registra nada.
+        await Task.Delay(1200);
+
+        var resolucion = SelectorCambiarEstado(cut).ChangeAsync(new ChangeEventArgs { Value = nameof(EstadoConversacion.Resuelta) });
+        cut.WaitForAssertion(() => mediador.Enviados.OfType<CambiarEstadoConversacionCommand>().Should().NotBeEmpty("el comando está en vuelo"));
+        if (cambiaApertura)
+        {
+            // Salir de A cierra su tramo por su cuenta; C necesita sus propios segundos para que, sin la guarda, hubiese tramo que registrar.
+            await AbrirPorIdAsync(cut, c);
+            await Task.Delay(1200);
+        }
+        var tramosAntes = mediador.Enviados.OfType<RegistrarTramoGestionCommand>().Count();
+
+        await cut.InvokeAsync(() => comando.SetResult(Result.Exito()));
+        await resolucion;
+        cut.Render();
+
+        mediador.Enviados.OfType<RegistrarTramoGestionCommand>().Count().Should().Be(tramosAntes + (cambiaApertura ? 0 : 1),
+            "con la misma apertura el medidor cierra el tramo (control); con otra conversación abierta, el comando de la anterior no cierra el suyo");
+    }
+
+    /// <summary>
     /// <c>CambiarEstadoAsync</c>, 3.ª comprobación (tras la lista fresca): la lista está en vuelo y el Gestor CAE abre otra
     /// conversación. No se salta a la sucesora de la resuelta. Si la comprobación se quitara, se abriría B sobre C.
     /// </summary>
