@@ -9,6 +9,7 @@
     <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite.Core" Version="10.0.15" />
     <PackageReference Include="SQLitePCLRaw.bundle_e_sqlite3" Version="3.0.3" />
     <PackageReference Include="bunit" Version="2.11.3" />
+    <PackageReference Include="Microsoft.CodeAnalysis.CSharp" Version="5.0.0" />
     <!-- AngleSharp 1.4.0 llega de forma transitiva vía bunit y tiene una
          vulnerabilidad moderada conocida (GHSA-pgww-w46g-26qg) — se fija
          explícitamente a una versión parcheada en vez de silenciar el

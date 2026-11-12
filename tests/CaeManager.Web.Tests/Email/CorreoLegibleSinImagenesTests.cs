@@ -4,6 +4,9 @@ using AngleSharp.Html.Parser;
 using CaeManager.Application.Common;
 using CaeManager.Infrastructure.Email;
 using FluentAssertions;
+using Microsoft.CodeAnalysis;
+using Microsoft.CodeAnalysis.CSharp;
+using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.Extensions.Logging.Abstractions;
 using MimeKit;
 
@@ -178,7 +181,7 @@ public class CorreoLegibleSinImagenesTests
         ficheros.Should().Contain(f => f.EndsWith("BotonCorreo.cs"), "el barrido tiene que estar mirando el árbol de src");
 
         var problemas = ficheros
-            .SelectMany(f => ProblemasSinImagenes(SinComentariosDeLinea(File.ReadAllText(f)))
+            .SelectMany(f => ProblemasEnCodigo(File.ReadAllText(f))
                 .Select(p => $"{Path.GetRelativePath(raiz, f)}: {p}"))
             .ToList();
 
@@ -236,6 +239,71 @@ public class CorreoLegibleSinImagenesTests
         problemas.Should().Contain(p => p.StartsWith("enlace sin destino"));
     }
 
+    [Theory]
+    [InlineData("""<p><a href=https://ejemplo.es>Entrar</a></p>""", "Entrar (https://ejemplo.es)")]
+    [InlineData("""<p><a href='https://ejemplo.es/x?a=1'>Entrar</a></p>""", "Entrar (https://ejemplo.es/x?a=1)")]
+    [InlineData("""<p><a class=boton href=https://ejemplo.es/x style="color:#fff">Entrar</a></p>""", "Entrar (https://ejemplo.es/x)")]
+    [InlineData("""<p><a href="https://ejemplo.es/x">Entrar</a></p>""", "Entrar (https://ejemplo.es/x)")]
+    [InlineData("""<p><a href=mailto:info@talveg.es>Escríbenos</a></p>""", "Escríbenos (info@talveg.es)")]
+    [InlineData("""<p><img src=l.png alt=Logo><img src='m.png' alt='Marca'></p>""", "LogoMarca")]
+    public void El_texto_plano_conserva_la_direccion_con_comillas_dobles_simples_o_sin_comillas(string html, string esperado)
+    {
+        TextoPlanoDeCorreo.DesdeHtml(html).Should().Be(esperado);
+    }
+
+    /// <summary>
+    /// Sensibilidad del barrido completo (Roslyn + validador), no solo del validador: un defecto dentro
+    /// de un literal de cadena se detecta aunque lo rodee algo que parezca un comentario o una regex.
+    /// </summary>
+    [Theory]
+    [InlineData("""""
+        class C { const string H = $$"""
+            <p>Hola</p>
+            // <a href="">Entrar</a>
+            <p>Adiós</p>
+            """; }
+        """"", "enlace sin destino")]
+    [InlineData("""""
+        class C { const string H = @"<p>Hola</p>
+        // <a href="""">Entrar</a>
+        <p>Adiós</p>"; }
+        """"", "enlace sin destino")]
+    [InlineData("""class C { const string H = "<p>(?<a href=\"\">Entrar</a>)</p>"; }""", "enlace sin destino")]
+    [InlineData("""""class C { const string H = @"(?<a href="""">Entrar</a>)"; }""""", "enlace sin destino")]
+    [InlineData("""class C { const string H = "<a href=\"\">" + "Entrar</a>"; }""", "enlace sin destino")]
+    [InlineData("""class C { string M(string u) => "<a href=\"" + "\">Entrar</a>"; }""", "enlace sin destino")]
+    [InlineData("""class C { string M(string u) => $"<a href=\"{u}\"></a>"; }""", "enlace sin texto")]
+    [InlineData("""class C { string M(string u) => $"<p>{(u.Length > 0 ? "<img src='x.png'>" : "")}</p>"; }""", "imagen sin alt")]
+    [InlineData("""class C { const string H = "<td style=\"background-image:url(x.png)\">"; }""", "imagen de fondo")]
+    [InlineData("""class C { const string H = "<style>.a{color:red}</style><a href=\"\">Entrar</a>"; }""", "enlace sin destino")]
+    public void El_barrido_detecta_defectos_dentro_de_literales_de_cadena(string codigo, string defecto)
+    {
+        ProblemasEnCodigo(codigo).Should().Contain(p => p.StartsWith(defecto));
+    }
+
+    /// <summary>
+    /// Lo que no es plantilla no da falso positivo: comentarios reales (de línea, de bloque, de
+    /// documentación), grupos de regex válidos y plantillas correctas con huecos interpolados.
+    /// </summary>
+    [Theory]
+    [InlineData("""
+        class C
+        {
+            // <a href="">Entrar</a> es un comentario
+            /* <a href="">Entrar</a> */
+            /// <summary>Se pinta como <a href=""></a></summary>
+            int X;
+        }
+        """)]
+    [InlineData("""class C { static readonly System.Text.RegularExpressions.Regex R = new(@"(?<a>\d+)(?<!x)(?<=y)(?<n-m>z)(?<href>[^""]*)"); }""")]
+    [InlineData("""class C { const string R = "<a\\b[^>]*?\\bhref\\s*=\\s*(?:\"(?<href>[^\"]*)\")[^>]*>(?<texto>.*?)</a\\s*>"; }""")]
+    [InlineData("""class C { string M(string u, string t) => $"<a href=\"{u}\">{t}</a>" + "<img src='l.png' alt='TALVEG'>"; }""")]
+    [InlineData("""class C { int M(int a, int b) => a + b + 1; }""")]
+    public void El_barrido_no_da_falsos_positivos_con_comentarios_ni_regex_reales(string codigo)
+    {
+        ProblemasEnCodigo(codigo).Should().BeEmpty();
+    }
+
     [Fact]
     public void El_validador_acepta_lo_correcto()
     {
@@ -246,9 +314,9 @@ public class CorreoLegibleSinImagenesTests
     /// <summary>
     /// Las imágenes y los enlaces se leen con un analizador HTML (AngleSharp), no con expresiones
     /// regulares: así valen comillas dobles, simples o ausentes, y un <c>&lt;a&gt;</c> sin
-    /// <c>href</c> o con <c>href</c> vacío es un fallo. El barrido también le pasa ficheros
-    /// <c>.cs</c>, donde el analizador tomaría <c>&lt;style&gt;</c>, <c>&lt;script&gt;</c> o
-    /// <c>&lt;title&gt;</c> como texto sin etiquetas y se tragaría el resto del fichero; por eso
+    /// <c>href</c> o con <c>href</c> vacío es un fallo. Un literal de plantilla puede contener
+    /// <c>&lt;style&gt;</c>, <c>&lt;script&gt;</c> o <c>&lt;title&gt;</c>, que el analizador tomaría
+    /// como texto sin etiquetas y se tragaría el resto del literal; por eso
     /// esas aperturas se renombran antes de analizar. Las imágenes de fondo siguen con expresión
     /// regular porque un <c>&lt;td background&gt;</c> suelto, sin tabla, el analizador lo descarta.
     /// </summary>
@@ -282,14 +350,67 @@ public class CorreoLegibleSinImagenesTests
     }
 
     /// <summary>
-    /// Un comentario de C# que nombra una etiqueta (<c>// se renderiza en un &lt;a href&gt;</c>) no es
-    /// una plantilla y el analizador HTML lo leería como tal. Se descartan las líneas que son solo comentario.
-    /// Tampoco son etiquetas los grupos con nombre de una expresión regular (<c>(?&lt;a&gt;…)</c>,
-    /// <c>(?&lt;!…)</c>): se rompe su apertura <c>(?&lt;</c> para que el analizador no los lea como <c>&lt;a&gt;</c>.
+    /// Valida un fichero C# sin leerlo como si fuera HTML: se analiza con Roslyn y solo se pasan al
+    /// validador los literales de cadena (normales, verbatim, crudas, interpoladas y concatenaciones de
+    /// ellas; cada hueco <c>{...}</c> o operando no literal se sustituye por <c>{}</c>). Los comentarios
+    /// (<c>//</c>, <c>/* */</c>, <c>///</c>) son trivia y no llegan nunca; una línea <c>//</c> dentro de
+    /// una cadena multilínea sí es contenido del literal y se valida.
     /// </summary>
-    private static string SinComentariosDeLinea(string codigo) =>
-        string.Join('\n', codigo.Split('\n').Where(l => !l.TrimStart().StartsWith("//", StringComparison.Ordinal)))
-            .Replace("(?<", "(?[", StringComparison.Ordinal);
+    private static List<string> ProblemasEnCodigo(string codigo)
+    {
+        var raiz = CSharpSyntaxTree.ParseText(codigo).GetRoot();
+        var problemas = new List<string>();
+
+        foreach (var nodo in raiz.DescendantNodes().OfType<ExpressionSyntax>())
+        {
+            if (!nodo.IsKind(SyntaxKind.StringLiteralExpression)
+                && !nodo.IsKind(SyntaxKind.InterpolatedStringExpression)
+                && !nodo.IsKind(SyntaxKind.AddExpression))
+                continue;
+
+            // Una concatenación se valida entera desde su raíz, no por trozos.
+            SyntaxNode? padre = nodo.Parent;
+            while (padre is ParenthesizedExpressionSyntax)
+                padre = padre.Parent;
+            if (padre.IsKind(SyntaxKind.AddExpression))
+                continue;
+
+            var (texto, hayLiteral) = TextoDeLaExpresion(nodo);
+            if (hayLiteral)
+                problemas.AddRange(ProblemasSinImagenes(SinGruposDeRegex(texto)));
+        }
+
+        return problemas;
+    }
+
+    private static (string Texto, bool HayLiteral) TextoDeLaExpresion(ExpressionSyntax expresion)
+    {
+        switch (expresion)
+        {
+            case LiteralExpressionSyntax literal when literal.IsKind(SyntaxKind.StringLiteralExpression):
+                return (literal.Token.ValueText, true);
+            case InterpolatedStringExpressionSyntax interpolada:
+                return (string.Concat(interpolada.Contents.Select(c =>
+                    c is InterpolatedStringTextSyntax texto ? texto.TextToken.ValueText : "{}")), true);
+            case ParenthesizedExpressionSyntax parentesis:
+                return TextoDeLaExpresion(parentesis.Expression);
+            case BinaryExpressionSyntax suma when suma.IsKind(SyntaxKind.AddExpression):
+                var (izquierda, literalIzquierda) = TextoDeLaExpresion(suma.Left);
+                var (derecha, literalDerecha) = TextoDeLaExpresion(suma.Right);
+                return (izquierda + derecha, literalIzquierda || literalDerecha);
+            default:
+                return ("{}", false);
+        }
+    }
+
+    /// <summary>
+    /// Los grupos de una expresión regular (<c>(?&lt;nombre&gt;…)</c>, <c>(?&lt;!…)</c>,
+    /// <c>(?&lt;=…)</c>) no son etiquetas: se rompe su apertura para que el analizador HTML no los lea
+    /// como <c>&lt;a&gt;</c>. Solo cuando la sintaxis es la de un grupo válido: un
+    /// <c>(?&lt;a href="">Entrar&lt;/a&gt;)</c> no es un grupo de regex y se sigue validando como HTML.
+    /// </summary>
+    private static string SinGruposDeRegex(string texto) =>
+        Regex.Replace(texto, @"\(\?<(?=[!=]|\w+[>-])", "(?[");
 
     private static string RaizDelRepositorio()
     {
