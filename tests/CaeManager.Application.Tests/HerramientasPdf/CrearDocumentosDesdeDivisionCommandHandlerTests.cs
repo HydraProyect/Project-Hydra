@@ -96,6 +96,24 @@ public class CrearDocumentosDesdeDivisionCommandHandlerTests
         resultado.Valor.Select(r => r.Estado).Should().Equal(
             EstadoTramoCreado.Creado, EstadoTramoCreado.Rechazado, EstadoTramoCreado.Rechazado);
         _divisor.Extraidos.Should().Equal([(1, 2)], "tras cortarse el lote no se pide ningún tramo más");
+        resultado.Valor.Select(r => r.EntradaRetenida).Should().Equal([false, true, true],
+            "la pantalla tiene que saber que el proceso aparte no consta terminado para retener la reserva del original");
+    }
+
+    [Fact]
+    public async Task Sin_turno_tras_tramos_que_no_crearon_nada_lanza_para_que_la_pantalla_conserve_el_original()
+    {
+        // El primer tramo sale demasiado grande y no crea nada: tragar la excepción daría por terminado un lote sin
+        // ningún Documento, y la pantalla retiraría el original por un fallo pasajero.
+        _divisor.PaginaEnorme = 1;
+        _divisor.LanzarAlExtraer = (3, new PresupuestoMemoriaAgotadoException());
+
+        var crear = () => Handler().Handle(Comando(
+            Tramo(1, 2, ClaseTitular.EmpresaGestionada, _empresaId),
+            Tramo(3, 3, ClaseTitular.EmpresaGestionada, _empresaId)), CancellationToken.None);
+
+        await crear.Should().ThrowAsync<PresupuestoMemoriaAgotadoException>();
+        _mediator.Altas.Should().BeEmpty();
     }
 
     [Fact]

@@ -406,6 +406,23 @@ public sealed class DividirPdfPantallaTests : BunitContext
     }
 
     [Fact]
+    public async Task Si_el_proceso_aparte_no_puede_con_un_tramo_se_dice_que_el_PDF_es_demasiado_complejo_sin_invitar_a_reintentar()
+    {
+        var descarga = JSInterop.SetupModule("./js/descarga-pdf-unido.js");
+        descarga.SetupVoid("descargarPdf", _ => true).SetVoidResult();
+        _mediador.PaginaQueFallaAlExtraer = 1;
+        _mediador.CodigoFalloExtraccion = ErroresDivisorPdf.DemasiadoComplejo;
+        var cut = Renderizar();
+        await SubirAsync(cut);
+
+        Pulsar(cut, "Descargar 3 PDF");
+
+        cut.WaitForAssertion(() => cut.Find(".aviso-error").TextContent.Should().Contain("El PDF es demasiado complejo para procesarlo"));
+        cut.Find(".aviso-error").TextContent.Should().Contain("Volver a intentarlo no lo arregla").And.NotContain("Inténtalo de nuevo");
+        descarga.Invocations.Should().BeEmpty();
+    }
+
+    [Fact]
     public async Task Si_la_Empresa_sale_de_la_cartera_a_mitad_de_la_descarga_se_dice_asi_y_cuanto_salio_sin_invitar_a_reintentar()
     {
         var descarga = JSInterop.SetupModule("./js/descarga-pdf-unido.js");

@@ -435,10 +435,17 @@ public partial class DividirPdf : CaeManager.Web.Components.PaginaInteractiva, I
                 var contenido = await _almacen.LeerAsync(_original, _ciclo.Token);
                 creacion = await Mediator.Send(
                     new CrearDocumentosDesdeDivisionCommand(contenido, _nombreOriginal, tenantId, empresaId, tramos), _ciclo.Token);
+                if (creacion.EsExitoso && creacion.Valor.Any(r => r.EntradaRetenida))
+                {
+                    // Lote cortado con Documentos ya creados por un proceso aparte que no consta terminado: el resultado
+                    // se muestra, pero la reserva del original tampoco se devuelve.
+                    EntradaPdfRetenidaException.Retener(reserva);
+                    reserva = null;
+                }
             }
             catch (EntradaPdfRetenidaException)
             {
-                // Antes de crear ningún Documento: el proceso aparte no consta terminado y la reserva no se devuelve.
+                // Sin ningún Documento creado: el proceso aparte no consta terminado y la reserva no se devuelve.
                 EntradaPdfRetenidaException.Retener(reserva);
                 reserva = null;
                 throw;
@@ -499,6 +506,7 @@ public partial class DividirPdf : CaeManager.Web.Components.PaginaInteractiva, I
         RangoPaginas? enCurso = null;
         var tenantCambiado = false;
         var tramoDemasiadoGrande = false;
+        var tramoDemasiadoComplejo = false;
         var empresaFuera = false;
         _descargando = true;
         _descargados = null;
@@ -518,6 +526,7 @@ public partial class DividirPdf : CaeManager.Web.Components.PaginaInteractiva, I
                 {
                     tenantCambiado = codigo == CrearDocumentosDesdeDivisionCommandHandler.ErrorTenantCruzado;
                     tramoDemasiadoGrande = codigo == ErroresDivisorPdf.DemasiadoGrande;
+                    tramoDemasiadoComplejo = codigo == ErroresDivisorPdf.DemasiadoComplejo;
                     empresaFuera = codigo == ObtenerCatalogoDivisionPdfQueryHandler.ErrorEmpresaNoGestionable;
                     break;
                 }
@@ -539,7 +548,10 @@ public partial class DividirPdf : CaeManager.Web.Components.PaginaInteractiva, I
             else if (enCurso is { } fallido)
                 _error = tramoDemasiadoGrande
                     ? Textos["ErrorTramoDemasiadoGrande", fallido.Inicial, fallido.Final, LimitesArchivoSubido.TamanoMaximoMb]
-                    : Textos["ErrorDescargaTramo", fallido.Inicial, fallido.Final];
+                    // El proceso aparte se quedó sin memoria, sin tiempo o murió: reintentar ocuparía otra vez el único turno.
+                    : tramoDemasiadoComplejo
+                        ? Textos["ErrorTramoDemasiadoComplejo", fallido.Inicial, fallido.Final]
+                        : Textos["ErrorDescargaTramo", fallido.Inicial, fallido.Final];
         }
         catch (Exception ex) when (ex is PresupuestoMemoriaAgotadoException or EntradaPdfRetenidaException)
         {

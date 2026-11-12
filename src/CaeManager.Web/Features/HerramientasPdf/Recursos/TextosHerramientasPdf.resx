@@ -748,6 +748,9 @@
   <data name="ErrorTramoDemasiadoGrande" xml:space="preserve">
     <value>Las páginas {0} a {1} ocupan demasiado al separarlas en un PDF aparte (al separarlas, algunos PDF crecen mucho), así que no se han descargado ni ellas ni las siguientes. Volver a intentarlo no lo arregla: divide en tramos más pequeños o guárdalas en TALVEG, que admite documentos de hasta {2} MB.</value>
   </data>
+  <data name="ErrorTramoDemasiadoComplejo" xml:space="preserve">
+    <value>El PDF es demasiado complejo para procesarlo: no se han descargado las páginas {0} a {1}, ni las siguientes. Volver a intentarlo no lo arregla: ábrelo, guárdalo de nuevo como PDF (por ejemplo, imprimiéndolo a PDF) y vuelve a subirlo.</value>
+  </data>
   <data name="ErrorEmpresaFueraDescarga" xml:space="preserve">
     <value>La Empresa ya no existe o ha salido de tu cartera. {0}</value>
   </data>

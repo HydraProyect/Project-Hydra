@@ -30,8 +30,12 @@ public enum EstadoTramoCreado
     SinConfirmar = 3
 }
 
+/// <param name="EntradaRetenida">
+/// El lote se cortó aquí porque el proceso aparte no consta terminado: quien reservó memoria para el original no la
+/// devuelve (<see cref="EntradaPdfRetenidaException.Retener"/>).
+/// </param>
 public record ResultadoTramoCreado(
-    int PaginaInicial, int PaginaFinal, EstadoTramoCreado Estado, Guid? DocumentoId, string? Detalle);
+    int PaginaInicial, int PaginaFinal, EstadoTramoCreado Estado, Guid? DocumentoId, string? Detalle, bool EntradaRetenida = false);
 
 /// <summary>
 /// Crea los Documentos de un PDF dividido, tramo a tramo. No decide nada que ya decida el alta normal: cada tramo pasa
@@ -114,20 +118,27 @@ public class CrearDocumentosDesdeDivisionCommandHandler(
             {
                 resultados.Add(await CrearTramoSinPerderElLoteAsync(request, pdf, tramo, cancellationToken));
             }
-            catch (Exception ex) when (resultados.Count > 0 && ex is PresupuestoMemoriaAgotadoException or EntradaPdfRetenidaException)
+            catch (Exception ex) when (HayDocumentosCreados(resultados) && ex is PresupuestoMemoriaAgotadoException or EntradaPdfRetenidaException)
             {
                 // Sin turno para el proceso aparte, o con uno que no consta terminado (y entonces no habrá más turnos en la
-                // instancia): con Documentos ya creados, lanzar perdería su lista y el usuario los duplicaría al repetir.
-                // Este tramo y los que faltan quedan sin preparar. Antes del primero, sí lanza y la pantalla avisa.
+                // instancia): con Documentos ya creados (o que pudieron quedar creados), lanzar perdería su lista y el
+                // usuario los duplicaría al repetir. Este tramo y los que faltan quedan sin preparar, y si el proceso no
+                // consta terminado, el resultado lo dice para que la pantalla retenga la reserva del original. Sin ningún
+                // Documento creado, sí lanza: la pantalla avisa y conserva el original para reintentar.
                 logger.LogWarning("Dividir PDF cortó el lote sin turno en el proceso aparte ({Excepcion}).", ex.GetType().Name);
+                var retenida = ex is EntradaPdfRetenidaException;
                 resultados.AddRange(request.Tramos.Skip(resultados.Count).Select(pendiente =>
-                    Resultado(pendiente, EstadoTramoCreado.Rechazado, null, "No se ha podido preparar este documento ahora. Inténtalo más tarde.")));
+                    Resultado(pendiente, EstadoTramoCreado.Rechazado, null, "No se ha podido preparar este documento ahora. Inténtalo más tarde.")
+                        with { EntradaRetenida = retenida }));
                 break;
             }
         }
 
         return Result.Exito<IReadOnlyList<ResultadoTramoCreado>>(resultados);
     }
+
+    private static bool HayDocumentosCreados(List<ResultadoTramoCreado> resultados) =>
+        resultados.Exists(r => r.Estado is EstadoTramoCreado.Creado or EstadoTramoCreado.SinConfirmar);
 
     private static string? MotivoDeTramoInvalido(CrearDocumentosDesdeDivisionCommand request, CatalogoDivisionPdf catalogo)
     {
