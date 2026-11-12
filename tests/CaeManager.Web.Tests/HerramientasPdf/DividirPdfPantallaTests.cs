@@ -133,8 +133,26 @@ public sealed class DividirPdfPantallaTests : BunitContext
             }
         }
 
-        public Task<TResponse> Send<TResponse>(IRequest<TResponse> request, CancellationToken cancellationToken = default) =>
-            Task.FromResult((TResponse)Responder(request));
+        /// <summary>Si está, el lote de Guardar no responde hasta que se complete.</summary>
+        public TaskCompletionSource? CreacionRetenida { get; set; }
+
+        /// <summary>El token con el que la pantalla envió el lote de Guardar.</summary>
+        public CancellationToken? TokenCreacion { get; private set; }
+
+        public Task<TResponse> Send<TResponse>(IRequest<TResponse> request, CancellationToken cancellationToken = default)
+        {
+            if (request is CrearDocumentosDesdeDivisionCommand)
+                TokenCreacion = cancellationToken;
+            return request is CrearDocumentosDesdeDivisionCommand && CreacionRetenida is { } retenida
+                ? ResponderTrasAsync<TResponse>(request, retenida.Task)
+                : Task.FromResult((TResponse)Responder(request));
+        }
+
+        private async Task<TResponse> ResponderTrasAsync<TResponse>(object peticion, Task espera)
+        {
+            await espera;
+            return (TResponse)Responder(peticion);
+        }
 
         public Task Send<TRequest>(TRequest request, CancellationToken cancellationToken = default) where TRequest : IRequest =>
             Task.CompletedTask;
@@ -541,6 +559,51 @@ public sealed class DividirPdfPantallaTests : BunitContext
             retenida
                 ? "el proceso aparte que no consta terminado puede seguir referenciando el original: su reserva entera se retiene"
                 : "con el lote completo, la reserva del original se devuelve");
+    }
+
+    private async Task<IRenderedComponent<DividirPdf>> EmpezarLoteDeGuardarRetenidoAsync()
+    {
+        _mediador.CreacionRetenida = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var cut = Renderizar();
+        cut.WaitForAssertion(() => cut.FindAll(".zona-soltar-archivo").Should().ContainSingle());
+        await SubirAsync(cut);
+        await EsperarSinReservaAsync(() => _presupuesto.Reservado, "las vistas previas ya soltaron su reserva");
+        cut.Find("button.tijera[aria-label='Quitar la división tras la página 3']").Click();
+        Pulsar(cut, "Guardar en TALVEG");
+        PonerEmision(cut);
+        Pulsar(cut, "Siguiente documento");
+        cut.WaitForAssertion(() => cut.FindAll(".marca-omitir input").Should().NotBeEmpty());
+        cut.Find(".marca-omitir input").Change(true);
+        Pulsar(cut, "Revisar y crear");
+        Pulsar(cut, "Crear 1 documento");
+        cut.WaitForAssertion(() => _mediador.TokenCreacion.Should().NotBeNull("el lote ya se envió"));
+        return cut;
+    }
+
+    [Fact]
+    public async Task Salir_de_la_pantalla_a_mitad_del_lote_de_Guardar_no_lo_corta()
+    {
+        await EmpezarLoteDeGuardarRetenidoAsync();
+
+        await DisposeComponentsAsync();
+
+        _mediador.TokenCreacion!.Value.IsCancellationRequested.Should().BeFalse(
+            "el resultado parcial solo viviría en la pantalla: cortado, la persona no vería lo creado y lo duplicaría al repetir");
+        _mediador.CreacionRetenida!.SetResult();
+        await EsperarSinReservaAsync(() => _presupuesto.Reservado, "el lote termina tras salir y devuelve la reserva del original");
+        _mediador.Creaciones.Should().ContainSingle();
+    }
+
+    [Fact]
+    public async Task Al_cerrarse_el_circuito_el_lote_de_Guardar_se_corta()
+    {
+        await EmpezarLoteDeGuardarRetenidoAsync();
+
+        await Services.GetRequiredService<PuertaAccesoDatos>().CerrarAsync(TimeSpan.FromSeconds(1));
+
+        _mediador.TokenCreacion!.Value.IsCancellationRequested.Should().BeTrue(
+            "con el circuito cerrándose, el lote tiene que terminar antes de que su DbContext se disponga");
+        _mediador.CreacionRetenida!.SetResult();
     }
 
     [Fact]

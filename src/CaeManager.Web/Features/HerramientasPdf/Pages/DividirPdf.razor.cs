@@ -428,6 +428,8 @@ public partial class DividirPdf : CaeManager.Web.Components.PaginaInteractiva, I
         if (!CabeEnElPresupuesto(LimitesDivisionPdf.MemoriaGuardarTramos(_original.TamanoBytes)))
             return;
 
+        // Se toma con la pantalla viva: tras Dispose, _ciclo.Token lanza.
+        var token = _ciclo.Token;
         _creando = true;
         _error = null;
         try
@@ -435,12 +437,17 @@ public partial class DividirPdf : CaeManager.Web.Components.PaginaInteractiva, I
             Result<IReadOnlyList<ResultadoTramoCreado>> creacion;
             // La copia del original y lo que se recibe del proceso aparte por cada tramo, de uno en uno.
             ReservaMemoriaDocumentos? reserva = await PresupuestoMemoria.ReservarAsync(
-                LimitesDivisionPdf.MemoriaCreacionTramos(_original.TamanoBytes), _ciclo.Token);
+                LimitesDivisionPdf.MemoriaCreacionTramos(_original.TamanoBytes), token);
             try
             {
-                var contenido = await _almacen.LeerAsync(_original, _ciclo.Token);
+                var contenido = await _almacen.LeerAsync(_original, token);
+                // El lote no se ata a la pantalla: salir de ella a mitad no lo corta, porque el resultado parcial solo
+                // viviría en esta pantalla y la persona, sin verlo, duplicaría al repetir lo ya creado. Cada espera del
+                // lote tiene su propio tope (el proceso aparte, las reservas), como en DividirAdjuntoPdfCommand. Sí se
+                // corta al cerrarse el circuito, antes de que su DbContext se disponga.
                 creacion = await Mediator.Send(
-                    new CrearDocumentosDesdeDivisionCommand(contenido, _nombreOriginal, tenantId, empresaId, tramos), _ciclo.Token);
+                    new CrearDocumentosDesdeDivisionCommand(contenido, _nombreOriginal, tenantId, empresaId, tramos),
+                    PuertaAccesoDatos.AlCerrarse);
                 if (creacion.EsExitoso && creacion.Valor.Any(r => r.EntradaRetenida))
                 {
                     // Lote cortado con Documentos ya creados por un proceso aparte que no consta terminado: el resultado
@@ -459,6 +466,14 @@ public partial class DividirPdf : CaeManager.Web.Components.PaginaInteractiva, I
             finally
             {
                 reserva?.Dispose();
+            }
+
+            if (_desechado)
+            {
+                // Nadie va a mostrar el resultado: lo creado se ve en Documentos. La pantalla ya soltó sus recursos.
+                Logger.LogInformation("Dividir PDF terminó el lote con la pantalla ya cerrada ({Creados} documentos creados).",
+                    creacion.EsExitoso ? creacion.Valor.Count(r => r.Estado == EstadoTramoCreado.Creado) : 0);
+                return;
             }
 
             if (creacion.EsFallido)
