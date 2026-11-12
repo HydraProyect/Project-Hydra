@@ -791,7 +791,11 @@ public partial class Documentos : CaeManager.Web.Components.PaginaInteractiva, I
         SeleccionEstados.Unir(SeleccionEstados.Separar<EstadoDocumento>(seleccion).Select(e => e.ToString())) ?? string.Empty;
 
     private string EtiquetaAmbitoListado(AmbitoAplicacion ambito) =>
-        OpcionesAmbitoListado.FirstOrDefault(o => o.Valor == ambito.ToString())?.Texto ?? ambito.ToString();
+        EtiquetaAmbitoListado(ambito.ToString());
+
+    /// <summary>La clave de grupo del listado «Por Ámbito» es el nombre del <see cref="AmbitoAplicacion"/>.</summary>
+    private string EtiquetaAmbitoListado(string claveAmbito) =>
+        OpcionesAmbitoListado.FirstOrDefault(o => o.Valor == claveAmbito)?.Texto ?? claveAmbito;
 
     private string _busqueda = string.Empty;
 

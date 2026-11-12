@@ -418,6 +418,8 @@
   <data name="GrupoSinPlataformaCae" xml:space="preserve"><value>Sin Plataforma CAE</value></data>
   <data name="GrupoSinClienteEmpresarial" xml:space="preserve"><value>Sin Cliente</value></data>
   <data name="GrupoAnotarVigencia" xml:space="preserve"><value>Anotar vigencia ({0})</value></data>
+  <data name="AnotarVigenciaTitulo" xml:space="preserve"><value>Anotar vigencia</value></data>
+  <data name="AnotarVigenciaGuardar" xml:space="preserve"><value>Guardar vigencia</value></data>
   <data name="QuitarFiltroPropietario" xml:space="preserve"><value>Quitar filtro de propietario</value></data>
   <data name="SinAgrupar" xml:space="preserve"><value>Sin agrupar</value></data>
   <data name="VacioDescripcionDesign" xml:space="preserve"><value>Sube el primero o usa la subida masiva.</value></data>

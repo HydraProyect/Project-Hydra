@@ -18,10 +18,10 @@
 @inject IMediator Mediator
 @inject ToastService ToastService
 
-<ModalFormulario Visible="_visible" VisibleChanged="v => _visible = v" Titulo="Anotar vigencia"
+<ModalFormulario Visible="_visible" VisibleChanged="v => _visible = v" Titulo="@Textos["AnotarVigenciaTitulo"]"
                  HayCambios="() => HayCambios" Guardando="_guardando" MensajeError="@_errorServidor"
                  HayErroresDeCampo="@(_errorFecha is not null)" OnGuardar="GuardarAsync"
-                 TextoGuardar="Guardar vigencia" TextoCancelar="Cancelar">
+                 TextoGuardar="@Textos["AnotarVigenciaGuardar"]" TextoCancelar="Cancelar">
     @if (_ids.Count > 1)
     {
         <p>@Textos["PlatBloqueAviso", _ids.Count]</p>
