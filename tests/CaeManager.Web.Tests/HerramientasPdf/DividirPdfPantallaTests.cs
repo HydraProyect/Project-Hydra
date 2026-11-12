@@ -97,6 +97,12 @@ public sealed class DividirPdfPantallaTests : BunitContext
         /// <summary>Si está, el resultado de cada tramo de Guardar.</summary>
         public Func<TramoACrear, ResultadoTramoCreado>? ResultadoDe { get; set; }
 
+        /// <summary>Si está, el Command de cada tramo de Guardar lanza esta excepción.</summary>
+        public Exception? ExcepcionCreacion { get; set; }
+
+        /// <summary>Si está, el Command de cada tramo de Guardar falla entero con este error, sin crear nada.</summary>
+        public Error? FalloCreacion { get; set; }
+
         private object Responder(object peticion)
         {
             switch (peticion)
@@ -109,6 +115,10 @@ public sealed class DividirPdfPantallaTests : BunitContext
                     return Preparacion;
                 case CrearDocumentosDesdeDivisionCommand comando:
                     Creaciones.Add(comando);
+                    if (ExcepcionCreacion is { } excepcion)
+                        throw excepcion;
+                    if (FalloCreacion is { } fallo)
+                        return Result.Fallo<IReadOnlyList<ResultadoTramoCreado>>(fallo);
                     // Cortado, el tramo queda sin preparar y con la entrada retenida, como lo deja el handler real. Con
                     // Indice, como la pantalla lo envía, solo ese tramo.
                     var pedidos = comando.Indice is { } indice ? comando.Tramos.Skip(indice).Take(1) : comando.Tramos;
@@ -578,21 +588,29 @@ public sealed class DividirPdfPantallaTests : BunitContext
             Entradas.Enqueue((logLevel, formatter(state, exception)));
     }
 
-    private async Task<IRenderedComponent<DividirPdf>> EmpezarLoteDeGuardarRetenidoAsync(ILogger<DividirPdf>? logger = null)
+    private async Task<IRenderedComponent<DividirPdf>> EmpezarLoteDeGuardarRetenidoAsync(ILogger<DividirPdf>? logger = null,
+        bool dosTramos = false)
     {
         _mediador.CreacionRetenida = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var cut = Renderizar(logger: logger);
         cut.WaitForAssertion(() => cut.FindAll(".zona-soltar-archivo").Should().ContainSingle());
         await SubirAsync(cut);
         await EsperarSinReservaAsync(() => _presupuesto.Reservado, "las vistas previas ya soltaron su reserva");
-        cut.Find("button.tijera[aria-label='Quitar la división tras la página 3']").Click();
+        // Con dos tramos se dejan los tres cortes detectados (1-2, 3 y 4) y se omite el último, que no tiene titular.
+        if (!dosTramos)
+            cut.Find("button.tijera[aria-label='Quitar la división tras la página 3']").Click();
         Pulsar(cut, "Guardar en TALVEG");
         PonerEmision(cut);
         Pulsar(cut, "Siguiente documento");
+        if (dosTramos)
+        {
+            PonerEmision(cut);
+            Pulsar(cut, "Siguiente documento");
+        }
         cut.WaitForAssertion(() => cut.FindAll(".marca-omitir input").Should().NotBeEmpty());
         cut.Find(".marca-omitir input").Change(true);
         Pulsar(cut, "Revisar y crear");
-        Pulsar(cut, "Crear 1 documento");
+        Pulsar(cut, dosTramos ? "Crear 2 documentos" : "Crear 1 documento");
         cut.WaitForAssertion(() => _mediador.TokenCreacion.Should().NotBeNull("el lote ya se envió"));
         return cut;
     }
@@ -639,6 +657,51 @@ public sealed class DividirPdfPantallaTests : BunitContext
         entrada.Nivel.Should().Be(LogLevel.Warning);
         entrada.Mensaje.Should().Contain("páginas 1-").And.Contain("Rechazado (Prueba.Rechazo)")
             .And.NotContain("Texto que no va al registro").And.NotContain("paquete");
+    }
+
+    public static TheoryData<string, string> CortesDelPrimerTramo => new()
+    {
+        { "retenida", CrearDocumentosDesdeDivisionCommandHandler.ErrorSinTurno },
+        { "sin-turno", CrearDocumentosDesdeDivisionCommandHandler.ErrorSinTurno },
+        { "cancelada", CrearDocumentosDesdeDivisionCommandHandler.ErrorLoteCancelado },
+        { "interno", CrearDocumentosDesdeDivisionCommandHandler.ErrorFalloInterno },
+        { "fallo", CrearDocumentosDesdeDivisionCommandHandler.ErrorTenantCruzado },
+    };
+
+    [Theory]
+    [MemberData(nameof(CortesDelPrimerTramo))]
+    public async Task Tras_salir_de_la_pantalla_un_corte_en_el_primer_tramo_deja_en_el_registro_cada_tramo_como_no_intentado(
+        string corte, string causa)
+    {
+        // Revisión Codex de la ronda 7, MEDIO B: sin pantalla, el registro es lo único que dice qué no se creó, también si el
+        // lote se corta antes de crear nada (el primer tramo lanza o el lote falla entero).
+        if (corte == "fallo")
+            _mediador.FalloCreacion = Error.Crear(causa, "Texto que no va al registro.");
+        else
+            _mediador.ExcepcionCreacion = corte switch
+            {
+                "retenida" => new EntradaPdfRetenidaException(),
+                "sin-turno" => new PresupuestoMemoriaAgotadoException(),
+                "cancelada" => new OperationCanceledException(),
+                _ => new InvalidOperationException("Texto que no va al registro."),
+            };
+        var registro = new RegistroEspia();
+        await EmpezarLoteDeGuardarRetenidoAsync(registro, dosTramos: true);
+
+        await DisposeComponentsAsync();
+        _mediador.CreacionRetenida!.SetResult();
+
+        var codigo = CrearDocumentosDesdeDivisionCommandHandler.PrefijoNoIntentado + causa;
+        var plazo = DateTime.UtcNow.AddSeconds(5);
+        while (registro.Entradas.Count(e => e.Mensaje.Contains("no intentado")) < 2 && DateTime.UtcNow < plazo)
+            await Task.Delay(20);
+        _mediador.Creaciones.Should().ContainSingle("el lote se corta en el primer tramo");
+        var tramos = registro.Entradas.Where(e => e.Mensaje.Contains("pantalla ya cerrada: páginas")).ToList();
+        tramos.Should().HaveCount(2, "una línea por tramo, también por el que ya no se envió");
+        tramos.Should().OnlyContain(e => e.Nivel == LogLevel.Warning && e.Mensaje.Contains($"no intentado ({codigo})"));
+        tramos[0].Mensaje.Should().Contain("páginas 1-");
+        tramos.Select(e => e.Mensaje).Distinct().Should().HaveCount(2, "cada línea lleva las páginas de su tramo");
+        registro.Entradas.Should().NotContain(e => e.Mensaje.Contains("Texto que no va al registro") || e.Mensaje.Contains("paquete"));
     }
 
     [Fact]

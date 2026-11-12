@@ -1,4 +1,5 @@
 using CaeManager.Application.Common;
+using CaeManager.Application.HerramientasPdf;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Empresas;
 using CaeManager.Infrastructure.MultiTenancy;
@@ -308,6 +309,52 @@ public class RestauracionCambiosDeComandoTests
         }, default);
 
         resultado.EsFallido.Should().BeTrue();
+    }
+
+    /// <summary>
+    /// Revisión Codex de la PR #2175, ronda 7, MEDIO A: un tramo de Dividir PDF que lanza
+    /// <see cref="EntradaPdfRetenidaException"/> sale por el pipeline real, con la puerta y la restauración en este orden
+    /// (<c>ApplicationServiceCollectionExtensions</c>), mientras el circuito se cierra. La restauración corre dentro de la
+    /// puerta y es trabajo en memoria sobre el ChangeTracker, sin E/S ni esperas: el cierre la ve terminar dentro de su tope y
+    /// la excepción que sale es la del tramo, no una de la restauración, aunque el DbContext ya se haya dispuesto.
+    /// </summary>
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task La_entrada_retenida_sale_por_la_puerta_y_la_restauracion_acaba_antes_del_cierre(bool contextoDispuesto)
+    {
+        var contexto = await CrearContexto();
+        const int filas = 2_000;
+        contexto.Filas.AddRange(Enumerable.Range(100, filas).Select(i => new Fila { Id = i, Nombre = "Previa" }));
+        await contexto.SaveChangesAsync();
+        var rastreadas = await contexto.Filas.ToListAsync();
+        var puerta = new PuertaAccesoDatos();
+        var serializacion = new SerializacionAccesoDatosBehavior<Comando, Result>(puerta);
+        var restauracion = new RestauracionCambiosDeComandoBehavior<Comando, Result>(new ProveedorPrueba(contexto));
+        Task<bool>? cierre = null;
+
+        var envio = serializacion.Handle(new Comando(), ct => restauracion.Handle(new Comando(), async ct2 =>
+        {
+            foreach (var fila in rastreadas)
+                fila.Nombre = "Edición del tramo";
+            contexto.Filas.AddRange(Enumerable.Range(10_000, filas).Select(i => new Fila { Id = i, Nombre = "Alta del tramo" }));
+            await Task.Yield();
+            // El circuito se cierra con el tramo en vuelo; con el tope ya vencido, el scope dispone el contexto antes de restaurar.
+            cierre = puerta.CerrarAsync(TimeSpan.FromSeconds(7));
+            if (contextoDispuesto)
+                await contexto.DisposeAsync();
+            throw new EntradaPdfRetenidaException();
+        }, ct), default);
+
+        await FluentActions.Awaiting(() => envio).Should().ThrowExactlyAsync<EntradaPdfRetenidaException>();
+        cierre.Should().NotBeNull();
+        (await cierre!).Should().BeTrue("la restauración termina dentro de la puerta, antes de que venza el cierre");
+        if (contextoDispuesto)
+            return;
+
+        contexto.ChangeTracker.Entries().Should().OnlyContain(e => e.State == EntityState.Unchanged);
+        rastreadas.Should().OnlyContain(f => f.Nombre == "Previa" || f.Nombre == "Primera" || f.Nombre == "Segunda");
+        await contexto.DisposeAsync();
     }
 
     [Fact]

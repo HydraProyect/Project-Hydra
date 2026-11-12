@@ -474,7 +474,7 @@ public partial class DividirPdf : CaeManager.Web.Components.PaginaInteractiva, I
                 // Nadie va a mostrar el resultado: lo creado se ve en Documentos. La pantalla ya soltó sus recursos
                 // (RetirarOriginal cancelaría un _vistas ya dispuesto). El registro guarda el desenlace de cada tramo, para
                 // poder reconstruir qué se creó y qué no: páginas, estado, Documento y código, sin nombres ni contenido.
-                RegistrarResultadoSinPantalla(creacion);
+                RegistrarResultadoSinPantalla(tramos, creacion);
                 return;
             }
 
@@ -495,7 +495,19 @@ public partial class DividirPdf : CaeManager.Web.Components.PaginaInteractiva, I
         }
         catch (Exception ex) when (ex is PresupuestoMemoriaAgotadoException or EntradaPdfRetenidaException)
         {
+            if (_desechado)
+                RegistrarCorteSinPantalla(tramos, CrearDocumentosDesdeDivisionCommandHandler.ErrorSinTurno, ex);
             _error = Textos["ErrorSinEspacio"];
+        }
+        catch (Exception ex) when (_desechado && ex is not OutOfMemoryException)
+        {
+            // Lo que sale de aquí sale sin ningún Documento creado (con Documentos, CreacionDivisionPdfPorTramos corta el lote
+            // y lo devuelve): el cierre del circuito, la salida de la pantalla durante la reserva o un fallo antes del primer
+            // tramo. Nadie lo verá, así que el registro dice que ninguno se intentó; la excepción sigue su curso de siempre.
+            RegistrarCorteSinPantalla(tramos, ex is OperationCanceledException
+                ? CrearDocumentosDesdeDivisionCommandHandler.ErrorLoteCancelado
+                : CrearDocumentosDesdeDivisionCommandHandler.ErrorFalloInterno, ex);
+            throw;
         }
         finally
         {
@@ -504,16 +516,34 @@ public partial class DividirPdf : CaeManager.Web.Components.PaginaInteractiva, I
     }
 
     /// <summary>
-    /// El resultado de Guardar cuando la pantalla ya se cerró: una línea por tramo con sus páginas, su estado (creado con su
-    /// Documento, rechazado o demasiado grande con su código, sin confirmar) y, si el lote entero falló, su código. Nunca el
-    /// detalle en texto, el nombre del PDF ni el titular: el registro no lleva datos personales ni contenido.
+    /// El lote de Guardar se cortó sin crear nada con la pantalla ya cerrada: una línea por tramo con sus páginas, «no
+    /// intentado» y el código de la causa (<see cref="CrearDocumentosDesdeDivisionCommandHandler.PrefijoNoIntentado"/>, como
+    /// los que deja el corte del lote), y el tipo de la excepción. Nada del PDF ni del titular.
     /// </summary>
-    private void RegistrarResultadoSinPantalla(Result<IReadOnlyList<ResultadoTramoCreado>> creacion)
+    private void RegistrarCorteSinPantalla(IReadOnlyList<TramoACrear> tramos, string causa, Exception? excepcion)
+    {
+        if (excepcion is not null)
+            Logger.LogWarning("Dividir PDF cortó el lote con la pantalla ya cerrada sin crear ningún documento ({Excepcion}).",
+                excepcion.GetType().Name);
+        var codigo = CrearDocumentosDesdeDivisionCommandHandler.PrefijoNoIntentado + causa;
+        foreach (var tramo in tramos)
+            Logger.LogWarning("Dividir PDF, con la pantalla ya cerrada: páginas {PaginaInicial}-{PaginaFinal}, no intentado ({Codigo}).",
+                tramo.PaginaInicial, tramo.PaginaFinal, codigo);
+    }
+
+    /// <summary>
+    /// El resultado de Guardar cuando la pantalla ya se cerró: una línea por tramo con sus páginas, su estado (creado con su
+    /// Documento, rechazado o demasiado grande con su código, sin confirmar) y, si el lote entero falló antes de crear nada, su
+    /// código y cada tramo como no intentado. Nunca el detalle en texto, el nombre del PDF ni el titular: el registro no lleva
+    /// datos personales ni contenido.
+    /// </summary>
+    private void RegistrarResultadoSinPantalla(IReadOnlyList<TramoACrear> tramos, Result<IReadOnlyList<ResultadoTramoCreado>> creacion)
     {
         if (creacion.EsFallido)
         {
             Logger.LogWarning("Dividir PDF terminó el lote con la pantalla ya cerrada sin crear ningún documento ({Codigo}).",
                 creacion.Error.Codigo);
+            RegistrarCorteSinPantalla(tramos, creacion.Error.Codigo, excepcion: null);
             return;
         }
 
