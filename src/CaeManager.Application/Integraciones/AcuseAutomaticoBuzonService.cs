@@ -24,6 +24,7 @@ namespace CaeManager.Application.Integraciones;
 /// </summary>
 public class AcuseAutomaticoBuzonService(
     IConversacionRepository conversacionRepositorio,
+    Domain.Integraciones.IConexionIntegracionRepository conexionRepositorio,
     IMicrosoft365GraphClient graphClient,
     AccesoGraphService accesoGraph,
     IRegistroExportacionService registroSalida,
@@ -67,6 +68,15 @@ public class AcuseAutomaticoBuzonService(
     {
         var (conexion, conversacion, mensajeExternoId, destinatario) = acuse;
 
+        // La ingesta solo deja acuses de una conexión verificada, pero la verificación puede caducar entre medias.
+        if (!conexion.OperativaVerificada(DateTime.UtcNow))
+        {
+            logger.LogWarning(
+                "La conversación {ConversacionId} no lleva acuse: la identidad del buzón de su conexión no está verificada.",
+                conversacion.Id);
+            return;
+        }
+
         var reservado = await conversacionRepositorio.ReservarAcuseAsync(
             conexion.TenantId, conexion.Id, destinatario, DateTime.UtcNow, IntervaloMinimoPorRemitente, cancellationToken);
         if (!reservado)
@@ -81,7 +91,7 @@ public class AcuseAutomaticoBuzonService(
         await registroSalida.RegistrarSalidaAsync(
             OrigenSalidaComunicacion.AcuseAutomatico, conexion.Id, [destinatario], copia: null, adjuntos: null, cancellationToken);
 
-        var token = await accesoGraph.ObtenerAccessTokenVigenteAsync(conexion.Id, cancellationToken);
+        var token = await accesoGraph.ObtenerAccessTokenVigenteAsync(conexion, cancellationToken);
         if (token.EsFallido)
         {
             logger.LogWarning(
@@ -94,9 +104,19 @@ public class AcuseAutomaticoBuzonService(
         // envío descarta todo lo pendiente. Sin el token de parada, por lo mismo: la renovación ya ocurrió.
         await unitOfWork.SaveChangesAsync(CancellationToken.None);
 
+        // Puerta justo antes de enviar: la conexión del acuse es la instancia que cargó la ingesta. Si entre medias
+        // otro proceso la pasó a ConError o la desconectó (y quizá otro Tenant ya reclamó el buzón), no sale nada.
+        if (!await conexionRepositorio.SigueOperativaVerificadaAsync(conexion.Id, DateTime.UtcNow, cancellationToken))
+        {
+            logger.LogWarning(
+                "La conversación {ConversacionId} no lleva acuse: su conexión dejó de estar operativa antes del envío.",
+                conversacion.Id);
+            return;
+        }
+
         // Por el cliente del contenedor: lo envuelve la guarda de envío C-04, que aquí decide igual que para una respuesta.
         var envio = await graphClient.EnviarRespuestaAsync(
-            token.Valor, conexion.BuzonEmail, mensajeExternoId, PlantillaAcuseBuzon.CuerpoHtml, adjuntos: null, cancellationToken);
+            token.Valor, BuzonGraph.De(conexion), mensajeExternoId, PlantillaAcuseBuzon.CuerpoHtml, adjuntos: null, cancellationToken);
 
         if (envio.EsFallido)
         {

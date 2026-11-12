@@ -36,5 +36,11 @@ public interface IEventoWebhookRepository
     Task<IReadOnlyList<EventoWebhook>> ObtenerParaRedactarAsync(
         DateTime limiteUtc, int maximo, CancellationToken cancellationToken = default);
 
+    /// <summary>
+    /// Eventos <see cref="EstadoEventoWebhook.Retenido"/> de la conexión <paramref name="conexionId"/>, del Tenant
+    /// de la sesión, candidatos a <see cref="EventoWebhook.Liberar"/> cuando la conexión vuelve a estar verificada.
+    /// </summary>
+    Task<IReadOnlyList<EventoWebhook>> ObtenerRetenidosAsync(Guid conexionId, CancellationToken cancellationToken = default);
+
     void Agregar(EventoWebhook evento);
 }

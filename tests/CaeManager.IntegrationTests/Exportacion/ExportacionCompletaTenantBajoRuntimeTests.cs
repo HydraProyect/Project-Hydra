@@ -72,8 +72,8 @@ public class ExportacionCompletaTenantBajoRuntimeTests : IAsyncLifetime
         (_tenantA, _tenantB, _tenantPlataforma) = (tenantA.Id, tenantB.Id, tenantPlataforma.Id);
 
         _propietario.ReclamacionesBuzonIntegracion.AddRange(
-            new ReclamacionBuzonIntegracion("exportado@example.com", _tenantA, Guid.NewGuid(), DateTime.UtcNow),
-            new ReclamacionBuzonIntegracion("ajeno@example.com", _tenantB, Guid.NewGuid(), DateTime.UtcNow));
+            new ReclamacionBuzonIntegracion("exportado@example.com", null, _tenantA, Guid.NewGuid(), DateTime.UtcNow),
+            new ReclamacionBuzonIntegracion("ajeno@example.com", null, _tenantB, Guid.NewGuid(), DateTime.UtcNow));
         await _propietario.SaveChangesAsync();
 
         var administrador = await _propietario.Roles.Where(r => r.Name == Roles.Administrador).Select(r => r.Id).SingleAsync();
