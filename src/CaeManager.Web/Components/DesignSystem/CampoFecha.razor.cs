@@ -28,8 +28,9 @@ public partial class CampoFecha
     private bool _deshabilitadoAntes;
     /// <summary>
     /// La marca que el padre tiene según este campo. Nace con <see cref="NoValido"/> (lo que el padre ya tiene marcado) o,
-    /// si el padre no lo pasa, a null: desconocida. El campo nunca avisa su estado al nacer (crearse o recrearse no es
-    /// corregir la fecha), así que con null el primer aviso llega con el primer gesto de la persona.
+    /// si el padre no lo pasa, a null: desconocida. El campo no avisa su estado al nacer (crearse o recrearse no es
+    /// corregir la fecha), salvo el campo deshabilitado que nace con la marca, que avisa false; con null el primer aviso
+    /// llega con el primer gesto de la persona.
     /// </summary>
     private bool? _noValidoNotificado;
 
@@ -76,8 +77,8 @@ public partial class CampoFecha
     /// (<c>NoValido="_x" NoValidoChanged="…"</c>, o <c>@bind-NoValido</c>). Todo formulario que guarde pasa las dos (lo
     /// exige <c>CamposFechaEnlazanLaMarcaDeNoValidoTests</c>), porque los campos se destruyen y se recrean sin que la persona
     /// toque nada: al cambiar de pestaña, de paso, de tramo o de tipo de documento, al plegar una fila o al pasar de paso en
-    /// un modal. El campo toma este valor como su estado inicial y nunca avisa false al nacer: un campo recreado no retira
-    /// una marca que no observó él.
+    /// un modal. El campo toma este valor como su estado inicial y no avisa false al nacer (salvo deshabilitado, ver abajo): un
+    /// campo recreado no retira una marca que no observó él.
     /// <para>
     /// Con true nace con la marca y el aviso «no es una fecha» a la vista sea cual sea <see cref="Valor"/>: el texto a
     /// medias se perdió con el campo anterior, así que se muestra vacío y, si el padre aún tenía una fecha, se le notifica

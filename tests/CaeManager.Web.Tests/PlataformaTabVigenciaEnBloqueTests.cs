@@ -9,6 +9,7 @@ using CaeManager.Web.Components.DesignSystem;
 using CaeManager.Web.Features.Documentos.Components;
 using FluentAssertions;
 using MediatR;
+using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Web;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -144,6 +145,27 @@ public sealed class PlataformaTabVigenciaEnBloqueTests : BunitContext
         await cut.FindAll(".modal-pie button").Single(b => b.TextContent.Trim() == "Cancelar").ClickAsync(new MouseEventArgs());
 
         cut.FindAll("button").Select(b => b.TextContent.Trim()).Should().Contain("Descartar cambios", "con la fecha escrita «Cancelar» pregunta como la X");
+    }
+
+    // El campo de vigencia nace con la marca del padre y no la retira al nacer: abrir el modal la reinicia. Si no, una fecha a
+    // medias descartada dejaría el modal siguiente con el aviso y pidiendo descartar sin haberlo tocado.
+    [Fact]
+    public async Task Descartar_una_fecha_a_medias_no_deja_la_marca_en_la_siguiente_apertura()
+    {
+        var cut = Render<PlataformaTab>();
+        await cut.FindAll("button").Single(b => b.TextContent.Trim() == "Seleccionar sin vigencia").ClickAsync(new MouseEventArgs());
+        await cut.FindAll("button").Single(b => b.TextContent.Contains("Anotar vigencia (2)")).ClickAsync(new MouseEventArgs());
+        await cut.Find("[role=dialog] input[data-campo-fecha]").InputAsync(new ChangeEventArgs { Value = "15/03" });
+        await cut.FindAll(".modal-pie button").Single(b => b.TextContent.Trim() == "Cancelar").ClickAsync(new MouseEventArgs());
+        await cut.FindAll("button").Single(b => b.TextContent.Trim() == "Descartar cambios").ClickAsync(new MouseEventArgs());
+        cut.FindAll("[role=dialog]").Should().BeEmpty("control: la fecha a medias se descartó");
+
+        await cut.FindAll("button").Single(b => b.TextContent.Contains("Anotar vigencia (2)")).ClickAsync(new MouseEventArgs());
+
+        cut.Find("[role=dialog] input[data-campo-fecha]").GetAttribute("aria-invalid").Should().NotBe("true",
+            "el modal nuevo no arrastra la marca de la apertura descartada");
+        await cut.FindAll(".modal-pie button").Single(b => b.TextContent.Trim() == "Cancelar").ClickAsync(new MouseEventArgs());
+        cut.FindAll("[role=dialog]").Should().BeEmpty("sin nada escrito «Cancelar» cierra sin preguntar");
     }
 
     [Fact]

@@ -207,6 +207,26 @@ public class DrawerGestionDocumentoVencimientoNoValidoTests : BunitContext
         cut.Markup.Should().Contain("no es válida");
     }
 
+    // La marca conservada del vencimiento no cuenta mientras el tipo no use el campo: con un tipo automático, corregir la emisión
+    // retira el aviso aunque el vencimiento manual siga marcado (si no, el aviso se quedaría sin ninguna fecha a la vista que
+    // corregir).
+    [Fact]
+    public async Task Con_un_tipo_automatico_corregir_la_emision_retira_el_aviso_aunque_el_vencimiento_manual_siga_marcado()
+    {
+        var cut = await AbrirAltaConTipoManualAsync();
+        await EscribirVencimientoAsync(cut, "15/03");
+        await cut.FindAll("input[data-campo-fecha]")[0].InputAsync(new ChangeEventArgs { Value = "01/02" });
+        await PulsarGuardarAsync(cut);
+        cut.Markup.Should().Contain("no es válida", "control: el intento rechazado avisa");
+
+        await cut.InvokeAsync(() => cut.FindComponent<SelectorTipoDocumento>().Instance.ValorChanged.InvokeAsync(TipoAutomatico.ToString()));
+        cut.Markup.Should().Contain("no es válida", "control: la emisión sigue a medias y a la vista");
+
+        await cut.FindAll("input[data-campo-fecha]")[0].InputAsync(new ChangeEventArgs { Value = "01/02/2026" });
+
+        cut.Markup.Should().NotContain("no es válida", "con el tipo automático solo queda la emisión, y ya es una fecha");
+    }
+
     // Un vencimiento a medias no cambia el valor del formulario («»), pero es texto que se pierde al cerrar.
     [Fact]
     public async Task Un_vencimiento_manual_a_medias_cuenta_como_cambio_sin_guardar()

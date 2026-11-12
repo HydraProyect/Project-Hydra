@@ -103,7 +103,7 @@
     /// aquí, Crear queda bloqueado. Se libera al escribir una fecha entera, al vaciar el campo a mano o al marcar «Sin
     /// caducidad» o «No crear» (el campo, al deshabilitarse, avisa false). Si se sale del tramo con el texto a medias,
     /// el campo se destruye y su valor es null: la marca sigue, la fila del tramo en Revisar lo dice y Crear sigue
-    /// bloqueado. Al volver a ese tramo, el campo nuevo recibe la marca (NoValidoPrevio): no la retira al crearse, sale
+    /// bloqueado. Al volver a ese tramo, el campo nuevo recibe la marca (CampoFecha.NoValido): no la retira al crearse, sale
     /// con el aviso «no es una fecha» a la vista y solo la quita la persona al teclear o elegir una fecha. Solo cuentan los tramos de la división actual (un corte quitado o «Cambiar PDF» dejan
     /// asignaciones que ya no se crean).
     /// </summary>

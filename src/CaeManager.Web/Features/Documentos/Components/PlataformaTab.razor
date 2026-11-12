@@ -484,6 +484,9 @@ else
         _soloVigencia = yaAceptada;
         _estadoVigencia = nameof(EstadoVigenciaEnPlataforma.VenceEnFecha);
         _fechaVigencia = string.Empty;
+        // El campo nace con esta marca (CampoTexto.FechaNoValida) y no la retira al nacer: la de una apertura anterior
+        // (cancelada, o guardada con «Aquí no caduca») dejaría el modal nuevo con el aviso y pidiendo descartar sin tocarlo.
+        _fechaVigenciaNoValida = false;
         _errorVigencia = null;
         _errorServidorVigencia = null;
         _vigenciaVisible = true;
