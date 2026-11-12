@@ -253,6 +253,14 @@ public class CorreoLegibleSinImagenesTests
     [InlineData("""<p><img src=l.png data-alt=incorrecto alt=Logo></p>""", "Logo")]
     [InlineData("""<p><img src=l.png data-alt=incorrecto></p>""", "")]
     [InlineData("""<p><img src=l.png data-alt="incorrecto" alt="Logo"></p>""", "Logo")]
+    [InlineData("""<p><a class='x'href=https://ejemplo.es>Entrar</a></p>""", "Entrar (https://ejemplo.es)")]
+    [InlineData("""<p><a/href=https://ejemplo.es>Entrar</a></p>""", "Entrar (https://ejemplo.es)")]
+    [InlineData("<p><a class=x\nhref=https://ejemplo.es>Entrar</a></p>", "Entrar (https://ejemplo.es)")]
+    [InlineData("""<p><A CLASS=x HREF=https://ejemplo.es>Entrar</A></p>""", "Entrar (https://ejemplo.es)")]
+    [InlineData("""<p><img src='l.png'alt='Logo'></p>""", "Logo")]
+    [InlineData("<p><img src=l.png\nalt=Logo></p>", "Logo")]
+    [InlineData("""<p><IMG SRC=l.png ALT=Logo></p>""", "Logo")]
+    [InlineData("""<p><img src=l.png aria-alt=incorrecto alt=Logo></p>""", "Logo")]
     public void El_texto_plano_conserva_la_direccion_con_comillas_dobles_simples_o_sin_comillas(string html, string esperado)
     {
         TextoPlanoDeCorreo.DesdeHtml(html).Should().Be(esperado);
@@ -282,6 +290,9 @@ public class CorreoLegibleSinImagenesTests
     [InlineData("""class C { string M(string t) => Regex.Replace(t, "x", "<a>Entrar</a>"); }""", "enlace sin destino")]
     [InlineData("""class C { string M(Regex r, string t) => r.Replace(t, "(?<a>Entrar</a>)"); }""", "enlace sin destino")]
     [InlineData("""class C { bool M(string t) => Regex.IsMatch("(?<a>Entrar</a>)", t); }""", "enlace sin destino")]
+    [InlineData("""class C { string M(string t, string p) => Regex.Replace(t, replacement: "<a>Entrar</a>", pattern: p); }""", "enlace sin destino")]
+    [InlineData("""class C { bool M(string p) => Regex.IsMatch(pattern: p, input: "<a>Entrar</a>"); }""", "enlace sin destino")]
+    [InlineData("""class C { const string P = "(?<a>Entrar</a>)"; static readonly Regex R = new(P); }""", "enlace sin destino")]
     [InlineData("""class C { const string H = "<a href=\"\">" + "Entrar</a>"; }""", "enlace sin destino")]
     [InlineData("""class C { string M(string u) => "<a href=\"" + "\">Entrar</a>"; }""", "enlace sin destino")]
     [InlineData("""class C { string M(string u) => $"<a href=\"{u}\"></a>"; }""", "enlace sin texto")]
@@ -310,6 +321,13 @@ public class CorreoLegibleSinImagenesTests
     [InlineData("""class C { static readonly System.Text.RegularExpressions.Regex R = new(@"(?<a>\d+)(?<!x)(?<=y)(?<n-m>z)(?<href>[^""]*)"); }""")]
     [InlineData("""class C { bool M(string t) => System.Text.RegularExpressions.Regex.IsMatch(t, "<a\\b[^>]*?\\bhref\\s*=\\s*(?:\"(?<href>[^\"]*)\")[^>]*>(?<texto>.*?)</a\\s*>"); }""")]
     [InlineData("""class C { static readonly Regex R = new("(?<a>Entrar</a>)"); }""")]
+    [InlineData("""class C { static Regex R { get; } = new("(?<a>Entrar</a>)"); }""")]
+    [InlineData("""class C { static readonly Regex R = new Regex(("(?<a>Entrar</a>)")); }""")]
+    [InlineData("""class C { static readonly Regex R = new Regex(pattern: "(?<a>Entrar</a>)"); }""")]
+    [InlineData("""class C { object M(string t) => new object[] { Regex.Match(t, "(?<a>Entrar</a>)"), Regex.Matches(t, "(?<a>Entrar</a>)"), Regex.Split(t, "(?<a>Entrar</a>)"), Regex.EnumerateMatches(t, "(?<a>Entrar</a>)"), Regex.Count(t, "(?<a>Entrar</a>)") }; }""")]
+    [InlineData("""class C { string M(string t) => Regex.Replace(t, replacement: "<a href=\"x\">Ver</a>", pattern: "(?<a>Entrar</a>)"); }""")]
+    [InlineData("""class C { [GeneratedRegexAttribute("(?<a>Entrar</a>)")] static partial Regex R(); }""")]
+    [InlineData("""class C { [GeneratedRegex(pattern: "(?<a>Entrar</a>)")] static partial Regex R(); }""")]
     [InlineData("""class C { static readonly Regex R = new Regex("<p>" + "(?<a>Entrar</a>)", RegexOptions.None); }""")]
     [InlineData("""class C { bool M(string t) => Regex.IsMatch(t, "(?<a>Entrar</a>)"); }""")]
     [InlineData("""class C { bool M(string t) => Regex.IsMatch(t, pattern: "(?<a>Entrar</a>)"); }""")]
@@ -436,6 +454,13 @@ public class CorreoLegibleSinImagenesTests
     /// <c>[GeneratedRegex(...)]</c>. Se decide por el lugar sintáctico del literal, no por su forma: un
     /// texto con <c>(?&lt;a&gt;Entrar&lt;/a&gt;)</c> en un literal normal es HTML y se valida. El
     /// reemplazo de <c>Regex.Replace</c> y cualquier otro argumento siguen siendo plantilla.
+    /// <para>
+    /// Límite declarado: un patrón que no esté en uno de esos lugares (una constante <c>const string P</c>
+    /// que luego se pasa a un <c>Regex</c>, o un <c>return "…"</c>) se valida como HTML y, si contiene un
+    /// <c>(?&lt;a&gt;…)</c>, da un falso positivo. Es el lado seguro: preferimos un falso positivo que se
+    /// corrige pasando el patrón directo al <c>Regex</c> a un falso negativo que esconda un enlace roto.
+    /// Hoy ningún fichero de <c>src</c> está en ese caso.
+    /// </para>
     /// </summary>
     private static bool EsPatronDeRegex(ExpressionSyntax expresion)
     {
@@ -443,30 +468,34 @@ public class CorreoLegibleSinImagenesTests
         while (nodo.Parent is ParenthesizedExpressionSyntax)
             nodo = nodo.Parent;
 
-        if (nodo.Parent is AttributeArgumentSyntax { Parent: AttributeArgumentListSyntax { Parent: AttributeSyntax atributo } listaAtributo })
+        if (nodo.Parent is AttributeArgumentSyntax { Parent: AttributeArgumentListSyntax { Parent: AttributeSyntax atributo } listaAtributo } argumentoDeAtributo)
             return NombreFinal(atributo.Name) is "GeneratedRegex" or "GeneratedRegexAttribute"
-                   && listaAtributo.Arguments.IndexOf((AttributeArgumentSyntax)nodo.Parent) == 0;
+                   && argumentoDeAtributo.NameEquals is null
+                   && EsElPatron(argumentoDeAtributo.NameColon, listaAtributo.Arguments.IndexOf(argumentoDeAtributo), 0);
 
         if (nodo.Parent is not ArgumentSyntax argumento || argumento.Parent is not ArgumentListSyntax lista)
             return false;
 
         var posicion = lista.Arguments.IndexOf(argumento);
-        var esPattern = argumento.NameColon?.Name.Identifier.Text == "pattern";
 
         switch (lista.Parent)
         {
             case ObjectCreationExpressionSyntax creacion:
-                return NombreFinal(creacion.Type) == "Regex" && (esPattern || posicion == 0);
+                return NombreFinal(creacion.Type) == "Regex" && EsElPatron(argumento.NameColon, posicion, 0);
             case ImplicitObjectCreationExpressionSyntax implicita:
-                return TipoDeclaradoDe(implicita) == "Regex" && (esPattern || posicion == 0);
+                return TipoDeclaradoDe(implicita) == "Regex" && EsElPatron(argumento.NameColon, posicion, 0);
             case InvocationExpressionSyntax { Expression: MemberAccessExpressionSyntax acceso }:
                 return NombreFinal(acceso.Expression) == "Regex"
                        && MetodosEstaticosDeRegex.Contains(acceso.Name.Identifier.Text)
-                       && (esPattern || posicion == 1);
+                       && EsElPatron(argumento.NameColon, posicion, 1);
             default:
                 return false;
         }
     }
+
+    // Con argumento con nombre se decide solo por el nombre (pattern:); sin nombre, por la posición.
+    private static bool EsElPatron(NameColonSyntax? nombre, int posicion, int posicionDelPatron) =>
+        nombre is not null ? nombre.Name.Identifier.Text == "pattern" : posicion == posicionDelPatron;
 
     private static string? TipoDeclaradoDe(ImplicitObjectCreationExpressionSyntax creacion) =>
         creacion.Parent?.Parent switch
