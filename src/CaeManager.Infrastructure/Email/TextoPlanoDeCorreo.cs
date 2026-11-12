@@ -124,7 +124,9 @@ internal static partial class TextoPlanoDeCorreo
 
     private static string? Atributo(string etiqueta, string nombre)
     {
-        var m = Regex.Match(etiqueta, $"""\b{nombre}\s*=\s*(?:"(?<v>[^"]*)"|'(?<v>[^']*)'|(?<v>[^\s"'>]+))""", RegexOptions.IgnoreCase, TimeSpan.FromMilliseconds(TopeRegexMs));
+        // El nombre va precedido de espacio, comilla o barra (separadores de atributos en HTML), no de un guion:
+        // «\balt» también casaría con data-alt y mostraría su valor como si fuera el alt.
+        var m = Regex.Match(etiqueta, $"""(?<=[\s"'/]){nombre}\s*=\s*(?:"(?<v>[^"]*)"|'(?<v>[^']*)'|(?<v>[^\s"'>]+))""", RegexOptions.IgnoreCase, TimeSpan.FromMilliseconds(TopeRegexMs));
         return m.Success ? m.Groups["v"].Value.Trim() : null;
     }
 
@@ -159,7 +161,8 @@ internal static partial class TextoPlanoDeCorreo
     [GeneratedRegex(@"<!--.*?-->", RegexOptions.Singleline, matchTimeoutMilliseconds: TopeRegexMs)]
     private static partial Regex Comentarios();
 
-    [GeneratedRegex("""<a\b[^>]*?\bhref\s*=\s*(?:"(?<href>[^"]*)"|'(?<href>[^']*)'|(?<href>[^\s"'>]+))[^>]*>(?<texto>.*?)</a\s*>""", RegexOptions.IgnoreCase | RegexOptions.Singleline, matchTimeoutMilliseconds: TopeRegexMs)]
+    // «href» precedido de espacio, comilla o barra, no de un guion: «data-href» no es el destino del enlace.
+    [GeneratedRegex("""<a\b[^>]*?(?<=[\s"'/])href\s*=\s*(?:"(?<href>[^"]*)"|'(?<href>[^']*)'|(?<href>[^\s"'>]+))[^>]*>(?<texto>.*?)</a\s*>""", RegexOptions.IgnoreCase | RegexOptions.Singleline, matchTimeoutMilliseconds: TopeRegexMs)]
     private static partial Regex Enlaces();
 
     [GeneratedRegex(@"<img\b[^>]*>", RegexOptions.IgnoreCase, matchTimeoutMilliseconds: TopeRegexMs)]

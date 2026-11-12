@@ -246,6 +246,13 @@ public class CorreoLegibleSinImagenesTests
     [InlineData("""<p><a href="https://ejemplo.es/x">Entrar</a></p>""", "Entrar (https://ejemplo.es/x)")]
     [InlineData("""<p><a href=mailto:info@talveg.es>Escríbenos</a></p>""", "Escríbenos (info@talveg.es)")]
     [InlineData("""<p><img src=l.png alt=Logo><img src='m.png' alt='Marca'></p>""", "LogoMarca")]
+    [InlineData("""<p><a data-href=incorrecto href=https://ejemplo.es>Entrar</a></p>""", "Entrar (https://ejemplo.es)")]
+    [InlineData("""<p><a data-href="incorrecto" href="https://ejemplo.es">Entrar</a></p>""", "Entrar (https://ejemplo.es)")]
+    [InlineData("""<p><a data-href=incorrecto>Entrar</a></p>""", "Entrar")]
+    [InlineData("""<p><a class="x"href=https://ejemplo.es>Entrar</a></p>""", "Entrar (https://ejemplo.es)")]
+    [InlineData("""<p><img src=l.png data-alt=incorrecto alt=Logo></p>""", "Logo")]
+    [InlineData("""<p><img src=l.png data-alt=incorrecto></p>""", "")]
+    [InlineData("""<p><img src=l.png data-alt="incorrecto" alt="Logo"></p>""", "Logo")]
     public void El_texto_plano_conserva_la_direccion_con_comillas_dobles_simples_o_sin_comillas(string html, string esperado)
     {
         TextoPlanoDeCorreo.DesdeHtml(html).Should().Be(esperado);
@@ -270,6 +277,11 @@ public class CorreoLegibleSinImagenesTests
         """"", "enlace sin destino")]
     [InlineData("""class C { const string H = "<p>(?<a href=\"\">Entrar</a>)</p>"; }""", "enlace sin destino")]
     [InlineData("""""class C { const string H = @"(?<a href="""">Entrar</a>)"; }""""", "enlace sin destino")]
+    [InlineData("""class C { const string H = "<p>(?<a>Entrar</a>)</p>"; }""", "enlace sin destino")]
+    [InlineData("""class C { const string H = @"(?<a>Entrar</a>)"; }""", "enlace sin destino")]
+    [InlineData("""class C { string M(string t) => Regex.Replace(t, "x", "<a>Entrar</a>"); }""", "enlace sin destino")]
+    [InlineData("""class C { string M(Regex r, string t) => r.Replace(t, "(?<a>Entrar</a>)"); }""", "enlace sin destino")]
+    [InlineData("""class C { bool M(string t) => Regex.IsMatch("(?<a>Entrar</a>)", t); }""", "enlace sin destino")]
     [InlineData("""class C { const string H = "<a href=\"\">" + "Entrar</a>"; }""", "enlace sin destino")]
     [InlineData("""class C { string M(string u) => "<a href=\"" + "\">Entrar</a>"; }""", "enlace sin destino")]
     [InlineData("""class C { string M(string u) => $"<a href=\"{u}\"></a>"; }""", "enlace sin texto")]
@@ -296,7 +308,14 @@ public class CorreoLegibleSinImagenesTests
         }
         """)]
     [InlineData("""class C { static readonly System.Text.RegularExpressions.Regex R = new(@"(?<a>\d+)(?<!x)(?<=y)(?<n-m>z)(?<href>[^""]*)"); }""")]
-    [InlineData("""class C { const string R = "<a\\b[^>]*?\\bhref\\s*=\\s*(?:\"(?<href>[^\"]*)\")[^>]*>(?<texto>.*?)</a\\s*>"; }""")]
+    [InlineData("""class C { bool M(string t) => System.Text.RegularExpressions.Regex.IsMatch(t, "<a\\b[^>]*?\\bhref\\s*=\\s*(?:\"(?<href>[^\"]*)\")[^>]*>(?<texto>.*?)</a\\s*>"); }""")]
+    [InlineData("""class C { static readonly Regex R = new("(?<a>Entrar</a>)"); }""")]
+    [InlineData("""class C { static readonly Regex R = new Regex("<p>" + "(?<a>Entrar</a>)", RegexOptions.None); }""")]
+    [InlineData("""class C { bool M(string t) => Regex.IsMatch(t, "(?<a>Entrar</a>)"); }""")]
+    [InlineData("""class C { bool M(string t) => Regex.IsMatch(t, pattern: "(?<a>Entrar</a>)"); }""")]
+    [InlineData("""class C { string M(string t) => Regex.Replace(t, "(?<a>Entrar</a>)", "<a href=\"x\">Ver</a>"); }""")]
+    [InlineData("""class C { [GeneratedRegex("(?<a>Entrar</a>)")] static partial Regex R(); }""")]
+    [InlineData("""class C { [System.Text.RegularExpressions.GeneratedRegex("(?<a>Entrar</a>)", RegexOptions.None)] static partial Regex R(); }""")]
     [InlineData("""class C { string M(string u, string t) => $"<a href=\"{u}\">{t}</a>" + "<img src='l.png' alt='TALVEG'>"; }""")]
     [InlineData("""class C { int M(int a, int b) => a + b + 1; }""")]
     public void El_barrido_no_da_falsos_positivos_con_comentarios_ni_regex_reales(string codigo)
@@ -375,9 +394,13 @@ public class CorreoLegibleSinImagenesTests
             if (padre.IsKind(SyntaxKind.AddExpression))
                 continue;
 
+            // El patrón de una expresión regular no es una plantilla: sus grupos (?<a>…) no son etiquetas.
+            if (EsPatronDeRegex(nodo))
+                continue;
+
             var (texto, hayLiteral) = TextoDeLaExpresion(nodo);
             if (hayLiteral)
-                problemas.AddRange(ProblemasSinImagenes(SinGruposDeRegex(texto)));
+                problemas.AddRange(ProblemasSinImagenes(texto));
         }
 
         return problemas;
@@ -403,14 +426,65 @@ public class CorreoLegibleSinImagenesTests
         }
     }
 
+    private static readonly HashSet<string> MetodosEstaticosDeRegex =
+        ["Match", "IsMatch", "Replace", "Matches", "Split", "EnumerateMatches", "Count"];
+
     /// <summary>
-    /// Los grupos de una expresión regular (<c>(?&lt;nombre&gt;…)</c>, <c>(?&lt;!…)</c>,
-    /// <c>(?&lt;=…)</c>) no son etiquetas: se rompe su apertura para que el analizador HTML no los lea
-    /// como <c>&lt;a&gt;</c>. Solo cuando la sintaxis es la de un grupo válido: un
-    /// <c>(?&lt;a href="">Entrar&lt;/a&gt;)</c> no es un grupo de regex y se sigue validando como HTML.
+    /// Un literal es de verdad una expresión regular, y no una plantilla HTML, cuando es el patrón de
+    /// <c>new Regex(...)</c> (o de <c>new(...)</c> con tipo <c>Regex</c> declarado), el segundo argumento
+    /// (<c>pattern</c>) de <c>Regex.Match/IsMatch/Replace/Matches/Split/…</c>, o el argumento de
+    /// <c>[GeneratedRegex(...)]</c>. Se decide por el lugar sintáctico del literal, no por su forma: un
+    /// texto con <c>(?&lt;a&gt;Entrar&lt;/a&gt;)</c> en un literal normal es HTML y se valida. El
+    /// reemplazo de <c>Regex.Replace</c> y cualquier otro argumento siguen siendo plantilla.
     /// </summary>
-    private static string SinGruposDeRegex(string texto) =>
-        Regex.Replace(texto, @"\(\?<(?=[!=]|\w+[>-])", "(?[");
+    private static bool EsPatronDeRegex(ExpressionSyntax expresion)
+    {
+        SyntaxNode nodo = expresion;
+        while (nodo.Parent is ParenthesizedExpressionSyntax)
+            nodo = nodo.Parent;
+
+        if (nodo.Parent is AttributeArgumentSyntax { Parent: AttributeArgumentListSyntax { Parent: AttributeSyntax atributo } listaAtributo })
+            return NombreFinal(atributo.Name) is "GeneratedRegex" or "GeneratedRegexAttribute"
+                   && listaAtributo.Arguments.IndexOf((AttributeArgumentSyntax)nodo.Parent) == 0;
+
+        if (nodo.Parent is not ArgumentSyntax argumento || argumento.Parent is not ArgumentListSyntax lista)
+            return false;
+
+        var posicion = lista.Arguments.IndexOf(argumento);
+        var esPattern = argumento.NameColon?.Name.Identifier.Text == "pattern";
+
+        switch (lista.Parent)
+        {
+            case ObjectCreationExpressionSyntax creacion:
+                return NombreFinal(creacion.Type) == "Regex" && (esPattern || posicion == 0);
+            case ImplicitObjectCreationExpressionSyntax implicita:
+                return TipoDeclaradoDe(implicita) == "Regex" && (esPattern || posicion == 0);
+            case InvocationExpressionSyntax { Expression: MemberAccessExpressionSyntax acceso }:
+                return NombreFinal(acceso.Expression) == "Regex"
+                       && MetodosEstaticosDeRegex.Contains(acceso.Name.Identifier.Text)
+                       && (esPattern || posicion == 1);
+            default:
+                return false;
+        }
+    }
+
+    private static string? TipoDeclaradoDe(ImplicitObjectCreationExpressionSyntax creacion) =>
+        creacion.Parent?.Parent switch
+        {
+            VariableDeclaratorSyntax { Parent: VariableDeclarationSyntax declaracion } => NombreFinal(declaracion.Type),
+            PropertyDeclarationSyntax propiedad => NombreFinal(propiedad.Type),
+            _ => null,
+        };
+
+    private static string? NombreFinal(SyntaxNode? nodo) => nodo switch
+    {
+        IdentifierNameSyntax identificador => identificador.Identifier.Text,
+        GenericNameSyntax generico => generico.Identifier.Text,
+        QualifiedNameSyntax cualificado => NombreFinal(cualificado.Right),
+        AliasQualifiedNameSyntax alias => NombreFinal(alias.Name),
+        MemberAccessExpressionSyntax acceso => NombreFinal(acceso.Name),
+        _ => null,
+    };
 
     private static string RaizDelRepositorio()
     {
