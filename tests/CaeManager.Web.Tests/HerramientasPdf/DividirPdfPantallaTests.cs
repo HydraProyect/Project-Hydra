@@ -380,6 +380,33 @@ public sealed class DividirPdfPantallaTests : BunitContext
     }
 
     /// <summary>
+    /// Hallazgo de pérdida de foco: la clave por tramo iba en toda la ficha y recreaba también los botones de navegación, de
+    /// modo que «Siguiente documento» perdía el foco del teclado al pulsarlo. La clave va solo en los CampoFecha. Se compara la
+    /// instancia del componente Boton y no el nodo del DOM: bUnit reconstruye su DOM en cada render y la identidad de los nodos
+    /// no es fiable, mientras que Blazor conserva la instancia del componente solo si no recrea ese subárbol.
+    /// </summary>
+    [Fact]
+    public async Task Los_botones_de_navegacion_no_se_recrean_al_cambiar_de_tramo()
+    {
+        var cut = Renderizar();
+        cut.WaitForAssertion(() => cut.FindAll(".zona-soltar-archivo").Should().ContainSingle());
+        await SubirAsync(cut);
+        Pulsar(cut, "Asignar documentos");
+        cut.WaitForAssertion(() => cut.Find(".barra-en-ficha button"));
+
+        var antes = cut.FindComponents<Boton>()
+            .Where(b => b.Markup.Contains("Siguiente documento") || b.Markup.Contains("Volver a dividir"))
+            .Select(b => b.Instance).ToList();
+        antes.Should().HaveCount(2, "control positivo: Volver a dividir y Siguiente documento del tramo 1");
+
+        Pulsar(cut, "Siguiente documento");
+
+        cut.WaitForAssertion(() => cut.Find(".cabecera-tramo h1").TextContent.Should().Contain("2"));
+        var despues = cut.FindComponents<Boton>().Select(b => b.Instance).ToList();
+        despues.Should().Contain(antes, "los botones de navegación son los mismos componentes y conservan el foco del teclado");
+    }
+
+    /// <summary>
     /// Ronda 1 de Codex, ALTO 3: la caducidad a medias llegaba como null al salir del campo y Crear daba de alta el
     /// Documento sin caducidad. Ahora el tramo queda marcado y Crear se bloquea con el aviso hasta corregirla.
     /// </summary>

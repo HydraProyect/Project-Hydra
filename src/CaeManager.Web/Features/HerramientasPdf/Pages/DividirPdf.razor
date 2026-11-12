@@ -300,9 +300,7 @@
                 <span class="texto-suave">@TextoPaginas(rango)</span>
             </header>
 
-            @* La ficha se recrea al cambiar de tramo: si no, Blazor reutilizaría los mismos campos y un texto de fecha a medias
-               (o no válido) del tramo anterior pasaría al siguiente. *@
-            <div class="ficha-tramo" @key="rango.Clave">
+            <div class="ficha-tramo">
                 <div class="vista-tramo">
                     @if ((Grande(rango.Inicial) ?? Miniatura(rango.Inicial)) is { } miniatura)
                     {
@@ -386,7 +384,10 @@
                         }
                     </CampoSelect>
 
-                    <CampoFecha Etiqueta="@Textos["FechaEmision"]" Deshabilitado="asignacion.Omitido" Valor="asignacion.FechaEmision" ValorChanged="v => asignacion.FechaEmision = v" />
+                    @* Los CampoFecha se recrean al cambiar de tramo (@key): si no, Blazor reutilizaría los mismos campos y un texto de
+                       fecha a medias (o no válido) del tramo anterior pasaría al siguiente. La clave va en los campos y no en la ficha
+                       para no recrear los botones de navegación, que perderían el foco del teclado al pulsar «Siguiente documento». *@
+                    <CampoFecha @key="@($"emision-{rango.Clave}")" Etiqueta="@Textos["FechaEmision"]" Deshabilitado="asignacion.Omitido" Valor="asignacion.FechaEmision" ValorChanged="v => asignacion.FechaEmision = v" />
 
                     @if (division.Tipo(asignacion.TipoDocumentoId) is { VencimientoAutomatico: true })
                     {
@@ -396,7 +397,7 @@
                     {
                         @* NoValidoChanged: una caducidad a medias o ilegible llega como null y crearía el Documento sin
                            caducidad. Al marcar «Sin caducidad» u «No crear» el campo se deshabilita y avisa false solo. *@
-                        <CampoFecha Etiqueta="@Textos["FechaCaducidad"]" Deshabilitado="@(asignacion.Omitido || asignacion.SinCaducidad)" Valor="asignacion.FechaCaducidad"
+                        <CampoFecha @key="@($"caducidad-{rango.Clave}")" Etiqueta="@Textos["FechaCaducidad"]" Deshabilitado="@(asignacion.Omitido || asignacion.SinCaducidad)" Valor="asignacion.FechaCaducidad"
                                     ValorChanged="v => AlCambiarCaducidad(asignacion, v)" NoValidoChanged="v => AlCambiarCaducidadNoValida(asignacion, v)" />
                         <label class="marca-tramo">
                             <input type="checkbox" checked="@asignacion.SinCaducidad" disabled="@asignacion.Omitido" @onchange="AlMarcarSinCaducidad(asignacion)" />
