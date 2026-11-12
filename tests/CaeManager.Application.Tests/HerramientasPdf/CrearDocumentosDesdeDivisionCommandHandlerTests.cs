@@ -101,6 +101,23 @@ public class CrearDocumentosDesdeDivisionCommandHandlerTests
     }
 
     [Fact]
+    public async Task Sin_turno_a_mitad_del_lote_se_corta_sin_marcar_la_entrada_retenida()
+    {
+        // Falta de turno pasajera: ningún hijo quedó vivo, así que la pantalla sí devuelve la reserva del original.
+        _divisor.LanzarAlExtraer = (3, new PresupuestoMemoriaAgotadoException());
+
+        var resultado = await Handler().Handle(Comando(
+            Tramo(1, 2, ClaseTitular.EmpresaGestionada, _empresaId),
+            Tramo(3, 3, ClaseTitular.EmpresaGestionada, _empresaId),
+            Tramo(4, 4, ClaseTitular.EmpresaGestionada, _empresaId)), CancellationToken.None);
+
+        resultado.Valor.Select(r => r.Estado).Should().Equal(
+            EstadoTramoCreado.Creado, EstadoTramoCreado.Rechazado, EstadoTramoCreado.Rechazado);
+        resultado.Valor.Should().NotContain(r => r.EntradaRetenida,
+            "retener sin un hijo vivo dejaría la reserva del original fuera del presupuesto hasta reiniciar la instancia");
+    }
+
+    [Fact]
     public async Task Sin_turno_tras_tramos_que_no_crearon_nada_lanza_para_que_la_pantalla_conserve_el_original()
     {
         // El primer tramo sale demasiado grande y no crea nada: tragar la excepción daría por terminado un lote sin

@@ -168,16 +168,26 @@ public class ExtraerTramoPdfQueryHandlerTests
 
         resultado.Error.Codigo.Should().Be(ErroresDivisorPdf.FalloInterno);
         _divisor.Cerrados.Should().Be(1, "el PDF abierto se cierra aunque la extracción lance");
-        registro.Entradas.Should().ContainSingle().Which.Should().Match<(Microsoft.Extensions.Logging.LogLevel Nivel, string Mensaje)>(
-            e => e.Nivel == Microsoft.Extensions.Logging.LogLevel.Error
-                 && e.Mensaje.Contains("Win32Exception") && !e.Mensaje.Contains("no se pudo arrancar"),
-            "se registra como error con el tipo, sin el mensaje de la excepción");
+        var entrada = registro.Entradas.Should().ContainSingle().Subject;
+        entrada.Nivel.Should().Be(Microsoft.Extensions.Logging.LogLevel.Error);
+        entrada.Mensaje.Should().Contain("Win32Exception").And.NotContain("no se pudo arrancar");
+        entrada.Excepcion.Should().BeNull("la excepción no viaja al registro: su mensaje puede reproducir contenido del documento");
     }
 
-    /// <summary>Anota cada entrada del registro con su nivel y su mensaje ya formateado.</summary>
+    [Fact]
+    public async Task La_falta_de_memoria_del_proceso_web_no_se_disfraza_de_fallo_interno()
+    {
+        _divisor.ExcepcionAlExtraer = new OutOfMemoryException();
+
+        var accion = () => Handler().Handle(Consulta(1, 2), CancellationToken.None);
+
+        await accion.Should().ThrowAsync<OutOfMemoryException>();
+    }
+
+    /// <summary>Anota cada entrada del registro con su nivel, su mensaje ya formateado y la excepción adjunta.</summary>
     private sealed class RegistroDoble : Microsoft.Extensions.Logging.ILogger<ExtraerTramoPdfQueryHandler>
     {
-        public List<(Microsoft.Extensions.Logging.LogLevel Nivel, string Mensaje)> Entradas { get; } = [];
+        public List<(Microsoft.Extensions.Logging.LogLevel Nivel, string Mensaje, Exception? Excepcion)> Entradas { get; } = [];
 
         public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
 
@@ -185,7 +195,7 @@ public class ExtraerTramoPdfQueryHandlerTests
 
         public void Log<TState>(Microsoft.Extensions.Logging.LogLevel logLevel, Microsoft.Extensions.Logging.EventId eventId,
             TState state, Exception? exception, Func<TState, Exception?, string> formatter) =>
-            Entradas.Add((logLevel, formatter(state, exception)));
+            Entradas.Add((logLevel, formatter(state, exception), exception));
     }
 
     [Fact]
