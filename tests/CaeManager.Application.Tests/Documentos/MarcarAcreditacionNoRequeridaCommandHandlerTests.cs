@@ -201,9 +201,8 @@ public class MarcarAcreditacionNoRequeridaCommandHandlerTests
         guardaVioOperativo.Should().BeTrue("control del instrumento: la guarda dejó pasar y la sustitución entró después");
         resultado.EsFallido.Should().BeTrue();
         resultado.Error.Codigo.Should().Be("Documento.EnHistorial");
-        escenario.Acreditacion.Estado.Should().Be(EstadoAcreditacion.PendienteDeSubir, "no se marca antes de decidir");
-        escenario.UnitOfWork.VecesGuardado.Should().Be(0);
-        escenario.Transaccion.Deshechas.Should().Be(1);
+        escenario.UnitOfWork.VecesGuardado.Should().Be(1, "la marca ya estaba guardada en la transacción");
+        escenario.Transaccion.Deshechas.Should().Be(1, "el fallo deshace la marca guardada");
         escenario.Transaccion.Confirmadas.Should().Be(0);
     }
 
@@ -218,24 +217,24 @@ public class MarcarAcreditacionNoRequeridaCommandHandlerTests
 
         escenario.Documentos.LecturasBloqueadas.Should().Be(1, "control del instrumento: la eliminación entró tras la guarda");
         resultado.Error.Codigo.Should().Be("Acreditacion.NoEncontrada");
-        escenario.Acreditacion.Estado.Should().Be(EstadoAcreditacion.PendienteDeSubir);
-        escenario.UnitOfWork.VecesGuardado.Should().Be(0);
+        escenario.Transaccion.Deshechas.Should().Be(1, "el fallo deshace la marca guardada");
     }
 
     [Fact]
-    public async Task La_comprobacion_bloqueada_va_antes_del_guardado()
+    public async Task La_comprobacion_bloqueada_va_despues_del_guardado()
     {
-        // Revisión puente sobre 875157cdb (hallazgo 2): el bloqueo del Documento se toma antes del UPDATE de la acreditación,
-        // en el mismo orden que la corrección del Documento.
+        // Segunda revisión puente sobre ce2df653f (hallazgo 1): EF ordena por tabla y la corrección del Documento actualiza
+        // sus acreditaciones antes que el Documento. Bloquear el Documento antes del UPDATE de la acreditación tomaría las
+        // filas en el orden contrario y abriría un interbloqueo; por eso el bloqueo va después del guardado.
         var escenario = Escenario.Nuevo();
-        var bloqueadasAlGuardar = -1;
-        escenario.UnitOfWork.AlGuardar = () => bloqueadasAlGuardar = escenario.Documentos.LecturasBloqueadas;
+        var guardadosAlBloquear = -1;
+        escenario.Documentos.AntesDeBloquear = _ => guardadosAlBloquear = escenario.UnitOfWork.VecesGuardado;
 
         (await escenario.Handler().Handle(
                 new MarcarAcreditacionNoRequeridaCommand(escenario.Acreditacion.Id, escenario.Acreditacion.Version), CancellationToken.None))
             .EsExitoso.Should().BeTrue();
 
-        bloqueadasAlGuardar.Should().Be(1);
+        guardadosAlBloquear.Should().Be(1);
     }
 
     [Fact]

@@ -43,8 +43,8 @@ namespace CaeManager.Application.Documentos.Commands.MarcarAcreditacionNoRequeri
 /// <para>
 /// La acreditación de un Documento que ya es historial (sustituido) no se marca: falla con
 /// <see cref="DocumentoEnHistorial"/>. El Documento no se escribe y su versión no protege el guardado, así que la guarda se
-/// repite justo antes de guardar, dentro de la misma transacción y con la fila del Documento bloqueada hasta confirmar:
-/// una sustitución confirmada entre medias la para, y una posterior espera a que esta transacción termine.
+/// repite después de guardar y antes de confirmar, dentro de la misma transacción y con la fila del Documento bloqueada
+/// hasta el final: una sustitución confirmada entre medias deshace la marca, y una posterior espera a que esta termine.
 /// </para>
 /// </summary>
 public record MarcarAcreditacionNoRequeridaCommand(Guid AcreditacionId, Guid VersionEsperada) : ICommand;
@@ -110,16 +110,18 @@ public class MarcarAcreditacionNoRequeridaCommandHandler(
         // sustitución confirmada por otra sesión entre la guarda de arriba y el guardado (revisión Codex r3 de la PR #2172,
         // hallazgo 1). Antes de guardar se vuelve a decidir con la fila del Documento bloqueada hasta el final de la
         // transacción: lo que se lee es lo último confirmado, y una sustitución que llegue después espera a que esta
-        // termine, con la marca hecha sobre un Documento que era el vigente. El bloqueo va antes del UPDATE de la
-        // acreditación para tomar las filas en el mismo orden que la corrección del Documento (Documento y después sus
-        // acreditaciones) y no abrir un interbloqueo con ella (revisión puente sobre 875157cdb, hallazgo 2).
+        // termine, con la marca hecha sobre un Documento que era el vigente; si ya no lo es, el fallo deshace la marca
+        // guardada. El bloqueo va después del UPDATE de la acreditación: EF ordena las sentencias de un guardado por tabla
+        // (ModificationCommandComparer), así que la corrección del Documento (RenovarDocumentoCommand sin archivo) actualiza
+        // sus acreditaciones antes que el Documento. Tomar aquí el Documento primero abriría un interbloqueo con ella
+        // (segunda revisión puente sobre ce2df653f, hallazgo 1).
+        acreditacion.MarcarNoRequerida();
+        await unitOfWork.SaveChangesAsync(cancellationToken);
+
         var bloqueado = await documentoRepositorio.BloquearYObtenerIncluidoEliminadoSinRastrearAsync(
             acreditacion.DocumentoId, acreditacion.TenantId, cancellationToken);
         if (EnHistorialONoEncontrado(bloqueado) is { } sustituido)
             return Result.Fallo(sustituido);
-
-        acreditacion.MarcarNoRequerida();
-        await unitOfWork.SaveChangesAsync(cancellationToken);
 
         return Result.Exito();
     }
