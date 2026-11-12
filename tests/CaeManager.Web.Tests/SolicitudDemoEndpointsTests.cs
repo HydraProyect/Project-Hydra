@@ -195,12 +195,40 @@ public class SolicitudDemoEndpointsTests
     [Theory]
     [InlineData(null)]
     [InlineData("")]
-    [InlineData("demo@example.com")]
-    public void Un_ajuste_ausente_vacio_o_valido_no_genera_aviso(string? configurado)
+    [InlineData("   ")]
+    public void Un_ajuste_ausente_o_vacio_se_avisa_y_va_a_la_reserva(string? configurado)
     {
         var registro = new RegistroCapturado();
 
-        DestinatarioSolicitudDemo.Resolver(configurado, registro);
+        var destinatario = DestinatarioSolicitudDemo.Resolver(configurado, registro);
+
+        destinatario.Direccion.Should().Be("info@talveg.es");
+        var aviso = registro.Entradas.Should().ContainSingle().Subject;
+        aviso.Nivel.Should().Be(LogLevel.Warning);
+        aviso.Texto.Should().Contain("Contacto:DestinatarioSolicitudDemo").And.Contain("no está configurado");
+    }
+
+    [Fact]
+    public async Task El_aviso_de_un_ajuste_ausente_sale_en_el_arranque_y_una_sola_vez()
+    {
+        var registro = new RegistroCapturado();
+        await using var servidor = await ServidorSolicitudDemo.ArrancarAsync(registro: registro);
+
+        registro.Entradas.Where(e => e.Texto.Contains("Contacto:DestinatarioSolicitudDemo")).Should().ContainSingle(
+            "se resuelve al mapear el endpoint, antes de la primera solicitud");
+
+        (await servidor.PostAsync(CuerpoBueno())).Dispose();
+
+        registro.Entradas.Where(e => e.Texto.Contains("Contacto:DestinatarioSolicitudDemo")).Should().ContainSingle(
+            "es un singleton: ni un aviso por petición");
+    }
+
+    [Fact]
+    public void Un_ajuste_valido_no_genera_aviso()
+    {
+        var registro = new RegistroCapturado();
+
+        DestinatarioSolicitudDemo.Resolver("demo@example.com", registro);
 
         registro.Entradas.Should().BeEmpty();
     }
