@@ -91,6 +91,9 @@ public sealed class DividirPdfPantallaTests : BunitContext
         /// <summary>Se llama al extraer cada tramo, con la reserva de la pantalla ya hecha.</summary>
         public Action? AlExtraer { get; set; }
 
+        /// <summary>Si está, marca el lote como cortado por un proceso aparte que no consta terminado.</summary>
+        public bool LoteCortadoConEntradaRetenida { get; set; }
+
         private object Responder(object peticion)
         {
             switch (peticion)
@@ -103,8 +106,11 @@ public sealed class DividirPdfPantallaTests : BunitContext
                     return Preparacion;
                 case CrearDocumentosDesdeDivisionCommand comando:
                     Creaciones.Add(comando);
+                    // Cortado, el tramo queda sin preparar y con la entrada retenida, como lo deja el handler real.
                     IReadOnlyList<ResultadoTramoCreado> resultados = comando.Tramos
-                        .Select(t => new ResultadoTramoCreado(t.PaginaInicial, t.PaginaFinal, EstadoTramoCreado.Creado, Guid.NewGuid(), null))
+                        .Select(t => LoteCortadoConEntradaRetenida
+                            ? new ResultadoTramoCreado(t.PaginaInicial, t.PaginaFinal, EstadoTramoCreado.Rechazado, null, "Sin preparar.", EntradaRetenida: true)
+                            : new ResultadoTramoCreado(t.PaginaInicial, t.PaginaFinal, EstadoTramoCreado.Creado, Guid.NewGuid(), null))
                         .ToList();
                     return Result.Exito(resultados);
                 case ExtraerTramoPdfQuery extraccion:
@@ -206,7 +212,10 @@ public sealed class DividirPdfPantallaTests : BunitContext
         }
     }
 
-    /// <summary>Un divisor que abre bien y lanza al copiar las páginas de un tramo, como PDFsharp con un PDF dañado.</summary>
+    /// <summary>
+    /// Un divisor que abre bien y lanza al extraer un tramo, como el proceso aparte cuando no se puede arrancar o se rompe su
+    /// tubería: lo que depende del PDF llega tipado en un <c>Result</c>, así que lo que lanza es un fallo de la instancia.
+    /// </summary>
     private sealed class DivisorQueLanza(int paginaQueLanza) : IDivisorPdf
     {
         public Task<Result<IPdfParaDividir>> AbrirAsync(byte[] contenidoPdf, CancellationToken cancellationToken) =>
@@ -494,12 +503,44 @@ public sealed class DividirPdfPantallaTests : BunitContext
         _mediador.AlExtraer = () => throw new EntradaPdfRetenidaException();
         var cut = Renderizar();
         await SubirAsync(cut);
+        await EsperarSinReservaAsync(() => _presupuesto.Reservado, "las vistas previas ya soltaron su reserva");
 
         Pulsar(cut, "Descargar 3 PDF");
 
-        cut.WaitForAssertion(() => cut.Find(".aviso-error").TextContent.Should().NotBeNullOrWhiteSpace());
+        cut.WaitForAssertion(() => cut.Find(".aviso-error").TextContent.Should().Contain("Ahora mismo no hay espacio para preparar las páginas 1 a 2"));
         descarga.Invocations.Should().BeEmpty();
-        _presupuesto.Reservado.Should().BeGreaterThan(0, "el proceso aparte puede seguir referenciando el original");
+        // Exacta: la del primer tramo (original de 3 bytes), ni una parte ni la de otra reserva que se quedara colgada.
+        _presupuesto.Reservado.Should().Be(LimitesDivisionPdf.MemoriaExtraccionTramo(3),
+            "el proceso aparte puede seguir referenciando el original: la reserva entera del tramo en curso no se devuelve");
+    }
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task Si_el_lote_de_Guardar_se_corta_con_la_entrada_retenida_la_reserva_del_original_no_se_devuelve(bool retenida)
+    {
+        _mediador.LoteCortadoConEntradaRetenida = retenida;
+        var cut = Renderizar();
+        cut.WaitForAssertion(() => cut.FindAll(".zona-soltar-archivo").Should().ContainSingle());
+        await SubirAsync(cut);
+        await EsperarSinReservaAsync(() => _presupuesto.Reservado, "las vistas previas ya soltaron su reserva");
+        cut.Find("button.tijera[aria-label='Quitar la división tras la página 3']").Click();
+        Pulsar(cut, "Guardar en TALVEG");
+        PonerEmision(cut);
+        Pulsar(cut, "Siguiente documento");
+        cut.WaitForAssertion(() => cut.FindAll(".marca-omitir input").Should().NotBeEmpty());
+        cut.Find(".marca-omitir input").Change(true);
+        Pulsar(cut, "Revisar y crear");
+
+        Pulsar(cut, "Crear 1 documento");
+
+        // El resultado del lote se muestra también cuando se cortó.
+        cut.WaitForAssertion(() => cut.Markup.Should().Contain(retenida ? "0 documentos creados" : "1 documento creado"));
+        _mediador.Creaciones.Should().ContainSingle();
+        _presupuesto.Reservado.Should().Be(retenida ? LimitesDivisionPdf.MemoriaCreacionTramos(3) : 0,
+            retenida
+                ? "el proceso aparte que no consta terminado puede seguir referenciando el original: su reserva entera se retiene"
+                : "con el lote completo, la reserva del original se devuelve");
     }
 
     [Fact]
@@ -513,7 +554,9 @@ public sealed class DividirPdfPantallaTests : BunitContext
 
         Pulsar(cut, "Descargar 3 PDF");
 
-        cut.WaitForAssertion(() => cut.Find(".aviso-error").TextContent.Should().Contain("No se han podido descargar las páginas 3 a 3, ni las siguientes."));
+        // Su propio aviso: lo que lanza el divisor es de la instancia, y la pantalla no dice que el PDF esté dañado.
+        cut.WaitForAssertion(() => cut.Find(".aviso-error").TextContent.Should()
+            .Contain("Un fallo interno de TALVEG, no del PDF, ha impedido descargar las páginas 3 a 3 y las siguientes."));
         _mediador.Extracciones.Select(e => e.PaginaInicial).Should().Equal(1, 3);
         descarga.Invocations.Should().ContainSingle();
         cut.Find(".salida-descargada").TextContent.Should().Contain("PDF enviados al navegador: 1.");

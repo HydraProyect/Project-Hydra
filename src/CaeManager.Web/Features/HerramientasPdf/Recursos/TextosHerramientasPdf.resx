@@ -751,6 +751,9 @@
   <data name="ErrorTramoDemasiadoComplejo" xml:space="preserve">
     <value>El PDF es demasiado complejo para procesarlo: no se han descargado las páginas {0} a {1}, ni las siguientes. Volver a intentarlo no lo arregla: ábrelo, guárdalo de nuevo como PDF (por ejemplo, imprimiéndolo a PDF) y vuelve a subirlo.</value>
   </data>
+  <data name="ErrorTramoFalloInterno" xml:space="preserve">
+    <value>Un fallo interno de TALVEG, no del PDF, ha impedido descargar las páginas {0} a {1} y las siguientes. Inténtalo de nuevo más tarde.</value>
+  </data>
   <data name="ErrorEmpresaFueraDescarga" xml:space="preserve">
     <value>La Empresa ya no existe o ha salido de tu cartera. {0}</value>
   </data>

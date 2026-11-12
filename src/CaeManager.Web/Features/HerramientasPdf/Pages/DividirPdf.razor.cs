@@ -507,6 +507,7 @@ public partial class DividirPdf : CaeManager.Web.Components.PaginaInteractiva, I
         var tenantCambiado = false;
         var tramoDemasiadoGrande = false;
         var tramoDemasiadoComplejo = false;
+        var falloInterno = false;
         var empresaFuera = false;
         _descargando = true;
         _descargados = null;
@@ -527,6 +528,7 @@ public partial class DividirPdf : CaeManager.Web.Components.PaginaInteractiva, I
                     tenantCambiado = codigo == CrearDocumentosDesdeDivisionCommandHandler.ErrorTenantCruzado;
                     tramoDemasiadoGrande = codigo == ErroresDivisorPdf.DemasiadoGrande;
                     tramoDemasiadoComplejo = codigo == ErroresDivisorPdf.DemasiadoComplejo;
+                    falloInterno = codigo == ErroresDivisorPdf.FalloInterno;
                     empresaFuera = codigo == ObtenerCatalogoDivisionPdfQueryHandler.ErrorEmpresaNoGestionable;
                     break;
                 }
@@ -551,7 +553,10 @@ public partial class DividirPdf : CaeManager.Web.Components.PaginaInteractiva, I
                     // El proceso aparte se quedó sin memoria, sin tiempo o murió: reintentar ocuparía otra vez el único turno.
                     : tramoDemasiadoComplejo
                         ? Textos["ErrorTramoDemasiadoComplejo", fallido.Inicial, fallido.Final]
-                        : Textos["ErrorDescargaTramo", fallido.Inicial, fallido.Final];
+                        // No se pudo usar el proceso aparte: el PDF no se llegó a juzgar, y no se dice que esté dañado.
+                        : falloInterno
+                            ? Textos["ErrorTramoFalloInterno", fallido.Inicial, fallido.Final]
+                            : Textos["ErrorDescargaTramo", fallido.Inicial, fallido.Final];
         }
         catch (Exception ex) when (ex is PresupuestoMemoriaAgotadoException or EntradaPdfRetenidaException)
         {

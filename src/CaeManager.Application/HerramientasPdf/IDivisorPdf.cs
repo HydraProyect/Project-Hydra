@@ -74,6 +74,12 @@ public static class ErroresDivisorPdf
     public const string DemasiadoComplejo = "DivisorPdf.DemasiadoComplejo";
 
     public const string RangoInvalido = "DivisorPdf.RangoInvalido";
+
+    /// <summary>
+    /// No se pudo usar el proceso aparte por un fallo de la instancia (arrancarlo, sus tuberías), no del PDF: el PDF no se
+    /// llegó a juzgar y reintentar más tarde puede servir. Solo lo produce el proceso web; el hijo no puede responderlo.
+    /// </summary>
+    public const string FalloInterno = "DivisorPdf.FalloInterno";
 }
 
 /// <summary>

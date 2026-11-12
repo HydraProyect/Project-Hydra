@@ -155,14 +155,37 @@ public class ExtraerTramoPdfQueryHandlerTests
     }
 
     [Fact]
-    public async Task Si_el_divisor_lanza_al_copiar_o_guardar_el_tramo_es_el_fallo_de_ese_tramo()
+    public async Task Si_el_divisor_lanza_es_un_fallo_interno_de_ese_tramo_registrado_como_error_y_no_un_PDF_ilegible()
     {
-        _divisor.ExcepcionAlExtraer = new InvalidOperationException("PDFsharp no pudo guardar el tramo.");
+        // El divisor tipa lo que depende del PDF; lo que lanza (no arrancar el proceso aparte, una tubería rota) es de la
+        // instancia: no se dice que el PDF esté dañado.
+        _divisor.ExcepcionAlExtraer = new System.ComponentModel.Win32Exception("no se pudo arrancar el proceso aparte");
+        var registro = new RegistroDoble();
+        var handler = new ExtraerTramoPdfQueryHandler(new Disponibilidad(true), new TenantFijo(_tenantId), _empresas,
+            new AlcanceDatosServiceFalso(), _divisor, registro);
 
-        var resultado = await Handler().Handle(Consulta(1, 2), CancellationToken.None);
+        var resultado = await handler.Handle(Consulta(1, 2), CancellationToken.None);
 
-        resultado.Error.Codigo.Should().Be(ErroresDivisorPdf.Ilegible);
+        resultado.Error.Codigo.Should().Be(ErroresDivisorPdf.FalloInterno);
         _divisor.Cerrados.Should().Be(1, "el PDF abierto se cierra aunque la extracción lance");
+        registro.Entradas.Should().ContainSingle().Which.Should().Match<(Microsoft.Extensions.Logging.LogLevel Nivel, string Mensaje)>(
+            e => e.Nivel == Microsoft.Extensions.Logging.LogLevel.Error
+                 && e.Mensaje.Contains("Win32Exception") && !e.Mensaje.Contains("no se pudo arrancar"),
+            "se registra como error con el tipo, sin el mensaje de la excepción");
+    }
+
+    /// <summary>Anota cada entrada del registro con su nivel y su mensaje ya formateado.</summary>
+    private sealed class RegistroDoble : Microsoft.Extensions.Logging.ILogger<ExtraerTramoPdfQueryHandler>
+    {
+        public List<(Microsoft.Extensions.Logging.LogLevel Nivel, string Mensaje)> Entradas { get; } = [];
+
+        public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
+
+        public bool IsEnabled(Microsoft.Extensions.Logging.LogLevel logLevel) => true;
+
+        public void Log<TState>(Microsoft.Extensions.Logging.LogLevel logLevel, Microsoft.Extensions.Logging.EventId eventId,
+            TState state, Exception? exception, Func<TState, Exception?, string> formatter) =>
+            Entradas.Add((logLevel, formatter(state, exception)));
     }
 
     [Fact]

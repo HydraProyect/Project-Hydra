@@ -99,13 +99,14 @@ public class ExtraerTramoPdfQueryHandler(
 }
 
 /// <summary>
-/// Abre el original y saca de él un tramo. Lo que el divisor no tipa (una excepción de PDFsharp al copiar las páginas
-/// o al guardar el tramo, con un PDF que un tercero subió) se convierte aquí en el fallo de ese tramo, igual que en
-/// <see cref="CrearDocumentosDesdeDivisionCommandHandler"/>: la pantalla corta la serie y dice qué tramo no salió, y la
-/// excepción no llega al circuito de Blazor. El mensaje de la excepción no se registra porque puede reproducir
-/// contenido del documento. No son fallos del tramo y siguen su curso: la cancelación, la falta de memoria, un proceso
-/// aparte sin turno (<see cref="PresupuestoMemoriaAgotadoException"/>) y uno que no consta terminado
-/// (<see cref="EntradaPdfRetenidaException"/>, que pide retener la reserva del original).
+/// Abre el original y saca de él un tramo. El divisor abre el PDF en el proceso aparte y tipa en un <c>Result</c> todo lo
+/// que dependa del PDF (ilegible, con contraseña, demasiado complejo...). Lo que aún lance (no poder arrancar el proceso,
+/// una tubería rota) es un fallo de la instancia, no del PDF: se convierte en <see cref="ErroresDivisorPdf.FalloInterno"/>,
+/// con su propio aviso en la pantalla y registrado como error, sin el mensaje de la excepción, que puede reproducir
+/// contenido del documento. La pantalla corta la serie y dice qué tramo no salió, y la excepción no llega al circuito de
+/// Blazor. No son fallos del tramo y siguen su curso: la cancelación, la falta de memoria, un proceso aparte sin turno
+/// (<see cref="PresupuestoMemoriaAgotadoException"/>) y uno que no consta terminado (<see cref="EntradaPdfRetenidaException"/>,
+/// que pide retener la reserva del original).
 /// </summary>
 public static class ExtraccionTramoPdf
 {
@@ -129,8 +130,8 @@ public static class ExtraccionTramoPdf
         catch (Exception ex) when (ex is not (OperationCanceledException or OutOfMemoryException
                                        or PresupuestoMemoriaAgotadoException or EntradaPdfRetenidaException))
         {
-            logger.LogWarning("Dividir PDF no pudo extraer un tramo para descargarlo ({Excepcion}).", ex.GetType().Name);
-            return Result.Fallo<byte[]>(Error.Crear(ErroresDivisorPdf.Ilegible, "No se ha podido preparar este tramo."));
+            logger.LogError("Dividir PDF no pudo usar el proceso aparte para extraer un tramo ({Excepcion}).", ex.GetType().Name);
+            return Result.Fallo<byte[]>(Error.Crear(ErroresDivisorPdf.FalloInterno, "No se ha podido preparar este tramo por un fallo interno."));
         }
     }
 }
