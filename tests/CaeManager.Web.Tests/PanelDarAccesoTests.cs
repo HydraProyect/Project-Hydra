@@ -343,9 +343,19 @@ public class PanelDarAccesoTests : BunitContext
     }
 
     // El «min» que acotaba el selector nativo pasa al calendario de CampoFecha: los días anteriores a hoy no se eligen.
-    [Fact]
-    public async Task El_calendario_no_deja_elegir_un_dia_anterior_a_hoy()
+    // El reloj va fijado (el del flujo para «Hoy» del panel y el inyectado para el mes que abre el calendario): con el reloj de
+    // pared el test dependía del día del mes, porque el día 1 «ayer» cae en el mes anterior y no está en la rejilla de «hoy».
+    // Los tres días cubren el caso corriente, el día 1 y el 1 de enero (el mes anterior es de otro año).
+    [Theory]
+    [InlineData("2030-03-15")]
+    [InlineData("2030-04-01")]
+    [InlineData("2030-01-01")]
+    public async Task El_calendario_no_deja_elegir_un_dia_anterior_a_hoy(string hoyIso)
     {
+        var hoy = DateOnly.ParseExact(hoyIso, "yyyy-MM-dd", CultureInfo.InvariantCulture);
+        var reloj = new RelojDeUnDia(hoy);
+        using var _ = DiaDeNegocio.FijarRelojEnEsteFlujo(reloj);
+        Services.AddSingleton<TimeProvider>(reloj);
         _mediador.Operaciones = [Operacion("Empresa Mía", Yo)];
         _mediador.Destinatarios = [new DestinatarioDeApoyoDto(Guid.NewGuid(), "Lucía")];
         var cut = Render<PanelDarAcceso>();
@@ -353,13 +363,14 @@ public class PanelDarAccesoTests : BunitContext
         cut.Find("input[data-campo-fecha]").HasAttribute("min").Should().BeFalse("en un input de texto «min» no hace nada");
 
         await cut.Find("button[data-campo-fecha-boton]").ClickAsync(new Microsoft.AspNetCore.Components.Web.MouseEventArgs());
-        var hoy = DiaDeNegocio.Hoy();
         var ayer = hoy.AddDays(-1);
+
+        // «Hoy» está en el mes que abre el calendario; «ayer», en ese mismo mes o, el día 1, en el anterior (se navega a él).
+        cut.Find($".campo-fecha-dia[data-fecha='{hoy:yyyy-MM-dd}']").HasAttribute("aria-disabled").Should().BeFalse();
         if (ayer.Month != hoy.Month) await cut.Find("button.campo-fecha-mes").ClickAsync(new Microsoft.AspNetCore.Components.Web.MouseEventArgs());
 
         var diaAyer = cut.Find($".campo-fecha-dia[data-fecha='{ayer:yyyy-MM-dd}']");
         diaAyer.GetAttribute("aria-disabled").Should().Be("true");
-        cut.Find($".campo-fecha-dia[data-fecha='{hoy:yyyy-MM-dd}']").HasAttribute("aria-disabled").Should().BeFalse();
         await diaAyer.ClickAsync(new Microsoft.AspNetCore.Components.Web.MouseEventArgs());
 
         cut.FindAll("[role=dialog].campo-fecha-calendario").Should().ContainSingle("pulsar un día fuera de rango no elige nada");
@@ -714,6 +725,12 @@ public class PanelDarAccesoTests : BunitContext
         errores.Select(TextosApoyoCartera.ClaveDeError)
             .Where(clave => string.IsNullOrWhiteSpace(textos.GetString(clave)))
             .Should().BeEmpty();
+    }
+
+    /// <summary>Reloj parado a mediodía UTC de un día: en Madrid sigue siendo ese mismo día de negocio.</summary>
+    private sealed class RelojDeUnDia(DateOnly dia) : TimeProvider
+    {
+        public override DateTimeOffset GetUtcNow() => new(dia.ToDateTime(new TimeOnly(12, 0)), TimeSpan.Zero);
     }
 
     private sealed class UsuarioActualFalso(Guid id) : ICurrentUserService

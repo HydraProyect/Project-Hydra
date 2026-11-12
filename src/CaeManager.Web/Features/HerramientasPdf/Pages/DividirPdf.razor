@@ -395,8 +395,7 @@
                     else
                     {
                         @* NoValidoChanged: una caducidad a medias o ilegible llega como null y crearía el Documento sin
-                           caducidad (ronda 1 de Codex, ALTO 3). Al marcar «Sin caducidad» u «No crear» el campo se
-                           deshabilita y avisa false solo. *@
+                           caducidad. Al marcar «Sin caducidad» u «No crear» el campo se deshabilita y avisa false solo. *@
                         <CampoFecha Etiqueta="@Textos["FechaCaducidad"]" Deshabilitado="@(asignacion.Omitido || asignacion.SinCaducidad)" Valor="asignacion.FechaCaducidad"
                                     ValorChanged="v => AlCambiarCaducidad(asignacion, v)" NoValidoChanged="v => AlCambiarCaducidadNoValida(asignacion, v)" />
                         <label class="marca-tramo">

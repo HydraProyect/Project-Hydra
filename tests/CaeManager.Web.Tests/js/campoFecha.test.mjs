@@ -10,12 +10,12 @@ import vm from 'node:vm';
 const ruta = fileURLToPath(new URL('../../../src/CaeManager.Web/wwwroot/js/campo-fecha.js', import.meta.url));
 const codigo = readFileSync(ruta, 'utf8');
 
-function entorno() {
+function entorno(globales = {}, ventana = {}) {
     const oyentes = {};
     const document = { addEventListener(tipo, f, captura) { oyentes[tipo] = { f, captura }; } };
-    const window = {};
-    vm.runInNewContext(codigo, { document, window });
-    return { oyentes, aplicar: window.talvegCampoFecha.aplicar };
+    const window = ventana;
+    vm.runInNewContext(codigo, { document, window, ...globales });
+    return { oyentes, aplicar: window.talvegCampoFecha.aplicar, calendario: window.talvegCampoFecha };
 }
 
 function campo(valor, cursor, esFecha = true) {
@@ -114,4 +114,57 @@ test('las flechas no desplazan la página dentro de la rejilla del calendario, y
     oyentes.keydown.f({ target: dentro, key: 'Enter', preventDefault: () => evitado++ });
     oyentes.keydown.f({ target: fuera, key: 'ArrowDown', preventDefault: () => evitado++ });
     assert.equal(evitado, 1);
+});
+
+// El calendario anclado: panel y campo falsos, con el reloj de cuadros síncrono y un MutationObserver que el test dispara.
+function calendarioAnclado({ conObservador = true } = {}) {
+    const observadores = [];
+    class ObservadorFalso {
+        constructor(llamada) { this.llamada = llamada; this.opciones = null; this.desconectado = false; observadores.push(this); }
+        observe(objetivo, opciones) { this.objetivo = objetivo; this.opciones = opciones; }
+        disconnect() { this.desconectado = true; }
+    }
+    const globales = { requestAnimationFrame: (f) => { f(); return 1; }, cancelAnimationFrame: () => {} };
+    if (conObservador) globales.MutationObserver = ObservadorFalso;
+    const ventana = { innerWidth: 1000, innerHeight: 600, addEventListener() {}, removeEventListener() {} };
+    const { calendario } = entorno(globales, ventana);
+    // El campo está pegado al borde inferior de la ventana: abajo no cabe el calendario y se coloca encima.
+    const fila = { getBoundingClientRect: () => ({ top: 540, bottom: 570, right: 900 }) };
+    const panel = {
+        offsetWidth: 300, offsetHeight: 300, isConnected: true, style: {}, dataset: {},
+        setAttribute() {}, showPopover() {},
+    };
+    calendario.anclar(panel, fila, 'cf-1');
+    return { calendario, panel, observadores };
+}
+
+test('el calendario volteado hacia arriba se recoloca al cambiar de mes y pasar de 5 a 6 filas', () => {
+    const { panel, observadores } = calendarioAnclado();
+    assert.equal(panel.dataset.lado, 'arriba', 'control: al abrirse no cabe debajo y va encima del campo');
+    assert.equal(panel.style.top, (540 - 4 - 300) + 'px');
+
+    // Blazor dibuja el mes siguiente con una fila más: el panel crece 40 px y el observador avisa del redibujado.
+    panel.offsetHeight = 340;
+    assert.equal(observadores.length, 1, 'el panel se observa mientras está anclado');
+    assert.equal(observadores[0].objetivo, panel);
+    const { childList, subtree } = observadores[0].opciones; // el objeto viene del contexto de vm: se compara por campos
+    assert.deepEqual([childList, subtree], [true, true]);
+    observadores[0].llamada([]);
+
+    assert.equal(panel.style.top, (540 - 4 - 340) + 'px', 'el borde de abajo sigue por encima del campo (sin tapar el campo)');
+    assert.equal(panel.dataset.lado, 'arriba');
+});
+
+test('al soltar el calendario se deja de observar', () => {
+    const { calendario, observadores } = calendarioAnclado();
+
+    calendario.soltar('cf-1');
+
+    assert.equal(observadores[0].desconectado, true);
+});
+
+test('sin MutationObserver el calendario se ancla igual (se coloca al abrir, en resize y en scroll)', () => {
+    const { panel } = calendarioAnclado({ conObservador: false });
+
+    assert.equal(panel.dataset.lado, 'arriba');
 });

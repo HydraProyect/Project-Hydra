@@ -455,12 +455,18 @@ public partial class Trabajador360Gen2Tests
         var cut = Renderizar(id); var drawer = await AbrirEditorFicha(cut);
         await IrAPasoFicha(drawer, "Trabajo");
         await CambiarCampoFicha(drawer, "Alta en la empresa", "15/03");
+        // «Siguiente» con la marca puesta registra el aviso del campo: sin él, la aserción de abajo sobre MensajeError no
+        // podría fallar aunque CambiarDePaso dejara el error (nunca habría habido uno que dejar).
+        await PulsarFicha(drawer, "Siguiente");
+        PasoActivoFicha(drawer).Should().Be("Trabajo", "control: la fecha a medias bloquea el paso");
+        drawer.FindComponents<CampoTexto>().Single(c => c.Instance.Etiqueta == "Alta en la empresa").Instance.MensajeError
+            .Should().Be("Introduce una fecha válida.", "control: el aviso estaba antes de dejar el paso");
         await PulsarFicha(drawer, "Atrás");
 
         await IrAPasoFicha(drawer, "Trabajo");
         var campo = drawer.FindComponents<CampoTexto>().Single(c => c.Instance.Etiqueta == "Alta en la empresa").Instance;
         campo.Valor.Should().Be("2023-05-02", "el campo vuelve con la fecha cargada");
-        campo.MensajeError.Should().BeNullOrWhiteSpace();
+        campo.MensajeError.Should().BeNullOrWhiteSpace("la marca no sobrevive al paso y con ella tampoco su aviso");
 
         await GuardarFicha(drawer);
 

@@ -1,6 +1,8 @@
 using AngleSharp.Dom;
 using Bunit;
+using CaeManager.Application.Trabajadores.Commands.EditarTrabajador;
 using CaeManager.Application.Trabajadores.Queries.ObtenerTrabajadorPorId;
+using CaeManager.Domain.Common;
 using CaeManager.Web.Components.DesignSystem;
 using CaeManager.Web.Components.Workspace;
 using CaeManager.Web.Features.Trabajadores.Components;
@@ -36,9 +38,13 @@ public class TrabajadorWorkspacePanelAvisoCambiosSinGuardarTests : BunitContext
         public Task<TResponse> Send<TResponse>(IRequest<TResponse> request, CancellationToken cancellationToken = default)
         {
             Enviadas.Add(request);
-            return request is ObtenerTrabajadorPorIdQuery
-                ? Task.FromResult((TResponse)(object)detalle)
-                : throw new NotSupportedException($"Consulta no prevista en este test: {request.GetType().Name}.");
+            object? respuesta = request switch
+            {
+                ObtenerTrabajadorPorIdQuery => detalle,
+                EditarTrabajadorCommand => Result.Exito(),
+                _ => throw new NotSupportedException($"Consulta no prevista en este test: {request.GetType().Name}.")
+            };
+            return Task.FromResult((TResponse)respuesta!);
         }
 
         public Task Send<TRequest>(TRequest request, CancellationToken cancellationToken = default) where TRequest : IRequest => Task.CompletedTask;
@@ -51,12 +57,12 @@ public class TrabajadorWorkspacePanelAvisoCambiosSinGuardarTests : BunitContext
 
     private NavigationManager Navegacion => Services.GetRequiredService<NavigationManager>();
 
-    private async Task<IRenderedComponent<TrabajadorWorkspacePanel>> EditarInformacionAsync()
+    private async Task<IRenderedComponent<TrabajadorWorkspacePanel>> EditarInformacionAsync(bool sinFechaDeNacimiento = false)
     {
         var id = Guid.NewGuid();
         var detalle = new TrabajadorDetalleDto(
             id, Guid.NewGuid(), null, "Refrielectric S.A.", "Marco", "Vila", "12884021K",
-            new DateOnly(1990, 1, 1), null, null, null, null, null, Guid.NewGuid());
+            sinFechaDeNacimiento ? null : new DateOnly(1990, 1, 1), null, null, null, null, null, Guid.NewGuid());
         _mediador = new MediatorFalso(detalle);
         Services.AddScoped<IMediator>(_ => _mediador);
         Services.AddScoped<ToastService>();
@@ -83,17 +89,71 @@ public class TrabajadorWorkspacePanelAvisoCambiosSinGuardarTests : BunitContext
         await cut.SalirYComprobarQuePreguntaAsync(Navegacion);
     }
 
+    private static Task GuardarAsync(IRenderedComponent<TrabajadorWorkspacePanel> cut) =>
+        cut.FindAll("button").First(b => b.TextContent.Trim() == "Guardar").ClickAsync(new MouseEventArgs());
+
+    private static Task EscribirFechaAsync(IRenderedComponent<TrabajadorWorkspacePanel> cut, string texto) =>
+        cut.Find("input[data-campo-fecha]").InputAsync(new ChangeEventArgs { Value = texto });
+
     [Fact]
     public async Task Una_fecha_de_nacimiento_a_medias_no_edita_el_trabajador_sin_fecha()
     {
         var cut = await EditarInformacionAsync();
 
-        await cut.Find("input[data-campo-fecha]").InputAsync(new ChangeEventArgs { Value = "15/03" });
-        await cut.FindAll("button").First(b => b.TextContent.Trim() == "Guardar").ClickAsync(new MouseEventArgs());
+        await EscribirFechaAsync(cut, "15/03");
+        await GuardarAsync(cut);
 
         _mediador.Enviadas.Should().NotContain(o => o.GetType().Name == "EditarTrabajadorCommand",
             "el texto sin fecha entera llega como «» y borraría la fecha de nacimiento sin que nadie lo decidiera");
         cut.Markup.Should().Contain("no es válida");
+
+        await EscribirFechaAsync(cut, "15/03/2030");
+        await GuardarAsync(cut);
+
+        _mediador.Enviadas.OfType<EditarTrabajadorCommand>().Should().ContainSingle("control positivo: con la fecha entera sí se envía")
+            .Which.FechaNacimiento.Should().Be(new DateOnly(2030, 3, 15));
+    }
+
+    // El aviso de un «Guardar» rechazado deja de ser cierto cuando la fecha vuelve a ser entera o se vacía; con la fecha vacía al
+    // empezar, borrar el texto no cambia el valor («»), así que solo el cambio de la bandera puede retirarlo.
+    [Fact]
+    public async Task El_aviso_de_fecha_no_valida_se_retira_al_corregir_o_vaciar_la_fecha()
+    {
+        var cut = await EditarInformacionAsync(sinFechaDeNacimiento: true);
+        await EscribirFechaAsync(cut, "15/03");
+        await GuardarAsync(cut);
+        cut.Markup.Should().Contain("no es válida", "control: el intento rechazado avisa");
+
+        await EscribirFechaAsync(cut, "15/03/2030");
+        cut.Markup.Should().NotContain("no es válida", "la fecha ya es entera y el aviso del intento anterior no es cierto");
+
+        await EscribirFechaAsync(cut, "15/03");
+        await GuardarAsync(cut);
+        cut.Markup.Should().Contain("no es válida", "control: vuelve a avisar con otro texto a medias");
+
+        await EscribirFechaAsync(cut, "");
+        cut.Markup.Should().NotContain("no es válida", "vaciar el campo también deja el texto a medias");
+    }
+
+    // Con la fecha de nacimiento vacía al empezar, el campo entrega «» con el texto a medias: el valor no cambia y solo la
+    // bandera sabe que hay algo sin guardar.
+    [Fact]
+    public async Task Una_fecha_a_medias_cuenta_como_cambio_sin_guardar_aunque_el_valor_no_cambie()
+    {
+        var cut = await EditarInformacionAsync(sinFechaDeNacimiento: true);
+        await EscribirFechaAsync(cut, "15/03");
+
+        await cut.SalirYComprobarQuePreguntaAsync(Navegacion);
+    }
+
+    [Fact]
+    public async Task Borrar_la_fecha_a_medias_vuelve_a_no_haber_cambios_sin_guardar()
+    {
+        var cut = await EditarInformacionAsync(sinFechaDeNacimiento: true);
+        await EscribirFechaAsync(cut, "15/03");
+        await EscribirFechaAsync(cut, "");
+
+        await cut.SalirYComprobarQueNoPreguntaAsync(Navegacion, "borrado el texto a medias, no queda nada que descartar");
     }
 
     [Fact]

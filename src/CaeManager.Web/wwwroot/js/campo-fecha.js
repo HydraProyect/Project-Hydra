@@ -137,10 +137,18 @@
         };
         window.addEventListener('resize', recolocar);
         window.addEventListener('scroll', recolocar, true);
+        // Cambiar de mes o de año vuelve a dibujar la rejilla y su altura cambia (5 o 6 filas): con el panel volteado hacia
+        // arriba, el borde de abajo se montaría sobre el campo. Cada redibujado del panel lo coloca de nuevo.
+        var observador = null;
+        if (typeof MutationObserver === 'function') {
+            observador = new MutationObserver(recolocar);
+            observador.observe(panel, { childList: true, subtree: true, characterData: true });
+        }
         anclajes[id] = function () {
             cancelAnimationFrame(cuadro);
             window.removeEventListener('resize', recolocar);
             window.removeEventListener('scroll', recolocar, true);
+            if (observador) observador.disconnect();
         };
     }
 

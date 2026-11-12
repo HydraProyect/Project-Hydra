@@ -1,6 +1,7 @@
 using AngleSharp.Dom;
 using Bunit;
 using CaeManager.Application.Centros.Commands.CrearCanalGestion;
+using CaeManager.Application.Centros.Commands.EditarCentro;
 using CaeManager.Application.Centros.Commands.EstablecerDocumentacionRequeridaCentro;
 using CaeManager.Application.Comunicaciones.Commands.PedirPrioridadValidacion;
 using CaeManager.Application.Reclamaciones;
@@ -96,6 +97,7 @@ public class CentroWorkspacePanelAvisoCambiosSinGuardarTests : BunitContext
                 ObtenerBorradorPedirPrioridadQuery => Result.Exito(new BorradorPedirPrioridadDto(
                     "validacion@refrielectric.example", "Prioridad de validación", "Os pedimos prioridad.", true, null, 1)),
                 CrearCanalGestionCommand => Result.Exito(Guid.NewGuid()),
+                EditarCentroCommand => Result.Exito(),
                 EstablecerDocumentacionRequeridaCentroCommand => Result.Exito(),
                 PedirPrioridadValidacionCommand => Result.Exito(),
                 EnviarReclamacionCommand => Result.Exito(new EnvioReclamacionResultado([], [])),
@@ -231,21 +233,68 @@ public class CentroWorkspacePanelAvisoCambiosSinGuardarTests : BunitContext
         return cut;
     }
 
+    private static Task EscribirFechaAsync(IRenderedComponent<CentroWorkspacePanel> cut, string texto) =>
+        cut.Find("input[data-campo-fecha]").InputAsync(new ChangeEventArgs { Value = texto });
+
     [Fact]
     public async Task Un_contrato_vigente_hasta_a_medias_no_edita_el_centro_sin_fecha()
     {
-        var cut = Renderizar("informacion");
-        await cut.InvokeAsync(() => typeof(CentroWorkspacePanel)
-            .GetMethod("IniciarEdicionInformacion", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)!
-            .Invoke(cut.Instance, null));
-        cut.Render();
+        var cut = await EditarInformacionAsync();
 
-        await cut.Find("input[data-campo-fecha]").InputAsync(new ChangeEventArgs { Value = "15/03" });
+        await EscribirFechaAsync(cut, "15/03");
         await PulsarAsync(cut, "Guardar");
 
         _mediador.Enviadas.Should().NotContain(o => o.GetType().Name == "EditarCentroCommand",
             "el texto sin fecha entera llega como «» y borraría el fin de contrato sin que nadie lo decidiera");
         cut.Markup.Should().Contain("no es válida");
+
+        await EscribirFechaAsync(cut, "15/03/2030");
+        await PulsarAsync(cut, "Guardar");
+
+        _mediador.Enviadas.OfType<EditarCentroCommand>().Should().ContainSingle("control positivo: con la fecha entera sí se envía")
+            .Which.ContratoVigenteHasta.Should().Be(new DateOnly(2030, 3, 15));
+    }
+
+    // El aviso de un «Guardar» rechazado deja de ser cierto cuando la fecha vuelve a ser entera o se vacía; con el contrato sin
+    // fecha al empezar, borrar el texto no cambia el valor («»), así que solo el cambio de la bandera puede retirarlo.
+    [Fact]
+    public async Task El_aviso_de_fecha_no_valida_se_retira_al_corregir_o_vaciar_la_fecha()
+    {
+        var cut = await EditarInformacionAsync();
+        await EscribirFechaAsync(cut, "15/03");
+        await PulsarAsync(cut, "Guardar");
+        cut.Markup.Should().Contain("no es válida", "control: el intento rechazado avisa");
+
+        await EscribirFechaAsync(cut, "15/03/2030");
+        cut.Markup.Should().NotContain("no es válida", "la fecha ya es entera y el aviso del intento anterior no es cierto");
+
+        await EscribirFechaAsync(cut, "15/03");
+        await PulsarAsync(cut, "Guardar");
+        cut.Markup.Should().Contain("no es válida", "control: vuelve a avisar con otro texto a medias");
+
+        await EscribirFechaAsync(cut, "");
+        cut.Markup.Should().NotContain("no es válida", "vaciar el campo también deja el texto a medias");
+    }
+
+    // El contrato sin fecha al empezar: el campo entrega «» con el texto a medias, el valor no cambia y solo la bandera sabe
+    // que hay algo sin guardar.
+    [Fact]
+    public async Task Un_contrato_a_medias_cuenta_como_cambio_sin_guardar_aunque_el_valor_no_cambie()
+    {
+        var cut = await EditarInformacionAsync();
+        await EscribirFechaAsync(cut, "15/03");
+
+        await cut.SalirYComprobarQuePreguntaAsync(Navegacion);
+    }
+
+    [Fact]
+    public async Task Borrar_el_contrato_a_medias_vuelve_a_no_haber_cambios_sin_guardar()
+    {
+        var cut = await EditarInformacionAsync();
+        await EscribirFechaAsync(cut, "15/03");
+        await EscribirFechaAsync(cut, "");
+
+        await cut.SalirYComprobarQueNoPreguntaAsync(Navegacion, "borrado el texto a medias, no queda nada que descartar");
     }
 
     [Fact]
