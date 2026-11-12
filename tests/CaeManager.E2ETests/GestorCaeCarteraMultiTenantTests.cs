@@ -174,7 +174,7 @@ public class GestorCaeCarteraMultiTenantTests(WebAppFixtureGestorCaeCarteraMulti
         var vencidaEnPlataformaB = await IdAcreditacionAsync(TrabajadorB, estado: 2);
 
         await using var contexto = await fixture.Browser.NewContextAsync();
-        await using var traza = await TrazaAlFallar.IniciarAsync(contexto);
+        await using var traza = TrazaAlFallar.Armar(contexto);
         var page = await contexto.NewPageAsync();
         await Ayudas.IniciarSesionAsync(page, fixture.BaseUrl, EmailGestorCae, Ayudas.ContrasenaUsuariosPrueba);
 

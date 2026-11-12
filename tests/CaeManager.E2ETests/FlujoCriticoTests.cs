@@ -28,6 +28,7 @@ public class FlujoCriticoTests(WebAppFixture fixture)
         var dniTrabajador = Ayudas.GenerarDniValido(88_000_001);
 
         await using var contexto = await fixture.Browser.NewContextAsync();
+        await using var traza = TrazaAlFallar.Armar(contexto);
         var page = await contexto.NewPageAsync();
 
         await Ayudas.IniciarSesionAsync(page, fixture.BaseUrl, Ayudas.EmailAdministrador, Ayudas.ContrasenaAdministrador);
@@ -152,5 +153,6 @@ public class FlujoCriticoTests(WebAppFixture fixture)
         await insigniaEstado.WaitForAsync(new LocatorWaitForOptions { Timeout = 15_000 });
         Assert.Equal("Por vencer", (await insigniaEstado.InnerTextAsync()).Trim());
         Assert.Matches("^en (9|10|11) días$", (await fila.Locator(".documentos-vigencia-subtitulo").InnerTextAsync()).Trim());
+        traza.Superada();
     }
 }

@@ -49,6 +49,7 @@ public class SubidaMasivaTests(WebAppFixture fixture)
         var dniTrabajador = Ayudas.GenerarDniValido(88_300_001);
 
         await using var contexto = await fixture.Browser.NewContextAsync();
+        await using var traza = TrazaAlFallar.Armar(contexto);
         var page = await contexto.NewPageAsync();
         var drawer = page.Locator(".drawer-panel");
 
@@ -132,6 +133,7 @@ public class SubidaMasivaTests(WebAppFixture fixture)
         var fila = page.Locator("tr", new PageLocatorOptions { HasText = apellidosTrabajador });
         await fila.WaitForAsync(new LocatorWaitForOptions { Timeout = 15_000 });
         await Expect(fila).ToContainTextAsync("Certificado de aptitud médica");
+        traza.Superada();
     }
 
     /// <summary>

@@ -926,6 +926,8 @@ public static class Ayudas
                 $"Ninguna fixture sirve la URL base «{baseUrl}»: no se puede olvidar la vista recordada de la cuenta antes de entrar.");
         await fixture.OlvidarVistasRecordadasAsync(email);
 
+        // La traza de un test fallido no graba el formulario de acceso ni lo que se teclea en él (ver TrazaAlFallar).
+        await TrazaAlFallar.PausarParaIniciarSesionAsync(page.Context);
         await page.GotoAsync($"{baseUrl}/cuenta/iniciar-sesion");
         await page.FillAsync("#email", email);
         await page.FillAsync("#password", password);
@@ -942,6 +944,7 @@ public static class Ayudas
         }
 
         await page.Locator(".nav-principal").WaitForAsync(new LocatorWaitForOptions { Timeout = 30_000 });
+        await TrazaAlFallar.ReanudarTrasIniciarSesionAsync(page.Context);
     }
 
     /// <summary>

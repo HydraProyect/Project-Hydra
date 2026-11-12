@@ -30,6 +30,7 @@ public class FlujoRetencionTests(WebAppFixtureConRetencionActiva fixture)
     public async Task Detectar_avisar_autorizar_y_ejecutar_una_purga_y_descartar_la_otra()
     {
         await using var contexto = await fixture.Browser.NewContextAsync();
+        await using var traza = TrazaAlFallar.Armar(contexto);
         var page = await contexto.NewPageAsync();
 
         // El ciclo lo recorre un Administrador propio del Tenant, sin cambiar
@@ -100,6 +101,7 @@ public class FlujoRetencionTests(WebAppFixtureConRetencionActiva fixture)
         await modalDescartar.WaitForAsync(new LocatorWaitForOptions { State = WaitForSelectorState.Hidden, Timeout = 10_000 });
 
         await AsegurarTextoEnFilaAsync(filaTrabajadores, "Descartada");
+        traza.Superada();
     }
 
     /// <summary>

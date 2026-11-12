@@ -47,6 +47,7 @@ public class FlujoCicloDocumentalTests(WebAppFixture fixture)
         var emailContacto = $"contacto.ciclodocumental.{sufijo}@e2e.test";
 
         await using var contexto = await fixture.Browser.NewContextAsync();
+        await using var traza = TrazaAlFallar.Armar(contexto);
         var page = await contexto.NewPageAsync();
 
         await Ayudas.IniciarSesionAsync(page, fixture.BaseUrl, Ayudas.EmailAdministrador, Ayudas.ContrasenaAdministrador);
@@ -347,6 +348,7 @@ public class FlujoCicloDocumentalTests(WebAppFixture fixture)
         var insigniaVigente = filaDocumento.Locator("[data-pieza=estado-correcto]");
         await insigniaVigente.WaitForAsync(new LocatorWaitForOptions { Timeout = 15_000 });
         Assert.Equal("Vigente", (await insigniaVigente.InnerTextAsync()).Trim());
+        traza.Superada();
     }
 
     /// <summary>

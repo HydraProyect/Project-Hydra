@@ -34,7 +34,7 @@ public class VisitaCentroGestionadoPorCorreoE2ETests(WebAppFixture fixture)
         var correoCentro = $"acceso.{sufijo}@correo-simulado.local";
 
         await using var contexto = await fixture.Browser.NewContextAsync(new BrowserNewContextOptions { AcceptDownloads = true });
-        await using var traza = await TrazaAlFallar.IniciarAsync(contexto);
+        await using var traza = TrazaAlFallar.Armar(contexto);
         await contexto.GrantPermissionsAsync(["clipboard-read", "clipboard-write"]);
         var page = await contexto.NewPageAsync();
 

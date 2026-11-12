@@ -17,6 +17,7 @@ public partial class VisitasFilaSinMenuE2ETests
     public async Task Guardar_la_edicion_cambia_la_fila_y_conserva_la_seleccion_y_la_fila_enfocada()
     {
         await using var contexto = await fixture.Browser.NewContextAsync();
+        await using var traza = TrazaAlFallar.Armar(contexto);
         var (page, fila) = await AbrirConUnaVisitaAsync(contexto);
         var fechas = (await fila.Locator("button.nombre-abre-vista-rapida").InnerTextAsync()).Trim();
         var inicio = DateOnly.ParseExact(fechas, "dd/MM/yyyy");
@@ -48,5 +49,6 @@ public partial class VisitasFilaSinMenuE2ETests
         await Expect(filaEditada).ToHaveClassAsync(new Regex("fila-enfocada"));
         await Expect(filaEditada.GetByRole(AriaRole.Checkbox, new LocatorGetByRoleOptions { NameRegex = new Regex("^Seleccionar la visita ") }))
             .ToBeCheckedAsync();
+        traza.Superada();
     }
 }

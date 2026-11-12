@@ -5,7 +5,9 @@ namespace CaeManager.Web.Tests;
 /// <summary>
 /// La trampa de foco de Modal, Drawer, Context Workspace, buscador global y diálogo de restablecer el menú
 /// (wwwroot/js/dialogo-foco.js) no corre en bUnit. js/dialogoFoco.test.mjs la evalúa con un document falso: al
-/// abrirse, el foco entra en el diálogo si estaba fuera y se queda donde está si ya estaba dentro (#2194).
+/// abrirse, el foco entra en el diálogo si estaba fuera o en el propio contenedor y se queda donde está si ya estaba en
+/// un campo, Mayús+Tab desde el contenedor no sale, y al cerrar vuelve a quien abrió el diálogo aunque el foco ya
+/// estuviera dentro al activarse la trampa (#2194).
 /// </summary>
 public class DialogoFocoJsTests
 {

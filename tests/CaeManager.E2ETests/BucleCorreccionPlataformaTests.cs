@@ -23,6 +23,7 @@ public class BucleCorreccionPlataformaTests(WebAppFixture fixture)
     public async Task Corregir_una_rechazada_desde_la_bandeja_la_devuelve_a_pendiente_de_subir()
     {
         await using var contexto = await fixture.Browser.NewContextAsync();
+        await using var traza = TrazaAlFallar.Armar(contexto);
         var page = await contexto.NewPageAsync();
         await Ayudas.IniciarSesionAsync(page, fixture.BaseUrl, Ayudas.EmailGestorRefrielectric, Ayudas.ContrasenaUsuariosPrueba);
 
@@ -103,5 +104,6 @@ public class BucleCorreccionPlataformaTests(WebAppFixture fixture)
             .ToBeVisibleAsync(new LocatorAssertionsToBeVisibleOptions { Timeout = 15_000 });
         await Expect(filaNueva.GetByRole(AriaRole.Button, new LocatorGetByRoleOptions { Name = "Subir versión corregida", Exact = true }))
             .ToHaveCountAsync(0);
+        traza.Superada();
     }
 }
