@@ -257,7 +257,7 @@ public sealed class DividirPdfPantallaTests : BunitContext
 
     private IRenderedComponent<DividirPdf> Renderizar(
         string rol = "GestorCae", Guid? tenantId = null, bool disponible = true, IPresupuestoMemoriaDocumentos? presupuesto = null,
-        ITenantActual? tenant = null)
+        ITenantActual? tenant = null, ILogger<DividirPdf>? logger = null)
     {
         Services.AddScoped<IMediator>(_ => _mediador);
         Services.AddScoped<ICurrentUserService>(_ => new UsuarioFalso(rol));
@@ -265,7 +265,7 @@ public sealed class DividirPdfPantallaTests : BunitContext
         Services.AddScoped<PuertaAccesoDatos>();
         Services.AddScoped<IRasterizadorPaginasPdfService, SinVistaPrevia>();
         Services.AddSingleton<IDisponibilidadHerramientasPdf>(new Disponibilidad(disponible));
-        Services.AddSingleton<ILogger<DividirPdf>>(_ => NullLogger<DividirPdf>.Instance);
+        Services.AddSingleton<ILogger<DividirPdf>>(_ => logger ?? NullLogger<DividirPdf>.Instance);
         Services.AddScoped<AuthenticationStateProvider>(_ => new AutenticacionFalsa(rol));
         Services.AddAuthorizationCore();
         Services.AddLocalization();
@@ -561,10 +561,22 @@ public sealed class DividirPdfPantallaTests : BunitContext
                 : "con el lote completo, la reserva del original se devuelve");
     }
 
-    private async Task<IRenderedComponent<DividirPdf>> EmpezarLoteDeGuardarRetenidoAsync()
+    private sealed class RegistroEspia : ILogger<DividirPdf>
+    {
+        public System.Collections.Concurrent.ConcurrentQueue<(LogLevel Nivel, string Mensaje)> Entradas { get; } = new();
+
+        public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
+
+        public bool IsEnabled(LogLevel logLevel) => true;
+
+        public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception? exception, Func<TState, Exception?, string> formatter) =>
+            Entradas.Enqueue((logLevel, formatter(state, exception)));
+    }
+
+    private async Task<IRenderedComponent<DividirPdf>> EmpezarLoteDeGuardarRetenidoAsync(ILogger<DividirPdf>? logger = null)
     {
         _mediador.CreacionRetenida = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-        var cut = Renderizar();
+        var cut = Renderizar(logger: logger);
         cut.WaitForAssertion(() => cut.FindAll(".zona-soltar-archivo").Should().ContainSingle());
         await SubirAsync(cut);
         await EsperarSinReservaAsync(() => _presupuesto.Reservado, "las vistas previas ya soltaron su reserva");
@@ -583,7 +595,8 @@ public sealed class DividirPdfPantallaTests : BunitContext
     [Fact]
     public async Task Salir_de_la_pantalla_a_mitad_del_lote_de_Guardar_no_lo_corta()
     {
-        await EmpezarLoteDeGuardarRetenidoAsync();
+        var registro = new RegistroEspia();
+        await EmpezarLoteDeGuardarRetenidoAsync(registro);
 
         await DisposeComponentsAsync();
 
@@ -592,6 +605,13 @@ public sealed class DividirPdfPantallaTests : BunitContext
         _mediador.CreacionRetenida!.SetResult();
         await EsperarSinReservaAsync(() => _presupuesto.Reservado, "el lote termina tras salir y devuelve la reserva del original");
         _mediador.Creaciones.Should().ContainSingle();
+
+        // La pantalla ya desechada no toca su estado ni sus recursos dispuestos: solo deja el resultado en el registro.
+        var plazo = DateTime.UtcNow.AddSeconds(5);
+        while (!registro.Entradas.Any(e => e.Mensaje.Contains("pantalla ya cerrada")) && DateTime.UtcNow < plazo)
+            await Task.Delay(20);
+        registro.Entradas.Should().ContainSingle(e => e.Nivel == LogLevel.Information
+            && e.Mensaje.Contains("pantalla ya cerrada: 1 documentos creados y 0 sin crear"));
     }
 
     [Fact]

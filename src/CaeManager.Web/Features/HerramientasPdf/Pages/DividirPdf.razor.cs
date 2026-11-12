@@ -444,7 +444,9 @@ public partial class DividirPdf : CaeManager.Web.Components.PaginaInteractiva, I
                 // El lote no se ata a la pantalla: salir de ella a mitad no lo corta, porque el resultado parcial solo
                 // viviría en esta pantalla y la persona, sin verlo, duplicaría al repetir lo ya creado. Cada espera del
                 // lote tiene su propio tope (el proceso aparte, las reservas), como en DividirAdjuntoPdfCommand. Sí se
-                // corta al cerrarse el circuito, antes de que su DbContext se disponga.
+                // corta al cerrarse el circuito, antes de que su DbContext se disponga. Coste: el lote tiene la puerta de
+                // datos mientras dura, así que la pantalla siguiente y la revalidación del circuito esperan a que
+                // termine, hasta la suma de los topes de sus tramos.
                 creacion = await Mediator.Send(
                     new CrearDocumentosDesdeDivisionCommand(contenido, _nombreOriginal, tenantId, empresaId, tramos),
                     PuertaAccesoDatos.AlCerrarse);
@@ -470,9 +472,13 @@ public partial class DividirPdf : CaeManager.Web.Components.PaginaInteractiva, I
 
             if (_desechado)
             {
-                // Nadie va a mostrar el resultado: lo creado se ve en Documentos. La pantalla ya soltó sus recursos.
-                Logger.LogInformation("Dividir PDF terminó el lote con la pantalla ya cerrada ({Creados} documentos creados).",
-                    creacion.EsExitoso ? creacion.Valor.Count(r => r.Estado == EstadoTramoCreado.Creado) : 0);
+                // Nadie va a mostrar el resultado: lo creado se ve en Documentos. La pantalla ya soltó sus recursos
+                // (RetirarOriginal cancelaría un _vistas ya dispuesto). Lo que no consta creado se avisa en el registro.
+                var creados = creacion.EsExitoso ? creacion.Valor.Count(r => r.Estado == EstadoTramoCreado.Creado) : 0;
+                var sinCrear = creacion.EsExitoso ? creacion.Valor.Count - creados : 0;
+                Logger.Log(sinCrear > 0 || creacion.EsFallido ? LogLevel.Warning : LogLevel.Information,
+                    "Dividir PDF terminó el lote con la pantalla ya cerrada: {Creados} documentos creados y {SinCrear} sin crear o sin confirmar.",
+                    creados, sinCrear);
                 return;
             }
 

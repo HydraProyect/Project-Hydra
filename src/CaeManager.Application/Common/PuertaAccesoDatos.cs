@@ -55,7 +55,8 @@ namespace CaeManager.Application.Common;
 /// scoped que no implementa <see cref="IDisposable"/>. Una operación todavía
 /// en vuelo cuando el circuito se va simplemente termina con normalidad
 /// —adquiere, ejecuta, libera— aunque ya no quede nadie esperando el
-/// resultado.
+/// resultado; la que escucha <see cref="AlCerrarse"/> recibe además la
+/// petición de terminar cuanto antes.
 /// </para>
 /// <para>
 /// <b>Lo que sí hay que esperar es a la operación, no al semáforo.</b> Que una
