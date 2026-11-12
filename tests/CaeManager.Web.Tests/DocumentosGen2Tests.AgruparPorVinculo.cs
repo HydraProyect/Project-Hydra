@@ -467,6 +467,8 @@ public partial class DocumentosGen2Tests
             aviso.Should().MatchRegex(@"5[.,]000").And.MatchRegex(@"6[.,]200").And.Contain("afina los filtros");
         });
         cut.FindAll(".paginador-opciones-tamano").Should().BeEmpty("tampoco con más del tope aparece un paginador que repita la página 1");
+        // Con 6.200 Documentos y páginas de 5.000 el paginador calcularía dos páginas: sus flechas no pueden salir.
+        cut.FindAll(".paginador-pie-listado .paginador-inicio button").Should().BeEmpty("no hay página 2 que no repita la 1");
     }
 
     private static Result<ResultadoAnotacionAcreditacionDto> Anotar(List<ConfirmarVigenciaAcreditacionCommand> anotadas,

@@ -63,6 +63,18 @@ public class ConfirmarVigenciaAcreditacionCommandHandlerTests
     }
 
     [Fact]
+    public async Task Una_no_requerida_sigue_respondiendo_que_la_plataforma_no_lo_pide()
+    {
+        var m = new Mundo();
+        m.Acreditacion.MarcarNoRequerida();
+
+        var r = await m.AnotarAsync();
+
+        r.Error.Codigo.Should().Be("Acreditacion.NoRequerida", "el motivo más preciso va antes que «ya no está validada»");
+        m.UnitOfWork.VecesGuardado.Should().Be(0);
+    }
+
+    [Fact]
     public async Task Sobre_una_acreditacion_aceptada_anota_la_vigencia_y_guarda()
     {
         var m = new Mundo();
