@@ -100,12 +100,15 @@
     /// Tramos cuya caducidad tiene (o tuvo al salir del campo) un texto que no es una fecha entera. Mientras alguno siga
     /// aquí, Crear queda bloqueado. Se libera al escribir una fecha entera, al vaciar el campo a mano o al marcar «Sin
     /// caducidad» o «No crear» (el campo, al deshabilitarse, avisa false). Si se sale del tramo con el texto a medias,
-    /// el campo se pierde y su valor es null: la marca sigue y el campo vuelto a pintar muestra el aviso.
+    /// el campo se destruye y su valor es null: la marca sigue, la fila del tramo en Revisar lo dice y Crear sigue
+    /// bloqueado. Al volver a ese tramo, el campo nuevo sale vacío y avisa false al crearse: la marca se retira y lo que
+    /// se crea es lo que se ve. Solo cuentan los tramos de la división actual (un corte quitado o «Cambiar PDF» dejan
+    /// asignaciones que ya no se crean).
     /// </summary>
     private readonly HashSet<AsignacionTramo> _caducidadesNoValidas = new(ReferenceEqualityComparer.Instance);
 
-    private bool HayCaducidadNoValida =>
-        _caducidadesNoValidas.Any(a => !a.Omitido && !a.SinCaducidad);
+    private bool HayCaducidadNoValida(EstadoDivisionPdf division) =>
+        division.Rangos.Select(division.Asignacion).Any(a => !a.Omitido && !a.SinCaducidad && _caducidadesNoValidas.Contains(a));
 
     private void AlCambiarCaducidad(AsignacionTramo asignacion, DateOnly? fecha)
     {
@@ -481,12 +484,12 @@
                 </table>
                 <div class="barra-acciones-dividir barra-en-ficha">
                     <Boton Variante="VarianteBoton.Secundario" OnClick="() => Corregir(rangos.Count - 1)">@Textos["Anterior"]</Boton>
-                    @if (HayCaducidadNoValida)
+                    @if (HayCaducidadNoValida(division))
                     {
                         <p class="falta-dato" role="alert" data-caducidad-no-valida>@Comunes["CampoFechaCorregirAntes"]</p>
                     }
                     @BotonPrincipal(aCrear == 0 ? Textos["NadaQueCrear"] : Textos[aCrear == 1 ? "CrearUno" : "CrearVarios", aCrear],
-                        EventCallback.Factory.Create(this, CrearAsync), deshabilitado: aCrear == 0 || HayCaducidadNoValida, cargando: _creando)
+                        EventCallback.Factory.Create(this, CrearAsync), deshabilitado: aCrear == 0 || HayCaducidadNoValida(division), cargando: _creando)
                 </div>
             </div>
         </text>;

@@ -597,6 +597,25 @@ public partial class GestionesAutomaticasPantallaTests : BunitContext
         m.Enviados.OfType<MarcarAcreditacionAceptadaCommand>().Should().BeEmpty();
     }
 
+    // revisor-puente sobre d5e5f3928, hallazgo 1: cambiar de opción destruía el campo con la marca de no válido puesta, y
+    // el campo nuevo (vacío y válido) no la retiraba: Guardar quedaba bloqueado con una fecha entera a la vista. El campo
+    // recién creado dice su estado.
+    [Fact]
+    public void Cambiar_de_opcion_con_la_fecha_a_medias_no_deja_Guardar_bloqueado_al_volver()
+    {
+        var m = Montar();
+        var cut = Detallar(m, Detalle(SeisPasosNuevos()));
+        cut.Find("[data-opcion='validado']").Click();
+        cut.Find("[data-campos-opcion='validado'] input[data-campo-fecha]").Input("14/10/202");
+        cut.Find("[data-accion='guardar']").HasAttribute("disabled").Should().BeTrue("control positivo: a medias no se guarda");
+
+        cut.Find("[data-opcion='subido']").Click();
+        cut.Find("[data-opcion='validado']").Click();
+        cut.Find("[data-campos-opcion='validado'] input[data-campo-fecha]").Input("2027-10-14");
+
+        cut.Find("[data-accion='guardar']").HasAttribute("disabled").Should().BeFalse();
+    }
+
     [Fact]
     public void Validado_con_la_fecha_a_medias_no_se_guarda_y_No_lo_se_limpia_el_campo()
     {

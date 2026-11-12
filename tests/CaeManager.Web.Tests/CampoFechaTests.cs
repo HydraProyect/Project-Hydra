@@ -123,7 +123,7 @@ public class CampoFechaTests : BunitContext
 
         await cut.Find("input").InputAsync(new ChangeEventArgs { Value = tecleado });
         recibidos.Should().BeEmpty("mientras se escribe solo cuenta la fecha entera dd/mm/aaaa");
-        noValido.Should().Equal(true);
+        noValido.Should().Equal(false, true);
 
         await cut.Find("input").BlurAsync(new FocusEventArgs());
 
@@ -132,7 +132,7 @@ public class CampoFechaTests : BunitContext
         cut.Find("input").GetAttribute("value").Should().NotBe(normalizado, "no se reescribe como otra fecha");
         cut.Find(".campo-mensaje-error").TextContent.Should().Contain("dd/mm/aaaa");
         recibidos.Should().Equal(new DateOnly?[] { null }, "ni la fecha anterior ni 10/01/2030");
-        noValido.Should().Equal(true);
+        noValido.Should().Equal(false, true);
     }
 
     // Ronda 1 de Codex, ALTO 1: pegar «mañana» sobre una fecha se enmascaraba en «» y contaba como vaciado voluntario
@@ -152,18 +152,18 @@ public class CampoFechaTests : BunitContext
             .Add(c => c.NoValidoChanged, v => noValido.Add(v)));
 
         await cut.Find("input").InputAsync(new ChangeEventArgs { Value = pegado });
-        noValido.Should().Equal(true);
+        noValido.Should().Equal(false, true);
         recibidos.Should().BeEmpty();
 
         await cut.Find("input").BlurAsync(new FocusEventArgs());
 
-        noValido.Should().Equal(true);
+        noValido.Should().Equal(false, true);
         cut.Find(".campo-mensaje-error").Should().NotBeNull();
         recibidos.Should().Equal(new DateOnly?[] { null });
 
         // Borrarlo a mano sí es el vaciado voluntario: deja de ser no válido.
         await cut.Find("input").InputAsync(new ChangeEventArgs { Value = string.Empty });
-        noValido.Should().Equal(true, false);
+        noValido.Should().Equal(false, true, false);
         cut.FindAll(".campo-mensaje-error").Should().BeEmpty();
     }
 
@@ -415,7 +415,7 @@ public class CampoFechaTests : BunitContext
         await cut.Find("input[data-campo-fecha]").BlurAsync(new FocusEventArgs());
 
         recibidos.Should().Equal(new[] { string.Empty }, "lo que no es fecha es «sin fecha», nunca el texto");
-        noValida.Should().Equal(true);
+        noValida.Should().Equal(false, true);
         cut.Find(".campo-mensaje-error").TextContent.Should().Contain("dd/mm/aaaa");
     }
 
@@ -437,7 +437,7 @@ public class CampoFechaTests : BunitContext
         await cut.Find("input[data-campo-fecha]").BlurAsync(new FocusEventArgs());
 
         recibidos.Should().Equal(new[] { string.Empty }, "el último valor del formulario es «», no «31/02/2026»");
-        noValida.Should().Equal(true, false);
+        noValida.Should().Equal(false, true, false);
         cut.FindAll(".campo-mensaje-error").Should().BeEmpty();
     }
 
@@ -472,7 +472,7 @@ public class CampoFechaTests : BunitContext
         foreach (var texto in new[] { "1", "10", "10/1", "10/12", "10/12/2", "10/12/2026" })
             await cut.Find("input").InputAsync(new ChangeEventArgs { Value = texto });
 
-        noValido.Should().Equal(true, false);
+        noValido.Should().Equal(false, true, false);
     }
 
     // Hallazgo 3: el padre que deja el campo en el mismo valor (null tras un texto no válido) no se distingue de un
@@ -492,7 +492,7 @@ public class CampoFechaTests : BunitContext
 
         cut.FindAll(".campo-mensaje-error").Should().BeEmpty();
         cut.Find("input").GetAttribute("value").Should().BeEmpty();
-        noValido.Should().Equal(true, false);
+        noValido.Should().Equal(false, true, false);
 
         cut.Render(p => p.Add(c => c.Valor, (DateOnly?)null).Add(c => c.Deshabilitado, false));
         await cut.Find("input").BlurAsync(new FocusEventArgs());
