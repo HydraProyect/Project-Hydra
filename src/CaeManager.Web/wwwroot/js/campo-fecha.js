@@ -141,7 +141,10 @@
         colocar(panel, fila);
 
         var cuadro = 0;
-        var recolocar = function () {
+        var recolocar = function (e) {
+            // El scroll de dentro del propio panel (acotado, con scroll propio) no mueve el campo: no hay nada que recolocar
+            // (como CampoSelectAvanzado). Los redibujados llegan del MutationObserver, sin `type`.
+            if (e && e.type === 'scroll' && panel.contains && panel.contains(e.target)) return;
             cancelAnimationFrame(cuadro);
             cuadro = requestAnimationFrame(function () {
                 // Si Blazor quitó el calendario sin pasar por soltar (el componente se desechó abierto), se limpia solo.

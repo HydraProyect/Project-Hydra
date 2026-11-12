@@ -117,8 +117,9 @@ test('las flechas no desplazan la página dentro de la rejilla del calendario, y
 });
 
 // El calendario anclado: panel y campo falsos, con el reloj de cuadros síncrono y un MutationObserver que el test dispara.
-function calendarioAnclado({ conObservador = true, altoVentana = 600, campoArriba = 540, campoAbajo = 570, altoPanel = 300 } = {}) {
+function calendarioAnclado({ conObservador = true, altoVentana = 600, campoArriba = 540, campoAbajo = 570, altoPanel = 300, scrollTop = 0 } = {}) {
     const observadores = [];
+    const escuchas = {};
     class ObservadorFalso {
         constructor(llamada) { this.llamada = llamada; this.opciones = null; this.desconectado = false; observadores.push(this); }
         observe(objetivo, opciones) { this.objetivo = objetivo; this.opciones = opciones; }
@@ -126,16 +127,24 @@ function calendarioAnclado({ conObservador = true, altoVentana = 600, campoArrib
     }
     const globales = { requestAnimationFrame: (f) => { f(); return 1; }, cancelAnimationFrame: () => {} };
     if (conObservador) globales.MutationObserver = ObservadorFalso;
-    const ventana = { innerWidth: 1000, innerHeight: altoVentana, addEventListener() {}, removeEventListener() {} };
+    const ventana = { innerWidth: 1000, innerHeight: altoVentana, addEventListener(tipo, f) { escuchas[tipo] = f; }, removeEventListener() {} };
     const { calendario } = entorno(globales, ventana);
     // Por defecto el campo está pegado al borde inferior de la ventana: abajo no cabe el calendario y se coloca encima.
     const fila = { getBoundingClientRect: () => ({ top: campoArriba, bottom: campoAbajo, right: 900 }) };
+    const hijo = {}; // un nodo de dentro del panel (un día de la rejilla)
     const panel = {
-        offsetWidth: 300, offsetHeight: altoPanel, isConnected: true, style: {}, dataset: {},
+        offsetWidth: 300, offsetHeight: altoPanel, isConnected: true, dataset: {}, scrollTop,
+        contains: (nodo) => nodo === panel || nodo === hijo,
         setAttribute() {}, showPopover() {},
     };
+    // Como el navegador: quitar el tope para medir el alto natural reinicia el scroll del panel.
+    let maxHeight = '';
+    panel.style = {
+        get maxHeight() { return maxHeight; },
+        set maxHeight(v) { maxHeight = v; if (v === '') panel.scrollTop = 0; },
+    };
     calendario.anclar(panel, fila, 'cf-1');
-    return { calendario, panel, observadores };
+    return { calendario, panel, observadores, escuchas, hijo };
 }
 
 test('el calendario volteado hacia arriba se recoloca al cambiar de mes y pasar de 5 a 6 filas', () => {
@@ -180,6 +189,29 @@ test('si no cabe ni encima ni debajo, el panel se acota al lado elegido y no mon
     const arriba = parseFloat(panel.style.top);
     assert.ok(arriba >= 8, 'no sale por arriba de la ventana');
     assert.ok(arriba + 288 <= 300 - 4, 'el borde de abajo queda por encima del campo');
+});
+
+test('al recolocar un panel acotado se conserva su scroll interno', () => {
+    const { panel, observadores } = calendarioAnclado({ altoVentana: 600, campoArriba: 300, campoAbajo: 348, altoPanel: 360, scrollTop: 40 });
+    assert.equal(panel.scrollTop, 40, 'control: al abrirse queda donde estaba');
+
+    observadores[0].llamada([]); // otro redibujado: se quita el tope para medir (el navegador reinicia el scroll) y se vuelve a poner
+
+    assert.equal(panel.style.maxHeight, '288px');
+    assert.equal(panel.scrollTop, 40);
+});
+
+test('el scroll de dentro del propio panel no lo recoloca, el del resto de la página sí', () => {
+    const { panel, escuchas, hijo } = calendarioAnclado({ altoVentana: 600, campoArriba: 300, campoAbajo: 348, altoPanel: 360 });
+    const topInicial = panel.style.top;
+    assert.equal(typeof escuchas.scroll, 'function', 'control: se escucha el scroll de la ventana');
+
+    panel.offsetHeight = 280; // si se recolocase, el borde subiría
+    escuchas.scroll({ type: 'scroll', target: hijo });
+    assert.equal(panel.style.top, topInicial, 'el scroll del panel no dispara la recolocación');
+
+    escuchas.scroll({ type: 'scroll', target: {} });
+    assert.equal(panel.style.top, (300 - 4 - 280) + 'px', 'el scroll de la página sí');
 });
 
 test('si cabe, el panel no lleva tope ni scroll propio, y vuelve a no llevarlos al encoger tras haberlos tenido', () => {
