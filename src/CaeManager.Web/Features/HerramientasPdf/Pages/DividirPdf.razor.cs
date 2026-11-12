@@ -476,9 +476,11 @@ public partial class DividirPdf : CaeManager.Web.Components.PaginaInteractiva, I
                 // (RetirarOriginal cancelaría un _vistas ya dispuesto). Lo que no consta creado se avisa en el registro.
                 var creados = creacion.EsExitoso ? creacion.Valor.Count(r => r.Estado == EstadoTramoCreado.Creado) : 0;
                 var sinCrear = creacion.EsExitoso ? creacion.Valor.Count - creados : 0;
-                Logger.Log(sinCrear > 0 || creacion.EsFallido ? LogLevel.Warning : LogLevel.Information,
-                    "Dividir PDF terminó el lote con la pantalla ya cerrada: {Creados} documentos creados y {SinCrear} sin crear o sin confirmar.",
-                    creados, sinCrear);
+                if (sinCrear > 0 || creacion.EsFallido)
+                    Logger.LogWarning("Dividir PDF terminó el lote con la pantalla ya cerrada: {Creados} documentos creados y {SinCrear} sin crear o sin confirmar.",
+                        creados, sinCrear);
+                else
+                    Logger.LogInformation("Dividir PDF terminó el lote con la pantalla ya cerrada: {Creados} documentos creados.", creados);
                 return;
             }
 

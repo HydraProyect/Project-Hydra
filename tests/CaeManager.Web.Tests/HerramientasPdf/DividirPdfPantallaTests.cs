@@ -611,7 +611,7 @@ public sealed class DividirPdfPantallaTests : BunitContext
         while (!registro.Entradas.Any(e => e.Mensaje.Contains("pantalla ya cerrada")) && DateTime.UtcNow < plazo)
             await Task.Delay(20);
         registro.Entradas.Should().ContainSingle(e => e.Nivel == LogLevel.Information
-            && e.Mensaje.Contains("pantalla ya cerrada: 1 documentos creados y 0 sin crear"));
+            && e.Mensaje.Contains("pantalla ya cerrada: 1 documentos creados."));
     }
 
     [Fact]
