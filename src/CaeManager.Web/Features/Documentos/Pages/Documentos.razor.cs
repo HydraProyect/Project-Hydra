@@ -332,7 +332,11 @@ public partial class Documentos : CaeManager.Web.Components.PaginaInteractiva, I
                 || resultado.Elementos.FirstOrDefault() is not { } actualizada)
                 return;
 
-            _elementosPagina[indice] = actualizada;
+            // Agrupada por vínculo, un Documento ocupa varias filas: se sustituyen todas y cada una conserva su grupo,
+            // que la consulta por Id no trae (sin él, la fila caería en el grupo «sin», plegado).
+            for (var i = indice; i < _elementosPagina.Count; i++)
+                if (_elementosPagina[i].Id == id)
+                    _elementosPagina[i] = actualizada with { Grupo = _elementosPagina[i].Grupo };
             _servirPaginaEnMemoria = true;
             await _grid.RefreshDataAsync();
             if (!_desechado && carga == _cargaVigente) StateHasChanged();
@@ -1409,16 +1413,19 @@ public partial class Documentos : CaeManager.Web.Components.PaginaInteractiva, I
 
         switch (tecla)
         {
+            // j/k recorren Documentos, no filas: agrupada por vínculo, un Documento repite fila y el foco no avanzaría.
             case "j":
                 {
-                    var indiceActual = _idEnfocado is null ? -1 : visibles.FindIndex(e => e.Id == _idEnfocado);
-                    _idEnfocado = visibles[Math.Min(indiceActual + 1, visibles.Count - 1)].Id;
+                    var ids = visibles.Select(e => e.Id).Distinct().ToList();
+                    var indiceActual = _idEnfocado is null ? -1 : ids.IndexOf(_idEnfocado.Value);
+                    _idEnfocado = ids[Math.Min(indiceActual + 1, ids.Count - 1)];
                     break;
                 }
             case "k":
                 {
-                    var indiceActual = _idEnfocado is null ? 0 : visibles.FindIndex(e => e.Id == _idEnfocado);
-                    _idEnfocado = visibles[Math.Max(indiceActual - 1, 0)].Id;
+                    var ids = visibles.Select(e => e.Id).Distinct().ToList();
+                    var indiceActual = _idEnfocado is null ? 0 : ids.IndexOf(_idEnfocado.Value);
+                    _idEnfocado = ids[Math.Max(indiceActual - 1, 0)];
                     break;
                 }
             case "x":
