@@ -14,10 +14,10 @@ public class SolicitudAltaTests
     /// </summary>
     [Theory]
     [InlineData("B12345674", "B12345674")]
-    [InlineData("b 12345674", "B12345674")]
-    [InlineData("B 12.345.674", "B12345674")]
-    [InlineData("　b-12345674\t", "B12345674")]
-    [InlineData("1234567 l", "01234567L")]
+    [InlineData("b\u00A012345674", "B12345674")]
+    [InlineData("B\u200712.345.674", "B12345674")]
+    [InlineData("\u3000b-12345674\t", "B12345674")]
+    [InlineData("1234567\u00A0l", "01234567L")]
     [InlineData("x1234567l", "X1234567L")]
     public void El_CIF_normalizado_que_se_compara_en_la_base_es_ASCII_alfanumerico_en_mayusculas(string escrito, string esperado)
     {
@@ -28,9 +28,9 @@ public class SolicitudAltaTests
     }
 
     [Theory]
-    [InlineData("B１２３４５６７４")]
-    [InlineData("Ｂ12345674")]
-    [InlineData("B12345674​")]
+    [InlineData("B\uFF11\uFF12\uFF13\uFF14\uFF15\uFF16\uFF17\uFF14")]
+    [InlineData("\uFF2212345674")]
+    [InlineData("B12345674\u200B")]
     public void Un_CIF_con_caracteres_que_no_son_ASCII_no_se_acepta(string escrito)
     {
         var accion = () => SolicitudAlta.NormalizarCifNif(escrito);
@@ -386,7 +386,7 @@ public class SolicitudAltaTests
 
     [Theory]
     [InlineData("B12345675")]
-    [InlineData("B١٢٣4٥674")]
+    [InlineData("B\u0661\u0662\u06634\u0665674")]
     [InlineData("12345678A")]
     [InlineData("ABC123456")]
     [InlineData("")]

@@ -338,8 +338,8 @@ public class RegistroAltaBajoRuntimeTests : IAsyncLifetime
     [InlineData(" 1234567l", "01234567L")]
     [InlineData("1234567-L", "01234567L")]
     [InlineData("1.234567L", "01234567L")]
-    [InlineData("1234567 L", "01234567L")]
-    [InlineData(" 1234567L", "01234567L")]
+    [InlineData("1234567\u00A0L", "01234567L")]
+    [InlineData("\u00A01234567L", "01234567L")]
     public async Task El_CIF_de_la_Empresa_propia_de_un_Tenant_sin_fila_de_CIF_propietario_deriva_a_acceso(string guardado, string enviado)
     {
         var tenant = await TenantConEmpresaAsync(enviado, esPropia: true);

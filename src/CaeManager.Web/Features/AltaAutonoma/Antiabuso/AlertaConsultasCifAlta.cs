@@ -37,8 +37,11 @@ public sealed class AlertaConsultasCifAlta : IDisposable
     private readonly PartitionedRateLimiter<string> _contador;
     private readonly ILogger<AlertaConsultasCifAlta> _logger;
 
+    /// <summary>Ventana de la alerta en producción: 24 horas.</summary>
+    public static readonly TimeSpan VentanaPorDefecto = TimeSpan.FromDays(1);
+
     public AlertaConsultasCifAlta(ILogger<AlertaConsultasCifAlta> logger)
-        : this(logger, TimeSpan.FromDays(1))
+        : this(logger, VentanaPorDefecto)
     {
     }
 

@@ -141,9 +141,12 @@ public class ServicioRegistroAltaTests
     [InlineData(null, "la-buena")]
     [InlineData("corto", "la-buena")]
     [InlineData("corto", null)]
+    [InlineData("largo", "la-buena")]
     public async Task Un_token_mal_formado_paga_una_comparacion_ficticia(string? token, string? contrasena)
     {
         var (servicio, _, _, contrasenas) = CrearConContrasenas();
+        if (token == "largo")
+            token = new string('t', 129);
 
         await servicio.VerificarCorreoAsync(token, contrasena, CancellationToken.None);
 

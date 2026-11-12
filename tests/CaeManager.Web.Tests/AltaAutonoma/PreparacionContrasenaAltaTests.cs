@@ -75,6 +75,20 @@ public class PreparacionContrasenaAltaTests
         hasher.Verificaciones.Should().Be(2, "cada rechazo paga un PBKDF2, también con la contraseña vacía");
         hasher.Resultados.Should().OnlyContain(r => r == PasswordVerificationResult.Failed,
             "el hash ficticio es un hash válido del hasher (no lanza FormatException ni sale antes) y no casa con nada");
+
+        // Coste equivalente: el hash ficticio es un hash V3 de Identity con las iteraciones vigentes. Una constante
+        // truncada o de otra versión también daría Failed, pero sin pagar el PBKDF2.
+        hasher.HashesVerificados.Should().OnlyContain(h => EsHashV3ConIteraciones(h, new PasswordHasherOptions().IterationCount));
+    }
+
+    /// <summary>Formato V3 de <see cref="PasswordHasher{TUser}"/>: 0x01, PRF, iteraciones y longitud de sal en big-endian.</summary>
+    private static bool EsHashV3ConIteraciones(string hash, int iteraciones)
+    {
+        var bytes = Convert.FromBase64String(hash);
+        if (bytes.Length < 13 + 16 + 32 || bytes[0] != 0x01)
+            return false;
+        var leidas = (bytes[5] << 24) | (bytes[6] << 16) | (bytes[7] << 8) | bytes[8];
+        return leidas == iteraciones;
     }
 
     private static PreparacionContrasenaAlta Crear(IPasswordHasher<ApplicationUser>? hasher = null) => new(new UserManager<ApplicationUser>(
@@ -89,12 +103,14 @@ public class PreparacionContrasenaAltaTests
 
         public int Verificaciones { get; private set; }
         public List<PasswordVerificationResult> Resultados { get; } = [];
+        public List<string> HashesVerificados { get; } = [];
 
         public string HashPassword(ApplicationUser user, string password) => _real.HashPassword(user, password);
 
         public PasswordVerificationResult VerifyHashedPassword(ApplicationUser user, string hashedPassword, string providedPassword)
         {
             Verificaciones++;
+            HashesVerificados.Add(hashedPassword);
             var resultado = _real.VerifyHashedPassword(user, hashedPassword, providedPassword);
             Resultados.Add(resultado);
             return resultado;

@@ -30,6 +30,25 @@ public class AlertaConsultasCifAltaTests
     }
 
     [Fact]
+    public async Task Pasada_la_ventana_las_consultas_anteriores_dejan_de_contar()
+    {
+        using var alerta = new AlertaConsultasCifAlta(_registro, TimeSpan.FromMilliseconds(240));
+
+        for (var i = 0; i < AlertaConsultasCifAlta.Umbral; i++)
+            alerta.Registrar("B12345674");
+        await Task.Delay(TimeSpan.FromSeconds(1));
+        alerta.Registrar("B12345674");
+
+        _registro.Entradas.Should().BeEmpty("las tres consultas de antes quedaron fuera de la ventana");
+    }
+
+    [Fact]
+    public void La_ventana_por_defecto_es_de_un_dia()
+    {
+        AlertaConsultasCifAlta.VentanaPorDefecto.Should().Be(TimeSpan.FromDays(1));
+    }
+
+    [Fact]
     public void Cada_CIF_cuenta_por_separado()
     {
         using var alerta = new AlertaConsultasCifAlta(_registro);
