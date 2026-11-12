@@ -17,7 +17,7 @@ public class ResumenCierreConversacionTests : BunitContext
 
     [Theory]
     [InlineData(EstadoConversacion.Abierta, "Revisar el hilo")]
-    [InlineData(EstadoConversacion.EsperandoRespuestaExterna, "Recibir la respuesta del Cliente")]
+    [InlineData(EstadoConversacion.EsperandoRespuestaExterna, "Recibir la respuesta del Interlocutor")]
     [InlineData(EstadoConversacion.EnEsperaDeTercero, "Recibir la respuesta del tercero")]
     [InlineData(EstadoConversacion.Resuelta, "No quedan acciones de cierre")]
     [InlineData(EstadoConversacion.Cerrada, "No quedan acciones de cierre")]
