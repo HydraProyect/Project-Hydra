@@ -744,7 +744,8 @@ public class GestionesAutomaticasBajoRlsTests : IAsyncLifetime
 
     /// <summary>
     /// El repositorio real con otra escritura confirmada en otra sesión justo antes (<paramref name="antes"/>) o justo
-    /// después (<paramref name="despues"/>) de bloquear el Documento: tras las guardas de «no lo pide» y antes de su guardado.
+    /// después (<paramref name="despues"/>) de bloquear el Documento: tras las guardas de «no lo pide» y su guardado (el
+    /// UPDATE de la acreditación ya enviado) y antes de confirmar, el orden real del comando.
     /// </summary>
     private sealed class OtraSesionAlBloquearElDocumento(DocumentoRepository interno, Func<Task>? antes = null, Func<Task>? despues = null)
         : IDocumentoRepository
