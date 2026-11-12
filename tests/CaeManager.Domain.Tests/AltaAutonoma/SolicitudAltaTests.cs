@@ -24,7 +24,7 @@ public class SolicitudAltaTests
         var normalizado = SolicitudAlta.NormalizarCifNif(escrito);
 
         normalizado.Should().Be(esperado).And.MatchRegex("^[0-9A-Z]+$");
-        normalizado.Should().OnlyContain(c => c < 128);
+        normalizado.All(char.IsAscii).Should().BeTrue();
     }
 
     [Theory]
