@@ -488,6 +488,33 @@ public class GestionesAutomaticasBajoRlsTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task Con_el_Documento_ya_rastreado_por_el_circuito_una_renovacion_de_otra_sesion_hace_que_no_lo_pide_lo_vea_en_el_historial()
+    {
+        // Hallazgo 4 (33b156b78): el contexto del circuito vive toda la visita y ya tiene el Documento rastreado de cuando
+        // se abrió la ventana. Una lectura rastreada devolvería esa instancia vieja, todavía operativa, y como «no lo pide»
+        // no escribe el Documento ningún token pararía la marca sobre el historial. La guarda debe releerlo de la base.
+        var propia = await NacerComoPropietarioAsync(_tenantSesion, _propio.Documento);
+        await using var circuito = CrearRuntime();
+        var vista = (await DetalleAsync(circuito, propia, new SinNotaInterna()))!.Pasos.Single().VersionAcreditacion;
+        var rastreado = await circuito.Documentos.SingleAsync(d => d.Id == _propio.Documento);
+
+        await using (var renovacion = CrearRuntime())
+            await RenovacionConArchivoAsync(renovacion, await renovacion.Documentos.SingleAsync(d => d.Id == _propio.Documento), _propio.Canal);
+
+        DocumentoOperativo.Es(rastreado).Should().BeTrue(
+            "precondición del instrumento: la instancia que rastrea el circuito sigue vieja, sin la sustitución de la otra sesión");
+        (await NoPide(circuito).Handle(new MarcarAcreditacionNoRequeridaCommand(_propio.Acreditacion, vista), CancellationToken.None))
+            .Error.Codigo.Should().Be("Documento.EnHistorial");
+
+        using (AmbitoTenantExplicito.Establecer(_tenantSesion))
+        {
+            var fila = await _propietario.AcreditacionesDocumentoPlataforma.AsNoTracking().SingleAsync(a => a.Id == _propio.Acreditacion);
+            fila.Version.Should().Be(vista, "control del instrumento: la versión no se movió, así que solo la guarda del historial para");
+            fila.Estado.Should().Be(EstadoAcreditacion.PendienteDeSubir, "la acreditación del historial no cambia");
+        }
+    }
+
+    [Fact]
     public async Task Un_no_lo_pide_confirmado_entre_la_lectura_y_el_guardado_de_la_correccion_la_para_con_un_conflicto()
     {
         // La carrera inversa del ALTO de Codex r2: la corrección ya leyó la acreditación (Pendiente de subir, sin vigencia)
