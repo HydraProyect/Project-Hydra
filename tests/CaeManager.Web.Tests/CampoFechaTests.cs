@@ -551,6 +551,22 @@ public class CampoFechaTests : BunitContext
     }
 
     [Fact]
+    public void Con_NoValidoPrevio_en_true_y_Valor_no_nulo_el_campo_nace_sin_aviso_y_retira_la_marca()
+    {
+        // Safari sin blur: el padre conserva la fecha antigua mientras la marca esta activa. Lo visible es la fecha
+        // del Valor (la que se guardaria), asi que no hay aviso y la marca se retira.
+        var noValido = new List<bool>();
+        var cut = Render<CampoFecha>(p => p
+            .Add(c => c.Valor, (DateOnly?)new DateOnly(2030, 1, 2))
+            .Add(c => c.NoValidoPrevio, true)
+            .Add(c => c.NoValidoChanged, v => noValido.Add(v)));
+
+        noValido.Should().Equal(false);
+        cut.FindAll(".campo-mensaje-error").Should().BeEmpty();
+        cut.Find("input").GetAttribute("value").Should().Be("02/01/2030");
+    }
+
+    [Fact]
     public void Con_NoValidoPrevio_en_true_un_cambio_de_Valor_del_padre_retira_la_marca()
     {
         var noValido = new List<bool>();

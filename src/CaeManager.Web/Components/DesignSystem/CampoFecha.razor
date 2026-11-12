@@ -13,7 +13,9 @@
     no mientras se escribe, y se notifica como null (lo que daba el campo nativo) para que el formulario no guarde la
     anterior creyendo que sigue en pantalla. Solo el campo vacío de verdad (borrado a mano) es «sin fecha».
     NoValidoChanged avisa en cada cambio de estado, también antes de salir del campo: todo formulario que guarde lo
-    consume y bloquea el envío mientras sea true.
+    consume y bloquea el envío mientras sea true. Salvo con NoValidoPrevio: el campo que el padre recrea (cambio de tramo,
+    fila plegada) nace con la marca del padre, muestra el aviso y no avisa de su estado inicial, para no borrar la marca
+    que el padre conserva; NoValidoPrevio null (los demás consumidores) mantiene el aviso al crearse.
 *@
 @* Con el calendario abierto, Escape lo cierra a él y no al Drawer o Modal que lo contiene (mismo criterio que
    CampoSelectAvanzado). *@
