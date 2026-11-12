@@ -61,6 +61,26 @@ internal sealed class GrabacionDeTraza(TramosDeTraza tramos, OperacionesDeTraza 
         }
     }
 
+    /// <summary>
+    /// Un inicio de sesión sin grabarlo (lo usa <c>Ayudas.IniciarSesionAsync</c>, con todo lo que toca el formulario de
+    /// acceso dentro de <paramref name="iniciarSesion"/>): deja de grabar antes y vuelve a grabar cuando acaba. Si el
+    /// inicio de sesión lanza, la excepción se propaga y no se vuelve a grabar: la página puede seguir en el formulario
+    /// con la contraseña tecleada, y el test que falla así es justo el que publica su traza. Sin traza armada en el
+    /// contexto (<paramref name="grabacion"/> nula) solo inicia sesión.
+    /// </summary>
+    public static async Task IniciarSesionSinGrabarAsync(GrabacionDeTraza? grabacion, Func<Task> iniciarSesion)
+    {
+        if (grabacion is null)
+        {
+            await iniciarSesion();
+            return;
+        }
+
+        await grabacion.PausarAsync();
+        await iniciarSesion();
+        await grabacion.ReanudarAsync();
+    }
+
     /// <summary>Al liberar el contexto: detiene la traza y publica o borra sus tramos (ver <see cref="TramosDeTraza"/>).</summary>
     public async Task TerminarAsync()
     {

@@ -926,25 +926,27 @@ public static class Ayudas
                 $"Ninguna fixture sirve la URL base «{baseUrl}»: no se puede olvidar la vista recordada de la cuenta antes de entrar.");
         await fixture.OlvidarVistasRecordadasAsync(email);
 
-        // La traza de un test fallido no graba el formulario de acceso ni lo que se teclea en él (ver TrazaAlFallar).
-        await TrazaAlFallar.PausarParaIniciarSesionAsync(page.Context);
-        await page.GotoAsync($"{baseUrl}/cuenta/iniciar-sesion");
-        await page.FillAsync("#email", email);
-        await page.FillAsync("#password", password);
-        await page.ClickAsync("button[type=\"submit\"]");
-        await EsperarCargaAsync(page, LoadState.NetworkIdle);
-
-        // Solo el Administrador inicial tiene 2FA activo hoy (P1-13 de
-        // Project-Hydra-Negocio/MATURITY_REVIEW.md) — el resto de cuentas de prueba
-        // pasan de largo por esta rama y siguen directas al dashboard.
-        if (page.Url.Contains("/cuenta/verificar-2fa"))
+        // La traza de un test fallido no graba el formulario de acceso ni lo que se teclea en él (ver TrazaAlFallar):
+        // todo lo que toca el formulario va dentro del delegado (lo comprueba GrabacionDeTrazaTests en CaeManager.Web.Tests).
+        await TrazaAlFallar.IniciarSesionSinGrabarAsync(page.Context, async () =>
         {
-            await page.FillAsync("#codigo", await SiguienteCodigoTotpAsync(baseUrl, email));
+            await page.GotoAsync($"{baseUrl}/cuenta/iniciar-sesion");
+            await page.FillAsync("#email", email);
+            await page.FillAsync("#password", password);
             await page.ClickAsync("button[type=\"submit\"]");
-        }
+            await EsperarCargaAsync(page, LoadState.NetworkIdle);
 
-        await page.Locator(".nav-principal").WaitForAsync(new LocatorWaitForOptions { Timeout = 30_000 });
-        await TrazaAlFallar.ReanudarTrasIniciarSesionAsync(page.Context);
+            // Solo el Administrador inicial tiene 2FA activo hoy (P1-13 de
+            // Project-Hydra-Negocio/MATURITY_REVIEW.md) — el resto de cuentas de prueba
+            // pasan de largo por esta rama y siguen directas al dashboard.
+            if (page.Url.Contains("/cuenta/verificar-2fa"))
+            {
+                await page.FillAsync("#codigo", await SiguienteCodigoTotpAsync(baseUrl, email));
+                await page.ClickAsync("button[type=\"submit\"]");
+            }
+
+            await page.Locator(".nav-principal").WaitForAsync(new LocatorWaitForOptions { Timeout = 30_000 });
+        });
     }
 
     /// <summary>

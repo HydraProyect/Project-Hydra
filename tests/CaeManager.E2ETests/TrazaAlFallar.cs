@@ -79,15 +79,14 @@ public sealed class TrazaAlFallar : IAsyncDisposable
     public void Superada() => _grabacion.Superada();
 
     /// <summary>
-    /// Al empezar un inicio de sesión: si el contexto ya estaba grabando, el tramo grabado hasta aquí se guarda aparte
-    /// (se borra si el test acaba superado) y se deja de grabar hasta <see cref="ReanudarTrasIniciarSesionAsync"/>.
+    /// Un inicio de sesión en <paramref name="contexto"/> sin grabarlo (ver <see cref="GrabacionDeTraza.IniciarSesionSinGrabarAsync"/>):
+    /// si el contexto ya estaba grabando, el tramo grabado hasta aquí se guarda aparte (se borra si el test acaba
+    /// superado), no se graba <paramref name="iniciarSesion"/> y la grabación empieza (o sigue, en un tramo nuevo) cuando
+    /// acaba bien.
     /// </summary>
-    internal static Task PausarParaIniciarSesionAsync(IBrowserContext contexto) =>
-        Armadas.TryGetValue(contexto, out var traza) ? traza._grabacion.PausarAsync() : Task.CompletedTask;
-
-    /// <summary>Al acabar un inicio de sesión: la grabación empieza (o sigue, en un tramo nuevo) a partir de aquí.</summary>
-    internal static Task ReanudarTrasIniciarSesionAsync(IBrowserContext contexto) =>
-        Armadas.TryGetValue(contexto, out var traza) ? traza._grabacion.ReanudarAsync() : Task.CompletedTask;
+    internal static Task IniciarSesionSinGrabarAsync(IBrowserContext contexto, Func<Task> iniciarSesion) =>
+        GrabacionDeTraza.IniciarSesionSinGrabarAsync(
+            Armadas.TryGetValue(contexto, out var traza) ? traza._grabacion : null, iniciarSesion);
 
     /// <summary>Ruta en la que se publica la traza de un test fallido.</summary>
     public static string Directorio() => Path.Combine(DirectorioDelProyecto(), "TestResults", "trazas-playwright");

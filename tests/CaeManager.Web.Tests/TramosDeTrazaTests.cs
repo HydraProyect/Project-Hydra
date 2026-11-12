@@ -208,11 +208,111 @@ public sealed class GrabacionDeTrazaTests : IDisposable
 
     private string[] Publicados() => Directory.Exists(Publicado) ? Directory.GetFiles(Publicado) : [];
 
-    private async Task IniciarSesion(GrabacionDeTraza grabacion)
+    // Como Ayudas.IniciarSesionAsync: lo tecleado en el formulario de acceso va dentro del delegado.
+    private Task IniciarSesion(GrabacionDeTraza grabacion) =>
+        GrabacionDeTraza.IniciarSesionSinGrabarAsync(grabacion, () =>
+        {
+            _traza.Teclear(Acceso);
+            return Task.CompletedTask;
+        });
+
+    [Fact]
+    public async Task El_inicio_de_sesion_corta_la_grabacion_antes_y_la_reanuda_al_acabar()
     {
-        await grabacion.PausarAsync();
-        _traza.Teclear(Acceso);
-        await grabacion.ReanudarAsync();
+        var grabacion = Nueva();
+        await IniciarSesion(grabacion);
+        _traza.Teclear("accion-1");
+        var grabandoDuranteElAcceso = (bool?)null;
+
+        await GrabacionDeTraza.IniciarSesionSinGrabarAsync(grabacion, () =>
+        {
+            grabandoDuranteElAcceso = grabacion.Grabando || _traza.EnMarcha;
+            _traza.Teclear(Acceso);
+            return Task.CompletedTask;
+        });
+
+        grabandoDuranteElAcceso.Should().BeFalse("el formulario de acceso no se graba");
+        grabacion.Grabando.Should().BeTrue("al acabar el inicio de sesión se vuelve a grabar");
+        _traza.Llamadas.Should().Equal("Empezar", "CortarTramo", "EmpezarTramo");
+    }
+
+    [Fact]
+    public async Task Si_el_inicio_de_sesion_lanza_la_excepcion_se_propaga_y_no_se_vuelve_a_grabar()
+    {
+        var grabacion = Nueva();
+        await IniciarSesion(grabacion);
+        _traza.Teclear("accion-1");
+
+        var iniciar = () => GrabacionDeTraza.IniciarSesionSinGrabarAsync(grabacion, () =>
+        {
+            _traza.Teclear(Acceso);
+            throw new TimeoutException("el menú principal no apareció");
+        });
+
+        await iniciar.Should().ThrowExactlyAsync<TimeoutException>();
+        grabacion.Grabando.Should().BeFalse("la página puede seguir en el formulario de acceso con la contraseña tecleada");
+        _traza.Teclear("formulario-tras-el-fallo");
+        await grabacion.TerminarAsync();
+
+        _traza.Llamadas.Should().Equal("Empezar", "CortarTramo", "DetenerDescartando");
+        var publicados = Publicados().Select(File.ReadAllText).ToArray();
+        publicados.Should().ContainSingle().Which.Should().Contain("accion-1");
+        publicados.Should().NotContain(c => c.Contains(Acceso) || c.Contains("formulario-tras-el-fallo"));
+    }
+
+    [Fact]
+    public async Task Sin_traza_armada_solo_inicia_sesion()
+    {
+        var llamadas = 0;
+
+        await GrabacionDeTraza.IniciarSesionSinGrabarAsync(null, () =>
+        {
+            llamadas++;
+            return Task.CompletedTask;
+        });
+
+        llamadas.Should().Be(1);
+        _traza.Llamadas.Should().BeEmpty();
+    }
+
+    /// <summary>
+    /// La conexión con Playwright, que no se puede ejecutar aquí: Ayudas.IniciarSesionAsync pasa por
+    /// TrazaAlFallar.IniciarSesionSinGrabarAsync, y todo lo que toca el formulario de acceso (la página de acceso, la
+    /// contraseña, el segundo factor y la espera al menú) va dentro del delegado, no antes ni después.
+    /// </summary>
+    [Fact]
+    public void Ayudas_inicia_sesion_con_todo_el_formulario_de_acceso_dentro_del_delegado_sin_grabar()
+    {
+        var fuente = File.ReadAllText(Path.Combine(RaizDelRepositorio(), "tests", "CaeManager.E2ETests", "Ayudas.cs"))
+            .Replace("\r\n", "\n");
+        var inicio = fuente.IndexOf("public static async Task IniciarSesionAsync(IPage page,", StringComparison.Ordinal);
+        inicio.Should().BeGreaterThanOrEqualTo(0);
+        var fin = fuente.IndexOf("\n    }\n", inicio, StringComparison.Ordinal);
+        fin.Should().BeGreaterThan(inicio);
+        var metodo = fuente[inicio..fin];
+
+        const string Envoltura = "await TrazaAlFallar.IniciarSesionSinGrabarAsync(page.Context, async () =>\n        {\n";
+        var apertura = metodo.IndexOf(Envoltura, StringComparison.Ordinal);
+        apertura.Should().BeGreaterThan(0, "IniciarSesionAsync tiene que pasar por la envoltura que no graba");
+        var cierre = metodo.IndexOf("\n        });", apertura, StringComparison.Ordinal);
+        cierre.Should().BeGreaterThan(apertura);
+        var antes = metodo[..apertura];
+        var delegado = metodo[apertura..cierre];
+        var despues = metodo[cierre..];
+
+        foreach (var paso in new[] { "/cuenta/iniciar-sesion", "\"#email\"", "\"#password\"", "\"#codigo\"", ".nav-principal" })
+            delegado.Should().Contain(paso, "el paso del formulario de acceso no se graba");
+        (antes + despues).Should().NotContain("page.", "nada de la página se toca fuera del delegado que no se graba")
+            .And.NotContain("PausarAsync").And.NotContain("ReanudarAsync");
+    }
+
+    private static string RaizDelRepositorio()
+    {
+        var dir = AppContext.BaseDirectory;
+        while (dir is not null && !File.Exists(Path.Combine(dir, "CaeManager.slnx")))
+            dir = Path.GetDirectoryName(dir);
+        dir.Should().NotBeNull("se necesita la raíz del repositorio para leer Ayudas.cs");
+        return dir!;
     }
 
     [Fact]
@@ -342,6 +442,7 @@ public sealed class GrabacionDeTrazaTests : IDisposable
         private bool _enMarcha;
 
         public List<string> Llamadas { get; } = [];
+        public bool EnMarcha => _enMarcha;
         public bool FallarCorte { get; set; }
         public bool FallarEmpezar { get; set; }
         public bool FallarDescartar { get; set; }

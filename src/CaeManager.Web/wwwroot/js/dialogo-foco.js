@@ -56,15 +56,21 @@ function dialogoExteriorAbierto(contenedor) {
     return null;
 }
 
+// Los elementos enfocables y visibles de un contenedor, en orden del documento.
+function enfocablesDe(contenedor) {
+    return Array.from(contenedor.querySelectorAll(SELECTOR_ENFOCABLE)).filter(el => el.offsetParent !== null);
+}
+
 // Quien tenía el foco antes de que entrara en el diálogo: el elemento activo si sigue fuera; si ya está dentro (o es
 // el propio contenedor), el último elemento de fuera que tuvo el foco y sigue en el documento (o el body, que como
 // antes no recibe el foco de vuelta). En un diálogo abierto desde otro, ese es el botón del diálogo de fuera que lo abrió,
 // y la búsqueda no sale de ese diálogo exterior: si el abridor ya no existe, el foco vuelve a su contenedor, no a un
-// elemento que quedó detrás de él.
+// elemento que quedó detrás de él. Lo mismo si el elemento activo está fuera del diálogo pero tampoco dentro del exterior
+// (el abridor se retiró y el foco cayó en el body, o pasó a algo de detrás del diálogo exterior): no vale como previo.
 function elementoPrevioAlDialogo(contenedor) {
     const activo = document.activeElement;
-    if (!contenedor.contains(activo)) return activo;
     const exterior = dialogoExteriorAbierto(contenedor);
+    if (!contenedor.contains(activo) && (!exterior || exterior.contains(activo))) return activo;
     const historial = document[CLAVE_HISTORIAL_FOCO] ?? [];
     for (let i = historial.length - 1; i >= 0; i--) {
         const candidato = historial[i];
@@ -84,8 +90,7 @@ export function atraparFoco(contenedor, devolverFila = false) {
     for (let i = pila.length - 1; i >= 0; i--) if (!document.contains(pila[i])) pila.splice(i, 1);
     pila.push(contenedor);
 
-    const enfocables = () => Array.from(contenedor.querySelectorAll(SELECTOR_ENFOCABLE))
-        .filter(el => el.offsetParent !== null);
+    const enfocables = () => enfocablesDe(contenedor);
 
     // El primer elemento enfocable real (p. ej. el primer campo del
     // formulario) si existe; si el diálogo no tiene ninguno (solo texto y el
@@ -147,8 +152,15 @@ export function atraparFoco(contenedor, devolverFila = false) {
             if (fila && (!previoVigente || fila.contains(elementoPrevio))) {
                 if (!fila.hasAttribute('tabindex')) fila.tabIndex = -1;
                 fila.focus({ preventScroll: true });
-            } else if (elementoPrevio instanceof HTMLElement && document.contains(elementoPrevio))
+            } else if (elementoPrevio instanceof HTMLElement && document.contains(elementoPrevio)) {
                 elementoPrevio.focus();
+            } else {
+                // El elemento previo desapareció mientras este diálogo seguía abierto (p. ej. se repintó el diálogo
+                // exterior que contenía su abridor): el foco vuelve al diálogo modal exterior que sigue abierto, a su
+                // primer enfocable o, si no tiene, a su contenedor, y no se queda detrás de él.
+                const exterior = dialogoExteriorAbierto(contenedor);
+                if (exterior) (enfocablesDe(exterior)[0] ?? exterior).focus();
+            }
         }
     };
 }

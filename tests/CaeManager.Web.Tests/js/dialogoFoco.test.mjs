@@ -277,6 +277,71 @@ test('con tres diálogos anidados, el foco vuelve al inmediatamente exterior, no
     trampaDentro.dispose();
 });
 
+// Exterior abierto con el foco en su primer campo y un interior modal dentro de él, todavía sin trampa.
+function exteriorConInteriorPorAbrir(escenario) {
+    const { documento, abridor, dialogo, primero } = escenario;
+    abridor.focus();
+    const trampaFuera = atraparFoco(dialogo);
+    assert.equal(documento.activeElement, primero);
+    const interior = elemento('interior', documento, dialogo);
+    interior.atributos['aria-modal'] = 'true';
+    const campoInterior = elemento('campoInterior', documento, interior);
+    campoInterior.enfocable = true;
+    return { trampaFuera, interior, campoInterior };
+}
+
+function retirar(nodo) {
+    nodo.padre.hijos.splice(nodo.padre.hijos.indexOf(nodo), 1);
+    nodo.padre = null;
+}
+
+test('con el abridor interior retirado y el foco en el body al activarse la trampa interior, al cerrar vuelve al diálogo exterior', () => {
+    const escenario = escena();
+    const { documento, dialogo, primero, clicEnNoEnfocable } = escenario;
+    const { interior, campoInterior } = exteriorConInteriorPorAbrir(escenario);
+    retirar(primero);
+    clicEnNoEnfocable();
+    const trampaDentro = atraparFoco(interior);
+    assert.equal(documento.activeElement, campoInterior);
+    trampaDentro.dispose();
+    assert.equal(documento.activeElement, dialogo);
+});
+
+test('con el foco detrás del diálogo exterior al activarse la trampa interior, al cerrar vuelve dentro del exterior', () => {
+    const escenario = escena();
+    const { documento, abridor, primero } = escenario;
+    const { interior } = exteriorConInteriorPorAbrir(escenario);
+    // El foco pasa a la página de detrás del diálogo exterior antes de que la trampa interior se active.
+    abridor.focus();
+    const trampaDentro = atraparFoco(interior);
+    trampaDentro.dispose();
+    assert.equal(documento.activeElement, primero);
+});
+
+test('si el abridor interior se retira con el diálogo interior abierto, al cerrar el foco va al primer enfocable del exterior', () => {
+    const escenario = escena();
+    const { documento, primero, fecha } = escenario;
+    const { interior } = exteriorConInteriorPorAbrir(escenario);
+    const trampaDentro = atraparFoco(interior);
+    // Después de activar la trampa: el exterior se repinta sin su abridor, y el interior sale del documento al cerrarse.
+    retirar(primero);
+    retirar(interior);
+    trampaDentro.dispose();
+    assert.equal(documento.activeElement, fecha);
+});
+
+test('si el abridor interior se retira con el diálogo interior abierto y el exterior no tiene enfocables, el foco va a su contenedor', () => {
+    const escenario = escena();
+    const { documento, dialogo, primero, fecha } = escenario;
+    const { interior } = exteriorConInteriorPorAbrir(escenario);
+    const trampaDentro = atraparFoco(interior);
+    retirar(primero);
+    retirar(fecha);
+    retirar(interior);
+    trampaDentro.dispose();
+    assert.equal(documento.activeElement, dialogo);
+});
+
 test('un diálogo exterior que desapareció sin liberar su trampa no limita adónde vuelve el foco', () => {
     const { documento, cuerpo, abridor, dialogo, fecha } = escena();
     const huerfano = elemento('huerfano', documento, cuerpo);
