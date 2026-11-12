@@ -2208,6 +2208,51 @@ public class ComunicacionesGen2Tests : BunitContext
     }
 
     /// <summary>
+    /// Revisión puente de la r7 de la #2167: una plantilla que espera a una recarga del detalle no queda colgada si el Gestor CAE
+    /// vuelve a la bandeja antes de que la recarga termine. Volver abandona la carga (no llegará a su <c>finally</c> como vigente)
+    /// y libera a quien la esperaba. Detecta quitar <c>TerminarRecargaDetalle()</c> de <c>DescartarConversacionAbierta</c>: la
+    /// aplicación de la plantilla seguiría pendiente y el selector bloqueado (<c>_aplicandoMacro</c>) hasta la próxima apertura.
+    /// </summary>
+    [Fact]
+    public async Task Volver_a_la_bandeja_con_una_plantilla_esperando_a_la_recarga_la_libera_sin_aplicarla()
+    {
+        var macro = PlantillaCertificado();
+        var (escenario, primera, _) = DosConversacionesConPlantilla(macro);
+        var plantilla = Retenida();
+        var recarga = Retenida();
+        var retenerDetalle = false;
+        escenario.Interceptar = p => p switch
+        {
+            AplicarMacroCommand => plantilla.Task,
+            ObtenerConversacionPorIdQuery when Volatile.Read(ref retenerDetalle) => recarga.Task,
+            _ => null
+        };
+        var (cut, mediador) = Renderizar(escenario);
+        await SeleccionarFila(cut, "Primera conversación");
+
+        var aplicacion = cut.Find(".composer-macro-campo select").ChangeAsync(new ChangeEventArgs { Value = macro.Id.ToString() });
+        cut.WaitForAssertion(() => mediador.Enviados.OfType<AplicarMacroCommand>().Should().ContainSingle("la plantilla está en vuelo"));
+
+        Volatile.Write(ref retenerDetalle, true);
+        var detallesAntes = DetallesPedidos(mediador, primera.Id);
+        var aviso = RecibirMensajeAsync(cut, primera.Id);
+        cut.WaitForAssertion(() => DetallesPedidos(mediador, primera.Id).Should().Be(detallesAntes + 1, "control positivo: la recarga está en vuelo"));
+
+        await CompletarYProcesarAsync(cut, plantilla, Result.Exito("<p>Plantilla con los datos de Refrielectric.</p>"));
+        aplicacion.IsCompleted.Should().BeFalse("control: la plantilla espera a la recarga");
+
+        await InvocarPrivado(cut, "VolverABandejaAsync");
+        // Un tope, no una espera: sin la liberación, la aplicación no termina hasta que acabe la recarga, que sigue retenida.
+        await aplicacion.WaitAsync(TimeSpan.FromSeconds(10));
+        CampoPrivado<bool>(cut, "_aplicandoMacro").Should().BeFalse("el selector de plantillas queda libre");
+        CampoPrivado<string>(cut, "_textoRespuesta").Should().BeEmpty("la conversación ya no está abierta");
+
+        Volatile.Write(ref retenerDetalle, false);
+        await cut.InvokeAsync(() => recarga.SetResult(DetalleDe(primera)));
+        await aviso;
+    }
+
+    /// <summary>
     /// Revisión Codex r7 de la #2167, MEDIO 2: tras enviar la respuesta, el medidor cierra el tramo y el Gestor CAE abre otra
     /// conversación y empieza una nota interna. Al terminar el medidor no se recarga la abierta (desmontaría su nota interna).
     /// Detecta quitar la comprobación de la apertura tras <c>RegistrarAccionMedidaAsync</c> en <c>EnviarAsync</c>.
@@ -2349,7 +2394,9 @@ public class ComunicacionesGen2Tests : BunitContext
         var aplicar = cut.FindAll(".modal-pie button").Single(b => b.TextContent.Contains("Aplicar y registrar"));
         aplicar.HasAttribute("disabled").Should().BeTrue("«Aplicar» se bloquea: el formulario es del contexto anterior");
         aplicar.GetAttribute("title").Should().StartWith(motivo);
-        cut.Markup.Should().Contain(motivo, "el aviso está a la vista dentro del modal");
+        // El title del botón ya lleva el mismo texto: se busca el aviso como componente para que quitar Aviso= lo detecte.
+        cut.FindComponents<AvisoFormulario>().Should().Contain(a => a.Instance.Mensaje != null && a.Instance.Mensaje.StartsWith(motivo),
+            "el aviso está a la vista dentro del modal");
 
         await InvocarPrivado(cut, "AplicarActualizacionDocumentoAsync");
         mediador.Enviados.OfType<ActualizarDocumentoDesdeAdjuntoCommand>().Should().BeEmpty("aplicar por otra vía tampoco envía nada");
