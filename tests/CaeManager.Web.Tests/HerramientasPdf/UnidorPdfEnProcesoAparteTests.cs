@@ -348,25 +348,36 @@ public sealed class UnidorPdfEnProcesoAparteTests
     [Fact]
     public async Task Si_el_lanzador_no_vuelve_y_el_llamante_cancela_gana_la_entrada_retenida_y_la_herramienta_queda_desactivada()
     {
+        // El tope de siempre (500 ms) vence antes que la espera de cancelación (3 s): se decide en el acto, como sin cancelar,
+        // y la herramienta ya está desactivada cuando la inspección vuelve. Se cancela cuando el lanzador ya escribió la
+        // petición y se quedó sin volver, no a un plazo fijo: cancelar antes de tener turno sería otro caso (no se lanza nada).
         var lanzador = new LanzadorDoble(_ => Terminado(0, [])) { NoVolver = true };
-        var opciones = _opciones with { TiempoMaximoInspeccionar = TimeSpan.FromMilliseconds(50), MargenConfirmacionTerminado = TimeSpan.FromMilliseconds(50) };
+        var opciones = _opciones with { TiempoMaximoInspeccionar = TimeSpan.FromMilliseconds(50), MargenConfirmacionTerminado = TimeSpan.FromMilliseconds(450) };
         var unidor = new UnidorPdfEnProcesoAparte(opciones, _limitador, lanzador, NullLogger<UnidorPdfEnProcesoAparte>.Instance);
-        using var cancelacion = new CancellationTokenSource(TimeSpan.FromMilliseconds(20));
+        using var cancelacion = new CancellationTokenSource();
 
-        var inspeccionar = () => unidor.InspeccionarAsync(PdfA, cancelacion.Token).WaitAsync(TimeSpan.FromSeconds(10));
+        var inspeccion = unidor.InspeccionarAsync(PdfA, cancelacion.Token);
+        await lanzador.EnEspera.Task.WaitAsync(TimeSpan.FromSeconds(10));
+        await cancelacion.CancelAsync();
+        var inspeccionar = () => inspeccion.WaitAsync(TimeSpan.FromSeconds(10));
 
         await inspeccionar.Should().ThrowAsync<EntradaPdfRetenidaException>();
         _limitador.Libres.Should().Be(0);
-        _limitador.Degradado.Should().BeTrue();
+        _limitador.Degradado.Should().BeTrue("vencido el tope, la decisión no se difiere aunque el llamante cancelara");
     }
 
     [Fact]
     public async Task Si_el_llamante_cancela_la_cancelacion_sigue_y_el_turno_se_suelta()
     {
+        // Se cancela con el lanzador ya esperando: con un plazo fijo, la cancelación podía llegar antes de escribir la petición,
+        // y el doble no confirma la muerte en ese tramo.
         var lanzador = new LanzadorDoble(_ => Terminado(0, [])) { Esperar = true };
-        using var cancelacion = new CancellationTokenSource(TimeSpan.FromMilliseconds(50));
+        using var cancelacion = new CancellationTokenSource();
 
-        var inspeccionar = () => Unidor(lanzador).InspeccionarAsync(PdfA, cancelacion.Token);
+        var inspeccion = Unidor(lanzador).InspeccionarAsync(PdfA, cancelacion.Token);
+        await lanzador.EnEspera.Task.WaitAsync(TimeSpan.FromSeconds(10));
+        await cancelacion.CancelAsync();
+        var inspeccionar = () => inspeccion;
 
         await inspeccionar.Should().ThrowAsync<OperationCanceledException>();
         _limitador.Libres.Should().Be(1);
@@ -472,6 +483,10 @@ public sealed class UnidorPdfEnProcesoAparteTests
         public bool NoVolver { get; init; }
         public bool SinConfirmar { get; init; }
         public ManualResetEventSlim? Bloqueo { get; init; }
+
+        /// <summary>Con <see cref="Esperar"/> o <see cref="NoVolver"/>: la petición ya está escrita y el doble se queda esperando.</summary>
+        public TaskCompletionSource EnEspera { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
         public int Llamadas { get; private set; }
         public byte[]? Entrada { get; private set; }
         public TimeSpan Tiempo { get; private set; }
@@ -489,6 +504,8 @@ public sealed class UnidorPdfEnProcesoAparteTests
             using var entrada = new MemoryStream();
             await escribirEntrada(entrada, cancellationToken);
             Entrada = entrada.ToArray();
+            if (Esperar || NoVolver)
+                EnEspera.TrySetResult();
             if (Esperar)
             {
                 try

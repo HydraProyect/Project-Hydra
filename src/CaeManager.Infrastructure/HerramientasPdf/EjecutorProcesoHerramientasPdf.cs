@@ -102,17 +102,25 @@ internal sealed class EjecutorProcesoHerramientasPdf
         // scope. Sin lanzar: lo que decide es el seguimiento, no el tipo de excepción.
         var tope = tiempoMaximo + _opciones.MargenConfirmacionTerminado;
         var inicioEspera = Stopwatch.GetTimestamp();
+        Task espera;
         using (var alCancelar = new CancellationTokenSource())
         using (cancellationToken.Register(() => alCancelar.CancelAfter(_opciones.EsperaConfirmacionAlCancelar)))
         {
-            await ((Task)ejecucion.WaitAsync(tope, alCancelar.Token))
-                .ConfigureAwait(ConfigureAwaitOptions.SuppressThrowing);
+            espera = ejecucion.WaitAsync(tope, alCancelar.Token);
+            await espera.ConfigureAwait(ConfigureAwaitOptions.SuppressThrowing);
         }
 
-        // Si lo que venció fue el tope de siempre, y no la espera de cancelación, se decide ya, como sin cancelar.
-        var restante = tope - Stopwatch.GetElapsedTime(inicioEspera);
-        if (!ejecucion.IsCompleted && cancellationToken.IsCancellationRequested && restante > TimeSpan.Zero)
+        // Si lo que venció fue el tope de siempre, y no la espera de cancelación, se decide ya, como sin cancelar. Lo dice la
+        // propia espera, no un reloj: vencido el tope acaba con TimeoutException, y vencida la espera de cancelación acaba
+        // cancelada (con la ejecución sin volver, esa cancelación solo puede ser la suya). Medirlo con Stopwatch no sirve: el
+        // temporizador de WaitAsync cuenta con un reloj de grano más grueso que Stopwatch y puede vencer el tope un poco antes
+        // de que Stopwatch lo dé por pasado; entonces se difería una decisión que tocaba ya (#2188).
+        if (!ejecucion.IsCompleted && espera.IsCanceled)
         {
+            var restante = tope - Stopwatch.GetElapsedTime(inicioEspera);
+            if (restante < TimeSpan.Zero)
+                restante = TimeSpan.Zero;
+
             // Cancelada y sin confirmar aún: quien llama no espera más (el scope del circuito se va a disponer) y retiene su
             // reserva, porque la escritura del lanzador quizá sigue con los PDF. El turno no se decide aquí: se suelta si el
             // lanzador acaba confirmando la muerte del hijo antes de que venza el tope de siempre, y si no, se degrada como siempre.
