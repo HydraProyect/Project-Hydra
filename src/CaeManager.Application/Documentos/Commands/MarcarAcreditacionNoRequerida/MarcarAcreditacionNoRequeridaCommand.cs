@@ -43,8 +43,8 @@ namespace CaeManager.Application.Documentos.Commands.MarcarAcreditacionNoRequeri
 /// <para>
 /// La acreditación de un Documento que ya es historial (sustituido) no se marca: falla con
 /// <see cref="DocumentoEnHistorial"/>. El Documento no se escribe y su versión no protege el guardado, así que la guarda se
-/// repite, dentro de la misma transacción y con la fila del Documento bloqueada, después de guardar y antes de confirmar:
-/// una sustitución confirmada entre medias deshace la marca en vez de dejarla sobre el historial.
+/// repite justo antes de guardar, dentro de la misma transacción y con la fila del Documento bloqueada hasta confirmar:
+/// una sustitución confirmada entre medias la para, y una posterior espera a que esta transacción termine.
 /// </para>
 /// </summary>
 public record MarcarAcreditacionNoRequeridaCommand(Guid AcreditacionId, Guid VersionEsperada) : ICommand;
@@ -70,8 +70,8 @@ public class MarcarAcreditacionNoRequeridaCommandHandler(
         "Este paso ha cambiado desde que abriste la Gestión. Revisa cómo está ahora antes de marcarlo.");
 
     /// <summary>
-    /// En una transacción: la marca ya guardada se deshace si la comprobación final del historial falla (ver
-    /// <see cref="MarcarAsync"/>). Todo se lee dentro, porque la estrategia de reintentos puede repetir la operación.
+    /// En una transacción, que sostiene el bloqueo del Documento de la comprobación final del historial hasta confirmar
+    /// (ver <see cref="MarcarAsync"/>). Todo se lee dentro, porque la estrategia de reintentos puede repetir la operación.
     /// </summary>
     public Task<Result> Handle(MarcarAcreditacionNoRequeridaCommand request, CancellationToken cancellationToken) =>
         transaccion.EjecutarAsync(ct => MarcarAsync(request, ct), cancellationToken);
@@ -106,19 +106,20 @@ public class MarcarAcreditacionNoRequeridaCommandHandler(
         if (acreditacion.Version != request.VersionEsperada)
             return Result.Fallo(CambiadaDesdeQueSeAbrio);
 
-        acreditacion.MarcarNoRequerida();
-        await unitOfWork.SaveChangesAsync(cancellationToken);
-
         // Este comando no escribe el Documento, así que su versión no entra en el guardado y ningún token pararía una
-        // sustitución confirmada por otra sesión entre la guarda de arriba y aquí (revisión Codex r3 de la PR #2172,
-        // hallazgo 1). Antes de confirmar se vuelve a decidir con la fila bloqueada: lo que se lee es lo último confirmado,
-        // y una sustitución que llegue después espera a que esta transacción termine, con la marca ya hecha sobre un
-        // Documento que era el vigente. Si ya no lo es, el fallo deshace la marca guardada. Va tras el guardado, y no antes,
-        // para que la comprobación cubra también lo confirmado mientras se guardaba.
+        // sustitución confirmada por otra sesión entre la guarda de arriba y el guardado (revisión Codex r3 de la PR #2172,
+        // hallazgo 1). Antes de guardar se vuelve a decidir con la fila del Documento bloqueada hasta el final de la
+        // transacción: lo que se lee es lo último confirmado, y una sustitución que llegue después espera a que esta
+        // termine, con la marca hecha sobre un Documento que era el vigente. El bloqueo va antes del UPDATE de la
+        // acreditación para tomar las filas en el mismo orden que la corrección del Documento (Documento y después sus
+        // acreditaciones) y no abrir un interbloqueo con ella (revisión puente sobre 875157cdb, hallazgo 2).
         var bloqueado = await documentoRepositorio.BloquearYObtenerIncluidoEliminadoSinRastrearAsync(
             acreditacion.DocumentoId, acreditacion.TenantId, cancellationToken);
         if (EnHistorialONoEncontrado(bloqueado) is { } sustituido)
             return Result.Fallo(sustituido);
+
+        acreditacion.MarcarNoRequerida();
+        await unitOfWork.SaveChangesAsync(cancellationToken);
 
         return Result.Exito();
     }

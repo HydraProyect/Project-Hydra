@@ -180,41 +180,62 @@ public class MarcarAcreditacionNoRequeridaCommandHandlerTests
     }
 
     [Fact]
-    public async Task Una_sustitucion_confirmada_entre_la_guarda_y_el_guardado_hace_fallar_con_el_historial_y_deshace_la_marca()
+    public async Task Una_sustitucion_confirmada_entre_la_guarda_y_el_guardado_hace_fallar_con_el_historial_sin_guardar()
     {
         // Codex r3 (MEDIO) sobre f83535b9e: la guarda vio el Documento operativo y otra sesión lo sustituye antes del
         // guardado. «No lo pide» no escribe el Documento, así que ningún token lo para en el guardado: sin la comprobación
-        // final, bajo el bloqueo y dentro de la transacción, respondía éxito con la marca sobre el historial.
+        // final con la fila bloqueada, respondía éxito con la marca sobre el historial.
         var escenario = Escenario.Nuevo();
         var nuevo = escenario.Documento.NuevoDelMismoTitular(
             new DateOnly(2026, 2, 1), VigenciaDocumento.NoCaduca, "tenant/renovado.pdf", null, null);
-        escenario.UnitOfWork.AlGuardar = () =>
-            escenario.Documento.SustituirPor(nuevo, MotivoSustitucionDocumento.Renovacion, DateTime.UtcNow);
+        var guardaVioOperativo = false;
+        escenario.Documentos.AntesDeBloquear = d =>
+        {
+            guardaVioOperativo = DocumentoOperativo.Es(d);
+            d.SustituirPor(nuevo, MotivoSustitucionDocumento.Renovacion, DateTime.UtcNow);
+        };
 
         var resultado = await escenario.Handler().Handle(
             new MarcarAcreditacionNoRequeridaCommand(escenario.Acreditacion.Id, escenario.Acreditacion.Version), CancellationToken.None);
 
-        escenario.UnitOfWork.VecesGuardado.Should().Be(1,
-            "control del instrumento: la guarda dejó pasar y la sustitución entró entre ella y el guardado");
+        guardaVioOperativo.Should().BeTrue("control del instrumento: la guarda dejó pasar y la sustitución entró después");
         resultado.EsFallido.Should().BeTrue();
         resultado.Error.Codigo.Should().Be("Documento.EnHistorial");
-        escenario.Documentos.LecturasBloqueadas.Should().Be(1);
-        escenario.Transaccion.Deshechas.Should().Be(1, "el fallo deshace la marca ya guardada");
+        escenario.Acreditacion.Estado.Should().Be(EstadoAcreditacion.PendienteDeSubir, "no se marca antes de decidir");
+        escenario.UnitOfWork.VecesGuardado.Should().Be(0);
+        escenario.Transaccion.Deshechas.Should().Be(1);
         escenario.Transaccion.Confirmadas.Should().Be(0);
     }
 
     [Fact]
-    public async Task Un_Documento_eliminado_entre_la_guarda_y_el_guardado_tambien_deshace_la_marca()
+    public async Task Un_Documento_eliminado_entre_la_guarda_y_el_guardado_tampoco_se_marca()
     {
         var escenario = Escenario.Nuevo();
-        escenario.UnitOfWork.AlGuardar = () => escenario.Documento.MarcarComoEliminado(Guid.NewGuid());
+        escenario.Documentos.AntesDeBloquear = d => d.MarcarComoEliminado(Guid.NewGuid());
 
         var resultado = await escenario.Handler().Handle(
             new MarcarAcreditacionNoRequeridaCommand(escenario.Acreditacion.Id, escenario.Acreditacion.Version), CancellationToken.None);
 
-        escenario.UnitOfWork.VecesGuardado.Should().Be(1, "control del instrumento: la eliminación entró tras la guarda");
+        escenario.Documentos.LecturasBloqueadas.Should().Be(1, "control del instrumento: la eliminación entró tras la guarda");
         resultado.Error.Codigo.Should().Be("Acreditacion.NoEncontrada");
-        escenario.Transaccion.Deshechas.Should().Be(1);
+        escenario.Acreditacion.Estado.Should().Be(EstadoAcreditacion.PendienteDeSubir);
+        escenario.UnitOfWork.VecesGuardado.Should().Be(0);
+    }
+
+    [Fact]
+    public async Task La_comprobacion_bloqueada_va_antes_del_guardado()
+    {
+        // Revisión puente sobre 875157cdb (hallazgo 2): el bloqueo del Documento se toma antes del UPDATE de la acreditación,
+        // en el mismo orden que la corrección del Documento.
+        var escenario = Escenario.Nuevo();
+        var bloqueadasAlGuardar = -1;
+        escenario.UnitOfWork.AlGuardar = () => bloqueadasAlGuardar = escenario.Documentos.LecturasBloqueadas;
+
+        (await escenario.Handler().Handle(
+                new MarcarAcreditacionNoRequeridaCommand(escenario.Acreditacion.Id, escenario.Acreditacion.Version), CancellationToken.None))
+            .EsExitoso.Should().BeTrue();
+
+        bloqueadasAlGuardar.Should().Be(1);
     }
 
     [Fact]

@@ -515,35 +515,76 @@ public class GestionesAutomaticasBajoRlsTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task Una_renovacion_confirmada_entre_la_guarda_y_el_guardado_de_no_lo_pide_deshace_la_marca_con_el_historial()
+    public async Task Una_renovacion_confirmada_entre_la_guarda_y_el_bloqueo_hace_que_no_lo_pide_falle_con_el_historial_sin_marcar()
     {
         // Codex r3 (MEDIO) sobre f83535b9e: la guarda vio el Documento vigente y otra sesión lo renueva con archivo nuevo
         // antes del guardado. La renovación no toca esta acreditación (su versión sigue siendo la vista) y «no lo pide» no
-        // escribe el Documento: solo la comprobación final, con la fila bloqueada y dentro de la transacción, lo para.
+        // escribe el Documento: solo la comprobación final, con la fila bloqueada dentro de la transacción, lo para.
         var propia = await NacerComoPropietarioAsync(_tenantSesion, _propio.Documento);
         Guid vista;
         await using (var pantalla = CrearRuntime())
             vista = (await DetalleAsync(pantalla, propia, new SinNotaInterna()))!.Pasos.Single().VersionAcreditacion;
 
         await using var runtime = CrearRuntime();
-        var entremedias = new OtraEscrituraAntesDeGuardar(runtime, async () =>
+        var documentos = new OtraSesionAlBloquearElDocumento(new DocumentoRepository(runtime), antes: async () =>
         {
             await using var renovacion = CrearRuntime();
             await RenovacionConArchivoAsync(renovacion, await renovacion.Documentos.SingleAsync(d => d.Id == _propio.Documento), _propio.Canal);
         });
 
-        var resultado = await NoPide(runtime, entremedias).Handle(
+        var resultado = await NoPide(runtime, documentos: documentos).Handle(
             new MarcarAcreditacionNoRequeridaCommand(_propio.Acreditacion, vista), CancellationToken.None);
 
-        entremedias.Ejecutada.Should().BeTrue("control del instrumento: la renovación se confirmó entre la guarda y el guardado");
+        documentos.Bloqueos.Should().Be(1, "control del instrumento: la renovación se confirmó tras la guarda, antes del bloqueo");
         resultado.Error.Codigo.Should().Be("Documento.EnHistorial");
         using (AmbitoTenantExplicito.Establecer(_tenantSesion))
         {
             var fila = await _propietario.AcreditacionesDocumentoPlataforma.AsNoTracking().SingleAsync(a => a.Id == _propio.Acreditacion);
-            fila.Version.Should().Be(vista, "la marca guardada se deshizo con la transacción: ni el estado ni la versión cambian");
+            fila.Version.Should().Be(vista, "no se confirmó nada: ni el estado ni la versión cambian");
             fila.Estado.Should().Be(EstadoAcreditacion.PendienteDeSubir, "la acreditación del historial no cambia");
             (await _propietario.Documentos.AsNoTracking().SingleAsync(d => d.Id == _propio.Documento)).SustituidoEnUtc
                 .Should().NotBeNull("control: la renovación de la otra sesión sí se confirmó");
+        }
+    }
+
+    [Fact]
+    public async Task Una_renovacion_que_llega_con_el_Documento_bloqueado_espera_a_que_no_lo_pide_confirme()
+    {
+        // Revisión puente sobre 875157cdb (hallazgo 1): la relectura sola no basta; sin FOR SHARE, una renovación confirmada
+        // entre la relectura y el COMMIT dejaría la marca sobre el historial. Con el bloqueo, la renovación espera: la marca
+        // se confirma sobre el Documento que todavía era el vigente y la renovación termina después.
+        var propia = await NacerComoPropietarioAsync(_tenantSesion, _propio.Documento);
+        Guid vista;
+        await using (var pantalla = CrearRuntime())
+            vista = (await DetalleAsync(pantalla, propia, new SinNotaInterna()))!.Pasos.Single().VersionAcreditacion;
+
+        Task? renovacionEnCurso = null;
+        var terminoConElDocumentoBloqueado = true;
+        await using var runtime = CrearRuntime();
+        var documentos = new OtraSesionAlBloquearElDocumento(new DocumentoRepository(runtime), despues: async () =>
+        {
+            renovacionEnCurso = Task.Run(async () =>
+            {
+                await using var renovacion = CrearRuntime();
+                await RenovacionConArchivoAsync(renovacion, await renovacion.Documentos.SingleAsync(d => d.Id == _propio.Documento), _propio.Canal);
+            });
+            terminoConElDocumentoBloqueado =
+                await Task.WhenAny(renovacionEnCurso, Task.Delay(TimeSpan.FromSeconds(2))) == renovacionEnCurso;
+        });
+
+        var resultado = await NoPide(runtime, documentos: documentos).Handle(
+            new MarcarAcreditacionNoRequeridaCommand(_propio.Acreditacion, vista), CancellationToken.None);
+        renovacionEnCurso.Should().NotBeNull("control del instrumento: la renovación se lanzó con el Documento bloqueado");
+        await renovacionEnCurso!.WaitAsync(TimeSpan.FromSeconds(30));
+
+        terminoConElDocumentoBloqueado.Should().BeFalse("con la fila en FOR SHARE la renovación no puede confirmar antes del COMMIT");
+        resultado.EsExitoso.Should().BeTrue("la marca se tomó sobre el Documento que todavía era el vigente");
+        using (AmbitoTenantExplicito.Establecer(_tenantSesion))
+        {
+            (await _propietario.AcreditacionesDocumentoPlataforma.AsNoTracking().SingleAsync(a => a.Id == _propio.Acreditacion))
+                .Estado.Should().Be(EstadoAcreditacion.NoRequerida);
+            (await _propietario.Documentos.AsNoTracking().SingleAsync(d => d.Id == _propio.Documento)).SustituidoEnUtc
+                .Should().NotBeNull("control: la renovación terminó después, al soltarse el bloqueo");
         }
     }
 
@@ -694,12 +735,48 @@ public class GestionesAutomaticasBajoRlsTests : IAsyncLifetime
     }
 
     /// <summary>
-    /// El handler real sobre <paramref name="runtime"/>, con su transacción real. <paramref name="unitOfWork"/> deja meter
-    /// otra escritura justo antes del guardado (<see cref="OtraEscrituraAntesDeGuardar"/>).
+    /// El handler real sobre <paramref name="runtime"/>, con su transacción real. <paramref name="documentos"/> deja meter
+    /// otra sesión alrededor del bloqueo del Documento (<see cref="OtraSesionAlBloquearElDocumento"/>).
     /// </summary>
-    private MarcarAcreditacionNoRequeridaCommandHandler NoPide(CaeManagerDbContext runtime, IUnitOfWork? unitOfWork = null) => new(
-        new AcreditacionDocumentoPlataformaRepository(runtime), new DocumentoRepository(runtime), Alcance(runtime), runtime, runtime,
-        unitOfWork ?? runtime, new TransaccionDeComando(runtime));
+    private MarcarAcreditacionNoRequeridaCommandHandler NoPide(CaeManagerDbContext runtime, IDocumentoRepository? documentos = null) => new(
+        new AcreditacionDocumentoPlataformaRepository(runtime), documentos ?? new DocumentoRepository(runtime), Alcance(runtime),
+        runtime, runtime, runtime, new TransaccionDeComando(runtime));
+
+    /// <summary>
+    /// El repositorio real con otra escritura confirmada en otra sesión justo antes (<paramref name="antes"/>) o justo
+    /// después (<paramref name="despues"/>) de bloquear el Documento: tras las guardas de «no lo pide» y antes de su guardado.
+    /// </summary>
+    private sealed class OtraSesionAlBloquearElDocumento(DocumentoRepository interno, Func<Task>? antes = null, Func<Task>? despues = null)
+        : IDocumentoRepository
+    {
+        public int Bloqueos { get; private set; }
+
+        public Task<Documento?> ObtenerPorIdAsync(Guid id, CancellationToken cancellationToken = default) =>
+            interno.ObtenerPorIdAsync(id, cancellationToken);
+
+        public Task<bool> PodriaExistirAsync(Guid id, CancellationToken cancellationToken = default) =>
+            interno.PodriaExistirAsync(id, cancellationToken);
+
+        public Task<Documento?> ObtenerIncluidoEliminadoActualizadoAsync(Guid id, Guid? tenantId, CancellationToken cancellationToken = default) =>
+            interno.ObtenerIncluidoEliminadoActualizadoAsync(id, tenantId, cancellationToken);
+
+        public Task<Documento?> ObtenerIncluidoEliminadoSinRastrearAsync(Guid id, Guid? tenantId, CancellationToken cancellationToken = default) =>
+            interno.ObtenerIncluidoEliminadoSinRastrearAsync(id, tenantId, cancellationToken);
+
+        public async Task<Documento?> BloquearYObtenerIncluidoEliminadoSinRastrearAsync(
+            Guid id, Guid? tenantId, CancellationToken cancellationToken = default)
+        {
+            Bloqueos++;
+            if (antes is not null)
+                await antes();
+            var documento = await interno.BloquearYObtenerIncluidoEliminadoSinRastrearAsync(id, tenantId, cancellationToken);
+            if (despues is not null)
+                await despues();
+            return documento;
+        }
+
+        public void Agregar(Documento documento) => interno.Agregar(documento);
+    }
 
     /// <summary>
     /// <see cref="RenovarDocumentoCommand"/> sin archivo nuevo con el handler real sobre <paramref name="runtime"/>: corrige

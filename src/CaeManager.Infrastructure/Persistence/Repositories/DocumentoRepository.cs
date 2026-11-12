@@ -40,11 +40,17 @@ public class DocumentoRepository(CaeManagerDbContext dbContext) : IDocumentoRepo
         if (tenantId is not { } tenant)
             return null;
 
-        await dbContext.Database.SqlQuery<Guid>($"""
+        var bloqueadas = await dbContext.Database.SqlQuery<Guid>($"""
             SELECT "Id" AS "Value" FROM "Documentos"
             WHERE "Id" = {id} AND "TenantId" = {tenant}
             FOR SHARE
             """).ToListAsync(cancellationToken);
+
+        // Sin la fila bloqueada no hay garantía que dar, aunque una lectura sin bloqueo la viera (una política RLS de
+        // UPDATE más estrecha que la de SELECT): se responde como si no existiera, y quien llama falla cerrado (revisión
+        // puente sobre 875157cdb, hallazgo 3).
+        if (bloqueadas.Count != 1)
+            return null;
         return await ObtenerIncluidoEliminadoSinRastrearAsync(id, tenant, cancellationToken);
     }
 
