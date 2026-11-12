@@ -18,6 +18,7 @@
 @using CaeManager.Domain.Documentos
 @using CaeManager.Web.Features.Documentos
 @using CaeManager.Web.Features.Documentos.Components
+@using CaeManager.Web.Features.Centros.Components
 @using FluentValidation
 @using MediatR
 @using Microsoft.AspNetCore.Components.Forms
@@ -132,6 +133,8 @@
                                                       ValorChanged="CambiarEntidadAsociadaAsync" />
                     <PastillaFiltro Etiqueta="@Textos["ListaPortal"]" TextoTodos="@Textos["ListaTodas"]" Valor="@_plataformaFiltro"
                                     ValorChanged="CambiarPlataformaFiltroAsync" Opciones="_opcionesPlataforma" />
+                    <PastillaFiltro Etiqueta="@Textos["ListaEstadoEnPlataforma"]" TextoTodos="@Textos["ListaTodos"]" Valor="@_estadoPlataformaFiltro"
+                                    ValorChanged="CambiarEstadoPlataformaFiltroAsync" Opciones="OpcionesEstadoPlataforma" />
                 </Pastillas>
                 <Estados>
                     <FranjaEstado Opciones="EstadoDocumentoUi.FranjaDeDocumentos" Valor="@_estadoFiltro" ValorChanged="CambiarEstadoFiltroAsync"
@@ -142,9 +145,11 @@
                                     ValorChanged="CambiarTipoFiltroAsync" Opciones="_opcionesTipo" />
                 </MasFiltros>
                 <Herramientas>
-                    <MenuAcciones Etiqueta="@Textos[_agruparPorAmbito ? "AgruparPorAmbitoEtiqueta" : "AgruparNo"]" Pastilla="true">
-                        <ItemMenuAccion Marcado="@(!_agruparPorAmbito)" OnClick="() => CambiarAgrupacionAsync(false)">@Textos["SinAgrupar"]</ItemMenuAccion>
-                        <ItemMenuAccion Marcado="_agruparPorAmbito" OnClick="() => CambiarAgrupacionAsync(true)">@Textos["PorAmbito"]</ItemMenuAccion>
+                    <MenuAcciones Etiqueta="@Textos[_agrupacion switch { AgrupacionListado.Ambito => "AgruparPorAmbitoEtiqueta", AgrupacionListado.PlataformaCae => "AgruparPorPlataformaCaeEtiqueta", AgrupacionListado.ClienteEmpresarial => "AgruparPorClienteEmpresarialEtiqueta", _ => "AgruparNo" }]" Pastilla="true">
+                        <ItemMenuAccion Marcado="@(!Agrupada)" OnClick="() => CambiarAgrupacionAsync(AgrupacionListado.Ninguna)">@Textos["SinAgrupar"]</ItemMenuAccion>
+                        <ItemMenuAccion Marcado="_agruparPorAmbito" OnClick="() => CambiarAgrupacionAsync(AgrupacionListado.Ambito)">@Textos["PorAmbito"]</ItemMenuAccion>
+                        <ItemMenuAccion Marcado="AgrupadaPorPlataforma" OnClick="() => CambiarAgrupacionAsync(AgrupacionListado.PlataformaCae)">@Textos["PorPlataformaCae"]</ItemMenuAccion>
+                        <ItemMenuAccion Marcado="@(_agrupacion == AgrupacionListado.ClienteEmpresarial)" OnClick="() => CambiarAgrupacionAsync(AgrupacionListado.ClienteEmpresarial)">@Textos["PorClienteEmpresarial"]</ItemMenuAccion>
                     </MenuAcciones>
                 </Herramientas>
                 <Chips>
@@ -163,6 +168,10 @@
                     @if (!string.IsNullOrWhiteSpace(_plataformaFiltro))
                     {
                         <ChipFiltro Etiqueta="@EtiquetaFiltroPlataforma" EtiquetaAccesible="@Textos["QuitarFiltroPlataforma"]" OnQuitar="() => CambiarPlataformaFiltroAsync(string.Empty)" />
+                    }
+                    @if (!string.IsNullOrWhiteSpace(_estadoPlataformaFiltro))
+                    {
+                        <ChipFiltro Etiqueta="@EtiquetaFiltroEstadoPlataforma" EtiquetaAccesible="@Textos["QuitarFiltroEstadoPlataforma"]" OnQuitar="() => CambiarEstadoPlataformaFiltroAsync(string.Empty)" />
                     }
                     @if (!string.IsNullOrWhiteSpace(_propietarioFiltro))
                     {
@@ -238,29 +247,38 @@
                                     }
                                 </th>
                                 <th scope="col" aria-sort="@AriaOrdenGrupo("estado")"><button type="button" class="col-title documentos-orden-grupo" @onclick="() => OrdenarGrupoAsync(_columnaEstado)">@Textos["ListaEstado"]</button></th>
+                                @if (AgrupadaPorPlataforma) { <th scope="col">@Textos["ListaEstadoEnPlataforma"]</th> }
                                 <th scope="col" class="documentos-celda-acciones"><span class="documentos-solo-lectores">@Textos["ListaAcciones"]</span></th>
                             </tr></thead>
                             @if (_totalElementos == 0 && !_cargando && HayFiltrosActivos)
                             {
-                                <tbody><tr class="documentos-vacio-filtro"><td colspan="@(5 + (_seleccionMultiple ? 1 : 0) + (HayDestinos ? 1 : 0))">
+                                <tbody><tr class="documentos-vacio-filtro"><td colspan="@ColumnasTabla">
                                     <EstadoVacio NombreIcono="vacio" Titulo="@Textos["VacioFiltroTituloDesign"]">
                                         <Accion><Boton Variante="VarianteBoton.Secundario" OnClick="LimpiarFiltrosAsync">@Textos["VacioFiltroQuitarDesign"]</Boton></Accion>
                                     </EstadoVacio>
                                 </td></tr></tbody>
                             }
                             @{ var clavesGrupos = new ClavesDeHermanos(); }
-                            @foreach (var grupo in _elementosPagina.GroupBy(documento => _agruparPorAmbito ? documento.Ambito : default))
+                            @foreach (var grupo in GruposDeLaPagina())
                             {
                                 <tbody @key="clavesGrupos.De(grupo.Key)">
-                                    @{ var grupoAbierto = !_agruparPorAmbito || _gruposAbiertos.EstaAbierto(grupo.Key.ToString()); }
+                                    @{ var grupoAbierto = GrupoAbierto(grupo.Key); }
                                     @if (_agruparPorAmbito)
                                     {
                                         @* Grupo «Por Ámbito» plegable (bloque 1 de CAMBIOS-SESION 2026-10-21): nace plegado, con «· N» y,
                                            plegado, la pastilla roja de los Documentos en rojo. *@
-                                        <tr class="documentos-cabecera-grupo"><th colspan="@(5 + (_seleccionMultiple ? 1 : 0) + (HayDestinos ? 1 : 0))" scope="rowgroup">
-                                            <CabeceraGrupoLista Nombre="@EtiquetaAmbitoListado(grupo.Key)" Total="grupo.Count()" Incidencias="grupo.Count(EsFilaRoja)"
-                                                                Abierto="grupoAbierto" OnAlternar="() => AlternarGrupo(grupo.Key.ToString())" />
+                                        var ambitoDelGrupo = Enum.Parse<AmbitoAplicacion>(grupo.Key);
+                                        <tr class="documentos-cabecera-grupo"><th colspan="@ColumnasTabla" scope="rowgroup">
+                                            <CabeceraGrupoLista Nombre="@EtiquetaAmbitoListado(ambitoDelGrupo)" Total="grupo.Count()" Incidencias="grupo.Count(EsFilaRoja)"
+                                                                Abierto="grupoAbierto" OnAlternar="() => AlternarGrupo(grupo.Key)" />
                                         </th></tr>
+                                    }
+                                    else if (AgrupadaPorVinculo)
+                                    {
+                                        @* P-1 (2026-11-12): cabecera de grupo por Plataforma CAE o Cliente empresarial con los recuentos del
+                                           servidor (todo el universo filtrado, no la página), «Anotar vigencia (N)» con filas «Sin vigencia»
+                                           seleccionadas y «Abrir portal» con la dirección del canal. *@
+                                        @CabeceraGrupoPorVinculo(grupo.Key, grupo.ToList(), grupoAbierto)
                                     }
                                     @{ var clavesFilas = new ClavesDeHermanos(); }
                                     @foreach (var documento in grupoAbierto ? grupo : Enumerable.Empty<DocumentoListaDto>())
@@ -279,11 +297,11 @@
                                                     }
                                                 </td>
                                             }
-                                            <td>@CeldaDocumento(documento)</td><td>@CeldaPropietario(documento)</td><td>@CeldaVigencia(documento)</td><td class="col-estado">@CeldaEstado(documento)</td><td>@CeldaAcciones(documento)</td>
+                                            <td>@CeldaDocumento(documento)</td><td>@CeldaPropietario(documento)</td><td>@CeldaVigencia(documento)</td><td class="col-estado">@CeldaEstado(documento)</td>@if (AgrupadaPorPlataforma) { <td class="documentos-celda-en-plataforma">@CeldaEnPlataforma(documento)</td> }<td>@CeldaAcciones(documento)</td>
                                         </tr>
                                         @if (_documentosAbiertos.Contains(documento.Id) && documento.DestinosEnCentros?.Count > 0)
                                         {
-                                            <tr @key="clavesFilas.De((documento.Id, true))" class="documentos-fila-hijos"><td colspan="@(5 + (_seleccionMultiple ? 1 : 0) + (HayDestinos ? 1 : 0))">
+                                            <tr @key="clavesFilas.De((documento.Id, true))" class="documentos-fila-hijos"><td colspan="@ColumnasTabla">
                                                 <div class="documentos-hijos" role="list" aria-label="@Textos["ListaDestino"]">
                                                     @{ var clavesDestinos = new ClavesDeHermanos(); }
                                                     @foreach (var destino in VerRestantes.Recortar(documento.DestinosEnCentros, _destinosCompletos.Contains(documento.Id)))
@@ -340,6 +358,8 @@
 
 
 <DrawerGestionDocumento @ref="_drawerGestion" OnGuardado="ManejarDocumentoGuardadoAsync" OnCerrado="LimpiarEnlaceProfundoDeUrl" />
+
+<AnotarVigenciaEnBloque @ref="_anotarVigencia" OnAnotado="RecargarAsync" />
 
 <VisorDocumento Visible="_visorVisible" VisibleChanged="v => _visorVisible = v" DocumentoId="_visorDocumentoId" Titulo="@_visorTitulo" />
 
@@ -512,8 +532,73 @@
                                         </AuthorizeView>
                                     }
                                 </span>
-                            
+
     </text>;
+
+    /// <summary>Columnas de la tabla: las cinco de siempre, la de selección, la de expandir y, por Plataforma CAE, «Estado en la plataforma».</summary>
+    private int ColumnasTabla => 5 + (_seleccionMultiple ? 1 : 0) + (HayDestinos ? 1 : 0) + (AgrupadaPorPlataforma ? 1 : 0);
+
+    /// <summary>
+    /// «Estado en la plataforma» de la fila por Plataforma CAE (P-1): el Cliente empresarial del canal y el estado de esa
+    /// acreditación, con el último motivo de rechazo. Una fila del grupo «Sin Plataforma CAE» no tiene acreditación y no pinta nada.
+    /// </summary>
+    private RenderFragment<DocumentoListaDto> CeldaEnPlataforma => context => @<text>
+                                @if (context.Grupo?.Acreditacion is { } acreditacion)
+                                {
+                                    <span class="documentos-en-plataforma">
+                                        <span class="documentos-en-plataforma-cliente">@acreditacion.ClienteEmpresarialNombre</span>
+                                        <Badge Tono="TonoEnPlataforma(acreditacion)" Tamano="TamanoBadge.Pequeno">@TextoEnPlataforma(acreditacion)</Badge>
+                                        @if (acreditacion.Estado == EstadoAcreditacion.Rechazada && !string.IsNullOrWhiteSpace(acreditacion.UltimoMotivoRechazo))
+                                        {
+                                            <span class="documentos-en-plataforma-motivo">@acreditacion.UltimoMotivoRechazo</span>
+                                        }
+                                    </span>
+                                }
+    </text>;
+
+    /// <summary>
+    /// Cabecera de un grupo por Plataforma CAE o por Cliente empresarial (P-1): nombre, recuentos del servidor sobre todo el
+    /// universo filtrado (un cero no se pinta) y, por Plataforma CAE, «Anotar vigencia (N)» con filas «Sin vigencia»
+    /// seleccionadas (solo con escritura, el mismo comando y la misma autorización que la pestaña Plataformas CAE) y
+    /// «Abrir portal» con la dirección del canal, solo http(s), en pestaña nueva.
+    /// </summary>
+    private RenderFragment CabeceraGrupoPorVinculo(string clave, List<DocumentoListaDto> filas, bool abierto)
+    {
+        var resumen = ResumenDe(clave);
+        var nombre = NombreDeGrupo(clave);
+        var esGrupoSin = clave == ObtenerDocumentosQuery.GrupoSin;
+        var anotables = AgrupadaPorPlataforma ? SinVigenciaSeleccionadas(filas) : [];
+        var portal = AgrupadaPorPlataforma && !esGrupoSin ? UrlPortalCae.Normalizar(resumen?.UrlPortal) : null;
+        var total = resumen?.Total ?? filas.Count;
+        var subtitulo = !AgrupadaPorPlataforma && !esGrupoSin
+            ? Textos["GrupoClienteEmpresarialDocumentos", Textos[total == 1 ? "GrupoDocumentoUno" : "GrupoDocumentos", total].Value].Value
+            : null;
+        return @<tr class="documentos-cabecera-grupo documentos-cabecera-grupo-vinculo" data-grupo="@clave"><th colspan="@ColumnasTabla" scope="rowgroup">
+            <div class="documentos-cabecera-vinculo">
+                <CabeceraGrupoLista Nombre="@nombre" Total="total" EnPagina="filas.Count" Resumen="ResumenVisible(resumen)"
+                                    Subtitulo="@subtitulo" Abierto="abierto" OnAlternar="() => AlternarGrupoPorVinculo(clave)" />
+                @if (anotables.Count > 0 || portal is not null)
+                {
+                    <span class="documentos-cabecera-vinculo-acciones">
+                        @if (anotables.Count > 0)
+                        {
+                            <SoloConEscritura>
+                                <Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno" class="documentos-anotar-vigencia"
+                                       OnClick="() => _anotarVigencia.Abrir(anotables)">@Textos["GrupoAnotarVigencia", anotables.Count]</Boton>
+                            </SoloConEscritura>
+                        }
+                        @if (portal is not null)
+                        {
+                            @* La dirección del canal, nunca la credencial: igual que en la pestaña Plataformas CAE. *@
+                            <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" class="documentos-abrir-portal"
+                                   Href="@portal" target="_blank" rel="noopener noreferrer"
+                                   aria-label="@TextosPlataformaAcreditacion.Formato("AbrirPortalEtiqueta", nombre)">@TextosPlataformaAcreditacion.Texto("AbrirPortal")</Boton>
+                        }
+                    </span>
+                }
+            </div>
+        </th></tr>;
+    }
 }
 
 @code {

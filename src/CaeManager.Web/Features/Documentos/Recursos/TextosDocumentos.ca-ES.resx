@@ -393,6 +393,33 @@
   <data name="ListaPropietario" xml:space="preserve"><value>Propietari</value></data>
   <data name="ListaVence" xml:space="preserve"><value>Venç</value></data>
   <data name="PorAmbito" xml:space="preserve"><value>Per àmbit</value></data>
+  <data name="PorPlataformaCae" xml:space="preserve"><value>Per Plataforma CAE</value></data>
+  <data name="PorClienteEmpresarial" xml:space="preserve"><value>Per Client empresarial</value></data>
+  <data name="AgruparPorPlataformaCaeEtiqueta" xml:space="preserve"><value>Agrupa per: Plataforma CAE</value></data>
+  <data name="AgruparPorClienteEmpresarialEtiqueta" xml:space="preserve"><value>Agrupa per: Client empresarial</value></data>
+  <data name="ListaEstadoEnPlataforma" xml:space="preserve"><value>Estat a la plataforma</value></data>
+  <data name="EstadoPlataformaPendienteDeSubir" xml:space="preserve"><value>Pendent de pujar</value></data>
+  <data name="EstadoPlataformaRechazado" xml:space="preserve"><value>Rebutjat</value></data>
+  <data name="EstadoPlataformaSinVigencia" xml:space="preserve"><value>Sense vigència</value></data>
+  <data name="ChipEstadoPlataforma" xml:space="preserve"><value>Estat a la plataforma: {0}</value></data>
+  <data name="QuitarFiltroEstadoPlataforma" xml:space="preserve"><value>Treu el filtre d'estat a la plataforma</value></data>
+  <data name="GrupoPendienteUno" xml:space="preserve"><value>1 pendent de pujar</value></data>
+  <data name="GrupoPendientes" xml:space="preserve"><value>{0} pendents de pujar</value></data>
+  <data name="GrupoRechazadoUno" xml:space="preserve"><value>1 rebutjat</value></data>
+  <data name="GrupoRechazados" xml:space="preserve"><value>{0} rebutjats</value></data>
+  <data name="GrupoSinVigencia" xml:space="preserve"><value>{0} sense vigència</value></data>
+  <data name="GrupoVencidoUno" xml:space="preserve"><value>1 vençut</value></data>
+  <data name="GrupoVencidos" xml:space="preserve"><value>{0} vençuts</value></data>
+  <data name="GrupoUrgenteUno" xml:space="preserve"><value>1 urgent</value></data>
+  <data name="GrupoUrgentes" xml:space="preserve"><value>{0} urgents</value></data>
+  <data name="GrupoDocumentoUno" xml:space="preserve"><value>1 document</value></data>
+  <data name="GrupoDocumentos" xml:space="preserve"><value>{0} documents</value></data>
+  <data name="GrupoClienteEmpresarialDocumentos" xml:space="preserve"><value>Client empresarial · {0}</value></data>
+  <data name="GrupoSinPlataformaCae" xml:space="preserve"><value>Sense Plataforma CAE</value></data>
+  <data name="GrupoSinClienteEmpresarial" xml:space="preserve"><value>Sense Client empresarial</value></data>
+  <data name="GrupoAnotarVigencia" xml:space="preserve"><value>Anota la vigència ({0})</value></data>
+  <data name="GrupoPlegar" xml:space="preserve"><value>Plega {0}</value></data>
+  <data name="GrupoDesplegar" xml:space="preserve"><value>Desplega {0}</value></data>
   <data name="QuitarFiltroPropietario" xml:space="preserve"><value>Treu el filtre de propietari</value></data>
   <data name="SinAgrupar" xml:space="preserve"><value>Sense agrupar</value></data>
   <data name="VacioDescripcionDesign" xml:space="preserve"><value>Puja el primer o fes servir la pujada massiva.</value></data>

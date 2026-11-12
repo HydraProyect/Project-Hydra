@@ -65,8 +65,12 @@ public static class DocumentosEndpoints
         HttpContext contexto, IMediator mediator, ITenantActual tenantActual, IRegistroExportacionService registroExportacion,
         CancellationToken cancellationToken,
         string? q = null, string? ambito = null, string? estado = null, string? orden = null, bool desc = false,
-        string? tipo = null, string? plataforma = null, string? propietario = null, string? agrupar = null)
+        string? tipo = null, string? plataforma = null, string? propietario = null, string? agrupar = null,
+        string? estadoPlataforma = null)
     {
+        EstadoEnPlataformaFiltro? estadoPlataformaFiltro =
+            Enum.TryParse<EstadoEnPlataformaFiltro>(estadoPlataforma, out var estadoPlataformaLeido) && Enum.IsDefined(estadoPlataformaLeido)
+                ? estadoPlataformaLeido : null;
         // Estado 4a: la página no muestra los Documentos del Tenant de origen a quien tiene que
         // elegir una empresa de su cartera (ContextoEmpresaActiva.ResolverAsync); el endpoint no
         // los consulta, no genera el archivo ni deja rastro. Misma guarda que Trabajadores.
@@ -105,7 +109,9 @@ public static class DocumentosEndpoints
                     PropietarioId: Guid.TryParse(propietario, out var entidadAsociadaId) ? entidadAsociadaId : null,
                     TipoDocumentoId: Guid.TryParse(tipo, out var tipoFiltro) ? tipoFiltro : null,
                     ProveedorPlataformaCaeId: Guid.TryParse(plataforma, out var plataformaFiltro) ? plataformaFiltro : null,
-                    AgruparPorAmbito: agrupar == "ambito"),
+                    AgruparPorAmbito: agrupar == "ambito",
+                    // El filtro «Estado en la plataforma» del listado; la agrupación por vínculo no se exporta (repetiría filas).
+                    EstadosEnPlataforma: estadoPlataformaFiltro is { } estadoEnPlataforma ? [estadoEnPlataforma] : null),
                 cancellationToken)))
         {
             hoja.Cell(fila, 1).Value = documento.PropietarioNombre;
@@ -137,6 +143,7 @@ public static class DocumentosEndpoints
                     ("plataforma", Guid.TryParse(plataforma, out var plataformaAplicada) ? plataformaAplicada.ToString() : null),
                     ("propietario", Guid.TryParse(propietario, out var propietarioAplicado) ? propietarioAplicado.ToString() : null),
                     ("agrupar", agrupar == "ambito" ? "ambito" : null),
+                    ("estadoPlataforma", estadoPlataformaFiltro?.ToString()),
                     ("orden", CriteriosExportacion.SoloNombre(orden)), ("desc", desc ? "true" : null)),
                 cancellationToken);
         }

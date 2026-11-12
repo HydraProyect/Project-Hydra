@@ -181,6 +181,37 @@
     display: table-row;
 }
 
+/* P-1: cabecera de grupo por Plataforma CAE o Cliente empresarial; las acciones van a la derecha, fuera del botón que pliega. */
+.documentos-tabla-desplazable ::deep .documentos-cabecera-vinculo {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+}
+
+.documentos-tabla-desplazable ::deep .documentos-cabecera-vinculo > .grupo-lista {
+    flex: 1 1 auto;
+    min-width: 0;
+}
+
+.documentos-tabla-desplazable ::deep .documentos-cabecera-vinculo-acciones {
+    display: inline-flex;
+    gap: var(--space-2);
+    padding-right: var(--space-3);
+    flex: 0 0 auto;
+}
+
+.documentos-tabla-desplazable ::deep .documentos-en-plataforma {
+    display: inline-flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 4px 8px;
+}
+
+.documentos-tabla-desplazable ::deep .documentos-en-plataforma-motivo {
+    color: var(--color-texto-secundario);
+    font-size: 0.8125rem;
+}
+
 .documentos-tabla-desplazable ::deep th[aria-sort="ascending"] .documentos-orden-grupo::after {
     content: "↑";
     margin-left: var(--space-1);
