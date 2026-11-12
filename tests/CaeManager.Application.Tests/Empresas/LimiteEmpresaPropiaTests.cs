@@ -460,6 +460,82 @@ public class LimiteEmpresaPropiaTests
         alertas.Alertas.Should().BeEmpty("no se ha intentado dar de alta otra Empresa propia");
     }
 
+    // Revisión Codex r3 de la PR #2193, MEDIO 1. La otra secuencia: la segunda confirmación de la MISMA operación pasa la
+    // consulta inicial de la marca, y la primera confirma (su Empresa propia y la marca) justo después, antes de que la
+    // segunda recorra la hoja de Empresas. El recuento de la fila ya ve la Empresa propia de la primera y omite la fila,
+    // pero no puede avisar: el aviso sale solo de quien guarda la marca, y esta responde «ya ejecutada». Con el aviso en
+    // la fila, la alerta falsa ya habría salido.
+
+    [Fact]
+    public async Task EjecutarImportacion_segunda_confirmacion_que_cuenta_tras_el_commit_de_la_primera_no_avisa()
+    {
+        var empresas = new EmpresasQueryContextFalso();
+        var alertas = new AlertaOperativaFalsa();
+        var operaciones = new OperacionImportacionRepositorioFalso();
+        var plan = PlanSimple(new EmpresaImportadaDto("Primera propia, S.L.", false, Fila: 2));
+        operaciones.TrasLaPrimeraConsulta = () =>
+        {
+            empresas.ListaEmpresas.Add(PropiaActiva());
+            operaciones.ConfirmarDesdeOtraEjecucion(plan.OperacionId);
+        };
+        var candado = new LimitesDePrueba.CandadoEnMemoria();
+
+        var resultado = await ImportacionSimple(new EmpresaRepositorioFalso(), empresas,
+                LimitesDePrueba.Sobre(empresas, alertas, candado: candado), operaciones)
+            .Handle(new EjecutarImportacionCommand(plan), default);
+
+        resultado.EsExitoso.Should().BeTrue();
+        resultado.Valor.Should().BeEquivalentTo(ResultadoImportacionDto.YaEjecutada());
+        candado.Ejecuciones.Should().Be(1, "la fila omitida por el límite lleva el guardado bajo el candado");
+        alertas.Alertas.Should().BeEmpty("la operación la confirmó la primera: esta no ha rechazado nada");
+    }
+
+    [Fact]
+    public async Task EjecutarImportacionCombinada_segunda_confirmacion_que_cuenta_tras_el_commit_de_la_primera_no_avisa()
+    {
+        var escenario = new EscenarioImportacionCombinada();
+        var propias = new EmpresasQueryContextFalso();
+        var alertas = new AlertaOperativaFalsa();
+        var plan = EscenarioImportacionCombinada.Plan(empresas: [new EmpresaCombinadaImportadaDto("Primera propia, S.L.", [], false, 2)]);
+        escenario.OperacionImportacionRepositorio.TrasLaPrimeraConsulta = () =>
+        {
+            propias.ListaEmpresas.Add(PropiaActiva());
+            escenario.OperacionImportacionRepositorio.ConfirmarDesdeOtraEjecucion(plan.OperacionId);
+        };
+        var candado = new LimitesDePrueba.CandadoEnMemoria();
+        escenario.Limite = LimitesDePrueba.Sobre(propias, alertas, candado: candado);
+
+        var resultado = await escenario.Handler().Handle(new EjecutarImportacionCombinadaCommand(plan, false), CancellationToken.None);
+
+        resultado.EsExitoso.Should().BeTrue();
+        resultado.Valor.Should().BeEquivalentTo(ResultadoImportacionCombinadaDto.YaEjecutada());
+        candado.Ejecuciones.Should().Be(1, "la fila omitida por el límite lleva el guardado bajo el candado");
+        alertas.Alertas.Should().BeEmpty("la operación la confirmó la primera: esta no ha rechazado nada");
+    }
+
+    // El aviso que sí corresponde sigue saliendo, una vez, cuando ninguna fila crea Empresa propia: el guardado toma el
+    // candado por la fila omitida y avisa tras guardar la marca.
+    [Fact]
+    public async Task EjecutarImportacion_con_la_Empresa_propia_omite_la_fila_nueva_y_avisa_tras_guardar()
+    {
+        var empresas = new EmpresasQueryContextFalso();
+        empresas.ListaEmpresas.Add(PropiaActiva());
+        var alertas = new AlertaOperativaFalsa();
+        var candado = new LimitesDePrueba.CandadoEnMemoria();
+        var plan = PlanSimple(new EmpresaImportadaDto("Otra propia, S.L.", false, Fila: 2),
+            new EmpresaImportadaDto("Tercera propia, S.L.", false, Fila: 3));
+
+        var resultado = await ImportacionSimple(new EmpresaRepositorioFalso(), empresas,
+                LimitesDePrueba.Sobre(empresas, alertas, candado: candado))
+            .Handle(new EjecutarImportacionCommand(plan), default);
+
+        resultado.EsExitoso.Should().BeTrue();
+        resultado.Valor.EmpresasCreadas.Should().Be(0);
+        resultado.Valor.Omitidos.Should().HaveCount(2);
+        candado.Ejecuciones.Should().Be(1);
+        alertas.Alertas.Should().ContainSingle("un aviso por comando, no por fila");
+    }
+
     private static Empresa EliminadaParaRestaurar(string comando, bool esPropia)
     {
         var empresa = comando switch

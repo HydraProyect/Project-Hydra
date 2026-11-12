@@ -416,7 +416,8 @@ public class EjecutarImportacionMaestraCommandHandler(
 
         var empresasCreadas = 0;
 
-        var limiteAvisado = false; // D-P11: un solo aviso a Soporte TALVEG por comando, no uno por fila
+        // D-P11: alguna fila de Empresas omitida por el límite. El aviso a Soporte TALVEG, uno por comando, sale del guardado.
+        var limiteRechazado = false;
         var empresasActualizadas = 0;
         foreach (var fila in plan.Empresas)
         {
@@ -468,11 +469,11 @@ public class EjecutarImportacionMaestraCommandHandler(
             }
 
             // D-P11: la hoja de Empresas gestionadas crea Empresas propias, y el Tenant propietario solo puede tener una.
-            // La vista previa muestra la misma omisión, pero solo confirmar avisa a Soporte TALVEG.
-            if (await limiteEmpresaPropia.ComprobarAltaAsync(empresasCreadas, esIntento: escribir && !limiteAvisado, cancellationToken) is { } limite)
+            // La vista previa muestra la misma omisión, pero solo avisa a Soporte TALVEG la confirmación que guarda (abajo).
+            if (await limiteEmpresaPropia.ComprobarAltaAsync(empresasCreadas, esIntento: false, cancellationToken) is { } limite)
             {
                 omitidos.Add(new(HojaEmpresas, fila.Fila, fila.RazonSocial, limite.Mensaje));
-                limiteAvisado = true;
+                limiteRechazado = true;
                 continue;
             }
 
@@ -853,6 +854,12 @@ public class EjecutarImportacionMaestraCommandHandler(
         // Guardado no es confirmado: el commit es de la transacción del candado. Por eso se recuerda con el Id de su marca.
         if (await operacionImportacionRepositorio.GuardarSiOperacionNuevaAsync(cancellationToken))
         {
+            // D-P11: el aviso de las filas omitidas por el límite, solo de la confirmación que ha guardado la marca, igual
+            // que en EjecutarImportacionCommand: ni la pasada de comparación, ni una vista previa cambiada, ni una
+            // confirmación de la misma operación que llega tarde avisan (revisión Codex r3 de la PR #2193, MEDIO 1).
+            // Recuento solo para el aviso: lo omitido ya está decidido.
+            if (limiteRechazado)
+                _ = await limiteEmpresaPropia.ComprobarAltaAsync(empresasCreadas, esIntento: true, cancellationToken);
             intentoGuardado = (marca!.Id, resultado);
             return resultado;
         }

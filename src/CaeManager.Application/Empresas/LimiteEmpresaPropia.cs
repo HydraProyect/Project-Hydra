@@ -36,7 +36,9 @@ public interface ILimiteEmpresaPropia
     /// <c>null</c> si el Tenant actual puede tener una Empresa propia activa más; si no, el error que se muestra.
     /// <paramref name="propiasAnadidasSinGuardar"/> son las Empresas propias que la misma operación ya ha añadido
     /// y aún no ha guardado (una importación con varias filas). Con <paramref name="esIntento"/> el rechazo avisa
-    /// a Soporte TALVEG; una vista previa, o una fila más de una importación que ya avisó, pasa <c>false</c>.
+    /// a Soporte TALVEG; una vista previa, o una fila de una importación, pasa <c>false</c>: la importación avisa una
+    /// sola vez, bajo el candado y después de guardar la marca de su operación, para que la segunda de dos
+    /// confirmaciones de la misma operación no avise de un rechazo falso (revisión Codex r3 de la PR #2193, MEDIO 1).
     /// Fuera de <see cref="SerializarAsync"/> solo anticipa la respuesta: otra operación puede guardar entre este
     /// recuento y el guardado propio.
     /// </summary>

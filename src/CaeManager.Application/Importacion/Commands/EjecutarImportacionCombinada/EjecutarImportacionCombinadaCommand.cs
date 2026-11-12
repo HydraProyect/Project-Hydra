@@ -314,7 +314,9 @@ public class EjecutarImportacionCombinadaCommandHandler(
 
         var empresasCreadas = 0;
 
-        var limiteAvisado = false; // D-P11: un solo aviso a Soporte TALVEG por comando, no uno por fila
+        // D-P11: alguna fila de Empresas omitida por el límite. El aviso a Soporte TALVEG no sale de esa fila sino del
+        // guardado, uno por comando, igual que en EjecutarImportacionCommand.
+        var limiteRechazado = false;
         var empresasActualizadas = 0;
 
         foreach (var fila in plan.Empresas)
@@ -377,10 +379,11 @@ public class EjecutarImportacionCombinadaCommandHandler(
                 }
 
                 // D-P11: mismo criterio que EjecutarImportacionCommand; las de esta carga cuentan sin estar guardadas.
-                if (await limiteEmpresaPropia.ComprobarAltaAsync(empresasCreadas, esIntento: !limiteAvisado, cancellationToken) is { } limite)
+                // Sin aviso aquí, sin candado (revisión Codex r3 de la PR #2193, MEDIO 1).
+                if (await limiteEmpresaPropia.ComprobarAltaAsync(empresasCreadas, esIntento: false, cancellationToken) is { } limite)
                 {
                     omitidosEnEscritura.Add(new ItemImportacionDto("Empresas", fila.Fila, fila.RazonSocial, limite.Mensaje));
-                    limiteAvisado = true;
+                    limiteRechazado = true;
                     continue;
                 }
 
@@ -658,7 +661,8 @@ public class EjecutarImportacionCombinadaCommandHandler(
         // confirmaciones de la MISMA operación compiten, la perdedora choca en el índice único y no escribe nada.
         // D-P11: con Empresas propias nuevas, el guardado va bajo el candado de Empresa propia del Tenant y repite el
         // recuento que decide contra lo que otra operación haya confirmado desde el de cada fila, que va sin candado.
-        if (empresasCreadas == 0)
+        // También con filas omitidas por el límite: su aviso sale de ahí, solo si esta confirmación guarda la marca.
+        if (empresasCreadas == 0 && !limiteRechazado)
         {
             if (!await operacionImportacionRepositorio.GuardarSiOperacionNuevaAsync(cancellationToken))
                 return ResultadoImportacionCombinadaDto.YaEjecutada();
@@ -677,7 +681,14 @@ public class EjecutarImportacionCombinadaCommandHandler(
                     if (await limiteEmpresaPropia.ComprobarGuardadoAsync(empresasCreadas, ct) is { } limite)
                         return Result.Fallo(limite);
                     if (await operacionImportacionRepositorio.GuardarSiOperacionNuevaAsync(ct))
+                    {
+                        // Revisión Codex r3 de la PR #2193, MEDIO 1: el aviso de las filas omitidas por el límite, después
+                        // de guardar la marca, para que la segunda de dos confirmaciones de la misma operación no avise
+                        // de un rechazo falso. Recuento solo para el aviso, como en EjecutarImportacionCommand.
+                        if (limiteRechazado)
+                            _ = await limiteEmpresaPropia.ComprobarAltaAsync(empresasCreadas, esIntento: true, ct);
                         return Result.Exito();
+                    }
                 }
                 // Fallo para que la transacción del candado se deshaga; abajo se traduce a «ya ejecutada».
                 yaEjecutada = true;

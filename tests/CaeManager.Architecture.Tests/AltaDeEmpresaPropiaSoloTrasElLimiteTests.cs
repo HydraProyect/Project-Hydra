@@ -26,8 +26,10 @@ namespace CaeManager.Architecture.Tests;
 /// El candado (revisión Codex r2 de la PR #2193, MEDIO 2): cuenta solo un <c>SerializarAsync</c> cuyo receptor está
 /// declarado en el tipo como <c>ILimiteEmpresaPropia</c>, y solo si lo que alcanza su delegado (él mismo y las funciones
 /// locales y métodos del tipo a los que llama por su nombre) comprueba el límite con ese receptor y guarda. La escritura
-/// tiene que estar en ese alcance, o en el método que contiene el delegado sin ningún guardado fuera de él salvo en la
-/// rama <c>if (n == 0)</c> del recuento final de un delegado de ese mismo método (ver <c>CandadosDelTipo</c>). Guardar es
+/// tiene que estar en un método que ese alcance contenga entero, o en el método que contiene el delegado, dentro o fuera
+/// de él, sin ningún guardado fuera del delegado salvo en la rama <c>if (n == 0)</c> (sola o en una conjunción) del
+/// recuento final de un delegado de ese mismo método (revisión Codex r3 de la PR #2193, MEDIO 2; ver
+/// <c>CandadosDelTipo</c>). Guardar es
 /// invocar <c>SaveChanges</c>, <c>GuardarCambiosAsync</c>, <c>GuardarSiOperacionNuevaAsync</c> o una escritura inmediata
 /// (<c>ExecuteUpdate</c>, <c>ExecuteDelete</c>, <c>ExecuteSql</c>). Límites: receptores, métodos, guardados y el recuento
 /// <c>n</c> se reconocen por su nombre; un guardado con otro nombre o a través de otro tipo no se ve; no mira el orden
@@ -351,6 +353,60 @@ public class AltaDeEmpresaPropiaSoloTrasElLimiteTests
             }
         }
         """)]
+    // Revisión Codex r3 de la PR #2193, MEDIO 2: la construcción dentro del delegado no exime de mirar los guardados de
+    // fuera. Con el guardado condicional de dentro sin hacer, el de después del delegado guarda fuera del candado.
+    [InlineData("construcción dentro del delegado y guardado después de él", """
+        class H(ILimiteEmpresaPropia limite, IUnitOfWork unitOfWork)
+        {
+            async Task<Result> M(bool guardarYa, CancellationToken ct)
+            {
+                var resultado = await limite.SerializarAsync(async c =>
+                {
+                    if (await limite.ComprobarAltaAsync(0, true, c) is { } e) return Result.Fallo(e);
+                    repositorio.Agregar(new Empresa("x"));
+                    if (guardarYa) await unitOfWork.SaveChangesAsync(c);
+                    return Result.Exito();
+                }, ct);
+                await unitOfWork.SaveChangesAsync(ct);
+                return resultado;
+            }
+        }
+        """)]
+    [InlineData("construcción dentro del delegado y guardado en una función local llamada después", """
+        class H(ILimiteEmpresaPropia limite, IUnitOfWork unitOfWork)
+        {
+            async Task<Result> M(bool guardarYa, CancellationToken ct)
+            {
+                var resultado = await limite.SerializarAsync(async c =>
+                {
+                    if (await limite.ComprobarAltaAsync(0, true, c) is { } e) return Result.Fallo(e);
+                    repositorio.Agregar(new Empresa("x"));
+                    if (guardarYa) await unitOfWork.SaveChangesAsync(c);
+                    return Result.Exito();
+                }, ct);
+                await Guardar(ct);
+                return resultado;
+
+                async Task Guardar(CancellationToken t) => await unitOfWork.SaveChangesAsync(t);
+            }
+        }
+        """)]
+    [InlineData("guardado fuera en una disyunción con la rama de cero", """
+        class H(ILimiteEmpresaPropia limite, IUnitOfWork unitOfWork)
+        {
+            async Task<Result> M(int nuevas, bool otra, CancellationToken ct)
+            {
+                repositorio.Agregar(new Empresa("x"));
+                if (nuevas == 0 || otra) await unitOfWork.SaveChangesAsync(ct);
+                return await limite.SerializarAsync(async c =>
+                {
+                    if (await limite.ComprobarGuardadoAsync(nuevas, c) is { } e) return Result.Fallo(e);
+                    await unitOfWork.SaveChangesAsync(c);
+                    return Result.Exito();
+                }, ct);
+            }
+        }
+        """)]
     public void El_instrumento_exige_comprobacion_y_guardado_dentro_del_candado_del_limite(string caso, string codigo)
     {
         EscriturasDeEmpresaPropia.Analizar("Fragmento.cs", codigo)
@@ -418,6 +474,44 @@ public class AltaDeEmpresaPropiaSoloTrasElLimiteTests
                 repositorio.Agregar(new Empresa("x"));
                 await operaciones.GuardarSiOperacionNuevaAsync(ct);
                 return Result.Exito();
+            }
+        }
+        """)]
+    [InlineData("todo dentro del delegado", """
+        class H(ILimiteEmpresaPropia limite, IUnitOfWork unitOfWork)
+        {
+            async Task<Result> M(CancellationToken ct)
+            {
+                var resultado = await limite.SerializarAsync(async c =>
+                {
+                    if (await limite.ComprobarAltaAsync(0, true, c) is { } e) return Result.Fallo(e);
+                    repositorio.Agregar(new Empresa("x"));
+                    await unitOfWork.SaveChangesAsync(c);
+                    return Result.Exito();
+                }, ct);
+                return resultado;
+            }
+        }
+        """)]
+    // Las importaciones simple y combinada: la rama sin candado exige además que ninguna fila se omitiera por el
+    // límite, porque el aviso de esa fila sale bajo el candado (revisión Codex r3 de la PR #2193, MEDIO 1).
+    [InlineData("rama de cero en una conjunción", """
+        class H(ILimiteEmpresaPropia limiteEmpresaPropia, IOperacionImportacionRepository operaciones)
+        {
+            async Task<Result> M(CancellationToken ct)
+            {
+                var empresasCreadas = 0;
+                var limiteRechazado = false;
+                if (await limiteEmpresaPropia.ComprobarAltaAsync(empresasCreadas, false, ct) is null) { repositorio.Agregar(new Empresa("x")); empresasCreadas++; }
+                else limiteRechazado = true;
+                if (empresasCreadas == 0 && !limiteRechazado)
+                    return await operaciones.GuardarSiOperacionNuevaAsync(ct) ? Result.Exito() : Result.Fallo(null!);
+                return await limiteEmpresaPropia.SerializarAsync(async c =>
+                {
+                    if (await limiteEmpresaPropia.ComprobarGuardadoAsync(empresasCreadas, c) is { } e) return Result.Fallo(e);
+                    await operaciones.GuardarSiOperacionNuevaAsync(c);
+                    return Result.Exito();
+                }, ct);
             }
         }
         """)]
@@ -588,18 +682,22 @@ internal static class EscriturasDeEmpresaPropia
         }
 
         /// <summary>
-        /// La escritura queda bajo el candado si está en lo que alcanza un delegado válido, o si su método lo contiene y
-        /// prepara antes en memoria (las importaciones construyen fila a fila y recuentan al final, ya bajo el candado)
-        /// sin guardar nada fuera de él. Un guardado fuera solo vale en la rama <c>if (n == 0)</c>, con <c>n</c> el
-        /// recuento que un delegado de ese mismo método pasa a <c>ComprobarGuardadoAsync</c>: sin Empresas propias nuevas
-        /// no hay candado.
+        /// La escritura queda bajo el candado si su método entero lo alcanza un delegado válido (la importación maestra
+        /// escribe en un método al que llama desde el candado), o si su método contiene un delegado válido y no guarda
+        /// nada fuera de él: ni cuando la escritura está dentro del delegado (revisión Codex r3 de la PR #2193, MEDIO 2:
+        /// una construcción dentro, con un guardado condicional dentro y otro después del delegado, guardaría fuera del
+        /// candado), ni cuando el método la prepara antes en memoria (las importaciones construyen fila a fila y
+        /// recuentan al final, ya bajo el candado). Un guardado fuera solo vale en la rama <c>if (n == 0)</c>, o en una
+        /// conjunción que la incluya, con <c>n</c> el recuento que un delegado de ese mismo método pasa a
+        /// <c>ComprobarGuardadoAsync</c>: sin Empresas propias nuevas no hay candado.
         /// </summary>
         public bool Cubre(SyntaxNode escritura, MemberDeclarationSyntax? miembro)
         {
-            if (validos.Any(v => escritura.AncestorsAndSelf().Any(v.Alcance.Contains)))
-                return true;
+            var enAlcance = validos.Where(v => escritura.AncestorsAndSelf().Any(v.Alcance.Contains)).ToList();
             if (miembro is null)
-                return false;
+                return enAlcance.Count > 0;
+            if (enAlcance.Any(v => v.Alcance.Contains(miembro)))
+                return true;
             var delMiembro = validos.Where(v => v.Delegado.Ancestors().Contains(miembro)).ToList();
             if (delMiembro.Count == 0)
                 return false;
@@ -642,14 +740,26 @@ internal static class EscriturasDeEmpresaPropia
             SyntaxNode hijo = nodo;
             foreach (var ancestro in nodo.Ancestors().TakeWhile(a => a != raiz))
             {
-                if (ancestro is IfStatementSyntax si && si.Statement == hijo
-                    && si.Condition is BinaryExpressionSyntax { RawKind: (int)SyntaxKind.EqualsExpression } igual
-                    && (EsRecuentoACero(igual.Left, igual.Right, recuentos) || EsRecuentoACero(igual.Right, igual.Left, recuentos)))
+                if (ancestro is IfStatementSyntax si && si.Statement == hijo && ExigeRecuentoACero(si.Condition, recuentos))
                     return true;
                 hijo = ancestro;
             }
             return false;
         }
+
+        /// <summary>
+        /// <c>n == 0</c>, o una conjunción (<c>&amp;&amp;</c>) con ella en alguno de sus lados: la rama solo corre sin
+        /// Empresas propias nuevas. Una disyunción no vale.
+        /// </summary>
+        private static bool ExigeRecuentoACero(ExpressionSyntax condicion, HashSet<string> recuentos) => condicion switch
+        {
+            ParenthesizedExpressionSyntax p => ExigeRecuentoACero(p.Expression, recuentos),
+            BinaryExpressionSyntax { RawKind: (int)SyntaxKind.LogicalAndExpression } y =>
+                ExigeRecuentoACero(y.Left, recuentos) || ExigeRecuentoACero(y.Right, recuentos),
+            BinaryExpressionSyntax { RawKind: (int)SyntaxKind.EqualsExpression } igual =>
+                EsRecuentoACero(igual.Left, igual.Right, recuentos) || EsRecuentoACero(igual.Right, igual.Left, recuentos),
+            _ => false,
+        };
 
         private static bool EsRecuentoACero(ExpressionSyntax recuento, ExpressionSyntax cero, HashSet<string> recuentos) =>
             recuento is IdentifierNameSyntax id && recuentos.Contains(id.Identifier.ValueText)

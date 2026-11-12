@@ -221,7 +221,9 @@ public class EjecutarImportacionCommandHandler(
         var clientesCreados = 0;
         var centrosCreados = 0;
         var empresasCreadas = 0;
-        var limiteAvisado = false; // D-P11: un solo aviso a Soporte TALVEG por comando, no uno por fila
+        // D-P11: alguna fila de Empresas omitida por el límite. El aviso a Soporte TALVEG no sale de esa fila sino del
+        // guardado, uno por comando: ver GuardarAsync.
+        var limiteRechazado = false;
         var trabajadoresCreados = 0;
         var documentosCreados = 0;
         var asignacionesCreadas = 0;
@@ -344,11 +346,12 @@ public class EjecutarImportacionCommandHandler(
             }
 
             // D-P11: cada fila de la hoja de Empresas crea una Empresa propia, y el Tenant propietario solo puede tener
-            // una. Las que esta misma carga ya añadió cuentan aunque aún no estén guardadas.
-            if (await limiteEmpresaPropia.ComprobarAltaAsync(empresasCreadas, esIntento: !limiteAvisado, cancellationToken) is { } limite)
+            // una. Las que esta misma carga ya añadió cuentan aunque aún no estén guardadas. Sin aviso: este recuento va
+            // sin candado y antes de saber si la operación ya la confirmó otra (revisión Codex r3 de la PR #2193, MEDIO 1).
+            if (await limiteEmpresaPropia.ComprobarAltaAsync(empresasCreadas, esIntento: false, cancellationToken) is { } limite)
             {
                 omitidosEnEscritura.Add(new ItemImportacionDto(fila.Hoja, fila.Fila, fila.RazonSocial, limite.Mensaje));
-                limiteAvisado = true;
+                limiteRechazado = true;
                 continue;
             }
 
@@ -700,8 +703,9 @@ public class EjecutarImportacionCommandHandler(
 
             // D-P11: el recuento de cada fila de Empresas va sin candado; el que decide se repite aquí, bajo el candado de
             // Empresa propia del Tenant y hasta el COMMIT, contra lo que otra operación haya confirmado entretanto. Sin
-            // Empresas propias nuevas no hace falta. Con Asignaciones, este candado va después del de las altas.
-            if (empresasCreadas == 0)
+            // Empresas propias nuevas ni filas omitidas por el límite no hace falta. Con Asignaciones, este candado va
+            // después del de las altas.
+            if (empresasCreadas == 0 && !limiteRechazado)
                 return await GuardarOperacionAsync(ct);
             return await limiteEmpresaPropia.SerializarAsync(async c =>
             {
@@ -711,10 +715,24 @@ public class EjecutarImportacionCommandHandler(
                 // rechazo, en vez de «ya ejecutada» (revisión Codex r2 de la PR #2193, MEDIO 1).
                 if (await operacionImportacionRepositorio.ExisteAsync(plan.OperacionId, c))
                     return FalloYaEjecutada();
-                return await limiteEmpresaPropia.ComprobarGuardadoAsync(empresasCreadas, c) is { } limite
-                    ? Result.Fallo(limite)
-                    : await GuardarOperacionAsync(c);
+                if (await limiteEmpresaPropia.ComprobarGuardadoAsync(empresasCreadas, c) is { } limite)
+                    return Result.Fallo(limite);
+                var guardadoOperacion = await GuardarOperacionAsync(c);
+                await AvisarFilasRechazadasAsync(guardadoOperacion, c);
+                return guardadoOperacion;
             }, ct);
+        }
+
+        // D-P11: el aviso de las filas omitidas por el límite, uno por comando, sale solo de la confirmación que acaba de
+        // guardar la marca de la operación, bajo el candado. Si lo emitiera la fila, la segunda de dos confirmaciones de
+        // la MISMA operación que contara después del COMMIT de la primera avisaría de un rechazo falso antes de responder
+        // «ya ejecutada» (revisión Codex r3 de la PR #2193, MEDIO 1). El recuento es solo para el aviso, porque lo omitido
+        // ya está decidido: si esta carga creó alguna Empresa propia no cabe otra y avisa; si no creó ninguna, avisa
+        // mientras siga activa la que causó el rechazo.
+        async Task AvisarFilasRechazadasAsync(Result guardadoOperacion, CancellationToken ct)
+        {
+            if (limiteRechazado && guardadoOperacion.EsExitoso)
+                _ = await limiteEmpresaPropia.ComprobarAltaAsync(empresasCreadas, esIntento: true, ct);
         }
 
         Result FalloYaEjecutada()
