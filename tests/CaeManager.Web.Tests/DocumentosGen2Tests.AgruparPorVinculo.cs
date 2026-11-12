@@ -342,6 +342,43 @@ public partial class DocumentosGen2Tests
         Toasts().Should().Contain(t => t.TextoAccion == "Deshacer");
     }
 
+    [Fact]
+    public async Task Anotar_vigencia_desaparece_al_plegar_el_grupo_porque_no_se_anota_lo_que_no_se_ve()
+    {
+        var e = ConVinculos();
+        var (cut, _) = Renderizar(e.Mediador);
+        cut.WaitForAssertion(() => cut.Find("tbody button.enlace-nombre-fila"));
+        await Agrupar(cut, "Por Plataforma CAE");
+        cut.WaitForAssertion(() => cut.FindAll("tr.documentos-cabecera-grupo-vinculo").Should().HaveCount(3));
+        await cut.Find(".cabecera-pagina button[aria-label='Selección múltiple']").ClickAsync(new MouseEventArgs());
+        await CasillaDe(cut, e.SinVigencia).ChangeAsync(new ChangeEventArgs { Value = true });
+        cut.FindAll(".documentos-anotar-vigencia").Should().ContainSingle();
+
+        await CabeceraDeVinculo(cut, NalandaId.ToString()).QuerySelector("button.grupo-lista-cabecera")!.ClickAsync(new MouseEventArgs());
+
+        cut.WaitForAssertion(() => CabeceraDeVinculo(cut, NalandaId.ToString()).QuerySelector("button.grupo-lista-cabecera")!
+            .GetAttribute("aria-expanded").Should().Be("false"));
+        cut.FindAll(".documentos-anotar-vigencia").Should().BeEmpty(
+            "con el grupo plegado sus filas no se ven, y la acción no anota acreditaciones ocultas");
+    }
+
+    [Fact]
+    public async Task Sin_agrupar_la_tabla_es_un_solo_bloque_y_conserva_el_orden_entre_Ambitos()
+    {
+        var primero = DocumentoDeFila() with { Id = Guid.NewGuid(), PropietarioNombre = "Primero Trabajador", Ambito = AmbitoAplicacion.Trabajador };
+        var segundo = DocumentoDeFila() with { Id = Guid.NewGuid(), PropietarioNombre = "Segundo Cliente", Ambito = AmbitoAplicacion.Cliente };
+        var tercero = DocumentoDeFila() with { Id = Guid.NewGuid(), PropietarioNombre = "Tercero Trabajador", Ambito = AmbitoAplicacion.Trabajador };
+        var (cut, _) = Renderizar(new MediadorControlado { Documentos = _ => [primero, segundo, tercero] });
+        cut.WaitForAssertion(() => cut.Find("tbody button.enlace-nombre-fila"));
+
+        cut.FindAll(".documentos-tabla-visible tbody").Should().ContainSingle("sin agrupar no se parte la tabla por Ámbito");
+        cut.FindAll(".documentos-tabla-visible tbody tr:has(button.enlace-nombre-fila)")
+            .Select(f => f.TextContent).Should().SatisfyRespectively(
+                f => f.Should().Contain("Primero Trabajador"),
+                f => f.Should().Contain("Segundo Cliente"),
+                f => f.Should().Contain("Tercero Trabajador"));
+    }
+
     [Theory]
     [InlineData("Consulta")]
     [InlineData("Cliente")]
@@ -402,6 +439,9 @@ public partial class DocumentosGen2Tests
     [InlineData("SinVigencia", EstadoEnPlataformaFiltro.SinVigencia)]
     [InlineData("Inventado", null)]
     [InlineData("7", null)]
+    [InlineData("1", null)]
+    [InlineData("PendienteDeSubir,Rechazado", null)]
+    [InlineData("rechazado", null)]
     public void El_enlace_con_EstadoPlataforma_pide_ese_estado_y_descarta_lo_que_no_es_un_estado(string valor, EstadoEnPlataformaFiltro? esperado)
     {
         var (cut, mediador) = Renderizar(ConVinculos().Mediador, url: $"documentos?EstadoPlataforma={valor}");

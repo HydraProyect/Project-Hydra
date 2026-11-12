@@ -68,9 +68,10 @@ public static class DocumentosEndpoints
         string? tipo = null, string? plataforma = null, string? propietario = null, string? agrupar = null,
         string? estadoPlataforma = null)
     {
+        // Solo el nombre exacto de un estado, como el listado: ni números ni listas con coma.
         EstadoEnPlataformaFiltro? estadoPlataformaFiltro =
-            Enum.TryParse<EstadoEnPlataformaFiltro>(estadoPlataforma, out var estadoPlataformaLeido) && Enum.IsDefined(estadoPlataformaLeido)
-                ? estadoPlataformaLeido : null;
+            estadoPlataforma is not null && Enum.GetNames<EstadoEnPlataformaFiltro>().Contains(estadoPlataforma, StringComparer.Ordinal)
+                ? Enum.Parse<EstadoEnPlataformaFiltro>(estadoPlataforma) : null;
         // Estado 4a: la página no muestra los Documentos del Tenant de origen a quien tiene que
         // elegir una empresa de su cartera (ContextoEmpresaActiva.ResolverAsync); el endpoint no
         // los consulta, no genera el archivo ni deja rastro. Misma guarda que Trabajadores.

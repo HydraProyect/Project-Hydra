@@ -272,7 +272,7 @@ public class ObtenerDocumentosAgrupadosPorVinculoTests
 
         var resultado = await e.Handler().Handle(Agrupado(AgrupacionDocumentos.PlataformaCae), default);
 
-        Resumen(resultado, nalanda.Id.ToString()).UrlPortal.Should().Be("https://nalanda.example.com",
+        Resumen(resultado, nalanda.Id.ToString()).UrlPortal.Should().BeEquivalentTo("https://nalanda.example.com",
             "dos canales con la misma dirección, salvo espacios y mayúsculas, son una sola");
         Resumen(resultado, ctaima.Id.ToString()).UrlPortal.Should().BeNull("con dos direcciones distintas no hay un portal que abrir");
 
@@ -286,6 +286,52 @@ public class ObtenerDocumentosAgrupadosPorVinculoTests
 
         var porCliente = await e.Handler().Handle(Agrupado(AgrupacionDocumentos.ClienteEmpresarial), default);
         porCliente.ResumenPorGrupo!.Values.OfType<ResumenDeGrupoDocumental>().Should().OnlyContain(r => r.UrlPortal == null);
+    }
+
+    [Fact]
+    public async Task Abrir_portal_cuenta_solo_las_direcciones_de_los_Centros_que_se_gestionan()
+    {
+        var e = new Escenario();
+        var cliente = e.ConEmpresa("Cliente empresarial");
+        var gestionado = e.ConCentro(cliente, "Centro gestionado");
+        var soloVisible = e.ConCentro(cliente, "Centro solo visible");
+        var ctaima = e.ConPlataforma("Ctaima");
+        var uno = e.ConDocumento();
+        var dos = e.ConDocumento();
+        e.Acreditar(uno, gestionado, ctaima, "https://ctaima.example.com/gestionado");
+        e.Acreditar(dos, soloVisible, ctaima, "https://ctaima.example.com/visible");
+
+        var gestor = new AlcanceDatosServiceFalso(tieneAccesoTotal: false, empresaIdsVisibles: [e.Contratista.Id],
+            centroIdsVisibles: [gestionado.Id, soloVisible.Id], centroIdsParaGestion: [gestionado.Id]);
+        var resultado = await e.Handler(gestor).Handle(Agrupado(AgrupacionDocumentos.PlataformaCae), default);
+
+        Resumen(resultado, ctaima.Id.ToString()).Should().Match<ResumenDeGrupoDocumental>(
+            r => r.Total == 2 && r.UrlPortal == "https://ctaima.example.com/gestionado",
+            "el grupo cuenta los dos Centros visibles, pero la dirección solo sale de los que gestiona");
+    }
+
+    [Fact]
+    public async Task Un_Centro_sin_gestion_CAE_no_aporta_grupo_ni_recuento_ni_portal()
+    {
+        var e = new Escenario();
+        var cliente = e.ConEmpresa("Cliente empresarial");
+        var conGestion = e.ConCentro(cliente, "Centro con gestión");
+        var sinGestion = e.ConCentro(e.ConEmpresa("Cliente sin gestión"), "Centro sin gestión CAE");
+        sinGestion.EstablecerGestionCae(ModalidadGestionCae.SinGestionCae);
+        var nalanda = e.ConPlataforma("Nalanda");
+        var ctaima = e.ConPlataforma("Ctaima");
+        var documento = e.ConDocumento();
+        e.Acreditar(documento, conGestion, nalanda, "https://nalanda.example.com");
+        e.Acreditar(documento, sinGestion, ctaima, "https://ctaima.example.com");
+
+        var porPlataforma = await e.Handler().Handle(Agrupado(AgrupacionDocumentos.PlataformaCae), default);
+
+        porPlataforma.ResumenPorGrupo!.Keys.Should().BeEquivalentTo([nalanda.Id.ToString()],
+            "una acreditación de un Centro sin gestión CAE no es exigible y no abre grupo");
+        porPlataforma.Elementos.Should().ContainSingle();
+
+        var porCliente = await e.Handler().Handle(Agrupado(AgrupacionDocumentos.ClienteEmpresarial), default);
+        porCliente.ResumenPorGrupo!.Keys.Should().BeEquivalentTo([cliente.Id.ToString()]);
     }
 
     // ------------------------------------------------------------- recuentos del universo

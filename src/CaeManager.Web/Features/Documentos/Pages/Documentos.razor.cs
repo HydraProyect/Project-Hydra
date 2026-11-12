@@ -801,8 +801,13 @@ public partial class Documentos : CaeManager.Web.Components.PaginaInteractiva, I
     /// <summary>Grupos por vínculo plegados a mano; el de «Sin …» nace plegado, como en la maqueta.</summary>
     private readonly HashSet<string> _gruposPlegados = [ObtenerDocumentosQuery.GrupoSin];
 
-    private string ClaveDeGrupo(DocumentoListaDto documento) =>
-        AgrupadaPorVinculo ? documento.Grupo?.Clave ?? ObtenerDocumentosQuery.GrupoSin : documento.Ambito.ToString();
+    /// <summary>Sin agrupar, una sola clave: el listado es un único bloque y conserva el orden elegido entre Ámbitos.</summary>
+    private string ClaveDeGrupo(DocumentoListaDto documento) => _agrupacion switch
+    {
+        AgrupacionListado.Ninguna => string.Empty,
+        AgrupacionListado.Ambito => documento.Ambito.ToString(),
+        _ => documento.Grupo?.Clave ?? ObtenerDocumentosQuery.GrupoSin,
+    };
 
     private bool GrupoAbierto(string clave) =>
         !Agrupada || (AgrupadaPorVinculo ? !_gruposPlegados.Contains(clave) : _gruposAbiertos.EstaAbierto(clave));
@@ -878,8 +883,9 @@ public partial class Documentos : CaeManager.Web.Components.PaginaInteractiva, I
 
     private string _estadoPlataformaFiltro = string.Empty;
 
+    /// <summary>Solo el nombre exacto de un estado: ni números ni listas con coma, que Enum.TryParse aceptaría en silencio.</summary>
     private static string EstadoPlataformaValido(string? valor) =>
-        Enum.TryParse<EstadoEnPlataformaFiltro>(valor, out var estado) && Enum.IsDefined(estado) ? estado.ToString() : string.Empty;
+        valor is not null && Enum.GetNames<EstadoEnPlataformaFiltro>().Contains(valor, StringComparer.Ordinal) ? valor : string.Empty;
 
     private IReadOnlyList<OpcionEstado> OpcionesEstadoPlataforma =>
     [

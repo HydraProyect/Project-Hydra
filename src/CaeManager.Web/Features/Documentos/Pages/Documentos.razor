@@ -571,7 +571,8 @@
         var resumen = ResumenDe(clave);
         var nombre = NombreDeGrupo(clave);
         var esGrupoSin = clave == ObtenerDocumentosQuery.GrupoSin;
-        var anotables = AgrupadaPorPlataforma ? SinVigenciaSeleccionadas(filas) : [];
+        // Solo con el grupo abierto: plegado, sus filas no se ven y no se anota lo que no se ve (una selección hecha en otro grupo).
+        var anotables = AgrupadaPorPlataforma && abierto ? SinVigenciaSeleccionadas(filas) : [];
         var portal = AgrupadaPorPlataforma && !esGrupoSin ? UrlPortalCae.Normalizar(resumen?.UrlPortal) : null;
         var total = resumen?.Total ?? filas.Count;
         var subtitulo = !AgrupadaPorPlataforma && !esGrupoSin

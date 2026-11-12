@@ -152,8 +152,9 @@ public record AcreditacionEnGrupoDto(Guid Id, EstadoAcreditacion Estado, EstadoV
 /// </summary>
 /// <param name="EnPlataforma">Por Plataforma CAE, acreditaciones del grupo por estado en la plataforma; sin las que son cero.</param>
 /// <param name="UrlPortal">
-/// La dirección del portal cuando todos los canales del grupo en Centros que el usuario gestiona anotan la misma; null
-/// si no hay ninguna, si hay varias distintas o si el usuario no gestiona (rol Cliente). Es la dirección, nunca la credencial.
+/// La dirección del portal cuando los canales del grupo con dirección anotada, en Centros que el usuario gestiona, anotan
+/// una sola (sin distinguir mayúsculas ni espacios; los canales sin dirección no cuentan); null si no hay ninguna, si hay
+/// varias distintas o si el usuario no gestiona (rol Cliente). Es la dirección, nunca la credencial.
 /// </param>
 public record ResumenDeGrupoDocumental(int Total, IReadOnlyDictionary<string, int> PorEstado, string Nombre,
     IReadOnlyDictionary<EstadoEnPlataformaFiltro, int> EnPlataforma, string? UrlPortal = null)
@@ -648,6 +649,9 @@ public class ObtenerDocumentosQueryHandler(IConfiguracionQueryContext configurac
             join canal in centrosContext.CanalesGestionDocumental on acreditacion.CanalGestionDocumentalId equals canal.Id
             join centro in centrosContext.Centros on canal.CentroId equals centro.Id
             where centrosVisibles == null || centrosVisibles.Contains(centro.Id)
+            // P1-X2, como la pestaña Plataformas CAE (ObtenerAcreditacionesPorProveedorQuery): los canales que conserve un
+            // Centro sin gestión CAE no generan trabajo de acreditación, ni grupo, ni recuento, ni «Anotar vigencia».
+            where centro.GestionCae != ModalidadGestionCae.SinGestionCae
             select new VinculoDocumental
             {
                 AcreditacionId = acreditacion.Id,
@@ -729,8 +733,11 @@ public class ObtenerDocumentosQueryHandler(IConfiguracionQueryContext configurac
                 Anotar(EstadoEnPlataformaFiltro.SinVigencia,
                     grupo.Where(f => f.Estado == EstadoAcreditacion.Aceptada && f.EstadoVigencia == EstadoVigenciaEnPlataforma.SinConfirmar)
                         .Sum(f => f.Filas));
+                // Orden ordinal antes de quitar duplicados: entre dos grafías de la misma dirección gana siempre la misma,
+                // sin depender del orden en que la base de datos devuelva el DISTINCT.
                 var urlsDelGrupo = urls.Where(u => u.ProveedorId == grupo.Key)
                     .Select(u => u.UrlAcceso!.Trim()).Where(u => u.Length > 0)
+                    .OrderBy(u => u, StringComparer.Ordinal)
                     .Distinct(StringComparer.OrdinalIgnoreCase).ToList();
                 resumen[grupo.Key.ToString()] = new ResumenDeGrupoDocumental(
                     grupo.Sum(f => f.Filas), new Dictionary<string, int>(), nombres.GetValueOrDefault(grupo.Key, "Plataforma"),
