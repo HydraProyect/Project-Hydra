@@ -435,6 +435,43 @@ public sealed class DividirPdfPantallaTests : BunitContext
         _mediador.Creaciones.Should().BeEmpty("no se crea un Documento sin la caducidad que se intentó escribir");
     }
 
+    /// <summary>
+    /// Ronda 2 de Codex, ALTO 1: al volver a un tramo cuya caducidad quedó a medias, el CampoFecha nuevo nacía vacío y
+    /// avisaba false, retirando la marca sin que la persona la corrigiera: Crear daba de alta el Documento sin caducidad.
+    /// Ahora el campo recreado conserva la marca, muestra por qué está bloqueado y Crear sigue bloqueado.
+    /// </summary>
+    [Fact]
+    public async Task Volver_a_un_tramo_con_la_caducidad_a_medias_no_retira_el_bloqueo_de_crear()
+    {
+        var cut = Renderizar();
+        cut.WaitForAssertion(() => cut.FindAll(".zona-soltar-archivo").Should().ContainSingle());
+        await SubirAsync(cut);
+        cut.Find("button.tijera[aria-label='Quitar la división tras la página 3']").Click();
+        Pulsar(cut, "Asignar documentos");
+        PonerEmision(cut);
+        cut.WaitForAssertion(() => cut.FindAll("input[placeholder=\"dd/mm/aaaa\"]").Should().HaveCountGreaterThanOrEqualTo(2));
+        await cut.FindAll("input[placeholder=\"dd/mm/aaaa\"]")[1].InputAsync(new ChangeEventArgs { Value = "15/0" });
+        await cut.FindAll("input[placeholder=\"dd/mm/aaaa\"]")[1].BlurAsync(new FocusEventArgs());
+
+        Pulsar(cut, "Siguiente documento");
+        cut.WaitForAssertion(() => cut.FindAll(".marca-omitir input").Should().NotBeEmpty());
+        cut.Find(".marca-omitir input").Change(true);
+        Pulsar(cut, "Anterior");
+
+        cut.WaitForAssertion(() => cut.Find(".cabecera-tramo h1").TextContent.Should().Contain("1"));
+        cut.FindAll("input[placeholder=\"dd/mm/aaaa\"]")[1].GetAttribute("value").Should().BeEmpty("el texto a medias se perdió con el campo anterior");
+        cut.FindAll(".campos-tramo .campo-mensaje-error").Should().ContainSingle("la persona ve por qué el tramo está bloqueado");
+
+        Pulsar(cut, "Siguiente documento");
+        Pulsar(cut, "Revisar y crear");
+
+        cut.WaitForAssertion(() => cut.FindAll("[data-caducidad-no-valida]").Should().ContainSingle());
+        cut.FindAll("[data-caducidad-no-valida-tramo]").Should().ContainSingle();
+        var crear = cut.FindAll("button").Single(b => b.TextContent.Contains("Crear 1 documento"));
+        crear.HasAttribute("disabled").Should().BeTrue();
+        _mediador.Creaciones.Should().BeEmpty("no se crea un Documento sin la caducidad que se intentó escribir");
+    }
+
     [Fact]
     public async Task Volver_atras_no_pierde_los_cortes_ni_lo_escrito()
     {

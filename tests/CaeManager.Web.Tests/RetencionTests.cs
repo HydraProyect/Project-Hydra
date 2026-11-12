@@ -566,6 +566,21 @@ public class RetencionTests : BunitContext
         await cut.SalirYComprobarQuePreguntaAsync(Navegacion);
     }
 
+    /// <summary>
+    /// Ronda 2 de Codex, MEDIO: mientras la fecha está a medias el padre aún ve la propuesta y la instantánea no notaba nada,
+    /// de modo que salir (o Escape) tiraba lo escrito sin avisar.
+    /// </summary>
+    [Fact]
+    public async Task Aviso_autorizar_con_la_fecha_a_medias_pregunta_al_salir()
+    {
+        var (cut, _) = Renderizar(politicaActiva: true, solicitudes: [PendienteDeRevision()]);
+        await BotonConTexto(cut, "Autorizar").ClickAsync(new MouseEventArgs());
+
+        await cut.Find("[role=dialog] input[data-campo-fecha]").InputAsync(new ChangeEventArgs { Value = "15/0" });
+
+        await cut.SalirYComprobarQuePreguntaAsync(Navegacion);
+    }
+
     [Fact]
     public async Task Aviso_autorizar_con_otra_fecha_y_confirmar_deja_salir_sin_preguntar()
     {

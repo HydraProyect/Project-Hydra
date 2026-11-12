@@ -63,7 +63,9 @@
                     @PintarDividir(division)
                     break;
                 case PasoAsistente.Asignar:
-                    @PintarAsignar(division)
+                    // Las claves de los dos CampoFecha de la ficha, únicas entre hermanos (punto único de @key).
+                    var claves = new ClavesDeHermanos();
+                    @PintarAsignar(division, claves)
                     break;
                 case PasoAsistente.Revisar:
                     @PintarRevisar(division)
@@ -101,8 +103,8 @@
     /// aquí, Crear queda bloqueado. Se libera al escribir una fecha entera, al vaciar el campo a mano o al marcar «Sin
     /// caducidad» o «No crear» (el campo, al deshabilitarse, avisa false). Si se sale del tramo con el texto a medias,
     /// el campo se destruye y su valor es null: la marca sigue, la fila del tramo en Revisar lo dice y Crear sigue
-    /// bloqueado. Al volver a ese tramo, el campo nuevo sale vacío y avisa false al crearse: la marca se retira y lo que
-    /// se crea es lo que se ve. Solo cuentan los tramos de la división actual (un corte quitado o «Cambiar PDF» dejan
+    /// bloqueado. Al volver a ese tramo, el campo nuevo recibe la marca (NoValidoPrevio): no la retira al crearse, sale
+    /// con el aviso «no es una fecha» a la vista y solo la quita la persona al teclear o elegir una fecha. Solo cuentan los tramos de la división actual (un corte quitado o «Cambiar PDF» dejan
     /// asignaciones que ya no se crean).
     /// </summary>
     private readonly HashSet<AsignacionTramo> _caducidadesNoValidas = new(ReferenceEqualityComparer.Instance);
@@ -287,7 +289,7 @@
         </div>
     </text>;
 
-    private RenderFragment PintarAsignar(EstadoDivisionPdf division)
+    private RenderFragment PintarAsignar(EstadoDivisionPdf division, ClavesDeHermanos claves)
     {
         var rangos = division.Rangos;
         var rango = rangos[Math.Clamp(_indiceTramo, 0, rangos.Count - 1)];
@@ -387,7 +389,7 @@
                     @* Los CampoFecha se recrean al cambiar de tramo (@key): si no, Blazor reutilizaría los mismos campos y un texto de
                        fecha a medias (o no válido) del tramo anterior pasaría al siguiente. La clave va en los campos y no en la ficha
                        para no recrear los botones de navegación, que perderían el foco del teclado al pulsar «Siguiente documento». *@
-                    <CampoFecha @key="@($"emision-{rango.Clave}")" Etiqueta="@Textos["FechaEmision"]" Deshabilitado="asignacion.Omitido" Valor="asignacion.FechaEmision" ValorChanged="v => asignacion.FechaEmision = v" />
+                    <CampoFecha @key="claves.De(rango.Clave)" Etiqueta="@Textos["FechaEmision"]" Deshabilitado="asignacion.Omitido" Valor="asignacion.FechaEmision" ValorChanged="v => asignacion.FechaEmision = v" />
 
                     @if (division.Tipo(asignacion.TipoDocumentoId) is { VencimientoAutomatico: true })
                     {
@@ -397,8 +399,9 @@
                     {
                         @* NoValidoChanged: una caducidad a medias o ilegible llega como null y crearía el Documento sin
                            caducidad. Al marcar «Sin caducidad» u «No crear» el campo se deshabilita y avisa false solo. *@
-                        <CampoFecha @key="@($"caducidad-{rango.Clave}")" Etiqueta="@Textos["FechaCaducidad"]" Deshabilitado="@(asignacion.Omitido || asignacion.SinCaducidad)" Valor="asignacion.FechaCaducidad"
-                                    ValorChanged="v => AlCambiarCaducidad(asignacion, v)" NoValidoChanged="v => AlCambiarCaducidadNoValida(asignacion, v)" />
+                        <CampoFecha @key="claves.De(rango.Clave)" Etiqueta="@Textos["FechaCaducidad"]" Deshabilitado="@(asignacion.Omitido || asignacion.SinCaducidad)" Valor="asignacion.FechaCaducidad"
+                                    ValorChanged="v => AlCambiarCaducidad(asignacion, v)" NoValidoChanged="v => AlCambiarCaducidadNoValida(asignacion, v)"
+                                    NoValidoPrevio="@_caducidadesNoValidas.Contains(asignacion)" />
                         <label class="marca-tramo">
                             <input type="checkbox" checked="@asignacion.SinCaducidad" disabled="@asignacion.Omitido" @onchange="AlMarcarSinCaducidad(asignacion)" />
                             @Textos["SinCaducidad"]

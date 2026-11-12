@@ -178,6 +178,7 @@ public partial class Retencion : CaeManager.Web.Components.PaginaIntegrableConfi
         // reaccione, sin que la propuesta se quede olvidada indefinidamente.
         _fechaEjecucion = DateTime.UtcNow.AddDays(30).ToString("yyyy-MM-dd");
         _errorFormulario = null;
+        _fechaEjecucionNoValida = false;
         // La fecha propuesta viene puesta: no es un cambio de quien autoriza.
         _instantaneaProgramar.Fijar(_fechaEjecucion);
     }
@@ -185,11 +186,19 @@ public partial class Retencion : CaeManager.Web.Components.PaginaIntegrableConfi
     private readonly InstantaneaFormulario _instantaneaProgramar = new();
 
     /// <summary>
+    /// true mientras la fecha de ejecución tiene un texto a medias o ilegible: el padre aún ve la fecha anterior, así que
+    /// la instantánea no lo notaría, pero la persona ha editado el campo y cerrar sin avisar lo perdería.
+    /// </summary>
+    private bool _fechaEjecucionNoValida;
+
+    private void AlCambiarFechaEjecucionNoValida(bool noValida) => _fechaEjecucionNoValida = noValida;
+
+    /// <summary>
     /// P1-E2b: «hay cambios» de cada ModalFormulario de la página (el guardián de su kit): la fecha de ejecución
     /// cambiada respecto a la propuesta en el de autorizar, o un motivo ya escrito en el de descartar. Cerrados
     /// (también tras confirmar) nunca hay nada que perder.
     /// </summary>
-    private bool HayCambiosProgramar => _aProgramar is not null && _instantaneaProgramar.Difiere(_fechaEjecucion);
+    private bool HayCambiosProgramar => _aProgramar is not null && (_instantaneaProgramar.Difiere(_fechaEjecucion) || _fechaEjecucionNoValida);
 
     private bool HayCambiosCancelar => _aCancelar is not null && !string.IsNullOrWhiteSpace(_motivoCancelacion);
 

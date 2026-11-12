@@ -265,6 +265,34 @@ public sealed class SubidaMasivaGen2Tests : BunitContext
         await DisposeComponentsAsync();
     }
 
+    // Ronda 2 de Codex, ALTO 2: plegar y desplegar la fila destruía y recreaba el campo de vencimiento, y su aviso inicial
+    // retiraba la marca de «fecha a medias»: Confirmar creaba el Documento con vencimiento nulo.
+    [Fact]
+    public async Task Un_vencimiento_manual_a_medias_sigue_bloqueando_tras_plegar_y_desplegar_la_fila()
+    {
+        var (trabajadorId, tipoId) = PrepararPropuesta(confianza: 100, emision: new DateOnly(2026, 3, 1));
+        _mediador.Tipos = [CrearTipo(tipoId) with { AplicaVencimientoAutomatico = false }];
+        _mediador.Deteccion = new DeteccionCamposDocumentoDto(tipoId, trabajadorId, 100, FechaEmisionLeida: new DateOnly(2026, 3, 1), FechaVencimientoPropuesta: new DateOnly(2028, 3, 1));
+        var cut = Render<SubidaMasiva>();
+        await ProcesarAsync(cut, "manual.pdf");
+        await GestionarAsync(cut);
+
+        await cut.FindAll(".item-subida-masiva-formulario input[data-campo-fecha]")[1].InputAsync(new ChangeEventArgs { Value = "01/03/202" });
+        await cut.FindAll(".item-subida-masiva-formulario input[data-campo-fecha]")[1].BlurAsync(new FocusEventArgs());
+        await GestionarAsync(cut); // pliega
+        cut.FindAll(".item-subida-masiva-formulario").Should().BeEmpty("control positivo: la fila quedó plegada y el campo se destruyó");
+        await GestionarAsync(cut); // despliega
+
+        var vencimiento = cut.FindAll(".item-subida-masiva-formulario input[data-campo-fecha]")[1];
+        vencimiento.GetAttribute("value").Should().BeEmpty("el texto a medias se perdió con el campo anterior");
+        cut.FindAll(".item-subida-masiva-formulario .campo-mensaje-error").Should().NotBeEmpty("la persona ve por qué la fila está bloqueada");
+        await cut.FindAll("button").First(b => b.TextContent.Trim() == "Confirmar y crear").ClickAsync(new MouseEventArgs());
+
+        _mediador.Recibidas.Select(r => r.Peticion).OfType<ConfirmarDocumentoPropuestoPorIaCommand>().Should().BeEmpty();
+        Services.GetRequiredService<ToastService>().Mensajes.Should().Contain(m => m.Mensaje.Contains("no es válida"));
+        await DisposeComponentsAsync();
+    }
+
     [Fact]
     public async Task Con_un_tipo_de_vencimiento_automatico_el_vencimiento_propuesto_no_cuenta_como_correccion()
     {

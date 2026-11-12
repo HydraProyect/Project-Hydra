@@ -475,6 +475,91 @@ public class CampoFechaTests : BunitContext
         noValido.Should().Equal(false, true, false);
     }
 
+    // Ronda 2 de Codex, ALTO 1 y 2: un campo recreado por un padre que conserva la marca (tramos, filas plegables) no puede
+    // retirarla al crearse: la persona no la ha corregido ni vaciado.
+    [Fact]
+    public async Task Con_NoValidoPrevio_en_true_el_campo_nuevo_no_retira_la_marca_ni_al_crearse_ni_al_salir_sin_tocarlo()
+    {
+        var noValido = new List<bool>();
+        var cut = Render<CampoFecha>(p => p
+            .Add(c => c.Valor, (DateOnly?)null)
+            .Add(c => c.NoValidoPrevio, true)
+            .Add(c => c.NoValidoChanged, v => noValido.Add(v)));
+
+        noValido.Should().BeEmpty("el padre ya tiene la marca: el campo nuevo no la contradice");
+        cut.Find("input").GetAttribute("value").Should().BeEmpty();
+        cut.FindAll(".campo-mensaje-error").Should().ContainSingle("la persona ve por qué está bloqueado");
+
+        await cut.Find("input").BlurAsync(new FocusEventArgs());
+
+        noValido.Should().BeEmpty("entrar y salir sin tocar el campo no es corregirlo ni vaciarlo");
+        cut.FindAll(".campo-mensaje-error").Should().ContainSingle();
+    }
+
+    [Fact]
+    public async Task Con_NoValidoPrevio_en_true_teclear_una_fecha_entera_retira_la_marca()
+    {
+        var noValido = new List<bool>();
+        var recibidos = new List<DateOnly?>();
+        var cut = Render<CampoFecha>(p => p
+            .Add(c => c.Valor, (DateOnly?)null)
+            .Add(c => c.NoValidoPrevio, true)
+            .Add(c => c.ValorChanged, v => recibidos.Add(v))
+            .Add(c => c.NoValidoChanged, v => noValido.Add(v)));
+
+        await cut.Find("input").InputAsync(new ChangeEventArgs { Value = "15/03/2030" });
+
+        noValido.Should().Equal(false);
+        recibidos.Should().Equal(new DateOnly(2030, 3, 15));
+        cut.FindAll(".campo-mensaje-error").Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task Con_NoValidoPrevio_en_true_teclear_y_vaciar_retira_la_marca()
+    {
+        var noValido = new List<bool>();
+        var cut = Render<CampoFecha>(p => p
+            .Add(c => c.Valor, (DateOnly?)null)
+            .Add(c => c.NoValidoPrevio, true)
+            .Add(c => c.NoValidoChanged, v => noValido.Add(v)));
+
+        await cut.Find("input").InputAsync(new ChangeEventArgs { Value = "1" });
+        noValido.Should().BeEmpty("el padre ya tenía la marca y «1» sigue sin ser una fecha");
+        await cut.Find("input").InputAsync(new ChangeEventArgs { Value = "" });
+
+        noValido.Should().Equal(false);
+        cut.FindAll(".campo-mensaje-error").Should().BeEmpty();
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(null)]
+    public void Sin_marca_previa_el_campo_nuevo_dice_su_estado_solo_si_el_padre_no_lo_lleva(bool? previo)
+    {
+        var noValido = new List<bool>();
+        Render<CampoFecha>(p => p
+            .Add(c => c.Valor, (DateOnly?)null)
+            .Add(c => c.NoValidoPrevio, previo)
+            .Add(c => c.NoValidoChanged, v => noValido.Add(v)));
+
+        if (previo is null) noValido.Should().Equal(false);
+        else noValido.Should().BeEmpty();
+    }
+
+    [Fact]
+    public void Un_campo_nuevo_apagado_no_hereda_la_marca_y_la_retira()
+    {
+        var noValido = new List<bool>();
+        var cut = Render<CampoFecha>(p => p
+            .Add(c => c.Valor, (DateOnly?)null)
+            .Add(c => c.Deshabilitado, true)
+            .Add(c => c.NoValidoPrevio, true)
+            .Add(c => c.NoValidoChanged, v => noValido.Add(v)));
+
+        noValido.Should().Equal(false);
+        cut.FindAll(".campo-mensaje-error").Should().BeEmpty();
+    }
+
     // El padre que deja el campo en el mismo valor (null tras un texto no válido) no se distingue de un
     // re-render cualquiera; al deshabilitarse («Sin caducidad», «No lo sé») el campo sí vuelve a su valor.
     [Fact]

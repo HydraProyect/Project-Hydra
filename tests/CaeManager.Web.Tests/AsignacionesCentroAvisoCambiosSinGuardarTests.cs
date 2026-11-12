@@ -153,6 +153,24 @@ public class AsignacionesCentroAvisoCambiosSinGuardarTests : BunitContext
         cut.FindAll("h2").Should().Contain(h => h.TextContent.Trim() == "¿Descartar cambios?");
     }
 
+    /// <summary>
+    /// Ronda 2 de Codex, MEDIO: con la fecha a medias el padre aún ve la de hoy y la instantánea no notaba nada, de modo que
+    /// salir o cerrar con la X tiraba lo escrito sin avisar.
+    /// </summary>
+    [Fact]
+    public async Task Baja_en_lote_con_la_fecha_a_medias_pregunta_al_salir_y_al_cerrar_con_la_X()
+    {
+        var cut = await AbrirBajaEnLoteAsync();
+        await cut.FindComponents<CampoTexto>().Single(c => c.Instance.Etiqueta == "Fecha de baja").Find("input")
+            .InputAsync(new ChangeEventArgs { Value = "15/0" });
+
+        await cut.SalirYComprobarQuePreguntaAsync(Navegacion);
+        await cut.PulsarEnElAvisoAsync("Seguir editando");
+
+        await cut.Find(".modal-contenido button.modal-cerrar").ClickAsync(new MouseEventArgs());
+        cut.FindAll("h2").Should().Contain(h => h.TextContent.Trim() == "¿Descartar cambios?");
+    }
+
     /// <summary>D-05: «Cancelar» de la baja en lote cierra como la X.</summary>
     [Fact]
     public async Task Cancelar_la_baja_en_lote_con_otra_fecha_pregunta_y_sin_tocar_cierra()

@@ -27,11 +27,19 @@ public partial class CampoFecha
     private bool _parametrosRecibidos;
     private bool _deshabilitadoAntes;
     /// <summary>
-    /// null hasta el primer aviso: un campo recién creado siempre dice su estado. Así el formulario olvida la marca de
-    /// un campo anterior que se destruyó con el texto a medias (otra opción, otro tramo, un ítem plegado) y que ya no
-    /// podría retirarla.
+    /// null hasta el primer aviso: un campo recién creado dice su estado, así el formulario que reinicia su marca al
+    /// abrirse no arrastra la de un campo anterior que ya no podría retirarla. El formulario que conserva la marca más
+    /// allá de la vida del campo (tramos, filas plegables) lo declara con <see cref="NoValidoPrevio"/> y entonces el campo
+    /// nuevo no avisa de su estado inicial.
     /// </summary>
     private bool? _noValidoNotificado;
+
+    /// <summary>
+    /// true cuando el campo nació con la marca de no válido que el padre ya tenía (ver <see cref="NoValidoPrevio"/>) y la
+    /// persona aún no lo ha tocado: el texto a medias se perdió al destruirse el campo anterior, pero la marca no se retira
+    /// hasta que la persona teclee, elija una fecha o vacíe el campo escribiendo.
+    /// </summary>
+    private bool _marcaHeredada;
     private string? _errorPropio;
 
     private bool _abierto;
@@ -60,6 +68,17 @@ public partial class CampoFecha
     /// cada pulsación.
     /// </summary>
     [Parameter] public EventCallback<bool> NoValidoChanged { get; set; }
+
+    /// <summary>
+    /// Opcional, para el formulario que conserva la marca de <see cref="NoValidoChanged"/> más allá de la vida del campo
+    /// (una lista de tramos o de filas cuyos campos se destruyen al cambiar de tramo o plegar la fila): lo que el padre
+    /// tiene marcado ahora para este campo. Con un valor (true o false) el campo recién creado no avisa de su estado
+    /// inicial: no puede retirar una marca que no observó él. Con true y sin fecha, nace con el aviso «no es una fecha» a la
+    /// vista y la marca se mantiene hasta que la persona teclee o elija una fecha; salir del campo sin tocarlo no la quita.
+    /// Con null (por defecto) el campo avisa su estado al crearse, como siempre: es lo que necesita el formulario que
+    /// reinicia su marca al abrirse.
+    /// </summary>
+    [Parameter] public bool? NoValidoPrevio { get; set; }
 
     /// <summary>Opcional: primer y último día elegibles en el calendario (lo que hacía <c>min</c>/<c>max</c> en el campo nativo). Lo escrito a mano no se recorta: lo valida el formulario.</summary>
     [Parameter] public DateOnly? Minimo { get; set; }
@@ -129,11 +148,22 @@ public partial class CampoFecha
         _deshabilitadoAntes = Deshabilitado;
         if (_parametrosRecibidos && Valor == _ultimoNotificado && !seDeshabilita) return;
 
+        var primera = !_parametrosRecibidos;
         _parametrosRecibidos = true;
         _ultimoNotificado = Valor;
         _errorPropio = null;
+        _marcaHeredada = false;
         if (seDeshabilita) _abierto = false;
         MostrarTexto(MascaraFecha.Formatear(Valor));
+        if (primera && NoValidoPrevio is { } previo)
+        {
+            // El padre ya sabe cómo está esta fecha: el campo nuevo no lo contradice. Un campo apagado o con fecha no
+            // hereda la marca (nada que corregir): avisa false y la retira, como antes.
+            _marcaHeredada = previo && Valor is null && !Deshabilitado;
+            _noValidoNotificado = _marcaHeredada ? true : previo ? null : false;
+            if (_marcaHeredada) _errorPropio = Comunes["CampoFechaInvalida"];
+        }
+
         await NotificarEstadoAsync();
     }
 
@@ -141,7 +171,7 @@ public partial class CampoFecha
     /// Hay texto y no es todavía (o no es) una fecha entera dd/mm/aaaa. Cuenta lo que llegó del navegador, no la máscara:
     /// «mañana» pegado sobre una fecha se enmascara en «», pero no es un vaciado voluntario (ver MascaraFecha.EsNoValido).
     /// </summary>
-    private bool TextoNoValido => MascaraFecha.EsNoValido(_texto);
+    private bool TextoNoValido => _marcaHeredada || MascaraFecha.EsNoValido(_texto);
 
     private async Task NotificarEstadoAsync()
     {
@@ -168,6 +198,7 @@ public partial class CampoFecha
         if (Deshabilitado) return;
 
         var crudo = e.Value?.ToString() ?? string.Empty;
+        _marcaHeredada = false;
         _texto = crudo;
         var mascara = MascaraFecha.Aplicar(crudo);
         // Con el script del navegador activo ya llega enmascarado y no se reescribe nada; sin él, se impone aquí. Un texto
@@ -193,6 +224,9 @@ public partial class CampoFecha
 
     private async Task ConfirmarTextoAsync()
     {
+        // Entrar y salir sin tocar un campo que nació marcado no es corregirlo ni vaciarlo: la marca sigue y el aviso también.
+        if (_marcaHeredada) return;
+
         if (_texto.Length == 0)
         {
             _errorPropio = null;
@@ -260,6 +294,7 @@ public partial class CampoFecha
     {
         if (!EsElegible(fecha)) return;
         MostrarTexto(MascaraFecha.Formatear(fecha));
+        _marcaHeredada = false;
         _errorPropio = null;
         Cerrar();
         await NotificarAsync(fecha);

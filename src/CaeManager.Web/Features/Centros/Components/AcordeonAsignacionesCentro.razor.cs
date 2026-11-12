@@ -445,6 +445,7 @@ public partial class AcordeonAsignacionesCentro : ComponentBase, IDisposable
         _procesandoBajaLote = false;
         _bajaLoteFallida = false;
         _fechaBajaLote = string.Empty;
+        _fechaBajaLoteNoValida = false;
     }
 
     private async Task CargarAsync()
@@ -1002,6 +1003,7 @@ public partial class AcordeonAsignacionesCentro : ComponentBase, IDisposable
     private void AbrirConfirmarBajaLoteAsync()
     {
         _fechaBajaLote = DiaDeNegocio.Hoy().ToString("yyyy-MM-dd");
+        _fechaBajaLoteNoValida = false;
         _bajaLoteFallida = false;
         _confirmarBajaLoteVisible = true;
         _instantaneaBajaLote.Fijar(_fechaBajaLote);
@@ -1012,7 +1014,15 @@ public partial class AcordeonAsignacionesCentro : ComponentBase, IDisposable
     /// un cambio, pero haberla cambiado sí (es lo que se perdería al salir o al cerrar el
     /// modal con la X, Escape o el fondo).
     /// </summary>
-    private bool HayCambiosSinGuardar => _confirmarBajaLoteVisible && _instantaneaBajaLote.Difiere(_fechaBajaLote);
+    private bool HayCambiosSinGuardar => _confirmarBajaLoteVisible && (_instantaneaBajaLote.Difiere(_fechaBajaLote) || _fechaBajaLoteNoValida);
+
+    /// <summary>
+    /// true mientras la fecha de baja tiene un texto a medias o ilegible: el padre aún ve la fecha anterior y la instantánea
+    /// no lo notaría, pero la persona ha editado el campo y cerrar sin avisar lo perdería.
+    /// </summary>
+    private bool _fechaBajaLoteNoValida;
+
+    private void AlCambiarFechaBajaLoteNoValida(bool noValida) => _fechaBajaLoteNoValida = noValida;
 
     /// <summary>
     /// Baja en lote. Tres cosas que el botón no puede garantizar por sí solo:

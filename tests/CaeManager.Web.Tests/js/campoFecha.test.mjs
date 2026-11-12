@@ -191,6 +191,18 @@ test('si no cabe ni encima ni debajo, el panel se acota al lado elegido y no mon
     assert.ok(arriba + 288 <= 300 - 4, 'el borde de abajo queda por encima del campo');
 });
 
+test('en una ventana de unos 120 px el panel se acota al espacio real del lado con más hueco, sin mínimo forzado, y no se sale de la ventana', () => {
+    // Ventana de 120 px y campo de 40 a 70: debajo quedan 120 - 70 - 8 - 4 = 38 px y encima 40 - 8 - 4 = 28 px.
+    const { panel } = calendarioAnclado({ altoVentana: 120, campoArriba: 40, campoAbajo: 70, altoPanel: 360 });
+
+    assert.equal(panel.dataset.lado, 'abajo', 'se elige el lado con más espacio');
+    assert.equal(panel.style.maxHeight, '38px', 'el tope es el espacio real, no un mínimo de 96 px');
+    assert.equal(panel.style.overflowY, 'auto', 'el resto se desplaza por dentro');
+    const arriba = parseFloat(panel.style.top);
+    assert.ok(arriba >= 70, 'no monta su borde sobre el campo');
+    assert.ok(arriba + 38 <= 120 - 8, 'el borde de abajo queda dentro de la ventana');
+});
+
 test('al recolocar un panel acotado se conserva su scroll interno', () => {
     const { panel, observadores } = calendarioAnclado({ altoVentana: 600, campoArriba: 300, campoAbajo: 348, altoPanel: 360, scrollTop: 40 });
     assert.equal(panel.scrollTop, 40, 'control: al abrirse queda donde estaba');

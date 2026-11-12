@@ -102,8 +102,9 @@
         var arriba = caja.top - MARGEN - HUECO;
         var voltear = alto > abajo && arriba > abajo;
         // Si no cabe ni encima ni debajo, el panel se acota al lado elegido y se desplaza por dentro: así nunca monta su borde
-        // sobre el campo (como CampoSelectAvanzado).
-        var disponible = Math.max(voltear ? arriba : abajo, 96);
+        // sobre el campo (como CampoSelectAvanzado). El tope es el espacio real de ese lado, sin mínimo forzado: con una
+        // ventana muy baja un mínimo haría salirse el panel de la ventana o montarse sobre el campo.
+        var disponible = Math.max(voltear ? arriba : abajo, 0);
         if (alto > disponible) {
             panel.style.maxHeight = disponible + 'px';
             panel.style.overflowY = 'auto';
