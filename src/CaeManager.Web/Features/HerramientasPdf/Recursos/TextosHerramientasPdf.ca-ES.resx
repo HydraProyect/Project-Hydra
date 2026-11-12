@@ -85,7 +85,7 @@
     <value>El PDF supera els {0} MB. Divideix-lo abans o puja'n una altra còpia.</value>
   </data>
   <data name="ErrorContrasena" xml:space="preserve">
-    <value>El PDF té contrasenya. Treu-la i torna'l a pujar.</value>
+    <value>El PDF està protegit o xifrat i no es pot dividir així. Obre&apos;l i desa&apos;l de nou com a PDF sense protecció (per exemple, imprimint-lo a PDF) i torna&apos;l a pujar.</value>
   </data>
   <data name="ErrorIlegible" xml:space="preserve">
     <value>No hem pogut llegir aquest PDF. Puja'n una altra còpia.</value>

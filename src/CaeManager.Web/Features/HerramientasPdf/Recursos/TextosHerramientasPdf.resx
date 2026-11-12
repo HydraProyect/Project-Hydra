@@ -85,7 +85,7 @@
     <value>El PDF supera los {0} MB. Divídelo antes o sube otra copia.</value>
   </data>
   <data name="ErrorContrasena" xml:space="preserve">
-    <value>El PDF tiene contraseña. Quítala y vuelve a subirlo.</value>
+    <value>El PDF está protegido o cifrado y no se puede dividir así. Ábrelo y guárdalo de nuevo como PDF sin protección (por ejemplo, imprimiéndolo a PDF) y vuelve a subirlo.</value>
   </data>
   <data name="ErrorIlegible" xml:space="preserve">
     <value>No hemos podido leer este PDF. Sube otra copia.</value>

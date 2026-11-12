@@ -656,7 +656,8 @@ public sealed class DividirPdfPantallaTests : BunitContext
 
         await cut.InvokeAsync(() => cut.FindComponent<InputFile>().UploadFiles(InputFileContent.CreateFromBinary([1], "cerrado.pdf")));
 
-        cut.WaitForAssertion(() => cut.Markup.Should().Contain("El PDF tiene contraseña"));
+        cut.WaitForAssertion(() => cut.Markup.Should().Contain("El PDF está protegido o cifrado y no se puede dividir así. Ábrelo y guárdalo de nuevo como PDF sin protección (por ejemplo, imprimiéndolo a PDF)"));
+        cut.Markup.Should().NotContain("Quítala", "un PDF con solo contraseña de propietario no tiene contraseña que quitar");
         cut.FindAll("button.tijera").Should().BeEmpty();
     }
 
