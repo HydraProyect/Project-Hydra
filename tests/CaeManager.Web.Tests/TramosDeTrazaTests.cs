@@ -1,4 +1,5 @@
 using System.Text;
+using System.Text.RegularExpressions;
 using CaeManager.E2ETests;
 using FluentAssertions;
 
@@ -304,6 +305,13 @@ public sealed class GrabacionDeTrazaTests : IDisposable
             delegado.Should().Contain(paso, "el paso del formulario de acceso no se graba");
         (antes + despues).Should().NotContain("page.", "nada de la página se toca fuera del delegado que no se graba")
             .And.NotContain("PausarAsync").And.NotContain("ReanudarAsync");
+
+        // Y TrazaAlFallar pasa la grabación armada en el contexto, no siempre null (que dejaría grabar el acceso).
+        var traza = Regex.Replace(
+            File.ReadAllText(Path.Combine(RaizDelRepositorio(), "tests", "CaeManager.E2ETests", "TrazaAlFallar.cs")), @"\s+", " ");
+        traza.Should().Contain(
+            "IniciarSesionSinGrabarAsync(IBrowserContext contexto, Func<Task> iniciarSesion) => " +
+            "GrabacionDeTraza.IniciarSesionSinGrabarAsync( Armadas.TryGetValue(contexto, out var traza) ? traza._grabacion : null, iniciarSesion);");
     }
 
     private static string RaizDelRepositorio()

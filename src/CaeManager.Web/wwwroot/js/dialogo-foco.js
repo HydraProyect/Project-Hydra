@@ -157,9 +157,10 @@ export function atraparFoco(contenedor, devolverFila = false) {
             } else {
                 // El elemento previo desapareció mientras este diálogo seguía abierto (p. ej. se repintó el diálogo
                 // exterior que contenía su abridor): el foco vuelve al diálogo modal exterior que sigue abierto, a su
-                // primer enfocable o, si no tiene, a su contenedor, y no se queda detrás de él.
+                // primer enfocable o, si no tiene, a su contenedor, y no se queda detrás de él. Los controles de este
+                // diálogo no cuentan: desde DisposeAsync aún puede estar en el DOM, a punto de desaparecer.
                 const exterior = dialogoExteriorAbierto(contenedor);
-                if (exterior) (enfocablesDe(exterior)[0] ?? exterior).focus();
+                if (exterior) (enfocablesDe(exterior).find(el => !contenedor.contains(el)) ?? exterior).focus();
             }
         }
     };

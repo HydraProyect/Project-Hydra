@@ -330,6 +330,19 @@ test('si el abridor interior se retira con el diálogo interior abierto, al cerr
     assert.equal(documento.activeElement, fecha);
 });
 
+test('si el diálogo interior sigue en el DOM al liberarse (DisposeAsync), el foco no va a uno de sus controles', () => {
+    const escenario = escena();
+    const { documento, dialogo, primero, fecha } = escenario;
+    const { interior } = exteriorConInteriorPorAbrir(escenario);
+    const trampaDentro = atraparFoco(interior);
+    retirar(primero);
+    // El interior va antes que «fecha» en el exterior: su campo sería el primer enfocable del exterior.
+    dialogo.hijos.splice(dialogo.hijos.indexOf(interior), 1);
+    dialogo.hijos.unshift(interior);
+    trampaDentro.dispose();
+    assert.equal(documento.activeElement, fecha);
+});
+
 test('si el abridor interior se retira con el diálogo interior abierto y el exterior no tiene enfocables, el foco va a su contenedor', () => {
     const escenario = escena();
     const { documento, dialogo, primero, fecha } = escenario;
