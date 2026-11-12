@@ -20,6 +20,11 @@ namespace CaeManager.Application.Documentos.Commands.ConfirmarVigenciaAcreditaci
 /// comando ese estado sería un callejón sin salida, con la vigencia de medio
 /// sistema imposible de completar desde el producto.
 /// </para>
+/// <para>
+/// Solo sobre una acreditación Aceptada: es la única que la pantalla ofrece anotar (fila y bloque de la pestaña
+/// Plataformas CAE, y «Anotar vigencia» del listado agrupado), y la precondición se comprueba aquí porque el estado
+/// puede cambiar mientras el modal está abierto.
+/// </para>
 /// </summary>
 public record ConfirmarVigenciaAcreditacionCommand(Guid AcreditacionId, VigenciaEnPlataforma Vigencia) : ICommand<ResultadoAnotacionAcreditacionDto>;
 
@@ -40,6 +45,13 @@ public class ConfirmarVigenciaAcreditacionCommandHandler(
         if (!acreditacion.PuedeConfirmarVigencia)
             return Result.Fallo<ResultadoAnotacionAcreditacionDto>(Error.Crear(
                 "Acreditacion.NoRequerida", "Esta plataforma no pide este documento: no hay vigencia que anotar."));
+
+        // Solo se anota la vigencia de lo que la plataforma ya ha validado. Si entre que se abrió la pantalla y se
+        // anota alguien la rechazó o la devolvió a pendiente, la fecha describiría una acreditación que ya no existe;
+        // anotarla igualmente dejaría una vigencia sobre un documento que la plataforma no da por bueno.
+        if (acreditacion.Estado != EstadoAcreditacion.Aceptada)
+            return Result.Fallo<ResultadoAnotacionAcreditacionDto>(Error.Crear(
+                "Acreditacion.NoAceptada", "Esta acreditación ya no está validada en la plataforma: no se anota su vigencia. Recarga la pantalla."));
 
         var estadoPrevio = acreditacion.Estado;
         var vigenciaPrevia = acreditacion.Vigencia;
