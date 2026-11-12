@@ -647,6 +647,56 @@ public sealed class DividirPdfPantallaTests : BunitContext
         _mediador.Extracciones.Should().BeEmpty();
     }
 
+    private const string AvisoExcedePresupuesto = "Este PDF es demasiado grande para separarlo con la memoria que tiene asignada este servidor.";
+
+    private static PresupuestoMemoriaDocumentos PresupuestoDe(long maximo) => new(
+        Options.Create(new OpcionesPresupuestoMemoriaDocumentos { MaximoBytes = maximo, EsperaMaxima = TimeSpan.FromMilliseconds(100) }),
+        TimeProvider.System);
+
+    [Fact]
+    public async Task Descargar_con_un_presupuesto_menor_que_el_pico_de_un_tramo_avisa_sin_extraer_nada()
+    {
+        // MEDIO de la ronda 4: la reserva se recortaba al presupuesto entero y el tramo salía sin su pico cubierto.
+        var descarga = JSInterop.SetupModule("./js/descarga-pdf-unido.js");
+        descarga.SetupVoid("descargarPdf", _ => true).SetVoidResult();
+        var corto = PresupuestoDe(LimitesDivisionPdf.MemoriaExtraccionTramo(3) - 1);
+        var cut = Renderizar(presupuesto: corto);
+        await SubirAsync(cut);
+
+        Pulsar(cut, "Descargar 3 PDF");
+
+        cut.WaitForAssertion(() => cut.Find(".aviso-error").TextContent.Should().Contain(AvisoExcedePresupuesto));
+        _mediador.Extracciones.Should().BeEmpty();
+        descarga.Invocations.Should().BeEmpty();
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Guardar_sin_sitio_en_el_presupuesto_para_su_reserva_y_la_del_cifrado_avisa_sin_crear_nada(bool cabeLaDeLaPantalla)
+    {
+        // MEDIO de la ronda 4: con su reserva recortada no cubre su pico, y si solo cabe la suya, el cifrado de cada tramo
+        // esperaría a una reserva que la propia pantalla retiene.
+        var maximo = cabeLaDeLaPantalla
+            ? LimitesDivisionPdf.MemoriaGuardarTramos(3) - 1
+            : LimitesDivisionPdf.MemoriaCreacionTramos(3) - 1;
+        var cut = Renderizar(presupuesto: PresupuestoDe(maximo));
+        cut.WaitForAssertion(() => cut.FindAll(".zona-soltar-archivo").Should().ContainSingle());
+        await SubirAsync(cut);
+        cut.Find("button.tijera[aria-label='Quitar la división tras la página 3']").Click();
+        Pulsar(cut, "Guardar en TALVEG");
+        PonerEmision(cut);
+        Pulsar(cut, "Siguiente documento");
+        cut.WaitForAssertion(() => cut.FindAll(".marca-omitir input").Should().NotBeEmpty());
+        cut.Find(".marca-omitir input").Change(true);
+        Pulsar(cut, "Revisar y crear");
+
+        Pulsar(cut, "Crear 1 documento");
+
+        cut.WaitForAssertion(() => cut.Markup.Should().Contain(AvisoExcedePresupuesto));
+        _mediador.Creaciones.Should().BeEmpty();
+    }
+
     [Fact]
     public async Task El_rotulo_dice_Empresa_y_no_Empresa_gestionada()
     {

@@ -739,6 +739,9 @@
   <data name="ErrorSinEspacioTramo" xml:space="preserve">
     <value>Ahora mismo no hay espacio para preparar las páginas {0} a {1}, ni las siguientes. Vuelve a intentarlo en unos minutos.</value>
   </data>
+  <data name="ErrorPdfExcedePresupuesto" xml:space="preserve">
+    <value>Este PDF es demasiado grande para separarlo con la memoria que tiene asignada este servidor. No se ha hecho nada: prueba con un PDF más pequeño.</value>
+  </data>
   <data name="ErrorDemasiadoComplejo" xml:space="preserve">
     <value>Este PDF tiene una estructura interna demasiado grande para dividirlo sin riesgo. Ábrelo y guárdalo de nuevo como PDF (por ejemplo, imprimiéndolo a PDF) y vuelve a subirlo.</value>
   </data>

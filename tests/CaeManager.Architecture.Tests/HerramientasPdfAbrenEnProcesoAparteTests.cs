@@ -82,6 +82,36 @@ public class HerramientasPdfAbrenEnProcesoAparteTests
             "el proceso web no construye ni registra un motor de PDFsharp: Unir y Dividir abren en el proceso aparte");
     }
 
+    /// <summary>
+    /// El punto de entrada del proceso aparte (<c>ProcesoHerramientasPdf.Ejecutar</c>) puede nombrar los motores, así que
+    /// llamarlo desde el proceso web abriría el PDF en él. Solo lo llama Program.cs, dentro del <c>if</c> que reconoce el
+    /// argumento del proceso aparte, antes de construir la aplicación. Sintáctico, como el resto: no ve una llamada por
+    /// reflexión ni un alias del tipo.
+    /// </summary>
+    [Fact]
+    public void El_punto_de_entrada_del_proceso_aparte_solo_se_llama_al_arrancar_como_proceso_aparte()
+    {
+        var fuentes = Fuentes(["src"]);
+
+        var llamadas = fuentes
+            .SelectMany(f => f.Raiz.DescendantNodes().OfType<InvocationExpressionSyntax>()
+                .Where(i => i.Expression is MemberAccessExpressionSyntax
+                {
+                    Name.Identifier.ValueText: "Ejecutar",
+                    Expression: var tipo,
+                } && tipo.DescendantNodesAndSelf().OfType<SimpleNameSyntax>().Any(n => n.Identifier.ValueText == "ProcesoHerramientasPdf"))
+                .Select(i => (f.Fichero, Llamada: i)))
+            .ToList();
+
+        llamadas.Should().NotBeEmpty("si no, el detector no ve la llamada que debería");
+        llamadas.Select(l => l.Fichero).Should().OnlyContain(f => f == "Program.cs",
+            "el proceso web no entra en el proceso aparte: solo Program.cs lo hace, al arrancar con su argumento");
+        llamadas.Should().OnlyContain(l => l.Llamada.Ancestors().OfType<IfStatementSyntax>()
+                .Any(si => Identificadores(si.Condition).Contains("Argumento")
+                           && Identificadores(si.Condition).Contains("ProcesoHerramientasPdf")),
+            "fuera del if que reconoce el argumento, la aplicación web abriría el PDF en su propio proceso");
+    }
+
     [Fact]
     public void En_Herramientas_PDF_solo_los_motores_del_proceso_aparte_usan_PdfReader()
     {

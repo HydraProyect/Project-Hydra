@@ -739,6 +739,9 @@
   <data name="ErrorSinEspacioTramo" xml:space="preserve">
     <value>Ara mateix no hi ha espai per preparar les pàgines {0} a {1}, ni les següents. Torna-ho a provar d&apos;aquí a uns minuts.</value>
   </data>
+  <data name="ErrorPdfExcedePresupuesto" xml:space="preserve">
+    <value>Aquest PDF és massa gran per separar-lo amb la memòria que té assignada aquest servidor. No s&apos;ha fet res: prova-ho amb un PDF més petit.</value>
+  </data>
   <data name="ErrorDemasiadoComplejo" xml:space="preserve">
     <value>Aquest PDF té una estructura interna massa gran per dividir-lo sense risc. Obre&apos;l i desa&apos;l de nou com a PDF (per exemple, imprimint-lo a PDF) i torna&apos;l a pujar.</value>
   </data>

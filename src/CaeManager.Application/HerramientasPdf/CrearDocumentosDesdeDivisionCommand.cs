@@ -111,30 +111,81 @@ public class CrearDocumentosDesdeDivisionCommandHandler(
         if (!TramosCaben(request.Tramos, pdf.NumeroPaginas))
             return Fallo(ErrorTramosInvalidos, "Las páginas de los documentos no coinciden con el PDF.");
 
+        // Cada corte del lote deja este tramo y los que faltan sin preparar y devuelve lo ya creado: con Documentos creados
+        // (o que pudieron quedar creados), lanzar perdería su lista y el usuario los duplicaría al repetir. Sin ninguno, la
+        // falta de turno y la cancelación sí lanzan, y el cambio de Tenant falla como al empezar: la pantalla avisa y
+        // conserva el original para reintentar.
         var resultados = new List<ResultadoTramoCreado>(request.Tramos.Count);
         foreach (var tramo in request.Tramos)
         {
+            string detalleRestantes;
+            var retenida = false;
             try
             {
                 resultados.Add(await CrearTramoSinPerderElLoteAsync(request, pdf, tramo, cancellationToken));
+                continue;
+            }
+            catch (PdfDemasiadoComplejoException ex)
+            {
+                // El proceso aparte agotó su memoria o su tiempo, o murió, con este tramo. Seguir lanzaría un proceso más por
+                // cada tramo que falta, con el mismo PDF, y ocuparía el turno que comparten Unir y Dividir.
+                logger.LogWarning("Dividir PDF cortó el lote: el proceso aparte no pudo con el PDF.");
+                resultados.Add(ex.Resultado);
+                detalleRestantes = DetalleTrasPdfDemasiadoComplejo;
+            }
+            catch (TenantCambiadoException) when (HayDocumentosCreados(resultados))
+            {
+                logger.LogWarning("Dividir PDF cortó el lote: el Tenant activo ya no es el del inicio del asistente.");
+                detalleRestantes = DetalleTenantCambiado;
+            }
+            catch (TenantCambiadoException)
+            {
+                return Fallo(ErrorTenantCruzado, DetalleTenantCambiado);
+            }
+            catch (OperationCanceledException) when (HayDocumentosCreados(resultados))
+            {
+                logger.LogWarning("Dividir PDF cortó el lote al cancelarse la operación.");
+                detalleRestantes = DetalleCancelado;
             }
             catch (Exception ex) when (HayDocumentosCreados(resultados) && ex is PresupuestoMemoriaAgotadoException or EntradaPdfRetenidaException)
             {
                 // Sin turno para el proceso aparte, o con uno que no consta terminado (y entonces no habrá más turnos en la
-                // instancia): con Documentos ya creados (o que pudieron quedar creados), lanzar perdería su lista y el
-                // usuario los duplicaría al repetir. Este tramo y los que faltan quedan sin preparar, y si el proceso no
-                // consta terminado, el resultado lo dice para que la pantalla retenga la reserva del original. Sin ningún
-                // Documento creado, sí lanza: la pantalla avisa y conserva el original para reintentar.
+                // instancia). Si el proceso no consta terminado, el resultado lo dice para que la pantalla retenga la
+                // reserva del original.
                 logger.LogWarning("Dividir PDF cortó el lote sin turno en el proceso aparte ({Excepcion}).", ex.GetType().Name);
-                var retenida = ex is EntradaPdfRetenidaException;
-                const string detalle = "No se ha podido preparar este documento ahora. Inténtalo más tarde.";
-                foreach (var pendiente in request.Tramos.Skip(resultados.Count).ToList())
-                    resultados.Add(Resultado(pendiente, EstadoTramoCreado.Rechazado, null, detalle) with { EntradaRetenida = retenida });
-                break;
+                retenida = ex is EntradaPdfRetenidaException;
+                detalleRestantes = DetalleSinTurno;
             }
+
+            foreach (var pendiente in request.Tramos.Skip(resultados.Count).ToList())
+                resultados.Add(Resultado(pendiente, EstadoTramoCreado.Rechazado, null, detalleRestantes) with { EntradaRetenida = retenida });
+            break;
         }
 
         return Result.Exito<IReadOnlyList<ResultadoTramoCreado>>(resultados);
+    }
+
+    private const string DetalleSinTurno = "No se ha podido preparar este documento ahora. Inténtalo más tarde.";
+    private const string DetalleTenantCambiado = "La Empresa ha cambiado. Vuelve a empezar para no crear documentos en otra.";
+    private const string DetalleCancelado = "No se ha preparado este documento: la operación se ha cancelado.";
+    private const string DetalleTrasPdfDemasiadoComplejo =
+        "No se ha preparado este documento: el PDF no se pudo procesar al separar un documento anterior.";
+
+    /// <summary>
+    /// El Tenant activo sigue siendo el del inicio del asistente. Se comprueba sin ninguna espera entre la comprobación y lo
+    /// que protege: el almacenamiento cifra y guarda con el Tenant activo, que lee al entrar y no compara con nadie.
+    /// </summary>
+    private bool TenantSigueSiendoElEsperado(CrearDocumentosDesdeDivisionCommand request) =>
+        tenantActual.TenantId is { } tenant && tenant == request.TenantEsperadoId;
+
+    /// <summary>El Tenant activo cambió a mitad del lote: no se escribe ni se da de alta nada más.</summary>
+    private sealed class TenantCambiadoException() : Exception("El Tenant activo cambió a mitad de Dividir PDF.");
+
+    /// <summary>El proceso aparte no pudo con el PDF al extraer un tramo; lleva el resultado de ese tramo.</summary>
+    private sealed class PdfDemasiadoComplejoException(ResultadoTramoCreado resultado)
+        : Exception("El proceso aparte no pudo con el PDF de Dividir.")
+    {
+        public ResultadoTramoCreado Resultado { get; } = resultado;
     }
 
     private static bool HayDocumentosCreados(List<ResultadoTramoCreado> resultados) =>
@@ -163,7 +214,8 @@ public class CrearDocumentosDesdeDivisionCommandHandler(
         {
             return await CrearTramoAsync(request, pdf, tramo, cancellationToken);
         }
-        catch (Exception ex) when (ex is not (OperationCanceledException or PresupuestoMemoriaAgotadoException or EntradaPdfRetenidaException))
+        catch (Exception ex) when (ex is not (OperationCanceledException or PresupuestoMemoriaAgotadoException or EntradaPdfRetenidaException
+                                       or TenantCambiadoException or PdfDemasiadoComplejoException))
         {
             logger.LogWarning("Dividir PDF no pudo preparar un tramo ({Excepcion}).", ex.GetType().Name);
             return Resultado(tramo, EstadoTramoCreado.Rechazado, null, "No se ha podido preparar este documento.");
@@ -184,20 +236,50 @@ public class CrearDocumentosDesdeDivisionCommandHandler(
     private async Task<ResultadoTramoCreado> CrearTramoAsync(
         CrearDocumentosDesdeDivisionCommand request, IPdfParaDividir pdf, TramoACrear tramo, CancellationToken cancellationToken)
     {
+        // Con otro Tenant activo, no se ocupa un turno del proceso aparte para un tramo que no se va a guardar.
+        if (!TenantSigueSiendoElEsperado(request))
+            throw new TenantCambiadoException();
+
         // La cota es la del alta: un tramo que no cabría como Documento se corta mientras se escribe, sin ocupar más.
         var extraido = await pdf.ExtraerPaginasAsync(tramo.PaginaInicial, tramo.PaginaFinal, LimitesArchivoSubido.TamanoMaximoBytes, cancellationToken);
         if (!extraido.EsExitoso)
         {
-            return extraido.Error.Codigo == ErroresDivisorPdf.DemasiadoGrande
-                ? Resultado(tramo, EstadoTramoCreado.DemasiadoGrande, null, null)
-                : Resultado(tramo, EstadoTramoCreado.Rechazado, null, extraido.Error.Mensaje);
+            return extraido.Error.Codigo switch
+            {
+                ErroresDivisorPdf.DemasiadoGrande => Resultado(tramo, EstadoTramoCreado.DemasiadoGrande, null, null),
+                ErroresDivisorPdf.DemasiadoComplejo => throw new PdfDemasiadoComplejoException(
+                    Resultado(tramo, EstadoTramoCreado.Rechazado, null, extraido.Error.Mensaje)),
+                _ => Resultado(tramo, EstadoTramoCreado.Rechazado, null, extraido.Error.Mensaje),
+            };
         }
 
         if (extraido.Valor.Length > LimitesArchivoSubido.TamanoMaximoBytes)
             return Resultado(tramo, EstadoTramoCreado.DemasiadoGrande, null, null);
 
+        // La comprobación del inicio quedó detrás de las esperas de la apertura y de la extracción. Entre esta y la lectura
+        // del Tenant activo que hace el almacenamiento al entrar en GuardarAsync no hay ninguna espera.
+        if (!TenantSigueSiendoElEsperado(request))
+            throw new TenantCambiadoException();
+
         using var flujo = new MemoryStream(extraido.Valor, writable: false);
         var archivoUrl = await almacen.GuardarAsync(flujo, NombreDelTramo(request.NombreOriginal, tramo), cancellationToken);
+
+        // Tras la espera del guardado, y antes de dar de alta: el alta también sella con el Tenant activo. Si ya no es el
+        // esperado, el archivo se retira con el Tenant activo, que es el único con el que el almacenamiento lo encuentra si
+        // se llegó a escribir bajo él; si se escribió bajo el esperado, no lo encuentra y queda huérfano en su propio Tenant.
+        if (!TenantSigueSiendoElEsperado(request))
+        {
+            logger.LogWarning("Dividir PDF no da de alta un tramo ya guardado: el Tenant activo cambió durante el guardado.");
+            await EliminarConElTenantActivoAsync(archivoUrl);
+            throw new TenantCambiadoException();
+        }
+
+        if (cancellationToken.IsCancellationRequested)
+        {
+            // El alta aún no ha empezado: el archivo no tiene Documento.
+            await EliminarSinOcultarAsync(request, archivoUrl);
+            cancellationToken.ThrowIfCancellationRequested();
+        }
 
         Result<Guid> creado;
         try
@@ -206,12 +288,13 @@ public class CrearDocumentosDesdeDivisionCommandHandler(
         }
         catch (ValidationException ex)
         {
-            await EliminarSinOcultarAsync(archivoUrl);
+            await EliminarSinOcultarAsync(request, archivoUrl);
             return Resultado(tramo, EstadoTramoCreado.Rechazado, null, ex.Errors.FirstOrDefault()?.ErrorMessage);
         }
-        catch (Exception ex) when (ex is not OperationCanceledException)
+        catch (Exception ex)
         {
-            // El alta guarda antes de publicar su evento: el Documento pudo quedar creado y necesita su archivo.
+            // El alta guarda antes de publicar su evento: el Documento pudo quedar creado y necesita su archivo. También si
+            // se canceló a mitad: el lote se corta en el siguiente tramo, y este se da por pendiente de comprobar.
             logger.LogWarning("Dividir PDF no pudo confirmar un alta ({Excepcion}).", ex.GetType().Name);
             return Resultado(tramo, EstadoTramoCreado.SinConfirmar, null, null);
         }
@@ -219,7 +302,7 @@ public class CrearDocumentosDesdeDivisionCommandHandler(
         if (creado.EsExitoso)
             return Resultado(tramo, EstadoTramoCreado.Creado, creado.Valor, null);
 
-        await EliminarSinOcultarAsync(archivoUrl);
+        await EliminarSinOcultarAsync(request, archivoUrl);
         return Resultado(tramo, EstadoTramoCreado.Rechazado, null, creado.Error.Mensaje);
     }
 
@@ -246,7 +329,23 @@ public class CrearDocumentosDesdeDivisionCommandHandler(
     private static string NombreDelTramo(string nombreOriginal, TramoACrear tramo) =>
         NombresTramoPdf.De(nombreOriginal, tramo.PaginaInicial, tramo.PaginaFinal);
 
-    private async Task EliminarSinOcultarAsync(string archivoUrl)
+    /// <summary>
+    /// Retira el archivo de un tramo que no llegó a ser Documento. El almacenamiento resuelve el archivo con el Tenant activo:
+    /// si ya no es el esperado, no lo encontraría (el archivo se escribió bajo el esperado) y el borrado callaría el fallo,
+    /// así que no se intenta y se registra el huérfano, que queda en su propio Tenant.
+    /// </summary>
+    private async Task EliminarSinOcultarAsync(CrearDocumentosDesdeDivisionCommand request, string archivoUrl)
+    {
+        if (!TenantSigueSiendoElEsperado(request))
+        {
+            logger.LogWarning("Dividir PDF no retira el archivo de un tramo sin Documento: el Tenant activo cambió; queda huérfano en el Tenant del asistente.");
+            return;
+        }
+
+        await EliminarConElTenantActivoAsync(archivoUrl);
+    }
+
+    private async Task EliminarConElTenantActivoAsync(string archivoUrl)
     {
         try
         {

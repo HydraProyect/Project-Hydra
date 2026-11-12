@@ -422,6 +422,12 @@ public partial class DividirPdf : CaeManager.Web.Components.PaginaInteractiva, I
         if (tramos.Count == 0)
             return;
 
+        // El almacenamiento pide su propia reserva, con espera, para cifrar cada tramo mientras esta sigue retenida. No
+        // puede esperarse a sí misma: las dos juntas caben en el presupuesto entero, o no se empieza. Lo que espere por las
+        // reservas de otros vence en EsperaMaxima y corta el lote sin perder lo ya creado.
+        if (!CabeEnElPresupuesto(LimitesDivisionPdf.MemoriaGuardarTramos(_original.TamanoBytes)))
+            return;
+
         _creando = true;
         _error = null;
         try
@@ -497,6 +503,10 @@ public partial class DividirPdf : CaeManager.Web.Components.PaginaInteractiva, I
     {
         if (_descargando || _creando || _division is not { } division || _almacen is not { } almacen
             || _original is not { } original || _empresaId is not { } empresaId || _tenantEsperadoId is not { } tenantId)
+            return;
+
+        // Cada tramo reserva su pico entero; si pasa del presupuesto, la reserva se recortaría y no lo cubriría.
+        if (!CabeEnElPresupuesto(LimitesDivisionPdf.MemoriaExtraccionTramo(original.TamanoBytes)))
             return;
 
         var rangos = division.Rangos;
@@ -623,6 +633,22 @@ public partial class DividirPdf : CaeManager.Web.Components.PaginaInteractiva, I
         {
             reserva?.Dispose();
         }
+    }
+
+    /// <summary>
+    /// <see cref="IPresupuestoMemoriaDocumentos.ReservarAsync"/> recorta al presupuesto entero lo que pase de él: una
+    /// operación cuyo pico no cabe entero no se empieza, porque la reserva no lo cubriría. Se avisa en vez de esperar, porque
+    /// reintentar no lo cambia.
+    /// </summary>
+    private bool CabeEnElPresupuesto(long bytes)
+    {
+        if (bytes <= PresupuestoMemoria.Maximo)
+            return true;
+
+        Logger.LogWarning("Dividir PDF no empieza: necesita {Bytes} bytes y el presupuesto de memoria es de {Maximo}.", bytes, PresupuestoMemoria.Maximo);
+        _descargados = null;
+        _error = Textos["ErrorPdfExcedePresupuesto"];
+        return false;
     }
 
     /// <summary>Importa el módulo de descarga la primera vez; <c>false</c> si el navegador no lo carga en el plazo.</summary>

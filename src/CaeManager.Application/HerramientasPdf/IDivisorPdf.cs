@@ -57,6 +57,20 @@ public static class LimitesDivisionPdf
     /// </summary>
     public static long MemoriaCreacionTramos(long bytesOriginal) =>
         bytesOriginal + MemoriaRecepcionTramo(Common.LimitesArchivoSubido.TamanoMaximoBytes);
+
+    /// <summary>
+    /// Lo que el almacenamiento reserva por su cuenta, con espera, al cifrar un tramo con la cota del alta: tres veces el
+    /// claro más 4 KiB de margen (<c>DiskFileStorageService</c>; un test de Web lo ata a lo que reserva de verdad). Guardar lo
+    /// pide mientras la pantalla retiene <see cref="MemoriaCreacionTramos"/>.
+    /// </summary>
+    public const long MemoriaCifradoTramo = 3 * Common.LimitesArchivoSubido.TamanoMaximoBytes + 4 * 1024;
+
+    /// <summary>
+    /// Lo que tiene que caber a la vez en el presupuesto para guardar en TALVEG los tramos de un original de este tamaño: la
+    /// reserva de la pantalla y la del cifrado de un tramo. Si pasa del presupuesto entero, la segunda reserva esperaría a la
+    /// primera, que no se suelta hasta acabar el lote; por eso la pantalla rechaza antes de reservar nada.
+    /// </summary>
+    public static long MemoriaGuardarTramos(long bytesOriginal) => MemoriaCreacionTramos(bytesOriginal) + MemoriaCifradoTramo;
 }
 
 /// <summary>Códigos de fallo de la lectura de un PDF para dividirlo; la pantalla traduce cada uno.</summary>

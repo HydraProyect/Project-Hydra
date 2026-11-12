@@ -27,8 +27,11 @@ public class CrearDocumentosDesdeDivisionCommandHandlerTests
     private readonly AlmacenEnMemoria _almacen = new();
     private readonly DivisorFalso _divisor = new();
 
-    private CrearDocumentosDesdeDivisionCommandHandler Handler(Guid? tenant = null, bool disponible = true, AlcanceDatosServiceFalso? alcance = null)
+    private CrearDocumentosDesdeDivisionCommandHandler Handler(
+        Guid? tenant = null, bool disponible = true, AlcanceDatosServiceFalso? alcance = null, ITenantActual? tenantActual = null)
     {
+        var tenantDelHandler = tenantActual ?? new TenantFijo(tenant ?? _tenantId);
+        _almacen.Tenant = tenantDelHandler;
         _mediator.Catalogo = Result.Exito(new CatalogoDivisionPdf(
             new EmpresaDivisionPdf(_empresaId, "Montajes Norte S.L.", "B12345678"),
             [new EmpresaDivisionPdf(_subcontrataId, "Pintura Sur S.L.", null)],
@@ -37,7 +40,7 @@ public class CrearDocumentosDesdeDivisionCommandHandlerTests
             [new TipoDocumentoDivisionPdf(_tipoId, "Certificado", AmbitoAplicacion.Empresa, false, null, [])]));
 
         return new CrearDocumentosDesdeDivisionCommandHandler(
-            new Disponibilidad(disponible), new TenantFijo(tenant ?? _tenantId), _mediator, _divisor, _almacen,
+            new Disponibilidad(disponible), tenantDelHandler, _mediator, _divisor, _almacen,
             alcance ?? new AlcanceDatosServiceFalso(),
             NullLogger<CrearDocumentosDesdeDivisionCommandHandler>.Instance);
     }
@@ -152,6 +155,163 @@ public class CrearDocumentosDesdeDivisionCommandHandlerTests
         resultado.Error.Codigo.Should().Be(CrearDocumentosDesdeDivisionCommandHandler.ErrorTenantCruzado);
         _mediator.Altas.Should().BeEmpty();
         _almacen.Guardados.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task Si_el_Tenant_activo_cambia_durante_una_extraccion_ese_tramo_no_se_guarda_bajo_el_otro_y_se_conserva_lo_creado()
+    {
+        // ALTO de la ronda 4: el almacenamiento cifra con el Tenant activo. Si el selector pasa de A a B mientras se espera
+        // al proceso aparte, el tramo de A no puede escribirse bajo B.
+        var tenant = new TenantCambiante(_tenantId);
+        var otro = Guid.NewGuid();
+        _divisor.DuranteLaExtraccion = pagina => { if (pagina == 3) tenant.TenantId = otro; };
+
+        var resultado = await Handler(tenantActual: tenant).Handle(Comando(
+            Tramo(1, 2, ClaseTitular.EmpresaGestionada, _empresaId),
+            Tramo(3, 3, ClaseTitular.EmpresaGestionada, _empresaId),
+            Tramo(4, 4, ClaseTitular.EmpresaGestionada, _empresaId)), CancellationToken.None);
+
+        resultado.Valor.Select(r => r.Estado).Should().Equal(
+            EstadoTramoCreado.Creado, EstadoTramoCreado.Rechazado, EstadoTramoCreado.Rechazado);
+        _almacen.TenantDeCadaGuardado.Values.Should().Equal([_tenantId], "nada se escribe con el Tenant que no es el del asistente");
+        _mediator.Altas.Should().ContainSingle();
+        _divisor.Extraidos.Should().Equal([(1, 2), (3, 3)], "tras el cambio de Tenant no se pide ningún tramo más");
+    }
+
+    [Fact]
+    public async Task Si_el_Tenant_activo_cambia_durante_la_primera_extraccion_falla_como_al_empezar_sin_guardar_nada()
+    {
+        var tenant = new TenantCambiante(_tenantId);
+        _divisor.DuranteLaExtraccion = _ => tenant.TenantId = Guid.NewGuid();
+
+        var resultado = await Handler(tenantActual: tenant).Handle(Comando(
+            Tramo(1, 2, ClaseTitular.EmpresaGestionada, _empresaId),
+            Tramo(3, 3, ClaseTitular.EmpresaGestionada, _empresaId)), CancellationToken.None);
+
+        resultado.Error.Codigo.Should().Be(CrearDocumentosDesdeDivisionCommandHandler.ErrorTenantCruzado);
+        _almacen.Guardados.Should().BeEmpty();
+        _mediator.Altas.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task Si_el_Tenant_activo_cambia_durante_el_guardado_no_se_da_de_alta_y_se_intenta_retirar_con_el_Tenant_activo()
+    {
+        var tenant = new TenantCambiante(_tenantId);
+        var otro = Guid.NewGuid();
+        _almacen.DuranteElGuardado = archivo => { if (archivo == "paquete-pag-3-3.pdf") tenant.TenantId = otro; };
+
+        var resultado = await Handler(tenantActual: tenant).Handle(Comando(
+            Tramo(1, 2, ClaseTitular.EmpresaGestionada, _empresaId),
+            Tramo(3, 3, ClaseTitular.EmpresaGestionada, _empresaId),
+            Tramo(4, 4, ClaseTitular.EmpresaGestionada, _empresaId)), CancellationToken.None);
+
+        resultado.Valor.Select(r => r.Estado).Should().Equal(
+            EstadoTramoCreado.Creado, EstadoTramoCreado.Rechazado, EstadoTramoCreado.Rechazado);
+        _mediator.Altas.Should().ContainSingle("el alta también sellaría con el Tenant activo");
+        _almacen.Eliminaciones.Should().Equal([("paquete-pag-3-3.pdf", (Guid?)otro)],
+            "si el archivo se hubiera escrito bajo el Tenant activo, solo con él se encuentra para retirarlo");
+    }
+
+    [Fact]
+    public async Task Si_el_Tenant_activo_cambia_durante_un_alta_rechazada_no_se_intenta_retirar_su_archivo_con_el_otro()
+    {
+        var tenant = new TenantCambiante(_tenantId);
+        _mediator.RechazarAlta = n => n == 2 ? Error.Crear("Documento.Fallo", "Rechazado por el alta") : null;
+        _mediator.DuranteElAlta = intento => { if (intento == 2) tenant.TenantId = Guid.NewGuid(); };
+
+        var resultado = await Handler(tenantActual: tenant).Handle(Comando(
+            Tramo(1, 1, ClaseTitular.EmpresaGestionada, _empresaId),
+            Tramo(2, 2, ClaseTitular.EmpresaGestionada, _empresaId),
+            Tramo(3, 3, ClaseTitular.EmpresaGestionada, _empresaId)), CancellationToken.None);
+
+        resultado.Valor.Select(r => r.Estado).Should().Equal(
+            EstadoTramoCreado.Creado, EstadoTramoCreado.Rechazado, EstadoTramoCreado.Rechazado);
+        _almacen.Eliminaciones.Should().BeEmpty("el archivo se escribió bajo el Tenant del asistente: con otro no se encuentra");
+        _almacen.TenantDeCadaGuardado.Values.Should().OnlyContain(t => t == _tenantId);
+    }
+
+    [Fact]
+    public async Task Un_PDF_que_agota_el_proceso_aparte_corta_el_lote_sin_lanzar_mas_procesos_y_conserva_lo_creado()
+    {
+        // MEDIO de la ronda 4: cada tramo lanza un proceso aparte con el turno compartido con Unir.
+        _divisor.PaginaDemasiadoCompleja = 3;
+
+        var resultado = await Handler().Handle(Comando(
+            Tramo(1, 2, ClaseTitular.EmpresaGestionada, _empresaId),
+            Tramo(3, 3, ClaseTitular.EmpresaGestionada, _empresaId),
+            Tramo(4, 4, ClaseTitular.EmpresaGestionada, _empresaId),
+            Tramo(5, 6, ClaseTitular.EmpresaGestionada, _empresaId)), CancellationToken.None);
+
+        resultado.Valor.Select(r => r.Estado).Should().Equal(
+            EstadoTramoCreado.Creado, EstadoTramoCreado.Rechazado, EstadoTramoCreado.Rechazado, EstadoTramoCreado.Rechazado);
+        _divisor.Extraidos.Should().Equal([(1, 2), (3, 3)], "con el PDF que agota el proceso aparte no se lanza ninguno más");
+        _mediator.Altas.Should().ContainSingle();
+    }
+
+    [Fact]
+    public async Task Un_PDF_que_agota_el_proceso_aparte_en_el_primer_tramo_devuelve_todos_rechazados_sin_seguir()
+    {
+        _divisor.PaginaDemasiadoCompleja = 1;
+
+        var resultado = await Handler().Handle(Comando(
+            Tramo(1, 2, ClaseTitular.EmpresaGestionada, _empresaId),
+            Tramo(3, 3, ClaseTitular.EmpresaGestionada, _empresaId)), CancellationToken.None);
+
+        resultado.Valor.Should().OnlyContain(r => r.Estado == EstadoTramoCreado.Rechazado);
+        _divisor.Extraidos.Should().Equal([(1, 2)]);
+    }
+
+    [Fact]
+    public async Task Cancelar_durante_la_espera_del_proceso_aparte_devuelve_lo_ya_creado()
+    {
+        // MEDIO de la ronda 4: lanzar perdería la lista y un reintento duplicaría el Documento ya creado.
+        _divisor.LanzarAlExtraer = (3, new OperationCanceledException());
+
+        var resultado = await Handler().Handle(Comando(
+            Tramo(1, 2, ClaseTitular.EmpresaGestionada, _empresaId),
+            Tramo(3, 3, ClaseTitular.EmpresaGestionada, _empresaId),
+            Tramo(4, 4, ClaseTitular.EmpresaGestionada, _empresaId)), CancellationToken.None);
+
+        resultado.Valor.Select(r => r.Estado).Should().Equal(
+            EstadoTramoCreado.Creado, EstadoTramoCreado.Rechazado, EstadoTramoCreado.Rechazado);
+        _divisor.Extraidos.Should().Equal([(1, 2)]);
+    }
+
+    [Fact]
+    public async Task Cancelar_antes_de_crear_ningun_Documento_lanza()
+    {
+        _divisor.LanzarAlExtraer = (1, new OperationCanceledException());
+
+        var crear = () => Handler().Handle(Comando(Tramo(1, 2, ClaseTitular.EmpresaGestionada, _empresaId)), CancellationToken.None);
+
+        await crear.Should().ThrowAsync<OperationCanceledException>();
+    }
+
+    [Fact]
+    public async Task Cancelar_a_mitad_de_un_alta_la_da_por_pendiente_de_comprobar_y_conserva_su_archivo()
+    {
+        _mediator.LanzarEnAlta = n => n == 1 ? new OperationCanceledException() : null;
+
+        var resultado = await Handler().Handle(
+            Comando(Tramo(1, 2, ClaseTitular.EmpresaGestionada, _empresaId)), CancellationToken.None);
+
+        resultado.Valor.Single().Estado.Should().Be(EstadoTramoCreado.SinConfirmar);
+        _almacen.Guardados.Should().ContainSingle("el Documento pudo quedar guardado antes de la cancelación");
+    }
+
+    [Fact]
+    public async Task Cancelado_entre_el_guardado_y_el_alta_retira_el_archivo_y_devuelve_lo_creado()
+    {
+        using var cancelacion = new CancellationTokenSource();
+        _almacen.DuranteElGuardado = archivo => { if (archivo == "paquete-pag-3-3.pdf") cancelacion.Cancel(); };
+
+        var resultado = await Handler().Handle(Comando(
+            Tramo(1, 2, ClaseTitular.EmpresaGestionada, _empresaId),
+            Tramo(3, 3, ClaseTitular.EmpresaGestionada, _empresaId)), cancelacion.Token);
+
+        resultado.Valor.Select(r => r.Estado).Should().Equal(EstadoTramoCreado.Creado, EstadoTramoCreado.Rechazado);
+        _mediator.Altas.Should().ContainSingle();
+        _almacen.Guardados.Keys.Should().Equal(["paquete-pag-1-2.pdf"], "el alta no llegó a empezar: el archivo no tiene Documento");
     }
 
     [Fact]
@@ -384,6 +544,12 @@ public class CrearDocumentosDesdeDivisionCommandHandlerTests
         public Guid? TenantId => tenantId;
     }
 
+    /// <summary>El Tenant activo de una sesión Blazor: el selector lo cambia mientras el lote espera.</summary>
+    private sealed class TenantCambiante(Guid tenantId) : ITenantActual
+    {
+        public Guid? TenantId { get; set; } = tenantId;
+    }
+
     private sealed class DivisorFalso : IDivisorPdf
     {
         public List<(int, int)> Extraidos { get; } = [];
@@ -397,6 +563,12 @@ public class CrearDocumentosDesdeDivisionCommandHandlerTests
         /// <summary>Si está, lo lanza la extracción de esa página, como el proceso aparte sin turno o sin constar terminado.</summary>
         public (int Pagina, Exception Excepcion)? LanzarAlExtraer { get; set; }
 
+        /// <summary>Lo que pasa mientras se espera la extracción de esa página (el selector cambia el Tenant, por ejemplo).</summary>
+        public Action<int>? DuranteLaExtraccion { get; set; }
+
+        /// <summary>Esa página agota el proceso aparte (memoria, tiempo o muerte), como un PDF hostil.</summary>
+        public int? PaginaDemasiadoCompleja { get; set; }
+
         public Task<Result<IPdfParaDividir>> AbrirAsync(byte[] contenidoPdf, CancellationToken cancellationToken) =>
             Task.FromResult(Result.Exito<IPdfParaDividir>(new Abierto(this)));
 
@@ -409,8 +581,11 @@ public class CrearDocumentosDesdeDivisionCommandHandlerTests
             {
                 if (divisor.LanzarAlExtraer is { } lanzar && lanzar.Pagina == paginaInicial)
                     throw lanzar.Excepcion;
+                divisor.DuranteLaExtraccion?.Invoke(paginaInicial);
                 divisor.Extraidos.Add((paginaInicial, paginaFinal));
                 divisor.Cotas.Add(tamanoMaximoBytes);
+                if (paginaInicial == divisor.PaginaDemasiadoCompleja)
+                    return Task.FromResult(Result.Fallo<byte[]>(Error.Crear(ErroresDivisorPdf.DemasiadoComplejo, "El PDF es demasiado complejo.")));
                 var tamano = paginaInicial == divisor.PaginaEnorme ? divisor.TamanoEnorme : 8;
                 return Task.FromResult(divisor.RespetaCota && tamano > tamanoMaximoBytes
                     ? Result.Fallo<byte[]>(Error.Crear(ErroresDivisorPdf.DemasiadoGrande, "El tramo supera el tamaño que se puede preparar."))
@@ -423,10 +598,20 @@ public class CrearDocumentosDesdeDivisionCommandHandlerTests
         }
     }
 
+    /// <summary>
+    /// Como el almacenamiento real: guarda con el Tenant activo, que lee al entrar y no compara con nadie, y solo retira un
+    /// archivo con el mismo Tenant activo con el que se guardó (con otro, no lo encuentra y no hace nada).
+    /// </summary>
     private sealed class AlmacenEnMemoria : IFileStorageService
     {
         public Dictionary<string, long> Guardados { get; } = [];
+        public Dictionary<string, Guid?> TenantDeCadaGuardado { get; } = [];
+        public List<(string Archivo, Guid? Tenant)> Eliminaciones { get; } = [];
         public string? FallarEn { get; set; }
+        public ITenantActual? Tenant { get; set; }
+
+        /// <summary>Lo que pasa durante la espera del guardado de ese archivo, ya escrito.</summary>
+        public Action<string>? DuranteElGuardado { get; set; }
 
         public Task<string> GuardarAsync(Stream contenido, string nombreArchivoOriginal, CancellationToken cancellationToken = default)
         {
@@ -434,6 +619,8 @@ public class CrearDocumentosDesdeDivisionCommandHandlerTests
                 throw new IOException("disco lleno");
 
             Guardados[nombreArchivoOriginal] = contenido.Length;
+            TenantDeCadaGuardado[nombreArchivoOriginal] = Tenant?.TenantId;
+            DuranteElGuardado?.Invoke(nombreArchivoOriginal);
             return Task.FromResult(nombreArchivoOriginal);
         }
 
@@ -442,7 +629,9 @@ public class CrearDocumentosDesdeDivisionCommandHandlerTests
 
         public Task EliminarAsync(string archivoUrl, CancellationToken cancellationToken = default)
         {
-            Guardados.Remove(archivoUrl);
+            Eliminaciones.Add((archivoUrl, Tenant?.TenantId));
+            if (TenantDeCadaGuardado.GetValueOrDefault(archivoUrl) == Tenant?.TenantId)
+                Guardados.Remove(archivoUrl);
             return Task.CompletedTask;
         }
     }
@@ -467,8 +656,12 @@ public class CrearDocumentosDesdeDivisionCommandHandlerTests
             return Task.FromResult((TResponse)respuesta);
         }
 
+        /// <summary>Lo que pasa durante la espera de ese intento de alta.</summary>
+        public Action<int>? DuranteElAlta { get; set; }
+
         private Result<Guid> Alta(CrearDocumentoCommand alta)
         {
+            DuranteElAlta?.Invoke(_intentos + 1);
             if (LanzarEnAlta(++_intentos) is { } excepcion)
                 throw excepcion;
 
