@@ -32,9 +32,9 @@ namespace CaeManager.Web.Tests;
 /// </para>
 ///
 /// <para>
-/// <b>Lo que NO observa:</b> que el endpoint de la plantilla exija el rol (eso lo cubre el catálogo de endpoints de
-/// Architecture.Tests y, con servidor real, CI), que el lector real acepte la plantilla recién descargada (integración,
-/// en CI) ni el aspecto.
+/// <b>Lo que NO observa:</b> que el endpoint de la plantilla exija el rol (eso lo prueba por HTTP, rol a rol,
+/// <see cref="ImportacionPlantillaMaestraEndpointTests"/>), que el lector real acepte la plantilla recién descargada
+/// (integración, en CI) ni el aspecto.
 /// </para>
 /// </summary>
 public class ImportacionVistasYPlantillaTests : BunitContext
