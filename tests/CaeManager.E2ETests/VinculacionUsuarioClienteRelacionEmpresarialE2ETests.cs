@@ -58,7 +58,7 @@ public class VinculacionUsuarioClienteRelacionEmpresarialE2ETests(WebAppFixture 
         await drawer.WaitForAsync(new LocatorWaitForOptions { State = WaitForSelectorState.Hidden, Timeout = 15_000 });
 
         // --- Empresa propia que sirve al Cliente real (dual-write F4 -> RelacionEmpresarial) ---
-        // D-P11: el Tenant admite una sola Empresa propia activa; la de un test anterior va a la Papelera antes de esta alta.
+        // D-P11: el Tenant admite una sola Empresa propia activa; la de un test anterior deja de ser propia antes de esta alta.
         await fixture.LiberarEmpresaPropiaDelTenantPrincipalAsync();
         await Ayudas.NavegarYEsperarAsync(page, $"{fixture.BaseUrl}/empresas");
         await page.Locator(".cabecera-listado-primaria").GetByRole(AriaRole.Button, new() { Name = "+ Nueva empresa", Exact = true }).ClickAsync();

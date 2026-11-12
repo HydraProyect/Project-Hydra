@@ -398,16 +398,18 @@ public class WebAppFixture : IAsyncLifetime
     /// Preparación de datos para la decisión de producto D-P11 (un Tenant propietario tiene una sola Empresa propia
     /// activa; ver <c>LimiteEmpresaPropia</c> en Application). Los E2E de una colección entran todos como
     /// <see cref="Ayudas.EmailAdministrador"/> en su Tenant de origen y comparten la base, así que la Empresa propia
-    /// que dio de alta un test anterior bloquearía la del siguiente. Esto manda a la Papelera, por SQL y sin pasar por
-    /// la guarda (igual que los seeders), las Empresas propias activas de ese Tenant, y solo de ese: los Clientes
-    /// empresariales y las Subcontratas (<c>EsPropia = false</c>) no se tocan. Se llama justo antes de cada alta de
-    /// Empresa propia del test, no al arrancar, para que la del propio test siga activa mientras la usa.
-    /// Devuelve cuántas filas mandó a la Papelera (0 en el primer test que da de alta una).
+    /// que dio de alta un test anterior bloquearía la del siguiente. Esto quita la marca de propia, por SQL y sin pasar
+    /// por la guarda (igual que los seeders), a las Empresas propias activas de ese Tenant, y solo de ese: los Clientes
+    /// empresariales y las Subcontratas (<c>EsPropia = false</c>) no se tocan. No las manda a la Papelera: la Empresa
+    /// de un test anterior puede tener Trabajadores y Centros activos, y una Empresa eliminada con Trabajadores es un
+    /// estado que la aplicación no permite (revisión puente, ronda 2). Se llama justo antes de cada alta de Empresa
+    /// propia del test, no al arrancar, para que la del propio test siga siendo propia mientras la usa.
+    /// Devuelve cuántas filas cambió (0 en el primer test que da de alta una).
     /// </summary>
     public Task<int> LiberarEmpresaPropiaDelTenantPrincipalAsync() => EjecutarSqlAsync(
         """
         UPDATE "Empresas" AS e
-        SET "EstaEliminado" = true, "EliminadoEnUtc" = now(), "EliminadoPorUsuarioId" = u."Id"
+        SET "EsPropia" = false
         FROM "AspNetUsers" AS u
         WHERE u."Email" = @email AND e."TenantId" = u."TenantId" AND e."EsPropia" AND NOT e."EstaEliminado"
         """,

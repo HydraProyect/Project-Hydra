@@ -107,7 +107,7 @@ public class FlujoCicloDocumentalTests(WebAppFixture fixture)
             "Activa", new LocatorAssertionsToHaveTextOptions { Timeout = 15_000 });
 
         // --- Paso 1: Empresa → Cliente → Centro encadenados (alta guiada) ---
-        // D-P11: el Tenant admite una sola Empresa propia activa; la de un test anterior va a la Papelera antes del paso 1.
+        // D-P11: el Tenant admite una sola Empresa propia activa; la de un test anterior deja de ser propia antes del paso 1.
         await fixture.LiberarEmpresaPropiaDelTenantPrincipalAsync();
         await Ayudas.NavegarYEsperarAsync(page, $"{fixture.BaseUrl}/clientes/alta-guiada");
 
