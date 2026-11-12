@@ -1310,7 +1310,7 @@ else
     private bool HayCambiosSinGuardar =>
         !_saliendoAConfigurarSegundoFactor
         && (HayCambiosEnLosDrawers
-            || (_editandoInformacion && _instantaneaInformacion.Difiere(ValoresInformacion()))
+            || (_editandoInformacion && (_instantaneaInformacion.Difiere(ValoresInformacion()) || _contratoVigenteHastaNoValido))
             || (PestanaActiva == "requisitos" && EdicionRequisitoConCambios));
 
     private object?[] ValoresInformacion() =>

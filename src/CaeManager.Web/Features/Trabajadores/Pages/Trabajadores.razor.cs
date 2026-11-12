@@ -1421,7 +1421,8 @@ public partial class Trabajadores : CaeManager.Web.Components.PaginaInteractiva,
     /// P1-E2b: «hay cambios» del drawer de alta de Trabajador, comparado con cómo se abrió; cerrado (también tras
     /// guardar) nunca hay nada que perder. Lo lee DrawerFormulario, que lleva dentro el guardián de cerrar y de navegar.
     /// </summary>
-    private bool HayCambiosAlta => _drawerVisible && _instantanea.Difiere(ValoresFormulario());
+    private bool HayCambiosAlta =>
+        _drawerVisible && (_instantanea.Difiere(ValoresFormulario()) || _fechaNacimientoNoValida);
 
     /// <summary>
     /// P1-E2b: «hay cambios» del modal de asignar a centro, con sus campos comparados con cómo se

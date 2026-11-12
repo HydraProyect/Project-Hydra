@@ -461,7 +461,7 @@ public class ClavesApiGen2Tests : BunitContext
             .Which.CaducaEnUtc.Should().BeNull("la página no inventa una caducidad por omisión");
     }
 
-    // Hallazgo de la revisión (ronda 2): el 31/12/9999 es una fecha válida para el campo, pero la clave caduca al empezar el
+    // El 31/12/9999 es una fecha válida para el campo, pero la clave caduca al empezar el
     // día siguiente, que no existe; antes AddDays lanzaba. No se emite (sería una clave sin fin) y se dice en el formulario.
     [Fact]
     public async Task Con_la_caducidad_en_el_ultimo_dia_representable_no_se_emite_ni_lanza()

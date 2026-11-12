@@ -249,13 +249,13 @@ public class PanelDarAccesoTests : BunitContext
         cut.FindComponent<DrawerFormulario>().Instance.MensajeError.Should().Be("La fecha de fin del apoyo no puede ser anterior a hoy.");
     }
 
-    // Hallazgo de la revisión (ronda 2): un texto que no es fecha llega como «», que aquí es «sin último día». Proponer así
+    // Un texto que no es fecha llega como «», que aquí es «sin último día». Proponer así
     // concedería un acceso sin caducidad a quien quiso ponerle una: no se envía mientras el campo lo señale.
     [Theory]
     [InlineData("15/03")]
     [InlineData("31/02/2030")]
-    [InlineData("10/1/2030")] // ronda 1 de Codex, ALTO 2: ya no se completa a 10/01/2030
-    [InlineData("mañana")] // ronda 1 de Codex, ALTO 1: la máscara lo deja en «», pero no es «sin fin»
+    [InlineData("10/1/2030")] // ya no se completa a 10/01/2030
+    [InlineData("mañana")] // la máscara lo deja en «», pero no es «sin fin»
     public async Task Proponer_con_un_ultimo_dia_que_no_es_fecha_no_envia_un_acceso_sin_fin(string tecleado)
     {
         var lucia = new DestinatarioDeApoyoDto(Guid.NewGuid(), "Lucía");
@@ -280,7 +280,7 @@ public class PanelDarAccesoTests : BunitContext
             .Which.UltimoDia.Should().Be(ultimoDia);
     }
 
-    // Ronda 1 de Codex, ALTO 1, tal cual: con un último día ya puesto, pegar «mañana» encima lo vaciaba (la máscara no deja
+    // Con un último día ya puesto, pegar «mañana» encima lo vaciaba (la máscara no deja
     // letras) y Proponer enviaba UltimoDia = null, un acceso sin fin. Ahora no se envía nada.
     [Fact]
     public async Task Pegar_texto_sin_cifras_sobre_el_ultimo_dia_no_propone_un_acceso_sin_fin()

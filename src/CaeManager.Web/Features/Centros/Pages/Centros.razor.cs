@@ -141,7 +141,8 @@ public partial class Centros : CaeManager.Web.Components.PaginaInteractiva
     /// una sola vez (P1-E2b). Lee _drawerVisible en vivo: el kit recibe el Visible nuevo
     /// un render después.
     /// </summary>
-    private bool HayCambiosCentro => _drawerVisible && _instantanea.Difiere(ValoresFormulario());
+    private bool HayCambiosCentro =>
+        _drawerVisible && (_instantanea.Difiere(ValoresFormulario()) || _contratoVigenteHastaNoValido);
 
     /// <summary>
     /// Algo escrito en el modal de crear Cliente o Empresa abierto encima del drawer. Los

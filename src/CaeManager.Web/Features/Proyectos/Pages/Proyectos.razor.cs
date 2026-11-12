@@ -772,7 +772,9 @@ public partial class Proyectos : CaeManager.Web.Components.PaginaInteractiva, ID
     private bool HayCambiosSinGuardar =>
         HayCambiosEnElDrawer || HayCambiosEnElDetalle;
 
-    private bool HayCambiosEnElDrawer => _drawerVisible && _instantanea.Difiere(ValoresFormulario());
+    // Una fecha a medias no cambia el valor del formulario («»), pero es texto que se pierde al cerrar.
+    private bool HayCambiosEnElDrawer =>
+        _drawerVisible && (_instantanea.Difiere(ValoresFormulario()) || _nuevaFechaFinPrevistaNoValida);
 
     private bool HayCambiosEnElModalDeCierre => _mostrarCerrarConfirm && _instantaneaCierre.Difiere(_fechaCierre);
 
@@ -782,7 +784,7 @@ public partial class Proyectos : CaeManager.Web.Components.PaginaInteractiva, ID
     /// esas salidas preguntan con el mismo aviso (ConfirmarAbandonoAsync del ámbito).
     /// </summary>
     private bool HayCambiosEnElDetalle =>
-        (_editandoInfo && _instantaneaEdicionInfo.Difiere(ValoresEdicionInfo()))
+        (_editandoInfo && (_instantaneaEdicionInfo.Difiere(ValoresEdicionInfo()) || _editFechaFinPrevistaNoValida))
         || (_mostrarFormularioTecnico && _instantaneaTecnico.Difiere(ValoresTecnico()));
 
     private object?[] ValoresEdicionInfo() => [_editNombre, _editFechaFinPrevista, _editNotas];

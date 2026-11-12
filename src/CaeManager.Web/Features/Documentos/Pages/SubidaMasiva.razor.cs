@@ -968,7 +968,7 @@ public partial class SubidaMasiva : CaeManager.Web.Components.PaginaInteractiva,
             return;
         }
 
-        // Ronda 1 de Codex, ALTO 4: un vencimiento manual a medias llega como «» y se crearía sin vencimiento.
+        // Un vencimiento manual a medias llega como «» y se crearía sin vencimiento.
         if (item.VencimientoManualNoValido && RequiereVencimientoManual(item))
         {
             ToastService.Mostrar(Comunes["CampoFechaCorregirAntes"], TonoToast.Error);

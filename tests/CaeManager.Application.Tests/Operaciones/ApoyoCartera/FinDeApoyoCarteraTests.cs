@@ -578,6 +578,13 @@ public class FinDeApoyoCarteraTests
         e.Repositorio.Propuestas.Should().BeEmpty();
     }
 
+    // El mismo error sirve a la fecha pasada y al 31/12/9999: su texto tiene que ser cierto para las dos, también fuera de la UI.
+    [Fact]
+    public void El_mensaje_de_fecha_de_fin_no_valida_nombra_las_dos_causas()
+    {
+        ErroresPropuestaApoyo.FechaDeFinNoValida.Mensaje.Should().Contain("hoy en adelante").And.Contain("31/12/9999");
+    }
+
     [Fact]
     public async Task El_apoyo_con_fecha_dura_hasta_el_final_de_ese_dia_de_negocio_y_asi_se_rotula()
     {

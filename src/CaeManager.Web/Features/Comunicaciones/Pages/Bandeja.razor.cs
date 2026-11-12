@@ -1807,8 +1807,10 @@ public partial class Bandeja : CaeManager.Web.Components.PaginaInteractiva, IAsy
         || (!_navegandoDentroDeLaPagina && HayRespuestaONotaAMedias);
 
     // Cada Drawer/Modal lee solo el suyo: cerrarlo no descarta la respuesta a medias.
+    // Un vencimiento a medias no cambia el valor del formulario («»), pero es texto que se pierde al cerrar.
     private bool HayCambiosActualizarDocumento =>
-        _modalActualizarDocumentoVisible && _instantaneaActualizarDocumento.Difiere(ValoresActualizarDocumento());
+        _modalActualizarDocumentoVisible
+        && (_instantaneaActualizarDocumento.Difiere(ValoresActualizarDocumento()) || _vencimientoDocumentoNoValido);
 
     private bool HayCambiosRedactar => _redactarVisible && _instantaneaRedactar.Difiere(ValoresRedactar());
 

@@ -303,7 +303,13 @@
         {
             if (_fechasNoValidas.Add(campo)) _fechaAntesDelTexto[campo] = ValorDeFecha(campo);
         }
-        else _fechasNoValidas.Remove(campo);
+        else
+        {
+            _fechasNoValidas.Remove(campo);
+            // Al volver a ser una fecha entera (o quedar vacío), el aviso «no es una fecha» de un «Guardar» o «Siguiente»
+            // anterior ya no es cierto.
+            if (_errores.GetValueOrDefault(campo) == Textos["FichaFechaInvalida"].Value) _errores.Remove(campo);
+        }
     }
 
     private DateOnly? Fecha(string valor, string campo, List<FluentValidation.Results.ValidationFailure> fallos)

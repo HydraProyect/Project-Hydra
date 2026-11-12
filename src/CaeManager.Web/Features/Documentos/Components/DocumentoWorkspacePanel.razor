@@ -75,9 +75,9 @@ else
                         @if (!_detalle.TipoDocumentoAplicaVencimientoAutomatico)
                         {
                             @* FechaNoValidaChanged: un vencimiento a medias llega como «» y RenovarDocumentoCommand lo
-                               guardaría como «sin vencimiento» (ronda 1 de Codex, ALTO 4). *@
+                               guardaría como «sin vencimiento». *@
                             <CampoTexto Etiqueta="Fecha de vencimiento" Type="date" Valor="@_fechaVencimientoEditada" ValorChanged="v => _fechaVencimientoEditada = v"
-                                        FechaNoValidaChanged="v => _vencimientoNoValido = v" />
+                                        FechaNoValidaChanged="AlCambiarVencimientoNoValido" />
                             @* Sin fecha y sin marcar, la vigencia queda «sin confirmar»: marcar
                                es la única forma de declarar que el documento no caduca. *@
                             <label class="campo-checkbox">
@@ -236,9 +236,20 @@ else
     private bool _vencimientoNoValido;
     private readonly InstantaneaFormulario _instantaneaInformacion = new();
 
-    /// <summary>P1-E2b: la renovación en línea (fechas y comentarios) comparada con cómo se abrió.</summary>
+    // Al volver a ser una fecha entera (o quedar vacío), el aviso «no es una fecha» de un envío anterior ya no es cierto.
+    private void AlCambiarVencimientoNoValido(bool noValido)
+    {
+        _vencimientoNoValido = noValido;
+        if (!noValido && _mensajeErrorInformacion == Comunes["CampoFechaCorregirAntes"])
+            _mensajeErrorInformacion = null;
+    }
+
+    /// <summary>
+    /// P1-E2b: la renovación en línea (fechas y comentarios) comparada con cómo se abrió. Un vencimiento a medias no cambia el
+    /// valor del formulario («»), pero es texto que se pierde al salir.
+    /// </summary>
     private bool HayCambiosSinGuardar =>
-        _editandoInformacion && _instantaneaInformacion.Difiere(ValoresInformacion());
+        _editandoInformacion && (_instantaneaInformacion.Difiere(ValoresInformacion()) || _vencimientoNoValido);
 
     private object?[] ValoresInformacion() => [_fechaEmisionEditada, _fechaVencimientoEditada, _noCaducaEditado, _comentariosEditados];
     private string? _mensajeErrorInformacion;

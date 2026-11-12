@@ -29,7 +29,7 @@ public partial class CampoFecha
     /// <summary>
     /// null hasta el primer aviso: un campo recién creado siempre dice su estado. Así el formulario olvida la marca de
     /// un campo anterior que se destruyó con el texto a medias (otra opción, otro tramo, un ítem plegado) y que ya no
-    /// podría retirarla (revisor-puente sobre d5e5f3928, hallazgos 1 a 3).
+    /// podría retirarla.
     /// </summary>
     private bool? _noValidoNotificado;
     private string? _errorPropio;

@@ -406,7 +406,24 @@ public partial class Trabajador360Gen2Tests
         campo.MensajeError.Should().Be("Introduce una fecha válida.");
     }
 
-    // Ronda 3: una fecha a medias es lo escrito sin guardar aunque el formulario siga con el valor cargado (el campo entrega «»
+    // El aviso de un «Guardar» rechazado deja de ser cierto en cuanto la fecha vuelve a ser entera (o se vacía).
+    [Fact]
+    public async Task Corregir_la_fecha_retira_el_aviso_de_que_no_es_una_fecha()
+    {
+        var id = Guid.NewGuid(); ConTrabajador(id);
+        var cut = Renderizar(id); var drawer = await AbrirEditorFicha(cut);
+        await IrAPasoFicha(drawer, "Trabajo");
+        await CambiarCampoFicha(drawer, "Alta en la empresa", "15/03");
+        await GuardarFicha(drawer);
+        var campo = () => drawer.FindComponents<CampoTexto>().Single(c => c.Instance.Etiqueta == "Alta en la empresa").Instance;
+        campo().MensajeError.Should().Be("Introduce una fecha válida.", "control: el intento rechazado avisa");
+
+        await CambiarCampoFicha(drawer, "Alta en la empresa", "15/03/2023");
+
+        campo().MensajeError.Should().BeNullOrWhiteSpace("la fecha ya es entera y el aviso del intento anterior no es cierto");
+    }
+
+    // Una fecha a medias es lo escrito sin guardar aunque el formulario siga con el valor cargado (el campo entrega «»
     // y, sin alta cargada, «» es lo que ya había): Escape tiene que preguntar antes de descartarla.
     [Fact]
     public async Task Una_fecha_a_medias_cuenta_como_cambio_sin_guardar_aunque_el_valor_no_cambie()
@@ -427,7 +444,7 @@ public partial class Trabajador360Gen2Tests
         drawer.FindComponent<DrawerFormulario>().Instance.HayCambios().Should().BeFalse("borrado el texto a medias, vuelve a no haber nada");
     }
 
-    // Hallazgo de la revisión (ronda 2): al dejar el paso, el campo se destruye con su texto. La marca no puede sobrevivirle
+    // Al dejar el paso, el campo se destruye con su texto. La marca no puede sobrevivirle
     // (al guardar saldría un aviso bajo un campo vacío y válido), y la fecha vuelve a la cargada: el campo había entregado «»
     // y guardar así borraría el alta sin que nadie lo viera.
     [Fact]
@@ -451,7 +468,7 @@ public partial class Trabajador360Gen2Tests
             .Which.FechaAltaEmpresa.Should().Be(new DateOnly(2023, 5, 2));
     }
 
-    // Ronda 3: vuelve a la última fecha válida del campo, no a la cargada; una corrección ya hecha no se pierde.
+    // Vuelve a la última fecha válida del campo, no a la cargada; una corrección ya hecha no se pierde.
     [Fact]
     public async Task Dejar_el_paso_con_una_fecha_a_medias_conserva_la_ultima_corregida()
     {
@@ -469,7 +486,7 @@ public partial class Trabajador360Gen2Tests
             .Which.FechaAltaEmpresa.Should().Be(new DateOnly(2024, 6, 3));
     }
 
-    // Ronda 3: un «Guardar» rechazado con una fecha no válida en el paso visible no lleva a otro paso con error (eso
+    // Un «Guardar» rechazado con una fecha no válida en el paso visible no lleva a otro paso con error (eso
     // destruiría el campo y su texto): el formulario se queda donde está la fecha.
     [Fact]
     public async Task Un_guardado_rechazado_no_sale_del_paso_con_la_fecha_no_valida()
@@ -493,7 +510,7 @@ public partial class Trabajador360Gen2Tests
             .Instance.MensajeError.Should().Be("Introduce una fecha válida.");
     }
 
-    // Hallazgo de la revisión: tras un texto no válido, vaciar el campo tiene que dejar quitar la Baja.
+    // Tras un texto no válido, vaciar el campo tiene que dejar quitar la Baja.
     [Fact]
     public async Task Tras_un_texto_no_valido_vaciar_la_baja_la_quita()
     {

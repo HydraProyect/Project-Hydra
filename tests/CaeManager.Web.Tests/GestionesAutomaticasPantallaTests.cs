@@ -578,7 +578,7 @@ public partial class GestionesAutomaticasPantallaTests : BunitContext
 
     // Una fecha que deja de serlo (a medias o «1/2/26») vuelve a «sin fecha»: no se guarda la anterior, y «No lo sé», que
     // apaga el campo, se lleva también lo escrito y su aviso.
-    // Ronda 1 de Codex, MEDIO 1: antes de salir del campo, _hasta seguía siendo la fecha anterior y Guardar quedaba
+    // Antes de salir del campo, _hasta seguía siendo la fecha anterior y Guardar quedaba
     // habilitado con ella. La bandera del campo bloquea ya mientras se escribe, sin esperar al blur.
     [Fact]
     public void Validado_con_la_fecha_a_medias_bloquea_guardar_antes_de_salir_del_campo()
@@ -597,7 +597,7 @@ public partial class GestionesAutomaticasPantallaTests : BunitContext
         m.Enviados.OfType<MarcarAcreditacionAceptadaCommand>().Should().BeEmpty();
     }
 
-    // revisor-puente sobre d5e5f3928, hallazgo 1: cambiar de opción destruía el campo con la marca de no válido puesta, y
+    // Cambiar de opción destruía el campo con la marca de no válido puesta, y
     // el campo nuevo (vacío y válido) no la retiraba: Guardar quedaba bloqueado con una fecha entera a la vista. El campo
     // recién creado dice su estado.
     [Fact]

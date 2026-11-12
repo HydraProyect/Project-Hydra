@@ -1090,7 +1090,7 @@ public class ComunicacionesGen2Tests : BunitContext
 
     /// <summary>
     /// Un vencimiento a medias o ilegible llega al formulario como «»: aplicar así actualizaría el documento «sin vencimiento».
-    /// La pantalla consume la bandera del campo (#2185) y no envía el comando mientras sea true.
+    /// La pantalla consume la bandera del campo y no envía el comando mientras sea true.
     /// </summary>
     [Fact]
     public async Task Un_vencimiento_a_medias_no_actualiza_el_documento_sin_vencimiento()

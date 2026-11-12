@@ -106,7 +106,7 @@ public class CampoFechaTests : BunitContext
         recibidos.Should().Equal(new DateOnly(2026, 2, 1));
     }
 
-    // Ronda 1 de Codex, ALTO 2: borrar el «2» de 10/12/2030 dejaba «10/1/2030», que al salir se confirmaba como
+    // Borrar el «2» de 10/12/2030 dejaba «10/1/2030», que al salir se confirmaba como
     // 10/01/2030. Solo vale dd/mm/aaaa entera: un día o un mes de una cifra no se completa con cero, se queda a la vista
     // con el aviso y NoValidoChanged en true.
     [Theory]
@@ -135,7 +135,7 @@ public class CampoFechaTests : BunitContext
         noValido.Should().Equal(false, true);
     }
 
-    // Ronda 1 de Codex, ALTO 1: pegar «mañana» sobre una fecha se enmascaraba en «» y contaba como vaciado voluntario
+    // Pegar «mañana» sobre una fecha se enmascaraba en «» y contaba como vaciado voluntario
     // (NoValidoChanged en false): en Dar acceso, un acceso sin fin. Ahora el texto se queda y es no válido; solo el campo
     // vacío de verdad es «sin fecha».
     [Theory]
@@ -299,7 +299,7 @@ public class CampoFechaTests : BunitContext
         JSInterop.VerifyFocusAsyncInvoke(calledTimes: 2); // al abrir, el día; al cerrar, el campo
     }
 
-    // Ronda 1 de Codex, MEDIO 2 (WCAG 2.1 AA 1.3.1, 4.1.2 y 3.3.2): la rejilla expone la semántica de cuadrícula (grid,
+    // WCAG 2.1 AA 1.3.1, 4.1.2 y 3.3.2: la rejilla expone la semántica de cuadrícula (grid,
     // filas de siete celdas y cabeceras con el nombre entero del día), una etiqueta (el mes) y las instrucciones de teclado
     // a la vista y enlazadas por aria-describedby.
     [Fact]
@@ -393,7 +393,7 @@ public class CampoFechaTests : BunitContext
         recibidos.Should().Equal("2026-03-15", string.Empty);
     }
 
-    // Hallazgo 2 de la revisión: el texto que no es fecha llegaba tal cual al formulario, y unos 35 DateOnly.TryParse
+    // El texto que no es fecha llegaba tal cual al formulario, y unos 35 DateOnly.TryParse
     // sensibles a la cultura leían «1/2/26» como 01/02/2026. Contrato: el formulario recibe «» (como el campo nativo),
     // FechaNoValidaChanged lo dice y el aviso lo da el propio campo al salir.
     [Theory]
@@ -419,7 +419,7 @@ public class CampoFechaTests : BunitContext
         cut.Find(".campo-mensaje-error").TextContent.Should().Contain("dd/mm/aaaa");
     }
 
-    // Hallazgo 1: tras un texto no válido, vaciar el campo tenía que notificar el vacío (quitar la Baja de la ficha).
+    // Tras un texto no válido, vaciar el campo tenía que notificar el vacío (quitar la Baja de la ficha).
     [Fact]
     public async Task CampoTexto_Type_date_tras_un_texto_no_valido_vaciar_deja_el_valor_vacio_y_valido()
     {
@@ -441,7 +441,7 @@ public class CampoFechaTests : BunitContext
         cut.FindAll(".campo-mensaje-error").Should().BeEmpty();
     }
 
-    // Hallazgo 4: salir otra vez del campo con el mismo texto no válido no vuelve a notificar (recargaba Auditoría y
+    // Salir otra vez del campo con el mismo texto no válido no vuelve a notificar (recargaba Auditoría y
     // borraba el error de RevisionIaTab). OnBlur sí: es «perdió el foco».
     [Fact]
     public async Task Salir_otra_vez_con_el_mismo_texto_no_valido_no_vuelve_a_notificar()
@@ -475,7 +475,7 @@ public class CampoFechaTests : BunitContext
         noValido.Should().Equal(false, true, false);
     }
 
-    // Hallazgo 3: el padre que deja el campo en el mismo valor (null tras un texto no válido) no se distingue de un
+    // El padre que deja el campo en el mismo valor (null tras un texto no válido) no se distingue de un
     // re-render cualquiera; al deshabilitarse («Sin caducidad», «No lo sé») el campo sí vuelve a su valor.
     [Fact]
     public async Task Al_deshabilitarse_el_campo_vuelve_al_valor_del_padre_y_quita_el_aviso()
@@ -499,7 +499,7 @@ public class CampoFechaTests : BunitContext
         cut.FindAll(".campo-mensaje-error").Should().BeEmpty("al volver a habilitarse el campo está vacío");
     }
 
-    // Hallazgo 6: en los extremos del calendario (0001 y 9999) moverse fuera no tira el circuito: no se mueve.
+    // En los extremos del calendario (0001 y 9999) moverse fuera no tira el circuito: no se mueve.
     [Theory]
     [InlineData("01/01/0001", "ArrowLeft")]
     [InlineData("01/01/0001", "ArrowUp")]
@@ -571,7 +571,7 @@ public class CampoFechaTests : BunitContext
         cut.Find("input").HasAttribute("max").Should().BeFalse();
     }
 
-    // Hallazgo 6: salir del calendario con Tab lo cierra sin devolver el foco al campo (el navegador ya lo llevó al
+    // Salir del calendario con Tab lo cierra sin devolver el foco al campo (el navegador ya lo llevó al
     // control siguiente); Mayúsculas+Tab desde el mes anterior, igual.
     [Theory]
     [InlineData(false)]
@@ -601,7 +601,7 @@ public class CampoFechaTests : BunitContext
         cut.FindAll("[role=dialog]").Should().ContainSingle("vuelve al botón del mes siguiente, dentro del calendario");
     }
 
-    // Hallazgo 5: el calendario se ancla a la capa superior del navegador (Popover API) al abrir y se suelta al cerrar.
+    // El calendario se ancla a la capa superior del navegador (Popover API) al abrir y se suelta al cerrar.
     [Fact]
     public async Task El_calendario_se_ancla_a_la_capa_superior_al_abrir_y_se_suelta_al_cerrar()
     {

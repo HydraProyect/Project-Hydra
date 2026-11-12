@@ -66,7 +66,7 @@ public class RangoFechasAuditoriaTests
         RangoFechasAuditoria.HastaUtcExclusivo(null).Should().BeNull();
     }
 
-    // Hallazgo de la revisión (ronda 2): «hasta el 31/12/9999» no tiene día siguiente; antes AddDays lanzaba y tiraba la
+    // «hasta el 31/12/9999» no tiene día siguiente; antes AddDays lanzaba y tiraba la
     // pantalla. No hay registro después, así que es lo mismo que no poner límite.
     [Fact]
     public void Hasta_el_ultimo_dia_representable_es_sin_limite_y_no_lanza()

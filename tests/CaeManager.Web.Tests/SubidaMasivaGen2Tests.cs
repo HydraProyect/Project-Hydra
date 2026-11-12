@@ -243,7 +243,7 @@ public sealed class SubidaMasivaGen2Tests : BunitContext
         await DisposeComponentsAsync();
     }
 
-    // Ronda 1 de Codex, ALTO 4: el vencimiento manual a medias llegaba como «» y el Documento se creaba sin vencimiento.
+    // El vencimiento manual a medias llegaba como «» y el Documento se creaba sin vencimiento.
     [Fact]
     public async Task Un_vencimiento_manual_a_medias_no_crea_el_documento_sin_vencimiento()
     {

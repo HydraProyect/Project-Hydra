@@ -22,11 +22,12 @@ namespace CaeManager.Web.Tests;
 /// <summary>
 /// Un vencimiento manual a medias o ilegible llega al formulario como «»; guardar así crearía el Documento «sin vencimiento»
 /// sin que nadie lo decidiera. DrawerGestionDocumento consume la bandera del campo y bloquea Guardar mientras sea true
-/// (la regla «todo consumidor que guarda consume la bandera» de la #2185).
+/// (la regla «todo consumidor que guarda consume la bandera»).
 /// </summary>
 public class DrawerGestionDocumentoVencimientoNoValidoTests : BunitContext
 {
     private static readonly Guid TipoManual = Guid.NewGuid();
+    private static readonly Guid TipoAutomatico = Guid.NewGuid();
 
     private sealed class MediatorQueAnotaComandos : IMediator
     {
@@ -41,6 +42,8 @@ public class DrawerGestionDocumentoVencimientoNoValidoTests : BunitContext
                 ObtenerTiposDocumentoQuery => (IReadOnlyList<TipoDocumentoListaDto>)
                 [
                     new TipoDocumentoListaDto(TipoManual, "Formación Art. 19", null, false, 1, AmbitoAplicacion.Trabajador, default, default,
+                        null, null, null, null, false, false, false, default, []),
+                    new TipoDocumentoListaDto(TipoAutomatico, "Certificado TGSS", 12, true, 2, AmbitoAplicacion.Trabajador, default, default,
                         null, null, null, null, false, false, false, default, []),
                 ],
                 CrearDocumentoCommand crear => Anotar(crear),
@@ -142,6 +145,36 @@ public class DrawerGestionDocumentoVencimientoNoValidoTests : BunitContext
 
         _mediator.Creados.Should().BeEmpty("el texto sin fecha entera llega como «» y se guardaría como «sin vencimiento»");
         cut.Markup.Should().Contain("no es válida");
+    }
+
+    // Con un tipo de vencimiento automático el campo desaparece: el aviso de un envío anterior no puede quedarse sin campo.
+    [Fact]
+    public async Task Cambiar_a_un_tipo_de_vencimiento_automatico_retira_el_aviso_del_vencimiento_manual()
+    {
+        var cut = await AbrirAltaConTipoManualAsync();
+        await EscribirVencimientoAsync(cut, "15/03");
+        await PulsarGuardarAsync(cut);
+        cut.Markup.Should().Contain("no es válida", "control: el intento rechazado avisa");
+
+        await cut.InvokeAsync(() => cut.FindComponent<SelectorTipoDocumento>().Instance.ValorChanged.InvokeAsync(TipoAutomatico.ToString()));
+
+        cut.FindAll("input[data-campo-fecha]").Should().HaveCount(1, "el tipo automático calcula el vencimiento: solo queda la emisión");
+        cut.Markup.Should().NotContain("no es válida", "sin el campo, el aviso de su fecha ya no tiene a qué referirse");
+    }
+
+    // Un vencimiento a medias no cambia el valor del formulario («»), pero es texto que se pierde al cerrar.
+    [Fact]
+    public async Task Un_vencimiento_manual_a_medias_cuenta_como_cambio_sin_guardar()
+    {
+        var cut = await AbrirAltaConTipoManualAsync();
+        await cut.InvokeAsync(() => typeof(DrawerGestionDocumento)
+            .GetMethod("FijarInstantaneaFormulario", BindingFlags.Instance | BindingFlags.NonPublic)!.Invoke(cut.Instance, null));
+        var drawer = () => cut.FindComponent<DrawerFormulario>().Instance;
+        drawer().HayCambios().Should().BeFalse("control: sin tocar nada no hay nada que descartar");
+
+        await EscribirVencimientoAsync(cut, "15/03");
+
+        drawer().HayCambios().Should().BeTrue();
     }
 
     [Fact]

@@ -1406,6 +1406,80 @@ public partial class ProyectosGen2Tests : BunitContext
         cut.FindComponents<CampoTexto>().Single(c => c.Instance.Etiqueta == "Nombre del proyecto")
             .Find("input").InputAsync(new ChangeEventArgs { Value = nombre });
 
+    private static IElement FinPrevisto(IRenderedComponent<Proyectos> cut) =>
+        cut.FindComponents<CampoTexto>().Single(c => c.Instance.Etiqueta?.StartsWith("Fin previsto") == true)
+            .Find("input[data-campo-fecha]");
+
+    /// <summary>
+    /// Un fin previsto a medias o ilegible llega como «»: crear así daría de alta el Proyecto «sin fin previsto». El alta
+    /// consume la bandera del campo y no envía el comando mientras sea true.
+    /// </summary>
+    [Fact]
+    public async Task Un_fin_previsto_a_medias_no_crea_el_proyecto_sin_fecha()
+    {
+        var cut = await AbrirNuevoProyectoAsync();
+        await SelectDelAlta(cut, "Centro").ChangeAsync(new ChangeEventArgs { Value = CentroDeA.Id.ToString() });
+        await EscribirNombreDelProyectoAsync(cut, "Montaje cámaras 2026");
+
+        await FinPrevisto(cut).InputAsync(new ChangeEventArgs { Value = "15/03" });
+        await BotonConTexto(cut, ".drawer-panel button", "Crear proyecto").ClickAsync(new MouseEventArgs());
+
+        _mediator.Enviados.OfType<CrearProyectoCommand>().Should().BeEmpty("el texto a medias llega como «» y se crearía «sin fin previsto»");
+        cut.Find(".drawer-panel").TextContent.Should().Contain("no es válida");
+
+        await FinPrevisto(cut).InputAsync(new ChangeEventArgs { Value = "15/03/2030" });
+        cut.Find(".drawer-panel").TextContent.Should().NotContain("no es válida", "el aviso de un intento anterior ya no es cierto");
+        await BotonConTexto(cut, ".drawer-panel button", "Crear proyecto").ClickAsync(new MouseEventArgs());
+
+        _mediator.Enviados.OfType<CrearProyectoCommand>().Should().ContainSingle("control positivo: con la fecha entera sí se crea")
+            .Which.FechaFinPrevista.Should().Be(new DateOnly(2030, 3, 15));
+    }
+
+    [Fact]
+    public async Task Cancelar_el_nuevo_proyecto_con_el_fin_previsto_a_medias_pregunta()
+    {
+        var cut = await AbrirNuevoProyectoAsync();
+
+        await FinPrevisto(cut).InputAsync(new ChangeEventArgs { Value = "15/03" });
+
+        await cut.PulsarCancelarDelPieAsync(".drawer-pie");
+        await cut.ComprobarQuePreguntaYDescartarAsync(".drawer-panel");
+    }
+
+    /// <summary>
+    /// Un fin previsto a medias llega como «»: guardar así borraría el fin previsto guardado. La edición del panel de detalle
+    /// consume la bandera del campo y no envía el comando mientras sea true.
+    /// </summary>
+    [Fact]
+    public async Task Un_fin_previsto_a_medias_no_guarda_la_edicion_sin_fecha()
+    {
+        var cut = await AbrirLaEdicionDelDetalleAsync();
+        var guardar = () => BotonConTexto(cut, "aside.panel-proyecto .acciones-formulario button", "Guardar");
+
+        await FinPrevisto(cut).InputAsync(new ChangeEventArgs { Value = "15/03" });
+        await guardar().ClickAsync(new MouseEventArgs());
+
+        _mediator.Enviados.OfType<ActualizarProyectoCommand>().Should().BeEmpty("el texto a medias llega como «» y borraría el fin previsto");
+        cut.Find("aside.panel-proyecto").TextContent.Should().Contain("no es válida");
+
+        await FinPrevisto(cut).InputAsync(new ChangeEventArgs { Value = "15/03/2030" });
+        cut.Find("aside.panel-proyecto").TextContent.Should().NotContain("no es válida", "el aviso de un intento anterior ya no es cierto");
+        await guardar().ClickAsync(new MouseEventArgs());
+
+        cut.WaitForAssertion(() => _mediator.Enviados.OfType<ActualizarProyectoCommand>().Should().ContainSingle(
+            "control positivo: con la fecha entera sí se guarda").Which.FechaFinPrevista.Should().Be(new DateOnly(2030, 3, 15)));
+    }
+
+    [Fact]
+    public async Task Cerrar_el_panel_con_el_fin_previsto_de_la_edicion_a_medias_pregunta()
+    {
+        var cut = await AbrirLaEdicionDelDetalleAsync();
+
+        await FinPrevisto(cut).InputAsync(new ChangeEventArgs { Value = "15/03" });
+
+        await cut.SalirYComprobarQuePreguntaAsync(Navegacion);
+    }
+
     [Fact]
     public async Task Aviso_nuevo_proyecto_con_la_fecha_de_hoy_puesta_no_pregunta()
     {

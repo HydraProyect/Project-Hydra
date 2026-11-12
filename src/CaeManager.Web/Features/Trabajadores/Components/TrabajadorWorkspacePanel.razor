@@ -212,9 +212,12 @@ else
 
     private readonly InstantaneaFormulario _instantaneaInformacion = new();
 
-    /// <summary>P1-E2b: la edición en línea de Información comparada con cómo se abrió.</summary>
+    /// <summary>
+    /// P1-E2b: la edición en línea de Información comparada con cómo se abrió. Una fecha de nacimiento a medias no cambia el
+    /// valor del formulario («»), pero es texto que se pierde al salir.
+    /// </summary>
     private bool HayCambiosSinGuardar =>
-        _editandoInformacion && _instantaneaInformacion.Difiere(ValoresInformacion());
+        _editandoInformacion && (_instantaneaInformacion.Difiere(ValoresInformacion()) || _fechaNacimientoInfoNoValida);
 
     private object?[] ValoresInformacion() =>
         [_nombreInfo, _apellidosInfo, _aliasInfo, _puestoInfo, _emailInfo, _telefonoInfo, _fechaNacimientoInfo, _observacionesInfo];

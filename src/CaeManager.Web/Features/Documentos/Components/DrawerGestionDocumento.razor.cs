@@ -485,6 +485,15 @@ public partial class DrawerGestionDocumento : ComponentBase
         _glosarioCriteriosValidacion = tipo?.CriteriosValidacion;
         _glosarioSeSolicitaA = tipo?.SeSolicitaA;
         _glosarioObservaciones = tipo?.Observaciones;
+
+        // Con un tipo de vencimiento automático el campo de vencimiento ya no existe: el texto a medias se va con él y el
+        // aviso «no es una fecha» de un envío anterior ya no tiene a qué referirse.
+        if (!RequiereVencimientoManual)
+        {
+            _vencimientoManualNoValido = false;
+            if (_mensajeErrorFormulario == Comunes["CampoFechaCorregirAntes"])
+                _mensajeErrorFormulario = null;
+        }
     }
 
     /// <summary>
@@ -493,11 +502,14 @@ public partial class DrawerGestionDocumento : ComponentBase
     /// drawer cerrado (también tras guardar) nunca hay nada que perder. Subir un archivo
     /// cambia _archivoUrl, así que también cuenta; y mientras la subida está en curso
     /// (lectura, conversión, almacenamiento) _archivoUrl aún no ha cambiado, así que la
-    /// subida en curso cuenta por sí misma.
+    /// subida en curso cuenta por sí misma. Un vencimiento a medias no cambia el valor del formulario («»), pero es
+    /// texto que se pierde al salir.
     /// </summary>
     private bool HayCambiosSinGuardar =>
         _drawerVisible
-        && (_subiendoArchivo || (_instantaneaAlAbrir is not null && InstantaneaFormulario() != _instantaneaAlAbrir));
+        && (_subiendoArchivo
+            || (_vencimientoManualNoValido && RequiereVencimientoManual)
+            || (_instantaneaAlAbrir is not null && InstantaneaFormulario() != _instantaneaAlAbrir));
 
     private string InstantaneaFormulario() => string.Join('\u001f',
         _ambitoAplicacion, _trabajadorId, _clienteId, _empresaId, _vehiculoId, _proyectoId,

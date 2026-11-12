@@ -764,7 +764,8 @@ public partial class AltaGuiada : CaeManager.Web.Components.PaginaInteractiva
         "empresa" => _instantaneaEmpresa.Difiere(ValoresPasoEmpresa()),
         // Con el Cliente empresarial ya creado el paso no pinta formulario.
         "cliente" => _clienteId is null && _instantaneaCliente.Difiere(ValoresPasoCliente()),
-        "centro" => _instantaneaCentro.Difiere(ValoresPasoCentro()),
+        // Una fecha a medias no cambia el valor del formulario («»), pero es texto que se pierde al salir.
+        "centro" => _instantaneaCentro.Difiere(ValoresPasoCentro()) || _contratoVigenteHastaNoValido,
         _ => _instantaneaTrabajador.Difiere(ValoresPasoTrabajadores()),
     };
 

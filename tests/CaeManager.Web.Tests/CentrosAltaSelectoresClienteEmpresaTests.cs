@@ -227,7 +227,7 @@ public class CentrosAltaSelectoresClienteEmpresaTests : BunitContext
 
     /// <summary>
     /// «Contrato vigente hasta» a medias o ilegible llega como «»: guardar así crearía el Centro «sin fecha». El alta consume la
-    /// bandera del campo (#2185) y no envía el comando mientras sea true.
+    /// bandera del campo y no envía el comando mientras sea true.
     /// </summary>
     [Fact]
     public async Task Un_contrato_vigente_hasta_a_medias_no_crea_el_centro_sin_fecha()
@@ -249,6 +249,17 @@ public class CentrosAltaSelectoresClienteEmpresaTests : BunitContext
 
         _mediador.Enviadas.OfType<CrearCentroCommand>().Should().ContainSingle("control positivo: con la fecha entera sí se crea")
             .Which.ContratoVigenteHasta.Should().Be(new DateOnly(2030, 3, 15));
+    }
+
+    [Fact]
+    public async Task Cancelar_el_alta_con_el_contrato_vigente_hasta_a_medias_pregunta()
+    {
+        var cut = await AbrirAltaAsync(Renderizar());
+
+        await cut.Find(".drawer-panel input[data-campo-fecha]").InputAsync(new ChangeEventArgs { Value = "15/03" });
+
+        await cut.PulsarCancelarDelPieAsync(".drawer-pie");
+        await cut.ComprobarQuePreguntaYDescartarAsync(".drawer-panel");
     }
 
     [Fact]

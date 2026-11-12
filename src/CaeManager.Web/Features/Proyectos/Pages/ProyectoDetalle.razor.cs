@@ -514,8 +514,10 @@ public partial class ProyectoDetalle : CaeManager.Web.Components.PaginaInteracti
     private string? _editError;
     private readonly InstantaneaFormulario _instantaneaEdicion = new();
 
+    // Una fecha a medias no cambia el valor del formulario («»), pero es texto que se pierde al cerrar.
     private bool HayCambiosEnEdicion =>
-        _editarVisible && _instantaneaEdicion.Difiere(_editNombre, _editFechaFinPrevista, _editNotas);
+        _editarVisible
+        && (_instantaneaEdicion.Difiere(_editNombre, _editFechaFinPrevista, _editNotas) || _editFechaFinPrevistaNoValida);
 
     private void AbrirEditar()
     {

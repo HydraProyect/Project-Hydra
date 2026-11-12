@@ -220,8 +220,8 @@ public partial class Documento360Gen2Tests : BunitContext
         toast.Mensaje.Should().Be("Certificado TGSS: fechas y comentarios actualizados; el archivo no se ha sustituido.");
     }
 
-    // Ronda 1 de Codex, ALTO 4: un vencimiento a medias llegaba como «» y RenovarDocumentoCommand lo guardaba como «sin
-    // vencimiento». Con la bandera del campo, Guardar no envía nada y lo dice.
+    // Un vencimiento a medias llega como «» y RenovarDocumentoCommand lo guardaría como «sin vencimiento». Con la bandera del
+    // campo, Guardar no envía nada y lo dice.
     [Theory]
     [InlineData("15/0")]
     [InlineData("mañana")]
@@ -242,6 +242,26 @@ public partial class Documento360Gen2Tests : BunitContext
 
         mediador.Enviadas.OfType<RenovarDocumentoCommand>().Should().BeEmpty();
         cut.FindAll(".alerta-formulario").Should().ContainSingle().Which.TextContent.Should().Contain("no es válida");
+    }
+
+    // El aviso de un «Guardar» rechazado deja de ser cierto en cuanto el vencimiento vuelve a ser una fecha entera.
+    [Fact]
+    public async Task Corregir_el_vencimiento_retira_el_aviso_de_que_no_es_una_fecha()
+    {
+        var id = Guid.NewGuid();
+        var mediador = Registrar(new MediadorFalso());
+        mediador.Detalles[id] = Detalle(id);
+        var cut = Renderizar(id);
+
+        await Boton(cut, "Renovar").ClickAsync(new MouseEventArgs());
+        await EmisionDeRenovacion.EscribirAsync(cut);
+        await cut.FindAll("input[data-campo-fecha]")[1].InputAsync(new ChangeEventArgs { Value = "15/0" });
+        await Boton(cut, "Guardar fechas y comentarios (sin sustituir el archivo)").ClickAsync(new MouseEventArgs());
+        cut.FindAll(".alerta-formulario").Should().ContainSingle("control: el intento rechazado avisa");
+
+        await cut.FindAll("input[data-campo-fecha]")[1].InputAsync(new ChangeEventArgs { Value = "15/03/2030" });
+
+        cut.FindAll(".alerta-formulario").Should().BeEmpty("la fecha ya es entera y el aviso del intento anterior no es cierto");
     }
 
     [Fact]
