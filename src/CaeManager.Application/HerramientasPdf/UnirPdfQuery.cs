@@ -214,7 +214,7 @@ public class UnirPdfQueryHandler(
             return Fallo(ErroresUnirPdf.NoDisponible, "Herramientas PDF no está disponible.");
 
         if (tenantActual.TenantId is not { } tenant || tenant != request.TenantEsperadoId)
-            return Fallo(ErroresUnirPdf.TenantCruzado, "La Empresa gestionada ha cambiado. Vuelve a empezar para no unir documentos de otra.");
+            return Fallo(ErroresUnirPdf.TenantCruzado, "La Empresa ha cambiado. Vuelve a empezar para no unir documentos de otra.");
 
         var entradas = request.Entradas;
         if (entradas.Count is < LimitesUnionPdf.MinimoFicheros or > LimitesUnionPdf.MaximoFicheros)
@@ -222,7 +222,7 @@ public class UnirPdfQueryHandler(
 
         var empresa = await DocumentosUnibles.EmpresaGestionableAsync(request.EmpresaGestionadaId, empresasContext, alcanceDatos, cancellationToken);
         if (empresa is null)
-            return Fallo(ErroresUnirPdf.EmpresaNoGestionable, "La Empresa gestionada no existe o queda fuera de tu cartera.");
+            return Fallo(ErroresUnirPdf.EmpresaNoGestionable, "La Empresa no existe o queda fuera de tu cartera.");
 
         var documentoIds = entradas.OfType<EntradaUnionDocumento>().Select(e => e.DocumentoId).Distinct().ToList();
         Dictionary<Guid, string> archivos = [];

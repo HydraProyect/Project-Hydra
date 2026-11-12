@@ -413,13 +413,14 @@ public static class InfrastructureServiceCollectionExtensions
         services.AddSingleton<IClasificadorDocumentoService, PdfSharpClasificadorDocumentoService>();
         services.AddSingleton<IExtractorTextoDigitalService, PdfSharpExtractorTextoDigitalService>();
         services.AddSingleton<CaeManager.Application.Trabajadores.Extraccion.IExtractorPalabrasPdf, PdfPigExtractorPalabrasPdf>();
-        services.AddSingleton<CaeManager.Application.HerramientasPdf.IDivisorPdf, CaeManager.Infrastructure.HerramientasPdf.PdfSharpDivisorPdf>();
-        // Unir abre PDF ajenos en un proceso aparte con límite de memoria y de tiempo, de uno en uno: el techo que añade al
-        // contenedor es un proceso por su límite (OpcionesProcesoHerramientasPdf.MemoriaMaximaBytes).
+        // Unir y Dividir abren PDF ajenos en un proceso aparte con límite de memoria y de tiempo, de uno en uno y con el mismo
+        // limitador para las dos: el techo que añade al contenedor es un proceso por su límite
+        // (OpcionesProcesoHerramientasPdf.MemoriaMaximaBytes).
         services.AddSingleton(new CaeManager.Infrastructure.HerramientasPdf.OpcionesProcesoHerramientasPdf());
         services.AddSingleton(new CaeManager.Infrastructure.HerramientasPdf.LimitadorProcesosAislados(capacidad: 1));
         services.AddSingleton<CaeManager.Infrastructure.HerramientasPdf.ILanzadorProcesoAislado, CaeManager.Infrastructure.HerramientasPdf.LanzadorProcesoAislado>();
         services.AddSingleton<CaeManager.Application.HerramientasPdf.IUnidorPdf, CaeManager.Infrastructure.HerramientasPdf.UnidorPdfEnProcesoAparte>();
+        services.AddSingleton<CaeManager.Application.HerramientasPdf.IDivisorPdf, CaeManager.Infrastructure.HerramientasPdf.DivisorPdfEnProcesoAparte>();
         services.AddSingleton<CaeManager.Application.HerramientasPdf.IProcesadorFotosPdf, CaeManager.Infrastructure.HerramientasPdf.SkiaPdfSharpProcesadorFotosPdf>();
         services.AddSingleton<IRasterizadorPaginasPdfService, PdfToPngRasterizadorPaginasPdfService>();
         services.AddSingleton(AlmacenConfianzaFirmas.AdministracionEspanola());
@@ -790,6 +791,7 @@ public static class InfrastructureServiceCollectionExtensions
         services.AddScoped<CaeManager.Application.AltaAutonoma.IAccesoSolicitudesAlta, AltaAutonoma.AccesoSolicitudesAlta>();
         services.AddScoped<CaeManager.Application.AltaAutonoma.IExistenciaCuentaPorCorreo, AltaAutonoma.ExistenciaCuentaPorCorreo>();
         services.AddScoped<CaeManager.Application.AltaAutonoma.ServicioRegistroAlta>();
+        services.AddScoped<CaeManager.Application.AltaAutonoma.ServicioDatosOrganizacionAlta>();
         services.AddScoped<CaeManager.Application.AltaAutonoma.IPreparacionContrasenaAlta, AltaAutonoma.PreparacionContrasenaAlta>();
         // Caducidad y borrado de datos de las Solicitudes de alta (A8, DA-7): servicio de fondo con elección de líder.
         services.Configure<CaeManager.Application.AltaAutonoma.LimpiezaSolicitudesAltaOptions>(

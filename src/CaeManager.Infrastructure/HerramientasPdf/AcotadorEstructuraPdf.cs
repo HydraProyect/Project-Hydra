@@ -26,6 +26,14 @@ namespace CaeManager.Infrastructure.HerramientasPdf;
 /// Los generadores habituales (Word, LibreOffice, navegadores, escáneres) usan Flate, así que no se rechaza ninguno legítimo
 /// por la forma; solo por el tamaño de su estructura.
 /// </para>
+///
+/// <para>
+/// Es un primer filtro barato, no la garantía. Mira una ventana acotada antes de cada <c>stream</c> y una forma conocida
+/// del diccionario, y un PDF fabricado puede esconderle un flujo de objetos (por ejemplo, con relleno que aleje la cabecera
+/// del objeto más allá de la ventana) o cargar a PDFsharp por donde no mira (matrices enormes). La garantía es que PDFsharp
+/// solo abre PDF ajenos en el proceso aparte (<see cref="ProcesoHerramientasPdf"/>), con un límite duro de memoria y de
+/// tiempo: lo que se escape de aquí agota ese proceso y sale como «demasiado complejo», con la aplicación viva.
+/// </para>
 /// </summary>
 internal static class AcotadorEstructuraPdf
 {
@@ -76,7 +84,9 @@ internal static class AcotadorEstructuraPdf
             // una cadena o un comentario del propio diccionario deja un tramo mal formado, y eso falla en cerrado: sin poder
             // delimitar el diccionario no se sabe si es de estructura. Sin cabecera cerca, solo se mira un trozo.
             // Desde el «stream» anterior: el diccionario de este flujo siempre va detrás de los datos del anterior, y así las
-            // ventanas no se solapan y todo el recorrido lee el archivo una vez, haya los flujos que haya.
+            // ventanas no se solapan y todo el recorrido lee el archivo una vez, haya los flujos que haya. La ventana es
+            // acotada a propósito: un diccionario con relleno que la desborde se escapa de esta medición, y lo para el límite
+            // del proceso aparte, no este filtro.
             var inicioVentana = Math.Max(finFlujoAnterior, indice - VentanaDiccionario);
             finFlujoAnterior = indice + "stream".Length;
             var ventana = Encoding.Latin1.GetString(pdf, inicioVentana, indice - inicioVentana);

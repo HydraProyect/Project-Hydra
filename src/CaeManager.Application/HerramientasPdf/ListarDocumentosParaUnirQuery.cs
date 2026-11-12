@@ -103,7 +103,7 @@ public class ListarDocumentosParaUnirQueryHandler(
 
         if (await DocumentosUnibles.EmpresaGestionableAsync(request.EmpresaGestionadaId, empresasContext, alcanceDatos, cancellationToken) is null)
             return Result.Fallo<DocumentosParaUnirDto>(Error.Crear(
-                ErroresUnirPdf.EmpresaNoGestionable, "La Empresa gestionada no existe o queda fuera de tu cartera."));
+                ErroresUnirPdf.EmpresaNoGestionable, "La Empresa no existe o queda fuera de tu cartera."));
 
         if (await DocumentosUnibles.RechazoDeLecturaAsync(sesionPrivilegiadaActual, currentUserService, cancellationToken) is { } rechazo)
             return Result.Fallo<DocumentosParaUnirDto>(rechazo);

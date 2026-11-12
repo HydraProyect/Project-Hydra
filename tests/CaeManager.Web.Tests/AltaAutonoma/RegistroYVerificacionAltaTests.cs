@@ -33,6 +33,7 @@ public class RegistroYVerificacionAltaTests : BunitContext
         Services.AddSingleton<IAccesoSolicitudesAlta>(_acceso);
         Services.AddSingleton<IExistenciaCuentaPorCorreo>(new SinCuentas());
         Services.AddSingleton<IRemitenteCorreoAlta>(new RemitenteNulo());
+        Services.AddSingleton<IPreparacionContrasenaAlta>(new ContrasenasFalsas());
         Services.AddSingleton(TimeProvider.System);
         Services.AddSingleton(typeof(Microsoft.Extensions.Logging.ILogger<>), typeof(NullLogger<>));
         Services.AddSingleton<ServicioRegistroAlta>();
@@ -50,6 +51,77 @@ public class RegistroYVerificacionAltaTests : BunitContext
         _acceso.Verificaciones.Should().BeEmpty("un antivirus o una vista previa que abre el enlace no gasta el uso único");
         corte.Find("form[method=post] button[type=submit]").Should().NotBeNull();
         corte.Find("form input[type=hidden]").GetAttribute("value").Should().Be(token);
+    }
+
+    [Fact]
+    public void El_formulario_de_verificacion_pide_la_contrasena_y_no_la_rellena()
+    {
+        Services.GetRequiredService<Microsoft.AspNetCore.Components.NavigationManager>()
+            .NavigateTo($"alta/verificar?token={ServicioRegistroAlta.NuevoToken()}");
+
+        var corte = Render<VerificarCorreoAlta>();
+
+        var campo = corte.Find("form input#alta-verificar-contrasena");
+        campo.GetAttribute("type").Should().Be("password");
+        campo.GetAttribute("autocomplete").Should().Be("current-password");
+        (campo.GetAttribute("value") ?? string.Empty).Should().BeEmpty();
+        corte.Find("label[for=alta-verificar-contrasena]").Should().NotBeNull();
+    }
+
+    [Fact]
+    public void Una_contrasena_que_no_casa_vuelve_a_pintar_el_formulario_con_la_alerta_generica_y_sin_gastar_el_enlace()
+    {
+        var token = ServicioRegistroAlta.NuevoToken();
+        Services.GetRequiredService<Microsoft.AspNetCore.Components.NavigationManager>()
+            .NavigateTo($"alta/verificar?token={token}");
+        var corte = Render<VerificarCorreoAlta>();
+
+        corte.Find("#alta-verificar-contrasena").Change("la-mala");
+        corte.Find("form").Submit();
+
+        _acceso.Consultas.Should().ContainSingle();
+        _acceso.Verificaciones.Should().BeEmpty("con la contraseña errónea el enlace no se gasta");
+        corte.Find("[role=alert]").Should().NotBeNull();
+        (corte.Find("#alta-verificar-contrasena").GetAttribute("value") ?? string.Empty).Should().BeEmpty(
+            "la contraseña no vuelve a la página");
+        corte.Find("form input[type=hidden]").GetAttribute("value").Should().Be(token);
+    }
+
+    [Fact]
+    public void Verificar_con_la_contrasena_buena_deja_el_credencial_en_la_cookie_y_lleva_al_paso_Empresa()
+    {
+        // Esta página es el único escritor de la cookie de continuación: sin ella, quien verifica gasta el enlace y se
+        // queda sin poder seguir con el alta.
+        var http = new Microsoft.AspNetCore.Http.DefaultHttpContext();
+        http.Request.IsHttps = true;
+        var navegacion = Services.GetRequiredService<Microsoft.AspNetCore.Components.NavigationManager>();
+        var token = ServicioRegistroAlta.NuevoToken();
+        navegacion.NavigateTo($"alta/verificar?token={token}");
+        var corte = Render<VerificarCorreoAlta>(p => p.AddCascadingValue<Microsoft.AspNetCore.Http.HttpContext>(http));
+
+        corte.Find("#alta-verificar-contrasena").Change("la-buena");
+        corte.Find("form").Submit();
+
+        _acceso.Verificaciones.Should().ContainSingle().Which.Should().Be(token);
+        var cookie = Microsoft.Net.Http.Headers.SetCookieHeaderValue.ParseList(http.Response.Headers.SetCookie.OfType<string>().ToList())
+            .Should().ContainSingle(c => c.Name.Value == CookieContinuacionAlta.Nombre).Which;
+        cookie.Value.Value.Should().NotBeNullOrEmpty().And.NotBe(token, "el credencial no es el token del enlace");
+        cookie.Path.Value.Should().Be("/alta");
+        cookie.HttpOnly.Should().BeTrue();
+        new Uri(navegacion.Uri).AbsolutePath.Should().Be(OrganizacionAlta.Ruta);
+    }
+
+    [Fact]
+    public void Con_la_bandera_apagada_el_enlace_de_verificacion_no_pinta_nada()
+    {
+        Services.AddSingleton(Options.Create(new AltaAutonomaOptions { Habilitada = false }));
+        Services.GetRequiredService<Microsoft.AspNetCore.Components.NavigationManager>()
+            .NavigateTo($"alta/verificar?token={ServicioRegistroAlta.NuevoToken()}");
+
+        var corte = Render<VerificarCorreoAlta>();
+
+        corte.FindAll("form").Should().BeEmpty();
+        _acceso.Consultas.Should().BeEmpty();
     }
 
     [Fact]
@@ -93,16 +165,56 @@ public class RegistroYVerificacionAltaTests : BunitContext
 
     private static DatosRegistroAlta Datos(string correo) => new(correo, "AQAAAAIAAYagAAAAEHashDePrueba", "203.0.113.9", "Navegador de prueba");
 
-    private sealed class AccesoQueCuenta : IAccesoSolicitudesAlta
+    internal sealed class AccesoQueCuenta : IAccesoSolicitudesAlta
     {
+        public ConcurrentQueue<string> Consultas { get; } = new();
         public ConcurrentQueue<string> Verificaciones { get; } = new();
+        public ConcurrentQueue<DatosOrganizacionAlta> Completados { get; } = new();
+        public ResultadoDatosOrganizacionAlta ResultadoDatos { get; set; } = ResultadoDatosOrganizacionAlta.DatosCompletos;
 
         public Task IniciarAsync(SolicitudAlta solicitud, CancellationToken cancellationToken) => Task.CompletedTask;
 
-        public Task<ResultadoVerificacionCorreoAlta> VerificarCorreoAsync(string token, CancellationToken cancellationToken)
+        public Task<EnlaceVerificacionAlta> ConsultarEnlaceAsync(string token, CancellationToken cancellationToken)
+        {
+            Consultas.Enqueue(token);
+            return Task.FromResult(new EnlaceVerificacionAlta(null, "hash-guardado"));
+        }
+
+        public Task<ResultadoVerificacionCorreoAlta> VerificarCorreoAsync(
+            string token, string hashContrasenaComprobado, string credencialContinuacion, CancellationToken cancellationToken)
         {
             Verificaciones.Enqueue(token);
             return Task.FromResult(ResultadoVerificacionCorreoAlta.Verificado);
+        }
+
+        public Task<TransicionDatosOrganizacionAlta> CompletarDatosOrganizacionAsync(
+            string credencialContinuacion, DatosOrganizacionAlta datos, CancellationToken cancellationToken)
+        {
+            Completados.Enqueue(datos);
+            if (ContinuacionTrasCompletar is { } siguiente)
+                Continuacion = siguiente;
+            return Task.FromResult(new TransicionDatosOrganizacionAlta(ResultadoDatos, Guid.NewGuid()));
+        }
+
+        /// <summary>Lo que responde la consulta del credencial de continuación (al pintar el paso «Empresa»).</summary>
+        public EstadoContinuacionAlta Continuacion { get; set; } = EstadoContinuacionAlta.CorreoVerificado;
+
+        /// <summary>Si no es nulo, el estado que queda tras un envío, como lo dejaría otra pestaña o el envío anterior.</summary>
+        public EstadoContinuacionAlta? ContinuacionTrasCompletar { get; set; }
+
+        public Task<EstadoContinuacionAlta> ConsultarContinuacionAsync(string credencialContinuacion, CancellationToken cancellationToken) =>
+            Task.FromResult(Continuacion);
+    }
+
+    /// <summary>Solo «la-buena» casa con el hash que devuelve <see cref="AccesoQueCuenta"/>.</summary>
+    internal sealed class ContrasenasFalsas : IPreparacionContrasenaAlta
+    {
+        public Task<string?> ValidarYHashearAsync(string correo, string contrasena) => Task.FromResult<string?>("hash-guardado");
+
+        public bool Coincide(string hashContrasena, string contrasena) => hashContrasena == "hash-guardado" && contrasena == "la-buena";
+
+        public void CompararFicticia(string? contrasena)
+        {
         }
     }
 

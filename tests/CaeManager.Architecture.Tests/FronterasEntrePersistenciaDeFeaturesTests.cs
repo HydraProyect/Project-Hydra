@@ -473,6 +473,9 @@ public class FronterasEntrePersistenciaDeFeaturesTests
         ("HerramientasPdf.ObtenerCatalogoDivisionPdfQueryHandler", "ITiposDocumentoQueryContext"),
         ("HerramientasPdf.ObtenerCatalogoDivisionPdfQueryHandler", "ITrabajadoresQueryContext"),
         ("HerramientasPdf.ObtenerCatalogoDivisionPdfQueryHandler", "IVehiculosQueryContext"),
+        // «Descargar» de Dividir lee la Empresa gestionada con la misma comprobación que el catálogo (existe en el Tenant y
+        // es propia) antes de abrir el PDF; solo lee.
+        ("HerramientasPdf.ExtraerTramoPdfQueryHandler", "IEmpresasQueryContext"),
         // Unir PDF lista y lee los Documentos de la Empresa gestionada (el universo del paquete de Empresa 360) bajo el alcance de
         // cartera; solo lee, y lo que sale de la Empresa deja el registro de acceso de siempre.
         ("HerramientasPdf.ListarDocumentosParaUnirQueryHandler", "IDocumentosQueryContext"),

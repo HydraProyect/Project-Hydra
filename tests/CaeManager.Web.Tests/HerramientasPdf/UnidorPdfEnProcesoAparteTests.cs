@@ -462,9 +462,9 @@ public sealed class UnidorPdfEnProcesoAparteTests
     /// confirma su muerte en el seguimiento al volver, salvo con <see cref="ProcesoAisladoSinTerminarException"/> o con
     /// <see cref="SinConfirmar"/>. Con <see cref="Esperar"/>, no responde hasta que se cancele; con <see cref="NoVolver"/>, no
     /// responde nunca, ni al cancelar (un hijo que no se pudo matar); con <see cref="Bloqueo"/>, se bloquea antes de devolver
-    /// su tarea, como un <c>Process.Start</c> que no vuelve.
+    /// su tarea, como un <c>Process.Start</c> que no vuelve. Lo usa también <see cref="DivisorPdfEnProcesoAparteTests"/>.
     /// </summary>
-    private sealed class LanzadorDoble(Func<byte[], SalidaProcesoAislado> responder) : ILanzadorProcesoAislado
+    internal sealed class LanzadorDoble(Func<byte[], SalidaProcesoAislado> responder) : ILanzadorProcesoAislado
     {
         public const int IdHijo = 4321;
 
