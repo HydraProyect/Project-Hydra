@@ -32,7 +32,7 @@ namespace CaeManager.IntegrationTests.AutorizacionesLectura;
 /// y de las autorizaciones); W, un destinatario que no es X; Z, otro Tenant de Cliente empresarial que vincula por su
 /// cuenta un contrato suyo con Y. Lo que prueba la base: solo las dos mitades del apretón juntas dan lectura, y solo del
 /// alcance autorizado (sin sustituidos, anonimizados ni eliminados, y sin los de Empresa si la autorización no los
-/// incluye); nunca un tipo de categoría especial de salud; el Tenant lector y el usuario salen del token, no de la GUC;
+/// incluye o si Y no tiene exactamente una Empresa propia no eliminada); nunca un tipo de categoría especial de salud; el Tenant lector y el usuario salen del token, no de la GUC;
 /// cada lectura deja su fila en Y, con el Tenant de origen del usuario, y el runtime no la escribe; el lector no llama
 /// dentro de una transacción; y la vigencia del contrato y de la autorización en SQL es la de
 /// <see cref="ContratoAcceso.VigenteEn"/> y <see cref="AutorizacionLecturaDocumental.VigenteEn"/>.

@@ -7,7 +7,8 @@ namespace CaeManager.Domain.AutorizacionesLectura;
 /// Autorización expresa de lectura documental (Inbound M1, PR 2): el acto con el que el Tenant de la Empresa
 /// contratista —el Tenant propietario de sus Documentos originales— deja que el Tenant del Cliente empresarial lea en
 /// solo lectura, para un contrato de acceso concreto, los Documentos de los Trabajadores que asigna a ese contrato y,
-/// si lo marca, los de su Empresa propia. Vive en el Tenant de la Empresa contratista, con <c>TenantId</c> estándar
+/// si lo marca, los de su Empresa propia (solo si tiene una única Empresa propia no eliminada: ver
+/// <see cref="IncluyeDocumentosEmpresa"/>). Vive en el Tenant de la Empresa contratista, con <c>TenantId</c> estándar
 /// y RLS por Tenant: es él quien la concede y quien la revoca.
 ///
 /// <para>
