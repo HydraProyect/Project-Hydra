@@ -418,8 +418,6 @@
   <data name="GrupoSinPlataformaCae" xml:space="preserve"><value>Sense Plataforma CAE</value></data>
   <data name="GrupoSinClienteEmpresarial" xml:space="preserve"><value>Sense Client empresarial</value></data>
   <data name="GrupoAnotarVigencia" xml:space="preserve"><value>Anota la vigència ({0})</value></data>
-  <data name="GrupoPlegar" xml:space="preserve"><value>Plega {0}</value></data>
-  <data name="GrupoDesplegar" xml:space="preserve"><value>Desplega {0}</value></data>
   <data name="QuitarFiltroPropietario" xml:space="preserve"><value>Treu el filtre de propietari</value></data>
   <data name="SinAgrupar" xml:space="preserve"><value>Sense agrupar</value></data>
   <data name="VacioDescripcionDesign" xml:space="preserve"><value>Puja el primer o fes servir la pujada massiva.</value></data>

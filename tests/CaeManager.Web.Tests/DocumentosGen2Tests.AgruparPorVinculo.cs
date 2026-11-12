@@ -625,4 +625,49 @@ public partial class DocumentosGen2Tests
         await cut.InvokeAsync(() => atajos.OnAtajo.InvokeAsync("k"));
         Enfocadas().Should().HaveCount(2).And.OnlyContain(f => f.Contains(repetido.PropietarioNombre));
     }
+
+    /// <summary>
+    /// La página llega en el orden del servidor (A en Nalanda, B en Ctaima, C en Nalanda), pero la tabla pinta los grupos
+    /// por nombre: Ctaima {B} y luego Nalanda {A, C}. j baja por la tabla en el orden en que se ve, B, A, C, sin saltar
+    /// de Nalanda a Ctaima y de vuelta.
+    /// </summary>
+    [Fact]
+    public async Task J_sigue_el_orden_en_que_se_pintan_los_grupos_y_no_el_de_la_pagina()
+    {
+        var a = DocumentoDeFila() with { Id = Guid.NewGuid(), PropietarioNombre = "Ana Ruiz Pardo" };
+        var b = DocumentoDeFila() with { Id = Guid.NewGuid(), PropietarioNombre = "Luis Mora Gil" };
+        var c = DocumentoDeFila() with { Id = Guid.NewGuid(), PropietarioNombre = "Eva Soto Paz" };
+        var mediador = new MediadorControlado
+        {
+            Documentos = q => q.AgruparPor == AgrupacionDocumentos.PlataformaCae
+                ? [EnPlataforma(a, NalandaId, Guid.NewGuid(), EstadoAcreditacion.Aceptada, "Cliente Norte"),
+                   EnPlataforma(b, CtaimaId, Guid.NewGuid(), EstadoAcreditacion.Aceptada, "Cliente Norte"),
+                   EnPlataforma(c, NalandaId, Guid.NewGuid(), EstadoAcreditacion.Aceptada, "Cliente Norte")]
+                : [a, b, c],
+            ResumenesDeGrupo = q => q.AgruparPor == AgrupacionDocumentos.PlataformaCae
+                ? new Dictionary<string, ResumenDeGrupo>
+                {
+                    [NalandaId.ToString()] = ResumenPlataforma("Nalanda", 2, null),
+                    [CtaimaId.ToString()] = ResumenPlataforma("Ctaima", 1, null),
+                }
+                : null,
+        };
+        var (cut, _) = Renderizar(mediador);
+        cut.WaitForAssertion(() => cut.Find("tbody button.enlace-nombre-fila"));
+        await Agrupar(cut, "Por Plataforma CAE");
+        cut.WaitForAssertion(() => NombresDeVinculo(cut).Should().Equal("Ctaima", "Nalanda"));
+        cut.FindAll("tbody tr:has(button.enlace-nombre-fila)").Select(f => f.TextContent).Should().SatisfyRespectively(
+            f => f.Should().Contain("Luis Mora Gil"), f => f.Should().Contain("Ana Ruiz Pardo"), f => f.Should().Contain("Eva Soto Paz"));
+        var atajos = cut.FindComponent<AtajosListaTeclado>().Instance;
+        var enfocados = new List<string>();
+
+        for (var i = 0; i < 3; i++)
+        {
+            await cut.InvokeAsync(() => atajos.OnAtajo.InvokeAsync("j"));
+            enfocados.Add(cut.Find("tbody tr.fila-enfocada").TextContent);
+        }
+
+        enfocados.Should().SatisfyRespectively(
+            f => f.Should().Contain("Luis Mora Gil"), f => f.Should().Contain("Ana Ruiz Pardo"), f => f.Should().Contain("Eva Soto Paz"));
+    }
 }

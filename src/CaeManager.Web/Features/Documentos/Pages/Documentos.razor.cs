@@ -332,7 +332,15 @@ public partial class Documentos : CaeManager.Web.Components.PaginaInteractiva, I
         // Se recarga la lista entera, que trae grupos, estados y recuentos frescos (y limpia la selección, como toda carga).
         if (AgrupadaPorVinculo)
         {
-            await RecargarAsync();
+            try
+            {
+                await RecargarAsync();
+            }
+            catch (Exception)
+            {
+                // Igual que abajo: el guardado ya es firme y el aviso se atiende sin esperar; un fallo al recargar no se
+                // enseña aquí (el proveedor ya pinta su propio error de carga) y la lista queda como estaba.
+            }
             return;
         }
 
@@ -924,10 +932,12 @@ public partial class Documentos : CaeManager.Web.Components.PaginaInteractiva, I
 
     /// <summary>
     /// Las filas que se ven: sin agrupar, las de la página; agrupada, solo las de los grupos abiertos. La selección masiva,
-    /// el foco y los atajos operan sobre estas, nunca sobre filas ocultas por un grupo plegado.
+    /// el foco y los atajos operan sobre estas, nunca sobre filas ocultas por un grupo plegado. Agrupada, van en el orden
+    /// en que se pintan (el de <see cref="GruposDeLaPagina"/>): por vínculo, los grupos se ordenan por nombre y no por el
+    /// orden de la página, y j/k tienen que bajar por la tabla, no saltar entre grupos.
     /// </summary>
     private List<DocumentoListaDto> ElementosVisibles =>
-        Agrupada ? _elementosPagina.Where(d => GrupoAbierto(ClaveDeGrupo(d))).ToList() : _elementosPagina;
+        Agrupada ? GruposDeLaPagina().Where(g => GrupoAbierto(g.Key)).SelectMany(g => g).ToList() : _elementosPagina;
 
     /// <summary>Abre o pliega un grupo; al plegarlo, sus filas dejan de estar seleccionadas y enfocadas.</summary>
     private void AlternarGrupo(string clave)
