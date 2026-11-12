@@ -62,8 +62,9 @@ using System.Text.Json.Serialization;
 // vida de DI — se registra una sola vez al arrancar (ver EmbeddedFontResolver).
 GlobalFontSettings.FontResolver = new EmbeddedFontResolver();
 
-// Proceso aparte de Herramientas PDF (UnidorPdfEnProcesoAparte): abre los PDF ajenos con su límite de memoria y de tiempo
-// y termina, antes de leer configuración, conectar con la base de datos o configurar el registro.
+// Proceso aparte de Herramientas PDF (UnidorPdfEnProcesoAparte y DivisorPdfEnProcesoAparte): abre los PDF ajenos con su
+// límite de memoria y de tiempo y termina, antes de leer configuración, conectar con la base de datos o configurar el
+// registro.
 if (args is [CaeManager.Infrastructure.HerramientasPdf.ProcesoHerramientasPdf.Argumento])
 {
     CaeManager.Infrastructure.HerramientasPdf.ProcesoHerramientasPdf.PreferirComoVictimaDeFaltaDeMemoria();

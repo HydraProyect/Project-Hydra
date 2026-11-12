@@ -1,4 +1,4 @@
-// Descarga del PDF unido por la herramienta «Unir PDF». El contenido lo genera el circuito de Blazor y no existe en ningún
+// Descarga de un PDF generado por Herramientas PDF: el unido de «Unir PDF» y cada tramo de «Dividir un PDF». El contenido lo genera el circuito de Blazor y no existe en ningún
 // endpoint: llega por un DotNetStreamReference y se entrega como un fichero local del navegador, sin pasar por otra ruta.
 // Solo presentación: ningún dato de negocio se guarda aquí.
 
