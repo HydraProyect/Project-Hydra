@@ -345,21 +345,38 @@ public partial class DocumentosGen2Tests
     [Fact]
     public async Task Anotar_vigencia_desaparece_al_plegar_el_grupo_porque_no_se_anota_lo_que_no_se_ve()
     {
-        var e = ConVinculos();
-        var (cut, _) = Renderizar(e.Mediador);
+        // Un Documento sin vigencia en dos Plataformas CAE: plegar una no lo deselecciona, porque sigue visible en la otra.
+        var documento = DocumentoDeFila();
+        var mediador = new MediadorControlado
+        {
+            Documentos = q => q.AgruparPor == AgrupacionDocumentos.PlataformaCae
+                ? [EnPlataforma(documento, NalandaId, Guid.NewGuid(), EstadoAcreditacion.Aceptada, "Cliente Norte"),
+                   EnPlataforma(documento, CtaimaId, Guid.NewGuid(), EstadoAcreditacion.Aceptada, "Cliente Norte")]
+                : [documento],
+            ResumenesDeGrupo = q => q.AgruparPor == AgrupacionDocumentos.PlataformaCae
+                ? new Dictionary<string, ResumenDeGrupo>
+                {
+                    [NalandaId.ToString()] = ResumenPlataforma("Nalanda", 1, null, (EstadoEnPlataformaFiltro.SinVigencia, 1)),
+                    [CtaimaId.ToString()] = ResumenPlataforma("Ctaima", 1, null, (EstadoEnPlataformaFiltro.SinVigencia, 1)),
+                }
+                : null,
+        };
+        var (cut, _) = Renderizar(mediador);
         cut.WaitForAssertion(() => cut.Find("tbody button.enlace-nombre-fila"));
         await Agrupar(cut, "Por Plataforma CAE");
-        cut.WaitForAssertion(() => cut.FindAll("tr.documentos-cabecera-grupo-vinculo").Should().HaveCount(3));
+        cut.WaitForAssertion(() => cut.FindAll("tr.documentos-cabecera-grupo-vinculo").Should().HaveCount(2));
         await cut.Find(".cabecera-pagina button[aria-label='Selección múltiple']").ClickAsync(new MouseEventArgs());
-        await CasillaDe(cut, e.SinVigencia).ChangeAsync(new ChangeEventArgs { Value = true });
-        cut.FindAll(".documentos-anotar-vigencia").Should().ContainSingle();
+        await cut.Find(".documentos-tabla-visible tbody input[type=checkbox]").ChangeAsync(new ChangeEventArgs { Value = true });
+        cut.FindAll(".documentos-anotar-vigencia").Should().HaveCount(2);
 
-        await CabeceraDeVinculo(cut, NalandaId.ToString()).QuerySelector("button.grupo-lista-cabecera")!.ClickAsync(new MouseEventArgs());
+        await CabeceraDeVinculo(cut, CtaimaId.ToString()).QuerySelector("button.grupo-lista-cabecera")!.ClickAsync(new MouseEventArgs());
 
-        cut.WaitForAssertion(() => CabeceraDeVinculo(cut, NalandaId.ToString()).QuerySelector("button.grupo-lista-cabecera")!
+        cut.WaitForAssertion(() => CabeceraDeVinculo(cut, CtaimaId.ToString()).QuerySelector("button.grupo-lista-cabecera")!
             .GetAttribute("aria-expanded").Should().Be("false"));
-        cut.FindAll(".documentos-anotar-vigencia").Should().BeEmpty(
+        CabeceraDeVinculo(cut, CtaimaId.ToString()).QuerySelector(".documentos-anotar-vigencia").Should().BeNull(
             "con el grupo plegado sus filas no se ven, y la acción no anota acreditaciones ocultas");
+        CabeceraDeVinculo(cut, NalandaId.ToString()).QuerySelector(".documentos-anotar-vigencia")!.TextContent.Trim()
+            .Should().Be("Anotar vigencia (1)", "el Documento sigue seleccionado en el grupo abierto");
     }
 
     [Fact]
