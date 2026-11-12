@@ -17,10 +17,33 @@ namespace CaeManager.Application.Integraciones;
 /// refresh token, más pequeña es la ventana en la que dos operaciones
 /// concurrentes sobre la misma conexión pueden competir por el mismo
 /// refresco (ver <see cref="CredencialIntegracion.Version"/>).
+///
+/// Un buzón compartido (<see cref="ConexionIntegracion.EsBuzonCompartido"/>) no tiene credencial: se abre
+/// con el token de aplicación de su directorio. Por eso la única entrada pública recibe la conexión: es la
+/// que decide entre credencial delegada y token de aplicación, y un compartido nunca cae en el token de una
+/// persona.
 /// </summary>
 public class AccesoGraphService(ICredencialIntegracionRepository credencialRepositorio, IMicrosoft365GraphClient graphClient)
 {
-    public async Task<Result<string>> ObtenerAccessTokenVigenteAsync(Guid conexionIntegracionId, CancellationToken cancellationToken)
+    public async Task<Result<string>> ObtenerAccessTokenVigenteAsync(ConexionIntegracion conexion, CancellationToken cancellationToken)
+    {
+        if (!conexion.EsBuzonCompartido)
+            return await ObtenerAccessTokenVigenteAsync(conexion.Id, cancellationToken);
+
+        if (conexion.DirectorioEntraId is not { } directorio)
+            return Result.Fallo<string>(Error.Crear(
+                "ConexionIntegracion.SinDirectorio", "Este buzón compartido no tiene directorio de Microsoft."));
+
+        var token = await graphClient.ObtenerTokenAplicacionAsync(directorio, cancellationToken);
+        return token.EsFallido ? Result.Fallo<string>(token.Error) : Result.Exito(token.Valor.AccessToken);
+    }
+
+    /// <summary>
+    /// Token delegado de la credencial de una conexión que no es compartida. Privado a propósito: nadie puede
+    /// pedir un token sin pasar la conexión, y un llamador que volviese al Id dejaría de compilar en vez de
+    /// abrir un compartido con una credencial delegada o dejarlo sin ingesta en silencio.
+    /// </summary>
+    private async Task<Result<string>> ObtenerAccessTokenVigenteAsync(Guid conexionIntegracionId, CancellationToken cancellationToken)
     {
         var credencial = await credencialRepositorio.ObtenerPorConexionAsync(conexionIntegracionId, cancellationToken);
         if (credencial is null)

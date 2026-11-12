@@ -319,9 +319,10 @@ public static class InfrastructureServiceCollectionExtensions
         {
             services.AddHostedService<IngestaWebhookHostedService>();
             services.AddHostedService<RenovacionSuscripcionWebhookHostedService>();
+            services.AddHostedService<ReintentoVerificacionIdentidadBuzonHostedService>();
         }
 
-        // Configuración a medias (p. ej. una sola de las dos rutas del certificado): los dos
+        // Configuración a medias (p. ej. una sola de las dos rutas del certificado): los
         // servicios de arriba no se registran y, sin este aviso, nada lo diría. Va por el
         // mecanismo genérico, como el resto de gates; solo mira y avisa.
         services.AvisarSiConfiguracionAMedias(Microsoft365GraphOptions.SeccionConfiguracion, opcionesMicrosoft365,
@@ -527,6 +528,12 @@ public static class InfrastructureServiceCollectionExtensions
         services.AddScoped<CaeManager.Domain.Plataforma.IOrdenMenuLateralRepository, OrdenMenuLateralRepository>();
         services.AddScoped<CaeManager.Domain.Comunicaciones.IContactoWhatsAppRepository, ContactoWhatsAppRepository>();
         services.AddScoped<CaeManager.Application.Integraciones.AccesoGraphService>();
+        services.AddScoped<CaeManager.Application.Integraciones.AltaBuzonMicrosoft365Service>();
+        services.AddScoped<CaeManager.Application.Integraciones.CompletarIdentidadBuzonService>();
+        services.AddScoped<CaeManager.Application.Integraciones.SuscripcionAlRehabilitarService>();
+        services.AddScoped<CaeManager.Application.Integraciones.RenovacionSuscripcionesWebhookService>();
+        services.AddScoped<CaeManager.Application.Integraciones.ReparacionMarcaHuecoService>();
+        services.AddSingleton<CaeManager.Application.Integraciones.ICerrojoVerificacionBuzon, CerrojoVerificacionBuzonPostgres>();
         services.AddScoped<CaeManager.Application.Integraciones.IngestaWebhookService>();
         services.AddScoped<CaeManager.Application.Integraciones.AcuseAutomaticoBuzonService>();
         services.AddScoped<CaeManager.Application.Integraciones.IWebhookTenantResolver, WebhookTenantResolver>();
@@ -785,6 +792,12 @@ public static class InfrastructureServiceCollectionExtensions
         services.AddScoped<CaeManager.Application.AltaAutonoma.IExistenciaCuentaPorCorreo, AltaAutonoma.ExistenciaCuentaPorCorreo>();
         services.AddScoped<CaeManager.Application.AltaAutonoma.ServicioRegistroAlta>();
         services.AddScoped<CaeManager.Application.AltaAutonoma.IPreparacionContrasenaAlta, AltaAutonoma.PreparacionContrasenaAlta>();
+        // Caducidad y borrado de datos de las Solicitudes de alta (A8, DA-7): servicio de fondo con elección de líder.
+        services.Configure<CaeManager.Application.AltaAutonoma.LimpiezaSolicitudesAltaOptions>(
+            configuration.GetSection(CaeManager.Application.AltaAutonoma.LimpiezaSolicitudesAltaOptions.SeccionConfiguracion));
+        services.AddScoped<CaeManager.Application.AltaAutonoma.ILimpiezaSolicitudesAlta, AltaAutonoma.LimpiezaSolicitudesAlta>();
+        services.AddScoped<CaeManager.Application.AltaAutonoma.ServicioLimpiezaSolicitudesAlta>();
+        services.AddHostedService<AltaAutonoma.LimpiezaSolicitudesAltaHostedService>();
 
         // Kill switch de la detección previa a clasificación de Documento
         // (ver DeteccionPreviaDocumentoOptions) — apagado por defecto hasta

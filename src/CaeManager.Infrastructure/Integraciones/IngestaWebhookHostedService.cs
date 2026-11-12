@@ -199,6 +199,7 @@ public class IngestaWebhookHostedService(
         var estancados = await repositorio.ObtenerEstancadosAsync(ProveedorIntegracion.Microsoft365, UmbralEstancado, stoppingToken);
         if (estancados.Count == 0) return;
 
+        var conexionRepositorio = ambito.ServiceProvider.GetRequiredService<IConexionIntegracionRepository>();
         var ahora = DateTime.UtcNow;
         foreach (var evento in estancados)
         {
@@ -206,6 +207,8 @@ public class IngestaWebhookHostedService(
                 "Evento de webhook {EventoId} (tenant {TenantId}) llevaba más de {Umbral} en \"Procesando\" — se recupera.",
                 evento.Id, tenantId, UmbralEstancado);
             evento.RecuperarSiEstancado(UmbralEstancado, ahora);
+            // Recuperarlo puede agotar sus intentos: entonces se pierde y marca el hueco (disparador a).
+            await IngestaWebhookService.RegistrarHuecoSiDescartadoAsync(evento, conexionRepositorio, stoppingToken);
         }
 
         await ambito.ServiceProvider.GetRequiredService<IUnitOfWork>().SaveChangesAsync(stoppingToken);

@@ -485,6 +485,7 @@ public class CaeManagerDbContext(
     IQueryable<LineaWhatsApp> IIntegracionesQueryContext.LineasWhatsApp => LineasWhatsApp;
     public DbSet<MiembroPoolLinea> MiembrosPoolLinea => Set<MiembroPoolLinea>();
     IQueryable<MiembroPoolLinea> IIntegracionesQueryContext.MiembrosPoolLinea => MiembrosPoolLinea;
+    IQueryable<EventoWebhook> IIntegracionesQueryContext.EventosWebhook => EventosWebhook.AsNoTracking();
     public DbSet<ProveedorPlataformaCae> ProveedoresPlataformaCae => Set<ProveedorPlataformaCae>();
     IQueryable<ProveedorPlataformaCae> IProveedoresPlataformaCaeQueryContext.ProveedoresPlataformaCae => ProveedoresPlataformaCae;
     public DbSet<DominioProveedorPlataformaCae> DominiosProveedorPlataformaCae => Set<DominioProveedorPlataformaCae>();
