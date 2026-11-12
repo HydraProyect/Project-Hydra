@@ -228,10 +228,22 @@ public partial class DividirPdf : CaeManager.Web.Components.PaginaInteractiva, I
                 archivo.Size, LimitesDivisionPdf.TamanoMaximoOriginalBytes, cancellationToken: _ciclo.Token);
 
             Result<PreparacionDivisionPdf> preparacion;
-            using (await PresupuestoMemoria.ReservarAsync(guardado.TamanoBytes, _ciclo.Token))
+            ReservaMemoriaDocumentos? reserva = await PresupuestoMemoria.ReservarAsync(guardado.TamanoBytes, _ciclo.Token);
+            try
             {
                 var contenido = await _almacen.LeerAsync(guardado, _ciclo.Token);
                 preparacion = await Mediator.Send(new PrepararDivisionPdfQuery(contenido, empresaId), _ciclo.Token);
+            }
+            catch (EntradaPdfRetenidaException)
+            {
+                // El proceso aparte que recibió el PDF no consta terminado y puede seguir referenciándolo: no se devuelve.
+                EntradaPdfRetenidaException.Retener(reserva);
+                reserva = null;
+                throw;
+            }
+            finally
+            {
+                reserva?.Dispose();
             }
 
             if (preparacion.EsFallido)
@@ -254,7 +266,7 @@ public partial class DividirPdf : CaeManager.Web.Components.PaginaInteractiva, I
         {
             _error = Textos["ErrorDemasiadoGrande", LimitesDivisionPdf.TamanoMaximoOriginalMb];
         }
-        catch (Exception ex) when (ex is CuotaSubidaMasivaSuperadaException or PresupuestoMemoriaAgotadoException)
+        catch (Exception ex) when (ex is CuotaSubidaMasivaSuperadaException or PresupuestoMemoriaAgotadoException or EntradaPdfRetenidaException)
         {
             if (guardado is not null)
                 _almacen.Eliminar(guardado);
@@ -415,11 +427,25 @@ public partial class DividirPdf : CaeManager.Web.Components.PaginaInteractiva, I
         try
         {
             Result<IReadOnlyList<ResultadoTramoCreado>> creacion;
-            using (await PresupuestoMemoria.ReservarAsync(_original.TamanoBytes, _ciclo.Token))
+            // La copia del original y lo que se recibe del proceso aparte por cada tramo, de uno en uno.
+            ReservaMemoriaDocumentos? reserva = await PresupuestoMemoria.ReservarAsync(
+                LimitesDivisionPdf.MemoriaCreacionTramos(_original.TamanoBytes), _ciclo.Token);
+            try
             {
                 var contenido = await _almacen.LeerAsync(_original, _ciclo.Token);
                 creacion = await Mediator.Send(
                     new CrearDocumentosDesdeDivisionCommand(contenido, _nombreOriginal, tenantId, empresaId, tramos), _ciclo.Token);
+            }
+            catch (EntradaPdfRetenidaException)
+            {
+                // Antes de crear ningún Documento: el proceso aparte no consta terminado y la reserva no se devuelve.
+                EntradaPdfRetenidaException.Retener(reserva);
+                reserva = null;
+                throw;
+            }
+            finally
+            {
+                reserva?.Dispose();
             }
 
             if (creacion.EsFallido)
@@ -437,7 +463,7 @@ public partial class DividirPdf : CaeManager.Web.Components.PaginaInteractiva, I
             _paso = PasoAsistente.Resultado;
             RetirarOriginal();
         }
-        catch (PresupuestoMemoriaAgotadoException)
+        catch (Exception ex) when (ex is PresupuestoMemoriaAgotadoException or EntradaPdfRetenidaException)
         {
             _error = Textos["ErrorSinEspacio"];
         }
@@ -482,25 +508,21 @@ public partial class DividirPdf : CaeManager.Web.Components.PaginaInteractiva, I
             foreach (var rango in rangos)
             {
                 enCurso = rango;
-                using var reserva = await PresupuestoMemoria.ReservarAsync(LimitesDivisionPdf.MemoriaExtraccionTramo(original.TamanoBytes), token);
-                var tramo = await ExtraerTramoAsync(almacen, original, nombre, tenantId, empresaId, rango, token);
-                if (tramo.EsFallido)
+                // Antes de extraer: así, entre la última comprobación de acceso de la extracción y la entrega del tramo no
+                // queda ninguna espera (ni la del módulo, que solo se importa la primera vez).
+                if (!await ImportarModuloDescargaAsync(token))
+                    break;
+
+                var entregado = await ExtraerYEntregarAsync(almacen, original, nombre, tenantId, empresaId, rango, token);
+                if (entregado.Fallo is { } codigo)
                 {
-                    tenantCambiado = tramo.Error.Codigo == CrearDocumentosDesdeDivisionCommandHandler.ErrorTenantCruzado;
-                    tramoDemasiadoGrande = tramo.Error.Codigo == ErroresDivisorPdf.DemasiadoGrande;
-                    empresaFuera = tramo.Error.Codigo == ObtenerCatalogoDivisionPdfQueryHandler.ErrorEmpresaNoGestionable;
+                    tenantCambiado = codigo == CrearDocumentosDesdeDivisionCommandHandler.ErrorTenantCruzado;
+                    tramoDemasiadoGrande = codigo == ErroresDivisorPdf.DemasiadoGrande;
+                    empresaFuera = codigo == ObtenerCatalogoDivisionPdfQueryHandler.ErrorEmpresaNoGestionable;
                     break;
                 }
 
-                // Lo último antes de entregar: si el Tenant activo ya no es el del inicio, el tramo no sale de TALVEG.
-                if (TenantActual.TenantId != tenantId)
-                {
-                    tenantCambiado = true;
-                    break;
-                }
-
-                using var exceso = CubrirSoloElTramo(reserva, tramo.Valor.Contenido.Length);
-                if (!await EntregarTramoAsync(tramo.Valor, token))
+                if (!entregado.Recibido)
                     break;
 
                 entregados++;
@@ -519,10 +541,10 @@ public partial class DividirPdf : CaeManager.Web.Components.PaginaInteractiva, I
                     ? Textos["ErrorTramoDemasiadoGrande", fallido.Inicial, fallido.Final, LimitesArchivoSubido.TamanoMaximoMb]
                     : Textos["ErrorDescargaTramo", fallido.Inicial, fallido.Final];
         }
-        catch (PresupuestoMemoriaAgotadoException)
+        catch (Exception ex) when (ex is PresupuestoMemoriaAgotadoException or EntradaPdfRetenidaException)
         {
-            // Solo lanzan la reserva y su ampliación, dentro del bucle y con el tramo ya en curso; el aviso genérico es
-            // solo por si eso cambiara.
+            // Solo lanzan la reserva, su ampliación y el proceso aparte (sin turno, o sin constar terminado), dentro del
+            // bucle y con el tramo ya en curso; el aviso genérico es solo por si eso cambiara.
             _error = enCurso is { } sinEspacio
                 ? Textos["ErrorSinEspacioTramo", sinEspacio.Inicial, sinEspacio.Final]
                 : Textos["ErrorSinEspacio"];
@@ -543,6 +565,71 @@ public partial class DividirPdf : CaeManager.Web.Components.PaginaInteractiva, I
             _descargando = false;
             // Si a mitad se cambió de PDF, el recuento ya no describe lo que hay en pantalla.
             _descargados = entregados > 0 && ReferenceEquals(_division, division) ? entregados : null;
+        }
+    }
+
+    /// <summary>
+    /// Un tramo: lo extrae con su reserva, y si sale, lo entrega. <c>Fallo</c> es el código por el que no se entregó sin
+    /// llegar al navegador; <c>Recibido</c>, si el navegador lo leyó.
+    /// </summary>
+    private async Task<(string? Fallo, bool Recibido)> ExtraerYEntregarAsync(AlmacenTemporalSubidaMasiva almacen,
+        ArchivoTemporal original, string nombre, Guid tenantId, Guid empresaId, RangoPaginas rango, CancellationToken token)
+    {
+        ReservaMemoriaDocumentos? reserva = await PresupuestoMemoria.ReservarAsync(LimitesDivisionPdf.MemoriaExtraccionTramo(original.TamanoBytes), token);
+        try
+        {
+            Result<TramoPdfExtraido> tramo;
+            try
+            {
+                tramo = await ExtraerTramoAsync(almacen, original, nombre, tenantId, empresaId, rango, token);
+            }
+            catch (EntradaPdfRetenidaException)
+            {
+                // El proceso aparte que recibió el original no consta terminado y puede seguir referenciándolo.
+                EntradaPdfRetenidaException.Retener(reserva);
+                reserva = null;
+                throw;
+            }
+
+            if (tramo.EsFallido)
+                return (tramo.Error.Codigo, false);
+
+            // Lo último antes de entregar, sin ninguna espera detrás hasta el navegador: si el Tenant activo ya no es el
+            // del inicio, el tramo no sale de TALVEG. La Empresa la acaba de comprobar la extracción, en su última espera.
+            if (TenantActual.TenantId != tenantId)
+                return (CrearDocumentosDesdeDivisionCommandHandler.ErrorTenantCruzado, false);
+
+            using var exceso = CubrirSoloElTramo(reserva, tramo.Valor.Contenido.Length);
+            return (null, await EntregarTramoAsync(tramo.Valor, token));
+        }
+        finally
+        {
+            reserva?.Dispose();
+        }
+    }
+
+    /// <summary>Importa el módulo de descarga la primera vez; <c>false</c> si el navegador no lo carga en el plazo.</summary>
+    private async Task<bool> ImportarModuloDescargaAsync(CancellationToken token)
+    {
+        if (_modulo is not null)
+            return true;
+
+        using var vencimiento = new CancellationTokenSource(PlazoDescarga, Reloj);
+        using var plazo = CancellationTokenSource.CreateLinkedTokenSource(token, vencimiento.Token);
+        try
+        {
+            _modulo = await JS.InvokeAsync<IJSObjectReference>("import", plazo.Token, "./js/descarga-pdf-unido.js");
+            return true;
+        }
+        catch (OperationCanceledException) when (!token.IsCancellationRequested && vencimiento.IsCancellationRequested)
+        {
+            Logger.LogWarning("Dividir PDF: el navegador no cargó el módulo de descarga en {Plazo}.", PlazoDescarga);
+            return false;
+        }
+        catch (JSException ex)
+        {
+            Logger.LogWarning(ex, "Dividir PDF no pudo cargar el módulo de descarga");
+            return false;
         }
     }
 
@@ -575,16 +662,18 @@ public partial class DividirPdf : CaeManager.Web.Components.PaginaInteractiva, I
             : throw new PresupuestoMemoriaAgotadoException();
     }
 
-    /// <summary>Entrega un tramo al navegador como flujo; vuelve cuando lo ha leído, ha fallado o vence el plazo.</summary>
+    /// <summary>
+    /// Entrega un tramo al navegador como flujo; vuelve cuando lo ha leído, ha fallado o vence el plazo. El módulo ya está
+    /// importado (<see cref="ImportarModuloDescargaAsync"/>): la primera espera de aquí es ya la entrega.
+    /// </summary>
     private async Task<bool> EntregarTramoAsync(TramoPdfExtraido tramo, CancellationToken token)
     {
         using var vencimiento = new CancellationTokenSource(PlazoDescarga, Reloj);
         using var plazo = CancellationTokenSource.CreateLinkedTokenSource(token, vencimiento.Token);
         try
         {
-            _modulo ??= await JS.InvokeAsync<IJSObjectReference>("import", plazo.Token, "./js/descarga-pdf-unido.js");
             using var referencia = new DotNetStreamReference(new MemoryStream(tramo.Contenido, writable: false));
-            await _modulo.InvokeVoidAsync("descargarPdf", plazo.Token, tramo.NombreArchivo, referencia);
+            await _modulo!.InvokeVoidAsync("descargarPdf", plazo.Token, tramo.NombreArchivo, referencia);
             return true;
         }
         catch (OperationCanceledException) when (!token.IsCancellationRequested && vencimiento.IsCancellationRequested)

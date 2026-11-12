@@ -189,7 +189,8 @@ public sealed class DivisionSobrePdfRealTests
             ((long)abierto.ExtraerPaginas(1, 1, long.MaxValue).Valor.Length).Should().BeGreaterThan(LimitesDivisionPdf.TamanoMaximoTramo(original.Length));
         }
 
-        var descarga = ExtraccionTramoPdf.Extraer(_divisor, original, 1, 1, NullLogger.Instance);
+        // Lo que hace el proceso aparte con un tramo de Descargar: abrir el original y extraer con la cota de la descarga.
+        var descarga = _divisor.ExtraerTramo(original, 1, 1, LimitesDivisionPdf.TamanoMaximoTramo(original.Length));
 
         descarga.Error.Codigo.Should().Be(ErroresDivisorPdf.DemasiadoGrande);
     }
@@ -270,8 +271,8 @@ public sealed class DivisionSobrePdfRealTests
         var bomba = PdfQueSeExpandeAlReescribirse(elementos: 10, objetosDeclarados: LimitesUnionPdf.MaximoObjetosPorPdf + 1);
 
         _divisor.Abrir(bomba).Error.Codigo.Should().Be(ErroresDivisorPdf.DemasiadoComplejo);
-        ExtraccionTramoPdf.Extraer(_divisor, bomba, 1, 1, NullLogger.Instance).Error.Codigo.Should().Be(ErroresDivisorPdf.DemasiadoComplejo,
-            "descargar un tramo abre con la misma cota");
+        _divisor.ExtraerTramo(bomba, 1, 1, LimitesDivisionPdf.TamanoMaximoTramo(bomba.Length)).Error.Codigo.Should().Be(ErroresDivisorPdf.DemasiadoComplejo,
+            "extraer un tramo en el proceso aparte abre con la misma cota");
 
         using var normal = _divisor.Abrir(PdfQueSeExpandeAlReescribirse(elementos: 10)).Valor;
         normal.NumeroPaginas.Should().Be(1, "un flujo de objetos dentro de los topes se sigue abriendo");

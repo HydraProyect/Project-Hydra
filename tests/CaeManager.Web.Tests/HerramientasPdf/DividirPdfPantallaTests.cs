@@ -112,8 +112,8 @@ public sealed class DividirPdfPantallaTests : BunitContext
                     AlExtraer?.Invoke();
                     if (Divisor is { } divisor)
                     {
-                        var extraido = ExtraccionTramoPdf.Extraer(
-                            divisor, extraccion.ContenidoPdf, extraccion.PaginaInicial, extraccion.PaginaFinal, NullLogger.Instance);
+                        var extraido = ExtraccionTramoPdf.ExtraerAsync(divisor, extraccion.ContenidoPdf, extraccion.PaginaInicial,
+                            extraccion.PaginaFinal, NullLogger.Instance, CancellationToken.None).GetAwaiter().GetResult();
                         return extraido.EsExitoso
                             ? Result.Exito(new TramoPdfExtraido($"paquete-pag-{extraccion.PaginaInicial}-{extraccion.PaginaFinal}.pdf", extraido.Valor))
                             : Result.Fallo<TramoPdfExtraido>(extraido.Error);
@@ -209,16 +209,18 @@ public sealed class DividirPdfPantallaTests : BunitContext
     /// <summary>Un divisor que abre bien y lanza al copiar las páginas de un tramo, como PDFsharp con un PDF dañado.</summary>
     private sealed class DivisorQueLanza(int paginaQueLanza) : IDivisorPdf
     {
-        public Result<IPdfParaDividir> Abrir(byte[] contenidoPdf) => Result.Exito<IPdfParaDividir>(new Abierto(paginaQueLanza));
+        public Task<Result<IPdfParaDividir>> AbrirAsync(byte[] contenidoPdf, CancellationToken cancellationToken) =>
+            Task.FromResult(Result.Exito<IPdfParaDividir>(new Abierto(paginaQueLanza)));
 
         private sealed class Abierto(int paginaQueLanza) : IPdfParaDividir
         {
             public int NumeroPaginas => 4;
             public bool EstaFirmado => false;
 
-            public Result<byte[]> ExtraerPaginas(int paginaInicial, int paginaFinal, long tamanoMaximoBytes) => paginaInicial == paginaQueLanza
+            public Task<Result<byte[]>> ExtraerPaginasAsync(int paginaInicial, int paginaFinal, long tamanoMaximoBytes,
+                CancellationToken cancellationToken) => paginaInicial == paginaQueLanza
                 ? throw new InvalidOperationException("PDFsharp no pudo copiar la página.")
-                : Result.Exito(new byte[] { 1 });
+                : Task.FromResult(Result.Exito(new byte[] { 1 }));
 
             public void Dispose()
             {
@@ -441,6 +443,46 @@ public sealed class DividirPdfPantallaTests : BunitContext
         descarga.Invocations.Select(i => i.Arguments[0]).Should().Equal(["paquete-pag-1-2.pdf"], "el tramo extraído tras el cambio no sale");
         _mediador.Extracciones.Select(e => e.PaginaInicial).Should().Equal(1, 3);
         _presupuesto.Reservado.Should().Be(0);
+    }
+
+    [Fact]
+    public async Task Si_el_Tenant_activo_cambia_mientras_se_importa_el_modulo_de_descarga_no_se_entrega_ningun_tramo()
+    {
+        // La carrera de la importación JS: el Tenant cambia mientras el navegador carga el módulo. La extracción de esta
+        // prueba no mira el Tenant, así que lo único que corta la entrega es la comprobación de la pantalla tras esa espera.
+        var tenant = new TenantCambiable(TenantAId);
+        var descarga = JSInterop.SetupModule(invocacion =>
+        {
+            var esElModulo = invocacion.Arguments.Count > 0 && Equals(invocacion.Arguments[0], "./js/descarga-pdf-unido.js");
+            if (esElModulo)
+                tenant.TenantId = TenantBId;
+            return esElModulo;
+        });
+        descarga.SetupVoid("descargarPdf", _ => true).SetVoidResult();
+        var cut = Renderizar(tenant: tenant);
+        await SubirAsync(cut);
+
+        Pulsar(cut, "Descargar 3 PDF");
+
+        cut.WaitForAssertion(() => cut.Find(".aviso-error").TextContent.Should().Contain("La Empresa del selector ha cambiado desde que subiste el PDF."));
+        descarga.Invocations.Should().BeEmpty("ningún tramo sale tras cambiar el Tenant durante la importación");
+        _presupuesto.Reservado.Should().Be(0);
+    }
+
+    [Fact]
+    public async Task Si_el_proceso_aparte_no_consta_terminado_al_extraer_la_reserva_del_tramo_no_se_devuelve()
+    {
+        var descarga = JSInterop.SetupModule("./js/descarga-pdf-unido.js");
+        descarga.SetupVoid("descargarPdf", _ => true).SetVoidResult();
+        _mediador.AlExtraer = () => throw new EntradaPdfRetenidaException();
+        var cut = Renderizar();
+        await SubirAsync(cut);
+
+        Pulsar(cut, "Descargar 3 PDF");
+
+        cut.WaitForAssertion(() => cut.Find(".aviso-error").TextContent.Should().NotBeNullOrWhiteSpace());
+        descarga.Invocations.Should().BeEmpty();
+        _presupuesto.Reservado.Should().BeGreaterThan(0, "el proceso aparte puede seguir referenciando el original");
     }
 
     [Fact]

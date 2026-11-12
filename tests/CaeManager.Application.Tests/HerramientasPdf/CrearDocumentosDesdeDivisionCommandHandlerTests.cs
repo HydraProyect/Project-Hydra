@@ -83,6 +83,32 @@ public class CrearDocumentosDesdeDivisionCommandHandlerTests
     }
 
     [Fact]
+    public async Task Sin_turno_en_el_proceso_aparte_a_mitad_del_lote_no_se_pierde_lo_ya_creado()
+    {
+        // El proceso aparte no consta terminado al extraer el segundo tramo: lanzar perdería el Documento ya creado.
+        _divisor.LanzarAlExtraer = (3, new EntradaPdfRetenidaException());
+
+        var resultado = await Handler().Handle(Comando(
+            Tramo(1, 2, ClaseTitular.EmpresaGestionada, _empresaId),
+            Tramo(3, 3, ClaseTitular.EmpresaGestionada, _empresaId),
+            Tramo(4, 4, ClaseTitular.EmpresaGestionada, _empresaId)), CancellationToken.None);
+
+        resultado.Valor.Select(r => r.Estado).Should().Equal(
+            EstadoTramoCreado.Creado, EstadoTramoCreado.Rechazado, EstadoTramoCreado.Rechazado);
+        _divisor.Extraidos.Should().Equal([(1, 2)], "tras cortarse el lote no se pide ningún tramo más");
+    }
+
+    [Fact]
+    public async Task Sin_turno_en_el_proceso_aparte_antes_del_primer_tramo_lanza_para_que_la_pantalla_avise()
+    {
+        _divisor.LanzarAlExtraer = (1, new PresupuestoMemoriaAgotadoException());
+
+        var crear = () => Handler().Handle(Comando(Tramo(1, 2, ClaseTitular.EmpresaGestionada, _empresaId)), CancellationToken.None);
+
+        await crear.Should().ThrowAsync<PresupuestoMemoriaAgotadoException>();
+    }
+
+    [Fact]
     public async Task Si_el_selector_cambio_de_Tenant_se_rechaza_sin_leer_ni_crear_nada()
     {
         var resultado = await Handler(tenant: Guid.NewGuid()).Handle(
@@ -333,21 +359,27 @@ public class CrearDocumentosDesdeDivisionCommandHandlerTests
         public bool RespetaCota { get; set; }
         public List<long> Cotas { get; } = [];
 
-        public Result<IPdfParaDividir> Abrir(byte[] contenidoPdf) => Result.Exito<IPdfParaDividir>(new Abierto(this));
+        /// <summary>Si está, lo lanza la extracción de esa página, como el proceso aparte sin turno o sin constar terminado.</summary>
+        public (int Pagina, Exception Excepcion)? LanzarAlExtraer { get; set; }
+
+        public Task<Result<IPdfParaDividir>> AbrirAsync(byte[] contenidoPdf, CancellationToken cancellationToken) =>
+            Task.FromResult(Result.Exito<IPdfParaDividir>(new Abierto(this)));
 
         private sealed class Abierto(DivisorFalso divisor) : IPdfParaDividir
         {
             public int NumeroPaginas => 6;
             public bool EstaFirmado => false;
 
-            public Result<byte[]> ExtraerPaginas(int paginaInicial, int paginaFinal, long tamanoMaximoBytes)
+            public Task<Result<byte[]>> ExtraerPaginasAsync(int paginaInicial, int paginaFinal, long tamanoMaximoBytes, CancellationToken cancellationToken)
             {
+                if (divisor.LanzarAlExtraer is { } lanzar && lanzar.Pagina == paginaInicial)
+                    throw lanzar.Excepcion;
                 divisor.Extraidos.Add((paginaInicial, paginaFinal));
                 divisor.Cotas.Add(tamanoMaximoBytes);
                 var tamano = paginaInicial == divisor.PaginaEnorme ? divisor.TamanoEnorme : 8;
-                return divisor.RespetaCota && tamano > tamanoMaximoBytes
+                return Task.FromResult(divisor.RespetaCota && tamano > tamanoMaximoBytes
                     ? Result.Fallo<byte[]>(Error.Crear(ErroresDivisorPdf.DemasiadoGrande, "El tramo supera el tamaño que se puede preparar."))
-                    : Result.Exito(new byte[tamano]);
+                    : Result.Exito(new byte[tamano]));
             }
 
             public void Dispose()

@@ -641,8 +641,10 @@ public class RepartoAdjuntosBajoRlsTests : IAsyncLifetime
     {
         public int NumeroPaginas => 2;
         public bool EstaFirmado => false;
-        public Result<IPdfParaDividir> Abrir(byte[] contenidoPdf) => Result.Exito<IPdfParaDividir>(this);
-        public Result<byte[]> ExtraerPaginas(int paginaInicial, int paginaFinal, long tamanoMaximoBytes) => Result.Exito("%PDF-tramo"u8.ToArray());
+        public Task<Result<IPdfParaDividir>> AbrirAsync(byte[] contenidoPdf, CancellationToken cancellationToken) =>
+            Task.FromResult(Result.Exito<IPdfParaDividir>(this));
+        public Task<Result<byte[]>> ExtraerPaginasAsync(int paginaInicial, int paginaFinal, long tamanoMaximoBytes, CancellationToken cancellationToken) =>
+            Task.FromResult(Result.Exito("%PDF-tramo"u8.ToArray()));
         public void Dispose() { }
     }
 

@@ -54,16 +54,16 @@ public class ExtraerTramoPdfQueryHandler(
         if (await RechazoDeAccesoAsync(request, cancellationToken) is { } rechazo)
             return rechazo;
 
-        // PDFsharp es síncrono y trabaja con la CPU: en un circuito de Blazor bloquearía la pantalla.
-        var extraido = await Task.Run(
-            () => ExtraccionTramoPdf.Extraer(divisor, request.ContenidoPdf, request.PaginaInicial, request.PaginaFinal, logger),
-            cancellationToken);
+        // El divisor abre el original en un proceso aparte con su límite de memoria y de tiempo: aquí solo se espera.
+        var extraido = await ExtraccionTramoPdf.ExtraerAsync(
+            divisor, request.ContenidoPdf, request.PaginaInicial, request.PaginaFinal, logger, cancellationToken);
         if (!extraido.EsExitoso)
             return Result.Fallo<TramoPdfExtraido>(extraido.Error);
 
         // La extracción tarda: si entretanto el selector cambió de Tenant o la Empresa dejó de existir en él, el tramo ya no
-        // se entrega. Es la misma comprobación de antes de abrir, repetida justo antes de devolverlo; la cartera se mira con
-        // el alcance ya resuelto en el circuito, así que una baja de cartera de hace segundos puede no verse aún.
+        // se entrega. Es la misma comprobación de antes de abrir, repetida justo antes de devolverlo, y lo último que espera
+        // este handler; la cartera se mira con el alcance ya resuelto en el circuito, así que una baja de cartera de hace
+        // segundos puede no verse aún.
         if (await RechazoDeAccesoAsync(request, cancellationToken) is { } rechazoTrasExtraer)
             return rechazoTrasExtraer;
 
@@ -73,9 +73,8 @@ public class ExtraerTramoPdfQueryHandler(
 
     private async Task<Result<TramoPdfExtraido>?> RechazoDeAccesoAsync(ExtraerTramoPdfQuery request, CancellationToken cancellationToken)
     {
-        if (tenantActual.TenantId is not { } tenant || tenant != request.TenantEsperadoId)
-            return Fallo(CrearDocumentosDesdeDivisionCommandHandler.ErrorTenantCruzado,
-                "La Empresa ha cambiado. Vuelve a empezar para no descargar documentos de otra.");
+        if (TenantCruzado(request) is { } cruzado)
+            return cruzado;
 
         // La misma comprobación que el catálogo de la división: la Empresa existe en el Tenant (filtro de Tenant y RLS
         // por debajo), es propia y está en el alcance de gestión. Un alcance sin restricción deja pasar cualquier
@@ -83,8 +82,17 @@ public class ExtraerTramoPdfQueryHandler(
         if (await DocumentosUnibles.EmpresaGestionableAsync(request.EmpresaGestionadaId, empresasContext, alcanceDatos, cancellationToken) is null)
             return Fallo(ObtenerCatalogoDivisionPdfQueryHandler.ErrorEmpresaNoGestionable, "La Empresa no existe o queda fuera de tu cartera.");
 
-        return null;
+        // El Tenant activo pudo cambiar mientras se leía la Empresa: se mira otra vez, ya sin ninguna espera detrás.
+        return TenantCruzado(request);
     }
+
+    private static Result<TramoPdfExtraido>? TenantCruzado(ExtraerTramoPdfQuery request, Guid? tenantActivo) =>
+        tenantActivo is not { } tenant || tenant != request.TenantEsperadoId
+            ? Fallo(CrearDocumentosDesdeDivisionCommandHandler.ErrorTenantCruzado,
+                "La Empresa ha cambiado. Vuelve a empezar para no descargar documentos de otra.")
+            : null;
+
+    private Result<TramoPdfExtraido>? TenantCruzado(ExtraerTramoPdfQuery request) => TenantCruzado(request, tenantActual.TenantId);
 
     private static Result<TramoPdfExtraido> Fallo(string codigo, string mensaje) =>
         Result.Fallo<TramoPdfExtraido>(Error.Crear(codigo, mensaje));
@@ -95,15 +103,18 @@ public class ExtraerTramoPdfQueryHandler(
 /// o al guardar el tramo, con un PDF que un tercero subió) se convierte aquí en el fallo de ese tramo, igual que en
 /// <see cref="CrearDocumentosDesdeDivisionCommandHandler"/>: la pantalla corta la serie y dice qué tramo no salió, y la
 /// excepción no llega al circuito de Blazor. El mensaje de la excepción no se registra porque puede reproducir
-/// contenido del documento. La cancelación y la falta de memoria no son fallos del tramo y siguen su curso.
+/// contenido del documento. No son fallos del tramo y siguen su curso: la cancelación, la falta de memoria, un proceso
+/// aparte sin turno (<see cref="PresupuestoMemoriaAgotadoException"/>) y uno que no consta terminado
+/// (<see cref="EntradaPdfRetenidaException"/>, que pide retener la reserva del original).
 /// </summary>
 public static class ExtraccionTramoPdf
 {
-    public static Result<byte[]> Extraer(IDivisorPdf divisor, byte[] contenidoPdf, int paginaInicial, int paginaFinal, ILogger logger)
+    public static async Task<Result<byte[]>> ExtraerAsync(IDivisorPdf divisor, byte[] contenidoPdf, int paginaInicial, int paginaFinal,
+        ILogger logger, CancellationToken cancellationToken)
     {
         try
         {
-            var abierto = divisor.Abrir(contenidoPdf);
+            var abierto = await divisor.AbrirAsync(contenidoPdf, cancellationToken);
             if (!abierto.EsExitoso)
                 return Result.Fallo<byte[]>(abierto.Error);
 
@@ -112,9 +123,11 @@ public static class ExtraccionTramoPdf
                 return Result.Fallo<byte[]>(Error.Crear(ErroresDivisorPdf.RangoInvalido, "Las páginas no coinciden con el PDF."));
 
             // La cota se aplica mientras se escribe el tramo: la reserva de quien extrae se calcula con ella.
-            return pdf.ExtraerPaginas(paginaInicial, paginaFinal, LimitesDivisionPdf.TamanoMaximoTramo(contenidoPdf.Length));
+            return await pdf.ExtraerPaginasAsync(
+                paginaInicial, paginaFinal, LimitesDivisionPdf.TamanoMaximoTramo(contenidoPdf.Length), cancellationToken);
         }
-        catch (Exception ex) when (ex is not (OperationCanceledException or OutOfMemoryException))
+        catch (Exception ex) when (ex is not (OperationCanceledException or OutOfMemoryException
+                                       or PresupuestoMemoriaAgotadoException or EntradaPdfRetenidaException))
         {
             logger.LogWarning("Dividir PDF no pudo extraer un tramo para descargarlo ({Excepcion}).", ex.GetType().Name);
             return Result.Fallo<byte[]>(Error.Crear(ErroresDivisorPdf.Ilegible, "No se ha podido preparar este tramo."));

@@ -96,7 +96,9 @@ public class CrearDocumentosDesdeDivisionCommandHandler(
         if (MotivoDeTramoInvalido(request, catalogo.Valor) is { } motivo)
             return Fallo(ErrorTramosInvalidos, motivo);
 
-        var abierto = divisor.Abrir(request.ContenidoPdf);
+        // En un proceso aparte con su límite de memoria y de tiempo. Sin turno libre o con un proceso aparte que no consta
+        // terminado, lanza antes de crear nada: la pantalla avisa y, en el segundo caso, retiene la reserva del original.
+        var abierto = await divisor.AbrirAsync(request.ContenidoPdf, cancellationToken);
         if (!abierto.EsExitoso)
             return Result.Fallo<IReadOnlyList<ResultadoTramoCreado>>(abierto.Error);
 
@@ -107,7 +109,22 @@ public class CrearDocumentosDesdeDivisionCommandHandler(
 
         var resultados = new List<ResultadoTramoCreado>(request.Tramos.Count);
         foreach (var tramo in request.Tramos)
-            resultados.Add(await CrearTramoSinPerderElLoteAsync(request, pdf, tramo, cancellationToken));
+        {
+            try
+            {
+                resultados.Add(await CrearTramoSinPerderElLoteAsync(request, pdf, tramo, cancellationToken));
+            }
+            catch (Exception ex) when (resultados.Count > 0 && ex is PresupuestoMemoriaAgotadoException or EntradaPdfRetenidaException)
+            {
+                // Sin turno para el proceso aparte, o con uno que no consta terminado (y entonces no habrá más turnos en la
+                // instancia): con Documentos ya creados, lanzar perdería su lista y el usuario los duplicaría al repetir.
+                // Este tramo y los que faltan quedan sin preparar. Antes del primero, sí lanza y la pantalla avisa.
+                logger.LogWarning("Dividir PDF cortó el lote sin turno en el proceso aparte ({Excepcion}).", ex.GetType().Name);
+                resultados.AddRange(request.Tramos.Skip(resultados.Count).Select(pendiente =>
+                    Resultado(pendiente, EstadoTramoCreado.Rechazado, null, "No se ha podido preparar este documento ahora. Inténtalo más tarde.")));
+                break;
+            }
+        }
 
         return Result.Exito<IReadOnlyList<ResultadoTramoCreado>>(resultados);
     }
@@ -135,7 +152,7 @@ public class CrearDocumentosDesdeDivisionCommandHandler(
         {
             return await CrearTramoAsync(request, pdf, tramo, cancellationToken);
         }
-        catch (Exception ex) when (ex is not OperationCanceledException)
+        catch (Exception ex) when (ex is not (OperationCanceledException or PresupuestoMemoriaAgotadoException or EntradaPdfRetenidaException))
         {
             logger.LogWarning("Dividir PDF no pudo preparar un tramo ({Excepcion}).", ex.GetType().Name);
             return Resultado(tramo, EstadoTramoCreado.Rechazado, null, "No se ha podido preparar este documento.");
@@ -157,7 +174,7 @@ public class CrearDocumentosDesdeDivisionCommandHandler(
         CrearDocumentosDesdeDivisionCommand request, IPdfParaDividir pdf, TramoACrear tramo, CancellationToken cancellationToken)
     {
         // La cota es la del alta: un tramo que no cabría como Documento se corta mientras se escribe, sin ocupar más.
-        var extraido = pdf.ExtraerPaginas(tramo.PaginaInicial, tramo.PaginaFinal, LimitesArchivoSubido.TamanoMaximoBytes);
+        var extraido = await pdf.ExtraerPaginasAsync(tramo.PaginaInicial, tramo.PaginaFinal, LimitesArchivoSubido.TamanoMaximoBytes, cancellationToken);
         if (!extraido.EsExitoso)
         {
             return extraido.Error.Codigo == ErroresDivisorPdf.DemasiadoGrande

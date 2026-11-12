@@ -23,6 +23,10 @@ public sealed class ProcesoAisladoRealTests
         new(opciones, new LimitadorProcesosAislados(1), new Grabador(Lanzador(), salida => _ultima = salida),
             NullLogger<UnidorPdfEnProcesoAparte>.Instance);
 
+    private DivisorPdfEnProcesoAparte Divisor(OpcionesProcesoHerramientasPdf opciones) =>
+        new(opciones, new LimitadorProcesosAislados(1), new Grabador(Lanzador(), salida => _ultima = salida),
+            NullLogger<DivisorPdfEnProcesoAparte>.Instance);
+
     private LanzadorProcesoAislado Lanzador() =>
         new(NullLogger<LanzadorProcesoAislado>.Instance) { AlArrancar = id => _arrancados.Add(id) };
 
@@ -31,6 +35,8 @@ public sealed class ProcesoAisladoRealTests
         MemoriaMaximaBytes = memoria,
         TiempoMaximoInspeccionar = TimeSpan.FromSeconds(segundos),
         TiempoMaximoUnir = TimeSpan.FromSeconds(segundos),
+        TiempoMaximoAbrirParaDividir = TimeSpan.FromSeconds(segundos),
+        TiempoMaximoExtraerTramo = TimeSpan.FromSeconds(segundos),
         RutaEnsamblado = Path.Combine(AppContext.BaseDirectory, "CaeManager.Web.dll"),
     };
 
@@ -81,6 +87,55 @@ public sealed class ProcesoAisladoRealTests
 
         // El proceso web sigue: el siguiente PDF se inspecciona con normalidad en otro proceso aparte.
         (await unidor.InspeccionarAsync(UnionSobrePdfRealTests.Pdf("Normal"), CancellationToken.None)).Valor.NumeroPaginas.Should().Be(1);
+    }
+
+    [Fact]
+    public async Task Divide_un_PDF_real_en_el_proceso_aparte_y_el_proceso_ya_no_existe()
+    {
+        var divisor = Divisor(Opciones());
+
+        using var abierto = (await divisor.AbrirAsync(UnionSobrePdfRealTests.Pdf("Uno", "Dos", "Tres"), CancellationToken.None)).Valor;
+        var tramo = await abierto.ExtraerPaginasAsync(2, 3, LimitesDivisionPdf.TamanoMaximoTramo(1_000_000), CancellationToken.None);
+        var fuera = await abierto.ExtraerPaginasAsync(3, 4, long.MaxValue, CancellationToken.None);
+
+        abierto.NumeroPaginas.Should().Be(3);
+        tramo.EsExitoso.Should().BeTrue(tramo.EsExitoso ? "" : tramo.Error.Codigo);
+        using (var leido = PdfSharp.Pdf.IO.PdfReader.Open(new MemoryStream(tramo.Valor), PdfSharp.Pdf.IO.PdfDocumentOpenMode.Import))
+            leido.PageCount.Should().Be(2);
+        fuera.Error.Codigo.Should().Be(ErroresDivisorPdf.RangoInvalido, "un rango fuera del PDF no llega a lanzar el proceso");
+        _arrancados.Should().HaveCount(2).And.OnlyContain(id => YaNoExiste(id));
+    }
+
+    [Fact]
+    public async Task Un_PDF_que_agota_la_memoria_del_proceso_aparte_al_dividir_sale_como_demasiado_complejo_y_la_aplicacion_sigue()
+    {
+        // La garantía de Dividir: el acotador deja pasar esta bomba, y PDFsharp la abre en el proceso aparte, no aquí.
+        var bomba = PdfQueAgotaLaMemoria();
+        AcotadorEstructuraPdf.Medir(bomba).Should().NotBeNull("el acotador no mide arrays: esta bomba lo pasa y solo la para el límite duro");
+        var divisor = Divisor(Opciones(memoria: 64L * 1024 * 1024));
+
+        var resultado = await divisor.AbrirAsync(bomba, CancellationToken.None);
+
+        resultado.Error.Codigo.Should().Be(ErroresDivisorPdf.DemasiadoComplejo);
+        _ultima!.Desenlace.Should().Be(DesenlaceProcesoAislado.Terminado);
+        _ultima.CodigoSalida.Should().Be(ProcesoHerramientasPdf.CodigoSinMemoria, "el proceso aparte se quedó sin memoria en su límite");
+        YaNoExiste(_ultima.IdProceso).Should().BeTrue();
+
+        // El proceso web sigue: el siguiente PDF se abre y se divide con normalidad en otro proceso aparte.
+        using var normal = (await divisor.AbrirAsync(UnionSobrePdfRealTests.Pdf("Normal", "Otra"), CancellationToken.None)).Valor;
+        (await normal.ExtraerPaginasAsync(1, 1, LimitesDivisionPdf.TamanoMaximoTramo(1_000_000), CancellationToken.None)).EsExitoso.Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task Un_PDF_que_pasa_del_tiempo_al_dividir_se_mata_y_sale_como_demasiado_complejo()
+    {
+        var divisor = Divisor(Opciones(segundos: 0.2));
+
+        var resultado = await divisor.AbrirAsync(PdfQueAgotaLaMemoria(), CancellationToken.None);
+
+        resultado.Error.Codigo.Should().Be(ErroresDivisorPdf.DemasiadoComplejo);
+        _ultima!.Desenlace.Should().Be(DesenlaceProcesoAislado.TiempoAgotado);
+        YaNoExiste(_ultima.IdProceso).Should().BeTrue("se mató al agotar el tiempo");
     }
 
     [Fact]

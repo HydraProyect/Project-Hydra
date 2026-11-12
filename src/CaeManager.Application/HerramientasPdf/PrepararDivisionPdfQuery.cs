@@ -37,8 +37,7 @@ public class PrepararDivisionPdfQueryHandler(
         if (!catalogo.EsExitoso)
             return Result.Fallo<PreparacionDivisionPdf>(catalogo.Error);
 
-        // PDFsharp y PdfPig son síncronos y trabajan con la CPU: en un circuito de Blazor bloquearían la pantalla.
-        var lectura = await Task.Run(() => Leer(request.ContenidoPdf), cancellationToken);
+        var lectura = await LeerAsync(request.ContenidoPdf, cancellationToken);
         if (!lectura.EsExitoso)
             return Result.Fallo<PreparacionDivisionPdf>(lectura.Error);
 
@@ -48,16 +47,20 @@ public class PrepararDivisionPdfQueryHandler(
         return Result.Exito(new PreparacionDivisionPdf(numeroPaginas, firmado, palabras is not null, tramos, catalogo.Valor));
     }
 
-    private Result<(int NumeroPaginas, bool Firmado, IReadOnlyList<PaginaPdf>? Palabras)> Leer(byte[] contenido)
+    private async Task<Result<(int NumeroPaginas, bool Firmado, IReadOnlyList<PaginaPdf>? Palabras)>> LeerAsync(
+        byte[] contenido, CancellationToken cancellationToken)
     {
-        var abierto = divisor.Abrir(contenido);
+        // PDFsharp abre el PDF en un proceso aparte con su límite de memoria y de tiempo; solo si lo abre se lee el texto.
+        var abierto = await divisor.AbrirAsync(contenido, cancellationToken);
         if (!abierto.EsExitoso)
             return Result.Fallo<(int, bool, IReadOnlyList<PaginaPdf>?)>(abierto.Error);
 
         using var pdf = abierto.Valor;
 
-        // Si PDFsharp lo abre y PdfPig no, se sigue sin sugerencias: dividirlo a mano sigue siendo posible.
-        var palabras = extractorPalabras.ExtraerPalabras(contenido, LimitesDivisionPdf.TamanoMaximoOriginalBytes);
+        // Si PDFsharp lo abre y PdfPig no, se sigue sin sugerencias: dividirlo a mano sigue siendo posible. PdfPig es
+        // síncrono y trabaja con la CPU: en un circuito de Blazor bloquearía la pantalla.
+        var palabras = await Task.Run(
+            () => extractorPalabras.ExtraerPalabras(contenido, LimitesDivisionPdf.TamanoMaximoOriginalBytes), cancellationToken);
 
         return Result.Exito((pdf.NumeroPaginas, pdf.EstaFirmado, palabras.EsExitoso ? palabras.Valor : (IReadOnlyList<PaginaPdf>?)null));
     }
