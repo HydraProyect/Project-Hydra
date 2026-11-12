@@ -10,7 +10,8 @@ namespace CaeManager.Application.Empresas;
 /// escritores de una Empresa propia: el alta unitaria, las tres importaciones y las restauraciones desde la
 /// Papelera. Una prueba de arquitectura exige que todo método fuera de Domain y de los seeders que construya una
 /// <c>Empresa</c> con su constructor público, o restaure una de la Papelera, llame a <see cref="ComprobarAltaAsync"/>
-/// o a <see cref="ComprobarGuardadoAsync"/>, y que su clase guarde dentro de <see cref="SerializarAsync"/>.
+/// o a <see cref="ComprobarGuardadoAsync"/>, y que la comprobación que decide y el guardado vayan dentro del delegado
+/// que pasa a <see cref="SerializarAsync"/>.
 /// <para>
 /// Los Clientes empresariales y las Subcontratas (<c>EsPropia = false</c>) no cuentan ni tienen límite.
 /// </para>

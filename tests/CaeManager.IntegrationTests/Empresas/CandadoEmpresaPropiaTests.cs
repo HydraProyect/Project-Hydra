@@ -2,6 +2,8 @@ using CaeManager.Application.Common;
 using CaeManager.Application.Empresas;
 using CaeManager.Application.Empresas.Commands.CrearEmpresa;
 using CaeManager.Application.Empresas.Commands.RestaurarEmpresa;
+using CaeManager.Application.Importacion;
+using CaeManager.Application.Importacion.Commands.EjecutarImportacion;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Empresas;
 using CaeManager.Infrastructure.MultiTenancy;
@@ -10,6 +12,8 @@ using CaeManager.Infrastructure.Persistence.Repositories;
 using FluentAssertions;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Diagnostics;
+using Microsoft.EntityFrameworkCore.Storage;
 using Xunit;
 
 namespace CaeManager.IntegrationTests.Empresas;
@@ -142,6 +146,164 @@ public class CandadoEmpresaPropiaTests : IAsyncLifetime
         (await IntentarCandadoAsync(otro, _tenantA)).Should().BeTrue("el candado se suelta con el COMMIT");
     }
 
+    // ---- El guardado ocurre con el candado tomado (revisión Codex r2 de la PR #2193, MEDIO 3) ----
+    // Las esperas de arriba prueban que el escritor pide el candado antes de contar, pero no que guarde antes de soltarlo:
+    // un SaveChanges movido fuera de SerializarAsync seguiría esperando. Aquí un interceptor de SaveChanges de prueba mira,
+    // justo antes de que cada guardado del escritor se envíe, si la sesión de PostgreSQL de ese mismo contexto tiene
+    // concedido el candado de su Tenant (pg_locks por pid, desde otra conexión).
+
+    [Fact]
+    public async Task El_alta_guarda_con_el_candado_del_Tenant_tomado()
+    {
+        var observador = new ObservadorDelCandadoAlGuardar(() => CrearContexto(_tenantA), _tenantA);
+        await using var circuito = CrearContexto(_tenantA, observador);
+
+        var resultado = await Alta(circuito, _tenantA).Handle(new CrearEmpresaCommand("Eta Montajes", null, []), CancellationToken.None);
+
+        resultado.EsExitoso.Should().BeTrue();
+        observador.Guardados.Should().NotBeEmpty().And.OnlyContain(tomado => tomado, "cada guardado del alta ocurre con el candado concedido");
+        (await PropiasActivasAsync(_tenantA)).Should().Be(1);
+    }
+
+    [Fact]
+    public async Task La_restauracion_guarda_con_el_candado_del_Tenant_tomado()
+    {
+        var eliminadaId = await SembrarEliminadaAsync("Theta Instalaciones");
+        var observador = new ObservadorDelCandadoAlGuardar(() => CrearContexto(_tenantA), _tenantA);
+        await using var circuito = CrearContexto(_tenantA, observador);
+
+        var resultado = await new RestaurarEmpresaCommandHandler(
+                circuito, new TenantActualAmbiental { TenantId = _tenantA }, new AlcanceDatosServiceFalso(),
+                circuito, Limite(circuito, _tenantA))
+            .Handle(new RestaurarEmpresaCommand(eliminadaId), CancellationToken.None);
+
+        resultado.EsExitoso.Should().BeTrue();
+        observador.Guardados.Should().NotBeEmpty().And.OnlyContain(tomado => tomado, "la restauración guarda con el candado concedido");
+        (await PropiasActivasAsync(_tenantA)).Should().Be(1);
+    }
+
+    [Fact]
+    public async Task La_importacion_guarda_con_el_candado_del_Tenant_tomado()
+    {
+        var observador = new ObservadorDelCandadoAlGuardar(() => CrearContexto(_tenantA), _tenantA);
+        await using var circuito = CrearContexto(_tenantA, observador);
+
+        var resultado = await Importacion(circuito, _tenantA)
+            .Handle(new EjecutarImportacionCommand(PlanConUnaEmpresaPropia(Guid.NewGuid(), "Iota Montajes")), CancellationToken.None);
+
+        resultado.EsExitoso.Should().BeTrue();
+        resultado.Valor.EmpresasCreadas.Should().Be(1);
+        observador.Guardados.Should().NotBeEmpty().And.OnlyContain(tomado => tomado, "la importación guarda con el candado concedido");
+        (await PropiasActivasAsync(_tenantA)).Should().Be(1);
+    }
+
+    /// <summary>Control del observador: un guardado sin candado lo ve como tal. Sin él, «todo tomado» no diría nada.</summary>
+    [Fact]
+    public async Task El_observador_ve_un_guardado_sin_el_candado()
+    {
+        var observador = new ObservadorDelCandadoAlGuardar(() => CrearContexto(_tenantA), _tenantA);
+        await using var circuito = CrearContexto(_tenantA, observador);
+
+        circuito.Empresas.Add(new Empresa("Kappa Montajes"));
+        await circuito.SaveChangesAsync();
+
+        observador.Guardados.Should().Equal(false);
+    }
+
+    /// <summary>
+    /// Revisión Codex r2 de la PR #2193, MEDIO 1, en PostgreSQL: dos confirmaciones de la MISMA importación con una
+    /// Empresa propia nueva esperan el candado (lo tiene un testigo); al soltarlo, una guarda y la otra, que ya ve la marca
+    /// de la operación, responde «ya ejecutada» en vez del error de límite.
+    /// </summary>
+    [Fact]
+    public async Task Dos_confirmaciones_de_la_misma_importacion_dan_una_escritura_y_un_ya_ejecutada()
+    {
+        await using var testigo = CrearContexto(_tenantA);
+        await using var circuitoUno = CrearContexto(_tenantA);
+        await using var circuitoDos = CrearContexto(_tenantA);
+        var operacionId = Guid.NewGuid();
+
+        var transaccionTestigo = await TomarCandadoAsync(testigo, _tenantA);
+        var confirmacionUno = Importacion(circuitoUno, _tenantA)
+            .Handle(new EjecutarImportacionCommand(PlanConUnaEmpresaPropia(operacionId, "Lambda Obras")), CancellationToken.None);
+        var confirmacionDos = Importacion(circuitoDos, _tenantA)
+            .Handle(new EjecutarImportacionCommand(PlanConUnaEmpresaPropia(operacionId, "Lambda Obras")), CancellationToken.None);
+
+        (await EsperanElCandadoAsync(_tenantA, 2, confirmacionUno, confirmacionDos))
+            .Should().BeTrue("las dos confirmaciones esperan el candado del Tenant antes del recuento final");
+        await transaccionTestigo.CommitAsync();
+
+        var resultados = await Task.WhenAll(confirmacionUno, confirmacionDos);
+
+        resultados.Should().OnlyContain(r => r.EsExitoso, "la segunda es la misma operación, no un rechazo del límite");
+        resultados.Count(r => r.Valor.EmpresasCreadas == 1).Should().Be(1);
+        resultados.Count(r => r.Valor.Omitidos.Any(o => o.Hoja == "Importación")).Should().Be(1, "la otra responde «ya ejecutada»");
+        (await PropiasActivasAsync(_tenantA)).Should().Be(1);
+    }
+
+    private async Task<Guid> SembrarEliminadaAsync(string razonSocial)
+    {
+        await using var siembra = CrearContexto(_tenantA);
+        var eliminada = new Empresa(razonSocial);
+        eliminada.MarcarComoEliminado(Guid.NewGuid());
+        siembra.Empresas.Add(eliminada);
+        await siembra.SaveChangesAsync();
+        return eliminada.Id;
+    }
+
+    private static PlanImportacionDto PlanConUnaEmpresaPropia(Guid operacionId, string razonSocial) =>
+        new(operacionId, [], [new EmpresaImportadaDto(razonSocial, YaExiste: false, Fila: 2)], [], [], [], [], []);
+
+    private static EjecutarImportacionCommandHandler Importacion(CaeManagerDbContext contexto, Guid tenantId) => new(
+        new EmpresaRepository(contexto), new TrabajadorRepository(contexto), new DocumentoRepository(contexto),
+        new AsignacionRepository(contexto), new OperacionImportacionRepository(contexto),
+        contexto, contexto, contexto, contexto, contexto, contexto,
+        new AutorizacionEscrituraEfectivaFalsa(), AltaAcreditacionesDePrueba.Con(contexto), new AlcanceDatosServiceFalso(),
+        new SerializacionAltasSinBloqueo(), Limite(contexto, tenantId));
+
+    /// <summary>
+    /// En cada SaveChanges del contexto al que se añade, antes de enviarlo: ¿tiene la sesión de PostgreSQL de ese contexto
+    /// concedido el candado de Empresa propia de <paramref name="tenantId"/>? Sin conexión abierta no hay transacción ni
+    /// candado, y cuenta como no tomado.
+    /// </summary>
+    private sealed class ObservadorDelCandadoAlGuardar(Func<CaeManagerDbContext> crearLectura, Guid tenantId) : SaveChangesInterceptor
+    {
+        public List<bool> Guardados { get; } = [];
+
+        public override async ValueTask<InterceptionResult<int>> SavingChangesAsync(
+            DbContextEventData eventData, InterceptionResult<int> result, CancellationToken cancellationToken = default)
+        {
+            Guardados.Add(await TieneElCandadoAsync(eventData.Context!, cancellationToken));
+            return result;
+        }
+
+        private async Task<bool> TieneElCandadoAsync(DbContext escritor, CancellationToken cancellationToken)
+        {
+            var conexion = escritor.Database.GetDbConnection();
+            if (conexion.State != System.Data.ConnectionState.Open)
+                return false;
+
+            int pid;
+            await using (var comando = conexion.CreateCommand())
+            {
+                comando.Transaction = escritor.Database.CurrentTransaction?.GetDbTransaction();
+                comando.CommandText = "SELECT pg_backend_pid()";
+                pid = Convert.ToInt32(await comando.ExecuteScalarAsync(cancellationToken));
+            }
+
+            var clave = CandadoEmpresaPropia.Espacio + tenantId;
+            await using var lectura = crearLectura();
+            var concedidos = await lectura.Database.SqlQuery<int>($"""
+                SELECT count(*)::int AS "Value"
+                FROM pg_locks l
+                JOIN pg_database d ON d.oid = l.database
+                WHERE l.locktype = 'advisory' AND l.granted AND d.datname = current_database() AND l.pid = {pid}
+                  AND ((l.classid::bigint << 32) | l.objid::bigint) = hashtextextended({clave}, 0)
+                """).SingleAsync(cancellationToken);
+            return concedidos > 0;
+        }
+    }
+
     private CrearEmpresaCommandHandler Alta(CaeManagerDbContext contexto, Guid tenantId) => new(
         new EmpresaRepository(contexto), new RelacionEmpresarialRepository(contexto), contexto,
         new AlcanceDatosServiceFalso(), contexto, Limite(contexto, tenantId));
@@ -204,12 +366,12 @@ public class CandadoEmpresaPropiaTests : IAsyncLifetime
             .CountAsync(e => e.TenantId == tenantId && e.EsPropia && !e.EstaEliminado);
     }
 
-    private CaeManagerDbContext CrearContexto(Guid tenantId)
+    private CaeManagerDbContext CrearContexto(Guid tenantId, params IInterceptor[] interceptores)
     {
         var tenantActual = new TenantActualAmbiental { TenantId = tenantId };
         var options = new DbContextOptionsBuilder<CaeManagerDbContext>()
             .UseNpgsql(_cadenaConexion, npgsql => npgsql.MigrationsAssembly("CaeManager.Migrations.PostgreSQL"))
-            .AddInterceptors(new TenantSelladoInterceptor(tenantActual))
+            .AddInterceptors([new TenantSelladoInterceptor(tenantActual), .. interceptores])
             .Options;
 
         return new CaeManagerDbContext(options, new EphemeralDataProtectionProvider(), tenantActual);

@@ -11,8 +11,8 @@ namespace CaeManager.Architecture.Tests;
 /// <c>EsPropia = true</c>, y todo Tenant propietario solo puede tener una Empresa propia. Todo método fuera de Domain (las
 /// factorías de contraparte) y de los seeders de demostración que pueda dejar una Empresa propia activa más (construirla,
 /// restaurarla de la Papelera, cambiar en bloque <c>EsPropia</c> o <c>EstaEliminado</c>) tiene que pasar por
-/// <c>ILimiteEmpresaPropia.ComprobarAltaAsync</c> o <c>ComprobarGuardadoAsync</c>, y su clase tiene que guardar dentro de
-/// <c>ILimiteEmpresaPropia.SerializarAsync</c>, el candado por Tenant.
+/// <c>ILimiteEmpresaPropia.ComprobarAltaAsync</c> o <c>ComprobarGuardadoAsync</c>, y la comprobación que decide y el
+/// guardado tienen que ir dentro del delegado pasado a <c>ILimiteEmpresaPropia.SerializarAsync</c>, el candado por Tenant.
 /// <para>
 /// Instrumento sintáctico con Roslyn, por método (revisión Codex r1 de la PR #2193, MEDIO): ve <c>new Empresa(...)</c> con
 /// nombre calificado o con alias de <c>using</c>, <c>new(...)</c> con tipo destino Empresa en una declaración, una
@@ -20,8 +20,16 @@ namespace CaeManager.Architecture.Tests;
 /// restauraciones de una variable leída de Empresas, <c>SetProperty</c> de <c>EsPropia</c> o <c>EstaEliminado</c>, SQL que
 /// escribe esas columnas de <c>"Empresas"</c>, y una asignación de <c>EsPropia</c> dentro de la clase <c>Empresa</c> fuera
 /// de su constructor. Sin modelo semántico no resuelve tipos: un <c>new(...)</c> pasado a un método cualquiera, o una
-/// Empresa restaurada a través de una variable con nombre y origen ajenos a Empresa, se le escapan. Que el recuento quede
-/// dentro del candado lo prueban <c>CandadoEmpresaPropiaTests</c> (integración); aquí solo se exige que la clase lo use.
+/// Empresa restaurada a través de una variable con nombre y origen ajenos a Empresa, se le escapan.
+/// </para>
+/// <para>
+/// El candado (revisión Codex r2 de la PR #2193, MEDIO 2): cuenta solo un <c>SerializarAsync</c> cuyo receptor está
+/// declarado en el tipo como <c>ILimiteEmpresaPropia</c>, y solo si lo que alcanza su delegado (él mismo y las funciones
+/// locales y métodos del tipo a los que llama por su nombre) comprueba el límite con ese receptor y guarda. La escritura
+/// tiene que estar en ese alcance, o en el método que contiene el delegado sin ningún guardado fuera de él salvo en la
+/// rama <c>if (n == 0)</c> del recuento final (ver <c>CandadosDelTipo</c>). No mira el orden entre comprobación y
+/// guardado, ni otros llamantes sin candado de un método alcanzado. Que el guardado ocurra con el candado tomado lo
+/// prueban además <c>CandadoEmpresaPropiaTests</c> (integración, en CI).
 /// </para>
 /// </summary>
 public class AltaDeEmpresaPropiaSoloTrasElLimiteTests
@@ -73,11 +81,11 @@ public class AltaDeEmpresaPropiaSoloTrasElLimiteTests
     }
 
     [Fact]
-    public void Cada_metodo_que_escribe_una_Empresa_propia_comprueba_el_limite_y_su_clase_guarda_bajo_el_candado()
+    public void Cada_metodo_que_escribe_una_Empresa_propia_comprueba_el_limite_y_guarda_dentro_del_candado()
     {
         var sinGuarda = EscriturasDeSrc()
             .Where(e => !ExentosDelLimite.Contains(e.Fichero))
-            .Where(e => !e.MiembroComprueba || !e.TipoSerializa)
+            .Where(e => !e.MiembroComprueba || !e.BajoElCandado)
             .Select(e => e.ToString())
             .ToList();
 
@@ -122,19 +130,20 @@ public class AltaDeEmpresaPropiaSoloTrasElLimiteTests
 
         escrituras.Should().ContainSingle(caso);
         escrituras[0].MiembroComprueba.Should().BeFalse(caso);
-        escrituras[0].TipoSerializa.Should().BeFalse(caso);
+        escrituras[0].BajoElCandado.Should().BeFalse(caso);
     }
 
     [Fact]
     public void El_instrumento_comprueba_por_metodo_y_no_por_fichero()
     {
         const string codigo = """
-            class H(ILimiteEmpresaPropia limite)
+            class H(ILimiteEmpresaPropia limite, IUnitOfWork unitOfWork)
             {
                 async Task<Result> Bueno() => await limite.SerializarAsync(async ct =>
                 {
                     if (await limite.ComprobarAltaAsync(0, true, ct) is { } error) return Result.Fallo(error);
                     repositorio.Agregar(new Empresa("x"));
+                    await unitOfWork.SaveChangesAsync(ct);
                     return Result.Exito();
                 });
 
@@ -145,8 +154,182 @@ public class AltaDeEmpresaPropiaSoloTrasElLimiteTests
         var escrituras = EscriturasDeEmpresaPropia.Analizar("Fragmento.cs", codigo);
 
         escrituras.Should().HaveCount(2);
-        escrituras.Single(e => e.Miembro == "Bueno").Should().Match<EscriturasDeEmpresaPropia.Escritura>(e => e.MiembroComprueba && e.TipoSerializa);
-        escrituras.Single(e => e.Miembro == "Malo").MiembroComprueba.Should().BeFalse("la guarda de otro método del mismo fichero no cuenta");
+        escrituras.Single(e => e.Miembro == "Bueno").Should().Match<EscriturasDeEmpresaPropia.Escritura>(e => e.MiembroComprueba && e.BajoElCandado);
+        escrituras.Single(e => e.Miembro == "Malo").Should().Match<EscriturasDeEmpresaPropia.Escritura>(
+            e => !e.MiembroComprueba && !e.BajoElCandado, "la guarda de otro método del mismo fichero no cuenta");
+    }
+
+    // Revisión Codex r2 de la PR #2193, MEDIO 2: lo que tiene que ir dentro del delegado de SerializarAsync.
+    [Theory]
+    [InlineData("comprobación antes del candado y guardado después", """
+        class H(ILimiteEmpresaPropia limite, IUnitOfWork unitOfWork)
+        {
+            async Task<Result> M(CancellationToken ct)
+            {
+                if (await limite.ComprobarAltaAsync(0, true, ct) is { } error) return Result.Fallo(error);
+                repositorio.Agregar(new Empresa("x"));
+                await limite.SerializarAsync(c => Task.FromResult(Result.Exito()), ct);
+                await unitOfWork.SaveChangesAsync(ct);
+                return Result.Exito();
+            }
+        }
+        """)]
+    [InlineData("comprobación dentro y guardado después", """
+        class H(ILimiteEmpresaPropia limite, IUnitOfWork unitOfWork)
+        {
+            async Task<Result> M(CancellationToken ct)
+            {
+                repositorio.Agregar(new Empresa("x"));
+                await limite.SerializarAsync(async c => await limite.ComprobarAltaAsync(0, true, c) is { } e ? Result.Fallo(e) : Result.Exito(), ct);
+                await unitOfWork.SaveChangesAsync(ct);
+                return Result.Exito();
+            }
+        }
+        """)]
+    [InlineData("guardado dentro y otro guardado fuera", """
+        class H(ILimiteEmpresaPropia limite, IUnitOfWork unitOfWork)
+        {
+            async Task<Result> M(int nuevas, CancellationToken ct)
+            {
+                repositorio.Agregar(new Empresa("x"));
+                await unitOfWork.SaveChangesAsync(ct);
+                return await limite.SerializarAsync(async c =>
+                {
+                    if (await limite.ComprobarGuardadoAsync(nuevas, c) is { } e) return Result.Fallo(e);
+                    await unitOfWork.SaveChangesAsync(c);
+                    return Result.Exito();
+                }, ct);
+            }
+        }
+        """)]
+    [InlineData("guardado fuera en una función local", """
+        class H(ILimiteEmpresaPropia limite, IUnitOfWork unitOfWork)
+        {
+            async Task<Result> M(int nuevas, CancellationToken ct)
+            {
+                repositorio.Agregar(new Empresa("x"));
+                await Guardar(ct);
+                return await limite.SerializarAsync(async c =>
+                    await limite.ComprobarGuardadoAsync(nuevas, c) is { } e ? Result.Fallo(e) : await Guardar(c), ct);
+
+                async Task<Result> Guardar(CancellationToken t) { await unitOfWork.SaveChangesAsync(t); return Result.Exito(); }
+            }
+        }
+        """)]
+    [InlineData("SerializarAsync homónimo de otro tipo", """
+        class H(ILimiteEmpresaPropia limite, IOtroCandado otro, IUnitOfWork unitOfWork)
+        {
+            Task<Result> M() => otro.SerializarAsync(async ct =>
+            {
+                if (await limite.ComprobarAltaAsync(0, true, ct) is { } error) return Result.Fallo(error);
+                repositorio.Agregar(new Empresa("x"));
+                await unitOfWork.SaveChangesAsync(ct);
+                return Result.Exito();
+            });
+        }
+        """)]
+    [InlineData("comprobación homónima de otro tipo dentro del candado", """
+        class H(ILimiteEmpresaPropia limite, IOtroLimite otro, IUnitOfWork unitOfWork)
+        {
+            Task<Result> M() => limite.SerializarAsync(async ct =>
+            {
+                if (await otro.ComprobarAltaAsync(0, true, ct) is { } error) return Result.Fallo(error);
+                repositorio.Agregar(new Empresa("x"));
+                await unitOfWork.SaveChangesAsync(ct);
+                return Result.Exito();
+            });
+        }
+        """)]
+    [InlineData("guardado fuera aunque la rama de cero sea de otro recuento", """
+        class H(ILimiteEmpresaPropia limite, IUnitOfWork unitOfWork)
+        {
+            async Task<Result> M(int nuevas, int otras, CancellationToken ct)
+            {
+                repositorio.Agregar(new Empresa("x"));
+                if (otras == 0) await unitOfWork.SaveChangesAsync(ct);
+                return await limite.SerializarAsync(async c =>
+                {
+                    if (await limite.ComprobarGuardadoAsync(nuevas, c) is { } e) return Result.Fallo(e);
+                    await unitOfWork.SaveChangesAsync(c);
+                    return Result.Exito();
+                }, ct);
+            }
+        }
+        """)]
+    public void El_instrumento_exige_comprobacion_y_guardado_dentro_del_candado_del_limite(string caso, string codigo)
+    {
+        EscriturasDeEmpresaPropia.Analizar("Fragmento.cs", codigo)
+            .Should().ContainSingle(caso).Which.BajoElCandado.Should().BeFalse(caso);
+    }
+
+    // Las tres formas de los escritores reales: todo dentro del delegado (alta y restauraciones), preparar fila a fila y
+    // guardar bajo el candado con la rama sin Empresas propias nuevas (importaciones), y escribir en un método al que el
+    // delegado llama (importación maestra).
+    [Theory]
+    [InlineData("rama de cero con guardado directo", """
+        class H(ILimiteEmpresaPropia limiteEmpresaPropia, IOperacionImportacionRepository operaciones)
+        {
+            async Task<Result> M(CancellationToken ct)
+            {
+                var empresasCreadas = 0;
+                if (await limiteEmpresaPropia.ComprobarAltaAsync(empresasCreadas, true, ct) is null) { repositorio.Agregar(new Empresa("x")); empresasCreadas++; }
+                if (empresasCreadas == 0)
+                {
+                    if (!await operaciones.GuardarSiOperacionNuevaAsync(ct)) return Result.Exito();
+                }
+                else
+                {
+                    var guardado = await limiteEmpresaPropia.SerializarAsync(async c =>
+                    {
+                        if (await limiteEmpresaPropia.ComprobarGuardadoAsync(empresasCreadas, c) is { } e) return Result.Fallo(e);
+                        await operaciones.GuardarSiOperacionNuevaAsync(c);
+                        return Result.Exito();
+                    }, ct);
+                }
+                return Result.Exito();
+            }
+        }
+        """)]
+    [InlineData("rama de cero con función local", """
+        class H(ILimiteEmpresaPropia limiteEmpresaPropia, IOperacionImportacionRepository operaciones)
+        {
+            async Task<Result> M(CancellationToken ct)
+            {
+                var empresasCreadas = 0;
+                if (await limiteEmpresaPropia.ComprobarAltaAsync(empresasCreadas, true, ct) is null) { repositorio.Agregar(new Empresa("x")); empresasCreadas++; }
+                return await GuardarAsync(ct);
+
+                async Task<Result> GuardarAsync(CancellationToken t)
+                {
+                    if (empresasCreadas == 0)
+                        return await GuardarOperacionAsync(t);
+                    return await limiteEmpresaPropia.SerializarAsync(async c =>
+                        await limiteEmpresaPropia.ComprobarGuardadoAsync(empresasCreadas, c) is { } e ? Result.Fallo(e) : await GuardarOperacionAsync(c), t);
+                }
+
+                async Task<Result> GuardarOperacionAsync(CancellationToken t) =>
+                    await operaciones.GuardarSiOperacionNuevaAsync(t) ? Result.Exito() : Result.Fallo(null!);
+            }
+        }
+        """)]
+    [InlineData("escritura en un método al que llama el delegado", """
+        class H(ILimiteEmpresaPropia limiteEmpresaPropia, IOperacionImportacionRepository operaciones)
+        {
+            Task<Result> Confirmar(CancellationToken ct) => limiteEmpresaPropia.SerializarAsync(async c => await this.Procesar(c), ct);
+
+            async Task<Result> Procesar(CancellationToken ct)
+            {
+                if (await limiteEmpresaPropia.ComprobarAltaAsync(0, true, ct) is { } e) return Result.Fallo(e);
+                repositorio.Agregar(new Empresa("x"));
+                await operaciones.GuardarSiOperacionNuevaAsync(ct);
+                return Result.Exito();
+            }
+        }
+        """)]
+    public void El_instrumento_acepta_las_formas_de_los_escritores_con_el_candado(string caso, string codigo)
+    {
+        EscriturasDeEmpresaPropia.Analizar("Fragmento.cs", codigo)
+            .Should().ContainSingle(caso).Which.Should().Match<EscriturasDeEmpresaPropia.Escritura>(e => e.MiembroComprueba && e.BajoElCandado, caso);
     }
 
     [Fact]
@@ -208,13 +391,15 @@ internal static class EscriturasDeEmpresaPropia
 {
     internal sealed record Escritura(
         string Fichero, int Linea, string Tipo, string Miembro, string Que,
-        bool MiembroComprueba, bool TipoSerializa, bool EsPropiaEnDominio)
+        bool MiembroComprueba, bool BajoElCandado, bool EsPropiaEnDominio)
     {
         public override string ToString() => $"{Fichero}:{Linea} {Tipo}.{Miembro} {Que}";
     }
 
+    private const string TipoDelLimite = "ILimiteEmpresaPropia";
     private static readonly string[] Comprobaciones = ["ComprobarAltaAsync", "ComprobarGuardadoAsync"];
     private static readonly string[] Altas = ["Agregar", "Add", "AddAsync", "AddRange", "Attach", "Update"];
+    private static readonly string[] Guardados = ["SaveChangesAsync", "SaveChanges", "GuardarCambiosAsync", "GuardarSiOperacionNuevaAsync"];
 
     internal static List<Escritura> Analizar(string fichero, string codigo)
     {
@@ -222,6 +407,7 @@ internal static class EscriturasDeEmpresaPropia
         var nombres = NombresDeEmpresa(raiz);
         var declaradas = DeclaradasComoEmpresa(raiz, nombres);
         var leidas = LeidasDeEmpresas(raiz);
+        var candados = new Dictionary<TypeDeclarationSyntax, CandadosDelTipo>();
         var resultado = new List<Escritura>();
 
         foreach (var nodo in raiz.DescendantNodes())
@@ -241,6 +427,7 @@ internal static class EscriturasDeEmpresaPropia
 
             var miembro = MiembroDe(nodo);
             var tipo = nodo.Ancestors().OfType<TypeDeclarationSyntax>().LastOrDefault();
+            if (tipo is not null && !candados.ContainsKey(tipo)) candados[tipo] = new CandadosDelTipo(tipo);
             resultado.Add(new Escritura(
                 fichero,
                 nodo.GetLocation().GetLineSpan().StartLinePosition.Line + 1,
@@ -248,11 +435,161 @@ internal static class EscriturasDeEmpresaPropia
                 NombreDeMiembro(miembro),
                 que,
                 MiembroComprueba: miembro is not null && Invoca(miembro, Comprobaciones),
-                TipoSerializa: tipo is not null && Invoca(tipo, ["SerializarAsync"]),
+                BajoElCandado: tipo is not null && candados[tipo].Cubre(nodo, miembro),
                 EsPropiaEnDominio: esPropiaEnDominio));
         }
 
         return resultado;
+    }
+
+    /// <summary>
+    /// Los delegados que un tipo pasa a <c>SerializarAsync</c> de un receptor declarado en él como
+    /// <c>ILimiteEmpresaPropia</c> (campo, propiedad o parámetro, también del constructor primario), y lo que alcanzan.
+    /// Revisión Codex r2 de la PR #2193, MEDIO 2: no basta con que la clase invoque algo llamado <c>SerializarAsync</c>;
+    /// la comprobación que decide y el guardado tienen que ir dentro de ese delegado. «Dentro» incluye las funciones
+    /// locales y los métodos del mismo tipo que el delegado invoca por su nombre, de forma transitiva (la importación
+    /// maestra recuenta y guarda en un método al que llama desde el candado). Sin modelo semántico: los métodos se
+    /// resuelven por nombre (todas sus sobrecargas), y un guardado a través de otro tipo no se ve.
+    /// </summary>
+    private sealed class CandadosDelTipo
+    {
+        private readonly HashSet<string> receptores;
+        private readonly ILookup<string, SyntaxNode> funciones;
+        private readonly List<(AnonymousFunctionExpressionSyntax Delegado, HashSet<SyntaxNode> Alcance)> validos = [];
+        private readonly HashSet<string> recuentosFinales = new(StringComparer.Ordinal);
+
+        public CandadosDelTipo(TypeDeclarationSyntax tipo)
+        {
+            receptores = ReceptoresDelLimite(tipo);
+            funciones = tipo.DescendantNodes().OfType<MethodDeclarationSyntax>()
+                .Select(m => (Nombre: m.Identifier.ValueText, Nodo: (SyntaxNode)m))
+                .Concat(tipo.DescendantNodes().OfType<LocalFunctionStatementSyntax>()
+                    .Select(f => (Nombre: f.Identifier.ValueText, Nodo: (SyntaxNode)f)))
+                .ToLookup(x => x.Nombre, x => x.Nodo, StringComparer.Ordinal);
+
+            foreach (var serializa in tipo.DescendantNodes().OfType<InvocationExpressionSyntax>()
+                         .Where(i => EsDelLimite(i, ["SerializarAsync"])))
+            {
+                if (serializa.ArgumentList.Arguments.FirstOrDefault()?.Expression is not AnonymousFunctionExpressionSyntax delegado)
+                    continue;
+                var alcance = Alcance(delegado);
+                var invocaciones = alcance.SelectMany(r => r.DescendantNodesAndSelf().OfType<InvocationExpressionSyntax>()).ToList();
+                var comprobaciones = invocaciones.Where(i => EsDelLimite(i, Comprobaciones)).ToList();
+                if (comprobaciones.Count == 0 || !invocaciones.Any(EsGuardado))
+                    continue;
+                validos.Add((delegado, alcance));
+                foreach (var c in comprobaciones)
+                    if (c.Expression is MemberAccessExpressionSyntax { Name.Identifier.ValueText: "ComprobarGuardadoAsync" }
+                        && c.ArgumentList.Arguments.FirstOrDefault()?.Expression is IdentifierNameSyntax recuento)
+                        recuentosFinales.Add(recuento.Identifier.ValueText);
+            }
+        }
+
+        /// <summary>
+        /// La escritura queda bajo el candado si está en lo que alcanza un delegado válido, o si su método lo contiene y
+        /// prepara antes en memoria (las importaciones construyen fila a fila y recuentan al final, ya bajo el candado)
+        /// sin guardar nada fuera de él. Un guardado fuera solo vale en la rama <c>if (n == 0)</c>, con <c>n</c> el
+        /// recuento que el delegado pasa a <c>ComprobarGuardadoAsync</c>: sin Empresas propias nuevas no hay candado.
+        /// </summary>
+        public bool Cubre(SyntaxNode escritura, MemberDeclarationSyntax? miembro)
+        {
+            if (validos.Any(v => escritura.AncestorsAndSelf().Any(v.Alcance.Contains)))
+                return true;
+            return miembro is not null
+                   && validos.Any(v => v.Delegado.Ancestors().Contains(miembro))
+                   && !GuardaFueraDelCandado(miembro, [miembro]);
+        }
+
+        private HashSet<SyntaxNode> Alcance(AnonymousFunctionExpressionSyntax delegado)
+        {
+            var alcance = new HashSet<SyntaxNode> { delegado };
+            var pendientes = new Queue<SyntaxNode>(alcance);
+            while (pendientes.TryDequeue(out var raiz))
+                foreach (var llamada in raiz.DescendantNodes().OfType<InvocationExpressionSyntax>())
+                    foreach (var funcion in Llamadas(llamada))
+                        if (alcance.Add(funcion))
+                            pendientes.Enqueue(funcion);
+            return alcance;
+        }
+
+        private bool GuardaFueraDelCandado(SyntaxNode raiz, HashSet<SyntaxNode> visitadas)
+        {
+            foreach (var llamada in raiz.DescendantNodes().OfType<InvocationExpressionSyntax>())
+            {
+                var ancestros = llamada.Ancestors().TakeWhile(a => a != raiz).ToList();
+                // Lo de dentro de un delegado válido va bajo el candado; una función local se recorre solo si se la llama.
+                if (ancestros.Any(a => validos.Any(v => v.Delegado == a) || a is LocalFunctionStatementSyntax)
+                    || EnLaRamaSinPropiasNuevas(llamada, raiz))
+                    continue;
+                if (EsGuardado(llamada))
+                    return true;
+                foreach (var funcion in Llamadas(llamada))
+                    if (visitadas.Add(funcion) && GuardaFueraDelCandado(funcion, visitadas))
+                        return true;
+            }
+            return false;
+        }
+
+        private bool EnLaRamaSinPropiasNuevas(SyntaxNode nodo, SyntaxNode raiz)
+        {
+            SyntaxNode hijo = nodo;
+            foreach (var ancestro in nodo.Ancestors().TakeWhile(a => a != raiz))
+            {
+                if (ancestro is IfStatementSyntax si && si.Statement == hijo
+                    && si.Condition is BinaryExpressionSyntax { RawKind: (int)SyntaxKind.EqualsExpression } igual
+                    && (EsRecuentoACero(igual.Left, igual.Right) || EsRecuentoACero(igual.Right, igual.Left)))
+                    return true;
+                hijo = ancestro;
+            }
+            return false;
+        }
+
+        private bool EsRecuentoACero(ExpressionSyntax recuento, ExpressionSyntax cero) =>
+            recuento is IdentifierNameSyntax id && recuentosFinales.Contains(id.Identifier.ValueText)
+            && cero is LiteralExpressionSyntax { Token.ValueText: "0" };
+
+        /// <summary>Las funciones locales y los métodos del tipo a los que llama <paramref name="llamada"/> por su nombre.</summary>
+        private IEnumerable<SyntaxNode> Llamadas(InvocationExpressionSyntax llamada) => llamada.Expression switch
+        {
+            IdentifierNameSyntax n => funciones[n.Identifier.ValueText],
+            GenericNameSyntax g => funciones[g.Identifier.ValueText],
+            MemberAccessExpressionSyntax { Expression: ThisExpressionSyntax } m => funciones[m.Name.Identifier.ValueText],
+            _ => [],
+        };
+
+        private bool EsDelLimite(InvocationExpressionSyntax llamada, string[] metodos) =>
+            llamada.Expression is MemberAccessExpressionSyntax m
+            && metodos.Contains(m.Name.Identifier.ValueText)
+            && m.Expression switch
+            {
+                IdentifierNameSyntax r => receptores.Contains(r.Identifier.ValueText),
+                MemberAccessExpressionSyntax { Expression: ThisExpressionSyntax } r => receptores.Contains(r.Name.Identifier.ValueText),
+                _ => false,
+            };
+
+        private static bool EsGuardado(InvocationExpressionSyntax llamada) =>
+            llamada.Expression is MemberAccessExpressionSyntax m && Guardados.Contains(m.Name.Identifier.ValueText);
+
+        private static HashSet<string> ReceptoresDelLimite(TypeDeclarationSyntax tipo)
+        {
+            var receptores = new HashSet<string>(StringComparer.Ordinal);
+            foreach (var nodo in tipo.DescendantNodesAndSelf())
+            {
+                switch (nodo)
+                {
+                    case ParameterSyntax { Type: { } t } p when NombreSimple(t) == TipoDelLimite:
+                        receptores.Add(p.Identifier.ValueText);
+                        break;
+                    case FieldDeclarationSyntax f when NombreSimple(f.Declaration.Type) == TipoDelLimite:
+                        foreach (var v in f.Declaration.Variables) receptores.Add(v.Identifier.ValueText);
+                        break;
+                    case PropertyDeclarationSyntax p when NombreSimple(p.Type) == TipoDelLimite:
+                        receptores.Add(p.Identifier.ValueText);
+                        break;
+                }
+            }
+            return receptores;
+        }
     }
 
     /// <summary>«Empresa» y los alias de <c>using</c> que la nombran.</summary>

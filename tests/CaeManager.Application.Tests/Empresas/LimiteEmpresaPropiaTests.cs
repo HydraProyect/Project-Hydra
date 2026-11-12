@@ -194,9 +194,10 @@ public class LimiteEmpresaPropiaTests
         new(Guid.NewGuid(), [], filas, [], [], [], [], []);
 
     private static EjecutarImportacionCommandHandler ImportacionSimple(
-        EmpresaRepositorioFalso repo, EmpresasQueryContextFalso empresas, ILimiteEmpresaPropia limite) =>
+        EmpresaRepositorioFalso repo, EmpresasQueryContextFalso empresas, ILimiteEmpresaPropia limite,
+        OperacionImportacionRepositorioFalso? operaciones = null) =>
         new(repo, new CaeManager.Application.Tests.Trabajadores.TrabajadorRepositorioFalso(), new DocumentoRepositorioFalso(),
-            new CaeManager.Application.Tests.Asignaciones.AsignacionRepositorioFalso(), new OperacionImportacionRepositorioFalso(),
+            new CaeManager.Application.Tests.Asignaciones.AsignacionRepositorioFalso(), operaciones ?? new OperacionImportacionRepositorioFalso(),
             new CaeManager.Application.Tests.Reportes.AsignacionesQueryContextFalso(), new CaeManager.Application.Tests.Plantillas.CentrosQueryContextFalso(),
             new DocumentosQueryContextFalso(), empresas, new CaeManager.Application.Tests.TiposDocumento.TiposDocumentoQueryContextFalso(),
             new CaeManager.Application.Tests.Plantillas.TrabajadoresQueryContextFalso(), new AdministracionTotal(),
@@ -401,6 +402,62 @@ public class LimiteEmpresaPropiaTests
         candado.Ejecuciones.Should().Be(1);
         resultado.EsExitoso.Should().BeFalse();
         resultado.Error.Codigo.Should().Be(CodigoLimite);
+    }
+
+    // Revisión Codex r2 de la PR #2193, MEDIO 1. AlTomarlo simula la PRIMERA de dos confirmaciones de la MISMA
+    // operación, que confirmó (su Empresa propia y la marca de la operación) mientras esta esperaba el candado. La segunda
+    // tiene que responder «ya ejecutada», sin el error de límite ni la alerta de rechazo: bajo el candado, la marca se
+    // mira antes que el límite. Con el orden al revés, el recuento vería la Empresa propia de la primera y fallaría.
+
+    [Fact]
+    public async Task EjecutarImportacion_segunda_confirmacion_de_la_misma_operacion_es_ya_ejecutada_y_no_un_rechazo()
+    {
+        var empresas = new EmpresasQueryContextFalso();
+        var alertas = new AlertaOperativaFalsa();
+        var operaciones = new OperacionImportacionRepositorioFalso();
+        var plan = PlanSimple(new EmpresaImportadaDto("Primera propia, S.L.", false, Fila: 2));
+        var candado = new LimitesDePrueba.CandadoEnMemoria
+        {
+            AlTomarlo = () =>
+            {
+                empresas.ListaEmpresas.Add(PropiaActiva());
+                operaciones.ConfirmarDesdeOtraEjecucion(plan.OperacionId);
+            },
+        };
+
+        var resultado = await ImportacionSimple(new EmpresaRepositorioFalso(), empresas,
+                LimitesDePrueba.Sobre(empresas, alertas, candado: candado), operaciones)
+            .Handle(new EjecutarImportacionCommand(plan), default);
+
+        candado.Ejecuciones.Should().Be(1);
+        resultado.EsExitoso.Should().BeTrue("la misma operación ya se confirmó: no es un rechazo del límite");
+        resultado.Valor.Should().BeEquivalentTo(ResultadoImportacionDto.YaEjecutada());
+        alertas.Alertas.Should().BeEmpty("no se ha intentado dar de alta otra Empresa propia");
+    }
+
+    [Fact]
+    public async Task EjecutarImportacionCombinada_segunda_confirmacion_de_la_misma_operacion_es_ya_ejecutada_y_no_un_rechazo()
+    {
+        var escenario = new EscenarioImportacionCombinada();
+        var propias = new EmpresasQueryContextFalso();
+        var alertas = new AlertaOperativaFalsa();
+        var plan = EscenarioImportacionCombinada.Plan(empresas: [new EmpresaCombinadaImportadaDto("Primera propia, S.L.", [], false, 2)]);
+        var candado = new LimitesDePrueba.CandadoEnMemoria
+        {
+            AlTomarlo = () =>
+            {
+                propias.ListaEmpresas.Add(PropiaActiva());
+                escenario.OperacionImportacionRepositorio.ConfirmarDesdeOtraEjecucion(plan.OperacionId);
+            },
+        };
+        escenario.Limite = LimitesDePrueba.Sobre(propias, alertas, candado: candado);
+
+        var resultado = await escenario.Handler().Handle(new EjecutarImportacionCombinadaCommand(plan, false), CancellationToken.None);
+
+        candado.Ejecuciones.Should().Be(1);
+        resultado.EsExitoso.Should().BeTrue("la misma operación ya se confirmó: no es un rechazo del límite");
+        resultado.Valor.Should().BeEquivalentTo(ResultadoImportacionCombinadaDto.YaEjecutada());
+        alertas.Alertas.Should().BeEmpty("no se ha intentado dar de alta otra Empresa propia");
     }
 
     private static Empresa EliminadaParaRestaurar(string comando, bool esPropia)

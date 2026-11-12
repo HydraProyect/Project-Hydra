@@ -668,10 +668,17 @@ public class EjecutarImportacionCombinadaCommandHandler(
             var yaEjecutada = false;
             var guardado = await limiteEmpresaPropia.SerializarAsync(async ct =>
             {
-                if (await limiteEmpresaPropia.ComprobarGuardadoAsync(empresasCreadas, ct) is { } limite)
-                    return Result.Fallo(limite);
-                if (await operacionImportacionRepositorio.GuardarSiOperacionNuevaAsync(ct))
-                    return Result.Exito();
+                // Bajo el candado, la marca va antes que el límite: la segunda de dos confirmaciones de la MISMA
+                // operación espera a que la primera confirme y ve su marca, en vez de contar la Empresa propia que esa
+                // acaba de guardar y responder con el error de límite y una alerta de rechazo (revisión Codex r2 de la
+                // PR #2193, MEDIO 1).
+                if (!await operacionImportacionRepositorio.ExisteAsync(plan.OperacionId, ct))
+                {
+                    if (await limiteEmpresaPropia.ComprobarGuardadoAsync(empresasCreadas, ct) is { } limite)
+                        return Result.Fallo(limite);
+                    if (await operacionImportacionRepositorio.GuardarSiOperacionNuevaAsync(ct))
+                        return Result.Exito();
+                }
                 // Fallo para que la transacción del candado se deshaga; abajo se traduce a «ya ejecutada».
                 yaEjecutada = true;
                 return Result.Fallo(Error.Crear("Importacion.YaEjecutada", "Esta importación ya se había ejecutado."));

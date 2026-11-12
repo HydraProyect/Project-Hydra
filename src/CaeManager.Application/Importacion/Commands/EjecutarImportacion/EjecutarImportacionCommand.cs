@@ -704,19 +704,31 @@ public class EjecutarImportacionCommandHandler(
             if (empresasCreadas == 0)
                 return await GuardarOperacionAsync(ct);
             return await limiteEmpresaPropia.SerializarAsync(async c =>
-                await limiteEmpresaPropia.ComprobarGuardadoAsync(empresasCreadas, c) is { } limite
+            {
+                // Bajo el candado, la marca va antes que el límite: la segunda de dos confirmaciones de la MISMA
+                // operación espera aquí a que la primera confirme, y al releer ve su marca. Sin este orden contaría la
+                // Empresa propia que la primera acaba de guardar y respondería con el error de límite, y una alerta de
+                // rechazo, en vez de «ya ejecutada» (revisión Codex r2 de la PR #2193, MEDIO 1).
+                if (await operacionImportacionRepositorio.ExisteAsync(plan.OperacionId, c))
+                    return FalloYaEjecutada();
+                return await limiteEmpresaPropia.ComprobarGuardadoAsync(empresasCreadas, c) is { } limite
                     ? Result.Fallo(limite)
-                    : await GuardarOperacionAsync(c), ct);
+                    : await GuardarOperacionAsync(c);
+            }, ct);
+        }
+
+        Result FalloYaEjecutada()
+        {
+            // Fallo para que la transacción de la serialización se deshaga; el llamante lo traduce a «ya ejecutada».
+            yaEjecutada = true;
+            return Result.Fallo(Error.Crear("Importacion.YaEjecutada", "Esta importación ya se había ejecutado."));
         }
 
         async Task<Result> GuardarOperacionAsync(CancellationToken ct)
         {
-            if (await operacionImportacionRepositorio.GuardarSiOperacionNuevaAsync(ct))
-                return Result.Exito();
-
-            // Fallo para que la transacción de la serialización se deshaga; el llamante lo traduce a «ya ejecutada».
-            yaEjecutada = true;
-            return Result.Fallo(Error.Crear("Importacion.YaEjecutada", "Esta importación ya se había ejecutado."));
+            return await operacionImportacionRepositorio.GuardarSiOperacionNuevaAsync(ct)
+                ? Result.Exito()
+                : FalloYaEjecutada();
         }
 
         // Una Asignación nueva pone en juego los Documentos de la Empresa del Trabajador en un Centro de otra Empresa:
