@@ -127,6 +127,54 @@ public class EventoWebhook : EntidadConTenant
     }
 
     /// <summary>
+    /// Cada cuánto vuelve a mirarse un evento en espera de que su conexión se verifique. La verificación cambia
+    /// como mucho una vez por ciclo de renovación (o al reactivar), así que mirar más a menudo no adelanta nada.
+    /// </summary>
+    public static readonly TimeSpan IntervaloEsperaVerificacion = TimeSpan.FromMinutes(15);
+
+    /// <summary>
+    /// Desde la recepción, cuánto espera un evento a que su conexión se verifique antes de quedar
+    /// <see cref="EstadoEventoWebhook.Retenido"/>: tres ciclos de renovación. Más allá, seguir reintentándolo
+    /// cada <see cref="IntervaloEsperaVerificacion"/> no tiene sentido; la conexión tiene un problema que alguien
+    /// tiene que mirar, y Conexiones lo avisa.
+    /// </summary>
+    public static readonly TimeSpan TopeEsperaVerificacion = TimeSpan.FromHours(72);
+
+    /// <summary>
+    /// La conexión está Habilitada pero sin identidad verificada: el evento espera, sin gastar ninguno de los
+    /// <see cref="MaximoIntentos"/> (con el backoff de <see cref="RegistrarFallo"/> se agotarían en unos dos minutos
+    /// y el correo se perdería). Pasado <see cref="TopeEsperaVerificacion"/> desde su recepción queda
+    /// <see cref="EstadoEventoWebhook.Retenido"/>, nunca descartado.
+    /// </summary>
+    public void EsperarVerificacion(string motivo, DateTime ahoraUtc)
+    {
+        if (string.IsNullOrWhiteSpace(motivo))
+            throw new ArgumentException("La espera debe decir por qué.", nameof(motivo));
+
+        ErrorProcesado = motivo.Length > LongitudMaximaError ? motivo[..LongitudMaximaError] : motivo;
+        IniciadoEnUtc = null;
+
+        if (ahoraUtc - FechaRecepcionUtc >= TopeEsperaVerificacion)
+        {
+            Estado = EstadoEventoWebhook.Retenido;
+            SiguienteIntentoEnUtc = null;
+            return;
+        }
+
+        Estado = EstadoEventoWebhook.Pendiente;
+        SiguienteIntentoEnUtc = ahoraUtc + IntervaloEsperaVerificacion;
+    }
+
+    /// <summary>La conexión de un evento <see cref="EstadoEventoWebhook.Retenido"/> vuelve a estar verificada: se reintenta ya.</summary>
+    public void Liberar()
+    {
+        if (Estado != EstadoEventoWebhook.Retenido) return;
+
+        Estado = EstadoEventoWebhook.Pendiente;
+        SiguienteIntentoEnUtc = null;
+    }
+
+    /// <summary>
     /// Un evento que quedó "Procesando" cuando el proceso se cayó o se
     /// redesplegó a mitad de ingesta no vuelve solo — ver
     /// <see cref="TrabajoAnalisisDocumento.RecuperarSiEstancado"/> para el

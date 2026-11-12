@@ -83,6 +83,11 @@ public class MigrarConversacionACorreoCommandHandler(
             .Where(c => c.ClienteId == conversacion.ClienteId || c.ClienteId == null)
             // Buzón dedicado al Cliente de la conversación antes que el buzón general del tenant.
             .OrderByDescending(c => c.ClienteId != null)
+            // Dentro de cada grupo, una verificada antes que una sin verificar: un buzón general antiguo que ha perdido la verificación no tapa a otro verificado.
+            .ThenByDescending(CaeManager.Application.Integraciones.ConsultasConexionIntegracion.VerificadaVigente(DateTime.UtcNow))
+            // Varios buzones generales (los compartidos del Tenant): el conectado primero, para que la elección no dependa del orden de la base de datos.
+            .ThenBy(c => c.FechaConectadaUtc)
+            .ThenBy(c => c.Id)
             .Select(c => (Guid?)c.Id)
             .FirstOrDefaultAsync(cancellationToken);
 
@@ -96,16 +101,25 @@ public class MigrarConversacionACorreoCommandHandler(
             return Result.Fallo(Error.Crear(
                 "Conversacion.SinBuzonConectado", "No hay ningún buzón de correo conectado."));
 
+        // Sin la identidad del buzón verificada no se sabe qué buzón responde hoy a su dirección: no sale nada.
+        if (!conexion.OperativaVerificada(DateTime.UtcNow))
+            return Result.Fallo(ErroresBuzonSinVerificar.Crear());
+
         await registroSalida.RegistrarSalidaAsync(
             OrigenSalidaComunicacion.MigracionACorreo, conexion.Id, [request.EmailDestino], copia: null, adjuntos: null, cancellationToken);
 
-        var tokenResultado = await accesoGraph.ObtenerAccessTokenVigenteAsync(conexion.Id, cancellationToken);
+        var tokenResultado = await accesoGraph.ObtenerAccessTokenVigenteAsync(conexion, cancellationToken);
         if (tokenResultado.EsFallido)
             return Result.Fallo(tokenResultado.Error);
 
+        // Puerta justo antes de enviar: se relee de la base, la instancia cargada antes puede estar obsoleta.
+        if (!await conexionRepositorio.SigueOperativaVerificadaAsync(conexion.Id, DateTime.UtcNow, cancellationToken))
+            return Result.Fallo(ErroresBuzonSinVerificar.Crear());
+
+        // La misma puerta otra vez entre crear el borrador y enviarlo: son dos llamadas a Graph.
         var envioResultado = await graphClient.EnviarNuevoMensajeAsync(
-            tokenResultado.Valor, conexion.BuzonEmail, [request.EmailDestino], conversacion.Asunto, request.CuerpoHtml,
-            adjuntos: null, cancellationToken);
+            tokenResultado.Valor, BuzonGraph.De(conexion), [request.EmailDestino], conversacion.Asunto, request.CuerpoHtml,
+            adjuntos: null, ct => conexionRepositorio.SigueOperativaVerificadaAsync(conexion.Id, DateTime.UtcNow, ct), cancellationToken);
         if (envioResultado.EsFallido)
             return Result.Fallo(envioResultado.Error);
 

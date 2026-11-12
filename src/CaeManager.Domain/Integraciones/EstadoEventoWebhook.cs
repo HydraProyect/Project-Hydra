@@ -14,4 +14,11 @@ public enum EstadoEventoWebhook
     Procesando,
     Completado,
     DescartadoDefinitivo,
+
+    /// <summary>
+    /// Su conexión lleva sin identidad verificada más de <see cref="EventoWebhook.TopeEsperaVerificacion"/>: deja
+    /// de reintentarse, pero no se descarta ni se redacta. Vuelve a <see cref="Pendiente"/> cuando la conexión se
+    /// verifica otra vez (<see cref="EventoWebhook.Liberar"/>).
+    /// </summary>
+    Retenido,
 }

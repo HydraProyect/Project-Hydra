@@ -89,6 +89,11 @@ public class EnviarMensajeNuevoCommandHandler(
         if (conexion.Estado != EstadoConexionIntegracion.Habilitada)
             return Result.Fallo<Guid>(Error.Crear("ConexionIntegracion.NoDisponible", "Este buzón no está disponible."));
 
+        // Sin la identidad del buzón verificada no se sabe qué buzón responde hoy a su dirección: no sale nada. Por
+        // aquí pasan también los que eligen buzón general (reclamación, prioridad de validación).
+        if (!conexion.OperativaVerificada(DateTime.UtcNow))
+            return Result.Fallo<Guid>(Integraciones.ErroresBuzonSinVerificar.Crear());
+
         // El Cliente del mensaje es el que pida quien redacta si se indica
         // (p. ej. desde una pantalla de Cliente concreta); si no, el que ya
         // tenga la propia conexión (buzón dedicado a un Cliente Delegante).
@@ -111,12 +116,19 @@ public class EnviarMensajeNuevoCommandHandler(
         await registroSalida.RegistrarSalidaAsync(
             request.Origen, conexion.Id, request.Destinatarios, request.Copia, request.Adjuntos, cancellationToken);
 
-        var tokenResultado = await accesoGraph.ObtenerAccessTokenVigenteAsync(conexion.Id, cancellationToken);
+        var tokenResultado = await accesoGraph.ObtenerAccessTokenVigenteAsync(conexion, cancellationToken);
         if (tokenResultado.EsFallido)
             return Result.Fallo<Guid>(tokenResultado.Error);
 
+        // Puerta justo antes de enviar: la instancia se cargó antes, y otro proceso puede haberla pasado a ConError o
+        // desconectado entre medias. Se relee de la base.
+        if (!await conexionRepositorio.SigueOperativaVerificadaAsync(conexion.Id, DateTime.UtcNow, cancellationToken))
+            return Result.Fallo<Guid>(Integraciones.ErroresBuzonSinVerificar.Crear());
+
+        // La misma puerta otra vez entre crear el borrador y enviarlo: son dos llamadas a Graph.
         var envioResultado = await graphClient.EnviarNuevoMensajeAsync(
-            tokenResultado.Valor, conexion.BuzonEmail, request.Destinatarios, request.Asunto, request.CuerpoHtml, request.Adjuntos, cancellationToken, request.Copia);
+            tokenResultado.Valor, BuzonGraph.De(conexion), request.Destinatarios, request.Asunto, request.CuerpoHtml, request.Adjuntos,
+            ct => conexionRepositorio.SigueOperativaVerificadaAsync(conexion.Id, DateTime.UtcNow, ct), cancellationToken, request.Copia);
         if (envioResultado.EsFallido)
             return Result.Fallo<Guid>(envioResultado.Error);
 
