@@ -211,6 +211,7 @@ public partial class Bandeja : CaeManager.Web.Components.PaginaInteractiva, IAsy
     private bool _modalActualizarDocumentoVisible;
     private Guid _adjuntoParaActualizarDocumentoId;
     private bool _detectandoDocumento;
+    private int _solicitudActualizarDocumentoVigente;
     private bool _aplicandoDocumento;
     private string? _errorActualizarDocumento;
     private IReadOnlyList<TipoDocumentoListaDto> _tiposDocumentoSelector = [];
@@ -1564,13 +1565,33 @@ public partial class Bandeja : CaeManager.Web.Components.PaginaInteractiva, IAsy
         _detectandoDocumento = true;
         StateHasChanged();
 
+        // Mismo criterio que CompartirFormatosCentroAsync: lo que llega tras cada espera solo se escribe si la carga del detalle que
+        // abrió el modal sigue siendo la vigente. El selector de Empresas se filtra por el Cliente empresarial de esa carga; una
+        // recarga que lo cambie durante la detección dejaría Empresas del anterior (revisión Codex r5 de la #2167, inventario de
+        // caminos asíncronos). Si el contexto cambió, el modal se cierra y se avisa: reabrirlo carga los selectores de nuevo.
+        // _solicitudActualizarDocumentoVigente cubre cerrar y reabrir el modal mientras la primera detección sigue esperando.
+        var solicitud = ++_solicitudActualizarDocumentoVigente;
+        var carga = _cargaDetalleVigente;
+        var conversacionId = _conversacionSeleccionadaId;
+        var clienteId = _detalle?.ClienteId;
+        bool Vigente() => solicitud == _solicitudActualizarDocumentoVigente && carga == _cargaDetalleVigente;
+
         try
         {
-            _tiposDocumentoSelector = await Mediator.Send(new ObtenerTiposDocumentoQuery(ParaAltaNueva: true), _ciclo.Token);
-            _trabajadoresSelector = await Mediator.Send(new ObtenerTrabajadoresParaSelectorQuery(AlcanceSelectorTrabajadores.Cartera), _ciclo.Token);
-            _empresasSelector = await Mediator.Send(new ObtenerEmpresasParaSelectorQuery(_detalle?.ClienteId), _ciclo.Token);
+            var tipos = await Mediator.Send(new ObtenerTiposDocumentoQuery(ParaAltaNueva: true), _ciclo.Token);
+            if (!Vigente()) { DescartarActualizarDocumento(solicitud, conversacionId); return; }
+            _tiposDocumentoSelector = tipos;
+
+            var trabajadores = await Mediator.Send(new ObtenerTrabajadoresParaSelectorQuery(AlcanceSelectorTrabajadores.Cartera), _ciclo.Token);
+            if (!Vigente()) { DescartarActualizarDocumento(solicitud, conversacionId); return; }
+            _trabajadoresSelector = trabajadores;
+
+            var empresas = await Mediator.Send(new ObtenerEmpresasParaSelectorQuery(clienteId), _ciclo.Token);
+            if (!Vigente()) { DescartarActualizarDocumento(solicitud, conversacionId); return; }
+            _empresasSelector = empresas;
 
             var deteccion = await Mediator.Send(new DetectarActualizacionDocumentoDesdeAdjuntoQuery(adjuntoId), _ciclo.Token);
+            if (!Vigente()) { DescartarActualizarDocumento(solicitud, conversacionId); return; }
             if (deteccion.EsFallido)
             {
                 _errorActualizarDocumento = deteccion.Error.Mensaje;
@@ -1589,15 +1610,36 @@ public partial class Bandeja : CaeManager.Web.Components.PaginaInteractiva, IAsy
         catch (Exception ex)
         {
             Logger.LogError(ex, "Error al detectar la actualización de documentación del adjunto {AdjuntoId}.", adjuntoId);
-            _errorActualizarDocumento = "No pudimos analizar el adjunto. Puedes rellenar los campos a mano.";
+            if (Vigente())
+                _errorActualizarDocumento = "No pudimos analizar el adjunto. Puedes rellenar los campos a mano.";
+            else
+                DescartarActualizarDocumento(solicitud, conversacionId);
         }
         finally
         {
-            _detectandoDocumento = false;
-            // Lo que rellenó la detección no es un cambio de quien revisa.
-            FijarInstantaneaActualizarDocumento();
+            if (Vigente())
+            {
+                _detectandoDocumento = false;
+                // Lo que rellenó la detección no es un cambio de quien revisa.
+                FijarInstantaneaActualizarDocumento();
+            }
             StateHasChanged();
         }
+    }
+
+    /// <summary>
+    /// La detección que abrió el modal ya no corresponde al contexto vigente. Si una apertura posterior del modal la ha
+    /// sustituido, esa apertura es la dueña del estado y aquí no se toca nada; si no, el modal se cierra (sus selectores y lo
+    /// detectado pertenecen a la carga anterior) y, si la conversación sigue abierta, se avisa para que se vuelva a abrir.
+    /// </summary>
+    private void DescartarActualizarDocumento(int solicitud, Guid? conversacionId)
+    {
+        if (solicitud != _solicitudActualizarDocumentoVigente) return;
+        _detectandoDocumento = false;
+        if (!_modalActualizarDocumentoVisible) return;
+        _modalActualizarDocumentoVisible = false;
+        if (_conversacionSeleccionadaId == conversacionId)
+            ToastService.Mostrar(ErroresTextos["AvisoActualizarDocumentoContextoCambiado"].Value, TonoToast.Info);
     }
 
     private void CerrarModalActualizarDocumento() => _modalActualizarDocumentoVisible = false;

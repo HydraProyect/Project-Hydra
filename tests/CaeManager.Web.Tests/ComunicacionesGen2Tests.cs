@@ -1586,6 +1586,52 @@ public class ComunicacionesGen2Tests : BunitContext
         cut.Find(".drawer-panel").TextContent.Should().Contain("El Centro elegido ya no es de esta conversación");
     }
 
+    /// <summary>
+    /// Revisión Codex r5 de la #2167, inventario de caminos asíncronos («Actualizar documentación»): mientras se cargan las
+    /// Empresas del Cliente empresarial de la conversación, una recarga lo cambia. Las Empresas del anterior no llegan al selector:
+    /// el modal se cierra y se avisa. Detecta quitar la comprobación de <c>_cargaDetalleVigente</c> de
+    /// <c>AbrirActualizarDocumentoAsync</c>.
+    /// </summary>
+    [Fact]
+    public async Task Si_la_recarga_cambia_el_Cliente_durante_la_deteccion_el_selector_no_ofrece_Empresas_del_anterior()
+    {
+        var conversacion = Conversacion("Documentación pendiente", ClienteRefrielectric);
+        ConversacionDetalleDto ConAdjunto(ConversacionDetalleDto detalle) => detalle with
+        {
+            Mensajes = [detalle.Mensajes[0] with { Adjuntos = [new AdjuntoDetalleDto(AdjuntoId, "tc2.pdf", "application/pdf", 2048)] }],
+        };
+        var escenario = new Escenario { Detalle = _ => ConAdjunto(DetalleDe(conversacion)) };
+        escenario.Conversaciones.Add(conversacion);
+        var empresasDelAnterior = new TaskCompletionSource<object?>(TaskCreationOptions.RunContinuationsAsynchronously);
+        escenario.Interceptar = peticion => peticion switch
+        {
+            ObtenerEmpresasParaSelectorQuery consulta when consulta.ClienteId == ClienteRefrielectric.Id => empresasDelAnterior.Task,
+            ObtenerEmpresasParaSelectorQuery => Task.FromResult<object?>(new List<EmpresaSelectorDto> { new(Guid.NewGuid(), "Montajes Ebro S.L.") }),
+            DetectarActualizacionDocumentoDesdeAdjuntoQuery => Task.FromResult<object?>(Result.Exito(new DeteccionActualizacionDocumentoDto(
+                AdjuntoId, null, null, CaeManager.Domain.Documentos.AmbitoAplicacion.Empresa, null, null, null, null, null, null, 80))),
+            _ => null,
+        };
+        var (cut, mediador) = Renderizar(escenario);
+        await SeleccionarFila(cut, "Documentación pendiente");
+
+        var apertura = cut.Find(".timeline-adjunto-actualizar-documento").ClickAsync(new MouseEventArgs());
+        cut.WaitForAssertion(() => mediador.Enviados.OfType<ObtenerEmpresasParaSelectorQuery>().Should().Contain(
+            c => c.ClienteId == ClienteRefrielectric.Id, "las Empresas del Cliente empresarial de la apertura están en vuelo"));
+        escenario.Detalle = _ => ConAdjunto(DetalleConEbro(conversacion));
+        await RecibirMensajeAsync(cut, conversacion.Id);
+        cut.WaitForAssertion(() => cut.Find(".bandeja-cliente-identidad").TextContent.Should().Contain(ClienteEbro.RazonSocial,
+            "control positivo: la recarga ya fijó el Cliente empresarial nuevo"));
+
+        await cut.InvokeAsync(() => empresasDelAnterior.SetResult(
+            new List<EmpresaSelectorDto> { new(Guid.NewGuid(), "Instalaciones del Cliente anterior S.L.") }));
+        await apertura;
+        cut.Render();
+
+        cut.Markup.Should().NotContain("Instalaciones del Cliente anterior S.L.", "el selector no ofrece Empresas del Cliente empresarial anterior");
+        cut.FindAll(".modal-actualizar-documento-formulario").Should().BeEmpty("los selectores del modal eran de la carga anterior");
+        HayToast(this, "La conversación se ha actualizado mientras se analizaba el adjunto").Should().BeTrue("se dice por qué se cerró");
+    }
+
     private static (Escenario Escenario, ConversacionListaDto Primera, ConversacionListaDto Segunda) DosConversacionesConPlantilla(MacroListaDto macro)
     {
         var escenario = new Escenario();
