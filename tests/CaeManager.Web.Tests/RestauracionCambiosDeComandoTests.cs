@@ -317,6 +317,9 @@ public class RestauracionCambiosDeComandoTests
     /// (<c>ApplicationServiceCollectionExtensions</c>), mientras el circuito se cierra. La restauración corre dentro de la
     /// puerta y es trabajo en memoria sobre el ChangeTracker, sin E/S ni esperas: el cierre la ve terminar dentro de su tope y
     /// la excepción que sale es la del tramo, no una de la restauración, aunque el DbContext ya se haya dispuesto.
+    /// El orden de los dos behaviors se compone aquí a mano; el del registro real lo fija
+    /// <c>ApplicationServiceCollectionExtensionsTests</c>. El contexto se dispone antes de restaurar, en secuencia: una
+    /// disposición en paralelo, tras vencer el tope del cierre, no la cubre este test.
     /// </summary>
     [Theory]
     [InlineData(false)]

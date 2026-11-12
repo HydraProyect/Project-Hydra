@@ -704,6 +704,40 @@ public sealed class DividirPdfPantallaTests : BunitContext
         registro.Entradas.Should().NotContain(e => e.Mensaje.Contains("Texto que no va al registro") || e.Mensaje.Contains("paquete"));
     }
 
+    [Theory]
+    [InlineData("cancelada")]
+    [InlineData("retenida")]
+    [InlineData("creado")]
+    public async Task Al_cerrarse_el_circuito_con_la_pantalla_aun_viva_el_registro_dice_cada_tramo(string corte)
+    {
+        // Revisión puente de la ronda 7: el circuito corta el lote (AlCerrarse) antes de desechar la pantalla, así que nadie
+        // verá el resultado aunque la pantalla aún no sepa que se va.
+        _mediador.ExcepcionCreacion = corte switch
+        {
+            "cancelada" => new OperationCanceledException(),
+            "retenida" => new EntradaPdfRetenidaException(),
+            _ => null,
+        };
+        var registro = new RegistroEspia();
+        await EmpezarLoteDeGuardarRetenidoAsync(registro, dosTramos: true);
+
+        await Services.GetRequiredService<PuertaAccesoDatos>().CerrarAsync(TimeSpan.FromSeconds(1));
+        _mediador.CreacionRetenida!.SetResult();
+
+        var plazo = DateTime.UtcNow.AddSeconds(5);
+        while (registro.Entradas.Count(e => e.Mensaje.Contains("pantalla ya cerrada: páginas")) < 2 && DateTime.UtcNow < plazo)
+            await Task.Delay(20);
+        var tramos = registro.Entradas.Where(e => e.Mensaje.Contains("pantalla ya cerrada: páginas")).ToList();
+        tramos.Should().HaveCount(2);
+        if (corte == "creado")
+            tramos.Should().OnlyContain(e => e.Nivel == LogLevel.Information && e.Mensaje.Contains("Creado, Documento "));
+        else
+            tramos.Should().OnlyContain(e => e.Mensaje.Contains("no intentado (" + CrearDocumentosDesdeDivisionCommandHandler.PrefijoNoIntentado
+                + (corte == "cancelada"
+                    ? CrearDocumentosDesdeDivisionCommandHandler.ErrorLoteCancelado
+                    : CrearDocumentosDesdeDivisionCommandHandler.ErrorSinTurno) + ")"));
+    }
+
     [Fact]
     public async Task Al_cerrarse_el_circuito_el_lote_de_Guardar_se_corta()
     {

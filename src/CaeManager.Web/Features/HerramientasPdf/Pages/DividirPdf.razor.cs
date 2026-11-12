@@ -469,13 +469,15 @@ public partial class DividirPdf : CaeManager.Web.Components.PaginaInteractiva, I
                 reserva?.Dispose();
             }
 
-            if (_desechado)
+            if (SinNadieQueLoVea)
             {
-                // Nadie va a mostrar el resultado: lo creado se ve en Documentos. La pantalla ya soltó sus recursos
-                // (RetirarOriginal cancelaría un _vistas ya dispuesto). El registro guarda el desenlace de cada tramo, para
-                // poder reconstruir qué se creó y qué no: páginas, estado, Documento y código, sin nombres ni contenido.
+                // Nadie va a mostrar el resultado: lo creado se ve en Documentos. El registro guarda el desenlace de cada
+                // tramo, para poder reconstruir qué se creó y qué no: páginas, estado, Documento y código, sin nombres ni
+                // contenido. Si la pantalla ya soltó sus recursos, no se toca su estado (RetirarOriginal cancelaría un _vistas
+                // ya dispuesto); si solo se está cerrando el circuito, sigue como siempre y la soltará al desecharse.
                 RegistrarResultadoSinPantalla(tramos, creacion);
-                return;
+                if (_desechado)
+                    return;
             }
 
             if (creacion.EsFallido)
@@ -495,11 +497,11 @@ public partial class DividirPdf : CaeManager.Web.Components.PaginaInteractiva, I
         }
         catch (Exception ex) when (ex is PresupuestoMemoriaAgotadoException or EntradaPdfRetenidaException)
         {
-            if (_desechado)
+            if (SinNadieQueLoVea)
                 RegistrarCorteSinPantalla(tramos, CrearDocumentosDesdeDivisionCommandHandler.ErrorSinTurno, ex);
             _error = Textos["ErrorSinEspacio"];
         }
-        catch (Exception ex) when (_desechado && ex is not OutOfMemoryException)
+        catch (Exception ex) when (SinNadieQueLoVea && ex is not OutOfMemoryException)
         {
             // Lo que sale de aquí sale sin ningún Documento creado (con Documentos, CreacionDivisionPdfPorTramos corta el lote
             // y lo devuelve): el cierre del circuito, la salida de la pantalla durante la reserva o un fallo antes del primer
@@ -514,6 +516,12 @@ public partial class DividirPdf : CaeManager.Web.Components.PaginaInteractiva, I
             _creando = false;
         }
     }
+
+    /// <summary>
+    /// Nadie verá el resultado de Guardar: la pantalla ya se desechó, o el circuito se está cerrando, que corta el lote
+    /// (<c>PuertaAccesoDatos.AlCerrarse</c>) antes de desechar la pantalla.
+    /// </summary>
+    private bool SinNadieQueLoVea => _desechado || PuertaAccesoDatos.Cerrada;
 
     /// <summary>
     /// El lote de Guardar se cortó sin crear nada con la pantalla ya cerrada: una línea por tramo con sus páginas, «no
