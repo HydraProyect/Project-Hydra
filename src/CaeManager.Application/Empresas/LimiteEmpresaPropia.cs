@@ -38,9 +38,10 @@ public static class ErroresLimiteEmpresaPropia
 
     public static readonly Error UnaSolaEmpresaPropia = Error.Crear(
         "Empresa.LimiteEmpresaPropia",
-        "Tu Producto Contratado incluye una sola Empresa propia y tu organización ya la tiene. Si la nueva empresa es "
-        + "del mismo grupo, pide la ampliación a Soporte TALVEG. Si es de otra organización, dala de alta como Cliente "
-        + "o como Subcontrata: no cuentan para este límite.");
+        // Neutro respecto al Producto Contratado (el Tenant TEC participante no tiene ninguno, EP-1) y sin prometer la
+        // ampliación de grupo, que todavía no existe. Sirve también para restaurar desde la Papelera.
+        "Tu organización ya tiene su Empresa propia y solo puede tener una activa. Si la empresa es de otra "
+        + "organización, regístrala como Cliente o como Subcontrata: no cuentan para este límite.");
 }
 
 public sealed class LimiteEmpresaPropia(
@@ -54,10 +55,13 @@ public sealed class LimiteEmpresaPropia(
     {
         ArgumentOutOfRangeException.ThrowIfNegative(propiasAnadidasSinGuardar);
 
-        // El filtro global deja solo las del Tenant actual, y RLS repite el Tenant. La condición de activa va también
-        // escrita: restaurar lee la Empresa de la Papelera con IgnoreQueryFilters en el mismo contexto, y la que se
-        // está restaurando no puede contarse a sí misma.
-        var activas = await empresasContext.Empresas.CountAsync(e => e.EsPropia && !e.EstaEliminado, cancellationToken);
+        // El filtro global ya deja solo las activas del Tenant actual, y RLS repite el Tenant. Las dos condiciones van
+        // también escritas, para que el recuento no dependa de ellos: restaurar lee la Empresa de la Papelera con
+        // IgnoreQueryFilters en el mismo contexto, y la que se está restaurando no puede contarse a sí misma. Sin
+        // Tenant actual no hay nada que contar, y el escritor fallaría después al sellar la fila.
+        var tenantId = tenantActual.TenantId;
+        var activas = await empresasContext.Empresas.CountAsync(
+            e => e.TenantId == tenantId && e.EsPropia && !e.EstaEliminado, cancellationToken);
         if (activas + propiasAnadidasSinGuardar < ErroresLimiteEmpresaPropia.MaximoEmpresasPropias)
             return null;
 
@@ -66,8 +70,8 @@ public sealed class LimiteEmpresaPropia(
             // Aviso a Soporte TALVEG por el canal de alertas operativas que ya existe. Sin razón social ni CIF de la
             // empresa intentada: basta el Tenant para que Soporte TALVEG lo mire.
             alertaOperativa.Emitir(
-                $"Límite de Empresa propia (D-P11): el Tenant {tenantActual.TenantId} ha intentado dar de alta otra "
-                + "Empresa propia y se ha rechazado. Si es del mismo grupo, la ampliación pasa por Soporte TALVEG.",
+                $"Límite de Empresa propia (D-P11): se ha rechazado dar de alta o restaurar otra Empresa propia en el "
+                + $"Tenant {tenantId}, que ya tiene una activa.",
                 NivelAlertaOperativa.Aviso);
         }
 

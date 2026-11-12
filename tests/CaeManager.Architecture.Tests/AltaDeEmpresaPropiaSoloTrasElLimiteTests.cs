@@ -12,7 +12,17 @@ namespace CaeManager.Architecture.Tests;
 /// </summary>
 public class AltaDeEmpresaPropiaSoloTrasElLimiteTests
 {
-    private static readonly Regex ConstruccionDeEmpresa = new(@"\bnew\s+Empresa\s*\(", RegexOptions.Compiled);
+    // También con el nombre calificado (new CaeManager.Domain.Empresas.Empresa(...), new global::...). No ve un
+    // `new(...)` con tipo destino ni un alias de using: hueco conocido de un instrumento de texto.
+    private static readonly Regex ConstruccionDeEmpresa = new(@"\bnew\s+(?:global::)?(?:\w+\.)*Empresa\s*\(", RegexOptions.Compiled);
+
+    // Restaurar una Empresa desde la Papelera también puede dejar una Empresa propia activa más.
+    private static readonly string[] RestauracionesConLimite =
+    [
+        "src/CaeManager.Application/Empresas/Commands/RestaurarEmpresa/RestaurarEmpresaCommand.cs",
+        "src/CaeManager.Application/Clientes/Commands/RestaurarCliente/RestaurarClienteCommand.cs",
+        "src/CaeManager.Application/Subcontratas/Commands/RestaurarSubcontrata/RestaurarSubcontrataCommand.cs",
+    ];
 
     private static readonly string[] EscritoresConLimite =
     [
@@ -54,10 +64,12 @@ public class AltaDeEmpresaPropiaSoloTrasElLimiteTests
     {
         var raiz = RaizDelRepositorio();
 
-        foreach (var escritor in EscritoresConLimite)
+        foreach (var escritor in EscritoresConLimite.Concat(RestauracionesConLimite))
         {
             var codigo = File.ReadAllText(Path.Combine(raiz, escritor));
-            codigo.Should().Contain("ComprobarAltaAsync(", $"{escritor} construye una Empresa propia");
+            // El límite llega por el constructor del handler, no lo resuelve un helper aparte.
+            codigo.Should().Contain("ILimiteEmpresaPropia", $"{escritor} recibe el límite de Empresa propia");
+            codigo.Should().Contain("ComprobarAltaAsync(", $"{escritor} puede dejar una Empresa propia activa más");
         }
     }
 

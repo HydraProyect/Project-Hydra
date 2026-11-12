@@ -985,4 +985,25 @@ public class EjecutarImportacionMaestraTests
         var r = (await e.EjecutarAsync(Plan([FilaEmpresa()]))).Valor;
 
         r.EmpresasCreadas.Should().Be(1);
-    }}
+    }
+
+    [Fact]
+    public async Task D_P11_la_maestra_crea_la_primera_Empresa_propia_y_omite_las_demas_con_un_solo_aviso()
+    {
+        var e = new Escenario();
+        var alertas = new CaeManager.Application.Tests.Common.AlertaOperativaFalsa();
+        e.Limite = CaeManager.Application.Tests.Empresas.LimitesDePrueba.Sobre(e.Empresas, alertas);
+        var plan = Plan(
+        [
+            FilaEmpresa(fila: 3),
+            FilaEmpresa(fila: 4) with { RazonSocial = "Segunda propia, S.L.", Cif = "B12345674" },
+            FilaEmpresa(fila: 5) with { RazonSocial = "Tercera propia, S.L.", Cif = "B10380186" },
+        ]);
+
+        var r = (await e.EjecutarAsync(plan)).Valor;
+
+        r.EmpresasCreadas.Should().Be(1, "las filas sin guardar de la misma importación también cuentan");
+        e.EmpresaRepositorio.Empresas.Should().ContainSingle().Which.RazonSocial.Should().Be("Industrias Ficticias, S.L.");
+        alertas.Alertas.Should().ContainSingle("un aviso por comando, no por fila");
+    }
+}

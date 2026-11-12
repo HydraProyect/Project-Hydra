@@ -43,7 +43,7 @@ public class LimiteEmpresaPropiaTests
     {
         var tenantId = Guid.NewGuid();
         var empresas = new EmpresasQueryContextFalso();
-        empresas.ListaEmpresas.Add(PropiaActiva());
+        empresas.ListaEmpresas.Add(ConTenant(PropiaActiva(), tenantId));
         var alertas = new AlertaOperativaFalsa();
         var repo = new EmpresaRepositorioFalso();
         var uow = new UnitOfWorkFalso();
@@ -52,12 +52,38 @@ public class LimiteEmpresaPropiaTests
 
         resultado.EsExitoso.Should().BeFalse();
         resultado.Error.Codigo.Should().Be(CodigoLimite);
-        resultado.Error.Mensaje.Should().Contain("Empresa propia").And.Contain("Producto Contratado").And.Contain("Soporte TALVEG");
+        // Sin Producto Contratado ni ampliación de grupo en el texto: el Tenant TEC participante no tiene ninguno de
+        // los dos (EP-1), y la ampliación todavía no existe.
+        resultado.Error.Mensaje.Should().Contain("Empresa propia").And.Contain("solo puede tener una")
+            .And.NotContain("Producto Contratado").And.NotContain("ampliación");
         uow.VecesGuardado.Should().Be(0);
         repo.Empresas.Should().BeEmpty();
         var aviso = alertas.Alertas.Should().ContainSingle().Which;
         aviso.Nivel.Should().Be(NivelAlertaOperativa.Aviso);
-        aviso.Mensaje.Should().Contain(tenantId.ToString()).And.NotContain("Nueva identidad", "el aviso no lleva la razón social intentada");
+        aviso.Mensaje.Should().Contain(tenantId.ToString())
+            .And.NotContain("Nueva identidad", "el aviso no lleva la razón social intentada")
+            .And.NotContain("B12345674", "ni el CIF intentado");
+    }
+
+    /// <summary>
+    /// El recuento es del Tenant actual aunque el contexto devuelva filas de otro: el doble no filtra por Tenant,
+    /// así que este test cae si el límite deja de escribir la condición de Tenant y se fía solo del filtro global.
+    /// </summary>
+    [Fact]
+    public async Task CrearEmpresa_permitida_cuando_la_Empresa_propia_activa_es_de_otro_Tenant()
+    {
+        var tenantId = Guid.NewGuid();
+        var empresas = new EmpresasQueryContextFalso();
+        empresas.ListaEmpresas.Add(ConTenant(PropiaActiva(), Guid.NewGuid()));
+        var alertas = new AlertaOperativaFalsa();
+        var repo = new EmpresaRepositorioFalso();
+        var uow = new UnitOfWorkFalso();
+
+        var resultado = await CrearEmpresa(repo, empresas, uow, LimitesDePrueba.Sobre(empresas, alertas, tenantId));
+
+        resultado.EsExitoso.Should().BeTrue();
+        repo.Empresas.Should().ContainSingle().Which.EsPropia.Should().BeTrue();
+        alertas.Alertas.Should().BeEmpty();
     }
 
     /// <summary>
@@ -200,6 +226,26 @@ public class LimiteEmpresaPropiaTests
         resultado.Omitidos.Should().ContainSingle();
         escenario.EmpresaRepositorio.Empresas.Should().BeEmpty();
         alertas.Alertas.Should().ContainSingle();
+    }
+
+    [Fact]
+    public async Task EjecutarImportacionCombinada_crea_la_primera_Empresa_propia_y_omite_las_demas_con_un_solo_aviso()
+    {
+        var escenario = new EscenarioImportacionCombinada();
+        var alertas = new AlertaOperativaFalsa();
+        escenario.Limite = LimitesDePrueba.Sobre(new EmpresasQueryContextFalso(), alertas);
+
+        var resultado = await escenario.EjecutarAsync(EscenarioImportacionCombinada.Plan(empresas:
+        [
+            new EmpresaCombinadaImportadaDto("Primera propia, S.L.", [], false, 2),
+            new EmpresaCombinadaImportadaDto("Segunda propia, S.L.", [], false, 3),
+            new EmpresaCombinadaImportadaDto("Tercera propia, S.L.", [], false, 4),
+        ]));
+
+        resultado.EmpresasCreadas.Should().Be(1, "las filas sin guardar de la misma importación también cuentan");
+        resultado.Omitidos.Should().HaveCount(2);
+        escenario.EmpresaRepositorio.Empresas.Should().ContainSingle().Which.RazonSocial.Should().Be("Primera propia, S.L.");
+        alertas.Alertas.Should().ContainSingle("un aviso por comando, no por fila");
     }
 
     [Fact]

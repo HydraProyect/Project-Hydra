@@ -12,9 +12,13 @@ public static class LimitesDePrueba
     public static LimiteEmpresaPropia SinEmpresaPropia() =>
         new(new EmpresasQueryContextFalso(), new TenantActualFijo(Guid.NewGuid()), new AlertaOperativaFalsa());
 
-    /// <summary>El límite sobre <paramref name="empresas"/>, el mismo contexto que lee el handler.</summary>
+    /// <summary>
+    /// El límite sobre <paramref name="empresas"/>, el mismo contexto que lee el handler. Sin
+    /// <paramref name="tenantId"/>, el Tenant actual es <see cref="Guid.Empty"/>, el que tiene una Empresa construida
+    /// en el test sin sellar: el doble de contexto no filtra por Tenant y el límite sí.
+    /// </summary>
     public static LimiteEmpresaPropia Sobre(EmpresasQueryContextFalso empresas, AlertaOperativaFalsa alertas, Guid? tenantId = null) =>
-        new(empresas, new TenantActualFijo(tenantId ?? Guid.NewGuid()), alertas);
+        new(empresas, new TenantActualFijo(tenantId ?? Guid.Empty), alertas);
 
     public sealed class TenantActualFijo(Guid? tenantId) : ITenantActual
     {
