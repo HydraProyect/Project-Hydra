@@ -13,7 +13,7 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace CaeManager.Migrations.PostgreSQL.Migrations
 {
     [DbContext(typeof(CaeManagerDbContext))]
-    [Migration("20261111210454_AltaDatosOrganizacionYCredencialContinuacion")]
+    [Migration("20261112120000_AltaDatosOrganizacionYCredencialContinuacion")]
     partial class AltaDatosOrganizacionYCredencialContinuacion
     {
         /// <inheritdoc />
@@ -7839,14 +7839,24 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                     b.Property<Guid?>("ClienteId")
                         .HasColumnType("uuid");
 
+                    b.Property<Guid?>("ConsentidoPorUsuarioId")
+                        .HasColumnType("uuid");
+
                     b.Property<DateTime>("CreadoEnUtc")
                         .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("DirectorioEntraId")
+                        .HasMaxLength(36)
+                        .HasColumnType("character varying(36)");
 
                     b.Property<DateTime?>("EliminadoEnUtc")
                         .HasColumnType("timestamp with time zone");
 
                     b.Property<Guid?>("EliminadoPorUsuarioId")
                         .HasColumnType("uuid");
+
+                    b.Property<bool>("EsBuzonCompartido")
+                        .HasColumnType("boolean");
 
                     b.Property<bool>("EstaEliminado")
                         .HasColumnType("boolean");
@@ -7860,6 +7870,19 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                     b.Property<Guid?>("GestorPropietarioId")
                         .HasColumnType("uuid");
 
+                    b.Property<DateTime?>("HuecoPendienteDesdeUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("IdentidadBuzon")
+                        .HasMaxLength(512)
+                        .HasColumnType("character varying(512)");
+
+                    b.Property<DateTime?>("IdentidadVerificadaUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime?>("MarcaHuecoPorRegistrarDesdeUtc")
+                        .HasColumnType("timestamp with time zone");
+
                     b.Property<string>("Nombre")
                         .IsRequired()
                         .HasMaxLength(200)
@@ -7867,6 +7890,9 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
 
                     b.Property<int>("Proveedor")
                         .HasColumnType("integer");
+
+                    b.Property<DateTime?>("ReintentoVerificacionNoAntesDeUtc")
+                        .HasColumnType("timestamp with time zone");
 
                     b.Property<Guid?>("ResponsableUsuarioId")
                         .HasColumnType("uuid");
@@ -7893,7 +7919,10 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                     b.HasIndex("TenantId", "Nombre")
                         .IsUnique();
 
-                    b.ToTable("ConexionesIntegracion", (string)null);
+                    b.ToTable("ConexionesIntegracion", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_ConexionesIntegracion_BuzonCompartidoConDirectorio", "NOT \"EsBuzonCompartido\" OR (\"DirectorioEntraId\" IS NOT NULL AND \"GestorPropietarioId\" IS NULL AND \"ClienteId\" IS NULL)");
+                        });
                 });
 
             modelBuilder.Entity("CaeManager.Domain.Integraciones.ConexionPlataformaCae", b =>
@@ -8572,6 +8601,16 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                     b.Property<Guid>("ConexionIntegracionId")
                         .HasColumnType("uuid");
 
+                    b.Property<bool>("EsBuzonCompartido")
+                        .HasColumnType("boolean");
+
+                    b.Property<DateTime?>("FueraDeGuardaTransitoriaUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("IdentidadBuzon")
+                        .HasMaxLength(512)
+                        .HasColumnType("character varying(512)");
+
                     b.Property<DateTime>("ReclamadoEnUtc")
                         .HasColumnType("timestamp with time zone");
 
@@ -8587,6 +8626,11 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                     b.HasIndex("ConexionIntegracionId")
                         .IsUnique();
 
+                    b.HasIndex("IdentidadBuzon")
+                        .IsUnique()
+                        .HasDatabaseName("IX_ReclamacionesBuzonIntegracion_IdentidadBuzon")
+                        .HasFilter("\"IdentidadBuzon\" IS NOT NULL");
+
                     b.ToTable("ReclamacionesBuzonIntegracion", (string)null);
                 });
 
@@ -8595,6 +8639,10 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid");
+
+                    b.Property<string>("BuzonCompartido")
+                        .HasMaxLength(320)
+                        .HasColumnType("character varying(320)");
 
                     b.Property<Guid?>("ClienteId")
                         .HasColumnType("uuid");
