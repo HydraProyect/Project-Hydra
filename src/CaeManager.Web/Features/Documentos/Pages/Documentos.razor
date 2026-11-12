@@ -535,6 +535,10 @@
 
     </text>;
 
+    /// <summary>Quien puede recibir «Abrir portal»: todos los roles del Tenant salvo Cliente, el mismo corte que ObtenerCentroIdsParaGestionAsync.</summary>
+    private const string RolesQueAbrenPortal =
+        $"{CaeManager.Infrastructure.Identity.Roles.ConEscrituraCsv},{CaeManager.Infrastructure.Identity.Roles.Consulta}";
+
     /// <summary>Columnas de la tabla: las cinco de siempre, la de selección, la de expandir y, por Plataforma CAE, «Estado en la plataforma».</summary>
     private int ColumnasTabla => 5 + (_seleccionMultiple ? 1 : 0) + (HayDestinos ? 1 : 0) + (AgrupadaPorPlataforma ? 1 : 0);
 
@@ -589,10 +593,13 @@
                         }
                         @if (portal is not null)
                         {
-                            @* La dirección del canal, nunca la credencial: igual que en la pestaña Plataformas CAE. *@
-                            <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" class="documentos-abrir-portal"
-                                   Href="@portal" target="_blank" rel="noopener noreferrer"
-                                   aria-label="@TextosPlataformaAcreditacion.Formato("AbrirPortalEtiqueta", nombre)">@TextosPlataformaAcreditacion.Texto("AbrirPortal")</Boton>
+                            @* La dirección del canal, nunca la credencial: igual que en la pestaña Plataformas CAE. El servidor ya
+                               no la manda al rol Cliente (lee, no opera); la página tampoco la ofrece aunque llegara. *@
+                            <AuthorizeView Roles="@RolesQueAbrenPortal" Context="autorizacionPortal">
+                                <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" class="documentos-abrir-portal"
+                                       Href="@portal" target="_blank" rel="noopener noreferrer"
+                                       aria-label="@TextosPlataformaAcreditacion.Formato("AbrirPortalEtiqueta", nombre)">@TextosPlataformaAcreditacion.Texto("AbrirPortal")</Boton>
+                            </AuthorizeView>
                         }
                     </span>
                 }

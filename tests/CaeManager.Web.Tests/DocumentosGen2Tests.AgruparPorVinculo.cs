@@ -1,0 +1,429 @@
+using AngleSharp.Dom;
+using Bunit;
+using CaeManager.Application.Common;
+using CaeManager.Application.Documentos.Commands;
+using CaeManager.Application.Documentos.Commands.ConfirmarVigenciaAcreditacion;
+using CaeManager.Application.Documentos.Queries.ObtenerDocumentos;
+using CaeManager.Domain.Common;
+using CaeManager.Domain.Documentos;
+using CaeManager.Web.Components.DesignSystem;
+using FluentAssertions;
+using Microsoft.AspNetCore.Components;
+using Microsoft.AspNetCore.Components.Web;
+using Microsoft.Extensions.DependencyInjection;
+
+namespace CaeManager.Web.Tests;
+
+using PaginaDocumentos = CaeManager.Web.Features.Documentos.Pages.Documentos;
+
+/// <summary>
+/// P-1 (2026-11-12): «Agrupar por» Plataforma CAE y Cliente empresarial, el filtro «Estado en la plataforma», la cabecera
+/// de grupo con los recuentos del servidor, «Abrir portal» y «Anotar vigencia (N)». Antes, lo que el listado ya tenía en
+/// main (fila, acciones y permisos por rol) se fija también con las dos agrupaciones nuevas.
+/// <para>
+/// No observa el alcance de cartera ni la regla de «URL única» (las decide el handler, en Application); aquí la consulta
+/// es un doble y solo se mira lo que la página hace con lo que recibe.
+/// </para>
+/// </summary>
+public partial class DocumentosGen2Tests
+{
+    private static readonly Guid NalandaId = Guid.NewGuid();
+    private static readonly Guid CtaimaId = Guid.NewGuid();
+    private static readonly Guid ClienteNorteId = Guid.NewGuid();
+
+    private sealed record EscenarioVinculos(
+        DocumentoListaDto SinVigencia, DocumentoListaDto Rechazado, DocumentoListaDto Pendiente, DocumentoListaDto SinVinculo,
+        Guid AcreditacionNorte, Guid AcreditacionSur, MediadorControlado Mediador);
+
+    private static DocumentoListaDto EnPlataforma(DocumentoListaDto documento, Guid proveedorId, Guid acreditacionId,
+        EstadoAcreditacion estado, string clienteEmpresarial, string? motivo = null) =>
+        documento with
+        {
+            Grupo = new GrupoDeFilaDocumentalDto(proveedorId.ToString(), new AcreditacionEnGrupoDto(
+                acreditacionId, estado, EstadoVigenciaEnPlataforma.SinConfirmar, clienteEmpresarial, motivo))
+        };
+
+    private static ResumenDeGrupoDocumental ResumenPlataforma(string nombre, int total, string? url,
+        params (EstadoEnPlataformaFiltro Estado, int Cuantas)[] enPlataforma) =>
+        new(total, new Dictionary<string, int>(), nombre, enPlataforma.ToDictionary(x => x.Estado, x => x.Cuantas), url);
+
+    /// <summary>
+    /// Cuatro Documentos: uno aceptado sin vigencia en Nalanda para dos Clientes empresariales (dos filas), uno rechazado
+    /// en Nalanda, uno pendiente en Ctaima y uno sin vínculo. Los recuentos de las cabeceras son mayores que la página a
+    /// propósito: la página debe pintar los del servidor, no contar sus filas.
+    /// </summary>
+    private static EscenarioVinculos ConVinculos(string? urlNalanda = "https://nalanda.example.com")
+    {
+        var sinVigencia = DocumentoDeFila();
+        var rechazado = DocumentoDeFila() with { Id = Guid.NewGuid(), PropietarioNombre = "Ana Ruiz Pardo" };
+        var pendiente = DocumentoDeFila() with { Id = Guid.NewGuid(), PropietarioNombre = "Luis Mora Gil" };
+        var sinVinculo = DocumentoDeFila() with { Id = Guid.NewGuid(), PropietarioNombre = "Eva Soto Paz" };
+        var norte = Guid.NewGuid();
+        var sur = Guid.NewGuid();
+        var porPlataforma = new[]
+        {
+            EnPlataforma(sinVigencia, NalandaId, norte, EstadoAcreditacion.Aceptada, "Cliente Norte"),
+            EnPlataforma(sinVigencia, NalandaId, sur, EstadoAcreditacion.Aceptada, "Cliente Sur"),
+            EnPlataforma(rechazado, NalandaId, Guid.NewGuid(), EstadoAcreditacion.Rechazada, "Cliente Norte", "Ilegible"),
+            EnPlataforma(pendiente, CtaimaId, Guid.NewGuid(), EstadoAcreditacion.PendienteDeSubir, "Cliente Norte"),
+            sinVinculo with { Grupo = new GrupoDeFilaDocumentalDto(ObtenerDocumentosQuery.GrupoSin) },
+        };
+        var porCliente = new[]
+        {
+            sinVigencia with { Grupo = new GrupoDeFilaDocumentalDto(ClienteNorteId.ToString()) },
+            rechazado with { Grupo = new GrupoDeFilaDocumentalDto(ClienteNorteId.ToString()) },
+            sinVinculo with { Grupo = new GrupoDeFilaDocumentalDto(ObtenerDocumentosQuery.GrupoSin) },
+        };
+        var resumenPlataforma = new Dictionary<string, ResumenDeGrupo>
+        {
+            [NalandaId.ToString()] = ResumenPlataforma("Nalanda", 7, urlNalanda,
+                (EstadoEnPlataformaFiltro.Rechazado, 1), (EstadoEnPlataformaFiltro.SinVigencia, 4)),
+            [CtaimaId.ToString()] = ResumenPlataforma("Ctaima", 1, null, (EstadoEnPlataformaFiltro.PendienteDeSubir, 1)),
+            [ObtenerDocumentosQuery.GrupoSin] = ResumenPlataforma(string.Empty, 1, null),
+        };
+        var resumenCliente = new Dictionary<string, ResumenDeGrupo>
+        {
+            [ClienteNorteId.ToString()] = new ResumenDeGrupoDocumental(12,
+                new Dictionary<string, int> { [nameof(EstadoDocumento.Vencido)] = 3, [nameof(EstadoDocumento.Urgente)] = 1 },
+                "Cliente Norte", new Dictionary<EstadoEnPlataformaFiltro, int>(), "https://no-debe-pintarse.example.com"),
+            [ObtenerDocumentosQuery.GrupoSin] = ResumenPlataforma(string.Empty, 1, null),
+        };
+        var mediador = new MediadorControlado
+        {
+            Documentos = q => q.AgruparPor switch
+            {
+                AgrupacionDocumentos.PlataformaCae => porPlataforma,
+                AgrupacionDocumentos.ClienteEmpresarial => porCliente,
+                _ => [sinVigencia, rechazado, pendiente, sinVinculo],
+            },
+            ResumenesDeGrupo = q => q.AgruparPor switch
+            {
+                AgrupacionDocumentos.PlataformaCae => resumenPlataforma,
+                AgrupacionDocumentos.ClienteEmpresarial => resumenCliente,
+                _ => null,
+            },
+        };
+        return new EscenarioVinculos(sinVigencia, rechazado, pendiente, sinVinculo, norte, sur, mediador);
+    }
+
+    private static async Task Agrupar(IRenderedComponent<PaginaDocumentos> cut, string opcion)
+    {
+        await cut.Find("button[aria-label^='Agrupar']").ClickAsync(new MouseEventArgs());
+        await cut.FindAll("[role=menuitemradio]").Single(b => b.TextContent.Trim() == opcion).ClickAsync(new MouseEventArgs());
+    }
+
+    private static IElement CabeceraDeVinculo(IRenderedComponent<PaginaDocumentos> cut, string clave) =>
+        cut.Find($"tr.documentos-cabecera-grupo-vinculo[data-grupo='{clave}']");
+
+    private static IReadOnlyList<string> NombresDeVinculo(IRenderedComponent<PaginaDocumentos> cut) =>
+        cut.FindAll("tr.documentos-cabecera-grupo-vinculo .grupo-lista-nombre").Select(n => n.TextContent.Trim()).ToList();
+
+    private static IReadOnlyList<string> ResumenDeVinculo(IElement cabecera) =>
+        cabecera.QuerySelectorAll(".grupo-lista-resumen-estado").Select(n => n.TextContent.Trim()).ToList();
+
+    // ------------------------------------------------------------- lo de main, con las agrupaciones nuevas
+
+    /// <summary>
+    /// Inventario de lo que la fila tenía en main y sigue igual al agrupar por vínculo: el nombre que abre la vista rápida,
+    /// el propietario, las insignias de plataformas, «Ver», «Gestionar» y el 360 solo con escritura, y «Selección
+    /// múltiple» solo con escritura. Sin agrupar, la tabla no gana la columna nueva.
+    /// </summary>
+    [Theory]
+    [InlineData("Administrador", true, "Por Plataforma CAE")]
+    [InlineData("GestorCae", true, "Por Plataforma CAE")]
+    [InlineData("Consulta", false, "Por Plataforma CAE")]
+    [InlineData("Cliente", false, "Por Plataforma CAE")]
+    [InlineData("Administrador", true, "Por Cliente empresarial")]
+    [InlineData("Consulta", false, "Por Cliente empresarial")]
+    [InlineData("Cliente", false, "Por Cliente empresarial")]
+    public async Task Agrupar_por_vinculo_conserva_la_fila_y_las_acciones_de_main_por_rol(string rol, bool escritura, string agrupacion)
+    {
+        var e = ConVinculos();
+        var conInsignia = e.SinVigencia with { Acreditaciones = [new AcreditacionResumenDto(e.AcreditacionNorte, "Nalanda", EstadoAcreditacion.Aceptada)] };
+        var documentos = e.Mediador.Documentos;
+        e.Mediador.Documentos = q => documentos(q).Select(d => d.Id == conInsignia.Id ? d with { Acreditaciones = conInsignia.Acreditaciones } : d).ToList();
+        var (cut, _) = Renderizar(e.Mediador, rol: rol);
+        cut.WaitForAssertion(() => cut.Find("tbody button.enlace-nombre-fila"));
+        cut.FindAll(".documentos-tabla-visible thead th").Select(h => h.TextContent.Trim())
+            .Should().Equal("Documento", "Propietario", "Vence", "Estado documental", "Acciones");
+
+        await Agrupar(cut, agrupacion);
+
+        cut.WaitForAssertion(() => cut.FindAll("tr.documentos-cabecera-grupo-vinculo").Should().NotBeEmpty());
+        var filas = cut.FindAll(".documentos-tabla-visible tbody tr:has(button.enlace-nombre-fila)");
+        filas.Should().NotBeEmpty();
+        foreach (var fila in filas)
+        {
+            fila.QuerySelectorAll("button.enlace-nombre-fila").Should().HaveCount(2, "nombre del documento y propietario abren la vista rápida");
+            fila.QuerySelectorAll("button").Should().Contain(b => b.TextContent.Trim() == "Ver");
+            fila.QuerySelectorAll(".documentos-accion-rapida").Should().HaveCount(escritura ? 1 : 0);
+            fila.QuerySelectorAll("a.boton-360-pagina").Should().HaveCount(escritura ? 1 : 0);
+        }
+        cut.FindAll(".documentos-tabla-visible tbody .documentos-plataformas").Should().NotBeEmpty(
+            "las insignias de plataformas de la fila siguen ahí");
+        cut.FindAll(".cabecera-pagina button[aria-label='Selección múltiple']").Should().HaveCount(escritura ? 1 : 0);
+        cut.FindAll(".barra-acciones-lote").Should().BeEmpty();
+        var columnas = cut.FindAll(".documentos-tabla-visible thead th").Select(h => h.TextContent.Trim()).ToList();
+        if (agrupacion == "Por Plataforma CAE")
+            columnas.Should().Equal("Documento", "Propietario", "Vence", "Estado documental", "Estado en la plataforma", "Acciones");
+        else
+            columnas.Should().Equal("Documento", "Propietario", "Vence", "Estado documental", "Acciones");
+    }
+
+    // ------------------------------------------------------------- opciones de «Agrupar»
+
+    [Fact]
+    public async Task Agrupar_ofrece_las_cuatro_opciones_y_cada_una_pide_su_agrupacion()
+    {
+        var e = ConVinculos();
+        var (cut, mediador) = Renderizar(e.Mediador);
+        cut.WaitForAssertion(() => cut.Find("tbody button.enlace-nombre-fila"));
+
+        await cut.Find("button[aria-label='Agrupar: no']").ClickAsync(new MouseEventArgs());
+        cut.FindAll("[role=menuitemradio]").Select(b => b.TextContent.Trim())
+            .Should().Equal("Sin agrupar", "Por ámbito", "Por Plataforma CAE", "Por Cliente empresarial");
+        await cut.FindAll("[role=menuitemradio]").Single(b => b.TextContent.Trim() == "Por Plataforma CAE").ClickAsync(new MouseEventArgs());
+
+        cut.WaitForAssertion(() => UltimaConsultaDeDocumentos(mediador).AgruparPor.Should().Be(AgrupacionDocumentos.PlataformaCae));
+        UltimaConsultaDeDocumentos(mediador).AgruparPorAmbito.Should().BeFalse();
+        UltimaConsultaDeDocumentos(mediador).TamanoPagina.Should().Be(AgrupacionDeLista.TamanoPaginaAgrupada,
+            "agrupada por vínculo, la pantalla también pide todas las filas filtradas");
+        cut.WaitForAssertion(() => cut.FindAll("button[aria-label^='Agrupar']").Select(b => b.GetAttribute("aria-label")).Should().Equal("Agrupar por: Plataforma CAE"));
+
+        await Agrupar(cut, "Por Cliente empresarial");
+        cut.WaitForAssertion(() => UltimaConsultaDeDocumentos(mediador).AgruparPor.Should().Be(AgrupacionDocumentos.ClienteEmpresarial));
+        cut.WaitForAssertion(() => cut.FindAll("button[aria-label^='Agrupar']").Select(b => b.GetAttribute("aria-label")).Should().Equal("Agrupar por: Cliente empresarial"));
+
+        await Agrupar(cut, "Por ámbito");
+        cut.WaitForAssertion(() => UltimaConsultaDeDocumentos(mediador).AgruparPorAmbito.Should().BeTrue());
+        UltimaConsultaDeDocumentos(mediador).AgruparPor.Should().BeNull("por Ámbito sigue siendo su propia agrupación");
+        cut.FindAll("tr.documentos-cabecera-grupo-vinculo").Should().BeEmpty();
+
+        await Agrupar(cut, "Sin agrupar");
+        cut.WaitForAssertion(() => UltimaConsultaDeDocumentos(mediador).AgruparPorAmbito.Should().BeFalse());
+        UltimaConsultaDeDocumentos(mediador).AgruparPor.Should().BeNull();
+        cut.FindAll("button.grupo-lista-cabecera").Should().BeEmpty();
+    }
+
+    // ------------------------------------------------------------- cabecera de grupo
+
+    [Fact]
+    public async Task Por_Plataforma_CAE_la_cabecera_pinta_los_recuentos_del_servidor_y_el_grupo_sin_va_al_final_plegado()
+    {
+        var e = ConVinculos();
+        var (cut, _) = Renderizar(e.Mediador);
+        cut.WaitForAssertion(() => cut.Find("tbody button.enlace-nombre-fila"));
+
+        await Agrupar(cut, "Por Plataforma CAE");
+
+        cut.WaitForAssertion(() => NombresDeVinculo(cut).Should().Equal("Ctaima", "Nalanda", "Sin Plataforma CAE"));
+        var nalanda = CabeceraDeVinculo(cut, NalandaId.ToString());
+        ResumenDeVinculo(nalanda).Should().Equal(["1 rechazado", "4 sin vigencia"], "un cero no se pinta");
+        nalanda.QuerySelector(".grupo-lista-contador")!.TextContent.Trim().Should().Be("3 de 7",
+            "el total es el del servidor, no las tres filas de la página");
+        ResumenDeVinculo(CabeceraDeVinculo(cut, CtaimaId.ToString())).Should().Equal("1 pendiente de subir");
+        CabeceraDeVinculo(cut, ObtenerDocumentosQuery.GrupoSin).QuerySelector("button.grupo-lista-cabecera")!
+            .GetAttribute("aria-expanded").Should().Be("false", "el grupo «Sin Plataforma CAE» nace plegado");
+        nalanda.QuerySelector("button.grupo-lista-cabecera")!.GetAttribute("aria-expanded").Should().Be("true");
+        cut.FindAll("tbody button.enlace-nombre-fila").Should().NotContain(b => b.TextContent.Contains("Eva Soto Paz"),
+            "las filas de un grupo plegado no se pintan");
+
+        var enPlataforma = cut.FindAll("tbody .documentos-en-plataforma");
+        enPlataforma.Should().HaveCount(4);
+        enPlataforma.Select(c => c.QuerySelector(".documentos-en-plataforma-cliente")!.TextContent.Trim())
+            .Should().Equal("Cliente Norte", "Cliente Norte", "Cliente Sur", "Cliente Norte");
+        var rechazado = enPlataforma.Single(c => c.QuerySelector(".documentos-en-plataforma-motivo") is not null);
+        rechazado.TextContent.Should().Contain("Rechazad").And.Contain("Ilegible");
+        enPlataforma.Count(c => c.TextContent.Contains("Sin vigencia")).Should().Be(2);
+
+        await CabeceraDeVinculo(cut, ObtenerDocumentosQuery.GrupoSin).QuerySelector("button.grupo-lista-cabecera")!
+            .ClickAsync(new MouseEventArgs());
+        cut.FindAll("tbody button.enlace-nombre-fila").Should().Contain(b => b.TextContent.Contains("Eva Soto Paz"));
+        cut.FindAll("tbody tr:has(button.enlace-nombre-fila)").Last().QuerySelector(".documentos-celda-en-plataforma")!
+            .TextContent.Trim().Should().BeEmpty("una fila sin Plataforma CAE no tiene estado en la plataforma");
+    }
+
+    [Fact]
+    public async Task Por_Cliente_empresarial_la_cabecera_dice_documentos_vencidos_y_urgentes_y_no_ofrece_portal()
+    {
+        var e = ConVinculos();
+        var (cut, _) = Renderizar(e.Mediador);
+        cut.WaitForAssertion(() => cut.Find("tbody button.enlace-nombre-fila"));
+
+        await Agrupar(cut, "Por Cliente empresarial");
+
+        cut.WaitForAssertion(() => NombresDeVinculo(cut).Should().Equal("Cliente Norte", "Sin Cliente empresarial"));
+        var norte = CabeceraDeVinculo(cut, ClienteNorteId.ToString());
+        ResumenDeVinculo(norte).Should().Equal("3 vencidos", "1 urgente");
+        norte.QuerySelector(".grupo-lista-subtitulo")!.TextContent.Trim().Should().Be("Cliente empresarial · 12 documentos");
+        cut.FindAll(".documentos-abrir-portal").Should().BeEmpty("«Abrir portal» es de los grupos por Plataforma CAE");
+        cut.FindAll(".documentos-anotar-vigencia").Should().BeEmpty();
+        cut.FindAll("tbody .documentos-celda-en-plataforma").Should().BeEmpty();
+    }
+
+    // ------------------------------------------------------------- Abrir portal
+
+    [Theory]
+    [InlineData("Administrador", true)]
+    [InlineData("GestorCae", true)]
+    [InlineData("Consulta", true)]
+    [InlineData("Cliente", false)]
+    public async Task Abrir_portal_sale_solo_con_la_direccion_unica_del_servidor_y_nunca_para_el_rol_Cliente(string rol, bool ofrece)
+    {
+        var e = ConVinculos();
+        var (cut, _) = Renderizar(e.Mediador, rol: rol);
+        cut.WaitForAssertion(() => cut.Find("tbody button.enlace-nombre-fila"));
+
+        await Agrupar(cut, "Por Plataforma CAE");
+
+        cut.WaitForAssertion(() => cut.FindAll("tr.documentos-cabecera-grupo-vinculo").Should().HaveCount(3));
+        var portales = cut.FindAll(".documentos-abrir-portal");
+        portales.Should().HaveCount(ofrece ? 1 : 0, "Ctaima no tiene una dirección única y el grupo «sin» no tiene portal");
+        if (!ofrece) return;
+        var portal = CabeceraDeVinculo(cut, NalandaId.ToString()).QuerySelector(".documentos-abrir-portal")!;
+        portal.GetAttribute("href").Should().StartWith("https://nalanda.example.com");
+        portal.GetAttribute("target").Should().Be("_blank");
+        portal.GetAttribute("rel").Should().Be("noopener noreferrer");
+        portal.GetAttribute("aria-label").Should().Be("Abrir el portal de Nalanda en una pestaña nueva");
+    }
+
+    [Fact]
+    public async Task Abrir_portal_no_abre_una_direccion_que_no_sea_http()
+    {
+        var e = ConVinculos(urlNalanda: "ftp://nalanda.example.com");
+        var (cut, _) = Renderizar(e.Mediador);
+        cut.WaitForAssertion(() => cut.Find("tbody button.enlace-nombre-fila"));
+
+        await Agrupar(cut, "Por Plataforma CAE");
+
+        cut.WaitForAssertion(() => cut.FindAll("tr.documentos-cabecera-grupo-vinculo").Should().HaveCount(3));
+        cut.FindAll(".documentos-abrir-portal").Should().BeEmpty();
+    }
+
+    // ------------------------------------------------------------- Anotar vigencia (N)
+
+    [Fact]
+    public async Task Anotar_vigencia_cuenta_las_acreditaciones_sin_vigencia_de_lo_seleccionado_y_anota_cada_una()
+    {
+        var e = ConVinculos();
+        var anotadas = new List<ConfirmarVigenciaAcreditacionCommand>();
+        e.Mediador.Interceptar = p => p is ConfirmarVigenciaAcreditacionCommand c
+            ? Task.FromResult<object?>(Anotar(anotadas, c))
+            : null;
+        var (cut, mediador) = Renderizar(e.Mediador);
+        cut.WaitForAssertion(() => cut.Find("tbody button.enlace-nombre-fila"));
+        await Agrupar(cut, "Por Plataforma CAE");
+        cut.WaitForAssertion(() => cut.FindAll("tr.documentos-cabecera-grupo-vinculo").Should().HaveCount(3));
+        cut.FindAll(".documentos-anotar-vigencia").Should().BeEmpty("sin nada seleccionado no hay nada que anotar");
+
+        await cut.Find(".cabecera-pagina button[aria-label='Selección múltiple']").ClickAsync(new MouseEventArgs());
+        await CasillaDe(cut, e.Rechazado).ChangeAsync(new ChangeEventArgs { Value = true });
+        cut.FindAll(".documentos-anotar-vigencia").Should().BeEmpty("una rechazada no es «Sin vigencia»");
+
+        await CasillaDe(cut, e.SinVigencia).ChangeAsync(new ChangeEventArgs { Value = true });
+        var anotar = cut.FindAll(".documentos-anotar-vigencia").Should().ContainSingle().Subject;
+        anotar.TextContent.Trim().Should().Be("Anotar vigencia (2)",
+            "seleccionar el Documento marca sus dos filas de Nalanda, y cada una es una acreditación sin vigencia");
+        CabeceraDeVinculo(cut, NalandaId.ToString()).QuerySelector(".documentos-anotar-vigencia").Should().NotBeNull();
+
+        await anotar.ClickAsync(new MouseEventArgs());
+        var dialogo = cut.Find("[role=dialog]");
+        dialogo.TextContent.Should().Contain("Anotar vigencia").And.Contain("Se anotará la misma vigencia en 2 acreditaciones validadas.");
+        anotadas.Should().BeEmpty("abrir no anota");
+
+        await dialogo.QuerySelector("select")!.ChangeAsync(new ChangeEventArgs { Value = nameof(EstadoVigenciaEnPlataforma.NoVenceAqui) });
+        var consultasAntes = mediador.Enviadas.OfType<ObtenerDocumentosQuery>().Count();
+        await cut.FindAll("[role=dialog] button").Single(b => b.TextContent.Trim() == "Guardar vigencia").ClickAsync(new MouseEventArgs());
+
+        cut.WaitForAssertion(() => anotadas.Select(c => c.AcreditacionId).Should().BeEquivalentTo([e.AcreditacionNorte, e.AcreditacionSur]));
+        anotadas.Should().OnlyContain(c => c.Vigencia == VigenciaEnPlataforma.NoVenceAqui);
+        cut.WaitForAssertion(() => mediador.Enviadas.OfType<ObtenerDocumentosQuery>().Count().Should().BeGreaterThan(consultasAntes,
+            "tras anotar, el listado se recarga"));
+        Toasts().Should().Contain(t => t.TextoAccion == "Deshacer");
+    }
+
+    [Theory]
+    [InlineData("Consulta")]
+    [InlineData("Cliente")]
+    public async Task Sin_escritura_no_hay_seleccion_ni_Anotar_vigencia(string rol)
+    {
+        var e = ConVinculos();
+        var (cut, _) = Renderizar(e.Mediador, rol: rol);
+        cut.WaitForAssertion(() => cut.Find("tbody button.enlace-nombre-fila"));
+
+        await Agrupar(cut, "Por Plataforma CAE");
+
+        cut.WaitForAssertion(() => cut.FindAll("tr.documentos-cabecera-grupo-vinculo").Should().HaveCount(3));
+        cut.FindAll(".documentos-tabla-visible tbody input[type=checkbox]").Should().BeEmpty();
+        cut.FindAll(".documentos-anotar-vigencia").Should().BeEmpty();
+        ResumenDeVinculo(CabeceraDeVinculo(cut, NalandaId.ToString())).Should().Equal("1 rechazado", "4 sin vigencia");
+    }
+
+    private static Result<ResultadoAnotacionAcreditacionDto> Anotar(List<ConfirmarVigenciaAcreditacionCommand> anotadas,
+        ConfirmarVigenciaAcreditacionCommand comando)
+    {
+        anotadas.Add(comando);
+        return Result.Exito(new ResultadoAnotacionAcreditacionDto(
+            comando.AcreditacionId, EstadoAcreditacion.Aceptada, VigenciaEnPlataforma.SinConfirmar, Guid.NewGuid()));
+    }
+
+    private static IElement CasillaDe(IRenderedComponent<PaginaDocumentos> cut, DocumentoListaDto documento) =>
+        cut.FindAll(".documentos-tabla-visible tbody tr:has(input[type=checkbox])")
+            .First(f => f.TextContent.Contains(documento.PropietarioNombre))
+            .QuerySelector("input[type=checkbox]")!;
+
+    // ------------------------------------------------------------- filtro «Estado en la plataforma»
+
+    [Fact]
+    public async Task El_filtro_Estado_en_la_plataforma_viaja_en_la_consulta_y_en_la_URL_y_su_chip_lo_quita()
+    {
+        var e = ConVinculos();
+        var (cut, mediador) = Renderizar(e.Mediador);
+        cut.WaitForAssertion(() => cut.Find("tbody button.enlace-nombre-fila"));
+        UltimaConsultaDeDocumentos(mediador).EstadosEnPlataforma.Should().BeNull();
+
+        await ElegirPastillaDocumentoFase1(cut, "Estado en la plataforma", "Rechazado");
+
+        cut.WaitForAssertion(() => UltimaConsultaDeDocumentos(mediador).EstadosEnPlataforma.Should().Equal(EstadoEnPlataformaFiltro.Rechazado));
+        Services.GetRequiredService<NavigationManager>().Uri.Should().Contain("EstadoPlataforma=Rechazado");
+        var chip = cut.FindAll(".chip-filtro").Single(c => c.TextContent.Contains("Estado en la plataforma: Rechazado"));
+        chip.QuerySelector("button[aria-label='Quitar filtro de estado en la plataforma']").Should().NotBeNull();
+
+        await chip.QuerySelector("button[aria-label='Quitar filtro de estado en la plataforma']")!.ClickAsync(new MouseEventArgs());
+
+        cut.WaitForAssertion(() => UltimaConsultaDeDocumentos(mediador).EstadosEnPlataforma.Should().BeNull());
+        Services.GetRequiredService<NavigationManager>().Uri.Should().NotContain("EstadoPlataforma");
+        cut.FindAll(".chip-filtro").Should().NotContain(c => c.TextContent.Contains("Estado en la plataforma"));
+    }
+
+    [Theory]
+    [InlineData("PendienteDeSubir", EstadoEnPlataformaFiltro.PendienteDeSubir)]
+    [InlineData("Rechazado", EstadoEnPlataformaFiltro.Rechazado)]
+    [InlineData("SinVigencia", EstadoEnPlataformaFiltro.SinVigencia)]
+    [InlineData("Inventado", null)]
+    [InlineData("7", null)]
+    public void El_enlace_con_EstadoPlataforma_pide_ese_estado_y_descarta_lo_que_no_es_un_estado(string valor, EstadoEnPlataformaFiltro? esperado)
+    {
+        var (cut, mediador) = Renderizar(ConVinculos().Mediador, url: $"documentos?EstadoPlataforma={valor}");
+        cut.WaitForAssertion(() => mediador.Enviadas.OfType<ObtenerDocumentosQuery>().Should().NotBeEmpty());
+
+        var pedidos = UltimaConsultaDeDocumentos(mediador).EstadosEnPlataforma;
+        if (esperado is null)
+            pedidos.Should().BeNull();
+        else
+            pedidos.Should().Equal(esperado.Value);
+        cut.FindAll(".chip-filtro").Any(c => c.TextContent.Contains("Estado en la plataforma")).Should().Be(esperado is not null);
+    }
+
+    [Fact]
+    public async Task Limpiar_filtros_quita_tambien_Estado_en_la_plataforma()
+    {
+        var (cut, mediador) = Renderizar(ConVinculos().Mediador, url: "documentos?EstadoPlataforma=SinVigencia");
+        cut.WaitForAssertion(() => UltimaConsultaDeDocumentos(mediador).EstadosEnPlataforma.Should().Equal(EstadoEnPlataformaFiltro.SinVigencia));
+
+        await cut.InvokeAsync(() => cut.FindComponent<BarraFiltros>().Instance.OnLimpiarTodo.InvokeAsync());
+
+        cut.WaitForAssertion(() => UltimaConsultaDeDocumentos(mediador).EstadosEnPlataforma.Should().BeNull());
+        Services.GetRequiredService<NavigationManager>().Uri.Should().NotContain("EstadoPlataforma");
+    }
+}
