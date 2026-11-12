@@ -154,7 +154,7 @@ else
                         <CampoTexto Etiqueta="Dirección" Valor="@_direccionInfo" ValorChanged="v => _direccionInfo = v" />
                         <CampoTexto Etiqueta="Contacto" Valor="@_contactoInfo" ValorChanged="v => _contactoInfo = v" />
                         <CampoTexto Etiqueta="Contrato vigente hasta" Type="date" Valor="@_contratoVigenteHastaInfo" ValorChanged="v => _contratoVigenteHastaInfo = v"
-                                    FechaNoValidaChanged="AlCambiarContratoVigenteHastaNoValido" />
+                                    FechaNoValida="_contratoVigenteHastaNoValido" FechaNoValidaChanged="AlCambiarContratoVigenteHastaNoValido" />
                     </div>
                     <div class="workspace-acciones-edicion">
                         <Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno" Deshabilitado="_guardandoInformacion" OnClick="CancelarEdicionInformacion">Cancelar</Boton>

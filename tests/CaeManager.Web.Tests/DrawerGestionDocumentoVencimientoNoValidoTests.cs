@@ -181,6 +181,32 @@ public class DrawerGestionDocumentoVencimientoNoValidoTests : BunitContext
         cut.Markup.Should().NotContain("no es válida", "sin el campo, el aviso de su fecha ya no tiene a qué referirse");
     }
 
+    // Ronda 4 de Codex: cambiar a un tipo automático borraba la marca del vencimiento manual; al volver al tipo manual el campo
+    // nacía vacío y sin marca y Guardar creaba el Documento sin el vencimiento que se estaba escribiendo. La marca se conserva,
+    // pero la guarda de Guardar solo la aplica mientras el tipo use el campo.
+    [Fact]
+    public async Task Volver_al_tipo_manual_tras_uno_automatico_conserva_la_marca_del_vencimiento_a_medias()
+    {
+        var cut = await AbrirAltaConTipoManualAsync();
+        await EscribirVencimientoAsync(cut, "15/03");
+
+        await cut.InvokeAsync(() => cut.FindComponent<SelectorTipoDocumento>().Instance.ValorChanged.InvokeAsync(TipoAutomatico.ToString()));
+        cut.FindAll("input[data-campo-fecha]").Should().HaveCount(1, "control: con el tipo automático el campo no existe");
+        var guarda = typeof(DrawerGestionDocumento).GetMethod("BloquearGuardadoSiVencimientoNoValido", BindingFlags.Instance | BindingFlags.NonPublic);
+        guarda.Should().NotBeNull();
+        (await cut.InvokeAsync(() => (bool)guarda!.Invoke(cut.Instance, null)!)).Should().BeFalse(
+            "con un tipo que no usa el campo, su marca no bloquea Guardar");
+
+        await cut.InvokeAsync(() => cut.FindComponent<SelectorTipoDocumento>().Instance.ValorChanged.InvokeAsync(TipoManual.ToString()));
+        var campos = cut.FindAll("input[data-campo-fecha]");
+        campos.Should().HaveCount(2);
+        campos[1].GetAttribute("aria-invalid").Should().Be("true", "el campo recreado nace con la marca y su aviso a la vista");
+        await PulsarGuardarAsync(cut);
+
+        _mediator.Creados.Should().BeEmpty("volver al tipo manual no convierte el vencimiento a medias en «sin vencimiento»");
+        cut.Markup.Should().Contain("no es válida");
+    }
+
     // Un vencimiento a medias no cambia el valor del formulario («»), pero es texto que se pierde al cerrar.
     [Fact]
     public async Task Un_vencimiento_manual_a_medias_cuenta_como_cambio_sin_guardar()

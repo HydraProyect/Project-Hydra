@@ -74,7 +74,7 @@
         <CampoTexto Etiqueta="Nombre" Valor="@_nombreNuevaClave" ValorChanged="CambiarNombreNuevaClave" Placeholder="Integración con el ERP" />
         <CampoTexto Etiqueta="@Textos["Motivo"]" Valor="@_motivoNuevaClave" ValorChanged="CambiarMotivoNuevaClave" maxlength="500" required />
         <CampoTexto Etiqueta="@Textos["Caducidad"]" Type="date" Valor="@_caducidadNuevaClave" ValorChanged="CambiarCaducidadNuevaClave"
-                    FechaNoValidaChanged="CambiarCaducidadNoValida" required />
+                    FechaNoValida="_caducidadNoValida" FechaNoValidaChanged="CambiarCaducidadNoValida" required />
         <p>@Textos["LimiteCaducidad"]</p>
     </ModalFormulario>
 }

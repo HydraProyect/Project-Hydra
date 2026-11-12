@@ -935,6 +935,10 @@ public partial class Subcontrata360Gen2Tests : BunitContext
             "ni con null ni con la fecha válida anterior a la edición");
         cut.FindAll(".drawer-panel").Should().ContainSingle("el formulario sigue abierto para corregir la fecha");
         Toasts.Should().NotContain(m => m.Tono == TonoToast.Exito);
+        // Lo bloquea la marca, no solo la lectura de la fecha (ronda 4 de Codex): la fecha de verificación es obligatoria y su
+        // TryParse ya rechazaría el null con «indica la fecha»; el aviso de la marca es otro, y es el que sale en los dos casos.
+        cut.FindAll(".drawer-panel [role=alert]").Should().Contain(a => a.TextContent.Contains("no es válida"),
+            "el formulario dice que hay una fecha que corregir, no que falta");
     }
 
     [Fact]

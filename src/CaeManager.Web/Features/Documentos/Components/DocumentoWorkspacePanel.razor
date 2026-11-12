@@ -72,13 +72,13 @@ else
                     }
                     <div class="formulario-documento-360">
                         <CampoTexto Etiqueta="Fecha de emisión" Type="date" Valor="@_fechaEmisionEditada" ValorChanged="v => _fechaEmisionEditada = v"
-                                    FechaNoValidaChanged="v => _emisionNoValida = v" />
+                                    FechaNoValida="_emisionNoValida" FechaNoValidaChanged="v => _emisionNoValida = v" />
                         @if (!_detalle.TipoDocumentoAplicaVencimientoAutomatico)
                         {
                             @* FechaNoValidaChanged: un vencimiento a medias llega como «» y RenovarDocumentoCommand lo
                                guardaría como «sin vencimiento». *@
                             <CampoTexto Etiqueta="Fecha de vencimiento" Type="date" Valor="@_fechaVencimientoEditada" ValorChanged="v => _fechaVencimientoEditada = v"
-                                        FechaNoValidaChanged="AlCambiarVencimientoNoValido" />
+                                        FechaNoValida="_vencimientoNoValido" FechaNoValidaChanged="AlCambiarVencimientoNoValido" />
                             @* Sin fecha y sin marcar, la vigencia queda «sin confirmar»: marcar
                                es la única forma de declarar que el documento no caduca. *@
                             <label class="campo-checkbox">

@@ -166,13 +166,13 @@
         }
 
         <CampoTexto Etiqueta="Fecha de emisión" Type="date" Valor="@_fechaEmision" ValorChanged="v => _fechaEmision = v"
-                    FechaNoValidaChanged="AlCambiarEmisionNoValida" />
+                    FechaNoValida="_emisionNoValida" FechaNoValidaChanged="AlCambiarEmisionNoValida" />
 
         @if (RequiereVencimientoManual)
         {
             <div class="campo-con-boton">
                 <CampoTexto Etiqueta="Fecha de vencimiento" Type="date" Valor="@_fechaVencimientoManual" ValorChanged="v => _fechaVencimientoManual = v"
-                            FechaNoValidaChanged="AlCambiarVencimientoManualNoValido" />
+                            FechaNoValida="_vencimientoManualNoValido" FechaNoValidaChanged="AlCambiarVencimientoManualNoValido" />
                 <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" OnClick="CopiarFechaEmisionAVencimiento"
                        data-tooltip="Copiar fecha de emisión a vencimiento" aria-label="Copiar fecha de emisión a vencimiento">
                     <Icono Nombre="copiar" Tamano="TamanoIcono.Pequeno" />

@@ -87,9 +87,9 @@
     @* FechaNoValidaChanged: un «válido hasta» a medias llega como «», y registrarlo dejaría la verificación sin fecha de
        fin; Guardar se bloquea mientras alguna de las dos fechas no sea una fecha entera. *@
     <CampoTexto Etiqueta="@Textos["RotuloFechaVerificacion"]" Type="date" Valor="@_fecha" ValorChanged="v => _fecha = v"
-                FechaNoValidaChanged="v => AlCambiarFechaNoValida(ref _fechaNoValida, v)" />
+                FechaNoValida="_fechaNoValida" FechaNoValidaChanged="v => AlCambiarFechaNoValida(ref _fechaNoValida, v)" />
     <CampoTexto Etiqueta="@Textos["RotuloValidoHasta"]" Type="date" Valor="@_validoHasta" ValorChanged="v => _validoHasta = v"
-                FechaNoValidaChanged="v => AlCambiarFechaNoValida(ref _validoHastaNoValido, v)" />
+                FechaNoValida="_validoHastaNoValido" FechaNoValidaChanged="v => AlCambiarFechaNoValida(ref _validoHastaNoValido, v)" />
     <CampoTextarea Etiqueta="@Textos["RotuloObservaciones"]" Valor="@_observaciones" ValorChanged="v => _observaciones = v" Filas="3" />
 
     <div class="campo">

@@ -255,6 +255,32 @@ public class CentroWorkspacePanelAvisoCambiosSinGuardarTests : BunitContext
             .Which.ContratoVigenteHasta.Should().Be(new DateOnly(2030, 3, 15));
     }
 
+    // Ronda 4 de Codex: el campo vive en la pestaña Información; al volver de otra pestaña nacía sin marca, avisaba false y
+    // Guardar enviaba EditarCentroCommand sin el fin de contrato.
+    [Fact]
+    public async Task Un_contrato_a_medias_sigue_marcado_al_volver_de_otra_pestana_y_no_edita_el_centro_sin_fecha()
+    {
+        var cut = await EditarInformacionAsync();
+        await EscribirFechaAsync(cut, "15/03");
+
+        cut.Render(p => p.Add(c => c.PestanaActiva, "plataforma"));
+        cut.FindAll("input[data-campo-fecha]").Should().BeEmpty("control: en otra pestaña el campo no existe");
+        cut.Render(p => p.Add(c => c.PestanaActiva, "informacion"));
+
+        cut.WaitForAssertion(() => cut.Find("input[data-campo-fecha]").GetAttribute("aria-invalid").Should().Be("true",
+            "el campo recreado nace con la marca y su aviso a la vista"));
+        await PulsarAsync(cut, "Guardar");
+
+        _mediador.Enviadas.Should().NotContain(o => o.GetType().Name == "EditarCentroCommand",
+            "volver de otra pestaña no convierte la fecha a medias en «sin fecha»");
+        cut.Markup.Should().Contain("no es válida");
+
+        await EscribirFechaAsync(cut, "15/03/2030");
+        await PulsarAsync(cut, "Guardar");
+        _mediador.Enviadas.OfType<EditarCentroCommand>().Should().ContainSingle("control positivo: corregida, se envía")
+            .Which.ContratoVigenteHasta.Should().Be(new DateOnly(2030, 3, 15));
+    }
+
     // El aviso de un «Guardar» rechazado deja de ser cierto cuando la fecha vuelve a ser entera o se vacía; con el contrato sin
     // fecha al empezar, borrar el texto no cambia el valor («»), así que solo el cambio de la bandera puede retirarlo.
     [Fact]

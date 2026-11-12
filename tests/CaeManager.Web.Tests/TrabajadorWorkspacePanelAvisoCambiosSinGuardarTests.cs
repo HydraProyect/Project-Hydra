@@ -114,6 +114,32 @@ public class TrabajadorWorkspacePanelAvisoCambiosSinGuardarTests : BunitContext
             .Which.FechaNacimiento.Should().Be(new DateOnly(2030, 3, 15));
     }
 
+    // Ronda 4 de Codex: el campo vive en la pestaña Información; al volver de otra pestaña nacía sin marca, avisaba false y
+    // Guardar enviaba EditarTrabajadorCommand sin la fecha de nacimiento (la borraba).
+    [Fact]
+    public async Task Una_fecha_de_nacimiento_a_medias_sigue_marcada_al_volver_de_otra_pestana_y_no_se_borra()
+    {
+        var cut = await EditarInformacionAsync();
+        await EscribirFechaAsync(cut, "15/03");
+
+        cut.Render(p => p.Add(x => x.PestanaActiva, "vehiculos"));
+        cut.FindAll("input[data-campo-fecha]").Should().BeEmpty("control: en otra pestaña el campo no existe");
+        cut.Render(p => p.Add(x => x.PestanaActiva, "informacion"));
+
+        cut.WaitForAssertion(() => cut.Find("input[data-campo-fecha]").GetAttribute("aria-invalid").Should().Be("true",
+            "el campo recreado nace con la marca y su aviso a la vista"));
+        await GuardarAsync(cut);
+
+        _mediador.Enviadas.Should().NotContain(o => o.GetType().Name == "EditarTrabajadorCommand",
+            "volver de otra pestaña no convierte la fecha a medias en «sin fecha»");
+        cut.Markup.Should().Contain("no es válida");
+
+        await EscribirFechaAsync(cut, "15/03/2030");
+        await GuardarAsync(cut);
+        _mediador.Enviadas.OfType<EditarTrabajadorCommand>().Should().ContainSingle("control positivo: corregida, se envía")
+            .Which.FechaNacimiento.Should().Be(new DateOnly(2030, 3, 15));
+    }
+
     // El aviso de un «Guardar» rechazado deja de ser cierto cuando la fecha vuelve a ser entera o se vacía; con la fecha vacía al
     // empezar, borrar el texto no cambia el valor («»), así que solo el cambio de la bandera puede retirarlo.
     [Fact]

@@ -316,7 +316,7 @@
         {
             <p>@seleccionada.PropietarioNombre · @seleccionada.TipoDocumentoNombre</p>
             <CampoTexto Etiqueta="Fecha de emisión" Type="date" Valor="@_fechaEmisionManual" ValorChanged="v => { _fechaEmisionManual = v; _errorFechaManual = null; }" MensajeError="@_errorFechaManual"
-                        FechaNoValidaChanged="v => _emisionManualNoValida = v" />
+                        FechaNoValida="_emisionManualNoValida" FechaNoValidaChanged="v => _emisionManualNoValida = v" />
             <p class="revision-ia-consecuencia">La IA leyó: @Fecha(seleccionada.FechaEmisionDetectada)</p>
             <p class="revision-ia-consecuencia">Guardar corrige la fecha y cierra el aviso en una sola operación. El vencimiento se recalcula solo cuando el tipo lo hace automáticamente.</p>
         }

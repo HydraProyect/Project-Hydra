@@ -130,7 +130,7 @@
             }
         </CampoSelect>
         <CampoTexto Etiqueta="@Textos["EtiquetaUltimoDia"]" Type="date" Valor="@_ultimoDia" ValorChanged="AlElegirUltimoDia"
-                    FechaNoValidaChanged="AlCambiarUltimoDiaNoValido" min="@HoyIso" />
+                    FechaNoValida="_ultimoDiaNoValido" FechaNoValidaChanged="AlCambiarUltimoDiaNoValido" min="@HoyIso" />
         <p class="dar-acceso-nota">@Textos["AyudaUltimoDia"]</p>
     </DrawerFormulario>
 

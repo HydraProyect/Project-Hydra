@@ -215,7 +215,7 @@
     <CampoTexto Etiqueta="@Textos["EtiquetaNombre"]" Valor="@_editNombre" ValorChanged="v => _editNombre = v"
                 MensajeError="@(_editErrores.GetValueOrDefault("Nombre"))" />
     <CampoTexto Etiqueta="@(EsEvento ? Textos["EtiquetaFinEvento"] : Textos["EtiquetaFinPrevistoOpcional"])" Type="date" Valor="@_editFechaFinPrevista" ValorChanged="v => _editFechaFinPrevista = v"
-                FechaNoValidaChanged="AlCambiarEditFechaFinPrevistaNoValida" />
+                FechaNoValida="_editFechaFinPrevistaNoValida" FechaNoValidaChanged="AlCambiarEditFechaFinPrevistaNoValida" />
     <CampoTexto Etiqueta="@Textos["EtiquetaNotas"]" Valor="@_editNotas" ValorChanged="v => _editNotas = v"
                 MensajeError="@(_editErrores.GetValueOrDefault("Notas"))" />
     <p class="texto-descriptivo">@Textos["AvisoEdicionClienteCentro"]</p>
@@ -233,7 +233,7 @@
         }
     </CampoSelect>
     <CampoTexto Etiqueta="@Textos["EtiquetaFechaAlta"]" Type="date" Valor="@_nuevoTecnicoFechaAlta" ValorChanged="v => { _nuevoTecnicoFechaAlta = v; _errorTecnico = null; }"
-                FechaNoValidaChanged="v => _nuevoTecnicoFechaAltaNoValida = v" />
+                FechaNoValida="_nuevoTecnicoFechaAltaNoValida" FechaNoValidaChanged="v => _nuevoTecnicoFechaAltaNoValida = v" />
 </DrawerFormulario>
 
 <ModalFormulario Visible="_cerrarVisible" VisibleChanged="v => _cerrarVisible = v" Titulo="@Textos["AccionCerrarProyecto"]"
@@ -241,7 +241,7 @@
                  OnGuardar="ConfirmarCerrarAsync" TextoGuardar="@Textos["AccionCerrarProyecto"]" TextoCancelar="@Textos["BotonCancelar"]">
     <p>@Textos["ModalCerrarExplicacion"]</p>
     <CampoTexto Etiqueta="@Textos["EtiquetaFechaCierre"]" Type="date" Valor="@_fechaCierre" ValorChanged="v => { _fechaCierre = v; _errorCierre = null; }"
-                FechaNoValidaChanged="v => _fechaCierreNoValida = v" />
+                FechaNoValida="_fechaCierreNoValida" FechaNoValidaChanged="v => _fechaCierreNoValida = v" />
 </ModalFormulario>
 
 <DialogoConfirmacion
@@ -258,7 +258,7 @@
         <p>@Textos["ReabrirEventoExplicacion"]</p>
         <CampoTexto Etiqueta="@Textos["EtiquetaNuevaFechaFinReabrir"]" Type="date" Valor="@_nuevaFechaFinReabrir"
                     ValorChanged="v => { _nuevaFechaFinReabrir = v; _errorReabrir = null; }" MensajeError="@_errorReabrir"
-                    FechaNoValidaChanged="v => _nuevaFechaFinReabrirNoValida = v" />
+                    FechaNoValida="_nuevaFechaFinReabrirNoValida" FechaNoValidaChanged="v => _nuevaFechaFinReabrirNoValida = v" />
     }
 </DialogoConfirmacion>
 

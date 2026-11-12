@@ -593,9 +593,9 @@
                 }
 
                 <CampoTexto Etiqueta="Fecha de emisión" Type="date" Valor="@_fechaEmisionDocumentoFormulario" ValorChanged="v => _fechaEmisionDocumentoFormulario = v"
-                            FechaNoValidaChanged="AlCambiarEmisionDocumentoNoValida" />
+                            FechaNoValida="_emisionDocumentoNoValida" FechaNoValidaChanged="AlCambiarEmisionDocumentoNoValida" />
                 <CampoTexto Etiqueta="Fecha de caducidad (si no se calcula sola)" Type="date" Valor="@_fechaVencimientoDocumentoFormulario" ValorChanged="v => _fechaVencimientoDocumentoFormulario = v"
-                            FechaNoValidaChanged="AlCambiarVencimientoDocumentoNoValido" />
+                            FechaNoValida="_vencimientoDocumentoNoValido" FechaNoValidaChanged="AlCambiarVencimientoDocumentoNoValido" />
                 <label class="campo-checkbox">
                     <input type="checkbox" checked="@_noCaducaDocumentoFormulario" @onchange="e => _noCaducaDocumentoFormulario = e.Value is bool m && m" />
                     @TextosVigenciaDocumento.Texto("NoCaduca")

@@ -421,7 +421,7 @@
     <CampoTexto Etiqueta="@Textos["EtiquetaApellidos"]" Valor="@_apellidos" ValorChanged="v => _apellidos = v" OnBlur="ValidarApellidosAsync" MensajeError="@ObtenerError(nameof(CrearTrabajadorCommand.Apellidos))" />
     <CampoTexto Etiqueta="@Textos["EtiquetaAliasOpcional"]" Placeholder="@Textos["PlaceholderAlias"]" Valor="@_alias" ValorChanged="v => _alias = v" OnBlur="ValidarAliasAsync" MensajeError="@ObtenerError(nameof(CrearTrabajadorCommand.Alias))" />
     <CampoTexto Etiqueta="@Textos["EtiquetaFechaNacimiento"]" Type="date" Valor="@_fechaNacimiento" ValorChanged="v => _fechaNacimiento = v"
-                FechaNoValidaChanged="AlCambiarFechaNacimientoNoValida" />
+                FechaNoValida="_fechaNacimientoNoValida" FechaNoValidaChanged="AlCambiarFechaNacimientoNoValida" />
     }
     else if (_pasoAlta == PasoAltaTrabajo)
     {

@@ -27,15 +27,14 @@ public partial class CampoFecha
     private bool _parametrosRecibidos;
     private bool _deshabilitadoAntes;
     /// <summary>
-    /// null hasta el primer aviso: un campo recién creado dice su estado, así el formulario que reinicia su marca al
-    /// abrirse no arrastra la de un campo anterior que ya no podría retirarla. El formulario que conserva la marca más
-    /// allá de la vida del campo (tramos, filas plegables) lo declara con <see cref="NoValidoPrevio"/> y entonces el campo
-    /// nuevo no avisa de su estado inicial.
+    /// La marca que el padre tiene según este campo. Nace con <see cref="NoValido"/> (lo que el padre ya tiene marcado) o,
+    /// si el padre no lo pasa, a null: desconocida. El campo nunca avisa su estado al nacer (crearse o recrearse no es
+    /// corregir la fecha), así que con null el primer aviso llega con el primer gesto de la persona.
     /// </summary>
     private bool? _noValidoNotificado;
 
     /// <summary>
-    /// true cuando el campo nació con la marca de no válido que el padre ya tenía (ver <see cref="NoValidoPrevio"/>) y la
+    /// true cuando el campo nació con la marca de no válido que el padre ya tenía (ver <see cref="NoValido"/>) y la
     /// persona aún no lo ha tocado: el texto a medias se perdió al destruirse el campo anterior, pero la marca no se retira
     /// hasta que la persona teclee, elija una fecha o vacíe el campo escribiendo.
     /// </summary>
@@ -73,17 +72,28 @@ public partial class CampoFecha
     [Parameter] public EventCallback<bool> NoValidoChanged { get; set; }
 
     /// <summary>
-    /// Opcional, para el formulario que conserva la marca de <see cref="NoValidoChanged"/> más allá de la vida del campo
-    /// (una lista de tramos o de filas cuyos campos se destruyen al cambiar de tramo o plegar la fila): lo que el padre
-    /// tiene marcado ahora para este campo. Con un valor (true o false) el campo recién creado no retira una marca que no
-    /// observó él: no avisa de su estado inicial. Con true nace con la marca y el aviso «no es una fecha» a la vista sea
-    /// cual sea <see cref="Valor"/>: el texto a medias se perdió con el campo anterior, así que se muestra vacío y, si el
-    /// padre aún tenía una fecha, se le notifica null (nunca se guarda una fecha que no se ve). La marca solo la retiran
-    /// teclear una fecha entera, elegir un día, vaciar el campo a propósito o deshabilitarlo (un campo apagado nace sin
-    /// ella y avisa false); entrar y salir sin tocarlo no la quita. Con null (por defecto) el campo avisa su estado al
-    /// crearse: es lo que necesita el formulario que reinicia su marca al abrirse.
+    /// Lo que el padre tiene marcado ahora para este campo: la otra mitad de <see cref="NoValidoChanged"/>
+    /// (<c>NoValido="_x" NoValidoChanged="…"</c>, o <c>@bind-NoValido</c>). Todo formulario que guarde pasa las dos (lo
+    /// exige <c>CamposFechaEnlazanLaMarcaDeNoValidoTests</c>), porque los campos se destruyen y se recrean sin que la persona
+    /// toque nada: al cambiar de pestaña, de paso, de tramo o de tipo de documento, al plegar una fila o al pasar de paso en
+    /// un modal. El campo toma este valor como su estado inicial y nunca avisa false al nacer: un campo recreado no retira
+    /// una marca que no observó él.
+    /// <para>
+    /// Con true nace con la marca y el aviso «no es una fecha» a la vista sea cual sea <see cref="Valor"/>: el texto a
+    /// medias se perdió con el campo anterior, así que se muestra vacío y, si el padre aún tenía una fecha, se le notifica
+    /// null (nunca se guarda una fecha que no se ve). La marca solo la retiran teclear una fecha entera, elegir un día o
+    /// vaciar el campo a propósito (borrar con el teclado hasta dejarlo en blanco); entrar y salir sin tocarlo no la quita.
+    /// Única excepción: un campo deshabilitado (al nacer o al apagarse) avisa false, porque lo no válido de un campo apagado
+    /// no se puede corregir y el formulario quedaría bloqueado sin salida; apagarlo es la decisión del padre de que esa fecha
+    /// no se edita.
+    /// </para>
+    /// <para>
+    /// Con null (no se pasa) el estado del padre es desconocido: el campo tampoco avisa al nacer, y su primer aviso llega
+    /// con el primer gesto de la persona (o cuando el padre le impone otro <see cref="Valor"/>). Solo vale para un campo que
+    /// no guarda (un filtro).
+    /// </para>
     /// </summary>
-    [Parameter] public bool? NoValidoPrevio { get; set; }
+    [Parameter] public bool? NoValido { get; set; }
 
     /// <summary>Opcional: primer y último día elegibles en el calendario (lo que hacía <c>min</c>/<c>max</c> en el campo nativo). Lo escrito a mano no se recorta: lo valida el formulario.</summary>
     [Parameter] public DateOnly? Minimo { get; set; }
@@ -159,12 +169,12 @@ public partial class CampoFecha
         _errorPropio = null;
         _marcaHeredada = false;
         if (seDeshabilita) _abierto = false;
-        if (primera && NoValidoPrevio is { } previo)
+        if (primera)
         {
             // El padre ya sabe cómo está esta fecha: el campo nuevo no lo contradice. Solo un campo apagado no hereda la
             // marca (lo no válido de un campo apagado no se puede corregir): avisa false y la retira.
-            _marcaHeredada = previo && !Deshabilitado;
-            _noValidoNotificado = _marcaHeredada ? true : previo ? null : false;
+            _marcaHeredada = NoValido == true && !Deshabilitado;
+            _noValidoNotificado = _marcaHeredada ? true : NoValido == true ? null : NoValido;
         }
 
         if (_marcaHeredada)
@@ -180,7 +190,9 @@ public partial class CampoFecha
             MostrarTexto(MascaraFecha.Formatear(Valor));
         }
 
-        await NotificarEstadoAsync();
+        // Nacer no es un gesto de la persona: con la marca desconocida (NoValido sin pasar) no se avisa nada, para no
+        // retirar la de un campo anterior; con NoValido el estado ya coincide y solo avisa el campo apagado (false).
+        if (!primera || NoValido is not null) await NotificarEstadoAsync();
     }
 
     /// <summary>

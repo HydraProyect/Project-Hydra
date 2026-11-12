@@ -8,7 +8,7 @@
                 Valor="@MascaraFecha.DesdeIso(Valor)"
                 ValorChanged="FechaCambiadaAsync"
                 NoValidoChanged="FechaNoValidaChanged"
-                NoValidoPrevio="FechaNoValidaPrevia"
+                NoValido="FechaNoValida"
                 Minimo="@MascaraFecha.DesdeIso(AtributoFecha("min"))"
                 Maximo="@MascaraFecha.DesdeIso(AtributoFecha("max"))"
                 Placeholder="@Placeholder"
@@ -65,8 +65,11 @@ else
     /// <summary>Solo con Type="date": true mientras el campo tiene un texto que no es una fecha entera (y el valor es «»).</summary>
     [Parameter] public EventCallback<bool> FechaNoValidaChanged { get; set; }
 
-    /// <summary>Solo con Type="date": lo que el padre tiene marcado ahora como no válido, para que un campo recreado no retire esa marca (ver CampoFecha.NoValidoPrevio).</summary>
-    [Parameter] public bool? FechaNoValidaPrevia { get; set; }
+    /// <summary>
+    /// Solo con Type="date": lo que el padre tiene marcado ahora como no válido, la otra mitad de FechaNoValidaChanged
+    /// (o @bind-FechaNoValida). Un campo recreado nace con ella y no la retira (ver CampoFecha.NoValido).
+    /// </summary>
+    [Parameter] public bool? FechaNoValida { get; set; }
 
     private string? AtributoFecha(string nombre) =>
         AtributosAdicionales is not null && AtributosAdicionales.TryGetValue(nombre, out var valor) ? valor?.ToString() : null;

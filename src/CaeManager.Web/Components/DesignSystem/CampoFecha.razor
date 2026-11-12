@@ -12,10 +12,10 @@
     texto deja de ser una fecha entera (a medias, imposible como 31/02, o sin cifras como «mañana» pegado), el padre recibe
     null y NoValidoChanged(true), sin esperar a salir del campo; el aviso visible sí llega al salir. Así el padre nunca
     guarda la fecha anterior creyendo que sigue en pantalla. Solo el campo vacío de verdad (borrado a mano) es «sin fecha»
-    sin marca. Todo formulario que guarde enlaza NoValidoChanged y bloquea el envío mientras sea true (trinquete
-    CamposFechaEnlazanLaMarcaDeNoValidoTests). Con NoValidoPrevio=true, el campo que el padre recrea (cambio de tramo,
-    fila plegada) nace con la marca y el aviso, vacío y con null en el padre, sea cual sea Valor; NoValidoPrevio null (los
-    demás consumidores) avisa su estado al crearse.
+    sin marca. Todo formulario que guarde enlaza la marca entera, NoValido y NoValidoChanged (o @bind-NoValido), y
+    bloquea el envío mientras sea true (trinquete CamposFechaEnlazanLaMarcaDeNoValidoTests). El campo nunca avisa false al
+    nacer: el que el padre recrea (cambio de pestaña, de paso, de tramo, de tipo; fila plegada) toma NoValido como estado
+    inicial y, con true, nace con la marca y el aviso, vacío y con null en el padre, sea cual sea Valor.
 *@
 @* Con el calendario abierto, Escape lo cierra a él y no al Drawer o Modal que lo contiene (mismo criterio que
    CampoSelectAvanzado). *@

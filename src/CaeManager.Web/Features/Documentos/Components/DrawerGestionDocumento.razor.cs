@@ -489,14 +489,13 @@ public partial class DrawerGestionDocumento : ComponentBase
         _glosarioSeSolicitaA = tipo?.SeSolicitaA;
         _glosarioObservaciones = tipo?.Observaciones;
 
-        // Con un tipo de vencimiento automático el campo de vencimiento ya no existe: el texto a medias se va con él y el
-        // aviso «no es una fecha» de un envío anterior ya no tiene a qué referirse.
-        if (!RequiereVencimientoManual)
-        {
-            _vencimientoManualNoValido = false; _emisionNoValida = false;
-            if (_mensajeErrorFormulario == Comunes["CampoFechaCorregirAntes"])
-                _mensajeErrorFormulario = null;
-        }
+        // Con un tipo de vencimiento automático el campo de vencimiento ya no existe, pero su marca se conserva: si se vuelve
+        // a un tipo manual, el campo recreado nace con ella y su aviso (CampoFecha.NoValido), en vez de nacer vacío y sin
+        // marca y dejar guardar el Documento sin el vencimiento que se estaba escribiendo. La guarda de Guardar solo la
+        // aplica con un tipo que use el campo. El aviso del formulario sí se quita si ya no queda ninguna fecha a la vista
+        // que corregir. La emisión no se toca: su campo sigue ahí.
+        if (!RequiereVencimientoManual && !_emisionNoValida && _mensajeErrorFormulario == Comunes["CampoFechaCorregirAntes"])
+            _mensajeErrorFormulario = null;
     }
 
     /// <summary>
@@ -990,7 +989,7 @@ public partial class DrawerGestionDocumento : ComponentBase
     private void AlCambiarEmisionNoValida(bool noValida)
     {
         _emisionNoValida = noValida;
-        if (!noValida && !_vencimientoManualNoValido && _mensajeErrorFormulario == Comunes["CampoFechaCorregirAntes"])
+        if (!noValida && (!_vencimientoManualNoValido || !RequiereVencimientoManual) && _mensajeErrorFormulario == Comunes["CampoFechaCorregirAntes"])
             _mensajeErrorFormulario = null;
     }
 

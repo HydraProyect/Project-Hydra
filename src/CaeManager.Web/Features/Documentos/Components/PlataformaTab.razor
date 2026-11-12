@@ -241,7 +241,7 @@ else
     {
         <CampoTexto Etiqueta="Fecha de vencimiento" Type="date" Valor="@_fechaVigencia"
                     ValorChanged="v => { _fechaVigencia = v; _errorServidorVigencia = null; _errorVigencia = null; }" MensajeError="@_errorVigencia"
-                    FechaNoValidaChanged="v => _fechaVigenciaNoValida = v" />
+                    FechaNoValida="_fechaVigenciaNoValida" FechaNoValidaChanged="v => _fechaVigenciaNoValida = v" />
     }
 </ModalFormulario>
 

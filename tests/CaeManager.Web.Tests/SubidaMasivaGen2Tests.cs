@@ -339,7 +339,7 @@ public sealed class SubidaMasivaGen2Tests : BunitContext
     }
 
     // Plegar la fila destruye el campo de emisión: con el texto a medias y una emisión anterior no nula, al desplegar la marca
-    // sigue, el campo nace vacío con su aviso y Confirmar sigue bloqueado (SubidaMasiva enlaza FechaNoValidaPrevia).
+    // sigue, el campo nace vacío con su aviso y Confirmar sigue bloqueado (SubidaMasiva enlaza FechaNoValida).
     [Fact]
     public async Task Una_emision_a_medias_sigue_bloqueando_tras_plegar_y_desplegar_la_fila()
     {

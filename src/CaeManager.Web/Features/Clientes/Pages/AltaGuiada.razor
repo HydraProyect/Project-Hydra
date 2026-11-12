@@ -227,7 +227,7 @@
             <CampoTexto Etiqueta="Dirección" Valor="@_direccionCentro" ValorChanged="v => _direccionCentro = v" />
             <CampoTexto Etiqueta="Contacto" Valor="@_contactoCentro" ValorChanged="v => _contactoCentro = v" />
             <CampoTexto Etiqueta="Contrato vigente hasta" Type="date" Valor="@_contratoVigenteHasta" ValorChanged="v => _contratoVigenteHasta = v"
-                        FechaNoValidaChanged="AlCambiarContratoVigenteHastaNoValido" />
+                        FechaNoValida="_contratoVigenteHastaNoValido" FechaNoValidaChanged="AlCambiarContratoVigenteHastaNoValido" />
 
             <div class="acciones-formulario">
                 <Boton Variante="VarianteBoton.Primario" Cargando="_guardandoCentro" OnClick="GuardarCentroAsync">Guardar centro</Boton>

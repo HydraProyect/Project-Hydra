@@ -90,7 +90,7 @@ else
                         <CampoTexto Etiqueta="@Textos["EtiquetaEmail"]" Type="email" Valor="@_emailInfo" ValorChanged="v => _emailInfo = v" MensajeError="@ObtenerErrorInformacion(nameof(EditarTrabajadorCommand.Email))" />
                         <CampoTexto Etiqueta="@Textos["EtiquetaTelefonoWhatsapp"]" Type="tel" Placeholder="+34 600 00 00 00" Valor="@_telefonoInfo" ValorChanged="v => _telefonoInfo = v" MensajeError="@ObtenerErrorInformacion(nameof(EditarTrabajadorCommand.Telefono))" />
                         <CampoTexto Etiqueta="@Textos["EtiquetaFechaNacimiento"]" Type="date" Valor="@_fechaNacimientoInfo" ValorChanged="v => _fechaNacimientoInfo = v"
-                                    FechaNoValidaChanged="AlCambiarFechaNacimientoInfoNoValida" />
+                                    FechaNoValida="_fechaNacimientoInfoNoValida" FechaNoValidaChanged="AlCambiarFechaNacimientoInfoNoValida" />
                         <CampoTextarea Etiqueta="@Textos["EtiquetaObservaciones"]" Valor="@_observacionesInfo" ValorChanged="v => _observacionesInfo = v" Filas="3" />
                     </div>
                     <div class="workspace-acciones-edicion">

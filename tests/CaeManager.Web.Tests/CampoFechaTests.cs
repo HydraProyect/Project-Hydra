@@ -123,7 +123,7 @@ public class CampoFechaTests : BunitContext
 
         await cut.Find("input").InputAsync(new ChangeEventArgs { Value = tecleado });
         recibidos.Should().Equal(new DateOnly?[] { null }, "fail-closed: lo que no es una fecha entera dd/mm/aaaa llega como null en la misma pulsación, sin esperar al blur");
-        noValido.Should().Equal(false, true);
+        noValido.Should().Equal(true);
 
         await cut.Find("input").BlurAsync(new FocusEventArgs());
 
@@ -132,7 +132,7 @@ public class CampoFechaTests : BunitContext
         cut.Find("input").GetAttribute("value").Should().NotBe(normalizado, "no se reescribe como otra fecha");
         cut.Find(".campo-mensaje-error").TextContent.Should().Contain("dd/mm/aaaa");
         recibidos.Should().Equal(new DateOnly?[] { null }, "ni la fecha anterior ni 10/01/2030, y salir del campo no vuelve a notificar el mismo null");
-        noValido.Should().Equal(false, true);
+        noValido.Should().Equal(true);
     }
 
     // Pegar «mañana» sobre una fecha se enmascaraba en «» y contaba como vaciado voluntario
@@ -152,18 +152,18 @@ public class CampoFechaTests : BunitContext
             .Add(c => c.NoValidoChanged, v => noValido.Add(v)));
 
         await cut.Find("input").InputAsync(new ChangeEventArgs { Value = pegado });
-        noValido.Should().Equal(false, true);
+        noValido.Should().Equal(true);
         recibidos.Should().Equal(new DateOnly?[] { null }, "la fecha anterior no sobrevive a un texto que no es fecha, sin esperar al blur");
 
         await cut.Find("input").BlurAsync(new FocusEventArgs());
 
-        noValido.Should().Equal(false, true);
+        noValido.Should().Equal(true);
         cut.Find(".campo-mensaje-error").Should().NotBeNull();
         recibidos.Should().Equal(new DateOnly?[] { null });
 
         // Borrarlo a mano sí es el vaciado voluntario: deja de ser no válido (el valor ya era null: no se repite).
         await cut.Find("input").InputAsync(new ChangeEventArgs { Value = string.Empty });
-        noValido.Should().Equal(false, true, false);
+        noValido.Should().Equal(true, false);
         recibidos.Should().Equal(new DateOnly?[] { null });
         cut.FindAll(".campo-mensaje-error").Should().BeEmpty();
     }
@@ -218,15 +218,15 @@ public class CampoFechaTests : BunitContext
 
         await cut.Find("input").InputAsync(new ChangeEventArgs { Value = "10/12/202" });
         recibidos.Should().Equal(new DateOnly?[] { null }, "la primera pulsación que deja de ser fecha entera retira la fecha anterior");
-        noValido.Should().Equal(false, true);
+        noValido.Should().Equal(true);
 
         await cut.Find("input").InputAsync(new ChangeEventArgs { Value = "10/1" });
         recibidos.Should().Equal(new DateOnly?[] { null }, "seguir borrando no repite el mismo null");
-        noValido.Should().Equal(new[] { false, true }, "ni la marca");
+        noValido.Should().Equal(new[] { true }, "ni la marca");
 
         await cut.Find("input").InputAsync(new ChangeEventArgs { Value = string.Empty });
         recibidos.Should().Equal(new DateOnly?[] { null }, "vaciar del todo sigue siendo null, que ya tiene el padre");
-        noValido.Should().Equal(false, true, false);
+        noValido.Should().Equal(true, false);
     }
 
     // La marca de no válido cubre toda ventana en que Valor no es fiable: al dejar de ser fecha entera, primero la marca y luego el
@@ -444,7 +444,7 @@ public class CampoFechaTests : BunitContext
         await cut.Find("input[data-campo-fecha]").BlurAsync(new FocusEventArgs());
 
         recibidos.Should().Equal(new[] { string.Empty }, "lo que no es fecha es «sin fecha», nunca el texto");
-        noValida.Should().Equal(false, true);
+        noValida.Should().Equal(true);
         cut.Find(".campo-mensaje-error").TextContent.Should().Contain("dd/mm/aaaa");
     }
 
@@ -466,7 +466,7 @@ public class CampoFechaTests : BunitContext
         await cut.Find("input[data-campo-fecha]").BlurAsync(new FocusEventArgs());
 
         recibidos.Should().Equal(new[] { string.Empty }, "el último valor del formulario es «», no «31/02/2026»");
-        noValida.Should().Equal(false, true, false);
+        noValida.Should().Equal(true, false);
         cut.FindAll(".campo-mensaje-error").Should().BeEmpty();
     }
 
@@ -501,18 +501,18 @@ public class CampoFechaTests : BunitContext
         foreach (var texto in new[] { "1", "10", "10/1", "10/12", "10/12/2", "10/12/2026" })
             await cut.Find("input").InputAsync(new ChangeEventArgs { Value = texto });
 
-        noValido.Should().Equal(false, true, false);
+        noValido.Should().Equal(true, false);
     }
 
     // Ronda 2 de Codex, ALTO 1 y 2: un campo recreado por un padre que conserva la marca (tramos, filas plegables) no puede
     // retirarla al crearse: la persona no la ha corregido ni vaciado.
     [Fact]
-    public async Task Con_NoValidoPrevio_en_true_el_campo_nuevo_no_retira_la_marca_ni_al_crearse_ni_al_salir_sin_tocarlo()
+    public async Task Con_NoValido_en_true_el_campo_nuevo_no_retira_la_marca_ni_al_crearse_ni_al_salir_sin_tocarlo()
     {
         var noValido = new List<bool>();
         var cut = Render<CampoFecha>(p => p
             .Add(c => c.Valor, (DateOnly?)null)
-            .Add(c => c.NoValidoPrevio, true)
+            .Add(c => c.NoValido, true)
             .Add(c => c.NoValidoChanged, v => noValido.Add(v)));
 
         noValido.Should().BeEmpty("el padre ya tiene la marca: el campo nuevo no la contradice");
@@ -526,13 +526,13 @@ public class CampoFechaTests : BunitContext
     }
 
     [Fact]
-    public async Task Con_NoValidoPrevio_en_true_teclear_una_fecha_entera_retira_la_marca()
+    public async Task Con_NoValido_en_true_teclear_una_fecha_entera_retira_la_marca()
     {
         var noValido = new List<bool>();
         var recibidos = new List<DateOnly?>();
         var cut = Render<CampoFecha>(p => p
             .Add(c => c.Valor, (DateOnly?)null)
-            .Add(c => c.NoValidoPrevio, true)
+            .Add(c => c.NoValido, true)
             .Add(c => c.ValorChanged, v => recibidos.Add(v))
             .Add(c => c.NoValidoChanged, v => noValido.Add(v)));
 
@@ -544,12 +544,12 @@ public class CampoFechaTests : BunitContext
     }
 
     [Fact]
-    public async Task Con_NoValidoPrevio_en_true_teclear_y_vaciar_retira_la_marca()
+    public async Task Con_NoValido_en_true_teclear_y_vaciar_retira_la_marca()
     {
         var noValido = new List<bool>();
         var cut = Render<CampoFecha>(p => p
             .Add(c => c.Valor, (DateOnly?)null)
-            .Add(c => c.NoValidoPrevio, true)
+            .Add(c => c.NoValido, true)
             .Add(c => c.NoValidoChanged, v => noValido.Add(v)));
 
         await cut.Find("input").InputAsync(new ChangeEventArgs { Value = "1" });
@@ -561,13 +561,13 @@ public class CampoFechaTests : BunitContext
     }
 
     [Fact]
-    public async Task Con_NoValidoPrevio_en_true_elegir_un_dia_del_calendario_retira_la_marca()
+    public async Task Con_NoValido_en_true_elegir_un_dia_del_calendario_retira_la_marca()
     {
         var noValido = new List<bool>();
         var recibidos = new List<DateOnly?>();
         var cut = Render<CampoFecha>(p => p
             .Add(c => c.Valor, (DateOnly?)null)
-            .Add(c => c.NoValidoPrevio, true)
+            .Add(c => c.NoValido, true)
             .Add(c => c.ValorChanged, v => recibidos.Add(v))
             .Add(c => c.NoValidoChanged, v => noValido.Add(v)));
 
@@ -580,7 +580,7 @@ public class CampoFechaTests : BunitContext
     }
 
     [Fact]
-    public void Con_NoValidoPrevio_en_true_y_Valor_no_nulo_el_campo_nace_con_la_marca_el_aviso_y_null_en_el_padre()
+    public void Con_NoValido_en_true_y_Valor_no_nulo_el_campo_nace_con_la_marca_el_aviso_y_null_en_el_padre()
     {
         // Ronda 3 de #2185: recrear el campo (cambio de tramo, fila plegada) con la marca y una fecha aún en el padre
         // retiraba la marca, y se guardaba esa fecha, que no era la escrita. Fail-closed: la marca y el aviso siguen, el
@@ -589,7 +589,7 @@ public class CampoFechaTests : BunitContext
         var valores = new List<DateOnly?>();
         var cut = Render<CampoFecha>(p => p
             .Add(c => c.Valor, (DateOnly?)new DateOnly(2030, 1, 2))
-            .Add(c => c.NoValidoPrevio, true)
+            .Add(c => c.NoValido, true)
             .Add(c => c.ValorChanged, v => valores.Add(v))
             .Add(c => c.NoValidoChanged, v => noValido.Add(v)));
 
@@ -610,44 +610,45 @@ public class CampoFechaTests : BunitContext
             .Add(c => c.Valor, (DateOnly?)new DateOnly(2030, 12, 10))
             .Add(c => c.ValorChanged, v => valores.Add(v))
             .Add(c => c.NoValidoChanged, v => noValido.Add(v)));
-        noValido.Should().Equal([false], "control: nace válido");
+        noValido.Should().BeEmpty("control: nacer no es un gesto de la persona y no avisa");
 
         await cut.Find("input").InputAsync(new ChangeEventArgs { Value = "10/1/2030" });
 
         valores.Should().Equal([(DateOnly?)null], "sin blur, el padre ya no tiene 10/12/2030");
-        noValido.Should().Equal(false, true);
+        noValido.Should().Equal(true);
     }
 
     [Fact]
-    public void Con_NoValidoPrevio_en_true_un_cambio_de_Valor_del_padre_retira_la_marca()
+    public void Con_NoValido_en_true_un_cambio_de_Valor_del_padre_retira_la_marca()
     {
         var noValido = new List<bool>();
         var cut = Render<CampoFecha>(p => p
             .Add(c => c.Valor, (DateOnly?)null)
-            .Add(c => c.NoValidoPrevio, true)
+            .Add(c => c.NoValido, true)
             .Add(c => c.NoValidoChanged, v => noValido.Add(v)));
         noValido.Should().BeEmpty("control: nace con la marca heredada");
 
-        cut.Render(p => p.Add(c => c.Valor, new DateOnly(2030, 1, 2)).Add(c => c.NoValidoPrevio, true));
+        cut.Render(p => p.Add(c => c.Valor, new DateOnly(2030, 1, 2)).Add(c => c.NoValido, true));
 
         noValido.Should().Equal(false);
         cut.FindAll(".campo-mensaje-error").Should().BeEmpty();
         cut.Find("input").GetAttribute("value").Should().Be("02/01/2030");
     }
 
+    // Ronda 4 de #2185: avisar false al nacer retiraba la marca del padre cada vez que un cambio de pestaña o de tramo
+    // recreaba el campo. Nacer no es un gesto de la persona: con o sin NoValido, el campo nuevo no avisa nada.
     [Theory]
     [InlineData(false)]
     [InlineData(null)]
-    public void Sin_marca_previa_el_campo_nuevo_dice_su_estado_solo_si_el_padre_no_lo_lleva(bool? previo)
+    public void Sin_marca_previa_el_campo_nuevo_no_avisa_su_estado_al_nacer(bool? previo)
     {
         var noValido = new List<bool>();
         Render<CampoFecha>(p => p
             .Add(c => c.Valor, (DateOnly?)null)
-            .Add(c => c.NoValidoPrevio, previo)
+            .Add(c => c.NoValido, previo)
             .Add(c => c.NoValidoChanged, v => noValido.Add(v)));
 
-        if (previo is null) noValido.Should().Equal(false);
-        else noValido.Should().BeEmpty();
+        noValido.Should().BeEmpty();
     }
 
     [Fact]
@@ -657,7 +658,7 @@ public class CampoFechaTests : BunitContext
         var cut = Render<CampoFecha>(p => p
             .Add(c => c.Valor, (DateOnly?)null)
             .Add(c => c.Deshabilitado, true)
-            .Add(c => c.NoValidoPrevio, true)
+            .Add(c => c.NoValido, true)
             .Add(c => c.NoValidoChanged, v => noValido.Add(v)));
 
         noValido.Should().Equal(false);
@@ -681,7 +682,7 @@ public class CampoFechaTests : BunitContext
 
         cut.FindAll(".campo-mensaje-error").Should().BeEmpty();
         cut.Find("input").GetAttribute("value").Should().BeEmpty();
-        noValido.Should().Equal(false, true, false);
+        noValido.Should().Equal(true, false);
 
         cut.Render(p => p.Add(c => c.Valor, (DateOnly?)null).Add(c => c.Deshabilitado, false));
         await cut.Find("input").BlurAsync(new FocusEventArgs());

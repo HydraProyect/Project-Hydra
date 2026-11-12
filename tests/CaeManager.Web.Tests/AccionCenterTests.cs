@@ -142,6 +142,42 @@ public class AccionCenterTests : BunitContext
         recibido!.Value.CentroId.Should().Be(CentroA.Id);
     }
 
+    // Ronda 4 de Codex: una fecha a medias llega como «»; sin la marca, «Ir al formulario de visita» navegaba sin la
+    // corrección y la Visita se abría con la fecha sugerida, no con la que se estaba escribiendo.
+    [Fact]
+    public async Task Una_fecha_de_la_visita_a_medias_bloquea_ir_al_formulario_con_aviso_y_la_marca_sobrevive_al_cambio_de_paso()
+    {
+        (Guid SugerenciaId, Guid? CentroId, DateOnly? FechaInicio, DateOnly? FechaFin)? recibido = null;
+        var sugerencia = new SugerenciaVisitaDetalleDto(Guid.NewGuid(), CentroA.Id, CentroA.Nombre, null, null, "Resumen", 60, 95, 0);
+
+        var cut = Render<AccionCenter>(parametros => parametros
+            .Add(p => p.SugerenciasVisita, [sugerencia])
+            .Add(p => p.CentrosDisponibles, [CentroA])
+            .Add(p => p.OnCrearVisitaDesdeSugerencia, args => recibido = args));
+
+        cut.FindAll(".accion-card-botones button")[1].Click();
+        cut.FindAll("input[data-campo-fecha]").Should().HaveCount(2, "control: las fechas sin confianza se editan en el paso 1");
+        await cut.FindAll("input[data-campo-fecha]")[0].InputAsync(new Microsoft.AspNetCore.Components.ChangeEventArgs { Value = "15/03" });
+
+        cut.Find(".revision-pie-acciones button:last-child").Click(); // Continuar → paso 2
+        cut.Find(".revision-pie-acciones button:last-child").Click(); // Continuar → paso 3
+        cut.Find(".revision-pie-acciones button:last-child").Click(); // Ir al formulario de visita
+
+        recibido.Should().BeNull("con la fecha a medias no se navega a crear la Visita con la fecha sugerida");
+        cut.Find(".revision-banner-error").TextContent.Should().Contain("no es válida");
+
+        cut.FindAll(".revision-pie button").First(b => b.TextContent.Contains("Volver")).Click(); // → paso 2
+        cut.FindAll(".revision-pie button").First(b => b.TextContent.Contains("Volver")).Click(); // → paso 1
+        cut.FindAll("input[data-campo-fecha]")[0].GetAttribute("aria-invalid").Should().Be("true",
+            "el campo recreado al volver al paso nace con la marca y su aviso");
+
+        await cut.FindAll("input[data-campo-fecha]")[0].InputAsync(new Microsoft.AspNetCore.Components.ChangeEventArgs { Value = "15/03/2030" });
+        cut.Find(".revision-pie-acciones button:last-child").Click();
+        cut.Find(".revision-pie-acciones button:last-child").Click();
+        cut.Find(".revision-pie-acciones button:last-child").Click();
+        recibido!.Value.FechaInicio.Should().Be(new DateOnly(2030, 3, 15), "control positivo: corregida, navega con ella");
+    }
+
     [Fact]
     public void Una_sugerencia_de_gestion_con_trabajador_sin_resolver_bloquea_continuar_hasta_elegirlo()
     {

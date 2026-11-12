@@ -420,7 +420,7 @@
                        padre entre tramos, como la caducidad: con vencimiento automático, la caducidad sale de esta fecha. *@
                     <CampoFecha @key="claves.De(rango.Clave)" Etiqueta="@Textos["FechaEmision"]" Deshabilitado="asignacion.Omitido" Valor="asignacion.FechaEmision"
                                 ValorChanged="v => AlCambiarEmision(asignacion, v)" NoValidoChanged="v => AlCambiarEmisionNoValida(asignacion, v)"
-                                NoValidoPrevio="@_emisionesNoValidas.Contains(asignacion)" />
+                                NoValido="@_emisionesNoValidas.Contains(asignacion)" />
 
                     @if (division.Tipo(asignacion.TipoDocumentoId) is { VencimientoAutomatico: true })
                     {
@@ -432,7 +432,7 @@
                            caducidad. Al marcar «Sin caducidad» u «No crear» el campo se deshabilita y avisa false solo. *@
                         <CampoFecha @key="claves.De(rango.Clave)" Etiqueta="@Textos["FechaCaducidad"]" Deshabilitado="@(asignacion.Omitido || asignacion.SinCaducidad)" Valor="asignacion.FechaCaducidad"
                                     ValorChanged="v => AlCambiarCaducidad(asignacion, v)" NoValidoChanged="v => AlCambiarCaducidadNoValida(asignacion, v)"
-                                    NoValidoPrevio="@_caducidadesNoValidas.Contains(asignacion)" />
+                                    NoValido="@_caducidadesNoValidas.Contains(asignacion)" />
                         <label class="marca-tramo">
                             <input type="checkbox" checked="@asignacion.SinCaducidad" disabled="@asignacion.Omitido" @onchange="AlMarcarSinCaducidad(asignacion)" />
                             @Textos["SinCaducidad"]

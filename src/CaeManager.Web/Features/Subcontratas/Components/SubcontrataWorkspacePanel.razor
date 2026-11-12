@@ -561,9 +561,9 @@ else
             </CampoSelect>
 
             <CampoTexto Etiqueta="@Textos["RotuloFechaVerificacion"]" Type="date" Valor="@_verificacionFecha" ValorChanged="v => _verificacionFecha = v"
-                        FechaNoValidaChanged="v => AlCambiarVerificacionFechaNoValida(ref _verificacionFechaNoValida, v)" />
+                        FechaNoValida="_verificacionFechaNoValida" FechaNoValidaChanged="v => AlCambiarVerificacionFechaNoValida(ref _verificacionFechaNoValida, v)" />
             <CampoTexto Etiqueta="@Textos["RotuloValidoHasta"]" Type="date" Valor="@_verificacionValidoHasta" ValorChanged="v => _verificacionValidoHasta = v"
-                        FechaNoValidaChanged="v => AlCambiarVerificacionFechaNoValida(ref _verificacionValidoHastaNoValido, v)" />
+                        FechaNoValida="_verificacionValidoHastaNoValido" FechaNoValidaChanged="v => AlCambiarVerificacionFechaNoValida(ref _verificacionValidoHastaNoValido, v)" />
             <CampoTextarea Etiqueta="@Textos["RotuloObservaciones"]" Valor="@_verificacionObservaciones" ValorChanged="v => _verificacionObservaciones = v" Filas="3" />
 
             <div class="campo">
