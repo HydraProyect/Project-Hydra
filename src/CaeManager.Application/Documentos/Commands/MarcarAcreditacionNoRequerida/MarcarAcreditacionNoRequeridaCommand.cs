@@ -39,6 +39,13 @@ namespace CaeManager.Application.Documentos.Commands.MarcarAcreditacionNoRequeri
 /// estado que cambia y vuelve al que se vio. Se lee de nuevo de la base para compararla; un choque entre esa lectura y el
 /// guardado lo para el token de EF y llega como <see cref="ConcurrenciaOptimista.CodigoConflicto"/>.
 /// </para>
+///
+/// <para>
+/// La acreditación de un Documento que ya es historial (sustituido) no se marca: falla con
+/// <see cref="DocumentoEnHistorial"/>. El Documento no se escribe y su versión no protege el guardado, así que la guarda se
+/// repite, dentro de la misma transacción y con la fila del Documento bloqueada, después de guardar y antes de confirmar:
+/// una sustitución confirmada entre medias deshace la marca en vez de dejarla sobre el historial.
+/// </para>
 /// </summary>
 public record MarcarAcreditacionNoRequeridaCommand(Guid AcreditacionId, Guid VersionEsperada) : ICommand;
 
@@ -54,14 +61,22 @@ public class MarcarAcreditacionNoRequeridaCommandValidator : AbstractValidator<M
 
 public class MarcarAcreditacionNoRequeridaCommandHandler(
     IAcreditacionDocumentoPlataformaRepository acreditacionRepositorio, IDocumentoRepository documentoRepositorio,
-    IAlcanceDatosService alcanceDatos, IProyectosQueryContext proyectosContext, ICentrosQueryContext centrosContext, IUnitOfWork unitOfWork)
+    IAlcanceDatosService alcanceDatos, IProyectosQueryContext proyectosContext, ICentrosQueryContext centrosContext, IUnitOfWork unitOfWork,
+    ITransaccionDeComando transaccion)
     : IRequestHandler<MarcarAcreditacionNoRequeridaCommand, Result>
 {
     public static readonly Error CambiadaDesdeQueSeAbrio = Error.Crear(
         "Acreditacion.CambiadaDesdeQueSeAbrio",
         "Este paso ha cambiado desde que abriste la Gestión. Revisa cómo está ahora antes de marcarlo.");
 
-    public async Task<Result> Handle(MarcarAcreditacionNoRequeridaCommand request, CancellationToken cancellationToken)
+    /// <summary>
+    /// En una transacción: la marca ya guardada se deshace si la comprobación final del historial falla (ver
+    /// <see cref="MarcarAsync"/>). Todo se lee dentro, porque la estrategia de reintentos puede repetir la operación.
+    /// </summary>
+    public Task<Result> Handle(MarcarAcreditacionNoRequeridaCommand request, CancellationToken cancellationToken) =>
+        transaccion.EjecutarAsync(ct => MarcarAsync(request, ct), cancellationToken);
+
+    private async Task<Result> MarcarAsync(MarcarAcreditacionNoRequeridaCommand request, CancellationToken cancellationToken)
     {
         var acreditacion = await AcreditacionSubible.CargarVisibleAsync(
             request.AcreditacionId, acreditacionRepositorio, documentoRepositorio, alcanceDatos, proyectosContext,
@@ -72,15 +87,14 @@ public class MarcarAcreditacionNoRequeridaCommandHandler(
         // El historial es inmutable (D5/D8, la misma regla de RenovarDocumentoCommand): la acreditación de un Documento que
         // otro ya sustituyó no se marca. Una renovación con archivo nuevo no toca las acreditaciones del anterior, así que su
         // versión no cambia y una pantalla abierta antes la marcaría sin conflicto; lo que cuenta es la acreditación del
-        // Documento vigente. Antes del atajo de «ya está»: sobre el historial no se responde éxito. Releído de la base y no
-        // la instancia que ya rastreara el contexto (el del circuito vive toda la visita): este comando no escribe el
-        // Documento, así que ningún token pararía una sustitución confirmada después de esa primera lectura.
-        var documento = await documentoRepositorio.ObtenerIncluidoEliminadoActualizadoAsync(
+        // Documento vigente. Antes del atajo de «ya está»: sobre el historial no se responde éxito. Leído de la base sin
+        // rastrear, y no la instancia que ya rastreara el contexto (el del circuito vive toda la visita): esa puede ser vieja,
+        // también si arrastra cambios pendientes, que la relectura de ObtenerActualAsync respeta y no repone (revisión Codex
+        // r3 de la PR #2172, hallazgo 2).
+        var documento = await documentoRepositorio.ObtenerIncluidoEliminadoSinRastrearAsync(
             acreditacion.DocumentoId, acreditacion.TenantId, cancellationToken);
-        if (documento is null || documento.EstaEliminado)
-            return Result.Fallo(AcreditacionSubible.NoEncontrada);
-        if (!DocumentoOperativo.Es(documento))
-            return Result.Fallo(DocumentoEnHistorial.NuevoError());
+        if (EnHistorialONoEncontrado(documento) is { } fuera)
+            return Result.Fallo(fuera);
 
         // Ya está como se pide: nada que sobrescribir, sea cual sea la versión que se vio. Una No requerida anterior a la
         // invariante que conserve una vigencia no cuenta como «ya está»: marcarla otra vez se la quita.
@@ -95,6 +109,22 @@ public class MarcarAcreditacionNoRequeridaCommandHandler(
         acreditacion.MarcarNoRequerida();
         await unitOfWork.SaveChangesAsync(cancellationToken);
 
+        // Este comando no escribe el Documento, así que su versión no entra en el guardado y ningún token pararía una
+        // sustitución confirmada por otra sesión entre la guarda de arriba y aquí (revisión Codex r3 de la PR #2172,
+        // hallazgo 1). Antes de confirmar se vuelve a decidir con la fila bloqueada: lo que se lee es lo último confirmado,
+        // y una sustitución que llegue después espera a que esta transacción termine, con la marca ya hecha sobre un
+        // Documento que era el vigente. Si ya no lo es, el fallo deshace la marca guardada. Va tras el guardado, y no antes,
+        // para que la comprobación cubra también lo confirmado mientras se guardaba.
+        var bloqueado = await documentoRepositorio.BloquearYObtenerIncluidoEliminadoSinRastrearAsync(
+            acreditacion.DocumentoId, acreditacion.TenantId, cancellationToken);
+        if (EnHistorialONoEncontrado(bloqueado) is { } sustituido)
+            return Result.Fallo(sustituido);
+
         return Result.Exito();
     }
+
+    private static Error? EnHistorialONoEncontrado(Documento? documento) =>
+        documento is null || documento.EstaEliminado ? AcreditacionSubible.NoEncontrada
+        : !DocumentoOperativo.Es(documento) ? DocumentoEnHistorial.NuevoError()
+        : null;
 }

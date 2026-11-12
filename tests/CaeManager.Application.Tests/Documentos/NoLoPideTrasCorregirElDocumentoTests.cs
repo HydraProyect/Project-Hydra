@@ -68,5 +68,5 @@ public class NoLoPideTrasCorregirElDocumentoTests
     private static MarcarAcreditacionNoRequeridaCommandHandler NoPide(
         MundoAcreditaciones mundo, DocumentoRepositorioFalso documentos, UnitOfWorkFalso unitOfWork) => new(
         mundo.Acreditaciones, documentos, new AlcanceDatosServiceFalso(), new ProyectosQueryContextFalso(), mundo.CentrosContexto,
-        unitOfWork);
+        unitOfWork, new TransaccionDeComandoFalsa());
 }

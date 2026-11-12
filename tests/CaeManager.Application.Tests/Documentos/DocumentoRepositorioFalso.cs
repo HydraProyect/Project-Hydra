@@ -32,6 +32,19 @@ public class DocumentoRepositorioFalso : IDocumentoRepository
         return Task.FromResult(documento);
     }
 
+    /// <summary>Lee de la base, como la lectura «…Actualizado»: también ve <see cref="CambioEnLaBase"/>.</summary>
+    public Task<Documento?> ObtenerIncluidoEliminadoSinRastrearAsync(Guid id, Guid? tenantId, CancellationToken cancellationToken = default) =>
+        ObtenerIncluidoEliminadoActualizadoAsync(id, tenantId, cancellationToken);
+
+    /// <summary>Cuántas veces se pidió la lectura bloqueada; el bloqueo real y su transacción los prueba la integración.</summary>
+    public int LecturasBloqueadas { get; private set; }
+
+    public Task<Documento?> BloquearYObtenerIncluidoEliminadoSinRastrearAsync(Guid id, Guid? tenantId, CancellationToken cancellationToken = default)
+    {
+        LecturasBloqueadas++;
+        return ObtenerIncluidoEliminadoActualizadoAsync(id, tenantId, cancellationToken);
+    }
+
     public void Agregar(Documento documento)
     {
         if (ExcepcionAlAgregar is { } excepcion)

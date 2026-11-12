@@ -515,6 +515,67 @@ public class GestionesAutomaticasBajoRlsTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task Una_renovacion_confirmada_entre_la_guarda_y_el_guardado_de_no_lo_pide_deshace_la_marca_con_el_historial()
+    {
+        // Codex r3 (MEDIO) sobre f83535b9e: la guarda vio el Documento vigente y otra sesión lo renueva con archivo nuevo
+        // antes del guardado. La renovación no toca esta acreditación (su versión sigue siendo la vista) y «no lo pide» no
+        // escribe el Documento: solo la comprobación final, con la fila bloqueada y dentro de la transacción, lo para.
+        var propia = await NacerComoPropietarioAsync(_tenantSesion, _propio.Documento);
+        Guid vista;
+        await using (var pantalla = CrearRuntime())
+            vista = (await DetalleAsync(pantalla, propia, new SinNotaInterna()))!.Pasos.Single().VersionAcreditacion;
+
+        await using var runtime = CrearRuntime();
+        var entremedias = new OtraEscrituraAntesDeGuardar(runtime, async () =>
+        {
+            await using var renovacion = CrearRuntime();
+            await RenovacionConArchivoAsync(renovacion, await renovacion.Documentos.SingleAsync(d => d.Id == _propio.Documento), _propio.Canal);
+        });
+
+        var resultado = await NoPide(runtime, entremedias).Handle(
+            new MarcarAcreditacionNoRequeridaCommand(_propio.Acreditacion, vista), CancellationToken.None);
+
+        entremedias.Ejecutada.Should().BeTrue("control del instrumento: la renovación se confirmó entre la guarda y el guardado");
+        resultado.Error.Codigo.Should().Be("Documento.EnHistorial");
+        using (AmbitoTenantExplicito.Establecer(_tenantSesion))
+        {
+            var fila = await _propietario.AcreditacionesDocumentoPlataforma.AsNoTracking().SingleAsync(a => a.Id == _propio.Acreditacion);
+            fila.Version.Should().Be(vista, "la marca guardada se deshizo con la transacción: ni el estado ni la versión cambian");
+            fila.Estado.Should().Be(EstadoAcreditacion.PendienteDeSubir, "la acreditación del historial no cambia");
+            (await _propietario.Documentos.AsNoTracking().SingleAsync(d => d.Id == _propio.Documento)).SustituidoEnUtc
+                .Should().NotBeNull("control: la renovación de la otra sesión sí se confirmó");
+        }
+    }
+
+    [Fact]
+    public async Task Con_el_Documento_rastreado_con_cambios_pendientes_el_atajo_de_ya_no_requerida_no_responde_exito_sobre_el_historial()
+    {
+        // Codex r3 (BAJO) sobre f83535b9e: ObtenerActualAsync no relee una instancia rastreada con cambios pendientes y la
+        // versión intacta, para no perderlos. Si la guarda la usara, vería el Documento vigente de cuando se abrió la
+        // ventana y el atajo de «ya está No requerida» respondería éxito sobre el historial. La guarda lee sin rastrear.
+        var propia = await NacerComoPropietarioAsync(_tenantSesion, _propio.Documento);
+        await using (var previa = CrearRuntime())
+        {
+            var vista = (await DetalleAsync(previa, propia, new SinNotaInterna()))!.Pasos.Single().VersionAcreditacion;
+            (await NoPide(previa).Handle(new MarcarAcreditacionNoRequeridaCommand(_propio.Acreditacion, vista), CancellationToken.None))
+                .EsExitoso.Should().BeTrue("control: la acreditación ya está No requerida antes de la renovación");
+        }
+
+        await using var circuito = CrearRuntime();
+        var rastreado = await circuito.Documentos.SingleAsync(d => d.Id == _propio.Documento);
+        rastreado.ActualizarComentarios("Cambio pendiente del circuito");
+        circuito.Entry(rastreado).State.Should().Be(EntityState.Modified,
+            "precondición del instrumento: la instancia rastreada arrastra un cambio pendiente con la versión intacta");
+
+        await using (var renovacion = CrearRuntime())
+            await RenovacionConArchivoAsync(renovacion, await renovacion.Documentos.SingleAsync(d => d.Id == _propio.Documento), _propio.Canal);
+
+        DocumentoOperativo.Es(rastreado).Should().BeTrue("precondición: la instancia rastreada sigue vieja");
+        (await NoPide(circuito).Handle(new MarcarAcreditacionNoRequeridaCommand(_propio.Acreditacion, Guid.NewGuid()), CancellationToken.None))
+            .Error.Codigo.Should().Be("Documento.EnHistorial");
+    }
+
+    [Fact]
     public async Task Un_no_lo_pide_confirmado_entre_la_lectura_y_el_guardado_de_la_correccion_la_para_con_un_conflicto()
     {
         // La carrera inversa del ALTO de Codex r2: la corrección ya leyó la acreditación (Pendiente de subir, sin vigencia)
@@ -632,8 +693,13 @@ public class GestionesAutomaticasBajoRlsTests : IAsyncLifetime
                 .Estado.Should().Be(EstadoAcreditacion.NoRequerida);
     }
 
-    private MarcarAcreditacionNoRequeridaCommandHandler NoPide(CaeManagerDbContext runtime) => new(
-        new AcreditacionDocumentoPlataformaRepository(runtime), new DocumentoRepository(runtime), Alcance(runtime), runtime, runtime, runtime);
+    /// <summary>
+    /// El handler real sobre <paramref name="runtime"/>, con su transacción real. <paramref name="unitOfWork"/> deja meter
+    /// otra escritura justo antes del guardado (<see cref="OtraEscrituraAntesDeGuardar"/>).
+    /// </summary>
+    private MarcarAcreditacionNoRequeridaCommandHandler NoPide(CaeManagerDbContext runtime, IUnitOfWork? unitOfWork = null) => new(
+        new AcreditacionDocumentoPlataformaRepository(runtime), new DocumentoRepository(runtime), Alcance(runtime), runtime, runtime,
+        unitOfWork ?? runtime, new TransaccionDeComando(runtime));
 
     /// <summary>
     /// <see cref="RenovarDocumentoCommand"/> sin archivo nuevo con el handler real sobre <paramref name="runtime"/>: corrige

@@ -180,6 +180,59 @@ public class MarcarAcreditacionNoRequeridaCommandHandlerTests
     }
 
     [Fact]
+    public async Task Una_sustitucion_confirmada_entre_la_guarda_y_el_guardado_hace_fallar_con_el_historial_y_deshace_la_marca()
+    {
+        // Codex r3 (MEDIO) sobre f83535b9e: la guarda vio el Documento operativo y otra sesión lo sustituye antes del
+        // guardado. «No lo pide» no escribe el Documento, así que ningún token lo para en el guardado: sin la comprobación
+        // final, bajo el bloqueo y dentro de la transacción, respondía éxito con la marca sobre el historial.
+        var escenario = Escenario.Nuevo();
+        var nuevo = escenario.Documento.NuevoDelMismoTitular(
+            new DateOnly(2026, 2, 1), VigenciaDocumento.NoCaduca, "tenant/renovado.pdf", null, null);
+        escenario.UnitOfWork.AlGuardar = () =>
+            escenario.Documento.SustituirPor(nuevo, MotivoSustitucionDocumento.Renovacion, DateTime.UtcNow);
+
+        var resultado = await escenario.Handler().Handle(
+            new MarcarAcreditacionNoRequeridaCommand(escenario.Acreditacion.Id, escenario.Acreditacion.Version), CancellationToken.None);
+
+        escenario.UnitOfWork.VecesGuardado.Should().Be(1,
+            "control del instrumento: la guarda dejó pasar y la sustitución entró entre ella y el guardado");
+        resultado.EsFallido.Should().BeTrue();
+        resultado.Error.Codigo.Should().Be("Documento.EnHistorial");
+        escenario.Documentos.LecturasBloqueadas.Should().Be(1);
+        escenario.Transaccion.Deshechas.Should().Be(1, "el fallo deshace la marca ya guardada");
+        escenario.Transaccion.Confirmadas.Should().Be(0);
+    }
+
+    [Fact]
+    public async Task Un_Documento_eliminado_entre_la_guarda_y_el_guardado_tambien_deshace_la_marca()
+    {
+        var escenario = Escenario.Nuevo();
+        escenario.UnitOfWork.AlGuardar = () => escenario.Documento.MarcarComoEliminado(Guid.NewGuid());
+
+        var resultado = await escenario.Handler().Handle(
+            new MarcarAcreditacionNoRequeridaCommand(escenario.Acreditacion.Id, escenario.Acreditacion.Version), CancellationToken.None);
+
+        escenario.UnitOfWork.VecesGuardado.Should().Be(1, "control del instrumento: la eliminación entró tras la guarda");
+        resultado.Error.Codigo.Should().Be("Acreditacion.NoEncontrada");
+        escenario.Transaccion.Deshechas.Should().Be(1);
+    }
+
+    [Fact]
+    public async Task Sin_cambios_entre_medias_la_comprobacion_bloqueada_deja_confirmar()
+    {
+        // Control positivo de los dos anteriores: la misma comprobación final, con el Documento todavía vigente.
+        var escenario = Escenario.Nuevo();
+
+        var resultado = await escenario.Handler().Handle(
+            new MarcarAcreditacionNoRequeridaCommand(escenario.Acreditacion.Id, escenario.Acreditacion.Version), CancellationToken.None);
+
+        resultado.EsExitoso.Should().BeTrue();
+        escenario.Documentos.LecturasBloqueadas.Should().Be(1, "la decisión final se toma con la fila bloqueada");
+        escenario.Transaccion.Ejecutadas.Should().Be(1);
+        escenario.Transaccion.Confirmadas.Should().Be(1);
+    }
+
+    [Fact]
     public async Task Con_una_version_vacia_falla_y_no_escribe()
     {
         // Guid.Empty es «sin comprobación» en ConcurrenciaOptimista: aquí, aunque se saltara el validador, no pasa.
@@ -360,6 +413,7 @@ public class MarcarAcreditacionNoRequeridaCommandHandlerTests
         public DocumentoRepositorioFalso Documentos { get; } = new();
         public AcreditacionDocumentoPlataformaRepositorioFalso Acreditaciones { get; } = new();
         public UnitOfWorkFalso UnitOfWork { get; } = new();
+        public TransaccionDeComandoFalsa Transaccion { get; } = new();
 
         public static Escenario Nuevo()
         {
@@ -400,6 +454,6 @@ public class MarcarAcreditacionNoRequeridaCommandHandlerTests
             typeof(EntidadBase).GetProperty(nameof(EntidadBase.Version))!.SetValue(Acreditacion, Guid.NewGuid());
 
         public MarcarAcreditacionNoRequeridaCommandHandler Handler(AlcanceDatosServiceFalso? alcance = null) =>
-            new(Acreditaciones, Documentos, alcance ?? new AlcanceDatosServiceFalso(), new ProyectosQueryContextFalso(), Centros, UnitOfWork);
+            new(Acreditaciones, Documentos, alcance ?? new AlcanceDatosServiceFalso(), new ProyectosQueryContextFalso(), Centros, UnitOfWork, Transaccion);
     }
 }

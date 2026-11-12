@@ -86,7 +86,8 @@ public class AcreditacionAlcanceCentroTests
                     .Handle(new(acreditacion.Id, CausaRechazoAcreditacion.Ilegible, "Firma ilegible"), CancellationToken.None),
                 "pendiente" => await new MarcarAcreditacionPendienteDeSubirCommandHandler(acreditaciones, documentos, alcance, proyectos, centros, unit)
                     .Handle(new(acreditacion.Id), CancellationToken.None),
-                "nopide" => await new MarcarAcreditacionNoRequeridaCommandHandler(acreditaciones, documentos, alcance, proyectos, centros, unit)
+                "nopide" => await new MarcarAcreditacionNoRequeridaCommandHandler(acreditaciones, documentos, alcance, proyectos, centros, unit,
+                        new TransaccionDeComandoFalsa())
                     .Handle(new(acreditacion.Id, acreditacion.Version), CancellationToken.None),
                 "vigencia" => await new ConfirmarVigenciaAcreditacionCommandHandler(acreditaciones, documentos, alcance, proyectos, centros, unit)
                     .Handle(new(acreditacion.Id, VigenciaEnPlataforma.NoVenceAqui), CancellationToken.None),
