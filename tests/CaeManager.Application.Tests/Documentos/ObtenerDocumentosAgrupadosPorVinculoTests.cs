@@ -449,6 +449,50 @@ public class ObtenerDocumentosAgrupadosPorVinculoTests
         agrupados.ResumenPorGrupo.Should().NotContainKey(ObtenerDocumentosQuery.GrupoSin);
     }
 
+    /// <summary>
+    /// Decisión de Chris del 2026-11-12, opción B: el rol Cliente ve el estado en la plataforma de las acreditaciones de
+    /// sus Centros visibles, pero no el motivo literal de rechazo, que no viaja en el DTO. El corte es por Centro de
+    /// gestión: quien ve dos Centros y gestiona uno recibe el motivo solo del suyo.
+    /// </summary>
+    [Fact]
+    public async Task El_motivo_de_rechazo_solo_llega_en_Centros_que_se_gestionan_y_el_rol_Cliente_ve_el_estado_sin_motivo()
+    {
+        var e = new Escenario();
+        var cliente = e.ConEmpresa("Cliente empresarial");
+        var centroA = e.ConCentro(cliente, "Centro A");
+        var centroB = e.ConCentro(cliente, "Centro B");
+        var nalanda = e.ConPlataforma("Nalanda");
+        var documento = e.ConDocumento();
+        var enA = e.Acreditar(documento, centroA, nalanda);
+        e.Rechazar(enA, "Motivo en A", DateTime.UtcNow);
+        var enB = e.Acreditar(documento, centroB, nalanda);
+        e.Rechazar(enB, "Motivo en B", DateTime.UtcNow);
+
+        AcreditacionEnGrupoDto[] Acreditaciones(ResultadoPaginado<DocumentoListaDto> r) =>
+            r.Elementos.Select(x => x.Grupo!.Acreditacion!).OrderBy(a => a.Id == enA.Id ? 0 : 1).ToArray();
+
+        var gestor = await e.Handler().Handle(Agrupado(AgrupacionDocumentos.PlataformaCae), default);
+        Acreditaciones(gestor).Select(a => a.UltimoMotivoRechazo).Should().Equal(["Motivo en A", "Motivo en B"],
+            "control positivo: quien gestiona los dos Centros recibe los dos motivos");
+
+        var usuarioDeCliente = new AlcanceDatosServiceFalso(tieneAccesoTotal: false, empresaIdsVisibles: [e.Contratista.Id],
+            centroIdsVisibles: [centroA.Id, centroB.Id], centroIdsParaGestion: []);
+        var deCliente = await e.Handler(usuarioDeCliente).Handle(Agrupado(AgrupacionDocumentos.PlataformaCae), default);
+        Acreditaciones(deCliente).Should().HaveCount(2, "ve las dos acreditaciones de sus Centros visibles");
+        Acreditaciones(deCliente).Should().OnlyContain(a => a.Estado == EstadoAcreditacion.Rechazada && a.UltimoMotivoRechazo == null,
+            "ve el estado, no el motivo");
+        Resumen(deCliente, nalanda.Id.ToString()).EnPlataforma.Should().BeEquivalentTo(
+            new Dictionary<EstadoEnPlataformaFiltro, int> { [EstadoEnPlataformaFiltro.Rechazado] = 2 }, "y los recuentos de estado");
+        (await e.Handler(usuarioDeCliente).Handle(Agrupado(AgrupacionDocumentos.PlataformaCae, EstadoEnPlataformaFiltro.Rechazado), default))
+            .Elementos.Should().HaveCount(2, "el filtro «Estado en la plataforma» también le sirve");
+
+        var gestorDeA = new AlcanceDatosServiceFalso(tieneAccesoTotal: false, empresaIdsVisibles: [e.Contratista.Id],
+            centroIdsVisibles: [centroA.Id, centroB.Id], centroIdsParaGestion: [centroA.Id]);
+        var deGestorDeA = await e.Handler(gestorDeA).Handle(Agrupado(AgrupacionDocumentos.PlataformaCae), default);
+        Acreditaciones(deGestorDeA).Select(a => a.UltimoMotivoRechazo).Should().Equal(["Motivo en A", null],
+            "el motivo llega solo del Centro que gestiona");
+    }
+
     [Fact]
     public async Task El_filtro_de_estado_y_el_de_Plataforma_CAE_se_aplican_a_la_misma_acreditacion()
     {

@@ -299,7 +299,9 @@ public partial class Documentos : CaeManager.Web.Components.PaginaInteractiva, I
     // en sitio (mismo criterio que Centros.RefrescarCentroAsync): filtros, orden, página,
     // selección, fila enfocada y desplazamiento no se tocan, y la fila permanece aunque el
     // cambio la saque del filtro activo, hasta la siguiente carga. Los recuentos de la franja
-    // tampoco se recalculan hasta entonces.
+    // tampoco se recalculan hasta entonces. Excepción (P-1): agrupada por Plataforma CAE o por
+    // Cliente empresarial se recarga la lista entera, porque grupos, estados en la plataforma y
+    // recuentos de cabecera solo los trae la consulta de página (ver RefrescarFilaAsync).
 
     /// <summary>
     /// La siguiente petición de QuickGrid se sirve de <see cref="_elementosPagina"/> sin consultar:
@@ -323,6 +325,17 @@ public partial class Documentos : CaeManager.Web.Components.PaginaInteractiva, I
         if (_desechado || _grid is null || _cargando || _pestanaActiva != "listado" || !_elementosPagina.Any(e => e.Id == id))
             return;
 
+        // Agrupada por vínculo, cada fila lleva el estado de su acreditación en esa Plataforma CAE o Cliente empresarial y
+        // la cabecera, los recuentos del servidor. Guardar en la vista rápida puede cambiarlos (una versión nueva devuelve
+        // las acreditaciones a «Pendiente de subir»), y la consulta por Id no trae el grupo: conservar el de la fila
+        // arrastraría el estado viejo y «Anotar vigencia (N)» contaría acreditaciones que ya no están «Sin vigencia».
+        // Se recarga la lista entera, que trae grupos, estados y recuentos frescos (y limpia la selección, como toda carga).
+        if (AgrupadaPorVinculo)
+        {
+            await RecargarAsync();
+            return;
+        }
+
         var carga = _cargaVigente;
         try
         {
@@ -332,11 +345,7 @@ public partial class Documentos : CaeManager.Web.Components.PaginaInteractiva, I
                 || resultado.Elementos.FirstOrDefault() is not { } actualizada)
                 return;
 
-            // Agrupada por vínculo, un Documento ocupa varias filas: se sustituyen todas y cada una conserva su grupo,
-            // que la consulta por Id no trae (sin él, la fila caería en el grupo «sin», plegado).
-            for (var i = indice; i < _elementosPagina.Count; i++)
-                if (_elementosPagina[i].Id == id)
-                    _elementosPagina[i] = actualizada with { Grupo = _elementosPagina[i].Grupo };
+            _elementosPagina[indice] = actualizada;
             _servirPaginaEnMemoria = true;
             await _grid.RefreshDataAsync();
             if (!_desechado && carga == _cargaVigente) StateHasChanged();

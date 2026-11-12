@@ -535,7 +535,10 @@
 
     </text>;
 
-    /// <summary>Quien puede recibir «Abrir portal»: todos los roles del Tenant salvo Cliente, el mismo corte que ObtenerCentroIdsParaGestionAsync.</summary>
+    /// <summary>
+    /// Quien puede recibir «Abrir portal» y ver el motivo literal de rechazo: todos los roles del Tenant salvo Cliente, el
+    /// mismo corte que ObtenerCentroIdsParaGestionAsync. El rol Cliente sí ve el estado en la plataforma (opción B, 2026-11-12).
+    /// </summary>
     private const string RolesQueAbrenPortal =
         $"{CaeManager.Infrastructure.Identity.Roles.ConEscrituraCsv},{CaeManager.Infrastructure.Identity.Roles.Consulta}";
 
@@ -554,7 +557,11 @@
                                         <Badge Tono="TonoEnPlataforma(acreditacion)" Tamano="TamanoBadge.Pequeno">@TextoEnPlataforma(acreditacion)</Badge>
                                         @if (acreditacion.Estado == EstadoAcreditacion.Rechazada && !string.IsNullOrWhiteSpace(acreditacion.UltimoMotivoRechazo))
                                         {
-                                            <span class="documentos-en-plataforma-motivo">@acreditacion.UltimoMotivoRechazo</span>
+                                            @* El rol Cliente ve el estado, no el motivo (decisión de Chris del 2026-11-12, opción B): el
+                                               servidor ya no se lo manda; la página tampoco lo pinta aunque llegara. *@
+                                            <AuthorizeView Roles="@RolesQueAbrenPortal" Context="autorizacionMotivo">
+                                                <span class="documentos-en-plataforma-motivo">@acreditacion.UltimoMotivoRechazo</span>
+                                            </AuthorizeView>
                                         }
                                     </span>
                                 }

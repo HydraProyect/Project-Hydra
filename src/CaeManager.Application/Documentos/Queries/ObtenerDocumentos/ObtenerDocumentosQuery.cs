@@ -138,6 +138,10 @@ public enum EstadoEnPlataformaFiltro
 public record GrupoDeFilaDocumentalDto(string Clave, AcreditacionEnGrupoDto? Acreditacion = null);
 
 /// <param name="ClienteEmpresarialNombre">El Cliente empresarial del Centro del canal, no el Tenant propietario.</param>
+/// <param name="UltimoMotivoRechazo">
+/// El último motivo literal de rechazo, solo si el usuario gestiona el Centro del canal: <c>null</c> para el rol Cliente,
+/// que ve el estado pero no el motivo (decisión de Chris del 2026-11-12, opción B).
+/// </param>
 public record AcreditacionEnGrupoDto(Guid Id, EstadoAcreditacion Estado, EstadoVigenciaEnPlataforma EstadoVigencia,
     string ClienteEmpresarialNombre, string? UltimoMotivoRechazo)
 {
@@ -815,7 +819,14 @@ public class ObtenerDocumentosQueryHandler(IConfiguracionQueryContext configurac
             return filas;
         }
 
-        var rechazadas = dePagina.Where(v => v.Estado == EstadoAcreditacion.Rechazada).Select(v => v.AcreditacionId).ToList();
+        // El motivo literal de rechazo, solo en Centros que el usuario gestiona: el rol Cliente ve el estado en la
+        // plataforma de las acreditaciones de sus Centros visibles, pero no el motivo (decisión de Chris del 2026-11-12,
+        // opción B). Es el mismo corte que «Abrir portal» (ObtenerCentroIdsParaGestionAsync: lista vacía para el rol
+        // Cliente, fallo cerrado), y se aplica aquí y no en la vista: el motivo ni se lee ni viaja en el DTO.
+        var centrosGestion = await alcanceDatos.ObtenerCentroIdsParaGestionAsync(cancellationToken);
+        var rechazadas = dePagina
+            .Where(v => v.Estado == EstadoAcreditacion.Rechazada && (centrosGestion == null || centrosGestion.Contains(v.CentroId)))
+            .Select(v => v.AcreditacionId).ToList();
         var motivos = rechazadas.Count == 0
             ? new Dictionary<Guid, string>()
             : await documentosContext.RechazosAcreditacionDocumentoPlataforma

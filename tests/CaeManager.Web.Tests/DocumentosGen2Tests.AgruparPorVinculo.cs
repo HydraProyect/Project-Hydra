@@ -7,6 +7,7 @@ using CaeManager.Application.Documentos.Queries.ObtenerDocumentos;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Documentos;
 using CaeManager.Web.Components.DesignSystem;
+using CaeManager.Web.Components.Workspace;
 using FluentAssertions;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Web;
@@ -482,5 +483,146 @@ public partial class DocumentosGen2Tests
 
         cut.WaitForAssertion(() => UltimaConsultaDeDocumentos(mediador).EstadosEnPlataforma.Should().BeNull());
         Services.GetRequiredService<NavigationManager>().Uri.Should().NotContain("EstadoPlataforma");
+    }
+
+    // ------------------------------------------------------------- el rol Cliente (decisión de Chris del 2026-11-12, opción B)
+
+    /// <summary>
+    /// El rol Cliente ve la columna «Estado en la plataforma» de las acreditaciones de sus Centros visibles, y el filtro,
+    /// pero no el motivo literal de rechazo. El servidor ya no se lo manda (lo fija la prueba de Application); aquí el doble
+    /// lo manda igualmente y la página no lo pinta.
+    /// </summary>
+    [Theory]
+    [InlineData("Administrador", true)]
+    [InlineData("GestorCae", true)]
+    [InlineData("Consulta", true)]
+    [InlineData("Cliente", false)]
+    public async Task El_estado_en_la_plataforma_se_ve_con_cualquier_rol_y_el_motivo_de_rechazo_no_con_el_rol_Cliente(string rol, bool veMotivo)
+    {
+        var e = ConVinculos();
+        var (cut, mediador) = Renderizar(e.Mediador, rol: rol);
+        cut.WaitForAssertion(() => cut.Find("tbody button.enlace-nombre-fila"));
+
+        await Agrupar(cut, "Por Plataforma CAE");
+
+        cut.WaitForAssertion(() => cut.FindAll("tbody .documentos-en-plataforma").Should().HaveCount(4));
+        cut.FindAll(".documentos-tabla-visible thead th").Select(h => h.TextContent.Trim()).Should().Contain("Estado en la plataforma");
+        var rechazado = cut.FindAll("tbody tr:has(button.enlace-nombre-fila)").Single(f => f.TextContent.Contains("Ana Ruiz Pardo"))
+            .QuerySelector(".documentos-celda-en-plataforma")!;
+        rechazado.TextContent.Should().Contain("Rechazad", "el estado se ve con cualquier rol");
+        rechazado.QuerySelectorAll(".documentos-en-plataforma-motivo").Should().HaveCount(veMotivo ? 1 : 0);
+        cut.Markup.Contains("Ilegible").Should().Be(veMotivo, "el motivo no se pinta en ningún sitio para el rol Cliente");
+        cut.FindAll("tbody .documentos-en-plataforma").Count(c => c.TextContent.Contains("Sin vigencia")).Should().Be(2);
+
+        await ElegirPastillaDocumentoFase1(cut, "Estado en la plataforma", "Rechazado");
+        // El filtro solo muestra estados: también lo tiene el rol Cliente.
+        cut.WaitForAssertion(() => UltimaConsultaDeDocumentos(mediador).EstadosEnPlataforma.Should().Equal(EstadoEnPlataformaFiltro.Rechazado));
+    }
+
+    // ------------------------------------------------------------- refresco tras guardar en la vista rápida
+
+    /// <summary>
+    /// Un Documento aceptado «Sin vigencia» en dos Plataformas CAE, seleccionado: cada grupo ofrece «Anotar vigencia (1)».
+    /// Guardar en la vista rápida una versión nueva devuelve sus acreditaciones a «Pendiente de subir». Agrupada por
+    /// vínculo, la página recarga la lista entera (grupos, estados y recuentos del servidor) en vez de sustituir la fila
+    /// conservando su grupo viejo: el Documento sigue en sus dos grupos, con el estado nuevo, y «Anotar vigencia» ya no
+    /// cuenta lo que dejó de estar «Sin vigencia», ni aunque se vuelva a seleccionar.
+    /// </summary>
+    [Fact]
+    public async Task Tras_guardar_en_la_vista_rapida_agrupada_por_Plataforma_CAE_recarga_y_Anotar_vigencia_no_cuenta_lo_devuelto_a_pendiente()
+    {
+        var documento = DocumentoDeFila();
+        var estado = EstadoAcreditacion.Aceptada;
+        var mediador = new MediadorControlado
+        {
+            Documentos = q => q.DocumentoId is not null
+                ? [documento]
+                : q.AgruparPor == AgrupacionDocumentos.PlataformaCae
+                    ? [EnPlataforma(documento, NalandaId, Guid.NewGuid(), estado, "Cliente Norte"),
+                       EnPlataforma(documento, CtaimaId, Guid.NewGuid(), estado, "Cliente Norte")]
+                    : [documento],
+            ResumenesDeGrupo = q => q.AgruparPor == AgrupacionDocumentos.PlataformaCae
+                ? new Dictionary<string, ResumenDeGrupo>
+                {
+                    [NalandaId.ToString()] = ResumenPlataforma("Nalanda", 1, null, Recuento(estado)),
+                    [CtaimaId.ToString()] = ResumenPlataforma("Ctaima", 1, null, Recuento(estado)),
+                }
+                : null,
+        };
+        var (cut, _) = Renderizar(mediador);
+        cut.WaitForAssertion(() => cut.Find("tbody button.enlace-nombre-fila"));
+        await Agrupar(cut, "Por Plataforma CAE");
+        cut.WaitForAssertion(() => cut.FindAll("tr.documentos-cabecera-grupo-vinculo").Should().HaveCount(2));
+        await cut.Find(".cabecera-pagina button[aria-label='Selección múltiple']").ClickAsync(new MouseEventArgs());
+        await cut.Find(".documentos-tabla-visible tbody input[type=checkbox]").ChangeAsync(new ChangeEventArgs { Value = true });
+        cut.FindAll(".documentos-anotar-vigencia").Select(b => b.TextContent.Trim())
+            .Should().Equal(["Anotar vigencia (1)", "Anotar vigencia (1)"], "punto de partida: una sin vigencia en cada grupo");
+        var paginasAntes = mediador.Enviadas.OfType<ObtenerDocumentosQuery>().Count(q => q.DocumentoId is null);
+
+        estado = EstadoAcreditacion.PendienteDeSubir;
+        await AvisarGuardadoAsync(cut, EntidadWorkspace.Documento, documento.Id);
+
+        cut.WaitForAssertion(() => cut.FindAll("tbody .documentos-en-plataforma").Should().HaveCount(2)
+            .And.OnlyContain(c => c.TextContent.Contains("Pendiente") && !c.TextContent.Contains("Sin vigencia"),
+                "las dos filas enseñan el estado nuevo, no el que arrastraría el grupo viejo"));
+        mediador.Enviadas.OfType<ObtenerDocumentosQuery>().Count(q => q.DocumentoId is null).Should().BeGreaterThan(paginasAntes,
+            "agrupada por vínculo, el aviso recarga la lista");
+        UltimaConsultaDeDocumentos(mediador).AgruparPor.Should().Be(AgrupacionDocumentos.PlataformaCae);
+        NombresDeVinculo(cut).Should().Equal(["Ctaima", "Nalanda"], "el Documento sigue en sus dos grupos y no cae en «Sin Plataforma CAE»");
+        cut.FindAll("tbody tr:has(button.enlace-nombre-fila)").Should().HaveCount(2);
+        ResumenDeVinculo(CabeceraDeVinculo(cut, NalandaId.ToString())).Should().Equal("1 pendiente de subir");
+        cut.FindAll(".documentos-anotar-vigencia").Should().BeEmpty();
+
+        await cut.Find(".documentos-tabla-visible tbody input[type=checkbox]").ChangeAsync(new ChangeEventArgs { Value = true });
+        cut.FindAll(".documentos-anotar-vigencia").Should().BeEmpty(
+            "seleccionado otra vez, ya no hay acreditaciones «Sin vigencia» que anotar");
+    }
+
+    private static (EstadoEnPlataformaFiltro, int) Recuento(EstadoAcreditacion estado) =>
+        (estado == EstadoAcreditacion.Aceptada ? EstadoEnPlataformaFiltro.SinVigencia : EstadoEnPlataformaFiltro.PendienteDeSubir, 1);
+
+    // ------------------------------------------------------------- j/k con un Documento en varias filas
+
+    /// <summary>
+    /// Un Documento en dos Plataformas CAE ocupa dos filas seguidas (Ctaima y Nalanda) y otro va detrás en Nalanda. j/k
+    /// recorren Documentos, no filas: la segunda j pasa al otro Documento en vez de quedarse en la segunda fila del primero.
+    /// </summary>
+    [Fact]
+    public async Task J_y_k_recorren_Documentos_aunque_un_Documento_ocupe_varias_filas()
+    {
+        var repetido = DocumentoDeFila();
+        var otro = DocumentoDeFila() with { Id = Guid.NewGuid(), PropietarioNombre = "Ana Ruiz Pardo" };
+        var mediador = new MediadorControlado
+        {
+            Documentos = q => q.AgruparPor == AgrupacionDocumentos.PlataformaCae
+                ? [EnPlataforma(repetido, CtaimaId, Guid.NewGuid(), EstadoAcreditacion.Aceptada, "Cliente Norte"),
+                   EnPlataforma(repetido, NalandaId, Guid.NewGuid(), EstadoAcreditacion.Aceptada, "Cliente Norte"),
+                   EnPlataforma(otro, NalandaId, Guid.NewGuid(), EstadoAcreditacion.Aceptada, "Cliente Norte")]
+                : [repetido, otro],
+            ResumenesDeGrupo = q => q.AgruparPor == AgrupacionDocumentos.PlataformaCae
+                ? new Dictionary<string, ResumenDeGrupo>
+                {
+                    [NalandaId.ToString()] = ResumenPlataforma("Nalanda", 2, null),
+                    [CtaimaId.ToString()] = ResumenPlataforma("Ctaima", 1, null),
+                }
+                : null,
+        };
+        var (cut, _) = Renderizar(mediador);
+        cut.WaitForAssertion(() => cut.Find("tbody button.enlace-nombre-fila"));
+        await Agrupar(cut, "Por Plataforma CAE");
+        cut.WaitForAssertion(() => NombresDeVinculo(cut).Should().Equal("Ctaima", "Nalanda"));
+        List<string> Enfocadas() => cut.FindAll("tbody tr.fila-enfocada").Select(f => f.TextContent).ToList();
+        var atajos = cut.FindComponent<AtajosListaTeclado>().Instance;
+
+        await cut.InvokeAsync(() => atajos.OnAtajo.InvokeAsync("j"));
+        Enfocadas().Should().HaveCount(2, "el Documento enfocado se marca en sus dos filas")
+            .And.OnlyContain(f => f.Contains(repetido.PropietarioNombre) && !f.Contains("Ana Ruiz Pardo"));
+
+        await cut.InvokeAsync(() => atajos.OnAtajo.InvokeAsync("j"));
+        Enfocadas().Should().ContainSingle("la segunda j pasa al otro Documento, no a la segunda fila del primero")
+            .Which.Should().Contain("Ana Ruiz Pardo");
+
+        await cut.InvokeAsync(() => atajos.OnAtajo.InvokeAsync("k"));
+        Enfocadas().Should().HaveCount(2).And.OnlyContain(f => f.Contains(repetido.PropietarioNombre));
     }
 }
