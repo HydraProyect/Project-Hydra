@@ -32,7 +32,7 @@ public sealed class TramosDeTrazaTests : IDisposable
     }
 
     private string[] FicherosPublicados() =>
-        Directory.Exists(Publicado) ? Directory.GetFiles(Publicado).Select(Path.GetFileName).ToArray()! : [];
+        Directory.Exists(Publicado) ? Directory.GetFiles(Publicado).Select(ruta => Path.GetFileName(ruta)).ToArray() : [];
 
     private string[] FicherosProvisionales() =>
         Directory.Exists(Provisional) ? Directory.GetFiles(Provisional, "*", SearchOption.AllDirectories) : [];
