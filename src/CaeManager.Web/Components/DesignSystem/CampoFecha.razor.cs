@@ -72,8 +72,9 @@ public partial class CampoFecha
     /// <summary>
     /// Opcional, para el formulario que conserva la marca de <see cref="NoValidoChanged"/> más allá de la vida del campo
     /// (una lista de tramos o de filas cuyos campos se destruyen al cambiar de tramo o plegar la fila): lo que el padre
-    /// tiene marcado ahora para este campo. Con un valor (true o false) el campo recién creado no avisa de su estado
-    /// inicial: no puede retirar una marca que no observó él. Con true y sin fecha, nace con el aviso «no es una fecha» a la
+    /// tiene marcado ahora para este campo. Con un valor (true o false) el campo recién creado no retira una marca que no
+    /// observó él: no avisa de su estado inicial (salvo true con fecha o apagado, donde no hay nada que corregir y avisa
+    /// false para retirarla). Con true y sin fecha, nace con el aviso «no es una fecha» a la
     /// vista y la marca se mantiene hasta que la persona teclee o elija una fecha; salir del campo sin tocarlo no la quita.
     /// Con null (por defecto) el campo avisa su estado al crearse, como siempre: es lo que necesita el formulario que
     /// reinicia su marca al abrirse.

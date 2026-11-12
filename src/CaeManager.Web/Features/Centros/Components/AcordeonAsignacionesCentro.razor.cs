@@ -1057,7 +1057,9 @@ public partial class AcordeonAsignacionesCentro : ComponentBase, IDisposable
         if (_procesandoBajaLote)
             return;
 
-        if (!DateOnly.TryParse(_fechaBajaLote, out var fechaBaja))
+        // Con el texto a medias el padre aún tiene la fecha de hoy: sin el blur previo al clic (Safari no enfoca un botón al
+        // pulsarlo) se daría de baja a los seleccionados con una fecha que no es la que se ve.
+        if (_fechaBajaLoteNoValida || !DateOnly.TryParse(_fechaBajaLote, out var fechaBaja))
         {
             ToastService.Mostrar("Introduce una fecha de baja válida.", TonoToast.Error);
             return;

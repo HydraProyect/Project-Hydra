@@ -225,7 +225,9 @@ public partial class Retencion : CaeManager.Web.Components.PaginaIntegrableConfi
 
         try
         {
-            if (!DateOnly.TryParse(_fechaEjecucion, out var fecha))
+            // Con el texto a medias el padre aún tiene la fecha propuesta: sin el blur previo al clic (Safari no enfoca un
+            // botón al pulsarlo) se autorizaría la destrucción con una fecha que no es la que se ve.
+            if (_fechaEjecucionNoValida || !DateOnly.TryParse(_fechaEjecucion, out var fecha))
             {
                 _errorFormulario = "Indica una fecha válida.";
                 return;

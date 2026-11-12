@@ -37,6 +37,7 @@ public sealed class DividirPdfPantallaTests : BunitContext
     private static readonly Guid HaciendaId = Guid.NewGuid();
     private static readonly Guid AnaId = Guid.NewGuid();
     private static readonly Guid FormacionId = Guid.NewGuid();
+    private static readonly Guid AutomaticoId = Guid.NewGuid();
 
     private static readonly CatalogoDivisionPdf Catalogo = new(
         new EmpresaDivisionPdf(EmpresaId, "Montajes Norte S.L.", null), [],
@@ -44,6 +45,7 @@ public sealed class DividirPdfPantallaTests : BunitContext
         [
             new TipoDocumentoDivisionPdf(HaciendaId, "Certificado de Hacienda", AmbitoAplicacion.Empresa, false, null, []),
             new TipoDocumentoDivisionPdf(FormacionId, "Formación PRL", AmbitoAplicacion.Trabajador, false, null, []),
+            new TipoDocumentoDivisionPdf(AutomaticoId, "Seguro con vigencia automática", AmbitoAplicacion.Empresa, true, 12, []),
         ]);
 
     private static readonly PreparacionDivisionPdf Preparacion = new(
@@ -470,6 +472,36 @@ public sealed class DividirPdfPantallaTests : BunitContext
         var crear = cut.FindAll("button").Single(b => b.TextContent.Contains("Crear 1 documento"));
         crear.HasAttribute("disabled").Should().BeTrue();
         _mediador.Creaciones.Should().BeEmpty("no se crea un Documento sin la caducidad que se intentó escribir");
+    }
+
+    /// <summary>
+    /// Ronda 2 de revisión, MEDIO: con la caducidad a medias, cambiar el tipo a uno de vencimiento automático destruye el
+    /// campo sin avisar y la marca quedaba bloqueando Crear sin ningún control que la limpiara.
+    /// </summary>
+    [Fact]
+    public async Task Una_caducidad_a_medias_no_bloquea_crear_si_el_tipo_pasa_a_vencimiento_automatico()
+    {
+        var cut = Renderizar();
+        cut.WaitForAssertion(() => cut.FindAll(".zona-soltar-archivo").Should().ContainSingle());
+        await SubirAsync(cut);
+        cut.Find("button.tijera[aria-label='Quitar la división tras la página 3']").Click();
+        Pulsar(cut, "Asignar documentos");
+        PonerEmision(cut);
+        cut.WaitForAssertion(() => cut.FindAll("input[placeholder=\"dd/mm/aaaa\"]").Should().HaveCountGreaterThanOrEqualTo(2));
+        await cut.FindAll("input[placeholder=\"dd/mm/aaaa\"]")[1].InputAsync(new ChangeEventArgs { Value = "15/0" });
+        await cut.FindAll("input[placeholder=\"dd/mm/aaaa\"]")[1].BlurAsync(new FocusEventArgs());
+
+        cut.FindAll(".campos-tramo select").Single(s => s.QuerySelector($"option[value='{AutomaticoId}']") is not null).Change(AutomaticoId.ToString());
+        cut.WaitForAssertion(() => cut.FindAll("input[placeholder=\"dd/mm/aaaa\"]").Should().ContainSingle("el campo de caducidad desaparece: solo queda el de emisión"));
+        Pulsar(cut, "Siguiente documento");
+        cut.WaitForAssertion(() => cut.FindAll(".marca-omitir input").Should().NotBeEmpty());
+        cut.Find(".marca-omitir input").Change(true);
+        Pulsar(cut, "Revisar y crear");
+
+        cut.WaitForAssertion(() => cut.FindAll("button").Should().Contain(b => b.TextContent.Contains("Crear 1 documento")));
+        cut.FindAll("[data-caducidad-no-valida]").Should().BeEmpty("la caducidad de este tipo es automática: no hay nada que corregir");
+        cut.FindAll("[data-caducidad-no-valida-tramo]").Should().BeEmpty();
+        cut.FindAll("button").Single(b => b.TextContent.Contains("Crear 1 documento")).HasAttribute("disabled").Should().BeFalse();
     }
 
     [Fact]

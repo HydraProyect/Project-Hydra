@@ -110,7 +110,15 @@
     private readonly HashSet<AsignacionTramo> _caducidadesNoValidas = new(ReferenceEqualityComparer.Instance);
 
     private bool HayCaducidadNoValida(EstadoDivisionPdf division) =>
-        division.Rangos.Select(division.Asignacion).Any(a => !a.Omitido && !a.SinCaducidad && _caducidadesNoValidas.Contains(a));
+        division.Rangos.Select(division.Asignacion).Any(a => CaducidadNoValidaVigente(division, a));
+
+    /// <summary>
+    /// La marca solo cuenta mientras la caducidad se escribe a mano: con «No crear», «Sin caducidad» o un tipo de vencimiento
+    /// automático (el campo desaparece sin avisar) no hay nada que corregir y la marca no puede bloquear Crear en silencio.
+    /// </summary>
+    private bool CaducidadNoValidaVigente(EstadoDivisionPdf division, AsignacionTramo asignacion) =>
+        !asignacion.Omitido && !asignacion.SinCaducidad && _caducidadesNoValidas.Contains(asignacion)
+        && division.Tipo(asignacion.TipoDocumentoId) is not { VencimientoAutomatico: true };
 
     private void AlCambiarCaducidad(AsignacionTramo asignacion, DateOnly? fecha)
     {
@@ -457,7 +465,7 @@
                                 <td>@(division.Tipo(asignacion.TipoDocumentoId)?.Nombre ?? Textos["SinTipo"].Value)</td>
                                 <td>@(division.NombreTitular(asignacion) ?? Textos["SinTitular"].Value)</td>
                                 <td>
-                                    @if (!asignacion.Omitido && !asignacion.SinCaducidad && _caducidadesNoValidas.Contains(asignacion))
+                                    @if (CaducidadNoValidaVigente(division, asignacion))
                                     {
                                         <span class="falta-dato" data-caducidad-no-valida-tramo>@Comunes["CampoFechaInvalida"]</span>
                                     }

@@ -531,6 +531,42 @@ public class CampoFechaTests : BunitContext
         cut.FindAll(".campo-mensaje-error").Should().BeEmpty();
     }
 
+    [Fact]
+    public async Task Con_NoValidoPrevio_en_true_elegir_un_dia_del_calendario_retira_la_marca()
+    {
+        var noValido = new List<bool>();
+        var recibidos = new List<DateOnly?>();
+        var cut = Render<CampoFecha>(p => p
+            .Add(c => c.Valor, (DateOnly?)null)
+            .Add(c => c.NoValidoPrevio, true)
+            .Add(c => c.ValorChanged, v => recibidos.Add(v))
+            .Add(c => c.NoValidoChanged, v => noValido.Add(v)));
+
+        await cut.Find("button[data-campo-fecha-boton]").ClickAsync(new MouseEventArgs());
+        await cut.Find(".campo-fecha-dia[tabindex='0']").ClickAsync(new MouseEventArgs());
+
+        recibidos.Should().ContainSingle().Which.Should().NotBeNull();
+        noValido.Should().Equal(false);
+        cut.FindAll(".campo-mensaje-error").Should().BeEmpty();
+    }
+
+    [Fact]
+    public void Con_NoValidoPrevio_en_true_un_cambio_de_Valor_del_padre_retira_la_marca()
+    {
+        var noValido = new List<bool>();
+        var cut = Render<CampoFecha>(p => p
+            .Add(c => c.Valor, (DateOnly?)null)
+            .Add(c => c.NoValidoPrevio, true)
+            .Add(c => c.NoValidoChanged, v => noValido.Add(v)));
+        noValido.Should().BeEmpty("control: nace con la marca heredada");
+
+        cut.Render(p => p.Add(c => c.Valor, new DateOnly(2030, 1, 2)).Add(c => c.NoValidoPrevio, true));
+
+        noValido.Should().Equal(false);
+        cut.FindAll(".campo-mensaje-error").Should().BeEmpty();
+        cut.Find("input").GetAttribute("value").Should().Be("02/01/2030");
+    }
+
     [Theory]
     [InlineData(false)]
     [InlineData(null)]

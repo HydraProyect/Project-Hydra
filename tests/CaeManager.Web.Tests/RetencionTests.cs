@@ -355,6 +355,23 @@ public class RetencionTests : BunitContext
     }
 
     /// <summary>
+    /// Ronda 2 de revisión, MEDIO: con la fecha a medias el padre aún tiene la propuesta; si el clic en Autorizar llega sin el
+    /// blur previo (Safari no enfoca un botón), no puede autorizarse la destrucción con una fecha distinta de la que se ve.
+    /// </summary>
+    [Fact]
+    public async Task Autorizar_con_la_fecha_a_medias_y_sin_blur_no_envia_nada()
+    {
+        var (cut, mediator) = Renderizar(politicaActiva: true, solicitudes: [PendienteDeRevision()]);
+
+        await BotonConTexto(cut, "Autorizar").ClickAsync(new MouseEventArgs());
+        await cut.Find("[role=dialog] input[data-campo-fecha]").InputAsync(new ChangeEventArgs { Value = "15/0" });
+        await BotonDelDialogo(cut, "Autorizar").ClickAsync(new MouseEventArgs());
+
+        mediator.Enviados.OfType<ProgramarPurgaCommand>().Should().BeEmpty("la fecha que se ve no es la propuesta que el padre aún tiene");
+        cut.Find("[role=dialog] .alerta-formulario").TextContent.Should().Be("Indica una fecha válida.");
+    }
+
+    /// <summary>
     /// La fecha pasada NO la filtra la pantalla: la rechaza el dominio
     /// (<c>SolicitudPurga.Programar</c>) y el handler la devuelve como fallo.
     /// Lo que se observa aquí es que ese rechazo se enseña y el diálogo sigue
