@@ -418,6 +418,9 @@
   <data name="GrupoSinPlataformaCae" xml:space="preserve"><value>Sense Plataforma CAE</value></data>
   <data name="GrupoSinClienteEmpresarial" xml:space="preserve"><value>Sense Client</value></data>
   <data name="GrupoAnotarVigencia" xml:space="preserve"><value>Anota la vigència ({0})</value></data>
+  <data name="PieAgrupadoFilas" xml:space="preserve"><value>Es mostren {0:N0} files de {1:N0} documents</value></data>
+  <data name="PieAgrupadoDocumentos" xml:space="preserve"><value>Es mostren {0:N0} documents</value></data>
+  <data name="PieAgrupadoTope" xml:space="preserve"><value>Es mostren els primers {0:N0} de {1:N0} documents: afina els filtres per veure la resta.</value></data>
   <data name="AnotarVigenciaTitulo" xml:space="preserve"><value>Anota la vigència</value></data>
   <data name="AnotarVigenciaGuardar" xml:space="preserve"><value>Desa la vigència</value></data>
   <data name="QuitarFiltroPropietario" xml:space="preserve"><value>Treu el filtre de propietari</value></data>

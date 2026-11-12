@@ -714,6 +714,23 @@ public partial class Documentos : CaeManager.Web.Components.PaginaInteractiva, I
 
     private int TotalPaginas => Math.Max(1, (int)Math.Ceiling(_totalElementos / (double)TamanoPedido));
 
+    /// <summary>
+    /// Agrupada, la consulta trae como mucho <see cref="AgrupacionDeLista.TamanoPaginaAgrupada"/> Documentos y la vista no
+    /// pagina: si el universo filtrado tiene más, el resto no se ve y hay que decirlo.
+    /// </summary>
+    private bool AgrupadaSuperaElTope => Agrupada && _totalElementos > AgrupacionDeLista.TamanoPaginaAgrupada;
+
+    /// <summary>Pie de la vista agrupada con resultados: sin paginar (con cero resultados queda el pie de maqueta de siempre).</summary>
+    private bool PieAgrupado => Agrupada && _totalElementos > 0;
+
+    private static readonly IReadOnlyList<int> TamanosDePagina = [20, 50, 100];
+    private static readonly IReadOnlyList<int> SinTamanosDePagina = [];
+
+    /// <summary>Pie de la vista agrupada: filas y Documentos cargados (por vínculo, un Documento puede salir en varias filas).</summary>
+    private string TextoPieAgrupado => AgrupadaPorVinculo
+        ? Textos["PieAgrupadoFilas", _elementosPagina.Count, _elementosPagina.Select(d => d.Id).Distinct().Count()].Value
+        : Textos["PieAgrupadoDocumentos", _elementosPagina.Count].Value;
+
     /// <summary>Los grupos abiertos de la vista: todos nacen plegados y se recuerdan hasta recargar.</summary>
     private readonly GruposAbiertos _gruposAbiertos = new();
 

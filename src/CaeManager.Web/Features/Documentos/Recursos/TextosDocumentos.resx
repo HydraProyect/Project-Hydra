@@ -418,6 +418,9 @@
   <data name="GrupoSinPlataformaCae" xml:space="preserve"><value>Sin Plataforma CAE</value></data>
   <data name="GrupoSinClienteEmpresarial" xml:space="preserve"><value>Sin Cliente</value></data>
   <data name="GrupoAnotarVigencia" xml:space="preserve"><value>Anotar vigencia ({0})</value></data>
+  <data name="PieAgrupadoFilas" xml:space="preserve"><value>Mostrando {0:N0} filas de {1:N0} documentos</value></data>
+  <data name="PieAgrupadoDocumentos" xml:space="preserve"><value>Mostrando {0:N0} documentos</value></data>
+  <data name="PieAgrupadoTope" xml:space="preserve"><value>Se muestran los primeros {0:N0} de {1:N0} documentos: afina los filtros para ver el resto.</value></data>
   <data name="AnotarVigenciaTitulo" xml:space="preserve"><value>Anotar vigencia</value></data>
   <data name="AnotarVigenciaGuardar" xml:space="preserve"><value>Guardar vigencia</value></data>
   <data name="QuitarFiltroPropietario" xml:space="preserve"><value>Quitar filtro de propietario</value></data>

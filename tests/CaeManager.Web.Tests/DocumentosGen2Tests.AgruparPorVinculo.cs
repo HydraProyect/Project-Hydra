@@ -414,6 +414,61 @@ public partial class DocumentosGen2Tests
         ResumenDeVinculo(CabeceraDeVinculo(cut, NalandaId.ToString())).Should().Equal("1 rechazado", "4 sin vigencia");
     }
 
+    // ------------------------------------------------------------- pie de la vista agrupada (Codex r1, MEDIO)
+
+    /// <summary>
+    /// Agrupada, la consulta pide siempre la página 1 con el tope de filas: un paginador con más páginas repetiría la 1. Como
+    /// en la maqueta, la vista agrupada no pagina: el pie dice cuántas filas y Documentos hay, sin flechas ni tamaño de
+    /// página, y sin agrupar vuelve el paginador.
+    /// </summary>
+    [Theory]
+    [InlineData("Por Plataforma CAE", "Mostrando 5 filas de 4 documentos")]
+    [InlineData("Por Cliente", "Mostrando 3 filas de 3 documentos")]
+    [InlineData("Por ámbito", "Mostrando 4 documentos")]
+    public async Task Agrupada_no_hay_paginador_y_el_pie_cuenta_filas_y_documentos(string agrupacion, string pie)
+    {
+        var e = ConVinculos();
+        var (cut, _) = Renderizar(e.Mediador);
+        cut.WaitForAssertion(() => cut.Find("tbody button.enlace-nombre-fila"));
+        cut.FindAll(".paginador-opciones-tamano").Should().NotBeEmpty("control: sin agrupar hay paginador");
+
+        await Agrupar(cut, agrupacion);
+
+        cut.WaitForAssertion(() => TextoDelPie(cut).Should().Be(pie));
+        cut.FindAll(".paginador-opciones-tamano").Should().BeEmpty("agrupada no se elige tamaño de página");
+        cut.FindAll("[data-testid=documentos-aviso-tope]").Should().BeEmpty("por debajo del tope no hay nada que avisar");
+        e.Mediador.Enviadas.OfType<ObtenerDocumentosQuery>().Last().Pagina.Should().Be(1);
+
+        await Agrupar(cut, "Sin agrupar");
+
+        cut.WaitForAssertion(() => cut.FindAll(".paginador-opciones-tamano").Should().NotBeEmpty());
+        TextoDelPie(cut).Should().NotBe(pie);
+    }
+
+    private static string TextoDelPie(IRenderedComponent<PaginaDocumentos> cut) =>
+        cut.Find(".paginador-pie-listado .paginador-texto").TextContent.Trim();
+
+    [Fact]
+    public async Task Agrupada_por_encima_del_tope_avisa_de_que_hay_mas_documentos_de_los_que_se_ven()
+    {
+        var e = ConVinculos();
+        // El servidor dice que el universo filtrado tiene más Documentos que el tope de la vista agrupada.
+        e.Mediador.Interceptar = p => p is ObtenerDocumentosQuery { AgruparPor: AgrupacionDocumentos.PlataformaCae } q
+            ? Task.FromResult<object?>(e.Mediador.Pagina(q) with { TotalElementos = AgrupacionDeLista.TamanoPaginaAgrupada + 1200 })
+            : null;
+        var (cut, _) = Renderizar(e.Mediador);
+        cut.WaitForAssertion(() => cut.Find("tbody button.enlace-nombre-fila"));
+
+        await Agrupar(cut, "Por Plataforma CAE");
+
+        cut.WaitForAssertion(() =>
+        {
+            var aviso = cut.Find("[data-testid=documentos-aviso-tope]").TextContent;
+            aviso.Should().MatchRegex(@"5[.,]000").And.MatchRegex(@"6[.,]200").And.Contain("afina los filtros");
+        });
+        cut.FindAll(".paginador-opciones-tamano").Should().BeEmpty("tampoco con más del tope aparece un paginador que repita la página 1");
+    }
+
     private static Result<ResultadoAnotacionAcreditacionDto> Anotar(List<ConfirmarVigenciaAcreditacionCommand> anotadas,
         ConfirmarVigenciaAcreditacionCommand comando)
     {
