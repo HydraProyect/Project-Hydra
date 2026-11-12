@@ -15,6 +15,7 @@ using CaeManager.Domain.Empresas;
 using CaeManager.Domain.Integraciones;
 using CaeManager.Domain.Vehiculos;
 using FluentAssertions;
+using FluentAssertions.Execution;
 
 namespace CaeManager.Application.Tests.Documentos;
 
@@ -181,6 +182,61 @@ public class ObtenerDocumentosAgrupadosPorVinculoTests
         var pendientes = await handler.Handle(Agrupado(AgrupacionDocumentos.ClienteEmpresarial, EstadoEnPlataformaFiltro.PendienteDeSubir), default);
         pendientes.Elementos.Should().ContainSingle().Which.Id.Should().Be(enLosDos.Id);
         pendientes.ResumenPorGrupo!.Keys.Should().BeEquivalentTo([clienteVisible.Id.ToString()]);
+    }
+
+    /// <summary>
+    /// Hallazgo ALTO de Codex r1 sobre la #2191: además del Grupo, cada fila de la vista agrupada lleva la lista de
+    /// acreditaciones del Documento (Plataforma CAE y estado), que la vista pinta. Esa lista sale de
+    /// ObtenerAcreditacionesPorDocumentoAsync, acotada a ObtenerCentroIdsVisiblesAsync desde la #2190: un Documento
+    /// visible acreditado en un Centro dentro de la cartera y en otro fuera no trae la acreditación de fuera, ni para el
+    /// Gestor CAE con Asignación de Cartera limitada ni para el Usuario de Cliente (Centros de su Cliente empresarial,
+    /// sin Centros de gestión). OWASP ASVS 4.0.3, V4.2.1.
+    /// </summary>
+    [Fact]
+    public async Task La_fila_agrupada_no_trae_acreditaciones_de_Centros_fuera_del_alcance_ni_para_el_gestor_ni_para_el_rol_Cliente()
+    {
+        var e = new Escenario();
+        var clienteDentro = e.ConEmpresa("Cliente dentro");
+        var clienteFuera = e.ConEmpresa("Cliente fuera");
+        var centroDentro = e.ConCentro(clienteDentro, "Centro dentro");
+        var centroFuera = e.ConCentro(clienteFuera, "Centro fuera");
+        var nalanda = e.ConPlataforma("Nalanda");
+        var ctaima = e.ConPlataforma("Ctaima");
+        var documento = e.ConDocumento();
+        var dentro = e.Acreditar(documento, centroDentro, nalanda);
+        var fuera = e.Acreditar(documento, centroFuera, ctaima);
+        fuera.MarcarAceptada(VigenciaEnPlataforma.SinConfirmar);
+
+        var agrupaciones = new[] { AgrupacionDocumentos.PlataformaCae, AgrupacionDocumentos.ClienteEmpresarial };
+
+        // Control positivo: sin restricción de Centros la fila trae las dos, así que el instrumento ve la de fuera.
+        foreach (var agrupacion in agrupaciones)
+        {
+            var completo = await e.Handler().Handle(Agrupado(agrupacion), default);
+            completo.Elementos.Where(x => x.Id == documento.Id).Should().NotBeEmpty()
+                .And.OnlyContain(x => x.Acreditaciones.Select(a => a.Id).OrderBy(id => id)
+                    .SequenceEqual(new[] { dentro.Id, fuera.Id }.OrderBy(id => id)), $"control positivo ({agrupacion})");
+        }
+
+        var gestor = new AlcanceDatosServiceFalso(tieneAccesoTotal: false, empresaIdsVisibles: [e.Contratista.Id],
+            centroIdsVisibles: [centroDentro.Id]);
+        var usuarioDeCliente = new AlcanceDatosServiceFalso(tieneAccesoTotal: false, empresaIdsVisibles: [e.Contratista.Id],
+            centroIdsVisibles: [centroDentro.Id], centroIdsParaGestion: []);
+
+        // Cada combinación de alcance y agrupación informa por separado: un fallo no oculta los demás.
+        using var _ = new AssertionScope();
+        foreach (var (quien, alcance) in new[] { ("Gestor CAE", gestor), ("Usuario de Cliente", usuarioDeCliente) })
+        foreach (var agrupacion in agrupaciones)
+        {
+            var resultado = await e.Handler(alcance).Handle(Agrupado(agrupacion), default);
+            var filas = resultado.Elementos.Where(x => x.Id == documento.Id).ToList();
+            filas.Should().NotBeEmpty($"{quien} ve el Documento por el Centro de dentro ({agrupacion})");
+            filas.Should().OnlyContain(x => x.Acreditaciones.Count == 1 && x.Acreditaciones[0].Id == dentro.Id
+                    && x.Acreditaciones[0].NombrePlataforma == "Nalanda"
+                    && x.Acreditaciones[0].Estado == EstadoAcreditacion.PendienteDeSubir,
+                $"{quien} no recibe ni la Plataforma CAE ni el estado de la acreditación del Centro de fuera ({agrupacion})");
+            resultado.Elementos.SelectMany(x => x.Acreditaciones).Should().NotContain(a => a.Id == fuera.Id || a.NombrePlataforma == "Ctaima");
+        }
     }
 
     // ------------------------------------------------------------- filas por vínculo
