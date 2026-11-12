@@ -31,15 +31,21 @@ internal sealed class EjecutorProcesoHerramientasPdf
     private readonly LimitadorProcesosAislados _limitador;
     private readonly ILanzadorProcesoAislado _lanzador;
     private readonly ILogger _logger;
+    private readonly TimeProvider _reloj;
 
     /// <summary>
     /// Solo con capacidad 1. Con más, otro turno podría degradar la instancia después de que este pasara la comprobación de
     /// <see cref="LimitadorProcesosAislados.EntrarAsync"/> y antes de lanzar, y se lanzaría un proceso con la herramienta ya
     /// desactivada. Hacer atómicas la comprobación y el arranque obligaría a sostener un candado mientras el lanzador arranca
     /// el hijo, que es justo el tramo que puede bloquearse. Subir la capacidad exige rediseñar esto antes; por eso falla aquí.
+    /// <para>
+    /// El reloj mide las esperas acotadas del turno (el tope, la espera de cancelación y lo que queda del tope al diferir la
+    /// decisión); sin él, el del sistema. Solo los tests lo cambian, para vencer los temporizadores y mover la marca de tiempo
+    /// por separado.
+    /// </para>
     /// </summary>
     public EjecutorProcesoHerramientasPdf(OpcionesProcesoHerramientasPdf opciones, LimitadorProcesosAislados limitador,
-        ILanzadorProcesoAislado lanzador, ILogger logger)
+        ILanzadorProcesoAislado lanzador, ILogger logger, TimeProvider? reloj = null)
     {
         _limitador = limitador.Capacidad == 1
             ? limitador
@@ -48,6 +54,7 @@ internal sealed class EjecutorProcesoHerramientasPdf
         _opciones = opciones;
         _lanzador = lanzador;
         _logger = logger;
+        _reloj = reloj ?? TimeProvider.System;
     }
 
     /// <summary>
@@ -101,23 +108,24 @@ internal sealed class EjecutorProcesoHerramientasPdf
         // EsperaConfirmacionAlCancelar más, porque quien cancela es el cierre del circuito, que espera 10 s y luego dispone el
         // scope. Sin lanzar: lo que decide es el seguimiento, no el tipo de excepción.
         var tope = tiempoMaximo + _opciones.MargenConfirmacionTerminado;
-        var inicioEspera = Stopwatch.GetTimestamp();
+        var inicioEspera = _reloj.GetTimestamp();
         Task espera;
-        using (var alCancelar = new CancellationTokenSource())
+        using (var alCancelar = new CancellationTokenSource(Timeout.InfiniteTimeSpan, _reloj))
         using (cancellationToken.Register(() => alCancelar.CancelAfter(_opciones.EsperaConfirmacionAlCancelar)))
         {
-            espera = ejecucion.WaitAsync(tope, alCancelar.Token);
+            espera = ejecucion.WaitAsync(tope, _reloj, alCancelar.Token);
             await espera.ConfigureAwait(ConfigureAwaitOptions.SuppressThrowing);
         }
 
         // Si lo que venció fue el tope de siempre, y no la espera de cancelación, se decide ya, como sin cancelar. Lo dice la
         // propia espera, no un reloj: vencido el tope acaba con TimeoutException, y vencida la espera de cancelación acaba
-        // cancelada (con la ejecución sin volver, esa cancelación solo puede ser la suya). Medirlo con Stopwatch no sirve: el
-        // temporizador de WaitAsync cuenta con un reloj de grano más grueso que Stopwatch y puede vencer el tope un poco antes
-        // de que Stopwatch lo dé por pasado; entonces se difería una decisión que tocaba ya (#2188).
+        // cancelada (con la ejecución sin volver, esa cancelación solo puede ser la suya). Medirlo con la marca de tiempo no
+        // sirve: con el reloj del sistema, el temporizador de WaitAsync cuenta con un reloj de grano más grueso que Stopwatch y
+        // puede vencer el tope un poco antes de que la marca lo dé por pasado; entonces se difería una decisión que tocaba ya
+        // (#2188).
         if (!ejecucion.IsCompleted && espera.IsCanceled)
         {
-            var restante = tope - Stopwatch.GetElapsedTime(inicioEspera);
+            var restante = tope - _reloj.GetElapsedTime(inicioEspera);
             if (restante < TimeSpan.Zero)
                 restante = TimeSpan.Zero;
 
@@ -150,7 +158,7 @@ internal sealed class EjecutorProcesoHerramientasPdf
     private async Task DecidirTurnoTrasAbandonarAsync(Task<SalidaProcesoAislado> ejecucion, TurnoProcesoAislado turno,
         SeguimientoProcesoAislado seguimiento, TimeSpan tope)
     {
-        await ((Task)ejecucion.WaitAsync(tope)).ConfigureAwait(ConfigureAwaitOptions.SuppressThrowing);
+        await ((Task)ejecucion.WaitAsync(tope, _reloj)).ConfigureAwait(ConfigureAwaitOptions.SuppressThrowing);
         if (ejecucion.IsCompleted)
             _ = ejecucion.Exception;
         else
