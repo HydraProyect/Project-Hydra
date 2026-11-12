@@ -134,6 +134,29 @@ public class MarcarAcreditacionNoRequeridaCommandHandlerTests
         escenario.UnitOfWork.VecesGuardado.Should().Be(0);
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task La_acreditacion_de_un_Documento_ya_sustituido_no_se_marca_aunque_la_version_coincida(bool yaNoRequerida)
+    {
+        // Revisión puente (r2): renovar con archivo nuevo no toca las acreditaciones del anterior, así que su versión no
+        // cambia y la pantalla abierta antes la marcaría. Es historial (D5/D8): ni se escribe ni se responde éxito.
+        var escenario = Escenario.Nuevo();
+        if (yaNoRequerida) escenario.Acreditacion.MarcarNoRequerida();
+        var estadoAntes = escenario.Acreditacion.Estado;
+        var nuevo = escenario.Documento.NuevoDelMismoTitular(
+            new DateOnly(2026, 2, 1), VigenciaDocumento.NoCaduca, "tenant/renovado.pdf", null, null);
+        escenario.Documento.SustituirPor(nuevo, MotivoSustitucionDocumento.Renovacion, DateTime.UtcNow);
+
+        var resultado = await escenario.Handler().Handle(
+            new MarcarAcreditacionNoRequeridaCommand(escenario.Acreditacion.Id, escenario.Acreditacion.Version), CancellationToken.None);
+
+        resultado.EsFallido.Should().BeTrue();
+        resultado.Error.Codigo.Should().Be("Documento.EnHistorial");
+        escenario.Acreditacion.Estado.Should().Be(estadoAntes);
+        escenario.UnitOfWork.VecesGuardado.Should().Be(0);
+    }
+
     [Fact]
     public async Task Con_una_version_vacia_falla_y_no_escribe()
     {

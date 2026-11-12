@@ -305,6 +305,8 @@ public partial class GestionesAutomaticasPantallaTests
     [InlineData("Acreditacion.CambiadaDesdeQueSeAbrio")]
     // El choque que llega en el guardado (ConcurrenciaBehavior): otra escritura entre la lectura del comando y su SaveChanges.
     [InlineData("Concurrencia.Conflicto")]
+    // El Documento se renovó con archivo nuevo mientras la Gestión estaba abierta: el paso es ya historial.
+    [InlineData("Documento.EnHistorial")]
     public void Si_el_paso_cambio_desde_que_se_abrio_se_relee_y_hay_que_confirmar_otra_vez_sin_Reintentar_a_ciegas(string codigo)
     {
         var pasos = SeisPasosNuevos();

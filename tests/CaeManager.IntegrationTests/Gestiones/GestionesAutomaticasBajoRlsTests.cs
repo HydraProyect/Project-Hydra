@@ -463,6 +463,31 @@ public class GestionesAutomaticasBajoRlsTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task Tras_renovar_con_archivo_nuevo_no_lo_pide_con_la_vista_vieja_no_marca_la_acreditacion_del_historial()
+    {
+        // Revisión puente (r2): la renovación con archivo nuevo no toca la acreditación del anterior, cuya versión sigue
+        // siendo la que vio la pantalla. La guarda es la del historial (D5/D8), no la de la versión.
+        var propia = await NacerComoPropietarioAsync(_tenantSesion, _propio.Documento);
+        Guid vista;
+        await using (var pantalla = CrearRuntime())
+            vista = (await DetalleAsync(pantalla, propia, new SinNotaInterna()))!.Pasos.Single().VersionAcreditacion;
+
+        await using (var renovacion = CrearRuntime())
+            await RenovacionConArchivoAsync(renovacion, await renovacion.Documentos.SingleAsync(d => d.Id == _propio.Documento), _propio.Canal);
+
+        await using (var runtime = CrearRuntime())
+            (await NoPide(runtime).Handle(new MarcarAcreditacionNoRequeridaCommand(_propio.Acreditacion, vista), CancellationToken.None))
+                .Error.Codigo.Should().Be("Documento.EnHistorial");
+
+        using (AmbitoTenantExplicito.Establecer(_tenantSesion))
+        {
+            var fila = await _propietario.AcreditacionesDocumentoPlataforma.AsNoTracking().SingleAsync(a => a.Id == _propio.Acreditacion);
+            fila.Version.Should().Be(vista, "control del instrumento: la versión no se movió, así que solo la guarda del historial para");
+            fila.Estado.Should().Be(EstadoAcreditacion.PendienteDeSubir, "la acreditación del historial no cambia");
+        }
+    }
+
+    [Fact]
     public async Task Un_no_lo_pide_confirmado_entre_la_lectura_y_el_guardado_de_la_correccion_la_para_con_un_conflicto()
     {
         // La carrera inversa del ALTO de Codex r2: la corrección ya leyó la acreditación (Pendiente de subir, sin vigencia)

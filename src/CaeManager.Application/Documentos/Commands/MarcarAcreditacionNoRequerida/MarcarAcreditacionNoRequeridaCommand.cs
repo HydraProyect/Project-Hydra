@@ -69,6 +69,14 @@ public class MarcarAcreditacionNoRequeridaCommandHandler(
         if (acreditacion is null)
             return Result.Fallo(AcreditacionSubible.NoEncontrada);
 
+        // El historial es inmutable (D5/D8, la misma regla de RenovarDocumentoCommand): la acreditación de un Documento que
+        // otro ya sustituyó no se marca. Una renovación con archivo nuevo no toca las acreditaciones del anterior, así que su
+        // versión no cambia y una pantalla abierta antes la marcaría sin conflicto; lo que cuenta es la acreditación del
+        // Documento vigente. Antes del atajo de «ya está»: sobre el historial no se responde éxito.
+        var documento = await documentoRepositorio.ObtenerPorIdAsync(acreditacion.DocumentoId, cancellationToken);
+        if (documento is null || !DocumentoOperativo.Es(documento))
+            return Result.Fallo(DocumentoEnHistorial.NuevoError());
+
         // Ya está como se pide: nada que sobrescribir, sea cual sea la versión que se vio. Una No requerida anterior a la
         // invariante que conserve una vigencia no cuenta como «ya está»: marcarla otra vez se la quita.
         if (acreditacion.Estado == EstadoAcreditacion.NoRequerida && acreditacion.Vigencia.EstaSinConfirmar)

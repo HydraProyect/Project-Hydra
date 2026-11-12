@@ -1,5 +1,6 @@
 using CaeManager.Application.Centros.Queries.ObtenerCanalesGestionDeCentro;
 using CaeManager.Application.Common;
+using CaeManager.Application.Documentos;
 using CaeManager.Application.Documentos.Commands;
 using CaeManager.Application.Documentos.Commands.MarcarAcreditacionAceptada;
 using CaeManager.Application.Documentos.Commands.MarcarAcreditacionNoRequerida;
@@ -427,11 +428,13 @@ public partial class GestionAutomaticaDetalle : CaeManager.Web.Components.Pagina
     /// <summary>
     /// El paso cambió desde que se abrió la Gestión: lo dice el comando al comparar la versión vista
     /// (<see cref="MarcarAcreditacionNoRequeridaCommandHandler.CambiadaDesdeQueSeAbrio"/>) o el guardado al chocar con el
-    /// token de concurrencia (<see cref="ConcurrenciaOptimista.CodigoConflicto"/>, de <c>ConcurrenciaBehavior</c>).
+    /// token de concurrencia (<see cref="ConcurrenciaOptimista.CodigoConflicto"/>, de <c>ConcurrenciaBehavior</c>), o el
+    /// Documento se renovó con archivo nuevo y el paso es ya historial (<see cref="DocumentoEnHistorial.Codigo"/>).
     /// </summary>
     private static bool EsCambioDesdeQueSeAbrio(Error error) =>
         error.Codigo == MarcarAcreditacionNoRequeridaCommandHandler.CambiadaDesdeQueSeAbrio.Codigo
-        || error.Codigo == ConcurrenciaOptimista.CodigoConflicto;
+        || error.Codigo == ConcurrenciaOptimista.CodigoConflicto
+        || error.Codigo == DocumentoEnHistorial.Codigo;
 
     private async Task GuardarAsync(bool luegoSiguiente)
     {
