@@ -156,7 +156,7 @@ public class ObtenerDocumentosAgrupadosPorVinculoTests
         var nalandaVisible = Resumen(porPlataforma, nalanda.Id.ToString());
         nalandaVisible.Total.Should().Be(1, "la acreditación de Nalanda en el Centro ajeno no cuenta");
         nalandaVisible.EnPlataforma.Should().BeEquivalentTo(new Dictionary<EstadoEnPlataformaFiltro, int>
-            { [EstadoEnPlataformaFiltro.PendienteDeSubir] = 1 });
+        { [EstadoEnPlataformaFiltro.PendienteDeSubir] = 1 });
         nalandaVisible.UrlPortal.Should().BeNull("la única dirección es la del canal del Centro ajeno");
         Resumen(porPlataforma, ObtenerDocumentosQuery.GrupoSin).Total.Should().Be(1);
         porPlataforma.Elementos.Should().HaveCount(2);
@@ -466,7 +466,8 @@ public class ObtenerDocumentosAgrupadosPorVinculoTests
         cruzado.Elementos.Should().BeEmpty("la pendiente es de Ctaima, no de Nalanda");
 
         var mismo = await handler.Handle(Agrupado(AgrupacionDocumentos.PlataformaCae, EstadoEnPlataformaFiltro.PendienteDeSubir)
-            with { ProveedorPlataformaCaeId = ctaima.Id }, default);
+            with
+        { ProveedorPlataformaCaeId = ctaima.Id }, default);
         mismo.Elementos.Should().ContainSingle().Which.Grupo!.Clave.Should().Be(ctaima.Id.ToString());
         mismo.ResumenPorGrupo!.Keys.Should().BeEquivalentTo([ctaima.Id.ToString()]);
     }
