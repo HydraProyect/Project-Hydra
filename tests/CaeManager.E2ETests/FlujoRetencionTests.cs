@@ -73,7 +73,7 @@ public class FlujoRetencionTests(WebAppFixtureConRetencionActiva fixture)
 
         var modalAutorizar = page.GetByRole(AriaRole.Dialog, new() { Name = "Autorizar la destrucción", Exact = true });
         await modalAutorizar.WaitForAsync(new LocatorWaitForOptions { Timeout = 10_000 });
-        await modalAutorizar.GetByLabel("Fecha de ejecución").FillAsync(Ayudas.HoyDeNegocio().ToString("yyyy-MM-dd"));
+        await Ayudas.RellenarFechaAsync(modalAutorizar.GetByLabel("Fecha de ejecución"), Ayudas.HoyDeNegocio());
         await modalAutorizar.Locator(".modal-pie").GetByRole(AriaRole.Button, new() { Name = "Autorizar", Exact = true }).ClickAsync();
         await modalAutorizar.WaitForAsync(new LocatorWaitForOptions { State = WaitForSelectorState.Hidden, Timeout = 10_000 });
 

@@ -29,7 +29,7 @@ public partial class VisitasFilaSinMenuE2ETests
         await page.Keyboard.PressAsync("e");
         var formulario = FormularioEdicion(page);
         await Expect(formulario).ToBeVisibleAsync();
-        await formulario.GetByLabel("Fecha de fin", new LocatorGetByLabelOptions { Exact = true }).FillAsync(fin.ToString("yyyy-MM-dd"));
+        await Ayudas.RellenarFechaAsync(formulario.GetByLabel("Fecha de fin", new LocatorGetByLabelOptions { Exact = true }), fin);
         await formulario.GetByRole(AriaRole.Button, new LocatorGetByRoleOptions { Name = "Guardar", Exact = true }).ClickAsync();
         await Expect(formulario).ToBeHiddenAsync();
 

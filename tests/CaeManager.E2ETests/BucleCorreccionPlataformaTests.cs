@@ -73,7 +73,7 @@ public class BucleCorreccionPlataformaTests(WebAppFixture fixture)
             await drawer.GetByText("Archivo adjuntado correctamente.").WaitForAsync(new LocatorWaitForOptions { Timeout = 15_000 });
             // Subir un archivo nuevo reinicia las fechas (renovar es emitir otro documento): la emisión se escribe
             // después. La vigencia queda sin confirmar, que no impide guardar; la corrección es el archivo nuevo.
-            await drawer.GetByLabel("Fecha de emisión", new LocatorGetByLabelOptions { Exact = true }).FillAsync(hoy.ToString("yyyy-MM-dd"));
+            await Ayudas.RellenarFechaAsync(drawer.GetByLabel("Fecha de emisión", new LocatorGetByLabelOptions { Exact = true }), hoy);
             await drawer.Locator(".drawer-pie").GetByRole(AriaRole.Button, new() { Name = "Guardar", Exact = true }).ClickAsync();
             try
             {

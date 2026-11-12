@@ -50,6 +50,19 @@ public static class Ayudas
         DateOnly.FromDateTime(TimeZoneInfo.ConvertTime(DateTimeOffset.UtcNow, TimeZoneInfo.FindSystemTimeZoneById("Europe/Madrid")).DateTime);
 
     /// <summary>
+    /// Rellena un CampoFecha (texto dd/mm/aaaa con máscara, #2185) con la fecha en ISO, como hacían los tests con el
+    /// antiguo <c>input type="date"</c>, y comprueba que el campo muestra la fecha ya enmascarada. Con un campo de texto
+    /// Playwright rellena en dos pasos (enfocar y luego insertar); si algo mueve el foco entre ambos (la trampa de foco de
+    /// un Drawer o un Modal que se activa tarde, #2194) el texto se pierde, y esta comprobación lo dice en el paso en que
+    /// ocurre en vez de dejarlo para un «Las fechas no son válidas» al guardar.
+    /// </summary>
+    public static async Task RellenarFechaAsync(ILocator campo, DateOnly fecha)
+    {
+        await campo.FillAsync(fecha.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture));
+        await Assertions.Expect(campo).ToHaveValueAsync(fecha.ToString("dd/MM/yyyy", System.Globalization.CultureInfo.InvariantCulture));
+    }
+
+    /// <summary>
     /// Nombre del tenant Cliente Delegante que DelegacionDemoSeeder siembra
     /// para el Administrador inicial (ver esa clase en
     /// CaeManager.Infrastructure.Persistence.Seed) — duplicado aquí en vez de

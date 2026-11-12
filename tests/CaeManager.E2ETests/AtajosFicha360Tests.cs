@@ -167,8 +167,7 @@ public class AtajosFicha360Tests(WebAppFixture fixture)
                     .SelectOptionAsync(new SelectOptionValue { Label = $"{centro} ({clienteEmpresarial})" });
                 await selectorTipo.SelectOptionAsync(tipos[i]);
                 await drawer.GetByLabel("Resultado", new() { Exact = true }).SelectOptionAsync("NoEncontrado");
-                await drawer.GetByLabel("Fecha de verificación", new() { Exact = true })
-                    .FillAsync(Ayudas.HoyDeNegocio().ToString("yyyy-MM-dd"));
+                await Ayudas.RellenarFechaAsync(drawer.GetByLabel("Fecha de verificación", new() { Exact = true }), Ayudas.HoyDeNegocio());
                 await drawer.Locator("input[type='file']").SetInputFilesAsync(rutaPdf);
                 // La evidencia se lee a memoria por el circuito: el formulario enseña su nombre cuando ya llegó.
                 await Assertions.Expect(drawer).ToContainTextAsync($"Adjunto: {Path.GetFileName(rutaPdf)}");

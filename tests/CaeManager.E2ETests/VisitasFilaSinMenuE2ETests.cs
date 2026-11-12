@@ -44,8 +44,8 @@ public partial class VisitasFilaSinMenuE2ETests(WebAppFixtureListados fixture)
         var alta = page.GetByRole(AriaRole.Dialog, new PageGetByRoleOptions { Name = "Nueva visita", Exact = true });
         await Expect(alta).ToBeVisibleAsync();
         await alta.GetByLabel("Centro", new LocatorGetByLabelOptions { Exact = true }).SelectOptionAsync(new SelectOptionValue { Index = 1 });
-        await alta.GetByLabel("Fecha de inicio", new LocatorGetByLabelOptions { Exact = true }).FillAsync(fecha.ToString("yyyy-MM-dd"));
-        await alta.GetByLabel("Fecha de fin", new LocatorGetByLabelOptions { Exact = true }).FillAsync(fecha.ToString("yyyy-MM-dd"));
+        await Ayudas.RellenarFechaAsync(alta.GetByLabel("Fecha de inicio", new LocatorGetByLabelOptions { Exact = true }), fecha);
+        await Ayudas.RellenarFechaAsync(alta.GetByLabel("Fecha de fin", new LocatorGetByLabelOptions { Exact = true }), fecha);
         // CrearVisitaCommandValidator exige al menos un Trabajador que entre, y no vale cualquiera: solo
         // entran los de la Empresa del Centro o de sus Subcontratas (TrabajadoresAdmisiblesEnVisita). El
         // selector ofrece toda la cartera hasta que, ya elegido el Centro, llega la consulta de sus

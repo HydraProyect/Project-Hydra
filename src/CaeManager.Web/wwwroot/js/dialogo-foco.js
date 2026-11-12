@@ -17,7 +17,15 @@ export function atraparFoco(contenedor, devolverFila = false) {
     // formulario) si existe; si el diálogo no tiene ninguno (solo texto y el
     // botón de cerrar, que sí cuenta), cae al propio contenedor gracias al
     // tabindex="-1" que ya trae el div del diálogo.
-    (enfocables()[0] ?? contenedor).focus();
+    //
+    // Solo si el foco aún no está dentro: la trampa se activa en
+    // OnAfterRenderAsync, tras un viaje de ida y vuelta al servidor, y para
+    // entonces el usuario (o Playwright, que rellena un campo de texto en dos
+    // pasos: enfocar y luego insertar) puede estar ya escribiendo en un campo
+    // del diálogo. Moverle el foco al primer enfocable le quitaría el campo a
+    // media escritura y el texto se perdería (#2194).
+    if (!contenedor.contains(document.activeElement))
+        (enfocables()[0] ?? contenedor).focus();
 
     function manejarTab(evento) {
         // Un manejador interno que ya gestionó el Tab (p. ej. el salto de grupo del buscador global) manda.

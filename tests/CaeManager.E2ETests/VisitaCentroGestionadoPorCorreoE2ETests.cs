@@ -34,6 +34,7 @@ public class VisitaCentroGestionadoPorCorreoE2ETests(WebAppFixture fixture)
         var correoCentro = $"acceso.{sufijo}@correo-simulado.local";
 
         await using var contexto = await fixture.Browser.NewContextAsync(new BrowserNewContextOptions { AcceptDownloads = true });
+        await using var traza = await TrazaAlFallar.IniciarAsync(contexto);
         await contexto.GrantPermissionsAsync(["clipboard-read", "clipboard-write"]);
         var page = await contexto.NewPageAsync();
 
@@ -162,8 +163,8 @@ public class VisitaCentroGestionadoPorCorreoE2ETests(WebAppFixture fixture)
         await drawer.WaitForAsync(new LocatorWaitForOptions { Timeout = 15_000 });
 
         var hoy = Ayudas.HoyDeNegocio();
-        await drawer.GetByLabel("Fecha de emisión", new LocatorGetByLabelOptions { Exact = true }).FillAsync(hoy.ToString("yyyy-MM-dd"));
-        await drawer.GetByLabel("Fecha de vencimiento").FillAsync(hoy.AddDays(180).ToString("yyyy-MM-dd"));
+        await Ayudas.RellenarFechaAsync(drawer.GetByLabel("Fecha de emisión", new LocatorGetByLabelOptions { Exact = true }), hoy);
+        await Ayudas.RellenarFechaAsync(drawer.GetByLabel("Fecha de vencimiento"), hoy.AddDays(180));
         var rutaPdf = Ayudas.GenerarPdfDePruebaEnDisco($"porcorreo-{sufijo}.pdf");
         try
         {
@@ -309,6 +310,7 @@ public class VisitaCentroGestionadoPorCorreoE2ETests(WebAppFixture fixture)
         await drawer.GetByRole(AriaRole.Tab, new LocatorGetByRoleOptions { Name = "Trabajadores", Exact = true }).ClickAsync();
         await Expect(filasTrabajador).ToHaveCountAsync(1);
         await Expect(listaTrabajadores).Not.ToContainTextAsync(apellidosTrabajador);
+        traza.Superada();
     }
 
     private static ILocatorAssertions Expect(ILocator locator) => Assertions.Expect(locator);

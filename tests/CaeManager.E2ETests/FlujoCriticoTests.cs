@@ -117,8 +117,8 @@ public class FlujoCriticoTests(WebAppFixture fixture)
         // Exact: true — sin esto, GetByLabel hace match por substring y también
         // resuelve el botón "Copiar fecha de emisión a vencimiento" (mismo
         // patrón que "Trabajador" más arriba, ver DrawerGestionDocumento.razor).
-        await drawer.GetByLabel("Fecha de emisión", new LocatorGetByLabelOptions { Exact = true }).FillAsync(hoy.ToString("yyyy-MM-dd"));
-        await drawer.GetByLabel("Fecha de vencimiento").FillAsync(hoy.AddDays(10).ToString("yyyy-MM-dd"));
+        await Ayudas.RellenarFechaAsync(drawer.GetByLabel("Fecha de emisión", new LocatorGetByLabelOptions { Exact = true }), hoy);
+        await Ayudas.RellenarFechaAsync(drawer.GetByLabel("Fecha de vencimiento"), hoy.AddDays(10));
 
         var rutaPdf = Ayudas.GenerarPdfDePruebaEnDisco();
         try
