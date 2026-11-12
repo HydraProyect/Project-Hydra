@@ -69,6 +69,55 @@ public class LimitadorAltaTests
         LimitadorAlta.ParticionVerificar(otraRuta, 10).Should().BeNull();
     }
 
+    [Theory]
+    [InlineData("GET")]
+    [InlineData("POST")]
+    public void El_paso_Empresa_tiene_su_propio_techo_por_IP_tambien_al_pintar(string metodo)
+    {
+        // Pintar /alta/organizacion ya consulta la base (app_alta_consultar_continuacion): el GET también lleva techo.
+        var contexto = Post("203.0.113.9");
+        contexto.Request.Method = metodo;
+        contexto.Request.Path = "/alta/organizacion";
+
+        var particion = LimitadorAlta.ParticionOrganizacion(contexto, 2);
+
+        particion.Should().NotBeNull();
+        particion!.Value.PartitionKey.Should().StartWith("alta-organizacion:");
+        using var limitador = particion.Value.Factory(particion.Value.PartitionKey);
+        limitador.AttemptAcquire().IsAcquired.Should().BeTrue();
+        limitador.AttemptAcquire().IsAcquired.Should().BeTrue();
+        limitador.AttemptAcquire().IsAcquired.Should().BeFalse();
+    }
+
+    [Fact]
+    public void El_techo_del_paso_Empresa_no_comparte_cupo_con_el_inicio_del_alta_ni_con_verificar()
+    {
+        var organizacion = Post("203.0.113.9");
+        organizacion.Request.Path = "/alta/organizacion";
+        var verificar = Post("203.0.113.9");
+        verificar.Request.Path = "/alta/verificar";
+        var registro = Post("203.0.113.9");
+        registro.Request.Path = "/alta";
+
+        var claveOrganizacion = LimitadorAlta.ParticionOrganizacion(organizacion, 10)!.Value.PartitionKey;
+
+        claveOrganizacion.Should().NotBe(LimitadorAlta.ParticionVerificar(verificar, 10)!.Value.PartitionKey);
+        claveOrganizacion.Should().NotBe(Clave(registro, new OpcionesAntiabusoAlta()));
+        LimitadorAlta.ParticionOrganizacion(registro, 10).Should().BeNull();
+        LimitadorAlta.ParticionOrganizacion(verificar, 10).Should().BeNull();
+        LimitadorAlta.ParticionVerificar(organizacion, 10).Should().BeNull();
+    }
+
+    [Fact]
+    public void La_pagina_del_paso_Empresa_no_gasta_la_politica_de_inicios_del_alta()
+    {
+        // Con la política «alta», cada envío del paso Empresa gastaría del cupo de inicios de su IP: tras una NAT de
+        // oficina, el siguiente en iniciar el alta recibiría un 429.
+        typeof(CaeManager.Web.Features.AltaAutonoma.Registro.OrganizacionAlta)
+            .GetCustomAttributes(typeof(Microsoft.AspNetCore.RateLimiting.EnableRateLimitingAttribute), inherit: true)
+            .Should().BeEmpty();
+    }
+
     [Fact]
     public void La_hora_corta_al_sexto_inicio_desde_la_misma_IP_con_los_valores_por_defecto()
     {

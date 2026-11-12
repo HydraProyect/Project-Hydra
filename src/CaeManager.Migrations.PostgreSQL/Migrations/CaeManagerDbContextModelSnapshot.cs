@@ -96,6 +96,9 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                     b.Property<DateTime>("CreadaEnUtc")
                         .HasColumnType("timestamp with time zone");
 
+                    b.Property<DateTime?>("CredencialContinuacionCaducaEnUtc")
+                        .HasColumnType("timestamp with time zone");
+
                     b.Property<DateTime?>("DatosPersonalesBorradosEnUtc")
                         .HasColumnType("timestamp with time zone");
 
@@ -117,6 +120,10 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                     b.Property<string>("HashContrasena")
                         .HasMaxLength(512)
                         .HasColumnType("character varying(512)");
+
+                    b.Property<string>("HashCredencialContinuacion")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
 
                     b.Property<string>("HashTokenVerificacion")
                         .HasMaxLength(64)
@@ -172,6 +179,10 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                         .HasColumnType("integer");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("HashCredencialContinuacion")
+                        .IsUnique()
+                        .HasFilter("\"HashCredencialContinuacion\" IS NOT NULL");
 
                     b.HasIndex("HashTokenVerificacion")
                         .IsUnique()

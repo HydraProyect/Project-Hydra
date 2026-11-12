@@ -625,6 +625,12 @@ builder.Services.AddRateLimiter(opciones =>
             is { } particionVerificarAlta)
             return particionVerificarAlta;
 
+        // El paso Empresa del alta consulta la base al pintarse y al enviarse: mismo techo por IP, en su propia partición
+        // y fuera de la política «alta», que cuenta los inicios del alta y no debe gastarse en este paso.
+        if (CaeManager.Web.Features.AltaAutonoma.Antiabuso.LimitadorAlta.ParticionOrganizacion(contexto, limiteCuentaAnonimo)
+            is { } particionOrganizacionAlta)
+            return particionOrganizacionAlta;
+
         if (!esPostDeCuenta)
             return System.Threading.RateLimiting.RateLimitPartition.GetNoLimiter("sin-limite");
 

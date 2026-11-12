@@ -47,6 +47,21 @@ public class LimitadorAltaRegistradoEnProgramTests
     }
 
     [Fact]
+    public void El_paso_Empresa_del_alta_tiene_techo_por_IP_en_el_limitador_global()
+    {
+        // /alta/organizacion consulta la base con contexto firmado al pintarse y al enviarse, y no lleva la política «alta»
+        // (que cuenta los inicios): sin esta partición quedaría sin techo. La partición la prueba LimitadorAltaTests.
+        var programa = ProgramSinComentarios();
+        var bloque = Regex.Match(programa,
+            @"if\s*\(\s*[\w.]*LimitadorAlta\.ParticionOrganizacion\(\s*contexto\s*,\s*limiteCuentaAnonimo\s*\)\s*is\s*\{\s*\}\s*(?<v>\w+)\s*\)\s*return\s+\k<v>\s*;",
+            RegexOptions.Singleline);
+
+        bloque.Success.Should().BeTrue("el paso Empresa del alta debe tener su partición por IP en el limitador global");
+        bloque.Index.Should().BeLessThan(programa.IndexOf("GetNoLimiter(\"sin-limite\")", StringComparison.Ordinal),
+            "el techo se decide antes de dejar sin límite lo que no es un POST de /cuenta");
+    }
+
+    [Fact]
     public void Program_registra_los_servicios_antiabuso_del_alta()
     {
         ProgramSinComentarios().Should().MatchRegex(@"AddAntiabusoAlta\(\s*builder\.Services\s*,\s*builder\.Configuration\s*\)");

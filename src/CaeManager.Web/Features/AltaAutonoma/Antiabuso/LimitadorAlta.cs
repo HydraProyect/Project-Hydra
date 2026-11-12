@@ -99,6 +99,30 @@ public static class LimitadorAlta
     }
 
     /// <summary>
+    /// Techo del limitador global para <c>/alta/organizacion</c> (GET y POST), o <c>null</c> si la petición no va ahí.
+    /// La página consulta la base con contexto firmado al pintarse y al enviarse (<c>app_alta_consultar_continuacion</c>,
+    /// <c>app_alta_completar_datos_organizacion</c>), así que el GET también lleva techo. Va en su propia partición por
+    /// IP, y no bajo la política <c>alta</c>: esa cuenta los inicios del alta, y si el paso Empresa gastara del mismo cupo,
+    /// quien comparte IP (una oficina tras NAT) se quedaría sin poder iniciar el alta, o perdería lo escrito con un 429.
+    /// El antiabuso propio del paso es este techo, el credencial de 256 bits y que cada Solicitud de alta consulta su CIF
+    /// una sola vez; las consultas repetidas de un mismo CIF solo avisan (<see cref="AlertaConsultasCifAlta"/>).
+    /// </summary>
+    public static RateLimitPartition<string>? ParticionOrganizacion(HttpContext contexto, int permisosPorMinuto)
+    {
+        if (!contexto.Request.Path.StartsWithSegments("/alta/organizacion"))
+            return null;
+
+        return RateLimitPartition.GetFixedWindowLimiter(
+            $"alta-organizacion:{LimitadorApiPublica.IpDelCliente(contexto)}",
+            _ => new FixedWindowRateLimiterOptions
+            {
+                PermitLimit = permisosPorMinuto,
+                Window = TimeSpan.FromMinutes(1),
+                QueueLimit = 0,
+            });
+    }
+
+    /// <summary>
     /// IP del cliente para el cupo diario: una IPv4 tal cual (también la mapeada en IPv6) y una IPv6 por su prefijo /48,
     /// lo que un proveedor suele asignar a un solo cliente.
     /// </summary>
