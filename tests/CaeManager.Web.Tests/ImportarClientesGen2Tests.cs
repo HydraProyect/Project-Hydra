@@ -793,8 +793,9 @@ public partial class ImportarClientesGen2Tests : BunitContext
 
     // Mientras un archivo se analiza, la zona de subida está en «Cargando»: el InputFile sale deshabilitado y
     // ZonaSoltarArchivo aplica lo mismo en el servidor, de modo que una segunda subida se ignora (no reemplaza
-    // al análisis en vuelo). Los tres primeros tests fijan esa regla; los dos últimos cubren el único camino por
-    // el que un análisis sigue pudiendo quedar descartado en vuelo, el cambio de plantilla.
+    // al análisis en vuelo). Los tres primeros tests fijan esa regla; los tres últimos cubren el único camino de usuario
+    // con la página viva por el que un análisis sigue pudiendo quedar descartado en vuelo, el cambio de plantilla
+    // (retirar la página lo cubre su propio test).
 
     [Fact]
     public async Task Una_segunda_subida_durante_el_analisis_se_ignora_y_el_analisis_vigente_pinta_su_plan()
@@ -840,7 +841,7 @@ public partial class ImportarClientesGen2Tests : BunitContext
     {
         // Configuración por defecto (un análisis por Tenant). La primera mitad mide que la segunda subida no abre otro
         // análisis; la segunda, que el hueco del análisis vigente vuelve al limitador al terminar: si no volviera, la
-        // subida posterior de c.xlsx esperaría hasta agotar la espera y acabaría en «demasiados análisis» (arreglo #1854).
+        // subida posterior de c.xlsx esperaría hasta agotar la espera y acabaría en «demasiados análisis».
         var escenario = new Escenario();
         escenario.Plan<AnalizarPlantillaClientesQuery>("A", [Fila("Alfa S.L.")]);
         escenario.Plan<AnalizarPlantillaClientesQuery>("C", [Fila("Gamma S.L.")]);
@@ -905,7 +906,7 @@ public partial class ImportarClientesGen2Tests : BunitContext
     {
         // Configuración por defecto (un análisis por Tenant): el análisis descartado por el cambio de plantilla
         // respeta la cancelación y no se completa solo. Si retuviera su hueco, el archivo de la plantilla nueva
-        // esperaría hasta agotar la espera y acabaría en «demasiados análisis» (arreglo #1854).
+        // esperaría hasta agotar la espera y acabaría en «demasiados análisis».
         var escenario = new Escenario();
         escenario.Plan<AnalizarImportacionExcelQuery>("B", [Fila("Beta S.L.")]);
         var puertaA = Puerta();
