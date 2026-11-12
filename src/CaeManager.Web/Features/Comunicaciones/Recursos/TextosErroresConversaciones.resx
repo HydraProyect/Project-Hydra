@@ -18,6 +18,9 @@
   <data name="ErrorResumenDocumentacion" xml:space="preserve">
     <value>No pudimos generar el resumen de documentación del Centro. Vuelve a elegirlo en «Compartir formatos de centro»: tu respuesta no se ha modificado.</value>
   </data>
+  <data name="AvisoFormatosContextoCambiado" xml:space="preserve">
+    <value>La conversación se ha actualizado mientras se preparaba el resumen del Centro. Vuelve a elegirlo en «Compartir formatos de centro»: tu respuesta no se ha modificado.</value>
+  </data>
   <data name="ErrorEnviarRespuesta" xml:space="preserve">
     <value>No se envió la respuesta. Tu texto y los adjuntos siguen en el redactor: comprueba tu conexión y pulsa Enviar otra vez.</value>
   </data>

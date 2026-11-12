@@ -1305,6 +1305,139 @@ public class ComunicacionesGen2Tests : BunitContext
         cut.FindComponent<ComposerBar>().Instance.Texto.Should().BeEmpty("la respuesta de la segunda conversación no recibe lo pedido desde la primera");
     }
 
+    /// <summary>
+    /// Revisión Codex r4 de la #2167, MEDIO 4: comparar solo el identificador de la conversación deja pasar A→B→A. La respuesta
+    /// pedida en la primera apertura de A llega cuando A está abierta otra vez, con un borrador que ya no es el de entonces.
+    /// Detecta volver a comparar solo <c>_conversacionSeleccionadaId</c> tras el await (o quitar la guarda de carga vigente).
+    /// </summary>
+    [Fact]
+    public async Task Los_formatos_pedidos_en_una_apertura_anterior_de_la_misma_conversacion_no_acaban_en_la_respuesta()
+    {
+        var escenario = new Escenario();
+        var primera = Conversacion("Primera conversación", ClienteRefrielectric);
+        var segunda = Conversacion("Segunda conversación", ClienteRefrielectric, "laura.gil@refrielectric.es");
+        escenario.Conversaciones.AddRange([primera, segunda]);
+        escenario.Detalle = id => DetalleDe(escenario.Conversaciones.Single(c => c.Id == id));
+        var formatos = new TaskCompletionSource<object?>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var peticiones = 0;
+        escenario.Interceptar = p => p switch
+        {
+            ObtenerCentrosParaSelectorQuery => Ya(new List<CentroSelectorDto>
+                { new(CentroNorteId, "Centro Norte", ClienteRefrielectric.RazonSocial, "Refrielectric S.A.") }),
+            ObtenerFormatosRequeridosCentroQuery => Retener(),
+            _ => null
+        };
+        Task<object?> Retener()
+        {
+            peticiones++;
+            return formatos.Task;
+        }
+        var (cut, _) = Renderizar(escenario);
+        await SeleccionarFila(cut, "Primera conversación");
+        cut.WaitForAssertion(() => cut.FindAll(".composer-correo-prellenados select").Should().ContainSingle());
+
+        var comparticion = cut.Find(".composer-correo-prellenados select").ChangeAsync(new ChangeEventArgs { Value = CentroNorteId.ToString() });
+        cut.WaitForAssertion(() => peticiones.Should().Be(1, "el resumen del Centro está en vuelo"));
+        await SeleccionarFila(cut, "Segunda conversación");
+        cut.WaitForAssertion(() => TituloAbierto(cut).Should().Be("Segunda conversación"));
+        await SeleccionarFila(cut, "Primera conversación");
+        cut.WaitForAssertion(() => cut.FindAll(".composer-correo-prellenados select").Should().ContainSingle(
+            "control positivo: la primera conversación está abierta otra vez con su composer"));
+
+        await cut.InvokeAsync(() => formatos.SetResult("FORMATOS DEL CENTRO NORTE"));
+        await comparticion;
+        cut.Render();
+
+        TituloAbierto(cut).Should().Be("Primera conversación");
+        peticiones.Should().Be(1, "la reapertura no repite la petición: lo que llega es la respuesta de la apertura anterior");
+        cut.FindComponent<ComposerBar>().Instance.Texto.Should().BeEmpty("la respuesta pedida en una apertura anterior no se añade al borrador de la actual");
+    }
+
+    /// <summary>
+    /// Revisión Codex r4 de la #2167, MEDIO 4: mientras se esperan los formatos, una recarga de la misma conversación cambia su
+    /// Cliente empresarial. El resumen del Centro del Cliente empresarial anterior no puede acabar en una respuesta que ya es de
+    /// otro contexto. Detecta comparar solo la conversación tras el await (la conversación abierta no ha cambiado).
+    /// </summary>
+    [Fact]
+    public async Task Los_formatos_que_llegan_tras_cambiar_el_Cliente_empresarial_de_la_conversacion_no_acaban_en_la_respuesta()
+    {
+        var conversacion = Conversacion("Documentación pendiente", ClienteRefrielectric);
+        var escenario = new Escenario { Detalle = _ => DetalleDe(conversacion) };
+        escenario.Conversaciones.Add(conversacion);
+        var formatos = new TaskCompletionSource<object?>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var peticiones = 0;
+        escenario.Interceptar = p => p switch
+        {
+            ObtenerCentrosParaSelectorQuery => Ya(new List<CentroSelectorDto>
+                { new(CentroNorteId, "Centro Norte", ClienteRefrielectric.RazonSocial, "Refrielectric S.A.") }),
+            ObtenerClientePorIdQuery q when q.Id == ClienteEbro.Id => Ya(FichaDeEbro()),
+            ObtenerFormatosRequeridosCentroQuery => Retener(),
+            _ => null
+        };
+        Task<object?> Retener()
+        {
+            peticiones++;
+            return formatos.Task;
+        }
+        var (cut, _) = Renderizar(escenario);
+        await SeleccionarFila(cut, "Documentación pendiente");
+        cut.WaitForAssertion(() => cut.FindAll(".composer-correo-prellenados select").Should().ContainSingle());
+
+        var comparticion = cut.Find(".composer-correo-prellenados select").ChangeAsync(new ChangeEventArgs { Value = CentroNorteId.ToString() });
+        cut.WaitForAssertion(() => peticiones.Should().Be(1, "el resumen del Centro está en vuelo"));
+
+        escenario.Detalle = _ => DetalleDe(conversacion) with { ClienteId = ClienteEbro.Id, ClienteRazonSocial = ClienteEbro.RazonSocial };
+        await RecibirMensajeAsync(cut, conversacion.Id);
+        cut.WaitForAssertion(() => cut.Find(".bandeja-cliente-identidad").TextContent.Should().Contain(ClienteEbro.RazonSocial,
+            "control positivo: la recarga ya fijó el Cliente empresarial nuevo"));
+
+        await cut.InvokeAsync(() => formatos.SetResult("FORMATOS DEL CENTRO NORTE"));
+        await comparticion;
+        cut.Render();
+
+        TituloAbierto(cut).Should().Be("Documentación pendiente");
+        cut.FindComponent<ComposerBar>().Instance.Texto.Should().BeEmpty("el Centro pedido era del Cliente empresarial anterior");
+    }
+
+    /// <summary>
+    /// Revisión Codex r4 de la #2167, MEDIO 4 (Centro): el Gestor CAE elige un Centro y, mientras espera, otro. Solo la última
+    /// petición es la vigente: la respuesta tardía del primer Centro no se añade. Detecta quitar la guarda de petición vigente.
+    /// </summary>
+    [Fact]
+    public async Task Los_formatos_de_un_centro_sustituido_por_otro_durante_la_espera_no_acaban_en_la_respuesta()
+    {
+        var conversacion = Conversacion("Documentación pendiente", ClienteRefrielectric);
+        var escenario = new Escenario { Detalle = _ => DetalleDe(conversacion) };
+        escenario.Conversaciones.Add(conversacion);
+        var centroSurId = Guid.NewGuid();
+        var formatosNorte = new TaskCompletionSource<object?>(TaskCreationOptions.RunContinuationsAsynchronously);
+        escenario.Interceptar = p => p switch
+        {
+            ObtenerCentrosParaSelectorQuery => Ya(new List<CentroSelectorDto>
+            {
+                new(CentroNorteId, "Centro Norte", ClienteRefrielectric.RazonSocial, "Refrielectric S.A."),
+                new(centroSurId, "Centro Sur", ClienteRefrielectric.RazonSocial, "Refrielectric S.A.")
+            }),
+            ObtenerFormatosRequeridosCentroQuery q when q.CentroId == CentroNorteId => formatosNorte.Task,
+            ObtenerFormatosRequeridosCentroQuery q when q.CentroId == centroSurId => Ya("FORMATOS DEL CENTRO SUR"),
+            _ => null
+        };
+        var (cut, _) = Renderizar(escenario);
+        await SeleccionarFila(cut, "Documentación pendiente");
+        cut.WaitForAssertion(() => cut.FindAll(".composer-correo-prellenados select").Should().ContainSingle());
+
+        var comparticionNorte = cut.Find(".composer-correo-prellenados select").ChangeAsync(new ChangeEventArgs { Value = CentroNorteId.ToString() });
+        await cut.Find(".composer-correo-prellenados select").ChangeAsync(new ChangeEventArgs { Value = centroSurId.ToString() });
+        cut.WaitForAssertion(() => cut.FindComponent<ComposerBar>().Instance.Texto.Should().Be("FORMATOS DEL CENTRO SUR",
+            "control positivo: la petición vigente sí se añade"));
+
+        await cut.InvokeAsync(() => formatosNorte.SetResult("FORMATOS DEL CENTRO NORTE"));
+        await comparticionNorte;
+        cut.Render();
+
+        cut.FindComponent<ComposerBar>().Instance.Texto.Should().Be("FORMATOS DEL CENTRO SUR", "el Centro sustituido no se añade");
+    }
+
     [Fact]
     public async Task El_filtro_de_estado_viaja_a_la_URL_al_elegirlo()
     {

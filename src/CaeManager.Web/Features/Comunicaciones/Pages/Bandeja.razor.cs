@@ -253,6 +253,9 @@ public partial class Bandeja : CaeManager.Web.Components.PaginaInteractiva, IAsy
     /// <summary>Lo mismo para el detalle del hilo abierto — ver <see cref="CargarDetalleAsync"/>.</summary>
     private int _cargaDetalleVigente;
 
+    /// <summary>Número de la última petición de «Compartir formatos» — ver <see cref="CompartirFormatosCentroAsync"/>.</summary>
+    private int _solicitudFormatosVigente;
+
     private bool VentanaAbierta =>
         _detalle?.Canal == CanalConversacion.WhatsApp &&
         _detalle.FechaUltimoMensajeEntranteUtc is { } ultimo &&
@@ -1012,13 +1015,31 @@ public partial class Bandeja : CaeManager.Web.Components.PaginaInteractiva, IAsy
         _centroFormatosSeleccionado = centroIdTexto;
         if (!Guid.TryParse(centroIdTexto, out var centroId)) return;
 
-        // La conversación que pidió los formatos: si el Gestor CAE abre otra mientras espera, el resultado se descarta; no puede
-        // acabar en la respuesta de otro interlocutor (revisión Codex r3 de la #2167, MEDIO 4).
+        // El resumen solo se añade al borrador del mismo contexto que lo pidió (revisión Codex r3 y r4 de la #2167, MEDIO 4).
+        // Dos generaciones, capturadas antes del await y comparadas después:
+        // - _cargaDetalleVigente sube en cada apertura, cierre y recarga del detalle. Cubre otra conversación, la misma
+        //   conversación reabierta (A→B→A) y un Cliente empresarial que cambió en una recarga durante la espera. El composer no
+        //   se pinta mientras carga el detalle (Bandeja.razor, rama _cargandoDetalle), así que la petición no puede salir en
+        //   mitad de una carga y su contexto es el que esa carga fijó.
+        // - _solicitudFormatosVigente sube en cada petición: si el Gestor CAE elige otro Centro mientras espera, la respuesta
+        //   del Centro anterior ya no es la vigente.
         var conversacionId = _conversacionSeleccionadaId;
+        var carga = _cargaDetalleVigente;
+        var solicitud = ++_solicitudFormatosVigente;
         try
         {
             var formatos = await Mediator.Send(new ObtenerFormatosRequeridosCentroQuery(centroId), _ciclo.Token);
-            if (_conversacionSeleccionadaId != conversacionId) return;
+            if (solicitud != _solicitudFormatosVigente) return;
+            if (carga != _cargaDetalleVigente)
+            {
+                // Misma conversación, contexto recargado: se avisa y se libera el selector para que pueda volver a elegirse.
+                if (_conversacionSeleccionadaId == conversacionId)
+                {
+                    _centroFormatosSeleccionado = string.Empty;
+                    ToastService.Mostrar(ErroresTextos["AvisoFormatosContextoCambiado"].Value, TonoToast.Info);
+                }
+                return;
+            }
 
             if (formatos is null)
             {
