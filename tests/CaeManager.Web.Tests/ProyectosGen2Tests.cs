@@ -1470,6 +1470,31 @@ public partial class ProyectosGen2Tests : BunitContext
             "control positivo: con la fecha entera sí se guarda").Which.FechaFinPrevista.Should().Be(new DateOnly(2030, 3, 15)));
     }
 
+    /// <summary>
+    /// Revisión puente, ronda 2 (MEDIO): el campo vive dentro de la pestaña «Información». Cambiar de pestaña con el fin previsto
+    /// a medias lo destruye, y el campo recreado nace vacío: sin la marca heredada retiraba el aviso y Guardar enviaba
+    /// <c>FechaFinPrevista = null</c>, borrando el fin previsto guardado sin que nadie lo viera.
+    /// </summary>
+    [Fact]
+    public async Task Cambiar_de_pestana_con_el_fin_previsto_a_medias_y_volver_no_deja_guardar_sin_fecha()
+    {
+        var cut = await AbrirLaEdicionDelDetalleAsync();
+        var guardar = () => BotonConTexto(cut, "aside.panel-proyecto .acciones-formulario button", "Guardar");
+
+        await FinPrevisto(cut).InputAsync(new ChangeEventArgs { Value = "15/03" });
+        await cut.FindAll("button[role=tab]").Single(b => b.TextContent.Trim() == "Técnicos").ClickAsync(new MouseEventArgs());
+        await cut.FindAll("button[role=tab]").Single(b => b.TextContent.Trim().StartsWith("Informaci")).ClickAsync(new MouseEventArgs());
+
+        cut.Find("aside.panel-proyecto").TextContent.Should().Contain("con el formato dd/mm/aaaa", "el campo recreado nace marcado y avisa: la persona ve por qué no se guarda");
+        await guardar().ClickAsync(new MouseEventArgs());
+        _mediator.Enviados.OfType<ActualizarProyectoCommand>().Should().BeEmpty("el padre tiene «» y guardaría el fin previsto en null");
+
+        await FinPrevisto(cut).InputAsync(new ChangeEventArgs { Value = "15/03/2030" });
+        await guardar().ClickAsync(new MouseEventArgs());
+        cut.WaitForAssertion(() => _mediator.Enviados.OfType<ActualizarProyectoCommand>().Should().ContainSingle(
+            "control positivo: con la fecha entera sí se guarda").Which.FechaFinPrevista.Should().Be(new DateOnly(2030, 3, 15)));
+    }
+
     [Fact]
     public async Task Cerrar_el_panel_con_el_fin_previsto_de_la_edicion_a_medias_pregunta()
     {

@@ -251,7 +251,7 @@
     Mensaje="@MensajeConfirmarReabrir"
     TextoBotonConfirmar="@Textos["AccionReabrirProyecto"]"
     EnProgreso="_reabriendo"
-    HayCambios="() => !string.IsNullOrEmpty(_nuevaFechaFinReabrir)"
+    HayCambios="() => !string.IsNullOrEmpty(_nuevaFechaFinReabrir) || _nuevaFechaFinReabrirNoValida"
     OnConfirmar="ConfirmarReabrirAsync">
     @if (ReabrirPideFechaFin)
     {

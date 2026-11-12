@@ -395,7 +395,7 @@
                                 <CampoTexto Etiqueta="@Textos["EtiquetaNombre"]" Valor="@_editNombre" ValorChanged="v => _editNombre = v"
                                             MensajeError="@(_editErrores.GetValueOrDefault("Nombre"))" />
                                 <CampoTexto Etiqueta="@(_detalle?.Tipo == TipoProyecto.Evento ? Textos["EtiquetaFinEvento"] : Textos["EtiquetaFinPrevistoOpcional"])" Type="date" Valor="@_editFechaFinPrevista" ValorChanged="v => _editFechaFinPrevista = v"
-                                            FechaNoValidaChanged="AlCambiarEditFechaFinPrevistaNoValida" />
+                                            FechaNoValidaChanged="AlCambiarEditFechaFinPrevistaNoValida" FechaNoValidaPrevia="_editFechaFinPrevistaNoValida" />
                                 <CampoTexto Etiqueta="@Textos["EtiquetaNotas"]" Valor="@_editNotas" ValorChanged="v => _editNotas = v" />
                             </div>
                             <div class="acciones-formulario">
@@ -453,7 +453,7 @@
                                     }
                                 </CampoSelect>
                                 <CampoTexto Etiqueta="@Textos["EtiquetaFechaAlta"]" Type="date" Valor="@_nuevoTecnicoFechaAlta" ValorChanged="v => _nuevoTecnicoFechaAlta = v"
-                                            FechaNoValidaChanged="v => _nuevoTecnicoFechaAltaNoValida = v" />
+                                            FechaNoValidaChanged="v => _nuevoTecnicoFechaAltaNoValida = v" FechaNoValidaPrevia="_nuevoTecnicoFechaAltaNoValida" />
                             </div>
                             <div class="acciones-formulario">
                                 <Boton Variante="VarianteBoton.Primario" OnClick="AsignarTecnicoAsync" Cargando="_guardando">@Textos["BotonAsignar"]</Boton>
@@ -586,7 +586,7 @@
     Mensaje="@Textos["ConfirmarReabrirMensaje", _nombreAReabrir, _fechaCierreAReabrir?.ToString("dd/MM/yyyy") ?? string.Empty].Value"
     TextoBotonConfirmar="@Textos["AccionReabrirProyecto"]"
     EnProgreso="_reabriendo"
-    HayCambios="() => !string.IsNullOrEmpty(_nuevaFechaFinReabrir)"
+    HayCambios="() => !string.IsNullOrEmpty(_nuevaFechaFinReabrir) || _nuevaFechaFinReabrirNoValida"
     OnConfirmar="ConfirmarReabrirAsync">
     @if (_reabrirPideFechaFin)
     {
