@@ -247,6 +247,20 @@ public class AcreditacionDocumentoPlataformaTests
         acreditacion.Estado.Should().Be(EstadoAcreditacion.PendienteDeSubir);
         acreditacion.HistorialRechazos.Should().ContainSingle("el historial de rechazos es un hecho pasado real, no se borra al renovar");
     }
+
+    [Fact]
+    public void ReiniciarPorRenovacionDocumento_renueva_la_version_aunque_ya_estuviera_pendiente_y_sin_vigencia()
+    {
+        // Codex r2 (ALTO): con los mismos valores, EF no la da por modificada y el interceptor no renovaría la versión.
+        var acreditacion = CrearAcreditacion();
+        var vista = acreditacion.Version;
+
+        acreditacion.ReiniciarPorRenovacionDocumento();
+
+        acreditacion.Estado.Should().Be(EstadoAcreditacion.PendienteDeSubir, "precondición: el estado no cambia");
+        acreditacion.Vigencia.EstaSinConfirmar.Should().BeTrue("precondición: la vigencia tampoco");
+        acreditacion.Version.Should().NotBe(vista);
+    }
     // --- Vigencia en la plataforma ---------------------------------------
 
     [Fact]

@@ -1,6 +1,7 @@
 using CaeManager.Application.Common;
 using CaeManager.Application.Documentos.Commands.ConfirmarVigenciaAcreditacion;
 using CaeManager.Application.Documentos.Commands.MarcarAcreditacionNoRequerida;
+using CaeManager.Application.Documentos.Commands.RenovarDocumento;
 using CaeManager.Application.Documentos.Commands.RestaurarAnotacionAcreditacion;
 using CaeManager.Application.Gestiones.Queries.GestionesAutomaticas;
 using CaeManager.Domain.Asignaciones;
@@ -8,6 +9,7 @@ using CaeManager.Application.Plataforma;
 using CaeManager.Domain.Centros;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Documentos;
+using CaeManager.Domain.DocumentosIa;
 using CaeManager.Domain.Empresas;
 using CaeManager.Domain.Gestiones;
 using CaeManager.Domain.Integraciones;
@@ -356,9 +358,173 @@ public class GestionesAutomaticasBajoRlsTests : IAsyncLifetime
         }
     }
 
+    [Fact]
+    public async Task Solo_una_vigencia_confirmada_en_otra_sesion_sin_cambiar_el_estado_mueve_la_version_y_no_lo_pide_no_la_borra()
+    {
+        // Codex r2 (MEDIO): el test anterior cambia también el estado, y habría pasado con la comparación antigua por estado.
+        // Aquí el estado visto y el de después son el mismo (Validado); solo cambia la vigencia, con el Command real.
+        using (AmbitoTenantExplicito.Establecer(_tenantSesion))
+        {
+            var validada = await _propietario.AcreditacionesDocumentoPlataforma.SingleAsync(a => a.Id == _propio.Acreditacion);
+            validada.MarcarSubida();
+            validada.MarcarAceptada(VigenciaEnPlataforma.SinConfirmar);
+            await _propietario.SaveChangesAsync();
+        }
+        var propia = await NacerComoPropietarioAsync(_tenantSesion, _propio.Documento);
+        Guid vista;
+        await using (var pantalla = CrearRuntime())
+        {
+            var paso = (await DetalleAsync(pantalla, propia, new SinNotaInterna()))!.Pasos.Single();
+            paso.Estado.Should().Be(EstadoAcreditacion.Aceptada, "precondición: la pantalla ve el paso validado");
+            vista = paso.VersionAcreditacion;
+        }
+
+        var confirmada = VigenciaEnPlataforma.VenceEl(DiaDeNegocio.Hoy().AddMonths(6));
+        await using (var otra = CrearRuntime())
+            (await new ConfirmarVigenciaAcreditacionCommandHandler(
+                    new AcreditacionDocumentoPlataformaRepository(otra), new DocumentoRepository(otra), Alcance(otra), otra, otra, otra)
+                .Handle(new ConfirmarVigenciaAcreditacionCommand(_propio.Acreditacion, confirmada), CancellationToken.None))
+                .EsExitoso.Should().BeTrue("control: la otra sesión confirma la vigencia");
+
+        await using (var runtime = CrearRuntime())
+            (await NoPide(runtime).Handle(new MarcarAcreditacionNoRequeridaCommand(_propio.Acreditacion, vista), CancellationToken.None))
+                .Error.Codigo.Should().Be("Acreditacion.CambiadaDesdeQueSeAbrio");
+
+        using (AmbitoTenantExplicito.Establecer(_tenantSesion))
+        {
+            var fila = await _propietario.AcreditacionesDocumentoPlataforma.AsNoTracking().SingleAsync(a => a.Id == _propio.Acreditacion);
+            fila.Estado.Should().Be(EstadoAcreditacion.Aceptada, "el estado no cambió en ningún momento");
+            fila.Vigencia.Should().Be(confirmada, "la vigencia anotada en la otra sesión sigue ahí");
+            fila.Version.Should().NotBe(vista);
+        }
+    }
+
+    [Fact]
+    public async Task Un_estado_que_cambia_y_vuelve_al_visto_en_otras_sesiones_mueve_la_version_y_no_lo_pide_da_conflicto()
+    {
+        // Codex r2 (MEDIO), A→B→A con EF real: Pendiente de subir → Subida → Pendiente de subir, cada paso en su sesión.
+        var propia = await NacerComoPropietarioAsync(_tenantSesion, _propio.Documento);
+        Guid vista;
+        await using (var pantalla = CrearRuntime())
+            vista = (await DetalleAsync(pantalla, propia, new SinNotaInterna()))!.Pasos.Single().VersionAcreditacion;
+
+        await using (var subida = CrearRuntime())
+        {
+            (await subida.AcreditacionesDocumentoPlataforma.SingleAsync(a => a.Id == _propio.Acreditacion)).MarcarSubida();
+            await subida.SaveChangesAsync();
+        }
+        await using (var devuelta = CrearRuntime())
+        {
+            (await devuelta.AcreditacionesDocumentoPlataforma.SingleAsync(a => a.Id == _propio.Acreditacion)).DevolverAPendienteDeSubir();
+            await devuelta.SaveChangesAsync();
+        }
+
+        await using (var runtime = CrearRuntime())
+            (await NoPide(runtime).Handle(new MarcarAcreditacionNoRequeridaCommand(_propio.Acreditacion, vista), CancellationToken.None))
+                .Error.Codigo.Should().Be("Acreditacion.CambiadaDesdeQueSeAbrio");
+
+        using (AmbitoTenantExplicito.Establecer(_tenantSesion))
+        {
+            var fila = await _propietario.AcreditacionesDocumentoPlataforma.AsNoTracking().SingleAsync(a => a.Id == _propio.Acreditacion);
+            fila.Estado.Should().Be(EstadoAcreditacion.PendienteDeSubir, "precondición: el estado volvió al que se vio");
+            fila.Version.Should().NotBe(vista);
+        }
+    }
+
+    [Fact]
+    public async Task Corregir_el_documento_sin_cambiar_la_acreditacion_mueve_su_version_y_no_lo_pide_con_la_vista_vieja_da_conflicto()
+    {
+        // Codex r2 (ALTO) con el RenovarDocumentoCommandHandler real como runtime: la acreditación ya está Pendiente de subir,
+        // sin vigencia y sin cambio a mano, y la corrección le asigna los mismos valores. Sin renovar la versión en el
+        // dominio, EF no la daría por modificada y el interceptor no tocaría su versión.
+        var propia = await NacerComoPropietarioAsync(_tenantSesion, _propio.Documento);
+        Guid vista;
+        await using (var pantalla = CrearRuntime())
+        {
+            var paso = (await DetalleAsync(pantalla, propia, new SinNotaInterna()))!.Pasos.Single();
+            paso.Estado.Should().Be(EstadoAcreditacion.PendienteDeSubir, "precondición: la corrección no cambiará el estado");
+            vista = paso.VersionAcreditacion;
+        }
+
+        await using (var correccion = CrearRuntime())
+            (await CorregirDocumentoAsync(correccion)).Should().Be(_propio.Documento, "precondición: corrige el mismo registro");
+
+        await using (var runtime = CrearRuntime())
+            (await NoPide(runtime).Handle(new MarcarAcreditacionNoRequeridaCommand(_propio.Acreditacion, vista), CancellationToken.None))
+                .Error.Codigo.Should().Be("Acreditacion.CambiadaDesdeQueSeAbrio");
+
+        using (AmbitoTenantExplicito.Establecer(_tenantSesion))
+        {
+            var fila = await _propietario.AcreditacionesDocumentoPlataforma.AsNoTracking().SingleAsync(a => a.Id == _propio.Acreditacion);
+            fila.Estado.Should().Be(EstadoAcreditacion.PendienteDeSubir, "«no lo pide» no se escribió");
+            fila.Vigencia.EstaSinConfirmar.Should().BeTrue();
+            fila.Version.Should().NotBe(vista, "la corrección la renovó aunque no cambiara ningún campo");
+        }
+    }
+
+    [Fact]
+    public async Task Un_no_lo_pide_confirmado_entre_la_lectura_y_el_guardado_de_la_correccion_la_para_con_un_conflicto()
+    {
+        // La carrera inversa del ALTO de Codex r2: la corrección ya leyó la acreditación (Pendiente de subir, sin vigencia)
+        // cuando otra sesión la marca No requerida con su versión vigente. Sin la versión renovada, la corrección no emitiría
+        // UPDATE de la acreditación y la No requerida sobreviviría a ella sin aviso.
+        Guid versionDocumento;
+        using (AmbitoTenantExplicito.Establecer(_tenantSesion))
+            versionDocumento = await _propietario.Documentos.AsNoTracking()
+                .Where(d => d.Id == _propio.Documento).Select(d => d.Version).SingleAsync();
+
+        await using var correccion = CrearRuntime();
+        var entremedias = new OtraEscrituraAntesDeGuardar(correccion, async () =>
+        {
+            await using var otra = CrearRuntime();
+            var version = await otra.AcreditacionesDocumentoPlataforma.AsNoTracking()
+                .Where(a => a.Id == _propio.Acreditacion).Select(a => a.Version).SingleAsync();
+            (await NoPide(otra).Handle(new MarcarAcreditacionNoRequeridaCommand(_propio.Acreditacion, version), CancellationToken.None))
+                .EsExitoso.Should().BeTrue("control: la otra sesión confirma «no lo pide» antes del guardado de la corrección");
+        });
+
+        var excepcion = await Record.ExceptionAsync(() => CorregirDocumentoAsync(correccion, entremedias));
+
+        entremedias.Ejecutada.Should().BeTrue("control del instrumento: la carrera ocurrió entre la lectura y el guardado");
+        excepcion.Should().BeAssignableTo<DbUpdateConcurrencyException>(
+            "la acreditación entra en el UPDATE con la versión que leyó la corrección, y esa ya no está");
+        using (AmbitoTenantExplicito.Establecer(_tenantSesion))
+        {
+            (await _propietario.AcreditacionesDocumentoPlataforma.AsNoTracking().SingleAsync(a => a.Id == _propio.Acreditacion))
+                .Estado.Should().Be(EstadoAcreditacion.NoRequerida, "la corrección no se confirmó y no la pisó a ciegas");
+            (await _propietario.Documentos.AsNoTracking().Where(d => d.Id == _propio.Documento).Select(d => d.Version).SingleAsync())
+                .Should().Be(versionDocumento, "la corrección del Documento tampoco se confirmó: todo o nada");
+        }
+    }
+
+    /// <summary>
+    /// La barrera de escritura medida sin el repositorio ni el filtro global de EF: solo RLS puede impedir que un UPDATE por
+    /// Id llegue a la acreditación de otro Tenant propietario (mismo patrón que <c>FijarResponsableBuzonBajoRlsTests</c>).
+    /// </summary>
+    [Fact]
+    public async Task Un_UPDATE_por_Id_de_la_acreditacion_de_otro_Tenant_no_afecta_a_ninguna_fila()
+    {
+        await using (var runtime = CrearRuntime())
+        {
+            (await runtime.AcreditacionesDocumentoPlataforma.IgnoreQueryFilters()
+                    .Where(a => a.Id == _ajeno.Acreditacion)
+                    .ExecuteUpdateAsync(s => s.SetProperty(a => a.Estado, EstadoAcreditacion.NoRequerida)))
+                .Should().Be(0, "sin filtro global de EF, solo RLS puede dejar fuera la fila ajena");
+            (await runtime.AcreditacionesDocumentoPlataforma.IgnoreQueryFilters()
+                    .Where(a => a.Id == _propio.Acreditacion)
+                    .ExecuteUpdateAsync(s => s.SetProperty(a => a.Estado, EstadoAcreditacion.NoRequerida)))
+                .Should().Be(1, "control positivo: el mismo UPDATE sobre la acreditación propia sí llega a la fila");
+        }
+
+        using (AmbitoTenantExplicito.Establecer(_tenantAjeno))
+            (await _propietario.AcreditacionesDocumentoPlataforma.AsNoTracking().SingleAsync(a => a.Id == _ajeno.Acreditacion))
+                .Estado.Should().Be(EstadoAcreditacion.PendienteDeSubir, "la acreditación del Tenant ajeno no cambia");
+    }
+
     /// <summary>
     /// La frontera entre Tenants de la ventana de la Gestión tal como la ve el código de producción: el filtro global de
-    /// EF y la política RLS a la vez (la RLS sola, sin el filtro, la aíslan los tests de inserción de esta clase).
+    /// EF y la política RLS a la vez (la RLS sola, sin el filtro, la aíslan los tests de inserción de esta clase y el UPDATE
+    /// por Id de arriba). La sesión es de un Administrador: la Asignación de Cartera real no se mide aquí.
     /// </summary>
     [Fact]
     public async Task Como_runtime_el_detalle_y_los_tres_comandos_de_la_ventana_no_alcanzan_una_acreditacion_de_otro_Tenant()
@@ -416,6 +582,58 @@ public class GestionesAutomaticasBajoRlsTests : IAsyncLifetime
 
     private MarcarAcreditacionNoRequeridaCommandHandler NoPide(CaeManagerDbContext runtime) => new(
         new AcreditacionDocumentoPlataformaRepository(runtime), new DocumentoRepository(runtime), Alcance(runtime), runtime, runtime, runtime);
+
+    /// <summary>
+    /// <see cref="RenovarDocumentoCommand"/> sin archivo nuevo con el handler real sobre <paramref name="runtime"/>: corrige
+    /// la fecha de emisión del mismo registro y reinicia sus acreditaciones. <paramref name="unitOfWork"/> deja meter otra
+    /// escritura justo antes del guardado (<see cref="OtraEscrituraAntesDeGuardar"/>). Devuelve el Id del Documento en uso.
+    /// </summary>
+    private async Task<Guid> CorregirDocumentoAsync(CaeManagerDbContext runtime, IUnitOfWork? unitOfWork = null)
+    {
+        var version = await runtime.Documentos.AsNoTracking()
+            .Where(d => d.Id == _propio.Documento).Select(d => d.Version).SingleAsync();
+        var resultado = await new RenovarDocumentoCommandHandler(
+                new DocumentoRepository(runtime), runtime, Alcance(runtime), runtime, new ColaAnalisisSinUso(), Usuario(),
+                new AcreditacionDocumentoPlataformaRepository(runtime), AltaAcreditacionesDePrueba.Con(runtime),
+                new SerializacionAltasSinBloqueo(), new PublisherFalso(), unitOfWork ?? runtime,
+                new VerificadorArchivoAlmacenadoPermisivo(), AltaAcreditacionesDePrueba.GestionAutomatica(runtime, Usuario()))
+            .Handle(new RenovarDocumentoCommand(_propio.Documento, DiaDeNegocio.Hoy().AddDays(-2), null, null,
+                "Fecha de emisión corregida", version), CancellationToken.None);
+        resultado.EsExitoso.Should().BeTrue("control: la corrección del Documento se aplica");
+        return resultado.Valor;
+    }
+
+    /// <summary>El guardado de <paramref name="contexto"/>, precedido de otra escritura confirmada en otra sesión.</summary>
+    private sealed class OtraEscrituraAntesDeGuardar(CaeManagerDbContext contexto, Func<Task> otraEscritura) : IUnitOfWork
+    {
+        public bool Ejecutada { get; private set; }
+
+        public async Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
+        {
+            await otraEscritura();
+            Ejecutada = true;
+            return await contexto.SaveChangesAsync(cancellationToken);
+        }
+    }
+
+    private sealed class ColaAnalisisSinUso : ITrabajoAnalisisDocumentoRepository
+    {
+        public void Agregar(TrabajoAnalisisDocumento trabajo)
+        {
+        }
+
+        public Task<TrabajoAnalisisDocumento?> ObtenerSiguientePendienteAsync(CancellationToken cancellationToken = default) =>
+            Task.FromResult<TrabajoAnalisisDocumento?>(null);
+
+        public Task<TrabajoAnalisisDocumento?> ReclamarSiguientePendienteAsync(CancellationToken cancellationToken = default) =>
+            Task.FromResult<TrabajoAnalisisDocumento?>(null);
+
+        public Task<IReadOnlyList<TrabajoAnalisisDocumento>> ObtenerEstancadosAsync(
+            TimeSpan umbral, CancellationToken cancellationToken = default) =>
+            Task.FromResult<IReadOnlyList<TrabajoAnalisisDocumento>>([]);
+
+        public Task<int> ContarActivosAsync(CancellationToken cancellationToken = default) => Task.FromResult(0);
+    }
 
     private Task<GestionAutomaticaDetalleDto?> DetalleAsync(CaeManagerDbContext runtime, Guid gestionId, IPoliticaNotaInterna politica) =>
         new ObtenerGestionAutomaticaQueryHandler(runtime, runtime, runtime, runtime, runtime, runtime, runtime, runtime, Alcance(runtime), politica)

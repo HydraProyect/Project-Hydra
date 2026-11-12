@@ -372,6 +372,7 @@ public class AcreditacionDocumentoPlataforma : EntidadBase, IAccionAuditoriaProp
     /// acreditaciones a Pendiente de subir — la versión anterior del
     /// documento ya no es la que hay que validar en ningún portal. El
     /// historial de rechazos no se toca: sigue siendo un hecho pasado real.
+    /// La versión se renueva siempre, aunque ningún campo cambie.
     /// </summary>
     public void ReiniciarPorRenovacionDocumento()
     {
@@ -380,5 +381,11 @@ public class AcreditacionDocumentoPlataforma : EntidadBase, IAccionAuditoriaProp
         // La vigencia confirmada era la del documento anterior. Heredarla daría
         // por acreditado en la plataforma un papel que todavía no se ha subido.
         AnotarVigencia(VigenciaEnPlataforma.SinConfirmar);
+        // Una acreditación que ya estaba Pendiente de subir, sin vigencia y sin cambio a mano recibe los mismos valores: EF
+        // no la da por modificada, el interceptor no renueva su versión y su UPDATE no entra en el guardado. Sin esto, una
+        // pantalla abierta antes de corregir el Documento («no lo pide») escribiría sin ver la corrección, y un «no lo pide»
+        // confirmado entre la lectura y el guardado de la corrección sobreviviría a ella sin conflicto. Con la versión
+        // renovada, la acreditación entra en el UPDATE con su versión original en el WHERE y las dos carreras fallan cerradas.
+        RenovarVersion();
     }
 }
