@@ -50,7 +50,7 @@ public sealed class AlertaConsultasCifAlta : IDisposable
     {
         _logger = logger;
         Ventana = ventana;
-        _contador =PartitionedRateLimiter.Create<string, string>(clave =>
+        _contador = PartitionedRateLimiter.Create<string, string>(clave =>
             RateLimitPartition.GetSlidingWindowLimiter(clave, _ => new SlidingWindowRateLimiterOptions
             {
                 PermitLimit = Umbral,
