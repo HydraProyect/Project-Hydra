@@ -191,7 +191,8 @@ public class EjecutarImportacionMaestraCommandHandler(
     IAltaAcreditacionesPlataformaService altaAcreditaciones,
     ISerializacionAltasAcreditacionEmpresa serializacionAltas,
     IHistorialImportacionRepository historialRepositorio,
-    ICurrentUserService usuarioActual)
+    ICurrentUserService usuarioActual,
+    ILimiteEmpresaPropia limiteEmpresaPropia)
     : IRequestHandler<EjecutarImportacionMaestraCommand, Result<ResultadoImportacionMaestraDto>>,
       IRequestHandler<PrevisualizarImportacionMaestraCommand, Result<ResultadoImportacionMaestraDto>>
 {
@@ -411,6 +412,8 @@ public class EjecutarImportacionMaestraCommandHandler(
                 : await DuplicadosEmpresa.ComprobarRazonSocialAsync(empresaRepositorio, razonSocial, excluirId, cancellationToken: cancellationToken);
 
         var empresasCreadas = 0;
+
+        var limiteAvisado = false; // D-P11: un solo aviso a Soporte TALVEG por comando, no uno por fila
         var empresasActualizadas = 0;
         foreach (var fila in plan.Empresas)
         {
@@ -458,6 +461,15 @@ public class EjecutarImportacionMaestraCommandHandler(
             if (await RazonSocialOcupadaAsync(fila.RazonSocial, null) is { } razonOcupada)
             {
                 omitidos.Add(new(HojaEmpresas, fila.Fila, fila.RazonSocial, razonOcupada.Mensaje));
+                continue;
+            }
+
+            // D-P11: la hoja de Empresas gestionadas crea Empresas propias, y el Tenant propietario solo puede tener una.
+            // La vista previa muestra la misma omisión, pero solo confirmar avisa a Soporte TALVEG.
+            if (await limiteEmpresaPropia.ComprobarAltaAsync(empresasCreadas, esIntento: escribir && !limiteAvisado, cancellationToken) is { } limite)
+            {
+                omitidos.Add(new(HojaEmpresas, fila.Fila, fila.RazonSocial, limite.Mensaje));
+                limiteAvisado = true;
                 continue;
             }
 

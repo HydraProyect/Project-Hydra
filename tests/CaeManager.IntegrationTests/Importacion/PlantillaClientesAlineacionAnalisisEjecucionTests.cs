@@ -172,7 +172,7 @@ public class PlantillaClientesAlineacionAnalisisEjecucionTests : IAsyncLifetime
             new EmpresaRepository(contexto), new TrabajadorRepository(contexto), new DocumentoRepository(contexto),
             new AsignacionRepository(contexto), new OperacionImportacionRepository(contexto),
             contexto, contexto, contexto, contexto, contexto, contexto,
-            new AutorizacionEscrituraEfectivaFalsa(), AltaAcreditacionesDePrueba.Con(contexto), new AlcanceDatosServiceFalso(), new SerializacionAltasSinBloqueo());
+            new AutorizacionEscrituraEfectivaFalsa(), AltaAcreditacionesDePrueba.Con(contexto), new AlcanceDatosServiceFalso(), new SerializacionAltasSinBloqueo(), new LimiteEmpresaPropiaSinAplicar());
 
     private CaeManagerDbContext CrearContexto()
     {

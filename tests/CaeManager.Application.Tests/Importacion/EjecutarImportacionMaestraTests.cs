@@ -39,6 +39,7 @@ public class EjecutarImportacionMaestraTests
         public CaeManager.Application.Tests.Documentos.SerializacionAltasAcreditacionEmpresaFalsa Serializacion { get; } = new();
         public HistorialImportacionRepositorioFalso Historial { get; } = new();
         public Guid UsuarioId { get; } = Guid.NewGuid();
+        public ILimiteEmpresaPropia? Limite { get; set; }
         public const string NombreArchivo = "maestra.xlsx";
 
         public EjecutarImportacionMaestraCommandHandler Handler()
@@ -49,7 +50,8 @@ public class EjecutarImportacionMaestraTests
             TrabajadorRepositorio.Existentes = () => Trabajadores.ListaTrabajadores;
             return new(
                 EmpresaRepositorio, Relaciones, CentroRepositorio, TrabajadorRepositorio, Centros, Empresas,
-                Operaciones, new Autorizacion(administrador), Altas, Serializacion, Historial, new Usuario(UsuarioId));
+                Operaciones, new Autorizacion(administrador), Altas, Serializacion, Historial, new Usuario(UsuarioId),
+                Limite ?? CaeManager.Application.Tests.Empresas.LimitesDePrueba.SinEmpresaPropia());
         }
 
         /// <summary>Como la pantalla: confirma con la huella de una vista previa del mismo plan y modo calculada justo antes.</summary>
@@ -953,4 +955,34 @@ public class EjecutarImportacionMaestraTests
         e.Serializacion.Llamadas.Should().Be(1, "confirmar corre siempre bajo el candado (revisión Codex de la PR #2164, r2, MEDIO 2)");
         e.Altas.Recibidas.Should().BeEmpty();
     }
-}
+
+    [Fact]
+    public async Task D_P11_con_la_Empresa_propia_la_vista_previa_omite_sin_avisar_y_confirmar_avisa_a_Soporte_TALVEG()
+    {
+        var e = new Escenario();
+        e.Empresas.ListaEmpresas.Add(new Empresa("Organización propia, S.L.", CifCliente));
+        var alertas = new CaeManager.Application.Tests.Common.AlertaOperativaFalsa();
+        e.Limite = CaeManager.Application.Tests.Empresas.LimitesDePrueba.Sobre(e.Empresas, alertas);
+        var plan = Plan([FilaEmpresa()]);
+
+        var previa = (await e.PrevisualizarAsync(plan)).Valor;
+        previa.EmpresasCreadas.Should().Be(0);
+        previa.Omitidos.Should().NotBeEmpty();
+        alertas.Alertas.Should().BeEmpty("una vista previa no es un intento");
+
+        var r = (await e.EjecutarAsync(plan)).Valor;
+        r.EmpresasCreadas.Should().Be(0);
+        e.EmpresaRepositorio.Empresas.Should().BeEmpty();
+        alertas.Alertas.Should().ContainSingle();
+    }
+
+    [Fact]
+    public async Task D_P11_sin_Empresa_propia_la_maestra_crea_la_primera()
+    {
+        var e = new Escenario();
+        e.Limite = CaeManager.Application.Tests.Empresas.LimitesDePrueba.Sobre(e.Empresas, new CaeManager.Application.Tests.Common.AlertaOperativaFalsa());
+
+        var r = (await e.EjecutarAsync(Plan([FilaEmpresa()]))).Valor;
+
+        r.EmpresasCreadas.Should().Be(1);
+    }}

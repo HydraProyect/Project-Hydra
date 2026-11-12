@@ -120,7 +120,8 @@ public class EjecutarImportacionCommandHandler(
     IAutorizacionEscrituraEfectiva autorizacionEscrituraEfectiva,
     IAltaAcreditacionesPlataformaService altaAcreditaciones,
     IAlcanceDatosService alcanceDatos,
-    ISerializacionAltasAcreditacionEmpresa serializacionAltas)
+    ISerializacionAltasAcreditacionEmpresa serializacionAltas,
+    ILimiteEmpresaPropia limiteEmpresaPropia)
     : IRequestHandler<EjecutarImportacionCommand, Result<ResultadoImportacionDto>>
 {
     // Restaura en Application el límite que ya exponen las 4 páginas de importación (@attribute [Authorize(Roles = ConCargaMasivaCsv)]):
@@ -220,6 +221,7 @@ public class EjecutarImportacionCommandHandler(
         var clientesCreados = 0;
         var centrosCreados = 0;
         var empresasCreadas = 0;
+        var limiteAvisado = false; // D-P11: un solo aviso a Soporte TALVEG por comando, no uno por fila
         var trabajadoresCreados = 0;
         var documentosCreados = 0;
         var asignacionesCreadas = 0;
@@ -338,6 +340,15 @@ public class EjecutarImportacionCommandHandler(
                 cancellationToken: cancellationToken) is { } razonSocialOcupada)
             {
                 omitidosEnEscritura.Add(new ItemImportacionDto(fila.Hoja, fila.Fila, fila.RazonSocial, razonSocialOcupada.Mensaje));
+                continue;
+            }
+
+            // D-P11: cada fila de la hoja de Empresas crea una Empresa propia, y el Tenant propietario solo puede tener
+            // una. Las que esta misma carga ya añadió cuentan aunque aún no estén guardadas.
+            if (await limiteEmpresaPropia.ComprobarAltaAsync(empresasCreadas, esIntento: !limiteAvisado, cancellationToken) is { } limite)
+            {
+                omitidosEnEscritura.Add(new ItemImportacionDto(fila.Hoja, fila.Fila, fila.RazonSocial, limite.Mensaje));
+                limiteAvisado = true;
                 continue;
             }
 

@@ -84,7 +84,8 @@ public class EjecutarImportacionCombinadaCommandHandler(
     ICentrosQueryContext centrosContext, IEmpresasQueryContext empresasContext, ITrabajadoresQueryContext trabajadoresContext,
     IOperacionImportacionRepository operacionImportacionRepositorio,
     IAutorizacionEscrituraEfectiva autorizacionEscrituraEfectiva,
-    IAlcanceDatosService alcanceDatos)
+    IAlcanceDatosService alcanceDatos,
+    ILimiteEmpresaPropia limiteEmpresaPropia)
     : IRequestHandler<EjecutarImportacionCombinadaCommand, Result<ResultadoImportacionCombinadaDto>>
 {
     /// <summary>Par vigente Empresa propia→Cliente, en memoria durante la importación — value equality para poder hacer Remove.</summary>
@@ -312,6 +313,8 @@ public class EjecutarImportacionCombinadaCommandHandler(
             .ToListAsync(cancellationToken);
 
         var empresasCreadas = 0;
+
+        var limiteAvisado = false; // D-P11: un solo aviso a Soporte TALVEG por comando, no uno por fila
         var empresasActualizadas = 0;
 
         foreach (var fila in plan.Empresas)
@@ -370,6 +373,14 @@ public class EjecutarImportacionCombinadaCommandHandler(
                     cancellationToken: cancellationToken) is { } razonSocialOcupada)
                 {
                     omitidosEnEscritura.Add(new ItemImportacionDto("Empresas", fila.Fila, fila.RazonSocial, razonSocialOcupada.Mensaje));
+                    continue;
+                }
+
+                // D-P11: mismo criterio que EjecutarImportacionCommand; las de esta carga cuentan sin estar guardadas.
+                if (await limiteEmpresaPropia.ComprobarAltaAsync(empresasCreadas, esIntento: !limiteAvisado, cancellationToken) is { } limite)
+                {
+                    omitidosEnEscritura.Add(new ItemImportacionDto("Empresas", fila.Fila, fila.RazonSocial, limite.Mensaje));
+                    limiteAvisado = true;
                     continue;
                 }
 

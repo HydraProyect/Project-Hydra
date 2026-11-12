@@ -129,7 +129,7 @@ public class RestaurarListadosBajoRuntimeTests
         using var ambitoTenant = AmbitoTenantExplicito.Establecer(tenantId);
 
         return (
-            await new RestaurarSubcontrataCommandHandler(contexto, tenant, alcance, contexto).Handle(new RestaurarSubcontrataCommand(s.SubcontrataId), CancellationToken.None),
+            await new RestaurarSubcontrataCommandHandler(contexto, tenant, alcance, contexto, new LimiteEmpresaPropiaSinAplicar()).Handle(new RestaurarSubcontrataCommand(s.SubcontrataId), CancellationToken.None),
             await new RestaurarVehiculoCommandHandler(contexto, tenant, alcance, contexto).Handle(new RestaurarVehiculoCommand(s.VehiculoId), CancellationToken.None),
             await new RestaurarProyectoCommandHandler(contexto, tenant, alcance, contexto).Handle(new RestaurarProyectoCommand(s.ProyectoId), CancellationToken.None),
             await new RestaurarGestionCommandHandler(contexto, tenant, alcance, contexto).Handle(new RestaurarGestionCommand(s.GestionId), CancellationToken.None));

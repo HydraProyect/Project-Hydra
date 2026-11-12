@@ -230,7 +230,7 @@ public class DuplicadosRazonSocialEmpresaTests
             new CaeManager.Application.Tests.Plantillas.CentrosQueryContextFalso(), contexto,
             new CaeManager.Application.Tests.Plantillas.TrabajadoresQueryContextFalso(),
             new CaeManager.Application.Tests.Importacion.OperacionImportacionSobreUnitOfWorkFalso(uow), new AdministracionPermitida(),
-            new CaeManager.Application.Tests.Clientes.AlcanceDatosServiceFalso());
+            new CaeManager.Application.Tests.Clientes.AlcanceDatosServiceFalso(), CaeManager.Application.Tests.Empresas.LimitesDePrueba.SinEmpresaPropia());
         return handler.Handle(new EjecutarImportacionCombinadaCommand(plan, reemplazar), default);
     }
 
@@ -317,7 +317,7 @@ public class DuplicadosRazonSocialEmpresaTests
                 .Handle(new CrearClienteCommand(razonSocial, "B12345674", false, null), default),
             "EditarCliente" => await new EditarClienteCommandHandler(repo, alcance, uow)
                 .Handle(new EditarClienteCommand(empresa.Id, razonSocial, "B12345674", false, null, empresa.Version), default),
-            "CrearEmpresa" => await new CrearEmpresaCommandHandler(repo, relaciones, contexto, alcance, uow)
+            "CrearEmpresa" => await new CrearEmpresaCommandHandler(repo, relaciones, contexto, alcance, uow, CaeManager.Application.Tests.Empresas.LimitesDePrueba.SinEmpresaPropia())
                 .Handle(new CrearEmpresaCommand(razonSocial, "B12345674", []), default),
             "EditarEmpresa" => await new EditarEmpresaCommandHandler(repo, relaciones, contexto, null!, alcance, uow)
                 .Handle(new EditarEmpresaCommand(empresa.Id, razonSocial, "B12345674", [], Version: empresa.Version), default),

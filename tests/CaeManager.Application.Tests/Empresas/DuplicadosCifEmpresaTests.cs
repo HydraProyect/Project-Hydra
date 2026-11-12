@@ -109,7 +109,7 @@ public class DuplicadosCifEmpresaTests
                 .Handle(new CrearClienteCommand("Nueva identidad", cif, false, null), default),
             "EditarCliente" => await new EditarClienteCommandHandler(repo, alcance, uow)
                 .Handle(new EditarClienteCommand(empresa.Id, "Nueva identidad", cif, false, null, empresa.Version), default),
-            "CrearEmpresa" => await new CrearEmpresaCommandHandler(repo, relaciones, contexto, alcance, uow)
+            "CrearEmpresa" => await new CrearEmpresaCommandHandler(repo, relaciones, contexto, alcance, uow, CaeManager.Application.Tests.Empresas.LimitesDePrueba.SinEmpresaPropia())
                 .Handle(new CrearEmpresaCommand("Nueva identidad", cif, []), default),
             "EditarEmpresa" => await new EditarEmpresaCommandHandler(repo, relaciones, contexto, null!, alcance, uow)
                 .Handle(new EditarEmpresaCommand(empresa.Id, "Nueva identidad", cif, [], Version: empresa.Version), default),
@@ -169,7 +169,7 @@ public class DuplicadosCifEmpresaTests
             new CaeManager.Application.Tests.Plantillas.CentrosQueryContextFalso(), contexto,
             new CaeManager.Application.Tests.Plantillas.TrabajadoresQueryContextFalso(),
             new CaeManager.Application.Tests.Importacion.OperacionImportacionSobreUnitOfWorkFalso(uow), new AdministracionPermitida(),
-            new CaeManager.Application.Tests.Clientes.AlcanceDatosServiceFalso());
+            new CaeManager.Application.Tests.Clientes.AlcanceDatosServiceFalso(), CaeManager.Application.Tests.Empresas.LimitesDePrueba.SinEmpresaPropia());
         return handler.Handle(new EjecutarImportacionCombinadaCommand(
             new PlanImportacionCombinadaDto(Guid.NewGuid(), [new("Importada", " b12345674 ", false, false)], [], [], [], [], []), reemplazar), default);
     }

@@ -51,7 +51,8 @@ public class CrearEmpresaCommandValidator : AbstractValidator<CrearEmpresaComman
 public class CrearEmpresaCommandHandler(
     IEmpresaRepository repositorio,
     IRelacionEmpresarialRepository relacionEmpresarialRepositorio,
-    IEmpresasQueryContext empresasContext, IAlcanceDatosService alcanceDatos, IUnitOfWork unitOfWork)
+    IEmpresasQueryContext empresasContext, IAlcanceDatosService alcanceDatos, IUnitOfWork unitOfWork,
+    ILimiteEmpresaPropia limiteEmpresaPropia)
     : IRequestHandler<CrearEmpresaCommand, Result<Guid>>
 {
     public async Task<Result<Guid>> Handle(CrearEmpresaCommand request, CancellationToken cancellationToken)
@@ -78,6 +79,10 @@ public class CrearEmpresaCommandHandler(
         if (clientesEncontrados != clienteIds.Count
             || !await alcanceDatos.TodosLosClientesVisiblesAsync(clienteIds, cancellationToken))
             return Result.Fallo<Guid>(Error.Crear("Empresa.ClienteNoEncontrado", "Alguno de los Clientes seleccionados no existe."));
+
+        // D-P11: una sola Empresa propia por Tenant propietario (ver ILimiteEmpresaPropia).
+        if (await limiteEmpresaPropia.ComprobarAltaAsync(0, esIntento: true, cancellationToken) is { } limite)
+            return Result.Fallo<Guid>(limite);
 
         var empresa = new Empresa(request.RazonSocial, request.Cif, request.Cnae, request.ConvenioAplicable, request.EsActividadAnexoI);
         repositorio.Agregar(empresa);

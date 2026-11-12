@@ -449,7 +449,7 @@ public class AsignacionDeCarteraEnEscriturasTests
         empresas.ListaEmpresas.Add(cliente);
         var repositorio = new EmpresaRepositorioFalso();
         var handler = new CrearEmpresaCommandHandler(
-            repositorio, relacionEmpresarialRepositorio: null!, empresas, SinCartera(), new UnitOfWorkFalso());
+            repositorio, relacionEmpresarialRepositorio: null!, empresas, SinCartera(), new UnitOfWorkFalso(), CaeManager.Application.Tests.Empresas.LimitesDePrueba.SinEmpresaPropia());
 
         var resultado = await handler.Handle(
             new CrearEmpresaCommand("Montajes Getafe S.L.", null, [cliente.Id]), CancellationToken.None);
@@ -468,7 +468,7 @@ public class AsignacionDeCarteraEnEscriturasTests
         var relaciones = new RelacionesQueSoloAnotanAltas();
         var handler = new CrearEmpresaCommandHandler(
             repositorio, relaciones, empresas,
-            new AlcanceDatosServiceFalso(tieneAccesoTotal: false, clienteIdsVisibles: [cliente.Id]), new UnitOfWorkFalso());
+            new AlcanceDatosServiceFalso(tieneAccesoTotal: false, clienteIdsVisibles: [cliente.Id]), new UnitOfWorkFalso(), CaeManager.Application.Tests.Empresas.LimitesDePrueba.SinEmpresaPropia());
 
         var resultado = await handler.Handle(
             new CrearEmpresaCommand("Montajes Getafe S.L.", null, [cliente.Id]), CancellationToken.None);

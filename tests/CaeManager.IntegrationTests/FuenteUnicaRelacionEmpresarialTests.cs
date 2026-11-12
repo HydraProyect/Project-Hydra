@@ -70,7 +70,7 @@ public class FuenteUnicaRelacionEmpresarialTests : IAsyncLifetime
         {
             var handler = new CrearEmpresaCommandHandler(
                 new EmpresaRepository(contexto), new RelacionEmpresarialRepository(contexto), contexto,
-                CrearAlcanceConAccesoTotal(contexto), contexto);
+                CrearAlcanceConAccesoTotal(contexto), contexto, new LimiteEmpresaPropiaSinAplicar());
 
             var resultado = await handler.Handle(
                 new CrearEmpresaCommand("Empresa Fuente Unica Uno S.L.", "B10380186", [cliente]), CancellationToken.None);
@@ -698,7 +698,7 @@ public class FuenteUnicaRelacionEmpresarialTests : IAsyncLifetime
             new CentroRepository(contexto),
             new TrabajadorRepository(contexto),
             contexto, contexto, contexto, new OperacionImportacionRepository(contexto),
-            new AutorizacionEscrituraEfectivaFalsa(), new AlcanceDatosServiceFalso());
+            new AutorizacionEscrituraEfectivaFalsa(), new AlcanceDatosServiceFalso(), new LimiteEmpresaPropiaSinAplicar());
 
         var resultado = await handler.Handle(new EjecutarImportacionCombinadaCommand(plan, ReemplazarExistentes: false), CancellationToken.None);
         return resultado.Valor;
