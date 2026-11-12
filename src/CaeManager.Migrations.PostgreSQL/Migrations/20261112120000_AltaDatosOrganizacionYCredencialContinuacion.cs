@@ -22,9 +22,10 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations;
 /// Tenant, a <c>DerivadaAAcceso</c>. Devuelve solo el resultado y el Id de la propia Solicitud de alta.</item>
 /// <item><c>app_alta_consultar_continuacion</c>: el estado de la continuación (sin escribir), para recargar o reenviar
 /// el paso sin volver a transicionar.</item>
-/// <item><c>app_alta_borrar_datos_personales</c> (de A8) vacía también <c>HashCredencialContinuacion</c> y
-/// <c>CredencialContinuacionCaducaEnUtc</c>, como <c>SolicitudAlta.BorrarDatosPersonales</c>. Down le devuelve el cuerpo
-/// de A8 antes de quitar las columnas.</item>
+/// <item><c>app_alta_caducar_solicitudes</c> y <c>app_alta_borrar_datos_personales</c> (de A8) vacían también
+/// <c>HashCredencialContinuacion</c> y <c>CredencialContinuacionCaducaEnUtc</c>, como <c>SolicitudAlta.Caducar</c> (un
+/// estado final deja sin credencial) y <c>SolicitudAlta.BorrarDatosPersonales</c>. Down les devuelve el cuerpo de A8 antes
+/// de quitar las columnas.</item>
 /// </list>
 /// </summary>
 public partial class AltaDatosOrganizacionYCredencialContinuacion : Migration
@@ -320,6 +321,64 @@ public partial class AltaDatosOrganizacionYCredencialContinuacion : Migration
             END;
             $$;
 
+            -- La caducidad de A8 vacía también el credencial de continuación y su caducidad al pasar a Caducada, como
+            -- SolicitudAlta.CambiarEstado al entrar en un estado final: el credencial deja de servir en la misma sentencia.
+            -- Es el cuerpo de A8 con esas dos columnas más; propietario y privilegios se conservan (CREATE OR REPLACE) y
+            -- se reafirman abajo. Down devuelve el de A8 antes de quitar las columnas.
+            CREATE OR REPLACE FUNCTION public.app_alta_caducar_solicitudes(p_lote integer) RETURNS integer
+                LANGUAGE plpgsql SECURITY DEFINER
+                SET search_path TO 'pg_catalog', 'pg_temp'
+                SET TimeZone TO 'UTC'
+                AS $$
+            DECLARE
+                v_ahora timestamp with time zone;
+                v_filas integer;
+            BEGIN
+                IF NOT EXISTS (SELECT 1 FROM pg_catalog.pg_roles
+                                WHERE rolname = current_user AND (rolsuper OR rolbypassrls)) THEN
+                    RAISE EXCEPTION 'El rol % no evita la RLS: no vería ninguna Solicitud de alta', current_user;
+                END IF;
+                IF p_lote IS NULL OR p_lote < 1 OR p_lote > 1000 THEN
+                    RAISE EXCEPTION 'El tamaño del lote tiene que estar entre 1 y 1000' USING ERRCODE = '22023';
+                END IF;
+
+                v_ahora := pg_catalog.clock_timestamp();
+
+                -- SKIP LOCKED: una fila que otra transacción tiene bloqueada (otra instancia, la verificación del
+                -- correo) se deja para la siguiente pasada en vez de esperarla. Los plazos se comparan con el reloj
+                -- de la base. PendientePago espera 96 horas desde que entró: ver el comentario de la migración.
+                -- Los plazos son horas exactas, no días naturales (con otra zona horaria un cambio de hora daría
+                -- 95 o 97 horas), y la función fija TimeZone a UTC. El plazo de 168 horas desde la creación está
+                -- escrito aquí además de en CaducaEnUtc: app_alta_iniciar_solicitud admite un CaducaEnUtc posterior
+                -- a la creación pero inferior a siete días, y esa fila no puede caducar antes de plazo.
+                WITH lote AS (
+                    SELECT s."Id"
+                      FROM public."SolicitudesAlta" s
+                     WHERE s."CaducaEnUtc" <= v_ahora
+                       AND s."CreadaEnUtc" <= v_ahora - interval '168 hours'
+                       AND (s."Estado" IN ('Iniciada', 'CorreoVerificado', 'DatosCompletos')
+                            OR (s."Estado" = 'PendientePago'
+                                AND s."UltimoCambioEstadoEnUtc" <= v_ahora - interval '96 hours'))
+                     ORDER BY s."CaducaEnUtc", s."Id"
+                     LIMIT p_lote
+                       FOR UPDATE SKIP LOCKED)
+                UPDATE public."SolicitudesAlta" s
+                   SET "Estado" = 'Caducada',
+                       "HashCredencialContinuacion" = NULL,
+                       "CredencialContinuacionCaducaEnUtc" = NULL,
+                       "UltimoCambioEstadoEnUtc" = v_ahora,
+                       "VersionFila" = s."VersionFila" + 1
+                  FROM lote
+                 WHERE s."Id" = lote."Id"
+                   AND s."Estado" IN ('Iniciada', 'CorreoVerificado', 'DatosCompletos', 'PendientePago');
+                GET DIAGNOSTICS v_filas = ROW_COUNT;
+                RETURN v_filas;
+            END;
+            $$;
+
+            REVOKE ALL ON FUNCTION public.app_alta_caducar_solicitudes(integer) FROM PUBLIC, cae_app_soporte, cae_app_aprovisionamiento;
+            GRANT EXECUTE ON FUNCTION public.app_alta_caducar_solicitudes(integer) TO cae_app_runtime;
+
             -- El borrado de datos personales de A8 (DA-7) vacía también el credencial de continuación y su caducidad,
             -- como SolicitudAlta.BorrarDatosPersonales: sin esto una Caducada con los datos borrados conservaría el hash.
             -- Es el cuerpo de A8 con esas dos columnas más; propietario y privilegios se conservan (CREATE OR REPLACE) y
@@ -439,8 +498,60 @@ public partial class AltaDatosOrganizacionYCredencialContinuacion : Migration
     protected override void Down(MigrationBuilder migrationBuilder)
     {
         migrationBuilder.Sql("""
-            -- Antes de quitar las columnas del credencial, el borrado de datos personales vuelve al cuerpo exacto de A8,
-            -- que no las nombra: si no, la primera pasada del trabajo de limpieza fallaría por columna inexistente.
+            -- Antes de quitar las columnas del credencial, la caducidad y el borrado de datos personales vuelven al cuerpo
+            -- exacto de A8, que no las nombra: si no, la primera pasada del trabajo de limpieza fallaría por columna
+            -- inexistente.
+            CREATE OR REPLACE FUNCTION public.app_alta_caducar_solicitudes(p_lote integer) RETURNS integer
+                LANGUAGE plpgsql SECURITY DEFINER
+                SET search_path TO 'pg_catalog', 'pg_temp'
+                SET TimeZone TO 'UTC'
+                AS $$
+            DECLARE
+                v_ahora timestamp with time zone;
+                v_filas integer;
+            BEGIN
+                IF NOT EXISTS (SELECT 1 FROM pg_catalog.pg_roles
+                                WHERE rolname = current_user AND (rolsuper OR rolbypassrls)) THEN
+                    RAISE EXCEPTION 'El rol % no evita la RLS: no vería ninguna Solicitud de alta', current_user;
+                END IF;
+                IF p_lote IS NULL OR p_lote < 1 OR p_lote > 1000 THEN
+                    RAISE EXCEPTION 'El tamaño del lote tiene que estar entre 1 y 1000' USING ERRCODE = '22023';
+                END IF;
+
+                v_ahora := pg_catalog.clock_timestamp();
+
+                -- SKIP LOCKED: una fila que otra transacción tiene bloqueada (otra instancia, la verificación del
+                -- correo) se deja para la siguiente pasada en vez de esperarla. Los plazos se comparan con el reloj
+                -- de la base. PendientePago espera 96 horas desde que entró: ver el comentario de la migración.
+                -- Los plazos son horas exactas, no días naturales (con otra zona horaria un cambio de hora daría
+                -- 95 o 97 horas), y la función fija TimeZone a UTC. El plazo de 168 horas desde la creación está
+                -- escrito aquí además de en CaducaEnUtc: app_alta_iniciar_solicitud admite un CaducaEnUtc posterior
+                -- a la creación pero inferior a siete días, y esa fila no puede caducar antes de plazo.
+                WITH lote AS (
+                    SELECT s."Id"
+                      FROM public."SolicitudesAlta" s
+                     WHERE s."CaducaEnUtc" <= v_ahora
+                       AND s."CreadaEnUtc" <= v_ahora - interval '168 hours'
+                       AND (s."Estado" IN ('Iniciada', 'CorreoVerificado', 'DatosCompletos')
+                            OR (s."Estado" = 'PendientePago'
+                                AND s."UltimoCambioEstadoEnUtc" <= v_ahora - interval '96 hours'))
+                     ORDER BY s."CaducaEnUtc", s."Id"
+                     LIMIT p_lote
+                       FOR UPDATE SKIP LOCKED)
+                UPDATE public."SolicitudesAlta" s
+                   SET "Estado" = 'Caducada',
+                       "UltimoCambioEstadoEnUtc" = v_ahora,
+                       "VersionFila" = s."VersionFila" + 1
+                  FROM lote
+                 WHERE s."Id" = lote."Id"
+                   AND s."Estado" IN ('Iniciada', 'CorreoVerificado', 'DatosCompletos', 'PendientePago');
+                GET DIAGNOSTICS v_filas = ROW_COUNT;
+                RETURN v_filas;
+            END;
+            $$;
+            REVOKE ALL ON FUNCTION public.app_alta_caducar_solicitudes(integer) FROM PUBLIC, cae_app_soporte, cae_app_aprovisionamiento;
+            GRANT EXECUTE ON FUNCTION public.app_alta_caducar_solicitudes(integer) TO cae_app_runtime;
+
             CREATE OR REPLACE FUNCTION public.app_alta_borrar_datos_personales(p_lote integer) RETURNS integer
                 LANGUAGE plpgsql SECURITY DEFINER
                 SET search_path TO 'pg_catalog', 'pg_temp'

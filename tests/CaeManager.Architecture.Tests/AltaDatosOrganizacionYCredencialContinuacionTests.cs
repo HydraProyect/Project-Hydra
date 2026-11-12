@@ -57,8 +57,7 @@ public class AltaDatosOrganizacionYCredencialContinuacionTests
         }
 
         Up.Should().NotContain("CREATE POLICY", "las tablas siguen sin políticas")
-            .And.NotContain("ON TABLE", "las tablas siguen sin privilegios para los roles de la aplicación")
-            .And.NotContain("app_alta_caducar", "la caducidad es de A8");
+            .And.NotContain("ON TABLE", "las tablas siguen sin privilegios para los roles de la aplicación");
         Down.Should().Contain("CREATE OR REPLACE FUNCTION public.app_alta_verificar_correo(p_hash_token text) RETURNS text")
             .And.Contain("v_estado <> 'Iniciada'", "Down devuelve el cuerpo de A3, que sí verifica")
             .And.Contain("GRANT EXECUTE ON FUNCTION public.app_alta_verificar_correo(text) TO cae_app_runtime;")
@@ -166,56 +165,72 @@ public class AltaDatosOrganizacionYCredencialContinuacionTests
         derivada[..derivada.IndexOf("WHERE", StringComparison.Ordinal)].Should().Contain("\"HashCredencialContinuacion\" = NULL");
     }
 
-    [Fact]
-    public void El_borrado_de_A8_vacia_tambien_el_credencial_de_continuacion_y_no_cambia_nada_mas()
+    [Theory]
+    [InlineData("app_alta_caducar_solicitudes")]
+    [InlineData("app_alta_borrar_datos_personales")]
+    public void Las_funciones_de_A8_vacian_tambien_el_credencial_de_continuacion_y_no_cambian_nada_mas(string nombre)
     {
-        var nuevo = Funcion(Up, InicioBorrar);
+        var nuevo = Funcion(Up, Inicio(nombre));
+        var deA8 = DeA8(nombre);
 
-        // Fuera de las dos columnas, el cuerpo es el de A8: mismos plazos, lote, candado, comprobación del rol y traza.
+        // Fuera de las dos columnas, el cuerpo es el de A8: mismos plazos, estados de origen, lote, candado,
+        // comprobación del rol y traza.
         var sinCredencial = string.Join('\n', nuevo.Split('\n')
             .Where(linea => !ColumnasCredencial.Any(c => linea.Trim() == $"\"{c}\" = NULL,")));
-        sinCredencial.Should().Be(BorrarDeA8);
-        ColumnasANull(nuevo).Should().BeEquivalentTo(ColumnasANull(BorrarDeA8).Concat(ColumnasCredencial));
+        sinCredencial.Should().Be(deA8);
+        ColumnasANull(nuevo).Should().BeEquivalentTo(ColumnasANull(deA8).Concat(ColumnasCredencial));
 
-        Up.Should().Contain($"REVOKE ALL ON FUNCTION public.{FirmaBorrar} FROM PUBLIC, cae_app_soporte, cae_app_aprovisionamiento;")
-            .And.Contain($"GRANT EXECUTE ON FUNCTION public.{FirmaBorrar} TO cae_app_runtime;")
-            .And.NotContain($"DROP FUNCTION public.{FirmaBorrar}", "la firma y el propietario de A8 se conservan");
+        Up.Should().Contain($"REVOKE ALL ON FUNCTION public.{nombre}(integer) FROM PUBLIC, cae_app_soporte, cae_app_aprovisionamiento;")
+            .And.Contain($"GRANT EXECUTE ON FUNCTION public.{nombre}(integer) TO cae_app_runtime;")
+            .And.NotContain($"DROP FUNCTION public.{nombre}", "la firma y el propietario de A8 se conservan");
+    }
+
+    [Fact]
+    public void Caducar_en_SQL_deja_a_NULL_los_mismos_campos_que_Caducar_del_dominio()
+    {
+        ColumnasANull(Funcion(Up, Inicio("app_alta_caducar_solicitudes"))).Should().BeEquivalentTo(
+            PropiedadesQueElDominioDejaANull(borrarDatos: false),
+            "Caducada es final y el dominio deja sin credencial; la versión de A4 de la función SQL tiene que hacer lo mismo " +
+            "(y al revés); una migración posterior que la redefina necesita su propia comprobación");
     }
 
     [Fact]
     public void El_borrado_SQL_deja_a_NULL_los_mismos_campos_que_BorrarDatosPersonales_del_dominio()
     {
-        ColumnasANull(Funcion(Up, InicioBorrar)).Should().BeEquivalentTo(PropiedadesQueBorrarDatosPersonalesDejaANull(),
+        ColumnasANull(Funcion(Up, Inicio("app_alta_borrar_datos_personales"))).Should().BeEquivalentTo(
+            PropiedadesQueElDominioDejaANull(borrarDatos: true),
             "si el dominio borra un dato personal, la versión de A4 de la función SQL tiene que borrarlo también (y al revés); " +
             "una migración posterior que la redefina necesita su propia comprobación");
     }
 
     [Fact]
-    public void Down_devuelve_el_borrado_de_A8_antes_de_quitar_las_columnas_del_credencial()
+    public void Down_devuelve_las_funciones_de_A8_antes_de_quitar_las_columnas_del_credencial()
     {
         var operaciones = new AltaDatosOrganizacionYCredencialContinuacion().DownOperations.ToList();
         var sql = operaciones.OfType<SqlOperation>().Should().ContainSingle().Subject;
 
-        Funcion(sql.Sql, InicioBorrar).Should().Be(BorrarDeA8);
-        sql.Sql.Should().NotContain("CredencialContinuacion", "nada de lo que queda tras Down nombra las columnas que quita")
-            .And.Contain($"REVOKE ALL ON FUNCTION public.{FirmaBorrar} FROM PUBLIC, cae_app_soporte, cae_app_aprovisionamiento;")
-            .And.Contain($"GRANT EXECUTE ON FUNCTION public.{FirmaBorrar} TO cae_app_runtime;")
-            .And.NotContain($"DROP FUNCTION public.{FirmaBorrar}", "la función es de A8 y su Down la quita");
+        foreach (var nombre in new[] { "app_alta_caducar_solicitudes", "app_alta_borrar_datos_personales" })
+        {
+            Funcion(sql.Sql, Inicio(nombre)).Should().Be(DeA8(nombre));
+            sql.Sql.Should().Contain($"REVOKE ALL ON FUNCTION public.{nombre}(integer) FROM PUBLIC, cae_app_soporte, cae_app_aprovisionamiento;")
+                .And.Contain($"GRANT EXECUTE ON FUNCTION public.{nombre}(integer) TO cae_app_runtime;")
+                .And.NotContain($"DROP FUNCTION public.{nombre}", "la función es de A8 y su Down la quita");
+        }
+
+        sql.Sql.Should().NotContain("CredencialContinuacion", "nada de lo que queda tras Down nombra las columnas que quita");
         operaciones.IndexOf(sql).Should().BeLessThan(operaciones.FindIndex(o => o is DropColumnOperation),
-            "la función deja de nombrar las columnas antes de que desaparezcan");
+            "las funciones dejan de nombrar las columnas antes de que desaparezcan");
     }
-
-    private const string FirmaBorrar = "app_alta_borrar_datos_personales(integer)";
-
-    private const string InicioBorrar =
-        "CREATE OR REPLACE FUNCTION public.app_alta_borrar_datos_personales(p_lote integer) RETURNS integer";
 
     private static readonly string[] ColumnasCredencial = ["HashCredencialContinuacion", "CredencialContinuacionCaducaEnUtc"];
 
-    /// <summary>El cuerpo de la función de borrado tal como lo creó A8, escrito como <c>CREATE OR REPLACE</c>.</summary>
-    private static string BorrarDeA8 => Funcion(
+    private static string Inicio(string nombre) =>
+        $"CREATE OR REPLACE FUNCTION public.{nombre}(p_lote integer) RETURNS integer";
+
+    /// <summary>El cuerpo de la función tal como lo creó A8, escrito como <c>CREATE OR REPLACE</c>.</summary>
+    private static string DeA8(string nombre) => Funcion(
             new CaducidadYBorradoSolicitudesAlta().UpOperations.OfType<SqlOperation>().Should().ContainSingle().Subject.Sql,
-            "CREATE FUNCTION public.app_alta_borrar_datos_personales(")
+            $"CREATE FUNCTION public.{nombre}(")
         .Replace("CREATE FUNCTION", "CREATE OR REPLACE FUNCTION", StringComparison.Ordinal);
 
     private static string Funcion(string sql, string inicio)
@@ -230,26 +245,36 @@ public class AltaDatosOrganizacionYCredencialContinuacionTests
         Regex.Matches(cuerpo, "\"(?<columna>\\w+)\" = NULL").Select(m => m.Groups["columna"].Value).ToHashSet();
 
     /// <summary>
-    /// Las propiedades que <c>BorrarDatosPersonales</c> deja a null por sí mismo. <c>Caducar</c> ya vacía el credencial
-    /// (estado final), y una Solicitud de alta real no llega a tener todos los campos rellenos a la vez: antes de borrar
-    /// se rellenan todas las que admiten null, salvo la marca de borrado, que es la que lo anota.
+    /// Las propiedades que <c>Caducar</c> (o, con <paramref name="borrarDatos"/>, <c>BorrarDatosPersonales</c> sobre la
+    /// ya caducada) deja a null por sí mismo. Una Solicitud de alta real no llega a tener todos los campos rellenos a la
+    /// vez, y <c>Caducar</c> ya vacía el credencial: antes de cada paso se rellenan todas las que admiten null, salvo la
+    /// marca de borrado, que es la que anota el borrado.
     /// </summary>
-    private static HashSet<string> PropiedadesQueBorrarDatosPersonalesDejaANull()
+    private static HashSet<string> PropiedadesQueElDominioDejaANull(bool borrarDatos)
     {
         var ahora = DateTime.UtcNow;
         var solicitud = SolicitudAlta.Iniciar(
             "persona@empresa.test", "AQAAAAIAAYagAAAAEHash", new string('t', 40), "203.0.113.9", "Navegador", ahora);
-        solicitud.Caducar(ahora + SolicitudAlta.PlazoCaducidad);
 
         var propiedades = typeof(SolicitudAlta).GetProperties(BindingFlags.Public | BindingFlags.Instance)
             .Where(p => p.SetMethod is not null && p.Name != nameof(SolicitudAlta.DatosPersonalesBorradosEnUtc)
                 && (p.PropertyType == typeof(string) || Nullable.GetUnderlyingType(p.PropertyType) is not null))
             .ToList();
-        foreach (var p in propiedades.Where(p => p.GetValue(solicitud) is null))
-            p.SetValue(solicitud, p.PropertyType == typeof(string) ? "x" : Activator.CreateInstance(Nullable.GetUnderlyingType(p.PropertyType)!));
-        propiedades.Should().OnlyContain(p => p.GetValue(solicitud) != null);
 
-        solicitud.BorrarDatosPersonales(ahora + TimeSpan.FromDays(30));
+        void RellenarTodo()
+        {
+            foreach (var p in propiedades.Where(p => p.GetValue(solicitud) is null))
+                p.SetValue(solicitud, p.PropertyType == typeof(string) ? "x" : Activator.CreateInstance(Nullable.GetUnderlyingType(p.PropertyType)!));
+            propiedades.Should().OnlyContain(p => p.GetValue(solicitud) != null);
+        }
+
+        RellenarTodo();
+        solicitud.Caducar(ahora + SolicitudAlta.PlazoCaducidad);
+        if (borrarDatos)
+        {
+            RellenarTodo();
+            solicitud.BorrarDatosPersonales(ahora + TimeSpan.FromDays(30));
+        }
 
         return propiedades.Where(p => p.GetValue(solicitud) is null).Select(p => p.Name).ToHashSet();
     }

@@ -204,38 +204,62 @@ public class LimpiezaSolicitudesAltaBajoRuntimeTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task Caducar_deja_sin_credencial_de_continuacion_como_el_dominio_al_entrar_en_un_estado_final()
+    {
+        var id = await SembrarAsync("CorreoVerificado", edadHoras: 8 * 24, haceHorasDelUltimoCambio: 8 * 24);
+        var ajena = await SembrarAsync("CorreoVerificado", edadHoras: 24, haceHorasDelUltimoCambio: 24);
+        await PonerCredencialAsync(id);
+        await PonerCredencialAsync(ajena);
+
+        (await CaducarAsync()).Should().Be(1);
+
+        (await LeerCredencialAsync(id)).Should().Be((true, true), "Caducada es final: el credencial deja de servir en la misma sentencia");
+        (await LeerAsync(id)).Estado.Should().Be("Caducada");
+        (await LeerCredencialAsync(ajena)).Should().Be((false, false), "la que no caduca conserva su credencial");
+    }
+
+    [Fact]
     public async Task Borra_tambien_el_credencial_de_continuacion_y_su_caducidad()
     {
-        // Caducar ya vacía el credencial en el dominio, pero el borrado no puede depender de ello: una fila Caducada
-        // que lo conserve (sembrada así, o caducada por la función SQL) tiene que quedar sin él.
+        // Caducar ya vacía el credencial, pero el borrado no puede depender de ello: una fila Caducada que lo conserve
+        // (caducada con la versión de A8 de la función, antes de esta migración) tiene que quedar sin él.
         var id = await SembrarAsync("Caducada", edadHoras: 31 * 24, haceHorasDelUltimoCambio: 24 * 24);
-        await using (var propietario = await AbrirComoPropietarioAsync())
-        await using (var credencial = new NpgsqlCommand(
-            """
-            UPDATE "SolicitudesAlta"
-               SET "HashCredencialContinuacion" = @hash, "CredencialContinuacionCaducaEnUtc" = now() - interval '29 days'
-             WHERE "Id" = @id
-            """, propietario))
-        {
-            credencial.Parameters.AddWithValue("hash", Convert.ToHexStringLower(System.Security.Cryptography.SHA256.HashData(Guid.NewGuid().ToByteArray())));
-            credencial.Parameters.AddWithValue("id", id);
-            (await credencial.ExecuteNonQueryAsync()).Should().Be(1);
-        }
+        await PonerCredencialAsync(id);
 
         (await BorrarAsync()).Should().Be(1);
 
-        await using var lectura = await AbrirComoPropietarioAsync();
+        (await LeerCredencialAsync(id)).Should().Be((true, true), "el hash del credencial y su caducidad se borran con los demás datos");
+        (await LeerAsync(id)).DatosPersonalesBorradosEnUtc.Should().NotBeNull();
+    }
+
+    /// <summary>Pone a la fila un hash de credencial de continuación propio (el índice es único) y una caducidad.</summary>
+    private async Task PonerCredencialAsync(Guid id)
+    {
+        await using var propietario = await AbrirComoPropietarioAsync();
+        await using var credencial = new NpgsqlCommand(
+            """
+            UPDATE "SolicitudesAlta"
+               SET "HashCredencialContinuacion" = @hash, "CredencialContinuacionCaducaEnUtc" = now() + interval '1 hour'
+             WHERE "Id" = @id
+            """, propietario);
+        credencial.Parameters.AddWithValue("hash", Convert.ToHexStringLower(System.Security.Cryptography.SHA256.HashData(Guid.NewGuid().ToByteArray())));
+        credencial.Parameters.AddWithValue("id", id);
+        (await credencial.ExecuteNonQueryAsync()).Should().Be(1);
+    }
+
+    /// <summary>Si el hash del credencial de continuación y su caducidad están a NULL.</summary>
+    private async Task<(bool HashNulo, bool CaducidadNula)> LeerCredencialAsync(Guid id)
+    {
+        await using var propietario = await AbrirComoPropietarioAsync();
         await using var orden = new NpgsqlCommand(
             """
-            SELECT "HashCredencialContinuacion" IS NULL, "CredencialContinuacionCaducaEnUtc" IS NULL, "DatosPersonalesBorradosEnUtc" IS NOT NULL
+            SELECT "HashCredencialContinuacion" IS NULL, "CredencialContinuacionCaducaEnUtc" IS NULL
               FROM "SolicitudesAlta" WHERE "Id" = @id
-            """, lectura);
+            """, propietario);
         orden.Parameters.AddWithValue("id", id);
         await using var lector = await orden.ExecuteReaderAsync();
-        (await lector.ReadAsync()).Should().BeTrue();
-        lector.GetBoolean(0).Should().BeTrue("el hash del credencial de continuación se borra con los demás datos");
-        lector.GetBoolean(1).Should().BeTrue("y su caducidad también");
-        lector.GetBoolean(2).Should().BeTrue();
+        (await lector.ReadAsync()).Should().BeTrue("la Solicitud de alta existe");
+        return (lector.GetBoolean(0), lector.GetBoolean(1));
     }
 
     [Fact]
