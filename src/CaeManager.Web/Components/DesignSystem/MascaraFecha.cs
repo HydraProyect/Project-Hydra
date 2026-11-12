@@ -59,18 +59,22 @@ public static partial class MascaraFecha
     }
 
     /// <summary>
-    /// La fecha que representa el texto, o <c>false</c> si está a medias o no existe (31/02/2026). Admite día y mes de una
-    /// cifra («1/2/2026», pegado), que <see cref="Formatear"/> deja luego en dd/mm/aaaa; el año, siempre de cuatro.
+    /// La fecha que representa el texto, o <c>false</c> si está a medias o no existe (31/02/2026). Solo vale la fecha
+    /// entera dd/mm/aaaa: dos cifras de día, dos de mes y cuatro de año. Un día o un mes de una cifra («10/1/2030») no se
+    /// completa con cero: suele ser una corrección a medias (se borró el «2» de 10/12/2030), y aceptarlo guardaría en
+    /// silencio otra fecha.
     /// </summary>
     public static bool TryInterpretar(string? texto, out DateOnly fecha) =>
-        DateOnly.TryParseExact(Aplicar(texto), "d/M/yyyy", CultureInfo.InvariantCulture, DateTimeStyles.None, out fecha);
+        DateOnly.TryParseExact(Aplicar(texto), Formato, CultureInfo.InvariantCulture, DateTimeStyles.None, out fecha);
 
-    /// <summary>Si el texto ya es la fecha entera dd/mm/aaaa: lo que se notifica mientras se escribe.</summary>
-    public static bool EsCompleta(string? texto, out DateOnly fecha)
-    {
-        fecha = default;
-        return Aplicar(texto).Length == Formato.Length && TryInterpretar(texto, out fecha);
-    }
+    /// <summary>Si el texto ya es la fecha entera dd/mm/aaaa (lo mismo que <see cref="TryInterpretar"/>).</summary>
+    public static bool EsCompleta(string? texto, out DateOnly fecha) => TryInterpretar(texto, out fecha);
+
+    /// <summary>
+    /// Hay algo escrito y no es una fecha entera: a medias («10/1»), imposible («31/02/2026») o sin una sola cifra
+    /// («mañana» pegado, que la máscara deja en «»). Solo el campo vacío de verdad (borrado a mano) es «sin fecha».
+    /// </summary>
+    public static bool EsNoValido(string? texto) => !string.IsNullOrEmpty(texto) && !TryInterpretar(texto, out _);
 
     public static string Formatear(DateOnly? fecha) =>
         fecha?.ToString(Formato, CultureInfo.InvariantCulture) ?? string.Empty;

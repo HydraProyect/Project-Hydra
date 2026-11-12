@@ -8,9 +8,12 @@
     Campo de fecha de TALVEG: se escribe como dd/mm/aaaa (las barras entran solas, ver MascaraFecha) o se elige en el
     calendario del botón contiguo. Enlaza un DateOnly? y solo lo notifica cuando el texto es una fecha entera o está vacío:
     lo tecleado a medias se queda en el campo, nunca vuelve del padre convertido en «» (el defecto del 11-11 en Dividir un
-    PDF). Un texto a medias o imposible (31/02) se avisa al salir del campo, no mientras se escribe, y se notifica como
-    null (lo que daba el campo nativo) para que el formulario no guarde la anterior creyendo que sigue en pantalla;
-    NoValidoChanged deja al formulario bloquear el envío mientras tanto.
+    PDF). Solo vale la fecha entera dd/mm/aaaa (dos cifras de día, dos de mes, cuatro de año; «10/1/2030» no se completa).
+    Un texto a medias, imposible (31/02) o sin cifras («mañana» pegado) se queda a la vista, se avisa al salir del campo y
+    no mientras se escribe, y se notifica como null (lo que daba el campo nativo) para que el formulario no guarde la
+    anterior creyendo que sigue en pantalla. Solo el campo vacío de verdad (borrado a mano) es «sin fecha».
+    NoValidoChanged avisa en cada cambio de estado, también antes de salir del campo: todo formulario que guarde lo
+    consume y bloquea el envío mientras sea true.
 *@
 @* Con el calendario abierto, Escape lo cierra a él y no al Drawer o Modal que lo contiene (mismo criterio que
    CampoSelectAvanzado). *@
@@ -61,35 +64,49 @@
                         @onkeydown="AlPulsarEnMesAnteriorAsync">
                     <Icono Nombre="volver" Tamano="TamanoIcono.Pequeno" />
                 </button>
-                <span class="campo-fecha-titulo" aria-live="polite">@TituloMes</span>
+                <span id="@IdTitulo" class="campo-fecha-titulo" aria-live="polite">@TituloMes</span>
                 <button type="button" class="campo-fecha-mes" aria-label="@Comunes["CampoFechaMesSiguiente"]" @onclick="() => CambiarMes(1)">
                     <Icono Nombre="siguiente" Tamano="TamanoIcono.Pequeno" />
                 </button>
             </div>
-            <div class="campo-fecha-semana" aria-hidden="true">
-                @foreach (var dia in DiasSemana)
+            @* Patrón de rejilla de selector de fecha de WAI-ARIA APG: grid > row > columnheader/gridcell, con aria-selected en
+               la celda del día elegido; el foco va al botón del día (roving tabindex). WCAG 2.1 AA: 1.3.1 (estructura de
+               semanas y días de la semana), 4.1.2 (nombre, función y estado) y 3.3.2 (instrucciones de teclado visibles). *@
+            <div class="campo-fecha-rejilla" role="grid" aria-labelledby="@IdTitulo" aria-describedby="@IdInstrucciones"
+                 @onkeydown="AlPulsarEnRejillaAsync">
+                <div class="campo-fecha-semana" role="row">
+                    @foreach (var (corto, largo) in DiasSemana)
+                    {
+                        <span role="columnheader" aria-label="@largo"><span aria-hidden="true">@corto</span></span>
+                    }
+                </div>
+                @foreach (var semana in Semanas)
                 {
-                    <span>@dia</span>
+                    <div class="campo-fecha-fila-semana" role="row">
+                        @foreach (var celda in semana)
+                        {
+                            if (celda is not { } fecha)
+                            {
+                                <span class="campo-fecha-hueco" role="gridcell"></span>
+                            }
+                            else
+                            {
+                                <span class="campo-fecha-celda" role="gridcell" aria-selected="@(EsElegido(fecha) ? "true" : "false")">
+                                    @if (fecha == _diaEnfoco)
+                                    {
+                                        <button type="button" @ref="_refDia" @attributes="AtributosDia(fecha)" @onclick="() => ElegirAsync(fecha)">@fecha.Day</button>
+                                    }
+                                    else
+                                    {
+                                        <button type="button" @attributes="AtributosDia(fecha)" @onclick="() => ElegirAsync(fecha)">@fecha.Day</button>
+                                    }
+                                </span>
+                            }
+                        }
+                    </div>
                 }
             </div>
-            <div class="campo-fecha-rejilla" @onkeydown="AlPulsarEnRejillaAsync">
-                @foreach (var _ in Enumerable.Range(0, HuecosIniciales))
-                {
-                    <span class="campo-fecha-hueco"></span>
-                }
-                @foreach (var dia in DiasDelMes)
-                {
-                    var fecha = dia;
-                    if (fecha == _diaEnfoco)
-                    {
-                        <button type="button" @ref="_refDia" @attributes="AtributosDia(fecha)" @onclick="() => ElegirAsync(fecha)">@fecha.Day</button>
-                    }
-                    else
-                    {
-                        <button type="button" @attributes="AtributosDia(fecha)" @onclick="() => ElegirAsync(fecha)">@fecha.Day</button>
-                    }
-                }
-            </div>
+            <p id="@IdInstrucciones" class="campo-fecha-instrucciones">@Comunes["CampoFechaInstrucciones"]</p>
         </div>
     }
     @if (TieneError)

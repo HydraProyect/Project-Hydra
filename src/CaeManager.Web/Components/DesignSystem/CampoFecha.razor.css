@@ -110,11 +110,34 @@
     cursor: pointer;
 }
 
-.campo-fecha-semana,
 .campo-fecha-rejilla {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+/* Cada semana (role="row") es su propia fila de siete columnas: así la rejilla tiene filas de verdad para el lector de
+   pantalla sin depender de display: contents. */
+.campo-fecha-semana,
+.campo-fecha-fila-semana {
     display: grid;
     grid-template-columns: repeat(7, 1fr);
     gap: 2px;
+}
+
+.campo-fecha-celda {
+    display: flex;
+}
+
+.campo-fecha-celda > .campo-fecha-dia {
+    flex: 1;
+    min-width: 0;
+}
+
+.campo-fecha-instrucciones {
+    margin: var(--space-2) 0 0;
+    font: var(--font-caption);
+    color: var(--color-text-muted);
 }
 
 .campo-fecha-semana span {

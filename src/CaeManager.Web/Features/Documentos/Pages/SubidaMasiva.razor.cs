@@ -103,6 +103,7 @@ public partial class SubidaMasiva : CaeManager.Web.Components.PaginaInteractiva,
     [Inject] private ICurrentUserService CurrentUserService { get; set; } = default!;
     [Inject] private PuertaAccesoDatos PuertaAccesoDatos { get; set; } = default!;
     [Inject] private IStringLocalizer<TextosSubidaMasiva> Textos { get; set; } = default!;
+    [Inject] private IStringLocalizer<CaeManager.Web.Recursos.TextosComunes> Comunes { get; set; } = default!;
 
     private enum EstadoItem { Cola, Subiendo, Procesando, PendienteConfirmar, Creado, Descartado, Error }
 
@@ -138,6 +139,12 @@ public partial class SubidaMasiva : CaeManager.Web.Components.PaginaInteractiva,
         /// </summary>
         public string FechaEmision { get; set; } = string.Empty;
         public string FechaVencimientoManual { get; set; } = string.Empty;
+
+        /// <summary>
+        /// El vencimiento manual tiene un texto que no es una fecha entera (CampoFecha lo avisa): su valor es «», y
+        /// Confirmar no crea el Documento «sin vencimiento» por error.
+        /// </summary>
+        public bool VencimientoManualNoValido { get; set; }
 
         /// <summary>
         /// Confirmación expresa de la persona de que el documento no caduca. La
@@ -958,6 +965,13 @@ public partial class SubidaMasiva : CaeManager.Web.Components.PaginaInteractiva,
         if (fechaEmision > DiaDeNegocio.Hoy())
         {
             ToastService.Mostrar(Textos["FechaFutura"], TonoToast.Error);
+            return;
+        }
+
+        // Ronda 1 de Codex, ALTO 4: un vencimiento manual a medias llega como «» y se crearía sin vencimiento.
+        if (item.VencimientoManualNoValido && RequiereVencimientoManual(item))
+        {
+            ToastService.Mostrar(Comunes["CampoFechaCorregirAntes"], TonoToast.Error);
             return;
         }
 

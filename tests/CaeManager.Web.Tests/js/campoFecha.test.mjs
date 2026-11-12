@@ -80,6 +80,24 @@ test('lo ya enmascarado no se reescribe (el cursor del navegador manda)', () => 
     assert.equal(c.seleccion, null);
 });
 
+test('pegar un texto sin cifras sobre la fecha no lo vacía: se queda a la vista para que el servidor lo dé por no válido', () => {
+    const { oyentes } = entorno();
+    // «10/12/2030» seleccionado y se pega «mañana»: vaciarlo haría creer al servidor que se borró a propósito (sin fin).
+    for (const pegado of ['mañana', 'abc', '/', ' ']) {
+        const c = campo(pegado, pegado.length);
+        oyentes.input.f({ target: c });
+        assert.equal(c.value, pegado, JSON.stringify(pegado));
+        assert.equal(c.seleccion, null);
+    }
+});
+
+test('pegar texto con alguna cifra sí se enmascara (y el servidor lo da por no válido si no es una fecha entera)', () => {
+    const { oyentes } = entorno();
+    const c = campo('mañana 5', 8);
+    oyentes.input.f({ target: c });
+    assert.equal(c.value, '5');
+});
+
 test('no toca otros campos', () => {
     const { oyentes } = entorno();
     const c = campo('101', 3, false);

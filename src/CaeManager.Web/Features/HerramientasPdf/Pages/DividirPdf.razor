@@ -6,6 +6,7 @@
 @using CaeManager.Application.HerramientasPdf
 @using CaeManager.Web.Features.HerramientasPdf.Recursos
 @using Microsoft.AspNetCore.Components.Forms
+@inject Microsoft.Extensions.Localization.IStringLocalizer<CaeManager.Web.Recursos.TextosComunes> Comunes
 @attribute [Authorize(Roles = $"{CaeManager.Infrastructure.Identity.Roles.Administrador},{CaeManager.Infrastructure.Identity.Roles.DireccionCae},{CaeManager.Infrastructure.Identity.Roles.CoordinadorCae},{CaeManager.Infrastructure.Identity.Roles.GestorCae}")]
 
 <LimiteDeErrores Pagina="this">
@@ -95,6 +96,29 @@
 </LimiteDeErrores>
 
 @code {
+    /// <summary>
+    /// Tramos cuya caducidad tiene (o tuvo al salir del campo) un texto que no es una fecha entera. Mientras alguno siga
+    /// aquí, Crear queda bloqueado. Se libera al escribir una fecha entera, al vaciar el campo a mano o al marcar «Sin
+    /// caducidad» o «No crear» (el campo, al deshabilitarse, avisa false). Si se sale del tramo con el texto a medias,
+    /// el campo se pierde y su valor es null: la marca sigue y el campo vuelto a pintar muestra el aviso.
+    /// </summary>
+    private readonly HashSet<AsignacionTramo> _caducidadesNoValidas = new(ReferenceEqualityComparer.Instance);
+
+    private bool HayCaducidadNoValida =>
+        _caducidadesNoValidas.Any(a => !a.Omitido && !a.SinCaducidad);
+
+    private void AlCambiarCaducidad(AsignacionTramo asignacion, DateOnly? fecha)
+    {
+        asignacion.FechaCaducidad = fecha;
+        if (fecha is not null) _caducidadesNoValidas.Remove(asignacion);
+    }
+
+    private void AlCambiarCaducidadNoValida(AsignacionTramo asignacion, bool noValida)
+    {
+        if (noValida) _caducidadesNoValidas.Add(asignacion);
+        else _caducidadesNoValidas.Remove(asignacion);
+    }
+
     /// <summary>La única acción principal de la pantalla: cada paso pinta la suya, y solo se ve un paso a la vez.</summary>
     private RenderFragment BotonPrincipal(string texto, EventCallback accion, bool deshabilitado = false, bool cargando = false, string? href = null) =>
         @<Boton Variante="VarianteBoton.Primario" Deshabilitado="deshabilitado" Cargando="cargando" OnClick="accion" Href="@href">@texto</Boton>;
@@ -367,7 +391,11 @@
                     }
                     else
                     {
-                        <CampoFecha Etiqueta="@Textos["FechaCaducidad"]" Deshabilitado="@(asignacion.Omitido || asignacion.SinCaducidad)" Valor="asignacion.FechaCaducidad" ValorChanged="v => asignacion.FechaCaducidad = v" />
+                        @* NoValidoChanged: una caducidad a medias o ilegible llega como null y crearía el Documento sin
+                           caducidad (ronda 1 de Codex, ALTO 3). Al marcar «Sin caducidad» u «No crear» el campo se
+                           deshabilita y avisa false solo. *@
+                        <CampoFecha Etiqueta="@Textos["FechaCaducidad"]" Deshabilitado="@(asignacion.Omitido || asignacion.SinCaducidad)" Valor="asignacion.FechaCaducidad"
+                                    ValorChanged="v => AlCambiarCaducidad(asignacion, v)" NoValidoChanged="v => AlCambiarCaducidadNoValida(asignacion, v)" />
                         <label class="marca-tramo">
                             <input type="checkbox" checked="@asignacion.SinCaducidad" disabled="@asignacion.Omitido" @onchange="AlMarcarSinCaducidad(asignacion)" />
                             @Textos["SinCaducidad"]
@@ -422,7 +450,16 @@
                                 <td>@TextoPaginas(rango)</td>
                                 <td>@(division.Tipo(asignacion.TipoDocumentoId)?.Nombre ?? Textos["SinTipo"].Value)</td>
                                 <td>@(division.NombreTitular(asignacion) ?? Textos["SinTitular"].Value)</td>
-                                <td>@TextoCaducidad(division, asignacion)</td>
+                                <td>
+                                    @if (!asignacion.Omitido && !asignacion.SinCaducidad && _caducidadesNoValidas.Contains(asignacion))
+                                    {
+                                        <span class="falta-dato" data-caducidad-no-valida-tramo>@Comunes["CampoFechaInvalida"]</span>
+                                    }
+                                    else
+                                    {
+                                        @TextoCaducidad(division, asignacion)
+                                    }
+                                </td>
                                 <td class="accion-revision">
                                     @if (asignacion.Omitido)
                                     {
@@ -444,8 +481,12 @@
                 </table>
                 <div class="barra-acciones-dividir barra-en-ficha">
                     <Boton Variante="VarianteBoton.Secundario" OnClick="() => Corregir(rangos.Count - 1)">@Textos["Anterior"]</Boton>
+                    @if (HayCaducidadNoValida)
+                    {
+                        <p class="falta-dato" role="alert" data-caducidad-no-valida>@Comunes["CampoFechaCorregirAntes"]</p>
+                    }
                     @BotonPrincipal(aCrear == 0 ? Textos["NadaQueCrear"] : Textos[aCrear == 1 ? "CrearUno" : "CrearVarios", aCrear],
-                        EventCallback.Factory.Create(this, CrearAsync), deshabilitado: aCrear == 0, cargando: _creando)
+                        EventCallback.Factory.Create(this, CrearAsync), deshabilitado: aCrear == 0 || HayCaducidadNoValida, cargando: _creando)
                 </div>
             </div>
         </text>;

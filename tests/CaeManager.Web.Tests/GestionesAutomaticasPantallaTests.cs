@@ -578,6 +578,25 @@ public partial class GestionesAutomaticasPantallaTests : BunitContext
 
     // Una fecha que deja de serlo (a medias o «1/2/26») vuelve a «sin fecha»: no se guarda la anterior, y «No lo sé», que
     // apaga el campo, se lleva también lo escrito y su aviso.
+    // Ronda 1 de Codex, MEDIO 1: antes de salir del campo, _hasta seguía siendo la fecha anterior y Guardar quedaba
+    // habilitado con ella. La bandera del campo bloquea ya mientras se escribe, sin esperar al blur.
+    [Fact]
+    public void Validado_con_la_fecha_a_medias_bloquea_guardar_antes_de_salir_del_campo()
+    {
+        var m = Montar();
+        var cut = Detallar(m, Detalle(SeisPasosNuevos()));
+        cut.Find("[data-opcion='validado']").Click();
+        var campo = () => cut.Find("[data-campos-opcion='validado'] input[data-campo-fecha]");
+        campo().Input("2027-10-14");
+        cut.Find("[data-accion='guardar']").HasAttribute("disabled").Should().BeFalse("control positivo: con fecha se puede guardar");
+
+        campo().Input("14/10/202");
+
+        cut.Find("[data-accion='primario']").HasAttribute("disabled").Should().BeTrue("sin blur: la fecha anterior no vale");
+        cut.Find("[data-accion='guardar']").HasAttribute("disabled").Should().BeTrue();
+        m.Enviados.OfType<MarcarAcreditacionAceptadaCommand>().Should().BeEmpty();
+    }
+
     [Fact]
     public void Validado_con_la_fecha_a_medias_no_se_guarda_y_No_lo_se_limpia_el_campo()
     {

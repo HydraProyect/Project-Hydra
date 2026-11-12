@@ -57,6 +57,7 @@ public partial class GestionAutomaticaDetalle : CaeManager.Web.Components.Pagina
 
     private string? _opcion;
     private DateOnly? _hasta;
+    private bool _hastaNoValido;
     private bool _noSe;
     private string _causa = string.Empty;
     private string _motivo = string.Empty;
@@ -251,7 +252,9 @@ public partial class GestionAutomaticaDetalle : CaeManager.Web.Components.Pagina
     private bool PuedeGuardar => _opcion switch
     {
         OpcionSubido => true,
-        OpcionValidado => _hasta is not null || _noSe,
+        // Con el texto de «Válido hasta» a medias, _hasta conserva la fecha anterior hasta salir del campo: la bandera del
+        // campo bloquea ya mientras se escribe (ronda 1 de Codex, MEDIO 1). «No lo sé» deshabilita el campo y la retira.
+        OpcionValidado => _noSe || (_hasta is not null && !_hastaNoValido),
         OpcionRechazado => !string.IsNullOrEmpty(_causa) && !string.IsNullOrWhiteSpace(_motivo),
         _ => false
     };
@@ -306,6 +309,7 @@ public partial class GestionAutomaticaDetalle : CaeManager.Web.Components.Pagina
         _abiertoId = acreditacionId;
         _opcion = null;
         _hasta = null;
+        _hastaNoValido = false;
         _noSe = false;
         _causa = string.Empty;
         _motivo = string.Empty;
@@ -403,6 +407,7 @@ public partial class GestionAutomaticaDetalle : CaeManager.Web.Components.Pagina
 
             _opcion = null;
             _hasta = null;
+            _hastaNoValido = false;
             _noSe = false;
             _causa = string.Empty;
             _motivo = string.Empty;

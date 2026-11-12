@@ -49,9 +49,10 @@ public partial class CampoFecha
 
     /// <summary>
     /// Opcional: avisa cuando el campo pasa a tener (true) o deja de tener (false) un texto que no es una fecha entera: a
-    /// medias («15/03») o imposible («31/02/2026»). Mientras es true el valor notificado es null, como el «» de un campo de
-    /// fecha nativo, y el formulario que no deba enviar «sin fecha» por error (una caducidad, una baja) lo usa para
-    /// bloquear el envío. Solo se notifica el cambio, no cada pulsación.
+    /// medias («15/03», «10/1/2030»), imposible («31/02/2026») o sin cifras («mañana»). Al salir del campo el valor
+    /// notificado es null, como el «» de un campo de fecha nativo; antes de salir, el padre aún tiene la fecha anterior.
+    /// Por eso todo formulario que guarde lo consume y bloquea el envío mientras sea true. Solo se notifica el cambio, no
+    /// cada pulsación.
     /// </summary>
     [Parameter] public EventCallback<bool> NoValidoChanged { get; set; }
 
@@ -131,15 +132,11 @@ public partial class CampoFecha
         await NotificarEstadoAsync();
     }
 
-    /// <summary>Hay texto y no es todavía (o no es) una fecha entera dd/mm/aaaa.</summary>
-    private bool TextoNoValido
-    {
-        get
-        {
-            var mascara = MascaraFecha.Aplicar(_texto);
-            return mascara.Length > 0 && !MascaraFecha.EsCompleta(mascara, out _);
-        }
-    }
+    /// <summary>
+    /// Hay texto y no es todavía (o no es) una fecha entera dd/mm/aaaa. Cuenta lo que llegó del navegador, no la máscara:
+    /// «mañana» pegado sobre una fecha se enmascara en «», pero no es un vaciado voluntario (ver MascaraFecha.EsNoValido).
+    /// </summary>
+    private bool TextoNoValido => MascaraFecha.EsNoValido(_texto);
 
     private async Task NotificarEstadoAsync()
     {
@@ -168,11 +165,14 @@ public partial class CampoFecha
         var crudo = e.Value?.ToString() ?? string.Empty;
         _texto = crudo;
         var mascara = MascaraFecha.Aplicar(crudo);
-        // Con el script del navegador activo ya llega enmascarado y no se reescribe nada; sin él, se impone aquí.
-        if (mascara != crudo) MostrarTexto(mascara);
+        // Con el script del navegador activo ya llega enmascarado y no se reescribe nada; sin él, se impone aquí. Un texto
+        // sin cifras («mañana») no se enmascara en «»: se queda a la vista, como en el navegador, y cuenta como no válido.
+        if (mascara != crudo && mascara.Length > 0) MostrarTexto(mascara);
+
         _errorPropio = null;
 
-        if (mascara.Length == 0)
+        // Solo el campo vacío de verdad (Supr o Retroceso hasta dejarlo en blanco) es «sin fecha».
+        if (crudo.Length == 0)
             await NotificarAsync(null);
         else if (MascaraFecha.EsCompleta(mascara, out var fecha))
             await NotificarAsync(fecha);
@@ -188,23 +188,24 @@ public partial class CampoFecha
 
     private async Task ConfirmarTextoAsync()
     {
-        var mascara = MascaraFecha.Aplicar(_texto);
-        if (mascara.Length == 0)
+        if (_texto.Length == 0)
         {
             _errorPropio = null;
             await NotificarAsync(null);
         }
-        else if (MascaraFecha.TryInterpretar(mascara, out var fecha))
+        else if (MascaraFecha.TryInterpretar(_texto, out var fecha))
         {
             _errorPropio = null;
-            MostrarTexto(MascaraFecha.Formatear(fecha)); // «1/2/2026» pegado queda como 01/02/2026
+            MostrarTexto(MascaraFecha.Formatear(fecha)); // una ISO entera sin el script queda en dd/mm/aaaa
             await NotificarAsync(fecha);
         }
         else
         {
             // Como el campo nativo: lo que no es fecha llega al padre como «sin fecha» (nunca el texto, que los formularios
-            // interpretarían cada uno a su manera) y el aviso lo da el propio campo. Solo si cambia: salir otra vez del
-            // campo con el mismo texto no vuelve a notificar.
+            // interpretarían cada uno a su manera), el texto se queda a la vista para corregirlo y el aviso lo da el propio
+            // campo; NoValidoChanged sigue en true, y el formulario que guarda bloquea el envío con ella. «10/1/2030» no se
+            // completa a 10/01/2030: puede ser una corrección a medias. Solo si cambia: salir otra vez del campo con el
+            // mismo texto no vuelve a notificar.
             _errorPropio = Comunes["CampoFechaInvalida"];
             await NotificarAsync(null);
         }
@@ -389,19 +390,35 @@ public partial class CampoFecha
     /// <summary>0 = lunes … 6 = domingo: la semana empieza en lunes en es-ES y ca-ES.</summary>
     private static int DiaDeLaSemana(DateOnly fecha) => ((int)fecha.DayOfWeek + 6) % 7;
 
-    private int HuecosIniciales => DiaDeLaSemana(_mesVisible);
-
-    private IEnumerable<DateOnly> DiasDelMes =>
-        Enumerable.Range(0, DateTime.DaysInMonth(_mesVisible.Year, _mesVisible.Month)).Select(_mesVisible.AddDays);
-
-    private static IEnumerable<string> DiasSemana
+    /// <summary>Las semanas del mes visible, de lunes a domingo; null es una celda vacía antes del día 1 o tras el último.</summary>
+    private IEnumerable<DateOnly?[]> Semanas
     {
         get
         {
-            var nombres = CultureInfo.CurrentCulture.DateTimeFormat.ShortestDayNames;
-            return Enumerable.Range(1, 7).Select(i => nombres[i % 7]);
+            var huecos = DiaDeLaSemana(_mesVisible);
+            var celdas = Enumerable.Repeat<DateOnly?>(null, huecos)
+                .Concat(Enumerable.Range(0, DateTime.DaysInMonth(_mesVisible.Year, _mesVisible.Month)).Select(d => (DateOnly?)_mesVisible.AddDays(d)))
+                .ToList();
+            while (celdas.Count % 7 != 0) celdas.Add(null);
+            return celdas.Chunk(7);
         }
     }
+
+    /// <summary>El nombre corto que se ve en la cabecera y el entero que lee el lector de pantalla.</summary>
+    private static IEnumerable<(string Corto, string Largo)> DiasSemana
+    {
+        get
+        {
+            var formato = CultureInfo.CurrentCulture.DateTimeFormat;
+            return Enumerable.Range(1, 7).Select(i => (formato.ShortestDayNames[i % 7], formato.DayNames[i % 7]));
+        }
+    }
+
+    private string IdTitulo => $"{_id}-titulo";
+    private string IdInstrucciones => $"{_id}-instrucciones";
+
+    private bool EsElegido(DateOnly fecha) =>
+        Valor == fecha || (MascaraFecha.TryInterpretar(_texto, out var escrita) && escrita == fecha);
 
     private string TituloMes
     {
@@ -414,13 +431,12 @@ public partial class CampoFecha
 
     private Dictionary<string, object> AtributosDia(DateOnly fecha)
     {
-        var elegido = Valor == fecha || (MascaraFecha.TryInterpretar(_texto, out var escrita) && escrita == fecha);
+        // El estado «elegido» lo lleva la celda (aria-selected), no el botón: aria-pressed además lo anunciaría dos veces.
         var atributos = new Dictionary<string, object>
         {
-            ["class"] = elegido ? "campo-fecha-dia campo-fecha-dia-elegido" : "campo-fecha-dia",
+            ["class"] = EsElegido(fecha) ? "campo-fecha-dia campo-fecha-dia-elegido" : "campo-fecha-dia",
             ["tabindex"] = fecha == _diaEnfoco ? "0" : "-1",
             ["aria-label"] = fecha.ToString("D", CultureInfo.CurrentCulture),
-            ["aria-pressed"] = elegido ? "true" : "false",
             ["data-fecha"] = MascaraFecha.AIso(fecha),
         };
         if (fecha == Hoy()) atributos["aria-current"] = "date";

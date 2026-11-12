@@ -12,6 +12,7 @@
 @inject IMediator Mediator
 @inject Microsoft.Extensions.Localization.IStringLocalizer<TextosDocumentos> TextosDocumento
 @inject IServiceProvider ServiceProvider
+@inject Microsoft.Extensions.Localization.IStringLocalizer<CaeManager.Web.Recursos.TextosComunes> Comunes
 @inject Microsoft.Extensions.Logging.ILogger<DocumentoWorkspacePanel> Logger
 
 @if (_cargando)
@@ -73,7 +74,10 @@ else
                         <CampoTexto Etiqueta="Fecha de emisión" Type="date" Valor="@_fechaEmisionEditada" ValorChanged="v => _fechaEmisionEditada = v" />
                         @if (!_detalle.TipoDocumentoAplicaVencimientoAutomatico)
                         {
-                            <CampoTexto Etiqueta="Fecha de vencimiento" Type="date" Valor="@_fechaVencimientoEditada" ValorChanged="v => _fechaVencimientoEditada = v" />
+                            @* FechaNoValidaChanged: un vencimiento a medias llega como «» y RenovarDocumentoCommand lo
+                               guardaría como «sin vencimiento» (ronda 1 de Codex, ALTO 4). *@
+                            <CampoTexto Etiqueta="Fecha de vencimiento" Type="date" Valor="@_fechaVencimientoEditada" ValorChanged="v => _fechaVencimientoEditada = v"
+                                        FechaNoValidaChanged="v => _vencimientoNoValido = v" />
                             @* Sin fecha y sin marcar, la vigencia queda «sin confirmar»: marcar
                                es la única forma de declarar que el documento no caduca. *@
                             <label class="campo-checkbox">
@@ -227,6 +231,9 @@ else
     private bool _cargando = true, _cargandoValidacion = true, _errorValidacion, _error, _editandoInformacion, _guardandoInformacion;
     private string _fechaEmisionEditada = string.Empty, _fechaVencimientoEditada = string.Empty, _comentariosEditados = string.Empty;
     private bool _noCaducaEditado;
+
+    /// <summary>El vencimiento tiene un texto que no es una fecha entera: Guardar no envía «sin vencimiento» por error.</summary>
+    private bool _vencimientoNoValido;
     private readonly InstantaneaFormulario _instantaneaInformacion = new();
 
     /// <summary>P1-E2b: la renovación en línea (fechas y comentarios) comparada con cómo se abrió.</summary>
@@ -334,6 +341,7 @@ else
         _noCaducaEditado = _detalle.EstadoVigencia == EstadoVigenciaDocumento.NoCaduca;
         _comentariosEditados = _detalle.Comentarios ?? string.Empty;
         _mensajeErrorInformacion = null;
+        _vencimientoNoValido = false;
         _editandoInformacion = true;
         _instantaneaInformacion.Fijar(ValoresInformacion());
     }
@@ -350,6 +358,11 @@ else
             if (!DateOnly.TryParse(_fechaEmisionEditada, out var fechaEmision))
             {
                 _mensajeErrorInformacion = "Introduce una fecha de emisión válida.";
+                return;
+            }
+            if (_vencimientoNoValido && !detalle.TipoDocumentoAplicaVencimientoAutomatico)
+            {
+                _mensajeErrorInformacion = Comunes["CampoFechaCorregirAntes"];
                 return;
             }
             var fechaVencimiento = DateOnly.TryParse(_fechaVencimientoEditada, out var fecha) ? fecha : (DateOnly?)null;

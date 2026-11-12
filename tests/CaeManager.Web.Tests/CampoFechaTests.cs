@@ -53,7 +53,9 @@ public class CampoFechaTests : BunitContext
     [InlineData("10/12/202", false)]
     [InlineData("10/13/2026", false)]
     [InlineData("10/12/2026", true)]
-    [InlineData("1/2/2026", true)]
+    [InlineData("1/2/2026", false)]
+    [InlineData("10/1/2030", false)]
+    [InlineData("01/02/2026", true)]
     [InlineData("1/2/26", false)]
     public void Solo_una_fecha_entera_y_existente_se_interpreta(string texto, bool esFecha) =>
         MascaraFecha.TryInterpretar(texto, out _).Should().Be(esFecha);
@@ -104,20 +106,65 @@ public class CampoFechaTests : BunitContext
         recibidos.Should().Equal(new DateOnly(2026, 2, 1));
     }
 
-    [Fact]
-    public async Task Dia_y_mes_de_una_cifra_valen_al_salir_y_quedan_en_dd_mm_aaaa()
+    // Ronda 1 de Codex, ALTO 2: borrar el «2» de 10/12/2030 dejaba «10/1/2030», que al salir se confirmaba como
+    // 10/01/2030. Solo vale dd/mm/aaaa entera: un día o un mes de una cifra no se completa con cero, se queda a la vista
+    // con el aviso y NoValidoChanged en true.
+    [Theory]
+    [InlineData("10/1/2030", "10/01/2030")]
+    [InlineData("1/2/2026", "01/02/2026")]
+    public async Task Dia_o_mes_de_una_cifra_no_valen_al_salir_y_el_texto_se_queda(string tecleado, string normalizado)
     {
         var recibidos = new List<DateOnly?>();
-        var cut = Render<CampoFecha>(p => p.Add(c => c.ValorChanged, v => recibidos.Add(v)));
+        var noValido = new List<bool>();
+        var cut = Render<CampoFecha>(p => p
+            .Add(c => c.Valor, new DateOnly(2030, 12, 10))
+            .Add(c => c.ValorChanged, v => recibidos.Add(v))
+            .Add(c => c.NoValidoChanged, v => noValido.Add(v)));
 
-        await cut.Find("input").InputAsync(new ChangeEventArgs { Value = "1/2/2026" });
+        await cut.Find("input").InputAsync(new ChangeEventArgs { Value = tecleado });
         recibidos.Should().BeEmpty("mientras se escribe solo cuenta la fecha entera dd/mm/aaaa");
+        noValido.Should().Equal(true);
 
         await cut.Find("input").BlurAsync(new FocusEventArgs());
 
-        cut.Find("input").GetAttribute("value").Should().Be("01/02/2026");
+        // bUnit no ve el DOM del navegador (que conserva lo tecleado): lo que se comprueba es que el servidor no le impone
+        // la fecha completada con ceros.
+        cut.Find("input").GetAttribute("value").Should().NotBe(normalizado, "no se reescribe como otra fecha");
+        cut.Find(".campo-mensaje-error").TextContent.Should().Contain("dd/mm/aaaa");
+        recibidos.Should().Equal(new DateOnly?[] { null }, "ni la fecha anterior ni 10/01/2030");
+        noValido.Should().Equal(true);
+    }
+
+    // Ronda 1 de Codex, ALTO 1: pegar «mañana» sobre una fecha se enmascaraba en «» y contaba como vaciado voluntario
+    // (NoValidoChanged en false): en Dar acceso, un acceso sin fin. Ahora el texto se queda y es no válido; solo el campo
+    // vacío de verdad es «sin fecha».
+    [Theory]
+    [InlineData("mañana")]
+    [InlineData("/")]
+    [InlineData(" ")]
+    public async Task Un_texto_sin_cifras_sobre_una_fecha_no_es_un_vaciado_voluntario(string pegado)
+    {
+        var recibidos = new List<DateOnly?>();
+        var noValido = new List<bool>();
+        var cut = Render<CampoFecha>(p => p
+            .Add(c => c.Valor, new DateOnly(2030, 12, 10))
+            .Add(c => c.ValorChanged, v => recibidos.Add(v))
+            .Add(c => c.NoValidoChanged, v => noValido.Add(v)));
+
+        await cut.Find("input").InputAsync(new ChangeEventArgs { Value = pegado });
+        noValido.Should().Equal(true);
+        recibidos.Should().BeEmpty();
+
+        await cut.Find("input").BlurAsync(new FocusEventArgs());
+
+        noValido.Should().Equal(true);
+        cut.Find(".campo-mensaje-error").Should().NotBeNull();
+        recibidos.Should().Equal(new DateOnly?[] { null });
+
+        // Borrarlo a mano sí es el vaciado voluntario: deja de ser no válido.
+        await cut.Find("input").InputAsync(new ChangeEventArgs { Value = string.Empty });
+        noValido.Should().Equal(true, false);
         cut.FindAll(".campo-mensaje-error").Should().BeEmpty();
-        recibidos.Should().Equal(new DateOnly(2026, 2, 1));
     }
 
     [Fact]
@@ -241,7 +288,8 @@ public class CampoFechaTests : BunitContext
         var dialogo = cut.Find("[role=dialog]");
         dialogo.Id.Should().Be(cut.Find("button[data-campo-fecha-boton]").GetAttribute("aria-controls"));
         cut.Find(".campo-fecha-dia[tabindex='0']").GetAttribute("data-fecha").Should().Be("2026-12-10", "abre en el día escrito");
-        cut.Find(".campo-fecha-dia[data-fecha='2026-12-10']").GetAttribute("aria-pressed").Should().Be("true");
+        cut.Find(".campo-fecha-dia[data-fecha='2026-12-10']").ParentElement!.GetAttribute("aria-selected").Should().Be("true");
+        cut.Find(".campo-fecha-dia[data-fecha='2026-12-11']").ParentElement!.GetAttribute("aria-selected").Should().Be("false");
 
         await cut.Find(".campo-fecha-dia[data-fecha='2026-12-15']").ClickAsync(new MouseEventArgs());
 
@@ -249,6 +297,31 @@ public class CampoFechaTests : BunitContext
         recibidos.Should().Equal(new DateOnly(2026, 12, 15));
         cut.FindAll("[role=dialog]").Should().BeEmpty("elegir cierra el calendario");
         JSInterop.VerifyFocusAsyncInvoke(calledTimes: 2); // al abrir, el día; al cerrar, el campo
+    }
+
+    // Ronda 1 de Codex, MEDIO 2 (WCAG 2.1 AA 1.3.1, 4.1.2 y 3.3.2): la rejilla expone la semántica de cuadrícula (grid,
+    // filas de siete celdas y cabeceras con el nombre entero del día), una etiqueta (el mes) y las instrucciones de teclado
+    // a la vista y enlazadas por aria-describedby.
+    [Fact]
+    public async Task La_rejilla_del_calendario_es_una_cuadricula_etiquetada_y_con_instrucciones()
+    {
+        var cut = Render<CampoFecha>(p => p.Add(c => c.Valor, new DateOnly(2026, 2, 10)));
+        await cut.Find("button[data-campo-fecha-boton]").ClickAsync(new MouseEventArgs());
+
+        var rejilla = cut.Find(".campo-fecha-rejilla");
+        rejilla.GetAttribute("role").Should().Be("grid");
+        cut.Find("#" + rejilla.GetAttribute("aria-labelledby")).TextContent.Should().Contain("2026");
+        var instrucciones = cut.Find("#" + rejilla.GetAttribute("aria-describedby"));
+        instrucciones.TextContent.Should().Contain("Re Pág").And.Contain("Av Pág").And.Contain("Flechas");
+
+        var filas = rejilla.QuerySelectorAll("[role=row]");
+        filas.Should().HaveCount(6, "la cabecera y cinco semanas: febrero de 2026 empieza en domingo (seis celdas vacías) y tiene 28 días")
+            .And.OnlyContain(f => f.Children.Length == 7);
+        filas[0].QuerySelectorAll("[role=columnheader]").Should().HaveCount(7);
+        filas[0].QuerySelectorAll("[role=columnheader]")[0].GetAttribute("aria-label").Should().NotBeNullOrWhiteSpace();
+        rejilla.QuerySelectorAll("[role=gridcell][aria-selected=true]").Should().ContainSingle()
+            .Which.QuerySelector("button")!.GetAttribute("data-fecha").Should().Be("2026-02-10");
+        rejilla.QuerySelectorAll("button[aria-pressed]").Should().BeEmpty("el estado lo lleva la celda");
     }
 
     [Fact]

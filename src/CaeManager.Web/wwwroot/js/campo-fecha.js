@@ -60,7 +60,9 @@
 
         var crudo = campo.value;
         var mascara = aplicar(crudo);
-        if (mascara === crudo) return;
+        // Un texto sin una sola cifra («mañana» pegado sobre la fecha) no se vacía: dejarlo en «» haría creer al servidor
+        // que el campo se borró a propósito («sin fecha», «sin fin»). Se queda a la vista y el servidor lo da por no válido.
+        if (mascara === crudo || mascara === '') return;
 
         var cursor = campo.selectionStart == null ? crudo.length : campo.selectionStart;
         var alFinal = cursor >= crudo.length;

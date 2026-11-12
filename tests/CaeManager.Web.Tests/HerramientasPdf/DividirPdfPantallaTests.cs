@@ -379,6 +379,35 @@ public sealed class DividirPdfPantallaTests : BunitContext
         cut.FindAll("input[placeholder=\"dd/mm/aaaa\"]")[0].GetAttribute("value").Should().BeEmpty();
     }
 
+    /// <summary>
+    /// Ronda 1 de Codex, ALTO 3: la caducidad a medias llegaba como null al salir del campo y Crear daba de alta el
+    /// Documento sin caducidad. Ahora el tramo queda marcado y Crear se bloquea con el aviso hasta corregirla.
+    /// </summary>
+    [Fact]
+    public async Task Una_caducidad_a_medias_bloquea_crear_el_documento()
+    {
+        var cut = Renderizar();
+        cut.WaitForAssertion(() => cut.FindAll(".zona-soltar-archivo").Should().ContainSingle());
+        await SubirAsync(cut);
+        cut.Find("button.tijera[aria-label='Quitar la división tras la página 3']").Click();
+        Pulsar(cut, "Asignar documentos");
+        PonerEmision(cut);
+        cut.WaitForAssertion(() => cut.FindAll("input[placeholder=\"dd/mm/aaaa\"]").Should().HaveCountGreaterThanOrEqualTo(2));
+        await cut.FindAll("input[placeholder=\"dd/mm/aaaa\"]")[1].InputAsync(new ChangeEventArgs { Value = "15/0" });
+        await cut.FindAll("input[placeholder=\"dd/mm/aaaa\"]")[1].BlurAsync(new FocusEventArgs());
+
+        Pulsar(cut, "Siguiente documento");
+        cut.WaitForAssertion(() => cut.FindAll(".marca-omitir input").Should().NotBeEmpty());
+        cut.Find(".marca-omitir input").Change(true);
+        Pulsar(cut, "Revisar y crear");
+
+        cut.WaitForAssertion(() => cut.FindAll("[data-caducidad-no-valida]").Should().ContainSingle());
+        cut.FindAll("[data-caducidad-no-valida-tramo]").Should().ContainSingle("la fila del tramo dice que su caducidad no vale");
+        var crear = cut.FindAll("button").Single(b => b.TextContent.Contains("Crear 1 documento"));
+        crear.HasAttribute("disabled").Should().BeTrue();
+        _mediador.Creaciones.Should().BeEmpty("no se crea un Documento sin la caducidad que se intentó escribir");
+    }
+
     [Fact]
     public async Task Volver_atras_no_pierde_los_cortes_ni_lo_escrito()
     {

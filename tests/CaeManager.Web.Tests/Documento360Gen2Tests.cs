@@ -220,6 +220,30 @@ public partial class Documento360Gen2Tests : BunitContext
         toast.Mensaje.Should().Be("Certificado TGSS: fechas y comentarios actualizados; el archivo no se ha sustituido.");
     }
 
+    // Ronda 1 de Codex, ALTO 4: un vencimiento a medias llegaba como «» y RenovarDocumentoCommand lo guardaba como «sin
+    // vencimiento». Con la bandera del campo, Guardar no envía nada y lo dice.
+    [Theory]
+    [InlineData("15/0")]
+    [InlineData("mañana")]
+    [InlineData("10/1/2030")]
+    public async Task Un_vencimiento_que_no_es_fecha_entera_no_se_guarda_como_sin_vencimiento(string tecleado)
+    {
+        var id = Guid.NewGuid();
+        var mediador = Registrar(new MediadorFalso());
+        mediador.Detalles[id] = Detalle(id);
+        var cut = Renderizar(id);
+
+        await Boton(cut, "Renovar").ClickAsync(new MouseEventArgs());
+        await EmisionDeRenovacion.EscribirAsync(cut);
+        var vencimiento = cut.FindAll("input[data-campo-fecha]")[1];
+        await vencimiento.InputAsync(new ChangeEventArgs { Value = tecleado });
+        await cut.FindAll("input[data-campo-fecha]")[1].BlurAsync(new FocusEventArgs());
+        await Boton(cut, "Guardar fechas y comentarios (sin sustituir el archivo)").ClickAsync(new MouseEventArgs());
+
+        mediador.Enviadas.OfType<RenovarDocumentoCommand>().Should().BeEmpty();
+        cut.FindAll(".alerta-formulario").Should().ContainSingle().Which.TextContent.Should().Contain("no es válida");
+    }
+
     [Fact]
     public async Task Un_resultado_fallido_de_renovar_no_anuncia_exito_y_queda_en_el_formulario()
     {

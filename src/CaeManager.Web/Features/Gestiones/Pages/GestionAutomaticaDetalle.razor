@@ -320,7 +320,7 @@
                                     @* CampoFecha lleva su propia etiqueta: envolverlo en un <label> metería su botón de
                                        calendario dentro de la etiqueta del campo. *@
                                     <div class="gp-etiqueta-campo">
-                                        <CampoFecha Etiqueta="@Textos["GpValidoHasta"]" Valor="_hasta" ValorChanged="v => _hasta = v" Deshabilitado="_noSe" /></div>
+                                        <CampoFecha Etiqueta="@Textos["GpValidoHasta"]" Valor="_hasta" ValorChanged="v => _hasta = v" NoValidoChanged="v => _hastaNoValido = v" Deshabilitado="_noSe" /></div>
                                     <label class="gp-check"><input type="checkbox" @bind="_noSe" />@Textos["GpNoLoSe"]</label>
                                 </div>
                             }

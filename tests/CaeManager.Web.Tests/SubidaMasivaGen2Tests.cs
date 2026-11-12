@@ -243,6 +243,28 @@ public sealed class SubidaMasivaGen2Tests : BunitContext
         await DisposeComponentsAsync();
     }
 
+    // Ronda 1 de Codex, ALTO 4: el vencimiento manual a medias llegaba como «» y el Documento se creaba sin vencimiento.
+    [Fact]
+    public async Task Un_vencimiento_manual_a_medias_no_crea_el_documento_sin_vencimiento()
+    {
+        var (trabajadorId, tipoId) = PrepararPropuesta(confianza: 100, emision: new DateOnly(2026, 3, 1));
+        _mediador.Tipos = [CrearTipo(tipoId) with { AplicaVencimientoAutomatico = false }];
+        _mediador.Deteccion = new DeteccionCamposDocumentoDto(tipoId, trabajadorId, 100, FechaEmisionLeida: new DateOnly(2026, 3, 1), FechaVencimientoPropuesta: new DateOnly(2028, 3, 1));
+        var cut = Render<SubidaMasiva>();
+        await ProcesarAsync(cut, "manual.pdf");
+        await cut.FindAll("button").First(b => b.TextContent.Trim() == "Gestionar").ClickAsync(new MouseEventArgs());
+
+        var vencimiento = cut.FindAll(".item-subida-masiva-formulario input[data-campo-fecha]")[1];
+        vencimiento.GetAttribute("value").Should().Be("01/03/2028");
+        await vencimiento.InputAsync(new ChangeEventArgs { Value = "01/03/202" });
+        await cut.FindAll(".item-subida-masiva-formulario input[data-campo-fecha]")[1].BlurAsync(new FocusEventArgs());
+        await cut.FindAll("button").First(b => b.TextContent.Trim() == "Confirmar y crear").ClickAsync(new MouseEventArgs());
+
+        _mediador.Recibidas.Select(r => r.Peticion).OfType<ConfirmarDocumentoPropuestoPorIaCommand>().Should().BeEmpty();
+        Services.GetRequiredService<ToastService>().Mensajes.Should().Contain(m => m.Mensaje.Contains("no es válida"));
+        await DisposeComponentsAsync();
+    }
+
     [Fact]
     public async Task Con_un_tipo_de_vencimiento_automatico_el_vencimiento_propuesto_no_cuenta_como_correccion()
     {

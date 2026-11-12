@@ -254,6 +254,8 @@ public class PanelDarAccesoTests : BunitContext
     [Theory]
     [InlineData("15/03")]
     [InlineData("31/02/2030")]
+    [InlineData("10/1/2030")] // ronda 1 de Codex, ALTO 2: ya no se completa a 10/01/2030
+    [InlineData("mañana")] // ronda 1 de Codex, ALTO 1: la máscara lo deja en «», pero no es «sin fin»
     public async Task Proponer_con_un_ultimo_dia_que_no_es_fecha_no_envia_un_acceso_sin_fin(string tecleado)
     {
         var lucia = new DestinatarioDeApoyoDto(Guid.NewGuid(), "Lucía");
@@ -276,6 +278,27 @@ public class PanelDarAccesoTests : BunitContext
         await cut.InvokeAsync(() => Boton(cut, "Proponer").Click());
         _mediador.Enviadas.OfType<ProponerApoyoCarteraCommand>().Should().ContainSingle()
             .Which.UltimoDia.Should().Be(ultimoDia);
+    }
+
+    // Ronda 1 de Codex, ALTO 1, tal cual: con un último día ya puesto, pegar «mañana» encima lo vaciaba (la máscara no deja
+    // letras) y Proponer enviaba UltimoDia = null, un acceso sin fin. Ahora no se envía nada.
+    [Fact]
+    public async Task Pegar_texto_sin_cifras_sobre_el_ultimo_dia_no_propone_un_acceso_sin_fin()
+    {
+        var lucia = new DestinatarioDeApoyoDto(Guid.NewGuid(), "Lucía");
+        _mediador.Operaciones = [Operacion("Empresa Mía", Yo)];
+        _mediador.Destinatarios = [lucia];
+        var cut = Render<PanelDarAcceso>();
+        await cut.InvokeAsync(() => cut.Find("[data-dar-acceso-operacion] > button").Click());
+        cut.Find("select").Change(lucia.UsuarioId.ToString());
+        var ultimoDia = DiaDeNegocio.Hoy().AddDays(10);
+        await cut.Find("input[data-campo-fecha]").InputAsync(new Microsoft.AspNetCore.Components.ChangeEventArgs { Value = ultimoDia.ToString("dd/MM/yyyy", CultureInfo.InvariantCulture) });
+
+        await cut.Find("input[data-campo-fecha]").InputAsync(new Microsoft.AspNetCore.Components.ChangeEventArgs { Value = "mañana" });
+        await cut.InvokeAsync(() => Boton(cut, "Proponer").Click());
+
+        _mediador.Enviadas.OfType<ProponerApoyoCarteraCommand>().Should().BeEmpty("ni sin fin ni con el día anterior, que ya no está a la vista");
+        cut.FindComponent<DrawerFormulario>().Instance.MensajeError.Should().StartWith("El último día no es una fecha");
     }
 
     // El 31/12/9999 es una fecha entera para el campo, pero no hay un «último día» posterior que dé fin al acceso: no se
