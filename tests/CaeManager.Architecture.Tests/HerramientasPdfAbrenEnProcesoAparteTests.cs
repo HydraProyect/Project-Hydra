@@ -91,7 +91,11 @@ public class HerramientasPdfAbrenEnProcesoAparteTests
     [Fact]
     public void El_punto_de_entrada_del_proceso_aparte_solo_se_llama_al_arrancar_como_proceso_aparte()
     {
-        var fuentes = Fuentes(["src"]);
+        var raiz = RaizDelRepositorio();
+        var fuentes = Directory.GetFiles(Path.Combine(raiz, "src"), "*.cs", SearchOption.AllDirectories)
+            .Where(f => !EsGenerado(f))
+            .Select(f => (Fichero: Path.GetRelativePath(raiz, f).Replace('\\', '/'), Raiz: CSharpSyntaxTree.ParseText(File.ReadAllText(f)).GetRoot()))
+            .ToList();
 
         var llamadas = fuentes
             .SelectMany(f => f.Raiz.DescendantNodes().OfType<InvocationExpressionSyntax>()
@@ -104,12 +108,13 @@ public class HerramientasPdfAbrenEnProcesoAparteTests
             .ToList();
 
         llamadas.Should().NotBeEmpty("si no, el detector no ve la llamada que debería");
-        llamadas.Select(l => l.Fichero).Should().OnlyContain(f => f == "Program.cs",
+        llamadas.Select(l => l.Fichero).Should().OnlyContain(f => f == "src/CaeManager.Web/Program.cs",
             "el proceso web no entra en el proceso aparte: solo Program.cs lo hace, al arrancar con su argumento");
         llamadas.Should().OnlyContain(l => l.Llamada.Ancestors().OfType<IfStatementSyntax>()
-                .Any(si => Identificadores(si.Condition).Contains("Argumento")
+                .Any(si => si.Statement.Span.Contains(l.Llamada.Span)
+                           && Identificadores(si.Condition).Contains("Argumento")
                            && Identificadores(si.Condition).Contains("ProcesoHerramientasPdf")),
-            "fuera del if que reconoce el argumento, la aplicación web abriría el PDF en su propio proceso");
+            "fuera de la rama del if que reconoce el argumento (también en su else), la aplicación web abriría el PDF en su propio proceso");
     }
 
     [Fact]

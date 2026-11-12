@@ -228,6 +228,25 @@ public class CrearDocumentosDesdeDivisionCommandHandlerTests
             EstadoTramoCreado.Creado, EstadoTramoCreado.Rechazado, EstadoTramoCreado.Rechazado);
         _almacen.Eliminaciones.Should().BeEmpty("el archivo se escribió bajo el Tenant del asistente: con otro no se encuentra");
         _almacen.TenantDeCadaGuardado.Values.Should().OnlyContain(t => t == _tenantId);
+        _divisor.Extraidos.Should().Equal([(1, 1), (2, 2)],
+            "con otro Tenant activo no se ocupa el turno del proceso aparte para un tramo que no se va a guardar");
+    }
+
+    [Fact]
+    public async Task Si_no_se_puede_usar_el_proceso_aparte_el_lote_se_corta_sin_lanzar_mas_y_conserva_lo_creado()
+    {
+        // Lo que lanza la extracción (arrancar el proceso aparte, sus tuberías) es de la instancia, no del PDF.
+        _divisor.LanzarAlExtraer = (3, new IOException("tubería rota"));
+
+        var resultado = await Handler().Handle(Comando(
+            Tramo(1, 2, ClaseTitular.EmpresaGestionada, _empresaId),
+            Tramo(3, 3, ClaseTitular.EmpresaGestionada, _empresaId),
+            Tramo(4, 4, ClaseTitular.EmpresaGestionada, _empresaId)), CancellationToken.None);
+
+        resultado.Valor.Select(r => r.Estado).Should().Equal(
+            EstadoTramoCreado.Creado, EstadoTramoCreado.Rechazado, EstadoTramoCreado.Rechazado);
+        _divisor.Extraidos.Should().Equal([(1, 2)], "tras el fallo de la instancia no se intenta lanzar ninguno más");
+        resultado.Valor[2].Detalle.Should().Contain("fallo interno");
     }
 
     [Fact]

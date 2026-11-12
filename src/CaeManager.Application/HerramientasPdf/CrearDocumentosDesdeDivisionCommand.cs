@@ -125,13 +125,12 @@ public class CrearDocumentosDesdeDivisionCommandHandler(
                 resultados.Add(await CrearTramoSinPerderElLoteAsync(request, pdf, tramo, cancellationToken));
                 continue;
             }
-            catch (PdfDemasiadoComplejoException ex)
+            catch (CorteDelLoteException ex)
             {
-                // El proceso aparte agotó su memoria o su tiempo, o murió, con este tramo. Seguir lanzaría un proceso más por
-                // cada tramo que falta, con el mismo PDF, y ocuparía el turno que comparten Unir y Dividir.
-                logger.LogWarning("Dividir PDF cortó el lote: el proceso aparte no pudo con el PDF.");
+                // El proceso aparte agotó su memoria o su tiempo, o murió, con este tramo, o no se pudo usar. Seguir lanzaría
+                // un proceso más por cada tramo que falta, con el mismo PDF, y ocuparía el turno que comparten Unir y Dividir.
                 resultados.Add(ex.Resultado);
-                detalleRestantes = DetalleTrasPdfDemasiadoComplejo;
+                detalleRestantes = ex.DetalleRestantes;
             }
             catch (TenantCambiadoException) when (HayDocumentosCreados(resultados))
             {
@@ -170,6 +169,8 @@ public class CrearDocumentosDesdeDivisionCommandHandler(
     private const string DetalleCancelado = "No se ha preparado este documento: la operación se ha cancelado.";
     private const string DetalleTrasPdfDemasiadoComplejo =
         "No se ha preparado este documento: el PDF no se pudo procesar al separar un documento anterior.";
+    private const string DetalleTrasFalloInterno =
+        "No se ha preparado este documento: un fallo interno de TALVEG impidió separar uno anterior. Inténtalo más tarde.";
 
     /// <summary>
     /// El Tenant activo sigue siendo el del inicio del asistente. Se comprueba sin ninguna espera entre la comprobación y lo
@@ -181,11 +182,15 @@ public class CrearDocumentosDesdeDivisionCommandHandler(
     /// <summary>El Tenant activo cambió a mitad del lote: no se escribe ni se da de alta nada más.</summary>
     private sealed class TenantCambiadoException() : Exception("El Tenant activo cambió a mitad de Dividir PDF.");
 
-    /// <summary>El proceso aparte no pudo con el PDF al extraer un tramo; lleva el resultado de ese tramo.</summary>
-    private sealed class PdfDemasiadoComplejoException(ResultadoTramoCreado resultado)
-        : Exception("El proceso aparte no pudo con el PDF de Dividir.")
+    /// <summary>
+    /// El proceso aparte no pudo con el PDF al extraer un tramo, o no se pudo usar: lleva el resultado de ese tramo y lo que se
+    /// dice de los que faltan, que ya no se intentan.
+    /// </summary>
+    private sealed class CorteDelLoteException(ResultadoTramoCreado resultado, string detalleRestantes)
+        : Exception("Dividir PDF corta el lote en el proceso aparte.")
     {
         public ResultadoTramoCreado Resultado { get; } = resultado;
+        public string DetalleRestantes { get; } = detalleRestantes;
     }
 
     private static bool HayDocumentosCreados(List<ResultadoTramoCreado> resultados) =>
@@ -215,7 +220,7 @@ public class CrearDocumentosDesdeDivisionCommandHandler(
             return await CrearTramoAsync(request, pdf, tramo, cancellationToken);
         }
         catch (Exception ex) when (ex is not (OperationCanceledException or PresupuestoMemoriaAgotadoException or EntradaPdfRetenidaException
-                                       or TenantCambiadoException or PdfDemasiadoComplejoException))
+                                       or TenantCambiadoException or CorteDelLoteException))
         {
             logger.LogWarning("Dividir PDF no pudo preparar un tramo ({Excepcion}).", ex.GetType().Name);
             return Resultado(tramo, EstadoTramoCreado.Rechazado, null, "No se ha podido preparar este documento.");
@@ -241,16 +246,33 @@ public class CrearDocumentosDesdeDivisionCommandHandler(
             throw new TenantCambiadoException();
 
         // La cota es la del alta: un tramo que no cabría como Documento se corta mientras se escribe, sin ocupar más.
-        var extraido = await pdf.ExtraerPaginasAsync(tramo.PaginaInicial, tramo.PaginaFinal, LimitesArchivoSubido.TamanoMaximoBytes, cancellationToken);
+        Result<byte[]> extraido;
+        try
+        {
+            extraido = await pdf.ExtraerPaginasAsync(tramo.PaginaInicial, tramo.PaginaFinal, LimitesArchivoSubido.TamanoMaximoBytes, cancellationToken);
+        }
+        catch (Exception ex) when (ex is not (OperationCanceledException or PresupuestoMemoriaAgotadoException
+                                       or EntradaPdfRetenidaException or OutOfMemoryException))
+        {
+            // Lo que depende del PDF llega tipado en el Result; lo que lanza es un fallo de la instancia (arrancar el proceso
+            // aparte, sus tuberías), y reintentarlo con cada tramo que falta solo ocuparía el turno compartido.
+            logger.LogWarning("Dividir PDF cortó el lote: no se pudo usar el proceso aparte ({Excepcion}).", ex.GetType().Name);
+            throw new CorteDelLoteException(
+                Resultado(tramo, EstadoTramoCreado.Rechazado, null, "No se ha podido preparar este documento."), DetalleTrasFalloInterno);
+        }
+
         if (!extraido.EsExitoso)
         {
-            return extraido.Error.Codigo switch
+            if (extraido.Error.Codigo == ErroresDivisorPdf.DemasiadoComplejo)
             {
-                ErroresDivisorPdf.DemasiadoGrande => Resultado(tramo, EstadoTramoCreado.DemasiadoGrande, null, null),
-                ErroresDivisorPdf.DemasiadoComplejo => throw new PdfDemasiadoComplejoException(
-                    Resultado(tramo, EstadoTramoCreado.Rechazado, null, extraido.Error.Mensaje)),
-                _ => Resultado(tramo, EstadoTramoCreado.Rechazado, null, extraido.Error.Mensaje),
-            };
+                logger.LogWarning("Dividir PDF cortó el lote: el proceso aparte no pudo con el PDF.");
+                throw new CorteDelLoteException(
+                    Resultado(tramo, EstadoTramoCreado.Rechazado, null, extraido.Error.Mensaje), DetalleTrasPdfDemasiadoComplejo);
+            }
+
+            return extraido.Error.Codigo == ErroresDivisorPdf.DemasiadoGrande
+                ? Resultado(tramo, EstadoTramoCreado.DemasiadoGrande, null, null)
+                : Resultado(tramo, EstadoTramoCreado.Rechazado, null, extraido.Error.Mensaje);
         }
 
         if (extraido.Valor.Length > LimitesArchivoSubido.TamanoMaximoBytes)

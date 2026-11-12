@@ -59,11 +59,13 @@ public static class LimitesDivisionPdf
         bytesOriginal + MemoriaRecepcionTramo(Common.LimitesArchivoSubido.TamanoMaximoBytes);
 
     /// <summary>
-    /// Lo que el almacenamiento reserva por su cuenta, con espera, al cifrar un tramo con la cota del alta: tres veces el
-    /// claro más 4 KiB de margen (<c>DiskFileStorageService</c>; un test de Web lo ata a lo que reserva de verdad). Guardar lo
-    /// pide mientras la pantalla retiene <see cref="MemoriaCreacionTramos"/>.
+    /// Lo más que el almacenamiento reserva por su cuenta, con espera, por un tramo con la cota del alta mientras la pantalla
+    /// retiene <see cref="MemoriaCreacionTramos"/>: al cifrarlo, tres veces el claro más 4 KiB; y al leerlo el alta para
+    /// verificarlo, tres veces lo que ocupa en disco (el claro, la marca y lo que añade Data Protection) más 4 KiB. Las dos
+    /// no coinciden: el guardado devuelve la suya antes del alta. Se cuenta 4 KiB por encima del claro para lo que ocupa de
+    /// más en disco (<c>DiskFileStorageService</c>; un test de Web lo ata a lo que reserva de verdad al guardar y al abrir).
     /// </summary>
-    public const long MemoriaCifradoTramo = 3 * Common.LimitesArchivoSubido.TamanoMaximoBytes + 4 * 1024;
+    public const long MemoriaCifradoTramo = 3 * (Common.LimitesArchivoSubido.TamanoMaximoBytes + 4 * 1024) + 4 * 1024;
 
     /// <summary>
     /// Lo que tiene que caber a la vez en el presupuesto para guardar en TALVEG los tramos de un original de este tamaño: la
