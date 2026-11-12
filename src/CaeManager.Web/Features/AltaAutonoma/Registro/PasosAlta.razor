@@ -2,21 +2,36 @@
 @using Microsoft.Extensions.Localization
 @inject IStringLocalizer<TextosAltaAutonoma> T
 
-@* Los cinco pasos del alta (maqueta A0: Cuenta, Empresa, Plan, Condiciones, Pago). A3 solo pinta el primero como
-   actual; el detalle dice en qué punto de ese paso está la persona. *@
+@* Los cinco pasos del alta (maqueta A0: Cuenta, Empresa, Plan, Condiciones, Pago). Actual marca el paso en curso
+   (A3 pinta el primero; A4, el segundo); el detalle dice en qué punto de ese paso está la persona. *@
 <nav class="alta-pasos" aria-label="@T["PasosEtiqueta"]">
     <ol>
-        <li aria-current="step"><span>1</span> @T["PasoCuenta"] <span class="alta-paso-oculto">@T["PasoActual"]</span></li>
-        <li><span>2</span> @T["PasoEmpresa"]</li>
-        <li><span>3</span> @T["PasoPlan"]</li>
-        <li><span>4</span> @T["PasoCondiciones"]</li>
-        <li><span>5</span> @T["PasoPago"]</li>
+        @foreach (var paso in Pasos)
+        {
+            if (paso.Numero == Actual)
+            {
+                <li aria-current="step"><span>@paso.Numero</span> @T[paso.Clave] <span class="alta-paso-oculto">@T["PasoActual"]</span></li>
+            }
+            else
+            {
+                <li><span>@paso.Numero</span> @T[paso.Clave]</li>
+            }
+        }
     </ol>
     <p class="alta-paso-detalle">@Detalle</p>
 </nav>
 
 @code {
+    private static readonly Paso[] Pasos =
+        [new(1, "PasoCuenta"), new(2, "PasoEmpresa"), new(3, "PasoPlan"), new(4, "PasoCondiciones"), new(5, "PasoPago")];
+
+    private sealed record Paso(int Numero, string Clave);
+
     /// <summary>Texto bajo los pasos, como «Paso 1 de 5: Cuenta».</summary>
     [Parameter, EditorRequired]
     public string Detalle { get; set; } = string.Empty;
+
+    /// <summary>Paso en curso, de 1 (Cuenta) a 5 (Pago).</summary>
+    [Parameter]
+    public int Actual { get; set; } = 1;
 }

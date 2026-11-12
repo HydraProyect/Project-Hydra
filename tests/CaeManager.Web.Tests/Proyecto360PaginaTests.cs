@@ -647,6 +647,43 @@ public partial class Proyecto360PaginaTests : BunitContext
         _mediador.Enviados.OfType<ObtenerProyectoPorIdQuery>().Should().HaveCount(2, "tras guardar se recarga el detalle");
     }
 
+    /// <summary>
+    /// Un fin previsto a medias o ilegible llega como «»: guardar así borraría el fin previsto guardado. La edición consume la
+    /// bandera del campo y no envía el comando mientras sea true.
+    /// </summary>
+    [Fact]
+    public async Task Un_fin_previsto_a_medias_no_guarda_el_proyecto_sin_fecha()
+    {
+        var cut = Renderizar(AbiertoId);
+        await ElegirDelMenuAsync(cut, "Editar proyecto");
+        var fin = () => cut.Find(".drawer-panel input[data-campo-fecha]");
+
+        await fin().InputAsync(new ChangeEventArgs { Value = "15/03" });
+        await BotonConTexto(cut, ".drawer-panel button", "Guardar").ClickAsync(new MouseEventArgs());
+
+        _mediador.Enviados.OfType<ActualizarProyectoCommand>().Should().BeEmpty("el texto a medias llega como «» y borraría el fin previsto");
+        cut.Find(".drawer-panel").TextContent.Should().Contain("no es válida");
+
+        await fin().InputAsync(new ChangeEventArgs { Value = "15/03/2030" });
+        cut.Find(".drawer-panel").TextContent.Should().NotContain("no es válida", "el aviso de un intento anterior ya no es cierto");
+        await BotonConTexto(cut, ".drawer-panel button", "Guardar").ClickAsync(new MouseEventArgs());
+
+        cut.WaitForAssertion(() => _mediador.Enviados.OfType<ActualizarProyectoCommand>().Should().ContainSingle(
+            "control positivo: con la fecha entera sí se guarda").Which.FechaFinPrevista.Should().Be(new DateOnly(2030, 3, 15)));
+    }
+
+    [Fact]
+    public async Task Cancelar_la_edicion_con_el_fin_previsto_a_medias_pregunta()
+    {
+        var cut = Renderizar(AbiertoId);
+        await ElegirDelMenuAsync(cut, "Editar proyecto");
+
+        await cut.Find(".drawer-panel input[data-campo-fecha]").InputAsync(new ChangeEventArgs { Value = "15/03" });
+
+        await cut.PulsarCancelarDelPieAsync(".drawer-pie");
+        await cut.ComprobarQuePreguntaYDescartarAsync(".drawer-panel");
+    }
+
     [Fact]
     public async Task Editar_tambien_desde_el_lateral_y_con_el_proyecto_cerrado()
     {

@@ -276,6 +276,9 @@ public class CalculoEstadoCentroService(
 
         var vencidasEnPlataforma = await (
             from acreditacion in documentosContext.AcreditacionesDocumentoPlataforma
+            // Un documento que la plataforma no pide no pone el Centro en rojo por su fecha. MarcarNoRequerida ya la borra,
+            // pero hay filas No requeridas anteriores a esa regla que conservan una vigencia: la lectura no se fía de ella.
+            where acreditacion.Estado != EstadoAcreditacion.NoRequerida
             where acreditacion.EstadoVigencia == EstadoVigenciaEnPlataforma.VenceEnFecha
             where acreditacion.FechaVencimientoEnPlataforma != null
                   && acreditacion.FechaVencimientoEnPlataforma < hoy

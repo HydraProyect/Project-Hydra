@@ -228,6 +228,12 @@
   <data name="ErrorFechaDeFinNoValida" xml:space="preserve">
     <value>La fecha de fin del apoyo no puede ser anterior a hoy.</value>
   </data>
+  <data name="ErrorFechaDeFinFueraDeRango" xml:space="preserve">
+    <value>Elige un último día anterior al 31/12/9999, o déjalo vacío para que el acceso no tenga fin.</value>
+  </data>
+  <data name="ErrorFechaDeFinIlegible" xml:space="preserve">
+    <value>El último día no es una fecha: escríbelo con el formato dd/mm/aaaa o déjalo vacío para que el acceso no tenga fin.</value>
+  </data>
   <data name="ErrorApoyoNoEncontrado" xml:space="preserve">
     <value>Ese acceso de apoyo ya no existe.</value>
   </data>

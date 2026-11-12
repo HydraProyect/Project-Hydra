@@ -473,6 +473,9 @@ public class FronterasEntrePersistenciaDeFeaturesTests
         ("HerramientasPdf.ObtenerCatalogoDivisionPdfQueryHandler", "ITiposDocumentoQueryContext"),
         ("HerramientasPdf.ObtenerCatalogoDivisionPdfQueryHandler", "ITrabajadoresQueryContext"),
         ("HerramientasPdf.ObtenerCatalogoDivisionPdfQueryHandler", "IVehiculosQueryContext"),
+        // «Descargar» de Dividir lee la Empresa gestionada con la misma comprobación que el catálogo (existe en el Tenant y
+        // es propia) antes de abrir el PDF; solo lee.
+        ("HerramientasPdf.ExtraerTramoPdfQueryHandler", "IEmpresasQueryContext"),
         // Unir PDF lista y lee los Documentos de la Empresa gestionada (el universo del paquete de Empresa 360) bajo el alcance de
         // cartera; solo lee, y lo que sale de la Empresa deja el registro de acceso de siempre.
         ("HerramientasPdf.ListarDocumentosParaUnirQueryHandler", "IDocumentosQueryContext"),
@@ -521,6 +524,7 @@ public class FronterasEntrePersistenciaDeFeaturesTests
         // El resto de comandos de acreditación (AcreditacionSubible.CargarVisibleAsync) resuelven el Centro del canal
         // (ICentrosQueryContext) para exigir que esté en la Asignación de Cartera de quien anota (ASVS V4.2.1).
         ("Documentos.MarcarAcreditacionSubidaCommandHandler", "ICentrosQueryContext"),
+        ("Documentos.MarcarAcreditacionNoRequeridaCommandHandler", "ICentrosQueryContext"),
         ("Documentos.MarcarAcreditacionAceptadaCommandHandler", "ICentrosQueryContext"),
         ("Documentos.MarcarAcreditacionRechazadaCommandHandler", "ICentrosQueryContext"),
         ("Documentos.MarcarAcreditacionPendienteDeSubirCommandHandler", "ICentrosQueryContext"),
@@ -544,6 +548,7 @@ public class FronterasEntrePersistenciaDeFeaturesTests
         ("Documentos.ConfirmarSubidaDesdeExtensionCommandHandler", "IProyectosQueryContext"),
         ("Documentos.DeshacerSubidaDesdeExtensionCommandHandler", "IProyectosQueryContext"),
         ("Documentos.MarcarAcreditacionSubidaCommandHandler", "IProyectosQueryContext"),
+        ("Documentos.MarcarAcreditacionNoRequeridaCommandHandler", "IProyectosQueryContext"),
         // La puerta de lectura por Id (DocumentoLegibleAsync) resuelve el Cliente empresarial de un Documento de Proyecto.
         ("Documentos.ObtenerFirmasEnCampoDocumentoQueryHandler", "IProyectosQueryContext"),
         ("Documentos.ObtenerValidacionOficialDocumentoQueryHandler", "IProyectosQueryContext"),
@@ -649,6 +654,8 @@ public class FronterasEntrePersistenciaDeFeaturesTests
         // Gestión automática (especificación de Gestión de varios pasos, § 4.1): agrupa las acreditaciones en
         // plataforma de un Documento, así que sus consultas leen Documentos y accesos de Centro y resuelven además la
         // cabecera (Tipo, titular, Empresa gestionada) y el nombre de la plataforma.
+        // «Datos a mano» › Centro: el inicio de la Asignación del Trabajador titular a cada Centro de los pasos.
+        ("Gestiones.ObtenerGestionAutomaticaQueryHandler", "IAsignacionesQueryContext"),
         ("Gestiones.ObtenerGestionAutomaticaQueryHandler", "ICentrosQueryContext"),
         ("Gestiones.ObtenerGestionAutomaticaQueryHandler", "IDocumentosQueryContext"),
         ("Gestiones.ObtenerGestionAutomaticaQueryHandler", "IEmpresasQueryContext"),

@@ -23,6 +23,10 @@ public class IntegracionesQueryContextFalso : IIntegracionesQueryContext
     public IQueryable<ConexionIntegracion> ConexionesIntegracion => new TestAsyncQueryable<ConexionIntegracion>(ConexionesLista.AsQueryable());
     public IQueryable<LineaWhatsApp> LineasWhatsApp => new TestAsyncQueryable<LineaWhatsApp>(LineasLista.AsQueryable());
     public IQueryable<MiembroPoolLinea> MiembrosPoolLinea => new TestAsyncQueryable<MiembroPoolLinea>(MiembrosLista.AsQueryable());
+
+    public List<EventoWebhook> EventosLista { get; } = [];
+
+    public IQueryable<EventoWebhook> EventosWebhook => new TestAsyncQueryable<EventoWebhook>(EventosLista.AsQueryable());
 }
 
 internal class TestAsyncQueryable<T>(IQueryable<T> interna) : IOrderedQueryable<T>, IAsyncEnumerable<T>

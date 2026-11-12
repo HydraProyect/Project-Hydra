@@ -40,7 +40,7 @@ public class ObtenerCatalogoDivisionPdfQueryHandler(
 
         if (gestionada is null)
             return Result.Fallo<CatalogoDivisionPdf>(Error.Crear(
-                ErrorEmpresaNoGestionable, "La Empresa gestionada no existe o queda fuera de tu cartera."));
+                ErrorEmpresaNoGestionable, "La Empresa no existe o queda fuera de tu cartera."));
 
         var subcontratasVisibles = await alcanceDatos.ObtenerSubcontrataIdsParaGestionAsync(cancellationToken);
         var subcontrataIds = empresasContext.RelacionesEmpresariales

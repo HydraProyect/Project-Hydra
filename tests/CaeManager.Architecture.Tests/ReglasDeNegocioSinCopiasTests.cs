@@ -322,6 +322,9 @@ public class ReglasDeNegocioSinCopiasTests
         // Inbound M1, PR 4: la misma función reescrita con CREATE OR REPLACE para la excepción de salud (Up) y restaurada
         // en su versión de la PR 3 (Down), con la regla idéntica en las dos.
         ["src/CaeManager.Migrations.PostgreSQL/Migrations/20261023195346_AnadeEvidenciasInbound.cs"] = 2,
+        // EP-6, opción (d): la misma función reescrita para exigir una sola Empresa propia en la rama de Empresa (Up) y
+        // restaurada en su versión de la PR 4 (Down), con la regla operativa idéntica en las dos.
+        ["src/CaeManager.Migrations.PostgreSQL/Migrations/20261112170000_LecturaInboundEmpresaPropiaUnica.cs"] = 2,
         // Gestión automática (segunda ronda de Codex sobre la PR #2072): la cabecera necesita saber si el Documento de la
         // Gestión ya está sustituido para no darla por abierta (GestionAutomatica.ResolverEstado). No filtra Documentos ni
         // pregunta si están en uso: la Gestión se lista igual, y la mitad «no eliminado» no aplica a esta pregunta.

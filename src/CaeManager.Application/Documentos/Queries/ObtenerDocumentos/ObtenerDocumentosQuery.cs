@@ -49,15 +49,36 @@ namespace CaeManager.Application.Documentos.Queries.ObtenerDocumentos;
 /// Quita los documentos de salud del universo, también de los totales. Lo pide la Clave de Integración
 /// del Tenant, que no los ve con ningún alcance.
 /// </param>
+/// <param name="AgruparPor">
+/// Agrupa el listado por Plataforma CAE o por Cliente empresarial (P-1, 2026-11-12). Los «vínculos» de un Documento
+/// son sus acreditaciones en Centros visibles del usuario que pasan los filtros de plataforma
+/// (<paramref name="ProveedorPlataformaCaeId"/> y <paramref name="EstadosEnPlataforma"/>): por Plataforma CAE, una
+/// fila por acreditación en un canal con Plataforma CAE (un Documento acreditado en tres aparece en los tres grupos);
+/// por Cliente empresarial, una fila por Cliente empresarial distinto de esos Centros. Sin vínculo, el Documento va al
+/// grupo <see cref="GrupoSin"/>. Los recuentos de cada grupo (<c>ResumenPorGrupo</c>, con
+/// <see cref="ResumenDeGrupoDocumental"/>) se cuentan sobre el mismo universo filtrado de la página, antes de paginar.
+/// <c>TotalElementos</c> sigue contando Documentos, no filas. Con esta agrupación, <paramref name="AgruparPorAmbito"/>
+/// no aplica.
+/// </param>
+/// <param name="EstadosEnPlataforma">
+/// Solo los Documentos con alguna acreditación, en un canal con Plataforma CAE de un Centro visible, en cualquiera de
+/// esos estados. «Sin vigencia» es lo mismo que la pestaña Plataformas CAE llama así: aceptada y con la vigencia en la
+/// plataforma sin confirmar. Si llega también <paramref name="ProveedorPlataformaCaeId"/>, la acreditación tiene que
+/// ser de esa Plataforma CAE. Solo estrecha el universo ya limitado al alcance.
+/// </param>
 public record ObtenerDocumentosQuery(
     Guid? TrabajadorId, AmbitoAplicacion? Ambito, string? Busqueda, EstadoDocumento? Estado = null,
     int Pagina = 1, int TamanoPagina = 20, Guid? PropietarioId = null,
     string? OrdenarPor = null, bool Descendente = false, DateOnly? FechaVencimientoHasta = null,
     IReadOnlyCollection<EstadoDocumento>? Estados = null, bool ConRecuentosPorEstado = false,
     Guid? DocumentoId = null, Guid? TipoDocumentoId = null, Guid? ProveedorPlataformaCaeId = null,
-    bool AgruparPorAmbito = false, bool ConDestinosEnCentros = false, bool ExcluirCategoriaEspecialSalud = false)
+    bool AgruparPorAmbito = false, bool ConDestinosEnCentros = false, bool ExcluirCategoriaEspecialSalud = false,
+    AgrupacionDocumentos? AgruparPor = null, IReadOnlyCollection<EstadoEnPlataformaFiltro>? EstadosEnPlataforma = null)
     : IRequest<ResultadoPaginado<DocumentoListaDto>>
 {
+    /// <summary>Clave del grupo de los Documentos sin vínculo: «Sin Plataforma CAE» o «Sin Cliente empresarial».</summary>
+    public const string GrupoSin = "sin";
+
     /// <summary>
     /// Valor de <see cref="OrdenarPor"/> para el orden de inicio del listado: lo que más urge primero (la clave de
     /// <c>EstadoDocumentalFiltro.ClaveOrden</c>) y, dentro de cada estado, por vencimiento. No es una columna:
@@ -91,7 +112,57 @@ public record DocumentoListaDto(
     // Destino del icono 360 de la fila: la página del TIPO de documento (/documentos/tipos/{id}).
     // Opcional y al final: ningún otro productor cambia; sin él (Guid.Empty) la fila no pinta el icono.
     Guid TipoDocumentoId = default,
-    [property: JsonIgnore] IReadOnlyList<DocumentoEnCentroListaDto>? DestinosEnCentros = null);
+    [property: JsonIgnore] IReadOnlyList<DocumentoEnCentroListaDto>? DestinosEnCentros = null,
+    [property: JsonIgnore] GrupoDeFilaDocumentalDto? Grupo = null);
+
+/// <summary>Cómo se agrupa el listado de Documentos además de por Ámbito (ver <see cref="ObtenerDocumentosQuery.AgruparPor"/>).</summary>
+public enum AgrupacionDocumentos
+{
+    PlataformaCae,
+    ClienteEmpresarial
+}
+
+/// <summary>Filtro «Estado en la plataforma» del listado (ver <see cref="ObtenerDocumentosQuery.EstadosEnPlataforma"/>).</summary>
+public enum EstadoEnPlataformaFiltro
+{
+    PendienteDeSubir,
+    Rechazado,
+    SinVigencia
+}
+
+/// <summary>
+/// El grupo de una fila del listado agrupado por Plataforma CAE o por Cliente empresarial.
+/// </summary>
+/// <param name="Clave">El Id de la Plataforma CAE o del Cliente empresarial, o <see cref="ObtenerDocumentosQuery.GrupoSin"/>.</param>
+/// <param name="Acreditacion">Por Plataforma CAE, la acreditación de esta fila; null en el grupo sin vínculo y por Cliente empresarial.</param>
+public record GrupoDeFilaDocumentalDto(string Clave, AcreditacionEnGrupoDto? Acreditacion = null);
+
+/// <param name="ClienteEmpresarialNombre">El Cliente empresarial del Centro del canal, no el Tenant propietario.</param>
+/// <param name="UltimoMotivoRechazo">
+/// El último motivo literal de rechazo, solo si el usuario gestiona el Centro del canal: <c>null</c> para el rol Cliente,
+/// que ve el estado pero no el motivo (decisión de Chris del 2026-11-12, opción B).
+/// </param>
+public record AcreditacionEnGrupoDto(Guid Id, EstadoAcreditacion Estado, EstadoVigenciaEnPlataforma EstadoVigencia,
+    string ClienteEmpresarialNombre, string? UltimoMotivoRechazo)
+{
+    /// <summary>La misma regla que «Sin vigencia» en la pestaña Plataformas CAE: aceptada sin vigencia confirmada.</summary>
+    public bool SinVigencia => Estado == EstadoAcreditacion.Aceptada && EstadoVigencia == EstadoVigenciaEnPlataforma.SinConfirmar;
+}
+
+/// <summary>
+/// Cabecera de un grupo del listado agrupado por Plataforma CAE o Cliente empresarial.
+/// <see cref="ResumenDeGrupo.Total"/> son filas del grupo (acreditaciones por Plataforma CAE; Documentos por Cliente
+/// empresarial y en el grupo sin vínculo); <see cref="ResumenDeGrupo.PorEstado"/> va vacío por Plataforma CAE.
+/// </summary>
+/// <param name="EnPlataforma">Por Plataforma CAE, acreditaciones del grupo por estado en la plataforma; sin las que son cero.</param>
+/// <param name="UrlPortal">
+/// La dirección del portal cuando los canales del grupo con dirección anotada, en Centros que el usuario gestiona, anotan
+/// una sola (sin distinguir mayúsculas ni espacios; los canales sin dirección no cuentan); null si no hay ninguna, si hay
+/// varias distintas o si el usuario no gestiona (rol Cliente). Es la dirección, nunca la credencial.
+/// </param>
+public record ResumenDeGrupoDocumental(int Total, IReadOnlyDictionary<string, int> PorEstado, string Nombre,
+    IReadOnlyDictionary<EstadoEnPlataformaFiltro, int> EnPlataforma, string? UrlPortal = null)
+    : ResumenDeGrupo(Total, PorEstado);
 
 /// <param name="ClienteNombre">Nombre del Cliente empresarial contraparte del Centro, no del Tenant propietario.</param>
 public record DocumentoEnCentroListaDto(Guid CentroId, string CentroNombre, string ClienteNombre,
@@ -144,11 +215,16 @@ public class ObtenerDocumentosQueryHandler(IConfiguracionQueryContext configurac
         if (request.TipoDocumentoId is { } tipoDocumentoId)
             consulta = consulta.Where(x => x.TipoDocumentoId == tipoDocumentoId);
 
+        var estadosEnPlataforma = request.EstadosEnPlataforma ?? [];
+        var hayVinculos = request.AgruparPor is not null || estadosEnPlataforma.Count > 0;
+        var centrosVisibles = request.ProveedorPlataformaCaeId is not null || hayVinculos
+            ? await alcanceDatos.ObtenerCentroIdsVisiblesAsync(cancellationToken)
+            : null;
+
         if (request.ProveedorPlataformaCaeId is { } proveedorPlataformaCaeId)
         {
             // La subconsulta se acota a los Centros visibles del usuario, igual que el destino por Centro de cada fila
             // (ObtenerDestinosEnCentrosAsync): sin ello el filtro serviría de oráculo de acreditaciones en Centros que no ve.
-            var centrosVisibles = await alcanceDatos.ObtenerCentroIdsVisiblesAsync(cancellationToken);
             var documentosEnPlataforma =
                 from acreditacion in documentosContext.AcreditacionesDocumentoPlataforma
                 join canal in centrosContext.CanalesGestionDocumental on acreditacion.CanalGestionDocumentalId equals canal.Id
@@ -156,6 +232,20 @@ public class ObtenerDocumentosQueryHandler(IConfiguracionQueryContext configurac
                     && (centrosVisibles == null || centrosVisibles.Contains(canal.CentroId))
                 select acreditacion.DocumentoId;
             consulta = consulta.Where(x => documentosEnPlataforma.Contains(x.Id));
+        }
+
+        // Los vínculos con Plataforma CAE y Cliente empresarial (agrupar y «Estado en la plataforma") salen de la misma
+        // regla de alcance que el filtro de arriba: acreditaciones en Centros visibles. Con el filtro de estado o al
+        // agrupar por Plataforma CAE solo cuentan los canales con Plataforma CAE; por Cliente empresarial, cualquier canal.
+        var vinculos = hayVinculos
+            ? ConstruirVinculos(centrosVisibles, request.ProveedorPlataformaCaeId, estadosEnPlataforma,
+                soloConPlataformaCae: request.AgruparPor != AgrupacionDocumentos.ClienteEmpresarial || estadosEnPlataforma.Count > 0)
+            : null;
+
+        if (estadosEnPlataforma.Count > 0)
+        {
+            var documentosEnEstado = vinculos!.Select(v => v.DocumentoId);
+            consulta = consulta.Where(x => documentosEnEstado.Contains(x.Id));
         }
 
         var parametros = await configuracionContext.ParametrosSistema.SingleAsync(cancellationToken);
@@ -237,8 +327,13 @@ public class ObtenerDocumentosQueryHandler(IConfiguracionQueryContext configurac
             ? await consulta.CountAsync(cancellationToken)
             : filasPorClave.Where(x => clavesPedidas is null || clavesPedidas.Contains(x.Key)).Sum(x => x.Value);
 
+        var agruparPorAmbito = request.AgruparPorAmbito && request.AgruparPor is null;
         IReadOnlyDictionary<string, ResumenDeGrupo>? resumenPorGrupo = null;
-        if (request.AgruparPorAmbito)
+        Dictionary<Guid, string> nombresDeGrupo = [];
+        if (request.AgruparPor is { } agrupacion)
+            (resumenPorGrupo, nombresDeGrupo) = await ResumirGruposAsync(
+                agrupacion, consulta, vinculos!, hoy, limiteRojo, limiteAmbar, cancellationToken);
+        else if (agruparPorAmbito)
         {
             // Agregados del mismo universo filtrado antes de paginar; nunca un recuento de la página visible.
             var agregados = await consulta.GroupBy(x => new
@@ -262,7 +357,7 @@ public class ObtenerDocumentosQueryHandler(IConfiguracionQueryContext configurac
 
         IOrderedQueryable<FilaDocumental> OrdenarPor<TClave>(Expression<Func<FilaDocumental, TClave>> clave, bool descendente = false)
         {
-            if (request.AgruparPorAmbito)
+            if (agruparPorAmbito)
             {
                 var agrupada = consulta.OrderBy(x => x.Ambito);
                 return descendente ? agrupada.ThenByDescending(clave) : agrupada.ThenBy(clave);
@@ -357,6 +452,9 @@ public class ObtenerDocumentosQueryHandler(IConfiguracionQueryContext configurac
                 d.TipoDocumentoId,
                 destinos?.GetValueOrDefault(d.Id, [])))
             .ToList();
+
+        if (request.AgruparPor is { } agrupacionDeFilas)
+            elementos = await RepartirEnGruposAsync(agrupacionDeFilas, elementos, vinculos!, nombresDeGrupo, cancellationToken);
 
         return new ResultadoPaginado<DocumentoListaDto>(elementos, total, request.Pagina, request.TamanoPagina)
         {
@@ -542,6 +640,239 @@ public class ObtenerDocumentosQueryHandler(IConfiguracionQueryContext configurac
 
     }
 
+    /// <summary>
+    /// Las acreditaciones que enlazan un Documento con una Plataforma CAE y un Cliente empresarial: solo en Centros
+    /// visibles (el mismo alcance que el filtro por Plataforma CAE y los destinos por Centro), y solo las que pasan los
+    /// filtros de plataforma de la petición. Es la única fuente de los grupos, de sus recuentos y del filtro de estado.
+    /// </summary>
+    private IQueryable<VinculoDocumental> ConstruirVinculos(IReadOnlyList<Guid>? centrosVisibles, Guid? proveedorId,
+        IReadOnlyCollection<EstadoEnPlataformaFiltro> estados, bool soloConPlataformaCae)
+    {
+        var vinculos =
+            from acreditacion in documentosContext.AcreditacionesDocumentoPlataforma
+            join canal in centrosContext.CanalesGestionDocumental on acreditacion.CanalGestionDocumentalId equals canal.Id
+            join centro in centrosContext.Centros on canal.CentroId equals centro.Id
+            where centrosVisibles == null || centrosVisibles.Contains(centro.Id)
+            // P1-X2, como la pestaña Plataformas CAE (ObtenerAcreditacionesPorProveedorQuery): los canales que conserve un
+            // Centro sin gestión CAE no generan trabajo de acreditación, ni grupo, ni recuento, ni «Anotar vigencia».
+            where centro.GestionCae != ModalidadGestionCae.SinGestionCae
+            select new VinculoDocumental
+            {
+                AcreditacionId = acreditacion.Id,
+                DocumentoId = acreditacion.DocumentoId,
+                Estado = acreditacion.Estado,
+                EstadoVigencia = acreditacion.EstadoVigencia,
+                ProveedorId = canal.ProveedorPlataformaCaeId,
+                CentroId = centro.Id,
+                ClienteId = centro.ClienteId,
+                UrlAcceso = canal.UrlAcceso
+            };
+
+        if (soloConPlataformaCae)
+            vinculos = vinculos.Where(v => v.ProveedorId != null);
+        if (proveedorId is { } proveedor)
+            vinculos = vinculos.Where(v => v.ProveedorId == proveedor);
+        if (estados.Count > 0)
+        {
+            var pendiente = estados.Contains(EstadoEnPlataformaFiltro.PendienteDeSubir);
+            var rechazado = estados.Contains(EstadoEnPlataformaFiltro.Rechazado);
+            var sinVigencia = estados.Contains(EstadoEnPlataformaFiltro.SinVigencia);
+            vinculos = vinculos.Where(v =>
+                (pendiente && v.Estado == EstadoAcreditacion.PendienteDeSubir)
+                || (rechazado && v.Estado == EstadoAcreditacion.Rechazada)
+                || (sinVigencia && v.Estado == EstadoAcreditacion.Aceptada && v.EstadoVigencia == EstadoVigenciaEnPlataforma.SinConfirmar));
+        }
+
+        return vinculos;
+    }
+
+    /// <summary>
+    /// Las cabeceras de los grupos, contadas sobre el universo ya filtrado (el mismo <paramref name="consulta"/> que se
+    /// pagina, después de todos los filtros, también el de estado) unido a sus vínculos: nunca sobre la página visible
+    /// ni sobre otra consulta. Devuelve también los nombres de los grupos, que reutiliza el reparto de filas.
+    /// </summary>
+    private async Task<(IReadOnlyDictionary<string, ResumenDeGrupo>, Dictionary<Guid, string>)> ResumirGruposAsync(
+        AgrupacionDocumentos agrupacion, IQueryable<FilaDocumental> consulta, IQueryable<VinculoDocumental> vinculos,
+        DateOnly hoy, DateOnly limiteRojo, DateOnly limiteAmbar, CancellationToken cancellationToken)
+    {
+        var resumen = new Dictionary<string, ResumenDeGrupo>();
+        Dictionary<Guid, string> nombres;
+        var ninguno = new Dictionary<EstadoEnPlataformaFiltro, int>();
+
+        if (agrupacion == AgrupacionDocumentos.PlataformaCae)
+        {
+            var filas = await (
+                from fila in consulta
+                join vinculo in vinculos on fila.Id equals vinculo.DocumentoId
+                group vinculo by new { vinculo.ProveedorId, vinculo.Estado, vinculo.EstadoVigencia } into grupo
+                select new { grupo.Key.ProveedorId, grupo.Key.Estado, grupo.Key.EstadoVigencia, Filas = grupo.Count() })
+                .ToListAsync(cancellationToken);
+
+            // «Abrir portal» lleva la dirección del canal, como la fila de la pestaña Plataformas CAE, y con su mismo
+            // alcance: Centros que el usuario gestiona (el rol Cliente lee, no opera, y no la recibe).
+            var centrosGestion = await alcanceDatos.ObtenerCentroIdsParaGestionAsync(cancellationToken);
+            var urls = await (
+                from fila in consulta
+                join vinculo in vinculos on fila.Id equals vinculo.DocumentoId
+                where vinculo.UrlAcceso != null && (centrosGestion == null || centrosGestion.Contains(vinculo.CentroId))
+                select new { vinculo.ProveedorId, vinculo.UrlAcceso })
+                .Distinct()
+                .ToListAsync(cancellationToken);
+
+            var proveedorIds = filas.Where(f => f.ProveedorId != null).Select(f => f.ProveedorId!.Value).Distinct().ToList();
+            nombres = await proveedoresContext.ProveedoresPlataformaCae.Where(p => proveedorIds.Contains(p.Id))
+                .ToDictionaryAsync(p => p.Id, p => p.Nombre, cancellationToken);
+
+            foreach (var grupo in filas.Where(f => f.ProveedorId != null).GroupBy(f => f.ProveedorId!.Value))
+            {
+                var enPlataforma = new Dictionary<EstadoEnPlataformaFiltro, int>();
+                void Anotar(EstadoEnPlataformaFiltro estado, int cuantas)
+                {
+                    if (cuantas > 0) enPlataforma[estado] = cuantas;
+                }
+                Anotar(EstadoEnPlataformaFiltro.PendienteDeSubir,
+                    grupo.Where(f => f.Estado == EstadoAcreditacion.PendienteDeSubir).Sum(f => f.Filas));
+                Anotar(EstadoEnPlataformaFiltro.Rechazado,
+                    grupo.Where(f => f.Estado == EstadoAcreditacion.Rechazada).Sum(f => f.Filas));
+                Anotar(EstadoEnPlataformaFiltro.SinVigencia,
+                    grupo.Where(f => f.Estado == EstadoAcreditacion.Aceptada && f.EstadoVigencia == EstadoVigenciaEnPlataforma.SinConfirmar)
+                        .Sum(f => f.Filas));
+                // Orden ordinal antes de quitar duplicados: entre dos grafías de la misma dirección gana siempre la misma,
+                // sin depender del orden en que la base de datos devuelva el DISTINCT.
+                var urlsDelGrupo = urls.Where(u => u.ProveedorId == grupo.Key)
+                    .Select(u => u.UrlAcceso!.Trim()).Where(u => u.Length > 0)
+                    .OrderBy(u => u, StringComparer.Ordinal)
+                    .Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+                resumen[grupo.Key.ToString()] = new ResumenDeGrupoDocumental(
+                    grupo.Sum(f => f.Filas), new Dictionary<string, int>(), nombres.GetValueOrDefault(grupo.Key, "Plataforma"),
+                    enPlataforma, urlsDelGrupo.Count == 1 ? urlsDelGrupo[0] : null);
+            }
+        }
+        else
+        {
+            // Un Documento cuenta una vez por Cliente empresarial aunque esté acreditado en varios Centros suyos.
+            var filas = await (
+                from fila in consulta
+                join vinculo in vinculos on fila.Id equals vinculo.DocumentoId
+                select new
+                {
+                    vinculo.ClienteId,
+                    fila.Id,
+                    ClaveEstado = fila.EstadoVigencia == EstadoVigenciaDocumento.NoCaduca ? 5
+                        : fila.EstadoVigencia == EstadoVigenciaDocumento.SinConfirmar ? 3
+                        : fila.FechaVencimiento < hoy ? 0
+                        : fila.FechaVencimiento <= limiteRojo ? 1
+                        : fila.FechaVencimiento <= limiteAmbar ? 2
+                        : 4
+                })
+                .Distinct()
+                .GroupBy(x => new { x.ClienteId, x.ClaveEstado })
+                .Select(grupo => new { grupo.Key.ClienteId, grupo.Key.ClaveEstado, Total = grupo.Count() })
+                .ToListAsync(cancellationToken);
+
+            var clienteIds = filas.Select(f => f.ClienteId).Distinct().ToList();
+            nombres = await empresasContext.Empresas.Where(e => clienteIds.Contains(e.Id))
+                .ToDictionaryAsync(e => e.Id, e => e.RazonSocial, cancellationToken);
+
+            foreach (var grupo in filas.GroupBy(f => f.ClienteId))
+                resumen[grupo.Key.ToString()] = new ResumenDeGrupoDocumental(
+                    grupo.Sum(f => f.Total),
+                    EstadoDocumentalFiltro.RecuentosPorEstado(grupo.ToDictionary(f => f.ClaveEstado, f => f.Total))
+                        .Where(x => x.Value > 0).ToDictionary(x => x.Key, x => x.Value),
+                    nombres.GetValueOrDefault(grupo.Key, "—"), ninguno);
+        }
+
+        var documentosConVinculo = vinculos.Select(v => v.DocumentoId);
+        var sinVinculo = await consulta.Where(x => !documentosConVinculo.Contains(x.Id)).CountAsync(cancellationToken);
+        if (sinVinculo > 0)
+            resumen[ObtenerDocumentosQuery.GrupoSin] = new ResumenDeGrupoDocumental(
+                sinVinculo, new Dictionary<string, int>(), string.Empty, ninguno);
+
+        return (resumen, nombres);
+    }
+
+    /// <summary>
+    /// Reparte la página en filas de grupo: por Plataforma CAE, una por acreditación (con su estado, su Cliente
+    /// empresarial y el último motivo de rechazo); por Cliente empresarial, una por Cliente empresarial distinto. Sin
+    /// vínculo, una fila en <see cref="ObtenerDocumentosQuery.GrupoSin"/>. Mismos vínculos que los recuentos.
+    /// </summary>
+    private async Task<List<DocumentoListaDto>> RepartirEnGruposAsync(AgrupacionDocumentos agrupacion,
+        List<DocumentoListaDto> elementos, IQueryable<VinculoDocumental> vinculos, Dictionary<Guid, string> nombresDeGrupo,
+        CancellationToken cancellationToken)
+    {
+        if (elementos.Count == 0) return elementos;
+        var documentoIds = elementos.Select(e => e.Id).ToList();
+        var dePagina = await vinculos.Where(v => documentoIds.Contains(v.DocumentoId)).ToListAsync(cancellationToken);
+        var porDocumento = dePagina.ToLookup(v => v.DocumentoId);
+        var filas = new List<DocumentoListaDto>(elementos.Count);
+        var sinVinculo = new GrupoDeFilaDocumentalDto(ObtenerDocumentosQuery.GrupoSin);
+
+        if (agrupacion == AgrupacionDocumentos.ClienteEmpresarial)
+        {
+            foreach (var elemento in elementos)
+            {
+                var clientes = porDocumento[elemento.Id].Select(v => v.ClienteId).Distinct()
+                    .OrderBy(id => nombresDeGrupo.GetValueOrDefault(id, string.Empty)).ThenBy(id => id).ToList();
+                if (clientes.Count == 0) filas.Add(elemento with { Grupo = sinVinculo });
+                else filas.AddRange(clientes.Select(id => elemento with { Grupo = new GrupoDeFilaDocumentalDto(id.ToString()) }));
+            }
+            return filas;
+        }
+
+        // El motivo literal de rechazo, solo en Centros que el usuario gestiona: el rol Cliente ve el estado en la
+        // plataforma de las acreditaciones de sus Centros visibles, pero no el motivo (decisión de Chris del 2026-11-12,
+        // opción B). Es el mismo corte que «Abrir portal» (ObtenerCentroIdsParaGestionAsync: lista vacía para el rol
+        // Cliente, fallo cerrado), y se aplica aquí y no en la vista: el motivo ni se lee ni viaja en el DTO.
+        var centrosGestion = await alcanceDatos.ObtenerCentroIdsParaGestionAsync(cancellationToken);
+        var rechazadas = dePagina
+            .Where(v => v.Estado == EstadoAcreditacion.Rechazada && (centrosGestion == null || centrosGestion.Contains(v.CentroId)))
+            .Select(v => v.AcreditacionId).ToList();
+        var motivos = rechazadas.Count == 0
+            ? new Dictionary<Guid, string>()
+            : await documentosContext.RechazosAcreditacionDocumentoPlataforma
+                .Where(r => rechazadas.Contains(r.AcreditacionId))
+                .OrderByDescending(r => r.FechaUtc)
+                .GroupBy(r => r.AcreditacionId)
+                .Select(g => new { AcreditacionId = g.Key, Motivo = g.First().MotivoLiteral })
+                .ToDictionaryAsync(x => x.AcreditacionId, x => x.Motivo, cancellationToken);
+        var clienteIds = dePagina.Select(v => v.ClienteId).Distinct().ToList();
+        var clientesEmpresariales = await empresasContext.Empresas.Where(e => clienteIds.Contains(e.Id))
+            .ToDictionaryAsync(e => e.Id, e => e.RazonSocial, cancellationToken);
+
+        foreach (var elemento in elementos)
+        {
+            var suyas = porDocumento[elemento.Id]
+                .OrderBy(v => nombresDeGrupo.GetValueOrDefault(v.ProveedorId!.Value, string.Empty))
+                .ThenBy(v => clientesEmpresariales.GetValueOrDefault(v.ClienteId, string.Empty))
+                .ThenBy(v => v.AcreditacionId)
+                .ToList();
+            if (suyas.Count == 0)
+            {
+                filas.Add(elemento with { Grupo = sinVinculo });
+                continue;
+            }
+            filas.AddRange(suyas.Select(v => elemento with
+            {
+                Grupo = new GrupoDeFilaDocumentalDto(v.ProveedorId!.Value.ToString(), new AcreditacionEnGrupoDto(
+                    v.AcreditacionId, v.Estado, v.EstadoVigencia, clientesEmpresariales.GetValueOrDefault(v.ClienteId, "—"),
+                    motivos.GetValueOrDefault(v.AcreditacionId)))
+            }));
+        }
+        return filas;
+    }
+
+    private sealed class VinculoDocumental
+    {
+        public Guid AcreditacionId { get; init; }
+        public Guid DocumentoId { get; init; }
+        public EstadoAcreditacion Estado { get; init; }
+        public EstadoVigenciaEnPlataforma EstadoVigencia { get; init; }
+        public Guid? ProveedorId { get; init; }
+        public Guid CentroId { get; init; }
+        public Guid ClienteId { get; init; }
+        public string? UrlAcceso { get; init; }
+    }
+
     private sealed class FilaDocumental
     {
         public Guid Id { get; init; }
@@ -623,10 +954,15 @@ public class ObtenerDocumentosQueryHandler(IConfiguracionQueryContext configurac
 
         // El LEFT JOIN conserva los canales sin proveedor (p. ej. por correo), que se rotulan «Plataforma».
         // Proyectar el nombre aquí evita una segunda lectura secuencial por página.
+        // Solo las acreditaciones de Centros visibles del usuario (ASVS 4.0.3 V4.2.1), igual que el destino por Centro
+        // (ObtenerDestinosEnCentrosAsync) y el filtro por Plataforma CAE: sin ello la fila revelaría la plataforma y el
+        // estado de acreditación en Centros fuera de su Asignación de Cartera o de su Cliente empresarial.
+        var centrosVisibles = await alcanceDatos.ObtenerCentroIdsVisiblesAsync(cancellationToken);
         var crudas = await (
             from acreditacion in documentosContext.AcreditacionesDocumentoPlataforma
             where documentoIds.Contains(acreditacion.DocumentoId)
             join canal in centrosContext.CanalesGestionDocumental on acreditacion.CanalGestionDocumentalId equals canal.Id
+            where centrosVisibles == null || centrosVisibles.Contains(canal.CentroId)
             join proveedor in proveedoresContext.ProveedoresPlataformaCae
                 on canal.ProveedorPlataformaCaeId equals (Guid?)proveedor.Id into proveedores
             from proveedor in proveedores.DefaultIfEmpty()

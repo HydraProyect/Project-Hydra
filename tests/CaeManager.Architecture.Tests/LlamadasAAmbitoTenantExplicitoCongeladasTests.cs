@@ -410,7 +410,9 @@ public class LlamadasAAmbitoTenantExplicitoCongeladasTests
         ["src/CaeManager.Infrastructure/Integraciones/RedaccionPayloadWebhookHostedService.cs"] =
             new(Categoria.JobDeFondoSobreEnumeracionPropia, "tenantId del EventoWebhook que procesa"),
         ["src/CaeManager.Infrastructure/Integraciones/RenovacionSuscripcionWebhookHostedService.cs"] =
-            new(Categoria.JobDeFondoSobreEnumeracionPropia, "tenantId del EventoWebhook que procesa"),
+            new(Categoria.JobDeFondoSobreEnumeracionPropia, "3 llamadas — tenantId del bucle que recorre los Tenants desde el propio servicio: en los activos, una para completar la identidad de los buzones antiguos, en su propio ámbito, y otra para renovar sus suscripciones; en los no activos, una para el barrido de la guarda transitoria de buzones compartidos, sin verificar ni renovar (2026-11-09)"),
+        ["src/CaeManager.Infrastructure/Integraciones/ReintentoVerificacionIdentidadBuzonHostedService.cs"] =
+            new(Categoria.JobDeFondoSobreEnumeracionPropia, "tenantId del bucle que recorre los Tenants activos desde el propio servicio, un CreateScope por Tenant propietario, mismo patrón que RenovacionSuscripcionWebhookHostedService (2026-11-09: reintento acotado de la verificación de identidad de los buzones de Microsoft 365, para que un fallo transitorio no bloquee la conexión hasta el ciclo diario siguiente)"),
         ["src/CaeManager.Infrastructure/Retencion/RetencionHostedService.cs"] =
             new(Categoria.JobDeFondoSobreEnumeracionPropia, "3 llamadas — tenantId del bucle que recorre todos los tenants activos desde el propio servicio (HO-084-01, REC-084)"),
         ["src/CaeManager.Infrastructure/VigilanciaNormativa/VigilanciaNormativaBoeHostedService.cs"] =
@@ -605,6 +607,9 @@ public class LlamadasAAmbitoTenantExplicitoCongeladasTests
             ["src/CaeManager.Infrastructure/Integraciones/IngestaWebhookHostedService.cs"] = 4,
             ["src/CaeManager.Infrastructure/Integraciones/IngestaWebhookWhatsAppHostedService.cs"] = 4,
             ["src/CaeManager.Infrastructure/Retencion/RetencionHostedService.cs"] = 3,
+            // Las tres con el Tenant del bucle: completar la identidad de los buzones antiguos y renovar sus suscripciones
+            // (Tenants activos), y el barrido de la guarda transitoria (Tenants no activos).
+            ["src/CaeManager.Infrastructure/Integraciones/RenovacionSuscripcionWebhookHostedService.cs"] = 3,
             // Las tres con el Tenant de origen de quien pide: rol efectivo, lectura y escritura de sus tarifas.
             ["src/CaeManager.Application/Dashboard/TarifasOperadorCae/TarifasOperadorCae.cs"] = 3,
             // Una por Tenant beneficiario (fan-out) y otra con el Tenant de origen del Operador CAE que pasó la guarda.

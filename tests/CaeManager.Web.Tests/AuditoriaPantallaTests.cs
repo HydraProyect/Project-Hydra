@@ -204,9 +204,9 @@ public class AuditoriaPantallaTests : BunitContext
 
         _mediador.Consultas[^1].DesdeUtc.Should().Be(DesdeUtcPorDefecto);
         _mediador.Consultas[^1].HastaUtc.Should().BeNull("«Hasta» vacío es «hasta ahora»: lo de hoy nunca queda fuera");
-        var campos = cut.FindAll("input[type=date]");
+        var campos = cut.FindAll("input[data-campo-fecha]");
         campos.Should().HaveCount(2);
-        campos[0].GetAttribute("value").Should().Be(DesdeTextoPorDefecto);
+        campos[0].GetAttribute("value").Should().Be(DiaDeNegocio.Hoy().AddDays(-90).ToString("dd/MM/yyyy", System.Globalization.CultureInfo.InvariantCulture));
         campos[1].GetAttribute("value").Should().BeNullOrEmpty();
         DesdeTextoPorDefecto.Should().Be(DiaDeNegocio.Hoy().AddDays(-90).ToString("yyyy-MM-dd"));
     }
@@ -218,7 +218,7 @@ public class AuditoriaPantallaTests : BunitContext
     /// continuación por el pool de hilos, y con el pool saturado en CI no la cubría (#1949, #2029).
     /// </summary>
     private static Task CambiarFechaAsync(IRenderedComponent<Features.Auditoria.Pages.Auditoria> cut, int campo, string valor) =>
-        cut.FindAll("input[type=date]")[campo].InputAsync(new ChangeEventArgs { Value = valor });
+        cut.FindAll("input[data-campo-fecha]")[campo].InputAsync(new ChangeEventArgs { Value = valor });
 
     [Fact]
     public async Task Cambiar_las_fechas_recarga_desde_la_pagina_1_y_el_enlace_de_exportar_las_lleva()
@@ -233,6 +233,28 @@ public class AuditoriaPantallaTests : BunitContext
         _mediador.Consultas[^1].Pagina.Should().Be(1);
         cut.Find("a.enlace-exportar").GetAttribute("href")
             .Should().Be("/auditoria/exportar.xlsx?desde=2026-01-15&hasta=2026-02-20");
+    }
+
+    // Lo que no es una fecha entera llega a la página como «» (nunca «1/2/26» leído como 01/02/2026), y salir otra vez del
+    // campo con el mismo texto no vuelve a recargar la lista.
+    [Theory]
+    [InlineData("1/2/26")]
+    [InlineData("31/02/2026")]
+    public async Task Una_fecha_no_valida_consulta_sin_esa_cota_y_salir_otra_vez_no_recarga(string tecleado)
+    {
+        var cut = Renderizar();
+        var campo = () => cut.FindAll("input[data-campo-fecha]")[0];
+
+        await campo().InputAsync(new ChangeEventArgs { Value = tecleado });
+        await campo().BlurAsync(new FocusEventArgs());
+        var consultas = _mediador.Consultas.Count;
+        _mediador.Consultas[^1].DesdeUtc.Should().BeNull("el campo entrega «»: «Desde» queda sin cota");
+        cut.Find(".campo-mensaje-error").TextContent.Should().Contain("dd/mm/aaaa");
+
+        await campo().BlurAsync(new FocusEventArgs());
+        await campo().BlurAsync(new FocusEventArgs());
+
+        _mediador.Consultas.Should().HaveCount(consultas, "el valor no cambió: no hay nada que recargar");
     }
 
     [Fact]
