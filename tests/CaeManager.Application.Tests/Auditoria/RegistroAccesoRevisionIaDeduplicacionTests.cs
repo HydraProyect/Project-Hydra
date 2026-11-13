@@ -83,14 +83,15 @@ public class RegistroAccesoRevisionIaDeduplicacionTests
         "TipoAcceso" => Fila(tipo: TipoAccesoDocumentoSensible.Apertura),
         "Usuario" => Fila(usuarioId: OtroId),
         "ActorReal" => Fila(actorRealId: OtroId),
-        "Via" => Fila(via: TipoViaAcceso.Normal, sinViaAccesoId: true),
+        // El mismo Id de vía con otro tipo de vía: aísla la columna ViaAcceso (con la vía normal cambiarían las dos).
+        "Via" => Fila(via: TipoViaAcceso.SesionPrivilegiada),
         "ViaAccesoId" => Fila(viaAccesoId: OtroId),
         _ => throw new ArgumentOutOfRangeException(nameof(dimension), dimension, null),
     };
 
     /// <summary>
     /// Otro Documento de la misma persona; una Apertura previa («Descargar»); otro Usuario con el mismo Actor real
-    /// (impersonación); otro Actor real con el mismo Usuario; la misma persona por la vía normal; la misma vía con otra
+    /// (impersonación); otro Actor real con el mismo Usuario; el mismo Id de vía con otro tipo de vía; la misma vía con otra
     /// Asignación de Operación. Ninguna es la fila de este acceso.
     /// </summary>
     [Theory]
