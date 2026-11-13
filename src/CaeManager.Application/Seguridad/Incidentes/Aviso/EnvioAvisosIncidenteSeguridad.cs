@@ -199,8 +199,9 @@ internal static class EnvioAvisosIncidenteSeguridad
             {
                 // Una excepción del correo (p. ej. una dirección que no se puede analizar) es un fallo de ese
                 // destinatario, no de los demás.
-                logger.LogError(ex, "El correo del aviso {Plantilla} del incidente {IncidenteId} lanzó una excepción hacia un destinatario del Tenant {TenantId}.",
-                    plantilla, incidente.Id, tenantId);
+                // ASVS 4.0.3 V7.1.1: solo el tipo de la excepción; su mensaje (o el de su causa) puede citar la dirección.
+                logger.LogError("El correo del aviso {Plantilla} del incidente {IncidenteId} lanzó una excepción ({TipoExcepcion}) hacia un destinatario del Tenant {TenantId}.",
+                    plantilla, incidente.Id, ex.GetType().Name, tenantId);
                 resultado = Result.Fallo(ErrorCorreoExcepcion);
             }
 
@@ -215,8 +216,9 @@ internal static class EnvioAvisosIncidenteSeguridad
             }
             catch (Exception ex) when (ex is not OperationCanceledException)
             {
-                logger.LogError(ex, "No se pudo anotar el envío {EnvioId} del aviso del incidente {IncidenteId}; queda Enviando y se podrá reclamar pasados 10 minutos.",
-                    envio.EnvioId, incidente.Id);
+                // ASVS 4.0.3 V7.1.1: solo el tipo; una excepción de datos puede citar valores de la fila del envío.
+                logger.LogError("No se pudo anotar el envío {EnvioId} del aviso del incidente {IncidenteId} ({TipoExcepcion}); queda Enviando y se podrá reclamar pasados 10 minutos.",
+                    envio.EnvioId, incidente.Id, ex.GetType().Name);
             }
 
             if (resultado.EsExitoso)

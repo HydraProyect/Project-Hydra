@@ -328,7 +328,9 @@ public partial class Roles : CaeManager.Web.Components.PaginaIntegrableConfigura
         }
         catch (Exception ex)
         {
-            Logger.LogWarning(ex, "No se pudo enviar el correo de confirmación de rol a {UsuarioId}.", usuarioId);
+            // ASVS 4.0.3 V7.1.1: solo el tipo de la excepción; su mensaje (o el de su causa) puede citar la dirección.
+            Logger.LogWarning("No se pudo enviar el correo de confirmación de rol a {UsuarioId} ({TipoExcepcion}).",
+                usuarioId, ex.GetType().Name);
             AvisarCorreoNoEnviado(nombreCompleto, email);
         }
     }

@@ -13,6 +13,7 @@ using GestionCuentasUsuarioIdentity = CaeManager.Infrastructure.Identity.Gestion
 using CaeManager.Infrastructure.Persistence;
 using CaeManager.Web.Components.DesignSystem;
 using CaeManager.Web.Features.GestionRoles.Pages;
+using CaeManager.Web.Tests.Email;
 using FluentAssertions;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Web;
@@ -20,6 +21,7 @@ using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 using ApplicationUser = CaeManager.Infrastructure.Identity.ApplicationUser;
 using RolesIdentidad = CaeManager.Infrastructure.Identity.Roles;
 
@@ -111,6 +113,7 @@ public class RolesGen2Tests : BunitContext
     }
     private readonly CorreoFalso _correo = new();
     private readonly UserManagerFalso _usuarios = new();
+    private readonly RegistroQueCapturaTodo<Roles> _registro = new();
 
     // ---------------------------------------------------------------- dobles
 
@@ -298,6 +301,7 @@ public class RolesGen2Tests : BunitContext
         Services.AddSingleton(_fuente);
         Services.AddSingleton(_toasts);
         Services.AddSingleton<IEmailService>(_correo);
+        Services.AddSingleton<ILogger<Roles>>(_registro);
         Services.AddLocalization();
         Services.AddSingleton<IMediator>(_mediador);
         Services.AddSingleton<UserManager<ApplicationUser>>(_usuarios);
@@ -771,6 +775,29 @@ public class RolesGen2Tests : BunitContext
         _toasts.Mensajes.Should().ContainSingle(m => m.Tono == TonoToast.Advertencia && m.Mensaje.Contains("aitor.zabala@talveg.es"),
             "quien asigna tiene que saber que la persona no recibió el aviso");
         cut.Markup.Should().Contain("No hay nadie pendiente");
+    }
+
+    /// <summary>
+    /// ASVS 4.0.3 V7.1.1: la excepción del servicio de correo cita la dirección en su mensaje (y en el de su
+    /// causa); al registro solo va el tipo y el identificador de la cuenta. La advertencia a quien asigna, que
+    /// sí lleva la dirección, es del propio Tenant y no va al registro.
+    /// </summary>
+    [Fact]
+    public async Task Si_el_correo_de_bienvenida_lanza_el_registro_no_lleva_la_direccion_ni_el_mensaje_ni_la_excepcion()
+    {
+        SembrarCuenta(Aitor);
+        _fuente.Pendientes = llamada => llamada == 1 ? [Aitor] : [];
+        _correo.Lanza = new HttpRequestException(
+            $"Microsoft Graph rechazó el envío a {Aitor.Email}",
+            new TimeoutException($"Sin respuesta de {Aitor.Email}"));
+        var cut = await AbrirPendientesAsync();
+
+        await BotonAsignar(cut, "Aitor Zabala").ClickAsync(new MouseEventArgs());
+        await BotonDelDialogo(cut, "Asignar rol").ClickAsync(new MouseEventArgs());
+
+        _registro.DebeEstarLimpioDeDatosPersonales(Aitor.Email, "Microsoft Graph rechazó", "Sin respuesta");
+        _registro.Entradas.Should().ContainSingle(e => e.Nivel == LogLevel.Warning).Which.Contenido
+            .Should().Contain(nameof(HttpRequestException)).And.Contain(AitorId.ToString());
     }
 
     [Fact]

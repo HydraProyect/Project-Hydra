@@ -86,7 +86,10 @@ public class VigilanciaVisitasUrgentesHostedService(
         }
         catch (Exception ex)
         {
-            logger.LogError(ex, "Falló un ciclo de vigilancia de gestiones urgentes de visita.");
+            // ASVS 4.0.3 V7.1.1: sin la excepción entera (su mensaje y el de su causa pueden citar datos
+            // personales); se registra solo el tipo.
+            logger.LogError("Falló un ciclo de vigilancia de gestiones urgentes de visita ({TipoExcepcion}).",
+                ex.GetType().Name);
         }
     }
 
@@ -124,9 +127,10 @@ public class VigilanciaVisitasUrgentesHostedService(
             }
             catch (Exception ex)
             {
-                logger.LogError(ex,
-                    "Falló la vigilancia de gestiones urgentes de visita del tenant {TenantId}; se continúa con el resto de tenants en este ciclo.",
-                    tenantId);
+                // ASVS 4.0.3 V7.1.1: solo el tipo de la excepción, sin mensaje ni traza.
+                logger.LogError(
+                    "Falló la vigilancia de gestiones urgentes de visita del tenant {TenantId} ({TipoExcepcion}); se continúa con el resto de tenants en este ciclo.",
+                    tenantId, ex.GetType().Name);
             }
         }
     }
@@ -155,7 +159,10 @@ public class VigilanciaVisitasUrgentesHostedService(
         catch (Exception ex)
         {
             // No se relanza: el fallo queda registrado y este Tenant ya ha terminado su ciclo.
-            logger.LogError(ex, "Falló la vigilancia de gestiones urgentes de visita del tenant {TenantId}.", tenantId);
+            // ASVS 4.0.3 V7.1.1: al registro de la aplicación solo el tipo de la excepción. El mensaje
+            // completo sí se conserva en el estado de la automatización (BD, visible al propio Tenant).
+            logger.LogError("Falló la vigilancia de gestiones urgentes de visita del tenant {TenantId} ({TipoExcepcion}).",
+                tenantId, ex.GetType().Name);
             await RegistrarFalloAsync(ex.Message, stoppingToken);
         }
     }
