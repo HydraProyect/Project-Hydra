@@ -53,6 +53,9 @@ public partial class RevisionIaTab : ComponentBase, IDisposable
     private Guid? _procesandoId;
     private Guid? _revisionIdSeleccionada;
 
+    /// <summary>La revisión cuyo documento se ha pedido ver (iframe cargado); <c>null</c> en reposo. Volver al reposo al cambiar de selección.</summary>
+    private Guid? _revisionDocumentoAbierta;
+
     /// <summary>Con el avance automático apagado, al terminar una revisión no se elige otra: el Gestor CAE escoge la siguiente.</summary>
     private bool _sinSeleccion;
 
@@ -97,8 +100,27 @@ public partial class RevisionIaTab : ComponentBase, IDisposable
     // «Confirmar todos» es una acción de la cola entera, no de la lista que deja ver el filtro: con «Manual» o «Sin fecha»
     // activos (donde por definición no hay confirmables a la vista) el botón sigue ahí con el recuento de la cola, y el
     // diálogo dice cuántas se aceptan. Con más de MaximoRevisionesPorBloque, el rótulo dice «las primeras N de M».
-    private IEnumerable<RevisionIaDocumentoDto> TodasLasConfirmables => _revisiones
-        .Where(r => EsAceptableEnBloque(r) && r.ConfianzaGeneral >= UmbralLote);
+    private IEnumerable<RevisionIaDocumentoDto> TodasLasConfirmables => _revisiones.Where(EsConfirmable);
+
+    /// <summary>
+    /// El texto del diálogo de «Confirmar todos»: cuántas lecturas se aceptan de cuántas (con recorte, «las primeras N de M»)
+    /// y, si el filtro oculta alguna de ellas, que entran igual porque el botón actúa sobre toda la cola.
+    /// </summary>
+    private string MensajeConfirmacionLote
+    {
+        get
+        {
+            var enBloque = ConfirmablesEnBloque.Count;
+            var total = TodasLasConfirmables.Count();
+            var mensaje = total > enBloque
+                ? Textos["RevIaDialogoMensajePrimeras", enBloque, UmbralLote, total].Value
+                : Textos["RevIaDialogoMensaje", enBloque, UmbralLote, _revisiones.Count].Value;
+            var ocultas = TodasLasConfirmables.Count(r => !CumpleFiltro(r));
+            return ocultas > 0
+                ? $"{mensaje} {string.Format(Textos["RevIaDialogoFiltroOculta"].Value, ocultas)}"
+                : mensaje;
+        }
+    }
 
     private IReadOnlyList<RevisionIaDocumentoDto> ConfirmablesEnBloque => TodasLasConfirmables
         .Take(AceptarDeteccionesIaEnBloqueCommandHandler.MaximoRevisionesPorBloque)
@@ -261,6 +283,7 @@ public partial class RevisionIaTab : ComponentBase, IDisposable
             else if (_sinSeleccion && !RevisionesVisibles.Any(r => r.Id == _revisionIdSeleccionada))
             {
                 _revisionIdSeleccionada = null;
+                _revisionDocumentoAbierta = null;
             }
             else
             {
@@ -544,14 +567,15 @@ public partial class RevisionIaTab : ComponentBase, IDisposable
     private void SeleccionarDesdeDesplegable(Guid revisionId)
     {
         _desplegableAbierto = false;
+        _devolverFoco = true;
 
-        // Como ‹ ›, j/k y los filtros: con un Command en vuelo no se cambia de revisión.
+        // Como ‹ ›, j/k y los filtros: con un Command en vuelo no se cambia de revisión. El desplegable se cierra igual, así
+        // que el foco vuelve al disparador también aquí.
         if (_operacionEnCurso)
         {
             return;
         }
 
-        _devolverFoco = true;
         SeleccionarRevision(revisionId);
     }
 
@@ -579,8 +603,25 @@ public partial class RevisionIaTab : ComponentBase, IDisposable
         ReiniciarOperacionPorCambioDeEntidad();
     }
 
+    /// <summary>
+    /// «Ver documento»: carga el iframe de ESTA revisión. Cada GET de /documentos/{id}/archivo registra una Apertura, así que
+    /// no se hace al seleccionar sino por petición explícita.
+    /// </summary>
+    private void AbrirDocumento(Guid revisionId)
+    {
+        if (_revisionIdSeleccionada == revisionId)
+        {
+            _revisionDocumentoAbierta = revisionId;
+        }
+    }
+
+    /// <summary>El documento está cargado solo si el visor abierto es el de la revisión que ahora está seleccionada.</summary>
+    private bool DocumentoAbiertoDeLaSeleccionada =>
+        _revisionDocumentoAbierta is { } abierta && abierta == _revisionIdSeleccionada;
+
     private void ReiniciarOperacionPorCambioDeEntidad()
     {
+        _revisionDocumentoAbierta = null;
         _generacionEntidad++;
         _confirmacionDescartarVisible = false;
         _correccionManualVisible = false;
@@ -672,18 +713,24 @@ public partial class RevisionIaTab : ComponentBase, IDisposable
 
     private static bool CumpleFiltro(RevisionIaDocumentoDto revision, FiltroRevision filtro) => filtro switch
     {
-        FiltroRevision.Confirmables => EsAceptableEnBloque(revision),
-        FiltroRevision.Manual => revision.FechaEmisionDetectada is not null && !EsAceptableEnBloque(revision),
+        FiltroRevision.Confirmables => EsConfirmable(revision),
+        FiltroRevision.Manual => revision.FechaEmisionDetectada is not null && !EsConfirmable(revision),
         FiltroRevision.SinFecha => revision.FechaEmisionDetectada is null,
         _ => true
     };
 
     // Aceptable en bloque = hay fecha de emisión leída, el tipo calcula el vencimiento desde ella y no hay alerta
-    // determinista ni lectura parcial. La confianza no decide esto, solo la entrada en «Confirmar todos los ≥95 %»; la
-    // vigencia que confirma el Gestor CAE a mano y las alertas se aceptan de una en una, con el motivo a la vista. El
-    // servidor lo impone igual (AplicarDeteccionIaDocumentoCommand): este predicado solo evita ofrecer lo que rechazaría.
+    // determinista ni lectura parcial: lo único que el servidor deja aceptar sin que nadie vea la lectura. La vigencia que
+    // confirma el Gestor CAE a mano y las alertas se aceptan de una en una, con el motivo a la vista. El servidor lo impone
+    // igual (AplicarDeteccionIaDocumentoCommand): este predicado solo evita ofrecer lo que rechazaría.
     private static bool EsAceptableEnBloque(RevisionIaDocumentoDto revision) =>
         revision.FechaEmisionDetectada is not null && revision.VigenciaLaFijaElTipo && !revision.TieneAlertaDeterminista;
+
+    // Confirmable = aceptable en bloque Y con la confianza del umbral (UmbralLote, «≥95 %»). Es el único criterio de «Confirmar
+    // todos», del filtro «Confirmables» y de la etiqueta «Confirmable», para que el recuento del filtro y el del botón coincidan
+    // (artboard «Revision-ia»). Una lectura con fecha y 58 % no es confirmable: va a «Manual», con su motivo a la vista.
+    private static bool EsConfirmable(RevisionIaDocumentoDto revision) =>
+        EsAceptableEnBloque(revision) && revision.ConfianzaGeneral >= UmbralLote;
 
     private string TextoFiltro(FiltroRevision f) => f switch
     {
@@ -697,7 +744,7 @@ public partial class RevisionIaTab : ComponentBase, IDisposable
 
     private string EtiquetaTratamiento(RevisionIaDocumentoDto r) => r.TieneAlertaDeterminista
         ? Textos["RevIaConAlerta"]
-        : EsAceptableEnBloque(r)
+        : EsConfirmable(r)
             ? Textos["RevIaConfirmable"]
             : r.FechaEmisionDetectada is null ? Textos["RevIaSinFechaDetectada"] : Textos["RevIaRevisionManual"];
 

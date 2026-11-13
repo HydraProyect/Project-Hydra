@@ -11,7 +11,7 @@
 
 @*
     Revisión IA (decisión D-49, artboard «Revision-ia» del lienzo «Documentos · listado sin pestañas»): pantalla propia. El
-    documento ocupa la parte izquierda y la revisión va en un lateral fijo —desplegable de pendientes con «1 de N ‹ ›»,
+    documento ocupa la parte izquierda (en reposo hasta «Ver documento», ver el iframe más abajo) y la revisión va en un lateral fijo —desplegable de pendientes con «1 de N ‹ ›»,
     motivo, campos en lista corta y las tres decisiones—. El nombre RevisionIaTab es de cuando era una pestaña de
     Documentos; la PR que retire la barra de pestañas puede renombrarlo.
 *@
@@ -103,11 +103,25 @@
                                 <Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno" Href="@($"/documentos/{actual.DocumentoId}/archivo")" download target="_blank" rel="noopener">@Textos["RevIaDescargar"]</Boton>
                             </span>
                         </div>
-                        <iframe
-                            class="previsualizacion-documento"
-                            src="@($"/documentos/{actual.DocumentoId}/archivo")"
-                            title="@string.Format(Textos["RevIaDocumentoAria"].Value, actual.PropietarioNombre, actual.TipoDocumentoNombre)">
-                        </iframe>
+                        @* Carga explícita (decisión de auditoría, se desvía de D-49): /documentos/{id}/archivo registra una «Apertura»
+                           de Documento sensible en cada GET, así que seleccionar una revisión no lo pide. Solo «Ver documento»
+                           lo carga, y el @key con el Id de la revisión impide que se vea el documento de otra. *@
+                        @if (DocumentoAbiertoDeLaSeleccionada)
+                        {
+                            <iframe
+                                @key="actual.Id"
+                                class="previsualizacion-documento"
+                                src="@($"/documentos/{actual.DocumentoId}/archivo")"
+                                title="@string.Format(Textos["RevIaDocumentoAria"].Value, actual.PropietarioNombre, actual.TipoDocumentoNombre)">
+                            </iframe>
+                        }
+                        else
+                        {
+                            <div class="revision-ia-pdf-reposo" @key="actual.Id">
+                                <p>@Textos["RevIaDocumentoReposo"]</p>
+                                <Boton Variante="VarianteBoton.Secundario" OnClick="() => AbrirDocumento(actual.Id)">@Textos["RevIaVerDocumento"]</Boton>
+                            </div>
+                        }
                     }
                     else
                     {
@@ -297,7 +311,7 @@
     Visible="_confirmacionLoteVisible"
     VisibleChanged="v => _confirmacionLoteVisible = v"
     Titulo="@Textos["RevIaDialogoTitulo"]"
-    Mensaje="@Textos["RevIaDialogoMensaje", ConfirmablesEnBloque.Count, UmbralLote]"
+    Mensaje="@MensajeConfirmacionLote"
     TextoBotonConfirmar="@Textos["RevIaDialogoConfirmar"]"
     EnProgreso="_confirmandoLote"
     OnConfirmar="AceptarConfirmablesAsync" />

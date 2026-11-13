@@ -425,7 +425,7 @@ public partial class RevisionIaGen2Tests
     public async Task Con_un_filtro_activo_el_avance_sigue_la_lista_filtrada_y_no_la_cola()
     {
         var manual1 = Revision("Manual1", 50, Vence, vigenciaLaFijaElTipo: false);
-        var normal1 = Revision("Normal1", 60, Vence);
+        var normal1 = Revision("Normal1", 97, Vence); // confirmable de verdad (umbral ≥95 %): fuera del filtro Manual
         var manual2 = Revision("Manual2", 70, Vence, vigenciaLaFijaElTipo: false);
         var mediador = new MediadorFalso { Revisiones = [manual1, normal1, manual2] };
         mediador.AlAplicar = c =>
