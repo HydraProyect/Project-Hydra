@@ -1655,6 +1655,79 @@ public class AccesoCuentaEscenaTests : BunitContext
     }
 
     /// <summary>
+    /// ASVS 4.0.3 V7.1.1: si el envío del aviso de inicio de sesión inusual a la persona devuelve un
+    /// <see cref="Result"/> fallido cuyo mensaje cita una dirección, el registro lleva el id de la cuenta y nada
+    /// del mensaje ni de la dirección. Recorre el servicio real y captura todas las entradas de cualquier nivel.
+    /// </summary>
+    [Fact]
+    public async Task Aviso_de_inicio_inusual_si_el_envio_a_la_persona_devuelve_un_fallo_el_registro_no_lleva_su_mensaje_ni_la_direccion()
+    {
+        const string Fuga = "fuga@ejemplo.test";
+        const string MensajeDelError = $"El SMTP rechazó el buzón {Fuga}: 550 usuario desconocido";
+        var registro = new RegistroQueCapturaTodo<VigilanciaInicioSesionService>();
+        var escena = new EscenaNoHeSidoYo(this, registroCompleto: registro);
+        escena.Correos.FallaPara = escena.Usuario.Email;
+        escena.Correos.MensajeDelFallo = MensajeDelError;
+
+        await escena.AvisarInicioInusualAsync();
+
+        registro.Entradas.Should().ContainSingle(
+            e => e.Nivel == LogLevel.Warning && e.Contenido.Contains("aviso de inicio de sesión inusual")
+                && e.Contenido.Contains(escena.Usuario.Id.ToString()),
+            "el envío fallido deja su aviso con el id de la cuenta");
+        registro.DebeEstarLimpioDeDatosPersonales(
+            Fuga, Fuga.ToUpperInvariant(), "fuga", MensajeDelError, "El SMTP rechazó", "usuario desconocido",
+            escena.Usuario.Email!, "marta@");
+    }
+
+    /// <summary>
+    /// ASVS 4.0.3 V7.1.1: igual para el aviso de seguridad al Administrador del Tenant: un <see cref="Result"/>
+    /// fallido con una dirección en el mensaje no llega al registro, que lleva solo el id del Administrador.
+    /// </summary>
+    [Fact]
+    public async Task Aviso_al_Administrador_si_el_envio_devuelve_un_fallo_el_registro_no_lleva_su_mensaje_ni_la_direccion()
+    {
+        const string Fuga = "fuga@ejemplo.test";
+        const string MensajeDelError = $"El SMTP rechazó el buzón {Fuga}: 550 usuario desconocido";
+        var registro = new RegistroQueCapturaTodo<VigilanciaInicioSesionService>();
+        var escena = new EscenaNoHeSidoYo(this, registroCompleto: registro);
+        escena.Correos.FallaPara = EscenaNoHeSidoYo.CorreoAdministrador;
+        escena.Correos.MensajeDelFallo = MensajeDelError;
+
+        await escena.AvisarInicioInusualAsync();
+
+        registro.Entradas.Should().ContainSingle(
+            e => e.Nivel == LogLevel.Warning && e.Contenido.Contains("aviso de seguridad al Administrador")
+                && e.Contenido.Contains(EscenaNoHeSidoYo.Administrador.ToString()),
+            "el envío fallido deja su aviso con el id del Administrador");
+        registro.DebeEstarLimpioDeDatosPersonales(
+            Fuga, Fuga.ToUpperInvariant(), "fuga", MensajeDelError, "El SMTP rechazó", "usuario desconocido",
+            EscenaNoHeSidoYo.CorreoAdministrador, "administrador@", escena.Usuario.Email!, "marta@");
+    }
+
+    /// <summary>
+    /// ASVS 4.0.3 V7.1.1: si el servicio de correo lanza al avisar al Administrador durante el registro de un
+    /// inicio de sesión inusual, la excepción llega al <c>catch</c> exterior de <c>RegistrarAsync</c>: el registro
+    /// lleva el id de la cuenta y el tipo de la excepción, ni la dirección ni la excepción entera.
+    /// </summary>
+    [Fact]
+    public async Task Aviso_de_inicio_inusual_si_el_servicio_de_correo_lanza_el_registro_no_lleva_direcciones_ni_la_excepcion()
+    {
+        var registro = new RegistroQueCapturaTodo<VigilanciaInicioSesionService>();
+        var escena = new EscenaNoHeSidoYo(this, registroCompleto: registro);
+        escena.Correos.LanzaPara = EscenaNoHeSidoYo.CorreoAdministrador;
+
+        await escena.AvisarInicioInusualAsync();
+
+        registro.Entradas.Should().ContainSingle(
+            e => e.Nivel == LogLevel.Error && e.Contenido.Contains("No se pudo registrar el inicio de sesión")
+                && e.Contenido.Contains(escena.Usuario.Id.ToString()) && e.Contenido.Contains(nameof(InvalidOperationException)),
+            "el fallo deja su entrada con el id de la cuenta y el tipo de la excepción");
+        registro.DebeEstarLimpioDeDatosPersonales(
+            EscenaNoHeSidoYo.CorreoAdministrador, "administrador@", escena.Usuario.Email!, "marta@", "550 el buzón", "no existe");
+    }
+
+    /// <summary>
     /// ASVS 4.0.3 V7.1.1: si el aviso al Administrador lanza (el servicio de correo cita su dirección en el
     /// mensaje), el registro lleva el id de la cuenta y el tipo de la excepción, ni la dirección de nadie ni la
     /// excepción entera. La persona que pulsó «no he sido yo» queda protegida igualmente.

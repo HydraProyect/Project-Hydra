@@ -213,7 +213,10 @@ public sealed class VigilanciaInicioSesionService(
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
-            logger.LogError(ex, "No se pudo registrar el inicio de sesión de la cuenta {UsuarioId}.", usuarioId?.ToString() ?? "desconocida");
+            // ASVS 4.0.3 V7.1.1: solo el tipo de la excepción; este catch recoge también las del servicio de correo
+            // y las de Identity de los avisos, cuyo mensaje (o el de su causa) cita direcciones.
+            logger.LogError("No se pudo registrar el inicio de sesión de la cuenta {UsuarioId} ({TipoExcepcion}).",
+                usuarioId?.ToString() ?? "desconocida", ex.GetType().Name);
         }
     }
 

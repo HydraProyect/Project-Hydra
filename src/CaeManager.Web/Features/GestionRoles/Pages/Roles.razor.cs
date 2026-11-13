@@ -194,7 +194,9 @@ public partial class Roles : CaeManager.Web.Components.PaginaIntegrableConfigura
         {
             if (version != _versionCarga) return;
 
-            Logger.LogError(ex, "No se pudieron cargar los roles ni las cuentas pendientes de rol.");
+            // ASVS 4.0.3 V7.1.1: solo el tipo de la excepción; su mensaje (o el de su causa) puede citar
+            // el nombre o el correo de una cuenta que la carga estaba leyendo.
+            Logger.LogError("No se pudieron cargar los roles ni las cuentas pendientes de rol ({TipoExcepcion}).", ex.GetType().Name);
             _error = true;
         }
         finally
@@ -291,7 +293,9 @@ public partial class Roles : CaeManager.Web.Components.PaginaIntegrableConfigura
             // Una excepción sin capturar en un manejador de Blazor Server tumba
             // el circuito entero. Aquí no se sabe si el rol llegó a guardarse,
             // así que se avisa y se recarga: la lista dirá la verdad.
-            Logger.LogError(ex, "No se pudo asignar el rol {Rol} a {UsuarioId}.", rol, pendiente.Id);
+            // ASVS 4.0.3 V7.1.1: solo el tipo de la excepción y el id de la cuenta; el mensaje de un error de
+            // Identity o de datos puede citar su correo.
+            Logger.LogError("No se pudo asignar el rol {Rol} a {UsuarioId} ({TipoExcepcion}).", rol, pendiente.Id, ex.GetType().Name);
             ToastService.Mostrar("No pudimos asignar el rol. Revisa la lista e inténtalo de nuevo.", TonoToast.Error);
             await CargarAsync();
         }
