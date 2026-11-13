@@ -39,6 +39,9 @@
   <data name="ColumnaRespuesta" xml:space="preserve">
     <value>Resposta</value>
   </data>
+  <data name="ColumnaAcciones" xml:space="preserve">
+    <value>Accions</value>
+  </data>
   <data name="FilaTituloUno" xml:space="preserve">
     <value>Reclamació de documents · 1 document</value>
   </data>

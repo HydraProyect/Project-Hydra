@@ -605,7 +605,9 @@ public partial class Bandeja : CaeManager.Web.Components.PaginaInteractiva, IAsy
 
         // El Origen que llega por la URL (atrás/adelante, «Ver reclamación» del hilo): si cambia con una conversación abierta, la
         // conversación se abandona porque el historial ocupa su sitio. Un valor que no es «reclamaciones» es «todos los orígenes».
-        var origenUrl = OrigenInicial == OrigenReclamaciones ? OrigenReclamaciones : string.Empty;
+        // Quien no lee el historial (Consulta) tampoco lo fija desde la URL: su Origen queda en «todos» y un enlace como «Ver
+        // reclamación» del hilo no le cierra la conversación abierta.
+        var origenUrl = _puedeLeerReclamaciones && OrigenInicial == OrigenReclamaciones ? OrigenReclamaciones : string.Empty;
         if (origenUrl != _origen)
         {
             _origen = origenUrl;
@@ -945,6 +947,9 @@ public partial class Bandeja : CaeManager.Web.Components.PaginaInteractiva, IAsy
     /// </summary>
     private async Task ManejarAtajoListaAsync(string tecla)
     {
+        // Con el historial de reclamaciones en pantalla la lista de conversaciones no se ve: j/k/Enter no abren nada a ciegas.
+        if (MostrandoHistorial) return;
+
         var filas = ConversacionesVisiblesEnOrden();
         if (filas.Count == 0) return;
 

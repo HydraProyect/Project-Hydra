@@ -300,8 +300,9 @@ public class HistorialReclamacionesEnComunicacionesTests : BunitContext
         var (cut, _, _) = Renderizar(ConHistorial(ReclamacionEnviada("Refrielectric SL")));
 
         cut.Find("[role=table]").GetAttribute("aria-label").Should().Be("Reclamaciones enviadas");
-        cut.FindAll("[role=columnheader]").Select(c => c.TextContent.Trim()).Where(t => t.Length > 0)
-            .Should().Equal("Conversación", "Cliente", "Respuesta");
+        var cabeceras = cut.FindAll("[role=columnheader]");
+        cabeceras.Select(c => c.TextContent.Trim()).Should().Equal("Conversación", "Cliente", "Respuesta", "");
+        cabeceras[3].GetAttribute("aria-label").Should().Be("Acciones", "la columna de acciones tiene nombre accesible");
         cut.Find(".historial-reclamaciones-asunto").TextContent.Should().Be("Reclamación de documentos · 1 documento");
         // La fecha va en hora peninsular (noviembre, UTC+1).
         cut.Find(".historial-reclamaciones-detalle").TextContent.Trim()
@@ -637,7 +638,42 @@ public class HistorialReclamacionesEnComunicacionesTests : BunitContext
             .Where(b => b.GetAttribute("aria-label") is { } nombre && nombre.StartsWith("Origen", StringComparison.Ordinal))
             .Should().BeEmpty();
         cut.FindAll(".historial-reclamaciones").Should().BeEmpty();
+        // Ni la tabla ni el componente: sin su cabecera ni el aviso de «sección no disponible» (ni siquiera se monta).
+        cut.FindAll("[role=table]").Should().BeEmpty();
+        cut.FindAll(".historial-reclamaciones-cab").Should().BeEmpty();
+        cut.Markup.Should().NotContain("Esta sección no está disponible para tu rol");
         mediador.Enviadas.OfType<ObtenerReclamacionesEnviadasQuery>().Should().BeEmpty();
+    }
+
+    [Theory]
+    [MemberData(nameof(RolesQueLeen))]
+    public void Cada_rol_que_lee_reclamaciones_ve_el_filtro_Origen_en_la_bandeja(string rol)
+    {
+        var (cut, _) = RenderizarBandeja(rol: rol);
+
+        PastillaOrigen(cut).Should().NotBeNull();
+    }
+
+    /// <summary>
+    /// Con el historial a la vista la lista de conversaciones no se ve, pero sigue cargada: los atajos j/k/Enter de la lista no pueden
+    /// abrir a ciegas una conversación que nadie está mirando. Control: sin el filtro, el mismo Enter sí la abre.
+    /// </summary>
+    [Theory]
+    [InlineData("comunicaciones?origen=reclamaciones", false)]
+    [InlineData("comunicaciones", true)]
+    public async Task Los_atajos_de_la_lista_no_abren_conversaciones_con_el_historial_a_la_vista(string url, bool seAbre)
+    {
+        var conversacion = Conversacion("Reclamación de documentos");
+        var mediador = ConHistorial();
+        mediador.Conversaciones.Add(conversacion);
+        var (cut, _) = RenderizarBandeja(mediador, url);
+        var atajo = typeof(Bandeja).GetMethod("ManejarAtajoListaAsync", BindingFlags.NonPublic | BindingFlags.Instance)!;
+
+        await cut.InvokeAsync(() => (Task)atajo.Invoke(cut.Instance, ["j"])!);
+        await cut.InvokeAsync(() => (Task)atajo.Invoke(cut.Instance, ["Enter"])!);
+
+        mediador.Enviadas.OfType<ObtenerConversacionPorIdQuery>().Any().Should().Be(seAbre);
+        UrlActual().Contains("conversacion=", StringComparison.Ordinal).Should().Be(seAbre);
     }
 
     [Fact]
