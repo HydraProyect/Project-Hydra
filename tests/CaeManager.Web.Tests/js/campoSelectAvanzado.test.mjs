@@ -64,6 +64,16 @@ test('el foco vuelve al disparador si no hay elemento activo', () => {
     assert.equal(documento.activeElement, disparador);
 });
 
+test('el foco vuelve al disparador si está en el documento raíz o en el propio disparador', () => {
+    for (const activo of ['documentElement', 'disparador']) {
+        const s = escena();
+        s.documento.activeElement = activo === 'documentElement' ? s.documento.documentElement : s.disparador;
+        s.control.devolverFoco(s.disparador);
+        assert.equal(s.disparador.enfoques, 1, activo);
+        assert.equal(s.documento.activeElement, s.disparador, activo);
+    }
+});
+
 test('no quita el foco a otro campo al que ya se fue (#2194)', () => {
     const { documento, disparador, otroCampo, control } = escena();
     documento.activeElement = otroCampo;

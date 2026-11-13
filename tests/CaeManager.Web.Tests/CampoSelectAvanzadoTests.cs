@@ -301,6 +301,59 @@ public class CampoSelectAvanzadoTests : BunitContext
             .Should().Be(enfoquesAntes, "Tab sigue su camino: devolver el foco al disparador lo atraparía");
     }
 
+    // ------------------------------------------------------------ foco devuelto con el módulo JS cargado (#2194)
+
+    /// <summary>El módulo y el control que devuelve crear(), para que el componente siga la ruta del navegador.</summary>
+    private BunitJSModuleInterop ConModulo() =>
+        JSInterop.SetupModule("./js/campo-select-avanzado.js").SetupModule("crear", _ => true);
+
+    [Fact]
+    public async Task Con_el_modulo_elegir_devuelve_el_foco_por_devolverFoco_y_no_a_la_fuerza()
+    {
+        var control = ConModulo();
+        var cut = Renderizar();
+        await Disparador(cut).ClickAsync(new MouseEventArgs());
+        await Teclear(Disparador(cut), "ArrowDown");
+        var enfoquesAntes = JSInterop.Invocations.Count(i => i.Identifier.Contains("focus", StringComparison.OrdinalIgnoreCase));
+
+        await Teclear(Disparador(cut), "Enter");
+
+        _cambios.Should().Equal(["d"]);
+        control.Invocations["devolverFoco"].Should().ContainSingle()
+            .Which.Arguments[0].Should().BeOfType<ElementReference>().Which.Id.Should().Be(Referencia(cut, "_disparador").Id);
+        JSInterop.Invocations.Count(i => i.Identifier.Contains("focus", StringComparison.OrdinalIgnoreCase))
+            .Should().Be(enfoquesAntes, "el módulo decide si el foco vuelve: un FocusAsync además se lo quitaría al campo siguiente");
+    }
+
+    [Fact]
+    public async Task Con_el_modulo_Tab_no_pide_devolver_el_foco()
+    {
+        var control = ConModulo();
+        var cut = Renderizar();
+        await Disparador(cut).ClickAsync(new MouseEventArgs());
+        await Teclear(Disparador(cut), "ArrowDown");
+
+        await Teclear(Disparador(cut), "Tab");
+
+        control.Invocations["devolverFoco"].Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task Con_un_modulo_sin_devolverFoco_el_foco_vuelve_igual_al_disparador()
+    {
+        var control = ConModulo();
+        control.SetupVoid("devolverFoco", _ => true).SetException(new JSException("devolverFoco no existe en el módulo en caché"));
+        var cut = Renderizar();
+        await Disparador(cut).ClickAsync(new MouseEventArgs());
+        await Teclear(Disparador(cut), "ArrowDown");
+
+        await Teclear(Disparador(cut), "Escape");
+
+        control.Invocations["devolverFoco"].Should().ContainSingle();
+        JSInterop.Invocations.Last(i => i.Identifier.Contains("focus", StringComparison.OrdinalIgnoreCase))
+            .Arguments[0].Should().BeOfType<ElementReference>().Which.Id.Should().Be(Referencia(cut, "_disparador").Id);
+    }
+
     [Fact]
     public async Task Escribir_rapido_salta_a_la_opcion_que_empieza_por_lo_escrito()
     {
