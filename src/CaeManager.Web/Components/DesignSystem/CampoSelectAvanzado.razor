@@ -8,8 +8,9 @@
 
     Teclado y estado viven en C# (se prueban con bUnit); el JS (campo-select-avanzado.js) solo hace lo
     que Blazor no puede: preventDefault condicional de las teclas de navegación, anclar el panel a la
-    capa superior del navegador (así un Drawer o Modal con overflow no lo recorta) y voltearlo si no
-    cabe debajo. Sin JS el panel cae a posición absoluta bajo el disparador y sigue siendo usable.
+    capa superior del navegador (así un Drawer o Modal con overflow no lo recorta), voltearlo si no
+    cabe debajo, y devolver el foco al disparador al cerrar solo si no se ha ido ya a otro control
+    (#2194). Sin JS el panel cae a posición absoluta bajo el disparador y sigue siendo usable.
 
     Formularios: con Name pinta un <input type="hidden"> con el valor, así que un POST nativo lo envía
     como un select. Lo que NO replica es el envío al cambiar de data-enviar-al-cambiar (SelectorIdioma y
@@ -602,7 +603,7 @@
             if (_devolverFocoPendiente)
             {
                 _devolverFocoPendiente = false;
-                await _disparador.FocusAsync();
+                await DevolverFocoAsync();
             }
         }
         catch (Exception ex) when (ex is JSException or JSDisconnectedException or InvalidOperationException or TaskCanceledException)
@@ -610,6 +611,29 @@
             // Mejor esfuerzo (mismo criterio que Drawer/Modal): sin el módulo JS (tests de componente,
             // circuito cerrándose) la lista sigue usable, solo sin el anclaje a la capa superior.
         }
+    }
+
+    /// <summary>
+    /// Con el módulo, el foco vuelve al disparador solo si no se ha ido ya a otro control mientras llegaba esta orden
+    /// del servidor (devolverFoco en campo-select-avanzado.js, #2194). Sin módulo, o con uno que no la tenga (un
+    /// campo-select-avanzado.js anterior en la caché del navegador), vuelve siempre, como antes.
+    /// </summary>
+    private async Task DevolverFocoAsync()
+    {
+        if (_control is not null)
+        {
+            try
+            {
+                await _control.InvokeVoidAsync("devolverFoco", _disparador);
+                return;
+            }
+            catch (JSException)
+            {
+                // Se cae al FocusAsync de siempre.
+            }
+        }
+
+        await _disparador.FocusAsync();
     }
 
     private async Task CrearControlAsync()
