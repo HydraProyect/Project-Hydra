@@ -2,6 +2,7 @@ using CaeManager.Application.Common;
 using CaeManager.Domain.Common;
 using CaeManager.Infrastructure.Alertas;
 using CaeManager.Infrastructure.Autorizacion;
+using CaeManager.Infrastructure.Configuracion;
 using CaeManager.Infrastructure.Coordinacion;
 using FluentAssertions;
 using Microsoft.Extensions.DependencyInjection;
@@ -43,13 +44,20 @@ public class EnvioAlertasVencimientoRegistroSinDatosPersonalesTests
     }
 
     [Fact]
-    public void Una_excepcion_de_un_tenant_se_registra_solo_con_su_tipo()
+    public async Task Una_excepcion_de_un_tenant_se_registra_solo_con_su_tipo()
     {
         var registro = new RegistroCapturador();
         var excepcion = new IOException($"Conexión cerrada al enviar a {DireccionPersonal}",
             new TimeoutException($"Sin respuesta de {DireccionPersonal}"));
+        using var ambitos = new ServiceCollection()
+            .AddSingleton<IRegistroAutomatizacionesService>(new RegistroQueLanza(excepcion))
+            .BuildServiceProvider();
+        var servicio = new ServicioConUnTenant(ambitos.GetRequiredService<IServiceScopeFactory>(), registro, TenantId);
 
-        CrearServicio(registro).RegistrarFalloDeTenant(TenantId, excepcion);
+        // Bucle real por Tenant: el catch que registra el fallo es el del servicio, no un auxiliar.
+        await servicio.StartAsync(CancellationToken.None);
+        await EsperarAsync(() => registro.Entradas.Any(e => e.Nivel == LogLevel.Error));
+        await servicio.StopAsync(CancellationToken.None);
 
         var entrada = registro.Entradas.Should().ContainSingle(e => e.Nivel == LogLevel.Error).Subject;
         entrada.Excepcion.Should().BeNull("la excepción entera lleva su mensaje y el de su causa");
@@ -90,6 +98,34 @@ public class EnvioAlertasVencimientoRegistroSinDatosPersonalesTests
             string destinatarioEmail, string asunto, string cuerpoHtml, TipoAvisoCorreo tipo,
             string? responderA = null, CancellationToken cancellationToken = default) =>
             Task.FromResult(Result.Fallo(error));
+    }
+
+    private sealed class ServicioConUnTenant(IServiceScopeFactory ambitos, RegistroCapturador registro, Guid tenantId)
+        : EnvioAlertasVencimientoHostedService(ambitos, new LiderQueEjecuta(), Options.Create(new AlertasPorCorreoOptions()), registro)
+    {
+        protected override Task<List<Guid>> ObtenerTenantsActivosAsync(CancellationToken stoppingToken) =>
+            Task.FromResult(new List<Guid> { tenantId });
+    }
+
+    private sealed class LiderQueEjecuta : IEleccionLiderService
+    {
+        public async Task<bool> IntentarEjecutarComoLiderAsync(
+            string clave, Func<CancellationToken, Task> trabajo, CancellationToken cancellationToken)
+        {
+            await trabajo(cancellationToken);
+            return true;
+        }
+    }
+
+    private sealed class RegistroQueLanza(Exception excepcion) : IRegistroAutomatizacionesService
+    {
+        public Task<bool> EstaActivoAsync(string trabajoId, CancellationToken cancellationToken) =>
+            Task.FromException<bool>(excepcion);
+
+        public Task RegistrarEjecucionAsync(
+            string trabajoId, bool exitosa, CancellationToken cancellationToken,
+            string? mensajeError = null, int? elementosEvaluados = null, int? elementosAfectados = null) =>
+            Task.CompletedTask;
     }
 
     private sealed class LiderQueLanza(Exception excepcion) : IEleccionLiderService

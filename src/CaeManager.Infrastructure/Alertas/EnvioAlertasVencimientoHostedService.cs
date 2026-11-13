@@ -91,16 +91,19 @@ public class EnvioAlertasVencimientoHostedService(
         }
     }
 
+    // protected virtual para poder ejercitar el bucle por Tenant (y su registro de fallos) sin base de datos.
+    protected virtual async Task<List<Guid>> ObtenerTenantsActivosAsync(CancellationToken stoppingToken)
+    {
+        using var ambito = ambitoFactory.CreateScope();
+        return await ambito.ServiceProvider.GetRequiredService<ITenantsQueryContext>()
+            .Tenants.Where(t => t.Estado == EstadoTenant.Activo)
+            .Select(t => t.Id)
+            .ToListAsync(stoppingToken);
+    }
+
     private async Task ProcesarTodosLosTenantsAsync(CancellationToken stoppingToken)
     {
-        List<Guid> tenantsActivos;
-        using (var ambito = ambitoFactory.CreateScope())
-        {
-            tenantsActivos = await ambito.ServiceProvider.GetRequiredService<ITenantsQueryContext>()
-                .Tenants.Where(t => t.Estado == EstadoTenant.Activo)
-                .Select(t => t.Id)
-                .ToListAsync(stoppingToken);
-        }
+        var tenantsActivos = await ObtenerTenantsActivosAsync(stoppingToken);
 
         foreach (var tenantId in tenantsActivos)
         {
@@ -126,7 +129,7 @@ public class EnvioAlertasVencimientoHostedService(
     }
 
     // ASVS 4.0.3 V7.1.1: sin la excepción entera (su mensaje puede citar la dirección de un destinatario).
-    internal void RegistrarFalloDeTenant(Guid tenantId, Exception ex) =>
+    private void RegistrarFalloDeTenant(Guid tenantId, Exception ex) =>
         logger.LogError(
             "Falló el envío del resumen de alertas de vencimiento del tenant {TenantId} ({TipoExcepcion}); se continúa con el resto de tenants en este ciclo.",
             tenantId, ex.GetType().Name);
