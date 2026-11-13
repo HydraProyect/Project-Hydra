@@ -407,7 +407,7 @@ public partial class RevisionIaGen2Tests : BunitContext
 
         var primera = InvocarPrivadoAsync(cut, "AceptarDeteccionAsync", primeraRevision.Id);
         await inicio.Task.WaitAsync(TimeSpan.FromSeconds(10));
-        await SeleccionarEnDesplegableAsync(cut, "Segunda");
+        await CambiarSeleccionPorCodigoAsync(cut, segundaRevision.Id);
         var segunda = InvocarPrivadoAsync(cut, "AceptarDeteccionAsync", segundaRevision.Id);
         mediador.Enviadas.OfType<AplicarDeteccionIaDocumentoCommand>().Should().ContainSingle("cambiar de entidad no abre una segunda operación concurrente");
 
@@ -436,7 +436,7 @@ public partial class RevisionIaGen2Tests : BunitContext
         var dialogo = cut.FindComponents<DialogoConfirmacion>().Single(d => d.Instance.Titulo == "Confirmar las lecturas de confianza alta");
         var lote = cut.InvokeAsync(() => dialogo.Instance.OnConfirmar.InvokeAsync());
         await inicio.Task.WaitAsync(TimeSpan.FromSeconds(10));
-        await SeleccionarEnDesplegableAsync(cut, "Segunda");
+        await CambiarSeleccionPorCodigoAsync(cut, segundaRevision.Id);
         var aceptar = InvocarPrivadoAsync(cut, "AceptarDeteccionAsync", segundaRevision.Id);
         mediador.Enviadas.OfType<AceptarDeteccionesIaEnBloqueCommand>().Should().ContainSingle("cambiar de entidad no abre una segunda operación mientras el bloque sigue en vuelo");
 

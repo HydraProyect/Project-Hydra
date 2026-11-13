@@ -1,4 +1,4 @@
-﻿using System.Security.Claims;
+using System.Security.Claims;
 using CaeManager.Application.Documentos.Commands.AceptarDeteccionesIaEnBloque;
 using CaeManager.Application.Documentos.Commands.AplicarDeteccionIaDocumento;
 using CaeManager.Application.Documentos.Commands.CorregirRevisionIaDocumento;
@@ -45,6 +45,10 @@ public partial class RevisionIaTab : ComponentBase, IDisposable
     private bool _confirmacionDescartarVisible;
     private bool _correccionManualVisible;
     private bool _desplegableAbierto;
+    private bool _tecladoInstalado;
+    private bool _devolverFoco;
+    private ElementReference _popRef;
+    private ElementReference _botonSelector;
     private bool _dispose;
     private Guid? _procesandoId;
     private Guid? _revisionIdSeleccionada;
@@ -90,11 +94,27 @@ public partial class RevisionIaTab : ComponentBase, IDisposable
 
     private IReadOnlyList<RevisionIaDocumentoDto> RevisionesVisibles => _revisiones.Where(CumpleFiltro).ToList();
 
-    // Solo lo que se ve: lo que el filtro oculta no se acepta sin que el Gestor CAE lo tenga delante.
-    private IReadOnlyList<RevisionIaDocumentoDto> ConfirmablesEnBloque => RevisionesVisibles
-        .Where(r => EsAceptableEnBloque(r) && r.ConfianzaGeneral >= UmbralLote)
+    // «Confirmar todos» es una acción de la cola entera, no de la lista que deja ver el filtro: con «Manual» o «Sin fecha»
+    // activos (donde por definición no hay confirmables a la vista) el botón sigue ahí con el recuento de la cola, y el
+    // diálogo dice cuántas se aceptan. Con más de MaximoRevisionesPorBloque, el rótulo dice «las primeras N de M».
+    private IEnumerable<RevisionIaDocumentoDto> TodasLasConfirmables => _revisiones
+        .Where(r => EsAceptableEnBloque(r) && r.ConfianzaGeneral >= UmbralLote);
+
+    private IReadOnlyList<RevisionIaDocumentoDto> ConfirmablesEnBloque => TodasLasConfirmables
         .Take(AceptarDeteccionesIaEnBloqueCommandHandler.MaximoRevisionesPorBloque)
         .ToList();
+
+    private string TextoConfirmarTodos
+    {
+        get
+        {
+            var enBloque = ConfirmablesEnBloque.Count;
+            var total = TodasLasConfirmables.Count();
+            return total > enBloque
+                ? Textos["RevIaConfirmarPrimeras", enBloque, total, UmbralLote]
+                : Textos["RevIaConfirmarTodos", UmbralLote, enBloque];
+        }
+    }
 
     private RevisionIaDocumentoDto? RevisionSeleccionada => _revisiones.FirstOrDefault(r => r.Id == _revisionIdSeleccionada);
 
@@ -122,8 +142,41 @@ public partial class RevisionIaTab : ComponentBase, IDisposable
         await CargarAsync();
     }
 
+    private async Task AjustarFocoDelDesplegableAsync()
+    {
+        if (_dispose)
+        {
+            return;
+        }
+
+        try
+        {
+            if (_desplegableAbierto && !_tecladoInstalado)
+            {
+                _tecladoInstalado = true;
+                await using var modulo = await Js.InvokeAsync<IJSObjectReference>("import", ModuloPreferencias);
+                await modulo.InvokeVoidAsync("instalarTecladoOpciones", _popRef);
+            }
+            else if (!_desplegableAbierto)
+            {
+                _tecladoInstalado = false;
+                if (_devolverFoco)
+                {
+                    _devolverFoco = false;
+                    await _botonSelector.FocusAsync();
+                }
+            }
+        }
+        catch (Exception ex) when (ex is JSException or JSDisconnectedException or InvalidOperationException)
+        {
+            // Sin circuito o sin el elemento (la cola quedó vacía): el desplegable sigue siendo operable con el ratón y con Tab.
+        }
+    }
+
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
+        await AjustarFocoDelDesplegableAsync();
+
         if (!firstRender || _claveAvance is null)
         {
             return;
@@ -483,6 +536,7 @@ public partial class RevisionIaTab : ComponentBase, IDisposable
     {
         if (e.Key == "Escape")
         {
+            _devolverFoco = _desplegableAbierto;
             _desplegableAbierto = false;
         }
     }
@@ -490,6 +544,14 @@ public partial class RevisionIaTab : ComponentBase, IDisposable
     private void SeleccionarDesdeDesplegable(Guid revisionId)
     {
         _desplegableAbierto = false;
+
+        // Como ‹ ›, j/k y los filtros: con un Command en vuelo no se cambia de revisión.
+        if (_operacionEnCurso)
+        {
+            return;
+        }
+
+        _devolverFoco = true;
         SeleccionarRevision(revisionId);
     }
 

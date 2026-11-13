@@ -40,7 +40,7 @@
             {
                 <SoloConEscritura>
                     <Boton Variante="VarianteBoton.Secundario" Deshabilitado="_operacionEnCurso" OnClick="PrepararConfirmacionLote">
-                        @Textos["RevIaConfirmarTodos", UmbralLote, ConfirmablesEnBloque.Count]
+                        @TextoConfirmarTodos
                     </Boton>
                 </SoloConEscritura>
             }
@@ -120,7 +120,8 @@
                             <button
                                 type="button"
                                 class="revision-ia-selector-boton"
-                                aria-haspopup="listbox"
+                                @ref="_botonSelector"
+                                aria-controls="revision-ia-pop"
                                 aria-expanded="@(_desplegableAbierto ? "true" : "false")"
                                 @onclick="AlternarDesplegable">
                                 <span class="revision-ia-selector-textos">
@@ -141,7 +142,9 @@
                             @if (_desplegableAbierto)
                             {
                                 <div class="revision-ia-pop-fondo" @onclick="CerrarDesplegable"></div>
-                                <div class="revision-ia-pop" role="listbox" aria-label="@Textos["RevIaPendientesAria"]">
+                                @* El panel agrupa filtros, opciones y pie; solo las opciones son el listbox. Flechas, Inicio y Fin
+                                   las recorren (revision-ia.js) y Escape devuelve el foco al disparador. *@
+                                <div class="revision-ia-pop" id="revision-ia-pop" @ref="_popRef">
                                     <div class="revision-ia-filtros" role="group" aria-label="@Textos["RevIaFiltrarAria"]">
                                         @foreach (var filtro in Filtros)
                                         {
@@ -157,19 +160,21 @@
                                             </button>
                                         }
                                     </div>
-                                    @foreach (var revision in RevisionesVisibles)
-                                    {
-                                        <button
-                                            type="button"
-                                            role="option"
-                                            class="revision-ia-opcion"
-                                            aria-selected="@(RevisionSeleccionada?.Id == revision.Id ? "true" : "false")"
-                                            @onclick="() => SeleccionarDesdeDesplegable(revision.Id)">
-                                            <strong>@revision.PropietarioNombre <span class="revision-ia-mudo revision-ia-ambito">· @Ambito(revision)</span></strong>
-                                            <span>@revision.TipoDocumentoNombre</span>
-                                            <ConfianzaIa Revision="revision" Etiqueta="@EtiquetaTratamiento(revision)" />
-                                        </button>
-                                    }
+                                    <div class="revision-ia-opciones" role="listbox" aria-label="@Textos["RevIaPendientesAria"]">
+                                        @foreach (var revision in RevisionesVisibles)
+                                        {
+                                            <button
+                                                type="button"
+                                                role="option"
+                                                class="revision-ia-opcion"
+                                                aria-selected="@(RevisionSeleccionada?.Id == revision.Id ? "true" : "false")"
+                                                @onclick="() => SeleccionarDesdeDesplegable(revision.Id)">
+                                                <strong>@revision.PropietarioNombre <span class="revision-ia-mudo revision-ia-ambito">· @Ambito(revision)</span></strong>
+                                                <span>@revision.TipoDocumentoNombre</span>
+                                                <ConfianzaIa Revision="revision" Etiqueta="@EtiquetaTratamiento(revision)" />
+                                            </button>
+                                        }
+                                    </div>
                                     <div class="revision-ia-pop-pie">@Textos["RevIaOrdenPie"]</div>
                                 </div>
                             }

@@ -477,6 +477,9 @@
   <data name="RevIaVolver" xml:space="preserve">
     <value>Tornar a Documents</value>
   </data>
+  <data name="RevIaConfirmarPrimeras" xml:space="preserve">
+    <value>Confirmar les primeres {0} de {1} ≥{2} %</value>
+  </data>
   <data name="RevIaConfirmarTodos" xml:space="preserve">
     <value>Confirmar tots els ≥{0} % ({1})</value>
   </data>
@@ -550,7 +553,7 @@
     <value>Totes</value>
   </data>
   <data name="RevIaFiltroConfirmables" xml:space="preserve">
-    <value>Confirmables</value>
+    <value>Confirmables en bloc</value>
   </data>
   <data name="RevIaFiltroManual" xml:space="preserve">
     <value>Manual</value>
@@ -568,7 +571,7 @@
     <value>Treballador</value>
   </data>
   <data name="RevIaConfirmable" xml:space="preserve">
-    <value>Confirmable</value>
+    <value>Confirmable en bloc</value>
   </data>
   <data name="RevIaRevisionManual" xml:space="preserve">
     <value>Revisió manual</value>
@@ -583,19 +586,19 @@
     <value>Igual</value>
   </data>
   <data name="RevIaNoDetectada" xml:space="preserve">
-    <value>No detectada</value>
+    <value>Sense detectar</value>
   </data>
   <data name="RevIaNoDisponible" xml:space="preserve">
-    <value>No disponible</value>
+    <value>Sense dades</value>
   </data>
   <data name="RevIaFirmaDetectada" xml:space="preserve">
     <value>Detectada</value>
   </data>
   <data name="RevIaFirmaNoDetectada" xml:space="preserve">
-    <value>No detectada</value>
+    <value>Sense detectar</value>
   </data>
   <data name="RevIaFirmaNoDeterminada" xml:space="preserve">
-    <value>No determinada</value>
+    <value>Sense determinar</value>
   </data>
   <data name="RevIaAceptar" xml:space="preserve">
     <value>Accepta la detecció</value>

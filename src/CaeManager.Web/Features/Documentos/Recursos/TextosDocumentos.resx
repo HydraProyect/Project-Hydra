@@ -477,6 +477,9 @@
   <data name="RevIaVolver" xml:space="preserve">
     <value>Volver a Documentos</value>
   </data>
+  <data name="RevIaConfirmarPrimeras" xml:space="preserve">
+    <value>Confirmar las primeras {0} de {1} ≥{2} %</value>
+  </data>
   <data name="RevIaConfirmarTodos" xml:space="preserve">
     <value>Confirmar todos los ≥{0} % ({1})</value>
   </data>

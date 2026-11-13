@@ -36,6 +36,7 @@
 .revision-ia-filtro span{font-weight:700;color:var(--color-text);font-variant-numeric:tabular-nums}
 .revision-ia-filtro[aria-pressed="true"]{background:var(--color-primary-50);border-color:var(--color-primary-500);color:var(--color-primary-700)}
 .revision-ia-filtro:disabled{opacity:.5;cursor:not-allowed}
+.revision-ia-opciones{display:flex;flex-direction:column}
 .revision-ia-opcion{display:flex;flex-direction:column;align-items:flex-start;gap:2px;height:auto;padding:8px 12px;border:0;border-radius:var(--radius-sm);background:none;color:var(--color-text);font:var(--font-body-md);text-align:left;cursor:pointer}
 .revision-ia-opcion[aria-selected="true"]{background:var(--color-primary-50);color:var(--color-primary-700)}
 .revision-ia-ambito{font-weight:400}
