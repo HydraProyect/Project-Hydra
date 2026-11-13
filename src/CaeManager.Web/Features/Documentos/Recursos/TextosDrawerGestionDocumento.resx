@@ -54,4 +54,10 @@
   <data name="DemasiadosArchivos" xml:space="preserve">
     <value>Puedes subir hasta {0} archivos a la vez.</value>
   </data>
+  <data name="ArchivoActualDelDocumento" xml:space="preserve">
+    <value>Archivo actual del documento</value>
+  </data>
+  <data name="ArchivosCombinados" xml:space="preserve">
+    <value>Estos {0} archivos se han combinado en un solo PDF.</value>
+  </data>
 </root>

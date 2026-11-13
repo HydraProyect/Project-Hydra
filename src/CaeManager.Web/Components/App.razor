@@ -50,6 +50,9 @@
     <script src="@Assets["js/acceso-doble-envio.js"]"></script>
     <script src="@Assets["js/reto-prueba-trabajo.js"]"></script>
     <script src="@Assets["js/actividad-sesion.js"]"></script>
+    @* Los diálogos lo importan al abrirse, pero cargado aquí empieza a anotar el foco desde el principio: así sabe a
+       quién devolverlo al cerrar aunque, cuando se active la trampa, el foco ya esté dentro del diálogo (#2194). *@
+    <script type="module" src="@Assets["js/dialogo-foco.js"]"></script>
 </body>
 
 </html>

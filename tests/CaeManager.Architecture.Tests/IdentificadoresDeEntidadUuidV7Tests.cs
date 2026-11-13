@@ -108,6 +108,8 @@ public class IdentificadoresDeEntidadUuidV7Tests
         ["src/CaeManager.Infrastructure/Importacion/ClosedXmlPlantillaMaestraService.cs"] = 1,
         // Referencia de correlación de un error en el log.
         ["src/CaeManager.Web/Components/Layout/MainLayout.razor.cs"] = 1,
+        // Correlación de un fallo SMTP en el log cuando no hay TraceId de petición; no se persiste.
+        ["src/CaeManager.Infrastructure/Email/SmtpEmailService.cs"] = 1,
         // Claves locales de UI: toasts y filas de la subida masiva.
         ["src/CaeManager.Web/Components/DesignSystem/ToastService.cs"] = 1,
         ["src/CaeManager.Web/Features/Documentos/Pages/SubidaMasiva.razor.cs"] = 1,

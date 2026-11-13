@@ -21,6 +21,7 @@ public class AtajosFicha360Tests(WebAppFixture fixture)
     public async Task Las_teclas_de_ficha_cambian_de_pestana_recorren_filas_y_pulsan_la_accion_de_la_fila_en_Subcontrata_360()
     {
         await using var contexto = await fixture.Browser.NewContextAsync();
+        await using var traza = TrazaAlFallar.Armar(contexto);
         var page = await contexto.NewPageAsync();
         // El Administrador, como los E2E que dan de alta Cliente, Centro y Subcontrata por la interfaz
         // (AltaGuiadaTests, F3bSubcontrataSmokeTests): ve sin alcance de cartera lo que el propio test crea.
@@ -87,6 +88,7 @@ public class AtajosFicha360Tests(WebAppFixture fixture)
         await Assertions.Expect(dialogo).ToBeVisibleAsync();
         Assert.Equal(2, await page.EvaluateAsync<int>($"() => {PestanaActiva}"));
         Assert.Equal(indiceConBoton, await page.EvaluateAsync<int>($"() => {FilaEnfocada}"));
+        traza.Superada();
     }
 
     private const string Filas = "[...document.querySelectorAll(\"[data-atajos-ficha] .cuerpo-con-lateral-principal [data-pieza='fila']\")]";
@@ -167,8 +169,7 @@ public class AtajosFicha360Tests(WebAppFixture fixture)
                     .SelectOptionAsync(new SelectOptionValue { Label = $"{centro} ({clienteEmpresarial})" });
                 await selectorTipo.SelectOptionAsync(tipos[i]);
                 await drawer.GetByLabel("Resultado", new() { Exact = true }).SelectOptionAsync("NoEncontrado");
-                await drawer.GetByLabel("Fecha de verificación", new() { Exact = true })
-                    .FillAsync(Ayudas.HoyDeNegocio().ToString("yyyy-MM-dd"));
+                await Ayudas.RellenarFechaAsync(drawer.GetByLabel("Fecha de verificación", new() { Exact = true }), Ayudas.HoyDeNegocio());
                 await drawer.Locator("input[type='file']").SetInputFilesAsync(rutaPdf);
                 // La evidencia se lee a memoria por el circuito: el formulario enseña su nombre cuando ya llegó.
                 await Assertions.Expect(drawer).ToContainTextAsync($"Adjunto: {Path.GetFileName(rutaPdf)}");
