@@ -256,7 +256,7 @@ public partial class DocumentosGen2Tests
         await cut.FindAll(".barra-filtros-pastillas .menu-filtro-guardado [role=menuitem]")
             .First(b => b.TextContent.Trim() == "Roto").ClickAsync(new MouseEventArgs());
 
-        UltimaConsultaDeDocumentos(mediador).Estados.Should().Equal(EstadoDocumento.Vencido, "la vista no cambió");
+        UltimaConsultaDeDocumentos(mediador).Estados.Should().Equal([EstadoDocumento.Vencido], "la vista no cambió");
         UltimaConsultaDeDocumentos(mediador).VenceEnDias.Should().BeNull();
     }
 
