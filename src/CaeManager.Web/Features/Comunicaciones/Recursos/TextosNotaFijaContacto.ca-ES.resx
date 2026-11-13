@@ -24,6 +24,12 @@
   <data name="Guardar" xml:space="preserve">
     <value>Desa la nota fixa</value>
   </data>
+  <data name="Retirar" xml:space="preserve">
+    <value>Retira la nota fixa</value>
+  </data>
+  <data name="ToastRetirada" xml:space="preserve">
+    <value>Nota fixa retirada de l&apos;Agenda de {0}</value>
+  </data>
   <data name="Cancelar" xml:space="preserve">
     <value>Cancel·la</value>
   </data>
@@ -44,6 +50,12 @@
   </data>
   <data name="ErrorGuardar" xml:space="preserve">
     <value>No hem pogut desar la nota fixa. Torna-ho a provar.</value>
+  </data>
+  <data name="ErrorCarga" xml:space="preserve">
+    <value>No hem pogut carregar la nota fixa d&apos;aquest contacte.</value>
+  </data>
+  <data name="Reintentar" xml:space="preserve">
+    <value>Torna-ho a provar</value>
   </data>
   <data name="NotasEquipoTitulo" xml:space="preserve">
     <value>Notes de l&apos;equip sobre aquesta conversa</value>

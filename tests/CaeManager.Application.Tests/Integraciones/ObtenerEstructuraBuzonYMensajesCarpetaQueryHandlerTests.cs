@@ -28,7 +28,7 @@ public class ObtenerEstructuraBuzonYMensajesCarpetaQueryHandlerTests
         var conexion = new ConexionIntegracion(
             "gestor.otro@ejemplo.local", "Buzón personal", gestorPropietarioId: Guid.NewGuid());
         conexionRepositorio = new ConexionIntegracionRepositorioFalso();
-        conexionRepositorio.Agregar(conexion);
+        conexionRepositorio.Agregar(conexion.Verificada());
         credencialRepositorio = new CredencialIntegracionRepositorioFalso();
         credencialRepositorio.Agregar(new CredencialIntegracion(conexion.Id, "refresh-token"));
         return conexion;
@@ -96,12 +96,63 @@ public class ObtenerEstructuraBuzonYMensajesCarpetaQueryHandlerTests
         resultado.EsExitoso.Should().BeTrue();
     }
 
+    /// <summary>Un buzón compartido se lee como lo que es: la consulta pasa a Graph el buzón de la Conexión, no el de quien consintió.</summary>
+    [Fact]
+    public async Task Las_dos_consultas_leen_un_buzon_compartido_por_su_propia_direccion()
+    {
+        var conexion = ConexionIntegracion.CrearBuzonCompartido(
+            "piloto@tenant.com", "Buzón piloto", Guid.NewGuid().ToString(), Guid.NewGuid());
+        var conexionRepositorio = new ConexionIntegracionRepositorioFalso();
+        conexionRepositorio.Agregar(conexion.Verificada());
+        var credencialRepositorio = new CredencialIntegracionRepositorioFalso();
+        credencialRepositorio.Agregar(new CredencialIntegracion(conexion.Id, "refresh-token"));
+        var graphClient = new Microsoft365GraphClientFalso();
+        var accesoGraph = new AccesoGraphService(credencialRepositorio, graphClient);
+
+        var estructura = await new ObtenerEstructuraBuzonQueryHandler(
+                conexionRepositorio, accesoGraph, graphClient, new AlcanceDatosServiceFalso(), new UnitOfWorkFalso())
+            .Handle(new ObtenerEstructuraBuzonQuery(conexion.Id), CancellationToken.None);
+        var mensajes = await new ObtenerMensajesCarpetaQueryHandler(
+                conexionRepositorio, accesoGraph, graphClient, new AlcanceDatosServiceFalso(), new UnitOfWorkFalso())
+            .Handle(new ObtenerMensajesCarpetaQuery(conexion.Id, "carpeta-1"), CancellationToken.None);
+
+        estructura.EsExitoso.Should().BeTrue();
+        mensajes.EsExitoso.Should().BeTrue();
+        graphClient.BuzonesUsados.Should().HaveCount(2)
+            .And.OnlyContain(b => b == new BuzonGraph("piloto@tenant.com", true));
+    }
+
+    /// <summary>Sin identidad verificada en la ventana, la dirección puede ser hoy otro buzón: ninguna consulta lo lee.</summary>
+    [Fact]
+    public async Task Las_dos_consultas_no_leen_un_buzon_sin_identidad_verificada()
+    {
+        var conexion = ConexionIntegracion.CrearBuzonCompartido(
+            "piloto@tenant.com", "Buzón piloto", Guid.NewGuid().ToString(), Guid.NewGuid());
+        var conexionRepositorio = new ConexionIntegracionRepositorioFalso();
+        conexionRepositorio.Agregar(conexion);
+        var graphClient = new Microsoft365GraphClientFalso();
+        var accesoGraph = new AccesoGraphService(new CredencialIntegracionRepositorioFalso(), graphClient);
+
+        var estructura = await new ObtenerEstructuraBuzonQueryHandler(
+                conexionRepositorio, accesoGraph, graphClient, new AlcanceDatosServiceFalso(), new UnitOfWorkFalso())
+            .Handle(new ObtenerEstructuraBuzonQuery(conexion.Id), CancellationToken.None);
+        var mensajes = await new ObtenerMensajesCarpetaQueryHandler(
+                conexionRepositorio, accesoGraph, graphClient, new AlcanceDatosServiceFalso(), new UnitOfWorkFalso())
+            .Handle(new ObtenerMensajesCarpetaQuery(conexion.Id, "carpeta-1"), CancellationToken.None);
+
+        estructura.EsFallido.Should().BeTrue();
+        estructura.Error.Codigo.Should().Be(ErroresBuzonSinVerificar.Codigo);
+        mensajes.EsFallido.Should().BeTrue();
+        mensajes.Error.Codigo.Should().Be(ErroresBuzonSinVerificar.Codigo);
+        graphClient.BuzonesUsados.Should().BeEmpty();
+    }
+
     [Fact]
     public async Task ObtenerEstructuraBuzonQuery_sigue_leyendo_el_buzon_general_del_tenant()
     {
         var conexion = new ConexionIntegracion("cae@tenant.com", "Buzón general");
         var conexionRepositorio = new ConexionIntegracionRepositorioFalso();
-        conexionRepositorio.Agregar(conexion);
+        conexionRepositorio.Agregar(conexion.Verificada());
         var credencialRepositorio = new CredencialIntegracionRepositorioFalso();
         credencialRepositorio.Agregar(new CredencialIntegracion(conexion.Id, "refresh-token"));
         var graphClient = new Microsoft365GraphClientFalso();
@@ -112,5 +163,64 @@ public class ObtenerEstructuraBuzonYMensajesCarpetaQueryHandlerTests
         var resultado = await handler.Handle(new ObtenerEstructuraBuzonQuery(conexion.Id), CancellationToken.None);
 
         resultado.EsExitoso.Should().BeTrue();
+    }
+
+    private static (ConexionIntegracion Conexion, ConexionIntegracionRepositorioFalso Repositorio, Microsoft365GraphClientFalso Graph, AccesoGraphService Acceso) CompartidoVerificado()
+    {
+        var conexion = ConexionIntegracion.CrearBuzonCompartido(
+            "piloto@tenant.com", "Buzón piloto", Guid.NewGuid().ToString(), Guid.NewGuid());
+        var conexionRepositorio = new ConexionIntegracionRepositorioFalso();
+        conexionRepositorio.Agregar(conexion.Verificada());
+        var graphClient = new Microsoft365GraphClientFalso();
+        return (conexion, conexionRepositorio, graphClient, new AccesoGraphService(new CredencialIntegracionRepositorioFalso(), graphClient));
+    }
+
+    /// <summary>
+    /// N: la conexión deja de estar operativa (desconectada o en ConError por otro proceso) mientras se obtiene el token.
+    /// Las dos consultas releen la conexión después del token y antes de llamar a Graph, y no leen el buzón.
+    /// </summary>
+    [Fact]
+    public async Task Las_dos_consultas_releen_la_conexion_tras_el_token_y_no_leen_si_ya_no_esta_operativa()
+    {
+        var (conexion, conexionRepositorio, graphClient, accesoGraph) = CompartidoVerificado();
+        conexionRepositorio.NoOperativasEnBase.Add(conexion.Id);
+
+        var estructura = await new ObtenerEstructuraBuzonQueryHandler(
+                conexionRepositorio, accesoGraph, graphClient, new AlcanceDatosServiceFalso(), new UnitOfWorkFalso())
+            .Handle(new ObtenerEstructuraBuzonQuery(conexion.Id), CancellationToken.None);
+        var mensajes = await new ObtenerMensajesCarpetaQueryHandler(
+                conexionRepositorio, accesoGraph, graphClient, new AlcanceDatosServiceFalso(), new UnitOfWorkFalso())
+            .Handle(new ObtenerMensajesCarpetaQuery(conexion.Id, "carpeta-1"), CancellationToken.None);
+
+        estructura.Error.Codigo.Should().Be(ErroresBuzonSinVerificar.Codigo);
+        mensajes.Error.Codigo.Should().Be(ErroresBuzonSinVerificar.Codigo);
+        conexionRepositorio.VecesReleido.Should().Be(2);
+        graphClient.BuzonesUsados.Should().BeEmpty();
+        graphClient.ListadosPedidos.Should().BeEmpty();
+    }
+
+    /// <summary>N: el listado de carpetas pide las hijas de cada carpeta; la puerta se vuelve a pasar antes de cada petición.</summary>
+    [Fact]
+    public async Task El_listado_de_carpetas_corta_si_la_conexion_deja_de_estar_operativa_entre_peticiones()
+    {
+        var (conexion, conexionRepositorio, graphClient, accesoGraph) = CompartidoVerificado();
+        graphClient.CarpetasADevolver =
+        [
+            new CarpetaGraphDto("inbox", "Bandeja de entrada", null, 0, 1),
+            new CarpetaGraphDto("archivo", "Archivo", null, 0, 1)
+        ];
+        conexionRepositorio.AlReleer = vez =>
+        {
+            if (vez >= 2)
+                conexionRepositorio.NoOperativasEnBase.Add(conexion.Id);
+        };
+
+        var estructura = await new ObtenerEstructuraBuzonQueryHandler(
+                conexionRepositorio, accesoGraph, graphClient, new AlcanceDatosServiceFalso(), new UnitOfWorkFalso())
+            .Handle(new ObtenerEstructuraBuzonQuery(conexion.Id), CancellationToken.None);
+
+        estructura.EsFallido.Should().BeTrue();
+        estructura.Error.Codigo.Should().Be(ErroresBuzonSinVerificar.Codigo);
+        conexionRepositorio.VecesReleido.Should().Be(2, "una tras el token y la primera puerta entre peticiones");
     }
 }

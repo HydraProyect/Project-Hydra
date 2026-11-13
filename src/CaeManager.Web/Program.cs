@@ -25,6 +25,7 @@ using CaeManager.Web.Features.CuadroDireccion;
 using CaeManager.Web.Features.Documentos;
 using CaeManager.Web.Features.Empresas;
 using CaeManager.Web.Features.Extension;
+using CaeManager.Web.Features.Importacion;
 using CaeManager.Web.Features.Facturacion;
 using CaeManager.Web.Features.Incidencias;
 using CaeManager.Web.Features.Integraciones.Endpoints;
@@ -60,6 +61,17 @@ using System.Text.Json.Serialization;
 // El resolver de fuentes de PDFsharp 6 es global e independiente del ciclo de
 // vida de DI — se registra una sola vez al arrancar (ver EmbeddedFontResolver).
 GlobalFontSettings.FontResolver = new EmbeddedFontResolver();
+
+// Proceso aparte de Herramientas PDF (UnidorPdfEnProcesoAparte y DivisorPdfEnProcesoAparte): abre los PDF ajenos con su
+// límite de memoria y de tiempo y termina, antes de leer configuración, conectar con la base de datos o configurar el
+// registro.
+if (args is [CaeManager.Infrastructure.HerramientasPdf.ProcesoHerramientasPdf.Argumento])
+{
+    CaeManager.Infrastructure.HerramientasPdf.ProcesoHerramientasPdf.PreferirComoVictimaDeFaltaDeMemoria();
+    using var entradaProcesoPdf = Console.OpenStandardInput();
+    using var salidaProcesoPdf = Console.OpenStandardOutput();
+    Environment.Exit(CaeManager.Infrastructure.HerramientasPdf.ProcesoHerramientasPdf.Ejecutar(entradaProcesoPdf, salidaProcesoPdf));
+}
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -613,6 +625,12 @@ builder.Services.AddRateLimiter(opciones =>
         if (CaeManager.Web.Features.AltaAutonoma.Antiabuso.LimitadorAlta.ParticionVerificar(contexto, limiteCuentaAnonimo)
             is { } particionVerificarAlta)
             return particionVerificarAlta;
+
+        // El paso Empresa del alta consulta la base al pintarse y al enviarse: mismo techo por IP, en su propia partición
+        // y fuera de la política «alta», que cuenta los inicios del alta y no debe gastarse en este paso.
+        if (CaeManager.Web.Features.AltaAutonoma.Antiabuso.LimitadorAlta.ParticionOrganizacion(contexto, limiteCuentaAnonimo)
+            is { } particionOrganizacionAlta)
+            return particionOrganizacionAlta;
 
         if (!esPostDeCuenta)
             return System.Threading.RateLimiting.RateLimitPartition.GetNoLimiter("sin-limite");
@@ -1506,6 +1524,7 @@ app.MapCentrosEndpoints();
 app.MapIncidenciasEndpoints();
 app.MapFacturacionEndpoints();
 app.MapDocumentosEndpoints();
+app.MapImportacionEndpoints();
 app.MapTrabajadoresEndpoints();
 app.MapFirmasGuardadasEndpoints();
 app.MapLogoTenantEndpoints();

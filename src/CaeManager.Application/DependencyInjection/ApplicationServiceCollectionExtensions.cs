@@ -99,6 +99,10 @@ public static class ApplicationServiceCollectionExtensions
         services.AddScoped<IAutorizacionEscrituraEfectiva, AutorizacionEscrituraEfectiva>();
         services.AddScoped<Importacion.RecorteDeAnalisisAlAmbito>();
         services.AddSingleton<CaeManager.Application.HerramientasPdf.IDisponibilidadHerramientasPdf, CaeManager.Application.HerramientasPdf.DisponibilidadHerramientasPdf>();
+        // Foto a PDF: fuera de MediatR, para no retener la puerta de acceso a datos del circuito mientras decodifica.
+        services.AddSingleton<CaeManager.Application.HerramientasPdf.GeneradorPdfDesdeFotos>();
+        // Un solo limitador de CPU por proceso para Herramientas PDF (miniaturas y composición), no uno por circuito.
+        services.AddSingleton<CaeManager.Application.HerramientasPdf.LimitadorConversionesPdf>();
         // Valor por defecto: la implementación real (Infrastructure) es la misma instancia scoped de
         // AlcanceDatosService, que es quien memoiza.
         services.TryAddScoped<IInvalidadorAlcance, InvalidadorAlcanceInerte>();

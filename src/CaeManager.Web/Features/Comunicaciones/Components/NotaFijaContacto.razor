@@ -27,7 +27,11 @@
                 <svg width="14" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M6 3h12v18l-6-4-6 4z"></path></svg>
                 @string.Format(Textos["Titulo"].Value, _nota.Nombre)
             </span>
-            @if (_puedeEscribir && !_editando)
+            @* Sin «Editar» mientras se guarda (que incluye la recarga posterior): la nota pintada podría ser aún la anterior y
+               abrirla permitiría revertir lo recién guardado (revisión Codex r2 de la #2167, MEDIO 2). *@
+            @* Tampoco con un reintento en vuelo: si devolviera null (el contacto ya no es visible), la edición abierta entre medias
+               quedaría sin área ni acciones y con el borrador inaccesible (revisión Codex r3 de la #2167, MEDIO 3). *@
+            @if (_puedeEscribir && !_editando && !_guardando && !Reintentando)
             {
                 <button type="button" class="nota-fija-texto-boton" @onclick="Editar">
                     @(string.IsNullOrWhiteSpace(_nota.Notas) ? Textos["Anadir"] : Textos["Editar"])
@@ -43,10 +47,12 @@
                       value="@_texto" @oninput="e => CambiarTextoAsync(e.Value?.ToString() ?? string.Empty)"></textarea>
             <div class="nota-fija-acciones">
                 @* Secundario y no primario: la vista ya tiene «Enviar» como único primario. *@
+                @* Campo vacío sobre una nota existente: la acción es retirarla (el comando define el texto vacío como retirada).
+                   Campo vacío sobre una nota que no existe: no hay nada que guardar. *@
                 <Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno" Cargando="_guardando"
-                       Deshabilitado="@(string.IsNullOrWhiteSpace(_texto))" OnClick="GuardarAsync">@Textos["Guardar"]</Boton>
+                       Deshabilitado="@(!HayAlgoQueGuardar)" OnClick="GuardarAsync">@(RetiraLaNota ? Textos["Retirar"] : Textos["Guardar"])</Boton>
                 <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" Deshabilitado="_guardando"
-                       OnClick="Cancelar">@Textos["Cancelar"]</Boton>
+                       OnClick="CancelarAsync">@Textos["Cancelar"]</Boton>
             </div>
         }
         else if (string.IsNullOrWhiteSpace(_nota.Notas))
@@ -56,10 +62,31 @@
         else
         {
             <p class="nota-fija-texto">@_nota.Notas</p>
-            <span class="nota-fija-meta">@TextoMeta(_nota)</span>
+            @* Autor y fecha son los de la nota que devolvió la última lectura: con el texto recién guardado aún sin releer no son suyos. *@
+            @if (!_provisional)
+            {
+                <span class="nota-fija-meta">@TextoMeta(_nota)</span>
+            }
         }
 
         <span class="nota-fija-meta">@Textos["Alcance"]</span>
+        @if (_errorCarga && !_guardando)
+        {
+            <span class="nota-fija-meta" role="status">@Textos["ErrorCarga"]</span>
+            @* Sin «Reintentar» durante la edición: su respuesta sustituiría la nota bajo el borrador (revisión Codex r3 de la #2167, MEDIO 3). *@
+            @if (!_editando)
+            {
+                <button type="button" class="nota-fija-texto-boton nota-fija-reintentar" @onclick="ReintentarAsync">@Textos["Reintentar"]</button>
+            }
+        }
+    </section>
+}
+else if (_errorCarga)
+{
+    @* Sin ninguna nota conocida que conservar: aviso y reintento, no un hueco mudo (revisión Codex r2 de la #2167, BAJO). *@
+    <section class="nota-fija">
+        <span class="nota-fija-meta" role="status">@Textos["ErrorCarga"]</span>
+        <button type="button" class="nota-fija-texto-boton nota-fija-reintentar" @onclick="ReintentarAsync">@Textos["Reintentar"]</button>
     </section>
 }
 
@@ -83,6 +110,22 @@
     private string _texto = string.Empty;
     private (TipoPropietarioAgenda, Guid, string)? _cargada;
 
+    /// <summary>La lectura de la nota falló y hay que ofrecer reintentarla (revisión Codex r2 de la #2167, BAJO).</summary>
+    private bool _errorCarga;
+
+    /// <summary>
+    /// <c>_nota</c> lleva el texto recién guardado y no el de una lectura: se pinta sin autor ni fecha hasta que una lectura lo
+    /// confirme. Es la última nota conocida si esa lectura falla.
+    /// </summary>
+    private bool _provisional;
+
+    /// <summary>
+    /// Generación de la carga vigente (revisión Codex r1 de la #2167, MEDIO 1). La clave sola no basta: con A, luego B y de nuevo A,
+    /// una lectura antigua de A vuelve a coincidir con la clave y sustituiría la nota de la lectura más reciente. Cada cambio de
+    /// clave y cada carga nueva suben el contador, y solo aplica su resultado la carga que aún es la última.
+    /// </summary>
+    private int _cargaVigente;
+
     protected override async Task OnParametersSetAsync()
     {
         var clave = (Tipo, PropietarioId, Email);
@@ -91,7 +134,10 @@
         // Revisión Codex r1 (#2163, MEDIO 4): la nota del contacto anterior desaparece en el acto, antes de esperar a la del
         // nuevo. Si siguiera pintada, se podría editar y guardar con su ContactoId bajo la entidad del contacto nuevo.
         _cargada = clave;
+        _cargaVigente++;
         _nota = null;
+        _provisional = false;
+        _errorCarga = false;
         _autor = string.Empty;
         _editando = false;
         _texto = string.Empty;
@@ -105,6 +151,12 @@
     /// </summary>
     public bool TieneTextoSinGuardar =>
         _editando && !string.Equals(_texto.Trim(), (_nota?.Notas ?? string.Empty).Trim(), StringComparison.Ordinal);
+
+    /// <summary>
+    /// La nota se está editando o guardando: la página no le cambia el contacto en medio (revisión puente de la PR de E21).
+    /// Un mensaje nuevo de otro participante en el mismo hilo cambiaría el interlocutor y vaciaría la edición en silencio.
+    /// </summary>
+    public bool EnEdicion => _editando || _guardando;
 
     /// <summary>Descarta la edición en curso: lo llama la página cuando la persona elige descartar los cambios.</summary>
     public void Descartar()
@@ -125,24 +177,53 @@
     private async Task CargarAsync()
     {
         var clave = (Tipo, PropietarioId, Email);
+        var carga = ++_cargaVigente;
         try
         {
             var nota = await Mediator.Send(new ObtenerNotaContactoQuery(Tipo, PropietarioId, Email));
-            if (_cargada != clave) return;
+            if (_cargada != clave || carga != _cargaVigente) return;
 
             // El autor se resuelve antes de pintar, y bajo la misma guarda: un nombre que llega tarde no es de esta nota.
             var autor = await NombreDelAutorAsync(nota);
-            if (_cargada != clave) return;
+            if (_cargada != clave || carga != _cargaVigente) return;
 
             _nota = nota;
             _autor = autor;
+            _provisional = false;
+            _errorCarga = false;
         }
         catch (Exception ex)
         {
-            // La nota fija es contexto, no condición: sin ella, la conversación se sigue atendiendo.
+            // La nota fija es contexto, no condición: sin ella, la conversación se sigue atendiendo. Si ya había una nota conocida
+            // (la recién guardada, tras escribir) se conserva y se ofrece reintentar; borrarla dejaría la nota guardada sin verse.
             Logger.LogError(ex, "Error al cargar la nota fija del contacto en la entidad {PropietarioId}.", PropietarioId);
-            if (_cargada != clave) return;
-            _nota = null;
+            if (_cargada != clave || carga != _cargaVigente) return;
+            _errorCarga = true;
+        }
+    }
+
+    /// <summary>
+    /// Carga que es un reintento y aún no ha terminado (0 = ninguno). Vale mientras sea la carga vigente: un cambio de contacto o
+    /// un guardado suben <c>_cargaVigente</c> y la dejan atrás sin tener que apagarla.
+    /// </summary>
+    private int _cargaDelReintento;
+
+    private bool Reintentando => _cargaDelReintento != 0 && _cargaDelReintento == _cargaVigente;
+
+    private async Task ReintentarAsync()
+    {
+        if (_editando || _guardando || Reintentando) return;
+
+        _errorCarga = false;
+        var generacion = _cargaVigente + 1; // la que va a tomar CargarAsync
+        _cargaDelReintento = generacion;
+        try
+        {
+            await CargarAsync();
+        }
+        finally
+        {
+            if (_cargaDelReintento == generacion) _cargaDelReintento = 0;
         }
     }
 
@@ -150,8 +231,17 @@
     {
         if (nota?.AutorUsuarioId is not { } autorId || ResolverAutores is null) return TextosNotas["AutorDesconocido"].Value;
 
-        var nombres = await ResolverAutores([autorId]);
-        return nombres.TryGetValue(autorId, out var nombre) ? nombre : TextosNotas["AutorDesconocido"].Value;
+        // El nombre del autor es un adorno de la nota: si el directorio falla, la nota se pinta con el rótulo genérico.
+        try
+        {
+            var nombres = await ResolverAutores([autorId]);
+            return nombres.TryGetValue(autorId, out var nombre) ? nombre : TextosNotas["AutorDesconocido"].Value;
+        }
+        catch (Exception ex)
+        {
+            Logger.LogWarning(ex, "No se pudo resolver el autor de la nota fija del contacto en la entidad {PropietarioId}.", PropietarioId);
+            return TextosNotas["AutorDesconocido"].Value;
+        }
     }
 
     private string TextoMeta(NotaContactoDto nota) => string.Format(Textos["Meta"].Value, _autor, Fecha(nota.ActualizadaEnUtc));
@@ -161,15 +251,26 @@
 
     private void Editar()
     {
+        if (_guardando || Reintentando) return;
         _texto = _nota?.Notas ?? string.Empty;
         _editando = true;
     }
 
-    private void Cancelar() => _editando = false;
+    private async Task CancelarAsync()
+    {
+        _editando = false;
+        await OnTextoCambiado.InvokeAsync();
+    }
+
+    /// <summary>Texto vacío sobre una nota existente: guardar es retirarla (BAJO 4 de la r1 de la #2167).</summary>
+    private bool RetiraLaNota => string.IsNullOrWhiteSpace(_texto) && !string.IsNullOrWhiteSpace(_nota?.Notas);
+
+    private bool HayAlgoQueGuardar => !string.IsNullOrWhiteSpace(_texto) || RetiraLaNota;
 
     private async Task GuardarAsync()
     {
-        if (_guardando || _nota is not { } nota || _cargada is not { } clave || string.IsNullOrWhiteSpace(_texto)) return;
+        if (_guardando || _nota is not { } nota || _cargada is not { } clave || !HayAlgoQueGuardar) return;
+        var retira = RetiraLaNota;
 
         // Entidad y contacto salen de la misma carga (la nota pintada es la de la clave vigente): nunca uno de cada contacto.
         var (tipo, propietarioId, _) = clave;
@@ -188,7 +289,15 @@
             // Si aun así llegó texto nuevo mientras se guardaba (un evento en cola), no se pierde: la edición sigue abierta
             // con él y cuenta como cambio sin guardar. Solo se sale de la edición si lo guardado es lo que hay.
             _editando = !string.Equals(_texto.Trim(), guardado, StringComparison.Ordinal);
-            ToastService.Mostrar(string.Format(Textos["ToastGuardada"].Value, nota.Nombre), TonoToast.Exito);
+
+            // Hasta que la lectura posterior confirme la nota, la pintada es el texto recién guardado (sin autor ni fecha) y no la
+            // anterior: es la última nota conocida si esa lectura falla, y con ella a la vista no se reabre la versión antigua
+            // (revisión Codex r2 de la #2167, MEDIO 2 y BAJO).
+            _nota = nota with { Notas = guardado.Length == 0 ? null : guardado };
+            _provisional = true;
+            _errorCarga = false;
+            ToastService.Mostrar(string.Format(Textos[retira ? "ToastRetirada" : "ToastGuardada"].Value, nota.Nombre), TonoToast.Exito);
+            StateHasChanged();
             await CargarAsync();
         }
         catch (Exception ex)
@@ -199,6 +308,10 @@
         finally
         {
             _guardando = false;
+
+            // BAJO 5 de la r1 de la #2167: la página aplaza el cambio de interlocutor mientras la nota se edita o se guarda. Al
+            // terminar se lo dice, para que recalcule el interlocutor aunque la recarga que lo cambió ya hubiera acabado.
+            await OnTextoCambiado.InvokeAsync();
         }
     }
 }

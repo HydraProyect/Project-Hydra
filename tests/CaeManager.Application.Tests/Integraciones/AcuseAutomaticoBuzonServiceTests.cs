@@ -16,21 +16,23 @@ public class AcuseAutomaticoBuzonServiceTests
 {
     private const string Destinatario = "persona@ejemplo.test";
 
-    private readonly ConexionIntegracion _conexion = new("cae@ejemplo.test", "Buzón CAE");
+    private readonly ConexionIntegracion _conexion = new ConexionIntegracion("cae@ejemplo.test", "Buzón CAE").Verificada();
     private readonly ConversacionRepositorioFalso _conversaciones = new();
     private readonly CredencialIntegracionRepositorioFalso _credenciales = new();
     private readonly Microsoft365GraphClientFalso _graph = new();
     private readonly UnitOfWorkFalso _unitOfWork = new();
+    private readonly ConexionIntegracionRepositorioFalso _conexiones = new();
     private readonly DescarteCambiosPendientesFalso _descarte = new();
     private readonly RegistroDeAvisos<AcuseAutomaticoBuzonService> _log = new();
 
     public AcuseAutomaticoBuzonServiceTests()
     {
         _credenciales.Agregar(new CredencialIntegracion(_conexion.Id, "refresh"));
+        _conexiones.Agregar(_conexion);
     }
 
     private AcuseAutomaticoBuzonService Servicio(RegistroExportacionFalso? registro = null, IUnitOfWork? unitOfWork = null) =>
-        new(_conversaciones, _graph, new AccesoGraphService(_credenciales, _graph), registro ?? new RegistroExportacionFalso(),
+        new(_conversaciones, _conexiones, _graph, new AccesoGraphService(_credenciales, _graph), registro ?? new RegistroExportacionFalso(),
             unitOfWork ?? _unitOfWork, _descarte, _log);
 
     private AcusePendiente Pendiente(string mensajeExternoId = "msg-1", string hilo = "hilo-1", string remitente = Destinatario)
@@ -62,6 +64,44 @@ public class AcuseAutomaticoBuzonServiceTests
         _unitOfWork.VecesGuardado.Should().Be(2, "uno por el token renovado y otro por el mensaje");
     }
 
+    /// <summary>
+    /// Puerta justo antes de enviar: la conexión del acuse es la instancia que cargó la ingesta, y entre medias otro
+    /// proceso la pasó a ConError (quizá otro Tenant ya reclamó el buzón). No sale nada.
+    /// </summary>
+    [Fact]
+    public async Task Si_la_conexion_dejo_de_estar_operativa_en_la_base_el_acuse_no_sale()
+    {
+        var acuse = Pendiente();
+        _conexiones.NoOperativasEnBase.Add(_conexion.Id);
+
+        await Servicio().EnviarAsync([acuse], CancellationToken.None);
+
+        _graph.VecesEnviado.Should().Be(0);
+        acuse.Conversacion.Mensajes.Should().NotContain(m => m.Direccion == DireccionMensaje.Saliente);
+    }
+
+    /// <summary>Un buzón compartido no tiene credencial: el acuse sale por su dirección y con el token de aplicación de su directorio.</summary>
+    [Fact]
+    public async Task Con_un_buzon_compartido_el_acuse_sale_por_su_direccion_y_con_el_token_de_aplicacion_del_directorio()
+    {
+        var directorio = Guid.NewGuid().ToString("D");
+        var compartido = ConexionIntegracion.CrearBuzonCompartido("piloto@tenant.com", "Buzón piloto", directorio, Guid.NewGuid()).Verificada();
+        var conversacion = new Conversacion("Asunto del correo");
+        conversacion.AsociarConexion(compartido.Id, "hilo-1");
+        conversacion.AgregarMensaje(DireccionMensaje.Entrante, CanalConversacion.Correo, Destinatario, "Cuerpo del correo", DateTime.UtcNow);
+        _conversaciones.Agregar(conversacion);
+        var acuse = new AcusePendiente(compartido, conversacion, "msg-1", Destinatario);
+        _conexiones.Agregar(compartido);
+
+        await Servicio().EnviarAsync([acuse], CancellationToken.None);
+
+        _graph.VecesEnviado.Should().Be(1);
+        _graph.BuzonesUsados.Should().ContainSingle().Which.Should().Be(new BuzonGraph("piloto@tenant.com", true));
+        _graph.DirectoriosConTokenDeAplicacion.Should().Equal(directorio);
+        _graph.VecesRefrescado.Should().Be(0, "no hay token delegado que refrescar");
+        MensajeDelAcuse(acuse).Remitente.Should().Be("piloto@tenant.com");
+    }
+
     [Fact]
     public async Task El_registro_de_salida_va_antes_del_envio_y_enmascara_la_direccion()
     {
@@ -87,6 +127,25 @@ public class AcuseAutomaticoBuzonServiceTests
         _graph.VecesEnviado.Should().Be(0);
         acuse.Conversacion.Mensajes.Should().ContainSingle();
         _descarte.VecesDescartado.Should().Be(1);
+    }
+
+    /// <summary>La verificación puede caducar entre la ingesta y el envío: sin ella, la dirección puede ser hoy otro buzón y no sale nada.</summary>
+    [Fact]
+    public async Task Sin_identidad_verificada_no_sale_el_acuse_ni_se_registra_salida()
+    {
+        var compartido = ConexionIntegracion.CrearBuzonCompartido("piloto@tenant.com", "Buzón piloto", Guid.NewGuid().ToString("D"), Guid.NewGuid());
+        var conversacion = new Conversacion("Asunto del correo");
+        conversacion.AsociarConexion(compartido.Id, "hilo-1");
+        conversacion.AgregarMensaje(DireccionMensaje.Entrante, CanalConversacion.Correo, Destinatario, "Cuerpo del correo", DateTime.UtcNow);
+        _conversaciones.Agregar(conversacion);
+        var registro = new RegistroExportacionFalso();
+
+        await Servicio(registro).EnviarAsync([new AcusePendiente(compartido, conversacion, "msg-1", Destinatario)], CancellationToken.None);
+
+        _graph.VecesEnviado.Should().Be(0);
+        _graph.BuzonesUsados.Should().BeEmpty();
+        registro.Filas.Should().BeEmpty();
+        conversacion.Mensajes.Should().ContainSingle();
     }
 
     [Fact]

@@ -1,0 +1,30 @@
+.unir-pdf { display: flex; flex-direction: column; gap: var(--space-4); max-width: 960px; }
+.unir-pdf ::deep a.boton { text-decoration: none; }
+.cabecera-unir { display: flex; flex-direction: column; gap: var(--space-1); }
+.cabecera-unir h1 { font: 700 26px/32px var(--font-family); letter-spacing: -.01em; margin: 0; }
+.cabecera-unir p { color: var(--color-text-muted); font: var(--font-body-md); margin: 0; }
+.cabecera-unir strong { color: var(--color-text); }
+.volver-herramientas { align-items: center; align-self: flex-start; display: inline-flex; font-weight: 600; gap: var(--space-1); }
+.texto-suave { color: var(--color-text-muted); font: var(--font-caption); margin: 0; }
+.isla-unir { background: var(--color-surface); border: var(--border-default); border-radius: var(--radius-lg); display: flex; flex-direction: column; gap: var(--space-4); padding: var(--space-6); }
+.isla-unir h2 { font: var(--font-h4); margin: 0; }
+.aviso-unir { align-items: center; background: var(--color-warning-50); border: 1px solid var(--color-warning-500); border-radius: var(--radius-md); color: var(--color-warning-700); display: flex; flex-wrap: wrap; font: var(--font-body-md); gap: var(--space-2); padding: var(--space-3) var(--space-4); }
+.aviso-unir > span { flex: 1; min-width: 200px; }
+.aviso-error { background: var(--color-danger-50); border-color: var(--color-danger-500); color: var(--color-danger-700); }
+.zona-bloqueada { align-items: center; background: var(--color-surface-subtle); border: 2px dashed var(--color-border-strong); border-radius: var(--radius-lg); color: var(--color-text-muted); display: flex; flex-direction: column; font: var(--font-body-md); gap: var(--space-3); padding: var(--space-10) var(--space-8); text-align: center; }
+.acciones-origen { display: flex; flex-wrap: wrap; gap: var(--space-2); }
+.documentos-unir { border-top: var(--border-default); display: flex; flex-direction: column; gap: var(--space-3); padding-top: var(--space-4); }
+.documentos-unir h3 { font: var(--font-label); margin: 0; }
+.documentos-unir ul { display: flex; flex-direction: column; gap: var(--space-2); list-style: none; margin: 0; max-height: 320px; overflow-y: auto; padding: 0; }
+.documentos-unir li { align-items: center; border: var(--border-default); border-radius: var(--radius-md); display: flex; gap: var(--space-3); justify-content: space-between; padding: var(--space-2) var(--space-3); }
+.lista-unir { display: flex; flex-direction: column; gap: var(--space-2); list-style: none; margin: 0; padding: 0; }
+.lista-unir li { align-items: center; border: var(--border-default); border-radius: var(--radius-md); display: flex; gap: var(--space-3); padding: var(--space-2) var(--space-3); }
+.lista-unir li.con-firma { border-color: var(--color-warning-500); box-shadow: inset 3px 0 0 var(--color-warning-500); }
+.orden-unir { background: var(--color-info-50); border-radius: var(--radius-sm); color: var(--color-info-500); font: 600 13px/16px var(--font-family); font-variant-numeric: tabular-nums; padding: 4px 8px; }
+.nombre-unir { display: flex; flex: 1; flex-direction: column; gap: 2px; min-width: 0; overflow-wrap: anywhere; }
+.botones-unir { display: inline-flex; gap: var(--space-1); }
+.boton-orden { align-items: center; background: var(--color-surface); border: var(--border-default); border-radius: var(--radius-sm); color: var(--color-text); cursor: pointer; display: inline-flex; font: 600 14px/16px var(--font-family); height: 32px; justify-content: center; width: 32px; }
+.boton-orden:disabled { cursor: not-allowed; opacity: .4; }
+.boton-orden ::deep svg { height: 14px; width: 14px; }
+.barra-acciones-unir { align-items: center; background: var(--color-surface); border: var(--border-default); border-radius: var(--radius-lg); bottom: var(--space-3); box-shadow: var(--shadow-overlay); display: flex; flex-wrap: wrap; gap: var(--space-4); justify-content: flex-end; padding: var(--space-3) var(--space-4); position: sticky; }
+.barra-acciones-unir > span { flex: 1; font: 600 14px/20px var(--font-family); font-variant-numeric: tabular-nums; min-width: 200px; }

@@ -18,13 +18,13 @@
   <data name="TodasConversaciones" xml:space="preserve"><value>Totes les converses</value></data>
   <data name="RecuentoConversaciones" xml:space="preserve"><value>{0} converses</value></data>
   <data name="Conversacion" xml:space="preserve"><value>Conversa</value></data>
-  <data name="Empresa" xml:space="preserve"><value>Client</value></data>
+  <data name="Empresa" xml:space="preserve"><value>Client empresarial</value></data>
   <data name="Prioridad" xml:space="preserve"><value>Prioritat</value></data>
   <data name="Estado" xml:space="preserve"><value>Estat</value></data>
   <data name="AsignadaA" xml:space="preserve"><value>Assignada a</value></data>
   <data name="SinAsignar" xml:space="preserve"><value>Sense assignar</value></data>
   <data name="Asignada" xml:space="preserve"><value>Assignada</value></data>
-  <data name="SinEmpresa" xml:space="preserve"><value>Sense Client assignat</value></data>
+  <data name="SinEmpresa" xml:space="preserve"><value>Sense Client empresarial assignat</value></data>
   <data name="Correo" xml:space="preserve"><value>Correu</value></data>
   <data name="VolverBandeja" xml:space="preserve"><value>Tornar a la safata d'entrada</value></data>
   <data name="ErrorBuzon" xml:space="preserve"><value>No hem pogut carregar la llista</value></data>
@@ -43,7 +43,7 @@
   <data name="NotaInterna" xml:space="preserve"><value>Nota interna</value></data>
   <data name="Todas" xml:space="preserve"><value>Totes</value></data>
   <data name="Mias" xml:space="preserve"><value>Meves</value></data>
-  <data name="EsperandoCliente" xml:space="preserve"><value>Esperant el Client</value></data>
+  <data name="EsperandoCliente" xml:space="preserve"><value>Esperant resposta de l'Interlocutor</value></data>
   <data name="BuscarBuzon" xml:space="preserve"><value>Cercar a la bústia</value></data>
   <data name="BuscarPlaceholder" xml:space="preserve"><value>Cercar a l’assumpte i al text dels missatges</value></data>
   <data name="RecuentoConversacion" xml:space="preserve"><value>{0} conversa</value></data>
@@ -52,8 +52,8 @@
   <data name="ResumenResuelta" xml:space="preserve"><value>Resolta</value></data>
   <data name="ParaCerrarlaFalta" xml:space="preserve"><value>Per tancar-la falta</value></data>
   <data name="SinAccionesCierre" xml:space="preserve"><value>No queden accions de tancament.</value></data>
-  <data name="IdentificarClienteCierre" xml:space="preserve"><value>Identificar el remitent i assignar el Client abans de tramitar la conversa.</value></data>
-  <data name="EsperarClienteCierre" xml:space="preserve"><value>Rebre la resposta del Client i revisar el que s'ha rebut.</value></data>
+  <data name="IdentificarClienteCierre" xml:space="preserve"><value>Identificar el remitent i assignar el Client empresarial abans de tramitar la conversa.</value></data>
+  <data name="EsperarClienteCierre" xml:space="preserve"><value>Rebre la resposta de l'Interlocutor i revisar el que s'ha rebut.</value></data>
   <data name="EsperarTerceroCierre" xml:space="preserve"><value>Rebre la resposta del tercer i revisar el que s'ha rebut.</value></data>
   <data name="RevisarCierre" xml:space="preserve"><value>Revisar el fil i confirmar que la gestió està resolta.</value></data>
   <data name="NuevoCorreo" xml:space="preserve"><value>Nou correu</value></data>

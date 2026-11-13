@@ -7,15 +7,47 @@ namespace CaeManager.Infrastructure.Persistence.Repositories;
 public class ReclamacionBuzonIntegracionRepository(CaeManagerDbContext dbContext) : IReclamacionBuzonIntegracionRepository
 {
     public const string IndiceUnicoBuzonEmail = "IX_ReclamacionesBuzonIntegracion_BuzonEmail";
+    public const string IndiceUnicoIdentidadBuzon = "IX_ReclamacionesBuzonIntegracion_IdentidadBuzon";
+
+    public Task<ReclamacionBuzonIntegracion?> ObtenerPorConexionAsync(Guid conexionIntegracionId, CancellationToken cancellationToken = default) =>
+        dbContext.ReclamacionesBuzonIntegracion.FirstOrDefaultAsync(r => r.ConexionIntegracionId == conexionIntegracionId, cancellationToken);
+
+    public async Task<ReclamacionBuzonIntegracion?> ObtenerActualPorConexionAsync(
+        Guid conexionIntegracionId, CancellationToken cancellationToken = default) =>
+        (await dbContext.ListarActualesAsync(
+            dbContext.ReclamacionesBuzonIntegracion, r => r.ConexionIntegracionId == conexionIntegracionId, cancellationToken))
+        .FirstOrDefault();
+
+    /// <summary>
+    /// Restricción de exclusión de la guarda transitoria (ver
+    /// <see cref="ReclamacionBuzonIntegracion.CuentaParaGuardaTransitoria"/>): una reclamación de buzón compartido no
+    /// convive con ninguna heredada sin identidad que cuente. La crea la migración 20261111150000.
+    /// </summary>
+    public const string RestriccionGuardaTransitoria = "EX_ReclamacionesBuzonIntegracion_GuardaTransitoriaCompartidos";
 
     public void Reclamar(ReclamacionBuzonIntegracion reclamacion) => dbContext.ReclamacionesBuzonIntegracion.Add(reclamacion);
 
-    public async Task<bool> GuardarCambiosSiBuzonLibreAsync(CancellationToken cancellationToken = default)
+    public async Task<IReadOnlyList<ReclamacionBuzonIntegracion>> ObtenerQueCuentanParaGuardaTransitoriaAsync(
+        CancellationToken cancellationToken = default) =>
+        await dbContext.ReclamacionesBuzonIntegracion
+            .Where(r => r.IdentidadBuzon == null && r.FueraDeGuardaTransitoriaUtc == null)
+            .ToListAsync(cancellationToken);
+
+    public async Task<ResultadoReclamacionBuzon> GuardarCambiosSiBuzonLibreAsync(CancellationToken cancellationToken = default)
     {
         try
         {
             await dbContext.SaveChangesAsync(cancellationToken);
-            return true;
+            return ResultadoReclamacionBuzon.Guardada;
+        }
+        // La guarda transitoria, también por su nombre: 23P01 es la violación de una restricción de exclusión.
+        catch (DbUpdateException ex) when (ex.InnerException is PostgresException
+        {
+            SqlState: "23P01"
+        } pg && pg.ConstraintName == RestriccionGuardaTransitoria)
+        {
+            dbContext.ChangeTracker.Clear();
+            return ResultadoReclamacionBuzon.AltaCompartidaEnPausa;
         }
         // Comprobar el nombre de la restricción (mismo patrón que
         // OperacionImportacionRepository.GuardarSiOperacionNuevaAsync) y no
@@ -25,7 +57,7 @@ public class ReclamacionBuzonIntegracionRepository(CaeManagerDbContext dbContext
         catch (DbUpdateException ex) when (ex.InnerException is PostgresException
         {
             SqlState: "23505"
-        } pg && pg.ConstraintName == IndiceUnicoBuzonEmail)
+        } pg && pg.ConstraintName is IndiceUnicoBuzonEmail or IndiceUnicoIdentidadBuzon)
         {
             // Un SaveChangesAsync fallido no revierte el estado Added de las
             // entidades en memoria — solo la transacción de la base de
@@ -34,7 +66,7 @@ public class ReclamacionBuzonIntegracionRepository(CaeManagerDbContext dbContext
             // marcadas para guardar en el siguiente SaveChangesAsync, aunque
             // nada de eso llegó a persistirse aquí.
             dbContext.ChangeTracker.Clear();
-            return false;
+            return ResultadoReclamacionBuzon.BuzonYaReclamado;
         }
         // Cualquier otro fallo de SaveChangesAsync (p. ej. el índice único
         // (TenantId, Nombre) de ConexionIntegracion) es un error real del

@@ -5,7 +5,6 @@
 src/CaeManager.Application/Integraciones/Commands/ActualizarLineaWhatsApp/ActualizarLineaWhatsAppCommand.cs :: Integraciones.WhatsApp.UsuarioNoVisible [gestor-a-secas] = 1
 src/CaeManager.Application/Integraciones/Commands/ActualizarLineaWhatsApp/ActualizarLineaWhatsAppCommand.cs :: WithMessage [gestor-a-secas] = 2
 src/CaeManager.Application/Integraciones/Commands/ConectarBuzonMicrosoft365/ConectarBuzonMicrosoft365Command.cs :: Integraciones.Microsoft365.GestorNoVisible [gestor-a-secas] = 1
-src/CaeManager.Application/Integraciones/Commands/ConectarBuzonMicrosoft365/ConectarBuzonMicrosoft365Command.cs :: WithMessage [gestor-a-secas] = 1
 src/CaeManager.Application/Integraciones/Commands/CrearLineaWhatsApp/CrearLineaWhatsAppCommand.cs :: Integraciones.WhatsApp.UsuarioNoVisible [gestor-a-secas] = 1
 src/CaeManager.Application/Integraciones/Commands/CrearLineaWhatsApp/CrearLineaWhatsAppCommand.cs :: WithMessage [gestor-a-secas] = 2
 src/CaeManager.Application/Tenants/Commands/CrearAsignacionOperadorDelegado/CrearAsignacionOperadorDelegadoCommand.cs :: AsignacionOperadorDelegado.NoAutorizado [operador-a-secas] = 2

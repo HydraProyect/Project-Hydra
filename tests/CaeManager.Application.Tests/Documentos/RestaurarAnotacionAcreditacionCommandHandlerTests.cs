@@ -96,6 +96,72 @@ public class RestaurarAnotacionAcreditacionCommandHandlerTests
     }
 
     [Fact]
+    public async Task Anotar_la_vigencia_de_una_que_la_plataforma_no_pide_falla_y_no_escribe()
+    {
+        // Pantalla vieja: se abrió validada y, entretanto, alguien marcó «Esta plataforma no lo pide». Una fecha pasada la
+        // pondría en rojo por un documento que nadie exige.
+        var m = new Mundo();
+        m.Acreditacion.MarcarNoRequerida();
+
+        var r = await m.SoloVigencia().Handle(
+            new ConfirmarVigenciaAcreditacionCommand(m.Acreditacion.Id, VigenciaEnPlataforma.VenceEl(new DateOnly(2020, 1, 1))),
+            CancellationToken.None);
+
+        r.EsFallido.Should().BeTrue();
+        r.Error.Codigo.Should().Be("Acreditacion.NoRequerida");
+        m.Acreditacion.Vigencia.EstaSinConfirmar.Should().BeTrue();
+        m.UnitOfWork.VecesGuardado.Should().Be(0);
+    }
+
+    /// <summary>Fila No requerida anterior a la invariante «sin vigencia»: conserva una fecha pasada.</summary>
+    private static readonly VigenciaEnPlataforma Historica = VigenciaEnPlataforma.VenceEl(new DateOnly(2020, 1, 1));
+
+    private static void HacerNoRequeridaHistorica(AcreditacionDocumentoPlataforma acreditacion)
+    {
+        acreditacion.MarcarAceptada(Historica);
+        typeof(AcreditacionDocumentoPlataforma).GetProperty(nameof(AcreditacionDocumentoPlataforma.Estado))!
+            .SetValue(acreditacion, EstadoAcreditacion.NoRequerida);
+    }
+
+    [Fact]
+    public async Task Sobre_una_no_requerida_historica_con_fecha_anotar_vigencia_falla_limpio_y_no_escribe()
+    {
+        var m = new Mundo();
+        HacerNoRequeridaHistorica(m.Acreditacion);
+
+        var r = await m.SoloVigencia().Handle(new ConfirmarVigenciaAcreditacionCommand(m.Acreditacion.Id, Nueva), CancellationToken.None);
+
+        r.Error.Codigo.Should().Be("Acreditacion.NoRequerida");
+        m.Acreditacion.Vigencia.Should().Be(Historica, "no se escribe nada");
+        m.UnitOfWork.VecesGuardado.Should().Be(0);
+    }
+
+    [Fact]
+    public async Task Deshacer_marcar_validado_sobre_una_no_requerida_historica_vuelve_a_no_requerida_sin_su_fecha()
+    {
+        var m = new Mundo();
+        HacerNoRequeridaHistorica(m.Acreditacion);
+        var recibo = (await m.Aceptar().Handle(new MarcarAcreditacionAceptadaCommand(m.Acreditacion.Id, Nueva), CancellationToken.None)).Valor;
+        recibo.VigenciaPrevia.Should().Be(Historica, "precondición: el recibo trae la fecha histórica");
+
+        var r = await m.Restaurar().Handle(
+            new RestaurarAnotacionAcreditacionCommand(recibo.AcreditacionId, recibo.EstadoPrevio, recibo.VigenciaPrevia, recibo.VersionResultante),
+            CancellationToken.None);
+
+        r.EsExitoso.Should().BeTrue("«Deshacer» no queda roto en esas filas");
+        m.Acreditacion.Estado.Should().Be(EstadoAcreditacion.NoRequerida);
+        m.Acreditacion.Vigencia.EstaSinConfirmar.Should().BeTrue("la fecha de un documento que no se pide no vuelve");
+
+        // Segundo Deshacer con el mismo recibo (doble clic, otra pestaña): idempotente, aunque el recibo traiga la fecha.
+        var guardados = m.UnitOfWork.VecesGuardado;
+        var otra = await m.Restaurar().Handle(
+            new RestaurarAnotacionAcreditacionCommand(recibo.AcreditacionId, recibo.EstadoPrevio, recibo.VigenciaPrevia, Guid.NewGuid()),
+            CancellationToken.None);
+        otra.EsExitoso.Should().BeTrue();
+        m.UnitOfWork.VecesGuardado.Should().Be(guardados, "no escribe otra vez");
+    }
+
+    [Fact]
     public async Task Rechaza_si_la_acreditacion_cambio_desde_la_anotacion_y_no_escribe()
     {
         var m = new Mundo();

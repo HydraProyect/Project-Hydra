@@ -56,7 +56,7 @@ public class BloqueoRespuestaSugeridaTests
 
     private ConexionIntegracion Buzon(Guid? clienteId = null)
     {
-        var conexion = new ConexionIntegracion("cae@empresa.test", "Buzón CAE", clienteId);
+        var conexion = new ConexionIntegracion("cae@empresa.test", "Buzón CAE", clienteId).Verificada();
         _conexiones.Agregar(conexion);
         _integraciones.ConexionesLista.Add(conexion);
         _credenciales.Agregar(new CredencialIntegracion(conexion.Id, "refresh-token"));

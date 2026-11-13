@@ -51,7 +51,8 @@
 #                           ya no era la punta de `main` (main avanzó mientras
 #                           tanto: CI reejecutado, o dos merges seguidos).
 #   INDETERMINADO       5   Ya se estaba vigilando la PR y una lectura de `gh`
-#                           (la PR, la protección de main o la cola de fusión)
+#                           (la PR, la protección de main, la cola de fusión o
+#                           el log de un despliegue a staging fallido)
 #                           siguió fallando tras los reintentos acotados. NO
 #                           dice nada del desenlace: la PR puede seguir en cola
 #                           o haberse fusionado. La línea lleva la lectura que
@@ -66,8 +67,8 @@
 # consumidor que solo mire el prefijo `VEREDICTO:` no debe poder confundir
 # "no pude ni empezar a mirar" con uno de los desenlaces de arriba.
 # Eso vale para la PRIMERA lectura de la PR. Una vez empezada la vigilancia,
-# un fallo de lectura de `gh` (la PR, la protección de main o la cola de
-# fusión) se reintenta de forma acotada y, si persiste, SIEMPRE termina en
+# un fallo de lectura de `gh` (la PR, la protección de main, la cola de
+# fusión o el log de un despliegue a staging fallido) se reintenta de forma acotada y, si persiste, SIEMPRE termina en
 # `VEREDICTO: INDETERMINADO` (5) — nunca en 64 sin veredicto. Medido el
 # 2026-09-24: dos vigías de la PR #868 con --hasta merge murieron con 64 a
 # mitad de la espera, con la PR en cola, y la PR acabó MERGED; y lanzado
@@ -284,10 +285,20 @@ run_jobs_tsv() {
     2>/dev/null
 }
 
+# 0 = obsoleto, 1 = no obsoleto, 2 = no se pudo leer el log (ni sí ni no).
 run_es_obsoleto() {
-  local run_id="$1"
-  gh run view "$run_id" --repo "$REPO" --log-failed 2>/dev/null \
-    | grep -qi -- "$MENSAJE_RUN_OBSOLETO"
+  local run_id="$1" log estado=0
+  # Log capturado entero antes de buscar: con pipefail, `gh … | grep -q` da
+  # fallo por SIGPIPE si gh sigue escribiendo tras el primer acierto. Un fallo
+  # de `gh` no es «no obsoleto»: se devuelve aparte para no clasificar el run.
+  # Tampoco `grep <<<`: Bash puede volcar el here-string a un fichero temporal
+  # y, si no lo crea, grep no corre y su 1 se leería como «no obsoleto». Sin -q,
+  # grep lee la entrada entera y el printf no escribe en una tubería cerrada;
+  # cualquier estado distinto de 0 o 1 es «no se sabe».
+  log="$(gh run view "$run_id" --repo "$REPO" --log-failed 2>/dev/null)" || return 2
+  printf '%s\n' "$log" | grep -i -- "$MENSAJE_RUN_OBSOLETO" >/dev/null || estado=$?
+  (( estado <= 1 )) || return 2
+  return "$estado"
 }
 
 # --- Veredicto final: UNA línea a stdout, log de progreso a stderr -------
@@ -398,6 +409,31 @@ fase_checks() {
     done
     esperados=("${esperados_filtrados[@]}")
 
+    # Las filas de `gh pr checks` se leen enteras ANTES de interpretarlas: con
+    # `done < <(pr_checks_requeridos_tsv)` el estado de gh se perdía, y una
+    # salida parcial seguida de un fallo podía traer como `pass` todos los
+    # esperados y dar VERDE con una lectura incompleta (revisión Codex de
+    # #2106, ronda 2). Una lectura fallida no da veredicto en ningún sentido: se
+    # descarta entera y se espera a la siguiente vuelta, igual que cuando gh aún
+    # no informa de ningún check; el plazo total sigue acotando la espera.
+    # Excepción: una fila `fail` o `cancel` es un ROJO cierto aunque la lectura
+    # esté incompleta, y no se degrada a TIMEOUT si gh sale con error al haber
+    # checks fallidos.
+    local checks_tsv
+    if ! checks_tsv="$(pr_checks_requeridos_tsv)"; then
+      while IFS=$'\t' read -r nombre bucket; do
+        if [[ -n "$nombre" && ( "$bucket" == "fail" || "$bucket" == "cancel" ) ]]; then
+          salir_rojo "check obligatorio '$nombre' del HEAD $head_vigilado: $bucket"
+        fi
+      done < <(printf '%s\n' "$checks_tsv")
+      log "fase checks: 'gh pr checks' falló (o aún no informa de checks obligatorios) — se descarta esta lectura, sin decidir nada con ella"
+      if tiempo_agotado; then
+        salir_timeout checks "head=$head_vigilado sin una lectura completa de 'gh pr checks'"
+      fi
+      sleep "$INTERVALO_S"
+      continue
+    fi
+
     declare -A vistos=()
     local rojo=""
     while IFS=$'\t' read -r nombre bucket; do
@@ -406,7 +442,7 @@ fase_checks() {
       if [[ "$bucket" == "fail" || "$bucket" == "cancel" ]]; then
         rojo="check obligatorio '$nombre' del HEAD $head_vigilado: $bucket"
       fi
-    done < <(pr_checks_requeridos_tsv)
+    done < <(printf '%s\n' "$checks_tsv")
 
     if [[ -n "$rojo" ]]; then
       salir_rojo "$rojo"
@@ -572,7 +608,7 @@ fi
 # =========================================================================
 fase_despliegue() {
   log "fase despliegue: buscando el run de 'Desplegar' para $SHA_FUSION"
-  local fallos_lectura_jobs=0
+  local fallos_lectura_jobs=0 fallos_lectura_log=0
   while true; do
     local linea_run
     linea_run="$(run_desplegar_para_sha_tsv "$SHA_FUSION")"
@@ -619,7 +655,20 @@ fase_despliegue() {
         log "fase despliegue: no se pudieron leer los jobs del run $run_id (intento $fallos_lectura_jobs) — reintentando, sin inferir nada de la conclusión agregada"
       elif [[ -n "$job_staging_estado" && "$job_staging_estado" == "completed" ]]; then
         fallos_lectura_jobs=0
-        if [[ "$job_staging_conclusion" == "failure" ]] && run_es_obsoleto "$run_id"; then
+        local obsoleto=1
+        if [[ "$job_staging_conclusion" == "failure" ]]; then
+          obsoleto=0
+          run_es_obsoleto "$run_id" || obsoleto=$?
+        fi
+        if [[ "$obsoleto" -eq 2 ]]; then
+          # Sin el log no se sabe si es OBSOLETO o ROJO: se reintenta y, si no
+          # se puede leer, se sale INDETERMINADO, nunca con una clasificación.
+          fallos_lectura_log=$((fallos_lectura_log + 1))
+          log "fase despliegue: ERROR leyendo el log del run $run_id (gh run view --log-failed) — intento $fallos_lectura_log de $MAX_FALLOS_RELECTURA, sin clasificar el run"
+          if [[ "$fallos_lectura_log" -ge "$MAX_FALLOS_RELECTURA" ]] || tiempo_agotado; then
+            salir_indeterminado run_log_failed "fase=despliegue run=$run_id sha=$SHA_FUSION: 'Desplegar a staging' concluyó failure y no se pudo leer su log para saber si es OBSOLETO o ROJO"
+          fi
+        elif [[ "$obsoleto" -eq 0 ]]; then
           salir_obsoleto "run=$run_id sha=$SHA_FUSION ya no era la punta de main al desplegar"
         elif [[ "$job_staging_conclusion" == "success" ]]; then
           salir_verde "PR #$PR desplegada a staging (run=$run_id, $detalle_jobs)"

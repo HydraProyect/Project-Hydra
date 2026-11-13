@@ -97,6 +97,22 @@ done
 # Si una imagen base futura lo cambia, este valor se corrige aquí y en ese bloque.
 APP_UID_CONTENEDOR=1654
 
+# contar_claves_distintas DIR_ARCHIVO DIR_COPIA -> imprime «N M»: N claves (*.xml) del
+# archivo Borg que la copia no tiene y M de la copia que el archivo no tiene. Falla (1)
+# si no puede listar las de alguno de los dos o el archivo no trae ninguna: los
+# listados se capturan con su estado ANTES de comparar porque, dentro de
+# `comm <(ls …) <(ls …)`, el fallo de `ls` se perdía y un listado del archivo vacío por
+# error daba N=0, es decir, una copia «al día» a la que le faltan claves.
+contar_claves_distintas() {
+    local claves_archivo claves_copia solo_archivo solo_copia
+    claves_archivo=$(cd "$1" && ls *.xml | sort) || return 1
+    [ -n "$claves_archivo" ] || return 1
+    claves_copia=$(cd "$2" && ls *.xml | sort) || return 1
+    solo_archivo=$(comm -23 <(printf '%s\n' "$claves_archivo") <(printf '%s\n' "$claves_copia") | wc -l) || return 1
+    solo_copia=$(comm -13 <(printf '%s\n' "$claves_archivo") <(printf '%s\n' "$claves_copia") | wc -l) || return 1
+    printf '%s %s\n' "$solo_archivo" "$solo_copia"
+}
+
 # bits_uid_app RUTA -> imprime los permisos (0-7, rwx) que el UID de la app tiene sobre
 # RUTA, con la regla de POSIX: si es el propietario, solo cuentan los bits del
 # propietario; si no, si su GID (igual al UID en la imagen) es el del grupo, los del
@@ -174,7 +190,23 @@ fi
 # propia app (la app tiene techo de 3 GB) y compite por RAM y disco con el stack
 # real de una máquina pequeña; un ensayo no puede tumbar lo que ensaya. Si aquí
 # ya corre el stack (contenedor caemanager-app o caemanager-db), se niega.
-if docker ps -a --format '{{.Names}}' 2>/dev/null | grep -qxE 'caemanager-(app|db)'; then
+# Nombres capturados antes de buscar: con pipefail, `docker ps | grep -q` daba
+# fallo por SIGPIPE si docker seguía escribiendo tras el primer acierto, y la
+# guarda no saltaba justo con el stack real presente.
+# Si `docker ps` falla no se sabe si el stack está, y eso no es «no está»: la
+# guarda se niega igual (antes el `|| true` lo leía como lista vacía).
+if ! NOMBRES_EN_HOST="$(docker ps -a --format '{{.Names}}' 2>/dev/null)"; then
+    if [ "${ENSAYO_PERMITIR_EN_SERVIDOR:-}" != "1" ]; then
+        echo "ERROR: no se pudo consultar 'docker ps -a': no se puede descartar que en este host esté el stack real."
+        echo "       Comprueba que Docker responde y repite, o ejecuta el ensayo en otra máquina."
+        exit 3
+    fi
+    echo "AVISO: 'docker ps -a' falló y ENSAYO_PERMITIR_EN_SERVIDOR=1: se sigue sin saber si el stack real está en este host."
+# Nombre exacto comparado en bash, sin `grep <<<`: si no se pudiera crear el
+# fichero temporal del here-string, grep no correría y el 1 se leería como
+# «no está».
+elif [[ $'\n'"$NOMBRES_EN_HOST"$'\n' == *$'\n'caemanager-app$'\n'* \
+     || $'\n'"$NOMBRES_EN_HOST"$'\n' == *$'\n'caemanager-db$'\n'* ]]; then
     if [ "${ENSAYO_PERMITIR_EN_SERVIDOR:-}" != "1" ]; then
         echo "ERROR: en este host existe el stack real (caemanager-app / caemanager-db)."
         echo "       Ejecuta el ensayo en otra máquina (tu equipo con Docker, o un servidor temporal)."
@@ -544,10 +576,13 @@ else
         local html token handler
         html=$(docker exec "$app" curl -sS -c /tmp/jar -H 'X-Forwarded-Proto: https' \
             http://localhost:8080/cuenta/iniciar-sesion | tr '\n' ' ')
-        token=$(printf '%s' "$html" | grep -o '<input[^>]*__RequestVerificationToken[^>]*>' | head -1 \
-            | sed -n 's/.*value="\([^"]*\)".*/\1/p')
-        handler=$(printf '%s' "$html" | grep -o '<input[^>]*name="_handler"[^>]*>' | head -1 \
-            | sed -n 's/.*value="\([^"]*\)".*/\1/p')
+        # El primer <input> lo elige `sed -n '1…'`, que lee la entrada entera:
+        # con `| head -1`, bajo pipefail, el SIGPIPE de grep al cerrar head
+        # convertía la extracción en un fallo.
+        token=$(printf '%s' "$html" | grep -o '<input[^>]*__RequestVerificationToken[^>]*>' \
+            | sed -n '1s/.*value="\([^"]*\)".*/\1/p')
+        handler=$(printf '%s' "$html" | grep -o '<input[^>]*name="_handler"[^>]*>' \
+            | sed -n '1s/.*value="\([^"]*\)".*/\1/p')
         if [ -z "$token" ]; then
             registrar FALLO "login [$etiqueta]" "la página de login no trae token antiforgery"
             return 0
@@ -663,16 +698,19 @@ PY
             mkdir -p "$DIR_TRABAJO/claves-copia"
             if age -d -i "$IDENTIDAD_AGE" "$COPIA_CLAVES" | tar -x -C "$DIR_TRABAJO/claves-copia"; then
                 if ls "$DIR_TRABAJO"/claves-copia/dataprotection-keys/*.xml >/dev/null 2>&1; then
-                    solo_archivo=$(comm -23 <(cd "$DIR_TRABAJO/dataprotection-keys" && ls *.xml | sort) \
-                                            <(cd "$DIR_TRABAJO/claves-copia/dataprotection-keys" && ls *.xml | sort) | wc -l)
-                    solo_copia=$(comm -13 <(cd "$DIR_TRABAJO/dataprotection-keys" && ls *.xml | sort) \
-                                          <(cd "$DIR_TRABAJO/claves-copia/dataprotection-keys" && ls *.xml | sort) | wc -l)
                     # Una clave del archivo que la copia no tiene = copia obsoleta: lo
                     # cifrado con esa clave no se podría leer si solo quedara la copia.
-                    if [ "$solo_archivo" -gt 0 ]; then
-                        registrar FALLO "copia cifrada de las claves al día" "le faltan $solo_archivo clave(s) que sí están en el archivo Borg: exportar de nuevo"
+                    if ! conteo_claves=$(contar_claves_distintas "$DIR_TRABAJO/dataprotection-keys" \
+                                             "$DIR_TRABAJO/claves-copia/dataprotection-keys"); then
+                        registrar FALLO "copia cifrada de las claves al día" "no se pudieron listar las claves del archivo Borg o de la copia: no se sabe si a la copia le falta alguna"
                     else
-                        registrar OK "copia cifrada de las claves al día" "abre y no le falta ninguna clave del archivo ($solo_copia más reciente(s) que el archivo)"
+                        solo_archivo=${conteo_claves% *}
+                        solo_copia=${conteo_claves#* }
+                        if [ "$solo_archivo" -gt 0 ]; then
+                            registrar FALLO "copia cifrada de las claves al día" "le faltan $solo_archivo clave(s) que sí están en el archivo Borg: exportar de nuevo"
+                        else
+                            registrar OK "copia cifrada de las claves al día" "abre y no le falta ninguna clave del archivo ($solo_copia más reciente(s) que el archivo)"
+                        fi
                     fi
                     verificar_app copia "$DIR_TRABAJO/claves-copia/dataprotection-keys"
                 else

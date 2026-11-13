@@ -20,12 +20,31 @@ public static class UrlBasePublica
 
         return null;
     }
+
+    /// <summary>
+    /// Regla única de la base de todo enlace con token que sale por correo (activación,
+    /// recuperación, «No he sido yo» y su contraseña nueva): la configurada en
+    /// <c>Smtp:UrlBasePublica</c>. La base de la petición entrante (esquema, Host y
+    /// PathBase, que controla quien la envía) solo se usa en Development y solo si no
+    /// hay ninguna configurada; fuera de Development nunca, aunque la configurada falte
+    /// o no sea válida (entonces <c>null</c>: sin enlace antes que con uno envenenado).
+    /// OWASP ASVS 4.0.3 V2.5 (recuperación de credenciales) y V5.1.5 (destinos solo de
+    /// una lista permitida).
+    /// </summary>
+    public static Uri? Resolver(string? configurada, Func<string?> basePeticion, bool desarrollo)
+    {
+        if (string.IsNullOrWhiteSpace(configurada) && desarrollo)
+            configurada = basePeticion();
+
+        return Normalizar(configurada, exigirHttps: !desarrollo);
+    }
 }
 
 /// <summary>
 /// Validación de arranque de <c>Smtp:UrlBasePublica</c>. Fuera de Development es
-/// obligatoria y https: sin ella no hay enlaces de activación ni de recuperación
-/// seguros (el Host de la petición lo controla quien la envía), así que la
+/// obligatoria y https: sin ella no hay enlaces de activación, de recuperación ni de
+/// los avisos de seguridad («No he sido yo») seguros (el Host de la petición lo
+/// controla quien la envía; ver <see cref="UrlBasePublica.Resolver"/>), así que la
 /// aplicación no arranca. En Development puede faltar (se usa el Host local).
 /// Mismo criterio que <c>ResolverCadenaDeTrafico</c>: un arranque que falla se ve en
 /// el acto; un enlace de cuenta que no sale, no.

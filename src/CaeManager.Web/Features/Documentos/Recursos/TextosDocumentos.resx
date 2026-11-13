@@ -393,6 +393,36 @@
   <data name="ListaPropietario" xml:space="preserve"><value>Propietario</value></data>
   <data name="ListaVence" xml:space="preserve"><value>Vence</value></data>
   <data name="PorAmbito" xml:space="preserve"><value>Por ámbito</value></data>
+  <data name="PorPlataformaCae" xml:space="preserve"><value>Por Plataforma CAE</value></data>
+  <data name="PorClienteEmpresarial" xml:space="preserve"><value>Por Cliente</value></data>
+  <data name="AgruparPorPlataformaCaeEtiqueta" xml:space="preserve"><value>Agrupar por: Plataforma CAE</value></data>
+  <data name="AgruparPorClienteEmpresarialEtiqueta" xml:space="preserve"><value>Agrupar por: Cliente</value></data>
+  <data name="ListaEstadoEnPlataforma" xml:space="preserve"><value>Estado en la plataforma</value></data>
+  <data name="EstadoPlataformaPendienteDeSubir" xml:space="preserve"><value>Pendiente de subir</value></data>
+  <data name="EstadoPlataformaRechazado" xml:space="preserve"><value>Rechazado</value></data>
+  <data name="EstadoPlataformaSinVigencia" xml:space="preserve"><value>Sin vigencia</value></data>
+  <data name="ChipEstadoPlataforma" xml:space="preserve"><value>Estado en la plataforma: {0}</value></data>
+  <data name="QuitarFiltroEstadoPlataforma" xml:space="preserve"><value>Quitar filtro de estado en la plataforma</value></data>
+  <data name="GrupoPendienteUno" xml:space="preserve"><value>1 pendiente de subir</value></data>
+  <data name="GrupoPendientes" xml:space="preserve"><value>{0} pendientes de subir</value></data>
+  <data name="GrupoRechazadoUno" xml:space="preserve"><value>1 rechazado</value></data>
+  <data name="GrupoRechazados" xml:space="preserve"><value>{0} rechazados</value></data>
+  <data name="GrupoSinVigencia" xml:space="preserve"><value>{0} sin vigencia</value></data>
+  <data name="GrupoVencidoUno" xml:space="preserve"><value>1 vencido</value></data>
+  <data name="GrupoVencidos" xml:space="preserve"><value>{0} vencidos</value></data>
+  <data name="GrupoUrgenteUno" xml:space="preserve"><value>1 urgente</value></data>
+  <data name="GrupoUrgentes" xml:space="preserve"><value>{0} urgentes</value></data>
+  <data name="GrupoDocumentoUno" xml:space="preserve"><value>1 documento</value></data>
+  <data name="GrupoDocumentos" xml:space="preserve"><value>{0} documentos</value></data>
+  <data name="GrupoClienteEmpresarialDocumentos" xml:space="preserve"><value>Cliente · {0}</value></data>
+  <data name="GrupoSinPlataformaCae" xml:space="preserve"><value>Sin Plataforma CAE</value></data>
+  <data name="GrupoSinClienteEmpresarial" xml:space="preserve"><value>Sin Cliente</value></data>
+  <data name="GrupoAnotarVigencia" xml:space="preserve"><value>Anotar vigencia ({0})</value></data>
+  <data name="PieAgrupadoFilas" xml:space="preserve"><value>Mostrando {0:N0} filas de {1:N0} documentos</value></data>
+  <data name="PieAgrupadoDocumentos" xml:space="preserve"><value>Mostrando {0:N0} documentos</value></data>
+  <data name="PieAgrupadoTope" xml:space="preserve"><value>Se muestran los primeros {0:N0} de {1:N0} documentos: afina los filtros para ver el resto.</value></data>
+  <data name="AnotarVigenciaTitulo" xml:space="preserve"><value>Anotar vigencia</value></data>
+  <data name="AnotarVigenciaGuardar" xml:space="preserve"><value>Guardar vigencia</value></data>
   <data name="QuitarFiltroPropietario" xml:space="preserve"><value>Quitar filtro de propietario</value></data>
   <data name="SinAgrupar" xml:space="preserve"><value>Sin agrupar</value></data>
   <data name="VacioDescripcionDesign" xml:space="preserve"><value>Sube el primero o usa la subida masiva.</value></data>
@@ -421,6 +451,13 @@
   <data name="ListaNoCaduca" xml:space="preserve"><value>No caduca</value></data>
   <data name="ListaVer" xml:space="preserve"><value>Ver</value></data>
   <data name="PestanaIncidencias" xml:space="preserve"><value>Incidencias</value></data>
+  <data name="PestanasEtiquetaGrupo" xml:space="preserve"><value>Secciones de documentos</value></data>
+  <data name="PestanaEstado" xml:space="preserve"><value>Estado</value></data>
+  <data name="PestanaPlataformasCae" xml:space="preserve"><value>Plataformas CAE</value></data>
+  <data name="PestanaReclamaciones" xml:space="preserve"><value>Reclamaciones</value></data>
+  <data name="PestanaPreventivo" xml:space="preserve"><value>Preventivo</value></data>
+  <data name="PestanaRevisionIa" xml:space="preserve"><value>Revisión IA</value></data>
+  <data name="PestanaPlantillas" xml:space="preserve"><value>Plantillas</value></data>
   <data name="ListaSinAdjunto" xml:space="preserve"><value>Sin adjunto</value></data>
   <data name="ListaVencimientoSinConfirmar" xml:space="preserve"><value>Sin confirmar</value></data>
   <data name="ListaEmisionFecha" xml:space="preserve"><value>Emisión {0}</value></data>

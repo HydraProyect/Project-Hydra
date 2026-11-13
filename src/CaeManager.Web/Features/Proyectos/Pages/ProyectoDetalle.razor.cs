@@ -498,13 +498,26 @@ public partial class ProyectoDetalle : CaeManager.Web.Components.PaginaInteracti
     private bool _guardandoEdicion;
     private string _editNombre = string.Empty;
     private string _editFechaFinPrevista = string.Empty;
+
+    /// <summary>El fin previsto tiene un texto que no es una fecha entera (entrega «»): Guardar no borra el fin previsto guardado.</summary>
+    private bool _editFechaFinPrevistaNoValida;
     private string _editNotas = string.Empty;
+
+    // Al volver a ser una fecha entera (o quedar vacía), el aviso «no es una fecha» de un envío anterior ya no es cierto.
+    private void AlCambiarEditFechaFinPrevistaNoValida(bool noValida)
+    {
+        _editFechaFinPrevistaNoValida = noValida;
+        if (!noValida && _editError == Comunes["CampoFechaCorregirAntes"])
+            _editError = null;
+    }
     private Dictionary<string, string> _editErrores = new();
     private string? _editError;
     private readonly InstantaneaFormulario _instantaneaEdicion = new();
 
+    // Una fecha a medias no cambia el valor del formulario («»), pero es texto que se pierde al cerrar.
     private bool HayCambiosEnEdicion =>
-        _editarVisible && _instantaneaEdicion.Difiere(_editNombre, _editFechaFinPrevista, _editNotas);
+        _editarVisible
+        && (_instantaneaEdicion.Difiere(_editNombre, _editFechaFinPrevista, _editNotas) || _editFechaFinPrevistaNoValida);
 
     private void AbrirEditar()
     {
@@ -513,6 +526,7 @@ public partial class ProyectoDetalle : CaeManager.Web.Components.PaginaInteracti
         _editNombre = _detalle.Nombre;
         _editFechaFinPrevista = _detalle.FechaFinPrevista?.ToString("yyyy-MM-dd") ?? string.Empty;
         _editNotas = _detalle.Notas ?? string.Empty;
+        _editFechaFinPrevistaNoValida = false;
         _editErrores = new();
         _editError = null;
         _instantaneaEdicion.Fijar(_editNombre, _editFechaFinPrevista, _editNotas);
@@ -536,7 +550,14 @@ public partial class ProyectoDetalle : CaeManager.Web.Components.PaginaInteracti
 
         try
         {
-            // Fecha vacía o no válida se guarda como «sin fin previsto»; notas en blanco, como vacías.
+            // Fecha vacía se guarda como «sin fin previsto»; una a medias o ilegible no (la bandera del campo bloquea antes);
+            // notas en blanco, como vacías.
+            if (_editFechaFinPrevistaNoValida)
+            {
+                _editError = Comunes["CampoFechaCorregirAntes"];
+                return;
+            }
+
             DateOnly? fechaFinPrevista = DateOnly.TryParse(_editFechaFinPrevista, out var fv) ? fv : null;
             var notas = string.IsNullOrWhiteSpace(_editNotas) ? null : _editNotas;
 
@@ -579,12 +600,19 @@ public partial class ProyectoDetalle : CaeManager.Web.Components.PaginaInteracti
     private string? _errorCierre;
     private readonly InstantaneaFormulario _instantaneaCierre = new();
 
-    private bool HayCambiosEnElModalDeCierre => _cerrarVisible && _instantaneaCierre.Difiere(_fechaCierre);
+    private bool HayCambiosEnElModalDeCierre => _cerrarVisible && (_instantaneaCierre.Difiere(_fechaCierre) || _fechaCierreNoValida);
+
+    /// <summary>
+    /// Cierre, nueva fecha de fin al reabrir y alta del técnico con un texto que no es una fecha entera: su valor ya es «»
+    /// (no se confirma la fecha propuesta anterior) y la marca bloquea el envío con el aviso de corregirla.
+    /// </summary>
+    private bool _fechaCierreNoValida, _nuevaFechaFinReabrirNoValida, _nuevoTecnicoFechaAltaNoValida;
 
     private void AbrirCerrar()
     {
         _fechaCierre = Hoy.ToString("yyyy-MM-dd");
         _errorCierre = null;
+        _fechaCierreNoValida = false;
         _instantaneaCierre.Fijar(_fechaCierre);
         _cerrarVisible = true;
     }
@@ -593,9 +621,10 @@ public partial class ProyectoDetalle : CaeManager.Web.Components.PaginaInteracti
     {
         if (_detalle is null) return;
 
-        if (!DateOnly.TryParse(_fechaCierre, out var fechaCierre))
+        // Un cierre a medias ya llega como «» (no se cierra con la fecha propuesta); la marca pide corregirlo.
+        if (_fechaCierreNoValida || !DateOnly.TryParse(_fechaCierre, out var fechaCierre))
         {
-            _errorCierre = Textos["ErrorFechaCierre"];
+            _errorCierre = _fechaCierreNoValida ? Comunes["CampoFechaCorregirAntes"] : Textos["ErrorFechaCierre"];
             return;
         }
 
@@ -646,7 +675,8 @@ public partial class ProyectoDetalle : CaeManager.Web.Components.PaginaInteracti
     private async Task ConfirmarReabrirAsync()
     {
         if (_reabriendo || _detalle is null) return;
-        if (!ReabrirEvento.LeerNuevaFechaFin(ReabrirPideFechaFin, _nuevaFechaFinReabrir, Hoy, out var nuevaFin))
+        if ((ReabrirPideFechaFin && _nuevaFechaFinReabrirNoValida)
+            || !ReabrirEvento.LeerNuevaFechaFin(ReabrirPideFechaFin, _nuevaFechaFinReabrir, Hoy, out var nuevaFin))
         {
             _errorReabrir = Textos["ErrorNuevaFechaFinReabrir"];
             return;
@@ -767,7 +797,7 @@ public partial class ProyectoDetalle : CaeManager.Web.Components.PaginaInteracti
 
     /// <summary>Comparado con cómo se abrió: la fecha de hoy que trae puesta no es un cambio.</summary>
     private bool HayCambiosEnAsignar =>
-        _asignarVisible && _instantaneaTecnico.Difiere(_nuevoTecnicoTrabajadorId, _nuevoTecnicoFechaAlta);
+        _asignarVisible && (_instantaneaTecnico.Difiere(_nuevoTecnicoTrabajadorId, _nuevoTecnicoFechaAlta) || _nuevoTecnicoFechaAltaNoValida);
 
     /// <summary>La acción primaria de la cabecera: asignar con el proyecto abierto, reabrir con él cerrado.</summary>
     private Task AccionPrincipalAsync()
@@ -777,6 +807,7 @@ public partial class ProyectoDetalle : CaeManager.Web.Components.PaginaInteracti
 
         _nuevaFechaFinReabrir = string.Empty;
         _errorReabrir = null;
+        _nuevaFechaFinReabrirNoValida = false;
         _confirmarReabrirVisible = true;
         return Task.CompletedTask;
     }
@@ -786,6 +817,7 @@ public partial class ProyectoDetalle : CaeManager.Web.Components.PaginaInteracti
         _nuevoTecnicoTrabajadorId = string.Empty;
         _nuevoTecnicoFechaAlta = Hoy.ToString("yyyy-MM-dd");
         _errorTecnico = null;
+        _nuevoTecnicoFechaAltaNoValida = false;
         _instantaneaTecnico.Fijar(_nuevoTecnicoTrabajadorId, _nuevoTecnicoFechaAlta);
         _asignarVisible = true;
 
@@ -820,9 +852,9 @@ public partial class ProyectoDetalle : CaeManager.Web.Components.PaginaInteracti
             return;
         }
 
-        if (!DateOnly.TryParse(_nuevoTecnicoFechaAlta, out var fechaAlta))
+        if (_nuevoTecnicoFechaAltaNoValida || !DateOnly.TryParse(_nuevoTecnicoFechaAlta, out var fechaAlta))
         {
-            _errorTecnico = Textos["ErrorFechaAlta"];
+            _errorTecnico = _nuevoTecnicoFechaAltaNoValida ? Comunes["CampoFechaCorregirAntes"] : Textos["ErrorFechaAlta"];
             return;
         }
 

@@ -163,8 +163,8 @@
                             </CampoSelect>
                             <CampoTexto Etiqueta="Mes" Type="month" Valor="@_mesFiltro" ValorChanged="async v => { _mesFiltro = v; await AplicarFiltrosAsync(); }" />
 
-                            <CampoSelect Etiqueta="Cliente" Valor="@_clienteIdFiltro" ValorChanged="async v => { _clienteIdFiltro = v; await AplicarFiltrosAsync(); }">
-                                <option value="">Todos los Clientes</option>
+                            <CampoSelect Etiqueta="@TextosLista["Empresa"].Value" Valor="@_clienteIdFiltro" ValorChanged="async v => { _clienteIdFiltro = v; await AplicarFiltrosAsync(); }">
+                                <option value="">Todos los Clientes empresariales</option>
                                 @foreach (var cliente in _clientesSelector)
                                 {
                                     <option value="@cliente.Id">@cliente.RazonSocial</option>
@@ -217,7 +217,7 @@
             else
             {
                 <p class="bandeja-vista-personal-descripcion">
-                    Correo que llega a tu buzón personal de Microsoft 365, no al de ningún Cliente — notificaciones de
+                    Correo que llega a tu buzón personal de Microsoft 365, no al de ningún Cliente empresarial — notificaciones de
                     plataformas externas a tu nombre, correo interno y correo que no reconocemos. Solo lectura: no hay
                     Composer aquí, no hay ninguna gestión CAE que atender.
                 </p>
@@ -321,10 +321,13 @@
                 <EstadoCargando Filas="4" />
                 <p class="bandeja-cargando-texto" role="status">@TextosLista["Cargando"]</p>
             }
-            else if (_errorDetalle && (_detalle is null || _detalle.Id != _conversacionSeleccionadaId))
+            else if (_errorDetalle && (_detalle is null || _detalle.Id != _conversacionSeleccionadaId
+                                       || (!ContextoEsDelDetalle && !NotaFijaEnEdicionDelDetalle)))
             {
                 @* Error al abrir una conversación (maqueta, E14): estado propio con «Reintentar». Sin él, el panel
-                   mostraba el hilo de la conversación abierta antes bajo la selección nueva. *@
+                   mostraba el hilo de la conversación abierta antes bajo la selección nueva. Un detalle conservado sin contexto
+                   (la nota fija en edición, revisión Codex r3 de la #2167, MEDIO 1) solo dura mientras se edita: al terminar la
+                   edición, la página vuelve a este estado y no se queda con un hilo sin ficha ni forma de reintentar. *@
                 <EstadoVacio SinIcono="true" Titulo="@TextosLista["ErrorAbrirConversacion"]" Descripcion="@TextosLista["ErrorAbrirConversacionAyuda"]">
                     <Accion><Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno" OnClick="CargarDetalleAsync">@TextosLista["Reintentar"]</Boton></Accion>
                 </EstadoVacio>
@@ -353,7 +356,7 @@
                                     Contexto de negocio — sin gestión CAE todavía
                                 </Badge>
                             }
-                            <span class="bandeja-centro-subtitulo">@(_detalle.ClienteRazonSocial ?? "Sin Cliente asignado")</span>
+                            <span class="bandeja-centro-subtitulo">@(_detalle.ClienteRazonSocial ?? "Sin Cliente empresarial asignado")</span>
                         </div>
                     </div>
                     <div class="bandeja-centro-acciones">
@@ -366,7 +369,7 @@
                             @if (_detalle.ClienteId is null)
                             {
                                 <CampoSelect Valor="@_clienteTriageSeleccionado" ValorChanged="v => _clienteTriageSeleccionado = v">
-                                    <option value="">Asignar Cliente…</option>
+                                    <option value="">Asignar Cliente empresarial…</option>
                                     @foreach (var cliente in _clientesSelector)
                                     {
                                         <option value="@cliente.Id">@cliente.RazonSocial</option>
@@ -418,11 +421,11 @@
                      para que el rol Consulta pueda leerla; el propio componente oculta las acciones a quien no escribe. *@
                     <RespuestaSugeridaPanel @ref="_panelSugerencia" ConversacionId="_detalle.Id" PuedeSugerir="PuedeSugerirRespuesta"
                                             UltimoEntranteId="UltimoMensajeEntranteId" Version="_detalle.FechaUltimoMensajeUtc"
-                                            TextoRedactor="@_textoRespuesta" EsWhatsApp="_detalle.Canal == CanalConversacion.WhatsApp" Seleccion="_seleccion"
+                                            TextoRedactor="@_textoRespuesta" EsWhatsApp="_detalle.Canal == CanalConversacion.WhatsApp" Seleccion="_aperturaVigente"
                                             OnInsertar="InsertarSugerenciaAsync" OnDescartada="SugerenciaDescartadaAsync" OnEstadoCambiado="() => StateHasChanged()" />
 
                   <SoloConEscritura>
-                    <RecordatorioPropuesto ConversacionId="_detalle.Id" Asunto="@_detalle.Asunto" Estado="_detalle.Estado"                                           FechaUltimoMensajeUtc="_detalle.FechaUltimoMensajeUtc" OnEnviado="CargarDetalleAsync" />
+                    <RecordatorioPropuesto ConversacionId="_detalle.Id" Asunto="@_detalle.Asunto" Estado="_detalle.Estado"                                           FechaUltimoMensajeUtc="_detalle.FechaUltimoMensajeUtc" OnEnviado="@RecargaDeEstaApertura()" />
 
                     <div class="hilo-editor-cabecera">
                         <div class="bandeja-editor-tabs" role="group" aria-label="@TextosLista["TipoMensaje"]">
@@ -434,8 +437,8 @@
                     <ComposerBar Canal="_detalle.Canal" VentanaAbierta="VentanaAbierta" CierreVentanaLocal="@CierreVentanaLocal"
                                  Texto="@_textoRespuesta" TextoChanged="v => _textoRespuesta = v" Enviando="_enviando" OnEnviar="EnviarAsync"
                                  EnvioBloqueado="@(_panelSugerencia?.BloqueaEnvioPara(_textoRespuesta) == true)"
-                                 Macros="_macrosDisponibles" MacroSeleccionadaId="@_macroSeleccionadaId" OnAplicarMacro="AplicarMacro"
-                                 Centros="_centrosClienteActivo" CentroFormatosSeleccionado="@_centroFormatosSeleccionado" OnCompartirFormatos="CompartirFormatosCentroAsync"
+                                 Macros="MacrosDelContexto" MacroSeleccionadaId="@_macroSeleccionadaId" OnAplicarMacro="AplicarMacro"
+                                 Centros="CentrosDelContexto" CentroFormatosSeleccionado="@_centroFormatosSeleccionado" OnCompartirFormatos="CompartirFormatosCentroAsync"
                                  AdjuntosPendientes="_adjuntosPendientes" ErrorAdjuntos="@_errorAdjuntos"
                                  OnArchivosSeleccionados="ManejarArchivosAdjuntosAsync" OnQuitarAdjunto="QuitarAdjuntoPendiente"
                                  EmailFallback="@_emailFallback" EmailFallbackChanged="v => _emailFallback = v" OnEnviarFallbackCorreo="EnviarFallbackCorreoAsync" />
@@ -465,7 +468,7 @@
                         falta que el gestor haya elegido uno antes de poder pedir
                         prioridad sobre él.
                     *@
-                    @if (!string.IsNullOrEmpty(_centroFormatosSeleccionado))
+                    @if (CentroSeleccionadoVigente is not null)
                     {
                         <div class="acordeon-asignaciones-cabecera">
                             <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" OnClick="AbrirPedirPrioridadAsync">
@@ -482,17 +485,26 @@
             }
         </section>
 
-        @if (_vista == "clientes" && (_clienteActivo is not null || HayAccionesPendientes || HayNotasDeContexto))
+        @* Solo con el contexto del detalle de la conversación seleccionada (ContextoEsDelDetalle): mientras carga otra, el panel de
+           contexto de la anterior (ficha y selectores del Cliente empresarial, acciones, nota fija y notas del equipo) no se pinta, y
+           no se puede editar ni guardar bajo la selección nueva. Única excepción: la nota fija en edición de ESTA conversación mantiene
+           montado su componente aunque la recarga cambie el Cliente empresarial (PanelContextoVisible); desmontarlo destruiría el
+           borrador sin confirmar el abandono (revisión Codex r3 de la #2167, MEDIO 1). Entonces solo se pinta la nota fija. *@
+        @{ var contextoVigente = ContextoEsDelDetalle; }
+        @if (_vista == "clientes" && PanelContextoVisible)
         {
             <aside class="bandeja-columna bandeja-cliente">
-                <AccionCenter SugerenciasVisita="SugerenciasVisitaPendientes" SugerenciasGestion="SugerenciasGestionPendientes"
-                              SugerenciaVinculacion="_detalle?.SugerenciaVinculacion"
-                              CentrosDisponibles="_centrosClienteActivo" TrabajadoresDisponibles="_trabajadoresSelector" TiposDocumentoDisponibles="_tiposDocumentoSelector"
-                              OnCrearVisitaDesdeSugerencia="args => IrACrearVisitaDesdeSugerencia(args.SugerenciaId, args.CentroId, args.FechaInicio, args.FechaFin)"
-                              OnDescartarSugerenciaVisita="DescartarSugerenciaVisitaAsync"
-                              OnGenerarGestionesDesdeSugerencia="args => GenerarGestionesDesdeSugerenciaAsync(args.SugerenciaId, args.TrabajadorId, args.TipoDocumentoId)"
-                              OnDescartarSugerenciaGestion="DescartarSugerenciaGestionAsync"
-                              OnVincularConversacion="VincularConversacionAsync" />
+                @if (contextoVigente)
+                {
+                    <AccionCenter SugerenciasVisita="SugerenciasVisitaPendientes" SugerenciasGestion="SugerenciasGestionPendientes"
+                                  SugerenciaVinculacion="_detalle?.SugerenciaVinculacion"
+                                  CentrosDisponibles="_centrosClienteActivo" TrabajadoresDisponibles="_trabajadoresSelector" TiposDocumentoDisponibles="_tiposDocumentoSelector"
+                                  OnCrearVisitaDesdeSugerencia="args => IrACrearVisitaDesdeSugerencia(args.SugerenciaId, args.CentroId, args.FechaInicio, args.FechaFin)"
+                                  OnDescartarSugerenciaVisita="DescartarSugerenciaVisitaAsync"
+                                  OnGenerarGestionesDesdeSugerencia="args => GenerarGestionesDesdeSugerenciaAsync(args.SugerenciaId, args.TrabajadorId, args.TipoDocumentoId)"
+                                  OnDescartarSugerenciaGestion="DescartarSugerenciaGestionAsync"
+                                  OnVincularConversacion="VincularConversacionAsync" />
+                }
 
                 @* Nota fija del contacto y notas del equipo (E21), como en la maqueta: lo primero del contexto. *@
                 @if (InterlocutorNotaFijaActual is { } interlocutor)
@@ -500,12 +512,15 @@
                     <NotaFijaContacto @ref="_notaFija" OnTextoCambiado="AlCambiarNotaInterna" Tipo="interlocutor.Tipo" PropietarioId="interlocutor.PropietarioId"
                                       Email="@interlocutor.Email" ResolverAutores="ResolverNombresAutoresAsync" />
                 }
-                <NotasEquipoConversacion Notas="_notasInternas" Autores="_autoresNotas" />
+                @if (contextoVigente)
+                {
+                    <NotasEquipoConversacion Notas="_notasInternas" Autores="_autoresNotas" />
+                }
 
-                @if (_clienteActivo is not null)
+                @if (contextoVigente && _clienteActivo is not null)
                 {
                     <div class="bandeja-cliente-titulo">
-                        <Icono Nombre="clientes" Tamano="TamanoIcono.Pequeno" /> Contexto del Cliente
+                        <Icono Nombre="clientes" Tamano="TamanoIcono.Pequeno" /> Contexto del Cliente empresarial
                     </div>
                     <div class="bandeja-cliente-cabecera">
                         <span class="bandeja-cliente-avatar" aria-hidden="true">@ObtenerInicialesCliente(_clienteActivo.RazonSocial)</span>
@@ -525,7 +540,7 @@
                     @if (!string.IsNullOrWhiteSpace(_clienteActivo.Notas))
                     {
                         <div class="bandeja-cliente-notas">
-                            <span class="bandeja-cliente-notas-titulo">Notas del Cliente</span>
+                            <span class="bandeja-cliente-notas-titulo">Notas del Cliente empresarial</span>
                             <p>@_clienteActivo.Notas</p>
                         </div>
                     }
@@ -565,7 +580,9 @@
 
     <ModalFormulario HayCambios="() => HayCambiosActualizarDocumento" Visible="_modalActualizarDocumentoVisible" VisibleChanged="v => { if (!v) CerrarModalActualizarDocumento(); }"
                     Titulo="Actualizar documentación" Ancho="AnchoModal.Grande" Guardando="_aplicandoDocumento" Cargando="_detectandoDocumento" FilasCargando="4" MensajeError="@_errorActualizarDocumento"
-                    TextoCancelar="Cancelar" TextoGuardar="Aplicar y registrar" OnGuardar="AplicarActualizacionDocumentoAsync">
+                    TextoCancelar="Cancelar" TextoGuardar="Aplicar y registrar" OnGuardar="AplicarActualizacionDocumentoAsync"
+                    MotivoGuardarDeshabilitado="@MotivoAplicarDocumentoDeshabilitado"
+                    Aviso="@AvisoActualizarDocumentoCaducado">
         <ChildContent>
             @if (_confianzaDeteccionDocumento > 0)
             {
@@ -608,8 +625,10 @@
                     </CampoSelect>
                 }
 
-                <CampoTexto Etiqueta="Fecha de emisión" Type="date" Valor="@_fechaEmisionDocumentoFormulario" ValorChanged="v => _fechaEmisionDocumentoFormulario = v" />
-                <CampoTexto Etiqueta="Fecha de caducidad (si no se calcula sola)" Type="date" Valor="@_fechaVencimientoDocumentoFormulario" ValorChanged="v => _fechaVencimientoDocumentoFormulario = v" />
+                <CampoTexto Etiqueta="Fecha de emisión" Type="date" Valor="@_fechaEmisionDocumentoFormulario" ValorChanged="v => _fechaEmisionDocumentoFormulario = v"
+                            FechaNoValida="_emisionDocumentoNoValida" FechaNoValidaChanged="AlCambiarEmisionDocumentoNoValida" />
+                <CampoTexto Etiqueta="Fecha de caducidad (si no se calcula sola)" Type="date" Valor="@_fechaVencimientoDocumentoFormulario" ValorChanged="v => _fechaVencimientoDocumentoFormulario = v"
+                            FechaNoValida="_vencimientoDocumentoNoValido" FechaNoValidaChanged="AlCambiarVencimientoDocumentoNoValido" />
                 <label class="campo-checkbox">
                     <input type="checkbox" checked="@_noCaducaDocumentoFormulario" @onchange="e => _noCaducaDocumentoFormulario = e.Value is bool m && m" />
                     @TextosVigenciaDocumento.Texto("NoCaduca")
@@ -651,7 +670,7 @@
     </DrawerFormulario>
 
     @* "Pedir prioridad" a nivel conversación — mismo Drawer que ya usa CentroWorkspacePanel, aquí sobre el Centro elegido en el composer. *@
-    <DrawerFormulario HayCambios="() => HayCambiosPrioridad" Visible="_drawerPrioridadVisible" VisibleChanged="v => _drawerPrioridadVisible = v"
+    <DrawerFormulario HayCambios="() => HayCambiosPrioridad" Visible="_drawerPrioridadVisible" VisibleChanged="v => { if (!v) CerrarDrawerPrioridad(); }"
             Titulo="Pedir prioridad de validación" Guardando="_enviandoPrioridad" Cargando="_cargandoBorradorPrioridad" FilasCargando="3"
             MensajeError="@(_borradorPrioridad is null ? null : _mensajeErrorPrioridad)" SinContenido="SinBorradorPrioridad"
             MotivoGuardarDeshabilitado="@(_borradorPrioridad is null ? (_mensajeErrorPrioridad ?? ErroresTextos["ErrorBorradorPrioridad"].Value) : null)"

@@ -14,6 +14,8 @@ public class AnalizarPlantillaMaestraQueryTests
     {
         public int Llamadas { get; private set; }
 
+        public byte[] GenerarPlantilla() => [];
+
         public Task<PlanImportacionMaestraDto> AnalizarAsync(Stream archivo, CancellationToken cancellationToken = default)
         {
             Llamadas++;

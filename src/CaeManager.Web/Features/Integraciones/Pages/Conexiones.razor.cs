@@ -2,6 +2,7 @@ using CaeManager.Application.Clientes.Queries.ObtenerClientesParaSelector;
 using CaeManager.Application.Integraciones.Commands.ActualizarLineaWhatsApp;
 using CaeManager.Application.Integraciones.Commands.CrearLineaWhatsApp;
 using CaeManager.Application.Integraciones.Commands.DesconectarBuzon;
+using CaeManager.Application.Integraciones.Commands.RepararMarcaHueco;
 using CaeManager.Application.Integraciones.Commands.ReactivarConexion;
 using CaeManager.Application.Integraciones.Queries.ObtenerConexionesIntegracion;
 using CaeManager.Application.Integraciones.Queries.ObtenerLineasWhatsApp;
@@ -32,6 +33,9 @@ public partial class Conexiones : CaeManager.Web.Components.PaginaIntegrableConf
     private IReadOnlyList<LineaWhatsAppListaDto> _lineas = [];
     private IReadOnlyList<GestorSelectorDto> _gestores = [];
     private bool _cargando = true;
+
+    /// <summary>La última carga del listado falló: no se muestra ningún listado ni acción, solo el aviso.</summary>
+    private bool _cargaFallida;
     private Guid? _clienteSeleccionadoId;
     private Guid? _gestorPropietarioSeleccionadoId;
 
@@ -75,16 +79,32 @@ public partial class Conexiones : CaeManager.Web.Components.PaginaIntegrableConf
     private long _generacionInicializacion;
     private bool _dispuesto;
 
+    private string _buzonCompartido = string.Empty;
+
     private string UrlConectar
     {
         get
         {
             if (_gestorPropietarioSeleccionadoId is { } gestorId)
                 return $"/integraciones/conectar-microsoft365?gestorPropietarioId={gestorId}";
+
+            var parametros = new List<string>();
             if (_clienteSeleccionadoId is { } clienteId)
-                return $"/integraciones/conectar-microsoft365?clienteId={clienteId}";
-            return "/integraciones/conectar-microsoft365";
+                parametros.Add($"clienteId={clienteId}");
+            if (!string.IsNullOrWhiteSpace(_buzonCompartido))
+                parametros.Add($"buzonCompartido={Uri.EscapeDataString(_buzonCompartido.Trim())}");
+
+            return parametros.Count == 0
+                ? "/integraciones/conectar-microsoft365"
+                : $"/integraciones/conectar-microsoft365?{string.Join('&', parametros)}";
         }
+    }
+
+    /// <summary>Un buzón compartido nunca es el buzón personal de un Gestor CAE: escribir uno limpia esa elección.</summary>
+    private void FijarBuzonCompartido(string valor)
+    {
+        _buzonCompartido = valor;
+        if (!string.IsNullOrWhiteSpace(valor)) _gestorPropietarioSeleccionadoId = null;
     }
 
     /// <summary>Cliente y buzón personal son mutuamente excluyentes — elegir uno limpia el otro.</summary>
@@ -129,6 +149,8 @@ public partial class Conexiones : CaeManager.Web.Components.PaginaIntegrableConf
         {
             if (generacion == _generacionInicializacion)
             {
+                // También si falla antes de llegar al listado: «Sin conexiones» diría algo que no sabemos.
+                _cargaFallida = true;
                 Logger.LogError(ex, "Error al cargar las conexiones de integración.");
                 ToastService.Mostrar("No pudimos cargar las conexiones.", TonoToast.Error);
             }
@@ -154,9 +176,21 @@ public partial class Conexiones : CaeManager.Web.Components.PaginaIntegrableConf
             if (generacion != _generacionCarga || token.IsCancellationRequested) return;
             _conexiones = conexiones;
             _lineas = lineas;
+            _cargaFallida = false;
         }
         catch (OperationCanceledException) when (token.IsCancellationRequested)
         {
+        }
+        catch (Exception) when (generacion == _generacionCarga)
+        {
+            // Una carga que falla no deja a la vista el listado anterior: sus estados pueden estar obsoletos (una
+            // Habilitada que ya está Deshabilitada) y sus acciones operarían sobre ellos. Se vacía y la página muestra el
+            // aviso en su lugar, sin acciones, hasta la próxima carga que sí termine (Codex, ronda 19, hallazgo medio).
+            // La excepción sigue: quien llama decide cómo avisar.
+            _conexiones = [];
+            _lineas = [];
+            _cargaFallida = true;
+            throw;
         }
         finally
         {
@@ -308,7 +342,13 @@ public partial class Conexiones : CaeManager.Web.Components.PaginaIntegrableConf
 
             if (resultado.EsFallido)
             {
+                // Un fallo no implica que nada cambiara: con ConexionIntegracion.MarcaHuecoNoGuardada la conexión ya
+                // está Deshabilitada. Se recarga para mostrar el estado real; el aviso de error se conserva y el modal
+                // sigue abierto (Codex, ronda 17). Si se cierra, la fila de la Deshabilitada muestra «Hueco sin registrar»
+                // con Reparar, que sale de lo guardado en la conexión (Codex, ronda 18). Una recarga que falla no tapa el
+                // error: avisa aparte (RecargarSinPropagarAsync).
                 ToastService.MostrarError(resultado.Error);
+                await RecargarSinPropagarAsync();
                 return;
             }
 
@@ -323,6 +363,63 @@ public partial class Conexiones : CaeManager.Web.Components.PaginaIntegrableConf
                 _desconectando = false;
                 _procesandoId = null;
             }
+        }
+    }
+
+    /// <summary>
+    /// Recarga tras un fallo de Desconectar o tras Reparar: las consultas pueden fallar también (la misma base que no guardó la
+    /// marca). La excepción no sale del manejador, el error del comando sigue visible y un aviso aparte dice que el listado
+    /// no se pudo actualizar (Codex, ronda 18, hallazgo medio). El listado anterior no queda a la vista: la carga fallida
+    /// lo vacía y la página muestra el aviso sin acciones (Codex, ronda 19).
+    /// </summary>
+    private async Task RecargarSinPropagarAsync()
+    {
+        try
+        {
+            await CargarConexionesAsync();
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error al recargar las conexiones tras un fallo.");
+            ToastService.Mostrar(Textos["AvisoRecargaFallida"], TonoToast.Error);
+        }
+    }
+
+    /// <summary>
+    /// Reparar en la fila de una conexión Deshabilitada con la marca del hueco por registrar: RepararMarcaHuecoCommand, que
+    /// registra lo guardado en la conexión solo si sigue Deshabilitada y nunca cambia su estado ni llama a Graph. No es
+    /// Desconectar: si otra sesión la reactivó después de cargar la fila, Desconectar la habría desconectado (Codex, ronda
+    /// 19, hallazgo alto). Sin modal: no cambia nada más que la marca. Ante un fallo (también si la conexión ya no está
+    /// Deshabilitada) se recarga el listado para mostrar su estado real.
+    /// </summary>
+    private async Task RepararHuecoAsync(ConexionIntegracionListaDto conexion)
+    {
+        if (_procesandoId is not null || _desconectando) return;
+        _procesandoId = conexion.Id;
+        StateHasChanged();
+
+        try
+        {
+            var resultado = await Mediator.Send(new RepararMarcaHuecoCommand(conexion.Id));
+            if (resultado.EsFallido)
+            {
+                ToastService.MostrarError(resultado.Error);
+                await RecargarSinPropagarAsync();
+                return;
+            }
+
+            // La reparación ya quedó guardada: si falla la recarga, se avisa de la recarga y no de la reparación.
+            ToastService.Mostrar(Textos["HuecoReparado"], TonoToast.Exito);
+            await RecargarSinPropagarAsync();
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error al reparar la marca del hueco de la conexión {ConexionId}.", conexion.Id);
+            ToastService.Mostrar(Textos["ErrorRepararHueco"], TonoToast.Error);
+        }
+        finally
+        {
+            _procesandoId = null;
         }
     }
 
@@ -367,11 +464,15 @@ public partial class Conexiones : CaeManager.Web.Components.PaginaIntegrableConf
     private const string CodigoCancelado = "cancelado";
 
     // «solicitud» (state caducado o de otra cuenta) cae en el mensaje genérico.
-    private static string MensajeError(string codigo) => codigo switch
+    private string MensajeError(string codigo) => codigo switch
     {
         CodigoCancelado => "Conexión cancelada. No se ha conectado ningún buzón.",
         "autenticacion" => "No pudimos autenticar con Microsoft — revisa Integraciones:Microsoft365 en la configuración.",
         "suscripcion" => "El buzón se autenticó pero no pudimos activar las notificaciones. Inténtalo de nuevo.",
+        "buzon-compartido" => Textos["ErrorBuzonCompartidoInvalido"],
+        "sin-acceso-compartido" => Textos["ErrorSinAccesoCompartido"],
+        "ya-conectado" => Textos["ErrorBuzonYaConectado"],
+        "compartidos-en-pausa" => Textos["ErrorAltaCompartidaEnPausa"],
         _ => "No pudimos completar la conexión."
     };
 

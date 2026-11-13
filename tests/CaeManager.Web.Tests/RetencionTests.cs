@@ -332,7 +332,7 @@ public class RetencionTests : BunitContext
         var (cut, mediator) = Renderizar(politicaActiva: true, solicitudes: [PendienteDeRevision()]);
 
         await BotonConTexto(cut, "Autorizar").ClickAsync(new MouseEventArgs());
-        await cut.Find("[role=dialog] input[type=date]").InputAsync(new ChangeEventArgs { Value = "2031-05-20" });
+        await cut.Find("[role=dialog] input[data-campo-fecha]").InputAsync(new ChangeEventArgs { Value = "2031-05-20" });
         await BotonDelDialogo(cut, "Autorizar").ClickAsync(new MouseEventArgs());
 
         mediator.Enviados.OfType<ProgramarPurgaCommand>().Should().ContainSingle()
@@ -347,10 +347,27 @@ public class RetencionTests : BunitContext
         var (cut, mediator) = Renderizar(politicaActiva: true, solicitudes: [PendienteDeRevision()]);
 
         await BotonConTexto(cut, "Autorizar").ClickAsync(new MouseEventArgs());
-        await cut.Find("[role=dialog] input[type=date]").InputAsync(new ChangeEventArgs { Value = "" });
+        await cut.Find("[role=dialog] input[data-campo-fecha]").InputAsync(new ChangeEventArgs { Value = "" });
         await BotonDelDialogo(cut, "Autorizar").ClickAsync(new MouseEventArgs());
 
         mediator.Enviados.OfType<ProgramarPurgaCommand>().Should().BeEmpty();
+        cut.Find("[role=dialog] .alerta-formulario").TextContent.Should().Be("Indica una fecha válida.");
+    }
+
+    /// <summary>
+    /// Ronda 2 de revisión, MEDIO: con la fecha a medias el padre aún tiene la propuesta; si el clic en Autorizar llega sin el
+    /// blur previo (Safari no enfoca un botón), no puede autorizarse la destrucción con una fecha distinta de la que se ve.
+    /// </summary>
+    [Fact]
+    public async Task Autorizar_con_la_fecha_a_medias_y_sin_blur_no_envia_nada()
+    {
+        var (cut, mediator) = Renderizar(politicaActiva: true, solicitudes: [PendienteDeRevision()]);
+
+        await BotonConTexto(cut, "Autorizar").ClickAsync(new MouseEventArgs());
+        await cut.Find("[role=dialog] input[data-campo-fecha]").InputAsync(new ChangeEventArgs { Value = "15/0" });
+        await BotonDelDialogo(cut, "Autorizar").ClickAsync(new MouseEventArgs());
+
+        mediator.Enviados.OfType<ProgramarPurgaCommand>().Should().BeEmpty("la fecha que se ve no es la propuesta que el padre aún tiene");
         cut.Find("[role=dialog] .alerta-formulario").TextContent.Should().Be("Indica una fecha válida.");
     }
 
@@ -369,7 +386,7 @@ public class RetencionTests : BunitContext
             alProgramar: _ => Result.Fallo(Error.Crear("SolicitudPurga.FechaNoValida", rechazo)));
 
         await BotonConTexto(cut, "Autorizar").ClickAsync(new MouseEventArgs());
-        await cut.Find("[role=dialog] input[type=date]").InputAsync(new ChangeEventArgs { Value = "2001-01-01" });
+        await cut.Find("[role=dialog] input[data-campo-fecha]").InputAsync(new ChangeEventArgs { Value = "2001-01-01" });
         await BotonDelDialogo(cut, "Autorizar").ClickAsync(new MouseEventArgs());
 
         mediator.Enviados.OfType<ProgramarPurgaCommand>().Should().ContainSingle()
@@ -390,14 +407,14 @@ public class RetencionTests : BunitContext
             alProgramar: _ => Result.Fallo(Error.Crear("SolicitudPurga.FechaNoValida", rechazo)));
 
         await BotonConTexto(cut, "Autorizar").ClickAsync(new MouseEventArgs());
-        await cut.Find("[role=dialog] input[type=date]").InputAsync(new ChangeEventArgs { Value = "2001-01-01" });
+        await cut.Find("[role=dialog] input[data-campo-fecha]").InputAsync(new ChangeEventArgs { Value = "2001-01-01" });
         await BotonDelDialogo(cut, "Autorizar").ClickAsync(new MouseEventArgs());
 
         cut.Find(".modal-aviso .alerta-formulario").TextContent.Should().Be(rechazo);
         cut.FindAll(".modal-cuerpo .alerta-formulario").Should().BeEmpty("el aviso va fuera del cuerpo desplazable (D-20)");
         cut.FindAll("[role=dialog] .modal-pie button").Count(b => b.ClassList.Contains("boton-primario")).Should().Be(1);
 
-        await cut.Find("[role=dialog] input[type=date]").InputAsync(new ChangeEventArgs { Value = "2030-01-01" });
+        await cut.Find("[role=dialog] input[data-campo-fecha]").InputAsync(new ChangeEventArgs { Value = "2030-01-01" });
 
         cut.FindAll(".modal-aviso").Should().BeEmpty("escribir de nuevo retira el error anterior");
     }
@@ -534,7 +551,7 @@ public class RetencionTests : BunitContext
     {
         var (cut, _) = Renderizar(politicaActiva: true, solicitudes: [PendienteDeRevision()]);
         await BotonConTexto(cut, "Autorizar").ClickAsync(new MouseEventArgs());
-        cut.Find("[role=dialog] input[type=date]").GetAttribute("value").Should().NotBeNullOrEmpty(
+        cut.Find("[role=dialog] input[data-campo-fecha]").GetAttribute("value").Should().NotBeNullOrEmpty(
             "el test necesita la fecha propuesta ya puesta");
 
         await cut.SalirYComprobarQueNoPreguntaAsync(Navegacion, "la fecha propuesta no es un cambio de quien autoriza");
@@ -549,10 +566,10 @@ public class RetencionTests : BunitContext
         await cut.ComprobarQueCancelarSinCambiosCierraAsync(".modal-pie", "[role=dialog]");
 
         await BotonConTexto(cut, "Autorizar").ClickAsync(new MouseEventArgs());
-        await cut.Find("[role=dialog] input[type=date]").InputAsync(new ChangeEventArgs { Value = "2031-05-20" });
+        await cut.Find("[role=dialog] input[data-campo-fecha]").InputAsync(new ChangeEventArgs { Value = "2031-05-20" });
         await cut.PulsarCancelarDelPieAsync(".modal-pie");
 
-        await cut.ComprobarQuePreguntaYDescartarAsync("[role=dialog] input[type=date]");
+        await cut.ComprobarQuePreguntaYDescartarAsync("[role=dialog] input[data-campo-fecha]");
     }
 
     [Fact]
@@ -561,7 +578,22 @@ public class RetencionTests : BunitContext
         var (cut, _) = Renderizar(politicaActiva: true, solicitudes: [PendienteDeRevision()]);
         await BotonConTexto(cut, "Autorizar").ClickAsync(new MouseEventArgs());
 
-        await cut.Find("[role=dialog] input[type=date]").InputAsync(new ChangeEventArgs { Value = "2031-05-20" });
+        await cut.Find("[role=dialog] input[data-campo-fecha]").InputAsync(new ChangeEventArgs { Value = "2031-05-20" });
+
+        await cut.SalirYComprobarQuePreguntaAsync(Navegacion);
+    }
+
+    /// <summary>
+    /// Ronda 2 de Codex, MEDIO: mientras la fecha está a medias el padre aún ve la propuesta y la instantánea no notaba nada,
+    /// de modo que salir (o Escape) tiraba lo escrito sin avisar.
+    /// </summary>
+    [Fact]
+    public async Task Aviso_autorizar_con_la_fecha_a_medias_pregunta_al_salir()
+    {
+        var (cut, _) = Renderizar(politicaActiva: true, solicitudes: [PendienteDeRevision()]);
+        await BotonConTexto(cut, "Autorizar").ClickAsync(new MouseEventArgs());
+
+        await cut.Find("[role=dialog] input[data-campo-fecha]").InputAsync(new ChangeEventArgs { Value = "15/0" });
 
         await cut.SalirYComprobarQuePreguntaAsync(Navegacion);
     }
@@ -571,7 +603,7 @@ public class RetencionTests : BunitContext
     {
         var (cut, mediator) = Renderizar(politicaActiva: true, solicitudes: [PendienteDeRevision()]);
         await BotonConTexto(cut, "Autorizar").ClickAsync(new MouseEventArgs());
-        await cut.Find("[role=dialog] input[type=date]").InputAsync(new ChangeEventArgs { Value = "2031-05-20" });
+        await cut.Find("[role=dialog] input[data-campo-fecha]").InputAsync(new ChangeEventArgs { Value = "2031-05-20" });
 
         await BotonDelDialogo(cut, "Autorizar").ClickAsync(new MouseEventArgs());
 

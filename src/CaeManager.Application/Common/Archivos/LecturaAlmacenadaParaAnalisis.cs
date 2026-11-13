@@ -52,15 +52,43 @@ public sealed class LecturaAlmacenadaParaAnalisis : IDisposable
         CancellationToken cancellationToken = default)
     {
         await using var flujo = await almacenamiento.AbrirAsync(archivoUrl, cancellationToken);
+        return await CopiarReservandoAsync(flujo, presupuesto, LimitesArchivoSubido.TamanoMaximoBytes, FactorMemoriaAnalisis, tope: null, cancellationToken);
+    }
 
+    /// <summary>
+    /// Como <see cref="LeerAsync"/>, para quien acota cuánto puede leer (Unir PDF, con su total de 50 MB): el archivo se
+    /// abre con <see cref="IFileStorageService.AbrirHastaAsync"/>, que lo rechaza por su tamaño almacenado antes de
+    /// cargarlo, y la copia se corta en cuanto pasa de <paramref name="maximoBytes"/>, diga lo que diga el flujo de su
+    /// longitud. La reserva es <paramref name="factorMemoria"/> veces lo que se copia.
+    /// </summary>
+    /// <exception cref="ArchivoAlmacenadoDemasiadoGrandeException">El archivo pasa de <paramref name="maximoBytes"/>.</exception>
+    /// <exception cref="PresupuestoMemoriaAgotadoException">Sin hueco al abrir o al reservar la copia.</exception>
+    public static async Task<LecturaAlmacenadaParaAnalisis> LeerHastaAsync(
+        IFileStorageService almacenamiento, IPresupuestoMemoriaDocumentos presupuesto, string archivoUrl, long maximoBytes,
+        int factorMemoria, CancellationToken cancellationToken = default)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegative(maximoBytes);
+        ArgumentOutOfRangeException.ThrowIfLessThan(factorMemoria, 1);
+        await using var flujo = await almacenamiento.AbrirHastaAsync(archivoUrl, maximoBytes, cancellationToken);
+        return await CopiarReservandoAsync(flujo, presupuesto, maximoBytes, factorMemoria, tope: maximoBytes, cancellationToken);
+    }
+
+    /// <param name="supuesto">Longitud que se reserva si el flujo no dice la suya.</param>
+    /// <param name="tope">Con valor, pasar de él es un archivo demasiado grande, no una saturación del presupuesto.</param>
+    private static async Task<LecturaAlmacenadaParaAnalisis> CopiarReservandoAsync(
+        Stream flujo, IPresupuestoMemoriaDocumentos presupuesto, long supuesto, int factorMemoria, long? tope,
+        CancellationToken cancellationToken)
+    {
         // Un flujo que no dice su longitud se reserva por el peor caso, no por cero.
-        var longitud = flujo.CanSeek ? flujo.Length : LimitesArchivoSubido.TamanoMaximoBytes;
+        var longitud = flujo.CanSeek ? flujo.Length : supuesto;
+        if (longitud > tope)
+            throw new ArchivoAlmacenadoDemasiadoGrandeException();
         // El flujo sigue abierto y retiene su claro: esperar hueco con esa reserva retenida haría que varias lecturas
         // se esperasen unas a otras hasta agotar el plazo y rechazasen trabajo que cabría por separado. Se amplía sin
         // esperar y sin recortar (TryReservar): si el análisis no cabe junto al flujo, se rechaza con la saturación
         // transitoria en vez de seguir con una reserva menor que su estimación.
         cancellationToken.ThrowIfCancellationRequested();
-        if (!presupuesto.TryReservar(longitud * FactorMemoriaAnalisis, out var reserva))
+        if (!presupuesto.TryReservar(longitud * factorMemoria, out var reserva))
             throw new PresupuestoMemoriaAgotadoException();
 
         try
@@ -75,7 +103,11 @@ public sealed class LecturaAlmacenadaParaAnalisis : IDisposable
                 if (leidos == 0) break;
 
                 if (memoria.Length + leidos > longitud)
+                {
+                    if (tope is not null && memoria.Length + leidos > tope)
+                        throw new ArchivoAlmacenadoDemasiadoGrandeException();
                     throw new PresupuestoMemoriaAgotadoException();
+                }
 
                 memoria.Write(bloque, 0, leidos);
             }
