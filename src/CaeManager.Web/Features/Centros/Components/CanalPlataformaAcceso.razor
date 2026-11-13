@@ -11,7 +11,8 @@
 
     La dirección del portal se ABRE, no se copia: el Gestor CAE la abre en pestaña nueva y pega allí las credenciales.
     Solo http(s): la URL es texto libre y un javascript: en un href ejecutaría script. Si no es navegable se enseña
-    como texto, sin enlace.
+    como texto, sin enlace. La dirección solo llega a quien gestiona el Centro: para el rol Cliente,
+    ObtenerCanalesGestionDeCentroQuery la devuelve null y este bloque no pinta nada (ni botón, ni title, ni aria-label).
 
     Copiar lo que el canal sirve para pegar en otra parte. Usuario y contraseña no vienen en el DTO: se piden al
     servidor solo al pulsar (DEC-53/DEC-62) y no se pintan; cada lectura efectiva queda en la auditoría del Tenant
