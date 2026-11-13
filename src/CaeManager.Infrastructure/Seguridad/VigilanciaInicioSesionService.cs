@@ -303,7 +303,7 @@ public sealed class VigilanciaInicioSesionService(
                 var cuerpo = $"""
                     <p>Has indicado que un inicio de sesión en tu cuenta de {Marca.Nombre} no fuiste tú.</p>
                     <p>{estadoCuenta}</p>
-                    <p><a href="{WebUtility.HtmlEncode(enlace)}">Crear una contraseña nueva</a></p>
+                    {BotonCorreo.Html("Crear una contraseña nueva", enlace)}
                     <p>Este enlace caduca en 60 minutos. Si caduca, pide otro desde «¿Olvidaste tu contraseña?» en la pantalla de inicio de sesión.</p>
                     """;
                 var email = ambito.ServiceProvider.GetRequiredService<IEmailService>();
@@ -387,7 +387,8 @@ public sealed class VigilanciaInicioSesionService(
                 <p>Hemos detectado un inicio de sesión inusual en tu cuenta de {Marca.Nombre}.</p>
                 {detalle}
                 <p>Si fuiste tú, no tienes que hacer nada.</p>
-                <p>Si no fuiste tú: <a href="{WebUtility.HtmlEncode(enlace)}">No he sido yo</a>. Cerraremos todas tus sesiones y tendrás que crear una contraseña nueva. El enlace caduca en {opciones.Value.DiasVigenciaEnlaceNoHeSidoYo} días.</p>
+                <p>Si no fuiste tú, pulsa «No he sido yo»: cerraremos todas tus sesiones y tendrás que crear una contraseña nueva. El enlace caduca en {opciones.Value.DiasVigenciaEnlaceNoHeSidoYo} días.</p>
+                {BotonCorreo.Html("No he sido yo", enlace)}
                 """;
             var envio = await email.EnviarAsync(usuario.Email, $"Inicio de sesión inusual en tu cuenta — {Marca.Nombre}", cuerpo, TipoAvisoCorreo.Seguridad);
             if (envio.EsFallido)

@@ -5,32 +5,110 @@
     'change' (ver zona-soltar-archivo.js), así que OnChange dispara
     exactamente el mismo InputFileChangeEventArgs que el selector nativo.
     Quien la usa no cambia una sola línea de su lógica de procesamiento.
+
+    Estados:
+      - Vacía: la superficie «Suelta tu archivo aquí · busca archivos · pega».
+      - Con archivo: si quien la usa pasa ArchivosAdjuntos, la superficie se
+        sustituye por la lista de archivos (icono, nombre, tipo y tamaño) con
+        «Cambiar» y, si hay OnQuitar, «Quitar». La verdad de «qué está
+        adjunto» es de quien la usa (puede haber fallado el almacén tras
+        elegir), por eso la zona no lo deduce sola del InputFile.
+      - Error de entrada: pegar sin archivo, o con un tipo o tamaño no
+        admitidos, se enseña dentro de la zona (role=alert). Arrastrar y
+        elegir con el selector siguen validándose donde siempre (quien la usa).
+    Todo cambio se anuncia en una región viva (aria-live=polite).
+
+    Ctrl+V: el oyente vive a nivel de documento mientras la zona está montada
+    (ver zona-soltar-archivo.js), así que no hace falta hacer clic en ella antes.
 *@
+@using System.Globalization
+@using CaeManager.Web.Recursos
+@using Microsoft.Extensions.Localization
 @implements IAsyncDisposable
 @inject IJSRuntime JS
+@inject IStringLocalizer<TextosComunes> Comunes
+@{ var claves = new ClavesDeHermanos(); }
 
-<div class="zona-soltar-archivo @(Cargando ? "zona-soltar-archivo-deshabilitada" : "")" @ref="_zonaRef" tabindex="@(Cargando ? "-1" : "0")">
-    <label for="@_inputId" class="zona-soltar-archivo-superficie">
-        <span class="zona-soltar-archivo-icono">
-            <Icono Nombre="imagen" Tamano="TamanoIcono.Grande" />
-        </span>
-        <p class="zona-soltar-archivo-titulo">@Titulo</p>
-        <p class="zona-soltar-archivo-subtitulo">
-            o <span class="zona-soltar-archivo-enlace">busca archivos</span> · o pega con <kbd>Ctrl</kbd> + <kbd>V</kbd>
-        </p>
-        @if (!string.IsNullOrWhiteSpace(FormatosTexto))
-        {
-            <p class="zona-soltar-archivo-formatos">@FormatosTexto</p>
-        }
-    </label>
-    <InputFile id="@_inputId" @ref="_inputFileRef" OnChange="OnChange" multiple="@Multiple" accept="@Accept" disabled="@Cargando" class="zona-soltar-archivo-input" aria-label="@Titulo" />
+<div class="zona-soltar-archivo @(Cargando ? "zona-soltar-archivo-deshabilitada" : "") @(TieneArchivos ? "zona-soltar-archivo-con-archivo" : "")"
+     @ref="_zonaRef" tabindex="@(Cargando ? "-1" : "0")"
+     data-accept="@Accept" data-multiple="@(Multiple ? "true" : "false")" data-max-bytes="@TamanoMaximoBytes">
+    @if (TieneArchivos)
+    {
+        <div class="zona-soltar-archivo-adjunta">
+            <p class="zona-soltar-archivo-estado">
+                <span class="zona-soltar-archivo-estado-icono"><Icono Nombre="check" Tamano="TamanoIcono.Pequeno" /></span>
+                @(ArchivosAdjuntos!.Count == 1 ? Comunes["ZonaSoltarEstadoAdjunto"] : string.Format(CultureInfo.CurrentCulture, Comunes["ZonaSoltarEstadoAdjuntos"].Value, ArchivosAdjuntos.Count))
+            </p>
+            <ul class="zona-soltar-archivo-lista">
+                @foreach (var archivo in ArchivosAdjuntos!)
+                {
+                    <li class="zona-soltar-archivo-fila">
+                        <span class="zona-soltar-archivo-fila-icono"><Icono Nombre="documentos" Tamano="TamanoIcono.Medio" /></span>
+                        <span class="zona-soltar-archivo-fila-texto">
+                            <span class="zona-soltar-archivo-fila-nombre" title="@archivo.Nombre">@archivo.Nombre</span>
+                            @if (Meta(archivo) is { Length: > 0 } meta)
+                            {
+                                <span class="zona-soltar-archivo-fila-meta">@meta</span>
+                            }
+                        </span>
+                    </li>
+                }
+            </ul>
+            @if (!string.IsNullOrWhiteSpace(AvisoCombinacion))
+            {
+                <p class="zona-soltar-archivo-aviso">@AvisoCombinacion</p>
+            }
+            <div class="zona-soltar-archivo-acciones">
+                <Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno" Deshabilitado="Cargando"
+                       data-zona-cambiar="true" class="zona-soltar-archivo-cambiar"
+                       aria-label="@Comunes["ZonaSoltarCambiarEtiqueta"]">@Comunes["ZonaSoltarCambiar"]</Boton>
+                @if (PermitirQuitar && OnQuitar.HasDelegate)
+                {
+                    <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" Deshabilitado="Cargando"
+                           OnClick="QuitarAsync" class="zona-soltar-archivo-quitar"
+                           aria-label="@Comunes["ZonaSoltarQuitarEtiqueta"]">@Comunes["ZonaSoltarQuitar"]</Boton>
+                }
+            </div>
+        </div>
+    }
+    else
+    {
+        <label for="@_inputId" class="zona-soltar-archivo-superficie">
+            <span class="zona-soltar-archivo-icono">
+                <Icono Nombre="imagen" Tamano="TamanoIcono.Grande" />
+            </span>
+            @if (NivelEncabezado == 2)
+            {
+                <h2 class="zona-soltar-archivo-titulo">@Titulo</h2>
+            }
+            else
+            {
+                <p class="zona-soltar-archivo-titulo">@Titulo</p>
+            }
+            <p class="zona-soltar-archivo-subtitulo">
+                o <span class="zona-soltar-archivo-enlace">busca archivos</span> · o pega con <kbd>Ctrl</kbd> + <kbd>V</kbd>
+            </p>
+            @if (!string.IsNullOrWhiteSpace(FormatosTexto))
+            {
+                <p class="zona-soltar-archivo-formatos">@FormatosTexto</p>
+            }
+        </label>
+    }
+    <InputFile id="@_inputId" @ref="_inputFileRef" OnChange="ManejarCambioAsync" multiple="@Multiple" accept="@Accept" disabled="@Cargando" class="zona-soltar-archivo-input" aria-label="@Titulo" />
+    @if (_errorEntrada is not null)
+    {
+        @* @key: un segundo rechazo idéntico vuelve a insertar el aviso y el lector de pantalla lo repite. *@
+        <p @key="claves.De((_contadorErrores, 'e'))" class="zona-soltar-archivo-error" role="alert">@_errorEntrada</p>
+    }
 </div>
+
+<span class="zona-soltar-archivo-anuncio" role="status" aria-live="polite" aria-atomic="true"><span @key="claves.De((_contadorAnuncios, 'a'))">@_anuncio</span></span>
 
 @if (Cargando)
 {
     <span class="detalle-tecnico">Procesando…</span>
 }
-else if (!string.IsNullOrWhiteSpace(NombreArchivoActual))
+else if (!TieneArchivos && !string.IsNullOrWhiteSpace(NombreArchivoActual))
 {
     <span class="detalle-tecnico">@NombreArchivoActual</span>
 }
@@ -41,6 +119,13 @@ else if (!string.IsNullOrWhiteSpace(NombreArchivoActual))
     private InputFile? _inputFileRef;
     private IJSObjectReference? _modulo;
     private IJSObjectReference? _instancia;
+    private DotNetObjectReference<ZonaSoltarArchivo>? _referencia;
+    private string? _errorEntrada;
+    private int _contadorErrores;
+    private string? _anuncio;
+    private string? _origenPendiente;
+    private int _contadorAnuncios;
+    private bool _desmontada;
 
     [Parameter] public string Titulo { get; set; } = "Suelta tu archivo aquí";
     [Parameter] public string? FormatosTexto { get; set; }
@@ -50,25 +135,159 @@ else if (!string.IsNullOrWhiteSpace(NombreArchivoActual))
     [Parameter] public string? NombreArchivoActual { get; set; }
     [Parameter, EditorRequired] public EventCallback<InputFileChangeEventArgs> OnChange { get; set; }
 
+    /// <summary>
+    /// Los archivos que ya están adjuntos, según quien usa la zona. Con al menos uno, la zona
+    /// enseña la lista en vez de la superficie vacía. Null o vacía: estado vacío de siempre.
+    /// </summary>
+    [Parameter] public IReadOnlyList<ArchivoAdjuntoVista>? ArchivosAdjuntos { get; set; }
+
+    /// <summary>Aviso bajo la lista (p. ej. «varios archivos se combinan en un solo PDF»).</summary>
+    [Parameter] public string? AvisoCombinacion { get; set; }
+
+    /// <summary>Pulsar «Quitar». Sin delegado no hay botón. Quien la usa decide qué significa quitar.</summary>
+    [Parameter] public EventCallback OnQuitar { get; set; }
+
+    /// <summary>Permite ocultar «Quitar» aunque haya OnQuitar (p. ej. el archivo que el Documento ya tenía).</summary>
+    [Parameter] public bool PermitirQuitar { get; set; } = true;
+
+    /// <summary>
+    /// false: el aviso de lectores de pantalla al recibir un archivo no repite su nombre. Lo usa quien suelta
+    /// un archivo rechazado y no quiere que su nombre quede en la página (p. ej. el importador de estructura).
+    /// </summary>
+    [Parameter] public bool AnunciarNombre { get; set; } = true;
+
+    /// <summary>2 pinta el título de la zona vacía como encabezado h2 (páginas cuya zona ES el contenido); otro valor, párrafo.</summary>
+    [Parameter] public int? NivelEncabezado { get; set; }
+
+    /// <summary>
+    /// Tamaño máximo por archivo, solo para avisar al pegar o soltar en la propia zona (la
+    /// validación de verdad sigue siendo la de quien la usa, en el servidor). Null: no se comprueba.
+    /// </summary>
+    [Parameter] public long? TamanoMaximoBytes { get; set; }
+
+    private bool TieneArchivos => ArchivosAdjuntos is { Count: > 0 };
+
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
         if (!firstRender || _inputFileRef?.Element is not { } inputElement) return;
 
         try
         {
+            _referencia = DotNetObjectReference.Create(this);
             _modulo = await JS.InvokeAsync<IJSObjectReference>("import", "./js/zona-soltar-archivo.js");
-            _instancia = await _modulo.InvokeAsync<IJSObjectReference>("inicializar", _zonaRef, inputElement);
+            _instancia = await _modulo.InvokeAsync<IJSObjectReference>("inicializar", _zonaRef, inputElement, _referencia);
+            // Desmontada mientras inicializaba (drawer abierto y cerrado enseguida): DisposeAsync ya
+            // pasó sin instancia que soltar, así que la zona recién registrada se suelta aquí.
+            if (_desmontada && _instancia is not null)
+                await _instancia.InvokeVoidAsync("dispose");
         }
         catch (Exception)
         {
             // Mejor esfuerzo: sin JS interop (circuito cerrándose, o bUnit sin
             // navegador real) el "busca archivos" nativo del label sigue
-            // funcionando — solo se pierde arrastrar/soltar y pegar.
+            // funcionando en la zona vacía — solo se pierde arrastrar/soltar y
+            // pegar, y el botón «Cambiar» de la zona con archivo (necesita el JS).
         }
     }
 
+    private async Task ManejarCambioAsync(InputFileChangeEventArgs e)
+    {
+        // El InputFile va con disabled="@Cargando": quitar el atributo en el DOM no puede ejecutar la acción.
+        if (Cargando)
+        {
+            _origenPendiente = null;
+            return;
+        }
+
+        _errorEntrada = null;
+        if (e.FileCount > 0)
+            Anunciar(AnuncioDeEntrada(e));
+        _origenPendiente = null;
+        await OnChange.InvokeAsync(e);
+    }
+
+    private string AnuncioDeEntrada(InputFileChangeEventArgs e)
+    {
+        if (e.FileCount > 1)
+            return string.Format(CultureInfo.CurrentCulture, Comunes["ZonaSoltarAnuncioVarios"].Value, e.FileCount);
+
+        if (!AnunciarNombre)
+            return Comunes["ZonaSoltarAnuncioSinNombre"].Value;
+
+        var clave = _origenPendiente switch
+        {
+            "pegado" => "ZonaSoltarAnuncioPegado",
+            "soltado" => "ZonaSoltarAnuncioSoltado",
+            _ => "ZonaSoltarAnuncioSeleccionado"
+        };
+        return string.Format(CultureInfo.CurrentCulture, Comunes[clave].Value, e.File.Name);
+    }
+
+    private async Task QuitarAsync()
+    {
+        _errorEntrada = null;
+        Anunciar(Comunes["ZonaSoltarAnuncioQuitado"].Value);
+        await OnQuitar.InvokeAsync();
+
+        // El botón «Quitar» desaparece con la lista: sin esto el foco cae al <body> y
+        // el siguiente Ctrl+V o Tab empieza desde cero.
+        try { await _zonaRef.FocusAsync(); }
+        catch (Exception) { /* sin JS (bUnit) o circuito cerrándose */ }
+    }
+
+    private void Anunciar(string texto)
+    {
+        _anuncio = texto;
+        _contadorAnuncios++;
+    }
+
+    /// <summary>El JS avisa de por dónde entró el archivo justo antes de disparar 'change'.</summary>
+    [JSInvokable]
+    public void AnunciarOrigen(string origen)
+    {
+        _origenPendiente = origen;
+    }
+
+    /// <summary>El JS no ha rellenado el input: no había archivo, o su tipo o tamaño no se admiten.</summary>
+    [JSInvokable]
+    public async Task RechazarEntrada(string motivo, string? nombre)
+    {
+        _origenPendiente = null;
+        _contadorErrores++;
+        _errorEntrada = motivo switch
+        {
+            "tamano" => string.Format(CultureInfo.CurrentCulture, Comunes["ZonaSoltarErrorTamano"].Value, nombre, (TamanoMaximoBytes ?? 0) / (1024 * 1024)),
+            "tipo" when !string.IsNullOrWhiteSpace(FormatosTexto) =>
+                string.Format(CultureInfo.CurrentCulture, Comunes["ZonaSoltarErrorTipoConFormatos"].Value, nombre, FormatosTexto),
+            "tipo" => string.Format(CultureInfo.CurrentCulture, Comunes["ZonaSoltarErrorTipo"].Value, nombre),
+            _ => Comunes["ZonaSoltarErrorSinArchivo"].Value
+        };
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private static string Meta(ArchivoAdjuntoVista archivo)
+    {
+        var tipo = archivo.Tipo ?? EtiquetaTipo(archivo.Nombre);
+        var tamano = archivo.TamanoBytes is { } bytes ? FormatearTamano(bytes) : null;
+        return string.Join(" · ", new[] { tipo, tamano }.Where(parte => !string.IsNullOrEmpty(parte)));
+    }
+
+    private static string? EtiquetaTipo(string nombre)
+    {
+        var extension = Path.GetExtension(nombre).TrimStart('.');
+        return extension.Length is > 0 and <= 5 ? extension.ToUpperInvariant() : null;
+    }
+
+    private static string FormatearTamano(long bytes) => bytes switch
+    {
+        < 1024 => string.Create(CultureInfo.CurrentCulture, $"{bytes} B"),
+        < 1024 * 1024 => string.Create(CultureInfo.CurrentCulture, $"{bytes / 1024.0:0} KB"),
+        _ => string.Create(CultureInfo.CurrentCulture, $"{bytes / (1024.0 * 1024.0):0.0} MB")
+    };
+
     public async ValueTask DisposeAsync()
     {
+        _desmontada = true;
         try
         {
             if (_instancia is not null)
@@ -82,6 +301,10 @@ else if (!string.IsNullOrWhiteSpace(NombreArchivoActual))
         }
         catch (JSDisconnectedException)
         {
+        }
+        finally
+        {
+            _referencia?.Dispose();
         }
     }
 }

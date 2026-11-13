@@ -3,13 +3,9 @@
 .miga-subida-masiva a { font-weight: 600; }
 .indicador-sistema { background: var(--color-system-indicator); border-radius: var(--radius-full); display: inline-block; flex: none; height: 6px; width: 6px; }
 .texto-sistema-subida, .aviso-memoria-subida, .confianza-ia-subida, .ayuda-solo-propone { align-items: center; color: var(--color-system-text); display: inline-flex; font: var(--font-caption); gap: 5px; }
-.zona-subida-masiva { align-items: center; background: var(--color-primary-50); border: 2px dashed var(--color-primary-500); border-radius: var(--radius-lg); display: flex; flex-direction: column; gap: var(--space-3); padding: var(--space-10) var(--space-8); text-align: center; }
-.zona-subida-masiva-con-lote { background: var(--color-surface); border-color: var(--color-border-strong); }
-.icono-zona-subida-masiva, .icono-vacio-lote-subida-masiva { align-items: center; border: 1px solid var(--color-border); border-radius: var(--radius-full); display: flex; height: 44px; justify-content: center; width: 44px; }
-.icono-zona-subida-masiva { background: var(--color-surface); color: var(--color-primary-500); }
+.zona-subida-masiva { display: flex; flex-direction: column; gap: var(--space-3); }
+.icono-vacio-lote-subida-masiva { align-items: center; border: 1px solid var(--color-border); border-radius: var(--radius-full); display: flex; height: 44px; justify-content: center; width: 44px; }
 .icono-vacio-lote-subida-masiva { background: var(--color-surface-subtle); color: var(--color-text-muted); }
-.zona-subida-masiva h2 { font: var(--font-h4); margin: 0; }
-.zona-subida-masiva p { color: var(--color-text-muted); font: var(--font-body-md); margin: 0; }
 .error-lote-subida-masiva { align-items: center; background: var(--color-surface); border: 1px solid var(--color-border-strong); border-radius: var(--radius-lg); display: flex; flex-wrap: wrap; gap: var(--space-4); padding: var(--space-8); }
 .icono-error-lote-subida-masiva { align-items: center; background: var(--color-danger-50); border: 1px solid var(--color-danger-500); border-radius: var(--radius-full); color: var(--color-danger-700); display: flex; flex: none; height: 32px; justify-content: center; width: 32px; }
 .texto-error-lote-subida-masiva { display: flex; flex: 1; flex-direction: column; gap: var(--space-1); min-width: 260px; }
@@ -71,4 +67,4 @@
 .fila-esqueleto-subida-masiva { height: 64px; }
 @keyframes brillo-subida { 0% { background-position: 100% 50%; } 100% { background-position: 0 50%; } }
 @media (prefers-reduced-motion: reduce) { .pista-barra-archivo-leyendo, .esqueleto-lote-subida-masiva > div, .bloque-esqueleto-subida-masiva { animation: none; } }
-@media (max-width: 768px) { .zona-subida-masiva, .error-lote-subida-masiva, .vacio-lote-subida-masiva { padding: var(--space-4); } .item-subida-masiva-fila { align-items: flex-start; flex-wrap: wrap; padding: var(--space-3) var(--space-4); } .item-subida-masiva-acciones { width: 100%; } .item-subida-masiva-confirmacion { flex-direction: column; padding: 0 var(--space-4) var(--space-4); } .item-subida-masiva-vista { width: 100%; } .item-subida-masiva-formulario { max-width: none; } .pista-lote-subida-masiva { margin-left: 0; width: 100%; } }
+@media (max-width: 768px) { .error-lote-subida-masiva, .vacio-lote-subida-masiva { padding: var(--space-4); } .item-subida-masiva-fila { align-items: flex-start; flex-wrap: wrap; padding: var(--space-3) var(--space-4); } .item-subida-masiva-acciones { width: 100%; } .item-subida-masiva-confirmacion { flex-direction: column; padding: 0 var(--space-4) var(--space-4); } .item-subida-masiva-vista { width: 100%; } .item-subida-masiva-formulario { max-width: none; } .pista-lote-subida-masiva { margin-left: 0; width: 100%; } }

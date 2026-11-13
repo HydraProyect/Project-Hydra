@@ -1,3 +1,5 @@
+using System.Diagnostics;
+using System.Net;
 using System.Net.Security;
 using System.Security.Cryptography.X509Certificates;
 using CaeManager.Application.Common;
@@ -7,7 +9,6 @@ using MailKit.Security;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using MimeKit;
-using MimeKit.Text;
 using ExcepcionAutenticacionTls = System.Security.Authentication.AuthenticationException;
 using ExcepcionAutenticacionSmtp = MailKit.Security.AuthenticationException;
 
@@ -38,6 +39,12 @@ public class SmtpEmailService(
     /// <summary>El servidor rechazó la orden o las credenciales: el mensaje no se aceptó.</summary>
     public const string CodigoErrorApi = "Email.ErrorApi";
 
+    /// <summary>
+    /// Crea el cliente SMTP de cada envío. Solo los tests la sustituyen, para hacer
+    /// fallar el cliente sin abrir una conexión real.
+    /// </summary>
+    internal Func<SmtpClient> FabricaCliente { get; init; } = static () => new SmtpClient();
+
     public async Task<Result> EnviarAsync(
         string destinatarioEmail, string asunto, string cuerpoHtml, TipoAvisoCorreo tipo,
         string? responderA = null,
@@ -55,13 +62,19 @@ public class SmtpEmailService(
         var tiempoMaximo = TimeSpan.FromSeconds(
             config.TiempoMaximoSegundos > 0 ? Math.Min(config.TiempoMaximoSegundos, 600) : SmtpEmailOptions.TiempoMaximoPorDefectoSegundos);
 
-        using var cliente = new SmtpClient
-        {
-            // Por operación; el tope del envío entero va en `tope`, más abajo.
-            Timeout = (int)tiempoMaximo.TotalMilliseconds,
-            ServerCertificateValidationCallback = (_, certificado, cadena, erroresPolitica) =>
-                ValidarCertificadoServidor(config, certificado, cadena, erroresPolitica),
-        };
+        using var cliente = FabricaCliente();
+        // Por operación; el tope del envío entero va en `tope`, más abajo.
+        cliente.Timeout = (int)tiempoMaximo.TotalMilliseconds;
+        cliente.ServerCertificateValidationCallback = (_, certificado, cadena, erroresPolitica) =>
+            ValidarCertificadoServidor(config, certificado, cadena, erroresPolitica);
+
+        // Los fallos se registran sin la excepción: su mensaje es la respuesta del
+        // servidor SMTP, que puede citar el destinatario, el Reply-To u otros datos
+        // personales (ASVS 4.0.3 V7.1.1). Queda el tipo, el código SMTP si lo hay y
+        // este identificador: dentro de una petición es su TraceId y casa la entrada con
+        // la traza; fuera de ella (un servicio en segundo plano) es uno propio del envío.
+        var traza = Activity.Current?.TraceId ?? default;
+        var correlacion = traza != default ? traza.ToHexString() : Guid.NewGuid().ToString("N");
 
         var mensaje = ConstruirMensaje(destinatarioEmail, asunto, cuerpoHtml, tipo, responderA, config, logger);
 
@@ -84,43 +97,53 @@ public class SmtpEmailService(
             }
             catch (Exception ex)
             {
-                logger.LogWarning(ex, "El correo salió, pero cerrar la conexión SMTP falló.");
+                logger.LogWarning(
+                    "El correo salió, pero cerrar la conexión SMTP falló ({TipoExcepcion}, correlación {Correlacion}).",
+                    ex.GetType().Name, correlacion);
             }
 
             return Result.Exito();
         }
-        catch (Exception ex) when (cancellationToken.IsCancellationRequested)
+        catch (Exception) when (cancellationToken.IsCancellationRequested)
         {
             // Cancela quien llama: se propaga siempre como OperationCanceledException, sea cual
             // sea la excepción con la que MailKit haya abortado la operación en curso (al cancelar
             // cierra el socket y puede lanzar IOException, SocketException o TimeoutException en
             // vez de OperationCanceledException). Sin esta rama la cancelación se disfrazaba de
             // «error de red» y el llamador la trataba como un envío fallido más.
-            if (ex is OperationCanceledException)
-                throw;
-
-            throw new OperationCanceledException("El envío del correo se canceló.", ex, cancellationToken);
+            // Sin la excepción de MailKit como InnerException: lleva la respuesta del
+            // servidor, y un llamador que registrase la cancelación la arrastraría.
+            throw new OperationCanceledException("El envío del correo se canceló.", cancellationToken);
         }
         catch (Exception ex) when (ex is TimeoutException || ex is OperationCanceledException)
         {
             // Aquí solo cae el vencimiento de nuestro propio tope: la cancelación
             // de quien llama ya se propagó en la rama anterior.
-            logger.LogError(ex, "El servidor SMTP no respondió en {Segundos} s al enviar correo.", tiempoMaximo.TotalSeconds);
+            logger.LogError(
+                "El servidor SMTP no respondió en {Segundos} s al enviar correo ({TipoExcepcion}, correlación {Correlacion}).",
+                tiempoMaximo.TotalSeconds, ex.GetType().Name, correlacion);
             return Result.Fallo(Error.Crear("Email.ErrorRed", "No pudimos enviar el correo."));
         }
         catch (SmtpCommandException ex)
         {
-            logger.LogError(ex, "El servidor SMTP rechazó el envío de un correo: {StatusCode}.", ex.StatusCode);
+            // Ni ex.Message ni ex.Mailbox: son la respuesta del servidor y la dirección rechazada.
+            logger.LogError(
+                "El servidor SMTP rechazó el envío de un correo: {StatusCode} ({ErrorCode}, correlación {Correlacion}).",
+                ex.StatusCode, ex.ErrorCode, correlacion);
             return Result.Fallo(Error.Crear(CodigoErrorApi, "No pudimos enviar el correo."));
         }
         catch (ExcepcionAutenticacionSmtp ex)
         {
-            logger.LogError(ex, "El servidor SMTP rechazó las credenciales configuradas.");
+            logger.LogError(
+                "El servidor SMTP rechazó las credenciales configuradas ({TipoExcepcion}, correlación {Correlacion}).",
+                ex.GetType().Name, correlacion);
             return Result.Fallo(Error.Crear(CodigoErrorApi, "No pudimos enviar el correo."));
         }
         catch (Exception ex) when (ex is System.Net.Sockets.SocketException or IOException or SmtpProtocolException or SslHandshakeException or ExcepcionAutenticacionTls)
         {
-            logger.LogError(ex, "Fallo de red o TLS al enviar correo vía SMTP.");
+            logger.LogError(
+                "Fallo de red o TLS al enviar correo vía SMTP ({TipoExcepcion}, correlación {Correlacion}).",
+                ex.GetType().Name, correlacion);
             return Result.Fallo(Error.Crear("Email.ErrorRed", "No pudimos enviar el correo."));
         }
     }
@@ -167,10 +190,15 @@ public class SmtpEmailService(
             mensaje.ReplyTo.Add(buzonDeRespuesta);
 
         mensaje.Subject = asunto;
-        mensaje.Body = new TextPart(TextFormat.Html)
+
+        // multipart/alternative: la parte de texto se deriva del HTML final (ver TextoPlanoDeCorreo),
+        // para quien lee sin HTML y porque un correo solo HTML puntúa peor en los filtros de spam.
+        var html = EnvolverEnPlantillaDeMarca(cuerpoHtml, tipo, config, buzonDeRespuesta?.Address);
+        mensaje.Body = new BodyBuilder
         {
-            Text = EnvolverEnPlantillaDeMarca(cuerpoHtml, tipo, config, buzonDeRespuesta?.Address),
-        };
+            HtmlBody = html,
+            TextBody = TextoPlanoDeCorreo.DesdeHtml(html),
+        }.ToMessageBody();
 
         return mensaje;
     }
@@ -218,13 +246,26 @@ public class SmtpEmailService(
     /// envoltorio ni repetirlo.
     ///
     /// <para>
-    /// La franja de marca va como imagen (<c>UrlBasePublica</c> +
-    /// <c>/img/correo/franja-marca.png</c>): ni Outlook ni Gmail dibujan SVG,
-    /// y así se evita depender de una fuente serif que el cliente de correo
-    /// no cargue. Sin <c>UrlBasePublica</c> configurada no hay URL pública
-    /// que ofrecer, así que cae directamente al texto en Georgia — el mismo
-    /// contenido que muestra el <c>alt</c> de la imagen cuando el cliente
-    /// bloquea imágenes.
+    /// <b>El correo se entiende con las imágenes bloqueadas.</b> Muchas
+    /// organizaciones bloquean las imágenes de remitentes externos, así que la
+    /// franja de marca es texto en Georgia sobre un color de fondo, nunca una
+    /// imagen (hasta noviembre de 2026 era <c>/img/correo/franja-marca.png</c>
+    /// cuando había <c>UrlBasePublica</c>; con la imagen bloqueada Outlook
+    /// mostraba un recuadro vacío en su lugar, y el <c>alt</c> crema solo se
+    /// leía si el cliente conservaba el fondo). El envoltorio no lleva ninguna
+    /// <c>&lt;img&gt;</c>, y las llamadas a la acción de los llamadores van con
+    /// <see cref="BotonCorreo"/>.
+    /// </para>
+    ///
+    /// <para>
+    /// <b>Estilo en línea además de la hoja.</b> Algunos clientes descartan el
+    /// bloque <c>&lt;style&gt;</c>; por eso los colores de fondo, el ancho y la
+    /// tipografía del envoltorio van también en línea (y el fondo, además, como
+    /// atributo <c>bgcolor</c>, que es lo que respeta Outlook de escritorio).
+    /// La hoja se queda para el contenido de los llamadores (<c>.cuerpo h3</c>,
+    /// <c>.cuerpo td</c>…), que sin ella sigue siendo legible con los valores
+    /// por defecto del cliente. El texto del pie va en <c>#5F6A64</c> sobre
+    /// blanco (contraste 5,6:1, por encima del 4,5:1 de WCAG AA).
     /// </para>
     /// </summary>
     /// <param name="responderA">
@@ -239,26 +280,24 @@ public class SmtpEmailService(
     internal static string EnvolverEnPlantillaDeMarca(
         string cuerpoHtml, TipoAvisoCorreo tipo, SmtpEmailOptions config, string? responderA = null)
     {
-        var franjaDeMarca = string.IsNullOrWhiteSpace(config.UrlBasePublica)
-            ? """
-              <div style="background:#122A21;padding:17px 22px 14px;font-family:Georgia,'Times New Roman',serif;">
-                <div style="font-size:21px;color:#F2EEE1;letter-spacing:2.2px;">TALVEG</div>
-                <p style="font-family:Arial,Helvetica,sans-serif;font-size:10.5px;color:#7E9C90;margin:6px 0 0;letter-spacing:.3px;">Coordinación de actividades empresariales</p>
-              </div>
-              """
-            : $"""
-               <div style="background:#122A21;padding:0;">
-                 <img src="{config.UrlBasePublica!.TrimEnd('/')}/img/correo/franja-marca.png" width="600" alt="TALVEG — Coordinación de actividades empresariales"
-                      style="display:block;width:100%;max-width:600px;height:auto;border:0;font-family:Georgia,'Times New Roman',serif;font-size:21px;color:#F2EEE1;letter-spacing:2.2px;">
-               </div>
-               """;
+        const string franjaDeMarca = """
+            <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="width:100%;border-collapse:collapse;">
+              <tr>
+                <td bgcolor="#122A21" style="background-color:#122A21;padding:17px 22px 14px;font-family:Georgia,'Times New Roman',serif;">
+                  <div style="font-size:21px;color:#F2EEE1;letter-spacing:2.2px;">TALVEG</div>
+                  <p style="font-family:Arial,Helvetica,sans-serif;font-size:11px;color:#B5C7BF;margin:6px 0 0;letter-spacing:.3px;">Coordinación de actividades empresariales</p>
+                </td>
+              </tr>
+            </table>
+            """;
 
+        var buzon = WebUtility.HtmlEncode(config.BuzonRemitente ?? string.Empty);
         var pie = tipo switch
         {
             TipoAvisoCorreo.Seguridad =>
                 $"""
                  Este aviso se envía siempre por seguridad y no se puede desactivar.<br>
-                 Si no has sido tú, avísanos respondiendo a <a href="mailto:{config.BuzonRemitente}">{config.BuzonRemitente}</a>. · <a href="https://talveg.es">talveg.es</a>
+                 Si no has sido tú, avísanos respondiendo a <a href="mailto:{buzon}">{buzon}</a>. · <a href="https://talveg.es">talveg.es</a>
                  """,
             TipoAvisoCorreo.Informativo =>
                 """
@@ -280,10 +319,11 @@ public class SmtpEmailService(
 
         return $$"""
                  <!doctype html>
-                 <html>
+                 <html lang="es">
                  <head>
                  <meta charset="utf-8">
                  <meta name="viewport" content="width=device-width,initial-scale=1">
+                 <title>TALVEG</title>
                  <style>
                    body{margin:0;padding:0;background:#EDEDEB;}
                    .correo{max-width:600px;margin:0 auto;background:#FFFFFF;border:1px solid #E0E0DC;font-family:Arial,Helvetica,sans-serif;}
@@ -293,17 +333,17 @@ public class SmtpEmailService(
                    .cuerpo a{color:#122A21;}
                    .cuerpo table{width:100%;border-collapse:collapse;margin:4px 0 18px;}
                    .cuerpo td{padding:9px 0;border-bottom:1px solid #EDEEE9;font-size:13.5px;}
-                   .pie{border-top:1px solid #EDEEE9;padding:14px 22px 18px;font-size:10.5px;color:#8A948E;line-height:1.55;}
-                   .pie a{color:#8A948E;}
+                   .pie{border-top:1px solid #EDEEE9;padding:14px 22px 18px;font-size:11px;color:#5F6A64;line-height:1.55;}
+                   .pie a{color:#5F6A64;}
                  </style>
                  </head>
-                 <body>
-                 <div class="correo">
+                 <body style="margin:0;padding:0;background-color:#EDEDEB;" bgcolor="#EDEDEB">
+                 <div class="correo" style="max-width:600px;margin:0 auto;background-color:#FFFFFF;border:1px solid #E0E0DC;font-family:Arial,Helvetica,sans-serif;">
                    {{franjaDeMarca}}
-                   <div class="cuerpo">
+                   <div class="cuerpo" style="padding:24px 22px 20px;font-size:14px;color:#2A322E;line-height:1.55;background-color:#FFFFFF;">
                      {{cuerpoHtml}}
                    </div>
-                   <div class="pie">
+                   <div class="pie" style="border-top:1px solid #EDEEE9;padding:14px 22px 18px;font-size:11px;color:#5F6A64;line-height:1.55;background-color:#FFFFFF;">
                      {{pie}}
                    </div>
                  </div>

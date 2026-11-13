@@ -100,7 +100,7 @@ public class SuperficiesAnonimasClasificadasPorActorTests
         ["CaeManager.Web/Components/Pages/Error.razor"] = (1, Categoria.NoEscribe),
         ["CaeManager.Web/Components/Pages/NotFound.razor"] = (1, Categoria.NoEscribe),
         // Formulario «Pedir una demo» de talveg.es: una persona sin sesión, pero solo reenvía un
-        // correo a info@talveg.es; no toca la base, así que no produce filas de auditoría.
+        // correo al buzón configurado (info@talveg.es por defecto); no toca la base, así que no produce filas de auditoría.
         ["CaeManager.Web/Features/Contacto/SolicitudDemoEndpoints.cs"] = (1, Categoria.NoEscribe),
         // Recursos estáticos, /salud y el contrato OpenAPI.
         ["CaeManager.Web/Program.cs"] = (3, Categoria.NoEscribe),

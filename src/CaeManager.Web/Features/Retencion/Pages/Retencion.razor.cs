@@ -35,6 +35,13 @@ namespace CaeManager.Web.Features.Retencion.Pages;
 /// (<see cref="DiagnosticarDatosPurgablesCommand"/>), que solo cuenta: no crea
 /// ninguna propuesta ni destruye nada.
 /// </para>
+///
+/// <para>
+/// Con política, el botón de buscar también espera a que termine la carga de la lista (<c>_cargando</c>). Pulsado
+/// durante la carga inicial, <see cref="BuscarAsync"/> lanzaba una segunda carga sin que acabara la primera: si la
+/// consulta de la primera corría después del Command, pintaba la tabla con las propuestas recién creadas mientras la
+/// recarga de buscar seguía en vuelo, y quien actuaba sobre esa tabla lo hacía con buscar todavía en curso (#2187).
+/// </para>
 /// </summary>
 public partial class Retencion : CaeManager.Web.Components.PaginaIntegrableConfiguracionBase
 {

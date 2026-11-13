@@ -40,9 +40,10 @@ public class SmtpEmailOptions
     /// de Development (URL absoluta https): los enlaces de activación y de
     /// recuperación de contraseña se construyen con ella, nunca con el Host de la
     /// petición, y sin ella la aplicación no arranca (ValidadorUrlBasePublica,
-    /// registrado con ValidateOnStart en Program.cs). En Development puede faltar y se usa el Host local. También
-    /// permite servir la franja de marca del sistema de correo como imagen (los
-    /// clientes de correo la descargan por HTTP, no la reciben incrustada).
+    /// registrado con ValidateOnStart en Program.cs). En Development puede faltar y se usa el Host local. La
+    /// plantilla de marca del correo ya no la usa: desde noviembre de 2026 la
+    /// franja de marca es texto, no una imagen servida desde esta URL, para que
+    /// el correo se lea igual con las imágenes bloqueadas.
     /// </summary>
     public string? UrlBasePublica { get; set; }
 

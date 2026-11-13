@@ -9,6 +9,7 @@
     <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite.Core" Version="10.0.15" />
     <PackageReference Include="SQLitePCLRaw.bundle_e_sqlite3" Version="3.0.3" />
     <PackageReference Include="bunit" Version="2.11.3" />
+    <PackageReference Include="Microsoft.CodeAnalysis.CSharp" Version="5.0.0" />
     <!-- AngleSharp 1.4.0 llega de forma transitiva vía bunit y tiene una
          vulnerabilidad moderada conocida (GHSA-pgww-w46g-26qg) — se fija
          explícitamente a una versión parcheada en vez de silenciar el
@@ -55,6 +56,9 @@
   <ItemGroup>
     <Using Include="Xunit" />
     <Compile Include="..\CaeManager.E2ETests\Rendimiento\MedidorConsultasSql.cs" Link="Rendimiento\MedidorConsultasSql.cs" />
+    <!-- Lo que TrazaAlFallar decide sin navegador (borrar, publicar, anotar el -sin-traza.txt): se prueba aquí, en local
+         y en el job de bUnit, porque el proyecto de E2E solo corre con servidor y navegador (ver TramosDeTrazaTests). -->
+    <Compile Include="..\CaeManager.E2ETests\TramosDeTraza.cs" Link="E2E\TramosDeTraza.cs" />
   </ItemGroup>
 
   <ItemGroup>

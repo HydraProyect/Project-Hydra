@@ -191,6 +191,85 @@ public class RetencionTests : BunitContext
     }
 
     /// <summary>
+    /// La primera <see cref="ObtenerSolicitudesPurgaQuery"/> se queda en vuelo hasta que el test la suelta; el resto de
+    /// peticiones responde en el acto.
+    /// </summary>
+    private sealed class MediatorConCargaInicialPendiente : IMediator
+    {
+        private bool _cargaInicialServida;
+
+        public TaskCompletionSource<IReadOnlyList<SolicitudPurgaDto>> CargaInicial { get; } =
+            new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public List<object> Enviados { get; } = [];
+
+        public async Task<TResponse> Send<TResponse>(IRequest<TResponse> request, CancellationToken cancellationToken = default)
+        {
+            Enviados.Add(request);
+            if (request is ObtenerSolicitudesPurgaQuery && !_cargaInicialServida)
+            {
+                _cargaInicialServida = true;
+                return (TResponse)(object)await CargaInicial.Task;
+            }
+
+            return (TResponse)(request switch
+            {
+                ObtenerSolicitudesPurgaQuery => (object)new[] { PendienteDeRevision() },
+                BuscarDatosPurgablesCommand => Result.Exito(1),
+                _ => throw new NotSupportedException($"Petición no prevista en este test: {request.GetType().Name}.")
+            });
+        }
+
+        public Task Send<TRequest>(TRequest request, CancellationToken cancellationToken = default) where TRequest : IRequest =>
+            throw new NotSupportedException();
+
+        public Task<object?> Send(object request, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+
+        public IAsyncEnumerable<TResponse> CreateStream<TResponse>(IStreamRequest<TResponse> request, CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
+
+        public IAsyncEnumerable<object?> CreateStream(object request, CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
+
+        public Task Publish(object notification, CancellationToken cancellationToken = default) => Task.CompletedTask;
+
+        public Task Publish<TNotification>(TNotification notification, CancellationToken cancellationToken = default)
+            where TNotification : INotification => Task.CompletedTask;
+    }
+
+    /// <summary>
+    /// #2187: pulsar buscar durante la carga inicial lanzaba una segunda carga solapada con la primera. Si la consulta de
+    /// la primera corría después del Command, la tabla salía con las propuestas nuevas y buscar todavía en curso, y el E2E
+    /// actuaba sobre ella (pulsó «He avisado a la organización» a menos de 15 ms del Command, cuando la recarga de buscar
+    /// tarda en llegar ~460 ms). Ahora buscar espera, deshabilitado, a que la lista termine de cargar.
+    /// </summary>
+    [Fact]
+    public async Task Buscar_espera_deshabilitado_a_que_termine_la_carga_inicial_de_la_lista()
+    {
+        var mediator = new MediatorConCargaInicialPendiente();
+        Services.AddScoped<IMediator>(_ => mediator);
+        Services.AddScoped<ToastService>();
+        Services.AddLocalization();
+        Services.AddSingleton<ILogger<RetencionPage>>(_logger);
+        Services.AddSingleton<IOptions<RetencionDatosOptions>>(Options.Create(
+            new RetencionDatosOptions { Activa = true, AniosRetencionTrabajadores = 5 }));
+
+        var cut = Render<RetencionPage>();
+
+        BotonConTexto(cut, "Buscar datos que hayan cumplido plazo").HasAttribute("disabled").Should().BeTrue(
+            "con la carga inicial en vuelo, buscar lanzaría una segunda carga solapada con ella");
+
+        await cut.InvokeAsync(() => mediator.CargaInicial.SetResult(Array.Empty<SolicitudPurgaDto>()));
+        cut.WaitForAssertion(() =>
+            BotonConTexto(cut, "Buscar datos que hayan cumplido plazo").HasAttribute("disabled").Should().BeFalse());
+
+        await BotonConTexto(cut, "Buscar datos que hayan cumplido plazo").ClickAsync(new MouseEventArgs());
+
+        mediator.Enviados.OfType<BuscarDatosPurgablesCommand>().Should().ContainSingle();
+        cut.WaitForAssertion(() => cut.FindAll(".tabla-datos tbody tr").Should().ContainSingle());
+    }
+
+    /// <summary>
     /// DEC-35: sin política solo se puede diagnosticar. El diagnóstico cuenta
     /// por categoría y no crea, programa ni ejecuta nada.
     /// </summary>
