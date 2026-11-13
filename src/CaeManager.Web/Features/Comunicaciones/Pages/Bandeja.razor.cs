@@ -1137,6 +1137,102 @@ public partial class Bandeja : CaeManager.Web.Components.PaginaInteractiva, IAsy
 
     private bool _aplicandoMacro;
 
+    // ---- Respuesta sugerida por Vega (E18) ----
+
+    private RespuestaSugeridaPanel? _panelSugerencia;
+
+    /// <summary>Mensaje que contestaría una sugerencia: el último entrante del hilo abierto.</summary>
+    private Guid? UltimoMensajeEntranteId => _detalle?.Mensajes
+        .Where(m => m.Direccion == DireccionMensaje.Entrante)
+        .OrderByDescending(m => m.FechaUtc)
+        .Select(m => (Guid?)m.Id)
+        .FirstOrDefault();
+
+    /// <summary>
+    /// Se ofrece pedir una sugerencia si la conversación sigue viva y su último mensaje es del contacto. Es la misma regla que
+    /// aplica GenerarRespuestaSugeridaCommand (que además ignora los mensajes automáticos, que este DTO no distingue): aquí
+    /// solo decide si se muestra el botón; el servidor decide en firme.
+    /// </summary>
+    private bool PuedeSugerirRespuesta =>
+        _detalle is { Estado: not (EstadoConversacion.Resuelta or EstadoConversacion.Cerrada) } detalle
+        && detalle.Mensajes.OrderByDescending(m => m.FechaUtc).FirstOrDefault()?.Direccion == DireccionMensaje.Entrante;
+
+    /// <summary>«Insertar para revisar»: el texto va al redactor y no se envía nada. Si ya había algo, el panel ha preguntado antes.</summary>
+    private Task InsertarSugerenciaAsync(RespuestaSugeridaPanel.SugerenciaDeLaSeleccion aviso)
+    {
+        // Una devolución tardía de otra conversación no escribe en el redactor de la que está abierta. La apertura cambia
+        // al pulsar otra conversación y el detalle solo cuando termina de cargar (revisión Codex r1, ALTO 2): hacen falta las
+        // dos. Y la de una apertura anterior de esta misma conversación tampoco (A→B→A, revisión Codex r2, MEDIO 1): el panel
+        // recibe la apertura vigente como token de selección (_aperturaVigente, que una recarga no cambia).
+        var sugerencia = aviso.Sugerencia;
+        if (aviso.Seleccion != _aperturaVigente || !EsLaConversacionAbierta(sugerencia.ConversacionId)) return Task.CompletedTask;
+
+        // La persona aceptó sustituir el redactor que había al pulsar. Si mientras el servidor respondía siguió escribiendo,
+        // eso es suyo y no se pisa (revisión Codex r3, MEDIO): la sugerencia queda sin revisar fuera del redactor, y el panel
+        // ofrece ponerla preguntando antes. Un redactor vaciado entretanto no tiene nada que perder.
+        if (!string.IsNullOrWhiteSpace(_textoRespuesta) && !string.Equals(_textoRespuesta, aviso.TextoAlPedir, StringComparison.Ordinal))
+            return Task.CompletedTask;
+
+        // En correo la sugerencia se guarda como HTML; el redactor es texto (revisión Codex r1, MEDIO 8). El servidor compara
+        // los dos como texto (RevisionRespuestaSugerida.TextoComparable), así que el bloqueo es el mismo.
+        _textoRespuesta = RespuestaSugeridaPanel.TextoParaRedactor(sugerencia, _detalle!.Canal == CanalConversacion.WhatsApp);
+        _notaInternaActiva = false;
+        _sugerenciaEnRedactor = new SugerenciaEnRedactor(sugerencia.Id, _aperturaVigente);
+        return Task.CompletedTask;
+    }
+
+    /// <summary>
+    /// La sugerencia que esta página puso en su redactor y en qué apertura (revisión Codex r3 de la #2163, ALTO). Solo esa se
+    /// ha mostrado aquí, y solo esa pueden confirmar «Lo he revisado» o el envío de un texto editado más del umbral. Abrir otra
+    /// conversación, o volver a esta, cambia la apertura y la deja sin efecto.
+    /// </summary>
+    private SugerenciaEnRedactor? _sugerenciaEnRedactor;
+
+    private readonly record struct SugerenciaEnRedactor(Guid Id, int Apertura);
+
+    /// <summary>
+    /// Lo que la persona escribe en el redactor. Si lo vacía, lo que escriba después ya no sale de la sugerencia insertada:
+    /// deja de contar como en el redactor y no la confirma (revisión puente de la r3 de la #2163). Sustituir el texto sin
+    /// vaciarlo antes (seleccionar y pegar) no se distingue de editarlo; quien lo hace sí ha visto la sugerencia aquí.
+    /// </summary>
+    private void CambiarTextoRespuesta(string texto)
+    {
+        _textoRespuesta = texto;
+        if (string.IsNullOrWhiteSpace(texto)) _sugerenciaEnRedactor = null;
+    }
+
+    private Guid? SugerenciaEnRedactorVigente =>
+        _sugerenciaEnRedactor is { } enRedactor && enRedactor.Apertura == _aperturaVigente ? enRedactor.Id : null;
+
+    /// <summary>La conversación seleccionada y la que muestra el detalle son esta: ni la anterior, ni una que aún carga.</summary>
+    private bool EsLaConversacionAbierta(Guid conversacionId) =>
+        _conversacionSeleccionadaId == conversacionId && _detalle?.Id == conversacionId;
+
+    /// <summary>
+    /// Tras descartar, el redactor no se queda con el texto descartado: el servidor sigue bloqueando enviarlo y la persona
+    /// acabaría ante un rechazo de algo que acaba de descartar. Si ya lo editó más del umbral, es suyo y se respeta.
+    /// </summary>
+    private Task SugerenciaDescartadaAsync(RespuestaSugeridaPanel.SugerenciaDeLaSeleccion aviso)
+    {
+        var sugerencia = aviso.Sugerencia;
+        if (aviso.Seleccion == _aperturaVigente && EsLaConversacionAbierta(sugerencia.ConversacionId) &&
+            !RevisionRespuestaSugerida.EditadaLoSuficiente(_textoRespuesta, sugerencia.Texto))
+            _textoRespuesta = string.Empty;
+
+        return Task.CompletedTask;
+    }
+
+    /// <summary>
+    /// Antes de enviar: una sugerencia insertada en este redactor en esta apertura y editada más allá del umbral cuenta como
+    /// revisada y se confirma en el servidor, que bloquea todo envío mientras siga sin revisar. Una sin revisar que no está en
+    /// este redactor no se confirma con lo que se envía (revisión Codex r3, ALTO). Recibe el texto fijado al pulsar Enviar, no
+    /// el del redactor cuando acabe de esperar, y la sugerencia del redactor de ese mismo momento. <c>false</c>: no se envía.
+    /// </summary>
+    private Task<bool> AsegurarSugerenciaRevisadaAsync(Guid conversacionId, string texto) =>
+        _panelSugerencia is { } panel
+            ? panel.ConfirmarSiEditadaAsync(conversacionId, texto, SugerenciaEnRedactorVigente)
+            : Task.FromResult(true);
+
     private async Task AplicarMacro(string macroIdTexto)
     {
         if (string.IsNullOrWhiteSpace(macroIdTexto))
@@ -1287,16 +1383,24 @@ public partial class Bandeja : CaeManager.Web.Components.PaginaInteractiva, IAsy
         // correos idénticos al mismo destinatario, y un correo enviado no se
         // deshace.
         if (_enviando || _aplicandoMacro || VariablesPlantillaRespuesta.Pendientes(_textoRespuesta).Count > 0) return;
-        if (_conversacionSeleccionadaId is null || string.IsNullOrWhiteSpace(_textoRespuesta)) return;
+        if (_conversacionSeleccionadaId is not { } conversacionId || string.IsNullOrWhiteSpace(_textoRespuesta)) return;
+        // Mientras carga otra conversación, el detalle aún es el de la anterior: no se envía con un canal que no es el suyo.
+        if (_detalle is not { } detalle || detalle.Id != conversacionId) return;
+
+        // Revisión Codex r1 (#2163, ALTO 3): destino, canal, texto y adjuntos se fijan aquí, antes de cualquier espera. Si
+        // durante la confirmación de la sugerencia o el envío se abre otra conversación, sale lo que se pidió enviar en esta
+        // y a esta, nunca el borrador de la otra; y lo de la otra no se borra al terminar (LimpiarLoEnviado).
+        var esWhatsApp = detalle.Canal == CanalConversacion.WhatsApp;
 
         _enviando = true;
-        var conversacionId = _conversacionSeleccionadaId.Value;
         // Instantánea exacta de lo que sale: con éxito se limpia solo eso (LimpiarLoEnviado). WhatsApp no lleva adjuntos.
         var enviado = new BorradorEnviado(CapturarVigencia(), _textoRespuesta,
-            _detalle?.Canal == CanalConversacion.WhatsApp ? [] : _adjuntosPendientes.ToList(), _errorAdjuntos, EmailFallback: null);
+            esWhatsApp ? [] : _adjuntosPendientes.ToList(), _errorAdjuntos, EmailFallback: null);
         try
         {
-            var resultado = _detalle?.Canal == CanalConversacion.WhatsApp
+            if (!await AsegurarSugerenciaRevisadaAsync(conversacionId, enviado.Texto)) return;
+
+            var resultado = esWhatsApp
                 ? await Mediator.Send(new ResponderConversacionWhatsAppCommand(conversacionId, enviado.Texto.Trim()), _ciclo.Token)
                 : await Mediator.Send(new ResponderConversacionCommand(
                     conversacionId, enviado.Texto, enviado.Adjuntos.Count > 0 ? enviado.Adjuntos.ToList() : null), _ciclo.Token);
@@ -1353,15 +1457,18 @@ public partial class Bandeja : CaeManager.Web.Components.PaginaInteractiva, IAsy
     private async Task EnviarFallbackCorreoAsync()
     {
         if (_enviando || _aplicandoMacro || VariablesPlantillaRespuesta.Pendientes(_textoRespuesta).Count > 0) return;
-        if (_conversacionSeleccionadaId is null || string.IsNullOrWhiteSpace(_textoRespuesta) || string.IsNullOrWhiteSpace(_emailFallback))
+        if (_conversacionSeleccionadaId is not { } conversacionId || string.IsNullOrWhiteSpace(_textoRespuesta) || string.IsNullOrWhiteSpace(_emailFallback))
             return;
+        if (_detalle?.Id != conversacionId) return;
 
+        // Como en EnviarAsync (revisión Codex r1, ALTO 3): lo que se envía y a dónde se fija antes de esperar.
         _enviando = true;
-        var conversacionId = _conversacionSeleccionadaId.Value;
         // El fallback no lleva adjuntos: la instantánea es el texto y la dirección.
         var enviado = new BorradorEnviado(CapturarVigencia(), _textoRespuesta, [], ErrorAdjuntos: null, _emailFallback);
         try
         {
+            if (!await AsegurarSugerenciaRevisadaAsync(conversacionId, enviado.Texto)) return;
+
             var resultado = await Mediator.Send(new MigrarConversacionACorreoCommand(
                 conversacionId, enviado.EmailFallback!.Trim(), enviado.Texto), _ciclo.Token);
             if (resultado.EsFallido)

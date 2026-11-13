@@ -33,6 +33,9 @@ using CaeManager.Application.Comunicaciones.Queries.ObtenerMacros;
 using CaeManager.Application.Comunicaciones.Queries.ObtenerMensajesBuzonPersonal;
 using CaeManager.Application.Comunicaciones.Queries.ObtenerNotasInternasConversacion;
 using CaeManager.Application.Comunicaciones.Queries.ObtenerRecordatorioPropuestoConversacion;
+using CaeManager.Application.Comunicaciones.Queries.ObtenerRespuestaSugerida;
+using CaeManager.Application.Comunicaciones.Commands.GenerarRespuestaSugerida;
+using CaeManager.Application.Comunicaciones.Commands.ResolverRespuestaSugerida;
 using CaeManager.Application.Contactos.Commands.FijarNotaContactoAgenda;
 using CaeManager.Application.Contactos.Queries.ObtenerNotaContacto;
 using CaeManager.Web.Features.Comunicaciones.Components;
@@ -238,9 +241,41 @@ public class ComunicacionesGen2Tests : BunitContext
 
         public Func<ResponderConversacionCommand, Result> AlResponder { get; set; } = _ => Result.Exito();
 
+        /// <summary>La sugerencia activa del hilo: <c>ResolverRespuestaSugeridaCommand</c> la mueve de estado como el handler real.</summary>
+        public RespuestaSugeridaDto? Sugerencia { get; set; }
+
+        public Result<Guid> ResultadoGenerar { get; set; } =
+            Result.Fallo<Guid>(Error.Crear("Sugerencia.NoDisponible", "Sin proveedor de IA."));
+
+        /// <summary>Lo que existe tras pedir una sugerencia con éxito.</summary>
+        public RespuestaSugeridaDto? SugerenciaAlGenerar { get; set; }
+
+        public int Generaciones { get; private set; }
+
+        private Result<Guid> GenerarSugerencia()
+        {
+            Generaciones++;
+            if (ResultadoGenerar.EsExitoso) Sugerencia = SugerenciaAlGenerar;
+            return ResultadoGenerar;
+        }
+
+        public List<AccionRespuestaSugerida> AccionesSobreSugerencia { get; } = [];
+
         public NotaContactoDto? NotaContacto { get; set; }
 
         public List<FijarNotaContactoAgendaCommand> NotasFijadas { get; } = [];
+
+        private Result ResolverSugerencia(ResolverRespuestaSugeridaCommand comando)
+        {
+            AccionesSobreSugerencia.Add(comando.Accion);
+            Sugerencia = Sugerencia is null ? null : comando.Accion switch
+            {
+                AccionRespuestaSugerida.Insertar => Sugerencia with { Estado = EstadoRespuestaSugerida.SinRevisar },
+                AccionRespuestaSugerida.Confirmar => Sugerencia with { Estado = EstadoRespuestaSugerida.Revisada },
+                _ => null
+            };
+            return Result.Exito();
+        }
 
         private Result GuardarNotaContacto(FijarNotaContactoAgendaCommand comando)
         {
@@ -271,7 +306,10 @@ public class ComunicacionesGen2Tests : BunitContext
                 ObtenerNotasInternasConversacionQuery => NotasInternas.ToList(),
                 CaeManager.Application.Comunicaciones.AlertasCriticas.ObtenerAlertaCriticaQuery => null,
                 ObtenerRecordatorioPropuestoConversacionQuery => null,
+                ObtenerRespuestaSugeridaQuery => Sugerencia,
                 ObtenerNotaContactoQuery => NotaContacto,
+                GenerarRespuestaSugeridaCommand => GenerarSugerencia(),
+                ResolverRespuestaSugeridaCommand c => ResolverSugerencia(c),
                 FijarNotaContactoAgendaCommand c => GuardarNotaContacto(c),
                 ResponderConversacionCommand c => AlResponder(c),
                 CambiarEstadoConversacionCommand => Result.Exito(),
@@ -387,6 +425,171 @@ public class ComunicacionesGen2Tests : BunitContext
     private static Task Escribir(IRenderedComponent<Bandeja> cut, string texto) =>
         cut.Find(".composer-correo textarea").InputAsync(new ChangeEventArgs { Value = texto });
 
+    // ---------------------------------------------------------------- revisión 1:1, incremento 2: E18 (respuesta sugerida)
+
+    private const string TextoSugerido =
+        "Buenos días, Carmen. Recibimos la documentación y la revisaremos hoy mismo; le confirmamos el resultado mañana por la mañana.";
+
+    private static RespuestaSugeridaDto PropuestaPara(ConversacionDetalleDto detalle, string texto = TextoSugerido) =>
+        new(Guid.NewGuid(), detalle.Id, detalle.Mensajes[0].Id, OrigenRespuestaSugerida.Vega, null, texto,
+            EstadoRespuestaSugerida.Propuesta, Guid.NewGuid(), DateTime.UtcNow);
+
+    private (Escenario Escenario, ConversacionDetalleDto Detalle) EscenarioConSugerencia()
+    {
+        var conversacion = Conversacion("Documentación pendiente", ClienteRefrielectric);
+        var detalle = DetalleDe(conversacion);
+        var escenario = new Escenario { Detalle = _ => detalle };
+        escenario.Conversaciones.Add(conversacion);
+        escenario.Sugerencia = PropuestaPara(detalle);
+        return (escenario, detalle);
+    }
+
+    private static bool EnviarDeshabilitado(IRenderedComponent<Bandeja> cut) =>
+        Boton(cut, ".composer-acciones button", "Enviar").HasAttribute("disabled");
+
+    private static int Posicion<T>(MediadorControlado mediador) => mediador.Enviados.FindIndex(p => p is T);
+
+    [Fact]
+    public async Task La_respuesta_sugerida_solo_se_propone_y_no_envia_nada()
+    {
+        var (escenario, _) = EscenarioConSugerencia();
+        var (cut, mediador) = Renderizar(escenario);
+        await SeleccionarFila(cut, "Documentación pendiente");
+
+        cut.WaitForAssertion(() => cut.Find(".rs-bloque").TextContent.Should().Contain("Respuesta sugerida por Vega").And.Contain("Buenos días, Carmen"));
+        await Boton(cut, ".rs-bloque button", "Insertar para revisar").ClickAsync(new MouseEventArgs());
+
+        escenario.AccionesSobreSugerencia.Should().Equal(AccionRespuestaSugerida.Insertar);
+        mediador.Enviados.OfType<ResponderConversacionCommand>().Should().BeEmpty("insertar coloca el texto en el redactor: no envía");
+        cut.Find(".rs-sinrevisar").TextContent.Should().Contain("Sugerencia sin revisar");
+    }
+
+    [Fact]
+    public async Task Una_sugerencia_sin_revisar_bloquea_Enviar_y_Ctrl_Intro_hasta_confirmarla()
+    {
+        var (escenario, _) = EscenarioConSugerencia();
+        var (cut, mediador) = Renderizar(escenario);
+        await SeleccionarFila(cut, "Documentación pendiente");
+        cut.WaitForAssertion(() => cut.FindAll(".rs-bloque").Should().ContainSingle());
+        await Boton(cut, ".rs-bloque button", "Insertar para revisar").ClickAsync(new MouseEventArgs());
+
+        EnviarDeshabilitado(cut).Should().BeTrue("hay texto, pero es una sugerencia que nadie ha revisado");
+        await cut.Find(".composer-correo").KeyDownAsync(new KeyboardEventArgs { Key = "Enter", CtrlKey = true });
+        mediador.Enviados.OfType<ResponderConversacionCommand>().Should().BeEmpty("Ctrl+Intro respeta el mismo bloqueo que el botón");
+
+        await Boton(cut, ".rs-sinrevisar button", "Lo he revisado").ClickAsync(new MouseEventArgs());
+
+        escenario.AccionesSobreSugerencia.Should().Equal(AccionRespuestaSugerida.Insertar, AccionRespuestaSugerida.Confirmar);
+        cut.FindAll(".rs-sinrevisar").Should().BeEmpty();
+        EnviarDeshabilitado(cut).Should().BeFalse();
+        await Enviar(cut);
+        mediador.Enviados.OfType<ResponderConversacionCommand>().Should().ContainSingle();
+    }
+
+    [Fact]
+    public async Task Descartar_una_sugerencia_sin_revisar_vacia_el_redactor_y_no_deja_enviar_su_texto()
+    {
+        var (escenario, _) = EscenarioConSugerencia();
+        var (cut, mediador) = Renderizar(escenario);
+        await SeleccionarFila(cut, "Documentación pendiente");
+        cut.WaitForAssertion(() => cut.FindAll(".rs-bloque").Should().ContainSingle());
+        await Boton(cut, ".rs-bloque button", "Insertar para revisar").ClickAsync(new MouseEventArgs());
+
+        await Boton(cut, ".rs-sinrevisar button", "Descartar").ClickAsync(new MouseEventArgs());
+
+        escenario.AccionesSobreSugerencia.Should().Equal(AccionRespuestaSugerida.Insertar, AccionRespuestaSugerida.Descartar);
+        EnviarDeshabilitado(cut).Should().BeTrue("el redactor ya no tiene el texto descartado, que el servidor seguiría rechazando");
+        mediador.Enviados.OfType<ResponderConversacionCommand>().Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task Cambiar_una_letra_de_la_sugerencia_no_basta_para_enviarla()
+    {
+        var (escenario, _) = EscenarioConSugerencia();
+        var (cut, _) = Renderizar(escenario);
+        await SeleccionarFila(cut, "Documentación pendiente");
+        cut.WaitForAssertion(() => cut.FindAll(".rs-bloque").Should().ContainSingle());
+        await Boton(cut, ".rs-bloque button", "Insertar para revisar").ClickAsync(new MouseEventArgs());
+
+        await Escribir(cut, TextoSugerido + "!");
+
+        EnviarDeshabilitado(cut).Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task Una_sugerencia_editada_mas_del_umbral_se_confirma_en_el_servidor_antes_de_enviar()
+    {
+        var (escenario, _) = EscenarioConSugerencia();
+        var (cut, mediador) = Renderizar(escenario);
+        await SeleccionarFila(cut, "Documentación pendiente");
+        cut.WaitForAssertion(() => cut.FindAll(".rs-bloque").Should().ContainSingle());
+        await Boton(cut, ".rs-bloque button", "Insertar para revisar").ClickAsync(new MouseEventArgs());
+
+        await Escribir(cut, "Hola Carmen, recibido todo. Lo miramos esta tarde y mañana le decimos algo sin falta.");
+        EnviarDeshabilitado(cut).Should().BeFalse("el texto se apartó más de 15 caracteres de lo sugerido");
+        await Enviar(cut);
+
+        escenario.AccionesSobreSugerencia.Should().Equal(AccionRespuestaSugerida.Insertar, AccionRespuestaSugerida.Confirmar);
+        Posicion<ResolverRespuestaSugeridaCommand>(mediador).Should().BeGreaterThan(-1);
+        mediador.Enviados.FindLastIndex(p => p is ResolverRespuestaSugeridaCommand { Accion: AccionRespuestaSugerida.Confirmar })
+            .Should().BeLessThan(Posicion<ResponderConversacionCommand>(mediador), "el servidor bloquea el envío mientras siga sin revisar");
+        mediador.Enviados.OfType<ResponderConversacionCommand>().Should().ContainSingle();
+    }
+
+    [Fact]
+    public async Task Sin_proveedor_de_IA_pedir_la_sugerencia_degrada_con_un_aviso_y_el_redactor_sigue_sirviendo()
+    {
+        var conversacion = Conversacion("Documentación pendiente", ClienteRefrielectric);
+        var escenario = new Escenario { Detalle = _ => DetalleDe(conversacion) };
+        escenario.Conversaciones.Add(conversacion);
+        var (cut, mediador) = Renderizar(escenario);
+        await SeleccionarFila(cut, "Documentación pendiente");
+        cut.WaitForAssertion(() => cut.FindAll(".rs-vacio").Should().ContainSingle());
+
+        await Boton(cut, ".rs-vacio button", "Pedir respuesta sugerida").ClickAsync(new MouseEventArgs());
+
+        escenario.Generaciones.Should().Be(1);
+        cut.Find(".rs-aviso-error").TextContent.Should().Contain("Vega no ha podido redactar una respuesta ahora mismo");
+        await Escribir(cut, "Recibido, gracias.");
+        EnviarDeshabilitado(cut).Should().BeFalse("la IA es opcional: escribir a mano sigue funcionando");
+        await Enviar(cut);
+        mediador.Enviados.OfType<ResponderConversacionCommand>().Should().ContainSingle();
+    }
+
+    [Fact]
+    public async Task Pedir_una_sugerencia_la_muestra_sin_enviarla_y_descartarla_vuelve_a_ofrecer_pedirla()
+    {
+        var conversacion = Conversacion("Documentación pendiente", ClienteRefrielectric);
+        var detalle = DetalleDe(conversacion);
+        var escenario = new Escenario { Detalle = _ => detalle, ResultadoGenerar = Result.Exito(Guid.NewGuid()) };
+        escenario.SugerenciaAlGenerar = PropuestaPara(detalle);
+        escenario.Conversaciones.Add(conversacion);
+        var (cut, mediador) = Renderizar(escenario);
+        await SeleccionarFila(cut, "Documentación pendiente");
+        cut.WaitForAssertion(() => cut.FindAll(".rs-vacio").Should().ContainSingle());
+
+        await Boton(cut, ".rs-vacio button", "Pedir respuesta sugerida").ClickAsync(new MouseEventArgs());
+        cut.Find(".rs-bloque").TextContent.Should().Contain("Buenos días, Carmen");
+        mediador.Enviados.OfType<ResponderConversacionCommand>().Should().BeEmpty();
+
+        await Boton(cut, ".rs-bloque button", "Descartar").ClickAsync(new MouseEventArgs());
+
+        escenario.AccionesSobreSugerencia.Should().Equal(AccionRespuestaSugerida.Descartar);
+        cut.FindAll(".rs-vacio").Should().ContainSingle();
+    }
+
+    [Fact]
+    public async Task Una_conversacion_resuelta_no_ofrece_pedir_una_sugerencia()
+    {
+        var conversacion = Conversacion("Documentación pendiente", ClienteRefrielectric, estado: EstadoConversacion.Resuelta);
+        var escenario = new Escenario { Detalle = _ => DetalleDe(conversacion) };
+        escenario.Conversaciones.Add(conversacion);
+        var (cut, _) = Renderizar(escenario);
+        await SeleccionarFila(cut, "Documentación pendiente");
+
+        cut.WaitForAssertion(() => cut.FindAll(".bandeja-centro-acciones").Should().NotBeEmpty());
+        cut.FindAll(".rs-bloque").Should().BeEmpty();
+    }
     // ---------------------------------------------------------------- revisión 1:1, incremento 2: E21 (nota fija del contacto y notas del equipo)
 
     private static NotaContactoDto NotaDeCarmen(string? texto = "Prefiere que la llamen por la mañana.") =>
@@ -483,6 +686,390 @@ public class ComunicacionesGen2Tests : BunitContext
         var escenario = new Escenario { Detalle = id => id == primera.Id ? detallePrimera : detalleSegunda };
         escenario.Conversaciones.AddRange([primera, segunda]);
         return (escenario, primera, segunda);
+    }
+
+    // ---------------------------------------------------------------- revisión Codex r1 de la #2163 (respuesta sugerida)
+
+    private static string TextoDelRedactor(IRenderedComponent<Bandeja> cut) => cut.FindComponent<ComposerBar>().Instance.Texto;
+
+    /// <summary>Las mismas dos conversaciones, con una sugerencia de Vega pendiente en la primera.</summary>
+    private (Escenario Escenario, ConversacionListaDto Primera, ConversacionListaDto Segunda, ConversacionDetalleDto DetallePrimera)
+        DosConversacionesConSugerenciaEnLaPrimera()
+    {
+        var (escenario, primera, segunda) = DosConversacionesDeLaMismaAgenda();
+        var detallePrimera = escenario.Detalle(primera.Id)!;
+        escenario.Sugerencia = PropuestaPara(detallePrimera);
+        return (escenario, primera, segunda, detallePrimera);
+    }
+
+    /// <summary>
+    /// ALTO 2: «Insertar» en A tarda; entretanto se abre B, cuyo detalle aún carga. La inserción de A vuelve con el detalle de
+    /// A todavía en pantalla y antes comparaba solo ese Id: el texto de A acababa en el redactor de B.
+    /// </summary>
+    [Fact]
+    public async Task La_insercion_tardia_de_una_sugerencia_no_escribe_en_el_redactor_de_otra_conversacion()
+    {
+        var (escenario, _, segunda, _) = DosConversacionesConSugerenciaEnLaPrimera();
+        var insercion = new TaskCompletionSource<object?>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var detalleSegunda = new TaskCompletionSource<object?>(TaskCreationOptions.RunContinuationsAsynchronously);
+        escenario.Interceptar = p => p switch
+        {
+            ResolverRespuestaSugeridaCommand { Accion: AccionRespuestaSugerida.Insertar } => insercion.Task,
+            ObtenerConversacionPorIdQuery q when q.Id == segunda.Id => detalleSegunda.Task,
+            ObtenerRespuestaSugeridaQuery q when q.ConversacionId == segunda.Id => Ya(null),
+            _ => null
+        };
+        var (cut, _) = Renderizar(escenario);
+        await SeleccionarFila(cut, "Documentación pendiente");
+        cut.WaitForAssertion(() => cut.FindAll(".rs-bloque").Should().ContainSingle());
+
+        var clic = Boton(cut, ".rs-bloque button", "Insertar para revisar").ClickAsync(new MouseEventArgs());
+        var apertura = SeleccionarFila(cut, "Rechazo del portal");
+        await cut.InvokeAsync(() => insercion.SetResult(Result.Exito()));
+        await clic;
+        await cut.InvokeAsync(() => detalleSegunda.SetResult(escenario.Detalle(segunda.Id)));
+        await apertura;
+
+        cut.Find(".bandeja-centro-titulo-fila h2").TextContent.Trim().Should().Be("Rechazo del portal");
+        TextoDelRedactor(cut).Should().BeEmpty("la sugerencia era de la conversación anterior");
+    }
+
+    /// <summary>
+    /// ALTO 3: Enviar en A espera a que el servidor confirme la sugerencia editada; entretanto se abre B y se escribe su
+    /// borrador. Antes el comando se construía al volver de esa espera, con la selección y el redactor de B.
+    /// </summary>
+    [Fact]
+    public async Task Un_envio_iniciado_en_una_conversacion_no_se_reanuda_con_el_destino_y_el_borrador_de_otra()
+    {
+        var (escenario, primera, segunda, _) = DosConversacionesConSugerenciaEnLaPrimera();
+        var confirmacion = new TaskCompletionSource<object?>(TaskCreationOptions.RunContinuationsAsynchronously);
+        escenario.Interceptar = p => p switch
+        {
+            ResolverRespuestaSugeridaCommand { Accion: AccionRespuestaSugerida.Confirmar } => confirmacion.Task,
+            ObtenerRespuestaSugeridaQuery q when q.ConversacionId == segunda.Id => Ya(null),
+            _ => null
+        };
+        var (cut, mediador) = Renderizar(escenario);
+        await SeleccionarFila(cut, "Documentación pendiente");
+        cut.WaitForAssertion(() => cut.FindAll(".rs-bloque").Should().ContainSingle());
+        await Boton(cut, ".rs-bloque button", "Insertar para revisar").ClickAsync(new MouseEventArgs());
+        const string respuestaDeA = "Hola Carmen, recibido todo. Lo miramos esta tarde y mañana le decimos algo sin falta.";
+        await Escribir(cut, respuestaDeA);
+
+        var envio = Enviar(cut);
+        var apertura = SeleccionarFila(cut, "Rechazo del portal");
+        cut.WaitForAssertion(() => cut.FindAll(".modal-pie button").Should().Contain(b => b.TextContent.Trim() == "Salir y descartar"));
+        await cut.PulsarEnElAvisoAsync("Salir y descartar");
+        await apertura;
+        cut.WaitForAssertion(() => cut.Find(".bandeja-centro-titulo-fila h2").TextContent.Trim().Should().Be("Rechazo del portal"));
+        const string borradorDeB = "Laura, este borrador es de otra conversación y no se ha enviado.";
+        await Escribir(cut, borradorDeB);
+
+        await cut.InvokeAsync(() => confirmacion.SetResult(Result.Exito()));
+        await envio;
+
+        var enviado = mediador.Enviados.OfType<ResponderConversacionCommand>().Should().ContainSingle().Subject;
+        enviado.ConversacionId.Should().Be(primera.Id, "el envío se pidió en A");
+        enviado.CuerpoHtml.Should().Be(respuestaDeA);
+        TextoDelRedactor(cut).Should().Be(borradorDeB, "el borrador de B no se envió y no se borra al terminar el de A");
+    }
+
+    // ---------------------------------------------------------------- revisión Codex r2 de la #2163
+
+    /// <summary>
+    /// MEDIO 1 (r2): «Insertar» en A tarda; entretanto se abre B y se vuelve a A, y se escribe un borrador nuevo. La inserción
+    /// vuelve con A abierta otra vez, que es la misma conversación pero no la misma selección: no pisa el borrador nuevo.
+    /// </summary>
+    [Fact]
+    public async Task La_insercion_tardia_no_pisa_el_borrador_nuevo_tras_ir_a_otra_conversacion_y_volver()
+    {
+        var (escenario, _, segunda, _) = DosConversacionesConSugerenciaEnLaPrimera();
+        var insercion = new TaskCompletionSource<object?>(TaskCreationOptions.RunContinuationsAsynchronously);
+        escenario.Interceptar = p => p switch
+        {
+            ResolverRespuestaSugeridaCommand { Accion: AccionRespuestaSugerida.Insertar } => insercion.Task,
+            ObtenerRespuestaSugeridaQuery q when q.ConversacionId == segunda.Id => Ya(null),
+            _ => null
+        };
+        var (cut, _) = Renderizar(escenario);
+        await SeleccionarFila(cut, "Documentación pendiente");
+        cut.WaitForAssertion(() => cut.FindAll(".rs-bloque").Should().ContainSingle());
+
+        var clic = Boton(cut, ".rs-bloque button", "Insertar para revisar").ClickAsync(new MouseEventArgs());
+        await SeleccionarFila(cut, "Rechazo del portal");
+        cut.WaitForAssertion(() => cut.Find(".bandeja-centro-titulo-fila h2").TextContent.Trim().Should().Be("Rechazo del portal"));
+        await SeleccionarFila(cut, "Documentación pendiente");
+        cut.WaitForAssertion(() => cut.Find(".bandeja-centro-titulo-fila h2").TextContent.Trim().Should().Be("Documentación pendiente"));
+        const string borradorNuevo = "Carmen, esto lo he escrito al volver a la conversación y no es la sugerencia.";
+        await Escribir(cut, borradorNuevo);
+
+        await cut.InvokeAsync(() => insercion.SetResult(Result.Exito()));
+        await clic;
+
+        TextoDelRedactor(cut).Should().Be(borradorNuevo, "la inserción se pidió en una selección anterior de esta conversación");
+    }
+
+    /// <summary>
+    /// El token de selección del panel es la apertura de la Bandeja (fusión con la #2167): una recarga del mismo hilo, por un
+    /// mensaje entrante mientras «Insertar» espera, no es otra apertura y la inserción llega al redactor.
+    /// </summary>
+    [Fact]
+    public async Task La_insercion_que_termina_tras_una_recarga_del_mismo_hilo_llega_al_redactor()
+    {
+        var (escenario, primera, _, _) = DosConversacionesConSugerenciaEnLaPrimera();
+        var insercion = new TaskCompletionSource<object?>(TaskCreationOptions.RunContinuationsAsynchronously);
+        escenario.Interceptar = p => p switch
+        {
+            ResolverRespuestaSugeridaCommand { Accion: AccionRespuestaSugerida.Insertar } => insercion.Task,
+            _ => null
+        };
+        var (cut, mediador) = Renderizar(escenario);
+        await SeleccionarFila(cut, "Documentación pendiente");
+        cut.WaitForAssertion(() => cut.FindAll(".rs-bloque").Should().ContainSingle());
+
+        var clic = Boton(cut, ".rs-bloque button", "Insertar para revisar").ClickAsync(new MouseEventArgs());
+        var lecturas = mediador.Enviados.OfType<ObtenerConversacionPorIdQuery>().Count();
+        await cut.InvokeAsync(() => (Task)typeof(Bandeja).GetMethod("AlRecibirMensajeAsync", BindingFlags.Instance | BindingFlags.NonPublic)!
+            .Invoke(cut.Instance, [new MensajeWhatsAppRecibidoEvent(Guid.NewGuid(), primera.Id)])!);
+        cut.WaitForAssertion(() => mediador.Enviados.OfType<ObtenerConversacionPorIdQuery>().Count().Should().BeGreaterThan(lecturas,
+            "el mensaje entrante recarga el hilo abierto"));
+
+        await cut.InvokeAsync(() => insercion.SetResult(Result.Exito()));
+        await clic;
+
+        cut.WaitForAssertion(() => TextoDelRedactor(cut).Should().Be(TextoSugerido,
+            "una recarga de la conversación abierta no es otra apertura: la inserción pedida en ella se aplica"));
+    }
+
+    /// <summary>
+    /// MEDIO 1 (r2): Enviar en A espera la confirmación de la sugerencia editada; entretanto se abre B, se vuelve a A y se
+    /// escribe un borrador nuevo. Sale lo que se pidió enviar, y al terminar el borrador nuevo de A no se vacía.
+    /// </summary>
+    [Fact]
+    public async Task Un_envio_que_termina_tras_ir_a_otra_conversacion_y_volver_no_vacia_el_borrador_nuevo()
+    {
+        var (escenario, primera, segunda, _) = DosConversacionesConSugerenciaEnLaPrimera();
+        var confirmacion = new TaskCompletionSource<object?>(TaskCreationOptions.RunContinuationsAsynchronously);
+        escenario.Interceptar = p => p switch
+        {
+            ResolverRespuestaSugeridaCommand { Accion: AccionRespuestaSugerida.Confirmar } => confirmacion.Task,
+            ObtenerRespuestaSugeridaQuery q when q.ConversacionId == segunda.Id => Ya(null),
+            _ => null
+        };
+        var (cut, mediador) = Renderizar(escenario);
+        await SeleccionarFila(cut, "Documentación pendiente");
+        cut.WaitForAssertion(() => cut.FindAll(".rs-bloque").Should().ContainSingle());
+        await Boton(cut, ".rs-bloque button", "Insertar para revisar").ClickAsync(new MouseEventArgs());
+        const string respuestaDeA = "Hola Carmen, recibido todo. Lo miramos esta tarde y mañana le decimos algo sin falta.";
+        await Escribir(cut, respuestaDeA);
+
+        var envio = Enviar(cut);
+        var apertura = SeleccionarFila(cut, "Rechazo del portal");
+        cut.WaitForAssertion(() => cut.FindAll(".modal-pie button").Should().Contain(b => b.TextContent.Trim() == "Salir y descartar"));
+        await cut.PulsarEnElAvisoAsync("Salir y descartar");
+        await apertura;
+        cut.WaitForAssertion(() => cut.Find(".bandeja-centro-titulo-fila h2").TextContent.Trim().Should().Be("Rechazo del portal"));
+        await SeleccionarFila(cut, "Documentación pendiente");
+        cut.WaitForAssertion(() => cut.Find(".bandeja-centro-titulo-fila h2").TextContent.Trim().Should().Be("Documentación pendiente"));
+        const string borradorNuevo = "Carmen, este es un borrador nuevo de la misma conversación y aún no se ha enviado.";
+        await Escribir(cut, borradorNuevo);
+
+        await cut.InvokeAsync(() => confirmacion.SetResult(Result.Exito()));
+        await envio;
+
+        var enviado = mediador.Enviados.OfType<ResponderConversacionCommand>().Should().ContainSingle().Subject;
+        enviado.ConversacionId.Should().Be(primera.Id);
+        enviado.CuerpoHtml.Should().Be(respuestaDeA, "sale lo que se pidió enviar");
+        TextoDelRedactor(cut).Should().Be(borradorNuevo, "el borrador nuevo no es el que se envió y no se vacía al terminar");
+    }
+
+    // ---------------------------------------------------------------- revisión Codex r3 de la #2163
+
+    /// <summary>
+    /// ALTO (r3): otra persona insertó la sugerencia y sigue sin revisar. Aquí no se ha mostrado: una respuesta escrita aparte,
+    /// por mucho que se aparte de ella, no la confirma al enviar, y «Lo he revisado» no se ofrece. Antes el envío la daba por
+    /// revisada y otra sesión podía enviar después el texto original.
+    /// </summary>
+    [Fact]
+    public async Task Una_respuesta_escrita_aparte_no_confirma_la_sugerencia_sin_revisar_que_inserto_otra_persona()
+    {
+        var (escenario, detalle) = EscenarioConSugerencia();
+        escenario.Sugerencia = PropuestaPara(detalle) with { Estado = EstadoRespuestaSugerida.SinRevisar };
+        var (cut, mediador) = Renderizar(escenario);
+        await SeleccionarFila(cut, "Documentación pendiente");
+        cut.WaitForAssertion(() => cut.FindAll(".rs-sinrevisar").Should().ContainSingle());
+
+        await Escribir(cut, "Hola Carmen, recibido todo. Lo miramos esta tarde y mañana le decimos algo sin falta.");
+        if (!EnviarDeshabilitado(cut)) await Enviar(cut);
+        await cut.Find(".composer-correo").KeyDownAsync(new KeyboardEventArgs { Key = "Enter", CtrlKey = true });
+
+        escenario.AccionesSobreSugerencia.Should().BeEmpty("una respuesta escrita aparte no es una edición de la sugerencia");
+        mediador.Enviados.OfType<ResponderConversacionCommand>().Should().BeEmpty();
+        EnviarDeshabilitado(cut).Should().BeTrue("el servidor bloquea todo envío de la conversación mientras siga sin revisar");
+        cut.FindAll(".rs-sinrevisar button").Should().NotContain(b => b.TextContent.Trim() == "Lo he revisado",
+            "esta sugerencia no está en este redactor: nadie la ha leído aquí");
+    }
+
+    /// <summary>
+    /// ALTO (r3), la salida: «Poner en redactor» con texto propio pregunta antes de sustituirlo; ya en el redactor, la
+    /// sugerencia se ha mostrado aquí y se revisa como la insertada en esta apertura.
+    /// </summary>
+    [Fact]
+    public async Task La_sugerencia_sin_revisar_de_otra_persona_se_revisa_tras_ponerla_en_el_redactor()
+    {
+        var (escenario, detalle) = EscenarioConSugerencia();
+        escenario.Sugerencia = PropuestaPara(detalle) with { Estado = EstadoRespuestaSugerida.SinRevisar };
+        var (cut, mediador) = Renderizar(escenario);
+        await SeleccionarFila(cut, "Documentación pendiente");
+        cut.WaitForAssertion(() => cut.FindAll(".rs-sinrevisar").Should().ContainSingle());
+        await Escribir(cut, "Borrador propio que no es la sugerencia.");
+
+        await Boton(cut, ".rs-sinrevisar button", "Poner en el redactor").ClickAsync(new MouseEventArgs());
+        TextoDelRedactor(cut).Should().Be("Borrador propio que no es la sugerencia.", "con texto propio se pregunta antes de pisarlo");
+        await Boton(cut, ".rs-sinrevisar button", "Conservar mi texto").ClickAsync(new MouseEventArgs());
+        TextoDelRedactor(cut).Should().Be("Borrador propio que no es la sugerencia.", "conservar no toca el redactor");
+        cut.FindAll(".rs-sinrevisar button").Should().NotContain(b => b.TextContent.Trim() == "Sustituir");
+        EnviarDeshabilitado(cut).Should().BeTrue("sigue sin revisar y fuera del redactor");
+
+        await Boton(cut, ".rs-sinrevisar button", "Poner en el redactor").ClickAsync(new MouseEventArgs());
+        await Boton(cut, ".rs-sinrevisar button", "Sustituir").ClickAsync(new MouseEventArgs());
+
+        TextoDelRedactor(cut).Should().Be(TextoSugerido);
+        await Escribir(cut, "Hola Carmen, recibido todo. Lo miramos esta tarde y mañana le decimos algo sin falta.");
+        EnviarDeshabilitado(cut).Should().BeFalse("ahora es una edición de la sugerencia mostrada aquí");
+        await Enviar(cut);
+
+        escenario.AccionesSobreSugerencia.Should().Equal(AccionRespuestaSugerida.Confirmar);
+        mediador.Enviados.OfType<ResponderConversacionCommand>().Should().ContainSingle();
+    }
+
+    private static bool OfreceLoHeRevisado(IRenderedComponent<Bandeja> cut) =>
+        cut.FindAll(".rs-sinrevisar button").Any(b => b.TextContent.Trim() == "Lo he revisado");
+
+    /// <summary>
+    /// Revisión puente de la r3: la sugerencia insertada en A cuenta como mostrada solo en esa apertura. Tras ir a B y volver
+    /// a A, el redactor ya no la tiene y «Lo he revisado» deja de ofrecerse hasta ponerla otra vez.
+    /// </summary>
+    [Fact]
+    public async Task La_sugerencia_insertada_deja_de_contar_como_mostrada_al_ir_a_otra_conversacion_y_volver()
+    {
+        var (escenario, _, segunda, _) = DosConversacionesConSugerenciaEnLaPrimera();
+        escenario.Interceptar = p => p is ObtenerRespuestaSugeridaQuery q && q.ConversacionId == segunda.Id ? Ya(null) : null;
+        var (cut, _) = Renderizar(escenario);
+        await SeleccionarFila(cut, "Documentación pendiente");
+        cut.WaitForAssertion(() => cut.FindAll(".rs-bloque").Should().ContainSingle());
+        await Boton(cut, ".rs-bloque button", "Insertar para revisar").ClickAsync(new MouseEventArgs());
+        OfreceLoHeRevisado(cut).Should().BeTrue("se acaba de insertar en esta apertura");
+
+        var apertura = SeleccionarFila(cut, "Rechazo del portal");
+        cut.WaitForAssertion(() => cut.FindAll(".modal-pie button").Should().Contain(b => b.TextContent.Trim() == "Salir y descartar"));
+        await cut.PulsarEnElAvisoAsync("Salir y descartar");
+        await apertura;
+        cut.WaitForAssertion(() => cut.Find(".bandeja-centro-titulo-fila h2").TextContent.Trim().Should().Be("Rechazo del portal"));
+        await SeleccionarFila(cut, "Documentación pendiente");
+        cut.WaitForAssertion(() => cut.FindAll(".rs-sinrevisar").Should().ContainSingle());
+
+        OfreceLoHeRevisado(cut).Should().BeFalse("es otra apertura: aquí la sugerencia no está en el redactor");
+        cut.Find(".rs-sinrevisar").GetAttribute("data-en-redactor").Should().Be("no");
+    }
+
+    /// <summary>
+    /// Revisión puente de la r3: una recarga del mismo hilo (mensaje entrante) no es otra apertura; la sugerencia insertada
+    /// sigue en el redactor y se puede revisar.
+    /// </summary>
+    [Fact]
+    public async Task Una_recarga_del_mismo_hilo_mantiene_la_sugerencia_insertada_como_mostrada()
+    {
+        var (escenario, primera, _, _) = DosConversacionesConSugerenciaEnLaPrimera();
+        var (cut, mediador) = Renderizar(escenario);
+        await SeleccionarFila(cut, "Documentación pendiente");
+        cut.WaitForAssertion(() => cut.FindAll(".rs-bloque").Should().ContainSingle());
+        await Boton(cut, ".rs-bloque button", "Insertar para revisar").ClickAsync(new MouseEventArgs());
+
+        var lecturas = mediador.Enviados.OfType<ObtenerConversacionPorIdQuery>().Count();
+        await cut.InvokeAsync(() => (Task)typeof(Bandeja).GetMethod("AlRecibirMensajeAsync", BindingFlags.Instance | BindingFlags.NonPublic)!
+            .Invoke(cut.Instance, [new MensajeWhatsAppRecibidoEvent(Guid.NewGuid(), primera.Id)])!);
+        cut.WaitForAssertion(() => mediador.Enviados.OfType<ObtenerConversacionPorIdQuery>().Count().Should().BeGreaterThan(lecturas));
+
+        cut.WaitForAssertion(() => OfreceLoHeRevisado(cut).Should().BeTrue("la recarga no cambia la apertura"));
+        TextoDelRedactor(cut).Should().Be(TextoSugerido);
+    }
+
+    /// <summary>
+    /// Revisión puente de la r3: si se vacía el redactor tras insertar, lo que se escriba después ya no sale de la sugerencia
+    /// y no la confirma al enviar.
+    /// </summary>
+    [Fact]
+    public async Task Vaciar_el_redactor_tras_insertar_impide_que_una_respuesta_nueva_confirme_la_sugerencia()
+    {
+        var (escenario, _) = EscenarioConSugerencia();
+        var (cut, mediador) = Renderizar(escenario);
+        await SeleccionarFila(cut, "Documentación pendiente");
+        cut.WaitForAssertion(() => cut.FindAll(".rs-bloque").Should().ContainSingle());
+        await Boton(cut, ".rs-bloque button", "Insertar para revisar").ClickAsync(new MouseEventArgs());
+
+        await Escribir(cut, string.Empty);
+        await Escribir(cut, "Hola Carmen, recibido todo. Lo miramos esta tarde y mañana le decimos algo sin falta.");
+        if (!EnviarDeshabilitado(cut)) await Enviar(cut);
+
+        escenario.AccionesSobreSugerencia.Should().Equal(AccionRespuestaSugerida.Insertar);
+        mediador.Enviados.OfType<ResponderConversacionCommand>().Should().BeEmpty();
+        OfreceLoHeRevisado(cut).Should().BeFalse("al vaciar el redactor la sugerencia dejó de estar en él");
+    }
+
+    /// <summary>
+    /// MEDIO (r3): «Insertar» tarda y entretanto se escribe en el redactor de la misma apertura. La decisión de sustituir se
+    /// tomó con el redactor vacío: lo escrito después no se pisa, y la sugerencia no cuenta como mostrada en este redactor.
+    /// </summary>
+    [Fact]
+    public async Task La_insercion_que_tarda_no_pisa_lo_escrito_mientras_esperaba()
+    {
+        var (escenario, _) = EscenarioConSugerencia();
+        var insercion = new TaskCompletionSource<object?>(TaskCreationOptions.RunContinuationsAsynchronously);
+        escenario.Interceptar = p => p is ResolverRespuestaSugeridaCommand { Accion: AccionRespuestaSugerida.Insertar }
+            ? insercion.Task.ContinueWith(t => { escenario.Sugerencia = escenario.Sugerencia! with { Estado = EstadoRespuestaSugerida.SinRevisar }; return t.Result; })
+            : null;
+        var (cut, _) = Renderizar(escenario);
+        await SeleccionarFila(cut, "Documentación pendiente");
+        cut.WaitForAssertion(() => cut.FindAll(".rs-bloque").Should().ContainSingle());
+
+        var clic = Boton(cut, ".rs-bloque button", "Insertar para revisar").ClickAsync(new MouseEventArgs());
+        const string escritoMientras = "Carmen, esto lo he escrito mientras la sugerencia se insertaba.";
+        await Escribir(cut, escritoMientras);
+        await cut.InvokeAsync(() => insercion.SetResult(Result.Exito()));
+        await clic;
+
+        TextoDelRedactor(cut).Should().Be(escritoMientras, "se decidió sustituir un redactor vacío, no lo escrito después");
+        cut.WaitForAssertion(() => cut.FindAll(".rs-sinrevisar").Should().ContainSingle());
+        cut.FindAll(".rs-sinrevisar button").Should().NotContain(b => b.TextContent.Trim() == "Lo he revisado",
+            "la sugerencia no llegó a este redactor");
+        EnviarDeshabilitado(cut).Should().BeTrue();
+    }
+
+    /// <summary>
+    /// BAJO (r3): la comprobación de la conversación abierta, por sí sola. En la interfaz, cambiar de conversación cambia
+    /// también la apertura, así que en los recorridos de los tests anteriores el token ya rechaza la devolución y la
+    /// comprobación de la conversación queda tapada. Aquí el aviso lleva la apertura vigente, la de B, y la sugerencia de A:
+    /// solo la conversación seleccionada impide que el texto de A acabe en el redactor de B.
+    /// </summary>
+    [Fact]
+    public async Task La_insercion_con_la_apertura_vigente_pero_de_otra_conversacion_no_escribe_en_el_redactor()
+    {
+        var (escenario, _, segunda, detallePrimera) = DosConversacionesConSugerenciaEnLaPrimera();
+        escenario.Interceptar = p => p is ObtenerRespuestaSugeridaQuery q && q.ConversacionId == segunda.Id ? Ya(null) : null;
+        var (cut, _) = Renderizar(escenario);
+        await SeleccionarFila(cut, "Rechazo del portal");
+        cut.WaitForAssertion(() => cut.Find(".bandeja-centro-titulo-fila h2").TextContent.Trim().Should().Be("Rechazo del portal"));
+
+        var aperturaVigente = (int)typeof(Bandeja).GetField("_aperturaVigente", BindingFlags.Instance | BindingFlags.NonPublic)!
+            .GetValue(cut.Instance)!;
+        var avisoDeA = new RespuestaSugeridaPanel.SugerenciaDeLaSeleccion(PropuestaPara(detallePrimera), aperturaVigente);
+        await cut.InvokeAsync(() => (Task)typeof(Bandeja).GetMethod("InsertarSugerenciaAsync", BindingFlags.Instance | BindingFlags.NonPublic)!
+            .Invoke(cut.Instance, [avisoDeA])!);
+
+        // El campo y no el ComposerBar: invocar el método no repinta, y leer el parámetro del redactor daría vacío siempre.
+        typeof(Bandeja).GetField("_textoRespuesta", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(cut.Instance)
+            .Should().Be(string.Empty, "la sugerencia es de A, aunque el aviso lleve la apertura vigente");
     }
 
     /// <summary>
@@ -791,6 +1378,27 @@ public class ComunicacionesGen2Tests : BunitContext
         cut.WaitForAssertion(() => cut.FindAll(".nota-fija").Should().ContainSingle());
         cut.FindAll(".notas-equipo").Should().ContainSingle();
         cut.FindAll(".bandeja-cliente-identidad").Should().BeEmpty("no hay Cliente empresarial activo");
+    }
+
+    /// <summary>
+    /// MEDIO 8: en correo la sugerencia se guarda como HTML, y el redactor es un campo de texto: recibe el texto, sin
+    /// etiquetas ni entidades, y la revisión lo mide como texto (sigue sin revisar y bloqueando Enviar).
+    /// </summary>
+    [Fact]
+    public async Task Insertar_una_sugerencia_de_correo_pone_texto_y_no_HTML_en_el_redactor()
+    {
+        var (escenario, detalle) = EscenarioConSugerencia();
+        escenario.Sugerencia = PropuestaPara(detalle,
+            "<p>Buenos días, Carmen.</p><p>Recibimos la documentación &amp; la revisaremos hoy mismo; le confirmamos mañana.</p>");
+        var (cut, _) = Renderizar(escenario);
+        await SeleccionarFila(cut, "Documentación pendiente");
+        cut.WaitForAssertion(() => cut.FindAll(".rs-bloque").Should().ContainSingle());
+
+        await Boton(cut, ".rs-bloque button", "Insertar para revisar").ClickAsync(new MouseEventArgs());
+
+        TextoDelRedactor(cut).Should().Be(
+            "Buenos días, Carmen.\n\nRecibimos la documentación & la revisaremos hoy mismo; le confirmamos mañana.");
+        EnviarDeshabilitado(cut).Should().BeTrue("el texto es la sugerencia sin tocar: la distancia se mide sin marcado");
     }
 
     // ---------------------------------------------------------------- mockup Gen 2
