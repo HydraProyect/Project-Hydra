@@ -170,13 +170,14 @@
         };
     }
 
-    // Al cerrar el calendario el foco vuelve al campo, pero solo si sigue dentro del componente (raiz) o cayó al body al
-    // desaparecer el calendario. La orden llega del servidor tras un viaje de ida y vuelta, y para entonces la persona
-    // (o Playwright) puede estar ya en el campo siguiente: quitárselo perdería lo que teclea (#2194, como
-    // CampoSelectAvanzado).
+    // Al cerrar el calendario el foco vuelve al campo, pero solo si sigue dentro del componente (raiz), cayó al body al
+    // desaparecer el calendario o está en un ancestro de la raíz (un clic en el velo, que no es enfocable, deja el foco en
+    // el contenedor del Drawer o Modal que contiene el campo). La orden llega del servidor tras un viaje de ida y vuelta, y
+    // para entonces la persona (o Playwright) puede estar ya en el campo siguiente, que no es ancestro de la raíz:
+    // quitárselo perdería lo que teclea (#2194, como CampoSelectAvanzado).
     function devolverFoco(campo, raiz) {
         var activo = document.activeElement;
-        if (activo && activo !== document.body && activo !== document.documentElement && !(raiz && raiz.contains(activo))) return;
+        if (activo && activo !== document.body && activo !== document.documentElement && !(raiz && (raiz.contains(activo) || activo.contains(raiz)))) return;
         if (campo) campo.focus();
     }
 

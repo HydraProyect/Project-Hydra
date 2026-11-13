@@ -785,6 +785,7 @@ public class CampoFechaTests : BunitContext
 
         cut.FindAll("[role=dialog]").Should().BeEmpty();
         JSInterop.VerifyFocusAsyncInvoke(calledTimes: 1); // solo el del día al abrir; ninguno al cerrar
+        JSInterop.VerifyNotInvoke("talvegCampoFecha.devolverFoco");
     }
 
     // El foco vuelve al campo por talvegCampoFecha.devolverFoco (campo-fecha.js), que no se lo quita a otro control al que

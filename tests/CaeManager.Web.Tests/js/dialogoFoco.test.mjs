@@ -456,3 +456,44 @@ test('al cerrar, sin elemento activo, vuelve a quien abrió el diálogo', () => 
     trampa.dispose();
     assert.equal(documento.activeElement, abridor);
 });
+test('al cerrar un diálogo anidado con el foco en el contenedor del exterior (clic en su superposición), vuelve a quien lo abrió', () => {
+    const { documento, abridor, dialogo, primero } = escena();
+    abridor.focus();
+    const trampaFuera = atraparFoco(dialogo);
+    const interior = elemento('interior', documento, dialogo);
+    const campoInterior = elemento('campoInterior', documento, interior);
+    campoInterior.enfocable = true;
+    primero.focus();
+    const trampaDentro = atraparFoco(interior);
+    // La superposición del interior no es enfocable: el clic deja el foco en el contenedor del diálogo de fuera.
+    dialogo.focus();
+    trampaDentro.dispose();
+    assert.equal(documento.activeElement, primero);
+    trampaFuera.dispose();
+});
+
+test('al cerrar un diálogo anidado con el foco ya en un campo del exterior, no se le quita (#2194)', () => {
+    const { documento, abridor, dialogo, primero, fecha } = escena();
+    abridor.focus();
+    const trampaFuera = atraparFoco(dialogo);
+    const interior = elemento('interior', documento, dialogo);
+    const campoInterior = elemento('campoInterior', documento, interior);
+    campoInterior.enfocable = true;
+    primero.focus();
+    const trampaDentro = atraparFoco(interior);
+    fecha.focus();
+    trampaDentro.dispose();
+    assert.equal(documento.activeElement, fecha);
+    trampaFuera.dispose();
+});
+
+test('el panel no modal de la fila enfocada (devolverFila) conserva su retorno aunque el foco esté fuera del panel', () => {
+    const { documento, cuerpo, abridor, dialogo } = escena();
+    const otroCampo = elemento('otro-campo', documento, cuerpo);
+    otroCampo.enfocable = true;
+    abridor.focus();
+    const trampa = atraparFoco(dialogo, true);
+    otroCampo.focus();
+    trampa.dispose();
+    assert.equal(documento.activeElement, abridor);
+});

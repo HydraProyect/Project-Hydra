@@ -288,3 +288,12 @@ test('al cerrar el calendario, no se quita el foco a otro campo al que ya se fue
     assert.equal(campoTexto.enfoques, 0);
     assert.equal(document.activeElement, otroCampo);
 });
+test('al cerrar el calendario, el foco vuelve al campo si está en un ancestro de la raíz (clic en el velo dentro de un Drawer)', () => {
+    const { calendario, document, cuerpo, raiz, campoTexto } = escenaFoco();
+    const panel = { nombre: 'panel', padre: cuerpo, enfoques: 0, contains(otro) { for (let a = otro; a; a = a.padre) if (a === this) return true; return false; }, focus() { document.activeElement = this; } };
+    raiz.padre = panel;
+    document.activeElement = panel;
+    calendario.devolverFoco(campoTexto, raiz);
+    assert.equal(campoTexto.enfoques, 1);
+    assert.equal(document.activeElement, campoTexto);
+});
