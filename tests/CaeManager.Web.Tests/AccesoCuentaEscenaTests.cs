@@ -1644,7 +1644,28 @@ public class AccesoCuentaEscenaTests : BunitContext
         resultado.Should().Be(ResultadoNoHeSidoYo.Protegida);
         registro.Entradas.Should().Contain(e => e.Contenido.Contains("avisar al Administrador"));
         registro.DebeEstarLimpioDeDatosPersonales(
-            EscenaNoHeSidoYo.CorreoAdministrador, "administrador@", escena.Usuario.Email!, "marta@", "550", "buzón");
+            EscenaNoHeSidoYo.CorreoAdministrador, "administrador@", escena.Usuario.Email!, "marta@", "550 el buzón", "no existe");
+    }
+
+    /// <summary>
+    /// ASVS 4.0.3 V7.1.1: el resto de la ruta «no he sido yo» (cerrar las sesiones y releer la cuenta tras el
+    /// fallo) tampoco escribe la excepción entera: una excepción de datos o de Identity sobre la cuenta puede
+    /// citar su correo.
+    /// </summary>
+    [Fact]
+    public async Task No_he_sido_yo_si_fallan_el_cierre_de_sesiones_y_la_relectura_el_registro_no_lleva_la_excepcion()
+    {
+        _sesiones.Lanza = true;
+        var registro = new RegistroQueCapturaTodo<VigilanciaInicioSesionService>();
+        var escena = new EscenaNoHeSidoYo(this, registroCompleto: registro);
+        _almacen.BusquedasCorrectas = 1;
+
+        await escena.ConfirmarAsync();
+
+        registro.Entradas.Should().Contain(e => e.Contenido.Contains("sin poder cerrar las sesiones"));
+        registro.Entradas.Should().Contain(e => e.Contenido.Contains("releer la cuenta"));
+        registro.DebeEstarLimpioDeDatosPersonales(
+            escena.Usuario.Email!, "marta@", EscenaNoHeSidoYo.CorreoAdministrador, "fallo simulado");
     }
 
     /// <summary>

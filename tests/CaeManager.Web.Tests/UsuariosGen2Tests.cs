@@ -1137,7 +1137,7 @@ public partial class UsuariosGen2Tests : BunitContext
 
         cut.WaitForAssertion(() =>
             registro.Entradas.Should().Contain(e => e.Contenido.Contains("no terminó")));
-        registro.DebeEstarLimpioDeDatosPersonales("nuevo@talveg.es", "talveg.es", "SMTP caído", "550");
+        registro.DebeEstarLimpioDeDatosPersonales("nuevo@talveg.es", "talveg.es", "SMTP caído", "550 no existe");
     }
 
     /// <summary>

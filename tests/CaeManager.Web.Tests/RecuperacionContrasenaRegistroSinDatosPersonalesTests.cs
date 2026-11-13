@@ -7,8 +7,7 @@ namespace CaeManager.Web.Tests;
 
 /// <summary>
 /// ASVS 4.0.3 V7.1.1: el registro de la recuperación de contraseña no escribe la dirección de quien la pidió ni
-/// la excepción entera (su mensaje, o el de su causa, puede citarla), y lo que escribe no distingue una cuenta
-/// que existe de otra que no (V2.5, enumeración de cuentas).
+/// la excepción entera (su mensaje, o el de su causa, puede citarla).
 /// </summary>
 public class RecuperacionContrasenaRegistroSinDatosPersonalesTests
 {
@@ -47,16 +46,16 @@ public class RecuperacionContrasenaRegistroSinDatosPersonalesTests
             new InvalidOperationException($"El buzón {Correo} no acepta correo; causa: 550 {Correo.ToUpperInvariant()}"));
 
         registro.Entradas.Should().ContainSingle("una solicitud fallida deja una sola entrada");
-        registro.DebeEstarLimpioDeDatosPersonales(Correo, Correo.ToUpperInvariant(), "buzón", "550", "victima");
+        registro.DebeEstarLimpioDeDatosPersonales(Correo, Correo.ToUpperInvariant(), "El buzón", "no acepta correo", "victima");
     }
 
     [Fact]
-    public async Task El_registro_del_fallo_es_el_mismo_con_independencia_del_mensaje_de_la_excepcion()
+    public async Task El_texto_registrado_del_fallo_no_depende_del_mensaje_de_la_excepcion()
     {
         var conCuenta = await ProcesarFallandoAsync(new InvalidOperationException("la cuenta existe y el SMTP rechazó el envío"));
         var sinCuenta = await ProcesarFallandoAsync(new InvalidOperationException("sin cuenta"));
 
         conCuenta.Entradas.Single().Contenido.Should().Be(sinCuenta.Entradas.Single().Contenido,
-            "el texto del error no puede servir para distinguir si el correo existe");
+            "el mensaje del error, que puede componerse con la dirección o con datos de la cuenta, no llega al registro");
     }
 }

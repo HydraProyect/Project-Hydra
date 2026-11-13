@@ -277,7 +277,9 @@ public sealed class VigilanciaInicioSesionService(
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
             sesionesCerradas = false;
-            logger.LogError(ex, "«No he sido yo» confirmado sin poder cerrar las sesiones de la cuenta {UsuarioId}: se sigue con la señal, el enlace y el aviso.", usuario.Id);
+            // ASVS 4.0.3 V7.1.1: solo el tipo; una excepción de datos o de Identity sobre la cuenta puede citar su correo.
+            logger.LogError("«No he sido yo» confirmado sin poder cerrar las sesiones de la cuenta {UsuarioId} ({TipoExcepcion}): se sigue con la señal, el enlace y el aviso.",
+                usuario.Id, ex.GetType().Name);
             usuario = await DescartarEscrituraFallidaAsync(ambito.ServiceProvider, userManager, usuario);
         }
 
@@ -355,7 +357,9 @@ public sealed class VigilanciaInicioSesionService(
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
-            logger.LogError(ex, "«No he sido yo»: no se pudo releer la cuenta {UsuarioId} tras el fallo al cerrar sus sesiones.", usuario.Id);
+            // ASVS 4.0.3 V7.1.1: solo el tipo; la lectura de la cuenta puede citar su correo en el error de datos.
+            logger.LogError("«No he sido yo»: no se pudo releer la cuenta {UsuarioId} tras el fallo al cerrar sus sesiones ({TipoExcepcion}).",
+                usuario.Id, ex.GetType().Name);
             return usuario;
         }
     }
