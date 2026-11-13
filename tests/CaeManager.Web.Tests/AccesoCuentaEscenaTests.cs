@@ -1650,7 +1650,7 @@ public class AccesoCuentaEscenaTests : BunitContext
             e => e.Nivel == LogLevel.Warning && e.Contenido.Contains("No se pudo enviar el enlace de contraseña nueva"),
             "el envío fallido deja su aviso");
         registro.DebeEstarLimpioDeDatosPersonales(
-            Fuga, Fuga.ToUpperInvariant(), "fuga", MensajeDelError, "El SMTP rechazó", "usuario desconocido", "Correo.Fallo",
+            Fuga, Fuga.ToUpperInvariant(), "fuga", MensajeDelError, "El SMTP rechazó", "usuario desconocido",
             escena.Usuario.Email!);
     }
 

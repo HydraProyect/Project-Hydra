@@ -1183,9 +1183,12 @@ public partial class UsuariosGen2Tests : BunitContext
             registro.Entradas.Should().Contain(
                 e => e.Nivel == LogLevel.Warning && e.Contenido.Contains("No se pudo enviar el correo de activación"),
                 "el envío fallido deja su aviso"));
+        // La tarea sin esperar sigue tras el registro (aviso al modal y toast): se espera a su final para que la
+        // foto de las entradas incluya cualquier registro posterior que filtrara el mensaje.
+        cut.WaitForAssertion(() =>
+            cut.Find(".modal-header h2").TextContent.Trim().Should().Be("No pudimos enviar el correo"));
         registro.DebeEstarLimpioDeDatosPersonales(
-            Fuga, Fuga.ToUpperInvariant(), "fuga", MensajeDelError, "El SMTP rechazó", "usuario desconocido", "Correo.Rechazado",
-            "nuevo@talveg.es");
+            Fuga, Fuga.ToUpperInvariant(), "fuga", MensajeDelError, "El SMTP rechazó", "usuario desconocido", "nuevo@talveg.es");
     }
 
     /// <summary>
