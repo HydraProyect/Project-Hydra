@@ -602,7 +602,10 @@
             if (_devolverFocoPendiente)
             {
                 _devolverFocoPendiente = false;
-                await _disparador.FocusAsync();
+                // Con el módulo, solo si el foco no se ha ido ya a otro control mientras llegaba esta orden (ver
+                // devolverFoco en campo-select-avanzado.js, #2194); sin él, como siempre.
+                if (_control is not null) await _control.InvokeVoidAsync("devolverFoco", _disparador);
+                else await _disparador.FocusAsync();
             }
         }
         catch (Exception ex) when (ex is JSException or JSDisconnectedException or InvalidOperationException or TaskCanceledException)
