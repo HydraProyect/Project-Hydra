@@ -300,7 +300,9 @@ public class RegistroEnvioReclamacionService(
                 catch (Exception ex) when (ex is not OperationCanceledException)
                 {
                     resultadoCorreo = Result.Fallo(Error.Crear("Email.Excepcion", "No pudimos enviar el correo."));
-                    logger.LogError(ex, "Reclamación por SMTP: excepción no contemplada al enviar a un destinatario.");
+                    // ASVS 4.0.3 V7.1.1: solo el tipo de la excepción; su mensaje (o el de su causa) puede citar la dirección.
+                    logger.LogError("Reclamación por SMTP: excepción no contemplada al enviar a un destinatario ({TipoExcepcion}).",
+                        ex.GetType().Name);
                 }
 
                 if (resultadoCorreo.EsExitoso)
@@ -317,9 +319,11 @@ public class RegistroEnvioReclamacionService(
                 else
                 {
                     fallidos.Add(destinatario);
+                    // ASVS 4.0.3 V7.1.1: ni la dirección ni el mensaje del error (que un IEmailService puede componer
+                    // con ella) van al registro; el código basta para clasificar el fallo.
                     logger.LogWarning(
-                        "Reclamación por SMTP: el envío a un destinatario falló ({Codigo}: {Mensaje}).",
-                        resultadoCorreo.Error.Codigo, resultadoCorreo.Error.Mensaje);
+                        "Reclamación por SMTP: el envío a un destinatario falló ({Codigo}).",
+                        resultadoCorreo.Error.Codigo);
                 }
             }
 
@@ -383,7 +387,10 @@ public class RegistroEnvioReclamacionService(
         catch (Exception ex)
         {
             descarteCambios.DescartarCambiosPendientes();
-            logger.LogError(ex, "Reclamación: el correo salió pero no pudimos guardar su registro.");
+            // ASVS 4.0.3 V7.1.1: solo el tipo; el guardado lleva el destinatario y una excepción de la base de datos
+            // puede citar el valor que violó una restricción.
+            logger.LogError("Reclamación: el correo salió pero no pudimos guardar su registro ({TipoExcepcion}).",
+                ex.GetType().Name);
             return Result.Fallo(Error.Crear(
                 CodigoRegistroFallido,
                 "El correo de la reclamación ya ha salido, al menos a una parte de los destinatarios, pero no pudimos guardarla. " +
