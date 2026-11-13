@@ -1,0 +1,32 @@
+@*
+    Pastilla de filtro que se enciende y se apaga (rediseño de listados, lienzo «Documentos · listado sin pestañas»:
+    «Pendiente de revisión IA»). A diferencia de <PastillaFiltro>, no abre ningún menú ni lleva valor: o filtra o no
+    filtra. Va dentro de <BarraFiltros> como parte de «Pastillas», junto a las demás, con su misma forma.
+
+    Es un botón con aria-pressed (true cuando filtra), no un menú: el lector de pantalla anuncia «Pendiente de
+    revisión IA, activado». Sin icono de chevron, porque no despliega nada.
+
+    Uso:
+
+        <PastillaInterruptor Etiqueta="Pendiente de revisión IA" Activa="@_pendiente" ActivaChanged="CambiarAsync" />
+*@
+<div class="pastilla-interruptor-lista">
+    <button type="button" class="@(Activa ? "pastilla-interruptor pastilla-interruptor-activa" : "pastilla-interruptor")"
+            aria-pressed="@(Activa ? "true" : "false")" data-keytip="@Keytip" data-keytip-nombre="@Etiqueta"
+            @onclick="AlternarAsync">@Etiqueta</button>
+</div>
+
+@code {
+    /// <summary>Lo que dice la pastilla, con el filtro apagado y encendido: el nombre del filtro («Pendiente de revisión IA»).</summary>
+    [Parameter, EditorRequired] public string Etiqueta { get; set; } = string.Empty;
+
+    /// <summary>El filtro está aplicado.</summary>
+    [Parameter] public bool Activa { get; set; }
+
+    [Parameter] public EventCallback<bool> ActivaChanged { get; set; }
+
+    /// <summary>Letra estable de KeyTips, como la de <see cref="PastillaFiltro.Keytip"/>. Vacía por defecto: se deduce del nombre.</summary>
+    [Parameter] public string Keytip { get; set; } = string.Empty;
+
+    private Task AlternarAsync() => ActivaChanged.InvokeAsync(!Activa);
+}

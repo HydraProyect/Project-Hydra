@@ -56,6 +56,56 @@ public record RevisionIaDocumentoDto(
     public bool TieneAlertaDeterminista => MotivosRevisionIa.ContieneAlerta(Motivo);
 }
 
+/// <summary>Una revisión IA pendiente y el Documento al que pertenece (la fila de la cola de Revisión IA).</summary>
+public sealed class RevisionIaPendienteConDocumento
+{
+    public required RevisionIaDocumento Revision { get; init; }
+    public required Documento Documento { get; init; }
+}
+
+/// <summary>
+/// La cola de Revisión IA: <b>la</b> definición de qué revisiones están pendientes y quién las alcanza. La lee la pestaña
+/// Revisión IA (<see cref="ObtenerRevisionesIaPendientesQueryHandler"/>) y el filtro «Pendiente de revisión IA» del listado
+/// de Documentos (<c>ObtenerDocumentosQuery.PendienteDeRevisionIa</c>): una sola consulta, para que las dos superficies no
+/// puedan contar cosas distintas.
+/// </summary>
+public static class ColaRevisionIa
+{
+    /// <summary>
+    /// Los roles que hoy acceden a la pestaña Revisión IA (gestión documental). Los mismos que autorizan esa pestaña en la
+    /// pantalla de Documentos (<c>RolesDeGestionDocumental</c>); un test de la Web fija que no se separen. Solo decide si el
+    /// filtro del listado se atiende: no autoriza ningún Command, que siguen con su propia barrera.
+    /// </summary>
+    public static readonly IReadOnlyList<string> RolesQueAccedenALaPestana =
+        ["Administrador", "DireccionCae", "CoordinadorCae", "GestorCae"];
+
+    /// <summary>¿Accede el rol efectivo a la pestaña Revisión IA? Sin rol (Sesión Privilegiada, sin sesión), no: falla cerrado.</summary>
+    public static bool AccedeElRol(string? rolEfectivo) =>
+        rolEfectivo is not null && RolesQueAccedenALaPestana.Contains(rolEfectivo);
+
+    /// <summary>
+    /// Las revisiones sin resolver cuyo Documento alcanza quien mira. Los Documentos de Trabajador se acotan por cartera
+    /// (<paramref name="trabajadorIdsVisibles"/>); los demás (Empresa…) no mapean al modelo de cartera, que es por Trabajador,
+    /// y solo los ven los roles de visión total (<c>null</c>), el mismo criterio de atribución que
+    /// <c>EnvioAlertasVencimientoHostedService</c>. Incluye revisiones de un Documento ya sustituido (análisis tardío de un
+    /// histórico): el listado de Documentos, que solo enseña operativos, las estrecha después.
+    /// </summary>
+    public static IQueryable<RevisionIaPendienteConDocumento> Pendientes(
+        IDocumentosQueryContext documentosContext, IReadOnlyList<Guid>? trabajadorIdsVisibles) =>
+        from revision in documentosContext.RevisionesIaDocumento
+        where !revision.Resuelta
+        join documento in documentosContext.Documentos on revision.DocumentoId equals documento.Id
+        where documento.TrabajadorId != null
+            ? trabajadorIdsVisibles == null || trabajadorIdsVisibles.Contains(documento.TrabajadorId!.Value)
+            : trabajadorIdsVisibles == null
+        select new RevisionIaPendienteConDocumento { Revision = revision, Documento = documento };
+
+    /// <summary>Los Documentos con alguna revisión pendiente en la cola de quien mira.</summary>
+    public static IQueryable<Guid> DocumentoIds(
+        IDocumentosQueryContext documentosContext, IReadOnlyList<Guid>? trabajadorIdsVisibles) =>
+        Pendientes(documentosContext, trabajadorIdsVisibles).Select(p => p.Revision.DocumentoId);
+}
+
 public class ObtenerRevisionesIaPendientesQueryHandler(
     IDocumentosQueryContext documentosContext, ITiposDocumentoQueryContext tiposDocumentoContext,
     ITrabajadoresQueryContext trabajadoresContext, IEmpresasQueryContext empresasContext,
@@ -69,23 +119,17 @@ public class ObtenerRevisionesIaPendientesQueryHandler(
     {
         var trabajadorIdsVisibles = await alcanceDatos.ObtenerTrabajadorIdsVisiblesAsync(cancellationToken);
 
-        // Alcance: los Documentos de Trabajador se acotan por cartera, como
-        // siempre. Los de Empresa no mapean al modelo de cartera (que es por
-        // trabajador) — se muestran solo a los roles de visión total
-        // (trabajadorIdsVisibles == null), el mismo criterio de atribución
-        // que EnvioAlertasVencimientoHostedService.
+        // Qué está pendiente y quién lo alcanza (cartera por Trabajador; Empresa solo para visión total) lo define
+        // ColaRevisionIa, la misma consulta que usa el filtro «Pendiente de revisión IA» del listado de Documentos.
         var consulta =
-            from revision in documentosContext.RevisionesIaDocumento
-            where !revision.Resuelta
-            join documento in documentosContext.Documentos on revision.DocumentoId equals documento.Id
+            from pendiente in ColaRevisionIa.Pendientes(documentosContext, trabajadorIdsVisibles)
+            let revision = pendiente.Revision
+            let documento = pendiente.Documento
             join tipoDocumento in tiposDocumentoContext.TiposDocumento on documento.TipoDocumentoId equals tipoDocumento.Id
             join trabajadorJoin in trabajadoresContext.Trabajadores on documento.TrabajadorId equals trabajadorJoin.Id into trabajadores
             from trabajador in trabajadores.DefaultIfEmpty()
             join empresaJoin in empresasContext.Empresas on documento.EmpresaId equals empresaJoin.Id into empresas
             from empresa in empresas.DefaultIfEmpty()
-            where documento.TrabajadorId != null
-                ? trabajadorIdsVisibles == null || trabajadorIdsVisibles.Contains(documento.TrabajadorId!.Value)
-                : trabajadorIdsVisibles == null
             // Confianza ascendente (mockup Documentos TALVEG, pestaña IA): lo
             // menos fiable primero — es lo que más necesita un vistazo humano,
             // no lo más reciente.

@@ -17,6 +17,7 @@ using System.Linq.Expressions;
 using System.Text.Json.Serialization;
 
 using CaeManager.Application.Documentos.Queries.ObtenerEntidadesAsociadasDeDocumentos;
+using CaeManager.Application.Documentos.Queries.ObtenerRevisionesIaPendientes;
 
 namespace CaeManager.Application.Documentos.Queries.ObtenerDocumentos;
 
@@ -66,6 +67,20 @@ namespace CaeManager.Application.Documentos.Queries.ObtenerDocumentos;
 /// plataforma sin confirmar. Si llega también <paramref name="ProveedorPlataformaCaeId"/>, la acreditación tiene que
 /// ser de esa Plataforma CAE. Solo estrecha el universo ya limitado al alcance.
 /// </param>
+/// <param name="VenceEnDias">
+/// Filtro «Vence en» (D-21): los Documentos cuyo vencimiento cae entre hoy y hoy + N días, ambos incluidos. N es un
+/// valor relativo (7, 30, 90…), nunca una fecha: el servidor lo resuelve con el día de negocio de ese momento
+/// (<see cref="DiaDeNegocio.Hoy()"/>, el mismo reloj con el que se calcula la franja de estado). Es el mismo universo que
+/// «Por vencer» de la franja y que <paramref name="FechaVencimientoHasta"/>: con vencimiento en fecha, sin los vencidos, sin
+/// los «sin caducidad» ni los «sin confirmar». Si llegan los dos, manda el límite más estricto. Un valor no positivo se ignora.
+/// </param>
+/// <param name="PendienteDeRevisionIa">
+/// Filtro «Pendiente de revisión IA»: solo los Documentos que están hoy en la cola de Revisión IA de quien mira
+/// (<see cref="ColaRevisionIa"/>, la misma consulta que la pestaña). Solo se atiende con un rol que accede a esa pestaña
+/// (<see cref="ColaRevisionIa.RolesQueAccedenALaPestana"/>): con cualquier otro (Usuario de Cliente, Consulta, sin rol) el
+/// servidor lo ignora, como si no hubiera llegado. El listado solo enseña Documentos operativos, así que una revisión
+/// de un Documento sustituido, que la cola sí muestra, no lo incluye.
+/// </param>
 public record ObtenerDocumentosQuery(
     Guid? TrabajadorId, AmbitoAplicacion? Ambito, string? Busqueda, EstadoDocumento? Estado = null,
     int Pagina = 1, int TamanoPagina = 20, Guid? PropietarioId = null,
@@ -73,9 +88,13 @@ public record ObtenerDocumentosQuery(
     IReadOnlyCollection<EstadoDocumento>? Estados = null, bool ConRecuentosPorEstado = false,
     Guid? DocumentoId = null, Guid? TipoDocumentoId = null, Guid? ProveedorPlataformaCaeId = null,
     bool AgruparPorAmbito = false, bool ConDestinosEnCentros = false, bool ExcluirCategoriaEspecialSalud = false,
-    AgrupacionDocumentos? AgruparPor = null, IReadOnlyCollection<EstadoEnPlataformaFiltro>? EstadosEnPlataforma = null)
+    AgrupacionDocumentos? AgruparPor = null, IReadOnlyCollection<EstadoEnPlataformaFiltro>? EstadosEnPlataforma = null,
+    int? VenceEnDias = null, bool PendienteDeRevisionIa = false)
     : IRequest<ResultadoPaginado<DocumentoListaDto>>
 {
+    /// <summary>Tope de <see cref="VenceEnDias"/>: ya no es «próximo a vencer», y evita desbordar la fecha.</summary>
+    public const int MaximoVenceEnDias = 3650;
+
     /// <summary>Clave del grupo de los Documentos sin vínculo: «Sin Plataforma CAE» o «Sin Cliente empresarial».</summary>
     public const string GrupoSin = "sin";
 
@@ -186,7 +205,7 @@ public record DocumentoEnCentroListaDto(Guid CentroId, string CentroNombre, stri
 /// usan el Dashboard y RenovarDocumentoCommand — para que nunca haya dos
 /// sitios de la aplicación mostrando vigencias distintas (ver Project-Hydra-Negocio/tecnico/DATABASE.md).
 /// </summary>
-public class ObtenerDocumentosQueryHandler(IConfiguracionQueryContext configuracionContext, IDocumentosQueryContext documentosContext, IEmpresasQueryContext empresasContext, IProyectosQueryContext proyectosContext, ITiposDocumentoQueryContext tiposDocumentoContext, ITrabajadoresQueryContext trabajadoresContext, IVehiculosQueryContext vehiculosContext, IAlcanceDatosService alcanceDatos, ICentrosQueryContext centrosContext, IProveedoresPlataformaCaeQueryContext proveedoresContext)
+public class ObtenerDocumentosQueryHandler(IConfiguracionQueryContext configuracionContext, IDocumentosQueryContext documentosContext, IEmpresasQueryContext empresasContext, IProyectosQueryContext proyectosContext, ITiposDocumentoQueryContext tiposDocumentoContext, ITrabajadoresQueryContext trabajadoresContext, IVehiculosQueryContext vehiculosContext, IAlcanceDatosService alcanceDatos, ICentrosQueryContext centrosContext, IProveedoresPlataformaCaeQueryContext proveedoresContext, ICurrentUserService? currentUserService = null)
     : IRequestHandler<ObtenerDocumentosQuery, ResultadoPaginado<DocumentoListaDto>>,
     IRequestHandler<ObtenerEntidadesAsociadasDeDocumentosQuery, ResultadoPaginado<EntidadAsociadaDocumentoDto>>
 {
@@ -256,6 +275,17 @@ public class ObtenerDocumentosQueryHandler(IConfiguracionQueryContext configurac
             consulta = consulta.Where(x => documentosEnEstado.Contains(x.Id));
         }
 
+        // «Pendiente de revisión IA»: la cola de la pestaña Revisión IA, con su alcance, y solo para los roles que acceden a
+        // ella. Con otro rol el filtro no llega a la consulta (no la estrecha ni la vacía): se ignora. Sin rol conocido,
+        // falla cerrado. Solo estrecha el universo ya acotado por el alcance de cada rama.
+        if (request.PendienteDeRevisionIa && currentUserService is not null
+            && ColaRevisionIa.AccedeElRol(await currentUserService.ObtenerRolEfectivoAsync()))
+        {
+            var trabajadorIdsEnCola = await alcanceDatos.ObtenerTrabajadorIdsVisiblesAsync(cancellationToken);
+            var documentosEnCola = ColaRevisionIa.DocumentoIds(documentosContext, trabajadorIdsEnCola);
+            consulta = consulta.Where(x => documentosEnCola.Contains(x.Id));
+        }
+
         var parametros = await configuracionContext.ParametrosSistema.SingleAsync(cancellationToken);
         var hoy = DiaDeNegocio.Hoy();
 
@@ -272,8 +302,17 @@ public class ObtenerDocumentosQueryHandler(IConfiguracionQueryContext configurac
         // para que SQL pueda hacerlo. Antes no se traducía, y eso obligaba a
         // materializar todos los Documentos del tenant en cada carga de la
         // pantalla para paginar en memoria.
-        if (request.FechaVencimientoHasta is { } hasta)
-            consulta = consulta.Where(x => x.FechaVencimiento != null && x.FechaVencimiento >= hoy && x.FechaVencimiento <= hasta);
+        // «Vence en N días» (D-21) es la misma ventana que FechaVencimientoHasta, con el límite calculado aquí, con el día
+        // de negocio de esta petición: lo recordado y lo guardado es N, nunca una fecha que envejezca.
+        var hasta = request.FechaVencimientoHasta;
+        if (request.VenceEnDias is > 0 and var venceEnDias)
+        {
+            var porDias = hoy.AddDays(Math.Min(venceEnDias, ObtenerDocumentosQuery.MaximoVenceEnDias));
+            hasta = hasta is { } limiteDado && limiteDado < porDias ? limiteDado : porDias;
+        }
+
+        if (hasta is { } limite)
+            consulta = consulta.Where(x => x.FechaVencimiento != null && x.FechaVencimiento >= hoy && x.FechaVencimiento <= limite);
 
         // La clave de estado es el mismo CASE de umbrales con el que se ordena más abajo (el orden de
         // EstadoDocumentalFiltro.ClaveOrden: 0 Vencido, 1 Urgente, 2 Próximo, 3 Sin confirmar, 4 Vigente,

@@ -418,6 +418,13 @@
   <data name="EstadoPlataformaSinVigencia" xml:space="preserve"><value>Sense vigència</value></data>
   <data name="ChipEstadoPlataforma" xml:space="preserve"><value>Estat a la plataforma: {0}</value></data>
   <data name="QuitarFiltroEstadoPlataforma" xml:space="preserve"><value>Treu el filtre d'estat a la plataforma</value></data>
+  <data name="ListaVenceEn" xml:space="preserve"><value>Venç en</value></data>
+  <data name="ListaVenceEnCualquierFecha" xml:space="preserve"><value>Qualsevol data</value></data>
+  <data name="ListaVenceEnDias" xml:space="preserve"><value>{0} dies</value></data>
+  <data name="ChipVenceEn" xml:space="preserve"><value>Venç en: {0}</value></data>
+  <data name="QuitarFiltroVenceEn" xml:space="preserve"><value>Treu el filtre de venciment</value></data>
+  <data name="ListaPendienteRevisionIa" xml:space="preserve"><value>Pendent de revisió IA</value></data>
+  <data name="QuitarFiltroRevisionIa" xml:space="preserve"><value>Treu el filtre de revisió IA</value></data>
   <data name="GrupoPendienteUno" xml:space="preserve"><value>1 pendent de pujar</value></data>
   <data name="GrupoPendientes" xml:space="preserve"><value>{0} pendents de pujar</value></data>
   <data name="GrupoRechazadoUno" xml:space="preserve"><value>1 rebutjada</value></data>
