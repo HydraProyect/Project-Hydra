@@ -19,7 +19,7 @@
 *@
 @* Con el calendario abierto, Escape lo cierra a él y no al Drawer o Modal que lo contiene (mismo criterio que
    CampoSelectAvanzado). *@
-<div class="campo campo-fecha" @onkeydown:stopPropagation="_abierto">
+<div class="campo campo-fecha" @ref="_refRaiz" @onkeydown:stopPropagation="_abierto">
     @if (!string.IsNullOrWhiteSpace(Etiqueta))
     {
         <label id="@IdEtiqueta" for="@_id">@Etiqueta</label>

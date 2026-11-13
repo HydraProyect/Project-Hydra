@@ -14,6 +14,7 @@ public partial class CampoFecha
     private ElementReference _refInput;
     private ElementReference _refDia;
     private ElementReference _refFila;
+    private ElementReference _refRaiz;
     private ElementReference _refCalendario;
 
     /// <summary>Lo que el navegador tiene ahora en el input, según lo último que llegó de él o que se le impuso.</summary>
@@ -432,8 +433,20 @@ public partial class CampoFecha
         else if (_enfocarInput && !_abierto)
         {
             _enfocarInput = false;
-            await EnfocarAsync(_refInput);
+            await DevolverFocoAlCampoAsync();
         }
+    }
+
+    /// <summary>
+    /// Al cerrar el calendario el foco vuelve al campo solo si no se ha ido ya a otro control mientras llegaba esta orden
+    /// del servidor (devolverFoco en campo-fecha.js, #2194: Playwright rellena el campo siguiente y el foco devuelto a
+    /// destiempo lo dejaba vacío). Con un campo-fecha.js anterior en la caché del navegador, que no tiene la función, o sin
+    /// script, vuelve siempre, como antes.
+    /// </summary>
+    private async Task DevolverFocoAlCampoAsync()
+    {
+        if (await LlamarScriptAsync("talvegCampoFecha.devolverFoco", _refInput, _refRaiz)) return;
+        await EnfocarAsync(_refInput);
     }
 
     /// <summary>

@@ -60,7 +60,7 @@ public class BloqueoRespuestaSugeridaPorBuzonConCarteraTests : IAsyncLifetime
     private Hilo _empresaQueNoGestiona = null!;
     private Hilo _triageCompartido = null!;
 
-    private sealed record Hilo(Guid ConversacionId, string Texto);
+    private sealed record Hilo(Guid ConversacionId, string Texto, string Remitente);
 
     public async Task InitializeAsync()
     {
@@ -140,29 +140,51 @@ public class BloqueoRespuestaSugeridaPorBuzonConCarteraTests : IAsyncLifetime
     public async Task Eje_Cliente_empresarial_el_de_la_cartera_bloquea_y_el_de_fuera_no()
     {
         // Controles positivos: el texto exacto y el texto con una firma añadida, en el hilo de la cartera.
-        (await Comprobar(_runtimeDelGestor, UsuarioGestor(), _clienteDeLaCartera.Texto)).Error.Should().Be(BloqueoRespuestaSugerida.SugerenciaSinRevisar);
-        (await Comprobar(_runtimeDelGestor, UsuarioGestor(), _clienteDeLaCartera.Texto + Firma)).Error.Should().Be(BloqueoRespuestaSugerida.SugerenciaSinRevisar);
+        (await Comprobar(_runtimeDelGestor, UsuarioGestor(), _clienteDeLaCartera, _clienteDeLaCartera.Texto)).Error.Should().Be(BloqueoRespuestaSugerida.SugerenciaSinRevisar);
+        (await Comprobar(_runtimeDelGestor, UsuarioGestor(), _clienteDeLaCartera, _clienteDeLaCartera.Texto + Firma)).Error.Should().Be(BloqueoRespuestaSugerida.SugerenciaSinRevisar);
 
         // Negativos: lo mismo en el hilo de otro Cliente empresarial, que existe pero no es de su cartera.
-        (await Comprobar(_runtimeDelGestor, UsuarioGestor(), _clienteFueraDeLaCartera.Texto)).EsExitoso.Should().BeTrue();
-        (await Comprobar(_runtimeDelGestor, UsuarioGestor(), _clienteFueraDeLaCartera.Texto + Firma)).EsExitoso.Should().BeTrue();
+        (await Comprobar(_runtimeDelGestor, UsuarioGestor(), _clienteFueraDeLaCartera, _clienteFueraDeLaCartera.Texto)).EsExitoso.Should().BeTrue();
+        (await Comprobar(_runtimeDelGestor, UsuarioGestor(), _clienteFueraDeLaCartera, _clienteFueraDeLaCartera.Texto + Firma)).EsExitoso.Should().BeTrue();
     }
 
     [Fact]
     public async Task Eje_Empresa_contraparte_la_que_gestiona_bloquea_y_la_que_no_gestiona_no()
     {
-        (await Comprobar(_runtimeDelGestor, UsuarioGestor(), _empresaQueGestiona.Texto)).Error.Should().Be(BloqueoRespuestaSugerida.SugerenciaSinRevisar);
-        (await Comprobar(_runtimeDelGestor, UsuarioGestor(), _empresaQueGestiona.Texto + Firma)).Error.Should().Be(BloqueoRespuestaSugerida.SugerenciaSinRevisar);
+        (await Comprobar(_runtimeDelGestor, UsuarioGestor(), _empresaQueGestiona, _empresaQueGestiona.Texto)).Error.Should().Be(BloqueoRespuestaSugerida.SugerenciaSinRevisar);
+        (await Comprobar(_runtimeDelGestor, UsuarioGestor(), _empresaQueGestiona, _empresaQueGestiona.Texto + Firma)).Error.Should().Be(BloqueoRespuestaSugerida.SugerenciaSinRevisar);
 
-        (await Comprobar(_runtimeDelGestor, UsuarioGestor(), _empresaQueNoGestiona.Texto)).EsExitoso.Should().BeTrue();
-        (await Comprobar(_runtimeDelGestor, UsuarioGestor(), _empresaQueNoGestiona.Texto + Firma)).EsExitoso.Should().BeTrue();
+        (await Comprobar(_runtimeDelGestor, UsuarioGestor(), _empresaQueNoGestiona, _empresaQueNoGestiona.Texto)).EsExitoso.Should().BeTrue();
+        (await Comprobar(_runtimeDelGestor, UsuarioGestor(), _empresaQueNoGestiona, _empresaQueNoGestiona.Texto + Firma)).EsExitoso.Should().BeTrue();
     }
 
     [Fact]
     public async Task Un_hilo_sin_Cliente_empresarial_ni_Empresa_triage_compartido_sigue_siendo_visible()
     {
-        (await Comprobar(_runtimeDelGestor, UsuarioGestor(), _triageCompartido.Texto)).Error.Should().Be(BloqueoRespuestaSugerida.SugerenciaSinRevisar);
-        (await Comprobar(_runtimeDelGestor, UsuarioGestor(), _triageCompartido.Texto + Firma)).Error.Should().Be(BloqueoRespuestaSugerida.SugerenciaSinRevisar);
+        (await Comprobar(_runtimeDelGestor, UsuarioGestor(), _triageCompartido, _triageCompartido.Texto)).Error.Should().Be(BloqueoRespuestaSugerida.SugerenciaSinRevisar);
+        (await Comprobar(_runtimeDelGestor, UsuarioGestor(), _triageCompartido, _triageCompartido.Texto + Firma)).Error.Should().Be(BloqueoRespuestaSugerida.SugerenciaSinRevisar);
+    }
+
+    /// <summary>
+    /// Revisión Codex r2 (#2163, MEDIO 4), con SQL real: un cuerpo a seis caracteres de la sugerencia del hilo de la cartera
+    /// (el texto del hilo oculto) no bloquea un mensaje a otra contraparte, ni siquiera a la del hilo oculto; el mismo cuerpo
+    /// a la contraparte del hilo de la cartera, también con la dirección en mayúsculas, sí bloquea. El control del instrumento
+    /// es que los dos textos están, de verdad, a 15 caracteres o menos.
+    /// </summary>
+    [Fact]
+    public async Task Una_sugerencia_parecida_de_otra_contraparte_no_bloquea_y_la_del_destinatario_si()
+    {
+        RevisionRespuestaSugerida.EsCasiLaMisma(
+                RevisionRespuestaSugerida.TextoComparable(_clienteFueraDeLaCartera.Texto),
+                RevisionRespuestaSugerida.TextoComparable(_clienteDeLaCartera.Texto))
+            .Should().BeTrue("sin asociar al destinatario, este cuerpo colisiona con la sugerencia del hilo de la cartera");
+
+        (await Comprobar(_runtimeDelGestor, UsuarioGestor(), "otra-contraparte@example.test", _clienteFueraDeLaCartera.Texto)).EsExitoso.Should().BeTrue();
+        (await Comprobar(_runtimeDelGestor, UsuarioGestor(), _clienteFueraDeLaCartera, _clienteFueraDeLaCartera.Texto)).EsExitoso.Should().BeTrue();
+        (await Comprobar(_runtimeDelGestor, UsuarioGestor(), _clienteDeLaCartera, _clienteFueraDeLaCartera.Texto))
+            .Error.Should().Be(BloqueoRespuestaSugerida.SugerenciaSinRevisar);
+        (await Comprobar(_runtimeDelGestor, UsuarioGestor(), _clienteDeLaCartera.Remitente.ToUpperInvariant(), _clienteFueraDeLaCartera.Texto))
+            .Error.Should().Be(BloqueoRespuestaSugerida.SugerenciaSinRevisar);
     }
 
     /// <summary>
@@ -174,8 +196,8 @@ public class BloqueoRespuestaSugeridaPorBuzonConCarteraTests : IAsyncLifetime
     {
         foreach (var hilo in new[] { _clienteFueraDeLaCartera, _empresaQueNoGestiona })
         {
-            (await Comprobar(_runtimeDelAdministrador, UsuarioAdministrador(), hilo.Texto)).Error.Should().Be(BloqueoRespuestaSugerida.SugerenciaSinRevisar);
-            (await Comprobar(_runtimeDelAdministrador, UsuarioAdministrador(), hilo.Texto + Firma)).Error.Should().Be(BloqueoRespuestaSugerida.SugerenciaSinRevisar);
+            (await Comprobar(_runtimeDelAdministrador, UsuarioAdministrador(), hilo, hilo.Texto)).Error.Should().Be(BloqueoRespuestaSugerida.SugerenciaSinRevisar);
+            (await Comprobar(_runtimeDelAdministrador, UsuarioAdministrador(), hilo, hilo.Texto + Firma)).Error.Should().Be(BloqueoRespuestaSugerida.SugerenciaSinRevisar);
         }
     }
 
@@ -211,32 +233,37 @@ public class BloqueoRespuestaSugeridaPorBuzonConCarteraTests : IAsyncLifetime
     public async Task Una_sin_revisar_confirmada_despues_de_fijarse_la_foto_no_se_ve_y_con_una_foto_nueva_si()
     {
         await using var runtime = CrearRuntime(UsuarioGestor());
-        (await Comprobar(runtime, UsuarioGestor(), TextoConfirmadoDespues)).EsExitoso.Should().BeTrue();
+        (await Comprobar(runtime, UsuarioGestor(), RemitenteConfirmada, TextoConfirmadoDespues)).EsExitoso.Should().BeTrue();
 
         await using (var foto = await runtime.Database.BeginTransactionAsync(IsolationLevel.RepeatableRead))
         {
             await runtime.RespuestasSugeridas.CountAsync();
             await SembrarConfirmadaPorOtraConexionAsync("Confirmada tras fijarse la foto");
 
-            (await Comprobar(runtime, UsuarioGestor(), TextoConfirmadoDespues + Firma)).EsExitoso.Should().BeTrue();
+            (await Comprobar(runtime, UsuarioGestor(), RemitenteConfirmada, TextoConfirmadoDespues + Firma)).EsExitoso.Should().BeTrue();
         }
 
-        (await Comprobar(runtime, UsuarioGestor(), TextoConfirmadoDespues + Firma)).Error.Should().Be(BloqueoRespuestaSugerida.SugerenciaSinRevisar);
+        (await Comprobar(runtime, UsuarioGestor(), RemitenteConfirmada, TextoConfirmadoDespues + Firma)).Error.Should().Be(BloqueoRespuestaSugerida.SugerenciaSinRevisar);
     }
 
     /// <summary>La confirma otra conexión (el propietario de la base, no la del Gestor CAE), en un hilo de triage compartido.</summary>
     private async Task SembrarConfirmadaPorOtraConexionAsync(string asunto)
     {
         using var ambito = AmbitoTenantExplicito.Establecer(_tenantSesion);
-        await SembrarHiloAsync(asunto, null, null, TextoConfirmadoDespues, sinRevisar: true);
+        await SembrarHiloAsync(asunto, null, null, TextoConfirmadoDespues, RemitenteConfirmada, sinRevisar: true);
     }
 
     private const string TextoConfirmadoDespues = "<p>Texto confirmado por otra conexión después de abrir la instantánea, con su documentación.</p>";
+    private const string RemitenteConfirmada = "confirmada@example.test";
 
-    private Task<Result> Comprobar(CaeManagerDbContext runtime, ICurrentUserService usuario, string cuerpo)
+    /// <summary>Un mensaje nuevo al remitente de <paramref name="hilo"/>: el bloqueo por buzón solo mira los hilos con ese destinatario.</summary>
+    private Task<Result> Comprobar(CaeManagerDbContext runtime, ICurrentUserService usuario, Hilo hilo, string cuerpo) =>
+        Comprobar(runtime, usuario, hilo.Remitente, cuerpo);
+
+    private Task<Result> Comprobar(CaeManagerDbContext runtime, ICurrentUserService usuario, string destinatario, string cuerpo)
     {
         var alcance = Alcance(runtime, usuario);
-        return runtime.ComprobarEnvioPorBuzonAsync(alcance, alcance, _conexion, cuerpo, CancellationToken.None);
+        return runtime.ComprobarEnvioPorBuzonAsync(alcance, alcance, _conexion, [destinatario], cuerpo, CancellationToken.None);
     }
 
     private IEnumerable<Hilo> Todos() =>
@@ -279,24 +306,34 @@ public class BloqueoRespuestaSugeridaPorBuzonConCarteraTests : IAsyncLifetime
         await _propietario.SaveChangesAsync();
         _conexion = conexion.Id;
 
+        // Cada hilo es con una contraparte distinta (su remitente). Los textos de los hilos ocultos vuelven a estar a seis
+        // caracteres de los visibles (revisión Codex r2 de la #2163, MEDIO 4): el bloqueo compara por parecido (15 o menos),
+        // y un mensaje nuevo a la contraparte de un hilo oculto solo puede bloquearse por los hilos con ese destinatario. Si
+        // comparase con los demás hilos visibles del buzón, el negativo del hilo oculto bloquearía por el visible.
         _clienteDeLaCartera = await SembrarHiloAsync(
-            "Cliente de la cartera", clienteDeLaCartera.Id, null, "<p>Texto del hilo del Cliente empresarial de la cartera, con su documentación.</p>");
+            "Cliente de la cartera", clienteDeLaCartera.Id, null, "<p>Texto del hilo del Cliente empresarial de la cartera, con su documentación.</p>",
+            "duff@example.test");
         _clienteFueraDeLaCartera = await SembrarHiloAsync(
-            "Cliente fuera de la cartera", clienteFuera.Id, null, "<p>Texto del hilo del Cliente empresarial fuera de la cartera, con su documentación.</p>");
+            "Cliente fuera de la cartera", clienteFuera.Id, null, "<p>Texto del hilo del Cliente empresarial fuera de la cartera, con su documentación.</p>",
+            "central@example.test");
         _empresaQueGestiona = await SembrarHiloAsync(
-            "Empresa que gestiona", null, subcontrataQueGestiona.Id, "<p>Texto del hilo de la Empresa contraparte que el Gestor gestiona, con su documentación.</p>");
+            "Empresa que gestiona", null, subcontrataQueGestiona.Id, "<p>Texto del hilo de la Empresa contraparte que el Gestor gestiona, con su documentación.</p>",
+            "aislamientos@example.test");
         _empresaQueNoGestiona = await SembrarHiloAsync(
-            "Empresa que no gestiona", null, subcontrataQueNoGestiona.Id, "<p>Texto del hilo de la Empresa contraparte que el Gestor no gestiona, con su documentación.</p>");
+            "Empresa que no gestiona", null, subcontrataQueNoGestiona.Id, "<p>Texto del hilo de la Empresa contraparte que el Gestor no gestiona, con su documentación.</p>",
+            "soldaduras@example.test");
         _triageCompartido = await SembrarHiloAsync(
-            "Triage compartido", null, null, "<p>Texto del hilo sin Cliente empresarial ni Empresa, en triage compartido, con su documentación.</p>");
+            "Triage compartido", null, null, "<p>Texto del hilo sin Cliente empresarial ni Empresa, en triage compartido, con su documentación.</p>",
+            "triage@example.test");
     }
 
-    private async Task<Hilo> SembrarHiloAsync(string asunto, Guid? clienteId, Guid? empresaId, string texto, bool sinRevisar = false)
+    private async Task<Hilo> SembrarHiloAsync(
+        string asunto, Guid? clienteId, Guid? empresaId, string texto, string remitente, bool sinRevisar = false)
     {
         var conversacion = new Conversacion(asunto, clienteId, empresaId: empresaId);
         conversacion.AsociarConexion(_conexion, "hilo-" + Guid.NewGuid());
         var mensaje = new Mensaje(
-            conversacion.Id, DireccionMensaje.Entrante, CanalConversacion.Correo, "remitente@example.test", "Cuerpo", DateTime.UtcNow);
+            conversacion.Id, DireccionMensaje.Entrante, CanalConversacion.Correo, remitente, "Cuerpo", DateTime.UtcNow);
         _propietario.Conversaciones.Add(conversacion);
         _propietario.Mensajes.Add(mensaje);
         await _propietario.SaveChangesAsync();
@@ -306,7 +343,7 @@ public class BloqueoRespuestaSugeridaPorBuzonConCarteraTests : IAsyncLifetime
             sugerencia.Insertar();
         _propietario.RespuestasSugeridas.Add(sugerencia);
         await _propietario.SaveChangesAsync();
-        return new Hilo(conversacion.Id, texto);
+        return new Hilo(conversacion.Id, texto, remitente);
     }
 
     private CaeManagerDbContext CrearPropietarioLimpio()

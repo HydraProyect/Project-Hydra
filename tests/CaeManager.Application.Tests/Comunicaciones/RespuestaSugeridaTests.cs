@@ -640,6 +640,28 @@ public class RespuestaSugeridaTests
         _unidad.VecesGuardado.Should().Be(0);
     }
 
+    /// <summary>
+    /// Revisión Codex r3 de la #2163: confirmar es la acción que levanta el bloqueo del envío, así que la de un Gestor CAE sin
+    /// la conversación en su cartera no puede dejarla revisada, igual que no puede insertarla ni descartarla.
+    /// </summary>
+    [Theory]
+    [InlineData(AccionRespuestaSugerida.Insertar, EstadoRespuestaSugerida.Propuesta)]
+    [InlineData(AccionRespuestaSugerida.Confirmar, EstadoRespuestaSugerida.SinRevisar)]
+    [InlineData(AccionRespuestaSugerida.Descartar, EstadoRespuestaSugerida.SinRevisar)]
+    public async Task Fuera_de_cartera_ninguna_accion_cambia_la_sugerencia(AccionRespuestaSugerida accion, EstadoRespuestaSugerida estado)
+    {
+        var conversacion = Hilo();
+        var respuesta = Sugerencia(conversacion, estado);
+
+        var resultado = await Resolver(new AlcanceDatosServiceFalso(tieneAccesoTotal: false))
+            .Handle(new(respuesta.Id, accion), CancellationToken.None);
+
+        resultado.Error.Codigo.Should().Be("Sugerencia.NoEncontrada");
+        respuesta.Estado.Should().Be(estado);
+        respuesta.RevisadaPorUsuarioId.Should().BeNull();
+        _unidad.VecesGuardado.Should().Be(0);
+    }
+
     [Fact]
     public async Task Resolver_sin_autor_no_cambia_nada()
     {

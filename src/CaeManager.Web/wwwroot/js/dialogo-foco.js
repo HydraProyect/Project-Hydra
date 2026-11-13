@@ -142,6 +142,18 @@ export function atraparFoco(contenedor, devolverFila = false) {
             const pila = trampasActivas();
             const posicion = pila.lastIndexOf(contenedor);
             if (posicion >= 0) pila.splice(posicion, 1);
+            // La orden de liberar llega del servidor tras un viaje de ida y vuelta, cuando el diálogo ya salió del DOM
+            // y el foco cayó al body. Si para entonces la persona (o Playwright) ya está en otro campo de la página, el
+            // foco no se le quita: perdería lo que teclea, y con Playwright, que rellena en dos pasos (enfocar y
+            // seleccionar, luego insertar), el campo se queda vacío (#2194, misma causa que CampoSelectAvanzado).
+            // Solo vuelve si el foco sigue dentro del diálogo, en el body, sin elemento activo o en el propio contenedor
+            // del diálogo modal exterior (un clic en la superposición de un diálogo anidado, que no es enfocable, deja el
+            // foco en el contenedor del de fuera). Un campo del exterior sí cuenta como «otro campo». El panel no modal
+            // de la fila enfocada (devolverFila, Context Workspace) queda fuera de la guarda: su foco habitual está fuera
+            // del panel y su retorno a la fila (#1770) es otro contrato.
+            const activo = document.activeElement;
+            if (!devolverFila && activo && activo !== document.body && activo !== document.documentElement
+                && !contenedor.contains(activo) && activo !== dialogoExteriorAbierto(contenedor)) return;
             // Puede que el elemento que abrió el diálogo ya no exista (p. ej.
             // se recargó la lista que contenía el botón) — comprobar que
             // sigue en el documento antes de devolverle el foco.
