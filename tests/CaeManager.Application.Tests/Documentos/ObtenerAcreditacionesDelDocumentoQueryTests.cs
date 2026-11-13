@@ -218,4 +218,44 @@ public class ObtenerAcreditacionesDelDocumentoQueryTests
         resultado.Should().NotBeNull();
         resultado!.Acreditaciones.Should().BeEmpty();
     }
+
+    /// <summary>P1-X2, como el listado agrupado: un Centro sin gestión CAE no genera trabajo de acreditación, así que no sale.</summary>
+    [Fact]
+    public async Task Las_acreditaciones_de_un_Centro_sin_gestion_CAE_no_aparecen()
+    {
+        var e = new Escenario();
+        var cliente = e.ConEmpresa("Cliente empresarial");
+        var conGestion = e.ConCentro(cliente, "Con gestión");
+        var sinGestion = e.ConCentro(cliente, "Sin gestión");
+        sinGestion.EstablecerGestionCae(ModalidadGestionCae.SinGestionCae);
+        var nalanda = e.ConPlataforma("Nalanda");
+        var enConGestion = e.Acreditar(conGestion, nalanda);
+        e.Acreditar(sinGestion, nalanda);
+
+        var resultado = await e.LeerAsync();
+
+        resultado!.Acreditaciones.Should().ContainSingle().Which.Id.Should().Be(enConGestion.Id);
+    }
+
+    [Fact]
+    public async Task Sin_la_Plataforma_CAE_ni_el_Cliente_empresarial_en_su_contexto_la_fila_sale_con_el_nombre_de_reserva()
+    {
+        var e = new Escenario();
+        var clienteAusente = new Empresa("Cliente empresarial que no se lee"); // no está en el contexto de Empresas
+        var centro = e.ConCentro(clienteAusente, "Centro");
+        var plataformaAusente = new ProveedorPlataformaCae("fantasma", "Fantasma"); // no está en el contexto de Plataformas CAE
+        var acreditacion = e.Acreditar(centro, plataformaAusente);
+
+        var resultado = await e.LeerAsync();
+
+        resultado!.Acreditaciones.Should().ContainSingle().Which.Should().BeEquivalentTo(new
+        {
+            Id = acreditacion.Id,
+            ProveedorId = plataformaAusente.Id,
+            PlataformaNombre = "—",
+            PlataformaCodigo = (string?)null,
+            ClienteEmpresarialNombre = "—",
+            CentroNombre = "Centro"
+        });
+    }
 }

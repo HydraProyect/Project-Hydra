@@ -223,7 +223,8 @@ else
 @* D-24: «Ver» abre el mismo visor que el listado; se monta solo mientras está abierto. *@
 @if (_visorVisible && _detalle is not null)
 {
-    <VisorDocumento Visible="true" VisibleChanged="v => _visorVisible = v" DocumentoId="EntidadId"
+    @* Desde el historial el visor solo enseña el archivo: «Actualizar documento» llevaría a gestionar un Documento sustituido. *@
+    <VisorDocumento Visible="true" VisibleChanged="v => _visorVisible = v" DocumentoId="EntidadId" PermiteActualizar="!EnHistorial"
                     Titulo="@($"{_detalle.TipoDocumentoNombre} — {_detalle.PropietarioNombre}")" />
 }
 
@@ -236,7 +237,8 @@ else
         <AnotarVigenciaEnBloque @ref="_anotarVigencia" OnAnotado="AlCambiarAcreditacionAsync" />
     </SoloConEscritura>
 }
-@if (_acreditacionAGestionar is { } gestion && _detalle is not null && _acreditaciones is not null && PropietarioGestionable is { } propietarioId)
+@* !EnHistorial: si la ficha pasa al historial con el panel abierto (otra pestaña sustituyó el Documento), el panel se retira. *@
+@if (_acreditacionAGestionar is { } gestion && _detalle is not null && !EnHistorial && _acreditaciones is not null && PropietarioGestionable is { } propietarioId)
 {
     <PanelGestionarAcreditacion @bind-Visible="_panelAcreditacionVisible"
                                 DocumentoNombre="@_detalle.TipoDocumentoNombre" PropietarioNombre="@_detalle.PropietarioNombre"
@@ -290,7 +292,9 @@ else
                         </span>
                         @* Un Documento en el historial (sustituido) es inmutable, como «Renovar» arriba: sus acreditaciones se leen
                            pero no se gestionan desde aquí. El contenedor solo existe para quien escribe, así no reserva columna. *@
-                        @if (!EnHistorial && ReglasAccionesAcreditacion.HayAlgunaAccion(acreditacion.Estado, PropietarioGestionable is not null, acreditacion.UrlAccesoCanal))
+                        @* Tras una relectura fallida la lista es la anterior: sin menú, para no ofrecer acciones calculadas sobre
+                           un estado viejo; vuelve con la siguiente lectura buena. *@
+                        @if (!EnHistorial && !_acreditacionesDesfasadas && ReglasAccionesAcreditacion.HayAlgunaAccion(acreditacion.Estado, PropietarioGestionable is not null, acreditacion.UrlAccesoCanal))
                         {
                             <SoloConEscritura>
                                 <span class="menu-acreditacion-documento-360">
@@ -321,6 +325,9 @@ else
 
     private AcreditacionesDelDocumentoDto? _acreditaciones;
     private int _cargaAcreditaciones;
+
+    /// <summary>La última relectura de la sección falló y lo que se ve es la lista anterior: se lee, pero no se ofrece el menú.</summary>
+    private bool _acreditacionesDesfasadas;
     private ModalesAcreditacion? _modalesAcreditacion;
     private AnotarVigenciaEnBloque? _anotarVigencia;
     private DrawerGestionDocumento? _drawerGestion;
@@ -329,13 +336,13 @@ else
     /// <summary>La acreditación que abre «Gestionar acreditación…» del menú de la sección (D-18).</summary>
     private AcreditacionDelDocumentoDto? _acreditacionAGestionar;
 
+    /// <summary>El Documento abierto ya está sustituido por otra versión (historial, D5/D8): se lee, no se gestiona.</summary>
+    private bool EnHistorial => _detalle?.SustitutoId is not null;
+
     /// <summary>
     /// «Gestionar acreditación…» enlaza con la ficha 360 de una Empresa o de un Trabajador, como en el listado
     /// (Documentos.PuedeGestionarAcreditacion): para el resto de Propietarios no se ofrece.
     /// </summary>
-    /// <summary>El Documento abierto ya está sustituido por otra versión (historial, D5/D8): se lee, no se gestiona.</summary>
-    private bool EnHistorial => _detalle?.SustitutoId is not null;
-
     private Guid? PropietarioGestionable => _detalle switch
     {
         { Ambito: AmbitoAplicacion.Trabajador, TrabajadorId: { } trabajadorId } => trabajadorId,
@@ -355,6 +362,7 @@ else
             var acreditaciones = await Mediator.Send(new ObtenerAcreditacionesDelDocumentoQuery(id), _cancelacion);
             if (carga != _cargaAcreditaciones) return;
             _acreditaciones = acreditaciones;
+            _acreditacionesDesfasadas = false;
         }
         catch (OperationCanceledException) when (_cancelacion.IsCancellationRequested)
         {
@@ -365,17 +373,19 @@ else
             // La sección es complementaria: sin ella el panel sigue siendo útil, así que no hay estado de error propio. Si falla
             // la releída tras una acción, se conserva la lista anterior (al cambiar de Documento ya se vació en ReiniciarParaNuevaEntidad).
             if (carga != _cargaAcreditaciones) return;
+            _acreditacionesDesfasadas = _acreditaciones is not null;
             Logger.LogWarning(ex, "No se pudieron leer las acreditaciones del Documento {DocumentoId}.", id);
         }
     }
 
     /// <summary>
     /// Despacha la opción del menú «Acreditación ▾» de la sección a los mismos diálogos y Commands que el listado (D-18).
-    /// No decide ninguna autorización: cada Command comprueba la suya (D-3).
+    /// No decide ninguna autorización: cada Command comprueba la suya (D-3). El historial no se gestiona: el menú no se pinta, y si
+    /// llega una opción de un menú anterior a la sustitución, se ignora.
     /// </summary>
     private async Task ManejarAccionAcreditacionAsync(AcreditacionDelDocumentoDto acreditacion, AccionAcreditacion accion)
     {
-        if (_detalle is null) return;
+        if (_detalle is null || EnHistorial) return;
         switch (accion)
         {
             case AccionAcreditacion.SubirVersionCorregida:
@@ -417,7 +427,11 @@ else
         await CargarAcreditacionesAsync();
     }
 
-    /// <summary>La versión corregida sustituye el archivo: se relee todo el panel, no solo la sección.</summary>
+    /// <summary>
+    /// La versión corregida sustituye el archivo: se relee todo el panel, no solo la sección. El Id abierto pasa al historial, así que
+    /// la relectura pinta el aviso con «Ver vigente» y retira el menú; el panel no salta solo al vigente porque el Context Workspace no
+    /// tiene cómo sustituir el nivel abierto por otro.
+    /// </summary>
     private async Task AlGuardarVersionCorregidaAsync()
     {
         ServiceProvider.GetService<ContextWorkspaceService>()?.NotificarEntidadGuardada(EntidadWorkspace.Documento, EntidadId);
@@ -497,7 +511,7 @@ else
         // del documento anterior y no puede quedarse abierta contra otro titular.
         _reclamacionVisible = false;
         // Lo mismo para la sección «Plataformas CAE», el visor y los diálogos de acreditación del documento anterior.
-        _cargaAcreditaciones++; _acreditaciones = null; _visorVisible = false;
+        _cargaAcreditaciones++; _acreditaciones = null; _acreditacionesDesfasadas = false; _visorVisible = false;
         _acreditacionAGestionar = null; _panelAcreditacionVisible = false; _abrirVersionPendiente = false;
     }
 

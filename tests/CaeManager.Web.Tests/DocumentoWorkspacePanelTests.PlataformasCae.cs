@@ -4,6 +4,7 @@ using CaeManager.Application.Documentos.Queries.ObtenerDocumentoPorId;
 using CaeManager.Domain.Documentos;
 using CaeManager.Infrastructure.Identity;
 using CaeManager.Web.Components.DesignSystem;
+using CaeManager.Web.Features.Documentos;
 using CaeManager.Web.Features.Documentos.Components;
 using FluentAssertions;
 using MediatR;
@@ -36,14 +37,34 @@ public partial class DocumentoWorkspacePanelTests
     ]);
 
     private IRenderedComponent<DocumentoWorkspacePanel> RenderInformacion(DocumentoDetalleDto detalle, AcreditacionesDelDocumentoDto? acreditaciones,
-        bool fallaAcreditaciones = false)
+        bool fallaAcreditaciones = false) =>
+        RenderInformacion(new MediatorDocumento { Detalle = detalle, Acreditaciones = acreditaciones, FallaAcreditaciones = fallaAcreditaciones });
+
+    private IRenderedComponent<DocumentoWorkspacePanel> RenderInformacion(MediatorDocumento mediador)
     {
         Services.AddScoped<ToastService>();
         Services.AddSingleton(typeof(ILogger<>), typeof(NullLogger<>));
-        Services.AddScoped<IMediator>(_ => new MediatorDocumento { Detalle = detalle, Acreditaciones = acreditaciones, FallaAcreditaciones = fallaAcreditaciones });
+        Services.AddScoped<IMediator>(_ => mediador);
         return Render<DocumentoWorkspacePanel>(p => p
-            .Add(x => x.EntidadId, detalle.Id)
+            .Add(x => x.EntidadId, mediador.Detalle.Id)
             .Add(x => x.PestanaActiva, "informacion"));
+    }
+
+    /// <summary>
+    /// El Documento abierto pasa al historial con el panel abierto: «Renovar» → guardar, y la relectura de la cabecera (el doble
+    /// devuelve <see cref="MediatorDocumento.DetalleTrasRenovar"/>) ya trae su SustitutoId.
+    /// </summary>
+    private static void PasarAlHistorial(IRenderedComponent<DocumentoWorkspacePanel> cut)
+    {
+        cut.FindAll("button").First(b => b.TextContent.Trim() == "Renovar").Click();
+        cut.FindAll("button").First(b => b.TextContent.Contains("Guardar fechas y comentarios")).Click();
+        cut.WaitForAssertion(() => cut.FindAll(".aviso-historial-documento-360").Should().ContainSingle());
+    }
+
+    private static MediatorDocumento MediadorQuePasaAlHistorial()
+    {
+        var detalle = Detalle();
+        return new MediatorDocumento { Detalle = detalle, Acreditaciones = DosAcreditaciones(), DetalleTrasRenovar = detalle with { SustitutoId = Guid.NewGuid() } };
     }
 
     // ------------------------------------------------------------- lo que main ya tenía
@@ -79,6 +100,30 @@ public partial class DocumentoWorkspacePanelTests
         cut.Find("[data-accion=ver-pdf]").Click();
 
         cut.FindComponents<VisorDocumento>().Should().ContainSingle().Which.Instance.DocumentoId.Should().Be(detalle.Id);
+    }
+
+    [Fact]
+    public void Ver_de_un_Documento_vigente_ofrece_Actualizar_documento_como_el_listado()
+    {
+        var cut = RenderInformacion(Detalle() with { ArchivoUrl = "documentos/certificado.pdf" }, null);
+
+        cut.Find("[data-accion=ver-pdf]").Click();
+
+        var visor = cut.FindComponent<VisorDocumento>();
+        visor.Instance.PermiteActualizar.Should().BeTrue();
+        visor.Markup.Should().Contain("Actualizar documento");
+    }
+
+    [Fact]
+    public void Ver_desde_el_historial_abre_el_visor_sin_Actualizar_documento()
+    {
+        var cut = RenderInformacion(Detalle() with { ArchivoUrl = "documentos/certificado.pdf", SustitutoId = Guid.NewGuid() }, null);
+
+        cut.Find("[data-accion=ver-pdf]").Click();
+
+        var visor = cut.FindComponent<VisorDocumento>();
+        visor.Instance.PermiteActualizar.Should().BeFalse("el historial no se gestiona");
+        visor.Markup.Should().NotContain("Actualizar documento").And.Contain("Abrir en pestaña nueva");
     }
 
     [Fact]
@@ -179,13 +224,71 @@ public partial class DocumentoWorkspacePanelTests
     }
 
     [Fact]
-    public void Si_la_lectura_de_acreditaciones_falla_el_panel_sigue_mostrando_el_Documento_sin_la_seccion()
+    public void Si_la_primera_lectura_de_acreditaciones_falla_el_panel_sigue_mostrando_el_Documento_sin_la_seccion()
     {
         var cut = RenderInformacion(Detalle() with { ArchivoUrl = "documentos/certificado.pdf" }, DosAcreditaciones(), fallaAcreditaciones: true);
 
         cut.Find(".acciones-documento-360").TextContent.Should().Contain("Renovar");
         cut.FindAll(".archivo-documento-360").Should().ContainSingle();
         cut.FindAll("[data-seccion=plataformas-cae]").Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task Si_la_relectura_tras_una_accion_falla_las_filas_siguen_en_pantalla_sin_el_menu()
+    {
+        var mediador = new MediatorDocumento { Detalle = Detalle(), Acreditaciones = DosAcreditaciones(), FallaAcreditacionesDesdeLectura = 2 };
+        var cut = RenderInformacion(mediador);
+        cut.FindAll("[data-menu-acreditacion]").Should().HaveCount(2, "la primera lectura fue buena");
+
+        // Lo que hace cualquier diálogo del menú al terminar (marcar, rechazar, validar): AlCambiarAcreditacionAsync relee la sección.
+        await cut.InvokeAsync(() => cut.FindComponent<ModalesAcreditacion>().Instance.OnCambio.InvokeAsync());
+
+        mediador.LecturasAcreditaciones.Should().Be(2, "la acción relee la sección y esa relectura falla");
+        cut.Find("[data-seccion=plataformas-cae]").QuerySelectorAll("li").Should().HaveCount(2, "se conserva la lista anterior");
+        cut.FindAll("[data-menu-acreditacion]").Should().BeEmpty("la lista está desfasada: no se ofrecen acciones sobre un estado viejo");
+        cut.FindAll(".menu-acreditacion-documento-360").Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task Si_el_Documento_pasa_al_historial_se_retira_el_panel_Gestionar_acreditacion()
+    {
+        var cut = RenderInformacion(MediadorQuePasaAlHistorial());
+        await cut.InvokeAsync(() => cut.FindComponents<MenuAcreditacion>()[0].Instance.OnAccion.InvokeAsync(AccionAcreditacion.Gestionar));
+        cut.FindComponents<PanelGestionarAcreditacion>().Should().ContainSingle("«Gestionar acreditación…» abre el panel");
+
+        PasarAlHistorial(cut);
+
+        cut.FindComponents<PanelGestionarAcreditacion>().Should().BeEmpty("el historial no se gestiona");
+    }
+
+    [Fact]
+    public async Task Una_opcion_de_un_menu_anterior_al_historial_se_ignora()
+    {
+        var cut = RenderInformacion(MediadorQuePasaAlHistorial());
+        var opcionDelMenuAnterior = cut.FindComponents<MenuAcreditacion>()[0].Instance.OnAccion;
+
+        PasarAlHistorial(cut);
+        cut.FindAll("[data-menu-acreditacion]").Should().BeEmpty();
+        await cut.InvokeAsync(() => opcionDelMenuAnterior.InvokeAsync(AccionAcreditacion.SubirVersionCorregida));
+
+        cut.FindComponents<DrawerGestionDocumento>().Should().BeEmpty("el historial no se gestiona aunque llegue la opción");
+    }
+
+    [Fact]
+    public void El_rol_Cliente_abre_el_panel_con_la_seccion_que_el_servidor_le_manda_sin_motivo_ni_direccion()
+    {
+        // Lo que el servidor manda al rol Cliente (ObtenerCentroIdsParaGestionAsync vacío): estado sí, motivo y dirección no.
+        this.ConRolDeEscritura(Roles.Cliente);
+        var cut = RenderInformacion(Detalle(), new(EstadoDocumento.Vencido,
+        [
+            Acreditacion("Nalanda", "Refrigeración Alcor S.A.", "Centro Norte", EstadoAcreditacion.Rechazada),
+            Acreditacion("CTAIMA", "Aceros Lasarte S.A.", "Nave Berriz", EstadoAcreditacion.PendienteDeSubir),
+        ]));
+
+        cut.Find(".titulo-documento-360").TextContent.Should().Be("Certificado TGSS");
+        cut.Find("[data-seccion=plataformas-cae]").QuerySelectorAll("li").Should().HaveCount(2);
+        cut.FindAll(".motivo-acreditacion-documento-360").Should().BeEmpty();
+        cut.FindAll("[data-menu-acreditacion]").Should().BeEmpty();
     }
 
     [Fact]

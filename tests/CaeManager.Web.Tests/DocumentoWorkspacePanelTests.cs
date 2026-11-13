@@ -42,8 +42,11 @@ public partial class DocumentoWorkspacePanelTests : BunitContext
     /// <summary>El panel lanza dos consultas distintas por el mismo IMediator — responde por tipo.</summary>
     private sealed class MediatorDocumento : IMediator
     {
-        public required DocumentoDetalleDto Detalle { get; init; }
+        public required DocumentoDetalleDto Detalle { get; set; }
         public bool SinFirmas { get; init; }
+
+        /// <summary>Lo que devuelve la cabecera tras un «Renovar» con éxito; null, la misma de antes.</summary>
+        public DocumentoDetalleDto? DetalleTrasRenovar { get; init; }
         public ValidacionOficialDocumentoDto? Validacion { get; init; }
         public bool FallaValidacion { get; set; }
 
@@ -51,12 +54,30 @@ public partial class DocumentoWorkspacePanelTests : BunitContext
         public AcreditacionesDelDocumentoDto? Acreditaciones { get; init; }
         public bool FallaAcreditaciones { get; init; }
 
+        /// <summary>A partir de qué lectura de la sección (1 = la primera) falla; 0, nunca. Sirve para la relectura fallida.</summary>
+        public int FallaAcreditacionesDesdeLectura { get; init; }
+        public int LecturasAcreditaciones { get; private set; }
+
+        private object? LeerAcreditaciones()
+        {
+            LecturasAcreditaciones++;
+            if (FallaAcreditaciones || (FallaAcreditacionesDesdeLectura > 0 && LecturasAcreditaciones >= FallaAcreditacionesDesdeLectura))
+                throw new InvalidOperationException("acreditaciones caídas");
+            return Acreditaciones;
+        }
+
+        private object Renovar()
+        {
+            Detalle = DetalleTrasRenovar ?? Detalle;
+            return Result.Exito(Detalle.Id);
+        }
+
         public Task<TResponse> Send<TResponse>(IRequest<TResponse> request, CancellationToken cancellationToken = default) =>
             Task.FromResult((TResponse)(request switch
             {
                 ObtenerDocumentoPorIdQuery => (object?)Detalle,
-                ObtenerAcreditacionesDelDocumentoQuery when FallaAcreditaciones => throw new InvalidOperationException("acreditaciones caídas"),
-                ObtenerAcreditacionesDelDocumentoQuery => Acreditaciones,
+                ObtenerAcreditacionesDelDocumentoQuery => LeerAcreditaciones(),
+                CaeManager.Application.Documentos.Commands.RenovarDocumento.RenovarDocumentoCommand => Renovar(),
                 ObtenerValidacionOficialDocumentoQuery when FallaValidacion => throw new InvalidOperationException("validación caída"),
                 ObtenerValidacionOficialDocumentoQuery => Validacion,
                 ObtenerFirmasEnCampoDocumentoQuery => SinFirmas ? (IReadOnlyList<FirmaEnCampoDocumentoDto>)[] : (IReadOnlyList<FirmaEnCampoDocumentoDto>)
