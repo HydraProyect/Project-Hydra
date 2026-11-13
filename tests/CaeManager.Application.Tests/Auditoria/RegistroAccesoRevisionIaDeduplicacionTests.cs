@@ -59,13 +59,122 @@ public class RegistroAccesoRevisionIaDeduplicacionTests
         avisos.Entradas.Should().BeEmpty();
     }
 
+    // ── La clave de deduplicación ─────────────────────────────────────────
+    // Quien pide entra por una Asignación de Operación (vía OperacionDelegada con su Id), para que cada dimensión de la
+    // clave —Documento, tipo, Usuario, Actor real, vía, Id de la vía, desde cuándo— se pueda variar sola. Una fila que
+    // difiere en una sola de ellas no es «la misma fila»: no tapa el acceso, que se registra.
+
+    private static readonly Guid AsignacionId = Guid.Parse("0199c0de-0000-7000-8000-0000000000a5");
+    private static readonly Guid OtroId = Guid.Parse("0199c0de-0000-7000-8000-0000000000ff");
+    private static readonly ActorAuditoria ActorPorOperacion = new(UsuarioId, null, TipoViaAcceso.OperacionDelegada, AsignacionId);
+
+    private static RegistroAccesoDocumentoSensible Fila(
+        Guid? documentoId = null, TipoAccesoDocumentoSensible tipo = TipoAccesoDocumentoSensible.RevisionIa,
+        Guid? usuarioId = null, Guid? actorRealId = null, TipoViaAcceso via = TipoViaAcceso.OperacionDelegada,
+        Guid? viaAccesoId = null, bool sinViaAccesoId = false) =>
+        new(documentoId ?? DocumentoId, SensibilidadDocumental.CategoriaEspecialSalud, tipo,
+            usuarioId ?? UsuarioId, actorRealId ?? UsuarioId, (TipoViaAccesoAuditoria)via,
+            sinViaAccesoId ? null : viaAccesoId ?? AsignacionId,
+            (TipoActorAuditoria)ActorPorOperacion.ResolverTipoActor());
+
+    private static RegistroAccesoDocumentoSensible FilaQueDifiereEn(string dimension) => dimension switch
+    {
+        "Documento" => Fila(documentoId: OtroId),
+        "TipoAcceso" => Fila(tipo: TipoAccesoDocumentoSensible.Apertura),
+        "Usuario" => Fila(usuarioId: OtroId),
+        "ActorReal" => Fila(actorRealId: OtroId),
+        "Via" => Fila(via: TipoViaAcceso.Normal, sinViaAccesoId: true),
+        "ViaAccesoId" => Fila(viaAccesoId: OtroId),
+        _ => throw new ArgumentOutOfRangeException(nameof(dimension), dimension, null),
+    };
+
+    /// <summary>
+    /// Otro Documento de la misma persona; una Apertura previa («Descargar»); otro Usuario con el mismo Actor real
+    /// (impersonación); otro Actor real con el mismo Usuario; la misma persona por la vía normal; la misma vía con otra
+    /// Asignación de Operación. Ninguna es la fila de este acceso.
+    /// </summary>
+    [Theory]
+    [InlineData("Documento")]
+    [InlineData("TipoAcceso")]
+    [InlineData("Usuario")]
+    [InlineData("ActorReal")]
+    [InlineData("Via")]
+    [InlineData("ViaAccesoId")]
+    public async Task Una_fila_que_difiere_en_una_dimension_de_la_clave_no_tapa_el_acceso(string dimension)
+    {
+        var previa = FilaQueDifiereEn(dimension);
+        var caso = $"la fila previa difiere en {dimension}";
+        var repositorio = new RepositorioEspia();
+        var servicio = Servicio(repositorio, new AuditoriaConFilas(previa), actor: ActorPorOperacion);
+
+        await servicio.RegistrarRevisionIaSiSensibleAsync(DocumentoId, RevisionCreadaEnUtc);
+
+        repositorio.Guardados.Should().ContainSingle(caso);
+    }
+
+    /// <summary>Control de la teoría: la fila idéntica, por la misma Asignación de Operación, sí cuenta como ya registrada.</summary>
+    [Fact]
+    public async Task La_fila_identica_por_la_misma_via_cuenta_como_ya_registrada()
+    {
+        var repositorio = new RepositorioEspia();
+        var servicio = Servicio(repositorio, new AuditoriaConFilas(Fila()), actor: ActorPorOperacion);
+
+        await servicio.RegistrarRevisionIaSiSensibleAsync(DocumentoId, RevisionCreadaEnUtc);
+
+        repositorio.Guardados.Should().BeEmpty();
+    }
+
+    /// <summary>Una fila anterior a la revisión (de otra revisión ya resuelta del mismo Documento) no cuenta para esta.</summary>
+    [Fact]
+    public async Task Una_fila_anterior_a_la_creacion_de_la_revision_no_la_tapa()
+    {
+        var repositorio = new RepositorioEspia();
+        var servicio = Servicio(repositorio, new AuditoriaConFilas(Fila()), actor: ActorPorOperacion);
+
+        await servicio.RegistrarRevisionIaSiSensibleAsync(DocumentoId, DateTime.UtcNow.AddHours(1));
+
+        repositorio.Guardados.Should().ContainSingle();
+    }
+
+    /// <summary>
+    /// La composición real: <c>AddApplication</c> registra el servicio y el contenedor le inyecta el contexto de auditoría
+    /// (que en producción registra Infrastructure), así que la deduplicación está activa y no apagada en silencio por un
+    /// parámetro opcional que quedara a <c>null</c>.
+    /// </summary>
+    [Fact]
+    public async Task Compuesto_por_AddApplication_deduplica_con_el_contexto_de_auditoria_inyectado()
+    {
+        var repositorio = new RepositorioEspia();
+        var servicios = new Microsoft.Extensions.DependencyInjection.ServiceCollection();
+        CaeManager.Application.DependencyInjection.ApplicationServiceCollectionExtensions.AddApplication(servicios);
+        Microsoft.Extensions.DependencyInjection.ServiceCollectionServiceExtensions.AddScoped<CaeManager.Application.Documentos.IDocumentosQueryContext>(
+            servicios, _ => new DocumentosQueryContextFalso());
+        Microsoft.Extensions.DependencyInjection.ServiceCollectionServiceExtensions.AddScoped<CaeManager.Application.TiposDocumento.ITiposDocumentoQueryContext>(
+            servicios, _ => new TiposDocumentoQueryContextFalso());
+        Microsoft.Extensions.DependencyInjection.ServiceCollectionServiceExtensions.AddScoped<IActorAuditoria>(
+            servicios, _ => new ActorFijo(ActorAuditoria.Normal(UsuarioId)));
+        Microsoft.Extensions.DependencyInjection.ServiceCollectionServiceExtensions.AddScoped<IRegistroAccesoDocumentoSensibleRepository>(
+            servicios, _ => repositorio);
+        Microsoft.Extensions.DependencyInjection.ServiceCollectionServiceExtensions.AddScoped<IAuditoriaQueryContext>(
+            servicios, _ => new AuditoriaConFilas(Fila(via: TipoViaAcceso.Normal, sinViaAccesoId: true)));
+        using var proveedor = Microsoft.Extensions.DependencyInjection.ServiceCollectionContainerBuilderExtensions.BuildServiceProvider(servicios);
+        using var ambito = Microsoft.Extensions.DependencyInjection.ServiceProviderServiceExtensions.CreateScope(proveedor);
+        var servicio = Microsoft.Extensions.DependencyInjection.ServiceProviderServiceExtensions
+            .GetRequiredService<IRegistroAccesoDocumentoSensibleService>(ambito.ServiceProvider);
+
+        await servicio.RegistrarRevisionIaSiSensibleAsync(DocumentoId, RevisionCreadaEnUtc);
+
+        repositorio.Guardados.Should().BeEmpty("la fila ya consta: el contenedor inyectó el contexto de auditoría");
+    }
+
     /// <summary>
     /// El Documento no resuelve en estos contextos vacíos, así que el servicio asume la categoría más protectora y
     /// registra: es el camino que interesa, el de una fila que sí se escribe.
     /// </summary>
     private static RegistroAccesoDocumentoSensibleService Servicio(
-        RepositorioEspia repositorio, IAuditoriaQueryContext auditoria, ILogger<RegistroAccesoDocumentoSensibleService> avisos) =>
-        new(new DocumentosQueryContextFalso(), new TiposDocumentoQueryContextFalso(), new ActorFijo(ActorAuditoria.Normal(UsuarioId)),
+        RepositorioEspia repositorio, IAuditoriaQueryContext auditoria, ILogger<RegistroAccesoDocumentoSensibleService>? avisos = null,
+        ActorAuditoria? actor = null) =>
+        new(new DocumentosQueryContextFalso(), new TiposDocumentoQueryContextFalso(), new ActorFijo(actor ?? ActorAuditoria.Normal(UsuarioId)),
             repositorio, auditoriaContext: auditoria, logger: avisos);
 
     private sealed class ActorFijo(ActorAuditoria actor) : IActorAuditoria

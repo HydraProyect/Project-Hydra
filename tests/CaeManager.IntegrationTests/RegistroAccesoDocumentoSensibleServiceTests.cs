@@ -107,7 +107,7 @@ public class RegistroAccesoDocumentoSensibleServiceTests : IAsyncLifetime
     /// fila «Revisión IA» por persona y Documento. Las Aperturas siguen registrándose en cada llamada.
     /// </summary>
     [Fact]
-    public async Task La_Revision_IA_deja_una_fila_por_revision_y_persona_aunque_se_pida_varias_veces()
+    public async Task La_Revision_IA_deja_una_fila_por_persona_y_Documento_aunque_se_pida_varias_veces()
     {
         var tipo = await TipoConSensibilidadAsync(SensibilidadDocumental.CategoriaEspecialSalud);
         var documento = CrearDocumentoDeEmpresa(tipo.Id);
