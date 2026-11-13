@@ -294,6 +294,60 @@ public class ObtenerDocumentosVenceEnYRevisionIaTests
             new AlcanceDatosServiceFalso(), e.Centros, e.Proveedores);
 
         (await IdsAsync(sinUsuario, Consulta(revisionIa: true))).Should().BeEquivalentTo([pendiente.Id, otro.Id]);
+        (await sinUsuario.Handle(Consulta(revisionIa: true), default)).FiltroRevisionIaAplicado.Should().BeFalse();
+    }
+
+    // ------------------------------------------------- lo que el resultado dice que aplicó
+
+    /// <summary>Un usuario cuyo rol efectivo cambia entre llamadas, como una Asignación heredada que pasa de Gestor CAE a Consulta.</summary>
+    private sealed class UsuarioConRolCambiante(string? rol) : CaeManager.Application.Common.ICurrentUserService
+    {
+        public string? Rol { get; set; } = rol;
+        public Task<Guid?> ObtenerUsuarioActualIdAsync() => Task.FromResult<Guid?>(Guid.NewGuid());
+        public Task<string?> ObtenerRolOrigenAsync() => ObtenerRolEfectivoAsync();
+        public Task<string?> ObtenerRolEfectivoAsync() => Task.FromResult(Rol);
+        public Task<Guid?> ObtenerTenantOrigenIdAsync() => Task.FromResult<Guid?>(Guid.NewGuid());
+        public Task<bool> TieneDobleFactorActivoAsync() => Task.FromResult(true);
+        public Task<bool> SuperoTotpEnSesionAsync() => Task.FromResult(false);
+    }
+
+    [Theory]
+    [InlineData("GestorCae", true, true)]
+    [InlineData("Administrador", true, true)]
+    [InlineData("GestorCae", false, false)]
+    [InlineData("Cliente", true, false)]
+    [InlineData("Consulta", true, false)]
+    [InlineData(null, true, false)]
+    public async Task El_resultado_dice_si_el_filtro_de_revision_IA_se_aplico_no_si_se_pidio(string? rol, bool pedido, bool aplicado)
+    {
+        var e = new Escenario();
+        e.EnRevisionIa(e.ConVencimientoEl(Hoy.AddDays(100)));
+
+        var resultado = await e.Handler(rol).Handle(Consulta(revisionIa: pedido), default);
+
+        resultado.FiltroRevisionIaAplicado.Should().Be(aplicado);
+    }
+
+    [Fact]
+    public async Task Si_el_rol_efectivo_cambia_entre_lotes_cada_resultado_dice_lo_que_aplico_esa_llamada()
+    {
+        var e = new Escenario();
+        var pendiente = e.ConVencimientoEl(Hoy.AddDays(100));
+        var otro = e.ConVencimientoEl(Hoy.AddDays(100));
+        e.EnRevisionIa(pendiente);
+        var usuario = new UsuarioConRolCambiante("GestorCae");
+        var handler = new ObtenerDocumentosQueryHandler(
+            new ConfiguracionFalsa(), e.Documentos, e.Empresas, e.Proyectos, e.Tipos, e.Trabajadores, new VehiculosFalsos(),
+            new AlcanceDatosServiceFalso(), e.Centros, e.Proveedores, usuario);
+
+        var primero = await handler.Handle(Consulta(revisionIa: true), default);
+        usuario.Rol = "Consulta";
+        var segundo = await handler.Handle(Consulta(revisionIa: true), default);
+
+        primero.FiltroRevisionIaAplicado.Should().BeTrue();
+        primero.Elementos.Select(x => x.Id).Should().Equal(pendiente.Id);
+        segundo.FiltroRevisionIaAplicado.Should().BeFalse("el handler vuelve a resolver el rol efectivo en cada llamada");
+        segundo.Elementos.Select(x => x.Id).Should().BeEquivalentTo([pendiente.Id, otro.Id]);
     }
 
     // ------------------------------------------------- columna «Revisión IA» (confianza)

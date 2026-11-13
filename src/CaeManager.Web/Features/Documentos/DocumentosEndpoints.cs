@@ -2,7 +2,6 @@ using CaeManager.Web.Components.DesignSystem;
 using CaeManager.Application.Common;
 using CaeManager.Application.Documentos.Queries.ObtenerDocumentoPorId;
 using CaeManager.Application.Documentos.Queries.ObtenerDocumentos;
-using CaeManager.Application.Documentos.Queries.ObtenerRevisionesIaPendientes;
 using CaeManager.Application.Importacion;
 using CaeManager.Application.Tenants.Queries.ObtenerClientesAutorizados;
 using CaeManager.Domain.Auditoria;
@@ -69,18 +68,18 @@ public static class DocumentosEndpoints
         CancellationToken cancellationToken,
         string? q = null, string? ambito = null, string? estado = null, string? orden = null, bool desc = false,
         string? tipo = null, string? plataforma = null, string? propietario = null, string? agrupar = null,
-        string? estadoPlataforma = null, string? venceEn = null, string? pendienteRevisionIa = null,
-        ICurrentUserService? usuarioActual = null)
+        string? estadoPlataforma = null, string? venceEn = null, string? pendienteRevisionIa = null)
     {
         // «Vence en» (D-21): solo los plazos que ofrece el listado, como número de días; cualquier otro valor se ignora.
         int? venceEnDias = int.TryParse(venceEn, System.Globalization.NumberStyles.None, System.Globalization.CultureInfo.InvariantCulture, out var plazo)
             && ObtenerDocumentosQuery.PlazosVenceEnDias.Contains(plazo)
             && plazo.ToString(System.Globalization.CultureInfo.InvariantCulture) == venceEn ? plazo : null;
-        // «Pendiente de revisión IA»: solo «1» y solo con un rol EFECTIVO que accede a la cola (ColaRevisionIa), la misma decisión
-        // que toma el handler: no el claim, que bajo una Sesión Privilegiada lleva el rol del Tenant de plataforma. Evita anotar en el
-        // registro de exportación un criterio que no se aplicó; sin servicio de usuario, falla cerrado. El handler sigue siendo la autoridad.
-        var revisionIa = pendienteRevisionIa == "1" && usuarioActual is not null
-            && ColaRevisionIa.AccedeElRol(await usuarioActual.ObtenerRolEfectivoAsync());
+        // «Pendiente de revisión IA»: solo «1». Si se aplica lo decide el handler, con el rol EFECTIVO de cada llamada (con un rol sin
+        // acceso a la cola lo ignora); el endpoint no lo vuelve a decidir: anota lo que dijo el primer lote
+        // (ResultadoPaginado.FiltroRevisionIaAplicado) y, si un lote posterior dice otra cosa (el rol efectivo cambió a mitad de la
+        // exportación), aborta en vez de servir un fichero con lotes filtrados y sin filtrar.
+        var revisionIaPedida = pendienteRevisionIa == "1";
+        bool? revisionIaAplicada = null;
         // Solo el nombre exacto de un estado, como el listado: ni números ni listas con coma.
         EstadoEnPlataformaFiltro? estadoPlataformaFiltro =
             estadoPlataforma is not null && Enum.GetNames<EstadoEnPlataformaFiltro>().Contains(estadoPlataforma, StringComparer.Ordinal)
@@ -109,8 +108,10 @@ public static class DocumentosEndpoints
         hoja.Row(1).Style.Font.Bold = true;
 
         var fila = 2;
-        await foreach (var documento in PaginadorExportacion.PaginarAsync((pagina, tamanoPagina) =>
-            mediator.Send(
+        var criterioCambiado = false;
+        await foreach (var documento in PaginadorExportacion.PaginarAsync(async (pagina, tamanoPagina) =>
+        {
+            var lote = await mediator.Send(
                 new ObtenerDocumentosQuery(
                     TrabajadorId: null,
                     Ambito: Enum.TryParse<AmbitoAplicacion>(ambito, out var ambitoFiltro) ? ambitoFiltro : null,
@@ -130,8 +131,16 @@ public static class DocumentosEndpoints
                     // El filtro «Estado en la plataforma» del listado; la agrupación por vínculo no se exporta (repetiría filas).
                     EstadosEnPlataforma: estadoPlataformaFiltro is { } estadoEnPlataforma ? [estadoEnPlataforma] : null,
                     VenceEnDias: venceEnDias,
-                    PendienteDeRevisionIa: revisionIa),
-                cancellationToken)))
+                    PendienteDeRevisionIa: revisionIaPedida),
+                cancellationToken);
+            revisionIaAplicada ??= lote.FiltroRevisionIaAplicado;
+            if (lote.FiltroRevisionIaAplicado == revisionIaAplicada)
+                return lote;
+
+            // Un lote vacío corta el paginador: las filas de este lote ni se escriben.
+            criterioCambiado = true;
+            return new ResultadoPaginado<DocumentoListaDto>([], lote.TotalElementos, pagina, tamanoPagina);
+        }))
         {
             hoja.Cell(fila, 1).Value = documento.PropietarioNombre;
             hoja.Cell(fila, 2).Value = documento.Ambito.ToString();
@@ -143,6 +152,14 @@ public static class DocumentosEndpoints
             // SetValue(string): texto tal cual, sin que un nombre de plataforma que empiece por «=» se lea como fórmula.
             hoja.Cell(fila, 7).SetValue(PlataformasCaeDelDocumento.TextoParaExcel(documento.Acreditaciones));
             fila++;
+        }
+
+        if (criterioCambiado)
+        {
+            // Ni fichero ni rastro en el registro: lo exportado hasta aquí mezclaría dos criterios. Quien exporta puede repetirlo.
+            return Results.Problem(
+                "Tus permisos han cambiado mientras se generaba la exportación. Vuelve a exportar.",
+                statusCode: StatusCodes.Status409Conflict);
         }
 
         hoja.Columns().AdjustToContents();
@@ -166,7 +183,7 @@ public static class DocumentosEndpoints
                     ("agrupar", agrupar == "ambito" ? "ambito" : null),
                     ("estadoPlataforma", estadoPlataformaFiltro?.ToString()),
                     ("venceEnDias", venceEnDias?.ToString(System.Globalization.CultureInfo.InvariantCulture)),
-                    ("pendienteRevisionIa", revisionIa ? "true" : null),
+                    ("pendienteRevisionIa", revisionIaAplicada == true ? "true" : null),
                     ("orden", CriteriosExportacion.SoloNombre(orden)), ("desc", desc ? "true" : null)),
                 cancellationToken);
         }

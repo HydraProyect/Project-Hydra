@@ -1,20 +1,24 @@
 using System.Security.Claims;
 using CaeManager.Application.Common;
 using CaeManager.Application.Documentos.Queries.ObtenerDocumentos;
+using CaeManager.Application.Documentos.Queries.ObtenerRevisionesIaPendientes;
 using CaeManager.Application.Tenants.Queries.ObtenerClientesAutorizados;
+using CaeManager.Domain.Documentos;
 using CaeManager.Infrastructure.Identity;
+using CaeManager.Web.Exportacion;
 using CaeManager.Web.Features.Documentos;
 using FluentAssertions;
 using MediatR;
 using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Http.HttpResults;
 
 namespace CaeManager.Web.Tests;
 
 /// <summary>
 /// La exportación del listado de Documentos con «Vence en» (D-21) y «Pendiente de revisión IA»: el endpoint pasa a
-/// <see cref="ObtenerDocumentosQuery"/> solo lo que el listado ofrece (7, 30 o 90 días; «1») y solo anota en el registro de
-/// exportación los criterios que se aplicaron: el filtro de revisión IA no se atiende a Cliente, Consulta ni sin rol, y entonces ni
-/// viaja ni queda anotado (el handler sigue siendo la autoridad).
+/// <see cref="ObtenerDocumentosQuery"/> solo lo que el listado ofrece (7, 30 o 90 días; «1»). Si la revisión IA se aplicó lo decide
+/// el handler con el rol efectivo de cada lote y lo dice en <see cref="ResultadoPaginado{T}.FiltroRevisionIaAplicado"/>: el endpoint
+/// anota lo que dijo el primer lote y, si un lote posterior dice otra cosa, aborta sin fichero ni registro.
 /// </summary>
 public class DocumentosExportacionFiltrosTests
 {
@@ -26,16 +30,23 @@ public class DocumentosExportacionFiltrosTests
     private sealed class RegistroCapturador : IRegistroExportacionService
     {
         public IReadOnlyDictionary<string, string>? Criterios { get; private set; }
+        public int? Filas { get; private set; }
 
         public Task RegistrarAsync(string entidadTipo, int filas, IReadOnlyDictionary<string, string> criterios,
             CancellationToken cancellationToken = default)
         {
             Criterios = criterios;
+            Filas = filas;
             return Task.CompletedTask;
         }
     }
 
-    private sealed class MediadorCapturador : IMediator
+    /// <summary>
+    /// Hace de handler: <paramref name="rolPorLote"/> da el rol efectivo con el que se resuelve cada lote (1, 2…), y el filtro se
+    /// aplica, como en <see cref="ObtenerDocumentosQueryHandler"/>, si se pidió y ese rol accede a la cola. <paramref name="filasPorLote"/>
+    /// da cuántas filas devuelve cada lote: un lote completo hace que el paginador pida el siguiente.
+    /// </summary>
+    private sealed class MediadorFalso(Func<int, string?> rolPorLote, Func<int, int> filasPorLote) : IMediator
     {
         public List<ObtenerDocumentosQuery> Consultas { get; } = [];
 
@@ -46,7 +57,14 @@ public class DocumentosExportacionFiltrosTests
 
             var consulta = (ObtenerDocumentosQuery)(object)request;
             Consultas.Add(consulta);
-            return Task.FromResult((TResponse)(object)new ResultadoPaginado<DocumentoListaDto>([], 0, consulta.Pagina, consulta.TamanoPagina));
+            var filas = Enumerable.Range(0, filasPorLote(consulta.Pagina))
+                .Select(_ => new DocumentoListaDto(Guid.NewGuid(), AmbitoAplicacion.Trabajador, "Propietario", "Tipo",
+                    new DateOnly(2026, 1, 1), null, EstadoDocumento.Vigente, null, []))
+                .ToList();
+            return Task.FromResult((TResponse)(object)new ResultadoPaginado<DocumentoListaDto>(filas, filas.Count, consulta.Pagina, consulta.TamanoPagina)
+            {
+                FiltroRevisionIaAplicado = consulta.PendienteDeRevisionIa && ColaRevisionIa.AccedeElRol(rolPorLote(consulta.Pagina))
+            });
         }
         public Task<object?> Send(object request, CancellationToken cancellationToken = default) => throw new NotSupportedException();
         public Task Send<TRequest>(TRequest request, CancellationToken cancellationToken = default) where TRequest : IRequest => throw new NotSupportedException();
@@ -56,36 +74,27 @@ public class DocumentosExportacionFiltrosTests
         public Task Publish<TNotification>(TNotification notification, CancellationToken cancellationToken = default) where TNotification : INotification => throw new NotSupportedException();
     }
 
-    private sealed class UsuarioActualFalso(string? rolEfectivo) : ICurrentUserService
+    private sealed record Exportacion(IResult Resultado, IReadOnlyList<ObtenerDocumentosQuery> Consultas, RegistroCapturador Registro)
     {
-        public Task<Guid?> ObtenerUsuarioActualIdAsync() => Task.FromResult<Guid?>(Guid.NewGuid());
-        public Task<string?> ObtenerRolOrigenAsync() => ObtenerRolEfectivoAsync();
-        public Task<string?> ObtenerRolEfectivoAsync() => Task.FromResult(rolEfectivo);
-        public Task<Guid?> ObtenerTenantOrigenIdAsync() => Task.FromResult<Guid?>(Guid.NewGuid());
-        public Task<bool> TieneDobleFactorActivoAsync() => Task.FromResult(true);
+        public ObtenerDocumentosQuery Consulta => Consultas.Should().ContainSingle().Subject;
+        public IReadOnlyDictionary<string, string> Criterios => Registro.Criterios ?? new Dictionary<string, string>();
     }
 
-    /// <summary>
-    /// <paramref name="rol"/> es el rol efectivo (el que decide el handler) y, salvo que se diga otro, también el claim de la sesión.
-    /// <paramref name="sinServicioDeUsuario"/> simula un endpoint sin <see cref="ICurrentUserService"/>.
-    /// </summary>
-    private static async Task<(ObtenerDocumentosQuery Consulta, IReadOnlyDictionary<string, string> Criterios)> ExportarAsync(
-        string? rol, string? venceEn = null, string? pendienteRevisionIa = null, string? claim = "igual", bool sinServicioDeUsuario = false)
+    private static async Task<Exportacion> ExportarAsync(
+        Func<int, string?> rolPorLote, string? venceEn = null, string? pendienteRevisionIa = null, Func<int, int>? filasPorLote = null)
     {
-        claim = claim == "igual" ? rol : claim;
-        var contexto = new DefaultHttpContext
-        {
-            User = new ClaimsPrincipal(new ClaimsIdentity(claim is null ? [] : [new Claim(ClaimTypes.Role, claim)], "prueba"))
-        };
-        var mediador = new MediadorCapturador();
+        var contexto = new DefaultHttpContext { User = new ClaimsPrincipal(new ClaimsIdentity([], "prueba")) };
+        var mediador = new MediadorFalso(rolPorLote, filasPorLote ?? (_ => 0));
         var registro = new RegistroCapturador();
 
-        await DocumentosEndpoints.ExportarAsync(contexto, mediador, new TenantActualFalso(), registro, default,
-            venceEn: venceEn, pendienteRevisionIa: pendienteRevisionIa,
-            usuarioActual: sinServicioDeUsuario ? null : new UsuarioActualFalso(rol));
+        var resultado = await DocumentosEndpoints.ExportarAsync(contexto, mediador, new TenantActualFalso(), registro, default,
+            venceEn: venceEn, pendienteRevisionIa: pendienteRevisionIa);
 
-        return (mediador.Consultas.Should().ContainSingle().Subject, registro.Criterios ?? new Dictionary<string, string>());
+        return new Exportacion(resultado, mediador.Consultas, registro);
     }
+
+    private static Task<Exportacion> ExportarAsync(string? rol, string? venceEn = null, string? pendienteRevisionIa = null)
+        => ExportarAsync(_ => rol, venceEn, pendienteRevisionIa);
 
     [Theory]
     [InlineData("7", 7)]
@@ -93,10 +102,10 @@ public class DocumentosExportacionFiltrosTests
     [InlineData("90", 90)]
     public async Task Cada_plazo_que_ofrece_el_listado_llega_a_la_consulta_y_al_registro(string venceEn, int dias)
     {
-        var (consulta, criterios) = await ExportarAsync(Roles.GestorCae, venceEn: venceEn);
+        var exportacion = await ExportarAsync(Roles.GestorCae, venceEn: venceEn);
 
-        consulta.VenceEnDias.Should().Be(dias);
-        criterios["venceEnDias"].Should().Be(venceEn);
+        exportacion.Consulta.VenceEnDias.Should().Be(dias);
+        exportacion.Criterios["venceEnDias"].Should().Be(venceEn);
     }
 
     [Fact]
@@ -118,10 +127,10 @@ public class DocumentosExportacionFiltrosTests
     [InlineData(null)]
     public async Task Un_plazo_que_el_listado_no_ofrece_se_ignora_y_no_se_anota(string? venceEn)
     {
-        var (consulta, criterios) = await ExportarAsync(Roles.GestorCae, venceEn: venceEn);
+        var exportacion = await ExportarAsync(Roles.GestorCae, venceEn: venceEn);
 
-        consulta.VenceEnDias.Should().BeNull();
-        criterios.Should().NotContainKey("venceEnDias");
+        exportacion.Consulta.VenceEnDias.Should().BeNull();
+        exportacion.Criterios.Should().NotContainKey("venceEnDias");
     }
 
     [Theory]
@@ -131,48 +140,70 @@ public class DocumentosExportacionFiltrosTests
     [InlineData(Roles.GestorCae)]
     public async Task Con_un_rol_que_accede_a_la_cola_la_revision_IA_llega_a_la_consulta_y_se_anota(string rol)
     {
-        var (consulta, criterios) = await ExportarAsync(rol, pendienteRevisionIa: "1");
+        var exportacion = await ExportarAsync(rol, pendienteRevisionIa: "1");
 
-        consulta.PendienteDeRevisionIa.Should().BeTrue();
-        criterios["pendienteRevisionIa"].Should().Be("true");
+        exportacion.Consulta.PendienteDeRevisionIa.Should().BeTrue();
+        exportacion.Criterios["pendienteRevisionIa"].Should().Be("true");
     }
 
+    /// <summary>
+    /// El endpoint no decide por su cuenta: pasa lo pedido y el handler, que es la autoridad, lo ignora con un rol efectivo sin
+    /// acceso a la cola (Usuario de Cliente, Consulta, desconocido o ninguno, como bajo una Sesión Privilegiada). El registro anota lo
+    /// que el handler aplicó, no lo que se pidió.
+    /// </summary>
     [Theory]
     [InlineData(Roles.Cliente)]
     [InlineData(Roles.Consulta)]
     [InlineData("Inventado")]
     [InlineData(null)]
-    public async Task Sin_acceso_a_la_cola_la_revision_IA_ni_llega_a_la_consulta_ni_se_anota_en_el_registro(string? rol)
+    public async Task Sin_acceso_a_la_cola_el_handler_no_aplica_la_revision_IA_y_el_registro_no_la_anota(string? rol)
     {
-        var (consulta, criterios) = await ExportarAsync(rol, venceEn: "30", pendienteRevisionIa: "1");
+        var exportacion = await ExportarAsync(rol, venceEn: "30", pendienteRevisionIa: "1");
 
-        consulta.PendienteDeRevisionIa.Should().BeFalse();
-        criterios.Should().NotContainKey("pendienteRevisionIa", "el handler no la aplicó: el registro no puede decir que sí");
-        consulta.VenceEnDias.Should().Be(30, "control: «Vence en» no depende del rol");
+        exportacion.Resultado.Should().BeOfType<FileStreamHttpResult>();
+        exportacion.Criterios.Should().NotContainKey("pendienteRevisionIa", "el handler no la aplicó: el registro no puede decir que sí");
+        exportacion.Consulta.VenceEnDias.Should().Be(30, "control: «Vence en» no depende del rol");
     }
 
     /// <summary>
-    /// Bajo una Sesión Privilegiada el claim lleva el rol del Tenant de plataforma («Administrador») pero el rol efectivo es null: el
-    /// handler ignora el filtro, así que el registro tampoco puede anotarlo. Y sin servicio de usuario, falla cerrado.
+    /// Hallazgo de la PR #2201: una Asignación heredada que pasa de Gestor CAE a Consulta a mitad de la exportación. El primer lote
+    /// sale filtrado y el segundo no: servirlo mezclaría dos criterios en el fichero y el registro anotaría uno que no se aplicó a
+    /// todo. Se aborta, en los dos sentidos del cambio, sin fichero y sin registro.
     /// </summary>
     [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public async Task Con_claim_de_gestion_pero_sin_rol_efectivo_o_sin_servicio_no_se_anota_la_revision_IA(bool sinServicio)
+    [InlineData(Roles.GestorCae, Roles.Consulta)]
+    [InlineData(Roles.Consulta, Roles.GestorCae)]
+    public async Task Si_el_rol_efectivo_cambia_entre_lotes_la_exportacion_se_aborta_sin_fichero_ni_registro(string rolPrimerLote, string rolDespues)
     {
-        var (consulta, criterios) = await ExportarAsync(rol: null, pendienteRevisionIa: "1", claim: Roles.Administrador, sinServicioDeUsuario: sinServicio);
+        var exportacion = await ExportarAsync(lote => lote == 1 ? rolPrimerLote : rolDespues, pendienteRevisionIa: "1",
+            filasPorLote: lote => lote == 1 ? PaginadorExportacion.TamanoLotePorDefecto : 3);
 
-        consulta.PendienteDeRevisionIa.Should().BeFalse();
-        criterios.Should().NotContainKey("pendienteRevisionIa");
+        exportacion.Consultas.Should().HaveCount(2, "el cambio se detecta en el segundo lote");
+        exportacion.Resultado.Should().BeOfType<ProblemHttpResult>().Which.StatusCode.Should().Be(StatusCodes.Status409Conflict);
+        exportacion.Registro.Criterios.Should().BeNull("una exportación abortada no se sirve ni se anota");
     }
 
     [Fact]
-    public async Task El_rol_efectivo_manda_sobre_el_claim_tambien_en_el_otro_sentido()
+    public async Task Con_gestion_en_todos_los_lotes_se_exporta_todo_y_se_anota_la_revision_IA()
     {
-        var (consulta, criterios) = await ExportarAsync(Roles.GestorCae, pendienteRevisionIa: "1", claim: Roles.Consulta);
+        var exportacion = await ExportarAsync(_ => Roles.GestorCae, pendienteRevisionIa: "1",
+            filasPorLote: lote => lote == 1 ? PaginadorExportacion.TamanoLotePorDefecto : 3);
 
-        consulta.PendienteDeRevisionIa.Should().BeTrue("el handler decide por el rol efectivo, y el registro dice lo mismo que el handler");
-        criterios["pendienteRevisionIa"].Should().Be("true");
+        exportacion.Consultas.Should().HaveCount(2).And.OnlyContain(c => c.PendienteDeRevisionIa);
+        exportacion.Resultado.Should().BeOfType<FileStreamHttpResult>();
+        exportacion.Registro.Filas.Should().Be(PaginadorExportacion.TamanoLotePorDefecto + 3);
+        exportacion.Criterios["pendienteRevisionIa"].Should().Be("true");
+    }
+
+    [Fact]
+    public async Task Sin_pedir_la_revision_IA_un_cambio_de_rol_entre_lotes_no_aborta()
+    {
+        var exportacion = await ExportarAsync(lote => lote == 1 ? Roles.GestorCae : Roles.Consulta,
+            filasPorLote: lote => lote == 1 ? PaginadorExportacion.TamanoLotePorDefecto : 3);
+
+        exportacion.Resultado.Should().BeOfType<FileStreamHttpResult>("sin el filtro pedido, ningún lote lo aplica");
+        exportacion.Registro.Filas.Should().Be(PaginadorExportacion.TamanoLotePorDefecto + 3);
+        exportacion.Criterios.Should().NotContainKey("pendienteRevisionIa");
     }
 
     [Theory]
@@ -182,9 +213,9 @@ public class DocumentosExportacionFiltrosTests
     [InlineData(null)]
     public async Task Solo_el_valor_1_activa_la_revision_IA(string? valor)
     {
-        var (consulta, criterios) = await ExportarAsync(Roles.GestorCae, pendienteRevisionIa: valor);
+        var exportacion = await ExportarAsync(Roles.GestorCae, pendienteRevisionIa: valor);
 
-        consulta.PendienteDeRevisionIa.Should().BeFalse();
-        criterios.Should().NotContainKey("pendienteRevisionIa");
+        exportacion.Consulta.PendienteDeRevisionIa.Should().BeFalse();
+        exportacion.Criterios.Should().NotContainKey("pendienteRevisionIa");
     }
 }

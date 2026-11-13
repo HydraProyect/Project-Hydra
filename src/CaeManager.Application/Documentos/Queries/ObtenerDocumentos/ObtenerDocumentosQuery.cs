@@ -78,7 +78,8 @@ namespace CaeManager.Application.Documentos.Queries.ObtenerDocumentos;
 /// Filtro «Pendiente de revisión IA»: solo los Documentos que están hoy en la cola de Revisión IA de quien mira
 /// (<see cref="ColaRevisionIa"/>, la misma consulta que la pestaña). Solo se atiende con un rol que accede a esa pestaña
 /// (<see cref="ColaRevisionIa.RolesQueAccedenALaPestana"/>): con cualquier otro (Usuario de Cliente, Consulta, sin rol) el
-/// servidor lo ignora, como si no hubiera llegado. El listado solo enseña Documentos operativos, así que una revisión
+/// servidor lo ignora, como si no hubiera llegado, y el resultado lo dice en
+/// <see cref="ResultadoPaginado{T}.FiltroRevisionIaAplicado"/> (lo que se aplicó, no lo que se pidió). El listado solo enseña Documentos operativos, así que una revisión
 /// de un Documento sustituido, que la cola sí muestra, no lo incluye.
 /// </param>
 public record ObtenerDocumentosQuery(
@@ -534,7 +535,10 @@ public class ObtenerDocumentosQueryHandler(IConfiguracionQueryContext configurac
         return new ResultadoPaginado<DocumentoListaDto>(elementos, total, request.Pagina, request.TamanoPagina)
         {
             RecuentosPorEstado = recuentosPorEstado,
-            ResumenPorGrupo = resumenPorGrupo
+            ResumenPorGrupo = resumenPorGrupo,
+            // Lo que este handler decidió con el rol efectivo de esta llamada: la exportación lo anota y comprueba que no cambie
+            // entre lotes, en vez de resolver el rol por su cuenta.
+            FiltroRevisionIaAplicado = aplicaRevisionIa
         };
     }
 
