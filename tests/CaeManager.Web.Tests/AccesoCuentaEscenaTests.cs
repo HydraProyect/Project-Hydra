@@ -1628,6 +1628,33 @@ public class AccesoCuentaEscenaTests : BunitContext
     }
 
     /// <summary>
+    /// ASVS 4.0.3 V7.1.1: si el envío del enlace de contraseña nueva devuelve un <see cref="Result"/> fallido cuyo
+    /// mensaje cita una dirección, el registro lleva el id de la cuenta y nada del mensaje ni de la dirección.
+    /// Recorre el servicio real y captura todas las entradas de cualquier nivel.
+    /// </summary>
+    [Fact]
+    public async Task No_he_sido_yo_si_el_envio_del_enlace_devuelve_un_fallo_el_registro_no_lleva_su_mensaje_ni_la_direccion()
+    {
+        const string Fuga = "fuga@ejemplo.test";
+        const string MensajeDelError = $"El SMTP rechazó el buzón {Fuga}: 550 usuario desconocido";
+        _sesiones.Lanza = true;
+        var registro = new RegistroQueCapturaTodo<VigilanciaInicioSesionService>();
+        var escena = new EscenaNoHeSidoYo(this, registroCompleto: registro);
+        escena.Correos.FallaPara = escena.Usuario.Email;
+        escena.Correos.MensajeDelFallo = MensajeDelError;
+
+        var resultado = await escena.ConfirmarAsync();
+
+        resultado.Should().Be(ResultadoNoHeSidoYo.SesionesSinCerrar);
+        registro.Entradas.Should().Contain(
+            e => e.Nivel == LogLevel.Warning && e.Contenido.Contains("No se pudo enviar el enlace de contraseña nueva"),
+            "el envío fallido deja su aviso");
+        registro.DebeEstarLimpioDeDatosPersonales(
+            Fuga, Fuga.ToUpperInvariant(), "fuga", MensajeDelError, "El SMTP rechazó", "usuario desconocido", "Correo.Fallo",
+            escena.Usuario.Email!);
+    }
+
+    /// <summary>
     /// ASVS 4.0.3 V7.1.1: si el aviso al Administrador lanza (el servicio de correo cita su dirección en el
     /// mensaje), el registro lleva el id de la cuenta y el tipo de la excepción, ni la dirección de nadie ni la
     /// excepción entera. La persona que pulsó «no he sido yo» queda protegida igualmente.
@@ -1841,6 +1868,9 @@ public class AccesoCuentaEscenaTests : BunitContext
         public List<(string Destinatario, string Asunto, string Cuerpo)> Enviados { get; } = [];
         public string? FallaPara { get; set; }
 
+        /// <summary>Mensaje del <see cref="Result"/> fallido de <see cref="FallaPara"/>.</summary>
+        public string MensajeDelFallo { get; set; } = "fallo simulado";
+
         /// <summary>Un servicio que revienta, con la dirección en el mensaje, en vez de devolver un resultado.</summary>
         public string? LanzaPara { get; set; }
 
@@ -1849,7 +1879,7 @@ public class AccesoCuentaEscenaTests : BunitContext
             if (destinatarioEmail == LanzaPara)
                 throw new InvalidOperationException($"550 el buzón {destinatarioEmail} no existe");
             if (destinatarioEmail == FallaPara)
-                return Task.FromResult(Result.Fallo(Error.Crear("Correo.Fallo", "fallo simulado")));
+                return Task.FromResult(Result.Fallo(Error.Crear("Correo.Fallo", MensajeDelFallo)));
             Enviados.Add((destinatarioEmail, asunto, cuerpoHtml));
             return Task.FromResult(Result.Exito());
         }

@@ -1165,6 +1165,30 @@ public partial class UsuariosGen2Tests : BunitContext
     }
 
     /// <summary>
+    /// ASVS 4.0.3 V7.1.1: cuando el servicio de correo devuelve un <see cref="Result"/> fallido cuyo mensaje cita
+    /// una dirección, el registro lleva el id de la cuenta y nada del mensaje ni de la dirección. Recorre la
+    /// página real y captura todas las entradas de cualquier nivel.
+    /// </summary>
+    [Fact]
+    public async Task Si_el_envio_del_correo_de_activacion_devuelve_un_fallo_el_registro_no_lleva_su_mensaje_ni_la_direccion()
+    {
+        const string Fuga = "fuga@ejemplo.test";
+        const string MensajeDelError = $"El SMTP rechazó el buzón {Fuga}: 550 usuario desconocido";
+        var registro = new RegistroQueCapturaTodo<PaginaUsuarios>();
+        var cut = await AltaConCorreoQueNoContestaAsync(registro);
+
+        _correo.Retenido!.SetResult(Result.Fallo(Error.Crear("Correo.Rechazado", MensajeDelError)));
+
+        cut.WaitForAssertion(() =>
+            registro.Entradas.Should().Contain(
+                e => e.Nivel == LogLevel.Warning && e.Contenido.Contains("No se pudo enviar el correo de activación"),
+                "el envío fallido deja su aviso"));
+        registro.DebeEstarLimpioDeDatosPersonales(
+            Fuga, Fuga.ToUpperInvariant(), "fuga", MensajeDelError, "El SMTP rechazó", "usuario desconocido", "Correo.Rechazado",
+            "nuevo@talveg.es");
+    }
+
+    /// <summary>
     /// Si el modal ya se cerró cuando el correo falla, el aviso no manda mirar un
     /// enlace «abajo» que ya no está, y el modal no se reabre.
     /// </summary>
