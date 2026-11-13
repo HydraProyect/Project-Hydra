@@ -11,7 +11,7 @@
         <PastillaInterruptor Etiqueta="Pendiente de revisión IA" Activa="@_pendiente" ActivaChanged="CambiarAsync" />
 *@
 <div class="pastilla-interruptor-lista">
-    <button type="button" class="@(Activa ? "pastilla-interruptor pastilla-interruptor-activa" : "pastilla-interruptor")"
+    <button type="button" class="pastilla-interruptor"
             aria-pressed="@(Activa ? "true" : "false")" data-keytip="@Keytip" data-keytip-nombre="@Etiqueta"
             @onclick="AlternarAsync">@Etiqueta</button>
 </div>

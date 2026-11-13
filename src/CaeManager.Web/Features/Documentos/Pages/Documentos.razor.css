@@ -505,6 +505,11 @@
 .documentos-tabla-desplazable ::deep .documentos-confianza-relleno-advertencia { background: var(--color-warning-500); }
 .documentos-tabla-desplazable ::deep .documentos-confianza-relleno-peligro { background: var(--color-danger-500); }
 
+/* Vista sin agrupar con «Revisión IA»: la tabla de layout fijo ya no reparte 173 px por columna, y «Estado documental» (144 px de texto,
+   más el relleno de 16 px a cada lado) cabe entera. La columna de confianza lleva la barra de 72 px y «Confianza 100 %» en una línea. */
+.documentos-tabla-desplazable ::deep .documentos-tabla-visible thead th.documentos-th-estado-con-revision-ia { width: 184px; }
+.documentos-tabla-desplazable ::deep .documentos-tabla-visible thead th.documentos-th-revision-ia { width: 190px; }
+
 /* «Vence»: la fecha de emisión de una fila «No caduca» se lee entera, en dos líneas si hace falta, en vez de cortarse con «…». */
 .documentos-tabla-desplazable ::deep .documentos-fila-una-linea .documentos-vigencia .documentos-vigencia-subtitulo {
     white-space: normal;

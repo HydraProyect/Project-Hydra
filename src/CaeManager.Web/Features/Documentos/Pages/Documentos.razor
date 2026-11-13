@@ -284,9 +284,9 @@
                                         </div>
                                     }
                                 </th>
-                                <th scope="col" aria-sort="@AriaOrdenGrupo("estado")"><button type="button" class="col-title documentos-orden-grupo" title="@Textos["ListaEstado"]" @onclick="() => OrdenarGrupoAsync(_columnaEstado)">@Textos["ListaEstado"]</button></th>
+                                <th scope="col" class="@(AnchosFijosPorRevisionIa ? "documentos-th-estado-con-revision-ia" : null)" aria-sort="@AriaOrdenGrupo("estado")"><button type="button" class="col-title documentos-orden-grupo" title="@Textos["ListaEstado"]" @onclick="() => OrdenarGrupoAsync(_columnaEstado)">@Textos["ListaEstado"]</button></th>
                                 @if (AgrupadaPorPlataforma) { <th scope="col" class="documentos-th-texto" title="@Textos["ListaEstadoEnPlataforma"]">@Textos["ListaEstadoEnPlataforma"]</th> }
-                                @if (ColumnaRevisionIa) { <th scope="col" class="documentos-th-texto" title="@Textos["ListaRevisionIa"]">@Textos["ListaRevisionIa"]</th> }
+                                @if (ColumnaRevisionIa) { <th scope="col" class="@("documentos-th-texto" + (AnchosFijosPorRevisionIa ? " documentos-th-revision-ia" : null))" title="@Textos["ListaRevisionIa"]">@Textos["ListaRevisionIa"]</th> }
                                 <th scope="col" class="documentos-celda-acciones"><span class="documentos-solo-lectores">@Textos["ListaAcciones"]</span></th>
                             </tr></thead>
                             @if (_totalElementos == 0 && !_cargando && HayFiltrosActivos)
@@ -661,7 +661,7 @@
                                 @if (context.ConfianzaRevisionIa is { } confianza)
                                 {
                                     <span class="documentos-confianza" data-testid="documentos-confianza">
-                                        <span class="documentos-confianza-barra" aria-hidden="true"><i class="@($"documentos-confianza-relleno documentos-confianza-relleno-{TonoConfianza(confianza)}")" style="@($"width:{Math.Clamp(confianza, 0, 100)}%")"></i></span>
+                                        <span class="documentos-confianza-barra" aria-hidden="true"><i class="@($"documentos-confianza-relleno documentos-confianza-relleno-{TonoDeConfianzaIa.Clave(confianza)}")" style="@($"width:{Math.Clamp(confianza, 0, 100)}%")"></i></span>
                                         @Textos["RevIaConfianzaN", confianza]
                                     </span>
                                 }

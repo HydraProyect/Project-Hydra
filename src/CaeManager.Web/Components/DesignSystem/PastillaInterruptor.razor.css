@@ -4,7 +4,8 @@
    listado sin pestañas» (las dos son «pastilla-filtro» con aria-pressed): 36 px de alto, relleno de 14 px, 14 px/600, borde fuerte y fondo de
    superficie. Dentro de una lista de diseño (.lista-design) esas medidas las fija lista-design.css con el mismo selector que las pastillas de
    filtro, así que no pueden separarse; esto es solo la base fuera de ella. El estado lo da aria-pressed (y el chip de filtros activos),
-   no un color propio: una pastilla de filtro con valor tampoco lo lleva en las listas de diseño. */
+   no un color ni una clase propios: el artboard dibuja la pastilla activa y «Vence en» activo igual, como pastilla-filtro[aria-pressed=true],
+   y una pastilla de filtro con valor tampoco lleva color propio en las listas de diseño. */
 .pastilla-interruptor {
     display: inline-flex;
     align-items: center;

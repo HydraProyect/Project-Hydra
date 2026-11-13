@@ -9,6 +9,7 @@ using CaeManager.Domain.Documentos;
 using CaeManager.Infrastructure.Identity;
 using CaeManager.Web.Components.DesignSystem;
 using CaeManager.Web.Components.Workspace;
+using CaeManager.Web.Features.Documentos.Components;
 using FluentAssertions;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Web;
@@ -303,6 +304,61 @@ public partial class DocumentosGen2Tests
         // Los siete anchos del artboard Agrupar-plataforma, con la columna nueva (190 px) entre «Estado en la plataforma» y las acciones.
         anchos.Should().Equal("width: 14%", "width: 23%", "width: 13%", "width: 10%", "width: 12%", "width: 15%", "width: 190px", "width: 232px");
         CabecerasDeLaTabla(cut).Should().HaveCount(anchos.Count, "una columna del colgroup por cabecera");
+    }
+
+    /// <summary>
+    /// Sin agrupar no hay <c>colgroup</c>: la tabla de layout fijo reparte a partes iguales y «Estado documental» se cortaba con «…» a 1440 px.
+    /// Con la columna «Revisión IA» las dos cabeceras que cambian llevan su ancho propio (el CSS fija 184 px y 190 px); sin ella, ninguna.
+    /// </summary>
+    [Fact]
+    public void Sin_agrupar_con_Revision_IA_el_estado_y_la_columna_nueva_llevan_ancho_propio_y_sin_el_filtro_la_vista_no_cambia()
+    {
+        var (cut, _) = Renderizar(ConConfianzas(), url: "documentos?PendienteRevisionIa=1", rol: "GestorCae");
+        cut.WaitForAssertion(() => CabecerasDeLaTabla(cut).Should().Contain("Revisión IA"));
+
+        cut.FindAll("table.documentos-tabla-visible colgroup").Should().BeEmpty("sin agrupar no hay colgroup");
+        cut.FindAll("th.documentos-th-estado-con-revision-ia").Should().ContainSingle()
+            .Which.TextContent.Trim().Should().Be("Estado documental");
+        cut.FindAll("th.documentos-th-revision-ia").Should().ContainSingle()
+            .Which.TextContent.Trim().Should().Be("Revisión IA");
+    }
+
+    [Fact]
+    public void Sin_el_filtro_las_cabeceras_no_llevan_los_anchos_de_la_variante_con_Revision_IA()
+    {
+        var (cut, mediador) = Renderizar(ConConfianzas(), rol: "GestorCae");
+        cut.WaitForAssertion(() => mediador.Enviadas.OfType<ObtenerDocumentosQuery>().Should().NotBeEmpty());
+        cut.WaitForAssertion(() => cut.FindAll("table.documentos-tabla-visible tbody tr").Should().NotBeEmpty());
+
+        cut.FindAll("th.documentos-th-estado-con-revision-ia, th.documentos-th-revision-ia").Should().BeEmpty();
+    }
+
+    /// <summary>La pastilla activa se señala con <c>aria-pressed</c>, no con una clase propia: se ve igual que «Vence en» activo.</summary>
+    [Fact]
+    public async Task La_pastilla_Pendiente_de_revision_IA_activa_lo_senala_aria_pressed_y_no_una_clase_propia()
+    {
+        var (cut, mediador) = Renderizar(ConOpcionesDeFiltro(), rol: "GestorCae");
+        cut.WaitForAssertion(() => mediador.Enviadas.OfType<ObtenerDocumentosQuery>().Should().NotBeEmpty());
+
+        await PastillaRevisionIa(cut).ClickAsync(new MouseEventArgs());
+
+        cut.WaitForAssertion(() => PastillaRevisionIa(cut).GetAttribute("aria-pressed").Should().Be("true"));
+        PastillaRevisionIa(cut).ClassList.Should().Equal("pastilla-interruptor");
+    }
+
+    // ------------------------------------------------------------- Tono de la confianza (barra del listado y pestaña Revisión IA)
+
+    [Theory]
+    [InlineData(100, "exito")]
+    [InlineData(95, "exito")]
+    [InlineData(94, "advertencia")]
+    [InlineData(70, "advertencia")]
+    [InlineData(69, "peligro")]
+    [InlineData(0, "peligro")]
+    public void El_tono_de_la_confianza_corta_en_95_y_en_70_para_el_listado_y_la_pestana(int confianza, string esperado)
+    {
+        TonoDeConfianzaIa.Clave(confianza).Should().Be(esperado);
+        TonoDeConfianzaIa.De(confianza).ToString().ToLowerInvariant().Should().Be(esperado);
     }
 
     // ------------------------------------------------------------- «Limpiar», vista recordada y filtro guardado

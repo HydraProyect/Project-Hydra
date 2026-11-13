@@ -945,13 +945,14 @@ public partial class Documentos : CaeManager.Web.Components.PaginaInteractiva, I
 
     private const string AnchoColumnaRevisionIa = "190px";
 
-    /// <summary>Color del relleno de la barra de confianza: el mismo corte que la pestaña Revisión IA (95 y 70).</summary>
-    private static string TonoConfianza(int confianza) => confianza switch
-    {
-        >= 95 => "exito",
-        >= 70 => "advertencia",
-        _ => "peligro"
-    };
+    /// <summary>
+    /// La vista sin agrupar (o por Ámbito) con la columna «Revisión IA»: sin <c>colgroup</c>, la tabla de layout fijo reparte el ancho a
+    /// partes iguales (173 px por columna a 1440 px) y «Estado documental» (144 px de texto) se cortaba con «…» en su caja de 141 px.
+    /// Las dos columnas que cambian llevan ancho propio en el CSS (190 px «Revisión IA», 184 px «Estado documental»); las demás se reparten
+    /// el resto. Las agrupaciones ya fijan sus anchos en el <c>colgroup</c> (<see cref="AnchosColumnasAgrupadas"/>), y la vista sin el
+    /// filtro no cambia.
+    /// </summary>
+    private bool AnchosFijosPorRevisionIa => ColumnaRevisionIa && !AgrupadaPorPlataforma && !AgrupadaPorTipo && !AgrupadaPorCliente;
 
     private AgrupacionDocumentos? AgrupacionPedida => _agrupacion switch
     {
