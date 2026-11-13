@@ -109,6 +109,8 @@ public class AtajosFicha360Tests(WebAppFixture fixture)
         var semillaCif = Random.Shared.Next(9_000_000, 9_500_000);
 
         // Mismo circuito de alta que AltaGuiadaTests, en el Tenant del Administrador (el que comparten los E2E).
+        // D-P11: el Tenant admite una sola Empresa propia activa; la de un test anterior deja de ser propia antes del paso 1.
+        await fixture.LiberarEmpresaPropiaDelTenantPrincipalAsync();
         await Ayudas.NavegarYEsperarAsync(page, $"{fixture.BaseUrl}/clientes/alta-guiada");
         await page.GetByRole(AriaRole.Heading, new() { Name = "1. Empresa" }).WaitForAsync();
         await page.GetByLabel("Razón social").FillAsync(empresa);

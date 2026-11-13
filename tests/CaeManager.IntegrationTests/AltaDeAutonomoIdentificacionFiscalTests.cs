@@ -49,7 +49,7 @@ public class AltaDeAutonomoIdentificacionFiscalTests : IAsyncLifetime
         {
             var handler = new CrearEmpresaCommandHandler(
                 new EmpresaRepository(contexto), new RelacionEmpresarialRepository(contexto), contexto,
-                new AlcanceDatosServiceFalso(), contexto);
+                new AlcanceDatosServiceFalso(), contexto, new LimiteEmpresaPropiaSinAplicar());
 
             var resultado = await handler.Handle(
                 new CrearEmpresaCommand("Marta Ruiz Salas", identificacion, []), CancellationToken.None);
@@ -76,7 +76,7 @@ public class AltaDeAutonomoIdentificacionFiscalTests : IAsyncLifetime
         {
             var handler = new CrearEmpresaCommandHandler(
                 new EmpresaRepository(contexto), new RelacionEmpresarialRepository(contexto), contexto,
-                new AlcanceDatosServiceFalso(), contexto);
+                new AlcanceDatosServiceFalso(), contexto, new LimiteEmpresaPropiaSinAplicar());
 
             var primera = await handler.Handle(
                 new CrearEmpresaCommand("Marta Ruiz Salas", DniDeLaAutonoma, []), CancellationToken.None);
@@ -88,7 +88,7 @@ public class AltaDeAutonomoIdentificacionFiscalTests : IAsyncLifetime
         {
             var handler = new CrearEmpresaCommandHandler(
                 new EmpresaRepository(contexto), new RelacionEmpresarialRepository(contexto), contexto,
-                new AlcanceDatosServiceFalso(), contexto);
+                new AlcanceDatosServiceFalso(), contexto, new LimiteEmpresaPropiaSinAplicar());
 
             var segunda = await handler.Handle(
                 new CrearEmpresaCommand("Marta Ruiz Salas Consultoría", DniDeLaAutonoma, []), CancellationToken.None);
@@ -107,7 +107,7 @@ public class AltaDeAutonomoIdentificacionFiscalTests : IAsyncLifetime
         await using var contexto = CrearContexto();
         var handler = new CrearEmpresaCommandHandler(
             new EmpresaRepository(contexto), new RelacionEmpresarialRepository(contexto), contexto,
-            new AlcanceDatosServiceFalso(), contexto);
+            new AlcanceDatosServiceFalso(), contexto, new LimiteEmpresaPropiaSinAplicar());
 
         var accion = async () => await handler.Handle(
             new CrearEmpresaCommand("Marta Ruiz Salas", "77189989A", []), CancellationToken.None);

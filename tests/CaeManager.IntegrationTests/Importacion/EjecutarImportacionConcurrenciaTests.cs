@@ -351,7 +351,7 @@ public class EjecutarImportacionConcurrenciaTests : IAsyncLifetime
             new AsignacionRepository(contexto), new OperacionImportacionRepository(contexto),
             contexto, contexto, contexto, contexto, contexto, contexto,
             new AutorizacionEscrituraEfectivaFalsa(), AltaAcreditacionesDePrueba.Con(contexto), new AlcanceDatosServiceFalso(),
-            serializacion ?? new SerializacionAltasSinBloqueo());
+            serializacion ?? new SerializacionAltasSinBloqueo(), new LimiteEmpresaPropiaSinAplicar());
 
     private CaeManagerDbContext CrearContexto()
     {

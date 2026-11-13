@@ -40,7 +40,7 @@ public class EjecutarImportacionCombinadaCommandAutorizacionTests
             new DocumentosFalsos.EmpresasQueryContextFalso(),
             new PlantillasFalsas.TrabajadoresQueryContextFalso(),
             new OperacionImportacionRepositorioFalso(),
-            autorizacion, new ClientesFalsos.AlcanceDatosServiceFalso());
+            autorizacion, new ClientesFalsos.AlcanceDatosServiceFalso(), CaeManager.Application.Tests.Empresas.LimitesDePrueba.SinEmpresaPropia());
     }
 
     private sealed class TenantActualFalso : ITenantActual

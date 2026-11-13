@@ -153,7 +153,7 @@ internal sealed class EscenarioImportacion
             AsignacionesContexto, CentrosContexto, TrabajadoresContexto, DocumentosContexto,
             TiposDocumentoContexto, AcreditacionRepositorio),
         alcance ?? new ClientesFalsos.AlcanceDatosServiceFalso(),
-        Serializacion);
+        Serializacion, CaeManager.Application.Tests.Empresas.LimitesDePrueba.SinEmpresaPropia());
 
     public RecorteDeAnalisisAlAmbito Recorte(string? rol, IAlcanceDatosService alcance) => new(
         new AutorizacionEscrituraEfectiva(

@@ -80,6 +80,8 @@ public class ImportacionTests(WebAppFixture fixture)
         try
         {
             await Ayudas.IniciarSesionAsync(page, fixture.BaseUrl, Ayudas.EmailAdministrador, Ayudas.ContrasenaAdministrador);
+            // D-P11: el Tenant admite una sola Empresa propia activa; se libera antes del plan para que la hoja Empleados cree la suya.
+            await fixture.LiberarEmpresaPropiaDelTenantPrincipalAsync();
             await Ayudas.NavegarYEsperarAsync(page, $"{fixture.BaseUrl}/importacion");
 
             // Wizard de 5 pasos: "cae" ya viene preseleccionada en el paso 1
