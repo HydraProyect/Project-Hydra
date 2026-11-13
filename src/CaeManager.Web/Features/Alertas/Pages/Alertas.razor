@@ -38,6 +38,19 @@
         </Descripcion>
     </CabeceraPagina>
 
+    @* DEC-4: /alertas no es una segunda cola de "qué hacer ahora" (A-02) —
+       esa es /bandeja. Hasta esta noche, "Bandeja priorizada" mostraba aquí
+       una miniatura de la propia ObtenerBandejaGestorQuery de /bandeja
+       (Fase C, truncada a 5 filas): un duplicado estricto, no una función
+       distinta — no enseñaba nada que /bandeja no enseñara, y enseñaba
+       menos. Retirada; el enlace de abajo es el único camino que hacía
+       falta conservar. Va justo debajo de la cabecera, como en el artboard
+       «Alertas-faltan-documentos» (antes quedaba tras «¿De dónde sale…?»). *@
+    @if (!CaeManager.Web.Components.Layout.MiTrabajoVisibilidad.EstaOculto(Servicios))
+    {
+        <a href="/bandeja" class="alertas-enlace-cola">@Textos["EnlaceColaTrabajo"]</a>
+    }
+
     @* Procedencia (mockup Gen 2): la frase del mockup decía "derivada del
        vencimiento de cada documento", y eso es solo media verdad —
        ObtenerAlertasQuery suma un segundo bloque, "Falta", que no sale de
@@ -58,18 +71,6 @@
             @Textos["ProcedenciaLista"]
         </p>
     </SeccionColapsable>
-
-    @* DEC-4: /alertas no es una segunda cola de "qué hacer ahora" (A-02) —
-       esa es /bandeja. Hasta esta noche, "Bandeja priorizada" mostraba aquí
-       una miniatura de la propia ObtenerBandejaGestorQuery de /bandeja
-       (Fase C, truncada a 5 filas): un duplicado estricto, no una función
-       distinta — no enseñaba nada que /bandeja no enseñara, y enseñaba
-       menos. Retirada; el enlace de abajo es el único camino que hacía
-       falta conservar. *@
-    @if (!CaeManager.Web.Components.Layout.MiTrabajoVisibilidad.EstaOculto(Servicios))
-    {
-        <a href="/bandeja" class="enlace-nombre-fila">@Textos["EnlaceColaTrabajo"]</a>
-    }
 
     @* Reclamación agregada (DEC-4 + DEC-7, Project-Hydra-Negocio/tecnico/PLAN-SESIONES-NOCTURNAS-2026-09-02.md):
        SelectorLoteDocumental (PR #408) es el mismo componente que usa el

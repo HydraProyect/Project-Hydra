@@ -4,6 +4,22 @@
   catálogo y de list-page.css.
 */
 
+/* Enlace a Mi trabajo bajo la cabecera (artboard «Alertas-faltan-documentos»): 600 y azul de acción, en su propia
+   línea y con aire hasta la primera sección. */
+.alertas-enlace-cola {
+    display: block;
+    width: fit-content;
+    margin-bottom: var(--space-4);
+    font-weight: 600;
+    color: var(--color-primary-500);
+    text-decoration: none;
+}
+
+.alertas-enlace-cola:hover,
+.alertas-enlace-cola:focus-visible {
+    text-decoration: underline;
+}
+
 /* Procedencia: la lista la calcula el sistema, no una persona → cian de
    sistema (regla de agencia, DDL-009), no el azul de las acciones. */
 .alertas-procedencia {

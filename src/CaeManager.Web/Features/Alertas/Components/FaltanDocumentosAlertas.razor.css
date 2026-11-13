@@ -4,6 +4,17 @@
   un rasgo visual del producto: aquí la sección lleva el mismo marco que el resto.
 */
 
+/*
+  A sangre dentro de SeccionColapsable: su cuerpo (.seccion-colapsable-contenido) pone 16px de padding por los cuatro
+  lados, y el artboard pinta la nota a 20px del borde de la tarjeta y los grupos de borde a borde, con el fondo blanco
+  de la tarjeta (--color-surface). El margen negativo cancela ese padding solo en esta sección (el componente
+  compartido no cambia: Reclamar y «¿De dónde sale…?» siguen con su padding) y el fondo cubre todo el cuerpo.
+*/
+.faltan-documentos {
+    margin: calc(var(--space-4) * -1);
+    background: var(--color-surface);
+}
+
 .faltan-documentos-nota {
     margin: 0;
     padding: var(--space-3) var(--space-5) 0;
