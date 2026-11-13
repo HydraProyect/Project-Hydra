@@ -447,7 +447,17 @@ public partial class DocumentosGen2Tests
         // 36 px de alto, 8×16 de relleno, radio y borde de control: los de `boton boton-secundario boton-pequeno`.
         css.Should().MatchRegex(@"\.menu-acciones-disparador-compacto\s*\{[^}]*min-height:\s*36px[^}]*padding:\s*var\(--space-2\) var\(--space-4\)[^}]*border-radius:\s*var\(--radius-md\)[^}]*border-color:\s*var\(--color-border-control\)");
         // El panel no depende de dejar sitio en la tabla: se ancla al disparador de su fila y se abre hacia el otro lado si no cabe.
-        css.Should().Contain("anchor-scope: --menu-acciones").And.Contain("position-anchor: --menu-acciones").And.Contain("position-try-fallbacks: flip-block");
+        // Cada pieza en el cuerpo de SU regla (la condición del @supports ya nombra anchor-scope y position-anchor).
+        css.Should().MatchRegex(@"\.menu-acciones-compacto\s*\{[^}]*anchor-scope:\s*--menu-acciones");
+        css.Should().MatchRegex(@"\.menu-acciones-disparador-compacto\s*\{[^}]*anchor-name:\s*--menu-acciones");
+        var reglaPanel = System.Text.RegularExpressions.Regex.Match(css, @"\.menu-acciones-panel\.menu-acciones-panel-titulado\.menu-acciones-panel-compacto\s*\{(?<cuerpo>[^}]*)\}");
+        reglaPanel.Success.Should().BeTrue("el panel compacto tiene su regla anclada");
+        reglaPanel.Groups["cuerpo"].Value.Should()
+            .MatchRegex(@"position:\s*fixed").And.MatchRegex(@"position-anchor:\s*--menu-acciones")
+            .And.MatchRegex(@"right:\s*max\(var\(--space-4\),\s*anchor\(right\)\)")
+            .And.MatchRegex(@"position-try-fallbacks:\s*flip-block")
+            .And.MatchRegex(@"max-height:\s*calc\(100dvh[^;]*\)")
+            .And.MatchRegex(@"overflow-y:\s*auto");
     }
 
     [Fact]
@@ -467,7 +477,8 @@ public partial class DocumentosGen2Tests
     {
         var css = File.ReadAllText(RutaWeb("Components", "DesignSystem", "Modal.razor.css"));
 
-        css.Should().MatchRegex(@"\.modal-pie:has\(\.boton-espera\)\s*\{[^}]*align-items:\s*flex-start");
+        // Solo por encima del punto de corte móvil (640 px): ahí el pie es una columna a ancho completo y sigue estirando.
+        css.Should().MatchRegex(@"@media \(min-width: 641px\)\s*\{\s*\.modal-pie:has\(\.boton-espera\)\s*\{[^}]*align-items:\s*flex-start");
     }
 
     private static string RutaWeb(params string[] partes)
