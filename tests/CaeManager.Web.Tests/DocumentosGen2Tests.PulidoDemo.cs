@@ -140,6 +140,44 @@ public partial class DocumentosGen2Tests
         cut.FindAll("tbody tr .documentos-plats .documentos-en-plataforma-motivo, tbody tr .documentos-plats .documentos-abrir-portal")
             .Should().BeEmpty("la línea no lleva motivo ni «Abrir portal»: lo ve igual el Usuario de Cliente");
     }
+
+    /// <summary>
+    /// Por rol: la línea «logo Nombre · Estado» de la lista sin agrupar es la misma para el Usuario de Cliente y para el Gestor
+    /// CAE (nombre y estado, nada más: ni motivo ni «Abrir portal»). El motivo literal y «Abrir portal» son de la agrupación
+    /// por Plataforma CAE y solo los ve quien no es Usuario de Cliente: el contraste con esa vista es lo que hace sensible la
+    /// prueba a la guarda de rol (sin ella, el Usuario de Cliente vería el motivo allí).
+    /// </summary>
+    [Theory]
+    [InlineData("GestorCae", true)]
+    [InlineData("Cliente", false)]
+    public async Task La_linea_de_plataforma_de_la_lista_sin_agrupar_no_lleva_motivo_ni_Abrir_portal_con_ningun_rol_y_el_motivo_solo_lo_ve_el_Gestor_al_agrupar(string rol, bool veMotivoYPortal)
+    {
+        var e = ConVinculos();
+        var original = e.Mediador.Documentos;
+        e.Mediador.Documentos = q => q.AgruparPor is null
+            ? [e.SinVigencia, e.Rechazado with { Acreditaciones = [new AcreditacionResumenDto(Guid.NewGuid(), "Nalanda", EstadoAcreditacion.Rechazada)] }]
+            : original(q);
+        var (cut, _) = Renderizar(e.Mediador, rol: rol);
+        cut.WaitForAssertion(() => cut.Find("tbody .documentos-plats"));
+
+        var fila = cut.FindAll("tbody tr:has(button.enlace-nombre-fila)").Single(f => f.TextContent.Contains("Ana Ruiz Pardo"));
+        var linea = fila.QuerySelectorAll(".documentos-plats .documentos-plat").Should().ContainSingle().Subject;
+        linea.QuerySelector(".documentos-plat-nombre")!.TextContent.Trim().Should().Be("Nalanda");
+        linea.QuerySelector(".documentos-plat-estado")!.TextContent.Trim().Should().Be("· Rechazada");
+        linea.Children.Select(c => c.ClassName).Should().Equal(
+            ["documentos-logo-plataforma documentos-logo-plataforma-generico", "documentos-plat-nombre", "documentos-plat-estado"],
+            "logo, nombre y estado, nada más");
+        fila.QuerySelectorAll(".documentos-en-plataforma-motivo, .documentos-abrir-portal").Should().BeEmpty();
+        cut.Markup.Should().NotContain("Ilegible").And.NotContain("Abrir portal");
+
+        await Agrupar(cut, "Por Plataforma CAE");
+
+        cut.WaitForAssertion(() => cut.FindAll("tbody .documentos-en-plataforma").Should().HaveCount(4));
+        cut.FindAll(".documentos-en-plataforma-motivo").Should().HaveCount(veMotivoYPortal ? 1 : 0);
+        cut.FindAll(".documentos-abrir-portal").Should().HaveCount(veMotivoYPortal ? 1 : 0);
+        cut.Markup.Contains("Ilegible").Should().Be(veMotivoYPortal);
+    }
+
     [Fact]
     public void Ver_es_un_enlace_y_Gestionar_conserva_su_caja_como_accion_principal()
     {
