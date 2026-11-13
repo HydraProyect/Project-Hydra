@@ -19,7 +19,7 @@
     <value>Reclamación</value>
   </data>
   <data name="DescripcionPagina" xml:space="preserve">
-    <value>La documentación de tus trabajadores que hay que reclamar o subir — incluida la que todavía no es urgente — para que puedas anticiparte antes del vencimiento en vez de esperar a que se vuelva crítica.</value>
+    <value>La documentación de tus Trabajadores que hay que reclamar o subir, incluida la que todavía no es urgente, para que puedas anticiparte antes del vencimiento en vez de esperar a que se vuelva crítica.</value>
   </data>
   <data name="ProcedenciaTitulo" xml:space="preserve">
     <value>¿De dónde sale esta lista?</value>
@@ -212,5 +212,35 @@
   </data>
   <data name="LoteDelegacionEmpresaSinContactoVisible" xml:space="preserve">
     <value>No puedes ver el contacto de reclamación de esta Delegación, así que no puedes enviarle la reclamación.</value>
+  </data>
+  <data name="FaltanTitulo" xml:space="preserve">
+    <value>Faltan documentos</value>
+  </data>
+  <data name="FaltanCentros" xml:space="preserve">
+    <value>{0} Centros</value>
+  </data>
+  <data name="FaltanCentrosUno" xml:space="preserve">
+    <value>1 Centro</value>
+  </data>
+  <data name="FaltanNota" xml:space="preserve">
+    <value>Documentos que deberían existir en un Centro y no existen: nunca se subieron, así que no son una fila del listado de Documentos. Cada tarjeta es un Centro y un tipo de Documento; cada Trabajador listado tiene una Asignación activa a ese Centro y no lo tiene.</value>
+  </data>
+  <data name="FaltanTituloGrupo" xml:space="preserve">
+    <value>{0} · {1}</value>
+  </data>
+  <data name="FaltanRecuento" xml:space="preserve">
+    <value>{0} Trabajadores con Asignación activa a este Centro no tienen este Documento.</value>
+  </data>
+  <data name="FaltanRecuentoUno" xml:space="preserve">
+    <value>1 Trabajador con Asignación activa a este Centro no tiene este Documento.</value>
+  </data>
+  <data name="FaltanCrearDocumento" xml:space="preserve">
+    <value>Crear documento</value>
+  </data>
+  <data name="FaltanCrearDocumentoAria" xml:space="preserve">
+    <value>Crear documento: {0} de {1}</value>
+  </data>
+  <data name="FaltanErrorTitulo" xml:space="preserve">
+    <value>No se han podido cargar los documentos que faltan.</value>
   </data>
 </root>

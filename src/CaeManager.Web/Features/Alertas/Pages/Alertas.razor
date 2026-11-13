@@ -10,6 +10,7 @@
 @using CaeManager.Application.Reclamaciones.Commands.EnviarReclamacion
 @using CaeManager.Application.Reclamaciones.Queries.ObtenerLoteReclamacionPorFiltro
 @using CaeManager.Domain.Documentos
+@using CaeManager.Web.Features.Alertas.Components
 @using CaeManager.Web.Features.Alertas.Recursos
 @using CaeManager.Web.Features.Bandeja.Components
 @using CaeManager.Web.Features.Documentos
@@ -238,6 +239,10 @@
             }
         }
     </SeccionColapsable>
+
+    @* «Faltan documentos» (PR5 del lienzo de Documentos): tras «Reclamar» y antes de la barra de filtros, como el
+       artboard. Pinta lo que antes vivía en «Patrones de falta» de la pestaña Preventivo de Documentos. *@
+    <FaltanDocumentosAlertas />
 
     @* El tipo de agenda sigue al ámbito del lote: con Empresa, el contacto
        tiene que nacer en la agenda de la Empresa (ContactoAgenda.EmpresaId),
