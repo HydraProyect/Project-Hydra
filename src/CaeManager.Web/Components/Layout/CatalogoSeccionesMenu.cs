@@ -92,8 +92,8 @@ public static class CatalogoSeccionesMenu
     [
         // «Todos los documentos» es la pantalla Documentos tal cual (sus pestañas internas —Plataformas CAE,
         // Reclamaciones, Preventivo, Plantillas— siguen dentro de ella). «Revisión IA» e Incidencias salieron
-        // de Operación y del propio menú: ahora son pestañas de sección. Revisión IA abre la pestaña de
-        // Documentos con su deep-link; /documentos/revision-ia sigue vivo para enlaces guardados.
+        // de Operación y del propio menú: ahora son pestañas de sección. La pestaña Revisión IA lleva a su pantalla
+        // propia, /documentos/revision-ia (D-49); /documentos?pestana=revision-ia redirige a ella para enlaces guardados.
         // BarraSeccion NO pinta esta sección en ninguna ruta: Documentos e /incidencias pintan BarraPestanasDocumentos
         // (una sola barra, bajo el título, porque dos repetían pestañas) y /documentos/revision-ia es una pantalla propia
         // (D-49) sin barra de pestañas.

@@ -220,9 +220,24 @@ public class FlujoCicloDocumentalTests(WebAppFixture fixture)
         await dialogoDescartar.WaitForAsync(new LocatorWaitForOptions { Timeout = 15_000 });
         await dialogoDescartar.GetByRole(AriaRole.Button, new LocatorGetByRoleOptions { Name = "Descartar la lectura" }).ClickAsync();
         // Resuelta la revisión, el avance automático pasa a la siguiente
-        // pendiente (o a «Elige una revisión» si no queda ninguna): el
-        // selector deja de nombrar a este Trabajador.
-        await Expect(selector).Not.ToContainTextAsync(apellidosTrabajador, new LocatorAssertionsToContainTextOptions { Timeout = 15_000 });
+        // pendiente o, si era la última, el lateral desaparece y queda el
+        // estado sin pendientes. ToHaveCount(0) cubre los dos casos, porque
+        // también vale cuando el selector ya no existe.
+        await Expect(page.Locator(".revision-ia-selector-boton", new PageLocatorOptions { HasText = apellidosTrabajador }))
+            .ToHaveCountAsync(0, new LocatorAssertionsToHaveCountOptions { Timeout = 15_000 });
+
+        // Que cambie la selección no prueba que la revisión haya salido de
+        // pendientes: se recarga en frío (los datos vuelven del servidor) y se
+        // comprueba que su opción ya no está en el desplegable. Si no queda
+        // ninguna pendiente, no hay lateral ni desplegable que abrir.
+        await Ayudas.NavegarYEsperarAsync(page, $"{fixture.BaseUrl}/documentos/revision-ia");
+        await page.Locator(".revision-ia-tarjeta").First.WaitForAsync(new LocatorWaitForOptions { Timeout = 15_000 });
+        if (await page.Locator(".revision-ia-lateral").CountAsync() > 0)
+        {
+            Assert.True(await AbrirDesplegableDePendientesAsync(page), "El desplegable de pendientes no se abrió tras recargar /documentos/revision-ia.");
+            await Expect(page.Locator(".revision-ia-opciones").GetByRole(AriaRole.Option, new LocatorGetByRoleOptions { Name = apellidosTrabajador }))
+                .ToHaveCountAsync(0);
+        }
 
         // --- Paso 6 (Reclamación): asignar el Trabajador a su Centro, añadir
         // un contacto de agenda y enviar la reclamación ---
@@ -389,21 +404,7 @@ public class FlujoCicloDocumentalTests(WebAppFixture fixture)
         while (true)
         {
             await Ayudas.NavegarYEsperarAsync(page, $"{baseUrl}/documentos/revision-ia");
-            var panel = page.Locator(".revision-ia-pop");
-            var disparador = page.Locator(".revision-ia-selector-boton");
-            for (var intento = 0; intento < 10 && !await panel.IsVisibleAsync(); intento++)
-            {
-                try
-                {
-                    await disparador.ClickAsync(new LocatorClickOptions { Timeout = 2_000 });
-                    await panel.WaitForAsync(new LocatorWaitForOptions { State = WaitForSelectorState.Visible, Timeout = 1_500 });
-                }
-                catch (Exception ex) when (ex is PlaywrightException or TimeoutException)
-                {
-                    // El circuito aún no había conectado, o no hay pendientes
-                    // y el lateral no se pinta: se vuelve a intentar.
-                }
-            }
+            await AbrirDesplegableDePendientesAsync(page);
 
             var opcion = page.Locator(".revision-ia-opciones").GetByRole(
                 AriaRole.Option,
@@ -420,6 +421,33 @@ public class FlujoCicloDocumentalTests(WebAppFixture fixture)
                     $"La revisión IA de \"{apellidosTrabajador}\" no apareció en /documentos/revision-ia "
                     + $"tras {presupuesto.TotalSeconds:F0}s.");
         }
+    }
+
+    /// <summary>
+    /// Abre el desplegable de pendientes del lateral pulsando el selector hasta
+    /// que aparece el panel: un clic sobre el prerenderizado se pierde mientras
+    /// el circuito no ha conectado. Pulsar con el panel ya abierto lo cerraría,
+    /// así que solo se pulsa mientras siga cerrado. Devuelve si quedó abierto
+    /// (no lo queda cuando no hay pendientes y el lateral no se pinta).
+    /// </summary>
+    private static async Task<bool> AbrirDesplegableDePendientesAsync(IPage page)
+    {
+        var panel = page.Locator(".revision-ia-pop");
+        var disparador = page.Locator(".revision-ia-selector-boton");
+        for (var intento = 0; intento < 10 && !await panel.IsVisibleAsync(); intento++)
+        {
+            try
+            {
+                await disparador.ClickAsync(new LocatorClickOptions { Timeout = 2_000 });
+                await panel.WaitForAsync(new LocatorWaitForOptions { State = WaitForSelectorState.Visible, Timeout = 1_500 });
+            }
+            catch (Exception ex) when (ex is PlaywrightException or TimeoutException)
+            {
+                // El circuito aún no había conectado, o no hay pendientes: se vuelve a intentar.
+            }
+        }
+
+        return await panel.IsVisibleAsync();
     }
 
     private static ILocatorAssertions Expect(ILocator locator) => Assertions.Expect(locator);
