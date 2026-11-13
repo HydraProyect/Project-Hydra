@@ -5,7 +5,6 @@ using CaeManager.Web.Features.Documentos.Recursos;
 using CaeManager.Application.Common;
 using CaeManager.Web.Features.Comunicaciones.Components;
 using CaeManager.Web.Features.Comunicaciones;
-using CaeManager.Application.Comunicaciones.Queries.ObtenerRespuestaSugerida;
 using CaeManager.Application.Clientes.Queries.ObtenerClientePorId;
 using CaeManager.Application.Clientes.Queries.ObtenerClientesParaSelector;
 using CaeManager.Application.Comunicaciones.Commands.ActualizarDocumentoDesdeAdjunto;

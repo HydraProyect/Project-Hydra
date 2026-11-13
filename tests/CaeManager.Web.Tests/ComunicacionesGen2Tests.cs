@@ -425,7 +425,7 @@ public class ComunicacionesGen2Tests : BunitContext
     private static Task Escribir(IRenderedComponent<Bandeja> cut, string texto) =>
         cut.Find(".composer-correo textarea").InputAsync(new ChangeEventArgs { Value = texto });
 
-    // ---------------------------------------------------------------- revisión 1:1, incremento 2: E18 (respuesta sugerida) y E21 (notas)
+    // ---------------------------------------------------------------- revisión 1:1, incremento 2: E18 (respuesta sugerida)
 
     private const string TextoSugerido =
         "Buenos días, Carmen. Recibimos la documentación y la revisaremos hoy mismo; le confirmamos el resultado mañana por la mañana.";
@@ -807,6 +807,38 @@ public class ComunicacionesGen2Tests : BunitContext
         await clic;
 
         TextoDelRedactor(cut).Should().Be(borradorNuevo, "la inserción se pidió en una selección anterior de esta conversación");
+    }
+
+    /// <summary>
+    /// El token de selección del panel es la apertura de la Bandeja (fusión con la #2167): una recarga del mismo hilo, por un
+    /// mensaje entrante mientras «Insertar» espera, no es otra apertura y la inserción llega al redactor.
+    /// </summary>
+    [Fact]
+    public async Task La_insercion_que_termina_tras_una_recarga_del_mismo_hilo_llega_al_redactor()
+    {
+        var (escenario, primera, _, _) = DosConversacionesConSugerenciaEnLaPrimera();
+        var insercion = new TaskCompletionSource<object?>(TaskCreationOptions.RunContinuationsAsynchronously);
+        escenario.Interceptar = p => p switch
+        {
+            ResolverRespuestaSugeridaCommand { Accion: AccionRespuestaSugerida.Insertar } => insercion.Task,
+            _ => null
+        };
+        var (cut, mediador) = Renderizar(escenario);
+        await SeleccionarFila(cut, "Documentación pendiente");
+        cut.WaitForAssertion(() => cut.FindAll(".rs-bloque").Should().ContainSingle());
+
+        var clic = Boton(cut, ".rs-bloque button", "Insertar para revisar").ClickAsync(new MouseEventArgs());
+        var lecturas = mediador.Enviados.OfType<ObtenerConversacionPorIdQuery>().Count();
+        await cut.InvokeAsync(() => (Task)typeof(Bandeja).GetMethod("AlRecibirMensajeAsync", BindingFlags.Instance | BindingFlags.NonPublic)!
+            .Invoke(cut.Instance, [new MensajeWhatsAppRecibidoEvent(Guid.NewGuid(), primera.Id)])!);
+        cut.WaitForAssertion(() => mediador.Enviados.OfType<ObtenerConversacionPorIdQuery>().Count().Should().BeGreaterThan(lecturas,
+            "el mensaje entrante recarga el hilo abierto"));
+
+        await cut.InvokeAsync(() => insercion.SetResult(Result.Exito()));
+        await clic;
+
+        cut.WaitForAssertion(() => TextoDelRedactor(cut).Should().Be(TextoSugerido,
+            "una recarga de la conversación abierta no es otra apertura: la inserción pedida en ella se aplica"));
     }
 
     /// <summary>

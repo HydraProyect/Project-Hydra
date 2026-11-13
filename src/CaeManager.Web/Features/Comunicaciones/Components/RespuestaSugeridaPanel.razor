@@ -138,15 +138,16 @@ else if (_cargado && PuedeSugerir && _puedeEscribir)
     /// <summary>
     /// Token de la selección de la página: cambia cada vez que se abre una conversación, también al volver a la misma
     /// (revisión Codex r2 de la #2163, MEDIO 1). Se fija al pulsar y vuelve con el aviso, para que la página descarte el de
-    /// una operación empezada en una selección anterior aunque la conversación sea la misma (A→B→A).
+    /// una operación empezada en una selección anterior aunque la conversación sea la misma (A→B→A). La Bandeja le pasa su
+    /// apertura vigente, que una recarga del mismo hilo no cambia.
     /// </summary>
-    [Parameter] public long Seleccion { get; set; }
+    [Parameter] public int Seleccion { get; set; }
 
     /// <summary>Se descartó una sugerencia: si el redactor aún tiene su texto, la página lo vacía (el servidor sigue bloqueando ese texto).</summary>
     [Parameter] public EventCallback<SugerenciaDeLaSeleccion> OnDescartada { get; set; }
 
     /// <summary>La sugerencia de un aviso a la página, con el token de la selección en que se pulsó (<see cref="Seleccion"/>).</summary>
-    public sealed record SugerenciaDeLaSeleccion(RespuestaSugeridaDto Sugerencia, long Seleccion);
+    public sealed record SugerenciaDeLaSeleccion(RespuestaSugeridaDto Sugerencia, int Seleccion);
 
     /// <summary>Cambia el estado de la sugerencia (insertada, revisada, descartada): la página reevalúa si Enviar se ofrece.</summary>
     [Parameter] public EventCallback OnEstadoCambiado { get; set; }
