@@ -30,6 +30,7 @@ public class AceptacionContractualTenantBajoRlsTests : IAsyncLifetime
     private CaeManagerDbContext _propietario = null!;
     private TenantActualDeLaPeticion _tenantDeLaPeticion = null!;
     private Guid _tenantSesion;
+    private Guid _tenantAjeno;
     private Guid _aceptacionAjena;
 
     public async Task InitializeAsync()
@@ -47,6 +48,7 @@ public class AceptacionContractualTenantBajoRlsTests : IAsyncLifetime
         _propietario.Tenants.AddRange(tenantSesion, tenantAjeno);
         await _propietario.SaveChangesAsync();
         _tenantSesion = tenantSesion.Id;
+        _tenantAjeno = tenantAjeno.Id;
 
         using (AmbitoTenantExplicito.Establecer(tenantAjeno.Id))
         {
@@ -113,6 +115,59 @@ public class AceptacionContractualTenantBajoRlsTests : IAsyncLifetime
         excepcion.Should().BeOfType<DbUpdateException>()
             .Which.InnerException.Should().BeOfType<PostgresException>()
             .Which.SqlState.Should().Be("23505");
+    }
+
+    [Fact]
+    public async Task Las_aceptaciones_anadidas_y_sin_guardar_cuentan_para_la_idempotencia()
+    {
+        // El Command del alta puede repetir su delegado con el mismo contexto tras un fallo de guardado.
+        var solicitud = Guid.NewGuid();
+        await using var runtime = CrearRuntime();
+        var repositorio = new AceptacionContractualTenantRepository(runtime);
+        (await repositorio.ExistenDeSolicitudAltaAsync(solicitud)).Should().BeFalse();
+
+        repositorio.Agregar(Aceptacion(solicitud, "Condiciones"));
+
+        (await repositorio.ExistenDeSolicitudAltaAsync(solicitud)).Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task La_politica_no_deja_insertar_en_otro_Tenant_aunque_se_salte_el_sellado()
+    {
+        await using var runtime = CrearRuntime();
+        await runtime.Database.OpenConnectionAsync();
+
+        var excepcion = await Record.ExceptionAsync(() => runtime.Database.ExecuteSqlInterpolatedAsync($"""
+            INSERT INTO "AceptacionesContractualesTenant"
+                ("Id", "TenantId", "UsuarioId", "SolicitudAltaId", "Documento", "Version", "HashSha256",
+                 "DeclaraFacultades", "Ip", "AceptadaEnUtc", "ImportePermanencia", "RegistradaEnUtc")
+            VALUES ({Guid.NewGuid()}, {_tenantAjeno}, {_usuarioId}, {Guid.NewGuid()}, 'Condiciones', '1.0', {HashDePrueba},
+                    true, '203.0.113.7', now(), NULL, now())
+            """));
+
+        excepcion.Should().BeOfType<PostgresException>().Which.SqlState.Should().Be("42501",
+            "el WITH CHECK de aislamiento_tenant rechaza una fila de otro Tenant");
+    }
+
+    [Theory]
+    [InlineData("cae_app_soporte", "AceptacionesContractualesTenant")]
+    [InlineData("cae_app_soporte", "AcusesAceptacionContractualTenant")]
+    [InlineData("cae_app_aprovisionamiento", "AceptacionesContractualesTenant")]
+    [InlineData("cae_app_aprovisionamiento", "AcusesAceptacionContractualTenant")]
+    public async Task Soporte_y_aprovisionamiento_no_tienen_ningun_privilegio_sobre_la_evidencia(string rol, string tabla)
+    {
+        await using var conexion = new NpgsqlConnection(_cadenaConexion);
+        await conexion.OpenAsync();
+
+        foreach (var privilegio in new[] { "SELECT", "INSERT", "UPDATE", "DELETE" })
+        {
+            await using var orden = new NpgsqlCommand("SELECT has_table_privilege(@rol, quote_ident(@tabla), @privilegio);", conexion);
+            orden.Parameters.AddWithValue("rol", rol);
+            orden.Parameters.AddWithValue("tabla", tabla);
+            orden.Parameters.AddWithValue("privilegio", privilegio);
+
+            ((bool)(await orden.ExecuteScalarAsync())!).Should().BeFalse($"{rol} no debe tener {privilegio} sobre {tabla}");
+        }
     }
 
     [Theory]

@@ -10,8 +10,14 @@ public class AceptacionContractualTenantRepository(CaeManagerDbContext dbContext
 
     public void AgregarAcuse(AcuseAceptacionContractualTenant acuse) => dbContext.AcusesAceptacionContractualTenant.Add(acuse);
 
-    public Task<bool> ExistenDeSolicitudAltaAsync(Guid solicitudAltaId, CancellationToken cancellationToken = default) =>
-        dbContext.AceptacionesContractualesTenant.AnyAsync(a => a.SolicitudAltaId == solicitudAltaId, cancellationToken);
+    /// <summary>
+    /// También cuenta las añadidas y aún sin guardar: si el Command del alta repite su delegado con el mismo
+    /// contexto tras un fallo de guardado, las del primer intento siguen en el ChangeTracker y la consulta a la
+    /// base de datos no las ve.
+    /// </summary>
+    public async Task<bool> ExistenDeSolicitudAltaAsync(Guid solicitudAltaId, CancellationToken cancellationToken = default) =>
+        dbContext.AceptacionesContractualesTenant.Local.Any(a => a.SolicitudAltaId == solicitudAltaId)
+        || await dbContext.AceptacionesContractualesTenant.AnyAsync(a => a.SolicitudAltaId == solicitudAltaId, cancellationToken);
 
     public async Task<IReadOnlyList<AceptacionContractualTenant>> ListarAsync(CancellationToken cancellationToken = default) =>
         await dbContext.AceptacionesContractualesTenant.AsNoTracking()

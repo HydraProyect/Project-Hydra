@@ -12,7 +12,9 @@ namespace CaeManager.Application.Cumplimiento.AceptacionContractual;
 public sealed record DocumentoContractualPublicado(
     string Documento, string Titulo, string Version, DateTime VigenteDesdeUtc, bool ObligatorioEnAlta, string Texto)
 {
-    public string HashSha256 { get; } = CalcularHash(Texto);
+    // Derivada y no inicializada: una copia con «with { Texto = ... }» copiaría el campo de respaldo y
+    // dejaría la huella del texto anterior sobre el nuevo.
+    public string HashSha256 => CalcularHash(Texto);
 
     public static string CalcularHash(string texto)
     {

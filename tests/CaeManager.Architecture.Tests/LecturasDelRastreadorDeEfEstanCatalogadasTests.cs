@@ -37,6 +37,8 @@ public class LecturasDelRastreadorDeEfEstanCatalogadasTests
             (1, "deduplica la alerta añadida en la misma unidad de trabajo; el predicado exige el Tenant actual"),
         ["src/CaeManager.Infrastructure/Persistence/Repositories/RelacionEmpresarialRepository.cs"] =
             (1, "solo devuelve un booleano (alta pendiente del mismo par de Empresas, cuyos Ids son de un solo Tenant)"),
+        ["src/CaeManager.Infrastructure/Persistence/Repositories/AceptacionContractualTenantRepository.cs"] =
+            (1, "solo devuelve un booleano: si esta unidad de trabajo ya añadió las aceptaciones de la Solicitud de alta (idempotencia, #2009)"),
         ["src/CaeManager.Infrastructure/Persistence/Seed/PilotoOutboundSeeder.cs"] = (1, "siembra, sin circuito"),
         ["src/CaeManager.Infrastructure/Persistence/Seed/CoberturaPantallasSeeder.cs"] = (2, "siembra, sin circuito"),
         ["src/CaeManager.Infrastructure/Persistence/Seed/ComunicacionesDatosPruebaSeeder.cs"] = (1, "no es DbSet.Local: valor de enumeración de la siembra"),
