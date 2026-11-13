@@ -1888,7 +1888,16 @@ public partial class Documentos : CaeManager.Web.Components.PaginaInteractiva, I
         var filtro = _filtrosGuardados.FirstOrDefault(f => f.Id == id);
         if (filtro is null) return;
 
-        var valores = JsonSerializer.Deserialize<FiltrosDocumentosJson>(filtro.ValoresJson);
+        FiltrosDocumentosJson? valores;
+        try
+        {
+            valores = JsonSerializer.Deserialize<FiltrosDocumentosJson>(filtro.ValoresJson);
+        }
+        catch (JsonException)
+        {
+            // Un JSON que no encaja (p. ej. «VenceEnDias» como texto) es un filtro que no se puede aplicar, no un fallo de la pantalla.
+            return;
+        }
         if (valores is null) return;
 
         _busqueda = valores.Busqueda ?? string.Empty;
@@ -2121,6 +2130,8 @@ public partial class Documentos : CaeManager.Web.Components.PaginaInteractiva, I
         ["plataforma"] = _plataformaFiltro,
         ["propietario"] = _propietarioFiltro,
         ["estadoPlataforma"] = _estadoPlataformaFiltro,
+        ["venceEn"] = _venceEnFiltro,
+        ["pendienteRevisionIa"] = RevisionIaEnUrl(RevisionIaActiva),
         ["agrupar"] = _agruparPorAmbito ? "ambito" : null,
         ["orden"] = _ordenExportar,
         ["desc"] = _descendenteExportar ? "true" : null,

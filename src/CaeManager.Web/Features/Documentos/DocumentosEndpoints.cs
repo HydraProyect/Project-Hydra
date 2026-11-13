@@ -68,8 +68,12 @@ public static class DocumentosEndpoints
         CancellationToken cancellationToken,
         string? q = null, string? ambito = null, string? estado = null, string? orden = null, bool desc = false,
         string? tipo = null, string? plataforma = null, string? propietario = null, string? agrupar = null,
-        string? estadoPlataforma = null)
+        string? estadoPlataforma = null, string? venceEn = null, string? pendienteRevisionIa = null)
     {
+        // «Vence en» (D-21): solo los plazos que ofrece el listado, como número de días; cualquier otro valor se ignora.
+        int? venceEnDias = venceEn is "7" or "30" or "90" ? int.Parse(venceEn, System.Globalization.CultureInfo.InvariantCulture) : null;
+        // «Pendiente de revisión IA»: solo «1». Quién puede usarlo lo decide el servidor (ColaRevisionIa), no este parámetro.
+        var revisionIa = pendienteRevisionIa == "1";
         // Solo el nombre exacto de un estado, como el listado: ni números ni listas con coma.
         EstadoEnPlataformaFiltro? estadoPlataformaFiltro =
             estadoPlataforma is not null && Enum.GetNames<EstadoEnPlataformaFiltro>().Contains(estadoPlataforma, StringComparer.Ordinal)
@@ -117,7 +121,9 @@ public static class DocumentosEndpoints
                     ProveedorPlataformaCaeId: Guid.TryParse(plataforma, out var plataformaFiltro) ? plataformaFiltro : null,
                     AgruparPorAmbito: agrupar == "ambito",
                     // El filtro «Estado en la plataforma» del listado; la agrupación por vínculo no se exporta (repetiría filas).
-                    EstadosEnPlataforma: estadoPlataformaFiltro is { } estadoEnPlataforma ? [estadoEnPlataforma] : null),
+                    EstadosEnPlataforma: estadoPlataformaFiltro is { } estadoEnPlataforma ? [estadoEnPlataforma] : null,
+                    VenceEnDias: venceEnDias,
+                    PendienteDeRevisionIa: revisionIa),
                 cancellationToken)))
         {
             hoja.Cell(fila, 1).Value = documento.PropietarioNombre;
@@ -152,6 +158,8 @@ public static class DocumentosEndpoints
                     ("propietario", Guid.TryParse(propietario, out var propietarioAplicado) ? propietarioAplicado.ToString() : null),
                     ("agrupar", agrupar == "ambito" ? "ambito" : null),
                     ("estadoPlataforma", estadoPlataformaFiltro?.ToString()),
+                    ("venceEnDias", venceEnDias?.ToString(System.Globalization.CultureInfo.InvariantCulture)),
+                    ("pendienteRevisionIa", revisionIa ? "true" : null),
                     ("orden", CriteriosExportacion.SoloNombre(orden)), ("desc", desc ? "true" : null)),
                 cancellationToken);
         }

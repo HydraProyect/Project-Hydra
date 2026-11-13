@@ -156,6 +156,33 @@ public partial class DocumentosGen2Tests
     {
         ColaRevisionIa.RolesQueAccedenALaPestana.Should().BeEquivalentTo(
             [Roles.Administrador, Roles.DireccionCae, Roles.CoordinadorCae, Roles.GestorCae]);
+
+        // Y esos son los de la constante que decide si la pantalla ofrece la pastilla.
+        var deLaPantalla = (string)typeof(PaginaDocumentos)
+            .GetField("RolesDeGestionDocumental", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static)!
+            .GetRawConstantValue()!;
+        ColaRevisionIa.RolesQueAccedenALaPestana.Should().BeEquivalentTo(deLaPantalla.Split(','));
+    }
+
+    /// <summary>«Exportar esta vista» lleva los dos filtros: el Excel trae lo que se ve, no todo el alcance.</summary>
+    [Fact]
+    public void Exportar_esta_vista_lleva_Vence_en_y_Pendiente_de_revision_IA()
+    {
+        var (cut, _) = Renderizar(ConOpcionesDeFiltro(), url: "documentos?VenceEn=30&PendienteRevisionIa=1");
+
+        var vista = cut.Find("header.cabecera-pagina a[data-keytip=X]").GetAttribute("href");
+
+        vista.Should().StartWith("/documentos/exportar.xlsx?").And.Contain("venceEn=30").And.Contain("pendienteRevisionIa=1");
+    }
+
+    [Fact]
+    public void Exportar_esta_vista_no_lleva_Pendiente_de_revision_IA_a_un_rol_que_no_la_tiene()
+    {
+        var (cut, _) = Renderizar(ConOpcionesDeFiltro(), url: "documentos?VenceEn=30&PendienteRevisionIa=1", rol: "Cliente");
+
+        var vista = cut.Find("header.cabecera-pagina a[data-keytip=X]").GetAttribute("href");
+
+        vista.Should().Contain("venceEn=30").And.NotContain("pendienteRevisionIa");
     }
 
     // ------------------------------------------------------------- «Limpiar», vista recordada y filtro guardado
@@ -214,6 +241,23 @@ public partial class DocumentosGen2Tests
         guardado.ValoresJson.Should().Contain("\"VenceEnDias\":30", "se guardan los días, nunca una fecha")
             .And.Contain("\"RevisionIa\":true");
         guardado.ValoresJson.Should().NotMatchRegex(@"\d{4}-\d{2}-\d{2}");
+    }
+
+    [Fact]
+    public async Task Un_filtro_guardado_con_un_tipo_que_no_encaja_no_rompe_la_pantalla_ni_cambia_la_vista()
+    {
+        var roto = new FiltroGuardadoDto(Guid.NewGuid(), "Roto", "{\"VenceEnDias\":\"30\",\"RevisionIa\":\"si\"}", DateTime.UtcNow);
+        var mediador = ConOpcionesDeFiltro();
+        mediador.Interceptar = p => p is ObtenerFiltrosGuardadosQuery ? Task.FromResult<object?>(new[] { roto }) : null;
+        var (cut, _) = Renderizar(mediador, url: "documentos?Estado=Vencido");
+        cut.WaitForAssertion(() => PastillaDocumentoFase1(cut, "Filtros guardados"));
+
+        await PastillaDocumentoFase1(cut, "Filtros guardados").ClickAsync(new MouseEventArgs());
+        await cut.FindAll(".barra-filtros-pastillas .menu-filtro-guardado [role=menuitem]")
+            .First(b => b.TextContent.Trim() == "Roto").ClickAsync(new MouseEventArgs());
+
+        UltimaConsultaDeDocumentos(mediador).Estados.Should().Equal(EstadoDocumento.Vencido, "la vista no cambió");
+        UltimaConsultaDeDocumentos(mediador).VenceEnDias.Should().BeNull();
     }
 
     [Fact]

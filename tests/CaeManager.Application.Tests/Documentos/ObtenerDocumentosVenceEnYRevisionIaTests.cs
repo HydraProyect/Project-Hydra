@@ -236,6 +236,28 @@ public class ObtenerDocumentosVenceEnYRevisionIaTests
         ColaRevisionIa.DocumentoIds(e.Documentos, []).Should().BeEmpty("una cartera vacía no ve nada, ni lo de Empresa");
     }
 
+    /// <summary>
+    /// El filtro usa el alcance de la cola (cartera por Trabajador), no solo el del listado: un Gestor CAE con cartera
+    /// acotada ve en el listado el Documento de Empresa de su cartera, pero la cola solo es de visión total para los de
+    /// Empresa, así que con «Pendiente de revisión IA» ese Documento no sale.
+    /// </summary>
+    [Fact]
+    public async Task El_filtro_aplica_el_alcance_de_cartera_de_la_cola_en_el_handler()
+    {
+        var e = new Escenario();
+        var deEmpresa = e.ConVencimientoEl(Hoy.AddDays(100));
+        e.EnRevisionIa(deEmpresa);
+        var cartera = new AlcanceDatosServiceFalso(tieneAccesoTotal: false, trabajadorIdsVisibles: [Guid.NewGuid()],
+            empresaIdsVisibles: [e.Contratista.Id]);
+
+        (await IdsAsync(e.Handler("GestorCae", cartera), Consulta())).Should().Equal(
+            [deEmpresa.Id], "control: el Documento está en el listado de ese Gestor CAE");
+        (await IdsAsync(e.Handler("GestorCae", cartera), Consulta(revisionIa: true))).Should().BeEmpty(
+            "la cola no le enseña revisiones de Empresa con una cartera acotada");
+        (await IdsAsync(e.Handler("GestorCae"), Consulta(revisionIa: true))).Should().Equal(
+            [deEmpresa.Id], "control: con visión total sí");
+    }
+
     [Theory]
     [InlineData("Administrador", true)]
     [InlineData("DireccionCae", true)]
