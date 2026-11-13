@@ -18,6 +18,24 @@
   <data name="ErrorResumenDocumentacion" xml:space="preserve">
     <value>No hem pogut generar el resum de documentació del Centre. Torna a triar-lo a «Compartir formats de centre»: la teva resposta no s'ha modificat.</value>
   </data>
+  <data name="AvisoActualizarDocumentoContextoCambiado" xml:space="preserve">
+    <value>La conversa s'ha actualitzat i s'ha tancat «Actualitzar documentació». Torna a obrir-lo per revisar l'adjunt amb les dades actuals.</value>
+  </data>
+  <data name="AvisoActualizarDocumentoContextoCaducado" xml:space="preserve">
+    <value>La conversa s'ha actualitzat i aquest formulari ja no correspon a les seves dades actuals, així que no es pot aplicar. Copia el que hagis escrit i tanca'l; torna a obrir-lo per revisar l'adjunt amb les dades actuals.</value>
+  </data>
+  <data name="AvisoFormatosContextoCambiado" xml:space="preserve">
+    <value>La conversa s'ha actualitzat mentre es preparava el resum del Centre. Torna a triar-lo a «Compartir formats de centre»: la teva resposta no s'ha modificat.</value>
+  </data>
+  <data name="AvisoPlantillaContextoCambiado" xml:space="preserve">
+    <value>La conversa s'ha actualitzat mentre es preparava la plantilla. Torna a triar-la: la teva resposta no s'ha modificat.</value>
+  </data>
+  <data name="AvisoAdjuntosContextoCambiado" xml:space="preserve">
+    <value>La conversa s'ha actualitzat mentre es llegien els fitxers. Torna a adjuntar-los: la teva resposta no s'ha modificat.</value>
+  </data>
+  <data name="AvisoPrioridadCentroRetirado" xml:space="preserve">
+    <value>El Centre triat ja no és d'aquesta conversa. Tanca i torna a triar-lo a «Compartir formats de centre».</value>
+  </data>
   <data name="ErrorEnviarRespuesta" xml:space="preserve">
     <value>No s'ha enviat la resposta. El teu text i els adjunts continuen a l'editor: comprova la connexió i prem Enviar un altre cop.</value>
   </data>

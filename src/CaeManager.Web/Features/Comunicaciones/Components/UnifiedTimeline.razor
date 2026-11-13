@@ -34,7 +34,7 @@
             @* Texto plano, nunca MarkupString: la nota no pasa por el saneador de HTML. *@
             @* Maqueta (E17, `.msg.nota`): tarjeta a todo el ancho, sin avatar; la píldora amarilla va en su propia línea, encima
                del autor, y dice a quién NO llega la nota. *@
-            <div class="timeline-nota-interna-fila">
+            <div class="timeline-nota-interna-fila" id="@IdDeNota(nota.Id)">
                 <div class="timeline-nota-interna" role="note" aria-label="@TextosNotas["EtiquetaNotaInterna"]">
                     <span class="timeline-pildora-nota">@TextosNotas["PildoraNotaInterna"]</span>
                     <div class="timeline-mensaje-cabecera">
@@ -204,6 +204,9 @@
         NotaInternaDetalleDto n => n.FechaUtc,
         _ => null
     };
+
+    /// <summary>Ancla de una nota interna dentro del hilo: a ella apunta «Notas del equipo» del panel de contexto.</summary>
+    public static string IdDeNota(Guid notaId) => $"nota-interna-{notaId}";
 
     private static string FormatearTamano(long bytes) => bytes switch
     {
