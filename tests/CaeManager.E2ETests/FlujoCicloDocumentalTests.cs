@@ -235,8 +235,8 @@ public class FlujoCicloDocumentalTests(WebAppFixture fixture)
         if (await page.Locator(".revision-ia-lateral").CountAsync() > 0)
         {
             Assert.True(await AbrirDesplegableDePendientesAsync(page), "El desplegable de pendientes no se abrió tras recargar /documentos/revision-ia.");
-            await Expect(page.Locator(".revision-ia-opciones").GetByRole(AriaRole.Option, new LocatorGetByRoleOptions { Name = apellidosTrabajador }))
-                .ToHaveCountAsync(0);
+            var pendientes = await NombresDePendientesConElPanelAbiertoAsync(page);
+            Assert.DoesNotContain(pendientes, nombre => nombre.Contains(apellidosTrabajador, StringComparison.Ordinal));
         }
 
         // --- Paso 6 (Reclamación): asignar el Trabajador a su Centro, añadir
@@ -390,12 +390,11 @@ public class FlujoCicloDocumentalTests(WebAppFixture fixture)
     /// ningún TrabajoAnalisisDocumento, y la traza está en el log de la app
     /// (App_Data/logs/log-*.txt del directorio de CaeManager.Web, sink de
     /// archivo de Serilog), no en la salida del test.
-    /// </summary>
+    ///
     /// Las pendientes viven en el desplegable del lateral (role="listbox"),
-    /// que solo se pinta abierto: tras cada carga se pulsa el selector hasta
-    /// que el panel aparece, porque un clic sobre el prerenderizado se pierde
-    /// mientras el circuito no ha conectado (mismo patrón que
-    /// Ayudas.AbrirSelectorTenantAsync).
+    /// que solo se pinta abierto: tras cada carga se abre con
+    /// <see cref="AbrirDesplegableDePendientesAsync"/>.
+    /// </summary>
     private static async Task<ILocator> EsperarOpcionRevisionIaAsync(IPage page, string baseUrl, string apellidosTrabajador)
     {
         var presupuesto = TimeSpan.FromSeconds(90);
@@ -424,30 +423,61 @@ public class FlujoCicloDocumentalTests(WebAppFixture fixture)
     }
 
     /// <summary>
-    /// Abre el desplegable de pendientes del lateral pulsando el selector hasta
-    /// que aparece el panel: un clic sobre el prerenderizado se pierde mientras
-    /// el circuito no ha conectado. Pulsar con el panel ya abierto lo cerraría,
-    /// así que solo se pulsa mientras siga cerrado. Devuelve si quedó abierto
-    /// (no lo queda cuando no hay pendientes y el lateral no se pinta).
+    /// Abre el desplegable de pendientes del lateral. La página no se
+    /// prerenderiza: el selector solo existe cuando el circuito ya pinta y los
+    /// datos han cargado. Aun así, un clic puede tardar en volver por SignalR
+    /// bajo la carga de la suite. Como pulsar con el panel abierto lo cierra,
+    /// tras cada clic se espera con margen y solo se vuelve a pulsar si el
+    /// servidor sigue diciendo que está cerrado (aria-expanded="false"). Si el
+    /// panel se cerrara por un clic tardío, quien mire las opciones lo hace con
+    /// <see cref="NombresDePendientesConElPanelAbiertoAsync"/>, que no da por
+    /// buena una lectura con el panel cerrado. Devuelve si quedó abierto (no lo
+    /// queda cuando no hay pendientes y el lateral no se pinta).
     /// </summary>
     private static async Task<bool> AbrirDesplegableDePendientesAsync(IPage page)
     {
         var panel = page.Locator(".revision-ia-pop");
         var disparador = page.Locator(".revision-ia-selector-boton");
-        for (var intento = 0; intento < 10 && !await panel.IsVisibleAsync(); intento++)
+        for (var intento = 0; intento < 3 && !await panel.IsVisibleAsync(); intento++)
         {
             try
             {
-                await disparador.ClickAsync(new LocatorClickOptions { Timeout = 2_000 });
-                await panel.WaitForAsync(new LocatorWaitForOptions { State = WaitForSelectorState.Visible, Timeout = 1_500 });
+                if (await disparador.GetAttributeAsync("aria-expanded", new LocatorGetAttributeOptions { Timeout = 5_000 }) == "true")
+                {
+                    await panel.WaitForAsync(new LocatorWaitForOptions { State = WaitForSelectorState.Visible, Timeout = 5_000 });
+                    break;
+                }
+
+                await disparador.ClickAsync(new LocatorClickOptions { Timeout = 5_000 });
+                await panel.WaitForAsync(new LocatorWaitForOptions { State = WaitForSelectorState.Visible, Timeout = 5_000 });
             }
             catch (Exception ex) when (ex is PlaywrightException or TimeoutException)
             {
-                // El circuito aún no había conectado, o no hay pendientes: se vuelve a intentar.
+                // Sin pendientes no hay selector, o el clic no volvió a tiempo: se comprueba aria-expanded antes de repetir.
             }
         }
 
         return await panel.IsVisibleAsync();
+    }
+
+    /// <summary>
+    /// Nombres accesibles de las opciones del desplegable, leídos en una sola
+    /// evaluación del DOM junto con la visibilidad del panel. Exige el panel
+    /// abierto y al menos una opción en esa misma lectura: así «no aparece la
+    /// revisión» nunca se concluye de un panel cerrado o vacío.
+    /// </summary>
+    private static async Task<string[]> NombresDePendientesConElPanelAbiertoAsync(IPage page)
+    {
+        var lectura = await page.EvaluateAsync<string[]?>(
+            """
+            () => {
+                const panel = document.querySelector('.revision-ia-pop');
+                if (!panel || panel.getClientRects().length === 0) return null;
+                return [...panel.querySelectorAll('.revision-ia-opciones [role=option]')].map(o => o.textContent ?? '');
+            }
+            """);
+        Assert.True(lectura is { Length: > 0 }, "El desplegable de pendientes no estaba abierto o no tenía opciones al leerlo.");
+        return lectura!;
     }
 
     private static ILocatorAssertions Expect(ILocator locator) => Assertions.Expect(locator);
