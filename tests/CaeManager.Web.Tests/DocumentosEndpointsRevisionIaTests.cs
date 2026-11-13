@@ -7,6 +7,7 @@ using CaeManager.Domain.Documentos;
 using CaeManager.Web.Features.Documentos;
 using FluentAssertions;
 using MediatR;
+using Microsoft.AspNetCore.Diagnostics;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -15,7 +16,7 @@ namespace CaeManager.Web.Tests;
 
 /// <summary>
 /// <c>GET /documentos/revision-ia/{revisionId}/archivo</c> (D-49, opción C): el visor de la pantalla Revisión IA se carga
-/// solo y su acceso queda como «Revisión IA», una vez por revisión y persona. Aquí se fija el manejador: sirve el
+/// solo y su acceso queda como «Revisión IA», una vez por persona y Documento. Aquí se fija el manejador: sirve el
 /// Documento de la revisión —no uno que elija el cliente—, lo registra por la vía deduplicada y nunca como Apertura, y una
 /// revisión que la cola no alcanza da 404 sin abrir ni registrar nada. <c>/documentos/{id}/archivo</c> sigue registrando
 /// una Apertura en cada GET.
@@ -64,6 +65,7 @@ public class DocumentosEndpointsRevisionIaTests
         mediador.Enviadas.OfType<ObtenerDocumentoPorIdQuery>().Should().BeEmpty("sin revisión al alcance no se lee ningún Documento");
         registro.RevisionIa.Should().BeEmpty();
         registro.Otros.Should().BeEmpty();
+        DebeSerIncrustableSinPaginaDeEstado(contexto);
     }
 
     [Fact]
@@ -77,6 +79,7 @@ public class DocumentosEndpointsRevisionIaTests
         contexto.Response.StatusCode.Should().Be(StatusCodes.Status404NotFound);
         registro.RevisionIa.Should().BeEmpty();
         registro.Otros.Should().BeEmpty();
+        DebeSerIncrustableSinPaginaDeEstado(contexto);
     }
 
     [Fact]
@@ -90,6 +93,25 @@ public class DocumentosEndpointsRevisionIaTests
         contexto.Response.StatusCode.Should().Be(StatusCodes.Status403Forbidden, "falla en cerrado, como /documentos/{id}/archivo");
         ((MemoryStream)contexto.Response.Body).Length.Should().Be(0);
         contexto.Response.Headers.ContentDisposition.ToString().Should().BeEmpty();
+        DebeSerIncrustableSinPaginaDeEstado(contexto);
+    }
+
+    /// <summary>
+    /// Control: la ruta de siempre no cambia; su 404 no se vuelve incrustable ni apaga la página de estado (solo el visor
+    /// de Revisión IA lo necesita, porque se carga solo en un iframe).
+    /// </summary>
+    [Fact]
+    public async Task El_404_del_archivo_por_Id_de_Documento_no_se_vuelve_incrustable()
+    {
+        var contexto = NuevoContexto();
+        var resultado = await DocumentosEndpoints.ServirArchivoAsync(
+            DocumentoDeLaRevision, contexto, new MediadorFalso(null, documento: null), new AlmacenConPdf(),
+            new RegistroEspia(), NullLoggerFactory.Instance, CancellationToken.None);
+        await resultado.ExecuteAsync(contexto);
+
+        contexto.Response.StatusCode.Should().Be(StatusCodes.Status404NotFound);
+        contexto.Response.Headers["X-Frame-Options"].ToString().Should().BeEmpty();
+        contexto.Features.Get<IStatusCodePagesFeature>()!.Enabled.Should().BeTrue();
     }
 
     /// <summary>Control: la ruta de siempre sigue registrando una Apertura en cada GET, sin deduplicar.</summary>
@@ -116,10 +138,30 @@ public class DocumentosEndpointsRevisionIaTests
 
     // ── Andamiaje ─────────────────────────────────────────────────────────
 
-    private static async Task<DefaultHttpContext> ServirAsync(MediadorFalso mediador, RegistroEspia registro)
+    /// <summary>
+    /// Un rechazo del visor (revisión resuelta en otra pestaña, fuera del alcance, registro rechazado) lleva las mismas
+    /// cabeceras de incrustación en el mismo origen que la respuesta buena, sin cuerpo, y apaga la página de estado, que
+    /// metería en el iframe el HTML de /not-found: el visor queda en blanco en vez de enseñar el error del navegador.
+    /// </summary>
+    private static void DebeSerIncrustableSinPaginaDeEstado(DefaultHttpContext contexto)
+    {
+        contexto.Response.Headers["X-Frame-Options"].ToString().Should().Be("SAMEORIGIN");
+        contexto.Response.Headers.ContentSecurityPolicy.ToString().Should().Contain("frame-ancestors 'self'");
+        ((MemoryStream)contexto.Response.Body).Length.Should().Be(0, "sin cuerpo: ningún dato del Documento ni de la revisión");
+        contexto.Features.Get<IStatusCodePagesFeature>()!.Enabled.Should().BeFalse();
+    }
+
+    private static DefaultHttpContext NuevoContexto()
     {
         var contexto = new DefaultHttpContext { RequestServices = new ServiceCollection().AddLogging().BuildServiceProvider() };
         contexto.Response.Body = new MemoryStream();
+        contexto.Features.Set<IStatusCodePagesFeature>(new StatusCodePagesFeature());
+        return contexto;
+    }
+
+    private static async Task<DefaultHttpContext> ServirAsync(MediadorFalso mediador, RegistroEspia registro)
+    {
+        var contexto = NuevoContexto();
         var resultado = await DocumentosEndpoints.ServirArchivoDeRevisionIaAsync(
             RevisionId, contexto, mediador, new AlmacenConPdf(), registro, NullLoggerFactory.Instance, CancellationToken.None);
         await resultado.ExecuteAsync(contexto);

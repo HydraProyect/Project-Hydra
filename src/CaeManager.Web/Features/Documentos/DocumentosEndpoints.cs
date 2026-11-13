@@ -36,7 +36,7 @@ public static class DocumentosEndpoints
             .RequireAuthorization(new AuthorizeAttribute { AuthenticationSchemes = IdentityConstants.ApplicationScheme });
 
         // Revisión IA (D-49, opción C): el visor de la revisión seleccionada se carga solo, y su acceso queda como
-        // «Revisión IA», una fila por revisión y persona. El origen lo da esta ruta, ligada a una revisión pendiente, nunca
+        // «Revisión IA», una fila por persona y Documento. El origen lo da esta ruta, ligada a una revisión pendiente, nunca
         // un dato del cliente (query, cabecera, Referer): /documentos/{id}/archivo sigue registrando una Apertura en cada GET.
         // Solo cookie de sesión y los roles de la pantalla (el claim; dentro de un Workspace operativo derivado ya es el rol
         // efectivo, y bajo una Sesión Privilegiada no hay ninguno). ObtenerRevisionIaParaVisorQuery vuelve a decidir con el
@@ -238,7 +238,7 @@ public static class DocumentosEndpoints
     /// <summary>
     /// Manejador de <c>GET /documentos/revision-ia/{revisionId}/archivo</c>: el documento de una revisión IA pendiente, para
     /// el visor que la pantalla Revisión IA carga sola (D-49, opción C). Sirve el Documento de ESA revisión —el cliente no
-    /// lo elige— y lo registra como <see cref="TipoAccesoDocumentoSensible.RevisionIa"/>, una vez por revisión y persona
+    /// lo elige— y lo registra como <see cref="TipoAccesoDocumentoSensible.RevisionIa"/>, una vez por persona y Documento
     /// (<see cref="IRegistroAccesoDocumentoSensibleService.RegistrarRevisionIaSiSensibleAsync"/>). Una revisión que quien
     /// pide no alcanza en la cola da 404, igual que un Id que no existe.
     /// </summary>
@@ -254,20 +254,36 @@ public static class DocumentosEndpoints
         }
         catch (Exception ex) when (ErroresLecturaSensible.EsContextoNoAutorizado(ex))
         {
-            return ErroresLecturaSensible.Responder(contexto, ex, revisionId,
-                fabricaRegistro.CreateLogger(typeof(DocumentosEndpoints).FullName!));
+            return RechazoIncrustable(contexto, ErroresLecturaSensible.Responder(contexto, ex, revisionId,
+                fabricaRegistro.CreateLogger(typeof(DocumentosEndpoints).FullName!)));
         }
         if (revision is null)
-            return Results.NotFound();
+            return RechazoIncrustable(contexto, Results.NotFound());
 
         var abierto = await AbrirConRegistroAsync(
             revision.DocumentoId,
             (documentoId, ct) => registroAcceso.RegistrarRevisionIaSiSensibleAsync(documentoId, revision.CreadaEnUtc, ct),
             contexto, mediator, almacenamiento, fabricaRegistro, cancellationToken);
         if (abierto.Rechazo is not null)
-            return abierto.Rechazo;
+            return RechazoIncrustable(contexto, abierto.Rechazo);
 
         return ServirEnLinea(contexto, abierto.Flujo!, abierto.Documento!);
+    }
+
+    /// <summary>
+    /// El rechazo del visor de Revisión IA (la revisión se resolvió en otra pestaña, salió del alcance, el registro se
+    /// rechazó): el mismo código, sin cuerpo ni dato alguno, pero incrustable en el mismo origen como la respuesta buena,
+    /// para que el <c>&lt;iframe&gt;</c> quede en blanco en vez de enseñar la página de error del navegador por
+    /// <c>X-Frame-Options: DENY</c>. Sin páginas de estado: <c>UseStatusCodePagesWithReExecute("/not-found")</c> metería en
+    /// el visor el HTML de la aplicación, con las cabeceras por defecto. Solo esta ruta; <c>/documentos/{id}/archivo</c> no
+    /// cambia.
+    /// </summary>
+    private static IResult RechazoIncrustable(HttpContext contexto, IResult rechazo)
+    {
+        if (contexto.Features.Get<Microsoft.AspNetCore.Diagnostics.IStatusCodePagesFeature>() is { } paginasDeEstado)
+            paginasDeEstado.Enabled = false;
+        contexto.PermitirIncrustacionEnMismoOrigen();
+        return rechazo;
     }
 
     /// <summary>El archivo vigente, en línea y por rangos, incrustable solo en el mismo origen: lo que muestra el visor.</summary>
@@ -319,7 +335,7 @@ public static class DocumentosEndpoints
 
     /// <summary>
     /// <see cref="AbrirConRegistroAsync(Guid, TipoAccesoDocumentoSensible, HttpContext, IMediator, IFileStorageService, IRegistroAccesoDocumentoSensibleService, ILoggerFactory, CancellationToken)"/>
-    /// con el registro que decide quien llama (la Revisión IA deduplica por revisión y persona). Mismo orden: lectura con
+    /// con el registro que decide quien llama (la Revisión IA deduplica por persona y Documento). Mismo orden: lectura con
     /// alcance, apertura del blob y registro antes de entregar nada; si el registro falla, no se sirve.
     /// </summary>
     private static async Task<(Stream? Flujo, DocumentoDetalleDto? Documento, IResult? Rechazo)> AbrirConRegistroAsync(

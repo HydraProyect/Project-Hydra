@@ -13,7 +13,7 @@ public interface IAuditoriaQueryContext
     /// <c>ObtenerAuditoriaQuery</c>, una superficie administrativa de
     /// auditoría — no una lectura de negocio más. El único otro lector es
     /// <c>RegistroAccesoDocumentoSensibleService</c>, que solo pregunta si ya consta
-    /// la fila «Revisión IA» de una revisión y persona antes de escribir otra.
+    /// la fila «Revisión IA» de un Documento y persona antes de escribir otra.
     /// </summary>
     IQueryable<RegistroAccesoDocumentoSensible> RegistrosAccesoDocumentoSensible { get; }
 }

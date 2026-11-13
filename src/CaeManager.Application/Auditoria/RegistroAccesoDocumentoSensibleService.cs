@@ -4,6 +4,7 @@ using CaeManager.Application.TiposDocumento;
 using CaeManager.Domain.Auditoria;
 using CaeManager.Domain.Documentos;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 
 namespace CaeManager.Application.Auditoria;
 
@@ -17,7 +18,8 @@ public class RegistroAccesoDocumentoSensibleService(
     ITenantActual? tenantActual = null,
     // Solo para la comprobación de «ya registrado» de RegistrarRevisionIaSiSensibleAsync. Sin él, esa vía registra en
     // cada llamada: de más, nunca de menos.
-    IAuditoriaQueryContext? auditoriaContext = null)
+    IAuditoriaQueryContext? auditoriaContext = null,
+    ILogger<RegistroAccesoDocumentoSensibleService>? logger = null)
     : IRegistroAccesoDocumentoSensibleService
 {
     public async Task RegistrarSiSensibleAsync(
@@ -143,8 +145,12 @@ public class RegistroAccesoDocumentoSensibleService(
             actor.ViaAccesoId,
             (TipoActorAuditoria)actor.ResolverTipoActor());
 
-        // Revisión IA: una fila por revisión y persona, no una por GET (el visor pide por rangos y se recarga). Sin la misma
-        // fila ya escrita —mismo Documento, tipo, Usuario, Actor real y vía, desde que se creó la revisión—, se registra.
+        // Revisión IA: deduplicado por persona y Documento, no una fila por GET (el visor pide por rangos y se recarga). Sin
+        // la misma fila ya escrita —mismo Documento, tipo, Usuario, Actor real y vía, desde que se creó la revisión—, se
+        // registra. Como mucho una fila por persona y Documento en condiciones normales; peticiones simultáneas pueden dejar
+        // más, nunca menos: la comprobación y la escritura no van bajo un bloqueo, y la auditoría solo puede pecar por exceso.
+        // Dos revisiones pendientes del mismo Documento, vistas por la misma persona, comparten fila: comportamiento
+        // aceptado, la fila registra el acceso al Documento.
         if (deduplicarDesdeUtc is { } desde && await YaRegistradoAsync(registro, desde, cancellationToken))
             return null;
 
@@ -186,8 +192,13 @@ public class RegistroAccesoDocumentoSensibleService(
                 && r.OcurridoEnUtc >= desdeUtc,
                 cancellationToken);
         }
-        catch (Exception) when (!cancellationToken.IsCancellationRequested)
+        catch (Exception ex) when (!cancellationToken.IsCancellationRequested)
         {
+            // Sin datos personales: ni el Documento ni el Usuario, y sin la excepción entera (su mensaje podría llevarlos);
+            // basta el tipo para ver en el registro que la deduplicación está fallando y se escriben filas de más.
+            logger?.LogWarning(
+                "La comprobación de «ya registrado» del acceso Revisión IA falló ({TipoExcepcion}); se escribe la fila igualmente.",
+                ex.GetType().Name);
             return false;
         }
     }

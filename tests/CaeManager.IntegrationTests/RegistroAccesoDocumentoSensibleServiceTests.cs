@@ -104,7 +104,7 @@ public class RegistroAccesoDocumentoSensibleServiceTests : IAsyncLifetime
 
     /// <summary>
     /// D-49, opción C: el visor de Revisión IA pide el documento cada vez que se selecciona la revisión; consta una sola
-    /// fila «Revisión IA» por revisión y persona. Las Aperturas siguen registrándose en cada llamada.
+    /// fila «Revisión IA» por persona y Documento. Las Aperturas siguen registrándose en cada llamada.
     /// </summary>
     [Fact]
     public async Task La_Revision_IA_deja_una_fila_por_revision_y_persona_aunque_se_pida_varias_veces()

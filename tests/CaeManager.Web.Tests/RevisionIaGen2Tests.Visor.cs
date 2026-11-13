@@ -11,7 +11,7 @@ namespace CaeManager.Web.Tests;
 
 /// <summary>
 /// Revisión IA, ronda 2: el visor carga solo el documento de la revisión seleccionada (D-49, opción C) por la ruta de la
-/// revisión, que el servidor registra como «Revisión IA» una vez por revisión y persona; «Descargar» sigue en
+/// revisión, que el servidor registra como «Revisión IA» una vez por persona y Documento; «Descargar» sigue en
 /// /documentos/{id}/archivo (Apertura). También el texto del diálogo de «Confirmar todos», «Confirmable» según el umbral y
 /// el foco del desplegable.
 /// </summary>
@@ -135,7 +135,7 @@ public partial class RevisionIaGen2Tests
         await Navegar(cut, "Anterior (K)").ClickAsync(new MouseEventArgs());
 
         IframesDelVisor(cut).Should().ContainSingle().Which.Should().Be(RutaDelVisor(primera),
-            "la nueva petición no añade fila: el servidor deja una por revisión y persona");
+            "la nueva petición no añade fila: el servidor deja una por persona y Documento");
     }
 
     // ---- Texto del diálogo de «Confirmar todos» ----
