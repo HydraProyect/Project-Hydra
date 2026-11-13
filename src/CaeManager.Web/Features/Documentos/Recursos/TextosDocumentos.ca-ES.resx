@@ -217,8 +217,17 @@
   <data name="RevIaDialogoMensaje" xml:space="preserve">
     <value>Acceptaràs {0} de les {2} lectures pendents de la cua: les de confiança de {1} % o més i data detectada. Cadascuna aplica la data d&apos;emissió llegida i calcula el venciment amb la regla del seu tipus de document; queda una decisió registrada per document a nom teu. Les altres continuen pendents.</value>
   </data>
+  <data name="RevIaDialogoMensajeTodas" xml:space="preserve">
+    <value>Acceptaràs les {0} lectures pendents de la cua: les de confiança de {1} % o més i data detectada. Cadascuna aplica la data d&apos;emissió llegida i calcula el venciment amb la regla del seu tipus de document; queda una decisió registrada per document a nom teu.</value>
+  </data>
+  <data name="RevIaDialogoMensajeUna" xml:space="preserve">
+    <value>Acceptaràs l&apos;única lectura pendent de la cua: té confiança de {1} % o més i data detectada. Aplica la data d&apos;emissió llegida i calcula el venciment amb la regla del seu tipus de document; queda una decisió registrada a nom teu.</value>
+  </data>
   <data name="RevIaDialogoMensajePrimeras" xml:space="preserve">
     <value>Acceptaràs les primeres {0} de les {2} lectures de la IA amb confiança de {1} % o més i data detectada: és el màxim d&apos;un bloc i la resta continua pendent. Cadascuna aplica la data d&apos;emissió llegida i calcula el venciment amb la regla del seu tipus de document; queda una decisió registrada per document a nom teu.</value>
+  </data>
+  <data name="RevIaDialogoFiltroOcultaUna" xml:space="preserve">
+    <value>Amb el filtre actiu, {0} d&apos;aquestes no es veu a la llista: s&apos;accepta igualment, perquè aquest botó actua sobre tota la cua i no només sobre el que mostra el filtre.</value>
   </data>
   <data name="RevIaDialogoFiltroOculta" xml:space="preserve">
     <value>Amb el filtre actiu, {0} d&apos;aquestes no es veuen a la llista: s&apos;accepten igualment, perquè aquest botó actua sobre tota la cua i no només sobre el que mostra el filtre.</value>
@@ -227,7 +236,7 @@
     <value>Veure el document</value>
   </data>
   <data name="RevIaDocumentoReposo" xml:space="preserve">
-    <value>El document no es carrega fins que el demanis: cada obertura queda registrada.</value>
+    <value>El document no es carrega fins que el demanis: les obertures de documents sensibles queden registrades.</value>
   </data>
   <data name="RevIaDialogoConfirmar" xml:space="preserve">
     <value>Confirma tots</value>

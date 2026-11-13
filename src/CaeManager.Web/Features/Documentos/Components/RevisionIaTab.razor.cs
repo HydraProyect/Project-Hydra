@@ -63,6 +63,9 @@ public partial class RevisionIaTab : ComponentBase, IDisposable
     private Guid? _proximaSeleccion;
 
     private bool _avanceAutomatico = true;
+
+    /// <summary>El usuario ya cambió la casilla: la lectura inicial (asíncrona) de la preferencia guardada no la pisa.</summary>
+    private bool _avanceTocadoPorElUsuario;
     private string? _claveAvance;
 
     /// <summary>Cuántas lecturas se han resuelto en esta visita: el «Has revisado los N» de cuando no queda ninguna.</summary>
@@ -110,15 +113,28 @@ public partial class RevisionIaTab : ComponentBase, IDisposable
     {
         get
         {
-            var enBloque = ConfirmablesEnBloque.Count;
+            var seleccionadas = ConfirmablesEnBloque;
+            var enBloque = seleccionadas.Count;
             var total = TodasLasConfirmables.Count();
+            var pendientes = _revisiones.Count;
+
+            // Concordancia: «la única», «las N» (todas entran: no hay «demás») o «N de las M» (el resto sigue pendiente).
             var mensaje = total > enBloque
                 ? Textos["RevIaDialogoMensajePrimeras", enBloque, UmbralLote, total].Value
-                : Textos["RevIaDialogoMensaje", enBloque, UmbralLote, _revisiones.Count].Value;
-            var ocultas = TodasLasConfirmables.Count(r => !CumpleFiltro(r));
-            return ocultas > 0
-                ? $"{mensaje} {string.Format(Textos["RevIaDialogoFiltroOculta"].Value, ocultas)}"
-                : mensaje;
+                : pendientes == 1 && enBloque == 1
+                    ? Textos["RevIaDialogoMensajeUna", enBloque, UmbralLote, pendientes].Value
+                    : enBloque == pendientes
+                        ? Textos["RevIaDialogoMensajeTodas", enBloque, UmbralLote, pendientes].Value
+                        : Textos["RevIaDialogoMensaje", enBloque, UmbralLote, pendientes].Value;
+
+            // Las ocultas se cuentan sobre lo que se envía de verdad (recortado al máximo del bloque), no sobre toda la cola.
+            var ocultas = seleccionadas.Count(r => !CumpleFiltro(r));
+            return ocultas switch
+            {
+                0 => mensaje,
+                1 => $"{mensaje} {string.Format(Textos["RevIaDialogoFiltroOcultaUna"].Value, ocultas)}",
+                _ => $"{mensaje} {string.Format(Textos["RevIaDialogoFiltroOculta"].Value, ocultas)}"
+            };
         }
     }
 
@@ -208,7 +224,8 @@ public partial class RevisionIaTab : ComponentBase, IDisposable
         {
             await using var modulo = await Js.InvokeAsync<IJSObjectReference>("import", ModuloPreferencias);
             var guardado = await modulo.InvokeAsync<string?>("leer", _claveAvance);
-            if (!_dispose && guardado is "0" or "1")
+            // La lectura es asíncrona: si el usuario ya movió la casilla mientras tanto, su gesto manda sobre el valor guardado.
+            if (!_dispose && !_avanceTocadoPorElUsuario && guardado is "0" or "1")
             {
                 _avanceAutomatico = guardado == "1";
                 StateHasChanged();
@@ -223,6 +240,7 @@ public partial class RevisionIaTab : ComponentBase, IDisposable
     private async Task CambiarAvanceAsync(bool activado)
     {
         _avanceAutomatico = activado;
+        _avanceTocadoPorElUsuario = true;
         if (_claveAvance is null)
         {
             return;
@@ -248,6 +266,12 @@ public partial class RevisionIaTab : ComponentBase, IDisposable
         var token = cts.Token;
         _cargando = !silenciosa;
         _errorCarga = false;
+        if (!silenciosa)
+        {
+            // «Reintentar» (y la carga inicial) no devuelven el iframe: cada visita al documento es una pulsación explícita.
+            _revisionDocumentoAbierta = null;
+        }
+
         StateHasChanged();
 
         try
@@ -298,6 +322,7 @@ public partial class RevisionIaTab : ComponentBase, IDisposable
             if (!_dispose && generacion == _generacionCarga)
             {
                 _errorCarga = true;
+                _revisionDocumentoAbierta = null;
             }
         }
         finally

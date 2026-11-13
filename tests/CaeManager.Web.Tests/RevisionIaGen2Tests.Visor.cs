@@ -23,8 +23,8 @@ public partial class RevisionIaGen2Tests
     private static async Task VerDocumentoAsync(IRenderedComponent<RevisionIaTab> cut) =>
         await Boton(cut, "Ver documento").ClickAsync(new MouseEventArgs());
 
-    private static string MensajeDelDialogoDeLote(IRenderedComponent<RevisionIaTab> cut) => cut.FindComponents<DialogoConfirmacion>()
-        .Single(d => d.Instance.Titulo == "Confirmar las lecturas de confianza alta").Instance.Mensaje;
+    private static string MensajeDelDialogoDeLote(IRenderedComponent<RevisionIaTab> cut, string titulo = "Confirmar las lecturas de confianza alta") =>
+        cut.FindComponents<DialogoConfirmacion>().Single(d => d.Instance.Titulo == titulo).Instance.Mensaje;
 
     // ---- Visor: el documento solo se carga con «Ver documento» ----
 
@@ -147,7 +147,163 @@ public partial class RevisionIaGen2Tests
 
         MensajeDelDialogoDeLote(cut).Should().Be(
             $"Vas a aceptar 1 de las 4 lecturas pendientes de la cola: las de confianza de 95 % o más y fecha detectada. {PieDelDialogoDeLote} Las demás siguen pendientes. " +
-            "Con el filtro activo, 1 de ellas no se ven en la lista: se aceptan igual, porque este botón actúa sobre toda la cola y no solo sobre lo que muestra el filtro.");
+            "Con el filtro activo, 1 de ellas no se ve en la lista: se acepta igual, porque este botón actúa sobre toda la cola y no solo sobre lo que muestra el filtro.");
+    }
+
+    [Fact]
+    public async Task El_dialogo_con_una_sola_lectura_dice_la_unica_y_no_habla_de_las_demas()
+    {
+        var cut = Renderizar(new MediadorFalso { Revisiones = [Revision("Unica", 97, Vence)] });
+
+        await Boton(cut, "Confirmar todos los ≥95 % (1)").ClickAsync(new MouseEventArgs());
+
+        var mensaje = MensajeDelDialogoDeLote(cut);
+        mensaje.Should().Be("Vas a aceptar la única lectura pendiente de la cola: tiene confianza de 95 % o más y fecha detectada. " +
+            "Aplica la fecha de emisión leída y calcula el vencimiento con la regla de su tipo de documento; queda una decisión registrada a tu nombre.");
+        mensaje.Should().NotContain("1 de las 1").And.NotContain("demás");
+    }
+
+    [Fact]
+    public async Task El_dialogo_cuando_se_confirman_todas_las_pendientes_omite_la_frase_de_las_demas()
+    {
+        var cut = Renderizar(new MediadorFalso { Revisiones = [Revision("Alta", 97, Vence), Revision("Otra", 96, Vence)] });
+
+        await Boton(cut, "Confirmar todos los ≥95 % (2)").ClickAsync(new MouseEventArgs());
+
+        var mensaje = MensajeDelDialogoDeLote(cut);
+        mensaje.Should().Be($"Vas a aceptar las 2 lecturas pendientes de la cola: las de confianza de 95 % o más y fecha detectada. {PieDelDialogoDeLote}");
+        mensaje.Should().NotContain("2 de las 2").And.NotContain("demás");
+    }
+
+    [Fact]
+    public async Task El_dialogo_con_mas_confirmables_que_el_maximo_y_el_filtro_Manual_cuenta_las_ocultas_sobre_las_que_se_envian()
+    {
+        var maximo = CaeManager.Application.Documentos.Commands.AceptarDeteccionesIaEnBloque.AceptarDeteccionesIaEnBloqueCommandHandler.MaximoRevisionesPorBloque;
+        var revisiones = new List<RevisionIaDocumentoDto> { Revision("Manual", 60, Vence) };
+        revisiones.AddRange(Enumerable.Range(0, maximo + 5).Select(i => Revision($"Doc{i}", 96, new DateOnly(2026, 9, 1))));
+        var mediador = new MediadorFalso { Revisiones = revisiones };
+        var cut = Renderizar(mediador);
+        await ElegirFiltroAsync(cut, "manual");
+
+        await Boton(cut, $"Confirmar las primeras {maximo} de {maximo + 5} ≥95 %").ClickAsync(new MouseEventArgs());
+
+        MensajeDelDialogoDeLote(cut).Should().Be(
+            $"Vas a aceptar las primeras {maximo} de las {maximo + 5} lecturas de la IA con confianza de 95 % o más y fecha detectada: es el máximo de un bloque y el resto sigue pendiente. {PieDelDialogoDeLote} " +
+            $"Con el filtro activo, {maximo} de ellas no se ven en la lista: se aceptan igual, porque este botón actúa sobre toda la cola y no solo sobre lo que muestra el filtro.",
+            "las ocultas son las que se envían (recortadas al máximo), no las 205 de la cola");
+    }
+
+    private const string TituloDelDialogoDeLoteEnCatalan = "Confirma les lectures de confiança alta";
+    private const string PieDelDialogoDeLoteEnCatalan = "Cadascuna aplica la data d'emissió llegida i calcula el venciment amb la regla del seu tipus de document; queda una decisió registrada per document a nom teu.";
+
+    private static async Task ConCulturaCatalanaAsync(Func<Task> prueba)
+    {
+        var anterior = System.Globalization.CultureInfo.CurrentUICulture;
+        try
+        {
+            System.Globalization.CultureInfo.CurrentUICulture = System.Globalization.CultureInfo.GetCultureInfo("ca-ES");
+            await prueba();
+        }
+        finally
+        {
+            System.Globalization.CultureInfo.CurrentUICulture = anterior;
+        }
+    }
+
+    [Fact]
+    public async Task El_dialogo_de_confirmar_todos_se_dice_en_catalan_sin_filtro()
+    {
+        await ConCulturaCatalanaAsync(async () =>
+        {
+            var cut = Renderizar(new MediadorFalso { Revisiones = [Revision("Alta", 97, Vence), Revision("Media", 70, Vence), Revision("SinFecha", 99, null)] });
+
+            await Boton(cut, "Confirmar tots els ≥95 % (1)").ClickAsync(new MouseEventArgs());
+
+            MensajeDelDialogoDeLote(cut, TituloDelDialogoDeLoteEnCatalan).Should().Be(
+                $"Acceptaràs 1 de les 3 lectures pendents de la cua: les de confiança de 95 % o més i data detectada. {PieDelDialogoDeLoteEnCatalan} Les altres continuen pendents.");
+        });
+    }
+
+    [Fact]
+    public async Task El_dialogo_de_confirmar_todos_en_catalan_con_una_oculta_usa_el_singular()
+    {
+        await ConCulturaCatalanaAsync(async () =>
+        {
+            var (confirmable, manual, conAlerta, sinFecha) = UnaDeCada();
+            var cut = Renderizar(new MediadorFalso { Revisiones = [manual, confirmable, conAlerta, sinFecha] });
+            await ElegirFiltroAsync(cut, "manual");
+
+            await Boton(cut, "Confirmar tots els ≥95 % (1)").ClickAsync(new MouseEventArgs());
+
+            MensajeDelDialogoDeLote(cut, TituloDelDialogoDeLoteEnCatalan).Should().Be(
+                $"Acceptaràs 1 de les 4 lectures pendents de la cua: les de confiança de 95 % o més i data detectada. {PieDelDialogoDeLoteEnCatalan} Les altres continuen pendents. " +
+                "Amb el filtre actiu, 1 d'aquestes no es veu a la llista: s'accepta igualment, perquè aquest botó actua sobre tota la cua i no només sobre el que mostra el filtre.");
+        });
+    }
+
+    [Fact]
+    public async Task El_dialogo_en_catalan_con_una_sola_lectura_dice_lunica()
+    {
+        await ConCulturaCatalanaAsync(async () =>
+        {
+            var cut = Renderizar(new MediadorFalso { Revisiones = [Revision("Unica", 97, Vence)] });
+
+            await Boton(cut, "Confirmar tots els ≥95 % (1)").ClickAsync(new MouseEventArgs());
+
+            MensajeDelDialogoDeLote(cut, TituloDelDialogoDeLoteEnCatalan).Should().Be(
+                "Acceptaràs l'única lectura pendent de la cua: té confiança de 95 % o més i data detectada. " +
+                "Aplica la data d'emissió llegida i calcula el venciment amb la regla del seu tipus de document; queda una decisió registrada a nom teu.");
+        });
+    }
+
+    // ---- Reposo del visor: qué se registra de verdad ----
+
+    [Fact]
+    public void El_reposo_del_visor_solo_promete_el_registro_de_las_aperturas_de_documentos_sensibles()
+    {
+        var cut = Renderizar(new MediadorFalso { Revisiones = [Revision("Primera", 50, Vence)] });
+
+        cut.Find(".revision-ia-pdf-reposo p").TextContent.Trim().Should().Be(
+            "El documento no se carga hasta que lo pidas: las aperturas de documentos sensibles quedan registradas.");
+        cut.Markup.Should().NotContain("cada apertura queda registrada", "solo se registran las aperturas de documentos sensibles");
+    }
+
+    [Fact]
+    public async Task El_reposo_del_visor_en_catalan_solo_promete_el_registro_de_las_obertures_de_documents_sensibles()
+    {
+        await ConCulturaCatalanaAsync(() =>
+        {
+            var cut = Renderizar(new MediadorFalso { Revisiones = [Revision("Primera", 50, Vence)] });
+
+            cut.Find(".revision-ia-pdf-reposo p").TextContent.Trim().Should().Be(
+                "El document no es carrega fins que el demanis: les obertures de documents sensibles queden registrades.");
+            return Task.CompletedTask;
+        });
+    }
+
+    [Fact]
+    public async Task Reintentar_tras_un_error_de_recarga_no_devuelve_el_iframe_del_documento()
+    {
+        var manual = Revision("Manual", 60, Vence);
+        var confirmable = Revision("Confirmable", 97, Vence);
+        var mediador = new MediadorFalso { Revisiones = [manual, confirmable] };
+        var recargaCaida = false;
+        mediador.Retener = peticion => recargaCaida && peticion is ObtenerRevisionesIaPendientesQuery
+            ? Task.FromException(new InvalidOperationException("la recarga falla"))
+            : null;
+        var cut = Renderizar(mediador);
+        await VerDocumentoAsync(cut);
+        IframesDelVisor(cut).Should().ContainSingle().Which.Should().Be(RutaDelDocumento(manual), "control positivo: el documento está abierto");
+
+        recargaCaida = true;
+        await ConfirmarTodosAsync(cut, "Confirmar todos los ≥95 % (1)");
+        Boton(cut, "Reintentar");
+        recargaCaida = false;
+        await Boton(cut, "Reintentar").ClickAsync(new MouseEventArgs());
+
+        cut.FindAll(".revision-ia-lateral").Should().NotBeEmpty("la cola se recuperó y la selección sigue ahí");
+        IframesDelVisor(cut).Should().BeEmpty("tras Reintentar el documento vuelve a pedirse con «Ver documento»: cada apertura es explícita");
+        Boton(cut, "Ver documento");
     }
 
     [Fact]

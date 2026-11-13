@@ -107,6 +107,48 @@ public partial class RevisionIaGen2Tests
         modulo.Invocations["leer"].Should().ContainSingle().Which.Arguments.Should().Equal($"revision-ia:avance-automatico:{usuarioId}");
     }
 
+    /// <summary>
+    /// JS de bUnit con la lectura de <c>localStorage</c> en manos del test: el resto de llamadas siguen en el JSInterop suelto.
+    /// (Una invocación planificada sin resultado no sirve para esto: bUnit la da por no configurada y la avisa como error.)
+    /// </summary>
+    private sealed class JsConLecturaTardia(Microsoft.JSInterop.IJSRuntime resto, TaskCompletionSource<string?> lectura) : Microsoft.JSInterop.IJSRuntime
+    {
+        public ValueTask<TValue> InvokeAsync<TValue>(string identifier, object?[]? args) => identifier == "import" && args?.FirstOrDefault() as string == "./js/revision-ia.js"
+            ? ValueTask.FromResult((TValue)(object)new ModuloConLecturaTardia(lectura))
+            : resto.InvokeAsync<TValue>(identifier, args);
+
+        public ValueTask<TValue> InvokeAsync<TValue>(string identifier, CancellationToken cancellationToken, object?[]? args) => InvokeAsync<TValue>(identifier, args);
+    }
+
+    private sealed class ModuloConLecturaTardia(TaskCompletionSource<string?> lectura) : Microsoft.JSInterop.IJSObjectReference
+    {
+        public async ValueTask<TValue> InvokeAsync<TValue>(string identifier, object?[]? args) =>
+            identifier == "leer" ? (TValue)(object?)await lectura.Task! : default!;
+
+        public ValueTask<TValue> InvokeAsync<TValue>(string identifier, CancellationToken cancellationToken, object?[]? args) => InvokeAsync<TValue>(identifier, args);
+        public ValueTask DisposeAsync() => ValueTask.CompletedTask;
+    }
+
+    [Fact]
+    public async Task La_preferencia_guardada_que_llega_tarde_no_pisa_la_casilla_que_el_usuario_ya_cambio()
+    {
+        var lectura = new TaskCompletionSource<string?>(TaskCreationOptions.RunContinuationsAsynchronously);
+        Services.AddSingleton<Microsoft.JSInterop.IJSRuntime>(_ => new JsConLecturaTardia(JSInterop.JSRuntime, lectura));
+        Registrar(TresQueSeResuelven());
+        this.ConRolDeEscritura(usuarioId: Guid.NewGuid());
+        var cut = Render<RevisionIaTab>();
+        cut.Find(".revision-ia-avance input").HasAttribute("checked").Should().BeTrue("control positivo: el avance viene activado");
+
+        await cut.Find(".revision-ia-avance input").ChangeAsync(new ChangeEventArgs { Value = false });
+        lectura.SetResult("1");
+        await Task.Delay(100);
+        await cut.InvokeAsync(() => { });
+
+        // Se lee el estado del componente, no el DOM: la continuación de la lectura puede no repintar por sí sola.
+        typeof(RevisionIaTab).GetField("_avanceAutomatico", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)!.GetValue(cut.Instance)
+            .Should().Be(false, "el gesto del usuario manda sobre el valor que llegó tarde");
+        cut.Find(".revision-ia-avance input").HasAttribute("checked").Should().BeFalse();
+    }
     [Fact]
     public async Task La_posicion_y_las_flechas_siguen_a_la_lista_filtrada()
     {

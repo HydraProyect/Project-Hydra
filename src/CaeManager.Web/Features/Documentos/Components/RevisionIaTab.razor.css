@@ -23,7 +23,7 @@
 .revision-ia-pdf-reposo{margin:auto;display:flex;flex-direction:column;align-items:center;gap:var(--space-3);padding:var(--space-6);text-align:center}
 .revision-ia-pdf-reposo p{margin:0;color:var(--color-text-muted);font:var(--font-body-md)}
 .revision-ia-lateral{min-width:0;position:sticky;top:0;padding:var(--space-4) var(--space-5);display:flex;flex-direction:column;gap:var(--space-4);background:var(--color-surface);font:var(--font-body-md);color:var(--color-text)}
-.revision-ia-lateral h3{margin:0 0 4px;font:var(--font-label);font-size:12px;text-transform:uppercase;letter-spacing:.06em;color:var(--color-text-muted)}
+.revision-ia-lateral h3{margin:0 0 4px;font:var(--font-label);font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--color-text-muted)}
 .revision-ia-selector{display:flex;gap:6px;align-items:stretch}
 .revision-ia-selector ::deep .revision-ia-nav{min-width:44px;padding:0}
 .revision-ia-ancla{position:relative;display:inline-flex;flex:1;min-width:0}

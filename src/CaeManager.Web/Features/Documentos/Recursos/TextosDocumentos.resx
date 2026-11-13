@@ -217,8 +217,17 @@
   <data name="RevIaDialogoMensaje" xml:space="preserve">
     <value>Vas a aceptar {0} de las {2} lecturas pendientes de la cola: las de confianza de {1} % o más y fecha detectada. Cada una aplica la fecha de emisión leída y calcula el vencimiento con la regla de su tipo de documento; queda una decisión registrada por documento a tu nombre. Las demás siguen pendientes.</value>
   </data>
+  <data name="RevIaDialogoMensajeTodas" xml:space="preserve">
+    <value>Vas a aceptar las {0} lecturas pendientes de la cola: las de confianza de {1} % o más y fecha detectada. Cada una aplica la fecha de emisión leída y calcula el vencimiento con la regla de su tipo de documento; queda una decisión registrada por documento a tu nombre.</value>
+  </data>
+  <data name="RevIaDialogoMensajeUna" xml:space="preserve">
+    <value>Vas a aceptar la única lectura pendiente de la cola: tiene confianza de {1} % o más y fecha detectada. Aplica la fecha de emisión leída y calcula el vencimiento con la regla de su tipo de documento; queda una decisión registrada a tu nombre.</value>
+  </data>
   <data name="RevIaDialogoMensajePrimeras" xml:space="preserve">
     <value>Vas a aceptar las primeras {0} de las {2} lecturas de la IA con confianza de {1} % o más y fecha detectada: es el máximo de un bloque y el resto sigue pendiente. Cada una aplica la fecha de emisión leída y calcula el vencimiento con la regla de su tipo de documento; queda una decisión registrada por documento a tu nombre.</value>
+  </data>
+  <data name="RevIaDialogoFiltroOcultaUna" xml:space="preserve">
+    <value>Con el filtro activo, {0} de ellas no se ve en la lista: se acepta igual, porque este botón actúa sobre toda la cola y no solo sobre lo que muestra el filtro.</value>
   </data>
   <data name="RevIaDialogoFiltroOculta" xml:space="preserve">
     <value>Con el filtro activo, {0} de ellas no se ven en la lista: se aceptan igual, porque este botón actúa sobre toda la cola y no solo sobre lo que muestra el filtro.</value>
@@ -227,7 +236,7 @@
     <value>Ver documento</value>
   </data>
   <data name="RevIaDocumentoReposo" xml:space="preserve">
-    <value>El documento no se carga hasta que lo pidas: cada apertura queda registrada.</value>
+    <value>El documento no se carga hasta que lo pidas: las aperturas de documentos sensibles quedan registradas.</value>
   </data>
   <data name="RevIaDialogoConfirmar" xml:space="preserve">
     <value>Confirmar todos</value>
