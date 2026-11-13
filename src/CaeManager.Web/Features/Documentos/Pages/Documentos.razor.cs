@@ -254,6 +254,25 @@ public partial class Documentos : CaeManager.Web.Components.PaginaInteractiva, I
 
     private string _pestanaActiva = "listado";
 
+    /// <summary>La pantalla propia de Revisión IA (D-49): destino del Id de pestaña <c>revision-ia</c>.</summary>
+    internal const string RutaRevisionIa = "/documentos/revision-ia";
+
+    /// <summary>
+    /// D-49: los enlaces guardados y los deep links con «?pestana=revision-ia» (Alertas, Calendario, Comunicaciones) siguen
+    /// llegando: quien gestiona se va a la pantalla propia de Revisión IA. Quien no gestiona (Consulta) se queda y ve el aviso
+    /// de rol, porque la pantalla destino exige un rol de gestión y no debe toparse con un «acceso denegado».
+    /// </summary>
+    private bool RedirigirARevisionIaSiProcede()
+    {
+        if (_pestanaActiva != "revision-ia" || !_puedeEscribir)
+        {
+            return false;
+        }
+
+        NavigationManager.NavigateTo(RutaRevisionIa, replace: true);
+        return true;
+    }
+
     /// <summary>
     /// La pestaña se refleja en la URL (mismo mecanismo que los filtros de la
     /// rejilla, P1-18) para que recargar, compartir el enlace o navegar
@@ -264,6 +283,13 @@ public partial class Documentos : CaeManager.Web.Components.PaginaInteractiva, I
     /// </summary>
     private void CambiarPestana(string pestana)
     {
+        // D-49: Revisión IA es pantalla propia; su Id sigue valiendo y lleva a ella.
+        if (pestana == "revision-ia")
+        {
+            NavigationManager.NavigateTo(RutaRevisionIa);
+            return;
+        }
+
         _pestanaActiva = pestana;
         CambiarContextoDocumental();
         NavigationManager.ActualizarFiltroEnUrl(nameof(Pestana), pestana == "listado" ? null : pestana);
@@ -522,6 +548,10 @@ public partial class Documentos : CaeManager.Web.Components.PaginaInteractiva, I
             var usuario = (await EstadoAutenticacion).User;
             if (_desechado) return;
             _puedeEscribir = Roles.ConEscrituraCsv.Split(',').Any(usuario.IsInRole);
+            if (RedirigirARevisionIaSiProcede())
+            {
+                return;
+            }
             // «Pendiente de revisión IA» se ofrece por el rol EFECTIVO, la misma fuente con la que el handler decide si lo aplica
             // (ColaRevisionIa.AccedeElRol): no por el claim, que bajo una Sesión Privilegiada lleva el rol del Tenant de plataforma. Así
             // ni la pastilla, ni el chip, ni «Guardar filtro», ni «Exportar esta vista», ni la vista recordada llevan el filtro mientras
@@ -702,6 +732,10 @@ public partial class Documentos : CaeManager.Web.Components.PaginaInteractiva, I
     protected override void OnParametersSet()
     {
         SincronizarCamposConLaUrl();
+        if (RedirigirARevisionIaSiProcede())
+        {
+            return;
+        }
 
         // Los filtros son la fuente de verdad de QUÉ hay en pantalla, y viajan
         // por la URL: cambiarlos desde el selector, desde otra pantalla o
@@ -765,7 +799,9 @@ public partial class Documentos : CaeManager.Web.Components.PaginaInteractiva, I
         // Sin «?pestana=» la URL pide el listado, que es lo que «Estado» (la barra de las pantallas hermanas) y el menú lateral
         // enlaza: desde cualquier otra pestaña de esta misma instancia, ese enlace solo quita el parámetro.
         if (IdDePestanaDeUrl(Pestana) is { } pestanaDeUrl)
+        {
             _pestanaActiva = pestanaDeUrl;
+        }
         else if (string.IsNullOrWhiteSpace(Pestana))
             _pestanaActiva = "listado";
     }

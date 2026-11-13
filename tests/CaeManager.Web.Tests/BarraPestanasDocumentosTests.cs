@@ -92,7 +92,7 @@ public class BarraPestanasDocumentosTests : BunitContext
     [InlineData("Plataformas CAE", "/documentos?pestana=plataforma")]
     [InlineData("Reclamaciones", "/documentos?pestana=reclamaciones")]
     [InlineData("Preventivo", "/documentos?pestana=sugerencias")]
-    [InlineData("Revisión IA", "/documentos?pestana=revision-ia")]
+    [InlineData("Revisión IA", "/documentos/revision-ia")]
     [InlineData("Plantillas", "/documentos?pestana=plantillas")]
     public async Task Desde_una_pantalla_hermana_cada_pestana_lleva_a_su_vista_de_Documentos(string rotulo, string destino)
     {
