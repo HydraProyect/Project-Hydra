@@ -64,7 +64,7 @@ public class DocumentosExportacionRegistroTests
     {
         var registro = new RegistroFalso();
         var tipo = Guid.NewGuid();
-        var resultado = await DocumentosEndpoints.ExportarAsync(new DefaultHttpContext(), new MediadorFalso(), new TenantActualFalso(Origen), registro, default,
+        var resultado = await DocumentosEndpoints.ExportarAsync(new DefaultHttpContext(), new MediadorFalso(), new TenantActualFalso(Origen), registro, new TextosDocumentosEco(), default,
             q: "01234567Z", estado: "Vencido,01234567Z", tipo: tipo.ToString(), propietario: "01234567Z",
             orden: "Nombre; 01234567Z", agrupar: "ambito", desc: true);
 
@@ -87,10 +87,10 @@ public class DocumentosExportacionRegistroTests
     {
         var registro = new RegistroFalso();
         var plataforma = Guid.NewGuid();
-        await DocumentosEndpoints.ExportarAsync(new DefaultHttpContext(), new MediadorFalso(), new TenantActualFalso(Origen), registro, default,
+        await DocumentosEndpoints.ExportarAsync(new DefaultHttpContext(), new MediadorFalso(), new TenantActualFalso(Origen), registro, new TextosDocumentosEco(), default,
             ambito: "Empresa", plataforma: plataforma.ToString());
         // Un entero no definido en el enumerado parsea, pero no es un ámbito: no llega al rastro.
-        await DocumentosEndpoints.ExportarAsync(new DefaultHttpContext(), new MediadorFalso(), new TenantActualFalso(Origen), registro, default,
+        await DocumentosEndpoints.ExportarAsync(new DefaultHttpContext(), new MediadorFalso(), new TenantActualFalso(Origen), registro, new TextosDocumentosEco(), default,
             ambito: "12345678", plataforma: "01234567Z");
 
         registro.Registros.Should().HaveCount(2);
@@ -106,7 +106,7 @@ public class DocumentosExportacionRegistroTests
     public async Task Si_falla_el_registro_no_entrega_el_archivo()
     {
         var exportar = () => DocumentosEndpoints.ExportarAsync(
-            new DefaultHttpContext(), new MediadorFalso(), new TenantActualFalso(Origen), new RegistroFalso(falla: true), default);
+            new DefaultHttpContext(), new MediadorFalso(), new TenantActualFalso(Origen), new RegistroFalso(falla: true), new TextosDocumentosEco(), default);
 
         await exportar.Should().ThrowAsync<InvalidOperationException>().WithMessage("sin rastro");
     }
@@ -123,7 +123,7 @@ public class DocumentosExportacionRegistroTests
         var registro = new RegistroFalso();
 
         var resultado = await DocumentosEndpoints.ExportarAsync(new DefaultHttpContext(), mediador,
-            new TenantActualFalso(empresaElegida ? Externo : Origen), registro, default);
+            new TenantActualFalso(empresaElegida ? Externo : Origen), registro, new TextosDocumentosEco(), default);
 
         if (!empresaElegida)
         {

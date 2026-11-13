@@ -8,11 +8,13 @@ using CaeManager.Domain.Auditoria;
 using CaeManager.Domain.Documentos;
 using CaeManager.Infrastructure.Identity;
 using CaeManager.Web.Exportacion;
+using CaeManager.Web.Features.Documentos.Recursos;
 using CaeManager.Web.Services;
 using ClosedXML.Excel;
 using MediatR;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
+using Microsoft.Extensions.Localization;
 using Microsoft.Net.Http.Headers;
 
 namespace CaeManager.Web.Features.Documentos;
@@ -65,7 +67,7 @@ public static class DocumentosEndpoints
 
     public static async Task<IResult> ExportarAsync(
         HttpContext contexto, IMediator mediator, ITenantActual tenantActual, IRegistroExportacionService registroExportacion,
-        CancellationToken cancellationToken,
+        IStringLocalizer<TextosDocumentos> textos, CancellationToken cancellationToken,
         string? q = null, string? ambito = null, string? estado = null, string? orden = null, bool desc = false,
         string? tipo = null, string? plataforma = null, string? propietario = null, string? agrupar = null,
         string? estadoPlataforma = null, string? venceEn = null, string? pendienteRevisionIa = null)
@@ -158,7 +160,7 @@ public static class DocumentosEndpoints
         {
             // Ni fichero ni rastro en el registro: lo exportado hasta aquí mezclaría dos criterios. Quien exporta puede repetirlo.
             return Results.Problem(
-                "Tus permisos han cambiado mientras se generaba la exportación. Vuelve a exportar.",
+                textos["ExportacionPermisosCambiados"].Value,
                 statusCode: StatusCodes.Status409Conflict);
         }
 

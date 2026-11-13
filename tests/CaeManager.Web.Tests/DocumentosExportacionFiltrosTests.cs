@@ -87,7 +87,7 @@ public class DocumentosExportacionFiltrosTests
         var mediador = new MediadorFalso(rolPorLote, filasPorLote ?? (_ => 0));
         var registro = new RegistroCapturador();
 
-        var resultado = await DocumentosEndpoints.ExportarAsync(contexto, mediador, new TenantActualFalso(), registro, default,
+        var resultado = await DocumentosEndpoints.ExportarAsync(contexto, mediador, new TenantActualFalso(), registro, new TextosDocumentosEco(), default,
             venceEn: venceEn, pendienteRevisionIa: pendienteRevisionIa);
 
         return new Exportacion(resultado, mediador.Consultas, registro);
@@ -179,7 +179,9 @@ public class DocumentosExportacionFiltrosTests
             filasPorLote: lote => lote == 1 ? PaginadorExportacion.TamanoLotePorDefecto : 3);
 
         exportacion.Consultas.Should().HaveCount(2, "el cambio se detecta en el segundo lote");
-        exportacion.Resultado.Should().BeOfType<ProblemHttpResult>().Which.StatusCode.Should().Be(StatusCodes.Status409Conflict);
+        var problema = exportacion.Resultado.Should().BeOfType<ProblemHttpResult>().Subject;
+        problema.StatusCode.Should().Be(StatusCodes.Status409Conflict);
+        problema.ProblemDetails.Detail.Should().Be("ExportacionPermisosCambiados", "el texto sale del recurso, no de un literal del endpoint");
         exportacion.Registro.Criterios.Should().BeNull("una exportación abortada no se sirve ni se anota");
     }
 

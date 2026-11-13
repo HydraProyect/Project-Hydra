@@ -71,7 +71,7 @@ public class DocumentosExportacionPlataformasTests
             User = new ClaimsPrincipal(new ClaimsIdentity([new Claim(ClaimTypes.Role, rol)], "prueba"))
         };
         var resultado = await DocumentosEndpoints.ExportarAsync(contexto, new MediadorFalso(documentos),
-            new TenantActualFalso(Guid.NewGuid()), new RegistroFalso(), default);
+            new TenantActualFalso(Guid.NewGuid()), new RegistroFalso(), new TextosDocumentosEco(), default);
 
         var flujo = new MemoryStream();
         await resultado.Should().BeOfType<FileStreamHttpResult>().Subject.FileStream.CopyToAsync(flujo);
