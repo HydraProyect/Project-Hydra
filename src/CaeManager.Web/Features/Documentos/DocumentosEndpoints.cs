@@ -68,7 +68,8 @@ public static class DocumentosEndpoints
         CancellationToken cancellationToken,
         string? q = null, string? ambito = null, string? estado = null, string? orden = null, bool desc = false,
         string? tipo = null, string? plataforma = null, string? propietario = null, string? agrupar = null,
-        string? estadoPlataforma = null, string? venceEn = null, string? pendienteRevisionIa = null)
+        string? estadoPlataforma = null, string? venceEn = null, string? pendienteRevisionIa = null,
+        Microsoft.Extensions.Localization.IStringLocalizer<Recursos.TextosDocumentos>? textos = null)
     {
         // «Vence en» (D-21): solo los plazos que ofrece el listado, como número de días; cualquier otro valor se ignora.
         int? venceEnDias = int.TryParse(venceEn, System.Globalization.NumberStyles.None, System.Globalization.CultureInfo.InvariantCulture, out var plazo)
@@ -157,9 +158,7 @@ public static class DocumentosEndpoints
         if (criterioCambiado)
         {
             // Ni fichero ni rastro en el registro: lo exportado hasta aquí mezclaría dos criterios. Quien exporta puede repetirlo.
-            return Results.Problem(
-                "Tus permisos han cambiado mientras se generaba la exportación. Vuelve a exportar.",
-                statusCode: StatusCodes.Status409Conflict);
+            return Results.Problem(textos?["ExportacionCriterioCambiado"].Value, statusCode: StatusCodes.Status409Conflict);
         }
 
         hoja.Columns().AdjustToContents();

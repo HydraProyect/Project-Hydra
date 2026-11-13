@@ -253,6 +253,9 @@
   <data name="RevIaConfianzaN" xml:space="preserve">
     <value>Confianza {0} %</value>
   </data>
+  <data name="ExportacionCriterioCambiado" xml:space="preserve">
+    <value>Tus permisos han cambiado mientras se generaba la exportación. Vuelve a exportar.</value>
+  </data>
   <data name="RevIaAbrirPdf" xml:space="preserve">
     <value>Abrir PDF completo</value>
   </data>
