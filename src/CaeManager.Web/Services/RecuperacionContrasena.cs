@@ -181,7 +181,9 @@ public sealed class RecuperacionContrasena(
             }
             catch (Exception ex)
             {
-                logger.LogError(ex, "No se pudo procesar la recuperación de contraseña.");
+                // ASVS 4.0.3 V7.1.1: solo el tipo de la excepción. Su mensaje (o el de su causa: SMTP, Identity) puede
+                // citar la dirección de quien pidió el enlace; el texto no depende de ese mensaje.
+                logger.LogError("No se pudo procesar la recuperación de contraseña ({TipoExcepcion}).", ex.GetType().Name);
             }
         }
     }
