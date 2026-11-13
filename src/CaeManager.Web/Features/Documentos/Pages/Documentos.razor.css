@@ -196,7 +196,7 @@
 .documentos-tabla-desplazable ::deep .documentos-cabecera-vinculo-acciones {
     display: inline-flex;
     gap: var(--space-2);
-    padding-right: var(--space-3);
+    padding-right: var(--space-4);
     flex: 0 0 auto;
 }
 
@@ -208,10 +208,26 @@
     min-width: 0;
 }
 
+/* Motivo del rechazo (artboards, .dc-motivo): rojo de peligro, 12/16 en peso 500, una línea cortada con «…». */
 .documentos-tabla-desplazable ::deep .documentos-en-plataforma-motivo {
     max-width: 100%;
-    color: var(--color-text-muted);
-    font-size: 0.8125rem;
+    color: var(--color-danger-700);
+    font: var(--font-body-sm);
+}
+
+/* Propietario de una sola línea al agrupar por Plataforma CAE y por tipo: cortado con «…»; el nombre entero va en el tooltip (D-54). */
+.documentos-tabla-desplazable ::deep .documentos-fila-una-linea .documentos-propietario {
+    display: block;
+    max-width: 100%;
+}
+
+.documentos-tabla-desplazable ::deep .documentos-fila-una-linea .documentos-propietario-nombre {
+    display: block;
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    text-align: left;
 }
 
 /* D-54 (2026-11-13): por Plataforma CAE y por tipo la fila es de una sola línea. Lo que no cabe se corta con «…» y el texto
@@ -242,50 +258,122 @@
     white-space: nowrap;
 }
 
-.documentos-tabla-desplazable ::deep .documentos-tabla-por-plataforma .documentos-th-nombre-plataforma { width: 24%; }
-.documentos-tabla-desplazable ::deep .documentos-tabla-por-plataforma .documentos-th-cliente { width: 16%; }
-.documentos-tabla-desplazable ::deep .documentos-tabla-por-tipo .documentos-th-plataformas { width: 34%; }
+/* Los anchos de columna al agrupar los fija el colgroup de la tabla (anchos de los artboards de agrupar), no las cabeceras. */
 
-/* «Plataformas CAE» de la fila por tipo: logotipo pequeño, nombre y estado de cada acreditación, en una línea. */
-.documentos-tabla-desplazable ::deep .documentos-plataformas-tipo {
+/* Una Plataforma CAE de un Documento: «logo Nombre · Estado» (artboards, .dc-plat): 12/16 en peso 500, borde de 1 px y radio pequeño.
+   Sin agrupar y por Cliente se apilan bajo el Propietario; en la fila por tipo van en una línea, cortada con «…». */
+.documentos-tabla-desplazable ::deep .documentos-plats {
     display: flex;
-    align-items: center;
-    gap: var(--space-3);
+    flex-wrap: wrap;
+    gap: var(--space-1);
+    margin-top: var(--space-1);
     min-width: 0;
+}
+
+.documentos-tabla-desplazable ::deep .documentos-plataformas-tipo {
+    flex-wrap: nowrap;
+    align-items: center;
+    margin-top: 0;
     overflow: hidden;
 }
 
-.documentos-tabla-desplazable ::deep .documentos-plataforma-tipo-item {
+.documentos-tabla-desplazable ::deep .documentos-plat {
     display: inline-flex;
     align-items: center;
-    gap: var(--space-1);
-    flex: 0 0 auto;
+    gap: 4px;
+    flex: 0 1 auto;
+    min-width: 0;
+    padding: 1px var(--space-2);
+    border: 1px solid var(--color-border-strong);
+    border-radius: var(--radius-sm);
+    background: var(--color-surface);
+    color: var(--color-text);
+    font: var(--font-body-sm);
+    white-space: nowrap;
 }
 
-.documentos-tabla-desplazable ::deep .documentos-plataforma-tipo-estado {
+.documentos-tabla-desplazable ::deep .documentos-plat-estado {
     color: var(--color-text-muted);
 }
 
-/* Logotipo de la Plataforma CAE: sobre el blanco de marca del tema (--color-logo-fondo), como en Inicio; sin marca, icono genérico. */
+/* Logotipo de la Plataforma CAE (artboards, .dc-logo): cuadrado con borde de 1 px y radio de 3 px, sobre el blanco de marca del
+   tema (--color-logo-fondo); 22 px en la cabecera del grupo y 16 px en la fila. Sin marca, icono genérico sin borde. */
 .documentos-tabla-desplazable ::deep .documentos-logo-plataforma {
+    display: inline-block;
     flex: none;
-    width: 22px;
-    height: 16px;
     object-fit: contain;
     background: var(--color-logo-fondo);
-    border-radius: var(--radius-sm);
+    border: 1px solid var(--color-border);
+    border-radius: 3px;
+    vertical-align: middle;
+}
+
+.documentos-tabla-desplazable ::deep .documentos-logo-plataforma-medio {
+    width: 22px;
+    height: 22px;
+}
+
+.documentos-tabla-desplazable ::deep .documentos-logo-plataforma-pequeno {
+    width: 16px;
+    height: 16px;
 }
 
 .documentos-tabla-desplazable ::deep .documentos-logo-plataforma-generico {
     display: inline-flex;
     align-items: center;
     justify-content: center;
+    width: auto;
+    height: auto;
+    border: 0;
     background: transparent;
     color: var(--color-text-muted);
 }
 
-.documentos-tabla-desplazable ::deep .documentos-cabecera-vinculo .documentos-logo-plataforma {
-    margin-right: var(--space-2);
+/* Cabecera de grupo de las agrupaciones por vínculo y por tipo (artboards, .dc-plataforma-cab): sin el estilo de cabecera de
+   tabla (mayúsculas de 12 px) que hereda del th: 14 px, nombre en 600, texto del grupo en gris y botones tal como se dibujan. */
+.documentos-tabla-desplazable ::deep .documentos-cabecera-grupo-vinculo > th,
+.documentos-tabla-desplazable ::deep .documentos-cabecera-grupo-tipo > th {
+    font: var(--font-body-md);
+    font-weight: 600;
+    letter-spacing: normal;
+    text-transform: none;
+    color: var(--color-text);
+}
+
+.documentos-tabla-desplazable ::deep .grupo-lista-maqueta > .grupo-lista-cabecera {
+    gap: var(--space-3);
+    padding: var(--space-3) var(--space-4);
+    font: var(--font-body-md);
+    font-weight: 600;
+}
+
+.documentos-tabla-desplazable ::deep .grupo-lista-maqueta .grupo-lista-nombre {
+    flex: none;
+    white-space: nowrap;
+}
+
+/* «Trabajador · 3 documentos» / «Cliente · 5 documentos»: gris, en la misma línea que el nombre; si no cabe, se corta con «…». */
+.documentos-tabla-desplazable ::deep .grupo-lista-maqueta .grupo-lista-subtitulo-linea {
+    flex: 0 1 auto;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font: inherit;
+    color: var(--color-text-muted);
+}
+
+.documentos-tabla-desplazable ::deep .grupo-lista-maqueta .grupo-lista-contador {
+    font: inherit;
+    color: var(--color-text-muted);
+}
+
+/* Las insignias de tono van pegadas al texto del grupo, no empujadas a la derecha: a la derecha van los botones. */
+.documentos-tabla-desplazable ::deep .grupo-lista-maqueta .grupo-lista-resumen {
+    flex: none;
+    justify-content: flex-start;
+    margin-left: 0;
+    gap: var(--space-2);
 }
 
 .documentos-tabla-desplazable ::deep th[aria-sort="ascending"] .documentos-orden-grupo::after {

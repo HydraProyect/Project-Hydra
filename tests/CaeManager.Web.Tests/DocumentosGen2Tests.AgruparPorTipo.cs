@@ -139,10 +139,96 @@ public partial class DocumentosGen2Tests
         var (cut, _) = Renderizar(ConVinculos().Mediador, url: "documentos?agrupar=plataforma");
 
         cut.WaitForAssertion(() => cut.FindAll("tr.documentos-cabecera-grupo-vinculo").Should().NotBeEmpty());
-        foreach (var cabecera in cut.FindAll("tr.documentos-cabecera-grupo-vinculo"))
+        foreach (var cabecera in cut.FindAll("tr.documentos-cabecera-grupo-vinculo")
+                     .Where(c => c.GetAttribute("data-grupo") != ObtenerDocumentosQuery.GrupoSin))
         {
             cabecera.QuerySelector(".documentos-logo-plataforma").Should().NotBeNull(
                 "logotipo si lo hay, icono genérico si no");
         }
+    }
+
+    /// <summary>Artboard Agrupar-plataforma: «Sin Plataforma CAE» no lleva icono y el logotipo es un cuadrado de 22 px con borde.</summary>
+    [Fact]
+    public void El_grupo_Sin_Plataforma_CAE_no_lleva_icono_y_el_logotipo_es_cuadrado_con_borde()
+    {
+        var e = ConVinculos();
+        e.Mediador.Plataformas = [new PlataformaEnUsoDto(NalandaId, "Nalanda", "nalanda")];
+
+        var (cut, _) = Renderizar(e.Mediador, url: "documentos?agrupar=plataforma");
+
+        cut.WaitForAssertion(() => cut.FindAll("tr.documentos-cabecera-grupo-vinculo").Should().NotBeEmpty());
+        CabeceraDeVinculo(cut, ObtenerDocumentosQuery.GrupoSin).QuerySelector(".documentos-logo-plataforma").Should().BeNull(
+            "el grupo «Sin Plataforma CAE» no lleva icono");
+        CabeceraDeVinculo(cut, NalandaId.ToString()).QuerySelector("img.documentos-logo-plataforma")!.ClassList
+            .Should().Contain("documentos-logo-plataforma-medio");
+    }
+
+    /// <summary>Anchos del colgroup de los artboards (D-54) y cabecera de grupo con insignias de tono, en femenino y con botones del dibujo.</summary>
+    [Fact]
+    public void Por_Plataforma_CAE_la_tabla_lleva_el_colgroup_del_artboard_y_la_cabecera_resume_en_insignias_en_femenino()
+    {
+        var (cut, _) = Renderizar(ConVinculos().Mediador, url: "documentos?agrupar=plataforma");
+
+        cut.WaitForAssertion(() => cut.FindAll("tr.documentos-cabecera-grupo-vinculo").Should().NotBeEmpty());
+        cut.FindAll("table.documentos-tabla-visible colgroup col").Select(c => c.GetAttribute("style")!.Replace(" ", ""))
+            .Should().Equal("width:14%", "width:23%", "width:13%", "width:10%", "width:12%", "width:15%", "width:232px");
+
+        var cabecera = CabeceraDeVinculo(cut, NalandaId.ToString());
+        cabecera.QuerySelector(".grupo-lista-maqueta").Should().NotBeNull();
+        var rechazada = cabecera.QuerySelectorAll(".grupo-lista-resumen-estado .badge").Single(b => b.TextContent.Contains("rechazada"));
+        rechazada.ClassList.Should().Contain("badge-peligro");
+        cabecera.QuerySelectorAll(".grupo-lista-punto").Should().BeEmpty("el resumen va en insignias, no en texto con punto");
+    }
+
+    [Fact]
+    public void Por_Cliente_la_tabla_lleva_el_colgroup_del_artboard_y_no_dibuja_la_columna_de_destinos()
+    {
+        var (cut, _) = Renderizar(ConVinculos().Mediador, url: "documentos?agrupar=cliente");
+
+        cut.WaitForAssertion(() => cut.FindAll("tr.documentos-cabecera-grupo-vinculo").Should().NotBeEmpty());
+        cut.FindAll("table.documentos-tabla-visible colgroup col").Select(c => c.GetAttribute("style")!.Replace(" ", ""))
+            .Should().Equal("width:30%", "width:30%", "width:13%", "width:14%", "width:232px");
+        cut.FindAll("table.documentos-tabla-visible .documentos-celda-expandir").Should().BeEmpty("el artboard no dibuja la columna chevron «Destino»");
+    }
+
+    [Fact]
+    public void Por_tipo_la_cabecera_va_en_una_linea_y_la_tabla_lleva_el_colgroup_del_artboard()
+    {
+        var (cut, _) = Renderizar(ConVinculos().Mediador, url: "documentos?agrupar=tipo");
+
+        cut.WaitForAssertion(() => cut.FindAll("tr.documentos-cabecera-grupo-tipo").Should().NotBeEmpty());
+        cut.FindAll("table.documentos-tabla-visible colgroup col").Select(c => c.GetAttribute("style")!.Replace(" ", ""))
+            .Should().Equal("width:24%", "width:30%", "width:13%", "width:14%", "width:190px");
+        foreach (var cabecera in cut.FindAll("tr.documentos-cabecera-grupo-tipo"))
+        {
+            cabecera.QuerySelector(".grupo-lista-bloque").Should().BeNull("nombre y «Trabajador · 3 documentos» van en la misma línea");
+            cabecera.QuerySelector(".grupo-lista-subtitulo-linea").Should().NotBeNull();
+        }
+    }
+
+    /// <summary>D-54: el propietario cortado con «…» lleva el nombre entero en el tooltip.</summary>
+    [Fact]
+    public void Al_agrupar_el_propietario_de_la_fila_lleva_su_nombre_entero_en_el_tooltip()
+    {
+        var documento = DocumentoDeFila() with { Id = Guid.NewGuid(), PropietarioNombre = "Instalaciones y Montajes Eléctricos del Cantábrico S.A.", Estado = EstadoDocumento.Vencido,
+            DestinosEnCentros = [new(Guid.NewGuid(), "Centro Norte", "Empresa de prueba", "Nalanda", EstadoDocumento.Vencido)] };
+
+        var (cut, _) = Renderizar(ConDocumentos(documento), url: "documentos?agrupar=tipo");
+
+        cut.WaitForAssertion(() => cut.Find("tbody button.documentos-propietario-nombre"));
+        cut.Find("tbody button.documentos-propietario-nombre").GetAttribute("title")
+            .Should().Be("Instalaciones y Montajes Eléctricos del Cantábrico S.A.");
+    }
+
+    /// <summary>Desplegables.dc.html: el menú «Agrupar» lleva título.</summary>
+    [Fact]
+    public async Task El_menu_Agrupar_se_abre_con_su_titulo()
+    {
+        var (cut, _) = Renderizar(ConVinculos().Mediador);
+        cut.WaitForAssertion(() => cut.Find("tbody button.enlace-nombre-fila"));
+
+        await cut.Find("button[aria-label^='Agrupar']").ClickAsync(new MouseEventArgs());
+
+        cut.Find(".menu-acciones-panel-titulado .menu-acciones-titulo").TextContent.Trim().Should().Be("Agrupar");
     }
 }

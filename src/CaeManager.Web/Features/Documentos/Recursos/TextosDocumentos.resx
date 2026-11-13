@@ -419,8 +419,8 @@
   <data name="QuitarFiltroEstadoPlataforma" xml:space="preserve"><value>Quitar filtro de estado en la plataforma</value></data>
   <data name="GrupoPendienteUno" xml:space="preserve"><value>1 pendiente de subir</value></data>
   <data name="GrupoPendientes" xml:space="preserve"><value>{0} pendientes de subir</value></data>
-  <data name="GrupoRechazadoUno" xml:space="preserve"><value>1 rechazado</value></data>
-  <data name="GrupoRechazados" xml:space="preserve"><value>{0} rechazados</value></data>
+  <data name="GrupoRechazadoUno" xml:space="preserve"><value>1 rechazada</value></data>
+  <data name="GrupoRechazados" xml:space="preserve"><value>{0} rechazadas</value></data>
   <data name="GrupoSinVigencia" xml:space="preserve"><value>{0} sin vigencia</value></data>
   <data name="GrupoVencidoUno" xml:space="preserve"><value>1 vencido</value></data>
   <data name="GrupoVencidos" xml:space="preserve"><value>{0} vencidos</value></data>
@@ -438,6 +438,7 @@
   <data name="AnotarVigenciaTitulo" xml:space="preserve"><value>Anotar vigencia</value></data>
   <data name="AnotarVigenciaGuardar" xml:space="preserve"><value>Guardar vigencia</value></data>
   <data name="QuitarFiltroPropietario" xml:space="preserve"><value>Quitar filtro de propietario</value></data>
+  <data name="AgruparTituloMenu" xml:space="preserve"><value>Agrupar</value></data>
   <data name="SinAgrupar" xml:space="preserve"><value>Sin agrupar</value></data>
   <data name="VacioDescripcionDesign" xml:space="preserve"><value>Sube el primero o usa la subida masiva.</value></data>
   <data name="VacioFiltroQuitarDesign" xml:space="preserve"><value>Quitar filtros</value></data>

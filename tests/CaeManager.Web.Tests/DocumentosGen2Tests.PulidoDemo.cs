@@ -104,20 +104,25 @@ public partial class DocumentosGen2Tests
     }
 
     [Fact]
-    public void Con_varias_plataformas_la_fila_pinta_una_pastilla_con_la_mas_urgente_y_mas_N()
+    public void Con_varias_plataformas_la_fila_pinta_una_linea_por_Plataforma_CAE_con_el_estado_capitalizado()
     {
+        // D-22 y artboard Main: «logo Nombre · Validada», una línea por Plataforma CAE, el estado con inicial en mayúscula.
         var documento = DocumentoDeFila("blob/x.pdf",
             new AcreditacionResumenDto(Guid.NewGuid(), "Nalanda", EstadoAcreditacion.Aceptada),
             new AcreditacionResumenDto(Guid.NewGuid(), "Dokify", EstadoAcreditacion.Rechazada),
             new AcreditacionResumenDto(Guid.NewGuid(), "CTAIMA", EstadoAcreditacion.PendienteDeSubir));
         var (cut, _) = Renderizar(ConDocumentos(documento));
-        cut.WaitForAssertion(() => cut.Find("tbody .badges-acreditacion"));
+        cut.WaitForAssertion(() => cut.Find("tbody .documentos-plats"));
 
-        cut.FindAll("tbody tr .badges-acreditacion [data-pieza=pastilla]").Should().ContainSingle();
-        cut.Find("tbody tr .badges-acreditacion").TextContent.Should().Contain("Dokify").And.Contain("+2");
-        cut.Find("tbody tr .badges-acreditacion-resto").GetAttribute("title").Should().Contain("Nalanda").And.Contain("CTAIMA");
+        var lineas = cut.FindAll("tbody tr .documentos-plats .documentos-plat").Select(l => l.TextContent.Trim()).ToList();
+        lineas.Should().HaveCount(3);
+        lineas.Single(l => l.Contains("Nalanda")).Should().Contain("Nalanda").And.Contain("· Validada");
+        lineas.Single(l => l.Contains("Dokify")).Should().Contain("· Rechazada");
+        lineas.Single(l => l.Contains("CTAIMA")).Should().Contain("· Pendiente de subir");
+        cut.FindAll("tbody tr .documentos-plats .documentos-plat-estado").Should().OnlyContain(e => char.IsUpper(e.TextContent.Replace("· ", "")[0]));
+        cut.FindAll("tbody tr .documentos-plats .documentos-en-plataforma-motivo, tbody tr .documentos-plats .documentos-abrir-portal")
+            .Should().BeEmpty("la línea no lleva motivo ni «Abrir portal»: lo ve igual el Usuario de Cliente");
     }
-
     [Fact]
     public void Ver_es_un_enlace_y_Gestionar_conserva_su_caja_como_accion_principal()
     {
@@ -132,18 +137,6 @@ public partial class DocumentosGen2Tests
             .Take(2).Should().Equal("Ver", "Gestionar");
     }
 
-    [Fact]
-    public void El_resumen_de_plataformas_desempata_por_gravedad_y_no_por_el_orden_del_DTO()
-    {
-        var documento = DocumentoDeFila("blob/x.pdf",
-            new AcreditacionResumenDto(Guid.NewGuid(), "Nalanda", EstadoAcreditacion.NoRequerida),
-            new AcreditacionResumenDto(Guid.NewGuid(), "Dokify", EstadoAcreditacion.Subida),
-            new AcreditacionResumenDto(Guid.NewGuid(), "CTAIMA", EstadoAcreditacion.Aceptada));
-        var (cut, _) = Renderizar(ConDocumentos(documento));
-        cut.WaitForAssertion(() => cut.Find("tbody .badges-acreditacion"));
-
-        cut.Find("tbody tr [data-pieza=pastilla]").TextContent.Should().Contain("Dokify");
-    }
 
     [Fact]
     public void Sin_confirmar_conserva_su_motivo_aunque_el_documento_traiga_fecha()

@@ -231,7 +231,7 @@ public partial class DocumentosGen2Tests
         cut.WaitForAssertion(() => NombresDeVinculo(cut).Should().Equal(
             ["Nalanda", "Ctaima", "Sin Plataforma CAE"], "los grupos van por gravedad (rechazadas, pendientes, sin vigencia) y «Sin …» al final"));
         var nalanda = CabeceraDeVinculo(cut, NalandaId.ToString());
-        ResumenDeVinculo(nalanda).Should().Equal(["1 rechazado", "4 sin vigencia"], "un cero no se pinta");
+        ResumenDeVinculo(nalanda).Should().Equal(["1 rechazada", "4 sin vigencia"], "un cero no se pinta");
         nalanda.QuerySelector(".grupo-lista-contador")!.TextContent.Trim().Should().Be("3 de 7",
             "el total es el del servidor, no las tres filas de la página");
         ResumenDeVinculo(CabeceraDeVinculo(cut, CtaimaId.ToString())).Should().Equal("1 pendiente de subir");
@@ -429,7 +429,7 @@ public partial class DocumentosGen2Tests
         cut.WaitForAssertion(() => cut.FindAll("tr.documentos-cabecera-grupo-vinculo").Should().HaveCount(3));
         cut.FindAll(".documentos-tabla-visible tbody input[type=checkbox]").Should().BeEmpty();
         cut.FindAll(".documentos-anotar-vigencia").Should().BeEmpty();
-        ResumenDeVinculo(CabeceraDeVinculo(cut, NalandaId.ToString())).Should().Equal("1 rechazado", "4 sin vigencia");
+        ResumenDeVinculo(CabeceraDeVinculo(cut, NalandaId.ToString())).Should().Equal("1 rechazada", "4 sin vigencia");
     }
 
     // ------------------------------------------------------------- pie de la vista agrupada (Codex r1, MEDIO)

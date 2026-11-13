@@ -145,7 +145,7 @@
                                     ValorChanged="CambiarTipoFiltroAsync" Opciones="_opcionesTipo" />
                 </MasFiltros>
                 <Herramientas>
-                    <MenuAcciones Etiqueta="@Textos[_agrupacion switch { AgrupacionListado.Ambito => "AgruparPorAmbitoEtiqueta", AgrupacionListado.PlataformaCae => "AgruparPorPlataformaCaeEtiqueta", AgrupacionListado.ClienteEmpresarial => "AgruparPorClienteEmpresarialEtiqueta", AgrupacionListado.TipoDocumento => "AgruparPorTipoDocumentoEtiqueta", _ => "AgruparNo" }]" Pastilla="true">
+                    <MenuAcciones TituloPanel="@Textos["AgruparTituloMenu"]" Etiqueta="@Textos[_agrupacion switch { AgrupacionListado.Ambito => "AgruparPorAmbitoEtiqueta", AgrupacionListado.PlataformaCae => "AgruparPorPlataformaCaeEtiqueta", AgrupacionListado.ClienteEmpresarial => "AgruparPorClienteEmpresarialEtiqueta", AgrupacionListado.TipoDocumento => "AgruparPorTipoDocumentoEtiqueta", _ => "AgruparNo" }]" Pastilla="true">
                         <ItemMenuAccion Marcado="@(!Agrupada)" OnClick="() => CambiarAgrupacionAsync(AgrupacionListado.Ninguna)">@Textos["SinAgrupar"]</ItemMenuAccion>
                         <ItemMenuAccion Marcado="_agruparPorAmbito" OnClick="() => CambiarAgrupacionAsync(AgrupacionListado.Ambito)">@Textos["PorAmbito"]</ItemMenuAccion>
                         <ItemMenuAccion Marcado="AgrupadaPorPlataforma" OnClick="() => CambiarAgrupacionAsync(AgrupacionListado.PlataformaCae)">@Textos["PorPlataformaCae"]</ItemMenuAccion>
@@ -217,13 +217,22 @@
                         {
                             <div class="documentos-orden-superposicion" @onclick="() => _opcionesOrdenVisible = null"></div>
                         }
-                        <table class="@($"tabla-datos documentos-tabla-visible {(_agruparPorAmbito ? "documentos-tabla-agrupada" : null)}{(AgrupadaPorPlataforma ? " documentos-tabla-por-plataforma documentos-fila-una-linea" : null)}{(AgrupadaPorTipo ? " documentos-tabla-por-tipo documentos-fila-una-linea" : null)}")">
+                        <table class="@($"tabla-datos documentos-tabla-visible {(_agruparPorAmbito ? "documentos-tabla-agrupada" : null)}{(AgrupadaPorPlataforma ? " documentos-tabla-por-plataforma documentos-fila-una-linea" : null)}{(AgrupadaPorTipo ? " documentos-tabla-por-tipo documentos-fila-una-linea" : null)}{(AgrupadaPorCliente ? " documentos-tabla-por-cliente" : null)}")">
+                            @if (AgrupadaPorPlataforma || AgrupadaPorTipo || AgrupadaPorCliente)
+                            {
+                                @* Anchos de los artboards de agrupar (Agrupar-plataforma, -tipo y -cliente): porcentajes para el texto y px para las
+                                   acciones; una sola tabla para todos los grupos, así las columnas quedan alineadas entre ellos. *@
+                                <colgroup>
+                                    @if (_seleccionMultiple) { <col style="width: 40px" /> }
+                                    @foreach (var ancho in AnchosColumnasAgrupadas) { <col style="width: @ancho" /> }
+                                </colgroup>
+                            }
                             <thead><tr>
                                 @if (_seleccionMultiple)
                                 {
                                     <th scope="col" class="documentos-celda-seleccion"><input type="checkbox" aria-label="@Textos["SeleccionarPagina"]" checked="@TodosSeleccionados" @onchange="e => AlternarSeleccionTodos((bool)e.Value!)" /></th>
                                 }
-                                @if (HayDestinos) { <th scope="col" class="documentos-celda-expandir"><span class="documentos-solo-lectores">@Textos["ListaDestino"]</span></th> }
+                                @if (MostrarDestinos) { <th scope="col" class="documentos-celda-expandir"><span class="documentos-solo-lectores">@Textos["ListaDestino"]</span></th> }
                                 @if (!AgrupadaPorPlataforma && !AgrupadaPorTipo)
                                 {
                                     <th scope="col" aria-sort="@AriaOrdenGrupo("tipo")"><button type="button" class="col-title documentos-orden-grupo" @onclick="() => OrdenarGrupoAsync(_columnaTipo)">@Textos["ListaDocumento"]</button></th>
@@ -307,7 +316,7 @@
                                             {
                                                 <td class="documentos-celda-seleccion"><input type="checkbox" aria-label="@Textos["SeleccionarDocumento", documento.TipoDocumentoNombre, documento.PropietarioNombre, documento.FechaEmision.ToString("dd/MM/yyyy")]" checked="@_seleccionados.Contains(documento.Id)" @onchange="e => AlternarSeleccion(documento.Id, (bool)e.Value!)" /></td>
                                             }
-                                            @if (HayDestinos)
+                                            @if (MostrarDestinos)
                                             {
                                                 <td class="documentos-celda-expandir">
                                                     @if (documento.DestinosEnCentros?.Count > 0)
@@ -523,7 +532,16 @@
                                                      Etiqueta="@Textos["VentanaPlataformasEtiqueta", context.Acreditaciones.Count]"
                                                      Titulo="@Textos["VentanaPlataformasTitulo"]"
                                                      class="documentos-plataformas">
-                                        <Disparador><BadgesAcreditacion Acreditaciones="context.Acreditaciones" Resumen="true" /></Disparador>
+                                        @* D-22 (artboard Main): una línea por Plataforma CAE, «logo Nombre · Validada». Es el mismo estado
+                                           que ve el Usuario de Cliente: sin motivo ni «Abrir portal», que viven en la ventana y la vista rápida. *@
+                                        <Disparador>
+                                            <span class="documentos-plats">
+                                                @foreach (var acreditacion in context.Acreditaciones)
+                                                {
+                                                    @ChipPlataforma(acreditacion)
+                                                }
+                                            </span>
+                                        </Disparador>
                                         <Detalle>
                                             @foreach (var acreditacion in context.Acreditaciones)
                                             {
@@ -589,7 +607,7 @@
     /// Acciones); por Plataforma CAE siete (Propietario, Nombre en la plataforma, Cliente empresarial, Vence, Estado documental,
     /// Estado en la plataforma, Acciones); por tipo cinco (Propietario, Plataformas CAE, Vence, Estado documental, Acciones).
     /// </summary>
-    private int ColumnasTabla => (AgrupadaPorPlataforma ? 7 : 5) + (_seleccionMultiple ? 1 : 0) + (HayDestinos ? 1 : 0);
+    private int ColumnasTabla => (AgrupadaPorPlataforma ? 7 : 5) + (_seleccionMultiple ? 1 : 0) + (MostrarDestinos ? 1 : 0);
 
     /// <summary>
     /// «Estado en la plataforma» de la fila por Plataforma CAE (P-1, D-54): el estado de esa acreditación y, si está rechazada,
@@ -616,7 +634,8 @@
     /// <summary>Propietario sin las insignias de Plataformas CAE: por Plataforma CAE ya es el grupo, y por tipo tiene columna propia.</summary>
     private RenderFragment<DocumentoListaDto> CeldaPropietarioSolo => context => @<text>
                                     <span class="documentos-propietario">
-                                        <button type="button" class="enlace-nombre-fila nombre-fila-entidad nombre-abre-vista-rapida documentos-propietario-nombre" @onclick="() => AbrirPanelAsync(context.Id)"><TextoResaltado Texto="@context.PropietarioNombre" Termino="@_busqueda" /></button>
+                                        @* D-54: una línea cortada con «…» y el nombre entero en el tooltip. *@
+                                        <button type="button" class="enlace-nombre-fila nombre-fila-entidad nombre-abre-vista-rapida documentos-propietario-nombre" title="@context.PropietarioNombre" @onclick="() => AbrirPanelAsync(context.Id)"><TextoResaltado Texto="@context.PropietarioNombre" Termino="@_busqueda" /></button>
                                     </span>
     </text>;
 
@@ -642,28 +661,37 @@
     private RenderFragment<DocumentoListaDto> CeldaPlataformasDelTipo => context => @<text>
                                     @if (context.Acreditaciones.Count > 0)
                                     {
-                                        <span class="documentos-plataformas-tipo" title="@TituloPlataformasDelTipo(context)">
+                                        <span class="documentos-plats documentos-plataformas-tipo" title="@TituloPlataformasDelTipo(context)">
                                             @foreach (var acreditacion in context.Acreditaciones)
                                             {
-                                                <span class="documentos-plataforma-tipo-item" @key="acreditacion.Id">
-                                                    @LogoOIcono(LogoDePlataformaPorNombre(acreditacion.NombrePlataforma))
-                                                    <span class="documentos-plataforma-tipo-nombre">@acreditacion.NombrePlataforma</span>
-                                                    <span class="documentos-plataforma-tipo-estado">· @EstadoAcreditacionUi.TextoCapitalizado(acreditacion.Estado)</span>
-                                                </span>
+                                                @ChipPlataforma(acreditacion)
                                             }
                                         </span>
                                     }
     </text>;
 
-    /// <summary>El logotipo de la Plataforma CAE (de decoración: el nombre va al lado) o, sin logotipo, el icono genérico.</summary>
-    private static RenderFragment LogoOIcono(string? ruta) => @<text>
+    /// <summary>
+    /// Una Plataforma CAE de un Documento, como en los artboards: logotipo de 16 px, nombre y «· Estado» en gris, con la inicial
+    /// en mayúscula (D-22: «Validada» en todas partes). Sin motivo de rechazo ni «Abrir portal».
+    /// </summary>
+    private RenderFragment ChipPlataforma(AcreditacionResumenDto acreditacion) => @<span class="documentos-plat" @key="acreditacion.Id">
+        @LogoOIcono(LogoDePlataformaPorNombre(acreditacion.NombrePlataforma), grande: false)
+        <span class="documentos-plat-nombre">@acreditacion.NombrePlataforma</span>
+        <span class="documentos-plat-estado">· @EstadoAcreditacionUi.TextoCapitalizado(acreditacion.Estado)</span>
+    </span>;
+
+    /// <summary>
+    /// El logotipo de la Plataforma CAE (de decoración: el nombre va al lado) o, sin logotipo, el icono genérico. Como en los
+    /// artboards: cuadrado con borde de 1 px y radio de 3 px, de 22 px en la cabecera del grupo y de 16 px en la fila.
+    /// </summary>
+    private static RenderFragment LogoOIcono(string? ruta, bool grande = true) => @<text>
         @if (ruta is not null)
         {
-            <img class="documentos-logo-plataforma" src="@ruta" alt="" aria-hidden="true" loading="lazy" />
+            <img class="@($"documentos-logo-plataforma {(grande ? "documentos-logo-plataforma-medio" : "documentos-logo-plataforma-pequeno")}")" src="@ruta" alt="" aria-hidden="true" loading="lazy" />
         }
         else
         {
-            <span class="documentos-logo-plataforma documentos-logo-plataforma-generico" aria-hidden="true"><Icono Nombre="plataforma" Tamano="TamanoIcono.Pequeno" /></span>
+            <span class="documentos-logo-plataforma documentos-logo-plataforma-generico" aria-hidden="true"><Icono Nombre="plataforma" Tamano="@(grande ? TamanoIcono.Medio : TamanoIcono.Pequeno)" /></span>
         }
     </text>;
 
@@ -680,9 +708,10 @@
         var subtitulo = Textos["GrupoTipoSubtitulo", ambitos, Textos[filas.Count == 1 ? "GrupoDocumentoUno" : "GrupoDocumentos", filas.Count].Value].Value;
         return @<tr class="documentos-cabecera-grupo documentos-cabecera-grupo-tipo" data-grupo="@clave"><th colspan="@ColumnasTabla" scope="rowgroup">
             <div class="documentos-cabecera-vinculo">
-                <CabeceraGrupoLista Nombre="@nombre" Total="filas.Count" Resumen="ResumenDeTipo(filas)" Subtitulo="@subtitulo"
+                @* Una sola línea (artboard Agrupar-tipo): nombre en 600, «Trabajador · 3 documentos» en gris, insignias y «Tipo 360 ↗» a la derecha. *@
+                <CabeceraGrupoLista Maqueta="true" Nombre="@nombre" Total="filas.Count" Resumen="ResumenDeTipo(filas)" Subtitulo="@subtitulo"
                                     Abierto="abierto" OnAlternar="() => AlternarGrupoPorVinculo(clave)">
-                    <Marca><span class="documentos-logo-plataforma documentos-logo-plataforma-generico" aria-hidden="true"><Icono Nombre="documentos" Tamano="TamanoIcono.Pequeno" /></span></Marca>
+                    <Marca><span class="documentos-logo-plataforma documentos-logo-plataforma-generico" aria-hidden="true"><Icono Nombre="documentos" Tamano="TamanoIcono.Medio" /></span></Marca>
                 </CabeceraGrupoLista>
                 @if (primera.TipoDocumentoId != Guid.Empty)
                 {
@@ -690,7 +719,7 @@
                         <AuthorizeView Roles="@TipoDocumentoDetalle.RolesDeLaPagina" Context="autorizacionTipo">
                             <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" class="documentos-tipo-360"
                                    Href="@($"/documentos/tipos/{primera.TipoDocumentoId}")"
-                                   aria-label="@Textos["GrupoTipo360Etiqueta", nombre]">@Textos["GrupoTipo360"]</Boton>
+                                   aria-label="@Textos["GrupoTipo360Etiqueta", nombre]">@Textos["GrupoTipo360"]<span aria-hidden="true">&nbsp;↗</span></Boton>
                         </AuthorizeView>
                     </span>
                 }
@@ -719,13 +748,21 @@
             : null;
         return @<tr class="documentos-cabecera-grupo documentos-cabecera-grupo-vinculo" data-grupo="@clave"><th colspan="@ColumnasTabla" scope="rowgroup">
             <div class="documentos-cabecera-vinculo">
-                <CabeceraGrupoLista Nombre="@nombre" Total="total" EnPagina="filas.Count" Resumen="ResumenVisible(resumen)"
+                <CabeceraGrupoLista Maqueta="true" Nombre="@nombre" Total="total" EnPagina="filas.Count" Resumen="ResumenVisible(resumen)"
                                     Subtitulo="@subtitulo" Abierto="abierto" OnAlternar="() => AlternarGrupoPorVinculo(clave)">
                     <Marca>
-                        @if (AgrupadaPorPlataforma)
+                        @if (esGrupoSin)
                         {
-                            @* Logotipo de la Plataforma CAE; sin marca en el repositorio (o el grupo «Sin …»), el icono genérico. *@
+                            @* «Sin Plataforma CAE» y «Sin Cliente» no llevan icono (artboards). *@
+                        }
+                        else if (AgrupadaPorPlataforma)
+                        {
+                            @* Logotipo de la Plataforma CAE; sin marca en el repositorio, el icono genérico (como Metacontratas en el artboard). *@
                             @LogoOIcono(LogoDePlataformaPorId(clave))
+                        }
+                        else
+                        {
+                            <span class="documentos-logo-plataforma documentos-logo-plataforma-generico" aria-hidden="true"><Icono Nombre="clientes" Tamano="TamanoIcono.Medio" /></span>
                         }
                     </Marca>
                 </CabeceraGrupoLista>
@@ -735,7 +772,7 @@
                         @if (anotables.Count > 0)
                         {
                             <SoloConEscritura>
-                                <Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno" class="documentos-anotar-vigencia"
+                                <Boton Variante="VarianteBoton.Primario" Tamano="TamanoBoton.Pequeno" class="documentos-anotar-vigencia"
                                        OnClick="() => _anotarVigencia.Abrir(anotables)">@Textos["GrupoAnotarVigencia", anotables.Count]</Boton>
                             </SoloConEscritura>
                         }

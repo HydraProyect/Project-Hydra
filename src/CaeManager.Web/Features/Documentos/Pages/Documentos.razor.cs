@@ -889,6 +889,29 @@ public partial class Documentos : CaeManager.Web.Components.PaginaInteractiva, I
     private bool AgrupadaPorVinculo => _agrupacion is AgrupacionListado.PlataformaCae or AgrupacionListado.ClienteEmpresarial;
     private bool AgrupadaPorPlataforma => _agrupacion == AgrupacionListado.PlataformaCae;
     private bool AgrupadaPorTipo => _agrupacion == AgrupacionListado.TipoDocumento;
+    private bool AgrupadaPorCliente => _agrupacion == AgrupacionListado.ClienteEmpresarial;
+
+    /// <summary>
+    /// La columna de expandir los destinos por Centro. Los artboards de agrupar por Plataforma CAE, por Cliente empresarial y
+    /// por tipo no la dibujan (la tabla arranca en Propietario o Documento), así que ahí no hay columna chevron; sin agrupar y
+    /// por Ámbito sigue como en Main.
+    /// </summary>
+    private bool MostrarDestinos => HayDestinos && !AgrupadaPorPlataforma && !AgrupadaPorTipo && !AgrupadaPorCliente;
+
+    /// <summary>
+    /// Anchos del <c>colgroup</c> de los artboards, sin la columna de selección: por Plataforma CAE Propietario, Nombre en la
+    /// plataforma, Cliente empresarial, Vence, Estado documental y Estado en la plataforma (14/23/13/10/12/15 %) y 232 px de
+    /// acciones; por tipo Propietario, Plataformas CAE, Vence y Estado documental (24/30/13/14 %) y 190 px; por Cliente Documento,
+    /// Propietario, Vence y Estado documental (30/30/13/14 %) y 232 px, no los 190 px del artboard: la fila conserva el icono 360
+    /// del tipo, que el dibujo no pinta, y con 190 px las acciones se saldrían de la celda.
+    /// </summary>
+    private string[] AnchosColumnasAgrupadas => _agrupacion switch
+    {
+        AgrupacionListado.PlataformaCae => ["14%", "23%", "13%", "10%", "12%", "15%", "232px"],
+        AgrupacionListado.TipoDocumento => ["24%", "30%", "13%", "14%", "190px"],
+        AgrupacionListado.ClienteEmpresarial => ["30%", "30%", "13%", "14%", "232px"],
+        _ => [],
+    };
 
     private AgrupacionDocumentos? AgrupacionPedida => _agrupacion switch
     {
