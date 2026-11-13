@@ -28,7 +28,7 @@
         <div id="@_panelId" class="@ClasesPanel" role="menu" aria-label="@TituloPanel" @onclick:stopPropagation="true">
             @if (TituloPanel is not null)
             {
-                <div class="menu-acciones-titulo" role="presentation">@TituloPanel</div>
+                <div class="menu-acciones-titulo" aria-hidden="true">@TituloPanel</div>
             }
             <CascadingValue Value="this" IsFixed="true">
                 @ChildContent

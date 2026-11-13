@@ -230,5 +230,30 @@ public partial class DocumentosGen2Tests
         await cut.Find("button[aria-label^='Agrupar']").ClickAsync(new MouseEventArgs());
 
         cut.Find(".menu-acciones-panel-titulado .menu-acciones-titulo").TextContent.Trim().Should().Be("Agrupar");
+        cut.FindAll(".menu-acciones-panel-titulado").Should().ContainSingle("solo «Agrupar» es un panel titulado: el resto de menús conserva su aspecto");
+    }
+
+    /// <summary>
+    /// Sin columna «Destino» al agrupar no puede quedar una fila hija abierta sin chevron que la contraiga: se desplegó sin agrupar
+    /// y, al agrupar por tipo, la fila de Centros no se pinta.
+    /// </summary>
+    [Fact]
+    public async Task Al_agrupar_no_quedan_filas_de_destinos_abiertas_sin_chevron_que_las_contraiga()
+    {
+        var documento = DocumentoDeFila() with
+        {
+            Id = Guid.NewGuid(),
+            Estado = EstadoDocumento.Vencido,
+            DestinosEnCentros = [new(Guid.NewGuid(), "Centro Norte", "Empresa de prueba", "Nalanda", EstadoDocumento.Vencido)]
+        };
+        var (cut, _) = Renderizar(ConDocumentos(documento));
+        cut.WaitForAssertion(() => cut.Find("tbody button.documentos-expandir"));
+        await cut.Find("tbody button.documentos-expandir").ClickAsync(new MouseEventArgs());
+        cut.WaitForAssertion(() => cut.FindAll("tbody tr.documentos-fila-hijos").Should().ContainSingle("sin agrupar, el Documento desplegado enseña sus Centros"));
+
+        await Agrupar(cut, "Por tipo de documento");
+
+        cut.WaitForAssertion(() => cut.FindAll("tr.documentos-cabecera-grupo-tipo").Should().NotBeEmpty());
+        cut.FindAll("tbody tr.documentos-fila-hijos").Should().BeEmpty("agrupado por tipo no hay chevron para contraerla");
     }
 }

@@ -339,7 +339,7 @@
                                             }
                                             <td class="documentos-celda-acciones-fila">@CeldaAcciones(documento)</td>
                                         </tr>
-                                        @if (_documentosAbiertos.Contains(documento.Id) && documento.DestinosEnCentros?.Count > 0)
+                                        @if (MostrarDestinos && _documentosAbiertos.Contains(documento.Id) && documento.DestinosEnCentros?.Count > 0)
                                         {
                                             <tr @key="clavesFilas.De((documento.Id, true))" class="documentos-fila-hijos"><td colspan="@ColumnasTabla">
                                                 <div class="documentos-hijos" role="list" aria-label="@Textos["ListaDestino"]">
@@ -443,7 +443,7 @@
 @code {
     private RenderFragment MenuCabecera => __builder =>
     {
-        @if (HayDestinos)
+        @if (MostrarDestinos)
         {
             <ItemMenuAccion OnClick="ExpandirTodos">@Textos["ExpandirTodo"]</ItemMenuAccion>
             <ItemMenuAccion OnClick="ContraerTodos">@Textos["ContraerTodo"]</ItemMenuAccion>
@@ -743,9 +743,11 @@
         var anotables = AgrupadaPorPlataforma && abierto ? SinVigenciaAnotables(filas) : [];
         var portal = AgrupadaPorPlataforma && !esGrupoSin ? UrlPortalCae.Normalizar(resumen?.UrlPortal) : null;
         var total = resumen?.Total ?? filas.Count;
-        var subtitulo = !AgrupadaPorPlataforma && !esGrupoSin
-            ? Textos["GrupoClienteEmpresarialDocumentos", Textos[total == 1 ? "GrupoDocumentoUno" : "GrupoDocumentos", total].Value].Value
-            : null;
+        var documentos = Textos[total == 1 ? "GrupoDocumentoUno" : "GrupoDocumentos", total].Value;
+        // «Sin Cliente» no tiene a quién nombrar, pero sigue diciendo cuántos Documentos agrupa (con Maqueta ya no hay «· N»).
+        var subtitulo = AgrupadaPorPlataforma ? null
+            : esGrupoSin ? documentos
+            : Textos["GrupoClienteEmpresarialDocumentos", documentos].Value;
         return @<tr class="documentos-cabecera-grupo documentos-cabecera-grupo-vinculo" data-grupo="@clave"><th colspan="@ColumnasTabla" scope="rowgroup">
             <div class="documentos-cabecera-vinculo">
                 <CabeceraGrupoLista Maqueta="true" Nombre="@nombre" Total="total" EnPagina="filas.Count" Resumen="ResumenVisible(resumen)"
