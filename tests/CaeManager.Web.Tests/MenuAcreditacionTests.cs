@@ -223,6 +223,18 @@ public sealed class ReglasAccionesAcreditacionTests
         (ReglasAccionesAcreditacion.DireccionDelPortal(estado, "https://nalanda.example.com") is not null).Should().Be(ofrece);
     }
 
+    [Theory]
+    [InlineData(EstadoAcreditacion.NoRequerida, false, null, false)]
+    [InlineData(EstadoAcreditacion.NoRequerida, true, null, true)]
+    [InlineData(EstadoAcreditacion.NoRequerida, false, "https://nalanda.example.com", false)]
+    [InlineData(EstadoAcreditacion.Subida, false, null, true)]
+    [InlineData(EstadoAcreditacion.Aceptada, false, null, true)]
+    [InlineData(EstadoAcreditacion.PendienteDeSubir, false, null, true)]
+    public void El_menu_solo_se_pinta_si_tiene_alguna_opcion(EstadoAcreditacion estado, bool puedeGestionar, string? url, bool hayAlguna)
+    {
+        ReglasAccionesAcreditacion.HayAlgunaAccion(estado, puedeGestionar, url).Should().Be(hayAlguna);
+    }
+
     [Fact]
     public void Los_roles_que_abren_el_portal_son_los_de_escritura_y_Consulta_nunca_el_Usuario_de_Cliente()
     {

@@ -588,7 +588,8 @@
     private RenderFragment<DocumentoListaDto> CeldaAcciones => context => @<text>
                                 <span class="documentos-acciones-fila">
                                     @CeldaArchivo(context)
-                                    @if (AcreditacionDeLaFila(context) is { } acreditacionDeLaFila)
+                                    @if (AcreditacionDeLaFila(context) is { } acreditacionDeLaFila
+                                         && ReglasAccionesAcreditacion.HayAlgunaAccion(acreditacionDeLaFila.Estado, PuedeGestionarAcreditacion(context), acreditacionDeLaFila.UrlAccesoCanal))
                                     {
                                         @* D-18: por Plataforma CAE la fila lleva solo «Acreditación ▾», sin el botón suelto «Gestionar» (artboard
                                            Agrupar-plataforma). El menú es de quien escribe (SoloConEscritura, dentro de MenuAcreditacion); «Subir versión
@@ -600,7 +601,8 @@
                                     }
                                     else
                                     {
-                                        @* Sin agrupar, por Cliente empresarial, por tipo y en el grupo sin vínculo, «Gestionar» sigue siendo la acción principal. *@
+                                        @* Sin agrupar, por Cliente empresarial, por tipo, en el grupo sin vínculo y en una fila cuyo menú quedaría vacío,
+                                           «Gestionar» sigue siendo la acción principal. *@
                                         <SoloConEscritura>
                                             <Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno"
                                                    class="@($"documentos-accion-rapida {(EstadoDocumentoUi.EsCorrecto(context.Estado) ? "documentos-accion-correcta" : null)}")"

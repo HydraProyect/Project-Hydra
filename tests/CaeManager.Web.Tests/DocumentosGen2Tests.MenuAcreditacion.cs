@@ -6,6 +6,7 @@ using CaeManager.Application.Documentos.Commands.ConfirmarVigenciaAcreditacion;
 using CaeManager.Application.Documentos.Commands.MarcarAcreditacionAceptada;
 using CaeManager.Application.Documentos.Commands.MarcarAcreditacionRechazada;
 using CaeManager.Application.Documentos.Commands.MarcarAcreditacionSubida;
+using CaeManager.Application.Documentos.Queries.ObtenerDocumentoPorId;
 using CaeManager.Application.Documentos.Queries.ObtenerDocumentos;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Documentos;
@@ -318,12 +319,47 @@ public partial class DocumentosGen2Tests
         var cut = await AgruparPorPlataformaAsync(mediador);
 
         await AbrirMenuAsync(cut, "Luis Mora Gil");
-        OpcionesDe(cut, "Luis Mora Gil").Should().NotContain("Gestionar acreditación…",
-            "el panel enlaza con la ficha 360 de una Empresa o un Trabajador, no de un Vehículo");
+        OpcionesDe(cut, "Luis Mora Gil").Should().Contain("Marcar validado", "control positivo: el menú de la fila de un Vehículo existe y tiene opciones")
+            .And.NotContain("Gestionar acreditación…", "el panel enlaza con la ficha 360 de una Empresa o un Trabajador, no de un Vehículo");
 
         await ElegirOpcionAsync(cut, "Ana Ruiz Pardo", "Gestionar acreditación…");
 
-        cut.WaitForAssertion(() => cut.Find("[role=dialog]").TextContent.Should().Contain("Gestionar acreditación en plataforma"));
+        cut.WaitForAssertion(() => cut.Find("[role=dialog]").TextContent.Should().Contain("Gestionar acreditación en plataforma")
+            .And.Contain("Ana Ruiz Pardo", "el panel es el de la fila elegida").And.NotContain("Luis Mora Gil"));
+    }
+
+    [Fact]
+    public async Task Subir_version_corregida_abre_el_drawer_del_Documento_de_la_fila_elegida()
+    {
+        var mediador = EnNalanda(("Ana Ruiz Pardo", EstadoAcreditacion.Rechazada, null, Guid.NewGuid()),
+            ("Luis Mora Gil", EstadoAcreditacion.Rechazada, null, Guid.NewGuid()));
+        mediador.Interceptar = p => p is ObtenerDocumentoPorIdQuery ? Task.FromResult<object?>(null) : null;
+        var cut = await AgruparPorPlataformaAsync(mediador);
+        var luis = mediador.Documentos(mediador.Enviadas.OfType<ObtenerDocumentosQuery>().Last()).Single(d => d.PropietarioNombre == "Luis Mora Gil").Id;
+
+        await ElegirOpcionAsync(cut, "Luis Mora Gil", "Subir versión corregida");
+
+        cut.WaitForAssertion(() => mediador.Enviadas.OfType<ObtenerDocumentoPorIdQuery>().Should().Equal(
+            [new ObtenerDocumentoPorIdQuery(luis)], "abre el Documento de la fila elegida y no otro"));
+    }
+
+    [Fact]
+    public async Task Una_acreditacion_No_exigida_sin_ninguna_opcion_no_pinta_un_menu_vacio_y_conserva_Gestionar()
+    {
+        var mediador = EnNalanda(("Ana Ruiz Pardo", EstadoAcreditacion.NoRequerida, null, Guid.NewGuid()),
+            ("Luis Mora Gil", EstadoAcreditacion.NoRequerida, null, Guid.NewGuid()));
+        var documentos = mediador.Documentos;
+        mediador.Documentos = q => documentos(q).Select(d => d.PropietarioNombre == "Luis Mora Gil" ? d with { Ambito = AmbitoAplicacion.Vehiculo } : d).ToList();
+        var cut = await AgruparPorPlataformaAsync(mediador);
+
+        // Un Trabajador sí tiene «Gestionar acreditación…»: el menú existe con esa única opción.
+        await AbrirMenuAsync(cut, "Ana Ruiz Pardo");
+        OpcionesDe(cut, "Ana Ruiz Pardo").Should().Equal("Gestionar acreditación…");
+        FilaDe(cut, "Ana Ruiz Pardo").QuerySelectorAll(".documentos-accion-rapida").Should().BeEmpty();
+        // Un Vehículo no tiene ninguna: sin menú, y el botón de siempre para no quedarse sin acción.
+        var luis = FilaDe(cut, "Luis Mora Gil");
+        luis.QuerySelector(".menu-acreditacion").Should().BeNull();
+        luis.QuerySelectorAll(".documentos-accion-rapida").Should().ContainSingle().Which.TextContent.Trim().Should().Be("Gestionar");
     }
 
     // ------------------------------------------------------------- el servidor rechaza: ModalesAcreditacion lo cuenta

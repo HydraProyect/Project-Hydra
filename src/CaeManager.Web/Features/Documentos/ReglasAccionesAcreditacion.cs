@@ -64,4 +64,12 @@ public static class ReglasAccionesAcreditacion
     /// </summary>
     public static string? DireccionDelPortal(EstadoAcreditacion estado, string? urlAccesoCanal) =>
         estado is EstadoAcreditacion.Rechazada or EstadoAcreditacion.PendienteDeSubir ? UrlPortalCae.Normalizar(urlAccesoCanal) : null;
+
+    /// <summary>
+    /// Si el menú «Acreditación ▾» de una fila tendría alguna opción (una acreditación «No exigida» de un Vehículo o un Proyecto no
+    /// tiene ninguna): sin ella la fila no pinta un menú vacío y conserva «Gestionar», para no quedarse sin acción.
+    /// </summary>
+    public static bool HayAlgunaAccion(EstadoAcreditacion estado, bool puedeGestionar, string? urlAccesoCanal) =>
+        puedeGestionar || PuedeSubirVersionCorregida(estado) || PuedeMarcarSubido(estado) || PuedeMarcarValidado(estado)
+        || PuedeMarcarRechazado(estado) || PuedeAnotarVigencia(estado) || DireccionDelPortal(estado, urlAccesoCanal) is not null;
 }
