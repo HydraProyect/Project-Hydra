@@ -123,7 +123,7 @@ public partial class RevisionIaGen2Tests
     private sealed class ModuloConLecturaTardia(TaskCompletionSource<string?> lectura) : Microsoft.JSInterop.IJSObjectReference
     {
         public async ValueTask<TValue> InvokeAsync<TValue>(string identifier, object?[]? args) =>
-            identifier == "leer" ? (TValue)(object?)await lectura.Task! : default!;
+            identifier == "leer" ? (TValue)(object)(await lectura.Task)! : default!;
 
         public ValueTask<TValue> InvokeAsync<TValue>(string identifier, CancellationToken cancellationToken, object?[]? args) => InvokeAsync<TValue>(identifier, args);
         public ValueTask DisposeAsync() => ValueTask.CompletedTask;
