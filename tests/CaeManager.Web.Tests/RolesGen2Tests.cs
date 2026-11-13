@@ -759,7 +759,7 @@ public class RolesGen2Tests : BunitContext
 
     /// <summary>
     /// ASVS 4.0.3 V7.1.1: un error de Identity o de datos al asignar el rol cita la cuenta en su mensaje (y en el
-    /// de su causa); al registro solo van el rol, el identificador de la cuenta y el tipo de la excepción. Captura
+    /// de su causa); al registro solo van el identificador de la cuenta y el tipo de la excepción. Captura
     /// todas las entradas de cualquier nivel: la pantalla se recarga tras el fallo y esa carga tampoco puede filtrar.
     /// </summary>
     [Fact]
@@ -779,6 +779,29 @@ public class RolesGen2Tests : BunitContext
             .Should().Contain(nameof(InvalidOperationException)).And.Contain(AitorId.ToString());
         _registro.DebeEstarLimpioDeDatosPersonales(
             Aitor.Email, "aitor.zabala", "Violación de unicidad", "Sin respuesta de PostgreSQL");
+    }
+
+    /// <summary>
+    /// ASVS 4.0.3 V7.1.1: el rol sale del selector sin validar y Application lo valida después de consultar el rol
+    /// efectivo; si esa consulta lanza, un valor manipulado con una dirección no puede llegar a ninguna entrada.
+    /// </summary>
+    [Fact]
+    public async Task Si_asignar_lanza_con_un_rol_manipulado_el_registro_no_lleva_el_valor_del_rol()
+    {
+        const string RolManipulado = "fuga@ejemplo.test";
+        SembrarCuenta(Aitor);
+        _fuente.Pendientes = _ => [Aitor];
+        var cut = await AbrirPendientesAsync();
+        _mediador.Asignar = _ => throw new InvalidOperationException("Fallo al consultar el rol efectivo");
+
+        await cut.FindAll("tbody tr")[0].QuerySelector("select")!
+            .ChangeAsync(new ChangeEventArgs { Value = RolManipulado });
+        await BotonAsignar(cut, "Aitor Zabala").ClickAsync(new MouseEventArgs());
+        await BotonDelDialogo(cut, "Asignar rol").ClickAsync(new MouseEventArgs());
+
+        _registro.Entradas.Should().ContainSingle(e => e.Nivel == LogLevel.Error).Which.Contenido
+            .Should().Contain(nameof(InvalidOperationException)).And.Contain(AitorId.ToString());
+        _registro.DebeEstarLimpioDeDatosPersonales(RolManipulado, "ejemplo.test", "Fallo al consultar el rol efectivo");
     }
 
     /// <summary>

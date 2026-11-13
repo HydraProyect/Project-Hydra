@@ -294,8 +294,10 @@ public partial class Roles : CaeManager.Web.Components.PaginaIntegrableConfigura
             // el circuito entero. Aquí no se sabe si el rol llegó a guardarse,
             // así que se avisa y se recarga: la lista dirá la verdad.
             // ASVS 4.0.3 V7.1.1: solo el tipo de la excepción y el id de la cuenta; el mensaje de un error de
-            // Identity o de datos puede citar su correo.
-            Logger.LogError("No se pudo asignar el rol {Rol} a {UsuarioId} ({TipoExcepcion}).", rol, pendiente.Id, ex.GetType().Name);
+            // Identity o de datos puede citar su correo. Tampoco el rol: sale del selector sin validar y
+            // Application lo valida después de consultar el rol efectivo, así que si esa consulta falla el
+            // valor llega aquí tal como lo envió el cliente.
+            Logger.LogError("No se pudo asignar el rol a {UsuarioId} ({TipoExcepcion}).", pendiente.Id, ex.GetType().Name);
             ToastService.Mostrar("No pudimos asignar el rol. Revisa la lista e inténtalo de nuevo.", TonoToast.Error);
             await CargarAsync();
         }
