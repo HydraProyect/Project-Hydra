@@ -256,6 +256,9 @@
   <data name="ExportacionCriterioCambiado" xml:space="preserve">
     <value>Els teus permisos han canviat mentre es generava l'exportació. Torna a exportar.</value>
   </data>
+  <data name="ExportacionDiaCambiado" xml:space="preserve">
+    <value>Ha canviat el dia mentre es generava l'exportació. Torna a exportar.</value>
+  </data>
   <data name="RevIaAbrirPdf" xml:space="preserve">
     <value>Obre el PDF complet</value>
   </data>

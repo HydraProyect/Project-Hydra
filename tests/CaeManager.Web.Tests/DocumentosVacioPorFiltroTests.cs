@@ -167,6 +167,7 @@ public class DocumentosVacioPorFiltroTests : BunitContext
         Services.AddScoped<IMediator>(_ => mediador);
         Services.AddScoped<ITenantActual>(_ => new SeleccionEmpresaGestionadaDePrueba());
         Services.AddLocalization();
+        Services.AddScoped<PuertaAccesoDatos>();
         Services.AddScoped<ToastService>();
         Services.AddScoped<ContextWorkspaceService>();
         Services.AddScoped<ICurrentUserService, UsuarioActualFalso>();

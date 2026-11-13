@@ -34,6 +34,8 @@ using FluentValidation;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Authorization;
 using CaeManager.Infrastructure.Identity;
+using CaeManager.Application.Documentos.Queries.ObtenerRevisionesIaPendientes;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Localization;
 using Microsoft.AspNetCore.Components.Forms;
 using Microsoft.AspNetCore.Components.QuickGrid;
@@ -166,6 +168,8 @@ public partial class Documentos : CaeManager.Web.Components.PaginaInteractiva, I
     [Inject] private NavigationManager NavigationManager { get; set; } = default!;
     [Inject] private IStringLocalizer<TextosDocumentos> Textos { get; set; } = default!;
     [Inject] private ITenantActual TenantActual { get; set; } = default!;
+    [Inject] private IServiceProvider Servicios { get; set; } = default!;
+    [Inject] private PuertaAccesoDatos PuertaAccesoDatos { get; set; } = default!;
 
     /// <summary>Estado 4a del mockup del selector: hay que elegir una empresa de la cartera antes de ver la lista.</summary>
     private bool _sinEmpresaSeleccionada;
@@ -512,7 +516,18 @@ public partial class Documentos : CaeManager.Web.Components.PaginaInteractiva, I
             var usuario = (await EstadoAutenticacion).User;
             if (_desechado) return;
             _puedeEscribir = Roles.ConEscrituraCsv.Split(',').Any(usuario.IsInRole);
-            _puedeGestionarDocumentos = RolesDeGestionDocumental.Split(',').Any(usuario.IsInRole);
+            // «Pendiente de revisión IA» se ofrece por el rol EFECTIVO, la misma fuente con la que el handler decide si lo aplica
+            // (ColaRevisionIa.AccedeElRol): no por el claim, que bajo una Sesión Privilegiada lleva el rol del Tenant de plataforma. Así
+            // ni la pastilla, ni el chip, ni «Guardar filtro», ni «Exportar esta vista», ni la vista recordada llevan el filtro mientras
+            // la primera carga está en vuelo. Por la puerta de acceso a datos: dentro de un Workspace operativo derivado el rol efectivo
+            // se resuelve contra la cartera (consulta al DbContext) y la página se inicializa en paralelo con el layout (ver
+            // SubidaMasiva). Sin servicio de usuario, falla cerrado.
+            var usuarioActual = Servicios.GetService<ICurrentUserService>();
+            var rolEfectivo = usuarioActual is null
+                ? null
+                : await PuertaAccesoDatos.EjecutarAsync(() => usuarioActual.ObtenerRolEfectivoAsync());
+            if (_desechado) return;
+            _puedeGestionarDocumentos = ColaRevisionIa.AccedeElRol(rolEfectivo);
         }
 
         // Delegado estable — ver Clientes.razor.cs (bucle de recargas de QuickGrid).
@@ -1243,9 +1258,9 @@ public partial class Documentos : CaeManager.Web.Components.PaginaInteractiva, I
     private bool _puedeGestionarDocumentos;
 
     /// <summary>
-    /// Se pide el filtro. Sale del claim de la sesión, pero quien decide es el handler, por el rol efectivo (con una Sesión Privilegiada,
-    /// o si el rol cambia dentro del circuito, el claim puede ser de gestión y el rol efectivo no): tras cada carga,
-    /// <see cref="DescartarRevisionIaNoAplicada"/> lo apaga si el servidor no lo aplicó.
+    /// Se pide el filtro. Se ofrece por el rol efectivo leído al iniciar la página, el mismo que usa el handler; si el rol cambia dentro
+    /// del circuito, quien decide sigue siendo el handler, y tras cada carga <see cref="DescartarRevisionIaNoAplicada"/> lo apaga si el
+    /// servidor no lo aplicó.
     /// </summary>
     private bool RevisionIaActiva => _revisionIaFiltro && _puedeGestionarDocumentos;
 

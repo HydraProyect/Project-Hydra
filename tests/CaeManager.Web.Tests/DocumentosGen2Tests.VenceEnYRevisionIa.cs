@@ -136,6 +136,39 @@ public partial class DocumentosGen2Tests
         PastillaDocumentoFase1(cut, "Vence en").Should().NotBeNull("control: el resto de la barra sí está");
     }
 
+    /// <summary>
+    /// Hallazgo de la PR #2201 (Codex, tercera pasada): el claim de gestión con un rol efectivo sin acceso a la cola (Sesión Privilegiada
+    /// o Asignación heredada de Consulta). La pantalla decide por el rol efectivo, como el handler, desde antes de la primera respuesta:
+    /// ni pastilla, ni chip, ni el filtro en ninguna consulta, ni en «Exportar esta vista», ni en la URL que recuerda la vista.
+    /// </summary>
+    [Theory]
+    [InlineData("Consulta")]
+    [InlineData("Cliente")]
+    [InlineData(null)]
+    public void Con_claim_de_gestion_y_rol_efectivo_sin_cola_no_se_ofrece_ni_se_pide_la_revision_IA(string? rolEfectivo)
+    {
+        var (cut, mediador) = Renderizar(ConOpcionesDeFiltro(), url: "documentos?PendienteRevisionIa=1", rol: "GestorCae",
+            rolEfectivo: rolEfectivo ?? "");
+        cut.WaitForAssertion(() => mediador.Enviadas.OfType<ObtenerDocumentosQuery>().Should().NotBeEmpty());
+
+        mediador.Enviadas.OfType<ObtenerDocumentosQuery>().Should().OnlyContain(q => !q.PendienteDeRevisionIa);
+        cut.FindAll("button.pastilla-interruptor").Should().BeEmpty();
+        HayChipRevisionIa(cut).Should().BeFalse();
+        cut.Find("header.cabecera-pagina a[data-keytip=X]").GetAttribute("href").Should().NotContain("pendienteRevisionIa");
+        PastillaDocumentoFase1(cut, "Vence en").Should().NotBeNull("control: el resto de la barra sí está");
+    }
+
+    [Fact]
+    public void Con_claim_y_rol_efectivo_de_gestion_se_ofrece_la_revision_IA()
+    {
+        var (cut, mediador) = Renderizar(ConOpcionesDeFiltro(), url: "documentos?PendienteRevisionIa=1", rol: "Consulta",
+            rolEfectivo: "GestorCae");
+        cut.WaitForAssertion(() => mediador.Enviadas.OfType<ObtenerDocumentosQuery>().Should().NotBeEmpty());
+
+        UltimaConsultaDeDocumentos(mediador).PendienteDeRevisionIa.Should().BeTrue("decide el rol efectivo, no el claim");
+        PastillaRevisionIa(cut).GetAttribute("aria-pressed").Should().Be("true");
+    }
+
     [Theory]
     [InlineData("1", true)]
     [InlineData("0", false)]

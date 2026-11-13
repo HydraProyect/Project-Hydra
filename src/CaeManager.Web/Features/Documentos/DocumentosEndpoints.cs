@@ -109,7 +109,10 @@ public static class DocumentosEndpoints
         hoja.Row(1).Style.Font.Bold = true;
 
         var fila = 2;
-        var criterioCambiado = false;
+        // El handler calcula con el día de negocio de cada lote la franja de estado, «Vence en» y el estado de cada fila: si el día
+        // cambia a mitad de la exportación, los lotes se calcularían con dos fechas y el Skip podría saltarse filas.
+        var diaDeLaExportacion = CaeManager.Domain.Common.DiaDeNegocio.Hoy();
+        string? criterioCambiado = null;
         await foreach (var documento in PaginadorExportacion.PaginarAsync(async (pagina, tamanoPagina) =>
         {
             var lote = await mediator.Send(
@@ -135,11 +138,14 @@ public static class DocumentosEndpoints
                     PendienteDeRevisionIa: revisionIaPedida),
                 cancellationToken);
             revisionIaAplicada ??= lote.FiltroRevisionIaAplicado;
-            if (lote.FiltroRevisionIaAplicado == revisionIaAplicada)
+            if (lote.FiltroRevisionIaAplicado != revisionIaAplicada)
+                criterioCambiado = "ExportacionCriterioCambiado";
+            else if (CaeManager.Domain.Common.DiaDeNegocio.Hoy() != diaDeLaExportacion)
+                criterioCambiado = "ExportacionDiaCambiado";
+            else
                 return lote;
 
             // Un lote vacío corta el paginador: las filas de este lote ni se escriben.
-            criterioCambiado = true;
             return new ResultadoPaginado<DocumentoListaDto>([], lote.TotalElementos, pagina, tamanoPagina);
         }))
         {
@@ -155,10 +161,10 @@ public static class DocumentosEndpoints
             fila++;
         }
 
-        if (criterioCambiado)
+        if (criterioCambiado is not null)
         {
             // Ni fichero ni rastro en el registro: lo exportado hasta aquí mezclaría dos criterios. Quien exporta puede repetirlo.
-            return Results.Problem(textos?["ExportacionCriterioCambiado"].Value, statusCode: StatusCodes.Status409Conflict);
+            return Results.Problem(textos?[criterioCambiado].Value, statusCode: StatusCodes.Status409Conflict);
         }
 
         hoja.Columns().AdjustToContents();

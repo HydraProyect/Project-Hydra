@@ -264,7 +264,7 @@ public partial class DocumentosGen2Tests : BunitContext
 
     private (IRenderedComponent<PaginaDocumentos> Cut, MediadorControlado Mediador) Renderizar(
         MediadorControlado? mediador = null, string url = "documentos", string rol = "Administrador",
-        Guid? tenantSeleccionado = null)
+        Guid? tenantSeleccionado = null, string? rolEfectivo = null)
     {
         mediador ??= new MediadorControlado();
         Services.AddScoped<ITenantActual>(_ => new SeleccionEmpresaGestionadaDePrueba(tenantSeleccionado));
@@ -273,7 +273,9 @@ public partial class DocumentosGen2Tests : BunitContext
         Services.AddLocalization();
         Services.AddScoped<ToastService>();
         Services.AddScoped<ContextWorkspaceService>();
-        Services.AddScoped<ICurrentUserService>(_ => new UsuarioActualFalso(rol));
+        // El rol efectivo, por defecto el del claim; con una Sesión Privilegiada o una Asignación heredada pueden diferir.
+        Services.AddScoped<ICurrentUserService>(_ => new UsuarioActualFalso(rolEfectivo ?? rol));
+        Services.AddScoped<PuertaAccesoDatos>();
         Services.AddScoped<IFileStorageService, AlmacenArchivosQueNadieDebeTocar>();
         Services.AddScoped<IConversorWordPdfService, ConversorQueNadieDebeTocar>();
         Services.AddSingleton<ILogger<PaginaDocumentos>>(_ => NullLogger<PaginaDocumentos>.Instance);

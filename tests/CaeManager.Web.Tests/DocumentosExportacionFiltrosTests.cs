@@ -183,6 +183,51 @@ public class DocumentosExportacionFiltrosTests
         exportacion.Registro.Criterios.Should().BeNull("una exportación abortada no se sirve ni se anota");
     }
 
+    private sealed class RelojAjustable(DateTimeOffset ahora) : TimeProvider
+    {
+        public DateTimeOffset Ahora { get; set; } = ahora;
+        public override DateTimeOffset GetUtcNow() => Ahora;
+    }
+
+    /// <summary>
+    /// Hallazgo de la PR #2201 (Codex, tercera pasada): una exportación que cruza la medianoche peninsular. El handler recalcula
+    /// «Vence en», la franja de estado y el estado de cada fila con el día de negocio de cada lote, así que los lotes se calcularían con
+    /// dos fechas y el Skip podría saltarse filas. Se aborta sin fichero y sin registro.
+    /// </summary>
+    [Fact]
+    public async Task Si_el_dia_de_negocio_cambia_entre_lotes_la_exportacion_se_aborta_sin_fichero_ni_registro()
+    {
+        // 23:59 en Madrid (UTC+1 en noviembre); el segundo lote se resuelve a las 00:01 del día siguiente.
+        var reloj = new RelojAjustable(new DateTimeOffset(2026, 11, 13, 22, 59, 0, TimeSpan.Zero));
+        using var relojFijado = CaeManager.Domain.Common.DiaDeNegocio.FijarRelojEnEsteFlujo(reloj);
+
+        var exportacion = await ExportarAsync(_ => Roles.GestorCae, venceEn: "30", filasPorLote: lote =>
+        {
+            if (lote == 2) reloj.Ahora = reloj.Ahora.AddMinutes(2);
+            return lote == 1 ? PaginadorExportacion.TamanoLotePorDefecto : 3;
+        });
+
+        exportacion.Consultas.Should().HaveCount(2, "el cambio se detecta en el segundo lote");
+        exportacion.Resultado.Should().BeOfType<ProblemHttpResult>().Which.StatusCode.Should().Be(StatusCodes.Status409Conflict);
+        exportacion.Registro.Criterios.Should().BeNull("una exportación abortada no se sirve ni se anota");
+    }
+
+    [Fact]
+    public async Task Si_el_dia_de_negocio_no_cambia_varios_lotes_se_exportan_y_se_anotan()
+    {
+        var reloj = new RelojAjustable(new DateTimeOffset(2026, 11, 13, 10, 0, 0, TimeSpan.Zero));
+        using var relojFijado = CaeManager.Domain.Common.DiaDeNegocio.FijarRelojEnEsteFlujo(reloj);
+
+        var exportacion = await ExportarAsync(_ => Roles.GestorCae, venceEn: "30", filasPorLote: lote =>
+        {
+            reloj.Ahora = reloj.Ahora.AddMinutes(2);
+            return lote == 1 ? PaginadorExportacion.TamanoLotePorDefecto : 3;
+        });
+
+        exportacion.Resultado.Should().BeOfType<FileStreamHttpResult>("control: el mismo día, aunque pase el tiempo, no aborta");
+        exportacion.Criterios["venceEnDias"].Should().Be("30");
+    }
+
     [Fact]
     public async Task Con_gestion_en_todos_los_lotes_se_exporta_todo_y_se_anota_la_revision_IA()
     {
