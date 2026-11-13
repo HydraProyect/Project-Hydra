@@ -104,6 +104,23 @@ public partial class DocumentosGen2Tests
     }
 
     [Fact]
+    public void Un_Documento_en_varios_Centros_de_la_misma_plataforma_pinta_una_sola_linea_con_el_peor_estado_y_las_graves_primero()
+    {
+        var documento = DocumentoDeFila("blob/x.pdf",
+            new AcreditacionResumenDto(Guid.NewGuid(), "Nalanda", EstadoAcreditacion.Aceptada),
+            new AcreditacionResumenDto(Guid.NewGuid(), "Nalanda", EstadoAcreditacion.Rechazada),
+            new AcreditacionResumenDto(Guid.NewGuid(), "Nalanda", EstadoAcreditacion.Aceptada),
+            new AcreditacionResumenDto(Guid.NewGuid(), "Ctaima", EstadoAcreditacion.Aceptada));
+        var (cut, _) = Renderizar(ConDocumentos(documento));
+        cut.WaitForAssertion(() => cut.Find("tbody .documentos-plats"));
+
+        var lineas = cut.FindAll("tbody tr .documentos-plats .documentos-plat").Select(l => l.TextContent.Trim()).ToList();
+        lineas.Should().HaveCount(2, "una línea por plataforma, no por Centro");
+        lineas[0].Should().Contain("Nalanda").And.Contain("· Rechazada", "la más grave primero y con su estado");
+        lineas[1].Should().Contain("Ctaima").And.Contain("· Validada");
+    }
+
+    [Fact]
     public void Con_varias_plataformas_la_fila_pinta_una_linea_por_Plataforma_CAE_con_el_estado_capitalizado()
     {
         // D-22 y artboard Main: «logo Nombre · Validada», una línea por Plataforma CAE, el estado con inicial en mayúscula.

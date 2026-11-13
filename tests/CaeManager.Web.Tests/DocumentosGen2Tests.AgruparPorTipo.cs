@@ -231,6 +231,10 @@ public partial class DocumentosGen2Tests
 
         cut.Find(".menu-acciones-panel-titulado .menu-acciones-titulo").TextContent.Trim().Should().Be("Agrupar");
         cut.FindAll(".menu-acciones-panel-titulado").Should().ContainSingle("solo «Agrupar» es un panel titulado: el resto de menús conserva su aspecto");
+        var panel = cut.Find(".menu-acciones-panel-titulado");
+        panel.GetAttribute("role").Should().Be("menu");
+        panel.GetAttribute("aria-label").Should().Be("Agrupar", "el panel se nombra por su título");
+        cut.Find(".menu-acciones-titulo").GetAttribute("aria-hidden").Should().Be("true", "el título decorativo no se lee dos veces");
     }
 
     /// <summary>

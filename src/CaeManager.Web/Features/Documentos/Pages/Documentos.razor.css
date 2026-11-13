@@ -290,10 +290,18 @@
     color: var(--color-text);
     font: var(--font-body-sm);
     white-space: nowrap;
+    overflow: hidden;
+}
+
+.documentos-tabla-desplazable ::deep .documentos-plat-nombre {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 
 .documentos-tabla-desplazable ::deep .documentos-plat-estado {
     color: var(--color-text-muted);
+    flex: none;
 }
 
 /* Logotipo de la Plataforma CAE (artboards, .dc-logo): cuadrado con borde de 1 px y radio de 3 px, sobre el blanco de marca del

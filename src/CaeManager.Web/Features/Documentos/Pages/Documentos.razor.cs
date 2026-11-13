@@ -1000,6 +1000,28 @@ public partial class Documentos : CaeManager.Web.Components.PaginaInteractiva, I
                resumen.PorEstado.GetValueOrDefault(nameof(EstadoDocumento.Urgente)), 0);
     }
 
+    /// <summary>
+    /// Una línea por Plataforma CAE (no por Centro): un Documento destinado a varios Centros de la misma plataforma tiene una
+    /// acreditación por Centro, y repetirlas haría crecer la fila sin límite. De cada plataforma se queda el estado más grave, y
+    /// salen primero las más graves (rechazada, pendiente de subir, subida, aceptada) y luego por nombre.
+    /// </summary>
+    private static IReadOnlyList<AcreditacionResumenDto> PlataformasDeLaFila(DocumentoListaDto documento) =>
+        documento.Acreditaciones
+            .GroupBy(a => a.NombrePlataforma, StringComparer.CurrentCultureIgnoreCase)
+            .Select(g => g.OrderBy(a => PrioridadAcreditacion(a.Estado)).First())
+            .OrderBy(a => PrioridadAcreditacion(a.Estado))
+            .ThenBy(a => a.NombrePlataforma, StringComparer.CurrentCultureIgnoreCase)
+            .ToList();
+
+    private static int PrioridadAcreditacion(EstadoAcreditacion estado) => estado switch
+    {
+        EstadoAcreditacion.Rechazada => 0,
+        EstadoAcreditacion.PendienteDeSubir => 1,
+        EstadoAcreditacion.Subida => 2,
+        EstadoAcreditacion.Aceptada => 3,
+        _ => 4
+    };
+
     private ResumenDeGrupoDocumental? ResumenDe(string clave) =>
         _resumenPorGrupo?.GetValueOrDefault(clave) as ResumenDeGrupoDocumental;
 

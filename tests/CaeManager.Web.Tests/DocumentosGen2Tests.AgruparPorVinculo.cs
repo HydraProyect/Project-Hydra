@@ -237,6 +237,8 @@ public partial class DocumentosGen2Tests
         ResumenDeVinculo(CabeceraDeVinculo(cut, CtaimaId.ToString())).Should().Equal("1 pendiente de subir");
         CabeceraDeVinculo(cut, ObtenerDocumentosQuery.GrupoSin).QuerySelector("button.grupo-lista-cabecera")!
             .GetAttribute("aria-expanded").Should().Be("false", "el grupo «Sin Plataforma CAE» nace plegado");
+        CabeceraDeVinculo(cut, ObtenerDocumentosQuery.GrupoSin).QuerySelector(".grupo-lista-subtitulo")!.TextContent.Trim()
+            .Should().Be("1 documento", "sin «· N» en la cabecera, el grupo sin plataforma dice cuántos Documentos agrupa");
         nalanda.QuerySelector("button.grupo-lista-cabecera")!.GetAttribute("aria-expanded").Should().Be("true");
         cut.FindAll("tbody button.enlace-nombre-fila").Should().NotContain(b => b.TextContent.Contains("Eva Soto Paz"),
             "las filas de un grupo plegado no se pintan");

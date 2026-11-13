@@ -536,7 +536,7 @@
                                            que ve el Usuario de Cliente: sin motivo ni «Abrir portal», que viven en la ventana y la vista rápida. *@
                                         <Disparador>
                                             <span class="documentos-plats">
-                                                @foreach (var acreditacion in context.Acreditaciones)
+                                                @foreach (var acreditacion in PlataformasDeLaFila(context))
                                                 {
                                                     @ChipPlataforma(acreditacion)
                                                 }
@@ -662,7 +662,7 @@
                                     @if (context.Acreditaciones.Count > 0)
                                     {
                                         <span class="documentos-plats documentos-plataformas-tipo" title="@TituloPlataformasDelTipo(context)">
-                                            @foreach (var acreditacion in context.Acreditaciones)
+                                            @foreach (var acreditacion in PlataformasDeLaFila(context))
                                             {
                                                 @ChipPlataforma(acreditacion)
                                             }
@@ -745,7 +745,7 @@
         var total = resumen?.Total ?? filas.Count;
         var documentos = Textos[total == 1 ? "GrupoDocumentoUno" : "GrupoDocumentos", total].Value;
         // «Sin Cliente» no tiene a quién nombrar, pero sigue diciendo cuántos Documentos agrupa (con Maqueta ya no hay «· N»).
-        var subtitulo = AgrupadaPorPlataforma ? null
+        var subtitulo = AgrupadaPorPlataforma ? (esGrupoSin ? documentos : null)
             : esGrupoSin ? documentos
             : Textos["GrupoClienteEmpresarialDocumentos", documentos].Value;
         return @<tr class="documentos-cabecera-grupo documentos-cabecera-grupo-vinculo" data-grupo="@clave"><th colspan="@ColumnasTabla" scope="rowgroup">
