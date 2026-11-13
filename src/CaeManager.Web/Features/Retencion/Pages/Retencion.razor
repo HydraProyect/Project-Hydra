@@ -23,7 +23,9 @@
             histórico, que ya no es dato personal.
         </Descripcion>
         <Acciones>
-            <Boton Variante="VarianteBoton.Primario" OnClick="BuscarAsync" Cargando="_buscando" Deshabilitado="!PoliticaActiva">
+            @* Mientras la lista carga, buscar espera: dos cargas solapadas (la inicial y la de después de buscar) pintaban la
+               tabla de la primera con la segunda aún en vuelo (#2187). *@
+            <Boton Variante="VarianteBoton.Primario" OnClick="BuscarAsync" Cargando="_buscando" Deshabilitado="!PoliticaActiva || _cargando">
                 Buscar datos que hayan cumplido plazo
             </Boton>
         </Acciones>
