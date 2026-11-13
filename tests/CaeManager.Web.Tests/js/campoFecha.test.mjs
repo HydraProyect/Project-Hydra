@@ -15,7 +15,7 @@ function entorno(globales = {}, ventana = {}) {
     const document = { addEventListener(tipo, f, captura) { oyentes[tipo] = { f, captura }; } };
     const window = ventana;
     vm.runInNewContext(codigo, { document, window, ...globales });
-    return { oyentes, aplicar: window.talvegCampoFecha.aplicar, calendario: window.talvegCampoFecha };
+    return { oyentes, aplicar: window.talvegCampoFecha.aplicar, calendario: window.talvegCampoFecha, document };
 }
 
 function campo(valor, cursor, esFecha = true) {
@@ -236,4 +236,64 @@ test('si cabe, el panel no lleva tope ni scroll propio, y vuelve a no llevarlos 
     assert.equal(panel.style.maxHeight, '', 'ya cabe: sin tope');
     assert.equal(panel.style.overflowY, '');
     assert.equal(panel.style.top, (300 - 4 - 280) + 'px');
+});
+
+// Al cerrar el calendario el foco vuelve al campo solo si sigue dentro del componente o cayó al body; no se le quita a
+// otro control al que ya se fue mientras llegaba la orden del servidor (#2194).
+function escenaFoco() {
+    const { calendario, document } = entorno();
+    const html = { nombre: 'html' };
+    const cuerpo = { nombre: 'body' };
+    document.documentElement = html;
+    document.body = cuerpo;
+    const elemento = (nombre, padre) => ({
+        nombre,
+        padre,
+        enfoques: 0,
+        focus() { this.enfoques++; document.activeElement = this; },
+        contains(otro) {
+            for (let actual = otro; actual; actual = actual.padre) if (actual === this) return true;
+            return false;
+        },
+    });
+    const raiz = elemento('campo-fecha', cuerpo);
+    const campoTexto = elemento('input', raiz);
+    const dia = elemento('dia', raiz);
+    const otroCampo = elemento('otro-campo', cuerpo);
+    return { calendario, document, cuerpo, html, raiz, campoTexto, dia, otroCampo };
+}
+
+test('al cerrar el calendario, el foco vuelve al campo si sigue dentro del componente', () => {
+    const { calendario, document, raiz, campoTexto, dia } = escenaFoco();
+    document.activeElement = dia;
+    calendario.devolverFoco(campoTexto, raiz);
+    assert.equal(campoTexto.enfoques, 1);
+    assert.equal(document.activeElement, campoTexto);
+});
+
+test('al cerrar el calendario, el foco vuelve al campo si cayó al body, al documento raíz o no hay elemento activo', () => {
+    for (const activo of ['body', 'html', null]) {
+        const s = escenaFoco();
+        s.document.activeElement = activo === 'body' ? s.cuerpo : activo === 'html' ? s.html : null;
+        s.calendario.devolverFoco(s.campoTexto, s.raiz);
+        assert.equal(s.campoTexto.enfoques, 1, String(activo));
+        assert.equal(s.document.activeElement, s.campoTexto, String(activo));
+    }
+});
+
+test('al cerrar el calendario, no se quita el foco a otro campo al que ya se fue (#2194)', () => {
+    const { calendario, document, raiz, campoTexto, otroCampo } = escenaFoco();
+    document.activeElement = otroCampo;
+    calendario.devolverFoco(campoTexto, raiz);
+    assert.equal(campoTexto.enfoques, 0);
+    assert.equal(document.activeElement, otroCampo);
+});
+test('al cerrar el calendario, el foco vuelve al campo si está en un ancestro de la raíz (clic en el velo dentro de un Drawer)', () => {
+    const { calendario, document, cuerpo, raiz, campoTexto } = escenaFoco();
+    const panel = { nombre: 'panel', padre: cuerpo, enfoques: 0, contains(otro) { for (let a = otro; a; a = a.padre) if (a === this) return true; return false; }, focus() { document.activeElement = this; } };
+    raiz.padre = panel;
+    document.activeElement = panel;
+    calendario.devolverFoco(campoTexto, raiz);
+    assert.equal(campoTexto.enfoques, 1);
+    assert.equal(document.activeElement, campoTexto);
 });
