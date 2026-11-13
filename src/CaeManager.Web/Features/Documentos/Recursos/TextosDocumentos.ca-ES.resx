@@ -498,7 +498,7 @@
   <data name="AcrValidadoTitulo" xml:space="preserve"><value>Marca com a validat</value></data>
   <data name="AcrVigenciaPregunta" xml:space="preserve"><value>Fins quan val en aquesta plataforma?</value></data>
   <data name="AcrVigenciaVenceEnFecha" xml:space="preserve"><value>Venç en una data</value></data>
-  <data name="AcrVigenciaNoVence" xml:space="preserve"><value>Aquí no caduca</value></data>
+  <data name="AcrVigenciaNoVence" xml:space="preserve"><value>Aquí no té venciment</value></data>
   <data name="AcrVigenciaSinConfirmar" xml:space="preserve"><value>Encara no ho sé</value></data>
   <data name="AcrFechaVencimiento" xml:space="preserve"><value>Data de venciment</value></data>
   <data name="AcrErrorFecha" xml:space="preserve"><value>Escriu la data fins a la qual val, o tria una altra opció.</value></data>
