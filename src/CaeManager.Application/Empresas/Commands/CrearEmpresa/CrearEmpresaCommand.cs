@@ -51,7 +51,8 @@ public class CrearEmpresaCommandValidator : AbstractValidator<CrearEmpresaComman
 public class CrearEmpresaCommandHandler(
     IEmpresaRepository repositorio,
     IRelacionEmpresarialRepository relacionEmpresarialRepositorio,
-    IEmpresasQueryContext empresasContext, IAlcanceDatosService alcanceDatos, IUnitOfWork unitOfWork)
+    IEmpresasQueryContext empresasContext, IAlcanceDatosService alcanceDatos, IUnitOfWork unitOfWork,
+    ILimiteEmpresaPropia limiteEmpresaPropia)
     : IRequestHandler<CrearEmpresaCommand, Result<Guid>>
 {
     public async Task<Result<Guid>> Handle(CrearEmpresaCommand request, CancellationToken cancellationToken)
@@ -79,21 +80,32 @@ public class CrearEmpresaCommandHandler(
             || !await alcanceDatos.TodosLosClientesVisiblesAsync(clienteIds, cancellationToken))
             return Result.Fallo<Guid>(Error.Crear("Empresa.ClienteNoEncontrado", "Alguno de los Clientes seleccionados no existe."));
 
-        var empresa = new Empresa(request.RazonSocial, request.Cif, request.Cnae, request.ConvenioAplicable, request.EsActividadAnexoI);
-        repositorio.Agregar(empresa);
+        // D-P11: una sola Empresa propia por Tenant propietario (ver ILimiteEmpresaPropia). El recuento y el guardado van
+        // bajo el candado del Tenant: otra alta o restauración concurrente espera al COMMIT y cuenta esta.
+        Guid empresaId = default;
+        var resultado = await limiteEmpresaPropia.SerializarAsync(async ct =>
+        {
+            if (await limiteEmpresaPropia.ComprobarAltaAsync(0, esIntento: true, ct) is { } limite)
+                return Result.Fallo(limite);
 
-        // F4.2c — RelacionEmpresarial es la ÚNICA fuente de escritura (R6
-        // aceptada 2026-08-27; la tabla legacy EmpresaCliente ya no recibe
-        // altas). Solo el alta de ClienteIds toca la arista: RazonSocial/Cif/
-        // Cnae/ConvenioAplicable/EsActividadAnexoI son identidad de Empresa,
-        // no de la relación.
-        var ahora = DateTime.UtcNow;
-        foreach (var clienteId in clienteIds)
-            await relacionEmpresarialRepositorio.AgregarSiNoVigenteAsync(
-                empresa.Id, clienteId, ahora, cancellationToken: cancellationToken);
+            var empresa = new Empresa(request.RazonSocial, request.Cif, request.Cnae, request.ConvenioAplicable, request.EsActividadAnexoI);
+            repositorio.Agregar(empresa);
+            empresaId = empresa.Id;
 
-        await unitOfWork.SaveChangesAsync(cancellationToken);
+            // F4.2c — RelacionEmpresarial es la ÚNICA fuente de escritura (R6
+            // aceptada 2026-08-27; la tabla legacy EmpresaCliente ya no recibe
+            // altas). Solo el alta de ClienteIds toca la arista: RazonSocial/Cif/
+            // Cnae/ConvenioAplicable/EsActividadAnexoI son identidad de Empresa,
+            // no de la relación.
+            var ahora = DateTime.UtcNow;
+            foreach (var clienteId in clienteIds)
+                await relacionEmpresarialRepositorio.AgregarSiNoVigenteAsync(
+                    empresa.Id, clienteId, ahora, cancellationToken: ct);
 
-        return Result.Exito(empresa.Id);
+            await unitOfWork.SaveChangesAsync(ct);
+            return Result.Exito();
+        }, cancellationToken);
+
+        return resultado.EsExitoso ? Result.Exito(empresaId) : Result.Fallo<Guid>(resultado.Error);
     }
 }

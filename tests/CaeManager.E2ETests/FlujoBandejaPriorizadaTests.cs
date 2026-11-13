@@ -43,6 +43,8 @@ public class FlujoBandejaPriorizadaTests(WebAppFixture fixture)
         await drawer.Locator(".drawer-pie").GetByRole(AriaRole.Button, new() { Name = "Guardar", Exact = true }).ClickAsync();
         await drawer.WaitForAsync(new LocatorWaitForOptions { State = WaitForSelectorState.Hidden, Timeout = 15_000 });
 
+        // D-P11: el Tenant admite una sola Empresa propia activa; la de un test anterior deja de ser propia antes de esta alta.
+        await fixture.LiberarEmpresaPropiaDelTenantPrincipalAsync();
         await Ayudas.NavegarYEsperarAsync(page, $"{fixture.BaseUrl}/empresas");
         await page.Locator("[data-keytip-contenedor=\"N\"]").GetByRole(AriaRole.Button, new() { Name = "+ Nueva empresa", Exact = true }).ClickAsync();
         await drawer.GetByLabel("Razón social").FillAsync(razonSocialEmpresa);

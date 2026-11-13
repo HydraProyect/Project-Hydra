@@ -70,12 +70,15 @@ public static class InfrastructureServiceCollectionExtensions
     /// Registra la serialización y la transacción de Command de la que depende (TryAdd: si ya está registrada, se
     /// respeta). Exige un <see cref="CaeManagerDbContext"/> y un <see cref="ITenantActual"/> registrados; los contenedores
     /// de prueba que montan <c>AddApplication()</c> a mano lo llaman para no divergir del registro de producción.
+    /// Registra también el candado del límite de Empresa propia (D-P11), del que depende el <c>ILimiteEmpresaPropia</c>
+    /// que registra <c>AddApplication()</c>: es el mismo mecanismo sobre la misma transacción.
     /// </summary>
     public static IServiceCollection AddSerializacionAltasAcreditacionEmpresa(this IServiceCollection services)
     {
         Microsoft.Extensions.DependencyInjection.Extensions.ServiceCollectionDescriptorExtensions
             .TryAddScoped<ITransaccionDeComando, TransaccionDeComando>(services);
         services.AddScoped<CaeManager.Application.Documentos.Acreditacion.ISerializacionAltasAcreditacionEmpresa, SerializacionAltasAcreditacionEmpresa>();
+        services.AddScoped<CaeManager.Application.Empresas.ICandadoEmpresaPropia, CandadoEmpresaPropia>();
         return services;
     }
 

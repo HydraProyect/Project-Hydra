@@ -300,7 +300,7 @@ public class PlantillaCombinadaAlineacionAnalisisEjecucionTests : IAsyncLifetime
             new CentroRepository(contexto),
             new TrabajadorRepository(contexto),
             contexto, contexto, contexto, new OperacionImportacionRepository(contexto),
-            new AutorizacionEscrituraEfectivaFalsa(), new AlcanceDatosServiceFalso());
+            new AutorizacionEscrituraEfectivaFalsa(), new AlcanceDatosServiceFalso(), new LimiteEmpresaPropiaSinAplicar());
 
         var resultado = await handler.Handle(
             new EjecutarImportacionCombinadaCommand(plan, ReemplazarExistentes: reemplazar), CancellationToken.None);

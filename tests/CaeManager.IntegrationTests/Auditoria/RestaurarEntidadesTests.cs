@@ -69,7 +69,7 @@ public class RestaurarEntidadesTests : IAsyncLifetime
 
         await using var contextoRestaurar = CrearContexto(_tenant);
         var handler = new RestaurarClienteCommandHandler(
-            contextoRestaurar, new TenantActualAmbiental { TenantId = _tenant }, new AlcanceDatosServiceFalso(), contextoRestaurar);
+            contextoRestaurar, new TenantActualAmbiental { TenantId = _tenant }, new AlcanceDatosServiceFalso(), contextoRestaurar, new LimiteEmpresaPropiaSinAplicar());
 
         var resultado = await handler.Handle(new RestaurarClienteCommand(clienteId), CancellationToken.None);
 
@@ -96,7 +96,7 @@ public class RestaurarEntidadesTests : IAsyncLifetime
         await using var contextoRestaurar = CrearContexto(_tenant);
         var alcance = new AlcanceDatosServiceFalso(clienteIds: [Guid.NewGuid()]);
         var handler = new RestaurarClienteCommandHandler(
-            contextoRestaurar, new TenantActualAmbiental { TenantId = _tenant }, alcance, contextoRestaurar);
+            contextoRestaurar, new TenantActualAmbiental { TenantId = _tenant }, alcance, contextoRestaurar, new LimiteEmpresaPropiaSinAplicar());
 
         var resultado = await handler.Handle(new RestaurarClienteCommand(clienteId), CancellationToken.None);
 
@@ -121,7 +121,7 @@ public class RestaurarEntidadesTests : IAsyncLifetime
 
         await using var contextoAtacante = CrearContexto(_otroTenant);
         var handler = new RestaurarClienteCommandHandler(
-            contextoAtacante, new TenantActualAmbiental { TenantId = _otroTenant }, new AlcanceDatosServiceFalso(), contextoAtacante);
+            contextoAtacante, new TenantActualAmbiental { TenantId = _otroTenant }, new AlcanceDatosServiceFalso(), contextoAtacante, new LimiteEmpresaPropiaSinAplicar());
 
         var resultado = await handler.Handle(new RestaurarClienteCommand(clienteId), CancellationToken.None);
 
@@ -144,7 +144,7 @@ public class RestaurarEntidadesTests : IAsyncLifetime
 
         await using var contextoRestaurar = CrearContexto(_tenant);
         var handler = new RestaurarEmpresaCommandHandler(
-            contextoRestaurar, new TenantActualAmbiental { TenantId = _tenant }, new AlcanceDatosServiceFalso(), contextoRestaurar);
+            contextoRestaurar, new TenantActualAmbiental { TenantId = _tenant }, new AlcanceDatosServiceFalso(), contextoRestaurar, new LimiteEmpresaPropiaSinAplicar());
 
         var resultado = await handler.Handle(new RestaurarEmpresaCommand(empresaId), CancellationToken.None);
 
@@ -169,7 +169,7 @@ public class RestaurarEntidadesTests : IAsyncLifetime
         await using var contextoRestaurar = CrearContexto(_tenant);
         var alcance = new AlcanceDatosServiceFalso(empresaIds: [Guid.NewGuid()]);
         var handler = new RestaurarEmpresaCommandHandler(
-            contextoRestaurar, new TenantActualAmbiental { TenantId = _tenant }, alcance, contextoRestaurar);
+            contextoRestaurar, new TenantActualAmbiental { TenantId = _tenant }, alcance, contextoRestaurar, new LimiteEmpresaPropiaSinAplicar());
 
         var resultado = await handler.Handle(new RestaurarEmpresaCommand(empresaId), CancellationToken.None);
 
@@ -194,7 +194,7 @@ public class RestaurarEntidadesTests : IAsyncLifetime
 
         await using var contextoAtacante = CrearContexto(_otroTenant);
         var handler = new RestaurarEmpresaCommandHandler(
-            contextoAtacante, new TenantActualAmbiental { TenantId = _otroTenant }, new AlcanceDatosServiceFalso(), contextoAtacante);
+            contextoAtacante, new TenantActualAmbiental { TenantId = _otroTenant }, new AlcanceDatosServiceFalso(), contextoAtacante, new LimiteEmpresaPropiaSinAplicar());
 
         var resultado = await handler.Handle(new RestaurarEmpresaCommand(empresaId), CancellationToken.None);
 
@@ -703,7 +703,7 @@ public class RestaurarEntidadesTests : IAsyncLifetime
 
         await using var contextoRestaurar = CrearContexto(_tenant);
         var handler = new RestaurarClienteCommandHandler(
-            contextoRestaurar, new TenantActualAmbiental { TenantId = _tenant }, new AlcanceDatosServiceFalso(), contextoRestaurar);
+            contextoRestaurar, new TenantActualAmbiental { TenantId = _tenant }, new AlcanceDatosServiceFalso(), contextoRestaurar, new LimiteEmpresaPropiaSinAplicar());
 
         var resultado = await handler.Handle(new RestaurarClienteCommand(clienteId), CancellationToken.None);
 
@@ -769,7 +769,7 @@ public class RestaurarEntidadesTests : IAsyncLifetime
     {
         var tenant = new TenantActualAmbiental { TenantId = tenantId };
         return (
-            await new RestaurarSubcontrataCommandHandler(contexto, tenant, alcance, contexto).Handle(new RestaurarSubcontrataCommand(s.SubcontrataId), CancellationToken.None),
+            await new RestaurarSubcontrataCommandHandler(contexto, tenant, alcance, contexto, new LimiteEmpresaPropiaSinAplicar()).Handle(new RestaurarSubcontrataCommand(s.SubcontrataId), CancellationToken.None),
             await new RestaurarVehiculoCommandHandler(contexto, tenant, alcance, contexto).Handle(new RestaurarVehiculoCommand(s.VehiculoId), CancellationToken.None),
             await new RestaurarProyectoCommandHandler(contexto, tenant, alcance, contexto).Handle(new RestaurarProyectoCommand(s.ProyectoId), CancellationToken.None),
             await new RestaurarGestionCommandHandler(contexto, tenant, alcance, contexto).Handle(new RestaurarGestionCommand(s.GestionId), CancellationToken.None));
@@ -924,7 +924,7 @@ public class RestaurarEntidadesTests : IAsyncLifetime
 
         await using var contextoRestaurar = CrearContexto(_tenant);
         var handler = new RestaurarSubcontrataCommandHandler(
-            contextoRestaurar, new TenantActualAmbiental { TenantId = _tenant }, new AlcanceDatosServiceFalso(), contextoRestaurar);
+            contextoRestaurar, new TenantActualAmbiental { TenantId = _tenant }, new AlcanceDatosServiceFalso(), contextoRestaurar, new LimiteEmpresaPropiaSinAplicar());
 
         var resultado = await handler.Handle(new RestaurarSubcontrataCommand(clienteId), CancellationToken.None);
 
