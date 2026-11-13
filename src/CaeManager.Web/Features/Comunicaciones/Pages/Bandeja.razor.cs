@@ -1167,12 +1167,31 @@ public partial class Bandeja : CaeManager.Web.Components.PaginaInteractiva, IAsy
         var sugerencia = aviso.Sugerencia;
         if (aviso.Seleccion != _aperturaVigente || !EsLaConversacionAbierta(sugerencia.ConversacionId)) return Task.CompletedTask;
 
+        // La persona aceptó sustituir el redactor que había al pulsar. Si mientras el servidor respondía siguió escribiendo,
+        // eso es suyo y no se pisa (revisión Codex r3, MEDIO): la sugerencia queda sin revisar fuera del redactor, y el panel
+        // ofrece ponerla preguntando antes. Un redactor vaciado entretanto no tiene nada que perder.
+        if (!string.IsNullOrWhiteSpace(_textoRespuesta) && !string.Equals(_textoRespuesta, aviso.TextoAlPedir, StringComparison.Ordinal))
+            return Task.CompletedTask;
+
         // En correo la sugerencia se guarda como HTML; el redactor es texto (revisión Codex r1, MEDIO 8). El servidor compara
         // los dos como texto (RevisionRespuestaSugerida.TextoComparable), así que el bloqueo es el mismo.
         _textoRespuesta = RespuestaSugeridaPanel.TextoParaRedactor(sugerencia, _detalle!.Canal == CanalConversacion.WhatsApp);
         _notaInternaActiva = false;
+        _sugerenciaEnRedactor = new SugerenciaEnRedactor(sugerencia.Id, _aperturaVigente);
         return Task.CompletedTask;
     }
+
+    /// <summary>
+    /// La sugerencia que esta página puso en su redactor y en qué apertura (revisión Codex r3 de la #2163, ALTO). Solo esa se
+    /// ha mostrado aquí, y solo esa pueden confirmar «Lo he revisado» o el envío de un texto editado más del umbral. Abrir otra
+    /// conversación, o volver a esta, cambia la apertura y la deja sin efecto.
+    /// </summary>
+    private SugerenciaEnRedactor? _sugerenciaEnRedactor;
+
+    private readonly record struct SugerenciaEnRedactor(Guid Id, int Apertura);
+
+    private Guid? SugerenciaEnRedactorVigente =>
+        _sugerenciaEnRedactor is { } enRedactor && enRedactor.Apertura == _aperturaVigente ? enRedactor.Id : null;
 
     /// <summary>La conversación seleccionada y la que muestra el detalle son esta: ni la anterior, ni una que aún carga.</summary>
     private bool EsLaConversacionAbierta(Guid conversacionId) =>
@@ -1193,12 +1212,15 @@ public partial class Bandeja : CaeManager.Web.Components.PaginaInteractiva, IAsy
     }
 
     /// <summary>
-    /// Antes de enviar: una sugerencia insertada y editada más allá del umbral cuenta como revisada y se confirma en el
-    /// servidor, que bloquea todo envío mientras siga sin revisar. Recibe el texto fijado al pulsar Enviar, no el del redactor
-    /// cuando acabe de esperar. <c>false</c>: no se envía.
+    /// Antes de enviar: una sugerencia insertada en este redactor en esta apertura y editada más allá del umbral cuenta como
+    /// revisada y se confirma en el servidor, que bloquea todo envío mientras siga sin revisar. Una sin revisar que no está en
+    /// este redactor no se confirma con lo que se envía (revisión Codex r3, ALTO). Recibe el texto fijado al pulsar Enviar, no
+    /// el del redactor cuando acabe de esperar, y la sugerencia del redactor de ese mismo momento. <c>false</c>: no se envía.
     /// </summary>
     private Task<bool> AsegurarSugerenciaRevisadaAsync(Guid conversacionId, string texto) =>
-        _panelSugerencia is { } panel ? panel.ConfirmarSiEditadaAsync(conversacionId, texto) : Task.FromResult(true);
+        _panelSugerencia is { } panel
+            ? panel.ConfirmarSiEditadaAsync(conversacionId, texto, SugerenciaEnRedactorVigente)
+            : Task.FromResult(true);
 
     private async Task AplicarMacro(string macroIdTexto)
     {

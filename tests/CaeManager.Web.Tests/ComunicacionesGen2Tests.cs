@@ -883,6 +883,115 @@ public class ComunicacionesGen2Tests : BunitContext
         TextoDelRedactor(cut).Should().Be(borradorNuevo, "el borrador nuevo no es el que se envió y no se vacía al terminar");
     }
 
+    // ---------------------------------------------------------------- revisión Codex r3 de la #2163
+
+    /// <summary>
+    /// ALTO (r3): otra persona insertó la sugerencia y sigue sin revisar. Aquí no se ha mostrado: una respuesta escrita aparte,
+    /// por mucho que se aparte de ella, no la confirma al enviar, y «Lo he revisado» no se ofrece. Antes el envío la daba por
+    /// revisada y otra sesión podía enviar después el texto original.
+    /// </summary>
+    [Fact]
+    public async Task Una_respuesta_escrita_aparte_no_confirma_la_sugerencia_sin_revisar_que_inserto_otra_persona()
+    {
+        var (escenario, detalle) = EscenarioConSugerencia();
+        escenario.Sugerencia = PropuestaPara(detalle) with { Estado = EstadoRespuestaSugerida.SinRevisar };
+        var (cut, mediador) = Renderizar(escenario);
+        await SeleccionarFila(cut, "Documentación pendiente");
+        cut.WaitForAssertion(() => cut.FindAll(".rs-sinrevisar").Should().ContainSingle());
+
+        await Escribir(cut, "Hola Carmen, recibido todo. Lo miramos esta tarde y mañana le decimos algo sin falta.");
+        if (!EnviarDeshabilitado(cut)) await Enviar(cut);
+        await cut.Find(".composer-correo").KeyDownAsync(new KeyboardEventArgs { Key = "Enter", CtrlKey = true });
+
+        escenario.AccionesSobreSugerencia.Should().BeEmpty("una respuesta escrita aparte no es una edición de la sugerencia");
+        mediador.Enviados.OfType<ResponderConversacionCommand>().Should().BeEmpty();
+        EnviarDeshabilitado(cut).Should().BeTrue("el servidor bloquea todo envío de la conversación mientras siga sin revisar");
+        cut.FindAll(".rs-sinrevisar button").Should().NotContain(b => b.TextContent.Trim() == "Lo he revisado",
+            "esta sugerencia no está en este redactor: nadie la ha leído aquí");
+    }
+
+    /// <summary>
+    /// ALTO (r3), la salida: «Poner en redactor» con texto propio pregunta antes de sustituirlo; ya en el redactor, la
+    /// sugerencia se ha mostrado aquí y se revisa como la insertada en esta apertura.
+    /// </summary>
+    [Fact]
+    public async Task La_sugerencia_sin_revisar_de_otra_persona_se_revisa_tras_ponerla_en_el_redactor()
+    {
+        var (escenario, detalle) = EscenarioConSugerencia();
+        escenario.Sugerencia = PropuestaPara(detalle) with { Estado = EstadoRespuestaSugerida.SinRevisar };
+        var (cut, mediador) = Renderizar(escenario);
+        await SeleccionarFila(cut, "Documentación pendiente");
+        cut.WaitForAssertion(() => cut.FindAll(".rs-sinrevisar").Should().ContainSingle());
+        await Escribir(cut, "Borrador propio que no es la sugerencia.");
+
+        await Boton(cut, ".rs-sinrevisar button", "Poner en el redactor").ClickAsync(new MouseEventArgs());
+        TextoDelRedactor(cut).Should().Be("Borrador propio que no es la sugerencia.", "con texto propio se pregunta antes de pisarlo");
+        await Boton(cut, ".rs-sinrevisar button", "Sustituir").ClickAsync(new MouseEventArgs());
+
+        TextoDelRedactor(cut).Should().Be(TextoSugerido);
+        await Escribir(cut, "Hola Carmen, recibido todo. Lo miramos esta tarde y mañana le decimos algo sin falta.");
+        EnviarDeshabilitado(cut).Should().BeFalse("ahora es una edición de la sugerencia mostrada aquí");
+        await Enviar(cut);
+
+        escenario.AccionesSobreSugerencia.Should().Equal(AccionRespuestaSugerida.Confirmar);
+        mediador.Enviados.OfType<ResponderConversacionCommand>().Should().ContainSingle();
+    }
+
+    /// <summary>
+    /// MEDIO (r3): «Insertar» tarda y entretanto se escribe en el redactor de la misma apertura. La decisión de sustituir se
+    /// tomó con el redactor vacío: lo escrito después no se pisa, y la sugerencia no cuenta como mostrada en este redactor.
+    /// </summary>
+    [Fact]
+    public async Task La_insercion_que_tarda_no_pisa_lo_escrito_mientras_esperaba()
+    {
+        var (escenario, _) = EscenarioConSugerencia();
+        var insercion = new TaskCompletionSource<object?>(TaskCreationOptions.RunContinuationsAsynchronously);
+        escenario.Interceptar = p => p is ResolverRespuestaSugeridaCommand { Accion: AccionRespuestaSugerida.Insertar }
+            ? insercion.Task.ContinueWith(t => { escenario.Sugerencia = escenario.Sugerencia! with { Estado = EstadoRespuestaSugerida.SinRevisar }; return t.Result; })
+            : null;
+        var (cut, _) = Renderizar(escenario);
+        await SeleccionarFila(cut, "Documentación pendiente");
+        cut.WaitForAssertion(() => cut.FindAll(".rs-bloque").Should().ContainSingle());
+
+        var clic = Boton(cut, ".rs-bloque button", "Insertar para revisar").ClickAsync(new MouseEventArgs());
+        const string escritoMientras = "Carmen, esto lo he escrito mientras la sugerencia se insertaba.";
+        await Escribir(cut, escritoMientras);
+        await cut.InvokeAsync(() => insercion.SetResult(Result.Exito()));
+        await clic;
+
+        TextoDelRedactor(cut).Should().Be(escritoMientras, "se decidió sustituir un redactor vacío, no lo escrito después");
+        cut.WaitForAssertion(() => cut.FindAll(".rs-sinrevisar").Should().ContainSingle());
+        cut.FindAll(".rs-sinrevisar button").Should().NotContain(b => b.TextContent.Trim() == "Lo he revisado",
+            "la sugerencia no llegó a este redactor");
+        EnviarDeshabilitado(cut).Should().BeTrue();
+    }
+
+    /// <summary>
+    /// BAJO (r3): la comprobación de la conversación abierta, por sí sola. En la interfaz, cambiar de conversación cambia
+    /// también la apertura, así que en los recorridos de los tests anteriores el token ya rechaza la devolución y la
+    /// comprobación de la conversación queda tapada. Aquí el aviso lleva la apertura vigente, la de B, y la sugerencia de A:
+    /// solo la conversación seleccionada impide que el texto de A acabe en el redactor de B.
+    /// </summary>
+    [Fact]
+    public async Task La_insercion_con_la_apertura_vigente_pero_de_otra_conversacion_no_escribe_en_el_redactor()
+    {
+        var (escenario, _, segunda, detallePrimera) = DosConversacionesConSugerenciaEnLaPrimera();
+        escenario.Interceptar = p => p is ObtenerRespuestaSugeridaQuery q && q.ConversacionId == segunda.Id ? Ya(null) : null;
+        var (cut, _) = Renderizar(escenario);
+        await SeleccionarFila(cut, "Rechazo del portal");
+        cut.WaitForAssertion(() => cut.Find(".bandeja-centro-titulo-fila h2").TextContent.Trim().Should().Be("Rechazo del portal"));
+
+        var aperturaVigente = (int)typeof(Bandeja).GetField("_aperturaVigente", BindingFlags.Instance | BindingFlags.NonPublic)!
+            .GetValue(cut.Instance)!;
+        var avisoDeA = new RespuestaSugeridaPanel.SugerenciaDeLaSeleccion(PropuestaPara(detallePrimera), aperturaVigente);
+        await cut.InvokeAsync(() => (Task)typeof(Bandeja).GetMethod("InsertarSugerenciaAsync", BindingFlags.Instance | BindingFlags.NonPublic)!
+            .Invoke(cut.Instance, [avisoDeA])!);
+
+        // El campo y no el ComposerBar: invocar el método no repinta, y leer el parámetro del redactor daría vacío siempre.
+        typeof(Bandeja).GetField("_textoRespuesta", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(cut.Instance)
+            .Should().Be(string.Empty, "la sugerencia es de A, aunque el aviso lleve la apertura vigente");
+    }
+
     /// <summary>
     /// MEDIO 2 (r2): mientras se guarda la nota fija el área es de solo lectura; y si aun así llega texto nuevo durante el
     /// guardado, al terminar no se pierde: la edición sigue abierta con él y cuenta como cambio sin guardar.

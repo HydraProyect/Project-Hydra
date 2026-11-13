@@ -1,4 +1,5 @@
 using Bunit;
+using CaeManager.Application.Comunicaciones.Commands.ResolverRespuestaSugerida;
 using CaeManager.Application.Comunicaciones.Queries.ObtenerRespuestaSugerida;
 using CaeManager.Application.Contactos.Queries.ObtenerAgendaContactos;
 using CaeManager.Application.Contactos.Queries.ObtenerNotaContacto;
@@ -53,15 +54,17 @@ public class RespuestaSugeridaYNotaFijaSoloLecturaTests : BunitContext
             where TNotification : INotification => Task.CompletedTask;
     }
 
-    private void Preparar(string rol, RespuestaSugeridaDto? sugerencia, NotaContactoDto? nota)
+    private MediadorDeLectura Preparar(string rol, RespuestaSugeridaDto? sugerencia, NotaContactoDto? nota)
     {
         JSInterop.Mode = JSRuntimeMode.Loose;
         this.ConRolDeEscritura(rol);
         Services.AddLocalization();
-        Services.AddScoped<IMediator>(_ => new MediadorDeLectura(sugerencia, nota));
+        var mediador = new MediadorDeLectura(sugerencia, nota);
+        Services.AddScoped<IMediator>(_ => mediador);
         Services.AddScoped<ToastService>();
         Services.AddSingleton<ILogger<RespuestaSugeridaPanel>>(_ => NullLogger<RespuestaSugeridaPanel>.Instance);
         Services.AddSingleton<ILogger<NotaFijaContacto>>(_ => NullLogger<NotaFijaContacto>.Instance);
+        return mediador;
     }
 
     private static RespuestaSugeridaDto Propuesta(Guid conversacionId, EstadoRespuestaSugerida estado = EstadoRespuestaSugerida.Propuesta) =>
@@ -108,8 +111,40 @@ public class RespuestaSugeridaYNotaFijaSoloLecturaTests : BunitContext
         var cut = Render<RespuestaSugeridaPanel>(p => p.Add(x => x.ConversacionId, conversacionId).Add(x => x.PuedeSugerir, true));
 
         cut.WaitForAssertion(() => cut.FindAll(".rs-sinrevisar").Should().ContainSingle());
-        cut.Instance.BloqueaEnvioPara(sinRevisar.Texto).Should().BeTrue();
-        cut.Instance.BloqueaEnvioPara(sinRevisar.Texto + " y bastantes caracteres más para pasar el umbral").Should().BeFalse();
+        const string editada = " y bastantes caracteres más para pasar el umbral";
+        cut.Instance.BloqueaEnvioPara(sinRevisar.Texto, sinRevisar.Id).Should().BeTrue();
+        cut.Instance.BloqueaEnvioPara(sinRevisar.Texto + editada, sinRevisar.Id).Should().BeFalse();
+        // Revisión Codex r3 de la #2163, ALTO: si no es la del redactor de esta apertura, ningún texto la da por revisada.
+        cut.Instance.BloqueaEnvioPara(sinRevisar.Texto + editada, null).Should().BeTrue();
+        cut.Instance.BloqueaEnvioPara("Una respuesta escrita aparte que no tiene nada que ver con la sugerencia.", Guid.NewGuid())
+            .Should().BeTrue();
+    }
+
+    /// <summary>
+    /// Revisión Codex r3 de la #2163, ALTO: una sugerencia sin revisar que no está en el redactor de esta apertura (la insertó
+    /// otra persona) no se ha mostrado aquí: no se ofrece «Lo he revisado» y el envío no la confirma con otro texto.
+    /// </summary>
+    [Fact]
+    public async Task Una_sugerencia_sin_revisar_ajena_al_redactor_no_se_confirma_ni_con_el_boton_ni_al_enviar()
+    {
+        var conversacionId = Guid.NewGuid();
+        var sinRevisar = Propuesta(conversacionId, EstadoRespuestaSugerida.SinRevisar);
+        var mediador = Preparar(Roles.GestorCae, sinRevisar, null);
+
+        var cut = Render<RespuestaSugeridaPanel>(p => p
+            .Add(x => x.ConversacionId, conversacionId)
+            .Add(x => x.PuedeSugerir, true)
+            .Add(x => x.TextoRedactor, "Respuesta propia"));
+
+        cut.WaitForAssertion(() => cut.FindAll(".rs-sinrevisar").Should().ContainSingle());
+        cut.FindAll(".rs-sinrevisar button").Select(b => b.TextContent.Trim()).Should().NotContain("Lo he revisado")
+            .And.Contain("Poner en el redactor");
+
+        var confirmada = await cut.InvokeAsync(() => cut.Instance.ConfirmarSiEditadaAsync(
+            conversacionId, "Una respuesta escrita aparte que no tiene nada que ver con la sugerencia.", null));
+
+        confirmada.Should().BeFalse("sin la sugerencia en el redactor no hay nada que confirmar y el servidor bloquearía el envío");
+        mediador.Enviados.OfType<ResolverRespuestaSugeridaCommand>().Should().BeEmpty("no se pide confirmarla al servidor");
     }
 
     [Fact]

@@ -422,6 +422,7 @@
                     <RespuestaSugeridaPanel @ref="_panelSugerencia" ConversacionId="_detalle.Id" PuedeSugerir="PuedeSugerirRespuesta"
                                             UltimoEntranteId="UltimoMensajeEntranteId" Version="_detalle.FechaUltimoMensajeUtc"
                                             TextoRedactor="@_textoRespuesta" EsWhatsApp="_detalle.Canal == CanalConversacion.WhatsApp" Seleccion="_aperturaVigente"
+                                            SugerenciaEnRedactorId="SugerenciaEnRedactorVigente"
                                             OnInsertar="InsertarSugerenciaAsync" OnDescartada="SugerenciaDescartadaAsync" OnEstadoCambiado="() => StateHasChanged()" />
 
                   <SoloConEscritura>
@@ -436,7 +437,7 @@
                     <div class="bandeja-editor-publico" hidden="@_notaInternaActiva">
                     <ComposerBar Canal="_detalle.Canal" VentanaAbierta="VentanaAbierta" CierreVentanaLocal="@CierreVentanaLocal"
                                  Texto="@_textoRespuesta" TextoChanged="v => _textoRespuesta = v" Enviando="_enviando" OnEnviar="EnviarAsync"
-                                 EnvioBloqueado="@(_panelSugerencia?.BloqueaEnvioPara(_textoRespuesta) == true)"
+                                 EnvioBloqueado="@(_panelSugerencia?.BloqueaEnvioPara(_textoRespuesta, SugerenciaEnRedactorVigente) == true)"
                                  Macros="MacrosDelContexto" MacroSeleccionadaId="@_macroSeleccionadaId" OnAplicarMacro="AplicarMacro"
                                  Centros="CentrosDelContexto" CentroFormatosSeleccionado="@_centroFormatosSeleccionado" OnCompartirFormatos="CompartirFormatosCentroAsync"
                                  AdjuntosPendientes="_adjuntosPendientes" ErrorAdjuntos="@_errorAdjuntos"
