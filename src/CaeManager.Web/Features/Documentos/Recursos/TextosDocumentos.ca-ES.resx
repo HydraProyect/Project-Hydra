@@ -15,6 +15,18 @@
   <data name="ConfirmarEliminarLoteMensaje" xml:space="preserve">
     <value>S'ocultaran de les llistes actives. Podràs desfer l'eliminació des de l'avís que apareixerà; després, només un Administrador d'aquesta organització pot recuperar-los des d'Auditoria.</value>
   </data>
+  <data name="ReclamarLoteBoton" xml:space="preserve">
+    <value>Reclamar ({0})</value>
+  </data>
+  <data name="ReclamarLoteAyudaNinguno" xml:space="preserve">
+    <value>Només es reclamen els Documents de Treballador vençuts o per vèncer; cap dels seleccionats ho és.</value>
+  </data>
+  <data name="ToastReclamarLoteFuera" xml:space="preserve">
+    <value>{0} de {1} documents no entren en cap reclamació: pot ser que venguin fora de la finestra de reclamació, que ja estiguin renovats, que el Treballador no tingui una Assignació activa a un Centre amb gestió CAE, que el seu Tipus no sigui reclamable o que el Centre o el seu Client quedin fora de la teva Cartera.</value>
+  </data>
+  <data name="ToastReclamarLoteError" xml:space="preserve">
+    <value>No hem pogut preparar la reclamació. Torna-ho a provar.</value>
+  </data>
   <data name="ToastAccionDeshacer" xml:space="preserve">
     <value>Deshacer</value>
   </data>
