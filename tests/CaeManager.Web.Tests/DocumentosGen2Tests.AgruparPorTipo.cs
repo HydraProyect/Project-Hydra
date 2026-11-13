@@ -1,5 +1,7 @@
 using Bunit;
 using CaeManager.Application.Documentos.Queries.ObtenerDocumentos;
+using CaeManager.Application.Documentos.Queries.ObtenerPlataformasEnUso;
+using CaeManager.Domain.Documentos;
 using FluentAssertions;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Web;
@@ -75,6 +77,60 @@ public partial class DocumentosGen2Tests
 
         cut.WaitForAssertion(() => cut.FindAll("tr.documentos-cabecera-grupo-tipo").Should().NotBeEmpty());
         cut.Find("button[aria-label^='Agrupar']").GetAttribute("aria-label").Should().Be("Agrupar por: tipo de documento");
+    }
+
+    /// <summary>
+    /// Por tipo: el grupo es el Id del tipo de TALVEG (dos tipos con el mismo nombre son dos grupos), van primero los que
+    /// tienen vencidos, nacen abiertos solo esos, el pie cuenta documentos y tipos, la tabla es de una línea y el 360 va
+    /// en la cabecera, no en la fila.
+    /// </summary>
+    [Fact]
+    public void Por_tipo_agrupa_por_id_ordena_por_gravedad_abre_solo_el_que_tiene_vencidos_y_lleva_el_360_en_la_cabecera()
+    {
+        var idGrave = Guid.NewGuid();
+        var idLeve = Guid.NewGuid();
+        var idMismoNombre = Guid.NewGuid();
+        var grave = DocumentoDeFila() with { Id = Guid.NewGuid(), TipoDocumentoId = idGrave, TipoDocumentoNombre = "Zeta seguro", Estado = EstadoDocumento.Vencido };
+        var graveVigente = grave with { Id = Guid.NewGuid(), Estado = EstadoDocumento.Vigente };
+        var leve = DocumentoDeFila() with { Id = Guid.NewGuid(), TipoDocumentoId = idLeve, TipoDocumentoNombre = "Alfa médico", Estado = EstadoDocumento.Vigente };
+        var mismoNombre = leve with { Id = Guid.NewGuid(), TipoDocumentoId = idMismoNombre };
+
+        var (cut, _) = Renderizar(ConDocumentos(leve, mismoNombre, graveVigente, grave), url: "documentos?agrupar=tipo");
+
+        cut.WaitForAssertion(() => cut.FindAll("tr.documentos-cabecera-grupo-tipo").Should().HaveCount(3,
+            "agrupa por el Id del tipo: «Alfa médico» con dos Ids son dos grupos"));
+        var cabeceras = cut.FindAll("tr.documentos-cabecera-grupo-tipo");
+        cabeceras[0].GetAttribute("data-grupo").Should().Be(idGrave.ToString(), "el de vencidos va primero, aunque llegó el último");
+        cabeceras.Skip(1).Select(c => c.GetAttribute("data-grupo")).Should().BeEquivalentTo([idLeve.ToString(), idMismoNombre.ToString()]);
+        cabeceras[0].QuerySelector(".grupo-lista-subtitulo")!.TextContent.Should().Contain("2 documentos");
+
+        var filasVisibles = cut.FindAll("tbody tr:has(.documentos-celda-acciones-fila)");
+        filasVisibles.Should().HaveCount(2, "solo el tipo con un documento vencido nace abierto");
+        cut.Markup.Should().Contain("Mostrando 4 documentos de 3 tipos");
+        cut.Find("table.documentos-tabla-por-tipo").ClassList.Should().Contain("documentos-fila-una-linea");
+
+        cabeceras[0].QuerySelector("a.documentos-tipo-360, .documentos-tipo-360 a")!.GetAttribute("href")
+            .Should().Be($"/documentos/tipos/{idGrave}", "el Tipo 360 va en la cabecera del grupo");
+        filasVisibles.SelectMany(f => f.QuerySelectorAll("[href^='/documentos/tipos/']")).Should().BeEmpty(
+            "el botón 360 de la fila se quita porque ya está en la cabecera");
+    }
+
+    /// <summary>La cabecera por Plataforma CAE pinta el logotipo del catálogo si la plataforma tiene código con marca, y el icono genérico si no.</summary>
+    [Fact]
+    public void Con_Plataforma_CAE_agrupada_el_logotipo_sale_con_codigo_con_marca_y_el_icono_generico_sin_el()
+    {
+        var e = ConVinculos();
+        e.Mediador.Plataformas = [new PlataformaEnUsoDto(NalandaId, "Nalanda", "nalanda"), new PlataformaEnUsoDto(CtaimaId, "Ctaima")];
+
+        var (cut, _) = Renderizar(e.Mediador, url: "documentos?agrupar=plataforma");
+
+        cut.WaitForAssertion(() => cut.FindAll("tr.documentos-cabecera-grupo-vinculo").Should().NotBeEmpty());
+        var conLogo = CabeceraDeVinculo(cut, NalandaId.ToString()).QuerySelector("img.documentos-logo-plataforma");
+        conLogo.Should().NotBeNull("Nalanda tiene código con marca");
+        conLogo!.GetAttribute("src").Should().Be("/img/plataformas/nalanda.jpg");
+        var sinLogo = CabeceraDeVinculo(cut, CtaimaId.ToString());
+        sinLogo.QuerySelector("img.documentos-logo-plataforma").Should().BeNull("sin código no hay logotipo");
+        sinLogo.QuerySelector(".documentos-logo-plataforma-generico").Should().NotBeNull("icono genérico");
     }
 
     [Fact]

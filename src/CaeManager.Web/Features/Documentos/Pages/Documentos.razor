@@ -676,7 +676,7 @@
     {
         var primera = filas[0];
         var nombre = NombreDelTipo(primera);
-        var ambitos = string.Join(", ", filas.Select(f => f.Ambito).Distinct().Select(EtiquetaAmbitoListado));
+        var ambitos = string.Join(", ", filas.Select(f => f.Ambito).Distinct().Order().Select(EtiquetaAmbitoListado));
         var subtitulo = Textos["GrupoTipoSubtitulo", ambitos, Textos[filas.Count == 1 ? "GrupoDocumentoUno" : "GrupoDocumentos", filas.Count].Value].Value;
         return @<tr class="documentos-cabecera-grupo documentos-cabecera-grupo-tipo" data-grupo="@clave"><th colspan="@ColumnasTabla" scope="rowgroup">
             <div class="documentos-cabecera-vinculo">
