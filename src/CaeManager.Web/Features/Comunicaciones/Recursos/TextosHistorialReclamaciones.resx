@@ -1,0 +1,117 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <data name="Origen" xml:space="preserve">
+    <value>Origen</value>
+  </data>
+  <data name="OrigenTodos" xml:space="preserve">
+    <value>Todos los orígenes</value>
+  </data>
+  <data name="OrigenReclamaciones" xml:space="preserve">
+    <value>Reclamaciones</value>
+  </data>
+  <data name="Titulo" xml:space="preserve">
+    <value>Reclamaciones</value>
+  </data>
+  <data name="Subtitulo" xml:space="preserve">
+    <value>Lo que se ha pedido y si ha contestado.</value>
+  </data>
+  <data name="TablaEtiqueta" xml:space="preserve">
+    <value>Reclamaciones enviadas</value>
+  </data>
+  <data name="ColumnaConversacion" xml:space="preserve">
+    <value>Conversación</value>
+  </data>
+  <data name="ColumnaCliente" xml:space="preserve">
+    <value>Cliente</value>
+  </data>
+  <data name="ColumnaRespuesta" xml:space="preserve">
+    <value>Respuesta</value>
+  </data>
+  <data name="ColumnaAcciones" xml:space="preserve">
+    <value>Acciones</value>
+  </data>
+  <data name="FilaTituloUno" xml:space="preserve">
+    <value>Reclamación de documentos · 1 documento</value>
+  </data>
+  <data name="FilaTituloVarios" xml:space="preserve">
+    <value>Reclamación de documentos · {0} documentos</value>
+  </data>
+  <data name="SinRespuesta" xml:space="preserve">
+    <value>Sin respuesta</value>
+  </data>
+  <data name="Respondida" xml:space="preserve">
+    <value>Respondida</value>
+  </data>
+  <data name="SinBuzonConectado" xml:space="preserve">
+    <value>Sin buzón conectado</value>
+  </data>
+  <data name="ReclamarDeNuevo" xml:space="preserve">
+    <value>Reclamar de nuevo</value>
+  </data>
+  <data name="VerHilo" xml:space="preserve">
+    <value>Ver hilo</value>
+  </data>
+  <data name="Cargando" xml:space="preserve">
+    <value>Cargando…</value>
+  </data>
+  <data name="ErrorTitulo" xml:space="preserve">
+    <value>No se ha podido cargar el historial.</value>
+  </data>
+  <data name="ErrorAyuda" xml:space="preserve">
+    <value>Vuelve a intentarlo en unos segundos.</value>
+  </data>
+  <data name="Reintentar" xml:space="preserve">
+    <value>Reintentar</value>
+  </data>
+  <data name="VacioTitulo" xml:space="preserve">
+    <value>Nunca reclamado</value>
+  </data>
+  <data name="VacioDetalle" xml:space="preserve">
+    <value>Todavía no se ha pedido nada desde TALVEG. Los lotes que envíes desde Documentos aparecerán aquí.</value>
+  </data>
+  <data name="VacioDetalleLectura" xml:space="preserve">
+    <value>Todavía no se ha pedido nada desde TALVEG.</value>
+  </data>
+  <data name="EtiquetaPaginador" xml:space="preserve">
+    <value>reclamación(es)</value>
+  </data>
+  <data name="RevisionPara" xml:space="preserve">
+    <value>Para</value>
+  </data>
+  <data name="RevisionAsunto" xml:space="preserve">
+    <value>Asunto</value>
+  </data>
+  <data name="RevisionTexto" xml:space="preserve">
+    <value>Texto</value>
+  </data>
+  <data name="ReenvioTitulo" xml:space="preserve">
+    <value>Reclamar de nuevo</value>
+  </data>
+  <data name="ReenvioAvisoTitulo" xml:space="preserve">
+    <value>Un correo enviado no se puede deshacer</value>
+  </data>
+  <data name="ReenvioAvisoTexto" xml:space="preserve">
+    <value>Revisa destinatario y texto. Al enviar queda en el historial y en Comunicaciones.</value>
+  </data>
+  <data name="ReenvioCancelar" xml:space="preserve">
+    <value>Cancelar</value>
+  </data>
+  <data name="ReenvioEnviar" xml:space="preserve">
+    <value>Enviar reclamación</value>
+  </data>
+  <data name="ReenvioToast" xml:space="preserve">
+    <value>Reclamación enviada a {0}.</value>
+  </data>
+</root>

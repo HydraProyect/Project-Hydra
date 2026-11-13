@@ -1,0 +1,371 @@
+@*
+    Historial de reclamaciones enviadas dentro de Comunicaciones: lo que se mostraba en la pestaña «Reclamaciones» de /documentos
+    (vista «Enviadas», ObtenerReclamacionesEnviadasQuery), ahora como filtro Origen «Reclamaciones» de la bandeja
+    (lienzo «Documentos · listado sin pestañas», artboard «Comunicaciones-reclamaciones», PR6b de la serie).
+
+    Misma regla de visibilidad que la pestaña: solo los roles de RolesComunicaciones.LecturaReclamaciones. Consulta no lo ve ni
+    se le pregunta nada al servidor. «Reclamar de nuevo» pide los mismos comandos que la pestaña y exige escritura.
+
+    La pestaña de Documentos sigue existiendo hasta que se retire su barra de pestañas (PR8): hasta entonces el historial está
+    en los dos sitios. «Nueva reclamación» (componer) NO viene aquí: vive en Documentos.
+
+    Fuera de esta PR, declarado como hueco: «Asignada a» (el DTO no lo trae), buscador y chips de Respuesta (la query pagina en
+    servidor y no filtra por respuesta: unos recuentos por página serían mentira) y Vistas guardadas.
+*@
+@using CaeManager.Application.Reclamaciones
+@using CaeManager.Application.Reclamaciones.Commands.EnviarReclamacion
+@using CaeManager.Application.Reclamaciones.Commands.EnviarReclamacionEmpresa
+@using CaeManager.Application.Reclamaciones.Commands.EnviarReclamacionEmpresaEmpleadora
+@using CaeManager.Application.Reclamaciones.Commands.PrepararVistaPreviaReclamacion
+@using CaeManager.Application.Reclamaciones.Queries.ObtenerReclamacionesEnviadas
+@using CaeManager.Domain.Documentos
+@using CaeManager.Web.Features.Comunicaciones.Recursos
+@using MediatR
+@using Microsoft.Extensions.Localization
+@implements IDisposable
+@inject IStringLocalizer<TextosHistorialReclamaciones> Textos
+@inject IMediator Mediator
+@inject ToastService ToastService
+@inject AuthenticationStateProvider AuthenticationState
+
+@if (_resolviendoRol)
+{
+    <EstadoCargando Filas="4" />
+}
+else if (!_puedeLeer)
+{
+    <SinPermisoEnSeccion Seccion="@Textos["Titulo"].Value" />
+}
+else
+{
+    @* Cabecera de la lista (artboard «Comunicaciones-reclamaciones»): título 14/20 600 y la línea explicativa, como `.lis-cab` de la tabla. *@
+    <div class="historial-reclamaciones-cab">
+        <div class="historial-reclamaciones-cab-t">
+            <h2 class="historial-reclamaciones-cab-titulo">@Textos["Titulo"]</h2>
+            <small>@Textos["Subtitulo"]</small>
+        </div>
+    </div>
+
+    @if (_cargando)
+    {
+        <EstadoCargando Filas="4" />
+        <p class="historial-reclamaciones-cargando" role="status">@Textos["Cargando"]</p>
+    }
+    else if (_error)
+    {
+        <EstadoVacio SinIcono="true" Titulo="@Textos["ErrorTitulo"]" Descripcion="@Textos["ErrorAyuda"]">
+            <Accion><Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno" OnClick="CargarAsync">@Textos["Reintentar"]</Boton></Accion>
+        </EstadoVacio>
+    }
+    else if (_historial.Count == 0)
+    {
+        <EstadoVacio SinIcono="true" Titulo="@Textos["VacioTitulo"]" Descripcion="@Textos[_puedeEscribir ? "VacioDetalle" : "VacioDetalleLectura"]" />
+    }
+    else
+    {
+        <div class="historial-reclamaciones" role="table" aria-label="@Textos["TablaEtiqueta"]">
+            <div class="historial-reclamaciones-fila historial-reclamaciones-cabecera" role="row">
+                <span role="columnheader">@Textos["ColumnaConversacion"]</span>
+                <span role="columnheader">@Textos["ColumnaCliente"]</span>
+                <span role="columnheader">@Textos["ColumnaRespuesta"]</span>
+                <span role="columnheader" class="historial-reclamaciones-acciones" aria-label="@Textos["ColumnaAcciones"]"></span>
+            </div>
+            @foreach (var reclamacion in _historial)
+            {
+                <div class="historial-reclamaciones-fila" role="row" @key="reclamacion.Id">
+                    <div role="cell" class="historial-reclamaciones-titulo">
+                        <span class="historial-reclamaciones-asunto">@(reclamacion.TotalDocumentos == 1 ? Textos["FilaTituloUno"].Value : Textos["FilaTituloVarios", reclamacion.TotalDocumentos].Value)</span>
+                        <span class="historial-reclamaciones-detalle">@Detalle(reclamacion)</span>
+                    </div>
+                    <span role="cell">@reclamacion.TitularRazonSocial</span>
+                    <span role="cell">
+                        @if (reclamacion.SinRespuesta is null)
+                        {
+                            <Badge Tono="TonoBadge.Neutro" Tamano="TamanoBadge.Pequeno">@Textos["SinBuzonConectado"]</Badge>
+                        }
+                        else if (reclamacion.SinRespuesta.Value)
+                        {
+                            <Badge Tono="TonoBadge.Advertencia" Tamano="TamanoBadge.Pequeno">@Textos["SinRespuesta"]</Badge>
+                        }
+                        else
+                        {
+                            <Badge Tono="TonoBadge.Exito" Tamano="TamanoBadge.Pequeno">@Textos["Respondida"]</Badge>
+                        }
+                    </span>
+                    <span role="cell" class="historial-reclamaciones-acciones">
+                        @* Un lote a la Empresa empleadora cuyos Trabajadores ya no caen en una misma Delegación no puede reenviarse tal
+                           cual: no se ofrece. *@
+                        @if (reclamacion.Reenviable)
+                        {
+                            <SoloConEscritura>
+                                <Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno" Cargando="_reenviandoId == reclamacion.Id"
+                                       OnClick="() => AbrirRevisionReenvioAsync(reclamacion)">@Textos["ReclamarDeNuevo"]</Boton>
+                            </SoloConEscritura>
+                        }
+                        @if (reclamacion.ConversacionId is { } conversacionId)
+                        {
+                            <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" OnClick="() => OnVerHilo.InvokeAsync(conversacionId)">@Textos["VerHilo"]</Boton>
+                        }
+                    </span>
+                </div>
+            }
+        </div>
+
+        <PaginadorSimple PaginaActual="_pagina" TotalPaginas="TotalPaginas" TotalElementos="_total"
+                          Etiqueta="@Textos["EtiquetaPaginador"].Value" PaginaActualChanged="CambiarPaginaAsync"
+                          TamanoPagina="_tamanoPagina" TamanoPaginaChanged="CambiarTamanoPaginaAsync" />
+    }
+}
+
+@* «Reclamar de nuevo» es un correo externo que no se puede deshacer: antes de mandarlo se enseñan destinatario, asunto y texto
+   exactos (los que resuelve el propio envío: PrepararVistaPreviaReclamacionCommand llama a la misma implementación que el handler)
+   y hace falta una confirmación explícita. *@
+<Modal Visible="_vistaPreviaReenvio is not null" VisibleChanged="CerrarRevisionReenvio" Titulo="@Textos["ReenvioTitulo"]"
+       Ancho="AnchoModal.Grande" CerrarAlHacerClicFuera="_reenviandoId is null">
+    <ChildContent>
+        @if (_vistaPreviaReenvio is { } previa)
+        {
+            <dl class="reclamacion-revision">
+                <dt>@Textos["RevisionPara"]</dt>
+                <dd>@string.Join(", ", previa.Destinatarios.Select(d => $"{d.Nombre} <{d.Email}>"))</dd>
+                <dt>@Textos["RevisionAsunto"]</dt>
+                <dd>@previa.Asunto</dd>
+                <dt>@Textos["RevisionTexto"]</dt>
+                <dd class="reclamacion-revision-cuerpo">@((MarkupString)previa.CuerpoHtml)</dd>
+            </dl>
+            <div class="aviso-irreversible" role="note">
+                <strong>@Textos["ReenvioAvisoTitulo"]</strong>
+                <span>@Textos["ReenvioAvisoTexto"]</span>
+            </div>
+        }
+    </ChildContent>
+    <Pie>
+        <Boton Variante="VarianteBoton.Secundario" Deshabilitado="_reenviandoId is not null" OnClick="() => CerrarRevisionReenvio(false)">@Textos["ReenvioCancelar"]</Boton>
+        @* El diálogo solo se abre desde «Reclamar de nuevo» (SoloConEscritura); se envuelve también aquí para que el rol de Consulta nunca vea un «Enviar reclamación» habilitado. *@
+        <SoloConEscritura><Boton Variante="VarianteBoton.Primario" Cargando="_reenviandoId is not null" OnClick="ConfirmarReenvioAsync">@Textos["ReenvioEnviar"]</Boton></SoloConEscritura>
+    </Pie>
+</Modal>
+
+@code {
+    /// <summary>Abre la conversación de la reclamación en la propia bandeja (la bandeja conserva el filtro Origen al abrirla).</summary>
+    [Parameter] public EventCallback<Guid> OnVerHilo { get; set; }
+
+    private bool _resolviendoRol = true;
+    private bool _puedeLeer;
+    private bool _puedeEscribir;
+
+    private bool _cargando = true;
+    private bool _error;
+    private IReadOnlyList<ReclamacionEnviadaDto> _historial = [];
+    private int _pagina = 1;
+    private int _tamanoPagina = 20;
+    private int _total;
+    private Guid? _reenviandoId;
+    private bool _cargandoVistaPrevia;
+    private ReclamacionEnviadaDto? _reclamacionAReenviar;
+    private ReclamacionPreparada? _vistaPreviaReenvio;
+
+    private int TotalPaginas => Math.Max(1, (int)Math.Ceiling(_total / (double)_tamanoPagina));
+
+    /// <summary>Línea de detalle de la conversación: Cliente, destinatario y fecha de envío en hora peninsular.</summary>
+    private static string Detalle(ReclamacionEnviadaDto r) =>
+        $"{r.TitularRazonSocial} · {r.DestinatarioEmail} · {r.FechaEnvioUtc.EnHoraPeninsular():dd/MM/yyyy HH:mm}";
+
+    /// <summary>
+    /// Se cancela al retirarse el historial: las consultas en curso dejan de trabajar para nadie y ninguna respuesta tardía repinta
+    /// un componente ya desechado. Su <c>Token</c> se lee SIEMPRE antes del primer <c>await</c> del método que lo usa: leerlo
+    /// después deja que un <see cref="Dispose"/> intermedio lo haya desechado.
+    /// </summary>
+    private readonly CancellationTokenSource _ciclo = new();
+    private bool _desechado;
+
+    /// <summary>Número de la última carga. Cada carga captura el suyo ANTES del <c>await</c> y solo escribe estado si sigue siendo la vigente.</summary>
+    private int _cargaVigente;
+
+    public void Dispose()
+    {
+        if (_desechado)
+            return;
+
+        _desechado = true;
+        _ciclo.Cancel();
+        _ciclo.Dispose();
+    }
+
+    private bool EsVigente(int carga) => !_desechado && carga == _cargaVigente;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var usuario = (await AuthenticationState.GetAuthenticationStateAsync()).User;
+        _puedeLeer = RolesComunicaciones.LecturaReclamaciones
+            .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .Any(usuario.IsInRole);
+        _puedeEscribir = CaeManager.Infrastructure.Identity.Roles.ConEscrituraCsv
+            .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .Any(usuario.IsInRole);
+        _resolviendoRol = false;
+
+        // Quien no lee el historial no lo pide: la pregunta ni sale.
+        if (!_puedeLeer)
+            return;
+
+        await CargarAsync();
+    }
+
+    private async Task CargarAsync()
+    {
+        var carga = ++_cargaVigente;
+        var token = _ciclo.Token;
+
+        _cargando = true;
+        _error = false;
+        StateHasChanged();
+
+        try
+        {
+            var resultado = await Mediator.Send(new ObtenerReclamacionesEnviadasQuery(_pagina, _tamanoPagina), token);
+
+            // La respuesta de una página ya abandonada no puede pisar la lista ni el total de la pregunta que sí se está mirando.
+            if (!EsVigente(carga))
+                return;
+
+            _historial = resultado.Elementos;
+            _total = resultado.TotalElementos;
+        }
+        catch (Exception) when (!EsVigente(carga))
+        {
+            // Una carga superada que falla (incluida la cancelación al desecharse) no es un error de la vigente.
+        }
+        catch (Exception)
+        {
+            _error = true;
+        }
+        finally
+        {
+            if (EsVigente(carga))
+                _cargando = false;
+        }
+    }
+
+    private Task CambiarPaginaAsync(int pagina)
+    {
+        _pagina = pagina;
+        return CargarAsync();
+    }
+
+    private Task CambiarTamanoPaginaAsync(int tamano)
+    {
+        _tamanoPagina = tamano;
+        _pagina = 1;
+        return CargarAsync();
+    }
+
+    private async Task AbrirRevisionReenvioAsync(ReclamacionEnviadaDto reclamacion)
+    {
+        if (_cargandoVistaPrevia || _reenviandoId is not null || _desechado)
+            return;
+
+        var token = _ciclo.Token;
+        _cargandoVistaPrevia = true;
+        try
+        {
+            var previa = await Mediator.Send(
+                new PrepararVistaPreviaReclamacionCommand(
+                    reclamacion.AmbitoTitular, reclamacion.TitularId, reclamacion.DocumentoIds, reclamacion.Pendientes, reclamacion.EmpresaEmpleadora), token);
+
+            if (_desechado)
+                return;
+
+            // Si el envío fallaría (documentos ya renovados, sin acceso, sin destinatario) la vista previa falla con el mismo
+            // error: se dice aquí y no se abre una revisión de algo que no saldría.
+            if (previa.EsFallido)
+            {
+                ToastService.MostrarError(previa.Error);
+                return;
+            }
+
+            _reclamacionAReenviar = reclamacion;
+            _vistaPreviaReenvio = previa.Valor;
+        }
+        finally
+        {
+            _cargandoVistaPrevia = false;
+        }
+    }
+
+    private void CerrarRevisionReenvio(bool visible)
+    {
+        if (!visible && _reenviandoId is null)
+        {
+            _vistaPreviaReenvio = null;
+            _reclamacionAReenviar = null;
+        }
+    }
+
+    private async Task ConfirmarReenvioAsync()
+    {
+        var reclamacion = _reclamacionAReenviar;
+        // Un segundo clic con el envío en vuelo no cierra nada: el diálogo sigue mostrando el progreso hasta que termina el primero.
+        if (reclamacion is null || _vistaPreviaReenvio is null || _reenviandoId is not null)
+            return;
+
+        // Se envía a QUIEN enseñó la revisión, no a lo que la agenda resuelva en este instante: un contacto añadido entre la
+        // vista previa y el clic no recibe el correo sin haberse mostrado.
+        IReadOnlyList<Guid> contactoIds = [.. _vistaPreviaReenvio.Destinatarios.Select(d => d.ContactoId)];
+        var nombresDestinatarios = string.Join(", ", _vistaPreviaReenvio.Destinatarios.Select(d => d.Nombre).Where(n => !string.IsNullOrWhiteSpace(n)));
+        if (string.IsNullOrWhiteSpace(nombresDestinatarios))
+            nombresDestinatarios = reclamacion.TitularRazonSocial;
+
+        try
+        {
+            await ReclamarDeNuevoAsync(reclamacion, contactoIds, nombresDestinatarios);
+        }
+        finally
+        {
+            _reclamacionAReenviar = null;
+            _vistaPreviaReenvio = null;
+        }
+    }
+
+    private async Task ReclamarDeNuevoAsync(ReclamacionEnviadaDto reclamacion, IReadOnlyList<Guid> contactoIds, string nombresDestinatarios)
+    {
+        // La guarda se comprueba AL ENTRAR, no al salir: el botón deshabilitado no basta porque el segundo clic ya viajaba.
+        if (_reenviandoId is not null || _desechado)
+            return;
+
+        var token = _ciclo.Token;
+        _reenviandoId = reclamacion.Id;
+        try
+        {
+            // El historial mezcla los dos titulares (Cliente y Empresa), así que el reenvío se despacha por el ámbito que trae la
+            // propia fila. Con titular Empresa, lo pedido de sus Trabajadores («Gestionar») vuelve a su Delegación por su propio
+            // comando: el de documentos de empresa no aceptaría esas líneas.
+            var resultado = reclamacion.EmpresaEmpleadora is { } destino
+                ? await Mediator.Send(new EnviarReclamacionEmpresaEmpleadoraCommand(reclamacion.TitularId, destino.DelegacionEmpresaId, reclamacion.DocumentoIds, contactoIds, reclamacion.Pendientes), token)
+                : reclamacion.AmbitoTitular == AmbitoAplicacion.Empresa
+                    ? await Mediator.Send(new EnviarReclamacionEmpresaCommand(reclamacion.TitularId, reclamacion.DocumentoIds, contactoIds, reclamacion.Pendientes), token)
+                    : await Mediator.Send(new EnviarReclamacionCommand(reclamacion.TitularId, reclamacion.DocumentoIds, CentroId: null, ContactoIdsSeleccionados: contactoIds, Pendientes: reclamacion.Pendientes), token);
+
+            // El historial pudo desecharse mientras el comando estaba en vuelo: ni el toast ni la recarga son suyos ya.
+            if (_desechado)
+                return;
+
+            if (resultado.EsFallido)
+            {
+                ToastService.MostrarError(resultado.Error);
+                // Envío parcial: el fallo nombra a quien no la recibió, pero la parte entregada ya está en el historial y tiene que verse.
+                if (resultado.Error.Codigo == RegistroEnvioReclamacionService.CodigoEnvioParcial)
+                    await CargarAsync();
+                return;
+            }
+
+            // Sin «Deshacer»: el correo ya ha salido. Dice a quién llegó (la persona de la agenda), no solo la Empresa.
+            ToastService.Mostrar(Textos["ReenvioToast", nombresDestinatarios].Value, TonoToast.Exito);
+            await CargarAsync();
+        }
+        finally
+        {
+            _reenviandoId = null;
+        }
+    }
+}
