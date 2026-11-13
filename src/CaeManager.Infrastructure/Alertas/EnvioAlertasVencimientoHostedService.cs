@@ -84,20 +84,26 @@ public class EnvioAlertasVencimientoHostedService(
         }
         catch (Exception ex)
         {
-            logger.LogError(ex, "Falló un ciclo de envío del resumen de alertas de vencimiento por correo.");
+            // ASVS 4.0.3 V7.1.1: sin la excepción entera. El mensaje de una excepción de envío
+            // (o de acceso a datos) puede citar la dirección de un destinatario; se registra solo el tipo.
+            logger.LogError("Falló un ciclo de envío del resumen de alertas de vencimiento por correo ({TipoExcepcion}).",
+                ex.GetType().Name);
         }
+    }
+
+    // protected virtual para poder ejercitar el bucle por Tenant (y su registro de fallos) sin base de datos.
+    protected virtual async Task<List<Guid>> ObtenerTenantsActivosAsync(CancellationToken stoppingToken)
+    {
+        using var ambito = ambitoFactory.CreateScope();
+        return await ambito.ServiceProvider.GetRequiredService<ITenantsQueryContext>()
+            .Tenants.Where(t => t.Estado == EstadoTenant.Activo)
+            .Select(t => t.Id)
+            .ToListAsync(stoppingToken);
     }
 
     private async Task ProcesarTodosLosTenantsAsync(CancellationToken stoppingToken)
     {
-        List<Guid> tenantsActivos;
-        using (var ambito = ambitoFactory.CreateScope())
-        {
-            tenantsActivos = await ambito.ServiceProvider.GetRequiredService<ITenantsQueryContext>()
-                .Tenants.Where(t => t.Estado == EstadoTenant.Activo)
-                .Select(t => t.Id)
-                .ToListAsync(stoppingToken);
-        }
+        var tenantsActivos = await ObtenerTenantsActivosAsync(stoppingToken);
 
         foreach (var tenantId in tenantsActivos)
         {
@@ -117,12 +123,16 @@ public class EnvioAlertasVencimientoHostedService(
             }
             catch (Exception ex)
             {
-                logger.LogError(ex,
-                    "Falló el envío del resumen de alertas de vencimiento del tenant {TenantId}; se continúa con el resto de tenants en este ciclo.",
-                    tenantId);
+                RegistrarFalloDeTenant(tenantId, ex);
             }
         }
     }
+
+    // ASVS 4.0.3 V7.1.1: sin la excepción entera (su mensaje puede citar la dirección de un destinatario).
+    private void RegistrarFalloDeTenant(Guid tenantId, Exception ex) =>
+        logger.LogError(
+            "Falló el envío del resumen de alertas de vencimiento del tenant {TenantId} ({TipoExcepcion}); se continúa con el resto de tenants en este ciclo.",
+            tenantId, ex.GetType().Name);
 
     private async Task ProcesarTenantAsync(Guid tenantId, CancellationToken stoppingToken)
     {
@@ -195,6 +205,15 @@ public class EnvioAlertasVencimientoHostedService(
         // mensaje que explicara por qué — el panel mostraba "Fallida" a
         // secas. Se acumulan los errores de los destinatarios fallidos para
         // que RegistrarEjecucionAsync tenga algo que mostrar.
+        var mensajeError = await EnviarResumenAsync(emailService, destinatarios, asunto, cuerpo, tenantId, stoppingToken);
+        return (mensajeError, alertas.Count);
+    }
+
+    /// <returns>El mensaje de error acumulado (null si todos recibieron el resumen). Va al estado de la automatización, no al registro.</returns>
+    internal async Task<string?> EnviarResumenAsync(
+        IEmailService emailService, IReadOnlyList<CuentaVisibleEnRol> destinatarios,
+        string asunto, string cuerpo, Guid tenantId, CancellationToken stoppingToken)
+    {
         var errores = new List<string>();
         foreach (var destinatario in destinatarios)
         {
@@ -204,14 +223,15 @@ public class EnvioAlertasVencimientoHostedService(
             if (resultado.EsFallido)
             {
                 errores.Add($"{destinatario.Email}: {resultado.Error.Mensaje}");
+                // ASVS 4.0.3 V7.1.1: ni la dirección ni el mensaje del error (que un IEmailService puede
+                // componer con ella) van al registro; el código basta para clasificar el fallo.
                 logger.LogWarning(
-                    "No se pudo enviar el resumen de alertas de vencimiento a {Email} (tenant {TenantId}): {Error}",
-                    destinatario.Email, tenantId, resultado.Error.Mensaje);
+                    "No se pudo enviar el resumen de alertas de vencimiento a un destinatario (tenant {TenantId}, código {Codigo}).",
+                    tenantId, resultado.Error.Codigo);
             }
         }
 
-        var mensajeError = errores.Count == 0 ? null : string.Join("; ", errores);
-        return (mensajeError, alertas.Count);
+        return errores.Count == 0 ? null : string.Join("; ", errores);
     }
 
     // internal para poder probar la normalización de la URL base sin levantar el servicio (InternalsVisibleTo de Web.Tests).
