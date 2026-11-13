@@ -130,9 +130,9 @@ public class ObtenerRevisionesIaPendientesQueryHandler(
             from trabajador in trabajadores.DefaultIfEmpty()
             join empresaJoin in empresasContext.Empresas on documento.EmpresaId equals empresaJoin.Id into empresas
             from empresa in empresas.DefaultIfEmpty()
-            // Confianza ascendente (mockup Documentos TALVEG, pestaña IA): lo
-            // menos fiable primero — es lo que más necesita un vistazo humano,
-            // no lo más reciente.
+                // Confianza ascendente (mockup Documentos TALVEG, pestaña IA): lo
+                // menos fiable primero — es lo que más necesita un vistazo humano,
+                // no lo más reciente.
             orderby revision.ConfianzaGeneral ascending, revision.CreadaEnUtc descending
             select new RevisionIaDocumentoDto(
                 revision.Id, revision.DocumentoId,
