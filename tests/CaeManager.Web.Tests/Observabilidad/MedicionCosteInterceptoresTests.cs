@@ -103,8 +103,9 @@ public class MedicionCosteInterceptoresTests
         var interceptores = opciones.Options.FindExtension<CoreOptionsExtension>()!.Interceptors!.ToList();
         interceptores.Select(i => i.GetType()).Should().Equal(
             typeof(AuditoriaInterceptor),
-            typeof(TenantSelladoInterceptor),
+            // El interceptor RLS va delante del sellado (lo fija OrdenInterceptoresRlsYSelladoTests).
             typeof(TenantRlsConnectionInterceptor),
+            typeof(TenantSelladoInterceptor),
             typeof(ConcurrenciaOptimistaInterceptor),
             typeof(AvisoEstadoTrasConfirmarInterceptor),
             typeof(DetectorCambiosEstadoInterceptor),

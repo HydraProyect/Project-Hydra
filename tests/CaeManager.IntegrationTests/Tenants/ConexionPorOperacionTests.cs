@@ -347,7 +347,8 @@ public class ConexionPorOperacionTests : IAsyncLifetime
         var seleccion = new SeleccionMutable { SesionPrivilegiadaIdSeleccionada = sesion };
         var tenant = new TenantMutable(TenantA);
         var usuario = new UsuarioQueFallaAlResolver(Guid.NewGuid(), () => tenant.TenantId);
-        var (contexto, _) = CrearContextoRuntime(tenant, seleccion, puerta, usuario: usuario);
+        var fallosDeTransaccion = new AccionesDeTransaccionFallidas();
+        var (contexto, _) = CrearContextoRuntime(tenant, seleccion, puerta, usuario: usuario, extra: fallosDeTransaccion);
         await using var __ = contexto;
         var elevacion = new ElevacionEscrituraPrivilegiada(contexto);
         var estrategia = contexto.Database.CreateExecutionStrategy();
@@ -375,6 +376,8 @@ public class ConexionPorOperacionTests : IAsyncLifetime
             }));
 
         fallo.Should().NotBeNull("control: la realineación tras el punto de guardado falló en el cliente");
+        fallosDeTransaccion.Acciones.Should().ContainSingle(a => a.Contains("Savepoint"),
+            "control: EF avisa del fallo como fallo de una acción de punto de guardado; sin esto la aserción siguiente no discrimina");
         conservaContextoFirmado.Should().BeTrue(
             "el fallo de una acción de punto de guardado no olvida el contexto firmado de una transacción que sigue " +
             "viva: el sellado lo necesita para volver a firmar el contexto de base");
@@ -707,6 +710,25 @@ public class ConexionPorOperacionTests : IAsyncLifetime
         await using var comando = conexion.CreateCommand();
         comando.CommandText = sql;
         await comando.ExecuteNonQueryAsync();
+    }
+
+    /// <summary>
+    /// Control del instrumento: las acciones con que EF avisa de un fallo de
+    /// transacción (<see cref="TransactionErrorEventData.Action"/>).
+    /// </summary>
+    private sealed class AccionesDeTransaccionFallidas : DbTransactionInterceptor
+    {
+        public List<string> Acciones { get; } = [];
+
+        public override void TransactionFailed(DbTransaction transaction, TransactionErrorEventData eventData) =>
+            Acciones.Add(eventData.Action);
+
+        public override Task TransactionFailedAsync(
+            DbTransaction transaction, TransactionErrorEventData eventData, CancellationToken cancellationToken = default)
+        {
+            Acciones.Add(eventData.Action);
+            return Task.CompletedTask;
+        }
     }
 
     private sealed class RelojManual(DateTimeOffset inicio) : TimeProvider
