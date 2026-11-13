@@ -1739,8 +1739,9 @@ public partial class Documentos : CaeManager.Web.Components.PaginaInteractiva, I
     /// <summary>
     /// Calcula los lotes con la misma consulta que Alertas (Trabajadores de Empresa a su Empresa empleadora, los de Subcontrata a su
     /// Cliente) y los recorta a lo seleccionado: no amplía nada, y cada tarjeta se envía con el Command de siempre, que vuelve a
-    /// validar documentos, alcance y destinatarios. Lo que la consulta no trae (fuera de la ventana de reclamación, ya renovado o sin
-    /// alcance de gestión) se avisa, no se reclama a otro.
+    /// validar documentos, alcance y destinatarios. Lo que la consulta no trae (sin Asignación activa a un Centro con gestión CAE, fuera
+    /// de la ventana de reclamación, ya renovado o fuera de la Cartera del Gestor CAE) se avisa, no se reclama a otro. Si no queda
+    /// ningún lote, el cajón no se abre: solo el aviso, con la selección intacta.
     /// </summary>
     private async Task AbrirReclamacionLoteAsync()
     {
@@ -1773,9 +1774,14 @@ public partial class Documentos : CaeManager.Web.Components.PaginaInteractiva, I
                 .ToList();
             var cubiertos = lotes.SelectMany(l => l.Documentos).Select(d => d.DocumentoId).Distinct().Count();
 
-            _lotesReclamacion = lotes;
-            _reclamacionEnviada = false;
-            _reclamacionVisible = true;
+            // Sin ningún lote no hay nada que revisar: el cajón diría «Nada que reclamar a esta Empresa», que aquí confunde. Solo el
+            // aviso de los no cubiertos, y la selección queda como estaba para que el Gestor CAE decida qué hacer con ella.
+            if (lotes.Count > 0)
+            {
+                _lotesReclamacion = lotes;
+                _reclamacionEnviada = false;
+                _reclamacionVisible = true;
+            }
 
             if (cubiertos < ids.Count)
                 ToastService.Mostrar(Textos["ToastReclamarLoteFuera", ids.Count - cubiertos, ids.Count].Value, TonoToast.Advertencia);

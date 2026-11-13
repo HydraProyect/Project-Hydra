@@ -332,7 +332,7 @@ public partial class DocumentosGen2Tests
     }
 
     [Fact]
-    public async Task Si_ningun_lote_trae_lo_marcado_se_avisa_y_el_cajon_se_abre_vacio()
+    public async Task Si_ningun_lote_trae_lo_marcado_solo_se_avisa_el_cajon_no_se_abre_y_la_seleccion_queda()
     {
         var e = EscenarioDeReclamar();
         e.Mediador.Interceptar = p => p is ObtenerLoteReclamacionPorFiltroQuery
@@ -342,9 +342,56 @@ public partial class DocumentosGen2Tests
 
         await BotonReclamar(cut).ClickAsync(new MouseEventArgs());
 
-        Toasts().Select(t => t.Mensaje).Should().ContainSingle().Which.Should().StartWith("2 de 2 documentos no entran");
-        // Es lo que hace el código y lo que el cajón documenta para una lista vacía: se abre y dice que no hay nada, sin envío posible.
-        cut.FindComponent<DrawerReclamacionLote>().Instance.LotesIniciales.Should().NotBeNull().And.BeEmpty();
+        e.Mediador.Enviadas.OfType<ObtenerLoteReclamacionPorFiltroQuery>().Should().ContainSingle("la consulta sí se hizo");
+        var aviso = Toasts().Should().ContainSingle().Subject;
+        aviso.Tono.Should().Be(TonoToast.Advertencia);
+        aviso.Mensaje.Should().StartWith("2 de 2 documentos no entran");
+        // Sin lotes, un cajón abierto diría «Nada que reclamar a esta Empresa»: aquí no se abre.
+        cut.FindComponents<DrawerReclamacionLote>().Should().BeEmpty();
+        cut.Markup.Should().NotContain("Nada que reclamar");
+        cut.Find(".barra-acciones-lote-cantidad").TextContent.Should().Be("2 seleccionados en esta página", "la selección no se toca");
+        BotonReclamar(cut).HasAttribute("disabled").Should().BeFalse("la preparación terminó y el botón queda libre");
+    }
+
+    [Fact]
+    public async Task El_aviso_de_lo_no_cubierto_cita_la_ventana_de_reclamacion_y_la_Cartera_sin_vocabulario_prohibido()
+    {
+        var e = EscenarioDeReclamar();
+        e.Mediador.Interceptar = p => p is ObtenerLoteReclamacionPorFiltroQuery
+            ? Task.FromResult<object?>((IReadOnlyList<LoteReclamacionAgrupadoDto>)[])
+            : null;
+        var cut = await MarcarAsync(e, marcados: [e.Vencido]);
+
+        await BotonReclamar(cut).ClickAsync(new MouseEventArgs());
+
+        var mensaje = Toasts().Should().ContainSingle().Subject.Mensaje;
+        mensaje.Should().Contain("ventana de reclamación").And.Contain("ya renovados").And.Contain("Asignación activa")
+            .And.Contain("o que el Centro o su Cliente queden fuera de tu Cartera");
+        mensaje.Should().NotContain("alcance").And.NotContain("Cliente empresarial");
+    }
+
+    [Fact]
+    public async Task El_aviso_de_lo_no_cubierto_dice_lo_mismo_en_ca_ES_que_en_es()
+    {
+        var raiz = new DirectoryInfo(AppContext.BaseDirectory);
+        while (raiz is not null && !File.Exists(Path.Combine(raiz.FullName, "CaeManager.slnx"))) raiz = raiz.Parent;
+        var recursos = Path.Combine(raiz!.FullName, "src", "CaeManager.Web", "Features", "Documentos", "Recursos");
+
+        async Task<string> ValorAsync(string fichero)
+        {
+            var xml = System.Xml.Linq.XDocument.Parse(await File.ReadAllTextAsync(Path.Combine(recursos, fichero)));
+            return xml.Descendants("data").Single(d => (string?)d.Attribute("name") == "ToastReclamarLoteFuera").Element("value")!.Value;
+        }
+
+        var es = await ValorAsync("TextosDocumentos.resx");
+        var ca = await ValorAsync("TextosDocumentos.ca-ES.resx");
+
+        es.Should().Contain("{0} de {1} documentos no entran en ninguna reclamación: puede que venzan fuera de la ventana de reclamación")
+            .And.Contain("que el Centro o su Cliente queden fuera de tu Cartera");
+        ca.Should().Contain("{0} de {1} documents no entren en cap reclamació: pot ser que venguin fora de la finestra de reclamació")
+            .And.Contain("que el Centre o el seu Client quedin fora de la teva Cartera");
+        foreach (var texto in new[] { es, ca })
+            texto.Should().NotContain("alcance").And.NotContain("Cliente empresarial").And.NotContain("Client empresarial");
     }
 
     [Fact]
