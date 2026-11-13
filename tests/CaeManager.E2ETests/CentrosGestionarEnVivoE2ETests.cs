@@ -52,6 +52,7 @@ public class CentrosGestionarEnVivoE2ETests(WebAppFixture fixture)
         var dniTrabajador = Ayudas.GenerarDniValido(88_100_901);
 
         await using var contexto = await fixture.Browser.NewContextAsync();
+        await using var traza = TrazaAlFallar.Armar(contexto);
         var page = await contexto.NewPageAsync();
 
         await Ayudas.IniciarSesionAsync(page, fixture.BaseUrl, Ayudas.EmailAdministrador, Ayudas.ContrasenaAdministrador);
@@ -218,8 +219,8 @@ public class CentrosGestionarEnVivoE2ETests(WebAppFixture fixture)
         await drawer.WaitForAsync(new LocatorWaitForOptions { Timeout = 15_000 });
 
         var hoy = Ayudas.HoyDeNegocio();
-        await drawer.GetByLabel("Fecha de emisión", new LocatorGetByLabelOptions { Exact = true }).FillAsync(hoy.ToString("yyyy-MM-dd"));
-        await drawer.GetByLabel("Fecha de vencimiento").FillAsync(hoy.AddDays(180).ToString("yyyy-MM-dd"));
+        await Ayudas.RellenarFechaAsync(drawer.GetByLabel("Fecha de emisión", new LocatorGetByLabelOptions { Exact = true }), hoy);
+        await Ayudas.RellenarFechaAsync(drawer.GetByLabel("Fecha de vencimiento"), hoy.AddDays(180));
 
         var rutaPdf = Ayudas.GenerarPdfDePruebaEnDisco();
         try
@@ -251,6 +252,7 @@ public class CentrosGestionarEnVivoE2ETests(WebAppFixture fixture)
         await Expect(filaDespuesDeSubir.Locator("[data-accion=actualizar-en-ficha]")).ToHaveCountAsync(0);
         var pendientesDespues = await LeerRecuentoAsync(motivoDespuesDeSubir);
         Assert.Equal(pendientesAntes - 1, pendientesDespues);
+        traza.Superada();
     }
 
     /// <summary>

@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Net;
 using System.Net.Security;
 using System.Security.Cryptography.X509Certificates;
@@ -38,6 +39,12 @@ public class SmtpEmailService(
     /// <summary>El servidor rechazó la orden o las credenciales: el mensaje no se aceptó.</summary>
     public const string CodigoErrorApi = "Email.ErrorApi";
 
+    /// <summary>
+    /// Crea el cliente SMTP de cada envío. Solo los tests la sustituyen, para hacer
+    /// fallar el cliente sin abrir una conexión real.
+    /// </summary>
+    internal Func<SmtpClient> FabricaCliente { get; init; } = static () => new SmtpClient();
+
     public async Task<Result> EnviarAsync(
         string destinatarioEmail, string asunto, string cuerpoHtml, TipoAvisoCorreo tipo,
         string? responderA = null,
@@ -55,13 +62,19 @@ public class SmtpEmailService(
         var tiempoMaximo = TimeSpan.FromSeconds(
             config.TiempoMaximoSegundos > 0 ? Math.Min(config.TiempoMaximoSegundos, 600) : SmtpEmailOptions.TiempoMaximoPorDefectoSegundos);
 
-        using var cliente = new SmtpClient
-        {
-            // Por operación; el tope del envío entero va en `tope`, más abajo.
-            Timeout = (int)tiempoMaximo.TotalMilliseconds,
-            ServerCertificateValidationCallback = (_, certificado, cadena, erroresPolitica) =>
-                ValidarCertificadoServidor(config, certificado, cadena, erroresPolitica),
-        };
+        using var cliente = FabricaCliente();
+        // Por operación; el tope del envío entero va en `tope`, más abajo.
+        cliente.Timeout = (int)tiempoMaximo.TotalMilliseconds;
+        cliente.ServerCertificateValidationCallback = (_, certificado, cadena, erroresPolitica) =>
+            ValidarCertificadoServidor(config, certificado, cadena, erroresPolitica);
+
+        // Los fallos se registran sin la excepción: su mensaje es la respuesta del
+        // servidor SMTP, que puede citar el destinatario, el Reply-To u otros datos
+        // personales (ASVS 4.0.3 V7.1.1). Queda el tipo, el código SMTP si lo hay y
+        // este identificador: dentro de una petición es su TraceId y casa la entrada con
+        // la traza; fuera de ella (un servicio en segundo plano) es uno propio del envío.
+        var traza = Activity.Current?.TraceId ?? default;
+        var correlacion = traza != default ? traza.ToHexString() : Guid.NewGuid().ToString("N");
 
         var mensaje = ConstruirMensaje(destinatarioEmail, asunto, cuerpoHtml, tipo, responderA, config, logger);
 
@@ -84,43 +97,53 @@ public class SmtpEmailService(
             }
             catch (Exception ex)
             {
-                logger.LogWarning(ex, "El correo salió, pero cerrar la conexión SMTP falló.");
+                logger.LogWarning(
+                    "El correo salió, pero cerrar la conexión SMTP falló ({TipoExcepcion}, correlación {Correlacion}).",
+                    ex.GetType().Name, correlacion);
             }
 
             return Result.Exito();
         }
-        catch (Exception ex) when (cancellationToken.IsCancellationRequested)
+        catch (Exception) when (cancellationToken.IsCancellationRequested)
         {
             // Cancela quien llama: se propaga siempre como OperationCanceledException, sea cual
             // sea la excepción con la que MailKit haya abortado la operación en curso (al cancelar
             // cierra el socket y puede lanzar IOException, SocketException o TimeoutException en
             // vez de OperationCanceledException). Sin esta rama la cancelación se disfrazaba de
             // «error de red» y el llamador la trataba como un envío fallido más.
-            if (ex is OperationCanceledException)
-                throw;
-
-            throw new OperationCanceledException("El envío del correo se canceló.", ex, cancellationToken);
+            // Sin la excepción de MailKit como InnerException: lleva la respuesta del
+            // servidor, y un llamador que registrase la cancelación la arrastraría.
+            throw new OperationCanceledException("El envío del correo se canceló.", cancellationToken);
         }
         catch (Exception ex) when (ex is TimeoutException || ex is OperationCanceledException)
         {
             // Aquí solo cae el vencimiento de nuestro propio tope: la cancelación
             // de quien llama ya se propagó en la rama anterior.
-            logger.LogError(ex, "El servidor SMTP no respondió en {Segundos} s al enviar correo.", tiempoMaximo.TotalSeconds);
+            logger.LogError(
+                "El servidor SMTP no respondió en {Segundos} s al enviar correo ({TipoExcepcion}, correlación {Correlacion}).",
+                tiempoMaximo.TotalSeconds, ex.GetType().Name, correlacion);
             return Result.Fallo(Error.Crear("Email.ErrorRed", "No pudimos enviar el correo."));
         }
         catch (SmtpCommandException ex)
         {
-            logger.LogError(ex, "El servidor SMTP rechazó el envío de un correo: {StatusCode}.", ex.StatusCode);
+            // Ni ex.Message ni ex.Mailbox: son la respuesta del servidor y la dirección rechazada.
+            logger.LogError(
+                "El servidor SMTP rechazó el envío de un correo: {StatusCode} ({ErrorCode}, correlación {Correlacion}).",
+                ex.StatusCode, ex.ErrorCode, correlacion);
             return Result.Fallo(Error.Crear(CodigoErrorApi, "No pudimos enviar el correo."));
         }
         catch (ExcepcionAutenticacionSmtp ex)
         {
-            logger.LogError(ex, "El servidor SMTP rechazó las credenciales configuradas.");
+            logger.LogError(
+                "El servidor SMTP rechazó las credenciales configuradas ({TipoExcepcion}, correlación {Correlacion}).",
+                ex.GetType().Name, correlacion);
             return Result.Fallo(Error.Crear(CodigoErrorApi, "No pudimos enviar el correo."));
         }
         catch (Exception ex) when (ex is System.Net.Sockets.SocketException or IOException or SmtpProtocolException or SslHandshakeException or ExcepcionAutenticacionTls)
         {
-            logger.LogError(ex, "Fallo de red o TLS al enviar correo vía SMTP.");
+            logger.LogError(
+                "Fallo de red o TLS al enviar correo vía SMTP ({TipoExcepcion}, correlación {Correlacion}).",
+                ex.GetType().Name, correlacion);
             return Result.Fallo(Error.Crear("Email.ErrorRed", "No pudimos enviar el correo."));
         }
     }

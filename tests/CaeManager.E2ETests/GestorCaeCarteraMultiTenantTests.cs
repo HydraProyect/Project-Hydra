@@ -174,6 +174,7 @@ public class GestorCaeCarteraMultiTenantTests(WebAppFixtureGestorCaeCarteraMulti
         var vencidaEnPlataformaB = await IdAcreditacionAsync(TrabajadorB, estado: 2);
 
         await using var contexto = await fixture.Browser.NewContextAsync();
+        await using var traza = TrazaAlFallar.Armar(contexto);
         var page = await contexto.NewPageAsync();
         await Ayudas.IniciarSesionAsync(page, fixture.BaseUrl, EmailGestorCae, Ayudas.ContrasenaUsuariosPrueba);
 
@@ -220,7 +221,7 @@ public class GestorCaeCarteraMultiTenantTests(WebAppFixtureGestorCaeCarteraMulti
         await drawer.Locator("input[type=\"file\"]").SetInputFilesAsync(Ayudas.GenerarPdfDePruebaEnDisco("formacion-corregida.pdf"));
         await drawer.GetByText("Archivo adjuntado correctamente.").WaitForAsync();
         // Subir un archivo nuevo reinicia las fechas (renovar es emitir otro documento): la emisión se escribe después.
-        await drawer.GetByLabel("Fecha de emisión", new() { Exact = true }).FillAsync(hoy.AddDays(-1).ToString("yyyy-MM-dd"));
+        await Ayudas.RellenarFechaAsync(drawer.GetByLabel("Fecha de emisión", new() { Exact = true }), hoy.AddDays(-1));
         await drawer.Locator(".drawer-pie").GetByRole(AriaRole.Button, new() { Name = "Guardar", Exact = true }).ClickAsync();
         await drawer.WaitForAsync(new() { State = WaitForSelectorState.Hidden });
         // Renovar con archivo crea un Documento nuevo (D8): la acreditación Rechazada es del anterior, que pasa al
@@ -241,8 +242,8 @@ public class GestorCaeCarteraMultiTenantTests(WebAppFixtureGestorCaeCarteraMulti
         var selectCentro = drawerVisita.GetByLabel("Centro", new() { Exact = true });
         var valorCentro = await selectCentro.GetByRole(AriaRole.Option, new() { Name = CentroB }).GetAttributeAsync("value");
         await selectCentro.SelectOptionAsync(new SelectOptionValue { Value = valorCentro! });
-        await drawerVisita.GetByLabel("Fecha de inicio", new() { Exact = true }).FillAsync(fechaVisita.ToString("yyyy-MM-dd"));
-        await drawerVisita.GetByLabel("Fecha de fin", new() { Exact = true }).FillAsync(fechaVisita.ToString("yyyy-MM-dd"));
+        await Ayudas.RellenarFechaAsync(drawerVisita.GetByLabel("Fecha de inicio", new() { Exact = true }), fechaVisita);
+        await Ayudas.RellenarFechaAsync(drawerVisita.GetByLabel("Fecha de fin", new() { Exact = true }), fechaVisita);
         // CrearVisitaCommandValidator exige al menos un Trabajador que entre.
         await drawerVisita.GetByLabel(NombreCompletoTrabajadorB, new() { Exact = true }).CheckAsync();
         await drawerVisita.GetByRole(AriaRole.Button, new() { Name = "Guardar", Exact = true }).ClickAsync();
@@ -273,7 +274,7 @@ public class GestorCaeCarteraMultiTenantTests(WebAppFixtureGestorCaeCarteraMulti
         var dialogoVigencia = page.GetByRole(AriaRole.Dialog, new() { Name = "Anotar vigencia", Exact = true });
         await dialogoVigencia.GetByLabel("¿Hasta cuándo vale en esta plataforma?", new() { Exact = true })
             .SelectOptionAsync(new SelectOptionValue { Value = "VenceEnFecha" });
-        await dialogoVigencia.GetByLabel("Fecha de vencimiento", new() { Exact = true }).FillAsync(hoy.AddMonths(6).ToString("yyyy-MM-dd"));
+        await Ayudas.RellenarFechaAsync(dialogoVigencia.GetByLabel("Fecha de vencimiento", new() { Exact = true }), hoy.AddMonths(6));
         await dialogoVigencia.GetByRole(AriaRole.Button, new() { Name = "Guardar vigencia", Exact = true }).ClickAsync();
         await Expect(dialogoVigencia).ToBeHiddenAsync();
 
@@ -290,6 +291,7 @@ public class GestorCaeCarteraMultiTenantTests(WebAppFixtureGestorCaeCarteraMulti
         // La cola sigue siendo de toda la cartera: la Rechazada de A no se ha tocado.
         await FiltrarColaAsync(page, TrabajadorA);
         await Expect(FilaMiTrabajo(page, TenantBeneficiarioA, BadgeRechazada)).ToBeVisibleAsync();
+        traza.Superada();
     }
 
     [Fact]

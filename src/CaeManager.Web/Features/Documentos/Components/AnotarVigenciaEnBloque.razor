@@ -1,0 +1,165 @@
+@*
+    «Anotar vigencia (N)» de la cabecera de un grupo del listado agrupado por Plataforma CAE (P-1, 2026-11-12): la
+    misma anotación en bloque que la pestaña Plataformas CAE (D-23), con el mismo comando unitario por cada
+    acreditación (ConfirmarVigenciaAcreditacionCommand: su autorización y su alcance de datos, una a una) y el mismo
+    «Deshacer» (RestaurarAnotacionAcreditacionCommand). Solo anota vigencia de acreditaciones ya aceptadas: no acepta,
+    no sube ni rechaza.
+*@
+@using CaeManager.Application.Documentos.Commands.ConfirmarVigenciaAcreditacion
+@using CaeManager.Application.Documentos.Commands.RestaurarAnotacionAcreditacion
+@using CaeManager.Application.Documentos.Commands
+@using CaeManager.Domain.Common
+@using CaeManager.Domain.Documentos
+@using CaeManager.Web.Components.DesignSystem
+@using CaeManager.Web.Features.Documentos.Recursos
+@using MediatR
+@using Microsoft.Extensions.Localization
+@inject IStringLocalizer<TextosDocumentos> Textos
+@inject IMediator Mediator
+@inject ToastService ToastService
+
+<ModalFormulario Visible="_visible" VisibleChanged="v => _visible = v" Titulo="@Textos["AnotarVigenciaTitulo"]"
+                 HayCambios="() => HayCambios" Guardando="_guardando" MensajeError="@_errorServidor"
+                 HayErroresDeCampo="@(_errorFecha is not null)" OnGuardar="GuardarAsync"
+                 TextoGuardar="@Textos["AnotarVigenciaGuardar"]" TextoCancelar="Cancelar">
+    @if (_ids.Count > 1)
+    {
+        <p>@Textos["PlatBloqueAviso", _ids.Count]</p>
+    }
+    <CampoSelect Etiqueta="¿Hasta cuándo vale en esta plataforma?" Valor="@_estado"
+                 ValorChanged="v => { _estado = v; _errorServidor = null; _errorFecha = null; }">
+        <option value="@nameof(EstadoVigenciaEnPlataforma.VenceEnFecha)">Vence en una fecha</option>
+        <option value="@nameof(EstadoVigenciaEnPlataforma.NoVenceAqui)">Aquí no caduca</option>
+        <option value="@nameof(EstadoVigenciaEnPlataforma.SinConfirmar)">Todavía no lo sé</option>
+    </CampoSelect>
+    @if (_estado == nameof(EstadoVigenciaEnPlataforma.VenceEnFecha))
+    {
+        <CampoTexto Etiqueta="Fecha de vencimiento" Type="date" Valor="@_fecha"
+                    ValorChanged="v => { _fecha = v; _errorServidor = null; _errorFecha = null; }" MensajeError="@_errorFecha"
+                    FechaNoValida="_fechaNoValida" FechaNoValidaChanged="v => _fechaNoValida = v" />
+    }
+</ModalFormulario>
+
+@code {
+    /// <summary>Tras anotar al menos una (también tras deshacer): la página recarga el listado.</summary>
+    [Parameter] public EventCallback OnAnotado { get; set; }
+
+    private bool _visible;
+    private bool _guardando;
+    private bool _deshaciendo;
+    private List<Guid> _ids = [];
+    private string _estado = nameof(EstadoVigenciaEnPlataforma.VenceEnFecha);
+    private string _fecha = string.Empty;
+    private bool _fechaNoValida;
+    private string? _errorFecha;
+    private string? _errorServidor;
+
+    private bool HayCambios => _visible && (_guardando || !string.IsNullOrWhiteSpace(_fecha) || _fechaNoValida);
+
+    /// <summary>Abre el modal para estas acreditaciones (las «Sin vigencia» seleccionadas del grupo).</summary>
+    public void Abrir(IReadOnlyCollection<Guid> acreditacionIds)
+    {
+        if (acreditacionIds.Count == 0) return;
+        _ids = acreditacionIds.Distinct().ToList();
+        _estado = nameof(EstadoVigenciaEnPlataforma.VenceEnFecha);
+        _fecha = string.Empty;
+        _fechaNoValida = false;
+        _errorFecha = null;
+        _errorServidor = null;
+        _visible = true;
+        StateHasChanged();
+    }
+
+    private VigenciaEnPlataforma? VigenciaElegida()
+    {
+        if (_estado == nameof(EstadoVigenciaEnPlataforma.NoVenceAqui))
+            return VigenciaEnPlataforma.NoVenceAqui;
+        if (_estado == nameof(EstadoVigenciaEnPlataforma.SinConfirmar))
+            return VigenciaEnPlataforma.SinConfirmar;
+        return DateOnly.TryParse(_fecha, out var fecha) ? VigenciaEnPlataforma.VenceEl(fecha) : null;
+    }
+
+    private async Task GuardarAsync()
+    {
+        _errorFecha = null;
+        _errorServidor = null;
+        var vigencia = VigenciaElegida();
+        if (vigencia is null
+            || (_fechaNoValida && _estado == nameof(EstadoVigenciaEnPlataforma.VenceEnFecha)))
+        {
+            // Sin fecha legible no se manda nada, igual que en la pestaña Plataformas CAE.
+            _errorFecha = "Escribe la fecha hasta la que vale, o elige otra opción.";
+            return;
+        }
+
+        _guardando = true;
+        try
+        {
+            var anotadas = 0;
+            var recibos = new List<ResultadoAnotacionAcreditacionDto>();
+            Error? primerFallo = null;
+            foreach (var id in _ids)
+            {
+                var uno = await Mediator.Send(new ConfirmarVigenciaAcreditacionCommand(id, vigencia.Value));
+                if (uno.EsFallido)
+                    primerFallo ??= uno.Error;
+                else
+                {
+                    anotadas++;
+                    recibos.Add(uno.Valor);
+                }
+            }
+
+            if (anotadas == 0)
+            {
+                _errorServidor = primerFallo?.Mensaje;
+                return;
+            }
+
+            if (primerFallo is not null)
+                ToastService.MostrarError(primerFallo);
+
+            var total = _ids.Count;
+            _ids = [];
+            _visible = false;
+            ToastService.Mostrar(Textos["PlatBloqueResultado", anotadas, total].Value, anotadas == total ? TonoToast.Exito : TonoToast.Advertencia,
+                Textos["ToastAccionDeshacer"].Value, () => DeshacerAsync(recibos));
+            await OnAnotado.InvokeAsync();
+        }
+        finally
+        {
+            _guardando = false;
+        }
+    }
+
+    private async Task DeshacerAsync(IReadOnlyList<ResultadoAnotacionAcreditacionDto> recibos)
+    {
+        if (_deshaciendo) return;
+        _deshaciendo = true;
+        try
+        {
+            var restaurados = 0;
+            var errores = new List<string>();
+            foreach (var r in recibos)
+            {
+                var uno = await Mediator.Send(new RestaurarAnotacionAcreditacionCommand(
+                    r.AcreditacionId, r.EstadoPrevio, r.VigenciaPrevia, r.VersionResultante));
+                if (uno.EsExitoso) restaurados++;
+                else if (!errores.Contains(uno.Error.Mensaje)) errores.Add(uno.Error.Mensaje);
+            }
+
+            ToastService.Mostrar(
+                errores.Count == 0
+                    ? (recibos.Count == 1 ? Textos["PlatAnotacionDeshecha"].Value : Textos["PlatAnotacionesDeshechas", restaurados].Value)
+                    : Textos["PlatDeshacerParcial", restaurados, recibos.Count, string.Join(" ", errores)].Value,
+                errores.Count == 0 ? TonoToast.Exito : TonoToast.Advertencia);
+
+            if (restaurados > 0)
+                await OnAnotado.InvokeAsync();
+        }
+        finally
+        {
+            _deshaciendo = false;
+        }
+    }
+}

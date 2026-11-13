@@ -817,6 +817,54 @@
   <data name="SubirCabeceraTitulo" xml:space="preserve">
     <value>Subir documentos</value>
   </data>
+  <data name="ZonaSoltarEstadoAdjunto" xml:space="preserve">
+    <value>Archivo adjuntado correctamente.</value>
+  </data>
+  <data name="ZonaSoltarEstadoAdjuntos" xml:space="preserve">
+    <value>{0} archivos adjuntados</value>
+  </data>
+  <data name="ZonaSoltarCambiar" xml:space="preserve">
+    <value>Cambiar</value>
+  </data>
+  <data name="ZonaSoltarCambiarEtiqueta" xml:space="preserve">
+    <value>Cambiar el archivo adjunto</value>
+  </data>
+  <data name="ZonaSoltarQuitar" xml:space="preserve">
+    <value>Quitar</value>
+  </data>
+  <data name="ZonaSoltarQuitarEtiqueta" xml:space="preserve">
+    <value>Quitar el archivo adjunto</value>
+  </data>
+  <data name="ZonaSoltarAnuncioSeleccionado" xml:space="preserve">
+    <value>Archivo seleccionado: {0}.</value>
+  </data>
+  <data name="ZonaSoltarAnuncioSinNombre" xml:space="preserve">
+    <value>Archivo recibido.</value>
+  </data>
+  <data name="ZonaSoltarAnuncioPegado" xml:space="preserve">
+    <value>Archivo pegado: {0}.</value>
+  </data>
+  <data name="ZonaSoltarAnuncioSoltado" xml:space="preserve">
+    <value>Archivo soltado: {0}.</value>
+  </data>
+  <data name="ZonaSoltarAnuncioVarios" xml:space="preserve">
+    <value>{0} archivos recibidos.</value>
+  </data>
+  <data name="ZonaSoltarAnuncioQuitado" xml:space="preserve">
+    <value>Archivo quitado.</value>
+  </data>
+  <data name="ZonaSoltarErrorSinArchivo" xml:space="preserve">
+    <value>El portapapeles no contiene ningún archivo. Copia un archivo o una captura e inténtalo de nuevo.</value>
+  </data>
+  <data name="ZonaSoltarErrorTipo" xml:space="preserve">
+    <value>«{0}» no es un tipo de archivo admitido.</value>
+  </data>
+  <data name="ZonaSoltarErrorTipoConFormatos" xml:space="preserve">
+    <value>«{0}» no es un tipo de archivo admitido. Formatos admitidos: {1}.</value>
+  </data>
+  <data name="ZonaSoltarErrorTamano" xml:space="preserve">
+    <value>«{0}» supera el tamaño máximo de {1} MB.</value>
+  </data>
   <data name="CampoFechaFormato" xml:space="preserve">
     <value>dd/mm/aaaa</value>
   </data>
