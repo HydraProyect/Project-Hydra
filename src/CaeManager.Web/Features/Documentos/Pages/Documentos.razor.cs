@@ -1201,14 +1201,8 @@ public partial class Documentos : CaeManager.Web.Components.PaginaInteractiva, I
         return lineas;
     }
 
-    private static TonoBadge TonoEnPlataforma(AcreditacionEnGrupoDto acreditacion) => acreditacion switch
-    {
-        { SinVigencia: true } => TonoBadge.Neutro,
-        { Estado: EstadoAcreditacion.Rechazada } => TonoBadge.Peligro,
-        { Estado: EstadoAcreditacion.PendienteDeSubir } => TonoBadge.Advertencia,
-        { Estado: EstadoAcreditacion.Aceptada } => TonoBadge.Exito,
-        _ => TonoBadge.Info
-    };
+    private static TonoBadge TonoEnPlataforma(AcreditacionEnGrupoDto acreditacion) =>
+        EstadoAcreditacionUi.TonoEnPlataforma(acreditacion.Estado, acreditacion.SinVigencia);
 
     private string TextoEnPlataforma(AcreditacionEnGrupoDto acreditacion) => acreditacion.SinVigencia
         ? Textos["EstadoPlataformaSinVigencia"].Value

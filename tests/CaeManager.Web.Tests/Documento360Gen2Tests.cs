@@ -94,7 +94,9 @@ public partial class Documento360Gen2Tests : BunitContext
         cut.Find(".titulo-documento-360").TextContent.Should().Be("Certificado TGSS");
         var celdas = cut.FindAll(".celda-info-documento-360").ToList();
         celdas.Should().HaveCount(6, "el instrumento observa que la isla no está vacía");
-        celdas.Select(c => c.TextContent.Trim()).Should().Contain("PropietarioMontajes Ebro S.L.").And.Contain("ArchivoDescargar PDF");
+        // Espacios normalizados: «Descargar PDF» y «Ver» (D-24) son dos elementos con su sangrado entre medias.
+        celdas.Select(c => string.Join(' ', c.TextContent.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries))).Should()
+            .Contain("PropietarioMontajes Ebro S.L.").And.Contain("ArchivoDescargar PDF Ver");
         cut.FindAll("[role=tab]").Should().HaveCount(4);
         cut.FindAll(".pestanas-contador").Should().BeEmpty("ninguna lista la carga este panel");
         // Sin FechaEmision: en este panel solo la vigencia es copiable (P9,

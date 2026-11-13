@@ -18,8 +18,12 @@
         <a class="boton boton-secundario boton-medio" href="/documentos/@DocumentoId/archivo" target="_blank">
             Abrir en pestaña nueva
         </a>
-        @* Lleva al drawer de edición, que guarda con un ICommand denegado a Consulta. *@
-        <SoloConEscritura><Boton Variante="VarianteBoton.Primario" OnClick="ActualizarDocumento">Actualizar documento</Boton></SoloConEscritura>
+        @* Lleva al drawer de edición, que guarda con un ICommand denegado a Consulta. Un Documento del historial (sustituido)
+           no se gestiona: quien lo abre desde ahí pasa PermiteActualizar="false". *@
+        @if (PermiteActualizar)
+        {
+            <SoloConEscritura><Boton Variante="VarianteBoton.Primario" OnClick="ActualizarDocumento">Actualizar documento</Boton></SoloConEscritura>
+        }
     </Pie>
 </Modal>
 
@@ -28,6 +32,9 @@
     [Parameter] public EventCallback<bool> VisibleChanged { get; set; }
     [Parameter, EditorRequired] public Guid DocumentoId { get; set; }
     [Parameter] public string Titulo { get; set; } = "Documento";
+
+    /// <summary>Ofrece «Actualizar documento» (para quien escribe). False para un Documento del historial, que es inmutable.</summary>
+    [Parameter] public bool PermiteActualizar { get; set; } = true;
 
     private void ActualizarDocumento() => Navegacion.NavigateTo($"/documentos?documentoId={DocumentoId}");
 }

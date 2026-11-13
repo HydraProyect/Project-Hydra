@@ -566,6 +566,13 @@ public class FronterasEntrePersistenciaDeFeaturesTests
         ("Documentos.ObtenerPlataformasEnUsoQueryHandler", "IProveedoresPlataformaCaeQueryContext"),
         ("Documentos.ObtenerDocumentacionBaseTrabajadoresQueryHandler", "IConfiguracionQueryContext"),
         ("Documentos.ObtenerDocumentacionBaseTrabajadoresQueryHandler", "ITiposDocumentoQueryContext"),
+        // D-23: sección «Plataformas CAE» de la vista rápida; lee canal y Centro, Plataforma CAE y nombre del Cliente empresarial,
+        // y Proyectos y Configuración para la legibilidad y el estado documental, como ObtenerDocumentosQueryHandler.
+        ("Documentos.ObtenerAcreditacionesDelDocumentoQueryHandler", "ICentrosQueryContext"),
+        ("Documentos.ObtenerAcreditacionesDelDocumentoQueryHandler", "IConfiguracionQueryContext"),
+        ("Documentos.ObtenerAcreditacionesDelDocumentoQueryHandler", "IEmpresasQueryContext"),
+        ("Documentos.ObtenerAcreditacionesDelDocumentoQueryHandler", "IProveedoresPlataformaCaeQueryContext"),
+        ("Documentos.ObtenerAcreditacionesDelDocumentoQueryHandler", "IProyectosQueryContext"),
         ("Documentos.ObtenerDocumentoPorIdQueryHandler", "IClientesQueryContext"),
         ("Documentos.ObtenerDocumentoPorIdQueryHandler", "IEmpresasQueryContext"),
         ("Documentos.ObtenerDocumentoPorIdQueryHandler", "IProyectosQueryContext"),
