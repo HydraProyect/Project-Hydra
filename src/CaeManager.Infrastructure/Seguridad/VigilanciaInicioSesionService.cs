@@ -330,7 +330,10 @@ public sealed class VigilanciaInicioSesionService(
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
-            logger.LogError(ex, "No se pudo avisar al Administrador del Tenant del «no he sido yo» de la cuenta {UsuarioId}.", usuario.Id);
+            // ASVS 4.0.3 V7.1.1: solo el tipo de la excepción. El aviso envía correo a cada Administrador y su mensaje
+            // (o el de su causa) puede citar la dirección; el id de la cuenta basta para localizar el caso.
+            logger.LogError("No se pudo avisar al Administrador del Tenant del «no he sido yo» de la cuenta {UsuarioId} ({TipoExcepcion}).",
+                usuario.Id, ex.GetType().Name);
         }
 
         return sesionesCerradas ? resultado : ResultadoNoHeSidoYo.SesionesSinCerrar;

@@ -30,6 +30,7 @@ using CaeManager.Infrastructure.Autorizacion;
 using CaeManager.Infrastructure.Identity;
 using CaeManager.Infrastructure.Persistence;
 using CaeManager.Web.Components.DesignSystem;
+using CaeManager.Web.Tests.Email;
 using FluentAssertions;
 using MediatR;
 using Microsoft.AspNetCore.Components;
@@ -713,9 +714,9 @@ public partial class UsuariosGen2Tests : BunitContext
 
     private IRenderedComponent<UsuariosControlados> Renderizar(
         Guid? actorId = null, string rolActor = RolesIdentidad.Administrador, bool integrada = false, string? url = null,
-        TimeSpan? tiempoMaximoBusquedaCif = null)
+        TimeSpan? tiempoMaximoBusquedaCif = null, ILogger<PaginaUsuarios>? registro = null)
     {
-        Services.AddSingleton<ILogger<PaginaUsuarios>>(NullLogger<PaginaUsuarios>.Instance);
+        Services.AddSingleton<ILogger<PaginaUsuarios>>(registro ?? NullLogger<PaginaUsuarios>.Instance);
         Services.AddSingleton(_fuente);
         Services.AddSingleton(_toasts);
         Services.AddLocalization();
@@ -1042,12 +1043,13 @@ public partial class UsuariosGen2Tests : BunitContext
         cut.Find(".modal-contenido").TextContent.Should().Contain("Cuenta creada sin contraseña");
     }
 
-    private async Task<IRenderedComponent<UsuariosControlados>> AltaConCorreoQueNoContestaAsync()
+    private async Task<IRenderedComponent<UsuariosControlados>> AltaConCorreoQueNoContestaAsync(
+        ILogger<PaginaUsuarios>? registro = null)
     {
         Sembrar((Cuenta(MartaId, "marta.r@talveg.es", "Marta Rodríguez"), RolesIdentidad.Administrador));
         _correo.Retenido = new TaskCompletionSource<Result>(TaskCreationOptions.RunContinuationsAsynchronously);
 
-        var cut = Renderizar();
+        var cut = Renderizar(registro: registro);
         await cut.Find(".cabecera-listado-primaria button").ClickAsync(new());
         await EscribirAsync(cut, "Correo", "nuevo@talveg.es");
         await EscribirAsync(cut, "Nombre completo", "Nueva Persona");
@@ -1114,6 +1116,52 @@ public partial class UsuariosGen2Tests : BunitContext
             cut.Find(".modal-header h2").TextContent.Trim().Should().Be("No pudimos enviar el correo"));
         _toasts.Mensajes.Should().Contain(m => m.Mensaje.Contains("No pudimos enviar el correo"));
         cut.Find(".enlace-activacion").TextContent.Should().NotBeEmpty();
+    }
+
+    /// <summary>
+    /// ASVS 4.0.3 V7.1.1: ni la dirección del alta ni el mensaje de la excepción del servicio de correo (que puede
+    /// citarla) ni la excepción entera llegan al registro; queda el id de la cuenta y el tipo de la excepción.
+    /// </summary>
+    [Fact]
+    public async Task Si_el_servicio_de_correo_revienta_el_registro_no_lleva_la_direccion_ni_la_excepcion()
+    {
+        Sembrar((Cuenta(MartaId, "marta.r@talveg.es", "Marta Rodríguez"), RolesIdentidad.Administrador));
+        _correo.Lanza = new InvalidOperationException("SMTP caído: 550 no existe nuevo@talveg.es");
+        var registro = new RegistroQueCapturaTodo<PaginaUsuarios>();
+
+        var cut = Renderizar(registro: registro);
+        await cut.Find(".cabecera-listado-primaria button").ClickAsync(new());
+        await EscribirAsync(cut, "Correo", "nuevo@talveg.es");
+        await EscribirAsync(cut, "Nombre completo", "Nueva Persona");
+        await GuardarAsync(cut);
+
+        cut.WaitForAssertion(() =>
+            registro.Entradas.Should().Contain(e => e.Contenido.Contains("no terminó")));
+        registro.DebeEstarLimpioDeDatosPersonales("nuevo@talveg.es", "talveg.es", "SMTP caído", "550");
+    }
+
+    /// <summary>
+    /// ASVS 4.0.3 V7.1.1: lo mismo cuando falla el aviso del resultado (aquí, un oyente de los avisos que lanza
+    /// con la dirección en su mensaje): el registro lleva el id de la cuenta y el tipo, no el mensaje.
+    /// </summary>
+    [Fact]
+    public async Task Si_falla_el_aviso_del_resultado_del_correo_el_registro_no_lleva_la_direccion_ni_la_excepcion()
+    {
+        var registro = new RegistroQueCapturaTodo<PaginaUsuarios>();
+        var cut = await AltaConCorreoQueNoContestaAsync(registro);
+        var yaRoto = false;
+        _toasts.OnCambio += () =>
+        {
+            if (yaRoto) return;
+            yaRoto = true;
+            throw new InvalidOperationException("Aviso roto para nuevo@talveg.es");
+        };
+
+        _correo.Retenido!.SetResult(Result.Fallo(Error.Crear("Email.ErrorRed", "No pudimos enviar el correo.")));
+
+        cut.WaitForAssertion(() =>
+            registro.Entradas.Should().Contain(e => e.Contenido.Contains("avisar del resultado")));
+        registro.DebeEstarLimpioDeDatosPersonales("nuevo@talveg.es", "talveg.es", "Aviso roto");
     }
 
     /// <summary>
