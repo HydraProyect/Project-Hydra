@@ -6,6 +6,7 @@ using CaeManager.Domain.Empresas;
 using CaeManager.Domain.Tenants;
 using CaeManager.Infrastructure.MultiTenancy;
 using CaeManager.Infrastructure.Persistence;
+using CaeManager.Infrastructure.Persistence.ContextoRls;
 using CaeManager.Infrastructure.Persistence.Interceptors;
 using CaeManager.Infrastructure.Persistence.Seed;
 using CaeManager.Infrastructure.Plataforma;
@@ -331,6 +332,130 @@ public class ConexionPorOperacionTests : IAsyncLifetime
     }
 
     /// <summary>
+    /// Cuarta revisión de Codex (ALTO): la realineación del rol tras un ROLLBACK
+    /// TO SAVEPOINT falla en el cliente (aquí, al resolver el contexto) sin
+    /// abortar la transacción en PostgreSQL, y el llamador captura la excepción.
+    /// El rol de la conexión sigue siendo el que restauró el punto de guardado
+    /// (aprovisionamiento con el ámbito ya cerrado), así que el comando siguiente
+    /// de la MISMA transacción tiene que volver a realinearlo antes de correr.
+    /// </summary>
+    [Fact]
+    public async Task Si_la_realineacion_tras_un_punto_de_guardado_falla_el_comando_siguiente_no_corre_con_el_rol_restaurado()
+    {
+        var puerta = new PuertaAccesoDatos();
+        var sesion = Guid.NewGuid();
+        var seleccion = new SeleccionMutable { SesionPrivilegiadaIdSeleccionada = sesion };
+        var tenant = new TenantMutable(TenantA);
+        var usuario = new UsuarioQueFallaAlResolver(Guid.NewGuid(), () => tenant.TenantId);
+        var (contexto, _) = CrearContextoRuntime(tenant, seleccion, puerta, usuario: usuario);
+        await using var __ = contexto;
+        var elevacion = new ElevacionEscrituraPrivilegiada(contexto);
+        var estrategia = contexto.Database.CreateExecutionStrategy();
+
+        var (fallo, rolSinInterceptar, rolDelComandoSiguiente) =
+            await puerta.EjecutarAsync(() => estrategia.ExecuteAsync(async () =>
+            {
+                var ambito = AmbitoEscrituraPrivilegiada.Establecer(sesion, TenantA);
+                (await RolActualAsync(contexto)).Rol.Should().Be("cae_app_aprovisionamiento", "control: dentro del ámbito");
+                await using var transaccion = await contexto.Database.BeginTransactionAsync();
+                await transaccion.CreateSavepointAsync("antes_de_devolver");
+                ambito.Dispose();
+                await elevacion.DevolverSiConexionAbiertaAsync();
+                (await RolActualAsync(contexto)).Rol.Should().Be("cae_app_soporte", "control: la vuelta se aplicó");
+
+                usuario.Fallar = true;
+                var excepcion = await Record.ExceptionAsync(() => transaccion.RollbackToSavepointAsync("antes_de_devolver"));
+                usuario.Fallar = false;
+
+                var sinInterceptar = await RolSinPasarPorElInterceptorAsync(contexto, transaccion);
+                var siguiente = (await RolActualAsync(contexto)).Rol;
+                await transaccion.RollbackAsync();
+                return (excepcion, sinInterceptar, siguiente);
+            }));
+
+        fallo.Should().NotBeNull("control: la realineación tras el punto de guardado falló en el cliente");
+        rolSinInterceptar.Should().Be("cae_app_aprovisionamiento",
+            "control: la transacción sigue viva con el rol que restauró el punto de guardado");
+        rolDelComandoSiguiente.Should().Be("cae_app_soporte",
+            "el comando siguiente de la transacción realinea el rol antes de correr; sin eso correría con escritura elevada");
+    }
+
+    /// <summary>
+    /// Cuarta revisión de Codex (MEDIO): al abrir la conexión de la operación no
+    /// hay clave y el firmante devuelve el token vacío; la clave aparece a mitad
+    /// de la operación. La conexión retenida no puede quedarse con el contexto
+    /// vacío el resto de la operación: el comando siguiente vuelve a firmar.
+    /// </summary>
+    [Fact]
+    public async Task Un_contexto_aplicado_sin_clave_se_vuelve_a_firmar_cuando_la_clave_aparece_a_mitad_de_operacion()
+    {
+        var reloj = new RelojManual(DateTimeOffset.UtcNow);
+        var firmante = new FirmanteContextoRls(
+            cadenaPropietaria: null, BaseDatosPostgresDePruebas.ProteccionDePruebas, reloj,
+            FirmanteContextoRls.TtlPorDefecto, FirmanteContextoRls.RotacionPorDefecto);
+        await EjecutarComoPropietarioAsync("DELETE FROM app_privado.claves_contexto;");
+        var puerta = new PuertaAccesoDatos();
+        var (contexto, aperturas) = CrearContextoRuntime(new TenantMutable(TenantA), new SeleccionMutable(), puerta, firmante: firmante);
+        await using var _ = contexto;
+
+        var (tokenSinClave, visiblesSinClave, tokenConClave, visiblesConClave) = await puerta.EjecutarAsync(async () =>
+        {
+            var sinClave = await TokenAsync(contexto);
+            var visiblesSin = await TenantsVisiblesAsync(contexto);
+
+            await RegistrarClaveAsync();
+            reloj.Adelantar(TimeSpan.FromSeconds(31)); // pasada la espera del firmante tras un fallo
+
+            return (sinClave, visiblesSin, await TokenAsync(contexto), await TenantsVisiblesAsync(contexto));
+        });
+
+        tokenSinClave.Should().BeEmpty("control: sin clave el firmante no firma");
+        visiblesSinClave.Should().BeEmpty("control: sin contexto firmado, ninguna fila");
+        tokenConClave.Should().NotBeEmpty("la sesión aplicada sin firmar no se dio por aplicada: el comando siguiente firma");
+        visiblesConClave.Should().Equal([TenantA]);
+        aperturas.Aperturas.Should().Be(1, "control: es la conexión retenida la que se realinea, no una apertura nueva");
+    }
+
+    /// <summary>
+    /// Mismo defecto por la otra vía (cuarta revisión de Codex, MEDIO): una
+    /// renovación a mitad de operación no encuentra clave y deja <c>app.contexto</c>
+    /// vacío. Cuando la clave vuelve, el comando siguiente tiene que volver a firmar
+    /// aunque la sesión siga anotada.
+    /// </summary>
+    [Fact]
+    public async Task Una_renovacion_sin_clave_no_deja_vacio_el_resto_de_la_operacion()
+    {
+        var reloj = new RelojManual(DateTimeOffset.UtcNow);
+        var firmante = new FirmanteContextoRls(
+            cadenaPropietaria: null, BaseDatosPostgresDePruebas.ProteccionDePruebas, reloj,
+            FirmanteContextoRls.TtlPorDefecto, rotacion: TimeSpan.FromMinutes(1));
+        await EjecutarComoPropietarioAsync("DELETE FROM app_privado.claves_contexto;");
+        await RegistrarClaveAsync();
+        var puerta = new PuertaAccesoDatos();
+        var (contexto, aperturas) = CrearContextoRuntime(new TenantMutable(TenantA), new SeleccionMutable(), puerta, firmante: firmante);
+        await using var _ = contexto;
+
+        var (visiblesAntes, tokenTrasRenovar, tokenConClave, visiblesConClave) = await puerta.EjecutarAsync(async () =>
+        {
+            var antes = await TenantsVisiblesAsync(contexto);
+
+            await EjecutarComoPropietarioAsync("DELETE FROM app_privado.claves_contexto;");
+            reloj.Adelantar(TimeSpan.FromMinutes(31)); // más de medio TTL: el comando siguiente renueva
+            var trasRenovar = await TokenAsync(contexto);
+
+            await RegistrarClaveAsync();
+            reloj.Adelantar(TimeSpan.FromSeconds(31));
+            return (antes, trasRenovar, await TokenAsync(contexto), await TenantsVisiblesAsync(contexto));
+        });
+
+        visiblesAntes.Should().Equal([TenantA], "control positivo con clave");
+        tokenTrasRenovar.Should().BeEmpty("control: la renovación sin clave vació el contexto");
+        tokenConClave.Should().NotBeEmpty("con la clave de vuelta, el comando siguiente vuelve a firmar");
+        visiblesConClave.Should().Equal([TenantA]);
+        aperturas.Aperturas.Should().Be(1);
+    }
+
+    /// <summary>
     /// Revisión puente de la segunda ronda: tras un COMMIT dentro de la
     /// operación, la conexión no queda marcada como «transacción sin confirmar».
     /// Si el gancho del COMMIT no encontrara la conexión, cada transacción
@@ -513,7 +638,8 @@ public class ConexionPorOperacionTests : IAsyncLifetime
 
     internal (CaeManagerDbContext Contexto, ContadorAperturas Aperturas) CrearContextoRuntime(
         TenantMutable tenant, SeleccionMutable seleccion, PuertaAccesoDatos puerta, string? cadena = null,
-        Guid? usuarioId = null, IInterceptor? extra = null)
+        Guid? usuarioId = null, IInterceptor? extra = null, ICurrentUserService? usuario = null,
+        FirmanteContextoRls? firmante = null)
     {
         var aperturas = new ContadorAperturas();
         var opciones = new DbContextOptionsBuilder<CaeManagerDbContext>()
@@ -523,8 +649,8 @@ public class ConexionPorOperacionTests : IAsyncLifetime
             // Mismo orden que ConfiguracionDeContexto: el interceptor RLS delante del sellado.
             .AddInterceptors(
                 new TenantRlsConnectionInterceptor(
-                    tenant, seleccion, new UsuarioDelTenant(usuarioId ?? Guid.NewGuid(), () => tenant.TenantId),
-                    BaseDatosPostgresDePruebas.FirmanteContextoRls, puerta),
+                    tenant, seleccion, usuario ?? new UsuarioDelTenant(usuarioId ?? Guid.NewGuid(), () => tenant.TenantId),
+                    firmante ?? BaseDatosPostgresDePruebas.FirmanteContextoRls, puerta),
                 new TenantSelladoInterceptor(tenant, puertaAccesoDatos: puerta),
                 aperturas)
             .AddInterceptors(extra is null ? Array.Empty<IInterceptor>() : new[] { extra })
@@ -549,6 +675,58 @@ public class ConexionPorOperacionTests : IAsyncLifetime
         var rol = await contexto.Database
             .SqlQueryRaw<string>("SELECT current_user::text AS \"Value\"").SingleAsync();
         return (rol, rol == "cae_app_soporte");
+    }
+
+    /// <summary>
+    /// El rol de la conexión leído con un comando de Npgsql directo, que no pasa
+    /// por los interceptores de EF: lo que tiene la conexión de verdad, sin que
+    /// la lectura misma la realinee.
+    /// </summary>
+    private static async Task<string> RolSinPasarPorElInterceptorAsync(
+        CaeManagerDbContext contexto, Microsoft.EntityFrameworkCore.Storage.IDbContextTransaction transaccion)
+    {
+        await using var comando = contexto.Database.GetDbConnection().CreateCommand();
+        comando.Transaction = Microsoft.EntityFrameworkCore.Storage.DbContextTransactionExtensions.GetDbTransaction(transaccion);
+        comando.CommandText = "SELECT current_user::text;";
+        return (string)(await comando.ExecuteScalarAsync())!;
+    }
+
+    private Task RegistrarClaveAsync() =>
+        ClaveContextoRls.RegistrarAsync(
+            CadenaPropietario, BaseDatosPostgresDePruebas.ProteccionDePruebas,
+            ClaveContextoRls.VigenciaPorDefecto, CancellationToken.None);
+
+    private async Task EjecutarComoPropietarioAsync(string sql)
+    {
+        await using var conexion = new NpgsqlConnection(CadenaPropietario);
+        await conexion.OpenAsync();
+        await using var comando = conexion.CreateCommand();
+        comando.CommandText = sql;
+        await comando.ExecuteNonQueryAsync();
+    }
+
+    private sealed class RelojManual(DateTimeOffset inicio) : TimeProvider
+    {
+        private DateTimeOffset _ahora = inicio;
+        public void Adelantar(TimeSpan cuanto) => _ahora += cuanto;
+        public override DateTimeOffset GetUtcNow() => _ahora;
+    }
+
+    /// <summary>
+    /// Como <see cref="UsuarioDelTenant"/>, pero mientras <see cref="Fallar"/>
+    /// está puesto, resolver el Tenant de origen lanza: simula un fallo del
+    /// cliente al calcular la sesión deseada, sin tocar la base.
+    /// </summary>
+    private sealed class UsuarioQueFallaAlResolver(Guid usuarioId, Func<Guid?> tenantOrigenId) : ICurrentUserService
+    {
+        public bool Fallar;
+        public Task<Guid?> ObtenerUsuarioActualIdAsync() => Task.FromResult<Guid?>(usuarioId);
+        public Task<string?> ObtenerRolOrigenAsync() => ObtenerRolEfectivoAsync();
+        public Task<string?> ObtenerRolEfectivoAsync() => Task.FromResult<string?>("Administrador");
+        public Task<Guid?> ObtenerTenantOrigenIdAsync() => Fallar
+            ? throw new InvalidOperationException("Fallo simulado al resolver el contexto")
+            : Task.FromResult(tenantOrigenId());
+        public Task<bool> TieneDobleFactorActivoAsync() => Task.FromResult(true);
     }
 
     private async Task<Guid> TenantDeEmpresaComoPropietarioAsync(Guid empresaId)

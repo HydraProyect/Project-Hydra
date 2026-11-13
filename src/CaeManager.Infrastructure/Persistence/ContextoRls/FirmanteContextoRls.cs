@@ -233,6 +233,16 @@ public sealed class FirmanteContextoRls
         return false;
     }
 
+    /// <summary>
+    /// ¿Tiene esta conexión un contexto firmado anotado en memoria? No lo tiene
+    /// si nunca se firmó, si se firmó sin clave (token vacío) o si una renovación
+    /// o un sellado sin clave lo vaciaron. Para <c>TenantRlsConnectionInterceptor</c>:
+    /// una conexión sin contexto firmado no está alineada aunque su sesión esté
+    /// anotada, y el siguiente comando vuelve a intentar firmar (cuarta revisión
+    /// de Codex).
+    /// </summary>
+    public static bool TieneContextoFirmado(DbConnection conexion) => EstadoPorConexion.TryGetValue(conexion, out _);
+
     /// <summary>Olvida el contexto de la conexión (se llama al cerrarla).</summary>
     public static void Olvidar(DbConnection conexion) => EstadoPorConexion.Remove(conexion);
 

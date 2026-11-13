@@ -103,7 +103,10 @@ namespace CaeManager.Infrastructure.Persistence.Interceptors;
 /// <c>ROLLBACK TO SAVEPOINT</c>, que devuelve la sesión a la del punto de guardado
 /// con la transacción aún viva: ahí se realinea el rol (el contexto firmado no se
 /// vuelve a firmar dentro de la transacción) y la sesión queda incierta para el
-/// primer uso fuera de ella.
+/// primer uso fuera de ella. Si esa realineación falla, ningún comando de la
+/// transacción pasa sin volver a intentarla (<see cref="RolSinRealinear"/>).
+/// Una sesión cuyo contexto se aplicó sin firmar (sin clave) no se anota, y el
+/// comando siguiente vuelve a intentar firmarlo, como hacía antes cada apertura.
 /// </description></item>
 /// <item><description>
 /// <b>Caducidad.</b> La renovación de <see cref="FirmanteContextoRls.RenovarSiHaceFaltaAsync"/>
@@ -231,6 +234,16 @@ public class TenantRlsConnectionInterceptor(
     /// <c>IElevacionEscrituraPrivilegiada</c> prohíbe para devolver el rol: aquel
     /// dejaría correr la aplicación con el rol de login; este no.
     /// </para>
+    /// <para>
+    /// <b>Sin clave no se anota la sesión</b> (cuarta revisión de Codex): si el
+    /// firmante devuelve el token vacío, la conexión queda con <c>app.contexto</c>
+    /// vacío —falla cerrado, ninguna fila bajo RLS— pero sin sesión anotada, así
+    /// que el siguiente comando vuelve a intentar firmar. Antes de D3 cada comando
+    /// abría una conexión y lo intentaba; con la conexión retenida, anotarla como
+    /// aplicada dejaría el resto de la operación sin contexto aunque la clave
+    /// apareciera a mitad. El rol sí se adopta: el contexto vacío no concede nada
+    /// y el rol solo quita capacidad.
+    /// </para>
     /// </summary>
     private async Task AplicarAsync(
         NpgsqlConnection connection, SesionRls sesion, bool deshacerRolPrevio, CancellationToken cancellationToken)
@@ -241,12 +254,16 @@ public class TenantRlsConnectionInterceptor(
         if (deshacerRolPrevio)
             await DeshacerRolAsync(connection, cancellationToken);
 
-        await FijarVariablesDeSesionAsync(connection, sesion.Contexto, cancellationToken);
+        var firmado = await FijarVariablesDeSesionAsync(connection, sesion.Contexto, cancellationToken);
 
         if (sesion.Rol is { } rol)
             await AdoptarRolAsync(connection, rol, cancellationToken);
 
-        SesionPorConexion.AddOrUpdate(connection, sesion);
+        // El rol de la conexión es ya el que fijaría una apertura nueva, también
+        // si un ROLLBACK TO SAVEPOINT anterior lo había dejado sin realinear.
+        RolSinRealinear.Remove(connection);
+        if (firmado)
+            SesionPorConexion.AddOrUpdate(connection, sesion);
     }
 
     /// <summary>
@@ -268,7 +285,11 @@ public class TenantRlsConnectionInterceptor(
             Olvidar(npgsql);
 
         var deseada = await SesionDeseadaAsync();
-        var conocida = SesionPorConexion.TryGetValue(npgsql, out var aplicada);
+        // Sin contexto firmado en memoria la sesión no está alineada aunque esté
+        // anotada: una renovación o un sellado sin clave dejaron app.contexto
+        // vacío, y el siguiente comando tiene que volver a intentar firmarlo.
+        var conocida = SesionPorConexion.TryGetValue(npgsql, out var aplicada)
+            && FirmanteContextoRls.TieneContextoFirmado(npgsql);
         if (conocida && aplicada == deseada)
             return;
 
@@ -367,8 +388,13 @@ public class TenantRlsConnectionInterceptor(
     /// firmado). Quien las cambie a mano no gana nada. Retirarlas es el paso
     /// siguiente, cuando nada las lea.
     /// </para>
+    ///
+    /// <para>
+    /// Devuelve si el contexto quedó firmado: <c>false</c> si el firmante no
+    /// tenía clave y <c>app.contexto</c> quedó vacío (ver <see cref="AplicarAsync"/>).
+    /// </para>
     /// </summary>
-    private async Task FijarVariablesDeSesionAsync(
+    private async Task<bool> FijarVariablesDeSesionAsync(
         NpgsqlConnection connection, ContextoSesionRls contexto, CancellationToken cancellationToken)
     {
         var (tenantId, tenantOrigenId, usuarioId) = (contexto.TenantId, contexto.TenantOrigenId, contexto.UsuarioId);
@@ -386,6 +412,7 @@ public class TenantRlsConnectionInterceptor(
         comando.Parameters.AddWithValue("contexto", token.Token);
         await comando.ExecuteNonQueryAsync(cancellationToken);
         token.Confirmar();
+        return token.Token.Length > 0;
     }
 
     // ── Renovación del contexto firmado (P6, diseño § 7) ─────────────────
@@ -405,12 +432,14 @@ public class TenantRlsConnectionInterceptor(
     public override void ConnectionClosed(DbConnection connection, ConnectionEndEventData eventData)
     {
         Olvidar(connection);
+        RolSinRealinear.Remove(connection);
         base.ConnectionClosed(connection, eventData);
     }
 
     public override Task ConnectionClosedAsync(DbConnection connection, ConnectionEndEventData eventData)
     {
         Olvidar(connection);
+        RolSinRealinear.Remove(connection);
         return base.ConnectionClosedAsync(connection, eventData);
     }
 
@@ -636,6 +665,17 @@ public class TenantRlsConnectionInterceptor(
     /// la sesión queda incierta para todo uso fuera de la transacción. Un error de
     /// PostgreSQL deja además la transacción abortada.
     /// </para>
+    /// <para>
+    /// <b>Dentro de la transacción, falla cerrado</b> (cuarta revisión de Codex):
+    /// antes de calcular nada la conexión se marca en <see cref="RolSinRealinear"/>,
+    /// y la marca solo se retira cuando el <c>SET ROLE</c> llegó a la base. Si
+    /// resolver el rol o cambiarlo falla en el cliente sin abortar la transacción
+    /// y el llamador captura la excepción, el rol sigue siendo el que restauró el
+    /// punto de guardado (o el de login, tras el <c>RESET ROLE</c>); por eso cada
+    /// comando de EF dentro de la transacción mira la marca y vuelve a realinear
+    /// antes de pasar (<see cref="AntesDelComandoAsync"/>). Si tampoco lo consigue,
+    /// el comando lanza en vez de correr con el rol equivocado.
+    /// </para>
     /// </summary>
     void IDbTransactionInterceptor.RolledBackToSavepoint(DbTransaction transaction, TransactionEventData eventData) =>
         RealinearRolTrasPuntoDeGuardadoAsync(ConexionDe(transaction, eventData), CancellationToken.None)
@@ -652,12 +692,26 @@ public class TenantRlsConnectionInterceptor(
 
         SesionPorConexion.Remove(npgsql);
         MarcarSinConfirmar(npgsql);
+        RolSinRealinear.AddOrUpdate(npgsql, Marca);
 
         var rolDeseado = (await SesionDeseadaAsync()).Rol;
         await DeshacerRolAsync(npgsql, cancellationToken);
         if (rolDeseado is not null)
             await AdoptarRolAsync(npgsql, rolDeseado, cancellationToken);
+
+        RolSinRealinear.Remove(npgsql);
     }
+
+    /// <summary>
+    /// Conexiones cuyo rol un <c>ROLLBACK TO SAVEPOINT</c> devolvió al del punto
+    /// de guardado y que aún no se han realineado (ver
+    /// <see cref="RealinearRolTrasPuntoDeGuardadoAsync"/>). Mientras una conexión
+    /// esté aquí, ningún comando de EF pasa sin volver a realinear el rol. Solo la
+    /// retiran una realineación terminada, una aplicación entera de la sesión
+    /// (<see cref="AplicarAsync"/>) o el cierre de la conexión; no el fallo de la
+    /// transacción, que puede seguir viva.
+    /// </summary>
+    private static readonly ConditionalWeakTable<DbConnection, object> RolSinRealinear = new();
 
     private static void OlvidarSiHayConexion(DbConnection? conexion)
     {
@@ -677,13 +731,27 @@ public class TenantRlsConnectionInterceptor(
     /// retener la conexión hasta que termine. La retención va al final a
     /// propósito: si realinear falla, el comando falla y la conexión se cierra
     /// por el camino de siempre, sin quedar retenida.
+    ///
+    /// <para>
+    /// Dentro de una transacción no se realinea la sesión, salvo el rol de una
+    /// conexión que un <c>ROLLBACK TO SAVEPOINT</c> dejó sin realinear
+    /// (<see cref="RolSinRealinear"/>): se vuelve a intentar aquí, y si falla, el
+    /// comando no llega a la base.
+    /// </para>
     /// </summary>
     private async Task AntesDelComandoAsync(DbCommand command, CommandEventData eventData, CancellationToken cancellationToken)
     {
-        if (command.Transaction is null && command.Connection is { } conexion)
+        if (command.Connection is { } conexion)
         {
-            await AlinearSiCambioAsync(conexion, cancellationToken);
-            await RenovarAsync(conexion, cancellationToken);
+            if (command.Transaction is null)
+            {
+                await AlinearSiCambioAsync(conexion, cancellationToken);
+                await RenovarAsync(conexion, cancellationToken);
+            }
+            else if (RolSinRealinear.TryGetValue(conexion, out _))
+            {
+                await RealinearRolTrasPuntoDeGuardadoAsync(conexion, cancellationToken);
+            }
         }
 
         RetenerSiHayOperacion(eventData.Context);
