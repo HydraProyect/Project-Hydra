@@ -94,7 +94,15 @@ public partial class Documento360Gen2Tests : BunitContext
         cut.Find(".titulo-documento-360").TextContent.Should().Be("Certificado TGSS");
         var celdas = cut.FindAll(".celda-info-documento-360").ToList();
         celdas.Should().HaveCount(6, "el instrumento observa que la isla no está vacía");
-        celdas.Select(c => c.TextContent.Trim()).Should().Contain("PropietarioMontajes Ebro S.L.").And.Contain("ArchivoDescargar PDF");
+        celdas.Select(c => c.TextContent.Trim()).Should().Contain("PropietarioMontajes Ebro S.L.");
+        // D-24: la celda Archivo ofrece «Descargar PDF» y despues «Ver», y nada mas; el orden se fija sobre los hijos, no sobre el
+        // texto plano (Razor intercala espacios entre ellos).
+        var archivo = celdas.Should().ContainSingle(c => c.QuerySelector(".archivo-documento-360") != null).Subject;
+        System.Text.RegularExpressions.Regex.Replace(archivo.TextContent, @"\s+", "")
+            .Should().Be("ArchivoDescargarPDFVer", "la celda no lleva nada mas que la etiqueta y las dos acciones");
+        archivo.FirstElementChild!.TextContent.Trim().Should().Be("Archivo");
+        archivo.QuerySelector(".archivo-documento-360")!.Children.Select(c => c.TextContent.Trim())
+            .Should().Equal(["Descargar PDF", "Ver"], "D-24: «Descargar PDF» primero y «Ver» despues");
         cut.FindAll("[role=tab]").Should().HaveCount(4);
         cut.FindAll(".pestanas-contador").Should().BeEmpty("ninguna lista la carga este panel");
         // Sin FechaEmision: en este panel solo la vigencia es copiable (P9,
