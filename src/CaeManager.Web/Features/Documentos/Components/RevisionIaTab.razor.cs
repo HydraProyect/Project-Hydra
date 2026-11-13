@@ -527,14 +527,7 @@ public partial class RevisionIaTab : ComponentBase, IDisposable
     // Una alerta no se pinta en verde aunque la IA declare confianza alta.
     private static TonoBadge TonoTratamiento(RevisionIaDocumentoDto r) => r.TieneAlertaDeterminista && r.ConfianzaGeneral >= 70
         ? TonoBadge.Advertencia
-        : TonoConfianza(r.ConfianzaGeneral);
-
-    private static TonoBadge TonoConfianza(int confianza) => confianza switch
-    {
-        >= 95 => TonoBadge.Exito,
-        >= 70 => TonoBadge.Advertencia,
-        _ => TonoBadge.Peligro
-    };
+        : TonoDeConfianzaIa.De(r.ConfianzaGeneral);
 
     public void Dispose()
     {

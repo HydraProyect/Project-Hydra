@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Text.Json;
 using CaeManager.Application.Clientes.Queries.ObtenerClientesParaSelector;
 using CaeManager.Application.Configuracion.Commands.EliminarFiltroGuardado;
@@ -33,6 +34,8 @@ using FluentValidation;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Authorization;
 using CaeManager.Infrastructure.Identity;
+using CaeManager.Application.Documentos.Queries.ObtenerRevisionesIaPendientes;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Localization;
 using Microsoft.AspNetCore.Components.Forms;
 using Microsoft.AspNetCore.Components.QuickGrid;
@@ -110,6 +113,18 @@ public partial class Documentos : CaeManager.Web.Components.PaginaInteractiva, I
     [SupplyParameterFromQuery] public string? EstadoPlataforma { get; set; }
 
     /// <summary>
+    /// Filtro «Vence en» (D-21): los días, un valor RELATIVO (<c>?VenceEn=30</c>), nunca una fecha. Solo valen los de
+    /// <see cref="OpcionesVenceEn"/>; cualquier otro se descarta.
+    /// </summary>
+    [SupplyParameterFromQuery] public string? VenceEn { get; set; }
+
+    /// <summary>
+    /// Filtro «Pendiente de revisión IA» (<c>?PendienteRevisionIa=1</c>). Solo lo atiende quien accede a la pestaña
+    /// Revisión IA (<see cref="RolesDeGestionDocumental"/>); con otro rol se ignora, aquí y en el servidor.
+    /// </summary>
+    [SupplyParameterFromQuery] public string? PendienteRevisionIa { get; set; }
+
+    /// <summary>
     /// Agrupación de la lista (<c>?agrupar=plataforma</c>), como la lee <see cref="Agrupaciones"/>: ausente, sin agrupar;
     /// <c>ambito</c>, <c>plataforma</c>, <c>cliente</c> o <c>tipo</c>; <c>no</c> u otro valor, sin agrupar. Viaja en la URL para
     /// que forme parte de la vista recordada (D-19, 2026-11-13).
@@ -153,6 +168,8 @@ public partial class Documentos : CaeManager.Web.Components.PaginaInteractiva, I
     [Inject] private NavigationManager NavigationManager { get; set; } = default!;
     [Inject] private IStringLocalizer<TextosDocumentos> Textos { get; set; } = default!;
     [Inject] private ITenantActual TenantActual { get; set; } = default!;
+    [Inject] private IServiceProvider Servicios { get; set; } = default!;
+    [Inject] private PuertaAccesoDatos PuertaAccesoDatos { get; set; } = default!;
 
     /// <summary>Estado 4a del mockup del selector: hay que elegir una empresa de la cartera antes de ver la lista.</summary>
     private bool _sinEmpresaSeleccionada;
@@ -360,7 +377,9 @@ public partial class Documentos : CaeManager.Web.Components.PaginaInteractiva, I
                 || resultado.Elementos.FirstOrDefault() is not { } actualizada)
                 return;
 
-            _elementosPagina[indice] = actualizada;
+            // La relectura por Id no pide «Pendiente de revisión IA»: la fila conserva la confianza con la que se cargó la página
+            // (con el filtro aplicado) en vez de quedarse sin ella hasta la siguiente carga.
+            _elementosPagina[indice] = actualizada with { ConfianzaRevisionIa = _elementosPagina[indice].ConfianzaRevisionIa };
             _servirPaginaEnMemoria = true;
             await _grid.RefreshDataAsync();
             if (!_desechado && carga == _cargaVigente) StateHasChanged();
@@ -462,8 +481,10 @@ public partial class Documentos : CaeManager.Web.Components.PaginaInteractiva, I
     /// <summary>
     /// Contrato persistido de los filtros guardados (<c>ValoresJson</c>): los guardados antes de cada campo opcional no lo
     /// traen y siguen cargando (el campo queda en <c>null</c>). «Estado en la plataforma» entró en D-19 (2026-11-13).
+    /// «Vence en» (<c>VenceEnDias</c>, D-21) se guarda como número de días, nunca como fecha: aplicarlo mañana es «30 días
+    /// desde mañana». <c>RevisionIa</c> es «Pendiente de revisión IA».
     /// </summary>
-    private record FiltrosDocumentosJson(string? Busqueda, string? Ambito, string? Estado, string? Tipo = null, string? Plataforma = null, string? Propietario = null, string? EstadoPlataforma = null, string? Agrupar = null);
+    private record FiltrosDocumentosJson(string? Busqueda, string? Ambito, string? Estado, string? Tipo = null, string? Plataforma = null, string? Propietario = null, string? EstadoPlataforma = null, string? Agrupar = null, int? VenceEnDias = null, bool? RevisionIa = null);
 
     private DrawerGestionDocumento _drawerGestion = default!;
     private PlataformaTab? _plataformaTab;
@@ -495,7 +516,21 @@ public partial class Documentos : CaeManager.Web.Components.PaginaInteractiva, I
             var usuario = (await EstadoAutenticacion).User;
             if (_desechado) return;
             _puedeEscribir = Roles.ConEscrituraCsv.Split(',').Any(usuario.IsInRole);
+            // «Pendiente de revisión IA» se ofrece por el rol EFECTIVO, la misma fuente con la que el handler decide si lo aplica
+            // (ColaRevisionIa.AccedeElRol): no por el claim, que bajo una Sesión Privilegiada lleva el rol del Tenant de plataforma. Así
+            // ni la pastilla, ni el chip, ni «Guardar filtro», ni «Exportar esta vista», ni la vista recordada llevan el filtro mientras
+            // la primera carga está en vuelo. Por la puerta de acceso a datos: dentro de un Workspace operativo derivado el rol efectivo
+            // se resuelve contra la cartera (consulta al DbContext) y la página se inicializa en paralelo con el layout (ver
+            // SubidaMasiva). Sin servicio de usuario, falla cerrado.
+            var usuarioActual = Servicios.GetService<ICurrentUserService>();
+            var rolEfectivo = usuarioActual is null
+                ? null
+                : await PuertaAccesoDatos.EjecutarAsync(() => usuarioActual.ObtenerRolEfectivoAsync());
+            if (_desechado) return;
+            _puedeGestionarDocumentos = ColaRevisionIa.AccedeElRol(rolEfectivo);
         }
+        _rolEfectivoLeido = true;
+        DescartarRevisionIaSinAcceso();
 
         // Delegado estable — ver Clientes.razor.cs (bucle de recargas de QuickGrid).
         _proveedorElementos = ProveerElementosAsync;
@@ -671,8 +706,9 @@ public partial class Documentos : CaeManager.Web.Components.PaginaInteractiva, I
         // El separador no es decorativo: concatenando a pelo, mover una letra
         // de un filtro al siguiente daría la misma firma y el cambio pasaría
         // por no-cambio.
+        DescartarRevisionIaSinAcceso();
         var contexto = string.Join('\n', _pestanaActiva, _busqueda, _ambitoFiltro, _estadoFiltro, _tipoFiltro, _plataformaFiltro,
-            _propietarioFiltro, _estadoPlataformaFiltro, ClaveDeAgrupacion);
+            _propietarioFiltro, _estadoPlataformaFiltro, _venceEnFiltro, RevisionIaActiva, ClaveDeAgrupacion);
         if (_contextoEnPantalla is null)
             _contextoEnPantalla = contexto;
         else if (_contextoEnPantalla != contexto)
@@ -711,6 +747,8 @@ public partial class Documentos : CaeManager.Web.Components.PaginaInteractiva, I
         _tipoFiltro = IdValido(Tipo);
         _plataformaFiltro = IdValido(Plataforma);
         _estadoPlataformaFiltro = EstadoPlataformaValido(EstadoPlataforma);
+        _venceEnFiltro = VenceEnValido(VenceEn);
+        _revisionIaFiltro = RevisionIaValida(PendienteRevisionIa);
         _propietarioFiltro = IdValido(Propietario);
         LeerOrden(OrdenInicial);
         _agrupacion = AgrupacionDeLaUrl(Agrupar);
@@ -905,13 +943,34 @@ public partial class Documentos : CaeManager.Web.Components.PaginaInteractiva, I
     /// Propietario, Vence y Estado documental (30/30/13/14 %) y 232 px, no los 190 px del artboard: la fila conserva el icono 360
     /// del tipo, que el dibujo no pinta, y con 190 px las acciones se saldrían de la celda.
     /// </summary>
-    private string[] AnchosColumnasAgrupadas => _agrupacion switch
+    private string[] AnchosColumnasAgrupadas
     {
-        AgrupacionListado.PlataformaCae => ["14%", "23%", "13%", "10%", "12%", "15%", "232px"],
-        AgrupacionListado.TipoDocumento => ["24%", "30%", "13%", "14%", "190px"],
-        AgrupacionListado.ClienteEmpresarial => ["30%", "30%", "13%", "14%", "232px"],
-        _ => [],
-    };
+        get
+        {
+            string[] anchos = _agrupacion switch
+            {
+                AgrupacionListado.PlataformaCae => ["14%", "23%", "13%", "10%", "12%", "15%", "232px"],
+                AgrupacionListado.TipoDocumento => ["24%", "30%", "13%", "14%", "190px"],
+                AgrupacionListado.ClienteEmpresarial => ["30%", "30%", "13%", "14%", "232px"],
+                _ => [],
+            };
+
+            // Con «Pendiente de revisión IA» la columna «Revisión IA» va antes de las acciones: barra de 72 px, separación y «Confianza 100 %»
+            // en una línea (el artboard no la limita: la deja a su contenido); 190 px para que no se corte, y el resto de anchos no se tocan.
+            return ColumnaRevisionIa && anchos.Length > 0 ? [.. anchos[..^1], AnchoColumnaRevisionIa, anchos[^1]] : anchos;
+        }
+    }
+
+    private const string AnchoColumnaRevisionIa = "190px";
+
+    /// <summary>
+    /// La vista sin agrupar (o por Ámbito) con la columna «Revisión IA»: sin <c>colgroup</c>, la tabla de layout fijo reparte el ancho a
+    /// partes iguales (173 px por columna a 1440 px) y «Estado documental» (144 px de texto) se cortaba con «…» en su caja de 141 px.
+    /// Las dos columnas que cambian llevan ancho propio en el CSS (190 px «Revisión IA», 184 px «Estado documental»); las demás se reparten
+    /// el resto. Las agrupaciones ya fijan sus anchos en el <c>colgroup</c> (<see cref="AnchosColumnasAgrupadas"/>), y la vista sin el
+    /// filtro no cambia.
+    /// </summary>
+    private bool AnchosFijosPorRevisionIa => ColumnaRevisionIa && !AgrupadaPorPlataforma && !AgrupadaPorTipo && !AgrupadaPorCliente;
 
     private AgrupacionDocumentos? AgrupacionPedida => _agrupacion switch
     {
@@ -1187,6 +1246,91 @@ public partial class Documentos : CaeManager.Web.Components.PaginaInteractiva, I
         await RecargarAsync();
     }
 
+    // --- «Vence en» (D-21) y «Pendiente de revisión IA» ---
+
+    /// <summary>Los plazos de «Vence en» que ofrece el lienzo (Vence-en.dc.html), en días desde hoy: los mismos que la exportación.</summary>
+    private static readonly IReadOnlyList<int> DiasVenceEn = ObtenerDocumentosQuery.PlazosVenceEnDias;
+
+    /// <summary>Los días de «Vence en» como texto («30»), o vacío sin filtro. Es lo que viaja en la URL y en la vista recordada.</summary>
+    private string _venceEnFiltro = string.Empty;
+
+    /// <summary>«Pendiente de revisión IA» aplicado. Solo cuenta con rol de gestión documental: ver <see cref="RevisionIaActiva"/>.</summary>
+    private bool _revisionIaFiltro;
+
+    /// <summary>El usuario accede a la pestaña Revisión IA (gestión documental): solo él ve y usa «Pendiente de revisión IA».</summary>
+    private bool _puedeGestionarDocumentos;
+
+    /// <summary>
+    /// Se pide el filtro. Se ofrece por el rol efectivo leído al iniciar la página, el mismo que usa el handler; si el rol cambia dentro
+    /// del circuito, quien decide sigue siendo el handler, y tras cada carga <see cref="DescartarRevisionIaNoAplicada"/> lo apaga si el
+    /// servidor no lo aplicó.
+    /// </summary>
+    private bool RevisionIaActiva => _revisionIaFiltro && _puedeGestionarDocumentos;
+
+    /// <summary>
+    /// La columna «Revisión IA» existe solo con el filtro aplicado (ver <see cref="RevisionIaActiva"/>) y si alguna fila de la página lleva
+    /// confianza: con el filtro aplicado, toda fila de la cola la lleva. Lo segundo es defensa en profundidad: sin filtro no se pinta una
+    /// columna vacía sobre un listado sin filtrar.
+    /// </summary>
+    private bool ColumnaRevisionIa => RevisionIaActiva && _elementosPagina.Any(d => d.ConfianzaRevisionIa is not null);
+
+    /// <summary>
+    /// El servidor ignoró «Pendiente de revisión IA» (<see cref="ResultadoPaginado{T}.FiltroRevisionIaAplicado"/>): las filas y los recuentos
+    /// que llegaron son los del listado sin ese filtro, así que la pantalla deja de mostrarlo como aplicado. Sin chip, con la pastilla
+    /// apagada, sin la columna y sin el parámetro en la URL; la vista recordada sigue a la URL, y «Guardar filtro» y «Exportar esta vista»
+    /// leen <see cref="RevisionIaActiva"/>. No hace falta volver a cargar: lo que llegó ya es el listado sin el filtro.
+    /// </summary>
+    private bool _rolEfectivoLeido;
+
+    /// <summary>
+    /// Sin acceso a la cola (rol efectivo Cliente, Consulta o ninguno), un <c>?PendienteRevisionIa=1</c> que llegue por enlace, por la
+    /// vista recordada o por un filtro guardado no se pide nunca, así que <see cref="DescartarRevisionIaNoAplicada"/> no correría tras
+    /// la carga: se quita aquí, en cuanto se conoce el rol y en cada sincronización con la URL, para que ni la URL ni la vista recordada
+    /// lo arrastren.
+    /// </summary>
+    private void DescartarRevisionIaSinAcceso()
+    {
+        if (_rolEfectivoLeido && _revisionIaFiltro && !_puedeGestionarDocumentos)
+            DescartarRevisionIaNoAplicada();
+    }
+
+    private void DescartarRevisionIaNoAplicada()
+    {
+        _revisionIaFiltro = false;
+        NavigationManager.ActualizarFiltroEnUrl(nameof(PendienteRevisionIa), RevisionIaEnUrl(false));
+    }
+
+    /// <summary>Solo el texto exacto de uno de los plazos que se ofrecen: ni ceros a la izquierda, ni signos, ni listas.</summary>
+    private static string VenceEnValido(string? valor) =>
+        valor is not null && DiasVenceEn.Any(d => d.ToString(CultureInfo.InvariantCulture) == valor) ? valor : string.Empty;
+
+    private static bool RevisionIaValida(string? valor) => valor == "1";
+
+    private static string RevisionIaEnUrl(bool activa) => activa ? "1" : string.Empty;
+
+    private IReadOnlyList<OpcionEstado> OpcionesVenceEn => DiasVenceEn
+        .Select(d => new OpcionEstado(d.ToString(CultureInfo.InvariantCulture), Textos["ListaVenceEnDias", d].Value))
+        .ToList();
+
+    private string EtiquetaFiltroVenceEn =>
+        Textos["ChipVenceEn", OpcionesVenceEn.FirstOrDefault(o => o.Valor == _venceEnFiltro)?.Texto ?? _venceEnFiltro].Value;
+
+    private int? VenceEnDiasPedido => int.TryParse(_venceEnFiltro, out var dias) ? dias : null;
+
+    private async Task CambiarVenceEnFiltroAsync(string valor)
+    {
+        _venceEnFiltro = VenceEnValido(valor);
+        NavigationManager.ActualizarFiltroEnUrl(nameof(VenceEn), _venceEnFiltro);
+        await RecargarAsync();
+    }
+
+    private async Task CambiarRevisionIaFiltroAsync(bool activa)
+    {
+        _revisionIaFiltro = activa;
+        NavigationManager.ActualizarFiltroEnUrl(nameof(PendienteRevisionIa), RevisionIaEnUrl(activa));
+        await RecargarAsync();
+    }
+
     private readonly HashSet<Guid> _documentosAbiertos = [];
 
     /// <summary>Documentos desplegados a los que se pidió «Ver los N restantes»: el resto enseña solo los primeros destinos.</summary>
@@ -1364,6 +1508,7 @@ public partial class Documentos : CaeManager.Web.Components.PaginaInteractiva, I
 
             var ambitoFiltro = Enum.TryParse<AmbitoAplicacion>(_ambitoFiltro, out var ambito) ? ambito : (AmbitoAplicacion?)null;
             var estadosFiltro = SeleccionEstados.Separar<EstadoDocumento>(_estadoFiltro);
+            var revisionIaPedida = RevisionIaActiva;
 
             var resultado = await Mediator.Send(new ObtenerDocumentosQuery(
                 TrabajadorId: null,
@@ -1383,7 +1528,9 @@ public partial class Documentos : CaeManager.Web.Components.PaginaInteractiva, I
                 ConDestinosEnCentros: true,
                 AgruparPor: AgrupacionPedida,
                 EstadosEnPlataforma: Enum.TryParse<EstadoEnPlataformaFiltro>(_estadoPlataformaFiltro, out var estadoPlataforma)
-                    ? [estadoPlataforma] : null), token);
+                    ? [estadoPlataforma] : null,
+                VenceEnDias: VenceEnDiasPedido,
+                PendienteDeRevisionIa: revisionIaPedida), token);
 
             // La respuesta de un filtro ya abandonado no puede pisar el total,
             // las filas ni la selección de la pregunta que sí se está mirando.
@@ -1397,6 +1544,8 @@ public partial class Documentos : CaeManager.Web.Components.PaginaInteractiva, I
             _recuentosPorEstado = resultado.RecuentosPorEstado;
             _resumenPorGrupo = resultado.ResumenPorGrupo;
             _hoy = DiaDeNegocio.Hoy();
+            if (revisionIaPedida && !resultado.FiltroRevisionIaAplicado)
+                DescartarRevisionIaNoAplicada();
 
             var elementos = resultado.Elementos.ToList();
             _elementosPagina = elementos;
@@ -1486,7 +1635,8 @@ public partial class Documentos : CaeManager.Web.Components.PaginaInteractiva, I
         !string.IsNullOrWhiteSpace(_busqueda) || !string.IsNullOrWhiteSpace(_estadoFiltro)
         || !string.IsNullOrWhiteSpace(_ambitoFiltro) || !string.IsNullOrWhiteSpace(_tipoFiltro)
         || !string.IsNullOrWhiteSpace(_plataformaFiltro) || !string.IsNullOrWhiteSpace(_propietarioFiltro)
-        || !string.IsNullOrWhiteSpace(_estadoPlataformaFiltro);
+        || !string.IsNullOrWhiteSpace(_estadoPlataformaFiltro)
+        || !string.IsNullOrWhiteSpace(_venceEnFiltro) || RevisionIaActiva;
 
     /// <summary>
     /// Quita todos los filtros, y todos <b>también de la URL</b>. Hasta ahora
@@ -1511,6 +1661,8 @@ public partial class Documentos : CaeManager.Web.Components.PaginaInteractiva, I
         _plataformaFiltro = string.Empty;
         _propietarioFiltro = string.Empty;
         _estadoPlataformaFiltro = string.Empty;
+        _venceEnFiltro = string.Empty;
+        _revisionIaFiltro = false;
         NavigationManager.ActualizarFiltrosEnUrl(new Dictionary<string, string?>
         {
             ["q"] = null,
@@ -1520,6 +1672,8 @@ public partial class Documentos : CaeManager.Web.Components.PaginaInteractiva, I
             [nameof(Plataforma)] = null,
             [nameof(Propietario)] = null,
             [nameof(EstadoPlataforma)] = null,
+            [nameof(VenceEn)] = null,
+            [nameof(PendienteRevisionIa)] = null,
         });
         await RecargarAsync();
     }
@@ -1816,7 +1970,16 @@ public partial class Documentos : CaeManager.Web.Components.PaginaInteractiva, I
         var filtro = _filtrosGuardados.FirstOrDefault(f => f.Id == id);
         if (filtro is null) return;
 
-        var valores = JsonSerializer.Deserialize<FiltrosDocumentosJson>(filtro.ValoresJson);
+        FiltrosDocumentosJson? valores;
+        try
+        {
+            valores = JsonSerializer.Deserialize<FiltrosDocumentosJson>(filtro.ValoresJson);
+        }
+        catch (JsonException)
+        {
+            // Un JSON que no encaja (p. ej. «VenceEnDias» como texto) es un filtro que no se puede aplicar, no un fallo de la pantalla.
+            return;
+        }
         if (valores is null) return;
 
         _busqueda = valores.Busqueda ?? string.Empty;
@@ -1827,6 +1990,10 @@ public partial class Documentos : CaeManager.Web.Components.PaginaInteractiva, I
         _propietarioFiltro = IdValido(valores.Propietario);
         // Un filtro guardado antes de D-19 no trae «Estado en la plataforma»: queda sin ese filtro.
         _estadoPlataformaFiltro = EstadoPlataformaValido(valores.EstadoPlataforma);
+        // «Vence en» se guarda como días y se aplica desde hoy; uno guardado antes de D-21 no lo trae y queda sin él. Igual
+        // «Pendiente de revisión IA».
+        _venceEnFiltro = VenceEnValido(valores.VenceEnDias?.ToString(CultureInfo.InvariantCulture));
+        _revisionIaFiltro = valores.RevisionIa == true;
         // Igual: uno guardado antes de D-19 no trae la agrupación y se aplica sin agrupar. Una clave que ya no existe cae
         // también en «sin agrupar». Cambiar de agrupación reinicia los grupos abiertos, como al restaurar la vista recordada.
         _agrupacion = AgrupacionDeLaUrl(valores.Agrupar);
@@ -1848,6 +2015,8 @@ public partial class Documentos : CaeManager.Web.Components.PaginaInteractiva, I
             [nameof(Plataforma)] = _plataformaFiltro,
             [nameof(Propietario)] = _propietarioFiltro,
             [nameof(EstadoPlataforma)] = _estadoPlataformaFiltro,
+            [nameof(VenceEn)] = _venceEnFiltro,
+            [nameof(PendienteRevisionIa)] = RevisionIaEnUrl(RevisionIaActiva),
             [AgrupacionDeLista.Parametro] = Agrupaciones.ParaUrl(ClaveDeAgrupacion),
         });
         await RecargarAsync();
@@ -1864,8 +2033,8 @@ public partial class Documentos : CaeManager.Web.Components.PaginaInteractiva, I
     /// JSON (<see cref="FiltrosDocumentosJson"/>), con «Estado en la plataforma» y la agrupación (campos opcionales: uno antiguo los quita) pero sin el orden de columna.
     /// </summary>
     public static readonly IReadOnlyList<string> ParametrosDeVista =
-        ["q", nameof(Estado), nameof(Ambito), nameof(Tipo), nameof(Plataforma), nameof(EstadoPlataforma), nameof(Propietario), "orden",
-            AgrupacionDeLista.Parametro];
+        ["q", nameof(Estado), nameof(Ambito), nameof(Tipo), nameof(Plataforma), nameof(EstadoPlataforma), nameof(VenceEn),
+            nameof(PendienteRevisionIa), nameof(Propietario), "orden", AgrupacionDeLista.Parametro];
 
     private readonly ConexionVistaRecordada _vistaRecordada = new();
 
@@ -1883,6 +2052,8 @@ public partial class Documentos : CaeManager.Web.Components.PaginaInteractiva, I
         _tipoFiltro = IdValido(vista.GetValueOrDefault(nameof(Tipo)));
         _plataformaFiltro = IdValido(vista.GetValueOrDefault(nameof(Plataforma)));
         _estadoPlataformaFiltro = EstadoPlataformaValido(vista.GetValueOrDefault(nameof(EstadoPlataforma)));
+        _venceEnFiltro = VenceEnValido(vista.GetValueOrDefault(nameof(VenceEn)));
+        _revisionIaFiltro = RevisionIaValida(vista.GetValueOrDefault(nameof(PendienteRevisionIa)));
         _propietarioFiltro = IdValido(vista.GetValueOrDefault(nameof(Propietario)));
         var cambiaElOrden = LeerOrden(vista.GetValueOrDefault("orden"));
         // Misma lectura que la de la URL: una clave que ya no existe cae en «sin agrupar», nunca en una agrupación a medias.
@@ -1898,6 +2069,8 @@ public partial class Documentos : CaeManager.Web.Components.PaginaInteractiva, I
             [nameof(Tipo)] = _tipoFiltro,
             [nameof(Plataforma)] = _plataformaFiltro,
             [nameof(EstadoPlataforma)] = _estadoPlataformaFiltro,
+            [nameof(VenceEn)] = _venceEnFiltro,
+            [nameof(PendienteRevisionIa)] = RevisionIaEnUrl(RevisionIaActiva),
             [nameof(Propietario)] = _propietarioFiltro,
             ["orden"] = _orden.EnUrl,
             [AgrupacionDeLista.Parametro] = Agrupaciones.ParaUrl(ClaveDeAgrupacion),
@@ -1948,7 +2121,9 @@ public partial class Documentos : CaeManager.Web.Components.PaginaInteractiva, I
             string.IsNullOrWhiteSpace(_plataformaFiltro) ? null : _plataformaFiltro,
             string.IsNullOrWhiteSpace(_propietarioFiltro) ? null : _propietarioFiltro,
             string.IsNullOrWhiteSpace(_estadoPlataformaFiltro) ? null : _estadoPlataformaFiltro,
-            Agrupaciones.ParaUrl(ClaveDeAgrupacion)));
+            Agrupaciones.ParaUrl(ClaveDeAgrupacion),
+            VenceEnDiasPedido,
+            RevisionIaActiva ? true : null));
 
         _guardandoFiltro = true;
         _mensajeErrorFiltro = null;
@@ -2037,6 +2212,8 @@ public partial class Documentos : CaeManager.Web.Components.PaginaInteractiva, I
         ["plataforma"] = _plataformaFiltro,
         ["propietario"] = _propietarioFiltro,
         ["estadoPlataforma"] = _estadoPlataformaFiltro,
+        ["venceEn"] = _venceEnFiltro,
+        ["pendienteRevisionIa"] = RevisionIaEnUrl(RevisionIaActiva),
         ["agrupar"] = _agruparPorAmbito ? "ambito" : null,
         ["orden"] = _ordenExportar,
         ["desc"] = _descendenteExportar ? "true" : null,

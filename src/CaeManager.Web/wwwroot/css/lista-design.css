@@ -59,7 +59,8 @@
     color: var(--color-text);
     font: 600 10px/14px var(--font-family);
 }
-.lista-design.lista-design .barra-filtros-pastillas-fila .menu-acciones-disparador-pastilla {
+.lista-design.lista-design .barra-filtros-pastillas-fila .menu-acciones-disparador-pastilla,
+.lista-design.lista-design .barra-filtros-pastillas-fila .pastilla-interruptor {
     height: 36px;
     min-height: 36px;
     padding: 0 14px;
@@ -241,7 +242,8 @@
 /* Respuesta al puntero: las reglas de arriba fijan fondo y borde con más especificidad que el :hover de cada componente, así que se repone aquí con tokens */
 .lista-design.lista-design .acciones-cabecera .cabecera-listado-icono:hover,
 .lista-design.lista-design .acciones-cabecera .menu-acciones-disparador-borde:hover,
-.lista-design.lista-design .barra-filtros-pastillas-fila .menu-acciones-disparador-pastilla:hover {
+.lista-design.lista-design .barra-filtros-pastillas-fila .menu-acciones-disparador-pastilla:hover,
+.lista-design.lista-design .barra-filtros-pastillas-fila .pastilla-interruptor:hover {
     background: var(--color-surface-hover);
     border-color: var(--color-border-strong);
 }

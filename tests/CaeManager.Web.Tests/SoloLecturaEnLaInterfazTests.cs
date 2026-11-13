@@ -144,6 +144,7 @@ public class SoloLecturaEnLaInterfazTests : BunitContext
         RegistrarComun(rol);
         Services.AddScoped<IMediator, MediadorVacio>();
         Services.AddScoped<ITenantActual>(_ => new SeleccionEmpresaGestionadaDePrueba());
+        Services.AddScoped<PuertaAccesoDatos>();
         Services.AddScoped<ToastService>();
         Services.AddScoped<ContextWorkspaceService>();
         Services.AddScoped<ICurrentUserService>(_ => new UsuarioActual(rol));

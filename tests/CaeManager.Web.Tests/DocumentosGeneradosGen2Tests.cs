@@ -35,6 +35,7 @@ public class DocumentosGeneradosGen2Tests : BunitContext
     {
         JSInterop.Mode = JSRuntimeMode.Loose;
         Services.AddLocalization();
+        Services.AddScoped<CaeManager.Application.Common.PuertaAccesoDatos>();
         Services.AddScoped<ToastService>();
     }
 

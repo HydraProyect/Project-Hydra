@@ -128,9 +128,16 @@ public partial class DocumentosGen2Tests : BunitContext
             var documentos = Documentos(q);
             return new ResultadoPaginado<DocumentoListaDto>(documentos, documentos.Count, q.Pagina, q.TamanoPagina)
             {
-                ResumenPorGrupo = ResumenesDeGrupo(q)
+                ResumenPorGrupo = ResumenesDeGrupo(q),
+                FiltroRevisionIaAplicado = FiltroRevisionIaAplicado(q),
             };
         }
+
+        /// <summary>
+        /// Lo que el handler dice de «Pendiente de revisión IA». Por defecto, que lo aplicó si se pidió (el rol efectivo coincide con el
+        /// claim); un test que simule otro rol efectivo devuelve <c>false</c>.
+        /// </summary>
+        public Func<ObtenerDocumentosQuery, bool> FiltroRevisionIaAplicado { get; set; } = q => q.PendienteDeRevisionIa;
 
         /// <summary>Cabeceras de grupo que devuelve <see cref="ObtenerDocumentosQuery"/>; por defecto ninguna.</summary>
         public Func<ObtenerDocumentosQuery, IReadOnlyDictionary<string, ResumenDeGrupo>?> ResumenesDeGrupo { get; set; } = _ => null;
@@ -153,7 +160,7 @@ public partial class DocumentosGen2Tests : BunitContext
             where TNotification : INotification => Task.CompletedTask;
     }
 
-    private sealed class UsuarioActualFalso(string rol) : ICurrentUserService
+    private sealed class UsuarioActualFalso(string? rol) : ICurrentUserService
     {
         public Task<Guid?> ObtenerUsuarioActualIdAsync() => Task.FromResult<Guid?>(Guid.NewGuid());
         public Task<string?> ObtenerRolOrigenAsync() => ObtenerRolEfectivoAsync();
@@ -257,7 +264,7 @@ public partial class DocumentosGen2Tests : BunitContext
 
     private (IRenderedComponent<PaginaDocumentos> Cut, MediadorControlado Mediador) Renderizar(
         MediadorControlado? mediador = null, string url = "documentos", string rol = "Administrador",
-        Guid? tenantSeleccionado = null)
+        Guid? tenantSeleccionado = null, string? rolEfectivo = null, bool sinRolEfectivo = false)
     {
         mediador ??= new MediadorControlado();
         Services.AddScoped<ITenantActual>(_ => new SeleccionEmpresaGestionadaDePrueba(tenantSeleccionado));
@@ -266,7 +273,9 @@ public partial class DocumentosGen2Tests : BunitContext
         Services.AddLocalization();
         Services.AddScoped<ToastService>();
         Services.AddScoped<ContextWorkspaceService>();
-        Services.AddScoped<ICurrentUserService>(_ => new UsuarioActualFalso(rol));
+        // El rol efectivo, por defecto el del claim; con una Sesión Privilegiada o una Asignación heredada pueden diferir.
+        Services.AddScoped<ICurrentUserService>(_ => new UsuarioActualFalso(sinRolEfectivo ? null : rolEfectivo ?? rol));
+        Services.AddScoped<PuertaAccesoDatos>();
         Services.AddScoped<IFileStorageService, AlmacenArchivosQueNadieDebeTocar>();
         Services.AddScoped<IConversorWordPdfService, ConversorQueNadieDebeTocar>();
         Services.AddSingleton<ILogger<PaginaDocumentos>>(_ => NullLogger<PaginaDocumentos>.Instance);

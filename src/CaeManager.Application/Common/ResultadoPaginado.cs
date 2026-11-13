@@ -35,6 +35,15 @@ public record ResultadoPaginado<T>(IReadOnlyList<T> Elementos, int TotalElemento
     /// </summary>
     [JsonIgnore]
     public IReadOnlyDictionary<string, ResumenDeGrupo>? ResumenPorGrupo { get; init; }
+
+    /// <summary>
+    /// Solo lo rellena el listado de Documentos (<c>ObtenerDocumentosQuery</c>): si el filtro «Pendiente de revisión IA» se
+    /// APLICÓ en esta página, es decir, si se pidió y el rol efectivo de quien mira accede a la cola de Revisión IA. El handler
+    /// decide en cada llamada, así que quien pagina (la exportación) lo lee de cada lote en vez de volver a decidirlo. En las
+    /// demás consultas queda en <c>false</c>. No viaja en el JSON de la API pública.
+    /// </summary>
+    [JsonIgnore]
+    public bool FiltroRevisionIaAplicado { get; init; }
 }
 
 /// <summary>

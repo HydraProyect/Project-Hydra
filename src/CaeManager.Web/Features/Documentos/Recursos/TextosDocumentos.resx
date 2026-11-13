@@ -253,6 +253,12 @@
   <data name="RevIaConfianzaN" xml:space="preserve">
     <value>Confianza {0} %</value>
   </data>
+  <data name="ExportacionCriterioCambiado" xml:space="preserve">
+    <value>Tus permisos han cambiado mientras se generaba la exportación. Vuelve a exportar.</value>
+  </data>
+  <data name="ExportacionDiaCambiado" xml:space="preserve">
+    <value>Ha cambiado el día mientras se generaba la exportación. Vuelve a exportar.</value>
+  </data>
   <data name="RevIaAbrirPdf" xml:space="preserve">
     <value>Abrir PDF completo</value>
   </data>
@@ -418,6 +424,14 @@
   <data name="EstadoPlataformaSinVigencia" xml:space="preserve"><value>Sin vigencia</value></data>
   <data name="ChipEstadoPlataforma" xml:space="preserve"><value>Estado en la plataforma: {0}</value></data>
   <data name="QuitarFiltroEstadoPlataforma" xml:space="preserve"><value>Quitar filtro de estado en la plataforma</value></data>
+  <data name="ListaVenceEn" xml:space="preserve"><value>Vence en</value></data>
+  <data name="ListaVenceEnCualquierFecha" xml:space="preserve"><value>Cualquier fecha</value></data>
+  <data name="ListaVenceEnDias" xml:space="preserve"><value>{0} días</value></data>
+  <data name="ChipVenceEn" xml:space="preserve"><value>Vence en: {0}</value></data>
+  <data name="QuitarFiltroVenceEn" xml:space="preserve"><value>Quitar filtro de vencimiento</value></data>
+  <data name="ListaPendienteRevisionIa" xml:space="preserve"><value>Pendiente de revisión IA</value></data>
+  <data name="QuitarFiltroRevisionIa" xml:space="preserve"><value>Quitar filtro de revisión IA</value></data>
+  <data name="ListaRevisionIa" xml:space="preserve"><value>Revisión IA</value></data>
   <data name="GrupoPendienteUno" xml:space="preserve"><value>1 pendiente de subir</value></data>
   <data name="GrupoPendientes" xml:space="preserve"><value>{0} pendientes de subir</value></data>
   <data name="GrupoRechazadoUno" xml:space="preserve"><value>1 rechazada</value></data>
