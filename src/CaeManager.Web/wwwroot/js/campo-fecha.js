@@ -170,5 +170,15 @@
         };
     }
 
-    window.talvegCampoFecha = { aplicar: aplicar, anclar: anclar, soltar: soltar };
+    // Al cerrar el calendario el foco vuelve al campo, pero solo si sigue dentro del componente (raiz) o cayó al body al
+    // desaparecer el calendario. La orden llega del servidor tras un viaje de ida y vuelta, y para entonces la persona
+    // (o Playwright) puede estar ya en el campo siguiente: quitárselo perdería lo que teclea (#2194, como
+    // CampoSelectAvanzado).
+    function devolverFoco(campo, raiz) {
+        var activo = document.activeElement;
+        if (activo && activo !== document.body && activo !== document.documentElement && !(raiz && raiz.contains(activo))) return;
+        if (campo) campo.focus();
+    }
+
+    window.talvegCampoFecha = { aplicar: aplicar, anclar: anclar, soltar: soltar, devolverFoco: devolverFoco };
 })();

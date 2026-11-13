@@ -423,3 +423,36 @@ test('sin historial del foco (nadie anotó el foco antes de abrir) y con el foco
     trampa.dispose();
     assert.equal(documento.activeElement, fecha);
 });
+
+test('al cerrar, si el foco ya está en otro campo de la página, no se le quita (#2194)', () => {
+    const { documento, cuerpo, abridor, dialogo, fecha } = escena();
+    abridor.focus();
+    fecha.focus();
+    const trampa = atraparFoco(dialogo);
+    // El diálogo sale del DOM y el foco cae al body; antes de que llegue la orden de liberar, Playwright enfoca otro campo.
+    const otroCampo = elemento('otro-campo', documento, cuerpo);
+    otroCampo.enfocable = true;
+    otroCampo.focus();
+    trampa.dispose();
+    assert.equal(documento.activeElement, otroCampo);
+});
+
+test('al cerrar, si el foco cayó al body al desaparecer el diálogo, vuelve a quien lo abrió', () => {
+    const { documento, abridor, dialogo, fecha, clicEnNoEnfocable } = escena();
+    abridor.focus();
+    fecha.focus();
+    const trampa = atraparFoco(dialogo);
+    clicEnNoEnfocable();
+    assert.equal(documento.activeElement, documento.body);
+    trampa.dispose();
+    assert.equal(documento.activeElement, abridor);
+});
+
+test('al cerrar, sin elemento activo, vuelve a quien abrió el diálogo', () => {
+    const { documento, abridor, dialogo } = escena();
+    abridor.focus();
+    const trampa = atraparFoco(dialogo);
+    documento.activeElement = null;
+    trampa.dispose();
+    assert.equal(documento.activeElement, abridor);
+});

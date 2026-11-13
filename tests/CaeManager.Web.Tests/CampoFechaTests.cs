@@ -1,10 +1,12 @@
 using System.Globalization;
+using System.Reflection;
 using Bunit;
 using CaeManager.Web.Components.DesignSystem;
 using FluentAssertions;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Web;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.JSInterop;
 
 namespace CaeManager.Web.Tests;
 
@@ -21,6 +23,9 @@ public class CampoFechaTests : BunitContext
         Services.AddLocalization();
         JSInterop.Mode = JSRuntimeMode.Loose;
     }
+
+    private static ElementReference Referencia(IRenderedComponent<CampoFecha> cut, string campo) =>
+        (ElementReference)typeof(CampoFecha).GetField(campo, BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(cut.Instance)!;
 
     [Theory]
     [InlineData("1", "1")]
@@ -325,7 +330,8 @@ public class CampoFechaTests : BunitContext
         cut.Find("input").GetAttribute("value").Should().Be("15/12/2026");
         recibidos.Should().Equal(new DateOnly(2026, 12, 15));
         cut.FindAll("[role=dialog]").Should().BeEmpty("elegir cierra el calendario");
-        JSInterop.VerifyFocusAsyncInvoke(calledTimes: 2); // al abrir, el día; al cerrar, el campo
+        JSInterop.VerifyFocusAsyncInvoke(calledTimes: 1); // al abrir, el día; al cerrar, devolverFoco decide si vuelve el campo (#2194)
+        JSInterop.VerifyInvoke("talvegCampoFecha.devolverFoco");
     }
 
     // WCAG 2.1 AA 1.3.1, 4.1.2 y 3.3.2: la rejilla expone la semántica de cuadrícula (grid,
@@ -380,7 +386,8 @@ public class CampoFechaTests : BunitContext
         cut.FindAll("[role=dialog]").Should().BeEmpty();
         recibidos.Should().BeEmpty("Escape no elige");
         cut.Find("input").GetAttribute("value").Should().Be("31/01/2026");
-        JSInterop.VerifyFocusAsyncInvoke(calledTimes: 6); // cuatro movimientos y la apertura en el día; el cierre en el campo
+        JSInterop.VerifyFocusAsyncInvoke(calledTimes: 5); // cuatro movimientos y la apertura en el día
+        JSInterop.VerifyInvoke("talvegCampoFecha.devolverFoco"); // el cierre devuelve el foco al campo por el script (#2194)
     }
 
     [Fact]
@@ -778,6 +785,37 @@ public class CampoFechaTests : BunitContext
 
         cut.FindAll("[role=dialog]").Should().BeEmpty();
         JSInterop.VerifyFocusAsyncInvoke(calledTimes: 1); // solo el del día al abrir; ninguno al cerrar
+    }
+
+    // El foco vuelve al campo por talvegCampoFecha.devolverFoco (campo-fecha.js), que no se lo quita a otro control al que
+    // ya se fue mientras llegaba la orden del servidor (#2194; js/campoFecha.test.mjs prueba esa decisión).
+    [Fact]
+    public async Task Al_cerrar_con_Escape_el_foco_vuelve_al_campo_por_devolverFoco_con_el_campo_y_la_raiz()
+    {
+        var cut = Render<CampoFecha>(p => p.Add(c => c.Valor, new DateOnly(2026, 12, 10)));
+        await cut.Find("button[data-campo-fecha-boton]").ClickAsync(new MouseEventArgs());
+
+        await cut.Find("[role=dialog]").KeyDownAsync(new KeyboardEventArgs { Key = "Escape" });
+
+        var devolver = JSInterop.VerifyInvoke("talvegCampoFecha.devolverFoco");
+        devolver.Arguments.Should().HaveCount(2);
+        devolver.Arguments[0].Should().BeOfType<ElementReference>().Which.Id.Should().Be(Referencia(cut, "_refInput").Id);
+        devolver.Arguments[1].Should().BeOfType<ElementReference>().Which.Id.Should().Be(Referencia(cut, "_refRaiz").Id);
+        JSInterop.VerifyFocusAsyncInvoke(calledTimes: 1); // solo el del día al abrir
+    }
+
+    [Fact]
+    public async Task Con_un_script_sin_devolverFoco_el_foco_vuelve_igual_al_campo()
+    {
+        JSInterop.SetupVoid("talvegCampoFecha.devolverFoco", _ => true).SetException(new JSException("devolverFoco no existe en el script en caché"));
+        var cut = Render<CampoFecha>(p => p.Add(c => c.Valor, new DateOnly(2026, 12, 10)));
+        await cut.Find("button[data-campo-fecha-boton]").ClickAsync(new MouseEventArgs());
+
+        await cut.Find("[role=dialog]").KeyDownAsync(new KeyboardEventArgs { Key = "Escape" });
+
+        JSInterop.VerifyFocusAsyncInvoke(calledTimes: 2); // al abrir, el día; al cerrar, el campo
+        JSInterop.Invocations.Last(i => i.Identifier.Contains("focus", StringComparison.OrdinalIgnoreCase))
+            .Arguments[0].Should().BeOfType<ElementReference>().Which.Id.Should().Be(Referencia(cut, "_refInput").Id);
     }
 
     [Fact]
