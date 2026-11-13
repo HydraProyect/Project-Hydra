@@ -216,7 +216,7 @@
 
 /* D-54 (2026-11-13): por Plataforma CAE y por tipo la fila es de una sola línea. Lo que no cabe se corta con «…» y el texto
    entero va en el tooltip; las acciones no se cortan. */
-.documentos-tabla-desplazable ::deep .documentos-fila-una-linea td:not(.documentos-celda-acciones-fila),
+.documentos-tabla-desplazable ::deep .documentos-fila-una-linea tr:not(.documentos-fila-hijos):not(.documentos-vacio-filtro):not(.documentos-cabecera-grupo) td:not(.documentos-celda-acciones-fila),
 .documentos-tabla-desplazable ::deep .documentos-fila-una-linea td .documentos-en-plataforma-motivo {
     white-space: nowrap;
     overflow: hidden;
