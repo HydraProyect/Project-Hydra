@@ -265,6 +265,13 @@ public partial class DocumentosGen2Tests
 
         await ElegirOpcionAsync(cut, "Luis Mora Gil", "Marcar rechazado…");
         cut.Find("[role=dialog]").TextContent.Should().Contain("Marcar como rechazado");
+        // Artboard Listado-dialogos: bajo el título, la línea atenuada «<Plataforma CAE> · <tipo> de <propietario>», y la causa y el
+        // detalle como hijos de un contenedor que los separa 12 px.
+        var contexto = cut.Find("[role=dialog] p.rechazo-contexto").TextContent.Trim();
+        contexto.Should().StartWith("Nalanda · ").And.EndWith(" de Luis Mora Gil");
+        var campos = cut.Find("[role=dialog] .rechazo-campos");
+        campos.QuerySelector("select").Should().NotBeNull();
+        campos.QuerySelector("textarea").Should().NotBeNull();
 
         await cut.FindAll("[role=dialog] button").Single(b => b.TextContent.Trim() == "Marcar rechazado").ClickAsync(new MouseEventArgs());
         enviados.Should().BeEmpty("sin detalle no se manda nada");
@@ -298,8 +305,13 @@ public partial class DocumentosGen2Tests
         await ElegirOpcionAsync(cut, "Ana Ruiz Pardo", "Anotar vigencia…");
 
         var dialogo = cut.Find("[role=dialog]");
-        dialogo.TextContent.Should().Contain("Anotar vigencia").And.NotContain("Se anotará la misma vigencia",
-            "el aviso del bloque solo sale con varias acreditaciones: aquí es la de una sola fila");
+        dialogo.TextContent.Should().Contain("Anotar vigencia");
+        // Artboard Listado-dialogos: una sola acreditación, en singular, con la Plataforma CAE y sin «1 de 1»; bajo los campos.
+        dialogo.QuerySelector(".anotar-vigencia-ayuda")!.TextContent.Trim()
+            .Should().Be("Se anotará la misma vigencia en 1 acreditación validada en Nalanda.");
+        dialogo.TextContent.Should().NotContain("1 de 1").And.NotContain("acreditaciones validadas");
+        dialogo.QuerySelector(".campo-fecha-fila input[inputmode=numeric]").Should().NotBeNull(
+            "el campo de la fecha sigue siendo el CampoTexto Type=\"date\" (en pantalla, dd/mm/aaaa con calendario), no un campo de texto suelto");
         anotadas.Should().BeEmpty("abrir no anota");
         await dialogo.QuerySelector("select")!.ChangeAsync(new ChangeEventArgs { Value = nameof(EstadoVigenciaEnPlataforma.NoVenceAqui) });
         await cut.FindAll("[role=dialog] button").Single(b => b.TextContent.Trim() == "Guardar vigencia").ClickAsync(new MouseEventArgs());
@@ -421,6 +433,49 @@ public partial class DocumentosGen2Tests
 
         cut.WaitForAssertion(() => Toasts().Should().Contain(t => t.Tono == TonoToast.Error && t.Mensaje.Contains("ya no admite el cambio")));
         mediador.Enviadas.OfType<ObtenerDocumentosQuery>().Count().Should().Be(consultasAntes);
+    }
+
+    [Fact]
+    public async Task El_disparador_de_la_fila_es_el_boton_secundario_pequeno_de_la_aplicacion_y_el_panel_se_ancla_a_su_fila()
+    {
+        var cut = await AgruparPorPlataformaAsync(EnNalanda(("Ana Ruiz Pardo", EstadoAcreditacion.Rechazada, null, Guid.NewGuid())));
+        var fila = FilaDe(cut, "Ana Ruiz Pardo");
+        fila.QuerySelector(".menu-acciones")!.ClassList.Should().Contain("menu-acciones-compacto");
+        fila.QuerySelector("button.menu-acciones-disparador")!.ClassList.Should().Contain("menu-acciones-disparador-compacto");
+
+        var css = File.ReadAllText(RutaWeb("Components", "DesignSystem", "MenuAcciones.razor.css"));
+        // 36 px de alto, 8×16 de relleno, radio y borde de control: los de `boton boton-secundario boton-pequeno`.
+        css.Should().MatchRegex(@"\.menu-acciones-disparador-compacto\s*\{[^}]*min-height:\s*36px[^}]*padding:\s*var\(--space-2\) var\(--space-4\)[^}]*border-radius:\s*var\(--radius-md\)[^}]*border-color:\s*var\(--color-border-control\)");
+        // El panel no depende de dejar sitio en la tabla: se ancla al disparador de su fila y se abre hacia el otro lado si no cabe.
+        css.Should().Contain("anchor-scope: --menu-acciones").And.Contain("position-anchor: --menu-acciones").And.Contain("position-try-fallbacks: flip-block");
+    }
+
+    [Fact]
+    public void Abrir_el_menu_no_reserva_alto_ni_desplaza_la_pagina()
+    {
+        var css = File.ReadAllText(RutaWeb("Features", "Documentos", "Pages", "Documentos.razor.css"));
+
+        // El panel ya no se recorta por el overflow de la tabla (va anclado y fijo): ninguna regla de la tabla reserva alto mientras
+        // hay un menú abierto (antes, :has(... [aria-expanded=true]) subía el padding-bottom a 17 rem y desplazaba la página).
+        css.Should().NotContain(".menu-acreditacion", "no hay regla de la tabla para el menú de la fila")
+            .And.NotMatchRegex(@":has\([^)]*aria-expanded", "ninguna regla de la tabla cambia según haya un menú abierto")
+            .And.NotMatchRegex(@"padding-bottom:\s*\d+(\.\d+)?rem");
+    }
+
+    [Fact]
+    public void El_pie_de_un_modal_con_boton_con_espera_no_estira_Cancelar_hasta_la_altura_de_la_envoltura()
+    {
+        var css = File.ReadAllText(RutaWeb("Components", "DesignSystem", "Modal.razor.css"));
+
+        css.Should().MatchRegex(@"\.modal-pie:has\(\.boton-espera\)\s*\{[^}]*align-items:\s*flex-start");
+    }
+
+    private static string RutaWeb(params string[] partes)
+    {
+        var directorio = new DirectoryInfo(AppContext.BaseDirectory);
+        while (directorio is not null && !Directory.Exists(Path.Combine(directorio.FullName, "src", "CaeManager.Web")))
+            directorio = directorio.Parent;
+        return Path.Combine([directorio!.FullName, "src", "CaeManager.Web", .. partes]);
     }
 
     private static Result RegistrarRechazo(List<MarcarAcreditacionRechazadaCommand> enviados, MarcarAcreditacionRechazadaCommand comando)

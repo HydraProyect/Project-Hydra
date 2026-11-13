@@ -7,7 +7,7 @@
     cada ItemMenuAccion se cierra a sí mismo tras ejecutar su acción vía
     CascadingValue — ver ItemMenuAccion.razor.
 *@
-<div class="menu-acciones">
+<div class="@(Compacto ? "menu-acciones menu-acciones-compacto" : "menu-acciones")">
     <button type="button" class="@ClasesDisparador" aria-haspopup="menu" aria-expanded="@(_abierto ? "true" : "false")"
             aria-controls="@_panelId" aria-label="@(EtiquetaAccesible ?? Etiqueta ?? "Más acciones")" title="@(Etiqueta is null && ConBorde ? EtiquetaAccesible : null)"
             data-keytip="@Keytip" data-keytip-nombre="@KeytipNombre"
@@ -106,6 +106,7 @@
     private string ClasesDisparador =>
         "menu-acciones-disparador"
         + (Etiqueta is null ? "" : " menu-acciones-disparador-texto")
+        + (Compacto && Etiqueta is not null ? " menu-acciones-disparador-compacto" : "")
         + (Pastilla ? " menu-acciones-disparador-pastilla" : "")
         + (Pastilla && Activa ? " menu-acciones-disparador-activa" : "")
         + (ConBorde ? " menu-acciones-disparador-borde" : "");

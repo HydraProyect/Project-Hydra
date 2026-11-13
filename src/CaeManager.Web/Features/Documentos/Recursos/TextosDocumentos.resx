@@ -511,5 +511,7 @@
   <data name="AcrDetalleRechazo" xml:space="preserve"><value>Detalle</value></data>
   <data name="AcrDetalleRechazoPlaceholder" xml:space="preserve"><value>Texto literal del portal, si lo hay</value></data>
   <data name="AcrErrorMotivo" xml:space="preserve"><value>Describe el motivo del rechazo.</value></data>
+  <data name="AcrRechazoContexto" xml:space="preserve"><value>{0} · {1} de {2}</value></data>
+  <data name="AnotarVigenciaAyudaUna" xml:space="preserve"><value>Se anotará la misma vigencia en 1 acreditación validada en {0}.</value></data>
   <data name="AcrMarcadoRechazado" xml:space="preserve"><value>Marcado como rechazado.</value></data>
 </root>

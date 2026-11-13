@@ -22,10 +22,6 @@
                  HayCambios="() => HayCambios" Guardando="_guardando" MensajeError="@_errorServidor"
                  HayErroresDeCampo="@(_errorFecha is not null)" OnGuardar="GuardarAsync"
                  TextoGuardar="@Textos["AnotarVigenciaGuardar"]" TextoCancelar="Cancelar">
-    @if (_ids.Count > 1)
-    {
-        <p>@Textos["PlatBloqueAviso", _ids.Count]</p>
-    }
     <CampoSelect Etiqueta="¿Hasta cuándo vale en esta plataforma?" Valor="@_estado"
                  ValorChanged="v => { _estado = v; _errorServidor = null; _errorFecha = null; }">
         <option value="@nameof(EstadoVigenciaEnPlataforma.VenceEnFecha)">Vence en una fecha</option>
@@ -38,6 +34,16 @@
                     ValorChanged="v => { _fecha = v; _errorServidor = null; _errorFecha = null; }" MensajeError="@_errorFecha"
                     FechaNoValida="_fechaNoValida" FechaNoValidaChanged="v => _fechaNoValida = v" />
     }
+    @* Artboard Listado-dialogos: la ayuda va bajo los campos y dice a cuántas acreditaciones llega. Una sola (el menú «Acreditación ▾»
+       de una fila, o un grupo con una) nombra la Plataforma CAE y va en singular, sin «1 de 1»; varias, el plural de siempre. *@
+    @if (_ids.Count > 1)
+    {
+        <p class="anotar-vigencia-ayuda">@Textos["PlatBloqueAviso", _ids.Count]</p>
+    }
+    else if (_ids.Count == 1 && !string.IsNullOrWhiteSpace(_plataformaNombre))
+    {
+        <p class="anotar-vigencia-ayuda">@Textos["AnotarVigenciaAyudaUna", _plataformaNombre]</p>
+    }
 </ModalFormulario>
 
 @code {
@@ -48,6 +54,7 @@
     private bool _guardando;
     private bool _deshaciendo;
     private List<Guid> _ids = [];
+    private string? _plataformaNombre;
     private string _estado = nameof(EstadoVigenciaEnPlataforma.VenceEnFecha);
     private string _fecha = string.Empty;
     private bool _fechaNoValida;
@@ -56,10 +63,14 @@
 
     private bool HayCambios => _visible && (_guardando || !string.IsNullOrWhiteSpace(_fecha) || _fechaNoValida);
 
-    /// <summary>Abre el modal para estas acreditaciones (las «Sin vigencia» seleccionadas del grupo).</summary>
-    public void Abrir(IReadOnlyCollection<Guid> acreditacionIds)
+    /// <summary>
+    /// Abre el modal para estas acreditaciones (las «Sin vigencia» seleccionadas del grupo, o la de la fila del menú «Acreditación ▾»).
+    /// <paramref name="plataformaNombre"/> es la Plataforma CAE de todas ellas: con una sola acreditación da nombre a la ayuda.
+    /// </summary>
+    public void Abrir(IReadOnlyCollection<Guid> acreditacionIds, string? plataformaNombre = null)
     {
         if (acreditacionIds.Count == 0) return;
+        _plataformaNombre = plataformaNombre;
         _ids = acreditacionIds.Distinct().ToList();
         _estado = nameof(EstadoVigenciaEnPlataforma.VenceEnFecha);
         _fecha = string.Empty;

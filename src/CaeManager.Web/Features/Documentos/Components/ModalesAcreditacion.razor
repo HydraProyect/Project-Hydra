@@ -47,14 +47,21 @@
                  HayCambios="() => HayCambiosRechazo" Guardando="_rechazando" MensajeError="@_errorServidorRechazo"
                  HayErroresDeCampo="@(_errorMotivo is not null)" OnGuardar="ConfirmarRechazoAsync"
                  TextoGuardar="@Textos["AcrRechazoGuardar"]" TextoCancelar="@Textos["AcrCancelar"]">
-    <CampoSelect Etiqueta="@Textos["AcrCausaRechazo"]" Valor="@_causaRechazo" ValorChanged="v => { _causaRechazo = v; _errorServidorRechazo = null; }">
-        @foreach (var causa in Enum.GetValues<CausaRechazoAcreditacion>())
-        {
-            <option value="@causa">@CausaRechazoAcreditacionUi.Texto(causa)</option>
-        }
-    </CampoSelect>
-    <CampoTextarea Etiqueta="@Textos["AcrDetalleRechazo"]" Valor="@_motivoRechazo" ValorChanged="v => { _motivoRechazo = v; _errorServidorRechazo = null; _errorMotivo = null; }"
-                   Placeholder="@Textos["AcrDetalleRechazoPlaceholder"]" Filas="3" MensajeError="@_errorMotivo" />
+    @* Artboard Listado-dialogos: bajo el título, qué acreditación es («Nalanda · Aptitud médica de Raúl Mena Costa»). *@
+    @if (!string.IsNullOrWhiteSpace(_contextoRechazo))
+    {
+        <p class="rechazo-contexto">@_contextoRechazo</p>
+    }
+    <div class="rechazo-campos">
+        <CampoSelect Etiqueta="@Textos["AcrCausaRechazo"]" Valor="@_causaRechazo" ValorChanged="v => { _causaRechazo = v; _errorServidorRechazo = null; }">
+            @foreach (var causa in Enum.GetValues<CausaRechazoAcreditacion>())
+            {
+                <option value="@causa">@CausaRechazoAcreditacionUi.Texto(causa)</option>
+            }
+        </CampoSelect>
+        <CampoTextarea Etiqueta="@Textos["AcrDetalleRechazo"]" Valor="@_motivoRechazo" ValorChanged="v => { _motivoRechazo = v; _errorServidorRechazo = null; _errorMotivo = null; }"
+                       Placeholder="@Textos["AcrDetalleRechazoPlaceholder"]" Filas="3" MensajeError="@_errorMotivo" />
+    </div>
 </ModalFormulario>
 
 @code {
@@ -76,6 +83,7 @@
     private bool _rechazoVisible;
     private bool _rechazando;
     private Guid _acreditacionIdRechazo;
+    private string? _contextoRechazo;
     private string _causaRechazo = nameof(CausaRechazoAcreditacion.Ilegible);
     private string _motivoRechazo = string.Empty;
     private string? _errorMotivo;
@@ -130,10 +138,16 @@
         StateHasChanged();
     }
 
-    /// <summary>«Marcar rechazado…»: abre el diálogo de la causa y el detalle.</summary>
-    public void AbrirRechazo(Guid acreditacionId)
+    /// <summary>
+    /// «Marcar rechazado…»: abre el diálogo de la causa y el detalle. Con la Plataforma CAE, el tipo y el Propietario de la acreditación
+    /// pinta bajo el título la línea «Nalanda · Aptitud médica de Raúl Mena Costa»; sin alguno de ellos, no se pinta.
+    /// </summary>
+    public void AbrirRechazo(Guid acreditacionId, string? plataformaNombre = null, string? tipoNombre = null, string? propietarioNombre = null)
     {
         _acreditacionIdRechazo = acreditacionId;
+        _contextoRechazo = string.IsNullOrWhiteSpace(plataformaNombre) || string.IsNullOrWhiteSpace(tipoNombre) || string.IsNullOrWhiteSpace(propietarioNombre)
+            ? null
+            : Textos["AcrRechazoContexto", plataformaNombre, tipoNombre, propietarioNombre].Value;
         _causaRechazo = nameof(CausaRechazoAcreditacion.Ilegible);
         _motivoRechazo = string.Empty;
         _errorMotivo = null;

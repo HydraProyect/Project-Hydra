@@ -1087,10 +1087,10 @@ public partial class Documentos : CaeManager.Web.Components.PaginaInteractiva, I
                 _modalesAcreditacion.AbrirValidado(acreditacion.Id);
                 break;
             case AccionAcreditacion.MarcarRechazado:
-                _modalesAcreditacion.AbrirRechazo(acreditacion.Id);
+                _modalesAcreditacion.AbrirRechazo(acreditacion.Id, NombreDeGrupo(documento.Grupo.Clave), documento.TipoDocumentoNombre, documento.PropietarioNombre);
                 break;
             case AccionAcreditacion.AnotarVigencia:
-                _anotarVigencia.Abrir([acreditacion.Id]);
+                _anotarVigencia.Abrir([acreditacion.Id], NombreDeGrupo(documento.Grupo.Clave));
                 break;
             case AccionAcreditacion.Gestionar:
                 _acreditacionAGestionar = (documento, [new AcreditacionResumenDto(acreditacion.Id, NombreDeGrupo(documento.Grupo.Clave), acreditacion.Estado)]);

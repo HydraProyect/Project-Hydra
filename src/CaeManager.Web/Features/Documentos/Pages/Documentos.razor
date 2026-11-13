@@ -802,7 +802,7 @@
                         {
                             <SoloConEscritura>
                                 <Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno" class="documentos-anotar-vigencia"
-                                       OnClick="() => _anotarVigencia.Abrir(anotables)">@Textos["GrupoAnotarVigencia", anotables.Count]</Boton>
+                                       OnClick="() => _anotarVigencia.Abrir(anotables, nombre)">@Textos["GrupoAnotarVigencia", anotables.Count]</Boton>
                             </SoloConEscritura>
                         }
                         @if (portal is not null)
