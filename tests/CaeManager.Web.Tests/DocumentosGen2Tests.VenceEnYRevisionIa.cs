@@ -2,6 +2,7 @@ using System.Text.Json;
 using AngleSharp.Dom;
 using Bunit;
 using CaeManager.Application.Configuracion.Commands.GuardarFiltro;
+using CaeManager.Application.Configuracion.Commands.GuardarVistaRecordada;
 using CaeManager.Application.Configuracion.Queries;
 using CaeManager.Application.Documentos.Queries.ObtenerDocumentos;
 using CaeManager.Application.Documentos.Queries.ObtenerRevisionesIaPendientes;
@@ -261,19 +262,92 @@ public partial class DocumentosGen2Tests
     }
 
     /// <summary>
-    /// Con el claim de gestión pero sin que el servidor aplique el filtro (Sesión Privilegiada: el rol efectivo es null y el handler
-    /// lo ignora), ninguna fila trae confianza: la pantalla no pinta una columna vacía sobre un listado sin filtrar.
+    /// Con el claim de gestión pero sin que el servidor aplique el filtro (Sesión Privilegiada, o el rol efectivo pasó de Gestor CAE a
+    /// Consulta dentro del circuito: el handler lo ignora), lo que llega es el listado sin filtrar. La pantalla no puede seguir diciendo
+    /// que está filtrado: ni chip, ni pastilla encendida, ni columna, ni parámetro en la URL, ni el filtro en «Exportar esta vista».
     /// </summary>
-    [Fact]
-    public void Si_el_servidor_no_aplico_el_filtro_la_pantalla_no_pinta_la_columna_Revision_IA()
+    private static MediadorControlado ServidorQueIgnoraRevisionIa(MediadorControlado mediador)
     {
-        var (cut, mediador) = Renderizar(ConDocumentos(ConConfianza("Aptitud médica", null), ConConfianza("Certificado TGSS", null)),
-            url: "documentos?PendienteRevisionIa=1", rol: "GestorCae");
-        cut.WaitForAssertion(() => mediador.Enviadas.OfType<ObtenerDocumentosQuery>().Should().NotBeEmpty());
-        cut.WaitForAssertion(() => cut.FindAll("table.documentos-tabla-visible tbody tr").Should().HaveCount(2));
+        mediador.FiltroRevisionIaAplicado = _ => false;
+        return mediador;
+    }
 
+    private static bool HayChipRevisionIa(IRenderedComponent<PaginaDocumentos> cut) =>
+        cut.FindAll(".chip-filtro").Any(c => c.TextContent.Contains("Pendiente de revisión IA"));
+
+    [Fact]
+    public void Si_el_servidor_no_aplico_el_filtro_la_pantalla_no_lo_muestra_como_aplicado()
+    {
+        // Filas con confianza a propósito: decide lo que dice el servidor, no lo que traigan las filas.
+        var (cut, mediador) = Renderizar(ServidorQueIgnoraRevisionIa(ConConfianzas()),
+            url: "documentos?VenceEn=30&PendienteRevisionIa=1", rol: "GestorCae");
+        cut.WaitForAssertion(() => mediador.Enviadas.OfType<ObtenerDocumentosQuery>()
+            .Should().Contain(q => q.PendienteDeRevisionIa, "control: la pantalla lo pidió"));
+        cut.WaitForAssertion(() => cut.FindAll("table.documentos-tabla-visible tbody tr").Should().HaveCount(3));
+
+        cut.WaitForAssertion(() => UrlActual().Should().NotContain("PendienteRevisionIa"));
+        UrlActual().Should().Contain("VenceEn=30", "control: los demás filtros siguen");
+        HayChipRevisionIa(cut).Should().BeFalse();
+        cut.FindAll(".chip-filtro").Should().Contain(c => c.TextContent.Contains("Vence en: 30 días"), "control: el chip de los demás sigue");
+        PastillaRevisionIa(cut).GetAttribute("aria-pressed").Should().Be("false");
         CabecerasDeLaTabla(cut).Should().NotContain("Revisión IA");
-        cut.FindAll("td.documentos-celda-revision-ia").Should().BeEmpty();
+        cut.FindAll("td.documentos-celda-revision-ia, .documentos-confianza").Should().BeEmpty();
+        cut.Find("header.cabecera-pagina a[data-keytip=X]").GetAttribute("href")
+            .Should().Contain("venceEn=30").And.NotContain("pendienteRevisionIa");
+    }
+
+    [Fact]
+    public async Task Si_el_servidor_no_aplica_el_filtro_al_pulsar_la_pastilla_esta_vuelve_a_apagarse()
+    {
+        var (cut, mediador) = Renderizar(ServidorQueIgnoraRevisionIa(ConConfianzas()), rol: "GestorCae");
+        cut.WaitForAssertion(() => mediador.Enviadas.OfType<ObtenerDocumentosQuery>().Should().NotBeEmpty());
+
+        await PastillaRevisionIa(cut).ClickAsync(new MouseEventArgs());
+
+        cut.WaitForAssertion(() => UltimaConsultaDeDocumentos(mediador).PendienteDeRevisionIa.Should().BeTrue("control: se pidió"));
+        cut.WaitForAssertion(() => PastillaRevisionIa(cut).GetAttribute("aria-pressed").Should().Be("false"));
+        HayChipRevisionIa(cut).Should().BeFalse();
+        UrlActual().Should().NotContain("PendienteRevisionIa");
+        CabecerasDeLaTabla(cut).Should().NotContain("Revisión IA");
+    }
+
+    [Fact]
+    public async Task Si_el_servidor_no_aplico_el_filtro_Guardar_filtro_no_lo_guarda()
+    {
+        var (cut, mediador) = Renderizar(ServidorQueIgnoraRevisionIa(ConOpcionesDeFiltro()),
+            url: "documentos?VenceEn=30&PendienteRevisionIa=1", rol: "GestorCae");
+        cut.WaitForAssertion(() => UrlActual().Should().NotContain("PendienteRevisionIa"));
+
+        await GuardarFiltroDocumentoFase1(cut);
+        var campoNombre = cut.FindComponents<CampoTexto>().Single(c => c.Instance.Etiqueta == "Nombre");
+        await cut.InvokeAsync(() => campoNombre.Instance.ValorChanged.InvokeAsync("Por vencer"));
+        await cut.FindAll(".modal-pie button").Single(b => b.TextContent.Trim() == "Guardar").ClickAsync(new MouseEventArgs());
+
+        var guardado = mediador.Enviadas.OfType<GuardarFiltroCommand>().Should().ContainSingle().Subject;
+        guardado.ValoresJson.Should().Contain("\"VenceEnDias\":30", "control: los demás filtros se guardan")
+            .And.NotContain("\"RevisionIa\":true");
+    }
+
+    [Fact]
+    public async Task Si_el_servidor_no_aplico_el_filtro_restaurado_la_vista_recordada_se_reescribe_sin_el()
+    {
+        var mediador = ServidorQueIgnoraRevisionIa(ConVistaRecordada(JsonSerializer.Serialize(
+            new Dictionary<string, string> { ["PendienteRevisionIa"] = "1", ["VenceEn"] = "7" })));
+
+        var (cut, _) = Renderizar(mediador, rol: "GestorCae");
+
+        cut.WaitForAssertion(() => mediador.Enviadas.OfType<ObtenerDocumentosQuery>()
+            .Should().Contain(q => q.PendienteDeRevisionIa && q.VenceEnDias == 7, "control: la vista recordada se restauró y se pidió"));
+        cut.WaitForAssertion(() => ParametrosDeLaUrl().Should().BeEquivalentTo(new Dictionary<string, string> { ["VenceEn"] = "7" }));
+        HayChipRevisionIa(cut).Should().BeFalse();
+
+        // La vista recordada sigue a la URL: tras el rebote (reloj real en este arnés) se escribe la vista sin el filtro que el
+        // servidor no aplicó. La escritura no re-renderiza, así que se espera al rebote en vez de a un render.
+        await Task.Delay(VistaRecordadaDeListado.Rebote + TimeSpan.FromSeconds(1));
+        await cut.InvokeAsync(() => { });
+        mediador.Enviadas.OfType<GuardarVistaRecordadaCommand>().Should().NotBeEmpty();
+        mediador.Enviadas.OfType<GuardarVistaRecordadaCommand>().Last().ValoresJson
+            .Should().Contain("VenceEn").And.NotContain("PendienteRevisionIa");
     }
 
     /// <summary>Guardar en la vista rápida relee la fila por Id (sin el filtro): la fila conserva la confianza con la que se cargó la página.</summary>

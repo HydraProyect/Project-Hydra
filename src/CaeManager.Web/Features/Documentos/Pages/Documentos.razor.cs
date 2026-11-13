@@ -1242,15 +1242,31 @@ public partial class Documentos : CaeManager.Web.Components.PaginaInteractiva, I
     /// <summary>El usuario accede a la pestaña Revisión IA (gestión documental): solo él ve y usa «Pendiente de revisión IA».</summary>
     private bool _puedeGestionarDocumentos;
 
+    /// <summary>
+    /// Se pide el filtro. Sale del claim de la sesión, pero quien decide es el handler, por el rol efectivo (con una Sesión Privilegiada,
+    /// o si el rol cambia dentro del circuito, el claim puede ser de gestión y el rol efectivo no): tras cada carga,
+    /// <see cref="DescartarRevisionIaNoAplicada"/> lo apaga si el servidor no lo aplicó.
+    /// </summary>
     private bool RevisionIaActiva => _revisionIaFiltro && _puedeGestionarDocumentos;
 
     /// <summary>
-    /// La columna «Revisión IA» existe solo si el servidor aplicó el filtro, y eso se sabe por lo que devolvió: alguna fila de la página lleva
-    /// confianza. <see cref="RevisionIaActiva"/> sale del claim de la sesión y el servidor decide por el rol efectivo (con una Sesión
-    /// Privilegiada el claim puede ser de gestión y el rol efectivo no): sin esta comprobación, el servidor ignoraría el filtro y la
-    /// pantalla pintaría una columna vacía sobre un listado sin filtrar. Con el filtro aplicado, toda fila de la cola lleva confianza.
+    /// La columna «Revisión IA» existe solo con el filtro aplicado (ver <see cref="RevisionIaActiva"/>) y si alguna fila de la página lleva
+    /// confianza: con el filtro aplicado, toda fila de la cola la lleva. Lo segundo es defensa en profundidad: sin filtro no se pinta una
+    /// columna vacía sobre un listado sin filtrar.
     /// </summary>
     private bool ColumnaRevisionIa => RevisionIaActiva && _elementosPagina.Any(d => d.ConfianzaRevisionIa is not null);
+
+    /// <summary>
+    /// El servidor ignoró «Pendiente de revisión IA» (<see cref="ResultadoPaginado{T}.FiltroRevisionIaAplicado"/>): las filas y los recuentos
+    /// que llegaron son los del listado sin ese filtro, así que la pantalla deja de mostrarlo como aplicado. Sin chip, con la pastilla
+    /// apagada, sin la columna y sin el parámetro en la URL; la vista recordada sigue a la URL, y «Guardar filtro» y «Exportar esta vista»
+    /// leen <see cref="RevisionIaActiva"/>. No hace falta volver a cargar: lo que llegó ya es el listado sin el filtro.
+    /// </summary>
+    private void DescartarRevisionIaNoAplicada()
+    {
+        _revisionIaFiltro = false;
+        NavigationManager.ActualizarFiltroEnUrl(nameof(PendienteRevisionIa), RevisionIaEnUrl(false));
+    }
 
     /// <summary>Solo el texto exacto de uno de los plazos que se ofrecen: ni ceros a la izquierda, ni signos, ni listas.</summary>
     private static string VenceEnValido(string? valor) =>
@@ -1460,6 +1476,7 @@ public partial class Documentos : CaeManager.Web.Components.PaginaInteractiva, I
 
             var ambitoFiltro = Enum.TryParse<AmbitoAplicacion>(_ambitoFiltro, out var ambito) ? ambito : (AmbitoAplicacion?)null;
             var estadosFiltro = SeleccionEstados.Separar<EstadoDocumento>(_estadoFiltro);
+            var revisionIaPedida = RevisionIaActiva;
 
             var resultado = await Mediator.Send(new ObtenerDocumentosQuery(
                 TrabajadorId: null,
@@ -1481,7 +1498,7 @@ public partial class Documentos : CaeManager.Web.Components.PaginaInteractiva, I
                 EstadosEnPlataforma: Enum.TryParse<EstadoEnPlataformaFiltro>(_estadoPlataformaFiltro, out var estadoPlataforma)
                     ? [estadoPlataforma] : null,
                 VenceEnDias: VenceEnDiasPedido,
-                PendienteDeRevisionIa: RevisionIaActiva), token);
+                PendienteDeRevisionIa: revisionIaPedida), token);
 
             // La respuesta de un filtro ya abandonado no puede pisar el total,
             // las filas ni la selección de la pregunta que sí se está mirando.
@@ -1495,6 +1512,8 @@ public partial class Documentos : CaeManager.Web.Components.PaginaInteractiva, I
             _recuentosPorEstado = resultado.RecuentosPorEstado;
             _resumenPorGrupo = resultado.ResumenPorGrupo;
             _hoy = DiaDeNegocio.Hoy();
+            if (revisionIaPedida && !resultado.FiltroRevisionIaAplicado)
+                DescartarRevisionIaNoAplicada();
 
             var elementos = resultado.Elementos.ToList();
             _elementosPagina = elementos;

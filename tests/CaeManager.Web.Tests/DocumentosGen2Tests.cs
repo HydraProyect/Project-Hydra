@@ -128,9 +128,16 @@ public partial class DocumentosGen2Tests : BunitContext
             var documentos = Documentos(q);
             return new ResultadoPaginado<DocumentoListaDto>(documentos, documentos.Count, q.Pagina, q.TamanoPagina)
             {
-                ResumenPorGrupo = ResumenesDeGrupo(q)
+                ResumenPorGrupo = ResumenesDeGrupo(q),
+                FiltroRevisionIaAplicado = FiltroRevisionIaAplicado(q),
             };
         }
+
+        /// <summary>
+        /// Lo que el handler dice de «Pendiente de revisión IA». Por defecto, que lo aplicó si se pidió (el rol efectivo coincide con el
+        /// claim); un test que simule otro rol efectivo devuelve <c>false</c>.
+        /// </summary>
+        public Func<ObtenerDocumentosQuery, bool> FiltroRevisionIaAplicado { get; set; } = q => q.PendienteDeRevisionIa;
 
         /// <summary>Cabeceras de grupo que devuelve <see cref="ObtenerDocumentosQuery"/>; por defecto ninguna.</summary>
         public Func<ObtenerDocumentosQuery, IReadOnlyDictionary<string, ResumenDeGrupo>?> ResumenesDeGrupo { get; set; } = _ => null;
