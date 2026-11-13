@@ -39,27 +39,19 @@ else if (_error)
 }
 else if (_sugerencias.Count > 0)
 {
-    var centros = _sugerencias.Select(s => s.CentroId).Distinct().Count();
-    var claves = new ClavesDeHermanos();
-
     <SeccionColapsable Titulo="@Textos["FaltanTitulo"]" ExpandidaPorDefecto="true">
         <Encabezado>
-            <Badge Tono="TonoBadge.Advertencia" Tamano="TamanoBadge.Pequeno">
-                @(centros == 1 ? Textos["FaltanCentrosUno"] : Textos["FaltanCentros", centros])
-            </Badge>
+            <Badge Tono="TonoBadge.Advertencia" Tamano="TamanoBadge.Pequeno">@TextoCentros</Badge>
         </Encabezado>
         <ChildContent>
             <div class="faltan-documentos">
                 <p class="faltan-documentos-nota">@Textos["FaltanNota"]</p>
+                @{ var claves = new ClavesDeHermanos(); }
                 @foreach (var sugerencia in _sugerencias)
                 {
                     <div class="faltan-documentos-grupo" @key="claves.De((sugerencia.CentroId, sugerencia.TipoDocumentoId))">
                         <h3 class="faltan-documentos-titulo">@Textos["FaltanTituloGrupo", sugerencia.CentroNombre, sugerencia.TipoDocumentoNombre]</h3>
-                        <p class="faltan-documentos-recuento">
-                            @(sugerencia.Trabajadores.Count == 1
-                                ? Textos["FaltanRecuentoUno"]
-                                : Textos["FaltanRecuento", sugerencia.Trabajadores.Count])
-                        </p>
+                        <p class="faltan-documentos-recuento">@TextoRecuento(sugerencia.Trabajadores.Count)</p>
                         <ul class="faltan-documentos-lista">
                             @foreach (var trabajador in sugerencia.Trabajadores)
                             {
@@ -85,6 +77,19 @@ else if (_sugerencias.Count > 0)
     private IReadOnlyList<SugerenciaPreventivaDto> _sugerencias = [];
 
     protected override async Task OnInitializedAsync() => await CargarAsync();
+
+    /// <summary>El pill cuenta Centros distintos, no tarjetas: un Centro con dos tipos de Documento faltantes tiene dos tarjetas.</summary>
+    private string TextoCentros
+    {
+        get
+        {
+            var centros = _sugerencias.Select(s => s.CentroId).Distinct().Count();
+            return centros == 1 ? Textos["FaltanCentrosUno"] : Textos["FaltanCentros", centros];
+        }
+    }
+
+    private string TextoRecuento(int trabajadores) =>
+        trabajadores == 1 ? Textos["FaltanRecuentoUno"] : Textos["FaltanRecuento", trabajadores];
 
     private async Task CargarAsync()
     {
