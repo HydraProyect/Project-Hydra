@@ -322,12 +322,13 @@ public class AccesosDocumentosSensiblesGen2Tests : BunitContext
         [
             Acceso(tipo: TipoAccesoDocumentoSensible.Apertura, ocurrido: Base, documentoId: documento),
             Acceso(tipo: TipoAccesoDocumentoSensible.VersionAnterior, ocurrido: Base.AddMinutes(-1)),
-            Acceso(tipo: TipoAccesoDocumentoSensible.EntregaExtension, ocurrido: Base.AddMinutes(-2))
+            Acceso(tipo: TipoAccesoDocumentoSensible.EntregaExtension, ocurrido: Base.AddMinutes(-2)),
+            Acceso(tipo: TipoAccesoDocumentoSensible.RevisionIa, ocurrido: Base.AddMinutes(-3))
         ]);
         var cut = Renderizar();
 
         var filas = Filas(cut);
-        filas.Select(f => Celda(f, 4)).Should().Equal(["Apertura", "Versión anterior", "Entrega a la extensión"]);
+        filas.Select(f => Celda(f, 4)).Should().Equal(["Apertura", "Versión anterior", "Entrega a la extensión", "Revisión IA"]);
         Celda(filas[0], 2).Should().Be(documento.ToString());
         cut.FindAll(".accesos-sensibles-tabla tbody a, .accesos-sensibles-tabla tbody button")
             .Should().BeEmpty("es una pantalla de solo lectura");
@@ -336,6 +337,24 @@ public class AccesosDocumentosSensiblesGen2Tests : BunitContext
         marco.GetAttribute("role").Should().Be("region", "el marco se desplaza en horizontal: tiene que ser una región");
         marco.GetAttribute("aria-label").Should().Be("Registro de accesos a documentos sensibles");
         marco.GetAttribute("tabindex").Should().Be("0", "sin foco, con teclado no se puede desplazar");
+    }
+
+    /// <summary>
+    /// Un tipo de acceso nuevo nunca se disfraza de «Apertura»: cada valor del enum tiene su propio texto, y solo la
+    /// Apertura dice «Apertura». Antes el defecto del switch pintaba «Apertura» para cualquier valor que no conociera.
+    /// </summary>
+    [Fact]
+    public void Cada_tipo_de_acceso_tiene_su_propio_texto_y_solo_la_Apertura_dice_Apertura()
+    {
+        var tipos = Enum.GetValues<TipoAccesoDocumentoSensible>();
+        _mediador.Almacen.AddRange(tipos.Select((t, i) => Acceso(tipo: t, ocurrido: Base.AddMinutes(-i))));
+        var cut = Renderizar();
+
+        var textos = Filas(cut).Select(f => Celda(f, 4)).ToList();
+        textos.Should().HaveCount(tipos.Length).And.OnlyHaveUniqueItems();
+        textos.Where(t => t == "Apertura").Should().ContainSingle();
+        textos.Should().NotContain(tipos.Select(t => t.ToString()).Where(n => n != "Apertura"),
+            "cada valor tiene un texto traducido, no el nombre del enum");
     }
 
     // ------------------------------------------------------------------ Estados

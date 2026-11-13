@@ -10,63 +10,70 @@ using Microsoft.AspNetCore.Components.Web;
 namespace CaeManager.Web.Tests;
 
 /// <summary>
-/// Revisión IA, ronda 2: el visor del documento no se carga solo (cada GET de /documentos/{id}/archivo registra una Apertura),
-/// el texto del diálogo de «Confirmar todos», «Confirmable» depende del umbral y el foco vuelve al disparador del desplegable.
+/// Revisión IA, ronda 2: el visor carga solo el documento de la revisión seleccionada (D-49, opción C) por la ruta de la
+/// revisión, que el servidor registra como «Revisión IA» una vez por revisión y persona; «Descargar» sigue en
+/// /documentos/{id}/archivo (Apertura). También el texto del diálogo de «Confirmar todos», «Confirmable» según el umbral y
+/// el foco del desplegable.
 /// </summary>
 public partial class RevisionIaGen2Tests
 {
+    /// <summary>La ruta del visor: la de la revisión, no la del Documento.</summary>
+    private static string RutaDelVisor(RevisionIaDocumentoDto revision) => $"/documentos/revision-ia/{revision.Id}/archivo";
+
     private static string RutaDelDocumento(RevisionIaDocumentoDto revision) => $"/documentos/{revision.DocumentoId}/archivo";
 
     private static IReadOnlyList<string> IframesDelVisor(IRenderedComponent<RevisionIaTab> cut) =>
         cut.FindAll("iframe").Select(i => i.GetAttribute("src") ?? string.Empty).ToList();
 
-    private static async Task VerDocumentoAsync(IRenderedComponent<RevisionIaTab> cut) =>
-        await Boton(cut, "Ver documento").ClickAsync(new MouseEventArgs());
-
     private static string MensajeDelDialogoDeLote(IRenderedComponent<RevisionIaTab> cut, string titulo = "Confirmar las lecturas de confianza alta") =>
         cut.FindComponents<DialogoConfirmacion>().Single(d => d.Instance.Titulo == titulo).Instance.Mensaje;
 
-    // ---- Visor: el documento solo se carga con «Ver documento» ----
+    // ---- Visor: el documento de la seleccionada se carga solo ----
 
     [Fact]
-    public async Task Seleccionar_o_avanzar_no_pinta_ningun_iframe_y_las_acciones_siguen_disponibles()
+    public void Abrir_la_pantalla_carga_el_documento_de_la_primera_revision_por_la_ruta_de_la_revision()
     {
-        var mediador = TresQueSeResuelven();
-        var cut = Renderizar(mediador);
+        var primera = Revision("Primera", 50, Vence);
+        var cut = Renderizar(new MediadorFalso { Revisiones = [primera, Revision("Segunda", 60, Vence)] });
 
-        IframesDelVisor(cut).Should().BeEmpty("abrir la pantalla no pide el documento: el endpoint registra una Apertura en cada GET");
-        Boton(cut, "Ver documento");
-        Boton(cut, "Aceptar detección").HasAttribute("disabled").Should().BeFalse("las acciones no necesitan abrir el documento");
-
-        await Navegar(cut, "Siguiente (J)").ClickAsync(new MouseEventArgs());
-        await SeleccionarEnDesplegableAsync(cut, "Tercera");
-        await cut.InvokeAsync(() => cut.FindComponent<AtajosListaTeclado>().Instance.RecibirAtajo("k"));
-        IframesDelVisor(cut).Should().BeEmpty("‹ ›, el desplegable y j/k solo seleccionan");
-
-        await Boton(cut, "Aceptar detección").ClickAsync(new MouseEventArgs());
-        IframesDelVisor(cut).Should().BeEmpty("el avance automático tampoco carga el documento de la siguiente");
-        mediador.Enviadas.OfType<CaeManager.Application.Documentos.Commands.AplicarDeteccionIaDocumento.AplicarDeteccionIaDocumentoCommand>()
-            .Should().ContainSingle("aceptar sin abrir el documento funciona");
+        IframesDelVisor(cut).Should().ContainSingle().Which.Should().Be(RutaDelVisor(primera),
+            "D-49: el documento se carga sin pulsar nada, por la ruta que lo registra como «Revisión IA»");
+        cut.FindAll("button").Should().NotContain(b => b.TextContent.Trim() == "Ver documento", "ya no hay estado de reposo");
+        cut.FindAll(".revision-ia-pdf-reposo").Should().BeEmpty();
     }
 
     [Fact]
-    public async Task Pulsar_Ver_documento_pinta_el_iframe_del_documento_de_la_revision_seleccionada()
+    public void El_visor_nunca_pide_la_ruta_del_Documento_y_Descargar_sigue_en_ella()
+    {
+        var primera = Revision("Primera", 50, Vence);
+        var cut = Renderizar(new MediadorFalso { Revisiones = [primera] });
+
+        IframesDelVisor(cut).Should().NotContain(RutaDelDocumento(primera), "esa ruta registra una Apertura en cada GET");
+        cut.FindAll("a").Where(a => a.TextContent.Trim() == "Descargar").Select(a => a.GetAttribute("href"))
+            .Should().ContainSingle().Which.Should().Be(RutaDelDocumento(primera), "«Descargar» sigue siendo una Apertura");
+    }
+
+    [Fact]
+    public async Task Seleccionar_carga_el_documento_de_la_revision_seleccionada_y_las_acciones_siguen_disponibles()
     {
         var segunda = Revision("Segunda", 60, Vence);
-        var cut = Renderizar(new MediadorFalso { Revisiones = [Revision("Primera", 50, Vence), segunda, Revision("Tercera", 70, Vence)] });
+        var tercera = Revision("Tercera", 70, Vence);
+        var mediador = new MediadorFalso { Revisiones = [Revision("Primera", 50, Vence), segunda, tercera] };
+        var cut = Renderizar(mediador);
+
         await SeleccionarEnDesplegableAsync(cut, "Segunda");
+        IframesDelVisor(cut).Should().ContainSingle().Which.Should().Be(RutaDelVisor(segunda));
 
-        await VerDocumentoAsync(cut);
-
-        IframesDelVisor(cut).Should().ContainSingle().Which.Should().Be(RutaDelDocumento(segunda));
-        cut.FindAll("button").Should().NotContain(b => b.TextContent.Trim() == "Ver documento", "con el documento cargado el reposo desaparece");
+        await Navegar(cut, "Siguiente (J)").ClickAsync(new MouseEventArgs());
+        IframesDelVisor(cut).Should().ContainSingle().Which.Should().Be(RutaDelVisor(tercera));
+        Boton(cut, "Aceptar detección").HasAttribute("disabled").Should().BeFalse("las acciones no esperan al documento");
     }
 
     public static TheoryData<string> CambiosDeSeleccion => new() { "siguiente", "anterior", "atajo-j", "atajo-k", "desplegable", "aceptar-con-avance", "codigo" };
 
     [Theory]
     [MemberData(nameof(CambiosDeSeleccion))]
-    public async Task Cambiar_de_seleccion_devuelve_el_visor_al_reposo_y_nunca_muestra_el_documento_de_otra_revision(string cambio)
+    public async Task Cambiar_de_seleccion_carga_el_documento_de_la_nueva_y_nunca_deja_el_de_otra_revision(string cambio)
     {
         var primera = Revision("Primera", 50, Vence);
         var segunda = Revision("Segunda", 60, Vence);
@@ -85,8 +92,7 @@ public partial class RevisionIaGen2Tests
         }
 
         var abierta = cambio is "anterior" or "atajo-k" ? segunda : primera;
-        await VerDocumentoAsync(cut);
-        IframesDelVisor(cut).Should().ContainSingle().Which.Should().Be(RutaDelDocumento(abierta), "control positivo: el documento de la revisión elegida está cargado");
+        IframesDelVisor(cut).Should().ContainSingle().Which.Should().Be(RutaDelVisor(abierta), "control positivo: el documento de la revisión elegida está cargado");
 
         switch (cambio)
         {
@@ -103,22 +109,33 @@ public partial class RevisionIaGen2Tests
                 break;
         }
 
-        IframesDelVisor(cut).Should().BeEmpty($"tras «{cambio}» el visor vuelve al reposo");
-        Boton(cut, "Ver documento");
-        cut.Markup.Should().NotContain(RutaDelDocumento(abierta), "el documento de la revisión anterior no se queda a la vista");
+        var esperada = cambio switch
+        {
+            "siguiente" or "atajo-j" => segunda,
+            "anterior" or "atajo-k" => primera,
+            "desplegable" or "codigo" => tercera,
+            _ => null,
+        };
+        var visor = IframesDelVisor(cut).Should().ContainSingle($"tras «{cambio}» hay un visor, el de la nueva selección").Which;
+        visor.Should().NotBe(RutaDelVisor(abierta), "el documento de la revisión anterior no se queda a la vista");
+        if (esperada is not null)
+            visor.Should().Be(RutaDelVisor(esperada));
+        else
+            visor.Should().BeOneOf(RutaDelVisor(segunda), RutaDelVisor(tercera), "el avance pasa a otra pendiente");
+        cut.Markup.Should().NotContain(RutaDelVisor(abierta));
     }
 
     [Fact]
-    public async Task Volver_a_una_revision_ya_vista_no_recupera_su_documento_cargado()
+    public async Task Volver_a_una_revision_ya_vista_vuelve_a_cargar_su_documento_por_su_ruta()
     {
         var primera = Revision("Primera", 50, Vence);
         var cut = Renderizar(new MediadorFalso { Revisiones = [primera, Revision("Segunda", 60, Vence)] });
-        await VerDocumentoAsync(cut);
 
         await Navegar(cut, "Siguiente (J)").ClickAsync(new MouseEventArgs());
         await Navegar(cut, "Anterior (K)").ClickAsync(new MouseEventArgs());
 
-        IframesDelVisor(cut).Should().BeEmpty("cada visita al documento es una petición explícita y queda registrada");
+        IframesDelVisor(cut).Should().ContainSingle().Which.Should().Be(RutaDelVisor(primera),
+            "la nueva petición no añade fila: el servidor deja una por revisión y persona");
     }
 
     // ---- Texto del diálogo de «Confirmar todos» ----
@@ -256,33 +273,8 @@ public partial class RevisionIaGen2Tests
         });
     }
 
-    // ---- Reposo del visor: qué se registra de verdad ----
-
     [Fact]
-    public void El_reposo_del_visor_solo_promete_el_registro_de_las_aperturas_de_documentos_sensibles()
-    {
-        var cut = Renderizar(new MediadorFalso { Revisiones = [Revision("Primera", 50, Vence)] });
-
-        cut.Find(".revision-ia-pdf-reposo p").TextContent.Trim().Should().Be(
-            "El documento no se carga hasta que lo pidas: las aperturas de documentos sensibles quedan registradas.");
-        cut.Markup.Should().NotContain("cada apertura queda registrada", "solo se registran las aperturas de documentos sensibles");
-    }
-
-    [Fact]
-    public async Task El_reposo_del_visor_en_catalan_solo_promete_el_registro_de_las_obertures_de_documents_sensibles()
-    {
-        await ConCulturaCatalanaAsync(() =>
-        {
-            var cut = Renderizar(new MediadorFalso { Revisiones = [Revision("Primera", 50, Vence)] });
-
-            cut.Find(".revision-ia-pdf-reposo p").TextContent.Trim().Should().Be(
-                "El document no es carrega fins que el demanis: les obertures de documents sensibles queden registrades.");
-            return Task.CompletedTask;
-        });
-    }
-
-    [Fact]
-    public async Task Reintentar_tras_un_error_de_recarga_no_devuelve_el_iframe_del_documento()
+    public async Task Reintentar_tras_un_error_de_recarga_vuelve_a_mostrar_el_documento_de_la_seleccionada()
     {
         var manual = Revision("Manual", 60, Vence);
         var confirmable = Revision("Confirmable", 97, Vence);
@@ -292,8 +284,7 @@ public partial class RevisionIaGen2Tests
             ? Task.FromException(new InvalidOperationException("la recarga falla"))
             : null;
         var cut = Renderizar(mediador);
-        await VerDocumentoAsync(cut);
-        IframesDelVisor(cut).Should().ContainSingle().Which.Should().Be(RutaDelDocumento(manual), "control positivo: el documento está abierto");
+        IframesDelVisor(cut).Should().ContainSingle().Which.Should().Be(RutaDelVisor(manual), "control positivo: el documento está abierto");
 
         recargaCaida = true;
         await ConfirmarTodosAsync(cut, "Confirmar todos los ≥95 % (1)");
@@ -302,8 +293,8 @@ public partial class RevisionIaGen2Tests
         await Boton(cut, "Reintentar").ClickAsync(new MouseEventArgs());
 
         cut.FindAll(".revision-ia-lateral").Should().NotBeEmpty("la cola se recuperó y la selección sigue ahí");
-        IframesDelVisor(cut).Should().BeEmpty("tras Reintentar el documento vuelve a pedirse con «Ver documento»: cada apertura es explícita");
-        Boton(cut, "Ver documento");
+        IframesDelVisor(cut).Should().ContainSingle("tras Reintentar el visor vuelve con la revisión seleccionada")
+            .Which.Should().StartWith("/documentos/revision-ia/");
     }
 
     [Fact]

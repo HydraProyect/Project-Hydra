@@ -11,10 +11,15 @@ namespace CaeManager.Domain.Auditoria;
 /// que la extensión de navegador recibe para ponerlo en el formulario de una
 /// plataforma CAE de terceros: el contenido sale hacia un tercero si el Gestor CAE
 /// lo envía, y el registro tiene que poder distinguirlo de una apertura en TALVEG.
+/// <see cref="RevisionIa"/> es el documento que la pantalla Revisión IA carga sola al seleccionar una revisión pendiente
+/// (D-49, opción C): lo sirve una ruta propia, ligada a la revisión, y queda una fila por revisión y persona (Usuario,
+/// Actor real y vía), no una por petición. Lo decide el servidor por la ruta, nunca un dato del cliente; «Descargar» y
+/// cualquier otra vía siguen siendo <see cref="Apertura"/>.
 /// </summary>
 public enum TipoAccesoDocumentoSensible
 {
     Apertura = 0,
     VersionAnterior = 1,
-    EntregaExtension = 2
+    EntregaExtension = 2,
+    RevisionIa = 3
 }

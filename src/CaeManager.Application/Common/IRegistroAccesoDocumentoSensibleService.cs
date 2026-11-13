@@ -25,6 +25,8 @@ namespace CaeManager.Application.Common;
 /// <c>PaqueteDocumentalVisitaService.ConstruirAsync</c>. Y el «Preparar paquete» de Empresa 360
 /// (<c>DescargarPaqueteEmpresaQuery</c>), que registra una apertura por cada Documento que entró en el zip antes de
 /// entregarlo, todas en una sola transacción: si una falla, no queda ninguna y el zip no se entrega.
+/// Y el documento que la pantalla Revisión IA carga sola (<c>GET /documentos/revision-ia/{revisionId}/archivo</c>), con su
+/// tipo propio y una fila por revisión y persona (<see cref="RegistrarRevisionIaSiSensibleAsync"/>).
 /// </para>
 ///
 /// <para>
@@ -72,6 +74,21 @@ public interface IRegistroAccesoDocumentoSensibleService
     /// </summary>
     Task RegistrarSiSensibleAsync(
         Guid recursoId, Guid tipoDocumentoId, TipoAccesoDocumentoSensible tipoAcceso, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// El documento de una revisión pendiente que la pantalla Revisión IA carga sola (D-49, opción C;
+    /// <c>GET /documentos/revision-ia/{revisionId}/archivo</c>): registra un
+    /// <see cref="TipoAccesoDocumentoSensible.RevisionIa"/> igual que <see cref="RegistrarSiSensibleAsync(Guid, TipoAccesoDocumentoSensible, CancellationToken)"/>
+    /// —misma clasificación, mismo fallo en cerrado, misma señal de extracción masiva—, pero solo una vez por revisión y
+    /// persona: si ya consta una fila <c>RevisionIa</c> de ese Documento, con el mismo Usuario, Actor real y vía, ocurrida
+    /// desde <paramref name="revisionCreadaEnUtc"/>, no escribe otra (el visor pide por rangos y se recarga). La consulta
+    /// pasa por el filtro de Tenant y la RLS de la tabla. Si no se puede comprobar, registra: un falso «ya registrado»
+    /// dejaría un acceso sin rastro.
+    /// La implementación por defecto no deduplica (registra en cada llamada): de más, nunca de menos.
+    /// </summary>
+    Task RegistrarRevisionIaSiSensibleAsync(
+        Guid documentoId, DateTime revisionCreadaEnUtc, CancellationToken cancellationToken = default) =>
+        RegistrarSiSensibleAsync(documentoId, TipoAccesoDocumentoSensible.RevisionIa, cancellationToken);
 
     /// <summary>
     /// Abre un lote de aperturas para quien las agrupa en una transacción de varios guardados

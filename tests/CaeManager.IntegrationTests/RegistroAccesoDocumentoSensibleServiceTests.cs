@@ -94,6 +94,72 @@ public class RegistroAccesoDocumentoSensibleServiceTests : IAsyncLifetime
         resultado.Elementos.Single(e => e.DocumentoId == dadoDeBaja.Id).DocumentoTitulo.Should().BeNull();
     }
 
+    private RegistroAccesoDocumentoSensibleService CrearServicioConDeduplicacion(ActorAuditoria actor) =>
+        new(_dbContext, _dbContext, new ActorAuditoriaFalso(actor),
+            new RegistroAccesoDocumentoSensibleRepository(_dbContext, NullLogger<RegistroAccesoDocumentoSensibleRepository>.Instance),
+            auditoriaContext: _dbContext);
+
+    private async Task<List<RegistroAccesoDocumentoSensible>> RegistrosDeAsync(Guid documentoId) =>
+        await _dbContext.RegistrosAccesoDocumentoSensible.AsNoTracking().Where(r => r.DocumentoId == documentoId).ToListAsync();
+
+    /// <summary>
+    /// D-49, opción C: el visor de Revisión IA pide el documento cada vez que se selecciona la revisión; consta una sola
+    /// fila «Revisión IA» por revisión y persona. Las Aperturas siguen registrándose en cada llamada.
+    /// </summary>
+    [Fact]
+    public async Task La_Revision_IA_deja_una_fila_por_revision_y_persona_aunque_se_pida_varias_veces()
+    {
+        var tipo = await TipoConSensibilidadAsync(SensibilidadDocumental.CategoriaEspecialSalud);
+        var documento = CrearDocumentoDeEmpresa(tipo.Id);
+        _dbContext.Documentos.Add(documento);
+        await _dbContext.SaveChangesAsync();
+        var creada = DateTime.UtcNow.AddMinutes(-5);
+        var marta = Guid.NewGuid();
+        var servicio = CrearServicioConDeduplicacion(ActorAuditoria.Normal(marta));
+
+        for (var i = 0; i < 3; i++)
+            await servicio.RegistrarRevisionIaSiSensibleAsync(documento.Id, creada);
+        await servicio.RegistrarSiSensibleAsync(documento.Id, TipoAccesoDocumentoSensible.Apertura);
+        await servicio.RegistrarSiSensibleAsync(documento.Id, TipoAccesoDocumentoSensible.Apertura);
+
+        var registros = await RegistrosDeAsync(documento.Id);
+        registros.Where(r => r.TipoAcceso == TipoAccesoDocumentoSensible.RevisionIa).Should().ContainSingle()
+            .Which.UsuarioId.Should().Be(marta);
+        registros.Count(r => r.TipoAcceso == TipoAccesoDocumentoSensible.Apertura).Should().Be(2, "la Apertura no se deduplica");
+    }
+
+    [Fact]
+    public async Task Otra_persona_o_una_revision_posterior_del_mismo_Documento_dejan_su_propia_fila()
+    {
+        var tipo = await TipoConSensibilidadAsync(SensibilidadDocumental.CategoriaEspecialSalud);
+        var documento = CrearDocumentoDeEmpresa(tipo.Id);
+        _dbContext.Documentos.Add(documento);
+        await _dbContext.SaveChangesAsync();
+        var creada = DateTime.UtcNow.AddMinutes(-5);
+
+        await CrearServicioConDeduplicacion(ActorAuditoria.Normal(Guid.NewGuid())).RegistrarRevisionIaSiSensibleAsync(documento.Id, creada);
+        var otra = CrearServicioConDeduplicacion(ActorAuditoria.Normal(Guid.NewGuid()));
+        await otra.RegistrarRevisionIaSiSensibleAsync(documento.Id, creada);
+        // Una revisión creada después de la fila anterior de esa persona es otra revisión: vuelve a registrar.
+        await otra.RegistrarRevisionIaSiSensibleAsync(documento.Id, DateTime.UtcNow.AddMinutes(1));
+
+        (await RegistrosDeAsync(documento.Id)).Count(r => r.TipoAcceso == TipoAccesoDocumentoSensible.RevisionIa).Should().Be(3);
+    }
+
+    [Fact]
+    public async Task La_Revision_IA_de_un_Documento_no_sensible_no_deja_fila()
+    {
+        var tipo = await TipoConSensibilidadAsync(SensibilidadDocumental.SinDatosPersonales);
+        var documento = CrearDocumentoDeEmpresa(tipo.Id);
+        _dbContext.Documentos.Add(documento);
+        await _dbContext.SaveChangesAsync();
+
+        await CrearServicioConDeduplicacion(ActorAuditoria.Normal(Guid.NewGuid()))
+            .RegistrarRevisionIaSiSensibleAsync(documento.Id, DateTime.UtcNow.AddMinutes(-5));
+
+        (await RegistrosDeAsync(documento.Id)).Should().BeEmpty();
+    }
+
     [Fact]
     public async Task Registra_el_acceso_cuando_el_tipo_revela_salud()
     {

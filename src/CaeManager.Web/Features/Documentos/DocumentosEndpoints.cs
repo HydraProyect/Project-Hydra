@@ -2,6 +2,7 @@ using CaeManager.Web.Components.DesignSystem;
 using CaeManager.Application.Common;
 using CaeManager.Application.Documentos.Queries.ObtenerDocumentoPorId;
 using CaeManager.Application.Documentos.Queries.ObtenerDocumentos;
+using CaeManager.Application.Documentos.Queries.ObtenerRevisionesIaPendientes;
 using CaeManager.Application.Importacion;
 using CaeManager.Application.Tenants.Queries.ObtenerClientesAutorizados;
 using CaeManager.Domain.Auditoria;
@@ -33,6 +34,19 @@ public static class DocumentosEndpoints
         // cartera con el rol real de quien pide.
         endpoints.MapGet("/documentos/{id:guid}/archivo", ServirArchivoAsync)
             .RequireAuthorization(new AuthorizeAttribute { AuthenticationSchemes = IdentityConstants.ApplicationScheme });
+
+        // Revisión IA (D-49, opción C): el visor de la revisión seleccionada se carga solo, y su acceso queda como
+        // «Revisión IA», una fila por revisión y persona. El origen lo da esta ruta, ligada a una revisión pendiente, nunca
+        // un dato del cliente (query, cabecera, Referer): /documentos/{id}/archivo sigue registrando una Apertura en cada GET.
+        // Solo cookie de sesión y los roles de la pantalla (el claim; dentro de un Workspace operativo derivado ya es el rol
+        // efectivo, y bajo una Sesión Privilegiada no hay ninguno). ObtenerRevisionIaParaVisorQuery vuelve a decidir con el
+        // rol efectivo, la cola (pendiente, Tenant propietario, Asignación de Cartera) y, al abrir, DocumentoLegibleAsync.
+        endpoints.MapGet("/documentos/revision-ia/{revisionId:guid}/archivo", ServirArchivoDeRevisionIaAsync)
+            .RequireAuthorization(new AuthorizeAttribute
+            {
+                AuthenticationSchemes = IdentityConstants.ApplicationScheme,
+                Roles = string.Join(',', ColaRevisionIa.RolesQueAccedenALaPestana),
+            });
 
         // Solo se enlaza desde /importacion (Importacion.razor: Roles = ConCargaMasivaCsv: Administrador, Dirección CAE y Coordinador CAE)
         // — mismo motivo que el RequireAuthorization de /clientes/plantilla.xlsx,
@@ -218,8 +232,47 @@ public static class DocumentosEndpoints
         if (abierto.Rechazo is not null)
             return abierto.Rechazo;
 
-        var documento = abierto.Documento!;
+        return ServirEnLinea(contexto, abierto.Flujo!, abierto.Documento!);
+    }
 
+    /// <summary>
+    /// Manejador de <c>GET /documentos/revision-ia/{revisionId}/archivo</c>: el documento de una revisión IA pendiente, para
+    /// el visor que la pantalla Revisión IA carga sola (D-49, opción C). Sirve el Documento de ESA revisión —el cliente no
+    /// lo elige— y lo registra como <see cref="TipoAccesoDocumentoSensible.RevisionIa"/>, una vez por revisión y persona
+    /// (<see cref="IRegistroAccesoDocumentoSensibleService.RegistrarRevisionIaSiSensibleAsync"/>). Una revisión que quien
+    /// pide no alcanza en la cola da 404, igual que un Id que no existe.
+    /// </summary>
+    public static async Task<IResult> ServirArchivoDeRevisionIaAsync(
+        Guid revisionId, HttpContext contexto, IMediator mediator, IFileStorageService almacenamiento,
+        IRegistroAccesoDocumentoSensibleService registroAcceso, ILoggerFactory fabricaRegistro,
+        CancellationToken cancellationToken)
+    {
+        RevisionIaParaVisorDto? revision;
+        try
+        {
+            revision = await mediator.Send(new ObtenerRevisionIaParaVisorQuery(revisionId), cancellationToken);
+        }
+        catch (Exception ex) when (ErroresLecturaSensible.EsContextoNoAutorizado(ex))
+        {
+            return ErroresLecturaSensible.Responder(contexto, ex, revisionId,
+                fabricaRegistro.CreateLogger(typeof(DocumentosEndpoints).FullName!));
+        }
+        if (revision is null)
+            return Results.NotFound();
+
+        var abierto = await AbrirConRegistroAsync(
+            revision.DocumentoId,
+            (documentoId, ct) => registroAcceso.RegistrarRevisionIaSiSensibleAsync(documentoId, revision.CreadaEnUtc, ct),
+            contexto, mediator, almacenamiento, fabricaRegistro, cancellationToken);
+        if (abierto.Rechazo is not null)
+            return abierto.Rechazo;
+
+        return ServirEnLinea(contexto, abierto.Flujo!, abierto.Documento!);
+    }
+
+    /// <summary>El archivo vigente, en línea y por rangos, incrustable solo en el mismo origen: lo que muestra el visor.</summary>
+    private static IResult ServirEnLinea(HttpContext contexto, Stream flujo, DocumentoDetalleDto documento)
+    {
         // Se muestra en el navegador, no se descarga: VisorDocumento lo incrusta en un <iframe> y los
         // enlaces «Ver PDF» lo abren en una pestaña. Pasar el nombre a Results.File como
         // fileDownloadName habría añadido Content-Disposition: attachment (el defecto que forzaba la
@@ -248,7 +301,7 @@ public static class DocumentosEndpoints
         // memoria antes de servirlo (medición de Módulo 2, PR #360) — la
         // lectura por rangos que sí lo haría exige un formato cifrado por
         // bloques, pendiente de decisión.
-        return Results.File(abierto.Flujo!, "application/pdf", enableRangeProcessing: true);
+        return Results.File(flujo, "application/pdf", enableRangeProcessing: true);
     }
 
     /// <summary>
@@ -256,10 +309,22 @@ public static class DocumentosEndpoints
     /// lectura con alcance, apertura y registro de acceso. Devuelve el flujo abierto y el Documento, o la respuesta de
     /// rechazo.
     /// </summary>
-    internal static async Task<(Stream? Flujo, DocumentoDetalleDto? Documento, IResult? Rechazo)> AbrirConRegistroAsync(
+    internal static Task<(Stream? Flujo, DocumentoDetalleDto? Documento, IResult? Rechazo)> AbrirConRegistroAsync(
         Guid id, TipoAccesoDocumentoSensible tipoAcceso, HttpContext contexto, IMediator mediator, IFileStorageService almacenamiento,
         IRegistroAccesoDocumentoSensibleService registroAcceso, ILoggerFactory fabricaRegistro,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken) =>
+        AbrirConRegistroAsync(
+            id, (documentoId, ct) => registroAcceso.RegistrarSiSensibleAsync(documentoId, tipoAcceso, ct),
+            contexto, mediator, almacenamiento, fabricaRegistro, cancellationToken);
+
+    /// <summary>
+    /// <see cref="AbrirConRegistroAsync(Guid, TipoAccesoDocumentoSensible, HttpContext, IMediator, IFileStorageService, IRegistroAccesoDocumentoSensibleService, ILoggerFactory, CancellationToken)"/>
+    /// con el registro que decide quien llama (la Revisión IA deduplica por revisión y persona). Mismo orden: lectura con
+    /// alcance, apertura del blob y registro antes de entregar nada; si el registro falla, no se sirve.
+    /// </summary>
+    private static async Task<(Stream? Flujo, DocumentoDetalleDto? Documento, IResult? Rechazo)> AbrirConRegistroAsync(
+        Guid id, Func<Guid, CancellationToken, Task> registrar, HttpContext contexto, IMediator mediator,
+        IFileStorageService almacenamiento, ILoggerFactory fabricaRegistro, CancellationToken cancellationToken)
     {
         DocumentoDetalleDto? documento;
         try
@@ -302,7 +367,7 @@ public static class DocumentosEndpoints
         // Falla en cerrado: ningún rechazo ni fallo de registro entrega contenido.
         try
         {
-            await registroAcceso.RegistrarSiSensibleAsync(documento.Id, tipoAcceso, cancellationToken);
+            await registrar(documento.Id, cancellationToken);
         }
         catch (Exception ex) when (ErroresLecturaSensible.EsMapeable(ex))
         {

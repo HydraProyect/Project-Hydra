@@ -14,13 +14,23 @@ public class RegistroAccesoDocumentoSensibleService(
     IActorAuditoria actorAuditoria,
     IRegistroAccesoDocumentoSensibleRepository repositorio,
     CaeManager.Application.Seguridad.Incidentes.ISenalesIncidenteSeguridad? senalesIncidente = null,
-    ITenantActual? tenantActual = null)
+    ITenantActual? tenantActual = null,
+    // Solo para la comprobación de «ya registrado» de RegistrarRevisionIaSiSensibleAsync. Sin él, esa vía registra en
+    // cada llamada: de más, nunca de menos.
+    IAuditoriaQueryContext? auditoriaContext = null)
     : IRegistroAccesoDocumentoSensibleService
 {
     public async Task RegistrarSiSensibleAsync(
         Guid documentoId, TipoAccesoDocumentoSensible tipoAcceso, CancellationToken cancellationToken = default)
     {
         if (await RegistrarSinSenalAsync(documentoId, tipoAcceso, cancellationToken) is { } senal)
+            await EmitirAsync(senal, cancellationToken);
+    }
+
+    public async Task RegistrarRevisionIaSiSensibleAsync(
+        Guid documentoId, DateTime revisionCreadaEnUtc, CancellationToken cancellationToken = default)
+    {
+        if (await RegistrarSinSenalAsync(documentoId, TipoAccesoDocumentoSensible.RevisionIa, cancellationToken, revisionCreadaEnUtc) is { } senal)
             await EmitirAsync(senal, cancellationToken);
     }
 
@@ -71,7 +81,8 @@ public class RegistroAccesoDocumentoSensibleService(
     }
 
     private async Task<SenalPendiente?> RegistrarSinSenalAsync(
-        Guid documentoId, TipoAccesoDocumentoSensible tipoAcceso, CancellationToken cancellationToken)
+        Guid documentoId, TipoAccesoDocumentoSensible tipoAcceso, CancellationToken cancellationToken,
+        DateTime? deduplicarDesdeUtc = null)
     {
         // Un solo roundtrip adicional: el TipoDocumentoId del Documento y, con
         // él, la Sensibilidad del catálogo — el punto único de consulta de
@@ -89,14 +100,15 @@ public class RegistroAccesoDocumentoSensibleService(
         // RegistrarSiSensibleAsync en la interfaz.
         if (tipoDocumentoId is not { } id)
         {
-            return await RegistrarAsync(documentoId, SensibilidadDocumental.CategoriaEspecialSalud, tipoAcceso, cancellationToken);
+            return await RegistrarAsync(documentoId, SensibilidadDocumental.CategoriaEspecialSalud, tipoAcceso, cancellationToken, deduplicarDesdeUtc);
         }
 
-        return await RegistrarSinSenalAsync(documentoId, id, tipoAcceso, cancellationToken);
+        return await RegistrarSinSenalAsync(documentoId, id, tipoAcceso, cancellationToken, deduplicarDesdeUtc);
     }
 
     private async Task<SenalPendiente?> RegistrarSinSenalAsync(
-        Guid recursoId, Guid tipoDocumentoId, TipoAccesoDocumentoSensible tipoAcceso, CancellationToken cancellationToken)
+        Guid recursoId, Guid tipoDocumentoId, TipoAccesoDocumentoSensible tipoAcceso, CancellationToken cancellationToken,
+        DateTime? deduplicarDesdeUtc = null)
     {
         var sensibilidadResuelta = await tiposDocumentoContext.TiposDocumento
             .Where(t => t.Id == tipoDocumentoId)
@@ -107,11 +119,12 @@ public class RegistroAccesoDocumentoSensibleService(
         // caso raro): mismo criterio protector que el Documento no resuelto.
         var sensibilidad = sensibilidadResuelta ?? SensibilidadDocumental.CategoriaEspecialSalud;
 
-        return await RegistrarAsync(recursoId, sensibilidad, tipoAcceso, cancellationToken);
+        return await RegistrarAsync(recursoId, sensibilidad, tipoAcceso, cancellationToken, deduplicarDesdeUtc);
     }
 
     private async Task<SenalPendiente?> RegistrarAsync(
-        Guid recursoId, SensibilidadDocumental sensibilidad, TipoAccesoDocumentoSensible tipoAcceso, CancellationToken cancellationToken)
+        Guid recursoId, SensibilidadDocumental sensibilidad, TipoAccesoDocumentoSensible tipoAcceso, CancellationToken cancellationToken,
+        DateTime? deduplicarDesdeUtc = null)
     {
         // "Nunca registrar de más" (DEC-36): un documento sin datos
         // personales no genera fila.
@@ -130,6 +143,11 @@ public class RegistroAccesoDocumentoSensibleService(
             actor.ViaAccesoId,
             (TipoActorAuditoria)actor.ResolverTipoActor());
 
+        // Revisión IA: una fila por revisión y persona, no una por GET (el visor pide por rangos y se recarga). Sin la misma
+        // fila ya escrita —mismo Documento, tipo, Usuario, Actor real y vía, desde que se creó la revisión—, se registra.
+        if (deduplicarDesdeUtc is { } desde && await YaRegistradoAsync(registro, desde, cancellationToken))
+            return null;
+
         // Falla en cerrado (DEC-36, REC-208): un acceso sensible que no queda
         // registrado no se sirve. El repositorio traduce el rechazo de la base
         // (Sesión Privilegiada que la función de registro no reconoce, conexión
@@ -143,5 +161,34 @@ public class RegistroAccesoDocumentoSensibleService(
         // actor real), solo tras quedar registrado el acceso. Se devuelve en vez de emitirse aquí para que quien agrupa varios
         // registros en una transacción la emita solo tras confirmar.
         return actor.ActorRealUsuarioId is { } actorReal ? new SenalPendiente(actorReal, tenantActual?.TenantId) : null;
+    }
+
+    /// <summary>
+    /// ¿Consta ya la fila que <paramref name="registro"/> escribiría, ocurrida desde <paramref name="desdeUtc"/>? Lee por
+    /// <see cref="IAuditoriaQueryContext"/>, con el filtro de Tenant y la RLS de la tabla: solo ve filas del Tenant actual.
+    /// Falla en cerrado hacia el registro: sin contexto, sin Actor real (no hay de quién deduplicar) o si la consulta falla,
+    /// contesta que no, y se escribe la fila. Un falso «ya registrado» dejaría el acceso sin rastro; una fila de más, no.
+    /// </summary>
+    private async Task<bool> YaRegistradoAsync(RegistroAccesoDocumentoSensible registro, DateTime desdeUtc, CancellationToken cancellationToken)
+    {
+        if (auditoriaContext is null || registro.ActorRealUsuarioId is null)
+            return false;
+
+        try
+        {
+            return await auditoriaContext.RegistrosAccesoDocumentoSensible.AnyAsync(r =>
+                r.DocumentoId == registro.DocumentoId
+                && r.TipoAcceso == registro.TipoAcceso
+                && r.UsuarioId == registro.UsuarioId
+                && r.ActorRealUsuarioId == registro.ActorRealUsuarioId
+                && r.ViaAcceso == registro.ViaAcceso
+                && r.ViaAccesoId == registro.ViaAccesoId
+                && r.OcurridoEnUtc >= desdeUtc,
+                cancellationToken);
+        }
+        catch (Exception) when (!cancellationToken.IsCancellationRequested)
+        {
+            return false;
+        }
     }
 }

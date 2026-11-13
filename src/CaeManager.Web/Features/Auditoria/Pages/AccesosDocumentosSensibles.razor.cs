@@ -204,12 +204,18 @@ public partial class AccesosDocumentosSensibles : CaeManager.Web.Components.Pagi
         _ => TonoBadge.Neutro
     };
 
+    /// <summary>
+    /// Cada tipo con su texto. Un valor que no figure aquí se pinta con su nombre, nunca como «Apertura»: el registro no
+    /// puede hacer pasar un acceso de otra vía por una apertura (<c>AccesosDocumentosSensiblesGen2Tests</c> recorre el enum).
+    /// </summary>
     private string TextoTipoAcceso(TipoAccesoDocumentoSensible tipo) =>
         tipo switch
         {
+            TipoAccesoDocumentoSensible.Apertura => "Apertura",
             TipoAccesoDocumentoSensible.VersionAnterior => "Versión anterior",
             TipoAccesoDocumentoSensible.EntregaExtension => Textos["TipoAccesoEntregaExtension"],
-            _ => "Apertura",
+            TipoAccesoDocumentoSensible.RevisionIa => Textos["TipoAccesoRevisionIa"],
+            _ => tipo.ToString(),
         };
 
     /// <summary>«Sesión privilegiada» gana: es el único contexto en ámbar.</summary>

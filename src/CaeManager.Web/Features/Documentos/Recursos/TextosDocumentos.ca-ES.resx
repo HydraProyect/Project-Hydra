@@ -232,12 +232,6 @@
   <data name="RevIaDialogoFiltroOculta" xml:space="preserve">
     <value>Amb el filtre actiu, {0} d&apos;aquestes no es veuen a la llista: s&apos;accepten igualment, perquè aquest botó actua sobre tota la cua i no només sobre el que mostra el filtre.</value>
   </data>
-  <data name="RevIaVerDocumento" xml:space="preserve">
-    <value>Veure el document</value>
-  </data>
-  <data name="RevIaDocumentoReposo" xml:space="preserve">
-    <value>El document no es carrega fins que el demanis: les obertures de documents sensibles queden registrades.</value>
-  </data>
   <data name="RevIaDialogoConfirmar" xml:space="preserve">
     <value>Confirma tots</value>
   </data>
