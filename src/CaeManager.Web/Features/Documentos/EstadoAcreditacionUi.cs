@@ -40,7 +40,7 @@ public static class EstadoAcreditacionUi
 {
     public static string Texto(EstadoAcreditacion estado) => estado switch
     {
-        EstadoAcreditacion.PendienteDeSubir => "pendiente de envío",
+        EstadoAcreditacion.PendienteDeSubir => "pendiente de subir",
         EstadoAcreditacion.Subida => "enviada",
         EstadoAcreditacion.Aceptada => "validada",
         EstadoAcreditacion.Rechazada => "rechazada",

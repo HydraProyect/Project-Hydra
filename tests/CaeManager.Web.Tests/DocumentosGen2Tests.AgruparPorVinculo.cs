@@ -160,13 +160,17 @@ public partial class DocumentosGen2Tests
             fila.QuerySelectorAll(".documentos-accion-rapida").Should().HaveCount(escritura ? 1 : 0);
             fila.QuerySelectorAll("a.boton-360-pagina").Should().HaveCount(escritura ? 1 : 0);
         }
-        cut.FindAll(".documentos-tabla-visible tbody .documentos-plataformas").Should().NotBeEmpty(
-            "las insignias de plataformas de la fila siguen ahí");
+        // Por Plataforma CAE el grupo ya es la plataforma (artboard Agrupar-plataforma): la fila no repite sus insignias.
+        if (agrupacion == "Por Plataforma CAE")
+            cut.FindAll(".documentos-tabla-visible tbody .documentos-plataformas").Should().BeEmpty();
+        else
+            cut.FindAll(".documentos-tabla-visible tbody .documentos-plataformas").Should().NotBeEmpty(
+                "las insignias de plataformas de la fila siguen ahí");
         cut.FindAll(".cabecera-pagina button[aria-label='Selección múltiple']").Should().HaveCount(escritura ? 1 : 0);
         cut.FindAll(".barra-acciones-lote").Should().BeEmpty();
         var columnas = cut.FindAll(".documentos-tabla-visible thead th").Select(h => h.TextContent.Trim()).ToList();
         if (agrupacion == "Por Plataforma CAE")
-            columnas.Should().Equal("Documento", "Propietario", "Vence", "Estado documental", "Estado en la plataforma", "Acciones");
+            columnas.Should().Equal("Propietario", "Nombre en la plataforma", "Cliente", "Vence", "Estado documental", "Estado en la plataforma", "Acciones");
         else
             columnas.Should().Equal("Documento", "Propietario", "Vence", "Estado documental", "Acciones");
     }
@@ -174,7 +178,7 @@ public partial class DocumentosGen2Tests
     // ------------------------------------------------------------- opciones de «Agrupar»
 
     [Fact]
-    public async Task Agrupar_ofrece_las_cuatro_opciones_y_cada_una_pide_su_agrupacion()
+    public async Task Agrupar_ofrece_las_cinco_opciones_y_cada_una_pide_su_agrupacion()
     {
         var e = ConVinculos();
         var (cut, mediador) = Renderizar(e.Mediador);
@@ -182,7 +186,7 @@ public partial class DocumentosGen2Tests
 
         await cut.Find("button[aria-label='Agrupar: no']").ClickAsync(new MouseEventArgs());
         cut.FindAll("[role=menuitemradio]").Select(b => b.TextContent.Trim())
-            .Should().Equal("Sin agrupar", "Por ámbito", "Por Plataforma CAE", "Por Cliente");
+            .Should().Equal("Sin agrupar", "Por ámbito", "Por Plataforma CAE", "Por Cliente", "Por tipo de documento");
         await cut.FindAll("[role=menuitemradio]").Single(b => b.TextContent.Trim() == "Por Plataforma CAE").ClickAsync(new MouseEventArgs());
 
         cut.WaitForAssertion(() => UltimaConsultaDeDocumentos(mediador).AgruparPor.Should().Be(AgrupacionDocumentos.PlataformaCae));
@@ -194,6 +198,13 @@ public partial class DocumentosGen2Tests
         await Agrupar(cut, "Por Cliente");
         cut.WaitForAssertion(() => UltimaConsultaDeDocumentos(mediador).AgruparPor.Should().Be(AgrupacionDocumentos.ClienteEmpresarial));
         cut.WaitForAssertion(() => cut.FindAll("button[aria-label^='Agrupar']").Select(b => b.GetAttribute("aria-label")).Should().Equal("Agrupar por: Cliente"));
+
+        await Agrupar(cut, "Por tipo de documento");
+        cut.WaitForAssertion(() => cut.FindAll("button[aria-label^='Agrupar']").Select(b => b.GetAttribute("aria-label")).Should().Equal("Agrupar por: tipo de documento"));
+        UltimaConsultaDeDocumentos(mediador).AgruparPor.Should().BeNull("por tipo se agrupa en la página, sin agrupación en la consulta");
+        UltimaConsultaDeDocumentos(mediador).AgruparPorAmbito.Should().BeFalse();
+        UltimaConsultaDeDocumentos(mediador).TamanoPagina.Should().Be(AgrupacionDeLista.TamanoPaginaAgrupada,
+            "por tipo la pantalla también pide todas las filas filtradas: los grupos no se parten por página");
 
         await Agrupar(cut, "Por ámbito");
         cut.WaitForAssertion(() => UltimaConsultaDeDocumentos(mediador).AgruparPorAmbito.Should().BeTrue());
@@ -217,24 +228,29 @@ public partial class DocumentosGen2Tests
 
         await Agrupar(cut, "Por Plataforma CAE");
 
-        cut.WaitForAssertion(() => NombresDeVinculo(cut).Should().Equal("Ctaima", "Nalanda", "Sin Plataforma CAE"));
+        cut.WaitForAssertion(() => NombresDeVinculo(cut).Should().Equal(
+            ["Nalanda", "Ctaima", "Sin Plataforma CAE"], "los grupos van por gravedad (rechazadas, pendientes, sin vigencia) y «Sin …» al final"));
         var nalanda = CabeceraDeVinculo(cut, NalandaId.ToString());
-        ResumenDeVinculo(nalanda).Should().Equal(["1 rechazado", "4 sin vigencia"], "un cero no se pinta");
+        ResumenDeVinculo(nalanda).Should().Equal(["1 rechazada", "4 sin vigencia"], "un cero no se pinta");
         nalanda.QuerySelector(".grupo-lista-contador")!.TextContent.Trim().Should().Be("3 de 7",
             "el total es el del servidor, no las tres filas de la página");
         ResumenDeVinculo(CabeceraDeVinculo(cut, CtaimaId.ToString())).Should().Equal("1 pendiente de subir");
         CabeceraDeVinculo(cut, ObtenerDocumentosQuery.GrupoSin).QuerySelector("button.grupo-lista-cabecera")!
             .GetAttribute("aria-expanded").Should().Be("false", "el grupo «Sin Plataforma CAE» nace plegado");
+        CabeceraDeVinculo(cut, ObtenerDocumentosQuery.GrupoSin).QuerySelector(".grupo-lista-subtitulo")!.TextContent.Trim()
+            .Should().Be("1 documento", "sin «· N» en la cabecera, el grupo sin plataforma dice cuántos Documentos agrupa");
         nalanda.QuerySelector("button.grupo-lista-cabecera")!.GetAttribute("aria-expanded").Should().Be("true");
         cut.FindAll("tbody button.enlace-nombre-fila").Should().NotContain(b => b.TextContent.Contains("Eva Soto Paz"),
             "las filas de un grupo plegado no se pintan");
 
         var enPlataforma = cut.FindAll("tbody .documentos-en-plataforma");
         enPlataforma.Should().HaveCount(4);
-        enPlataforma.Select(c => c.QuerySelector(".documentos-en-plataforma-cliente")!.TextContent.Trim())
-            .Should().Equal("Cliente Norte", "Cliente Norte", "Cliente Sur", "Cliente Norte");
+        enPlataforma.Should().OnlyContain(c => c.QuerySelector(".documentos-cliente-empresarial") == null,
+            "el Cliente empresarial tiene columna propia, no va dentro del estado en la plataforma");
+        cut.FindAll("tbody .documentos-celda-cliente").Select(c => c.TextContent.Trim())
+            .Should().BeEquivalentTo("Cliente Norte", "Cliente Norte", "Cliente Sur", "Cliente Norte");
         var rechazado = enPlataforma.Single(c => c.QuerySelector(".documentos-en-plataforma-motivo") is not null);
-        rechazado.TextContent.Should().Contain("Rechazad").And.Contain("Ilegible");
+        rechazado.TextContent.Should().Contain("Rechazad").And.Contain("Motivo: Ilegible");
         enPlataforma.Count(c => c.TextContent.Contains("Sin vigencia")).Should().Be(2);
 
         await CabeceraDeVinculo(cut, ObtenerDocumentosQuery.GrupoSin).QuerySelector("button.grupo-lista-cabecera")!
@@ -315,9 +331,13 @@ public partial class DocumentosGen2Tests
         cut.WaitForAssertion(() => cut.Find("tbody button.enlace-nombre-fila"));
         await Agrupar(cut, "Por Plataforma CAE");
         cut.WaitForAssertion(() => cut.FindAll("tr.documentos-cabecera-grupo-vinculo").Should().HaveCount(3));
-        cut.FindAll(".documentos-anotar-vigencia").Should().BeEmpty("sin nada seleccionado no hay nada que anotar");
+        cut.FindAll("tbody input[type=checkbox]").Should().BeEmpty("la selección múltiple nunca nace activa: sin casillas");
+        CabeceraDeVinculo(cut, NalandaId.ToString()).QuerySelector(".documentos-anotar-vigencia")!.TextContent.Trim()
+            .Should().Be("Anotar vigencia (2)", "con la selección múltiple inactiva cuenta todas las filas «Sin vigencia» del grupo");
+        CabeceraDeVinculo(cut, CtaimaId.ToString()).QuerySelector(".documentos-anotar-vigencia").Should().BeNull();
 
         await cut.Find(".cabecera-pagina button[aria-label='Selección múltiple']").ClickAsync(new MouseEventArgs());
+        cut.FindAll(".documentos-anotar-vigencia").Should().BeEmpty("con la selección activa, cuenta solo lo marcado: nada marcado, nada que anotar");
         await CasillaDe(cut, e.Rechazado).ChangeAsync(new ChangeEventArgs { Value = true });
         cut.FindAll(".documentos-anotar-vigencia").Should().BeEmpty("una rechazada no es «Sin vigencia»");
 
@@ -411,7 +431,7 @@ public partial class DocumentosGen2Tests
         cut.WaitForAssertion(() => cut.FindAll("tr.documentos-cabecera-grupo-vinculo").Should().HaveCount(3));
         cut.FindAll(".documentos-tabla-visible tbody input[type=checkbox]").Should().BeEmpty();
         cut.FindAll(".documentos-anotar-vigencia").Should().BeEmpty();
-        ResumenDeVinculo(CabeceraDeVinculo(cut, NalandaId.ToString())).Should().Equal("1 rechazado", "4 sin vigencia");
+        ResumenDeVinculo(CabeceraDeVinculo(cut, NalandaId.ToString())).Should().Equal("1 rechazada", "4 sin vigencia");
     }
 
     // ------------------------------------------------------------- pie de la vista agrupada (Codex r1, MEDIO)

@@ -104,18 +104,101 @@ public partial class DocumentosGen2Tests
     }
 
     [Fact]
-    public void Con_varias_plataformas_la_fila_pinta_una_pastilla_con_la_mas_urgente_y_mas_N()
+    public void Un_Documento_en_varios_Centros_de_la_misma_plataforma_pinta_una_sola_linea_con_el_peor_estado_y_las_graves_primero()
     {
+        var documento = DocumentoDeFila("blob/x.pdf",
+            new AcreditacionResumenDto(Guid.NewGuid(), "Nalanda", EstadoAcreditacion.Aceptada),
+            new AcreditacionResumenDto(Guid.NewGuid(), "Nalanda", EstadoAcreditacion.Rechazada),
+            new AcreditacionResumenDto(Guid.NewGuid(), "Nalanda", EstadoAcreditacion.Aceptada),
+            new AcreditacionResumenDto(Guid.NewGuid(), "Ctaima", EstadoAcreditacion.Aceptada));
+        var (cut, _) = Renderizar(ConDocumentos(documento));
+        cut.WaitForAssertion(() => cut.Find("tbody .documentos-plats"));
+
+        var lineas = cut.FindAll("tbody tr .documentos-plats .documentos-plat").Select(l => l.TextContent.Trim()).ToList();
+        lineas.Should().HaveCount(2, "una línea por plataforma, no por Centro");
+        lineas[0].Should().Contain("Nalanda").And.Contain("· Rechazada", "la más grave primero y con su estado");
+        lineas[1].Should().Contain("Ctaima").And.Contain("· Validada");
+    }
+
+    [Fact]
+    public void Con_varias_plataformas_la_fila_pinta_una_linea_por_Plataforma_CAE_con_el_estado_capitalizado()
+    {
+        // D-22 y artboard Main: «logo Nombre · Validada», una línea por Plataforma CAE, el estado con inicial en mayúscula.
         var documento = DocumentoDeFila("blob/x.pdf",
             new AcreditacionResumenDto(Guid.NewGuid(), "Nalanda", EstadoAcreditacion.Aceptada),
             new AcreditacionResumenDto(Guid.NewGuid(), "Dokify", EstadoAcreditacion.Rechazada),
             new AcreditacionResumenDto(Guid.NewGuid(), "CTAIMA", EstadoAcreditacion.PendienteDeSubir));
         var (cut, _) = Renderizar(ConDocumentos(documento));
-        cut.WaitForAssertion(() => cut.Find("tbody .badges-acreditacion"));
+        cut.WaitForAssertion(() => cut.Find("tbody .documentos-plats"));
 
-        cut.FindAll("tbody tr .badges-acreditacion [data-pieza=pastilla]").Should().ContainSingle();
-        cut.Find("tbody tr .badges-acreditacion").TextContent.Should().Contain("Dokify").And.Contain("+2");
-        cut.Find("tbody tr .badges-acreditacion-resto").GetAttribute("title").Should().Contain("Nalanda").And.Contain("CTAIMA");
+        var lineas = cut.FindAll("tbody tr .documentos-plats .documentos-plat").Select(l => l.TextContent.Trim()).ToList();
+        lineas.Should().HaveCount(3);
+        lineas.Single(l => l.Contains("Nalanda")).Should().Contain("Nalanda").And.Contain("· Validada");
+        lineas.Single(l => l.Contains("Dokify")).Should().Contain("· Rechazada");
+        lineas.Single(l => l.Contains("CTAIMA")).Should().Contain("· Pendiente de subir");
+        cut.FindAll("tbody tr .documentos-plats .documentos-plat-estado").Should().OnlyContain(e => char.IsUpper(e.TextContent.Replace("· ", "")[0]));
+        cut.FindAll("tbody tr .documentos-plats .documentos-en-plataforma-motivo, tbody tr .documentos-plats .documentos-abrir-portal")
+            .Should().BeEmpty("la línea no lleva motivo ni «Abrir portal»: lo ve igual el Usuario de Cliente");
+    }
+
+    [Fact]
+    public void Las_lineas_de_plataforma_van_por_gravedad_de_su_estado_y_a_igual_gravedad_por_nombre()
+    {
+        // Rechazada, Pendiente de subir, Subida, Aceptada y el resto (No exigida), dados al revés y con dos del mismo estado.
+        var documento = DocumentoDeFila("blob/x.pdf",
+            new AcreditacionResumenDto(Guid.NewGuid(), "Pe", EstadoAcreditacion.NoRequerida),
+            new AcreditacionResumenDto(Guid.NewGuid(), "Oe", EstadoAcreditacion.Aceptada),
+            new AcreditacionResumenDto(Guid.NewGuid(), "Nu", EstadoAcreditacion.Subida),
+            new AcreditacionResumenDto(Guid.NewGuid(), "Mu", EstadoAcreditacion.PendienteDeSubir),
+            new AcreditacionResumenDto(Guid.NewGuid(), "Zeta", EstadoAcreditacion.Rechazada),
+            new AcreditacionResumenDto(Guid.NewGuid(), "Beta", EstadoAcreditacion.Rechazada));
+        var (cut, _) = Renderizar(ConDocumentos(documento));
+        cut.WaitForAssertion(() => cut.Find("tbody .documentos-plats"));
+
+        cut.FindAll("tbody tr .documentos-plats .documentos-plat .documentos-plat-nombre").Select(n => n.TextContent.Trim())
+            .Should().Equal(["Beta", "Zeta", "Mu", "Nu", "Oe", "Pe"], "Rechazada, Pendiente de subir, Subida, Aceptada y el resto; a igual estado, por nombre");
+    }
+
+    /// <summary>
+    /// Por rol: la línea «logo Nombre · Estado» de la lista sin agrupar es la misma para el Usuario de Cliente y para el Gestor
+    /// CAE (nombre y estado, nada más: ni motivo ni «Abrir portal»). El motivo literal y «Abrir portal» son de la agrupación
+    /// por Plataforma CAE y solo los ve quien no es Usuario de Cliente: el contraste con esa vista es lo que hace sensible la
+    /// prueba a la guarda de rol (sin ella, el Usuario de Cliente vería el motivo allí).
+    /// </summary>
+    [Theory]
+    [InlineData("GestorCae", true)]
+    [InlineData("Cliente", false)]
+    public async Task La_linea_de_plataforma_de_la_lista_sin_agrupar_no_lleva_motivo_ni_Abrir_portal_con_ningun_rol_y_el_motivo_solo_lo_ve_el_Gestor_al_agrupar(string rol, bool veMotivoYPortal)
+    {
+        var e = ConVinculos();
+        var original = e.Mediador.Documentos;
+        e.Mediador.Documentos = q => q.AgruparPor is null
+            ? [e.SinVigencia, e.Rechazado with { Acreditaciones = [new AcreditacionResumenDto(Guid.NewGuid(), "Nalanda", EstadoAcreditacion.Rechazada)] }]
+            : original(q);
+        var (cut, _) = Renderizar(e.Mediador, rol: rol);
+        cut.WaitForAssertion(() => cut.Find("tbody .documentos-plats"));
+
+        var fila = cut.FindAll("tbody tr:has(button.enlace-nombre-fila)").Single(f => f.TextContent.Contains("Ana Ruiz Pardo"));
+        var linea = fila.QuerySelectorAll(".documentos-plats .documentos-plat").Should().ContainSingle().Subject;
+        linea.QuerySelector(".documentos-plat-nombre")!.TextContent.Trim().Should().Be("Nalanda");
+        linea.QuerySelector(".documentos-plat-estado")!.TextContent.Trim().Should().Be("· Rechazada");
+        linea.Children.Select(c => c.ClassName).Should().Equal(
+            ["documentos-logo-plataforma documentos-logo-plataforma-generico", "documentos-plat-nombre", "documentos-plat-estado"],
+            "logo, nombre y estado, nada más");
+        fila.QuerySelectorAll(".documentos-en-plataforma-motivo, .documentos-abrir-portal").Should().BeEmpty();
+        cut.Markup.Should().NotContain("Ilegible").And.NotContain("Abrir portal");
+
+        await Agrupar(cut, "Por Plataforma CAE");
+
+        cut.WaitForAssertion(() => cut.FindAll("tbody .documentos-en-plataforma").Should().HaveCount(4));
+        cut.FindAll(".documentos-en-plataforma-motivo").Should().HaveCount(veMotivoYPortal ? 1 : 0);
+        cut.FindAll(".documentos-abrir-portal").Should().HaveCount(veMotivoYPortal ? 1 : 0);
+        cut.Markup.Contains("Ilegible").Should().Be(veMotivoYPortal);
+        foreach (var portal in cut.FindAll(".documentos-abrir-portal"))
+        {
+            portal.TextContent.Should().NotContain("↗", "el glifo es el icono «abrir» del sistema de iconos, no texto");
+            portal.QuerySelector("svg").Should().NotBeNull();
+        }
     }
 
     [Fact]
@@ -132,18 +215,6 @@ public partial class DocumentosGen2Tests
             .Take(2).Should().Equal("Ver", "Gestionar");
     }
 
-    [Fact]
-    public void El_resumen_de_plataformas_desempata_por_gravedad_y_no_por_el_orden_del_DTO()
-    {
-        var documento = DocumentoDeFila("blob/x.pdf",
-            new AcreditacionResumenDto(Guid.NewGuid(), "Nalanda", EstadoAcreditacion.NoRequerida),
-            new AcreditacionResumenDto(Guid.NewGuid(), "Dokify", EstadoAcreditacion.Subida),
-            new AcreditacionResumenDto(Guid.NewGuid(), "CTAIMA", EstadoAcreditacion.Aceptada));
-        var (cut, _) = Renderizar(ConDocumentos(documento));
-        cut.WaitForAssertion(() => cut.Find("tbody .badges-acreditacion"));
-
-        cut.Find("tbody tr [data-pieza=pastilla]").TextContent.Should().Contain("Dokify");
-    }
 
     [Fact]
     public void Sin_confirmar_conserva_su_motivo_aunque_el_documento_traiga_fecha()

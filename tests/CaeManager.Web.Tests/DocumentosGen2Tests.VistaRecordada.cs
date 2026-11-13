@@ -53,7 +53,9 @@ public partial class DocumentosGen2Tests
             ["Ambito"] = nameof(AmbitoAplicacion.Trabajador),
             ["Tipo"] = TipoSeguroId.ToString(),
             ["Plataforma"] = PlataformaNalandaId.ToString(),
+            ["EstadoPlataforma"] = nameof(EstadoEnPlataformaFiltro.SinVigencia),
             ["orden"] = "emision-desc",
+            ["agrupar"] = "tipo",
         };
         var mediador = ConVistaRecordada(JsonSerializer.Serialize(recordada));
 
@@ -62,6 +64,10 @@ public partial class DocumentosGen2Tests
         // La búsqueda viene en lo recordado (una fila escrita antes de que dejara de recordarse) y no vuelve.
         recordada.Remove("q");
         cut.WaitForAssertion(() => ParametrosDeLaUrl().Should().BeEquivalentTo(recordada));
+        cut.WaitForAssertion(() => UltimaConsultaDeDocumentos(mediador).EstadosEnPlataforma
+            .Should().Equal([EstadoEnPlataformaFiltro.SinVigencia], "D-19: el estado en la plataforma recordado llega a la consulta"));
+        cut.WaitForAssertion(() => cut.Find("button[aria-label^='Agrupar']").GetAttribute("aria-label")
+            .Should().Be("Agrupar por: tipo de documento", "D-19: la agrupación recordada se restaura"));
         mediador.Enviadas.OfType<ObtenerVistaRecordadaQuery>().Should().Equal([new ObtenerVistaRecordadaQuery(PantallasConVistaRecordada.Documentos)]);
         cut.WaitForAssertion(() => UltimaConsultaDeDocumentos(mediador).Should().Match<ObtenerDocumentosQuery>(q =>
             q.Busqueda == null && q.Ambito == AmbitoAplicacion.Trabajador

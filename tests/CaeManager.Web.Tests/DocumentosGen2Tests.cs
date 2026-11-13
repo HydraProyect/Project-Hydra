@@ -1818,7 +1818,7 @@ public partial class DocumentosGen2Tests : BunitContext
         var (cut, mediador) = Renderizar(ConOpcionesDeFiltro());
 
         cut.WaitForAssertion(() => UltimaConsultaDeDocumentos(mediador).Should().NotBeNull());
-        await PastillaDocumentoFase1(cut, "Portal")
+        await PastillaDocumentoFase1(cut, "Plataforma CAE")
             .ClickAsync(new MouseEventArgs());
         await cut.FindAll(".barra-filtros-pastillas [role=menuitemradio]")
             .Single(b => b.TextContent.Trim() == "Nalanda").ClickAsync(new MouseEventArgs());
@@ -1882,6 +1882,65 @@ public partial class DocumentosGen2Tests : BunitContext
         UltimaConsultaDeDocumentos(mediador).TipoDocumentoId.Should().BeNull("el filtro antiguo no llevaba tipo");
         UltimaConsultaDeDocumentos(mediador).ProveedorPlataformaCaeId.Should().BeNull();
         navegacion.Uri.Should().NotContain("Tipo=").And.NotContain("Plataforma=");
+
+        async Task AplicarGuardado(string nombre)
+        {
+            await cut.FindAll(".menu-acciones-disparador").Single(d => d.GetAttribute("aria-label") == "Filtros guardados")
+                .ClickAsync(new MouseEventArgs());
+            await cut.FindAll(".barra-filtros-pastillas .menu-filtro-guardado [role=menuitem]")
+                .First(b => b.TextContent.Trim() == nombre).ClickAsync(new MouseEventArgs());
+        }
+    }
+
+    /// <summary>D-19: el «Estado en la plataforma» activo viaja en el JSON del filtro guardado.</summary>
+    [Fact]
+    public async Task Guardar_filtro_guarda_tambien_el_estado_en_la_plataforma()
+    {
+        var (cut, mediador) = Renderizar(ConOpcionesDeFiltro(),
+            url: $"documentos?EstadoPlataforma={nameof(EstadoEnPlataformaFiltro.Rechazado)}&agrupar=plataforma");
+        UltimaConsultaDeDocumentos(mediador).EstadosEnPlataforma.Should().Equal([EstadoEnPlataformaFiltro.Rechazado], "control positivo: el filtro llegó");
+
+        await GuardarFiltroDocumentoFase1(cut);
+        var campoNombre = cut.FindComponents<CampoTexto>().Single(c => c.Instance.Etiqueta == "Nombre");
+        await cut.InvokeAsync(() => campoNombre.Instance.ValorChanged.InvokeAsync("Rechazados"));
+        await cut.FindAll(".modal-pie button").Single(b => b.TextContent.Trim() == "Guardar").ClickAsync(new MouseEventArgs());
+
+        var guardado = mediador.Enviadas.OfType<GuardarFiltroCommand>().Should().ContainSingle().Subject;
+        guardado.ValoresJson.Should().Contain($"\"EstadoPlataforma\":\"{nameof(EstadoEnPlataformaFiltro.Rechazado)}\"")
+            .And.Contain("\"Agrupar\":\"plataforma\"", "D-19: la agrupación viaja también en el filtro guardado");
+    }
+
+    /// <summary>
+    /// D-19: aplicar un filtro guardado con «Estado en la plataforma» lo pone en la consulta y en la URL; uno guardado antes
+    /// de D-19 (sin ese campo ni los de Tipo y Plataforma) sigue cargando y lo quita, en vez de heredar el de la vista anterior.
+    /// </summary>
+    [Fact]
+    public async Task Aplicar_un_filtro_guardado_pone_su_estado_en_la_plataforma_y_uno_antiguo_sin_el_campo_sigue_cargando_y_lo_quita()
+    {
+        var nuevo = new FiltroGuardadoDto(Guid.NewGuid(), "Rechazados",
+            $"{{\"Estado\":null,\"EstadoPlataforma\":\"{nameof(EstadoEnPlataformaFiltro.Rechazado)}\",\"Agrupar\":\"tipo\"}}", DateTime.UtcNow);
+        var antiguo = new FiltroGuardadoDto(Guid.NewGuid(), "Vencidos", "{\"Busqueda\":null,\"Ambito\":null,\"Estado\":\"Vencido\"}", DateTime.UtcNow);
+        var mediador = ConOpcionesDeFiltro();
+        mediador.Interceptar = p => p is ObtenerFiltrosGuardadosQuery
+            ? Task.FromResult<object?>(new[] { nuevo, antiguo })
+            : null;
+        var (cut, _) = Renderizar(mediador);
+        var navegacion = Services.GetRequiredService<NavigationManager>();
+
+        await AplicarGuardado("Rechazados");
+
+        cut.WaitForAssertion(() => UltimaConsultaDeDocumentos(mediador).EstadosEnPlataforma
+            .Should().Equal([EstadoEnPlataformaFiltro.Rechazado]));
+        navegacion.Uri.Should().Contain($"EstadoPlataforma={nameof(EstadoEnPlataformaFiltro.Rechazado)}").And.Contain("agrupar=tipo");
+        cut.WaitForAssertion(() => cut.Find("button[aria-label^='Agrupar']").GetAttribute("aria-label")
+            .Should().Be("Agrupar por: tipo de documento"));
+
+        await AplicarGuardado("Vencidos");
+
+        cut.WaitForAssertion(() => UltimaConsultaDeDocumentos(mediador).Estados.Should().Equal(EstadoDocumento.Vencido));
+        UltimaConsultaDeDocumentos(mediador).EstadosEnPlataforma.Should().BeNull("el filtro antiguo no llevaba estado en la plataforma");
+        navegacion.Uri.Should().NotContain("EstadoPlataforma=").And.NotContain("agrupar=", "el filtro antiguo se aplica sin agrupar");
+        cut.FindAll("tr.documentos-cabecera-grupo-tipo").Should().BeEmpty();
 
         async Task AplicarGuardado(string nombre)
         {
