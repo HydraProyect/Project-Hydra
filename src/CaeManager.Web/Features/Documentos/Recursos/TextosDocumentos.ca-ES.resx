@@ -394,14 +394,14 @@
   <data name="ListaVence" xml:space="preserve"><value>Venç</value></data>
   <data name="PorAmbito" xml:space="preserve"><value>Per àmbit</value></data>
   <data name="PorPlataformaCae" xml:space="preserve"><value>Per Plataforma CAE</value></data>
-  <data name="PorClienteEmpresarial" xml:space="preserve"><value>Per Client empresarial</value></data>
+  <data name="PorClienteEmpresarial" xml:space="preserve"><value>Per Client</value></data>
   <data name="PorTipoDocumento" xml:space="preserve"><value>Per tipus de document</value></data>
   <data name="AgruparPorPlataformaCaeEtiqueta" xml:space="preserve"><value>Agrupa per: Plataforma CAE</value></data>
-  <data name="AgruparPorClienteEmpresarialEtiqueta" xml:space="preserve"><value>Agrupa per: Client empresarial</value></data>
+  <data name="AgruparPorClienteEmpresarialEtiqueta" xml:space="preserve"><value>Agrupa per: Client</value></data>
   <data name="AgruparPorTipoDocumentoEtiqueta" xml:space="preserve"><value>Agrupa per: tipus de document</value></data>
   <data name="ListaPlataformasCae" xml:space="preserve"><value>Plataformes CAE</value></data>
   <data name="ListaNombreEnPlataforma" xml:space="preserve"><value>Nom a la plataforma</value></data>
-  <data name="ListaClienteEmpresarial" xml:space="preserve"><value>Client empresarial</value></data>
+  <data name="ListaClienteEmpresarial" xml:space="preserve"><value>Client</value></data>
   <data name="GrupoProximoUno" xml:space="preserve"><value>1 per vèncer</value></data>
   <data name="GrupoProximos" xml:space="preserve"><value>{0} per vèncer</value></data>
   <data name="GrupoTipoSubtitulo" xml:space="preserve"><value>{0} · {1}</value></data>
@@ -428,9 +428,9 @@
   <data name="GrupoUrgentes" xml:space="preserve"><value>{0} urgents</value></data>
   <data name="GrupoDocumentoUno" xml:space="preserve"><value>1 document</value></data>
   <data name="GrupoDocumentos" xml:space="preserve"><value>{0} documents</value></data>
-  <data name="GrupoClienteEmpresarialDocumentos" xml:space="preserve"><value>Client empresarial · {0}</value></data>
+  <data name="GrupoClienteEmpresarialDocumentos" xml:space="preserve"><value>Client · {0}</value></data>
   <data name="GrupoSinPlataformaCae" xml:space="preserve"><value>Sense Plataforma CAE</value></data>
-  <data name="GrupoSinClienteEmpresarial" xml:space="preserve"><value>Sense Client empresarial</value></data>
+  <data name="GrupoSinClienteEmpresarial" xml:space="preserve"><value>Sense Client</value></data>
   <data name="GrupoAnotarVigencia" xml:space="preserve"><value>Anota la vigència ({0})</value></data>
   <data name="PieAgrupadoFilas" xml:space="preserve"><value>Es mostren {0:N0} files de {1:N0} documents</value></data>
   <data name="PieAgrupadoDocumentos" xml:space="preserve"><value>Es mostren {0:N0} documents</value></data>
