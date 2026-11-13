@@ -18,6 +18,7 @@
 @using CaeManager.Domain.Documentos
 @using CaeManager.Web.Features.Documentos
 @using CaeManager.Web.Features.Documentos.Components
+@using CaeManager.Web.Features.Bandeja.Components
 @using CaeManager.Web.Features.Centros.Components
 @using FluentValidation
 @using MediatR
@@ -431,10 +432,27 @@
 
 <VisorDocumento Visible="_visorVisible" VisibleChanged="v => _visorVisible = v" DocumentoId="_visorDocumentoId" Titulo="@_visorTitulo" />
 
-@* El lote solo elimina: tanto la selección múltiple como su barra requieren un rol con escritura. *@
+@* El lote elimina y reclama: tanto la selección múltiple como su barra requieren un rol con escritura (D-3 solo oculta; el Command autoriza).
+   «Reclamar (n)» cuenta solo los Documentos de Trabajador vencidos o por vencer de la selección y abre el cajón de siempre con sus lotes,
+   agrupados por Cliente empresarial como en Alertas; el envío es el de siempre y lo enviado se ve en el historial de reclamaciones. *@
 <SoloConEscritura>
     <BarraAccionesLote Cantidad="_seleccionados.Count" Eliminando="_eliminandoLote"
-                        OnLimpiar="() => _seleccionados.Clear()" OnEliminar="() => _confirmarEliminarLoteVisible = true" />
+                        OnLimpiar="() => _seleccionados.Clear()" OnEliminar="() => _confirmarEliminarLoteVisible = true">
+        <AccionesExtra>
+            <Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno" Deshabilitado="@(ReclamablesSeleccionados == 0)"
+                   Cargando="_preparandoReclamacion" OnClick="AbrirReclamacionLoteAsync"
+                   title="@(ReclamablesSeleccionados == 0 ? Textos["ReclamarLoteAyudaNinguno"].Value : null)">
+                @Textos["ReclamarLoteBoton", ReclamablesSeleccionados]
+            </Boton>
+        </AccionesExtra>
+    </BarraAccionesLote>
+    @if (_reclamacionVisible && _lotesReclamacion is not null)
+    {
+        <DrawerReclamacionLote Visible="true" VisibleChanged="CambiarReclamacionVisible"
+                               AmbitosDisponibles="@(new[] { AmbitoAplicacion.Trabajador })"
+                               LotesIniciales="_lotesReclamacion"
+                               OnReclamacionEnviada="AlEnviarseReclamacion" />
+    }
 </SoloConEscritura>
 
 <DialogoConfirmacion
