@@ -45,10 +45,12 @@ public static class DocumentosEndpoints
         .RequireAuthorization(policy => policy.RequireRole(CaeManager.Infrastructure.Identity.Roles.Administrador, CaeManager.Infrastructure.Identity.Roles.DireccionCae, CaeManager.Infrastructure.Identity.Roles.CoordinadorCae))
         .ExcluidoDelEncargoDeAdministracion();
 
-        // Mismo patrón de referencia que ClientesEndpoints. Sin columna de
-        // Plataformas/Acreditaciones: ObtenerDocumentosQueryHandler la
-        // resuelve con una segunda pasada fuera de la página, y repetirla
-        // por cada lote de PaginadorExportacion sería un N+1.
+        // Mismo patrón de referencia que ClientesEndpoints. La columna
+        // «Plataformas CAE» (D-20) sale de las acreditaciones que
+        // ObtenerDocumentosQueryHandler ya resuelve en una consulta por
+        // página (no por fila), así que cada lote de PaginadorExportacion
+        // no añade consultas: solo nombre y estado, nunca el motivo del
+        // rechazo ni la dirección del portal.
         // Lleva el listado completo de Documentos del tenant (propietario,
         // tipo, fechas): mismo criterio de caché que el PDF.
         // Sin SoloRolesDelListado(), como /trabajadores/exportar.xlsx: Documentos.razor
@@ -90,6 +92,9 @@ public static class DocumentosEndpoints
         hoja.Cell(1, 4).Value = "Emisión";
         hoja.Cell(1, 5).Value = "Vencimiento";
         hoja.Cell(1, 6).Value = "Estado";
+        // D-20: las Plataformas CAE del Documento y el estado de su acreditación en cada una («Nalanda: Pendiente de subir; Dokify:
+        // Validada»), la misma regla que la columna del listado por tipo. Nunca el motivo del rechazo: la hoja no lo lleva.
+        hoja.Cell(1, 7).Value = "Plataformas CAE";
         hoja.Row(1).Style.Font.Bold = true;
 
         var fila = 2;
@@ -122,6 +127,8 @@ public static class DocumentosEndpoints
             if (documento.FechaVencimiento is not null)
                 hoja.Cell(fila, 5).Value = documento.FechaVencimiento.Value.ToDateTime(TimeOnly.MinValue);
             hoja.Cell(fila, 6).Value = EstadoDocumentoUi.Texto(documento.Estado);
+            // SetValue(string): texto tal cual, sin que un nombre de plataforma que empiece por «=» se lea como fórmula.
+            hoja.Cell(fila, 7).SetValue(PlataformasCaeDelDocumento.TextoParaExcel(documento.Acreditaciones));
             fila++;
         }
 

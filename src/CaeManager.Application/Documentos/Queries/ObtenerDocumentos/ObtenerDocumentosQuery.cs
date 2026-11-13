@@ -113,7 +113,10 @@ public record DocumentoListaDto(
     // Opcional y al final: ningún otro productor cambia; sin él (Guid.Empty) la fila no pinta el icono.
     Guid TipoDocumentoId = default,
     [property: JsonIgnore] IReadOnlyList<DocumentoEnCentroListaDto>? DestinosEnCentros = null,
-    [property: JsonIgnore] GrupoDeFilaDocumentalDto? Grupo = null);
+    [property: JsonIgnore] GrupoDeFilaDocumentalDto? Grupo = null,
+    // Id del Propietario (Trabajador, Empresa, Vehículo…) del Documento: lo necesita «Gestionar acreditación…» del menú de la fila
+    // para enlazar con su ficha. Solo lectura de un dato de la propia fila: no cambia qué filas devuelve ni quién las ve.
+    [property: JsonIgnore] Guid? PropietarioId = null);
 
 /// <summary>Cómo se agrupa el listado de Documentos además de por Ámbito (ver <see cref="ObtenerDocumentosQuery.AgruparPor"/>).</summary>
 public enum AgrupacionDocumentos
@@ -142,8 +145,13 @@ public record GrupoDeFilaDocumentalDto(string Clave, AcreditacionEnGrupoDto? Acr
 /// El último motivo literal de rechazo, solo si el usuario gestiona el Centro del canal: <c>null</c> para el rol Cliente,
 /// que ve el estado pero no el motivo (decisión de Chris del 2026-11-12, opción B).
 /// </param>
+/// <param name="UrlAccesoCanal">
+/// La dirección del portal del canal de ESTA acreditación (la que usa «Abrir portal» en el menú de su fila), con el mismo corte que
+/// el motivo de rechazo: solo si el usuario gestiona el Centro del canal; <c>null</c> para el rol Cliente, sin dirección anotada o si
+/// el canal no la tiene. Tal como está guardada (la pantalla la normaliza y valida); es la dirección, nunca la credencial.
+/// </param>
 public record AcreditacionEnGrupoDto(Guid Id, EstadoAcreditacion Estado, EstadoVigenciaEnPlataforma EstadoVigencia,
-    string ClienteEmpresarialNombre, string? UltimoMotivoRechazo)
+    string ClienteEmpresarialNombre, string? UltimoMotivoRechazo, string? UrlAccesoCanal = null)
 {
     /// <summary>La misma regla que «Sin vigencia» en la pestaña Plataformas CAE: aceptada sin vigencia confirmada.</summary>
     public bool SinVigencia => Estado == EstadoAcreditacion.Aceptada && EstadoVigencia == EstadoVigenciaEnPlataforma.SinConfirmar;
@@ -425,6 +433,7 @@ public class ObtenerDocumentosQueryHandler(IConfiguracionQueryContext configurac
             {
                 Id = x.Id,
                 Ambito = x.Ambito,
+                PropietarioId = x.PropietarioId,
                 PropietarioNombre = x.PropietarioNombre,
                 TipoDocumentoNombre = x.TipoDocumentoNombre,
                 TipoDocumentoId = x.TipoDocumentoId,
@@ -450,7 +459,8 @@ public class ObtenerDocumentosQueryHandler(IConfiguracionQueryContext configurac
                 d.ArchivoUrl,
                 acreditacionesPorDocumento.GetValueOrDefault(d.Id, []),
                 d.TipoDocumentoId,
-                destinos?.GetValueOrDefault(d.Id, [])))
+                destinos?.GetValueOrDefault(d.Id, []),
+                PropietarioId: d.PropietarioId))
             .ToList();
 
         if (request.AgruparPor is { } agrupacionDeFilas)
@@ -855,7 +865,9 @@ public class ObtenerDocumentosQueryHandler(IConfiguracionQueryContext configurac
             {
                 Grupo = new GrupoDeFilaDocumentalDto(v.ProveedorId!.Value.ToString(), new AcreditacionEnGrupoDto(
                     v.AcreditacionId, v.Estado, v.EstadoVigencia, clientesEmpresariales.GetValueOrDefault(v.ClienteId, "—"),
-                    motivos.GetValueOrDefault(v.AcreditacionId)))
+                    motivos.GetValueOrDefault(v.AcreditacionId),
+                    // El mismo corte que el motivo: Centros que el usuario gestiona; el rol Cliente no recibe la dirección.
+                    centrosGestion == null || centrosGestion.Contains(v.CentroId) ? v.UrlAcceso : null))
             }));
         }
         return filas;

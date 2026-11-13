@@ -8,7 +8,8 @@
 *@
 @if (Href is not null)
 {
-    <a class="@Clases" role="menuitem" tabindex="-1" href="@Href" aria-label="@EtiquetaAccesible" @ref="_boton" @onclick="CerrarTrasEnlace" @onkeydown="ManejarTeclaAsync">
+    <a class="@Clases" role="menuitem" tabindex="-1" href="@Href" target="@(NuevaPestana ? "_blank" : null)" rel="@(NuevaPestana ? "noopener noreferrer" : null)"
+       aria-label="@EtiquetaAccesible" @ref="_boton" @onclick="CerrarTrasEnlace" @onkeydown="ManejarTeclaAsync">
         @ChildContent
     </a>
 }
@@ -29,6 +30,9 @@ else
 
     /// <summary>Destino de un ítem que es un enlace (descarga o página del servidor). Con valor, se ignora <see cref="OnClick"/>.</summary>
     [Parameter] public string? Href { get; set; }
+
+    /// <summary>Con <see cref="Href"/>: el enlace se abre en una pestaña nueva, sin dar a la página abierta acceso a esta (noopener, noreferrer).</summary>
+    [Parameter] public bool NuevaPestana { get; set; }
 
     /// <summary>
     /// Opción de un filtro: con valor, el ítem es <c>menuitemradio</c> y anuncia si es la opción

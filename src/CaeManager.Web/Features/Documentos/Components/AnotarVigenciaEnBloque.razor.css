@@ -1,0 +1,6 @@
+/* Ayuda bajo los campos (Listado-dialogos.dc.html, «Anotar vigencia»): texto atenuado a 8 px del campo. */
+.anotar-vigencia-ayuda {
+    margin: var(--space-2) 0 0;
+    color: var(--color-text-muted);
+    font: var(--font-body-sm);
+}

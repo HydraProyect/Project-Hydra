@@ -29,6 +29,24 @@
     font: var(--font-label-md);
 }
 
+/* Compacto con texto («Acreditación ▾» de las filas de Documentos): el mismo botón secundario pequeño de la aplicación
+   (`boton boton-secundario boton-pequeno`: 36 px, relleno 8×16, radio y borde de control), a la altura de «Ver». */
+.menu-acciones-disparador-compacto {
+    min-height: 36px;
+    padding: var(--space-2) var(--space-4);
+    border-radius: var(--radius-md);
+    border-color: var(--color-border-control);
+    font: var(--font-label-md);
+    font-size: 0.8125rem;
+    font-weight: 600;
+}
+
+@media (max-width: 767px), (pointer: coarse) {
+    .menu-acciones-disparador-compacto {
+        min-height: 44px;
+    }
+}
+
 .menu-acciones-disparador:focus-visible {
     outline: var(--border-focus);
     outline-offset: 2px;
@@ -121,6 +139,47 @@
     min-width: 250px;
     padding: var(--space-1);
     border: 1px solid var(--color-border-strong);
+}
+
+/* Compacto (Documentos, «Acreditación ▾» de cada fila; Agrupar-plataforma.dc.html): opciones de 32 px y 260 px de ancho mínimo. */
+.menu-acciones-panel-titulado.menu-acciones-panel-compacto {
+    min-width: 260px;
+}
+
+.menu-acciones-panel-titulado.menu-acciones-panel-compacto ::deep .menu-acciones-item {
+    height: 32px;
+}
+
+/* El panel compacto vive dentro de la tabla desplazable del listado, cuyo overflow lo recortaba (últimas filas, columna de
+   acciones a la derecha). Con posicionamiento por ancla el panel pasa a `fixed`, fuera de ese recorte, y se ancla al
+   disparador de SU fila (anchor-scope: un nombre de ancla por menú); si no cabe debajo se abre hacia arriba, y si no cabe
+   a la izquierda del borde derecho del disparador, hacia el otro lado. Sin soporte del navegador (anclas CSS: Chrome 131, Safari 26,
+   Firefox 147), el panel absoluto de siempre, que el desplazamiento de la tabla recorta en las últimas filas. */
+@supports (anchor-scope: --menu-acciones) and (position-anchor: --menu-acciones) {
+    .menu-acciones-compacto {
+        anchor-scope: --menu-acciones;
+    }
+
+    .menu-acciones-disparador-compacto {
+        anchor-name: --menu-acciones;
+    }
+
+    .menu-acciones-panel.menu-acciones-panel-titulado.menu-acciones-panel-compacto {
+        position: fixed;
+        position-anchor: --menu-acciones;
+        top: anchor(bottom);
+        /* Al menos a un relleno del borde derecho de la ventana: con la columna de acciones fuera de la parte visible de la tabla
+           (ventana estrecha) el disparador queda más allá del borde y el panel anclado a su borde derecho se saldría con él. */
+        right: max(var(--space-4), anchor(right));
+        left: auto;
+        margin-top: var(--space-1);
+        max-width: calc(100vw - 2 * var(--space-4));
+        /* Un panel fixed no se desplaza con la página: con la ventana muy baja (o a mucho zoom) tiene su propio desplazamiento
+           para que las últimas opciones se alcancen con el ratón y con el teclado. */
+        max-height: calc(100dvh - 2 * var(--space-4));
+        overflow-y: auto;
+        position-try-fallbacks: flip-block, flip-inline, flip-block flip-inline;
+    }
 }
 
 .menu-acciones-titulo {

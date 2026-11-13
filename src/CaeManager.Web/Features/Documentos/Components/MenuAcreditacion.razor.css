@@ -1,0 +1,11 @@
+.menu-acreditacion {
+    display: inline-flex;
+}
+
+/* Separador entre las acciones del estado y «Gestionar acreditación…» / «Abrir portal» (artboard Agrupar-plataforma). */
+.menu-acreditacion-separador {
+    width: 100%;
+    margin: var(--space-1) 0;
+    border: 0;
+    border-top: 1px solid var(--color-border);
+}

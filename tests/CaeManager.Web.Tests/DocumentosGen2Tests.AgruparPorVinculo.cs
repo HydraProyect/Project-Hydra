@@ -37,11 +37,11 @@ public partial class DocumentosGen2Tests
         Guid AcreditacionNorte, Guid AcreditacionSur, MediadorControlado Mediador);
 
     private static DocumentoListaDto EnPlataforma(DocumentoListaDto documento, Guid proveedorId, Guid acreditacionId,
-        EstadoAcreditacion estado, string clienteEmpresarial, string? motivo = null) =>
+        EstadoAcreditacion estado, string clienteEmpresarial, string? motivo = null, string? urlCanal = null) =>
         documento with
         {
             Grupo = new GrupoDeFilaDocumentalDto(proveedorId.ToString(), new AcreditacionEnGrupoDto(
-                acreditacionId, estado, EstadoVigenciaEnPlataforma.SinConfirmar, clienteEmpresarial, motivo))
+                acreditacionId, estado, EstadoVigenciaEnPlataforma.SinConfirmar, clienteEmpresarial, motivo, urlCanal))
         };
 
     private static ResumenDeGrupoDocumental ResumenPlataforma(string nombre, int total, string? url,
@@ -63,9 +63,9 @@ public partial class DocumentosGen2Tests
         var sur = Guid.NewGuid();
         var porPlataforma = new[]
         {
-            EnPlataforma(sinVigencia, NalandaId, norte, EstadoAcreditacion.Aceptada, "Cliente Norte"),
-            EnPlataforma(sinVigencia, NalandaId, sur, EstadoAcreditacion.Aceptada, "Cliente Sur"),
-            EnPlataforma(rechazado, NalandaId, Guid.NewGuid(), EstadoAcreditacion.Rechazada, "Cliente Norte", "Ilegible"),
+            EnPlataforma(sinVigencia, NalandaId, norte, EstadoAcreditacion.Aceptada, "Cliente Norte", urlCanal: urlNalanda),
+            EnPlataforma(sinVigencia, NalandaId, sur, EstadoAcreditacion.Aceptada, "Cliente Sur", urlCanal: urlNalanda),
+            EnPlataforma(rechazado, NalandaId, Guid.NewGuid(), EstadoAcreditacion.Rechazada, "Cliente Norte", "Ilegible", urlNalanda),
             EnPlataforma(pendiente, CtaimaId, Guid.NewGuid(), EstadoAcreditacion.PendienteDeSubir, "Cliente Norte"),
             sinVinculo with { Grupo = new GrupoDeFilaDocumentalDto(ObtenerDocumentosQuery.GrupoSin) },
         };
@@ -157,7 +157,10 @@ public partial class DocumentosGen2Tests
         {
             fila.QuerySelectorAll("button.enlace-nombre-fila").Should().HaveCount(2, "nombre del documento y propietario abren la vista rápida");
             fila.QuerySelectorAll("button").Should().Contain(b => b.TextContent.Trim() == "Ver");
-            fila.QuerySelectorAll(".documentos-accion-rapida").Should().HaveCount(escritura ? 1 : 0);
+            // Por Plataforma CAE una fila acreditada lleva «Acreditación ▾» y no el botón suelto «Gestionar» (D-18); la fila sin vínculo y
+            // las demás agrupaciones lo conservan.
+            var acreditada = agrupacion == "Por Plataforma CAE" && fila.QuerySelector(".menu-acreditacion") is not null;
+            fila.QuerySelectorAll(".documentos-accion-rapida").Should().HaveCount(escritura && !acreditada ? 1 : 0);
             fila.QuerySelectorAll("a.boton-360-pagina").Should().HaveCount(escritura ? 1 : 0);
         }
         // Por Plataforma CAE el grupo ya es la plataforma (artboard Agrupar-plataforma): la fila no repite sus insignias.
