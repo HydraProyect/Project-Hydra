@@ -15,6 +15,8 @@ using CaeManager.Application.Documentos.Queries.ObtenerDocumentoPorId;
 using CaeManager.Application.Documentos.Queries.ObtenerDocumentos;
 using CaeManager.Application.Empresas.Queries.ObtenerEmpresasParaSelector;
 using CaeManager.Application.Proyectos.Queries.ObtenerProyectosParaSelector;
+using CaeManager.Application.Reclamaciones;
+using CaeManager.Application.Reclamaciones.Queries.ObtenerLoteReclamacionPorFiltro;
 using CaeManager.Application.TiposDocumento.Queries.ObtenerTiposDocumento;
 using CaeManager.Application.Documentos.Queries.ObtenerPlataformasEnUso;
 using CaeManager.Application.Trabajadores.Commands.AsignarAliasTrabajador;
@@ -423,6 +425,10 @@ public partial class Documentos : CaeManager.Web.Components.PaginaInteractiva, I
         _contextoVigente++;
 
         _confirmarEliminarLoteVisible = false;
+        _reclamacionVisible = false;
+        _lotesReclamacion = null;
+        _reclamacionEnviada = false;
+        _preparandoReclamacion = false;
         _seleccionados.Clear();
         _documentosAbiertos.Clear();
         _destinosCompletos.Clear();
@@ -1706,6 +1712,102 @@ public partial class Documentos : CaeManager.Web.Components.PaginaInteractiva, I
     {
         if (marcado) _seleccionados.Add(id);
         else _seleccionados.Remove(id);
+    }
+
+    // --- «Reclamar (n)» de la barra de lote (PR6a del lienzo «Documentos · listado sin pestañas») ---
+
+    private bool _reclamacionVisible;
+    private bool _preparandoReclamacion;
+    private bool _reclamacionEnviada;
+    private IReadOnlyList<LoteReclamacionAgrupadoDto>? _lotesReclamacion;
+
+    /// <summary>
+    /// Qué Documentos de la selección se pueden reclamar desde el listado: los de Trabajador vencidos (con tolerancia incluida) o por
+    /// vencer (Urgente y Próximo, que se rotulan igual). El estado ya llega derivado del día de negocio (<c>DiaDeNegocio</c>) en la fila,
+    /// igual que en el resto del listado. Los de Empresa, Vehículo y los vigentes, sin confirmar o sin caducidad no entran: la
+    /// reclamación solo agrupa Documentos de Trabajador por Cliente.
+    /// </summary>
+    internal static bool EsReclamableEnLote(DocumentoListaDto documento) =>
+        documento.Ambito == AmbitoAplicacion.Trabajador
+        && (EstadoDocumentoUi.HaVencido(documento.Estado) || documento.Estado is EstadoDocumento.Urgente or EstadoDocumento.Proximo);
+
+    private List<Guid> IdsReclamablesSeleccionados() =>
+        _elementosPagina.Where(d => _seleccionados.Contains(d.Id) && EsReclamableEnLote(d)).Select(d => d.Id).Distinct().ToList();
+
+    private int ReclamablesSeleccionados => IdsReclamablesSeleccionados().Count;
+
+    /// <summary>
+    /// Calcula los lotes con la misma consulta que Alertas (Trabajadores de Empresa a su Empresa empleadora, los de Subcontrata a su
+    /// Cliente) y los recorta a lo seleccionado: no amplía nada, y cada tarjeta se envía con el Command de siempre, que vuelve a
+    /// validar documentos, alcance y destinatarios. Lo que la consulta no trae (fuera de la ventana de reclamación, ya renovado o sin
+    /// alcance de gestión) se avisa, no se reclama a otro.
+    /// </summary>
+    private async Task AbrirReclamacionLoteAsync()
+    {
+        if (_preparandoReclamacion || _desechado)
+            return;
+
+        var ids = IdsReclamablesSeleccionados();
+        if (ids.Count == 0)
+            return;
+
+        var token = _ciclo.Token;
+        var contexto = _contextoVigente;
+        _preparandoReclamacion = true;
+
+        try
+        {
+            var autorizados = await Mediator.Send(
+                new ObtenerLoteReclamacionPorFiltroQuery(new FiltroLoteDocumental(AmbitoAplicacion.Trabajador, [], null), PorEmpresaEmpleadora: true),
+                token);
+            if (!ContextoSigueSiendo(contexto))
+                return;
+
+            var pedidos = ids.ToHashSet();
+            var lotes = autorizados
+                .Select(l => l with { Documentos = l.Documentos.Where(d => pedidos.Contains(d.DocumentoId)).ToList(), PendientesSinFecha = null })
+                .Where(l => l.Documentos.Count > 0)
+                .ToList();
+            var cubiertos = lotes.SelectMany(l => l.Documentos).Select(d => d.DocumentoId).Distinct().Count();
+
+            _lotesReclamacion = lotes;
+            _reclamacionEnviada = false;
+            _reclamacionVisible = true;
+
+            if (cubiertos < ids.Count)
+                ToastService.Mostrar(Textos["ToastReclamarLoteFuera", ids.Count - cubiertos, ids.Count].Value, TonoToast.Advertencia);
+        }
+        catch (OperationCanceledException) when (token.IsCancellationRequested)
+        {
+            // La página se retiró mientras se preparaba: no hay nada que decir.
+        }
+        catch (Exception)
+        {
+            if (ContextoSigueSiendo(contexto))
+                ToastService.Mostrar(Textos["ToastReclamarLoteError"].Value, TonoToast.Error);
+        }
+        finally
+        {
+            if (ContextoSigueSiendo(contexto))
+                _preparandoReclamacion = false;
+        }
+    }
+
+    // El cajón avisa tras cada lote enviado, pero puede quedar otro por revisar: la selección se suelta al cerrarlo, no antes.
+    private void AlEnviarseReclamacion() => _reclamacionEnviada = true;
+
+    private void CambiarReclamacionVisible(bool visible)
+    {
+        if (visible)
+            return;
+
+        _reclamacionVisible = false;
+        _lotesReclamacion = null;
+        if (_reclamacionEnviada)
+        {
+            _reclamacionEnviada = false;
+            _seleccionados.Clear();
+        }
     }
 
     private async Task ConfirmarEliminarLoteAsync()
