@@ -802,6 +802,54 @@
   <data name="SubirCabeceraTitulo" xml:space="preserve">
     <value>Pujar documents</value>
   </data>
+  <data name="ZonaSoltarEstadoAdjunto" xml:space="preserve">
+    <value>Fitxer adjuntat correctament.</value>
+  </data>
+  <data name="ZonaSoltarEstadoAdjuntos" xml:space="preserve">
+    <value>{0} fitxers adjuntats</value>
+  </data>
+  <data name="ZonaSoltarCambiar" xml:space="preserve">
+    <value>Canvia</value>
+  </data>
+  <data name="ZonaSoltarCambiarEtiqueta" xml:space="preserve">
+    <value>Canvia el fitxer adjunt</value>
+  </data>
+  <data name="ZonaSoltarQuitar" xml:space="preserve">
+    <value>Treu</value>
+  </data>
+  <data name="ZonaSoltarQuitarEtiqueta" xml:space="preserve">
+    <value>Treu el fitxer adjunt</value>
+  </data>
+  <data name="ZonaSoltarAnuncioSeleccionado" xml:space="preserve">
+    <value>Fitxer seleccionat: {0}.</value>
+  </data>
+  <data name="ZonaSoltarAnuncioSinNombre" xml:space="preserve">
+    <value>Fitxer rebut.</value>
+  </data>
+  <data name="ZonaSoltarAnuncioPegado" xml:space="preserve">
+    <value>Fitxer enganxat: {0}.</value>
+  </data>
+  <data name="ZonaSoltarAnuncioSoltado" xml:space="preserve">
+    <value>Fitxer deixat anar: {0}.</value>
+  </data>
+  <data name="ZonaSoltarAnuncioVarios" xml:space="preserve">
+    <value>{0} fitxers rebuts.</value>
+  </data>
+  <data name="ZonaSoltarAnuncioQuitado" xml:space="preserve">
+    <value>Fitxer tret.</value>
+  </data>
+  <data name="ZonaSoltarErrorSinArchivo" xml:space="preserve">
+    <value>El porta-retalls no conté cap fitxer. Copia un fitxer o una captura i torna-ho a provar.</value>
+  </data>
+  <data name="ZonaSoltarErrorTipo" xml:space="preserve">
+    <value>«{0}» no és un tipus de fitxer admès.</value>
+  </data>
+  <data name="ZonaSoltarErrorTipoConFormatos" xml:space="preserve">
+    <value>«{0}» no és un tipus de fitxer admès. Formats admesos: {1}.</value>
+  </data>
+  <data name="ZonaSoltarErrorTamano" xml:space="preserve">
+    <value>«{0}» supera la mida màxima de {1} MB.</value>
+  </data>
   <data name="CampoFechaFormato" xml:space="preserve">
     <value>dd/mm/aaaa</value>
   </data>

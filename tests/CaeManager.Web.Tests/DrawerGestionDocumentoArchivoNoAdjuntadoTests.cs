@@ -1,4 +1,4 @@
-﻿using System.Reflection;
+using System.Reflection;
 using System.Text;
 using Bunit;
 using CaeManager.Application.Common;
@@ -368,7 +368,7 @@ public class DrawerGestionDocumentoArchivoNoAdjuntadoTests : BunitContext
 
         cut.FindAll(".campo-mensaje-error").Should().ContainSingle()
             .Which.TextContent.Should().Be("Este archivo no se adjuntó. Elige otro o vuelve a intentarlo.");
-        cut.Markup.Should().NotContain("Archivo adjuntado correctamente.");
+        cut.FindAll(".zona-soltar-archivo-con-archivo").Should().BeEmpty("un archivo que no se adjuntó no se enseña como adjunto");
 
         await PulsarGuardarAsync(cut);
 
@@ -468,5 +468,115 @@ public class DrawerGestionDocumentoArchivoNoAdjuntadoTests : BunitContext
         await PulsarGuardarAsync(cut);
 
         _mediator.Creados.Should().ContainSingle().Which.ArchivoUrl.Should().BeNull();
+    }
+
+    // ---- Zona de subida: el estado con archivo (Chris, 11-11: «tras adjuntar, la zona seguía vacía») ----
+
+    private static string[] NombresEnLaZona(IRenderedComponent<DrawerGestionDocumento> cut) =>
+        cut.FindAll(".zona-soltar-archivo-fila-nombre").Select(n => n.TextContent).ToArray();
+
+    [Fact]
+    public async Task Sin_archivo_la_zona_esta_vacia_y_sin_botones_de_quitar_ni_cambiar()
+    {
+        var cut = await AbrirAltaListaParaGuardarAsync();
+
+        cut.Markup.Should().Contain("Suelta tu archivo aquí");
+        cut.FindAll(".zona-soltar-archivo-con-archivo").Should().BeEmpty();
+        cut.FindAll(".zona-soltar-archivo-quitar").Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task Tras_adjuntar_un_pdf_la_zona_cambia_de_estado_con_nombre_tipo_y_tamano()
+    {
+        var cut = await AbrirAltaListaParaGuardarAsync();
+        _almacen.Respuestas.Enqueue("blob-bueno");
+        var pdf = CrearPdf();
+
+        Subir(cut, pdf);
+
+        cut.WaitForAssertion(() => cut.FindAll(".zona-soltar-archivo-con-archivo").Should().ContainSingle());
+        cut.FindAll(".zona-soltar-archivo-titulo").Should().BeEmpty("la zona ya no está vacía");
+        cut.Markup.Should().NotContain("busca archivos");
+        NombresEnLaZona(cut).Should().Equal("documento-identidad.pdf");
+        cut.Find(".zona-soltar-archivo-fila-meta").TextContent.Should().StartWith("PDF · ");
+        cut.Find(".zona-soltar-archivo-estado").TextContent.Should().Contain("Archivo adjuntado");
+        cut.FindAll(".zona-soltar-archivo-aviso").Should().BeEmpty("con un solo archivo no hay nada que combinar");
+        cut.FindAll("button").Select(b => b.TextContent.Trim()).Should().Contain(["Cambiar", "Quitar"]);
+    }
+
+    [Fact]
+    public async Task Con_varios_archivos_ensena_la_lista_y_avisa_de_que_se_combinan_en_un_pdf()
+    {
+        var cut = await AbrirAltaListaParaGuardarAsync();
+        _almacen.Respuestas.Enqueue("blob-bueno");
+
+        cut.FindComponent<InputFile>().UploadFiles(
+            InputFileContent.CreateFromBinary(CrearPdf(), "pagina-1.pdf", contentType: "application/pdf"),
+            InputFileContent.CreateFromBinary(CrearPdf(), "pagina-2.pdf", contentType: "application/pdf"));
+
+        cut.WaitForAssertion(() => NombresEnLaZona(cut).Should().Equal("pagina-1.pdf", "pagina-2.pdf"));
+        cut.Find(".zona-soltar-archivo-estado").TextContent.Should().Contain("2 archivos adjuntados");
+        cut.Find(".zona-soltar-archivo-aviso").TextContent.Should().Be("Estos 2 archivos se han combinado en un solo PDF.");
+    }
+
+    [Fact]
+    public async Task Quitar_devuelve_la_zona_al_estado_vacio_borra_lo_subido_y_guarda_sin_archivo()
+    {
+        var cut = await AbrirAltaListaParaGuardarAsync();
+        _almacen.Respuestas.Enqueue("blob-bueno");
+        Subir(cut, CrearPdf());
+        cut.WaitForAssertion(() => cut.FindAll(".zona-soltar-archivo-con-archivo").Should().ContainSingle());
+
+        await cut.Find(".zona-soltar-archivo-quitar").ClickAsync(new MouseEventArgs());
+
+        cut.FindAll(".zona-soltar-archivo-con-archivo").Should().BeEmpty();
+        cut.Markup.Should().Contain("Suelta tu archivo aquí");
+        _almacen.Borrados.Should().Equal("blob-bueno");
+        cut.Find(".zona-soltar-archivo-anuncio").TextContent.Trim().Should().Be("Archivo quitado.");
+        await PulsarGuardarAsync(cut);
+        _mediator.Creados.Should().ContainSingle().Which.ArchivoUrl.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task Un_archivo_que_no_se_adjunta_deja_la_zona_vacia_con_su_error_y_no_la_da_por_adjuntada()
+    {
+        var cut = await AbrirAltaListaParaGuardarAsync();
+
+        cut.FindComponent<InputFile>().UploadFiles(
+            InputFileContent.CreateFromBinary([1, 2, 3], "notas.txt", contentType: "text/plain"));
+
+        cut.WaitForAssertion(() => cut.FindAll(".campo-mensaje-error").Should().ContainSingle());
+        cut.FindAll(".zona-soltar-archivo-con-archivo").Should().BeEmpty("lo elegido no está adjunto");
+        cut.Markup.Should().Contain("Suelta tu archivo aquí");
+    }
+
+    [Fact]
+    public async Task Una_subida_que_falla_tras_otra_buena_no_deja_ensenada_la_primera()
+    {
+        var cut = await AbrirAltaListaParaGuardarAsync();
+        _almacen.Respuestas.Enqueue("blob-bueno");
+        Subir(cut, CrearPdf());
+        cut.WaitForAssertion(() => cut.FindAll(".zona-soltar-archivo-con-archivo").Should().ContainSingle());
+
+        cut.FindComponent<InputFile>().UploadFiles(
+            InputFileContent.CreateFromBinary([1, 2, 3], "notas.txt", contentType: "text/plain"));
+
+        cut.WaitForAssertion(() => cut.FindAll(".zona-soltar-archivo-con-archivo").Should().BeEmpty());
+    }
+
+    [Fact]
+    public async Task El_archivo_que_el_documento_ya_tenia_se_ensena_como_actual_y_no_se_puede_quitar()
+    {
+        var cut = await AbrirAltaListaParaGuardarAsync();
+        await cut.InvokeAsync(() =>
+        {
+            Escribir(cut.Instance, "_archivoUrl", "blob-del-documento");
+            Escribir(cut.Instance, "_archivoUrlDelDocumento", "blob-del-documento");
+        });
+        cut.Render();
+
+        NombresEnLaZona(cut).Should().Equal("Archivo actual del documento");
+        cut.FindAll(".zona-soltar-archivo-quitar").Should().BeEmpty("quitarlo sería borrar el archivo vivo del Documento");
+        cut.FindAll("button").Select(b => b.TextContent.Trim()).Should().Contain("Cambiar");
     }
 }

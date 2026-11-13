@@ -54,4 +54,10 @@
   <data name="DemasiadosArchivos" xml:space="preserve">
     <value>Pots pujar fins a {0} arxius alhora.</value>
   </data>
+  <data name="ArchivoActualDelDocumento" xml:space="preserve">
+    <value>Fitxer actual del document</value>
+  </data>
+  <data name="ArchivosCombinados" xml:space="preserve">
+    <value>Aquests {0} fitxers s'han combinat en un sol PDF.</value>
+  </data>
 </root>
