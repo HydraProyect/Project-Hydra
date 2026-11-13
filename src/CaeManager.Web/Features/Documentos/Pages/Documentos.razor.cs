@@ -463,7 +463,7 @@ public partial class Documentos : CaeManager.Web.Components.PaginaInteractiva, I
     /// Contrato persistido de los filtros guardados (<c>ValoresJson</c>): los guardados antes de cada campo opcional no lo
     /// traen y siguen cargando (el campo queda en <c>null</c>). «Estado en la plataforma» entró en D-19 (2026-11-13).
     /// </summary>
-    private record FiltrosDocumentosJson(string? Busqueda, string? Ambito, string? Estado, string? Tipo = null, string? Plataforma = null, string? Propietario = null, string? EstadoPlataforma = null);
+    private record FiltrosDocumentosJson(string? Busqueda, string? Ambito, string? Estado, string? Tipo = null, string? Plataforma = null, string? Propietario = null, string? EstadoPlataforma = null, string? Agrupar = null);
 
     private DrawerGestionDocumento _drawerGestion = default!;
     private PlataformaTab? _plataformaTab;
@@ -1747,6 +1747,12 @@ public partial class Documentos : CaeManager.Web.Components.PaginaInteractiva, I
         _propietarioFiltro = IdValido(valores.Propietario);
         // Un filtro guardado antes de D-19 no trae «Estado en la plataforma»: queda sin ese filtro.
         _estadoPlataformaFiltro = EstadoPlataformaValido(valores.EstadoPlataforma);
+        // Igual: uno guardado antes de D-19 no trae la agrupación y se aplica sin agrupar. Una clave que ya no existe cae
+        // también en «sin agrupar». Cambiar de agrupación reinicia los grupos abiertos, como al restaurar la vista recordada.
+        _agrupacion = AgrupacionDeLaUrl(valores.Agrupar);
+        _gruposPlegados.Clear();
+        _gruposPlegados.Add(ObtenerDocumentosQuery.GrupoSin);
+        _tiposElegidos.Clear();
 
         // Todos van también a la URL, y en una sola llamada. Sin esto, el
         // filtro guardado duraba hasta la siguiente pasada de parámetros:
@@ -1762,6 +1768,7 @@ public partial class Documentos : CaeManager.Web.Components.PaginaInteractiva, I
             [nameof(Plataforma)] = _plataformaFiltro,
             [nameof(Propietario)] = _propietarioFiltro,
             [nameof(EstadoPlataforma)] = _estadoPlataformaFiltro,
+            [AgrupacionDeLista.Parametro] = Agrupaciones.ParaUrl(ClaveDeAgrupacion),
         });
         await RecargarAsync();
     }
@@ -1774,7 +1781,7 @@ public partial class Documentos : CaeManager.Web.Components.PaginaInteractiva, I
     /// escribe; la búsqueda libre (<c>q</c>) es de la vista pero no se recuerda. No son vista <c>Pestana</c> ni los enlaces profundos (<see cref="DocumentoId"/>,
     /// <see cref="TipoDocumentoId"/>…). Desde D-19 (2026-11-13) también son vista «Estado en la plataforma» y la agrupación
     /// (<c>agrupar</c>). Los filtros guardados de esta pantalla son anteriores a la pieza compartida y conservan su propio
-    /// JSON (<see cref="FiltrosDocumentosJson"/>), con «Estado en la plataforma» pero sin el orden de columna ni la agrupación.
+    /// JSON (<see cref="FiltrosDocumentosJson"/>), con «Estado en la plataforma» y la agrupación (campos opcionales: uno antiguo los quita) pero sin el orden de columna.
     /// </summary>
     public static readonly IReadOnlyList<string> ParametrosDeVista =
         ["q", nameof(Estado), nameof(Ambito), nameof(Tipo), nameof(Plataforma), nameof(EstadoPlataforma), nameof(Propietario), "orden",
@@ -1860,7 +1867,8 @@ public partial class Documentos : CaeManager.Web.Components.PaginaInteractiva, I
             string.IsNullOrWhiteSpace(_tipoFiltro) ? null : _tipoFiltro,
             string.IsNullOrWhiteSpace(_plataformaFiltro) ? null : _plataformaFiltro,
             string.IsNullOrWhiteSpace(_propietarioFiltro) ? null : _propietarioFiltro,
-            string.IsNullOrWhiteSpace(_estadoPlataformaFiltro) ? null : _estadoPlataformaFiltro));
+            string.IsNullOrWhiteSpace(_estadoPlataformaFiltro) ? null : _estadoPlataformaFiltro,
+            Agrupaciones.ParaUrl(ClaveDeAgrupacion)));
 
         _guardandoFiltro = true;
         _mensajeErrorFiltro = null;
