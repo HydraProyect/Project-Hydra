@@ -1753,6 +1753,9 @@ public partial class Documentos : CaeManager.Web.Components.PaginaInteractiva, I
 
         var token = _ciclo.Token;
         var contexto = _contextoVigente;
+        // Cambiar de página, de orden o de tamaño de página no cambia el contexto, pero recarga la lista y suelta la selección:
+        // el número de carga es lo que lo delata, y el cajón no se abre sobre una selección que ya no está.
+        var carga = _cargaVigente;
         _preparandoReclamacion = true;
 
         try
@@ -1760,7 +1763,7 @@ public partial class Documentos : CaeManager.Web.Components.PaginaInteractiva, I
             var autorizados = await Mediator.Send(
                 new ObtenerLoteReclamacionPorFiltroQuery(new FiltroLoteDocumental(AmbitoAplicacion.Trabajador, [], null), PorEmpresaEmpleadora: true),
                 token);
-            if (!ContextoSigueSiendo(contexto))
+            if (!ContextoSigueSiendo(contexto) || !EsVigente(carga))
                 return;
 
             var pedidos = ids.ToHashSet();

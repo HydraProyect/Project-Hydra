@@ -22,7 +22,7 @@
     <value>Només es reclamen els Documents de Treballador vençuts o per vèncer; cap dels seleccionats ho és.</value>
   </data>
   <data name="ToastReclamarLoteFuera" xml:space="preserve">
-    <value>{0} de {1} documents no entren a la reclamació: són fora de la finestra de reclamació, ja renovats o sense abast de gestió.</value>
+    <value>{0} de {1} documents no entren a la reclamació: el Treballador no té una Assignació activa a un Centre amb gestió CAE, el Document està substituït, el seu Tipus no és reclamable o queda fora de la teva Cartera.</value>
   </data>
   <data name="ToastReclamarLoteError" xml:space="preserve">
     <value>No hem pogut preparar la reclamació. Torna-ho a provar.</value>

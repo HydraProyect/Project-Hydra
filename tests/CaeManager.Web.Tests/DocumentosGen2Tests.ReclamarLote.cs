@@ -14,6 +14,7 @@ using FluentAssertions;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Web;
 using Microsoft.Extensions.DependencyInjection;
+using System.Reflection;
 
 namespace CaeManager.Web.Tests;
 
@@ -77,10 +78,14 @@ public partial class DocumentosGen2Tests
         cut.FindAll(".tabla-datos tbody input[type=checkbox]")
             .Single(c => c.GetAttribute("aria-label")!.StartsWith($"Seleccionar {documento.TipoDocumentoNombre} de ", StringComparison.Ordinal));
 
-    private async Task<IRenderedComponent<PaginaDocumentos>> MarcarAsync(
-        EscenarioReclamar escenario, string rol = "Administrador", params DocumentoListaDto[] marcados)
+    private Task<IRenderedComponent<PaginaDocumentos>> MarcarAsync(
+        EscenarioReclamar escenario, string rol = "Administrador", params DocumentoListaDto[] marcados) =>
+        MarcarEnAsync(escenario.Mediador, rol, marcados);
+
+    private async Task<IRenderedComponent<PaginaDocumentos>> MarcarEnAsync(
+        MediadorControlado mediador, string rol, DocumentoListaDto[] marcados)
     {
-        var (cut, _) = Renderizar(escenario.Mediador, rol: rol);
+        var (cut, _) = Renderizar(mediador, rol: rol);
         cut.WaitForAssertion(() => cut.FindAll("button[aria-label='Selección múltiple']").Should().NotBeEmpty());
         await BotonPorTexto(cut, "button[aria-label]", "Selección múltiple").ClickAsync(new MouseEventArgs());
         foreach (var documento in marcados)
@@ -227,5 +232,184 @@ public partial class DocumentosGen2Tests
 
         await BotonPorTexto(cut, ".barra-acciones-lote button", "Cancelar").ClickAsync(new MouseEventArgs());
         cut.FindAll(".barra-acciones-lote").Should().BeEmpty("«Cancelar» suelta la selección");
+    }
+
+    // ---------------------------------------------------------------- huecos de la revisión de la PR6a
+
+    /// <summary>Hace que la consulta de lotes se quede esperando; el caso la suelta con <see cref="Soltar"/>.</summary>
+    private static TaskCompletionSource<object?> RetenerLotes(MediadorControlado mediador)
+    {
+        var retenida = new TaskCompletionSource<object?>();
+        mediador.Interceptar = p => p is ObtenerLoteReclamacionPorFiltroQuery ? retenida.Task : null;
+        return retenida;
+    }
+
+    private static Task Soltar(IRenderedComponent<PaginaDocumentos> cut, TaskCompletionSource<object?> retenida,
+        params LoteReclamacionAgrupadoDto[] lotes) =>
+        cut.InvokeAsync(() => retenida.SetResult((IReadOnlyList<LoteReclamacionAgrupadoDto>)lotes));
+
+    private static Task PulsarReclamarSinEsperar(IRenderedComponent<PaginaDocumentos> cut)
+    {
+        var boton = cut.FindComponents<Boton>().Single(b => b.Markup.Contains("Reclamar (", StringComparison.Ordinal));
+        return cut.InvokeAsync(() => boton.Instance.OnClick.InvokeAsync());
+    }
+
+    [Fact]
+    public async Task Un_lote_sin_ningun_Documento_seleccionado_no_llega_al_cajon()
+    {
+        var e = EscenarioDeReclamar();
+        var ajeno = DocumentoDe(AmbitoAplicacion.Trabajador, EstadoDocumento.Vencido, "Reconocimiento ajeno", "Ana Pérez");
+        e.Mediador.Interceptar = p => p is ObtenerLoteReclamacionPorFiltroQuery
+            ? Task.FromResult<object?>((IReadOnlyList<LoteReclamacionAgrupadoDto>)
+            [
+                LoteDe(ClienteBetaId, "Obras Beta S.L.", Reclamable(ajeno)),
+                LoteDe(ClienteAlfaId, "Constructora Alfa S.A.", Reclamable(e.Vencido)),
+            ])
+            : null;
+        var cut = await MarcarAsync(e, marcados: [e.Vencido]);
+
+        await BotonReclamar(cut).ClickAsync(new MouseEventArgs());
+
+        cut.FindComponent<DrawerReclamacionLote>().Instance.LotesIniciales!.Select(l => l.TitularId)
+            .Should().Equal([ClienteAlfaId], "el Cliente cuyo lote no trae nada de lo marcado no se ofrece");
+        cut.Markup.Should().NotContain("Obras Beta S.L.");
+        Toasts().Should().BeEmpty("lo marcado entró entero");
+    }
+
+    [Fact]
+    public async Task En_tolerancia_cuenta_como_reclamable_y_sin_confirmar_sin_caducidad_o_faltante_no()
+    {
+        var enTolerancia = DocumentoDe(AmbitoAplicacion.Trabajador, EstadoDocumento.EnTolerancia, "Tipo en tolerancia", "Marta Gil Soler");
+        var sinConfirmar = DocumentoDe(AmbitoAplicacion.Trabajador, EstadoDocumento.SinConfirmar, "Tipo sin confirmar", "Iván Roca Vidal");
+        var sinCaducidad = DocumentoDe(AmbitoAplicacion.Trabajador, EstadoDocumento.SinCaducidad, "Tipo sin caducidad", "Nora Bosch Lara");
+        var faltante = DocumentoDe(AmbitoAplicacion.Trabajador, EstadoDocumento.Faltante, "Tipo faltante", "Hugo Prat Ríos");
+        var mediador = ConDocumentos(enTolerancia, sinConfirmar, sinCaducidad, faltante);
+
+        var cut = await MarcarEnAsync(mediador, "Administrador", [enTolerancia, sinConfirmar, sinCaducidad, faltante]);
+
+        cut.Find(".barra-acciones-lote-cantidad").TextContent.Should().Be("4 seleccionados en esta página");
+        BotonReclamar(cut).TextContent.Trim().Should().Be("Reclamar (1)", "solo el que ya pasó su vencimiento y sigue en tolerancia");
+    }
+
+    [Fact]
+    public async Task Pulsar_Reclamar_con_la_consulta_en_vuelo_no_lanza_una_segunda()
+    {
+        var e = EscenarioDeReclamar();
+        var retenida = RetenerLotes(e.Mediador);
+        var cut = await MarcarAsync(e, marcados: [e.Vencido]);
+
+        var primera = PulsarReclamarSinEsperar(cut);
+        cut.WaitForAssertion(() => e.Mediador.Enviadas.OfType<ObtenerLoteReclamacionPorFiltroQuery>().Should().ContainSingle());
+
+        // El botón ya está en «cargando» y no deja pasar el clic; el manejador de la página lo vuelve a impedir por su cuenta.
+        await PulsarReclamarSinEsperar(cut);
+        e.Mediador.Enviadas.OfType<ObtenerLoteReclamacionPorFiltroQuery>().Should().ContainSingle();
+
+        await Soltar(cut, retenida, LoteDe(ClienteAlfaId, "Constructora Alfa S.A.", Reclamable(e.Vencido)));
+        await primera;
+
+        e.Mediador.Enviadas.OfType<ObtenerLoteReclamacionPorFiltroQuery>().Should().ContainSingle();
+        cut.FindComponents<DrawerReclamacionLote>().Should().ContainSingle();
+    }
+
+    [Fact]
+    public async Task Si_la_consulta_de_lotes_falla_se_avisa_y_el_cajon_no_se_abre()
+    {
+        var e = EscenarioDeReclamar();
+        e.Mediador.Interceptar = p => p is ObtenerLoteReclamacionPorFiltroQuery
+            ? Task.FromException<object?>(new InvalidOperationException("sin base de datos"))
+            : null;
+        var cut = await MarcarAsync(e, marcados: [e.Vencido]);
+
+        await BotonReclamar(cut).ClickAsync(new MouseEventArgs());
+
+        var aviso = Toasts().Should().ContainSingle().Subject;
+        aviso.Tono.Should().Be(TonoToast.Error);
+        aviso.Mensaje.Should().Be("No pudimos preparar la reclamación. Inténtalo de nuevo.");
+        cut.FindComponents<DrawerReclamacionLote>().Should().BeEmpty();
+        BotonReclamar(cut).HasAttribute("disabled").Should().BeFalse("el fallo libera el botón para reintentar");
+        cut.Find(".barra-acciones-lote-cantidad").TextContent.Should().Be("1 seleccionado en esta página", "la selección se conserva");
+    }
+
+    [Fact]
+    public async Task Si_ningun_lote_trae_lo_marcado_se_avisa_y_el_cajon_se_abre_vacio()
+    {
+        var e = EscenarioDeReclamar();
+        e.Mediador.Interceptar = p => p is ObtenerLoteReclamacionPorFiltroQuery
+            ? Task.FromResult<object?>((IReadOnlyList<LoteReclamacionAgrupadoDto>)[])
+            : null;
+        var cut = await MarcarAsync(e, marcados: [e.Vencido, e.PorVencer]);
+
+        await BotonReclamar(cut).ClickAsync(new MouseEventArgs());
+
+        Toasts().Select(t => t.Mensaje).Should().ContainSingle().Which.Should().StartWith("2 de 2 documentos no entran");
+        // Es lo que hace el código y lo que el cajón documenta para una lista vacía: se abre y dice que no hay nada, sin envío posible.
+        cut.FindComponent<DrawerReclamacionLote>().Instance.LotesIniciales.Should().NotBeNull().And.BeEmpty();
+    }
+
+    [Fact]
+    public async Task Si_cambia_el_contexto_mientras_se_preparan_los_lotes_el_cajon_no_se_abre()
+    {
+        var e = EscenarioDeReclamar();
+        var retenida = RetenerLotes(e.Mediador);
+        var cut = await MarcarAsync(e, marcados: [e.Vencido]);
+
+        var pendiente = PulsarReclamarSinEsperar(cut);
+        cut.WaitForAssertion(() => e.Mediador.Enviadas.OfType<ObtenerLoteReclamacionPorFiltroQuery>().Should().ContainSingle());
+
+        await Pestana(cut, "Preventivo").ClickAsync(new MouseEventArgs());
+        await Soltar(cut, retenida, LoteDe(ClienteAlfaId, "Constructora Alfa S.A.", Reclamable(e.Vencido)));
+        await pendiente;
+
+        cut.FindComponents<DrawerReclamacionLote>().Should().BeEmpty("los lotes eran de la selección de otro contexto");
+        Toasts().Should().BeEmpty();
+    }
+
+    /// <summary>
+    /// Cambiar de página, de orden o de tamaño de página no cambia el contexto documental, pero recarga la lista y suelta la
+    /// selección. Se prueba con el orden, que es el cambio que el arnés sabe provocar sin tocar los filtros.
+    /// </summary>
+    [Fact]
+    public async Task Si_la_lista_se_recarga_mientras_se_preparan_los_lotes_el_cajon_no_se_abre()
+    {
+        var e = EscenarioDeReclamar();
+        var retenida = RetenerLotes(e.Mediador);
+        var cut = await MarcarAsync(e, marcados: [e.Vencido]);
+
+        var pendiente = PulsarReclamarSinEsperar(cut);
+        cut.WaitForAssertion(() => e.Mediador.Enviadas.OfType<ObtenerLoteReclamacionPorFiltroQuery>().Should().ContainSingle());
+
+        await CabeceraDocumentoFase1(cut, "Vence").QuerySelector("button.col-title")!.ClickAsync(new MouseEventArgs());
+        cut.WaitForAssertion(() => cut.FindAll(".barra-acciones-lote").Should().BeEmpty("la recarga soltó la selección"));
+
+        await Soltar(cut, retenida, LoteDe(ClienteAlfaId, "Constructora Alfa S.A.", Reclamable(e.Vencido)));
+        await pendiente;
+
+        cut.FindComponents<DrawerReclamacionLote>().Should().BeEmpty("la selección sobre la que se calcularon los lotes ya no existe");
+        Toasts().Should().BeEmpty();
+    }
+
+    /// <summary>
+    /// Consulta ya no llega a seleccionar nada, así que el caso de arriba es vacuo: aquí se fuerza una selección por reflexión
+    /// (el estado interno de la página) para comprobar que la barra y «Reclamar» dependen también de la escritura, no solo de la selección.
+    /// </summary>
+    [Fact]
+    public async Task Con_una_seleccion_forzada_sin_escritura_la_barra_y_Reclamar_siguen_ocultos()
+    {
+        var e = EscenarioDeReclamar();
+        var (cut, _) = Renderizar(e.Mediador, rol: "Consulta");
+        cut.WaitForAssertion(() => cut.FindAll("tbody tr").Should().NotBeEmpty());
+
+        var seleccionados = (HashSet<Guid>)typeof(PaginaDocumentos)
+            .GetField("_seleccionados", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(cut.Instance)!;
+        await cut.InvokeAsync(() => seleccionados.Add(e.Vencido.Id));
+        var atajos = cut.FindComponent<AtajosListaTeclado>().Instance;
+        await cut.InvokeAsync(() => atajos.OnAtajo.InvokeAsync("j"));
+
+        seleccionados.Should().Contain(e.Vencido.Id, "control positivo: la selección forzada sigue ahí tras volver a pintar");
+        cut.Find("tbody tr").ClassList.Should().Contain("fila-enfocada", "control positivo: la página volvió a pintarse");
+        cut.FindAll(".barra-acciones-lote").Should().BeEmpty();
+        cut.Markup.Should().NotContain("Reclamar (");
+        cut.FindComponents<DrawerReclamacionLote>().Should().BeEmpty();
     }
 }
