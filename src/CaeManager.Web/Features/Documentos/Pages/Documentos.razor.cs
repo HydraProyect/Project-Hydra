@@ -373,7 +373,9 @@ public partial class Documentos : CaeManager.Web.Components.PaginaInteractiva, I
                 || resultado.Elementos.FirstOrDefault() is not { } actualizada)
                 return;
 
-            _elementosPagina[indice] = actualizada;
+            // La relectura por Id no pide «Pendiente de revisión IA»: la fila conserva la confianza con la que se cargó la página
+            // (con el filtro aplicado) en vez de quedarse sin ella hasta la siguiente carga.
+            _elementosPagina[indice] = actualizada with { ConfianzaRevisionIa = _elementosPagina[indice].ConfianzaRevisionIa };
             _servirPaginaEnMemoria = true;
             await _grid.RefreshDataAsync();
             if (!_desechado && carga == _cargaVigente) StateHasChanged();
@@ -937,7 +939,7 @@ public partial class Documentos : CaeManager.Web.Components.PaginaInteractiva, I
 
             // Con «Pendiente de revisión IA» la columna «Revisión IA» va antes de las acciones: barra de 72 px, separación y «Confianza 100 %»
             // en una línea (el artboard no la limita: la deja a su contenido); 190 px para que no se corte, y el resto de anchos no se tocan.
-            return RevisionIaActiva && anchos.Length > 0 ? [.. anchos[..^1], AnchoColumnaRevisionIa, anchos[^1]] : anchos;
+            return ColumnaRevisionIa && anchos.Length > 0 ? [.. anchos[..^1], AnchoColumnaRevisionIa, anchos[^1]] : anchos;
         }
     }
 
@@ -1240,6 +1242,14 @@ public partial class Documentos : CaeManager.Web.Components.PaginaInteractiva, I
     private bool _puedeGestionarDocumentos;
 
     private bool RevisionIaActiva => _revisionIaFiltro && _puedeGestionarDocumentos;
+
+    /// <summary>
+    /// La columna «Revisión IA» existe solo si el servidor aplicó el filtro, y eso se sabe por lo que devolvió: alguna fila de la página lleva
+    /// confianza. <see cref="RevisionIaActiva"/> sale del claim de la sesión y el servidor decide por el rol efectivo (con una Sesión
+    /// Privilegiada el claim puede ser de gestión y el rol efectivo no): sin esta comprobación, el servidor ignoraría el filtro y la
+    /// pantalla pintaría una columna vacía sobre un listado sin filtrar. Con el filtro aplicado, toda fila de la cola lleva confianza.
+    /// </summary>
+    private bool ColumnaRevisionIa => RevisionIaActiva && _elementosPagina.Any(d => d.ConfianzaRevisionIa is not null);
 
     /// <summary>Solo el texto exacto de uno de los plazos que se ofrecen: ni ceros a la izquierda, ni signos, ni listas.</summary>
     private static string VenceEnValido(string? valor) =>

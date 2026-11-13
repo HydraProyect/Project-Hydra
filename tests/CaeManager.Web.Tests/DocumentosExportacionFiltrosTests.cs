@@ -56,18 +56,33 @@ public class DocumentosExportacionFiltrosTests
         public Task Publish<TNotification>(TNotification notification, CancellationToken cancellationToken = default) where TNotification : INotification => throw new NotSupportedException();
     }
 
-    private static async Task<(ObtenerDocumentosQuery Consulta, IReadOnlyDictionary<string, string> Criterios)> ExportarAsync(
-        string? rol, string? venceEn = null, string? pendienteRevisionIa = null)
+    private sealed class UsuarioActualFalso(string? rolEfectivo) : ICurrentUserService
     {
+        public Task<Guid?> ObtenerUsuarioActualIdAsync() => Task.FromResult<Guid?>(Guid.NewGuid());
+        public Task<string?> ObtenerRolOrigenAsync() => ObtenerRolEfectivoAsync();
+        public Task<string?> ObtenerRolEfectivoAsync() => Task.FromResult(rolEfectivo);
+        public Task<Guid?> ObtenerTenantOrigenIdAsync() => Task.FromResult<Guid?>(Guid.NewGuid());
+        public Task<bool> TieneDobleFactorActivoAsync() => Task.FromResult(true);
+    }
+
+    /// <summary>
+    /// <paramref name="rol"/> es el rol efectivo (el que decide el handler) y, salvo que se diga otro, también el claim de la sesión.
+    /// <paramref name="sinServicioDeUsuario"/> simula un endpoint sin <see cref="ICurrentUserService"/>.
+    /// </summary>
+    private static async Task<(ObtenerDocumentosQuery Consulta, IReadOnlyDictionary<string, string> Criterios)> ExportarAsync(
+        string? rol, string? venceEn = null, string? pendienteRevisionIa = null, string? claim = "igual", bool sinServicioDeUsuario = false)
+    {
+        claim = claim == "igual" ? rol : claim;
         var contexto = new DefaultHttpContext
         {
-            User = new ClaimsPrincipal(new ClaimsIdentity(rol is null ? [] : [new Claim(ClaimTypes.Role, rol)], "prueba"))
+            User = new ClaimsPrincipal(new ClaimsIdentity(claim is null ? [] : [new Claim(ClaimTypes.Role, claim)], "prueba"))
         };
         var mediador = new MediadorCapturador();
         var registro = new RegistroCapturador();
 
         await DocumentosEndpoints.ExportarAsync(contexto, mediador, new TenantActualFalso(), registro, default,
-            venceEn: venceEn, pendienteRevisionIa: pendienteRevisionIa);
+            venceEn: venceEn, pendienteRevisionIa: pendienteRevisionIa,
+            usuarioActual: sinServicioDeUsuario ? null : new UsuarioActualFalso(rol));
 
         return (mediador.Consultas.Should().ContainSingle().Subject, registro.Criterios ?? new Dictionary<string, string>());
     }
@@ -134,6 +149,30 @@ public class DocumentosExportacionFiltrosTests
         consulta.PendienteDeRevisionIa.Should().BeFalse();
         criterios.Should().NotContainKey("pendienteRevisionIa", "el handler no la aplicó: el registro no puede decir que sí");
         consulta.VenceEnDias.Should().Be(30, "control: «Vence en» no depende del rol");
+    }
+
+    /// <summary>
+    /// Bajo una Sesión Privilegiada el claim lleva el rol del Tenant de plataforma («Administrador») pero el rol efectivo es null: el
+    /// handler ignora el filtro, así que el registro tampoco puede anotarlo. Y sin servicio de usuario, falla cerrado.
+    /// </summary>
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Con_claim_de_gestion_pero_sin_rol_efectivo_o_sin_servicio_no_se_anota_la_revision_IA(bool sinServicio)
+    {
+        var (consulta, criterios) = await ExportarAsync(rol: null, pendienteRevisionIa: "1", claim: Roles.Administrador, sinServicioDeUsuario: sinServicio);
+
+        consulta.PendienteDeRevisionIa.Should().BeFalse();
+        criterios.Should().NotContainKey("pendienteRevisionIa");
+    }
+
+    [Fact]
+    public async Task El_rol_efectivo_manda_sobre_el_claim_tambien_en_el_otro_sentido()
+    {
+        var (consulta, criterios) = await ExportarAsync(Roles.GestorCae, pendienteRevisionIa: "1", claim: Roles.Consulta);
+
+        consulta.PendienteDeRevisionIa.Should().BeTrue("el handler decide por el rol efectivo, y el registro dice lo mismo que el handler");
+        criterios["pendienteRevisionIa"].Should().Be("true");
     }
 
     [Theory]

@@ -8,6 +8,7 @@ using CaeManager.Application.Documentos.Queries.ObtenerRevisionesIaPendientes;
 using CaeManager.Domain.Documentos;
 using CaeManager.Infrastructure.Identity;
 using CaeManager.Web.Components.DesignSystem;
+using CaeManager.Web.Components.Workspace;
 using FluentAssertions;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Web;
@@ -251,10 +252,43 @@ public partial class DocumentosGen2Tests
     [Fact]
     public void Una_fila_sin_confianza_deja_la_celda_vacia_con_el_filtro_aplicado()
     {
-        var (cut, _) = Renderizar(ConDocumentos(ConConfianza("Aptitud médica", null)), url: "documentos?PendienteRevisionIa=1", rol: "GestorCae");
-        cut.WaitForAssertion(() => cut.FindAll("td.documentos-celda-revision-ia").Should().HaveCount(1));
+        var (cut, _) = Renderizar(ConDocumentos(ConConfianza("Aptitud médica", 58), ConConfianza("Certificado TGSS", null)),
+            url: "documentos?PendienteRevisionIa=1", rol: "GestorCae");
+        cut.WaitForAssertion(() => cut.FindAll("td.documentos-celda-revision-ia").Should().HaveCount(2));
 
-        cut.Find("td.documentos-celda-revision-ia").TextContent.Trim().Should().BeEmpty();
+        cut.FindAll("td.documentos-celda-revision-ia").Select(c => c.TextContent.Trim()).Should().Equal("Confianza 58 %", "");
+    }
+
+    /// <summary>
+    /// Con el claim de gestión pero sin que el servidor aplique el filtro (Sesión Privilegiada: el rol efectivo es null y el handler
+    /// lo ignora), ninguna fila trae confianza: la pantalla no pinta una columna vacía sobre un listado sin filtrar.
+    /// </summary>
+    [Fact]
+    public void Si_el_servidor_no_aplico_el_filtro_la_pantalla_no_pinta_la_columna_Revision_IA()
+    {
+        var (cut, mediador) = Renderizar(ConDocumentos(ConConfianza("Aptitud médica", null), ConConfianza("Certificado TGSS", null)),
+            url: "documentos?PendienteRevisionIa=1", rol: "GestorCae");
+        cut.WaitForAssertion(() => mediador.Enviadas.OfType<ObtenerDocumentosQuery>().Should().NotBeEmpty());
+        cut.WaitForAssertion(() => cut.FindAll("table.documentos-tabla-visible tbody tr").Should().HaveCount(2));
+
+        CabecerasDeLaTabla(cut).Should().NotContain("Revisión IA");
+        cut.FindAll("td.documentos-celda-revision-ia").Should().BeEmpty();
+    }
+
+    /// <summary>Guardar en la vista rápida relee la fila por Id (sin el filtro): la fila conserva la confianza con la que se cargó la página.</summary>
+    [Fact]
+    public async Task La_relectura_de_una_fila_tras_guardar_conserva_su_confianza()
+    {
+        var documento = ConConfianza("Aptitud médica", 58);
+        var mediador = ConDocumentos(documento);
+        mediador.Documentos = q => [q.DocumentoId == documento.Id ? documento with { ConfianzaRevisionIa = null } : documento];
+        var (cut, _) = Renderizar(mediador, url: "documentos?PendienteRevisionIa=1", rol: "GestorCae");
+        cut.WaitForAssertion(() => cut.Find(".documentos-confianza").TextContent.Trim().Should().Be("Confianza 58 %"));
+
+        await cut.InvokeAsync(() => Services.GetRequiredService<ContextWorkspaceService>().NotificarEntidadGuardada(EntidadWorkspace.Documento, documento.Id));
+
+        cut.WaitForAssertion(() => mediador.Enviadas.OfType<ObtenerDocumentosQuery>().Should().Contain(q => q.DocumentoId == documento.Id));
+        cut.WaitForAssertion(() => cut.Find(".documentos-confianza").TextContent.Trim().Should().Be("Confianza 58 %"));
     }
 
     /// <summary>El <c>colgroup</c> de las agrupaciones suma la columna antes de las acciones y no toca los demás anchos.</summary>

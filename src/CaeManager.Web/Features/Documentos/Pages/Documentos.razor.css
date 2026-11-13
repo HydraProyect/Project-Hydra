@@ -488,7 +488,7 @@
     display: flex;
     align-items: center;
     gap: var(--space-2);
-    font: 500 12px/16px var(--font-sans);
+    font: 500 12px/16px var(--font-family);
     color: var(--color-text-muted);
     white-space: nowrap;
 }

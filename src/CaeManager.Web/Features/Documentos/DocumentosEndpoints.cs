@@ -69,15 +69,18 @@ public static class DocumentosEndpoints
         CancellationToken cancellationToken,
         string? q = null, string? ambito = null, string? estado = null, string? orden = null, bool desc = false,
         string? tipo = null, string? plataforma = null, string? propietario = null, string? agrupar = null,
-        string? estadoPlataforma = null, string? venceEn = null, string? pendienteRevisionIa = null)
+        string? estadoPlataforma = null, string? venceEn = null, string? pendienteRevisionIa = null,
+        ICurrentUserService? usuarioActual = null)
     {
         // «Vence en» (D-21): solo los plazos que ofrece el listado, como número de días; cualquier otro valor se ignora.
         int? venceEnDias = int.TryParse(venceEn, System.Globalization.NumberStyles.None, System.Globalization.CultureInfo.InvariantCulture, out var plazo)
             && ObtenerDocumentosQuery.PlazosVenceEnDias.Contains(plazo)
             && plazo.ToString(System.Globalization.CultureInfo.InvariantCulture) == venceEn ? plazo : null;
-        // «Pendiente de revisión IA»: solo «1» y solo con un rol que accede a la cola (ColaRevisionIa), como la pantalla. El
-        // handler sigue siendo la autoridad; esto evita anotar en el registro de exportación un criterio que no se aplicó.
-        var revisionIa = pendienteRevisionIa == "1" && ColaRevisionIa.RolesQueAccedenALaPestana.Any(contexto.User.IsInRole);
+        // «Pendiente de revisión IA»: solo «1» y solo con un rol EFECTIVO que accede a la cola (ColaRevisionIa), la misma decisión
+        // que toma el handler: no el claim, que bajo una Sesión Privilegiada lleva el rol del Tenant de plataforma. Evita anotar en el
+        // registro de exportación un criterio que no se aplicó; sin servicio de usuario, falla cerrado. El handler sigue siendo la autoridad.
+        var revisionIa = pendienteRevisionIa == "1" && usuarioActual is not null
+            && ColaRevisionIa.AccedeElRol(await usuarioActual.ObtenerRolEfectivoAsync());
         // Solo el nombre exacto de un estado, como el listado: ni números ni listas con coma.
         EstadoEnPlataformaFiltro? estadoPlataformaFiltro =
             estadoPlataforma is not null && Enum.GetNames<EstadoEnPlataformaFiltro>().Contains(estadoPlataforma, StringComparer.Ordinal)

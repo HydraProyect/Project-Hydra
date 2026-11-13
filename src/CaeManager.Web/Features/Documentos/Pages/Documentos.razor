@@ -286,7 +286,7 @@
                                 </th>
                                 <th scope="col" aria-sort="@AriaOrdenGrupo("estado")"><button type="button" class="col-title documentos-orden-grupo" title="@Textos["ListaEstado"]" @onclick="() => OrdenarGrupoAsync(_columnaEstado)">@Textos["ListaEstado"]</button></th>
                                 @if (AgrupadaPorPlataforma) { <th scope="col" class="documentos-th-texto" title="@Textos["ListaEstadoEnPlataforma"]">@Textos["ListaEstadoEnPlataforma"]</th> }
-                                @if (RevisionIaActiva) { <th scope="col" class="documentos-th-texto" title="@Textos["ListaRevisionIa"]">@Textos["ListaRevisionIa"]</th> }
+                                @if (ColumnaRevisionIa) { <th scope="col" class="documentos-th-texto" title="@Textos["ListaRevisionIa"]">@Textos["ListaRevisionIa"]</th> }
                                 <th scope="col" class="documentos-celda-acciones"><span class="documentos-solo-lectores">@Textos["ListaAcciones"]</span></th>
                             </tr></thead>
                             @if (_totalElementos == 0 && !_cargando && HayFiltrosActivos)
@@ -352,7 +352,7 @@
                                             {
                                                 <td>@CeldaDocumento(documento)</td><td>@CeldaPropietario(documento)</td><td>@CeldaVigencia(documento)</td><td class="col-estado">@CeldaEstado(documento)</td>
                                             }
-                                            @if (RevisionIaActiva) { <td class="documentos-celda-revision-ia">@CeldaRevisionIa(documento)</td> }
+                                            @if (ColumnaRevisionIa) { <td class="documentos-celda-revision-ia">@CeldaRevisionIa(documento)</td> }
                                             <td class="documentos-celda-acciones-fila">@CeldaAcciones(documento)</td>
                                         </tr>
                                         @if (MostrarDestinos && _documentosAbiertos.Contains(documento.Id) && documento.DestinosEnCentros?.Count > 0)
@@ -650,7 +650,7 @@
     /// Acciones); por Plataforma CAE siete (Propietario, Nombre en la plataforma, Cliente empresarial, Vence, Estado documental,
     /// Estado en la plataforma, Acciones); por tipo cinco (Propietario, Plataformas CAE, Vence, Estado documental, Acciones).
     /// </summary>
-    private int ColumnasTabla => (AgrupadaPorPlataforma ? 7 : 5) + (_seleccionMultiple ? 1 : 0) + (MostrarDestinos ? 1 : 0) + (RevisionIaActiva ? 1 : 0);
+    private int ColumnasTabla => (AgrupadaPorPlataforma ? 7 : 5) + (_seleccionMultiple ? 1 : 0) + (MostrarDestinos ? 1 : 0) + (ColumnaRevisionIa ? 1 : 0);
 
     /// <summary>
     /// «Revisión IA» (artboard Filtro-revision-ia): barra de confianza y «Confianza N %» de la revisión pendiente del Documento.
