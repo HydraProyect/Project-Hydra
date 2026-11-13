@@ -105,8 +105,9 @@ namespace CaeManager.Infrastructure.Persistence.Interceptors;
 /// vuelve a firmar dentro de la transacción) y la sesión queda incierta para el
 /// primer uso fuera de ella. Si esa realineación falla, ningún comando de la
 /// transacción pasa sin volver a intentarla (<see cref="RolSinRealinear"/>).
-/// Una sesión cuyo contexto se aplicó sin firmar (sin clave) no se anota, y el
-/// comando siguiente vuelve a intentar firmarlo, como hacía antes cada apertura.
+/// Una sesión cuyo contexto se aplicó sin firmar (sin clave) no cuenta como
+/// alineada, y el comando siguiente vuelve a intentar firmarlo, como hacía antes
+/// cada apertura.
 /// </description></item>
 /// <item><description>
 /// <b>Caducidad.</b> La renovación de <see cref="FirmanteContextoRls.RenovarSiHaceFaltaAsync"/>
@@ -235,14 +236,17 @@ public class TenantRlsConnectionInterceptor(
     /// dejaría correr la aplicación con el rol de login; este no.
     /// </para>
     /// <para>
-    /// <b>Sin clave no se anota la sesión</b> (cuarta revisión de Codex): si el
-    /// firmante devuelve el token vacío, la conexión queda con <c>app.contexto</c>
-    /// vacío —falla cerrado, ninguna fila bajo RLS— pero sin sesión anotada, así
-    /// que el siguiente comando vuelve a intentar firmar. Antes de D3 cada comando
-    /// abría una conexión y lo intentaba; con la conexión retenida, anotarla como
-    /// aplicada dejaría el resto de la operación sin contexto aunque la clave
-    /// apareciera a mitad. El rol sí se adopta: el contexto vacío no concede nada
-    /// y el rol solo quita capacidad.
+    /// <b>Sin clave la sesión no cuenta como aplicada</b> (cuarta revisión de
+    /// Codex): si el firmante devuelve el token vacío, la conexión queda con
+    /// <c>app.contexto</c> vacío —falla cerrado, ninguna fila bajo RLS— y el
+    /// firmante no guarda contexto para ella, así que
+    /// <see cref="AlinearSiCambioAsync"/> no la da por alineada
+    /// (<see cref="FirmanteContextoRls.TieneContextoFirmado"/>) y el siguiente
+    /// comando vuelve a intentar firmar. Antes de D3 cada comando abría una
+    /// conexión y lo intentaba; con la conexión retenida, darla por aplicada
+    /// dejaría el resto de la operación sin contexto aunque la clave apareciera a
+    /// mitad. Lo anotado conserva el rol, que sí es el deseado: el contexto vacío
+    /// no concede nada y el rol solo quita capacidad.
     /// </para>
     /// </summary>
     private async Task AplicarAsync(
@@ -254,7 +258,7 @@ public class TenantRlsConnectionInterceptor(
         if (deshacerRolPrevio)
             await DeshacerRolAsync(connection, cancellationToken);
 
-        var firmado = await FijarVariablesDeSesionAsync(connection, sesion.Contexto, cancellationToken);
+        await FijarVariablesDeSesionAsync(connection, sesion.Contexto, cancellationToken);
 
         if (sesion.Rol is { } rol)
             await AdoptarRolAsync(connection, rol, cancellationToken);
@@ -262,8 +266,7 @@ public class TenantRlsConnectionInterceptor(
         // El rol de la conexión es ya el que fijaría una apertura nueva, también
         // si un ROLLBACK TO SAVEPOINT anterior lo había dejado sin realinear.
         RolSinRealinear.Remove(connection);
-        if (firmado)
-            SesionPorConexion.AddOrUpdate(connection, sesion);
+        SesionPorConexion.AddOrUpdate(connection, sesion);
     }
 
     /// <summary>
@@ -288,12 +291,13 @@ public class TenantRlsConnectionInterceptor(
         // Sin contexto firmado en memoria la sesión no está alineada aunque esté
         // anotada: una renovación o un sellado sin clave dejaron app.contexto
         // vacío, y el siguiente comando tiene que volver a intentar firmarlo.
-        var conocida = SesionPorConexion.TryGetValue(npgsql, out var aplicada)
-            && FirmanteContextoRls.TieneContextoFirmado(npgsql);
-        if (conocida && aplicada == deseada)
+        // También la que se aplicó sin clave: AplicarAsync la anota (el rol sí es
+        // el deseado) pero el firmante no guarda contexto que renovar.
+        var anotada = SesionPorConexion.TryGetValue(npgsql, out var aplicada);
+        if (anotada && aplicada == deseada && FirmanteContextoRls.TieneContextoFirmado(npgsql))
             return;
 
-        await AplicarAsync(npgsql, deseada, deshacerRolPrevio: !conocida || aplicada!.Rol is not null, cancellationToken);
+        await AplicarAsync(npgsql, deseada, deshacerRolPrevio: !anotada || aplicada!.Rol is not null, cancellationToken);
     }
 
     /// <summary>
@@ -388,13 +392,8 @@ public class TenantRlsConnectionInterceptor(
     /// firmado). Quien las cambie a mano no gana nada. Retirarlas es el paso
     /// siguiente, cuando nada las lea.
     /// </para>
-    ///
-    /// <para>
-    /// Devuelve si el contexto quedó firmado: <c>false</c> si el firmante no
-    /// tenía clave y <c>app.contexto</c> quedó vacío (ver <see cref="AplicarAsync"/>).
-    /// </para>
     /// </summary>
-    private async Task<bool> FijarVariablesDeSesionAsync(
+    private async Task FijarVariablesDeSesionAsync(
         NpgsqlConnection connection, ContextoSesionRls contexto, CancellationToken cancellationToken)
     {
         var (tenantId, tenantOrigenId, usuarioId) = (contexto.TenantId, contexto.TenantOrigenId, contexto.UsuarioId);
@@ -412,7 +411,6 @@ public class TenantRlsConnectionInterceptor(
         comando.Parameters.AddWithValue("contexto", token.Token);
         await comando.ExecuteNonQueryAsync(cancellationToken);
         token.Confirmar();
-        return token.Token.Length > 0;
     }
 
     // ── Renovación del contexto firmado (P6, diseño § 7) ─────────────────
@@ -626,13 +624,39 @@ public class TenantRlsConnectionInterceptor(
     }
 
     void IDbTransactionInterceptor.TransactionFailed(DbTransaction transaction, TransactionErrorEventData eventData) =>
-        OlvidarSiHayConexion(ConexionDe(transaction, eventData));
+        TrasFalloDeTransaccion(ConexionDe(transaction, eventData), eventData.Action);
 
     Task IDbTransactionInterceptor.TransactionFailedAsync(
         DbTransaction transaction, TransactionErrorEventData eventData, CancellationToken cancellationToken)
     {
-        OlvidarSiHayConexion(ConexionDe(transaction, eventData));
+        TrasFalloDeTransaccion(ConexionDe(transaction, eventData), eventData.Action);
         return Task.CompletedTask;
+    }
+
+    /// <summary>
+    /// Un fallo de <c>COMMIT</c> o <c>ROLLBACK</c> termina la transacción: se
+    /// olvida todo. Un fallo de una acción de punto de guardado (crearlo,
+    /// liberarlo o volver a él, incluida la realineación del rol de
+    /// <see cref="RealinearRolTrasPuntoDeGuardadoAsync"/> que lanza) puede dejar
+    /// la transacción viva (revisión puente de la cuarta ronda): se retira la
+    /// sesión anotada y se marca la conexión, como en el punto de guardado, pero se
+    /// conserva el estado del firmante, sin el cual el sellado no podría volver a
+    /// firmar el contexto de base dentro de esa transacción. La marca de
+    /// <see cref="RolSinRealinear"/> tampoco se toca aquí.
+    /// </summary>
+    private static void TrasFalloDeTransaccion(DbConnection? conexion, string action)
+    {
+        if (conexion is null)
+            return;
+
+        if (action.Contains("Savepoint", StringComparison.Ordinal))
+        {
+            SesionPorConexion.Remove(conexion);
+            MarcarSinConfirmar(conexion);
+            return;
+        }
+
+        Olvidar(conexion);
     }
 
     /// <summary>

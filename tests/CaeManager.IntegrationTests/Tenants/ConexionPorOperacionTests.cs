@@ -352,7 +352,7 @@ public class ConexionPorOperacionTests : IAsyncLifetime
         var elevacion = new ElevacionEscrituraPrivilegiada(contexto);
         var estrategia = contexto.Database.CreateExecutionStrategy();
 
-        var (fallo, rolSinInterceptar, rolDelComandoSiguiente) =
+        var (fallo, conservaContextoFirmado, rolSinInterceptar, rolDelComandoSiguiente) =
             await puerta.EjecutarAsync(() => estrategia.ExecuteAsync(async () =>
             {
                 var ambito = AmbitoEscrituraPrivilegiada.Establecer(sesion, TenantA);
@@ -367,13 +367,17 @@ public class ConexionPorOperacionTests : IAsyncLifetime
                 var excepcion = await Record.ExceptionAsync(() => transaccion.RollbackToSavepointAsync("antes_de_devolver"));
                 usuario.Fallar = false;
 
+                var conserva = FirmanteContextoRls.TieneContextoFirmado(contexto.Database.GetDbConnection());
                 var sinInterceptar = await RolSinPasarPorElInterceptorAsync(contexto, transaccion);
                 var siguiente = (await RolActualAsync(contexto)).Rol;
                 await transaccion.RollbackAsync();
-                return (excepcion, sinInterceptar, siguiente);
+                return (excepcion, conserva, sinInterceptar, siguiente);
             }));
 
         fallo.Should().NotBeNull("control: la realineación tras el punto de guardado falló en el cliente");
+        conservaContextoFirmado.Should().BeTrue(
+            "el fallo de una acción de punto de guardado no olvida el contexto firmado de una transacción que sigue " +
+            "viva: el sellado lo necesita para volver a firmar el contexto de base");
         rolSinInterceptar.Should().Be("cae_app_aprovisionamiento",
             "control: la transacción sigue viva con el rol que restauró el punto de guardado");
         rolDelComandoSiguiente.Should().Be("cae_app_soporte",
