@@ -10,7 +10,8 @@ public sealed record AceptacionDeclarada(
 /// Aceptación de un documento de condiciones en una <see cref="SolicitudAlta"/>: qué documento, qué
 /// versión, el SHA-256 del texto aceptado, si quien acepta declara tener facultades para obligar a la
 /// organización, desde qué IP y cuándo. Es la evidencia previa al alta; cuando nace el Tenant, el
-/// Command del alta la materializa en las aceptaciones del Tenant (otro incremento).
+/// Command del alta la materializa en <see cref="Cumplimiento.AceptacionContractualTenant"/> con
+/// <c>RegistroAceptacionContractualAlta</c> (#2009).
 /// </summary>
 public class AceptacionCondicionesAlta : Entity
 {
