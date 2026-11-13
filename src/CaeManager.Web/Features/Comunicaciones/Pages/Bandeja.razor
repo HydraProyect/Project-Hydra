@@ -436,7 +436,7 @@
                     </div>
                     <div class="bandeja-editor-publico" hidden="@_notaInternaActiva">
                     <ComposerBar Canal="_detalle.Canal" VentanaAbierta="VentanaAbierta" CierreVentanaLocal="@CierreVentanaLocal"
-                                 Texto="@_textoRespuesta" TextoChanged="v => _textoRespuesta = v" Enviando="_enviando" OnEnviar="EnviarAsync"
+                                 Texto="@_textoRespuesta" TextoChanged="CambiarTextoRespuesta" Enviando="_enviando" OnEnviar="EnviarAsync"
                                  EnvioBloqueado="@(_panelSugerencia?.BloqueaEnvioPara(_textoRespuesta, SugerenciaEnRedactorVigente) == true)"
                                  Macros="MacrosDelContexto" MacroSeleccionadaId="@_macroSeleccionadaId" OnAplicarMacro="AplicarMacro"
                                  Centros="CentrosDelContexto" CentroFormatosSeleccionado="@_centroFormatosSeleccionado" OnCompartirFormatos="CompartirFormatosCentroAsync"

@@ -29,8 +29,9 @@
     // apertura (la página lo sabe y lo pasa en SugerenciaEnRedactorId). Si la insertó otra persona, u otra apertura, aquí no
     // se ha mostrado: primero hay que ponerla en el redactor.
     var mostrada = EstaEnElRedactor(sinRevisar);
-    <div class="rs-sinrevisar" role="status" title="@Textos["SinRevisarAyuda"]" data-estado="sin-revisar">
-        <span class="rs-sinrevisar-texto">@Textos["SinRevisarTexto"]</span>
+    <div class="rs-sinrevisar" role="status" title="@(mostrada ? Textos["SinRevisarAyuda"] : Textos["SinRevisarFueraAyuda"])"
+         data-estado="sin-revisar" data-en-redactor="@(mostrada ? "si" : "no")">
+        <span class="rs-sinrevisar-texto">@(mostrada ? Textos["SinRevisarTexto"] : Textos["SinRevisarFueraTexto"])</span>
         @if (_puedeEscribir)
         {
             @if (_confirmaSustituir)
@@ -234,6 +235,7 @@ else if (_cargado && PuedeSugerir && _puedeEscribir)
     private async Task CargarAsync(Guid conversacionId)
     {
         var estadoAnterior = _sugerencia?.Estado;
+        var idAnterior = _sugerencia?.Id;
         try
         {
             var sugerencia = await Mediator.Send(new ObtenerRespuestaSugeridaQuery(conversacionId));
@@ -253,12 +255,14 @@ else if (_cargado && PuedeSugerir && _puedeEscribir)
             if (conversacionId == ConversacionId) _cargado = true;
         }
 
-        if (conversacionId == ConversacionId && estadoAnterior != _sugerencia?.Estado)
-        {
-            // La pregunta de sustituir era sobre la sugerencia en el estado anterior: no se arrastra al nuevo.
+        if (conversacionId != ConversacionId) return;
+
+        // La pregunta de sustituir era sobre la sugerencia que había y en su estado: no se arrastra a otra ni a otro estado.
+        if (estadoAnterior != _sugerencia?.Estado || idAnterior != _sugerencia?.Id)
             _confirmaSustituir = false;
+
+        if (estadoAnterior != _sugerencia?.Estado)
             await OnEstadoCambiado.InvokeAsync();
-        }
     }
 
     private string TextoVisible(RespuestaSugeridaDto sugerencia) => TextoParaRedactor(sugerencia, EsWhatsApp);
@@ -427,7 +431,7 @@ else if (_cargado && PuedeSugerir && _puedeEscribir)
             return true;
         if (sugerencia.Id != sugerenciaEnRedactorId)
         {
-            ToastService.MostrarError(BloqueoRespuestaSugerida.SugerenciaSinRevisar);
+            ToastService.Mostrar(Textos["SinRevisarFueraAyuda"].Value, TonoToast.Error);
             return false;
         }
         if (!RevisionRespuestaSugerida.EditadaLoSuficiente(textoDelRedactor, sugerencia.Texto)) return false;

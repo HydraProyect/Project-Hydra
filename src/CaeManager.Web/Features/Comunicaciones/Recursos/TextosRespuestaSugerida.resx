@@ -63,6 +63,12 @@
   <data name="SinRevisarAyuda" xml:space="preserve">
     <value>Para poder enviar, léela y pulsa «Lo he revisado», o cambia más de 15 caracteres del texto. Una letra suelta no basta.</value>
   </data>
+  <data name="SinRevisarFueraTexto" xml:space="preserve">
+    <value>Sugerencia sin revisar · ponla en el redactor para revisarla, o descártala</value>
+  </data>
+  <data name="SinRevisarFueraAyuda" xml:space="preserve">
+    <value>La insertó otra persona o una apertura anterior y aquí no se ha mostrado. Mientras siga sin revisar no se puede enviar nada en esta conversación: ponla en el redactor y revísala, o descártala.</value>
+  </data>
   <data name="LoHeRevisado" xml:space="preserve">
     <value>Lo he revisado</value>
   </data>

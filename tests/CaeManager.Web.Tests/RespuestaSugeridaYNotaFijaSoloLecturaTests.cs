@@ -25,12 +25,15 @@ public class RespuestaSugeridaYNotaFijaSoloLecturaTests : BunitContext
     {
         public List<object> Enviados { get; } = [];
 
+        /// <summary>La sugerencia que devuelve la consulta; un test la cambia como si otra sesión la hubiera movido.</summary>
+        public RespuestaSugeridaDto? Sugerencia { get; set; } = sugerencia;
+
         public Task<TResponse> Send<TResponse>(IRequest<TResponse> request, CancellationToken cancellationToken = default)
         {
             Enviados.Add(request);
             object? respuesta = request switch
             {
-                ObtenerRespuestaSugeridaQuery => sugerencia,
+                ObtenerRespuestaSugeridaQuery => Sugerencia,
                 ObtenerNotaContactoQuery => nota,
                 _ => throw new NotSupportedException(request.GetType().Name)
             };
@@ -145,6 +148,41 @@ public class RespuestaSugeridaYNotaFijaSoloLecturaTests : BunitContext
 
         confirmada.Should().BeFalse("sin la sugerencia en el redactor no hay nada que confirmar y el servidor bloquearía el envío");
         mediador.Enviados.OfType<ResolverRespuestaSugeridaCommand>().Should().BeEmpty("no se pide confirmarla al servidor");
+    }
+
+    /// <summary>
+    /// Revisión puente de la r3: la pregunta de sustituir el texto propio se hizo sobre una sugerencia concreta en un estado
+    /// concreto. Si otra sesión la inserta, o la cambia por otra, la pregunta no se arrastra y «Sustituir» no pone en el
+    /// redactor algo que la persona no eligió.
+    /// </summary>
+    [Fact]
+    public async Task La_pregunta_de_sustituir_no_se_arrastra_a_otro_estado_ni_a_otra_sugerencia()
+    {
+        var conversacionId = Guid.NewGuid();
+        var propuesta = Propuesta(conversacionId);
+        var mediador = Preparar(Roles.GestorCae, propuesta, null);
+        var version = new DateTime(2026, 11, 13, 9, 0, 0, DateTimeKind.Utc);
+        var cut = Render<RespuestaSugeridaPanel>(p => p
+            .Add(x => x.ConversacionId, conversacionId).Add(x => x.PuedeSugerir, true)
+            .Add(x => x.TextoRedactor, "Respuesta propia").Add(x => x.Version, version));
+        cut.WaitForAssertion(() => cut.FindAll(".rs-bloque").Should().ContainSingle());
+
+        await cut.FindAll(".rs-bloque button").Single(b => b.TextContent.Trim() == "Insertar para revisar").ClickAsync(new());
+        cut.FindAll(".rs-bloque button").Should().Contain(b => b.TextContent.Trim() == "Sustituir");
+
+        mediador.Sugerencia = propuesta with { Estado = EstadoRespuestaSugerida.SinRevisar };
+        cut.Render(p => p.Add(x => x.Version, version.AddMinutes(1)));
+        cut.WaitForAssertion(() => cut.FindAll(".rs-sinrevisar").Should().ContainSingle());
+        cut.FindAll(".rs-sinrevisar button").Should().NotContain(b => b.TextContent.Trim() == "Sustituir",
+            "otra sesión la insertó: la pregunta era sobre la propuesta");
+
+        await cut.FindAll(".rs-sinrevisar button").Single(b => b.TextContent.Trim() == "Poner en el redactor").ClickAsync(new());
+        cut.FindAll(".rs-sinrevisar button").Should().Contain(b => b.TextContent.Trim() == "Sustituir");
+        mediador.Sugerencia = Propuesta(conversacionId, EstadoRespuestaSugerida.SinRevisar);
+        cut.Render(p => p.Add(x => x.Version, version.AddMinutes(2)));
+        cut.WaitForAssertion(() => cut.Find(".rs-sinrevisar"));
+        cut.FindAll(".rs-sinrevisar button").Should().NotContain(b => b.TextContent.Trim() == "Sustituir",
+            "es otra sugerencia en el mismo estado: la pregunta no se arrastra");
     }
 
     [Fact]

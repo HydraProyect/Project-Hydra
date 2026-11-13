@@ -63,6 +63,12 @@
   <data name="SinRevisarAyuda" xml:space="preserve">
     <value>Per poder enviar, llegeix-la i prem «L&apos;he revisat», o canvia més de 15 caràcters del text. Una lletra solta no n&apos;hi ha prou.</value>
   </data>
+  <data name="SinRevisarFueraTexto" xml:space="preserve">
+    <value>Suggeriment sense revisar · posa&apos;l al redactor per revisar-lo, o descarta&apos;l</value>
+  </data>
+  <data name="SinRevisarFueraAyuda" xml:space="preserve">
+    <value>L&apos;ha inserit una altra persona o una obertura anterior i aquí no s&apos;ha mostrat. Mentre no es revisi no es pot enviar res en aquesta conversa: posa&apos;l al redactor i revisa&apos;l, o descarta&apos;l.</value>
+  </data>
   <data name="LoHeRevisado" xml:space="preserve">
     <value>L&apos;he revisat</value>
   </data>

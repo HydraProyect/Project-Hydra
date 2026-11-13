@@ -1190,6 +1190,17 @@ public partial class Bandeja : CaeManager.Web.Components.PaginaInteractiva, IAsy
 
     private readonly record struct SugerenciaEnRedactor(Guid Id, int Apertura);
 
+    /// <summary>
+    /// Lo que la persona escribe en el redactor. Si lo vacía, lo que escriba después ya no sale de la sugerencia insertada:
+    /// deja de contar como en el redactor y no la confirma (revisión puente de la r3 de la #2163). Sustituir el texto sin
+    /// vaciarlo antes (seleccionar y pegar) no se distingue de editarlo; quien lo hace sí ha visto la sugerencia aquí.
+    /// </summary>
+    private void CambiarTextoRespuesta(string texto)
+    {
+        _textoRespuesta = texto;
+        if (string.IsNullOrWhiteSpace(texto)) _sugerenciaEnRedactor = null;
+    }
+
     private Guid? SugerenciaEnRedactorVigente =>
         _sugerenciaEnRedactor is { } enRedactor && enRedactor.Apertura == _aperturaVigente ? enRedactor.Id : null;
 

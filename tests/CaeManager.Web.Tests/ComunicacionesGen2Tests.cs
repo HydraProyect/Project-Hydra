@@ -926,6 +926,12 @@ public class ComunicacionesGen2Tests : BunitContext
 
         await Boton(cut, ".rs-sinrevisar button", "Poner en el redactor").ClickAsync(new MouseEventArgs());
         TextoDelRedactor(cut).Should().Be("Borrador propio que no es la sugerencia.", "con texto propio se pregunta antes de pisarlo");
+        await Boton(cut, ".rs-sinrevisar button", "Conservar mi texto").ClickAsync(new MouseEventArgs());
+        TextoDelRedactor(cut).Should().Be("Borrador propio que no es la sugerencia.", "conservar no toca el redactor");
+        cut.FindAll(".rs-sinrevisar button").Should().NotContain(b => b.TextContent.Trim() == "Sustituir");
+        EnviarDeshabilitado(cut).Should().BeTrue("sigue sin revisar y fuera del redactor");
+
+        await Boton(cut, ".rs-sinrevisar button", "Poner en el redactor").ClickAsync(new MouseEventArgs());
         await Boton(cut, ".rs-sinrevisar button", "Sustituir").ClickAsync(new MouseEventArgs());
 
         TextoDelRedactor(cut).Should().Be(TextoSugerido);
@@ -935,6 +941,80 @@ public class ComunicacionesGen2Tests : BunitContext
 
         escenario.AccionesSobreSugerencia.Should().Equal(AccionRespuestaSugerida.Confirmar);
         mediador.Enviados.OfType<ResponderConversacionCommand>().Should().ContainSingle();
+    }
+
+    private static bool OfreceLoHeRevisado(IRenderedComponent<Bandeja> cut) =>
+        cut.FindAll(".rs-sinrevisar button").Any(b => b.TextContent.Trim() == "Lo he revisado");
+
+    /// <summary>
+    /// Revisión puente de la r3: la sugerencia insertada en A cuenta como mostrada solo en esa apertura. Tras ir a B y volver
+    /// a A, el redactor ya no la tiene y «Lo he revisado» deja de ofrecerse hasta ponerla otra vez.
+    /// </summary>
+    [Fact]
+    public async Task La_sugerencia_insertada_deja_de_contar_como_mostrada_al_ir_a_otra_conversacion_y_volver()
+    {
+        var (escenario, _, segunda, _) = DosConversacionesConSugerenciaEnLaPrimera();
+        escenario.Interceptar = p => p is ObtenerRespuestaSugeridaQuery q && q.ConversacionId == segunda.Id ? Ya(null) : null;
+        var (cut, _) = Renderizar(escenario);
+        await SeleccionarFila(cut, "Documentación pendiente");
+        cut.WaitForAssertion(() => cut.FindAll(".rs-bloque").Should().ContainSingle());
+        await Boton(cut, ".rs-bloque button", "Insertar para revisar").ClickAsync(new MouseEventArgs());
+        OfreceLoHeRevisado(cut).Should().BeTrue("se acaba de insertar en esta apertura");
+
+        var apertura = SeleccionarFila(cut, "Rechazo del portal");
+        cut.WaitForAssertion(() => cut.FindAll(".modal-pie button").Should().Contain(b => b.TextContent.Trim() == "Salir y descartar"));
+        await cut.PulsarEnElAvisoAsync("Salir y descartar");
+        await apertura;
+        cut.WaitForAssertion(() => cut.Find(".bandeja-centro-titulo-fila h2").TextContent.Trim().Should().Be("Rechazo del portal"));
+        await SeleccionarFila(cut, "Documentación pendiente");
+        cut.WaitForAssertion(() => cut.FindAll(".rs-sinrevisar").Should().ContainSingle());
+
+        OfreceLoHeRevisado(cut).Should().BeFalse("es otra apertura: aquí la sugerencia no está en el redactor");
+        cut.Find(".rs-sinrevisar").GetAttribute("data-en-redactor").Should().Be("no");
+    }
+
+    /// <summary>
+    /// Revisión puente de la r3: una recarga del mismo hilo (mensaje entrante) no es otra apertura; la sugerencia insertada
+    /// sigue en el redactor y se puede revisar.
+    /// </summary>
+    [Fact]
+    public async Task Una_recarga_del_mismo_hilo_mantiene_la_sugerencia_insertada_como_mostrada()
+    {
+        var (escenario, primera, _, _) = DosConversacionesConSugerenciaEnLaPrimera();
+        var (cut, mediador) = Renderizar(escenario);
+        await SeleccionarFila(cut, "Documentación pendiente");
+        cut.WaitForAssertion(() => cut.FindAll(".rs-bloque").Should().ContainSingle());
+        await Boton(cut, ".rs-bloque button", "Insertar para revisar").ClickAsync(new MouseEventArgs());
+
+        var lecturas = mediador.Enviados.OfType<ObtenerConversacionPorIdQuery>().Count();
+        await cut.InvokeAsync(() => (Task)typeof(Bandeja).GetMethod("AlRecibirMensajeAsync", BindingFlags.Instance | BindingFlags.NonPublic)!
+            .Invoke(cut.Instance, [new MensajeWhatsAppRecibidoEvent(Guid.NewGuid(), primera.Id)])!);
+        cut.WaitForAssertion(() => mediador.Enviados.OfType<ObtenerConversacionPorIdQuery>().Count().Should().BeGreaterThan(lecturas));
+
+        cut.WaitForAssertion(() => OfreceLoHeRevisado(cut).Should().BeTrue("la recarga no cambia la apertura"));
+        TextoDelRedactor(cut).Should().Be(TextoSugerido);
+    }
+
+    /// <summary>
+    /// Revisión puente de la r3: si se vacía el redactor tras insertar, lo que se escriba después ya no sale de la sugerencia
+    /// y no la confirma al enviar.
+    /// </summary>
+    [Fact]
+    public async Task Vaciar_el_redactor_tras_insertar_impide_que_una_respuesta_nueva_confirme_la_sugerencia()
+    {
+        var (escenario, _) = EscenarioConSugerencia();
+        var (cut, mediador) = Renderizar(escenario);
+        await SeleccionarFila(cut, "Documentación pendiente");
+        cut.WaitForAssertion(() => cut.FindAll(".rs-bloque").Should().ContainSingle());
+        await Boton(cut, ".rs-bloque button", "Insertar para revisar").ClickAsync(new MouseEventArgs());
+
+        await Escribir(cut, string.Empty);
+        await Escribir(cut, "Hola Carmen, recibido todo. Lo miramos esta tarde y mañana le decimos algo sin falta.");
+        if (!EnviarDeshabilitado(cut)) await Enviar(cut);
+
+        escenario.AccionesSobreSugerencia.Should().Equal(AccionRespuestaSugerida.Insertar);
+        mediador.Enviados.OfType<ResponderConversacionCommand>().Should().BeEmpty();
+        OfreceLoHeRevisado(cut).Should().BeFalse("al vaciar el redactor la sugerencia dejó de estar en él");
     }
 
     /// <summary>
