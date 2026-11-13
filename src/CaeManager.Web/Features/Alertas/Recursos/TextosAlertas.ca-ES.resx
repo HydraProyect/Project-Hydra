@@ -19,7 +19,7 @@
     <value>Reclamació</value>
   </data>
   <data name="DescripcionPagina" xml:space="preserve">
-    <value>La documentació dels teus treballadors que cal reclamar o pujar —inclosa la que encara no és urgent— perquè et puguis anticipar abans del venciment en lloc d'esperar que es torni crítica.</value>
+    <value>La documentació dels teus Treballadors que cal reclamar o pujar, inclosa la que encara no és urgent, perquè et puguis anticipar abans del venciment en lloc d'esperar que es torni crítica.</value>
   </data>
   <data name="ProcedenciaTitulo" xml:space="preserve">
     <value>D'on surt aquesta llista?</value>
@@ -212,5 +212,35 @@
   </data>
   <data name="LoteDelegacionEmpresaSinContactoVisible" xml:space="preserve">
     <value>No pots veure el contacte de reclamació d'aquesta Delegació, així que no li pots enviar la reclamació.</value>
+  </data>
+  <data name="FaltanTitulo" xml:space="preserve">
+    <value>Falten documents</value>
+  </data>
+  <data name="FaltanCentros" xml:space="preserve">
+    <value>{0} Centres</value>
+  </data>
+  <data name="FaltanCentrosUno" xml:space="preserve">
+    <value>1 Centre</value>
+  </data>
+  <data name="FaltanNota" xml:space="preserve">
+    <value>Documents que haurien d'existir en un Centre i no existeixen: mai no es van pujar, així que no són una fila del llistat de Documents. Cada targeta és un Centre i un tipus de Document; cada Treballador llistat té una Assignació activa a aquest Centre i no el té.</value>
+  </data>
+  <data name="FaltanTituloGrupo" xml:space="preserve">
+    <value>{0} · {1}</value>
+  </data>
+  <data name="FaltanRecuento" xml:space="preserve">
+    <value>{0} Treballadors amb Assignació activa a aquest Centre no tenen aquest Document.</value>
+  </data>
+  <data name="FaltanRecuentoUno" xml:space="preserve">
+    <value>1 Treballador amb Assignació activa a aquest Centre no té aquest Document.</value>
+  </data>
+  <data name="FaltanCrearDocumento" xml:space="preserve">
+    <value>Crear document</value>
+  </data>
+  <data name="FaltanCrearDocumentoAria" xml:space="preserve">
+    <value>Crear document: {0} de {1}</value>
+  </data>
+  <data name="FaltanErrorTitulo" xml:space="preserve">
+    <value>No s'han pogut carregar els documents que falten.</value>
   </data>
 </root>

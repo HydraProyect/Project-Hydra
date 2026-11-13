@@ -1,6 +1,5 @@
 using CaeManager.Domain.Common;
 using Bunit;
-using CaeManager.Application.Alertas.Queries.ObtenerSugerenciasPreventivas;
 using CaeManager.Application.Common;
 using CaeManager.Application.Documentos.Queries.ObtenerDocumentos;
 using CaeManager.Application.Documentos.Queries.ObtenerFirmaGuardadaUsuario;
@@ -84,7 +83,6 @@ public partial class DocumentoWorkspacePanelTests : BunitContext
                     [new FirmaEnCampoDocumentoDto(Guid.NewGuid(), "Lucía Prieto", "GestorCae", DateTime.UtcNow, null, "hash")],
                 ObtenerFirmaGuardadaUsuarioQuery => null,
                 ObtenerSelloEmpresaQuery => null,
-                ObtenerSugerenciasPreventivasQuery => (IReadOnlyList<SugerenciaPreventivaDto>)[],
                 ObtenerDocumentosQuery consulta => new ResultadoPaginado<DocumentoListaDto>(
                     [new DocumentoListaDto(Detalle.Id, Detalle.Ambito, Detalle.PropietarioNombre, Detalle.TipoDocumentoNombre,
                         Detalle.FechaEmision, DiaDeNegocio.Hoy().AddDays(5), EstadoDocumento.Urgente, null, [])],
@@ -331,6 +329,31 @@ public partial class DocumentoWorkspacePanelTests : BunitContext
         cut.FindAll("button").Any(b => b.TextContent.Trim() == "Gestionar").Should().Be(seOfrece);
     }
 
+    /// <summary>
+    /// «Patrones de falta» pasó a la sección «Faltan documentos» de /alertas (PR5 del lienzo de Documentos, P-2b): la
+    /// pestaña ya no la pinta ni pide <c>ObtenerSugerenciasPreventivasQuery</c> (este mediador lanzaría con ella).
+    /// </summary>
+    [Theory]
+    [InlineData(Roles.GestorCae)]
+    [InlineData(Roles.Consulta)]
+    public void La_pestana_Preventivo_ya_no_pinta_los_patrones_de_falta_que_viven_en_Alertas(string rol)
+    {
+        this.ConRolDeEscritura(rol);
+        var detalle = Detalle();
+        Services.AddScoped<ToastService>();
+        Services.AddScoped<IMediator>(_ => new MediatorDocumento { Detalle = detalle });
+        Services.AddScoped<IFileStorageService, AlmacenArchivosQueNadieDebeTocar>();
+        Services.AddScoped<IConversorWordPdfService, ConversorQueNadieDebeTocar>();
+        Services.AddSingleton(typeof(ILogger<>), typeof(NullLogger<>));
+
+        var cut = Render<SugerenciasPreventivasTab>();
+
+        cut.WaitForAssertion(() => cut.Find(".fila-documento-requerido").TextContent.Should().Contain(detalle.PropietarioNombre,
+            "las ventanas de vencimiento se siguen viendo"));
+        cut.Markup.Should().NotContain("Patrones").And.NotContain("Sin patrones pendientes")
+            .And.NotContain("Crear documento").And.NotContainEquivalentOf("técnicos");
+        cut.FindAll(".separador-ambito").Select(e => e.TextContent.Trim()).Should().Equal("Ventanas de vencimiento");
+    }
     [Theory]
     [InlineData(Roles.GestorCae, true)]
     [InlineData(Roles.Consulta, false)]

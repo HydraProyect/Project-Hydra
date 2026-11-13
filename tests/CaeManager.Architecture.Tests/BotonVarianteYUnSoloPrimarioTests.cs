@@ -90,7 +90,6 @@ public class BotonVarianteYUnSoloPrimarioTests
         ["src/CaeManager.Web/Features/Documentos/Components/PlataformaTab.razor"] = 2,
         ["src/CaeManager.Web/Features/Documentos/Components/ReclamacionesTab.razor"] = 3,
         ["src/CaeManager.Web/Features/Documentos/Components/RevisionIaTab.razor"] = 2,
-        ["src/CaeManager.Web/Features/Documentos/Components/SugerenciasPreventivasTab.razor"] = 2,
         ["src/CaeManager.Web/Features/Documentos/Pages/Documentos.razor"] = 3,
         ["src/CaeManager.Web/Features/Documentos/Pages/SubidaMasiva.razor"] = 2,
         ["src/CaeManager.Web/Features/Empresas/Components/EmpresaWorkspacePanel.razor"] = 3,

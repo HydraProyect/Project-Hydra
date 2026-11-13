@@ -2,6 +2,7 @@ using CaeManager.Domain.Common;
 using CaeManager.Application.Operaciones.IncorporacionCartera.Queries;
 using Bunit;
 using CaeManager.Application.Alertas.Queries.ObtenerAlertas;
+using CaeManager.Application.Alertas.Queries.ObtenerSugerenciasPreventivas;
 using CaeManager.Domain.Documentos;
 using CaeManager.Web.Components.DesignSystem;
 using FluentAssertions;
@@ -49,6 +50,7 @@ public class AlertasVacioPorFiltroTests : BunitContext
             Task.FromResult((TResponse)(object)(request switch
             {
                 ObtenerAlertasQuery => alertas,
+                ObtenerSugerenciasPreventivasQuery => (object)(IReadOnlyList<SugerenciaPreventivaDto>)[],
                 ObtenerAlcanceCeroQuery => (object)AlcanceCero,
                 ObtenerCandidatosIncorporacionCarteraQuery => Result.Exito<IReadOnlyList<CandidatoIncorporacionCarteraDto>>([]),
                 _ => throw new NotSupportedException($"Consulta no prevista en este test: {request.GetType().Name}.")
