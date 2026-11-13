@@ -229,7 +229,7 @@ else
 
 @* D-23: los diálogos del menú «Acreditación ▾» son los del listado (ModalesAcreditacion, AnotarVigenciaEnBloque y
    PanelGestionarAcreditacion), no una copia. Solo existen para quien escribe y si hay alguna acreditación que mostrar. *@
-@if (_acreditaciones is { Acreditaciones.Count: > 0 })
+@if (_acreditaciones is { Acreditaciones.Count: > 0 } && !EnHistorial)
 {
     <SoloConEscritura>
         <ModalesAcreditacion @ref="_modalesAcreditacion" OnCambio="AlCambiarAcreditacionAsync" />
@@ -288,14 +288,18 @@ else
                             <span class="tipo-acreditacion-documento-360">@_detalle.TipoDocumentoNombre</span>
                             <span class="contexto-acreditacion-documento-360">@TextosDocumento["VistaRapidaContextoAcreditacion", acreditacion.ClienteEmpresarialNombre, acreditacion.CentroNombre]</span>
                         </span>
-                        @if (ReglasAccionesAcreditacion.HayAlgunaAccion(acreditacion.Estado, PropietarioGestionable is not null, acreditacion.UrlAccesoCanal))
+                        @* Un Documento en el historial (sustituido) es inmutable, como «Renovar» arriba: sus acreditaciones se leen
+                           pero no se gestionan desde aquí. El contenedor solo existe para quien escribe, así no reserva columna. *@
+                        @if (!EnHistorial && ReglasAccionesAcreditacion.HayAlgunaAccion(acreditacion.Estado, PropietarioGestionable is not null, acreditacion.UrlAccesoCanal))
                         {
-                            <span class="menu-acreditacion-documento-360">
-                                <MenuAcreditacion Estado="acreditacion.Estado" PlataformaNombre="@acreditacion.PlataformaNombre"
-                                                  PropietarioNombre="@_detalle.PropietarioNombre" UrlPortal="@acreditacion.UrlAccesoCanal"
-                                                  PuedeGestionar="@(PropietarioGestionable is not null)"
-                                                  OnAccion="accion => ManejarAccionAcreditacionAsync(acreditacion, accion)" />
-                            </span>
+                            <SoloConEscritura>
+                                <span class="menu-acreditacion-documento-360">
+                                    <MenuAcreditacion Estado="acreditacion.Estado" PlataformaNombre="@acreditacion.PlataformaNombre"
+                                                      PropietarioNombre="@_detalle.PropietarioNombre" UrlPortal="@acreditacion.UrlAccesoCanal"
+                                                      PuedeGestionar="@(PropietarioGestionable is not null)"
+                                                      OnAccion="accion => ManejarAccionAcreditacionAsync(acreditacion, accion)" />
+                                </span>
+                            </SoloConEscritura>
                         }
                         <span class="estado-acreditacion-documento-360">
                             <Badge Tono="EstadoAcreditacionUi.TonoEnPlataforma(acreditacion.Estado, acreditacion.SinVigencia)" Tamano="TamanoBadge.Pequeno">@TextoEnPlataforma(acreditacion)</Badge>
@@ -329,6 +333,9 @@ else
     /// «Gestionar acreditación…» enlaza con la ficha 360 de una Empresa o de un Trabajador, como en el listado
     /// (Documentos.PuedeGestionarAcreditacion): para el resto de Propietarios no se ofrece.
     /// </summary>
+    /// <summary>El Documento abierto ya está sustituido por otra versión (historial, D5/D8): se lee, no se gestiona.</summary>
+    private bool EnHistorial => _detalle?.SustitutoId is not null;
+
     private Guid? PropietarioGestionable => _detalle switch
     {
         { Ambito: AmbitoAplicacion.Trabajador, TrabajadorId: { } trabajadorId } => trabajadorId,
@@ -355,9 +362,9 @@ else
         }
         catch (Exception ex)
         {
-            // La sección es complementaria: sin ella el panel sigue siendo útil, así que no hay estado de error propio.
+            // La sección es complementaria: sin ella el panel sigue siendo útil, así que no hay estado de error propio. Si falla
+            // la releída tras una acción, se conserva la lista anterior (al cambiar de Documento ya se vació en ReiniciarParaNuevaEntidad).
             if (carga != _cargaAcreditaciones) return;
-            _acreditaciones = null;
             Logger.LogWarning(ex, "No se pudieron leer las acreditaciones del Documento {DocumentoId}.", id);
         }
     }

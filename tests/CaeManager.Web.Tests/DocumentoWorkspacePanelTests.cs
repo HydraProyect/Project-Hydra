@@ -49,11 +49,13 @@ public partial class DocumentoWorkspacePanelTests : BunitContext
 
         /// <summary>La sección «Plataformas CAE» (D-23): lo que el servidor ya devolvió cortado por alcance; null, sin sección.</summary>
         public AcreditacionesDelDocumentoDto? Acreditaciones { get; init; }
+        public bool FallaAcreditaciones { get; init; }
 
         public Task<TResponse> Send<TResponse>(IRequest<TResponse> request, CancellationToken cancellationToken = default) =>
             Task.FromResult((TResponse)(request switch
             {
                 ObtenerDocumentoPorIdQuery => (object?)Detalle,
+                ObtenerAcreditacionesDelDocumentoQuery when FallaAcreditaciones => throw new InvalidOperationException("acreditaciones caídas"),
                 ObtenerAcreditacionesDelDocumentoQuery => Acreditaciones,
                 ObtenerValidacionOficialDocumentoQuery when FallaValidacion => throw new InvalidOperationException("validación caída"),
                 ObtenerValidacionOficialDocumentoQuery => Validacion,

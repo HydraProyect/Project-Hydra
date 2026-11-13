@@ -122,7 +122,7 @@ public class ObtenerAcreditacionesDelDocumentoQueryHandler(
         var acreditaciones = crudas
             .Select(c => new AcreditacionDelDocumentoDto(
                 c.Id, c.ProveedorId,
-                proveedores.TryGetValue(c.ProveedorId, out var proveedor) ? proveedor.Nombre : "Plataforma",
+                proveedores.TryGetValue(c.ProveedorId, out var proveedor) ? proveedor.Nombre : "—",
                 proveedores.TryGetValue(c.ProveedorId, out var conCodigo) && !string.IsNullOrWhiteSpace(conCodigo.Codigo) ? conCodigo.Codigo : null,
                 clientesEmpresariales.GetValueOrDefault(c.ClienteEmpresarialId, "—"), c.CentroNombre, c.Estado, c.EstadoVigencia,
                 Gestiona(c.CentroId) ? motivos.GetValueOrDefault(c.Id) : null,

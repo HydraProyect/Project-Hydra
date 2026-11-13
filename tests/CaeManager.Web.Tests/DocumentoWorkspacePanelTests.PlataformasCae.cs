@@ -35,11 +35,12 @@ public partial class DocumentoWorkspacePanelTests
         Acreditacion("CTAIMA", "Aceros Lasarte S.A.", "Nave Berriz", EstadoAcreditacion.PendienteDeSubir),
     ]);
 
-    private IRenderedComponent<DocumentoWorkspacePanel> RenderInformacion(DocumentoDetalleDto detalle, AcreditacionesDelDocumentoDto? acreditaciones)
+    private IRenderedComponent<DocumentoWorkspacePanel> RenderInformacion(DocumentoDetalleDto detalle, AcreditacionesDelDocumentoDto? acreditaciones,
+        bool fallaAcreditaciones = false)
     {
         Services.AddScoped<ToastService>();
         Services.AddSingleton(typeof(ILogger<>), typeof(NullLogger<>));
-        Services.AddScoped<IMediator>(_ => new MediatorDocumento { Detalle = detalle, Acreditaciones = acreditaciones });
+        Services.AddScoped<IMediator>(_ => new MediatorDocumento { Detalle = detalle, Acreditaciones = acreditaciones, FallaAcreditaciones = fallaAcreditaciones });
         return Render<DocumentoWorkspacePanel>(p => p
             .Add(x => x.EntidadId, detalle.Id)
             .Add(x => x.PestanaActiva, "informacion"));
@@ -153,6 +154,38 @@ public partial class DocumentoWorkspacePanelTests
     public void Sin_acreditaciones_en_Plataformas_CAE_no_hay_seccion()
     {
         RenderInformacion(Detalle(), new(EstadoDocumento.Vigente, [])).FindAll("[data-seccion=plataformas-cae]").Should().BeEmpty();
+    }
+
+    [Fact]
+    public void Un_Documento_en_el_historial_muestra_sus_acreditaciones_sin_menu_ni_dialogos_de_gestion()
+    {
+        var cut = RenderInformacion(Detalle() with { SustitutoId = Guid.NewGuid() }, DosAcreditaciones());
+
+        cut.Find("[data-seccion=plataformas-cae]").QuerySelectorAll("li").Should().HaveCount(2, "el historial se lee");
+        cut.FindAll("[data-menu-acreditacion]").Should().BeEmpty("el historial es inmutable, como «Renovar»");
+        cut.FindAll(".menu-acreditacion-documento-360").Should().BeEmpty();
+        cut.FindComponents<ModalesAcreditacion>().Should().BeEmpty();
+    }
+
+    [Theory]
+    [InlineData(Roles.Consulta)]
+    [InlineData(Roles.Cliente)]
+    public void Quien_solo_lee_no_recibe_el_contenedor_del_menu(string rol)
+    {
+        this.ConRolDeEscritura(rol);
+        var cut = RenderInformacion(Detalle(), DosAcreditaciones());
+
+        cut.FindAll(".menu-acreditacion-documento-360").Should().BeEmpty("sin menú no se reserva su columna");
+    }
+
+    [Fact]
+    public void Si_la_lectura_de_acreditaciones_falla_el_panel_sigue_mostrando_el_Documento_sin_la_seccion()
+    {
+        var cut = RenderInformacion(Detalle() with { ArchivoUrl = "documentos/certificado.pdf" }, DosAcreditaciones(), fallaAcreditaciones: true);
+
+        cut.Find(".acciones-documento-360").TextContent.Should().Contain("Renovar");
+        cut.FindAll(".archivo-documento-360").Should().ContainSingle();
+        cut.FindAll("[data-seccion=plataformas-cae]").Should().BeEmpty();
     }
 
     [Fact]
