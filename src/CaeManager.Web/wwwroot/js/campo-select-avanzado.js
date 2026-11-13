@@ -4,6 +4,8 @@
 //     envía el formulario y Espacio vuelve a pulsar el disparador).
 //  2. Anclar el panel a la capa superior del navegador (Popover API) para que un Drawer o un
 //     Modal con overflow no lo recorte, y voltearlo hacia arriba si no cabe debajo.
+//  3. Devolver el foco al disparador al cerrar sin quitárselo a otro control (document.activeElement
+//     no tiene equivalente en C#).
 // La lógica (qué opción está activa, qué se elige) vive en C#. Si este módulo no carga, el panel
 // cae a posición absoluta bajo el disparador (CSS) y sigue funcionando.
 const MARGEN = 8;
@@ -125,6 +127,17 @@ export function crear(raiz) {
 
         desplazarA(id) {
             document.getElementById(id)?.scrollIntoView({ block: 'nearest' });
+        },
+
+        // Al cerrar la lista el foco vuelve al disparador, pero solo si sigue dentro del componente (la lista, el
+        // buscador) o cayó al body al desaparecer la lista. La orden llega del servidor tras un viaje de ida y vuelta, y
+        // para entonces la persona puede estar ya en el campo siguiente: quitárselo perdería lo que teclea. Con Playwright,
+        // que rellena en dos pasos (enfocar y seleccionar, luego insertar), el foco robado entre ambos deja el campo
+        // vacío: Chromium borra la selección del campo que lo perdió y no inserta nada (#2194).
+        devolverFoco(disparador) {
+            const activo = document.activeElement;
+            if (activo && activo !== document.body && activo !== document.documentElement && !raiz.contains(activo)) return;
+            disparador?.focus();
         },
 
         dispose() {
