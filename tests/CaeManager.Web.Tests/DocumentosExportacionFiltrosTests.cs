@@ -74,6 +74,15 @@ public class DocumentosExportacionFiltrosTests
         public Task Publish<TNotification>(TNotification notification, CancellationToken cancellationToken = default) where TNotification : INotification => throw new NotSupportedException();
     }
 
+    /// <summary>Devuelve la clave: fija qué texto de <c>TextosDocumentos</c> elige el endpoint.</summary>
+    private sealed class TextosQueDevuelvenLaClave
+        : Microsoft.Extensions.Localization.IStringLocalizer<CaeManager.Web.Features.Documentos.Recursos.TextosDocumentos>
+    {
+        public Microsoft.Extensions.Localization.LocalizedString this[string name] => new(name, name);
+        public Microsoft.Extensions.Localization.LocalizedString this[string name, params object[] arguments] => new(name, name);
+        public IEnumerable<Microsoft.Extensions.Localization.LocalizedString> GetAllStrings(bool includeParentCultures) => [];
+    }
+
     private sealed record Exportacion(IResult Resultado, IReadOnlyList<ObtenerDocumentosQuery> Consultas, RegistroCapturador Registro)
     {
         public ObtenerDocumentosQuery Consulta => Consultas.Should().ContainSingle().Subject;
@@ -88,7 +97,7 @@ public class DocumentosExportacionFiltrosTests
         var registro = new RegistroCapturador();
 
         var resultado = await DocumentosEndpoints.ExportarAsync(contexto, mediador, new TenantActualFalso(), registro, default,
-            venceEn: venceEn, pendienteRevisionIa: pendienteRevisionIa);
+            venceEn: venceEn, pendienteRevisionIa: pendienteRevisionIa, textos: new TextosQueDevuelvenLaClave());
 
         return new Exportacion(resultado, mediador.Consultas, registro);
     }
@@ -179,7 +188,9 @@ public class DocumentosExportacionFiltrosTests
             filasPorLote: lote => lote == 1 ? PaginadorExportacion.TamanoLotePorDefecto : 3);
 
         exportacion.Consultas.Should().HaveCount(2, "el cambio se detecta en el segundo lote");
-        exportacion.Resultado.Should().BeOfType<ProblemHttpResult>().Which.StatusCode.Should().Be(StatusCodes.Status409Conflict);
+        var problema = exportacion.Resultado.Should().BeOfType<ProblemHttpResult>().Subject;
+        problema.StatusCode.Should().Be(StatusCodes.Status409Conflict);
+        problema.ProblemDetails.Detail.Should().Be("ExportacionCriterioCambiado");
         exportacion.Registro.Criterios.Should().BeNull("una exportación abortada no se sirve ni se anota");
     }
 
@@ -208,8 +219,24 @@ public class DocumentosExportacionFiltrosTests
         });
 
         exportacion.Consultas.Should().HaveCount(2, "el cambio se detecta en el segundo lote");
-        exportacion.Resultado.Should().BeOfType<ProblemHttpResult>().Which.StatusCode.Should().Be(StatusCodes.Status409Conflict);
+        var problema = exportacion.Resultado.Should().BeOfType<ProblemHttpResult>().Subject;
+        problema.StatusCode.Should().Be(StatusCodes.Status409Conflict);
+        problema.ProblemDetails.Detail.Should().Be("ExportacionDiaCambiado");
         exportacion.Registro.Criterios.Should().BeNull("una exportación abortada no se sirve ni se anota");
+    }
+
+    [Fact]
+    public async Task Las_dos_claves_del_409_existen_en_es_y_en_ca_ES()
+    {
+        var raiz = new DirectoryInfo(AppContext.BaseDirectory);
+        while (raiz is not null && !File.Exists(Path.Combine(raiz.FullName, "CaeManager.slnx"))) raiz = raiz.Parent;
+        var recursos = Path.Combine(raiz!.FullName, "src", "CaeManager.Web", "Features", "Documentos", "Recursos");
+
+        foreach (var fichero in new[] { "TextosDocumentos.resx", "TextosDocumentos.ca-ES.resx" })
+        {
+            var contenido = await File.ReadAllTextAsync(Path.Combine(recursos, fichero));
+            contenido.Should().Contain("<data name=\"ExportacionCriterioCambiado\"").And.Contain("<data name=\"ExportacionDiaCambiado\"", fichero);
+        }
     }
 
     [Fact]

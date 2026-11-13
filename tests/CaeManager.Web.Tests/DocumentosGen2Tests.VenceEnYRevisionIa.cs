@@ -144,16 +144,20 @@ public partial class DocumentosGen2Tests
     [Theory]
     [InlineData("Consulta")]
     [InlineData("Cliente")]
+    [InlineData("")]
     [InlineData(null)]
     public void Con_claim_de_gestion_y_rol_efectivo_sin_cola_no_se_ofrece_ni_se_pide_la_revision_IA(string? rolEfectivo)
     {
-        var (cut, mediador) = Renderizar(ConOpcionesDeFiltro(), url: "documentos?PendienteRevisionIa=1", rol: "GestorCae",
-            rolEfectivo: rolEfectivo ?? "");
+        var (cut, mediador) = Renderizar(ConOpcionesDeFiltro(), url: "documentos?VenceEn=30&PendienteRevisionIa=1", rol: "GestorCae",
+            rolEfectivo: rolEfectivo, sinRolEfectivo: rolEfectivo is null);
         cut.WaitForAssertion(() => mediador.Enviadas.OfType<ObtenerDocumentosQuery>().Should().NotBeEmpty());
 
         mediador.Enviadas.OfType<ObtenerDocumentosQuery>().Should().OnlyContain(q => !q.PendienteDeRevisionIa);
         cut.FindAll("button.pastilla-interruptor").Should().BeEmpty();
         HayChipRevisionIa(cut).Should().BeFalse();
+        // Nunca se pide, así que la limpieza tras la carga no correría: la URL (y con ella la vista recordada) lo suelta al conocer el rol.
+        cut.WaitForAssertion(() => UrlActual().Should().NotContain("PendienteRevisionIa"));
+        UrlActual().Should().Contain("VenceEn=30", "control: los demás filtros siguen");
         cut.Find("header.cabecera-pagina a[data-keytip=X]").GetAttribute("href").Should().NotContain("pendienteRevisionIa");
         PastillaDocumentoFase1(cut, "Vence en").Should().NotBeNull("control: el resto de la barra sí está");
     }
@@ -167,6 +171,32 @@ public partial class DocumentosGen2Tests
 
         UltimaConsultaDeDocumentos(mediador).PendienteDeRevisionIa.Should().BeTrue("decide el rol efectivo, no el claim");
         PastillaRevisionIa(cut).GetAttribute("aria-pressed").Should().Be("true");
+    }
+
+    /// <summary>
+    /// Hallazgo de la PR #2201 (Codex, cuarta pasada): «Vence en» y «Pendiente de revisión IA» cambian qué hay en pantalla igual que la
+    /// franja de estado, así que entran en la firma del contexto: cambiarlos suelta la selección y cierra el lote preparado en el
+    /// momento, sin esperar a la respuesta.
+    /// </summary>
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Cambiar_Vence_en_o_la_revision_IA_cierra_el_lote_preparado_y_suelta_la_seleccion(bool revisionIa)
+    {
+        var (cut, mediador) = Renderizar(ConDocumentos(Documento("Reconocimiento médico"), Documento("Formación PRL")));
+
+        await SeleccionarFilas(cut, 2);
+        await AbrirConfirmacionDeLote(cut);
+        cut.Markup.Should().Contain("Se ocultarán de las listas activas", "es el punto de partida de este caso");
+
+        if (revisionIa)
+            await PastillaRevisionIa(cut).ClickAsync(new MouseEventArgs());
+        else
+            await ElegirPastillaDocumentoFase1(cut, "Vence en", "30 días");
+
+        cut.Markup.Should().NotContain("Se ocultarán de las listas activas", "lo preparado pertenecía al filtro anterior");
+        cut.FindAll(".barra-acciones-lote").Should().BeEmpty("la selección del filtro anterior se soltó");
+        mediador.Enviadas.OfType<CaeManager.Application.Documentos.Commands.EliminarDocumentos.EliminarDocumentosCommand>().Should().BeEmpty();
     }
 
     [Theory]

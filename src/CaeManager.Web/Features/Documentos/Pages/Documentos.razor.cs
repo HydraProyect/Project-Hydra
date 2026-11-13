@@ -529,6 +529,8 @@ public partial class Documentos : CaeManager.Web.Components.PaginaInteractiva, I
             if (_desechado) return;
             _puedeGestionarDocumentos = ColaRevisionIa.AccedeElRol(rolEfectivo);
         }
+        _rolEfectivoLeido = true;
+        DescartarRevisionIaSinAcceso();
 
         // Delegado estable — ver Clientes.razor.cs (bucle de recargas de QuickGrid).
         _proveedorElementos = ProveerElementosAsync;
@@ -704,8 +706,9 @@ public partial class Documentos : CaeManager.Web.Components.PaginaInteractiva, I
         // El separador no es decorativo: concatenando a pelo, mover una letra
         // de un filtro al siguiente daría la misma firma y el cambio pasaría
         // por no-cambio.
+        DescartarRevisionIaSinAcceso();
         var contexto = string.Join('\n', _pestanaActiva, _busqueda, _ambitoFiltro, _estadoFiltro, _tipoFiltro, _plataformaFiltro,
-            _propietarioFiltro, _estadoPlataformaFiltro, ClaveDeAgrupacion);
+            _propietarioFiltro, _estadoPlataformaFiltro, _venceEnFiltro, RevisionIaActiva, ClaveDeAgrupacion);
         if (_contextoEnPantalla is null)
             _contextoEnPantalla = contexto;
         else if (_contextoEnPantalla != contexto)
@@ -1277,6 +1280,20 @@ public partial class Documentos : CaeManager.Web.Components.PaginaInteractiva, I
     /// apagada, sin la columna y sin el parámetro en la URL; la vista recordada sigue a la URL, y «Guardar filtro» y «Exportar esta vista»
     /// leen <see cref="RevisionIaActiva"/>. No hace falta volver a cargar: lo que llegó ya es el listado sin el filtro.
     /// </summary>
+    private bool _rolEfectivoLeido;
+
+    /// <summary>
+    /// Sin acceso a la cola (rol efectivo Cliente, Consulta o ninguno), un <c>?PendienteRevisionIa=1</c> que llegue por enlace, por la
+    /// vista recordada o por un filtro guardado no se pide nunca, así que <see cref="DescartarRevisionIaNoAplicada"/> no correría tras
+    /// la carga: se quita aquí, en cuanto se conoce el rol y en cada sincronización con la URL, para que ni la URL ni la vista recordada
+    /// lo arrastren.
+    /// </summary>
+    private void DescartarRevisionIaSinAcceso()
+    {
+        if (_rolEfectivoLeido && _revisionIaFiltro && !_puedeGestionarDocumentos)
+            DescartarRevisionIaNoAplicada();
+    }
+
     private void DescartarRevisionIaNoAplicada()
     {
         _revisionIaFiltro = false;
@@ -1999,7 +2016,7 @@ public partial class Documentos : CaeManager.Web.Components.PaginaInteractiva, I
             [nameof(Propietario)] = _propietarioFiltro,
             [nameof(EstadoPlataforma)] = _estadoPlataformaFiltro,
             [nameof(VenceEn)] = _venceEnFiltro,
-            [nameof(PendienteRevisionIa)] = RevisionIaEnUrl(_revisionIaFiltro),
+            [nameof(PendienteRevisionIa)] = RevisionIaEnUrl(RevisionIaActiva),
             [AgrupacionDeLista.Parametro] = Agrupaciones.ParaUrl(ClaveDeAgrupacion),
         });
         await RecargarAsync();
@@ -2053,7 +2070,7 @@ public partial class Documentos : CaeManager.Web.Components.PaginaInteractiva, I
             [nameof(Plataforma)] = _plataformaFiltro,
             [nameof(EstadoPlataforma)] = _estadoPlataformaFiltro,
             [nameof(VenceEn)] = _venceEnFiltro,
-            [nameof(PendienteRevisionIa)] = RevisionIaEnUrl(_revisionIaFiltro),
+            [nameof(PendienteRevisionIa)] = RevisionIaEnUrl(RevisionIaActiva),
             [nameof(Propietario)] = _propietarioFiltro,
             ["orden"] = _orden.EnUrl,
             [AgrupacionDeLista.Parametro] = Agrupaciones.ParaUrl(ClaveDeAgrupacion),
