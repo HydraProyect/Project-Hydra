@@ -425,6 +425,7 @@
   <data name="QuitarFiltroVenceEn" xml:space="preserve"><value>Quitar filtro de vencimiento</value></data>
   <data name="ListaPendienteRevisionIa" xml:space="preserve"><value>Pendiente de revisión IA</value></data>
   <data name="QuitarFiltroRevisionIa" xml:space="preserve"><value>Quitar filtro de revisión IA</value></data>
+  <data name="ListaRevisionIa" xml:space="preserve"><value>Revisión IA</value></data>
   <data name="GrupoPendienteUno" xml:space="preserve"><value>1 pendiente de subir</value></data>
   <data name="GrupoPendientes" xml:space="preserve"><value>{0} pendientes de subir</value></data>
   <data name="GrupoRechazadoUno" xml:space="preserve"><value>1 rechazada</value></data>

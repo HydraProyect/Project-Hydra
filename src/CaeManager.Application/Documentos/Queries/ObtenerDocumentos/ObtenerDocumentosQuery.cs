@@ -95,6 +95,12 @@ public record ObtenerDocumentosQuery(
     /// <summary>Tope de <see cref="VenceEnDias"/>: ya no es «próximo a vencer», y evita desbordar la fecha.</summary>
     public const int MaximoVenceEnDias = 3650;
 
+    /// <summary>
+    /// Los plazos de «Vence en» que ofrece el listado (lienzo Vence-en.dc.html), en días desde hoy. Una sola lista para la
+    /// pantalla y la exportación: cualquier otro valor se ignora en ambas.
+    /// </summary>
+    public static readonly IReadOnlyList<int> PlazosVenceEnDias = [7, 30, 90];
+
     /// <summary>Clave del grupo de los Documentos sin vínculo: «Sin Plataforma CAE» o «Sin Cliente empresarial».</summary>
     public const string GrupoSin = "sin";
 
@@ -135,7 +141,11 @@ public record DocumentoListaDto(
     [property: JsonIgnore] GrupoDeFilaDocumentalDto? Grupo = null,
     // Id del Propietario (Trabajador, Empresa, Vehículo…) del Documento: lo necesita «Gestionar acreditación…» del menú de la fila
     // para enlazar con su ficha. Solo lectura de un dato de la propia fila: no cambia qué filas devuelve ni quién las ve.
-    [property: JsonIgnore] Guid? PropietarioId = null);
+    [property: JsonIgnore] Guid? PropietarioId = null,
+    // Confianza (0-100) de la revisión IA pendiente del Documento, para la columna «Revisión IA» del filtro «Pendiente de
+    // revisión IA». Solo se rellena cuando ese filtro SE APLICÓ (rol con acceso a la cola); con varias pendientes, la menor.
+    // Nunca sale por la API pública.
+    [property: JsonIgnore] int? ConfianzaRevisionIa = null);
 
 /// <summary>Cómo se agrupa el listado de Documentos además de por Ámbito (ver <see cref="ObtenerDocumentosQuery.AgruparPor"/>).</summary>
 public enum AgrupacionDocumentos
@@ -278,10 +288,12 @@ public class ObtenerDocumentosQueryHandler(IConfiguracionQueryContext configurac
         // «Pendiente de revisión IA»: la cola de la pestaña Revisión IA, con su alcance, y solo para los roles que acceden a
         // ella. Con otro rol el filtro no llega a la consulta (no la estrecha ni la vacía): se ignora. Sin rol conocido,
         // falla cerrado. Solo estrecha el universo ya acotado por el alcance de cada rama.
-        if (request.PendienteDeRevisionIa && currentUserService is not null
-            && ColaRevisionIa.AccedeElRol(await currentUserService.ObtenerRolEfectivoAsync()))
+        var aplicaRevisionIa = request.PendienteDeRevisionIa && currentUserService is not null
+            && ColaRevisionIa.AccedeElRol(await currentUserService.ObtenerRolEfectivoAsync());
+        IReadOnlyList<Guid>? trabajadorIdsEnCola = null;
+        if (aplicaRevisionIa)
         {
-            var trabajadorIdsEnCola = await alcanceDatos.ObtenerTrabajadorIdsVisiblesAsync(cancellationToken);
+            trabajadorIdsEnCola = await alcanceDatos.ObtenerTrabajadorIdsVisiblesAsync(cancellationToken);
             var documentosEnCola = ColaRevisionIa.DocumentoIds(documentosContext, trabajadorIdsEnCola);
             consulta = consulta.Where(x => documentosEnCola.Contains(x.Id));
         }
@@ -490,6 +502,19 @@ public class ObtenerDocumentosQueryHandler(IConfiguracionQueryContext configurac
             ? await ObtenerDestinosEnCentrosAsync(pagina, hoy, parametros.UmbralAmbarDias, parametros.UmbralRojoDias, cancellationToken)
             : null;
 
+        // Columna «Revisión IA» (artboard Filtro-revision-ia): solo con el filtro aplicado, es decir, solo para los roles que
+        // acceden a la cola, y salida de la misma cola (ColaRevisionIa.Pendientes, con su alcance). Con varias revisiones
+        // pendientes en un Documento se muestra la de menor confianza: la primera que la cola ordena (confianza ascendente),
+        // la que más necesita un vistazo. Sin filtro aplicado no se consulta ni viaja.
+        var confianzaPorDocumento = aplicaRevisionIa && documentoIds.Count > 0
+            ? (await ColaRevisionIa.Pendientes(documentosContext, trabajadorIdsEnCola)
+                    .Where(p => documentoIds.Contains(p.Revision.DocumentoId))
+                    .GroupBy(p => p.Revision.DocumentoId)
+                    .Select(g => new { DocumentoId = g.Key, Confianza = g.Min(p => p.Revision.ConfianzaGeneral) })
+                    .ToListAsync(cancellationToken))
+                .ToDictionary(c => c.DocumentoId, c => c.Confianza)
+            : null;
+
         var elementos = pagina
             .Select(d => new DocumentoListaDto(
                 d.Id, d.Ambito, d.PropietarioNombre, d.TipoDocumentoNombre, d.FechaEmision, d.FechaVencimiento,
@@ -499,7 +524,8 @@ public class ObtenerDocumentosQueryHandler(IConfiguracionQueryContext configurac
                 acreditacionesPorDocumento.GetValueOrDefault(d.Id, []),
                 d.TipoDocumentoId,
                 destinos?.GetValueOrDefault(d.Id, []),
-                PropietarioId: d.PropietarioId))
+                PropietarioId: d.PropietarioId,
+                ConfianzaRevisionIa: confianzaPorDocumento is not null && confianzaPorDocumento.TryGetValue(d.Id, out var confianza) ? confianza : null))
             .ToList();
 
         if (request.AgruparPor is { } agrupacionDeFilas)

@@ -185,6 +185,92 @@ public partial class DocumentosGen2Tests
         vista.Should().Contain("venceEn=30").And.NotContain("pendienteRevisionIa");
     }
 
+    // ------------------------------------------------------------- columna «Revisión IA» (artboard Filtro-revision-ia)
+
+    private static DocumentoListaDto ConConfianza(string tipoDocumento, int? confianza) =>
+        Documento(tipoDocumento) with { ConfianzaRevisionIa = confianza };
+
+    private static MediadorControlado ConConfianzas() =>
+        ConDocumentos(ConConfianza("Aptitud médica", 58), ConConfianza("Certificado TGSS", 72), ConConfianza("Formación Art. 19", 96));
+
+    private static List<string> CabecerasDeLaTabla(IRenderedComponent<PaginaDocumentos> cut) =>
+        cut.FindAll("table.documentos-tabla-visible thead th").Select(th => th.TextContent.Trim()).ToList();
+
+    [Theory]
+    [InlineData("GestorCae")]
+    [InlineData("Administrador")]
+    public void Con_el_filtro_la_tabla_gana_la_columna_Revision_IA_con_la_barra_y_Confianza_N_por_ciento_en_cada_fila(string rol)
+    {
+        var (cut, mediador) = Renderizar(ConConfianzas(), url: "documentos?PendienteRevisionIa=1", rol: rol);
+        cut.WaitForAssertion(() => cut.FindAll(".documentos-confianza").Should().HaveCount(3));
+
+        var cabeceras = CabecerasDeLaTabla(cut);
+        cabeceras.Should().Contain("Revisión IA");
+        cabeceras.IndexOf("Revisión IA").Should().Be(cabeceras.Count - 2, "va tras el estado y antes de las acciones, como en el artboard");
+        cut.FindAll(".documentos-confianza").Select(c => c.TextContent.Trim())
+            .Should().Equal("Confianza 58 %", "Confianza 72 %", "Confianza 96 %");
+        cut.FindAll(".documentos-confianza-barra > i").Select(i => i.GetAttribute("style"))
+            .Should().Equal("width:58%", "width:72%", "width:96%");
+        cut.FindAll(".documentos-confianza-barra > i").Select(i => i.ClassList.Single(c => c.StartsWith("documentos-confianza-relleno-")))
+            .Should().Equal("documentos-confianza-relleno-peligro", "documentos-confianza-relleno-advertencia", "documentos-confianza-relleno-exito");
+        cut.FindAll("table.documentos-tabla-visible tbody tr:not(.documentos-fila-hijos)").Should().OnlyContain(
+            f => f.QuerySelectorAll("td").Length == cabeceras.Count, "una celda por cabecera: la columna no descuadra las filas");
+        UltimaConsultaDeDocumentos(mediador).PendienteDeRevisionIa.Should().BeTrue();
+    }
+
+    [Fact]
+    public void Sin_el_filtro_no_hay_columna_Revision_IA_aunque_el_servidor_mande_confianza()
+    {
+        var (cut, mediador) = Renderizar(ConConfianzas(), rol: "GestorCae");
+        cut.WaitForAssertion(() => mediador.Enviadas.OfType<ObtenerDocumentosQuery>().Should().NotBeEmpty());
+        cut.WaitForAssertion(() => cut.FindAll("table.documentos-tabla-visible tbody tr").Should().NotBeEmpty());
+
+        CabecerasDeLaTabla(cut).Should().NotContain("Revisión IA");
+        cut.FindAll(".documentos-confianza").Should().BeEmpty();
+        cut.Markup.Should().NotContain("Confianza 58");
+    }
+
+    /// <summary>
+    /// Consulta y Usuario de Cliente que fuerzan el enlace: la pantalla no aplica el filtro y no pinta la columna, aunque una respuesta
+    /// del servidor llevara confianza (defensa en profundidad: el servidor tampoco la manda).
+    /// </summary>
+    [Theory]
+    [InlineData("Consulta")]
+    [InlineData("Cliente")]
+    public void Consulta_y_Cliente_no_ven_la_columna_Revision_IA_ni_con_el_enlace(string rol)
+    {
+        var (cut, mediador) = Renderizar(ConConfianzas(), url: "documentos?PendienteRevisionIa=1", rol: rol);
+        cut.WaitForAssertion(() => mediador.Enviadas.OfType<ObtenerDocumentosQuery>().Should().NotBeEmpty());
+        cut.WaitForAssertion(() => cut.FindAll("table.documentos-tabla-visible tbody tr").Should().NotBeEmpty());
+
+        CabecerasDeLaTabla(cut).Should().NotContain("Revisión IA");
+        cut.FindAll(".documentos-confianza").Should().BeEmpty();
+        cut.Markup.Should().NotContain("Confianza 58");
+    }
+
+    [Fact]
+    public void Una_fila_sin_confianza_deja_la_celda_vacia_con_el_filtro_aplicado()
+    {
+        var (cut, _) = Renderizar(ConDocumentos(ConConfianza("Aptitud médica", null)), url: "documentos?PendienteRevisionIa=1", rol: "GestorCae");
+        cut.WaitForAssertion(() => cut.FindAll("td.documentos-celda-revision-ia").Should().HaveCount(1));
+
+        cut.Find("td.documentos-celda-revision-ia").TextContent.Trim().Should().BeEmpty();
+    }
+
+    /// <summary>El <c>colgroup</c> de las agrupaciones suma la columna antes de las acciones y no toca los demás anchos.</summary>
+    [Fact]
+    public void El_colgroup_de_la_agrupacion_por_Plataforma_CAE_gana_la_columna_sin_mover_los_demas_anchos()
+    {
+        var (cut, _) = Renderizar(ConConfianzas(), url: "documentos?agrupar=plataforma&PendienteRevisionIa=1", rol: "GestorCae");
+        cut.WaitForAssertion(() => CabecerasDeLaTabla(cut).Should().Contain("Revisión IA"));
+
+        var anchos = cut.FindAll("table.documentos-tabla-visible colgroup col").Select(c => c.GetAttribute("style")!.Trim()).ToList();
+
+        // Los siete anchos del artboard Agrupar-plataforma, con la columna nueva (190 px) entre «Estado en la plataforma» y las acciones.
+        anchos.Should().Equal("width: 14%", "width: 23%", "width: 13%", "width: 10%", "width: 12%", "width: 15%", "width: 190px", "width: 232px");
+        CabecerasDeLaTabla(cut).Should().HaveCount(anchos.Count, "una columna del colgroup por cabecera");
+    }
+
     // ------------------------------------------------------------- «Limpiar», vista recordada y filtro guardado
 
     [Fact]

@@ -923,12 +923,32 @@ public partial class Documentos : CaeManager.Web.Components.PaginaInteractiva, I
     /// Propietario, Vence y Estado documental (30/30/13/14 %) y 232 px, no los 190 px del artboard: la fila conserva el icono 360
     /// del tipo, que el dibujo no pinta, y con 190 px las acciones se saldrían de la celda.
     /// </summary>
-    private string[] AnchosColumnasAgrupadas => _agrupacion switch
+    private string[] AnchosColumnasAgrupadas
     {
-        AgrupacionListado.PlataformaCae => ["14%", "23%", "13%", "10%", "12%", "15%", "232px"],
-        AgrupacionListado.TipoDocumento => ["24%", "30%", "13%", "14%", "190px"],
-        AgrupacionListado.ClienteEmpresarial => ["30%", "30%", "13%", "14%", "232px"],
-        _ => [],
+        get
+        {
+            string[] anchos = _agrupacion switch
+            {
+                AgrupacionListado.PlataformaCae => ["14%", "23%", "13%", "10%", "12%", "15%", "232px"],
+                AgrupacionListado.TipoDocumento => ["24%", "30%", "13%", "14%", "190px"],
+                AgrupacionListado.ClienteEmpresarial => ["30%", "30%", "13%", "14%", "232px"],
+                _ => [],
+            };
+
+            // Con «Pendiente de revisión IA» la columna «Revisión IA» va antes de las acciones: barra de 72 px, separación y «Confianza 100 %»
+            // en una línea (el artboard no la limita: la deja a su contenido); 190 px para que no se corte, y el resto de anchos no se tocan.
+            return RevisionIaActiva && anchos.Length > 0 ? [.. anchos[..^1], AnchoColumnaRevisionIa, anchos[^1]] : anchos;
+        }
+    }
+
+    private const string AnchoColumnaRevisionIa = "190px";
+
+    /// <summary>Color del relleno de la barra de confianza: el mismo corte que la pestaña Revisión IA (95 y 70).</summary>
+    private static string TonoConfianza(int confianza) => confianza switch
+    {
+        >= 95 => "exito",
+        >= 70 => "advertencia",
+        _ => "peligro"
     };
 
     private AgrupacionDocumentos? AgrupacionPedida => _agrupacion switch
@@ -1207,8 +1227,8 @@ public partial class Documentos : CaeManager.Web.Components.PaginaInteractiva, I
 
     // --- «Vence en» (D-21) y «Pendiente de revisión IA» ---
 
-    /// <summary>Los plazos de «Vence en» que ofrece el lienzo (Vence-en.dc.html), en días desde hoy.</summary>
-    private static readonly int[] DiasVenceEn = [7, 30, 90];
+    /// <summary>Los plazos de «Vence en» que ofrece el lienzo (Vence-en.dc.html), en días desde hoy: los mismos que la exportación.</summary>
+    private static readonly IReadOnlyList<int> DiasVenceEn = ObtenerDocumentosQuery.PlazosVenceEnDias;
 
     /// <summary>Los días de «Vence en» como texto («30»), o vacío sin filtro. Es lo que viaja en la URL y en la vista recordada.</summary>
     private string _venceEnFiltro = string.Empty;

@@ -286,6 +286,7 @@
                                 </th>
                                 <th scope="col" aria-sort="@AriaOrdenGrupo("estado")"><button type="button" class="col-title documentos-orden-grupo" title="@Textos["ListaEstado"]" @onclick="() => OrdenarGrupoAsync(_columnaEstado)">@Textos["ListaEstado"]</button></th>
                                 @if (AgrupadaPorPlataforma) { <th scope="col" class="documentos-th-texto" title="@Textos["ListaEstadoEnPlataforma"]">@Textos["ListaEstadoEnPlataforma"]</th> }
+                                @if (RevisionIaActiva) { <th scope="col" class="documentos-th-texto" title="@Textos["ListaRevisionIa"]">@Textos["ListaRevisionIa"]</th> }
                                 <th scope="col" class="documentos-celda-acciones"><span class="documentos-solo-lectores">@Textos["ListaAcciones"]</span></th>
                             </tr></thead>
                             @if (_totalElementos == 0 && !_cargando && HayFiltrosActivos)
@@ -351,6 +352,7 @@
                                             {
                                                 <td>@CeldaDocumento(documento)</td><td>@CeldaPropietario(documento)</td><td>@CeldaVigencia(documento)</td><td class="col-estado">@CeldaEstado(documento)</td>
                                             }
+                                            @if (RevisionIaActiva) { <td class="documentos-celda-revision-ia">@CeldaRevisionIa(documento)</td> }
                                             <td class="documentos-celda-acciones-fila">@CeldaAcciones(documento)</td>
                                         </tr>
                                         @if (MostrarDestinos && _documentosAbiertos.Contains(documento.Id) && documento.DestinosEnCentros?.Count > 0)
@@ -648,7 +650,22 @@
     /// Acciones); por Plataforma CAE siete (Propietario, Nombre en la plataforma, Cliente empresarial, Vence, Estado documental,
     /// Estado en la plataforma, Acciones); por tipo cinco (Propietario, Plataformas CAE, Vence, Estado documental, Acciones).
     /// </summary>
-    private int ColumnasTabla => (AgrupadaPorPlataforma ? 7 : 5) + (_seleccionMultiple ? 1 : 0) + (MostrarDestinos ? 1 : 0);
+    private int ColumnasTabla => (AgrupadaPorPlataforma ? 7 : 5) + (_seleccionMultiple ? 1 : 0) + (MostrarDestinos ? 1 : 0) + (RevisionIaActiva ? 1 : 0);
+
+    /// <summary>
+    /// «Revisión IA» (artboard Filtro-revision-ia): barra de confianza y «Confianza N %» de la revisión pendiente del Documento.
+    /// Solo existe con el filtro «Pendiente de revisión IA» aplicado, y entonces el servidor ya solo manda la confianza a los roles con
+    /// acceso a la cola; aun así, una fila sin confianza (revisión de un Documento sin pendiente propia) no pinta nada.
+    /// </summary>
+    private RenderFragment<DocumentoListaDto> CeldaRevisionIa => context => @<text>
+                                @if (context.ConfianzaRevisionIa is { } confianza)
+                                {
+                                    <span class="documentos-confianza" data-testid="documentos-confianza">
+                                        <span class="documentos-confianza-barra" aria-hidden="true"><i class="@($"documentos-confianza-relleno documentos-confianza-relleno-{TonoConfianza(confianza)}")" style="@($"width:{Math.Clamp(confianza, 0, 100)}%")"></i></span>
+                                        @Textos["RevIaConfianzaN", confianza]
+                                    </span>
+                                }
+    </text>;
 
     /// <summary>
     /// «Estado en la plataforma» de la fila por Plataforma CAE (P-1, D-54): el estado de esa acreditación y, si está rechazada,

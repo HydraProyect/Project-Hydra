@@ -2,6 +2,7 @@ using CaeManager.Web.Components.DesignSystem;
 using CaeManager.Application.Common;
 using CaeManager.Application.Documentos.Queries.ObtenerDocumentoPorId;
 using CaeManager.Application.Documentos.Queries.ObtenerDocumentos;
+using CaeManager.Application.Documentos.Queries.ObtenerRevisionesIaPendientes;
 using CaeManager.Application.Importacion;
 using CaeManager.Application.Tenants.Queries.ObtenerClientesAutorizados;
 using CaeManager.Domain.Auditoria;
@@ -71,9 +72,12 @@ public static class DocumentosEndpoints
         string? estadoPlataforma = null, string? venceEn = null, string? pendienteRevisionIa = null)
     {
         // «Vence en» (D-21): solo los plazos que ofrece el listado, como número de días; cualquier otro valor se ignora.
-        int? venceEnDias = venceEn is "7" or "30" or "90" ? int.Parse(venceEn, System.Globalization.CultureInfo.InvariantCulture) : null;
-        // «Pendiente de revisión IA»: solo «1». Quién puede usarlo lo decide el servidor (ColaRevisionIa), no este parámetro.
-        var revisionIa = pendienteRevisionIa == "1";
+        int? venceEnDias = int.TryParse(venceEn, System.Globalization.NumberStyles.None, System.Globalization.CultureInfo.InvariantCulture, out var plazo)
+            && ObtenerDocumentosQuery.PlazosVenceEnDias.Contains(plazo)
+            && plazo.ToString(System.Globalization.CultureInfo.InvariantCulture) == venceEn ? plazo : null;
+        // «Pendiente de revisión IA»: solo «1» y solo con un rol que accede a la cola (ColaRevisionIa), como la pantalla. El
+        // handler sigue siendo la autoridad; esto evita anotar en el registro de exportación un criterio que no se aplicó.
+        var revisionIa = pendienteRevisionIa == "1" && ColaRevisionIa.RolesQueAccedenALaPestana.Any(contexto.User.IsInRole);
         // Solo el nombre exacto de un estado, como el listado: ni números ni listas con coma.
         EstadoEnPlataformaFiltro? estadoPlataformaFiltro =
             estadoPlataforma is not null && Enum.GetNames<EstadoEnPlataformaFiltro>().Contains(estadoPlataforma, StringComparer.Ordinal)

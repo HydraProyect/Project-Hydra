@@ -78,9 +78,9 @@ public class ObtenerDocumentosVenceEnYRevisionIaTests
 
         public Documento ConVencimientoEl(DateOnly fecha) => ConDocumento(VigenciaDocumento.VenceEl(fecha));
 
-        public void EnRevisionIa(Documento documento, bool resuelta = false)
+        public void EnRevisionIa(Documento documento, bool resuelta = false, int confianza = 60)
         {
-            var revision = RevisionIaDocumento.Crear(documento.Id, 60, null, null, null, null, "Revisar");
+            var revision = RevisionIaDocumento.Crear(documento.Id, confianza, null, null, null, null, "Revisar");
             if (resuelta) revision.Resolver();
             Documentos.ListaRevisionesIaDocumento.Add(revision);
         }
@@ -294,6 +294,82 @@ public class ObtenerDocumentosVenceEnYRevisionIaTests
             new AlcanceDatosServiceFalso(), e.Centros, e.Proveedores);
 
         (await IdsAsync(sinUsuario, Consulta(revisionIa: true))).Should().BeEquivalentTo([pendiente.Id, otro.Id]);
+    }
+
+    // ------------------------------------------------- columna «Revisión IA» (confianza)
+
+    private static async Task<Dictionary<Guid, int?>> ConfianzasAsync(ObtenerDocumentosQueryHandler handler, ObtenerDocumentosQuery consulta) =>
+        (await handler.Handle(consulta, default)).Elementos.ToDictionary(x => x.Id, x => x.ConfianzaRevisionIa);
+
+    [Fact]
+    public async Task Con_el_filtro_aplicado_cada_fila_lleva_la_confianza_de_su_revision_pendiente_de_la_cola()
+    {
+        var e = new Escenario();
+        var baja = e.ConVencimientoEl(Hoy.AddDays(100));
+        var alta = e.ConVencimientoEl(Hoy.AddDays(100));
+        e.EnRevisionIa(baja, confianza: 58);
+        e.EnRevisionIa(alta, confianza: 96);
+
+        var confianzas = await ConfianzasAsync(e.Handler("GestorCae"), Consulta(revisionIa: true));
+
+        confianzas.Should().BeEquivalentTo(new Dictionary<Guid, int?> { [baja.Id] = 58, [alta.Id] = 96 });
+    }
+
+    [Fact]
+    public async Task Sin_el_filtro_ninguna_fila_lleva_confianza_aunque_el_rol_acceda_a_la_cola()
+    {
+        var e = new Escenario();
+        var conRevision = e.ConVencimientoEl(Hoy.AddDays(100));
+        e.EnRevisionIa(conRevision, confianza: 58);
+
+        (await ConfianzasAsync(e.Handler("Administrador"), Consulta())).Values.Should().OnlyContain(c => c == null);
+    }
+
+    /// <summary>Con varias revisiones pendientes se enseña la de menor confianza: la primera de la cola (confianza ascendente). Las resueltas no cuentan.</summary>
+    [Fact]
+    public async Task Con_varias_revisiones_pendientes_la_fila_lleva_la_menor_y_las_resueltas_no_cuentan()
+    {
+        var e = new Escenario();
+        var documento = e.ConVencimientoEl(Hoy.AddDays(100));
+        e.EnRevisionIa(documento, confianza: 80);
+        e.EnRevisionIa(documento, confianza: 55);
+        e.EnRevisionIa(documento, confianza: 10, resuelta: true);
+
+        (await ConfianzasAsync(e.Handler(), Consulta(revisionIa: true))).Should().BeEquivalentTo(
+            new Dictionary<Guid, int?> { [documento.Id] = 55 });
+        ColaRevisionIa.Pendientes(e.Documentos, null).OrderBy(p => p.Revision.ConfianzaGeneral).First().Revision.ConfianzaGeneral
+            .Should().Be(55, "la cola enseña primero esa misma");
+    }
+
+    /// <summary>Un Usuario de Cliente, Consulta o sin rol que fuerce el filtro no recibe la confianza (ni el filtro, que se ignora).</summary>
+    [Theory]
+    [InlineData("Cliente")]
+    [InlineData("Consulta")]
+    [InlineData("Inventado")]
+    [InlineData(null)]
+    public async Task Un_rol_sin_acceso_a_la_cola_que_fuerza_el_filtro_no_recibe_la_confianza(string? rol)
+    {
+        var e = new Escenario();
+        var conRevision = e.ConVencimientoEl(Hoy.AddDays(100));
+        var sinRevision = e.ConVencimientoEl(Hoy.AddDays(100));
+        e.EnRevisionIa(conRevision, confianza: 58);
+
+        var confianzas = await ConfianzasAsync(e.Handler(rol), Consulta(revisionIa: true));
+
+        confianzas.Keys.Should().BeEquivalentTo([conRevision.Id, sinRevision.Id], "el filtro se ignora, no vacía el listado");
+        confianzas.Values.Should().OnlyContain(c => c == null, "la confianza no sale a quien no accede a la cola");
+    }
+
+    [Fact]
+    public async Task Sin_servicio_de_usuario_tampoco_viaja_la_confianza()
+    {
+        var e = new Escenario();
+        e.EnRevisionIa(e.ConVencimientoEl(Hoy.AddDays(100)), confianza: 58);
+        var sinUsuario = new ObtenerDocumentosQueryHandler(
+            new ConfiguracionFalsa(), e.Documentos, e.Empresas, e.Proyectos, e.Tipos, e.Trabajadores, new VehiculosFalsos(),
+            new AlcanceDatosServiceFalso(), e.Centros, e.Proveedores);
+
+        (await ConfianzasAsync(sinUsuario, Consulta(revisionIa: true))).Values.Should().OnlyContain(c => c == null);
     }
 
     [Fact]

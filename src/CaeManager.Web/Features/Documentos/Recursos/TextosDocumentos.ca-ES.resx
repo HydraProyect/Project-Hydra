@@ -425,6 +425,7 @@
   <data name="QuitarFiltroVenceEn" xml:space="preserve"><value>Treu el filtre de venciment</value></data>
   <data name="ListaPendienteRevisionIa" xml:space="preserve"><value>Pendent de revisió IA</value></data>
   <data name="QuitarFiltroRevisionIa" xml:space="preserve"><value>Treu el filtre de revisió IA</value></data>
+  <data name="ListaRevisionIa" xml:space="preserve"><value>Revisió IA</value></data>
   <data name="GrupoPendienteUno" xml:space="preserve"><value>1 pendent de pujar</value></data>
   <data name="GrupoPendientes" xml:space="preserve"><value>{0} pendents de pujar</value></data>
   <data name="GrupoRechazadoUno" xml:space="preserve"><value>1 rebutjada</value></data>

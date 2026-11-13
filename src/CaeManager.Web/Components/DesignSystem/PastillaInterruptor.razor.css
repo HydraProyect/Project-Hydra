@@ -1,17 +1,23 @@
 .pastilla-interruptor-lista { display: contents; }
 
-/* La misma pastilla que una de filtro (MenuAcciones con Pastilla): borde completo, 36 px de alto en los listados de rejilla. */
+/* La misma pastilla que una de filtro (PastillaFiltro/MenuAcciones con Pastilla) con el filtro aplicado, como dibuja el lienzo «Documentos ·
+   listado sin pestañas» (las dos son «pastilla-filtro» con aria-pressed): 36 px de alto, relleno de 14 px, 14 px/600, borde fuerte y fondo de
+   superficie. Dentro de una lista de diseño (.lista-design) esas medidas las fija lista-design.css con el mismo selector que las pastillas de
+   filtro, así que no pueden separarse; esto es solo la base fuera de ella. El estado lo da aria-pressed (y el chip de filtros activos),
+   no un color propio: una pastilla de filtro con valor tampoco lo lleva en las listas de diseño. */
 .pastilla-interruptor {
     display: inline-flex;
     align-items: center;
     justify-content: center;
+    height: 36px;
     min-height: 36px;
-    padding: 0 var(--space-3);
+    padding: 0 14px;
+    gap: 6px;
     border: 1px solid var(--color-border-strong);
     border-radius: var(--radius-full);
     background-color: var(--color-surface);
     color: var(--color-text);
-    font: var(--font-body-sm);
+    font: 600 14px/16px var(--font-family);
     white-space: nowrap;
     cursor: pointer;
 }
@@ -23,17 +29,4 @@
 .pastilla-interruptor:focus-visible {
     outline: var(--border-focus);
     outline-offset: 2px;
-}
-
-/* Filtro aplicado: la misma señal que una pastilla de filtro con valor (primario suave con borde primario). */
-.pastilla-interruptor-activa {
-    background-color: var(--color-primary-50);
-    border-color: var(--color-primary-500);
-    font-weight: 600;
-}
-
-@media (max-width: 767px), (pointer: coarse) {
-    .pastilla-interruptor {
-        min-height: 44px;
-    }
 }
