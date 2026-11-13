@@ -145,8 +145,13 @@ public record GrupoDeFilaDocumentalDto(string Clave, AcreditacionEnGrupoDto? Acr
 /// El último motivo literal de rechazo, solo si el usuario gestiona el Centro del canal: <c>null</c> para el rol Cliente,
 /// que ve el estado pero no el motivo (decisión de Chris del 2026-11-12, opción B).
 /// </param>
+/// <param name="UrlAccesoCanal">
+/// La dirección del portal del canal de ESTA acreditación (la que usa «Abrir portal» en el menú de su fila), con el mismo corte que
+/// el motivo de rechazo: solo si el usuario gestiona el Centro del canal; <c>null</c> para el rol Cliente, sin dirección anotada o si
+/// el canal no la tiene. Tal como está guardada (la pantalla la normaliza y valida); es la dirección, nunca la credencial.
+/// </param>
 public record AcreditacionEnGrupoDto(Guid Id, EstadoAcreditacion Estado, EstadoVigenciaEnPlataforma EstadoVigencia,
-    string ClienteEmpresarialNombre, string? UltimoMotivoRechazo)
+    string ClienteEmpresarialNombre, string? UltimoMotivoRechazo, string? UrlAccesoCanal = null)
 {
     /// <summary>La misma regla que «Sin vigencia» en la pestaña Plataformas CAE: aceptada sin vigencia confirmada.</summary>
     public bool SinVigencia => Estado == EstadoAcreditacion.Aceptada && EstadoVigencia == EstadoVigenciaEnPlataforma.SinConfirmar;
@@ -860,7 +865,9 @@ public class ObtenerDocumentosQueryHandler(IConfiguracionQueryContext configurac
             {
                 Grupo = new GrupoDeFilaDocumentalDto(v.ProveedorId!.Value.ToString(), new AcreditacionEnGrupoDto(
                     v.AcreditacionId, v.Estado, v.EstadoVigencia, clientesEmpresariales.GetValueOrDefault(v.ClienteId, "—"),
-                    motivos.GetValueOrDefault(v.AcreditacionId)))
+                    motivos.GetValueOrDefault(v.AcreditacionId),
+                    // El mismo corte que el motivo: Centros que el usuario gestiona; el rol Cliente no recibe la dirección.
+                    centrosGestion == null || centrosGestion.Contains(v.CentroId) ? v.UrlAcceso : null))
             }));
         }
         return filas;

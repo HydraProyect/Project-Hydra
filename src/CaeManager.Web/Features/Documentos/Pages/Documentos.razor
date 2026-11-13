@@ -588,22 +588,27 @@
     private RenderFragment<DocumentoListaDto> CeldaAcciones => context => @<text>
                                 <span class="documentos-acciones-fila">
                                     @CeldaArchivo(context)
-                                    <SoloConEscritura>
-                                        <Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno"
-                                               class="@($"documentos-accion-rapida {(EstadoDocumentoUi.EsCorrecto(context.Estado) ? "documentos-accion-correcta" : null)}")"
-                                               aria-label="@Textos["GestionarAria", context.TipoDocumentoNombre, context.PropietarioNombre]"
-                                               OnClick="() => _drawerGestion.AbrirEditarAsync(context.Id)">
-                                            @Textos["Gestionar"]
-                                        </Boton>
-                                    </SoloConEscritura>
                                     @if (AcreditacionDeLaFila(context) is { } acreditacionDeLaFila)
                                     {
-                                        @* D-18: por Plataforma CAE la fila gana «Acreditación ▾». El menú es de quien escribe (SoloConEscritura, dentro de
-                                           MenuAcreditacion); «Subir versión corregida» abre el mismo drawer que «Gestionar». *@
+                                        @* D-18: por Plataforma CAE la fila lleva solo «Acreditación ▾», sin el botón suelto «Gestionar» (artboard
+                                           Agrupar-plataforma). El menú es de quien escribe (SoloConEscritura, dentro de MenuAcreditacion); «Subir versión
+                                           corregida» abre el drawer del Documento. «Abrir portal» lleva la dirección del canal de ESTA acreditación. *@
                                         <MenuAcreditacion @key="acreditacionDeLaFila.Id" Estado="acreditacionDeLaFila.Estado"
                                                           PlataformaNombre="@NombreDeGrupo(context.Grupo!.Clave)" PropietarioNombre="@context.PropietarioNombre"
-                                                          UrlPortal="@ResumenDe(context.Grupo!.Clave)?.UrlPortal" PuedeGestionar="@PuedeGestionarAcreditacion(context)"
+                                                          UrlPortal="@acreditacionDeLaFila.UrlAccesoCanal" PuedeGestionar="@PuedeGestionarAcreditacion(context)"
                                                           OnAccion="accion => ManejarAccionAcreditacionAsync(context, accion)" />
+                                    }
+                                    else
+                                    {
+                                        @* Sin agrupar, por Cliente empresarial, por tipo y en el grupo sin vínculo, «Gestionar» sigue siendo la acción principal. *@
+                                        <SoloConEscritura>
+                                            <Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno"
+                                                   class="@($"documentos-accion-rapida {(EstadoDocumentoUi.EsCorrecto(context.Estado) ? "documentos-accion-correcta" : null)}")"
+                                                   aria-label="@Textos["GestionarAria", context.TipoDocumentoNombre, context.PropietarioNombre]"
+                                                   OnClick="() => _drawerGestion.AbrirEditarAsync(context.Id)">
+                                                @Textos["Gestionar"]
+                                            </Boton>
+                                        </SoloConEscritura>
                                     }
                                     @* Por tipo de documento el 360 va en la cabecera del grupo («Tipo 360»), no en cada fila. *@
                                     @if (context.TipoDocumentoId != Guid.Empty && !AgrupadaPorTipo)

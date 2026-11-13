@@ -63,7 +63,10 @@
     /// <summary>El Propietario del Documento: da nombre accesible al botón de cada fila («Acreditación en Nalanda de Lucía Ferrer»).</summary>
     [Parameter] public string PropietarioNombre { get; set; } = string.Empty;
 
-    /// <summary>Dirección del portal del canal tal como está guardada; se normaliza y se valida aquí. Sin ella, no hay «Abrir portal».</summary>
+    /// <summary>
+    /// Dirección del portal del canal de ESTA acreditación (<c>AcreditacionEnGrupoDto.UrlAccesoCanal</c>, ya recortada por rol en la
+    /// consulta) tal como está guardada; se normaliza y se valida aquí. Sin ella, no hay «Abrir portal».
+    /// </summary>
     [Parameter] public string? UrlPortal { get; set; }
 
     /// <summary>

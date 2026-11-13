@@ -369,6 +369,44 @@ public class ObtenerDocumentosAgrupadosPorVinculoTests
     }
 
     [Fact]
+    public async Task Cada_fila_por_Plataforma_CAE_lleva_la_direccion_de_su_propio_canal_y_solo_a_quien_gestiona_su_Centro()
+    {
+        var e = new Escenario();
+        var cliente = e.ConEmpresa("Cliente empresarial");
+        var gestionado = e.ConCentro(cliente, "Centro gestionado");
+        var soloVisible = e.ConCentro(cliente, "Centro solo visible");
+        var sinDireccion = e.ConCentro(cliente, "Centro sin dirección");
+        var ctaima = e.ConPlataforma("Ctaima");
+        var uno = e.ConDocumento();
+        var dos = e.ConDocumento();
+        var tres = e.ConDocumento();
+        e.Acreditar(uno, gestionado, ctaima, "https://ctaima.example.com/gestionado");
+        e.Acreditar(dos, soloVisible, ctaima, "https://ctaima.example.com/visible");
+        e.Acreditar(tres, sinDireccion, ctaima, null);
+
+        string? Direccion(ResultadoPaginado<DocumentoListaDto> r, Documento documento) =>
+            r.Elementos.Single(x => x.Id == documento.Id).Grupo!.Acreditacion!.UrlAccesoCanal;
+
+        var conAccesoTotal = await e.Handler().Handle(Agrupado(AgrupacionDocumentos.PlataformaCae), default);
+        Resumen(conAccesoTotal, ctaima.Id.ToString()).UrlPortal.Should().BeNull("con dos direcciones distintas el grupo no tiene un portal único");
+        Direccion(conAccesoTotal, uno).Should().Be("https://ctaima.example.com/gestionado", "cada fila lleva la de SU canal");
+        Direccion(conAccesoTotal, dos).Should().Be("https://ctaima.example.com/visible");
+        Direccion(conAccesoTotal, tres).Should().BeNull("un canal sin dirección no la inventa");
+
+        var gestor = new AlcanceDatosServiceFalso(tieneAccesoTotal: false, empresaIdsVisibles: [e.Contratista.Id],
+            centroIdsVisibles: [gestionado.Id, soloVisible.Id, sinDireccion.Id], centroIdsParaGestion: [gestionado.Id]);
+        var deGestor = await e.Handler(gestor).Handle(Agrupado(AgrupacionDocumentos.PlataformaCae), default);
+        Direccion(deGestor, uno).Should().Be("https://ctaima.example.com/gestionado");
+        Direccion(deGestor, dos).Should().BeNull("el Centro solo se ve, no se gestiona: la dirección no viaja");
+
+        var usuarioDeCliente = new AlcanceDatosServiceFalso(tieneAccesoTotal: false, empresaIdsVisibles: [e.Contratista.Id],
+            centroIdsVisibles: [gestionado.Id, soloVisible.Id, sinDireccion.Id], centroIdsParaGestion: []);
+        var deLectura = await e.Handler(usuarioDeCliente).Handle(Agrupado(AgrupacionDocumentos.PlataformaCae), default);
+        deLectura.Elementos.Should().HaveCount(3).And.OnlyContain(x => x.Grupo!.Acreditacion!.UrlAccesoCanal == null,
+            "el rol Cliente lee y no opera: ninguna fila recibe la dirección del portal (el mismo corte que el motivo de rechazo)");
+    }
+
+    [Fact]
     public async Task Un_Centro_sin_gestion_CAE_no_aporta_grupo_ni_recuento_ni_portal()
     {
         var e = new Escenario();
