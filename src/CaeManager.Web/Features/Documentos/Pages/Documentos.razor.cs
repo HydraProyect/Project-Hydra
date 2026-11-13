@@ -1208,7 +1208,7 @@ public partial class Documentos : CaeManager.Web.Components.PaginaInteractiva, I
         _gruposPlegados.Clear();
         _gruposPlegados.Add(ObtenerDocumentosQuery.GrupoSin);
         _tiposElegidos.Clear();
-        // Al agrupar todo nace plegado: la selección y el foco previos apuntarían a filas que ya no se ven.
+        // Al cambiar de agrupación la selección y el foco previos apuntarían a filas que ya no se ven.
         _seleccionados.Clear(); _idEnfocado = null;
         // La agrupación forma parte de la vista: viaja en la URL, y con ella la recuerda la vista recordada (D-19).
         NavigationManager.ActualizarFiltroEnUrl(AgrupacionDeLista.Parametro, Agrupaciones.ParaUrl(ClaveDeAgrupacion));

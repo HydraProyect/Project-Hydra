@@ -141,6 +141,24 @@ public partial class DocumentosGen2Tests
             .Should().BeEmpty("la línea no lleva motivo ni «Abrir portal»: lo ve igual el Usuario de Cliente");
     }
 
+    [Fact]
+    public void Las_lineas_de_plataforma_van_por_gravedad_de_su_estado_y_a_igual_gravedad_por_nombre()
+    {
+        // Rechazada, Pendiente de subir, Subida, Aceptada y el resto (No exigida), dados al revés y con dos del mismo estado.
+        var documento = DocumentoDeFila("blob/x.pdf",
+            new AcreditacionResumenDto(Guid.NewGuid(), "Pe", EstadoAcreditacion.NoRequerida),
+            new AcreditacionResumenDto(Guid.NewGuid(), "Oe", EstadoAcreditacion.Aceptada),
+            new AcreditacionResumenDto(Guid.NewGuid(), "Nu", EstadoAcreditacion.Subida),
+            new AcreditacionResumenDto(Guid.NewGuid(), "Mu", EstadoAcreditacion.PendienteDeSubir),
+            new AcreditacionResumenDto(Guid.NewGuid(), "Zeta", EstadoAcreditacion.Rechazada),
+            new AcreditacionResumenDto(Guid.NewGuid(), "Beta", EstadoAcreditacion.Rechazada));
+        var (cut, _) = Renderizar(ConDocumentos(documento));
+        cut.WaitForAssertion(() => cut.Find("tbody .documentos-plats"));
+
+        cut.FindAll("tbody tr .documentos-plats .documentos-plat .documentos-plat-nombre").Select(n => n.TextContent.Trim())
+            .Should().Equal(["Beta", "Zeta", "Mu", "Nu", "Oe", "Pe"], "Rechazada, Pendiente de subir, Subida, Aceptada y el resto; a igual estado, por nombre");
+    }
+
     /// <summary>
     /// Por rol: la línea «logo Nombre · Estado» de la lista sin agrupar es la misma para el Usuario de Cliente y para el Gestor
     /// CAE (nombre y estado, nada más: ni motivo ni «Abrir portal»). El motivo literal y «Abrir portal» son de la agrupación
@@ -176,6 +194,11 @@ public partial class DocumentosGen2Tests
         cut.FindAll(".documentos-en-plataforma-motivo").Should().HaveCount(veMotivoYPortal ? 1 : 0);
         cut.FindAll(".documentos-abrir-portal").Should().HaveCount(veMotivoYPortal ? 1 : 0);
         cut.Markup.Contains("Ilegible").Should().Be(veMotivoYPortal);
+        foreach (var portal in cut.FindAll(".documentos-abrir-portal"))
+        {
+            portal.TextContent.Should().NotContain("↗", "el glifo es el icono «abrir» del sistema de iconos, no texto");
+            portal.QuerySelector("svg").Should().NotBeNull();
+        }
     }
 
     [Fact]

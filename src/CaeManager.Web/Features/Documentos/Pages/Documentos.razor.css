@@ -442,3 +442,40 @@
 .documentos-tabla-desplazable ::deep .documentos-acciones-fila { flex-wrap: nowrap; white-space: nowrap; }
 /* Vista agrupada: si el universo pasa del tope de la consulta, el aviso queda bajo el pie, en el tono de aviso. */
 .documentos-aviso-tope { margin: var(--space-2) 0 0; font: var(--font-caption); color: var(--color-warning-700); }
+/* Cabeceras de la tabla: ninguna se parte a mitad de palabra ni baja a una segunda línea (ni «DOCUMENTA / L» ni el «···» de
+   Propietario bajo su título). El texto que no cabe se corta con «…» en el título de la columna; el botón de opciones no se encoge. */
+.documentos-tabla-desplazable ::deep .documentos-tabla-visible thead th {
+    overflow-wrap: normal;
+    word-break: normal;
+    white-space: nowrap;
+}
+.documentos-tabla-desplazable ::deep .documentos-tabla-visible thead th .col-header-content {
+    display: flex;
+    flex-wrap: nowrap;
+    align-items: center;
+    min-width: 0;
+}
+.documentos-tabla-desplazable ::deep .documentos-tabla-visible thead th .col-title {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.documentos-tabla-desplazable ::deep .documentos-tabla-visible thead th .col-options {
+    flex: none;
+}
+
+/* «Vence»: la fecha de emisión de una fila «No caduca» se lee entera, en dos líneas si hace falta, en vez de cortarse con «…». */
+.documentos-tabla-desplazable ::deep .documentos-fila-una-linea .documentos-vigencia .documentos-vigencia-subtitulo {
+    white-space: normal;
+    overflow: visible;
+    text-overflow: clip;
+}
+
+/* «Abrir portal» y «Tipo 360»: el icono «abrir» del sistema de iconos va tras el texto. */
+.documentos-tabla-desplazable ::deep .documentos-abrir-portal,
+.documentos-tabla-desplazable ::deep .documentos-tipo-360 {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-1);
+}

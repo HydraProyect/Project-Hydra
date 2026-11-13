@@ -210,8 +210,13 @@ public partial class DocumentosGen2Tests
     [Fact]
     public void Al_agrupar_el_propietario_de_la_fila_lleva_su_nombre_entero_en_el_tooltip()
     {
-        var documento = DocumentoDeFila() with { Id = Guid.NewGuid(), PropietarioNombre = "Instalaciones y Montajes Eléctricos del Cantábrico S.A.", Estado = EstadoDocumento.Vencido,
-            DestinosEnCentros = [new(Guid.NewGuid(), "Centro Norte", "Empresa de prueba", "Nalanda", EstadoDocumento.Vencido)] };
+        var documento = DocumentoDeFila() with
+        {
+            Id = Guid.NewGuid(),
+            PropietarioNombre = "Instalaciones y Montajes Eléctricos del Cantábrico S.A.",
+            Estado = EstadoDocumento.Vencido,
+            DestinosEnCentros = [new(Guid.NewGuid(), "Centro Norte", "Empresa de prueba", "Nalanda", EstadoDocumento.Vencido)]
+        };
 
         var (cut, _) = Renderizar(ConDocumentos(documento), url: "documentos?agrupar=tipo");
 

@@ -719,7 +719,7 @@
                         <AuthorizeView Roles="@TipoDocumentoDetalle.RolesDeLaPagina" Context="autorizacionTipo">
                             <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" class="documentos-tipo-360"
                                    Href="@($"/documentos/tipos/{primera.TipoDocumentoId}")"
-                                   aria-label="@Textos["GrupoTipo360Etiqueta", nombre]">@Textos["GrupoTipo360"]<span aria-hidden="true">&nbsp;↗</span></Boton>
+                                   aria-label="@Textos["GrupoTipo360Etiqueta", nombre]">@Textos["GrupoTipo360"]<Icono Nombre="abrir" Tamano="TamanoIcono.Pequeno" /></Boton>
                         </AuthorizeView>
                     </span>
                 }
@@ -774,7 +774,7 @@
                         @if (anotables.Count > 0)
                         {
                             <SoloConEscritura>
-                                <Boton Variante="VarianteBoton.Primario" Tamano="TamanoBoton.Pequeno" class="documentos-anotar-vigencia"
+                                <Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno" class="documentos-anotar-vigencia"
                                        OnClick="() => _anotarVigencia.Abrir(anotables)">@Textos["GrupoAnotarVigencia", anotables.Count]</Boton>
                             </SoloConEscritura>
                         }
@@ -785,7 +785,7 @@
                             <AuthorizeView Roles="@RolesQueAbrenPortal" Context="autorizacionPortal">
                                 <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" class="documentos-abrir-portal"
                                        Href="@portal" target="_blank" rel="noopener noreferrer"
-                                       aria-label="@TextosPlataformaAcreditacion.Formato("AbrirPortalEtiqueta", nombre)">@TextosPlataformaAcreditacion.Texto("AbrirPortal")</Boton>
+                                       aria-label="@TextosPlataformaAcreditacion.Formato("AbrirPortalEtiqueta", nombre)">@Textos["GrupoAbrirPortal"]<Icono Nombre="abrir" Tamano="TamanoIcono.Pequeno" /></Boton>
                             </AuthorizeView>
                         }
                     </span>

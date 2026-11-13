@@ -407,6 +407,7 @@
   <data name="GrupoTipoSubtitulo" xml:space="preserve"><value>{0} · {1}</value></data>
   <data name="GrupoTipoSinNombre" xml:space="preserve"><value>Sin tipo</value></data>
   <data name="GrupoTipo360" xml:space="preserve"><value>Tipo 360</value></data>
+  <data name="GrupoAbrirPortal" xml:space="preserve"><value>Abrir portal</value></data>
   <data name="GrupoTipo360Etiqueta" xml:space="preserve"><value>Abrir el Tipo 360 de {0}</value></data>
   <data name="EnPlataformaMotivo" xml:space="preserve"><value>Motivo: {0}</value></data>
   <data name="NombreEnPlataformaTitulo" xml:space="preserve"><value>{0} · Tipo en TALVEG: {1}</value></data>
