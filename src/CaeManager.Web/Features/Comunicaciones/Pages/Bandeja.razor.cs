@@ -48,6 +48,7 @@ using CaeManager.Web.Services;
 using CaeManager.Infrastructure.Autorizacion;
 using FluentValidation;
 using Microsoft.AspNetCore.Components;
+using Microsoft.AspNetCore.Components.Authorization;
 using Microsoft.AspNetCore.Components.Forms;
 using Microsoft.Extensions.Options;
 using Microsoft.JSInterop;
@@ -99,6 +100,67 @@ public partial class Bandeja : CaeManager.Web.Components.PaginaInteractiva, IAsy
     /// esta página.
     /// </summary>
     [SupplyParameterFromQuery(Name = "vista")] public string? VistaInicial { get; set; }
+
+    /// <summary>
+    /// Filtro Origen (lienzo «Documentos · listado sin pestañas», PR6b): «reclamaciones» muestra en la tabla el historial de lotes
+    /// de reclamación enviados, que era la pestaña Reclamaciones de Documentos. La URL manda, como el resto de filtros; es el
+    /// destino de «Ver reclamación» del hilo (<c>/comunicaciones?origen=reclamaciones</c>).
+    /// </summary>
+    [SupplyParameterFromQuery(Name = "origen")] public string? OrigenInicial { get; set; }
+
+    [CascadingParameter] private Task<AuthenticationState>? EstadoAutenticacion { get; set; }
+
+    private const string OrigenReclamaciones = "reclamaciones";
+    private string _origen = string.Empty;
+
+    /// <summary>
+    /// El rol puede leer el historial de reclamaciones (<see cref="RolesComunicaciones.LecturaReclamaciones"/>, los mismos que lo ven
+    /// hoy en Documentos). Consulta no: ni se le ofrece el Origen «Reclamaciones» ni se atiende desde la URL.
+    /// </summary>
+    private bool _puedeLeerReclamaciones;
+
+    private bool OrigenReclamacionesActivo => _puedeLeerReclamaciones && _origen == OrigenReclamaciones;
+
+    /// <summary>El historial ocupa el sitio de la tabla de conversaciones: solo en la vista de Clientes y sin conversación abierta.</summary>
+    private bool MostrandoHistorial => OrigenReclamacionesActivo && _vista == "clientes" && _conversacionSeleccionadaId is null;
+
+    private IReadOnlyList<OpcionEstado> OpcionesOrigen =>
+        [new(OrigenReclamaciones, TextosReclamaciones["OrigenReclamaciones"].Value)];
+
+    private async Task<bool> PuedeLeerReclamacionesAsync()
+    {
+        if (EstadoAutenticacion is null)
+            return false;
+
+        var usuario = (await EstadoAutenticacion).User;
+        return RolesComunicaciones.LecturaReclamaciones
+            .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .Any(usuario.IsInRole);
+    }
+
+    /// <summary>
+    /// Cambia el Origen. Pasar al historial cierra la conversación abierta (el historial ocupa la tabla) igual que cambiar de vista:
+    /// con una respuesta a medias se pregunta antes. Vuelve a «Todos los orígenes» al elegir la opción que quita el filtro.
+    /// </summary>
+    private async Task CambiarOrigenAsync(string valor)
+    {
+        var nuevo = _puedeLeerReclamaciones && valor == OrigenReclamaciones ? OrigenReclamaciones : string.Empty;
+        if (nuevo == _origen) return;
+
+        if (!await _ambitoConversacion.ConfirmarAbandonoAsync()) return;
+
+        _origen = nuevo;
+        DescartarConversacionAbierta();
+        NavigationManager.ActualizarFiltrosEnUrl(new Dictionary<string, string?>
+        {
+            ["origen"] = nuevo.Length == 0 ? null : nuevo,
+            ["conversacion"] = null
+        });
+
+        if (nuevo.Length == 0)
+            await CargarListaAsync();
+    }
+
     private string _vista = "clientes";
     private IReadOnlyList<MensajeBuzonPersonalDto> _mensajesBuzonPersonal = [];
 
@@ -401,6 +463,9 @@ public partial class Bandeja : CaeManager.Web.Components.PaginaInteractiva, IAsy
             return;
         }
 
+        // Antes de sincronizar la URL: el Origen «Reclamaciones» solo se atiende a quien lee el historial.
+        _puedeLeerReclamaciones = await PuedeLeerReclamacionesAsync();
+
         // Los [Parameter] ya están asignados en este punto — se leen aquí y
         // no solo en OnParametersSet porque en el primer render
         // OnInitializedAsync corre ANTES que OnParametersSet, y la carga
@@ -537,6 +602,17 @@ public partial class Bandeja : CaeManager.Web.Components.PaginaInteractiva, IAsy
         _mesFiltro = MesInicial ?? string.Empty;
         _clienteIdFiltro = ClienteInicial ?? string.Empty;
         _busqueda = BusquedaInicial ?? string.Empty;
+
+        // El Origen que llega por la URL (atrás/adelante, «Ver reclamación» del hilo): si cambia con una conversación abierta, la
+        // conversación se abandona porque el historial ocupa su sitio. Un valor que no es «reclamaciones» es «todos los orígenes».
+        var origenUrl = OrigenInicial == OrigenReclamaciones ? OrigenReclamaciones : string.Empty;
+        if (origenUrl != _origen)
+        {
+            _origen = origenUrl;
+            if (_conversacionSeleccionadaId is not null)
+                DescartarConversacionAbierta();
+        }
+
         var vistaUrl = VistaInicial == "personal" ? "personal" : "clientes";
         if (vistaUrl == _vista) return;
 

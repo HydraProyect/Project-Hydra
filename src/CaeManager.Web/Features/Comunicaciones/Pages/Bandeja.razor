@@ -28,6 +28,7 @@
 @inject IStringLocalizer<TextosIntencionesCae> TextosIntenciones
 @inject IStringLocalizer<TextosEstadosConversacion> TextosEstados
 @inject IStringLocalizer<TextosCompanerosGestorCae> TextosCompaneros
+@inject IStringLocalizer<TextosHistorialReclamaciones> TextosReclamaciones
 @inject IMediator Mediator
 @inject ToastService ToastService
 
@@ -42,7 +43,7 @@
        por eso no se dibuja en el ámbito del buzón personal. *@
     <header class="bandeja-cabecera-pagina">
         <h1 class="bandeja-lista-titulo">Comunicaciones</h1>
-        @if (_vista == "clientes")
+        @if (_vista == "clientes" && !MostrandoHistorial)
         {
             <label class="bandeja-buscar bandeja-buscar-cabecera">
                 <Icono Nombre="buscar" Tamano="TamanoIcono.Pequeno" />
@@ -127,6 +128,17 @@
             @if (_vista == "clientes")
             {
                 <div class="bandeja-filtros-form">
+                    @* Origen de las conversaciones del filtro (lienzo de Documentos, PR6b): «Reclamaciones» es el historial de lotes
+                       enviados. Solo se ofrece a quien lo lee en Documentos (RolesComunicaciones.LecturaReclamaciones); Consulta no la ve. *@
+                    @if (_puedeLeerReclamaciones)
+                    {
+                        <PastillaFiltro Etiqueta="@TextosReclamaciones["Origen"].Value" TextoTodos="@TextosReclamaciones["OrigenTodos"].Value"
+                                        Valor="@(OrigenReclamacionesActivo ? OrigenReclamaciones : string.Empty)" ValorChanged="CambiarOrigenAsync"
+                                        Opciones="OpcionesOrigen" />
+                    }
+
+                    @if (!MostrandoHistorial)
+                    {
                     <div class="bandeja-toggles">
                         <button type="button" class="bandeja-toggle @(!_soloAsignadasAMi && !_soloSinAsignar && !_soloEsperandoCliente && !_soloFueraDeSla ? "bandeja-toggle-activo" : null)" @onclick="VerTodasAsync">
                             Todas
@@ -172,6 +184,7 @@
                             </CampoSelect>
                         </div>
                     </details>
+                    }
                 </div>
 
                 <AtajosListaTeclado OnAtajo="ManejarAtajoListaAsync" />
@@ -262,7 +275,14 @@
              data-redimensionable="--bandeja-lista-ancho" data-min="260" data-max="560"></div>
 
         <section class="bandeja-columna bandeja-centro" aria-label="@TextosLista["Conversacion"]">
-            @if (_conversacionSeleccionadaId is null && _vista == "clientes")
+            @if (MostrandoHistorial)
+            {
+                @* Filtro Origen «Reclamaciones» (lienzo «Documentos · listado sin pestañas», PR6b): el historial de lotes enviados,
+                   antes pestaña de Documentos, en el hueco de la tabla de conversaciones. Solo con rol de lectura (PuedeLeerReclamaciones).
+                   Su cabecera (título y línea explicativa) la pinta el propio componente. *@
+                <HistorialReclamaciones OnVerHilo="SeleccionarConversacionAsync" />
+            }
+            else if (_conversacionSeleccionadaId is null && _vista == "clientes")
             {
                 @* Encabezado de la lista (maqueta, E9): título y recuento; el buscador vive en la cabecera de la página (E3). *@
                 <div class="bandeja-lis-cab bandeja-tabla-cabecera">

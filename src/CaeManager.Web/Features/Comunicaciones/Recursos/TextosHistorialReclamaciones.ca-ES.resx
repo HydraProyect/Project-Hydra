@@ -1,0 +1,114 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <data name="Origen" xml:space="preserve">
+    <value>Origen</value>
+  </data>
+  <data name="OrigenTodos" xml:space="preserve">
+    <value>Tots els orígens</value>
+  </data>
+  <data name="OrigenReclamaciones" xml:space="preserve">
+    <value>Reclamacions</value>
+  </data>
+  <data name="Titulo" xml:space="preserve">
+    <value>Reclamacions</value>
+  </data>
+  <data name="Subtitulo" xml:space="preserve">
+    <value>Allò que s'ha demanat i si ha contestat.</value>
+  </data>
+  <data name="TablaEtiqueta" xml:space="preserve">
+    <value>Reclamacions enviades</value>
+  </data>
+  <data name="ColumnaConversacion" xml:space="preserve">
+    <value>Conversa</value>
+  </data>
+  <data name="ColumnaCliente" xml:space="preserve">
+    <value>Client</value>
+  </data>
+  <data name="ColumnaRespuesta" xml:space="preserve">
+    <value>Resposta</value>
+  </data>
+  <data name="FilaTituloUno" xml:space="preserve">
+    <value>Reclamació de documents · 1 document</value>
+  </data>
+  <data name="FilaTituloVarios" xml:space="preserve">
+    <value>Reclamació de documents · {0} documents</value>
+  </data>
+  <data name="SinRespuesta" xml:space="preserve">
+    <value>Sense resposta</value>
+  </data>
+  <data name="Respondida" xml:space="preserve">
+    <value>Contestada</value>
+  </data>
+  <data name="SinBuzonConectado" xml:space="preserve">
+    <value>Sense bústia connectada</value>
+  </data>
+  <data name="ReclamarDeNuevo" xml:space="preserve">
+    <value>Reclama de nou</value>
+  </data>
+  <data name="VerHilo" xml:space="preserve">
+    <value>Veure el fil</value>
+  </data>
+  <data name="Cargando" xml:space="preserve">
+    <value>Carregant…</value>
+  </data>
+  <data name="ErrorTitulo" xml:space="preserve">
+    <value>No s'ha pogut carregar l'historial.</value>
+  </data>
+  <data name="ErrorAyuda" xml:space="preserve">
+    <value>Torna-ho a provar d'aquí a uns segons.</value>
+  </data>
+  <data name="Reintentar" xml:space="preserve">
+    <value>Torna-ho a provar</value>
+  </data>
+  <data name="VacioTitulo" xml:space="preserve">
+    <value>Mai reclamat</value>
+  </data>
+  <data name="VacioDetalle" xml:space="preserve">
+    <value>Encara no s'ha demanat res des de TALVEG. Els lots que enviïs des de Documents apareixeran aquí.</value>
+  </data>
+  <data name="VacioDetalleLectura" xml:space="preserve">
+    <value>Encara no s'ha demanat res des de TALVEG.</value>
+  </data>
+  <data name="EtiquetaPaginador" xml:space="preserve">
+    <value>reclamació(ns)</value>
+  </data>
+  <data name="RevisionPara" xml:space="preserve">
+    <value>Per a</value>
+  </data>
+  <data name="RevisionAsunto" xml:space="preserve">
+    <value>Assumpte</value>
+  </data>
+  <data name="RevisionTexto" xml:space="preserve">
+    <value>Text</value>
+  </data>
+  <data name="ReenvioTitulo" xml:space="preserve">
+    <value>Reclama de nou</value>
+  </data>
+  <data name="ReenvioAvisoTitulo" xml:space="preserve">
+    <value>Un correu enviat no es pot desfer</value>
+  </data>
+  <data name="ReenvioAvisoTexto" xml:space="preserve">
+    <value>Revisa el destinatari i el text. En enviar-lo queda a l'historial i a Comunicacions.</value>
+  </data>
+  <data name="ReenvioCancelar" xml:space="preserve">
+    <value>Cancel·la</value>
+  </data>
+  <data name="ReenvioEnviar" xml:space="preserve">
+    <value>Envia la reclamació</value>
+  </data>
+  <data name="ReenvioToast" xml:space="preserve">
+    <value>Reclamació enviada a {0}.</value>
+  </data>
+</root>
