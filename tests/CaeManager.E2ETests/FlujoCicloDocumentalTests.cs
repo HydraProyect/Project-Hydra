@@ -221,17 +221,18 @@ public class FlujoCicloDocumentalTests(WebAppFixture fixture)
         await dialogoDescartar.GetByRole(AriaRole.Button, new LocatorGetByRoleOptions { Name = "Descartar la lectura" }).ClickAsync();
         // Resuelta la revisión, el avance automático pasa a la siguiente
         // pendiente o, si era la última, el lateral desaparece y queda el
-        // estado sin pendientes. ToHaveCount(0) cubre los dos casos, porque
-        // también vale cuando el selector ya no existe.
-        await Expect(page.Locator(".revision-ia-selector-boton", new PageLocatorOptions { HasText = apellidosTrabajador }))
-            .ToHaveCountAsync(0, new LocatorAssertionsToHaveCountOptions { Timeout = 15_000 });
+        // estado sin pendientes. Se espera a cualquiera de los dos: el selector
+        // ya no existe o ya no nombra a este Trabajador. Se lee su texto en vez
+        // de filtrar el localizador por texto (ratchet E2E-locators).
+        await EsperarQueElSelectorNoNombreAsync(page, apellidosTrabajador);
 
         // Que cambie la selección no prueba que la revisión haya salido de
         // pendientes: se recarga en frío (los datos vuelven del servidor) y se
         // comprueba que su opción ya no está en el desplegable. Si no queda
         // ninguna pendiente, no hay lateral ni desplegable que abrir.
         await Ayudas.NavegarYEsperarAsync(page, $"{fixture.BaseUrl}/documentos/revision-ia");
-        await page.Locator(".revision-ia-tarjeta").First.WaitForAsync(new LocatorWaitForOptions { Timeout = 15_000 });
+        // Solo se pinta una tarjeta: la del estado sin pendientes o la de la revisión.
+        await page.Locator(".revision-ia-tarjeta").WaitForAsync(new LocatorWaitForOptions { Timeout = 15_000 });
         if (await page.Locator(".revision-ia-lateral").CountAsync() > 0)
         {
             Assert.True(await AbrirDesplegableDePendientesAsync(page), "El desplegable de pendientes no se abrió tras recargar /documentos/revision-ia.");
@@ -479,6 +480,23 @@ public class FlujoCicloDocumentalTests(WebAppFixture fixture)
         Assert.True(lectura is { Length: > 0 }, "El desplegable de pendientes no estaba abierto o no tenía opciones al leerlo.");
         return lectura!;
     }
+
+    /// <summary>
+    /// Espera hasta 15 s a que el selector del lateral desaparezca (no quedan
+    /// pendientes) o deje de nombrar al Trabajador (el avance pasó a otra).
+    /// Recuento y texto se leen en la misma evaluación del DOM, y Playwright la
+    /// repite hasta que se cumple, sin esperas fijas.
+    /// </summary>
+    private static Task EsperarQueElSelectorNoNombreAsync(IPage page, string apellidosTrabajador) =>
+        page.WaitForFunctionAsync(
+            """
+            nombre => {
+                const selector = document.querySelector('.revision-ia-lateral .revision-ia-selector-boton');
+                return !selector || !(selector.textContent ?? '').includes(nombre);
+            }
+            """,
+            apellidosTrabajador,
+            new PageWaitForFunctionOptions { Timeout = 15_000 });
 
     private static ILocatorAssertions Expect(ILocator locator) => Assertions.Expect(locator);
 }
