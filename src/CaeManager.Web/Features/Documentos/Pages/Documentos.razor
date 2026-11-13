@@ -235,10 +235,10 @@
                                 @if (MostrarDestinos) { <th scope="col" class="documentos-celda-expandir"><span class="documentos-solo-lectores">@Textos["ListaDestino"]</span></th> }
                                 @if (!AgrupadaPorPlataforma && !AgrupadaPorTipo)
                                 {
-                                    <th scope="col" aria-sort="@AriaOrdenGrupo("tipo")"><button type="button" class="col-title documentos-orden-grupo" @onclick="() => OrdenarGrupoAsync(_columnaTipo)">@Textos["ListaDocumento"]</button></th>
+                                    <th scope="col" aria-sort="@AriaOrdenGrupo("tipo")"><button type="button" class="col-title documentos-orden-grupo" title="@Textos["ListaDocumento"]" @onclick="() => OrdenarGrupoAsync(_columnaTipo)">@Textos["ListaDocumento"]</button></th>
                                 }
                                 <th scope="col" aria-sort="@AriaOrdenGrupo("entidad", "ambito")">
-                                    <button type="button" class="col-title documentos-orden-grupo" @onclick="() => OrdenarGrupoAsync(_columnaEntidadAsociada)">@Textos[_ordenEntidadAsociadaPorAmbito ? "ListaEntidadAsociadaPorAmbito" : "ListaPropietario"]</button>
+                                    <button type="button" class="col-title documentos-orden-grupo" title="@Textos[_ordenEntidadAsociadaPorAmbito ? "ListaEntidadAsociadaPorAmbito" : "ListaPropietario"]" @onclick="() => OrdenarGrupoAsync(_columnaEntidadAsociada)">@Textos[_ordenEntidadAsociadaPorAmbito ? "ListaEntidadAsociadaPorAmbito" : "ListaPropietario"]</button>
                                     <button type="button" class="documentos-opciones-boton" aria-label="@Textos["ListaOrdenarEntidadAsociada"]" aria-expanded="@(_opcionesOrdenVisible == ColumnaOrdenListado.EntidadAsociada ? "true" : "false")" @onclick="() => _opcionesOrdenVisible = _opcionesOrdenVisible == ColumnaOrdenListado.EntidadAsociada ? null : ColumnaOrdenListado.EntidadAsociada"><Icono Nombre="mas-opciones" Tamano="TamanoIcono.Pequeno" /></button>
                                     @if (_opcionesOrdenVisible == ColumnaOrdenListado.EntidadAsociada)
                                     {
@@ -252,15 +252,15 @@
                                 {
                                     @* Mientras el nombre por Plataforma CAE (B2) no exista como dato, esta columna enseña el del tipo de
                                        TALVEG y ordena por él. *@
-                                    <th scope="col" class="documentos-th-nombre-plataforma" aria-sort="@AriaOrdenGrupo("tipo")"><button type="button" class="col-title documentos-orden-grupo" @onclick="() => OrdenarGrupoAsync(_columnaTipo)">@Textos["ListaNombreEnPlataforma"]</button></th>
-                                    <th scope="col" class="documentos-th-cliente">@Textos["ListaClienteEmpresarial"]</th>
+                                    <th scope="col" class="documentos-th-nombre-plataforma" aria-sort="@AriaOrdenGrupo("tipo")"><button type="button" class="col-title documentos-orden-grupo" title="@Textos["ListaNombreEnPlataforma"]" @onclick="() => OrdenarGrupoAsync(_columnaTipo)">@Textos["ListaNombreEnPlataforma"]</button></th>
+                                    <th scope="col" class="documentos-th-cliente documentos-th-texto" title="@Textos["ListaClienteEmpresarial"]">@Textos["ListaClienteEmpresarial"]</th>
                                 }
                                 @if (AgrupadaPorTipo)
                                 {
-                                    <th scope="col" class="documentos-th-plataformas">@Textos["ListaPlataformasCae"]</th>
+                                    <th scope="col" class="documentos-th-plataformas documentos-th-texto" title="@Textos["ListaPlataformasCae"]">@Textos["ListaPlataformasCae"]</th>
                                 }
                                 <th scope="col" aria-sort="@AriaOrdenGrupo("vencimiento", "emision")">
-                                    <button type="button" class="col-title documentos-orden-grupo" @onclick="() => OrdenarGrupoAsync(_columnaVigencia)">@Textos[_ordenVigenciaPorEmision ? "ListaVigenciaPorEmision" : "ListaVence"]</button>
+                                    <button type="button" class="col-title documentos-orden-grupo" title="@Textos[_ordenVigenciaPorEmision ? "ListaVigenciaPorEmision" : "ListaVence"]" @onclick="() => OrdenarGrupoAsync(_columnaVigencia)">@Textos[_ordenVigenciaPorEmision ? "ListaVigenciaPorEmision" : "ListaVence"]</button>
                                     <button type="button" class="documentos-opciones-boton" aria-label="@Textos["ListaOrdenarVencimiento"]" aria-expanded="@(_opcionesOrdenVisible == ColumnaOrdenListado.Vigencia ? "true" : "false")" @onclick="() => _opcionesOrdenVisible = _opcionesOrdenVisible == ColumnaOrdenListado.Vigencia ? null : ColumnaOrdenListado.Vigencia"><Icono Nombre="mas-opciones" Tamano="TamanoIcono.Pequeno" /></button>
                                     @if (_opcionesOrdenVisible == ColumnaOrdenListado.Vigencia)
                                     {
@@ -270,8 +270,8 @@
                                         </div>
                                     }
                                 </th>
-                                <th scope="col" aria-sort="@AriaOrdenGrupo("estado")"><button type="button" class="col-title documentos-orden-grupo" @onclick="() => OrdenarGrupoAsync(_columnaEstado)">@Textos["ListaEstado"]</button></th>
-                                @if (AgrupadaPorPlataforma) { <th scope="col">@Textos["ListaEstadoEnPlataforma"]</th> }
+                                <th scope="col" aria-sort="@AriaOrdenGrupo("estado")"><button type="button" class="col-title documentos-orden-grupo" title="@Textos["ListaEstado"]" @onclick="() => OrdenarGrupoAsync(_columnaEstado)">@Textos["ListaEstado"]</button></th>
+                                @if (AgrupadaPorPlataforma) { <th scope="col" class="documentos-th-texto" title="@Textos["ListaEstadoEnPlataforma"]">@Textos["ListaEstadoEnPlataforma"]</th> }
                                 <th scope="col" class="documentos-celda-acciones"><span class="documentos-solo-lectores">@Textos["ListaAcciones"]</span></th>
                             </tr></thead>
                             @if (_totalElementos == 0 && !_cargando && HayFiltrosActivos)

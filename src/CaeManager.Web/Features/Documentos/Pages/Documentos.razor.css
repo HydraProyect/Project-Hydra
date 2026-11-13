@@ -464,6 +464,23 @@
 .documentos-tabla-desplazable ::deep .documentos-tabla-visible thead th .col-options {
     flex: none;
 }
+/* Vista agrupada: las cabeceras propias (botón de orden o texto) se cortan con «…» dentro de su columna, nunca a mitad de
+   palabra sin aviso; el nombre entero va en el title. Con el botón de opciones al lado, el título le deja su hueco. */
+.documentos-tabla-desplazable ::deep .documentos-tabla-visible thead th .documentos-orden-grupo {
+    display: inline-block;
+    max-width: 100%;
+    vertical-align: middle;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.documentos-tabla-desplazable ::deep .documentos-tabla-visible thead th .documentos-orden-grupo:has(+ .documentos-opciones-boton) {
+    max-width: calc(100% - 2rem);
+}
+.documentos-tabla-desplazable ::deep .documentos-tabla-visible thead th.documentos-th-texto {
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
 
 /* «Vence»: la fecha de emisión de una fila «No caduca» se lee entera, en dos líneas si hace falta, en vez de cortarse con «…». */
 .documentos-tabla-desplazable ::deep .documentos-fila-una-linea .documentos-vigencia .documentos-vigencia-subtitulo {
