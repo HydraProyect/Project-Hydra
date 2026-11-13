@@ -28,6 +28,7 @@ public class FlujoBandejaPriorizadaTests(WebAppFixture fixture)
         var dniTrabajador = Ayudas.GenerarDniValido(88_000_501);
 
         await using var contexto = await fixture.Browser.NewContextAsync();
+        await using var traza = TrazaAlFallar.Armar(contexto);
         var page = await contexto.NewPageAsync();
 
         await Ayudas.IniciarSesionAsync(page, fixture.BaseUrl, Ayudas.EmailAdministrador, Ayudas.ContrasenaAdministrador);
@@ -76,8 +77,8 @@ public class FlujoBandejaPriorizadaTests(WebAppFixture fixture)
         await Ayudas.ElegirOpcionEnSelectorAvanzadoPorTextoAsync(page, drawer.GetByLabel("Tipo de documento"), "Formación PRL de convenio");
 
         var hoy = Ayudas.HoyDeNegocio();
-        await drawer.GetByLabel("Fecha de emisión", new LocatorGetByLabelOptions { Exact = true }).FillAsync(hoy.ToString("yyyy-MM-dd"));
-        await drawer.GetByLabel("Fecha de vencimiento").FillAsync(hoy.AddDays(10).ToString("yyyy-MM-dd"));
+        await Ayudas.RellenarFechaAsync(drawer.GetByLabel("Fecha de emisión", new LocatorGetByLabelOptions { Exact = true }), hoy);
+        await Ayudas.RellenarFechaAsync(drawer.GetByLabel("Fecha de vencimiento"), hoy.AddDays(10));
 
         var rutaPdf = Ayudas.GenerarPdfDePruebaEnDisco();
         try
@@ -221,6 +222,7 @@ public class FlujoBandejaPriorizadaTests(WebAppFixture fixture)
         await tarjeta.GetByRole(AriaRole.Button, new LocatorGetByRoleOptions { Name = "Gestionar" }).ClickAsync();
         var drawerDocumento = page.Locator(".drawer-panel");
         await drawerDocumento.GetByText(apellidosTrabajador).First.WaitForAsync(new LocatorWaitForOptions { Timeout = 10_000 });
+        traza.Superada();
     }
 
     private static ILocatorAssertions Expect(ILocator locator) => Assertions.Expect(locator);

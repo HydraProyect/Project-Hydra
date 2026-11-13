@@ -1689,7 +1689,9 @@ jobs:
             >> /tmp/diagnostico-e2e/manifiesto.txt
 
       # TestResults entero, no solo el .trx: tras un cuelgue cortado por
-      # --blame-hang, el Sequence_*.xml queda en una subcarpeta <guid>.
+      # --blame-hang, el Sequence_*.xml queda en una subcarpeta <guid>, y los
+      # tests que usan TrazaAlFallar dejan su traza de Playwright (capturas e
+      # instantáneas del DOM) en TestResults/trazas-playwright/ (#2194).
       # cancelled() se suma a failure() para cubrir también el job cortado
       # por su timeout-minutes o cancelado a mano, como el del 2026-10-26.
       - name: Publicar logs de CaeManager.Web si el E2E falla
