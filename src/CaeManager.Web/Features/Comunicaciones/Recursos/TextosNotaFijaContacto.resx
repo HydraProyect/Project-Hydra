@@ -1,0 +1,66 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <data name="Titulo" xml:space="preserve">
+    <value>Nota fija · {0}</value>
+  </data>
+  <data name="Editar" xml:space="preserve">
+    <value>Editar</value>
+  </data>
+  <data name="Anadir" xml:space="preserve">
+    <value>Añadir nota fija</value>
+  </data>
+  <data name="Guardar" xml:space="preserve">
+    <value>Guardar nota fija</value>
+  </data>
+  <data name="Retirar" xml:space="preserve">
+    <value>Retirar nota fija</value>
+  </data>
+  <data name="ToastRetirada" xml:space="preserve">
+    <value>Nota fija retirada de la Agenda de {0}</value>
+  </data>
+  <data name="Cancelar" xml:space="preserve">
+    <value>Cancelar</value>
+  </data>
+  <data name="Vacia" xml:space="preserve">
+    <value>Este contacto no tiene nota fija. Escribe lo que quien le atienda deba saber siempre: horarios, preferencias, a quién avisar.</value>
+  </data>
+  <data name="Meta" xml:space="preserve">
+    <value>Agenda · {0} · {1}</value>
+  </data>
+  <data name="Alcance" xml:space="preserve">
+    <value>Se ve en todas las conversaciones de este contacto. Solo la ve tu equipo.</value>
+  </data>
+  <data name="EtiquetaCampo" xml:space="preserve">
+    <value>Nota fija de {0}</value>
+  </data>
+  <data name="ToastGuardada" xml:space="preserve">
+    <value>Nota fija guardada en la Agenda de {0}</value>
+  </data>
+  <data name="ErrorGuardar" xml:space="preserve">
+    <value>No pudimos guardar la nota fija. Vuelve a intentarlo.</value>
+  </data>
+  <data name="ErrorCarga" xml:space="preserve">
+    <value>No pudimos cargar la nota fija de este contacto.</value>
+  </data>
+  <data name="Reintentar" xml:space="preserve">
+    <value>Reintentar</value>
+  </data>
+  <data name="NotasEquipoTitulo" xml:space="preserve">
+    <value>Notas del equipo sobre esta conversación</value>
+  </data>
+  <data name="IrANota" xml:space="preserve">
+    <value>Ir a esta nota en el hilo</value>
+  </data>
+</root>

@@ -1,6 +1,8 @@
 @page "/comunicaciones"
 @inject Microsoft.Extensions.Localization.IStringLocalizer<CaeManager.Web.Features.Comunicaciones.Recursos.TextosPlazosConversacion> TextosPlazos
-@rendermode InteractiveServer
+@* Sin prerender (como Mi trabajo, M-23): la página carga en el ciclo de vida y no persiste su estado; con prerender
+   corría dos veces en cada visita. *@
+@rendermode @(new InteractiveServerRenderMode(prerender: false))
 @inherits CaeManager.Web.Components.PaginaInteractiva
 @* Mismos roles que el menú completo de CatalogoMenuLateral: la bandeja es una pantalla de
    gestión CAE y el rol Cliente no entra. Que el menú le oculte el enlace no
@@ -26,54 +28,56 @@
 @inject IStringLocalizer<TextosIntencionesCae> TextosIntenciones
 @inject IStringLocalizer<TextosEstadosConversacion> TextosEstados
 @inject IStringLocalizer<TextosCompanerosGestorCae> TextosCompaneros
+@inject IStringLocalizer<TextosHistorialReclamaciones> TextosReclamaciones
 @inject IMediator Mediator
 @inject ToastService ToastService
 
 <LimiteDeErrores Pagina="this">
 <PageTitle>Comunicaciones — @Marca.Nombre</PageTitle>
+<TituloDePaginaSinPrerender Titulo="@($"Comunicaciones — {Marca.Nombre}")" />
 
 <div class="contenedor-pagina bandeja-contenedor">
+    @* Cabecera de página (maqueta 2026-11-01, E3): banda de 52 px con el título, el buscador y «Nuevo correo». Esta
+       página NO usa CabeceraPagina como el resto del programa Gen 2: su maqueta es un maestro-detalle a pantalla
+       completa y la banda es la propia de la maqueta, no la del kit. El buscador solo aplica a las conversaciones,
+       por eso no se dibuja en el ámbito del buzón personal. *@
+    <header class="bandeja-cabecera-pagina">
+        <h1 class="bandeja-lista-titulo">Comunicaciones</h1>
+        @if (_vista == "clientes" && !MostrandoHistorial)
+        {
+            <label class="bandeja-buscar bandeja-buscar-cabecera">
+                <Icono Nombre="buscar" Tamano="TamanoIcono.Pequeno" />
+                <input type="search" aria-label="@TextosLista["BuscarBuzon"]" placeholder="@TextosLista["BuscarPlaceholder"]" value="@_busqueda"
+                       @oninput="async e => { _busqueda = e.Value?.ToString() ?? string.Empty; await AplicarFiltrosAsync(); }" />
+            </label>
+        }
+        <SoloConEscritura><Boton Variante="VarianteBoton.Primario" Tamano="TamanoBoton.Pequeno" OnClick="AbrirRedactarAsync">@TextosLista["NuevoCorreo"]</Boton></SoloConEscritura>
+    </header>
+
     <div class="bandeja-layout @(_vista != "clientes" ? "bandeja-modo-personal" : _conversacionSeleccionadaId is null ? "bandeja-modo-tabla" : "bandeja-modo-hilo")">
         <aside class="bandeja-columna bandeja-filtros">
-            @* Gen 2 («Comunicaciones TALVEG.dc.html»): el título de la pantalla
-               y "Redactar" viven en la cabecera de la columna de la lista, no en
-               una banda de cabecera sobre las tres columnas. Por eso esta página
-               NO usa CabeceraPagina como el resto del programa Gen 2: su mockup
-               es un maestro-detalle a pantalla completa y una banda superior le
-               robaría alto a las tres columnas.
-
-               "Buzón completo" (explorador técnico de carpetas M365, /comunicaciones/buzon)
+            @* "Buzón completo" (explorador técnico de carpetas M365, /comunicaciones/buzon)
                se retira de esta barra de trabajo diaria: el modelo aprobado gira en torno
                a conversaciones. El Buzón sigue existiendo como diagnóstico técnico — su
                punto de entrada pasa a Integraciones (propiedad de esa sesión, no de esta
                página). Las macros vuelven al redactor por decisión de producto del
                2026-10-23; su administración conserva la ruta /comunicaciones/macros. *@
-            <div class="bandeja-lista-cabecera">
-                <h1 class="bandeja-lista-titulo">Comunicaciones</h1>
-                <SoloConEscritura><Boton Variante="VarianteBoton.Primario" Tamano="TamanoBoton.Pequeno" OnClick="AbrirRedactarAsync">Redactar</Boton></SoloConEscritura>
-            </div>
-
-            @* Toggle "Clientes | Mi buzón personal" (rediseño acordado, ver
-               memoria hydra-buzon-personal-rediseno-pendiente): sustituye a
-               /comunicaciones/buzon-personal como página aislada — el buzón
-               personal del gestor ahora vive dentro del mismo maestro-detalle,
-               solo que de solo lectura (sin Composer ni Action Center, ver más
-               abajo), porque hoy no existe ningún comando de "responder" para
-               un mensaje del buzón personal. Es la anotación del mockup: «el
-               toggle Clientes / Mi buzón vive dentro de la bandeja, no en una
-               página aparte». /comunicaciones/buzon es OTRA pantalla —
-               explorador de carpetas de Microsoft 365— y no es lo que este
-               toggle abre. *@
-            <div class="bandeja-vista-toggle" role="tablist" aria-label="Ámbito de la bandeja">
-                <button type="button" role="tab" aria-selected="@(_vista == "clientes" ? "true" : "false")"
-                        class="bandeja-toggle @(_vista == "clientes" ? "bandeja-toggle-activo" : null)" @onclick='() => CambiarVistaAsync("clientes")'>
-                    Clientes
+            @* Navegación de ámbito (maqueta 2026-11-01, E6): «Clientes» y «Mi buzón personal» son dos ítems de
+               una lista de navegación, no un conmutador de dos píldoras. El buzón personal del gestor vive dentro
+               del mismo maestro-detalle, de solo lectura (sin Composer ni Action Center, ver más abajo), porque
+               hoy no existe ningún comando de «responder» para un mensaje del buzón personal.
+               /comunicaciones/buzon es OTRA pantalla —explorador de carpetas de Microsoft 365— y no es lo que
+               este ítem abre. *@
+            <nav class="bandeja-nav" aria-label="@TextosLista["OrigenConversaciones"]">
+                <button type="button" aria-current="@(_vista == "clientes" ? "true" : null)"
+                        class="bandeja-nav-item @(_vista == "clientes" ? "bandeja-nav-item-activo" : null)" @onclick='() => CambiarVistaAsync("clientes")'>
+                    <span class="bandeja-nav-item-texto">@TextosLista["NavClientes"]</span>
                 </button>
-                <button type="button" role="tab" aria-selected="@(_vista == "personal" ? "true" : "false")"
-                        class="bandeja-toggle @(_vista == "personal" ? "bandeja-toggle-activo" : null)" @onclick='() => CambiarVistaAsync("personal")'>
-                    Mi buzón personal
+                <button type="button" aria-current="@(_vista == "personal" ? "true" : null)"
+                        class="bandeja-nav-item @(_vista == "personal" ? "bandeja-nav-item-activo" : null)" @onclick='() => CambiarVistaAsync("personal")'>
+                    <span class="bandeja-nav-item-texto">@TextosLista["NavBuzonPersonal"]</span>
                 </button>
-            </div>
+            </nav>
 
             @* «Contactar con un compañero»: correo y teléfono de los demás Gestores CAE de mi mismo
                Operador CAE, copiables. Lo que llega ya viene acotado en Application
@@ -124,11 +128,17 @@
             @if (_vista == "clientes")
             {
                 <div class="bandeja-filtros-form">
-                    @if (_conversacionSeleccionadaId is not null)
+                    @* Origen de las conversaciones del filtro (lienzo de Documentos, PR6b): «Reclamaciones» es el historial de lotes
+                       enviados. Solo se ofrece a quien lo lee en Documentos (RolesComunicaciones.LecturaReclamaciones); Consulta no la ve. *@
+                    @if (_puedeLeerReclamaciones)
                     {
-                        <CampoTexto Etiqueta="@TextosLista["BuscarBuzon"]" Placeholder="@TextosLista["BuscarPlaceholder"]" Valor="@_busqueda" ValorChanged="async v => { _busqueda = v; await AplicarFiltrosAsync(); }" />
+                        <PastillaFiltro Etiqueta="@TextosReclamaciones["Origen"].Value" TextoTodos="@TextosReclamaciones["OrigenTodos"].Value"
+                                        Valor="@(OrigenReclamacionesActivo ? OrigenReclamaciones : string.Empty)" ValorChanged="CambiarOrigenAsync"
+                                        Opciones="OpcionesOrigen" />
                     }
 
+                    @if (!MostrandoHistorial)
+                    {
                     <div class="bandeja-toggles">
                         <button type="button" class="bandeja-toggle @(!_soloAsignadasAMi && !_soloSinAsignar && !_soloEsperandoCliente && !_soloFueraDeSla ? "bandeja-toggle-activo" : null)" @onclick="VerTodasAsync">
                             Todas
@@ -165,8 +175,8 @@
                             </CampoSelect>
                             <CampoTexto Etiqueta="Mes" Type="month" Valor="@_mesFiltro" ValorChanged="async v => { _mesFiltro = v; await AplicarFiltrosAsync(); }" />
 
-                            <CampoSelect Etiqueta="Cliente" Valor="@_clienteIdFiltro" ValorChanged="async v => { _clienteIdFiltro = v; await AplicarFiltrosAsync(); }">
-                                <option value="">Todos los Clientes</option>
+                            <CampoSelect Etiqueta="@TextosLista["Empresa"].Value" Valor="@_clienteIdFiltro" ValorChanged="async v => { _clienteIdFiltro = v; await AplicarFiltrosAsync(); }">
+                                <option value="">Todos los Clientes empresariales</option>
                                 @foreach (var cliente in _clientesSelector)
                                 {
                                     <option value="@cliente.Id">@cliente.RazonSocial</option>
@@ -174,21 +184,31 @@
                             </CampoSelect>
                         </div>
                     </details>
+                    }
                 </div>
 
                 <AtajosListaTeclado OnAtajo="ManejarAtajoListaAsync" />
                 @if (_conversacionSeleccionadaId is not null)
                 {
                     <div class="bandeja-lista">
+                        @* Encabezado de la lista (maqueta, E9): título, recuento y «Tabla», que vuelve a la vista de tabla. *@
+                        <div class="bandeja-lis-cab">
+                            <div class="bandeja-lis-cab-t">
+                                <h2 class="bandeja-lis-cab-titulo">@TituloLista</h2>
+                                <small>@TextosLista[_totalConversaciones == 1 ? "RecuentoConversacion" : "RecuentoConversaciones", _totalConversaciones]</small>
+                            </div>
+                            <button type="button" class="bandeja-mini" @onclick="VolverABandejaAsync">@TextosLista["VerTabla"]</button>
+                        </div>
                         @if (_errorCargaLista)
                         {
-                            <EstadoVacio Titulo="@TextosLista["ErrorBuzon"]">
-                                <Accion><Boton Variante="VarianteBoton.Secundario" OnClick="CargarListaAsync">@TextosLista["Reintentar"]</Boton></Accion>
+                            <EstadoVacio SinIcono="true" Titulo="@TextosLista["ErrorBuzon"]" Descripcion="@TextosLista["ErrorBuzonAyuda"]">
+                                <Accion><Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno" OnClick="CargarListaAsync">@TextosLista["Reintentar"]</Boton></Accion>
                             </EstadoVacio>
                         }
                         else if (_cargandoLista)
                         {
                             <EstadoCargando Filas="6" />
+                            <p class="bandeja-cargando-texto" role="status">@TextosLista["Cargando"]</p>
                         }
                         else
                         {
@@ -210,7 +230,7 @@
             else
             {
                 <p class="bandeja-vista-personal-descripcion">
-                    Correo que llega a tu buzón personal de Microsoft 365, no al de ningún Cliente — notificaciones de
+                    Correo que llega a tu buzón personal de Microsoft 365, no al de ningún Cliente empresarial — notificaciones de
                     plataformas externas a tu nombre, correo interno y correo que no reconocemos. Solo lectura: no hay
                     Composer aquí, no hay ninguna gestión CAE que atender.
                 </p>
@@ -255,26 +275,32 @@
              data-redimensionable="--bandeja-lista-ancho" data-min="260" data-max="560"></div>
 
         <section class="bandeja-columna bandeja-centro" aria-label="@TextosLista["Conversacion"]">
-            @if (_conversacionSeleccionadaId is null && _vista == "clientes")
+            @if (MostrandoHistorial)
             {
-                <div class="bandeja-tabla-cabecera">
-                    <h2>@TextosLista[_soloAsignadasAMi ? "Mias" : _soloSinAsignar ? "SinAsignar" : _soloEsperandoCliente ? "EsperandoCliente" : "Todas"]</h2>
-                    <span>@TextosLista[_totalConversaciones == 1 ? "RecuentoConversacion" : "RecuentoConversaciones", _totalConversaciones]</span>
-                    <label class="bandeja-buscar">
-                        <Icono Nombre="buscar" Tamano="TamanoIcono.Pequeno" />
-                        <input type="search" aria-label="@TextosLista["BuscarBuzon"]" placeholder="@TextosLista["BuscarPlaceholder"]" value="@_busqueda"
-                               @oninput="async e => { _busqueda = e.Value?.ToString() ?? string.Empty; await AplicarFiltrosAsync(); }" />
-                    </label>
+                @* Filtro Origen «Reclamaciones» (lienzo «Documentos · listado sin pestañas», PR6b): el historial de lotes enviados,
+                   antes pestaña de Documentos, en el hueco de la tabla de conversaciones. Solo con rol de lectura (PuedeLeerReclamaciones).
+                   Su cabecera (título y línea explicativa) la pinta el propio componente. *@
+                <HistorialReclamaciones OnVerHilo="SeleccionarConversacionAsync" />
+            }
+            else if (_conversacionSeleccionadaId is null && _vista == "clientes")
+            {
+                @* Encabezado de la lista (maqueta, E9): título y recuento; el buscador vive en la cabecera de la página (E3). *@
+                <div class="bandeja-lis-cab bandeja-tabla-cabecera">
+                    <div class="bandeja-lis-cab-t">
+                        <h2 class="bandeja-lis-cab-titulo">@TituloLista</h2>
+                        <small>@TextosLista[_totalConversaciones == 1 ? "RecuentoConversacion" : "RecuentoConversaciones", _totalConversaciones]</small>
+                    </div>
                 </div>
                 @if (_errorCargaLista)
                 {
-                    <EstadoVacio Titulo="@TextosLista["ErrorBuzon"]" Descripcion="@TextosLista["ErrorBuzonAyuda"]">
-                        <Accion><Boton Variante="VarianteBoton.Primario" OnClick="CargarListaAsync">@TextosLista["Reintentar"]</Boton></Accion>
+                    <EstadoVacio SinIcono="true" Titulo="@TextosLista["ErrorBuzon"]" Descripcion="@TextosLista["ErrorBuzonAyuda"]">
+                        <Accion><Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno" OnClick="CargarListaAsync">@TextosLista["Reintentar"]</Boton></Accion>
                     </EstadoVacio>
                 }
                 else if (_cargandoLista)
                 {
                     <EstadoCargando Filas="6" />
+                    <p class="bandeja-cargando-texto" role="status">@TextosLista["Cargando"]</p>
                 }
                 else if (_conversaciones.Count > 0)
                 {
@@ -287,24 +313,44 @@
                 }
                 else
                 {
-                    <EstadoVacio Titulo="@(HayFiltrosActivos ? TextosLista["SinResultados"] : TextosLista["SinConversaciones"])"
-                                 Descripcion="@(HayFiltrosActivos ? TextosLista["SinResultadosAyuda"] : TextosLista["SinConversacionesAyuda"])">
-                        <Accion>
-                            @if (HayFiltrosActivos)
-                            {
-                                <Boton Variante="VarianteBoton.Secundario" OnClick="LimpiarFiltrosAsync">@TextosLista["QuitarFiltros"]</Boton>
-                            }
-                        </Accion>
-                    </EstadoVacio>
+                    @* «Al día» (maqueta, E14, `.vacio`): solo cuando no hay ningún filtro puesto; con filtros el vacío es «Sin resultados».
+                       El distintivo y el estado vacío van en un mismo bloque centrado, a 8 px entre piezas, como en la maqueta. *@
+                    <div class="bandeja-vacio-bloque">
+                        @if (!HayFiltrosActivos)
+                        {
+                            <div class="bandeja-al-dia"><Badge Tono="TonoBadge.Exito">@TextosLista["AlDia"]</Badge></div>
+                        }
+                        <EstadoVacio SinIcono="true" Titulo="@(HayFiltrosActivos ? TextosLista["SinResultados"] : TextosLista["SinConversaciones"])"
+                                     Descripcion="@(HayFiltrosActivos ? TextosLista["SinResultadosAyuda"] : TextosLista["SinConversacionesAyuda"])">
+                            <Accion>
+                                @if (HayFiltrosActivos)
+                                {
+                                    <Boton Variante="VarianteBoton.Secundario" OnClick="LimpiarFiltrosAsync">@TextosLista["QuitarFiltros"]</Boton>
+                                }
+                            </Accion>
+                        </EstadoVacio>
+                    </div>
                 }
             }
             else if (_conversacionSeleccionadaId is null)
             {
-                <EstadoVacio Titulo="Selecciona una conversación" Descripcion="Elige un hilo de la izquierda para ver los mensajes." />
+                <EstadoVacio SinIcono="true" Titulo="@TextosLista["NingunaConversacion"]" Descripcion="@TextosLista["EligeConversacion"]" />
             }
             else if (_cargandoDetalle)
             {
                 <EstadoCargando Filas="4" />
+                <p class="bandeja-cargando-texto" role="status">@TextosLista["Cargando"]</p>
+            }
+            else if (_errorDetalle && (_detalle is null || _detalle.Id != _conversacionSeleccionadaId
+                                       || (!ContextoEsDelDetalle && !NotaFijaEnEdicionDelDetalle)))
+            {
+                @* Error al abrir una conversación (maqueta, E14): estado propio con «Reintentar». Sin él, el panel
+                   mostraba el hilo de la conversación abierta antes bajo la selección nueva. Un detalle conservado sin contexto
+                   (la nota fija en edición, revisión Codex r3 de la #2167, MEDIO 1) solo dura mientras se edita: al terminar la
+                   edición, la página vuelve a este estado y no se queda con un hilo sin ficha ni forma de reintentar. *@
+                <EstadoVacio SinIcono="true" Titulo="@TextosLista["ErrorAbrirConversacion"]" Descripcion="@TextosLista["ErrorAbrirConversacionAyuda"]">
+                    <Accion><Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno" OnClick="CargarDetalleAsync">@TextosLista["Reintentar"]</Boton></Accion>
+                </EstadoVacio>
             }
             else if (_detalle is not null)
             {
@@ -330,7 +376,7 @@
                                     Contexto de negocio — sin gestión CAE todavía
                                 </Badge>
                             }
-                            <span class="bandeja-centro-subtitulo">@(_detalle.ClienteRazonSocial ?? "Sin Cliente asignado")</span>
+                            <span class="bandeja-centro-subtitulo">@(_detalle.ClienteRazonSocial ?? "Sin Cliente empresarial asignado")</span>
                         </div>
                     </div>
                     <div class="bandeja-centro-acciones">
@@ -343,7 +389,7 @@
                             @if (_detalle.ClienteId is null)
                             {
                                 <CampoSelect Valor="@_clienteTriageSeleccionado" ValorChanged="v => _clienteTriageSeleccionado = v">
-                                    <option value="">Asignar Cliente…</option>
+                                    <option value="">Asignar Cliente empresarial…</option>
                                     @foreach (var cliente in _clientesSelector)
                                     {
                                         <option value="@cliente.Id">@cliente.RazonSocial</option>
@@ -391,8 +437,16 @@
 
                 @if (_vista == "clientes")
                 {
+                  @* Respuesta sugerida por Vega (E18): solo propone, el envío sigue siendo del Gestor CAE. Fuera de SoloConEscritura
+                     para que el rol Consulta pueda leerla; el propio componente oculta las acciones a quien no escribe. *@
+                    <RespuestaSugeridaPanel @ref="_panelSugerencia" ConversacionId="_detalle.Id" PuedeSugerir="PuedeSugerirRespuesta"
+                                            UltimoEntranteId="UltimoMensajeEntranteId" Version="_detalle.FechaUltimoMensajeUtc"
+                                            TextoRedactor="@_textoRespuesta" EsWhatsApp="_detalle.Canal == CanalConversacion.WhatsApp" Seleccion="_aperturaVigente"
+                                            SugerenciaEnRedactorId="SugerenciaEnRedactorVigente"
+                                            OnInsertar="InsertarSugerenciaAsync" OnDescartada="SugerenciaDescartadaAsync" OnEstadoCambiado="() => StateHasChanged()" />
+
                   <SoloConEscritura>
-                    <RecordatorioPropuesto ConversacionId="_detalle.Id" Asunto="@_detalle.Asunto" Estado="_detalle.Estado"                                           FechaUltimoMensajeUtc="_detalle.FechaUltimoMensajeUtc" OnEnviado="CargarDetalleAsync" />
+                    <RecordatorioPropuesto ConversacionId="_detalle.Id" Asunto="@_detalle.Asunto" Estado="_detalle.Estado"                                           FechaUltimoMensajeUtc="_detalle.FechaUltimoMensajeUtc" OnEnviado="@RecargaDeEstaApertura()" />
 
                     <div class="hilo-editor-cabecera">
                         <div class="bandeja-editor-tabs" role="group" aria-label="@TextosLista["TipoMensaje"]">
@@ -402,9 +456,10 @@
                     </div>
                     <div class="bandeja-editor-publico" hidden="@_notaInternaActiva">
                     <ComposerBar Canal="_detalle.Canal" VentanaAbierta="VentanaAbierta" CierreVentanaLocal="@CierreVentanaLocal"
-                                 Texto="@_textoRespuesta" TextoChanged="v => _textoRespuesta = v" Enviando="_enviando" OnEnviar="EnviarAsync"
-                                 Macros="_macrosDisponibles" MacroSeleccionadaId="@_macroSeleccionadaId" OnAplicarMacro="AplicarMacro"
-                                 Centros="_centrosClienteActivo" CentroFormatosSeleccionado="@_centroFormatosSeleccionado" OnCompartirFormatos="CompartirFormatosCentroAsync"
+                                 Texto="@_textoRespuesta" TextoChanged="CambiarTextoRespuesta" Enviando="_enviando" OnEnviar="EnviarAsync"
+                                 EnvioBloqueado="@(_panelSugerencia?.BloqueaEnvioPara(_textoRespuesta, SugerenciaEnRedactorVigente) == true)"
+                                 Macros="MacrosDelContexto" MacroSeleccionadaId="@_macroSeleccionadaId" OnAplicarMacro="AplicarMacro"
+                                 Centros="CentrosDelContexto" CentroFormatosSeleccionado="@_centroFormatosSeleccionado" OnCompartirFormatos="CompartirFormatosCentroAsync"
                                  AdjuntosPendientes="_adjuntosPendientes" ErrorAdjuntos="@_errorAdjuntos"
                                  OnArchivosSeleccionados="ManejarArchivosAdjuntosAsync" OnQuitarAdjunto="QuitarAdjuntoPendiente"
                                  EmailFallback="@_emailFallback" EmailFallbackChanged="v => _emailFallback = v" OnEnviarFallbackCorreo="EnviarFallbackCorreoAsync" />
@@ -434,7 +489,7 @@
                         falta que el gestor haya elegido uno antes de poder pedir
                         prioridad sobre él.
                     *@
-                    @if (!string.IsNullOrEmpty(_centroFormatosSeleccionado))
+                    @if (CentroSeleccionadoVigente is not null)
                     {
                         <div class="acordeon-asignaciones-cabecera">
                             <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" OnClick="AbrirPedirPrioridadAsync">
@@ -451,22 +506,42 @@
             }
         </section>
 
-        @if (_vista == "clientes" && (_clienteActivo is not null || HayAccionesPendientes))
+        @* Solo con el contexto del detalle de la conversación seleccionada (ContextoEsDelDetalle): mientras carga otra, el panel de
+           contexto de la anterior (ficha y selectores del Cliente empresarial, acciones, nota fija y notas del equipo) no se pinta, y
+           no se puede editar ni guardar bajo la selección nueva. Única excepción: la nota fija en edición de ESTA conversación mantiene
+           montado su componente aunque la recarga cambie el Cliente empresarial (PanelContextoVisible); desmontarlo destruiría el
+           borrador sin confirmar el abandono (revisión Codex r3 de la #2167, MEDIO 1). Entonces solo se pinta la nota fija. *@
+        @{ var contextoVigente = ContextoEsDelDetalle; }
+        @if (_vista == "clientes" && PanelContextoVisible)
         {
             <aside class="bandeja-columna bandeja-cliente">
-                <AccionCenter SugerenciasVisita="SugerenciasVisitaPendientes" SugerenciasGestion="SugerenciasGestionPendientes"
-                              SugerenciaVinculacion="_detalle?.SugerenciaVinculacion"
-                              CentrosDisponibles="_centrosClienteActivo" TrabajadoresDisponibles="_trabajadoresSelector" TiposDocumentoDisponibles="_tiposDocumentoSelector"
-                              OnCrearVisitaDesdeSugerencia="args => IrACrearVisitaDesdeSugerencia(args.SugerenciaId, args.CentroId, args.FechaInicio, args.FechaFin)"
-                              OnDescartarSugerenciaVisita="DescartarSugerenciaVisitaAsync"
-                              OnGenerarGestionesDesdeSugerencia="args => GenerarGestionesDesdeSugerenciaAsync(args.SugerenciaId, args.TrabajadorId, args.TipoDocumentoId)"
-                              OnDescartarSugerenciaGestion="DescartarSugerenciaGestionAsync"
-                              OnVincularConversacion="VincularConversacionAsync" />
+                @if (contextoVigente)
+                {
+                    <AccionCenter SugerenciasVisita="SugerenciasVisitaPendientes" SugerenciasGestion="SugerenciasGestionPendientes"
+                                  SugerenciaVinculacion="_detalle?.SugerenciaVinculacion"
+                                  CentrosDisponibles="_centrosClienteActivo" TrabajadoresDisponibles="_trabajadoresSelector" TiposDocumentoDisponibles="_tiposDocumentoSelector"
+                                  OnCrearVisitaDesdeSugerencia="args => IrACrearVisitaDesdeSugerencia(args.SugerenciaId, args.CentroId, args.FechaInicio, args.FechaFin)"
+                                  OnDescartarSugerenciaVisita="DescartarSugerenciaVisitaAsync"
+                                  OnGenerarGestionesDesdeSugerencia="args => GenerarGestionesDesdeSugerenciaAsync(args.SugerenciaId, args.TrabajadorId, args.TipoDocumentoId)"
+                                  OnDescartarSugerenciaGestion="DescartarSugerenciaGestionAsync"
+                                  OnVincularConversacion="VincularConversacionAsync" />
+                }
 
-                @if (_clienteActivo is not null)
+                @* Nota fija del contacto y notas del equipo (E21), como en la maqueta: lo primero del contexto. *@
+                @if (InterlocutorNotaFijaActual is { } interlocutor)
+                {
+                    <NotaFijaContacto @ref="_notaFija" OnTextoCambiado="AlCambiarNotaInterna" Tipo="interlocutor.Tipo" PropietarioId="interlocutor.PropietarioId"
+                                      Email="@interlocutor.Email" ResolverAutores="ResolverNombresAutoresAsync" />
+                }
+                @if (contextoVigente)
+                {
+                    <NotasEquipoConversacion Notas="_notasInternas" Autores="_autoresNotas" />
+                }
+
+                @if (contextoVigente && _clienteActivo is not null)
                 {
                     <div class="bandeja-cliente-titulo">
-                        <Icono Nombre="clientes" Tamano="TamanoIcono.Pequeno" /> Contexto del Cliente
+                        <Icono Nombre="clientes" Tamano="TamanoIcono.Pequeno" /> Contexto del Cliente empresarial
                     </div>
                     <div class="bandeja-cliente-cabecera">
                         <span class="bandeja-cliente-avatar" aria-hidden="true">@ObtenerInicialesCliente(_clienteActivo.RazonSocial)</span>
@@ -486,7 +561,7 @@
                     @if (!string.IsNullOrWhiteSpace(_clienteActivo.Notas))
                     {
                         <div class="bandeja-cliente-notas">
-                            <span class="bandeja-cliente-notas-titulo">Notas del Cliente</span>
+                            <span class="bandeja-cliente-notas-titulo">Notas del Cliente empresarial</span>
                             <p>@_clienteActivo.Notas</p>
                         </div>
                     }
@@ -526,7 +601,9 @@
 
     <ModalFormulario HayCambios="() => HayCambiosActualizarDocumento" Visible="_modalActualizarDocumentoVisible" VisibleChanged="v => { if (!v) CerrarModalActualizarDocumento(); }"
                     Titulo="Actualizar documentación" Ancho="AnchoModal.Grande" Guardando="_aplicandoDocumento" Cargando="_detectandoDocumento" FilasCargando="4" MensajeError="@_errorActualizarDocumento"
-                    TextoCancelar="Cancelar" TextoGuardar="Aplicar y registrar" OnGuardar="AplicarActualizacionDocumentoAsync">
+                    TextoCancelar="Cancelar" TextoGuardar="Aplicar y registrar" OnGuardar="AplicarActualizacionDocumentoAsync"
+                    MotivoGuardarDeshabilitado="@MotivoAplicarDocumentoDeshabilitado"
+                    Aviso="@AvisoActualizarDocumentoCaducado">
         <ChildContent>
             @if (_confianzaDeteccionDocumento > 0)
             {
@@ -569,8 +646,10 @@
                     </CampoSelect>
                 }
 
-                <CampoTexto Etiqueta="Fecha de emisión" Type="date" Valor="@_fechaEmisionDocumentoFormulario" ValorChanged="v => _fechaEmisionDocumentoFormulario = v" />
-                <CampoTexto Etiqueta="Fecha de caducidad (si no se calcula sola)" Type="date" Valor="@_fechaVencimientoDocumentoFormulario" ValorChanged="v => _fechaVencimientoDocumentoFormulario = v" />
+                <CampoTexto Etiqueta="Fecha de emisión" Type="date" Valor="@_fechaEmisionDocumentoFormulario" ValorChanged="v => _fechaEmisionDocumentoFormulario = v"
+                            FechaNoValida="_emisionDocumentoNoValida" FechaNoValidaChanged="AlCambiarEmisionDocumentoNoValida" />
+                <CampoTexto Etiqueta="Fecha de caducidad (si no se calcula sola)" Type="date" Valor="@_fechaVencimientoDocumentoFormulario" ValorChanged="v => _fechaVencimientoDocumentoFormulario = v"
+                            FechaNoValida="_vencimientoDocumentoNoValido" FechaNoValidaChanged="AlCambiarVencimientoDocumentoNoValido" />
                 <label class="campo-checkbox">
                     <input type="checkbox" checked="@_noCaducaDocumentoFormulario" @onchange="e => _noCaducaDocumentoFormulario = e.Value is bool m && m" />
                     @TextosVigenciaDocumento.Texto("NoCaduca")
@@ -612,7 +691,7 @@
     </DrawerFormulario>
 
     @* "Pedir prioridad" a nivel conversación — mismo Drawer que ya usa CentroWorkspacePanel, aquí sobre el Centro elegido en el composer. *@
-    <DrawerFormulario HayCambios="() => HayCambiosPrioridad" Visible="_drawerPrioridadVisible" VisibleChanged="v => _drawerPrioridadVisible = v"
+    <DrawerFormulario HayCambios="() => HayCambiosPrioridad" Visible="_drawerPrioridadVisible" VisibleChanged="v => { if (!v) CerrarDrawerPrioridad(); }"
             Titulo="Pedir prioridad de validación" Guardando="_enviandoPrioridad" Cargando="_cargandoBorradorPrioridad" FilasCargando="3"
             MensajeError="@(_borradorPrioridad is null ? null : _mensajeErrorPrioridad)" SinContenido="SinBorradorPrioridad"
             MotivoGuardarDeshabilitado="@(_borradorPrioridad is null ? (_mensajeErrorPrioridad ?? ErroresTextos["ErrorBorradorPrioridad"].Value) : null)"

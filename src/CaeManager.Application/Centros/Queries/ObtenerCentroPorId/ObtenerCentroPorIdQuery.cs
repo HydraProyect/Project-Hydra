@@ -35,7 +35,8 @@ public record CentroDetalleDto(
     bool FichaVisible = false,
     string? Notas = null,
     bool NotaInternaVisible = false,
-    DateTime? CreadoEnUtc = null);
+    DateTime? CreadoEnUtc = null,
+    PapelDeEntradaDto? PapelDeEntrada = null);
 
 public class ObtenerCentroPorIdQueryHandler(ICentrosQueryContext centrosContext, IEmpresasQueryContext empresasContext, IAlcanceDatosService alcanceDatos, IPoliticaNotaInterna politicaNotaInterna)
     : IRequestHandler<ObtenerCentroPorIdQuery, CentroDetalleDto?>
@@ -54,14 +55,31 @@ public class ObtenerCentroPorIdQueryHandler(ICentrosQueryContext centrosContext,
         var conFicha = conNotaInterna
             && await alcanceDatos.CentroParaGestionVisibleAsync(request.Id, cancellationToken);
 
-        return await (
+        var fila = await (
             from centro in centrosContext.Centros
-            // Centro.ClienteId repunta contra Empresas desde F3b (CentroConfiguration):
-            // "Cliente" es una Empresa contraparte (Empresa.CrearComoCliente).
+                // Centro.ClienteId repunta contra Empresas desde F3b (CentroConfiguration):
+                // "Cliente" es una Empresa contraparte (Empresa.CrearComoCliente).
             join cliente in empresasContext.Empresas on centro.ClienteId equals cliente.Id
             join empresa in empresasContext.Empresas on centro.EmpresaId equals empresa.Id
             where centro.Id == request.Id
-            select new CentroDetalleDto(
+            // Papel por Centro: el ancla y su X se leen en esta misma sentencia (sin SQL aparte para la ficha), en el
+            // Tenant propietario del Centro y con lo que fijó Centro.AnclarRelacionDeEntrada vuelto a comprobar.
+            // Una arista anclada que se cerró después (VigenciaHasta informada, RelacionEmpresarial.EstaVigente falso)
+            // no da papel (DECISION_LOG, 2026-11-11, punto 11 b).
+            // Si X está o no en la cartera de quien mira lo decide PapelDeEntradaEnCentro.ResolverAsync.
+            from ancla in empresasContext.RelacionesEmpresariales
+                .Where(r => r.Id == centro.RelacionEmpresarialEntradaId
+                    && r.TenantId == centro.TenantId
+                    && r.ProveedoraId == centro.EmpresaId
+                    && r.ClienteId != centro.ClienteId
+                    && r.VigenciaHasta == null)
+                .DefaultIfEmpty()
+            from contratistaPrincipal in empresasContext.Empresas
+                .Where(x => ancla != null && x.Id == ancla.ClienteId)
+                .DefaultIfEmpty()
+            select new
+            {
+                Detalle = new CentroDetalleDto(
                 centro.Id, centro.ClienteId, cliente.RazonSocial, centro.EmpresaId, empresa.RazonSocial, centro.Nombre,
                 centro.CodigoCentro, centro.Direccion, centro.Contacto, centro.ContratoVigenteHasta, centro.Version,
                 centro.GestionCae,
@@ -74,7 +92,15 @@ public class ObtenerCentroPorIdQueryHandler(ICentrosQueryContext centrosContext,
                 conFicha ? centro.TrabajosEnAltura : null,
                 conFicha ? centro.EspaciosConfinados : null,
                 conFicha ? centro.AtmosferasExplosivas : null, conFicha,
-                conNotaInterna ? centro.Notas : null, conNotaInterna, centro.CreadoEnUtc))
+                conNotaInterna ? centro.Notas : null, conNotaInterna, centro.CreadoEnUtc),
+                ContratistaPrincipalId = ancla != null ? (Guid?)ancla.ClienteId : null,
+                ContratistaPrincipalRazonSocial = contratistaPrincipal != null ? contratistaPrincipal.RazonSocial : null,
+            })
             .FirstOrDefaultAsync(cancellationToken);
+        if (fila is null) return null;
+
+        var papel = await PapelDeEntradaEnCentro.ResolverAsync(
+            fila.ContratistaPrincipalId, fila.ContratistaPrincipalRazonSocial, alcanceDatos, cancellationToken);
+        return fila.Detalle with { PapelDeEntrada = papel };
     }
 }

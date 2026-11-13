@@ -1,0 +1,117 @@
+@*
+    Sección «Faltan documentos» de /alertas (lienzo «Documentos · listado sin pestañas», PR5; sustituye a
+    «Patrones de falta» de la pestaña Preventivo de Documentos, P-2b).
+
+    Responde a una pregunta distinta de la lista de alertas de más abajo: no es un Documento que vence, sino uno que
+    debería existir en un Centro y nunca se subió, así que no es una fila del listado de Documentos. Cada tarjeta es un
+    Centro y un tipo de Documento, y lista los Trabajadores con Asignación activa a ese Centro que no lo tienen.
+
+    Datos: ObtenerSugerenciasPreventivasQuery tal cual (agrupa por Centro y tipo de Documento, umbral de 2 Trabajadores o
+    más y alcance por IAlcanceDatosService); esta pantalla no recalcula nada. Sin grupos la sección no se pinta.
+
+    «Crear documento» lleva a /documentos con el Trabajador y el tipo ya elegidos y va dentro de SoloConEscritura: Consulta
+    ve la sección sin el enlace (D-3 solo cambia qué se muestra; la autorización sigue en AutorizacionEscrituraBehavior).
+*@
+@using CaeManager.Application.Alertas.Queries.ObtenerSugerenciasPreventivas
+@using CaeManager.Web.Features.Alertas.Recursos
+@using CaeManager.Web.Recursos
+@using MediatR
+@using Microsoft.Extensions.Localization
+@inject IMediator Mediator
+@inject IStringLocalizer<TextosAlertas> Textos
+@inject IStringLocalizer<TextosComunes> Comunes
+
+@if (_cargando)
+{
+    <SeccionColapsable Titulo="@Textos["FaltanTitulo"]" ExpandidaPorDefecto="true">
+        <EstadoCargando Filas="2" />
+    </SeccionColapsable>
+}
+else if (_error)
+{
+    <SeccionColapsable Titulo="@Textos["FaltanTitulo"]" ExpandidaPorDefecto="true">
+        <EstadoVacio Titulo="@Textos["FaltanErrorTitulo"]" Descripcion="@Textos["ErrorCargaDetalle"]">
+            <Accion>
+                <Boton Variante="VarianteBoton.Primario" OnClick="CargarAsync">@Comunes["Reintentar"]</Boton>
+            </Accion>
+        </EstadoVacio>
+    </SeccionColapsable>
+}
+else if (_sugerencias.Count > 0)
+{
+    <SeccionColapsable Titulo="@Textos["FaltanTitulo"]" ExpandidaPorDefecto="true">
+        <Encabezado>
+            <Badge Tono="TonoBadge.Advertencia" Tamano="TamanoBadge.Pequeno">@TextoCentros</Badge>
+        </Encabezado>
+        <ChildContent>
+            <div class="faltan-documentos">
+                <p class="faltan-documentos-nota">@Textos["FaltanNota"]</p>
+                @{ var claves = new ClavesDeHermanos(); }
+                @foreach (var sugerencia in _sugerencias)
+                {
+                    <div class="faltan-documentos-grupo" @key="claves.De((sugerencia.CentroId, sugerencia.TipoDocumentoId))">
+                        <h3 class="faltan-documentos-titulo">@Textos["FaltanTituloGrupo", sugerencia.CentroNombre, sugerencia.TipoDocumentoNombre]</h3>
+                        <p class="faltan-documentos-recuento">@TextoRecuento(sugerencia.Trabajadores.Count)</p>
+                        <ul class="faltan-documentos-lista">
+                            @foreach (var trabajador in sugerencia.Trabajadores)
+                            {
+                                <li @key="trabajador.TrabajadorId">
+                                    <span>@trabajador.TrabajadorNombre</span>
+                                    <SoloConEscritura>
+                                        <a class="faltan-documentos-crear" href="@ObtenerEnlaceCrear(trabajador.TrabajadorId, sugerencia.TipoDocumentoId)"
+                                           aria-label="@Textos["FaltanCrearDocumentoAria", sugerencia.TipoDocumentoNombre, trabajador.TrabajadorNombre]">@Textos["FaltanCrearDocumento"]</a>
+                                    </SoloConEscritura>
+                                </li>
+                            }
+                        </ul>
+                    </div>
+                }
+            </div>
+        </ChildContent>
+    </SeccionColapsable>
+}
+
+@code {
+    private bool _cargando = true;
+    private bool _error;
+    private IReadOnlyList<SugerenciaPreventivaDto> _sugerencias = [];
+
+    protected override async Task OnInitializedAsync() => await CargarAsync();
+
+    /// <summary>El pill cuenta Centros distintos, no tarjetas: un Centro con dos tipos de Documento faltantes tiene dos tarjetas.</summary>
+    private string TextoCentros
+    {
+        get
+        {
+            var centros = _sugerencias.Select(s => s.CentroId).Distinct().Count();
+            return centros == 1 ? Textos["FaltanCentrosUno"] : Textos["FaltanCentros", centros];
+        }
+    }
+
+    private string TextoRecuento(int trabajadores) =>
+        trabajadores == 1 ? Textos["FaltanRecuentoUno"] : Textos["FaltanRecuento", trabajadores];
+
+    private async Task CargarAsync()
+    {
+        _cargando = true;
+        _error = false;
+        StateHasChanged();
+
+        try
+        {
+            _sugerencias = await Mediator.Send(new ObtenerSugerenciasPreventivasQuery());
+        }
+        catch (Exception)
+        {
+            _error = true;
+        }
+        finally
+        {
+            _cargando = false;
+        }
+    }
+
+    /// <summary>Mismo destino que el de la pestaña Preventivo: /documentos abre el alta con el Trabajador y el tipo ya elegidos.</summary>
+    private static string ObtenerEnlaceCrear(Guid trabajadorId, Guid tipoDocumentoId) =>
+        $"/documentos?TrabajadorId={trabajadorId}&TipoDocumentoId={tipoDocumentoId}";
+}

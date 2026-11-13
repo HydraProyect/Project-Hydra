@@ -6,17 +6,44 @@
 @using MediatR
 @inject IMediator Mediator
 @inject ToastService ToastService
+@inject IJSRuntime Js
 @inject IStringLocalizer<TextosDocumentos> Textos
 
-<section class="revision-ia" aria-label="Revisiones IA pendientes">
-    <div class="revision-ia-introduccion">
-        <p>
-            Documentos donde la verificación automática por IA detectó confianza baja o una discrepancia con lo introducido al subirlos.
-            Revisa cada caso: nada se corrige automáticamente.
-        </p>
-        <div class="revision-ia-reglas" aria-label="Criterios de la cola">
-            <span>Ordenadas por confianza ascendente</span>
-            <span>@Textos["RevIaReglaBloque", _confianzaMinima]</span>
+@*
+    Revisión IA (decisión D-49, artboard «Revision-ia» del lienzo «Documentos · listado sin pestañas»): pantalla propia. El
+    documento ocupa la parte izquierda (en reposo hasta «Ver documento», ver el iframe más abajo) y la revisión va en un lateral fijo —desplegable de pendientes con «1 de N ‹ ›»,
+    motivo, campos en lista corta y las tres decisiones—. El nombre RevisionIaTab es de cuando era una pestaña de
+    Documentos; la PR que retire la barra de pestañas puede renombrarlo.
+*@
+<section class="revision-ia" aria-label="@Textos["RevIaSeccionAria"]">
+    <div class="revision-ia-cabecera">
+        <div class="revision-ia-cabecera-textos">
+            <a class="revision-ia-volver" href="/documentos">@Textos["RevIaVolver"]</a>
+            <div class="revision-ia-titular">
+                <h1 class="titulo-pagina">@Textos["PestanaRevisionIa"]</h1>
+                @if (_revisiones.Count > 0)
+                {
+                    <Badge Tono="TonoBadge.Advertencia">@_revisiones.Count</Badge>
+                }
+            </div>
+        </div>
+        <div class="revision-ia-acciones-cabecera">
+            @* Los dos destinos son de Administrador (AuditoriaIa.razor y SeleccionarClienteLecturaIa.razor):
+               a quien no lo es, el enlace le llevaría a «Acceso denegado». *@
+            <AuthorizeView Roles="@CaeManager.Infrastructure.Identity.Roles.Administrador">
+                <div class="revision-ia-enlaces">
+                    <a href="/auditoria-ia">@Textos["RevIaVerAuditoria"]</a>
+                    <a href="/configuracion/lectura-ia">@Textos["RevIaConfigurarLectura"]</a>
+                </div>
+            </AuthorizeView>
+            @if (!_cargando && !_errorCarga && ConfirmablesEnBloque.Count > 0)
+            {
+                <SoloConEscritura>
+                    <Boton Variante="VarianteBoton.Secundario" Deshabilitado="_operacionEnCurso" OnClick="PrepararConfirmacionLote">
+                        @TextoConfirmarTodos
+                    </Boton>
+                </SoloConEscritura>
+            }
         </div>
     </div>
     @if (_fallosBloque.Count > 0)
@@ -35,10 +62,10 @@
     @if (_errorCarga)
     {
         <EstadoVacio
-            Titulo="No pudimos cargar las revisiones"
-            Descripcion="Intenta nuevamente en unos segundos. Ninguna revisión se ha resuelto.">
+            Titulo="@Textos["RevIaErrorTitulo"]"
+            Descripcion="@Textos["RevIaErrorDescripcion"]">
             <Accion>
-                <Boton Variante="VarianteBoton.Primario" OnClick="CargarAsync">Reintentar</Boton>
+                <Boton Variante="VarianteBoton.Primario" OnClick="() => CargarAsync()">@Textos["RevIaReintentar"]</Boton>
             </Accion>
         </EstadoVacio>
     }
@@ -48,276 +75,235 @@
     }
     else if (_revisiones.Count == 0)
     {
-        <EstadoVacio
-            Titulo="Sin revisiones pendientes"
-            Descripcion="No hay documentos pendientes de revisión IA." />
-    }
-    else if (RevisionesVisibles.Count == 0)
-    {
-        <EstadoVacio
-            Titulo="Ningún resultado con este filtro"
-            Descripcion="Hay revisiones en la cola, pero ninguna cumple el filtro activo.">
-            <Accion>
-                <Boton Variante="VarianteBoton.Secundario" OnClick="QuitarFiltro">
-                    Quitar el filtro
-                </Boton>
-            </Accion>
-        </EstadoVacio>
+        <div class="revision-ia-tarjeta">
+            <EstadoVacio
+                Titulo="@(_revisadas > 0 ? Textos["RevIaTerminadoTitulo"].Value : Textos["RevIaSinPendientesTitulo"].Value)"
+                Descripcion="@DescripcionSinPendientes">
+                <Accion>
+                    <Boton Variante="VarianteBoton.Secundario" Href="/documentos">@Textos["RevIaVolver"]</Boton>
+                </Accion>
+            </EstadoVacio>
+        </div>
     }
     else
     {
-        <div class="revision-ia-acciones">
-            <span>
-                @RevisionesVisibles.Count @(RevisionesVisibles.Count == 1 ? "extracción pendiente" : "extracciones pendientes")
-            </span>
-            <div class="revision-ia-seleccion">
-                <CampoSelect Etiqueta="@Textos["RevIaConfianzaDesde"]" Valor="@_confianzaMinima.ToString()" ValorChanged="CambiarConfianzaMinima" Deshabilitado="_operacionEnCurso">
-                    @foreach (var minima in ConfianzasMinimas)
+        <AtajosListaTeclado OnAtajo="ManejarAtajoAsync" />
+        <div class="revision-ia-tarjeta">
+            <div class="revision-ia-contenido">
+                <div class="revision-ia-pdf">
+                    @if (RevisionSeleccionada is { } actual)
                     {
-                        <option value="@minima">@minima %</option>
+                        <div class="revision-ia-pdf-barra">
+                            <strong>@actual.TipoDocumentoNombre</strong>
+                            @if (actual.NumeroPaginas is > 0 and var paginas)
+                            {
+                                <span class="revision-ia-mudo">@(paginas == 1 ? Textos["RevIaUnaPagina"].Value : string.Format(Textos["RevIaNPaginas"].Value, paginas))</span>
+                            }
+                            <span class="revision-ia-pdf-barra-der">
+                                <Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno" Href="@($"/documentos/{actual.DocumentoId}/archivo")" download target="_blank" rel="noopener">@Textos["RevIaDescargar"]</Boton>
+                            </span>
+                        </div>
+                        @* Carga explícita (decisión de auditoría, se desvía de D-49): /documentos/{id}/archivo registra una «Apertura»
+                           de Documento sensible en cada GET, así que seleccionar una revisión no lo pide. Solo «Ver documento»
+                           lo carga, y el @key con el Id de la revisión impide que se vea el documento de otra. *@
+                        @if (DocumentoAbiertoDeLaSeleccionada)
+                        {
+                            <iframe
+                                @key="actual.Id"
+                                class="previsualizacion-documento"
+                                src="@($"/documentos/{actual.DocumentoId}/archivo")"
+                                title="@string.Format(Textos["RevIaDocumentoAria"].Value, actual.PropietarioNombre, actual.TipoDocumentoNombre)">
+                            </iframe>
+                        }
+                        else
+                        {
+                            <div class="revision-ia-pdf-reposo" @key="actual.Id">
+                                <p>@Textos["RevIaDocumentoReposo"]</p>
+                                <Boton Variante="VarianteBoton.Secundario" OnClick="() => AbrirDocumento(actual.Id)">@Textos["RevIaVerDocumento"]</Boton>
+                            </div>
+                        }
                     }
-                </CampoSelect>
-                <Boton
-                    Variante="VarianteBoton.Secundario"
-                    Deshabilitado="@(RevisionesSeleccionadas.Count == 0 || _operacionEnCurso)"
-                    OnClick="PrepararConfirmacionLote">
-                    @Textos["RevIaAceptarSeleccionadas", RevisionesSeleccionadas.Count]
-                </Boton>
-            </div>
-            <p class="revision-ia-ayuda-seleccion">
-                @Textos["RevIaAyudaSeleccion"]
-            </p>
-        </div>
-        <div class="revision-ia-contenido">
-            <aside class="revision-ia-cola" aria-label="Extracciones por revisar">
-                <header>
-                    <strong>Extracciones por revisar</strong>
-                    <span>@RevisionesVisibles.Count @(RevisionesVisibles.Count == 1 ? Textos["RevIaPendiente"] : Textos["RevIaPendientes"])</span>
-                </header>
-                <div class="revision-ia-filtros" aria-label="Filtrar revisiones">
-                    @foreach (var filtro in Filtros)
+                    else
                     {
-                        <button
-                            type="button"
-                            class="@ClaseFiltro(filtro)"
-                            aria-pressed="@(_filtro == filtro)"
-                            @onclick="() => CambiarFiltro(filtro)">
-                            @TextoFiltro(filtro)
-                        </button>
+                        <p class="revision-ia-pdf-vacio">@Textos["RevIaEligeRevision"]</p>
                     }
                 </div>
-                @foreach (var revision in RevisionesVisibles)
-                {
-                    var aceptable = EsAceptableEnBloque(revision);
-                    <div class="revision-ia-fila-selector">
-                    <input
-                        type="checkbox"
-                        class="revision-ia-casilla"
-                        checked="@_seleccion.Contains(revision.Id)"
-                        disabled="@(!aceptable || _operacionEnCurso)"
-                        title="@(aceptable ? Textos["RevIaCasillaIncluir"] : Textos["RevIaCasillaManual", EtiquetaTratamiento(revision)])"
-                        aria-label="@Textos["RevIaCasillaEtiqueta", revision.PropietarioNombre, revision.TipoDocumentoNombre]"
-                        @onchange="e => AlternarSeleccion(revision, e.Value is true)" />
-                    <button
-                        type="button"
-                        class="@ClaseRevision(revision)"
-                        aria-pressed="@(RevisionSeleccionada?.Id == revision.Id)"
-                        @onclick="() => SeleccionarRevision(revision.Id)">
-                        <span class="revision-ia-fila-cabecera">
-                            <strong>@revision.PropietarioNombre</strong>
-                            <em>@Ambito(revision)</em>
-                        </span>
-                        <span>@revision.TipoDocumentoNombre</span>
-                        <span class="revision-ia-confianza">
-                            <span class="revision-ia-confianza-texto"><span class="revision-ia-punto" aria-hidden="true"></span>@string.Format(Textos["RevIaConfianzaN"].Value, revision.ConfianzaGeneral)</span>
-                            <span class="revision-ia-confianza-barra">
-                                <span
-                                    class="@(
-                                        "revision-ia-confianza-relleno revision-ia-confianza-relleno-" +
-                                        TonoConfianza(revision.ConfianzaGeneral).ToString().ToLowerInvariant())"
-                                    style="width:@(revision.ConfianzaGeneral)%">
-                                </span>
-                            </span>
-                            <small class="@(aceptable ? "revision-ia-tratamiento revision-ia-tratamiento-lote" : "revision-ia-tratamiento")">@EtiquetaTratamiento(revision)</small>
-                        </span>
-                    </button>
-                    </div>
-                }
-            </aside>
-            @if (RevisionSeleccionada is { } seleccionada)
-            {
-                <article class="revision-ia-detalle">
-                    <header class="revision-ia-detalle-cabecera">
-                        <div>
-                            <h2>@seleccionada.PropietarioNombre</h2>
-                            <p>@seleccionada.TipoDocumentoNombre</p>
-                        </div>
-                        <span class="@("revision-ia-estado revision-ia-estado-" + TonoTratamiento(seleccionada).ToString().ToLowerInvariant())">
-                            @EtiquetaTratamiento(seleccionada)
-                        </span>
-                    </header>
-                    <div class="revision-ia-detalle-cuerpo">
-                        <div class="revision-ia-vista-documento">
-                            <Boton
-                                Variante="VarianteBoton.Secundario"
-                                Tamano="TamanoBoton.Pequeno"
-                                OnClick="() => AlternarPrevisualizacion(seleccionada.DocumentoId)">
-                                @(_documentoIdExpandido == seleccionada.DocumentoId ? "Ocultar documento" : "Ver documento")
-                            </Boton>
-                            @if (_documentoIdExpandido == seleccionada.DocumentoId)
-                            {
-                                <iframe
-                                    class="previsualizacion-documento"
-                                    src="@($"/documentos/{seleccionada.DocumentoId}/archivo")"
-                                    title="Vista previa del documento">
-                                </iframe>
-                            }
-                            <div class="revision-ia-abrir-documento">
-                                <a href="@($"/documentos/{seleccionada.DocumentoId}/archivo")" target="_blank" rel="noopener">@Textos["RevIaAbrirPdf"]</a>
-                                @if (seleccionada.NumeroPaginas is > 0 and var paginas)
-                                {
-                                    <span aria-hidden="true">·</span>
-                                    <span>@string.Format(Textos["RevIaPaginaDe"].Value, paginas)</span>
-                                }
-                            </div>
-                        </div>
-                        <div class="revision-ia-lectura">
-                            <div class="revision-ia-comparacion">
-                                <table>
-                                    <colgroup>
-                                        <col class="revision-ia-col-campo" />
-                                        <col />
-                                        <col />
-                                    </colgroup>
-                                    <thead>
-                                        <tr>
-                                            <th scope="col">@Textos["RevIaColCampo"]</th>
-                                            <th scope="col" class="revision-ia-col-leido"><span class="revision-ia-punto" aria-hidden="true"></span>@Textos["RevIaColLeido"]</th>
-                                            <th scope="col">@Textos["RevIaColIntroducido"]</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        @foreach (var fila in FilasComparacion(seleccionada))
-                                        {
-                                            <tr class="@(fila.Resultado == Coincidencia.NoCoincide ? "revision-ia-fila-discrepante" : null)">
-                                                <th scope="row">@fila.Campo</th>
-                                                <td class="revision-ia-valor-leido">
-                                                    @if (fila.FechaLeida is { } fechaLeida)
-                                                    {
-                                                        <TextoFechaCopiable Fecha="fechaLeida">@fila.Leido</TextoFechaCopiable>
-                                                    }
-                                                    else
-                                                    {
-                                                        @fila.Leido
-                                                    }
-                                                </td>
-                                                <td class="revision-ia-valor-introducido">
-                                                    <span class="revision-ia-valor-con-etiqueta">
-                                                        @if (fila.FechaIntroducida is { } fechaIntroducida)
-                                                        {
-                                                            <TextoFechaCopiable Fecha="fechaIntroducida">@fila.Introducido</TextoFechaCopiable>
-                                                        }
-                                                        else
-                                                        {
-                                                            <span>@fila.Introducido</span>
-                                                        }
-                                                        @if (fila.Resultado == Coincidencia.Coincide)
-                                                        {
-                                                            <span class="revision-ia-coincidencia revision-ia-coincidencia-si">@Textos["RevIaCoincide"]</span>
-                                                        }
-                                                        else if (fila.Resultado == Coincidencia.NoCoincide)
-                                                        {
-                                                            <span class="revision-ia-coincidencia revision-ia-coincidencia-no">@Textos["RevIaNoCoincide"]</span>
-                                                        }
-                                                    </span>
-                                                </td>
-                                            </tr>
-                                        }
-                                    </tbody>
-                                </table>
-                            </div>
-                            <div class="revision-ia-tarjeta-confianza">
-                                <div class="revision-ia-tarjeta-confianza-cabecera">
-                                    <span class="revision-ia-tarjeta-titulo">@Textos["RevIaTarjetaConfianza"]</span>
-                                    <span class="revision-ia-confianza-texto"><span class="revision-ia-punto" aria-hidden="true"></span>@string.Format(Textos["RevIaConfianzaN"].Value, seleccionada.ConfianzaGeneral)</span>
-                                </div>
-                                <div class="revision-ia-umbral-barra">
-                                    <span class="revision-ia-umbral-relleno" style="width:@(seleccionada.ConfianzaGeneral)%"></span>
-                                    <span class="revision-ia-umbral-marca" aria-hidden="true" style="left:@(_confianzaMinima)%"></span>
-                                </div>
-                                <div class="revision-ia-tarjeta-confianza-pie">
-                                    <span>@string.Format(Textos["RevIaPieUmbralBajo"].Value, 70)</span>
-                                    <span>@string.Format(Textos["RevIaPieUmbralLote"].Value, _confianzaMinima)</span>
-                                </div>
-                            </div>
-                            <div class="revision-ia-motivo">
-                                <span class="revision-ia-motivo-icono"><Icono Nombre="advertencia" Tamano="TamanoIcono.Medio" /></span>
-                                <div class="revision-ia-motivo-texto">
-                                    <h3>@Textos["RevIaMotivoTitulo"]</h3>
-                                    <p>@seleccionada.Motivo</p>
-                                    @if (seleccionada.TieneAlertaDeterminista)
+                <aside class="revision-ia-lateral" aria-label="@Textos["RevIaLateralAria"]" @onkeydown="TeclaEnLateral">
+                    <div class="revision-ia-selector">
+                        <span class="revision-ia-ancla">
+                            <button
+                                type="button"
+                                class="revision-ia-selector-boton"
+                                @ref="_botonSelector"
+                                aria-controls="revision-ia-pop"
+                                aria-expanded="@(_desplegableAbierto ? "true" : "false")"
+                                @onclick="AlternarDesplegable">
+                                <span class="revision-ia-selector-textos">
+                                    @if (RevisionSeleccionada is { } elegida)
                                     {
-                                        <p class="revision-ia-consecuencia">@Textos["RevIaAlertaDeUnaEnUna"]</p>
+                                        <strong>@elegida.PropietarioNombre</strong>
+                                        <span class="revision-ia-mudo">@elegida.TipoDocumentoNombre</span>
                                     }
+                                    else
+                                    {
+                                        <strong>@Textos["RevIaEligeRevision"]</strong>
+                                        <span class="revision-ia-mudo">@PendientesTexto(RevisionesVisibles.Count)</span>
+                                    }
+                                </span>
+                                <span class="revision-ia-selector-n">@PosicionTexto</span>
+                                <Icono Nombre="chevron" Tamano="TamanoIcono.Pequeno" />
+                            </button>
+                            @if (_desplegableAbierto)
+                            {
+                                <div class="revision-ia-pop-fondo" @onclick="CerrarDesplegable"></div>
+                                @* El panel agrupa filtros, opciones y pie; solo las opciones son el listbox. Flechas, Inicio y Fin
+                                   las recorren (revision-ia.js) y Escape devuelve el foco al disparador. *@
+                                <div class="revision-ia-pop" id="revision-ia-pop" @ref="_popRef">
+                                    <div class="revision-ia-filtros" role="group" aria-label="@Textos["RevIaFiltrarAria"]">
+                                        @foreach (var filtro in Filtros)
+                                        {
+                                            var recuento = Recuento(filtro);
+                                            <button
+                                                type="button"
+                                                class="revision-ia-filtro"
+                                                data-filtro="@filtro.ToString().ToLowerInvariant()"
+                                                aria-pressed="@(_filtro == filtro ? "true" : "false")"
+                                                disabled="@(recuento == 0 && _filtro != filtro)"
+                                                @onclick="() => CambiarFiltro(filtro)">
+                                                @TextoFiltro(filtro) <span>@recuento</span>
+                                            </button>
+                                        }
+                                    </div>
+                                    <div class="revision-ia-opciones" role="listbox" aria-label="@Textos["RevIaPendientesAria"]">
+                                        @foreach (var revision in RevisionesVisibles)
+                                        {
+                                            <button
+                                                type="button"
+                                                role="option"
+                                                class="revision-ia-opcion"
+                                                aria-selected="@(RevisionSeleccionada?.Id == revision.Id ? "true" : "false")"
+                                                @onclick="() => SeleccionarDesdeDesplegable(revision.Id)">
+                                                <strong>@revision.PropietarioNombre <span class="revision-ia-mudo revision-ia-ambito">· @Ambito(revision)</span></strong>
+                                                <span>@revision.TipoDocumentoNombre</span>
+                                                <ConfianzaIa Revision="revision" Etiqueta="@EtiquetaTratamiento(revision)" />
+                                            </button>
+                                        }
+                                    </div>
+                                    <div class="revision-ia-pop-pie">@Textos["RevIaOrdenPie"]</div>
                                 </div>
-                            </div>
-                            <div class="revision-ia-si-aceptas">
-                                <span class="revision-ia-si-aceptas-titulo"><span class="revision-ia-punto" aria-hidden="true"></span>@Textos["RevIaSiAceptasTitulo"]</span>
-                                @if (seleccionada.FechaEmisionDetectada is not null)
-                                {
-                                    <p>
-                                        @Textos["RevIaSiAceptasConFecha"]
-                                    </p>
-                                }
-                                else
-                                {
-                                    <p>
-                                        @Textos["RevIaSiAceptasSinFecha"]
-                                    </p>
-                                }
-                            </div>
-                            <div class="revision-ia-acciones-detalle">
-                                <Boton
-                                    class="revision-ia-boton-aceptar" aria-describedby="pista-aceptar-deteccion"
-                                    Variante="VarianteBoton.Primario"
-                                    Deshabilitado="@(seleccionada.FechaEmisionDetectada is null)"
-                                    Cargando="@(_procesandoId == seleccionada.Id)"
-                                    OnClick="() => AceptarDeteccionAsync(seleccionada.Id)">
-                                    Aceptar detección
-                                </Boton>
-                                <Boton
-                                    class="revision-ia-boton-corregir"
-                                    Variante="VarianteBoton.Secundario"
-                                    Cargando="@(_procesandoId == seleccionada.Id)"
-                                    OnClick="PrepararCorreccionManual">
-                                    Corregir a mano…
-                                </Boton>
-                                <Boton
-                                    class="revision-ia-boton-descartar"
-                                    Variante="VarianteBoton.Secundario"
-                                    Cargando="@(_procesandoId == seleccionada.Id)"
-                                    OnClick="PrepararDescartar">
-                                    Descartar la lectura
-                                </Boton>
-                                <span id="pista-aceptar-deteccion" class="revision-ia-pista-aceptar">@(seleccionada.FechaEmisionDetectada is null ? Textos["RevIaPistaSinFecha"] : Textos["RevIaPistaRenueva"])</span>
-                            </div>
-                        </div>
+                            }
+                        </span>
+                        <Boton Variante="VarianteBoton.Secundario" class="revision-ia-nav" aria-label="@Textos["RevIaAnterior"]" title="@Textos["RevIaAnteriorTitulo"]"
+                               Deshabilitado="@(!HayAnterior || _operacionEnCurso)" OnClick="IrAlAnteriorAsync">‹</Boton>
+                        <Boton Variante="VarianteBoton.Secundario" class="revision-ia-nav" aria-label="@Textos["RevIaSiguiente"]" title="@Textos["RevIaSiguienteTitulo"]"
+                               Deshabilitado="@(!HaySiguiente || _operacionEnCurso)" OnClick="IrAlSiguienteAsync">›</Boton>
                     </div>
-                </article>
-            }
+                    @if (RevisionSeleccionada is { } seleccionada)
+                    {
+                        <div class="revision-ia-cab">
+                            <Badge Tono="TonoTratamiento(seleccionada)">@EtiquetaTratamiento(seleccionada)</Badge>
+                            <ConfianzaIa Revision="seleccionada" Etiqueta="@EtiquetaTratamiento(seleccionada)" />
+                        </div>
+                        <div class="revision-ia-motivo">
+                            <h3>@Textos["RevIaPorQueTitulo"]</h3>
+                            <p>@seleccionada.Motivo</p>
+                            @if (seleccionada.TieneAlertaDeterminista)
+                            {
+                                <p class="revision-ia-alerta">@Textos["RevIaAlertaDeUnaEnUna"]</p>
+                            }
+                        </div>
+                        <ul class="revision-ia-campos">
+                            @foreach (var fila in FilasComparacion(seleccionada))
+                            {
+                                <li class="@(fila.Difiere ? "dif" : null)">
+                                    <span class="k">@fila.Campo</span>
+                                    <span class="v">
+                                        @if (fila.FechaIntroducida is { } fechaIntroducida)
+                                        {
+                                            <TextoFechaCopiable Fecha="fechaIntroducida">@fila.Introducido</TextoFechaCopiable>
+                                        }
+                                        else
+                                        {
+                                            @fila.Introducido
+                                        }
+                                    </span>
+                                    <span class="@(fila.Coincide ? "ia ok" : "ia")">
+                                        @if (fila.FechaLeida is { } fechaLeida)
+                                        {
+                                            <TextoFechaCopiable Fecha="fechaLeida">@fila.Leido</TextoFechaCopiable>
+                                        }
+                                        else
+                                        {
+                                            @fila.Leido
+                                        }
+                                    </span>
+                                </li>
+                            }
+                        </ul>
+                        <p id="consecuencia-aceptar-deteccion" class="revision-ia-consecuencia">
+                            @(seleccionada.FechaEmisionDetectada is null ? Textos["RevIaSiAceptasSinFecha"] : Textos["RevIaSiAceptasConFecha"])
+                        </p>
+                        <div class="revision-ia-acc">
+                            <SoloConEscritura>
+                                <div class="revision-ia-botones">
+                                    <Boton
+                                        class="revision-ia-boton-aceptar" aria-describedby="consecuencia-aceptar-deteccion"
+                                        Variante="VarianteBoton.Primario"
+                                        Deshabilitado="@(seleccionada.FechaEmisionDetectada is null)"
+                                        Cargando="@(_procesandoId == seleccionada.Id)"
+                                        OnClick="() => AceptarDeteccionAsync(seleccionada.Id)">
+                                        @Textos["RevIaAceptar"]
+                                    </Boton>
+                                    <Boton
+                                        class="revision-ia-boton-corregir"
+                                        Variante="VarianteBoton.Secundario"
+                                        Cargando="@(_procesandoId == seleccionada.Id)"
+                                        OnClick="PrepararCorreccionManual">
+                                        @Textos["RevIaCorregir"]
+                                    </Boton>
+                                    <Boton
+                                        class="revision-ia-boton-descartar"
+                                        Variante="VarianteBoton.Secundario"
+                                        Cargando="@(_procesandoId == seleccionada.Id)"
+                                        OnClick="PrepararDescartar">
+                                        @Textos["RevIaDescartar"]
+                                    </Boton>
+                                </div>
+                            </SoloConEscritura>
+                            <label class="revision-ia-avance">
+                                <input type="checkbox" checked="@_avanceAutomatico" @onchange="e => CambiarAvanceAsync(e.Value is true)" />
+                                @Textos["RevIaAvance"]
+                            </label>
+                            @if (_avanceAutomatico && SiguienteDeLaLista is { } proxima)
+                            {
+                                <span class="revision-ia-ayuda">@string.Format(Textos["RevIaSiguienteA"].Value, proxima.PropietarioNombre, proxima.TipoDocumentoNombre)</span>
+                            }
+                        </div>
+                    }
+                    else
+                    {
+                        <p class="revision-ia-consecuencia">@Textos["RevIaEligeRevisionAyuda"]</p>
+                        <label class="revision-ia-avance">
+                            <input type="checkbox" checked="@_avanceAutomatico" @onchange="e => CambiarAvanceAsync(e.Value is true)" />
+                            @Textos["RevIaAvance"]
+                        </label>
+                    }
+                </aside>
+            </div>
         </div>
     }
 </section>
-<DrawerFormulario Visible="_correccionManualVisible" VisibleChanged="v => _correccionManualVisible = v" Titulo="Corregir a mano"
+<DrawerFormulario Visible="_correccionManualVisible" VisibleChanged="v => _correccionManualVisible = v" Titulo="@Textos["RevIaCorregirTitulo"]"
                   HayCambios="() => HayCambiosSinGuardar" Guardando="_operacionEnCurso" HayErroresDeCampo="@(_errorFechaManual is not null)" MensajeError="@_mensajeErrorCorreccion"
-                  OnGuardar="CorregirSeleccionadaAsync" TextoCancelar="Cancelar" TextoGuardar="Guardar y cerrar el aviso">
+                  OnGuardar="CorregirSeleccionadaAsync" TextoCancelar="@Textos["RevIaCancelar"]" TextoGuardar="@Textos["RevIaGuardarCerrar"]">
     <ChildContent>
         @if (RevisionSeleccionada is { } seleccionada)
         {
             <p>@seleccionada.PropietarioNombre · @seleccionada.TipoDocumentoNombre</p>
-            <CampoTexto Etiqueta="Fecha de emisión" Type="date" Valor="@_fechaEmisionManual" ValorChanged="v => { _fechaEmisionManual = v; _errorFechaManual = null; }" MensajeError="@_errorFechaManual" />
-            <p class="revision-ia-consecuencia">La IA leyó: @Fecha(seleccionada.FechaEmisionDetectada)</p>
-            <p class="revision-ia-consecuencia">Guardar corrige la fecha y cierra el aviso en una sola operación. El vencimiento se recalcula solo cuando el tipo lo hace automáticamente.</p>
+            <CampoTexto Etiqueta="@Textos["RevIaCampoEmision"]" Type="date" Valor="@_fechaEmisionManual" ValorChanged="v => { _fechaEmisionManual = v; _errorFechaManual = null; }" MensajeError="@_errorFechaManual"
+                        FechaNoValida="_emisionManualNoValida" FechaNoValidaChanged="v => _emisionManualNoValida = v" />
+            <p class="revision-ia-alerta">@string.Format(Textos["RevIaLaIaLeyo"].Value, Fecha(seleccionada.FechaEmisionDetectada))</p>
+            <p class="revision-ia-alerta">@Textos["RevIaGuardarAyuda"]</p>
         }
     </ChildContent>
 </DrawerFormulario>
@@ -325,16 +311,26 @@
     Visible="_confirmacionLoteVisible"
     VisibleChanged="v => _confirmacionLoteVisible = v"
     Titulo="@Textos["RevIaDialogoTitulo"]"
-    Mensaje="@Textos["RevIaDialogoMensaje", RevisionesSeleccionadas.Count]"
+    Mensaje="@MensajeConfirmacionLote"
     TextoBotonConfirmar="@Textos["RevIaDialogoConfirmar"]"
     EnProgreso="_confirmandoLote"
-    OnConfirmar="AceptarSeleccionadasAsync" />
+    OnConfirmar="AceptarConfirmablesAsync" />
 <DialogoConfirmacion
     Visible="_confirmacionDescartarVisible"
     VisibleChanged="v => _confirmacionDescartarVisible = v"
-    Titulo="Descartar la lectura de la IA"
-    Mensaje="El aviso se cerrará y el documento se conservará sin aplicar la detección."
-    TextoBotonConfirmar="Descartar la lectura"
+    Titulo="@Textos["RevIaDescartarTitulo"]"
+    Mensaje="@Textos["RevIaDescartarMensaje"]"
+    TextoBotonConfirmar="@Textos["RevIaDescartar"]"
     EnProgreso="@(_procesandoId is not null)"
     OnConfirmar="ResolverSeleccionadaAsync" />
 
+@code {
+    private string DescripcionSinPendientes => _revisadas switch
+    {
+        0 => Textos["RevIaSinPendientesDescripcion"].Value,
+        1 => Textos["RevIaTerminadoUno"].Value,
+        _ => string.Format(Textos["RevIaTerminadoVarios"].Value, _revisadas)
+    };
+
+    private string PendientesTexto(int n) => n == 1 ? $"1 {Textos["RevIaPendiente"]}" : $"{n} {Textos["RevIaPendientes"]}";
+}

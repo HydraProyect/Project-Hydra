@@ -30,7 +30,7 @@
 @using Microsoft.Extensions.Localization
 @inject IStringLocalizer<TextosComunes> Comunes
 
-<div class="@("grupo-lista" + ClaseTinte + (Destacado ? " grupo-lista-destacado" : ""))">
+<div class="@("grupo-lista" + ClaseTinte + (Destacado ? " grupo-lista-destacado" : "") + (Maqueta ? " grupo-lista-maqueta" : ""))">
     @if (Fijo)
     {
         <div class="grupo-lista-cabecera grupo-lista-cabecera-abierta grupo-lista-cabecera-fija">@Contenido</div>
@@ -85,6 +85,19 @@
     /// <summary>Unidad tras el total cuando la maqueta la escribe («· 2 trabajadores»). Sin valor, solo la cifra.</summary>
     [Parameter] public string? UnidadContador { get; set; }
 
+    /// <summary>
+    /// Marca gráfica entre el chevron y el nombre (el logotipo de la Plataforma CAE, el icono del tipo de documento).
+    /// Sin valor, la cabecera es la de siempre.
+    /// </summary>
+    [Parameter] public RenderFragment? Marca { get; set; }
+
+    /// <summary>
+    /// Dibujo de los artboards de agrupar de Documentos: el resumen va en insignias de tono (no en texto con punto), el
+    /// subtítulo va en la misma línea que el nombre y el contador «· N» no se repite. Sin valor, la cabecera es la de
+    /// siempre; el aspecto lo acota el CSS de la pantalla (<c>.grupo-lista-maqueta</c>), no esta hoja.
+    /// </summary>
+    [Parameter] public bool Maqueta { get; set; }
+
     [Parameter] public bool Abierto { get; set; }
 
     /// <summary>El grupo está abierto por algo ajeno a él y la cabecera no puede contraerlo.</summary>
@@ -103,8 +116,14 @@
 
     private RenderFragment Contenido => @<text>
         <span class="grupo-lista-chevron" aria-hidden="true"><Icono Nombre="chevron" Tamano="TamanoIcono.Pequeno" /></span>
+        @Marca
         <span class="grupo-lista-identidad">
-        @if (Subtitulo is not null)
+        @if (Subtitulo is not null && Maqueta)
+        {
+            @NombreYContador
+            <span class="grupo-lista-subtitulo grupo-lista-subtitulo-linea" title="@Subtitulo">@Subtitulo</span>
+        }
+        else if (Subtitulo is not null)
         {
             <span class="grupo-lista-bloque">
                 <span class="grupo-lista-linea">@NombreYContador</span>
@@ -126,9 +145,16 @@
             <span class="grupo-lista-resumen">
                 @foreach (var estado in Resumen)
                 {
-                    <span class="grupo-lista-resumen-estado">
-                        <span class="@($"grupo-lista-punto grupo-lista-punto-{estado.Tono.ToString().ToLowerInvariant()}")" aria-hidden="true"></span>@estado.Texto
-                    </span>
+                    @if (Maqueta)
+                    {
+                        <span class="grupo-lista-resumen-estado"><Badge Tono="estado.Tono">@estado.Texto</Badge></span>
+                    }
+                    else
+                    {
+                        <span class="grupo-lista-resumen-estado">
+                            <span class="@($"grupo-lista-punto grupo-lista-punto-{estado.Tono.ToString().ToLowerInvariant()}")" aria-hidden="true"></span>@estado.Texto
+                        </span>
+                    }
                 }
             </span>
         }
@@ -140,7 +166,7 @@
         {
             <span class="grupo-lista-contador" title="@Comunes["GrupoContadorParcialTitulo", EnPagina!.Value, Total]">@Comunes["GrupoContadorParcial", EnPagina!.Value, Total]</span>
         }
-        else
+        else if (!Maqueta)
         {
             <span class="grupo-lista-contador" title="@TituloContador">· @(UnidadContador is null ? Total.ToString() : $"{Total} {UnidadContador}")</span>
         }

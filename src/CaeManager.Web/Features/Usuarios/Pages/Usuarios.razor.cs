@@ -1250,7 +1250,9 @@ public partial class Usuarios : CaeManager.Web.Components.PaginaIntegrableConfig
         catch (Exception excepcion)
         {
             // Tope vencido o servicio roto: el alta ya está hecha; solo falla el aviso por correo.
-            Logger.LogWarning(excepcion, "El envío del correo de activación a {UsuarioId} no terminó.", usuarioId);
+            // ASVS 4.0.3 V7.1.1: solo el tipo de la excepción; su mensaje (o el de su causa) puede citar la dirección.
+            Logger.LogWarning("El envío del correo de activación a {UsuarioId} no terminó ({TipoExcepcion}).",
+                usuarioId, excepcion.GetType().Name);
             resultado = Result.Fallo(Error.Crear("Email.ErrorRed", TextosUsuarios["ReenvioCorreoFallido"].Value));
         }
 
@@ -1293,7 +1295,9 @@ public partial class Usuarios : CaeManager.Web.Components.PaginaIntegrableConfig
         {
             // Tarea sin esperar: nada la observa, así que no puede escapar nada. Incluye
             // la pantalla retirada entre la comprobación y el despacho.
-            Logger.LogWarning(excepcion, "No se pudo avisar del resultado del correo de activación a {UsuarioId}.", usuarioId);
+            // ASVS 4.0.3 V7.1.1: solo el tipo de la excepción; el aviso lleva el resultado del envío y su mensaje puede citar la dirección.
+            Logger.LogWarning("No se pudo avisar del resultado del correo de activación a {UsuarioId} ({TipoExcepcion}).",
+                usuarioId, excepcion.GetType().Name);
         }
     }
 
@@ -1345,7 +1349,7 @@ public partial class Usuarios : CaeManager.Web.Components.PaginaIntegrableConfig
         var cuerpo = $"""
             <p>Hola {System.Net.WebUtility.HtmlEncode(nombreCompleto)},</p>
             <p>Se ha creado tu acceso a {Marca.Nombre}. Para entrar, establece tu contraseña:</p>
-            <p><a href="{System.Net.WebUtility.HtmlEncode(enlaceActivacion)}">Establecer mi contraseña</a></p>
+            {BotonCorreo.Html("Establecer mi contraseña", enlaceActivacion)}
             <p>El enlace caduca en {MinutosCaducidadActivacion} minutos y solo puede usarse una vez. Si caduca, pide a quien te dio de alta que te envíe uno nuevo.</p>
             """;
 

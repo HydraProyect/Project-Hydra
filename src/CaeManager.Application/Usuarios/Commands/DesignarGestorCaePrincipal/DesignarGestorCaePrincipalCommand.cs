@@ -1,6 +1,7 @@
 using CaeManager.Application.Clientes;
 using CaeManager.Application.Common;
 using CaeManager.Application.Operaciones;
+using CaeManager.Application.Usuarios.Commands.AsignarCarteraGestorCae;
 using CaeManager.Domain.Common;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
@@ -14,7 +15,8 @@ namespace CaeManager.Application.Usuarios.Commands.DesignarGestorCaePrincipal;
 /// pierde conserva su cartera como cartera de apoyo.
 ///
 /// <para>
-/// <b>Autoridad</b>, leída en Identity sobre el Tenant de origen, nunca en el claim:
+/// <b>Autoridad</b>: el rol efectivo de la sesión en el Tenant de origen, que Identity confirma
+/// sobre la cuenta activa (<see cref="AutoridadSobreCarteraDeGestorCae.RolDeAutoridadAsync"/>):
 /// Administrador y Dirección CAE del Operador CAE, sobre cualquier cartera; Coordinador CAE,
 /// si es él quien lleva hoy la marca, o si el destino le reporta y el principal actual —si lo
 /// hay— también (un Coordinador CAE no le quita la marca al equipo de otro). Un Gestor CAE no
@@ -136,21 +138,11 @@ public class DesignarGestorCaePrincipalCommandHandler(
 
         using (AmbitoTenantExplicito.Establecer(origen.Value))
         {
-            // Falla cerrado sin rol de negocio en la sesión (sesión privilegiada de plataforma,
-            // delegación retirada): Soporte TALVEG nunca es Operador CAE ni Gestor CAE.
-            if (await currentUserService.ObtenerRolEfectivoAsync() is null)
-                return Result.Fallo<Decision>(SinAutoridad);
-
-            string? rolActor = null;
-            foreach (var rol in RolesAutorizados)
-            {
-                if (await directorioUsuarios.EsCuentaActivaConRolAsync(actorId.Value, origen.Value, rol, cancellationToken))
-                {
-                    rolActor = rol;
-                    break;
-                }
-            }
-
+            // Rol efectivo de la sesión en el Tenant de origen, confirmado en Identity. Sin rol de
+            // negocio (Sesión Privilegiada de plataforma, delegación retirada) falla cerrado:
+            // Soporte TALVEG nunca es Operador CAE ni Gestor CAE.
+            var rolActor = await AutoridadSobreCarteraDeGestorCae.RolDeAutoridadAsync(
+                actorId.Value, origen.Value, RolesAutorizados, currentUserService, directorioUsuarios, cancellationToken);
             if (rolActor is null)
                 return Result.Fallo<Decision>(SinAutoridad);
 

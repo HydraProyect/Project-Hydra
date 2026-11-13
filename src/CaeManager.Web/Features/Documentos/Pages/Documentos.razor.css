@@ -181,6 +181,209 @@
     display: table-row;
 }
 
+/* P-1: cabecera de grupo por Plataforma CAE o Cliente empresarial; las acciones van a la derecha, fuera del botón que pliega. */
+.documentos-tabla-desplazable ::deep .documentos-cabecera-vinculo {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+}
+
+.documentos-tabla-desplazable ::deep .documentos-cabecera-vinculo > .grupo-lista {
+    flex: 1 1 auto;
+    min-width: 0;
+}
+
+.documentos-tabla-desplazable ::deep .documentos-cabecera-vinculo-acciones {
+    display: inline-flex;
+    gap: var(--space-2);
+    padding-right: var(--space-4);
+    flex: 0 0 auto;
+}
+
+.documentos-tabla-desplazable ::deep .documentos-en-plataforma {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 2px;
+    min-width: 0;
+}
+
+/* Motivo del rechazo (artboards, .dc-motivo): rojo de peligro, 12/16 en peso 500, una línea cortada con «…». */
+.documentos-tabla-desplazable ::deep .documentos-en-plataforma-motivo {
+    max-width: 100%;
+    color: var(--color-danger-700);
+    font: var(--font-body-sm);
+}
+
+/* Propietario de una sola línea al agrupar por Plataforma CAE y por tipo: cortado con «…»; el nombre entero va en el tooltip (D-54). */
+.documentos-tabla-desplazable ::deep .documentos-fila-una-linea .documentos-propietario {
+    display: block;
+    max-width: 100%;
+}
+
+.documentos-tabla-desplazable ::deep .documentos-fila-una-linea .documentos-propietario-nombre {
+    display: block;
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    text-align: left;
+}
+
+/* D-54 (2026-11-13): por Plataforma CAE y por tipo la fila es de una sola línea. Lo que no cabe se corta con «…» y el texto
+   entero va en el tooltip; las acciones no se cortan. */
+.documentos-tabla-desplazable ::deep .documentos-fila-una-linea tr:not(.documentos-fila-hijos):not(.documentos-vacio-filtro):not(.documentos-cabecera-grupo) td:not(.documentos-celda-acciones-fila),
+.documentos-tabla-desplazable ::deep .documentos-fila-una-linea td .documentos-en-plataforma-motivo {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    overflow-wrap: normal;
+}
+
+.documentos-tabla-desplazable ::deep .documentos-fila-una-linea .documentos-vigencia { white-space: nowrap; }
+
+.documentos-tabla-desplazable ::deep .documentos-fila-una-linea .documentos-nombre-una-linea {
+    display: block;
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    text-align: left;
+}
+
+.documentos-tabla-desplazable ::deep .documentos-cliente-empresarial {
+    display: block;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+/* Los anchos de columna al agrupar los fija el colgroup de la tabla (anchos de los artboards de agrupar), no las cabeceras. */
+
+/* Una Plataforma CAE de un Documento: «logo Nombre · Estado» (artboards, .dc-plat): 12/16 en peso 500, borde de 1 px y radio pequeño.
+   Sin agrupar y por Cliente se apilan bajo el Propietario; en la fila por tipo van en una línea, cortada con «…». */
+.documentos-tabla-desplazable ::deep .documentos-plats {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-1);
+    margin-top: var(--space-1);
+    min-width: 0;
+}
+
+.documentos-tabla-desplazable ::deep .documentos-plataformas-tipo {
+    flex-wrap: nowrap;
+    align-items: center;
+    margin-top: 0;
+    overflow: hidden;
+}
+
+.documentos-tabla-desplazable ::deep .documentos-plat {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    flex: 0 1 auto;
+    min-width: 0;
+    padding: 1px var(--space-2);
+    border: 1px solid var(--color-border-strong);
+    border-radius: var(--radius-sm);
+    background: var(--color-surface);
+    color: var(--color-text);
+    font: var(--font-body-sm);
+    white-space: nowrap;
+    overflow: hidden;
+}
+
+.documentos-tabla-desplazable ::deep .documentos-plat-nombre {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.documentos-tabla-desplazable ::deep .documentos-plat-estado {
+    color: var(--color-text-muted);
+    flex: none;
+}
+
+/* Logotipo de la Plataforma CAE (artboards, .dc-logo): cuadrado con borde de 1 px y radio de 3 px, sobre el blanco de marca del
+   tema (--color-logo-fondo); 22 px en la cabecera del grupo y 16 px en la fila. Sin marca, icono genérico sin borde. */
+.documentos-tabla-desplazable ::deep .documentos-logo-plataforma {
+    display: inline-block;
+    flex: none;
+    object-fit: contain;
+    background: var(--color-logo-fondo);
+    border: 1px solid var(--color-border);
+    border-radius: 3px;
+    vertical-align: middle;
+}
+
+.documentos-tabla-desplazable ::deep .documentos-logo-plataforma-medio {
+    width: 22px;
+    height: 22px;
+}
+
+.documentos-tabla-desplazable ::deep .documentos-logo-plataforma-pequeno {
+    width: 16px;
+    height: 16px;
+}
+
+.documentos-tabla-desplazable ::deep .documentos-logo-plataforma-generico {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: auto;
+    height: auto;
+    border: 0;
+    background: transparent;
+    color: var(--color-text-muted);
+}
+
+/* Cabecera de grupo de las agrupaciones por vínculo y por tipo (artboards, .dc-plataforma-cab): sin el estilo de cabecera de
+   tabla (mayúsculas de 12 px) que hereda del th: 14 px, nombre en 600, texto del grupo en gris y botones tal como se dibujan. */
+.documentos-tabla-desplazable ::deep .documentos-cabecera-grupo-vinculo > th,
+.documentos-tabla-desplazable ::deep .documentos-cabecera-grupo-tipo > th {
+    font: var(--font-body-md);
+    font-weight: 600;
+    letter-spacing: normal;
+    text-transform: none;
+    color: var(--color-text);
+}
+
+.documentos-tabla-desplazable ::deep .grupo-lista-maqueta > .grupo-lista-cabecera {
+    gap: var(--space-3);
+    padding: var(--space-3) var(--space-4);
+    font: var(--font-body-md);
+    font-weight: 600;
+}
+
+.documentos-tabla-desplazable ::deep .grupo-lista-maqueta .grupo-lista-nombre {
+    flex: none;
+    white-space: nowrap;
+}
+
+/* «Trabajador · 3 documentos» / «Cliente · 5 documentos»: gris, en la misma línea que el nombre; si no cabe, se corta con «…». */
+.documentos-tabla-desplazable ::deep .grupo-lista-maqueta .grupo-lista-subtitulo-linea {
+    flex: 0 1 auto;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font: inherit;
+    color: var(--color-text-muted);
+}
+
+.documentos-tabla-desplazable ::deep .grupo-lista-maqueta .grupo-lista-contador {
+    font: inherit;
+    color: var(--color-text-muted);
+}
+
+/* Las insignias de tono van pegadas al texto del grupo, no empujadas a la derecha: a la derecha van los botones. */
+.documentos-tabla-desplazable ::deep .grupo-lista-maqueta .grupo-lista-resumen {
+    flex: none;
+    justify-content: flex-start;
+    margin-left: 0;
+    gap: var(--space-2);
+}
+
 .documentos-tabla-desplazable ::deep th[aria-sort="ascending"] .documentos-orden-grupo::after {
     content: "↑";
     margin-left: var(--space-1);
@@ -235,3 +438,89 @@
    propia tabla por debajo, y la página no se mueve nunca (DocumentosTablaDesplazableE2ETests): el cuerpo del listado
    no lleva ese mínimo. */
 .lista-design.lista-design .tarjeta-listado-contenido > .documentos-cuerpo { min-width: 0; }
+/* Las acciones de la fila («Ver», «Gestionar», icono 360) no se parten en dos líneas: con ellas en una la fila no crece. */
+.documentos-tabla-desplazable ::deep .documentos-acciones-fila { flex-wrap: nowrap; white-space: nowrap; }
+/* Vista agrupada: si el universo pasa del tope de la consulta, el aviso queda bajo el pie, en el tono de aviso. */
+.documentos-aviso-tope { margin: var(--space-2) 0 0; font: var(--font-caption); color: var(--color-warning-700); }
+/* Cabeceras de la tabla: ninguna se parte a mitad de palabra ni baja a una segunda línea (ni «DOCUMENTA / L» ni el «···» de
+   Propietario bajo su título). El texto que no cabe se corta con «…» en el título de la columna; el botón de opciones no se encoge. */
+.documentos-tabla-desplazable ::deep .documentos-tabla-visible thead th {
+    overflow-wrap: normal;
+    word-break: normal;
+    white-space: nowrap;
+}
+.documentos-tabla-desplazable ::deep .documentos-tabla-visible thead th .col-header-content {
+    display: flex;
+    flex-wrap: nowrap;
+    align-items: center;
+    min-width: 0;
+}
+.documentos-tabla-desplazable ::deep .documentos-tabla-visible thead th .col-title {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.documentos-tabla-desplazable ::deep .documentos-tabla-visible thead th .col-options {
+    flex: none;
+}
+/* Vista agrupada: las cabeceras propias (botón de orden o texto) se cortan con «…» dentro de su columna, nunca a mitad de
+   palabra sin aviso; el nombre entero va en el title. Con el botón de opciones al lado, el título le deja su hueco. */
+.documentos-tabla-desplazable ::deep .documentos-tabla-visible thead th .documentos-orden-grupo {
+    display: inline-block;
+    max-width: 100%;
+    vertical-align: middle;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.documentos-tabla-desplazable ::deep .documentos-tabla-visible thead th .documentos-orden-grupo:has(+ .documentos-opciones-boton) {
+    max-width: calc(100% - 2rem);
+}
+.documentos-tabla-desplazable ::deep .documentos-tabla-visible thead th.documentos-th-texto {
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+/* «Revisión IA» (artboard Filtro-revision-ia, .dc-conf): barra de 72 px x 6 px y «Confianza N %» en 12 px/500 en gris; el color del relleno
+   es el de la pestaña Revisión IA (>= 95 verde, >= 70 ámbar, el resto rojo). */
+.documentos-tabla-desplazable ::deep .documentos-confianza {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    font: 500 12px/16px var(--font-family);
+    color: var(--color-text-muted);
+    white-space: nowrap;
+}
+.documentos-tabla-desplazable ::deep .documentos-confianza-barra {
+    flex: none;
+    width: 72px;
+    height: 6px;
+    border-radius: 3px;
+    background: var(--color-anillo-pista);
+    overflow: hidden;
+}
+.documentos-tabla-desplazable ::deep .documentos-confianza-relleno { display: block; height: 100%; }
+.documentos-tabla-desplazable ::deep .documentos-confianza-relleno-exito { background: var(--color-success-500); }
+.documentos-tabla-desplazable ::deep .documentos-confianza-relleno-advertencia { background: var(--color-warning-500); }
+.documentos-tabla-desplazable ::deep .documentos-confianza-relleno-peligro { background: var(--color-danger-500); }
+
+/* Vista sin agrupar con «Revisión IA»: la tabla de layout fijo ya no reparte 173 px por columna, y «Estado documental» (144 px de texto,
+   más el relleno de 16 px a cada lado) cabe entera. La columna de confianza lleva la barra de 72 px y «Confianza 100 %» en una línea. */
+.documentos-tabla-desplazable ::deep .documentos-tabla-visible thead th.documentos-th-estado-con-revision-ia { width: 184px; }
+.documentos-tabla-desplazable ::deep .documentos-tabla-visible thead th.documentos-th-revision-ia { width: 190px; }
+
+/* «Vence»: la fecha de emisión de una fila «No caduca» se lee entera, en dos líneas si hace falta, en vez de cortarse con «…». */
+.documentos-tabla-desplazable ::deep .documentos-fila-una-linea .documentos-vigencia .documentos-vigencia-subtitulo {
+    white-space: normal;
+    overflow: visible;
+    text-overflow: clip;
+}
+
+/* «Abrir portal» y «Tipo 360»: el icono «abrir» del sistema de iconos va tras el texto. */
+.documentos-tabla-desplazable ::deep .documentos-abrir-portal,
+.documentos-tabla-desplazable ::deep .documentos-tipo-360 {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-1);
+}

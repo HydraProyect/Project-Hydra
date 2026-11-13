@@ -11,7 +11,13 @@ namespace CaeManager.Application.Common;
 /// que no hace falta una lista de los Commands que cambian el alcance: invalidar de más solo cuesta
 /// recalcular; invalidar de menos deja una visión obsoleta, que es el fallo que corrige. La invoca también
 /// <c>BloqueoRespuestaSugerida.ComprobarEnvioPorBuzonAsync</c> al abrir su instantánea de lectura, para que los
-/// conjuntos de cartera se calculen dentro de ella y no vengan memoizados de un momento anterior. Solo la
+/// conjuntos de cartera se calculen dentro de ella y no vengan memoizados de un momento anterior; y, por la misma
+/// razón, los escritores de la regla A-1 que vuelven a comprobar la Asignación de Cartera bajo el candado de
+/// <c>ISerializacionAltasAcreditacionEmpresa</c> (RestaurarDocumento, RestaurarCentro,
+/// EliminarDocumentacionRequeridaCentro, EstablecerDocumentacionRequeridaCentro, EstablecerGestionCaeCentro,
+/// CrearCanalGestion, CrearDocumento, RenovarDocumento, EditarTipoDocumento, CrearAsignacion, CrearAsignaciones,
+/// ReactivarAsignacion y GenerarDocumentoIndividual; EjecutarImportacion sigue pendiente, issue #2118), para no
+/// decidir con el alcance de antes de esperarlo. Solo la
 /// memoización de esta instancia: no toca el ámbito de Tenant, la cartera ni la autorización.
 /// </summary>
 public interface IInvalidadorAlcance

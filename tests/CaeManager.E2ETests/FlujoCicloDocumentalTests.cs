@@ -47,6 +47,7 @@ public class FlujoCicloDocumentalTests(WebAppFixture fixture)
         var emailContacto = $"contacto.ciclodocumental.{sufijo}@e2e.test";
 
         await using var contexto = await fixture.Browser.NewContextAsync();
+        await using var traza = TrazaAlFallar.Armar(contexto);
         var page = await contexto.NewPageAsync();
 
         await Ayudas.IniciarSesionAsync(page, fixture.BaseUrl, Ayudas.EmailAdministrador, Ayudas.ContrasenaAdministrador);
@@ -150,15 +151,14 @@ public class FlujoCicloDocumentalTests(WebAppFixture fixture)
         await Ayudas.NavegarYEsperarAsync(page, $"{fixture.BaseUrl}/documentos");
         await page.Locator("[data-keytip-contenedor=\"N\"]").GetByRole(AriaRole.Button, new() { Name = "+ Nuevo documento", Exact = true }).ClickAsync();
 
-        await drawer.GetByLabel("Trabajador", new LocatorGetByLabelOptions { Exact = true })
-            .FillAsync($"{nombreTrabajador} {apellidosTrabajador} ({razonSocialEmpresa})");
-        // El debounce del servidor resuelve el Id del Trabajador sin exponer su resultado en el DOM.
-        await page.WaitForTimeoutAsync(500);
-        await drawer.GetByLabel("Tipo de documento").SelectOptionAsync(new SelectOptionValue { Label = nombreTipoDocumento });
+        await Ayudas.ElegirOpcionEnSelectorAvanzadoPorTextoAsync(page,
+            drawer.GetByLabel("Trabajador", new LocatorGetByLabelOptions { Exact = true }),
+            $"{nombreTrabajador} {apellidosTrabajador} ({razonSocialEmpresa})");
+        await Ayudas.ElegirOpcionEnSelectorAvanzadoPorTextoAsync(page, drawer.GetByLabel("Tipo de documento"), nombreTipoDocumento);
 
         var hoy = Ayudas.HoyDeNegocio();
-        await drawer.GetByLabel("Fecha de emisión", new LocatorGetByLabelOptions { Exact = true }).FillAsync(hoy.ToString("yyyy-MM-dd"));
-        await drawer.GetByLabel("Fecha de vencimiento").FillAsync(hoy.AddDays(10).ToString("yyyy-MM-dd"));
+        await Ayudas.RellenarFechaAsync(drawer.GetByLabel("Fecha de emisión", new LocatorGetByLabelOptions { Exact = true }), hoy);
+        await Ayudas.RellenarFechaAsync(drawer.GetByLabel("Fecha de vencimiento"), hoy.AddDays(10));
 
         var rutaPdf = Ayudas.GenerarPdfDePruebaEnDisco();
         try
@@ -180,11 +180,11 @@ public class FlujoCicloDocumentalTests(WebAppFixture fixture)
         var filaDocumento = page.GetByRole(AriaRole.Row, new() { Name = apellidosTrabajador });
         await filaDocumento.WaitForAsync(new LocatorWaitForOptions { Timeout = 15_000 });
         // Desde el 2026-10-08 Urgente y Próximo comparten la pastilla «Por vencer» (ámbar); lo que
-        // dice que está a 10 días —dentro del umbral rojo— es el motivo de debajo.
+        // dice que está a 10 días —dentro del umbral rojo— es el relativo de «Vence» (Estado ya no lo repite).
         var insigniaEstado = filaDocumento.Locator(".badge-advertencia");
         await insigniaEstado.WaitForAsync(new LocatorWaitForOptions { Timeout = 15_000 });
         Assert.Equal("Por vencer", (await insigniaEstado.InnerTextAsync()).Trim());
-        Assert.Matches("^Caduca en (9|10|11) días$", (await filaDocumento.Locator(".estado-fila-motivo").InnerTextAsync()).Trim());
+        Assert.Matches("^en (9|10|11) días$", (await filaDocumento.Locator(".documentos-vigencia-subtitulo").InnerTextAsync()).Trim());
 
         // --- Paso 5 (IA + Validación): la revisión IA aparece y se resuelve ---
         // /documentos/revision-ia carga sus datos una sola vez al entrar
@@ -193,22 +193,24 @@ public class FlujoCicloDocumentalTests(WebAppFixture fixture)
         // aparte, sondeando cada 5s (ver ese archivo), así que hay que
         // recargar la página en bucle hasta que aparezca, no basta con
         // esperar sobre el DOM ya cargado.
-        var botonRevision = await EsperarBotonRevisionIaAsync(page, fixture.BaseUrl, apellidosTrabajador);
+        var opcionRevision = await EsperarOpcionRevisionIaAsync(page, fixture.BaseUrl, apellidosTrabajador);
 
         // Confirma que la extracción determinista de ProveedorFalsoDocumentAI
         // llegó de verdad hasta la UI, a través de todo el router
         // (clasificación → OCR/estructuración → RevisionIaDocumento): 50%
-        // de confianza en la cola y el motivo que ComputarMotivos genera para
-        // ese caso en el detalle de la revisión seleccionada.
-        await Expect(botonRevision).ToContainTextAsync("Confianza 50 %");
-        await botonRevision.ClickAsync();
+        // de confianza en el desplegable de pendientes y el motivo que
+        // ComputarMotivos genera para ese caso en el lateral de la revisión
+        // seleccionada (D-49: documento a la izquierda, revisión en el lateral).
+        await Expect(opcionRevision).ToContainTextAsync("Confianza 50 %");
+        await opcionRevision.ClickAsync();
 
-        var detalleRevision = page.Locator(".revision-ia-detalle");
-        await detalleRevision.WaitForAsync(new LocatorWaitForOptions { Timeout = 15_000 });
-        await Expect(detalleRevision.Locator(".revision-ia-motivo"))
+        var lateral = page.Locator(".revision-ia-lateral");
+        var selector = lateral.Locator(".revision-ia-selector-boton");
+        await Expect(selector).ToContainTextAsync(apellidosTrabajador, new LocatorAssertionsToContainTextOptions { Timeout = 15_000 });
+        await Expect(lateral.Locator(".revision-ia-motivo"))
             .ToContainTextAsync("Confianza baja (50%)");
 
-        await detalleRevision.GetByRole(AriaRole.Button, new LocatorGetByRoleOptions { Name = "Descartar la lectura" }).ClickAsync();
+        await lateral.GetByRole(AriaRole.Button, new LocatorGetByRoleOptions { Name = "Descartar la lectura" }).ClickAsync();
 
         // El detalle y DialogoConfirmacion comparten el texto del botón de
         // descarte. Modal expone role="dialog" y toma su nombre accesible del
@@ -217,7 +219,26 @@ public class FlujoCicloDocumentalTests(WebAppFixture fixture)
         var dialogoDescartar = page.GetByRole(AriaRole.Dialog, new PageGetByRoleOptions { Name = "Descartar la lectura de la IA" });
         await dialogoDescartar.WaitForAsync(new LocatorWaitForOptions { Timeout = 15_000 });
         await dialogoDescartar.GetByRole(AriaRole.Button, new LocatorGetByRoleOptions { Name = "Descartar la lectura" }).ClickAsync();
-        await botonRevision.WaitForAsync(new LocatorWaitForOptions { State = WaitForSelectorState.Hidden, Timeout = 15_000 });
+        // Resuelta la revisión, el avance automático pasa a la siguiente
+        // pendiente o, si era la última, el lateral desaparece y queda el
+        // estado sin pendientes. Se espera a cualquiera de los dos: el selector
+        // ya no existe o ya no nombra a este Trabajador. Se lee su texto en vez
+        // de filtrar el localizador por texto (ratchet E2E-locators).
+        await EsperarQueElSelectorNoNombreAsync(page, apellidosTrabajador);
+
+        // Que cambie la selección no prueba que la revisión haya salido de
+        // pendientes: se recarga en frío (los datos vuelven del servidor) y se
+        // comprueba que su opción ya no está en el desplegable. Si no queda
+        // ninguna pendiente, no hay lateral ni desplegable que abrir.
+        await Ayudas.NavegarYEsperarAsync(page, $"{fixture.BaseUrl}/documentos/revision-ia");
+        // Solo se pinta una tarjeta: la del estado sin pendientes o la de la revisión.
+        await page.Locator(".revision-ia-tarjeta").WaitForAsync(new LocatorWaitForOptions { Timeout = 15_000 });
+        if (await page.Locator(".revision-ia-lateral").CountAsync() > 0)
+        {
+            Assert.True(await AbrirDesplegableDePendientesAsync(page), "El desplegable de pendientes no se abrió tras recargar /documentos/revision-ia.");
+            var pendientes = await NombresDePendientesConElPanelAbiertoAsync(page);
+            Assert.DoesNotContain(pendientes, nombre => nombre.Contains(apellidosTrabajador, StringComparison.Ordinal));
+        }
 
         // --- Paso 6 (Reclamación): asignar el Trabajador a su Centro, añadir
         // un contacto de agenda y enviar la reclamación ---
@@ -244,19 +265,15 @@ public class FlujoCicloDocumentalTests(WebAppFixture fixture)
         // contiene "centro" como subcadena (visto en CI —
         // "strict mode violation... resolved to 2 elements").
         //
-        // CampoBuscarSelect resuelve por texto EXACTO de la opción — y la
-        // opción de Centro no es solo el nombre: OpcionesCentrosParaAsignar
+        // La opción de Centro no es solo el nombre: OpcionesCentrosParaAsignar
         // (Trabajadores.razor.cs) la construye como "{Nombre} ({Cliente})"
         // para poder distinguir centros del mismo nombre en clientes
-        // distintos. Rellenar solo con nombreCentro no coincidía con
-        // ninguna opción — _centroIdParaAsignar se quedaba vacío y
-        // "Asignar" fallaba en silencio con el toast "Selecciona un
-        // centro.", sin cerrar el modal (visto en CI: timeout esperando a
-        // que ".modal-pie" desapareciera).
-        await page.Locator(".modal-cuerpo").GetByLabel("Centro", new LocatorGetByLabelOptions { Exact = true })
-            .FillAsync($"{nombreCentro} ({razonSocialCliente})");
-        // El debounce del servidor resuelve el Id del Centro; sin documentos faltantes no hay señal visible.
-        await page.WaitForTimeoutAsync(500);
+        // distintos. Se busca y se pulsa esa opción en el combobox
+        // (CampoBuscarSelect); sin elegirla, "Asignar" falla con el toast
+        // "Selecciona un centro." y el modal no se cierra.
+        await Ayudas.ElegirOpcionEnSelectorAvanzadoPorTextoAsync(page,
+            page.Locator(".modal-cuerpo").GetByLabel("Centro", new LocatorGetByLabelOptions { Exact = true }),
+            $"{nombreCentro} ({razonSocialCliente})");
         // El botón de confirmar cambia de texto a "Asignar igualmente" si al
         // comprobarlo faltaba algún documento de los que se piden (ver
         // Trabajadores.razor.cs, ObtenerDocumentosFaltantesParaAsignacionQuery)
@@ -341,8 +358,8 @@ public class FlujoCicloDocumentalTests(WebAppFixture fixture)
         // emisión es ANTERIOR). Se extiende el vencimiento, muy por encima del
         // umbral ámbar (30 días, ver ParametroSistemaSeedData) para que el
         // badge cambie de verdad a "Vigente" y no se quede en "Próximo".
-        await drawer.GetByLabel("Fecha de emisión", new LocatorGetByLabelOptions { Exact = true }).FillAsync(hoy.ToString("yyyy-MM-dd"));
-        await drawer.GetByLabel("Fecha de vencimiento").FillAsync(hoy.AddDays(400).ToString("yyyy-MM-dd"));
+        await Ayudas.RellenarFechaAsync(drawer.GetByLabel("Fecha de emisión", new LocatorGetByLabelOptions { Exact = true }), hoy);
+        await Ayudas.RellenarFechaAsync(drawer.GetByLabel("Fecha de vencimiento"), hoy.AddDays(400));
         await drawer.Locator(".drawer-pie").GetByRole(AriaRole.Button, new() { Name = "Guardar", Exact = true }).ClickAsync();
         await drawer.WaitForAsync(new LocatorWaitForOptions { State = WaitForSelectorState.Hidden, Timeout = 15_000 });
 
@@ -352,12 +369,13 @@ public class FlujoCicloDocumentalTests(WebAppFixture fixture)
         var insigniaVigente = filaDocumento.Locator("[data-pieza=estado-correcto]");
         await insigniaVigente.WaitForAsync(new LocatorWaitForOptions { Timeout = 15_000 });
         Assert.Equal("Vigente", (await insigniaVigente.InnerTextAsync()).Trim());
+        traza.Superada();
     }
 
     /// <summary>
     /// /documentos/revision-ia no se actualiza sola cuando termina un
     /// análisis en segundo plano (ver el comentario del Paso 5 más arriba) —
-    /// se recarga en bucle hasta encontrar el botón de la cola o agotar el presupuesto
+    /// se recarga en bucle hasta encontrar la opción del desplegable o agotar el presupuesto
     /// de tiempo. 90s cubre con margen el sondeo de 5s de
     /// ProcesadorAnalisisDocumentoHostedService más la elección de líder y
     /// el resto de la tubería (clasificación, extracción, guardado): medido
@@ -373,8 +391,12 @@ public class FlujoCicloDocumentalTests(WebAppFixture fixture)
     /// ningún TrabajoAnalisisDocumento, y la traza está en el log de la app
     /// (App_Data/logs/log-*.txt del directorio de CaeManager.Web, sink de
     /// archivo de Serilog), no en la salida del test.
+    ///
+    /// Las pendientes viven en el desplegable del lateral (role="listbox"),
+    /// que solo se pinta abierto: tras cada carga se abre con
+    /// <see cref="AbrirDesplegableDePendientesAsync"/>.
     /// </summary>
-    private static async Task<ILocator> EsperarBotonRevisionIaAsync(IPage page, string baseUrl, string apellidosTrabajador)
+    private static async Task<ILocator> EsperarOpcionRevisionIaAsync(IPage page, string baseUrl, string apellidosTrabajador)
     {
         var presupuesto = TimeSpan.FromSeconds(90);
         var limite = DateTime.UtcNow + presupuesto;
@@ -382,13 +404,15 @@ public class FlujoCicloDocumentalTests(WebAppFixture fixture)
         while (true)
         {
             await Ayudas.NavegarYEsperarAsync(page, $"{baseUrl}/documentos/revision-ia");
-            var boton = page.Locator(".revision-ia-cola").GetByRole(
-                AriaRole.Button,
+            await AbrirDesplegableDePendientesAsync(page);
+
+            var opcion = page.Locator(".revision-ia-opciones").GetByRole(
+                AriaRole.Option,
                 new LocatorGetByRoleOptions { Name = apellidosTrabajador });
             try
             {
-                await boton.WaitForAsync(new LocatorWaitForOptions { Timeout = 2_000 });
-                return boton;
+                await opcion.WaitForAsync(new LocatorWaitForOptions { Timeout = 2_000 });
+                return opcion;
             }
             catch (TimeoutException) { }
 
@@ -398,6 +422,81 @@ public class FlujoCicloDocumentalTests(WebAppFixture fixture)
                     + $"tras {presupuesto.TotalSeconds:F0}s.");
         }
     }
+
+    /// <summary>
+    /// Abre el desplegable de pendientes del lateral. La página no se
+    /// prerenderiza: el selector solo existe cuando el circuito ya pinta y los
+    /// datos han cargado. Aun así, un clic puede tardar en volver por SignalR
+    /// bajo la carga de la suite. Como pulsar con el panel abierto lo cierra,
+    /// tras cada clic se espera con margen y solo se vuelve a pulsar si el
+    /// servidor sigue diciendo que está cerrado (aria-expanded="false"). Si el
+    /// panel se cerrara por un clic tardío, quien mire las opciones lo hace con
+    /// <see cref="NombresDePendientesConElPanelAbiertoAsync"/>, que no da por
+    /// buena una lectura con el panel cerrado. Devuelve si quedó abierto (no lo
+    /// queda cuando no hay pendientes y el lateral no se pinta).
+    /// </summary>
+    private static async Task<bool> AbrirDesplegableDePendientesAsync(IPage page)
+    {
+        var panel = page.Locator(".revision-ia-pop");
+        var disparador = page.Locator(".revision-ia-selector-boton");
+        for (var intento = 0; intento < 3 && !await panel.IsVisibleAsync(); intento++)
+        {
+            try
+            {
+                if (await disparador.GetAttributeAsync("aria-expanded", new LocatorGetAttributeOptions { Timeout = 5_000 }) == "true")
+                {
+                    await panel.WaitForAsync(new LocatorWaitForOptions { State = WaitForSelectorState.Visible, Timeout = 5_000 });
+                    break;
+                }
+
+                await disparador.ClickAsync(new LocatorClickOptions { Timeout = 5_000 });
+                await panel.WaitForAsync(new LocatorWaitForOptions { State = WaitForSelectorState.Visible, Timeout = 5_000 });
+            }
+            catch (Exception ex) when (ex is PlaywrightException or TimeoutException)
+            {
+                // Sin pendientes no hay selector, o el clic no volvió a tiempo: se comprueba aria-expanded antes de repetir.
+            }
+        }
+
+        return await panel.IsVisibleAsync();
+    }
+
+    /// <summary>
+    /// Nombres accesibles de las opciones del desplegable, leídos en una sola
+    /// evaluación del DOM junto con la visibilidad del panel. Exige el panel
+    /// abierto y al menos una opción en esa misma lectura: así «no aparece la
+    /// revisión» nunca se concluye de un panel cerrado o vacío.
+    /// </summary>
+    private static async Task<string[]> NombresDePendientesConElPanelAbiertoAsync(IPage page)
+    {
+        var lectura = await page.EvaluateAsync<string[]?>(
+            """
+            () => {
+                const panel = document.querySelector('.revision-ia-pop');
+                if (!panel || panel.getClientRects().length === 0) return null;
+                return [...panel.querySelectorAll('.revision-ia-opciones [role=option]')].map(o => o.textContent ?? '');
+            }
+            """);
+        Assert.True(lectura is { Length: > 0 }, "El desplegable de pendientes no estaba abierto o no tenía opciones al leerlo.");
+        return lectura!;
+    }
+
+    /// <summary>
+    /// Espera hasta 15 s a que el selector del lateral desaparezca (no quedan
+    /// pendientes) o deje de nombrar al Trabajador (el avance pasó a otra).
+    /// Recuento y texto se leen en la misma evaluación del DOM, y Playwright la
+    /// repite hasta que se cumple, sin esperas fijas.
+    /// </summary>
+    private static Task EsperarQueElSelectorNoNombreAsync(IPage page, string apellidosTrabajador) =>
+        page.WaitForFunctionAsync(
+            """
+            nombre => {
+                const selector = document.querySelector('.revision-ia-lateral .revision-ia-selector-boton');
+                return !selector || !(selector.textContent ?? '').includes(nombre);
+            }
+            """,
+            apellidosTrabajador,
+            new PageWaitForFunctionOptions { Timeout = 15_000 });
 
     private static ILocatorAssertions Expect(ILocator locator) => Assertions.Expect(locator);
 }

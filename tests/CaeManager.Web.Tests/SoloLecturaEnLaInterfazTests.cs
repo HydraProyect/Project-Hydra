@@ -144,6 +144,7 @@ public class SoloLecturaEnLaInterfazTests : BunitContext
         RegistrarComun(rol);
         Services.AddScoped<IMediator, MediadorVacio>();
         Services.AddScoped<ITenantActual>(_ => new SeleccionEmpresaGestionadaDePrueba());
+        Services.AddScoped<PuertaAccesoDatos>();
         Services.AddScoped<ToastService>();
         Services.AddScoped<ContextWorkspaceService>();
         Services.AddScoped<ICurrentUserService>(_ => new UsuarioActual(rol));
@@ -190,6 +191,25 @@ public class SoloLecturaEnLaInterfazTests : BunitContext
             cut.Markup.Should().NotContain("Esta sección no está disponible para tu rol",
                 $"el rol {rol} sí gestiona la pestaña {pestana}: el mensaje de permiso solo es para quien no puede");
         }
+    }
+
+    [Theory]
+    [InlineData("Administrador")]
+    [InlineData("GestorCae")]
+    public void El_deep_link_pestana_revision_ia_de_quien_gestiona_va_a_la_pantalla_propia(string rol)
+    {
+        RenderizarDocumentos(rol, "revision-ia");
+
+        Services.GetRequiredService<NavigationManager>().Uri.Should().EndWith("/documentos/revision-ia",
+            "D-49: «?pestana=revision-ia» sigue valiendo como ruta, redirigida a la pantalla de Revisión IA");
+    }
+
+    [Fact]
+    public void El_deep_link_pestana_revision_ia_de_Consulta_no_la_lleva_a_una_pantalla_que_le_niega_el_acceso()
+    {
+        RenderizarDocumentos("Consulta", "revision-ia");
+
+        Services.GetRequiredService<NavigationManager>().Uri.Should().NotEndWith("/documentos/revision-ia");
     }
 
     [Fact]

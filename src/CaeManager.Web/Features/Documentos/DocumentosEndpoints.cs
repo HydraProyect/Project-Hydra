@@ -45,10 +45,12 @@ public static class DocumentosEndpoints
         .RequireAuthorization(policy => policy.RequireRole(CaeManager.Infrastructure.Identity.Roles.Administrador, CaeManager.Infrastructure.Identity.Roles.DireccionCae, CaeManager.Infrastructure.Identity.Roles.CoordinadorCae))
         .ExcluidoDelEncargoDeAdministracion();
 
-        // Mismo patrón de referencia que ClientesEndpoints. Sin columna de
-        // Plataformas/Acreditaciones: ObtenerDocumentosQueryHandler la
-        // resuelve con una segunda pasada fuera de la página, y repetirla
-        // por cada lote de PaginadorExportacion sería un N+1.
+        // Mismo patrón de referencia que ClientesEndpoints. La columna
+        // «Plataformas CAE» (D-20) sale de las acreditaciones que
+        // ObtenerDocumentosQueryHandler ya resuelve en una consulta por
+        // página (no por fila), así que cada lote de PaginadorExportacion
+        // no añade consultas: solo nombre y estado, nunca el motivo del
+        // rechazo ni la dirección del portal.
         // Lleva el listado completo de Documentos del tenant (propietario,
         // tipo, fechas): mismo criterio de caché que el PDF.
         // Sin SoloRolesDelListado(), como /trabajadores/exportar.xlsx: Documentos.razor
@@ -65,8 +67,24 @@ public static class DocumentosEndpoints
         HttpContext contexto, IMediator mediator, ITenantActual tenantActual, IRegistroExportacionService registroExportacion,
         CancellationToken cancellationToken,
         string? q = null, string? ambito = null, string? estado = null, string? orden = null, bool desc = false,
-        string? tipo = null, string? plataforma = null, string? propietario = null, string? agrupar = null)
+        string? tipo = null, string? plataforma = null, string? propietario = null, string? agrupar = null,
+        string? estadoPlataforma = null, string? venceEn = null, string? pendienteRevisionIa = null,
+        Microsoft.Extensions.Localization.IStringLocalizer<Recursos.TextosDocumentos>? textos = null)
     {
+        // «Vence en» (D-21): solo los plazos que ofrece el listado, como número de días; cualquier otro valor se ignora.
+        int? venceEnDias = int.TryParse(venceEn, System.Globalization.NumberStyles.None, System.Globalization.CultureInfo.InvariantCulture, out var plazo)
+            && ObtenerDocumentosQuery.PlazosVenceEnDias.Contains(plazo)
+            && plazo.ToString(System.Globalization.CultureInfo.InvariantCulture) == venceEn ? plazo : null;
+        // «Pendiente de revisión IA»: solo «1». Si se aplica lo decide el handler, con el rol EFECTIVO de cada llamada (con un rol sin
+        // acceso a la cola lo ignora); el endpoint no lo vuelve a decidir: anota lo que dijo el primer lote
+        // (ResultadoPaginado.FiltroRevisionIaAplicado) y, si un lote posterior dice otra cosa (el rol efectivo cambió a mitad de la
+        // exportación), aborta en vez de servir un fichero con lotes filtrados y sin filtrar.
+        var revisionIaPedida = pendienteRevisionIa == "1";
+        bool? revisionIaAplicada = null;
+        // Solo el nombre exacto de un estado, como el listado: ni números ni listas con coma.
+        EstadoEnPlataformaFiltro? estadoPlataformaFiltro =
+            estadoPlataforma is not null && Enum.GetNames<EstadoEnPlataformaFiltro>().Contains(estadoPlataforma, StringComparer.Ordinal)
+                ? Enum.Parse<EstadoEnPlataformaFiltro>(estadoPlataforma) : null;
         // Estado 4a: la página no muestra los Documentos del Tenant de origen a quien tiene que
         // elegir una empresa de su cartera (ContextoEmpresaActiva.ResolverAsync); el endpoint no
         // los consulta, no genera el archivo ni deja rastro. Misma guarda que Trabajadores.
@@ -85,11 +103,19 @@ public static class DocumentosEndpoints
         hoja.Cell(1, 4).Value = "Emisión";
         hoja.Cell(1, 5).Value = "Vencimiento";
         hoja.Cell(1, 6).Value = "Estado";
+        // D-20: las Plataformas CAE del Documento y el estado de su acreditación en cada una («Nalanda: Pendiente de subir; Dokify:
+        // Validada»), la misma regla que la columna del listado por tipo. Nunca el motivo del rechazo: la hoja no lo lleva.
+        hoja.Cell(1, 7).Value = "Plataformas CAE";
         hoja.Row(1).Style.Font.Bold = true;
 
         var fila = 2;
-        await foreach (var documento in PaginadorExportacion.PaginarAsync((pagina, tamanoPagina) =>
-            mediator.Send(
+        // El handler calcula con el día de negocio de cada lote la franja de estado, «Vence en» y el estado de cada fila: si el día
+        // cambia a mitad de la exportación, los lotes se calcularían con dos fechas y el Skip podría saltarse filas.
+        var diaDeLaExportacion = CaeManager.Domain.Common.DiaDeNegocio.Hoy();
+        string? criterioCambiado = null;
+        await foreach (var documento in PaginadorExportacion.PaginarAsync(async (pagina, tamanoPagina) =>
+        {
+            var lote = await mediator.Send(
                 new ObtenerDocumentosQuery(
                     TrabajadorId: null,
                     Ambito: Enum.TryParse<AmbitoAplicacion>(ambito, out var ambitoFiltro) ? ambitoFiltro : null,
@@ -105,8 +131,23 @@ public static class DocumentosEndpoints
                     PropietarioId: Guid.TryParse(propietario, out var entidadAsociadaId) ? entidadAsociadaId : null,
                     TipoDocumentoId: Guid.TryParse(tipo, out var tipoFiltro) ? tipoFiltro : null,
                     ProveedorPlataformaCaeId: Guid.TryParse(plataforma, out var plataformaFiltro) ? plataformaFiltro : null,
-                    AgruparPorAmbito: agrupar == "ambito"),
-                cancellationToken)))
+                    AgruparPorAmbito: agrupar == "ambito",
+                    // El filtro «Estado en la plataforma» del listado; la agrupación por vínculo no se exporta (repetiría filas).
+                    EstadosEnPlataforma: estadoPlataformaFiltro is { } estadoEnPlataforma ? [estadoEnPlataforma] : null,
+                    VenceEnDias: venceEnDias,
+                    PendienteDeRevisionIa: revisionIaPedida),
+                cancellationToken);
+            revisionIaAplicada ??= lote.FiltroRevisionIaAplicado;
+            if (lote.FiltroRevisionIaAplicado != revisionIaAplicada)
+                criterioCambiado = "ExportacionCriterioCambiado";
+            else if (CaeManager.Domain.Common.DiaDeNegocio.Hoy() != diaDeLaExportacion)
+                criterioCambiado = "ExportacionDiaCambiado";
+            else
+                return lote;
+
+            // Un lote vacío corta el paginador: las filas de este lote ni se escriben.
+            return new ResultadoPaginado<DocumentoListaDto>([], lote.TotalElementos, pagina, tamanoPagina);
+        }))
         {
             hoja.Cell(fila, 1).Value = documento.PropietarioNombre;
             hoja.Cell(fila, 2).Value = documento.Ambito.ToString();
@@ -115,7 +156,15 @@ public static class DocumentosEndpoints
             if (documento.FechaVencimiento is not null)
                 hoja.Cell(fila, 5).Value = documento.FechaVencimiento.Value.ToDateTime(TimeOnly.MinValue);
             hoja.Cell(fila, 6).Value = EstadoDocumentoUi.Texto(documento.Estado);
+            // SetValue(string): texto tal cual, sin que un nombre de plataforma que empiece por «=» se lea como fórmula.
+            hoja.Cell(fila, 7).SetValue(PlataformasCaeDelDocumento.TextoParaExcel(documento.Acreditaciones));
             fila++;
+        }
+
+        if (criterioCambiado is not null)
+        {
+            // Ni fichero ni rastro en el registro: lo exportado hasta aquí mezclaría dos criterios. Quien exporta puede repetirlo.
+            return Results.Problem(textos?[criterioCambiado].Value, statusCode: StatusCodes.Status409Conflict);
         }
 
         hoja.Columns().AdjustToContents();
@@ -137,6 +186,9 @@ public static class DocumentosEndpoints
                     ("plataforma", Guid.TryParse(plataforma, out var plataformaAplicada) ? plataformaAplicada.ToString() : null),
                     ("propietario", Guid.TryParse(propietario, out var propietarioAplicado) ? propietarioAplicado.ToString() : null),
                     ("agrupar", agrupar == "ambito" ? "ambito" : null),
+                    ("estadoPlataforma", estadoPlataformaFiltro?.ToString()),
+                    ("venceEnDias", venceEnDias?.ToString(System.Globalization.CultureInfo.InvariantCulture)),
+                    ("pendienteRevisionIa", revisionIaAplicada == true ? "true" : null),
                     ("orden", CriteriosExportacion.SoloNombre(orden)), ("desc", desc ? "true" : null)),
                 cancellationToken);
         }

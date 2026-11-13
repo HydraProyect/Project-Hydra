@@ -50,6 +50,19 @@ public static class Ayudas
         DateOnly.FromDateTime(TimeZoneInfo.ConvertTime(DateTimeOffset.UtcNow, TimeZoneInfo.FindSystemTimeZoneById("Europe/Madrid")).DateTime);
 
     /// <summary>
+    /// Rellena un CampoFecha (texto dd/mm/aaaa con máscara, #2185) con la fecha en ISO, como hacían los tests con el
+    /// antiguo <c>input type="date"</c>, y comprueba que el campo muestra la fecha ya enmascarada. Con un campo de texto
+    /// Playwright rellena en dos pasos (enfocar y luego insertar); si algo mueve el foco entre ambos (la trampa de foco de
+    /// un Drawer o un Modal que se activa tarde, #2194) el texto se pierde, y esta comprobación lo dice en el paso en que
+    /// ocurre en vez de dejarlo para un «Las fechas no son válidas» al guardar.
+    /// </summary>
+    public static async Task RellenarFechaAsync(ILocator campo, DateOnly fecha)
+    {
+        await campo.FillAsync(fecha.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture));
+        await Assertions.Expect(campo).ToHaveValueAsync(fecha.ToString("dd/MM/yyyy", System.Globalization.CultureInfo.InvariantCulture));
+    }
+
+    /// <summary>
     /// Nombre del tenant Cliente Delegante que DelegacionDemoSeeder siembra
     /// para el Administrador inicial (ver esa clase en
     /// CaeManager.Infrastructure.Persistence.Seed) — duplicado aquí en vez de
@@ -249,6 +262,22 @@ public static class Ayudas
         var idLista = await combobox.GetAttributeAsync("aria-controls");
         await combobox.ClickAsync();
         await page.Locator($"[id='{idLista}'] [role=option][data-valor='{valor}']").ClickAsync();
+    }
+
+    /// <summary>
+    /// Igual que <see cref="ElegirOpcionEnSelectorAvanzadoAsync"/>, pero por el texto visible: abre el combobox, escribe el
+    /// texto en su buscador (si lo tiene) para filtrar la lista y pulsa la opción cuyo texto es exactamente ese.
+    /// </summary>
+    public static async Task ElegirOpcionEnSelectorAvanzadoPorTextoAsync(IPage page, ILocator combobox, string texto)
+    {
+        var idLista = await combobox.GetAttributeAsync("aria-controls");
+        await combobox.ClickAsync();
+        // Se espera a que el panel esté pintado antes de mirar si tiene buscador: contar en seco tras el clic
+        // saltaría el filtrado si el circuito aún no ha respondido.
+        await page.Locator($"[id='{idLista}']").WaitForAsync();
+        var buscador = page.Locator($"input.csa-buscador[aria-controls='{idLista}']");
+        if (await buscador.CountAsync() > 0) await buscador.FillAsync(texto);
+        await page.Locator($"[id='{idLista}']").GetByRole(AriaRole.Option, new() { Name = texto, Exact = true }).ClickAsync();
     }
 
     public static ILocator DisparadorSelectorTenant(IPage page) => page.Locator(".selector-tenant-disparador");
@@ -897,22 +926,27 @@ public static class Ayudas
                 $"Ninguna fixture sirve la URL base «{baseUrl}»: no se puede olvidar la vista recordada de la cuenta antes de entrar.");
         await fixture.OlvidarVistasRecordadasAsync(email);
 
-        await page.GotoAsync($"{baseUrl}/cuenta/iniciar-sesion");
-        await page.FillAsync("#email", email);
-        await page.FillAsync("#password", password);
-        await page.ClickAsync("button[type=\"submit\"]");
-        await EsperarCargaAsync(page, LoadState.NetworkIdle);
-
-        // Solo el Administrador inicial tiene 2FA activo hoy (P1-13 de
-        // Project-Hydra-Negocio/MATURITY_REVIEW.md) — el resto de cuentas de prueba
-        // pasan de largo por esta rama y siguen directas al dashboard.
-        if (page.Url.Contains("/cuenta/verificar-2fa"))
+        // La traza de un test fallido no graba el formulario de acceso ni lo que se teclea en él (ver TrazaAlFallar):
+        // todo lo que toca el formulario va dentro del delegado (lo comprueba GrabacionDeTrazaTests en CaeManager.Web.Tests).
+        await TrazaAlFallar.IniciarSesionSinGrabarAsync(page.Context, async () =>
         {
-            await page.FillAsync("#codigo", await SiguienteCodigoTotpAsync(baseUrl, email));
+            await page.GotoAsync($"{baseUrl}/cuenta/iniciar-sesion");
+            await page.FillAsync("#email", email);
+            await page.FillAsync("#password", password);
             await page.ClickAsync("button[type=\"submit\"]");
-        }
+            await EsperarCargaAsync(page, LoadState.NetworkIdle);
 
-        await page.Locator(".nav-principal").WaitForAsync(new LocatorWaitForOptions { Timeout = 30_000 });
+            // Solo el Administrador inicial tiene 2FA activo hoy (P1-13 de
+            // Project-Hydra-Negocio/MATURITY_REVIEW.md) — el resto de cuentas de prueba
+            // pasan de largo por esta rama y siguen directas al dashboard.
+            if (page.Url.Contains("/cuenta/verificar-2fa"))
+            {
+                await page.FillAsync("#codigo", await SiguienteCodigoTotpAsync(baseUrl, email));
+                await page.ClickAsync("button[type=\"submit\"]");
+            }
+
+            await page.Locator(".nav-principal").WaitForAsync(new LocatorWaitForOptions { Timeout = 30_000 });
+        });
     }
 
     /// <summary>

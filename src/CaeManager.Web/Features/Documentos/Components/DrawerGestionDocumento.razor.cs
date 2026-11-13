@@ -73,6 +73,16 @@ public partial class DrawerGestionDocumento : ComponentBase
     private string _fechaEmision = string.Empty;
     private DateOnly? _fechaEmisionOriginal;
     private string _fechaVencimientoManual = string.Empty;
+
+    /// <summary>
+    /// El vencimiento manual tiene un texto que no es una fecha entera: entonces entrega «», y «» aquí se guardaría como
+    /// «sin vencimiento» (o lo borraría al renovar). Guardar se bloquea mientras sea true; el campo recién creado vuelve a
+    /// avisar su estado, así que no queda una marca obsoleta si se destruye (otro tipo de documento) y se vuelve a crear.
+    /// </summary>
+    private bool _vencimientoManualNoValido;
+
+    /// <summary>La fecha de emisión tiene un texto que no es una fecha entera (ver BloquearGuardadoSiVencimientoNoValido).</summary>
+    private bool _emisionNoValida;
     private bool _noCaduca;
     private string? _glosarioDescripcion;
     private string? _glosarioCriteriosValidacion;
@@ -109,6 +119,33 @@ public partial class DrawerGestionDocumento : ComponentBase
     /// del 21-10: el documento quedaba sin archivo y contaba como al día).
     /// </summary>
     private bool _archivoNoAdjuntado;
+
+    /// <summary>
+    /// Los archivos de la última subida que sí se adjuntó (nombre y tamaño de lo que eligió el
+    /// Gestor CAE; varios se combinaron en un PDF). Solo se enseñan mientras
+    /// <see cref="_archivoUrlSubidoSinAdoptar"/> apunte a esa subida.
+    /// </summary>
+    private IReadOnlyList<ArchivoAdjuntoVista> _archivosElegidos = [];
+
+    /// <summary>
+    /// Lo que la zona de subida enseña como adjunto: null (zona vacía) si no hay archivo o el
+    /// último elegido no se adjuntó; la lista de lo subido en esta sesión del formulario; o, al
+    /// editar sin elegir otro, el archivo que el Documento ya tenía.
+    /// </summary>
+    private IReadOnlyList<ArchivoAdjuntoVista>? ArchivosAdjuntosVista
+    {
+        get
+        {
+            if (_archivoUrl is null || _archivoNoAdjuntado) return null;
+            if (_archivoUrlSubidoSinAdoptar is not null && _archivosElegidos.Count > 0) return _archivosElegidos;
+            return [new ArchivoAdjuntoVista(TextosDrawerGestionDocumento.Texto("ArchivoActualDelDocumento"), null, "PDF")];
+        }
+    }
+
+    private string? AvisoCombinacionArchivos =>
+        _archivoUrlSubidoSinAdoptar is not null && _archivosElegidos.Count > 1 && ArchivosAdjuntosVista is not null
+            ? string.Format(System.Globalization.CultureInfo.CurrentCulture, TextosDrawerGestionDocumento.Texto("ArchivosCombinados"), _archivosElegidos.Count)
+            : null;
 
     private bool _subiendoArchivo;
     private bool _detectandoCampos;
@@ -194,10 +231,12 @@ public partial class DrawerGestionDocumento : ComponentBase
         _fechaEmision = DiaDeNegocio.Hoy().ToString("yyyy-MM-dd");
         _fechaEmisionOriginal = null;
         _fechaVencimientoManual = string.Empty;
+        _vencimientoManualNoValido = false; _emisionNoValida = false;
         _noCaduca = false;
         _archivoUrl = null;
         _archivoUrlDelDocumento = null;
         _archivoNoAdjuntado = false;
+        _archivosElegidos = [];
         _comentarios = string.Empty;
         _glosarioDescripcion = null;
         _glosarioCriteriosValidacion = null;
@@ -422,12 +461,14 @@ public partial class DrawerGestionDocumento : ComponentBase
         _fechaEmision = documento.FechaEmision.ToString("yyyy-MM-dd");
         _fechaEmisionOriginal = documento.FechaEmision;
         _fechaVencimientoManual = documento.FechaVencimiento?.ToString("yyyy-MM-dd") ?? string.Empty;
+        _vencimientoManualNoValido = false; _emisionNoValida = false;
         // Renovar sin tocar la vigencia no puede perder la confirmación de
         // «no caduca»: se precarga y viaja de vuelta en el comando.
         _noCaduca = documento.EstadoVigencia == EstadoVigenciaDocumento.NoCaduca;
         _archivoUrl = documento.ArchivoUrl;
         _archivoUrlDelDocumento = documento.ArchivoUrl;
         _archivoNoAdjuntado = false;
+        _archivosElegidos = [];
         _comentarios = documento.Comentarios ?? string.Empty;
         _glosarioDescripcion = documento.TipoDocumentoDescripcion;
         _glosarioCriteriosValidacion = documento.TipoDocumentoCriteriosValidacion;
@@ -476,6 +517,14 @@ public partial class DrawerGestionDocumento : ComponentBase
         _glosarioCriteriosValidacion = tipo?.CriteriosValidacion;
         _glosarioSeSolicitaA = tipo?.SeSolicitaA;
         _glosarioObservaciones = tipo?.Observaciones;
+
+        // Con un tipo de vencimiento automático el campo de vencimiento ya no existe, pero su marca se conserva: si se vuelve
+        // a un tipo manual, el campo recreado nace con ella y su aviso (CampoFecha.NoValido), en vez de nacer vacío y sin
+        // marca y dejar guardar el Documento sin el vencimiento que se estaba escribiendo. La guarda de Guardar solo la
+        // aplica con un tipo que use el campo. El aviso del formulario sí se quita si ya no queda ninguna fecha a la vista
+        // que corregir. La emisión no se toca: su campo sigue ahí.
+        if (!RequiereVencimientoManual && !_emisionNoValida && _mensajeErrorFormulario == Comunes["CampoFechaCorregirAntes"])
+            _mensajeErrorFormulario = null;
     }
 
     /// <summary>
@@ -484,11 +533,15 @@ public partial class DrawerGestionDocumento : ComponentBase
     /// drawer cerrado (también tras guardar) nunca hay nada que perder. Subir un archivo
     /// cambia _archivoUrl, así que también cuenta; y mientras la subida está en curso
     /// (lectura, conversión, almacenamiento) _archivoUrl aún no ha cambiado, así que la
-    /// subida en curso cuenta por sí misma.
+    /// subida en curso cuenta por sí misma. Un vencimiento a medias no cambia el valor del formulario («»), pero es
+    /// texto que se pierde al salir.
     /// </summary>
     private bool HayCambiosSinGuardar =>
         _drawerVisible
-        && (_subiendoArchivo || (_instantaneaAlAbrir is not null && InstantaneaFormulario() != _instantaneaAlAbrir));
+        && (_subiendoArchivo
+            || (_vencimientoManualNoValido && RequiereVencimientoManual)
+            || _emisionNoValida
+            || (_instantaneaAlAbrir is not null && InstantaneaFormulario() != _instantaneaAlAbrir));
 
     private string InstantaneaFormulario() => string.Join('\u001f',
         _ambitoAplicacion, _trabajadorId, _clienteId, _empresaId, _vehiculoId, _proyectoId,
@@ -694,6 +747,7 @@ public partial class DrawerGestionDocumento : ComponentBase
             using var flujoPdf = new MemoryStream(pdfUnificado);
             _archivoUrl = await AlmacenamientoArchivos.GuardarAsync(flujoPdf, "documento.pdf");
             _archivoUrlSubidoSinAdoptar = _archivoUrl;
+            _archivosElegidos = archivos.Select(archivo => new ArchivoAdjuntoVista(archivo.Name, archivo.Size)).ToList();
             QuitarBloqueoArchivoNoAdjuntado();
             if (_editandoId is not null)
             {
@@ -844,6 +898,7 @@ public partial class DrawerGestionDocumento : ComponentBase
         _seguirTrasGuardar = seguir;
 
         if (BloquearGuardadoSiArchivoNoAdjuntado()) return;
+        if (BloquearGuardadoSiVencimientoNoValido()) return;
 
         if (_editandoId is not null
             && _fechaEmisionOriginal is not null
@@ -939,12 +994,58 @@ public partial class DrawerGestionDocumento : ComponentBase
         // va a adoptar ya: si no se borra aquí, guardar lo dejaría huérfano.
         await DescartarArchivoSinAdoptarAsync();
         _archivoUrl = _archivoUrlDelDocumento;
+        _archivosElegidos = [];
         QuitarBloqueoArchivoNoAdjuntado();
+    }
+
+    /// <summary>
+    /// «Quitar» de la zona de subida: mismo efecto que «seguir sin archivo» tras un fallo, pero
+    /// pedido a propósito sobre un archivo que sí se adjuntó. Con un guardado o una subida en
+    /// curso no se toca nada (la zona ya los deshabilita).
+    /// </summary>
+    private async Task QuitarArchivoAdjuntoAsync()
+    {
+        if (_guardando || _subiendoArchivo) return;
+        await DescartarArchivoNoAdjuntadoAsync();
+    }
+
+    /// <summary>
+    /// Un vencimiento a medias o ilegible llega como «»: guardarlo crearía el Documento sin vencimiento (o borraría el que
+    /// tenía al renovar) sin que nadie lo decidiera. Solo cuenta si el tipo pide el vencimiento a mano, que es cuando el
+    /// campo existe.
+    /// </summary>
+    /// <remarks>
+    /// La emisión a medias también: ya llega como «» (Guardar la rechazaría y el vencimiento automático no se calcula de la
+    /// emisión anterior), y la marca da el aviso de corregirla antes de llegar ahí.
+    /// </remarks>
+    private bool BloquearGuardadoSiVencimientoNoValido()
+    {
+        if (!_emisionNoValida && (!_vencimientoManualNoValido || !RequiereVencimientoManual)) return false;
+
+        _erroresCampo = new Dictionary<string, string>();
+        _mensajeErrorFormulario = Comunes["CampoFechaCorregirAntes"];
+        return true;
+    }
+
+    // Al volver a ser una fecha entera (o quedar vacía), el aviso de un envío anterior ya no es cierto.
+    private void AlCambiarEmisionNoValida(bool noValida)
+    {
+        _emisionNoValida = noValida;
+        if (!noValida && (!_vencimientoManualNoValido || !RequiereVencimientoManual) && _mensajeErrorFormulario == Comunes["CampoFechaCorregirAntes"])
+            _mensajeErrorFormulario = null;
+    }
+
+    private void AlCambiarVencimientoManualNoValido(bool noValido)
+    {
+        _vencimientoManualNoValido = noValido;
+        if (!noValido && !_emisionNoValida && _mensajeErrorFormulario == Comunes["CampoFechaCorregirAntes"])
+            _mensajeErrorFormulario = null;
     }
 
     private async Task GuardarInternoAsync()
     {
         if (BloquearGuardadoSiArchivoNoAdjuntado()) return;
+        if (BloquearGuardadoSiVencimientoNoValido()) return;
 
         _guardando = true;
         _mensajeErrorFormulario = null;

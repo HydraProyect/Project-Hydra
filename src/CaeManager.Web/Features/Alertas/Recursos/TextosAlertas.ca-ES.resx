@@ -16,43 +16,43 @@
     <value>Alertas</value>
   </data>
   <data name="Kicker" xml:space="preserve">
-    <value>Reclamación</value>
+    <value>Reclamació</value>
   </data>
   <data name="DescripcionPagina" xml:space="preserve">
-    <value>La documentación de tus trabajadores que hay que reclamar o subir — incluida la que todavía no es urgente — para que puedas anticiparte antes del vencimiento en vez de esperar a que se vuelva crítica.</value>
+    <value>La documentació dels teus Treballadors que cal reclamar o pujar, inclosa la que encara no és urgent, perquè et puguis anticipar abans del venciment en lloc d'esperar que es torni crítica.</value>
   </data>
   <data name="ProcedenciaTitulo" xml:space="preserve">
-    <value>¿De dónde sale esta lista?</value>
+    <value>D'on surt aquesta llista?</value>
   </data>
   <data name="ProcedenciaLista" xml:space="preserve">
-    <value>Lista calculada en cada carga a partir del vencimiento de cada documento y de los documentos que se piden en cada centro: los que ese centro tiene configurados o, si el centro no dice nada de un tipo, los tipos de documento que se piden siempre. Nadie la escribe a mano.</value>
+    <value>Llista calculada a cada càrrega a partir del venciment de cada document i dels documents que es demanen a cada centre: els que aquell centre té configurats o, si el centre no diu res d'un tipus, els tipus de document que es demanen sempre. Ningú no l'escriu a mà.</value>
   </data>
   <data name="EnlaceColaTrabajo" xml:space="preserve">
-    <value>Ver tu cola de trabajo en Mi trabajo →</value>
+    <value>Veure la teva cua de feina a La meva feina →</value>
   </data>
   <data name="SeccionReclamarTitulo" xml:space="preserve">
-    <value>Reclamar por tipo de documento y ámbito</value>
+    <value>Reclamar per tipus de document i àmbit</value>
   </data>
   <data name="BotonElegirOtroFiltro" xml:space="preserve">
-    <value>← Elegir otro filtro</value>
+    <value>← Triar un altre filtre</value>
   </data>
   <data name="ErrorLoteTitulo" xml:space="preserve">
-    <value>No pudimos cargar el lote</value>
+    <value>No hem pogut carregar el lot</value>
   </data>
   <data name="ErrorCargaDetalle" xml:space="preserve">
-    <value>Intenta nuevamente en unos segundos.</value>
+    <value>Torna-ho a provar d'aquí a uns segons.</value>
   </data>
   <data name="LoteVacioTitulo" xml:space="preserve">
-    <value>Nada que reclamar con ese filtro</value>
+    <value>Res per reclamar amb aquest filtre</value>
   </data>
   <data name="LoteVacioDetalle" xml:space="preserve">
-    <value>Prueba con otro tipo de documento o selecciona otra Empresa o Trabajador.</value>
+    <value>Prova amb un altre tipus de document o selecciona una altra Empresa o Treballador.</value>
   </data>
   <data name="LoteNuncaReclamado" xml:space="preserve">
-    <value>Nunca reclamado.</value>
+    <value>Mai reclamat.</value>
   </data>
   <data name="LoteUltimaReclamacion" xml:space="preserve">
-    <value>Última reclamación: {0}.</value>
+    <value>Última reclamació: {0}.</value>
   </data>
   <data name="HaceTiempoHoy" xml:space="preserve">
     <value>hoy</value>
@@ -64,19 +64,19 @@
     <value>hace {0} días</value>
   </data>
   <data name="EnlaceVerEnComunicaciones" xml:space="preserve">
-    <value>Ver en Comunicaciones</value>
+    <value>Veure a Comunicacions</value>
   </data>
   <data name="BotonEnviarReclamacionConCuenta" xml:space="preserve">
-    <value>Enviar reclamación ({0})</value>
+    <value>Enviar reclamació ({0})</value>
   </data>
   <data name="LoteSinContactos" xml:space="preserve">
-    <value>No hay ningún contacto en la agenda al que reclamar esta documentación.</value>
+    <value>No hi ha cap contacte a l'agenda al qual reclamar aquesta documentació.</value>
   </data>
   <data name="BotonAnadirContacto" xml:space="preserve">
-    <value>Añadir contacto</value>
+    <value>Afegir contacte</value>
   </data>
   <data name="DestinatariosLeyenda" xml:space="preserve">
-    <value>Se solicita a</value>
+    <value>Es sol·licita a</value>
   </data>
   <data name="ColumnaTrabajador" xml:space="preserve">
     <value>Treballador / Empresa</value>
@@ -85,13 +85,13 @@
     <value>Documento</value>
   </data>
   <data name="ColumnaVencimiento" xml:space="preserve">
-    <value>Vencimiento</value>
+    <value>Venciment</value>
   </data>
   <data name="ColumnaEstado" xml:space="preserve">
     <value>Estado</value>
   </data>
   <data name="ColumnaTipoDocumento" xml:space="preserve">
-    <value>Tipo de documento</value>
+    <value>Tipus de document</value>
   </data>
   <data name="ColumnaSeveridad" xml:space="preserve">
     <value>Severidad</value>
@@ -103,16 +103,16 @@
     <value>Archivo</value>
   </data>
   <data name="CasillaIncluirDocumento" xml:space="preserve">
-    <value>Incluir {0} en la reclamación</value>
+    <value>Incloure {0} a la reclamació</value>
   </data>
   <data name="ConfirmacionEnvioTitulo" xml:space="preserve">
-    <value>¿Enviar la reclamación a {0}?</value>
+    <value>Vols enviar la reclamació a {0}?</value>
   </data>
   <data name="ConfirmacionEnvioMensaje" xml:space="preserve">
-    <value>Se reclamarán {0} documento(s) a {1} contacto(s) de la agenda: {2}.</value>
+    <value>Es reclamaran {0} document(s) a {1} contacte(s) de l'agenda: {2}.</value>
   </data>
   <data name="BotonEnviarReclamacion" xml:space="preserve">
-    <value>Enviar reclamación</value>
+    <value>Enviar reclamació</value>
   </data>
   <data name="FiltroEstadoEtiqueta" xml:space="preserve">
     <value>Estado</value>
@@ -145,13 +145,13 @@
     <value>No s'han pogut carregar les alertes.</value>
   </data>
   <data name="VacioFiltroTitulo" xml:space="preserve">
-    <value>Ninguna alerta con este estado</value>
+    <value>Cap alerta amb aquest estat</value>
   </data>
   <data name="VacioFiltroDetalle" xml:space="preserve">
-    <value>Hay {0} documento(s) que reclamar en otros estados.</value>
+    <value>Hi ha {0} document(s) per reclamar en altres estats.</value>
   </data>
   <data name="BotonQuitarFiltro" xml:space="preserve">
-    <value>Quitar el filtro</value>
+    <value>Treure el filtre</value>
   </data>
   <data name="VacioTitulo" xml:space="preserve">
     <value>Cap alerta</value>
@@ -169,40 +169,40 @@
     <value>Gestionar</value>
   </data>
   <data name="BotonSubirDocumento" xml:space="preserve">
-    <value>Subir documento</value>
+    <value>Pujar document</value>
   </data>
   <data name="EtiquetaPaginador" xml:space="preserve">
     <value>alerta(s)</value>
   </data>
   <data name="SeveridadVencidoDescripcion" xml:space="preserve">
-    <value>El documento existe, pero su vigencia ya terminó.</value>
+    <value>El document existeix, però la seva vigència ja ha acabat.</value>
   </data>
   <data name="SeveridadFaltanteDescripcion" xml:space="preserve">
-    <value>Se pide en un centro al que está asignado —porque ese centro lo tiene configurado o, si el centro no dice nada, porque el tipo de documento se pide siempre— y no hay ningún documento de ese tipo.</value>
+    <value>Es demana en un centre al qual està assignat —perquè aquell centre ho té configurat o, si el centre no diu res, perquè el tipus de document es demana sempre— i no hi ha cap document d'aquest tipus.</value>
   </data>
   <data name="SeveridadUrgenteDescripcion" xml:space="preserve">
-    <value>Vence dentro del umbral corto de aviso.</value>
+    <value>Venç dins del llindar curt d'avís.</value>
   </data>
   <data name="SeveridadProximoDescripcion" xml:space="preserve">
-    <value>Vence dentro del umbral largo de aviso: hay margen para anticiparse.</value>
+    <value>Venç dins del llindar llarg d'avís: hi ha marge per anticipar-s'hi.</value>
   </data>
   <data name="InsigniaSeveridadTitulo" xml:space="preserve">
-    <value>{0} alerta(s) en severidad {1}</value>
+    <value>{0} alerta(s) amb severitat {1}</value>
   </data>
   <data name="InsigniaMotivoTitulo" xml:space="preserve">
-    <value>Peor severidad del bloque: {0}</value>
+    <value>Pitjor severitat del bloc: {0}</value>
   </data>
   <data name="MetaGrupoTotal" xml:space="preserve">
     <value>{0} alerta(s)</value>
   </data>
   <data name="MetaGrupoEnPagina" xml:space="preserve">
-    <value>{0} · {1} en esta página</value>
+    <value>{0} · {1} en aquesta pàgina</value>
   </data>
   <data name="ToastReclamacionEnviada" xml:space="preserve">
-    <value>Reclamación enviada a {0}: {1} documento(s) a {2} contacto(s).</value>
+    <value>Reclamació enviada a {0}: {1} document(s) a {2} contacte(s).</value>
   </data>
   <data name="ToastErrorEnvio" xml:space="preserve">
-    <value>No pudimos enviar la reclamación. Inténtalo de nuevo.</value>
+    <value>No hem pogut enviar la reclamació. Torna-ho a provar.</value>
   </data>
   <data name="LoteDestinoDelegacionEmpresa" xml:space="preserve">
     <value>Es reclama a la Delegació {0}, al seu contacte de reclamació.</value>
@@ -212,5 +212,35 @@
   </data>
   <data name="LoteDelegacionEmpresaSinContactoVisible" xml:space="preserve">
     <value>No pots veure el contacte de reclamació d'aquesta Delegació, així que no li pots enviar la reclamació.</value>
+  </data>
+  <data name="FaltanTitulo" xml:space="preserve">
+    <value>Falten documents</value>
+  </data>
+  <data name="FaltanCentros" xml:space="preserve">
+    <value>{0} Centres</value>
+  </data>
+  <data name="FaltanCentrosUno" xml:space="preserve">
+    <value>1 Centre</value>
+  </data>
+  <data name="FaltanNota" xml:space="preserve">
+    <value>Documents que haurien d'existir en un Centre i no existeixen: mai no es van pujar, així que no són una fila del llistat de Documents. Cada targeta és un Centre i un tipus de Document; cada Treballador llistat té una Assignació activa a aquest Centre i no el té.</value>
+  </data>
+  <data name="FaltanTituloGrupo" xml:space="preserve">
+    <value>{0} · {1}</value>
+  </data>
+  <data name="FaltanRecuento" xml:space="preserve">
+    <value>{0} Treballadors amb Assignació activa a aquest Centre no tenen aquest Document.</value>
+  </data>
+  <data name="FaltanRecuentoUno" xml:space="preserve">
+    <value>1 Treballador amb Assignació activa a aquest Centre no té aquest Document.</value>
+  </data>
+  <data name="FaltanCrearDocumento" xml:space="preserve">
+    <value>Crear document</value>
+  </data>
+  <data name="FaltanCrearDocumentoAria" xml:space="preserve">
+    <value>Crear document: {0} de {1}</value>
+  </data>
+  <data name="FaltanErrorTitulo" xml:space="preserve">
+    <value>No s'han pogut carregar els documents que falten.</value>
   </data>
 </root>

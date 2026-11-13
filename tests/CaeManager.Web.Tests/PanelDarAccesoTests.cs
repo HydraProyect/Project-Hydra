@@ -128,7 +128,7 @@ public class PanelDarAccesoTests : BunitContext
         _mediador.Enviadas.OfType<ObtenerDestinatariosDeApoyoQuery>().Should().ContainSingle()
             .Which.AsignacionOperacionId.Should().Be(mia.AsignacionOperacionId);
         cut.FindAll("select option").Select(o => o.TextContent).Should().Equal("Elige un Gestor CAE", "Lucía", "Pau");
-        cut.FindAll("input[type=date]").Should().ContainSingle("la fecha de fin es opcional (D-5)")
+        cut.FindAll("input[data-campo-fecha]").Should().ContainSingle("la fecha de fin es opcional (D-5)")
             .Which.GetAttribute("value").Should().BeNullOrEmpty("sin fecha, el apoyo no caduca");
         cut.FindAll("select").Should().ContainSingle("solo se elige a quién: el rol no es parámetro de quien propone");
 
@@ -225,7 +225,7 @@ public class PanelDarAccesoTests : BunitContext
         await cut.InvokeAsync(() => cut.Find("[data-dar-acceso-operacion] > button").Click());
 
         cut.Find("select").Change(lucia.UsuarioId.ToString());
-        await cut.Find("input[type=date]").InputAsync(new Microsoft.AspNetCore.Components.ChangeEventArgs { Value = ultimoDia.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture) });
+        await cut.Find("input[data-campo-fecha]").InputAsync(new Microsoft.AspNetCore.Components.ChangeEventArgs { Value = ultimoDia.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture) });
         await cut.InvokeAsync(() => Boton(cut, "Proponer").Click());
 
         _mediador.Enviadas.OfType<ProponerApoyoCarteraCommand>().Should().ContainSingle()
@@ -242,11 +242,139 @@ public class PanelDarAccesoTests : BunitContext
         await cut.InvokeAsync(() => cut.Find("[data-dar-acceso-operacion] > button").Click());
 
         cut.Find("select").Change(lucia.UsuarioId.ToString());
-        await cut.Find("input[type=date]").InputAsync(new Microsoft.AspNetCore.Components.ChangeEventArgs { Value = DiaDeNegocio.Hoy().AddDays(-1).ToString("yyyy-MM-dd", CultureInfo.InvariantCulture) });
+        await cut.Find("input[data-campo-fecha]").InputAsync(new Microsoft.AspNetCore.Components.ChangeEventArgs { Value = DiaDeNegocio.Hoy().AddDays(-1).ToString("yyyy-MM-dd", CultureInfo.InvariantCulture) });
         await cut.InvokeAsync(() => Boton(cut, "Proponer").Click());
 
         _mediador.Enviadas.OfType<ProponerApoyoCarteraCommand>().Should().BeEmpty();
         cut.FindComponent<DrawerFormulario>().Instance.MensajeError.Should().Be("La fecha de fin del apoyo no puede ser anterior a hoy.");
+    }
+
+    // Un texto que no es fecha llega como «», que aquí es «sin último día». Proponer así
+    // concedería un acceso sin caducidad a quien quiso ponerle una: no se envía mientras el campo lo señale.
+    [Theory]
+    [InlineData("15/03")]
+    [InlineData("31/02/2030")]
+    [InlineData("10/1/2030")] // ya no se completa a 10/01/2030
+    [InlineData("mañana")] // la máscara lo deja en «», pero no es «sin fin»
+    public async Task Proponer_con_un_ultimo_dia_que_no_es_fecha_no_envia_un_acceso_sin_fin(string tecleado)
+    {
+        var lucia = new DestinatarioDeApoyoDto(Guid.NewGuid(), "Lucía");
+        _mediador.Operaciones = [Operacion("Empresa Mía", Yo)];
+        _mediador.Destinatarios = [lucia];
+        var cut = Render<PanelDarAcceso>();
+        await cut.InvokeAsync(() => cut.Find("[data-dar-acceso-operacion] > button").Click());
+
+        cut.Find("select").Change(lucia.UsuarioId.ToString());
+        await cut.Find("input[data-campo-fecha]").InputAsync(new Microsoft.AspNetCore.Components.ChangeEventArgs { Value = tecleado });
+        await cut.Find("input[data-campo-fecha]").BlurAsync(new Microsoft.AspNetCore.Components.Web.FocusEventArgs());
+        await cut.InvokeAsync(() => Boton(cut, "Proponer").Click());
+
+        _mediador.Enviadas.OfType<ProponerApoyoCarteraCommand>().Should().BeEmpty();
+        cut.FindComponent<DrawerFormulario>().Instance.MensajeError.Should().StartWith("El último día no es una fecha");
+
+        // Control: al corregirlo a una fecha entera, la propuesta sale con ese día.
+        var ultimoDia = DiaDeNegocio.Hoy().AddDays(10);
+        await cut.Find("input[data-campo-fecha]").InputAsync(new Microsoft.AspNetCore.Components.ChangeEventArgs { Value = ultimoDia.ToString("dd/MM/yyyy", CultureInfo.InvariantCulture) });
+        await cut.InvokeAsync(() => Boton(cut, "Proponer").Click());
+        _mediador.Enviadas.OfType<ProponerApoyoCarteraCommand>().Should().ContainSingle()
+            .Which.UltimoDia.Should().Be(ultimoDia);
+    }
+
+    // Con un último día ya puesto, pegar «mañana» encima lo vaciaba (la máscara no deja
+    // letras) y Proponer enviaba UltimoDia = null, un acceso sin fin. Ahora no se envía nada.
+    [Fact]
+    public async Task Pegar_texto_sin_cifras_sobre_el_ultimo_dia_no_propone_un_acceso_sin_fin()
+    {
+        var lucia = new DestinatarioDeApoyoDto(Guid.NewGuid(), "Lucía");
+        _mediador.Operaciones = [Operacion("Empresa Mía", Yo)];
+        _mediador.Destinatarios = [lucia];
+        var cut = Render<PanelDarAcceso>();
+        await cut.InvokeAsync(() => cut.Find("[data-dar-acceso-operacion] > button").Click());
+        cut.Find("select").Change(lucia.UsuarioId.ToString());
+        var ultimoDia = DiaDeNegocio.Hoy().AddDays(10);
+        await cut.Find("input[data-campo-fecha]").InputAsync(new Microsoft.AspNetCore.Components.ChangeEventArgs { Value = ultimoDia.ToString("dd/MM/yyyy", CultureInfo.InvariantCulture) });
+
+        await cut.Find("input[data-campo-fecha]").InputAsync(new Microsoft.AspNetCore.Components.ChangeEventArgs { Value = "mañana" });
+        await cut.InvokeAsync(() => Boton(cut, "Proponer").Click());
+
+        _mediador.Enviadas.OfType<ProponerApoyoCarteraCommand>().Should().BeEmpty("ni sin fin ni con el día anterior, que ya no está a la vista");
+        cut.FindComponent<DrawerFormulario>().Instance.MensajeError.Should().StartWith("El último día no es una fecha");
+    }
+
+    // El 31/12/9999 es una fecha entera para el campo, pero no hay un «último día» posterior que dé fin al acceso: no se
+    // propone (sería un acceso sin fin en la práctica) y el aviso es el del plazo máximo, no el de formato.
+    [Fact]
+    public async Task Proponer_con_el_ultimo_dia_representable_no_envia_nada_y_dice_el_limite()
+    {
+        var lucia = new DestinatarioDeApoyoDto(Guid.NewGuid(), "Lucía");
+        _mediador.Operaciones = [Operacion("Empresa Mía", Yo)];
+        _mediador.Destinatarios = [lucia];
+        var cut = Render<PanelDarAcceso>();
+        await cut.InvokeAsync(() => cut.Find("[data-dar-acceso-operacion] > button").Click());
+
+        cut.Find("select").Change(lucia.UsuarioId.ToString());
+        await cut.Find("input[data-campo-fecha]").InputAsync(new Microsoft.AspNetCore.Components.ChangeEventArgs { Value = "31/12/9999" });
+        await cut.Find("input[data-campo-fecha]").BlurAsync(new Microsoft.AspNetCore.Components.Web.FocusEventArgs());
+        await cut.InvokeAsync(() => Boton(cut, "Proponer").Click());
+
+        _mediador.Enviadas.OfType<ProponerApoyoCarteraCommand>().Should().BeEmpty();
+        cut.FindComponent<DrawerFormulario>().Instance.MensajeError.Should().StartWith("Elige un último día anterior al 31/12/9999");
+    }
+
+    // El aviso «no es una fecha» de un envío anterior deja de ser cierto cuando el campo vuelve a no tener texto a medias:
+    // borrar lo escrito no cambia el valor (sigue «»), así que solo el cambio de estado del campo puede retirarlo.
+    [Fact]
+    public async Task Al_borrar_el_texto_a_medias_se_retira_el_aviso_de_que_no_es_una_fecha()
+    {
+        var lucia = new DestinatarioDeApoyoDto(Guid.NewGuid(), "Lucía");
+        _mediador.Operaciones = [Operacion("Empresa Mía", Yo)];
+        _mediador.Destinatarios = [lucia];
+        var cut = Render<PanelDarAcceso>();
+        await cut.InvokeAsync(() => cut.Find("[data-dar-acceso-operacion] > button").Click());
+        cut.Find("select").Change(lucia.UsuarioId.ToString());
+        await cut.Find("input[data-campo-fecha]").InputAsync(new Microsoft.AspNetCore.Components.ChangeEventArgs { Value = "15/03" });
+        await cut.Find("input[data-campo-fecha]").BlurAsync(new Microsoft.AspNetCore.Components.Web.FocusEventArgs());
+        await cut.InvokeAsync(() => Boton(cut, "Proponer").Click());
+        cut.FindComponent<DrawerFormulario>().Instance.MensajeError.Should().StartWith("El último día no es una fecha", "control positivo: el aviso estaba");
+
+        await cut.Find("input[data-campo-fecha]").InputAsync(new Microsoft.AspNetCore.Components.ChangeEventArgs { Value = "" });
+
+        cut.FindComponent<DrawerFormulario>().Instance.MensajeError.Should().BeNull();
+    }
+
+    // El «min» que acotaba el selector nativo pasa al calendario de CampoFecha: los días anteriores a hoy no se eligen.
+    // El reloj va fijado (el del flujo para «Hoy» del panel y el inyectado para el mes que abre el calendario): con el reloj de
+    // pared el test dependía del día del mes, porque el día 1 «ayer» cae en el mes anterior y no está en la rejilla de «hoy».
+    // Los tres días cubren el caso corriente, el día 1 y el 1 de enero (el mes anterior es de otro año).
+    [Theory]
+    [InlineData("2030-03-15")]
+    [InlineData("2030-04-01")]
+    [InlineData("2030-01-01")]
+    public async Task El_calendario_no_deja_elegir_un_dia_anterior_a_hoy(string hoyIso)
+    {
+        var hoy = DateOnly.ParseExact(hoyIso, "yyyy-MM-dd", CultureInfo.InvariantCulture);
+        var reloj = new RelojDeUnDia(hoy);
+        using var _ = DiaDeNegocio.FijarRelojEnEsteFlujo(reloj);
+        Services.AddSingleton<TimeProvider>(reloj);
+        _mediador.Operaciones = [Operacion("Empresa Mía", Yo)];
+        _mediador.Destinatarios = [new DestinatarioDeApoyoDto(Guid.NewGuid(), "Lucía")];
+        var cut = Render<PanelDarAcceso>();
+        await cut.InvokeAsync(() => cut.Find("[data-dar-acceso-operacion] > button").Click());
+        cut.Find("input[data-campo-fecha]").HasAttribute("min").Should().BeFalse("en un input de texto «min» no hace nada");
+
+        await cut.Find("button[data-campo-fecha-boton]").ClickAsync(new Microsoft.AspNetCore.Components.Web.MouseEventArgs());
+        var ayer = hoy.AddDays(-1);
+
+        // «Hoy» está en el mes que abre el calendario; «ayer», en ese mismo mes o, el día 1, en el anterior (se navega a él).
+        cut.Find($".campo-fecha-dia[data-fecha='{hoy:yyyy-MM-dd}']").HasAttribute("aria-disabled").Should().BeFalse();
+        if (ayer.Month != hoy.Month) await cut.Find("button.campo-fecha-mes").ClickAsync(new Microsoft.AspNetCore.Components.Web.MouseEventArgs());
+
+        var diaAyer = cut.Find($".campo-fecha-dia[data-fecha='{ayer:yyyy-MM-dd}']");
+        diaAyer.GetAttribute("aria-disabled").Should().Be("true");
+        await diaAyer.ClickAsync(new Microsoft.AspNetCore.Components.Web.MouseEventArgs());
+
+        cut.FindAll("[role=dialog].campo-fecha-calendario").Should().ContainSingle("pulsar un día fuera de rango no elige nada");
+        cut.Find("input[data-campo-fecha]").GetAttribute("value").Should().BeNullOrEmpty();
     }
 
     [Fact]
@@ -597,6 +725,12 @@ public class PanelDarAccesoTests : BunitContext
         errores.Select(TextosApoyoCartera.ClaveDeError)
             .Where(clave => string.IsNullOrWhiteSpace(textos.GetString(clave)))
             .Should().BeEmpty();
+    }
+
+    /// <summary>Reloj parado a mediodía UTC de un día: en Madrid sigue siendo ese mismo día de negocio.</summary>
+    private sealed class RelojDeUnDia(DateOnly dia) : TimeProvider
+    {
+        public override DateTimeOffset GetUtcNow() => new(dia.ToDateTime(new TimeOnly(12, 0)), TimeSpan.Zero);
     }
 
     private sealed class UsuarioActualFalso(Guid id) : ICurrentUserService

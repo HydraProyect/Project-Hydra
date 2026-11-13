@@ -175,7 +175,8 @@ public record MedicionCuadroDireccion(
 /// <para>
 /// <b>Gestor CAE principal</b>: se lee del catálogo del Operador CAE de origen de quien mira, igual que la
 /// alerta «sin principal» (<c>ObtenerOperacionesSinPrincipalQuery</c>), y con su misma condición: solo lo
-/// ven Coordinador CAE, Dirección CAE y Administrador del Operador CAE (<see cref="PerfilQueAsume"/>).
+/// ven las sesiones de Coordinador CAE, Dirección CAE y Administrador del Operador CAE, por el rol efectivo
+/// en el Tenant de origen confirmado por Identity (<see cref="PerfilQueAsume"/>).
 /// Nunca se mide la actividad de una persona.
 /// </para>
 /// </summary>
@@ -258,11 +259,10 @@ public class ObtenerCuadroDireccionQueryHandler(
 
         using (AmbitoTenantExplicito.Establecer(origen.Value))
         {
-            // Falla cerrado sin rol de negocio en la sesión: Soporte TALVEG nunca es Operador CAE.
-            if (await currentUserService.ObtenerRolEfectivoAsync() is null)
-                return ninguno;
-
-            if (!await PerfilQueAsume.LoTieneAsync(actorId.Value, origen.Value, directorioUsuarios, cancellationToken))
+            // Rol efectivo de la sesión en origen, confirmado por Identity; sin rol de negocio
+            // falla cerrado: Soporte TALVEG nunca es Operador CAE.
+            if (!await PerfilQueAsume.LoTieneAsync(
+                    actorId.Value, origen.Value, currentUserService, directorioUsuarios, cancellationToken))
                 return ninguno;
 
             var principales = (await catalogo.ObtenerCarterasVivasAsync(origen.Value, null, cancellationToken))

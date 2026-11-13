@@ -103,6 +103,15 @@
   <data name="GlosaPlataformas" xml:space="preserve">
     <value>incidències a plataformes</value>
   </data>
+  <data name="GlosaTrabajadorUno" xml:space="preserve">
+    <value>treballador</value>
+  </data>
+  <data name="GlosaClienteUno" xml:space="preserve">
+    <value>Client</value>
+  </data>
+  <data name="GlosaPlataformasUna" xml:space="preserve">
+    <value>incidència a plataformes</value>
+  </data>
   <data name="EtiquetaFiltros" xml:space="preserve">
     <value>Filtra els treballadors per estat documental</value>
   </data>
@@ -117,6 +126,9 @@
   </data>
   <data name="ChipAlDia" xml:space="preserve">
     <value>Al dia · {0}</value>
+  </data>
+  <data name="ChipAlDiaConSinConfirmar" xml:space="preserve">
+    <value>Al dia · {0} (d'ells, {1} sense confirmar)</value>
   </data>
   <data name="ListaTrabajadores" xml:space="preserve">
     <value>Treballadors d'aquesta empresa</value>
@@ -206,10 +218,10 @@
     <value>Mostrant {0} de {1} · del pitjor estat al millor</value>
   </data>
   <data name="ToastLoteRestaurados" xml:space="preserve">
-    <value>{0} empresa(s) restaurada(s).</value>
+    <value>Empreses restaurades: {0}.</value>
   </data>
   <data name="ToastLoteRestauradosConErrores" xml:space="preserve">
-    <value>{0} restaurada(s). {1} no se pudieron restaurar: {2}</value>
+    <value>Restaurades: {0}. {1} no s'han pogut restaurar: {2}</value>
   </data>
   <data name="ToastAccionDeshacer" xml:space="preserve">
     <value>Deshacer</value>

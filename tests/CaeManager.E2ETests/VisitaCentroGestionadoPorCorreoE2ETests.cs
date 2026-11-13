@@ -34,6 +34,7 @@ public class VisitaCentroGestionadoPorCorreoE2ETests(WebAppFixture fixture)
         var correoCentro = $"acceso.{sufijo}@correo-simulado.local";
 
         await using var contexto = await fixture.Browser.NewContextAsync(new BrowserNewContextOptions { AcceptDownloads = true });
+        await using var traza = TrazaAlFallar.Armar(contexto);
         await contexto.GrantPermissionsAsync(["clipboard-read", "clipboard-write"]);
         var page = await contexto.NewPageAsync();
 
@@ -99,9 +100,10 @@ public class VisitaCentroGestionadoPorCorreoE2ETests(WebAppFixture fixture)
         await page.GetByRole(AriaRole.Button, new PageGetByRoleOptions { Name = "Selección múltiple", Exact = true }).ClickAsync();
         await filaTrabajador.Locator("input[type=\"checkbox\"]").CheckAsync();
         await page.Locator(".barra-acciones-lote").GetByRole(AriaRole.Button, new() { Name = "Asignar a un centro", Exact = true }).ClickAsync();
-        await page.Locator(".modal-cuerpo").GetByLabel("Centro", new LocatorGetByLabelOptions { Exact = true })
-            .FillAsync($"{nombreCentro} ({razonSocialCliente})");
-        // El aviso confirma que terminó el debounce del selector y la consulta de faltantes.
+        await Ayudas.ElegirOpcionEnSelectorAvanzadoPorTextoAsync(page,
+            page.Locator(".modal-cuerpo").GetByLabel("Centro", new LocatorGetByLabelOptions { Exact = true }),
+            $"{nombreCentro} ({razonSocialCliente})");
+        // El aviso confirma que terminó la consulta de faltantes del Centro elegido.
         await Expect(page.Locator(".alerta-preflight-asignacion"))
             .ToContainTextAsync($"{nombreTrabajador} {apellidosTrabajador}", new LocatorAssertionsToContainTextOptions { Timeout = 15_000 });
         await page.Locator(".modal-pie").GetByRole(AriaRole.Button, new() { NameRegex = new System.Text.RegularExpressions.Regex("^Asignar") }).ClickAsync();
@@ -161,8 +163,8 @@ public class VisitaCentroGestionadoPorCorreoE2ETests(WebAppFixture fixture)
         await drawer.WaitForAsync(new LocatorWaitForOptions { Timeout = 15_000 });
 
         var hoy = Ayudas.HoyDeNegocio();
-        await drawer.GetByLabel("Fecha de emisión", new LocatorGetByLabelOptions { Exact = true }).FillAsync(hoy.ToString("yyyy-MM-dd"));
-        await drawer.GetByLabel("Fecha de vencimiento").FillAsync(hoy.AddDays(180).ToString("yyyy-MM-dd"));
+        await Ayudas.RellenarFechaAsync(drawer.GetByLabel("Fecha de emisión", new LocatorGetByLabelOptions { Exact = true }), hoy);
+        await Ayudas.RellenarFechaAsync(drawer.GetByLabel("Fecha de vencimiento"), hoy.AddDays(180));
         var rutaPdf = Ayudas.GenerarPdfDePruebaEnDisco($"porcorreo-{sufijo}.pdf");
         try
         {
@@ -308,6 +310,7 @@ public class VisitaCentroGestionadoPorCorreoE2ETests(WebAppFixture fixture)
         await drawer.GetByRole(AriaRole.Tab, new LocatorGetByRoleOptions { Name = "Trabajadores", Exact = true }).ClickAsync();
         await Expect(filasTrabajador).ToHaveCountAsync(1);
         await Expect(listaTrabajadores).Not.ToContainTextAsync(apellidosTrabajador);
+        traza.Superada();
     }
 
     private static ILocatorAssertions Expect(ILocator locator) => Assertions.Expect(locator);

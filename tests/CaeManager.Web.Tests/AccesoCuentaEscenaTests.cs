@@ -7,7 +7,9 @@ using CaeManager.Application.Common;
 using CaeManager.Application.Seguridad.Incidentes;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Notificaciones;
+using CaeManager.Domain.Seguridad;
 using CaeManager.Infrastructure.Coordinacion;
+using CaeManager.Infrastructure.Email;
 using CaeManager.Infrastructure.Identity;
 using CaeManager.Infrastructure.Persistence;
 using CaeManager.Infrastructure.Seguridad;
@@ -15,6 +17,7 @@ using CaeManager.Web.Components.Account;
 using CaeManager.Web.Components.Account.Pages;
 using CaeManager.Web.Components.Layout;
 using CaeManager.Web.Services;
+using CaeManager.Web.Tests.Email;
 using FluentAssertions;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Components;
@@ -1505,6 +1508,93 @@ public class AccesoCuentaEscenaTests : BunitContext
         escena.Contexto.Guardadas.Should().ContainSingle();
     }
 
+    /// <summary>
+    /// El enlace de contraseña nueva lleva un token de restablecimiento: su base es
+    /// <c>Smtp:UrlBasePublica</c>, no el Host de la petición, que controla quien la envía
+    /// (OWASP ASVS 4.0.3 V2.5, V5.1.5).
+    /// </summary>
+    [Fact]
+    public async Task No_he_sido_yo_con_un_Host_forjado_manda_el_enlace_a_la_url_publica_configurada()
+    {
+        var escena = new EscenaNoHeSidoYo(this);
+
+        await escena.ConfirmarAsync();
+
+        var cuerpo = escena.Correos.Enviados.Single(c => c.Destinatario == escena.Usuario.Email).Cuerpo;
+        cuerpo.Should().Contain("https://cuentas.example/cuenta/restablecer-contrasena?userId=")
+            .And.NotContain(EscenaNoHeSidoYo.HostForjado);
+        escena.Correos.Enviados.Should().NotContain(c => c.Cuerpo.Contains(EscenaNoHeSidoYo.HostForjado));
+    }
+
+    /// <summary>
+    /// Fuera de Development, sin URL pública válida no hay enlace: nunca se recurre al Host de la
+    /// petición. La persona queda protegida, sin correo, y el fallo se registra.
+    /// </summary>
+    [Theory]
+    [InlineData(null)]
+    [InlineData("http://cuentas.example/")]
+    public async Task No_he_sido_yo_sin_url_publica_valida_fuera_de_Development_no_usa_el_Host_de_la_peticion(string? url)
+    {
+        var escena = new EscenaNoHeSidoYo(this, urlBasePublica: url);
+
+        var resultado = await escena.ConfirmarAsync();
+
+        resultado.Should().Be(ResultadoNoHeSidoYo.ProtegidaSinCorreo);
+        escena.Correos.Enviados.Should().NotContain(c => c.Destinatario == escena.Usuario.Email);
+        escena.Correos.Enviados.Should().NotContain(c => c.Cuerpo.Contains(EscenaNoHeSidoYo.HostForjado));
+        escena.Registro.Errores.Should().Contain(e => e.Contains("Smtp:UrlBasePublica"));
+    }
+
+    /// <summary>
+    /// El aviso de inicio de sesión inusual lleva el token de «No he sido yo»: su enlace sale de
+    /// <c>Smtp:UrlBasePublica</c> aunque la petición del inicio de sesión llegue con un Host forjado
+    /// (OWASP ASVS 4.0.3 V2.5, V5.1.5).
+    /// </summary>
+    [Fact]
+    public async Task El_aviso_de_inicio_inusual_con_un_Host_forjado_enlaza_a_la_url_publica_configurada()
+    {
+        var escena = new EscenaNoHeSidoYo(this);
+
+        await escena.AvisarInicioInusualAsync();
+
+        escena.Registro.Errores.Should().BeEmpty();
+        var aviso = escena.Correos.Enviados.Should().ContainSingle(c => c.Destinatario == escena.Usuario.Email).Subject;
+        aviso.Cuerpo.Should().Contain("https://cuentas.example/cuenta/no-he-sido-yo?userId=")
+            .And.NotContain(EscenaNoHeSidoYo.HostForjado);
+        escena.Correos.Enviados.Should().NotContain(c => c.Cuerpo.Contains(EscenaNoHeSidoYo.HostForjado));
+    }
+
+    /// <summary>Fuera de Development, sin URL pública válida el aviso a la persona no sale: nunca con el Host de la petición.</summary>
+    [Theory]
+    [InlineData(null)]
+    [InlineData("http://cuentas.example/")]
+    public async Task El_aviso_de_inicio_inusual_sin_url_publica_valida_fuera_de_Development_no_usa_el_Host_de_la_peticion(string? url)
+    {
+        var escena = new EscenaNoHeSidoYo(this, urlBasePublica: url);
+
+        await escena.AvisarInicioInusualAsync();
+
+        escena.Correos.Enviados.Should().NotContain(c => c.Destinatario == escena.Usuario.Email);
+        escena.Correos.Enviados.Should().NotContain(c => c.Cuerpo.Contains(EscenaNoHeSidoYo.HostForjado));
+        escena.Registro.Errores.Should().Contain(e => e.Contains("Smtp:UrlBasePublica"));
+    }
+
+    /// <summary>
+    /// Solo en Development y solo sin base configurada se usa la base de la petición (enlaces
+    /// locales); con base configurada, también en Development manda la configurada.
+    /// </summary>
+    [Theory]
+    [InlineData(null, "https://" + EscenaNoHeSidoYo.HostForjado + "/cuenta/no-he-sido-yo?userId=")]
+    [InlineData("http://localhost:5186/", "http://localhost:5186/cuenta/no-he-sido-yo?userId=")]
+    public async Task En_Development_el_aviso_usa_la_base_de_la_peticion_solo_sin_base_configurada(string? url, string enlaceEsperado)
+    {
+        var escena = new EscenaNoHeSidoYo(this, urlBasePublica: url, entorno: "Development");
+
+        await escena.AvisarInicioInusualAsync();
+
+        escena.Correos.Enviados.Single(c => c.Destinatario == escena.Usuario.Email).Cuerpo.Should().Contain(enlaceEsperado);
+    }
+
     /// <summary>Una cuenta solo de Microsoft no recibe enlace, pero tampoco lee que esté protegida.</summary>
     [Fact]
     public async Task No_he_sido_yo_sin_revocar_en_una_cuenta_solo_Microsoft_da_senal_y_aviso_sin_enlace()
@@ -1538,6 +1628,147 @@ public class AccesoCuentaEscenaTests : BunitContext
     }
 
     /// <summary>
+    /// ASVS 4.0.3 V7.1.1: si el envío del enlace de contraseña nueva devuelve un <see cref="Result"/> fallido cuyo
+    /// mensaje cita una dirección, el registro lleva el id de la cuenta y nada del mensaje ni de la dirección.
+    /// Recorre el servicio real y captura todas las entradas de cualquier nivel.
+    /// </summary>
+    [Fact]
+    public async Task No_he_sido_yo_si_el_envio_del_enlace_devuelve_un_fallo_el_registro_no_lleva_su_mensaje_ni_la_direccion()
+    {
+        const string Fuga = "fuga@ejemplo.test";
+        const string MensajeDelError = $"El SMTP rechazó el buzón {Fuga}: 550 usuario desconocido";
+        _sesiones.Lanza = true;
+        var registro = new RegistroQueCapturaTodo<VigilanciaInicioSesionService>();
+        var escena = new EscenaNoHeSidoYo(this, registroCompleto: registro);
+        escena.Correos.FallaPara = escena.Usuario.Email;
+        escena.Correos.MensajeDelFallo = MensajeDelError;
+
+        var resultado = await escena.ConfirmarAsync();
+
+        resultado.Should().Be(ResultadoNoHeSidoYo.SesionesSinCerrar);
+        registro.Entradas.Should().Contain(
+            e => e.Nivel == LogLevel.Warning && e.Contenido.Contains("No se pudo enviar el enlace de contraseña nueva"),
+            "el envío fallido deja su aviso");
+        registro.DebeEstarLimpioDeDatosPersonales(
+            Fuga, Fuga.ToUpperInvariant(), "fuga", MensajeDelError, "El SMTP rechazó", "usuario desconocido",
+            escena.Usuario.Email!);
+    }
+
+    /// <summary>
+    /// ASVS 4.0.3 V7.1.1: si el envío del aviso de inicio de sesión inusual a la persona devuelve un
+    /// <see cref="Result"/> fallido cuyo mensaje cita una dirección, el registro lleva el id de la cuenta y nada
+    /// del mensaje ni de la dirección. Recorre el servicio real y captura todas las entradas de cualquier nivel.
+    /// </summary>
+    [Fact]
+    public async Task Aviso_de_inicio_inusual_si_el_envio_a_la_persona_devuelve_un_fallo_el_registro_no_lleva_su_mensaje_ni_la_direccion()
+    {
+        const string Fuga = "fuga@ejemplo.test";
+        const string MensajeDelError = $"El SMTP rechazó el buzón {Fuga}: 550 usuario desconocido";
+        var registro = new RegistroQueCapturaTodo<VigilanciaInicioSesionService>();
+        var escena = new EscenaNoHeSidoYo(this, registroCompleto: registro);
+        escena.Correos.FallaPara = escena.Usuario.Email;
+        escena.Correos.MensajeDelFallo = MensajeDelError;
+
+        await escena.AvisarInicioInusualAsync();
+
+        registro.Entradas.Should().ContainSingle(
+            e => e.Nivel == LogLevel.Warning && e.Contenido.Contains("aviso de inicio de sesión inusual")
+                && e.Contenido.Contains(escena.Usuario.Id.ToString()),
+            "el envío fallido deja su aviso con el id de la cuenta");
+        registro.DebeEstarLimpioDeDatosPersonales(
+            Fuga, Fuga.ToUpperInvariant(), "fuga", MensajeDelError, "El SMTP rechazó", "usuario desconocido",
+            escena.Usuario.Email!, "marta@");
+    }
+
+    /// <summary>
+    /// ASVS 4.0.3 V7.1.1: igual para el aviso de seguridad al Administrador del Tenant: un <see cref="Result"/>
+    /// fallido con una dirección en el mensaje no llega al registro, que lleva solo el id del Administrador.
+    /// </summary>
+    [Fact]
+    public async Task Aviso_al_Administrador_si_el_envio_devuelve_un_fallo_el_registro_no_lleva_su_mensaje_ni_la_direccion()
+    {
+        const string Fuga = "fuga@ejemplo.test";
+        const string MensajeDelError = $"El SMTP rechazó el buzón {Fuga}: 550 usuario desconocido";
+        var registro = new RegistroQueCapturaTodo<VigilanciaInicioSesionService>();
+        var escena = new EscenaNoHeSidoYo(this, registroCompleto: registro);
+        escena.Correos.FallaPara = EscenaNoHeSidoYo.CorreoAdministrador;
+        escena.Correos.MensajeDelFallo = MensajeDelError;
+
+        await escena.AvisarInicioInusualAsync();
+
+        registro.Entradas.Should().ContainSingle(
+            e => e.Nivel == LogLevel.Warning && e.Contenido.Contains("aviso de seguridad al Administrador")
+                && e.Contenido.Contains(EscenaNoHeSidoYo.Administrador.ToString()),
+            "el envío fallido deja su aviso con el id del Administrador");
+        registro.DebeEstarLimpioDeDatosPersonales(
+            Fuga, Fuga.ToUpperInvariant(), "fuga", MensajeDelError, "El SMTP rechazó", "usuario desconocido",
+            EscenaNoHeSidoYo.CorreoAdministrador, "administrador@", escena.Usuario.Email!, "marta@");
+    }
+
+    /// <summary>
+    /// ASVS 4.0.3 V7.1.1: si el servicio de correo lanza al avisar al Administrador durante el registro de un
+    /// inicio de sesión inusual, la excepción llega al <c>catch</c> exterior de <c>RegistrarAsync</c>: el registro
+    /// lleva el id de la cuenta y el tipo de la excepción, ni la dirección ni la excepción entera.
+    /// </summary>
+    [Fact]
+    public async Task Aviso_de_inicio_inusual_si_el_servicio_de_correo_lanza_el_registro_no_lleva_direcciones_ni_la_excepcion()
+    {
+        var registro = new RegistroQueCapturaTodo<VigilanciaInicioSesionService>();
+        var escena = new EscenaNoHeSidoYo(this, registroCompleto: registro);
+        escena.Correos.LanzaPara = EscenaNoHeSidoYo.CorreoAdministrador;
+
+        await escena.AvisarInicioInusualAsync();
+
+        registro.Entradas.Should().ContainSingle(
+            e => e.Nivel == LogLevel.Error && e.Contenido.Contains("No se pudo registrar el inicio de sesión")
+                && e.Contenido.Contains(escena.Usuario.Id.ToString()) && e.Contenido.Contains(nameof(InvalidOperationException)),
+            "el fallo deja su entrada con el id de la cuenta y el tipo de la excepción");
+        registro.DebeEstarLimpioDeDatosPersonales(
+            EscenaNoHeSidoYo.CorreoAdministrador, "administrador@", escena.Usuario.Email!, "marta@", "550 el buzón", "no existe");
+    }
+
+    /// <summary>
+    /// ASVS 4.0.3 V7.1.1: si el aviso al Administrador lanza (el servicio de correo cita su dirección en el
+    /// mensaje), el registro lleva el id de la cuenta y el tipo de la excepción, ni la dirección de nadie ni la
+    /// excepción entera. La persona que pulsó «no he sido yo» queda protegida igualmente.
+    /// </summary>
+    [Fact]
+    public async Task No_he_sido_yo_si_falla_el_aviso_al_Administrador_el_registro_no_lleva_direcciones_ni_la_excepcion()
+    {
+        var registro = new RegistroQueCapturaTodo<VigilanciaInicioSesionService>();
+        var escena = new EscenaNoHeSidoYo(this, registroCompleto: registro);
+        escena.Correos.LanzaPara = EscenaNoHeSidoYo.CorreoAdministrador;
+
+        var resultado = await escena.ConfirmarAsync();
+
+        resultado.Should().Be(ResultadoNoHeSidoYo.Protegida);
+        registro.Entradas.Should().Contain(e => e.Contenido.Contains("avisar al Administrador"));
+        registro.DebeEstarLimpioDeDatosPersonales(
+            EscenaNoHeSidoYo.CorreoAdministrador, "administrador@", escena.Usuario.Email!, "marta@", "550 el buzón", "no existe");
+    }
+
+    /// <summary>
+    /// ASVS 4.0.3 V7.1.1: el resto de la ruta «no he sido yo» (cerrar las sesiones y releer la cuenta tras el
+    /// fallo) tampoco escribe la excepción entera: una excepción de datos o de Identity sobre la cuenta puede
+    /// citar su correo.
+    /// </summary>
+    [Fact]
+    public async Task No_he_sido_yo_si_fallan_el_cierre_de_sesiones_y_la_relectura_el_registro_no_lleva_la_excepcion()
+    {
+        _sesiones.Lanza = true;
+        var registro = new RegistroQueCapturaTodo<VigilanciaInicioSesionService>();
+        var escena = new EscenaNoHeSidoYo(this, registroCompleto: registro);
+        _almacen.BusquedasCorrectas = 1;
+
+        await escena.ConfirmarAsync();
+
+        registro.Entradas.Should().Contain(e => e.Contenido.Contains("sin poder cerrar las sesiones"));
+        registro.Entradas.Should().Contain(e => e.Contenido.Contains("releer la cuenta"));
+        registro.DebeEstarLimpioDeDatosPersonales(
+            escena.Usuario.Email!, "marta@", EscenaNoHeSidoYo.CorreoAdministrador, "fallo simulado");
+    }
+
+    /// <summary>
     /// Devolver 0 se leería como «no tenía sesiones» y quien llama diría que están cerradas. Revocar una
     /// sola no cambia: dice que no había una viva.
     /// </summary>
@@ -1566,7 +1797,12 @@ public class AccesoCuentaEscenaTests : BunitContext
         private readonly VigilanciaInicioSesionService _vigilancia;
         private readonly UserManager<ApplicationUser> _usuarios;
 
-        public EscenaNoHeSidoYo(AccesoCuentaEscenaTests pruebas, bool conContrasena = true, bool conRegistroReal = false)
+        /// <summary>Host que fuerza quien envía la petición; ningún enlace debe llevarlo.</summary>
+        public const string HostForjado = "atacante.example.test";
+
+        public EscenaNoHeSidoYo(AccesoCuentaEscenaTests pruebas, bool conContrasena = true, bool conRegistroReal = false,
+            string? urlBasePublica = "https://cuentas.example/", string entorno = "Production",
+            ILogger<VigilanciaInicioSesionService>? registroCompleto = null)
         {
             _usuarios = pruebas._usuarios;
             Usuario = new ApplicationUser
@@ -1574,6 +1810,7 @@ public class AccesoCuentaEscenaTests : BunitContext
                 Id = Guid.NewGuid(),
                 TenantId = Guid.NewGuid(),
                 Email = "marta@example.test",
+                EmailConfirmed = true,
                 SecurityStamp = "sello-inicial",
             };
             pruebas._almacen.Usuario = Usuario;
@@ -1600,9 +1837,12 @@ public class AccesoCuentaEscenaTests : BunitContext
 
             var peticion = new DefaultHttpContext();
             peticion.Request.Scheme = "https";
-            peticion.Request.Host = new HostString("app.example.test");
+            peticion.Request.Host = new HostString(HostForjado);
             _vigilancia = new VigilanciaInicioSesionService(
-                new HttpContextAccessor { HttpContext = peticion }, ambitos, null!, null!, null!, null!, Registro, Senales);
+                new HttpContextAccessor { HttpContext = peticion }, ambitos, null!, null!, new ActorSinResolver(),
+                Options.Create(new OpcionesInicioSesionSeguro()), registroCompleto ?? Registro, Senales,
+                Options.Create(new SmtpEmailOptions { UrlBasePublica = urlBasePublica }),
+                new Microsoft.Extensions.Hosting.Internal.HostingEnvironment { EnvironmentName = entorno });
         }
 
         public ApplicationUser Usuario { get; }
@@ -1610,6 +1850,14 @@ public class AccesoCuentaEscenaTests : BunitContext
         public SenalesCapturadas Senales { get; } = new();
         public CorreosCapturados Correos { get; } = new();
         public RegistroCapturado Registro { get; } = new();
+
+        /// <summary>
+        /// Inicio de sesión correcto con una señal ya conocida (país nuevo): sin origen capturado ni
+        /// historial, basta para que <c>RegistrarAsync</c> lo dé por sospechoso y avise a la persona.
+        /// </summary>
+        public Task AvisarInicioInusualAsync() =>
+            _vigilancia.RegistrarAsync(Usuario.Id, Usuario.TenantId, MetodoInicioSesion.Contrasena,
+                ResultadoInicioSesion.Correcto, SenalesInicioSesion.PaisNuevo);
 
         public Task<ResultadoNoHeSidoYo> ConfirmarAsync() =>
             _vigilancia.ConfirmarNoHeSidoYoAsync(Usuario.Id.ToString(), WebEncoders.Base64UrlEncode(Encoding.UTF8.GetBytes("token")));
@@ -1640,6 +1888,10 @@ public class AccesoCuentaEscenaTests : BunitContext
         public override ValueTask<InterceptionResult<DbDataReader>> ReaderExecutingAsync(
             DbCommand command, CommandEventData eventData, InterceptionResult<DbDataReader> result, CancellationToken cancellationToken = default)
         {
+            // El historial de inicios de sesión (RegistrarAsync) llega vacío: primer inicio conocido.
+            if (command.CommandText.Contains("HuellaDispositivo", StringComparison.Ordinal))
+                return ValueTask.FromResult(InterceptionResult<DbDataReader>.SuppressWithResult(new DataTable().CreateDataReader()));
+
             var filas = new DataTable();
             filas.Columns.Add("Id", typeof(Guid));
             filas.Columns.Add("Email", typeof(string));
@@ -1663,6 +1915,12 @@ public class AccesoCuentaEscenaTests : BunitContext
         }
     }
 
+    private sealed class ActorSinResolver : IActorAuditoria
+    {
+        public Task<ActorAuditoria> ObtenerAsync() => throw new NotSupportedException();
+        public ActorAuditoria? ObtenerSiYaEstaResuelto() => null;
+    }
+
     private sealed class SenalesCapturadas : ISenalesIncidenteSeguridad
     {
         public List<(Guid UsuarioId, Guid TenantId, bool TeniaContrasena)> NoReconocidos { get; } = [];
@@ -1683,10 +1941,18 @@ public class AccesoCuentaEscenaTests : BunitContext
         public List<(string Destinatario, string Asunto, string Cuerpo)> Enviados { get; } = [];
         public string? FallaPara { get; set; }
 
+        /// <summary>Mensaje del <see cref="Result"/> fallido de <see cref="FallaPara"/>.</summary>
+        public string MensajeDelFallo { get; set; } = "fallo simulado";
+
+        /// <summary>Un servicio que revienta, con la dirección en el mensaje, en vez de devolver un resultado.</summary>
+        public string? LanzaPara { get; set; }
+
         public Task<Result> EnviarAsync(string destinatarioEmail, string asunto, string cuerpoHtml, TipoAvisoCorreo tipo, string? responderA = null, CancellationToken cancellationToken = default)
         {
+            if (destinatarioEmail == LanzaPara)
+                throw new InvalidOperationException($"550 el buzón {destinatarioEmail} no existe");
             if (destinatarioEmail == FallaPara)
-                return Task.FromResult(Result.Fallo(Error.Crear("Correo.Fallo", "fallo simulado")));
+                return Task.FromResult(Result.Fallo(Error.Crear("Correo.Fallo", MensajeDelFallo)));
             Enviados.Add((destinatarioEmail, asunto, cuerpoHtml));
             return Task.FromResult(Result.Exito());
         }

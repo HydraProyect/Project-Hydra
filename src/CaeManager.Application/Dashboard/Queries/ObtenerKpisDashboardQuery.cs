@@ -84,6 +84,12 @@ public record KpisDashboardDto(
     /// sale entonces de <see cref="Fraccion"/> y esos pares no se consultan.
     /// </summary>
     int ParesExigidosSinDocumento = 0,
+    /// <summary>
+    /// Hay trabajo documental que la tasa no ve: un Documento de Empresa vencido o urgente, o un Centro de Trabajo del alcance
+    /// que no está al día (Urgente, Vencido, Faltante, Pendiente en plataforma o Bloqueado). Con él, Inicio no pinta el 100 %
+    /// (decisión Outbound 3, 2026-10-16). <see cref="EstadoDocumento.Proximo"/> y <see cref="EstadoCentro.Proximo"/> no
+    /// cuentan: son el umbral «todavía no urgente» que la cola de trabajo deja fuera, y el anillo los cuenta como al día.
+    /// </summary>
     bool TienePendientesDocumentales = false,
     /// <summary>Documentos de Empresa vencidos, con la selección de Alertas. Fuera de la tasa, que mide Documentos de Trabajador.</summary>
     int DocumentosEmpresaVencidos = 0,
@@ -298,7 +304,9 @@ public class ObtenerKpisDashboardQueryHandler(ICentrosQueryContext centrosContex
             .GroupBy(v => CalculadoraEstadoDocumento.Calcular(
                 VigenciaDocumento.VenceEl(v.FechaVencimiento!.Value), hoy, parametros.UmbralAmbarDias, parametros.UmbralRojoDias))
             .ToDictionary(g => g.Key, g => g.Sum(v => v.Cantidad));
-        var empresasConAlertas = empresaPorEstado.Any(e => e.Key is EstadoDocumento.Vencido or EstadoDocumento.Urgente or EstadoDocumento.Proximo);
+        // Próximo no es un pendiente: es el umbral «todavía no urgente» que la cola deja fuera a propósito
+        // (ObtenerBandejaGestorQuery), y con él Inicio decía «Hay pendientes» bajo «Nada pendiente ahora mismo».
+        var empresasConAlertas = empresaPorEstado.Any(e => e.Key is EstadoDocumento.Vencido or EstadoDocumento.Urgente);
 
         return new KpisDashboardDto(
             TrabajadoresActivos: trabajadoresActivos,
@@ -319,7 +327,7 @@ public class ObtenerKpisDashboardQueryHandler(ICentrosQueryContext centrosContex
             TrabajadoresBloqueados: trabajadoresBloqueados,
             ParesExigidosSinDocumento: paresExigidosSinDocumento,
             TienePendientesDocumentales: empresasConAlertas
-                || estadosCentro.Any(e => e is not (EstadoCentro.Vigente or EstadoCentro.SinGestionCae)),
+                || estadosCentro.Any(e => e is not (EstadoCentro.Vigente or EstadoCentro.Proximo or EstadoCentro.SinGestionCae)),
             DocumentosEmpresaVencidos: empresaPorEstado.GetValueOrDefault(EstadoDocumento.Vencido),
             DocumentosEmpresaUrgentes: empresaPorEstado.GetValueOrDefault(EstadoDocumento.Urgente),
             DocumentosEmpresaProximos: empresaPorEstado.GetValueOrDefault(EstadoDocumento.Proximo),

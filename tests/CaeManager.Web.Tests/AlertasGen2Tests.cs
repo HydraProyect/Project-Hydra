@@ -1,6 +1,7 @@
 using AngleSharp.Dom;
 using Bunit;
 using CaeManager.Application.Alertas.Queries.ObtenerAlertas;
+using CaeManager.Application.Alertas.Queries.ObtenerSugerenciasPreventivas;
 using CaeManager.Application.Contactos;
 using CaeManager.Application.Empresas.Queries.ObtenerEmpresasParaSelector;
 using CaeManager.Application.Reclamaciones;
@@ -127,6 +128,7 @@ public class AlertasGen2Tests : BunitContext
         Registrar(peticion => peticion switch
         {
             ObtenerAlertasQuery => (IReadOnlyList<AlertaDto>)alertas,
+            ObtenerSugerenciasPreventivasQuery => (IReadOnlyList<SugerenciaPreventivaDto>)[],
             _ => throw new NotSupportedException($"Petición no prevista en este test: {peticion.GetType().Name}.")
         });
         Services.GetRequiredService<NavigationManager>().NavigateTo("alertas");
@@ -307,6 +309,7 @@ public class AlertasGen2Tests : BunitContext
         var mediator = Registrar(peticion => RespuestaDeSelector(peticion) ?? peticion switch
         {
             ObtenerAlertasQuery => (object)Array.Empty<AlertaDto>(),
+            ObtenerSugerenciasPreventivasQuery => (IReadOnlyList<SugerenciaPreventivaDto>)[],
             ObtenerLoteReclamacionPorFiltroQuery => lotes[Math.Min(llamadasLote++, lotes.Length - 1)],
             EnviarReclamacionCommand cmd => alEnviar?.Invoke(peticion) ?? Result.Exito(new EnvioReclamacionResultado(cmd.DocumentoIds, [])),
             EnviarReclamacionEmpresaCommand cmd => alEnviar?.Invoke(peticion) ?? Result.Exito(new EnvioReclamacionResultado(cmd.DocumentoIds, [])),
@@ -576,6 +579,7 @@ public class AlertasGen2Tests : BunitContext
         var mediator = Registrar(peticion => RespuestaDeSelector(peticion) ?? peticion switch
         {
             ObtenerAlertasQuery => (object)Array.Empty<AlertaDto>(),
+            ObtenerSugerenciasPreventivasQuery => (IReadOnlyList<SugerenciaPreventivaDto>)[],
             ObtenerLoteReclamacionPorFiltroQuery => Pendiente(),
             _ => throw new NotSupportedException($"Petición no prevista en este test: {peticion.GetType().Name}.")
         });

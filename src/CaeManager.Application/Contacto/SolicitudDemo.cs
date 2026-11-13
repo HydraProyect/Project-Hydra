@@ -207,7 +207,13 @@ public static partial class ValidadorSolicitudDemo
             _ => false,
         });
 
-    private static bool CorreoValido(string correo) =>
+    /// <summary>
+    /// Dirección exacta y ASCII, sin nombre visible ni controles. La usa también la
+    /// resolución del destinatario configurado del correo de solicitud de demo, para
+    /// que un ajuste roto no vaya a una cabecera <c>To</c> con una forma que
+    /// <see cref="MailAddress"/> reinterprete.
+    /// </summary>
+    public static bool CorreoValido(string correo) =>
         correo.Length is > 0 and <= CorreoMaximo
         // Solo ASCII: el correo va a la cabecera Reply-To, y una parte local no
         // ASCII exige SMTPUTF8 al servidor de salida. Un dominio IDN se escribe en
@@ -222,7 +228,8 @@ public static partial class ValidadorSolicitudDemo
 }
 
 /// <summary>
-/// Compone el correo interno que recibe info@talveg.es. Todo valor que llega
+/// Compone el correo interno que recibe el buzón de destino de las solicitudes de demo
+/// (<c>Contacto:DestinatarioSolicitudDemo</c>, info@talveg.es por defecto). Todo valor que llega
 /// del navegador se codifica para HTML (ASVS 4.0.3 V5.3.1); el asunto es fijo y
 /// solo lleva el texto del perfil, que sale de la tabla del servidor.
 /// </summary>

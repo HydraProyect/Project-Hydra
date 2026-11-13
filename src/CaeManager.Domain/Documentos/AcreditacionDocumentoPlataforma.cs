@@ -115,8 +115,21 @@ public class AcreditacionDocumentoPlataforma : EntidadBase, IAccionAuditoriaProp
     /// Corregir la vigencia sin volver a tocar el estado de la acreditación: el
     /// Gestor entra en la plataforma más veces que una, y la primera vez puede
     /// no haber mirado la fecha.
+    /// <para>
+    /// Una No requerida no tiene vigencia que anotar: la plataforma no pide el documento, y una fecha pasada pondría el
+    /// Centro en rojo por algo que nadie exige (<see cref="MarcarNoRequerida"/>). Invariante: No requerida implica
+    /// vigencia Sin confirmar.
+    /// </para>
     /// </summary>
-    public void ConfirmarVigencia(VigenciaEnPlataforma vigencia) => AnotarVigencia(vigencia);
+    public bool PuedeConfirmarVigencia => Estado != EstadoAcreditacion.NoRequerida;
+
+    public void ConfirmarVigencia(VigenciaEnPlataforma vigencia)
+    {
+        if (!PuedeConfirmarVigencia)
+            throw new InvalidOperationException("Una acreditación que la plataforma no pide no tiene vigencia que anotar.");
+
+        AnotarVigencia(vigencia);
+    }
 
     private void AnotarVigencia(VigenciaEnPlataforma vigencia)
     {
@@ -134,6 +147,10 @@ public class AcreditacionDocumentoPlataforma : EntidadBase, IAccionAuditoriaProp
     /// fija <see cref="Rechazar"/>.</item>
     /// <item>La vigencia debe ser interpretable (<see cref="VigenciaEnPlataforma.Rehidratar"/>).</item>
     /// </list>
+    /// No requerida no se rechaza por traer una vigencia: antes de que existiera la invariante (No requerida implica
+    /// vigencia Sin confirmar) se podía anotar una sobre una No requerida, y esas filas siguen en la base. Deshacer
+    /// devuelve el estado y deja la vigencia Sin confirmar (<see cref="VigenciaAlVolverA"/>), en vez de restaurar una
+    /// fecha que pondría el Centro en rojo por un documento que nadie pide o de dejar sin «Deshacer» a esas filas.
     /// </summary>
     public bool PuedeDeshacerAnotacion(EstadoAcreditacion estadoPrevio, VigenciaEnPlataforma vigenciaPrevia)
     {
@@ -170,9 +187,19 @@ public class AcreditacionDocumentoPlataforma : EntidadBase, IAccionAuditoriaProp
 
         Estado = estadoPrevio;
         UltimoCambioEstadoAManoId = null;
-        AnotarVigencia(vigenciaPrevia);
+        AnotarVigencia(VigenciaAlVolverA(estadoPrevio, vigenciaPrevia));
         _accionAuditoria = RegistroAuditoria.AccionRestaurado;
     }
+
+    /// <summary>
+    /// La vigencia con la que se vuelve a un estado anterior en los dos «Deshacer» (<see cref="DeshacerAnotacion"/> y
+    /// <see cref="DeshacerCambioEstado"/>): la guardada, salvo al volver a No requerida, que no tiene vigencia que anotar
+    /// (invariante de <see cref="ConfirmarVigencia"/>). La guardada puede traer una fecha de una fila anterior a esa
+    /// invariante; restaurarla pondría el Centro en rojo por un documento que la plataforma no pide. Pública para que la
+    /// idempotencia de <c>RestaurarAnotacionAcreditacionCommand</c> compare contra lo que de verdad deja el Deshacer.
+    /// </summary>
+    public static VigenciaEnPlataforma VigenciaAlVolverA(EstadoAcreditacion estado, VigenciaEnPlataforma guardada) =>
+        estado == EstadoAcreditacion.NoRequerida ? VigenciaEnPlataforma.SinConfirmar : guardada;
 
     // Solo campo: sin propiedad, EF no lo mapea y nunca llega a la base de datos.
     private string? _accionAuditoria;
@@ -184,10 +211,16 @@ public class AcreditacionDocumentoPlataforma : EntidadBase, IAccionAuditoriaProp
         return accion;
     }
 
+    /// <summary>
+    /// «Esta plataforma no lo pide»: el documento no se exige en este acceso. La vigencia que se hubiera
+    /// confirmado en la plataforma se pierde, igual que en las demás transiciones: una fecha vencida de un
+    /// documento que no se pide no debe poner el Centro en rojo.
+    /// </summary>
     public void MarcarNoRequerida()
     {
         Estado = EstadoAcreditacion.NoRequerida;
         UltimoCambioEstadoAManoId = null;
+        AnotarVigencia(VigenciaEnPlataforma.SinConfirmar);
     }
 
     /// <summary>
@@ -233,6 +266,9 @@ public class AcreditacionDocumentoPlataforma : EntidadBase, IAccionAuditoriaProp
         // respaldando algo que no está acreditado.
         AnotarVigencia(VigenciaEnPlataforma.SinConfirmar);
         _historialRechazos.Add(rechazo);
+        // Un segundo rechazo sobre una ya rechazada no cambia ninguna columna de la raíz (el motivo vive en otra tabla):
+        // sin esto la versión no se renovaría y una pantalla abierta antes («no lo pide») lo pisaría sin haberlo visto.
+        RenovarVersion();
     }
 
     /// <summary>
@@ -326,7 +362,7 @@ public class AcreditacionDocumentoPlataforma : EntidadBase, IAccionAuditoriaProp
         var cambio = _cambiosEstado.Single(c => c.Id == cambioId);
         Estado = cambio.EstadoAnterior;
         UltimoCambioEstadoAManoId = null;
-        AnotarVigencia(cambio.VigenciaAnterior);
+        AnotarVigencia(VigenciaAlVolverA(cambio.EstadoAnterior, cambio.VigenciaAnterior));
         cambio.MarcarDeshecho(momentoUtc);
         _accionAuditoria = RegistroAuditoria.AccionRestaurado;
     }
@@ -336,6 +372,7 @@ public class AcreditacionDocumentoPlataforma : EntidadBase, IAccionAuditoriaProp
     /// acreditaciones a Pendiente de subir — la versión anterior del
     /// documento ya no es la que hay que validar en ningún portal. El
     /// historial de rechazos no se toca: sigue siendo un hecho pasado real.
+    /// La versión se renueva siempre, aunque ningún campo cambie.
     /// </summary>
     public void ReiniciarPorRenovacionDocumento()
     {
@@ -344,5 +381,11 @@ public class AcreditacionDocumentoPlataforma : EntidadBase, IAccionAuditoriaProp
         // La vigencia confirmada era la del documento anterior. Heredarla daría
         // por acreditado en la plataforma un papel que todavía no se ha subido.
         AnotarVigencia(VigenciaEnPlataforma.SinConfirmar);
+        // Una acreditación que ya estaba Pendiente de subir, sin vigencia y sin cambio a mano recibe los mismos valores: EF
+        // no la da por modificada, el interceptor no renueva su versión y su UPDATE no entra en el guardado. Sin esto, una
+        // pantalla abierta antes de corregir el Documento («no lo pide») escribiría sin ver la corrección, y un «no lo pide»
+        // confirmado entre la lectura y el guardado de la corrección sobreviviría a ella sin conflicto. Con la versión
+        // renovada, la acreditación entra en el UPDATE con su versión original en el WHERE y las dos carreras fallan cerradas.
+        RenovarVersion();
     }
 }

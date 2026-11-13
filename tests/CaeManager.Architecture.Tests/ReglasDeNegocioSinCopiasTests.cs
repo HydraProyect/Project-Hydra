@@ -322,6 +322,9 @@ public class ReglasDeNegocioSinCopiasTests
         // Inbound M1, PR 4: la misma función reescrita con CREATE OR REPLACE para la excepción de salud (Up) y restaurada
         // en su versión de la PR 3 (Down), con la regla idéntica en las dos.
         ["src/CaeManager.Migrations.PostgreSQL/Migrations/20261023195346_AnadeEvidenciasInbound.cs"] = 2,
+        // EP-6, opción (d): la misma función reescrita para exigir una sola Empresa propia en la rama de Empresa (Up) y
+        // restaurada en su versión de la PR 4 (Down), con la regla operativa idéntica en las dos.
+        ["src/CaeManager.Migrations.PostgreSQL/Migrations/20261112170000_LecturaInboundEmpresaPropiaUnica.cs"] = 2,
         // Gestión automática (segunda ronda de Codex sobre la PR #2072): la cabecera necesita saber si el Documento de la
         // Gestión ya está sustituido para no darla por abierta (GestionAutomatica.ResolverEstado). No filtra Documentos ni
         // pregunta si están en uso: la Gestión se lista igual, y la mitad «no eliminado» no aplica a esta pregunta.
@@ -395,6 +398,9 @@ public class ReglasDeNegocioSinCopiasTests
         // Resolución por Id: comprueba si hay fila con el Id reservado para decidir sobre la copia del fichero. Cuenta aunque
         // esté sustituida o eliminada; no decide estado.
         ["src/CaeManager.Application/Comunicaciones/Commands/ActualizarDocumentoDesdeAdjunto/ActualizarDocumentoDesdeAdjuntoCommand.cs"] = 1,
+        // Vista rápida, sección «Plataformas CAE» (D-23): resolución por Id del Documento abierto, que puede ser una versión
+        // sustituida; sus acreditaciones son las de esa versión y el estado documental se calcula sobre ella, como en la cabecera.
+        ["src/CaeManager.Application/Documentos/Queries/ObtenerAcreditacionesDelDocumento/ObtenerAcreditacionesDelDocumentoQuery.cs"] = 1,
         // Documento 360: el documento por Id (ya autorizado por ObtenerDocumentoPorIdQuery) y, en la pestaña Versiones, el historial
         // de versiones del mismo propietario y tipo, incluidas las sustituidas.
         ["src/CaeManager.Application/Documentos/Queries/ObtenerFichaDocumento360/ObtenerFichaDocumento360Query.cs"] = 2,
@@ -405,7 +411,6 @@ public class ReglasDeNegocioSinCopiasTests
         ["src/CaeManager.Application/Comunicaciones/Queries/ObtenerConversacionPorId/ObtenerConversacionPorIdQuery.cs"] = 2,
         ["src/CaeManager.Application/Comunicaciones/Deteccion/ClasificacionRuidoMensajeService.cs"] = 1,
         ["src/CaeManager.Application/Visitas/Antelacion/EvaluadorExpedienteVisitaService.cs"] = 1,
-        ["src/CaeManager.Application/Documentos/Commands/RestaurarDocumento/RestaurarDocumentoCommand.cs"] = 1,
         // Una reclamación enviada nombra Documentos que pudieron renovarse después: se resuelve su Trabajador por Id
         // para derivar a qué Empresa empleadora y Delegación se envió, sea o no operativo hoy.
         // Y a qué Clientes empresariales llegó una reclamación a la Empresa empleadora (rastro de Centro 360): por las líneas que
@@ -483,6 +488,9 @@ public class ReglasDeNegocioSinCopiasTests
         ["src/CaeManager.Application/Documentos/DocumentoEfectivo.cs"] = 2,
         // Documento 360, pestaña Versiones: presenta el historial de versiones por emisión descendente (otra pregunta: no elige un efectivo).
         ["src/CaeManager.Application/Documentos/Queries/ObtenerFichaDocumento360/ObtenerFichaDocumento360Query.cs"] = 1,
+        // Unir PDF, selector de Documentos de la Empresa gestionada: lista cada Documento (todas las versiones) para que el Gestor CAE
+        // elija cuál añadir al paquete; presenta filas por emisión descendente, no elige un efectivo por par (tipo + sujeto).
+        ["src/CaeManager.Application/HerramientasPdf/ListarDocumentosParaUnirQuery.cs"] = 1,
         // La lista de Documentos ya no escribe a mano ningún orden por emisión (2026-10-19, lista 1:1 con Design):
         // la entrada de ObtenerDocumentosQuery.cs se retira. El orden por emisión sigue en ObtenerDocumentosQuery.cs (rama por
         // defecto del orden, junto a la clave FechaEmision), pero a través del helper OrdenarPor, que el detector no ve como orden escrito a mano.

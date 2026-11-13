@@ -45,6 +45,10 @@
   --color-success-500: #22c55e;
   --color-success-700: #15803d;
   --color-warning-50: #fff8eb;
+  /* Nota interna de Comunicaciones (maqueta 2026-11-01): el amarillo es exclusivo de las notas; los avisos usan naranja. */
+  --color-nota-fondo: #fff6c2;
+  --color-nota-borde: #d4a200;
+  --color-nota-texto: #5e4300;
   --color-warning-500: #f59e0b;
   --color-warning-700: #b45309;
   --color-danger-50: #fef2f2;
@@ -460,6 +464,9 @@
      paleta G). */
   --color-success-50: #0c2a1b;
   --color-warning-50: #33260c;
+  --color-nota-fondo: #3a2f08;
+  --color-nota-borde: #e0b92b;
+  --color-nota-texto: #f5d44a;
   --color-danger-50: #341418;
   --color-tolerancia-50: #341a0c;
   --color-secondary-50: #1c2633;

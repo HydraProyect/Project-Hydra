@@ -241,40 +241,20 @@ public class BarraSeccionTests : BunitContext
         return Render<BarraSeccion>(p => p.AddCascadingValue(estado));
     }
 
-    [Fact]
-    public void En_Documentos_el_Administrador_ve_las_tres_pestanas_en_orden_con_la_primera_activa()
+    [Theory]
+    [InlineData("incidencias", Roles.Administrador)]
+    [InlineData("incidencias", Roles.Consulta)]
+    [InlineData("documentos/revision-ia", Roles.GestorCae)]
+    [InlineData("documentos", Roles.Administrador)]
+    [InlineData("documentos?pestana=revision-ia", Roles.GestorCae)]
+    [InlineData("DOCUMENTOS", Roles.Administrador)]
+    public void La_seccion_Documentos_no_pinta_la_barra_del_marco_en_ninguna_de_sus_rutas(string url, string rol)
     {
-        var cut = Pintar("documentos", Roles.Administrador);
+        var cut = Pintar(url, rol);
 
-        var barra = cut.Find("nav[data-testid=barra-seccion]");
-        barra.GetAttribute("data-seccion").Should().Be("documentos");
-        barra.GetAttribute("aria-label").Should().Be("Secciones de Documentos");
-        var enlaces = cut.FindAll("a.barra-seccion-enlace");
-        enlaces.Select(a => a.TextContent.Trim()).Should().Equal("Todos los documentos", "Revisión IA", "Incidencias");
-        enlaces.Select(a => a.GetAttribute("href")).Should().Equal(
-            "documentos", "documentos?pestana=revision-ia", "incidencias");
-        enlaces.Select(a => a.GetAttribute("aria-current")).Should().Equal("page", null, null);
+        cut.FindAll("nav.barra-seccion").Should().BeEmpty(
+            "las pantallas de Documentos pintan todas BarraPestanasDocumentos: dos barras apiladas repetían pestañas");
     }
-
-    [Fact]
-    public void El_parametro_pestana_marca_Revision_IA_como_actual()
-    {
-        var cut = Pintar("documentos?pestana=revision-ia", Roles.GestorCae);
-
-        cut.Find("a[data-pestana=documentos-revision-ia]").GetAttribute("aria-current").Should().Be("page");
-        cut.Find("a[data-pestana=documentos-todos]").HasAttribute("aria-current").Should().BeFalse();
-    }
-
-    [Fact]
-    public void Consulta_no_ve_la_pestana_Revision_IA()
-    {
-        var cut = Pintar("incidencias", Roles.Consulta);
-
-        cut.FindAll("a.barra-seccion-enlace").Select(a => a.GetAttribute("data-pestana"))
-            .Should().Equal("documentos-todos", "documentos-incidencias");
-        cut.Find("a[data-pestana=documentos-incidencias]").GetAttribute("aria-current").Should().Be("page");
-    }
-
     [Fact]
     public void En_Equipo_el_Administrador_ve_Usuarios_y_Roles()
     {
@@ -306,18 +286,21 @@ public class BarraSeccionTests : BunitContext
     }
 
     [Fact]
-    public void La_barra_sigue_la_navegacion_interna_incluido_el_cambio_de_pestana_de_Documentos()
+    public void La_barra_sigue_la_navegacion_interna_y_se_retira_en_la_seccion_Documentos()
     {
-        var cut = Pintar("documentos", Roles.Administrador);
+        var cut = Pintar("roles", Roles.Administrador);
         var navegacion = Services.GetRequiredService<NavigationManager>();
+        cut.Find("a[data-pestana=equipo-roles]").GetAttribute("aria-current").Should().Be("page");
 
-        navegacion.NavigateTo("documentos?pestana=revision-ia");
+        navegacion.NavigateTo("usuarios");
         cut.WaitForAssertion(() =>
-            cut.Find("a[data-pestana=documentos-revision-ia]").GetAttribute("aria-current").Should().Be("page"));
+            cut.Find("a[data-pestana=equipo-usuarios]").GetAttribute("aria-current").Should().Be("page"));
 
         navegacion.NavigateTo("incidencias");
-        cut.WaitForAssertion(() =>
-            cut.Find("a[data-pestana=documentos-incidencias]").GetAttribute("aria-current").Should().Be("page"));
+        cut.WaitForAssertion(() => cut.FindAll("nav.barra-seccion").Should().BeEmpty());
+
+        navegacion.NavigateTo("documentos?pestana=revision-ia");
+        cut.WaitForAssertion(() => cut.FindAll("nav.barra-seccion").Should().BeEmpty());
 
         navegacion.NavigateTo("empresas");
         cut.WaitForAssertion(() => cut.FindAll("nav.barra-seccion").Should().BeEmpty());

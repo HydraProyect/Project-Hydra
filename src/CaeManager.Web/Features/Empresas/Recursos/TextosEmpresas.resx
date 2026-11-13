@@ -132,6 +132,18 @@
   <data name="GlosaPlataformas" xml:space="preserve">
     <value>incidencias en plataformas</value>
   </data>
+  <data name="GlosaTrabajadorUno" xml:space="preserve">
+    <value>trabajador</value>
+    <comment>Glosa accesible del contador de la pestaña Trabajadores cuando vale 1 (singular, no «1 trabajadores»).</comment>
+  </data>
+  <data name="GlosaClienteUno" xml:space="preserve">
+    <value>Cliente</value>
+    <comment>Glosa accesible del contador de la pestaña Clientes cuando vale 1.</comment>
+  </data>
+  <data name="GlosaPlataformasUna" xml:space="preserve">
+    <value>incidencia en plataformas</value>
+    <comment>Glosa accesible del contador de la pestaña Plataformas cuando vale 1.</comment>
+  </data>
   <data name="EtiquetaFiltros" xml:space="preserve">
     <value>Filtrar los trabajadores por estado documental</value>
     <comment>Nombre accesible del grupo de chips.</comment>
@@ -151,6 +163,10 @@
   <data name="ChipAlDia" xml:space="preserve">
     <value>Al día · {0}</value>
     <comment>Chip de filtro: el resto (vigente o sin caducidad). {0} = número.</comment>
+  </data>
+  <data name="ChipAlDiaConSinConfirmar" xml:space="preserve">
+    <value>Al día · {0} (de ellos, {1} sin confirmar)</value>
+    <comment>Chip Al día cuando alguno tiene la vigencia «Sin confirmar» (cuenta como al día, con aviso). {0} = al día, {1} = sin confirmar.</comment>
   </data>
   <data name="ListaTrabajadores" xml:space="preserve">
     <value>Trabajadores de esta empresa</value>

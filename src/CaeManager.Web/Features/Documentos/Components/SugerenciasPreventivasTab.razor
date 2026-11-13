@@ -1,25 +1,16 @@
 @*
-    Pestaña "Preventivo" de /documentos (Parte XVI PROMPT 03). Dos secciones
-    con sujetos distintos, ambas reales — ninguna sustituye a la otra:
+    Pestaña "Preventivo" de /documentos (Parte XVI PROMPT 03): Ventanas de vencimiento (fiel al mockup real,
+    WINDOWS del .dc.html). TODOS los documentos —cualquier ámbito, no solo Trabajador— agrupados en 3 franjas fijas de
+    días hasta el vencimiento. La acción por fila es "Gestionar" (abre DrawerGestionDocumento.AbrirEditarAsync, documento
+    ya existe) y NO el "Reclamar"/"Reclamar todo" que muestra el mockup: EnviarReclamacionCommand solo reclama documentos
+    de Trabajador agrupados por un único Cliente, y una ventana mezcla ámbitos y clientes distintos — ese fan-out
+    (agrupar por Cliente dentro de cada ventana y lanzar un EnviarReclamacionCommand por grupo) es una pieza aparte, con
+    su propio alcance, no se construye aquí con una semántica que el backend actual no sostiene.
 
-    1. Ventanas de vencimiento (fiel al mockup real, WINDOWS del .dc.html):
-       TODOS los documentos —cualquier ámbito, no solo Trabajador— agrupados
-       en 3 franjas fijas de días hasta el vencimiento. La acción por fila es
-       "Gestionar" (abre DrawerGestionDocumento.AbrirEditarAsync, documento
-       ya existe) y NO el "Reclamar"/"Reclamar todo" que muestra el mockup:
-       EnviarReclamacionCommand solo reclama documentos de Trabajador
-       agrupados por un único Cliente, y una ventana mezcla ámbitos y
-       clientes distintos — ese fan-out (agrupar por Cliente dentro de cada
-       ventana y lanzar un EnviarReclamacionCommand por grupo) es una pieza
-       aparte, con su propio alcance, no se construye aquí con una semántica
-       que el backend actual no sostiene.
-
-    2. Patrones de falta (la que ya existía, ObtenerSugerenciasPreventivasQuery):
-       pregunta distinta — "a cuántos OTROS técnicos del mismo centro les
-       falta este mismo documento", sobre documentos que NUNCA existieron,
-       no sobre documentos que van a vencer. Se conserva tal cual.
+    «Patrones de falta» (el mismo documento faltante en varios Trabajadores de un Centro, ObtenerSugerenciasPreventivasQuery)
+    ya no vive aquí: pasó a la sección «Faltan documentos» de /alertas (FaltanDocumentosAlertas, PR5 del lienzo de
+    Documentos, P-2b). Con esa salida la pestaña queda solo con las ventanas; retirarla es la PR8.
 *@
-@using CaeManager.Application.Alertas.Queries.ObtenerSugerenciasPreventivas
 @using CaeManager.Application.Documentos.Queries.ObtenerDocumentos
 @using CaeManager.Domain.Documentos
 @using CaeManager.Web.Features.Documentos
@@ -102,47 +93,6 @@ else
     </div>
 }
 
-<div class="separador-ambito">Patrones — mismo documento faltante en varios técnicos</div>
-@if (_cargando)
-{
-    <EstadoCargando Filas="3" />
-}
-else if (_error)
-{
-    <EstadoVacio Titulo="No pudimos cargar las sugerencias" Descripcion="Intenta nuevamente en unos segundos.">
-        <Accion>
-            <Boton Variante="VarianteBoton.Primario" OnClick="CargarAsync">Reintentar</Boton>
-        </Accion>
-    </EstadoVacio>
-}
-else if (_sugerencias.Count == 0)
-{
-    <EstadoVacio Titulo="Sin patrones pendientes" Descripcion="Ningún centro tiene el mismo documento faltante en más de un técnico ahora mismo." />
-}
-else
-{
-    var claves = new ClavesDeHermanos();
-    @foreach (var sugerencia in _sugerencias)
-    {
-        <Tarjeta @key="claves.De((sugerencia.CentroId, sugerencia.TipoDocumentoId))" Titulo="@($"{sugerencia.CentroNombre} — {sugerencia.TipoDocumentoNombre}")">
-            <ChildContent>
-                <p class="texto-vacio-seccion">
-                    @sugerencia.Trabajadores.Count técnicos con Asignación activa a este centro no tienen este documento.
-                </p>
-                <ul class="workspace-lista-entidades">
-                    @foreach (var trabajador in sugerencia.Trabajadores)
-                    {
-                        <li @key="trabajador.TrabajadorId">
-                            @trabajador.TrabajadorNombre
-                            <a href="@ObtenerEnlaceCrear(trabajador.TrabajadorId, sugerencia.TipoDocumentoId)">Crear documento</a>
-                        </li>
-                    }
-                </ul>
-            </ChildContent>
-        </Tarjeta>
-    }
-}
-
 <DrawerGestionDocumento @ref="_drawerGestion" OnGuardado="CargarVentanasAsync" />
 
 @code {
@@ -166,15 +116,7 @@ else
     private bool _errorVentanas;
     private DrawerGestionDocumento _drawerGestion = default!;
 
-    private bool _cargando = true;
-    private bool _error;
-    private IReadOnlyList<SugerenciaPreventivaDto> _sugerencias = [];
-
-    protected override async Task OnInitializedAsync()
-    {
-        await CargarVentanasAsync();
-        await CargarAsync();
-    }
+    protected override async Task OnInitializedAsync() => await CargarVentanasAsync();
 
     private async Task CargarVentanasAsync()
     {
@@ -209,27 +151,4 @@ else
             _cargandoVentanas = false;
         }
     }
-
-    private async Task CargarAsync()
-    {
-        _cargando = true;
-        _error = false;
-        StateHasChanged();
-
-        try
-        {
-            _sugerencias = await Mediator.Send(new ObtenerSugerenciasPreventivasQuery());
-        }
-        catch (Exception)
-        {
-            _error = true;
-        }
-        finally
-        {
-            _cargando = false;
-        }
-    }
-
-    private static string ObtenerEnlaceCrear(Guid trabajadorId, Guid tipoDocumentoId) =>
-        $"/documentos?TrabajadorId={trabajadorId}&TipoDocumentoId={tipoDocumentoId}";
 }

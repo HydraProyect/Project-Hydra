@@ -35,6 +35,13 @@ namespace CaeManager.Web.Features.Retencion.Pages;
 /// (<see cref="DiagnosticarDatosPurgablesCommand"/>), que solo cuenta: no crea
 /// ninguna propuesta ni destruye nada.
 /// </para>
+///
+/// <para>
+/// Con política, el botón de buscar también espera a que termine la carga de la lista (<c>_cargando</c>). Pulsado
+/// durante la carga inicial, <see cref="BuscarAsync"/> lanzaba una segunda carga sin que acabara la primera: si la
+/// consulta de la primera corría después del Command, pintaba la tabla con las propuestas recién creadas mientras la
+/// recarga de buscar seguía en vuelo, y quien actuaba sobre esa tabla lo hacía con buscar todavía en curso (#2187).
+/// </para>
 /// </summary>
 public partial class Retencion : CaeManager.Web.Components.PaginaIntegrableConfiguracionBase
 {
@@ -178,6 +185,7 @@ public partial class Retencion : CaeManager.Web.Components.PaginaIntegrableConfi
         // reaccione, sin que la propuesta se quede olvidada indefinidamente.
         _fechaEjecucion = DateTime.UtcNow.AddDays(30).ToString("yyyy-MM-dd");
         _errorFormulario = null;
+        _fechaEjecucionNoValida = false;
         // La fecha propuesta viene puesta: no es un cambio de quien autoriza.
         _instantaneaProgramar.Fijar(_fechaEjecucion);
     }
@@ -185,11 +193,19 @@ public partial class Retencion : CaeManager.Web.Components.PaginaIntegrableConfi
     private readonly InstantaneaFormulario _instantaneaProgramar = new();
 
     /// <summary>
+    /// true mientras la fecha de ejecución tiene un texto a medias o ilegible (el padre tiene entonces null): la persona ha
+    /// editado el campo y cerrar sin avisar lo perdería, aunque la instantánea propuesta también fuera null.
+    /// </summary>
+    private bool _fechaEjecucionNoValida;
+
+    private void AlCambiarFechaEjecucionNoValida(bool noValida) => _fechaEjecucionNoValida = noValida;
+
+    /// <summary>
     /// P1-E2b: «hay cambios» de cada ModalFormulario de la página (el guardián de su kit): la fecha de ejecución
     /// cambiada respecto a la propuesta en el de autorizar, o un motivo ya escrito en el de descartar. Cerrados
     /// (también tras confirmar) nunca hay nada que perder.
     /// </summary>
-    private bool HayCambiosProgramar => _aProgramar is not null && _instantaneaProgramar.Difiere(_fechaEjecucion);
+    private bool HayCambiosProgramar => _aProgramar is not null && (_instantaneaProgramar.Difiere(_fechaEjecucion) || _fechaEjecucionNoValida);
 
     private bool HayCambiosCancelar => _aCancelar is not null && !string.IsNullOrWhiteSpace(_motivoCancelacion);
 
@@ -216,7 +232,9 @@ public partial class Retencion : CaeManager.Web.Components.PaginaIntegrableConfi
 
         try
         {
-            if (!DateOnly.TryParse(_fechaEjecucion, out var fecha))
+            // Con el texto a medias el padre aún tiene la fecha propuesta: sin el blur previo al clic (Safari no enfoca un
+            // botón al pulsarlo) se autorizaría la destrucción con una fecha que no es la que se ve.
+            if (_fechaEjecucionNoValida || !DateOnly.TryParse(_fechaEjecucion, out var fecha))
             {
                 _errorFormulario = "Indica una fecha válida.";
                 return;

@@ -46,18 +46,19 @@ namespace CaeManager.Application.Common;
 /// de soporte es de solo lectura, sin excepción implícita— se escribe aquí y se
 /// prueba aquí.
 ///
-/// <b>Tres excepciones, cada una atada a su capacidad y a su propia lista de
-/// comandos.</b> Las dos primeras, capacidades de acción acotada de ADR-011 § 8.7,
+/// <b>Cinco excepciones, cada una atada a su capacidad y a su propia lista de
+/// comandos.</b> Las cuatro primeras, capacidades de acción acotada de ADR-011 § 8.7,
 /// punto 3: una sesión con capacidad <c>RestablecimientoSegundoFactor</c> deja pasar
-/// solo un <see cref="IComandoDeRestablecimientoSegundoFactor"/>, y una con
+/// solo un <see cref="IComandoDeRestablecimientoSegundoFactor"/>, una con
 /// <c>RevocacionOperadorCaeExterno</c> solo un
-/// <see cref="IComandoDeRevocacionOperadorCaeExterno"/> y <c>ConcesionAdministrador</c> solo
-/// un <see cref="IComandoDeConcesionAdministrador"/>, cada una solo en su Tenant
+/// <see cref="IComandoDeRevocacionOperadorCaeExterno"/>, una con <c>ConcesionAdministrador</c> solo
+/// un <see cref="IComandoDeConcesionAdministrador"/> y una con <c>AjusteSegundoFactorTenant</c> solo un
+/// <see cref="IComandoDeAjusteSegundoFactorTenant"/>, cada una solo en su Tenant
 /// objetivo. Ninguna es camino de escritura —la conexión sigue con el rol de solo
 /// lectura—: el acto lo ejecuta una función de la base que repite las
 /// comprobaciones.
 ///
-/// <b>La tercera, PD-A3, con tres condiciones a la vez, no una.</b>
+/// <b>La quinta, PD-A3, con tres condiciones a la vez, no una.</b>
 /// Una sesión con <c>TieneCaminoDeEscritura</c> (hoy solo <c>Aprovisionamiento</c>
 /// — <c>BreakGlass</c> permite escribir en el modelo pero su fase todavía no
 /// existe) deja pasar el comando solo si además es
@@ -191,6 +192,25 @@ public class AutorizacionEscrituraBehavior<TRequest, TResponse>(
                 if (tenantActual.TenantId != sesion.TenantObjetivoId)
                     return CrearRespuestaFallo<TResponse>(Error.Crear(
                         "Autorizacion.ConcesionAdministradorFueraDelTenantObjetivo",
+                        "Esta sesión solo puede actuar en la organización sobre la que se abrió."));
+
+                return await next(cancellationToken);
+            }
+
+            // Cuarta capacidad acotada (decisión del 2026-11-08): cambiar la exigencia de segundo
+            // factor para todos los perfiles del Tenant. Un solo comando, solo en el Tenant objetivo,
+            // y la escritura la hace app_cambiar_segundo_factor_tenant_por_plataforma, no esta
+            // conexión (ASVS 4.0.3 V4.1.3, V4.2.1).
+            if (sesion.Capacidad == CapacidadPrivilegio.AjusteSegundoFactorTenant)
+            {
+                if (request is not IComandoDeAjusteSegundoFactorTenant)
+                    return CrearRespuestaFallo<TResponse>(Error.Crear(
+                        "Autorizacion.ComandoFueraDelAjusteSegundoFactor",
+                        "Esta sesión solo permite cambiar la exigencia de verificación en dos pasos de la organización."));
+
+                if (tenantActual.TenantId != sesion.TenantObjetivoId)
+                    return CrearRespuestaFallo<TResponse>(Error.Crear(
+                        "Autorizacion.AjusteSegundoFactorFueraDelTenantObjetivo",
                         "Esta sesión solo puede actuar en la organización sobre la que se abrió."));
 
                 return await next(cancellationToken);

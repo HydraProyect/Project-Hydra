@@ -183,7 +183,7 @@ jobs:
       # propia versión de ASP.NET Core; con otro SDK el lock deja de cuadrar
       # y NuGet reevaluaba Web en silencio (ver Directory.Build.props).
       - name: Instalar .NET SDK
-        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6
+        uses: actions/setup-dotnet@0f4a354dd5547a28c70b7853dbd95d5b67886e73 # v6
         with:
           global-json-file: global.json
 
@@ -501,7 +501,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
       - name: Instalar .NET SDK
-        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6
+        uses: actions/setup-dotnet@0f4a354dd5547a28c70b7853dbd95d5b67886e73 # v6
         with:
           global-json-file: global.json
 
@@ -551,7 +551,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
       - name: Instalar .NET SDK
-        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6
+        uses: actions/setup-dotnet@0f4a354dd5547a28c70b7853dbd95d5b67886e73 # v6
         with:
           global-json-file: global.json
 
@@ -637,7 +637,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
       - name: Instalar .NET SDK
-        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6
+        uses: actions/setup-dotnet@0f4a354dd5547a28c70b7853dbd95d5b67886e73 # v6
         with:
           global-json-file: global.json
 
@@ -863,7 +863,7 @@ jobs:
         run: bash scripts/ci-exigir-dependencias.sh
 
       - name: Instalar .NET SDK
-        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6
+        uses: actions/setup-dotnet@0f4a354dd5547a28c70b7853dbd95d5b67886e73 # v6
         with:
           global-json-file: global.json
 
@@ -1224,7 +1224,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
       - name: Instalar .NET SDK
-        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6
+        uses: actions/setup-dotnet@0f4a354dd5547a28c70b7853dbd95d5b67886e73 # v6
         with:
           global-json-file: global.json
 
@@ -1250,6 +1250,39 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
+      # Desde el 2026-11-11 hay runners que no resuelven *.ubuntu.com y el
+      # apt-get del Dockerfile falla con «Could not resolve 'archive.ubuntu.com'».
+      # Se sondean desde el runner, con el codename de la etapa final del
+      # Dockerfile, las dos fuentes http que trae esa base (archive y security).
+      # Si responden, no se pasa ningún build-arg y la imagen se construye igual
+      # que en deploy.yml. Si no, se pasa ESPEJO_UBUNTU con el primer espejo
+      # oficial de reserva de apt-acotado (elegir-espejo.sh) que responda.
+      - name: Elegir el archivo de Ubuntu para la imagen
+        id: espejo-ubuntu
+        run: |
+          set -euo pipefail
+          base_final="$(sed -nE 's/^FROM[[:space:]]+([^[:space:]]+)[[:space:]]+AS[[:space:]]+final[[:space:]]*$/\1/p' Dockerfile)"
+          [ -n "$base_final" ] || { echo "::error::No encuentro la etapa «final» del Dockerfile."; exit 1; }
+          codename="$(docker run --rm --entrypoint sh "$base_final" -c '. /etc/os-release && echo "$VERSION_CODENAME"')"
+          # Solo vale un 200 final con la descarga completa: sin -L curl no sigue
+          # un 3xx, y con -f lo daría por bueno sin haber alcanzado el InRelease. El
+          # código de salida de curl también cuenta (un 200 cortado no vale).
+          responde_200() {
+            local codigo
+            codigo="$(curl -sS --max-time 10 --max-redirs 0 -o /dev/null -w '%{http_code}' "$1")" || return 1
+            [ "$codigo" = "200" ]
+          }
+          if responde_200 "http://archive.ubuntu.com/ubuntu/dists/${codename}/InRelease" \
+            && responde_200 "http://security.ubuntu.com/ubuntu/dists/${codename}-security/InRelease"; then
+            echo "build-args=" >> "$GITHUB_OUTPUT"
+          elif base="$(bash .github/actions/apt-acotado/elegir-espejo.sh "$codename" solo-reserva)"; then
+            echo "::warning::*.ubuntu.com no responde desde el runner: la imagen (${codename}) se construye con el espejo de reserva ${base}"
+            echo "build-args=ESPEJO_UBUNTU=${base}" >> "$GITHUB_OUTPUT"
+          else
+            echo "::warning::Ningún archivo de Ubuntu responde a la sonda para ${codename}: la imagen se construye con las fuentes de su base."
+            echo "build-args=" >> "$GITHUB_OUTPUT"
+          fi
+
       # Reconstruye exactamente la imagen que se despliega en el VPS (mismo
       # Dockerfile, mismo -r linux-x64 --self-contained false de la Fase 22)
       # — así un SDK band distinto o un asset de framework faltante se
@@ -1266,6 +1299,7 @@ jobs:
           push: false
           load: true
           tags: caemanager:ci
+          build-args: ${{ steps.espejo-ubuntu.outputs.build-args }}
 
       # El publish sin blazor.web.js termina bien y deja la interactividad
       # rota en silencio (ver el comentario del publish en el Dockerfile).
@@ -1316,7 +1350,7 @@ jobs:
 
       - name: Recuperar la base de CVE del día
         id: cache-cve
-        uses: actions/cache/restore@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ${{ runner.temp }}/trivy-cache
           key: trivy-db-${{ steps.fecha-cve.outputs.fecha }}
@@ -1339,7 +1373,7 @@ jobs:
 
       - name: Guardar la base de CVE del día
         if: steps.cache-cve.outputs.cache-hit != 'true'
-        uses: actions/cache/save@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ${{ runner.temp }}/trivy-cache
           key: trivy-db-${{ steps.fecha-cve.outputs.fecha }}
@@ -1366,13 +1400,20 @@ jobs:
   bunit-tests:
     name: Tests de componentes (bUnit)
     runs-on: ubuntu-latest
+    # Techo del job entero, preparación incluida. Medido en los 17 runs verdes
+    # de main del 2026-11-11 y 2026-11-12: 4,7 a 7,1 min, p90 6,7. 30 es 4,5×
+    # ese p90 y cubre los 20 del paso «Tests de componentes Blazor» más una
+    # restauración lenta. Sin esto, el techo es el de GitHub, 6 h: en la PR
+    # #2182 el job estuvo colgado de 17:59 a 22:57 UTC del 2026-11-12, casi
+    # 5 h, hasta que se canceló.
+    timeout-minutes: 30
     permissions:
       contents: read
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
       - name: Instalar .NET SDK
-        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6
+        uses: actions/setup-dotnet@0f4a354dd5547a28c70b7853dbd95d5b67886e73 # v6
         with:
           global-json-file: global.json
 
@@ -1387,11 +1428,39 @@ jobs:
       # cifra era «cuánto del código TOTAL toca bUnit de refilón» (0,4 % en
       # local), que no significaba nada. Acotada, alimenta el trinquete de la
       # Web del gate "Build, format y tests" (ver el comentario de ese paso).
+      #
+      # CUELGUES: mismo mecanismo que «Ejecutar el bloque» de tests-integracion
+      # (ver su comentario): --blame-hang mata el testhost cuando pasan 5 min
+      # sin que empiece ni termine ningún test, y deja en la consola el test en
+      # curso y en coverage/web/<guid>/Sequence_*.xml la secuencia; volcado
+      # `none` por la misma razón. 5 y no 10: en el run 43248669783 el test más
+      # lento tardó 48 s (BancoModelosIaTests, el siguiente 6 s) y la suite
+      # entera 3,5 min, así que 5 min sin actividad solo se dan con un cuelgue.
+      # El timeout del paso (20 min) es la red si blame no llega a cortar: el
+      # paso compila además de probar, medido 4,1 a 6,4 min (p90 6,0) en los
+      # mismos 17 runs, y un cuelgue en el peor momento acaba hacia 6,4 + 5.
+      # Al ser del paso y no del job, el paso de diagnóstico de abajo se ejecuta.
       - name: Tests de componentes Blazor
+        timeout-minutes: 20
         run: >
           dotnet test tests/CaeManager.Web.Tests --logger "console;verbosity=normal"
           --collect "XPlat Code Coverage" --results-directory ./coverage/web
           --settings tests/CaeManager.Web.Tests/coverlet.runsettings
+          --blame-hang --blame-hang-timeout 5min --blame-hang-dump-type none
+
+      # Tras un cuelgue cortado por --blame-hang, el Sequence_*.xml con los
+      # tests que estaban en curso. cancelled() se suma a failure() para cubrir
+      # el job cortado por su timeout-minutes o cancelado a mano. El intento va
+      # en el nombre porque «Re-run failed jobs» repite el job en la misma
+      # ejecución y dos artefactos no pueden llamarse igual.
+      - name: Publicar la secuencia de blame si los tests fallaron o se cortaron
+        if: failure() || cancelled()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: blame-bunit-intento-${{ github.run_attempt }}
+          path: coverage/web/**/Sequence_*.xml
+          retention-days: 7
+          if-no-files-found: warn
 
       - name: Publicar la cobertura de la Web
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
@@ -1471,7 +1540,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
       - name: Instalar .NET SDK
-        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6
+        uses: actions/setup-dotnet@0f4a354dd5547a28c70b7853dbd95d5b67886e73 # v6
         with:
           global-json-file: global.json
 
@@ -1655,7 +1724,9 @@ jobs:
             >> /tmp/diagnostico-e2e/manifiesto.txt
 
       # TestResults entero, no solo el .trx: tras un cuelgue cortado por
-      # --blame-hang, el Sequence_*.xml queda en una subcarpeta <guid>.
+      # --blame-hang, el Sequence_*.xml queda en una subcarpeta <guid>, y los
+      # tests que usan TrazaAlFallar dejan su traza de Playwright (capturas e
+      # instantáneas del DOM) en TestResults/trazas-playwright/ (#2194).
       # cancelled() se suma a failure() para cubrir también el job cortado
       # por su timeout-minutes o cancelado a mano, como el del 2026-10-26.
       - name: Publicar logs de CaeManager.Web si el E2E falla
@@ -1836,7 +1907,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
       - name: Instalar .NET SDK
-        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6
+        uses: actions/setup-dotnet@0f4a354dd5547a28c70b7853dbd95d5b67886e73 # v6
         with:
           global-json-file: global.json
 
@@ -2278,7 +2349,7 @@ jobs:
         run: bash scripts/verificar-licencias-nuget.tests.sh
 
       - name: Instalar .NET SDK
-        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6
+        uses: actions/setup-dotnet@0f4a354dd5547a28c70b7853dbd95d5b67886e73 # v6
         with:
           global-json-file: global.json
 
@@ -2312,7 +2383,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
       - name: Instalar .NET SDK
-        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6
+        uses: actions/setup-dotnet@0f4a354dd5547a28c70b7853dbd95d5b67886e73 # v6
         with:
           global-json-file: global.json
 

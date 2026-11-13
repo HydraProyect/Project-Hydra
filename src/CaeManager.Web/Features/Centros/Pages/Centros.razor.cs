@@ -93,6 +93,9 @@ public partial class Centros : CaeManager.Web.Components.PaginaInteractiva
     private string _direccion = string.Empty;
     private string _contacto = string.Empty;
     private string _contratoVigenteHasta = string.Empty;
+
+    /// <summary>El campo tiene un texto que no es una fecha entera (entrega «»): Guardar no crea el Centro «sin fecha».</summary>
+    private bool _contratoVigenteHastaNoValido;
     private bool _guardando;
     private string? _mensajeErrorFormulario;
     private Dictionary<string, string> _erroresCampo = new();
@@ -138,7 +141,8 @@ public partial class Centros : CaeManager.Web.Components.PaginaInteractiva
     /// una sola vez (P1-E2b). Lee _drawerVisible en vivo: el kit recibe el Visible nuevo
     /// un render después.
     /// </summary>
-    private bool HayCambiosCentro => _drawerVisible && _instantanea.Difiere(ValoresFormulario());
+    private bool HayCambiosCentro =>
+        _drawerVisible && (_instantanea.Difiere(ValoresFormulario()) || _contratoVigenteHastaNoValido);
 
     /// <summary>
     /// Algo escrito en el modal de crear Cliente o Empresa abierto encima del drawer. Los
@@ -433,14 +437,26 @@ public partial class Centros : CaeManager.Web.Components.PaginaInteractiva
                 _clienteId = ClienteId.Value.ToString();
                 alAbrir[IndiceClienteEnValores] = _clienteId;
                 _clienteNombreSoloLectura = _clientesDisponibles.First(c => c.Id == ClienteId).RazonSocial;
-                await CargarEmpresasDisponiblesAsync(ClienteId);
+                var empresasDelCliente = await Mediator.Send(new ObtenerEmpresasParaSelectorQuery(ClienteId));
 
-                if (EmpresaId is not null && _empresasDisponibles.Any(e => e.Id == EmpresaId))
+                // El drawer ya es editable mientras cargan: si se eligió otro Cliente empresarial, su propia carga puso la
+                // lista y decide la Empresa, y esta respuesta tardía no pisa ni elige nada.
+                if (_clienteId == ClienteId.Value.ToString())
                 {
-                    _empresaId = EmpresaId.Value.ToString();
-                    alAbrir[IndiceEmpresaEnValores] = _empresaId;
-                    _empresaNombreSoloLectura = _empresasDisponibles.First(e => e.Id == EmpresaId).RazonSocial;
-                    _padresFijadosPorCadena = true;
+                    _empresasDisponibles = empresasDelCliente;
+
+                    if (EmpresaId is not null && _empresasDisponibles.Any(e => e.Id == EmpresaId))
+                    {
+                        _empresaId = EmpresaId.Value.ToString();
+                        alAbrir[IndiceEmpresaEnValores] = _empresaId;
+                        _empresaNombreSoloLectura = _empresasDisponibles.First(e => e.Id == EmpresaId).RazonSocial;
+                        _padresFijadosPorCadena = true;
+                    }
+                    else if (ElegirEmpresaUnicaDelCliente())
+                    {
+                        // Sin Empresa en la URL, la única del Cliente empresarial la elige la pantalla: tampoco es un cambio.
+                        alAbrir[IndiceEmpresaEnValores] = _empresaId;
+                    }
                 }
             }
 
@@ -1024,8 +1040,17 @@ public partial class Centros : CaeManager.Web.Components.PaginaInteractiva
     private string TextoCentrosConIncidencia(int cantidad) =>
         Textos[cantidad == 1 ? "GrupoConIncidencia" : "GrupoConIncidencias", cantidad].Value;
 
+    /// <summary>
+    /// «Empresa» solo es columna si hay de dónde elegir: con una única Empresa en los Centros visibles (las opciones del filtro,
+    /// que cubren todo el listado y no solo la página) las filas dirían todas lo mismo, y encima recortado. Hasta que
+    /// llegan las opciones no se pinta (así una sola Empresa no ve aparecer y desaparecer la columna al cargar); si la lectura
+    /// falló, quedan cero opciones y se enseña, para no esconder el dato por un fallo. El Cliente sigue en la segunda línea de «Centro».
+    /// </summary>
+    internal bool MostrarColumnaEmpresa => _opcionesFiltroCargadas && _opcionesEmpresa.Count != 1;
+
     private string ClaseRejilla(string claseBase) =>
-        $"{claseBase} rejilla-centros" + (_seleccionMultiple ? " rejilla-centros-seleccion" : string.Empty);
+        $"{claseBase} rejilla-centros" + (_seleccionMultiple ? " rejilla-centros-seleccion" : string.Empty)
+        + (MostrarColumnaEmpresa ? string.Empty : " rejilla-centros-sin-empresa");
 
     /// <summary>
     /// Rótulo del estado de la pastilla de la lista. Solo aquí «Bloqueo de la plataforma CAE» (<see cref="EstadoCentroUi"/>,
@@ -1134,6 +1159,7 @@ public partial class Centros : CaeManager.Web.Components.PaginaInteractiva
         _direccion = string.Empty;
         _contacto = string.Empty;
         _contratoVigenteHasta = string.Empty;
+        _contratoVigenteHastaNoValido = false;
         _erroresCampo = new Dictionary<string, string>();
         _mensajeErrorFormulario = null;
 
@@ -1151,7 +1177,8 @@ public partial class Centros : CaeManager.Web.Components.PaginaInteractiva
     /// <summary>
     /// Recarga el selector de Empresa acotado al Cliente elegido — o al
     /// catálogo completo si todavía no hay Cliente. Se llama al abrir el
-    /// Drawer y cada vez que el usuario cambia el Cliente en modo creación.
+    /// Drawer; el cambio de Cliente empresarial en modo creación y el
+    /// encadenado por URL cargan por su cuenta para descartar respuestas tardías.
     /// </summary>
     private async Task CargarEmpresasDisponiblesAsync(Guid? clienteId)
     {
@@ -1160,10 +1187,11 @@ public partial class Centros : CaeManager.Web.Components.PaginaInteractiva
 
     /// <summary>
     /// Solo aplica en modo creación con los padres editables (no fijados por
-    /// una cadena de otra pantalla): al cambiar el Cliente, el selector de
-    /// Empresa se recorta a las suyas — si la Empresa que estaba elegida ya
-    /// no pertenece al nuevo Cliente, se limpia en vez de dejar una
-    /// combinación imposible.
+    /// una cadena de otra pantalla): al cambiar el Cliente empresarial, el
+    /// selector de Empresa se recorta a las suyas — si la Empresa que estaba
+    /// elegida ya no pertenece al nuevo Cliente empresarial, se limpia en vez
+    /// de dejar una combinación imposible, y si el nuevo tiene una sola
+    /// Empresa, esa queda elegida (<see cref="ElegirEmpresaUnicaDelCliente"/>).
     /// </summary>
     private async Task CambiarClienteCreacionAsync(string valor)
     {
@@ -1173,10 +1201,34 @@ public partial class Centros : CaeManager.Web.Components.PaginaInteractiva
             _mensajeErrorFormulario = null;
 
         var clienteId = Guid.TryParse(valor, out var id) ? id : (Guid?)null;
-        await CargarEmpresasDisponiblesAsync(clienteId);
+        var empresas = await Mediator.Send(new ObtenerEmpresasParaSelectorQuery(clienteId));
+
+        // Otro Cliente empresarial elegido mientras cargaban estas Empresas: su propia llamada pone la lista y decide la
+        // Empresa. Sin esto, una respuesta tardía dejaría las Empresas (y la única, elegida) de un Cliente empresarial que
+        // ya no es el del alta.
+        if (_clienteId != valor)
+            return;
+
+        _empresasDisponibles = empresas;
 
         if (!_empresasDisponibles.Any(e => e.Id.ToString() == _empresaId))
             _empresaId = string.Empty;
+
+        if (clienteId is not null && ElegirEmpresaUnicaDelCliente())
+            LimpiarAvisoDeSeleccionFaltante();
+    }
+
+    /// <summary>
+    /// Con la lista de Empresas ya acotada a un Cliente empresarial: si tiene una sola y no hay ninguna elegida, queda
+    /// elegida esa (el selector sigue editable para crear otra). Con varias no se elige ninguna. Devuelve si la eligió.
+    /// </summary>
+    private bool ElegirEmpresaUnicaDelCliente()
+    {
+        if (_empresaId.Length > 0 || _empresasDisponibles.Count != 1)
+            return false;
+
+        _empresaId = _empresasDisponibles[0].Id.ToString();
+        return true;
     }
 
     private const string AvisoSeleccionaCliente = "Selecciona un Cliente.";
@@ -1242,6 +1294,14 @@ public partial class Centros : CaeManager.Web.Components.PaginaInteractiva
         return Task.CompletedTask;
     }
 
+    // Al volver a ser una fecha entera (o quedar vacía), el aviso «no es una fecha» de un envío anterior ya no es cierto.
+    private void AlCambiarContratoVigenteHastaNoValido(bool noValido)
+    {
+        _contratoVigenteHastaNoValido = noValido;
+        if (!noValido && _mensajeErrorFormulario == Comunes["CampoFechaCorregirAntes"])
+            _mensajeErrorFormulario = null;
+    }
+
     private Task GuardarAsync() => GuardarAsync(crearOtro: false);
 
     /// <summary>
@@ -1264,6 +1324,13 @@ public partial class Centros : CaeManager.Web.Components.PaginaInteractiva
             var codigoCentro = string.IsNullOrWhiteSpace(_codigoCentro) ? null : _codigoCentro;
             var direccion = string.IsNullOrWhiteSpace(_direccion) ? null : _direccion;
             var contacto = string.IsNullOrWhiteSpace(_contacto) ? null : _contacto;
+            // «Contrato vigente hasta» a medias o ilegible llega como «»: sin este bloqueo el Centro se crearía «sin fecha».
+            if (_contratoVigenteHastaNoValido)
+            {
+                _mensajeErrorFormulario = Comunes["CampoFechaCorregirAntes"];
+                return;
+            }
+
             var contratoVigenteHasta = DateOnly.TryParse(_contratoVigenteHasta, out var fecha) ? fecha : (DateOnly?)null;
 
             if (!Guid.TryParse(_clienteId, out var clienteId))

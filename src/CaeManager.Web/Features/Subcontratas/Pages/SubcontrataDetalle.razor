@@ -4,7 +4,9 @@
     SubcontrataWorkspacePanel, qué no enseña todavía y cómo se piden las credenciales.
 *@
 @page "/subcontratas/{SubcontrataId:guid}"
-@rendermode InteractiveServer
+@* Sin prerender (como Mi trabajo, M-23): la página carga en el ciclo de vida y no persiste su estado; con prerender
+   corría dos veces en cada visita. *@
+@rendermode @(new InteractiveServerRenderMode(prerender: false))
 @inherits CaeManager.Web.Components.PaginaInteractiva
 @attribute [Authorize]
 @using CaeManager.Application.Contactos.Queries.ObtenerAgendaContactos
@@ -22,6 +24,7 @@
 
 <LimiteDeErrores Pagina="this">
 <PageTitle>@(_detalle?.RazonSocial ?? Textos["TituloPagina"]) — @Marca.Nombre</PageTitle>
+<TituloDePaginaSinPrerender Titulo="@($"{(_detalle?.RazonSocial ?? Textos["TituloPagina"])} — {Marca.Nombre}")" />
 
 <div class="contenedor-pagina">
     <Breadcrumb Elementos="Miguero" ElementoSeleccionadoChanged="IrABreadcrumb" EtiquetaNavegacion="@Textos["EtiquetaMigas360"]" />

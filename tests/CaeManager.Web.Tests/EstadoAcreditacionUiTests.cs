@@ -53,6 +53,7 @@ public class EstadoAcreditacionUiTests
     }
 
     [Theory]
+    [InlineData(EstadoAcreditacion.PendienteDeSubir, "pendiente de subir")]
     [InlineData(EstadoAcreditacion.Subida, "enviada")]
     [InlineData(EstadoAcreditacion.Aceptada, "validada")]
     [InlineData(EstadoAcreditacion.Rechazada, "rechazada")]

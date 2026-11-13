@@ -127,7 +127,7 @@ public class GestionarAcreditacionEnPlataformaTests : BunitContext
         var talveg = cut.Find(".tabla-documentos-requeridos [data-linea=talveg]");
         var plataforma = cut.Find(".tabla-documentos-requeridos [data-linea=plataforma]");
         talveg.TextContent.Should().Contain("En TALVEG").And.Contain("Vigente").And.NotContain("Nalanda");
-        plataforma.TextContent.Should().Contain("En la plataforma").And.Contain("Nalanda: pendiente de envío").And.NotContain("Vigente");
+        plataforma.TextContent.Should().Contain("En la plataforma").And.Contain("Nalanda: pendiente de subir").And.NotContain("Vigente");
         cut.Find(".celda-documento-nombre").TextContent.Should().NotContain("Nalanda", "el estado en la plataforma no se repite bajo el nombre");
     }
 
@@ -372,14 +372,15 @@ public class GestionarAcreditacionEnPlataformaTests : BunitContext
     }
 
     [Fact]
-    public async Task En_Centro_360_si_falta_en_TALVEG_la_fila_de_plataforma_lleva_a_la_ficha_y_no_abre_el_panel()
+    public async Task En_Centro_360_si_falta_en_TALVEG_la_fila_de_plataforma_ofrece_Gestionar_y_no_el_enlace_de_texto_ni_abre_el_panel()
     {
         var trabajador = Trabajador(EstadoDocumento.Vencido, Guid.NewGuid(), Acreditacion(EstadoAcreditacion.Aceptada));
         Registrar(trabajador);
         var cut = await DesplegadoConEstadoDePlataformaAsync();
 
-        cut.Find(".fila-plataforma-centro [data-accion=actualizar-en-ficha]").GetAttribute("href")
-            .Should().Be($"/trabajadores/{trabajador.TrabajadorId}");
+        // 2026-11-09: «Gestionar» (flujo de reclamación) sustituye al enlace de texto «Actualizar en Trabajador 360».
+        cut.FindAll("[data-accion=actualizar-en-ficha]").Should().BeEmpty();
+        cut.Find(".fila-plataforma-centro [data-accion=gestionar-documento]").TextContent.Trim().Should().Be("Gestionar");
         cut.FindAll("[data-accion=gestionar-acreditacion]").Should().BeEmpty();
     }
 

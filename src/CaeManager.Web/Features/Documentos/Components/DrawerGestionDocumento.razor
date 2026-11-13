@@ -31,6 +31,7 @@
 @inject IConversorWordPdfService ConversorWordPdf
 @inject ILogger<DrawerGestionDocumento> Logger
 @inject IServiceProvider Servicios
+@inject Microsoft.Extensions.Localization.IStringLocalizer<CaeManager.Web.Recursos.TextosComunes> Comunes
 
 <DrawerFormulario Visible="_drawerVisible" VisibleChanged="CerrarDrawerAsync" Titulo="@(_editandoId is null ? "Nuevo documento" : "Renovar documento")"
                   HayCambios="() => HayCambiosSinGuardar" Guardando="_guardando" MensajeError="@_mensajeErrorFormulario"
@@ -164,12 +165,14 @@
             </div>
         }
 
-        <CampoTexto Etiqueta="Fecha de emisión" Type="date" Valor="@_fechaEmision" ValorChanged="v => _fechaEmision = v" />
+        <CampoTexto Etiqueta="Fecha de emisión" Type="date" Valor="@_fechaEmision" ValorChanged="v => _fechaEmision = v"
+                    FechaNoValida="_emisionNoValida" FechaNoValidaChanged="AlCambiarEmisionNoValida" />
 
         @if (RequiereVencimientoManual)
         {
             <div class="campo-con-boton">
-                <CampoTexto Etiqueta="Fecha de vencimiento" Type="date" Valor="@_fechaVencimientoManual" ValorChanged="v => _fechaVencimientoManual = v" />
+                <CampoTexto Etiqueta="Fecha de vencimiento" Type="date" Valor="@_fechaVencimientoManual" ValorChanged="v => _fechaVencimientoManual = v"
+                            FechaNoValida="_vencimientoManualNoValido" FechaNoValidaChanged="AlCambiarVencimientoManualNoValido" />
                 <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" OnClick="CopiarFechaEmisionAVencimiento"
                        data-tooltip="Copiar fecha de emisión a vencimiento" aria-label="Copiar fecha de emisión a vencimiento">
                     <Icono Nombre="copiar" Tamano="TamanoIcono.Pequeno" />
@@ -190,7 +193,11 @@
                 Accept=".pdf,application/pdf,.jpg,.jpeg,.png,image/jpeg,image/png,.docx,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
                 FormatosTexto="PDF · JPG · PNG · DOCX"
                 Cargando="_subiendoArchivo"
-                NombreArchivoActual="@(_archivoUrl is not null && !_archivoNoAdjuntado ? "Archivo adjuntado correctamente." : null)" />
+                TamanoMaximoBytes="LimitesArchivoSubido.TamanoMaximoBytes"
+                ArchivosAdjuntos="ArchivosAdjuntosVista"
+                AvisoCombinacion="@AvisoCombinacionArchivos"
+                PermitirQuitar="@(_archivoUrlSubidoSinAdoptar is not null && _editandoId is null && !_guardando)"
+                OnQuitar="QuitarArchivoAdjuntoAsync" />
             @if (_archivoNoAdjuntado && !_subiendoArchivo)
             {
                 <span class="campo-mensaje-error">@TextosDrawerGestionDocumento.Texto("ArchivoNoAdjuntado")</span>

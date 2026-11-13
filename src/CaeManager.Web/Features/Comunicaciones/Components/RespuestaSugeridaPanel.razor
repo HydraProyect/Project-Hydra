@@ -1,0 +1,467 @@
+@*
+    Respuesta sugerida por Vega (maqueta 2026-11-01, E18). Solo propone: nunca envía. Una persona la inserta en el redactor
+    («Insertar para revisar»), y mientras siga sin revisar —ni «Lo he revisado» ni más de 15 caracteres de edición— Enviar y
+    Ctrl+Intro quedan bloqueados aquí y, de verdad, en el servidor (BloqueoRespuestaSugerida). Las dos formas de revisarla
+    solo valen para la sugerencia que está en el redactor de esta apertura: una que insertó otra persona hay que ponerla antes
+    en el redactor, y una respuesta escrita aparte no la confirma (revisión Codex r3 de la #2163). La sugerencia se genera solo
+    bajo demanda («Pedir respuesta sugerida»), como fija GenerarRespuestaSugeridaCommand: nunca en la ingesta ni sola.
+    Presentacional con mediador, como ComposerNotaInterna: el redactor y el envío viven en la página, que recibe el texto por
+    OnInsertar y consulta BloqueaEnvio.
+*@
+@using CaeManager.Application.Comunicaciones
+@using CaeManager.Application.Comunicaciones.Commands.GenerarRespuestaSugerida
+@using CaeManager.Application.Comunicaciones.Commands.ResolverRespuestaSugerida
+@using CaeManager.Application.Comunicaciones.Queries.ObtenerRespuestaSugerida
+@using CaeManager.Domain.Common
+@using CaeManager.Domain.Comunicaciones
+@using CaeManager.Web.Features.Comunicaciones.Recursos
+@using MediatR
+@using Microsoft.AspNetCore.Components.Authorization
+@using Microsoft.Extensions.Localization
+@inject IMediator Mediator
+@inject ToastService ToastService
+@inject IStringLocalizer<TextosRespuestaSugerida> Textos
+@inject ILogger<RespuestaSugeridaPanel> Logger
+
+@if (_sugerencia is { Estado: EstadoRespuestaSugerida.SinRevisar } sinRevisar)
+{
+    // Revisión Codex r3 de la #2163, ALTO: «Lo he revisado» solo se ofrece si esta sugerencia está en el redactor de esta
+    // apertura (la página lo sabe y lo pasa en SugerenciaEnRedactorId). Si la insertó otra persona, u otra apertura, aquí no
+    // se ha mostrado: primero hay que ponerla en el redactor.
+    var mostrada = EstaEnElRedactor(sinRevisar);
+    <div class="rs-sinrevisar" role="status" title="@(mostrada ? Textos["SinRevisarAyuda"] : Textos["SinRevisarFueraAyuda"])"
+         data-estado="sin-revisar" data-en-redactor="@(mostrada ? "si" : "no")">
+        <span class="rs-sinrevisar-texto">@(mostrada ? Textos["SinRevisarTexto"] : Textos["SinRevisarFueraTexto"])</span>
+        @if (_puedeEscribir)
+        {
+            @if (_confirmaSustituir)
+            {
+                <span>@Textos["SustituirPregunta"]</span>
+                <Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno"
+                       OnClick="() => PonerEnRedactorAsync(sinRevisar)">@Textos["Sustituir"]</Boton>
+                <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno"
+                       OnClick="() => _confirmaSustituir = false">@Textos["ConservarMiTexto"]</Boton>
+            }
+            else
+            {
+                @if (!mostrada || string.IsNullOrWhiteSpace(TextoRedactor))
+                {
+                    <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" Deshabilitado="_resolviendo"
+                           OnClick="() => PedirPonerEnRedactorAsync(sinRevisar)">@Textos["PonerEnRedactor"]</Boton>
+                }
+                @if (mostrada)
+                {
+                    <Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno" Cargando="_resolviendo"
+                           OnClick="() => ResolverAsync(AccionRespuestaSugerida.Confirmar)">@Textos["LoHeRevisado"]</Boton>
+                }
+                <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" Deshabilitado="_resolviendo"
+                       OnClick="() => ResolverAsync(AccionRespuestaSugerida.Descartar)">@Textos["Descartar"]</Boton>
+            }
+        }
+    </div>
+}
+else if (_sugerencia is { Estado: EstadoRespuestaSugerida.Propuesta } propuesta)
+{
+    var texto = TextoVisible(propuesta);
+    <section class="rs-bloque" aria-label="@Textos["Titulo"]" data-estado="propuesta">
+        <div class="rs-cabecera">
+            <strong class="rs-titulo">@Textos["Titulo"]</strong>
+            <span class="rs-origen" data-origen="@(propuesta.Origen == OrigenRespuestaSugerida.Macro ? "macro" : "vega")"
+                  title="@(propuesta.Origen == OrigenRespuestaSugerida.Macro ? Textos["OrigenMacroAyuda"] : Textos["OrigenVegaAyuda"])">
+                <Badge Tono="@(propuesta.Origen == OrigenRespuestaSugerida.Macro ? TonoBadge.Info : TonoBadge.Neutro)" Tamano="TamanoBadge.Pequeno">
+                    @(propuesta.Origen == OrigenRespuestaSugerida.Macro ? Textos["OrigenMacro"] : Textos["OrigenVega"])
+                </Badge>
+            </span>
+            <span class="rs-espacio"></span>
+            <button type="button" class="rs-texto-boton" aria-expanded="@(_abierta ? "true" : "false")"
+                    @onclick="() => _abierta = !_abierta">@(_abierta ? Textos["Reducir"] : Textos["LeerEntera"])</button>
+        </div>
+        <p class="rs-texto @(_abierta ? "rs-texto-abierto" : string.Empty)">@texto</p>
+
+        @if (HayMensajeNuevo(propuesta))
+        {
+            <div class="rs-aviso" role="status">@Textos["MensajeNuevo"]</div>
+        }
+
+        @if (_puedeEscribir)
+        {
+            @if (_confirmaSustituir)
+            {
+                <div class="rs-aviso" role="alert">
+                    <span>@Textos["SustituirPregunta"]</span>
+                    <Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno" Cargando="_resolviendo"
+                           OnClick="() => InsertarAsync(propuesta)">@Textos["Sustituir"]</Boton>
+                    <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno"
+                           OnClick="() => _confirmaSustituir = false">@Textos["ConservarMiTexto"]</Boton>
+                </div>
+            }
+            else
+            {
+                <div class="rs-acciones">
+                    <Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno" Cargando="_resolviendo"
+                           title="@Textos["InsertarAyuda"]" OnClick="() => PedirInsertarAsync(propuesta)">@Textos["InsertarParaRevisar"]</Boton>
+                    @if (HayMensajeNuevo(propuesta) && PuedeSugerir)
+                    {
+                        <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" Cargando="_generando"
+                               OnClick="PedirAsync">@Textos["PedirOtra"]</Boton>
+                    }
+                    <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" Deshabilitado="_resolviendo"
+                           OnClick="() => ResolverAsync(AccionRespuestaSugerida.Descartar)">@Textos["Descartar"]</Boton>
+                </div>
+            }
+        }
+        else
+        {
+            <span class="rs-meta">@Textos["SoloConsulta"]</span>
+        }
+    </section>
+}
+else if (_cargado && PuedeSugerir && _puedeEscribir)
+{
+    <section class="rs-bloque rs-vacio" aria-label="@Textos["Titulo"]" data-estado="sin-sugerencia">
+        <div class="rs-cabecera">
+            <strong class="rs-titulo">@Textos["Titulo"]</strong>
+            <span class="rs-espacio"></span>
+            <Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno" Cargando="_generando"
+                   title="@Textos["PedirAyuda"]" OnClick="PedirAsync">@Textos["PedirSugerencia"]</Boton>
+        </div>
+        @if (_generando)
+        {
+            <span class="rs-meta" role="status">@Textos["Pidiendo"]</span>
+        }
+        @if (_error is not null)
+        {
+            <div class="rs-aviso rs-aviso-error" role="alert">@_error</div>
+        }
+    </section>
+}
+
+@code {
+    [CascadingParameter] private Task<AuthenticationState>? EstadoAutenticacion { get; set; }
+
+    [Parameter, EditorRequired] public Guid ConversacionId { get; set; }
+
+    /// <summary>Si la conversación admite pedir una sugerencia: sin resolver y con el último mensaje del contacto. El servidor decide en firme.</summary>
+    [Parameter] public bool PuedeSugerir { get; set; }
+
+    /// <summary>Último mensaje entrante del hilo abierto: una sugerencia de otro mensaje se marca como atrasada.</summary>
+    [Parameter] public Guid? UltimoEntranteId { get; set; }
+
+    /// <summary>Cambia cuando llega un mensaje: relee la sugerencia, que puede haberse sustituido o resuelto desde otra sesión.</summary>
+    [Parameter] public DateTime Version { get; set; }
+
+    /// <summary>Texto que hay ahora en el redactor, para saber si lo insertado se ha editado lo bastante.</summary>
+    [Parameter] public string TextoRedactor { get; set; } = string.Empty;
+
+    /// <summary>La página pone el texto de la sugerencia en el redactor. Esto no envía nada.</summary>
+    [Parameter] public EventCallback<SugerenciaDeLaSeleccion> OnInsertar { get; set; }
+
+    /// <summary>
+    /// Token de la selección de la página: cambia cada vez que se abre una conversación, también al volver a la misma
+    /// (revisión Codex r2 de la #2163, MEDIO 1). Se fija al pulsar y vuelve con el aviso, para que la página descarte el de
+    /// una operación empezada en una selección anterior aunque la conversación sea la misma (A→B→A). La Bandeja le pasa su
+    /// apertura vigente, que una recarga del mismo hilo no cambia.
+    /// </summary>
+    [Parameter] public int Seleccion { get; set; }
+
+    /// <summary>Se descartó una sugerencia: si el redactor aún tiene su texto, la página lo vacía (el servidor sigue bloqueando ese texto).</summary>
+    [Parameter] public EventCallback<SugerenciaDeLaSeleccion> OnDescartada { get; set; }
+
+    /// <summary>
+    /// La sugerencia que la página puso en su redactor en la apertura vigente (<see cref="Seleccion"/>), o <c>null</c>. Solo
+    /// esa se ha mostrado a esta persona aquí: es la única que «Lo he revisado» o editar más del umbral pueden confirmar
+    /// (revisión Codex r3 de la #2163, ALTO). Una sugerencia sin revisar que insertó otra persona, u otra apertura, no se
+    /// confirma con una respuesta escrita aparte, y mientras siga sin revisar el servidor bloquea todo envío en la conversación.
+    /// </summary>
+    [Parameter] public Guid? SugerenciaEnRedactorId { get; set; }
+
+    /// <summary>
+    /// La sugerencia de un aviso a la página, con el token de la selección en que se pulsó (<see cref="Seleccion"/>) y, al
+    /// insertar, el texto que tenía el redactor cuando se decidió sustituirlo (<paramref name="TextoAlPedir"/>): si al volver
+    /// del servidor el redactor ya no es ese, la persona ha seguido escribiendo y la página no lo pisa (revisión Codex r3, MEDIO).
+    /// </summary>
+    public sealed record SugerenciaDeLaSeleccion(RespuestaSugeridaDto Sugerencia, int Seleccion, string? TextoAlPedir = null);
+
+    /// <summary>Cambia el estado de la sugerencia (insertada, revisada, descartada): la página reevalúa si Enviar se ofrece.</summary>
+    [Parameter] public EventCallback OnEstadoCambiado { get; set; }
+
+    /// <summary>Canal del hilo: en WhatsApp la sugerencia es texto plano y el envío es el botón circular.</summary>
+    [Parameter] public bool EsWhatsApp { get; set; }
+
+    private RespuestaSugeridaDto? _sugerencia;
+    private bool _cargado;
+    private bool _puedeEscribir;
+    private bool _generando;
+    private bool _resolviendo;
+    private bool _abierta;
+    private bool _confirmaSustituir;
+    private string? _error;
+    private Guid _conversacionCargada;
+    private DateTime _versionCargada;
+
+    /// <summary>
+    /// Enviar y Ctrl+Intro no se ofrecen mientras haya una sugerencia insertada sin revisar: ni confirmada ni, estando en el
+    /// redactor de esta apertura, editada más del umbral. Una que no está en este redactor bloquea siempre, porque el servidor
+    /// rechazaría el envío y aquí no hay nada que confirmar (revisión Codex r3, ALTO). La página pasa el texto y la sugerencia
+    /// que tiene en ese momento (no los parámetros, que se actualizan después de pintar el redactor). La barra de esta misma
+    /// pantalla lo explica; el servidor lo impone aunque la interfaz fallara.
+    /// </summary>
+    public bool BloqueaEnvioPara(string? textoDelRedactor, Guid? sugerenciaEnRedactorId) =>
+        _sugerencia is { Estado: EstadoRespuestaSugerida.SinRevisar } s &&
+        (s.Id != sugerenciaEnRedactorId || !RevisionRespuestaSugerida.EditadaLoSuficiente(textoDelRedactor, s.Texto));
+
+    private bool EstaEnElRedactor(RespuestaSugeridaDto sugerencia) => SugerenciaEnRedactorId == sugerencia.Id;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (_conversacionCargada == ConversacionId && _versionCargada == Version) return;
+
+        var cambioConversacion = _conversacionCargada != ConversacionId;
+        _conversacionCargada = ConversacionId;
+        _versionCargada = Version;
+        if (cambioConversacion)
+        {
+            _sugerencia = null;
+            _cargado = false;
+            _error = null;
+            _abierta = false;
+            _confirmaSustituir = false;
+        }
+
+        _puedeEscribir = await SoloConEscritura.PuedeEscribirAsync(EstadoAutenticacion);
+        await CargarAsync(ConversacionId);
+    }
+
+    private async Task CargarAsync(Guid conversacionId)
+    {
+        var estadoAnterior = _sugerencia?.Estado;
+        var idAnterior = _sugerencia?.Id;
+        try
+        {
+            var sugerencia = await Mediator.Send(new ObtenerRespuestaSugeridaQuery(conversacionId));
+            if (conversacionId != ConversacionId) return;
+            _sugerencia = sugerencia;
+        }
+        catch (Exception ex)
+        {
+            // Sin sugerencia visible: el redactor y el envío siguen funcionando, que es lo que importa.
+            Logger.LogError(ex, "Error al cargar la respuesta sugerida de la conversación {ConversacionId}.", conversacionId);
+            if (conversacionId != ConversacionId) return;
+            _sugerencia = null;
+            _error = Textos["ErrorCargar"].Value;
+        }
+        finally
+        {
+            if (conversacionId == ConversacionId) _cargado = true;
+        }
+
+        if (conversacionId != ConversacionId) return;
+
+        // La pregunta de sustituir era sobre la sugerencia que había y en su estado: no se arrastra a otra ni a otro estado.
+        if (estadoAnterior != _sugerencia?.Estado || idAnterior != _sugerencia?.Id)
+            _confirmaSustituir = false;
+
+        if (estadoAnterior != _sugerencia?.Estado)
+            await OnEstadoCambiado.InvokeAsync();
+    }
+
+    private string TextoVisible(RespuestaSugeridaDto sugerencia) => TextoParaRedactor(sugerencia, EsWhatsApp);
+
+    /// <summary>
+    /// El texto que ve la persona, en el panel y en el redactor: en WhatsApp la sugerencia ya es texto plano; en correo se
+    /// guarda como HTML y se pasa a texto, porque el redactor es un campo de texto y no debe enseñar etiquetas ni entidades.
+    /// </summary>
+    public static string TextoParaRedactor(RespuestaSugeridaDto sugerencia, bool esWhatsApp) =>
+        esWhatsApp ? sugerencia.Texto : VariablesPlantillaRespuesta.HtmlATexto(sugerencia.Texto);
+
+    private bool HayMensajeNuevo(RespuestaSugeridaDto sugerencia) =>
+        UltimoEntranteId is { } ultimo && ultimo != sugerencia.MensajeOrigenId;
+
+    private async Task PedirAsync()
+    {
+        if (_generando || _resolviendo) return;
+
+        var conversacionId = ConversacionId;
+        _generando = true;
+        _error = null;
+        try
+        {
+            var resultado = await Mediator.Send(new GenerarRespuestaSugeridaCommand(conversacionId));
+            if (conversacionId != ConversacionId) return;
+            if (resultado.EsFallido)
+            {
+                _error = TextoDeError(resultado.Error);
+                return;
+            }
+
+            _abierta = false;
+            await CargarAsync(conversacionId);
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error al pedir la respuesta sugerida de la conversación {ConversacionId}.", conversacionId);
+            if (conversacionId == ConversacionId) _error = Textos["ErrorGenerico"].Value;
+        }
+        finally
+        {
+            _generando = false;
+        }
+    }
+
+    // Maqueta: con texto propio en el redactor, antes de pisarlo se pregunta; con el redactor vacío o con el mismo texto, no.
+    private Task PedirInsertarAsync(RespuestaSugeridaDto sugerencia)
+    {
+        if (HayTextoPropio(sugerencia))
+        {
+            _confirmaSustituir = true;
+            return Task.CompletedTask;
+        }
+
+        return InsertarAsync(sugerencia);
+    }
+
+    private bool HayTextoPropio(RespuestaSugeridaDto sugerencia) =>
+        !string.IsNullOrWhiteSpace(TextoRedactor)
+        && !string.Equals(RevisionRespuestaSugerida.TextoComparable(TextoRedactor),
+            RevisionRespuestaSugerida.TextoComparable(sugerencia.Texto), StringComparison.Ordinal);
+
+    // «Poner en redactor» de una sugerencia que ya está sin revisar: no cambia nada en el servidor, solo la muestra aquí.
+    // Con texto propio en el redactor se pregunta antes, como al insertar.
+    private Task PedirPonerEnRedactorAsync(RespuestaSugeridaDto sugerencia)
+    {
+        if (HayTextoPropio(sugerencia))
+        {
+            _confirmaSustituir = true;
+            return Task.CompletedTask;
+        }
+
+        return PonerEnRedactorAsync(sugerencia);
+    }
+
+    private Task PonerEnRedactorAsync(RespuestaSugeridaDto sugerencia)
+    {
+        _confirmaSustituir = false;
+        return OnInsertar.InvokeAsync(new SugerenciaDeLaSeleccion(sugerencia, Seleccion, TextoRedactor));
+    }
+
+    private async Task InsertarAsync(RespuestaSugeridaDto sugerencia)
+    {
+        if (_resolviendo) return;
+
+        // Lo que la persona aceptó sustituir es el redactor de este momento: si sigue escribiendo mientras el servidor
+        // responde, la página no lo pisa (revisión Codex r3, MEDIO).
+        var seleccion = Seleccion;
+        var textoAlPedir = TextoRedactor;
+        _resolviendo = true;
+        try
+        {
+            var resultado = await Mediator.Send(new ResolverRespuestaSugeridaCommand(sugerencia.Id, AccionRespuestaSugerida.Insertar));
+            if (resultado.EsFallido)
+            {
+                ToastService.MostrarError(resultado.Error);
+                await CargarAsync(ConversacionId);
+                return;
+            }
+
+            _confirmaSustituir = false;
+            // Primero el estado (sin revisar) y después el texto: así la página ya bloquea Enviar cuando pinta el redactor.
+            await CargarAsync(ConversacionId);
+            await OnInsertar.InvokeAsync(new SugerenciaDeLaSeleccion(sugerencia, seleccion, textoAlPedir));
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error al insertar la respuesta sugerida {RespuestaSugeridaId}.", sugerencia.Id);
+            ToastService.Mostrar(Textos["ErrorGenerico"].Value, TonoToast.Error);
+        }
+        finally
+        {
+            _resolviendo = false;
+        }
+    }
+
+    private async Task ResolverAsync(AccionRespuestaSugerida accion)
+    {
+        if (_resolviendo || _sugerencia is not { } sugerencia) return;
+        // Confirmar es decir «la he leído»: solo de la que esta apertura tiene en el redactor (revisión Codex r3, ALTO).
+        if (accion == AccionRespuestaSugerida.Confirmar && !EstaEnElRedactor(sugerencia)) return;
+
+        var seleccion = Seleccion;
+        _resolviendo = true;
+        try
+        {
+            var resultado = await Mediator.Send(new ResolverRespuestaSugeridaCommand(sugerencia.Id, accion));
+            if (resultado.EsFallido)
+            {
+                ToastService.MostrarError(resultado.Error);
+                await CargarAsync(ConversacionId);
+                return;
+            }
+
+            if (accion == AccionRespuestaSugerida.Descartar)
+            {
+                ToastService.Mostrar(Textos["ToastDescartada"].Value, TonoToast.Exito);
+                await OnDescartada.InvokeAsync(new SugerenciaDeLaSeleccion(sugerencia, seleccion));
+            }
+
+            await CargarAsync(ConversacionId);
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error al resolver la respuesta sugerida {RespuestaSugeridaId}.", sugerencia.Id);
+            ToastService.Mostrar(Textos["ErrorGenerico"].Value, TonoToast.Error);
+        }
+        finally
+        {
+            _resolviendo = false;
+        }
+    }
+
+    /// <summary>
+    /// Lo llama la página justo antes de enviar. Si la sugerencia sin revisar es la que la página puso en su redactor en esta
+    /// apertura (<paramref name="sugerenciaEnRedactorId"/>) y se ha editado más del umbral, cuenta como revisada y se confirma
+    /// en el servidor (que bloquea todo envío mientras siga sin revisar). Una que no está en este redactor no se confirma
+    /// nunca desde aquí (revisión Codex r3 de la #2163, ALTO): la persona no la ha visto, y un texto que se aparta de ella no
+    /// es una edición suya sino una respuesta escrita aparte. Devuelve <c>false</c> si no se pudo o no procede, y entonces la
+    /// página no envía.
+    /// </summary>
+    public async Task<bool> ConfirmarSiEditadaAsync(Guid conversacionId, string? textoDelRedactor, Guid? sugerenciaEnRedactorId)
+    {
+        // La de otra conversación no se confirma con este texto: decide el servidor, que bloquea si sigue sin revisar.
+        if (_sugerencia is not { Estado: EstadoRespuestaSugerida.SinRevisar } sugerencia || sugerencia.ConversacionId != conversacionId)
+            return true;
+        if (sugerencia.Id != sugerenciaEnRedactorId)
+        {
+            ToastService.Mostrar(Textos["SinRevisarFueraAyuda"].Value, TonoToast.Error);
+            return false;
+        }
+        if (!RevisionRespuestaSugerida.EditadaLoSuficiente(textoDelRedactor, sugerencia.Texto)) return false;
+
+        try
+        {
+            var resultado = await Mediator.Send(new ResolverRespuestaSugeridaCommand(sugerencia.Id, AccionRespuestaSugerida.Confirmar));
+            if (resultado.EsFallido)
+            {
+                ToastService.MostrarError(resultado.Error);
+                await CargarAsync(ConversacionId);
+                return false;
+            }
+
+            await CargarAsync(ConversacionId);
+            return true;
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error al confirmar la respuesta sugerida {RespuestaSugeridaId}.", sugerencia.Id);
+            ToastService.Mostrar(Textos["ErrorGenerico"].Value, TonoToast.Error);
+            return false;
+        }
+    }
+
+    // Los errores de negocio de la generación se explican aquí, localizados; el resto lleva el texto del servidor.
+    private string TextoDeError(Error error) => error.Codigo switch
+    {
+        "Sugerencia.NoDisponible" => Textos["NoDisponible"].Value,
+        "Sugerencia.NoProcede" => Textos["NoProcede"].Value,
+        _ => error.Mensaje
+    };
+}

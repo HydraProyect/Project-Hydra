@@ -16,13 +16,13 @@
     <value>Eines PDF</value>
   </data>
   <data name="PortadaDescripcion" xml:space="preserve">
-    <value>El que fas amb PDF dins de la gestió CAE de l'Empresa gestionada, sense sortir de TALVEG.</value>
+    <value>El que fas amb PDF dins de la gestió CAE de l'Empresa, sense sortir de TALVEG.</value>
   </data>
   <data name="PortadaDividirTitulo" xml:space="preserve">
     <value>Dividir un PDF amb diversos documents</value>
   </data>
   <data name="PortadaDividirDescripcion" xml:space="preserve">
-    <value>TALVEG proposa on comença cada document i de qui és. Ho revises tot abans de crear res.</value>
+    <value>TALVEG proposa on comença cada document i de qui és. Els deses a TALVEG, després de revisar-ho tot, o els descarregues per separat.</value>
   </data>
   <data name="PortadaDividirAccion" xml:space="preserve">
     <value>Divideix un PDF</value>
@@ -43,34 +43,34 @@
     <value>Tria el PDF amb diversos documents</value>
   </data>
   <data name="SubirDescripcion" xml:space="preserve">
-    <value>TALVEG proposa on comença cada document i de qui és. Ho revises tot abans de crear res.</value>
+    <value>TALVEG proposa on comença cada document i de qui és. Els deses a TALVEG, després de revisar-ho tot, o els descarregues per separat.</value>
   </data>
   <data name="SubirPie" xml:space="preserve">
     <value>L'original no es conserva: desapareix en crear els documents o en sortir d'aquesta pantalla.</value>
   </data>
   <data name="SinEmpresaAviso" xml:space="preserve">
-    <value>Tria primer una Empresa gestionada al selector de la barra lateral. Els documents s'hi creen.</value>
+    <value>Tria primer una Empresa al selector de la barra lateral. Els documents s'hi creen.</value>
   </data>
   <data name="SoloLectura" xml:space="preserve">
     <value>El teu accés és de només lectura: no pots crear documents.</value>
   </data>
   <data name="SinEmpresaPropia" xml:space="preserve">
-    <value>Encara no hi ha cap Empresa gestionada a la qual assignar documents.</value>
+    <value>Encara no hi ha cap Empresa a la qual assignar documents.</value>
   </data>
   <data name="ElegirEmpresaGestionada" xml:space="preserve">
-    <value>Tria una Empresa gestionada</value>
+    <value>Tria una Empresa</value>
   </data>
   <data name="EmpresaGestionada" xml:space="preserve">
-    <value>Empresa gestionada (selecció)</value>
+    <value>Empresa</value>
   </data>
   <data name="ElegirEmpresa" xml:space="preserve">
-    <value>Tria una Empresa gestionada</value>
+    <value>Tria una Empresa</value>
   </data>
   <data name="EmpresaDelSelector" xml:space="preserve">
-    <value>Empresa gestionada: {0} · la del selector de la barra lateral (activa)</value>
+    <value>Empresa: {0} · la que hi ha al selector de la barra lateral</value>
   </data>
   <data name="EmpresaUnica" xml:space="preserve">
-    <value>Empresa gestionada activa: {0}</value>
+    <value>Empresa: {0}</value>
   </data>
   <data name="ZonaTitulo" xml:space="preserve">
     <value>Arrossega aquí el PDF o prem per triar-lo</value>
@@ -79,13 +79,13 @@
     <value>Escanejat o fusionat, fins a {0} MB.</value>
   </data>
   <data name="ZonaBloqueada" xml:space="preserve">
-    <value>Tria una Empresa gestionada per poder pujar el PDF</value>
+    <value>Tria una Empresa per poder pujar el PDF</value>
   </data>
   <data name="ErrorDemasiadoGrande" xml:space="preserve">
     <value>El PDF supera els {0} MB. Divideix-lo abans o puja'n una altra còpia.</value>
   </data>
   <data name="ErrorContrasena" xml:space="preserve">
-    <value>El PDF té contrasenya. Treu-la i torna'l a pujar.</value>
+    <value>El PDF està protegit o xifrat i no es pot dividir així. Obre&apos;l i desa&apos;l de nou com a PDF sense protecció (per exemple, imprimint-lo a PDF) i torna&apos;l a pujar.</value>
   </data>
   <data name="ErrorIlegible" xml:space="preserve">
     <value>No hem pogut llegir aquest PDF. Puja'n una altra còpia.</value>
@@ -93,8 +93,11 @@
   <data name="ErrorSinEspacio" xml:space="preserve">
     <value>Ara mateix no hi ha espai per a aquest PDF. Torna-ho a provar d'aquí a uns minuts.</value>
   </data>
+  <data name="FotoErrorOcupado" xml:space="preserve">
+    <value>Hi ha moltes conversions en curs, torna-ho a provar d'aquí a uns segons.</value>
+  </data>
   <data name="ErrorTenantCambiado" xml:space="preserve">
-    <value>L'Empresa gestionada del selector ha canviat des que vas pujar el PDF. No s'ha creat res: torna'l a pujar.</value>
+    <value>L'Empresa del selector ha canviat des que vas pujar el PDF. No s'ha creat res: torna'l a pujar.</value>
   </data>
   <data name="PasosEtiqueta" xml:space="preserve">
     <value>Passos de la divisió</value>
@@ -169,10 +172,10 @@
     <value>Canvia el PDF</value>
   </data>
   <data name="AsignarUno" xml:space="preserve">
-    <value>Assigna el document</value>
+    <value>Desa a TALVEG</value>
   </data>
   <data name="AsignarVarios" xml:space="preserve">
-    <value>Assigna els documents</value>
+    <value>Desa a TALVEG</value>
   </data>
   <data name="PaginaAmpliada" xml:space="preserve">
     <value>Pàgina {0}</value>
@@ -205,7 +208,7 @@
     <value>És de</value>
   </data>
   <data name="ClaseEmpresaGestionada" xml:space="preserve">
-    <value>Empresa gestionada (titular)</value>
+    <value>Empresa</value>
   </data>
   <data name="ClaseSubcontrata" xml:space="preserve">
     <value>Subcontractista</value>
@@ -325,7 +328,7 @@
     <value>{0} documents creats</value>
   </data>
   <data name="ResultadoDe" xml:space="preserve">
-    <value>De {0} per a l'Empresa gestionada {1}.</value>
+    <value>De {0} per a l'Empresa {1}.</value>
   </data>
   <data name="ResultadoHora" xml:space="preserve">
     <value>Creats per tu avui a les {0}.</value>
@@ -394,10 +397,10 @@
     <value>la del selector de la barra lateral esquerra</value>
   </data>
   <data name="EmpresaGestionadaDe" xml:space="preserve">
-    <value>Empresa que gestiones:</value>
+    <value>Empresa:</value>
   </data>
   <data name="SinEmpresaAvisoNegrita" xml:space="preserve">
-    <value>Tria primer una Empresa gestionada</value>
+    <value>Tria primer una Empresa</value>
   </data>
   <data name="DocumentosUno" xml:space="preserve">
     <value>1 documento</value>
@@ -419,5 +422,348 @@
   </data>
   <data name="ResultadoDocumentos" xml:space="preserve">
     <value>Documentos</value>
+  </data>
+  <data name="PortadaUnirTitulo" xml:space="preserve">
+    <value>Unir diversos PDF en un</value>
+  </data>
+  <data name="PortadaUnirDescripcion" xml:space="preserve">
+    <value>Tria PDF que puges o que ja són a Documents, ordena&apos;ls i descarrega&apos;n un de sol. No es desa res.</value>
+  </data>
+  <data name="PortadaUnirAccion" xml:space="preserve">
+    <value>Uneix PDF</value>
+  </data>
+  <data name="UnirPestana" xml:space="preserve">
+    <value>Uneix PDF</value>
+  </data>
+  <data name="UnirTitulo" xml:space="preserve">
+    <value>Uneix PDF</value>
+  </data>
+  <data name="UnirSinEmpresaResto" xml:space="preserve">
+    <value>al selector de la barra lateral. D&apos;ella surten els Documents que pots unir.</value>
+  </data>
+  <data name="UnirSinEmpresaPropia" xml:space="preserve">
+    <value>Encara no hi ha cap Empresa de la qual unir documents.</value>
+  </data>
+  <data name="UnirFirmasTitulo" xml:space="preserve">
+    <value>Perdran la signatura electrònica.</value>
+  </data>
+  <data name="UnirFirmasPierden" xml:space="preserve">
+    <value>El PDF unit és nou i no conserva la signatura de {0}.</value>
+  </data>
+  <data name="UnirRevisarLista" xml:space="preserve">
+    <value>Revisa la llista</value>
+  </data>
+  <data name="UnirIgualmente" xml:space="preserve">
+    <value>Uneix igualment</value>
+  </data>
+  <data name="UnirAvisoFirmado" xml:space="preserve">
+    <value>Algun PDF porta signatura electrònica. En unir-lo la perd: el PDF unit és nou i no la conserva.</value>
+  </data>
+  <data name="UnirAnadirTitulo" xml:space="preserve">
+    <value>Afegeix els PDF</value>
+  </data>
+  <data name="UnirZonaTitulo" xml:space="preserve">
+    <value>Arrossega aquí els PDF o prem per triar-los</value>
+  </data>
+  <data name="UnirZonaFormatos" xml:space="preserve">
+    <value>Fins a {0} MB cadascun i {1} PDF com a màxim.</value>
+  </data>
+  <data name="UnirOcultarDocumentos" xml:space="preserve">
+    <value>Amaga els Documents</value>
+  </data>
+  <data name="UnirElegirDeDocumentos" xml:space="preserve">
+    <value>Tria de Documents</value>
+  </data>
+  <data name="UnirZonaBloqueada" xml:space="preserve">
+    <value>Tria una Empresa per poder afegir PDF</value>
+  </data>
+  <data name="UnirDocumentosTitulo" xml:space="preserve">
+    <value>Documents de l&apos;Empresa</value>
+  </data>
+  <data name="UnirDocumentosVacio" xml:space="preserve">
+    <value>Aquesta Empresa no té documents amb arxiu que puguis unir.</value>
+  </data>
+  <data name="UnirEmitido" xml:space="preserve">
+    <value>emès el {0}</value>
+  </data>
+  <data name="UnirDocumentoAnadir" xml:space="preserve">
+    <value>Afegeix</value>
+  </data>
+  <data name="UnirDocumentoAnadido" xml:space="preserve">
+    <value>Afegit</value>
+  </data>
+  <data name="UnirListaTitulo" xml:space="preserve">
+    <value>PDF a unir, en aquest ordre</value>
+  </data>
+  <data name="UnirListaVacia" xml:space="preserve">
+    <value>Afegeix almenys dos PDF per unir-los.</value>
+  </data>
+  <data name="UnirOrigenSubido" xml:space="preserve">
+    <value>Pujat</value>
+  </data>
+  <data name="UnirOrigenDocumento" xml:space="preserve">
+    <value>De Documents</value>
+  </data>
+  <data name="UnirPaginaUna" xml:space="preserve">
+    <value>{0} pàgina</value>
+  </data>
+  <data name="UnirPaginasVarias" xml:space="preserve">
+    <value>{0} pàgines</value>
+  </data>
+  <data name="UnirFirmado" xml:space="preserve">
+    <value>amb signatura electrònica</value>
+  </data>
+  <data name="UnirSubirPosicion" xml:space="preserve">
+    <value>Puja {0} una posició</value>
+  </data>
+  <data name="UnirBajarPosicion" xml:space="preserve">
+    <value>Baixa {0} una posició</value>
+  </data>
+  <data name="UnirQuitar" xml:space="preserve">
+    <value>Treu {0}</value>
+  </data>
+  <data name="UnirPie" xml:space="preserve">
+    <value>El PDF unit es descarrega i no es desa com a Document. Els PDF que puges desapareixen en unir o en sortir d&apos;aquesta pantalla.</value>
+  </data>
+  <data name="UnirResumenUno" xml:space="preserve">
+    <value>{0} PDF a la llista: en calen almenys dos</value>
+  </data>
+  <data name="UnirResumenVarios" xml:space="preserve">
+    <value>{0} PDF per unir</value>
+  </data>
+  <data name="UnirAccion" xml:space="preserve">
+    <value>Uneix i descarrega</value>
+  </data>
+  <data name="UnirResultadoTitulo" xml:space="preserve">
+    <value>PDF unit: {0} pàgines</value>
+  </data>
+  <data name="UnirResultadoDescarga" xml:space="preserve">
+    <value>S&apos;ha descarregat {0}.</value>
+  </data>
+  <data name="UnirResultadoNoGuardado" xml:space="preserve">
+    <value>El PDF unit no s&apos;ha desat a TALVEG. Si el necessites com a Document, puja&apos;l des de Documents.</value>
+  </data>
+  <data name="UnirOtros" xml:space="preserve">
+    <value>Uneix altres PDF</value>
+  </data>
+  <data name="UnirElPdf" xml:space="preserve">
+    <value>el PDF</value>
+  </data>
+  <data name="UnirErrorMaximoFicheros" xml:space="preserve">
+    <value>Es poden unir com a màxim {0} PDF alhora.</value>
+  </data>
+  <data name="UnirErrorDemasiadoGrande" xml:space="preserve">
+    <value>{0} pesa més de {1} MB.</value>
+  </data>
+  <data name="UnirErrorTotalGrande" xml:space="preserve">
+    <value>Els PDF pesen junts més de {0} MB. Treu-ne algun.</value>
+  </data>
+  <data name="UnirErrorContrasena" xml:space="preserve">
+    <value>{0} té contrasenya. Treu-la i torna a afegir-lo.</value>
+  </data>
+  <data name="UnirErrorNoEsPdf" xml:space="preserve">
+    <value>{0} no és un PDF vàlid.</value>
+  </data>
+  <data name="UnirErrorDemasiadasPaginas" xml:space="preserve">
+    <value>{0} té massa pàgines: el PDF unit no pot passar de {1}.</value>
+  </data>
+  <data name="UnirErrorDocumentoNoDisponible" xml:space="preserve">
+    <value>{0} ja no està disponible o queda fora de la teva cartera.</value>
+  </data>
+  <data name="UnirErrorArchivoNoDisponible" xml:space="preserve">
+    <value>No s&apos;ha pogut obrir l&apos;arxiu de {0}. Torna-ho a provar més tard.</value>
+  </data>
+  <data name="UnirErrorIlegible" xml:space="preserve">
+    <value>No hem pogut llegir {0}. Prova amb una altra còpia.</value>
+  </data>
+  <data name="UnirErrorTenantCambiado" xml:space="preserve">
+    <value>L&apos;Empresa del selector ha canviat. No s&apos;ha unit res: torna a començar.</value>
+  </data>
+  <data name="UnirErrorEmpresa" xml:space="preserve">
+    <value>L&apos;Empresa no existeix o queda fora de la teva cartera.</value>
+  </data>
+  <data name="UnirErrorNumeroFicheros" xml:space="preserve">
+    <value>Cal unir entre {0} i {1} PDF.</value>
+  </data>
+  <data name="UnirErrorTotalPaginas" xml:space="preserve">
+    <value>El PDF unit passaria de {0} pàgines. Treu-ne algun.</value>
+  </data>
+  <data name="UnirErrorRol" xml:space="preserve">
+    <value>El teu rol no permet llegir documents per unir-los. Pots unir PDF que pugis tu.</value>
+  </data>
+  <data name="UnirErrorSesionPrivilegiada" xml:space="preserve">
+    <value>Una sessió privilegiada de plataforma no pot llegir documents per unir-los.</value>
+  </data>
+  <data name="UnirErrorGeneral" xml:space="preserve">
+    <value>No s&apos;ha pogut unir. Torna-ho a provar.</value>
+  </data>
+  <data name="UnirErrorSinConstancia" xml:space="preserve">
+    <value>No s&apos;ha pogut deixar constància de l&apos;accés als documents, així que no es lliura el PDF. Torna-ho a provar.</value>
+  </data>
+  <data name="UnirErrorDescarga" xml:space="preserve">
+    <value>El PDF s&apos;ha unit però el navegador no ha pogut descarregar-lo. Torna-ho a provar.</value>
+  </data>
+  <data name="UnirErrorDemasiadoComplejo" xml:space="preserve">
+    <value>{0} té una estructura interna massa gran per unir-lo sense risc. Obre'l i desa'l de nou com a PDF (per exemple, imprimint-lo a PDF) i torna-ho a provar.</value>
+  </data>
+  <data name="UnirDocumentosTruncados" xml:space="preserve">
+    <value>Es mostren els {0} Documents més recents. N'hi ha més: si no veus el que cerques, puja'l com a PDF.</value>
+  </data>
+  <!-- Foto a PDF: bloque propio al final del fichero, para que un conflicto de fusión con otra herramienta sea trivial. -->
+  <data name="PortadaFotoTitulo" xml:space="preserve">
+    <value>Foto a PDF</value>
+  </data>
+  <data name="PortadaFotoDescripcion" xml:space="preserve">
+    <value>Puja les fotos fetes amb el mòbil, ordena-les i descarrega un PDF amb una pàgina per foto. No es desa a TALVEG.</value>
+  </data>
+  <data name="PortadaFotoAccion" xml:space="preserve">
+    <value>Crear un PDF amb fotos</value>
+  </data>
+  <data name="FotoPestana" xml:space="preserve">
+    <value>Foto a PDF</value>
+  </data>
+  <data name="FotoTitulo" xml:space="preserve">
+    <value>Foto a PDF</value>
+  </data>
+  <data name="FotoDescripcion" xml:space="preserve">
+    <value>Puja les fotos fetes amb el mòbil, ordena-les i descarrega un PDF amb una pàgina per foto.</value>
+  </data>
+  <data name="FotoAvisoNoSeGuarda" xml:space="preserve">
+    <value>El PDF no es desa a TALVEG: es genera aquí, es descarrega i desapareix. Les fotos s'esborren en sortir d'aquesta pantalla. El PDF no conserva les dades de la càmera ni la ubicació de les fotos.</value>
+  </data>
+  <data name="FotoRechazadasTitulo" xml:space="preserve">
+    <value>No s'han pogut afegir aquestes fotos</value>
+  </data>
+  <data name="FotoSubirTitulo" xml:space="preserve">
+    <value>Afegir fotos</value>
+  </data>
+  <data name="FotoZonaTitulo" xml:space="preserve">
+    <value>Deixa aquí les teves fotos</value>
+  </data>
+  <data name="FotoZonaFormatos" xml:space="preserve">
+    <value>JPEG o PNG, fins a {0} fotos de {1} MB cadascuna.</value>
+  </data>
+  <data name="FotoLimiteAlcanzado" xml:space="preserve">
+    <value>Has arribat al màxim de {0} fotos. Treu-ne alguna per afegir-ne d'altres.</value>
+  </data>
+  <data name="FotoListaTitulo" xml:space="preserve">
+    <value>Ordre de les pàgines</value>
+  </data>
+  <data name="FotoResumenUna" xml:space="preserve">
+    <value>1 foto, 1 pàgina</value>
+  </data>
+  <data name="FotoResumenVarias" xml:space="preserve">
+    <value>{0} fotos, {0} pàgines</value>
+  </data>
+  <data name="FotoPagina" xml:space="preserve">
+    <value>Pàgina {0}</value>
+  </data>
+  <data name="FotoMiniaturaAlt" xml:space="preserve">
+    <value>Vista prèvia de {0}</value>
+  </data>
+  <data name="FotoMedidas" xml:space="preserve">
+    <value>{0} × {1} px · {2}</value>
+  </data>
+  <data name="FotoMoverArriba" xml:space="preserve">
+    <value>Amunt</value>
+  </data>
+  <data name="FotoMoverAbajo" xml:space="preserve">
+    <value>Avall</value>
+  </data>
+  <data name="FotoQuitar" xml:space="preserve">
+    <value>Treure</value>
+  </data>
+  <data name="FotoMoverArribaDe" xml:space="preserve">
+    <value>Pujar de posició {0}</value>
+  </data>
+  <data name="FotoMoverAbajoDe" xml:space="preserve">
+    <value>Baixar de posició {0}</value>
+  </data>
+  <data name="FotoQuitarDe" xml:space="preserve">
+    <value>Treure {0}</value>
+  </data>
+  <data name="FotoQuitarTodas" xml:space="preserve">
+    <value>Treure-les totes</value>
+  </data>
+  <data name="FotoDescargarUna" xml:space="preserve">
+    <value>Descarregar PDF d'1 pàgina</value>
+  </data>
+  <data name="FotoDescargarVarias" xml:space="preserve">
+    <value>Descarregar PDF de {0} pàgines</value>
+  </data>
+  <data name="FotoNombreArchivo" xml:space="preserve">
+    <value>fotos.pdf</value>
+  </data>
+  <data name="FotoErrorDemasiadas" xml:space="preserve">
+    <value>Només caben {0} fotos a cada PDF.</value>
+  </data>
+  <data name="FotoErrorDemasiadoGrande" xml:space="preserve">
+    <value>La foto supera els {0} MB. Redueix-ne la mida i torna a pujar-la.</value>
+  </data>
+  <data name="FotoErrorTotal" xml:space="preserve">
+    <value>Entre totes les fotos no poden passar de {0} MB. Treu-ne alguna o genera el PDF en dues parts.</value>
+  </data>
+  <data name="FotoErrorFormato" xml:space="preserve">
+    <value>Només s'admeten fotos JPEG i PNG.</value>
+  </data>
+  <data name="FotoErrorHeic" xml:space="preserve">
+    <value>Les fotos HEIC no s'admeten. A l'iPhone, a Ajustos, Càmera, Formats, tria «Més compatible», o comparteix-la com a JPEG.</value>
+  </data>
+  <data name="FotoErrorPixeles" xml:space="preserve">
+    <value>La foto té massa resolució (màxim {0} megapíxels i {1} píxels per costat). Redueix-la i torna a pujar-la.</value>
+  </data>
+  <data name="FotoErrorIlegible" xml:space="preserve">
+    <value>No hem pogut llegir aquesta foto. Comprova que no estigui malmesa.</value>
+  </data>
+  <data name="FotoErrorGenerar" xml:space="preserve">
+    <value>No hem pogut crear el PDF. Torna-ho a provar o treu alguna foto.</value>
+  </data>
+  <data name="FotoErrorDescarga" xml:space="preserve">
+    <value>El PDF està llest, però el navegador no l'ha pogut descarregar. Torna-ho a provar.</value>
+  </data>
+  <data name="SalidaDividir" xml:space="preserve">
+    <value>Tria què vols fer: desar a TALVEG, indicant de qui és i què és cada document, o descarregar cada document com un PDF a part, sense desar res.</value>
+  </data>
+  <data name="DescargarUno" xml:space="preserve">
+    <value>Descarrega el PDF</value>
+  </data>
+  <data name="DescargarVarios" xml:space="preserve">
+    <value>Descarrega {0} PDF</value>
+  </data>
+  <data name="DescargadosResultado" xml:space="preserve">
+    <value>PDF enviats al navegador: {0}. No s&apos;ha desat res a TALVEG. Si el navegador demana permís per descarregar diversos arxius, accepta&apos;l.</value>
+  </data>
+  <data name="ErrorDescargaTramo" xml:space="preserve">
+    <value>No s&apos;han pogut descarregar les pàgines {0} a {1}, ni les següents. Torna-ho a provar.</value>
+  </data>
+  <data name="ErrorSinEspacioTramo" xml:space="preserve">
+    <value>Ara mateix no hi ha espai per preparar les pàgines {0} a {1}, ni les següents. Torna-ho a provar d&apos;aquí a uns minuts.</value>
+  </data>
+  <data name="ErrorPdfExcedePresupuesto" xml:space="preserve">
+    <value>Aquest PDF és massa gran per separar-lo amb la memòria que té assignada aquest servidor. No s&apos;ha fet res: prova-ho amb un PDF més petit.</value>
+  </data>
+  <data name="ErrorDemasiadoComplejo" xml:space="preserve">
+    <value>Aquest PDF té una estructura interna massa gran per dividir-lo sense risc. Obre&apos;l i desa&apos;l de nou com a PDF (per exemple, imprimint-lo a PDF) i torna&apos;l a pujar.</value>
+  </data>
+  <data name="ErrorTenantCambiadoDescarga" xml:space="preserve">
+    <value>L&apos;Empresa del selector ha canviat des que vas pujar el PDF. {0} Torna&apos;l a pujar.</value>
+  </data>
+  <data name="ErrorTramoDemasiadoGrande" xml:space="preserve">
+    <value>Les pàgines {0} a {1} ocupen massa en separar-les en un PDF a part (en separar-les, alguns PDF creixen molt), així que no s&apos;han descarregat ni elles ni les següents. Tornar-ho a provar no ho arregla: divideix en trams més petits o desa-les a TALVEG, que admet documents de fins a {2} MB.</value>
+  </data>
+  <data name="ErrorTramoDemasiadoComplejo" xml:space="preserve">
+    <value>El PDF és massa complex per processar-lo: no s&apos;han descarregat les pàgines {0} a {1}, ni les següents. Tornar-ho a provar no ho arregla: obre&apos;l, desa&apos;l de nou com a PDF (per exemple, imprimint-lo a PDF) i torna&apos;l a pujar.</value>
+  </data>
+  <data name="ErrorTramoFalloInterno" xml:space="preserve">
+    <value>Una fallada interna de TALVEG, no del PDF, ha impedit descarregar les pàgines {0} a {1} i les següents. Torna-ho a provar més tard.</value>
+  </data>
+  <data name="ErrorEmpresaFueraDescarga" xml:space="preserve">
+    <value>L&apos;Empresa ja no existeix o ha sortit de la teva cartera. {0}</value>
+  </data>
+  <data name="DescargaParcial" xml:space="preserve">
+    <value>S&apos;han descarregat {0} de {1} PDF i la resta no.</value>
+  </data>
+  <data name="DescargaNinguna" xml:space="preserve">
+    <value>No se n&apos;ha descarregat cap.</value>
   </data>
 </root>

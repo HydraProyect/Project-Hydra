@@ -204,37 +204,68 @@ public class AuditoriaPantallaTests : BunitContext
 
         _mediador.Consultas[^1].DesdeUtc.Should().Be(DesdeUtcPorDefecto);
         _mediador.Consultas[^1].HastaUtc.Should().BeNull("«Hasta» vacío es «hasta ahora»: lo de hoy nunca queda fuera");
-        var campos = cut.FindAll("input[type=date]");
+        var campos = cut.FindAll("input[data-campo-fecha]");
         campos.Should().HaveCount(2);
-        campos[0].GetAttribute("value").Should().Be(DesdeTextoPorDefecto);
+        campos[0].GetAttribute("value").Should().Be(DiaDeNegocio.Hoy().AddDays(-90).ToString("dd/MM/yyyy", System.Globalization.CultureInfo.InvariantCulture));
         campos[1].GetAttribute("value").Should().BeNullOrEmpty();
         DesdeTextoPorDefecto.Should().Be(DiaDeNegocio.Hoy().AddDays(-90).ToString("yyyy-MM-dd"));
     }
 
+    /// <summary>
+    /// Los campos de fecha son <c>CampoTexto</c>, que rebota la escritura con un <c>Task.Delay</c> real de 300 ms antes de avisar
+    /// a la página. Se espera a que termine el propio manejador (<c>InputAsync</c>), no a un sondeo con plazo: con
+    /// <c>Input()</c> + <c>WaitForAssertion</c> (1 s por defecto) el plazo tenía que cubrir el rebote más la vuelta de su
+    /// continuación por el pool de hilos, y con el pool saturado en CI no la cubría (#1949, #2029).
+    /// </summary>
+    private static Task CambiarFechaAsync(IRenderedComponent<Features.Auditoria.Pages.Auditoria> cut, int campo, string valor) =>
+        cut.FindAll("input[data-campo-fecha]")[campo].InputAsync(new ChangeEventArgs { Value = valor });
+
     [Fact]
-    public void Cambiar_las_fechas_recarga_desde_la_pagina_1_y_el_enlace_de_exportar_las_lleva()
+    public async Task Cambiar_las_fechas_recarga_desde_la_pagina_1_y_el_enlace_de_exportar_las_lleva()
     {
         var cut = Renderizar();
 
-        cut.FindAll("input[type=date]")[0].Input("2026-01-15");
-        cut.WaitForAssertion(() => _mediador.Consultas[^1].DesdeUtc.Should().Be(RangoFechasAuditoria.DesdeUtc(new DateOnly(2026, 1, 15))));
-        cut.FindAll("input[type=date]")[1].Input("2026-02-20");
-        cut.WaitForAssertion(() => _mediador.Consultas[^1].HastaUtc.Should().Be(RangoFechasAuditoria.HastaUtcExclusivo(new DateOnly(2026, 2, 20))));
+        await CambiarFechaAsync(cut, 0, "2026-01-15");
+        _mediador.Consultas[^1].DesdeUtc.Should().Be(RangoFechasAuditoria.DesdeUtc(new DateOnly(2026, 1, 15)));
+        await CambiarFechaAsync(cut, 1, "2026-02-20");
+        _mediador.Consultas[^1].HastaUtc.Should().Be(RangoFechasAuditoria.HastaUtcExclusivo(new DateOnly(2026, 2, 20)));
 
         _mediador.Consultas[^1].Pagina.Should().Be(1);
         cut.Find("a.enlace-exportar").GetAttribute("href")
             .Should().Be("/auditoria/exportar.xlsx?desde=2026-01-15&hasta=2026-02-20");
     }
 
+    // Lo que no es una fecha entera llega a la página como «» (nunca «1/2/26» leído como 01/02/2026), y salir otra vez del
+    // campo con el mismo texto no vuelve a recargar la lista.
+    [Theory]
+    [InlineData("1/2/26")]
+    [InlineData("31/02/2026")]
+    public async Task Una_fecha_no_valida_consulta_sin_esa_cota_y_salir_otra_vez_no_recarga(string tecleado)
+    {
+        var cut = Renderizar();
+        var campo = () => cut.FindAll("input[data-campo-fecha]")[0];
+
+        await campo().InputAsync(new ChangeEventArgs { Value = tecleado });
+        await campo().BlurAsync(new FocusEventArgs());
+        var consultas = _mediador.Consultas.Count;
+        _mediador.Consultas[^1].DesdeUtc.Should().BeNull("el campo entrega «»: «Desde» queda sin cota");
+        cut.Find(".campo-mensaje-error").TextContent.Should().Contain("dd/mm/aaaa");
+
+        await campo().BlurAsync(new FocusEventArgs());
+        await campo().BlurAsync(new FocusEventArgs());
+
+        _mediador.Consultas.Should().HaveCount(consultas, "el valor no cambió: no hay nada que recargar");
+    }
+
     [Fact]
-    public void Vaciar_desde_consulta_todo_el_historial_y_lo_avisa()
+    public async Task Vaciar_desde_consulta_todo_el_historial_y_lo_avisa()
     {
         var cut = Renderizar();
         cut.Markup.Should().NotContain("todo el historial");
 
-        cut.FindAll("input[type=date]")[0].Input("");
+        await CambiarFechaAsync(cut, 0, "");
 
-        cut.WaitForAssertion(() => _mediador.Consultas[^1].DesdeUtc.Should().BeNull());
+        _mediador.Consultas[^1].DesdeUtc.Should().BeNull();
         cut.Markup.Should().Contain("Sin fecha de inicio: se consulta todo el historial");
         cut.Find("a.enlace-exportar").GetAttribute("href").Should().Be("/auditoria/exportar.xlsx");
     }

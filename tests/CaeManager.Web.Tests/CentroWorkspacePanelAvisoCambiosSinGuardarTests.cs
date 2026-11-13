@@ -1,6 +1,7 @@
 using AngleSharp.Dom;
 using Bunit;
 using CaeManager.Application.Centros.Commands.CrearCanalGestion;
+using CaeManager.Application.Centros.Commands.EditarCentro;
 using CaeManager.Application.Centros.Commands.EstablecerDocumentacionRequeridaCentro;
 using CaeManager.Application.Comunicaciones.Commands.PedirPrioridadValidacion;
 using CaeManager.Application.Reclamaciones;
@@ -96,6 +97,7 @@ public class CentroWorkspacePanelAvisoCambiosSinGuardarTests : BunitContext
                 ObtenerBorradorPedirPrioridadQuery => Result.Exito(new BorradorPedirPrioridadDto(
                     "validacion@refrielectric.example", "Prioridad de validación", "Os pedimos prioridad.", true, null, 1)),
                 CrearCanalGestionCommand => Result.Exito(Guid.NewGuid()),
+                EditarCentroCommand => Result.Exito(),
                 EstablecerDocumentacionRequeridaCentroCommand => Result.Exito(),
                 PedirPrioridadValidacionCommand => Result.Exito(),
                 EnviarReclamacionCommand => Result.Exito(new EnvioReclamacionResultado([], [])),
@@ -225,10 +227,115 @@ public class CentroWorkspacePanelAvisoCambiosSinGuardarTests : BunitContext
     private async Task<IRenderedComponent<CentroWorkspacePanel>> AbrirConfigurarRequisitoAsync()
     {
         var cut = Renderizar("requisitos");
-        cut.WaitForAssertion(() => cut.FindAll("button").Should().Contain(b => b.TextContent.Trim() == "Configurar"));
-        await PulsarAsync(cut, "Configurar");
-        cut.WaitForAssertion(() => cut.Markup.Should().Contain("Incluido en este centro"));
+        cut.WaitForAssertion(() => cut.FindAll("button[aria-label^='Editar ajustes de']").Should().NotBeEmpty());
+        await cut.Find("button[aria-label^='Editar ajustes de']").ClickAsync(new MouseEventArgs());
+        cut.WaitForAssertion(() => cut.FindAll(".requisitos-edicion").Should().ContainSingle());
         return cut;
+    }
+
+    private static Task EscribirFechaAsync(IRenderedComponent<CentroWorkspacePanel> cut, string texto) =>
+        cut.Find("input[data-campo-fecha]").InputAsync(new ChangeEventArgs { Value = texto });
+
+    [Fact]
+    public async Task Un_contrato_vigente_hasta_a_medias_no_edita_el_centro_sin_fecha()
+    {
+        var cut = await EditarInformacionAsync();
+
+        await EscribirFechaAsync(cut, "15/03");
+        await PulsarAsync(cut, "Guardar");
+
+        _mediador.Enviadas.Should().NotContain(o => o.GetType().Name == "EditarCentroCommand",
+            "el texto sin fecha entera llega como «» y borraría el fin de contrato sin que nadie lo decidiera");
+        cut.Markup.Should().Contain("no es válida");
+
+        await EscribirFechaAsync(cut, "15/03/2030");
+        await PulsarAsync(cut, "Guardar");
+
+        _mediador.Enviadas.OfType<EditarCentroCommand>().Should().ContainSingle("control positivo: con la fecha entera sí se envía")
+            .Which.ContratoVigenteHasta.Should().Be(new DateOnly(2030, 3, 15));
+    }
+
+    // Ronda 4 de Codex: el campo vive en la pestaña Información; al volver de otra pestaña nacía sin marca, avisaba false y
+    // Guardar enviaba EditarCentroCommand sin el fin de contrato.
+    [Fact]
+    public async Task Un_contrato_a_medias_sigue_marcado_al_volver_de_otra_pestana_y_no_edita_el_centro_sin_fecha()
+    {
+        var cut = await EditarInformacionAsync();
+        await EscribirFechaAsync(cut, "15/03");
+
+        cut.Render(p => p.Add(c => c.PestanaActiva, "plataforma"));
+        cut.FindAll("input[data-campo-fecha]").Should().BeEmpty("control: en otra pestaña el campo no existe");
+        cut.Render(p => p.Add(c => c.PestanaActiva, "informacion"));
+
+        cut.WaitForAssertion(() => cut.Find("input[data-campo-fecha]").GetAttribute("aria-invalid").Should().Be("true",
+            "el campo recreado nace con la marca y su aviso a la vista"));
+        await PulsarAsync(cut, "Guardar");
+
+        _mediador.Enviadas.Should().NotContain(o => o.GetType().Name == "EditarCentroCommand",
+            "volver de otra pestaña no convierte la fecha a medias en «sin fecha»");
+        cut.Markup.Should().Contain("no es válida");
+
+        await EscribirFechaAsync(cut, "15/03/2030");
+        await PulsarAsync(cut, "Guardar");
+        _mediador.Enviadas.OfType<EditarCentroCommand>().Should().ContainSingle("control positivo: corregida, se envía")
+            .Which.ContratoVigenteHasta.Should().Be(new DateOnly(2030, 3, 15));
+    }
+
+    // El aviso de un «Guardar» rechazado deja de ser cierto cuando la fecha vuelve a ser entera o se vacía; con el contrato sin
+    // fecha al empezar, borrar el texto no cambia el valor («»), así que solo el cambio de la bandera puede retirarlo.
+    [Fact]
+    public async Task El_aviso_de_fecha_no_valida_se_retira_al_corregir_o_vaciar_la_fecha()
+    {
+        var cut = await EditarInformacionAsync();
+        await EscribirFechaAsync(cut, "15/03");
+        await PulsarAsync(cut, "Guardar");
+        cut.Markup.Should().Contain("no es válida", "control: el intento rechazado avisa");
+
+        await EscribirFechaAsync(cut, "15/03/2030");
+        cut.Markup.Should().NotContain("no es válida", "la fecha ya es entera y el aviso del intento anterior no es cierto");
+
+        await EscribirFechaAsync(cut, "15/03");
+        await PulsarAsync(cut, "Guardar");
+        cut.Markup.Should().Contain("no es válida", "control: vuelve a avisar con otro texto a medias");
+
+        await EscribirFechaAsync(cut, "");
+        cut.Markup.Should().NotContain("no es válida", "vaciar el campo también deja el texto a medias");
+    }
+
+    // La secuencia directa, sin pasar antes por una fecha entera: el valor es «» antes y después de borrar el texto, así que
+    // solo el cambio de la bandera puede retirar el aviso.
+    [Fact]
+    public async Task El_aviso_de_fecha_no_valida_se_retira_al_vaciar_el_texto_sin_haber_pasado_por_una_fecha_entera()
+    {
+        var cut = await EditarInformacionAsync();
+        await EscribirFechaAsync(cut, "15/03");
+        await PulsarAsync(cut, "Guardar");
+        cut.Markup.Should().Contain("no es válida", "control: el intento rechazado avisa");
+
+        await EscribirFechaAsync(cut, "");
+
+        cut.Markup.Should().NotContain("no es válida");
+    }
+
+    // El contrato sin fecha al empezar: el campo entrega «» con el texto a medias, el valor no cambia y solo la bandera sabe
+    // que hay algo sin guardar.
+    [Fact]
+    public async Task Un_contrato_a_medias_cuenta_como_cambio_sin_guardar_aunque_el_valor_no_cambie()
+    {
+        var cut = await EditarInformacionAsync();
+        await EscribirFechaAsync(cut, "15/03");
+
+        await cut.SalirYComprobarQuePreguntaAsync(Navegacion);
+    }
+
+    [Fact]
+    public async Task Borrar_el_contrato_a_medias_vuelve_a_no_haber_cambios_sin_guardar()
+    {
+        var cut = await EditarInformacionAsync();
+        await EscribirFechaAsync(cut, "15/03");
+        await EscribirFechaAsync(cut, "");
+
+        await cut.SalirYComprobarQueNoPreguntaAsync(Navegacion, "borrado el texto a medias, no queda nada que descartar");
     }
 
     [Fact]
@@ -416,7 +523,7 @@ public class CentroWorkspacePanelAvisoCambiosSinGuardarTests : BunitContext
     public async Task Configurar_un_requisito_cambiando_una_casilla_pregunta()
     {
         var cut = await AbrirConfigurarRequisitoAsync();
-        var bloquea = cut.FindAll("label.campo-checkbox").Single(l => l.TextContent.Contains("Bloquea el acceso")).QuerySelector("input")!;
+        var bloquea = cut.FindAll("label.requisitos-casilla").Single(l => l.TextContent.Contains("Bloquea el acceso")).QuerySelector("input")!;
         await bloquea.ChangeAsync(new ChangeEventArgs { Value = true });
         await cut.SalirYComprobarQuePreguntaAsync(Navegacion);
     }
@@ -460,7 +567,7 @@ public class CentroWorkspacePanelAvisoCambiosSinGuardarTests : BunitContext
                 await Control(cut, "Para qué sirve este acceso").InputAsync(new ChangeEventArgs { Value = "Gestión general" });
                 break;
             default:
-                var bloquea = cut.FindAll("label.campo-checkbox").Single(l => l.TextContent.Contains("Bloquea el acceso")).QuerySelector("input")!;
+                var bloquea = cut.FindAll("label.requisitos-casilla").Single(l => l.TextContent.Contains("Bloquea el acceso")).QuerySelector("input")!;
                 await bloquea.ChangeAsync(new ChangeEventArgs { Value = true });
                 break;
         }
@@ -474,7 +581,6 @@ public class CentroWorkspacePanelAvisoCambiosSinGuardarTests : BunitContext
     [InlineData("prioridad")]
     [InlineData("reclamacion")]
     [InlineData("acceso")]
-    [InlineData("requisito")]
     public async Task Cancelar_con_cambios_pregunta_antes_de_cerrar_el_drawer(string drawer)
     {
         var cut = await AbrirDrawerAsync(drawer);
@@ -492,7 +598,6 @@ public class CentroWorkspacePanelAvisoCambiosSinGuardarTests : BunitContext
     [InlineData("prioridad")]
     [InlineData("reclamacion")]
     [InlineData("acceso")]
-    [InlineData("requisito")]
     public async Task Cancelar_sin_cambios_cierra_el_drawer_directamente(string drawer)
     {
         var cut = await AbrirDrawerAsync(drawer);
@@ -501,6 +606,18 @@ public class CentroWorkspacePanelAvisoCambiosSinGuardarTests : BunitContext
         await CancelarDelDrawerAsync(cut);
 
         cut.FindAll(".drawer-panel").Should().BeEmpty();
+        cut.FindAll("h2").Should().NotContain(h => h.TextContent.Trim() == "¿Descartar cambios?");
+    }
+
+    /// <summary>Los ajustes de un requisito ya no son un drawer: «Cancelar» cierra el panel de la fila (sin drawer ni pregunta).</summary>
+    [Fact]
+    public async Task Cancelar_sin_cambios_cierra_el_panel_de_ajustes_del_requisito()
+    {
+        var cut = await AbrirConfigurarRequisitoAsync();
+
+        await cut.FindAll(".requisitos-edicion-pie button").Single(b => b.TextContent.Trim() == "Cancelar").ClickAsync(new MouseEventArgs());
+
+        cut.FindAll(".requisitos-edicion").Should().BeEmpty();
         cut.FindAll("h2").Should().NotContain(h => h.TextContent.Trim() == "¿Descartar cambios?");
     }
 

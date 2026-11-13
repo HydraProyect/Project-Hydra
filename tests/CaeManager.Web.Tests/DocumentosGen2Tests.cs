@@ -126,8 +126,21 @@ public partial class DocumentosGen2Tests : BunitContext
         public ResultadoPaginado<DocumentoListaDto> Pagina(ObtenerDocumentosQuery q)
         {
             var documentos = Documentos(q);
-            return new ResultadoPaginado<DocumentoListaDto>(documentos, documentos.Count, q.Pagina, q.TamanoPagina);
+            return new ResultadoPaginado<DocumentoListaDto>(documentos, documentos.Count, q.Pagina, q.TamanoPagina)
+            {
+                ResumenPorGrupo = ResumenesDeGrupo(q),
+                FiltroRevisionIaAplicado = FiltroRevisionIaAplicado(q),
+            };
         }
+
+        /// <summary>
+        /// Lo que el handler dice de «Pendiente de revisión IA». Por defecto, que lo aplicó si se pidió (el rol efectivo coincide con el
+        /// claim); un test que simule otro rol efectivo devuelve <c>false</c>.
+        /// </summary>
+        public Func<ObtenerDocumentosQuery, bool> FiltroRevisionIaAplicado { get; set; } = q => q.PendienteDeRevisionIa;
+
+        /// <summary>Cabeceras de grupo que devuelve <see cref="ObtenerDocumentosQuery"/>; por defecto ninguna.</summary>
+        public Func<ObtenerDocumentosQuery, IReadOnlyDictionary<string, ResumenDeGrupo>?> ResumenesDeGrupo { get; set; } = _ => null;
 
         public Task Send<TRequest>(TRequest request, CancellationToken cancellationToken = default) where TRequest : IRequest =>
             Task.CompletedTask;
@@ -147,7 +160,7 @@ public partial class DocumentosGen2Tests : BunitContext
             where TNotification : INotification => Task.CompletedTask;
     }
 
-    private sealed class UsuarioActualFalso(string rol) : ICurrentUserService
+    private sealed class UsuarioActualFalso(string? rol) : ICurrentUserService
     {
         public Task<Guid?> ObtenerUsuarioActualIdAsync() => Task.FromResult<Guid?>(Guid.NewGuid());
         public Task<string?> ObtenerRolOrigenAsync() => ObtenerRolEfectivoAsync();
@@ -251,7 +264,7 @@ public partial class DocumentosGen2Tests : BunitContext
 
     private (IRenderedComponent<PaginaDocumentos> Cut, MediadorControlado Mediador) Renderizar(
         MediadorControlado? mediador = null, string url = "documentos", string rol = "Administrador",
-        Guid? tenantSeleccionado = null)
+        Guid? tenantSeleccionado = null, string? rolEfectivo = null, bool sinRolEfectivo = false)
     {
         mediador ??= new MediadorControlado();
         Services.AddScoped<ITenantActual>(_ => new SeleccionEmpresaGestionadaDePrueba(tenantSeleccionado));
@@ -260,7 +273,9 @@ public partial class DocumentosGen2Tests : BunitContext
         Services.AddLocalization();
         Services.AddScoped<ToastService>();
         Services.AddScoped<ContextWorkspaceService>();
-        Services.AddScoped<ICurrentUserService>(_ => new UsuarioActualFalso(rol));
+        // El rol efectivo, por defecto el del claim; con una Sesión Privilegiada o una Asignación heredada pueden diferir.
+        Services.AddScoped<ICurrentUserService>(_ => new UsuarioActualFalso(sinRolEfectivo ? null : rolEfectivo ?? rol));
+        Services.AddScoped<PuertaAccesoDatos>();
         Services.AddScoped<IFileStorageService, AlmacenArchivosQueNadieDebeTocar>();
         Services.AddScoped<IConversorWordPdfService, ConversorQueNadieDebeTocar>();
         Services.AddSingleton<ILogger<PaginaDocumentos>>(_ => NullLogger<PaginaDocumentos>.Instance);
@@ -424,7 +439,7 @@ public partial class DocumentosGen2Tests : BunitContext
         var (cut, _) = Renderizar();
 
         Pestanas(cut).Select(p => p.TextContent.Trim()).Should().BeEquivalentTo(
-            ["Estado", "Plataformas CAE", "Reclamaciones", "Preventivo", "Revisión IA", "Plantillas"],
+            ["Estado", "Plataformas CAE", "Reclamaciones", "Preventivo", "Revisión IA", "Plantillas", "Incidencias"],
             o => o.WithoutStrictOrdering(),
             "la píldora de recuento puede añadir texto, pero los rótulos son estos");
 
@@ -468,8 +483,8 @@ public partial class DocumentosGen2Tests : BunitContext
     }
 
     /// <summary>
-    /// «Todos los documentos» de la barra de sección enlaza a «documentos» sin parámetro: desde otra pestaña, la misma
-    /// instancia de la página solo ve desaparecer «?pestana=» y tiene que volver al listado (la barra la marca activa).
+    /// «Todos los documentos» (menú lateral, la pestaña «Estado» de /incidencias o un enlace guardado) apunta a «documentos» sin parámetro: desde otra pestaña, la misma
+    /// instancia de la página solo ve desaparecer «?pestana=» y tiene que volver al listado.
     /// </summary>
     [Fact]
     public void Quitar_el_parametro_pestana_de_la_URL_devuelve_el_listado()
@@ -1812,7 +1827,7 @@ public partial class DocumentosGen2Tests : BunitContext
         var (cut, mediador) = Renderizar(ConOpcionesDeFiltro());
 
         cut.WaitForAssertion(() => UltimaConsultaDeDocumentos(mediador).Should().NotBeNull());
-        await PastillaDocumentoFase1(cut, "Portal")
+        await PastillaDocumentoFase1(cut, "Plataforma CAE")
             .ClickAsync(new MouseEventArgs());
         await cut.FindAll(".barra-filtros-pastillas [role=menuitemradio]")
             .Single(b => b.TextContent.Trim() == "Nalanda").ClickAsync(new MouseEventArgs());
@@ -1876,6 +1891,65 @@ public partial class DocumentosGen2Tests : BunitContext
         UltimaConsultaDeDocumentos(mediador).TipoDocumentoId.Should().BeNull("el filtro antiguo no llevaba tipo");
         UltimaConsultaDeDocumentos(mediador).ProveedorPlataformaCaeId.Should().BeNull();
         navegacion.Uri.Should().NotContain("Tipo=").And.NotContain("Plataforma=");
+
+        async Task AplicarGuardado(string nombre)
+        {
+            await cut.FindAll(".menu-acciones-disparador").Single(d => d.GetAttribute("aria-label") == "Filtros guardados")
+                .ClickAsync(new MouseEventArgs());
+            await cut.FindAll(".barra-filtros-pastillas .menu-filtro-guardado [role=menuitem]")
+                .First(b => b.TextContent.Trim() == nombre).ClickAsync(new MouseEventArgs());
+        }
+    }
+
+    /// <summary>D-19: el «Estado en la plataforma» activo viaja en el JSON del filtro guardado.</summary>
+    [Fact]
+    public async Task Guardar_filtro_guarda_tambien_el_estado_en_la_plataforma()
+    {
+        var (cut, mediador) = Renderizar(ConOpcionesDeFiltro(),
+            url: $"documentos?EstadoPlataforma={nameof(EstadoEnPlataformaFiltro.Rechazado)}&agrupar=plataforma");
+        UltimaConsultaDeDocumentos(mediador).EstadosEnPlataforma.Should().Equal([EstadoEnPlataformaFiltro.Rechazado], "control positivo: el filtro llegó");
+
+        await GuardarFiltroDocumentoFase1(cut);
+        var campoNombre = cut.FindComponents<CampoTexto>().Single(c => c.Instance.Etiqueta == "Nombre");
+        await cut.InvokeAsync(() => campoNombre.Instance.ValorChanged.InvokeAsync("Rechazados"));
+        await cut.FindAll(".modal-pie button").Single(b => b.TextContent.Trim() == "Guardar").ClickAsync(new MouseEventArgs());
+
+        var guardado = mediador.Enviadas.OfType<GuardarFiltroCommand>().Should().ContainSingle().Subject;
+        guardado.ValoresJson.Should().Contain($"\"EstadoPlataforma\":\"{nameof(EstadoEnPlataformaFiltro.Rechazado)}\"")
+            .And.Contain("\"Agrupar\":\"plataforma\"", "D-19: la agrupación viaja también en el filtro guardado");
+    }
+
+    /// <summary>
+    /// D-19: aplicar un filtro guardado con «Estado en la plataforma» lo pone en la consulta y en la URL; uno guardado antes
+    /// de D-19 (sin ese campo ni los de Tipo y Plataforma) sigue cargando y lo quita, en vez de heredar el de la vista anterior.
+    /// </summary>
+    [Fact]
+    public async Task Aplicar_un_filtro_guardado_pone_su_estado_en_la_plataforma_y_uno_antiguo_sin_el_campo_sigue_cargando_y_lo_quita()
+    {
+        var nuevo = new FiltroGuardadoDto(Guid.NewGuid(), "Rechazados",
+            $"{{\"Estado\":null,\"EstadoPlataforma\":\"{nameof(EstadoEnPlataformaFiltro.Rechazado)}\",\"Agrupar\":\"tipo\"}}", DateTime.UtcNow);
+        var antiguo = new FiltroGuardadoDto(Guid.NewGuid(), "Vencidos", "{\"Busqueda\":null,\"Ambito\":null,\"Estado\":\"Vencido\"}", DateTime.UtcNow);
+        var mediador = ConOpcionesDeFiltro();
+        mediador.Interceptar = p => p is ObtenerFiltrosGuardadosQuery
+            ? Task.FromResult<object?>(new[] { nuevo, antiguo })
+            : null;
+        var (cut, _) = Renderizar(mediador);
+        var navegacion = Services.GetRequiredService<NavigationManager>();
+
+        await AplicarGuardado("Rechazados");
+
+        cut.WaitForAssertion(() => UltimaConsultaDeDocumentos(mediador).EstadosEnPlataforma
+            .Should().Equal([EstadoEnPlataformaFiltro.Rechazado]));
+        navegacion.Uri.Should().Contain($"EstadoPlataforma={nameof(EstadoEnPlataformaFiltro.Rechazado)}").And.Contain("agrupar=tipo");
+        cut.WaitForAssertion(() => cut.Find("button[aria-label^='Agrupar']").GetAttribute("aria-label")
+            .Should().Be("Agrupar por: tipo de documento"));
+
+        await AplicarGuardado("Vencidos");
+
+        cut.WaitForAssertion(() => UltimaConsultaDeDocumentos(mediador).Estados.Should().Equal(EstadoDocumento.Vencido));
+        UltimaConsultaDeDocumentos(mediador).EstadosEnPlataforma.Should().BeNull("el filtro antiguo no llevaba estado en la plataforma");
+        navegacion.Uri.Should().NotContain("EstadoPlataforma=").And.NotContain("agrupar=", "el filtro antiguo se aplica sin agrupar");
+        cut.FindAll("tr.documentos-cabecera-grupo-tipo").Should().BeEmpty();
 
         async Task AplicarGuardado(string nombre)
         {

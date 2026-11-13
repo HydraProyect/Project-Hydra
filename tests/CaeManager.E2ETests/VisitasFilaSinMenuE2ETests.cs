@@ -26,7 +26,7 @@ public partial class VisitasFilaSinMenuE2ETests(WebAppFixtureListados fixture)
 
     /// <summary>
     /// Abre /visitas y da de alta una Visita propia del test, por la interfaz, en el primer Centro
-    /// que ofrece el formulario y con el primer Trabajador de su lista. La fecha, lejana y al azar,
+    /// que ofrece el formulario y con el primer Trabajador asignado a ese Centro. La fecha, lejana y al azar,
     /// es lo que distingue su fila: ningún localizador depende de la siembra ni de las Visitas que
     /// dejen otros tests en ese Centro.
     /// </summary>
@@ -44,9 +44,15 @@ public partial class VisitasFilaSinMenuE2ETests(WebAppFixtureListados fixture)
         var alta = page.GetByRole(AriaRole.Dialog, new PageGetByRoleOptions { Name = "Nueva visita", Exact = true });
         await Expect(alta).ToBeVisibleAsync();
         await alta.GetByLabel("Centro", new LocatorGetByLabelOptions { Exact = true }).SelectOptionAsync(new SelectOptionValue { Index = 1 });
-        await alta.GetByLabel("Fecha de inicio", new LocatorGetByLabelOptions { Exact = true }).FillAsync(fecha.ToString("yyyy-MM-dd"));
-        await alta.GetByLabel("Fecha de fin", new LocatorGetByLabelOptions { Exact = true }).FillAsync(fecha.ToString("yyyy-MM-dd"));
-        // CrearVisitaCommandValidator exige al menos un Trabajador que entre: vale cualquiera, el primero.
+        await Ayudas.RellenarFechaAsync(alta.GetByLabel("Fecha de inicio", new LocatorGetByLabelOptions { Exact = true }), fecha);
+        await Ayudas.RellenarFechaAsync(alta.GetByLabel("Fecha de fin", new LocatorGetByLabelOptions { Exact = true }), fecha);
+        // CrearVisitaCommandValidator exige al menos un Trabajador que entre, y no vale cualquiera: solo
+        // entran los de la Empresa del Centro o de sus Subcontratas (TrabajadoresAdmisiblesEnVisita). El
+        // selector ofrece toda la cartera hasta que, ya elegido el Centro, llega la consulta de sus
+        // asignados y marca «Solo mostrar relacionados». Marcar el primero antes de eso podía coger un
+        // Trabajador de otra Empresa, que el servidor rechaza y deja el diálogo abierto (#2076).
+        await Expect(alta.GetByRole(AriaRole.Checkbox, new LocatorGetByRoleOptions { Name = "Solo mostrar relacionados", Exact = true }))
+            .ToBeCheckedAsync();
         await alta.Locator(".lista-seleccion-multiple input[type=checkbox]").First.CheckAsync();
         await alta.GetByRole(AriaRole.Button, new LocatorGetByRoleOptions { Name = "Guardar", Exact = true }).ClickAsync();
         await Expect(alta).ToBeHiddenAsync();
@@ -112,6 +118,7 @@ public partial class VisitasFilaSinMenuE2ETests(WebAppFixtureListados fixture)
     public async Task El_clic_en_la_fila_abre_la_vista_rapida_los_controles_no_y_el_lapiz_edita()
     {
         await using var contexto = await fixture.Browser.NewContextAsync();
+        await using var traza = TrazaAlFallar.Armar(contexto);
         var (page, fila) = await AbrirConUnaVisitaAsync(contexto);
         var panel = PanelVisita(page);
 
@@ -164,6 +171,7 @@ public partial class VisitasFilaSinMenuE2ETests(WebAppFixtureListados fixture)
         await panel.GetByRole(AriaRole.Button, new LocatorGetByRoleOptions { Name = "Editar la visita", Exact = true }).ClickAsync();
         await Expect(FormularioEdicion(page)).ToBeVisibleAsync();
         await Expect(panel).ToHaveCountAsync(0);
+        traza.Superada();
     }
 
     /// <summary>
@@ -174,6 +182,7 @@ public partial class VisitasFilaSinMenuE2ETests(WebAppFixtureListados fixture)
     public async Task El_icono_360_de_la_fila_lleva_a_la_pagina_sin_abrir_la_vista_rapida()
     {
         await using var contexto = await fixture.Browser.NewContextAsync();
+        await using var traza = TrazaAlFallar.Armar(contexto);
         var (page, fila) = await AbrirConUnaVisitaAsync(contexto);
         await Expect(PanelVisita(page)).ToHaveCountAsync(0);
 
@@ -185,12 +194,14 @@ public partial class VisitasFilaSinMenuE2ETests(WebAppFixtureListados fixture)
         await Expect(page).ToHaveURLAsync(PaginaVisita, new PageAssertionsToHaveURLOptions { Timeout = 30_000 });
         await Expect(page.Locator("[data-pieza=cabecera-identidad]")).ToBeVisibleAsync();
         await Expect(PanelVisita(page)).ToHaveCountAsync(0);
+        traza.Superada();
     }
 
     [Fact]
     public async Task Enter_abre_la_vista_rapida_de_la_fila_enfocada_y_la_tecla_e_abre_su_edicion()
     {
         await using var contexto = await fixture.Browser.NewContextAsync();
+        await using var traza = TrazaAlFallar.Armar(contexto);
         var (page, fila) = await AbrirConUnaVisitaAsync(contexto);
         var panel = PanelVisita(page);
         var fechas = await fila.Locator("button.nombre-abre-vista-rapida").InnerTextAsync();
@@ -208,14 +219,17 @@ public partial class VisitasFilaSinMenuE2ETests(WebAppFixtureListados fixture)
 
         var formulario = FormularioEdicion(page);
         await Expect(formulario).ToBeVisibleAsync();
+        // El campo de fecha (CampoFecha) enseña dd/mm/aaaa, no el ISO del antiguo input type="date".
         await Expect(formulario.GetByLabel("Fecha de inicio", new LocatorGetByLabelOptions { Exact = true }))
-            .ToHaveValueAsync(DateOnly.ParseExact(fechas.Trim(), "dd/MM/yyyy").ToString("yyyy-MM-dd"));
+            .ToHaveValueAsync(DateOnly.ParseExact(fechas.Trim(), "dd/MM/yyyy").ToString("dd/MM/yyyy", System.Globalization.CultureInfo.InvariantCulture));
+        traza.Superada();
     }
 
     [Fact]
     public async Task El_estado_cancelado_con_motivo_largo_no_ensancha_la_celda_ni_la_fila_a_1280_px()
     {
         await using var contexto = await fixture.Browser.NewContextAsync();
+        await using var traza = TrazaAlFallar.Armar(contexto);
         var (page, fila) = await AbrirConUnaVisitaAsync(contexto);
         // La fila recién creada está en la lista por defecto («Solo activas»); se cancela desde su panel.
         await Expect(fila).ToHaveCountAsync(1);
@@ -248,5 +262,6 @@ public partial class VisitasFilaSinMenuE2ETests(WebAppFixtureListados fixture)
         var medidas = await motivoVisible.EvaluateAsync<double[]>("e => [e.getBoundingClientRect().width, e.scrollWidth, e.clientWidth]");
         Assert.True(medidas[0] <= 92 && medidas[1] > medidas[2],
             $"ancho {medidas[0]}, scrollWidth {medidas[1]}, clientWidth {medidas[2]}: el motivo debe medir <= 92 y quedar recortado");
+        traza.Superada();
     }
 }

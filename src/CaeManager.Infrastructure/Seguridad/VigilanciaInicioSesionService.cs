@@ -6,6 +6,7 @@ using CaeManager.Application.Seguridad.InicioSesion;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Notificaciones;
 using CaeManager.Domain.Seguridad;
+using CaeManager.Infrastructure.Email;
 using CaeManager.Infrastructure.Identity;
 using CaeManager.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Http;
@@ -13,6 +14,7 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.WebUtilities;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
@@ -102,7 +104,9 @@ public sealed class VigilanciaInicioSesionService(
     IActorAuditoria actorAuditoria,
     IOptions<OpcionesInicioSesionSeguro> opciones,
     ILogger<VigilanciaInicioSesionService> logger,
-    CaeManager.Application.Seguridad.Incidentes.ISenalesIncidenteSeguridad senalesIncidente) : IVigilanciaInicioSesion
+    CaeManager.Application.Seguridad.Incidentes.ISenalesIncidenteSeguridad senalesIncidente,
+    IOptions<SmtpEmailOptions> smtp,
+    IHostEnvironment entorno) : IVigilanciaInicioSesion
 {
     /// <summary>Cookie con el identificador aleatorio del navegador (estrictamente necesaria, de seguridad).</summary>
     public const string CookieDispositivo = "talveg_dispositivo";
@@ -209,7 +213,10 @@ public sealed class VigilanciaInicioSesionService(
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
-            logger.LogError(ex, "No se pudo registrar el inicio de sesión de la cuenta {UsuarioId}.", usuarioId?.ToString() ?? "desconocida");
+            // ASVS 4.0.3 V7.1.1: solo el tipo de la excepción; este catch recoge también las del servicio de correo
+            // y las de Identity de los avisos, cuyo mensaje (o el de su causa) cita direcciones.
+            logger.LogError("No se pudo registrar el inicio de sesión de la cuenta {UsuarioId} ({TipoExcepcion}).",
+                usuarioId?.ToString() ?? "desconocida", ex.GetType().Name);
         }
     }
 
@@ -273,7 +280,9 @@ public sealed class VigilanciaInicioSesionService(
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
             sesionesCerradas = false;
-            logger.LogError(ex, "«No he sido yo» confirmado sin poder cerrar las sesiones de la cuenta {UsuarioId}: se sigue con la señal, el enlace y el aviso.", usuario.Id);
+            // ASVS 4.0.3 V7.1.1: solo el tipo; una excepción de datos o de Identity sobre la cuenta puede citar su correo.
+            logger.LogError("«No he sido yo» confirmado sin poder cerrar las sesiones de la cuenta {UsuarioId} ({TipoExcepcion}): se sigue con la señal, el enlace y el aviso.",
+                usuario.Id, ex.GetType().Name);
             usuario = await DescartarEscrituraFallidaAsync(ambito.ServiceProvider, userManager, usuario);
         }
 
@@ -299,7 +308,7 @@ public sealed class VigilanciaInicioSesionService(
                 var cuerpo = $"""
                     <p>Has indicado que un inicio de sesión en tu cuenta de {Marca.Nombre} no fuiste tú.</p>
                     <p>{estadoCuenta}</p>
-                    <p><a href="{WebUtility.HtmlEncode(enlace)}">Crear una contraseña nueva</a></p>
+                    {BotonCorreo.Html("Crear una contraseña nueva", enlace)}
                     <p>Este enlace caduca en 60 minutos. Si caduca, pide otro desde «¿Olvidaste tu contraseña?» en la pantalla de inicio de sesión.</p>
                     """;
                 var email = ambito.ServiceProvider.GetRequiredService<IEmailService>();
@@ -326,7 +335,10 @@ public sealed class VigilanciaInicioSesionService(
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
-            logger.LogError(ex, "No se pudo avisar al Administrador del Tenant del «no he sido yo» de la cuenta {UsuarioId}.", usuario.Id);
+            // ASVS 4.0.3 V7.1.1: solo el tipo de la excepción. El aviso envía correo a cada Administrador y su mensaje
+            // (o el de su causa) puede citar la dirección; el id de la cuenta basta para localizar el caso.
+            logger.LogError("No se pudo avisar al Administrador del Tenant del «no he sido yo» de la cuenta {UsuarioId} ({TipoExcepcion}).",
+                usuario.Id, ex.GetType().Name);
         }
 
         return sesionesCerradas ? resultado : ResultadoNoHeSidoYo.SesionesSinCerrar;
@@ -348,7 +360,9 @@ public sealed class VigilanciaInicioSesionService(
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
-            logger.LogError(ex, "«No he sido yo»: no se pudo releer la cuenta {UsuarioId} tras el fallo al cerrar sus sesiones.", usuario.Id);
+            // ASVS 4.0.3 V7.1.1: solo el tipo; la lectura de la cuenta puede citar su correo en el error de datos.
+            logger.LogError("«No he sido yo»: no se pudo releer la cuenta {UsuarioId} tras el fallo al cerrar sus sesiones ({TipoExcepcion}).",
+                usuario.Id, ex.GetType().Name);
             return usuario;
         }
     }
@@ -383,7 +397,8 @@ public sealed class VigilanciaInicioSesionService(
                 <p>Hemos detectado un inicio de sesión inusual en tu cuenta de {Marca.Nombre}.</p>
                 {detalle}
                 <p>Si fuiste tú, no tienes que hacer nada.</p>
-                <p>Si no fuiste tú: <a href="{WebUtility.HtmlEncode(enlace)}">No he sido yo</a>. Cerraremos todas tus sesiones y tendrás que crear una contraseña nueva. El enlace caduca en {opciones.Value.DiasVigenciaEnlaceNoHeSidoYo} días.</p>
+                <p>Si no fuiste tú, pulsa «No he sido yo»: cerraremos todas tus sesiones y tendrás que crear una contraseña nueva. El enlace caduca en {opciones.Value.DiasVigenciaEnlaceNoHeSidoYo} días.</p>
+                {BotonCorreo.Html("No he sido yo", enlace)}
                 """;
             var envio = await email.EnviarAsync(usuario.Email, $"Inicio de sesión inusual en tu cuenta — {Marca.Nombre}", cuerpo, TipoAvisoCorreo.Seguridad);
             if (envio.EsFallido)
@@ -482,7 +497,20 @@ public sealed class VigilanciaInicioSesionService(
         return DispositivoDeInicioSesion.Huella(valor!);
     }
 
+    /// <summary>
+    /// Base de los enlaces con token de estos correos: <c>Smtp:UrlBasePublica</c>, nunca el
+    /// Host de la petición fuera de Development (<see cref="UrlBasePublica.Resolver"/>). Sin
+    /// barra final, porque los enlaces se componen con <c>{base}/cuenta/...</c>.
+    /// </summary>
     private string? UrlBase()
+    {
+        var basePublica = UrlBasePublica.Resolver(smtp.Value.UrlBasePublica, BaseDeLaPeticion, entorno.IsDevelopment());
+        if (basePublica is null)
+            logger.LogError("No se puede generar el enlace del aviso de seguridad: falta una URL válida en Smtp:UrlBasePublica.");
+        return basePublica?.AbsoluteUri.TrimEnd('/');
+    }
+
+    private string? BaseDeLaPeticion()
     {
         var peticion = accesoHttp.HttpContext?.Request;
         return peticion is null || !peticion.Host.HasValue ? null : $"{peticion.Scheme}://{peticion.Host}{peticion.PathBase}";

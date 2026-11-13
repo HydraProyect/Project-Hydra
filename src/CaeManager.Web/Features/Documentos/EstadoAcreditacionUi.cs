@@ -40,7 +40,7 @@ public static class EstadoAcreditacionUi
 {
     public static string Texto(EstadoAcreditacion estado) => estado switch
     {
-        EstadoAcreditacion.PendienteDeSubir => "pendiente de envío",
+        EstadoAcreditacion.PendienteDeSubir => "pendiente de subir",
         EstadoAcreditacion.Subida => "enviada",
         EstadoAcreditacion.Aceptada => "validada",
         EstadoAcreditacion.Rechazada => "rechazada",
@@ -60,4 +60,19 @@ public static class EstadoAcreditacionUi
         var texto = Texto(estado);
         return texto.Length == 0 ? texto : char.ToUpperInvariant(texto[0]) + texto[1..];
     }
+
+    /// <summary>
+    /// El tono de la insignia «Estado en la plataforma» (listado agrupado por Plataforma CAE y sección «Plataformas CAE» de la
+    /// vista rápida): un solo sitio para que las dos pantallas no diverjan. <paramref name="sinVigencia"/> es la validada sin
+    /// vigencia confirmada en la plataforma, que va en neutro.
+    /// </summary>
+    public static CaeManager.Web.Components.DesignSystem.TonoBadge TonoEnPlataforma(EstadoAcreditacion estado, bool sinVigencia) =>
+        (estado, sinVigencia) switch
+        {
+            (_, true) => CaeManager.Web.Components.DesignSystem.TonoBadge.Neutro,
+            (EstadoAcreditacion.Rechazada, _) => CaeManager.Web.Components.DesignSystem.TonoBadge.Peligro,
+            (EstadoAcreditacion.PendienteDeSubir, _) => CaeManager.Web.Components.DesignSystem.TonoBadge.Advertencia,
+            (EstadoAcreditacion.Aceptada, _) => CaeManager.Web.Components.DesignSystem.TonoBadge.Exito,
+            _ => CaeManager.Web.Components.DesignSystem.TonoBadge.Info
+        };
 }

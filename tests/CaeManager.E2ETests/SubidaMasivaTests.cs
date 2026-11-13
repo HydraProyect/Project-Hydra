@@ -49,6 +49,7 @@ public class SubidaMasivaTests(WebAppFixture fixture)
         var dniTrabajador = Ayudas.GenerarDniValido(88_300_001);
 
         await using var contexto = await fixture.Browser.NewContextAsync();
+        await using var traza = TrazaAlFallar.Armar(contexto);
         var page = await contexto.NewPageAsync();
         var drawer = page.Locator(".drawer-panel");
 
@@ -101,8 +102,9 @@ public class SubidaMasivaTests(WebAppFixture fixture)
             await confirmacion.WaitForAsync(new LocatorWaitForOptions { Timeout = 10_000 });
 
             await Expect(confirmacion.Locator(".error-campo-subida")).ToBeVisibleAsync();
-            await confirmacion.GetByLabel("Trabajador", new LocatorGetByLabelOptions { Exact = true })
-                .FillAsync($"{nombreTrabajador} {apellidosTrabajador} ({razonSocialEmpresa})");
+            await Ayudas.ElegirOpcionEnSelectorAvanzadoPorTextoAsync(page,
+                confirmacion.GetByLabel("Trabajador", new LocatorGetByLabelOptions { Exact = true }),
+                $"{nombreTrabajador} {apellidosTrabajador} ({razonSocialEmpresa})");
             await Expect(confirmacion.Locator(".error-campo-subida")).Not.ToBeVisibleAsync();
 
             await confirmacion.GetByLabel("Tipo de documento").SelectOptionAsync(new SelectOptionValue { Label = "Certificado de aptitud médica" });
@@ -115,7 +117,7 @@ public class SubidaMasivaTests(WebAppFixture fixture)
             await Expect(item).ToContainTextAsync("Pendiente de confirmar");
             await Expect(item).Not.ToContainTextAsync("Creado tras confirmar");
 
-            await confirmacion.GetByLabel("Fecha de emisión").FillAsync(Ayudas.HoyDeNegocio().ToString("yyyy-MM-dd"));
+            await Ayudas.RellenarFechaAsync(confirmacion.GetByLabel("Fecha de emisión"), Ayudas.HoyDeNegocio());
             await confirmacion.GetByRole(AriaRole.Button, new() { Name = "Confirmar y crear", Exact = true }).ClickAsync();
 
             await Expect(item).ToContainTextAsync("Creado", new LocatorAssertionsToContainTextOptions { Timeout = 15_000 });
@@ -131,6 +133,7 @@ public class SubidaMasivaTests(WebAppFixture fixture)
         var fila = page.Locator("tr", new PageLocatorOptions { HasText = apellidosTrabajador });
         await fila.WaitForAsync(new LocatorWaitForOptions { Timeout = 15_000 });
         await Expect(fila).ToContainTextAsync("Certificado de aptitud médica");
+        traza.Superada();
     }
 
     /// <summary>

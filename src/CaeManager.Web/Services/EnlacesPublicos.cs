@@ -10,11 +10,7 @@ public sealed class EnlacesPublicos(
 
     public Uri? ObtenerBase(string basePeticion)
     {
-        var configurada = opciones.Value.UrlBasePublica;
-        if (string.IsNullOrWhiteSpace(configurada) && entorno.IsDevelopment())
-            configurada = basePeticion;
-
-        var basePublica = UrlBasePublica.Normalizar(configurada, exigirHttps: !entorno.IsDevelopment());
+        var basePublica = UrlBasePublica.Resolver(opciones.Value.UrlBasePublica, () => basePeticion, entorno.IsDevelopment());
         if (basePublica is not null) return basePublica;
 
         // Con la validación de arranque (ValidadorUrlBasePublica) esto no debería

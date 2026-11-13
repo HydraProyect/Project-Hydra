@@ -227,7 +227,7 @@ public class RespuestaSugeridaBajoRlsTests : IAsyncLifetime
         {
             (await PorBuzon(runtime, conexion, "Texto del buzón", CancellationToken.None))
                 .Error.Should().Be(BloqueoRespuestaSugerida.SugerenciaSinRevisar);
-            (await PorBuzon(runtime, conexion, "Otro texto", CancellationToken.None))
+            (await PorBuzon(runtime, conexion, TextoEscritoAMano, CancellationToken.None))
                 .EsExitoso.Should().BeTrue();
         }
 
@@ -235,7 +235,7 @@ public class RespuestaSugeridaBajoRlsTests : IAsyncLifetime
         await using var despues = CrearRuntime();
         (await despues.ComprobarEnvioAsync(_conversacionPropia, "<p>Borrador</p>", CancellationToken.None))
             .Error.Should().Be(BloqueoRespuestaSugerida.SugerenciaSinRevisar);
-        (await despues.ComprobarEnvioAsync(_conversacionPropia, "Escrito a mano", CancellationToken.None))
+        (await despues.ComprobarEnvioAsync(_conversacionPropia, TextoEscritoAMano, CancellationToken.None))
             .EsExitoso.Should().BeTrue();
     }
 
@@ -269,7 +269,7 @@ public class RespuestaSugeridaBajoRlsTests : IAsyncLifetime
 
         (await PorBuzon(runtime, conexion, "<p>Texto del buzón con la documentación.</p><p>Un saludo, Marta</p>", CancellationToken.None))
             .Error.Should().Be(BloqueoRespuestaSugerida.SugerenciaSinRevisar);
-        (await PorBuzon(runtime, conexion, "Otro texto distinto del anterior", CancellationToken.None))
+        (await PorBuzon(runtime, conexion, TextoEscritoAMano, CancellationToken.None))
             .EsExitoso.Should().BeTrue();
     }
 
@@ -317,7 +317,7 @@ public class RespuestaSugeridaBajoRlsTests : IAsyncLifetime
         revisada.TenantId.Should().Be(_tenantSesion);
 
         await using var despues = CrearRuntime();
-        (await despues.ComprobarEnvioAsync(_conversacionPropia, "Escrito a mano", CancellationToken.None)).EsExitoso.Should().BeTrue();
+        (await despues.ComprobarEnvioAsync(_conversacionPropia, TextoEscritoAMano, CancellationToken.None)).EsExitoso.Should().BeTrue();
     }
 
     [Fact]
@@ -348,6 +348,12 @@ public class RespuestaSugeridaBajoRlsTests : IAsyncLifetime
         excepcion.Should().BeOfType<PostgresException>().Which.SqlState.Should().Be("42501");
     }
 
+    /// <summary>
+    /// Un texto escrito a mano que se aparta de las sugerencias sembradas más de 15 caracteres: con la regla única de revisión
+    /// (revisión Codex r2 de la #2163, ALTO), un texto corto a 15 o menos de «Borrador» cuenta como la sugerencia sin revisar.
+    /// </summary>
+    private const string TextoEscritoAMano = "Lo escribo a mano y no se parece a ninguna sugerencia sembrada en este hilo.";
+
     private async Task DescartarLaSembradaAsync()
     {
         await using var runtime = CrearRuntime();
@@ -376,7 +382,7 @@ public class RespuestaSugeridaBajoRlsTests : IAsyncLifetime
     private Task<Result> PorBuzon(CaeManagerDbContext contexto, Guid conexion, string cuerpo, CancellationToken cancellationToken)
     {
         var alcance = Alcance(contexto);
-        return contexto.ComprobarEnvioPorBuzonAsync(alcance, alcance, conexion, cuerpo, cancellationToken);
+        return contexto.ComprobarEnvioPorBuzonAsync(alcance, alcance, conexion, ["remitente@example.test"], cuerpo, cancellationToken);
     }
 
     private AlcanceDatosService Alcance(CaeManagerDbContext contexto) => new(

@@ -13,6 +13,9 @@
     display: flex;
     flex-direction: column;
     gap: var(--space-3);
+    /* Para las container queries de las tarjetas de riesgo. Implica contención de layout: un descendiente `position: fixed` (hoja móvil,
+       diálogo) se anclaría a esta sección y no a la ventana. Hoy ninguna de sus dos secciones lleva uno; no añadirlo dentro sin quitar esto. */
+    container-type: inline-size;
 }
 
 .titulo-seccion-cartera {
@@ -21,6 +24,8 @@
     color: var(--color-text);
 }
 
+/* Título y nota de una sección, como la maqueta: la nota a la derecha del título mientras cabe; si no cabe, envuelve (flex-wrap) y
+   pasa a la izquierda, bajo el título. */
 .cabecera-seccion-cartera {
     display: flex;
     align-items: baseline;
@@ -40,15 +45,59 @@
     color: var(--color-text-muted);
 }
 
-/* Cabecera: ámbito a la derecha del título. */
+/* Cabecera: el ámbito va SIEMPRE bajo el título y alineado con él, a la izquierda, a cualquier ancho. DECISIÓN de pulido, no lectura de
+   la maqueta (que lo alinea a la derecha): a 1440 px quedaba pegado al borde derecho, alineado a la derecha bajo un h1 a la izquierda
+   (revisión visual de la demo 2026-11-10). La caja de acciones de la cabecera ocupa su propia línea (flex-basis 100%). A confirmar con Diseño. */
+.contenedor-pagina ::deep .acciones-cabecera:has(.ambito-cartera) {
+    flex: 0 0 100%;
+}
+
 .ambito-cartera {
     display: flex;
     flex-direction: column;
-    align-items: flex-end;
+    align-items: flex-start;
     gap: var(--space-1);
     font: var(--font-body-md);
     color: var(--color-text-muted);
-    text-align: right;
+    text-align: left;
+}
+
+/*
+    Cinco tarjetas de riesgo. La rejilla global (auto-fit de 220 px) dejaba cuatro en una fila y la quinta sola, con un hueco
+    de tres cuartos de fila al lado. Aquí fluyen en filas completas: las cinco juntas con ancho de sobra (sección ≥ 860 px); de
+    3 + 2 y de 2 + 2 + 1 más abajo, con la última fila repartida (flex-grow), nunca con una tarjeta suelta a un cuarto de ancho.
+*/
+.vision-cartera-contenido ::deep .rejilla-kpis-cartera {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-4);
+}
+
+.vision-cartera-contenido ::deep .rejilla-kpis-cartera > .tarjeta-metrica {
+    flex: 1 1 calc(50% - var(--space-4));
+    min-width: 0;
+}
+
+/* Por ancho de la sección (container query), no de la ventana: con la barra lateral, 1024 px de ventana dejan menos de 900 px. */
+@container (min-width: 560px) {
+    .vision-cartera-contenido ::deep .rejilla-kpis-cartera > .tarjeta-metrica {
+        flex-basis: calc(33.333% - var(--space-4));
+    }
+}
+
+@container (min-width: 860px) {
+    .vision-cartera-contenido ::deep .rejilla-kpis-cartera {
+        flex-wrap: nowrap;
+    }
+
+    .vision-cartera-contenido ::deep .rejilla-kpis-cartera > .tarjeta-metrica {
+        flex-basis: 0;
+    }
+}
+
+/* La tabla de organizaciones desliza dentro de su tarjeta si no cabe (375 px): la página nunca tiene scroll horizontal. */
+.vision-cartera-contenido ::deep .tarjeta-organizaciones-riesgo > .tarjeta-contenido {
+    overflow-x: auto;
 }
 
 .ambito-cartera-sistema {
@@ -106,12 +155,37 @@
     flex-direction: column;
     gap: var(--space-3);
     min-width: 0;
+    /* Para la container query de .rejilla-actividad-cartera (más abajo). */
+    container-type: inline-size;
 }
 
+/* Tres tarjetas solo si el bloque tiene ancho para la etiqueta más larga («ORGANIZACIONES», en mayúsculas, ~130 px de texto + el
+   relleno de la tarjeta): por debajo, 2 + 1 con la tercera a todo el ancho. Antes eran siempre 3 y a 1024 px (bloque de ~390 px)
+   la etiqueta se salía de su tarjeta y la tapaba la vecina. Por ancho del bloque (container query), no de la ventana. */
 .rejilla-actividad-cartera {
     display: grid;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
+    grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: var(--space-3);
+}
+
+.rejilla-actividad-cartera > :last-child:nth-child(odd) {
+    grid-column: 1 / -1;
+}
+
+@container (min-width: 520px) {
+    .rejilla-actividad-cartera {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+
+    .rejilla-actividad-cartera > :last-child:nth-child(odd) {
+        grid-column: auto;
+    }
+}
+
+/* Red de seguridad: si aun así una etiqueta no cabe, se parte en dos líneas; nunca se corta ni se sale de la tarjeta. */
+.rejilla-actividad-cartera ::deep .tarjeta-metrica-etiqueta {
+    min-width: 0;
+    overflow-wrap: anywhere;
 }
 
 .rejilla-actividad-cartera ::deep .tarjeta-metrica {
@@ -129,7 +203,11 @@
     border-radius: var(--radius-lg);
 }
 
+/* position + overflow: la tabla de abajo es absoluta y, con white-space: nowrap, una tabla no se encoge a 1 px (overflow no le
+   aplica): sin esta caja contenedora su ancho real (el del título más largo) sumaba scroll horizontal a la página a 1024 px. */
 figure.reparto-riesgo {
+    position: relative;
+    overflow: hidden;
     margin: 0;
 }
 
@@ -137,6 +215,8 @@ figure.reparto-riesgo {
    vista pero leída por el lector de pantalla (el SVG va aria-hidden). */
 .reparto-riesgo-datos {
     position: absolute;
+    top: 0;
+    left: 0;
     width: 1px;
     height: 1px;
     padding: 0;
@@ -160,7 +240,14 @@ figure.reparto-riesgo {
     letter-spacing: .06em;
 }
 
+/* Lienzo del gráfico: el SVG lleva un min-width inline igual al ancho de su viewBox (escala 1:1), así que con muchas organizaciones
+   desliza aquí dentro y las etiquetas conservan su tamaño en vez de encogerse con el viewBox (a 1440 px salían de ~6 px). */
+.reparto-riesgo-lienzo {
+    overflow-x: auto;
+}
+
 .reparto-riesgo-grafico {
+    display: block;
     width: 100%;
     height: 120px;
 }
@@ -178,15 +265,11 @@ figure.reparto-riesgo {
     fill: var(--color-warning-500);
 }
 
+/* Tipografía del token de pie (12 px): con el SVG a escala 1:1 los textos miden lo que dice el token, nunca menos de 11-12 px. */
 .reparto-riesgo-etiqueta,
 .reparto-riesgo-sin-riesgo {
     fill: var(--color-text-muted);
-    font-family: var(--font-family);
-    font-size: 10px;
-}
-
-.reparto-riesgo-sin-riesgo {
-    font-size: 11px;
+    font: var(--font-caption);
 }
 
 .reparto-riesgo-leyenda {
@@ -274,6 +357,78 @@ figure.reparto-riesgo {
     white-space: nowrap;
 }
 
+/*
+    Estrecho (375 px): la tabla de cinco columnas medía ~1100 px en una caja de ~310 y solo se veía la primera. Por debajo de 640 px de
+    ancho de la sección (container query de .seccion-cartera) cada fila pasa a ser una ficha apilada: organización arriba, Vencidos y
+    Urgentes en dos columnas con su etiqueta, Cumplimiento debajo y la acción al final. La cabecera de la tabla se oculta a la vista (las
+    etiquetas ya van en cada celda, data-etiqueta). El overflow-x de la tarjeta queda como red de seguridad.
+*/
+@container (max-width: 640px) {
+    .tabla-organizaciones,
+    .tabla-organizaciones tbody {
+        display: block;
+    }
+
+    .tabla-organizaciones thead {
+        position: absolute;
+        width: 1px;
+        height: 1px;
+        margin: -1px;
+        overflow: hidden;
+        clip-path: inset(50%);
+        white-space: nowrap;
+    }
+
+    .tabla-organizaciones tr {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: var(--space-3) var(--space-4);
+        padding: var(--space-4);
+        border-bottom: 1px solid var(--color-fila-divisor);
+    }
+
+    .tabla-organizaciones tr:last-child {
+        border-bottom: 0;
+    }
+
+    .tabla-organizaciones td {
+        display: block;
+        min-width: 0;
+        padding: 0;
+        border-bottom: 0;
+        white-space: normal;
+    }
+
+    .tabla-organizaciones .nombre-organizacion,
+    .tabla-organizaciones ::deep .bloqueos-organizacion {
+        overflow-wrap: anywhere;
+        white-space: normal;
+    }
+
+    .tabla-organizaciones td[data-etiqueta]::before {
+        content: attr(data-etiqueta);
+        display: block;
+        margin-bottom: var(--space-1);
+        font: var(--font-caption);
+        color: var(--color-text-muted);
+    }
+
+    .tabla-organizaciones td:first-child,
+    .tabla-organizaciones td:nth-child(4),
+    .tabla-organizaciones td.celda-accion-organizacion {
+        grid-column: 1 / -1;
+    }
+
+    .tabla-organizaciones td.celda-accion-organizacion {
+        text-align: left;
+        white-space: normal;
+    }
+
+    .tabla-organizaciones .cumplimiento-organizacion {
+        min-width: 0;
+    }
+}
+
 /* Pulso. */
 .pulso-cartera {
     display: flex;
@@ -337,11 +492,6 @@ figure.reparto-riesgo {
     .resumen-cartera,
     .rejilla-actividad-cartera {
         grid-template-columns: minmax(0, 1fr);
-    }
-
-    .ambito-cartera {
-        align-items: flex-start;
-        text-align: left;
     }
 
     .pulso-cartera-cifras {

@@ -7,29 +7,125 @@
 // pierde al cerrar.
 const SELECTOR_ENFOCABLE = 'a[href], button:not([disabled]), textarea:not([disabled]), input:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])';
 
-export function atraparFoco(contenedor, devolverFila = false) {
-    const elementoPrevio = document.activeElement;
+// Últimos elementos que recibieron el foco en el documento, del más antiguo al más reciente. La trampa se activa en
+// OnAfterRenderAsync, tras un viaje de ida y vuelta al servidor, y para entonces el foco puede estar ya en un campo
+// del diálogo (el usuario, o Playwright, que rellena un campo de texto en dos pasos: enfocar y luego insertar):
+// document.activeElement ya no es quien abrió el diálogo, y hay que buscarlo aquí (#2194). Se guarda en el propio
+// document con una clave global (Symbol.for) para que lo compartan la copia de este módulo que App.razor carga al
+// arrancar, y que empieza a escuchar desde el primer foco de la página, y la que importen los componentes si el
+// navegador las tratara como dos módulos distintos. Las referencias son fuertes, pero el tope las acota a unas pocas.
+const CLAVE_HISTORIAL_FOCO = Symbol.for('talveg.dialogoFoco.historial');
+const TOPE_HISTORIAL_FOCO = 20;
 
-    const enfocables = () => Array.from(contenedor.querySelectorAll(SELECTOR_ENFOCABLE))
-        .filter(el => el.offsetParent !== null);
+export function rastrearFoco(documento = globalThis.document) {
+    if (!documento || documento[CLAVE_HISTORIAL_FOCO]) return;
+    const historial = [];
+    documento[CLAVE_HISTORIAL_FOCO] = historial;
+    const anotar = (elemento) => {
+        historial.push(elemento);
+        if (historial.length > TOPE_HISTORIAL_FOCO) historial.shift();
+    };
+    documento.addEventListener('focusin', (evento) => anotar(evento.target), true);
+    // Un clic en algo no enfocable (una fila sin tabindex, el fondo) deja el foco en el body sin focusin: se anota el
+    // body para no devolver luego el foco a un elemento de fuera mucho más antiguo que el que abrió el diálogo.
+    documento.addEventListener('focusout', (evento) => { if (!evento.relatedTarget) anotar(documento.body); }, true);
+}
+
+rastrearFoco();
+
+// Contenedores de las trampas activas, de la más antigua a la más reciente, compartidos entre copias del módulo por la
+// misma razón que el historial. Una trampa entra al activarse y sale al liberarse; la de un diálogo que desapareció
+// sin liberarla se ignora porque su contenedor ya no está en el documento.
+const CLAVE_TRAMPAS_ACTIVAS = Symbol.for('talveg.dialogoFoco.trampas');
+
+function trampasActivas() {
+    return (document[CLAVE_TRAMPAS_ACTIVAS] ??= []);
+}
+
+// El diálogo modal que sigue abierto debajo del que se abre ahora: la trampa activa más reciente cuyo contenedor es
+// modal (aria-modal="true") y sigue en el documento. Con varios diálogos anidados es el inmediatamente exterior, el
+// único cuyo contenido queda delante de los demás; un elemento de fuera de él queda detrás de un diálogo modal abierto.
+// Un panel no modal con trampa (el Context Workspace, role="complementary") no cuenta: lo de fuera de él sigue a la vista.
+function dialogoExteriorAbierto(contenedor) {
+    const pila = trampasActivas();
+    for (let i = pila.length - 1; i >= 0; i--) {
+        const exterior = pila[i];
+        if (exterior !== contenedor && exterior.getAttribute?.('aria-modal') === 'true' && document.contains(exterior))
+            return exterior;
+    }
+    return null;
+}
+
+// Los elementos enfocables y visibles de un contenedor, en orden del documento.
+function enfocablesDe(contenedor) {
+    return Array.from(contenedor.querySelectorAll(SELECTOR_ENFOCABLE)).filter(el => el.offsetParent !== null);
+}
+
+// Quien tenía el foco antes de que entrara en el diálogo: el elemento activo si sigue fuera; si ya está dentro (o es
+// el propio contenedor), el último elemento de fuera que tuvo el foco y sigue en el documento (o el body, que como
+// antes no recibe el foco de vuelta). En un diálogo abierto desde otro, ese es el botón del diálogo de fuera que lo abrió,
+// y la búsqueda no sale de ese diálogo exterior: si el abridor ya no existe, el foco vuelve a su contenedor, no a un
+// elemento que quedó detrás de él. Lo mismo si el elemento activo está fuera del diálogo pero tampoco dentro del exterior
+// (el abridor se retiró y el foco cayó en el body, o pasó a algo de detrás del diálogo exterior): no vale como previo.
+function elementoPrevioAlDialogo(contenedor) {
+    const activo = document.activeElement;
+    const exterior = dialogoExteriorAbierto(contenedor);
+    if (!contenedor.contains(activo) && (!exterior || exterior.contains(activo))) return activo;
+    const historial = document[CLAVE_HISTORIAL_FOCO] ?? [];
+    for (let i = historial.length - 1; i >= 0; i--) {
+        const candidato = historial[i];
+        if (!candidato || contenedor.contains(candidato) || !document.contains(candidato)) continue;
+        if (exterior && !exterior.contains(candidato)) continue;
+        return candidato;
+    }
+    return exterior;
+}
+
+export function atraparFoco(contenedor, devolverFila = false) {
+    rastrearFoco();
+    const elementoPrevio = elementoPrevioAlDialogo(contenedor);
+    // Fuera de la pila los contenedores que ya no están en el documento: un diálogo que desapareció sin liberar su
+    // trampa (el circuito se cortó antes del dispose) no debe retener su nodo hasta que se recargue la página.
+    const pila = trampasActivas();
+    for (let i = pila.length - 1; i >= 0; i--) if (!document.contains(pila[i])) pila.splice(i, 1);
+    pila.push(contenedor);
+
+    const enfocables = () => enfocablesDe(contenedor);
 
     // El primer elemento enfocable real (p. ej. el primer campo del
     // formulario) si existe; si el diálogo no tiene ninguno (solo texto y el
     // botón de cerrar, que sí cuenta), cae al propio contenedor gracias al
     // tabindex="-1" que ya trae el div del diálogo.
-    (enfocables()[0] ?? contenedor).focus();
+    //
+    // Solo si el foco aún no está en un elemento del diálogo: si el usuario (o
+    // Playwright) ya está escribiendo en un campo, moverle el foco al primer
+    // enfocable le quitaría el campo a media escritura y el texto se perdería
+    // (#2194). El propio contenedor no cuenta como «dentro»: desde él,
+    // Mayús+Tab saldría del diálogo.
+    const activo = document.activeElement;
+    if (activo === contenedor || !contenedor.contains(activo))
+        (enfocables()[0] ?? contenedor).focus();
 
     function manejarTab(evento) {
         // Un manejador interno que ya gestionó el Tab (p. ej. el salto de grupo del buscador global) manda.
         if (evento.key !== 'Tab' || evento.defaultPrevented) return;
 
         const items = enfocables();
-        if (items.length === 0) return;
+        // Sin nada enfocable (solo texto, o todos los controles deshabilitados) el foco se queda en el contenedor: si se
+        // dejara pasar el Tab, saldría a la página de debajo del diálogo modal.
+        if (items.length === 0) {
+            evento.preventDefault();
+            if (document.activeElement !== contenedor) contenedor.focus();
+            return;
+        }
 
         const primero = items[0];
         const ultimo = items[items.length - 1];
 
-        if (evento.shiftKey && document.activeElement === primero) {
+        // El contenedor puede recibir el foco después (un clic en el fondo del
+        // diálogo enfoca el div con tabindex="-1"): Mayús+Tab desde él también
+        // va al último enfocable en vez de salir a la página de debajo.
+        if (evento.shiftKey && (document.activeElement === primero || document.activeElement === contenedor)) {
             evento.preventDefault();
             ultimo.focus();
         } else if (!evento.shiftKey && document.activeElement === ultimo) {
@@ -43,6 +139,21 @@ export function atraparFoco(contenedor, devolverFila = false) {
     return {
         dispose: () => {
             contenedor.removeEventListener('keydown', manejarTab);
+            const pila = trampasActivas();
+            const posicion = pila.lastIndexOf(contenedor);
+            if (posicion >= 0) pila.splice(posicion, 1);
+            // La orden de liberar llega del servidor tras un viaje de ida y vuelta, cuando el diálogo ya salió del DOM
+            // y el foco cayó al body. Si para entonces la persona (o Playwright) ya está en otro campo de la página, el
+            // foco no se le quita: perdería lo que teclea, y con Playwright, que rellena en dos pasos (enfocar y
+            // seleccionar, luego insertar), el campo se queda vacío (#2194, misma causa que CampoSelectAvanzado).
+            // Solo vuelve si el foco sigue dentro del diálogo, en el body, sin elemento activo o en el propio contenedor
+            // del diálogo modal exterior (un clic en la superposición de un diálogo anidado, que no es enfocable, deja el
+            // foco en el contenedor del de fuera). Un campo del exterior sí cuenta como «otro campo». El panel no modal
+            // de la fila enfocada (devolverFila, Context Workspace) queda fuera de la guarda: su foco habitual está fuera
+            // del panel y su retorno a la fila (#1770) es otro contrato.
+            const activo = document.activeElement;
+            if (!devolverFila && activo && activo !== document.body && activo !== document.documentElement
+                && !contenedor.contains(activo) && activo !== dialogoExteriorAbierto(contenedor)) return;
             // Puede que el elemento que abrió el diálogo ya no exista (p. ej.
             // se recargó la lista que contenía el botón) — comprobar que
             // sigue en el documento antes de devolverle el foco.
@@ -53,8 +164,16 @@ export function atraparFoco(contenedor, devolverFila = false) {
             if (fila && (!previoVigente || fila.contains(elementoPrevio))) {
                 if (!fila.hasAttribute('tabindex')) fila.tabIndex = -1;
                 fila.focus({ preventScroll: true });
-            } else if (elementoPrevio instanceof HTMLElement && document.contains(elementoPrevio))
+            } else if (elementoPrevio instanceof HTMLElement && document.contains(elementoPrevio)) {
                 elementoPrevio.focus();
+            } else {
+                // El elemento previo desapareció mientras este diálogo seguía abierto (p. ej. se repintó el diálogo
+                // exterior que contenía su abridor): el foco vuelve al diálogo modal exterior que sigue abierto, a su
+                // primer enfocable o, si no tiene, a su contenedor, y no se queda detrás de él. Los controles de este
+                // diálogo no cuentan: desde DisposeAsync aún puede estar en el DOM, a punto de desaparecer.
+                const exterior = dialogoExteriorAbierto(contenedor);
+                if (exterior) (enfocablesDe(exterior).find(el => !contenedor.contains(el)) ?? exterior).focus();
+            }
         }
     };
 }

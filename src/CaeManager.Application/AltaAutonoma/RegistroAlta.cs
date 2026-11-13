@@ -1,5 +1,6 @@
 using System.Net;
 using System.Security.Cryptography;
+using CaeManager.Application.Common;
 using CaeManager.Domain.AltaAutonoma;
 using CaeManager.Domain.Common;
 using Microsoft.Extensions.Logging;
@@ -16,9 +17,45 @@ public interface IAccesoSolicitudesAlta
     /// <summary>Guarda una Solicitud de alta recién iniciada (<see cref="SolicitudAlta.Iniciar"/>).</summary>
     Task IniciarAsync(SolicitudAlta solicitud, CancellationToken cancellationToken);
 
-    /// <summary>Iniciada → CorreoVerificado con el token del enlace, con el reloj de la base. Un solo uso.</summary>
-    Task<ResultadoVerificacionCorreoAlta> VerificarCorreoAsync(string token, CancellationToken cancellationToken);
+    /// <summary>
+    /// Mira el enlace sin gastarlo: si vale (Solicitud de alta en <c>Iniciada</c>, enlace y Solicitud vigentes), devuelve
+    /// el hash de la contraseña elegida en el registro para que la aplicación la compare con la que se escribe al
+    /// confirmar (pre-secuestro de la cuenta, A4). El hash no sale de la aplicación hacia el navegador.
+    /// </summary>
+    Task<EnlaceVerificacionAlta> ConsultarEnlaceAsync(string token, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Iniciada → CorreoVerificado con el token del enlace, con el reloj de la base. Un solo uso. Exige que el hash de la
+    /// contraseña siga siendo el que la aplicación comprobó y guarda el SHA-256 del credencial de continuación.
+    /// </summary>
+    Task<ResultadoVerificacionCorreoAlta> VerificarCorreoAsync(
+        string token, string hashContrasenaComprobado, string credencialContinuacion, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// CorreoVerificado → DatosCompletos o DerivadaAAcceso según el CIF tenga o no Tenant propietario (A4). Con el credencial
+    /// de continuación; responde solo el resultado y el Id de la propia Solicitud de alta, nunca nada del Tenant.
+    /// </summary>
+    Task<TransicionDatosOrganizacionAlta> CompletarDatosOrganizacionAsync(
+        string credencialContinuacion, DatosOrganizacionAlta datos, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// En qué punto está la Solicitud de alta del credencial de continuación, sin bloquear ni escribir. Solo el estado,
+    /// nunca un dato de la Solicitud de alta ni del Tenant.
+    /// </summary>
+    Task<EstadoContinuacionAlta> ConsultarContinuacionAsync(string credencialContinuacion, CancellationToken cancellationToken);
 }
+
+/// <summary>
+/// Lo que dice la base de un enlace de verificación antes de gastarlo. <see cref="Rechazo"/> nulo significa que vale, y
+/// entonces <see cref="HashContrasena"/> lleva el hash de Identity; con rechazo, el hash es siempre nulo.
+/// </summary>
+public sealed record EnlaceVerificacionAlta(ResultadoVerificacionCorreoAlta? Rechazo, string? HashContrasena)
+{
+    public static EnlaceVerificacionAlta NoValido { get; } = new(ResultadoVerificacionCorreoAlta.NoValido, null);
+}
+
+/// <summary>Resultado de confirmar el correo; con <see cref="ResultadoVerificacionCorreoAlta.Verificado"/>, el credencial de continuación en claro.</summary>
+public sealed record VerificacionCorreoAlta(ResultadoVerificacionCorreoAlta Resultado, string? CredencialContinuacion);
 
 /// <summary>¿Hay ya una cuenta con ese correo normalizado, en cualquier Tenant? Solo sí o no.</summary>
 public interface IExistenciaCuentaPorCorreo
@@ -43,6 +80,17 @@ public interface IPreparacionContrasenaAlta
 {
     /// <returns>El hash de Identity, o <c>null</c> si la contraseña no cumple la política.</returns>
     Task<string?> ValidarYHashearAsync(string correo, string contrasena);
+
+    /// <summary>¿La contraseña casa con el hash de Identity guardado en la Solicitud de alta?</summary>
+    bool Coincide(string hashContrasena, string contrasena);
+
+    /// <summary>
+    /// Verificación ficticia de coste equivalente a <see cref="Coincide"/>: el mismo hasher sobre un hash fijo generado
+    /// con los mismos parámetros, con el resultado descartado. La usan los rechazos que no llegan a comparar la
+    /// contraseña (token desconocido, usado o caducado, contraseña vacía), para que el tiempo de respuesta no distinga
+    /// un token vigente de uno que no lo es (oráculo temporal; OWASP Top 10 A07:2021).
+    /// </summary>
+    void CompararFicticia(string? contrasena);
 }
 
 public enum ResultadoVerificacionCorreoAlta
@@ -55,7 +103,10 @@ public enum ResultadoVerificacionCorreoAlta
     /// <summary>La Solicitud de alta pasó su plazo (DA-7).</summary>
     SolicitudCaducada,
 
-    /// <summary>Token desconocido, ya usado o de una Solicitud de alta que no está en Iniciada.</summary>
+    /// <summary>
+    /// Token desconocido, ya usado o de una Solicitud de alta que no está en Iniciada, o contraseña que no casa con la
+    /// del registro (A4): las dos cosas se responden igual, y una contraseña equivocada no gasta el enlace.
+    /// </summary>
     NoValido,
 }
 
@@ -77,9 +128,13 @@ public sealed class ServicioRegistroAlta(
     IAccesoSolicitudesAlta acceso,
     IExistenciaCuentaPorCorreo cuentas,
     IRemitenteCorreoAlta remitente,
+    IPreparacionContrasenaAlta contrasenas,
     TimeProvider reloj,
     ILogger<ServicioRegistroAlta> logger)
 {
+    /// <summary>Longitud de un token o credencial de <see cref="NuevoToken"/>: 32 bytes en Base64url sin relleno.</summary>
+    public const int LongitudToken = 43;
+
     /// <summary>Ruta pública del enlace de verificación.</summary>
     public const string RutaVerificacion = "alta/verificar";
 
@@ -112,12 +167,48 @@ public sealed class ServicioRegistroAlta(
             logger.LogWarning("No se pudo enviar el enlace de verificación de la Solicitud de alta {SolicitudAltaId}.", solicitud.Id);
     }
 
-    public Task<ResultadoVerificacionCorreoAlta> VerificarCorreoAsync(string? token, CancellationToken cancellationToken)
+    /// <summary>
+    /// Confirma el correo con el token del enlace y la contraseña elegida en el registro (pre-secuestro de la cuenta, § 9
+    /// del plan): quien inició el alta con el correo de otra persona no conoce la contraseña que esa persona escribiría,
+    /// y quien abre el enlace no conoce la del atacante. Solo verifica si casan los dos. Una contraseña equivocada
+    /// responde lo mismo que un enlace no válido y no gasta el enlace: se puede reintentar, con el techo por IP del
+    /// limitador global (<c>LimitadorAlta.ParticionVerificar</c>). Verificado, devuelve el credencial de continuación
+    /// en claro, que la base guarda solo como SHA-256.
+    /// <para>
+    /// Toda respuesta cuesta exactamente un PBKDF2: la comparación real si el enlace está vigente y hay contraseña, y una
+    /// ficticia (<see cref="IPreparacionContrasenaAlta.CompararFicticia"/>) en cualquier otro rechazo. Sin eso, un token
+    /// desconocido o usado respondería al instante y uno vigente con contraseña errónea tardaría lo que tarda el hasher:
+    /// un oráculo temporal de qué tokens están vigentes.
+    /// </para>
+    /// </summary>
+    public async Task<VerificacionCorreoAlta> VerificarCorreoAsync(string? token, string? contrasena, CancellationToken cancellationToken)
     {
+        var noValido = new VerificacionCorreoAlta(ResultadoVerificacionCorreoAlta.NoValido, null);
         if (string.IsNullOrEmpty(token) || token.Length < SolicitudAlta.LongitudMinimaToken || token.Length > 128)
-            return Task.FromResult(ResultadoVerificacionCorreoAlta.NoValido);
+        {
+            contrasenas.CompararFicticia(contrasena);
+            return noValido;
+        }
 
-        return acceso.VerificarCorreoAsync(token, cancellationToken);
+        var enlace = await acceso.ConsultarEnlaceAsync(token, cancellationToken);
+        if (enlace.Rechazo is { } rechazo)
+        {
+            contrasenas.CompararFicticia(contrasena);
+            return new VerificacionCorreoAlta(rechazo, null);
+        }
+
+        if (enlace.HashContrasena is null || string.IsNullOrEmpty(contrasena))
+        {
+            contrasenas.CompararFicticia(contrasena);
+            return noValido;
+        }
+
+        if (!contrasenas.Coincide(enlace.HashContrasena, contrasena))
+            return noValido;
+
+        var credencial = NuevoToken();
+        var resultado = await acceso.VerificarCorreoAsync(token, enlace.HashContrasena, credencial, cancellationToken);
+        return new VerificacionCorreoAlta(resultado, resultado == ResultadoVerificacionCorreoAlta.Verificado ? credencial : null);
     }
 
     /// <summary>Token de un solo uso en Base64url: solo letras, dígitos, «-» y «_», sin escapar en la URL.</summary>
@@ -129,14 +220,14 @@ public sealed class ServicioRegistroAlta(
 
     private static string CuerpoVerificacion(Uri enlace) => $"""
         <p>Hemos recibido una solicitud para crear una cuenta en TALVEG con este correo.</p>
-        <p><a href="{WebUtility.HtmlEncode(enlace.AbsoluteUri)}">Confirmar mi correo</a></p>
+        {BotonCorreo.Html("Confirmar mi correo", enlace.AbsoluteUri)}
         <p>El enlace caduca a las 24 horas y solo vale una vez. Si no has sido tú, ignora este mensaje: sin confirmar el correo no se crea nada.</p>
         """;
 
     private static string CuerpoCuentaExistente(Uri basePublica) => $"""
         <p>Alguien ha intentado crear una cuenta en TALVEG con este correo, pero ya tienes una.</p>
-        <p><a href="{WebUtility.HtmlEncode(new Uri(basePublica, "cuenta/iniciar-sesion").AbsoluteUri)}">Iniciar sesión</a>
-        o, si no recuerdas la contraseña, <a href="{WebUtility.HtmlEncode(new Uri(basePublica, "cuenta/olvide-contrasena").AbsoluteUri)}">restablecerla</a>.</p>
+        {BotonCorreo.Html("Iniciar sesión", new Uri(basePublica, "cuenta/iniciar-sesion").AbsoluteUri)}
+        <p>Si no recuerdas la contraseña, puedes restablecerla en <a href="{WebUtility.HtmlEncode(new Uri(basePublica, "cuenta/olvide-contrasena").AbsoluteUri)}" style="color:#122A21;text-decoration:underline;word-break:break-all;">{WebUtility.HtmlEncode(new Uri(basePublica, "cuenta/olvide-contrasena").AbsoluteUri)}</a>.</p>
         <p>Si no has sido tú, ignora este mensaje: tu cuenta no ha cambiado.</p>
         """;
 }

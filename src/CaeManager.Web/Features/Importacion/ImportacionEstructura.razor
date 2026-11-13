@@ -1,0 +1,614 @@
+@using CaeManager.Application.Importacion.Maestra
+@using CaeManager.Web.Features.Importacion.Recursos
+@using Microsoft.Extensions.Localization
+@inject IStringLocalizer<TextosImportacion> Textos
+
+@* Paso 1 del Importador (estructura, plantilla maestra). Un solo <Boton> Primario por vista (BotonVarianteYUnSoloPrimarioTests):
+   la acción principal cambia con la fase y por eso es una sola etiqueta con texto, estado y manejador calculados. *@
+<div class="estructura-importacion" data-fase="@_fase">
+    <p class="subtitulo-est">@Textos[ClaveSubtitulo]</p>
+
+    <ol class="pasos-est" aria-label="@Textos["EstAriaPasos"]">
+        @for (var i = 0; i < ClavesPasos.Length; i++)
+        {
+            var numero = i + 1;
+            var actual = numero == PasoActual;
+            var hecho = numero < PasoActual;
+            <li class="@(actual ? "paso-est paso-est-actual" : hecho ? "paso-est paso-est-hecho" : "paso-est")" aria-current="@(actual ? "step" : null)">
+                <span class="marca-paso-est">
+                    @if (hecho)
+                    {
+                        <Icono Nombre="check" Tamano="TamanoIcono.Pequeno" />
+                    }
+                    else
+                    {
+                        @numero
+                    }
+                </span>
+                @if (hecho)
+                {
+                    <span class="sr-est">@Textos["EstCompletado"] </span>
+                }
+                @Textos[ClavesPasos[i]]
+            </li>
+        }
+    </ol>
+
+    @if (_fase == Fase.Subir)
+    {
+        <div class="rejilla-est">
+            <div class="columna-est">
+                <section class="tarjeta-est" aria-labelledby="est-titulo-descarga">
+                    <div class="cab-est">
+                        <div>
+                            <h2 id="est-titulo-descarga">@Textos["EstTituloDescarga"]</h2>
+                            <p>@Textos["EstTextoDescarga"]</p>
+                        </div>
+                        <Badge Tono="TonoBadge.Info">@Textos["EstVersion"]</Badge>
+                    </div>
+                    <div class="fila-est fichero-plantilla-est">
+                        <span class="icono-fichero-est" aria-hidden="true"><Icono Nombre="plantilla" /></span>
+                        <div class="relleno-est">
+                            <div class="neg-est">@ImportacionEndpoints.NombrePlantillaMaestra</div>
+                            <div class="cap-est">@Textos["EstDetallePlantilla"]</div>
+                        </div>
+                        <Boton Variante="VarianteBoton.Secundario" Href="@ImportacionEndpoints.RutaPlantillaMaestra" download="@ImportacionEndpoints.NombrePlantillaMaestra">
+                            <Icono Nombre="descargar" Tamano="TamanoIcono.Pequeno" /> @Textos["EstBotonDescargar"]
+                        </Boton>
+                    </div>
+                    <ul class="hojas-plantilla-est" aria-label="@Textos["EstAriaHojasPlantilla"]">
+                        @foreach (var hoja in OrdenHojas)
+                        {
+                            <li><Badge Tono="TonoBadge.Neutro">@hoja</Badge></li>
+                        }
+                    </ul>
+                    <div class="aviso-est" role="note">
+                        <span class="icono-aviso-est" aria-hidden="true"><Icono Nombre="seguridad" /></span>
+                        <div class="relleno-est"><b>@Textos["EstSinCredencialesTitulo"]</b> @Textos["EstSinCredencialesTexto"]</div>
+                    </div>
+                    <div class="aviso-est aviso-est-wa" role="note">
+                        <span class="icono-aviso-est" aria-hidden="true"><Icono Nombre="advertencia" /></span>
+                        <div class="relleno-est"><b>@Textos["EstNadaMedicoTitulo"]</b> @Textos["EstNadaMedicoTexto"]</div>
+                    </div>
+                </section>
+
+                <section class="tarjeta-est" aria-labelledby="est-titulo-subida">
+                    <div class="cab-est">
+                        <div>
+                            <h2 id="est-titulo-subida">@Textos["EstTituloSubida"]</h2>
+                            <p>@Textos["EstTextoSubida"]</p>
+                        </div>
+                        @if (RechazoDelArchivo)
+                        {
+                            <Badge Tono="TonoBadge.Peligro">@Textos["EstArchivoNoAceptado"]</Badge>
+                        }
+                    </div>
+                    <ZonaSoltarArchivo Titulo="@Textos["EstZonaTitulo"]"
+                                       FormatosTexto="@Textos["EstZonaFormatos", TamanoMaximoMb]"
+                                       Accept=".xlsx" NombreArchivoActual="@_nombreArchivo" AnunciarNombre="false"
+                                       OnChange="ManejarArchivoSeleccionadoAsync" />
+                    @if (_rechazo is not null)
+                    {
+                        <div class="alerta-formulario" role="alert">@_rechazo</div>
+                    }
+                    @if (HayArchivo && !RechazoDelArchivo)
+                    {
+                        <div class="aviso-est aviso-est-ok" role="status" data-testid="est-archivo-listo">
+                            <span class="icono-aviso-est" aria-hidden="true"><Icono Nombre="check" /></span>
+                            <div class="relleno-est"><b>@_nombreArchivo</b> · @TamanoLegible(_tamanoArchivo)</div>
+                        </div>
+                    }
+                </section>
+            </div>
+
+            <aside class="columna-est">
+                <section class="tarjeta-est tarjeta-est-sutil" aria-labelledby="est-titulo-crea">
+                    <h3 id="est-titulo-crea">@Textos["EstTituloQueCrea"]</h3>
+                    <ul class="lista-est">
+                        <li>@Textos["EstQueCreaEmpresas"]</li>
+                        <li>@Textos["EstQueCreaClientes"]</li>
+                        <li>@Textos["EstQueCreaTrabajadores"]</li>
+                    </ul>
+                </section>
+                <section class="tarjeta-est tarjeta-est-sutil" aria-labelledby="est-titulo-nohace">
+                    <h3 id="est-titulo-nohace">@Textos["EstTituloQueNoHace"]</h3>
+                    <ul class="lista-est">
+                        <li>@Textos["EstNoHacePendientes"]</li>
+                        <li>@Textos["EstNoHacePdf"]</li>
+                        <li>@Textos["EstNoHaceDuplica"]</li>
+                    </ul>
+                </section>
+                <div class="aviso-est" role="note">
+                    <span class="icono-aviso-est" aria-hidden="true"><Icono Nombre="info" /></span>
+                    <div class="relleno-est">@Textos["EstYaImportaste"] <a href="/importacion">@Textos["EstEnlaceHistorial"]</a>.</div>
+                </div>
+            </aside>
+        </div>
+    }
+    else if (_fase == Fase.Analizando)
+    {
+        <section class="tarjeta-est" aria-labelledby="est-titulo-analizando">
+            <div class="cab-est">
+                <div class="fila-est">
+                    <span class="icono-fichero-est" aria-hidden="true"><Icono Nombre="plantilla" /></span>
+                    <div>
+                        <div class="neg-est" id="est-titulo-analizando">@_nombreArchivo</div>
+                        <div class="cap-est">@TamanoLegible(_tamanoArchivo)</div>
+                    </div>
+                </div>
+                <Badge Tono="TonoBadge.Info">@Textos["EstSistemaAnalizando"]</Badge>
+            </div>
+            <div class="aviso-est aviso-est-sy" role="status">
+                <span class="icono-aviso-est" aria-hidden="true"><Icono Nombre="info" /></span>
+                <div class="relleno-est"><b>@Textos["EstAnalizandoTitulo"]</b> @Textos["EstAnalizandoTexto"]</div>
+            </div>
+            <div class="barra-est barra-est-indeterminada" role="progressbar" aria-busy="true" aria-label="@Textos["EstAriaProgresoAnalisis"]"><i></i></div>
+            <div class="fila-est fila-est-entre">
+                <span class="cap-est"><Icono Nombre="reloj" Tamano="TamanoIcono.Pequeno" /> @Textos["EstAnalizandoPista"]</span>
+                <Boton Variante="VarianteBoton.Secundario" OnClick="CancelarAnalisis">@Textos["EstBotonCancelarAnalisis"]</Boton>
+            </div>
+        </section>
+    }
+    else if (_fase == Fase.Validacion && _plan is not null)
+    {
+        if (TotalErrores > 0)
+        {
+            <div class="aviso-est aviso-est-er" role="alert" data-testid="est-aviso-errores">
+                <span class="icono-aviso-est" aria-hidden="true"><Icono Nombre="advertencia" /></span>
+                <div class="relleno-est"><b>@(TotalErrores == 1 ? Textos["EstErroresUno"].Value : Textos["EstErroresVarios", TotalErrores].Value)</b> @Textos["EstErroresConsejo"]</div>
+            </div>
+        }
+        else if (TotalValidas == 0)
+        {
+            <div class="aviso-est aviso-est-er" role="alert" data-testid="est-aviso-sin-validas">
+                <span class="icono-aviso-est" aria-hidden="true"><Icono Nombre="advertencia" /></span>
+                <div class="relleno-est"><b>@Textos["EstSinValidasTitulo"]</b> @Textos["EstSinValidasTexto"]</div>
+            </div>
+        }
+        else
+        {
+            <div class="aviso-est aviso-est-ok" role="status" data-testid="est-aviso-sin-errores">
+                <span class="icono-aviso-est" aria-hidden="true"><Icono Nombre="check" /></span>
+                <div class="relleno-est"><b>@Textos["EstSinErroresTitulo"]</b> @Textos["EstSinErroresTexto"]</div>
+            </div>
+        }
+
+        if (_plan.HojasPendientes.Count > 0)
+        {
+            <div class="aviso-est" role="note" data-testid="est-aviso-hojas-pendientes">
+                <span class="icono-aviso-est" aria-hidden="true"><Icono Nombre="info" /></span>
+                <div class="relleno-est"><b>@Textos["EstPendientesTitulo"]</b> @Textos["EstPendientesTexto", string.Join(", ", _plan.HojasPendientes.Select(h => $"{h.Hoja} ({h.Filas})"))]</div>
+            </div>
+        }
+
+        <div class="rejilla-kpi-est">
+            <TarjetaMetrica Etiqueta="@Textos["EstKpiLeidas"]" Valor="@((TotalValidas + TotalErrores).ToString())" />
+            <TarjetaMetrica Etiqueta="@Textos["EstKpiValidas"]" Valor="@TotalValidas.ToString()" Tono="TonoBadge.Exito" />
+            <TarjetaMetrica Etiqueta="@Textos["EstKpiConError"]" Valor="@TotalErrores.ToString()" Tono="TonoBadge.Peligro" />
+            <TarjetaMetrica Etiqueta="@Textos["EstKpiConAviso"]" Valor="@TotalAvisos.ToString()" Tono="TonoBadge.Advertencia" />
+        </div>
+
+        <div class="rejilla-hojas-est">
+            <nav class="tarjeta-est hojas-est" aria-label="@Textos["EstAriaHojas"]">
+                @foreach (var hoja in _hojas)
+                {
+                    var activa = hoja.Nombre == _hojaSeleccionada;
+                    <button type="button" class="@(activa ? "hoja-est hoja-est-activa" : "hoja-est")" aria-current="@(activa ? "page" : null)"
+                            data-hoja="@Enmascarar(hoja.Nombre)" @onclick="() => SeleccionarHoja(hoja.Nombre)">
+                        <span>@Enmascarar(hoja.Nombre)</span>
+                        @if (hoja.Errores > 0)
+                        {
+                            <Badge Tono="TonoBadge.Peligro">@hoja.Errores</Badge>
+                        }
+                        else if (hoja.Pendiente)
+                        {
+                            <Badge Tono="TonoBadge.Neutro">@Textos["EstHojaPendiente"]</Badge>
+                        }
+                        else if (hoja.Avisos > 0)
+                        {
+                            <Badge Tono="TonoBadge.Advertencia">@Textos["EstHojaAvisos"]</Badge>
+                        }
+                        else if (hoja.FilasDeDatos == 0)
+                        {
+                            <Badge Tono="TonoBadge.Neutro">@Textos["EstHojaVacia"]</Badge>
+                        }
+                        else
+                        {
+                            <Badge Tono="TonoBadge.Exito">0</Badge>
+                        }
+                    </button>
+                }
+            </nav>
+
+            @if (HojaActual is { } actual)
+            {
+                var incidencias = IncidenciasDeLaHoja();
+                var visibles = incidencias.Take(MaxFilasEnTabla).ToList();
+                <section class="tarjeta-est" aria-labelledby="est-titulo-hoja">
+                    <div class="cab-est">
+                        <div>
+                            <h2 id="est-titulo-hoja">@Textos["EstTituloHoja", Enmascarar(actual.Nombre), actual.Errores, actual.Avisos]</h2>
+                            <p>@(actual.Pendiente ? Textos["EstHojaPendienteTexto", actual.FilasDeDatos].Value : Textos["EstHojaLeidas", actual.FilasDeDatos + actual.Errores].Value)</p>
+                        </div>
+                        <div class="fila-est">
+                            <label class="busqueda-est">
+                                <span class="sr-est">@Textos["EstBuscarEnHoja"]</span>
+                                <Icono Nombre="buscar" Tamano="TamanoIcono.Pequeno" />
+                                <input type="search" @bind="_busqueda" @bind:event="oninput" placeholder="@Textos["EstBuscarEnHoja"]" />
+                            </label>
+                            <Boton Variante="VarianteBoton.Secundario" OnClick="DescargarErroresAsync" Deshabilitado="@(TotalErrores + TotalAvisos == 0)">
+                                <Icono Nombre="descargar" Tamano="TamanoIcono.Pequeno" /> @Textos["EstBotonDescargarErrores"]
+                            </Boton>
+                        </div>
+                    </div>
+                    @if (incidencias.Count == 0)
+                    {
+                        <p class="cap-est" data-testid="est-hoja-sin-incidencias">@Textos["EstHojaSinIncidencias"]</p>
+                    }
+                    else
+                    {
+                        <div class="tabla-est" tabindex="0" role="region" aria-label="@Textos["EstAriaTabla"]">
+                            <table class="tabla-datos">
+                                <caption class="sr-est">@Textos["EstTituloHoja", Enmascarar(actual.Nombre), actual.Errores, actual.Avisos]</caption>
+                                <thead>
+                                    <tr>
+                                        <th scope="col" class="num-est">@Textos["EstColFila"]</th>
+                                        <th scope="col">@Textos["EstColElemento"]</th>
+                                        <th scope="col">@Textos["EstColMotivo"]</th>
+                                        <th scope="col">@Textos["EstColGravedad"]</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    @foreach (var f in visibles)
+                                    {
+                                        <tr class="@(f.EsError ? "fila-incidencia-er" : "fila-incidencia-wa")" data-gravedad="@(f.EsError ? "error" : "aviso")">
+                                            <td class="num-est neg-est">@(f.Item.Fila == 0 ? "—" : f.Item.Fila.ToString())</td>
+                                            <td>@Enmascarar(f.Item.Descripcion)</td>
+                                            <td>@Enmascarar(f.Item.Motivo)</td>
+                                            <td><Badge Tono="@(f.EsError ? TonoBadge.Peligro : TonoBadge.Advertencia)">@Textos[f.EsError ? "EstError" : "EstAviso"]</Badge></td>
+                                        </tr>
+                                    }
+                                </tbody>
+                            </table>
+                        </div>
+                        @if (incidencias.Count > visibles.Count)
+                        {
+                            <p class="cap-est">@Textos["EstMostrandoDe", visibles.Count, incidencias.Count]</p>
+                        }
+                    }
+                </section>
+            }
+        </div>
+    }
+    else if (_fase == Fase.VistaPrevia && _plan is not null)
+    {
+        if (_errorImportacion is not null)
+        {
+            <div class="alerta-formulario" role="alert" data-testid="est-error-importacion">@_errorImportacion</div>
+        }
+
+        if (_previaCargando)
+        {
+            <EstadoCargando Filas="4" />
+        }
+        else if (_errorPrevia is not null)
+        {
+            <div class="alerta-formulario" role="alert" data-testid="est-error-previa">@_errorPrevia</div>
+            <div class="fila-est fila-est-fin">
+                <Boton Variante="VarianteBoton.Secundario" OnClick="CargarVistaPreviaAsync">@Textos["EstBotonReintentar"]</Boton>
+            </div>
+        }
+        else if (_previa is { } previa)
+        {
+            var filas = FilasPorEntidad(previa);
+            <div class="rejilla-kpi-est">
+                <TarjetaMetrica Etiqueta="@Textos["EstKpiSeCrearan"]" Valor="@CreadosDe(previa).ToString()" Tono="TonoBadge.Exito" />
+                <TarjetaMetrica Etiqueta="@Textos["EstKpiSeActualizaran"]" Valor="@ActualizadosDe(previa).ToString()" />
+                <TarjetaMetrica Etiqueta="@Textos["EstKpiSinCambios"]" Valor="@SinCambiosTotal(filas).ToString()" />
+                <TarjetaMetrica Etiqueta="@Textos["EstKpiSeOmitiran"]" Valor="@previa.Omitidos.Count.ToString()" Tono="TonoBadge.Peligro" />
+            </div>
+
+            <section class="tarjeta-est" aria-labelledby="est-titulo-entidades">
+                <div class="cab-est">
+                    <div>
+                        <h2 id="est-titulo-entidades">@Textos["EstTituloEntidades"]</h2>
+                        <p>@Textos["EstTextoEntidades"]</p>
+                    </div>
+                </div>
+                <div class="tabla-est" tabindex="0" role="region" aria-label="@Textos["EstAriaTabla"]">
+                    <table class="tabla-datos">
+                        <caption class="sr-est">@Textos["EstTituloEntidades"]</caption>
+                        <thead>
+                            <tr>
+                                <th scope="col">@Textos["EstColEntidad"]</th>
+                                <th scope="col" class="num-est">@Textos["EstColCrear"]</th>
+                                <th scope="col" class="num-est">@Textos["EstColActualizar"]</th>
+                                <th scope="col" class="num-est">@Textos["EstColSinCambios"]</th>
+                                <th scope="col" class="num-est">@Textos["EstColOmitir"]</th>
+                                <th scope="col">@Textos["EstColIdentifica"]</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var fila in filas)
+                            {
+                                <tr data-entidad="@fila.ClaveEntidad">
+                                    <td class="neg-est">@Textos[fila.ClaveEntidad]</td>
+                                    <td class="num-est">@fila.Crear</td>
+                                    <td class="num-est">@fila.Actualizar</td>
+                                    <td class="num-est">@fila.SinCambios</td>
+                                    <td class="num-est">
+                                        @if (fila.Omitir > 0)
+                                        {
+                                            <Badge Tono="TonoBadge.Peligro">@fila.Omitir</Badge>
+                                        }
+                                        else
+                                        {
+                                            @fila.Omitir
+                                        }
+                                    </td>
+                                    <td class="cap-est">@Textos[fila.ClaveIdentifica]</td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+
+            @if (previa.Omitidos.Count > 0)
+            {
+                @* Revisión Codex de la PR #2164, r1, MEDIO 2: antes de confirmar se ve QUÉ filas se omitirán y por qué, también
+                   las que añade la escritura (razón social ocupada, otra Empresa gestionada…), no solo su recuento. *@
+                <section class="tarjeta-est" aria-labelledby="est-titulo-omitidas" data-testid="est-omitidas-previa">
+                    <div class="cab-est">
+                        <div>
+                            <h2 id="est-titulo-omitidas">@Textos["EstTituloOmitidasPrevia"]</h2>
+                            <p>@Textos["EstTextoOmitidasPrevia"]</p>
+                        </div>
+                        <Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno" OnClick="DescargarOmitidasPreviaAsync">
+                            <Icono Nombre="descargar" Tamano="TamanoIcono.Pequeno" /> @Textos["EstBotonOmitidasPrevia"]
+                        </Boton>
+                    </div>
+                    <div class="tabla-est" tabindex="0" role="region" aria-label="@Textos["EstAriaTabla"]">
+                        <table class="tabla-datos">
+                            <caption class="sr-est">@Textos["EstTituloOmitidasPrevia"]</caption>
+                            <thead>
+                                <tr>
+                                    <th scope="col">@Textos["EstColHoja"]</th>
+                                    <th scope="col" class="num-est">@Textos["EstColFila"]</th>
+                                    <th scope="col">@Textos["EstColElemento"]</th>
+                                    <th scope="col">@Textos["EstColMotivo"]</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var o in previa.Omitidos.Take(MaxFilasEnTabla))
+                                {
+                                    <tr class="fila-incidencia-er" data-gravedad="error">
+                                        <td>@Enmascarar(o.Hoja)</td>
+                                        <td class="num-est neg-est">@(o.Fila == 0 ? "—" : o.Fila.ToString())</td>
+                                        <td>@Enmascarar(o.Descripcion)</td>
+                                        <td>@Enmascarar(o.Motivo)</td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                    @if (previa.Omitidos.Count > MaxFilasEnTabla)
+                    {
+                        <p class="cap-est">@Textos["EstMostrandoDe", MaxFilasEnTabla, previa.Omitidos.Count]</p>
+                    }
+                </section>
+            }
+
+            <section class="tarjeta-est" aria-labelledby="est-titulo-modo">
+                <fieldset class="columna-est modo-est">
+                    <legend class="neg-est" id="est-titulo-modo">@Textos["EstTituloModo"]</legend>
+                    <label class="@(_reemplazar ? "opcion-est" : "opcion-est opcion-est-activa")">
+                        <input class="sr-est" type="radio" name="modo-importacion" value="completar" checked="@(!_reemplazar)" disabled="@_importando"
+                               @onchange="() => CambiarModoAsync(false)" />
+                        <span class="radio-est" aria-hidden="true"></span>
+                        <div><div class="neg-est">@Textos["EstModoCompletar"]</div><div class="cap-est">@Textos["EstModoCompletarTexto"]</div></div>
+                    </label>
+                    <label class="@(_reemplazar ? "opcion-est opcion-est-activa" : "opcion-est")">
+                        <input class="sr-est" type="radio" name="modo-importacion" value="reemplazar" checked="@_reemplazar" disabled="@_importando"
+                               @onchange="() => CambiarModoAsync(true)" />
+                        <span class="radio-est" aria-hidden="true"></span>
+                        <div><div class="neg-est">@Textos["EstModoReemplazar"]</div><div class="cap-est">@Textos["EstModoReemplazarTexto"]</div></div>
+                    </label>
+                    @if (_reemplazar)
+                    {
+                        <div class="aviso-est aviso-est-wa" role="note" data-testid="est-aviso-reemplazar">
+                            <span class="icono-aviso-est" aria-hidden="true"><Icono Nombre="advertencia" /></span>
+                            <div class="relleno-est">
+                                <b>@Textos["EstReemplazarNoRevierte"]</b>
+                                @if (previa.ValoresSobrescritos.Count == 0)
+                                {
+                                    @Textos["EstReemplazarNadaCambia"]
+                                }
+                                else
+                                {
+                                    @Textos["EstReemplazarCambiarian", previa.ValoresSobrescritos.Count, RegistrosConValorPrevio(previa)]
+                                }
+                                @Textos["EstReemplazarDescarga"]
+                                <Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno" OnClick="DescargarValoresPreviosAsync" Deshabilitado="@(previa.ValoresSobrescritos.Count == 0)">
+                                    <Icono Nombre="descargar" Tamano="TamanoIcono.Pequeno" /> @Textos["EstBotonValoresPrevios"]
+                                </Boton>
+                            </div>
+                        </div>
+                        @if (previa.ValoresSobrescritos.Count > 0)
+                        {
+                            <details class="detalle-previos-est">
+                                <summary>@Textos["EstVerValoresPrevios", previa.ValoresSobrescritos.Count]</summary>
+                                <div class="tabla-est" tabindex="0" role="region" aria-label="@Textos["EstAriaTabla"]">
+                                    <table class="tabla-datos">
+                                        <caption class="sr-est">@Textos["EstVerValoresPrevios", previa.ValoresSobrescritos.Count]</caption>
+                                        <thead>
+                                            <tr>
+                                                <th scope="col">@Textos["EstColHoja"]</th>
+                                                <th scope="col" class="num-est">@Textos["EstColFila"]</th>
+                                                <th scope="col">@Textos["EstColCampo"]</th>
+                                                <th scope="col">@Textos["EstColValorPrevio"]</th>
+                                                <th scope="col">@Textos["EstColValorNuevo"]</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            @foreach (var v in previa.ValoresSobrescritos.Take(MaxValoresPreviosEnTabla))
+                                            {
+                                                <tr>
+                                                    <td>@v.Hoja</td>
+                                                    <td class="num-est">@v.Fila</td>
+                                                    <td>@v.Campo</td>
+                                                    <td>@Enmascarar(v.ValorPrevio)</td>
+                                                    <td>@Enmascarar(v.ValorNuevo ?? string.Empty)</td>
+                                                </tr>
+                                            }
+                                        </tbody>
+                                    </table>
+                                </div>
+                                @if (previa.ValoresSobrescritos.Count > MaxValoresPreviosEnTabla)
+                                {
+                                    <p class="cap-est">@Textos["EstMostrandoDe", MaxValoresPreviosEnTabla, previa.ValoresSobrescritos.Count]</p>
+                                }
+                            </details>
+                        }
+                    }
+                </fieldset>
+            </section>
+
+        }
+    }
+    else if (_fase == Fase.Escribiendo)
+    {
+        <section class="tarjeta-est" aria-labelledby="est-titulo-escribiendo">
+            <Badge Tono="TonoBadge.Info">@Textos["EstSistemaEscribiendo"]</Badge>
+            <h2 id="est-titulo-escribiendo">@Textos["EstEscribiendoTitulo"]</h2>
+            <div class="barra-est barra-est-indeterminada" role="progressbar" aria-busy="true" aria-label="@Textos["EstAriaProgresoEscritura"]"><i></i></div>
+            <p class="cap-est" role="status">@Textos["EstEscribiendoTexto"]</p>
+        </section>
+    }
+    else if (_fase == Fase.Informe && _resultado is { } r)
+    {
+        var filasInforme = FilasPorEntidad(r);
+        if (EsYaEjecutada(r))
+        {
+            <div class="aviso-est aviso-est-sy" role="status" data-testid="est-informe-ya-ejecutada">
+                <span class="icono-aviso-est" aria-hidden="true"><Icono Nombre="info" /></span>
+                <div class="relleno-est">
+                    <b>@Textos["EstYaEjecutadaTitulo"]</b> @Textos["EstYaEjecutadaTexto"]
+                    <a href="/importacion" data-testid="est-informe-ya-ejecutada-historial">@Textos["EstYaEjecutadaEnlace"]</a>.
+                </div>
+            </div>
+        }
+        else
+        {
+            <div class="aviso-est aviso-est-ok" role="status" data-testid="est-informe-completada">
+                <span class="icono-aviso-est" aria-hidden="true"><Icono Nombre="check" /></span>
+                <div class="relleno-est">
+                    <b>@(r.Omitidos.Count == 0 ? Textos["EstInformeCompletadaSinOmitidas"].Value : r.Omitidos.Count == 1 ? Textos["EstInformeCompletadaUnaOmitida"].Value : Textos["EstInformeCompletadaOmitidas", r.Omitidos.Count].Value)</b>
+                    @Textos["EstInformeTexto"]
+                </div>
+            </div>
+
+            <div class="rejilla-kpi-est">
+                <TarjetaMetrica Etiqueta="@Textos["EstKpiCreados"]" Valor="@CreadosDe(r).ToString()" Tono="TonoBadge.Exito" />
+                <TarjetaMetrica Etiqueta="@Textos["EstKpiActualizados"]" Valor="@ActualizadosDe(r).ToString()" />
+                <TarjetaMetrica Etiqueta="@Textos["EstKpiSinCambios"]" Valor="@SinCambiosTotal(filasInforme).ToString()" />
+                <TarjetaMetrica Etiqueta="@Textos["EstKpiOmitidos"]" Valor="@r.Omitidos.Count.ToString()" Tono="TonoBadge.Peligro" />
+            </div>
+
+            <section class="tarjeta-est" aria-labelledby="est-titulo-detalle">
+                <div class="cab-est">
+                    <div>
+                        <h2 id="est-titulo-detalle">@Textos["EstTituloDetalle"]</h2>
+                        <p>@Textos["EstDetalleOperacion", _momentoInforme.EnHoraPeninsular().ToString("dd/MM/yyyy HH:mm"), _nombreArchivo ?? string.Empty]</p>
+                    </div>
+                    <div class="fila-est">
+                        <Boton Variante="VarianteBoton.Secundario" OnClick="() => DescargarInformeAsync(false)">
+                            <Icono Nombre="descargar" Tamano="TamanoIcono.Pequeno" /> @Textos["EstBotonInformeCompleto"]
+                        </Boton>
+                        <Boton Variante="VarianteBoton.Secundario" OnClick="() => DescargarInformeAsync(true)" Deshabilitado="@(r.Omitidos.Count == 0)">
+                            <Icono Nombre="descargar" Tamano="TamanoIcono.Pequeno" /> @Textos["EstBotonSoloOmitidas"]
+                        </Boton>
+                    </div>
+                </div>
+                <div class="tabla-est" tabindex="0" role="region" aria-label="@Textos["EstAriaTabla"]">
+                    <table class="tabla-datos">
+                        <caption class="sr-est">@Textos["EstTituloDetalle"]</caption>
+                        <thead>
+                            <tr>
+                                <th scope="col">@Textos["EstColEntidad"]</th>
+                                <th scope="col" class="num-est">@Textos["EstColCreados"]</th>
+                                <th scope="col" class="num-est">@Textos["EstColActualizados"]</th>
+                                <th scope="col" class="num-est">@Textos["EstColSinCambios"]</th>
+                                <th scope="col" class="num-est">@Textos["EstColOmitidos"]</th>
+                                <th scope="col">@Textos["EstColAvisos"]</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var fila in filasInforme)
+                            {
+                                var avisos = AvisosDe(r, fila.Hoja);
+                                <tr data-entidad="@fila.ClaveEntidad">
+                                    <td class="neg-est">@Textos[fila.ClaveEntidad]</td>
+                                    <td class="num-est">@fila.Crear</td>
+                                    <td class="num-est">@fila.Actualizar</td>
+                                    <td class="num-est">@fila.SinCambios</td>
+                                    <td class="num-est">@fila.Omitir</td>
+                                    <td class="cap-est">@AvisosOGuion(avisos)</td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+                <p class="cap-est">@Textos["EstInformeCampos", r.CamposRellenados, r.ValoresSobrescritos.Count]</p>
+            </section>
+        }
+
+        if (r.Advertencias.Count > 0)
+        {
+            <h3 class="titulo-items-est">@Textos["TituloAvisosConteo", r.Advertencias.Count]</h3>
+            <TablaItemsImportacion DniCompleto="DniCompleto" Items="r.Advertencias" Tono="TonoBadge.Advertencia" />
+        }
+
+        if (r.Omitidos.Count > 0 && !EsYaEjecutada(r))
+        {
+            <h3 class="titulo-items-est">@Textos["TituloOmitidosConteo", r.Omitidos.Count]</h3>
+            <TablaItemsImportacion DniCompleto="DniCompleto" Items="r.Omitidos" Tono="TonoBadge.Peligro" />
+        }
+    }
+
+    @* La única etiqueta Primario de la vista: su texto, su estado y su manejador dependen de la fase. *@
+    @if (_fase is Fase.Subir or Fase.Validacion or Fase.VistaPrevia or Fase.Informe)
+    {
+        <section class="@(_fase == Fase.VistaPrevia ? "tarjeta-est tarjeta-est-sutil" : "acciones-est")" aria-label="@(_fase == Fase.VistaPrevia ? Textos["EstTituloConfirmar"].Value : Textos["EstAriaAcciones"].Value)">
+            <div class="@(_fase == Fase.VistaPrevia ? "fila-est" : "fila-est fila-est-fin")">
+                @if (_fase == Fase.VistaPrevia)
+                {
+                    <div class="relleno-est">
+                        <div class="neg-est">@Textos["EstTituloConfirmar"]</div>
+                        <div class="cap-est">@Textos["EstTextoConfirmar"]</div>
+                    </div>
+                    <Boton Variante="VarianteBoton.Secundario" OnClick="DescartarImportacion" Deshabilitado="@_importando">@Textos["EstBotonDescartar"]</Boton>
+                    <Boton Variante="VarianteBoton.Secundario" OnClick="VolverAValidacion" Deshabilitado="@_importando">@Textos["EstBotonVolver"]</Boton>
+                }
+                @if (_fase == Fase.Validacion && TotalErrores > 0 && TotalValidas > 0)
+                {
+                    <Boton Variante="VarianteBoton.Fantasma" OnClick="ContinuarAVistaPreviaAsync">@Textos["EstBotonContinuarSinErrores"]</Boton>
+                }
+                <Boton Variante="VarianteBoton.Primario" Deshabilitado="@PrincipalDeshabilitado" Cargando="@_importando" OnClick="AccionPrincipalAsync">
+                    @TextoPrincipal
+                    @if (_fase is Fase.Subir or Fase.VistaPrevia)
+                    {
+                        <Icono Nombre="siguiente" Tamano="TamanoIcono.Pequeno" />
+                    }
+                </Boton>
+            </div>
+        </section>
+    }
+
+    <DialogoConfirmacion Visible="_mostrarDialogo" VisibleChanged="CambiarVisibilidadDialogo"
+                         Titulo="@Textos["EstDialogoTitulo"]"
+                         Mensaje="@(_previa is null ? string.Empty : Textos["EstDialogoMensaje", _previa.ValoresSobrescritos.Count, RegistrosConValorPrevio(_previa)].Value)"
+                         TextoBotonConfirmar="@Textos["EstDialogoConfirmar"]" EnProgreso="_importando" OnConfirmar="ConfirmarImportacionAsync" />
+
+    <AvisoCambiosSinGuardar HayCambios="() => HayCambiosSinGuardar" />
+</div>

@@ -61,10 +61,10 @@
     <comment>Columna Vigència de la fila d'Empresa quan Estat és null: un rebuig a la plataforma ni venç ni "no caduca" (AcordeonAsignacionesCentro.razor.cs, TextoVigenciaEmpresa).</comment>
   </data>
   <data name="ToastLoteRestaurados" xml:space="preserve">
-    <value>{0} centro(s) restaurado(s).</value>
+    <value>{0} centre(s) restaurat(s).</value>
   </data>
   <data name="ToastLoteRestauradosConErrores" xml:space="preserve">
-    <value>{0} restaurado(s). {1} no se pudieron restaurar: {2}</value>
+    <value>{0} restaurat(s). {1} no s'han pogut restaurar: {2}</value>
   </data>
   <data name="ToastAccionDeshacer" xml:space="preserve">
     <value>Deshacer</value>
@@ -172,22 +172,22 @@
     <value>{0} documents amb bloqueig de plataforma</value>
   </data>
   <data name="MenuEliminarCentro" xml:space="preserve">
-    <value>Eliminar centro</value>
+    <value>Eliminar centre</value>
   </data>
   <data name="EliminarCentroTitulo" xml:space="preserve">
-    <value>¿Eliminar el centro «{0}»?</value>
+    <value>Vols eliminar el centre «{0}»?</value>
   </data>
   <data name="EliminarCentroMensaje" xml:space="preserve">
-    <value>Se ocultará de las listas activas y sus asignaciones activas quedarán dadas de baja. Podrás deshacer la eliminación desde el aviso que aparecerá, pero las asignaciones seguirán de baja; después, solo un Administrador de esta organización puede recuperarlo desde Auditoría.</value>
+    <value>S'ocultarà de les llistes actives i les seves assignacions actives quedaran donades de baixa. Podràs desfer l'eliminació des de l'avís que apareixerà, però les assignacions seguiran de baixa; després, només un Administrador d'aquesta organització pot recuperar-lo des d'Auditoria.</value>
   </data>
   <data name="ToastCentroEliminado" xml:space="preserve">
-    <value>Centro «{0}» eliminado.</value>
+    <value>Centre «{0}» eliminat.</value>
   </data>
   <data name="ToastCentroEliminadoError" xml:space="preserve">
-    <value>No pudimos eliminar el centro. Intenta nuevamente.</value>
+    <value>No hem pogut eliminar el centre. Torna-ho a provar.</value>
   </data>
   <data name="ToastCentroRestaurado" xml:space="preserve">
-    <value>Centro restaurado. Sus asignaciones siguen de baja.</value>
+    <value>Centre restaurat. Les seves assignacions segueixen de baixa.</value>
   </data>
   <data name="RequisitoVigenciaPropia" xml:space="preserve">
     <value>Vigència: la del propi document</value>
@@ -396,6 +396,12 @@
   <data name="TotalesListaCompleta360" xml:space="preserve">
     <value>Es calcula sobre la llista completa, no sobre la filtrada.</value>
   </data>
+  <data name="ResumenBloqueoUno360" xml:space="preserve">
+    <value>{0} bloqueja l'accés</value>
+  </data>
+  <data name="ResumenBloqueoVarios360" xml:space="preserve">
+    <value>{0} i {1} més bloquegen l'accés</value>
+  </data>
   <data name="SinExigenciasTrabajador360" xml:space="preserve">
     <value>Aquest Centre no li exigeix documentació específica.</value>
   </data>
@@ -488,9 +494,21 @@
   <data name="DocumentacionCentroLista360" xml:space="preserve"><value>Documentació de {0} al Centre</value></data>
   <data name="DocumentacionCentroRecuento360" xml:space="preserve"><value>Mostrant {0} de {1} · del pitjor estat al millor</value></data>
   <data name="RequisitosCentroVacio360" xml:space="preserve"><value>Sense requisits documentals aplicables</value></data>
-  <data name="RequisitoCentroEmpresa360" xml:space="preserve"><value>Empresa ocupadora</value></data>
-  <data name="RequisitoCentroTrabajador360" xml:space="preserve"><value>Treballador</value></data>
   <data name="RequisitoCentroTolerancia360" xml:space="preserve"><value>Tolerància: {0} dies</value></data>
+  <data name="RequisitoCentroToleranciaUnDia360" xml:space="preserve"><value>Tolerància: 1 dia</value></data>
+  <data name="RequisitoCentroSustituido360" xml:space="preserve"><value>Substituït</value></data>
+  <data name="RequisitoCentroArchivado360" xml:space="preserve"><value>Arxivat</value></data>
+  <data name="RequisitoSustituidoPor360" xml:space="preserve"><value>Substituït per {0}</value></data>
+  <data name="FiltrarRequisitos360" xml:space="preserve"><value>Filtrar requisits</value></data>
+  <data name="GestionarRequisitos360" xml:space="preserve"><value>Gestionar requisits</value></data>
+  <data name="RequisitosCentroIntro360" xml:space="preserve"><value>Documentació que aquest Centre exigeix. En cada bloc, primer la que bloqueja l’accés.</value></data>
+  <data name="RequisitosBloqueEmpresa360" xml:space="preserve"><value>Documentació de l’Empresa</value></data>
+  <data name="RequisitosBloqueTrabajador360" xml:space="preserve"><value>Documentació del Treballador</value></data>
+  <data name="RequisitosBloqueVacio360" xml:space="preserve"><value>Sense requisits en aquest bloc</value></data>
+  <data name="RequisitosBloqueSinCoincidencias360" xml:space="preserve"><value>Cap requisit coincideix amb el filtre</value></data>
+  <data name="RequisitosVerRestantes360" xml:space="preserve"><value>Veure els {0} restants</value></data>
+  <data name="RequisitosVerRestanteUno360" xml:space="preserve"><value>Veure l’1 restant</value></data>
+  <data name="RequisitosVerMenos360" xml:space="preserve"><value>Veure menys</value></data>
   <data name="RequisitoCentroBloquea360" xml:space="preserve"><value>Bloqueja l’accés</value></data>
   <data name="RequisitoCentroNoBloquea360" xml:space="preserve"><value>No bloqueja l’accés</value></data>
   <data name="FichaContratoHasta360" xml:space="preserve"><value>Contracte vigent fins al</value></data>
@@ -637,6 +655,8 @@
   <data name="PlataformaTalveg360" xml:space="preserve"><value>A TALVEG: {0}</value></data>
   <data name="DocumentacionEmpresaIntro360" xml:space="preserve"><value>El que aquest Centre exigeix a cada Empresa, amb el seu estat a la plataforma CAE.</value></data>
   <data name="DocumentacionEmpresaTabla360" xml:space="preserve"><value>Documentació d’Empresa exigida en aquest Centre</value></data>
+  <data name="DocumentoVer360" xml:space="preserve"><value>Veure</value></data>
+  <data name="DocumentoVerAria360" xml:space="preserve"><value>Veure el PDF del document «{0}» de {1}</value></data>
   <data name="DocumentoNombre360" xml:space="preserve"><value>Document</value></data>
   <data name="HistorialCambios360" xml:space="preserve"><value>Canvis</value></data>
   <data name="DocumentoColumna360" xml:space="preserve"><value>Document</value></data>
@@ -682,6 +702,24 @@
   </data>
   <data name="ArchivoCentroAyuda" xml:space="preserve">
     <value>Model o instruccions que el Centre lliura a les Empreses. Opcional.</value>
+  </data>
+  <data name="RequisitoArchivadoConSustituto" xml:space="preserve">
+    <value>Tipus arxivat: substituït per {0}. Passa'l a «S'exclou» per deixar d'exigir-lo i exigeix {0}.</value>
+  </data>
+  <data name="RequisitoArchivadoSinSustituto" xml:space="preserve">
+    <value>Tipus arxivat: sense substitut. Passa'l a «S'exclou» per deixar d'exigir-lo.</value>
+  </data>
+  <data name="RequisitoArchivadoDrawerConSustituto" xml:space="preserve">
+    <value>Tipus arxivat: només es pot excloure; el substitut és «{0}».</value>
+  </data>
+  <data name="RequisitoArchivadoDrawerSinSustituto" xml:space="preserve">
+    <value>Tipus arxivat: només es pot excloure.</value>
+  </data>
+  <data name="RequisitoArchivadoGuardarConSustituto" xml:space="preserve">
+    <value>Aquest tipus de document està arxivat: només es pot excloure. Exigeix el seu substitut, «{0}».</value>
+  </data>
+  <data name="RequisitoArchivadoGuardarSinSustituto" xml:space="preserve">
+    <value>Aquest tipus de document està arxivat: només es pot excloure.</value>
   </data>
   <data name="RequisitoGuardadoToast" xml:space="preserve">
     <value>Requisit desat en aquest centre.</value>
@@ -766,4 +804,153 @@
   <data name="ToastFiltrosNoCargados" xml:space="preserve">
     <value>No hem pogut carregar les opcions dels filtres. Les llistes poden estar incompletes; recarrega la pàgina.</value>
   </data>
-</root>
+  <data name="ReqAnadir" xml:space="preserve">
+    <value>Afegir requisit</value>
+  </data>
+  <data name="ReqAyudaCabecera" xml:space="preserve">
+    <value>Només apareix el que aquest centre exigeix o exclou.</value>
+  </data>
+  <data name="ReqGrupoEmpresa" xml:space="preserve">
+    <value>Empresa</value>
+  </data>
+  <data name="ReqGrupoTrabajador" xml:space="preserve">
+    <value>Treballador</value>
+  </data>
+  <data name="ReqEditarAria" xml:space="preserve">
+    <value>Editar els ajustos de {0}</value>
+  </data>
+  <data name="ReqQuitarAria" xml:space="preserve">
+    <value>Treure el requisit {0}</value>
+  </data>
+  <data name="ReqQuitarAjusteAria" xml:space="preserve">
+    <value>Treure l'ajust de {0}</value>
+  </data>
+  <data name="ReqMetaRenovacion" xml:space="preserve">
+    <value>Renovació cada {0} mesos</value>
+  </data>
+  <data name="ReqMetaRenovacionMensual" xml:space="preserve">
+    <value>Renovació cada mes</value>
+  </data>
+  <data name="ReqMetaBloquea" xml:space="preserve">
+    <value>Bloqueja l'accés</value>
+  </data>
+  <data name="ReqMetaExcluido" xml:space="preserve">
+    <value>S'exclou en aquest centre</value>
+  </data>
+  <data name="ReqExcluidosResumen" xml:space="preserve">
+    <value>Exclosos en aquest centre ({0})</value>
+  </data>
+  <data name="ReqLeyendaExige" xml:space="preserve">
+    <value>S'exigeix / S'exclou en aquest centre</value>
+  </data>
+  <data name="ReqSeExige" xml:space="preserve">
+    <value>S'exigeix</value>
+  </data>
+  <data name="ReqSeExcluye" xml:space="preserve">
+    <value>S'exclou</value>
+  </data>
+  <data name="ReqSeExigeAyuda" xml:space="preserve">
+    <value>Decideix si aquest centre demana aquest document o el deixa fora, encara que el catàleg digui una altra cosa.</value>
+  </data>
+  <data name="ReqPeriodicidadEtiqueta" xml:space="preserve">
+    <value>Periodicitat pròpia</value>
+  </data>
+  <data name="ReqPeriodicidadAyuda" xml:space="preserve">
+    <value>Cada quant es renova en aquest centre. Buit: val la vigència del propi document.</value>
+  </data>
+  <data name="ReqToleranciaAyuda" xml:space="preserve">
+    <value>Dies de marge després del venciment abans de bloquejar.</value>
+  </data>
+  <data name="ReqBloqueaEtiqueta" xml:space="preserve">
+    <value>Bloqueja l'accés</value>
+  </data>
+  <data name="ReqBloqueaAyuda" xml:space="preserve">
+    <value>Si falta o està vençut, qui l'incompleixi no entra al centre.</value>
+  </data>
+  <data name="ReqPlantillaEtiqueta" xml:space="preserve">
+    <value>Plantilla annexa</value>
+  </data>
+  <data name="ReqPlantillaAyuda" xml:space="preserve">
+    <value>Model del document que s'ofereix a l'empresa per a aquest requisit.</value>
+  </data>
+  <data name="ReqPlantillaSustituir" xml:space="preserve">
+    <value>Substituir</value>
+  </data>
+  <data name="ReqPlantillaQuitar" xml:space="preserve">
+    <value>Treure la plantilla</value>
+  </data>
+  <data name="ReqPlantillaVer" xml:space="preserve">
+    <value>Veure el formulari</value>
+  </data>
+  <data name="ReqCancelar" xml:space="preserve">
+    <value>Cancel·lar</value>
+  </data>
+  <data name="ReqGuardar" xml:space="preserve">
+    <value>Desar els ajustos</value>
+  </data>
+  <data name="ReqBuscadorEtiqueta" xml:space="preserve">
+    <value>Afegir requisit: cerca al catàleg de tipus de document</value>
+  </data>
+  <data name="ReqBuscadorBorrar" xml:space="preserve">
+    <value>Esborrar</value>
+  </data>
+  <data name="ReqBuscadorCerrar" xml:space="preserve">
+    <value>Tancar el cercador</value>
+  </data>
+  <data name="ReqResultadosAria" xml:space="preserve">
+    <value>Resultats</value>
+  </data>
+  <data name="ReqCoincidenciaUna" xml:space="preserve">
+    <value>1 tipus de document coincideix</value>
+  </data>
+  <data name="ReqCoincidencias" xml:space="preserve">
+    <value>{0} tipus de document coincideixen</value>
+  </data>
+  <data name="ReqYaSeExige" xml:space="preserve">
+    <value>Ja s'exigeix</value>
+  </data>
+  <data name="ReqExcluidoAqui" xml:space="preserve">
+    <value>Exclòs en aquest centre</value>
+  </data>
+  <data name="ReqAnadirOpcion" xml:space="preserve">
+    <value>Afegir</value>
+  </data>
+  <data name="ReqArchivadosNoAparecen" xml:space="preserve">
+    <value>Els tipus de document arxivats no apareixen al cercador.</value>
+  </data>
+  <data name="ReqSinCoincidenciasTitulo" xml:space="preserve">
+    <value>Cap tipus de document coincideix amb «{0}»</value>
+  </data>
+  <data name="ReqSinCoincidenciasAyuda" xml:space="preserve">
+    <value>Revisa l'escriptura o prova amb una altra paraula. Si el tipus no existeix, crea'l abans al catàleg de tipus de document.</value>
+  </data>
+  <data name="ReqVerCatalogo" xml:space="preserve">
+    <value>Veure el catàleg de tipus de document</value>
+  </data>
+  <data name="ReqVacioTitulo" xml:space="preserve">
+    <value>Aquest centre no té requisits propis</value>
+  </data>
+  <data name="ReqVacioTexto" xml:space="preserve">
+    <value>Cap tipus de document s'exigeix encara en aquest centre. Afegeix un requisit per exigir un tipus de document únicament aquí.</value>
+  </data>
+  <data name="ReqAnadidoToast" xml:space="preserve">
+    <value>«{0}» s'exigeix ara en aquest centre.</value>
+  </data>
+  <data name="ReqExcluidoToast" xml:space="preserve">
+    <value>«{0}» queda exclòs en aquest centre.</value>
+  </data>
+  <data name="ReqErrorGuardar" xml:space="preserve">
+    <value>No hem pogut desar els canvis. Torna-ho a provar d'aquí a uns segons.</value>
+  </data>
+  <data name="ReqDescartarTitulo" xml:space="preserve">
+    <value>Vols descartar els canvis?</value>
+  </data>
+  <data name="ReqDescartarMensaje" xml:space="preserve">
+    <value>Hi ha canvis que encara no s&apos;han desat. Si tanques, es perden.</value>
+  </data>
+  <data name="ReqDescartarConfirmar" xml:space="preserve">
+    <value>Descartar els canvis</value>
+  </data>
+  <data name="ReqDescartarSeguir" xml:space="preserve">
+    <value>Continuar editant</value>
+  </data></root>

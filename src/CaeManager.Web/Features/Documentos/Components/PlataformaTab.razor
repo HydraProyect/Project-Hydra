@@ -162,7 +162,7 @@ else
                                         @* Una Rechazada no se marca subida sin versión nueva
                                            (MarcarAcreditacionSubidaCommand lo rechaza): la salida
                                            es subir la corregida, que la devuelve a Pendiente. *@
-                                        @if (documento.Estado == EstadoAcreditacion.Rechazada && OnSubirVersionCorregida.HasDelegate)
+                                        @if (ReglasAccionesAcreditacion.PuedeSubirVersionCorregida(documento.Estado) && OnSubirVersionCorregida.HasDelegate)
                                         {
                                             <Boton Variante="VarianteBoton.Primario" Tamano="TamanoBoton.Pequeno"
                                                    title="@TextosPlataformaAcreditacion.Texto("SubirVersionCorregidaAyuda")"
@@ -170,8 +170,7 @@ else
                                                 @TextosPlataformaAcreditacion.Texto("SubirVersionCorregida")
                                             </Boton>
                                         }
-                                        @if ((documento.Estado is EstadoAcreditacion.Rechazada or EstadoAcreditacion.PendienteDeSubir)
-                                             && UrlPortalCae.Normalizar(documento.UrlAccesoCanal) is { } portal)
+                                        @if (ReglasAccionesAcreditacion.DireccionDelPortal(documento.Estado, documento.UrlAccesoCanal) is { } portal)
                                         {
                                             @* La dirección del canal, nunca la credencial: se abre en
                                                pestaña nueva y el Gestor CAE entra allí con la suya.
@@ -188,7 +187,7 @@ else
                                            la plataforma contestó (sin esta rama, la fila
                                            desaparecía al marcarla y el estado no tenía salida).
                                            Una Rechazada necesita antes su versión corregida. *@
-                                        @if (documento.Estado == EstadoAcreditacion.PendienteDeSubir)
+                                        @if (ReglasAccionesAcreditacion.PuedeMarcarSubido(documento.Estado))
                                         {
                                             <Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno"
                                                    Cargando="@(_procesando == documento.AcreditacionId)"
@@ -240,7 +239,8 @@ else
     @if (_estadoVigencia == nameof(EstadoVigenciaEnPlataforma.VenceEnFecha))
     {
         <CampoTexto Etiqueta="Fecha de vencimiento" Type="date" Valor="@_fechaVigencia"
-                    ValorChanged="v => { _fechaVigencia = v; _errorServidorVigencia = null; _errorVigencia = null; }" MensajeError="@_errorVigencia" />
+                    ValorChanged="v => { _fechaVigencia = v; _errorServidorVigencia = null; _errorVigencia = null; }" MensajeError="@_errorVigencia"
+                    FechaNoValida="_fechaVigenciaNoValida" FechaNoValidaChanged="v => _fechaVigenciaNoValida = v" />
     }
 </ModalFormulario>
 
@@ -264,7 +264,10 @@ else
     /// rechazo (el detalle), o su confirmación en curso. La causa del rechazo y el estado de la vigencia vienen preseleccionados y
     /// elegir otro valor sin escribir nada no se pierde de forma que cueste recuperarlo.
     /// </summary>
-    private bool HayCambiosVigencia => _vigenciaVisible && (_confirmandoVigencia || !string.IsNullOrWhiteSpace(_fechaVigencia));
+    private bool HayCambiosVigencia => _vigenciaVisible && (_confirmandoVigencia || !string.IsNullOrWhiteSpace(_fechaVigencia) || _fechaVigenciaNoValida);
+
+    /// <summary>La fecha de vencimiento tiene un texto que no es una fecha entera (su valor es «»): no se confirma nada.</summary>
+    private bool _fechaVigenciaNoValida;
 
     private bool HayCambiosRechazo => _rechazoVisible && (_rechazando || !string.IsNullOrWhiteSpace(_motivoRechazo));
 
@@ -480,6 +483,9 @@ else
         _soloVigencia = yaAceptada;
         _estadoVigencia = nameof(EstadoVigenciaEnPlataforma.VenceEnFecha);
         _fechaVigencia = string.Empty;
+        // El campo nace con esta marca (CampoTexto.FechaNoValida) y no la retira al nacer: la de una apertura anterior
+        // (cancelada, o guardada con «Aquí no caduca») dejaría el modal nuevo con el aviso y pidiendo descartar sin tocarlo.
+        _fechaVigenciaNoValida = false;
         _errorVigencia = null;
         _errorServidorVigencia = null;
         _vigenciaVisible = true;
@@ -510,7 +516,9 @@ else
         _errorServidorVigencia = null;
 
         var vigencia = VigenciaElegida();
-        if (vigencia is null)
+        if (vigencia is null
+            || (_fechaVigenciaNoValida && _estadoVigencia != nameof(EstadoVigenciaEnPlataforma.NoVenceAqui)
+                && _estadoVigencia != nameof(EstadoVigenciaEnPlataforma.SinConfirmar)))
         {
             // Sin fecha legible no se manda nada: dejar pasar el "vence en
             // fecha" vacío lo guardaría como SinConfirmar, y el Gestor se

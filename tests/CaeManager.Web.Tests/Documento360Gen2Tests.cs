@@ -62,6 +62,8 @@ public partial class Documento360Gen2Tests : BunitContext
         Services.AddScoped<ToastService>();
         Services.AddScoped<ContextWorkspaceService>();
         Services.AddLocalization();
+        // El campo de Trabajador de la reclamación es el combobox del kit: su módulo de anclaje es la única llamada a JS que se admite.
+        JSInterop.SetupModule("./js/campo-select-avanzado.js").Mode = JSRuntimeMode.Loose;
         // «Renovar» va dentro de SoloConEscritura: sin rol, AuthorizeView no tendría con qué decidir.
         this.ConRolDeEscritura();
         return mediador;
@@ -92,7 +94,9 @@ public partial class Documento360Gen2Tests : BunitContext
         cut.Find(".titulo-documento-360").TextContent.Should().Be("Certificado TGSS");
         var celdas = cut.FindAll(".celda-info-documento-360").ToList();
         celdas.Should().HaveCount(6, "el instrumento observa que la isla no está vacía");
-        celdas.Select(c => c.TextContent.Trim()).Should().Contain("PropietarioMontajes Ebro S.L.").And.Contain("ArchivoDescargar PDF");
+        // Espacios normalizados: «Descargar PDF» y «Ver» (D-24) son dos elementos con su sangrado entre medias.
+        celdas.Select(c => string.Join(' ', c.TextContent.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries))).Should()
+            .Contain("PropietarioMontajes Ebro S.L.").And.Contain("ArchivoDescargar PDF Ver");
         cut.FindAll("[role=tab]").Should().HaveCount(4);
         cut.FindAll(".pestanas-contador").Should().BeEmpty("ninguna lista la carga este panel");
         // Sin FechaEmision: en este panel solo la vigencia es copiable (P9,
@@ -201,7 +205,7 @@ public partial class Documento360Gen2Tests : BunitContext
         var cut = Renderizar(id);
 
         await Boton(cut, "Renovar").ClickAsync(new MouseEventArgs());
-        var campos = cut.FindAll("input[type=date]");
+        var campos = cut.FindAll("input[data-campo-fecha]");
         campos.Should().HaveCount(2, "el formulario de renovación tiene emisión y vencimiento manual");
         await campos[0].InputAsync(new ChangeEventArgs { Value = "2026-02-03" });
         await cut.Find("textarea").InputAsync(new ChangeEventArgs { Value = "Renovado" });
@@ -216,6 +220,81 @@ public partial class Documento360Gen2Tests : BunitContext
         var toast = Services.GetRequiredService<ToastService>().Mensajes.Should().ContainSingle(
             "una renovación correcta debe informar de su resultado").Subject;
         toast.Mensaje.Should().Be("Certificado TGSS: fechas y comentarios actualizados; el archivo no se ha sustituido.");
+    }
+
+    // Un vencimiento a medias llega como «» y RenovarDocumentoCommand lo guardaría como «sin vencimiento». Con la bandera del
+    // campo, Guardar no envía nada y lo dice.
+    [Theory]
+    [InlineData("15/0")]
+    [InlineData("mañana")]
+    [InlineData("10/1/2030")]
+    public async Task Un_vencimiento_que_no_es_fecha_entera_no_se_guarda_como_sin_vencimiento(string tecleado)
+    {
+        var id = Guid.NewGuid();
+        var mediador = Registrar(new MediadorFalso());
+        mediador.Detalles[id] = Detalle(id);
+        var cut = Renderizar(id);
+
+        await Boton(cut, "Renovar").ClickAsync(new MouseEventArgs());
+        await EmisionDeRenovacion.EscribirAsync(cut);
+        var vencimiento = cut.FindAll("input[data-campo-fecha]")[1];
+        await vencimiento.InputAsync(new ChangeEventArgs { Value = tecleado });
+        await cut.FindAll("input[data-campo-fecha]")[1].BlurAsync(new FocusEventArgs());
+        await Boton(cut, "Guardar fechas y comentarios (sin sustituir el archivo)").ClickAsync(new MouseEventArgs());
+
+        mediador.Enviadas.OfType<RenovarDocumentoCommand>().Should().BeEmpty();
+        cut.FindAll(".alerta-formulario").Should().ContainSingle().Which.TextContent.Should().Contain("no es válida");
+    }
+
+    // Ronda 4 de Codex: el campo de vencimiento vive en la pestaña Información y se destruye al cambiar de pestaña. Al volver
+    // nacía sin marca, avisaba false y Guardar enviaba RenovarDocumentoCommand con el vencimiento a null (lo borraba).
+    [Fact]
+    public async Task Un_vencimiento_a_medias_sigue_marcado_al_volver_de_otra_pestana_y_no_se_guarda_como_sin_vencimiento()
+    {
+        var id = Guid.NewGuid();
+        var mediador = Registrar(new MediadorFalso());
+        mediador.Detalles[id] = Detalle(id);
+        var cut = Renderizar(id);
+
+        await Boton(cut, "Renovar").ClickAsync(new MouseEventArgs());
+        await EmisionDeRenovacion.EscribirAsync(cut);
+        await cut.FindAll("input[data-campo-fecha]")[1].InputAsync(new ChangeEventArgs { Value = "15/03" });
+
+        cut.Render(p => p.Add(x => x.PestanaActiva, "validacion"));
+        cut.FindAll("input[data-campo-fecha]").Should().BeEmpty("control: en otra pestaña el campo no existe");
+        cut.Render(p => p.Add(x => x.PestanaActiva, "informacion"));
+
+        var vencimiento = cut.FindAll("input[data-campo-fecha]").Should().HaveCount(2).And.Subject.ElementAt(1);
+        vencimiento.GetAttribute("aria-invalid").Should().Be("true", "el campo recreado nace con la marca y su aviso a la vista");
+        await Boton(cut, "Guardar fechas y comentarios (sin sustituir el archivo)").ClickAsync(new MouseEventArgs());
+
+        mediador.Enviadas.OfType<RenovarDocumentoCommand>().Should().BeEmpty("el vencimiento a medias no se borra al volver de otra pestaña");
+        cut.FindAll(".alerta-formulario").Should().ContainSingle().Which.TextContent.Should().Contain("no es válida");
+
+        await cut.FindAll("input[data-campo-fecha]")[1].InputAsync(new ChangeEventArgs { Value = "15/03/2030" });
+        await Boton(cut, "Guardar fechas y comentarios (sin sustituir el archivo)").ClickAsync(new MouseEventArgs());
+        mediador.Enviadas.OfType<RenovarDocumentoCommand>().Should().ContainSingle("control positivo: corregida, se guarda")
+            .Which.FechaVencimientoManual.Should().Be(new DateOnly(2030, 3, 15));
+    }
+
+    // El aviso de un «Guardar» rechazado deja de ser cierto en cuanto el vencimiento vuelve a ser una fecha entera.
+    [Fact]
+    public async Task Corregir_el_vencimiento_retira_el_aviso_de_que_no_es_una_fecha()
+    {
+        var id = Guid.NewGuid();
+        var mediador = Registrar(new MediadorFalso());
+        mediador.Detalles[id] = Detalle(id);
+        var cut = Renderizar(id);
+
+        await Boton(cut, "Renovar").ClickAsync(new MouseEventArgs());
+        await EmisionDeRenovacion.EscribirAsync(cut);
+        await cut.FindAll("input[data-campo-fecha]")[1].InputAsync(new ChangeEventArgs { Value = "15/0" });
+        await Boton(cut, "Guardar fechas y comentarios (sin sustituir el archivo)").ClickAsync(new MouseEventArgs());
+        cut.FindAll(".alerta-formulario").Should().ContainSingle("control: el intento rechazado avisa");
+
+        await cut.FindAll("input[data-campo-fecha]")[1].InputAsync(new ChangeEventArgs { Value = "15/03/2030" });
+
+        cut.FindAll(".alerta-formulario").Should().BeEmpty("la fecha ya es entera y el aviso del intento anterior no es cierto");
     }
 
     [Fact]

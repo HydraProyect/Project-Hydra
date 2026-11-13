@@ -1,0 +1,71 @@
+/*
+  «Faltan documentos» de /alertas (artboard «Alertas-faltan-documentos», clases dc-pat). Solo tokens de
+  wwwroot/css/tokens.css. El borde discontinuo del artboard (dc-propuesta) marca en la maqueta lo que es nuevo y no es
+  un rasgo visual del producto: aquí la sección lleva el mismo marco que el resto.
+*/
+
+/*
+  A sangre dentro de SeccionColapsable: su cuerpo (.seccion-colapsable-contenido) pone 16px de padding por los cuatro
+  lados, y el artboard pinta la nota a 20px del borde de la tarjeta y los grupos de borde a borde, con el fondo blanco
+  de la tarjeta (--color-surface). El margen negativo cancela ese padding solo en esta sección (el componente
+  compartido no cambia: Reclamar y «¿De dónde sale…?» siguen con su padding) y el fondo cubre todo el cuerpo.
+*/
+.faltan-documentos {
+    margin: calc(var(--space-4) * -1);
+    background: var(--color-surface);
+}
+
+.faltan-documentos-nota {
+    margin: 0;
+    padding: var(--space-3) var(--space-5) 0;
+    font: var(--font-body-md);
+    color: var(--color-text-muted);
+}
+
+.faltan-documentos-grupo {
+    padding: var(--space-4);
+    border-bottom: 1px solid var(--color-border);
+}
+
+.faltan-documentos-grupo:last-child {
+    border-bottom: 0;
+}
+
+.faltan-documentos-titulo {
+    margin: 0 0 2px;
+    font: 600 1rem/1.375rem var(--font-family);
+}
+
+.faltan-documentos-recuento {
+    margin: 0;
+    font: var(--font-body-md);
+    color: var(--color-text-muted);
+}
+
+.faltan-documentos-lista {
+    list-style: none;
+    margin: var(--space-3) 0 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+}
+
+.faltan-documentos-lista li {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+    padding: var(--space-2) 0;
+    border-top: 1px dashed var(--color-border);
+}
+
+.faltan-documentos-crear {
+    margin-left: auto;
+    font-weight: 600;
+    color: var(--color-primary-500);
+    text-decoration: none;
+}
+
+.faltan-documentos-crear:hover,
+.faltan-documentos-crear:focus-visible {
+    text-decoration: underline;
+}

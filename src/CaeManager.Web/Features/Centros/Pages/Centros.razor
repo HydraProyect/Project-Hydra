@@ -197,6 +197,8 @@
                 }
                 <span></span>
                 <span>@Textos["ColCentro"]</span>
+                @if (MostrarColumnaEmpresa)
+                {
                 <span class="columna-empresa-centro-cabecera">
                     <button type="button" class="cabecera-columna-orden"
                             aria-pressed="@(OrdenPorEmpresa ? "true" : "false")"
@@ -204,6 +206,7 @@
                         @Textos["ColEmpresa"] <span aria-hidden="true">@FlechaDeOrden(OrdenPorEmpresa)</span>
                     </button>
                 </span>
+                }
                 <span class="columna-cumplimiento-centro">
                     <button type="button" class="cabecera-columna-orden"
                             aria-pressed="@(OrdenPorCumplimiento ? "true" : "false")"
@@ -329,7 +332,10 @@
                                     }
                                 </span>
                             </span>
+                            @if (MostrarColumnaEmpresa)
+                            {
                             <span class="columna-empresa-centro" title="@centro.EmpresaRazonSocial"><TextoResaltado Texto="@centro.EmpresaRazonSocial" Termino="@_busqueda" /></span>
+                            }
                             <span class="columna-cumplimiento-centro">
                                 <BarraCumplimiento Porcentaje="centro.CumplimientoPorcentaje"
                                                    Etiqueta="@(centro.CumplimientoPorcentaje is { } cumplimiento ? $"{cumplimiento}% de cumplimiento — documentos al día / requeridos entre los trabajadores de este centro" : null)" />
@@ -507,7 +513,8 @@
         <CampoTexto Etiqueta="Código de centro" Valor="@_codigoCentro" ValorChanged="v => _codigoCentro = v" />
         <CampoTexto Etiqueta="Dirección" Valor="@_direccion" ValorChanged="v => _direccion = v" />
         <CampoTexto Etiqueta="Contacto" Valor="@_contacto" ValorChanged="v => _contacto = v" />
-        <CampoTexto Etiqueta="Contrato vigente hasta" Type="date" Valor="@_contratoVigenteHasta" ValorChanged="v => _contratoVigenteHasta = v" />
+        <CampoTexto Etiqueta="Contrato vigente hasta" Type="date" Valor="@_contratoVigenteHasta" ValorChanged="v => _contratoVigenteHasta = v"
+                    FechaNoValida="_contratoVigenteHastaNoValido" FechaNoValidaChanged="AlCambiarContratoVigenteHastaNoValido" />
     </ChildContent>
     <PieExtra>
         <Boton Variante="VarianteBoton.Secundario" Cargando="_guardando" OnClick="GuardarYCrearOtroAsync">

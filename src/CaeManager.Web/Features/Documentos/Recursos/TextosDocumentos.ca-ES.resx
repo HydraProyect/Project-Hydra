@@ -13,16 +13,28 @@
     <value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
   </resheader>
   <data name="ConfirmarEliminarLoteMensaje" xml:space="preserve">
-    <value>Se ocultarán de las listas activas. Podrás deshacer la eliminación desde el aviso que aparecerá; después, solo un Administrador de esta organización puede recuperarlos desde Auditoría.</value>
+    <value>S'ocultaran de les llistes actives. Podràs desfer l'eliminació des de l'avís que apareixerà; després, només un Administrador d'aquesta organització pot recuperar-los des d'Auditoria.</value>
+  </data>
+  <data name="ReclamarLoteBoton" xml:space="preserve">
+    <value>Reclamar ({0})</value>
+  </data>
+  <data name="ReclamarLoteAyudaNinguno" xml:space="preserve">
+    <value>Només es reclamen els Documents de Treballador vençuts o per vèncer; cap dels seleccionats ho és.</value>
+  </data>
+  <data name="ToastReclamarLoteFuera" xml:space="preserve">
+    <value>{0} de {1} documents no entren en cap reclamació: pot ser que venguin fora de la finestra de reclamació, que ja estiguin renovats, que el Treballador no tingui una Assignació activa a un Centre amb gestió CAE, que el seu Tipus no sigui reclamable o que el Centre o el seu Client quedin fora de la teva Cartera.</value>
+  </data>
+  <data name="ToastReclamarLoteError" xml:space="preserve">
+    <value>No hem pogut preparar la reclamació. Torna-ho a provar.</value>
   </data>
   <data name="ToastAccionDeshacer" xml:space="preserve">
     <value>Deshacer</value>
   </data>
   <data name="ToastLoteRestaurados" xml:space="preserve">
-    <value>{0} documento(s) restaurado(s).</value>
+    <value>{0} document(s) restaurat(s).</value>
   </data>
   <data name="ToastLoteRestauradosConErrores" xml:space="preserve">
-    <value>{0} documento(s) restaurado(s); {1} no se pudieron restaurar: {2}</value>
+    <value>{0} document(s) restaurat(s); {1} no s'han pogut restaurar: {2}</value>
   </data>
   <data name="Documento360DescargarPdf" xml:space="preserve">
     <value>Descarregar el PDF</value>
@@ -187,23 +199,11 @@
   <data name="PlatDeshacerParcial" xml:space="preserve">
     <value>{0} de {1} desfetes. {2}</value>
   </data>
-  <data name="RevIaReglaBloque" xml:space="preserve">
-    <value>Llindar de confirmació en lot: {0} %</value>
-  </data>
   <data name="RevIaFallosTitulo" xml:space="preserve">
     <value>No s'han pogut acceptar {0} lectura(es); continuen pendents:</value>
   </data>
   <data name="RevIaCerrar" xml:space="preserve">
     <value>Tanca</value>
-  </data>
-  <data name="RevIaConfianzaDesde" xml:space="preserve">
-    <value>Selecciona amb confiança des de</value>
-  </data>
-  <data name="RevIaAceptarSeleccionadas" xml:space="preserve">
-    <value>Accepta les seleccionades ({0})</value>
-  </data>
-  <data name="RevIaAyudaSeleccion" xml:space="preserve">
-    <value>La confiança només preselecciona. Revisa la selecció i prem «Accepta les seleccionades»: res s'accepta sol. Si la vigència del tipus la confirmes tu a mà, la IA no ha llegit data o hi ha una alerta, la lectura s'accepta d'una en una.</value>
   </data>
   <data name="RevIaConAlerta" xml:space="preserve">
     <value>Amb alerta</value>
@@ -211,32 +211,38 @@
   <data name="RevIaAlertaDeUnaEnUna" xml:space="preserve">
     <value>Aquesta lectura té una alerta: comprova-la al document abans d'acceptar-la. No entra a l'acceptació en bloc.</value>
   </data>
-  <data name="RevIaCasillaIncluir" xml:space="preserve">
-    <value>Inclou a «Accepta les seleccionades»</value>
-  </data>
-  <data name="RevIaCasillaManual" xml:space="preserve">
-    <value>{0}: s'accepta d'una en una</value>
-  </data>
-  <data name="RevIaCasillaEtiqueta" xml:space="preserve">
-    <value>Selecciona {0} · {1} per acceptar en bloc</value>
-  </data>
   <data name="RevIaDialogoTitulo" xml:space="preserve">
-    <value>Accepta les lectures seleccionades</value>
+    <value>Confirma les lectures de confiança alta</value>
   </data>
   <data name="RevIaDialogoMensaje" xml:space="preserve">
-    <value>Acceptaràs {0} lectura(es) de la IA. Cadascuna aplica la data d'emissió llegida i calcula el venciment amb la regla del seu tipus de document; queda una decisió registrada per document a nom teu. Les que no incloguis continuen pendents.</value>
+    <value>Acceptaràs {0} de les {2} lectures pendents de la cua: les de confiança de {1} % o més i data detectada. Cadascuna aplica la data d&apos;emissió llegida i calcula el venciment amb la regla del seu tipus de document; queda una decisió registrada per document a nom teu. Les altres continuen pendents.</value>
+  </data>
+  <data name="RevIaDialogoMensajeTodas" xml:space="preserve">
+    <value>Acceptaràs les {0} lectures pendents de la cua: les de confiança de {1} % o més i data detectada. Cadascuna aplica la data d&apos;emissió llegida i calcula el venciment amb la regla del seu tipus de document; queda una decisió registrada per document a nom teu.</value>
+  </data>
+  <data name="RevIaDialogoMensajeUna" xml:space="preserve">
+    <value>Acceptaràs l&apos;única lectura pendent de la cua: té confiança de {1} % o més i data detectada. Aplica la data d&apos;emissió llegida i calcula el venciment amb la regla del seu tipus de document; queda una decisió registrada a nom teu.</value>
+  </data>
+  <data name="RevIaDialogoMensajePrimeras" xml:space="preserve">
+    <value>Acceptaràs les primeres {0} de les {2} lectures de la IA amb confiança de {1} % o més i data detectada: és el màxim d&apos;un bloc i la resta continua pendent. Cadascuna aplica la data d&apos;emissió llegida i calcula el venciment amb la regla del seu tipus de document; queda una decisió registrada per document a nom teu.</value>
+  </data>
+  <data name="RevIaDialogoFiltroOcultaUna" xml:space="preserve">
+    <value>Amb el filtre actiu, {0} d&apos;aquestes no es veu a la llista: s&apos;accepta igualment, perquè aquest botó actua sobre tota la cua i no només sobre el que mostra el filtre.</value>
+  </data>
+  <data name="RevIaDialogoFiltroOculta" xml:space="preserve">
+    <value>Amb el filtre actiu, {0} d&apos;aquestes no es veuen a la llista: s&apos;accepten igualment, perquè aquest botó actua sobre tota la cua i no només sobre el que mostra el filtre.</value>
+  </data>
+  <data name="RevIaVerDocumento" xml:space="preserve">
+    <value>Veure el document</value>
+  </data>
+  <data name="RevIaDocumentoReposo" xml:space="preserve">
+    <value>El document no es carrega fins que el demanis: les obertures de documents sensibles queden registrades.</value>
   </data>
   <data name="RevIaDialogoConfirmar" xml:space="preserve">
-    <value>Accepta les seleccionades</value>
+    <value>Confirma tots</value>
   </data>
   <data name="RevIaFalloGenerico" xml:space="preserve">
     <value>No s'ha pogut acceptar.</value>
-  </data>
-  <data name="RevIaAceptable" xml:space="preserve">
-    <value>Acceptable en bloc</value>
-  </data>
-  <data name="RevIaVigenciaAMano" xml:space="preserve">
-    <value>Vigència a confirmar a mà</value>
   </data>
   <data name="RevIaResumenTodas" xml:space="preserve">
     <value>{0} lectura(es) acceptada(es).</value>
@@ -253,53 +259,17 @@
   <data name="RevIaConfianzaN" xml:space="preserve">
     <value>Confiança {0} %</value>
   </data>
-  <data name="RevIaAbrirPdf" xml:space="preserve">
-    <value>Obre el PDF complet</value>
+  <data name="ExportacionCriterioCambiado" xml:space="preserve">
+    <value>Els teus permisos han canviat mentre es generava l'exportació. Torna a exportar.</value>
   </data>
-  <data name="RevIaPaginaDe" xml:space="preserve">
-    <value>pàgina 1 de {0}</value>
-  </data>
-  <data name="RevIaColCampo" xml:space="preserve">
-    <value>Camp</value>
-  </data>
-  <data name="RevIaColLeido" xml:space="preserve">
-    <value>Llegit per la IA</value>
-  </data>
-  <data name="RevIaColIntroducido" xml:space="preserve">
-    <value>Introduït en pujar</value>
-  </data>
-  <data name="RevIaCoincide" xml:space="preserve">
-    <value>Coincideix</value>
-  </data>
-  <data name="RevIaNoCoincide" xml:space="preserve">
-    <value>No coincideix</value>
-  </data>
-  <data name="RevIaTarjetaConfianza" xml:space="preserve">
-    <value>Confiança de l&apos;extracció</value>
-  </data>
-  <data name="RevIaPieUmbralBajo" xml:space="preserve">
-    <value>Per sota de {0} % la confiança sola ja justifica revisió humana</value>
-  </data>
-  <data name="RevIaPieUmbralLote" xml:space="preserve">
-    <value>{0} % · llindar de confirmació en lot</value>
-  </data>
-  <data name="RevIaMotivoTitulo" xml:space="preserve">
-    <value>Motiu de la revisió</value>
-  </data>
-  <data name="RevIaSiAceptasTitulo" xml:space="preserve">
-    <value>Si acceptes la detecció</value>
+  <data name="ExportacionDiaCambiado" xml:space="preserve">
+    <value>Ha canviat el dia mentre es generava l'exportació. Torna a exportar.</value>
   </data>
   <data name="RevIaSiAceptasConFecha" xml:space="preserve">
     <value>En acceptar, s&apos;aplicarà la data d&apos;emissió detectada i es recalcularà el venciment quan el tipus de document ho faci automàticament.</value>
   </data>
   <data name="RevIaSiAceptasSinFecha" xml:space="preserve">
     <value>No es pot acceptar: la IA no ha detectat cap data d&apos;emissió que aplicar. Corregeix-ho a mà o descarta la lectura.</value>
-  </data>
-  <data name="RevIaPistaSinFecha" xml:space="preserve">
-    <value>Sense data detectada no hi ha res que aplicar</value>
-  </data>
-  <data name="RevIaPistaRenueva" xml:space="preserve">
-    <value>Renova el Document i tanca l&apos;avís</value>
   </data>
   <data name="RevIaCampoTipo" xml:space="preserve">
     <value>Tipus de document</value>
@@ -318,9 +288,6 @@
   </data>
   <data name="RevIaFirmaNoSolicitada" xml:space="preserve">
     <value>No es sol·licita en pujar</value>
-  </data>
-  <data name="RevIaMigaAria" xml:space="preserve">
-    <value>Molla de pa</value>
   </data>
   <data name="RevIaVerAuditoria" xml:space="preserve">
     <value>Veure l&apos;auditoria IA →</value>
@@ -389,11 +356,68 @@
   <data name="ListaDocumento" xml:space="preserve"><value>Document</value></data>
   <data name="ListaEstado" xml:space="preserve"><value>Estat documental</value></data>
   <data name="ListaPlataformas" xml:space="preserve"><value>Plataformes</value></data>
-  <data name="ListaPortal" xml:space="preserve"><value>Portal</value></data>
+  <data name="ListaPortal" xml:space="preserve"><value>Plataforma CAE</value></data>
   <data name="ListaPropietario" xml:space="preserve"><value>Propietari</value></data>
   <data name="ListaVence" xml:space="preserve"><value>Venç</value></data>
   <data name="PorAmbito" xml:space="preserve"><value>Per àmbit</value></data>
+  <data name="PorPlataformaCae" xml:space="preserve"><value>Per Plataforma CAE</value></data>
+  <data name="PorClienteEmpresarial" xml:space="preserve"><value>Per Client</value></data>
+  <data name="PorTipoDocumento" xml:space="preserve"><value>Per tipus de document</value></data>
+  <data name="AgruparPorPlataformaCaeEtiqueta" xml:space="preserve"><value>Agrupa per: Plataforma CAE</value></data>
+  <data name="AgruparPorClienteEmpresarialEtiqueta" xml:space="preserve"><value>Agrupa per: Client</value></data>
+  <data name="AgruparPorTipoDocumentoEtiqueta" xml:space="preserve"><value>Agrupa per: tipus de document</value></data>
+  <data name="ListaPlataformasCae" xml:space="preserve"><value>Plataformes CAE</value></data>
+  <data name="ListaNombreEnPlataforma" xml:space="preserve"><value>Nom a la plataforma</value></data>
+  <data name="ListaClienteEmpresarial" xml:space="preserve"><value>Client</value></data>
+  <data name="GrupoProximoUno" xml:space="preserve"><value>1 per vèncer</value></data>
+  <data name="GrupoProximos" xml:space="preserve"><value>{0} per vèncer</value></data>
+  <data name="GrupoTipoSubtitulo" xml:space="preserve"><value>{0} · {1}</value></data>
+  <data name="GrupoTipoSinNombre" xml:space="preserve"><value>Sense tipus</value></data>
+  <data name="GrupoTipo360" xml:space="preserve"><value>Tipus 360</value></data>
+  <data name="GrupoAbrirPortal" xml:space="preserve"><value>Obre el portal</value></data>
+  <data name="GrupoTipo360Etiqueta" xml:space="preserve"><value>Obre el Tipus 360 de {0}</value></data>
+  <data name="EnPlataformaMotivo" xml:space="preserve"><value>Motiu: {0}</value></data>
+  <data name="VistaRapidaPlataformasCae" xml:space="preserve"><value>Plataformes CAE</value></data>
+  <data name="VistaRapidaPlataformasCaeCuenta" xml:space="preserve"><value>· {0}</value></data>
+  <data name="VistaRapidaContextoAcreditacion" xml:space="preserve"><value>{0} · {1}</value></data>
+  <data name="NombreEnPlataformaTitulo" xml:space="preserve"><value>{0} · Tipus a TALVEG: {1}</value></data>
+  <data name="PieAgrupadoTipos" xml:space="preserve"><value>Es mostren {0:N0} documents de {1:N0} tipus</value></data>
+  <data name="ListaEstadoEnPlataforma" xml:space="preserve"><value>Estat a la plataforma</value></data>
+  <data name="EstadoPlataformaPendienteDeSubir" xml:space="preserve"><value>Pendent de pujar</value></data>
+  <data name="EstadoPlataformaRechazado" xml:space="preserve"><value>Rebutjat</value></data>
+  <data name="EstadoPlataformaSinVigencia" xml:space="preserve"><value>Sense vigència</value></data>
+  <data name="ChipEstadoPlataforma" xml:space="preserve"><value>Estat a la plataforma: {0}</value></data>
+  <data name="QuitarFiltroEstadoPlataforma" xml:space="preserve"><value>Treu el filtre d'estat a la plataforma</value></data>
+  <data name="ListaVenceEn" xml:space="preserve"><value>Venç en</value></data>
+  <data name="ListaVenceEnCualquierFecha" xml:space="preserve"><value>Qualsevol data</value></data>
+  <data name="ListaVenceEnDias" xml:space="preserve"><value>{0} dies</value></data>
+  <data name="ChipVenceEn" xml:space="preserve"><value>Venç en: {0}</value></data>
+  <data name="QuitarFiltroVenceEn" xml:space="preserve"><value>Treu el filtre de venciment</value></data>
+  <data name="ListaPendienteRevisionIa" xml:space="preserve"><value>Pendent de revisió IA</value></data>
+  <data name="QuitarFiltroRevisionIa" xml:space="preserve"><value>Treu el filtre de revisió IA</value></data>
+  <data name="ListaRevisionIa" xml:space="preserve"><value>Revisió IA</value></data>
+  <data name="GrupoPendienteUno" xml:space="preserve"><value>1 pendent de pujar</value></data>
+  <data name="GrupoPendientes" xml:space="preserve"><value>{0} pendents de pujar</value></data>
+  <data name="GrupoRechazadoUno" xml:space="preserve"><value>1 rebutjada</value></data>
+  <data name="GrupoRechazados" xml:space="preserve"><value>{0} rebutjades</value></data>
+  <data name="GrupoSinVigencia" xml:space="preserve"><value>{0} sense vigència</value></data>
+  <data name="GrupoVencidoUno" xml:space="preserve"><value>1 vençut</value></data>
+  <data name="GrupoVencidos" xml:space="preserve"><value>{0} vençuts</value></data>
+  <data name="GrupoUrgenteUno" xml:space="preserve"><value>1 urgent</value></data>
+  <data name="GrupoUrgentes" xml:space="preserve"><value>{0} urgents</value></data>
+  <data name="GrupoDocumentoUno" xml:space="preserve"><value>1 document</value></data>
+  <data name="GrupoDocumentos" xml:space="preserve"><value>{0} documents</value></data>
+  <data name="GrupoClienteEmpresarialDocumentos" xml:space="preserve"><value>Client · {0}</value></data>
+  <data name="GrupoSinPlataformaCae" xml:space="preserve"><value>Sense Plataforma CAE</value></data>
+  <data name="GrupoSinClienteEmpresarial" xml:space="preserve"><value>Sense Client</value></data>
+  <data name="GrupoAnotarVigencia" xml:space="preserve"><value>Anota la vigència ({0})</value></data>
+  <data name="PieAgrupadoFilas" xml:space="preserve"><value>Es mostren {0:N0} files de {1:N0} documents</value></data>
+  <data name="PieAgrupadoDocumentos" xml:space="preserve"><value>Es mostren {0:N0} documents</value></data>
+  <data name="PieAgrupadoTope" xml:space="preserve"><value>Es mostren els primers {0:N0} de {1:N0} documents: afina els filtres per veure la resta.</value></data>
+  <data name="AnotarVigenciaTitulo" xml:space="preserve"><value>Anota la vigència</value></data>
+  <data name="AnotarVigenciaGuardar" xml:space="preserve"><value>Desa la vigència</value></data>
   <data name="QuitarFiltroPropietario" xml:space="preserve"><value>Treu el filtre de propietari</value></data>
+  <data name="AgruparTituloMenu" xml:space="preserve"><value>Agrupa</value></data>
   <data name="SinAgrupar" xml:space="preserve"><value>Sense agrupar</value></data>
   <data name="VacioDescripcionDesign" xml:space="preserve"><value>Puja el primer o fes servir la pujada massiva.</value></data>
   <data name="VacioFiltroQuitarDesign" xml:space="preserve"><value>Treu els filtres</value></data>
@@ -420,6 +444,14 @@
   <data name="TituloPagina" xml:space="preserve"><value>Documents</value></data>
   <data name="ListaNoCaduca" xml:space="preserve"><value>Sense caducitat</value></data>
   <data name="ListaVer" xml:space="preserve"><value>Veure</value></data>
+  <data name="PestanaIncidencias" xml:space="preserve"><value>Incidències</value></data>
+  <data name="PestanasEtiquetaGrupo" xml:space="preserve"><value>Seccions de documents</value></data>
+  <data name="PestanaEstado" xml:space="preserve"><value>Estat</value></data>
+  <data name="PestanaPlataformasCae" xml:space="preserve"><value>Plataformes CAE</value></data>
+  <data name="PestanaReclamaciones" xml:space="preserve"><value>Reclamacions</value></data>
+  <data name="PestanaPreventivo" xml:space="preserve"><value>Preventiu</value></data>
+  <data name="PestanaRevisionIa" xml:space="preserve"><value>Revisió IA</value></data>
+  <data name="PestanaPlantillas" xml:space="preserve"><value>Plantilles</value></data>
   <data name="ListaSinAdjunto" xml:space="preserve"><value>Sense adjunt</value></data>
   <data name="ListaVencimientoSinConfirmar" xml:space="preserve"><value>Sense confirmar</value></data>
   <data name="ListaEmisionFecha" xml:space="preserve"><value>Emissió {0}</value></data>
@@ -430,4 +462,214 @@
   <data name="ListaEnDias" xml:space="preserve"><value>d'aquí a {0} dies</value></data>
   <data name="ValidacionOficialErrorTitulo" xml:space="preserve"><value>No hem pogut comprovar la validació del document</value></data>
   <data name="ValidacionOficialCodigoNoDisponibleSoporte" xml:space="preserve"><value>No disponible per a Suport TALVEG</value></data>
+  <!-- Menú «Acreditació ▾» de cada fila del llistat per Plataforma CAE (D-18) i els diàlegs que obre. -->
+  <data name="MenuAcreditacion" xml:space="preserve"><value>Acreditació</value></data>
+  <data name="MenuAcreditacionTitulo" xml:space="preserve"><value>Acreditació a {0}</value></data>
+  <data name="MenuAcreditacionEtiqueta" xml:space="preserve"><value>Acreditació a {0} de {1}</value></data>
+  <data name="AccionMarcarSubido" xml:space="preserve"><value>Marca com a pujat</value></data>
+  <data name="AccionMarcarValidado" xml:space="preserve"><value>Marca com a validat</value></data>
+  <data name="AccionMarcarRechazado" xml:space="preserve"><value>Marca com a rebutjat…</value></data>
+  <data name="AccionAnotarVigencia" xml:space="preserve"><value>Anota la vigència…</value></data>
+  <data name="AccionGestionarAcreditacion" xml:space="preserve"><value>Gestiona l'acreditació…</value></data>
+  <data name="AcrCancelar" xml:space="preserve"><value>Cancel·la</value></data>
+  <data name="AcrMarcadoSubido" xml:space="preserve"><value>Marcat com a pujat.</value></data>
+  <data name="AcrValidadoTitulo" xml:space="preserve"><value>Marca com a validat</value></data>
+  <data name="AcrVigenciaPregunta" xml:space="preserve"><value>Fins quan val en aquesta plataforma?</value></data>
+  <data name="AcrVigenciaVenceEnFecha" xml:space="preserve"><value>Venç en una data</value></data>
+  <data name="AcrVigenciaNoVence" xml:space="preserve"><value>Aquí no té venciment</value></data>
+  <data name="AcrVigenciaSinConfirmar" xml:space="preserve"><value>Encara no ho sé</value></data>
+  <data name="AcrFechaVencimiento" xml:space="preserve"><value>Data de venciment</value></data>
+  <data name="AcrErrorFecha" xml:space="preserve"><value>Escriu la data fins a la qual val, o tria una altra opció.</value></data>
+  <data name="AcrValidadoConFecha" xml:space="preserve"><value>Marcat com a validat. Val fins al {0} en aquesta plataforma.</value></data>
+  <data name="AcrValidadoNoCaduca" xml:space="preserve"><value>Marcat com a validat. En aquesta plataforma no caduca.</value></data>
+  <data name="AcrValidadoSinConfirmar" xml:space="preserve"><value>Marcat com a validat. Queda pendent confirmar fins quan val aquí.</value></data>
+  <data name="AcrRechazoTitulo" xml:space="preserve"><value>Marca com a rebutjat</value></data>
+  <data name="AcrRechazoGuardar" xml:space="preserve"><value>Marca com a rebutjat</value></data>
+  <data name="AcrCausaRechazo" xml:space="preserve"><value>Causa del rebuig</value></data>
+  <data name="AcrDetalleRechazo" xml:space="preserve"><value>Detall</value></data>
+  <data name="AcrDetalleRechazoPlaceholder" xml:space="preserve"><value>Text literal del portal, si n'hi ha</value></data>
+  <data name="AcrErrorMotivo" xml:space="preserve"><value>Descriu el motiu del rebuig.</value></data>
+  <data name="AcrRechazoContexto" xml:space="preserve"><value>{0} · {1} · {2}</value></data>
+  <data name="AnotarVigenciaAyudaUna" xml:space="preserve"><value>S&apos;anotarà la mateixa vigència en 1 acreditació validada a {0}.</value></data>
+  <data name="AcrMarcadoRechazado" xml:space="preserve"><value>Marcat com a rebutjat.</value></data>
+  <data name="RevIaSeccionAria" xml:space="preserve">
+    <value>Revisions IA pendents</value>
+  </data>
+  <data name="RevIaVolver" xml:space="preserve">
+    <value>Tornar a Documents</value>
+  </data>
+  <data name="RevIaConfirmarPrimeras" xml:space="preserve">
+    <value>Confirmar les primeres {0} de {1} ≥{2} %</value>
+  </data>
+  <data name="RevIaConfirmarTodos" xml:space="preserve">
+    <value>Confirmar tots els ≥{0} % ({1})</value>
+  </data>
+  <data name="RevIaErrorTitulo" xml:space="preserve">
+    <value>No hem pogut carregar les revisions</value>
+  </data>
+  <data name="RevIaErrorDescripcion" xml:space="preserve">
+    <value>Torna-ho a provar d&apos;aquí a uns segons. Cap revisió s&apos;ha resolt.</value>
+  </data>
+  <data name="RevIaReintentar" xml:space="preserve">
+    <value>Reintenta</value>
+  </data>
+  <data name="RevIaTerminadoTitulo" xml:space="preserve">
+    <value>No queden documents per revisar</value>
+  </data>
+  <data name="RevIaTerminadoUno" xml:space="preserve">
+    <value>Has revisat el document. Torna al llistat o espera la propera lectura.</value>
+  </data>
+  <data name="RevIaTerminadoVarios" xml:space="preserve">
+    <value>Has revisat els {0}. Torna al llistat o espera la propera lectura.</value>
+  </data>
+  <data name="RevIaSinPendientesTitulo" xml:space="preserve">
+    <value>Sense revisions pendents</value>
+  </data>
+  <data name="RevIaSinPendientesDescripcion" xml:space="preserve">
+    <value>No hi ha documents pendents de revisió IA.</value>
+  </data>
+  <data name="RevIaUnaPagina" xml:space="preserve">
+    <value>1 pàgina</value>
+  </data>
+  <data name="RevIaNPaginas" xml:space="preserve">
+    <value>{0} pàgines</value>
+  </data>
+  <data name="RevIaDescargar" xml:space="preserve">
+    <value>Descarrega</value>
+  </data>
+  <data name="RevIaDocumentoAria" xml:space="preserve">
+    <value>Document: {0} · {1}</value>
+  </data>
+  <data name="RevIaEligeRevision" xml:space="preserve">
+    <value>Tria una revisió</value>
+  </data>
+  <data name="RevIaEligeRevisionAyuda" xml:space="preserve">
+    <value>Tria la següent revisió del desplegable o prem J.</value>
+  </data>
+  <data name="RevIaLateralAria" xml:space="preserve">
+    <value>Revisió del document</value>
+  </data>
+  <data name="RevIaPendientesAria" xml:space="preserve">
+    <value>Pendents de revisió IA</value>
+  </data>
+  <data name="RevIaFiltrarAria" xml:space="preserve">
+    <value>Filtra revisions</value>
+  </data>
+  <data name="RevIaNDeM" xml:space="preserve">
+    <value>{0} de {1}</value>
+  </data>
+  <data name="RevIaAnterior" xml:space="preserve">
+    <value>Anterior (K)</value>
+  </data>
+  <data name="RevIaAnteriorTitulo" xml:space="preserve">
+    <value>Anterior</value>
+  </data>
+  <data name="RevIaSiguiente" xml:space="preserve">
+    <value>Següent (J)</value>
+  </data>
+  <data name="RevIaSiguienteTitulo" xml:space="preserve">
+    <value>Següent</value>
+  </data>
+  <data name="RevIaFiltroTodas" xml:space="preserve">
+    <value>Totes</value>
+  </data>
+  <data name="RevIaFiltroConfirmables" xml:space="preserve">
+    <value>Confirmables</value>
+  </data>
+  <data name="RevIaFiltroManual" xml:space="preserve">
+    <value>Manual</value>
+  </data>
+  <data name="RevIaFiltroSinFecha" xml:space="preserve">
+    <value>Sense data</value>
+  </data>
+  <data name="RevIaOrdenPie" xml:space="preserve">
+    <value>Ordenades per confiança, de menor a major</value>
+  </data>
+  <data name="RevIaAmbitoEmpresa" xml:space="preserve">
+    <value>Empresa</value>
+  </data>
+  <data name="RevIaAmbitoTrabajador" xml:space="preserve">
+    <value>Treballador</value>
+  </data>
+  <data name="RevIaConfirmable" xml:space="preserve">
+    <value>Confirmable</value>
+  </data>
+  <data name="RevIaRevisionManual" xml:space="preserve">
+    <value>Revisió manual</value>
+  </data>
+  <data name="RevIaSinFechaDetectada" xml:space="preserve">
+    <value>Sense data detectada</value>
+  </data>
+  <data name="RevIaPorQueTitulo" xml:space="preserve">
+    <value>Per què requereix revisió</value>
+  </data>
+  <data name="RevIaIgual" xml:space="preserve">
+    <value>Igual</value>
+  </data>
+  <data name="RevIaNoDetectada" xml:space="preserve">
+    <value>Sense detectar</value>
+  </data>
+  <data name="RevIaNoDisponible" xml:space="preserve">
+    <value>Sense dades</value>
+  </data>
+  <data name="RevIaFirmaDetectada" xml:space="preserve">
+    <value>Detectada</value>
+  </data>
+  <data name="RevIaFirmaNoDetectada" xml:space="preserve">
+    <value>Sense detectar</value>
+  </data>
+  <data name="RevIaFirmaNoDeterminada" xml:space="preserve">
+    <value>Sense determinar</value>
+  </data>
+  <data name="RevIaAceptar" xml:space="preserve">
+    <value>Accepta la detecció</value>
+  </data>
+  <data name="RevIaCorregir" xml:space="preserve">
+    <value>Corregeix a mà…</value>
+  </data>
+  <data name="RevIaDescartar" xml:space="preserve">
+    <value>Descarta la lectura</value>
+  </data>
+  <data name="RevIaAvance" xml:space="preserve">
+    <value>En acabar, passar al següent</value>
+  </data>
+  <data name="RevIaSiguienteA" xml:space="preserve">
+    <value>Següent: {0} · {1}</value>
+  </data>
+  <data name="RevIaAvisoRevisado" xml:space="preserve">
+    <value>{0} · {1} revisat. Passem a {2}.</value>
+  </data>
+  <data name="RevIaAvisoAceptada" xml:space="preserve">
+    <value>Detecció aplicada al document.</value>
+  </data>
+  <data name="RevIaAvisoDescartada" xml:space="preserve">
+    <value>Lectura descartada; el document no s&apos;ha modificat.</value>
+  </data>
+  <data name="RevIaAvisoCorregida" xml:space="preserve">
+    <value>Document corregit i revisió resolta.</value>
+  </data>
+  <data name="RevIaFechaNoValida" xml:space="preserve">
+    <value>Indica una data d&apos;emissió vàlida.</value>
+  </data>
+  <data name="RevIaCorregirTitulo" xml:space="preserve">
+    <value>Corregeix a mà</value>
+  </data>
+  <data name="RevIaCancelar" xml:space="preserve">
+    <value>Cancel·la</value>
+  </data>
+  <data name="RevIaGuardarCerrar" xml:space="preserve">
+    <value>Desa i tanca l&apos;avís</value>
+  </data>
+  <data name="RevIaLaIaLeyo" xml:space="preserve">
+    <value>La IA ha llegit: {0}</value>
+  </data>
+  <data name="RevIaGuardarAyuda" xml:space="preserve">
+    <value>Desar corregeix la data i tanca l&apos;avís en una sola operació. El venciment es recalcula només quan el tipus ho fa automàticament.</value>
+  </data>
+  <data name="RevIaDescartarTitulo" xml:space="preserve">
+    <value>Descarta la lectura de la IA</value>
+  </data>
+  <data name="RevIaDescartarMensaje" xml:space="preserve">
+    <value>L&apos;avís es tancarà i el document es conservarà sense aplicar la detecció.</value>
+  </data>
 </root>

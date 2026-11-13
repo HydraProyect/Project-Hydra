@@ -7,10 +7,14 @@ using Microsoft.EntityFrameworkCore;
 
 namespace CaeManager.Application.Gestiones.Queries.GestionesAutomaticas;
 
-/// <summary>Un paso de una Gestión automática tal como lo ve quien consulta. El estado es el de su acreditación (§ 4.3).</summary>
+/// <summary>
+/// Un paso de una Gestión automática tal como lo ve quien consulta. El estado es el de su acreditación (§ 4.3), y
+/// <paramref name="VersionAcreditacion"/> su token de concurrencia: lo que la pantalla devuelve al marcar para no
+/// sobrescribir un cambio hecho desde que se abrió.
+/// </summary>
 public sealed record PasoVisibleGestionAutomatica(
     Guid GestionId, Guid AcreditacionId, EstadoAcreditacion Estado, DateOnly? FechaVencimientoEnPlataforma,
-    Guid CanalId, string Plataforma, Guid CentroId, string CentroNombre, Guid ClienteEmpresarialId);
+    Guid CanalId, string Plataforma, Guid CentroId, string CentroNombre, Guid ClienteEmpresarialId, Guid VersionAcreditacion);
 
 /// <summary>
 /// <b>El universo</b> de las Gestiones automáticas: los pasos que ve quien consulta. Lo usan el listado, la
@@ -77,6 +81,7 @@ public static class PasosVisiblesDeGestionesAutomaticas
                     AcreditacionId = acreditacion.Id,
                     acreditacion.Estado,
                     acreditacion.FechaVencimientoEnPlataforma,
+                    acreditacion.Version,
                     CanalId = canal.Id,
                     Proveedor = proveedor != null ? proveedor.Nombre : null,
                     canal.EtiquetaProposito,
@@ -90,7 +95,8 @@ public static class PasosVisiblesDeGestionesAutomaticas
         return filas
             .Select(f => new PasoVisibleGestionAutomatica(
                 f.GestionId, f.AcreditacionId, f.Estado, f.FechaVencimientoEnPlataforma, f.CanalId,
-                NombrePlataforma(f.Proveedor, f.EtiquetaProposito), f.CentroId, f.CentroNombre, f.ClienteEmpresarialId))
+                NombrePlataforma(f.Proveedor, f.EtiquetaProposito), f.CentroId, f.CentroNombre, f.ClienteEmpresarialId,
+                f.Version))
             .ToList();
     }
 

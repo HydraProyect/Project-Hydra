@@ -19,7 +19,8 @@ namespace CaeManager.Application.Operaciones.ApoyoCartera.Commands;
 /// </para>
 ///
 /// <para>
-/// <b>Autoridad</b>, leída en Identity sobre el Tenant de origen y nunca en el claim: cuenta
+/// <b>Autoridad</b>: el rol efectivo de la sesión en el Tenant de origen, confirmado por Identity
+/// (<see cref="ContextoOperadorCae"/>) y nunca el claim: cuenta
 /// activa con rol Gestor CAE o Coordinador CAE del Operador CAE, que lleve hoy la marca de
 /// principal en una cartera vigente de esa operación. <b>Destinatario</b>: otra cuenta activa
 /// con rol Gestor CAE <b>del mismo Operador CAE</b>, sin ese Tenant en su cartera y sin otra
@@ -53,7 +54,8 @@ public class ProponerApoyoCarteraCommandHandler(
         if (request.DestinatarioUsuarioId == ctx.UsuarioId)
             return Result.Fallo<Guid>(ErroresPropuestaApoyo.DestinatarioNoValido);
 
-        if (request.UltimoDia is { } ultimoDia && ultimoDia < DiaDeNegocio.Hoy())
+        // El 31/12/9999 no tiene día siguiente (HastaElFinalDe lanzaría) y equivaldría a un acceso sin fin pedido como fechado.
+        if (request.UltimoDia is { } ultimoDia && (ultimoDia < DiaDeNegocio.Hoy() || ultimoDia == DateOnly.MaxValue))
             return Result.Fallo<Guid>(ErroresPropuestaApoyo.FechaDeFinNoValida);
         DateTime? vigenciaHasta = request.UltimoDia is { } dia ? VigenciaDeApoyo.HastaElFinalDe(dia) : null;
 

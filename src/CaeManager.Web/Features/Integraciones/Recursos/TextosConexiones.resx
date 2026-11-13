@@ -1,0 +1,81 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <data name="AyudaBuzonCompartido" xml:space="preserve">
+    <value>Para conectar un buzón compartido de Microsoft 365, escribe su dirección antes de conectar; déjala vacía para conectar tu propio buzón. Antes, el administrador de Exchange de tu organización debe haber autorizado a TALVEG sobre ese buzón.</value>
+  </data>
+  <data name="EtiquetaBuzonCompartido" xml:space="preserve">
+    <value>Buzón compartido (opcional)</value>
+  </data>
+  <data name="PlaceholderBuzonCompartido" xml:space="preserve">
+    <value>nombre@dominio.es</value>
+  </data>
+  <data name="AvisoIdentidadSinVerificar" xml:space="preserve">
+    <value>Sin verificar: no hemos podido comprobar en el último día que esta dirección sigue siendo el mismo buzón. El correo entrante queda en espera, sin perderse, y no se envía nada desde este buzón hasta que se compruebe en la renovación diaria. Si el aviso sigue, desconecta el buzón y vuelve a conectarlo.</value>
+  </data>
+  <data name="AvisoCorreoNoRecuperado" xml:space="preserve">
+    <value>Posible correo no recuperado desde el {0}: mientras la conexión no funcionaba pudo llegar correo que no ha entrado en la aplicación y que no se recupera solo. Revísalo en el propio buzón de Microsoft 365.</value>
+  </data>
+  <data name="AvisoCorreoRetenido" xml:space="preserve">
+    <value>Hay correo retenido: llegó mientras no se podía comprobar este buzón y lleva más de tres días en espera. Se ingerirá en cuanto se compruebe; si el aviso sigue, desconecta el buzón y vuelve a conectarlo.</value>
+  </data>
+  <data name="AvisoCorreoRetenidoDesconectada" xml:space="preserve">
+    <value>Hay correo retenido que llegó antes de desconectar este buzón: mientras siga desconectado no se ingerirá. Revísalo en el propio buzón de Microsoft 365.</value>
+  </data>
+  <data name="AvisoCorreoDescartado" xml:space="preserve">
+    <value>No hemos podido leer algún correo de este buzón tras varios intentos y no se recupera solo. Revísalo en el propio buzón de Microsoft 365.</value>
+  </data>
+  <data name="InsigniaCompartido" xml:space="preserve">
+    <value>Compartido</value>
+  </data>
+  <data name="ErrorBuzonCompartidoInvalido" xml:space="preserve">
+    <value>La dirección del buzón compartido no es válida.</value>
+  </data>
+  <data name="ErrorSinAccesoCompartido" xml:space="preserve">
+    <value>TALVEG no puede abrir ese buzón compartido. Comprueba la dirección y pide al administrador de Exchange de tu organización que incluya el buzón en el ámbito autorizado para TALVEG.</value>
+  </data>
+  <data name="ErrorBuzonYaConectado" xml:space="preserve">
+    <value>Ese buzón ya está conectado, en esta organización o en otra. Si debe estar aquí, desconéctalo primero donde esté.</value>
+  </data>
+  <data name="ErrorAltaCompartidaEnPausa" xml:space="preserve">
+    <value>Alta de buzones compartidos en pausa temporal mientras se completa la verificación; vuelve a intentarlo en unas horas.</value>
+  </data>
+  <data name="Subtitulo" xml:space="preserve">
+    <value>Buzones de Microsoft 365 conectados a Comunicaciones. Cada conexión pertenece a una Empresa sin rol CAE, a la organización propia o al buzón personal de un Gestor CAE.</value>
+  </data>
+  <data name="EnlaceDiagnostico" xml:space="preserve">
+    <value>Para investigar una conexión en concreto (carpetas, mensajes en Graph que aún no llegaron por webhook), usa el</value>
+  </data>
+  <data name="EnlaceDiagnosticoVinculo" xml:space="preserve">
+    <value>explorador técnico del buzón (diagnóstico)</value>
+  </data>
+  <data name="PieBuzones" xml:space="preserve">
+    <value>El buzón personal de un Gestor CAE solo lo ve su propietario; el resto de buzones alimentan las conversaciones compartidas de Comunicaciones.</value>
+  </data>
+  <data name="AvisoHuecoSinRegistrar" xml:space="preserve">
+    <value>Hueco sin registrar: al desconectar no pudimos guardar desde cuándo dejó de recibirse el correo de este buzón. Pulsa Reparar para registrarlo.</value>
+  </data>
+  <data name="AccionRepararHueco" xml:space="preserve">
+    <value>Reparar</value>
+  </data>
+  <data name="HuecoReparado" xml:space="preserve">
+    <value>Hueco registrado.</value>
+  </data>
+  <data name="ErrorRepararHueco" xml:space="preserve">
+    <value>No pudimos registrar el hueco. Inténtalo de nuevo.</value>
+  </data>
+  <data name="AvisoRecargaFallida" xml:space="preserve">
+    <value>No pudimos actualizar el listado de conexiones. Recarga la página para ver su estado.</value>
+  </data>
+</root>

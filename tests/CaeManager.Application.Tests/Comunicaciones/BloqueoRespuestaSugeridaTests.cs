@@ -27,6 +27,7 @@ public class BloqueoRespuestaSugeridaTests
     private const string TextoSugeridoPlano = "Ya hemos recibido su documentación.";
     private const string EscritoAMano = "<p>Te contesto yo.</p>";
     private const string Telefono = "+34600111222";
+    private const string Ana = "ana@contrata.test";
 
     private readonly ComunicacionesQueryContextFalso _comunicaciones = new();
     private readonly ConversacionRepositorioFalso _conversaciones = new();
@@ -55,7 +56,7 @@ public class BloqueoRespuestaSugeridaTests
 
     private ConexionIntegracion Buzon(Guid? clienteId = null)
     {
-        var conexion = new ConexionIntegracion("cae@empresa.test", "Buzón CAE", clienteId);
+        var conexion = new ConexionIntegracion("cae@empresa.test", "Buzón CAE", clienteId).Verificada();
         _conexiones.Agregar(conexion);
         _integraciones.ConexionesLista.Add(conexion);
         _credenciales.Agregar(new CredencialIntegracion(conexion.Id, "refresh-token"));
@@ -67,7 +68,10 @@ public class BloqueoRespuestaSugeridaTests
         var conversacion = new Conversacion("Documentación", clienteId: Guid.NewGuid());
         conversacion.AsociarConexion(conexion.Id, "hilo-" + Guid.NewGuid());
         conversacion.AgregarMensaje(
-            DireccionMensaje.Entrante, CanalConversacion.Correo, "ana@contrata.test", "<p>Adjunto</p>", mensajeExternoId: "msg-1");
+            DireccionMensaje.Entrante, CanalConversacion.Correo, Ana, "<p>Adjunto</p>", mensajeExternoId: "msg-1");
+        // Como la ingesta: el remitente queda como participante del hilo, que es lo que mira el bloqueo por buzón.
+        _comunicaciones.ListaParticipantesConversacion.Add(
+            conversacion.AgregarParticipante(Ana, RolParticipante.De, TipoParticipanteOrigen.Empresa));
         _conversaciones.Agregar(conversacion);
         _comunicaciones.ListaConversaciones.Add(conversacion);
         return conversacion;
@@ -442,9 +446,9 @@ public class BloqueoRespuestaSugeridaTests
         Sugerencia(HiloDeCorreo(conexion), EstadoRespuestaSugerida.Propuesta);
 
         var sinVer = await _comunicaciones.ComprobarEnvioPorBuzonAsync(
-            new AlcanceDatosServiceFalso(tieneAccesoTotal: false), new InvalidadorAlcanceInerte(), conexion.Id, TextoSugerido, CancellationToken.None);
+            new AlcanceDatosServiceFalso(tieneAccesoTotal: false), new InvalidadorAlcanceInerte(), conexion.Id, [Ana], TextoSugerido, CancellationToken.None);
         var viendolo = await _comunicaciones.ComprobarEnvioPorBuzonAsync(
-            new AlcanceDatosServiceFalso(), new InvalidadorAlcanceInerte(), conexion.Id, TextoSugerido, CancellationToken.None);
+            new AlcanceDatosServiceFalso(), new InvalidadorAlcanceInerte(), conexion.Id, [Ana], TextoSugerido, CancellationToken.None);
 
         sinVer.EsExitoso.Should().BeTrue();
         viendolo.Error.Should().Be(BloqueoRespuestaSugerida.SugerenciaSinRevisar);
@@ -486,15 +490,103 @@ public class BloqueoRespuestaSugeridaTests
     [Theory]
     [InlineData(EstadoRespuestaSugerida.Propuesta)]
     [InlineData(EstadoRespuestaSugerida.Descartada)]
-    public async Task Una_edicion_por_dentro_del_texto_si_sale(EstadoRespuestaSugerida estado)
+    public async Task Una_edicion_por_dentro_de_mas_del_umbral_si_sale(EstadoRespuestaSugerida estado)
     {
         var conversacion = HiloDeCorreo(Buzon());
         Sugerencia(conversacion, estado, origen: EntranteDePersona(conversacion));
 
-        var resultado = await Responder(conversacion, "<p>Estimada Ana:</p><p>Ya hemos recibido toda su documentación.</p>");
+        var resultado = await Responder(conversacion, EditadaMasDelUmbral);
 
         resultado.EsExitoso.Should().BeTrue();
         _graph.VecesEnviado.Should().Be(1);
+    }
+
+    /// <summary>26 caracteres cambiados por dentro: más que <see cref="RevisionRespuestaSugerida.UmbralEdicion"/>.</summary>
+    private const string EditadaMasDelUmbral =
+        "<p>Estimada Ana:</p><p>Ya hemos recibido toda su documentación, que revisaremos hoy.</p>";
+
+    /// <summary>
+    /// Revisión Codex r1 (#2163, ALTO 1): copiar a mano la propuesta que enseña el panel, sin «Insertar», y cambiarle una
+    /// letra por dentro no la revisa. Antes solo bloqueaban la igualdad y la contención, y esto salía por el canal.
+    /// </summary>
+    [Theory]
+    [InlineData(EstadoRespuestaSugerida.Propuesta, "<p>Estimada Ana:</p><p>Ya hemos recibido su documentacion.</p>")]
+    [InlineData(EstadoRespuestaSugerida.Propuesta, "Estimada Ana: Ya hemos recibdo su documentación.")]
+    [InlineData(EstadoRespuestaSugerida.Descartada, "<p>Estimada Ana:</p><p>Ya hemos recibido la documentación.</p>")]
+    public async Task Copiar_la_propuesta_y_cambiar_una_letra_no_llama_al_canal(EstadoRespuestaSugerida estado, string cuerpo)
+    {
+        var conversacion = HiloDeCorreo(Buzon());
+        Sugerencia(conversacion, estado, origen: EntranteDePersona(conversacion));
+
+        var resultado = await Responder(conversacion, cuerpo);
+
+        resultado.Error.Should().Be(BloqueoRespuestaSugerida.SugerenciaSinRevisar);
+        _graph.VecesEnviado.Should().Be(0);
+    }
+
+    [Fact]
+    public async Task Copiar_la_propuesta_y_cambiar_una_letra_no_sale_por_WhatsApp_ni_por_correo_de_continuacion()
+    {
+        var whatsApp = HiloDeWhatsApp(DateTime.UtcNow.AddHours(-1), out _);
+        Sugerencia(whatsApp, EstadoRespuestaSugerida.Propuesta, "Buenos días, Ana. Ya hemos recibido su documentación.");
+        (await ResponderPorWhatsApp(whatsApp, "Buenos dias, Ana. Ya hemos recibido su documentación."))
+            .Error.Should().Be(BloqueoRespuestaSugerida.SugerenciaSinRevisar);
+        _whatsApp.EnviosRealizados.Should().BeEmpty();
+
+        Buzon();
+        var fueraDeVentana = HiloDeWhatsApp(DateTime.UtcNow.AddHours(-30), out _);
+        Sugerencia(fueraDeVentana, EstadoRespuestaSugerida.Propuesta);
+        (await MigrarACorreo(fueraDeVentana, "<p>Estimada Ana:</p><p>Ya hemos recibido su documentacion.</p>"))
+            .Error.Should().Be(BloqueoRespuestaSugerida.SugerenciaSinRevisar);
+        _graph.VecesEnviado.Should().Be(0);
+    }
+
+    /// <summary>
+    /// Revisión Codex r1 (#2163, MEDIO 8): el redactor de correo recibe la sugerencia como texto, no como HTML. Lo que
+    /// pinta el redactor (<see cref="VariablesPlantillaRespuesta.HtmlATexto"/> del HTML generado) se compara como el HTML
+    /// guardado: el mismo hash, y bloquea.
+    /// </summary>
+    [Fact]
+    public async Task La_sugerencia_de_correo_pasada_a_texto_para_el_redactor_sigue_bloqueando()
+    {
+        var conversacion = HiloDeCorreo(Buzon());
+        var html = VariablesPlantillaRespuesta.TextoPlanoAHtml(
+            "Estimada Ana:\n\nYa hemos recibido su documentación & la revisamos hoy (5<10).\nUn saludo.");
+        Sugerencia(conversacion, EstadoRespuestaSugerida.Propuesta, html);
+        var enElRedactor = VariablesPlantillaRespuesta.HtmlATexto(html);
+
+        enElRedactor.Should().NotContain("<p>").And.NotContain("&amp;");
+        RespuestaSugerida.CalcularTextoHash(enElRedactor).Should().Be(RespuestaSugerida.CalcularTextoHash(html));
+        RevisionRespuestaSugerida.EditadaLoSuficiente(enElRedactor, html).Should().BeFalse("se mide el texto, no el marcado");
+        (await Responder(conversacion, enElRedactor)).Error.Should().Be(BloqueoRespuestaSugerida.SugerenciaSinRevisar);
+    }
+
+    [Theory]
+    [InlineData("<p>Estimada Ana:</p><p>Ya hemos recibido su documentación.</p>", 0)]
+    [InlineData("<div><b>Estimada</b> Ana:<br>Ya hemos recibido su documentación.</div>", 0)]
+    [InlineData("<p>Estimada Ana:</p><p>Ya hemos recibido su documentacion.</p>", 1)]
+    public void La_distancia_se_mide_sobre_el_texto_y_no_sobre_las_etiquetas(string cuerpo, int distancia) =>
+        RevisionRespuestaSugerida.DistanciaEdicion(
+                RevisionRespuestaSugerida.TextoComparable(cuerpo), RevisionRespuestaSugerida.TextoComparable(TextoSugerido))
+            .Should().Be(distancia);
+
+    /// <summary>
+    /// Revisión Codex r2 (#2163, ALTO): el servidor aplica la regla de la interfaz, sin excepción por longitud. Una sugerencia
+    /// corta sigue sin revisar con 15 caracteres cambiados o menos, y deja de estarlo con 16, igual que en una larga; y para
+    /// los mismos textos la interfaz (<see cref="RevisionRespuestaSugerida.EditadaLoSuficiente"/>) dice exactamente lo contrario.
+    /// </summary>
+    [Theory]
+    [InlineData("Ok, gracias. Marta", "Ok, gracias", true)]
+    [InlineData("Ok, grazias", "Ok, gracias", true)]
+    [InlineData("Gracias", "Gracias, lo reviso.", true)]
+    [InlineData("Vale", "Ok", true)]
+    [InlineData("", "", true)]
+    [InlineData("Ok, gracias.12345678901234", "Ok, gracias", true)]
+    [InlineData("Ok, gracias.123456789012345", "Ok, gracias", false)]
+    public void En_una_sugerencia_corta_el_umbral_es_el_mismo_que_en_la_interfaz(string cuerpo, string sugerencia, bool casiLaMisma)
+    {
+        RevisionRespuestaSugerida.EsCasiLaMisma(cuerpo, sugerencia).Should().Be(casiLaMisma);
+        RevisionRespuestaSugerida.EditadaLoSuficiente(cuerpo, sugerencia).Should().Be(!casiLaMisma);
     }
 
     [Fact]
@@ -508,18 +600,27 @@ public class BloqueoRespuestaSugeridaTests
         (await Responder(conversacion, TextoSugerido + "<p>Un saludo</p>")).EsExitoso.Should().BeTrue();
     }
 
+    /// <summary>
+    /// Por debajo de <see cref="BloqueoRespuestaSugerida.LongitudMinimaTextoContenido"/> no se bloquea por contención: un
+    /// texto corto dentro de un mensaje que lo aparta más del umbral sale. Con 15 caracteres añadidos o menos sigue siendo
+    /// casi el mismo y bloquea, tenga la longitud que tenga (revisión Codex r2, ALTO).
+    /// </summary>
     [Theory]
     [InlineData(BloqueoRespuestaSugerida.LongitudMinimaTextoContenido - 1, true)]
     [InlineData(BloqueoRespuestaSugerida.LongitudMinimaTextoContenido, false)]
-    public async Task Un_texto_corto_solo_bloquea_por_igualdad(int longitud, bool sale)
+    public async Task Un_texto_corto_no_bloquea_por_contencion(int longitud, bool sale)
     {
         var conversacion = HiloDeCorreo(Buzon());
         var texto = new string('a', longitud);
         Sugerencia(conversacion, EstadoRespuestaSugerida.Propuesta, texto);
 
-        (await Responder(conversacion, texto + " Un saludo")).EsExitoso.Should().Be(sale);
+        (await Responder(conversacion, texto + FirmaLarga)).EsExitoso.Should().Be(sale);
+        (await Responder(conversacion, texto + " Un saludo")).EsExitoso.Should().BeFalse("diez caracteres añadidos no son revisión");
         (await Responder(conversacion, texto)).EsExitoso.Should().BeFalse();
     }
+
+    /// <summary>Más que <see cref="RevisionRespuestaSugerida.UmbralEdicion"/> caracteres: no es «casi la misma».</summary>
+    private const string FirmaLarga = " Un saludo cordial, Marta Gil";
 
     [Fact]
     public async Task Una_firma_corta_sobre_un_acuse_breve_no_elude_el_bloqueo()
@@ -531,13 +632,33 @@ public class BloqueoRespuestaSugeridaTests
         _whatsApp.EnviosRealizados.Should().BeEmpty();
     }
 
+    /// <summary>
+    /// Revisión Codex r2 (#2163, ALTO): «Ok, gracias» con siete caracteres añadidos sigue sin revisar y no sale por ningún
+    /// canal; con dieciséis, sí. Antes el margen de una sugerencia corta bajaba a la mitad de su longitud (5) y esto salía.
+    /// </summary>
     [Fact]
-    public async Task Por_debajo_del_umbral_un_acuse_con_firma_si_sale()
+    public async Task Un_acuse_breve_con_firma_corta_no_sale_por_ningun_canal_y_con_mas_del_umbral_si()
     {
-        var conversacion = HiloDeWhatsApp(DateTime.UtcNow.AddHours(-1), out _);
-        Sugerencia(conversacion, EstadoRespuestaSugerida.Propuesta, "Ok, gracias");
+        const string acuse = "Ok, gracias";
+        var whatsApp = HiloDeWhatsApp(DateTime.UtcNow.AddHours(-1), out _);
+        Sugerencia(whatsApp, EstadoRespuestaSugerida.Propuesta, acuse);
+        (await ResponderPorWhatsApp(whatsApp, "Ok, gracias. Marta")).Error.Should().Be(BloqueoRespuestaSugerida.SugerenciaSinRevisar);
+        (await ResponderPorWhatsApp(whatsApp, acuse + new string('.', RevisionRespuestaSugerida.UmbralEdicion)))
+            .Error.Should().Be(BloqueoRespuestaSugerida.SugerenciaSinRevisar);
+        _whatsApp.EnviosRealizados.Should().BeEmpty();
+        (await ResponderPorWhatsApp(whatsApp, acuse + new string('.', RevisionRespuestaSugerida.UmbralEdicion + 1))).EsExitoso.Should().BeTrue();
 
-        (await ResponderPorWhatsApp(conversacion, "Ok, gracias. Marta")).EsExitoso.Should().BeTrue();
+        var conexion = Buzon();
+        var correo = HiloDeCorreo(conexion);
+        Sugerencia(correo, EstadoRespuestaSugerida.Propuesta, "<p>Ok, gracias</p>");
+        (await Responder(correo, "Ok, gracias. Marta")).Error.Should().Be(BloqueoRespuestaSugerida.SugerenciaSinRevisar);
+        (await EnviarNuevo(conexion, "Ok, gracias. Marta")).Error.Should().Be(BloqueoRespuestaSugerida.SugerenciaSinRevisar);
+        _graph.VecesEnviado.Should().Be(0);
+
+        var fueraDeVentana = HiloDeWhatsApp(DateTime.UtcNow.AddHours(-30), out _);
+        Sugerencia(fueraDeVentana, EstadoRespuestaSugerida.Propuesta, acuse);
+        (await MigrarACorreo(fueraDeVentana, "Ok, gracias. Marta")).Error.Should().Be(BloqueoRespuestaSugerida.SugerenciaSinRevisar);
+        _graph.VecesEnviado.Should().Be(0);
     }
 
     [Fact]
@@ -601,7 +722,7 @@ public class BloqueoRespuestaSugeridaTests
         Sugerencia(conversacion, EstadoRespuestaSugerida.Descartada, origen: EntranteDePersona(conversacion));
 
         var sinVer = await _comunicaciones.ComprobarEnvioPorBuzonAsync(
-            new AlcanceDatosServiceFalso(tieneAccesoTotal: false), new InvalidadorAlcanceInerte(), conexion.Id, TextoSugerido, CancellationToken.None);
+            new AlcanceDatosServiceFalso(tieneAccesoTotal: false), new InvalidadorAlcanceInerte(), conexion.Id, [Ana], TextoSugerido, CancellationToken.None);
 
         sinVer.EsExitoso.Should().BeTrue();
     }
@@ -609,9 +730,11 @@ public class BloqueoRespuestaSugeridaTests
     private const string CuerpoSinRelacion = "<p>Cuerpo sin relación alguna con ninguna sugerencia.</p>";
 
     private Task<Result> PorBuzon(
-        ConexionIntegracion conexion, string cuerpo, IAlcanceDatosService? alcance = null, IInvalidadorAlcance? invalidador = null) =>
+        ConexionIntegracion conexion, string cuerpo, IAlcanceDatosService? alcance = null, IInvalidadorAlcance? invalidador = null,
+        string destinatario = Ana) =>
         _comunicaciones.ComprobarEnvioPorBuzonAsync(
-            alcance ?? new AlcanceDatosServiceFalso(), invalidador ?? new InvalidadorAlcanceInerte(), conexion.Id, cuerpo, CancellationToken.None);
+            alcance ?? new AlcanceDatosServiceFalso(), invalidador ?? new InvalidadorAlcanceInerte(), conexion.Id, [destinatario], cuerpo,
+            CancellationToken.None);
 
     [Theory]
     [InlineData(EstadoRespuestaSugerida.Propuesta)]
@@ -705,15 +828,65 @@ public class BloqueoRespuestaSugeridaTests
     [Theory]
     [InlineData(BloqueoRespuestaSugerida.LongitudMinimaTextoContenido - 1, true)]
     [InlineData(BloqueoRespuestaSugerida.LongitudMinimaTextoContenido, false)]
-    public async Task Por_buzon_un_texto_corto_solo_bloquea_por_igualdad(int longitud, bool sale)
+    public async Task Por_buzon_un_texto_corto_no_bloquea_por_contencion(int longitud, bool sale)
     {
         var conexion = Buzon();
         var texto = new string('a', longitud);
         Sugerencia(HiloDeCorreo(conexion), EstadoRespuestaSugerida.Propuesta, texto);
 
-        (await PorBuzon(conexion, texto + " Un saludo")).EsExitoso.Should().Be(sale);
+        (await PorBuzon(conexion, texto + FirmaLarga)).EsExitoso.Should().Be(sale);
+        (await PorBuzon(conexion, texto + " Un saludo")).EsExitoso.Should().BeFalse("diez caracteres añadidos no son revisión");
         (await PorBuzon(conexion, texto)).EsExitoso.Should().BeFalse();
     }
+
+    /// <summary>
+    /// Revisión Codex r2 (#2163, MEDIO 4): por buzón solo cuentan los hilos con el destinatario del mensaje. Una sugerencia
+    /// pendiente de la conversación con Ana, a seis caracteres del cuerpo, no bloquea un mensaje independiente a otra
+    /// contraparte; el mismo cuerpo a Ana sí bloquea (también con la dirección en mayúsculas o en copia).
+    /// </summary>
+    [Fact]
+    public async Task Por_buzon_la_sugerencia_de_la_conversacion_con_otra_contraparte_no_bloquea_y_la_del_destinatario_si()
+    {
+        var conexion = Buzon();
+        Sugerencia(HiloDeCorreo(conexion), EstadoRespuestaSugerida.Propuesta);
+        const string parecido = "<p>Estimada Ana:</p><p>Ya hemos recibido toda su documentación.</p>";
+        RevisionRespuestaSugerida.EsCasiLaMisma(
+                RevisionRespuestaSugerida.TextoComparable(parecido), RevisionRespuestaSugerida.TextoComparable(TextoSugerido))
+            .Should().BeTrue("el control: sin la asociación al destinatario, este cuerpo colisiona con la sugerencia de Ana");
+
+        (await PorBuzon(conexion, parecido, destinatario: "luis@otra-contrata.test")).EsExitoso.Should().BeTrue();
+        (await PorBuzon(conexion, parecido)).Error.Should().Be(BloqueoRespuestaSugerida.SugerenciaSinRevisar);
+        (await PorBuzon(conexion, parecido, destinatario: "ANA@Contrata.test")).Error.Should().Be(BloqueoRespuestaSugerida.SugerenciaSinRevisar);
+
+        (await EnviarNuevoA(conexion, parecido, ["luis@otra-contrata.test"])).EsExitoso.Should().BeTrue();
+        _graph.VecesEnviado.Should().Be(1);
+        (await EnviarNuevoA(conexion, parecido, ["luis@otra-contrata.test"], copia: [Ana]))
+            .Error.Should().Be(BloqueoRespuestaSugerida.SugerenciaSinRevisar);
+        _graph.VecesEnviado.Should().Be(1);
+    }
+
+    /// <summary>El remitente de un entrante también identifica al destinatario, aunque no esté como participante.</summary>
+    [Fact]
+    public async Task Por_buzon_el_remitente_de_un_entrante_cuenta_como_destinatario_del_hilo()
+    {
+        var conexion = Buzon();
+        var conversacion = HiloDeCorreo(conexion);
+        _comunicaciones.ListaParticipantesConversacion.Clear();
+        Sugerencia(conversacion, EstadoRespuestaSugerida.Propuesta);
+
+        (await PorBuzon(conexion, TextoSugerido)).EsExitoso.Should().BeTrue("sin participante ni entrante registrado, el hilo no es de Ana");
+
+        EntranteDePersona(conversacion);
+        (await PorBuzon(conexion, TextoSugerido)).Error.Should().Be(BloqueoRespuestaSugerida.SugerenciaSinRevisar);
+    }
+
+    private Task<Result<Guid>> EnviarNuevoA(
+        ConexionIntegracion conexion, string cuerpo, IReadOnlyList<string> destinatarios, IReadOnlyList<string>? copia = null) =>
+        new EnviarMensajeNuevoCommandHandler(
+                _conexiones, _conversaciones, _comunicaciones, new AlcanceDatosServiceFalso(), new InvalidadorAlcanceInerte(), _graph,
+                new AccesoGraphService(_credenciales, _graph), new FileStorageServiceFalso(),
+                new ResolucionParticipanteConversacionServiceFalso(), _unidad, _registro)
+            .Handle(new EnviarMensajeNuevoCommand(conexion.Id, destinatarios, "Documentación", cuerpo, Copia: copia), CancellationToken.None);
 
     [Fact]
     public async Task Por_buzon_un_texto_escrito_a_mano_o_una_edicion_por_dentro_si_sale()
@@ -722,8 +895,30 @@ public class BloqueoRespuestaSugeridaTests
         Sugerencia(HiloDeCorreo(conexion), EstadoRespuestaSugerida.Propuesta);
 
         (await PorBuzon(conexion, EscritoAMano)).EsExitoso.Should().BeTrue();
-        (await PorBuzon(conexion, "<p>Estimada Ana:</p><p>Ya hemos recibido toda su documentación.</p>")).EsExitoso.Should().BeTrue();
+        (await PorBuzon(conexion, EditadaMasDelUmbral)).EsExitoso.Should().BeTrue();
     }
+
+    /// <summary>Revisión Codex r1 (#2163, ALTO 1), por buzón: la misma coincidencia por parecido que en una conversación.</summary>
+    [Fact]
+    public async Task Por_buzon_copiar_la_sugerencia_y_cambiar_una_letra_no_elude_el_bloqueo()
+    {
+        var conexion = Buzon();
+        Sugerencia(HiloDeCorreo(conexion), EstadoRespuestaSugerida.Propuesta);
+
+        (await PorBuzon(conexion, "<p>Estimada Ana:</p><p>Ya hemos recibido su documentacion.</p>"))
+            .Error.Should().Be(BloqueoRespuestaSugerida.SugerenciaSinRevisar);
+        (await EnviarNuevo(conexion, "<p>Estimada Ana:</p><p>Ya hemos recibido su documentacion.</p>"))
+            .Error.Should().Be(BloqueoRespuestaSugerida.SugerenciaSinRevisar);
+        _graph.VecesEnviado.Should().Be(0);
+    }
+
+    /// <summary>
+    /// Un texto que no se parece a ningún otro de la serie: con la coincidencia por parecido, «número 8» y «número 9» con la
+    /// misma frase están a una letra y se bloquearían entre sí. La huella (SHA-256 de <paramref name="i"/>) es fija y aparta
+    /// cada texto de los demás mucho más que <see cref="RevisionRespuestaSugerida.UmbralEdicion"/>.
+    /// </summary>
+    private static string SinParecido(int i) =>
+        $"<p>Sugerencia número {i}: {Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(BitConverter.GetBytes(i)))}</p>";
 
     /// <summary>Fija el Id de la sugerencia: el orden de los lotes sale de él, y un Id al azar haría el test dependiente del azar.</summary>
     private static void FijarId(RespuestaSugerida respuesta, int orden) =>
@@ -740,7 +935,7 @@ public class BloqueoRespuestaSugeridaTests
     {
         var conexion = Buzon();
         for (var i = 1; i <= 120; i++)
-            FijarId(Sugerencia(HiloDeCorreo(conexion), EstadoRespuestaSugerida.Propuesta, $"<p>Sugerencia número {i} sin parecido alguno.</p>"), i);
+            FijarId(Sugerencia(HiloDeCorreo(conexion), EstadoRespuestaSugerida.Propuesta, SinParecido(i)), i);
         var coincidente = Sugerencia(HiloDeCorreo(conexion), EstadoRespuestaSugerida.Propuesta);
         FijarId(coincidente, 1000);
 
@@ -766,7 +961,7 @@ public class BloqueoRespuestaSugeridaTests
         {
             var hilo = HiloDeCorreo(conexion);
             var estado = i % 2 == 0 ? EstadoRespuestaSugerida.Revisada : EstadoRespuestaSugerida.Descartada;
-            Sugerencia(hilo, estado, $"<p>Sugerencia número {i} sin parecido alguno.</p>", EntranteDePersona(hilo));
+            Sugerencia(hilo, estado, SinParecido(i), EntranteDePersona(hilo));
         }
 
         (await PorBuzon(conexion, CuerpoSinRelacion)).EsExitoso.Should().BeTrue();
@@ -778,8 +973,8 @@ public class BloqueoRespuestaSugeridaTests
 
         (await PorBuzon(conexion, TextoSugerido + "<p>Un saludo</p>")).Error.Should().Be(BloqueoRespuestaSugerida.SugerenciaSinRevisar);
         // La 8 es una Revisada y nunca bloquea; la 9, una Descartada del último entrante, sí.
-        (await PorBuzon(conexion, "<p>Sugerencia número 8 sin parecido alguno.</p><p>Un saludo</p>")).EsExitoso.Should().BeTrue();
-        (await PorBuzon(conexion, "<p>Sugerencia número 9 sin parecido alguno.</p><p>Un saludo</p>"))
+        (await PorBuzon(conexion, SinParecido(8) + "<p>Un saludo</p>")).EsExitoso.Should().BeTrue();
+        (await PorBuzon(conexion, SinParecido(9) + "<p>Un saludo</p>"))
             .Error.Should().Be(BloqueoRespuestaSugerida.SugerenciaSinRevisar);
     }
 
@@ -788,7 +983,10 @@ public class BloqueoRespuestaSugeridaTests
         var conversacion = new Conversacion("Documentación", clienteId, empresaId: empresaId);
         conversacion.AsociarConexion(conexion.Id, "hilo-" + Guid.NewGuid());
         conversacion.AgregarMensaje(
-            DireccionMensaje.Entrante, CanalConversacion.Correo, "ana@contrata.test", "<p>Adjunto</p>", mensajeExternoId: "msg-1");
+            DireccionMensaje.Entrante, CanalConversacion.Correo, Ana, "<p>Adjunto</p>", mensajeExternoId: "msg-1");
+        // Como la ingesta: el remitente queda como participante del hilo, que es lo que mira el bloqueo por buzón.
+        _comunicaciones.ListaParticipantesConversacion.Add(
+            conversacion.AgregarParticipante(Ana, RolParticipante.De, TipoParticipanteOrigen.Empresa));
         _conversaciones.Agregar(conversacion);
         _comunicaciones.ListaConversaciones.Add(conversacion);
         return conversacion;

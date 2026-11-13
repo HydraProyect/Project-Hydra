@@ -6,9 +6,10 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite.Core" Version="10.0.14" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite.Core" Version="10.0.15" />
     <PackageReference Include="SQLitePCLRaw.bundle_e_sqlite3" Version="3.0.3" />
     <PackageReference Include="bunit" Version="2.11.3" />
+    <PackageReference Include="Microsoft.CodeAnalysis.CSharp" Version="5.0.0" />
     <!-- AngleSharp 1.4.0 llega de forma transitiva vía bunit y tiene una
          vulnerabilidad moderada conocida (GHSA-pgww-w46g-26qg) — se fija
          explícitamente a una versión parcheada en vez de silenciar el
@@ -34,8 +35,30 @@
   </ItemGroup>
 
   <ItemGroup>
+    <!-- Suelo de hilos del ThreadPool: MITIGACION declarada de #2171, no su causa raiz.
+         Mecanismo medido (xunit 2.9.3, algoritmo conservative por defecto): xunit lanza cada coleccion con Task.Run,
+         de modo que el cuerpo de cada test corre en un hilo del ThreadPool, no en un hilo propio. El WaitForAssertion/
+         WaitForState SINCRONO de bUnit 2.11.3 bloquea ese hilo con GetResult(); su primera comprobacion se encola con
+         InvokeAsync y, si el Dispatcher esta ocupado, necesita otro hilo del pool. Este proyecto tiene 1814 llamadas
+         sincronas a WaitFor*. Con el suelo por defecto (= nucleos) el pool inyecta hilos nuevos a un ritmo lento (~1 por
+         segundo segun el algoritmo del runtime, NO medido aqui) y el WaitFor* de 1 s caduca con «Check count: 0». Una sonda capturo un fallo real (PestanaVehiculosSubcontrata
+         Tests, Una_respuesta_del_anterior...) con 9 hilos, 25-27 elementos en cola y 4579 ms de espera por un hilo.
+         UNA corrida pareada de la suite completa (11.710 tests, DOTNET_PROCESSOR_COUNT=2, n=1): con MinThreads=64,
+         0 fallos, 3 esperas >= 1 s, maximo 1,5 s; sin MinThreads, 2 fallos, 28 esperas >= 1 s, maximo 6 s. El suelo reduce
+         el riesgo, no lo elimina (persisten esperas >= 1 s); lo solido del dato son las esperas, no 0 contra 2. parallelAlgorithm:
+         aggressive queda descartado (rompio 15-16 tests por corrida). Sigue SIN saberse que codigo retiene los hilos
+         durante un episodio. Plan: migrar los WaitFor* a sus variantes async con tests async Task (varias PR por
+         carpetas, #2171); al terminar se QUITA este suelo. Efecto asumido mientras tanto: un test que dependiera de
+         un hilo libre del pool ya no lo delataria por intermitencia. -->
+    <RuntimeHostConfigurationOption Include="System.Threading.ThreadPool.MinThreads" Value="64" />
+  </ItemGroup>
+
+  <ItemGroup>
     <Using Include="Xunit" />
     <Compile Include="..\CaeManager.E2ETests\Rendimiento\MedidorConsultasSql.cs" Link="Rendimiento\MedidorConsultasSql.cs" />
+    <!-- Lo que TrazaAlFallar decide sin navegador (borrar, publicar, anotar el -sin-traza.txt): se prueba aquí, en local
+         y en el job de bUnit, porque el proyecto de E2E solo corre con servidor y navegador (ver TramosDeTrazaTests). -->
+    <Compile Include="..\CaeManager.E2ETests\TramosDeTraza.cs" Link="E2E\TramosDeTraza.cs" />
   </ItemGroup>
 
   <ItemGroup>

@@ -60,8 +60,15 @@ public class CampoSelectAvanzadoTests : BunitContext
     private static ElementReference Referencia(IRenderedComponent<CampoSelectAvanzado> cut, string campo) =>
         (ElementReference)typeof(CampoSelectAvanzado).GetField(campo, BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(cut.Instance)!;
 
+    /// <summary>
+    /// Una petición de foco: FocusAsync de un ElementReference o, al cerrar con el módulo cargado, devolverFoco (que solo
+    /// enfoca el disparador si el foco no se fue ya a otro control, ver campo-select-avanzado.js y #2194).
+    /// </summary>
+    private static bool EsEnfoque(JSRuntimeInvocation i) =>
+        i.Identifier.Contains("focus", StringComparison.OrdinalIgnoreCase) || i.Identifier == "devolverFoco";
+
     private string FocoPedido() => JSInterop.Invocations
-        .Last(i => i.Identifier.Contains("focus", StringComparison.OrdinalIgnoreCase))
+        .Last(EsEnfoque)
         .Arguments[0].Should().BeOfType<ElementReference>().Which.Id!;
 
     // ------------------------------------------------------------ anatomía y ARIA
@@ -106,6 +113,48 @@ public class CampoSelectAvanzadoTests : BunitContext
         d.TextContent.Trim().Should().Be("Aptitud médica");
         cut.Find("label[for='tipo']").TextContent.Trim().Should().Be("Tipo de documento");
         cut.FindAll("[role=listbox]").Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task El_buscador_solo_recibe_valor_del_servidor_al_sembrarlo_desde_el_disparador()
+    {
+        var cut = Renderizar(buscable: true);
+
+        // Teclear sobre el disparador cerrado abre la lista y siembra la búsqueda en el input.
+        await Teclear(Disparador(cut), "m");
+        Buscador(cut).GetAttribute("value").Should().Be("m");
+
+        // Lo que se escribe en el propio input no se reenvía: un render en cola no pisa lo que el usuario ve.
+        await Buscador(cut).InputAsync(new ChangeEventArgs { Value = "medica" });
+        Buscador(cut).GetAttribute("value").Should().Be("m");
+        cut.FindAll("li[role=option]").Should().ContainSingle().Which.GetAttribute("data-valor").Should().Be("b");
+
+        // Cerrar y reabrir empieza de cero: el input nuevo no hereda la siembra anterior.
+        await Teclear(Buscador(cut), "Escape");
+        await Disparador(cut).ClickAsync(new MouseEventArgs());
+        (Buscador(cut).GetAttribute("value") ?? string.Empty).Should().BeEmpty();
+        cut.FindAll("li[role=option]").Should().HaveCount(4);
+    }
+
+    [Fact]
+    public async Task Sin_TextoSinResultados_el_vacio_usa_el_texto_comun()
+    {
+        var anterior = System.Globalization.CultureInfo.CurrentUICulture;
+        try
+        {
+            System.Globalization.CultureInfo.CurrentUICulture = new("es");
+            var cut = Renderizar(buscable: true);
+            await Disparador(cut).ClickAsync(new MouseEventArgs());
+
+            await Buscador(cut).InputAsync(new ChangeEventArgs { Value = "zzz" });
+
+            cut.FindAll("li[role=option]").Should().BeEmpty();
+            cut.Find(".csa-panel").TextContent.Should().Contain("Ninguna opción coincide con la búsqueda.");
+        }
+        finally
+        {
+            System.Globalization.CultureInfo.CurrentUICulture = anterior;
+        }
     }
 
     [Fact]
@@ -242,14 +291,67 @@ public class CampoSelectAvanzadoTests : BunitContext
         var cut = Renderizar();
         await Disparador(cut).ClickAsync(new MouseEventArgs());
         await Teclear(Disparador(cut), "ArrowDown");
-        var enfoquesAntes = JSInterop.Invocations.Count(i => i.Identifier.Contains("focus", StringComparison.OrdinalIgnoreCase));
+        var enfoquesAntes = JSInterop.Invocations.Count(EsEnfoque);
 
         await Teclear(Disparador(cut), "Tab");
 
         _cambios.Should().BeEmpty();
         cut.FindAll("[role=listbox]").Should().BeEmpty();
-        JSInterop.Invocations.Count(i => i.Identifier.Contains("focus", StringComparison.OrdinalIgnoreCase))
+        JSInterop.Invocations.Count(EsEnfoque)
             .Should().Be(enfoquesAntes, "Tab sigue su camino: devolver el foco al disparador lo atraparía");
+    }
+
+    // ------------------------------------------------------------ foco devuelto con el módulo JS cargado (#2194)
+
+    /// <summary>El módulo y el control que devuelve crear(), para que el componente siga la ruta del navegador.</summary>
+    private BunitJSModuleInterop ConModulo() =>
+        JSInterop.SetupModule("./js/campo-select-avanzado.js").SetupModule("crear", _ => true);
+
+    [Fact]
+    public async Task Con_el_modulo_elegir_devuelve_el_foco_por_devolverFoco_y_no_a_la_fuerza()
+    {
+        var control = ConModulo();
+        var cut = Renderizar();
+        await Disparador(cut).ClickAsync(new MouseEventArgs());
+        await Teclear(Disparador(cut), "ArrowDown");
+        var enfoquesAntes = JSInterop.Invocations.Count(i => i.Identifier.Contains("focus", StringComparison.OrdinalIgnoreCase));
+
+        await Teclear(Disparador(cut), "Enter");
+
+        _cambios.Should().Equal(["d"]);
+        control.Invocations["devolverFoco"].Should().ContainSingle()
+            .Which.Arguments[0].Should().BeOfType<ElementReference>().Which.Id.Should().Be(Referencia(cut, "_disparador").Id);
+        JSInterop.Invocations.Count(i => i.Identifier.Contains("focus", StringComparison.OrdinalIgnoreCase))
+            .Should().Be(enfoquesAntes, "el módulo decide si el foco vuelve: un FocusAsync además se lo quitaría al campo siguiente");
+    }
+
+    [Fact]
+    public async Task Con_el_modulo_Tab_no_pide_devolver_el_foco()
+    {
+        var control = ConModulo();
+        var cut = Renderizar();
+        await Disparador(cut).ClickAsync(new MouseEventArgs());
+        await Teclear(Disparador(cut), "ArrowDown");
+
+        await Teclear(Disparador(cut), "Tab");
+
+        control.Invocations["devolverFoco"].Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task Con_un_modulo_sin_devolverFoco_el_foco_vuelve_igual_al_disparador()
+    {
+        var control = ConModulo();
+        control.SetupVoid("devolverFoco", _ => true).SetException(new JSException("devolverFoco no existe en el módulo en caché"));
+        var cut = Renderizar();
+        await Disparador(cut).ClickAsync(new MouseEventArgs());
+        await Teclear(Disparador(cut), "ArrowDown");
+
+        await Teclear(Disparador(cut), "Escape");
+
+        control.Invocations["devolverFoco"].Should().ContainSingle();
+        JSInterop.Invocations.Last(i => i.Identifier.Contains("focus", StringComparison.OrdinalIgnoreCase))
+            .Arguments[0].Should().BeOfType<ElementReference>().Which.Id.Should().Be(Referencia(cut, "_disparador").Id);
     }
 
     [Fact]
@@ -323,13 +425,13 @@ public class CampoSelectAvanzadoTests : BunitContext
     {
         var cut = Renderizar();
         await Disparador(cut).ClickAsync(new MouseEventArgs());
-        var enfoquesAntes = JSInterop.Invocations.Count(i => i.Identifier.Contains("focus", StringComparison.OrdinalIgnoreCase));
+        var enfoquesAntes = JSInterop.Invocations.Count(EsEnfoque);
 
         await cut.Find(".csa-superposicion").ClickAsync(new MouseEventArgs());
 
         cut.FindAll("[role=listbox]").Should().BeEmpty();
         _cambios.Should().BeEmpty();
-        JSInterop.Invocations.Count(i => i.Identifier.Contains("focus", StringComparison.OrdinalIgnoreCase)).Should().Be(enfoquesAntes);
+        JSInterop.Invocations.Count(EsEnfoque).Should().Be(enfoquesAntes);
     }
 
     // ------------------------------------------------------------ búsqueda

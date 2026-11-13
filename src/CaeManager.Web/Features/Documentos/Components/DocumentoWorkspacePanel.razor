@@ -2,6 +2,9 @@
 @using CaeManager.Web.Features.Bandeja.Components
 @using CaeManager.Application.Documentos.Commands.RenovarDocumento
 @using CaeManager.Application.Documentos.Queries.ObtenerDocumentoPorId
+@using CaeManager.Application.Documentos.Queries.ObtenerAcreditacionesDelDocumento
+@using CaeManager.Application.Documentos.Queries.ObtenerDocumentos
+@using CaeManager.Web.Features.Documentos
 @using CaeManager.Application.Documentos.Queries.ObtenerValidacionOficialDocumento
 @using CaeManager.Domain.Documentos
 @using CaeManager.Web.Components.DesignSystem
@@ -12,6 +15,7 @@
 @inject IMediator Mediator
 @inject Microsoft.Extensions.Localization.IStringLocalizer<TextosDocumentos> TextosDocumento
 @inject IServiceProvider ServiceProvider
+@inject Microsoft.Extensions.Localization.IStringLocalizer<CaeManager.Web.Recursos.TextosComunes> Comunes
 @inject Microsoft.Extensions.Logging.ILogger<DocumentoWorkspacePanel> Logger
 
 @if (_cargando)
@@ -70,10 +74,14 @@ else
                         <div class="alerta-formulario" role="alert">@_mensajeErrorInformacion</div>
                     }
                     <div class="formulario-documento-360">
-                        <CampoTexto Etiqueta="Fecha de emisión" Type="date" Valor="@_fechaEmisionEditada" ValorChanged="v => _fechaEmisionEditada = v" />
+                        <CampoTexto Etiqueta="Fecha de emisión" Type="date" Valor="@_fechaEmisionEditada" ValorChanged="v => _fechaEmisionEditada = v"
+                                    FechaNoValida="_emisionNoValida" FechaNoValidaChanged="v => _emisionNoValida = v" />
                         @if (!_detalle.TipoDocumentoAplicaVencimientoAutomatico)
                         {
-                            <CampoTexto Etiqueta="Fecha de vencimiento" Type="date" Valor="@_fechaVencimientoEditada" ValorChanged="v => _fechaVencimientoEditada = v" />
+                            @* FechaNoValidaChanged: un vencimiento a medias llega como «» y RenovarDocumentoCommand lo
+                               guardaría como «sin vencimiento». *@
+                            <CampoTexto Etiqueta="Fecha de vencimiento" Type="date" Valor="@_fechaVencimientoEditada" ValorChanged="v => _fechaVencimientoEditada = v"
+                                        FechaNoValida="_vencimientoNoValido" FechaNoValidaChanged="AlCambiarVencimientoNoValido" />
                             @* Sin fecha y sin marcar, la vigencia queda «sin confirmar»: marcar
                                es la única forma de declarar que el documento no caduca. *@
                             <label class="campo-checkbox">
@@ -103,7 +111,13 @@ else
                             <span>Archivo</span>
                             @if (_detalle.ArchivoUrl is not null)
                             {
-                                <a href="/documentos/@EntidadId/archivo" target="_blank" download>@TextosDocumento["Documento360DescargarPdf"]</a>
+                                @* D-24: «Descargar PDF» primero y «Ver» (el visor del listado) después, separados por «·» (CSS). *@
+                                <span class="archivo-documento-360">
+                                    <a href="/documentos/@EntidadId/archivo" target="_blank" download>@TextosDocumento["Documento360DescargarPdf"]</a>
+                                    <button type="button" class="ver-archivo-documento-360" data-accion="ver-pdf"
+                                            aria-label="@TextosDocumento["VerPdfAria", _detalle.TipoDocumentoNombre, _detalle.PropietarioNombre]"
+                                            @onclick="() => _visorVisible = true">@TextosDocumento["ListaVer"]</button>
+                                </span>
                             }
                             else
                             {
@@ -128,6 +142,7 @@ else
                             }
                         </div>
                     </SoloConEscritura>
+                    @SeccionPlataformasCae
                 }
                 break;
 
@@ -205,7 +220,224 @@ else
                            AmbitoInicial="titular.Ambito" EntidadIdInicial="titular.EntidadId" />
 }
 
+@* D-24: «Ver» abre el mismo visor que el listado; se monta solo mientras está abierto. *@
+@if (_visorVisible && _detalle is not null)
+{
+    @* Desde el historial el visor solo enseña el archivo: «Actualizar documento» llevaría a gestionar un Documento sustituido. *@
+    <VisorDocumento Visible="true" VisibleChanged="v => _visorVisible = v" DocumentoId="EntidadId" PermiteActualizar="!EnHistorial"
+                    Titulo="@($"{_detalle.TipoDocumentoNombre} — {_detalle.PropietarioNombre}")" />
+}
+
+@* D-23: los diálogos del menú «Acreditación ▾» son los del listado (ModalesAcreditacion, AnotarVigenciaEnBloque y
+   PanelGestionarAcreditacion), no una copia. Solo existen para quien escribe y si hay alguna acreditación que mostrar. *@
+@if (_acreditaciones is { Acreditaciones.Count: > 0 } && !EnHistorial)
+{
+    <SoloConEscritura>
+        <ModalesAcreditacion @ref="_modalesAcreditacion" OnCambio="AlCambiarAcreditacionAsync" />
+        <AnotarVigenciaEnBloque @ref="_anotarVigencia" OnAnotado="AlCambiarAcreditacionAsync" />
+    </SoloConEscritura>
+}
+@* !EnHistorial: si la ficha pasa al historial con el panel abierto (otra pestaña sustituyó el Documento), el panel se retira. *@
+@if (_acreditacionAGestionar is { } gestion && _detalle is not null && !EnHistorial && _acreditaciones is not null && PropietarioGestionable is { } propietarioId)
+{
+    <PanelGestionarAcreditacion @bind-Visible="_panelAcreditacionVisible"
+                                DocumentoNombre="@_detalle.TipoDocumentoNombre" PropietarioNombre="@_detalle.PropietarioNombre"
+                                EsDeEmpresa="@(_detalle.Ambito == AmbitoAplicacion.Empresa)" PropietarioId="propietarioId"
+                                CentroNombre="@gestion.CentroNombre" EstadoTalveg="_acreditaciones.EstadoDocumental" FechaVencimiento="_detalle.FechaVencimiento"
+                                Acreditaciones="@([new AcreditacionResumenDto(gestion.Id, gestion.PlataformaNombre, gestion.Estado)])"
+                                OnGuardado="AlCambiarAcreditacionAsync" />
+}
+@* «Subir versión corregida» abre el drawer del Documento, como en el listado. Se monta al pedirlo: no todos los hosts del panel
+   registran el almacenamiento de archivos que el drawer necesita. *@
+@if (_drawerVersionMontado)
+{
+    <DrawerGestionDocumento @ref="_drawerGestion" OnGuardado="AlGuardarVersionCorregidaAsync" />
+}
+
 @code {
+    /// <summary>
+    /// D-23 (artboard Vista-rapida): «Plataformas CAE · N» con cada acreditación del Documento: la Plataforma CAE con su logotipo,
+    /// el nombre del tipo, su contexto (Cliente empresarial · Centro), el estado en femenino, el motivo si lo hay y el menú
+    /// «Acreditación ▾». El nombre que cada Plataforma CAE da al tipo (B2) todavía no existe: se pinta el del tipo, que es lo que
+    /// el artboard dibuja cuando coinciden. El motivo y la dirección del portal llegan ya cortados por el servidor
+    /// (ObtenerAcreditacionesDelDocumentoQuery); el menú es de quien escribe (SoloConEscritura dentro de MenuAcreditacion).
+    /// </summary>
+    private RenderFragment SeccionPlataformasCae => @<text>
+        @if (_detalle is not null && _acreditaciones is { Acreditaciones.Count: > 0 } plataformas)
+        {
+        <section class="plataformas-documento-360" aria-label="@TextosDocumento["VistaRapidaPlataformasCae"]" data-seccion="plataformas-cae">
+            <h3 class="titulo-plataformas-documento-360">
+                <Icono Nombre="plataforma" Tamano="TamanoIcono.Pequeno" />
+                @TextosDocumento["VistaRapidaPlataformasCae"]
+                <span class="cuenta-plataformas-documento-360">@TextosDocumento["VistaRapidaPlataformasCaeCuenta", plataformas.Acreditaciones.Count]</span>
+            </h3>
+            <ul class="lista-plataformas-documento-360">
+                @foreach (var acreditacion in plataformas.Acreditaciones)
+                {
+                    <li class="acreditacion-documento-360" @key="acreditacion.Id" data-acreditacion="@acreditacion.Id">
+                        <span class="datos-acreditacion-documento-360">
+                            <span class="plataforma-acreditacion-documento-360">
+                                @if (acreditacion.PlataformaCodigo is { } codigo && CaeManager.Web.Features.Dashboard.LogoPlataforma.Ruta(codigo) is { } logo)
+                                {
+                                    <img class="logo-plataforma-documento-360" src="@logo" alt="" aria-hidden="true" loading="lazy" />
+                                }
+                                else
+                                {
+                                    <span class="logo-plataforma-documento-360 logo-plataforma-documento-360-generico" aria-hidden="true"><Icono Nombre="plataforma" Tamano="TamanoIcono.Pequeno" /></span>
+                                }
+                                <strong>@acreditacion.PlataformaNombre</strong>
+                            </span>
+                            <span class="tipo-acreditacion-documento-360">@_detalle.TipoDocumentoNombre</span>
+                            <span class="contexto-acreditacion-documento-360">@TextosDocumento["VistaRapidaContextoAcreditacion", acreditacion.ClienteEmpresarialNombre, acreditacion.CentroNombre]</span>
+                        </span>
+                        @* Un Documento en el historial (sustituido) es inmutable, como «Renovar» arriba: sus acreditaciones se leen
+                           pero no se gestionan desde aquí. El contenedor solo existe para quien escribe, así no reserva columna. *@
+                        @* Tras una relectura fallida la lista es la anterior: sin menú, para no ofrecer acciones calculadas sobre
+                           un estado viejo; vuelve con la siguiente lectura buena. *@
+                        @if (!EnHistorial && !_acreditacionesDesfasadas && ReglasAccionesAcreditacion.HayAlgunaAccion(acreditacion.Estado, PropietarioGestionable is not null, acreditacion.UrlAccesoCanal))
+                        {
+                            <SoloConEscritura>
+                                <span class="menu-acreditacion-documento-360">
+                                    <MenuAcreditacion Estado="acreditacion.Estado" PlataformaNombre="@acreditacion.PlataformaNombre"
+                                                      PropietarioNombre="@_detalle.PropietarioNombre" UrlPortal="@acreditacion.UrlAccesoCanal"
+                                                      PuedeGestionar="@(PropietarioGestionable is not null)"
+                                                      OnAccion="accion => ManejarAccionAcreditacionAsync(acreditacion, accion)" />
+                                </span>
+                            </SoloConEscritura>
+                        }
+                        <span class="estado-acreditacion-documento-360">
+                            <Badge Tono="EstadoAcreditacionUi.TonoEnPlataforma(acreditacion.Estado, acreditacion.SinVigencia)" Tamano="TamanoBadge.Pequeno">@TextoEnPlataforma(acreditacion)</Badge>
+                            @if (acreditacion.Estado == EstadoAcreditacion.Rechazada && !string.IsNullOrWhiteSpace(acreditacion.UltimoMotivoRechazo))
+                            {
+                                @* El rol Cliente ve el estado, no el motivo (opción B, 2026-11-12): el servidor ya no se lo manda y la
+                                   pantalla tampoco lo pinta aunque llegara, como en el listado. *@
+                                <AuthorizeView Roles="@ReglasAccionesAcreditacion.RolesQueAbrenPortal" Context="autorizacionMotivo">
+                                    <span class="motivo-acreditacion-documento-360">@TextosDocumento["EnPlataformaMotivo", acreditacion.UltimoMotivoRechazo]</span>
+                                </AuthorizeView>
+                            }
+                        </span>
+                    </li>
+                }
+            </ul>
+        </section>
+        }
+    </text>;
+
+    private AcreditacionesDelDocumentoDto? _acreditaciones;
+    private int _cargaAcreditaciones;
+
+    /// <summary>La última relectura de la sección falló y lo que se ve es la lista anterior: se lee, pero no se ofrece el menú.</summary>
+    private bool _acreditacionesDesfasadas;
+    private ModalesAcreditacion? _modalesAcreditacion;
+    private AnotarVigenciaEnBloque? _anotarVigencia;
+    private DrawerGestionDocumento? _drawerGestion;
+    private bool _drawerVersionMontado, _abrirVersionPendiente, _visorVisible, _panelAcreditacionVisible;
+
+    /// <summary>La acreditación que abre «Gestionar acreditación…» del menú de la sección (D-18).</summary>
+    private AcreditacionDelDocumentoDto? _acreditacionAGestionar;
+
+    /// <summary>El Documento abierto ya está sustituido por otra versión (historial, D5/D8): se lee, no se gestiona.</summary>
+    private bool EnHistorial => _detalle?.SustitutoId is not null;
+
+    /// <summary>
+    /// «Gestionar acreditación…» enlaza con la ficha 360 de una Empresa o de un Trabajador, como en el listado
+    /// (Documentos.PuedeGestionarAcreditacion): para el resto de Propietarios no se ofrece.
+    /// </summary>
+    private Guid? PropietarioGestionable => _detalle switch
+    {
+        { Ambito: AmbitoAplicacion.Trabajador, TrabajadorId: { } trabajadorId } => trabajadorId,
+        { Ambito: AmbitoAplicacion.Empresa, EmpresaId: { } empresaId } => empresaId,
+        _ => null,
+    };
+
+    private string TextoEnPlataforma(AcreditacionDelDocumentoDto acreditacion) => acreditacion.SinVigencia
+        ? TextosDocumento["EstadoPlataformaSinVigencia"].Value
+        : EstadoAcreditacionUi.TextoCapitalizado(acreditacion.Estado);
+
+    private async Task CargarAcreditacionesAsync()
+    {
+        var carga = ++_cargaAcreditaciones; var id = EntidadId;
+        try
+        {
+            var acreditaciones = await Mediator.Send(new ObtenerAcreditacionesDelDocumentoQuery(id), _cancelacion);
+            if (carga != _cargaAcreditaciones) return;
+            _acreditaciones = acreditaciones;
+            _acreditacionesDesfasadas = false;
+        }
+        catch (OperationCanceledException) when (_cancelacion.IsCancellationRequested)
+        {
+            // El panel se cerró: no es un fallo.
+        }
+        catch (Exception ex)
+        {
+            // La sección es complementaria: sin ella el panel sigue siendo útil, así que no hay estado de error propio. Si falla
+            // la releída tras una acción, se conserva la lista anterior (al cambiar de Documento ya se vació en ReiniciarParaNuevaEntidad).
+            if (carga != _cargaAcreditaciones) return;
+            _acreditacionesDesfasadas = _acreditaciones is not null;
+            Logger.LogWarning(ex, "No se pudieron leer las acreditaciones del Documento {DocumentoId}.", id);
+        }
+    }
+
+    /// <summary>
+    /// Despacha la opción del menú «Acreditación ▾» de la sección a los mismos diálogos y Commands que el listado (D-18).
+    /// No decide ninguna autorización: cada Command comprueba la suya (D-3). El historial no se gestiona: el menú no se pinta, y si
+    /// llega una opción de un menú anterior a la sustitución, se ignora.
+    /// </summary>
+    private async Task ManejarAccionAcreditacionAsync(AcreditacionDelDocumentoDto acreditacion, AccionAcreditacion accion)
+    {
+        if (_detalle is null || EnHistorial) return;
+        switch (accion)
+        {
+            case AccionAcreditacion.SubirVersionCorregida:
+                _drawerVersionMontado = true;
+                _abrirVersionPendiente = true;
+                break;
+            case AccionAcreditacion.MarcarSubido:
+                if (_modalesAcreditacion is not null) await _modalesAcreditacion.MarcarSubidoAsync(acreditacion.Id);
+                break;
+            case AccionAcreditacion.MarcarValidado:
+                _modalesAcreditacion?.AbrirValidado(acreditacion.Id);
+                break;
+            case AccionAcreditacion.MarcarRechazado:
+                _modalesAcreditacion?.AbrirRechazo(acreditacion.Id, acreditacion.PlataformaNombre, _detalle.TipoDocumentoNombre, _detalle.PropietarioNombre);
+                break;
+            case AccionAcreditacion.AnotarVigencia:
+                _anotarVigencia?.Abrir([acreditacion.Id], acreditacion.PlataformaNombre);
+                break;
+            case AccionAcreditacion.Gestionar:
+                _acreditacionAGestionar = acreditacion;
+                _panelAcreditacionVisible = true;
+                break;
+        }
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!_abrirVersionPendiente || _drawerGestion is null) return;
+        _abrirVersionPendiente = false;
+        await _drawerGestion.AbrirEditarAsync(EntidadId);
+    }
+
+    /// <summary>Tras marcar, anotar o gestionar una acreditación: la sección se relee y el listado de detrás repinta la fila.</summary>
+    private async Task AlCambiarAcreditacionAsync()
+    {
+        var id = EntidadId;
+        ServiceProvider.GetService<ContextWorkspaceService>()?.NotificarEntidadGuardada(EntidadWorkspace.Documento, id);
+        if (id != EntidadId) return;
+        await CargarAcreditacionesAsync();
+    }
+
+    /// <summary>
+    /// La versión corregida sustituye el archivo: se relee todo el panel, no solo la sección. El Id abierto pasa al historial, así que
+    /// la relectura pinta el aviso con «Ver vigente» y retira el menú; el panel no salta solo al vigente porque el Context Workspace no
+    /// tiene cómo sustituir el nivel abierto por otro.
+    /// </summary>
+    private async Task AlGuardarVersionCorregidaAsync()
+    {
+        ServiceProvider.GetService<ContextWorkspaceService>()?.NotificarEntidadGuardada(EntidadWorkspace.Documento, EntidadId);
+        await CargarTodoAsync();
+    }
+
     private static readonly IReadOnlyList<PestanaDefinicion> _pestanas = [new("informacion", "Información"), new("validacion", "Validación"), new("firma", "Firma"), new("historial", "Historial")];
     [Parameter, EditorRequired] public Guid EntidadId { get; set; }
     [Parameter, EditorRequired] public string PestanaActiva { get; set; } = string.Empty;
@@ -227,11 +459,31 @@ else
     private bool _cargando = true, _cargandoValidacion = true, _errorValidacion, _error, _editandoInformacion, _guardandoInformacion;
     private string _fechaEmisionEditada = string.Empty, _fechaVencimientoEditada = string.Empty, _comentariosEditados = string.Empty;
     private bool _noCaducaEditado;
+
+    /// <summary>El vencimiento tiene un texto que no es una fecha entera: Guardar no envía «sin vencimiento» por error.</summary>
+    private bool _vencimientoNoValido;
+
+    /// <summary>
+    /// La emisión tiene un texto que no es una fecha entera. Su valor ya es «» (Guardar lo rechaza y el vencimiento
+    /// automático no se calcula de la emisión anterior); la marca da el aviso de corregirla y cuenta como cambio.
+    /// </summary>
+    private bool _emisionNoValida;
     private readonly InstantaneaFormulario _instantaneaInformacion = new();
 
-    /// <summary>P1-E2b: la renovación en línea (fechas y comentarios) comparada con cómo se abrió.</summary>
+    // Al volver a ser una fecha entera (o quedar vacío), el aviso «no es una fecha» de un envío anterior ya no es cierto.
+    private void AlCambiarVencimientoNoValido(bool noValido)
+    {
+        _vencimientoNoValido = noValido;
+        if (!noValido && _mensajeErrorInformacion == Comunes["CampoFechaCorregirAntes"])
+            _mensajeErrorInformacion = null;
+    }
+
+    /// <summary>
+    /// P1-E2b: la renovación en línea (fechas y comentarios) comparada con cómo se abrió. Un vencimiento a medias no cambia el
+    /// valor del formulario («»), pero es texto que se pierde al salir.
+    /// </summary>
     private bool HayCambiosSinGuardar =>
-        _editandoInformacion && _instantaneaInformacion.Difiere(ValoresInformacion());
+        _editandoInformacion && (_instantaneaInformacion.Difiere(ValoresInformacion()) || _vencimientoNoValido || _emisionNoValida);
 
     private object?[] ValoresInformacion() => [_fechaEmisionEditada, _fechaVencimientoEditada, _noCaducaEditado, _comentariosEditados];
     private string? _mensajeErrorInformacion;
@@ -258,6 +510,9 @@ else
         // El panel se reutiliza al cambiar de documento: una reclamación abierta era la
         // del documento anterior y no puede quedarse abierta contra otro titular.
         _reclamacionVisible = false;
+        // Lo mismo para la sección «Plataformas CAE», el visor y los diálogos de acreditación del documento anterior.
+        _cargaAcreditaciones++; _acreditaciones = null; _acreditacionesDesfasadas = false; _visorVisible = false;
+        _acreditacionAGestionar = null; _panelAcreditacionVisible = false; _abrirVersionPendiente = false;
     }
 
     private Task ReintentarAsync() => _cargando ? Task.CompletedTask : CargarTodoAsync();
@@ -267,6 +522,8 @@ else
         var generacion = _generacion;
         await CargarCabeceraAsync();
         if (generacion != _generacion || _detalle is null) return;
+        await CargarAcreditacionesAsync();
+        if (generacion != _generacion) return;
         await CargarValidacionAsync();
     }
 
@@ -334,6 +591,8 @@ else
         _noCaducaEditado = _detalle.EstadoVigencia == EstadoVigenciaDocumento.NoCaduca;
         _comentariosEditados = _detalle.Comentarios ?? string.Empty;
         _mensajeErrorInformacion = null;
+        _vencimientoNoValido = false;
+        _emisionNoValida = false;
         _editandoInformacion = true;
         _instantaneaInformacion.Fijar(ValoresInformacion());
     }
@@ -347,9 +606,14 @@ else
         _guardandoInformacion = true; _mensajeErrorInformacion = null;
         try
         {
-            if (!DateOnly.TryParse(_fechaEmisionEditada, out var fechaEmision))
+            if (_emisionNoValida || !DateOnly.TryParse(_fechaEmisionEditada, out var fechaEmision))
             {
-                _mensajeErrorInformacion = "Introduce una fecha de emisión válida.";
+                _mensajeErrorInformacion = _emisionNoValida ? Comunes["CampoFechaCorregirAntes"] : "Introduce una fecha de emisión válida.";
+                return;
+            }
+            if (_vencimientoNoValido && !detalle.TipoDocumentoAplicaVencimientoAutomatico)
+            {
+                _mensajeErrorInformacion = Comunes["CampoFechaCorregirAntes"];
                 return;
             }
             var fechaVencimiento = DateOnly.TryParse(_fechaVencimientoEditada, out var fecha) ? fecha : (DateOnly?)null;
@@ -400,7 +664,7 @@ else
 
     public void Dispose()
     {
-        _generacion++; _cargaCabecera++; _cargaValidacion++;
+        _generacion++; _cargaCabecera++; _cargaValidacion++; _cargaAcreditaciones++;
         _ciclo.Cancel(); _ciclo.Dispose();
     }
 }

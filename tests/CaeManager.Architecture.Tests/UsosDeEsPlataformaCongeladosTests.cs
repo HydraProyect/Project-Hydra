@@ -276,8 +276,13 @@ public class UsosDeEsPlataformaCongeladosTests
                 "compensación: el tenant #1 nace en SinSuscripcion, que ya pasa el gate"),
         ["src/CaeManager.Application/Configuracion/AutoridadSeguridadAcceso.cs"] =
             new(1, CategoriaUso.Guarda,
-                ":35 impide cambiar la seguridad de acceso del Tenant de plataforma: no concede nada, solo " +
+                ":44 impide cambiar la seguridad de acceso del Tenant de plataforma: no concede nada, solo " +
                 "evita rebajar el plazo o la exigencia de los Actores de Plataforma TALVEG"),
+        ["src/CaeManager.Application/Plataforma/Commands/CambiarSegundoFactorDelTenantPorPlataforma/CambiarSegundoFactorDelTenantPorPlataformaCommand.cs"] =
+            new(2, CategoriaUso.Guarda,
+                ":99-100 (comentario y predicado) rechazan un Tenant de plataforma como objetivo del ajuste del segundo " +
+                "factor por Sesión Privilegiada (decisiones del 2026-11-08): no concede nada, solo evita rebajar la " +
+                "exigencia de los Actores de Plataforma TALVEG. La función de la base lo vuelve a comprobar"),
         ["src/CaeManager.Application/Comercial/Commands/RegistrarSuscripcionTenant/RegistrarSuscripcionTenantCommand.cs"] =
             new(1, CategoriaUso.ReglaComercial,
                 ":69 rechaza suscribir al tenant de plataforma. D-4: SE CONSERVA — es el invariante que " +
@@ -448,6 +453,11 @@ public class UsosDeEsPlataformaCongeladosTests
         // restablecimiento de 2FA en su versión final (comentario y predicado, que solo
         // restringen). El backfill de AgregarCapacidadOperadorCaeExternoATenant no corre
         // sobre una base nueva y desaparece con la compactación.
+        ["src/CaeManager.Migrations.PostgreSQL/Migrations/20261109190000_PlataformaAjustaSegundoFactorTenant.cs"] =
+            new(3, CategoriaUso.MigracionManual,
+                "comentario y predicados de app_cambiar_segundo_factor_tenant_por_plataforma (decisiones del " +
+                "2026-11-08; ADR-011 § 8.7.3): el actor debe pertenecer a un Tenant de plataforma y el Tenant objetivo no " +
+                "serlo. Solo restringe, no concede."),
         ["src/CaeManager.Migrations.PostgreSQL/Migrations/20261030220000_PlataformaConcedeAdministrador.cs"] =
             new(3, CategoriaUso.MigracionManual,
                 "doc-comment, comentario y predicados de app_conceder_administrador_por_plataforma (decisión del " +

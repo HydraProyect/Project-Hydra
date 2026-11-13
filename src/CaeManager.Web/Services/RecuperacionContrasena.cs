@@ -181,7 +181,9 @@ public sealed class RecuperacionContrasena(
             }
             catch (Exception ex)
             {
-                logger.LogError(ex, "No se pudo procesar la recuperación de contraseña.");
+                // ASVS 4.0.3 V7.1.1: solo el tipo de la excepción. Su mensaje (o el de su causa: SMTP, Identity) puede
+                // citar la dirección de quien pidió el enlace; el texto no depende de ese mensaje.
+                logger.LogError("No se pudo procesar la recuperación de contraseña ({TipoExcepcion}).", ex.GetType().Name);
             }
         }
     }
@@ -200,7 +202,7 @@ public sealed class RecuperacionContrasena(
         var enlace = EnlacesPublicos.Activacion(basePublica, usuario.Id, codigo);
         var cuerpo = $"""
             <p>Recibimos una solicitud para restablecer la contraseña de tu cuenta en {Marca.Nombre}.</p>
-            <p><a href="{System.Net.WebUtility.HtmlEncode(enlace)}">Restablecer mi contraseña</a></p>
+            {BotonCorreo.Html("Restablecer mi contraseña", enlace)}
             <p>Este enlace caduca en 60 minutos. Si no fuiste tú, puedes ignorar este correo — tu contraseña actual sigue siendo válida.</p>
             """;
         var resultado = await correo.EnviarAsync(usuario.Email!, $"Restablece tu contraseña — {Marca.Nombre}", cuerpo,

@@ -1,0 +1,22 @@
+@using CaeManager.Application.Documentos.Queries.ObtenerRevisionesIaPendientes
+@using CaeManager.Web.Features.Documentos.Recursos
+@using Microsoft.Extensions.Localization
+@inject IStringLocalizer<TextosDocumentos> Textos
+
+@*
+    La confianza de una lectura de la IA como la pinta Revisión IA (artboard «Revision-ia»): barra de 72 × 6 px con el tono
+    de <see cref="TonoDeConfianzaIa"/> y «Confianza 58 % · Sin fecha detectada».
+*@
+<span class="confianza-ia">
+    <span class="confianza-ia-barra" aria-hidden="true">
+        <i class="@("confianza-ia-relleno confianza-ia-relleno-" + TonoDeConfianzaIa.Clave(Revision.ConfianzaGeneral))" style="width:@(Revision.ConfianzaGeneral)%"></i>
+    </span>
+    @string.Format(Textos["RevIaConfianzaN"].Value, Revision.ConfianzaGeneral) · @Etiqueta
+</span>
+
+@code {
+    [Parameter, EditorRequired] public RevisionIaDocumentoDto Revision { get; set; } = default!;
+
+    /// <summary>El tratamiento de la lectura («Confirmable», «Revisión manual», «Sin fecha detectada», «Con alerta»).</summary>
+    [Parameter, EditorRequired] public string Etiqueta { get; set; } = string.Empty;
+}

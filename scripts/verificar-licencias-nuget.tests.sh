@@ -126,7 +126,9 @@ assert_menciona() {
   local resultado
   resultado="$(ejecutar "$ruta_lista")"
   PRUEBAS=$((PRUEBAS + 1))
-  if printf '%s' "${resultado#*|}" | grep -qi -- "$patron"; then
+  # `grep <<<`, no `printf | grep -q`: con pipefail, grep -q cierra la tubería al
+  # primer acierto y el printf que sigue escribiendo hace fallar la comprobación.
+  if grep -qi -- "$patron" <<<"${resultado#*|}"; then
     echo "OK: $descripcion"
   else
     echo "FALLO: $descripcion — la salida no menciona '$patron'" >&2
@@ -197,7 +199,54 @@ assert_codigo   "una versión NO revisada del mismo paquete sigue bloqueando" 1 
 assert_codigo "exceptuar un paquete no exceptúa a MediatR 13.0.0" 1 \
   "$(lista "ConFichero 1.0.0" "MediatR 13.0.0")"
 
+# Si la lista de excepciones no se puede leer entera, la verificación falla y no
+# decide: un `tr` falso escribe la lista completa (con la excepción) y luego sale
+# con error, solo cuando lo que lee es esta lista (MARCA_TR_FALLA). Con `tr |
+# grep` bajo pipefail salía PROBLEMA (1), un motivo equivocado; con la captura
+# sin comprobar el estado, se buscaba en la salida y pasaba como REVISADA (0).
+TR_REAL="$(command -v tr)"
+BIN_TR_FALLA="$TMP_ROOT/bin-tr-falla"; mkdir -p "$BIN_TR_FALLA"
+cat >"$BIN_TR_FALLA/tr" <<SH
+#!/bin/bash
+entrada="\$(cat; echo x)"; entrada="\${entrada%x}"
+printf '%s' "\$entrada" | "$TR_REAL" "\$@"
+[[ "\$entrada" == *MARCA_TR_FALLA* ]] && exit 1
+exit 0
+SH
+chmod +x "$BIN_TR_FALLA/tr"
+printf '# MARCA_TR_FALLA\nConFichero 1.0.0\n' >"$EXCEPCIONES_PRUEBA"
+PRUEBAS=$((PRUEBAS + 1))
+set +e
+salida_tr="$(PATH="$BIN_TR_FALLA:$PATH" "${VERIFICADOR[@]}" "$(lista "ConFichero 1.0.0")" 2>&1)"
+codigo_tr=$?
+set -e
+if [[ "$codigo_tr" == 2 ]] && grep -q 'no se pudo leer entera la lista de excepciones' <<<"$salida_tr"; then
+  echo "OK: un fallo leyendo las excepciones hace fallar la verificación, no la acepta"
+else
+  echo "FALLO: con la lista de excepciones ilegible se esperaba código 2, obtenido $codigo_tr" >&2
+  printf '%s\n' "$salida_tr" >&2
+  FALLOS=$((FALLOS + 1))
+fi
+
 unset EXCEPCIONES
+
+# Lo mismo con la lista de paquetes (revisión Codex de #2106, ronda 2): el mismo
+# `tr` falso la escribe entera y sale con error. Con `done < <(tr …)` el estado se
+# perdía y, revisado Serilog (MIT), el verificador salía con 0; ahora falla con 2
+# sin dar por revisada la lista. Mutación que lo pone en rojo: volver a
+# `done < <(tr -d '\r' <"$LISTA")` sin la captura previa.
+PRUEBAS=$((PRUEBAS + 1))
+set +e
+salida_lista="$(PATH="$BIN_TR_FALLA:$PATH" "${VERIFICADOR[@]}" "$(lista "# MARCA_TR_FALLA" "Serilog 4.4.0")" 2>&1)"
+codigo_lista=$?
+set -e
+if [[ "$codigo_lista" == 2 && "$salida_lista" == *"no se pudo leer entera la lista de paquetes"* ]]; then
+  echo "OK: un fallo leyendo la lista de paquetes hace fallar la verificación, no da 0"
+else
+  echo "FALLO: con la lista de paquetes ilegible se esperaba código 2, obtenido $codigo_lista" >&2
+  printf '%s\n' "$salida_lista" >&2
+  FALLOS=$((FALLOS + 1))
+fi
 
 echo
 echo "=== El instrumento distingue versión, no solo nombre ==="

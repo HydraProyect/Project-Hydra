@@ -2,13 +2,15 @@
     Lista desplegable del kit con popover propio (patrón combobox/listbox de WAI-ARIA): sustituye al
     <select> nativo cuando la lista es larga, necesita búsqueda o cada opción lleva una descripción.
     Hermano de CampoSelect, no su evolución: CampoSelect recibe <option> como contenido y se queda
-    donde el envío nativo del formulario manda (data-enviar-al-cambiar, optgroup); este recibe datos
-    (OpcionSelect), porque la búsqueda, la descripción y el punto de color necesitan leerlos.
+    donde el envío nativo del formulario manda (data-enviar-al-cambiar); este recibe datos
+    (OpcionSelect), porque la búsqueda, la descripción y el punto de color necesitan leerlos. Los grupos
+    (OpcionSelect.Grupo) hacen de optgroup: role="group" con su rótulo, y el filtro esconde los que vacía.
 
     Teclado y estado viven en C# (se prueban con bUnit); el JS (campo-select-avanzado.js) solo hace lo
     que Blazor no puede: preventDefault condicional de las teclas de navegación, anclar el panel a la
-    capa superior del navegador (así un Drawer o Modal con overflow no lo recorta) y voltearlo si no
-    cabe debajo. Sin JS el panel cae a posición absoluta bajo el disparador y sigue siendo usable.
+    capa superior del navegador (así un Drawer o Modal con overflow no lo recorta), voltearlo si no
+    cabe debajo, y devolver el foco al disparador al cerrar solo si no se ha ido ya a otro control
+    (#2194). Sin JS el panel cae a posición absoluta bajo el disparador y sigue siendo usable.
 
     Formularios: con Name pinta un <input type="hidden"> con el valor, así que un POST nativo lo envía
     como un select. Lo que NO replica es el envío al cambiar de data-enviar-al-cambiar (SelectorIdioma y
@@ -76,39 +78,61 @@
                     <input type="text" class="csa-buscador" @ref="_buscador"
                            role="combobox" aria-expanded="true" aria-autocomplete="list" aria-controls="@_idLista"
                            aria-activedescendant="@IdActivo" aria-label="@Comunes["SelectorBuscarEtiqueta"]"
-                           placeholder="@Comunes["SelectorBuscarMarcador"]" autocomplete="off"
+                           placeholder="@Comunes["SelectorBuscarMarcador"]" autocomplete="off" value="@_consultaSembrada"
                            @oninput="AlEscribir" @onkeydown="e => ManejarTeclaAsync(e, true)" />
                 </div>
             }
             <ul id="@_idLista" class="csa-lista" role="listbox" tabindex="-1"
                 aria-labelledby="@(string.IsNullOrWhiteSpace(Etiqueta) ? null : _idEtiqueta)"
                 aria-label="@(string.IsNullOrWhiteSpace(Etiqueta) ? EtiquetaAccesible : null)">
-                @foreach (var (posicion, indice) in _visibles.Index())
+                @{
+                    // Una fila de opción; la pintan igual la lista plana y la agrupada (context = posición en _visibles).
+                    RenderFragment<int> FilaOpcion = posicion =>
+                        @<li id="@IdOpcion(_visibles[posicion])" role="option" data-valor="@OpcionEn(posicion).Valor"
+                             aria-selected="@(EsElegida(posicion) ? "true" : "false")"
+                             aria-disabled="@(OpcionEn(posicion).Deshabilitada ? "true" : null)"
+                             class="@ClaseOpcion(posicion, EsElegida(posicion), OpcionEn(posicion).Deshabilitada)"
+                             @onclick="() => ElegirAsync(posicion)">
+                            @if (OpcionEn(posicion).Tono is { } tono)
+                            {
+                                <span class="@ClasePunto(tono)" aria-hidden="true"></span>
+                            }
+                            <span class="csa-texto">
+                                @(OpcionEn(posicion).Texto)
+                                @if (!string.IsNullOrWhiteSpace(OpcionEn(posicion).Descripcion))
+                                {
+                                    <small class="csa-descripcion">@(OpcionEn(posicion).Descripcion)</small>
+                                }
+                            </span>
+                            <span class="csa-marca" aria-hidden="true">
+                                @if (EsElegida(posicion))
+                                {
+                                    <Icono Nombre="check" Tamano="TamanoIcono.Pequeno" />
+                                }
+                            </span>
+                        </li>;
+                }
+                @if (HayGrupos)
                 {
-                    var opcion = _todas[indice];
-                    var elegida = !Multiple && opcion.Valor == Valor;
-                    <li id="@IdOpcion(indice)" role="option" data-valor="@opcion.Valor" aria-selected="@(elegida ? "true" : "false")"
-                        aria-disabled="@(opcion.Deshabilitada ? "true" : null)"
-                        class="@ClaseOpcion(posicion, elegida, opcion.Deshabilitada)"
-                        @onclick="() => ElegirAsync(posicion)">
-                        @if (opcion.Tono is { } tono)
-                        {
-                            <span class="@ClasePunto(tono)" aria-hidden="true"></span>
-                        }
-                        <span class="csa-texto">
-                            @opcion.Texto
-                            @if (!string.IsNullOrWhiteSpace(opcion.Descripcion))
-                            {
-                                <small class="csa-descripcion">@opcion.Descripcion</small>
-                            }
-                        </span>
-                        <span class="csa-marca" aria-hidden="true">
-                            @if (elegida)
-                            {
-                                <Icono Nombre="check" Tamano="TamanoIcono.Pequeno" />
-                            }
-                        </span>
-                    </li>
+                    @foreach (var (numero, tramo) in TramosPorGrupo().Index())
+                    {
+                        <li role="group" class="csa-grupo" aria-labelledby="@IdGrupo(numero)">
+                            <div id="@IdGrupo(numero)" class="csa-grupo-rotulo">@tramo.Rotulo</div>
+                            <ul role="none" class="csa-grupo-lista">
+                                @foreach (var posicion in tramo.Posiciones)
+                                {
+                                    @FilaOpcion(posicion)
+                                }
+                            </ul>
+                        </li>
+                    }
+                }
+                else
+                {
+                    @foreach (var posicion in Enumerable.Range(0, _visibles.Count))
+                    {
+                        @FilaOpcion(posicion)
+                    }
                 }
                 @if (MostrarCrear)
                 {
@@ -121,7 +145,7 @@
             </ul>
             @if (_visibles.Count == 0)
             {
-                <p class="csa-vacio">@Comunes["SelectorSinResultados"]</p>
+                <p class="csa-vacio">@(TextoSinResultados ?? Comunes["SelectorSinResultados"].Value)</p>
             }
             @if (EsBuscable)
             {
@@ -156,6 +180,11 @@
     private bool _anclado;
     private bool _desechado;
     private string _consulta = string.Empty;
+
+    // Lo que el servidor escribe en el buscador: solo cambia cuando la búsqueda se siembra desde fuera del input
+    // (teclear sobre el disparador). Lo que el usuario escribe en el input no lo toca, así un render en cola con
+    // un valor más corto nunca pisa lo que ya ve (el mismo fallo que CampoTexto evita).
+    private string _consultaSembrada = string.Empty;
     private int _activo = -1;
     private string _escrito = string.Empty;
     private long _escritoEn;
@@ -200,6 +229,9 @@
 
     [Parameter, EditorRequired] public IReadOnlyList<OpcionSelect> Opciones { get; set; } = [];
 
+    /// <summary>Texto del panel cuando la búsqueda no deja ninguna opción. Sin valor, el común del kit.</summary>
+    [Parameter] public string? TextoSinResultados { get; set; }
+
     /// <summary>
     /// Alta en línea («Panel Formulario TALVEG»): con <see cref="OnCrear"/>, y mientras se busca un texto que no coincide
     /// exactamente con ninguna opción, el panel termina en una fila fija «+ Crear "X"». Pulsarla, o Intro cuando no hay otra opción
@@ -219,7 +251,18 @@
     private readonly List<OpcionSelect> _creadas = [];
     private IReadOnlyList<OpcionSelect> _todas = [];
 
-    protected override void OnParametersSet() => RecalcularTodas();
+    protected override void OnParametersSet()
+    {
+        var anteriores = _todas;
+        RecalcularTodas();
+        if (!_abierto || ReferenceEquals(anteriores, _todas)) return;
+
+        // Con la lista abierta, unas opciones que llegan mientras se busca (una carga asíncrona del padre) rehacen
+        // el filtro: los índices visibles apuntaban a la lista anterior y pintaban filas que ya no tocaban.
+        Recalcular();
+        if (_activo < 0 || _activo >= _visibles.Count + (MostrarCrear ? 1 : 0))
+            _activo = _visibles.FindIndex(i => !_todas[i].Deshabilitada);
+    }
 
     private void RecalcularTodas() =>
         _todas = _creadas.Count == 0 ? Opciones : [.. Opciones, .. _creadas.Where(c => Opciones.All(o => o.Valor != c.Valor))];
@@ -292,6 +335,40 @@
 
     private string IdOpcion(int indice) => $"{IdCampo}-op-{indice}";
 
+    private string IdGrupo(int numero) => $"{IdCampo}-grupo-{numero}";
+
+    private bool HayGrupos => _todas.Any(o => !string.IsNullOrWhiteSpace(o.Grupo));
+
+    private readonly record struct TramoGrupo(string Rotulo, int Desde, int Hasta)
+    {
+        public IEnumerable<int> Posiciones => Enumerable.Range(Desde, Hasta - Desde);
+    }
+
+    /// <summary>
+    /// Corta las opciones visibles en tramos seguidos del mismo <see cref="OpcionSelect.Grupo"/>, en el orden de
+    /// <see cref="Opciones"/>. Solo salen los grupos con alguna opción visible: el que el filtro vacía desaparece.
+    /// Las posiciones son las de <c>_visibles</c>, así que el teclado recorre la lista igual que sin grupos.
+    /// </summary>
+    private List<TramoGrupo> TramosPorGrupo()
+    {
+        var tramos = new List<TramoGrupo>();
+        var desde = 0;
+        for (var posicion = 1; posicion <= _visibles.Count; posicion++)
+        {
+            var rotulo = _todas[_visibles[desde]].Grupo ?? string.Empty;
+            if (posicion < _visibles.Count && (_todas[_visibles[posicion]].Grupo ?? string.Empty) == rotulo) continue;
+
+            tramos.Add(new TramoGrupo(rotulo, desde, posicion));
+            desde = posicion;
+        }
+
+        return tramos;
+    }
+
+    private OpcionSelect OpcionEn(int posicion) => _todas[_visibles[posicion]];
+
+    private bool EsElegida(int posicion) => !Multiple && OpcionEn(posicion).Valor == Valor;
+
     private static string ClasePunto(TonoBadge tono) => $"csa-punto csa-punto-{tono.ToString().ToLowerInvariant()}";
 
     private string ClaseOpcion(int posicion, bool elegida, bool deshabilitada) =>
@@ -317,6 +394,7 @@
 
         _abierto = true;
         _consulta = string.Empty;
+        _consultaSembrada = string.Empty;
         _escrito = string.Empty;
         Recalcular();
         _activo = _visibles.FindIndex(i => _todas[i].Valor == Valor && !_todas[i].Deshabilitada);
@@ -341,7 +419,23 @@
     {
         var comparador = CultureInfo.CurrentCulture.CompareInfo;
         return comparador.IndexOf(opcion.Texto, buscado, SinMayusculasNiTildes) >= 0
-            || (opcion.Descripcion is not null && comparador.IndexOf(opcion.Descripcion, buscado, SinMayusculasNiTildes) >= 0);
+            || (opcion.Descripcion is not null && comparador.IndexOf(opcion.Descripcion, buscado, SinMayusculasNiTildes) >= 0)
+            || (opcion.Alias is not null && opcion.Alias.Any(a => comparador.IndexOf(a, buscado, SinMayusculasNiTildes) >= 0));
+    }
+
+    /// <summary>
+    /// Con buscador, escribir sobre el disparador es buscar: la letra entra en la búsqueda (y el panel se abre si
+    /// estaba cerrado), en vez de saltar a la opción que empieza por ella. Así el campo es uno solo: se escribe en
+    /// él y la lista se filtra.
+    /// </summary>
+    private void AnadirABusqueda(string tecla)
+    {
+        _consulta += tecla;
+        _consultaSembrada = _consulta;
+        Recalcular();
+        _activo = _visibles.FindIndex(i => !_todas[i].Deshabilitada);
+        if (_activo < 0 && MostrarCrear) _activo = _visibles.Count;
+        _desplazarPendiente = true;
     }
 
     private void AlEscribir(ChangeEventArgs e)
@@ -364,7 +458,8 @@
             else if (!enBuscador && EsCaracter(e))
             {
                 Abrir();
-                EscribirRapido(e.Key);
+                if (EsBuscable) AnadirABusqueda(e.Key);
+                else EscribirRapido(e.Key);
             }
 
             return;
@@ -382,7 +477,12 @@
             // Tab cierra y deja que el navegador siga su camino: el foco no se devuelve.
             case "Tab": Cerrar(devolverFoco: false); break;
             default:
-                if (!enBuscador && EsCaracter(e)) EscribirRapido(e.Key);
+                // Letras pulsadas antes de que el foco llegue al buscador: siguen sumando a la búsqueda.
+                if (!enBuscador && EsCaracter(e))
+                {
+                    if (EsBuscable) AnadirABusqueda(e.Key);
+                    else EscribirRapido(e.Key);
+                }
                 break;
         }
     }
@@ -445,6 +545,9 @@
 
     private async Task ElegirAsync(int posicion)
     {
+        // El padre puede deshabilitar el campo con la lista ya abierta (un guardado en curso): Abrir() no basta.
+        if (Deshabilitado) return;
+
         if (posicion == _visibles.Count && MostrarCrear)
         {
             await CrearAsync();
@@ -500,7 +603,7 @@
             if (_devolverFocoPendiente)
             {
                 _devolverFocoPendiente = false;
-                await _disparador.FocusAsync();
+                await DevolverFocoAsync();
             }
         }
         catch (Exception ex) when (ex is JSException or JSDisconnectedException or InvalidOperationException or TaskCanceledException)
@@ -508,6 +611,29 @@
             // Mejor esfuerzo (mismo criterio que Drawer/Modal): sin el módulo JS (tests de componente,
             // circuito cerrándose) la lista sigue usable, solo sin el anclaje a la capa superior.
         }
+    }
+
+    /// <summary>
+    /// Con el módulo, el foco vuelve al disparador solo si no se ha ido ya a otro control mientras llegaba esta orden
+    /// del servidor (devolverFoco en campo-select-avanzado.js, #2194). Sin módulo, o con uno que no la tenga (un
+    /// campo-select-avanzado.js anterior en la caché del navegador), vuelve siempre, como antes.
+    /// </summary>
+    private async Task DevolverFocoAsync()
+    {
+        if (_control is not null)
+        {
+            try
+            {
+                await _control.InvokeVoidAsync("devolverFoco", _disparador);
+                return;
+            }
+            catch (JSException)
+            {
+                // Se cae al FocusAsync de siempre.
+            }
+        }
+
+        await _disparador.FocusAsync();
     }
 
     private async Task CrearControlAsync()

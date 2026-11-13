@@ -113,15 +113,16 @@ public class EjecutarImportacionCombinadaCommandHandler(
         // Con un ámbito de Clientes empresariales acotado, ese error propio delataría que existe una Empresa dada de baja con
         // ese CIF (un dato que el acto no ve): la fila se omite con el motivo uniforme de fuera de ámbito y el nombre queda
         // fijado a esa Empresa para que las filas que lo citen lo traten igual que a un Cliente existente fuera de ámbito.
-        // Si el acto ve todos los Clientes empresariales (Total, o Acotada sin restricción de Clientes) no hay nada que
-        // ocultar y se conserva el error accionable («Restáurala antes de importar»).
+        // Si el acto ve todos los Clientes empresariales (Total, Acotada sin restricción de Clientes, o Asignación de Cartera
+        // universal aunque se exprese como lista explícita) no hay nada que ocultar y se conserva el error accionable
+        // («Restáurala antes de importar»): ver AmbitoCargaMasiva.PuedeNombrarCliente.
         var ambitoDeBajas = await AmbitoCargaMasiva.ResolverAsync(autoridad, alcanceDatos, cancellationToken);
         Dictionary<string, Guid>? cifsDeBaja = null;
         foreach (var fila in plan.Clientes)
         {
             var duplicada = await empresaRepositorio.ObtenerDuplicadaPorCifAsync(fila.Cif, cancellationToken: cancellationToken);
             if (duplicada?.EstaEliminado != true) continue;
-            if (ambitoDeBajas.Cliente(duplicada.Id))
+            if (ambitoDeBajas.PuedeNombrarCliente(duplicada.Id))
                 return Result.Fallo<ResultadoImportacionCombinadaDto>(DuplicadosEmpresa.ErrorDeBajaEnImportacion(fila.Cif));
             (cifsDeBaja ??= [])[fila.Cif.Trim().ToUpperInvariant()] = duplicada.Id;
         }

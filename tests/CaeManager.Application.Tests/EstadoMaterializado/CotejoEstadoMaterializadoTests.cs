@@ -56,6 +56,7 @@ public class CotejoEstadoMaterializadoTests
         var diferencias = Comparar(Calculo([par], [entidad], [acreditacion]), [Guardada(par)], [Guardada(acreditacion)], [Guardada(entidad)]);
 
         diferencias.Total.Should().Be(0);
+        diferencias.HayQueCorregir.Should().BeFalse();
         diferencias.Raices.EstaVacia.Should().BeTrue();
     }
 
@@ -68,6 +69,7 @@ public class CotejoEstadoMaterializadoTests
         var diferencias = Comparar(Calculo([calculado]), [Guardada(guardado)]);
 
         diferencias.Pares.Distintas.Should().Be(1);
+        diferencias.Pares.DeOtraVersion.Should().Be(0, "la fila es de la versión vigente");
         diferencias.Total.Should().Be(1);
         diferencias.Raices.TrabajadorIds.Should().Equal(Trabajador);
         diferencias.Raices.CentroIds.Should().BeEmpty();
@@ -83,12 +85,70 @@ public class CotejoEstadoMaterializadoTests
     }
 
     [Fact]
-    public void Una_fila_escrita_con_otra_version_de_la_regla_es_distinta_aunque_sus_columnas_coincidan()
+    public void Una_fila_de_otra_version_de_la_regla_con_las_mismas_columnas_no_es_discrepancia_pero_se_corrige()
     {
         var par = Par(AmbitoAplicacion.Trabajador, Trabajador);
 
-        Comparar(Calculo([par]), [Guardada(par, version: CalculoEstadoMaterializado.VersionDeLaRegla - 1)])
-            .Pares.Distintas.Should().Be(1);
+        var diferencias = Comparar(Calculo([par]), [Guardada(par, version: CalculoEstadoMaterializado.VersionDeLaRegla - 1)]);
+
+        diferencias.Total.Should().Be(0, "el recálculo previsto tras subir la versión no pide aviso");
+        diferencias.Pares.Distintas.Should().Be(0);
+        diferencias.Pares.DeOtraVersion.Should().Be(1);
+        diferencias.DeOtraVersion.Should().Be(1);
+        diferencias.HayQueCorregir.Should().BeTrue("la fila se reescribe con la versión vigente");
+        diferencias.Raices.TrabajadorIds.Should().Equal(Trabajador);
+    }
+
+    [Fact]
+    public void Una_fila_de_otra_version_de_la_regla_con_columnas_distintas_es_discrepancia()
+    {
+        var calculado = Par(AmbitoAplicacion.Trabajador, Trabajador, estado: 2);
+        var guardado = Par(AmbitoAplicacion.Trabajador, Trabajador, estado: 1);
+
+        var diferencias = Comparar(Calculo([calculado]), [Guardada(guardado, version: CalculoEstadoMaterializado.VersionDeLaRegla - 1)]);
+
+        diferencias.Pares.Distintas.Should().Be(1);
+        diferencias.Pares.DeOtraVersion.Should().Be(0);
+        diferencias.Total.Should().Be(1, "cambiar además la versión no oculta una discrepancia real de valores");
+        diferencias.Raices.TrabajadorIds.Should().Equal(Trabajador);
+    }
+
+    [Fact]
+    public void Una_fila_de_entidad_de_otra_version_con_las_mismas_columnas_la_rehace_su_entidad_sin_discrepancia()
+    {
+        var entidad = Entidad(AmbitoEstadoEntidad.Centro, Centro);
+
+        var diferencias = Comparar(Calculo(entidades: [entidad]),
+            entidades: [Guardada(entidad, version: CalculoEstadoMaterializado.VersionDeLaRegla - 1)]);
+
+        diferencias.Total.Should().Be(0);
+        diferencias.Entidades.DeOtraVersion.Should().Be(1);
+        diferencias.Raices.CentroIds.Should().Equal(Centro);
+    }
+
+    [Fact]
+    public void Una_acreditacion_de_otra_version_con_las_mismas_columnas_la_rehace_su_Centro_sin_discrepancia()
+    {
+        var acreditacion = Acreditacion(Trabajador);
+
+        var diferencias = Comparar(Calculo(plataforma: [acreditacion]),
+            plataforma: [Guardada(acreditacion, version: CalculoEstadoMaterializado.VersionDeLaRegla - 1)]);
+
+        diferencias.Total.Should().Be(0);
+        diferencias.Plataforma.DeOtraVersion.Should().Be(1);
+        diferencias.Raices.CentroIds.Should().Equal(Centro);
+    }
+
+    [Fact]
+    public void Una_fila_de_otra_version_que_sobra_sigue_siendo_discrepancia()
+    {
+        var sobra = Par(AmbitoAplicacion.Empresa, Empresa);
+
+        var diferencias = Comparar(Calculo(), [Guardada(sobra, version: CalculoEstadoMaterializado.VersionDeLaRegla - 1)]);
+
+        diferencias.Pares.Sobran.Should().Be(1);
+        diferencias.DeOtraVersion.Should().Be(0);
+        diferencias.Total.Should().Be(1);
     }
 
     [Fact]

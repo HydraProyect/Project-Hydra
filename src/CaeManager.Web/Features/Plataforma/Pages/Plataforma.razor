@@ -3,6 +3,8 @@
 @inherits CaeManager.Web.Components.PaginaInteractiva
 @attribute [Authorize]
 @using CaeManager.Application.Plataforma.Commands.AutoConcederPrivilegio
+@using CaeManager.Application.Plataforma.Commands.CambiarSegundoFactorDelTenantPorPlataforma
+@using CaeManager.Application.Plataforma.Queries.ObtenerAjusteSegundoFactorPorPlataforma
 @using CaeManager.Application.Plataforma.Queries.ObtenerSesionPrivilegiadaPorId
 @using CaeManager.Application.Plataforma.Queries.ObtenerIdentidadPlataforma
 @using CaeManager.Application.Plataforma.Queries.PuedeInicializarPlataforma
@@ -273,6 +275,35 @@
         </section>
     }
 
+    @* Decisiones del 2026-11-08: solo existe dentro de una Sesión Privilegiada con la capacidad
+       AjusteSegundoFactorTenant sobre la organización visitada, y solo cambia la exigencia de
+       verificación en dos pasos, nunca el plazo de inactividad. La autorización real la deciden
+       CambiarSegundoFactorDelTenantPorPlataformaCommand y la base. *@
+    @if (_ajusteSegundoFactor is { } ajuste)
+    {
+        <section class="administracion-global-seccion" aria-labelledby="ajuste-segundo-factor">
+            <h2 id="ajuste-segundo-factor">@Textos["AjusteSegundoFactorTitulo"]</h2>
+            <div class="administracion-global-sesion">
+                <p>@Textos["AjusteSegundoFactorExplicacion"]</p>
+                <dl class="administracion-global-detalle-sesion">
+                    <div>
+                        <dt>@Textos["AjusteSegundoFactorCampoEstado"]</dt>
+                        <dd>@(ajuste.ExigeSegundoFactorTodosLosPerfiles ? Textos["AjusteSegundoFactorExigida"] : Textos["AjusteSegundoFactorNoExigida"])</dd>
+                    </div>
+                </dl>
+                @if (_segundoFactorAjustado)
+                {
+                    <p class="administracion-global-exito" role="status">
+                        <Icono Nombre="exito-circulo" Tamano="TamanoIcono.Pequeno" />@Textos["AjusteSegundoFactorExito"]
+                    </p>
+                }
+                <Boton Variante="VarianteBoton.Secundario" OnClick="() => AbrirConfirmacionAjuste(!ajuste.ExigeSegundoFactorTodosLosPerfiles)">
+                    @(ajuste.ExigeSegundoFactorTodosLosPerfiles ? Textos["AjusteSegundoFactorDesactivar"] : Textos["AjusteSegundoFactorActivar"])
+                </Boton>
+            </div>
+        </section>
+    }
+
     @* Decisión D-8 (2026-10-08): el Encargo de administración de la organización visitada se registra y
        se retira desde aquí solo dentro de una Sesión Privilegiada de aprovisionamiento. La autoridad
        real la deciden los comandos del encargo y la base. *@
@@ -359,6 +390,20 @@
         </Boton>
     </Pie>
 </Modal>
+
+<ModalFormulario Visible="_ajusteSegundoFactorPedido is not null"
+                 VisibleChanged="(bool visible) => CerrarConfirmacionAjuste(visible)"
+                 Titulo="@Textos["AjusteSegundoFactorTitulo"]"
+                 HayCambios="() => !string.IsNullOrWhiteSpace(_motivoAjuste)"
+                 Guardando="_ajustando" MensajeError="@_errorAjuste"
+                 MotivoGuardarDeshabilitado="@(string.IsNullOrWhiteSpace(_motivoAjuste) ? Textos["AjusteSegundoFactorMotivoObligatorio"].Value : null)"
+                 TextoCancelar="@Textos["AjusteSegundoFactorCancelar"]" TextoGuardar="@Textos["AjusteSegundoFactorConfirmar"]"
+                 OnGuardar="CambiarSegundoFactorAsync">
+    <ChildContent>
+        <p>@(_ajusteSegundoFactorPedido == true ? Textos["AjusteSegundoFactorConfirmacionActivar"] : Textos["AjusteSegundoFactorConfirmacionDesactivar"])</p>
+        <CampoTexto Etiqueta="@Textos["AjusteSegundoFactorMotivo"]" Valor="@_motivoAjuste" ValorChanged="v => _motivoAjuste = v" maxlength="500" required />
+    </ChildContent>
+</ModalFormulario>
 </LimiteDeErrores>
 
 @code {
@@ -368,6 +413,12 @@
     private bool _restableciendo;
     private bool _segundoFactorRestablecido;
     private string? _errorRestablecer;
+    private AjusteSegundoFactorPorPlataformaDto? _ajusteSegundoFactor;
+    private bool? _ajusteSegundoFactorPedido;
+    private string _motivoAjuste = "";
+    private bool _ajustando;
+    private bool _segundoFactorAjustado;
+    private string? _errorAjuste;
     private long _generacion;
     private bool _cargando = true;
     private bool _errorCarga;
@@ -410,16 +461,19 @@
         _detalleSesion = null;
         _identidad = null;
         _restablecimiento = null;
+        _ajusteSegundoFactor = null;
 
         try
         {
             var puedeInicializarTask = Mediator.Send(new PuedeInicializarPlataformaQuery(), cancellationToken);
             var identidadTask = Mediator.Send(new ObtenerIdentidadPlataformaQuery(), cancellationToken);
             var restablecimientoTask = Mediator.Send(new ObtenerRestablecimientoPorSoporteQuery(), cancellationToken);
-            await Task.WhenAll(puedeInicializarTask, identidadTask, restablecimientoTask);
+            var ajusteTask = Mediator.Send(new ObtenerAjusteSegundoFactorPorPlataformaQuery(), cancellationToken);
+            await Task.WhenAll(puedeInicializarTask, identidadTask, restablecimientoTask, ajusteTask);
             var puedeInicializar = await puedeInicializarTask;
             var identidad = await identidadTask;
             var restablecimiento = await restablecimientoTask;
+            var ajuste = await ajusteTask;
             SesionPrivilegiadaDetalleDto? detalle = null;
 
             if (SesionParaCerrar is { } sesion)
@@ -436,6 +490,7 @@
             _identidad = identidad;
             _detalleSesion = detalle;
             _restablecimiento = restablecimiento;
+            _ajusteSegundoFactor = ajuste;
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
@@ -575,6 +630,73 @@
             if (generacion == Volatile.Read(ref _generacion))
             {
                 _restableciendo = false;
+            }
+        }
+    }
+
+    private void AbrirConfirmacionAjuste(bool exigir)
+    {
+        _errorAjuste = null;
+        _motivoAjuste = "";
+        _segundoFactorAjustado = false;
+        _ajusteSegundoFactorPedido = exigir;
+    }
+
+    private void CerrarConfirmacionAjuste(bool visible)
+    {
+        if (visible || _ajustando)
+        {
+            return;
+        }
+
+        _ajusteSegundoFactorPedido = null;
+        _errorAjuste = null;
+        _motivoAjuste = "";
+    }
+
+    private async Task CambiarSegundoFactorAsync()
+    {
+        if (_ajustando || _ajusteSegundoFactorPedido is not { } exigir || string.IsNullOrWhiteSpace(_motivoAjuste))
+        {
+            return;
+        }
+
+        var generacion = Volatile.Read(ref _generacion);
+        _ajustando = true;
+        _errorAjuste = null;
+
+        try
+        {
+            var resultado = await Mediator.Send(new CambiarSegundoFactorDelTenantPorPlataformaCommand(exigir, _motivoAjuste));
+            var mensajeError = resultado.EsFallido ? resultado.Error.Mensaje : null;
+
+            if (generacion != Volatile.Read(ref _generacion))
+            {
+                return;
+            }
+
+            if (mensajeError is not null)
+            {
+                _errorAjuste = mensajeError;
+                // La base ya tiene ese valor (lo cambió otro, por ejemplo el Administrador del
+                // Tenant): la sección deja de ofrecer el cambio que ya no procede.
+                if (resultado.Error.Codigo == "SeguridadAcceso.SinCambios")
+                {
+                    _ajusteSegundoFactor = new AjusteSegundoFactorPorPlataformaDto(exigir);
+                }
+                return;
+            }
+
+            _ajusteSegundoFactor = new AjusteSegundoFactorPorPlataformaDto(exigir);
+            _segundoFactorAjustado = true;
+            _ajusteSegundoFactorPedido = null;
+            _motivoAjuste = "";
+        }
+        finally
+        {
+            if (generacion == Volatile.Read(ref _generacion))
+            {
+                _ajustando = false;
             }
         }
     }

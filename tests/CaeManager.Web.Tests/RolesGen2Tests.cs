@@ -13,6 +13,7 @@ using GestionCuentasUsuarioIdentity = CaeManager.Infrastructure.Identity.Gestion
 using CaeManager.Infrastructure.Persistence;
 using CaeManager.Web.Components.DesignSystem;
 using CaeManager.Web.Features.GestionRoles.Pages;
+using CaeManager.Web.Tests.Email;
 using FluentAssertions;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Web;
@@ -20,6 +21,7 @@ using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 using ApplicationUser = CaeManager.Infrastructure.Identity.ApplicationUser;
 using RolesIdentidad = CaeManager.Infrastructure.Identity.Roles;
 
@@ -111,6 +113,7 @@ public class RolesGen2Tests : BunitContext
     }
     private readonly CorreoFalso _correo = new();
     private readonly UserManagerFalso _usuarios = new();
+    private readonly RegistroQueCapturaTodo<Roles> _registro = new();
 
     // ---------------------------------------------------------------- dobles
 
@@ -298,6 +301,7 @@ public class RolesGen2Tests : BunitContext
         Services.AddSingleton(_fuente);
         Services.AddSingleton(_toasts);
         Services.AddSingleton<IEmailService>(_correo);
+        Services.AddSingleton<ILogger<Roles>>(_registro);
         Services.AddLocalization();
         Services.AddSingleton<IMediator>(_mediador);
         Services.AddSingleton<UserManager<ApplicationUser>>(_usuarios);
@@ -576,7 +580,8 @@ public class RolesGen2Tests : BunitContext
         await Pestana(cut, "roles").KeyDownAsync(new KeyboardEventArgs { Key = "ArrowDown" });
 
         Pestana(cut, "roles").GetAttribute("aria-selected").Should().Be("true");
-        JSInterop.Invocations.Should().BeEmpty("sin pestaña destino no hay foco que pedir");
+        JSInterop.Invocations.Where(i => i.Identifier is not ("import" or "fijarTitulo" or "liberar"))
+            .Should().BeEmpty("sin pestaña destino no hay foco que pedir (el título de la pestaña del navegador importa y llama a su módulo, y eso no es foco)");
     }
 
     /// <summary>
@@ -752,6 +757,73 @@ public class RolesGen2Tests : BunitContext
         _fuente.LlamadasPendientes.Should().Be(2, "sin saber si el rol llegó a guardarse, la lista se vuelve a pedir");
     }
 
+    /// <summary>
+    /// ASVS 4.0.3 V7.1.1: un error de Identity o de datos al asignar el rol cita la cuenta en su mensaje (y en el
+    /// de su causa); al registro solo van el identificador de la cuenta y el tipo de la excepción. Captura
+    /// todas las entradas de cualquier nivel: la pantalla se recarga tras el fallo y esa carga tampoco puede filtrar.
+    /// </summary>
+    [Fact]
+    public async Task Si_asignar_lanza_el_registro_no_lleva_la_direccion_ni_el_mensaje_ni_la_excepcion()
+    {
+        SembrarCuenta(Aitor);
+        _fuente.Pendientes = _ => [Aitor];
+        _usuarios.FalloAlAsignar = new InvalidOperationException(
+            $"Violación de unicidad del correo {Aitor.Email}",
+            new TimeoutException($"Sin respuesta de PostgreSQL para {Aitor.Email}"));
+        var cut = await AbrirPendientesAsync();
+
+        await BotonAsignar(cut, "Aitor Zabala").ClickAsync(new MouseEventArgs());
+        await BotonDelDialogo(cut, "Asignar rol").ClickAsync(new MouseEventArgs());
+
+        _registro.Entradas.Should().ContainSingle(e => e.Nivel == LogLevel.Error).Which.Contenido
+            .Should().Contain(nameof(InvalidOperationException)).And.Contain(AitorId.ToString());
+        _registro.DebeEstarLimpioDeDatosPersonales(
+            Aitor.Email, "aitor.zabala", "Violación de unicidad", "Sin respuesta de PostgreSQL");
+    }
+
+    /// <summary>
+    /// ASVS 4.0.3 V7.1.1: el rol sale del selector sin validar y Application lo valida después de consultar el rol
+    /// efectivo; si esa consulta lanza, un valor manipulado con una dirección no puede llegar a ninguna entrada.
+    /// </summary>
+    [Fact]
+    public async Task Si_asignar_lanza_con_un_rol_manipulado_el_registro_no_lleva_el_valor_del_rol()
+    {
+        const string RolManipulado = "fuga@ejemplo.test";
+        SembrarCuenta(Aitor);
+        _fuente.Pendientes = _ => [Aitor];
+        var cut = await AbrirPendientesAsync();
+        _mediador.Asignar = _ => throw new InvalidOperationException("Fallo al consultar el rol efectivo");
+
+        await cut.FindAll("tbody tr")[0].QuerySelector("select")!
+            .ChangeAsync(new ChangeEventArgs { Value = RolManipulado });
+        await BotonAsignar(cut, "Aitor Zabala").ClickAsync(new MouseEventArgs());
+        await BotonDelDialogo(cut, "Asignar rol").ClickAsync(new MouseEventArgs());
+
+        _registro.Entradas.Should().ContainSingle(e => e.Nivel == LogLevel.Error).Which.Contenido
+            .Should().Contain(nameof(InvalidOperationException)).And.Contain(AitorId.ToString());
+        _registro.DebeEstarLimpioDeDatosPersonales(RolManipulado, "ejemplo.test", "Fallo al consultar el rol efectivo");
+    }
+
+    /// <summary>
+    /// ASVS 4.0.3 V7.1.1: si la carga de roles y cuentas pendientes falla con un mensaje que cita una cuenta, el
+    /// registro lleva el tipo de la excepción y nada de su mensaje ni de su causa.
+    /// </summary>
+    [Fact]
+    public void Si_la_carga_falla_el_registro_no_lleva_la_direccion_ni_el_mensaje_ni_la_excepcion()
+    {
+        _fuente.Recuento = _ => throw new InvalidOperationException(
+            $"La lectura de la cuenta {Aitor.Email} falló",
+            new TimeoutException($"Sin respuesta de PostgreSQL para {Aitor.Email}"));
+
+        var cut = Renderizar();
+
+        cut.Markup.Should().Contain("No pudimos cargar los roles");
+        _registro.Entradas.Should().ContainSingle(e => e.Nivel == LogLevel.Error).Which.Contenido
+            .Should().Contain(nameof(InvalidOperationException));
+        _registro.DebeEstarLimpioDeDatosPersonales(
+            Aitor.Email, "aitor.zabala", "La lectura de la cuenta", "Sin respuesta de PostgreSQL");
+    }
+
     [Fact]
     public async Task Si_el_correo_de_bienvenida_lanza_la_asignacion_sigue_contando_como_hecha()
     {
@@ -770,6 +842,29 @@ public class RolesGen2Tests : BunitContext
         _toasts.Mensajes.Should().ContainSingle(m => m.Tono == TonoToast.Advertencia && m.Mensaje.Contains("aitor.zabala@talveg.es"),
             "quien asigna tiene que saber que la persona no recibió el aviso");
         cut.Markup.Should().Contain("No hay nadie pendiente");
+    }
+
+    /// <summary>
+    /// ASVS 4.0.3 V7.1.1: la excepción del servicio de correo cita la dirección en su mensaje (y en el de su
+    /// causa); al registro solo va el tipo y el identificador de la cuenta. La advertencia a quien asigna, que
+    /// sí lleva la dirección, es del propio Tenant y no va al registro.
+    /// </summary>
+    [Fact]
+    public async Task Si_el_correo_de_bienvenida_lanza_el_registro_no_lleva_la_direccion_ni_el_mensaje_ni_la_excepcion()
+    {
+        SembrarCuenta(Aitor);
+        _fuente.Pendientes = llamada => llamada == 1 ? [Aitor] : [];
+        _correo.Lanza = new HttpRequestException(
+            $"Microsoft Graph rechazó el envío a {Aitor.Email}",
+            new TimeoutException($"Sin respuesta de {Aitor.Email}"));
+        var cut = await AbrirPendientesAsync();
+
+        await BotonAsignar(cut, "Aitor Zabala").ClickAsync(new MouseEventArgs());
+        await BotonDelDialogo(cut, "Asignar rol").ClickAsync(new MouseEventArgs());
+
+        _registro.DebeEstarLimpioDeDatosPersonales(Aitor.Email, "Microsoft Graph rechazó", "Sin respuesta");
+        _registro.Entradas.Should().ContainSingle(e => e.Nivel == LogLevel.Warning).Which.Contenido
+            .Should().Contain(nameof(HttpRequestException)).And.Contain(AitorId.ToString());
     }
 
     [Fact]

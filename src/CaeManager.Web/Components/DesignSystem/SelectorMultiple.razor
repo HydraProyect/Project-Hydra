@@ -120,7 +120,8 @@
 
     private IReadOnlyList<ElementoSeleccionable> ElementosFiltrados =>
         Elementos
-            .Where(e => string.IsNullOrWhiteSpace(_busqueda) || e.Nombre.Contains(_busqueda, StringComparison.OrdinalIgnoreCase))
+            // Sin mayúsculas ni tildes, como el combobox del kit: «construccion» encuentra «Construcción».
+            .Where(e => string.IsNullOrWhiteSpace(_busqueda) || TextoDeBusqueda.Contiene(e.Nombre, _busqueda.Trim()))
             .Where(e => !SoloRelacionadosEfectivo || EsRelacionado(e.Id))
             .ToList();
 

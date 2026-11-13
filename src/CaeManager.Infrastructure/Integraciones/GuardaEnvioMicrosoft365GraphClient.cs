@@ -22,27 +22,28 @@ public sealed class GuardaEnvioMicrosoft365GraphClient(
     ILogger<GuardaEnvioMicrosoft365GraphClient> logger) : IMicrosoft365GraphClient
 {
     public Task<Result> EnviarRespuestaAsync(
-        string accessToken, string buzonEmail, string mensajeExternoIdOrigen, string cuerpoHtml,
+        string accessToken, BuzonGraph buzon, string mensajeExternoIdOrigen, string cuerpoHtml,
         IReadOnlyList<AdjuntoParaEnviarDto>? adjuntos, CancellationToken cancellationToken)
     {
         var config = opciones.Value;
 
         if (config.PermiteEnvioA([]))
-            return interno.EnviarRespuestaAsync(accessToken, buzonEmail, mensajeExternoIdOrigen, cuerpoHtml, adjuntos, cancellationToken);
+            return interno.EnviarRespuestaAsync(accessToken, buzon, mensajeExternoIdOrigen, cuerpoHtml, adjuntos, cancellationToken);
 
         AnotarBloqueo(config, "respuesta");
         return Task.FromResult(Result.Fallo(config.ErrorEnvioCerrado()));
     }
 
     public Task<Result<MensajeEnviadoGraphDto>> EnviarNuevoMensajeAsync(
-        string accessToken, string buzonEmail, IReadOnlyList<string> destinatarios, string asunto, string cuerpoHtml,
-        IReadOnlyList<AdjuntoParaEnviarDto>? adjuntos, CancellationToken cancellationToken,
-        IReadOnlyList<string>? copia = null)
+        string accessToken, BuzonGraph buzon, IReadOnlyList<string> destinatarios, string asunto, string cuerpoHtml,
+        IReadOnlyList<AdjuntoParaEnviarDto>? adjuntos, Func<CancellationToken, Task<bool>> puertaAntesDeEnviar,
+        CancellationToken cancellationToken, IReadOnlyList<string>? copia = null)
     {
         var config = opciones.Value;
 
         if (config.PermiteEnvioA([.. destinatarios, .. copia ?? []]))
-            return interno.EnviarNuevoMensajeAsync(accessToken, buzonEmail, destinatarios, asunto, cuerpoHtml, adjuntos, cancellationToken, copia);
+            return interno.EnviarNuevoMensajeAsync(
+                accessToken, buzon, destinatarios, asunto, cuerpoHtml, adjuntos, puertaAntesDeEnviar, cancellationToken, copia);
 
         AnotarBloqueo(config, "mensaje nuevo");
         return Task.FromResult(Result.Fallo<MensajeEnviadoGraphDto>(config.ErrorEnvioCerrado()));
@@ -60,30 +61,39 @@ public sealed class GuardaEnvioMicrosoft365GraphClient(
     public Task<Result<TokensGraphDto>> RefrescarTokensAsync(string refreshToken, CancellationToken cancellationToken) =>
         interno.RefrescarTokensAsync(refreshToken, cancellationToken);
 
+    public Task<Result<TokenAplicacionGraphDto>> ObtenerTokenAplicacionAsync(string directorioId, CancellationToken cancellationToken) =>
+        interno.ObtenerTokenAplicacionAsync(directorioId, cancellationToken);
+
     public Task<Result<string>> ObtenerBuzonEmailAsync(string accessToken, CancellationToken cancellationToken) =>
         interno.ObtenerBuzonEmailAsync(accessToken, cancellationToken);
 
+    public Task<Result<string>> ObtenerIdentidadBuzonAsync(string accessToken, BuzonGraph buzon, CancellationToken cancellationToken) =>
+        interno.ObtenerIdentidadBuzonAsync(accessToken, buzon, cancellationToken);
+
     public Task<Result<MensajeGraphDto>> ObtenerMensajeAsync(
-        string accessToken, string buzonEmail, string mensajeId, CancellationToken cancellationToken) =>
-        interno.ObtenerMensajeAsync(accessToken, buzonEmail, mensajeId, cancellationToken);
+        string accessToken, BuzonGraph buzon, string mensajeId, CancellationToken cancellationToken) =>
+        interno.ObtenerMensajeAsync(accessToken, buzon, mensajeId, cancellationToken);
 
     public Task<Result<byte[]>> ObtenerContenidoAdjuntoAsync(
-        string accessToken, string mensajeId, string adjuntoExternoId, CancellationToken cancellationToken) =>
-        interno.ObtenerContenidoAdjuntoAsync(accessToken, mensajeId, adjuntoExternoId, cancellationToken);
+        string accessToken, BuzonGraph buzon, string mensajeId, string adjuntoExternoId, CancellationToken cancellationToken) =>
+        interno.ObtenerContenidoAdjuntoAsync(accessToken, buzon, mensajeId, adjuntoExternoId, cancellationToken);
 
-    public Task<Result<IReadOnlyList<CarpetaGraphDto>>> ListarCarpetasAsync(string accessToken, CancellationToken cancellationToken) =>
-        interno.ListarCarpetasAsync(accessToken, cancellationToken);
+    public Task<Result<IReadOnlyList<CarpetaGraphDto>>> ListarCarpetasAsync(
+        string accessToken, BuzonGraph buzon, Func<CancellationToken, Task<bool>> puertaEntrePeticiones, CancellationToken cancellationToken) =>
+        interno.ListarCarpetasAsync(accessToken, buzon, puertaEntrePeticiones, cancellationToken);
 
     public Task<Result<IReadOnlyList<MensajeResumenGraphDto>>> ListarMensajesAsync(
-        string accessToken, string carpetaExternoId, int top, int skip, CancellationToken cancellationToken) =>
-        interno.ListarMensajesAsync(accessToken, carpetaExternoId, top, skip, cancellationToken);
+        string accessToken, BuzonGraph buzon, string carpetaExternoId, int top, int skip, CancellationToken cancellationToken) =>
+        interno.ListarMensajesAsync(accessToken, buzon, carpetaExternoId, top, skip, cancellationToken);
 
     public Task<Result<SuscripcionGraphDto>> CrearSuscripcionAsync(
-        string accessToken, string buzonEmail, string notificationUrl, string clientState, CancellationToken cancellationToken) =>
-        interno.CrearSuscripcionAsync(accessToken, buzonEmail, notificationUrl, clientState, cancellationToken);
+        string accessToken, BuzonGraph buzon, string notificationUrl, string clientState, CancellationToken cancellationToken) =>
+        interno.CrearSuscripcionAsync(accessToken, buzon, notificationUrl, clientState, cancellationToken);
 
     public Task<Result<SuscripcionGraphDto>> RenovarSuscripcionAsync(string accessToken, string graphSubscriptionId, CancellationToken cancellationToken) =>
         interno.RenovarSuscripcionAsync(accessToken, graphSubscriptionId, cancellationToken);
+
+    public string? UrlNotificacion(Guid conexionId) => interno.UrlNotificacion(conexionId);
 
     public Task<Result> EliminarSuscripcionAsync(string accessToken, string graphSubscriptionId, CancellationToken cancellationToken) =>
         interno.EliminarSuscripcionAsync(accessToken, graphSubscriptionId, cancellationToken);

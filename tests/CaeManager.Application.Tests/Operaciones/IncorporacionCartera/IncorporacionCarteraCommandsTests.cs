@@ -43,13 +43,14 @@ public class IncorporacionCarteraCommandsTests
         _directorio.Asignar(_gestor, _operador, "GestorCae");
     }
 
-    // rolEnOrigen es el de la cuenta en su organización (Identity); rolFuera, el de la cartera en el
-    // Workspace operativo derivado abierto. Con uno abierto, el claim de sesión ya es rolFuera
-    // (RolEfectivoDelWorkspaceMiddleware), también dentro del ámbito de origen.
+    // rolEnOrigen es el de la cuenta en su organización (Identity) y el de la sesión en ese ámbito;
+    // rolFuera, el de la cartera en el Workspace operativo derivado abierto. Con uno abierto, el
+    // claim de sesión es rolFuera (RolEfectivoDelWorkspaceMiddleware), pero en el ámbito de origen
+    // el rol efectivo es el rol de sesión en origen conservado (decisión P7).
     private CurrentUserServicePorAmbito Como(Guid usuario, string? rolEnOrigen, string? rolFuera = null)
     {
         _directorio.Asignar(usuario, _operador, rolEnOrigen);
-        return new(usuario, _operador, rolFuera ?? rolEnOrigen, rolFuera);
+        return new(usuario, _operador, rolEnOrigen, rolFuera);
     }
 
     private SolicitarIncorporacionCarteraCommandHandler Solicitar(CurrentUserServicePorAmbito usuario) =>
@@ -276,7 +277,8 @@ public class IncorporacionCarteraCommandsTests
     /// por el de la cartera en ese Tenant propietario, y ObtenerRolActualAsync (hoy
     /// ObtenerRolEfectivoAsync) lo devolvía tal cual también en el ámbito de origen hasta la
     /// decisión P7. Un Coordinador CAE que opera ese Tenant como Gestor CAE
-    /// sigue siendo Coordinador CAE de su Operador CAE: el rol sale de Identity.
+    /// sigue siendo Coordinador CAE de su Operador CAE: en el ámbito de origen manda el rol de
+    /// sesión en origen conservado, e Identity lo confirma.
     /// </summary>
     [Fact]
     public async Task Un_Coordinador_CAE_que_opera_un_Tenant_como_Gestor_CAE_sigue_aceptando()

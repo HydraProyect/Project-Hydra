@@ -127,6 +127,18 @@
 }
 
 /*
+  Un pie con BotonConEspera (el «Guardar» de ModalFormulario): la envoltura del botón reserva debajo la línea de estado de la
+  espera, así que es más alta que el botón. Con el stretch de siempre, «Cancelar» (y cualquier otro botón del pie) se
+  estiraba hasta esa altura (96×64 junto a un primario de 40) y los dos botones dejaban de medir lo mismo. Alineados al
+  inicio, cada botón conserva su altura. En móvil el pie es una columna a ancho completo y sigue estirando.
+*/
+@media (min-width: 641px) {
+    .modal-pie:has(.boton-espera) {
+        align-items: flex-start;
+    }
+}
+
+/*
   Móvil: los botones del pie (normalmente acción principal + "Cancelar", en
   ese orden en el marcado de cada página) pasan a ocupar todo el ancho y
   apilarse en vez de compartir la fila — más fácil de alcanzar con el

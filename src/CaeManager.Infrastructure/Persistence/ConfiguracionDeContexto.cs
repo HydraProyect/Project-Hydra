@@ -63,5 +63,15 @@ internal static class ConfiguracionDeContexto
             servicios.GetRequiredService<EstadoMaterializado.AvisoEstadoTrasConfirmarInterceptor>(),
             // El último: recoge las raíces del estado materializado después del sellado de Tenant (diseño § 4.3).
             servicios.GetRequiredService<EstadoMaterializado.DetectorCambiosEstadoInterceptor>());
+
+        // Solo medición (Server-Timing «db», «cmd» y «conn»): no alteran comandos ni conexiones,
+        // así que, a diferencia de los de arriba, faltar no deja nada sin auditar ni sin aislar.
+        // Por eso se resuelven con GetService: un contenedor que no registra estos dos interceptores
+        // (los arneses de integración que registran a mano solo los de arriba) sigue funcionando.
+        // AddInfrastructure sí los registra, y con ellos exige el CosteCarga de AddApplication.
+        if (servicios.GetService<MedicionCosteComandosInterceptor>() is { } medicionComandos)
+            opciones.AddInterceptors(medicionComandos);
+        if (servicios.GetService<MedicionCosteConexionesInterceptor>() is { } medicionConexiones)
+            opciones.AddInterceptors(medicionConexiones);
     }
 }

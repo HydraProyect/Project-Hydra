@@ -20,6 +20,14 @@ namespace CaeManager.Application.Centros.Queries.ObtenerCanalesGestionDeCentro;
 /// (solo tras un clic explícito, con alcance de gestión, y cada lectura queda en la
 /// auditoría como <c>AccesoDatoSensible</c> — decisión del propietario del 2026-09-23).
 ///
+/// <see cref="CanalGestionResumenDto.UrlAcceso"/> y <see cref="CanalGestionResumenDto.Notas"/> solo viajan a quien gestiona
+/// el Centro (<see cref="AlcanceDatosServiceExtensions.CentroParaGestionVisibleAsync"/>): el rol Cliente ve los Centros de su
+/// Cliente empresarial y sus canales, pero recibe ambos campos a <c>null</c>, así que no se le ofrece «Abrir portal». Es el
+/// mismo corte que la dirección del portal en <c>ObtenerAcreditacionesDelDocumentoQuery</c> y <c>ObtenerDocumentosQuery</c>
+/// (decisión de Chris del 2026-11-12, opción B, para la dirección; las notas internas del canal siguen el mismo corte).
+/// Guardar el canal exige el mismo alcance de gestión (<c>EditarCanalGestionCommand</c>): si un formulario de edición se
+/// precargara con estos campos a <c>null</c>, el servidor rechazaría el guardado, así que no se pierden datos.
+///
 /// <see cref="CanalGestionResumenDto.ProveedorPlataformaCaeNombre"/> es
 /// <c>null</c> cuando <see cref="CanalGestionResumenDto.ProveedorPlataformaCaeId"/>
 /// también lo es — canal migrado desde el antiguo texto libre sin match
@@ -50,6 +58,11 @@ public class ObtenerCanalesGestionDeCentroQueryHandler(
     {
         if (!await alcanceDatos.CentroVisibleAsync(request.CentroId, cancellationToken))
             return [];
+
+        // La dirección del portal y las notas, solo para quien gestiona el Centro: para el rol Cliente,
+        // ObtenerCentroIdsParaGestionAsync da la lista vacía y ambos campos salen a null (fallo cerrado). Se corta aquí y no en la pantalla, porque el mismo DTO lo pintan Centro 360, el Context Workspace y la
+        // vista rápida de la Gestión.
+        var gestiona = await alcanceDatos.CentroParaGestionVisibleAsync(request.CentroId, cancellationToken);
 
         var canales = await dbContext.CanalesGestionDocumental
             .Where(c => c.CentroId == request.CentroId)
@@ -83,7 +96,8 @@ public class ObtenerCanalesGestionDeCentroQueryHandler(
             .Select(c => new CanalGestionResumenDto(
                 c.Id, c.Tipo, c.EtiquetaProposito, c.EsPrincipal, c.ProveedorPlataformaCaeId,
                 c.ProveedorPlataformaCaeId.HasValue ? nombresPorProveedor.GetValueOrDefault(c.ProveedorPlataformaCaeId.Value) : null,
-                c.UrlAcceso, c.EmailsDestinatarios, c.NombreContacto, c.Notas, c.TieneCredenciales, c.Version))
+                gestiona ? c.UrlAcceso : null, c.EmailsDestinatarios, c.NombreContacto, gestiona ? c.Notas : null,
+                c.TieneCredenciales, c.Version))
             .ToList();
     }
 }
