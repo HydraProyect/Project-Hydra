@@ -193,22 +193,24 @@ public class FlujoCicloDocumentalTests(WebAppFixture fixture)
         // aparte, sondeando cada 5s (ver ese archivo), así que hay que
         // recargar la página en bucle hasta que aparezca, no basta con
         // esperar sobre el DOM ya cargado.
-        var botonRevision = await EsperarBotonRevisionIaAsync(page, fixture.BaseUrl, apellidosTrabajador);
+        var opcionRevision = await EsperarOpcionRevisionIaAsync(page, fixture.BaseUrl, apellidosTrabajador);
 
         // Confirma que la extracción determinista de ProveedorFalsoDocumentAI
         // llegó de verdad hasta la UI, a través de todo el router
         // (clasificación → OCR/estructuración → RevisionIaDocumento): 50%
-        // de confianza en la cola y el motivo que ComputarMotivos genera para
-        // ese caso en el detalle de la revisión seleccionada.
-        await Expect(botonRevision).ToContainTextAsync("Confianza 50 %");
-        await botonRevision.ClickAsync();
+        // de confianza en el desplegable de pendientes y el motivo que
+        // ComputarMotivos genera para ese caso en el lateral de la revisión
+        // seleccionada (D-49: documento a la izquierda, revisión en el lateral).
+        await Expect(opcionRevision).ToContainTextAsync("Confianza 50 %");
+        await opcionRevision.ClickAsync();
 
-        var detalleRevision = page.Locator(".revision-ia-detalle");
-        await detalleRevision.WaitForAsync(new LocatorWaitForOptions { Timeout = 15_000 });
-        await Expect(detalleRevision.Locator(".revision-ia-motivo"))
+        var lateral = page.Locator(".revision-ia-lateral");
+        var selector = lateral.Locator(".revision-ia-selector-boton");
+        await Expect(selector).ToContainTextAsync(apellidosTrabajador, new LocatorAssertionsToContainTextOptions { Timeout = 15_000 });
+        await Expect(lateral.Locator(".revision-ia-motivo"))
             .ToContainTextAsync("Confianza baja (50%)");
 
-        await detalleRevision.GetByRole(AriaRole.Button, new LocatorGetByRoleOptions { Name = "Descartar la lectura" }).ClickAsync();
+        await lateral.GetByRole(AriaRole.Button, new LocatorGetByRoleOptions { Name = "Descartar la lectura" }).ClickAsync();
 
         // El detalle y DialogoConfirmacion comparten el texto del botón de
         // descarte. Modal expone role="dialog" y toma su nombre accesible del
@@ -217,7 +219,10 @@ public class FlujoCicloDocumentalTests(WebAppFixture fixture)
         var dialogoDescartar = page.GetByRole(AriaRole.Dialog, new PageGetByRoleOptions { Name = "Descartar la lectura de la IA" });
         await dialogoDescartar.WaitForAsync(new LocatorWaitForOptions { Timeout = 15_000 });
         await dialogoDescartar.GetByRole(AriaRole.Button, new LocatorGetByRoleOptions { Name = "Descartar la lectura" }).ClickAsync();
-        await botonRevision.WaitForAsync(new LocatorWaitForOptions { State = WaitForSelectorState.Hidden, Timeout = 15_000 });
+        // Resuelta la revisión, el avance automático pasa a la siguiente
+        // pendiente (o a «Elige una revisión» si no queda ninguna): el
+        // selector deja de nombrar a este Trabajador.
+        await Expect(selector).Not.ToContainTextAsync(apellidosTrabajador, new LocatorAssertionsToContainTextOptions { Timeout = 15_000 });
 
         // --- Paso 6 (Reclamación): asignar el Trabajador a su Centro, añadir
         // un contacto de agenda y enviar la reclamación ---
@@ -354,7 +359,7 @@ public class FlujoCicloDocumentalTests(WebAppFixture fixture)
     /// <summary>
     /// /documentos/revision-ia no se actualiza sola cuando termina un
     /// análisis en segundo plano (ver el comentario del Paso 5 más arriba) —
-    /// se recarga en bucle hasta encontrar el botón de la cola o agotar el presupuesto
+    /// se recarga en bucle hasta encontrar la opción del desplegable o agotar el presupuesto
     /// de tiempo. 90s cubre con margen el sondeo de 5s de
     /// ProcesadorAnalisisDocumentoHostedService más la elección de líder y
     /// el resto de la tubería (clasificación, extracción, guardado): medido
@@ -371,7 +376,12 @@ public class FlujoCicloDocumentalTests(WebAppFixture fixture)
     /// (App_Data/logs/log-*.txt del directorio de CaeManager.Web, sink de
     /// archivo de Serilog), no en la salida del test.
     /// </summary>
-    private static async Task<ILocator> EsperarBotonRevisionIaAsync(IPage page, string baseUrl, string apellidosTrabajador)
+    /// Las pendientes viven en el desplegable del lateral (role="listbox"),
+    /// que solo se pinta abierto: tras cada carga se pulsa el selector hasta
+    /// que el panel aparece, porque un clic sobre el prerenderizado se pierde
+    /// mientras el circuito no ha conectado (mismo patrón que
+    /// Ayudas.AbrirSelectorTenantAsync).
+    private static async Task<ILocator> EsperarOpcionRevisionIaAsync(IPage page, string baseUrl, string apellidosTrabajador)
     {
         var presupuesto = TimeSpan.FromSeconds(90);
         var limite = DateTime.UtcNow + presupuesto;
@@ -379,13 +389,29 @@ public class FlujoCicloDocumentalTests(WebAppFixture fixture)
         while (true)
         {
             await Ayudas.NavegarYEsperarAsync(page, $"{baseUrl}/documentos/revision-ia");
-            var boton = page.Locator(".revision-ia-cola").GetByRole(
-                AriaRole.Button,
+            var panel = page.Locator(".revision-ia-pop");
+            var disparador = page.Locator(".revision-ia-selector-boton");
+            for (var intento = 0; intento < 10 && !await panel.IsVisibleAsync(); intento++)
+            {
+                try
+                {
+                    await disparador.ClickAsync(new LocatorClickOptions { Timeout = 2_000 });
+                    await panel.WaitForAsync(new LocatorWaitForOptions { State = WaitForSelectorState.Visible, Timeout = 1_500 });
+                }
+                catch (Exception ex) when (ex is PlaywrightException or TimeoutException)
+                {
+                    // El circuito aún no había conectado, o no hay pendientes
+                    // y el lateral no se pinta: se vuelve a intentar.
+                }
+            }
+
+            var opcion = page.Locator(".revision-ia-opciones").GetByRole(
+                AriaRole.Option,
                 new LocatorGetByRoleOptions { Name = apellidosTrabajador });
             try
             {
-                await boton.WaitForAsync(new LocatorWaitForOptions { Timeout = 2_000 });
-                return boton;
+                await opcion.WaitForAsync(new LocatorWaitForOptions { Timeout = 2_000 });
+                return opcion;
             }
             catch (TimeoutException) { }
 
