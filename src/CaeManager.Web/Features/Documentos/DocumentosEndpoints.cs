@@ -45,10 +45,12 @@ public static class DocumentosEndpoints
         .RequireAuthorization(policy => policy.RequireRole(CaeManager.Infrastructure.Identity.Roles.Administrador, CaeManager.Infrastructure.Identity.Roles.DireccionCae, CaeManager.Infrastructure.Identity.Roles.CoordinadorCae))
         .ExcluidoDelEncargoDeAdministracion();
 
-        // Mismo patrón de referencia que ClientesEndpoints. Sin columna de
-        // Plataformas/Acreditaciones: ObtenerDocumentosQueryHandler la
-        // resuelve con una segunda pasada fuera de la página, y repetirla
-        // por cada lote de PaginadorExportacion sería un N+1.
+        // Mismo patrón de referencia que ClientesEndpoints. La columna
+        // «Plataformas CAE» (D-20) sale de las acreditaciones que
+        // ObtenerDocumentosQueryHandler ya resuelve en una consulta por
+        // página (no por fila), así que cada lote de PaginadorExportacion
+        // no añade consultas: solo nombre y estado, nunca el motivo del
+        // rechazo ni la dirección del portal.
         // Lleva el listado completo de Documentos del tenant (propietario,
         // tipo, fechas): mismo criterio de caché que el PDF.
         // Sin SoloRolesDelListado(), como /trabajadores/exportar.xlsx: Documentos.razor

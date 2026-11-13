@@ -19,6 +19,11 @@ public enum AccionAcreditacion
 /// Qué acciones de acreditación ofrece una fila según su estado (la regla que tenía la pestaña Plataformas CAE, PlataformaTab, y que
 /// ahora comparten esa pestaña y el menú «Acreditación ▾» del listado agrupado por Plataforma CAE, D-18). Solo decide qué se
 /// muestra: cada Command comprueba su autorización y su alcance de datos, y el rol de quien mira lo decide la pantalla (D-3).
+/// <para>
+/// Deuda declarada: PlataformaTab usa tres de estos predicados (subir la corregida, marcar subido y abrir portal); sus «Marcar
+/// validado», «Marcar rechazado…» y «Anotar vigencia» siguen con su condición en línea, y en una acreditación «No exigida» ofrece
+/// las dos primeras mientras el menú no. Unificarlo cambiaría el comportamiento de la pestaña, que sale con el rediseño sin pestañas.
+/// </para>
 /// </summary>
 public static class ReglasAccionesAcreditacion
 {
