@@ -9,34 +9,15 @@
 @using Microsoft.Extensions.Localization
 @inject IStringLocalizer<TextosDocumentos> Textos
 
+@*
+    Revisión IA como pantalla propia (D-49, artboard «Revision-ia»): sin barra de pestañas. El Id `?pestana=revision-ia` de
+    /documentos redirige aquí (Documentos.razor.cs), así que los enlaces guardados y los deep links siguen llegando.
+*@
 <LimiteDeErrores Pagina="this">
-<PageTitle>Revisión IA — @Marca.Nombre</PageTitle>
-<TituloDePaginaSinPrerender Titulo="@($"Revisión IA — {Marca.Nombre}")" />
+<PageTitle>@Textos["PestanaRevisionIa"] — @Marca.Nombre</PageTitle>
+<TituloDePaginaSinPrerender Titulo="@($"{Textos["PestanaRevisionIa"]} — {Marca.Nombre}")" />
 
 <div class="contenedor-pagina">
-    <nav class="revision-ia-migas" aria-label="@Textos["RevIaMigaAria"]">
-        <a href="/documentos"><Icono Nombre="volver" Tamano="TamanoIcono.Pequeno" />Documentos</a>
-        <span aria-hidden="true">/</span>
-        <span aria-current="page">Revisión IA</span>
-    </nav>
-    <div class="revision-ia-cabecera">
-        <div class="revision-ia-titular">
-            <p class="revision-ia-kicker">Ciclo documental</p>
-            <h1 class="titulo-pagina">Revisión IA</h1>
-        </div>
-        @* Los dos destinos son de Administrador (AuditoriaIa.razor y SeleccionarClienteLecturaIa.razor):
-           a quien no lo es, el enlace le llevaría a «Acceso denegado». *@
-        <AuthorizeView Roles="@CaeManager.Infrastructure.Identity.Roles.Administrador">
-            <div class="revision-ia-enlaces">
-                <a href="/auditoria-ia">@Textos["RevIaVerAuditoria"]</a>
-                <a href="/configuracion/lectura-ia">@Textos["RevIaConfigurarLectura"]</a>
-            </div>
-        </AuthorizeView>
-    </div>
-
-    @* Pantalla heredada (enlaces guardados): la misma barra de pestañas que Documentos, con Revisión IA activa. *@
-    <BarraPestanasDocumentos PestanaActiva="@BarraPestanasDocumentos.IdRevisionIa">
-        <RevisionIaTab />
-    </BarraPestanasDocumentos>
+    <RevisionIaTab />
 </div>
 </LimiteDeErrores>

@@ -193,6 +193,25 @@ public class SoloLecturaEnLaInterfazTests : BunitContext
         }
     }
 
+    [Theory]
+    [InlineData("Administrador")]
+    [InlineData("GestorCae")]
+    public void El_deep_link_pestana_revision_ia_de_quien_gestiona_va_a_la_pantalla_propia(string rol)
+    {
+        RenderizarDocumentos(rol, "revision-ia");
+
+        Services.GetRequiredService<NavigationManager>().Uri.Should().EndWith("/documentos/revision-ia",
+            "D-49: «?pestana=revision-ia» sigue valiendo como ruta, redirigida a la pantalla de Revisión IA");
+    }
+
+    [Fact]
+    public void El_deep_link_pestana_revision_ia_de_Consulta_no_la_lleva_a_una_pantalla_que_le_niega_el_acceso()
+    {
+        RenderizarDocumentos("Consulta", "revision-ia");
+
+        Services.GetRequiredService<NavigationManager>().Uri.Should().NotEndWith("/documentos/revision-ia");
+    }
+
     [Fact]
     public void La_pestana_Preventivo_no_lleva_puerta_de_rol_y_para_Consulta_pinta_contenido()
     {

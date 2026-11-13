@@ -14,51 +14,48 @@ namespace CaeManager.E2ETests;
 [Collection("AppCollectionListados")]
 public class PestanaUrlDurableTests(WebAppFixtureListados fixture)
 {
+    /// <summary>
+    /// D-49: Revisión IA vuelve a ser pantalla propia (/documentos/revision-ia, con la revisión en un lateral) y no pinta
+    /// la barra de pestañas. La pestaña de /documentos lleva a ella, y los enlaces guardados con
+    /// <c>?Pestana=revision-ia</c> (la URL durable que protegía este test) siguen sirviendo: redirigen a la pantalla
+    /// propia, también en una carga en frío.
+    /// </summary>
     [Fact]
-    public async Task Cambiar_a_la_pestana_Revision_IA_de_Documentos_actualiza_la_URL_y_sobrevive_a_una_carga_en_frio()
+    public async Task La_pestana_Revision_IA_de_Documentos_lleva_a_su_pantalla_y_el_enlace_con_la_pestana_redirige_en_frio()
     {
         await using var contexto = await fixture.Browser.NewContextAsync();
         var page = await contexto.NewPageAsync();
+        var rutaPropia = $"{fixture.BaseUrl}/documentos/revision-ia";
 
         await Ayudas.IniciarSesionAsync(page, fixture.BaseUrl, Ayudas.EmailAdministrador, Ayudas.ContrasenaAdministrador);
         await Ayudas.NavegarYEsperarAsync(page, $"{fixture.BaseUrl}/documentos");
 
-        // El clic va por Ayudas.SeleccionarPestanaAsync y no a pelo: el botón
-        // role="tab" lleva un @onclick server-side, así que un clic sobre el
-        // prerenderizado estático se pierde en silencio y el fallo aparece 30 s
-        // después aquí, en la espera de la URL — medido en CI (REC-110, run
-        // 33649091982 intento 1). El helper confirma por aria-selected que el
-        // clic llegó al circuito antes de seguir.
-        await Ayudas.SeleccionarPestanaAsync(
-            page,
-            page.GetByRole(AriaRole.Tab, new PageGetByRoleOptions { Name = "Revisión IA" }),
-            "Revisión IA");
+        // El botón role="tab" lleva un @onclick server-side: un clic sobre el prerenderizado se pierde en silencio
+        // (REC-110, ver Ayudas.SeleccionarPestanaAsync). Aquí la señal de que llegó no es aria-selected —la pestaña
+        // navega fuera y desaparece con la barra— sino la URL de destino, así que se repite el clic hasta verla.
+        var pestana = page.GetByRole(AriaRole.Tab, new PageGetByRoleOptions { Name = "Revisión IA" });
+        await pestana.WaitForAsync(new LocatorWaitForOptions { Timeout = 10_000 });
+        for (var intento = 0; intento < 10 && page.Url != rutaPropia; intento++)
+        {
+            try
+            {
+                await pestana.ClickAsync(new LocatorClickOptions { Timeout = 2_000 });
+                await page.WaitForURLAsync(rutaPropia, new PageWaitForURLOptions { Timeout = 3_000 });
+            }
+            catch (Exception ex) when (ex is PlaywrightException or TimeoutException)
+            {
+                // El circuito aún no había conectado: se vuelve a pulsar.
+            }
+        }
 
-        // Con el clic ya confirmado, un timeout aquí significa lo que este test
-        // investiga —la pestaña activa no se reflejó en la URL— y no "el clic
-        // se perdió", que es otra cosa y ya no puede confundirse con esto.
-        //
-        // Se mantienen los 30 s del default de Playwright, explícitos. Una
-        // primera versión los bajó a 15 s aprovechando que el clic ya está
-        // confirmado, y la revisión de Codex lo refutó con razón: confirmar
-        // aria-selected NO confirma todavía la URL, porque el callback de la
-        // página actualiza su estado primero y pide NavigateTo después (ver
-        // Documentos.razor.cs). Una actualización de URL que bajo carga tardara
-        // entre 15 y 30 s pasaba antes y habría empezado a fallar — cambiar un
-        // intermitente por otro. El arreglo del clic perdido no necesita
-        // estrechar este margen.
-        await Assertions.Expect(page).ToHaveURLAsync(
-            $"{fixture.BaseUrl}/documentos?Pestana=revision-ia",
-            new PageAssertionsToHaveURLOptions { Timeout = 30_000 });
+        await Assertions.Expect(page).ToHaveURLAsync(rutaPropia, new PageAssertionsToHaveURLOptions { Timeout = 30_000 });
+        await Assertions.Expect(page.Locator("section.revision-ia")).ToBeVisibleAsync(new LocatorAssertionsToBeVisibleOptions { Timeout = 15_000 });
 
-        // Carga en frío con esa URL exacta (no un clic dentro de la página ya
-        // cargada): reproduce compartir el enlace o pulsar F5, no una
-        // navegación "enhanced" que reutilizaría el circuito ya abierto.
+        // Carga en frío del enlace antiguo (compartido o guardado): reproduce pegarlo o pulsar F5, no una navegación
+        // "enhanced" que reutilizaría el circuito ya abierto. Termina en la pantalla propia.
         await Ayudas.NavegarYEsperarAsync(page, $"{fixture.BaseUrl}/documentos?Pestana=revision-ia");
-
-        var pestanaActiva = page.GetByRole(AriaRole.Tab, new PageGetByRoleOptions { Name = "Revisión IA" });
-        await pestanaActiva.WaitForAsync(new LocatorWaitForOptions { Timeout = 10_000 });
-        Assert.Equal("true", await pestanaActiva.GetAttributeAsync("aria-selected"));
+        await Assertions.Expect(page).ToHaveURLAsync(rutaPropia, new PageAssertionsToHaveURLOptions { Timeout = 30_000 });
+        await Assertions.Expect(page.Locator("section.revision-ia")).ToBeVisibleAsync(new LocatorAssertionsToBeVisibleOptions { Timeout = 15_000 });
     }
 
     [Fact]

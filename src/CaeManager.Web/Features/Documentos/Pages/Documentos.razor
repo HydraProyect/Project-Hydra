@@ -90,21 +90,21 @@
                 </NotAuthorized>
             </AuthorizeView>
         }
-        else if (_pestanaActiva == "sugerencias")
-        {
-            <SugerenciasPreventivasTab />
-        }
         else if (_pestanaActiva == "revision-ia")
         {
+            @* D-49: Revisión IA es la pantalla /documentos/revision-ia; quien gestiona se redirige allí
+               (RedirigirARevisionIaSiProcede) y el resto ve el aviso de rol. *@
             <AuthorizeView Roles="@RolesDeGestionDocumental">
-                <Authorized>
-                    <RevisionIaTab />
-                </Authorized>
                 <NotAuthorized>
                     <SinPermisoEnSeccion Seccion="Revisión IA" />
                 </NotAuthorized>
             </AuthorizeView>
         }
+        else if (_pestanaActiva == "sugerencias")
+        {
+            <SugerenciasPreventivasTab />
+        }
+
         else if (_pestanaActiva == "plantillas")
         {
             <AuthorizeView Roles="@RolesDeGestionDocumental">

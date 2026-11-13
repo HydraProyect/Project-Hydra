@@ -17,19 +17,23 @@ namespace CaeManager.Web.Tests;
 /// </summary>
 internal static class AutenticacionDePrueba
 {
-    public static void ConRolDeEscritura(this BunitContext ctx, string rol = Roles.GestorCae)
+    public static void ConRolDeEscritura(this BunitContext ctx, string rol = Roles.GestorCae, Guid? usuarioId = null)
     {
-        ctx.Services.AddScoped<AuthenticationStateProvider>(_ => new Autenticacion(rol));
+        ctx.Services.AddScoped<AuthenticationStateProvider>(_ => new Autenticacion(rol, usuarioId));
         ctx.Services.AddAuthorizationCore();
         ctx.Services.AddScoped<IAuthorizationService, AutorizacionPorRoles>();
         ctx.Services.AddCascadingAuthenticationState();
     }
 
-    private sealed class Autenticacion(string rol) : AuthenticationStateProvider
+    private sealed class Autenticacion(string rol, Guid? usuarioId) : AuthenticationStateProvider
     {
-        public override Task<AuthenticationState> GetAuthenticationStateAsync() =>
-            Task.FromResult(new AuthenticationState(new ClaimsPrincipal(
-                new ClaimsIdentity([new Claim(ClaimTypes.Role, rol)], "test"))));
+        public override Task<AuthenticationState> GetAuthenticationStateAsync()
+        {
+            List<Claim> claims = [new(ClaimTypes.Role, rol)];
+            if (usuarioId is { } id)
+                claims.Add(new Claim(ClaimTypes.NameIdentifier, id.ToString()));
+            return Task.FromResult(new AuthenticationState(new ClaimsPrincipal(new ClaimsIdentity(claims, "test"))));
+        }
     }
 
     private sealed class AutorizacionPorRoles : IAuthorizationService

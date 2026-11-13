@@ -199,23 +199,11 @@
   <data name="PlatDeshacerParcial" xml:space="preserve">
     <value>{0} de {1} deshechas. {2}</value>
   </data>
-  <data name="RevIaReglaBloque" xml:space="preserve">
-    <value>Umbral de confirmación en lote: {0} %</value>
-  </data>
   <data name="RevIaFallosTitulo" xml:space="preserve">
     <value>No se pudieron aceptar {0} lectura(s); siguen pendientes:</value>
   </data>
   <data name="RevIaCerrar" xml:space="preserve">
     <value>Cerrar</value>
-  </data>
-  <data name="RevIaConfianzaDesde" xml:space="preserve">
-    <value>Seleccionar con confianza desde</value>
-  </data>
-  <data name="RevIaAceptarSeleccionadas" xml:space="preserve">
-    <value>Aceptar seleccionadas ({0})</value>
-  </data>
-  <data name="RevIaAyudaSeleccion" xml:space="preserve">
-    <value>La confianza solo preselecciona. Revisa la selección y pulsa «Aceptar seleccionadas»: nada se acepta solo. Si la vigencia del tipo la confirmas tú a mano, la IA no leyó fecha o hay una alerta, la lectura se acepta de una en una.</value>
   </data>
   <data name="RevIaConAlerta" xml:space="preserve">
     <value>Con alerta</value>
@@ -223,32 +211,38 @@
   <data name="RevIaAlertaDeUnaEnUna" xml:space="preserve">
     <value>Esta lectura tiene una alerta: compruébala en el documento antes de aceptarla. No entra en la aceptación en bloque.</value>
   </data>
-  <data name="RevIaCasillaIncluir" xml:space="preserve">
-    <value>Incluir en «Aceptar seleccionadas»</value>
-  </data>
-  <data name="RevIaCasillaManual" xml:space="preserve">
-    <value>{0}: se acepta de una en una</value>
-  </data>
-  <data name="RevIaCasillaEtiqueta" xml:space="preserve">
-    <value>Seleccionar {0} · {1} para aceptar en bloque</value>
-  </data>
   <data name="RevIaDialogoTitulo" xml:space="preserve">
-    <value>Aceptar las lecturas seleccionadas</value>
+    <value>Confirmar las lecturas de confianza alta</value>
   </data>
   <data name="RevIaDialogoMensaje" xml:space="preserve">
-    <value>Vas a aceptar {0} lectura(s) de la IA. Cada una aplica la fecha de emisión leída y calcula el vencimiento con la regla de su tipo de documento; queda una decisión registrada por documento a tu nombre. Las que no incluyas siguen pendientes.</value>
+    <value>Vas a aceptar {0} de las {2} lecturas pendientes de la cola: las de confianza de {1} % o más y fecha detectada. Cada una aplica la fecha de emisión leída y calcula el vencimiento con la regla de su tipo de documento; queda una decisión registrada por documento a tu nombre. Las demás siguen pendientes.</value>
+  </data>
+  <data name="RevIaDialogoMensajeTodas" xml:space="preserve">
+    <value>Vas a aceptar las {0} lecturas pendientes de la cola: las de confianza de {1} % o más y fecha detectada. Cada una aplica la fecha de emisión leída y calcula el vencimiento con la regla de su tipo de documento; queda una decisión registrada por documento a tu nombre.</value>
+  </data>
+  <data name="RevIaDialogoMensajeUna" xml:space="preserve">
+    <value>Vas a aceptar la única lectura pendiente de la cola: tiene confianza de {1} % o más y fecha detectada. Aplica la fecha de emisión leída y calcula el vencimiento con la regla de su tipo de documento; queda una decisión registrada a tu nombre.</value>
+  </data>
+  <data name="RevIaDialogoMensajePrimeras" xml:space="preserve">
+    <value>Vas a aceptar las primeras {0} de las {2} lecturas de la IA con confianza de {1} % o más y fecha detectada: es el máximo de un bloque y el resto sigue pendiente. Cada una aplica la fecha de emisión leída y calcula el vencimiento con la regla de su tipo de documento; queda una decisión registrada por documento a tu nombre.</value>
+  </data>
+  <data name="RevIaDialogoFiltroOcultaUna" xml:space="preserve">
+    <value>Con el filtro activo, {0} de ellas no se ve en la lista: se acepta igual, porque este botón actúa sobre toda la cola y no solo sobre lo que muestra el filtro.</value>
+  </data>
+  <data name="RevIaDialogoFiltroOculta" xml:space="preserve">
+    <value>Con el filtro activo, {0} de ellas no se ven en la lista: se aceptan igual, porque este botón actúa sobre toda la cola y no solo sobre lo que muestra el filtro.</value>
+  </data>
+  <data name="RevIaVerDocumento" xml:space="preserve">
+    <value>Ver documento</value>
+  </data>
+  <data name="RevIaDocumentoReposo" xml:space="preserve">
+    <value>El documento no se carga hasta que lo pidas: las aperturas de documentos sensibles quedan registradas.</value>
   </data>
   <data name="RevIaDialogoConfirmar" xml:space="preserve">
-    <value>Aceptar seleccionadas</value>
+    <value>Confirmar todos</value>
   </data>
   <data name="RevIaFalloGenerico" xml:space="preserve">
     <value>No se pudo aceptar.</value>
-  </data>
-  <data name="RevIaAceptable" xml:space="preserve">
-    <value>Aceptable en bloque</value>
-  </data>
-  <data name="RevIaVigenciaAMano" xml:space="preserve">
-    <value>Vigencia a confirmar a mano</value>
   </data>
   <data name="RevIaResumenTodas" xml:space="preserve">
     <value>{0} lectura(s) aceptada(s).</value>
@@ -271,53 +265,11 @@
   <data name="ExportacionDiaCambiado" xml:space="preserve">
     <value>Ha cambiado el día mientras se generaba la exportación. Vuelve a exportar.</value>
   </data>
-  <data name="RevIaAbrirPdf" xml:space="preserve">
-    <value>Abrir PDF completo</value>
-  </data>
-  <data name="RevIaPaginaDe" xml:space="preserve">
-    <value>página 1 de {0}</value>
-  </data>
-  <data name="RevIaColCampo" xml:space="preserve">
-    <value>Campo</value>
-  </data>
-  <data name="RevIaColLeido" xml:space="preserve">
-    <value>Leído por la IA</value>
-  </data>
-  <data name="RevIaColIntroducido" xml:space="preserve">
-    <value>Introducido al subir</value>
-  </data>
-  <data name="RevIaCoincide" xml:space="preserve">
-    <value>Coincide</value>
-  </data>
-  <data name="RevIaNoCoincide" xml:space="preserve">
-    <value>No coincide</value>
-  </data>
-  <data name="RevIaTarjetaConfianza" xml:space="preserve">
-    <value>Confianza de la extracción</value>
-  </data>
-  <data name="RevIaPieUmbralBajo" xml:space="preserve">
-    <value>Por debajo de {0} % la confianza sola ya justifica revisión humana</value>
-  </data>
-  <data name="RevIaPieUmbralLote" xml:space="preserve">
-    <value>{0} % · umbral de confirmación en lote</value>
-  </data>
-  <data name="RevIaMotivoTitulo" xml:space="preserve">
-    <value>Motivo de la revisión</value>
-  </data>
-  <data name="RevIaSiAceptasTitulo" xml:space="preserve">
-    <value>Si aceptas la detección</value>
-  </data>
   <data name="RevIaSiAceptasConFecha" xml:space="preserve">
     <value>Al aceptar, se aplicará la fecha de emisión detectada y se recalculará el vencimiento cuando el tipo de documento lo haga automáticamente.</value>
   </data>
   <data name="RevIaSiAceptasSinFecha" xml:space="preserve">
     <value>No se puede aceptar: la IA no detectó una fecha de emisión que aplicar. Corrígelo a mano o descarta la lectura.</value>
-  </data>
-  <data name="RevIaPistaSinFecha" xml:space="preserve">
-    <value>Sin fecha detectada no hay nada que aplicar</value>
-  </data>
-  <data name="RevIaPistaRenueva" xml:space="preserve">
-    <value>Renueva el Documento y cierra el aviso</value>
   </data>
   <data name="RevIaCampoTipo" xml:space="preserve">
     <value>Tipo de documento</value>
@@ -336,9 +288,6 @@
   </data>
   <data name="RevIaFirmaNoSolicitada" xml:space="preserve">
     <value>No se solicita al subir</value>
-  </data>
-  <data name="RevIaMigaAria" xml:space="preserve">
-    <value>Miga de pan</value>
   </data>
   <data name="RevIaVerAuditoria" xml:space="preserve">
     <value>Ver auditoría IA →</value>
@@ -543,4 +492,184 @@
   <data name="AcrRechazoContexto" xml:space="preserve"><value>{0} · {1} de {2}</value></data>
   <data name="AnotarVigenciaAyudaUna" xml:space="preserve"><value>Se anotará la misma vigencia en 1 acreditación validada en {0}.</value></data>
   <data name="AcrMarcadoRechazado" xml:space="preserve"><value>Marcado como rechazado.</value></data>
+  <data name="RevIaSeccionAria" xml:space="preserve">
+    <value>Revisiones IA pendientes</value>
+  </data>
+  <data name="RevIaVolver" xml:space="preserve">
+    <value>Volver a Documentos</value>
+  </data>
+  <data name="RevIaConfirmarPrimeras" xml:space="preserve">
+    <value>Confirmar las primeras {0} de {1} ≥{2} %</value>
+  </data>
+  <data name="RevIaConfirmarTodos" xml:space="preserve">
+    <value>Confirmar todos los ≥{0} % ({1})</value>
+  </data>
+  <data name="RevIaErrorTitulo" xml:space="preserve">
+    <value>No pudimos cargar las revisiones</value>
+  </data>
+  <data name="RevIaErrorDescripcion" xml:space="preserve">
+    <value>Intenta nuevamente en unos segundos. Ninguna revisión se ha resuelto.</value>
+  </data>
+  <data name="RevIaReintentar" xml:space="preserve">
+    <value>Reintentar</value>
+  </data>
+  <data name="RevIaTerminadoTitulo" xml:space="preserve">
+    <value>No quedan documentos por revisar</value>
+  </data>
+  <data name="RevIaTerminadoUno" xml:space="preserve">
+    <value>Has revisado el documento. Vuelve al listado o espera a la próxima lectura.</value>
+  </data>
+  <data name="RevIaTerminadoVarios" xml:space="preserve">
+    <value>Has revisado los {0}. Vuelve al listado o espera a la próxima lectura.</value>
+  </data>
+  <data name="RevIaSinPendientesTitulo" xml:space="preserve">
+    <value>Sin revisiones pendientes</value>
+  </data>
+  <data name="RevIaSinPendientesDescripcion" xml:space="preserve">
+    <value>No hay documentos pendientes de revisión IA.</value>
+  </data>
+  <data name="RevIaUnaPagina" xml:space="preserve">
+    <value>1 página</value>
+  </data>
+  <data name="RevIaNPaginas" xml:space="preserve">
+    <value>{0} páginas</value>
+  </data>
+  <data name="RevIaDescargar" xml:space="preserve">
+    <value>Descargar</value>
+  </data>
+  <data name="RevIaDocumentoAria" xml:space="preserve">
+    <value>Documento: {0} · {1}</value>
+  </data>
+  <data name="RevIaEligeRevision" xml:space="preserve">
+    <value>Elige una revisión</value>
+  </data>
+  <data name="RevIaEligeRevisionAyuda" xml:space="preserve">
+    <value>Elige la siguiente revisión del desplegable o pulsa J.</value>
+  </data>
+  <data name="RevIaLateralAria" xml:space="preserve">
+    <value>Revisión del documento</value>
+  </data>
+  <data name="RevIaPendientesAria" xml:space="preserve">
+    <value>Pendientes de revisión IA</value>
+  </data>
+  <data name="RevIaFiltrarAria" xml:space="preserve">
+    <value>Filtrar revisiones</value>
+  </data>
+  <data name="RevIaNDeM" xml:space="preserve">
+    <value>{0} de {1}</value>
+  </data>
+  <data name="RevIaAnterior" xml:space="preserve">
+    <value>Anterior (K)</value>
+  </data>
+  <data name="RevIaAnteriorTitulo" xml:space="preserve">
+    <value>Anterior</value>
+  </data>
+  <data name="RevIaSiguiente" xml:space="preserve">
+    <value>Siguiente (J)</value>
+  </data>
+  <data name="RevIaSiguienteTitulo" xml:space="preserve">
+    <value>Siguiente</value>
+  </data>
+  <data name="RevIaFiltroTodas" xml:space="preserve">
+    <value>Todas</value>
+  </data>
+  <data name="RevIaFiltroConfirmables" xml:space="preserve">
+    <value>Confirmables</value>
+  </data>
+  <data name="RevIaFiltroManual" xml:space="preserve">
+    <value>Manual</value>
+  </data>
+  <data name="RevIaFiltroSinFecha" xml:space="preserve">
+    <value>Sin fecha</value>
+  </data>
+  <data name="RevIaOrdenPie" xml:space="preserve">
+    <value>Ordenadas por confianza, de menor a mayor</value>
+  </data>
+  <data name="RevIaAmbitoEmpresa" xml:space="preserve">
+    <value>Empresa</value>
+  </data>
+  <data name="RevIaAmbitoTrabajador" xml:space="preserve">
+    <value>Trabajador</value>
+  </data>
+  <data name="RevIaConfirmable" xml:space="preserve">
+    <value>Confirmable</value>
+  </data>
+  <data name="RevIaRevisionManual" xml:space="preserve">
+    <value>Revisión manual</value>
+  </data>
+  <data name="RevIaSinFechaDetectada" xml:space="preserve">
+    <value>Sin fecha detectada</value>
+  </data>
+  <data name="RevIaPorQueTitulo" xml:space="preserve">
+    <value>Por qué requiere revisión</value>
+  </data>
+  <data name="RevIaIgual" xml:space="preserve">
+    <value>Igual</value>
+  </data>
+  <data name="RevIaNoDetectada" xml:space="preserve">
+    <value>No detectada</value>
+  </data>
+  <data name="RevIaNoDisponible" xml:space="preserve">
+    <value>No disponible</value>
+  </data>
+  <data name="RevIaFirmaDetectada" xml:space="preserve">
+    <value>Detectada</value>
+  </data>
+  <data name="RevIaFirmaNoDetectada" xml:space="preserve">
+    <value>No detectada</value>
+  </data>
+  <data name="RevIaFirmaNoDeterminada" xml:space="preserve">
+    <value>No determinada</value>
+  </data>
+  <data name="RevIaAceptar" xml:space="preserve">
+    <value>Aceptar detección</value>
+  </data>
+  <data name="RevIaCorregir" xml:space="preserve">
+    <value>Corregir a mano…</value>
+  </data>
+  <data name="RevIaDescartar" xml:space="preserve">
+    <value>Descartar la lectura</value>
+  </data>
+  <data name="RevIaAvance" xml:space="preserve">
+    <value>Al terminar, pasar al siguiente</value>
+  </data>
+  <data name="RevIaSiguienteA" xml:space="preserve">
+    <value>Siguiente: {0} · {1}</value>
+  </data>
+  <data name="RevIaAvisoRevisado" xml:space="preserve">
+    <value>{0} · {1} revisado. Pasamos a {2}.</value>
+  </data>
+  <data name="RevIaAvisoAceptada" xml:space="preserve">
+    <value>Detección aplicada al documento.</value>
+  </data>
+  <data name="RevIaAvisoDescartada" xml:space="preserve">
+    <value>Lectura descartada; el documento no se ha modificado.</value>
+  </data>
+  <data name="RevIaAvisoCorregida" xml:space="preserve">
+    <value>Documento corregido y revisión resuelta.</value>
+  </data>
+  <data name="RevIaFechaNoValida" xml:space="preserve">
+    <value>Indica una fecha de emisión válida.</value>
+  </data>
+  <data name="RevIaCorregirTitulo" xml:space="preserve">
+    <value>Corregir a mano</value>
+  </data>
+  <data name="RevIaCancelar" xml:space="preserve">
+    <value>Cancelar</value>
+  </data>
+  <data name="RevIaGuardarCerrar" xml:space="preserve">
+    <value>Guardar y cerrar el aviso</value>
+  </data>
+  <data name="RevIaLaIaLeyo" xml:space="preserve">
+    <value>La IA leyó: {0}</value>
+  </data>
+  <data name="RevIaGuardarAyuda" xml:space="preserve">
+    <value>Guardar corrige la fecha y cierra el aviso en una sola operación. El vencimiento se recalcula solo cuando el tipo lo hace automáticamente.</value>
+  </data>
+  <data name="RevIaDescartarTitulo" xml:space="preserve">
+    <value>Descartar la lectura de la IA</value>
+  </data>
+  <data name="RevIaDescartarMensaje" xml:space="preserve">
+    <value>El aviso se cerrará y el documento se conservará sin aplicar la detección.</value>
+  </data>
 </root>

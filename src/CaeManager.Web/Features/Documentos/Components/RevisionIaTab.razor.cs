@@ -1,3 +1,4 @@
+using System.Security.Claims;
 using CaeManager.Application.Documentos.Commands.AceptarDeteccionesIaEnBloque;
 using CaeManager.Application.Documentos.Commands.AplicarDeteccionIaDocumento;
 using CaeManager.Application.Documentos.Commands.CorregirRevisionIaDocumento;
@@ -5,20 +6,34 @@ using CaeManager.Application.Documentos.Commands.ResolverRevisionIaDocumento;
 using CaeManager.Application.Documentos.Queries.ObtenerRevisionesIaPendientes;
 using CaeManager.Web.Components.DesignSystem;
 using Microsoft.AspNetCore.Components;
+using Microsoft.AspNetCore.Components.Authorization;
+using Microsoft.AspNetCore.Components.Web;
+using Microsoft.JSInterop;
 
 namespace CaeManager.Web.Features.Documentos.Components;
 
 public partial class RevisionIaTab : ComponentBase, IDisposable
 {
-    // Solo preselecciona: nada se acepta sin que el Gestor CAE pulse «Aceptar seleccionadas». No es el umbral del modelo.
-    private const int ConfianzaMinimaPorDefecto = 95;
-    private static IReadOnlyList<int> ConfianzasMinimas { get; } = [95, 90, 80];
+    /// <summary>
+    /// «Confirmar todos los ≥95 %»: la confirmación en lote exige esta confianza (y fecha detectada, sin alerta, con la
+    /// vigencia que fija el tipo). No es el umbral del modelo: solo decide qué lecturas entran en el botón de la cabecera,
+    /// y el Gestor CAE lo confirma en un diálogo antes de que se acepte nada.
+    /// </summary>
+    private const int UmbralLote = 95;
+
+    /// <summary>
+    /// D-49: el avance automático al siguiente se recuerda por usuario en este navegador (no hay almacén de preferencias
+    /// de vista en servidor para esta pantalla: <c>PantallasConVistaRecordada</c> es de los listados). Misma convención
+    /// que las preferencias del Cuadro de dirección: la clave lleva el id del usuario, sin usuario no se recuerda nada.
+    /// </summary>
+    private const string PrefijoClaveAvance = "revision-ia:avance-automatico";
+
+    private const string ModuloPreferencias = "./js/revision-ia.js";
 
     private sealed record FalloAceptacion(string Propietario, string Tipo, string Motivo);
 
-    private readonly HashSet<Guid> _seleccion = [];
-    private int _confianzaMinima = ConfianzaMinimaPorDefecto;
-    private bool _preseleccionPendiente = true;
+    [CascadingParameter] private Task<AuthenticationState>? EstadoAutenticacion { get; set; }
+
     private IReadOnlyList<FalloAceptacion> _fallosBloque = [];
 
     private IReadOnlyList<RevisionIaDocumentoDto> _revisiones = [];
@@ -29,10 +44,33 @@ public partial class RevisionIaTab : ComponentBase, IDisposable
     private bool _confirmacionLoteVisible;
     private bool _confirmacionDescartarVisible;
     private bool _correccionManualVisible;
+    private bool _desplegableAbierto;
+    private bool _tecladoInstalado;
+    private bool _devolverFoco;
+    private ElementReference _popRef;
+    private ElementReference _botonSelector;
     private bool _dispose;
     private Guid? _procesandoId;
     private Guid? _revisionIdSeleccionada;
-    private Guid? _documentoIdExpandido;
+
+    /// <summary>La revisión cuyo documento se ha pedido ver (iframe cargado); <c>null</c> en reposo. Volver al reposo al cambiar de selección.</summary>
+    private Guid? _revisionDocumentoAbierta;
+
+    /// <summary>Con el avance automático apagado, al terminar una revisión no se elige otra: el Gestor CAE escoge la siguiente.</summary>
+    private bool _sinSeleccion;
+
+    /// <summary>La revisión a la que se pasa tras terminar una (se consume en la carga que sigue).</summary>
+    private Guid? _proximaSeleccion;
+
+    private bool _avanceAutomatico = true;
+
+    /// <summary>El usuario ya cambió la casilla: la lectura inicial (asíncrona) de la preferencia guardada no la pisa.</summary>
+    private bool _avanceTocadoPorElUsuario;
+    private string? _claveAvance;
+
+    /// <summary>Cuántas lecturas se han resuelto en esta visita: el «Has revisado los N» de cuando no queda ninguna.</summary>
+    private int _revisadas;
+
     private string _fechaEmisionManual = string.Empty;
     private string? _errorFechaManual;
 
@@ -47,35 +85,193 @@ public partial class RevisionIaTab : ComponentBase, IDisposable
     private enum FiltroRevision
     {
         Todas,
-        Aceptables,
-        Manuales,
+        Confirmables,
+        Manual,
         SinFecha
     }
 
     private static IReadOnlyList<FiltroRevision> Filtros { get; } =
     [
         FiltroRevision.Todas,
-        FiltroRevision.Aceptables,
-        FiltroRevision.Manuales,
+        FiltroRevision.Confirmables,
+        FiltroRevision.Manual,
         FiltroRevision.SinFecha
     ];
 
     private IReadOnlyList<RevisionIaDocumentoDto> RevisionesVisibles => _revisiones.Where(CumpleFiltro).ToList();
-    // Solo lo que se ve: lo que el filtro oculta no se acepta sin que el Gestor CAE lo tenga delante.
-    private IReadOnlyList<RevisionIaDocumentoDto> RevisionesSeleccionadas => RevisionesVisibles.Where(r => _seleccion.Contains(r.Id) && EsAceptableEnBloque(r)).ToList();
+
+    // «Confirmar todos» es una acción de la cola entera, no de la lista que deja ver el filtro: con «Manual» o «Sin fecha»
+    // activos (donde por definición no hay confirmables a la vista) el botón sigue ahí con el recuento de la cola, y el
+    // diálogo dice cuántas se aceptan. Con más de MaximoRevisionesPorBloque, el rótulo dice «las primeras N de M».
+    private IEnumerable<RevisionIaDocumentoDto> TodasLasConfirmables => _revisiones.Where(EsConfirmable);
+
+    /// <summary>
+    /// El texto del diálogo de «Confirmar todos»: cuántas lecturas se aceptan de cuántas (con recorte, «las primeras N de M»)
+    /// y, si el filtro oculta alguna de ellas, que entran igual porque el botón actúa sobre toda la cola.
+    /// </summary>
+    private string MensajeConfirmacionLote
+    {
+        get
+        {
+            var seleccionadas = ConfirmablesEnBloque;
+            var enBloque = seleccionadas.Count;
+            var total = TodasLasConfirmables.Count();
+            var pendientes = _revisiones.Count;
+
+            // Concordancia: «la única», «las N» (todas entran: no hay «demás») o «N de las M» (el resto sigue pendiente).
+            var mensaje = total > enBloque
+                ? Textos["RevIaDialogoMensajePrimeras", enBloque, UmbralLote, total].Value
+                : pendientes == 1 && enBloque == 1
+                    ? Textos["RevIaDialogoMensajeUna", enBloque, UmbralLote, pendientes].Value
+                    : enBloque == pendientes
+                        ? Textos["RevIaDialogoMensajeTodas", enBloque, UmbralLote, pendientes].Value
+                        : Textos["RevIaDialogoMensaje", enBloque, UmbralLote, pendientes].Value;
+
+            // Las ocultas se cuentan sobre lo que se envía de verdad (recortado al máximo del bloque), no sobre toda la cola.
+            var ocultas = seleccionadas.Count(r => !CumpleFiltro(r));
+            return ocultas switch
+            {
+                0 => mensaje,
+                1 => $"{mensaje} {string.Format(Textos["RevIaDialogoFiltroOcultaUna"].Value, ocultas)}",
+                _ => $"{mensaje} {string.Format(Textos["RevIaDialogoFiltroOculta"].Value, ocultas)}"
+            };
+        }
+    }
+
+    private IReadOnlyList<RevisionIaDocumentoDto> ConfirmablesEnBloque => TodasLasConfirmables
+        .Take(AceptarDeteccionesIaEnBloqueCommandHandler.MaximoRevisionesPorBloque)
+        .ToList();
+
+    private string TextoConfirmarTodos
+    {
+        get
+        {
+            var enBloque = ConfirmablesEnBloque.Count;
+            var total = TodasLasConfirmables.Count();
+            return total > enBloque
+                ? Textos["RevIaConfirmarPrimeras", enBloque, total, UmbralLote]
+                : Textos["RevIaConfirmarTodos", UmbralLote, enBloque];
+        }
+    }
+
     private RevisionIaDocumentoDto? RevisionSeleccionada => _revisiones.FirstOrDefault(r => r.Id == _revisionIdSeleccionada);
 
-    protected override Task OnInitializedAsync() => CargarAsync();
+    private int IndiceSeleccionada => RevisionesVisibles.ToList().FindIndex(r => r.Id == _revisionIdSeleccionada);
+    private bool HayAnterior => IndiceSeleccionada > 0;
+    private bool HaySiguiente => RevisionesVisibles.Count > 0 && IndiceSeleccionada < RevisionesVisibles.Count - 1;
+    private RevisionIaDocumentoDto? SiguienteDeLaLista => HaySiguiente ? RevisionesVisibles[IndiceSeleccionada + 1] : null;
 
-    private async Task CargarAsync()
+    /// <summary>«1 de 4» sobre lo que el filtro deja ver; sin revisión elegida, solo el total.</summary>
+    private string PosicionTexto => IndiceSeleccionada >= 0
+        ? string.Format(Textos["RevIaNDeM"].Value, IndiceSeleccionada + 1, RevisionesVisibles.Count)
+        : RevisionesVisibles.Count.ToString();
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (EstadoAutenticacion is not null)
+        {
+            var usuario = (await EstadoAutenticacion).User;
+            if (usuario.FindFirst(ClaimTypes.NameIdentifier)?.Value is { Length: > 0 } usuarioId)
+            {
+                _claveAvance = $"{PrefijoClaveAvance}:{usuarioId}";
+            }
+        }
+
+        await CargarAsync();
+    }
+
+    private async Task AjustarFocoDelDesplegableAsync()
+    {
+        if (_dispose)
+        {
+            return;
+        }
+
+        try
+        {
+            if (_desplegableAbierto && !_tecladoInstalado)
+            {
+                _tecladoInstalado = true;
+                await using var modulo = await Js.InvokeAsync<IJSObjectReference>("import", ModuloPreferencias);
+                await modulo.InvokeVoidAsync("instalarTecladoOpciones", _popRef);
+            }
+            else if (!_desplegableAbierto)
+            {
+                _tecladoInstalado = false;
+                if (_devolverFoco)
+                {
+                    _devolverFoco = false;
+                    await _botonSelector.FocusAsync();
+                }
+            }
+        }
+        catch (Exception ex) when (ex is JSException or JSDisconnectedException or InvalidOperationException)
+        {
+            // Sin circuito o sin el elemento (la cola quedó vacía): el desplegable sigue siendo operable con el ratón y con Tab.
+        }
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        await AjustarFocoDelDesplegableAsync();
+
+        if (!firstRender || _claveAvance is null)
+        {
+            return;
+        }
+
+        try
+        {
+            await using var modulo = await Js.InvokeAsync<IJSObjectReference>("import", ModuloPreferencias);
+            var guardado = await modulo.InvokeAsync<string?>("leer", _claveAvance);
+            // La lectura es asíncrona: si el usuario ya movió la casilla mientras tanto, su gesto manda sobre el valor guardado.
+            if (!_dispose && !_avanceTocadoPorElUsuario && guardado is "0" or "1")
+            {
+                _avanceAutomatico = guardado == "1";
+                StateHasChanged();
+            }
+        }
+        catch (Exception ex) when (ex is JSException or JSDisconnectedException or InvalidOperationException)
+        {
+            // Sin almacenamiento o sin circuito: el avance sigue activado, que es el valor por defecto de D-49.
+        }
+    }
+
+    private async Task CambiarAvanceAsync(bool activado)
+    {
+        _avanceAutomatico = activado;
+        _avanceTocadoPorElUsuario = true;
+        if (_claveAvance is null)
+        {
+            return;
+        }
+
+        try
+        {
+            await using var modulo = await Js.InvokeAsync<IJSObjectReference>("import", ModuloPreferencias);
+            await modulo.InvokeVoidAsync("guardar", _claveAvance, activado ? "1" : "0");
+        }
+        catch (Exception ex) when (ex is JSException or JSDisconnectedException or InvalidOperationException)
+        {
+            // Recordarlo es una comodidad: si no se puede, el cambio vale solo para esta visita.
+        }
+    }
+
+    private async Task CargarAsync(bool silenciosa = false)
     {
         _cargaCts?.Cancel();
         _cargaCts?.Dispose();
         var cts = _cargaCts = new CancellationTokenSource();
         var generacion = ++_generacionCarga;
         var token = cts.Token;
-        _cargando = true;
+        _cargando = !silenciosa;
         _errorCarga = false;
+        if (!silenciosa)
+        {
+            // «Reintentar» (y la carga inicial) no devuelven el iframe: cada visita al documento es una pulsación explícita.
+            _revisionDocumentoAbierta = null;
+        }
+
         StateHasChanged();
 
         try
@@ -87,18 +283,36 @@ public partial class RevisionIaTab : ComponentBase, IDisposable
             }
 
             _revisiones = revisiones;
-            if (_preseleccionPendiente)
+
+            // Un filtro que se queda sin lecturas (se resolvió la última «Manual») vuelve a «Todas»: no hay pantalla vacía con
+            // la cola aún llena.
+            if (_filtro != FiltroRevision.Todas && RevisionesVisibles.Count == 0 && revisiones.Count > 0)
             {
-                Preseleccionar();
-                _preseleccionPendiente = false;
+                _filtro = FiltroRevision.Todas;
+            }
+
+            if (_proximaSeleccion is { } proxima)
+            {
+                _proximaSeleccion = null;
+                if (RevisionesVisibles.Any(r => r.Id == proxima))
+                {
+                    _revisionIdSeleccionada = proxima;
+                    ReiniciarOperacionPorCambioDeEntidad();
+                }
+                else
+                {
+                    SeleccionarPrimeraVisible();
+                }
+            }
+            else if (_sinSeleccion && !RevisionesVisibles.Any(r => r.Id == _revisionIdSeleccionada))
+            {
+                _revisionIdSeleccionada = null;
+                _revisionDocumentoAbierta = null;
             }
             else
             {
-                // Lo ya aceptado o resuelto por otra vía sale de la selección; lo que falló sigue marcado para reintentar.
-                _seleccion.IntersectWith(revisiones.Select(r => r.Id));
+                SeleccionarPrimeraVisible();
             }
-
-            SeleccionarPrimeraVisible();
         }
         catch (OperationCanceledException) when (token.IsCancellationRequested)
         {
@@ -108,6 +322,7 @@ public partial class RevisionIaTab : ComponentBase, IDisposable
             if (!_dispose && generacion == _generacionCarga)
             {
                 _errorCarga = true;
+                _revisionDocumentoAbierta = null;
             }
         }
         finally
@@ -120,9 +335,39 @@ public partial class RevisionIaTab : ComponentBase, IDisposable
         }
     }
 
+    /// <summary>
+    /// A qué revisión se pasa al terminar <paramref name="resuelta"/>: la que sigue en la lista que se está viendo; si era la
+    /// última, la primera que quede. <c>null</c> si no queda otra.
+    /// </summary>
+    private RevisionIaDocumentoDto? SiguienteTras(Guid resuelta)
+    {
+        var visibles = RevisionesVisibles;
+        var indice = visibles.ToList().FindIndex(r => r.Id == resuelta);
+        return (indice >= 0 ? visibles.Skip(indice + 1).FirstOrDefault() : null)
+            ?? visibles.FirstOrDefault(r => r.Id != resuelta);
+    }
+
+    /// <summary>
+    /// Cierra una revisión resuelta: avisa, pasa a la siguiente si el avance automático está activado (D-49) y recarga la
+    /// cola. Con el avance apagado no se elige ninguna: el Gestor CAE escoge del desplegable.
+    /// </summary>
+    private async Task TerminarRevisionAsync(RevisionIaDocumentoDto resuelta, string avisoSinAvance)
+    {
+        _revisadas++;
+        var siguiente = _avanceAutomatico ? SiguienteTras(resuelta.Id) : null;
+        _proximaSeleccion = siguiente?.Id;
+        _sinSeleccion = !_avanceAutomatico;
+        ToastService.Mostrar(
+            siguiente is null
+                ? avisoSinAvance
+                : string.Format(Textos["RevIaAvisoRevisado"].Value, resuelta.PropietarioNombre, resuelta.TipoDocumentoNombre, siguiente.PropietarioNombre),
+            TonoToast.Exito);
+        await CargarAsync(silenciosa: true);
+    }
+
     private async Task AceptarDeteccionAsync(Guid revisionId)
     {
-        if (_operacionEnCurso)
+        if (_operacionEnCurso || _revisiones.FirstOrDefault(r => r.Id == revisionId) is not { } revision)
         {
             return;
         }
@@ -150,8 +395,7 @@ public partial class RevisionIaTab : ComponentBase, IDisposable
                 return;
             }
 
-            ToastService.Mostrar("Detección aplicada al documento.", TonoToast.Exito);
-            await CargarAsync();
+            await TerminarRevisionAsync(revision, Textos["RevIaAvisoAceptada"]);
         }
         finally
         {
@@ -166,7 +410,7 @@ public partial class RevisionIaTab : ComponentBase, IDisposable
 
     private async Task ResolverSeleccionadaAsync()
     {
-        if (_revisionIdSeleccionada is not { } revisionId || _operacionEnCurso)
+        if (_revisionIdSeleccionada is not { } revisionId || RevisionSeleccionada is not { } revision || _operacionEnCurso)
         {
             return;
         }
@@ -194,9 +438,8 @@ public partial class RevisionIaTab : ComponentBase, IDisposable
                 return;
             }
 
-            ToastService.Mostrar("Lectura descartada; el documento no se ha modificado.", TonoToast.Exito);
             _confirmacionDescartarVisible = false;
-            await CargarAsync();
+            await TerminarRevisionAsync(revision, Textos["RevIaAvisoDescartada"]);
         }
         finally
         {
@@ -211,7 +454,7 @@ public partial class RevisionIaTab : ComponentBase, IDisposable
 
     private async Task CorregirSeleccionadaAsync()
     {
-        if (_revisionIdSeleccionada is not { } revisionId || _operacionEnCurso)
+        if (_revisionIdSeleccionada is not { } revisionId || RevisionSeleccionada is not { } revision || _operacionEnCurso)
         {
             return;
         }
@@ -219,7 +462,7 @@ public partial class RevisionIaTab : ComponentBase, IDisposable
         // Una emisión a medias ya llega como «»; la marca dice que hay que corregirla, no que falte.
         if (_emisionManualNoValida || !DateOnly.TryParse(_fechaEmisionManual, out var fechaEmision))
         {
-            _errorFechaManual = "Indica una fecha de emisión válida.";
+            _errorFechaManual = Textos["RevIaFechaNoValida"];
             return;
         }
 
@@ -249,9 +492,8 @@ public partial class RevisionIaTab : ComponentBase, IDisposable
                 return;
             }
 
-            ToastService.Mostrar("Documento corregido y revisión resuelta.", TonoToast.Exito);
             _correccionManualVisible = false;
-            await CargarAsync();
+            await TerminarRevisionAsync(revision, Textos["RevIaAvisoCorregida"]);
         }
         finally
         {
@@ -264,14 +506,14 @@ public partial class RevisionIaTab : ComponentBase, IDisposable
         }
     }
 
-    private async Task AceptarSeleccionadasAsync()
+    private async Task AceptarConfirmablesAsync()
     {
         if (_confirmandoLote || _operacionEnCurso)
         {
             return;
         }
 
-        var seleccionadas = RevisionesSeleccionadas;
+        var seleccionadas = ConfirmablesEnBloque;
         if (seleccionadas.Count == 0)
         {
             return;
@@ -306,8 +548,9 @@ public partial class RevisionIaTab : ComponentBase, IDisposable
             ToastService.Mostrar(
                 ResumenBloque(desenlace.Aceptadas, seleccionadas.Count, desenlace.Fallidas),
                 desenlace.Fallidas == 0 ? TonoToast.Exito : TonoToast.Advertencia);
+            _revisadas += desenlace.Aceptadas;
             _confirmacionLoteVisible = false;
-            await CargarAsync();
+            await CargarAsync(silenciosa: true);
         }
         finally
         {
@@ -316,56 +559,15 @@ public partial class RevisionIaTab : ComponentBase, IDisposable
         }
     }
 
-    private void Preseleccionar()
-    {
-        _seleccion.Clear();
-        foreach (var revision in _revisiones
-            .Where(r => EsAceptableEnBloque(r) && r.ConfianzaGeneral >= _confianzaMinima)
-            .Take(AceptarDeteccionesIaEnBloqueCommandHandler.MaximoRevisionesPorBloque))
-        {
-            _seleccion.Add(revision.Id);
-        }
-    }
-
-    private void CambiarConfianzaMinima(string valor)
-    {
-        if (!int.TryParse(valor, out var minima) || !ConfianzasMinimas.Contains(minima) || _operacionEnCurso)
-        {
-            return;
-        }
-
-        _confianzaMinima = minima;
-        _confirmacionLoteVisible = false;
-        Preseleccionar();
-    }
-
-    private void AlternarSeleccion(RevisionIaDocumentoDto revision, bool marcada)
-    {
-        if (_operacionEnCurso || !EsAceptableEnBloque(revision))
-        {
-            return;
-        }
-
-        _confirmacionLoteVisible = false;
-        if (marcada)
-        {
-            if (_seleccion.Count >= AceptarDeteccionesIaEnBloqueCommandHandler.MaximoRevisionesPorBloque)
-            {
-                return;
-            }
-
-            _seleccion.Add(revision.Id);
-        }
-        else
-        {
-            _seleccion.Remove(revision.Id);
-        }
-    }
-
     private void CerrarFallosBloque() => _fallosBloque = [];
 
     private void CambiarFiltro(FiltroRevision filtro)
     {
+        if (_operacionEnCurso)
+        {
+            return;
+        }
+
         _filtro = filtro;
         _confirmacionLoteVisible = false;
         _confirmacionDescartarVisible = false;
@@ -373,7 +575,34 @@ public partial class RevisionIaTab : ComponentBase, IDisposable
         SeleccionarPrimeraVisible();
     }
 
-    private void QuitarFiltro() => CambiarFiltro(FiltroRevision.Todas);
+    private int Recuento(FiltroRevision filtro) => _revisiones.Count(r => CumpleFiltro(r, filtro));
+
+    private void AlternarDesplegable() => _desplegableAbierto = !_desplegableAbierto;
+    private void CerrarDesplegable() => _desplegableAbierto = false;
+
+    private void TeclaEnLateral(KeyboardEventArgs e)
+    {
+        if (e.Key == "Escape")
+        {
+            _devolverFoco = _desplegableAbierto;
+            _desplegableAbierto = false;
+        }
+    }
+
+    private void SeleccionarDesdeDesplegable(Guid revisionId)
+    {
+        _desplegableAbierto = false;
+        _devolverFoco = true;
+
+        // Como ‹ ›, j/k y los filtros: con un Command en vuelo no se cambia de revisión. El desplegable se cierra igual, así
+        // que el foco vuelve al disparador también aquí.
+        if (_operacionEnCurso)
+        {
+            return;
+        }
+
+        SeleccionarRevision(revisionId);
+    }
 
     private void SeleccionarRevision(Guid revisionId)
     {
@@ -382,6 +611,7 @@ public partial class RevisionIaTab : ComponentBase, IDisposable
             return;
         }
 
+        _sinSeleccion = false;
         _revisionIdSeleccionada = revisionId;
         ReiniciarOperacionPorCambioDeEntidad();
     }
@@ -393,20 +623,95 @@ public partial class RevisionIaTab : ComponentBase, IDisposable
             return;
         }
 
+        _sinSeleccion = false;
         _revisionIdSeleccionada = RevisionesVisibles.FirstOrDefault()?.Id;
         ReiniciarOperacionPorCambioDeEntidad();
     }
 
+    /// <summary>
+    /// «Ver documento»: carga el iframe de ESTA revisión. Cada GET de /documentos/{id}/archivo registra una Apertura, así que
+    /// no se hace al seleccionar sino por petición explícita.
+    /// </summary>
+    private void AbrirDocumento(Guid revisionId)
+    {
+        if (_revisionIdSeleccionada == revisionId)
+        {
+            _revisionDocumentoAbierta = revisionId;
+        }
+    }
+
+    /// <summary>El documento está cargado solo si el visor abierto es el de la revisión que ahora está seleccionada.</summary>
+    private bool DocumentoAbiertoDeLaSeleccionada =>
+        _revisionDocumentoAbierta is { } abierta && abierta == _revisionIdSeleccionada;
+
     private void ReiniciarOperacionPorCambioDeEntidad()
     {
+        _revisionDocumentoAbierta = null;
         _generacionEntidad++;
-        _documentoIdExpandido = null;
         _confirmacionDescartarVisible = false;
         _correccionManualVisible = false;
+        _desplegableAbierto = false;
         _procesandoId = null;
     }
 
-    private void PrepararConfirmacionLote() => _confirmacionLoteVisible = RevisionesSeleccionadas.Count > 0;
+    private Task IrAlSiguienteAsync()
+    {
+        if (_operacionEnCurso)
+        {
+            return Task.CompletedTask;
+        }
+
+        var visibles = RevisionesVisibles;
+        if (visibles.Count == 0)
+        {
+            return Task.CompletedTask;
+        }
+
+        var indice = IndiceSeleccionada;
+        if (indice < visibles.Count - 1)
+        {
+            SeleccionarRevision(visibles[indice + 1].Id);
+        }
+
+        return Task.CompletedTask;
+    }
+
+    private Task IrAlAnteriorAsync()
+    {
+        if (_operacionEnCurso)
+        {
+            return Task.CompletedTask;
+        }
+
+        var indice = IndiceSeleccionada;
+        if (indice > 0)
+        {
+            SeleccionarRevision(RevisionesVisibles[indice - 1].Id);
+        }
+
+        return Task.CompletedTask;
+    }
+
+    /// <summary>
+    /// j / k, como en el resto de listas: siguiente y anterior. Con un panel abierto (corrección a mano, confirmaciones) o una
+    /// operación en curso no se cambia de revisión: el cambio cerraría lo que se está haciendo.
+    /// </summary>
+    private Task ManejarAtajoAsync(string tecla)
+    {
+        if (_operacionEnCurso || _correccionManualVisible || _confirmacionLoteVisible || _confirmacionDescartarVisible)
+        {
+            return Task.CompletedTask;
+        }
+
+        return tecla switch
+        {
+            "j" => IrAlSiguienteAsync(),
+            "k" => IrAlAnteriorAsync(),
+            _ => Task.CompletedTask
+        };
+    }
+
+    private void PrepararConfirmacionLote() => _confirmacionLoteVisible = ConfirmablesEnBloque.Count > 0;
     private void PrepararDescartar() => _confirmacionDescartarVisible = RevisionSeleccionada is not null;
     private void PrepararCorreccionManual()
     {
@@ -429,99 +734,108 @@ public partial class RevisionIaTab : ComponentBase, IDisposable
 
     private bool HayCambiosSinGuardar => _correccionManualVisible && (_fechaEmisionManual != _fechaEmisionManualAlAbrir || _emisionManualNoValida);
 
-    private void AlternarPrevisualizacion(Guid documentoId) => _documentoIdExpandido = _documentoIdExpandido == documentoId ? null : documentoId;
+    private bool CumpleFiltro(RevisionIaDocumentoDto revision) => CumpleFiltro(revision, _filtro);
 
-    private bool CumpleFiltro(RevisionIaDocumentoDto revision) => _filtro switch
+    private static bool CumpleFiltro(RevisionIaDocumentoDto revision, FiltroRevision filtro) => filtro switch
     {
-        FiltroRevision.Aceptables => EsAceptableEnBloque(revision),
-        FiltroRevision.Manuales => revision.FechaEmisionDetectada is not null && !EsAceptableEnBloque(revision),
+        FiltroRevision.Confirmables => EsConfirmable(revision),
+        FiltroRevision.Manual => revision.FechaEmisionDetectada is not null && !EsConfirmable(revision),
         FiltroRevision.SinFecha => revision.FechaEmisionDetectada is null,
         _ => true
     };
 
     // Aceptable en bloque = hay fecha de emisión leída, el tipo calcula el vencimiento desde ella y no hay alerta
-    // determinista ni lectura parcial. La confianza no decide esto, solo la preselección; la vigencia que confirma el
-    // Gestor CAE a mano y las alertas se aceptan de una en una, con el motivo a la vista. El servidor lo impone igual
-    // (AplicarDeteccionIaDocumentoCommand): este predicado solo evita ofrecer lo que rechazaría.
+    // determinista ni lectura parcial: lo único que el servidor deja aceptar sin que nadie vea la lectura. La vigencia que
+    // confirma el Gestor CAE a mano y las alertas se aceptan de una en una, con el motivo a la vista. El servidor lo impone
+    // igual (AplicarDeteccionIaDocumentoCommand): este predicado solo evita ofrecer lo que rechazaría.
     private static bool EsAceptableEnBloque(RevisionIaDocumentoDto revision) =>
         revision.FechaEmisionDetectada is not null && revision.VigenciaLaFijaElTipo && !revision.TieneAlertaDeterminista;
 
-    private static string TextoFiltro(FiltroRevision f) => f switch
+    // Confirmable = aceptable en bloque Y con la confianza del umbral (UmbralLote, «≥95 %»). Es el único criterio de «Confirmar
+    // todos», del filtro «Confirmables» y de la etiqueta «Confirmable», para que el recuento del filtro y el del botón coincidan
+    // (artboard «Revision-ia»). Una lectura con fecha y 58 % no es confirmable: va a «Manual», con su motivo a la vista.
+    private static bool EsConfirmable(RevisionIaDocumentoDto revision) =>
+        EsAceptableEnBloque(revision) && revision.ConfianzaGeneral >= UmbralLote;
+
+    private string TextoFiltro(FiltroRevision f) => f switch
     {
-        FiltroRevision.Aceptables => "Aceptables",
-        FiltroRevision.Manuales => "Manual",
-        FiltroRevision.SinFecha => "Sin fecha",
-        _ => "Todas"
+        FiltroRevision.Confirmables => Textos["RevIaFiltroConfirmables"],
+        FiltroRevision.Manual => Textos["RevIaFiltroManual"],
+        FiltroRevision.SinFecha => Textos["RevIaFiltroSinFecha"],
+        _ => Textos["RevIaFiltroTodas"]
     };
 
-    private string ClaseFiltro(FiltroRevision f) => _filtro == f ? "revision-ia-filtro activo" : "revision-ia-filtro";
-    private string ClaseRevision(RevisionIaDocumentoDto r) => RevisionSeleccionada?.Id == r.Id ? "revision-ia-fila activa" : "revision-ia-fila";
-    private static string Ambito(RevisionIaDocumentoDto r) => r.TrabajadorId is null ? "Empresa" : "Trabajador";
+    private string Ambito(RevisionIaDocumentoDto r) => r.TrabajadorId is null ? Textos["RevIaAmbitoEmpresa"] : Textos["RevIaAmbitoTrabajador"];
+
     private string EtiquetaTratamiento(RevisionIaDocumentoDto r) => r.TieneAlertaDeterminista
         ? Textos["RevIaConAlerta"]
-        : EsAceptableEnBloque(r)
-            ? Textos["RevIaAceptable"]
-            : r.FechaEmisionDetectada is null ? "Sin fecha" : Textos["RevIaVigenciaAMano"];
+        : EsConfirmable(r)
+            ? Textos["RevIaConfirmable"]
+            : r.FechaEmisionDetectada is null ? Textos["RevIaSinFechaDetectada"] : Textos["RevIaRevisionManual"];
 
     private string ResumenBloque(int aceptadas, int solicitadas, int fallidas) => aceptadas == solicitadas
         ? Textos["RevIaResumenTodas", aceptadas]
         : Textos["RevIaResumenParcial", aceptadas, solicitadas, fallidas];
 
-    private static string Fecha(DateOnly? fecha) => fecha?.ToString("dd/MM/yyyy") ?? "No disponible";
+    private string Fecha(DateOnly? fecha) => fecha?.ToString("dd/MM/yyyy") ?? Textos["RevIaNoDisponible"].Value;
 
-    // La tabla de comparación del detalle pinta las fechas en dd/MM/yyyy (formato único) y «—» sin dato (maqueta «Revision IA TALVEG.dc.html»).
-    // El botón de copiar de TextoFechaCopiable copia el mismo dd/MM/yyyy.
+    // La lista de campos pinta las fechas en dd/MM/yyyy (formato único) y «—» sin dato. El botón de copiar de
+    // TextoFechaCopiable copia el mismo dd/MM/yyyy.
     private static string FechaCorta(DateOnly? fecha) => fecha?.ToString("dd/MM/yyyy") ?? "—";
 
-    private enum Coincidencia
-    {
-        SinComparar,
-        Coincide,
-        NoCoincide
-    }
-
+    /// <summary>
+    /// Una fila de la lista corta de campos. <c>Introducido</c> es lo que se tecleó al subir; <c>Leido</c> lo que dice la IA.
+    /// <c>Coincide</c> pinta «Igual»; <c>Difiere</c> resalta la fila (lectura distinta, o la IA no leyó lo que sí se introdujo).
+    /// </summary>
     private sealed record FilaComparacion(
         string Campo,
-        string Leido,
-        DateOnly? FechaLeida,
         string Introducido,
         DateOnly? FechaIntroducida,
-        Coincidencia Resultado);
+        string Leido,
+        DateOnly? FechaLeida,
+        bool Coincide,
+        bool Difiere);
 
-    // Solo presentación: lo leído y lo introducido ya venían en el DTO. «Coincide» / «No coincide» se pinta únicamente
-    // cuando hay dos valores que comparar; con la lectura vacía no se afirma una coincidencia que nadie ha visto.
-    private IReadOnlyList<FilaComparacion> FilasComparacion(RevisionIaDocumentoDto r) =>
-    [
-        new FilaComparacion(
-            Textos["RevIaCampoTipo"],
-            string.IsNullOrWhiteSpace(r.TipoDetectado) ? Textos["RevIaTipoNoDeterminado"].Value : r.TipoDetectado,
-            null,
-            r.TipoDocumentoNombre,
-            null,
-            string.IsNullOrWhiteSpace(r.TipoDetectado)
-                ? Coincidencia.SinComparar
-                : string.Equals(r.TipoDetectado.Trim(), r.TipoDocumentoNombre.Trim(), StringComparison.OrdinalIgnoreCase)
-                    ? Coincidencia.Coincide
-                    : Coincidencia.NoCoincide),
-        FilaFecha(Textos["RevIaCampoEmision"], r.FechaEmisionDetectada, r.FechaEmisionIntroducida),
-        FilaFecha(Textos["RevIaCampoVencimiento"], r.FechaVencimientoDetectada, r.FechaVencimientoIntroducida),
-        new FilaComparacion(Textos["RevIaCampoFirma"], Firma(r.TieneFirmaDetectada), null, Textos["RevIaFirmaNoSolicitada"], null, Coincidencia.SinComparar)
-    ];
-
-    private static FilaComparacion FilaFecha(string campo, DateOnly? leida, DateOnly? introducida) => new(
-        campo,
-        FechaCorta(leida),
-        leida,
-        FechaCorta(introducida),
-        introducida,
-        leida is null || introducida is null
-            ? Coincidencia.SinComparar
-            : leida == introducida ? Coincidencia.Coincide : Coincidencia.NoCoincide);
-    private static string Firma(bool? tieneFirma) => tieneFirma switch
+    // Solo presentación: lo leído y lo introducido ya venían en el DTO. «Igual» solo cuando hay dos valores que comparar;
+    // con la lectura vacía no se afirma una coincidencia que nadie ha visto.
+    private IReadOnlyList<FilaComparacion> FilasComparacion(RevisionIaDocumentoDto r)
     {
-        true => "Detectada",
-        false => "No detectada",
-        _ => "No determinada"
+        var tipoLeido = !string.IsNullOrWhiteSpace(r.TipoDetectado);
+        var tipoCoincide = tipoLeido && string.Equals(r.TipoDetectado!.Trim(), r.TipoDocumentoNombre.Trim(), StringComparison.OrdinalIgnoreCase);
+        return
+        [
+            new FilaComparacion(
+                Textos["RevIaCampoTipo"],
+                r.TipoDocumentoNombre,
+                null,
+                !tipoLeido ? Textos["RevIaTipoNoDeterminado"].Value : tipoCoincide ? Textos["RevIaIgual"].Value : r.TipoDetectado!,
+                null,
+                tipoCoincide,
+                tipoLeido && !tipoCoincide),
+            FilaFecha(Textos["RevIaCampoEmision"], r.FechaEmisionDetectada, r.FechaEmisionIntroducida),
+            FilaFecha(Textos["RevIaCampoVencimiento"], r.FechaVencimientoDetectada, r.FechaVencimientoIntroducida),
+            new FilaComparacion(Textos["RevIaCampoFirma"], Textos["RevIaFirmaNoSolicitada"].Value, null, Firma(r.TieneFirmaDetectada), null, false, false)
+        ];
+    }
+
+    private FilaComparacion FilaFecha(string campo, DateOnly? leida, DateOnly? introducida)
+    {
+        var coincide = leida is not null && introducida is not null && leida == introducida;
+        return new FilaComparacion(
+            campo,
+            FechaCorta(introducida),
+            introducida,
+            coincide ? Textos["RevIaIgual"].Value : leida is null ? Textos["RevIaNoDetectada"].Value : FechaCorta(leida),
+            coincide || leida is null ? null : leida,
+            coincide,
+            leida is null ? introducida is not null : introducida is not null && leida != introducida);
+    }
+
+    private string Firma(bool? tieneFirma) => tieneFirma switch
+    {
+        true => Textos["RevIaFirmaDetectada"],
+        false => Textos["RevIaFirmaNoDetectada"],
+        _ => Textos["RevIaFirmaNoDeterminada"]
     };
 
     // Una alerta no se pinta en verde aunque la IA declare confianza alta.
