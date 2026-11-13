@@ -1,0 +1,78 @@
+@*
+    Menú «Acreditación ▾» de una fila de acreditación (D-18, lienzo «Documentos · listado sin pestañas», artboard Agrupar-plataforma):
+    recoge, con los rótulos y las condiciones de la pestaña Plataformas CAE (ReglasAccionesAcreditacion), lo que se puede hacer con
+    esa acreditación en su plataforma, más «Gestionar acreditación…» y «Abrir portal». Solo dibuja y avisa de la opción elegida:
+    quien lo monta (el listado, y más adelante la vista rápida) la despacha a los diálogos de ModalesAcreditacion y a los Commands.
+
+    D-3: el rol solo cambia qué se muestra. El menú es de quien escribe (SoloConEscritura: no aparece para Consulta ni para el
+    Usuario de Cliente) y «Abrir portal» sigue la regla de ReglasAccionesAcreditacion.RolesQueAbrenPortal. Ninguna autorización de
+    Command se toca ni se sustituye aquí.
+*@
+@using CaeManager.Domain.Documentos
+@using CaeManager.Web.Components.DesignSystem
+@using CaeManager.Web.Features.Documentos.Recursos
+@using Microsoft.Extensions.Localization
+@inject IStringLocalizer<TextosDocumentos> Textos
+
+<SoloConEscritura>
+    <span class="menu-acreditacion" data-menu-acreditacion="@Estado">
+        <MenuAcciones Etiqueta="@Textos["MenuAcreditacion"]" EtiquetaAccesible="@Textos["MenuAcreditacionEtiqueta", PlataformaNombre, PropietarioNombre].Value"
+                      TituloPanel="@Textos["MenuAcreditacionTitulo", PlataformaNombre].Value" Compacto="true">
+            @if (ReglasAccionesAcreditacion.PuedeSubirVersionCorregida(Estado))
+            {
+                <ItemMenuAccion OnClick="() => Elegir(AccionAcreditacion.SubirVersionCorregida)">@TextosPlataformaAcreditacion.Texto("SubirVersionCorregida")</ItemMenuAccion>
+            }
+            @if (ReglasAccionesAcreditacion.PuedeMarcarSubido(Estado))
+            {
+                <ItemMenuAccion OnClick="() => Elegir(AccionAcreditacion.MarcarSubido)">@Textos["AccionMarcarSubido"]</ItemMenuAccion>
+            }
+            @if (ReglasAccionesAcreditacion.PuedeMarcarValidado(Estado))
+            {
+                <ItemMenuAccion OnClick="() => Elegir(AccionAcreditacion.MarcarValidado)">@Textos["AccionMarcarValidado"]</ItemMenuAccion>
+            }
+            @if (ReglasAccionesAcreditacion.PuedeMarcarRechazado(Estado))
+            {
+                <ItemMenuAccion OnClick="() => Elegir(AccionAcreditacion.MarcarRechazado)">@Textos["AccionMarcarRechazado"]</ItemMenuAccion>
+            }
+            @if (ReglasAccionesAcreditacion.PuedeAnotarVigencia(Estado))
+            {
+                <ItemMenuAccion OnClick="() => Elegir(AccionAcreditacion.AnotarVigencia)">@Textos["AccionAnotarVigencia"]</ItemMenuAccion>
+            }
+            @if (PuedeGestionar)
+            {
+                <hr class="menu-acreditacion-separador" role="separator" />
+                <ItemMenuAccion OnClick="() => Elegir(AccionAcreditacion.Gestionar)">@Textos["AccionGestionarAcreditacion"]</ItemMenuAccion>
+            }
+            @if (ReglasAccionesAcreditacion.DireccionDelPortal(Estado, UrlPortal) is { } portal)
+            {
+                @* La dirección del canal, nunca la credencial: pestaña nueva y solo http(s) (UrlPortalCae), como en la pestaña Plataformas CAE. *@
+                <AuthorizeView Roles="@ReglasAccionesAcreditacion.RolesQueAbrenPortal" Context="autorizacionPortal">
+                    <ItemMenuAccion Href="@portal" NuevaPestana="true">@TextosPlataformaAcreditacion.Texto("AbrirPortal")</ItemMenuAccion>
+                </AuthorizeView>
+            }
+        </MenuAcciones>
+    </span>
+</SoloConEscritura>
+
+@code {
+    /// <summary>Estado de esta acreditación en su plataforma: de él salen las opciones que se ofrecen.</summary>
+    [Parameter, EditorRequired] public EstadoAcreditacion Estado { get; set; }
+
+    [Parameter, EditorRequired] public string PlataformaNombre { get; set; } = string.Empty;
+
+    /// <summary>El Propietario del Documento: da nombre accesible al botón de cada fila («Acreditación en Nalanda de Lucía Ferrer»).</summary>
+    [Parameter] public string PropietarioNombre { get; set; } = string.Empty;
+
+    /// <summary>Dirección del portal del canal tal como está guardada; se normaliza y se valida aquí. Sin ella, no hay «Abrir portal».</summary>
+    [Parameter] public string? UrlPortal { get; set; }
+
+    /// <summary>
+    /// Ofrece «Gestionar acreditación…». El panel enlaza con la ficha 360 de una Empresa o de un Trabajador: para el resto de
+    /// Propietarios (un Vehículo, un Proyecto) quien monta el menú lo apaga en vez de enlazar a una ficha que no es la suya.
+    /// </summary>
+    [Parameter] public bool PuedeGestionar { get; set; } = true;
+
+    [Parameter] public EventCallback<AccionAcreditacion> OnAccion { get; set; }
+
+    private Task Elegir(AccionAcreditacion accion) => OnAccion.InvokeAsync(accion);
+}

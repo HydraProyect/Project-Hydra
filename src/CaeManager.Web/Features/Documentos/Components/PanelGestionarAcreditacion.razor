@@ -44,7 +44,11 @@
                 @(Elegida.NombrePlataforma)
             }
         </dd>
-        <dt>@T("Centro")</dt><dd>@CentroNombre</dd>
+        @* El listado de Documentos (menú «Acreditación ▾», D-18) no conoce el Centro de la acreditación, solo su Cliente empresarial: sin él, la línea no se pinta. *@
+        @if (!string.IsNullOrWhiteSpace(CentroNombre))
+        {
+            <dt>@T("Centro")</dt><dd>@CentroNombre</dd>
+        }
     </dl>
 
     <section class="ga-bloque" aria-label="@T("EstadoActual")">

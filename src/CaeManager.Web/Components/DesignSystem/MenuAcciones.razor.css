@@ -123,6 +123,15 @@
     border: 1px solid var(--color-border-strong);
 }
 
+/* Compacto (Documentos, «Acreditación ▾» de cada fila; Agrupar-plataforma.dc.html): opciones de 32 px y 260 px de ancho mínimo. */
+.menu-acciones-panel-titulado.menu-acciones-panel-compacto {
+    min-width: 260px;
+}
+
+.menu-acciones-panel-titulado.menu-acciones-panel-compacto ::deep .menu-acciones-item {
+    height: 32px;
+}
+
 .menu-acciones-titulo {
     padding: var(--space-2) var(--space-3) var(--space-1);
     font: 700 0.75rem/1rem var(--font-family);

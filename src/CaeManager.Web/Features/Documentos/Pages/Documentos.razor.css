@@ -496,3 +496,10 @@
     align-items: center;
     gap: var(--space-1);
 }
+
+/* D-18: el menú «Acreditación ▾» de una fila se abre sobre lo que hay debajo. El envoltorio desplazable (overflow-x) vuelve auto el
+   desbordamiento vertical y recortaría el panel en las últimas filas de la tabla: mientras hay un menú abierto, la tabla gana el
+   alto del panel (una opción de 32 px por siete, el título y los márgenes) y el panel cabe entero sin barra de desplazamiento. */
+.documentos-tabla-desplazable:has(.menu-acreditacion .menu-acciones-disparador[aria-expanded="true"]) {
+    padding-bottom: 17rem;
+}

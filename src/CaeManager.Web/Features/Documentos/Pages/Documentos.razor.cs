@@ -1006,21 +1006,7 @@ public partial class Documentos : CaeManager.Web.Components.PaginaInteractiva, I
     /// salen primero las más graves (rechazada, pendiente de subir, subida, aceptada) y luego por nombre.
     /// </summary>
     private static IReadOnlyList<AcreditacionResumenDto> PlataformasDeLaFila(DocumentoListaDto documento) =>
-        documento.Acreditaciones
-            .GroupBy(a => a.NombrePlataforma, StringComparer.CurrentCultureIgnoreCase)
-            .Select(g => g.OrderBy(a => PrioridadAcreditacion(a.Estado)).First())
-            .OrderBy(a => PrioridadAcreditacion(a.Estado))
-            .ThenBy(a => a.NombrePlataforma, StringComparer.CurrentCultureIgnoreCase)
-            .ToList();
-
-    private static int PrioridadAcreditacion(EstadoAcreditacion estado) => estado switch
-    {
-        EstadoAcreditacion.Rechazada => 0,
-        EstadoAcreditacion.PendienteDeSubir => 1,
-        EstadoAcreditacion.Subida => 2,
-        EstadoAcreditacion.Aceptada => 3,
-        _ => 4
-    };
+        PlataformasCaeDelDocumento.Resumir(documento.Acreditaciones);
 
     private ResumenDeGrupoDocumental? ResumenDe(string clave) =>
         _resumenPorGrupo?.GetValueOrDefault(clave) as ResumenDeGrupoDocumental;
@@ -1063,6 +1049,55 @@ public partial class Documentos : CaeManager.Web.Components.PaginaInteractiva, I
             .Select(d => d.Grupo!.Acreditacion!.Id).Distinct().ToList();
 
     private AnotarVigenciaEnBloque _anotarVigencia = default!;
+    private ModalesAcreditacion _modalesAcreditacion = default!;
+
+    /// <summary>El Documento y la acreditación que abre «Gestionar acreditación…» del menú de su fila (D-18).</summary>
+    private (DocumentoListaDto Documento, IReadOnlyList<AcreditacionResumenDto> Acreditaciones)? _acreditacionAGestionar;
+
+    private bool _panelAcreditacionVisible;
+
+    /// <summary>La acreditación de la fila cuando el listado está agrupado por Plataforma CAE (una fila por acreditación); si no, <c>null</c>.</summary>
+    private AcreditacionEnGrupoDto? AcreditacionDeLaFila(DocumentoListaDto documento) =>
+        AgrupadaPorPlataforma ? documento.Grupo?.Acreditacion : null;
+
+    /// <summary>
+    /// «Gestionar acreditación…» enlaza con la ficha 360 de una Empresa o de un Trabajador (su pie, <c>GestionarEnPlataforma.RutaFicha</c>):
+    /// para un Vehículo, un Cliente o un Proyecto no se ofrece, en vez de enlazar a una ficha que no es la suya.
+    /// </summary>
+    private static bool PuedeGestionarAcreditacion(DocumentoListaDto documento) =>
+        documento.PropietarioId is not null && documento.Ambito is AmbitoAplicacion.Empresa or AmbitoAplicacion.Trabajador;
+
+    /// <summary>
+    /// Despacha la opción elegida en el menú «Acreditación ▾» de una fila (D-18) a los mismos diálogos y Commands que la pestaña Plataformas CAE.
+    /// No decide ninguna autorización: cada Command comprueba la suya (D-3).
+    /// </summary>
+    private async Task ManejarAccionAcreditacionAsync(DocumentoListaDto documento, AccionAcreditacion accion)
+    {
+        if (documento.Grupo?.Acreditacion is not { } acreditacion) return;
+
+        switch (accion)
+        {
+            case AccionAcreditacion.SubirVersionCorregida:
+                await AbrirVersionCorregidaAsync(documento.Id);
+                break;
+            case AccionAcreditacion.MarcarSubido:
+                await _modalesAcreditacion.MarcarSubidoAsync(acreditacion.Id);
+                break;
+            case AccionAcreditacion.MarcarValidado:
+                _modalesAcreditacion.AbrirValidado(acreditacion.Id);
+                break;
+            case AccionAcreditacion.MarcarRechazado:
+                _modalesAcreditacion.AbrirRechazo(acreditacion.Id);
+                break;
+            case AccionAcreditacion.AnotarVigencia:
+                _anotarVigencia.Abrir([acreditacion.Id]);
+                break;
+            case AccionAcreditacion.Gestionar:
+                _acreditacionAGestionar = (documento, [new AcreditacionResumenDto(acreditacion.Id, NombreDeGrupo(documento.Grupo.Clave), acreditacion.Estado)]);
+                _panelAcreditacionVisible = true;
+                break;
+        }
+    }
 
     /// <summary>
     /// Resumen de la cabecera de un grupo por vínculo, sin ceros: por Plataforma CAE, pendientes de subir, rechazados y

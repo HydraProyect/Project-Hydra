@@ -162,7 +162,7 @@ else
                                         @* Una Rechazada no se marca subida sin versión nueva
                                            (MarcarAcreditacionSubidaCommand lo rechaza): la salida
                                            es subir la corregida, que la devuelve a Pendiente. *@
-                                        @if (documento.Estado == EstadoAcreditacion.Rechazada && OnSubirVersionCorregida.HasDelegate)
+                                        @if (ReglasAccionesAcreditacion.PuedeSubirVersionCorregida(documento.Estado) && OnSubirVersionCorregida.HasDelegate)
                                         {
                                             <Boton Variante="VarianteBoton.Primario" Tamano="TamanoBoton.Pequeno"
                                                    title="@TextosPlataformaAcreditacion.Texto("SubirVersionCorregidaAyuda")"
@@ -170,8 +170,7 @@ else
                                                 @TextosPlataformaAcreditacion.Texto("SubirVersionCorregida")
                                             </Boton>
                                         }
-                                        @if ((documento.Estado is EstadoAcreditacion.Rechazada or EstadoAcreditacion.PendienteDeSubir)
-                                             && UrlPortalCae.Normalizar(documento.UrlAccesoCanal) is { } portal)
+                                        @if (ReglasAccionesAcreditacion.DireccionDelPortal(documento.Estado, documento.UrlAccesoCanal) is { } portal)
                                         {
                                             @* La dirección del canal, nunca la credencial: se abre en
                                                pestaña nueva y el Gestor CAE entra allí con la suya.
@@ -188,7 +187,7 @@ else
                                            la plataforma contestó (sin esta rama, la fila
                                            desaparecía al marcarla y el estado no tenía salida).
                                            Una Rechazada necesita antes su versión corregida. *@
-                                        @if (documento.Estado == EstadoAcreditacion.PendienteDeSubir)
+                                        @if (ReglasAccionesAcreditacion.PuedeMarcarSubido(documento.Estado))
                                         {
                                             <Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno"
                                                    Cargando="@(_procesando == documento.AcreditacionId)"

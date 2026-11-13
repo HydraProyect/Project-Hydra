@@ -484,4 +484,32 @@
   <data name="ListaEnDias" xml:space="preserve"><value>en {0} días</value></data>
   <data name="ValidacionOficialErrorTitulo" xml:space="preserve"><value>No pudimos comprobar la validación del documento</value></data>
   <data name="ValidacionOficialCodigoNoDisponibleSoporte" xml:space="preserve"><value>No disponible para Soporte TALVEG</value></data>
+  <!-- Menú «Acreditación ▾» de cada fila del listado por Plataforma CAE (D-18) y los diálogos que abre. -->
+  <data name="MenuAcreditacion" xml:space="preserve"><value>Acreditación</value></data>
+  <data name="MenuAcreditacionTitulo" xml:space="preserve"><value>Acreditación en {0}</value></data>
+  <data name="MenuAcreditacionEtiqueta" xml:space="preserve"><value>Acreditación en {0} de {1}</value></data>
+  <data name="AccionMarcarSubido" xml:space="preserve"><value>Marcar subido</value></data>
+  <data name="AccionMarcarValidado" xml:space="preserve"><value>Marcar validado</value></data>
+  <data name="AccionMarcarRechazado" xml:space="preserve"><value>Marcar rechazado…</value></data>
+  <data name="AccionAnotarVigencia" xml:space="preserve"><value>Anotar vigencia…</value></data>
+  <data name="AccionGestionarAcreditacion" xml:space="preserve"><value>Gestionar acreditación…</value></data>
+  <data name="AcrCancelar" xml:space="preserve"><value>Cancelar</value></data>
+  <data name="AcrMarcadoSubido" xml:space="preserve"><value>Marcado como subido.</value></data>
+  <data name="AcrValidadoTitulo" xml:space="preserve"><value>Marcar como validado</value></data>
+  <data name="AcrVigenciaPregunta" xml:space="preserve"><value>¿Hasta cuándo vale en esta plataforma?</value></data>
+  <data name="AcrVigenciaVenceEnFecha" xml:space="preserve"><value>Vence en una fecha</value></data>
+  <data name="AcrVigenciaNoVence" xml:space="preserve"><value>Aquí no caduca</value></data>
+  <data name="AcrVigenciaSinConfirmar" xml:space="preserve"><value>Todavía no lo sé</value></data>
+  <data name="AcrFechaVencimiento" xml:space="preserve"><value>Fecha de vencimiento</value></data>
+  <data name="AcrErrorFecha" xml:space="preserve"><value>Escribe la fecha hasta la que vale, o elige otra opción.</value></data>
+  <data name="AcrValidadoConFecha" xml:space="preserve"><value>Marcado como validado. Vale hasta el {0} en esta plataforma.</value></data>
+  <data name="AcrValidadoNoCaduca" xml:space="preserve"><value>Marcado como validado. En esta plataforma no caduca.</value></data>
+  <data name="AcrValidadoSinConfirmar" xml:space="preserve"><value>Marcado como validado. Queda pendiente confirmar hasta cuándo vale aquí.</value></data>
+  <data name="AcrRechazoTitulo" xml:space="preserve"><value>Marcar como rechazado</value></data>
+  <data name="AcrRechazoGuardar" xml:space="preserve"><value>Marcar rechazado</value></data>
+  <data name="AcrCausaRechazo" xml:space="preserve"><value>Causa del rechazo</value></data>
+  <data name="AcrDetalleRechazo" xml:space="preserve"><value>Detalle</value></data>
+  <data name="AcrDetalleRechazoPlaceholder" xml:space="preserve"><value>Texto literal del portal, si lo hay</value></data>
+  <data name="AcrErrorMotivo" xml:space="preserve"><value>Describe el motivo del rechazo.</value></data>
+  <data name="AcrMarcadoRechazado" xml:space="preserve"><value>Marcado como rechazado.</value></data>
 </root>

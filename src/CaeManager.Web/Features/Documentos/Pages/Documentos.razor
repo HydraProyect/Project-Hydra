@@ -401,6 +401,18 @@
 
 <AnotarVigenciaEnBloque @ref="_anotarVigencia" OnAnotado="RecargarAsync" />
 
+@* Diálogos del menú «Acreditación ▾» de las filas (D-18): marcar subido, validado y rechazado, y el panel «Gestionar acreditación en plataforma». *@
+<ModalesAcreditacion @ref="_modalesAcreditacion" OnCambio="RecargarAsync" />
+
+@if (_acreditacionAGestionar is { } gestion)
+{
+    <PanelGestionarAcreditacion @bind-Visible="_panelAcreditacionVisible"
+                                DocumentoNombre="@gestion.Documento.TipoDocumentoNombre" PropietarioNombre="@gestion.Documento.PropietarioNombre"
+                                EsDeEmpresa="@(gestion.Documento.Ambito == AmbitoAplicacion.Empresa)" PropietarioId="@(gestion.Documento.PropietarioId ?? Guid.Empty)"
+                                EstadoTalveg="gestion.Documento.Estado" FechaVencimiento="gestion.Documento.FechaVencimiento"
+                                Acreditaciones="@gestion.Acreditaciones" OnGuardado="RecargarAsync" />
+}
+
 <VisorDocumento Visible="_visorVisible" VisibleChanged="v => _visorVisible = v" DocumentoId="_visorDocumentoId" Titulo="@_visorTitulo" />
 
 @* El lote solo elimina: tanto la selección múltiple como su barra requieren un rol con escritura. *@
@@ -584,6 +596,15 @@
                                             @Textos["Gestionar"]
                                         </Boton>
                                     </SoloConEscritura>
+                                    @if (AcreditacionDeLaFila(context) is { } acreditacionDeLaFila)
+                                    {
+                                        @* D-18: por Plataforma CAE la fila gana «Acreditación ▾». El menú es de quien escribe (SoloConEscritura, dentro de
+                                           MenuAcreditacion); «Subir versión corregida» abre el mismo drawer que «Gestionar». *@
+                                        <MenuAcreditacion @key="acreditacionDeLaFila.Id" Estado="acreditacionDeLaFila.Estado"
+                                                          PlataformaNombre="@NombreDeGrupo(context.Grupo!.Clave)" PropietarioNombre="@context.PropietarioNombre"
+                                                          UrlPortal="@ResumenDe(context.Grupo!.Clave)?.UrlPortal" PuedeGestionar="@PuedeGestionarAcreditacion(context)"
+                                                          OnAccion="accion => ManejarAccionAcreditacionAsync(context, accion)" />
+                                    }
                                     @* Por tipo de documento el 360 va en la cabecera del grupo («Tipo 360»), no en cada fila. *@
                                     @if (context.TipoDocumentoId != Guid.Empty && !AgrupadaPorTipo)
                                     {
@@ -599,8 +620,7 @@
     /// Quien puede recibir «Abrir portal» y ver el motivo literal de rechazo: todos los roles del Tenant salvo Cliente, el
     /// mismo corte que ObtenerCentroIdsParaGestionAsync. El rol Cliente sí ve el estado en la plataforma (opción B, 2026-11-12).
     /// </summary>
-    private const string RolesQueAbrenPortal =
-        $"{CaeManager.Infrastructure.Identity.Roles.ConEscrituraCsv},{CaeManager.Infrastructure.Identity.Roles.Consulta}";
+    private const string RolesQueAbrenPortal = ReglasAccionesAcreditacion.RolesQueAbrenPortal;
 
     /// <summary>
     /// Columnas de la tabla, más la de selección y la de expandir. Las cinco de siempre (Documento, Propietario, Vence, Estado,

@@ -76,6 +76,9 @@
     /// </summary>
     [Parameter] public string? TituloPanel { get; set; }
 
+    /// <summary>Con <see cref="TituloPanel"/>: opciones de 32 px y 260 px de ancho mínimo (menú «Acreditación ▾» de las filas de Documentos).</summary>
+    [Parameter] public bool Compacto { get; set; }
+
     /// <summary>Con <see cref="Pastilla"/>: el filtro tiene un valor aplicado y la pastilla lo marca.</summary>
     [Parameter] public bool Activa { get; set; }
 
@@ -97,7 +100,8 @@
 
     private string ClasesPanel =>
         (Pastilla ? "menu-acciones-panel menu-acciones-panel-izquierda" : "menu-acciones-panel")
-        + (TituloPanel is null ? "" : " menu-acciones-panel-titulado");
+        + (TituloPanel is null ? "" : " menu-acciones-panel-titulado")
+        + (Compacto && TituloPanel is not null ? " menu-acciones-panel-compacto" : "");
 
     private string ClasesDisparador =>
         "menu-acciones-disparador"

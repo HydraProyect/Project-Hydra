@@ -113,7 +113,10 @@ public record DocumentoListaDto(
     // Opcional y al final: ningún otro productor cambia; sin él (Guid.Empty) la fila no pinta el icono.
     Guid TipoDocumentoId = default,
     [property: JsonIgnore] IReadOnlyList<DocumentoEnCentroListaDto>? DestinosEnCentros = null,
-    [property: JsonIgnore] GrupoDeFilaDocumentalDto? Grupo = null);
+    [property: JsonIgnore] GrupoDeFilaDocumentalDto? Grupo = null,
+    // Id del Propietario (Trabajador, Empresa, Vehículo…) del Documento: lo necesita «Gestionar acreditación…» del menú de la fila
+    // para enlazar con su ficha. Solo lectura de un dato de la propia fila: no cambia qué filas devuelve ni quién las ve.
+    [property: JsonIgnore] Guid? PropietarioId = null);
 
 /// <summary>Cómo se agrupa el listado de Documentos además de por Ámbito (ver <see cref="ObtenerDocumentosQuery.AgruparPor"/>).</summary>
 public enum AgrupacionDocumentos
@@ -425,6 +428,7 @@ public class ObtenerDocumentosQueryHandler(IConfiguracionQueryContext configurac
             {
                 Id = x.Id,
                 Ambito = x.Ambito,
+                PropietarioId = x.PropietarioId,
                 PropietarioNombre = x.PropietarioNombre,
                 TipoDocumentoNombre = x.TipoDocumentoNombre,
                 TipoDocumentoId = x.TipoDocumentoId,
@@ -450,7 +454,8 @@ public class ObtenerDocumentosQueryHandler(IConfiguracionQueryContext configurac
                 d.ArchivoUrl,
                 acreditacionesPorDocumento.GetValueOrDefault(d.Id, []),
                 d.TipoDocumentoId,
-                destinos?.GetValueOrDefault(d.Id, [])))
+                destinos?.GetValueOrDefault(d.Id, []),
+                PropietarioId: d.PropietarioId))
             .ToList();
 
         if (request.AgruparPor is { } agrupacionDeFilas)

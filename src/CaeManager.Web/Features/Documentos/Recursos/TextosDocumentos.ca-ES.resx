@@ -484,4 +484,32 @@
   <data name="ListaEnDias" xml:space="preserve"><value>d'aquí a {0} dies</value></data>
   <data name="ValidacionOficialErrorTitulo" xml:space="preserve"><value>No hem pogut comprovar la validació del document</value></data>
   <data name="ValidacionOficialCodigoNoDisponibleSoporte" xml:space="preserve"><value>No disponible per a Suport TALVEG</value></data>
+  <!-- Menú «Acreditació ▾» de cada fila del llistat per Plataforma CAE (D-18) i els diàlegs que obre. -->
+  <data name="MenuAcreditacion" xml:space="preserve"><value>Acreditació</value></data>
+  <data name="MenuAcreditacionTitulo" xml:space="preserve"><value>Acreditació a {0}</value></data>
+  <data name="MenuAcreditacionEtiqueta" xml:space="preserve"><value>Acreditació a {0} de {1}</value></data>
+  <data name="AccionMarcarSubido" xml:space="preserve"><value>Marca com a pujat</value></data>
+  <data name="AccionMarcarValidado" xml:space="preserve"><value>Marca com a validat</value></data>
+  <data name="AccionMarcarRechazado" xml:space="preserve"><value>Marca com a rebutjat…</value></data>
+  <data name="AccionAnotarVigencia" xml:space="preserve"><value>Anota la vigència…</value></data>
+  <data name="AccionGestionarAcreditacion" xml:space="preserve"><value>Gestiona l'acreditació…</value></data>
+  <data name="AcrCancelar" xml:space="preserve"><value>Cancel·la</value></data>
+  <data name="AcrMarcadoSubido" xml:space="preserve"><value>Marcat com a pujat.</value></data>
+  <data name="AcrValidadoTitulo" xml:space="preserve"><value>Marca com a validat</value></data>
+  <data name="AcrVigenciaPregunta" xml:space="preserve"><value>Fins quan val en aquesta plataforma?</value></data>
+  <data name="AcrVigenciaVenceEnFecha" xml:space="preserve"><value>Venç en una data</value></data>
+  <data name="AcrVigenciaNoVence" xml:space="preserve"><value>Aquí no caduca</value></data>
+  <data name="AcrVigenciaSinConfirmar" xml:space="preserve"><value>Encara no ho sé</value></data>
+  <data name="AcrFechaVencimiento" xml:space="preserve"><value>Data de venciment</value></data>
+  <data name="AcrErrorFecha" xml:space="preserve"><value>Escriu la data fins a la qual val, o tria una altra opció.</value></data>
+  <data name="AcrValidadoConFecha" xml:space="preserve"><value>Marcat com a validat. Val fins al {0} en aquesta plataforma.</value></data>
+  <data name="AcrValidadoNoCaduca" xml:space="preserve"><value>Marcat com a validat. En aquesta plataforma no caduca.</value></data>
+  <data name="AcrValidadoSinConfirmar" xml:space="preserve"><value>Marcat com a validat. Queda pendent confirmar fins quan val aquí.</value></data>
+  <data name="AcrRechazoTitulo" xml:space="preserve"><value>Marca com a rebutjat</value></data>
+  <data name="AcrRechazoGuardar" xml:space="preserve"><value>Marca com a rebutjat</value></data>
+  <data name="AcrCausaRechazo" xml:space="preserve"><value>Causa del rebuig</value></data>
+  <data name="AcrDetalleRechazo" xml:space="preserve"><value>Detall</value></data>
+  <data name="AcrDetalleRechazoPlaceholder" xml:space="preserve"><value>Text literal del portal, si n'hi ha</value></data>
+  <data name="AcrErrorMotivo" xml:space="preserve"><value>Descriu el motiu del rebuig.</value></data>
+  <data name="AcrMarcadoRechazado" xml:space="preserve"><value>Marcat com a rebutjat.</value></data>
 </root>

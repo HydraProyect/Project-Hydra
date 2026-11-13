@@ -1,0 +1,265 @@
+@*
+    «Marcar subido», «Marcar validado» y «Marcar rechazado…» de una acreditación (D-18): los mismos Commands, los mismos diálogos y
+    los mismos avisos que la fila de la pestaña Plataformas CAE (PlataformaTab), para que los monte quien tenga un menú
+    «Acreditación ▾» (el listado agrupado por Plataforma CAE y, más adelante, la vista rápida). Una sola instancia por pantalla:
+    el menú de cada fila llama a MarcarSubidoAsync, AbrirValidado o AbrirRechazo con el Id de su acreditación.
+
+    No decide ninguna autorización ni alcance de datos: cada Command comprueba los suyos y lo que rechaza sale en el aviso del
+    diálogo. «Anotar vigencia…» no está aquí: es AnotarVigenciaEnBloque, que ya monta la página.
+*@
+@using CaeManager.Application.Documentos.Commands
+@using CaeManager.Application.Documentos.Commands.MarcarAcreditacionAceptada
+@using CaeManager.Application.Documentos.Commands.MarcarAcreditacionRechazada
+@using CaeManager.Application.Documentos.Commands.MarcarAcreditacionSubida
+@using CaeManager.Application.Documentos.Commands.RestaurarAnotacionAcreditacion
+@using CaeManager.Domain.Common
+@using CaeManager.Domain.Documentos
+@using CaeManager.Web.Components.DesignSystem
+@using CaeManager.Web.Features.Documentos.Recursos
+@using MediatR
+@using Microsoft.Extensions.Localization
+@inject IStringLocalizer<TextosDocumentos> Textos
+@inject IMediator Mediator
+@inject ToastService ToastService
+
+<ModalFormulario Visible="_validadoVisible" VisibleChanged="v => _validadoVisible = v" Titulo="@Textos["AcrValidadoTitulo"]"
+                 HayCambios="() => HayCambiosValidado" Guardando="_validando" MensajeError="@_errorServidorValidado"
+                 HayErroresDeCampo="@(_errorVigencia is not null)" OnGuardar="ConfirmarValidadoAsync"
+                 TextoGuardar="@Textos["AccionMarcarValidado"]" TextoCancelar="@Textos["AcrCancelar"]">
+    @* «Todavía no lo sé» es una respuesta válida y se guarda como tal: no puede confundirse con «no caduca», porque el semáforo del
+       Centro daría verde sin saberlo nadie. *@
+    <CampoSelect Etiqueta="@Textos["AcrVigenciaPregunta"]" Valor="@_estadoVigencia"
+                 ValorChanged="v => { _estadoVigencia = v; _errorServidorValidado = null; _errorVigencia = null; }">
+        <option value="@nameof(EstadoVigenciaEnPlataforma.VenceEnFecha)">@Textos["AcrVigenciaVenceEnFecha"]</option>
+        <option value="@nameof(EstadoVigenciaEnPlataforma.NoVenceAqui)">@Textos["AcrVigenciaNoVence"]</option>
+        <option value="@nameof(EstadoVigenciaEnPlataforma.SinConfirmar)">@Textos["AcrVigenciaSinConfirmar"]</option>
+    </CampoSelect>
+
+    @if (_estadoVigencia == nameof(EstadoVigenciaEnPlataforma.VenceEnFecha))
+    {
+        <CampoTexto Etiqueta="@Textos["AcrFechaVencimiento"]" Type="date" Valor="@_fechaVigencia"
+                    ValorChanged="v => { _fechaVigencia = v; _errorServidorValidado = null; _errorVigencia = null; }" MensajeError="@_errorVigencia"
+                    FechaNoValida="_fechaVigenciaNoValida" FechaNoValidaChanged="v => _fechaVigenciaNoValida = v" />
+    }
+</ModalFormulario>
+
+<ModalFormulario Visible="_rechazoVisible" VisibleChanged="v => _rechazoVisible = v" Titulo="@Textos["AcrRechazoTitulo"]"
+                 HayCambios="() => HayCambiosRechazo" Guardando="_rechazando" MensajeError="@_errorServidorRechazo"
+                 HayErroresDeCampo="@(_errorMotivo is not null)" OnGuardar="ConfirmarRechazoAsync"
+                 TextoGuardar="@Textos["AcrRechazoGuardar"]" TextoCancelar="@Textos["AcrCancelar"]">
+    <CampoSelect Etiqueta="@Textos["AcrCausaRechazo"]" Valor="@_causaRechazo" ValorChanged="v => { _causaRechazo = v; _errorServidorRechazo = null; }">
+        @foreach (var causa in Enum.GetValues<CausaRechazoAcreditacion>())
+        {
+            <option value="@causa">@CausaRechazoAcreditacionUi.Texto(causa)</option>
+        }
+    </CampoSelect>
+    <CampoTextarea Etiqueta="@Textos["AcrDetalleRechazo"]" Valor="@_motivoRechazo" ValorChanged="v => { _motivoRechazo = v; _errorServidorRechazo = null; _errorMotivo = null; }"
+                   Placeholder="@Textos["AcrDetalleRechazoPlaceholder"]" Filas="3" MensajeError="@_errorMotivo" />
+</ModalFormulario>
+
+@code {
+    /// <summary>Tras cambiar el estado de una acreditación (también tras deshacer): quien monta los diálogos recarga su lista.</summary>
+    [Parameter] public EventCallback OnCambio { get; set; }
+
+    private Guid? _procesando;
+    private bool _deshaciendo;
+
+    private bool _validadoVisible;
+    private bool _validando;
+    private Guid _acreditacionIdValidado;
+    private string _estadoVigencia = nameof(EstadoVigenciaEnPlataforma.VenceEnFecha);
+    private string _fechaVigencia = string.Empty;
+    private bool _fechaVigenciaNoValida;
+    private string? _errorVigencia;
+    private string? _errorServidorValidado;
+
+    private bool _rechazoVisible;
+    private bool _rechazando;
+    private Guid _acreditacionIdRechazo;
+    private string _causaRechazo = nameof(CausaRechazoAcreditacion.Ilegible);
+    private string _motivoRechazo = string.Empty;
+    private string? _errorMotivo;
+    private string? _errorServidorRechazo;
+
+    /// <summary>La acreditación cuyo «Marcar subido» está en curso: la página puede deshabilitar su fila mientras tanto.</summary>
+    public Guid? Procesando => _procesando;
+
+    /// <summary>«Hay cambios» de cada diálogo (el guardián de su kit): lo tecleado, o su confirmación en curso.</summary>
+    private bool HayCambiosValidado => _validadoVisible && (_validando || !string.IsNullOrWhiteSpace(_fechaVigencia) || _fechaVigenciaNoValida);
+
+    private bool HayCambiosRechazo => _rechazoVisible && (_rechazando || !string.IsNullOrWhiteSpace(_motivoRechazo));
+
+    /// <summary>«Marcar subido»: solo sobre una Pendiente de subir (ReglasAccionesAcreditacion); el Command rechaza lo demás.</summary>
+    public async Task MarcarSubidoAsync(Guid acreditacionId)
+    {
+        _procesando = acreditacionId;
+        StateHasChanged();
+
+        Result resultado;
+        try
+        {
+            resultado = await Mediator.Send(new MarcarAcreditacionSubidaCommand(acreditacionId));
+        }
+        finally
+        {
+            _procesando = null;
+        }
+
+        if (resultado.EsFallido)
+        {
+            ToastService.MostrarError(resultado.Error);
+            return;
+        }
+
+        ToastService.Mostrar(Textos["AcrMarcadoSubido"].Value, TonoToast.Exito);
+        await OnCambio.InvokeAsync();
+    }
+
+    /// <summary>«Marcar validado»: abre el diálogo que pregunta hasta cuándo vale en la plataforma.</summary>
+    public void AbrirValidado(Guid acreditacionId)
+    {
+        _acreditacionIdValidado = acreditacionId;
+        _estadoVigencia = nameof(EstadoVigenciaEnPlataforma.VenceEnFecha);
+        _fechaVigencia = string.Empty;
+        // El campo nace con esta marca y no la retira al nacer: la de una apertura anterior dejaría el diálogo nuevo con el aviso
+        // y pidiendo descartar sin tocarlo.
+        _fechaVigenciaNoValida = false;
+        _errorVigencia = null;
+        _errorServidorValidado = null;
+        _validadoVisible = true;
+        StateHasChanged();
+    }
+
+    /// <summary>«Marcar rechazado…»: abre el diálogo de la causa y el detalle.</summary>
+    public void AbrirRechazo(Guid acreditacionId)
+    {
+        _acreditacionIdRechazo = acreditacionId;
+        _causaRechazo = nameof(CausaRechazoAcreditacion.Ilegible);
+        _motivoRechazo = string.Empty;
+        _errorMotivo = null;
+        _errorServidorRechazo = null;
+        _rechazoVisible = true;
+        StateHasChanged();
+    }
+
+    private VigenciaEnPlataforma? VigenciaElegida()
+    {
+        if (_estadoVigencia == nameof(EstadoVigenciaEnPlataforma.NoVenceAqui))
+            return VigenciaEnPlataforma.NoVenceAqui;
+
+        if (_estadoVigencia == nameof(EstadoVigenciaEnPlataforma.SinConfirmar))
+            return VigenciaEnPlataforma.SinConfirmar;
+
+        return DateOnly.TryParse(_fechaVigencia, out var fecha) ? VigenciaEnPlataforma.VenceEl(fecha) : null;
+    }
+
+    private async Task ConfirmarValidadoAsync()
+    {
+        _errorVigencia = null;
+        _errorServidorValidado = null;
+
+        var vigencia = VigenciaElegida();
+        if (vigencia is null
+            || (_fechaVigenciaNoValida && _estadoVigencia != nameof(EstadoVigenciaEnPlataforma.NoVenceAqui)
+                && _estadoVigencia != nameof(EstadoVigenciaEnPlataforma.SinConfirmar)))
+        {
+            // Sin fecha legible no se manda nada: dejar pasar el «vence en fecha» vacío lo guardaría como SinConfirmar, y el
+            // Gestor CAE se quedaría creyendo que anotó una fecha que no está.
+            _errorVigencia = Textos["AcrErrorFecha"].Value;
+            return;
+        }
+
+        _validando = true;
+        Result<ResultadoAnotacionAcreditacionDto> resultado;
+        try
+        {
+            resultado = await Mediator.Send(new MarcarAcreditacionAceptadaCommand(_acreditacionIdValidado, vigencia.Value));
+        }
+        finally
+        {
+            // Sin el finally, una excepción del comando deja el diálogo cargando para siempre.
+            _validando = false;
+        }
+
+        if (resultado.EsFallido)
+        {
+            _errorServidorValidado = resultado.Error.Mensaje;
+            return;
+        }
+
+        _validadoVisible = false;
+        ToastService.Mostrar(TextoDeLoGuardado(vigencia.Value), TonoToast.Exito,
+            Textos["ToastAccionDeshacer"].Value, () => DeshacerAsync(resultado.Valor));
+        await OnCambio.InvokeAsync();
+    }
+
+    private string TextoDeLoGuardado(VigenciaEnPlataforma vigencia) => vigencia.Estado switch
+    {
+        EstadoVigenciaEnPlataforma.VenceEnFecha => Textos["AcrValidadoConFecha", vigencia.FechaVencimiento!.Value.ToString("dd/MM/yyyy")].Value,
+        EstadoVigenciaEnPlataforma.NoVenceAqui => Textos["AcrValidadoNoCaduca"].Value,
+        _ => Textos["AcrValidadoSinConfirmar"].Value
+    };
+
+    /// <summary>
+    /// «Deshacer» del aviso de validar: devuelve la acreditación a lo que había antes con el recibo que devolvió el propio Command
+    /// (RestaurarAnotacionAcreditacionCommand: misma autorización y alcance, versión comprobada). Si alguien la cambió entretanto, el
+    /// Command rechaza y el aviso lo dice, en vez de pisar ese cambio.
+    /// </summary>
+    private async Task DeshacerAsync(ResultadoAnotacionAcreditacionDto recibo)
+    {
+        if (_deshaciendo) return;
+        _deshaciendo = true;
+
+        try
+        {
+            var uno = await Mediator.Send(new RestaurarAnotacionAcreditacionCommand(
+                recibo.AcreditacionId, recibo.EstadoPrevio, recibo.VigenciaPrevia, recibo.VersionResultante));
+
+            ToastService.Mostrar(
+                uno.EsExitoso
+                    ? Textos["PlatAnotacionDeshecha"].Value
+                    : Textos["PlatDeshacerParcial", 0, 1, uno.Error.Mensaje].Value,
+                uno.EsExitoso ? TonoToast.Exito : TonoToast.Advertencia);
+
+            if (uno.EsExitoso)
+                await OnCambio.InvokeAsync();
+        }
+        finally
+        {
+            _deshaciendo = false;
+        }
+    }
+
+    private async Task ConfirmarRechazoAsync()
+    {
+        if (string.IsNullOrWhiteSpace(_motivoRechazo))
+        {
+            _errorMotivo = Textos["AcrErrorMotivo"].Value;
+            return;
+        }
+
+        _rechazando = true;
+        _errorMotivo = null;
+        _errorServidorRechazo = null;
+
+        try
+        {
+            var causa = Enum.Parse<CausaRechazoAcreditacion>(_causaRechazo);
+            var resultado = await Mediator.Send(new MarcarAcreditacionRechazadaCommand(_acreditacionIdRechazo, causa, _motivoRechazo));
+
+            if (resultado.EsFallido)
+            {
+                _errorServidorRechazo = resultado.Error.Mensaje;
+                return;
+            }
+
+            ToastService.Mostrar(Textos["AcrMarcadoRechazado"].Value, TonoToast.Exito);
+            _rechazoVisible = false;
+            await OnCambio.InvokeAsync();
+        }
+        finally
+        {
+            _rechazando = false;
+        }
+    }
+}
