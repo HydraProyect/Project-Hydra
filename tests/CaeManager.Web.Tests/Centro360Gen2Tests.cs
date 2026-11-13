@@ -798,6 +798,31 @@ public partial class Centro360Gen2Tests : BunitContext
         cut.FindAll("a").Should().NotContain(a => a.TextContent.Contains("Abrir portal"));
     }
 
+    /// <summary>
+    /// El rol Cliente ve los Centros de su Cliente empresarial y sus canales, pero no los gestiona: el servidor le manda la
+    /// dirección del portal y las notas a null (<c>ObtenerCanalesGestionDeCentroQuery</c>, mismo corte que
+    /// <c>ObtenerAcreditacionesDelDocumentoQuery</c>). Con lo que recibe, la tarjeta no le ofrece «Abrir portal» ni copiar
+    /// credenciales; el corte en sí lo fija <c>ObtenerCanalesGestionDeCentroQueryTests</c>, no este test.
+    /// </summary>
+    [Fact]
+    public void Con_el_rol_Cliente_la_tarjeta_de_canales_no_ofrece_Abrir_portal()
+    {
+        this.ConRolDeEscritura(CaeManager.Infrastructure.Identity.Roles.Cliente);
+        var id = Guid.NewGuid();
+        var mediador = Registrar(new MediatorFalso());
+        mediador.Detalles[id] = Detalle(id, "Centro Norte");
+        mediador.Resumenes[id] = Resumen(id, "Centro Norte");
+        mediador.Canales[id] = [CanalPlataforma(url: null)];
+
+        var cut = Renderizar(id);
+
+        cut.WaitForAssertion(() => cut.Find("[data-caja=canales-centro]").TextContent.Should().Contain("Nalanda",
+            "el Cliente sigue viendo qué Plataforma CAE gestiona su Centro"));
+        cut.FindAll("a").Should().NotContain(a => a.TextContent.Contains("Abrir portal"));
+        cut.FindAll("[aria-label]").Should().NotContain(e => (e.GetAttribute("aria-label") ?? "").Contains("Abrir el portal"));
+        cut.FindAll("[data-caja=canales-centro] .boton-copiar").Should().BeEmpty("el rol Cliente no copia credenciales");
+    }
+
     // ── Canal de plataforma: copiar usuario y contraseña (clic explícito) ──
 
     private (Guid CentroId, CanalGestionResumenDto Canal, MediatorFalso Mediador) CentroConCanal(CanalGestionResumenDto canal)
