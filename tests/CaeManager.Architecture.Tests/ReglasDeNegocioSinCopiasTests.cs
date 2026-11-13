@@ -398,6 +398,9 @@ public class ReglasDeNegocioSinCopiasTests
         // Resolución por Id: comprueba si hay fila con el Id reservado para decidir sobre la copia del fichero. Cuenta aunque
         // esté sustituida o eliminada; no decide estado.
         ["src/CaeManager.Application/Comunicaciones/Commands/ActualizarDocumentoDesdeAdjunto/ActualizarDocumentoDesdeAdjuntoCommand.cs"] = 1,
+        // Vista rápida, sección «Plataformas CAE» (D-23): resolución por Id del Documento abierto, que puede ser una versión
+        // sustituida; sus acreditaciones son las de esa versión y el estado documental se calcula sobre ella, como en la cabecera.
+        ["src/CaeManager.Application/Documentos/Queries/ObtenerAcreditacionesDelDocumento/ObtenerAcreditacionesDelDocumentoQuery.cs"] = 1,
         // Documento 360: el documento por Id (ya autorizado por ObtenerDocumentoPorIdQuery) y, en la pestaña Versiones, el historial
         // de versiones del mismo propietario y tipo, incluidas las sustituidas.
         ["src/CaeManager.Application/Documentos/Queries/ObtenerFichaDocumento360/ObtenerFichaDocumento360Query.cs"] = 2,

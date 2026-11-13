@@ -10,6 +10,7 @@ using CaeManager.Infrastructure.Identity;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using CaeManager.Application.Documentos.Queries.ObtenerDocumentoPorId;
+using CaeManager.Application.Documentos.Queries.ObtenerAcreditacionesDelDocumento;
 using CaeManager.Application.Documentos.Queries.ObtenerValidacionOficialDocumento;
 using CaeManager.Domain.Documentos;
 using CaeManager.Web.Components.DesignSystem;
@@ -28,7 +29,7 @@ namespace CaeManager.Web.Tests;
 /// test, reintroducir la entrada no lo detectaría nadie hasta que un Gestor
 /// CAE clicara la pestaña.
 /// </summary>
-public class DocumentoWorkspacePanelTests : BunitContext
+public partial class DocumentoWorkspacePanelTests : BunitContext
 {
     public DocumentoWorkspacePanelTests()
     {
@@ -46,10 +47,14 @@ public class DocumentoWorkspacePanelTests : BunitContext
         public ValidacionOficialDocumentoDto? Validacion { get; init; }
         public bool FallaValidacion { get; set; }
 
+        /// <summary>La sección «Plataformas CAE» (D-23): lo que el servidor ya devolvió cortado por alcance; null, sin sección.</summary>
+        public AcreditacionesDelDocumentoDto? Acreditaciones { get; init; }
+
         public Task<TResponse> Send<TResponse>(IRequest<TResponse> request, CancellationToken cancellationToken = default) =>
             Task.FromResult((TResponse)(request switch
             {
                 ObtenerDocumentoPorIdQuery => (object?)Detalle,
+                ObtenerAcreditacionesDelDocumentoQuery => Acreditaciones,
                 ObtenerValidacionOficialDocumentoQuery when FallaValidacion => throw new InvalidOperationException("validación caída"),
                 ObtenerValidacionOficialDocumentoQuery => Validacion,
                 ObtenerFirmasEnCampoDocumentoQuery => SinFirmas ? (IReadOnlyList<FirmaEnCampoDocumentoDto>)[] : (IReadOnlyList<FirmaEnCampoDocumentoDto>)

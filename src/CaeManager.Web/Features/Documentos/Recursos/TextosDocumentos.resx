@@ -416,6 +416,9 @@
   <data name="GrupoAbrirPortal" xml:space="preserve"><value>Abrir portal</value></data>
   <data name="GrupoTipo360Etiqueta" xml:space="preserve"><value>Abrir el Tipo 360 de {0}</value></data>
   <data name="EnPlataformaMotivo" xml:space="preserve"><value>Motivo: {0}</value></data>
+  <data name="VistaRapidaPlataformasCae" xml:space="preserve"><value>Plataformas CAE</value></data>
+  <data name="VistaRapidaPlataformasCaeCuenta" xml:space="preserve"><value>· {0}</value></data>
+  <data name="VistaRapidaContextoAcreditacion" xml:space="preserve"><value>{0} · {1}</value></data>
   <data name="NombreEnPlataformaTitulo" xml:space="preserve"><value>{0} · Tipo en TALVEG: {1}</value></data>
   <data name="PieAgrupadoTipos" xml:space="preserve"><value>Mostrando {0:N0} documentos de {1:N0} tipos</value></data>
   <data name="ListaEstadoEnPlataforma" xml:space="preserve"><value>Estado en la plataforma</value></data>
