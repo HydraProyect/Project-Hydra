@@ -116,9 +116,12 @@ public class DatosPruebaSeederUnaEmpresaPropiaTests
             propias.Should().ContainSingle("D-P11: la siembra deja una sola Empresa propia en el Tenant");
             var propiaId = propias.Single().Id;
 
-            var centros = await contexto.Centros.AsNoTracking().Select(c => c.EmpresaId).ToListAsync();
-            centros.Should().NotBeEmpty("la siembra tiene Centros");
-            centros.Should().OnlyContain(id => id == propiaId, "todos los Centros cuelgan de la única Empresa propia");
+            var centrosSembrados = await contexto.Centros.AsNoTracking()
+                .Select(c => new { c.Id, c.ClienteId, c.EmpresaId, c.CodigoCentro }).ToListAsync();
+            centrosSembrados.Should().NotBeEmpty("la siembra tiene Centros");
+            centrosSembrados.Should().OnlyContain(c => c.EmpresaId == propiaId, "todos los Centros cuelgan de la única Empresa propia");
+            centrosSembrados.GroupBy(c => c.ClienteId).Should().Contain(g => g.Count() > 1,
+                "D-P11: al haber una sola Empresa propia, los Centros se reparten por Cliente empresarial (varios por Cliente)");
 
             var trabajadores = await contexto.Trabajadores.AsNoTracking()
                 .Select(t => new { t.EmpresaId, t.SubcontrataId }).ToListAsync();
@@ -127,7 +130,23 @@ public class DatosPruebaSeederUnaEmpresaPropiaTests
                 t => t.EmpresaId == propiaId, "todo Trabajador de una Empresa cuelga de la única Empresa propia");
 
             var vehiculos = await contexto.Vehiculos.AsNoTracking().Select(v => v.EmpresaId).ToListAsync();
+            vehiculos.Should().NotBeEmpty("la siembra tiene Vehículos (sin ellos la comprobación de abajo no probaría nada)");
             vehiculos.Should().OnlyContain(id => id == propiaId, "los Vehículos de la siembra son de la Empresa propia");
+
+            // Los dos primeros Centros (CTR-0001 y CTR-0002) se reservan para el escenario de huecos documentales
+            // (Faltante): ahí solo trabaja plantilla de la Empresa propia, no la de una Subcontrata cuya documentación
+            // vencida taparía ese estado.
+            var centrosReservados = centrosSembrados
+                .Where(c => c.CodigoCentro == "CTR-0001" || c.CodigoCentro == "CTR-0002").Select(c => c.Id).ToList();
+            centrosReservados.Should().HaveCount(2, "la siembra codifica sus Centros en orden: CTR-0001, CTR-0002...");
+            var trabajadoresDeReservados = await (
+                from a in contexto.Asignaciones.AsNoTracking()
+                join t in contexto.Trabajadores.AsNoTracking() on a.TrabajadorId equals t.Id
+                where a.FechaBaja == null && centrosReservados.Contains(a.CentroId)
+                select t.EmpresaId).ToListAsync();
+            trabajadoresDeReservados.Should().NotBeEmpty("los Centros reservados tienen plantilla");
+            trabajadoresDeReservados.Should().OnlyContain(
+                empresaId => empresaId == propiaId, "los Centros reservados no reciben plantilla de Subcontratas");
 
             var clientes = await contexto.Empresas.AsNoTracking().Where(e => e.EsCritico != null).Select(e => e.Id).ToListAsync();
             clientes.Should().HaveCount(clientesEsperados);

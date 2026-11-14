@@ -44,8 +44,9 @@ namespace CaeManager.Infrastructure.Persistence.Seed;
 /// y todos sus Trabajadores colgados de ella, cada Trabajador con su
 /// documentación estándar en una mezcla realista de estados
 /// (vigente/próximo/urgente/vencido), más
-/// los datos que ejercitan el resto de flujos — asignaciones coherentes (un
-/// trabajador solo trabaja en centros de su propia empresa), visitas,
+/// los datos que ejercitan el resto de flujos — asignaciones coherentes (los
+/// Trabajadores de la Empresa propia y de sus Subcontratas trabajan en Centros
+/// de la única Empresa propia), visitas,
 /// evaluaciones, incidencias, vehículos con su documentación, proyectos con
 /// sus técnicos, gestiones documentales y tarifas de facturación de los 7
 /// conceptos — y un grupo de "veteranos" dados de baja hace más de cinco
@@ -246,11 +247,12 @@ public static class DatosPruebaSeeder
 
     /// <summary>
     /// Las subcontratas van casi todas al día a propósito: su plantilla se
-    /// asigna a centros de OTRAS empresas (ver el bloque de asignaciones), así
-    /// que un perfil malo aquí no colorea un centro propio — contamina el de
-    /// un tercero y se lleva por delante el verde que la empresa titular sí
-    /// tenía. Una de cada cuatro basta para que el caso "el centro está en
-    /// rojo por la subcontrata, no por el titular" exista en la demo.
+    /// asigna a Centros de la única Empresa propia (ver el bloque de asignaciones),
+    /// así que un perfil malo aquí contamina un Centro que, por sus Trabajadores
+    /// propios, tenía otro estado. Una de cada cuatro basta para que el caso "el
+    /// Centro está en rojo por la Subcontrata, no por la Empresa propia" exista
+    /// en la demo; y esas Subcontratas solo se asignan a Centros ya Vencidos, para
+    /// no tapar los demás estados del semáforo.
     /// </summary>
     private static PerfilCumplimiento PerfilDeSubcontrata(int indice) =>
         indice % 4 == 3 ? PerfilCumplimiento.Vencido : PerfilCumplimiento.AlDia;
@@ -806,7 +808,7 @@ public static class DatosPruebaSeeder
         dbContext.Trabajadores.AddRange(trabajadores);
         await dbContext.SaveChangesAsync(cancellationToken);
 
-        // --- Asignaciones coherentes: cada trabajador, en centros de su propia empresa ---
+        // --- Asignaciones coherentes: los Trabajadores, en Centros de la única Empresa propia ---
         // El Centro principal de cada Trabajador propio sale de su posición en la
         // plantilla (reparto en rueda, sin dado: todo Centro tiene plantilla) y el
         // Trabajador hereda el perfil de cumplimiento de ese Centro. El segundo
@@ -847,7 +849,16 @@ public static class DatosPruebaSeeder
 
         foreach (var subcontrata in subcontratas)
         {
+            // Una subcontrata con perfil Vencido solo coloca plantilla en Centros de perfil
+            // Vencido: en cualquier otro empeoraría el estado de un Centro Próximo o Urgente
+            // y podría dejar sin representar uno de los estados del semáforo. (Si no hay
+            // ninguno, como en una siembra mínima, vale cualquier Centro sin hueco.)
             var centrosAlcanzables = centrosSinHueco;
+            if (PerfilDeSubcontrata(subcontratas.IndexOf(subcontrata)) == PerfilCumplimiento.Vencido)
+            {
+                var vencidos = centrosSinHueco.Where(c => perfilPorCentroId[c.Id] == PerfilCumplimiento.Vencido).ToList();
+                if (vencidos.Count > 0) centrosAlcanzables = vencidos;
+            }
             if (centrosAlcanzables.Count == 0) continue;
 
             var plantillaSubcontrata = trabajadoresPorSubcontrata[subcontrata.Id];
@@ -966,6 +977,7 @@ public static class DatosPruebaSeeder
         // variedad en /alertas y en la ficha de Empresa.
         for (var i = 0; i < 10; i++)
         {
+            // PerfilDeCentro solo reparte los cuatro perfiles por posición (i % 10); aquí no hay Centro.
             var perfilDelVehiculo = PerfilDeCentro(i);
             var vehiculo = Vehiculo.DeEmpresa(
                 propia.Id,

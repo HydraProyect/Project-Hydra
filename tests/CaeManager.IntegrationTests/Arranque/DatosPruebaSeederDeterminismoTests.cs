@@ -19,9 +19,11 @@ namespace CaeManager.IntegrationTests.Arranque;
 /// <see cref="DatosPruebaSeeder"/>: (1) el centro "bloqueante garantizado" se
 /// sorteaba entre TODOS los centros y podía caer en uno sin plantilla — sin
 /// nadie a quien le falte el documento, no hay rojo que enseñar; (2a) un
-/// <c>Guid.NewGuid()</c> fuera de la semilla determinista; (3) una empresa
-/// que ningún cliente sorteó como contratista se quedaba sin centro, y su
-/// plantilla invisible en cualquier pantalla Centro→Trabajador.
+/// <c>Guid.NewGuid()</c> fuera de la semilla determinista; (3) (con el modelo
+/// anterior a D-P11, de 24 Empresas propias) una empresa que ningún cliente
+/// sorteó como contratista se quedaba sin centro, y su plantilla invisible en
+/// cualquier pantalla Centro→Trabajador; hoy lo evita el reparto en rueda de
+/// la plantilla de la única Empresa propia sobre todos sus Centros.
 ///
 /// <para>
 /// Este fichero MIDE, no asume: siembra DOS tenants independientes con la
