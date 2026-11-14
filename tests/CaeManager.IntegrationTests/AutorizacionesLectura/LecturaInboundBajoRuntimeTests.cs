@@ -143,8 +143,7 @@ public class LecturaInboundBajoRuntimeTests : IAsyncLifetime
             _autDesdeManana = Contrato(_hoy.AddDays(-10));
 
             // DN-7: sin la línea Inbound vigente en X, ninguna función app_inbound_* le responde.
-            var lineaInbound = ProductoContratado.Contratar(LineaProductoContratado.Inbound, PagadorDelLector,
-                TramoTrabajadoresActivos.De1A10, ModalidadSuscripcionAlta.Anual, DateTime.UtcNow.AddDays(-30), DateTime.UtcNow);
+            var lineaInbound = LineaInboundVigente();
             contexto.ProductosContratados.Add(lineaInbound);
             _lineaInbound = lineaInbound.Id;
             await contexto.SaveChangesAsync();
@@ -161,6 +160,8 @@ public class LecturaInboundBajoRuntimeTests : IAsyncLifetime
             _deOtroLector = ContratoAcceso.Crear(cliente.Id, centro.Id, contratistaLocal.Id, _hoy.AddDays(-10), null, null);
             _deOtroLector.VincularTenantContratista(_contratista.Id);
             contexto.ContratosAcceso.Add(_deOtroLector);
+            // Z también tiene la línea Inbound: si no lee, es por el apretón, no por el gate DN-7.
+            contexto.ProductosContratados.Add(LineaInboundVigente());
             await contexto.SaveChangesAsync();
         }
 
@@ -170,6 +171,8 @@ public class LecturaInboundBajoRuntimeTests : IAsyncLifetime
             var contraparte = Empresa.CrearComoCliente("Empresa contraparte de la contratista", "B10380202", false, null, null);
             var propiaEliminada = new Empresa("Empresa contratista anterior", "B10380228");
             contexto.Empresas.AddRange(propia, contraparte, propiaEliminada);
+            // Y también tiene la línea Inbound: con el token de Y no lee el contrato de X por el apretón, no por el gate.
+            contexto.ProductosContratados.Add(LineaInboundVigente());
             var general = new TipoDocumento("Formación PRL", null, false, 1, AmbitoAplicacion.Trabajador, sensibilidad: SensibilidadDocumental.DatosPersonales);
             var deEmpresa = new TipoDocumento("Seguro de responsabilidad civil", null, false, 2, AmbitoAplicacion.Empresa, sensibilidad: SensibilidadDocumental.SinDatosPersonales);
             var salud = new TipoDocumento("Reconocimiento médico", null, false, 3, AmbitoAplicacion.Trabajador);
@@ -916,7 +919,8 @@ public class LecturaInboundBajoRuntimeTests : IAsyncLifetime
     // ---------- DN-7, opción (a), y D-1 (2026-11-14): la línea Inbound «a presupuesto» en el Producto Contratado ----------
     // La lectura entre Tenants exige que el Tenant del Cliente empresarial (X, Tenant beneficiario) tenga un Producto
     // Contratado de la línea Inbound vigente. Lo decide el TenantId de la fila, nunca el Pagador TALVEG. El fixture se lo da
-    // a X: cada prueba de abajo se lo quita de una forma y comprueba 0 filas en las tres funciones públicas, sin traza.
+    // a X, a Y y a Z (así los demás negativos fallan solo por su motivo): cada prueba de abajo se lo quita a X de una forma
+    // y comprueba 0 filas en las tres funciones públicas, sin traza.
     // Mutación declarada: quitar el EXISTS de app_inbound_tenant_contratista_del_contrato deja estas pruebas en rojo.
 
     [Fact]
@@ -980,9 +984,9 @@ public class LecturaInboundBajoRuntimeTests : IAsyncLifetime
         foreach (var tenant in new[] { _contratista.Id, _otroLector.Id })
         {
             await using var contexto = Contexto(tenant);
-            contexto.ProductosContratados.Add(ProductoContratado.Contratar(LineaProductoContratado.Inbound, PagadorDelLector,
-                TramoTrabajadoresActivos.De1A10, ModalidadSuscripcionAlta.Anual, DateTime.UtcNow.AddDays(-30), DateTime.UtcNow));
-            await contexto.SaveChangesAsync();
+            (await contexto.ProductosContratados.CountAsync(p => p.Linea == LineaProductoContratado.Inbound
+                    && p.Estado == EstadoProductoContratado.Vigente && p.PagadorStripeCustomerId == PagadorDelLector))
+                .Should().Be(1, "precondición: el fixture da a Y y a Z su línea Inbound vigente, con el Pagador TALVEG de X");
         }
 
         await ComprobarSinLecturaAsync(_lector.Id, _usuarioLector,
@@ -1030,6 +1034,10 @@ public class LecturaInboundBajoRuntimeTests : IAsyncLifetime
         (await fila.ReadAsync()).Should().BeTrue();
         return new FuncionInbound(fila.GetString(0), fila.GetString(1));
     }
+
+    // La misma línea Inbound para X, Y y Z, pagada por el mismo Pagador TALVEG: el Tenant beneficiario lo sella el contexto.
+    private static ProductoContratado LineaInboundVigente() => ProductoContratado.Contratar(LineaProductoContratado.Inbound,
+        PagadorDelLector, TramoTrabajadoresActivos.De1A10, ModalidadSuscripcionAlta.Anual, DateTime.UtcNow.AddDays(-30), DateTime.UtcNow);
 
     private async Task FinalizarLineaInboundDelLectorAsync()
     {

@@ -32,7 +32,13 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
     /// reescribe una auxiliar que ningún rol de la aplicación llama; la ranura anterior sigue llamando a las mismas
     /// funciones públicas con la misma firma, y ningún código de la aplicación lee <c>ProductosContratados</c>, así que
     /// el valor nuevo nunca llega a un enum que no lo conozca. Lo que cambia para la ranura anterior es el resultado: sin
-    /// la línea Inbound no hay lectura entre Tenants, que es la regla.
+    /// la línea Inbound no hay lectura entre Tenants, que es la regla. Como ningún rol de la aplicación escribe aún
+    /// <c>ProductosContratados</c> (lo hará el alta del Tenant del Cliente empresarial, B-04), desde esta migración ningún
+    /// Tenant lee Inbound entre Tenants en ningún entorno hasta que tenga su línea.
+    /// </para>
+    /// <para>
+    /// El Down vuelve a estrechar el CHECK y falla si ya hay filas de la línea Inbound: hay que finalizarlas y borrarlas
+    /// antes, decisión que no toma la migración.
     /// </para>
     /// </summary>
     public partial class AnadeLineaInboundProductoContratado : Migration

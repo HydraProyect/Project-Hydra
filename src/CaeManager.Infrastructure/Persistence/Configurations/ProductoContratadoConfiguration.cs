@@ -15,6 +15,11 @@ namespace CaeManager.Infrastructure.Persistence.Configurations;
 /// Sin índice único por Tenant: cuántos Productos Contratados vigentes admite un Tenant beneficiario no
 /// está decidido, y añadirlo después es aditivo porque hasta A6 no hay filas.
 /// </para>
+/// <para>
+/// Una fila de la línea Inbound vigente abre la lectura entre Tenants de su Tenant beneficiario (gate DN-7 en
+/// <c>app_inbound_tenant_contratista_del_contrato</c>). Por eso su vía de escritura no puede ser un INSERT de
+/// <c>cae_app_runtime</c> bajo <c>aislamiento_tenant</c>: el WITH CHECK dejaría a un Tenant concederse su propia línea.
+/// </para>
 /// </summary>
 public class ProductoContratadoConfiguration : IEntityTypeConfiguration<ProductoContratado>
 {
