@@ -1,5 +1,7 @@
 using CaeManager.Application.Common;
+using CaeManager.Application.Documentos;
 using CaeManager.Application.Empresas;
+using CaeManager.Application.Proyectos;
 using CaeManager.Application.Trabajadores;
 using CaeManager.Domain.Plantillas;
 using MediatR;
@@ -32,24 +34,18 @@ public class ObtenerDocumentosGeneradosQueryHandler(
     IPlantillasQueryContext plantillasContext,
     ITrabajadoresQueryContext trabajadoresContext,
     IEmpresasQueryContext empresasContext,
+    IDocumentosQueryContext documentosContext,
+    IProyectosQueryContext proyectosContext,
     IAlcanceDatosService alcanceDatos)
     : IRequestHandler<ObtenerDocumentosGeneradosQuery, IReadOnlyList<DocumentoGeneradoListaDto>>
 {
     public async Task<IReadOnlyList<DocumentoGeneradoListaDto>> Handle(
         ObtenerDocumentosGeneradosQuery request, CancellationToken cancellationToken)
     {
-        var trabajadorIdsVisibles = await alcanceDatos.ObtenerTrabajadorIdsVisiblesAsync(cancellationToken);
-        var empresaIdsVisibles = await alcanceDatos.ObtenerEmpresaIdsVisiblesAsync(cancellationToken);
-
         var consulta = plantillasContext.DocumentosGenerados.AsQueryable();
 
         if (request.TrabajadorId is { } trabajadorId)
             consulta = consulta.Where(d => d.TrabajadorId == trabajadorId);
-
-        if (trabajadorIdsVisibles is not null)
-            consulta = consulta.Where(d => d.TrabajadorId == null || trabajadorIdsVisibles.Contains(d.TrabajadorId!.Value));
-        if (empresaIdsVisibles is not null)
-            consulta = consulta.Where(d => d.EmpresaId == null || empresaIdsVisibles.Contains(d.EmpresaId!.Value));
 
         // Proyecta a propósito: Soporte TALVEG no tiene CodigoSeguroVerificacion ni
         // DatosUtilizadosJson, y materializar la entidad daría 42501 en Sesión Privilegiada.
@@ -62,10 +58,19 @@ public class ObtenerDocumentosGeneradosQueryHandler(
                 d.PlantillaDocumentoVersionId,
                 d.TrabajadorId,
                 d.EmpresaId,
+                d.CentroId,
                 d.GeneradoEnUtc,
                 d.Estado,
             })
             .ToListAsync(cancellationToken);
+
+        // La Asignación de Cartera se decide con todas las coordenadas del registro y con el Documento del que cuelga,
+        // no solo con las no nulas: un generado de ámbito Cliente sin Centro no guarda Trabajador ni Empresa (V4.2.1).
+        var visibles = await alcanceDatos.DocumentosGeneradosVisiblesAsync(
+            generados.Select(d => new CoordenadasDocumentoGenerado(
+                d.Id, d.DocumentoId, d.PlantillaDocumentoVersionId, d.TrabajadorId, d.EmpresaId, d.CentroId)).ToList(),
+            plantillasContext, documentosContext, proyectosContext, cancellationToken);
+        generados = generados.Where(d => visibles.Contains(d.Id)).ToList();
 
         if (generados.Count == 0)
             return [];

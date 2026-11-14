@@ -14,7 +14,8 @@ public static class AlcanceDePlantillas
     /// <summary>
     /// ¿Alcanza quien mira la plantilla <paramref name="plantilla"/>? Lo usan las escrituras sobre una plantilla
     /// existente (agregar versión, guardar elementos, confirmar versión, iniciar un lote de generación) y sus lecturas
-    /// (lista de plantillas, versión en el editor); todas tratan el «no» igual que una plantilla o versión que no
+    /// (lista de plantillas, versión en el editor, y la de documentos generados a través de
+    /// <see cref="AlcanceDeDocumentosGenerados"/>); todas tratan el «no» igual que una plantilla o versión que no
     /// existe, para no delatarla, y la lista simplemente la omite. GenerarDocumentoIndividual no lo
     /// llama: exige que el Centro y el Cliente empresarial de la petición sean visibles y coincidan con los de la
     /// plantilla, lo que equivale a este mismo criterio.

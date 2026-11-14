@@ -1,4 +1,6 @@
 using CaeManager.Application.Common;
+using CaeManager.Application.Documentos;
+using CaeManager.Application.Proyectos;
 using CaeManager.Domain.Plantillas;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
@@ -22,22 +24,28 @@ public record ObtenerTotalDocumentosGeneradosConAvisosQuery : IRequest<int>;
 
 public class ObtenerTotalDocumentosGeneradosConAvisosQueryHandler(
     IPlantillasQueryContext plantillasContext,
+    IDocumentosQueryContext documentosContext,
+    IProyectosQueryContext proyectosContext,
     IAlcanceDatosService alcanceDatos)
     : IRequestHandler<ObtenerTotalDocumentosGeneradosConAvisosQuery, int>
 {
     public async Task<int> Handle(ObtenerTotalDocumentosGeneradosConAvisosQuery request, CancellationToken cancellationToken)
     {
-        var trabajadorIdsVisibles = await alcanceDatos.ObtenerTrabajadorIdsVisiblesAsync(cancellationToken);
-        var empresaIdsVisibles = await alcanceDatos.ObtenerEmpresaIdsVisiblesAsync(cancellationToken);
-
         var consulta = plantillasContext.DocumentosGenerados
             .Where(d => d.Estado == EstadoDocumentoGenerado.GeneradoConAvisos);
 
-        if (trabajadorIdsVisibles is not null)
-            consulta = consulta.Where(d => d.TrabajadorId == null || trabajadorIdsVisibles.Contains(d.TrabajadorId!.Value));
-        if (empresaIdsVisibles is not null)
-            consulta = consulta.Where(d => d.EmpresaId == null || empresaIdsVisibles.Contains(d.EmpresaId!.Value));
+        // Con acceso total no hay nada que recortar: se cuenta en la base, como antes.
+        if (await alcanceDatos.TieneAccesoTotalAsync(cancellationToken))
+            return await consulta.CountAsync(cancellationToken);
 
-        return await consulta.CountAsync(cancellationToken);
+        // Sin acceso total, la misma puerta que la lista (V4.2.1): el contador no puede contar lo que la tabla no enseña.
+        var generados = await consulta
+            .Select(d => new CoordenadasDocumentoGenerado(
+                d.Id, d.DocumentoId, d.PlantillaDocumentoVersionId, d.TrabajadorId, d.EmpresaId, d.CentroId))
+            .ToListAsync(cancellationToken);
+
+        var visibles = await alcanceDatos.DocumentosGeneradosVisiblesAsync(
+            generados, plantillasContext, documentosContext, proyectosContext, cancellationToken);
+        return visibles.Count;
     }
 }

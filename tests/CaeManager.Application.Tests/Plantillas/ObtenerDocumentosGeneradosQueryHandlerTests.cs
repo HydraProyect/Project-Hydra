@@ -1,6 +1,8 @@
 using CaeManager.Application.Plantillas.Queries.ObtenerDocumentosGenerados;
 using CaeManager.Application.Tests.Clientes;
 using CaeManager.Application.Tests.Documentos;
+using CaeManager.Application.Tests.Proyectos;
+using CaeManager.Domain.Common;
 using CaeManager.Domain.Documentos;
 using CaeManager.Domain.Empresas;
 using CaeManager.Domain.Plantillas;
@@ -12,14 +14,39 @@ namespace CaeManager.Application.Tests.Plantillas;
 
 public class ObtenerDocumentosGeneradosQueryHandlerTests
 {
-    private static (PlantillasQueryContextFalso Contexto, PlantillaDocumento Plantilla, PlantillaDocumentoVersion Version) ConstruirPlantilla()
+    private readonly DocumentosQueryContextFalso _documentos = new();
+
+    private static (PlantillasQueryContextFalso Contexto, PlantillaDocumento Plantilla, PlantillaDocumentoVersion Version) ConstruirPlantilla(
+        AmbitoAplicacion ambito = AmbitoAplicacion.Trabajador, Guid? centroId = null, Guid? clienteId = null)
     {
         var contexto = new PlantillasQueryContextFalso();
-        var plantilla = new PlantillaDocumento(OrigenPlantilla.Externa, "Ficha de riesgos", AmbitoAplicacion.Trabajador, FormatoOrigenPlantilla.PdfVisual, Guid.NewGuid());
+        var plantilla = new PlantillaDocumento(OrigenPlantilla.Externa, "Ficha de riesgos", ambito, FormatoOrigenPlantilla.PdfVisual, Guid.NewGuid(),
+            centroId: centroId, clienteId: clienteId);
         var version = new PlantillaDocumentoVersion(plantilla.Id, 1, "url.pdf", new string('a', 64));
         contexto.ListaPlantillasDocumento.Add(plantilla);
         contexto.ListaPlantillasDocumentoVersion.Add(version);
         return (contexto, plantilla, version);
+    }
+
+    private ObtenerDocumentosGeneradosQueryHandler Handler(PlantillasQueryContextFalso contexto, AlcanceDatosServiceFalso alcance) =>
+        new(contexto, new TrabajadoresQueryContextFalso(), new EmpresasQueryContextFalso(), _documentos, new ProyectosQueryContextFalso(), alcance);
+
+    /// <summary>
+    /// Lo que guarda la generación desde una plantilla de ámbito Cliente sin Centro: el Documento es del Cliente
+    /// empresarial y el registro no lleva Trabajador, Empresa ni Centro.
+    /// </summary>
+    private DocumentoGenerado GeneradoParaClienteEmpresarialSinCentro(PlantillaDocumentoVersion version, Guid clienteEmpresarialId)
+    {
+        var documento = Documento.DeCliente(clienteEmpresarialId, Guid.NewGuid(), DiaDeNegocio.Hoy(), VigenciaDocumento.NoCaduca, "generado.pdf");
+        _documentos.ListaDocumentos.Add(documento);
+        return new DocumentoGenerado(version.Id, documento.Id, "{}", Guid.NewGuid(), DateTime.UtcNow);
+    }
+
+    private DocumentoGenerado GeneradoParaTrabajador(PlantillaDocumentoVersion version, Guid trabajadorId, Guid? centroId = null)
+    {
+        var documento = Documento.DeTrabajador(trabajadorId, Guid.NewGuid(), DiaDeNegocio.Hoy(), VigenciaDocumento.NoCaduca, "generado.pdf");
+        _documentos.ListaDocumentos.Add(documento);
+        return new DocumentoGenerado(version.Id, documento.Id, "{}", Guid.NewGuid(), DateTime.UtcNow, trabajadorId: trabajadorId, centroId: centroId);
     }
 
     [Fact]
@@ -34,7 +61,8 @@ public class ObtenerDocumentosGeneradosQueryHandlerTests
         var generado = new DocumentoGenerado(version.Id, Guid.NewGuid(), "{}", Guid.NewGuid(), DateTime.UtcNow, trabajadorId: trabajador.Id);
         contexto.ListaDocumentosGenerados.Add(generado);
 
-        var handler = new ObtenerDocumentosGeneradosQueryHandler(contexto, trabajadoresContext, empresasContext, new AlcanceDatosServiceFalso());
+        var handler = new ObtenerDocumentosGeneradosQueryHandler(
+            contexto, trabajadoresContext, empresasContext, _documentos, new ProyectosQueryContextFalso(), new AlcanceDatosServiceFalso());
 
         var resultado = await handler.Handle(new ObtenerDocumentosGeneradosQuery(), CancellationToken.None);
 
@@ -58,10 +86,8 @@ public class ObtenerDocumentosGeneradosQueryHandlerTests
             new DocumentoGenerado(versionDos.Id, Guid.NewGuid(), "{}", Guid.NewGuid(), DateTime.UtcNow),
         ]);
 
-        var handler = new ObtenerDocumentosGeneradosQueryHandler(
-            contexto, new TrabajadoresQueryContextFalso(), new EmpresasQueryContextFalso(), new AlcanceDatosServiceFalso());
-
-        var resultado = await handler.Handle(new ObtenerDocumentosGeneradosQuery(PlantillaDocumentoId: plantillaUno.Id), CancellationToken.None);
+        var resultado = await Handler(contexto, new AlcanceDatosServiceFalso())
+            .Handle(new ObtenerDocumentosGeneradosQuery(PlantillaDocumentoId: plantillaUno.Id), CancellationToken.None);
 
         resultado.Should().ContainSingle(d => d.PlantillaNombre == "Ficha de riesgos");
     }
@@ -77,10 +103,8 @@ public class ObtenerDocumentosGeneradosQueryHandlerTests
             new DocumentoGenerado(version.Id, Guid.NewGuid(), "{}", Guid.NewGuid(), DateTime.UtcNow, trabajadorId: Guid.NewGuid()),
         ]);
 
-        var handler = new ObtenerDocumentosGeneradosQueryHandler(
-            contexto, new TrabajadoresQueryContextFalso(), new EmpresasQueryContextFalso(), new AlcanceDatosServiceFalso());
-
-        var resultado = await handler.Handle(new ObtenerDocumentosGeneradosQuery(TrabajadorId: trabajadorBuscado), CancellationToken.None);
+        var resultado = await Handler(contexto, new AlcanceDatosServiceFalso())
+            .Handle(new ObtenerDocumentosGeneradosQuery(TrabajadorId: trabajadorBuscado), CancellationToken.None);
 
         resultado.Should().ContainSingle(d => d.TrabajadorId == trabajadorBuscado);
     }
@@ -93,16 +117,108 @@ public class ObtenerDocumentosGeneradosQueryHandlerTests
         var trabajadorAjeno = Guid.NewGuid();
         contexto.ListaDocumentosGenerados.AddRange(
         [
-            new DocumentoGenerado(version.Id, Guid.NewGuid(), "{}", Guid.NewGuid(), DateTime.UtcNow, trabajadorId: trabajadorVisible),
-            new DocumentoGenerado(version.Id, Guid.NewGuid(), "{}", Guid.NewGuid(), DateTime.UtcNow, trabajadorId: trabajadorAjeno),
+            GeneradoParaTrabajador(version, trabajadorVisible),
+            GeneradoParaTrabajador(version, trabajadorAjeno),
         ]);
         var alcance = new AlcanceDatosServiceFalso(tieneAccesoTotal: false, trabajadorIdsVisibles: [trabajadorVisible]);
 
-        var handler = new ObtenerDocumentosGeneradosQueryHandler(
-            contexto, new TrabajadoresQueryContextFalso(), new EmpresasQueryContextFalso(), alcance);
-
-        var resultado = await handler.Handle(new ObtenerDocumentosGeneradosQuery(), CancellationToken.None);
+        var resultado = await Handler(contexto, alcance).Handle(new ObtenerDocumentosGeneradosQuery(), CancellationToken.None);
 
         resultado.Should().ContainSingle(d => d.TrabajadorId == trabajadorVisible);
+    }
+
+    [Fact]
+    public async Task Un_Gestor_CAE_no_ve_el_generado_sin_Trabajador_ni_Empresa_de_un_Cliente_empresarial_fuera_de_su_Cartera()
+    {
+        var (contexto, _, version) = ConstruirPlantilla(AmbitoAplicacion.Cliente);
+        var clienteFueraDeCartera = Guid.NewGuid();
+        var generado = GeneradoParaClienteEmpresarialSinCentro(version, clienteFueraDeCartera);
+        contexto.ListaDocumentosGenerados.Add(generado);
+        var gestorConCarteraLimitada = new AlcanceDatosServiceFalso(tieneAccesoTotal: false, clienteIdsVisibles: [Guid.NewGuid()]);
+
+        var resultado = await Handler(contexto, gestorConCarteraLimitada).Handle(new ObtenerDocumentosGeneradosQuery(), CancellationToken.None);
+
+        generado.TrabajadorId.Should().BeNull("control del instrumento: es el registro que dejaba pasar el filtro");
+        generado.EmpresaId.Should().BeNull("control del instrumento: es el registro que dejaba pasar el filtro");
+        resultado.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task Un_Gestor_CAE_ve_el_generado_sin_Trabajador_ni_Empresa_de_un_Cliente_empresarial_de_su_Cartera()
+    {
+        var (contexto, _, version) = ConstruirPlantilla(AmbitoAplicacion.Cliente);
+        var clienteDeCartera = Guid.NewGuid();
+        var deCartera = GeneradoParaClienteEmpresarialSinCentro(version, clienteDeCartera);
+        contexto.ListaDocumentosGenerados.AddRange([deCartera, GeneradoParaClienteEmpresarialSinCentro(version, Guid.NewGuid())]);
+        var gestorConCarteraLimitada = new AlcanceDatosServiceFalso(tieneAccesoTotal: false, clienteIdsVisibles: [clienteDeCartera]);
+
+        var resultado = await Handler(contexto, gestorConCarteraLimitada).Handle(new ObtenerDocumentosGeneradosQuery(), CancellationToken.None);
+
+        var fila = resultado.Should().ContainSingle().Subject;
+        fila.DocumentoGeneradoId.Should().Be(deCartera.Id);
+        fila.PlantillaNombre.Should().Be("Ficha de riesgos");
+    }
+
+    [Fact]
+    public async Task No_se_ve_un_generado_cuyo_Documento_no_es_legible_en_el_Tenant_propietario_actual()
+    {
+        // RLS deja fuera del contexto el Documento de otro Tenant propietario: el registro que apuntara a él no
+        // tiene Documento legible y no sale, aunque no lleve ninguna otra coordenada.
+        var (contexto, _, version) = ConstruirPlantilla(AmbitoAplicacion.Cliente);
+        var clienteEmpresarial = Guid.NewGuid();
+        var documentoDeOtroTenant = Documento.DeCliente(clienteEmpresarial, Guid.NewGuid(), DiaDeNegocio.Hoy(), VigenciaDocumento.NoCaduca, "ajeno.pdf");
+        contexto.ListaDocumentosGenerados.Add(new DocumentoGenerado(version.Id, documentoDeOtroTenant.Id, "{}", Guid.NewGuid(), DateTime.UtcNow));
+        var gestorQueVeAlClienteEmpresarial = new AlcanceDatosServiceFalso(tieneAccesoTotal: false, clienteIdsVisibles: [clienteEmpresarial]);
+
+        var resultado = await Handler(contexto, gestorQueVeAlClienteEmpresarial).Handle(new ObtenerDocumentosGeneradosQuery(), CancellationToken.None);
+
+        resultado.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task Un_Gestor_CAE_no_ve_el_generado_en_un_Centro_fuera_de_su_Cartera_aunque_vea_al_Trabajador()
+    {
+        var (contexto, _, version) = ConstruirPlantilla();
+        var trabajador = Guid.NewGuid();
+        var centroDeCartera = Guid.NewGuid();
+        var enCentroDeCartera = GeneradoParaTrabajador(version, trabajador, centroDeCartera);
+        contexto.ListaDocumentosGenerados.AddRange([enCentroDeCartera, GeneradoParaTrabajador(version, trabajador, Guid.NewGuid())]);
+        var alcance = new AlcanceDatosServiceFalso(tieneAccesoTotal: false, trabajadorIdsVisibles: [trabajador], centroIdsVisibles: [centroDeCartera]);
+
+        var resultado = await Handler(contexto, alcance).Handle(new ObtenerDocumentosGeneradosQuery(), CancellationToken.None);
+
+        resultado.Should().ContainSingle().Which.DocumentoGeneradoId.Should().Be(enCentroDeCartera.Id);
+    }
+
+    [Fact]
+    public async Task Un_Gestor_CAE_no_ve_el_generado_de_una_plantilla_atada_a_un_Cliente_empresarial_fuera_de_su_Cartera()
+    {
+        var clienteDeCartera = Guid.NewGuid();
+        var (contexto, _, version) = ConstruirPlantilla(AmbitoAplicacion.Trabajador, clienteId: Guid.NewGuid());
+        var trabajador = Guid.NewGuid();
+        contexto.ListaDocumentosGenerados.Add(GeneradoParaTrabajador(version, trabajador));
+        var alcance = new AlcanceDatosServiceFalso(tieneAccesoTotal: false, clienteIdsVisibles: [clienteDeCartera], trabajadorIdsVisibles: [trabajador]);
+
+        var resultado = await Handler(contexto, alcance).Handle(new ObtenerDocumentosGeneradosQuery(), CancellationToken.None);
+
+        resultado.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task Con_acceso_total_no_se_pierde_ningun_generado()
+    {
+        var (contexto, _, version) = ConstruirPlantilla(AmbitoAplicacion.Cliente);
+        contexto.ListaDocumentosGenerados.AddRange(
+        [
+            GeneradoParaClienteEmpresarialSinCentro(version, Guid.NewGuid()),
+            GeneradoParaTrabajador(version, Guid.NewGuid(), Guid.NewGuid()),
+            // Su Documento ya no está (dado de baja): con acceso total la traza se sigue viendo, como antes.
+            new DocumentoGenerado(version.Id, Guid.NewGuid(), "{}", Guid.NewGuid(), DateTime.UtcNow),
+        ]);
+
+        var resultado = await Handler(contexto, new AlcanceDatosServiceFalso(tieneAccesoTotal: true))
+            .Handle(new ObtenerDocumentosGeneradosQuery(), CancellationToken.None);
+
+        resultado.Should().HaveCount(3);
     }
 }

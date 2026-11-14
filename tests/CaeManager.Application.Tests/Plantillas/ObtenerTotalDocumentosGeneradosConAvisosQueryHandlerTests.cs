@@ -1,5 +1,8 @@
 using CaeManager.Application.Plantillas.Queries.ObtenerTotalDocumentosGeneradosConAvisos;
 using CaeManager.Application.Tests.Clientes;
+using CaeManager.Application.Tests.Documentos;
+using CaeManager.Application.Tests.Proyectos;
+using CaeManager.Domain.Common;
 using CaeManager.Domain.Documentos;
 using CaeManager.Domain.Empresas;
 using CaeManager.Domain.Plantillas;
@@ -31,8 +34,29 @@ public class ObtenerTotalDocumentosGeneradosConAvisosQueryHandlerTests
         return version;
     }
 
-    private static DocumentoGenerado Generado(Guid versionId, EstadoDocumentoGenerado estado, Guid? trabajadorId = null, Guid? empresaId = null) =>
-        new(versionId, Guid.NewGuid(), "{}", Guid.NewGuid(), DateTime.UtcNow, trabajadorId: trabajadorId, empresaId: empresaId, conAvisos: estado == EstadoDocumentoGenerado.GeneradoConAvisos);
+    private readonly DocumentosQueryContextFalso _documentos = new();
+
+    private ObtenerTotalDocumentosGeneradosConAvisosQueryHandler Handler(PlantillasQueryContextFalso contexto, AlcanceDatosServiceFalso alcance) =>
+        new(contexto, _documentos, new ProyectosQueryContextFalso(), alcance);
+
+    /// <summary>Con su Documento real (legible), para que solo decidan las coordenadas del registro.</summary>
+    private DocumentoGenerado Generado(Guid versionId, EstadoDocumentoGenerado estado, Guid? trabajadorId = null, Guid? empresaId = null)
+    {
+        var documento = trabajadorId is { } trabajador
+            ? Documento.DeTrabajador(trabajador, Guid.NewGuid(), DiaDeNegocio.Hoy(), VigenciaDocumento.NoCaduca, "generado.pdf")
+            : Documento.DeEmpresa(empresaId ?? Guid.NewGuid(), Guid.NewGuid(), DiaDeNegocio.Hoy(), VigenciaDocumento.NoCaduca, "generado.pdf");
+        _documentos.ListaDocumentos.Add(documento);
+        return new(versionId, documento.Id, "{}", Guid.NewGuid(), DateTime.UtcNow, trabajadorId: trabajadorId, empresaId: empresaId,
+            conAvisos: estado == EstadoDocumentoGenerado.GeneradoConAvisos);
+    }
+
+    /// <summary>Generado con avisos desde una plantilla de ámbito Cliente sin Centro: sin Trabajador, Empresa ni Centro.</summary>
+    private DocumentoGenerado GeneradoDeClienteEmpresarial(Guid versionId, Guid clienteEmpresarialId)
+    {
+        var documento = Documento.DeCliente(clienteEmpresarialId, Guid.NewGuid(), DiaDeNegocio.Hoy(), VigenciaDocumento.NoCaduca, "generado.pdf");
+        _documentos.ListaDocumentos.Add(documento);
+        return new(versionId, documento.Id, "{}", Guid.NewGuid(), DateTime.UtcNow, conAvisos: true);
+    }
 
     [Fact]
     public async Task Cuenta_solo_los_generados_con_avisos()
@@ -46,9 +70,7 @@ public class ObtenerTotalDocumentosGeneradosConAvisosQueryHandlerTests
             Generado(version.Id, EstadoDocumentoGenerado.GeneradoConAvisos),
         ]);
 
-        var handler = new ObtenerTotalDocumentosGeneradosConAvisosQueryHandler(contexto, new AlcanceDatosServiceFalso());
-
-        var resultado = await handler.Handle(new ObtenerTotalDocumentosGeneradosConAvisosQuery(), CancellationToken.None);
+        var resultado = await Handler(contexto, new AlcanceDatosServiceFalso()).Handle(new ObtenerTotalDocumentosGeneradosConAvisosQuery(), CancellationToken.None);
 
         resultado.Should().Be(2);
     }
@@ -60,9 +82,7 @@ public class ObtenerTotalDocumentosGeneradosConAvisosQueryHandlerTests
         var version = CrearVersion(contexto);
         contexto.ListaDocumentosGenerados.Add(Generado(version.Id, EstadoDocumentoGenerado.Generado));
 
-        var handler = new ObtenerTotalDocumentosGeneradosConAvisosQueryHandler(contexto, new AlcanceDatosServiceFalso());
-
-        var resultado = await handler.Handle(new ObtenerTotalDocumentosGeneradosConAvisosQuery(), CancellationToken.None);
+        var resultado = await Handler(contexto, new AlcanceDatosServiceFalso()).Handle(new ObtenerTotalDocumentosGeneradosConAvisosQuery(), CancellationToken.None);
 
         resultado.Should().Be(0);
     }
@@ -81,10 +101,43 @@ public class ObtenerTotalDocumentosGeneradosConAvisosQueryHandlerTests
         ]);
         var alcance = new AlcanceDatosServiceFalso(tieneAccesoTotal: false, trabajadorIdsVisibles: [trabajadorVisible]);
 
-        var handler = new ObtenerTotalDocumentosGeneradosConAvisosQueryHandler(contexto, alcance);
-
-        var resultado = await handler.Handle(new ObtenerTotalDocumentosGeneradosConAvisosQuery(), CancellationToken.None);
+        var resultado = await Handler(contexto, alcance).Handle(new ObtenerTotalDocumentosGeneradosConAvisosQuery(), CancellationToken.None);
 
         resultado.Should().Be(1);
+    }
+
+    [Fact]
+    public async Task No_cuenta_el_generado_sin_Trabajador_ni_Empresa_de_un_Cliente_empresarial_fuera_de_la_Cartera()
+    {
+        var contexto = new PlantillasQueryContextFalso();
+        var version = CrearVersion(contexto);
+        var clienteDeCartera = Guid.NewGuid();
+        contexto.ListaDocumentosGenerados.AddRange(
+        [
+            GeneradoDeClienteEmpresarial(version.Id, clienteDeCartera),
+            GeneradoDeClienteEmpresarial(version.Id, Guid.NewGuid()),
+        ]);
+        var gestorConCarteraLimitada = new AlcanceDatosServiceFalso(tieneAccesoTotal: false, clienteIdsVisibles: [clienteDeCartera]);
+
+        var resultado = await Handler(contexto, gestorConCarteraLimitada).Handle(new ObtenerTotalDocumentosGeneradosConAvisosQuery(), CancellationToken.None);
+
+        resultado.Should().Be(1);
+    }
+
+    [Fact]
+    public async Task Con_acceso_total_cuenta_todos_los_generados_con_avisos()
+    {
+        var contexto = new PlantillasQueryContextFalso();
+        var version = CrearVersion(contexto);
+        contexto.ListaDocumentosGenerados.AddRange(
+        [
+            GeneradoDeClienteEmpresarial(version.Id, Guid.NewGuid()),
+            Generado(version.Id, EstadoDocumentoGenerado.GeneradoConAvisos),
+        ]);
+
+        var resultado = await Handler(contexto, new AlcanceDatosServiceFalso(tieneAccesoTotal: true))
+            .Handle(new ObtenerTotalDocumentosGeneradosConAvisosQuery(), CancellationToken.None);
+
+        resultado.Should().Be(2);
     }
 }

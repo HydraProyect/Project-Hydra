@@ -128,14 +128,14 @@ public class SoporteSinCodigoSeguroDocumentosGeneradosTests : IAsyncLifetime
     {
         await using var contexto = CrearContexto(sesionPrivilegiadaId: Guid.NewGuid());
 
-        var listado = await new ObtenerDocumentosGeneradosQueryHandler(contexto, contexto, contexto, new AlcanceDatosServiceFalso())
+        var listado = await new ObtenerDocumentosGeneradosQueryHandler(contexto, contexto, contexto, contexto, contexto, new AlcanceDatosServiceFalso())
             .Handle(new ObtenerDocumentosGeneradosQuery(), CancellationToken.None);
         var fila = listado.Should().ContainSingle().Subject;
         fila.DocumentoGeneradoId.Should().Be(_documentoGeneradoId);
         fila.PlantillaNombre.Should().Be("Plantilla de prueba");
         fila.EmpresaRazonSocial.Should().Be(_razonSocial);
 
-        var conAvisos = await new ObtenerTotalDocumentosGeneradosConAvisosQueryHandler(contexto, new AlcanceDatosServiceFalso())
+        var conAvisos = await new ObtenerTotalDocumentosGeneradosConAvisosQueryHandler(contexto, contexto, contexto, new AlcanceDatosServiceFalso())
             .Handle(new ObtenerTotalDocumentosGeneradosConAvisosQuery(), CancellationToken.None);
         conAvisos.Should().Be(1);
     }
