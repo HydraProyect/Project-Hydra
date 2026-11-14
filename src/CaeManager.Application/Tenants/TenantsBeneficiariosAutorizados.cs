@@ -1,4 +1,4 @@
-﻿using CaeManager.Application.Operaciones;
+using CaeManager.Application.Operaciones;
 using CaeManager.Domain.Operaciones;
 using CaeManager.Domain.Tenants;
 using Microsoft.EntityFrameworkCore;

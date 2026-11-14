@@ -179,10 +179,10 @@ public class SoporteRevocaOperadorCaeExternoBajoRuntimeTests : IAsyncLifetime
                 .Should().Be("Cerrada/Revocada", "y todas sus carteras");
         (await EscalarAsync<string>(
             @"SELECT ""EraPrincipalAlCerrarsePorCascada""::text FROM ""AsignacionesCartera"" WHERE ""Id"" = @u;", carteraAcotada))
-            .Should().Be("false", "solo recuerda la marca la cartera que la llevaba (D-9)");
+            .Should().Be("false", "solo recuerda la marca la cartera que la llevaba");
         (await EscalarAsync<string>(
             @"SELECT ""EsPrincipal""::text || '/' || ""EraPrincipalAlCerrarsePorCascada""::text FROM ""AsignacionesCartera"" WHERE ""Id"" = @u;", carteraProgramada))
-            .Should().Be("false/false", "una cartera principal que no estaba vigente se cierra sin recordar la marca");
+            .Should().Be("false/true", "el cierre apaga la marca y recuerda que la llevaba, como AsignacionCartera.CerrarPorCascadaDeLaOperacion; desde la opción A (2026-11-14, D-9 superada) es histórico sin lector y reactivar no la lee");
         (await EscalarAsync<bool>(
             @"SELECT ""VigenciaHasta"" = ""VigenciaDesde"" FROM ""AsignacionesOperacion"" WHERE ""Id"" = @u;", acotadaProgramada))
             .Should().BeTrue("la programada se cierra sin haber empezado, como Cerrar en C#");

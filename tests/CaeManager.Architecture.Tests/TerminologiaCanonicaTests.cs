@@ -492,7 +492,10 @@ public class TerminologiaCanonicaTests
         // AsignacionesOperativasWriter retira el método que filtraba por DelegacionTenantId (−1); y
         // AlcanceDatosService.ObtenerCarteraAsync consulta el DbSet DelegacionesTenant y PropositoDelegacion,
         // tipos ya existentes, para exigir la delegación del par vigente (+2). Ningún identificador nuevo.
-        ["Delegacion"] = 356,
+        // 356 → 358 (2026-11-14, PR #2223): TenantsBeneficiariosAutorizados.CarterasPorOperacionDeLaOrganizacion
+        // exige el mismo predicado en la vía de Operación del selector y consulta el DbSet DelegacionesTenant y
+        // PropositoDelegacion, tipos ya existentes (+2). Ningún identificador nuevo.
+        ["Delegacion"] = 358,
         // 72 (antes 71): el selector de empresa gestionada también se ofrece en el cajón de navegación
         // móvil (NavegacionMovil), que bajo 1024 px es la única forma de alcanzarlo. Es un segundo
         // anfitrión del mismo componente, no un identificador nuevo; el renombrado sigue siendo un

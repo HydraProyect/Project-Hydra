@@ -261,8 +261,8 @@ public class AutorizarOperadorCaeExternoRlsTests : IAsyncLifetime
         var reactivar = await ReactivarAsync(_administradorPropietario, Roles.Administrador, delegacionId);
         reactivar.Puede.Should().BeTrue("la pantalla le pinta «Reactivar»");
         reactivar.Resultado.EsExitoso.Should().BeTrue(reactivar.Resultado.EsFallido ? reactivar.Resultado.Error.Codigo : string.Empty);
-        (await EstadoAsync(delegacionId, gestorOperador.Id)).Should().Be((true, 1, 2, 1),
-            "reactivar abre una operación nueva y le repone la cartera que la revocación cerró");
+        (await EstadoAsync(delegacionId, gestorOperador.Id)).Should().Be((true, 1, 2, 0),
+            "reactivar abre una operación nueva, pero nunca repone la cartera que la revocación cerró: hace falta un acto explícito (opción A, 2026-11-14)");
     }
 
     [Theory]
@@ -449,7 +449,8 @@ public class AutorizarOperadorCaeExternoRlsTests : IAsyncLifetime
         {
             reactivar.Resultado.EsExitoso.Should().BeTrue(
                 reactivar.Resultado.EsFallido ? reactivar.Resultado.Error.Codigo : string.Empty);
-            (await EstadoAsync(alta.Valor, gestor.Id)).Should().Be((true, 1, 2, 1));
+            (await EstadoAsync(alta.Valor, gestor.Id)).Should().Be((true, 1, 2, 0),
+                "reactivar no repone la cartera cerrada por la revocación (opción A, 2026-11-14)");
         }
 
         var auditoriaNueva = await verificacion.RegistrosAuditoria.IgnoreQueryFilters().AsNoTracking()

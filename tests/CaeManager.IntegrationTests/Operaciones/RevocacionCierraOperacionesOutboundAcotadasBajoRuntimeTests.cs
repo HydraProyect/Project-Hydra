@@ -164,8 +164,8 @@ public class RevocacionCierraOperacionesOutboundAcotadasBajoRuntimeTests : IAsyn
         await using var verificacion = ContextoPropietarioDeLaBase();
         var programada = await verificacion.AsignacionesCartera.IgnoreQueryFilters()
             .SingleAsync(c => c.Id == _carteraProgramadaPrincipal);
-        programada.EraPrincipalAlCerrarsePorCascada.Should().BeFalse(
-            "una cartera que no estaba vigente se cierra sin recordar la marca (D-9)");
+        programada.EraPrincipalAlCerrarsePorCascada.Should().BeTrue(
+            "el cierre recuerda la marca que llevaba, como el writer C#; desde la opción A (D-9 superada) es histórico sin lector");
     }
 
     [Fact]
@@ -299,7 +299,7 @@ public class RevocacionCierraOperacionesOutboundAcotadasBajoRuntimeTests : IAsyn
             var principal = await cerradas.AsignacionesCartera.IgnoreQueryFilters()
                 .SingleAsync(c => c.AsignacionOperacionId == _operacionTenantEntero && c.UsuarioId == _gestoraOperador.Id);
             principal.Estado.Should().Be(EstadoAsignacion.Cerrada);
-            principal.EraPrincipalAlCerrarsePorCascada.Should().BeFalse("bajo una operación suspendida no era la principal vigente de nada");
+            principal.EraPrincipalAlCerrarsePorCascada.Should().BeTrue("el cierre recuerda la marca que llevaba aunque la operación estuviera suspendida; es histórico sin lector (D-9 superada)");
         }
 
         var reactivar = await ReactivarAsync(_administradorPropietario, Roles.Administrador);
