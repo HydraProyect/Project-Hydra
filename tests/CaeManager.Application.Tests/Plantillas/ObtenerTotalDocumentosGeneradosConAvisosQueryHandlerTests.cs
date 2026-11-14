@@ -1,3 +1,5 @@
+using CaeManager.Application.Plantillas;
+using CaeManager.Application.Plantillas.Queries.ObtenerDocumentosGenerados;
 using CaeManager.Application.Plantillas.Queries.ObtenerTotalDocumentosGeneradosConAvisos;
 using CaeManager.Application.Tests.Clientes;
 using CaeManager.Application.Tests.Documentos;
@@ -146,6 +148,77 @@ public class ObtenerTotalDocumentosGeneradosConAvisosQueryHandlerTests
         var resultado = await Handler(contexto, alcance).Handle(new ObtenerTotalDocumentosGeneradosConAvisosQuery(), CancellationToken.None);
 
         resultado.Should().Be(1);
+    }
+
+    /// <summary>
+    /// Revisión de Codex (ronda 2 de la PR #2222, baja): en el caso de arriba el recorte en SQL ya quita el registro del
+    /// Centro ajeno, así que no prueba que la puerta final mire el Centro. Este va directo a la puerta, sin recorte
+    /// previo: si <see cref="AlcanceDeDocumentosGenerados.DocumentosGeneradosVisiblesAsync"/> dejara de mirar el Centro,
+    /// daría los dos.
+    /// </summary>
+    [Fact]
+    public async Task La_puerta_final_rechaza_por_si_misma_el_generado_de_un_Centro_fuera_de_la_Cartera()
+    {
+        var contexto = new PlantillasQueryContextFalso();
+        var version = CrearVersion(contexto);
+        var trabajador = Guid.NewGuid();
+        var centroDeCartera = Guid.NewGuid();
+        var dentro = Generado(version.Id, EstadoDocumentoGenerado.GeneradoConAvisos, trabajadorId: trabajador, centroId: centroDeCartera);
+        var fuera = Generado(version.Id, EstadoDocumentoGenerado.GeneradoConAvisos, trabajadorId: trabajador, centroId: Guid.NewGuid());
+        var alcance = new AlcanceDatosServiceFalso(tieneAccesoTotal: false, trabajadorIdsVisibles: [trabajador], centroIdsVisibles: [centroDeCartera]);
+
+        var visibles = await alcance.DocumentosGeneradosVisiblesAsync(
+            [Coordenadas(dentro), Coordenadas(fuera)], contexto, _documentos, new ProyectosQueryContextFalso(), CancellationToken.None);
+
+        visibles.Should().BeEquivalentTo([dentro.Id]);
+    }
+
+    private static CoordenadasDocumentoGenerado Coordenadas(DocumentoGenerado d) =>
+        new(d.Id, d.DocumentoId, d.PlantillaDocumentoVersionId, d.TrabajadorId, d.EmpresaId, d.CentroId);
+
+    /// <summary>
+    /// Revisión de Codex (ronda 2 de la PR #2222, media): el contador ya no es una consulta propia, sino la función de
+    /// la lista. En un universo mixto (dentro y fuera de la Cartera por Trabajador, Empresa, Centro, plantilla y
+    /// Documento, con y sin avisos), el contador da exactamente los «con avisos» que la lista enseña.
+    /// </summary>
+    [Fact]
+    public async Task El_contador_coincide_con_los_con_avisos_que_ensena_la_lista_en_un_universo_mixto()
+    {
+        var contexto = new PlantillasQueryContextFalso();
+        var version = CrearVersion(contexto);
+        var plantillaAjena = new PlantillaDocumento(OrigenPlantilla.Externa, "Ficha ajena", AmbitoAplicacion.Trabajador, FormatoOrigenPlantilla.PdfVisual,
+            Guid.NewGuid(), clienteId: Guid.NewGuid());
+        var versionAjena = new PlantillaDocumentoVersion(plantillaAjena.Id, 1, "url.pdf", new string('a', 64));
+        contexto.ListaPlantillasDocumento.Add(plantillaAjena);
+        contexto.ListaPlantillasDocumentoVersion.Add(versionAjena);
+        var (trabajador, trabajadorAjeno, empresa, centro) = (Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid());
+        var clienteDeCartera = Guid.NewGuid();
+        var sinDocumento = Generado(version.Id, EstadoDocumentoGenerado.GeneradoConAvisos, trabajadorId: trabajador);
+        _documentos.ListaDocumentos.RemoveAll(d => d.Id == sinDocumento.DocumentoId);
+        contexto.ListaDocumentosGenerados.AddRange(
+        [
+            Generado(version.Id, EstadoDocumentoGenerado.GeneradoConAvisos, trabajadorId: trabajador, empresaId: empresa, centroId: centro),
+            Generado(version.Id, EstadoDocumentoGenerado.GeneradoConAvisos, trabajadorId: trabajador),
+            Generado(version.Id, EstadoDocumentoGenerado.Generado, trabajadorId: trabajador, centroId: centro),
+            Generado(version.Id, EstadoDocumentoGenerado.GeneradoConAvisos, trabajadorId: trabajadorAjeno),
+            Generado(version.Id, EstadoDocumentoGenerado.GeneradoConAvisos, trabajadorId: trabajador, empresaId: Guid.NewGuid()),
+            Generado(version.Id, EstadoDocumentoGenerado.GeneradoConAvisos, trabajadorId: trabajador, centroId: Guid.NewGuid()),
+            Generado(versionAjena.Id, EstadoDocumentoGenerado.GeneradoConAvisos, trabajadorId: trabajador),
+            GeneradoDeClienteEmpresarial(version.Id, clienteDeCartera),
+            GeneradoDeClienteEmpresarial(version.Id, Guid.NewGuid()),
+            sinDocumento,
+        ]);
+        var alcance = new AlcanceDatosServiceFalso(tieneAccesoTotal: false, clienteIdsVisibles: [clienteDeCartera], trabajadorIdsVisibles: [trabajador],
+            empresaIdsVisibles: [empresa], centroIdsVisibles: [centro]);
+        var lista = await new ObtenerDocumentosGeneradosQueryHandler(contexto, new TrabajadoresQueryContextFalso(), new EmpresasQueryContextFalso(),
+                _documentos, new ProyectosQueryContextFalso(), alcance)
+            .Handle(new ObtenerDocumentosGeneradosQuery(), CancellationToken.None);
+
+        var contador = await Handler(contexto, alcance).Handle(new ObtenerTotalDocumentosGeneradosConAvisosQuery(), CancellationToken.None);
+
+        var conAvisosEnLaLista = lista.Count(d => d.Estado == EstadoDocumentoGenerado.GeneradoConAvisos);
+        conAvisosEnLaLista.Should().Be(3, "dentro quedan el de Empresa y Centro de la Cartera, el solo de Trabajador y el del Cliente empresarial");
+        contador.Should().Be(conAvisosEnLaLista);
     }
 
     /// <summary>Lo mismo con la Empresa: Trabajador y Documento en la Cartera, Empresa del registro fuera.</summary>

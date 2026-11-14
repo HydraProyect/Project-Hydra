@@ -1,3 +1,4 @@
+using System.Linq.Expressions;
 using CaeManager.Application.Common;
 using CaeManager.Domain.Plantillas;
 
@@ -22,15 +23,26 @@ public static class AlcanceDePlantillas
     /// </summary>
     public static Task<bool> PlantillaDentroDeAlcanceAsync(
         this IAlcanceDatosService alcance, PlantillaDocumento plantilla, CancellationToken cancellationToken = default) =>
-        alcance.PlantillaDentroDeAlcanceAsync(plantilla.CentroId, plantilla.ClienteId, cancellationToken);
+        alcance.PlantillaDentroDeAlcanceAsync(CoordenadasEnMemoria(plantilla), cancellationToken);
+
+    /// <summary>
+    /// La única lectura de las coordenadas de una plantilla, como expresión: EF la traduce a SQL en
+    /// <see cref="CoordenadasDePlantillas"/> y, compilada (<see cref="CoordenadasEnMemoria"/>), decide sobre la entidad
+    /// ya cargada. Una sola expresión para que la columna que da el Cliente empresarial (deuda terminológica congelada
+    /// en <c>ClienteId-ubicaciones.txt</c>) se lea en un único sitio. Se proyecta con inicializador, no con
+    /// constructor, para que EF pueda seguir filtrando sobre la proyección.
+    /// </summary>
+    private static readonly Expression<Func<PlantillaDocumento, CoordenadasPlantilla>> Coordenadas =
+        p => new CoordenadasPlantilla { Id = p.Id, CentroId = p.CentroId, ClienteEmpresarialId = p.ClienteId };
+
+    private static readonly Func<PlantillaDocumento, CoordenadasPlantilla> CoordenadasEnMemoria = Coordenadas.Compile();
 
     /// <summary>
     /// Las dos coordenadas que decide <see cref="PlantillaDentroDeAlcanceAsync(IAlcanceDatosService, PlantillaDocumento, CancellationToken)"/>,
-    /// proyectadas en la base para no cargar la entidad (<see cref="AlcanceDeDocumentosGenerados"/>). Se proyecta con
-    /// inicializador, no con constructor, para que EF pueda seguir filtrando sobre la proyección.
+    /// proyectadas en la base para no cargar la entidad (<see cref="AlcanceDeDocumentosGenerados"/>).
     /// </summary>
     public static IQueryable<CoordenadasPlantilla> CoordenadasDePlantillas(this IQueryable<PlantillaDocumento> plantillas) =>
-        plantillas.Select(p => new CoordenadasPlantilla { Id = p.Id, CentroId = p.CentroId, ClienteEmpresarialId = p.ClienteId });
+        plantillas.Select(Coordenadas);
 
     public static Task<bool> PlantillaDentroDeAlcanceAsync(
         this IAlcanceDatosService alcance, CoordenadasPlantilla plantilla, CancellationToken cancellationToken = default) =>

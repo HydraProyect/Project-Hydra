@@ -1,10 +1,11 @@
 ﻿using System.Text.Json;
 using CaeManager.Application.Common;
+using CaeManager.Application.Documentos;
 using CaeManager.Application.Plantillas.Commands.GenerarDocumentoIndividual;
+using CaeManager.Application.Proyectos;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Plantillas;
 using MediatR;
-using Microsoft.EntityFrameworkCore;
 
 namespace CaeManager.Application.Plantillas.Commands.ProcesarItemLoteGeneracion;
 
@@ -12,6 +13,8 @@ public class ProcesarItemLoteGeneracionCommandHandler(
     IItemGeneracionDocumentoRepository itemRepositorio,
     ILoteGeneracionDocumentoRepository loteRepositorio,
     IPlantillasQueryContext plantillasContext,
+    IDocumentosQueryContext documentosContext,
+    IProyectosQueryContext proyectosContext,
     IAlcanceDatosService alcanceDatos,
     IMediator mediator,
     IUnitOfWork unitOfWork)
@@ -32,11 +35,12 @@ public class ProcesarItemLoteGeneracionCommandHandler(
             : JsonSerializer.Deserialize<ContextoLoteGeneracionDto>(lote.ContextoJson) ?? new ContextoLoteGeneracionDto(null, []);
 
         // Asignación de Cartera por Id (OWASP ASVS 4.0.3 V4.2.1, IDOR), antes de mirar el estado del ítem y de escribir
-        // nada: marcarlo fallido no tiene vuelta atrás, así que solo lo procesa quien podría haber iniciado el lote
-        // (plantilla dentro de alcance y todos sus Trabajadores visibles, AlcanceDeLotesGeneracion). El Centro del lote
-        // también tiene que ser visible: GenerarDocumentoIndividual lo exige, y sin esta comprobación un Gestor CAE sin
-        // ese Centro en su Cartera seguiría pudiendo dejar fallido el ítem de otro. Si no pasa, responde igual que un Id
-        // que no existe, para no delatar el ítem ni su estado.
+        // nada: marcarlo fallido no tiene vuelta atrás, así que solo lo procesa quien ve el lote entero, con la misma
+        // puerta que la lectura del progreso (AlcanceDeLotesGeneracion.LoteVisibleEnteroAsync: plantilla, todos sus
+        // Trabajadores y el documento generado de cada ítem). El Centro del lote también tiene que ser visible:
+        // GenerarDocumentoIndividual lo exige, y sin esta comprobación un Gestor CAE sin ese Centro en su Cartera seguiría
+        // pudiendo dejar fallido el ítem de otro. Si no pasa, responde igual que un Id que no existe, para no delatar el
+        // ítem ni su estado (ItemYaProcesado delataría que el ítem existe y ya generó).
         if (!await ItemDentroDeAlcanceAsync(lote, contexto.CentroId, cancellationToken))
             return ItemNoEncontrado();
 
@@ -97,14 +101,8 @@ public class ProcesarItemLoteGeneracionCommandHandler(
         if (centroId is { } centro && !await alcanceDatos.CentroVisibleAsync(centro, cancellationToken))
             return false;
 
-        var trabajadorIds = await plantillasContext.ItemsGeneracionDocumento
-            .Where(i => i.LoteGeneracionDocumentoId == lote.Id)
-            .Select(i => i.TrabajadorId)
-            .Distinct()
-            .ToListAsync(cancellationToken);
-
-        return await alcanceDatos.LoteDentroDeAlcanceAsync(
-            lote.PlantillaDocumentoVersionId, trabajadorIds, plantillasContext, cancellationToken);
+        return await alcanceDatos.LoteVisibleEnteroAsync(
+            lote.Id, lote.PlantillaDocumentoVersionId, plantillasContext, documentosContext, proyectosContext, cancellationToken);
     }
 
     private static Result ItemNoEncontrado() =>

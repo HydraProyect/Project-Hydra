@@ -149,84 +149,129 @@ public class ObtenerLoteGeneracionDocumentosQueryHandlerTests
         return generado;
     }
 
+    /// <summary>Lo que responde la query por un lote que no existe, para comparar campo a campo con un lote oculto.</summary>
+    private async Task<(bool EsFallido, string Codigo, string Mensaje)> RespuestaDeUnLoteInexistente(AlcanceDatosServiceFalso alcance)
+    {
+        var inexistente = await Handler(new PlantillasQueryContextFalso(), new TrabajadoresQueryContextFalso(), alcance)
+            .Handle(new ObtenerLoteGeneracionDocumentosQuery(Guid.NewGuid()), CancellationToken.None);
+        return (inexistente.EsFallido, inexistente.Error.Codigo, inexistente.Error.Mensaje);
+    }
+
     /// <summary>
-    /// Hallazgo de Codex (ronda 2, ASVS 4.0.3 V4.2.1): un Gestor CAE alcanza a los dos Trabajadores del lote por
-    /// estructura propia y la plantilla es general, así que pasa la puerta del lote; pero uno de los documentos se generó
-    /// para un Centro fuera de su Cartera. La lista de trazabilidad lo oculta por su Centro, y el progreso no puede
-    /// enseñar ese ítem ni contarlo.
+    /// Hallazgo de Codex (ronda 2 de la PR #2222, alta): el estado procedía del lote completo y los ítems se filtraban,
+    /// así que un lote de un solo ítem completado y oculto devolvía cero ítems con estado Completado y delataba que hubo
+    /// una generación. Sin acceso total el lote es todo o nada: responde exactamente lo mismo que un lote que no existe.
     /// </summary>
     [Fact]
-    public async Task El_progreso_no_ensena_ni_cuenta_el_item_cuyo_generado_es_de_un_Centro_fuera_de_la_Cartera()
+    public async Task Un_lote_de_un_solo_item_completado_y_oculto_responde_igual_que_un_lote_inexistente()
+    {
+        var contexto = new PlantillasQueryContextFalso();
+        var plantilla = new PlantillaDocumento(OrigenPlantilla.Externa, "Ficha de riesgos", AmbitoAplicacion.Trabajador, FormatoOrigenPlantilla.PdfVisual, Guid.NewGuid());
+        var version = new PlantillaDocumentoVersion(plantilla.Id, 1, "url.pdf", new string('a', 64));
+        contexto.ListaPlantillasDocumento.Add(plantilla);
+        contexto.ListaPlantillasDocumentoVersion.Add(version);
+        var lote = new LoteGeneracionDocumento(version.Id, 1, Guid.NewGuid(), DateTime.UtcNow);
+        contexto.ListaLotesGeneracionDocumento.Add(lote);
+        var item = new ItemGeneracionDocumento(lote.Id, Guid.NewGuid());
+        contexto.ListaItemsGeneracionDocumento.Add(item);
+        CompletarConGenerado(contexto, lote, item, centroId: Guid.NewGuid());
+        lote.Estado.Should().Be(EstadoLoteGeneracion.Completado, "el caso es justo el de un lote terminado");
+        var alcance = new AlcanceDatosServiceFalso(tieneAccesoTotal: false, trabajadorIdsVisibles: [item.TrabajadorId], centroIdsVisibles: [Guid.NewGuid()]);
+
+        var oculto = await Handler(contexto, new TrabajadoresQueryContextFalso(), alcance)
+            .Handle(new ObtenerLoteGeneracionDocumentosQuery(lote.Id), CancellationToken.None);
+
+        (oculto.EsFallido, oculto.Error.Codigo, oculto.Error.Mensaje).Should().Be(await RespuestaDeUnLoteInexistente(alcance));
+    }
+
+    /// <summary>
+    /// Un Gestor CAE alcanza a los dos Trabajadores por estructura propia y la plantilla es general, pero uno de los
+    /// documentos se generó para un Centro fuera de su Cartera: la lista de trazabilidad lo oculta, así que el lote
+    /// entero no se ve, ni siquiera el ítem cuyo generado sí estaría dentro.
+    /// </summary>
+    [Fact]
+    public async Task Un_lote_con_un_generado_de_un_Centro_fuera_de_la_Cartera_no_se_ve_entero()
     {
         var (contexto, lote, uno, dos) = ConstruirLote();
         var centroDeCartera = Guid.NewGuid();
-        var itemUno = contexto.ListaItemsGeneracionDocumento.Single(i => i.TrabajadorId == uno);
-        var itemDos = contexto.ListaItemsGeneracionDocumento.Single(i => i.TrabajadorId == dos);
-        CompletarConGenerado(contexto, lote, itemUno, centroId: centroDeCartera);
-        CompletarConGenerado(contexto, lote, itemDos, centroId: Guid.NewGuid());
+        CompletarConGenerado(contexto, lote, contexto.ListaItemsGeneracionDocumento.Single(i => i.TrabajadorId == uno), centroId: centroDeCartera);
+        CompletarConGenerado(contexto, lote, contexto.ListaItemsGeneracionDocumento.Single(i => i.TrabajadorId == dos), centroId: Guid.NewGuid());
         var alcance = new AlcanceDatosServiceFalso(tieneAccesoTotal: false, trabajadorIdsVisibles: [uno, dos], centroIdsVisibles: [centroDeCartera]);
 
         var resultado = await Handler(contexto, new TrabajadoresQueryContextFalso(), alcance)
             .Handle(new ObtenerLoteGeneracionDocumentosQuery(lote.Id), CancellationToken.None);
 
-        resultado.EsExitoso.Should().BeTrue();
-        resultado.Valor.Items.Should().ContainSingle().Which.ItemId.Should().Be(itemUno.Id);
-        resultado.Valor.TotalItems.Should().Be(1);
-        resultado.Valor.ItemsCompletados.Should().Be(1);
-        resultado.Valor.ItemsFallidos.Should().Be(0);
+        (resultado.EsFallido, resultado.Error.Codigo, resultado.Error.Mensaje).Should().Be(await RespuestaDeUnLoteInexistente(alcance));
     }
 
     [Fact]
-    public async Task El_progreso_no_ensena_el_item_cuyo_generado_es_de_una_Empresa_fuera_de_la_Cartera()
+    public async Task Un_lote_con_un_generado_de_una_Empresa_fuera_de_la_Cartera_no_se_ve_entero()
     {
         var (contexto, lote, uno, dos) = ConstruirLote();
         var empresaDeCartera = Guid.NewGuid();
-        var itemUno = contexto.ListaItemsGeneracionDocumento.Single(i => i.TrabajadorId == uno);
-        var itemDos = contexto.ListaItemsGeneracionDocumento.Single(i => i.TrabajadorId == dos);
-        CompletarConGenerado(contexto, lote, itemUno, empresaId: empresaDeCartera);
-        CompletarConGenerado(contexto, lote, itemDos, empresaId: Guid.NewGuid());
+        CompletarConGenerado(contexto, lote, contexto.ListaItemsGeneracionDocumento.Single(i => i.TrabajadorId == uno), empresaId: empresaDeCartera);
+        CompletarConGenerado(contexto, lote, contexto.ListaItemsGeneracionDocumento.Single(i => i.TrabajadorId == dos), empresaId: Guid.NewGuid());
         var alcance = new AlcanceDatosServiceFalso(tieneAccesoTotal: false, trabajadorIdsVisibles: [uno, dos], empresaIdsVisibles: [empresaDeCartera]);
 
         var resultado = await Handler(contexto, new TrabajadoresQueryContextFalso(), alcance)
             .Handle(new ObtenerLoteGeneracionDocumentosQuery(lote.Id), CancellationToken.None);
 
-        resultado.Valor.Items.Should().ContainSingle().Which.ItemId.Should().Be(itemUno.Id);
-        resultado.Valor.ItemsCompletados.Should().Be(1);
+        resultado.Error.Codigo.Should().Be("Plantilla.LoteNoEncontrado");
     }
 
     [Fact]
-    public async Task Sin_acceso_total_el_item_que_apunta_a_un_generado_que_no_se_lee_no_se_ensena_y_el_pendiente_si()
+    public async Task Sin_acceso_total_un_lote_con_un_item_que_apunta_a_un_generado_que_no_se_lee_no_se_ve()
     {
         var (contexto, lote, uno, dos) = ConstruirLote();
-        var itemUno = contexto.ListaItemsGeneracionDocumento.Single(i => i.TrabajadorId == uno);
-        itemUno.MarcarCompletado(Guid.NewGuid());
+        contexto.ListaItemsGeneracionDocumento.Single(i => i.TrabajadorId == uno).MarcarCompletado(Guid.NewGuid());
         lote.RegistrarItemCompletado(DateTime.UtcNow);
         var alcance = new AlcanceDatosServiceFalso(tieneAccesoTotal: false, trabajadorIdsVisibles: [uno, dos]);
 
         var resultado = await Handler(contexto, new TrabajadoresQueryContextFalso(), alcance)
             .Handle(new ObtenerLoteGeneracionDocumentosQuery(lote.Id), CancellationToken.None);
 
-        resultado.Valor.Items.Should().ContainSingle().Which.TrabajadorId.Should().Be(dos);
-        resultado.Valor.TotalItems.Should().Be(1);
-        resultado.Valor.ItemsCompletados.Should().Be(0);
+        resultado.Error.Codigo.Should().Be("Plantilla.LoteNoEncontrado");
     }
 
+    /// <summary>
+    /// Quien ve el lote entero lo ve con su estado y sus recuentos reales, los del lote, no un recuento de lo que
+    /// enseña: ya no hay nada filtrado que recontar.
+    /// </summary>
     [Fact]
-    public async Task Los_recuentos_salen_de_los_items_que_se_ensenan_con_completados_con_avisos_y_fallidos()
+    public async Task Un_lote_visible_entero_devuelve_su_estado_y_sus_recuentos_reales()
     {
         var (contexto, lote, uno, dos) = ConstruirLote();
-        var itemUno = contexto.ListaItemsGeneracionDocumento.Single(i => i.TrabajadorId == uno);
-        var itemDos = contexto.ListaItemsGeneracionDocumento.Single(i => i.TrabajadorId == dos);
-        CompletarConGenerado(contexto, lote, itemUno, conAvisos: true);
-        itemDos.MarcarFallido("No encontramos al trabajador.");
+        CompletarConGenerado(contexto, lote, contexto.ListaItemsGeneracionDocumento.Single(i => i.TrabajadorId == uno), conAvisos: true);
+        contexto.ListaItemsGeneracionDocumento.Single(i => i.TrabajadorId == dos).MarcarFallido("No encontramos al trabajador.");
         lote.RegistrarItemFallido(DateTime.UtcNow);
         var alcance = new AlcanceDatosServiceFalso(tieneAccesoTotal: false, trabajadorIdsVisibles: [uno, dos]);
 
         var resultado = await Handler(contexto, new TrabajadoresQueryContextFalso(), alcance)
             .Handle(new ObtenerLoteGeneracionDocumentosQuery(lote.Id), CancellationToken.None);
 
+        resultado.EsExitoso.Should().BeTrue();
+        resultado.Valor.Estado.Should().Be(lote.Estado);
+        resultado.Valor.Items.Should().HaveCount(2);
         resultado.Valor.TotalItems.Should().Be(2);
         resultado.Valor.ItemsCompletados.Should().Be(1);
         resultado.Valor.ItemsFallidos.Should().Be(1);
+    }
+
+    /// <summary>Con acceso total no cambia nada: el generado de un Centro cualquiera y el que no se lee no ocultan el lote.</summary>
+    [Fact]
+    public async Task Con_acceso_total_el_lote_se_ve_entero_aunque_sus_generados_no_se_lean()
+    {
+        var (contexto, lote, uno, dos) = ConstruirLote();
+        CompletarConGenerado(contexto, lote, contexto.ListaItemsGeneracionDocumento.Single(i => i.TrabajadorId == uno), centroId: Guid.NewGuid());
+        contexto.ListaItemsGeneracionDocumento.Single(i => i.TrabajadorId == dos).MarcarCompletado(Guid.NewGuid());
+        lote.RegistrarItemCompletado(DateTime.UtcNow);
+
+        var resultado = await Handler(contexto, new TrabajadoresQueryContextFalso(), new AlcanceDatosServiceFalso(tieneAccesoTotal: true))
+            .Handle(new ObtenerLoteGeneracionDocumentosQuery(lote.Id), CancellationToken.None);
+
+        resultado.EsExitoso.Should().BeTrue();
+        resultado.Valor.Estado.Should().Be(EstadoLoteGeneracion.Completado);
+        resultado.Valor.Items.Should().HaveCount(2);
+        resultado.Valor.ItemsCompletados.Should().Be(2);
     }
 }

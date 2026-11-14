@@ -38,18 +38,14 @@ public class ObtenerTotalDocumentosGeneradosConAvisosQueryHandler(
         if (await alcanceDatos.TieneAccesoTotalAsync(cancellationToken))
             return await consulta.CountAsync(cancellationToken);
 
-        // Sin acceso total, la misma puerta que la lista (V4.2.1): el contador no puede contar lo que la tabla no enseña.
-        // Trabajador, Empresa, Centro y plantilla se recortan en la base; solo se materializan las seis coordenadas de
-        // lo que queda, que son los generados con avisos que la tabla del panel ya enseña enteros a este usuario. El
-        // Documento del que cuelga cada uno vive en otro contexto de persistencia y se decide en memoria sobre ese resto.
-        var acotada = await alcanceDatos.AcotarALaCarteraAsync(consulta, plantillasContext, cancellationToken);
-        var generados = await acotada
-            .Select(d => new CoordenadasDocumentoGenerado(
-                d.Id, d.DocumentoId, d.PlantillaDocumentoVersionId, d.TrabajadorId, d.EmpresaId, d.CentroId))
-            .ToListAsync(cancellationToken);
-
-        var visibles = await alcanceDatos.DocumentosGeneradosVisiblesAsync(
-            generados, plantillasContext, documentosContext, proyectosContext, cancellationToken);
-        return visibles.Count;
+        // Sin acceso total, el contador no es una consulta propia (V4.2.1, API4:2023): cuenta la misma función que pinta
+        // la lista, AlcanceDeDocumentosGenerados.GeneradosVisiblesAsync, sobre el universo de la lista sin filtros y con
+        // la misma puerta, así que no puede contar lo que la tabla no enseña. El estado se filtra antes en la base: la
+        // puerta decide cada fila por sus coordenadas, sin mirar las demás, y filtrar el estado antes o después da el
+        // mismo número; antes solo materializa menos. Su coste queda acotado por el de la lista (sin paginación de
+        // servidor, igual que en main).
+        var generados = await alcanceDatos.GeneradosVisiblesAsync(
+            consulta, plantillasContext, documentosContext, proyectosContext, cancellationToken);
+        return generados.Count;
     }
 }

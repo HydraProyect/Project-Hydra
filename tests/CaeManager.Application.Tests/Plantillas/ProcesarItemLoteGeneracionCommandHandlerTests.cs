@@ -3,6 +3,8 @@ using CaeManager.Application.Plantillas;
 using CaeManager.Application.Plantillas.Commands.GenerarDocumentoIndividual;
 using CaeManager.Application.Plantillas.Commands.ProcesarItemLoteGeneracion;
 using CaeManager.Application.Tests.Clientes;
+using CaeManager.Application.Tests.Documentos;
+using CaeManager.Application.Tests.Proyectos;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Documentos;
 using CaeManager.Domain.Plantillas;
@@ -356,8 +358,112 @@ public class ProcesarItemLoteGeneracionCommandHandlerTests
         lote.ItemsFallidos.Should().Be(1);
     }
 
+    /// <summary>
+    /// Un segundo ítem del lote de <see cref="LoteDeOtroGestor"/>, ya completado con un documento generado de su
+    /// Trabajador en <paramref name="centroId"/>. Con <paramref name="documentoLegible"/> a false, el Documento del que
+    /// cuelga no existe para quien mira (dado de baja o de otro Tenant propietario).
+    /// </summary>
+    private static ItemGeneracionDocumento ItemCompletadoConGenerado(
+        PlantillasQueryContextFalso contexto, DocumentosQueryContextFalso documentos, LoteGeneracionDocumento lote, Guid trabajadorId,
+        Guid? centroId = null, bool documentoLegible = true)
+    {
+        var documento = Documento.DeTrabajador(trabajadorId, Guid.NewGuid(), DiaDeNegocio.Hoy(), VigenciaDocumento.NoCaduca, "generado.pdf");
+        if (documentoLegible)
+            documentos.ListaDocumentos.Add(documento);
+        var generado = new DocumentoGenerado(lote.PlantillaDocumentoVersionId, documento.Id, "{}", Guid.NewGuid(), DateTime.UtcNow,
+            trabajadorId: trabajadorId, centroId: centroId);
+        contexto.ListaDocumentosGenerados.Add(generado);
+        var item = new ItemGeneracionDocumento(lote.Id, trabajadorId);
+        item.MarcarCompletado(generado.Id);
+        contexto.ListaItemsGeneracionDocumento.Add(item);
+        return item;
+    }
+
+    /// <summary>
+    /// Hallazgo de Codex (ronda 2 de la PR #2222): la puerta de Procesar cubría lote, plantilla, Trabajadores y Centro,
+    /// pero no el documento generado de cada ítem. Quien conservaba el Id de un ítem cuyo generado no puede leer recibía
+    /// ItemYaProcesado (el ítem existe y generó) en vez de ItemNoEncontrado. Ahora la puerta es la del progreso del lote,
+    /// todo o nada, y responde antes de mirar el estado del ítem.
+    /// </summary>
+    [Fact]
+    public async Task Sobre_un_item_de_un_lote_con_un_generado_que_no_se_lee_responde_ItemNoEncontrado_y_no_ItemYaProcesado()
+    {
+        var (items, lotes, contexto, lote, item, clienteEmpresarial) = LoteDeOtroGestor();
+        var documentos = new DocumentosQueryContextFalso();
+        var trabajadorDelGenerado = Guid.NewGuid();
+        var completado = ItemCompletadoConGenerado(contexto, documentos, lote, trabajadorDelGenerado, documentoLegible: false);
+        items.Agregar(completado);
+        var mediator = GeneracionQueFalla();
+        var alcance = new AlcanceDatosServiceFalso(tieneAccesoTotal: false, clienteIdsVisibles: [clienteEmpresarial],
+            trabajadorIdsVisibles: [item.TrabajadorId, trabajadorDelGenerado]);
+
+        var sobreElCompletado = await Handler(items, lotes, mediator, contexto, alcance, documentos)
+            .Handle(new ProcesarItemLoteGeneracionCommand(completado.Id), CancellationToken.None);
+        var sobreElPendiente = await Handler(items, lotes, mediator, contexto, alcance, documentos)
+            .Handle(new ProcesarItemLoteGeneracionCommand(item.Id), CancellationToken.None);
+
+        sobreElCompletado.Error.Codigo.Should().Be("Plantilla.ItemNoEncontrado");
+        sobreElPendiente.Error.Codigo.Should().Be("Plantilla.ItemNoEncontrado");
+        item.Estado.Should().Be(EstadoItemGeneracion.Pendiente);
+        mediator.Enviados.Should().BeEmpty();
+    }
+
+    /// <summary>Lo mismo con un generado legible pero de un Centro fuera de la Cartera, aunque el lote no tenga Centro.</summary>
+    [Fact]
+    public async Task Sobre_un_item_de_un_lote_con_un_generado_de_un_Centro_fuera_de_la_Cartera_responde_ItemNoEncontrado()
+    {
+        var (items, lotes, contexto, lote, item, clienteEmpresarial) = LoteDeOtroGestor();
+        var documentos = new DocumentosQueryContextFalso();
+        var centroDeCartera = Guid.NewGuid();
+        var completado = ItemCompletadoConGenerado(contexto, documentos, lote, item.TrabajadorId, centroId: Guid.NewGuid());
+        items.Agregar(completado);
+        var alcance = new AlcanceDatosServiceFalso(tieneAccesoTotal: false, clienteIdsVisibles: [clienteEmpresarial],
+            trabajadorIdsVisibles: [item.TrabajadorId], centroIdsVisibles: [centroDeCartera]);
+
+        var resultado = await Handler(items, lotes, new MediatorFalso(), contexto, alcance, documentos)
+            .Handle(new ProcesarItemLoteGeneracionCommand(completado.Id), CancellationToken.None);
+
+        resultado.Error.Codigo.Should().Be("Plantilla.ItemNoEncontrado");
+    }
+
+    /// <summary>
+    /// La otra cara: con el generado legible y dentro de la Cartera, el lote se ve entero y el ítem ya completado sí
+    /// responde ItemYaProcesado. Sin este contraste, la puerta podría rechazarlo todo y los dos de arriba seguirían verdes.
+    /// </summary>
+    [Fact]
+    public async Task Sobre_un_item_de_un_lote_cuyos_generados_se_leen_un_item_completado_responde_ItemYaProcesado()
+    {
+        var (items, lotes, contexto, lote, item, clienteEmpresarial) = LoteDeOtroGestor();
+        var documentos = new DocumentosQueryContextFalso();
+        var completado = ItemCompletadoConGenerado(contexto, documentos, lote, item.TrabajadorId);
+        items.Agregar(completado);
+        var alcance = new AlcanceDatosServiceFalso(tieneAccesoTotal: false, clienteIdsVisibles: [clienteEmpresarial],
+            trabajadorIdsVisibles: [item.TrabajadorId]);
+
+        var resultado = await Handler(items, lotes, new MediatorFalso(), contexto, alcance, documentos)
+            .Handle(new ProcesarItemLoteGeneracionCommand(completado.Id), CancellationToken.None);
+
+        resultado.Error.Codigo.Should().Be("Plantilla.ItemYaProcesado");
+    }
+
+    /// <summary>Con acceso total no cambia nada: el generado ilegible no oculta el lote y el ítem completado lo dice.</summary>
+    [Fact]
+    public async Task Con_acceso_total_un_generado_que_no_se_lee_no_oculta_el_item()
+    {
+        var (items, lotes, contexto, lote, item, _) = LoteDeOtroGestor();
+        var documentos = new DocumentosQueryContextFalso();
+        var completado = ItemCompletadoConGenerado(contexto, documentos, lote, item.TrabajadorId, documentoLegible: false);
+        items.Agregar(completado);
+
+        var resultado = await Handler(items, lotes, new MediatorFalso(), contexto, new AlcanceDatosServiceFalso(tieneAccesoTotal: true), documentos)
+            .Handle(new ProcesarItemLoteGeneracionCommand(completado.Id), CancellationToken.None);
+
+        resultado.Error.Codigo.Should().Be("Plantilla.ItemYaProcesado");
+    }
+
     private static ProcesarItemLoteGeneracionCommandHandler Handler(
         ItemGeneracionDocumentoRepositorioFalso items, LoteGeneracionDocumentoRepositorioFalso lotes, MediatorFalso mediator,
-        PlantillasQueryContextFalso? contexto = null, AlcanceDatosServiceFalso? alcance = null) =>
-        new(items, lotes, contexto ?? new PlantillasQueryContextFalso(), alcance ?? new AlcanceDatosServiceFalso(), mediator, new UnitOfWorkFalso());
+        PlantillasQueryContextFalso? contexto = null, AlcanceDatosServiceFalso? alcance = null, DocumentosQueryContextFalso? documentos = null) =>
+        new(items, lotes, contexto ?? new PlantillasQueryContextFalso(), documentos ?? new DocumentosQueryContextFalso(),
+            new ProyectosQueryContextFalso(), alcance ?? new AlcanceDatosServiceFalso(), mediator, new UnitOfWorkFalso());
 }

@@ -47,35 +47,11 @@ public class ObtenerDocumentosGeneradosQueryHandler(
         if (request.TrabajadorId is { } trabajadorId)
             consulta = consulta.Where(d => d.TrabajadorId == trabajadorId);
 
-        // Recorte en la base de lo que la puerta va a rechazar seguro (Trabajador, Empresa, Centro y plantilla fuera
-        // de la Cartera), para no materializar el registro entero del Tenant propietario (API4:2023). La puerta de
-        // abajo sigue decidiendo cada fila.
-        consulta = await alcanceDatos.AcotarALaCarteraAsync(consulta, plantillasContext, cancellationToken);
-
-        // Proyecta a propósito: Soporte TALVEG no tiene CodigoSeguroVerificacion ni
-        // DatosUtilizadosJson, y materializar la entidad daría 42501 en Sesión Privilegiada.
-        var generados = await consulta
-            .OrderByDescending(d => d.GeneradoEnUtc)
-            .Select(d => new
-            {
-                d.Id,
-                d.DocumentoId,
-                d.PlantillaDocumentoVersionId,
-                d.TrabajadorId,
-                d.EmpresaId,
-                d.CentroId,
-                d.GeneradoEnUtc,
-                d.Estado,
-            })
-            .ToListAsync(cancellationToken);
-
-        // La Asignación de Cartera se decide con todas las coordenadas del registro y con el Documento del que cuelga,
-        // no solo con las no nulas: un generado de ámbito Cliente sin Centro no guarda Trabajador ni Empresa (V4.2.1).
-        var visibles = await alcanceDatos.DocumentosGeneradosVisiblesAsync(
-            generados.Select(d => new CoordenadasDocumentoGenerado(
-                d.Id, d.DocumentoId, d.PlantillaDocumentoVersionId, d.TrabajadorId, d.EmpresaId, d.CentroId)).ToList(),
-            plantillasContext, documentosContext, proyectosContext, cancellationToken);
-        generados = generados.Where(d => visibles.Contains(d.Id)).ToList();
+        // El universo visible y su puerta (recorte en SQL, proyección sin columnas secretas y Asignación de Cartera fila
+        // a fila con el Documento del que cuelga) viven en una sola función, la misma que cuenta el contador de «con
+        // avisos»: AlcanceDeDocumentosGenerados.GeneradosVisiblesAsync.
+        var generados = await alcanceDatos.GeneradosVisiblesAsync(
+            consulta, plantillasContext, documentosContext, proyectosContext, cancellationToken);
 
         if (generados.Count == 0)
             return [];

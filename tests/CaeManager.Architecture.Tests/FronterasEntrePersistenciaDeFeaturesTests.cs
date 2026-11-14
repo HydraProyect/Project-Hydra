@@ -736,9 +736,12 @@ public class FronterasEntrePersistenciaDeFeaturesTests
         ("Plantillas.ObtenerDocumentosGeneradosQueryHandler", "IProyectosQueryContext"),
         ("Plantillas.ObtenerTotalDocumentosGeneradosConAvisosQueryHandler", "IDocumentosQueryContext"),
         ("Plantillas.ObtenerTotalDocumentosGeneradosConAvisosQueryHandler", "IProyectosQueryContext"),
-        // Progreso de lote: un ítem con documento generado pasa la misma puerta que la lista de trazabilidad.
+        // Lote de generación (progreso y procesado de un ítem), todo o nada: el documento generado de cada ítem pasa la
+        // misma puerta que la lista de trazabilidad (AlcanceDeLotesGeneracion.LoteVisibleEnteroAsync).
         ("Plantillas.ObtenerLoteGeneracionDocumentosQueryHandler", "IDocumentosQueryContext"),
         ("Plantillas.ObtenerLoteGeneracionDocumentosQueryHandler", "IProyectosQueryContext"),
+        ("Plantillas.ProcesarItemLoteGeneracionCommandHandler", "IDocumentosQueryContext"),
+        ("Plantillas.ProcesarItemLoteGeneracionCommandHandler", "IProyectosQueryContext"),
         // Soporte TALVEG universal (ADR-011 § 8.9): una concesión global de
         // SoporteLectura cubre cualquier Guid, así que la apertura comprueba que
         // el Tenant objetivo existe. Solo lee Tenants, nunca contenido del Tenant.

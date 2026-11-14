@@ -10,6 +10,11 @@ namespace CaeManager.Application.Plantillas;
 public sealed record CoordenadasDocumentoGenerado(
     Guid Id, Guid DocumentoId, Guid PlantillaDocumentoVersionId, Guid? TrabajadorId, Guid? EmpresaId, Guid? CentroId);
 
+/// <summary>Un <see cref="DocumentoGenerado"/> que pasó la puerta, con lo que la lista de trazabilidad enseña de él.</summary>
+public sealed record DocumentoGeneradoVisible(
+    Guid Id, Guid DocumentoId, Guid PlantillaDocumentoVersionId, Guid? TrabajadorId, Guid? EmpresaId, Guid? CentroId,
+    DateTime GeneradoEnUtc, EstadoDocumentoGenerado Estado);
+
 /// <summary>
 /// Asignación de Cartera de un <see cref="DocumentoGenerado"/>: la puerta de todas las lecturas del registro de
 /// generación (la lista de trazabilidad, el contador de «con avisos» y el progreso de un lote). Un registro generado
@@ -87,6 +92,45 @@ public static class AlcanceDeDocumentosGenerados
         return consulta;
     }
 
+    /// <summary>
+    /// El universo visible del registro de generación: los registros de <paramref name="universo"/> que pasan la puerta,
+    /// del más reciente al más antiguo, con lo que la lista de trazabilidad enseña de cada uno. Es la única definición
+    /// de «qué generados ve quien mira»: la lista (<c>ObtenerDocumentosGeneradosQuery</c>) la pinta y el contador de
+    /// «con avisos» (<c>ObtenerTotalDocumentosGeneradosConAvisosQuery</c>) la cuenta, en vez de repetir el recorte y la
+    /// puerta en una consulta propia. Así el contador no puede contar lo que la lista no enseña, y su coste queda acotado
+    /// por el de la lista: hace el mismo recorte en SQL, materializa las mismas columnas y pasa la misma puerta, sobre un
+    /// subconjunto del mismo universo. Sin paginación de servidor, igual que en main: con un registro grande este es el
+    /// coste que crece (hueco declarado en la PR #2222).
+    /// </summary>
+    public static async Task<List<DocumentoGeneradoVisible>> GeneradosVisiblesAsync(
+        this IAlcanceDatosService alcance,
+        IQueryable<DocumentoGenerado> universo,
+        IPlantillasQueryContext plantillasContext,
+        IDocumentosQueryContext documentosContext,
+        IProyectosQueryContext proyectosContext,
+        CancellationToken cancellationToken = default)
+    {
+        // Recorte en la base de lo que la puerta va a rechazar seguro, para no materializar el registro entero del Tenant
+        // propietario (API4:2023). La puerta de abajo sigue decidiendo cada fila.
+        var consulta = await alcance.AcotarALaCarteraAsync(universo, plantillasContext, cancellationToken);
+
+        // Proyecta a propósito: Soporte TALVEG no tiene CodigoSeguroVerificacion ni DatosUtilizadosJson, y materializar
+        // la entidad daría 42501 en Sesión Privilegiada.
+        var generados = await consulta
+            .OrderByDescending(d => d.GeneradoEnUtc)
+            .Select(d => new DocumentoGeneradoVisible(
+                d.Id, d.DocumentoId, d.PlantillaDocumentoVersionId, d.TrabajadorId, d.EmpresaId, d.CentroId, d.GeneradoEnUtc, d.Estado))
+            .ToListAsync(cancellationToken);
+
+        // La Asignación de Cartera se decide con todas las coordenadas del registro y con el Documento del que cuelga,
+        // no solo con las no nulas: un generado de ámbito Cliente sin Centro no guarda Trabajador ni Empresa (V4.2.1).
+        var visibles = await alcance.DocumentosGeneradosVisiblesAsync(
+            generados.Select(d => new CoordenadasDocumentoGenerado(
+                d.Id, d.DocumentoId, d.PlantillaDocumentoVersionId, d.TrabajadorId, d.EmpresaId, d.CentroId)).ToList(),
+            plantillasContext, documentosContext, proyectosContext, cancellationToken);
+        return generados.Where(d => visibles.Contains(d.Id)).ToList();
+    }
+
     /// <summary>Los Ids de los registros de <paramref name="generados"/> que quien mira alcanza.</summary>
     public static async Task<HashSet<Guid>> DocumentosGeneradosVisiblesAsync(
         this IAlcanceDatosService alcance,
@@ -148,15 +192,75 @@ public static class AlcanceDeDocumentosGenerados
 }
 
 /// <summary>
-/// Asignación de Cartera de un <see cref="LoteGeneracionDocumento"/> existente, por Id (OWASP ASVS 4.0.3 V4.2.1): el
-/// mismo criterio con el que <c>IniciarLoteGeneracionDocumentosCommandHandler</c> deja nacer el lote, plantilla dentro
-/// de alcance y todos sus Trabajadores visibles. Lo usan la lectura del progreso
-/// (<c>ObtenerLoteGeneracionDocumentosQuery</c>) y el procesado de cada ítem
-/// (<c>ProcesarItemLoteGeneracionCommand</c>), que tratan el «no» igual que un lote o un ítem que no existe.
+/// Asignación de Cartera de un <see cref="LoteGeneracionDocumento"/> (OWASP ASVS 4.0.3 V4.2.1).
+/// <see cref="LoteDentroDeAlcanceAsync"/> es el criterio con el que <c>IniciarLoteGeneracionDocumentosCommandHandler</c>
+/// deja nacer el lote: plantilla dentro de alcance y todos sus Trabajadores visibles.
+/// <see cref="LoteVisibleEnteroAsync"/> es el de un lote que ya existe, el único que usan la lectura del progreso
+/// (<c>ObtenerLoteGeneracionDocumentosQuery</c>) y el procesado de cada ítem (<c>ProcesarItemLoteGeneracionCommand</c>),
+/// que tratan el «no» igual que un lote o un ítem que no existe.
 /// </summary>
 public static class AlcanceDeLotesGeneracion
 {
-    public static async Task<bool> LoteDentroDeAlcanceAsync(
+    /// <summary>
+    /// ¿Ve quien mira el lote <paramref name="loteId"/> entero? Sin acceso total, el lote es todo o nada: pasa la puerta
+    /// de <see cref="LoteDentroDeAlcanceAsync"/> y, además, cada documento generado por uno de sus ítems pasa la puerta
+    /// de la lista de trazabilidad (<see cref="AlcanceDeDocumentosGenerados.DocumentosGeneradosVisiblesAsync"/>: Centro,
+    /// Empresa, plantilla y Documento legible). Basta un ítem cuyo generado no se vea, o que ya no exista, para que el
+    /// lote entero no se vea.
+    ///
+    /// <para>
+    /// Por qué todo o nada y no ocultar el ítem: el estado y los recuentos del lote son del lote entero. Un lote de un
+    /// solo ítem completado y oculto devolvía cero ítems con estado Completado, que delata que hubo una generación
+    /// (hallazgo de Codex, ronda 2 de la PR #2222); y recontar solo lo visible mezclaba un estado global con recuentos
+    /// filtrados. Así quien lo ve lo ve con su estado y sus recuentos reales, y quien no, recibe lo mismo que por un lote
+    /// que no existe. Con acceso total no cambia nada.
+    /// </para>
+    /// </summary>
+    public static async Task<bool> LoteVisibleEnteroAsync(
+        this IAlcanceDatosService alcance,
+        Guid loteId,
+        Guid plantillaDocumentoVersionId,
+        IPlantillasQueryContext plantillasContext,
+        IDocumentosQueryContext documentosContext,
+        IProyectosQueryContext proyectosContext,
+        CancellationToken cancellationToken = default)
+    {
+        if (await alcance.TieneAccesoTotalAsync(cancellationToken))
+            return true;
+
+        var items = await plantillasContext.ItemsGeneracionDocumento
+            .Where(i => i.LoteGeneracionDocumentoId == loteId)
+            .Select(i => new { i.TrabajadorId, i.DocumentoGeneradoId })
+            .ToListAsync(cancellationToken);
+
+        if (!await alcance.LoteDentroDeAlcanceAsync(
+                plantillaDocumentoVersionId, items.Select(i => i.TrabajadorId).Distinct().ToList(), plantillasContext, cancellationToken))
+            return false;
+
+        var idsGenerados = items
+            .Where(i => i.DocumentoGeneradoId is not null)
+            .Select(i => i.DocumentoGeneradoId!.Value)
+            .Distinct()
+            .ToList();
+        if (idsGenerados.Count == 0)
+            return true;
+
+        // Proyecta a propósito, como la lista: sin CodigoSeguroVerificacion ni DatosUtilizadosJson.
+        var generados = await plantillasContext.DocumentosGenerados
+            .Where(d => idsGenerados.Contains(d.Id))
+            .Select(d => new CoordenadasDocumentoGenerado(
+                d.Id, d.DocumentoId, d.PlantillaDocumentoVersionId, d.TrabajadorId, d.EmpresaId, d.CentroId))
+            .ToListAsync(cancellationToken);
+        var visibles = await alcance.DocumentosGeneradosVisiblesAsync(
+            generados, plantillasContext, documentosContext, proyectosContext, cancellationToken);
+
+        // Un generado que ya no se lee (inexistente u oculto) no está en «visibles»: falla cerrado.
+        return idsGenerados.All(visibles.Contains);
+    }
+
+    // Privada a propósito: un lote que ya existe se decide solo con LoteVisibleEnteroAsync, para que la query y el
+    // Command no puedan volver a divergir.
+    private static async Task<bool> LoteDentroDeAlcanceAsync(
         this IAlcanceDatosService alcance,
         Guid plantillaDocumentoVersionId,
         IReadOnlyCollection<Guid> trabajadorIds,

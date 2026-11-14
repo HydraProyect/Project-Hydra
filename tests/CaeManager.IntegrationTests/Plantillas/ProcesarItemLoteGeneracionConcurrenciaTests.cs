@@ -111,7 +111,7 @@ public class ProcesarItemLoteGeneracionConcurrenciaTests : IAsyncLifetime
         new(
             new ItemGeneracionDocumentoRepository(contexto), new LoteGeneracionDocumentoRepository(contexto),
             // Con acceso total: aquí se prueba la concurrencia, no la Asignación de Cartera (eso, en los unitarios).
-            contexto, new AlcanceDatosServiceFalso(),
+            contexto, contexto, contexto, new AlcanceDatosServiceFalso(),
             new MediatorFalso
             {
                 Respuesta = exito
