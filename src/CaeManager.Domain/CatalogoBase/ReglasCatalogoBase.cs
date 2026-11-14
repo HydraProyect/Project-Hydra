@@ -37,14 +37,24 @@ public static class ReglasCatalogoBase
     public const int LongitudMaximaFundamento = 300;
     public const int LongitudMaximaCodigoOficial = 20;
 
-    /// <summary>Slug estable en minúsculas, dígitos y guiones: identificador de código, no texto para el usuario.</summary>
+    /// <summary>
+    /// Slug estable en minúsculas, dígitos y guiones: identificador de código, no texto para el usuario. Es el patrón
+    /// del CHECK de PostgreSQL, donde <c>$</c> solo casa al final de la cadena.
+    /// </summary>
     public const string PatronCodigo = "^[a-z0-9]+(-[a-z0-9]+)*$";
 
-    /// <summary>Un código oficial (CNAE, REGCON o CNO) solo lleva letras, dígitos y puntos.</summary>
+    /// <summary>
+    /// Un código oficial (CNAE, REGCON o CNO) solo lleva letras, dígitos y puntos. Patrón del CHECK de PostgreSQL, como
+    /// <see cref="PatronCodigo"/>.
+    /// </summary>
     public const string PatronCodigoOficial = "^[A-Za-z0-9.]+$";
 
-    private static readonly Regex Codigo = new(PatronCodigo, RegexOptions.CultureInvariant, TimeSpan.FromMilliseconds(100));
-    private static readonly Regex CodigoOficialValido = new(PatronCodigoOficial, RegexOptions.CultureInvariant, TimeSpan.FromMilliseconds(100));
+    // En .NET, «$» también casa delante de un salto de línea final («obra\n» pasaría); «\z» es el final real de la
+    // cadena. Los patrones públicos conservan «$» porque son los de los CHECK de PostgreSQL, donde «\z» no existe.
+    private static readonly Regex Codigo = new(HastaElFinal(PatronCodigo), RegexOptions.CultureInvariant, TimeSpan.FromMilliseconds(100));
+    private static readonly Regex CodigoOficialValido = new(HastaElFinal(PatronCodigoOficial), RegexOptions.CultureInvariant, TimeSpan.FromMilliseconds(100));
+
+    private static string HastaElFinal(string patronConDolar) => patronConDolar[..^1] + @"\z";
 
     public static string ValidarCodigo(string codigo, string parametro)
     {

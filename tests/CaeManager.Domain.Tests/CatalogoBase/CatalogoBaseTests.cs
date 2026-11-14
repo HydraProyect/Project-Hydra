@@ -43,6 +43,7 @@ public class CatalogoBaseTests
     [InlineData("-guion-inicial")]
     [InlineData("guion-final-")]
     [InlineData("doble--guion")]
+    [InlineData("salto-de-linea-final\n")]
     public void El_codigo_es_un_slug_estable(string codigo)
     {
         var crear = () => new ActividadCatalogo(codigo, "Actividad");

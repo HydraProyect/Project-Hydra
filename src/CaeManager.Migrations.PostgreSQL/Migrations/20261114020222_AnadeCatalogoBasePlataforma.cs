@@ -23,6 +23,7 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                 constraints: table =>
                 {
                     table.PrimaryKey("PK_CatalogoActividades", x => x.Id);
+                    table.CheckConstraint("CK_CatalogoActividades_CodigoFormato", "\"Codigo\" ~ '^[a-z0-9]+(-[a-z0-9]+)*$'");
                 });
 
             migrationBuilder.CreateTable(
@@ -39,6 +40,7 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                 constraints: table =>
                 {
                     table.PrimaryKey("PK_CatalogoRequisitosBase", x => x.Id);
+                    table.CheckConstraint("CK_CatalogoRequisitosBase_CodigoFormato", "\"Codigo\" ~ '^[a-z0-9]+(-[a-z0-9]+)*$'");
                     table.CheckConstraint("CK_CatalogoRequisitosBase_Nivel", "\"Nivel\" IN ('N1', 'N2', 'N3')");
                 });
 
@@ -55,6 +57,7 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                 constraints: table =>
                 {
                     table.PrimaryKey("PK_CatalogoRiesgos", x => x.Id);
+                    table.CheckConstraint("CK_CatalogoRiesgos_CodigoFormato", "\"Codigo\" ~ '^[a-z0-9]+(-[a-z0-9]+)*$'");
                 });
 
             migrationBuilder.CreateTable(

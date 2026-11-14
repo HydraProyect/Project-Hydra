@@ -596,6 +596,13 @@ public class CoberturaRlsDelModeloTests : IAsyncLifetime
 
         using var _ = new AssertionScope();
 
+        // Y al revés: toda tabla del catálogo base que el modelo tenga está escrita aquí con su motivo. La lista es
+        // literal a propósito (cada excepción a RLS con nombre y motivo); el modelo solo impide que una se quede fuera.
+        contexto.Model.GetEntityTypes()
+            .Where(t => t.ClrType.Namespace == typeof(global::CaeManager.Domain.CatalogoBase.ActividadCatalogo).Namespace)
+            .Select(t => t.GetTableName()).Should().NotBeEmpty()
+            .And.BeSubsetOf(CatalogoBaseDePlataformaSinRls.Keys, "una tabla nueva del catálogo base entra en la lista en el commit que la crea");
+
         foreach (var tabla in CatalogoBaseDePlataformaSinRls.Keys)
         {
             tablasDelModelo.Should().Contain(tabla, "la excepción tiene que describir una tabla que existe en el modelo");

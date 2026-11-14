@@ -74,6 +74,29 @@ public class ModeloCatalogoBaseTests
     }
 
     [Fact]
+    public void Los_codigos_llevan_un_CHECK_de_formato_que_la_migracion_crea()
+    {
+        foreach (var (tipo, restriccion, patron) in new[]
+                 {
+                     (typeof(ActividadCatalogo), "CK_CatalogoActividades_CodigoFormato", ReglasCatalogoBase.PatronCodigo),
+                     (typeof(RiesgoCatalogo), "CK_CatalogoRiesgos_CodigoFormato", ReglasCatalogoBase.PatronCodigo),
+                     (typeof(RequisitoBase), "CK_CatalogoRequisitosBase_CodigoFormato", ReglasCatalogoBase.PatronCodigo),
+                     (typeof(CodigoOficialActividad), "CK_CatalogoActividadesCodigosOficiales_CodigoFormato", ReglasCatalogoBase.PatronCodigoOficial),
+                 })
+        {
+            var esperado = $"\"Codigo\" ~ '{patron}'";
+            ModeloDiseno.FindEntityType(tipo)!.GetCheckConstraints()
+                .Should().ContainSingle(c => c.ModelName == restriccion).Which.Sql.Should().Be(esperado);
+            TextoUp().Should().Contain($"table.CheckConstraint(\"{restriccion}\", \"{esperado.Replace("\"", "\\\"")}\")");
+        }
+
+        // PostgreSQL no conoce «\z» y en él «$» ya es el final de la cadena; la expresión regular de .NET sí necesita
+        // «\z» (ReglasCatalogoBase.ValidarCodigo), porque su «$» casa delante de un salto de línea final.
+        ReglasCatalogoBase.PatronCodigo.Should().EndWith("$").And.NotContain(@"\z");
+        ReglasCatalogoBase.PatronCodigoOficial.Should().EndWith("$").And.NotContain(@"\z");
+    }
+
+    [Fact]
     public void Los_codigos_son_unicos_y_solo_hay_una_opcion_otro()
     {
         foreach (var tipo in new[] { typeof(ActividadCatalogo), typeof(RiesgoCatalogo), typeof(RequisitoBase) })

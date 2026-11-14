@@ -1424,7 +1424,10 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                     b.HasIndex("Codigo")
                         .IsUnique();
 
-                    b.ToTable("CatalogoActividades", (string)null);
+                    b.ToTable("CatalogoActividades", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_CatalogoActividades_CodigoFormato", "\"Codigo\" ~ '^[a-z0-9]+(-[a-z0-9]+)*$'");
+                        });
                 });
 
             modelBuilder.Entity("CaeManager.Domain.CatalogoBase.CodigoOficialActividad", b =>
@@ -1519,6 +1522,8 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
 
                     b.ToTable("CatalogoRequisitosBase", null, t =>
                         {
+                            t.HasCheckConstraint("CK_CatalogoRequisitosBase_CodigoFormato", "\"Codigo\" ~ '^[a-z0-9]+(-[a-z0-9]+)*$'");
+
                             t.HasCheckConstraint("CK_CatalogoRequisitosBase_Nivel", "\"Nivel\" IN ('N1', 'N2', 'N3')");
                         });
                 });
@@ -1555,7 +1560,10 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                         .HasDatabaseName("IX_CatalogoRiesgos_UnaSolaOpcionOtro")
                         .HasFilter("\"EsOtro\"");
 
-                    b.ToTable("CatalogoRiesgos", (string)null);
+                    b.ToTable("CatalogoRiesgos", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_CatalogoRiesgos_CodigoFormato", "\"Codigo\" ~ '^[a-z0-9]+(-[a-z0-9]+)*$'");
+                        });
                 });
 
             modelBuilder.Entity("CaeManager.Domain.Centros.CanalGestionDocumental", b =>

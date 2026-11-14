@@ -21,11 +21,28 @@ public class CatalogoBaseBajoRuntimeTests : IAsyncLifetime
 {
     private const string Runtime = "cae_app_runtime";
 
-    private static readonly string[] Tablas =
-    [
-        "CatalogoActividades", "CatalogoActividadesCodigosOficiales", "CatalogoRiesgos",
-        "CatalogoRequisitosBase", "CatalogoReglasRiesgoRequisito",
-    ];
+    /// <summary>
+    /// Las tablas del catálogo base, sacadas del modelo de EF (las entidades del espacio de nombres de
+    /// <see cref="ActividadCatalogo"/>): una tabla nueva del catálogo entra sola en cada barrido de privilegios. La lista
+    /// exacta la fija <c>ModeloCatalogoBaseTests.Tablas</c> en Architecture; aquí solo se exige que no salga vacía.
+    /// </summary>
+    private static readonly string[] Tablas = TablasDelModelo();
+
+    private static string[] TablasDelModelo()
+    {
+        using var contexto = new CaeManagerDbContext(
+            new DbContextOptionsBuilder<CaeManagerDbContext>()
+                .UseNpgsql("Host=localhost;Database=solo-para-construir-el-modelo;Username=x;Password=x").Options,
+            new EphemeralDataProtectionProvider(), new TenantActualAmbiental());
+        var tablas = contexto.Model.GetEntityTypes()
+            .Where(t => t.ClrType.Namespace == typeof(ActividadCatalogo).Namespace)
+            .Select(t => t.GetTableName()!)
+            .Order(StringComparer.Ordinal)
+            .ToArray();
+        return tablas.Length > 0
+            ? tablas
+            : throw new InvalidOperationException("El modelo no tiene tablas del catálogo base: el barrido no observaría nada.");
+    }
 
     private readonly string _cadenaConexion = BaseDatosPostgresDePruebas.CadenaConexionUnica();
     private readonly Guid _tenantA = Guid.NewGuid();
@@ -232,6 +249,10 @@ public class CatalogoBaseBajoRuntimeTests : IAsyncLifetime
     [InlineData("""INSERT INTO "CatalogoRequisitosBase" ("Id", "Codigo", "Nombre", "Fundamento", "Nivel", "Activo") VALUES (gen_random_uuid(), 'nivel-malo', 'Nivel malo', 'Norma', 'N4', true);""")]
     [InlineData("""INSERT INTO "CatalogoActividadesCodigosOficiales" ("Id", "ActividadId", "Sistema", "Codigo") SELECT gen_random_uuid(), "Id", 'Iae', '0001' FROM "CatalogoActividades" LIMIT 1;""")]
     [InlineData("""INSERT INTO "CatalogoActividadesCodigosOficiales" ("Id", "ActividadId", "Sistema", "Codigo") SELECT gen_random_uuid(), "Id", 'Cnae2025', '00 01' FROM "CatalogoActividades" LIMIT 1;""")]
+    [InlineData("""INSERT INTO "CatalogoActividades" ("Id", "Codigo", "Nombre", "Activa") VALUES (gen_random_uuid(), 'Con-Mayusculas', 'Mal formada', true);""")]
+    [InlineData("""INSERT INTO "CatalogoActividades" ("Id", "Codigo", "Nombre", "Activa") VALUES (gen_random_uuid(), E'salto-final\n', 'Mal formada', true);""")]
+    [InlineData("""INSERT INTO "CatalogoRiesgos" ("Id", "Codigo", "Nombre", "EsOtro", "Activo") VALUES (gen_random_uuid(), 'doble--guion', 'Mal formado', false, true);""")]
+    [InlineData("""INSERT INTO "CatalogoRequisitosBase" ("Id", "Codigo", "Nombre", "Fundamento", "Nivel", "Activo") VALUES (gen_random_uuid(), 'con espacio', 'Mal formado', 'Norma', 'N1', true);""")]
     public async Task La_base_rechaza_valores_fuera_del_catalogo(string sql)
     {
         await using var propietario = new NpgsqlConnection(_cadenaConexion);

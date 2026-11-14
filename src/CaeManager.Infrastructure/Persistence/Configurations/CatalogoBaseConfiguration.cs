@@ -13,9 +13,16 @@ namespace CaeManager.Infrastructure.Persistence.Configurations;
 /// <summary>Actividades del catálogo base: código único, sin borrado (se retiran con <c>Activa</c>).</summary>
 public class ActividadCatalogoConfiguration : IEntityTypeConfiguration<ActividadCatalogo>
 {
+    /// <summary>
+    /// CHECK del slug de código en las tres tablas que lo llevan: la base rechaza lo que el dominio rechazaría aunque
+    /// la escritura no pase por <see cref="ReglasCatalogoBase.ValidarCodigo"/>.
+    /// </summary>
+    internal const string FormatoDeCodigo = "\"Codigo\" ~ '" + ReglasCatalogoBase.PatronCodigo + "'";
+
     public void Configure(EntityTypeBuilder<ActividadCatalogo> builder)
     {
-        builder.ToTable("CatalogoActividades");
+        builder.ToTable("CatalogoActividades", t =>
+            t.HasCheckConstraint("CK_CatalogoActividades_CodigoFormato", FormatoDeCodigo));
         builder.HasKey(a => a.Id);
 
         builder.Property(a => a.Codigo).IsRequired().HasMaxLength(ReglasCatalogoBase.LongitudMaximaCodigo);
@@ -55,7 +62,8 @@ public class RiesgoCatalogoConfiguration : IEntityTypeConfiguration<RiesgoCatalo
 {
     public void Configure(EntityTypeBuilder<RiesgoCatalogo> builder)
     {
-        builder.ToTable("CatalogoRiesgos");
+        builder.ToTable("CatalogoRiesgos", t =>
+            t.HasCheckConstraint("CK_CatalogoRiesgos_CodigoFormato", ActividadCatalogoConfiguration.FormatoDeCodigo));
         builder.HasKey(r => r.Id);
 
         builder.Property(r => r.Codigo).IsRequired().HasMaxLength(ReglasCatalogoBase.LongitudMaximaCodigo);
@@ -72,7 +80,10 @@ public class RequisitoBaseConfiguration : IEntityTypeConfiguration<RequisitoBase
     public void Configure(EntityTypeBuilder<RequisitoBase> builder)
     {
         builder.ToTable("CatalogoRequisitosBase", t =>
-            t.HasCheckConstraint("CK_CatalogoRequisitosBase_Nivel", SolicitudAltaConfiguration.EnValoresDe<NivelExigencia>("Nivel")));
+        {
+            t.HasCheckConstraint("CK_CatalogoRequisitosBase_Nivel", SolicitudAltaConfiguration.EnValoresDe<NivelExigencia>("Nivel"));
+            t.HasCheckConstraint("CK_CatalogoRequisitosBase_CodigoFormato", ActividadCatalogoConfiguration.FormatoDeCodigo);
+        });
         builder.HasKey(r => r.Id);
 
         builder.Property(r => r.Codigo).IsRequired().HasMaxLength(ReglasCatalogoBase.LongitudMaximaCodigo);
