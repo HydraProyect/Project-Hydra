@@ -44,6 +44,9 @@ public partial class VisitasFilaSinMenuE2ETests(WebAppFixtureListados fixture)
         var alta = page.GetByRole(AriaRole.Dialog, new PageGetByRoleOptions { Name = "Nueva visita", Exact = true });
         await Expect(alta).ToBeVisibleAsync();
         await alta.GetByLabel("Centro", new LocatorGetByLabelOptions { Exact = true }).SelectOptionAsync(new SelectOptionValue { Index = 1 });
+        // La opción se pinta «Nombre (Cliente — Empresa)»: el nombre del Centro es lo que se usa para acotar la lista.
+        var textoOpcion = (await alta.GetByLabel("Centro", new LocatorGetByLabelOptions { Exact = true }).Locator("option:checked").InnerTextAsync()).Trim();
+        var nombreCentro = textoOpcion.Contains(" (") ? textoOpcion[..textoOpcion.IndexOf(" (", StringComparison.Ordinal)] : textoOpcion;
         await Ayudas.RellenarFechaAsync(alta.GetByLabel("Fecha de inicio", new LocatorGetByLabelOptions { Exact = true }), fecha);
         await Ayudas.RellenarFechaAsync(alta.GetByLabel("Fecha de fin", new LocatorGetByLabelOptions { Exact = true }), fecha);
         // CrearVisitaCommandValidator exige al menos un Trabajador que entre, y no vale cualquiera: solo
@@ -56,6 +59,12 @@ public partial class VisitasFilaSinMenuE2ETests(WebAppFixtureListados fixture)
         await alta.Locator(".lista-seleccion-multiple input[type=checkbox]").First.CheckAsync();
         await alta.GetByRole(AriaRole.Button, new LocatorGetByRoleOptions { Name = "Guardar", Exact = true }).ClickAsync();
         await Expect(alta).ToBeHiddenAsync();
+
+        // La lista nace ordenada por fecha de inicio y pagina de 20 en 20, y la fecha de esta Visita es lejana: detrás
+        // de las Visitas activas de la siembra y de las que dejan otros tests, que cuántas son depende de la siembra
+        // (el reparto de las fechas sembradas cambió con D-P11), puede quedar en la página 2. Acotar la lista al Centro
+        // (la búsqueda ya mira su nombre) deja unas pocas filas, así que la fila de esta Visita sale siempre en la primera.
+        await Ayudas.NavegarYEsperarAsync(page, $"{fixture.BaseUrl}/visitas?q={Uri.EscapeDataString(nombreCentro)}");
 
         // La fila se localiza por el nombre accesible de su botón de vista rápida (que acaba en la
         // fecha), no por «fila-pulsable»: si la marca faltara, lo que debe fallar es el clic en la

@@ -100,7 +100,10 @@ public class BucleCorreccionPlataformaTests(WebAppFixture fixture)
         var filaNueva = page.Locator(".plataforma-fila-documento")
             .Filter(new LocatorFilterOptions { Has = page.Locator(".plataforma-documento-propietario", new PageLocatorOptions { HasTextString = propietario }) })
             .Filter(new LocatorFilterOptions { Has = page.Locator(".plataforma-documento-tipo", new PageLocatorOptions { HasTextString = tipoDocumento }) });
-        await Expect(filaNueva.GetByRole(AriaRole.Button, new LocatorGetByRoleOptions { Name = "Marcar subido", Exact = true }))
+        // La pestaña repite cada Documento bajo cada Cliente empresarial al que la Empresa presta servicio (con una sola
+        // Empresa propia por Tenant, D-P11, son todos los de la siembra), así que el nuevo sale en varias filas con el mismo
+        // propietario y tipo: basta con que una enseñe «Marcar subido», y ninguna «Subir versión corregida».
+        await Expect(filaNueva.GetByRole(AriaRole.Button, new LocatorGetByRoleOptions { Name = "Marcar subido", Exact = true }).First)
             .ToBeVisibleAsync(new LocatorAssertionsToBeVisibleOptions { Timeout = 15_000 });
         await Expect(filaNueva.GetByRole(AriaRole.Button, new LocatorGetByRoleOptions { Name = "Subir versión corregida", Exact = true }))
             .ToHaveCountAsync(0);
