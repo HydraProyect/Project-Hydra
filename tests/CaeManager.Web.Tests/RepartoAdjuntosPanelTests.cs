@@ -41,6 +41,7 @@ public class RepartoAdjuntosPanelTests : BunitContext
         public List<object> Enviados { get; } = [];
         public Func<AsignarAdjuntosLoteCommand, Result<IReadOnlyList<ResultadoAsignacionAdjunto>>>? Lote { get; set; }
         public bool RepartoFalla { get; set; }
+        public List<TrabajadorSelectorDto> Trabajadores { get; set; } = [new(Marta, "Marta Ruiz", null, null), new(Pedro, "Pedro Gil", null, null)];
 
         public IEnumerable<T> De<T>() => Enviados.OfType<T>();
 
@@ -50,10 +51,7 @@ public class RepartoAdjuntosPanelTests : BunitContext
             object? respuesta = request switch
             {
                 ObtenerRepartoAdjuntosQuery => RepartoFalla ? throw new InvalidOperationException("falla") : Reparto.ToList(),
-                ObtenerTrabajadoresParaSelectorQuery => new List<TrabajadorSelectorDto>
-                {
-                    new(Marta, "Marta Ruiz", null, null), new(Pedro, "Pedro Gil", null, null)
-                },
+                ObtenerTrabajadoresParaSelectorQuery => Trabajadores.ToList(),
                 ObtenerEmpresasParaSelectorQuery => new List<EmpresaSelectorDto> { new(EmpresaPropia, "Obras Norte") },
                 ObtenerTiposDocumentoQuery =>
                     new List<TipoDocumentoListaDto>
@@ -135,7 +133,7 @@ public class RepartoAdjuntosPanelTests : BunitContext
     private IRenderedComponent<RepartoAdjuntosPanel> Pintar(Action? alCambiar = null) =>
         Render<RepartoAdjuntosPanel>(p => p
             .Add(x => x.ConversacionId, Conversacion)
-            .Add(x => x.Version, DateTime.UtcNow)
+            .Add(x => x.Recarga, new object())
             .Add(x => x.OnCambiado, EventCallback.Factory.Create(this, () => alCambiar?.Invoke())));
 
     private static AdjuntoRepartoDto Adj(string nombre, Guid? trabajador = null, Guid? empresa = null, Guid? tipo = null,
@@ -479,6 +477,41 @@ public class RepartoAdjuntosPanelTests : BunitContext
 
         var grupos = cut.FindAll("[data-grupo] > span:first-child").Select(g => g.TextContent.Trim()).ToList();
         grupos.Should().Equal("Marta Ruiz · 2", "Pedro Gil · 1", "Sin destino · 1");
+    }
+
+    [Fact]
+    public void Dos_Trabajadores_homonimos_se_distinguen_en_el_selector_y_no_se_agrupan_juntos()
+    {
+        var otraMarta = Guid.NewGuid();
+        var mediador = Preparar(Roles.GestorCae, Adj("a.pdf", trabajador: Marta), Adj("b.pdf", trabajador: otraMarta));
+        mediador.Trabajadores = [new(Marta, "Marta Ruiz", null, "Obras Norte"), new(otraMarta, "Marta Ruiz", null, "Excavaciones Sur")];
+        var cut = Pintar();
+        cut.WaitForAssertion(() => cut.FindAll(".adjb").Should().HaveCount(1));
+
+        cut.FindAll("select[aria-label='Destino de a.pdf'] option").Select(o => o.TextContent.Trim())
+            .Should().Contain(["Marta Ruiz (Obras Norte)", "Marta Ruiz (Excavaciones Sur)"]);
+        cut.FindAll(".adjb-hc button").Single(b => b.TextContent.Trim() == "Por Trabajador").Click();
+        cut.FindAll("[data-grupo]").Should().HaveCount(2);
+    }
+
+    [Fact]
+    public void En_uno_a_uno_una_fila_que_el_servidor_no_asigna_no_avanza_a_la_siguiente()
+    {
+        var primero = Adj("a.pdf", trabajador: Marta);
+        var mediador = Preparar(Roles.GestorCae, primero, Adj("b.pdf"));
+        mediador.Lote = c => Result.Exito<IReadOnlyList<ResultadoAsignacionAdjunto>>(
+            [new(primero.Id, EstadoAsignacionAdjunto.Conflicto, null, "Ya hay un Documento vigente.")]);
+        var cut = Pintar();
+        cut.WaitForAssertion(() => cut.FindAll(".adjb").Should().HaveCount(1));
+        cut.FindAll(".adjb-p button").Single(b => b.TextContent.Contains("uno a uno")).Click();
+        cut.Find(".adjb-uno strong").TextContent.Should().Be("a.pdf");
+        cut.Find(".adjb-uno select[aria-label='Tipo de documento de a.pdf']").Change(TipoDniTrabajador.ToString());
+        cut.Find(".adjb-uno input[aria-label='Fecha de emisión de a.pdf']").Change("2026-03-01");
+
+        cut.FindAll(".adjb-uno-pie .boton-primario").Single().Click();
+
+        cut.WaitForAssertion(() => mediador.De<AsignarAdjuntosLoteCommand>().Should().ContainSingle());
+        cut.Find(".adjb-uno strong").TextContent.Should().Be("a.pdf");
     }
 
     [Fact]

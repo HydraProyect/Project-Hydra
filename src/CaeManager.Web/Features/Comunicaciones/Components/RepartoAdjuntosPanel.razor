@@ -127,8 +127,12 @@ else if (_errorCarga is not null)
 
     [Parameter, EditorRequired] public Guid ConversacionId { get; set; }
 
-    /// <summary>Cambia cuando llega un mensaje: se vuelve a leer el reparto, que pudo moverse desde otra sesión.</summary>
-    [Parameter] public DateTime Version { get; set; }
+    /// <summary>
+    /// El hilo tal como la página lo leyó: cuando la página lo relee llega otra instancia y el reparto se vuelve a leer, que es
+    /// cuando pudo moverse desde otra sesión o por la ruta antigua del chip «Actualizar documentación» de la línea de tiempo,
+    /// que asigna un adjunto sin que cambie ningún otro dato del hilo.
+    /// </summary>
+    [Parameter] public object? Recarga { get; set; }
 
     /// <summary>Se rechazó, descartó, reabrió o asignó algo: la página relee el hilo (sus eventos y sus Documentos).</summary>
     [Parameter] public EventCallback OnCambiado { get; set; }
@@ -144,6 +148,9 @@ else if (_errorCarga is not null)
     private Dictionary<Guid, string> _nombresEmpresas = [];
     private Dictionary<Guid, string> _nombresTipos = [];
     private bool _selectoresCargados;
+    private bool _selectorFallo;
+    private IReadOnlyList<EtiquetaTrabajador> _etiquetasTrabajadores = [];
+    private bool _filaSinAsignar;
 
     private bool _puedeEscribir;
     private bool _ocupado;
@@ -158,17 +165,17 @@ else if (_errorCarga is not null)
     private int _posicion;
     private string? _errorCarga;
     private Guid _conversacionCargada;
-    private DateTime _versionCargada;
+    private object? _recargaCargada;
 
     private FilaReparto? FilaEnFoco => _posicion >= 0 && _posicion < _cola.Count ? _filas.FirstOrDefault(f => f.Adjunto.Id == _cola[_posicion]) : null;
 
     protected override async Task OnParametersSetAsync()
     {
-        if (_conversacionCargada == ConversacionId && _versionCargada == Version) return;
+        if (_conversacionCargada == ConversacionId && ReferenceEquals(_recargaCargada, Recarga)) return;
 
         var cambioConversacion = _conversacionCargada != ConversacionId;
         _conversacionCargada = ConversacionId;
-        _versionCargada = Version;
+        _recargaCargada = Recarga;
         if (cambioConversacion) Reiniciar();
 
         _puedeEscribir = await SoloConEscritura.PuedeEscribirAsync(EstadoAutenticacion);
@@ -214,6 +221,7 @@ else if (_errorCarga is not null)
     // alguno no se puede leer, el reparto se ve igual: el destino se nombra como «Destino actual» y no se ofrece cambiarlo.
     private async Task CargarSelectoresAsync(Guid conversacionId)
     {
+        _selectorFallo = false;
         _trabajadores = await LeerOVacioAsync(() => Mediator.Send(new ObtenerTrabajadoresParaSelectorQuery(AlcanceSelectorTrabajadores.Cartera)), conversacionId);
         // Las Empresas propias que la persona gestiona (su cartera), sin acotar al Cliente empresarial del hilo: el destino de un
         // Documento es la Empresa que lo aporta, y el comando de fijar destino vuelve a comprobar su alcance en el servidor.
@@ -221,10 +229,16 @@ else if (_errorCarga is not null)
         var tipos = await LeerOVacioAsync(() => Mediator.Send(new ObtenerTiposDocumentoQuery(ParaAltaNueva: true)), conversacionId);
         _tipos = tipos.Where(t => t.AmbitoAplicacion is AmbitoAplicacion.Trabajador or AmbitoAplicacion.Empresa).ToList();
 
-        _nombresTrabajadores = _trabajadores.GroupBy(t => t.Id).ToDictionary(g => g.Key, g => g.First().NombreCompleto);
+        // La etiqueta de cada Trabajador sale del único constructor de etiquetas de selector, que desempata a los homónimos
+        // (empleador, alias o sufijo): el nombre a secas dejaría elegir al Trabajador equivocado y los mezclaría al agrupar.
+        _etiquetasTrabajadores = EtiquetasSelectorTrabajador.Construir(_trabajadores);
+        _nombresTrabajadores = _etiquetasTrabajadores.GroupBy(e => e.Id).ToDictionary(g => g.Key, g => g.First().Texto);
         _nombresEmpresas = _empresas.GroupBy(e => e.Id).ToDictionary(g => g.Key, g => g.First().RazonSocial);
         _nombresTipos = tipos.GroupBy(t => t.Id).ToDictionary(g => g.Key, g => g.First().Nombre);
-        _selectoresCargados = true;
+
+        // Si alguna lectura falló, no se da por cargado: se reintenta en la siguiente recarga en vez de dejar todos los destinos
+        // como «Destino actual» hasta cambiar de conversación.
+        _selectoresCargados = !_selectorFallo;
     }
 
     private async Task<IReadOnlyList<T>> LeerOVacioAsync<T>(Func<Task<IReadOnlyList<T>>> lectura, Guid conversacionId)
@@ -233,6 +247,7 @@ else if (_errorCarga is not null)
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
             Logger.LogError(ex, "Error al leer un selector del reparto de adjuntos de la conversación {ConversacionId}.", conversacionId);
+            _selectorFallo = true;
             return [];
         }
     }
@@ -473,9 +488,9 @@ else if (_errorCarga is not null)
             @if (_trabajadores.Count > 0)
             {
                 <optgroup label="@Textos["GrupoTrabajadores"]">
-                    @foreach (var t in _trabajadores)
+                    @foreach (var t in _etiquetasTrabajadores)
                     {
-                        <option value="t:@t.Id">@t.NombreCompleto</option>
+                        <option value="t:@t.Id">@t.Texto</option>
                     }
                 </optgroup>
             }
@@ -621,6 +636,7 @@ else if (_errorCarga is not null)
 
         var conversacionId = ConversacionId;
         _ocupado = true;
+        _filaSinAsignar = false;
         string? aviso;
         try
         {
@@ -646,7 +662,8 @@ else if (_errorCarga is not null)
         else if (aviso is not null) ToastService.Mostrar(aviso, TonoToast.Error);
 
         await CargarAsync(conversacionId);
-        if (aviso is null && avanzar && _enFoco) AvanzarUnoAUno();
+        // En «uno a uno» solo se pasa al siguiente si el actual salió del reparto: si el servidor lo dejó con un motivo, se queda.
+        if (aviso is null && avanzar && _enFoco && !_filaSinAsignar) AvanzarUnoAUno();
         if (aviso is null && notificar) await OnCambiado.InvokeAsync();
     }
 
@@ -667,13 +684,11 @@ else if (_errorCarga is not null)
             else if (valor.StartsWith("e:", StringComparison.Ordinal)) empresaId = id;
         }
 
-        // Un tipo de otro ámbito no sirve al destino nuevo: se quita en vez de dejar una propuesta que el alta rechazaría.
-        var tipoId = f.Adjunto.TipoDocumentoId;
-        if (tipoId is { } actual && _tipos.FirstOrDefault(t => t.Id == actual) is { } tipo)
-        {
-            var ambitoNuevo = trabajadorId is not null ? AmbitoAplicacion.Trabajador : empresaId is not null ? AmbitoAplicacion.Empresa : (AmbitoAplicacion?)null;
-            if (ambitoNuevo is null || tipo.AmbitoAplicacion != ambitoNuevo) tipoId = null;
-        }
+        // Un tipo elegido para una clase de destino no sirve a la otra: si cambia de Trabajador a Empresa (o al revés, o a nada),
+        // el tipo se quita en vez de dejar una propuesta que el alta rechazaría. Dentro de la misma clase se conserva.
+        var cambiaDeClase = (f.Adjunto.DestinoTrabajadorId is not null) != (trabajadorId is not null)
+            || (f.Adjunto.DestinoEmpresaId is not null) != (empresaId is not null);
+        var tipoId = cambiaDeClase ? null : f.Adjunto.TipoDocumentoId;
 
         return FijarAsync(f, trabajadorId, empresaId, trabajadorId is null && empresaId is null ? null : tipoId);
     }
@@ -746,6 +761,7 @@ else if (_errorCarga is not null)
                     }
                     else
                     {
+                        _filaSinAsignar = true;
                         edicion.Aviso = r.Detalle ?? Textos["NoAsignado"].Value;
                     }
                 }
