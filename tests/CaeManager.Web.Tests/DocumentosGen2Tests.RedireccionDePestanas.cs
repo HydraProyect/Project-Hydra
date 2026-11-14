@@ -139,18 +139,21 @@ public partial class DocumentosGen2Tests
     }
 
     /// <summary>
-    /// La traducción de «?pestana=» a filtros la hace la página: no es una acción del usuario, y la vista recordada no la guarda
-    /// (en main una pestaña nunca guardaba vista). Si el usuario cambia después un filtro, eso sí se guarda. El reloj de este
-    /// arnés es el real: se espera al rebote.
+    /// Ya dentro de /documentos (con la vista recordada montada y escuchando la dirección), un enlace a «?pestana=» —el menú, la
+    /// paleta de comandos, Alertas— lo traduce la página a filtros: eso no es una acción del usuario y la vista recordada no
+    /// lo guarda (en main una pestaña nunca guardaba vista). El reloj de este arnés es el real: se espera al rebote.
     /// </summary>
     [Theory]
     [InlineData("sugerencias", "VenceEn=90")]
     [InlineData("plataforma", "agrupar=plataforma")]
     public async Task La_redireccion_de_una_pestana_no_se_guarda_como_vista_recordada(string pestana, string filtroDeLaUrl)
     {
-        var (cut, mediador) = Renderizar(ConVistaRecordada(null), url: $"documentos?pestana={pestana}");
-        cut.WaitForAssertion(() => UrlDeLaPagina().Should().Contain(filtroDeLaUrl).And.NotContain("pestana"));
+        var (cut, mediador) = Renderizar(ConVistaRecordada(null));
         EsperarListado(cut, mediador);
+        cut.FindComponents<VistaRecordadaDeListado>().Should().NotBeEmpty("barrera: la vista recordada está montada y escuchando");
+
+        await cut.InvokeAsync(() => Services.GetRequiredService<NavigationManager>().NavigateTo($"documentos?pestana={pestana}"));
+        cut.WaitForAssertion(() => UrlDeLaPagina().Should().Contain(filtroDeLaUrl).And.NotContain("pestana"));
 
         await Task.Delay(VistaRecordadaDeListado.Rebote + TimeSpan.FromSeconds(1));
         await cut.InvokeAsync(() => { });
@@ -162,18 +165,19 @@ public partial class DocumentosGen2Tests
     [Fact]
     public async Task Un_cambio_de_filtro_del_usuario_tras_la_redireccion_si_se_guarda_como_vista_recordada()
     {
-        var (cut, mediador) = Renderizar(ConVistaRecordada(null), url: "documentos?pestana=sugerencias");
-        cut.WaitForAssertion(() => UrlDeLaPagina().Should().Contain("VenceEn=90").And.NotContain("pestana"));
+        var (cut, mediador) = Renderizar(ConVistaRecordada(null));
         EsperarListado(cut, mediador);
+        var navegacion = Services.GetRequiredService<NavigationManager>();
+        await cut.InvokeAsync(() => navegacion.NavigateTo("documentos?pestana=sugerencias"));
+        cut.WaitForAssertion(() => UrlDeLaPagina().Should().Contain("VenceEn=90").And.NotContain("pestana"));
 
-        Services.GetRequiredService<NavigationManager>().NavigateTo("documentos?VenceEn=30&orden=vencimiento");
+        await cut.InvokeAsync(() => navegacion.NavigateTo("documentos?VenceEn=30&orden=vencimiento"));
 
         await Task.Delay(VistaRecordadaDeListado.Rebote + TimeSpan.FromSeconds(1));
         await cut.InvokeAsync(() => { });
         mediador.Enviadas.OfType<GuardarVistaRecordadaCommand>().Should().ContainSingle()
             .Which.ValoresJson.Should().Contain("30");
     }
-
     [Theory]
     [InlineData("listado")]
     [InlineData("estado")]

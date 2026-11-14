@@ -379,18 +379,18 @@ public sealed class VistaRecordadaDeListado : ComponentBase, IDisposable
 
     /// <summary>
     /// La página acaba de reescribir la URL por su cuenta (p. ej. un enlace antiguo con «?pestana=» que ella traduce a
-    /// filtros): la vista que la URL muestra ahora es la línea base de la visita, no un cambio del usuario, y no se
-    /// escribe. Se llama DESPUÉS de navegar: el aviso de cambio de dirección de esa navegación ya pudo programar una
-    /// escritura, que aquí se deja sin efecto; si el aviso llega más tarde, ya no hay diferencia con lo recordado.
+    /// filtros estando ya dentro de la pantalla): eso no es un cambio del usuario y no se escribe. Se llama DESPUÉS de
+    /// navegar: el aviso de cambio de dirección de esa navegación es síncrono y ya pudo programar una escritura, que aquí se
+    /// deja sin efecto. Lo recordado no cambia (sigue siendo lo último que se escribió): el siguiente cambio del usuario se
+    /// compara con ello y sí escribe.
     /// </summary>
-    internal void AdoptarLaVistaDeLaUrl()
+    internal void OmitirLaNavegacionDeLaPagina()
     {
         if (_desechado)
             return;
 
         InvalidarEscrituraProgramada();
         _pendiente = null;
-        _recordada = Serializar(VistaDeLaUrl());
     }
 
     /// <summary>La URL ya muestra la vista de inicio: lo recordado pasa a ser esa vista, sin esperar al rebote.</summary>

@@ -38,11 +38,11 @@ public sealed class ConexionVistaRecordada
     public Task RestablecerAsync() => _pieza?.RestablecerAsync() ?? Task.CompletedTask;
 
     /// <summary>
-    /// La página reescribió la URL por su cuenta (no el usuario): lo que la URL muestra ahora pasa a ser lo
-    /// recordado y no se escribe. Se llama justo DESPUÉS de navegar. Sin pieza montada no hace nada: la que se
-    /// monte toma la URL de entonces como línea base.
+    /// La página reescribió la URL por su cuenta (no el usuario): ninguna escritura programada por esa navegación debe
+    /// llegar a hacerse, y lo recordado sigue siendo lo último que se escribió de verdad. Se llama justo DESPUÉS de navegar.
+    /// Sin pieza montada no hace nada: la que se monte toma la URL de entonces como línea base.
     /// </summary>
-    public void AdoptarLaVistaDeLaUrl() => _pieza?.AdoptarLaVistaDeLaUrl();
+    public void OmitirLaNavegacionDeLaPagina() => _pieza?.OmitirLaNavegacionDeLaPagina();
 
     internal void Conectar(VistaRecordadaDeListado pieza) => _pieza = pieza;
 

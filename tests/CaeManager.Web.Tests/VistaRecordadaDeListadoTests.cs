@@ -237,6 +237,47 @@ public class VistaRecordadaDeListadoTests : BunitContext
         _mediador.Enviadas.Should().BeEmpty("con la URL mandando no hace falta ni leer lo recordado, y llegar no es cambiar la vista");
     }
 
+    /// <summary>
+    /// Una redirección de la página (un enlace antiguo con «?pestana=» que ella traduce a filtros) no es una acción del usuario:
+    /// la página avisa con <see cref="ConexionVistaRecordada.OmitirLaNavegacionDeLaPagina"/> justo después de navegar y esa
+    /// navegación no se escribe. Con el control sin aviso, la misma navegación sí escribe.
+    /// </summary>
+    [Theory]
+    [InlineData(true, 0)]
+    [InlineData(false, 1)]
+    public async Task Una_navegacion_de_la_pagina_avisada_no_escribe_y_sin_aviso_si(bool avisa, int escrituras)
+    {
+        var cut = Montar("/vehiculos");
+
+        await cut.InvokeAsync(() =>
+        {
+            Navegacion.NavigateTo("/vehiculos?estado=Vencido", replace: true);
+            if (avisa)
+                _conexion.OmitirLaNavegacionDeLaPagina();
+        });
+        await VencerElReboteAsync(cut);
+
+        Escrituras.Should().HaveCount(escrituras);
+    }
+
+    [Fact]
+    public async Task Tras_una_navegacion_avisada_de_la_pagina_el_siguiente_cambio_del_usuario_si_escribe()
+    {
+        var cut = Montar("/vehiculos");
+        await cut.InvokeAsync(() =>
+        {
+            Navegacion.NavigateTo("/vehiculos?estado=Vencido", replace: true);
+            _conexion.OmitirLaNavegacionDeLaPagina();
+        });
+        await VencerElReboteAsync(cut);
+        Escrituras.Should().BeEmpty("barrera: la navegación de la página no escribió");
+
+        await cut.InvokeAsync(() => Navegacion.NavigateTo("/vehiculos?estado=Vigente"));
+        await VencerElReboteAsync(cut);
+
+        Escrituras.Should().ContainSingle().Which.Should().BeOfType<GuardarVistaRecordadaCommand>();
+    }
+
     [Theory]
     [InlineData("no es json")]
     [InlineData("[1,2]")]
