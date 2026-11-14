@@ -138,46 +138,104 @@ public partial class DocumentosGen2Tests
         UrlDeLaPagina().Should().NotContain("/plantillas").And.NotContain("revision-ia");
     }
 
+    /// <summary>Una vista recordada que no es la de inicio: borrarla o pisarla se nota.</summary>
+    private const string VistaRecordadaDelUsuario = """{"Estado":"Vencido"}""";
+
     /// <summary>
-    /// Ya dentro de /documentos (con la vista recordada montada y escuchando la dirección), un enlace a «?pestana=» —el menú, la
-    /// paleta de comandos, Alertas— lo traduce la página a filtros: eso no es una acción del usuario y la vista recordada no
-    /// lo guarda (en main una pestaña nunca guardaba vista). El reloj de este arnés es el real: se espera al rebote.
+    /// /documentos montado, con la vista recordada restaurada (no vacía) y la navegación como con circuito: cada NavigateTo
+    /// espera a que el test lo confirme, igual que el aviso de cambio de dirección llega de ida y vuelta con el navegador.
+    /// </summary>
+    private async Task<(IRenderedComponent<PaginaDocumentos> Cut, MediadorControlado Mediador, NavegacionRetenida Navegacion)>
+        MontarConVistaRecordadaYCircuitoAsync()
+    {
+        var navegacion = new NavegacionRetenida("http://localhost/documentos");
+        Services.AddSingleton<NavigationManager>(navegacion);
+        var (cut, mediador) = Renderizar(ConVistaRecordada(VistaRecordadaDelUsuario));
+        cut.WaitForAssertion(() => UrlDeLaPagina().Should().Contain("Estado=Vencido", "barrera: la vista recordada se restauró"));
+        EsperarListado(cut, mediador);
+        cut.FindComponents<VistaRecordadaDeListado>().Should().NotBeEmpty("barrera: la vista recordada está montada y escuchando");
+        await Task.Delay(VistaRecordadaDeListado.Rebote + TimeSpan.FromSeconds(1));
+        await cut.InvokeAsync(() => { });
+        mediador.Enviadas.OfType<GuardarVistaRecordadaCommand>().Should().BeEmpty("barrera: restaurar no escribe");
+        navegacion.Retener = true;
+        return (cut, mediador, navegacion);
+    }
+
+    /// <summary>
+    /// La paleta o el menú navegan a «?pestana=» ya dentro de /documentos: el aviso del enlace llega del navegador, la página
+    /// lo traduce a filtros y el aviso de esa traducción llega después, también de vuelta. Ninguno de los dos es del usuario.
+    /// </summary>
+    private static async Task NavegarAPestanaConCircuitoAsync(
+        IRenderedComponent<PaginaDocumentos> cut, NavegacionRetenida navegacion, string pestana, string filtroDeLaUrl)
+    {
+        await cut.InvokeAsync(() => navegacion.NavigateTo($"documentos?pestana={pestana}"));
+        await cut.InvokeAsync(() => navegacion.Confirmar(navegacion.Destinos[^1]));
+        cut.WaitForAssertion(() => navegacion.Destinos[^1].Should().Contain(filtroDeLaUrl).And.NotContain("pestana"));
+        await cut.InvokeAsync(() => navegacion.Confirmar(navegacion.Destinos[^1]));
+        cut.WaitForAssertion(() => navegacion.Uri.Should().Contain(filtroDeLaUrl).And.NotContain("pestana"));
+    }
+
+    /// <summary>
+    /// Ya dentro de /documentos (con la vista recordada montada y escuchando la dirección), un enlace guardado a «?pestana=» lo
+    /// traduce la página a filtros: eso no es una acción del usuario y la vista recordada ni lo guarda ni olvida la que había
+    /// (en main una pestaña nunca la tocaba). Los avisos llegan después del anuncio de la página, como en el circuito real;
+    /// el reloj de este arnés es el real: se espera al rebote.
     /// </summary>
     [Theory]
     [InlineData("sugerencias", "VenceEn=90")]
     [InlineData("plataforma", "agrupar=plataforma")]
-    public async Task La_redireccion_de_una_pestana_no_se_guarda_como_vista_recordada(string pestana, string filtroDeLaUrl)
+    public async Task La_redireccion_de_una_pestana_con_circuito_ni_guarda_ni_olvida_la_vista_recordada(string pestana, string filtroDeLaUrl)
     {
-        var (cut, mediador) = Renderizar(ConVistaRecordada(null));
-        EsperarListado(cut, mediador);
-        cut.FindComponents<VistaRecordadaDeListado>().Should().NotBeEmpty("barrera: la vista recordada está montada y escuchando");
+        var (cut, mediador, navegacion) = await MontarConVistaRecordadaYCircuitoAsync();
 
-        await cut.InvokeAsync(() => Services.GetRequiredService<NavigationManager>().NavigateTo($"documentos?pestana={pestana}"));
-        cut.WaitForAssertion(() => UrlDeLaPagina().Should().Contain(filtroDeLaUrl).And.NotContain("pestana"));
-
+        await NavegarAPestanaConCircuitoAsync(cut, navegacion, pestana, filtroDeLaUrl);
         await Task.Delay(VistaRecordadaDeListado.Rebote + TimeSpan.FromSeconds(1));
         await cut.InvokeAsync(() => { });
 
         mediador.Enviadas.OfType<GuardarVistaRecordadaCommand>().Should().BeEmpty("la redirección no es un cambio del usuario");
-        mediador.Enviadas.OfType<OlvidarVistaRecordadaCommand>().Should().BeEmpty();
+        mediador.Enviadas.OfType<OlvidarVistaRecordadaCommand>().Should().BeEmpty("el aviso tardío del enlace no borra lo recordado");
     }
 
     [Fact]
     public async Task Un_cambio_de_filtro_del_usuario_tras_la_redireccion_si_se_guarda_como_vista_recordada()
     {
-        var (cut, mediador) = Renderizar(ConVistaRecordada(null));
-        EsperarListado(cut, mediador);
-        var navegacion = Services.GetRequiredService<NavigationManager>();
-        await cut.InvokeAsync(() => navegacion.NavigateTo("documentos?pestana=sugerencias"));
-        cut.WaitForAssertion(() => UrlDeLaPagina().Should().Contain("VenceEn=90").And.NotContain("pestana"));
+        var (cut, mediador, navegacion) = await MontarConVistaRecordadaYCircuitoAsync();
+        await NavegarAPestanaConCircuitoAsync(cut, navegacion, "sugerencias", "VenceEn=90");
 
+        navegacion.Retener = false;
         await cut.InvokeAsync(() => navegacion.NavigateTo("documentos?VenceEn=30&orden=vencimiento"));
 
         await Task.Delay(VistaRecordadaDeListado.Rebote + TimeSpan.FromSeconds(1));
         await cut.InvokeAsync(() => { });
         mediador.Enviadas.OfType<GuardarVistaRecordadaCommand>().Should().ContainSingle()
             .Which.ValoresJson.Should().Contain("30");
+        mediador.Enviadas.OfType<OlvidarVistaRecordadaCommand>().Should().BeEmpty();
     }
+
+    /// <summary>
+    /// Entrada en frío con «?pestana=»: la página traduce el enlace al cargar, quizá antes de que la vista recordada esté
+    /// montada, y el aviso de la traducción llega después. Tampoco escribe, ni restaura lo recordado (la URL traía consulta).
+    /// </summary>
+    [Theory]
+    [InlineData("sugerencias", "VenceEn=90")]
+    [InlineData("plataforma", "agrupar=plataforma")]
+    public async Task Una_entrada_en_frio_con_pestana_ni_guarda_ni_olvida_la_vista_recordada(string pestana, string filtroDeLaUrl)
+    {
+        var navegacion = new NavegacionRetenida($"http://localhost/documentos?pestana={pestana}") { Retener = true };
+        Services.AddSingleton<NavigationManager>(navegacion);
+        var (cut, mediador) = Renderizar(ConVistaRecordada(VistaRecordadaDelUsuario), url: $"documentos?pestana={pestana}");
+        cut.WaitForAssertion(() => navegacion.Destinos[^1].Should().Contain(filtroDeLaUrl).And.NotContain("pestana"));
+        await cut.InvokeAsync(() => navegacion.Confirmar(navegacion.Destinos[^1]));
+        EsperarListado(cut, mediador);
+
+        await Task.Delay(VistaRecordadaDeListado.Rebote + TimeSpan.FromSeconds(1));
+        await cut.InvokeAsync(() => { });
+
+        mediador.Enviadas.OfType<GuardarVistaRecordadaCommand>().Should().BeEmpty();
+        mediador.Enviadas.OfType<OlvidarVistaRecordadaCommand>().Should().BeEmpty();
+        navegacion.Uri.Should().NotContain("Estado=Vencido", "con consulta en la URL no se restaura");
+    }
+
     [Theory]
     [InlineData("listado")]
     [InlineData("estado")]

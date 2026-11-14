@@ -318,7 +318,7 @@ public partial class MiTrabajoGen2Tests : BunitContext
 
         var dexter = Formulario(FilaDe(cut, "Rechazado por la plataforma"));
         dexter.Tenant.Should().Be(TenantDexter.ToString(), "la fila de otro Tenant no puede heredar el Tenant de la primera tarjeta");
-        dexter.ReturnUrl.Should().Be($"/documentos?pestana=plataforma&{Vuelta}");
+        dexter.ReturnUrl.Should().Be($"/documentos?agrupar=plataforma&{Vuelta}");
     }
 
     // ---- «Pedir» lo que falta (decisión 2026-10-04) ----

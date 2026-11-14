@@ -61,6 +61,13 @@ namespace CaeManager.Web.Components.DesignSystem;
 /// </para>
 ///
 /// <para>
+/// LO QUE LA PÁGINA NAVEGA POR SU CUENTA no es del usuario: la página lo anuncia ANTES de navegar
+/// (<see cref="ConexionVistaRecordada.AnunciarNavegacionDeLaPagina"/>, p. ej. Documentos al traducir un enlace antiguo con
+/// «?pestana=»), lo programado se cancela y los avisos de su origen y de su destino —que con circuito llegan después, de
+/// ida y vuelta— no escriben ni olvidan, ni mueven lo recordado.
+/// </para>
+///
+/// <para>
 /// AL SALIR con una escritura pendiente: si se sale navegando a otra pantalla, el aviso de cambio
 /// de dirección llega con la pieza aún viva y la escritura se hace en ese momento, sin esperar al
 /// rebote. Si la pieza se retira sin ese aviso, el temporizador se cancela —no queda ninguna tarea
@@ -89,6 +96,12 @@ public sealed class VistaRecordadaDeListado : ComponentBase, IDisposable
 {
     /// <summary>Tiempo sin cambios de vista tras el que se escribe.</summary>
     public static readonly TimeSpan Rebote = TimeSpan.FromSeconds(2);
+
+    /// <summary>
+    /// Tiempo tras el que una navegación anunciada por la página (<see cref="ConexionVistaRecordada.AnunciarNavegacionDeLaPagina"/>)
+    /// cuyo aviso no llegó deja de descartar avisos: la ida y vuelta con el navegador tarda mucho menos.
+    /// </summary>
+    public static readonly TimeSpan CaducidadDeLaNavegacionDeLaPagina = TimeSpan.FromSeconds(10);
 
     /// <summary>La vista de inicio serializada: no hay nada que recordar.</summary>
     private const string SinVista = "{}";
@@ -184,6 +197,12 @@ public sealed class VistaRecordadaDeListado : ComponentBase, IDisposable
     {
         Conexion.Conectar(this);
         _ruta = RutaDe(Navegacion.Uri);
+
+        // La página pudo anunciar su navegación antes de que hubiera pieza (entrada en frío): la caducidad cuenta desde aquí,
+        // y si la URL ya es el destino su aviso no va a llegar a esta pieza.
+        SellarNavegacionDeLaPagina();
+        if (Conexion.NavegacionDeLaPagina is { } anunciada && MismaDireccion(Navegacion.Uri, anunciada.Destino))
+            Conexion.NavegacionDeLaPagina = null;
 
         // La barra se pintó antes que esta pieza: si la URL ya trae una vista propia, se repinta.
         ActualizarDiferencia(VistaDeLaUrl());
@@ -309,9 +328,14 @@ public sealed class VistaRecordadaDeListado : ComponentBase, IDisposable
             return;
         }
 
-        _huboCambios = true;
         var vista = VistaDeListado.DeLaUrl(new Uri(e.Location), ParametrosDeVista);
         ActualizarDiferencia(vista);
+
+        // La página traduce un enlace (lo anunció antes de navegar): ni ese aviso ni el del enlace son del usuario.
+        if (EsDeLaNavegacionDeLaPagina(e.Location))
+            return;
+
+        _huboCambios = true;
 
         if (_restableciendo is { } esperada)
         {
@@ -378,20 +402,60 @@ public sealed class VistaRecordadaDeListado : ComponentBase, IDisposable
     }
 
     /// <summary>
-    /// La página acaba de reescribir la URL por su cuenta (p. ej. un enlace antiguo con «?pestana=» que ella traduce a
-    /// filtros estando ya dentro de la pantalla): eso no es un cambio del usuario y no se escribe. Se llama DESPUÉS de
-    /// navegar: el aviso de cambio de dirección de esa navegación es síncrono y ya pudo programar una escritura, que aquí se
-    /// deja sin efecto. Lo recordado no cambia (sigue siendo lo último que se escribió): el siguiente cambio del usuario se
-    /// compara con ello y sí escribe.
+    /// La página anunció que va a reescribir la URL por su cuenta (<see cref="ConexionVistaRecordada.AnunciarNavegacionDeLaPagina"/>):
+    /// lo programado se cancela ya —pudo programarlo el aviso del enlace que la provocó, si llegó antes que la página— y
+    /// empieza a contar la caducidad. Los avisos de esa navegación los descarta <see cref="EsDeLaNavegacionDeLaPagina"/>.
     /// </summary>
-    internal void OmitirLaNavegacionDeLaPagina()
+    internal void AlAnunciarNavegacionDeLaPagina()
     {
         if (_desechado)
             return;
 
+        SellarNavegacionDeLaPagina();
         InvalidarEscrituraProgramada();
         _pendiente = null;
     }
+
+    private void SellarNavegacionDeLaPagina()
+    {
+        if (Conexion.NavegacionDeLaPagina is { Desde: null } anunciada)
+            anunciada.Desde = Tiempo.GetUtcNow();
+    }
+
+    /// <summary>
+    /// El aviso es de la navegación que la página anunció: el de su destino (que consume la marca) o el de su origen, que
+    /// con circuito puede llegar después del anuncio. Ni uno ni otro es un cambio del usuario: no se escribe, no se olvida y
+    /// lo recordado no cambia, así que el siguiente cambio del usuario se compara con lo último escrito y sí escribe.
+    /// Cualquier otro cambio de dirección deja caer la marca (la navegación anunciada no llegará ya como tal), y una marca
+    /// más vieja que <see cref="CaducidadDeLaNavegacionDeLaPagina"/> tampoco descarta nada.
+    /// </summary>
+    private bool EsDeLaNavegacionDeLaPagina(string direccion)
+    {
+        if (Conexion.NavegacionDeLaPagina is not { } anunciada)
+            return false;
+
+        if (anunciada.Desde is { } desde && Tiempo.GetUtcNow() - desde > CaducidadDeLaNavegacionDeLaPagina)
+        {
+            Conexion.NavegacionDeLaPagina = null;
+            return false;
+        }
+
+        if (MismaDireccion(direccion, anunciada.Destino))
+        {
+            Conexion.NavegacionDeLaPagina = null;
+            return true;
+        }
+
+        if (MismaDireccion(direccion, anunciada.Origen))
+            return true;
+
+        Conexion.NavegacionDeLaPagina = null;
+        return false;
+    }
+
+    private bool MismaDireccion(string una, string otra) =>
+        Uri.Compare(Navegacion.ToAbsoluteUri(una), Navegacion.ToAbsoluteUri(otra), UriComponents.HttpRequestUrl,
+            UriFormat.SafeUnescaped, StringComparison.OrdinalIgnoreCase) == 0;
 
     /// <summary>La URL ya muestra la vista de inicio: lo recordado pasa a ser esa vista, sin esperar al rebote.</summary>
     private async Task CompletarRestablecerAsync()

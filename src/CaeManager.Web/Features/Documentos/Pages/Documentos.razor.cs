@@ -290,10 +290,11 @@ public partial class Documentos : CaeManager.Web.Components.PaginaInteractiva, I
                 parametros[nameof(VenceEn)] = resuelta.VenceEn;
             if (resuelta.Orden is not null && string.IsNullOrWhiteSpace(OrdenInicial))
                 parametros["orden"] = resuelta.Orden;
-            NavigationManager.ActualizarFiltrosEnUrl(parametros);
             // La traducción del enlace antiguo la hace la página, no el usuario: la vista recordada no la toma por un cambio
-            // suyo («agrupar por Plataforma CAE» o «Vence en 90 días» no se guardan por abrir una pestaña de main).
-            _vistaRecordada.OmitirLaNavegacionDeLaPagina();
+            // suyo («agrupar por Plataforma CAE» o «Vence en 90 días» no se guardan, ni se olvida lo recordado, por abrir una
+            // pestaña de main). Se anuncia ANTES de navegar: con circuito los avisos del enlace y del destino llegan después.
+            _vistaRecordada.AnunciarNavegacionDeLaPagina(NavigationManager.Uri, NavigationManager.DestinoDeFiltrosEnUrl(parametros));
+            NavigationManager.ActualizarFiltrosEnUrl(parametros);
         }
 
         return false;

@@ -40,7 +40,8 @@ public static class AccionesBandeja
         TipoItemBandeja.VisitaUrgente => item.VisitaId is { } visitaId ? $"/visitas/{visitaId}" : "/visitas",
         TipoItemBandeja.DeteccionPendiente => $"/empresas/{item.EmpresaId}/deteccion-trabajadores",
         // La acción real (MarcarAcreditacionSubidaCommand) vive en la vista de
-        // Plataformas CAE de /documentos (`?pestana=plataforma`, un Id que se conserva tras retirar la barra, PR8), no en DocumentoWorkspacePanel (el
+        // Plataformas CAE de /documentos (`?pestana=plataforma&acreditacionId=`, un Id que se conserva tras retirar la barra, PR8; sin la
+        // acreditación concreta, el listado agrupado por Plataforma CAE, enlazado directo), no en DocumentoWorkspacePanel (el
         // fallback genérico de abajo) — ese panel no tiene ningún control de
         // acreditación por plataforma. Con la acreditación concreta (P0-9b),
         // esa vista abre solo su plataforma y resalta su fila: «Corregir en
@@ -49,7 +50,7 @@ public static class AccionesBandeja
         TipoItemBandeja.PlataformaPendiente or TipoItemBandeja.PlataformaRechazada or TipoItemBandeja.EnPlataformaSeguimiento
             or TipoItemBandeja.PlataformaVencida => item.AcreditacionId is { } acreditacionId
                 ? $"/documentos?pestana=plataforma&acreditacionId={acreditacionId}"
-                : "/documentos?pestana=plataforma",
+                : Documentos.RedireccionDePestanas.RutaPlataformaCae,
         _ => item.DocumentoId is { } documentoId
             ? $"/documentos?documentoId={documentoId}"
             : $"/documentos?trabajadorId={item.TrabajadorId}&tipoDocumentoId={item.TipoDocumentoId}"

@@ -84,7 +84,7 @@ public class LogoPlataformaTests : BunitContext
 
         var fila = cut.Find(".fila-plataforma");
         fila.TagName.Should().Be("A");
-        fila.GetAttribute("href").Should().Be("/documentos?pestana=plataforma");
+        fila.GetAttribute("href").Should().Be("/documentos?agrupar=plataforma");
     }
 
     [Fact]

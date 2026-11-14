@@ -2,6 +2,7 @@ using System.Security.Claims;
 using CaeManager.Application.VistaDemo;
 using CaeManager.Domain.Tenants;
 using CaeManager.Infrastructure.Identity;
+using CaeManager.Web.Features.Documentos;
 using Microsoft.Extensions.Localization;
 
 namespace CaeManager.Web.Components.Layout;
@@ -356,6 +357,9 @@ public static class CatalogoMenuLateral
     /// Configuración, las entradas que tienen autoridad propia distinta del rol Administrador del hub
     /// (organización, plataforma, orden del menú y accesos a documentos sensibles).
     /// </summary>
+    /// <summary>Las rutas del catálogo van sin la barra inicial (<c>documentos?…</c>).</summary>
+    private static string RutaSinBarra(string ruta) => ruta.TrimStart('/');
+
     public static IReadOnlyList<SubopcionMenuLateral> Subopciones { get; } =
     [
         // Configuración: el hub resuelve /configuracion/{id}; los ids y las claves de rótulo son los de
@@ -377,13 +381,15 @@ public static class CatalogoMenuLateral
         new("config-automatizaciones", "configuracion", "configuracion/automatizaciones", "EntradaAutomatizacionesNombre", FuenteRotuloSubopcion.TextosConfiguracion),
 
         // Ids de ?pestana= de Documentos (Documentos.IdDePestanaDeUrl), que desde la PR8 del lienzo «listado sin
-        // pestañas» ya no tienen barra: cada uno redirige a su sustituto (RedireccionDePestanas) con paridad de roles,
-        // así que estas entradas de la paleta siguen llegando sin repuntarlas. «Estado» es la propia página.
-        new("documentos-plataformas", "documentos", "documentos?pestana=plataforma", "MenuSubDocumentosPlataformas", FuenteRotuloSubopcion.TextosComunes,
+        // pestañas» ya no tienen barra: cada uno redirige a su sustituto (RedireccionDePestanas) con paridad de roles.
+        // Los que se sustituyen por el propio listado con filtros (Plataformas CAE y Preventivo) se enlazan directos a ese
+        // destino, de la misma tabla: desde dentro de /documentos la traducción del enlace sería una navegación más de la
+        // página, que la vista recordada no debe tomar por un cambio del usuario. «Estado» es la propia página.
+        new("documentos-plataformas", "documentos", RutaSinBarra(RedireccionDePestanas.RutaPlataformaCae), "MenuSubDocumentosPlataformas", FuenteRotuloSubopcion.TextosComunes,
             Condicion: c => c.TieneAlgunRol(RolesDeGestionDocumental)),
         new("documentos-reclamaciones", "documentos", "documentos?pestana=reclamaciones", "MenuSubDocumentosReclamaciones", FuenteRotuloSubopcion.TextosComunes,
             Condicion: c => c.TieneAlgunRol(RolesDeGestionDocumental)),
-        new("documentos-preventivo", "documentos", "documentos?pestana=sugerencias", "MenuSubDocumentosPreventivo", FuenteRotuloSubopcion.TextosComunes),
+        new("documentos-preventivo", "documentos", RutaSinBarra(RedireccionDePestanas.RutaPreventivo), "MenuSubDocumentosPreventivo", FuenteRotuloSubopcion.TextosComunes),
         new("documentos-revision-ia", "documentos", "documentos?pestana=revision-ia", "MenuSubDocumentosRevisionIa", FuenteRotuloSubopcion.TextosComunes,
             Condicion: c => c.TieneAlgunRol(RolesDeGestionDocumental)),
         // Plantillas e Incidencias ya son entradas del menú (id «plantillas» e «incidencias»): la lupa las encuentra por su enlace

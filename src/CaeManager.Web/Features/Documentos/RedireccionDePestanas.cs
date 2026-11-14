@@ -53,6 +53,37 @@ public static class RedireccionDePestanas
     public const string VenceEnPreventivo = "90";
     public const string OrdenPreventivo = "vencimiento";
 
+    /// <summary>
+    /// Destino directo de <c>plataforma</c> sin acreditación: el listado agrupado por Plataforma CAE. Lo enlazan la paleta,
+    /// Inicio y Mi trabajo en vez de <c>?pestana=plataforma</c>, para que la página no tenga que traducir el enlace (esa
+    /// traducción es una navegación más, y la vista recordada no debe tomarla por un cambio del usuario).
+    /// </summary>
+    public static readonly string RutaPlataformaCae = RutaDelListado("plataforma");
+
+    /// <summary>Destino directo de <c>sugerencias</c> (Preventivo): el listado con «Vence en 90 días» por vencimiento.</summary>
+    public static readonly string RutaPreventivo = RutaDelListado("sugerencias");
+
+    /// <summary>
+    /// La URL de <c>/documentos</c> con los filtros que <see cref="Resolver"/> da a un Id cuyo sustituto es el listado, con la
+    /// grafía con la que la página los escribe al traducir el enlace: una sola tabla para la redirección y para los enlaces.
+    /// </summary>
+    private static string RutaDelListado(string idDePestana)
+    {
+        var resuelta = Resolver(idDePestana, conAcreditacionId: false, gestionaDocumentos: true);
+        if (resuelta.Vista != VistaDePestana.Listado)
+            throw new InvalidOperationException($"La pestaña «{idDePestana}» no se sustituye por el listado.");
+
+        var parametros = new List<string>();
+        if (resuelta.Agrupar is { } agrupar)
+            parametros.Add($"{CaeManager.Web.Components.DesignSystem.AgrupacionDeLista.Parametro}={agrupar}");
+        if (resuelta.VenceEn is { } venceEn)
+            parametros.Add($"{nameof(Pages.Documentos.VenceEn)}={venceEn}");
+        if (resuelta.Orden is { } orden)
+            parametros.Add($"orden={orden}");
+
+        return parametros.Count == 0 ? "/documentos" : $"/documentos?{string.Join('&', parametros)}";
+    }
+
     /// <param name="idDePestana">Id canónico (<c>Documentos.IdDePestanaDeUrl</c>), o null si no hay o no es válido.</param>
     /// <param name="conAcreditacionId">El enlace trae <c>acreditacionId</c>.</param>
     /// <param name="gestionaDocumentos">null mientras no se ha leído el rol.</param>
