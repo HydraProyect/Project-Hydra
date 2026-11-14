@@ -46,7 +46,7 @@ public class ProductoContratadoTests
         producto.Finalizar(Desde.AddMonths(1), Ahora);
 
         producto.Estado.Should().Be(EstadoProductoContratado.Finalizado);
-        producto.EstaVigenteEn(Desde.AddMonths(1)).Should().BeFalse("finalizada, la línea Inbound deja de abrir la lectura entre Tenants");
+        producto.EstaVigenteEn(Desde.AddMonths(1)).Should().BeFalse("finalizada, la línea Inbound deja de cumplir el gate DN-7 de la lectura entre Tenants");
     }
 
     [Fact]
