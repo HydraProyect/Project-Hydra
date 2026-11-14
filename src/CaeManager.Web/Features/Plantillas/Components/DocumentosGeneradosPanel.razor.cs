@@ -203,6 +203,7 @@ public partial class DocumentosGeneradosPanel : ComponentBase, IDisposable
         // La clave de la carga se captura ANTES del await, con los mismos valores que la consulta: leída después, un filtro
         // cambiado mientras la primera carga está en vuelo daría por buena una respuesta de otro filtro.
         var clave = (Plantilla: _plantillaFiltro, Trabajador: _trabajadorFiltro);
+        var cargada = false;
 
         try
         {
@@ -212,6 +213,7 @@ public partial class DocumentosGeneradosPanel : ComponentBase, IDisposable
 
             _documentosGenerados = generados;
             _idEnfocado = null;
+            cargada = true;
         }
         catch (Exception) when (!EsVigente(carga))
         {
@@ -227,6 +229,12 @@ public partial class DocumentosGeneradosPanel : ComponentBase, IDisposable
             if (EsVigente(carga))
                 _cargando = false;
         }
+
+        // Toda carga con éxito comunica los recuentos a la barra por este mismo camino, también la de «Reintentar»
+        // (que llama a CargarAsync directamente): sin esto, un reintento que acierta pintaba filas con la franja
+        // todavía en cero o con los recuentos anteriores. NotificarDatosAsync solo avisa si la firma cambió.
+        if (cargada)
+            await NotificarDatosAsync();
     }
 
     private Task CambiarPlantillaFiltroAsync(string valor)

@@ -1,4 +1,6 @@
+using System.Web;
 using Bunit;
+using CaeManager.Application.Configuracion.Queries;
 using CaeManager.Application.Centros.Queries.ObtenerCentrosParaSelector;
 using CaeManager.Application.Clientes.Queries.ObtenerClientesParaSelector;
 using CaeManager.Application.Plantillas.Queries.ObtenerDocumentosGenerados;
@@ -40,6 +42,7 @@ public class PlantillasFiltrosTests : BunitContext
         public List<PlantillaDocumentoListaDto> Plantillas { get; } = [];
         public List<DocumentoGeneradoListaDto> Generados { get; } = [];
         public List<ObtenerDocumentosGeneradosQuery> ConsultasGenerados { get; } = [];
+        public List<FiltroGuardadoDto> FiltrosGuardados { get; } = [];
 
         public Task<TResponse> Send<TResponse>(IRequest<TResponse> request, CancellationToken cancellationToken = default) =>
             Task.FromResult((TResponse)Responder(request));
@@ -48,6 +51,8 @@ public class PlantillasFiltrosTests : BunitContext
         {
             switch (request)
             {
+                case ObtenerFiltrosGuardadosQuery:
+                    return (IReadOnlyList<FiltroGuardadoDto>)FiltrosGuardados.ToList();
                 case ObtenerPlantillasDocumentoQuery:
                     return (IReadOnlyList<PlantillaDocumentoListaDto>)Plantillas.ToList();
                 case ObtenerCentrosParaSelectorQuery:
@@ -442,5 +447,160 @@ public class PlantillasFiltrosTests : BunitContext
         await cut.FindAll(".estado-vacio button").Single(b => b.TextContent.Trim() == "Limpiar filtros").ClickAsync(new MouseEventArgs());
 
         cut.WaitForAssertion(() => FilasGenerados(cut).Should().HaveCount(3));
+    }
+
+    // ------------------------------------------------------------------ Valores que la pastilla no ofrece
+
+    private HashSet<string?> ClavesDeLaUrl() =>
+        HttpUtility.ParseQueryString(new Uri(Services.GetRequiredService<NavigationManager>().Uri).Query).AllKeys.ToHashSet();
+
+    /// <summary>Abre «Filtros guardados» y pulsa el filtro guardado indicado.</summary>
+    private static async Task AplicarFiltroGuardadoAsync(IRenderedComponent<PaginaPlantillas> cut, string nombre)
+    {
+        await cut.FindAll(".barra-filtros-pastillas .menu-acciones-disparador-pastilla")
+            .Single(b => b.GetAttribute("aria-label") is { } etiqueta && (etiqueta == "Filtros guardados" || etiqueta.StartsWith("Filtros guardados: ", StringComparison.Ordinal)))
+            .ClickAsync(new MouseEventArgs());
+        await cut.FindAll(".barra-filtros-pastillas [role=menuitem]").Single(i => i.TextContent.Trim() == nombre).ClickAsync(new MouseEventArgs());
+    }
+
+    [Theory]
+    [InlineData("formato=HtmlCss")]
+    [InlineData("ambito=Proyecto")]
+    public void Un_valor_definido_del_enum_que_la_pastilla_no_ofrece_no_filtra_y_sale_de_la_url(string consulta)
+    {
+        var cut = Renderizar(Catalogo(), $"plantillas?{consulta}");
+
+        cut.WaitForAssertion(() => Nombres(cut).Should().HaveCount(4, "HtmlCss y Proyecto son valores del enum, pero la pastilla no los ofrece"));
+        ClavesDeLaUrl().Should().NotContain(consulta.Split('=')[0]);
+    }
+
+    [Fact]
+    public void Un_alcance_con_un_Guid_que_no_es_de_ningun_Centro_ni_Cliente_empresarial_no_filtra()
+    {
+        var cut = Renderizar(Catalogo(), $"plantillas?alcance=centro:{Guid.NewGuid()}");
+
+        cut.WaitForAssertion(() => Nombres(cut).Should().HaveCount(4));
+        ClavesDeLaUrl().Should().NotContain("alcance");
+    }
+
+    [Fact]
+    public void Un_alcance_que_la_pastilla_si_ofrece_sigue_filtrando()
+    {
+        Nombres(Renderizar(Catalogo(), $"plantillas?alcance=centro:{Centro}")).Should().Equal(["Ficha de vehículo"]);
+    }
+
+    [Fact]
+    public async Task Un_filtro_guardado_obsoleto_del_Catalogo_quita_lo_que_la_pastilla_ya_no_ofrece()
+    {
+        var mediador = Catalogo();
+        mediador.FiltrosGuardados.Add(new FiltroGuardadoDto(Guid.NewGuid(), "Antiguo",
+            $"{{\"formato\":\"HtmlCss\",\"ambito\":\"Proyecto\",\"alcance\":\"cliente:{Guid.NewGuid()}\",\"estado\":\"Borrador\"}}", DateTime.UtcNow));
+        var cut = Renderizar(mediador);
+
+        await AplicarFiltroGuardadoAsync(cut, "Antiguo");
+
+        cut.WaitForAssertion(() => Nombres(cut).Should().Equal(["Anexo II"], "solo sobrevive el estado, que sí es una opción"));
+        ClavesDeLaUrl().Should().BeEquivalentTo(["estado"]);
+    }
+
+    [Fact]
+    public void Una_plantilla_inexistente_en_la_url_de_Generados_no_filtra_y_sale_de_la_url()
+    {
+        var mediador = CatalogoConGenerados();
+
+        var cut = Renderizar(mediador, $"plantillas?Pestana=generados&plantilla={Guid.NewGuid()}");
+
+        cut.WaitForAssertion(() => FilasGenerados(cut).Should().HaveCount(3));
+        ClavesDeLaUrl().Should().NotContain("plantilla");
+        mediador.ConsultasGenerados.Last().PlantillaDocumentoId.Should().BeNull("la lista se vuelve a pedir sin el filtro descartado");
+    }
+
+    [Fact]
+    public void Un_trabajador_inexistente_en_la_url_de_Generados_no_filtra_y_sale_de_la_url()
+    {
+        var mediador = CatalogoConGenerados();
+
+        var cut = Renderizar(mediador, $"plantillas?Pestana=generados&trabajador={Guid.NewGuid()}");
+
+        cut.WaitForAssertion(() => FilasGenerados(cut).Should().HaveCount(3));
+        ClavesDeLaUrl().Should().NotContain("trabajador");
+        mediador.ConsultasGenerados.Last().TrabajadorId.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task Un_filtro_guardado_obsoleto_de_Generados_quita_la_plantilla_y_el_trabajador_que_ya_no_existen()
+    {
+        var mediador = CatalogoConGenerados();
+        var anexo = mediador.Plantillas[1];
+        mediador.FiltrosGuardados.Add(new FiltroGuardadoDto(Guid.NewGuid(), "Antiguo",
+            $"{{\"Pestana\":\"generados\",\"plantilla\":\"{Guid.NewGuid()}\",\"trabajador\":\"{Trabajador1}\"}}", DateTime.UtcNow));
+        mediador.FiltrosGuardados.Add(new FiltroGuardadoDto(Guid.NewGuid(), "Con plantilla borrada",
+            $"{{\"Pestana\":\"generados\",\"plantilla\":\"{anexo.Id}\",\"trabajador\":\"{Guid.NewGuid()}\"}}", DateTime.UtcNow));
+        var cut = Renderizar(mediador);
+
+        await AplicarFiltroGuardadoAsync(cut, "Antiguo");
+
+        cut.WaitForAssertion(() => FilasGenerados(cut).Should().Equal(["Entrega de EPI | Ana Pérez", "Anexo II | Ana Pérez"], "queda el Trabajador, que sí es una opción"));
+        ClavesDeLaUrl().Should().NotContain("plantilla");
+        ClavesDeLaUrl().Should().Contain("trabajador");
+
+        await AplicarFiltroGuardadoAsync(cut, "Con plantilla borrada");
+
+        cut.WaitForAssertion(() => FilasGenerados(cut).Should().Equal(["Anexo II | Ana Pérez"]));
+        ClavesDeLaUrl().Should().NotContain("trabajador");
+    }
+
+    // ------------------------------------------------------------------ Reintentar
+
+    /// <summary>Falla la primera consulta de Generados y acierta las siguientes: el camino de «Reintentar».</summary>
+    private sealed class MediatorQueFallaUnaVez(MediatorFalso interior) : IMediator
+    {
+        private int _consultasDeGenerados;
+
+        public Task<TResponse> Send<TResponse>(IRequest<TResponse> request, CancellationToken cancellationToken = default)
+        {
+            if (request is ObtenerDocumentosGeneradosQuery && Interlocked.Increment(ref _consultasDeGenerados) == 1)
+                return Task.FromException<TResponse>(new InvalidOperationException("Fallo de prueba en la primera carga."));
+
+            return interior.Send(request, cancellationToken);
+        }
+
+        public Task Send<TRequest>(TRequest request, CancellationToken cancellationToken = default) where TRequest : IRequest =>
+            Task.CompletedTask;
+
+        public Task<object?> Send(object request, CancellationToken cancellationToken = default) =>
+            Task.FromResult<object?>(null);
+
+        public IAsyncEnumerable<TResponse> CreateStream<TResponse>(IStreamRequest<TResponse> request, CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
+
+        public IAsyncEnumerable<object?> CreateStream(object request, CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
+
+        public Task Publish(object notification, CancellationToken cancellationToken = default) => Task.CompletedTask;
+
+        public Task Publish<TNotification>(TNotification notification, CancellationToken cancellationToken = default)
+            where TNotification : INotification => Task.CompletedTask;
+    }
+
+    [Fact]
+    public async Task Reintentar_tras_una_carga_fallida_de_Generados_pone_los_recuentos_de_la_franja()
+    {
+        Services.AddScoped<IMediator>(_ => new MediatorQueFallaUnaVez(CatalogoConGenerados()));
+        Services.AddLocalization();
+        Services.AddScoped<ToastService>();
+        Services.GetRequiredService<NavigationManager>().NavigateTo("plantillas?Pestana=generados");
+
+        var cut = Render<PaginaPlantillas>();
+        cut.WaitForAssertion(() => cut.Markup.Should().Contain("No pudimos cargar los documentos generados"));
+
+        await cut.FindAll(".estado-vacio button").Single(b => b.TextContent.Trim() == "Reintentar").ClickAsync(new MouseEventArgs());
+
+        cut.WaitForAssertion(() =>
+        {
+            FilasGenerados(cut).Should().HaveCount(3);
+            Recuentos(cut).Should().Contain(new KeyValuePair<string, string>("Generado", "1"))
+                .And.Contain(new KeyValuePair<string, string>("GeneradoConAvisos", "2"), "la franja cuenta lo que acaba de pintar la tabla");
+        });
     }
 }

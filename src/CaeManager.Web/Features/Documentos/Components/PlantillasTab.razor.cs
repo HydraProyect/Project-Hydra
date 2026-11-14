@@ -132,6 +132,64 @@ public partial class PlantillasTab : ComponentBase, IDisposable
         SincronizarConLaUrl();
     }
 
+    /// <summary>
+    /// El catálogo ya se cargó: desde aquí Ámbito, Alcance y Plantilla se validan contra las opciones que ofrece su pastilla.
+    /// Antes no hay opciones con las que comparar y el valor se conserva (y se valida al llegar el catálogo).
+    /// </summary>
+    private bool _plantillasCargadas;
+
+    /// <summary>El panel de Generados ya entregó los Trabajadores de su selector: desde aquí se valida el filtro de Trabajador.</summary>
+    private bool _trabajadoresRecibidos;
+
+    /// <summary>
+    /// Descarta el valor de un filtro que su pastilla no ofrece: un valor definido del enum que no es una opción
+    /// (<c>?formato=HtmlCss</c>), un Guid que no es de ninguna plantilla, Trabajador o Alcance, o uno obsoleto de un filtro
+    /// guardado o de la vista recordada. Un filtro así vaciaría la lista y la pastilla no sabría nombrarlo. Devuelve si quitó algo
+    /// (quien parte de la URL la reescribe entonces sin ese valor).
+    /// </summary>
+    private bool DepurarContraOpciones()
+    {
+        var quitado = false;
+
+        bool Quitar(string valor, IReadOnlyList<OpcionEstado> opciones) =>
+            valor.Length > 0 && !opciones.Any(o => o.Valor == valor);
+
+        if (Quitar(_formato, OpcionesFormato))
+        {
+            _formato = string.Empty;
+            quitado = true;
+        }
+
+        if (_plantillasCargadas)
+        {
+            if (Quitar(_ambito, OpcionesAmbito))
+            {
+                _ambito = string.Empty;
+                quitado = true;
+            }
+
+            if (Quitar(_alcance, OpcionesAlcance))
+            {
+                _alcance = string.Empty;
+                quitado = true;
+            }
+
+            if (Quitar(_plantillaFiltro, OpcionesPlantilla))
+            {
+                _plantillaFiltro = string.Empty;
+                quitado = true;
+            }
+        }
+
+        if (_trabajadoresRecibidos && Quitar(_trabajadorFiltro, OpcionesTrabajador))
+        {
+            _trabajadorFiltro = string.Empty;
+            quitado = true;
+        }
+
+        return quitado;
+    }
+
     protected override void OnInitialized() => Navigation.LocationChanged += AlCambiarLaUbicacion;
 
     /// <summary>
@@ -167,14 +225,16 @@ public partial class PlantillasTab : ComponentBase, IDisposable
         if (!leerVista)
             vista[ParametroPestana] = _pestanaActiva;
 
-        AplicarVista(vista);
+        // Un valor que la pastilla no ofrece se quita también de la URL, para que no vuelva con el siguiente enlace ni se recuerde.
+        if (AplicarVista(vista))
+            EscribirUrl();
     }
 
     /// <summary>
     /// La vista (de la URL o de un filtro guardado) pasa por la misma validación: lo que no es de esta pantalla o de esta
-    /// vista se quita en vez de filtrar por nada.
+    /// vista se quita en vez de filtrar por nada. Devuelve si descartó algún valor que la pastilla no ofrece.
     /// </summary>
-    private void AplicarVista(IReadOnlyDictionary<string, string?> vista)
+    private bool AplicarVista(IReadOnlyDictionary<string, string?> vista)
     {
         string Valor(string nombre) => vista.GetValueOrDefault(nombre) ?? string.Empty;
 
@@ -197,6 +257,8 @@ public partial class PlantillasTab : ComponentBase, IDisposable
             _ambito = _formato = _alcance = string.Empty;
 
         _idEnfocado = null;
+
+        return DepurarContraOpciones();
     }
 
     /// <summary>Solo vale «organizacion» o «centro:/cliente:» con un Guid; se devuelve normalizado (el Guid en su forma canónica).</summary>
@@ -413,6 +475,10 @@ public partial class PlantillasTab : ComponentBase, IDisposable
         _trabajadoresGenerados = datos.Trabajadores;
         _recuentosGenerados = datos.Recuentos;
         _totalSinEstadoGenerados = datos.TotalSinEstado;
+        _trabajadoresRecibidos = true;
+        if (DepurarContraOpciones())
+            EscribirUrl();
+
         StateHasChanged();
     }
 
@@ -494,6 +560,10 @@ public partial class PlantillasTab : ComponentBase, IDisposable
 
             _plantillas = plantillas;
             _idEnfocado = null;
+            _plantillasCargadas = true;
+            if (DepurarContraOpciones())
+                EscribirUrl();
+
             await TotalCambiado.InvokeAsync(plantillas.Count);
             await CargarNombresDelAlcanceAsync(plantillas, carga);
         }
