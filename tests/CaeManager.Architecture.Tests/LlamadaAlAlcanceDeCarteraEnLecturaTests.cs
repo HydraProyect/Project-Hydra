@@ -36,11 +36,19 @@ namespace CaeManager.Architecture.Tests;
 /// en el IL compilado (<see cref="GrafoDeLlamadasIl"/>), directa o transitivamente, una lista de Ids visibles
 /// de <see cref="IAlcanceDatosService"/> o una de sus extensiones por entidad
 /// (<c>ClienteVisibleAsync</c>, <c>ClienteOpcionalVisibleAsync</c>, <c>CentroVisibleAsync</c>…).
+/// «Llama» es <b>alcanzable</b>, no «se ejecuta»: el grafo cuenta como arista la creación de un delegado
+/// (<c>ldftn</c>/<c>ldvirtftn</c>) y el <c>ldtoken</c> de un método, así que un <c>Handle</c> que construye un
+/// delegado o una lambda con la comprobación dentro, y no la invoca nunca (o solo en una rama que no corre),
+/// figura como «llama» y no entra en la lista. Es un falso «llama» conocido y aceptado: el grafo no distingue
+/// «crea el delegado» de «lo invoca» (hacerlo exigiría seguir el flujo de datos del delegado), y la escritura
+/// comparte el grafo y el criterio. La lambda dentro de un <c>Handle</c> que sí la invoca (transacción con
+/// callback, <c>Where</c> con predicado) es el caso habitual, y por eso la arista se mantiene.
 /// </para>
 ///
 /// <para>
-/// <b>La lista.</b> <c>Congelados/Queries-sin-comprobacion-de-cartera.txt</c>, una línea por handler que no
-/// llama (<c>Característica :: Handler = 1</c>). Una Query nueva que no llama sale <c>NUEVA</c>; una que
+/// <b>La lista.</b> <c>Congelados/Queries-sin-comprobacion-de-cartera.txt</c>, una línea por <b>petición</b>
+/// cuyo handler no llama (<c>Característica :: Handler[Petición] = 1</c>; la petición figura siempre, también si
+/// la clase atiende una sola, para que cambiar la Query sin cambiar el nombre del handler se vea). Una Query nueva que no llama sale <c>NUEVA</c>; una que
 /// pierde la llamada, también; una listada que empieza a llamar, o que se borra, sale <c>OBSOLETA</c> y
 /// obliga a quitar la línea. Estar en la lista <b>no</b> es un aval: es una medida, no una clasificación
 /// (los motivos típicos de una entrada son datos del propio usuario, catálogo del Tenant, plano de Plataforma
@@ -55,7 +63,7 @@ namespace CaeManager.Architecture.Tests;
 /// todas las ramas: basta una llamada alcanzable. (2) Nada de lo que la Query envía por <see cref="IMediator"/>:
 /// el IL no dice qué handler lo recibe, así que una Query que solo compone otras figura como «no llama» y va a
 /// la lista. (3) Que la lista de roles que promete un comentario (<c>RolesQueLeen…</c>) se aplique: eso es otra
-/// guarda. (4) Nada de RLS ni del aislamiento entre Tenants: Propiedad ≠ Operación ≠ Plataforma; esto mira solo
+/// guarda. (3 bis) Que el delegado con la comprobación se invoque: ver «Cómo se mide». (4) Nada de RLS ni del aislamiento entre Tenants: Propiedad ≠ Operación ≠ Plataforma; esto mira solo
 /// el plano de Operación dentro de un Tenant. (5) Que una Query que hoy no llama sea segura por su llamador: si
 /// un componente nuevo le pasa un Id sin filtrar, esta red no lo ve. (6) Handlers fuera del ensamblado de
 /// Application: solo se buscan ahí.
@@ -99,6 +107,16 @@ public class LlamadaAlAlcanceDeCarteraEnLecturaTests
         medida.CaracteristicasQueLlaman.Should().Contain(
             new[] { "Centros", "Clientes", "Documentos", "Empresas", "Reclamaciones", "Trabajadores", "Vehiculos" },
             "son las carpetas cuyo agregado tiene cartera definida en IAlcanceDatosService; alguna de sus Queries la comprueba");
+    }
+
+    [Fact]
+    public void La_clave_de_cada_entrada_nombra_siempre_la_peticion()
+    {
+        // Sin la petición en la clave, cambiar una Query congelada por otra sin comprobación que conserve el nombre
+        // del handler y la característica pasaría inadvertido (ni NUEVA ni OBSOLETA).
+        MedidaActual.Value.NoLlaman.Should().OnlyContain(
+            u => u.Simbolo.EndsWith("]", StringComparison.Ordinal) && u.Simbolo.Contains("Handler["),
+            "la clave es Handler[Petición] aunque la clase atienda una sola petición");
     }
 
     [Fact]
@@ -188,7 +206,6 @@ public class LlamadaAlAlcanceDeCarteraEnLecturaTests
 
         foreach (var grupo in handlers.GroupBy(h => h.Handler))
         {
-            var varios = grupo.Count() > 1;
             foreach (var (handler, interfaz, peticion) in grupo)
             {
                 if (typeof(ICommandBase).IsAssignableFrom(peticion))
@@ -206,7 +223,10 @@ public class LlamadaAlAlcanceDeCarteraEnLecturaTests
                     continue;
                 }
 
-                noLlaman.Add(new Ubicacion(caracteristica, handler.Name + (varios ? $"[{peticion.Name}]" : string.Empty)));
+                // La clave nombra SIEMPRE la petición, también cuando la clase atiende una sola: si no, sustituir una
+                // Query congelada por otra sin comprobación que conserve el nombre del handler y la característica
+                // no saldría ni NUEVA ni OBSOLETA, y la lista aprobaría una Query distinta de la que se congeló.
+                noLlaman.Add(new Ubicacion(caracteristica, $"{handler.Name}[{peticion.Name}]"));
             }
         }
 

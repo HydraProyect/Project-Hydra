@@ -12,7 +12,9 @@ namespace CaeManager.Architecture.Tests.Soporte;
 /// <b>Qué cuenta como arista.</b> Toda referencia a un método en el cuerpo IL: <c>call</c>,
 /// <c>callvirt</c>, <c>newobj</c>, <c>ldftn</c>/<c>ldvirtftn</c> (lambdas y funciones locales
 /// pasadas como delegado: una comprobación dentro de una transacción con callback sigue
-/// contando) y <c>ldtoken</c> de un método. Un método <c>async</c> o iterador compila a una
+/// contando) y <c>ldtoken</c> de un método. Es una arista de <b>referencia</b>, no de ejecución: crear el
+/// delegado cuenta aunque nadie lo invoque, así que quien mida «llama» obtiene «alcanzable» (un falso
+/// «llama» posible; ver <c>LlamadaAlAlcanceDeCarteraEnLecturaTests</c>). Un método <c>async</c> o iterador compila a una
 /// máquina de estados cuyo cuerpo real es <c>MoveNext</c>; el método original solo la arranca, así
 /// que la arista hacia <c>MoveNext</c> se añade a partir de su <see cref="StateMachineAttribute"/>.
 /// </para>
