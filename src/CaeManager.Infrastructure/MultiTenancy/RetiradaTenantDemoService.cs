@@ -291,6 +291,8 @@ public static class RetiradaTenantDemoService
             // ajeno), así que el barrido genérico no las alcanza y Remove las rechazaría el sellado; sentencia directa,
             // como los filtros guardados de abajo. Las que este Tenant fijó como Operador caen en el barrido genérico.
             await dbContext.TarifasOperadorCae.IgnoreQueryFilters().Where(t => t.PropietarioTenantId == tenantId && t.TenantId != tenantId).ExecuteDeleteAsync(cancellationToken);
+            // Igual las marcas de cobro de las liquidaciones de un Operador CAE a este Tenant beneficiario.
+            await dbContext.CobrosLiquidacionOperadorCae.IgnoreQueryFilters().Where(c => c.PropietarioTenantId == tenantId && c.TenantId != tenantId).ExecuteDeleteAsync(cancellationToken);
 
             var usuarios = await dbContext.Users.Where(u => u.TenantId == tenantId).ToListAsync(cancellationToken);
             var idsUsuarios = usuarios.Select(u => u.Id).ToHashSet();

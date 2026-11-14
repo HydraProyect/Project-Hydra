@@ -80,7 +80,7 @@ public class EndpointsQueSirvenBinariosEstanCatalogadosTests
         ["src/CaeManager.Web/Features/Clientes/ClientesEndpoints.cs"] = (3, "sin Id: exportación y dos plantillas"),
         ["src/CaeManager.Web/Features/CuadroDireccion/CuadroDireccionEndpoints.cs"] = (1, "sin Id de ruta: exportación; recibe tenantId por query, sin prueba entre Tenants aquí"),
         ["src/CaeManager.Web/Features/Empresas/EmpresasEndpoints.cs"] = (2, "sin Id: exportación; con Id: paquete documental"),
-        ["src/CaeManager.Web/Features/Facturacion/FacturacionEndpoints.cs"] = (2, "sin Id de ruta: exportaciones; una recibe clienteId por query, sin prueba entre Tenants aquí"),
+        ["src/CaeManager.Web/Features/Facturacion/FacturacionEndpoints.cs"] = (3, "sin Id de ruta: exportaciones; una recibe clienteId por query, sin prueba entre Tenants aquí; la liquidación del Operador CAE la acota su consulta al Tenant de origen (CobrosLiquidacionOperadorCaeRlsTests)"),
         ["src/CaeManager.Web/Features/Gestiones/GestionesEndpoints.cs"] = (1, "sin Id: exportación"),
         ["src/CaeManager.Web/Features/Importacion/ImportacionEndpoints.cs"] = (1, "sin Id: plantilla maestra en blanco, generada en memoria"),
         ["src/CaeManager.Web/Features/Incidencias/IncidenciasEndpoints.cs"] = (1, "sin Id: exportación"),

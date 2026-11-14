@@ -96,6 +96,7 @@ public class CaeManagerDbContext(
         CaeManager.Application.EstadoMaterializado.IEstadoMaterializadoQueryContext,
         IRestauracionCambiosDeComando, IDescarteCambiosPendientes, CaeManager.Application.Dashboard.ICierresCuadroDireccion,
         CaeManager.Application.Dashboard.TarifasOperadorCae.ITarifasOperadorCaeContext,
+        CaeManager.Application.Facturacion.LiquidacionesOperadorCae.ICobrosLiquidacionOperadorCaeContext,
         CaeManager.Application.Calendario.ICalendarioLaboralQueryContext,
         CaeManager.Application.CatalogoBase.ICatalogoBaseQueryContext
 {
@@ -119,6 +120,10 @@ public class CaeManagerDbContext(
     public DbSet<CaeManager.Domain.Dashboard.TarifaOperadorCae> TarifasOperadorCae => Set<CaeManager.Domain.Dashboard.TarifaOperadorCae>();
     IQueryable<CaeManager.Domain.Dashboard.TarifaOperadorCae> CaeManager.Application.Dashboard.TarifasOperadorCae.ITarifasOperadorCaeContext.TarifasOperadorCae => TarifasOperadorCae;
     void CaeManager.Application.Dashboard.TarifasOperadorCae.ITarifasOperadorCaeContext.Agregar(CaeManager.Domain.Dashboard.TarifaOperadorCae tarifa) => TarifasOperadorCae.Add(tarifa);
+    public DbSet<CaeManager.Domain.Facturacion.CobroLiquidacionOperadorCae> CobrosLiquidacionOperadorCae => Set<CaeManager.Domain.Facturacion.CobroLiquidacionOperadorCae>();
+    IQueryable<CaeManager.Domain.Facturacion.CobroLiquidacionOperadorCae> CaeManager.Application.Facturacion.LiquidacionesOperadorCae.ICobrosLiquidacionOperadorCaeContext.CobrosLiquidacionOperadorCae => CobrosLiquidacionOperadorCae;
+    void CaeManager.Application.Facturacion.LiquidacionesOperadorCae.ICobrosLiquidacionOperadorCaeContext.Agregar(CaeManager.Domain.Facturacion.CobroLiquidacionOperadorCae cobro) => CobrosLiquidacionOperadorCae.Add(cobro);
+    Task<CaeManager.Domain.Facturacion.CobroLiquidacionOperadorCae?> CaeManager.Application.Facturacion.LiquidacionesOperadorCae.ICobrosLiquidacionOperadorCaeContext.ObtenerActualAsync(IQueryable<CaeManager.Domain.Facturacion.CobroLiquidacionOperadorCae> consulta, CancellationToken cancellationToken) => this.ObtenerActualAsync(consulta, cancellationToken);
     public DbSet<CaeManager.Domain.Dashboard.CierreMensualTenantBeneficiario> CierresMensualesTenantBeneficiario => Set<CaeManager.Domain.Dashboard.CierreMensualTenantBeneficiario>();
     IQueryable<CaeManager.Domain.Dashboard.CierreMensualTenantBeneficiario> CaeManager.Application.Dashboard.ICierresCuadroDireccion.CierresMensuales => CierresMensualesTenantBeneficiario;
     void CaeManager.Application.Dashboard.ICierresCuadroDireccion.Agregar(CaeManager.Domain.Dashboard.CierreMensualTenantBeneficiario cierre) => CierresMensualesTenantBeneficiario.Add(cierre);

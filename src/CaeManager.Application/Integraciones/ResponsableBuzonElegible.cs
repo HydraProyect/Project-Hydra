@@ -71,11 +71,34 @@ public class ResponsableBuzonElegible(
 
     /// <returns><c>null</c> si puede atenderlo; si no, por qué.</returns>
     public async Task<MotivoResponsableNoElegible?> EvaluarAsync(
-        Guid usuarioId, ConexionIntegracion buzon, CancellationToken cancellationToken)
+        Guid usuarioId, ConexionIntegracion buzon, CancellationToken cancellationToken) =>
+        (await EvaluarAsync(usuarioId, [buzon], cancellationToken))[buzon.Id];
+
+    /// <summary>
+    /// La misma regla para varios buzones a la vez: la cuenta, su acceso y su alcance sobre cada Cliente empresarial se
+    /// leen una sola vez, no una por buzón. Es lo que usa el selector de Responsable, que pregunta por buzones × cuentas.
+    /// </summary>
+    /// <returns>Por buzón (su Id), <c>null</c> si puede atenderlo; si no, por qué.</returns>
+    public async Task<IReadOnlyDictionary<Guid, MotivoResponsableNoElegible?>> EvaluarAsync(
+        Guid usuarioId, IReadOnlyCollection<ConexionIntegracion> buzones, CancellationToken cancellationToken)
     {
+        var resultado = new Dictionary<Guid, MotivoResponsableNoElegible?>();
+        void Todos(MotivoResponsableNoElegible? motivo)
+        {
+            foreach (var buzon in buzones) resultado[buzon.Id] = motivo;
+        }
+
         var destino = await directorioDestinos.ObtenerAsync(usuarioId, cancellationToken);
-        if (destino is null) return MotivoResponsableNoElegible.NoAlcanzable;
-        if (!destino.Activa) return MotivoResponsableNoElegible.Desactivado;
+        if (destino is null)
+        {
+            Todos(MotivoResponsableNoElegible.NoAlcanzable);
+            return resultado;
+        }
+        if (!destino.Activa)
+        {
+            Todos(MotivoResponsableNoElegible.Desactivado);
+            return resultado;
+        }
 
         var ahora = DateTime.UtcNow;
         var acceso = await ResolverAccesoAsync(usuarioId, destino, ahora, cancellationToken);
@@ -83,19 +106,32 @@ public class ResponsableBuzonElegible(
         switch (acceso.Rol)
         {
             case RolAdministrador or RolDireccionCae:
-                return null;
+                Todos(null);
+                return resultado;
             case RolCoordinadorCae or RolGestorCae:
                 break;
             default:
-                return MotivoResponsableNoElegible.RolSinGestion;
+                Todos(MotivoResponsableNoElegible.RolSinGestion);
+                return resultado;
         }
 
-        if (buzon.ClienteId is not { } clienteEmpresarial)
-            return null;
+        var alcancePorCliente = new Dictionary<Guid, bool>();
+        foreach (var buzon in buzones)
+        {
+            if (buzon.ClienteId is not { } clienteEmpresarial)
+            {
+                resultado[buzon.Id] = null;
+                continue;
+            }
 
-        return await AlcanzaAsync(usuarioId, destino, acceso, clienteEmpresarial, ahora, cancellationToken)
-            ? null
-            : MotivoResponsableNoElegible.SinCarteraSobreLaEmpresa;
+            if (!alcancePorCliente.TryGetValue(clienteEmpresarial, out var alcanza))
+                alcancePorCliente[clienteEmpresarial] = alcanza =
+                    await AlcanzaAsync(usuarioId, destino, acceso, clienteEmpresarial, ahora, cancellationToken);
+
+            resultado[buzon.Id] = alcanza ? null : MotivoResponsableNoElegible.SinCarteraSobreLaEmpresa;
+        }
+
+        return resultado;
     }
 
     /// <summary>El rol con el que la cuenta entraría en el Tenant activo, y si entraría por una operación entera.</summary>

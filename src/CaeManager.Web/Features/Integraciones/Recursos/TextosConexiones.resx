@@ -57,6 +57,12 @@
   <data name="EnlaceDiagnostico" xml:space="preserve">
     <value>Para investigar una conexión en concreto (carpetas, mensajes en Graph que aún no llegaron por webhook), usa el</value>
   </data>
+  <data name="EnlaceBuzones" xml:space="preserve">
+    <value>Para cambiar el responsable de un buzón o su acuse automático, ve a</value>
+  </data>
+  <data name="EnlaceBuzonesVinculo" xml:space="preserve">
+    <value>Buzones de correo</value>
+  </data>
   <data name="EnlaceDiagnosticoVinculo" xml:space="preserve">
     <value>explorador técnico del buzón (diagnóstico)</value>
   </data>

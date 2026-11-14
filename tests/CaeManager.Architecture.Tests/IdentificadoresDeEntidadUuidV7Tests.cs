@@ -83,6 +83,7 @@ public class IdentificadoresDeEntidadUuidV7Tests
         // Token de concurrencia Version (IVersionable) y quien lo renueva.
         ["src/CaeManager.Domain/AsistenteIa/TareaAsistente.cs"] = 1,
         ["src/CaeManager.Domain/Empresas/PlataformaCaeClienteEmpresarial.cs"] = 1,
+        ["src/CaeManager.Domain/Facturacion/CobroLiquidacionOperadorCae.cs"] = 1,
         ["src/CaeManager.Domain/Common/EntidadBase.cs"] = 2,
         ["src/CaeManager.Domain/Integraciones/CredencialIntegracion.cs"] = 1,
         ["src/CaeManager.Domain/Operaciones/AsignacionResponsabilidad.cs"] = 1,

@@ -102,15 +102,15 @@ public class ConexionesGen2Tests : BunitContext
         public Task Publish<TNotification>(TNotification notification, CancellationToken cancellationToken = default) where TNotification : INotification => Task.CompletedTask;
     }
 
-    private sealed class TenantActualFalso : ITenantActual { public Guid? TenantId => null; }
-    private sealed class ContextoTenantsFalso : ITenantsQueryContext
+    internal sealed class TenantActualFalso : ITenantActual { public Guid? TenantId => null; }
+    internal sealed class ContextoTenantsFalso : ITenantsQueryContext
     {
         public IQueryable<Tenant> Tenants => throw new NotSupportedException();
         public IQueryable<DelegacionTenant> DelegacionesTenant => throw new NotSupportedException();
         public IQueryable<AsignacionOperadorDelegado> AsignacionesOperadorDelegado => throw new NotSupportedException();
         public IQueryable<RegistroActividadSoporte> RegistrosActividadSoporte => throw new NotSupportedException();
     }
-    private sealed class AlmacenUsuariosFalso : IUserStore<ApplicationUser>
+    internal sealed class AlmacenUsuariosFalso : IUserStore<ApplicationUser>
     {
         public void Dispose() { }
         public Task<IdentityResult> CreateAsync(ApplicationUser user, CancellationToken token) => throw new NotSupportedException();

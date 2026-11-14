@@ -369,6 +369,8 @@ public class RetiradaTenantDemoServiceTests
         var vistaEnTenantRetiradoId = Guid.NewGuid();
         var tarifaSobreRetiradoId = Guid.NewGuid();
         var tarifaDeControlId = Guid.NewGuid();
+        var cobroSobreRetiradoId = Guid.NewGuid();
+        var cobroDeControlId = Guid.NewGuid();
         await using (var contextoSiembraFiltro = CrearContextoBootstrap(arnes))
         {
             var gestorCaeId = (await contextoSiembraFiltro.Users.IgnoreQueryFilters()
@@ -412,6 +414,17 @@ public class RetiradaTenantDemoServiceTests
             (await contextoSiembraFiltro.TarifasOperadorCae.IgnoreQueryFilters()
                     .CountAsync(t => t.Id == tarifaSobreRetiradoId || t.Id == tarifaDeControlId))
                 .Should().Be(2, "control del instrumento: las dos tarifas existen antes de la retirada");
+
+            // Igual con las marcas de cobro de la liquidación que ese Operador CAE emitió al Tenant que se retira.
+            await contextoSiembraFiltro.Database.ExecuteSqlInterpolatedAsync(
+                $"""
+                 INSERT INTO "CobrosLiquidacionOperadorCae" ("Id", "PropietarioTenantId", "Anyo", "Mes", "Estado", "ReferenciaFacturaEmisor", "MarcadaPorUsuarioId", "MarcadaEnUtc", "Version", "TenantId")
+                 VALUES ({cobroSobreRetiradoId}, {tenantConsultoraId}, 2026, 10, 2, 'F-1', {gestorCaeId}, now(), {Guid.NewGuid()}, {tenantPropietarioAjenoId}),
+                        ({cobroDeControlId}, {Guid.NewGuid()}, 2026, 10, 2, 'F-2', {gestorCaeId}, now(), {Guid.NewGuid()}, {tenantPropietarioAjenoId})
+                 """);
+            (await contextoSiembraFiltro.CobrosLiquidacionOperadorCae.IgnoreQueryFilters()
+                    .CountAsync(c => c.Id == cobroSobreRetiradoId || c.Id == cobroDeControlId))
+                .Should().Be(2, "control del instrumento: las dos marcas de cobro existen antes de la retirada");
         }
 
         await using (var contextoBootstrap = CrearContextoBootstrap(arnes))
@@ -448,6 +461,10 @@ public class RetiradaTenantDemoServiceTests
             .Should().BeFalse("la tarifa que otro Operador CAE fijó al Tenant retirado se borra con él aunque la fila sea de ese Operador");
         (await contextoFinal.TarifasOperadorCae.IgnoreQueryFilters().AnyAsync(t => t.Id == tarifaDeControlId))
             .Should().BeTrue("la tarifa del mismo Operador a otro Tenant beneficiario no se toca");
+        (await contextoFinal.CobrosLiquidacionOperadorCae.IgnoreQueryFilters().AnyAsync(c => c.Id == cobroSobreRetiradoId))
+            .Should().BeFalse("la marca de cobro de la liquidación al Tenant retirado se borra con él aunque la fila sea del Operador CAE");
+        (await contextoFinal.CobrosLiquidacionOperadorCae.IgnoreQueryFilters().AnyAsync(c => c.Id == cobroDeControlId))
+            .Should().BeTrue("la marca del mismo Operador a otro Tenant beneficiario no se toca");
     }
 
     /// <summary>

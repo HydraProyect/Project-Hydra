@@ -514,6 +514,29 @@ public class DirectorioUsuariosTenant(
         }, cancellationToken);
 
     /// <summary>
+    /// Todas las cuentas visibles en el tenant activo, sea cual sea su rol, proyectadas como
+    /// <see cref="ObtenerVisiblesEnRolAsync"/>: las propias y las de un Operador CAE externo con Asignación de
+    /// Operador Delegado vigente, el mismo universo que alcanza <see cref="ObtenerAsync"/>. Alimenta un selector
+    /// cuya regla decide el servidor: filtrar aquí por el rol de Identity dejaría fuera a quien la regla acepta
+    /// por otra vía (el rol guardado de la vía heredada de un Operador CAE externo).
+    /// </summary>
+    public virtual Task<IReadOnlyList<CuentaVisibleEnRol>> ObtenerCuentasVisiblesAsync(
+        CancellationToken cancellationToken = default) =>
+        puertaAccesoDatos.EjecutarAsync<IReadOnlyList<CuentaVisibleEnRol>>(async () =>
+        {
+            if (tenantActual.TenantId is not { } tenantId) return [];
+
+            var rolesDelegados = await ObtenerRolesDeOperadoresDelegadosAsync(tenantId, cancellationToken);
+
+            var cuentas = await identidad.Users.AsNoTracking()
+                .Where(u => u.TenantId == tenantId || rolesDelegados.Keys.Contains(u.Id))
+                .Select(u => new CuentaVisibleEnRol(u.Id, u.NombreCompleto, u.Email, u.Avatar))
+                .ToListAsync(cancellationToken);
+
+            return cuentas.OrderBy(u => u.NombreCompleto).ToList();
+        }, cancellationToken);
+
+    /// <summary>
     /// Para revalidar en servidor un Id que llegó de un selector: que la UI
     /// solo ofrezca opciones válidas no impide escribir otro Guid a mano
     /// (hallazgo N-10 de Project-Hydra-Negocio/seguridad/INFORME-AUDITORIA-2.md).

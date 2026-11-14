@@ -199,6 +199,7 @@ src/CaeManager.Application/Integraciones/Queries/ObtenerConexionesIntegracion/Ob
 src/CaeManager.Application/Integraciones/Queries/ObtenerEstructuraBuzon/ObtenerEstructuraBuzonQuery.cs :: ClienteId = 1
 src/CaeManager.Application/Integraciones/Queries/ObtenerLineasWhatsApp/ObtenerLineasWhatsAppQuery.cs :: ClienteId = 4
 src/CaeManager.Application/Integraciones/Queries/ObtenerMensajesCarpeta/ObtenerMensajesCarpetaQuery.cs :: ClienteId = 1
+src/CaeManager.Application/Integraciones/Queries/ObtenerResponsablesElegiblesBuzones/ObtenerResponsablesElegiblesBuzonesQuery.cs :: ClienteId = 1
 src/CaeManager.Application/Integraciones/ResponsableBuzonElegible.cs :: ClienteId = 1
 # Procedencia de la Asignación de Operación externa (2026-11-14, sigue a la PR #2223): AmparoDeOrigen compara
 # DelegacionTenant.TenantClienteId —el Tenant propietario en el nombre legacy de la delegación, no un Cliente
