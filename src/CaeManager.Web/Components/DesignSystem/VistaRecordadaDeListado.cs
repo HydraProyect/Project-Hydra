@@ -1,4 +1,4 @@
-using CaeManager.Application.Configuracion;
+﻿using CaeManager.Application.Configuracion;
 using CaeManager.Application.Configuracion.Commands.GuardarVistaRecordada;
 using CaeManager.Application.Configuracion.Commands.OlvidarVistaRecordada;
 using CaeManager.Application.Configuracion.Queries;
@@ -198,11 +198,8 @@ public sealed class VistaRecordadaDeListado : ComponentBase, IDisposable
         Conexion.Conectar(this);
         _ruta = RutaDe(Navegacion.Uri);
 
-        // La página pudo anunciar su navegación antes de que hubiera pieza (entrada en frío): la caducidad cuenta desde aquí,
-        // y si la URL ya es el destino su aviso no va a llegar a esta pieza.
+        // La página pudo anunciar su navegación antes de que hubiera pieza (entrada en frío): la caducidad cuenta desde aquí.
         SellarNavegacionDeLaPagina();
-        if (Conexion.NavegacionDeLaPagina is { } anunciada && MismaDireccion(Navegacion.Uri, anunciada.Destino))
-            Conexion.NavegacionDeLaPagina = null;
 
         // La barra se pintó antes que esta pieza: si la URL ya trae una vista propia, se repinta.
         ActualizarDiferencia(VistaDeLaUrl());
@@ -423,8 +420,8 @@ public sealed class VistaRecordadaDeListado : ComponentBase, IDisposable
     }
 
     /// <summary>
-    /// El aviso es de la navegación que la página anunció: el de su destino (que consume la marca) o el de su origen, que
-    /// con circuito puede llegar después del anuncio. Ni uno ni otro es un cambio del usuario: no se escribe, no se olvida y
+    /// El aviso es de la navegación que la página anunció: el de su destino (uno o varios) o el de su origen, que con
+    /// circuito puede llegar después del anuncio. Ni uno ni otro es un cambio del usuario: no se escribe, no se olvida y
     /// lo recordado no cambia, así que el siguiente cambio del usuario se compara con lo último escrito y sí escribe.
     /// Cualquier otro cambio de dirección deja caer la marca (la navegación anunciada no llegará ya como tal), y una marca
     /// más vieja que <see cref="CaducidadDeLaNavegacionDeLaPagina"/> tampoco descarta nada.
@@ -440,13 +437,9 @@ public sealed class VistaRecordadaDeListado : ComponentBase, IDisposable
             return false;
         }
 
-        if (MismaDireccion(direccion, anunciada.Destino))
-        {
-            Conexion.NavegacionDeLaPagina = null;
-            return true;
-        }
-
-        if (MismaDireccion(direccion, anunciada.Origen))
+        // El destino no consume la marca: la página puede pedirlo dos veces antes de que vuelva el primero (lo traduce en la
+        // carga y en el siguiente OnParametersSet), y llegan dos avisos iguales. Un usuario no navega a la URL que ya tiene.
+        if (MismaDireccion(direccion, anunciada.Destino) || MismaDireccion(direccion, anunciada.Origen))
             return true;
 
         Conexion.NavegacionDeLaPagina = null;

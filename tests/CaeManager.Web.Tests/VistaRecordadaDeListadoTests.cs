@@ -300,13 +300,53 @@ public class VistaRecordadaDeListadoTests : BunitContext
         await VencerElReboteAsync(cut);
         Escrituras.Should().BeEmpty("barrera: la navegación de la página no escribió");
 
-        // El destino ya llegó: aunque el usuario vuelva a pedir esa misma vista, la marca se consumió y escribe.
+        // Cualquier otro cambio de dirección deja caer la marca: si el usuario vuelve después a esa misma vista, escribe.
         await cut.InvokeAsync(() => Navegacion.NavigateTo("/vehiculos?estado=Vigente"));
         await cut.InvokeAsync(() => Navegacion.NavigateTo("/vehiculos?estado=Vencido"));
         await VencerElReboteAsync(cut);
 
         Escrituras.Should().ContainSingle().Which.Should().BeOfType<GuardarVistaRecordadaCommand>()
             .Which.ValoresJson.Should().Contain("Vencido");
+    }
+
+    [Fact]
+    public async Task El_aviso_del_enlace_que_llega_despues_del_anuncio_tampoco_escribe()
+    {
+        _mediador.Recordada = """{"estado":"Vencido"}""";
+        var cut = Montar("/vehiculos");
+        await VencerElReboteAsync(cut);
+        _mediador.Enviadas.Clear();
+
+        // Con circuito la página puede ver el enlace (y anunciar) antes de que el aviso de ese enlace llegue a la pieza.
+        await cut.InvokeAsync(() =>
+        {
+            _conexion.AnunciarNavegacionDeLaPagina("/vehiculos?pestana=x", "/vehiculos?agrupar=cliente");
+            Navegacion.NavigateTo("/vehiculos?pestana=x");
+        });
+        await cut.InvokeAsync(() => Navegacion.NavigateTo("/vehiculos?agrupar=cliente", replace: true));
+        await VencerElReboteAsync(cut);
+
+        Escrituras.Should().BeEmpty("el aviso tardío del enlace no olvida lo recordado ni deja caer la marca");
+    }
+
+    [Fact]
+    public async Task Dos_navegaciones_anunciadas_al_mismo_destino_no_escriben()
+    {
+        var cut = Montar("/vehiculos");
+
+        // La página traduce el enlace al cargar y otra vez en el siguiente OnParametersSet: los dos anuncios salen antes de que
+        // vuelva el primer aviso, y luego llegan los dos avisos del mismo destino.
+        var origen = Navegacion.Uri;
+        await cut.InvokeAsync(() =>
+        {
+            _conexion.AnunciarNavegacionDeLaPagina(origen, "/vehiculos?estado=Vencido");
+            _conexion.AnunciarNavegacionDeLaPagina(origen, "/vehiculos?estado=Vencido");
+            Navegacion.NavigateTo("/vehiculos?estado=Vencido", replace: true);
+            Navegacion.NavigateTo("/vehiculos?estado=Vencido", replace: true);
+        });
+        await VencerElReboteAsync(cut);
+
+        Escrituras.Should().BeEmpty("el segundo aviso del mismo destino tampoco es del usuario");
     }
 
     [Fact]

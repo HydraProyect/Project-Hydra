@@ -290,9 +290,12 @@ public partial class Documentos : CaeManager.Web.Components.PaginaInteractiva, I
                 parametros[nameof(VenceEn)] = resuelta.VenceEn;
             if (resuelta.Orden is not null && string.IsNullOrWhiteSpace(OrdenInicial))
                 parametros["orden"] = resuelta.Orden;
-            // La traducción del enlace antiguo la hace la página, no el usuario: la vista recordada no la toma por un cambio
-            // suyo («agrupar por Plataforma CAE» o «Vence en 90 días» no se guardan, ni se olvida lo recordado, por abrir una
-            // pestaña de main). Se anuncia ANTES de navegar: con circuito los avisos del enlace y del destino llegan después.
+            // La traducción del enlace antiguo (guardado, o una entrada en frío) la hace la página, no el usuario: la vista
+            // recordada no la toma por un cambio suyo («agrupar por Plataforma CAE» o «Vence en 90 días» no se guardan, ni se
+            // olvida lo recordado, por abrir un enlace a una pestaña de main). Los enlaces internos ya no pasan por aquí: van
+            // directos al destino (RedireccionDePestanas.RutaPlataformaCae, RutaPreventivo). Se anuncia ANTES de navegar: con
+            // circuito los avisos del enlace y del destino llegan después, y esta ruta puede pedir el mismo destino dos veces
+            // (OnInitializedAsync y OnParametersSet antes de la vuelta del navegador).
             _vistaRecordada.AnunciarNavegacionDeLaPagina(NavigationManager.Uri, NavigationManager.DestinoDeFiltrosEnUrl(parametros));
             NavigationManager.ActualizarFiltrosEnUrl(parametros);
         }

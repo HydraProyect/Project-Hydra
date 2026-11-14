@@ -15,11 +15,12 @@ namespace CaeManager.Web.Tests;
 public class EnlacesInternosSinPestanasDelListadoTests
 {
     /// <summary>
-    /// Un literal entre comillas (C#, Razor, plantillas) que enlaza a una de esas dos pestañas. Con <c>acreditacionId</c> sigue
-    /// siendo la vista de Plataformas CAE y no cuenta; <c>plataformas</c> es la pestaña de otras fichas.
+    /// Un literal entre comillas dobles o simples, en una línea (C#, Razor, plantillas), que enlaza a una de esas dos pestañas.
+    /// Con <c>acreditacionId</c> sigue siendo la vista de Plataformas CAE y no cuenta; <c>plataformas</c> es la pestaña de otras
+    /// fichas. No ve un enlace compuesto por partes (concatenación, <c>QueryHelpers</c>): esos se revisan a mano.
     /// </summary>
     private static readonly Regex EnlaceAPestanaDelListado = new(
-        @"""[^""\r\n]*pestana=(plataforma|sugerencias|preventivo)(?![A-Za-z-]|&acreditacionId|&amp;acreditacionId)[^""\r\n]*""",
+        @"([""'])[^""'\r\n]*pestana=(plataforma|sugerencias|preventivo)(?![A-Za-z-]|&acreditacionId|&amp;acreditacionId)[^""'\r\n]*\1",
         RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
 
     [Fact]
@@ -63,6 +64,7 @@ public class EnlacesInternosSinPestanasDelListadoTests
     [InlineData("\"/documentos?pestana=plataforma\"", true)]
     [InlineData("\"documentos?pestana=sugerencias\"", true)]
     [InlineData("href=\"/documentos?pestana=preventivo&volver=x\"", true)]
+    [InlineData("href='/documentos?pestana=sugerencias'", true)]
     [InlineData("$\"/documentos?pestana=plataforma&acreditacionId={id}\"", false)]
     [InlineData("\"/empresas/1?pestana=plataformas\"", false)]
     [InlineData("\"/documentos?pestana=reclamaciones\"", false)]

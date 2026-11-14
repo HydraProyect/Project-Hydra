@@ -349,6 +349,9 @@ public static class CatalogoMenuLateral
             Condicion: c => c.EsAdministradorPlataforma, ClaveRotulo: "MenuContactosSeguridad"),
     ];
 
+    /// <summary>Las rutas del catálogo van sin la barra inicial (<c>documentos?…</c>).</summary>
+    private static string RutaSinBarra(string ruta) => ruta.TrimStart('/');
+
     /// <summary>
     /// Opciones que la lupa encuentra dentro de las páginas del menú. Criterio de inclusión: tiene URL
     /// propia (ruta o <c>?pestana=</c>) y la misma autorización que su enlace padre o una regla del
@@ -357,9 +360,6 @@ public static class CatalogoMenuLateral
     /// Configuración, las entradas que tienen autoridad propia distinta del rol Administrador del hub
     /// (organización, plataforma, orden del menú y accesos a documentos sensibles).
     /// </summary>
-    /// <summary>Las rutas del catálogo van sin la barra inicial (<c>documentos?…</c>).</summary>
-    private static string RutaSinBarra(string ruta) => ruta.TrimStart('/');
-
     public static IReadOnlyList<SubopcionMenuLateral> Subopciones { get; } =
     [
         // Configuración: el hub resuelve /configuracion/{id}; los ids y las claves de rótulo son los de
@@ -384,7 +384,8 @@ public static class CatalogoMenuLateral
         // pestañas» ya no tienen barra: cada uno redirige a su sustituto (RedireccionDePestanas) con paridad de roles.
         // Los que se sustituyen por el propio listado con filtros (Plataformas CAE y Preventivo) se enlazan directos a ese
         // destino, de la misma tabla: desde dentro de /documentos la traducción del enlace sería una navegación más de la
-        // página, que la vista recordada no debe tomar por un cambio del usuario. «Estado» es la propia página.
+        // página. Elegirlos aquí es elegir esos filtros, como en la barra: estando ya en /documentos se recuerdan como vista
+        // (desde otra pantalla, la pieza toma la URL de llegada como línea base y no escribe). «Estado» es la propia página.
         new("documentos-plataformas", "documentos", RutaSinBarra(RedireccionDePestanas.RutaPlataformaCae), "MenuSubDocumentosPlataformas", FuenteRotuloSubopcion.TextosComunes,
             Condicion: c => c.TieneAlgunRol(RolesDeGestionDocumental)),
         new("documentos-reclamaciones", "documentos", "documentos?pestana=reclamaciones", "MenuSubDocumentosReclamaciones", FuenteRotuloSubopcion.TextosComunes,
