@@ -485,6 +485,37 @@ public class ProcesarItemLoteGeneracionCommandHandlerTests
         resultado.Error.Codigo.Should().Be("Plantilla.ItemNoEncontrado");
     }
 
+    /// <summary>
+    /// El camino inverso del anterior: el ítem se lee pendiente y otro circuito lo completa con un generado de un Centro
+    /// fuera de la Cartera antes de que la puerta relea los ítems. La puerta lo ve en la lectura actual y niega, aunque la
+    /// instantánea no lo traiga.
+    /// </summary>
+    [Fact]
+    public async Task Un_item_completado_con_un_generado_oculto_entre_su_lectura_y_la_puerta_responde_ItemNoEncontrado()
+    {
+        var (items, lotes, contexto, lote, item, clienteEmpresarial) = LoteDeOtroGestor();
+        var documentos = new DocumentosQueryContextFalso();
+        contexto.AntesDeLeerItems = lectura =>
+        {
+            if (lectura != 1)
+                return;
+            var documento = Documento.DeTrabajador(item.TrabajadorId, Guid.NewGuid(), DiaDeNegocio.Hoy(), VigenciaDocumento.NoCaduca, "generado.pdf");
+            documentos.ListaDocumentos.Add(documento);
+            var generado = new DocumentoGenerado(lote.PlantillaDocumentoVersionId, documento.Id, "{}", Guid.NewGuid(), DateTime.UtcNow,
+                trabajadorId: item.TrabajadorId, centroId: Guid.NewGuid());
+            contexto.ListaDocumentosGenerados.Add(generado);
+            item.MarcarCompletado(generado.Id);
+        };
+        var alcance = new AlcanceDatosServiceFalso(tieneAccesoTotal: false, clienteIdsVisibles: [clienteEmpresarial],
+            trabajadorIdsVisibles: [item.TrabajadorId], centroIdsVisibles: [Guid.NewGuid()]);
+
+        var resultado = await Handler(items, lotes, new MediatorFalso(), contexto, alcance, documentos)
+            .Handle(new ProcesarItemLoteGeneracionCommand(item.Id), CancellationToken.None);
+
+        item.Estado.Should().Be(EstadoItemGeneracion.Completado, "el intercalado tiene que haber ocurrido durante la puerta");
+        resultado.Error.Codigo.Should().Be("Plantilla.ItemNoEncontrado");
+    }
+
     private static ProcesarItemLoteGeneracionCommandHandler Handler(
         ItemGeneracionDocumentoRepositorioFalso items, LoteGeneracionDocumentoRepositorioFalso lotes, MediatorFalso mediator,
         PlantillasQueryContextFalso? contexto = null, AlcanceDatosServiceFalso? alcance = null, DocumentosQueryContextFalso? documentos = null) =>
