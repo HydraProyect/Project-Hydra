@@ -77,6 +77,14 @@ public class RevocarIncorporacionCarteraCommandHandler(
                 if (solicitud.Estado != EstadoSolicitudIncorporacionCartera.Aceptada)
                     return Result.Fallo(ErroresSolicitudCartera.NoRevocable);
 
+                // Exclusivo sobre la cartera del Gestor CAE antes de decidir si su fila heredada
+                // sobra (revisión puente de la ronda 5 de B-02a): dos revocaciones de sus dos
+                // carteras, o una revocación y el job de expiración, leerían cada una la otra
+                // cartera como vigente y conservarían la fila sin cartera que la sostenga. Va antes
+                // del compartido que ResolverRelevoAsync toma sobre el Coordinador CAE, como en
+                // AsignarCarteraGestorCaeCommand.
+                await bloqueoCartera.BloquearExclusivoAsync(solicitud.SolicitanteUsuarioId, ct);
+
                 var sinPrincipal = (await catalogo.ObtenerOperacionesDondeEsPrincipalAsync(
                         ctx.OperadorTenantId, solicitud.SolicitanteUsuarioId, ct))
                     .Where(o => o.AsignacionOperacionId == solicitud.AsignacionOperacionId)

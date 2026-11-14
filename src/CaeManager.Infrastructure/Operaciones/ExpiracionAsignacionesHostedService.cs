@@ -1,5 +1,6 @@
 using CaeManager.Application.Common;
 using CaeManager.Application.Tenants;
+using CaeManager.Domain.Common;
 using CaeManager.Domain.Operaciones;
 using CaeManager.Infrastructure.Coordinacion;
 using CaeManager.Infrastructure.Persistence;
@@ -168,7 +169,18 @@ public class ExpiracionAsignacionesHostedService(
         // programada antes de cerrar a la vigente que sustituye chocaría contra
         // el índice dentro de la misma transacción. Dos guardados ordenados lo
         // evitan sin necesidad de tocar el esquema.
-        var cerradas = await CerrarExpiradasAsync(dbContext, ahora, stoppingToken);
+        //
+        // El cierre va en su propia transacción porque retira filas heredadas bajo el candado de
+        // cartera de cada titular (ver CerrarExpiradasAsync); TransaccionDeComando la abre dentro
+        // de la estrategia de reintentos y se une a la de fuera si quien llama ya tiene una.
+        var cerradas = 0;
+        var cierre = await new TransaccionDeComando(dbContext).EjecutarAsync(async ct =>
+        {
+            cerradas = await CerrarExpiradasAsync(dbContext, ahora, ct);
+            return Result.Exito();
+        }, stoppingToken);
+        if (cierre.EsFallido)
+            throw new InvalidOperationException($"El cierre de asignaciones expiradas falló: {cierre.Error}");
         var activadas = await ActivarProgramadasAsync(dbContext, ahora, logger, stoppingToken);
 
         if (cerradas > 0 || activadas > 0)
@@ -233,7 +245,18 @@ public class ExpiracionAsignacionesHostedService(
         var titulares = externasCerradas
             .Where(c => operacionesDelServicio.Contains(c.AsignacionOperacionId))
             .Select(c => (c.PropietarioTenantId, c.OperadorTenantId, c.UsuarioId))
-            .Distinct();
+            .Distinct()
+            .ToList();
+
+        // Candado exclusivo de cartera de cada titular, en orden de clave y antes de mirar qué otra
+        // cartera le queda (revisión puente de la ronda 5 de B-02a). Sin él, este pase y una
+        // revocación de la otra cartera del mismo Gestor CAE leerían cada uno la del otro como
+        // vigente y los dos conservarían la fila: cartera cerrada y acceso intacto. La revocación
+        // toma el mismo candado; quien llega segundo espera al COMMIT del primero y lee su cierre.
+        var bloqueo = new BloqueoCarteraUsuario(dbContext);
+        foreach (var usuarioId in titulares.Select(t => t.UsuarioId).Distinct().Order())
+            await bloqueo.BloquearExclusivoAsync(usuarioId, stoppingToken);
+
         foreach (var (propietarioTenantId, operadorTenantId, usuarioId) in titulares)
         {
             await CatalogoIncorporacionCartera.RetirarFilaHeredadaSiSobraAsync(

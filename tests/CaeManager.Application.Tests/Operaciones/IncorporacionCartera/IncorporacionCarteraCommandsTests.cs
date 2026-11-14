@@ -531,6 +531,9 @@ public class IncorporacionCarteraCommandsTests
         _catalogo.TenantsAlGuardar.Should().Equal([_empresa.Id]);
         _catalogo.CarterasVigentes.Should().NotContain(solicitud.AsignacionCarteraId!.Value);
         _notificaciones.Notificaciones.Should().ContainSingle(n => n.UsuarioDestinatarioId == _gestor);
+        _bloqueo.Exclusivos.Should().Equal([_gestor],
+            "decidir si la fila heredada sobra exige serializar con otra revocación o con el job sobre la cartera de " +
+            "la misma persona: el exclusivo es sobre el Gestor CAE solicitante, no sobre quien revoca (B-02a, ronda 5)");
     }
 
     [Fact]

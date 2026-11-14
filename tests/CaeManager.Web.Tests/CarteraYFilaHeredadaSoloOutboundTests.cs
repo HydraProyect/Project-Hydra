@@ -1,4 +1,4 @@
-using System.Collections;
+﻿using System.Collections;
 using System.Linq.Expressions;
 using CaeManager.Application.Common;
 using CaeManager.Application.Operaciones;
@@ -345,7 +345,7 @@ public class CarteraYFilaHeredadaSoloOutboundTests
     /// fila heredada si su Asignación de Operación Outbound está vigente, en estado y en fechas. Una operación caducada
     /// por fecha (aún sin cerrar por el job), suspendida, programada o cerrada no la sostiene, aunque la cartera siga
     /// figurando vigente: se falla cerrado y la fila se retira. Y una cartera que sigue vigente pero ya pasó su fecha,
-    /// o que no es del Tenant entero, tampoco.
+    /// que está suspendida o que no es del Tenant entero, tampoco.
     /// </summary>
     [Theory]
     [InlineData("vigente", false)]
@@ -355,6 +355,7 @@ public class CarteraYFilaHeredadaSoloOutboundTests
     [InlineData("cerrada", true)]
     [InlineData("cartera caducada", true)]
     [InlineData("cartera de un centro", true)]
+    [InlineData("cartera suspendida", true)]
     public async Task La_otra_cartera_solo_sostiene_la_fila_si_ella_y_su_operacion_Outbound_estan_vigentes(
         string caso, bool seRetira)
     {
@@ -386,7 +387,8 @@ public class CarteraYFilaHeredadaSoloOutboundTests
         var vinculo = new DelegacionTenant(_operador.Id, _propietario.Id);
         var fila = new AsignacionOperadorDelegado(vinculo.Id, _gestor, Roles.GestorCae);
 
-        laOtra.Estado.Should().Be(EstadoAsignacion.Vigente, "precondición: la otra cartera sigue figurando vigente");
+        if (caso == "cartera suspendida") laOtra.Suspender();
+        else laOtra.Estado.Should().Be(EstadoAsignacion.Vigente, "precondición: la otra cartera sigue figurando vigente");
 
         await using var db = new ContextoEnMemoria()
             .Con(outbound, otra)
