@@ -137,6 +137,9 @@ public class VisionCarteraEInicioCuadranLosVencidosTests : IAsyncLifetime
             var operacion = AsignacionOperacion.Externa(
                 _beneficiario, _origen, ServicioCae.Outbound, AmbitoAsignacion.Universal, ayer, null, ahora);
             _propietario.AsignacionesOperacion.Add(operacion);
+            // Una Asignación de Operación Outbound externa solo autoriza con la DelegacionTenant de Operador
+            // CAE externo del par vigente (decisión de Chris del 2026-11-14, opción A en la PR #2223).
+            _propietario.DelegacionesTenant.Add(new DelegacionTenant(_origen, _beneficiario));
             _propietario.AsignacionesCartera.Add(AsignacionCartera.Externa(
                 operacion, _gestorUniversal, Roles.GestorCae, AmbitoAsignacion.Universal, ayer, null, ahora));
             // El Gestor CAE «de Cliente»: su cartera es el Tenant entero (D-7) bajo una Asignación de Operación

@@ -155,13 +155,13 @@ public class AsignacionCartera : AsignacionResponsabilidad
     /// Si esta cartera llevaba la marca de principal en el instante en que la cerró la cascada
     /// de su Asignación de Operación (la delegación se desactivó). Es <b>histórico</b>, no la
     /// marca: una cartera cerrada sigue sin ser la principal de nada y no ocupa el índice
-    /// único. Sirve para que, al reactivar la delegación, vuelva a ser principal quien lo era
-    /// (decisión del propietario, 2026-10-08, D-9).
+    /// único. Servía para que, al reactivar la delegación, volviera a ser principal quien lo era
+    /// (D-9, 2026-10-08); desde la decisión de Chris del 2026-11-14 (opción A en la PR #2223)
+    /// reactivar no repone ninguna Asignación de Cartera, y el dato queda como histórico sin lector.
     ///
     /// Solo lo escribe <see cref="CerrarPorCascadaDeLaOperacion"/>. La retirada individual, la
-    /// expiración por fecha y cualquier otro cierre lo dejan en <c>false</c>: ahí el principal
-    /// se releva en el acto y no hay nada que restaurar. Lo repite la base de datos con el
-    /// CHECK <c>CK_AsignacionesCartera_EraPrincipalSoloCerrada</c>.
+    /// expiración por fecha y cualquier otro cierre lo dejan en <c>false</c>. Lo repite la base de
+    /// datos con el CHECK <c>CK_AsignacionesCartera_EraPrincipalSoloCerrada</c>.
     /// </summary>
     public bool EraPrincipalAlCerrarsePorCascada { get; private set; }
 
@@ -182,6 +182,44 @@ public class AsignacionCartera : AsignacionResponsabilidad
         var eraPrincipal = EsPrincipal;
         Cerrar(motivo, ahora);
         EraPrincipalAlCerrarsePorCascada = eraPrincipal;
+    }
+
+    /// <summary>
+    /// Guarda de la emisión <b>automática</b> de una cartera desde una fila heredada
+    /// (<see cref="AsignacionOperadorDelegado"/>), la del arranque: solo se emite a quien nunca tuvo
+    /// ninguna Asignación de Cartera bajo una Asignación de Operación Outbound externa del par
+    /// (Tenant propietario, Operador CAE externo), es decir, al traslado inicial del modelo antiguo.
+    /// Cualquier histórico la bloquea: una cartera cerrada por una revocación, por la caducidad o
+    /// por una reconciliación, una Programada o Suspendida, viva o cerrada, y también una cerrada
+    /// antes de que se guardara su estado. Lo que fue no vuelve solo (decisión de Chris del
+    /// 2026-11-14: reactivar no repone carteras, la fila heredada tras la expiración falla cerrada y
+    /// una Programada cerrada por una revocación bloquea también Consulta). No hace falta saber en
+    /// qué estado se cerró: en duda, falla cerrada.
+    /// </summary>
+    public static bool FilaHeredadaPuedeEmitir(IEnumerable<AsignacionCartera> carterasDeLaPersonaEnElPar)
+    {
+        ArgumentNullException.ThrowIfNull(carterasDeLaPersonaEnElPar);
+        return !carterasDeLaPersonaEnElPar.Any();
+    }
+
+    /// <summary>
+    /// Guarda de la emisión por un <b>acto explícito</b> (el alta de la persona como operador
+    /// delegado): no se emite una cartera Vigente junto a una viva de la persona en el par que hoy no
+    /// autoriza —Suspendida o Programada, o Vigente bajo una operación que no está Vigente—, porque la
+    /// nueva saltaría la suspensión o el calendario de aquella. Reanudarla es otro acto. Las cerradas
+    /// no cuentan: el acto explícito es precisamente quien decide volver a conceder.
+    /// </summary>
+    public static bool HayAlgunaVivaQueNoAutoriza(
+        IEnumerable<(AsignacionCartera Cartera, AsignacionOperacion Operacion)> carterasDeLaPersonaEnElPar)
+    {
+        ArgumentNullException.ThrowIfNull(carterasDeLaPersonaEnElPar);
+        return carterasDeLaPersonaEnElPar.Any(x =>
+        {
+            if (x.Operacion.Id != x.Cartera.AsignacionOperacionId)
+                throw new ArgumentException("La operación no es la de la cartera.", nameof(carterasDeLaPersonaEnElPar));
+            return x.Cartera.Estado != EstadoAsignacion.Cerrada
+                   && (x.Cartera.Estado != EstadoAsignacion.Vigente || x.Operacion.Estado != EstadoAsignacion.Vigente);
+        });
     }
 
     /// <summary>

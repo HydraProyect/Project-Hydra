@@ -151,6 +151,14 @@ public class EncargoAdministracionBajoRuntimeTests : IAsyncLifetime
             await siembra.SaveChangesAsync();
             var operacionRelevada = Externa(_propietarioRelevado, _operador, ahora.AddDays(-5), ahora);
             siembra.AsignacionesOperacion.Add(operacionRelevada);
+            // Una Asignación de Operación Outbound externa solo autoriza con la DelegacionTenant de Operador
+            // CAE externo del par vigente (decisión de Chris del 2026-11-14, opción A en la PR #2223). Solo
+            // para los pares que operan hoy; el relevado por el otro Operador CAE no la conserva.
+            siembra.DelegacionesTenant.AddRange(
+                new DelegacionTenant(_operador, _propietario),
+                new DelegacionTenant(_operador, _propietarioSinEncargo),
+                new DelegacionTenant(_otroOperador, _propietarioDelOtro),
+                new DelegacionTenant(_operador, _propietarioRelevado));
 
             siembra.AsignacionesCartera.AddRange(
                 Cartera(operacion, _adminOperador.Id, Roles.GestorCae, ahora),
@@ -901,7 +909,7 @@ public class EncargoAdministracionBajoRuntimeTests : IAsyncLifetime
     private static TechoDeRolPorEncargo Techo(IServiceScope ambito)
     {
         var contexto = ambito.ServiceProvider.GetRequiredService<CaeManagerDbContext>();
-        return new TechoDeRolPorEncargo(contexto, contexto, new PerfilDePropiedadEnOrigenEnBase(
+        return new TechoDeRolPorEncargo(contexto, contexto, contexto, new PerfilDePropiedadEnOrigenEnBase(
             ambito.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>()),
             new TenantConAdministradorPropioEnBase(contexto));
     }

@@ -59,6 +59,7 @@ public class ResponsableBuzonElegible(
     IDirectorioDestinosCartera directorioDestinos,
     IDirectorioEquipoCoordinador equipoCoordinador,
     IOperacionesQueryContext operaciones,
+    ITenantsQueryContext tenants,
     IEmpresasQueryContext empresas,
     ITenantActual tenantActual)
 {
@@ -156,7 +157,7 @@ public class ResponsableBuzonElegible(
             return new(perfil, TenantEnteroPorOperacion: true);
 
         if (perfil == TenantsBeneficiariosAutorizados.RolAcotadoPorCartera
-            && await TenantsBeneficiariosAutorizados.CarterasPorOperacion(operaciones, usuarioId, operadorTenantId, ahora)
+            && await TenantsBeneficiariosAutorizados.CarterasPorOperacion(operaciones, tenants, usuarioId, operadorTenantId, ahora)
                 .AnyAsync(v => v.Operacion.PropietarioTenantId == propietarioTenantId, cancellationToken))
             return new(perfil);
 

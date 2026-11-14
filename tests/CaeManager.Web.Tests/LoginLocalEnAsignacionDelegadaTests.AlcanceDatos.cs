@@ -4,6 +4,7 @@ using CaeManager.Application.Common;
 using CaeManager.Application.Plataforma;
 using CaeManager.Domain.Integraciones;
 using CaeManager.Domain.Operaciones;
+using CaeManager.Domain.Tenants;
 using CaeManager.Infrastructure.Autorizacion;
 using CaeManager.Infrastructure.Identity;
 using CaeManager.Infrastructure.MultiTenancy;
@@ -144,10 +145,52 @@ public partial class LoginLocalEnAsignacionDelegadaTests
     }
 
     /// <summary>
+    /// Decisión de Chris del 2026-11-14 (opción A en la PR #2223): una Asignación de Operación Outbound
+    /// externa solo autoriza mientras la DelegacionTenant de Operador CAE externo del mismo par siga
+    /// activa y sin caducar. La operación acotada no lleva la caducidad de la delegación como fin y su
+    /// cierre puede no haber llegado (job de expiración, siguiente arranque, ranura anterior): el lector
+    /// falla cerrado por sí mismo. El control, con la delegación vigente, sí concede.
+    /// </summary>
+    [Theory]
+    [InlineData("vigente", true)]
+    [InlineData("desactivada", false)]
+    [InlineData("caducada", false)]
+    [InlineData("de otro Operador CAE externo", false)]
+    [InlineData("ninguna", false)]
+    public async Task La_cartera_externa_Outbound_solo_concede_con_la_delegacion_del_par_vigente(string delegacion, bool concede)
+    {
+        using var escenario = await Escenario.CrearAsync(Roles.GestorCae, Roles.GestorCae);
+        await escenario.AplicarMiddlewareAsync();
+        var tenantActual = new TenantActualAmbiental { TenantId = escenario.TenantVisitado };
+        var ahora = DateTime.UtcNow;
+        var clienteEmpresarialId = Guid.NewGuid();
+        var operacion = AsignacionOperacion.Externa(escenario.TenantVisitado, escenario.TenantOrigen,
+            ServicioCae.Outbound, AmbitoAsignacion.DeRelacionCliente(clienteEmpresarialId), ahora.AddHours(-1), null, ahora);
+        var cartera = AsignacionCartera.Externa(operacion, escenario.Usuario, Roles.GestorCae,
+            AmbitoAsignacion.Universal, ahora.AddHours(-1), null, ahora);
+        var usuarios = new[] { new ApplicationUser { Id = escenario.Usuario } };
+
+        var fila = new DelegacionTenant(
+            delegacion == "de otro Operador CAE externo" ? Guid.NewGuid() : escenario.TenantOrigen, escenario.TenantVisitado);
+        if (delegacion == "desactivada") fila.Desactivar();
+        if (delegacion == "caducada")
+            typeof(DelegacionTenant).GetProperty(nameof(DelegacionTenant.ExpiraEnUtc))!.SetValue(fila, ahora.AddMinutes(-1));
+        DelegacionTenant[] delegaciones = delegacion == "ninguna" ? [] : [fila];
+
+        await using var db = new ContextoDeCarteras(escenario, tenantActual, [operacion], [cartera], usuarios, null, delegaciones);
+        var alcance = new AlcanceDatosService(db, escenario.Servicio, tenantActual, new SesionPrivilegiadaAusente());
+
+        var visibles = await alcance.ObtenerClienteIdsVisiblesAsync();
+        if (concede) visibles.Should().Equal(clienteEmpresarialId);
+        else visibles.Should().BeEmpty($"una delegación {delegacion} no sostiene la Asignación de Operación Outbound");
+    }
+
+    /// <summary>
     /// Hallazgo de Codex sobre B-02a: un Gestor CAE con una Asignación de Cartera bajo una Asignación de Operación
     /// Outbound acotada a un Cliente empresarial y otra bajo una Inbound del Tenant entero, del mismo Operador CAE y
     /// Tenant propietario. El alcance de datos de Outbound es solo ese Cliente empresarial: la Inbound no lo convierte
-    /// en el Tenant entero.
+    /// en el Tenant entero. Con la opción A de la PR #2223, la Operación Outbound externa solo concede con la
+    /// DelegacionTenant de Operador CAE externo del par vigente, que ContextoDeCarteras siembra por omisión.
     /// </summary>
     [Fact]
     public async Task Una_cartera_bajo_una_Operacion_Inbound_entera_no_amplia_el_alcance_de_Outbound()
@@ -206,14 +249,19 @@ public partial class LoginLocalEnAsignacionDelegadaTests
         private readonly AsignacionOperacion[] operaciones;
         private readonly AsignacionCartera[] carteras;
         private readonly ConexionIntegracion[] conexiones;
+        private readonly DelegacionTenant[] delegaciones;
 
+        /// <param name="delegaciones">Por omisión, una DelegacionTenant de Operador CAE externo activa y sin
+        /// caducidad del Tenant de origen sobre el visitado: la que sostiene sus operaciones Outbound.</param>
         public ContextoDeCarteras(Escenario escenario, TenantActualAmbiental tenantActual, AsignacionOperacion[] operaciones,
-            AsignacionCartera[] carteras, ApplicationUser[] usuarios, ConexionIntegracion[]? conexiones = null)
+            AsignacionCartera[] carteras, ApplicationUser[] usuarios, ConexionIntegracion[]? conexiones = null,
+            DelegacionTenant[]? delegaciones = null)
             : base(new DbContextOptionsBuilder<CaeManagerDbContext>().Options, escenario.Protector, tenantActual)
         {
             this.operaciones = operaciones;
             this.carteras = carteras;
             this.conexiones = conexiones ?? [];
+            this.delegaciones = delegaciones ?? [new DelegacionTenant(escenario.TenantOrigen, escenario.TenantVisitado)];
             // Después del constructor de EF, que inicializa los DbSets de Identity.
             Users = new ConjuntoDePruebas<ApplicationUser>(usuarios);
         }
@@ -226,6 +274,8 @@ public partial class LoginLocalEnAsignacionDelegadaTests
                 return (DbSet<TEntity>)(object)new ConjuntoDePruebas<AsignacionCartera>(carteras);
             if (typeof(TEntity) == typeof(ConexionIntegracion))
                 return (DbSet<TEntity>)(object)new ConjuntoDePruebas<ConexionIntegracion>(conexiones);
+            if (typeof(TEntity) == typeof(DelegacionTenant))
+                return (DbSet<TEntity>)(object)new ConjuntoDePruebas<DelegacionTenant>(delegaciones);
             throw new NotSupportedException($"La prueba no debe consultar {typeof(TEntity).Name}.");
         }
     }

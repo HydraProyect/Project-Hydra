@@ -123,7 +123,9 @@ public class DesactivarDelegacionTenantCommandHandler(
         {
             // Solo las de Operador externo tienen operación que cerrar: las de
             // Soporte son plano 3 y conservan su mecánica propia hasta su fase
-            // (ADR-011 § 8.6). Cerrar la operación arrastra sus carteras.
+            // (ADR-011 § 8.6). Se cierran todas las Asignaciones de Operación Outbound
+            // del par, del Tenant entero y acotadas, y sus carteras (decisión de Chris
+            // del 2026-11-14).
             if (deOperadorExterno)
                 await asignacionesWriter.CerrarOperacionDelegadaAsync(
                     tenantPropietarioId, delegacion.TenantConsultoraId,

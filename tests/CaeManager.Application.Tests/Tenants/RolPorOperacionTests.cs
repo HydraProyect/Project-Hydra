@@ -43,11 +43,13 @@ public class RolPorOperacionTests
         typeof(AsignacionOperacion).GetProperty("Estado")!.SetValue(operacion, EstadoAsignacion.Vigente);
 
         var contexto = new Contexto([operacion], filas);
+        var delegacion = DelegacionesEnMemoria.Vigente(Origen, Beneficiario);
         var operacionId = await TenantsBeneficiariosAutorizados.OperacionQueAutorizaAsync(
-            contexto, Usuario, Origen, Beneficiario, TenantsBeneficiariosAutorizados.RolAcotadoPorCartera, ahora, default);
+            contexto, delegacion, Usuario, Origen, Beneficiario, TenantsBeneficiariosAutorizados.RolAcotadoPorCartera, ahora,
+            default);
         operacionId.Should().Be(operacion.Id);
         return await TenantsBeneficiariosAutorizados.RolPorOperacionAsync(
-            contexto, Usuario, Origen, Beneficiario, operacionId!.Value, ahora, default);
+            contexto, delegacion, Usuario, Origen, Beneficiario, operacionId!.Value, ahora, default);
     }
 
     [Fact]

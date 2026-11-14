@@ -95,8 +95,9 @@ public static class TenantsBeneficiariosAutorizados
     /// externas de su Operador CAE de origen, de <see cref="ServicioDelContexto"/>.
     /// </summary>
     public static IQueryable<CarteraBajoOperacionVigente> CarterasPorOperacion(
-        IOperacionesQueryContext operaciones, Guid usuarioId, Guid tenantOrigenId, DateTime ahora) =>
-        CarterasPorOperacionDeLaOrganizacion(operaciones, tenantOrigenId, ahora)
+        IOperacionesQueryContext operaciones, ITenantsQueryContext tenants, Guid usuarioId, Guid tenantOrigenId,
+        DateTime ahora) =>
+        CarterasPorOperacionDeLaOrganizacion(operaciones, tenants, tenantOrigenId, ahora)
             .Where(v => v.Cartera.UsuarioId == usuarioId);
 
     /// <summary>
@@ -111,7 +112,7 @@ public static class TenantsBeneficiariosAutorizados
     /// y como todos sus consumidores parten de aquí, ninguno tiene que repetir el filtro.
     /// </summary>
     public static IQueryable<CarteraBajoOperacionVigente> CarterasPorOperacionDeLaOrganizacion(
-        IOperacionesQueryContext operaciones, Guid tenantOrigenId, DateTime ahora) =>
+        IOperacionesQueryContext operaciones, ITenantsQueryContext tenants, Guid tenantOrigenId, DateTime ahora) =>
         from cartera in operaciones.AsignacionesCartera
         join operacion in operaciones.AsignacionesOperacion
             on cartera.AsignacionOperacionId equals operacion.Id
@@ -132,6 +133,20 @@ public static class TenantsBeneficiariosAutorizados
               && operacion.Estado == EstadoAsignacion.Vigente
               && operacion.VigenciaDesde <= ahora
               && (operacion.VigenciaHasta == null || ahora < operacion.VigenciaHasta)
+              // La operación externa solo autoriza mientras la DelegacionTenant de Operador CAE externo del
+              // par siga activa y sin caducar (decisión de Chris del 2026-11-14, opción A en la PR #2223), el
+              // mismo predicado que AlcanceDatosService.ObtenerCarteraAsync: una operación acotada no lleva la
+              // caducidad de la delegación como fin, y su cierre por la caducidad o por una revocación atendida
+              // por la ranura anterior solo llega con el job de expiración o con el siguiente arranque. La
+              // operación no guarda de qué delegación nació, así que se exige una del mismo par; sin ella, falla
+              // cerrado. La RLS de DelegacionesTenant deja leerla desde las dos posiciones que llaman aquí (el
+              // Operador CAE es extremo de la delegación, como Tenant de origen o como Tenant activo).
+              && tenants.DelegacionesTenant.Any(delegacion =>
+                  delegacion.TenantClienteId == operacion.PropietarioTenantId
+                  && delegacion.TenantConsultoraId == operacion.OperadorTenantId
+                  && delegacion.Proposito == PropositoDelegacion.OperadorExterno
+                  && delegacion.Activa
+                  && (delegacion.ExpiraEnUtc == null || ahora < delegacion.ExpiraEnUtc))
         select new CarteraBajoOperacionVigente { Cartera = cartera, Operacion = operacion };
 
     /// <summary>
@@ -264,21 +279,21 @@ public static class TenantsBeneficiariosAutorizados
     /// cada perfil (<see cref="OperacionesDelTenantEntero"/> y <see cref="CarterasPorOperacionDeLaOrganizacion"/>).
     /// </summary>
     public static IQueryable<AsignacionOperacion> OperacionesQueAutorizan(
-        IOperacionesQueryContext operaciones, Guid usuarioId, Guid tenantOrigenId, string? rolDeOrigen,
+        IOperacionesQueryContext operaciones, ITenantsQueryContext tenants, Guid usuarioId, Guid tenantOrigenId, string? rolDeOrigen,
         DateTime ahora) =>
-        OperacionesPorPerfil(operaciones, usuarioId, tenantOrigenId, rolDeOrigen, ahora)
+        OperacionesPorPerfil(operaciones, tenants, usuarioId, tenantOrigenId, rolDeOrigen, ahora)
             .Where(operacion => !operaciones.TenantsSuspendidosIds.Contains(operacion.PropietarioTenantId)
                                 && !operaciones.TenantsSuspendidosIds.Contains(tenantOrigenId));
 
     private static IQueryable<AsignacionOperacion> OperacionesPorPerfil(
-        IOperacionesQueryContext operaciones, Guid usuarioId, Guid tenantOrigenId, string? rolDeOrigen,
+        IOperacionesQueryContext operaciones, ITenantsQueryContext tenants, Guid usuarioId, Guid tenantOrigenId, string? rolDeOrigen,
         DateTime ahora)
     {
         if (rolDeOrigen is not null && RolesConAccesoPorOperacion.Contains(rolDeOrigen))
             return OperacionesDelTenantEnteroDeLaOrganizacion(operaciones, tenantOrigenId, ahora);
 
         if (rolDeOrigen == RolAcotadoPorCartera)
-            return CarterasPorOperacion(operaciones, usuarioId, tenantOrigenId, ahora).Select(v => v.Operacion);
+            return CarterasPorOperacion(operaciones, tenants, usuarioId, tenantOrigenId, ahora).Select(v => v.Operacion);
 
         return operaciones.AsignacionesOperacion.Where(_ => false);
     }
@@ -291,9 +306,9 @@ public static class TenantsBeneficiariosAutorizados
     /// reciente no desplaza a la Outbound.
     /// </summary>
     public static Task<Guid?> OperacionQueAutorizaAsync(
-        IOperacionesQueryContext operaciones, Guid usuarioId, Guid tenantOrigenId, Guid tenantId,
+        IOperacionesQueryContext operaciones, ITenantsQueryContext tenants, Guid usuarioId, Guid tenantOrigenId, Guid tenantId,
         string? rolDeOrigen, DateTime ahora, CancellationToken cancellationToken) =>
-        OperacionesQueAutorizan(operaciones, usuarioId, tenantOrigenId, rolDeOrigen, ahora)
+        OperacionesQueAutorizan(operaciones, tenants, usuarioId, tenantOrigenId, rolDeOrigen, ahora)
             .Where(o => o.PropietarioTenantId == tenantId)
             .OrderByDescending(o => o.VigenciaDesde)
             .ThenBy(o => o.Id)
@@ -323,11 +338,11 @@ public static class TenantsBeneficiariosAutorizados
     /// </para>
     /// </summary>
     public static async Task<string?> RolEnTenantDelegadoAsync(
-        IOperacionesQueryContext operaciones, Guid usuarioId, Guid tenantOrigenId, Guid tenantId,
+        IOperacionesQueryContext operaciones, ITenantsQueryContext tenants, Guid usuarioId, Guid tenantOrigenId, Guid tenantId,
         Guid asignacionOperacionId, string? rolDeOrigen, string? rolDeSesionEnOrigen, DateTime ahora,
         CancellationToken cancellationToken) =>
         await SigueAutorizadoPorOperacionAsync(
-            operaciones, usuarioId, tenantOrigenId, tenantId, asignacionOperacionId, rolDeOrigen, ahora,
+            operaciones, tenants, usuarioId, tenantOrigenId, tenantId, asignacionOperacionId, rolDeOrigen, ahora,
             cancellationToken)
             ? rolDeSesionEnOrigen
             : null;
@@ -390,9 +405,9 @@ public static class TenantsBeneficiariosAutorizados
     /// </para>
     /// </summary>
     public static Task<string?> RolPorOperacionAsync(
-        IOperacionesQueryContext operaciones, Guid usuarioId, Guid tenantOrigenId, Guid tenantId,
+        IOperacionesQueryContext operaciones, ITenantsQueryContext tenants, Guid usuarioId, Guid tenantOrigenId, Guid tenantId,
         Guid asignacionOperacionId, DateTime ahora, CancellationToken cancellationToken) =>
-        CarterasPorOperacion(operaciones, usuarioId, tenantOrigenId, ahora)
+        CarterasPorOperacion(operaciones, tenants, usuarioId, tenantOrigenId, ahora)
             .Where(v => v.Operacion.Id == asignacionOperacionId
                         && v.Operacion.PropietarioTenantId == tenantId
                         && v.Cartera.Rol != null && RolesDelegablesPorOperacion.Contains(v.Cartera.Rol))
@@ -422,11 +437,11 @@ public static class TenantsBeneficiariosAutorizados
     /// </para>
     /// </summary>
     public static async Task<bool> TieneCarteraDelTenantEnteroAsync(
-        IOperacionesQueryContext operaciones, Guid usuarioId, Guid tenantOrigenId, Guid tenantId,
+        IOperacionesQueryContext operaciones, ITenantsQueryContext tenants, Guid usuarioId, Guid tenantOrigenId, Guid tenantId,
         Guid asignacionOperacionId, IReadOnlyList<string> roles, DateTime ahora,
         CancellationToken cancellationToken)
     {
-        var carteras = await CarterasPorOperacion(operaciones, usuarioId, tenantOrigenId, ahora)
+        var carteras = await CarterasPorOperacion(operaciones, tenants, usuarioId, tenantOrigenId, ahora)
             .Where(v => v.Operacion.Id == asignacionOperacionId
                         && v.Operacion.PropietarioTenantId == tenantId
                         && v.Cartera.Rol != null && roles.Contains(v.Cartera.Rol))
@@ -442,9 +457,9 @@ public static class TenantsBeneficiariosAutorizados
     /// entre el Tenant y la operación del token.
     /// </summary>
     public static Task<bool> SigueAutorizadoPorOperacionAsync(
-        IOperacionesQueryContext operaciones, Guid usuarioId, Guid tenantOrigenId, Guid tenantId,
+        IOperacionesQueryContext operaciones, ITenantsQueryContext tenants, Guid usuarioId, Guid tenantOrigenId, Guid tenantId,
         Guid asignacionOperacionId, string? rolDeOrigen, DateTime ahora, CancellationToken cancellationToken) =>
-        OperacionesQueAutorizan(operaciones, usuarioId, tenantOrigenId, rolDeOrigen, ahora)
+        OperacionesQueAutorizan(operaciones, tenants, usuarioId, tenantOrigenId, rolDeOrigen, ahora)
             .AnyAsync(o => o.Id == asignacionOperacionId && o.PropietarioTenantId == tenantId,
                 cancellationToken);
 
@@ -466,7 +481,7 @@ public static class TenantsBeneficiariosAutorizados
         Guid tenantOrigenId, Guid tenantId, string? rolDeOrigen, DateTime ahora, CancellationToken cancellationToken) =>
         tenantId == tenantOrigenId
         || await OperacionQueAutorizaAsync(
-            operaciones, usuarioId, tenantOrigenId, tenantId, rolDeOrigen, ahora, cancellationToken) is not null
+            operaciones, tenants, usuarioId, tenantOrigenId, tenantId, rolDeOrigen, ahora, cancellationToken) is not null
         || await AutorizadoPorViaHeredadaAsync(tenants, usuarioId, tenantId, ahora, cancellationToken);
 
     /// <summary>

@@ -51,6 +51,7 @@ public class TenantBeneficiarioPorDefectoMiddleware(RequestDelegate siguiente)
         IMediator mediator,
         ICurrentUserService currentUserService,
         IOperacionesQueryContext operacionesContext,
+        ITenantsQueryContext tenantsContext,
         IDataProtectionProvider dataProtectionProvider,
         ILogger<TenantBeneficiarioPorDefectoMiddleware> logger)
     {
@@ -64,7 +65,7 @@ public class TenantBeneficiarioPorDefectoMiddleware(RequestDelegate siguiente)
         try
         {
             destino = await FijarTenantPorDefectoAsync(
-                contexto, mediator, currentUserService, operacionesContext, dataProtectionProvider);
+                contexto, mediator, currentUserService, operacionesContext, tenantsContext, dataProtectionProvider);
         }
         catch (OperationCanceledException) when (contexto.RequestAborted.IsCancellationRequested)
         {
@@ -109,6 +110,7 @@ public class TenantBeneficiarioPorDefectoMiddleware(RequestDelegate siguiente)
         IMediator mediator,
         ICurrentUserService currentUserService,
         IOperacionesQueryContext operacionesContext,
+        ITenantsQueryContext tenantsContext,
         IDataProtectionProvider dataProtectionProvider)
     {
         var cancelacion = contexto.RequestAborted;
@@ -130,7 +132,8 @@ public class TenantBeneficiarioPorDefectoMiddleware(RequestDelegate siguiente)
         // La misma operación que embebería el POST: la selección por defecto se
         // revalida por ella en cada petición, igual que una explícita.
         if (await TenantsBeneficiariosAutorizados.OperacionQueAutorizaAsync(
-                operacionesContext, usuarioId, tenantOrigenId, porDefecto.TenantId,
+                operacionesContext, tenantsContext, usuarioId,
+                tenantOrigenId, porDefecto.TenantId,
                 await currentUserService.ObtenerPerfilQueDecideAlcanceAsync(), DateTime.UtcNow, cancelacion)
             is not { } asignacionOperacionId)
             return null;

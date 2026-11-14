@@ -72,7 +72,8 @@ public class ClienteActivoEndpointsAutorizacionTests
             caso == "caducada" ? ahora.AddDays(-1) : null, ahora);
         if (caso == "suspendida") cartera.Suspender();
         if (caso == "operacion-suspendida") operacion.Suspender();
-        db.AddRange(operacion, cartera);
+        // La vía de Operación exige además la DelegacionTenant de Operador CAE externo del par vigente (PR #2223).
+        db.AddRange(operacion, cartera, new DelegacionTenant(Origen, Destino));
         await db.SaveChangesAsync();
         var http = Contexto();
         Comprobar(await Cambiar(Destino, http, db), http, permitido, permitido ? operacion.Id : null);
