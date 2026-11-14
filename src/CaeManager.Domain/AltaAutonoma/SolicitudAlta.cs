@@ -427,6 +427,16 @@ public class SolicitudAlta : Entity
     /// </summary>
     public static string NormalizarCorreo(string correo) => correo.Normalize().ToUpperInvariant();
 
+    /// <summary>
+    /// Si el correo de una cuenta, tal como lo guarda Identity, es el que ya se normalizó con
+    /// <see cref="NormalizarCorreo"/>. Un correo vacío, o una normalización vacía, nunca coincide.
+    /// Lo usa la atribución de la aceptación contractual (#2009) a la cuenta que verificó el correo.
+    /// </summary>
+    public static bool CorreoCoincide(string? correoCuenta, string? correoNormalizado) =>
+        !string.IsNullOrWhiteSpace(correoCuenta)
+        && !string.IsNullOrEmpty(correoNormalizado)
+        && string.Equals(NormalizarCorreo(correoCuenta.Trim()), correoNormalizado, StringComparison.Ordinal);
+
     /// <summary>¿Es un DNI o un NIE, es decir, el NIF de una persona física?</summary>
     public static bool EsPersonaFisica(string cifNifNormalizado) =>
         ValidadorIdentificacion.Analizar(cifNifNormalizado).Tipo is TipoIdentificacion.Dni or TipoIdentificacion.Nie;

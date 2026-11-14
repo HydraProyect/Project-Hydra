@@ -301,6 +301,11 @@ public class AuditoriaInterceptor(IActorAuditoria actorAuditoria) : SaveChangesI
             nameof(CaeManager.Domain.Tenants.ContactoSeguridadTenant.Correo),
         ],
 
+        // #2009: la IP de quien aceptó el contrato es evidencia, no historial. La tabla de aceptaciones no la deja leer
+        // a cae_app_soporte; su «Creado» en RegistrosAuditoria, que Soporte TALVEG sí lee, tampoco la copia.
+        [typeof(CaeManager.Domain.Cumplimiento.AceptacionContractualTenant)] =
+            [nameof(CaeManager.Domain.Cumplimiento.AceptacionContractualTenant.Ip)],
+
         // Punto 12: la foto del Trabajador en su asignación a una Visita (histórico congelado de la exportación de
         // extranjeros del mes, decisión de Chris, 2026-10-20) copia su documento y su nombre. Son datos personales que
         // ya están en el Trabajador; la auditoría de la asignación no necesita otra copia que la anonimización no alcance.

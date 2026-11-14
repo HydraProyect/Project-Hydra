@@ -44,7 +44,8 @@ public class DirectorioUsuariosTenant(
     ICurrentUserService usuarioActual)
     : IDirectorioUsuariosService, CaeManager.Application.Clientes.IDirectorioDestinosCartera,
       CaeManager.Application.Usuarios.IDirectorioEquipoCoordinador,
-      CaeManager.Application.Comunicaciones.Queries.ObtenerCompanerosGestorCae.IDirectorioCompanerosGestorCae
+      CaeManager.Application.Comunicaciones.Queries.ObtenerCompanerosGestorCae.IDirectorioCompanerosGestorCae,
+      CaeManager.Application.Cumplimiento.AceptacionContractual.ICorreoDeCuentaAceptante
 {
     /// <summary>
     /// Usuarios del tenant activo, más sus Operadores Delegados. Sin tenant
@@ -149,6 +150,24 @@ public class DirectorioUsuariosTenant(
                 where ur.UserId == usuario.Id && r.Name == rol
                 select ur.UserId)
                 .AnyAsync(cancellationToken);
+        }, cancellationToken);
+
+    /// <inheritdoc />
+    public Task<bool> EsCorreoDeLaCuentaAsync(
+        Guid usuarioId, Guid tenantId, string correoNormalizado, CancellationToken cancellationToken = default) =>
+        puertaAccesoDatos.EjecutarAsync(async () =>
+        {
+            if (string.IsNullOrEmpty(correoNormalizado))
+                return false;
+
+            // Sin rastreo, como EsCuentaActivaConRolAsync: no toca la instancia rastreada de la cuenta.
+            var email = await userManager.Users
+                .AsNoTracking()
+                .Where(u => u.Id == usuarioId && u.TenantId == tenantId)
+                .Select(u => u.Email)
+                .FirstOrDefaultAsync(cancellationToken);
+
+            return CaeManager.Domain.AltaAutonoma.SolicitudAlta.CorreoCoincide(email, correoNormalizado);
         }, cancellationToken);
 
     /// <inheritdoc />

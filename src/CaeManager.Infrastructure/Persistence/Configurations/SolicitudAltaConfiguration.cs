@@ -87,6 +87,8 @@ public class AceptacionCondicionesAltaConfiguration : IEntityTypeConfiguration<A
         builder.Property(a => a.Version).IsRequired().HasMaxLength(AceptacionCondicionesAlta.LongitudMaximaVersion);
         builder.Property(a => a.HashSha256).IsRequired().HasMaxLength(AceptacionCondicionesAlta.LongitudHash);
         builder.Property(a => a.Ip).IsRequired().HasMaxLength(AceptacionCondicionesAlta.LongitudMaximaIp);
+        builder.Property(a => a.ImportePermanencia)
+            .HasPrecision(AceptacionCondicionesAlta.PrecisionImporte, AceptacionCondicionesAlta.EscalaImporte);
 
         builder.HasIndex(a => new { a.SolicitudAltaId, a.Documento }).IsUnique();
 
