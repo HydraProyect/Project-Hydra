@@ -235,7 +235,7 @@ public class ResponsableBuzonElegibleTests
     public async Task Una_operacion_Inbound_del_Tenant_entero_no_hace_atender_al_perfil_de_origen_de_acceso_total()
     {
         (await EvaluarAsync(Delegado(guardado: "Consulta", perfil: "Administrador"), [ExternaInbound()]))
-            .Should().NotBeNull();
+            .Should().Be(MotivoResponsableNoElegible.RolSinGestion, "sin vía de Operación rige el rol guardado, Consulta");
     }
 
     [Fact]
@@ -243,7 +243,7 @@ public class ResponsableBuzonElegibleTests
     {
         var inbound = ExternaInbound();
         (await EvaluarAsync(Delegado(guardado: "Consulta", perfil: "GestorCae"), [inbound], [Externa(inbound, Gestor)]))
-            .Should().NotBeNull();
+            .Should().Be(MotivoResponsableNoElegible.RolSinGestion, "sin vía de Operación rige el rol guardado, Consulta");
     }
 
     [Fact]

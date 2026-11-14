@@ -99,7 +99,9 @@ public class EmpresasGestionadasDelAmbitoEfectivoBajoRlsTests : IAsyncLifetime
         var sobreW = AsignacionOperacion.Externa(
             _empresaW, _operadorA, ServicioCae.Outbound, AmbitoAsignacion.DeRelacionCliente(clienteDeW), desde, null, ahora);
         var sobreZ = AsignacionOperacion.Externa(_empresaZ, _operadorB, ServicioCae.Outbound, AmbitoAsignacion.Universal, desde, null, ahora);
-        // V: la misma Empresa, acotada a un Cliente empresarial en Outbound y entera en Inbound.
+        // V: la misma Empresa, acotada a un Cliente empresarial en Outbound y entera en Inbound. El recuento de
+        // /usuarios suma los dos servicios, aunque el acceso al contexto ya solo cuenta Outbound
+        // (TenantsBeneficiariosAutorizados.OperacionesQueAutorizan, B-02a): hueco declarado, no contrato.
         var sobreVAcotada = AsignacionOperacion.Externa(
             _empresaV, _operadorA, ServicioCae.Outbound, AmbitoAsignacion.DeRelacionCliente(clienteDeV), desde, null, ahora);
         var sobreVEntera = AsignacionOperacion.Externa(_empresaV, _operadorA, ServicioCae.Inbound, AmbitoAsignacion.Universal, desde, null, ahora);

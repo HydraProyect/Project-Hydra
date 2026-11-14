@@ -60,7 +60,9 @@ public sealed class AsignacionHeredadaVigente
 /// Asignación de Operación Inbound del mismo Operador CAE externo sobre el mismo Tenant beneficiario
 /// no cambia la operación elegida ni da entrada por sí sola. Las etiquetas y recuentos que leen las
 /// operaciones de todos los servicios (<see cref="CarterasPorOperacionDeLaOrganizacion"/>,
-/// <see cref="OperacionesDelTenantEntero"/>, <see cref="AmbitosEfectivosDeCarteraAsync"/>) no filtran.
+/// <see cref="OperacionesDelTenantEntero"/>, <see cref="AmbitosEfectivosDeCarteraAsync"/>) no filtran, ni el
+/// alcance de <c>AlcanceDatosService</c>; y la vía heredada no distingue servicio porque
+/// <c>DelegacionTenant</c> no lo tiene. Son huecos declarados para el escritor de Inbound (B-02b, B-03).
 /// </para>
 ///
 /// <para>
@@ -217,7 +219,10 @@ public static class TenantsBeneficiariosAutorizados
     /// también <c>ObtenerDelegacionesQuery</c> para rotular el rol que se ejerce, en los dos
     /// sentidos de la delegación, y <c>DirectorioUsuariosTenant.ObtenerRolesDeOperadoresDelegadosAsync</c>
     /// para la columna Rol de <c>/usuarios</c>; una sola definición para que la etiqueta y el
-    /// acceso no diverjan.
+    /// acceso no diverjan en Outbound. No filtra por servicio y el acceso sí
+    /// (<see cref="OperacionesQueAutorizan"/>): con una Asignación de Operación Inbound la etiqueta
+    /// puede nombrar un rol que en Outbound no se ejerce. Hueco declarado de B-02a, que hoy no se da
+    /// porque no se escribe ninguna Inbound.
     /// </summary>
     public static IQueryable<AsignacionOperacion> OperacionesDelTenantEntero(
         IOperacionesQueryContext operaciones, DateTime ahora) =>
@@ -322,7 +327,9 @@ public static class TenantsBeneficiariosAutorizados
     /// El rol que una persona del Operador CAE externo <b>ejerce</b> en el Tenant beneficiario de
     /// una delegación, para enseñarlo en la lista de personas de <c>/delegaciones</c> y en la
     /// columna Rol de <c>/usuarios</c> (<c>DirectorioUsuariosTenant</c>), que no pueden discrepar: el mismo
-    /// criterio que <see cref="RolEnTenantDelegadoAsync"/> (decisión Chris 2026-10-20):
+    /// criterio que <see cref="RolEnTenantDelegadoAsync"/> (decisión Chris 2026-10-20), salvo el servicio:
+    /// <paramref name="operacionDelTenantEntero"/> sale de <see cref="OperacionesDelTenantEntero"/>, que cuenta
+    /// también una Asignación de Operación Inbound, y el rol efectivo solo las de Outbound:
     /// <list type="bullet">
     /// <item>Perfil de origen en <see cref="RolesConAccesoPorOperacion"/> y operación vigente del
     /// Tenant entero (<paramref name="operacionDelTenantEntero"/>,
