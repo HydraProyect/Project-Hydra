@@ -485,6 +485,39 @@ public class RepartoAdjuntosPanelTests : BunitContext
     }
 
     [Fact]
+    public void Si_una_tanda_lanza_tras_asignar_otras_se_cuenta_lo_asignado_una_sola_vez()
+    {
+        var adjuntos = Enumerable.Range(1, 25).Select(i => Adj($"doc-{i}.pdf", trabajador: Marta, tipo: TipoDniTrabajador)).ToArray();
+        var mediador = Preparar(Roles.GestorCae, adjuntos);
+        var llamadas = 0;
+        mediador.Lote = c => ++llamadas == 1 ? mediador.Todos(c, EstadoAsignacionAdjunto.Asignado) : throw new InvalidOperationException("cae");
+        var cambios = 0;
+        var cut = Pintar(() => cambios++);
+        cut.WaitForAssertion(() => cut.FindAll(".adjb").Should().HaveCount(1));
+        foreach (var a in adjuntos) EscribirEmision(cut, a.NombreArchivo, "2026-03-01");
+
+        cut.Find(".adjb-p .boton-primario").Click();
+
+        cut.WaitForAssertion(() => Services.GetRequiredService<ToastService>().Mensajes
+            .Should().Contain(t => t.Mensaje.Contains("20 documentos asignados")));
+        Services.GetRequiredService<ToastService>().Mensajes.Count(t => t.Mensaje.Contains("20 documentos asignados")).Should().Be(1);
+        cambios.Should().Be(1);
+    }
+
+    [Fact]
+    public void Una_cadena_vacia_en_el_selector_quita_el_destino()
+    {
+        var adjunto = Adj("a.pdf", trabajador: Marta);
+        var mediador = Preparar(Roles.GestorCae, adjunto);
+        var cut = Pintar();
+        cut.WaitForAssertion(() => cut.FindAll(".adjb").Should().HaveCount(1));
+
+        cut.Find("select[aria-label='Destino de a.pdf']").Change("");
+
+        cut.WaitForAssertion(() => mediador.De<FijarDestinoAdjuntoCommand>().Should().ContainSingle()
+            .Which.Should().Be(new FijarDestinoAdjuntoCommand(adjunto.Id, null, null, null)));
+    }
+    [Fact]
     public void Un_adjunto_indeterminado_no_se_pinta_como_un_rechazo_corriente()
     {
         var adjunto = Adj("dudoso.pdf", trabajador: Marta, tipo: TipoDniTrabajador);

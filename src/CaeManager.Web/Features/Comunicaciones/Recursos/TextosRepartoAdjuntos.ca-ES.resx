@@ -301,6 +301,6 @@
     <value>No s&apos;ha pogut assignar aquest adjunt.</value>
   </data>
   <data name="AsignacionIndeterminada" xml:space="preserve">
-    <value>No s&apos;ha pogut confirmar si aquest adjunt ha arribat a assignar-se. Comprova-ho als Documents del fil abans de tornar-ho a provar.</value>
+    <value>No s&apos;ha pogut confirmar si aquest adjunt ha arribat a assignar-se. Es torna a llegir el repartiment: comprova si continua pendent abans de tornar-ho a provar.</value>
   </data>
 </root>

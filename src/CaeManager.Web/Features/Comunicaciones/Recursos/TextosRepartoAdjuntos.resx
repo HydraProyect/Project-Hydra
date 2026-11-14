@@ -301,6 +301,6 @@
     <value>No se pudo asignar este adjunto.</value>
   </data>
   <data name="AsignacionIndeterminada" xml:space="preserve">
-    <value>No se pudo confirmar si este adjunto llegó a asignarse. Compruébalo en los Documentos del hilo antes de volver a intentarlo.</value>
+    <value>No se pudo confirmar si este adjunto llegó a asignarse. Se vuelve a leer el reparto: comprueba si sigue pendiente antes de volver a intentarlo.</value>
   </data>
 </root>

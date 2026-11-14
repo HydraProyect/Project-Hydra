@@ -219,7 +219,7 @@ else if (_errorCarga is not null)
         {
             // Sin el reparto el resto de la conversación sigue funcionando: se avisa en el sitio, no se tumba la página.
             Logger.LogError(ex, "Error al cargar el reparto de adjuntos de la conversación {ConversacionId}.", conversacionId);
-            if (conversacionId == ConversacionId) _errorCarga = Textos["ErrorCargar"].Value;
+            if (conversacionId == ConversacionId && generacion == _generacionCarga) _errorCarga = Textos["ErrorCargar"].Value;
         }
     }
 
@@ -478,7 +478,7 @@ else if (_errorCarga is not null)
                 <button type="button" class="mini" @onclick="() => f.Edicion.PideMotivo = false">@Textos["Cancelar"]</button>
             </div>
         }
-        @if (f.Edicion.Aviso is { } aviso)
+        @if (f.Pendiente && f.Edicion.Aviso is { } aviso)
         {
             <div class="adjb-aviso" role="alert">@aviso</div>
         }
@@ -685,10 +685,10 @@ else if (_errorCarga is not null)
     private Task CambiarDestinoAsync(FilaReparto f, string? valor)
     {
         Guid? trabajadorId = null, empresaId = null;
-        if (!string.IsNullOrEmpty(valor))
+        if (valor is not { Length: 0 })
         {
             // Solo una cadena vacía quita el destino: un valor que no es «t:<id>» ni «e:<id>» no se interpreta como «quitar».
-            if (valor.Length <= 2 || !Guid.TryParse(valor.AsSpan(2), out var id)) return Task.CompletedTask;
+            if (valor is null || valor.Length <= 2 || !Guid.TryParse(valor.AsSpan(2), out var id)) return Task.CompletedTask;
             if (valor.StartsWith("t:", StringComparison.Ordinal)) trabajadorId = id;
             else if (valor.StartsWith("e:", StringComparison.Ordinal)) empresaId = id;
             else return Task.CompletedTask;
@@ -752,19 +752,29 @@ else if (_errorCarga is not null)
         {
             var conversacionId = ConversacionId;
             var asignados = 0;
+            var avisado = false;
             var revisiones = filas.ToDictionary(f => f.Adjunto.Id, f => f.Edicion.Revision);
             try
             {
             foreach (var tanda in filas.Chunk(AsignarAdjuntosLoteCommandValidator.MaximoAdjuntos))
             {
                 // Si la persona cambió de conversación a mitad de las tandas, no se manda el resto con otro hilo.
-                if (conversacionId != ConversacionId) return null;
+                if (conversacionId != ConversacionId)
+                {
+                    if (asignados > 0) AvisarAsignados(asignados);
+                    return null;
+                }
                 var lote = tanda.Select(f => new AdjuntoAAsignar(f.Adjunto.Id, f.Edicion.Emision!.Value, f.Edicion.Vencimiento, f.Edicion.NoCaduca)).ToList();
                 var resultado = await Mediator.Send(new AsignarAdjuntosLoteCommand(conversacionId, lote));
                 if (resultado.EsFallido)
                 {
                     // Lo que las tandas anteriores ya asignaron existe: se dice y la página se entera aunque esta tanda falle.
-                    if (asignados > 0) { AvisarAsignados(asignados); await OnCambiado.InvokeAsync(); }
+                    if (asignados > 0)
+                    {
+                        avisado = true;
+                        AvisarAsignados(asignados);
+                        await OnCambiado.InvokeAsync();
+                    }
                     return resultado.Error.Mensaje;
                 }
 
@@ -779,9 +789,9 @@ else if (_errorCarga is not null)
                     else if (r.Estado == EstadoAsignacionAdjunto.Indeterminado)
                     {
                         // No se sabe si llegó a guardarse: no se pinta como un rechazo corriente ni se invita a reintentar a ciegas.
+                        // La duda sobre si se guardó no depende de las fechas: no pasa por la guarda de revisión.
                         _filaSinAsignar = true;
-                        if (!revisiones.TryGetValue(r.AdjuntoId, out var rev) || rev == edicion.Revision)
-                            edicion.Aviso = Textos["AsignacionIndeterminada"].Value;
+                        edicion.Aviso = Textos["AsignacionIndeterminada"].Value;
                     }
                     else
                     {
@@ -796,7 +806,7 @@ else if (_errorCarga is not null)
             if (asignados > 0) AvisarAsignados(asignados);
             return null;
             }
-            catch (Exception) when (asignados > 0)
+            catch (Exception) when (asignados > 0 && !avisado)
             {
                 // Una tanda lanzó tras otras ya asignadas: se cuenta lo asignado antes de que EjecutarAsync pinte el error.
                 AvisarAsignados(asignados);
