@@ -7,6 +7,7 @@
 # fila ya acotada, la raíz del DbContext); el inventario con su clasificación vive en
 # Project-Hydra-Negocio/tecnico/M3-INVENTARIO-ACCESO-ASIGNACIONES-2026-11-14.md.
 # Una línea nueva no se añade: se filtra por Servicio o se usa el puerto por servicio.
+SQL función public.app_revocar_operador_cae_externo_por_soporte :: AsignacionesOperacion = 2
 SQL función public.encargo_administracion_exige_operador_de_la_operacion :: AsignacionesOperacion = 1
 SQL política cuentas_lectura ON public.AspNetUsers :: AsignacionesCartera = 1
 SQL política cuentas_lectura ON public.AspNetUsers :: AsignacionesOperacion = 1

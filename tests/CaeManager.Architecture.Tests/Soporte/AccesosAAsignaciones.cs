@@ -59,10 +59,20 @@ internal static class AccesosAAsignaciones
 
     private static readonly Regex TablaEnTexto = new(@"\b(?<tabla>AsignacionesOperacion|AsignacionesCartera)\b", RegexOptions.Compiled);
 
-    private static readonly Regex PalabraSql = new(
-        @"\b(?:SELECT|UPDATE|DELETE|INSERT|FROM|JOIN)\b", RegexOptions.Compiled | RegexOptions.IgnoreCase);
+    /// <summary>En un <c>.razor</c>: el DbSet por su nombre o <c>Set&lt;Entidad&gt;</c>.</summary>
+    private static readonly Regex AccesoEnRazor = new(
+        @"\b(?<tabla>AsignacionesOperacion|AsignacionesCartera)\b|\bSet<\s*(?:[\w.]*\.)?(?<entidad>AsignacionOperacion|AsignacionCartera)\s*>",
+        RegexOptions.Compiled);
 
-    private static readonly Regex ServicioSql = new(@"""Servicio""", RegexOptions.Compiled);
+    private static readonly Regex PalabraSql = new(
+        @"\b(?:SELECT|UPDATE|DELETE|INSERT|FROM|JOIN|TRUNCATE|MERGE|ALTER|LOCK|COPY)\b", RegexOptions.Compiled | RegexOptions.IgnoreCase);
+
+    /// <summary>
+    /// <c>"Servicio"</c> comparado (<c>=</c>, <c>&lt;&gt;</c>, <c>!=</c>, <c>IN</c>, <c>IS</c>), no asignado por un
+    /// <c>SET "Servicio" =</c> ni proyectado en un <c>RETURNING</c>.
+    /// </summary>
+    private static readonly Regex ServicioSql = new(
+        @"(?<!\bSET\s+)""Servicio""\s*(?:=|<>|!=|\bIN\b|\bIS\b)", RegexOptions.Compiled | RegexOptions.IgnoreCase);
 
     private static readonly Regex TablaSql = new(@"""(?<tabla>AsignacionesOperacion|AsignacionesCartera)""", RegexOptions.Compiled);
 
@@ -100,8 +110,11 @@ internal static class AccesosAAsignaciones
         {
             var lineas = LimpiadorDeComentarios.Quitar(texto, razor: true).Split('\n');
             for (var i = 0; i < lineas.Length; i++)
-                foreach (Match m in TablaEnTexto.Matches(lineas[i]))
-                    resultado.Add(new AccesoAAsignacion(ruta, "(razor)", m.Groups["tabla"].Value, "razor", false, i + 1));
+                foreach (Match m in AccesoEnRazor.Matches(lineas[i]))
+                {
+                    var tabla = m.Groups["tabla"].Success ? m.Groups["tabla"].Value : TablaDeEntidad[m.Groups["entidad"].Value];
+                    resultado.Add(new AccesoAAsignacion(ruta, "(razor)", tabla, "razor", false, i + 1));
+                }
         }
 
         return resultado;
@@ -124,7 +137,8 @@ internal static class AccesosAAsignaciones
             var tipo = NombreDeTipo(nodo);
             var filtra = forma == "SQL"
                 ? ServicioSql.IsMatch(TextoDeLiteral(nodo))
-                : ComparaServicio(contexto) || ReferenciaUnPredicado(contexto, tipo, predicados);
+                : ReferenciaUnPredicado(contexto, tipo, predicados)
+                  || (ComparaServicio(contexto) && (tabla == Operacion || NombraLaOperacionDeLaCartera(contexto)));
 
             yield return new AccesoAAsignacion(
                 ruta, NombreDeMiembro(nodo), tabla, forma, filtra,
@@ -192,14 +206,62 @@ internal static class AccesosAAsignaciones
     };
 
     /// <summary>
-    /// Dónde se busca el filtro: la sentencia que contiene el acceso; si no la hay, la expresión del
-    /// miembro (<c>=&gt; …</c>) o el inicializador del campo; si tampoco, el miembro entero.
+    /// Dónde se busca el filtro: la <b>cadena de la consulta</b> que parte del acceso, no la sentencia
+    /// entera (dos consultas en una misma sentencia no se prestan el filtro, y la cabecera de un
+    /// <c>if</c> no hereda las comparaciones de su cuerpo). La cadena sube por <c>.Miembro</c>,
+    /// <c>(…)</c>, <c>await</c>, conversiones, <c>?.</c>, el <c>from</c>/<c>join</c> de una consulta
+    /// integrada y el paso como argumento a una llamada (<c>Ayuda(ctx.AsignacionesCartera, filtro)</c>).
+    /// Si la cadena vive dentro de una lambda pasada como argumento o dentro de una consulta integrada,
+    /// el contexto se amplía a la cadena exterior: la consulta interior se evalúa dentro del predicado de
+    /// la exterior (<c>ops.Where(o =&gt; o.Servicio == s &amp;&amp; ctx.AsignacionesCartera.Any(c =&gt;
+    /// c.AsignacionOperacionId == o.Id))</c>).
     /// </summary>
-    private static SyntaxNode ContextoDelAcceso(SyntaxNode acceso) =>
-        acceso.AncestorsAndSelf().FirstOrDefault(n => n is StatementSyntax and not BlockSyntax)
-        ?? acceso.AncestorsAndSelf().FirstOrDefault(n => n is ArrowExpressionClauseSyntax or EqualsValueClauseSyntax)
-        ?? acceso.AncestorsAndSelf().FirstOrDefault(n => n is MemberDeclarationSyntax)
-        ?? acceso;
+    private static SyntaxNode ContextoDelAcceso(SyntaxNode acceso)
+    {
+        var cadena = CadenaDeLaConsulta(acceso);
+        while (true)
+        {
+            var exterior = cadena.Ancestors().FirstOrDefault(a =>
+                a is LambdaExpressionSyntax { Parent: ArgumentSyntax } or QueryExpressionSyntax
+                    or MemberDeclarationSyntax or LocalFunctionStatementSyntax);
+            if (exterior is null or MemberDeclarationSyntax or LocalFunctionStatementSyntax)
+                return cadena;
+            cadena = CadenaDeLaConsulta(exterior);
+        }
+    }
+
+    private static SyntaxNode CadenaDeLaConsulta(SyntaxNode desde)
+    {
+        var actual = desde;
+        while (actual.Parent is { } padre)
+        {
+            SyntaxNode? siguiente = padre switch
+            {
+                // El acceso empieza en el nombre (ctx.«AsignacionesOperacion», ctx.«Set<T>»), que es el
+                // Name del acceso a miembro; desde ahí, la cadena sube por su receptor.
+                MemberAccessExpressionSyntax ma when ma.Expression == actual || ma.Name == actual => ma,
+                InvocationExpressionSyntax inv when inv.Expression == actual => inv,
+                ConditionalAccessExpressionSyntax ca when ca.Expression == actual || ca.WhenNotNull == actual => ca,
+                MemberBindingExpressionSyntax or ParenthesizedExpressionSyntax or AwaitExpressionSyntax
+                    or CastExpressionSyntax or PostfixUnaryExpressionSyntax => padre,
+                FromClauseSyntax or JoinClauseSyntax => padre.FirstAncestorOrSelf<QueryExpressionSyntax>(),
+                ArgumentSyntax { Parent: ArgumentListSyntax { Parent: InvocationExpressionSyntax llamada } } => llamada,
+                _ => null,
+            };
+            if (siguiente is null) break;
+            actual = siguiente;
+        }
+
+        return actual;
+    }
+
+    /// <summary>
+    /// La Asignación de Cartera no tiene Servicio: su servicio es el de su Asignación de Operación, así
+    /// que la comparación de Servicio solo la filtra si la consulta la correlaciona con su operación.
+    /// </summary>
+    private static bool NombraLaOperacionDeLaCartera(SyntaxNode contexto) =>
+        contexto.DescendantNodesAndSelf().OfType<MemberAccessExpressionSyntax>()
+            .Any(m => m.Name.Identifier.ValueText is "AsignacionOperacionId" or "AsignacionOperacion");
 
     private static bool ComparaServicio(SyntaxNode contexto) =>
         contexto.DescendantNodesAndSelf().Any(n => n switch
@@ -216,13 +278,31 @@ internal static class AccesosAAsignaciones
         });
 
     /// <summary>
-    /// <c>o.Servicio</c> o <c>c.Operacion.Servicio</c>, no <c>CatalogoIncorporacionCartera.Servicio</c>:
-    /// una constante comparada con otra cosa no filtra la fila.
+    /// <c>o.Servicio</c> o <c>c.Operacion.Servicio</c> sobre una <b>variable de la consulta</b>: un
+    /// parámetro de una lambda que la rodea o una variable de rango (<c>from</c>, <c>join</c>,
+    /// <c>let</c>). No <c>CatalogoIncorporacionCartera.Servicio</c> (una constante) ni
+    /// <c>request.Servicio</c> (un valor que no es la fila).
     /// </summary>
     private static bool EsServicioDeInstancia(ExpressionSyntax expresion) =>
         expresion is MemberAccessExpressionSyntax { Name.Identifier.ValueText: "Servicio" } m
         && PrimerIdentificador(m.Expression) is { Length: > 0 } receptor
-        && char.IsLower(receptor[0]);
+        && EsVariableDeConsulta(m, receptor);
+
+    private static bool EsVariableDeConsulta(SyntaxNode uso, string nombre) =>
+        uso.Ancestors().Any(a => a switch
+        {
+            SimpleLambdaExpressionSyntax s => s.Parameter.Identifier.ValueText == nombre,
+            ParenthesizedLambdaExpressionSyntax p => p.ParameterList.Parameters.Any(x => x.Identifier.ValueText == nombre),
+            QueryExpressionSyntax q => q.FromClause.Identifier.ValueText == nombre
+                                       || q.Body.Clauses.Any(c => c switch
+                                       {
+                                           FromClauseSyntax f => f.Identifier.ValueText == nombre,
+                                           JoinClauseSyntax j => j.Identifier.ValueText == nombre,
+                                           LetClauseSyntax l => l.Identifier.ValueText == nombre,
+                                           _ => false,
+                                       }),
+            _ => false,
+        });
 
     private static string PrimerIdentificador(ExpressionSyntax expresion) => expresion switch
     {
@@ -247,7 +327,7 @@ internal static class AccesosAAsignaciones
             {
                 foreach (var miembro in tipo.Members)
                 {
-                    if (miembro is TypeDeclarationSyntax) continue;
+                    if (!DevuelveUnaConsulta(miembro)) continue;
                     if (!ComparaServicio(miembro) || Accesos(miembro, new Dictionary<string, string>()).Any()) continue;
                     foreach (var nombre in NombresDeclarados(miembro))
                         predicados.Add((tipo.Identifier.ValueText, nombre));
@@ -256,6 +336,24 @@ internal static class AccesosAAsignaciones
         }
 
         return predicados;
+    }
+
+    /// <summary>
+    /// Solo un miembro que entrega un filtro aplicable a una consulta cuenta como predicado: su tipo es
+    /// <c>Expression&lt;…&gt;</c> o <c>IQueryable&lt;…&gt;</c>. Un <c>bool Vigente(x)</c> que compare
+    /// <c>x.Servicio</c> no filtra ninguna consulta por estar en la misma sentencia.
+    /// </summary>
+    private static bool DevuelveUnaConsulta(MemberDeclarationSyntax miembro)
+    {
+        var tipo = miembro switch
+        {
+            MethodDeclarationSyntax m => m.ReturnType,
+            PropertyDeclarationSyntax p => p.Type,
+            BaseFieldDeclarationSyntax f => f.Declaration.Type,
+            _ => null,
+        };
+        var texto = tipo?.ToString() ?? string.Empty;
+        return texto.Contains("Expression<", StringComparison.Ordinal) || texto.Contains("IQueryable<", StringComparison.Ordinal);
     }
 
     private static IEnumerable<string> NombresDeclarados(MemberDeclarationSyntax miembro) => miembro switch
@@ -284,8 +382,11 @@ internal static class AccesosAAsignaciones
                 if (receptor is not null && predicados.Contains((receptor, nombre)))
                     return true;
             }
-            else if (predicados.Contains((tipoSimple, nombre)))
+            else if (id.Parent is InvocationExpressionSyntax or ArgumentSyntax
+                     && predicados.Contains((tipoSimple, nombre)))
             {
+                // Sin cualificar, solo como llamada (P(ahora)) o como argumento (Where(Predicado)):
+                // un local o un parámetro con el mismo nombre no es el predicado.
                 return true;
             }
         }
@@ -326,7 +427,7 @@ internal static class AccesosAAsignaciones
             .Select(t => (Id: t.GetCustomAttribute<MigrationAttribute>()?.Id, Tipo: t))
             .Where(m => m.Id is not null)
             .Select(m => (Id: m.Id!, Sql: string.Join("\n", ((Migration)Activator.CreateInstance(m.Tipo)!)
-                .UpOperations.OfType<SqlOperation>().Select(o => o.Sql))))
+                .UpOperations.OfType<SqlOperation>().Select(o => o.Sql + "\n;"))))
             .OrderBy(m => m.Id, StringComparer.Ordinal)
             .ToList();
 
@@ -399,7 +500,8 @@ internal static class AccesosAAsignaciones
                     // ALTER POLICY con USING o WITH CHECK: puede sustituir una sola de las dos
                     // expresiones, así que se acumula (sobreaproxima la lectura; nunca la pierde).
                     politicas[clave] = (id, politicas.TryGetValue(clave, out var previa) ? previa.Texto + "\n" + expresion : expresion);
-                }));
+                }
+                ));
             }
 
             foreach (var (_, aplicar) in eventos.OrderBy(e => e.Indice))
@@ -415,12 +517,25 @@ internal static class AccesosAAsignaciones
     }
 
     /// <summary>La definición vigente (migración y texto) de cada objeto SQL que lee las tablas: para el inventario.</summary>
+    /// <summary>
+    /// Un acceso por cada aparición de la tabla, clasificado por su <b>sentencia</b> (el tramo entre dos
+    /// <c>;</c> en código): un <c>"Servicio"</c> comparado en otra sentencia del mismo cuerpo no lo
+    /// filtra, y una lectura nueva sin servicio en un objeto ya listado sube su recuento (CRECE).
+    /// </summary>
     public static IEnumerable<AccesoAAsignacion> AccesosDeTexto(string lugar, string texto, string forma)
     {
         var limpio = EscanerSql.SinComentarios(texto);
-        var filtra = ServicioSql.IsMatch(limpio);
-        return TablaSql.Matches(limpio).Select(m => m.Groups["tabla"].Value).Distinct(StringComparer.Ordinal)
-            .Select(t => new AccesoAAsignacion(lugar, string.Empty, t, forma, filtra, 0));
+        var codigo = EscanerSql.SoloCodigo(texto);
+        var inicio = 0;
+        while (inicio < limpio.Length)
+        {
+            var fin = FinDeSentencia(codigo, inicio);
+            var sentencia = limpio[inicio..fin];
+            var filtra = ServicioSql.IsMatch(sentencia);
+            foreach (Match m in TablaSql.Matches(sentencia))
+                yield return new AccesoAAsignacion(lugar, string.Empty, m.Groups["tabla"].Value, forma, filtra, 0);
+            inicio = fin + 1;
+        }
     }
 
     private static int FinDeSentencia(string codigo, int desde)

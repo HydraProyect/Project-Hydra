@@ -41,8 +41,18 @@ namespace CaeManager.Architecture.Tests;
 /// <c>Set(typeof(…))</c>, <c>Model.FindEntityType</c>, reflexión.</item>
 /// <item>En SQL: una función o política creada dentro de un <c>DO $$ … EXECUTE … $$</c> o reescrita por
 /// <c>ReescrituraPoliticasContextoRls</c> en ejecución; sobrecargas de una función con el mismo nombre
-/// (se queda la última definición); el SQL de datos de una sola vez en <c>Up</c>; y un
-/// <c>"Servicio"</c> en una consulta del cuerpo distinta de la que lee la tabla.</item>
+/// (se queda la última definición); el SQL de datos de una sola vez en <c>Up</c>; y la sentencia se
+/// corta por <c>;</c>, así que una subconsulta sin servicio dentro de una sentencia que compara
+/// <c>"Servicio"</c> en otro sitio cuenta como filtrada.</item>
+/// <item>Una redefinición de un objeto SQL ya listado hereda su línea: solo se nota si cambia el
+/// recuento de apariciones crudas.</item>
+/// <item>Literales SQL construidos por concatenación o con la tabla en un hueco de interpolación; alias
+/// <c>global using</c> de las entidades; <c>Find&lt;T&gt;</c> y <c>Entry&lt;T&gt;</c> genéricos.</item>
+/// <item>Las sobrecargas de un mismo miembro se suman bajo <c>Tipo.Miembro</c>: un crudo nuevo en una
+/// sobrecarga es <c>CRECE</c>, no <c>NUEVA</c>.</item>
+/// <item>La cadena de la consulta se ensancha a la consulta exterior cuando el acceso está dentro de
+/// una lambda pasada como argumento o de una expresión de consulta: una subconsulta interior sin
+/// servicio comparte el filtro de la exterior.</item>
 /// <item>El SQL de <c>tests/</c> y de los guiones de <c>scripts/</c>.</item>
 /// </list>
 /// </summary>
@@ -101,6 +111,10 @@ public class AccesoCrudoAAsignacionesSinServicioTests
     [InlineData("void A() { var n = ctx.AsignacionesOperacion.Count(o => Catalogo.Servicio == s); }", "Lector.A · AsignacionesOperacion")]
     [InlineData("void A() { db.Database.ExecuteSqlRaw(\"DELETE FROM \\\"AsignacionesCartera\\\" WHERE 1=1\"); }", "Lector.A · AsignacionesCartera")]
     [InlineData("Lector() { _ = ctx.AsignacionesCartera.ToList(); }", "Lector..ctor · AsignacionesCartera")]
+    [InlineData("void A() { var n = ctx.AsignacionesOperacion.Count(o => request.Servicio == s); }", "Lector.A · AsignacionesOperacion")]
+    [InlineData("static bool P(AsignacionOperacion o) => o.Servicio == S;\nvoid A() { var n = ctx.AsignacionesOperacion.AsEnumerable().Count(P); }", "Lector.A · AsignacionesOperacion")]
+    [InlineData("void A() { db.Database.ExecuteSqlRaw(\"TRUNCATE \\\"AsignacionesCartera\\\"\"); }", "Lector.A · AsignacionesCartera")]
+    [InlineData("void A() { db.Database.ExecuteSqlRaw(\"UPDATE \\\"AsignacionesOperacion\\\" SET \\\"Servicio\\\" = 'Inbound'\"); }", "Lector.A · AsignacionesOperacion")]
     public void Un_acceso_sin_filtro_de_Servicio_es_crudo(string cuerpo, string simbolo)
     {
         var accesos = MedirCs(cuerpo);
@@ -171,6 +185,21 @@ public class AccesoCrudoAAsignacionesSinServicioTests
 
         accesos.Should().ContainSingle().Which.Should().Be(
             new AccesoAAsignacion("SQL función public.app_lee", string.Empty, AccesosAAsignaciones.Operacion, "función", false, 0));
+    }
+
+    [Fact]
+    public void El_Servicio_de_otra_sentencia_del_cuerpo_no_filtra_y_cada_lectura_cuenta()
+    {
+        const string dosSentencias =
+            "CREATE OR REPLACE FUNCTION public.app_lee(p uuid) RETURNS int LANGUAGE plpgsql AS $$ BEGIN " +
+            "PERFORM 1 FROM public.\"AsignacionesOperacion\" o WHERE o.\"PropietarioTenantId\" = p; " +
+            "PERFORM 1 FROM public.\"AsignacionesOperacion\" o WHERE o.\"Servicio\" = 'Inbound'; " +
+            "PERFORM 1 FROM public.\"AsignacionesOperacion\" o WHERE o.\"Id\" = p; RETURN 1; END $$;";
+
+        var accesos = AccesosAAsignaciones.EnSql([("1", dosSentencias)]);
+
+        accesos.Should().HaveCount(3, "una aparición por lectura, no una por objeto");
+        accesos.Count(a => !a.FiltraPorServicio).Should().Be(2, "el Servicio de la segunda sentencia no filtra la primera ni la tercera");
     }
 
     [Fact]
