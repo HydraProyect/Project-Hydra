@@ -10,6 +10,7 @@ using CaeManager.Application.Reclamaciones.Queries.ObtenerLoteReclamacion;
 using CaeManager.Application.Reclamaciones.Queries.ObtenerUltimaReclamacionCliente;
 using CaeManager.Domain.Centros;
 using CaeManager.Infrastructure.Comunicaciones;
+using CaeManager.Infrastructure.Identity;
 using CaeManager.Web.Components.DesignSystem;
 using CaeManager.Web.Components.Workspace;
 using CaeManager.Web.Features.Centros.Components;
@@ -40,13 +41,20 @@ public class CentroWorkspacePanelSinDatosTests : BunitContext
     public CentroWorkspacePanelSinDatosTests()
     {
         JSInterop.Mode = JSRuntimeMode.Loose;
-        this.ConRolDeEscritura();
     }
+
+    private MediatorFalso? _mediator;
 
     private sealed class MediatorFalso(CentroDetalleDto detalle, EstadoCentroDto estado, UltimaReclamacionClienteDto? ultimaReclamacion) : IMediator
     {
+        /// <summary>Cuántas veces se preguntó por la última reclamación al Cliente.</summary>
+        public int PeticionesUltimaReclamacion { get; private set; }
+
         public Task<TResponse> Send<TResponse>(IRequest<TResponse> request, CancellationToken cancellationToken = default)
         {
+            if (request is ObtenerUltimaReclamacionClienteQuery)
+                PeticionesUltimaReclamacion++;
+
             object? valor = request switch
             {
                 ObtenerCentroPorIdQuery => detalle,
@@ -104,13 +112,15 @@ public class CentroWorkspacePanelSinDatosTests : BunitContext
     }
 
     private IRenderedComponent<CentroWorkspacePanel> Montar(
-        EstadoCentro estado, int? cumplimiento, UltimaReclamacionClienteDto? ultimaReclamacion = null)
+        EstadoCentro estado, int? cumplimiento, UltimaReclamacionClienteDto? ultimaReclamacion = null, string rol = Roles.GestorCae)
     {
+        this.ConRolDeEscritura(rol);
         var centroId = Guid.NewGuid();
         var detalle = new CentroDetalleDto(
             centroId, Guid.NewGuid(), "Refrielectric S.A.", Guid.NewGuid(), "Montajes Ebro S.L.",
             "Centro Logístico Norte", "C-001", null, null, null, Guid.NewGuid());
-        Services.AddScoped<IMediator>(_ => new MediatorFalso(detalle, new EstadoCentroDto(estado, [], cumplimiento), ultimaReclamacion));
+        _mediator = new MediatorFalso(detalle, new EstadoCentroDto(estado, [], cumplimiento), ultimaReclamacion);
+        Services.AddScoped<IMediator>(_ => _mediator);
         Services.AddScoped<ToastService>();
         Services.AddScoped<ContextWorkspaceService>();
         Services.AddScoped<ICurrentUserService, UsuarioActualFalso>();
@@ -155,5 +165,31 @@ public class CentroWorkspacePanelSinDatosTests : BunitContext
         cut.WaitForAssertion(() => cut.Markup.Should().Contain("Última reclamación a este Cliente",
             "control: la nota de la última reclamación, con hilo, está pintada"));
         cut.FindAll("a").Count(a => a.TextContent.Trim() == "Ver en Comunicaciones").Should().Be(esperados);
+    }
+
+    /// <summary>
+    /// La línea «Última reclamación a este Cliente empresarial» es historial de reclamaciones (decisión 2026-11-14): la
+    /// leen los roles de <c>RolesComunicaciones.LecturaReclamaciones</c>. Para Consulta y el Usuario de Cliente el panel
+    /// ni la pregunta ni la pinta, aunque el servidor devolviera una; el resto de la cabecera del Centro sí se carga.
+    /// </summary>
+    [Theory]
+    [InlineData(Roles.Administrador, true)]
+    [InlineData(Roles.DireccionCae, true)]
+    [InlineData(Roles.CoordinadorCae, true)]
+    [InlineData(Roles.GestorCae, true)]
+    [InlineData(Roles.Consulta, false)]
+    [InlineData(Roles.Cliente, false)]
+    public void La_ultima_reclamacion_al_Cliente_solo_para_quien_lee_reclamaciones(string rol, bool laVe)
+    {
+        Services.AddSingleton<IOptions<ComunicacionesOptions>>(Options.Create(new ComunicacionesOptions { Activo = true }));
+
+        var cut = Montar(EstadoCentro.Vencido, cumplimiento: null,
+            new UltimaReclamacionClienteDto(Guid.NewGuid(), DateTime.UtcNow.AddDays(-2), 3, ConversacionId: Guid.NewGuid()), rol);
+
+        cut.WaitForAssertion(() => cut.Find(".workspace-cabecera-entidad .badge").TextContent.Trim().Should().Be("Vencido",
+            "control: la cabecera del Centro está cargada"));
+        cut.Markup.Contains("Última reclamación a este Cliente").Should().Be(laVe);
+        cut.FindAll("a").Count(a => a.TextContent.Trim() == "Ver en Comunicaciones").Should().Be(laVe ? 1 : 0);
+        _mediator!.PeticionesUltimaReclamacion.Should().Be(laVe ? 1 : 0, "quien no la lee no la pregunta");
     }
 }

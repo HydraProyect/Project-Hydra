@@ -174,7 +174,9 @@
             </div>
         }
 
-        @if (_mostrarRequiereAtencion)
+        @* Solo para quien lee el historial de reclamaciones (RolesComunicaciones.LecturaReclamaciones): Consulta y
+           el Usuario de Cliente no lo ven (decisión 2026-11-14). *@
+        @if (_mostrarReclamadoSinRespuesta)
         {
             <h2 class="dashboard-subtitulo">Reclamado y sin respuesta</h2>
             @if (_sinRespuesta.Count > 0)
