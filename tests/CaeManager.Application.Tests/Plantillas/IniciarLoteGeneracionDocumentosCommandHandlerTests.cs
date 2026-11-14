@@ -229,6 +229,36 @@ public class IniciarLoteGeneracionDocumentosCommandHandlerTests
         e.Items.Lista.Select(i => i.TrabajadorId).Should().BeEquivalentTo([visibleUno, visibleDos]);
     }
 
+    /// <summary>
+    /// Revisión puente de la ronda 2: ProcesarItemLoteGeneracion exige ahora el Centro del lote visible, así que un lote
+    /// que nace con un Centro fuera de la Cartera dejaría todos sus ítems sin procesar. Se rechaza al nacer, con el error
+    /// con el que GenerarDocumentoIndividual rechazaría ese Centro.
+    /// </summary>
+    [Fact]
+    public async Task Un_Gestor_con_cartera_explicita_no_inicia_un_lote_con_un_Centro_fuera_de_ella()
+    {
+        var trabajador = Guid.NewGuid();
+        var e = PrepararLote(GestorConCarteraExplicita(trabajador), centroId: null, clienteId: ClienteDeMiCartera);
+
+        var resultado = await e.Handler.Handle(
+            new IniciarLoteGeneracionDocumentosCommand(e.Version.Id, [trabajador], CentroId: Guid.NewGuid()), CancellationToken.None);
+
+        resultado.Error.Codigo.Should().Be("Plantilla.CentroNoEncontrado");
+        NoSePersistioNada(e);
+    }
+
+    [Fact]
+    public async Task Un_Gestor_con_cartera_explicita_inicia_un_lote_con_un_Centro_de_ella()
+    {
+        var trabajador = Guid.NewGuid();
+        var e = PrepararLote(GestorConCarteraExplicita(trabajador), centroId: null, clienteId: ClienteDeMiCartera);
+
+        var resultado = await e.Handler.Handle(
+            new IniciarLoteGeneracionDocumentosCommand(e.Version.Id, [trabajador], CentroId: CentroDeMiCartera), CancellationToken.None);
+
+        resultado.EsExitoso.Should().BeTrue();
+    }
+
     [Fact]
     public async Task Sin_restriccion_de_cartera_inicia_el_lote_con_cualquier_plantilla_y_Trabajador()
     {

@@ -22,7 +22,9 @@ public sealed record CoordenadasDocumentoGenerado(
 /// Lo que motiva el Documento: un documento generado desde una plantilla de ámbito Cliente sin Centro guarda
 /// <c>TrabajadorId</c> y <c>EmpresaId</c> nulos, y el Cliente empresarial al que pertenece solo consta en el Documento.
 /// Filtrar solo por las coordenadas no nulas del registro dejaba pasar esos registros a un Gestor CAE con Cartera
-/// limitada (ASVS V4.2.1 y V4.1.3). La misma puerta decide la descarga del PDF (<c>ObtenerDocumentoPorIdQuery</c>).
+/// limitada (ASVS V4.2.1 y V4.1.3). La descarga del PDF (<c>ObtenerDocumentoPorIdQuery</c>) usa solo la mitad del
+/// Documento: quien puede leer el Documento lo descarga aunque el Centro, la Empresa o la plantilla del registro estén
+/// fuera de su Cartera. Lo que esta puerta oculta además son los metadatos de trazabilidad del registro generado.
 /// </para>
 ///
 /// <para>
@@ -63,13 +65,13 @@ public static class AlcanceDeDocumentosGenerados
         // plantillas atadas a un Centro o a un Cliente empresarial (las generales están siempre dentro) y solo sus tres
         // columnas: es el catálogo del Tenant propietario, no el registro de generación, y su tamaño no crece con él.
         var plantillasAtadas = await plantillasContext.PlantillasDocumento
-            .Where(p => p.CentroId != null || p.ClienteId != null)
-            .Select(p => new { p.Id, p.CentroId, p.ClienteId })
+            .CoordenadasDePlantillas()
+            .Where(p => p.CentroId != null || p.ClienteEmpresarialId != null)
             .ToListAsync(cancellationToken);
         var plantillasFuera = new List<Guid>();
         foreach (var plantilla in plantillasAtadas)
         {
-            if (!await alcance.PlantillaDentroDeAlcanceAsync(plantilla.CentroId, plantilla.ClienteId, cancellationToken))
+            if (!await alcance.PlantillaDentroDeAlcanceAsync(plantilla, cancellationToken))
                 plantillasFuera.Add(plantilla.Id);
         }
 
@@ -113,12 +115,12 @@ public static class AlcanceDeDocumentosGenerados
         var idsPlantillas = versiones.Select(v => v.PlantillaDocumentoId).Distinct().ToList();
         var plantillas = await plantillasContext.PlantillasDocumento
             .Where(p => idsPlantillas.Contains(p.Id))
-            .Select(p => new { p.Id, p.CentroId, p.ClienteId })
+            .CoordenadasDePlantillas()
             .ToListAsync(cancellationToken);
 
         var plantillaDentroPorId = new Dictionary<Guid, bool>();
         foreach (var plantilla in plantillas)
-            plantillaDentroPorId[plantilla.Id] = await alcance.PlantillaDentroDeAlcanceAsync(plantilla.CentroId, plantilla.ClienteId, cancellationToken);
+            plantillaDentroPorId[plantilla.Id] = await alcance.PlantillaDentroDeAlcanceAsync(plantilla, cancellationToken);
 
         var plantillaDentroPorVersion = versiones
             .Where(v => plantillaDentroPorId.ContainsKey(v.PlantillaDocumentoId))
@@ -171,11 +173,11 @@ public static class AlcanceDeLotesGeneracion
         var plantilla = plantillaId is { } id
             ? await plantillasContext.PlantillasDocumento
                 .Where(p => p.Id == id)
-                .Select(p => new { p.CentroId, p.ClienteId })
+                .CoordenadasDePlantillas()
                 .FirstOrDefaultAsync(cancellationToken)
             : null;
         // Una plantilla que ya no se lee no da alcance: falla cerrado.
-        if (plantilla is null || !await alcance.PlantillaDentroDeAlcanceAsync(plantilla.CentroId, plantilla.ClienteId, cancellationToken))
+        if (plantilla is null || !await alcance.PlantillaDentroDeAlcanceAsync(plantilla, cancellationToken))
             return false;
 
         var trabajadoresVisibles = await alcance.ObtenerTrabajadorIdsVisiblesAsync(cancellationToken);

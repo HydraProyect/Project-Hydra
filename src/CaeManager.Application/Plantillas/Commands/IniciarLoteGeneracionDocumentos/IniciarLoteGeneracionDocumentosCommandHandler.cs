@@ -54,6 +54,11 @@ public class IniciarLoteGeneracionDocumentosCommandHandler(
                 return Fallo("Plantilla.PropietarioNoEncontrado", "No encontramos a quién pertenece este documento.");
         }
 
+        // El Centro del lote, con el mismo error con el que GenerarDocumentoIndividual lo rechazaría en cada ítem: un
+        // lote con un Centro fuera del alcance no puede nacer, porque ProcesarItemLoteGeneracion no procesaría sus ítems.
+        if (request.CentroId is { } centroId && !await alcanceDatos.CentroVisibleAsync(centroId, cancellationToken))
+            return Fallo("Plantilla.CentroNoEncontrado", "No encontramos este centro.");
+
         var contextoJson = JsonSerializer.Serialize(new ContextoLoteGeneracionDto(
             request.CentroId, request.ValoresManuales?.ToDictionary(par => par.Key, par => par.Value) ?? []));
 

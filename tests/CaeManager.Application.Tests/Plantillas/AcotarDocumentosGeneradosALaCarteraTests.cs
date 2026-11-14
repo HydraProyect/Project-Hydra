@@ -61,6 +61,25 @@ public class AcotarDocumentosGeneradosALaCarteraTests
         acotada.Select(d => d.Id).ToList().Should().BeEquivalentTo([dentro.Id, sinCoordenadas.Id, dePlantillaDeCartera.Id]);
     }
 
+    /// <summary>Lista vacía = Cartera sin asignar: no pasa nada con coordenada, solo lo que la deja nula.</summary>
+    [Fact]
+    public async Task Con_la_Cartera_sin_asignar_solo_pasa_lo_que_no_tiene_esa_coordenada()
+    {
+        var contexto = new PlantillasQueryContextFalso();
+        var general = AgregarVersion(contexto);
+        var conTrabajador = Generado(general, Guid.NewGuid(), null, null);
+        var conEmpresa = Generado(general, null, Guid.NewGuid(), null);
+        var conCentro = Generado(general, null, null, Guid.NewGuid());
+        var sinCoordenadas = Generado(general, null, null, null);
+        contexto.ListaDocumentosGenerados.AddRange([conTrabajador, conEmpresa, conCentro, sinCoordenadas]);
+        var carteraSinAsignar = new AlcanceDatosServiceFalso(
+            tieneAccesoTotal: false, clienteIdsVisibles: [], trabajadorIdsVisibles: [], empresaIdsVisibles: [], centroIdsVisibles: []);
+
+        var acotada = await carteraSinAsignar.AcotarALaCarteraAsync(contexto.DocumentosGenerados, contexto);
+
+        acotada.Select(d => d.Id).Should().ContainSingle().Which.Should().Be(sinCoordenadas.Id);
+    }
+
     [Fact]
     public async Task El_generado_de_una_version_que_ya_no_se_lee_no_se_recorta_por_plantilla()
     {

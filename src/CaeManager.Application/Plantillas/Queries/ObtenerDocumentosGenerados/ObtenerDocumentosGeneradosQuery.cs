@@ -47,6 +47,11 @@ public class ObtenerDocumentosGeneradosQueryHandler(
         if (request.TrabajadorId is { } trabajadorId)
             consulta = consulta.Where(d => d.TrabajadorId == trabajadorId);
 
+        // Recorte en la base de lo que la puerta va a rechazar seguro (Trabajador, Empresa, Centro y plantilla fuera
+        // de la Cartera), para no materializar el registro entero del Tenant propietario (API4:2023). La puerta de
+        // abajo sigue decidiendo cada fila.
+        consulta = await alcanceDatos.AcotarALaCarteraAsync(consulta, plantillasContext, cancellationToken);
+
         // Proyecta a propósito: Soporte TALVEG no tiene CodigoSeguroVerificacion ni
         // DatosUtilizadosJson, y materializar la entidad daría 42501 en Sesión Privilegiada.
         var generados = await consulta
