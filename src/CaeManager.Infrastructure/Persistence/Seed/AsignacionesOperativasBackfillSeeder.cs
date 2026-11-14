@@ -144,11 +144,22 @@ public static class AsignacionesOperativasBackfillSeeder
             .OrderBy(d => d.CreadoEnUtc)
             .ToListAsync(cancellationToken);
 
+        // Ids de las delegaciones activas y vigentes por par (Tenant propietario, Operador CAE
+        // externo), para la reconciliación del paso 2b.
+        var idsVigentesPorPar = new Dictionary<(Guid Propietario, Guid Operador), HashSet<Guid>>();
+
         foreach (var delegacion in delegacionesComerciales)
         {
             // Todas las Asignaciones de Operación Outbound externas de este par, de cualquier ámbito
             // y estado: lo que el backfill puede cerrar y lo que le dice si el par ya se migró.
             var propietarioId = delegacion.TenantClienteId;
+            if (delegacion.EstaVigente(ahora))
+            {
+                var clave = (propietarioId, delegacion.TenantConsultoraId);
+                if (!idsVigentesPorPar.TryGetValue(clave, out var ids))
+                    idsVigentesPorPar[clave] = ids = [];
+                ids.Add(delegacion.Id);
+            }
             var operacionesDelPar = operaciones.Where(o =>
                     !o.EsRaiz
                     && o.PropietarioTenantId == propietarioId
@@ -256,9 +267,9 @@ public static class AsignacionesOperativasBackfillSeeder
             creadas++;
         }
 
-        var idsDelegacionesComerciales = delegacionesComerciales.Select(d => d.Id).ToHashSet();
+        var idsComerciales = delegacionesComerciales.Select(d => d.Id).ToHashSet();
         var operadoresDelegados = await dbContext.AsignacionesOperadorDelegado
-            .Where(a => idsDelegacionesComerciales.Contains(a.DelegacionTenantId))
+            .Where(a => idsComerciales.Contains(a.DelegacionTenantId))
             .ToListAsync(cancellationToken);
 
         // --- 2b. Reconciliación: carteras Outbound de personas retiradas ---
@@ -275,11 +286,9 @@ public static class AsignacionesOperativasBackfillSeeder
         // vía que emite una cartera externa escribe también su fila heredada
         // (CatalogoIncorporacionCartera). Sin delegación activa y vigente, la rama de la inactiva
         // ya lo cerró todo. Inbound no se toca.
-        foreach (var par in delegacionesComerciales
-                     .Where(d => d.EstaVigente(ahora))
-                     .GroupBy(d => (d.TenantClienteId, d.TenantConsultoraId)))
+        foreach (var par in idsVigentesPorPar)
         {
-            var delegacionesVigentesDelPar = par.Select(d => d.Id).ToHashSet();
+            var delegacionesVigentesDelPar = par.Value;
             var personasConFila = operadoresDelegados
                 .Where(a => delegacionesVigentesDelPar.Contains(a.DelegacionTenantId) && RolesDelegables.Contains(a.Rol))
                 .Select(a => a.UsuarioId)
@@ -287,8 +296,8 @@ public static class AsignacionesOperativasBackfillSeeder
 
             var operacionesDelPar = operaciones
                 .Where(o => !o.EsRaiz
-                            && o.PropietarioTenantId == par.Key.TenantClienteId
-                            && o.OperadorTenantId == par.Key.TenantConsultoraId
+                            && o.PropietarioTenantId == par.Key.Propietario
+                            && o.OperadorTenantId == par.Key.Operador
                             && o.Servicio == ServicioCae.Outbound)
                 .Select(o => o.Id)
                 .ToHashSet();
@@ -302,8 +311,8 @@ public static class AsignacionesOperativasBackfillSeeder
                 cerradas++;
                 incidencias.Add(
                     $"Cartera externa {huerfana.Id} del usuario {huerfana.UsuarioId}: sin asignación de operador " +
-                    $"delegado vigente en una delegación activa de {par.Key.TenantConsultoraId} sobre " +
-                    $"{par.Key.TenantClienteId}. Cerrada.");
+                    $"delegado vigente en una delegación activa de {par.Key.Operador} sobre " +
+                    $"{par.Key.Propietario}. Cerrada.");
             }
         }
 
