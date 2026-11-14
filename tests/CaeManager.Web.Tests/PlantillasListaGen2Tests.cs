@@ -113,6 +113,10 @@ public class PlantillasListaGen2Tests : BunitContext
 
     // ------------------------------------------------------------------ Cabecera
 
+    /// <summary>La entradilla del artboard «Plantillas» (v34), que sale de TextosDocumentos.resx.</summary>
+    private const string TextoDescripcion =
+        "Documentos que TALVEG rellena y manda a firmar: entregas de EPI, autorizaciones, información de riesgos.";
+
     [Fact]
     public void La_cabecera_es_la_Gen_2_con_su_kicker_su_entradilla_y_la_accion_de_alta()
     {
@@ -121,7 +125,7 @@ public class PlantillasListaGen2Tests : BunitContext
         var cabecera = cut.Find("header.cabecera-pagina");
         cabecera.QuerySelector(".cabecera-pagina-kicker")!.TextContent.Trim().Should().Be("Ciclo documental");
         cabecera.QuerySelector("h1.titulo-pagina")!.TextContent.Trim().Should().Be("Plantillas");
-        cabecera.QuerySelector(".cabecera-pagina-descripcion")!.TextContent.Trim().Should().Be(PlantillasTab.TextoDescripcion);
+        cabecera.QuerySelector(".cabecera-pagina-descripcion")!.TextContent.Trim().Should().Be(TextoDescripcion);
         cabecera.QuerySelector(".acciones-cabecera button")!.TextContent.Trim().Should().Be("+ Nueva plantilla");
     }
 
@@ -132,7 +136,7 @@ public class PlantillasListaGen2Tests : BunitContext
         var cut = RenderizarPagina(new MediatorFalso { Almacen = { Plantilla("Anexo II — Información de riesgos") } });
 
         TextosDeLosBotones(cut).Count(t => t == "+ Nueva plantilla").Should().Be(1);
-        cut.Markup.Split(PlantillasTab.TextoDescripcion).Length.Should().Be(2, "la entradilla aparece una sola vez");
+        cut.Markup.Split(TextoDescripcion).Length.Should().Be(2, "la entradilla aparece una sola vez");
     }
 
     [Fact]

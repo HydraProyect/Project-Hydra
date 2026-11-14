@@ -6,6 +6,7 @@
 @attribute [Authorize(Roles = $"{CaeManager.Infrastructure.Identity.Roles.Administrador},{CaeManager.Infrastructure.Identity.Roles.DireccionCae},{CaeManager.Infrastructure.Identity.Roles.CoordinadorCae},{CaeManager.Infrastructure.Identity.Roles.GestorCae}")]
 @using CaeManager.Web.Features.Documentos.Components
 @inject NavigationManager Navigation
+@inject Microsoft.Extensions.Localization.IStringLocalizer<CaeManager.Web.Features.Documentos.Recursos.TextosDocumentos> Textos
 
 <LimiteDeErrores Pagina="this">
 <PageTitle>Plantillas — @Marca.Nombre</PageTitle>
@@ -22,7 +23,8 @@
                 <span class="contador-titulo-plantillas">@total</span>
             }
         </JuntoAlTitulo>
-        <Descripcion>@PlantillasTab.TextoDescripcion</Descripcion>
+        @* Qué es una plantilla: la entradilla del artboard «Plantillas» (v34). *@
+        <Descripcion>@Textos["PlantillasEntradilla"]</Descripcion>
         <Acciones>
             <SoloConEscritura><Boton Variante="VarianteBoton.Primario" OnClick='() => Navigation.NavigateTo("/plantillas/nueva")'>+ Nueva plantilla</Boton></SoloConEscritura>
         </Acciones>

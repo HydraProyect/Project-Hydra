@@ -20,12 +20,6 @@ namespace CaeManager.Web.Features.Documentos.Components;
 public partial class PlantillasTab : ComponentBase, IDisposable
 {
     /// <summary>
-    /// Qué es una plantilla: la entradilla de la cabecera de /plantillas (texto del artboard «Plantillas», v34).
-    /// </summary>
-    public const string TextoDescripcion =
-        "Documentos que TALVEG rellena y manda a firmar: entregas de EPI, autorizaciones, información de riesgos.";
-
-    /// <summary>
     /// Lista blanca de los parámetros de VISTA de la URL: lo que guarda un filtro guardado y lo que recuerda la vista
     /// recordada, junto con la búsqueda libre (<c>q</c>). «Pestana» no entra: recargar abre Catálogo (DDL-080).
     /// </summary>
@@ -229,8 +223,8 @@ public partial class PlantillasTab : ComponentBase, IDisposable
     // ------------------------------------------------------------------ Filtros
 
     private string PlaceholderBuscador => _pestanaActiva == "catalogo"
-        ? "Filtrar esta pantalla: nombre de la plantilla"
-        : "Filtrar esta pantalla: plantilla, Trabajador o Empresa";
+        ? Textos["PlantillasBuscadorCatalogo"].Value
+        : Textos["PlantillasBuscadorGenerados"].Value;
 
     private bool HayFiltrosActivos => !string.IsNullOrWhiteSpace(_busqueda) || !string.IsNullOrEmpty(_estado)
         || (_pestanaActiva == "catalogo"
@@ -280,9 +274,9 @@ public partial class PlantillasTab : ComponentBase, IDisposable
     private bool CoincideAlcance(PlantillaDocumentoListaDto p) => _alcance switch
     {
         "" => true,
-        AlcanceOrganizacion => p.CentroId is null && p.ClienteId is null,
+        AlcanceOrganizacion => p.CentroId is null && p.ClienteEmpresarialId is null,
         var a when a.StartsWith(PrefijoCentro, StringComparison.Ordinal) => p.CentroId?.ToString() == a[PrefijoCentro.Length..],
-        var a => p.ClienteId?.ToString() == a[PrefijoCliente.Length..]
+        var a => p.ClienteEmpresarialId?.ToString() == a[PrefijoCliente.Length..]
     };
 
     /// <summary>El catálogo con todos los filtros menos el de estado: la lista a la que la franja cuenta sus botones.</summary>
@@ -314,10 +308,10 @@ public partial class PlantillasTab : ComponentBase, IDisposable
         new("Borrador", TonoBadge.Neutro, nameof(EstadoConfiguracionPlantilla.Borrador))
     ];
 
-    private static IReadOnlyList<OpcionFranjaEstado> OpcionesEstadoGenerados =>
+    private IReadOnlyList<OpcionFranjaEstado> OpcionesEstadoGenerados =>
     [
-        new("Generado", TonoBadge.Exito, nameof(EstadoDocumentoGenerado.Generado)),
-        new("Generado con avisos", TonoBadge.Advertencia, nameof(EstadoDocumentoGenerado.GeneradoConAvisos))
+        new(Textos["PlantillasEstadoGenerado"], TonoBadge.Exito, nameof(EstadoDocumentoGenerado.Generado)),
+        new(Textos["PlantillasEstadoGeneradoConAvisos"], TonoBadge.Advertencia, nameof(EstadoDocumentoGenerado.GeneradoConAvisos))
     ];
 
     private IReadOnlyList<OpcionEstado> OpcionesAmbito =>
@@ -337,13 +331,13 @@ public partial class PlantillasTab : ComponentBase, IDisposable
         get
         {
             var opciones = new List<OpcionEstado>();
-            if (_plantillas.Any(p => p.CentroId is null && p.ClienteId is null))
+            if (_plantillas.Any(p => p.CentroId is null && p.ClienteEmpresarialId is null))
                 opciones.Add(new(AlcanceOrganizacion, TextoOrganizacion));
 
             opciones.AddRange(_plantillas.Where(p => p.CentroId is not null).Select(p => p.CentroId!.Value).Distinct()
                 .Select(id => new OpcionEstado($"{PrefijoCentro}{id}", NombreCentro(id)))
                 .OrderBy(o => o.Texto, StringComparer.CurrentCulture));
-            opciones.AddRange(_plantillas.Where(p => p.ClienteId is not null).Select(p => p.ClienteId!.Value).Distinct()
+            opciones.AddRange(_plantillas.Where(p => p.ClienteEmpresarialId is not null).Select(p => p.ClienteEmpresarialId!.Value).Distinct()
                 .Select(id => new OpcionEstado($"{PrefijoCliente}{id}", NombreCliente(id)))
                 .OrderBy(o => o.Texto, StringComparer.CurrentCulture));
             return opciones;
@@ -372,20 +366,21 @@ public partial class PlantillasTab : ComponentBase, IDisposable
     {
         get
         {
-            var texto = "No hay plantillas";
+            var partes = new List<string> { Textos["PlantillasVacioBase"].Value };
             if (!string.IsNullOrEmpty(_estado))
-                texto += " en " + string.Join(" o ", SeleccionEstados.Separar(_estado).Select(e => TextoEstado(Enum.Parse<EstadoConfiguracionPlantilla>(e))));
+                partes.Add(string.Format(CultureInfo.CurrentCulture, Textos["PlantillasVacioEstado"].Value,
+                    string.Join(" o ", SeleccionEstados.Separar(_estado).Select(e => TextoEstado(Enum.Parse<EstadoConfiguracionPlantilla>(e))))));
             if (!string.IsNullOrWhiteSpace(_busqueda))
-                texto += $" con «{_busqueda.Trim()}» en el nombre";
+                partes.Add(string.Format(CultureInfo.CurrentCulture, Textos["PlantillasVacioBusqueda"].Value, _busqueda.Trim()));
             if (_ambito.Length > 0 || _formato.Length > 0 || _alcance.Length > 0)
-                texto += string.IsNullOrEmpty(_estado) && string.IsNullOrWhiteSpace(_busqueda) ? " que cumplan los filtros puestos" : " que cumplan los demás filtros";
-            return texto + ".";
+                partes.Add(Textos[string.IsNullOrEmpty(_estado) && string.IsNullOrWhiteSpace(_busqueda) ? "PlantillasVacioFiltrosPuestos" : "PlantillasVacioDemasFiltros"].Value);
+            return string.Join(" ", partes) + ".";
         }
     }
 
     // ------------------------------------------------------------------ Nombres del alcance
 
-    private const string TextoOrganizacion = "Toda la organización";
+    private string TextoOrganizacion => Textos["PlantillasTodaLaOrganizacion"].Value;
 
     private string NombreCentro(Guid id) => _nombresCentro.GetValueOrDefault(id) ?? "Centro";
 
@@ -394,7 +389,7 @@ public partial class PlantillasTab : ComponentBase, IDisposable
     /// <summary>Segunda línea del nombre (artboard): el alcance de la plantilla y su versión («Toda la organización · v3»).</summary>
     private string TextoAlcance(PlantillaDocumentoListaDto p)
     {
-        var alcance = (p.CentroId, p.ClienteId) switch
+        var alcance = (p.CentroId, p.ClienteEmpresarialId) switch
         {
             (null, null) => TextoOrganizacion,
             ({ } centro, null) => NombreCentro(centro),
@@ -476,7 +471,7 @@ public partial class PlantillasTab : ComponentBase, IDisposable
                     _nombresCentro = centros.GroupBy(c => c.Id).ToDictionary(g => g.Key, g => g.First().Nombre);
             }
 
-            if (plantillas.Any(p => p.ClienteId is not null))
+            if (plantillas.Any(p => p.ClienteEmpresarialId is not null))
             {
                 var clientes = await Mediator.Send(new ObtenerClientesParaSelectorQuery(), _ciclo.Token);
                 if (EsVigente(carga))

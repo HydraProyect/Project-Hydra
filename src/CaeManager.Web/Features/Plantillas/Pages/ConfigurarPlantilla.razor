@@ -17,6 +17,7 @@
 @inject CaeManager.Application.DocumentosIa.Common.IRasterizadorPaginasPdfService Rasterizador
 @inject CaeManager.Application.Common.IPresupuestoMemoriaDocumentos PresupuestoMemoria
 @inject NavigationManager Navigation
+@inject Microsoft.Extensions.Localization.IStringLocalizer<CaeManager.Web.Features.Documentos.Recursos.TextosDocumentos> TextosDocumentos
 @inject Microsoft.Extensions.Localization.IStringLocalizer<CaeManager.Web.Recursos.TextosComunes> TextosArchivo
 
 <LimiteDeErrores Pagina="this">
@@ -52,14 +53,14 @@
 
             @* D-28: el tipo que acredita el documento generado y firmado es visible y obligatorio. El modelo exige un
                TipoDocumentoId a toda plantilla, así que no hay «opcional» para las que no acreditan un requisito. *@
-            <CampoSelect Etiqueta="Tipo de documento que produce *" Valor="@(_tipoDocumentoId?.ToString() ?? "")" ValorChanged="CambiarTipoDocumento">
+            <CampoSelect Etiqueta="@TextosDocumentos["PlantillasTipoProduceEtiqueta"]" Valor="@(_tipoDocumentoId?.ToString() ?? "")" ValorChanged="CambiarTipoDocumento">
                 <option value="">— Selecciona —</option>
                 @foreach (var tipo in _tiposDocumentoDisponibles)
                 {
                     <option value="@tipo.Id">@tipo.Nombre</option>
                 }
             </CampoSelect>
-            <p class="editor-plantilla-ayuda-campo">El documento generado y firmado acredita este tipo.</p>
+            <p class="editor-plantilla-ayuda-campo">@TextosDocumentos["PlantillasTipoProduceAyuda"]</p>
 
             <CampoSelect Etiqueta="Formato del PDF" Valor="@_formatoOrigenSeleccionado.ToString()" ValorChanged="CambiarFormatoOrigen">
                 <option value="@FormatoOrigenPlantilla.PdfConCampos">Tiene campos de formulario (AcroForm)</option>

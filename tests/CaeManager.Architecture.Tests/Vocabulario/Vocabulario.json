@@ -525,6 +525,21 @@
       "motivo": "Página de Plataforma (/configuracion/comercial, kicker «Plataforma») que exige la capacidad de administración de plataforma con alcance global: la abre un Actor de Plataforma TALVEG (plano 3), cuyo objeto de trabajo son los Tenants como tales. «Alcance global» nombra esa capacidad, no el ámbito de un usuario de negocio."
     },
     {
+      "id": "alcance-de-la-plantilla-en-plantillas",
+      "prohibidos": [
+        "alcance-a-secas"
+      ],
+      "ficheros": [
+        "src/CaeManager.Web/Features/Documentos/Recursos/TextosDocumentos.resx",
+        "src/CaeManager.Web/Features/Documentos/Recursos/TextosDocumentos.ca-ES.resx"
+      ],
+      "claves": [
+        "PlantillasFiltroAlcance"
+      ],
+      "contexto": "pastilla de filtro de Plantillas",
+      "motivo": "Alcance de la plantilla: dónde aplica (Centro, Cliente empresarial o general de la organización), no alcance de autorización. El rótulo «Alcance» es el del lienzo Plantillas (decisión de la coordinadora para la PR9: se conserva el rótulo del artboard); la pastilla lista exactamente esas tres dimensiones y no tiene relación con el Ámbito efectivo, de Operación o de Cartera. Solo esta clave: el resto de textos de Plantillas no dice «alcance»."
+    },
+    {
       "id": "tenant-en-orden-global-del-menu",
       "prohibidos": [
         "tenant-a-secas"

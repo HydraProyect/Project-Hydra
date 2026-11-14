@@ -476,7 +476,7 @@
         <CaeManager.Web.Exportacion.EntradasExportar Ruta="/documentos/exportar.xlsx" />
         @* D-27: Plantillas es página propia; Documentos la enlaza aquí. Mismos roles que la página /plantillas. *@
         <AuthorizeView Roles="@($"{CaeManager.Infrastructure.Identity.Roles.Administrador},{CaeManager.Infrastructure.Identity.Roles.DireccionCae},{CaeManager.Infrastructure.Identity.Roles.CoordinadorCae},{CaeManager.Infrastructure.Identity.Roles.GestorCae}")">
-            <ItemMenuAccion OnClick='() => NavigationManager.NavigateTo("/plantillas")'>Plantillas</ItemMenuAccion>
+            <ItemMenuAccion OnClick='() => NavigationManager.NavigateTo("/plantillas")'>@Textos["PlantillasMenuDocumentos"]</ItemMenuAccion>
         </AuthorizeView>
         <SoloConEscritura>
             <AuthorizeView Roles="@CaeManager.Infrastructure.Identity.Roles.ConCargaMasivaCsv">

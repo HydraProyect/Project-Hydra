@@ -27,6 +27,7 @@
 @inject NavigationManager Navigation
 @inject ToastService Toasts
 @inject Microsoft.Extensions.Localization.IStringLocalizer<CaeManager.Web.Recursos.TextosComunes> Comunes
+@inject Microsoft.Extensions.Localization.IStringLocalizer<CaeManager.Web.Features.Documentos.Recursos.TextosDocumentos> Textos
 
 <div class="segmentado" role="group" aria-label="Plantillas">
     @foreach (var vista in Vistas)
@@ -45,34 +46,34 @@
         <Pastillas>
             @if (_pestanaActiva == "catalogo")
             {
-                <PastillaFiltro Etiqueta="Ámbito" TextoTodos="Todos" Valor="@_ambito" ValorChanged="CambiarAmbitoAsync" Opciones="OpcionesAmbito" />
-                <PastillaFiltro Etiqueta="Formato" TextoTodos="Todos" Valor="@_formato" ValorChanged="CambiarFormatoAsync" Opciones="OpcionesFormato" />
-                <PastillaFiltro Etiqueta="Alcance" TextoTodos="Todos" Valor="@_alcance" ValorChanged="CambiarAlcanceAsync" Opciones="OpcionesAlcance" />
+                <PastillaFiltro Etiqueta="@Textos["PlantillasFiltroAmbito"]" TextoTodos="@Textos["PlantillasTodos"]" Valor="@_ambito" ValorChanged="CambiarAmbitoAsync" Opciones="OpcionesAmbito" />
+                <PastillaFiltro Etiqueta="@Textos["PlantillasFiltroFormato"]" TextoTodos="@Textos["PlantillasTodos"]" Valor="@_formato" ValorChanged="CambiarFormatoAsync" Opciones="OpcionesFormato" />
+                <PastillaFiltro Etiqueta="@Textos["PlantillasFiltroAlcance"]" TextoTodos="@Textos["PlantillasTodos"]" Valor="@_alcance" ValorChanged="CambiarAlcanceAsync" Opciones="OpcionesAlcance" />
             }
             else
             {
-                <PastillaFiltro Etiqueta="Plantilla" TextoTodos="Todas" Valor="@_plantillaFiltro" ValorChanged="CambiarPlantillaFiltroAsync" Opciones="OpcionesPlantilla" />
-                <PastillaFiltro Etiqueta="Trabajador" TextoTodos="Todos" Valor="@_trabajadorFiltro" ValorChanged="CambiarTrabajadorFiltroAsync" Opciones="OpcionesTrabajador" />
+                <PastillaFiltro Etiqueta="@Textos["PlantillasFiltroPlantilla"]" TextoTodos="@Textos["PlantillasTodas"]" Valor="@_plantillaFiltro" ValorChanged="CambiarPlantillaFiltroAsync" Opciones="OpcionesPlantilla" />
+                <PastillaFiltro Etiqueta="@Textos["PlantillasFiltroTrabajador"]" TextoTodos="@Textos["PlantillasTodos"]" Valor="@_trabajadorFiltro" ValorChanged="CambiarTrabajadorFiltroAsync" Opciones="OpcionesTrabajador" />
             }
         </Pastillas>
         <Estados>
             @if (_pestanaActiva == "catalogo")
             {
                 <FranjaEstado Opciones="OpcionesEstadoCatalogo" Valor="@_estado" ValorChanged="CambiarEstadoAsync"
-                              Recuentos="RecuentosCatalogo" TotalTodos="TotalSinEstadoCatalogo" TextoTodos="Todas"
-                              EtiquetaAccesible="Filtrar por estado de la plantilla" />
+                              Recuentos="RecuentosCatalogo" TotalTodos="TotalSinEstadoCatalogo" TextoTodos="@Textos["PlantillasTodas"]"
+                              EtiquetaAccesible="@Textos["PlantillasEstadoPlantillaAccesible"]" />
             }
             else
             {
                 <FranjaEstado Opciones="OpcionesEstadoGenerados" Valor="@_estado" ValorChanged="CambiarEstadoAsync"
-                              Recuentos="_recuentosGenerados" TotalTodos="_totalSinEstadoGenerados" TextoTodos="Todos"
-                              EtiquetaAccesible="Filtrar por estado del documento generado" />
+                              Recuentos="_recuentosGenerados" TotalTodos="_totalSinEstadoGenerados" TextoTodos="@Textos["PlantillasTodos"]"
+                              EtiquetaAccesible="@Textos["PlantillasEstadoGeneradoAccesible"]" />
             }
         </Estados>
         <Chips>
             @if (!string.IsNullOrWhiteSpace(_busqueda))
             {
-                <ChipFiltro Etiqueta="@($"Búsqueda: «{_busqueda}»")" EtiquetaAccesible="Quitar la búsqueda" OnQuitar="() => BuscarAsync(string.Empty)" />
+                <ChipFiltro Etiqueta="@string.Format(System.Globalization.CultureInfo.CurrentCulture, Textos["PlantillasChipBusqueda"].Value, _busqueda)" EtiquetaAccesible="@Textos["PlantillasQuitarBusqueda"]" OnQuitar="() => BuscarAsync(string.Empty)" />
             }
         </Chips>
     </BarraFiltros>
@@ -105,12 +106,12 @@
             </Accion>
         </EstadoVacio>
     }
-    else if (Visibles.Count == 0)
+    else if (Visibles.Count == 0 && HayFiltrosActivos)
     {
         @* Distinto de «todavía no hay plantillas»: con filtros puestos, el cero no dice que el catálogo esté vacío. *@
-        <EstadoVacio NombreIcono="filtro" Titulo="Ninguna plantilla coincide" Descripcion="@DescripcionVacioPorFiltro">
+        <EstadoVacio NombreIcono="filtro" Titulo="@Textos["PlantillasVacioFiltroTitulo"]" Descripcion="@DescripcionVacioPorFiltro">
             <Accion>
-                <Boton Variante="VarianteBoton.Secundario" OnClick="LimpiarFiltrosAsync">Limpiar filtros</Boton>
+                <Boton Variante="VarianteBoton.Secundario" OnClick="LimpiarFiltrosAsync">@Textos["PlantillasLimpiarFiltros"]</Boton>
             </Accion>
         </EstadoVacio>
     }

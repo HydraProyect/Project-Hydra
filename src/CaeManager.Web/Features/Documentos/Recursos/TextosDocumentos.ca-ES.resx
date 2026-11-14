@@ -659,4 +659,85 @@
   <data name="RevIaDescartarMensaje" xml:space="preserve">
     <value>L&apos;avís es tancarà i el document es conservarà sense aplicar la detecció.</value>
   </data>
+  <data name="PlantillasEntradilla" xml:space="preserve">
+    <value>Documents que TALVEG omple i envia a signar: lliuraments d'EPI, autoritzacions, informació de riscos.</value>
+  </data>
+  <data name="PlantillasMenuDocumentos" xml:space="preserve">
+    <value>Plantilles</value>
+  </data>
+  <data name="PlantillasFiltroAmbito" xml:space="preserve">
+    <value>Àmbit</value>
+  </data>
+  <data name="PlantillasFiltroFormato" xml:space="preserve">
+    <value>Format</value>
+  </data>
+  <data name="PlantillasFiltroAlcance" xml:space="preserve">
+    <value>Abast</value>
+  </data>
+  <data name="PlantillasFiltroPlantilla" xml:space="preserve">
+    <value>Plantilla</value>
+  </data>
+  <data name="PlantillasFiltroTrabajador" xml:space="preserve">
+    <value>Treballador</value>
+  </data>
+  <data name="PlantillasTodos" xml:space="preserve">
+    <value>Tots</value>
+  </data>
+  <data name="PlantillasTodas" xml:space="preserve">
+    <value>Totes</value>
+  </data>
+  <data name="PlantillasEstadoPlantillaAccesible" xml:space="preserve">
+    <value>Filtrar per estat de la plantilla</value>
+  </data>
+  <data name="PlantillasEstadoGeneradoAccesible" xml:space="preserve">
+    <value>Filtrar per estat del document generat</value>
+  </data>
+  <data name="PlantillasEstadoGenerado" xml:space="preserve">
+    <value>Generat</value>
+  </data>
+  <data name="PlantillasEstadoGeneradoConAvisos" xml:space="preserve">
+    <value>Generat amb avisos</value>
+  </data>
+  <data name="PlantillasQuitarBusqueda" xml:space="preserve">
+    <value>Treure la cerca</value>
+  </data>
+  <data name="PlantillasChipBusqueda" xml:space="preserve">
+    <value>Cerca: «{0}»</value>
+  </data>
+  <data name="PlantillasBuscadorCatalogo" xml:space="preserve">
+    <value>Filtrar aquesta pantalla: nom de la plantilla</value>
+  </data>
+  <data name="PlantillasBuscadorGenerados" xml:space="preserve">
+    <value>Filtrar aquesta pantalla: plantilla, Treballador o Empresa</value>
+  </data>
+  <data name="PlantillasVacioFiltroTitulo" xml:space="preserve">
+    <value>Cap plantilla coincideix</value>
+  </data>
+  <data name="PlantillasVacioBase" xml:space="preserve">
+    <value>No hi ha plantilles</value>
+  </data>
+  <data name="PlantillasVacioEstado" xml:space="preserve">
+    <value>en {0}</value>
+  </data>
+  <data name="PlantillasVacioBusqueda" xml:space="preserve">
+    <value>amb «{0}» al nom</value>
+  </data>
+  <data name="PlantillasVacioDemasFiltros" xml:space="preserve">
+    <value>que compleixin els altres filtres</value>
+  </data>
+  <data name="PlantillasVacioFiltrosPuestos" xml:space="preserve">
+    <value>que compleixin els filtres aplicats</value>
+  </data>
+  <data name="PlantillasLimpiarFiltros" xml:space="preserve">
+    <value>Netejar filtres</value>
+  </data>
+  <data name="PlantillasTodaLaOrganizacion" xml:space="preserve">
+    <value>Tota l'organització</value>
+  </data>
+  <data name="PlantillasTipoProduceEtiqueta" xml:space="preserve">
+    <value>Tipus de document que produeix *</value>
+  </data>
+  <data name="PlantillasTipoProduceAyuda" xml:space="preserve">
+    <value>El document generat i signat acredita aquest tipus.</value>
+  </data>
 </root>
