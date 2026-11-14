@@ -52,6 +52,16 @@ public class ClasificacionRepartoTests
     }
 
     [Fact]
+    public void Con_todo_pero_sin_poder_nombrar_el_destino_o_el_tipo_hay_que_revisarlo_y_no_esta_listo()
+    {
+        var adjunto = Adjunto(trabajador: Guid.NewGuid(), tipo: Guid.NewGuid());
+        ClasificacionReparto.Situacion(adjunto, Fechas("2026-01-05"), nombresConocidos: false).Should().Be(SituacionAdjunto.PorRevisar);
+        new FilaReparto(adjunto, Fechas("2026-01-05"), NombresConocidos: false).Situacion.Should().Be(SituacionAdjunto.PorRevisar);
+        // Sin destino, sigue siendo «Sin destino»: lo que falta primero es elegirlo.
+        ClasificacionReparto.Situacion(Adjunto(tipo: Guid.NewGuid()), Fechas("2026-01-05"), nombresConocidos: false).Should().Be(SituacionAdjunto.SinDestino);
+    }
+
+    [Fact]
     public void Con_destino_tipo_y_fechas_validas_esta_listo_tambien_para_una_empresa()
     {
         ClasificacionReparto.Situacion(Adjunto(trabajador: Guid.NewGuid(), tipo: Guid.NewGuid()), Fechas("2026-01-05", "2027-01-05"))

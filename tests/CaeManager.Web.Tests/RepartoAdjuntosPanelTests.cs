@@ -41,6 +41,8 @@ public class RepartoAdjuntosPanelTests : BunitContext
         public List<object> Enviados { get; } = [];
         public Func<AsignarAdjuntosLoteCommand, Result<IReadOnlyList<ResultadoAsignacionAdjunto>>>? Lote { get; set; }
         public bool RepartoFalla { get; set; }
+        /// <summary>Las consultas de selector (Trabajadores, Empresas o tipos) que lanzan al leerse.</summary>
+        public HashSet<Type> SelectoresFallan { get; } = [];
         public List<TrabajadorSelectorDto> Trabajadores { get; set; } = [new(Marta, "Marta Ruiz", null, null), new(Pedro, "Pedro Gil", null, null)];
 
         public IEnumerable<T> De<T>() => Enviados.OfType<T>();
@@ -48,6 +50,7 @@ public class RepartoAdjuntosPanelTests : BunitContext
         public Task<TResponse> Send<TResponse>(IRequest<TResponse> request, CancellationToken cancellationToken = default)
         {
             Enviados.Add(request);
+            if (SelectoresFallan.Contains(request.GetType())) throw new InvalidOperationException("falla el selector");
             object? respuesta = request switch
             {
                 ObtenerRepartoAdjuntosQuery => RepartoFalla ? throw new InvalidOperationException("falla") : Reparto.ToList(),
@@ -239,6 +242,63 @@ public class RepartoAdjuntosPanelTests : BunitContext
         cut.WaitForAssertion(() => cut.FindAll(".adjb [role='alert']").Should().BeEmpty());
         cut.Find("select[aria-label='Destino de suelto.pdf']").HasAttribute("disabled").Should().BeFalse();
         mediador.De<AsignarAdjuntosLoteCommand>().Should().ContainSingle("el bloqueo no reenvía nada");
+    }
+
+    public static TheoryData<Type, bool> SelectoresQueFallan => new()
+    {
+        { typeof(ObtenerTrabajadoresParaSelectorQuery), false },
+        { typeof(ObtenerEmpresasParaSelectorQuery), true },
+        { typeof(ObtenerTiposDocumentoQuery), false }
+    };
+
+    [Theory]
+    [MemberData(nameof(SelectoresQueFallan))]
+    public void Si_un_selector_no_se_puede_leer_no_se_aprueba_ni_en_lote_ni_uno_a_uno_y_Reintentar_lo_devuelve(Type selector, bool aEmpresa)
+    {
+        // Con identificadores y fecha, pero sin poder nombrar el destino o el tipo: aprobarlo sería a ciegas.
+        var adjunto = aEmpresa
+            ? Adj("doc.pdf", empresa: EmpresaPropia, tipo: TipoSeguroEmpresa)
+            : Adj("doc.pdf", trabajador: Marta, tipo: TipoDniTrabajador);
+        var mediador = Preparar(Roles.GestorCae, adjunto);
+        mediador.SelectoresFallan.Add(selector);
+        var cut = Pintar();
+        cut.WaitForAssertion(() => cut.FindAll(".adjb").Should().HaveCount(1));
+        EscribirEmision(cut, "doc.pdf", "2026-03-01");
+
+        cut.Find("[data-selectores='fallo']").TextContent.Should().Contain("No pudimos cargar los nombres");
+        cut.Find(".adjb-e").TextContent.Trim().Should().Be("Revisar");
+        Texto(cut).Should().Contain("No se puede asignar hasta cargar los nombres del destino y del tipo.").And.NotContain("1 listo");
+        cut.Find(".adjb-p .boton-primario").HasAttribute("disabled").Should().BeTrue("el lote no lleva lo que no se puede nombrar");
+
+        cut.FindAll(".adjb-p button").Single(b => b.TextContent.Contains("uno a uno")).Click();
+        cut.Find(".adjb-uno strong").TextContent.Should().Be("doc.pdf");
+        cut.FindAll(".adjb-uno-pie .boton-primario").Single().HasAttribute("disabled").Should().BeTrue("uno a uno tampoco se aprueba");
+        mediador.De<AsignarAdjuntosLoteCommand>().Should().BeEmpty();
+
+        mediador.SelectoresFallan.Clear();
+        cut.Find("[data-selectores='fallo'] button").Click();
+
+        cut.WaitForAssertion(() => cut.FindAll("[data-selectores]").Should().BeEmpty());
+        var asignar = cut.FindAll(".adjb-uno-pie .boton-primario").Single();
+        asignar.HasAttribute("disabled").Should().BeFalse("con los nombres a la vista ya se puede aprobar");
+        asignar.Click();
+        cut.WaitForAssertion(() => mediador.De<AsignarAdjuntosLoteCommand>().Should().ContainSingle());
+        mediador.De<AsignarAdjuntosLoteCommand>().Single().Adjuntos.Select(a => a.AdjuntoId).Should().Equal(adjunto.Id);
+    }
+
+    [Fact]
+    public void Un_destino_que_no_esta_en_el_selector_no_queda_listo_y_pide_elegir_uno_de_la_lista()
+    {
+        // Los selectores se leen bien, pero el destino propuesto no está en la cartera que ofrecen: tampoco se puede nombrar.
+        Preparar(Roles.GestorCae, Adj("doc.pdf", trabajador: Guid.NewGuid(), tipo: TipoDniTrabajador));
+        var cut = Pintar();
+        cut.WaitForAssertion(() => cut.FindAll(".adjb").Should().HaveCount(1));
+        EscribirEmision(cut, "doc.pdf", "2026-03-01");
+
+        cut.FindAll("[data-selectores]").Should().BeEmpty("no falló ningún selector: no hay nada que reintentar");
+        cut.Find(".adjb-e").TextContent.Trim().Should().Be("Revisar");
+        Texto(cut).Should().Contain("Destino actual").And.Contain("elige uno de la lista para poder asignarlo");
+        cut.Find(".adjb-p .boton-primario").HasAttribute("disabled").Should().BeTrue();
     }
 
     // ---------- Por rol ----------

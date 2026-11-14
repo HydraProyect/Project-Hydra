@@ -297,6 +297,15 @@
   <data name="ErrorRecargar" xml:space="preserve">
     <value>No hem pogut tornar a carregar el repartiment d&apos;adjunts, i el que veus pot estar desactualitzat. Les accions queden desactivades fins que es torni a carregar.</value>
   </data>
+  <data name="ErrorSelectores" xml:space="preserve">
+    <value>No hem pogut carregar els noms dels destins o dels tipus de document. Fins que es carreguin, els adjunts que no es poden identificar no es poden assignar.</value>
+  </data>
+  <data name="NombresSinCargar" xml:space="preserve">
+    <value>No es pot assignar fins que es carreguin els noms del destí i del tipus.</value>
+  </data>
+  <data name="NombresNoIdentificados" xml:space="preserve">
+    <value>El destí o el tipus actual no és entre els que pots triar: tria&apos;n un de la llista per poder assignar-lo.</value>
+  </data>
   <data name="Reintentar" xml:space="preserve">
     <value>Reintentar</value>
   </data>

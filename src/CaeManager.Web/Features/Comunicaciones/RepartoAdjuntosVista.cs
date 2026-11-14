@@ -10,10 +10,13 @@ namespace CaeManager.Web.Features.Comunicaciones;
 /// </summary>
 public enum SituacionAdjunto
 {
-    /// <summary>Destino, tipo y fechas revisadas: solo falta asignarlo.</summary>
+    /// <summary>Destino y tipo identificados por su nombre y fechas revisadas: solo falta asignarlo.</summary>
     Listo,
 
-    /// <summary>Tiene destino, pero falta el tipo de documento o las fechas: lo decide una persona.</summary>
+    /// <summary>
+    /// Tiene destino, pero falta el tipo de documento o las fechas, o el destino o el tipo no se pueden mostrar por su nombre:
+    /// lo decide una persona.
+    /// </summary>
     PorRevisar,
 
     SinDestino,
@@ -84,12 +87,16 @@ public sealed class EdicionAdjunto
         DateOnly.TryParseExact(texto?.Trim(), FormatoFecha, CultureInfo.InvariantCulture, DateTimeStyles.None, out var fecha) ? fecha : null;
 }
 
-/// <summary>Un adjunto del hilo con lo que la persona lleva escrito sobre él.</summary>
-public sealed record FilaReparto(AdjuntoRepartoDto Adjunto, EdicionAdjunto Edicion)
+/// <summary>
+/// Un adjunto del hilo con lo que la persona lleva escrito sobre él. <paramref name="NombresConocidos"/> dice si el destino y el
+/// tipo que tiene se pueden mostrar por su nombre (están en los selectores que la pantalla leyó): si no, la persona no sabría a
+/// quién ni como qué se daría de alta el Documento, y el adjunto no puede estar «Listo».
+/// </summary>
+public sealed record FilaReparto(AdjuntoRepartoDto Adjunto, EdicionAdjunto Edicion, bool NombresConocidos = true)
 {
     public bool TieneDestino => Adjunto.DestinoTrabajadorId is not null || Adjunto.DestinoEmpresaId is not null;
     public bool Pendiente => Adjunto.Estado == EstadoRepartoAdjunto.Pendiente;
-    public SituacionAdjunto Situacion => ClasificacionReparto.Situacion(Adjunto, Edicion);
+    public SituacionAdjunto Situacion => ClasificacionReparto.Situacion(Adjunto, Edicion, NombresConocidos);
 }
 
 /// <summary>Los recuentos de la cabecera, del pie y de los botones salen todos de la misma lista de filas y de la misma clasificación.</summary>
@@ -106,14 +113,18 @@ public sealed record ResumenReparto(
 
 public static class ClasificacionReparto
 {
-    public static SituacionAdjunto Situacion(AdjuntoRepartoDto adjunto, EdicionAdjunto edicion) => adjunto.Estado switch
+    /// <param name="nombresConocidos">
+    /// Falso si el destino o el tipo no se pueden mostrar por su nombre (un selector no se pudo leer, o el valor no está en él):
+    /// lo que no se puede identificar no se aprueba, así que el adjunto se queda «Revisar» aunque tenga todo lo demás.
+    /// </param>
+    public static SituacionAdjunto Situacion(AdjuntoRepartoDto adjunto, EdicionAdjunto edicion, bool nombresConocidos = true) => adjunto.Estado switch
     {
         EstadoRepartoAdjunto.Asignado => SituacionAdjunto.Asignado,
         EstadoRepartoAdjunto.Rechazado => SituacionAdjunto.Rechazado,
         EstadoRepartoAdjunto.Descartado => SituacionAdjunto.Descartado,
         EstadoRepartoAdjunto.Dividido => SituacionAdjunto.Dividido,
         _ when adjunto.DestinoTrabajadorId is null && adjunto.DestinoEmpresaId is null => SituacionAdjunto.SinDestino,
-        _ when adjunto.TipoDocumentoId is null || !edicion.FechasValidas => SituacionAdjunto.PorRevisar,
+        _ when adjunto.TipoDocumentoId is null || !edicion.FechasValidas || !nombresConocidos => SituacionAdjunto.PorRevisar,
         _ => SituacionAdjunto.Listo
     };
 

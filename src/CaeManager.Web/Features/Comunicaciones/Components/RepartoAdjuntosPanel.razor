@@ -13,7 +13,10 @@
     estaban pero con el aviso a la vista y todas las acciones desactivadas hasta volver a leerlo con éxito: pueden estar desfasadas.
 
     «Listo» es lo único que se asigna de una vez: destino, tipo de documento y fechas ya revisadas. Las fechas las escribe una
-    persona (el alta no las inventa), y por eso un adjunto con destino y tipo pero sin fecha de emisión queda «Revisar».
+    persona (el alta no las inventa), y por eso un adjunto con destino y tipo pero sin fecha de emisión queda «Revisar». Tampoco
+    se aprueba lo que no se puede identificar: si el destino o el tipo no se pueden mostrar por su nombre (un selector no se pudo
+    leer, o el valor no está en él), el adjunto queda «Revisar» y no se asigna ni uno a uno ni en el lote; si fue un selector,
+    se avisa con «Reintentar».
 *@
 @using CaeManager.Application.Comunicaciones.Commands.AsignarAdjuntosLote
 @using CaeManager.Application.Comunicaciones.Commands.FijarDestinoAdjunto
@@ -57,6 +60,14 @@
             @* Las filas son las de la última lectura buena: pueden estar desfasadas, así que se avisa y nada se toca hasta releer. *@
             <div class="adjb-aviso adjb-aviso-bloque" role="alert">
                 <span>@_errorCarga</span>
+                <button type="button" class="tx-b" disabled="@_ocupado" @onclick="ReintentarCargaAsync">@Textos["Reintentar"]</button>
+            </div>
+        }
+        else if (_selectorFallo)
+        {
+            @* Sin los nombres de destino y tipo no se sabe qué se aprobaría: esas filas no están listas hasta leerlos. *@
+            <div class="adjb-aviso adjb-aviso-bloque" role="alert" data-selectores="fallo">
+                <span>@Textos["ErrorSelectores"]</span>
                 <button type="button" class="tx-b" disabled="@_ocupado" @onclick="ReintentarCargaAsync">@Textos["Reintentar"]</button>
             </div>
         }
@@ -206,6 +217,7 @@ else if (_errorCarga is not null)
         _filas = [];
         _ediciones.Clear();
         _selectoresCargados = false;
+        _selectorFallo = false;
         _plegado = _verResueltos = _agruparPorTrabajador = _enFoco = false;
         _listosAbiertos = true;
         _cola = [];
@@ -229,7 +241,7 @@ else if (_errorCarga is not null)
                 await CargarSelectoresAsync(conversacionId);
             if (conversacionId != ConversacionId || generacion != _generacionCarga) return;
 
-            _filas = adjuntos.Select(a => new FilaReparto(a, EdicionDe(a.Id))).ToList();
+            _filas = adjuntos.Select(a => new FilaReparto(a, EdicionDe(a.Id), NombresConocidos(a))).ToList();
             _errorCarga = null;
             // Sin filas pendientes, o con el adjunto en foco ya fuera de la lista, no hay nada que mostrar «uno a uno»: se vuelve a la lista.
             if (_enFoco && (!_filas.Any(f => f.Pendiente) || FilaEnFoco is null)) _enFoco = false;
@@ -252,7 +264,8 @@ else if (_errorCarga is not null)
     }
 
     // Los desplegables de destino y tipo salen de los selectores del resto de la aplicación, que ya acotan por cartera y Tenant. Si
-    // alguno no se puede leer, el reparto se ve igual: el destino se nombra como «Destino actual» y no se ofrece cambiarlo.
+    // alguno no se puede leer, el reparto se ve igual (el destino se nombra como «Destino actual» y no se ofrece cambiarlo), pero
+    // lo que no se puede nombrar no queda «Listo» (NombresConocidos) y se avisa con «Reintentar».
     private async Task CargarSelectoresAsync(Guid conversacionId)
     {
         _selectorFallo = false;
@@ -372,6 +385,12 @@ else if (_errorCarga is not null)
         return null;
     }
 
+    // El destino y el tipo que tenga el adjunto se pueden mostrar por su nombre: sin eso, aprobarlo sería a ciegas.
+    private bool NombresConocidos(AdjuntoRepartoDto a) =>
+        (a.DestinoTrabajadorId is not { } t || _nombresTrabajadores.ContainsKey(t))
+        && (a.DestinoEmpresaId is not { } e || _nombresEmpresas.ContainsKey(e))
+        && (a.TipoDocumentoId is not { } tipo || _nombresTipos.ContainsKey(tipo));
+
     private string? NombreTipo(AdjuntoRepartoDto a) =>
         a.TipoDocumentoId is { } tipoId ? (_nombresTipos.TryGetValue(tipoId, out var n) ? n : Textos["TipoActual"].Value) : null;
 
@@ -398,6 +417,7 @@ else if (_errorCarga is not null)
     {
         if (!f.Pendiente || f.Situacion == SituacionAdjunto.Listo) return null;
         if (!f.TieneDestino) return Textos["FaltaDestino"].Value;
+        if (!f.NombresConocidos) return (_selectorFallo ? Textos["NombresSinCargar"] : Textos["NombresNoIdentificados"]).Value;
         if (f.Adjunto.TipoDocumentoId is null) return Textos["FaltaTipo"].Value;
         return f.Edicion.FechasContradictorias ? Textos["FechaNoValida"].Value : Textos["FaltaFecha"].Value;
     }
@@ -407,7 +427,7 @@ else if (_errorCarga is not null)
     private List<FilaReparto> FilasListas() => _filas.Where(f => f.Situacion == SituacionAdjunto.Listo).ToList();
 
     // Con destino y tipo elegidos, lo único que les falta es la fecha de emisión (o que se corrija la que se contradice).
-    private int EsperanFecha() => _filas.Count(f => f.Pendiente && f.TieneDestino && f.Adjunto.TipoDocumentoId is not null && !f.Edicion.FechasValidas);
+    private int EsperanFecha() => _filas.Count(f => f.Pendiente && f.TieneDestino && f.Adjunto.TipoDocumentoId is not null && f.NombresConocidos && !f.Edicion.FechasValidas);
 
     private RenderFragment BotonAsignarListos(IReadOnlyList<FilaReparto> listos) =>
         BotonAsignar(TextoAsignarListos(listos), listos.Count == 0, AsignarListosAsync);
@@ -777,7 +797,15 @@ else if (_errorCarga is not null)
     /// se queda en su fila con el motivo. El lote admite un máximo de adjuntos; más de esos se mandan en tandas, y una tanda
     /// rechazada entera no impide ver lo que las anteriores asignaron.
     /// </summary>
-    private Task AsignarAsync(IReadOnlyList<FilaReparto> filas, bool avanzar) =>
+    private Task AsignarAsync(IReadOnlyList<FilaReparto> filas, bool avanzar)
+    {
+        // Solo sale lo que está «Listo» al pulsar: un adjunto cuyo destino o tipo no se puede nombrar no se aprueba aunque
+        // llegue aquí por otra vía que la del botón (que ya está desactivado para él).
+        var listas = filas.Where(f => f.Situacion == SituacionAdjunto.Listo).ToList();
+        return listas.Count == 0 ? Task.CompletedTask : AsignarListasAsync(listas, avanzar);
+    }
+
+    private Task AsignarListasAsync(IReadOnlyList<FilaReparto> filas, bool avanzar) =>
         EjecutarAsync(null, async () =>
         {
             var conversacionId = ConversacionId;

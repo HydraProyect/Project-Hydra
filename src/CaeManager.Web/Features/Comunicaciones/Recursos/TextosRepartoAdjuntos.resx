@@ -297,6 +297,15 @@
   <data name="ErrorRecargar" xml:space="preserve">
     <value>No pudimos volver a cargar el reparto de adjuntos, y lo que ves puede estar desactualizado. Las acciones quedan desactivadas hasta cargarlo de nuevo.</value>
   </data>
+  <data name="ErrorSelectores" xml:space="preserve">
+    <value>No pudimos cargar los nombres de los destinos o de los tipos de documento. Hasta cargarlos, los adjuntos que no se pueden identificar no se pueden asignar.</value>
+  </data>
+  <data name="NombresSinCargar" xml:space="preserve">
+    <value>No se puede asignar hasta cargar los nombres del destino y del tipo.</value>
+  </data>
+  <data name="NombresNoIdentificados" xml:space="preserve">
+    <value>El destino o el tipo actual no está entre los que puedes elegir: elige uno de la lista para poder asignarlo.</value>
+  </data>
   <data name="Reintentar" xml:space="preserve">
     <value>Reintentar</value>
   </data>
