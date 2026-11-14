@@ -516,6 +516,55 @@ public class ProcesarItemLoteGeneracionCommandHandlerTests
         resultado.Error.Codigo.Should().Be("Plantilla.ItemNoEncontrado");
     }
 
+    /// <summary>
+    /// Hallazgo de Codex (ronda 4 de la PR #2222, media): procesar un ítem pasaba la puerta del lote recorriendo la
+    /// Cartera por cada generado. Procesar el último ítem pendiente hace las mismas consultas y recorre la Cartera las
+    /// mismas veces en un lote de 3 ítems que en uno de 12.
+    /// </summary>
+    [Fact]
+    public async Task Procesar_un_item_no_consulta_ni_recorre_la_Cartera_por_cada_item_del_lote()
+    {
+        var conTres = await LecturasDeProcesarElUltimoItem(3);
+        var conDoce = await LecturasDeProcesarElUltimoItem(12);
+
+        conDoce.Should().Be(conTres);
+    }
+
+    private static async Task<(int Plantillas, int Documentos, int RecorridosDeCartera)> LecturasDeProcesarElUltimoItem(int items)
+    {
+        var contexto = new PlantillasQueryContextFalso();
+        var documentos = new DocumentosQueryContextFalso();
+        var plantilla = new PlantillaDocumento(OrigenPlantilla.Externa, "Ficha de riesgos", AmbitoAplicacion.Trabajador, FormatoOrigenPlantilla.PdfVisual, Guid.NewGuid());
+        var version = new PlantillaDocumentoVersion(plantilla.Id, 1, "url.pdf", new string('a', 64));
+        contexto.ListaPlantillasDocumento.Add(plantilla);
+        contexto.ListaPlantillasDocumentoVersion.Add(version);
+        var lote = new LoteGeneracionDocumento(version.Id, items, Guid.NewGuid(), DateTime.UtcNow);
+        var lotes = new LoteGeneracionDocumentoRepositorioFalso();
+        lotes.Agregar(lote);
+        var repositorio = new ItemGeneracionDocumentoRepositorioFalso();
+        var trabajadores = new List<Guid>();
+        for (var i = 0; i < items - 1; i++)
+        {
+            var completado = ItemCompletadoConGenerado(contexto, documentos, lote, Guid.NewGuid());
+            repositorio.Agregar(completado);
+            trabajadores.Add(completado.TrabajadorId);
+        }
+
+        var pendiente = new ItemGeneracionDocumento(lote.Id, Guid.NewGuid());
+        repositorio.Agregar(pendiente);
+        contexto.ListaItemsGeneracionDocumento.Add(pendiente);
+        trabajadores.Add(pendiente.TrabajadorId);
+        var cartera = new ListaQueCuentaRecorridos(trabajadores);
+        var alcance = new AlcanceDatosServiceFalso(tieneAccesoTotal: false, trabajadorIdsVisibles: cartera);
+
+        var resultado = await Handler(repositorio, lotes, GeneracionQueFalla(), contexto, alcance, documentos)
+            .Handle(new ProcesarItemLoteGeneracionCommand(pendiente.Id), CancellationToken.None);
+
+        resultado.EsExitoso.Should().BeTrue("el recuento solo vale si la llamada pasa la puerta entera");
+        pendiente.Estado.Should().Be(EstadoItemGeneracion.Fallido);
+        return (contexto.Lecturas, documentos.LecturasDeDocumentos, cartera.Recorridos);
+    }
+
     private static ProcesarItemLoteGeneracionCommandHandler Handler(
         ItemGeneracionDocumentoRepositorioFalso items, LoteGeneracionDocumentoRepositorioFalso lotes, MediatorFalso mediator,
         PlantillasQueryContextFalso? contexto = null, AlcanceDatosServiceFalso? alcance = null, DocumentosQueryContextFalso? documentos = null) =>

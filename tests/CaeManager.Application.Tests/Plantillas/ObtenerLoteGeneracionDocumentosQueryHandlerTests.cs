@@ -331,4 +331,49 @@ public class ObtenerLoteGeneracionDocumentosQueryHandlerTests
 
         (resultado.EsFallido, resultado.Error.Codigo, resultado.Error.Mensaje).Should().Be(await RespuestaDeUnLoteInexistente(alcance));
     }
+
+    /// <summary>
+    /// Hallazgo de Codex (ronda 4 de la PR #2222, media): la puerta del lote recorría la Cartera por cada generado y la
+    /// UI la llama una vez por ítem, O(N³) por lote. Una llamada de progreso hace las mismas consultas y recorre la
+    /// Cartera las mismas veces con 3 ítems que con 12: ninguna consulta ni ningún recorrido por ítem.
+    /// </summary>
+    [Fact]
+    public async Task Una_llamada_de_progreso_no_consulta_ni_recorre_la_Cartera_por_cada_item_del_lote()
+    {
+        var conTres = await LecturasDeUnaLlamadaDeProgreso(3);
+        var conDoce = await LecturasDeUnaLlamadaDeProgreso(12);
+
+        conDoce.Should().Be(conTres);
+    }
+
+    private async Task<(int Plantillas, int Documentos, int RecorridosDeCartera)> LecturasDeUnaLlamadaDeProgreso(int items)
+    {
+        var contexto = new PlantillasQueryContextFalso();
+        var plantilla = new PlantillaDocumento(OrigenPlantilla.Externa, "Ficha de riesgos", AmbitoAplicacion.Trabajador, FormatoOrigenPlantilla.PdfVisual, Guid.NewGuid());
+        var version = new PlantillaDocumentoVersion(plantilla.Id, 1, "url.pdf", new string('a', 64));
+        contexto.ListaPlantillasDocumento.Add(plantilla);
+        contexto.ListaPlantillasDocumentoVersion.Add(version);
+        var lote = new LoteGeneracionDocumento(version.Id, items, Guid.NewGuid(), DateTime.UtcNow);
+        contexto.ListaLotesGeneracionDocumento.Add(lote);
+        var centro = Guid.NewGuid();
+        var trabajadores = new List<Guid>();
+        for (var i = 0; i < items; i++)
+        {
+            var item = new ItemGeneracionDocumento(lote.Id, Guid.NewGuid());
+            contexto.ListaItemsGeneracionDocumento.Add(item);
+            trabajadores.Add(item.TrabajadorId);
+            CompletarConGenerado(contexto, lote, item, centroId: centro);
+        }
+
+        var cartera = new ListaQueCuentaRecorridos(trabajadores);
+        var alcance = new AlcanceDatosServiceFalso(tieneAccesoTotal: false, trabajadorIdsVisibles: cartera, centroIdsVisibles: [centro]);
+        var documentosAntes = _documentos.LecturasDeDocumentos;
+
+        var resultado = await Handler(contexto, new TrabajadoresQueryContextFalso(), alcance)
+            .Handle(new ObtenerLoteGeneracionDocumentosQuery(lote.Id), CancellationToken.None);
+
+        resultado.EsExitoso.Should().BeTrue("el recuento solo vale si la llamada recorre la puerta entera");
+        resultado.Valor.Items.Should().HaveCount(items).And.OnlyContain(i => i.DocumentoGeneradoId != null);
+        return (contexto.Lecturas, _documentos.LecturasDeDocumentos - documentosAntes, cartera.Recorridos);
+    }
 }

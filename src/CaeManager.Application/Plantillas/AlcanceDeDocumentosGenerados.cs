@@ -170,16 +170,20 @@ public static class AlcanceDeDocumentosGenerados
             .Where(v => plantillaDentroPorId.ContainsKey(v.PlantillaDocumentoId))
             .ToDictionary(v => v.Id, v => plantillaDentroPorId[v.PlantillaDocumentoId]);
 
+        // Cada lista de alcance se lee una vez y como conjunto (CarteraEnMemoria): la puerta cuesta O(N) comprobaciones
+        // para N registros, sin recorrer la Cartera por cada uno (Codex, ronda 4 de la PR #2222). Las consultas de arriba
+        // son un número fijo por llamada, ninguna por registro.
+        var cartera = new CarteraEnMemoria(alcance);
         var visibles = new HashSet<Guid>();
         foreach (var generado in generados)
         {
             if (!documentosLegibles.Contains(generado.DocumentoId))
                 continue;
-            if (generado.TrabajadorId is { } trabajadorId && !await alcance.TrabajadorVisibleAsync(trabajadorId, cancellationToken))
+            if (generado.TrabajadorId is { } trabajadorId && !await cartera.TrabajadorVisibleAsync(trabajadorId, cancellationToken))
                 continue;
-            if (generado.EmpresaId is { } empresaId && !await alcance.EmpresaVisibleAsync(empresaId, cancellationToken))
+            if (generado.EmpresaId is { } empresaId && !await cartera.EmpresaVisibleAsync(empresaId, cancellationToken))
                 continue;
-            if (generado.CentroId is { } centroId && !await alcance.CentroVisibleAsync(centroId, cancellationToken))
+            if (generado.CentroId is { } centroId && !await cartera.CentroVisibleAsync(centroId, cancellationToken))
                 continue;
             if (plantillaDentroPorVersion.TryGetValue(generado.PlantillaDocumentoVersionId, out var plantillaDentro) && !plantillaDentro)
                 continue;
@@ -228,6 +232,15 @@ public static class AlcanceDeLotesGeneracion
     /// instantánea también se comprueba, aunque el llamador no lo devuelva. Al revés (la puerta primero y la instantánea
     /// después) un ítem completado entre las dos lecturas llevaría a la respuesta un generado que nadie miró. Además, por
     /// defensa, cada generado de la instantánea tiene que estar en el conjunto comprobado como visible: si no, niega.
+    /// </para>
+    ///
+    /// <para>
+    /// Coste (hallazgo de Codex, ronda 4 de la PR #2222): O(N) por llamada para un lote de N ítems. Las consultas son un
+    /// número fijo, sin ninguna por ítem: los ítems, la versión y la plantilla, los generados del lote en una sola consulta
+    /// acotada a sus Ids, sus Documentos, sus versiones y sus plantillas. Las comprobaciones en memoria van contra
+    /// conjuntos (<see cref="CarteraEnMemoria"/>, <see cref="HashSet{T}"/>), no contra listas. La UI llama a Procesar y al
+    /// progreso una vez por ítem, así que un lote entero cuesta O(N²), lo mismo que ya costaba la carga de ítems de ese
+    /// bucle. El lote no tiene tope de Trabajadores: es una decisión de producto, declarada en la PR.
     /// </para>
     /// </summary>
     public static async Task<bool> LoteVisibleEnteroAsync(
