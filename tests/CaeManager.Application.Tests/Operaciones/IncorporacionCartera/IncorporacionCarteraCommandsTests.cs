@@ -519,6 +519,9 @@ public class IncorporacionCarteraCommandsTests
     public async Task Un_Coordinador_CAE_revoca_la_incorporacion_de_un_Gestor_CAE_y_le_avisa()
     {
         var solicitud = Aceptada();
+        var eventos = new List<string>();
+        _bloqueo.Eventos = eventos;
+        _catalogo.Eventos = eventos;
 
         var resultado = await Revocar(Como(_coordinador, "CoordinadorCae"))
             .Handle(new RevocarIncorporacionCarteraCommand(solicitud.Id), CancellationToken.None);
@@ -534,6 +537,8 @@ public class IncorporacionCarteraCommandsTests
         _bloqueo.Exclusivos.Should().Equal([_gestor],
             "decidir si la fila heredada sobra exige serializar con otra revocación o con el job sobre la cartera de " +
             "la misma persona: el exclusivo es sobre el Gestor CAE solicitante, no sobre quien revoca (B-02a, ronda 5)");
+        eventos.Should().Equal(["exclusivo", "retirar"],
+            "el candado tiene que estar tomado antes de que RetirarAsync lea las demás carteras; tomado después no serializa nada");
     }
 
     [Fact]

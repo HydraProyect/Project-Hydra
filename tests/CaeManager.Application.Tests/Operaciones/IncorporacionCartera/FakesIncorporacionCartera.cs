@@ -131,6 +131,9 @@ public class CatalogoIncorporacionCarteraFalso : ICatalogoIncorporacionCartera
     public Dictionary<Guid, AsignacionOperacion> Operaciones { get; } = [];
     public HashSet<Guid> CarterasVigentes { get; } = [];
 
+    /// <summary>Si se fija, cada retirada anota «retirar»: compartida con el candado falso, fija el orden.</summary>
+    public List<string>? Eventos { get; set; }
+
     public MotivoAnulacionSolicitudCartera? AnularAlIncorporar { get; set; }
     public bool PierdeLaCarrera { get; set; }
 
@@ -422,6 +425,7 @@ public class CatalogoIncorporacionCarteraFalso : ICatalogoIncorporacionCartera
 
     public Task RetirarAsync(SolicitudIncorporacionCartera solicitud, CancellationToken cancellationToken = default)
     {
+        Eventos?.Add("retirar");
         CarterasVivas.RemoveAll(c => c.Cartera.AsignacionOperacionId == solicitud.AsignacionOperacionId
                                      && c.Cartera.UsuarioId == solicitud.SolicitanteUsuarioId);
         TenantsAlRetirar.Add(AmbitoTenantExplicito.TenantIdActual);

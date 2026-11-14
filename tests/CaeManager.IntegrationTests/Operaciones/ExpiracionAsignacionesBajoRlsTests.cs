@@ -465,6 +465,76 @@ public class ExpiracionAsignacionesBajoRlsTests
     }
 
     /// <summary>
+    /// Revisión puente de la ronda 5 de B-02a: el pase toma el candado exclusivo de cartera de cada titular cuya
+    /// fila heredada decide, con la misma clave que <c>BloqueoCarteraUsuario</c>, y lo retiene hasta el COMMIT. Se
+    /// llama al pase con una transacción de fuera abierta (el pase se une a ella) y, antes de confirmar, otra
+    /// conexión intenta el mismo candado: no lo consigue para el titular y sí para alguien que no lo es. Sin el
+    /// candado, una revocación de la otra cartera del mismo Gestor CAE leería esa cartera como vigente a la vez
+    /// que el pase y los dos conservarían la fila.
+    /// </summary>
+    [Fact]
+    public async Task El_pase_retiene_el_candado_de_cartera_del_titular_cuya_fila_heredada_decide_hasta_confirmar()
+    {
+        await using var arnes = await ArnesDeArranqueRuntime.CrearAsync(datosDePruebaActivos: false);
+
+        var ahora = DateTime.UtcNow;
+        var hace3h = ahora.AddHours(-3);
+        var operadorExterno = new Tenant("Operador CAE externo del candado", PerfilVocabularioTenant.Consultora);
+        var propietario = new Tenant("Propietario del candado", PerfilVocabularioTenant.ClienteDirecto);
+        var titular = Guid.NewGuid();
+        var ajeno = Guid.NewGuid();
+
+        var operacion = AsignacionOperacion.Externa(
+            propietario.Id, operadorExterno.Id, ServicioCae.Outbound, AmbitoAsignacion.Universal,
+            vigenciaDesde: hace3h, vigenciaHasta: null, ahora: hace3h);
+        var vinculo = new DelegacionTenant(operadorExterno.Id, propietario.Id);
+        var caduca = AsignacionCartera.Externa(
+            operacion, titular, Roles.GestorCae, AmbitoAsignacion.Universal,
+            vigenciaDesde: hace3h, vigenciaHasta: ahora.AddHours(-1), ahora: hace3h);
+
+        await using (var propietarioBd = CrearContextoPropietario(arnes.CadenaPropietario))
+        {
+            propietarioBd.Tenants.AddRange(operadorExterno, propietario);
+            propietarioBd.AsignacionesOperacion.Add(operacion);
+            propietarioBd.DelegacionesTenant.Add(vinculo);
+            propietarioBd.AsignacionesCartera.Add(caduca);
+            propietarioBd.AsignacionesOperadorDelegadoConRevocadas.Add(
+                new AsignacionOperadorDelegado(vinculo.Id, titular, Roles.GestorCae));
+            await propietarioBd.SaveChangesAsync();
+        }
+
+        await using var pase = CrearContextoPropietario(arnes.CadenaPropietario);
+        await using var transaccion = await pase.Database.BeginTransactionAsync();
+        await ExpiracionAsignacionesHostedService.ProcesarParaPruebasAsync(
+            pase, NullLogger<ExpiracionAsignacionesHostedService>.Instance, CancellationToken.None);
+
+        (await OtraConexionConsigueElCandadoAsync(arnes.CadenaPropietario, titular)).Should().BeFalse(
+            "el pase decidió la fila heredada del titular y retiene su candado exclusivo de cartera hasta confirmar");
+        (await OtraConexionConsigueElCandadoAsync(arnes.CadenaPropietario, ajeno)).Should().BeTrue(
+            "control: el candado de alguien sin cartera en el pase está libre");
+
+        await transaccion.CommitAsync();
+        (await OtraConexionConsigueElCandadoAsync(arnes.CadenaPropietario, titular)).Should().BeTrue(
+            "tras el COMMIT el candado se libera");
+
+        await using var verificacion = CrearContextoPropietario(arnes.CadenaPropietario);
+        (await verificacion.AsignacionesOperadorDelegadoConRevocadas.IgnoreQueryFilters().AsNoTracking()
+                .AnyAsync(f => f.UsuarioId == titular))
+            .Should().BeFalse("control: la única cartera caducó y la fila se retiró en la misma transacción");
+    }
+
+    /// <summary>Intenta, desde una conexión nueva, el candado de cartera de <paramref name="usuarioId"/> con la clave de <c>BloqueoCarteraUsuario</c>.</summary>
+    private static async Task<bool> OtraConexionConsigueElCandadoAsync(string cadena, Guid usuarioId)
+    {
+        await using var conexion = new Npgsql.NpgsqlConnection(cadena);
+        await conexion.OpenAsync();
+        await using var comando = new Npgsql.NpgsqlCommand(
+            "SELECT pg_try_advisory_xact_lock(hashtextextended(@clave, 0))", conexion);
+        comando.Parameters.AddWithValue("clave", "app.cartera_de_usuario:" + usuarioId);
+        return (bool)(await comando.ExecuteScalarAsync())!;
+    }
+
+    /// <summary>
     /// Una Empresa cliente del Tenant propietario, sembrada como propietario de la base con el sellado de
     /// Tenant, que es quien le pone el <c>TenantId</c>. Devuelve su Id.
     /// </summary>

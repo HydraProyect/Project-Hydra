@@ -1,4 +1,4 @@
-﻿using System.Collections;
+using System.Collections;
 using System.Linq.Expressions;
 using CaeManager.Application.Common;
 using CaeManager.Application.Operaciones;
@@ -356,6 +356,8 @@ public class CarteraYFilaHeredadaSoloOutboundTests
     [InlineData("cartera caducada", true)]
     [InlineData("cartera de un centro", true)]
     [InlineData("cartera suspendida", true)]
+    [InlineData("cartera de un trabajador", true)]
+    [InlineData("cartera de un proyecto", true)]
     public async Task La_otra_cartera_solo_sostiene_la_fila_si_ella_y_su_operacion_Outbound_estan_vigentes(
         string caso, bool seRetira)
     {
@@ -380,10 +382,15 @@ public class CarteraYFilaHeredadaSoloOutboundTests
             // Dimensión reservada sin uso: no concede nada, así que no puede sostener una fila que abre el Tenant entero.
             "cartera de un centro" => AsignacionCartera.Externa(
                 otra, _gestor, Roles.GestorCae, new AmbitoAsignacion(CentroId: Guid.NewGuid()), Desde, null, Desde),
+            "cartera de un trabajador" => AsignacionCartera.Externa(
+                otra, _gestor, Roles.GestorCae, new AmbitoAsignacion(TrabajadorId: Guid.NewGuid()), Desde, null, Desde),
+            "cartera de un proyecto" => AsignacionCartera.Externa(
+                otra, _gestor, Roles.GestorCae, new AmbitoAsignacion(ProyectoId: Guid.NewGuid()), Desde, null, Desde),
             _ => Cartera(otra, _gestor),
         };
         if (caso == "suspendida") otra.Suspender();
-        if (caso == "cerrada") otra.Cerrar(MotivoCierreAsignacion.Revocada, Ahora);
+        // Cerrada con fecha de fin futura: solo el estado la excluye, no la guarda de fecha.
+        if (caso == "cerrada") otra.Cerrar(MotivoCierreAsignacion.Revocada, Ahora.AddDays(1));
         var vinculo = new DelegacionTenant(_operador.Id, _propietario.Id);
         var fila = new AsignacionOperadorDelegado(vinculo.Id, _gestor, Roles.GestorCae);
 
