@@ -142,10 +142,10 @@ public class AsignacionOperacionConfiguration : IEntityTypeConfiguration<Asignac
         // delegación activa, y si no, queda NULL y la operación no autoriza (los lectores fallan
         // cerrados). Restrict, como el resto: una delegación nunca se borra ("desactivar, nunca borrar").
         builder.HasOne<DelegacionTenant>().WithMany()
-            .HasForeignKey(a => a.DelegacionTenantOrigenId)
+            .HasForeignKey(a => a.OrigenId)
             .OnDelete(DeleteBehavior.Restrict);
-        builder.HasIndex(a => a.DelegacionTenantOrigenId)
-            .HasFilter($"\"{nameof(AsignacionOperacion.DelegacionTenantOrigenId)}\" IS NOT NULL");
+        builder.HasIndex(a => a.OrigenId)
+            .HasFilter($"\"{nameof(AsignacionOperacion.OrigenId)}\" IS NOT NULL");
 
         // Sin FK hacia Tenants para Propietario/Operador: mismo tratamiento que
         // DelegacionTenant, que tampoco la tiene.

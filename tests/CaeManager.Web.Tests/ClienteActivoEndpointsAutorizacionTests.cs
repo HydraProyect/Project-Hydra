@@ -74,7 +74,7 @@ public class ClienteActivoEndpointsAutorizacionTests
         if (caso == "operacion-suspendida") operacion.Suspender();
         // La vía de Operación exige además la DelegacionTenant de la que nació la operación, vigente (PR #2223).
         var delegacion = new DelegacionTenant(Origen, Destino);
-        if (caso != "otro-operador") operacion.FijarDelegacionDeOrigen(delegacion);
+        if (caso != "otro-operador") operacion.FijarOrigen(delegacion);
         db.AddRange(operacion, cartera, delegacion);
         await db.SaveChangesAsync();
         var http = Contexto();

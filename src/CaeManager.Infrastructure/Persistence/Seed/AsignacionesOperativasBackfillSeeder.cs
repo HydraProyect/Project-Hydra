@@ -176,7 +176,7 @@ public static class AsignacionesOperativasBackfillSeeder
                 // Sin otra delegación activa y vigente del par, se cierra todo lo abierto del par. Si el
                 // mismo Operador CAE externo tiene hoy otra activa y vigente sobre este Tenant propietario
                 // (se revocó una y se autorizó otra), solo se cierra lo que nació de esta: la otra no lo
-                // sostiene (AmparoDeDelegacionDeOrigen, hallazgo de Codex en la PR #2223), y lo que nació
+                // sostiene (AmparoDeOrigen, hallazgo de Codex en la PR #2223), y lo que nació
                 // de la otra sigue siendo suyo. Lo que todavía no guarda origen lo resuelve el paso 2a, que
                 // lo amarra a la única candidata o lo cierra. Una que sigue marcada activa pero ya caducó
                 // no cuenta como «otra vigente»: no autoriza nada (ronda 1 de Codex en la PR #2223).
@@ -197,7 +197,7 @@ public static class AsignacionesOperativasBackfillSeeder
                     : (MotivoCierreAsignacion.MigradaSinFecha, ahora);
                 foreach (var abierta in operacionesDelPar.Where(o =>
                              o.Estado != EstadoAsignacion.Cerrada
-                             && (!hayOtraVigenteDelPar || o.DelegacionTenantOrigenId == delegacion.Id)))
+                             && (!hayOtraVigenteDelPar || o.OrigenId == delegacion.Id)))
                 {
                     foreach (var cartera in carteras.Where(c =>
                                  c.AsignacionOperacionId == abierta.Id && c.Estado != EstadoAsignacion.Cerrada))
@@ -265,7 +265,7 @@ public static class AsignacionesOperativasBackfillSeeder
                 AmbitoAsignacion.Universal,
                 delegacion.ActivadaEnUtc ?? delegacion.CreadoEnUtc,
                 delegacion.ExpiraEnUtc, ahora);
-            nueva.FijarDelegacionDeOrigen(delegacion);
+            nueva.FijarOrigen(delegacion);
 
             dbContext.AsignacionesOperacion.Add(nueva);
             operaciones.Add(nueva);
@@ -275,7 +275,7 @@ public static class AsignacionesOperativasBackfillSeeder
         // --- 2a. Procedencia de las operaciones externas que no la guardan ---
         //
         // Cada Asignación de Operación Outbound externa guarda la DelegacionTenant de la que nace, y los
-        // lectores de alcance exigen esa concreta (AmparoDeDelegacionDeOrigen); sin ella no autoriza. Las
+        // lectores de alcance exigen esa concreta (AmparoDeOrigen); sin ella no autoriza. Las
         // anteriores a la columna, y las que abra la ranura anterior durante el despliegue azul-verde cuando el
         // trigger asignacion_operacion_sella_origen no pueda deducirla, llegan sin origen. Se rellena solo
         // cuando es inequívoco: el par tiene una sola delegación de Operador CAE externo, activa y vigente, y
@@ -289,7 +289,7 @@ public static class AsignacionesOperativasBackfillSeeder
                          !o.EsOperacionInterna
                          && o.Servicio == ServicioCae.Outbound
                          && o.Estado != EstadoAsignacion.Cerrada
-                         && o.DelegacionTenantOrigenId is null)
+                         && o.OrigenId is null)
                      .ToList())
         {
             var candidatas = delegacionesComerciales
@@ -307,7 +307,7 @@ public static class AsignacionesOperativasBackfillSeeder
 
             if (candidatas.Count == 1 && candidatas[0].EstaVigente(ahora) && !sobrevivioARevocacion)
             {
-                sinOrigen.FijarDelegacionDeOrigen(candidatas[0]);
+                sinOrigen.FijarOrigen(candidatas[0]);
                 conOrigenFijado++;
                 continue;
             }
@@ -422,7 +422,7 @@ public static class AsignacionesOperativasBackfillSeeder
                 && o.Estado == EstadoAsignacion.Vigente
                 // Solo bajo una operación nacida de esta misma delegación: la fila heredada de una delegación
                 // no da cartera bajo la operación de otra del mismo par.
-                && o.DelegacionTenantOrigenId == delegacion.Id);
+                && o.OrigenId == delegacion.Id);
 
             if (operacion is null)
             {

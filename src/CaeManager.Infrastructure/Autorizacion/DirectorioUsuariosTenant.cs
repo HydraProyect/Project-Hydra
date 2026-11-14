@@ -291,7 +291,7 @@ public class DirectorioUsuariosTenant(
                       && cartera.VigenciaDesde <= ahora
                       && (cartera.VigenciaHasta == null || ahora < cartera.VigenciaHasta)
                 // Una operación externa sin el amparo de su DelegacionTenant de origen no es vínculo operativo.
-                join operacion in identidad.AsignacionesOperacion.AmparadasPorSuDelegacionDeOrigen(identidad.DelegacionesTenant, ahora)
+                join operacion in identidad.AsignacionesOperacion.AmparadasPorSuOrigen(identidad.DelegacionesTenant, ahora)
                     on cartera.AsignacionOperacionId equals operacion.Id
                 where operacion.Estado == EstadoAsignacion.Vigente
                       && operacion.VigenciaDesde <= ahora
@@ -731,7 +731,7 @@ public class DirectorioUsuariosTenant(
                       && cartera.VigenciaDesde <= ahora
                       && (cartera.VigenciaHasta == null || ahora < cartera.VigenciaHasta)
                 // Con el mismo amparo de la DelegacionTenant de origen que AlcanceDatosService.ObtenerCarteraAsync.
-                join operacion in identidad.AsignacionesOperacion.AmparadasPorSuDelegacionDeOrigen(identidad.DelegacionesTenant, ahora)
+                join operacion in identidad.AsignacionesOperacion.AmparadasPorSuOrigen(identidad.DelegacionesTenant, ahora)
                     on cartera.AsignacionOperacionId equals operacion.Id
                 where operacion.Estado == EstadoAsignacion.Vigente
                       // El mismo filtro de servicio que AlcanceDatosService.ObtenerCarteraAsync (B-02a).

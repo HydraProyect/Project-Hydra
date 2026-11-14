@@ -258,7 +258,7 @@ public partial class LoginLocalEnAsignacionDelegadaTests
             escenario.operacion = AsignacionOperacion.Externa(escenario.TenantVisitado, escenario.TenantOrigen,
                 ServicioCae.Outbound, AmbitoAsignacion.Universal, ahora.AddHours(-1), null, ahora);
             // Nace de la delegación del par: la vía de Operación exige su DelegacionTenant de origen.
-            escenario.operacion.FijarDelegacionDeOrigen(escenario.delegacionDelPar);
+            escenario.operacion.FijarOrigen(escenario.delegacionDelPar);
             // La vía heredada no debe encontrar una operación alternativa en el fan-out.
             if (!porOperacion) escenario.operacion.Suspender();
             if (conCartera)

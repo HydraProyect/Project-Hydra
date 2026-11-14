@@ -513,11 +513,11 @@ public class AlcanceDatosService(
             // el Tenant entero el ámbito de una Outbound acotada a un Cliente empresarial.
             //
             // Y una Asignación de Operación externa solo autoriza amparada por la DelegacionTenant concreta de la
-            // que nació, activa, sin caducar y sin revocaciones desde entonces (AmparoDeDelegacionDeOrigen): otra
+            // que nació, activa, sin caducar y sin revocaciones desde entonces (AmparoDeOrigen): otra
             // delegación vigente del par no la sostiene, una que sobrevivió a una revocación no vuelve al
             // reactivarse, y sin origen falla cerrada. La raíz y las internas no dependen de ninguna delegación.
             .Join(dbContext.AsignacionesOperacion
-                    .AmparadasPorSuDelegacionDeOrigen(dbContext.DelegacionesTenant, ahora)
+                    .AmparadasPorSuOrigen(dbContext.DelegacionesTenant, ahora)
                     .Where(o =>
                     o.Estado == EstadoAsignacion.Vigente
                     && o.Servicio == TenantsBeneficiariosAutorizados.ServicioDelContexto

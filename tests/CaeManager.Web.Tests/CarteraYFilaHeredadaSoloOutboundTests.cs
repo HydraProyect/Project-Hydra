@@ -48,13 +48,13 @@ public class CarteraYFilaHeredadaSoloOutboundTests
 
     /// <summary>
     /// Una DelegacionTenant de Operador CAE externo por par, fijada como origen de cada operación: los lectores de
-    /// alcance exigen la delegación concreta de la que nació la operación (AmparoDeDelegacionDeOrigen).
+    /// alcance exigen la delegación concreta de la que nació la operación (AmparoDeOrigen).
     /// </summary>
     private static DelegacionTenant[] Amparar(params AsignacionOperacion[] operaciones) =>
         operaciones.GroupBy(o => (o.OperadorTenantId, o.PropietarioTenantId)).Select(par =>
         {
             var delegacion = new DelegacionTenant(par.Key.OperadorTenantId, par.Key.PropietarioTenantId);
-            foreach (var operacion in par) operacion.FijarDelegacionDeOrigen(delegacion);
+            foreach (var operacion in par) operacion.FijarOrigen(delegacion);
             return delegacion;
         }).ToArray();
 

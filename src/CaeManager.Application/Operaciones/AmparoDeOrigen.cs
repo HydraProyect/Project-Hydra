@@ -5,9 +5,9 @@ namespace CaeManager.Application.Operaciones;
 
 /// <summary>
 /// El predicado ÚNICO de procedencia de una Asignación de Operación externa: solo autoriza mientras
-/// la <see cref="DelegacionTenant"/> concreta de la que nació (<see cref="AsignacionOperacion.DelegacionTenantOrigenId"/>)
+/// la <see cref="DelegacionTenant"/> concreta de la que nació (<see cref="AsignacionOperacion.OrigenId"/>)
 /// siga siendo de Operador CAE externo y del mismo par, esté activa, no haya caducado y no se haya
-/// revocado ninguna vez desde que nació la operación (<see cref="AsignacionOperacion.RevocacionesDelegacionOrigen"/>
+/// revocado ninguna vez desde que nació la operación (<see cref="AsignacionOperacion.RevocacionesDelOrigen"/>
 /// igual a <see cref="DelegacionTenant.Revocaciones"/>). Es la versión en SQL de
 /// <see cref="AsignacionOperacion.EstaAmparadaPor"/>.
 ///
@@ -29,18 +29,18 @@ namespace CaeManager.Application.Operaciones;
 /// <c>DirectorioUsuariosTenant</c>.
 /// </para>
 /// </summary>
-public static class AmparoDeDelegacionDeOrigen
+public static class AmparoDeOrigen
 {
-    public static IQueryable<AsignacionOperacion> AmparadasPorSuDelegacionDeOrigen(
+    public static IQueryable<AsignacionOperacion> AmparadasPorSuOrigen(
         this IQueryable<AsignacionOperacion> operaciones, IQueryable<DelegacionTenant> delegaciones, DateTime ahora) =>
         operaciones.Where(operacion =>
             operacion.PropietarioTenantId == operacion.OperadorTenantId
             || delegaciones.Any(delegacion =>
-                delegacion.Id == operacion.DelegacionTenantOrigenId
+                delegacion.Id == operacion.OrigenId
                 && delegacion.TenantClienteId == operacion.PropietarioTenantId
                 && delegacion.TenantConsultoraId == operacion.OperadorTenantId
                 && delegacion.Proposito == PropositoDelegacion.OperadorExterno
                 && delegacion.Activa
                 && (delegacion.ExpiraEnUtc == null || ahora < delegacion.ExpiraEnUtc)
-                && delegacion.Revocaciones == operacion.RevocacionesDelegacionOrigen));
+                && delegacion.Revocaciones == operacion.RevocacionesDelOrigen));
 }

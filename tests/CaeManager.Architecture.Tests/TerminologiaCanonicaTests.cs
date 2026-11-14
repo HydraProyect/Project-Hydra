@@ -495,7 +495,20 @@ public class TerminologiaCanonicaTests
         // 356 → 358 (2026-11-14, PR #2223): TenantsBeneficiariosAutorizados.CarterasPorOperacionDeLaOrganizacion
         // exige el mismo predicado en la vía de Operación del selector y consulta el DbSet DelegacionesTenant y
         // PropositoDelegacion, tipos ya existentes (+2). Ningún identificador nuevo.
-        ["Delegacion"] = 358,
+        // 358 → 382 (2026-11-14, procedencia de la Asignación de Operación externa, sigue a la PR #2223): +24, todo
+        // referencias a tipos y miembros legacy que ya existen; los identificadores nuevos evitan el término
+        // (OrigenId, RevocacionesDelOrigen, FijarOrigen, AmparoDeOrigen, AmparadasPorSuOrigen, OrigenUnicoDelParAsync).
+        // Cada operación externa apunta a la DelegacionTenant de la que nace (FK y configuración: DelegacionTenant ×1)
+        // y el predicado único AmparoDeOrigen la lee (DelegacionTenant ×1, PropositoDelegacion ×1), con su
+        // versión en memoria en AsignacionOperacion.FijarOrigen/EstaAmparadaPor (DelegacionTenant ×2,
+        // PropositoDelegacion ×2). Para aplicarlo, cada lector de alcance pasa el DbSet DelegacionesTenant:
+        // IOperacionesQueryContext y CaeManagerDbContext lo exponen (DelegacionesTenant ×3, DelegacionTenant ×2),
+        // TenantsBeneficiariosAutorizados (+2, −1 PropositoDelegacion que ya lleva el predicado), DirectorioUsuariosTenant,
+        // VistaDemoActual y ContextoOperativoConversacionService (+2 cada uno); AlcanceDatosService y
+        // CatalogoIncorporacionCartera retiran su comparación propia (−1 cada uno). El writer resuelve la única
+        // delegación vigente del par para fijarla como origen (DelegacionesTenant ×3, DelegacionTenant ×2,
+        // PropositoDelegacion ×2). Baja con la migración de DelegacionTenant, que es un incremento propio.
+        ["Delegacion"] = 382,
         // 72 (antes 71): el selector de empresa gestionada también se ofrece en el cajón de navegación
         // móvil (NavegacionMovil), que bajo 1024 px es la única forma de alcanzarlo. Es un segundo
         // anfitrión del mismo componente, no un identificador nuevo; el renombrado sigue siendo un

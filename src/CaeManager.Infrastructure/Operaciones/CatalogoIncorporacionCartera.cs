@@ -79,9 +79,9 @@ public class CatalogoIncorporacionCartera(
         var ahora = DateTime.UtcNow;
 
         // Con la DelegacionTenant concreta de la que nació, no cualquiera del par
-        // (AmparoDeDelegacionDeOrigen): activa, sin caducar y sin revocaciones desde entonces.
+        // (AmparoDeOrigen): activa, sin caducar y sin revocaciones desde entonces.
         return from operacion in dbContext.AsignacionesOperacion
-                   .AmparadasPorSuDelegacionDeOrigen(dbContext.DelegacionesTenant, ahora)
+                   .AmparadasPorSuOrigen(dbContext.DelegacionesTenant, ahora)
                    .Where(OperacionDelServicioVigente(ahora))
                where !operacion.EsRaiz
                      && operacion.PropietarioTenantId != operacion.OperadorTenantId

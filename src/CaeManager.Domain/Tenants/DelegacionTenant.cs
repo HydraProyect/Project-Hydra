@@ -48,7 +48,7 @@ public class DelegacionTenant : Entity
     /// <summary>
     /// Cuántas veces ha pasado de activa a inactiva. Es lo que distingue una delegación
     /// <b>reactivada</b> de una que nunca se revocó: cada Asignación de Operación externa guarda el
-    /// valor con el que nació (<c>AsignacionOperacion.RevocacionesDelegacionOrigen</c>), y una
+    /// valor con el que nació (<c>AsignacionOperacion.RevocacionesDelOrigen</c>), y una
     /// revocación posterior la deja sin amparo para siempre, aunque la delegación vuelva a activarse.
     /// En la base de datos no lo escribe la aplicación sino el trigger
     /// <c>delegacion_tenant_cuenta_revocaciones</c>, que lo calcula desde la fila anterior: así cuenta

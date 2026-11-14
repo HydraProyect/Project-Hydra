@@ -170,8 +170,8 @@ public class VistaDemoActual(
                         && (c.VigenciaHasta == null || ahora < c.VigenciaHasta))
             // El servicio del contexto, como AlcanceDatosService.ObtenerCarteraAsync (B-02a): la lente reproduce el
             // alcance de Outbound, y una cartera bajo una operación Inbound no lo da.
-            // Y con el amparo de la DelegacionTenant de origen de la operación externa (AmparoDeDelegacionDeOrigen).
-            .Join(dbContext.AsignacionesOperacion.AmparadasPorSuDelegacionDeOrigen(dbContext.DelegacionesTenant, ahora).Where(o =>
+            // Y con el amparo de la DelegacionTenant de origen de la operación externa (AmparoDeOrigen).
+            .Join(dbContext.AsignacionesOperacion.AmparadasPorSuOrigen(dbContext.DelegacionesTenant, ahora).Where(o =>
                     o.OperadorTenantId == origen
                     && o.Servicio == TenantsBeneficiariosAutorizados.ServicioDelContexto
                     && tenantsDeDemo.Contains(o.PropietarioTenantId)
@@ -217,7 +217,7 @@ public class VistaDemoActual(
                             && c.Estado == EstadoAsignacion.Vigente
                             && c.VigenciaDesde <= ahora
                             && (c.VigenciaHasta == null || ahora < c.VigenciaHasta))
-                .Join(dbContext.AsignacionesOperacion.AmparadasPorSuDelegacionDeOrigen(dbContext.DelegacionesTenant, ahora).Where(o =>
+                .Join(dbContext.AsignacionesOperacion.AmparadasPorSuOrigen(dbContext.DelegacionesTenant, ahora).Where(o =>
                         o.OperadorTenantId == origen
                         && o.Servicio == TenantsBeneficiariosAutorizados.ServicioDelContexto
                         && tenantsDeDemo.Contains(o.PropietarioTenantId)

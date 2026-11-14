@@ -9,10 +9,10 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
     /// Procedencia de la Asignación de Operación Outbound externa (hallazgos de Codex en la PR #2223; opción A de
     /// Chris del 2026-11-14: reactivar una DelegacionTenant nunca repone nada).
     /// <para>
-    /// <c>AsignacionesOperacion</c> guarda la DelegacionTenant de la que nace (<c>DelegacionTenantOrigenId</c>, FK
-    /// Restrict) y el número de revocaciones que llevaba esa delegación al nacer (<c>RevocacionesDelegacionOrigen</c>).
+    /// <c>AsignacionesOperacion</c> guarda la DelegacionTenant de la que nace (<c>OrigenId</c>, FK
+    /// Restrict) y el número de revocaciones que llevaba esa delegación al nacer (<c>RevocacionesDelOrigen</c>).
     /// <c>DelegacionesTenant.Revocaciones</c> cuenta cuántas veces ha pasado de activa a inactiva. Los lectores de
-    /// alcance (<c>AmparoDeDelegacionDeOrigen</c>) solo dan por amparada una operación externa si su delegación de
+    /// alcance (<c>AmparoDeOrigen</c>) solo dan por amparada una operación externa si su delegación de
     /// origen sigue activa, sin caducar y con el mismo número de revocaciones: otra delegación vigente del par no la
     /// sostiene, una operación que sobrevivió a una revocación no vuelve a autorizar al reactivarse, y una operación
     /// externa con el origen a NULL falla cerrada.
@@ -51,27 +51,27 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                 defaultValue: 0);
 
             migrationBuilder.AddColumn<Guid>(
-                name: "DelegacionTenantOrigenId",
+                name: "OrigenId",
                 table: "AsignacionesOperacion",
                 type: "uuid",
                 nullable: true);
 
             migrationBuilder.AddColumn<int>(
-                name: "RevocacionesDelegacionOrigen",
+                name: "RevocacionesDelOrigen",
                 table: "AsignacionesOperacion",
                 type: "integer",
                 nullable: true);
 
             migrationBuilder.CreateIndex(
-                name: "IX_AsignacionesOperacion_DelegacionTenantOrigenId",
+                name: "IX_AsignacionesOperacion_OrigenId",
                 table: "AsignacionesOperacion",
-                column: "DelegacionTenantOrigenId",
-                filter: "\"DelegacionTenantOrigenId\" IS NOT NULL");
+                column: "OrigenId",
+                filter: "\"OrigenId\" IS NOT NULL");
 
             migrationBuilder.AddForeignKey(
-                name: "FK_AsignacionesOperacion_DelegacionesTenant_DelegacionTenantOr~",
+                name: "FK_AsignacionesOperacion_DelegacionesTenant_OrigenId",
                 table: "AsignacionesOperacion",
-                column: "DelegacionTenantOrigenId",
+                column: "OrigenId",
                 principalTable: "DelegacionesTenant",
                 principalColumn: "Id",
                 onDelete: ReferentialAction.Restrict);
@@ -107,26 +107,26 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                 BEGIN
                     -- Una Asignación de Operación interna no nace de ninguna DelegacionTenant.
                     IF NEW."PropietarioTenantId" = NEW."OperadorTenantId" THEN
-                        NEW."DelegacionTenantOrigenId" := NULL;
-                        NEW."RevocacionesDelegacionOrigen" := NULL;
+                        NEW."OrigenId" := NULL;
+                        NEW."RevocacionesDelOrigen" := NULL;
                         RETURN NEW;
                     END IF;
 
                     IF TG_OP = 'UPDATE' THEN
                         -- Fijado el origen, ni el origen ni su contador cambian: cerrar o expirar no lo tocan, y
                         -- nada puede volver a sellar el contador de una operación que sobrevivió a una revocación.
-                        IF OLD."DelegacionTenantOrigenId" IS NOT NULL THEN
-                            IF NEW."DelegacionTenantOrigenId" IS DISTINCT FROM OLD."DelegacionTenantOrigenId"
-                               OR NEW."RevocacionesDelegacionOrigen" IS DISTINCT FROM OLD."RevocacionesDelegacionOrigen" THEN
+                        IF OLD."OrigenId" IS NOT NULL THEN
+                            IF NEW."OrigenId" IS DISTINCT FROM OLD."OrigenId"
+                               OR NEW."RevocacionesDelOrigen" IS DISTINCT FROM OLD."RevocacionesDelOrigen" THEN
                                 RAISE EXCEPTION 'La DelegacionTenant de origen de una Asignación de Operación es inmutable (%).', NEW."Id"
                                     USING ERRCODE = 'check_violation';
                             END IF;
                             RETURN NEW;
                         END IF;
-                    ELSIF NEW."DelegacionTenantOrigenId" IS NULL AND NEW."Servicio" = 'Outbound' THEN
+                    ELSIF NEW."OrigenId" IS NULL AND NEW."Servicio" = 'Outbound' THEN
                         -- Inserción sin origen (la ranura anterior no conoce la columna): se deduce solo si es
                         -- inequívoco; si no, queda a NULL y la operación no autoriza.
-                        SELECT min(d."Id"::text)::uuid INTO NEW."DelegacionTenantOrigenId"
+                        SELECT min(d."Id"::text)::uuid INTO NEW."OrigenId"
                           FROM public."DelegacionesTenant" d
                          WHERE d."TenantClienteId" = NEW."PropietarioTenantId"
                            AND d."TenantConsultoraId" = NEW."OperadorTenantId"
@@ -136,14 +136,14 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                         HAVING count(*) = 1;
                     END IF;
 
-                    IF NEW."DelegacionTenantOrigenId" IS NULL THEN
-                        NEW."RevocacionesDelegacionOrigen" := NULL;
+                    IF NEW."OrigenId" IS NULL THEN
+                        NEW."RevocacionesDelOrigen" := NULL;
                         RETURN NEW;
                     END IF;
 
                     SELECT d."Revocaciones" INTO v_revocaciones
                       FROM public."DelegacionesTenant" d
-                     WHERE d."Id" = NEW."DelegacionTenantOrigenId"
+                     WHERE d."Id" = NEW."OrigenId"
                        AND d."TenantClienteId" = NEW."PropietarioTenantId"
                        AND d."TenantConsultoraId" = NEW."OperadorTenantId"
                        AND d."Proposito" = 'OperadorExterno';
@@ -151,7 +151,7 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                         RAISE EXCEPTION 'La DelegacionTenant de origen no es una delegación OperadorExterno visible del mismo par (%).', NEW."Id"
                             USING ERRCODE = 'check_violation';
                     END IF;
-                    NEW."RevocacionesDelegacionOrigen" := v_revocaciones;
+                    NEW."RevocacionesDelOrigen" := v_revocaciones;
                     RETURN NEW;
                 END;
                 $$;
@@ -174,11 +174,11 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                 """);
 
             migrationBuilder.DropForeignKey(
-                name: "FK_AsignacionesOperacion_DelegacionesTenant_DelegacionTenantOr~",
+                name: "FK_AsignacionesOperacion_DelegacionesTenant_OrigenId",
                 table: "AsignacionesOperacion");
 
             migrationBuilder.DropIndex(
-                name: "IX_AsignacionesOperacion_DelegacionTenantOrigenId",
+                name: "IX_AsignacionesOperacion_OrigenId",
                 table: "AsignacionesOperacion");
 
             migrationBuilder.DropColumn(
@@ -186,11 +186,11 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                 table: "DelegacionesTenant");
 
             migrationBuilder.DropColumn(
-                name: "DelegacionTenantOrigenId",
+                name: "OrigenId",
                 table: "AsignacionesOperacion");
 
             migrationBuilder.DropColumn(
-                name: "RevocacionesDelegacionOrigen",
+                name: "RevocacionesDelOrigen",
                 table: "AsignacionesOperacion");
         }
     }

@@ -115,12 +115,12 @@ public static class TenantsBeneficiariosAutorizados
         IOperacionesQueryContext operaciones, ITenantsQueryContext tenants, Guid tenantOrigenId, DateTime ahora) =>
         from cartera in operaciones.AsignacionesCartera
         // La operación externa solo autoriza mientras la DelegacionTenant concreta de la que nació siga
-        // activa, sin caducar y sin revocaciones desde entonces (AmparoDeDelegacionDeOrigen): otra
+        // activa, sin caducar y sin revocaciones desde entonces (AmparoDeOrigen): otra
         // delegación vigente del par no la sostiene, y una que sobrevivió a una revocación no vuelve al
         // reactivarse. Sin origen, falla cerrada. La RLS de DelegacionesTenant deja leerla desde las dos
         // posiciones que llaman aquí (el Operador CAE es extremo de la delegación, como Tenant de origen o
         // como Tenant activo).
-        join operacion in operaciones.AsignacionesOperacion.AmparadasPorSuDelegacionDeOrigen(operaciones.DelegacionesTenant, ahora)
+        join operacion in operaciones.AsignacionesOperacion.AmparadasPorSuOrigen(operaciones.DelegacionesTenant, ahora)
             on cartera.AsignacionOperacionId equals operacion.Id
         where cartera.Estado == EstadoAsignacion.Vigente
               && cartera.VigenciaDesde <= ahora
@@ -158,8 +158,8 @@ public static class TenantsBeneficiariosAutorizados
         Guid operadorTenantId, DateTime ahora, CancellationToken cancellationToken) =>
         (from cartera in operaciones.AsignacionesCartera
          // Una operación externa solo cuenta amparada por su DelegacionTenant de origen; la raíz y las
-         // internas pasan siempre (AmparoDeDelegacionDeOrigen).
-         join operacion in operaciones.AsignacionesOperacion.AmparadasPorSuDelegacionDeOrigen(operaciones.DelegacionesTenant, ahora)
+         // internas pasan siempre (AmparoDeOrigen).
+         join operacion in operaciones.AsignacionesOperacion.AmparadasPorSuOrigen(operaciones.DelegacionesTenant, ahora)
              on cartera.AsignacionOperacionId equals operacion.Id
          where usuarioIds.Contains(cartera.UsuarioId)
                && cartera.PropietarioTenantId == propietarioTenantId
@@ -242,14 +242,14 @@ public static class TenantsBeneficiariosAutorizados
     /// Empresa gestionada entera que en Outbound no se ejercen.
     /// <para>
     /// La vía sin cartera exige también la DelegacionTenant de origen de la operación, activa, sin caducar
-    /// y sin revocaciones desde que nació (<see cref="AmparoDeDelegacionDeOrigen"/>): antes no miraba
+    /// y sin revocaciones desde que nació (<see cref="AmparoDeOrigen"/>): antes no miraba
     /// ninguna, y una operación del Tenant entero que sobreviviera a la revocación (la ranura anterior solo
     /// cerraba la vigente, no la Programada) volvía a autorizar al activarse (hallazgo de Codex en la PR #2223).
     /// </para>
     /// </summary>
     public static IQueryable<AsignacionOperacion> OperacionesDelTenantEntero(
         IOperacionesQueryContext operaciones, DateTime ahora) =>
-        operaciones.AsignacionesOperacion.AmparadasPorSuDelegacionDeOrigen(operaciones.DelegacionesTenant, ahora).Where(operacion =>
+        operaciones.AsignacionesOperacion.AmparadasPorSuOrigen(operaciones.DelegacionesTenant, ahora).Where(operacion =>
             !operacion.EsRaiz
             && operacion.PropietarioTenantId != operacion.OperadorTenantId
             && operacion.Servicio == ServicioDelContexto

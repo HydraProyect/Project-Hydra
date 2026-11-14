@@ -45,29 +45,29 @@ public class ProcedenciaDeOperacionExternaTests
         delegacion.Reactivar();
         var operacion = Externa();
 
-        operacion.FijarDelegacionDeOrigen(delegacion);
+        operacion.FijarOrigen(delegacion);
 
-        operacion.DelegacionTenantOrigenId.Should().Be(delegacion.Id);
-        operacion.RevocacionesDelegacionOrigen.Should().Be(1);
+        operacion.OrigenId.Should().Be(delegacion.Id);
+        operacion.RevocacionesDelOrigen.Should().Be(1);
         var otra = new DelegacionTenant(Operador, Propietario);
-        operacion.Invoking(o => o.FijarDelegacionDeOrigen(otra)).Should().Throw<InvalidOperationException>();
+        operacion.Invoking(o => o.FijarOrigen(otra)).Should().Throw<InvalidOperationException>();
     }
 
     [Fact]
     public void Fijar_el_origen_rechaza_una_delegacion_de_otro_par_de_Soporte_o_una_operacion_interna()
     {
-        Externa().Invoking(o => o.FijarDelegacionDeOrigen(new DelegacionTenant(Operador, Guid.NewGuid())))
+        Externa().Invoking(o => o.FijarOrigen(new DelegacionTenant(Operador, Guid.NewGuid())))
             .Should().Throw<ArgumentException>("otro Tenant propietario");
-        Externa().Invoking(o => o.FijarDelegacionDeOrigen(new DelegacionTenant(Guid.NewGuid(), Propietario)))
+        Externa().Invoking(o => o.FijarOrigen(new DelegacionTenant(Guid.NewGuid(), Propietario)))
             .Should().Throw<ArgumentException>("otro Operador CAE");
-        Externa().Invoking(o => o.FijarDelegacionDeOrigen(new DelegacionTenant(Propietario, Operador)))
+        Externa().Invoking(o => o.FijarOrigen(new DelegacionTenant(Propietario, Operador)))
             .Should().Throw<ArgumentException>("los extremos invertidos");
-        Externa().Invoking(o => o.FijarDelegacionDeOrigen(DelegacionTenant.ParaSoporte(Operador, Propietario)))
+        Externa().Invoking(o => o.FijarOrigen(DelegacionTenant.ParaSoporte(Operador, Propietario)))
             .Should().Throw<ArgumentException>("una delegación de Soporte TALVEG no origina operaciones");
 
         var interna = AsignacionOperacion.Interna(
             Propietario, ServicioCae.Outbound, AmbitoAsignacion.DeRelacionCliente(Guid.NewGuid()), Ahora, null, Ahora);
-        interna.Invoking(o => o.FijarDelegacionDeOrigen(new DelegacionTenant(Operador, Propietario)))
+        interna.Invoking(o => o.FijarOrigen(new DelegacionTenant(Operador, Propietario)))
             .Should().Throw<InvalidOperationException>();
     }
 
@@ -76,7 +76,7 @@ public class ProcedenciaDeOperacionExternaTests
     {
         var origen = new DelegacionTenant(Operador, Propietario);
         var operacion = Externa();
-        operacion.FijarDelegacionDeOrigen(origen);
+        operacion.FijarOrigen(origen);
 
         operacion.EstaAmparadaPor(origen, Ahora).Should().BeTrue();
         operacion.EstaAmparadaPor(null, Ahora).Should().BeFalse();

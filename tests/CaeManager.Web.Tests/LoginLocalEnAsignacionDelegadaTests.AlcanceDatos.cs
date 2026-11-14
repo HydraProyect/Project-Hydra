@@ -125,9 +125,16 @@ public partial class LoginLocalEnAsignacionDelegadaTests
         var cartera = AsignacionCartera.Externa(operacionPropia, escenario.Usuario, Roles.GestorCae,
             AmbitoAsignacion.Universal, ahora.AddHours(-1), null, ahora);
         var usuarios = new[] { new ApplicationUser { Id = escenario.Usuario } };
+        // Las dos operaciones nacen de la DelegacionTenant de su par y siguen amparadas: lo único que niega el
+        // segundo caso es que la Operación sea de otro Tenant propietario, no la procedencia.
+        DelegacionTenant[] delegaciones =
+        [
+            AmpararDelPar(escenario.TenantOrigen, escenario.TenantVisitado, [operacionPropia]),
+            AmpararDelPar(escenario.TenantOrigen, operacionDeOtroTenant.PropietarioTenantId, [operacionDeOtroTenant]),
+        ];
 
         // Control: la cartera bien formada sí concede el ámbito de su Operación.
-        await using (var db = new ContextoDeCarteras(escenario, tenantActual, [operacionPropia, operacionDeOtroTenant], [cartera], usuarios))
+        await using (var db = new ContextoDeCarteras(escenario, tenantActual, [operacionPropia, operacionDeOtroTenant], [cartera], usuarios, null, delegaciones))
         {
             var alcance = new AlcanceDatosService(db, escenario.Servicio, tenantActual, new SesionPrivilegiadaAusente());
             (await alcance.ObtenerClienteIdsVisiblesAsync()).Should().Equal(clientePropio);
@@ -136,7 +143,7 @@ public partial class LoginLocalEnAsignacionDelegadaTests
         // La misma cartera, apuntando a la Operación de otro Tenant propietario: no concede nada.
         typeof(AsignacionCartera).GetProperty(nameof(AsignacionCartera.AsignacionOperacionId))!
             .SetValue(cartera, operacionDeOtroTenant.Id);
-        await using (var db = new ContextoDeCarteras(escenario, tenantActual, [operacionPropia, operacionDeOtroTenant], [cartera], usuarios))
+        await using (var db = new ContextoDeCarteras(escenario, tenantActual, [operacionPropia, operacionDeOtroTenant], [cartera], usuarios, null, delegaciones))
         {
             var alcance = new AlcanceDatosService(db, escenario.Servicio, tenantActual, new SesionPrivilegiadaAusente());
             (await alcance.ObtenerClienteIdsVisiblesAsync()).Should().BeEmpty(
@@ -149,11 +156,14 @@ public partial class LoginLocalEnAsignacionDelegadaTests
     /// externa solo autoriza mientras la DelegacionTenant de Operador CAE externo del mismo par siga
     /// activa y sin caducar. La operación acotada no lleva la caducidad de la delegación como fin y su
     /// cierre puede no haber llegado (job de expiración, siguiente arranque, ranura anterior): el lector
-    /// falla cerrado por sí mismo. El control, con la delegación vigente, sí concede.
+    /// falla cerrado por sí mismo. El control, con la delegación vigente, sí concede. Desde la procedencia
+    /// (AmparoDeOrigen), la delegación tiene que ser además la de origen de la operación y no haberse revocado
+    /// desde que nació: la «reactivada» no repone la operación.
     /// </summary>
     [Theory]
     [InlineData("vigente", true)]
     [InlineData("desactivada", false)]
+    [InlineData("reactivada", false)]
     [InlineData("caducada", false)]
     [InlineData("de otro Operador CAE externo", false)]
     [InlineData("ninguna", false)]
@@ -172,7 +182,10 @@ public partial class LoginLocalEnAsignacionDelegadaTests
 
         var fila = new DelegacionTenant(
             delegacion == "de otro Operador CAE externo" ? Guid.NewGuid() : escenario.TenantOrigen, escenario.TenantVisitado);
-        if (delegacion == "desactivada") fila.Desactivar();
+        // La operación nace de la delegación de su par; la de otro Operador CAE externo no puede ser su origen.
+        if (delegacion != "de otro Operador CAE externo") operacion.FijarOrigen(fila);
+        if (delegacion is "desactivada" or "reactivada") fila.Desactivar();
+        if (delegacion == "reactivada") fila.Reactivar();
         if (delegacion == "caducada")
             typeof(DelegacionTenant).GetProperty(nameof(DelegacionTenant.ExpiraEnUtc))!.SetValue(fila, ahora.AddMinutes(-1));
         DelegacionTenant[] delegaciones = delegacion == "ninguna" ? [] : [fila];
@@ -244,6 +257,20 @@ public partial class LoginLocalEnAsignacionDelegadaTests
         (await alcance.ConexionIntegracionVisibleAsync(personalAjeno.Id)).Should().BeFalse();
     }
 
+    /// <summary>
+    /// Una DelegacionTenant de Operador CAE externo del par (operador, propietario), fijada como origen de las
+    /// operaciones externas de ese par que aún no lo tienen.
+    /// </summary>
+    private static DelegacionTenant AmpararDelPar(Guid operadorTenantId, Guid propietarioTenantId,
+        IEnumerable<AsignacionOperacion> operaciones)
+    {
+        var delegacion = new DelegacionTenant(operadorTenantId, propietarioTenantId);
+        foreach (var operacion in operaciones.Where(o => o.OrigenId is null
+            && o.OperadorTenantId == operadorTenantId && o.PropietarioTenantId == propietarioTenantId))
+            operacion.FijarOrigen(delegacion);
+        return delegacion;
+    }
+
     private sealed class ContextoDeCarteras : CaeManagerDbContext
     {
         private readonly AsignacionOperacion[] operaciones;
@@ -252,7 +279,10 @@ public partial class LoginLocalEnAsignacionDelegadaTests
         private readonly DelegacionTenant[] delegaciones;
 
         /// <param name="delegaciones">Por omisión, una DelegacionTenant de Operador CAE externo activa y sin
-        /// caducidad del Tenant de origen sobre el visitado: la que sostiene sus operaciones Outbound.</param>
+        /// caducidad del Tenant de origen sobre el visitado, fijada como origen de las operaciones externas de ese
+        /// par que aún no lo tengan (lo que hace el writer al abrirlas): los lectores de alcance exigen la
+        /// delegación concreta de la que nació cada operación (AmparoDeOrigen). Quien pasa sus propias
+        /// delegaciones fija el origen él mismo.</param>
         public ContextoDeCarteras(Escenario escenario, TenantActualAmbiental tenantActual, AsignacionOperacion[] operaciones,
             AsignacionCartera[] carteras, ApplicationUser[] usuarios, ConexionIntegracion[]? conexiones = null,
             DelegacionTenant[]? delegaciones = null)
@@ -261,7 +291,7 @@ public partial class LoginLocalEnAsignacionDelegadaTests
             this.operaciones = operaciones;
             this.carteras = carteras;
             this.conexiones = conexiones ?? [];
-            this.delegaciones = delegaciones ?? [new DelegacionTenant(escenario.TenantOrigen, escenario.TenantVisitado)];
+            this.delegaciones = delegaciones ?? [AmpararDelPar(escenario.TenantOrigen, escenario.TenantVisitado, operaciones)];
             // Después del constructor de EF, que inicializa los DbSets de Identity.
             Users = new ConjuntoDePruebas<ApplicationUser>(usuarios);
         }

@@ -13,7 +13,7 @@ namespace CaeManager.Application.Tests.Tenants;
 /// Procedencia de la Asignación de Operación externa (hallazgos de Codex en la PR #2223, opción A de Chris del
 /// 2026-11-14): la vía de Operación de <see cref="TenantsBeneficiariosAutorizados"/>, con cartera y sin ella,
 /// exige la DelegacionTenant concreta de la que nació la operación, activa, sin caducar y sin revocaciones desde
-/// entonces (<c>AmparoDeDelegacionDeOrigen</c>), el mismo predicado que <c>AlcanceDatosService.ObtenerCarteraAsync</c>.
+/// entonces (<c>AmparoDeOrigen</c>), el mismo predicado que <c>AlcanceDatosService.ObtenerCarteraAsync</c>.
 /// Otra delegación vigente del par no la sostiene; una operación que sobrevivió a una revocación no vuelve a
 /// autorizar aunque la delegación se reactive; y una operación externa sin origen falla cerrada. Sin amparo, el
 /// Gestor CAE no elige el Tenant beneficiario, no lo revalida y no recibe rol en él, y el perfil que entra sin
@@ -68,7 +68,7 @@ public class ViaDeOperacionExigeDelegacionVigenteTests
     {
         DelegacionTenant Origen(DelegacionTenant delegacion)
         {
-            operacion.FijarDelegacionDeOrigen(delegacion);
+            operacion.FijarOrigen(delegacion);
             return delegacion;
         }
 
@@ -157,32 +157,32 @@ public class ViaDeOperacionExigeDelegacionVigenteTests
     public async Task Con_su_DelegacionTenant_de_origen_activa_y_sin_caducar_la_misma_operacion_autoriza()
     {
         foreach (var delTenantEntero in new[] { false, true })
-        foreach (var origen in new Func<DelegacionTenant>[] { DelPar, () => ConCaducidad(DelPar(), Ahora.AddDays(1)) })
-        {
-            var (operaciones, operacion) = Escenario(delTenantEntero, o =>
+            foreach (var origen in new Func<DelegacionTenant>[] { DelPar, () => ConCaducidad(DelPar(), Ahora.AddDays(1)) })
             {
-                var delegacion = origen();
-                o.FijarDelegacionDeOrigen(delegacion);
-                return [delegacion];
-            });
-            var tenants = new TenantsQueryContextFalso();
+                var (operaciones, operacion) = Escenario(delTenantEntero, o =>
+                {
+                    var delegacion = origen();
+                    o.FijarOrigen(delegacion);
+                    return [delegacion];
+                });
+                var tenants = new TenantsQueryContextFalso();
 
-            (await TenantsBeneficiariosAutorizados.CarterasPorOperacionDeLaOrganizacion(operaciones, tenants, OperadorCaeExterno, Ahora)
-                    .Select(v => v.Operacion.Id).ToListAsync())
-                .Should().Equal([operacion.Id]);
-            (await TenantsBeneficiariosAutorizados.OperacionQueAutorizaAsync(
-                    operaciones, tenants, Gestor, OperadorCaeExterno, TenantBeneficiario, RolGestorCae, Ahora, default))
-                .Should().Be(operacion.Id);
-            (await TenantsBeneficiariosAutorizados.RolEnTenantDelegadoAsync(
-                    operaciones, tenants, Gestor, OperadorCaeExterno, TenantBeneficiario, operacion.Id, RolGestorCae,
-                    RolGestorCae, Ahora, default))
-                .Should().Be(RolGestorCae);
-
-            if (delTenantEntero)
+                (await TenantsBeneficiariosAutorizados.CarterasPorOperacionDeLaOrganizacion(operaciones, tenants, OperadorCaeExterno, Ahora)
+                        .Select(v => v.Operacion.Id).ToListAsync())
+                    .Should().Equal([operacion.Id]);
                 (await TenantsBeneficiariosAutorizados.OperacionQueAutorizaAsync(
-                        operaciones, tenants, Gestor, OperadorCaeExterno, TenantBeneficiario, RolSinCartera, Ahora, default))
-                    .Should().Be(operacion.Id, "la vía sin cartera con su delegación de origen vigente sí abre");
-        }
+                        operaciones, tenants, Gestor, OperadorCaeExterno, TenantBeneficiario, RolGestorCae, Ahora, default))
+                    .Should().Be(operacion.Id);
+                (await TenantsBeneficiariosAutorizados.RolEnTenantDelegadoAsync(
+                        operaciones, tenants, Gestor, OperadorCaeExterno, TenantBeneficiario, operacion.Id, RolGestorCae,
+                        RolGestorCae, Ahora, default))
+                    .Should().Be(RolGestorCae);
+
+                if (delTenantEntero)
+                    (await TenantsBeneficiariosAutorizados.OperacionQueAutorizaAsync(
+                            operaciones, tenants, Gestor, OperadorCaeExterno, TenantBeneficiario, RolSinCartera, Ahora, default))
+                        .Should().Be(operacion.Id, "la vía sin cartera con su delegación de origen vigente sí abre");
+            }
     }
 
     /// <summary>
@@ -200,7 +200,7 @@ public class ViaDeOperacionExigeDelegacionVigenteTests
         {
             var (operaciones, _) = Escenario(delTenantEntero: false, o =>
             {
-                o.FijarDelegacionDeOrigen(origen);
+                o.FijarOrigen(origen);
                 return [origen];
             });
             return await ResponsableBuzonElegibleDePrueba.Con(destino, operaciones, TenantBeneficiario)

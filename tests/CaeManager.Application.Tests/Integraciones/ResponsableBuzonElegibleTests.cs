@@ -142,10 +142,10 @@ public sealed class OperacionesEnMemoria(
         var creadas = new List<DelegacionTenant>();
         foreach (var operacion in operaciones.Where(o => !o.EsOperacionInterna))
         {
-            if (operacion.DelegacionTenantOrigenId is null)
+            if (operacion.OrigenId is null)
             {
                 var delegacion = new DelegacionTenant(operacion.OperadorTenantId, operacion.PropietarioTenantId);
-                operacion.FijarDelegacionDeOrigen(delegacion);
+                operacion.FijarOrigen(delegacion);
                 AmparoDeCadaOperacion.Add(operacion, delegacion);
                 creadas.Add(delegacion);
             }

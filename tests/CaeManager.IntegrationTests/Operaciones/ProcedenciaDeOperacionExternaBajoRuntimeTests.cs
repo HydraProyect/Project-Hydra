@@ -27,7 +27,7 @@ namespace CaeManager.IntegrationTests.Operaciones;
 /// <summary>
 /// Procedencia de la Asignación de Operación Outbound externa (hallazgos altos de Codex en la PR #2223; opción A
 /// de Chris del 2026-11-14) contra Postgres real: los triggers de la migración
-/// <c>AnadeProcedenciaDeOperacionExterna</c> y el predicado <c>AmparoDeDelegacionDeOrigen</c> de los lectores.
+/// <c>AnadeProcedenciaDeOperacionExterna</c> y el predicado <c>AmparoDeOrigen</c> de los lectores.
 /// <list type="bullet">
 /// <item>Una operación que sobrevive a una revocación hecha por la ranura anterior (que solo escribe
 /// <c>Activa = false</c>) no vuelve a autorizar al reactivarse la delegación.</item>
@@ -97,7 +97,7 @@ public class ProcedenciaDeOperacionExternaBajoRuntimeTests : IAsyncLifetime
                         && o.Servicio == ServicioCae.Outbound)
             .ToListAsync();
         operaciones.Should().HaveCount(2);
-        operaciones.Should().OnlyContain(o => o.DelegacionTenantOrigenId == _delegacion && o.RevocacionesDelegacionOrigen == 0,
+        operaciones.Should().OnlyContain(o => o.OrigenId == _delegacion && o.RevocacionesDelOrigen == 0,
             "el writer fija el origen en el alta y el trigger lo deduce en la inserción que no lo trae");
         (await CarterasAmparadasDelOperadorAsync()).Should().Contain(acotada, "control: con su delegación de origen vigente autoriza");
     }
@@ -148,7 +148,7 @@ public class ProcedenciaDeOperacionExternaBajoRuntimeTests : IAsyncLifetime
         await EjecutarComoPropietarioAsync($"""UPDATE "DelegacionesTenant" SET "Activa" = true WHERE "Id" = '{_delegacion}'""");
 
         await using (var verificacion = ContextoPropietarioDeLaBase())
-            (await verificacion.AsignacionesOperacion.SingleAsync(o => o.Id == acotada)).DelegacionTenantOrigenId
+            (await verificacion.AsignacionesOperacion.SingleAsync(o => o.Id == acotada)).OrigenId
                 .Should().BeNull("control: nació sin delegación vigente que la amparase");
 
         (await CarterasAmparadasDelOperadorAsync()).Should().NotContain(acotada, "sin origen, la operación externa no autoriza");
@@ -166,12 +166,12 @@ public class ProcedenciaDeOperacionExternaBajoRuntimeTests : IAsyncLifetime
                 .Should().Be(1, "ningún UPDATE rebaja el contador");
 
         var resellar = () => EjecutarComoPropietarioAsync(
-            $"""UPDATE "AsignacionesOperacion" SET "RevocacionesDelegacionOrigen" = 1 WHERE "Id" = '{acotada}'""");
+            $"""UPDATE "AsignacionesOperacion" SET "RevocacionesDelOrigen" = 1 WHERE "Id" = '{acotada}'""");
         (await resellar.Should().ThrowAsync<PostgresException>()).Which.SqlState.Should().Be(PostgresErrorCodes.CheckViolation,
             "volver a sellar el contador repondría la operación superviviente");
 
         var reorigen = () => EjecutarComoPropietarioAsync(
-            $"""UPDATE "AsignacionesOperacion" SET "DelegacionTenantOrigenId" = NULL WHERE "Id" = '{acotada}'""");
+            $"""UPDATE "AsignacionesOperacion" SET "OrigenId" = NULL WHERE "Id" = '{acotada}'""");
         (await reorigen.Should().ThrowAsync<PostgresException>()).Which.SqlState.Should().Be(PostgresErrorCodes.CheckViolation);
 
         // Cerrarla sí se puede: el trigger solo protege el origen.

@@ -175,8 +175,8 @@ public class AsignacionesOperativasWriter(
         var actorId = await currentUserService.ObtenerUsuarioActualIdAsync();
 
         // La operación nace de la única DelegacionTenant de Operador CAE externo activa y vigente del par, y
-        // la guarda como origen (AmparoDeDelegacionDeOrigen): sin ella, o con más de una, no se abre nada.
-        var delegacion = await DelegacionDeOrigenAsync(propietarioTenantId, operadorTenantId, ahora, cancellationToken);
+        // la guarda como origen (AmparoDeOrigen): sin ella, o con más de una, no se abre nada.
+        var delegacion = await OrigenUnicoDelParAsync(propietarioTenantId, operadorTenantId, ahora, cancellationToken);
 
         var existente = await ObtenerOperacionExternaVigenteAsync(propietarioTenantId, operadorTenantId, cancellationToken);
         if (existente is not null) return existente;
@@ -190,7 +190,7 @@ public class AsignacionesOperativasWriter(
         var nueva = AsignacionOperacion.Externa(
             propietarioTenantId, operadorTenantId, ServicioCae.Outbound,
             AmbitoAsignacion.Universal, vigenciaDesde, vigenciaHasta, ahora, actorId);
-        nueva.FijarDelegacionDeOrigen(delegacion);
+        nueva.FijarOrigen(delegacion);
 
         dbContext.AsignacionesOperacion.Add(nueva);
         return nueva;
@@ -202,7 +202,7 @@ public class AsignacionesOperativasWriter(
     /// guardado) y después las de la base de datos que no estén en él. Falla cerrado con ninguna o con
     /// varias: una operación sin origen inequívoco no se abre.
     /// </summary>
-    private async Task<Domain.Tenants.DelegacionTenant> DelegacionDeOrigenAsync(
+    private async Task<Domain.Tenants.DelegacionTenant> OrigenUnicoDelParAsync(
         Guid propietarioTenantId, Guid operadorTenantId, DateTime ahora, CancellationToken cancellationToken)
     {
         var enElContexto = dbContext.ChangeTracker.Entries<Domain.Tenants.DelegacionTenant>()
@@ -239,7 +239,7 @@ public class AsignacionesOperativasWriter(
         Guid propietarioTenantId, Guid operadorTenantId, DateTime ahora, CancellationToken cancellationToken)
     {
         var amparadas = dbContext.AsignacionesOperacion
-            .AmparadasPorSuDelegacionDeOrigen(dbContext.DelegacionesTenant, ahora)
+            .AmparadasPorSuOrigen(dbContext.DelegacionesTenant, ahora)
             .Select(o => o.Id);
 
         var sinAmparo = await dbContext.AsignacionesOperacion
@@ -553,7 +553,7 @@ public class AsignacionesOperativasWriter(
                                  && o.Servicio == ServicioCae.Outbound
                                  && o.Ambito.EsUniversal
                                  && o.Estado == EstadoAsignacion.Vigente
-                                 && o.DelegacionTenantOrigenId != null);
+                                 && o.OrigenId != null);
 
         if (enElContexto is not null) return enElContexto;
 
@@ -561,7 +561,7 @@ public class AsignacionesOperativasWriter(
         // colgar de ella una cartera daría una cartera que no autoriza, y reutilizarla al abrir rehabilitaría
         // lo que la revocación dejó sin amparo.
         return await dbContext.AsignacionesOperacion
-            .AmparadasPorSuDelegacionDeOrigen(dbContext.DelegacionesTenant, DateTime.UtcNow)
+            .AmparadasPorSuOrigen(dbContext.DelegacionesTenant, DateTime.UtcNow)
             .FirstOrDefaultAsync(o => !o.EsRaiz
                                       && o.PropietarioTenantId == propietarioTenantId
                                       && o.OperadorTenantId == operadorTenantId

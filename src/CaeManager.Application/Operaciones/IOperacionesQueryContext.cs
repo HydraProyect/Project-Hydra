@@ -32,7 +32,7 @@ public interface IOperacionesQueryContext
 
     /// <summary>
     /// Las delegaciones, solo para comprobar que una Asignación de Operación externa sigue amparada
-    /// por su DelegacionTenant de origen (<see cref="AmparoDeDelegacionDeOrigen"/>). Su RLS deja ver
+    /// por su DelegacionTenant de origen (<see cref="AmparoDeOrigen"/>). Su RLS deja ver
     /// las filas de las que el Tenant activo es uno de los dos extremos.
     /// </summary>
     IQueryable<DelegacionTenant> DelegacionesTenant { get; }

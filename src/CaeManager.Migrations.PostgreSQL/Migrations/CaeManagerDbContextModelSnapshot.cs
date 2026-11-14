@@ -9188,7 +9188,7 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                     b.Property<Guid?>("CreadoPorUsuarioId")
                         .HasColumnType("uuid");
 
-                    b.Property<Guid?>("DelegacionTenantOrigenId")
+                    b.Property<Guid?>("OrigenId")
                         .HasColumnType("uuid");
 
                     b.Property<bool>("EsRaiz")
@@ -9209,7 +9209,7 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                     b.Property<Guid>("PropietarioTenantId")
                         .HasColumnType("uuid");
 
-                    b.Property<int?>("RevocacionesDelegacionOrigen")
+                    b.Property<int?>("RevocacionesDelOrigen")
                         .HasColumnType("integer");
 
                     b.Property<string>("Servicio")
@@ -9229,8 +9229,8 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("DelegacionTenantOrigenId")
-                        .HasFilter("\"DelegacionTenantOrigenId\" IS NOT NULL");
+                    b.HasIndex("OrigenId")
+                        .HasFilter("\"OrigenId\" IS NOT NULL");
 
                     b.HasIndex("OperadorTenantId", "Estado");
 
@@ -13069,7 +13069,7 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                 {
                     b.HasOne("CaeManager.Domain.Tenants.DelegacionTenant", null)
                         .WithMany()
-                        .HasForeignKey("DelegacionTenantOrigenId")
+                        .HasForeignKey("OrigenId")
                         .OnDelete(DeleteBehavior.Restrict);
 
                     b.HasOne("CaeManager.Domain.Centros.Centro", null)
