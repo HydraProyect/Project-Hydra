@@ -141,10 +141,12 @@ public class SoporteSinCodigoSeguroDocumentosGeneradosTests : IAsyncLifetime
     }
 
     /// <summary>
-    /// La rama sin acceso total (la de un Gestor CAE con Asignación de Cartera) contra Postgres de verdad: el recorte
-    /// en SQL (<c>Contains</c> sobre la lista de alcance, la proyección de coordenadas de plantilla seguida de
-    /// <c>Where</c>) y la puerta tienen que traducirse, y el contador tiene que dar lo mismo que la lista (revisión
-    /// puente de la ronda 3 de la PR #2222: los unitarios no ejercen la traducción EF).
+    /// La rama sin acceso total (la de un Gestor CAE con Asignación de Cartera) contra Postgres de verdad, y el contador
+    /// dando lo mismo que la lista (revisión puente de la ronda 3 de la PR #2222: los unitarios no ejercen la traducción
+    /// EF). Lo que traduce: el <c>Contains</c> de la Empresa, la proyección de coordenadas de plantilla seguida de
+    /// <c>Where</c>, la proyección con constructor tras <c>OrderBy</c> y las lecturas de la puerta. Lo que no: con una
+    /// plantilla general y solo la lista de Empresas, no entran los <c>Contains</c> de Trabajador y Centro ni el
+    /// <c>NOT IN</c> de las versiones de plantillas fuera de la Cartera.
     /// </summary>
     [Theory]
     [InlineData(true, 1)]
