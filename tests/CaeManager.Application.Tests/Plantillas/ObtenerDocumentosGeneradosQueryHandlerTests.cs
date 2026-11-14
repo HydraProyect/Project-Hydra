@@ -205,6 +205,29 @@ public class ObtenerDocumentosGeneradosQueryHandlerTests
     }
 
     [Fact]
+    public async Task Un_Gestor_CAE_no_ve_el_generado_de_un_Centro_cuya_Empresa_esta_fuera_de_su_Cartera()
+    {
+        // Plantilla de ámbito Cliente generada en un Centro: el Documento es del Cliente empresarial y el registro
+        // guarda el Centro y la Empresa del Centro. Ver el Cliente empresarial y el Centro no basta.
+        var (contexto, _, version) = ConstruirPlantilla(AmbitoAplicacion.Cliente);
+        var (clienteEmpresarial, centro, empresaDeCartera) = (Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid());
+        DocumentoGenerado EnCentro(Guid empresaId)
+        {
+            var documento = Documento.DeCliente(clienteEmpresarial, Guid.NewGuid(), DiaDeNegocio.Hoy(), VigenciaDocumento.NoCaduca, "generado.pdf");
+            _documentos.ListaDocumentos.Add(documento);
+            return new DocumentoGenerado(version.Id, documento.Id, "{}", Guid.NewGuid(), DateTime.UtcNow, empresaId: empresaId, centroId: centro);
+        }
+        var conEmpresaDeCartera = EnCentro(empresaDeCartera);
+        contexto.ListaDocumentosGenerados.AddRange([conEmpresaDeCartera, EnCentro(Guid.NewGuid())]);
+        var alcance = new AlcanceDatosServiceFalso(
+            tieneAccesoTotal: false, clienteIdsVisibles: [clienteEmpresarial], centroIdsVisibles: [centro], empresaIdsVisibles: [empresaDeCartera]);
+
+        var resultado = await Handler(contexto, alcance).Handle(new ObtenerDocumentosGeneradosQuery(), CancellationToken.None);
+
+        resultado.Should().ContainSingle().Which.DocumentoGeneradoId.Should().Be(conEmpresaDeCartera.Id);
+    }
+
+    [Fact]
     public async Task Con_acceso_total_no_se_pierde_ningun_generado()
     {
         var (contexto, _, version) = ConstruirPlantilla(AmbitoAplicacion.Cliente);
