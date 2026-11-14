@@ -191,7 +191,8 @@ public class EjecutarImportacionMaestraCommandHandler(
     IAltaAcreditacionesPlataformaService altaAcreditaciones,
     ISerializacionAltasAcreditacionEmpresa serializacionAltas,
     IHistorialImportacionRepository historialRepositorio,
-    ICurrentUserService usuarioActual)
+    ICurrentUserService usuarioActual,
+    ILimiteEmpresaPropia limiteEmpresaPropia)
     : IRequestHandler<EjecutarImportacionMaestraCommand, Result<ResultadoImportacionMaestraDto>>,
       IRequestHandler<PrevisualizarImportacionMaestraCommand, Result<ResultadoImportacionMaestraDto>>
 {
@@ -267,10 +268,13 @@ public class EjecutarImportacionMaestraCommandHandler(
             if (!escribir)
                 return await ProcesarAsync(plan, reemplazar, huellaEsperada: null, cancellationToken);
 
+            // D-P11: dentro, también el candado de Empresa propia del Tenant (después del de altas, el orden de
+            // ILimiteEmpresaPropia): el recuento de cada fila de la hoja de Empresas gestionadas y el guardado quedan
+            // bajo él, y otra alta o restauración de una Empresa propia espera al COMMIT.
             Result<ResultadoImportacionMaestraDto>? procesado = null;
-            var serializado = await serializacionAltas.EjecutarAsync(async ct =>
+            var serializado = await serializacionAltas.EjecutarAsync(ct => limiteEmpresaPropia.SerializarAsync(async c =>
             {
-                procesado = await ComprobarYEscribirAsync(plan, reemplazar, huellaVistaPrevia!, ct);
+                procesado = await ComprobarYEscribirAsync(plan, reemplazar, huellaVistaPrevia!, c);
                 if (procesado.EsFallido)
                     return Result.Fallo(procesado.Error);
                 // La perdedora de dos confirmaciones de la misma operación devuelve «ya ejecutada», que es un éxito para
@@ -278,7 +282,7 @@ public class EjecutarImportacionMaestraCommandHandler(
                 return operacionYaEjecutada
                     ? Result.Fallo(Error.Crear("Importacion.YaEjecutada", "Esta importación ya se había ejecutado."))
                     : Result.Exito();
-            }, cancellationToken);
+            }, ct), cancellationToken);
             if (serializado.EsExitoso || operacionYaEjecutada)
                 return procesado!;
             return procesado is { EsFallido: true } ? procesado : Result.Fallo<ResultadoImportacionMaestraDto>(serializado.Error);
@@ -411,6 +415,9 @@ public class EjecutarImportacionMaestraCommandHandler(
                 : await DuplicadosEmpresa.ComprobarRazonSocialAsync(empresaRepositorio, razonSocial, excluirId, cancellationToken: cancellationToken);
 
         var empresasCreadas = 0;
+
+        // D-P11: alguna fila de Empresas omitida por el límite. El aviso a Soporte TALVEG, uno por comando, sale del guardado.
+        var limiteRechazado = false;
         var empresasActualizadas = 0;
         foreach (var fila in plan.Empresas)
         {
@@ -458,6 +465,15 @@ public class EjecutarImportacionMaestraCommandHandler(
             if (await RazonSocialOcupadaAsync(fila.RazonSocial, null) is { } razonOcupada)
             {
                 omitidos.Add(new(HojaEmpresas, fila.Fila, fila.RazonSocial, razonOcupada.Mensaje));
+                continue;
+            }
+
+            // D-P11: la hoja de Empresas gestionadas crea Empresas propias, y el Tenant propietario solo puede tener una.
+            // La vista previa muestra la misma omisión, pero solo avisa a Soporte TALVEG la confirmación que guarda (abajo).
+            if (await limiteEmpresaPropia.ComprobarAltaAsync(empresasCreadas, esIntento: false, cancellationToken) is { } limite)
+            {
+                omitidos.Add(new(HojaEmpresas, fila.Fila, fila.RazonSocial, limite.Mensaje));
+                limiteRechazado = true;
                 continue;
             }
 
@@ -838,6 +854,12 @@ public class EjecutarImportacionMaestraCommandHandler(
         // Guardado no es confirmado: el commit es de la transacción del candado. Por eso se recuerda con el Id de su marca.
         if (await operacionImportacionRepositorio.GuardarSiOperacionNuevaAsync(cancellationToken))
         {
+            // D-P11: el aviso de las filas omitidas por el límite, solo de la confirmación que ha guardado la marca, igual
+            // que en EjecutarImportacionCommand: ni la pasada de comparación, ni una vista previa cambiada, ni una
+            // confirmación de la misma operación que llega tarde avisan (revisión Codex r3 de la PR #2193, MEDIO 1).
+            // Recuento solo para el aviso: lo omitido ya está decidido.
+            if (limiteRechazado)
+                _ = await limiteEmpresaPropia.ComprobarAltaAsync(empresasCreadas, esIntento: true, cancellationToken);
             intentoGuardado = (marca!.Id, resultado);
             return resultado;
         }

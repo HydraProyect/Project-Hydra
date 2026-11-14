@@ -39,6 +39,7 @@ public class EjecutarImportacionMaestraTests
         public CaeManager.Application.Tests.Documentos.SerializacionAltasAcreditacionEmpresaFalsa Serializacion { get; } = new();
         public HistorialImportacionRepositorioFalso Historial { get; } = new();
         public Guid UsuarioId { get; } = Guid.NewGuid();
+        public ILimiteEmpresaPropia? Limite { get; set; }
         public const string NombreArchivo = "maestra.xlsx";
 
         public EjecutarImportacionMaestraCommandHandler Handler()
@@ -49,7 +50,8 @@ public class EjecutarImportacionMaestraTests
             TrabajadorRepositorio.Existentes = () => Trabajadores.ListaTrabajadores;
             return new(
                 EmpresaRepositorio, Relaciones, CentroRepositorio, TrabajadorRepositorio, Centros, Empresas,
-                Operaciones, new Autorizacion(administrador), Altas, Serializacion, Historial, new Usuario(UsuarioId));
+                Operaciones, new Autorizacion(administrador), Altas, Serializacion, Historial, new Usuario(UsuarioId),
+                Limite ?? CaeManager.Application.Tests.Empresas.LimitesDePrueba.SinEmpresaPropia());
         }
 
         /// <summary>Como la pantalla: confirma con la huella de una vista previa del mismo plan y modo calculada justo antes.</summary>
@@ -952,5 +954,125 @@ public class EjecutarImportacionMaestraTests
         centro.GestionCae.Should().Be(ModalidadGestionCae.SinGestionCae);
         e.Serializacion.Llamadas.Should().Be(1, "confirmar corre siempre bajo el candado (revisión Codex de la PR #2164, r2, MEDIO 2)");
         e.Altas.Recibidas.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task D_P11_con_la_Empresa_propia_la_vista_previa_omite_sin_avisar_y_confirmar_avisa_a_Soporte_TALVEG()
+    {
+        var e = new Escenario();
+        e.Empresas.ListaEmpresas.Add(new Empresa("Organización propia, S.L.", CifCliente));
+        var alertas = new CaeManager.Application.Tests.Common.AlertaOperativaFalsa();
+        e.Limite = CaeManager.Application.Tests.Empresas.LimitesDePrueba.Sobre(e.Empresas, alertas);
+        var plan = Plan([FilaEmpresa()]);
+
+        var previa = (await e.PrevisualizarAsync(plan)).Valor;
+        previa.EmpresasCreadas.Should().Be(0);
+        previa.Omitidos.Should().NotBeEmpty();
+        alertas.Alertas.Should().BeEmpty("una vista previa no es un intento");
+
+        var r = (await e.EjecutarAsync(plan)).Valor;
+        r.EmpresasCreadas.Should().Be(0);
+        e.EmpresaRepositorio.Empresas.Should().BeEmpty();
+        alertas.Alertas.Should().ContainSingle();
+    }
+
+    [Fact]
+    public async Task D_P11_sin_Empresa_propia_la_maestra_crea_la_primera()
+    {
+        var e = new Escenario();
+        e.Limite = CaeManager.Application.Tests.Empresas.LimitesDePrueba.Sobre(e.Empresas, new CaeManager.Application.Tests.Common.AlertaOperativaFalsa());
+
+        var r = (await e.EjecutarAsync(Plan([FilaEmpresa()]))).Valor;
+
+        r.EmpresasCreadas.Should().Be(1);
+    }
+
+    [Fact]
+    public async Task D_P11_la_maestra_crea_la_primera_Empresa_propia_y_omite_las_demas_con_un_solo_aviso()
+    {
+        var e = new Escenario();
+        var alertas = new CaeManager.Application.Tests.Common.AlertaOperativaFalsa();
+        e.Limite = CaeManager.Application.Tests.Empresas.LimitesDePrueba.Sobre(e.Empresas, alertas);
+        var plan = Plan(
+        [
+            FilaEmpresa(fila: 3),
+            FilaEmpresa(fila: 4) with { RazonSocial = "Segunda propia, S.L.", Cif = "B12345674" },
+            FilaEmpresa(fila: 5) with { RazonSocial = "Tercera propia, S.L.", Cif = "B10380186" },
+        ]);
+
+        var r = (await e.EjecutarAsync(plan)).Valor;
+
+        r.EmpresasCreadas.Should().Be(1, "las filas sin guardar de la misma importación también cuentan");
+        e.EmpresaRepositorio.Empresas.Should().ContainSingle().Which.RazonSocial.Should().Be("Industrias Ficticias, S.L.");
+        alertas.Alertas.Should().ContainSingle("un aviso por comando, no por fila");
+    }
+
+    // Revisión puente de la PR #2193, BAJO 1 y 3: el aviso de las filas omitidas sale solo de la confirmación que guarda
+    // la marca de su operación, y después de guardarla.
+
+    private static (Escenario Escenario, CaeManager.Application.Tests.Common.AlertaOperativaFalsa Alertas) EscenarioConLaEmpresaPropia()
+    {
+        var e = new Escenario();
+        e.Empresas.ListaEmpresas.Add(new Empresa("Organización propia, S.L.", CifCliente));
+        var alertas = new CaeManager.Application.Tests.Common.AlertaOperativaFalsa();
+        e.Limite = CaeManager.Application.Tests.Empresas.LimitesDePrueba.Sobre(e.Empresas, alertas);
+        return (e, alertas);
+    }
+
+    [Fact]
+    public async Task D_P11_la_maestra_avisa_despues_de_guardar_la_marca_y_no_antes()
+    {
+        var (e, alertas) = EscenarioConLaEmpresaPropia();
+        var avisosAlGuardar = -1;
+        e.Operaciones.AlGuardar = () => avisosAlGuardar = alertas.Alertas.Count();
+
+        var r = await e.EjecutarAsync(Plan([FilaEmpresa()]));
+
+        r.Valor.Omitidos.Should().NotBeEmpty();
+        avisosAlGuardar.Should().Be(0, "al guardar la marca el aviso aún no ha salido");
+        alertas.Alertas.Should().ContainSingle();
+    }
+
+    [Fact]
+    public async Task D_P11_la_maestra_si_otra_confirmacion_gana_la_marca_en_el_guardado_no_avisa()
+    {
+        var (e, alertas) = EscenarioConLaEmpresaPropia();
+        var plan = Plan([FilaEmpresa()]);
+        e.Operaciones.AlGuardar = () => e.Operaciones.ConfirmarDesdeOtraEjecucion(plan.OperacionId);
+
+        var r = await e.EjecutarAsync(plan);
+
+        r.EsExitoso.Should().BeTrue("para quien llama es «ya ejecutada»");
+        r.Valor.YaConfirmadaAntes.Should().BeTrue();
+        alertas.Alertas.Should().BeEmpty("esta confirmación no guardó la marca");
+    }
+
+    [Fact]
+    public async Task D_P11_la_maestra_si_la_otra_confirmacion_gana_antes_de_recorrer_las_filas_no_avisa()
+    {
+        var (e, alertas) = EscenarioConLaEmpresaPropia();
+        var plan = Plan([FilaEmpresa()]);
+        var previa = (await e.PrevisualizarAsync(plan)).Valor;
+        // La otra confirmación guarda la marca tras la consulta inicial de esta: la relectura bajo el candado la ve.
+        e.Operaciones.TrasLaPrimeraConsulta = () => e.Operaciones.ConfirmarDesdeOtraEjecucion(plan.OperacionId);
+
+        var r = await e.ConfirmarAsync(plan, reemplazar: false, previa.CalcularHuella());
+
+        r.Valor.YaConfirmadaAntes.Should().BeTrue();
+        alertas.Alertas.Should().BeEmpty("la operación la guardó otra: esta no ha rechazado nada");
+    }
+
+    [Fact]
+    public async Task D_P11_la_maestra_si_falla_el_guardado_de_la_marca_no_avisa()
+    {
+        var (e, alertas) = EscenarioConLaEmpresaPropia();
+        var plan = Plan([FilaEmpresa()]);
+        var previa = (await e.PrevisualizarAsync(plan)).Valor;
+        e.Operaciones.AlGuardar = () => throw new InvalidOperationException("guardado fallido");
+
+        var act = () => e.ConfirmarAsync(plan, reemplazar: false, previa.CalcularHuella());
+
+        await act.Should().ThrowAsync<InvalidOperationException>();
+        alertas.Alertas.Should().BeEmpty();
     }
 }

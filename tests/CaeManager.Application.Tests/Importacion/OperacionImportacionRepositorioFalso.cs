@@ -25,8 +25,23 @@ internal sealed class OperacionImportacionRepositorioFalso : IOperacionImportaci
     /// <summary>Se ejecuta al guardar, antes de registrar la marca: deja ver qué más iba en el mismo guardado.</summary>
     public Action? AlGuardar { get; set; }
 
-    public Task<bool> ExisteAsync(Guid operacionId, CancellationToken cancellationToken = default) =>
-        Task.FromResult(_confirmadas.ContainsKey(operacionId));
+    /// <summary>
+    /// Se ejecuta una vez, justo después de la primera consulta de <see cref="ExisteAsync"/> (que ya ha respondido): deja
+    /// que otra confirmación de la misma operación confirme entre la consulta inicial del handler y lo que viene después.
+    /// </summary>
+    public Action? TrasLaPrimeraConsulta { get; set; }
+
+    public Task<bool> ExisteAsync(Guid operacionId, CancellationToken cancellationToken = default)
+    {
+        var existe = _confirmadas.ContainsKey(operacionId);
+        if (TrasLaPrimeraConsulta is { } alConsultar)
+        {
+            TrasLaPrimeraConsulta = null;
+            alConsultar();
+        }
+
+        return Task.FromResult(existe);
+    }
 
     public Task<bool> EsLaMarcaGuardadaAsync(Guid operacionId, Guid marcaId, CancellationToken cancellationToken = default) =>
         Task.FromResult(_confirmadas.TryGetValue(operacionId, out var guardada) && guardada == marcaId);

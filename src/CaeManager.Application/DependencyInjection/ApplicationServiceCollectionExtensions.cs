@@ -237,6 +237,8 @@ public static class ApplicationServiceCollectionExtensions
         services.AddScoped<CaeManager.Application.Common.Archivos.IVerificadorArchivoAlmacenado, CaeManager.Application.Common.Archivos.VerificadorArchivoAlmacenado>();
         services.AddScoped<IPaqueteDocumentalVisitaService, PaqueteDocumentalVisitaService>();
         services.AddScoped<CaeManager.Application.Empresas.PaqueteDocumental.IPaqueteDocumentalEmpresaService, CaeManager.Application.Empresas.PaqueteDocumental.PaqueteDocumentalEmpresaService>();
+        // D-P11: el límite de una sola Empresa propia por Tenant propietario, el mismo para todos sus escritores.
+        services.AddScoped<CaeManager.Application.Empresas.ILimiteEmpresaPropia, CaeManager.Application.Empresas.LimiteEmpresaPropia>();
         services.AddScoped<IEvaluadorExpedienteVisitaService, EvaluadorExpedienteVisitaService>();
         services.AddScoped<IVerificacionIaDocumentoService, VerificacionIaDocumentoService>();
         services.AddScoped<CaeManager.Application.Cumplimiento.IInstruccionTratamientoIaService, CaeManager.Application.Cumplimiento.InstruccionTratamientoIaService>();

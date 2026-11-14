@@ -18,7 +18,7 @@ public record RestaurarSubcontrataCommand(Guid Id) : ICommand;
 
 public class RestaurarSubcontrataCommandHandler(
     IEmpresasQueryContext empresasContext, ITenantActual tenantActual,
-    IAlcanceDatosService alcanceDatos, IUnitOfWork unitOfWork)
+    IAlcanceDatosService alcanceDatos, IUnitOfWork unitOfWork, ILimiteEmpresaPropia limiteEmpresaPropia)
     : IRequestHandler<RestaurarSubcontrataCommand, Result>
 {
     public async Task<Result> Handle(RestaurarSubcontrataCommand request, CancellationToken cancellationToken)
@@ -38,9 +38,17 @@ public class RestaurarSubcontrataCommandHandler(
         if (!await alcanceDatos.SubcontrataEliminadaParaGestionVisibleAsync(subcontrata.Id, cancellationToken))
             return Result.Fallo(Error.Crear("Subcontrata.NoEncontrada", "No encontramos esta subcontrata eliminada."));
 
-        subcontrata.Restaurar();
-        await unitOfWork.SaveChangesAsync(cancellationToken);
+        // D-P11: una Subcontrata nace con EsPropia = false, pero el comando no lo exige; si la fila fuera propia,
+        // restaurarla pasa por el mismo límite que RestaurarEmpresaCommand, bajo el mismo candado.
+        return await limiteEmpresaPropia.SerializarAsync(async ct =>
+        {
+            if (subcontrata.EsPropia
+                && await limiteEmpresaPropia.ComprobarAltaAsync(0, esIntento: true, ct) is { } limite)
+                return Result.Fallo(limite);
 
-        return Result.Exito();
+            subcontrata.Restaurar();
+            await unitOfWork.SaveChangesAsync(ct);
+            return Result.Exito();
+        }, cancellationToken);
     }
 }

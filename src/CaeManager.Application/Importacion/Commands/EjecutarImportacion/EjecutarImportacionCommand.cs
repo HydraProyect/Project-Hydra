@@ -120,7 +120,8 @@ public class EjecutarImportacionCommandHandler(
     IAutorizacionEscrituraEfectiva autorizacionEscrituraEfectiva,
     IAltaAcreditacionesPlataformaService altaAcreditaciones,
     IAlcanceDatosService alcanceDatos,
-    ISerializacionAltasAcreditacionEmpresa serializacionAltas)
+    ISerializacionAltasAcreditacionEmpresa serializacionAltas,
+    ILimiteEmpresaPropia limiteEmpresaPropia)
     : IRequestHandler<EjecutarImportacionCommand, Result<ResultadoImportacionDto>>
 {
     // Restaura en Application el límite que ya exponen las 4 páginas de importación (@attribute [Authorize(Roles = ConCargaMasivaCsv)]):
@@ -220,6 +221,9 @@ public class EjecutarImportacionCommandHandler(
         var clientesCreados = 0;
         var centrosCreados = 0;
         var empresasCreadas = 0;
+        // D-P11: alguna fila de Empresas omitida por el límite. El aviso a Soporte TALVEG no sale de esa fila sino del
+        // guardado, uno por comando: ver GuardarAsync.
+        var limiteRechazado = false;
         var trabajadoresCreados = 0;
         var documentosCreados = 0;
         var asignacionesCreadas = 0;
@@ -338,6 +342,16 @@ public class EjecutarImportacionCommandHandler(
                 cancellationToken: cancellationToken) is { } razonSocialOcupada)
             {
                 omitidosEnEscritura.Add(new ItemImportacionDto(fila.Hoja, fila.Fila, fila.RazonSocial, razonSocialOcupada.Mensaje));
+                continue;
+            }
+
+            // D-P11: cada fila de la hoja de Empresas crea una Empresa propia, y el Tenant propietario solo puede tener
+            // una. Las que esta misma carga ya añadió cuentan aunque aún no estén guardadas. Sin aviso: este recuento va
+            // sin candado y antes de saber si la operación ya la confirmó otra (revisión Codex r3 de la PR #2193, MEDIO 1).
+            if (await limiteEmpresaPropia.ComprobarAltaAsync(empresasCreadas, esIntento: false, cancellationToken) is { } limite)
+            {
+                omitidosEnEscritura.Add(new ItemImportacionDto(fila.Hoja, fila.Fila, fila.RazonSocial, limite.Mensaje));
+                limiteRechazado = true;
                 continue;
             }
 
@@ -687,12 +701,52 @@ public class EjecutarImportacionCommandHandler(
                 Trabajadores = trabajadoresNuevos,
             }, ct);
 
-            if (await operacionImportacionRepositorio.GuardarSiOperacionNuevaAsync(ct))
-                return Result.Exito();
+            // D-P11: el recuento de cada fila de Empresas va sin candado; el que decide se repite aquí, bajo el candado de
+            // Empresa propia del Tenant y hasta el COMMIT, contra lo que otra operación haya confirmado entretanto. Sin
+            // Empresas propias nuevas ni filas omitidas por el límite no hace falta. Con Asignaciones, este candado va
+            // después del de las altas.
+            if (empresasCreadas == 0 && !limiteRechazado)
+                return await GuardarOperacionAsync(ct);
+            return await limiteEmpresaPropia.SerializarAsync(async c =>
+            {
+                // Bajo el candado, la marca va antes que el límite: la segunda de dos confirmaciones de la MISMA
+                // operación espera aquí a que la primera confirme, y al releer ve su marca. Sin este orden contaría la
+                // Empresa propia que la primera acaba de guardar y respondería con el error de límite, y una alerta de
+                // rechazo, en vez de «ya ejecutada» (revisión Codex r2 de la PR #2193, MEDIO 1).
+                if (await operacionImportacionRepositorio.ExisteAsync(plan.OperacionId, c))
+                    return FalloYaEjecutada();
+                if (await limiteEmpresaPropia.ComprobarGuardadoAsync(empresasCreadas, c) is { } limite)
+                    return Result.Fallo(limite);
+                var guardadoOperacion = await GuardarOperacionAsync(c);
+                await AvisarFilasRechazadasAsync(guardadoOperacion, c);
+                return guardadoOperacion;
+            }, ct);
+        }
 
+        // D-P11: el aviso de las filas omitidas por el límite, uno por comando, sale solo de la confirmación que acaba de
+        // guardar la marca de la operación, bajo el candado. Si lo emitiera la fila, la segunda de dos confirmaciones de
+        // la MISMA operación que contara después del COMMIT de la primera avisaría de un rechazo falso antes de responder
+        // «ya ejecutada» (revisión Codex r3 de la PR #2193, MEDIO 1). El recuento es solo para el aviso, porque lo omitido
+        // ya está decidido: si esta carga creó alguna Empresa propia no cabe otra y avisa; si no creó ninguna, avisa
+        // mientras siga activa la que causó el rechazo.
+        async Task AvisarFilasRechazadasAsync(Result guardadoOperacion, CancellationToken ct)
+        {
+            if (limiteRechazado && guardadoOperacion.EsExitoso)
+                _ = await limiteEmpresaPropia.ComprobarAltaAsync(empresasCreadas, esIntento: true, ct);
+        }
+
+        Result FalloYaEjecutada()
+        {
             // Fallo para que la transacción de la serialización se deshaga; el llamante lo traduce a «ya ejecutada».
             yaEjecutada = true;
             return Result.Fallo(Error.Crear("Importacion.YaEjecutada", "Esta importación ya se había ejecutado."));
+        }
+
+        async Task<Result> GuardarOperacionAsync(CancellationToken ct)
+        {
+            return await operacionImportacionRepositorio.GuardarSiOperacionNuevaAsync(ct)
+                ? Result.Exito()
+                : FalloYaEjecutada();
         }
 
         // Una Asignación nueva pone en juego los Documentos de la Empresa del Trabajador en un Centro de otra Empresa:
@@ -703,17 +757,19 @@ public class EjecutarImportacionCommandHandler(
         // nueva (todas omitidas) también lo toma: solo se sabe después de leer. Lo importado ya está agregado al contexto,
         // así que la serialización no reintenta: un fallo transitorio falla la importación en vez de confirmar solo
         // una parte, y la hoja de Asignaciones no se recorre dos veces.
-        if (plan.Asignaciones.Count > 0)
-            await serializacionAltas.EjecutarAsync(async ct =>
+        var guardado = plan.Asignaciones.Count > 0
+            ? await serializacionAltas.EjecutarAsync(async ct =>
             {
                 await AgregarAsignacionesAsync(ct);
                 return await GuardarAsync(ct);
-            }, cancellationToken);
-        else
-            await GuardarAsync(cancellationToken);
+            }, cancellationToken)
+            : await GuardarAsync(cancellationToken);
 
         if (yaEjecutada)
             return ResultadoImportacionDto.YaEjecutada();
+        // El límite de Empresa propia rechazado en el guardado (carrera perdida): no se ha escrito nada.
+        if (guardado.EsFallido)
+            return Result.Fallo<ResultadoImportacionDto>(guardado.Error);
 
         return new ResultadoImportacionDto(
             clientesCreados, centrosCreados, empresasCreadas, trabajadoresCreados, documentosCreados, asignacionesCreadas,

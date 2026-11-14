@@ -88,6 +88,8 @@ public class ImportarCombinadoTests(WebAppFixture fixture)
         try
         {
             await Ayudas.IniciarSesionAsync(page, fixture.BaseUrl, Ayudas.EmailAdministrador, Ayudas.ContrasenaAdministrador);
+            // D-P11: el Tenant admite una sola Empresa propia activa; se libera antes del plan para que la hoja Empresas cree la suya.
+            await fixture.LiberarEmpresaPropiaDelTenantPrincipalAsync();
             // /clientes/importar-combinado redirige aquí con la plantilla ya preseleccionada (H-1).
             await Ayudas.NavegarYEsperarAsync(page, $"{fixture.BaseUrl}/clientes/importar-combinado");
             await Expect(page).ToHaveURLAsync(new Regex(@"/importacion\?plantilla=combinada$"));

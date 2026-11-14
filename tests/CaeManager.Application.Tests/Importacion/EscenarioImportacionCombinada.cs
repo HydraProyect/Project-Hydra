@@ -29,6 +29,9 @@ internal sealed class EscenarioImportacionCombinada
     /// <summary>Doble de relaciones: por defecto cualquier llamada de escritura es un error del test; con <c>Permitir</c> las registra.</summary>
     public RelacionesRegistradas Relaciones { get; } = new();
 
+    /// <summary>Límite de D-P11; sin asignar, el de un Tenant sin Producto Contratado P.</summary>
+    public CaeManager.Application.Empresas.ILimiteEmpresaPropia? Limite { get; set; }
+
     public EjecutarImportacionCombinadaCommandHandler Handler(
         IAlcanceDatosService? alcance = null, AutoridadCargaMasiva autoridad = AutoridadCargaMasiva.Total)
     {
@@ -43,7 +46,7 @@ internal sealed class EscenarioImportacionCombinada
             CentroRepositorio,
             TrabajadorRepositorio,
             CentrosContexto, empresas, TrabajadoresContexto,
-            OperacionImportacionRepositorio, new AdministracionPermitida(autoridad), alcance ?? new ClientesFalsos.AlcanceDatosServiceFalso());
+            OperacionImportacionRepositorio, new AdministracionPermitida(autoridad), alcance ?? new ClientesFalsos.AlcanceDatosServiceFalso(), Limite ?? CaeManager.Application.Tests.Empresas.LimitesDePrueba.SinEmpresaPropia());
     }
 
     public async Task<ResultadoImportacionCombinadaDto> EjecutarAsync(

@@ -29,7 +29,7 @@ public record RestaurarClienteCommand(Guid Id) : ICommand;
 
 public class RestaurarClienteCommandHandler(
     IEmpresasQueryContext empresasContext, ITenantActual tenantActual,
-    IAlcanceDatosService alcanceDatos, IUnitOfWork unitOfWork)
+    IAlcanceDatosService alcanceDatos, IUnitOfWork unitOfWork, ILimiteEmpresaPropia limiteEmpresaPropia)
     : IRequestHandler<RestaurarClienteCommand, Result>
 {
     public async Task<Result> Handle(RestaurarClienteCommand request, CancellationToken cancellationToken)
@@ -46,9 +46,17 @@ public class RestaurarClienteCommandHandler(
         if (!await alcanceDatos.ClienteVisibleAsync(empresa.Id, cancellationToken))
             return Result.Fallo(Error.Crear("Cliente.NoEncontrado", "No encontramos este Cliente eliminado."));
 
-        empresa.Restaurar();
-        await unitOfWork.SaveChangesAsync(cancellationToken);
+        // D-P11: este comando no comprueba el papel de la Empresa, así que también puede devolver a activa una
+        // Empresa propia; entonces pasa por el mismo límite que RestaurarEmpresaCommand, bajo el mismo candado.
+        return await limiteEmpresaPropia.SerializarAsync(async ct =>
+        {
+            if (empresa.EsPropia
+                && await limiteEmpresaPropia.ComprobarAltaAsync(0, esIntento: true, ct) is { } limite)
+                return Result.Fallo(limite);
 
-        return Result.Exito();
+            empresa.Restaurar();
+            await unitOfWork.SaveChangesAsync(ct);
+            return Result.Exito();
+        }, cancellationToken);
     }
 }

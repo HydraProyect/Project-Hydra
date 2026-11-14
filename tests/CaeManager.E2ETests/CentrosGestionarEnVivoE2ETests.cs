@@ -79,6 +79,8 @@ public class CentrosGestionarEnVivoE2ETests(WebAppFixture fixture)
         await drawer.WaitForAsync(new LocatorWaitForOptions { State = WaitForSelectorState.Hidden, Timeout = 15_000 });
 
         // --- Paso 1: Empresa → Cliente → Centro (alta guiada) ---
+        // D-P11: el Tenant admite una sola Empresa propia activa; la de un test anterior deja de ser propia antes del paso 1.
+        await fixture.LiberarEmpresaPropiaDelTenantPrincipalAsync();
         await Ayudas.NavegarYEsperarAsync(page, $"{fixture.BaseUrl}/clientes/alta-guiada");
         await page.GetByRole(AriaRole.Heading, new PageGetByRoleOptions { Name = "1. Empresa" }).WaitForAsync();
         await page.GetByLabel("Razón social").FillAsync(razonSocialEmpresa);
