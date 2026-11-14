@@ -32,7 +32,7 @@ internal readonly record struct Clasificacion(Modulo Modulo, EntradaDeRegistro? 
 
 /// <summary>
 /// Registro cerrado de módulos de ADR-013 (paso M0a, § 4.3 test 1 y § 4.7 mecanismo 1). Asigna cada tipo de <c>src</c> a
-/// un <see cref="Modulo"/> sin mover ningún fichero. El dato vive en <c>Congelados/Modulos-registro.txt</c>; aquí solo
+/// un <see cref="Modulo"/> sin mover ningún fichero. El dato vive en <c>Modulos/Modulos-registro.txt</c>; aquí solo
 /// está la mecánica.
 ///
 /// <para>
@@ -56,7 +56,8 @@ internal readonly record struct Clasificacion(Modulo Modulo, EntradaDeRegistro? 
 /// <para>
 /// Las claves no llevan el prefijo <c>CaeManager.</c>. <c>provisional</c> tras el módulo marca lo que ADR-013 § 3 deja
 /// como propuesta o lo que no tiene fila en § 3; exige un comentario <c>#</c> con el motivo. <c>reservada</c> admite un
-/// área todavía vacía (los <c>*.Inbound</c> donde nace lo nuevo de Inbound).
+/// área todavía vacía con el nombre de su módulo (<c>Application.Inbound</c>, <c>Infrastructure.Facturacion</c>), donde
+/// nace lo nuevo de ese módulo.
 /// </para>
 /// </summary>
 internal sealed class RegistroDeModulos
@@ -73,7 +74,21 @@ internal sealed class RegistroDeModulos
     public IReadOnlyCollection<EntradaDeRegistro> Entradas =>
         _areas.Values.Concat(_excepciones.Values).Concat(_derivaciones.Values).Concat(_ajenos).OrderBy(e => e.Linea).ToList();
 
-    public static RegistroDeModulos Versionado() => Leer(File.ReadAllText(ListaCongelada.RutaDeLista(NombreDeLista)));
+    /// <summary>
+    /// El registro vive en <c>Modulos/</c>, no en <c>Congelados/</c>: no es una lista congelada (no lleva recuentos) y
+    /// <c>ListaCongeladaTests</c> exige ese formato a todo fichero de <c>Congelados/</c>.
+    /// </summary>
+    public static string RutaVersionada() => Path.Combine(
+        FuentesDeSrc.RaizDelRepositorio(), "tests", "CaeManager.Architecture.Tests", "Modulos", NombreDeLista + ".txt");
+
+    public static RegistroDeModulos Versionado() => Leer(File.ReadAllText(RutaVersionada()));
+
+    /// <summary>¿Cae el tipo dentro de un namespace <c>derivar</c>? (para explicar por qué se quedó sin módulo).</summary>
+    public bool EstaEnDerivacion(Type tipo)
+    {
+        var ns = NamespaceRelativo(RaizDe(tipo));
+        return _derivaciones.Keys.Any(d => ns == d || ns.StartsWith(d + ".", StringComparison.Ordinal));
+    }
 
     /// <summary>Los cinco ensamblados de <c>src</c>.</summary>
     public static IReadOnlyList<Assembly> EnsambladosDeSrc() =>

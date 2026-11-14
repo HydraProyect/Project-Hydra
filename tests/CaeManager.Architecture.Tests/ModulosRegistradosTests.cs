@@ -1,3 +1,4 @@
+using System.Reflection;
 using System.Text;
 using CaeManager.Architecture.Tests.Soporte;
 using FluentAssertions;
@@ -14,7 +15,7 @@ namespace CaeManager.Architecture.Tests;
 /// instrumento, y lo que obliga a decidir el módulo de cada feature nueva en el mismo PR.
 ///
 /// <para>
-/// El dato está en <c>Congelados/Modulos-registro.txt</c>; la mecánica, en <see cref="RegistroDeModulos"/>. Este test
+/// El dato está en <c>Modulos/Modulos-registro.txt</c>; la mecánica, en <see cref="RegistroDeModulos"/>. Este test
 /// <b>no</b> mira dependencias entre módulos: eso es M0b, con el IL. Tampoco ve lo que no es un tipo (SQL en cadenas,
 /// columnas <c>Guid</c> sin FK, literales que nombran features, <c>cref</c> de documentación; ADR-013 § 4.3).
 /// </para>
@@ -74,7 +75,7 @@ public class ModulosRegistradosTests(ITestOutputHelper salida)
 
         var sinModulo = TiposSinModulo(registro, tipos);
         sinModulo.Should().BeEmpty(
-            "todo tipo de src tiene módulo (ADR-013 § 4.3). Añade en Congelados/Modulos-registro.txt el área de su carpeta " +
+            "todo tipo de src tiene módulo (ADR-013 § 4.3). Añade en Modulos/Modulos-registro.txt el área de su carpeta " +
             "o una excepción por tipo; lo nuevo de Inbound nace bajo *.Inbound.* (§ 4.7). Sin módulo:\n  " +
             string.Join("\n  ", sinModulo.Take(60)));
 
@@ -94,8 +95,25 @@ public class ModulosRegistradosTests(ITestOutputHelper salida)
             string.Join("\n  ", obsoletas));
 
         registro.Entradas.Where(e => e.Reservada).Should().OnlyContain(
-            e => e.Modulo == Modulo.Inbound && e.Clave.EndsWith(".Inbound", StringComparison.Ordinal),
-            "solo se reservan las áreas *.Inbound, donde nace lo nuevo de Inbound (ADR-013 § 4.7)");
+            e => e.Modulo != Modulo.Nucleo && e.Modulo != Modulo.Composicion
+                 && e.Clave.EndsWith("." + e.Modulo, StringComparison.Ordinal),
+            "solo se reserva el área con el nombre de su módulo, donde nace lo nuevo de ese módulo (ADR-013 § 4.7)");
+    }
+
+    /// <summary>
+    /// <see cref="ReflexionArquitecturaHelper.TiposDe"/> se traga <see cref="ReflectionTypeLoadException"/> y devuelve
+    /// los tipos que sí cargan: un tipo que no carga quedaría fuera del registro sin dar rojo. Aquí se exige que no haya
+    /// ninguno en los cinco ensamblados.
+    /// </summary>
+    [Fact]
+    public void Todos_los_tipos_de_src_cargan()
+    {
+        foreach (var ensamblado in RegistroDeModulos.EnsambladosDeSrc())
+        {
+            var cargar = () => ensamblado.GetTypes();
+            cargar.Should().NotThrow<ReflectionTypeLoadException>(
+                $"un tipo de {ensamblado.GetName().Name} que no carga escaparía al registro de módulos");
+        }
     }
 
     [Fact]
@@ -140,7 +158,9 @@ public class ModulosRegistradosTests(ITestOutputHelper salida)
             .SingleOrDefault(t => t is not null);
         tipo.Should().NotBeNull($"el ancla {nombreCompleto} tiene que existir; si se movió, actualiza el ancla y el registro");
 
-        RegistroDeModulos.Versionado().Clasificar(tipo!)?.Modulo.Should().Be(esperado);
+        var clasificacion = RegistroDeModulos.Versionado().Clasificar(tipo!);
+        clasificacion.Should().NotBeNull($"el ancla {nombreCompleto} tiene que tener módulo");
+        clasificacion!.Value.Modulo.Should().Be(esperado);
     }
 
     // ---- Controles positivos del instrumento: tipos sintéticos, nunca una entrada del propio registro. ----
@@ -187,6 +207,21 @@ public class ModulosRegistradosTests(ITestOutputHelper salida)
             .Should().BeNull("una configuración de dos módulos necesita una excepción explícita");
         registro.Clasificar(typeof(ConfiguracionesDeControl.AuxiliarSinEntidadDeControl))
             .Should().BeNull("dentro de un namespace derivado, lo que no configura ni implementa nada no hereda un área");
+
+        // Una excepción gana a la derivación: resuelve la configuración mixta sin tocar el resto del namespace.
+        var conExcepcion = RegistroDeModulos.Leer("""
+            area Domain.Facturacion = Facturacion
+            area Domain.Empresas = Nucleo
+            excepcion Infrastructure.Persistence.Configurations.ConfiguracionMixtaDeControl = Outbound
+            excepcion Infrastructure.Persistence.Configurations.ConfiguracionDeControl = Nucleo
+            derivar Infrastructure.Persistence.Configurations
+            """);
+        conExcepcion.Clasificar(typeof(ConfiguracionesDeControl.ConfiguracionMixtaDeControl))!.Value.Modulo
+            .Should().Be(Modulo.Outbound);
+        conExcepcion.Clasificar(typeof(ConfiguracionesDeControl.ConfiguracionDeControl))!.Value.Modulo
+            .Should().Be(Modulo.Nucleo, "la excepción gana aunque la derivación diera Facturacion");
+        conExcepcion.EstaEnDerivacion(typeof(ConfiguracionesDeControl.AuxiliarSinEntidadDeControl)).Should().BeTrue();
+        conExcepcion.EstaEnDerivacion(typeof(AreaDeControl.OtroTipoDeControl)).Should().BeFalse();
     }
 
     [Theory]
@@ -211,7 +246,7 @@ public class ModulosRegistradosTests(ITestOutputHelper salida)
     private static List<string> TiposSinModulo(RegistroDeModulos registro, IEnumerable<Type> tipos) =>
         RegistroDeModulos.TiposAClasificar(tipos)
             .Where(t => !registro.EsAjeno(t) && registro.Clasificar(t) is null)
-            .Select(t => t.FullName + (RegistroDeModulos.FuentesDeDerivacion(t).Count > 1
+            .Select(t => t.FullName + (registro.EstaEnDerivacion(t) && RegistroDeModulos.FuentesDeDerivacion(t).Count > 1
                 ? " (la derivación da varios módulos: añade una excepción)"
                 : " (sin área ni excepción)"))
             .ToList();

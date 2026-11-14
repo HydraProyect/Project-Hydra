@@ -155,6 +155,8 @@ area Application.Inbound                  = Inbound     reservada    # § 4.7
 area Application.DependencyInjection      = Composicion
 
 # Documentos: lo que solo existe para la acreditación frente a una plataforma destino (§ 3, M-3: «sucio en Application»).
+# Las consultas mixtas (p. ej. ObtenerDocumentosQuery, que devuelve el Documento con su resumen de acreditación) quedan
+# en el Núcleo a propósito: partirlas es rediseño, y su arista Núcleo -> Outbound la mide y congela M0b.
 excepcion Application.Documentos.Acreditacion                                            = Outbound provisional  # M-3
 excepcion Application.Documentos.Commands.CambiarEstadoAcreditacionEnCentro               = Outbound provisional  # M-3
 excepcion Application.Documentos.Commands.ConfirmarVigenciaAcreditacion                   = Outbound provisional  # M-3
@@ -208,6 +210,21 @@ excepcion Application.Dashboard.Queries.FacturacionOperadorCaeDto               
 excepcion Application.Dashboard.Queries.CentrosNuevosPorClienteTotalDto                  = Facturacion provisional  # D-M1 (idem)
 excepcion Application.Dashboard.Queries.CalculosFacturacionOperadorCae                   = Facturacion provisional  # D-M1 (idem)
 excepcion Application.Dashboard.Queries.ObtenerFacturacionOperadorCaeQueryHandler        = Facturacion provisional  # D-M1 (idem)
+# Cierre mensual (D-M1, fila A'): la foto del mes congela las tarifas aplicadas; reabrir el mes la deshace.
+excepcion Application.Dashboard.FotoCierreMensual                                        = Facturacion provisional  # D-M1, A'
+excepcion Application.Dashboard.TarifaAplicadaCuadro                                     = Facturacion provisional  # D-M1, A' (FotoCierreMensual.cs)
+excepcion Application.Dashboard.ICierresCuadroDireccion                                  = Facturacion provisional  # D-M1, A'
+excepcion Application.Dashboard.ReabrirMesCuadroDireccionCommand                         = Facturacion provisional  # D-M1, A'
+excepcion Application.Dashboard.ReabrirMesCuadroDireccionCommandHandler                  = Facturacion provisional  # D-M1, A'
+
+# Clientes: puertos de la cartera del Cliente empresarial que implementa el Núcleo (DirectorioUsuariosTenant en
+# Infrastructure.Autorizacion, BloqueoCarteraUsuario en la raíz de Persistence). Es el corte tipo a tipo de § 3 (N-1):
+# el alcance por Cliente empresarial va al Núcleo; la regla de quién puede ser referencia (ReglaDestinoCarteraCliente) y
+# el resto del flujo de cartera quedan en Outbound.
+excepcion Application.Clientes.IDirectorioDestinosCartera                                = Nucleo provisional  # N-1
+excepcion Application.Clientes.DestinoCartera                                            = Nucleo provisional  # N-1
+excepcion Application.Clientes.AccesoDelDestino                                          = Nucleo provisional  # N-1
+excepcion Application.Clientes.IBloqueoCarteraUsuario                                    = Nucleo provisional  # N-1
 
 # ---------------------------------------------------------------------------------------------------------------------
 # Infrastructure
@@ -245,11 +262,11 @@ area Infrastructure.Proyectos            = Outbound    provisional  # § 3, N-6
 area Infrastructure.Visitas              = Outbound    provisional  # § 3 (INFERENCE por nombre)
 area Infrastructure.Alertas              = Outbound    provisional  # § 3: idem
 area Infrastructure.AlertasOperativas    = Outbound    provisional  # § 3: cuadros de mando y cartera Outbound
-area Infrastructure.Dashboard            = Outbound    provisional  # § 3 (INFERENCE por nombre)
 area Infrastructure.Importacion          = Outbound    provisional  # § 3: idem
 area Infrastructure.VigilanciaNormativa  = Outbound    provisional  # § 3: idem
 area Infrastructure.Comunicaciones       = Outbound    provisional  # § 3: a confirmar con el aviso de B-31
 area Infrastructure.Inbound              = Inbound     reservada    # § 4.7: Infrastructure/Inbound/Persistence para lo nuevo
+area Infrastructure.Facturacion          = Facturacion reservada    # análisis de módulos § 5.2: Infrastructure/Facturacion/Persistence
 area Infrastructure.DependencyInjection  = Composicion
 
 derivar Infrastructure.Persistence.Configurations   # B-1: la configuración sigue a su entidad
@@ -261,9 +278,12 @@ excepcion Infrastructure.Autorizacion.LectorDocumentosInboundEnBase = Inbound   
 excepcion Infrastructure.Persistence.SerializacionAltasAcreditacionEmpresa = Outbound provisional  # M-3: implementa ISerializacionAltasAcreditacionEmpresa (Application.Documentos.Acreditacion)
 excepcion Infrastructure.Documentos.ConciliacionAcreditacionesEmpresaHostedService = Outbound provisional  # M-3
 excepcion Infrastructure.Documentos.ConciliacionAcreditacionesEmpresaOptions       = Outbound provisional  # M-3
+# Infrastructure/Dashboard solo tiene el trabajo de fondo del cierre mensual (fila A'). Sin área, como Domain.Dashboard.
+excepcion Infrastructure.Dashboard.CierreMensualCuadroDireccionHostedService      = Facturacion provisional  # D-M1, A'
 
-# Siembra: sin fila en § 3. Ninguna siembra tablas Inbound (§ 2.2); la de demo y piloto existe para el piloto Outbound
-# («ante la duda, a su módulo»). Lo que arranca cualquier instalación (Tenant, roles, parámetros, catálogo) es Núcleo.
+# Siembra: sin fila en § 3. Ninguna siembra tablas Inbound (§ 2.2); la de demo, la del piloto y los rellenos que solo
+# tocan datos Outbound (AsignacionesOperativasBackfillSeeder, que corre en cada arranque) existen para Outbound («ante la
+# duda, a su módulo»). Los datos de arranque que no son de un flujo (Tenant, roles, parámetros, catálogo) son Núcleo.
 excepcion Infrastructure.Persistence.Seed                                 = Outbound provisional  # sin fila en § 3: siembra de demo y piloto Outbound
 excepcion Infrastructure.Persistence.Seed.TenantSeedData                  = Nucleo provisional  # sin fila en § 3: arranque
 excepcion Infrastructure.Persistence.Seed.IdentityRoleSeedData            = Nucleo provisional  # sin fila en § 3: arranque
