@@ -134,6 +134,45 @@ public class BackfillNoReabreOperacionesCerradasTests : IAsyncLifetime
             .Should().Be(EstadoAsignacion.Vigente, "Inbound tiene su propio ciclo: el backfill de delegaciones Outbound no la toca");
     }
 
+    [Fact]
+    public async Task Una_delegacion_inactiva_no_cierra_lo_de_otra_delegacion_activa_del_mismo_par()
+    {
+        // Se revocó la primera y se autorizó otra al mismo Operador CAE externo: lo abierto es de la
+        // activa. Cerrarlo dejaría la activa sin autorización y, como el backfill ya no recrea, sin
+        // vía de vuelta.
+        await EjecutarBackfillAsync();
+        Guid nueva;
+        await using (var contexto = CrearContexto(_propietario))
+        {
+            var ahora = DateTime.UtcNow;
+            (await contexto.DelegacionesTenant.SingleAsync(d => d.Id == _delegacion)).Desactivar();
+            (await contexto.AsignacionesOperacion.SingleAsync(o => !o.EsRaiz && o.PropietarioTenantId == _propietario))
+                .Cerrar(MotivoCierreAsignacion.Revocada, ahora);
+            await contexto.SaveChangesAsync();
+
+            contexto.DelegacionesTenant.Add(new DelegacionTenant(_operador, _propietario));
+            var operacion = AsignacionOperacion.Externa(_propietario, _operador, ServicioCae.Outbound,
+                AmbitoAsignacion.Universal, ahora, null, ahora);
+            contexto.AsignacionesOperacion.Add(operacion);
+            contexto.AsignacionesCartera.Add(AsignacionCartera.Externa(
+                operacion, _gestorOperador, Roles.GestorCae, AmbitoAsignacion.Universal, ahora, null, ahora));
+            await contexto.SaveChangesAsync();
+            nueva = operacion.Id;
+        }
+
+        await EjecutarBackfillAsync();
+
+        await using var verificacion = CrearContexto(_propietario);
+        (await verificacion.AsignacionesOperacion.SingleAsync(o => o.Id == nueva)).Estado
+            .Should().Be(EstadoAsignacion.Vigente, "la operación de la delegación activa sigue abierta");
+        (await verificacion.AsignacionesCartera.IgnoreQueryFilters()
+                .Where(c => c.AsignacionOperacionId == nueva)
+                .Select(c => c.Estado)
+                .SingleAsync())
+            .Should().Be(EstadoAsignacion.Vigente, "y su cartera");
+        (await ExternasOutboundAsync()).Should().HaveCount(2, "ni recrea ni duplica");
+    }
+
     private async Task<Guid> SembrarAcotadaConCarteraAsync()
     {
         await using var contexto = CrearContexto(_propietario);

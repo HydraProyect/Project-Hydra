@@ -154,7 +154,9 @@ public class SoporteRevocaOperadorCaeExternoBajoRuntimeTests : IAsyncLifetime
             var deInbound = AsignacionOperacion.Externa(_tenantA, _tenantOperador, ServicioCae.Inbound,
                 AmbitoAsignacion.Universal, ahora, null, ahora, _gestora);
             var c1 = AsignacionCartera.Externa(vigente, _gestora, "GestorCae", AmbitoAsignacion.Universal, ahora, null, ahora, _gestora);
-            var c2 = AsignacionCartera.Externa(programada, _gestora, "GestorCae", AmbitoAsignacion.Universal, ahora, null, ahora, _gestora);
+            // Programada y principal: la función la cierra sin recordar la marca (D-9).
+            var c2 = AsignacionCartera.Externa(programada, _gestora, "GestorCae", AmbitoAsignacion.Universal, ahora.AddDays(3), null, ahora, _gestora);
+            c2.DesignarPrincipal();
             var c3 = AsignacionCartera.Externa(deInbound, _gestora, "GestorCae", AmbitoAsignacion.Universal, ahora, null, ahora, _gestora);
             contexto.AsignacionesOperacion.AddRange(vigente, programada, deInbound);
             contexto.AsignacionesCartera.AddRange(c1, c2, c3);
@@ -178,6 +180,9 @@ public class SoporteRevocaOperadorCaeExternoBajoRuntimeTests : IAsyncLifetime
         (await EscalarAsync<string>(
             @"SELECT ""EraPrincipalAlCerrarsePorCascada""::text FROM ""AsignacionesCartera"" WHERE ""Id"" = @u;", carteraAcotada))
             .Should().Be("false", "solo recuerda la marca la cartera que la llevaba (D-9)");
+        (await EscalarAsync<string>(
+            @"SELECT ""EsPrincipal""::text || '/' || ""EraPrincipalAlCerrarsePorCascada""::text FROM ""AsignacionesCartera"" WHERE ""Id"" = @u;", carteraProgramada))
+            .Should().Be("false/false", "una cartera principal que no estaba vigente se cierra sin recordar la marca");
         (await EscalarAsync<bool>(
             @"SELECT ""VigenciaHasta"" = ""VigenciaDesde"" FROM ""AsignacionesOperacion"" WHERE ""Id"" = @u;", acotadaProgramada))
             .Should().BeTrue("la programada se cierra sin haber empezado, como Cerrar en C#");

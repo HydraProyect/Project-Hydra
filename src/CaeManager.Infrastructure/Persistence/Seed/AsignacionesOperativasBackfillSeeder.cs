@@ -135,15 +135,27 @@ public static class AsignacionesOperativasBackfillSeeder
         {
             // Todas las Asignaciones de Operación Outbound externas de este par, de cualquier ámbito
             // y estado: lo que el backfill puede cerrar y lo que le dice si el par ya se migró.
+            var propietarioId = delegacion.TenantClienteId;
             var operacionesDelPar = operaciones.Where(o =>
                     !o.EsRaiz
-                    && o.PropietarioTenantId == delegacion.TenantClienteId
+                    && o.PropietarioTenantId == propietarioId
                     && o.OperadorTenantId == delegacion.TenantConsultoraId
                     && o.Servicio == ServicioCae.Outbound)
                 .ToList();
 
             if (!delegacion.Activa)
             {
+                // Las operaciones del par no dicen de qué delegación nacieron. Si el mismo Operador
+                // CAE externo tiene hoy otra delegación activa sobre este Tenant propietario (se
+                // revocó una y se autorizó otra), lo abierto es de la activa: cerrarlo aquí la dejaría
+                // sin autorización y, como el backfill ya no recrea, sin vía de vuelta. La revocación
+                // de esta ya cerró lo suyo en su momento.
+                if (delegacionesComerciales.Any(d =>
+                        d.Activa && d.Id != delegacion.Id
+                        && d.TenantClienteId == propietarioId
+                        && d.TenantConsultoraId == delegacion.TenantConsultoraId))
+                    continue;
+
                 // Reconciliación: la delegación se desactivó después de que el backfill creara la
                 // operación. El modelo antiguo no guardó cuándo, así que se marca como tal en vez de
                 // inventar una fecha — la etapa quedó con vigencia real desconocida. Se cierran todas
@@ -200,7 +212,7 @@ public static class AsignacionesOperativasBackfillSeeder
             // Project-Hydra-Negocio/tecnico/d8-vps-evidence.md).
             var operacionDeOtroOperador = operaciones.FirstOrDefault(o =>
                 !o.EsRaiz
-                && o.PropietarioTenantId == delegacion.TenantClienteId
+                && o.PropietarioTenantId == propietarioId
                 && o.OperadorTenantId != delegacion.TenantConsultoraId
                 && o.Servicio == ServicioCae.Outbound
                 && o.Ambito.EsUniversal

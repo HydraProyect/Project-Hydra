@@ -329,7 +329,10 @@ public class AsignacionesOperativasWriter(
         // cierra también las acotadas con el mismo instante (o, una Programada, con su inicio
         // futuro), y tomar una de ellas como «anterior» haría perder lo que cerró la cascada de la
         // del Tenant entero. Las acotadas no se reabren: hace falta un acto explícito.
-        // El ámbito se filtra en memoria: son las etapas cerradas de un solo par, pocas.
+        // El ámbito se filtra en memoria: son las etapas cerradas de un solo par, pocas. Tampoco
+        // cuenta una que se cerró sin haber empezado (una Programada cerrada lleva su inicio futuro
+        // como fin): no fue una etapa, y por fecha quedaría delante de la que cerró la cascada.
+        var cerradaHasta = DateTime.UtcNow;
         var anterior = (await dbContext.AsignacionesOperacion
                 .AsNoTracking()
                 .Where(o => o.Id != operacion.Id
@@ -339,7 +342,7 @@ public class AsignacionesOperativasWriter(
                             && o.Servicio == operacion.Servicio
                             && o.Estado == EstadoAsignacion.Cerrada)
                 .ToListAsync(cancellationToken))
-            .Where(o => o.Ambito.EsUniversal)
+            .Where(o => o.Ambito.EsUniversal && o.VigenciaHasta <= cerradaHasta)
             .OrderByDescending(o => o.VigenciaHasta)
             .Select(o => new { o.Id, o.MotivoCierre, o.VigenciaHasta })
             .FirstOrDefault();

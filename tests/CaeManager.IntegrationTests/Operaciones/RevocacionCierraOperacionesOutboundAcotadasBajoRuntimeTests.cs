@@ -64,6 +64,7 @@ public class RevocacionCierraOperacionesOutboundAcotadasBajoRuntimeTests : IAsyn
     private Guid _acotadaVigente;
     private Guid _acotadaProgramada;
     private Guid _inbound;
+    private Guid _carteraProgramadaPrincipal;
 
     public async Task InitializeAsync()
     {
@@ -115,11 +116,17 @@ public class RevocacionCierraOperacionesOutboundAcotadasBajoRuntimeTests : IAsyn
             var principal = AsignacionCartera.Externa(
                 tenantEntero, _gestoraOperador.Id, Roles.GestorCae, AmbitoAsignacion.Universal, ahora, null, ahora);
             principal.DesignarPrincipal();
+            // Programada y principal: la cascada la cierra sin recordar la marca, porque no era la
+            // principal vigente de nada (D-9); en duda, falla cerrada.
+            var programadaPrincipal = AsignacionCartera.Externa(
+                acotadaProgramada, _gestoraOperador.Id, Roles.GestorCae, AmbitoAsignacion.Universal, ahora.AddDays(3), null, ahora);
+            programadaPrincipal.DesignarPrincipal();
+            _carteraProgramadaPrincipal = programadaPrincipal.Id;
             propietarioDeLaBase.AsignacionesCartera.AddRange(
                 principal,
                 AsignacionCartera.Externa(acotadaVigente, _gestoraOperador.Id, Roles.GestorCae, AmbitoAsignacion.Universal, ahora, null, ahora),
                 AsignacionCartera.Externa(acotadaVigente, _otroGestorOperador.Id, Roles.GestorCae, AmbitoAsignacion.Universal, ahora, null, ahora),
-                AsignacionCartera.Externa(acotadaProgramada, _gestoraOperador.Id, Roles.GestorCae, AmbitoAsignacion.Universal, ahora, null, ahora),
+                programadaPrincipal,
                 AsignacionCartera.Externa(inbound, _gestoraOperador.Id, Roles.GestorCae, AmbitoAsignacion.Universal, ahora, null, ahora));
             propietarioDeLaBase.AsignacionesOperadorDelegadoConRevocadas.AddRange(
                 new AsignacionOperadorDelegado(_delegacion, _gestoraOperador.Id, Roles.GestorCae),
@@ -153,6 +160,12 @@ public class RevocacionCierraOperacionesOutboundAcotadasBajoRuntimeTests : IAsyn
 
         (await EstadoOperacionAsync(_inbound)).Should().Be(EstadoAsignacion.Vigente, "Inbound tiene su propio ciclo");
         (await CarterasNoCerradasAsync(_inbound)).Should().Be(1);
+
+        await using var verificacion = ContextoPropietarioDeLaBase();
+        var programada = await verificacion.AsignacionesCartera.IgnoreQueryFilters()
+            .SingleAsync(c => c.Id == _carteraProgramadaPrincipal);
+        programada.EraPrincipalAlCerrarsePorCascada.Should().BeFalse(
+            "una cartera que no estaba vigente se cierra sin recordar la marca (D-9)");
     }
 
     [Fact]
@@ -180,6 +193,18 @@ public class RevocacionCierraOperacionesOutboundAcotadasBajoRuntimeTests : IAsyn
         // par por fecha. Si la reactivación la tomara como «anterior», no encontraría lo que cerró la
         // cascada de la del Tenant entero y la Gestora CAE perdería su cartera y su marca.
         (await RevocarDelegacionAsync(_gestoraOperador, Roles.GestorCae)).EsExitoso.Should().BeTrue();
+
+        // Y una acotada que se cerró después que la del Tenant entero, ya en el pasado: por fecha
+        // sería la «anterior» si el filtro no exigiera el Tenant entero.
+        await using (var propietarioDeLaBase = ContextoPropietarioDeLaBase())
+        {
+            var ahora = DateTime.UtcNow;
+            var posterior = AsignacionOperacion.Externa(_propietario, _operador, ServicioCae.Outbound,
+                AmbitoAsignacion.DeRelacionCliente(_clienteUno), ahora.AddMinutes(-1), null, ahora);
+            posterior.Cerrar(MotivoCierreAsignacion.Revocada, ahora);
+            propietarioDeLaBase.AsignacionesOperacion.Add(posterior);
+            await propietarioDeLaBase.SaveChangesAsync();
+        }
 
         var reactivar = await ReactivarAsync(_administradorPropietario, Roles.Administrador);
         reactivar.EsExitoso.Should().BeTrue(reactivar.EsFallido ? reactivar.Error.Codigo : string.Empty);
