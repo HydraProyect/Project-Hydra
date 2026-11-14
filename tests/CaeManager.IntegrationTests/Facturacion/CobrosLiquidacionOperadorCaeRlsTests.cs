@@ -1,17 +1,23 @@
 using CaeManager.Application.Common;
+using CaeManager.Application.DependencyInjection;
 using CaeManager.Application.Dashboard.TarifasOperadorCae;
 using CaeManager.Application.Facturacion.LiquidacionesOperadorCae;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Facturacion;
 using CaeManager.Domain.Operaciones;
 using CaeManager.Domain.Tenants;
+using CaeManager.Infrastructure.DependencyInjection;
 using CaeManager.Infrastructure.MultiTenancy;
 using CaeManager.Infrastructure.Persistence;
 using CaeManager.IntegrationTests.Arranque;
 using FluentAssertions;
+using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore.Components.Authorization;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 using Npgsql;
 using Xunit;
 
@@ -37,6 +43,7 @@ public class CobrosLiquidacionOperadorCaeRlsTests : IAsyncLifetime
     private readonly Guid _usuario = Guid.NewGuid();
     private readonly UsuarioConmutable _sesion = new();
     private ArnesDeArranqueRuntime _arnes = null!;
+    private ServiceProvider _servicios = null!;
 
     private Guid _operadorA;
     private Guid _operadorB;
@@ -92,9 +99,47 @@ public class CobrosLiquidacionOperadorCaeRlsTests : IAsyncLifetime
             propietario.AsignacionesOperacion.Add(AsignacionOperacion.Externa(
                 _empresaY, _operadorB, ServicioCae.Outbound, AmbitoAsignacion.Universal, desde, null, ahora));
         await propietario.SaveChangesAsync();
+
+        _servicios = ComponerAplicacion();
     }
 
-    public async Task DisposeAsync() => await _arnes.DisposeAsync();
+    public async Task DisposeAsync()
+    {
+        await _servicios.DisposeAsync();
+        await _arnes.DisposeAsync();
+    }
+
+    /// <summary>
+    /// La composición real de la aplicación (AddApplication + AddInfrastructure), como <see cref="ArnesPilotoOutbound"/>:
+    /// la fuente de la liquidación pide la serie del Cuadro de dirección por el mediador, con su medición y su alcance, y un
+    /// doble de esas piezas mediría otra cosa. Solo la persona de la sesión (conmutable entre pasos) y el Tenant actual (el
+    /// del ámbito explícito) son del test; el tráfico va como cae_app_runtime bajo RLS.
+    /// </summary>
+    private ServiceProvider ComponerAplicacion()
+    {
+        var builder = WebApplication.CreateBuilder();
+        builder.Logging.ClearProviders();
+        builder.Configuration.AddInMemoryCollection(new Dictionary<string, string?>
+        {
+            ["ConnectionStrings:CaeManagerDb"] = _arnes.CadenaPropietario,
+            ["ConnectionStrings:CaeManagerDbRuntime"] = BaseDatosPostgresDePruebas.CadenaComoRuntime(_arnes.CadenaPropietario),
+            ["DataProtection:PermitirClavesSinCifrar"] = "true",
+            ["AlmacenamientoArchivos:Ruta"] = Path.Combine(Path.GetTempPath(), "cobros-liquidacion-" + Guid.NewGuid().ToString("N")),
+        });
+        builder.Services.AddApplication();
+        builder.Services.AddInfrastructure(builder.Configuration, builder.Environment);
+        builder.Services.AddHttpContextAccessor();
+        builder.Services.AddSingleton<IDataProtectionProvider>(new EphemeralDataProtectionProvider());
+        builder.Services.AddScoped<AuthenticationStateProvider, CaeManager.Web.Services.ProveedorAutenticacionRevalidada>();
+        builder.Services.AddScoped<IClienteActivoSeleccionado, CaeManager.Web.Services.ClienteActivoSeleccionado>();
+        builder.Services.AddSingleton<ICurrentUserService>(_sesion);
+        builder.Services.AddScoped<IActorAuditoria, CaeManager.Web.Services.ActorAuditoriaDesdeSesion>();
+        builder.Services.AddSingleton<ITenantActual, TenantActualPorAmbito>();
+        Microsoft.Extensions.DependencyInjection.Extensions.ServiceCollectionDescriptorExtensions.TryAddSingleton(builder.Services, TimeProvider.System);
+        // Nada de este test envía correo; si algo lo intentara, no sale.
+        builder.Services.AddSingleton<IEmailService>(new ArnesPilotoOutbound.EspiaDeCorreo());
+        return builder.Services.BuildServiceProvider();
+    }
 
     [Theory]
     [InlineData("Administrador")]
@@ -228,7 +273,7 @@ public class CobrosLiquidacionOperadorCaeRlsTests : IAsyncLifetime
         if (yaHabiaMarca)
             (await MarcarAsync(_empresaX, EstadoCobroLiquidacion.Pendiente, "F-0")).EsExitoso.Should().BeTrue();
 
-        await using var scope = _arnes.Servicios.CreateAsyncScope();
+        await using var scope = _servicios.CreateAsyncScope();
         var contexto = scope.ServiceProvider.GetRequiredService<CaeManagerDbContext>();
         var unidad = new UnidadConOtraMarcaAntes(contexto, async () =>
             (await MarcarAsync(_empresaX, EstadoCobroLiquidacion.Cobrada, "F-1")).EsExitoso.Should().BeTrue("la primera marca entra"));
@@ -274,7 +319,7 @@ public class CobrosLiquidacionOperadorCaeRlsTests : IAsyncLifetime
         (await MarcarAsync(_empresaX, EstadoCobroLiquidacion.Pendiente, "F-0")).EsExitoso.Should().BeTrue();
 
         // El contexto del circuito de la primera persona guarda una marca y la deja rastreada.
-        await using var circuito = _arnes.Servicios.CreateAsyncScope();
+        await using var circuito = _servicios.CreateAsyncScope();
         var contexto = circuito.ServiceProvider.GetRequiredService<CaeManagerDbContext>();
         (await MarcarConAsync(circuito.ServiceProvider, contexto, _empresaX, EstadoCobroLiquidacion.Cobrada, "F-1")).EsExitoso.Should().BeTrue();
 
@@ -380,7 +425,7 @@ public class CobrosLiquidacionOperadorCaeRlsTests : IAsyncLifetime
         Guid empresa, EstadoCobroLiquidacion estado, string? referencia, int? anyo = null, int? mes = null,
         CobrosLiquidacionOperadorCaeDto? formulario = null)
     {
-        await using var scope = _arnes.Servicios.CreateAsyncScope();
+        await using var scope = _servicios.CreateAsyncScope();
         var contexto = scope.ServiceProvider.GetRequiredService<CaeManagerDbContext>();
         return await MarcarConAsync(scope.ServiceProvider, contexto, empresa, estado, referencia, anyo, mes, formulario);
     }
@@ -417,7 +462,7 @@ public class CobrosLiquidacionOperadorCaeRlsTests : IAsyncLifetime
 
     private async Task<CobrosLiquidacionOperadorCaeDto> LeerAsync(int? anyo = null, int? mes = null)
     {
-        await using var scope = _arnes.Servicios.CreateAsyncScope();
+        await using var scope = _servicios.CreateAsyncScope();
         var contexto = scope.ServiceProvider.GetRequiredService<CaeManagerDbContext>();
         return await new ObtenerCobrosLiquidacionOperadorCaeQueryHandler(scope.ServiceProvider.GetRequiredService<IFuenteLiquidacionOperadorCae>(), contexto)
             .Handle(new ObtenerCobrosLiquidacionOperadorCaeQuery(anyo ?? _anyo, mes ?? _mes), CancellationToken.None);
