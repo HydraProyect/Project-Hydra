@@ -26,13 +26,12 @@ public class EmpresasFilaSinMenuE2ETests(WebAppFixtureListados fixture)
     private static readonly Regex EntrarEnEdicion = new(@"/cuenta/configurar-2fa\?motivo=credenciales");
 
     // La lista sembrada no tiene una Empresa de nombre estable que sirva de ancla: el recorrido
-    // vale para cualquier fila sin pastilla de detecciones, así que se toma la primera de ellas, y su
-    // celda de detecciones (la tercera, vacía en esa fila) como punto de la fila que no es ningún control.
-    // Con una sola Empresa propia por Tenant (D-P11) la fila con las detecciones sembradas puede ser la
-    // primera de la lista, y en ella esa celda es el botón de la pastilla, que navega en vez de abrir el panel.
-    private static ILocator PrimeraFila(IPage page) => page.Locator(".marco-lista-empresas .fila-pulsable")
-        .Filter(new LocatorFilterOptions { HasNot = page.Locator("button.badge-deteccion") }).First;
-    private static ILocator CeldaSinControles(ILocator fila) => fila.Locator(":scope > :nth-child(3)");
+    // vale para cualquier fila, así que se toma la primera, y su celda de cumplimiento (la barra, que no es
+    // ningún control) como punto de la fila que no lleva ninguno. /empresas lista solo las Empresas propias y,
+    // con una sola por Tenant (D-P11), la siembra deja una única fila: la de las detecciones sembradas. Por eso
+    // no vale la celda de detecciones (la tercera de la fila), que en ella es el botón de la pastilla.
+    private static ILocator PrimeraFila(IPage page) => page.Locator(".marco-lista-empresas .fila-pulsable").First;
+    private static ILocator CeldaSinControles(ILocator fila) => fila.Locator(".celda-cumplimiento-empresa");
 
     private async Task<IPage> AbrirEmpresasAsync(IBrowserContext contexto)
     {
@@ -71,7 +70,7 @@ public class EmpresasFilaSinMenuE2ETests(WebAppFixtureListados fixture)
         await Expect(panel).ToHaveCountAsync(0);
         await Ayudas.NavegarYEsperarAsync(page, $"{fixture.BaseUrl}/empresas");
 
-        // Un punto de la fila que no es ningún control: la celda de detecciones, vacía en esta fila.
+        // Un punto de la fila que no es ningún control: la celda de cumplimiento.
         await CeldaSinControles(fila).ClickAsync();
         await Expect(panel.Locator(".workspace-titulo-entidad")).ToContainTextAsync(nombre);
 
