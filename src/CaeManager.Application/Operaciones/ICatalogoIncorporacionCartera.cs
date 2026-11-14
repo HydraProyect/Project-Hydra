@@ -119,7 +119,9 @@ public enum ResultadoRetiradaApoyo
 /// cartera bajo una operación de otro servicio no cuenta «en su cartera», no es cartera viva del
 /// Operador CAE (ni para la guarda de revocación de <c>EquipoDelOperadorCaeExterno</c>), no
 /// lleva una marca de principal que se apague, se encienda o se releve, no sostiene la fila
-/// heredada y no se retira desde aquí; una operación de otro servicio no es vigente para emitir.
+/// heredada y no se retira desde aquí (<see cref="RetirarAsync"/> y
+/// <see cref="RetirarCarteraDeApoyoAsync"/> lanzan <see cref="InvalidOperationException"/> antes de
+/// tocar nada); una operación de otro servicio no es vigente para emitir.
 /// </para>
 ///
 /// <para>

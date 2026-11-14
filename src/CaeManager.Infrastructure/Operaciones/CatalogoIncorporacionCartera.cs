@@ -243,6 +243,7 @@ public class CatalogoIncorporacionCartera(
     public async Task RetirarAsync(SolicitudIncorporacionCartera solicitud, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(solicitud);
+        await ExigirOperacionDelServicioAsync(solicitud.AsignacionOperacionId, cancellationToken);
         var ahora = DateTime.UtcNow;
 
         if (solicitud.AsignacionCarteraId is { } carteraId)
@@ -547,6 +548,23 @@ public class CatalogoIncorporacionCartera(
         return apoyos.OrderBy(a => a.NombreTenant).ThenBy(a => a.PropuestaId).ToList();
     }
 
+    /// <summary>
+    /// Falla cerrado (B-02a) antes de que una retirada por Id toque una cartera o una fila
+    /// heredada de una Asignación de Operación de otro servicio. Hoy no se llega aquí: las
+    /// solicitudes y las propuestas solo nacen sobre operaciones Outbound
+    /// (<see cref="ObtenerOperacionVigenteAsync"/>). Si un escritor de otro servicio las
+    /// reutilizase, cerrar su cartera retiraría el acceso a Outbound de quien solo se sostiene
+    /// por ella. La retirada corre en la posición del Tenant propietario, donde la operación
+    /// es visible.
+    /// </summary>
+    private async Task ExigirOperacionDelServicioAsync(Guid asignacionOperacionId, CancellationToken cancellationToken)
+    {
+        if (!await dbContext.AsignacionesOperacion
+                .AnyAsync(o => o.Id == asignacionOperacionId && o.Servicio == Servicio, cancellationToken))
+            throw new InvalidOperationException(
+                $"La Asignación de Operación {asignacionOperacionId} no es de {Servicio}: no se retira desde el contexto de {Servicio}.");
+    }
+
     public async Task<ResultadoRetiradaApoyo> RetirarCarteraDeApoyoAsync(
         PropuestaApoyoCartera propuesta, Guid actorUsuarioId, bool exigirProponentePrincipal,
         CancellationToken cancellationToken = default)
@@ -573,6 +591,8 @@ public class CatalogoIncorporacionCartera(
 
         if (cartera.EsPrincipal)
             return ResultadoRetiradaApoyo.YaNoEsDeApoyo;
+
+        await ExigirOperacionDelServicioAsync(cartera.AsignacionOperacionId, cancellationToken);
 
         if (exigirProponentePrincipal)
         {

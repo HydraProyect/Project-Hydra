@@ -88,6 +88,72 @@ public class CarteraYFilaHeredadaSoloOutboundTests
     }
 
     /// <summary>
+    /// Hallazgo 1, camino de emisión: un Coordinador CAE sin ninguna cartera bajo la operación Inbound no recibe una
+    /// cartera emitida ni la fila heredada que la acompaña.
+    /// </summary>
+    [Fact]
+    public async Task El_relevo_no_emite_cartera_ni_fila_heredada_bajo_una_operacion_Inbound()
+    {
+        var inbound = Operacion(_propietario, ServicioCae.Inbound);
+        var coordinador = Guid.NewGuid();
+
+        await using var db = new ContextoEnMemoria()
+            .Con(inbound)
+            .Con<AsignacionCartera>()
+            .Con(_operador, _propietario)
+            .Con(new DelegacionTenant(_operador.Id, _propietario.Id))
+            .Con<AsignacionOperadorDelegado>();
+        // Con usuario actual: sin el filtro de servicio, el relevo llega a emitir y lo pide para el actor.
+        var catalogo = new CatalogoIncorporacionCartera(db, new UsuarioDeVegaDePrueba());
+
+        (await catalogo.RelevarPrincipalAsync(_propietario.Id, _operador.Id, inbound.Id, coordinador))
+            .Should().Be(ResultadoRelevoPrincipal.SinRelevo, "la cartera emitida bajo Inbound llevaría una fila heredada que abre Outbound");
+        db.De<AsignacionCartera>().Agregados.Should().BeEmpty();
+        db.De<AsignacionOperadorDelegado>().Agregados.Should().BeEmpty();
+    }
+
+    /// <summary>
+    /// Retiradas por Id (solicitud revocada y apoyo terminado): ante una cartera bajo una operación Inbound fallan
+    /// cerrado antes de cerrar la cartera o de borrar la fila heredada.
+    /// </summary>
+    [Fact]
+    public async Task Las_retiradas_por_Id_fallan_cerrado_ante_una_operacion_Inbound()
+    {
+        var inbound = Operacion(_propietario, ServicioCae.Inbound);
+        var outbound = Operacion(_propietario, ServicioCae.Outbound);
+        var vinculo = new DelegacionTenant(_operador.Id, _propietario.Id);
+        var carteraSolicitud = Cartera(inbound, _gestor);
+        var filaSolicitud = new AsignacionOperadorDelegado(vinculo.Id, _gestor, Roles.GestorCae);
+        var solicitud = SolicitudIncorporacionCartera.Crear(inbound, _gestor, "Me incorporo", Desde);
+        solicitud.Aceptar(Guid.NewGuid(), carteraSolicitud, filaSolicitud.Id, Ahora);
+        var apoyado = Guid.NewGuid();
+        var carteraApoyo = Cartera(inbound, apoyado);
+        var propuesta = PropuestaApoyoCartera.Crear(inbound, _gestor, apoyado, null, Desde);
+        propuesta.Aceptar(apoyado, carteraApoyo, null, Ahora);
+        var carteraControl = Cartera(outbound, _gestor);
+        var solicitudControl = SolicitudIncorporacionCartera.Crear(outbound, _gestor, "Me incorporo", Desde);
+        solicitudControl.Aceptar(Guid.NewGuid(), carteraControl, null, Ahora);
+
+        await using var db = new ContextoEnMemoria()
+            .Con(inbound, outbound)
+            .Con(carteraSolicitud, carteraApoyo, carteraControl)
+            .Con(_operador, _propietario)
+            .Con(vinculo)
+            .Con(filaSolicitud);
+        var catalogo = new CatalogoIncorporacionCartera(db, null!);
+
+        await catalogo.Invoking(c => c.RetirarAsync(solicitud)).Should().ThrowAsync<InvalidOperationException>();
+        await catalogo.Invoking(c => c.RetirarCarteraDeApoyoAsync(propuesta, _gestor, exigirProponentePrincipal: false))
+            .Should().ThrowAsync<InvalidOperationException>();
+        carteraSolicitud.Estado.Should().Be(EstadoAsignacion.Vigente);
+        carteraApoyo.Estado.Should().Be(EstadoAsignacion.Vigente);
+        db.De<AsignacionOperadorDelegado>().Retirados.Should().BeEmpty();
+
+        await catalogo.RetirarAsync(solicitudControl);
+        carteraControl.Estado.Should().Be(EstadoAsignacion.Cerrada, "control: la de Outbound se retira");
+    }
+
+    /// <summary>
     /// Hallazgo 2: una cartera solo Inbound no es cartera viva del Operador CAE externo. Es la lista con la que
     /// <c>EquipoDelOperadorCaeExterno</c> decide si un Gestor CAE puede revocar el acceso de Outbound.
     /// </summary>
@@ -249,6 +315,15 @@ public class CarteraYFilaHeredadaSoloOutboundTests
         IEnumerator IEnumerable.GetEnumerator() => consulta.GetEnumerator();
         public override IAsyncEnumerator<T> GetAsyncEnumerator(CancellationToken cancellationToken = default) =>
             ((IAsyncEnumerable<T>)consulta).GetAsyncEnumerator(cancellationToken);
+
+        /// <summary>Lo que el código pidió añadir, en orden.</summary>
+        public List<T> Agregados { get; } = [];
+
+        public override EntityEntry<T> Add(T entity)
+        {
+            Agregados.Add(entity);
+            return null!;
+        }
 
         public override EntityEntry<T> Remove(T entity)
         {
