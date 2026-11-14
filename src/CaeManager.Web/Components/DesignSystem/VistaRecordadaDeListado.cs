@@ -377,6 +377,22 @@ public sealed class VistaRecordadaDeListado : ComponentBase, IDisposable
             await CompletarRestablecerAsync();
     }
 
+    /// <summary>
+    /// La página acaba de reescribir la URL por su cuenta (p. ej. un enlace antiguo con «?pestana=» que ella traduce a
+    /// filtros): la vista que la URL muestra ahora es la línea base de la visita, no un cambio del usuario, y no se
+    /// escribe. Se llama DESPUÉS de navegar: el aviso de cambio de dirección de esa navegación ya pudo programar una
+    /// escritura, que aquí se deja sin efecto; si el aviso llega más tarde, ya no hay diferencia con lo recordado.
+    /// </summary>
+    internal void AdoptarLaVistaDeLaUrl()
+    {
+        if (_desechado)
+            return;
+
+        InvalidarEscrituraProgramada();
+        _pendiente = null;
+        _recordada = Serializar(VistaDeLaUrl());
+    }
+
     /// <summary>La URL ya muestra la vista de inicio: lo recordado pasa a ser esa vista, sin esperar al rebote.</summary>
     private async Task CompletarRestablecerAsync()
     {

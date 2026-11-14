@@ -54,15 +54,13 @@ public partial class Documentos : CaeManager.Web.Components.PaginaInteractiva, I
     private bool _puedeEscribir;
 
     /// <summary>
-    /// Plataforma, Reclamaciones, Revisión IA y Plantillas son pestañas de
-    /// gestión interna (acreditaciones, reclamaciones, revisión y aplicación
-    /// de lecturas IA, generación de documentos desde plantilla) — todas
-    /// despachan Commands. La página en sí no restringe rol (Documentos
+    /// Plataforma y Reclamaciones (las dos vistas de gestión interna que siguen en esta pantalla, alcanzables por su Id de
+    /// <c>?pestana=</c> sin barra) despachan Commands. La página en sí no restringe rol (Documentos
     /// también es la superficie de lectura del rol Cliente, ver NavMenu.razor),
-    /// y Pestanas no autoriza por pestaña hoy, así que cada rama de contenido
-    /// se protege aquí para que el rol Cliente (y Consulta, que tampoco
+    /// así que cada rama de contenido se protege aquí para que el rol Cliente (y Consulta, que tampoco
     /// escribe — ver AutorizacionEscrituraBehavior) no llegue ni a ver el
-    /// formulario, aunque el Command ya lo rechazaría igual.
+    /// formulario, aunque el Command ya lo rechazaría igual. Revisión IA y Plantillas son pantallas propias a las que redirige
+    /// <see cref="RedireccionDePestanas"/>.
     /// </summary>
     private const string RolesDeGestionDocumental =
         $"{CaeManager.Infrastructure.Identity.Roles.Administrador},{CaeManager.Infrastructure.Identity.Roles.DireccionCae}," +
@@ -185,7 +183,7 @@ public partial class Documentos : CaeManager.Web.Components.PaginaInteractiva, I
     /// <summary>Comando del palette "Crear documento" (P3-31): /documentos?accion=crear abre el formulario con permiso de escritura.</summary>
     [SupplyParameterFromQuery] public string? Accion { get; set; }
 
-    /// <summary>Pestaña con la que abrir la página — deep-link desde otras superficies (hoy, el timeline de Comunicaciones).</summary>
+    /// <summary>Id de pestaña de un enlace antiguo o deep-link desde otras superficies: ya no hay barra, y cada Id va a su sustituto (<see cref="RedireccionDePestanas"/>).</summary>
     [SupplyParameterFromQuery] public string? Pestana { get; set; }
 
     /// <summary>
@@ -197,7 +195,7 @@ public partial class Documentos : CaeManager.Web.Components.PaginaInteractiva, I
 
     private GridItemsProvider<DocumentoListaDto>? _proveedorElementos;
 
-    /// <summary>Ids de pestaña válidos, sin construir la tira entera para comprobar uno.</summary>
+    /// <summary>Ids de <c>?pestana=</c> válidos (ya no hay tira de pestañas): lo demás cae en el listado.</summary>
     private static readonly string[] _idsDePestana =
         ["listado", "plataforma", "reclamaciones", "sugerencias", "revision-ia", "plantillas"];
 
@@ -293,6 +291,9 @@ public partial class Documentos : CaeManager.Web.Components.PaginaInteractiva, I
             if (resuelta.Orden is not null && string.IsNullOrWhiteSpace(OrdenInicial))
                 parametros["orden"] = resuelta.Orden;
             NavigationManager.ActualizarFiltrosEnUrl(parametros);
+            // La traducción del enlace antiguo la hace la página, no el usuario: la vista recordada no la toma por un cambio
+            // suyo («agrupar por Plataforma CAE» o «Vence en 90 días» no se guardan por abrir una pestaña de main).
+            _vistaRecordada.AdoptarLaVistaDeLaUrl();
         }
 
         return false;

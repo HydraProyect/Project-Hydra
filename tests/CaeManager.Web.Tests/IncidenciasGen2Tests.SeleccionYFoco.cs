@@ -75,6 +75,34 @@ public partial class IncidenciasGen2Tests
     }
 
     [Fact]
+    public async Task Cambiar_de_pagina_con_las_mismas_filas_limpia_la_seleccion_y_el_foco()
+    {
+        // 45 elementos con 20 por página: hay tres páginas, y el mediador devuelve las mismas dos filas en cada una. La página es
+        // lo único que distingue la clave de la segunda carga: si no formara parte de ella, la selección sobreviviría.
+        var mediador = new MediadorControlado { Filas = [Fila(IdAlfa, "Centro Alfa"), Fila(IdBeta, "Centro Beta")], TotalElementos = 45 };
+        var cut = await RenderizarConUnaFilaMarcadaAsync(mediador);
+
+        await cut.FindAll(".pie-lista-maqueta button").Single(b => b.TextContent.Trim() == "Siguiente").ClickAsync(new());
+
+        cut.WaitForAssertion(() => mediador.Consultas.Last().Pagina.Should().Be(2));
+        DebeEmpezarDeCero(cut, "otra página, aunque devuelva las mismas filas");
+    }
+
+    [Fact]
+    public async Task Una_recarga_tras_una_accion_que_quita_la_fila_marcada_no_deja_la_seleccion_colgando()
+    {
+        var mediador = new MediadorControlado { Filas = [Fila(IdAlfa, "Centro Alfa"), Fila(IdBeta, "Centro Beta")] };
+        var cut = await RenderizarConUnaFilaMarcadaAsync(mediador);
+
+        // Marcar resuelta la segunda fila recarga la lista, y la fila marcada (Alfa) ya no está en la respuesta.
+        mediador.Filas = [Fila(IdBeta, "Centro Beta")];
+        await cut.FindAll("table .menu-acciones-disparador")[1].ClickAsync(new());
+        await cut.FindAll(".menu-acciones-item").Single(b => b.TextContent.Trim() == "Marcar resuelta").ClickAsync(new());
+
+        DebeEmpezarDeCero(cut, "la fila marcada ya no está en la lista recargada");
+    }
+
+    [Fact]
     public async Task Una_recarga_con_los_mismos_ids_en_otro_orden_limpia_la_seleccion_y_el_foco()
     {
         var mediador = new MediadorControlado { Filas = [Fila(IdAlfa, "Centro Alfa"), Fila(IdBeta, "Centro Beta")] };

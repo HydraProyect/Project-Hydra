@@ -37,6 +37,13 @@ public sealed class ConexionVistaRecordada
     /// <summary>«Restablecer vista»: vuelve a la vista de inicio y olvida la recordada.</summary>
     public Task RestablecerAsync() => _pieza?.RestablecerAsync() ?? Task.CompletedTask;
 
+    /// <summary>
+    /// La página reescribió la URL por su cuenta (no el usuario): lo que la URL muestra ahora pasa a ser lo
+    /// recordado y no se escribe. Se llama justo DESPUÉS de navegar. Sin pieza montada no hace nada: la que se
+    /// monte toma la URL de entonces como línea base.
+    /// </summary>
+    public void AdoptarLaVistaDeLaUrl() => _pieza?.AdoptarLaVistaDeLaUrl();
+
     internal void Conectar(VistaRecordadaDeListado pieza) => _pieza = pieza;
 
     /// <summary>Solo suelta la pieza si sigue siendo la conectada: al remontarse, la nueva se conecta antes de que la vieja se retire.</summary>

@@ -216,6 +216,10 @@ public partial class Incidencias : CaeManager.Web.Components.PaginaInteractiva
 
             var (ordenarPor, descendente) = LecturaOrden.Leer(request);
 
+            // La clave de la carga se captura ANTES del await, con los mismos valores que la consulta: leída después, un filtro
+            // que cambió mientras llegaba la respuesta la dejaría con la pregunta nueva y las filas de la vieja.
+            var clave = (pagina, _paginacion.ItemsPerPage, _busqueda, _estadoFiltro, ordenarPor, descendente);
+
             // La consulta se construye con los filtros de ESTE instante: si
             // cambian mientras llega la respuesta, lo que se descarta es la
             // respuesta, no se reinterpreta con los filtros nuevos.
@@ -238,7 +242,6 @@ public partial class Incidencias : CaeManager.Web.Components.PaginaInteractiva
             // QuickGrid vuelve a pedir los datos por su cuenta en el primer re-render tras la primera carga (cambia el total de su
             // paginación): una petición idéntica con las mismas filas no es una lista nueva y no debe quitar la fila enfocada ni
             // la selección de quien ya está usando los atajos. Con otra página, filtro, orden o filas, sí se empieza de cero.
-            var clave = (pagina, _paginacion.ItemsPerPage, _busqueda, _estadoFiltro, ordenarPor, descendente);
             var mismaLista = clave.Equals(_claveUltimaCarga) && elementos.Select(e => e.Id).SequenceEqual(_elementosPagina.Select(e => e.Id));
             _claveUltimaCarga = clave;
             _elementosPagina = elementos;

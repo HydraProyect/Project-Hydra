@@ -1,5 +1,8 @@
 using Bunit;
+using CaeManager.Application.Configuracion.Commands.GuardarVistaRecordada;
+using CaeManager.Application.Configuracion.Commands.OlvidarVistaRecordada;
 using CaeManager.Application.Documentos.Queries.ObtenerDocumentos;
+using CaeManager.Web.Components.DesignSystem;
 using CaeManager.Web.Features.Documentos.Components;
 using FluentAssertions;
 using Microsoft.AspNetCore.Components;
@@ -133,6 +136,42 @@ public partial class DocumentosGen2Tests
 
         EsperarListado(cut, mediador);
         UrlDeLaPagina().Should().NotContain("/plantillas").And.NotContain("revision-ia");
+    }
+
+    /// <summary>
+    /// La traducción de «?pestana=» a filtros la hace la página: no es una acción del usuario, y la vista recordada no la guarda
+    /// (en main una pestaña nunca guardaba vista). Si el usuario cambia después un filtro, eso sí se guarda. El reloj de este
+    /// arnés es el real: se espera al rebote.
+    /// </summary>
+    [Theory]
+    [InlineData("sugerencias", "VenceEn=90")]
+    [InlineData("plataforma", "agrupar=plataforma")]
+    public async Task La_redireccion_de_una_pestana_no_se_guarda_como_vista_recordada(string pestana, string filtroDeLaUrl)
+    {
+        var (cut, mediador) = Renderizar(ConVistaRecordada(null), url: $"documentos?pestana={pestana}");
+        cut.WaitForAssertion(() => UrlDeLaPagina().Should().Contain(filtroDeLaUrl).And.NotContain("pestana"));
+        EsperarListado(cut, mediador);
+
+        await Task.Delay(VistaRecordadaDeListado.Rebote + TimeSpan.FromSeconds(1));
+        await cut.InvokeAsync(() => { });
+
+        mediador.Enviadas.OfType<GuardarVistaRecordadaCommand>().Should().BeEmpty("la redirección no es un cambio del usuario");
+        mediador.Enviadas.OfType<OlvidarVistaRecordadaCommand>().Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task Un_cambio_de_filtro_del_usuario_tras_la_redireccion_si_se_guarda_como_vista_recordada()
+    {
+        var (cut, mediador) = Renderizar(ConVistaRecordada(null), url: "documentos?pestana=sugerencias");
+        cut.WaitForAssertion(() => UrlDeLaPagina().Should().Contain("VenceEn=90").And.NotContain("pestana"));
+        EsperarListado(cut, mediador);
+
+        Services.GetRequiredService<NavigationManager>().NavigateTo("documentos?VenceEn=30&orden=vencimiento");
+
+        await Task.Delay(VistaRecordadaDeListado.Rebote + TimeSpan.FromSeconds(1));
+        await cut.InvokeAsync(() => { });
+        mediador.Enviadas.OfType<GuardarVistaRecordadaCommand>().Should().ContainSingle()
+            .Which.ValoresJson.Should().Contain("30");
     }
 
     [Theory]

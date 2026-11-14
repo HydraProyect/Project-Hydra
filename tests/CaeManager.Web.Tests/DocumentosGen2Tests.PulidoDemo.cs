@@ -16,15 +16,14 @@ namespace CaeManager.Web.Tests;
 public partial class DocumentosGen2Tests
 {
     [Theory]
-    [InlineData("Administrador", true)]
-    [InlineData("DireccionCae", true)]
-    [InlineData("CoordinadorCae", true)]
-    [InlineData("GestorCae", true)]
-    [InlineData("Consulta", true)]
-    [InlineData("Cliente", false)]
-    public void La_pagina_ya_no_pinta_barra_de_pestanas_para_ningun_rol(string rol, bool conIncidencias)
+    [InlineData("Administrador")]
+    [InlineData("DireccionCae")]
+    [InlineData("CoordinadorCae")]
+    [InlineData("GestorCae")]
+    [InlineData("Consulta")]
+    [InlineData("Cliente")]
+    public void La_pagina_ya_no_pinta_barra_de_pestanas_para_ningun_rol(string rol)
     {
-        _ = conIncidencias;
         var (cut, _) = Renderizar(ConDocumentos(DocumentoDeFila()), rol: rol);
         cut.WaitForAssertion(() => cut.Find("tbody button.enlace-nombre-fila"));
 

@@ -1,6 +1,7 @@
 @*
-    Pestaña "Plantillas" de /documentos (REC-062, DEC-28, DDL-080): extraída
-    de la antigua página dedicada, sin cambiar su contenido funcional.
+    Contenido de Plantillas (REC-062, DEC-28, DDL-080), que fue una pestaña de /documentos: desde la PR8 esa barra no existe y
+    /documentos?pestana=plantillas redirige a /plantillas. Extraído de la antigua página dedicada, sin cambiar su contenido
+    funcional.
     Plantillas sigue teniendo rutas propias (/plantillas, /plantillas/nueva,
     /plantillas/{id}/editar, /plantillas/documentos-generados), que se
     conservan como deep links — Plantillas.razor es ahora una página fina
@@ -12,7 +13,7 @@
     consulta — la única superficie que refleja la sub-pestaña en la URL es
     la página standalone /plantillas (deep link ?Pestana=generados ya
     existente, cubierto por PestanaUrlDurableTests). Recargar
-    /documentos?Pestana=plantillas siempre abre en Catálogo: decisión
+    /plantillas sin ?Pestana= siempre abre en Catálogo: decisión
     registrada en DDL-080, no un hueco.
 *@
 @using CaeManager.Application.Plantillas.Commands.AgregarVersionPlantilla

@@ -89,8 +89,8 @@ public sealed record EnlaceMenuLateral(
 }
 
 /// <summary>
-/// Una opción DENTRO de la página de un enlace del menú (una sección de Configuración, una pestaña de
-/// Documentos): no es un enlace del menú, solo lo que encuentra la lupa de la cabecera. Solo cabe aquí
+/// Una opción DENTRO de la página de un enlace del menú (una sección de Configuración, un Id de
+/// <c>?pestana=</c> de Documentos, que redirige a su sustituto): no es un enlace del menú, solo lo que encuentra la lupa de la cabecera. Solo cabe aquí
 /// lo que se puede direccionar con una URL (ruta o <c>?pestana=</c>) y cuya autorización es exactamente
 /// la del enlace padre o una regla que el catálogo ya conoce: una subopción nunca concede nada.
 /// </summary>
@@ -154,9 +154,9 @@ public static class CatalogoMenuLateral
     private const string RolesDeCartera = $"{Roles.Administrador},{Roles.DireccionCae},{Roles.CoordinadorCae}";
 
     /// <summary>
-    /// Quién ve las pestañas de gestión documental de Documentos. Mismo valor que
-    /// <c>Documentos.RolesDeGestionDocumental</c> (lo vigila un test): la pestaña se pinta a todos,
-    /// pero su contenido solo a estos roles, y el menú no debe ofrecer un destino que la página niega.
+    /// Quién ve las subopciones de gestión documental de Documentos (los Ids de <c>?pestana=</c> que ya no tienen barra). Mismo
+    /// valor que <c>Documentos.RolesDeGestionDocumental</c> (lo vigila un test): la página redirige a su sustituto solo a estos
+    /// roles, y el menú no debe ofrecer un destino que la página niega.
     /// </summary>
     private const string RolesDeGestionDocumental =
         $"{Roles.Administrador},{Roles.DireccionCae},{Roles.CoordinadorCae},{Roles.GestorCae}";
