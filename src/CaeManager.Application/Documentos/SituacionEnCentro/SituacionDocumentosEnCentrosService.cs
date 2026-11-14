@@ -103,8 +103,9 @@ public class SituacionDocumentosEnCentrosService(
     // ObtenerReclamacionesSinRespuestaQuery, ObtenerUltimaReclamacionClienteQuery) NO la comprueban: acotan por cartera,
     // no por rol. Solo el historial de reclamaciones enviadas se le corta a Consulta en la presentación
     // (Documentos.RolesDeGestionDocumental y RolesComunicaciones.LecturaReclamaciones; un test de la Web fija que esa
-    // lista no se separe de esta). Las otras dos sí le llegan hoy: el bloque «Reclamado y sin respuesta» de Inicio y la
-    // línea de última reclamación del Centro en el Context Workspace (CentroWorkspacePanel) solo excluyen al rol Cliente.
+    // lista no se separe de esta). Las otras dos sí le llegan hoy: el bloque «Reclamado y sin respuesta» de Inicio solo
+    // excluye al rol Cliente, y la línea de última reclamación del Centro en el Context Workspace (CentroWorkspacePanel) no
+    // filtra por rol (su Query solo comprueba que el Cliente sea visible).
     // Decide el rol efectivo (ICurrentUserService.ObtenerRolEfectivoAsync), así que la regla no depende de la vía por la
     // que la sesión es Consulta (su Tenant de origen, un Tenant beneficiario delegado por Asignación de Operación o la
     // delegación heredada del acceso de soporte).
