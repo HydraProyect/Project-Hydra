@@ -81,6 +81,7 @@
                                             <Authorized>
                                                 <select class="selector-responsable" aria-label="@Textos["AriaResponsable", conexion.Nombre]"
                                                         data-testid="selector-responsable"
+                                                        @key="(conexion.Id, _versionSelectores)"
                                                         disabled="@(_procesandoId is not null)"
                                                         @onchange="e => CambiarResponsableAsync(conexion, e.Value?.ToString())">
                                                     <option value="" selected="@(conexion.ResponsableUsuarioId is null)">@Textos["SinResponsable"]</option>
@@ -138,7 +139,7 @@
        CerrarAlHacerClicFuera="!_guardandoAcuse" Bloqueante="_guardandoAcuse">
     <ChildContent>
         <p>@Textos["ModalAcuseIntro"]</p>
-        <div class="reglas-acuse" aria-label="@Textos["ModalAcuseReglasTitulo"]">
+        <div class="reglas-acuse" role="group" aria-label="@Textos["ModalAcuseReglasTitulo"]">
             <b>@Textos["ModalAcuseReglasTitulo"]</b>
             <ul>
                 <li>@Textos["ModalAcuseRegla1"]</li>

@@ -300,6 +300,35 @@ public class BuzonesAcuseAutomaticoTests : BunitContext
             cut.Find("[data-testid=selector-responsable] option[selected]").TextContent.Trim().Should().Be("Andrés Rey"));
     }
 
+    /// <summary>
+    /// Si el servidor rechaza el cambio de responsable (p. ej. sin Asignación de Cartera), el estado guardado no cambia y Blazor
+    /// no parchearía el DOM: el navegador seguiría mostrando lo elegido. La página recrea el selector (<c>@key</c> con una versión)
+    /// para que enseñe lo guardado. bUnit vuelve a parsear el marcado, así que aquí solo se fija el estado que se muestra; que el
+    /// <c>&lt;select&gt;</c> se recree de verdad en el navegador no es observable en bUnit (hueco declarado).
+    /// </summary>
+    [Fact]
+    public void Si_el_servidor_rechaza_el_responsable_el_selector_se_recrea_y_enseña_el_guardado()
+    {
+        var lucia = new CuentaVisibleEnRol(Guid.NewGuid(), "Lucía Sanz", "lucia@ejemplo.test", null);
+        var andres = new CuentaVisibleEnRol(Guid.NewGuid(), "Andrés Rey", "andres@ejemplo.test", null);
+        var mediador = new MediadorBuzones
+        {
+            Conexiones = [Buzon("cae", responsable: lucia.Id)],
+            FalloDelComando = Error.Crear("Buzon.ResponsableSinCartera", "Esa persona no tiene Asignación de Cartera.")
+        };
+        var cut = Renderizar(mediador, gestores: [lucia, andres]);
+        var selectorInicial = cut.Find("[data-testid=selector-responsable]");
+
+        selectorInicial.Change(andres.Id.ToString());
+
+        cut.WaitForAssertion(() =>
+        {
+            mediador.ComandosResponsable.Should().ContainSingle();
+            Services.GetRequiredService<ToastService>().Mensajes.Should().ContainSingle().Which.Tono.Should().Be(TonoToast.Error);
+            cut.Find("[data-testid=selector-responsable] option[selected]").TextContent.Trim().Should().Be("Lucía Sanz");
+        });
+    }
+
     [Fact]
     public void Sin_buzones_la_pagina_lo_dice_y_no_dibuja_la_tabla()
     {

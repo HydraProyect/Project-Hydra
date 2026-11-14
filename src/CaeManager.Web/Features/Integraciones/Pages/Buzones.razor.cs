@@ -36,6 +36,7 @@ public partial class Buzones : CaeManager.Web.Components.PaginaIntegrableConfigu
     private readonly CancellationTokenSource _cancelacion = new();
     private long _generacionCarga;
     private bool _dispuesto;
+    private int _versionSelectores;
 
     // El acuse envía correo externo: activarlo pide confirmar, con las reglas a la vista. Desactivarlo no.
     private ConexionIntegracionListaDto? _acuseAActivar;
@@ -94,11 +95,12 @@ public partial class Buzones : CaeManager.Web.Components.PaginaIntegrableConfigu
 
     private async Task RecargarSinPropagarAsync()
     {
+        if (_dispuesto) return;
         try
         {
             await CargarAsync(_cancelacion.Token);
         }
-        catch (OperationCanceledException) when (_cancelacion.IsCancellationRequested)
+        catch (Exception ex) when (ex is OperationCanceledException or ObjectDisposedException && _dispuesto)
         {
         }
         catch (Exception ex)
@@ -237,6 +239,9 @@ public partial class Buzones : CaeManager.Web.Components.PaginaIntegrableConfigu
         finally
         {
             _procesandoId = null;
+            // El <select> conserva lo que el navegador eligió si el árbol de render no cambia (rechazo del servidor que deja el
+            // mismo responsable): se recrea para que enseñe siempre lo guardado.
+            _versionSelectores++;
         }
     }
 
