@@ -198,8 +198,9 @@ public class ExpiracionAsignacionesBajoRlsTests
     /// por un Cliente empresarial: IX_AsignacionesOperacion_DelegacionTotalVigente admite una sola
     /// operación externa del Tenant entero por propietario y servicio, y la cartera es siempre el
     /// Tenant entero (D-7), así que lo acotado vive en la operación. Hasta la tercera revisión de
-    /// Codex la «otra» colgaba de la raíz del Tenant propietario, que es de otro Operador CAE (el
-    /// propio Tenant propietario): un estado inválido que la prueba exigía conservar.
+    /// Codex la «otra» colgaba de la operación raíz del Tenant propietario, cuyo Operador CAE es
+    /// el interno (el propio Tenant propietario) y no el externo del usuario: un estado inválido
+    /// que la prueba exigía conservar.
     /// </para>
     /// </summary>
     [Fact]

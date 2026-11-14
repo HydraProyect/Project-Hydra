@@ -295,20 +295,23 @@ public class CarteraYFilaHeredadaSoloOutboundTests
     /// <summary>
     /// Tercera revisión de Codex (BAJA): la siembra del piloto Outbound cuelga la cartera y el Encargo de
     /// administración de la operación externa Outbound, y no falla si el mismo Operador CAE externo tiene además una
-    /// operación Inbound vigente sobre el mismo Tenant propietario.
+    /// operación Inbound vigente sobre el mismo Tenant propietario, ni una Outbound acotada por Cliente empresarial.
     /// </summary>
     [Fact]
     public async Task La_siembra_del_piloto_elige_la_operacion_Outbound_aunque_haya_una_Inbound_vigente()
     {
         var inbound = Operacion(_propietario, ServicioCae.Inbound);
         var outbound = Operacion(_propietario, ServicioCae.Outbound);
+        var outboundAcotada = AsignacionOperacion.Externa(
+            _propietario.Id, _operador.Id, ServicioCae.Outbound, AmbitoAsignacion.DeRelacionCliente(Guid.NewGuid()), Desde, null, Desde);
         var soloInbound = new Tenant("Tenant propietario solo con Inbound");
         var inboundSola = Operacion(soloInbound, ServicioCae.Inbound);
 
-        await using var db = new ContextoEnMemoria().Con(inbound, outbound, inboundSola);
+        await using var db = new ContextoEnMemoria().Con(inbound, outbound, outboundAcotada, inboundSola);
 
         (await PilotoOutboundSeeder.OperacionExternaOutboundVigenteAsync(db, _propietario.Id, _operador.Id, Ahora, CancellationToken.None))
-            .Should().BeSameAs(outbound, "con Inbound y Outbound vigentes la siembra no encuentra dos ni cuelga de la Inbound");
+            .Should().BeSameAs(outbound,
+                "con Inbound, Outbound del Tenant entero y Outbound acotada vigentes la siembra no encuentra varias ni cuelga de otra");
         (await PilotoOutboundSeeder.OperacionExternaOutboundVigenteAsync(db, soloInbound.Id, _operador.Id, Ahora, CancellationToken.None))
             .Should().BeNull("una operación Inbound no es la operación externa del piloto Outbound");
     }

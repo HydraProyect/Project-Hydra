@@ -817,10 +817,13 @@ public static class PilotoOutboundSeeder
     }
 
     /// <summary>
-    /// La Asignación de Operación externa, no raíz, de Outbound y vigente hoy, de ese Operador CAE externo sobre ese
-    /// Tenant propietario: de la que cuelgan la cartera y el Encargo de administración del piloto Outbound. Solo de
-    /// Outbound (B-02a): si el mismo Operador CAE externo tuviera además una operación Inbound vigente sobre el mismo
-    /// Tenant propietario, la siembra no debe fallar por encontrar dos ni colgar de la Inbound lo que es de Outbound.
+    /// La Asignación de Operación externa, no raíz, de Outbound, del Tenant entero y vigente hoy, de ese Operador CAE
+    /// externo sobre ese Tenant propietario: de la que cuelgan la cartera y el Encargo de administración del piloto
+    /// Outbound. Mismo criterio que <c>AsignacionesOperativasWriter.ObtenerOperacionExternaVigenteAsync</c>, que la
+    /// abre. Solo de Outbound (B-02a): si el mismo Operador CAE externo tuviera además una operación Inbound vigente
+    /// sobre el mismo Tenant propietario, la siembra no debe fallar por encontrar dos ni colgar de la Inbound lo que es
+    /// de Outbound. Solo la del Tenant entero: una Outbound acotada por Cliente empresarial del mismo par puede
+    /// coexistir con ella (el índice de delegación total solo cubre la universal).
     /// </summary>
     internal static async Task<AsignacionOperacion?> OperacionExternaOutboundVigenteAsync(
         CaeManagerDbContext dbContext, Guid tenantPropietarioId, Guid tenantOperadorId, DateTime ahora,
@@ -831,7 +834,7 @@ public static class PilotoOutboundSeeder
                             && o.Servicio == ServicioCae.Outbound
                             && !o.EsRaiz)
                 .ToListAsync(cancellationToken))
-            .SingleOrDefault(o => o.EstaVigenteEn(ahora));
+            .SingleOrDefault(o => o.Ambito.EsUniversal && o.EstaVigenteEn(ahora));
 
     /// <summary>
     /// Los datos de un Tenant propietario, en un solo guardado. Devuelve falso si

@@ -228,7 +228,9 @@ public interface ICatalogoIncorporacionCartera
     /// <paramref name="actorUsuarioId"/>— las solicitudes de incorporación aceptadas que las
     /// crearon, da por terminadas las propuestas de apoyo aceptadas que las emitieron y borra
     /// la fila heredada de Operador Delegado <b>solo si no le queda otra
-    /// cartera vigente</b> sobre el mismo Tenant (por ejemplo, una de otro rol). Sin guardar. Devuelve <c>false</c> sin tocar nada si no
+    /// cartera vigente de Outbound del mismo Operador CAE externo</b> sobre el mismo Tenant (por
+    /// ejemplo, una de otro rol o bajo otra operación Outbound suya acotada por Cliente
+    /// empresarial); una de otro servicio o de otro Operador CAE no la sostiene (B-02a). Sin guardar. Devuelve <c>false</c> sin tocar nada si no
     /// tenía ese Tenant entero en su cartera. Como
     /// <see cref="IncorporarAsync(Guid, Guid, Guid, Guid, CancellationToken)"/>, exige el
     /// Tenant propietario como Tenant activo (<c>AmbitoTenantExplicito</c>).
@@ -250,7 +252,8 @@ public interface ICatalogoIncorporacionCartera
     /// Asignación de Cartera que emitió <paramref name="propuesta"/> y da la propuesta por
     /// terminada, por el mismo camino que <see cref="RetirarCarteraUniversalAsync"/> (mismo
     /// motivo de cierre y misma regla para la fila heredada de Operador Delegado: se borra
-    /// solo si al usuario no le queda otra cartera vigente sobre ese Tenant). Sin guardar.
+    /// solo si al usuario no le queda otra cartera vigente de Outbound del mismo Operador CAE
+    /// externo sobre ese Tenant). Sin guardar.
     ///
     /// <para>
     /// <b>No toca la marca de principal ni releva a nadie</b>: si la cartera lleva hoy la
