@@ -128,6 +128,29 @@ public class CoberturaRlsDelModeloTests : IAsyncLifetime
     private static readonly Dictionary<string, string> ExcepcionesDocumentadas = new();
 
     /// <summary>
+    /// <b>Catálogo base de Plataforma sin RLS</b> (B-13; CA-2, CA-4, CA-7): tablas globales, sin <c>TenantId</c>, que
+    /// deliberadamente no llevan RLS, cada una con su motivo. No son entidades con <c>TenantId</c> —el barrido de
+    /// <see cref="ExcepcionesDocumentadas"/> no las alcanza— y por eso se nombran aquí: el plano de Plataforma no tiene
+    /// Tenant propietario por el que filtrar, el contenido es el mismo para todos los Tenants y lo que las protege es
+    /// el privilegio, no la política. <see cref="El_catalogo_base_de_Plataforma_no_tiene_RLS_ni_TenantId_y_el_runtime_solo_lo_lee"/>
+    /// comprueba en la base que cada una sigue siendo así: sin RLS, sin <c>TenantId</c> y con <c>cae_app_runtime</c>
+    /// solo con SELECT. Una tabla nueva del catálogo base entra aquí en el mismo commit que la crea.
+    /// </summary>
+    private static readonly Dictionary<string, string> CatalogoBaseDePlataformaSinRls = new()
+    {
+        ["CatalogoActividades"] =
+            "Actividades del catálogo base (CA-2), las mismas para todos los Tenants; cada Tenant TCE las adopta en su plantilla, que es dato suyo",
+        ["CatalogoActividadesCodigosOficiales"] =
+            "códigos CNAE-2025, REGCON y CNO-11 de cada Actividad del catálogo base: cuelgan de una fila global",
+        ["CatalogoRiesgos"] =
+            "catálogo cerrado de riesgos con la opción «otro» (CA-4), el mismo para todos; los riesgos validados de un contrato viven en el Tenant TCE",
+        ["CatalogoRequisitosBase"] =
+            "requisitos de base con su fundamento y su nivel N1/N2/N3, comunes a todos los Tenants; cada Tenant TCE los liga a sus Tipos de documento",
+        ["CatalogoReglasRiesgoRequisito"] =
+            "reglas de base «riesgo → requisito» entre dos filas globales; lo que exige cada Tenant TCE lo decide su plantilla",
+    };
+
+    /// <summary>
     /// Políticas <c>AS RESTRICTIVE</c> revisadas, además de
     /// <c>aislamiento_tenant</c>, por tabla. Una restrictiva se combina con AND
     /// con la de tenant, así que solo puede estrechar el acceso, nunca
@@ -553,6 +576,63 @@ public class CoberturaRlsDelModeloTests : IAsyncLifetime
             e => string.IsNullOrWhiteSpace(e.Value),
             "una tabla con TenantId exenta de RLS es una decisión de seguridad, y una decisión de seguridad sin " +
             "motivo escrito es un descuido que nadie podrá revisar después");
+
+        // Las tablas globales del catálogo base de Plataforma, sin TenantId y sin RLS: cada una con su motivo, y
+        // ninguna puede aparecer a la vez como excepción de una tabla con TenantId.
+        CatalogoBaseDePlataformaSinRls.Should().NotBeEmpty().And.NotContain(
+            e => string.IsNullOrWhiteSpace(e.Value),
+            "una tabla global sin RLS es una decisión de seguridad, y sin motivo escrito nadie podrá revisarla");
+        CatalogoBaseDePlataformaSinRls.Keys.Should().NotIntersectWith(ExcepcionesDocumentadas.Keys);
+    }
+
+    [Fact]
+    public async Task El_catalogo_base_de_Plataforma_no_tiene_RLS_ni_TenantId_y_el_runtime_solo_lo_lee()
+    {
+        await using var contexto = CrearContexto();
+        var tablasDelModelo = contexto.Model.GetEntityTypes().Select(t => t.GetTableName()).ToHashSet();
+
+        await using var conexion = new NpgsqlConnection(_cadenaConexion);
+        await conexion.OpenAsync();
+
+        using var _ = new AssertionScope();
+
+        // Y al revés: toda tabla del catálogo base que el modelo tenga está escrita aquí con su motivo. La lista es
+        // literal a propósito (cada excepción a RLS con nombre y motivo); el modelo solo impide que una se quede fuera.
+        contexto.Model.GetEntityTypes()
+            .Where(t => t.ClrType.Namespace == typeof(global::CaeManager.Domain.CatalogoBase.ActividadCatalogo).Namespace)
+            .Select(t => t.GetTableName()).Should().NotBeEmpty()
+            .And.BeSubsetOf(CatalogoBaseDePlataformaSinRls.Keys, "una tabla nueva del catálogo base entra en la lista en el commit que la crea");
+
+        foreach (var tabla in CatalogoBaseDePlataformaSinRls.Keys)
+        {
+            tablasDelModelo.Should().Contain(tabla, "la excepción tiene que describir una tabla que existe en el modelo");
+
+            await using var comando = conexion.CreateCommand();
+            comando.CommandText = """
+                SELECT c.relrowsecurity,
+                       (SELECT count(*) FROM information_schema.columns
+                         WHERE table_schema = 'public' AND table_name = c.relname AND column_name = 'TenantId'),
+                       has_table_privilege('cae_app_runtime', c.oid, 'SELECT'),
+                       has_table_privilege('cae_app_runtime', c.oid, 'INSERT, UPDATE, DELETE, TRUNCATE')
+                FROM pg_class c
+                JOIN pg_namespace n ON n.oid = c.relnamespace
+                WHERE n.nspname = 'public' AND c.relname = @tabla;
+                """;
+            comando.Parameters.AddWithValue("tabla", tabla);
+            await using var lector = await comando.ExecuteReaderAsync();
+            if (!await lector.ReadAsync())
+            {
+                tabla.Should().BeNull("la tabla de la excepción tiene que existir en la base migrada");
+                continue;
+            }
+
+            lector.GetBoolean(0).Should().BeFalse(
+                $"{tabla} es global: si un día lleva RLS, sale de CatalogoBaseDePlataformaSinRls en el mismo commit");
+            lector.GetInt64(1).Should().Be(0, $"{tabla} no tiene Tenant propietario");
+            lector.GetBoolean(2).Should().BeTrue($"el runtime lee {tabla}");
+            lector.GetBoolean(3).Should().BeFalse(
+                $"sin RLS lo único que protege {tabla} es el privilegio: el runtime no la escribe");
+        }
     }
 
     /// <summary>

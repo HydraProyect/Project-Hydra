@@ -1401,6 +1401,172 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                         });
                 });
 
+            modelBuilder.Entity("CaeManager.Domain.CatalogoBase.ActividadCatalogo", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<bool>("Activa")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("Codigo")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)");
+
+                    b.Property<string>("Nombre")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Codigo")
+                        .IsUnique();
+
+                    b.ToTable("CatalogoActividades", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_CatalogoActividades_CodigoFormato", "\"Codigo\" ~ '^[a-z0-9]+(-[a-z0-9]+)*$'");
+                        });
+                });
+
+            modelBuilder.Entity("CaeManager.Domain.CatalogoBase.CodigoOficialActividad", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("ActividadId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Codigo")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<string>("Sistema")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Sistema", "Codigo");
+
+                    b.HasIndex("ActividadId", "Sistema", "Codigo")
+                        .IsUnique();
+
+                    b.ToTable("CatalogoActividadesCodigosOficiales", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_CatalogoActividadesCodigosOficiales_CodigoFormato", "\"Codigo\" ~ '^[A-Za-z0-9.]+$'");
+
+                            t.HasCheckConstraint("CK_CatalogoActividadesCodigosOficiales_Sistema", "\"Sistema\" IN ('Cnae2025', 'Regcon', 'Cno11')");
+                        });
+                });
+
+            modelBuilder.Entity("CaeManager.Domain.CatalogoBase.ReglaRiesgoRequisito", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("RequisitoId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("RiesgoId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("RequisitoId");
+
+                    b.HasIndex("RiesgoId", "RequisitoId")
+                        .IsUnique();
+
+                    b.ToTable("CatalogoReglasRiesgoRequisito", (string)null);
+                });
+
+            modelBuilder.Entity("CaeManager.Domain.CatalogoBase.RequisitoBase", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<bool>("Activo")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("Codigo")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)");
+
+                    b.Property<string>("Fundamento")
+                        .IsRequired()
+                        .HasMaxLength(300)
+                        .HasColumnType("character varying(300)");
+
+                    b.Property<string>("Nivel")
+                        .IsRequired()
+                        .HasMaxLength(2)
+                        .HasColumnType("character varying(2)");
+
+                    b.Property<string>("Nombre")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Codigo")
+                        .IsUnique();
+
+                    b.ToTable("CatalogoRequisitosBase", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_CatalogoRequisitosBase_CodigoFormato", "\"Codigo\" ~ '^[a-z0-9]+(-[a-z0-9]+)*$'");
+
+                            t.HasCheckConstraint("CK_CatalogoRequisitosBase_Nivel", "\"Nivel\" IN ('N1', 'N2', 'N3')");
+                        });
+                });
+
+            modelBuilder.Entity("CaeManager.Domain.CatalogoBase.RiesgoCatalogo", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<bool>("Activo")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("Codigo")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)");
+
+                    b.Property<bool>("EsOtro")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("Nombre")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Codigo")
+                        .IsUnique();
+
+                    b.HasIndex("EsOtro")
+                        .IsUnique()
+                        .HasDatabaseName("IX_CatalogoRiesgos_UnaSolaOpcionOtro")
+                        .HasFilter("\"EsOtro\"");
+
+                    b.ToTable("CatalogoRiesgos", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_CatalogoRiesgos_CodigoFormato", "\"Codigo\" ~ '^[a-z0-9]+(-[a-z0-9]+)*$'");
+                        });
+                });
+
             modelBuilder.Entity("CaeManager.Domain.Centros.CanalGestionDocumental", b =>
                 {
                     b.Property<Guid>("Id")
@@ -12254,6 +12420,30 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                         .IsRequired();
                 });
 
+            modelBuilder.Entity("CaeManager.Domain.CatalogoBase.CodigoOficialActividad", b =>
+                {
+                    b.HasOne("CaeManager.Domain.CatalogoBase.ActividadCatalogo", null)
+                        .WithMany("CodigosOficiales")
+                        .HasForeignKey("ActividadId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("CaeManager.Domain.CatalogoBase.ReglaRiesgoRequisito", b =>
+                {
+                    b.HasOne("CaeManager.Domain.CatalogoBase.RequisitoBase", null)
+                        .WithMany()
+                        .HasForeignKey("RequisitoId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("CaeManager.Domain.CatalogoBase.RiesgoCatalogo", null)
+                        .WithMany()
+                        .HasForeignKey("RiesgoId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
             modelBuilder.Entity("CaeManager.Domain.Centros.CanalGestionDocumental", b =>
                 {
                     b.HasOne("CaeManager.Domain.Integraciones.ProveedorPlataformaCae", null)
@@ -13357,6 +13547,11 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                     b.Navigation("Pasos");
 
                     b.Navigation("Turnos");
+                });
+
+            modelBuilder.Entity("CaeManager.Domain.CatalogoBase.ActividadCatalogo", b =>
+                {
+                    b.Navigation("CodigosOficiales");
                 });
 
             modelBuilder.Entity("CaeManager.Domain.Comunicaciones.Conversacion", b =>

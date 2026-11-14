@@ -78,6 +78,26 @@ public class AreasClasificadasParaElEncargoTests
                 .Append(typeof(CaeManager.Application.Auditoria.Queries.ObtenerAuditoriaQuery)));
     }
 
+    /// <summary>
+    /// El catálogo base de Plataforma (B-13) está permitido bajo encargo porque hoy solo se lee: lo mantiene un Actor
+    /// de Plataforma TALVEG, nunca quien administra un Tenant por encargo. Una petición nueva del área nacería
+    /// permitida (ver el resumen de la clase); este test obliga a que la primera que no sea de lectura se excluya por
+    /// tipo en <see cref="ActosExcluidosDelEncargo.PeticionesExcluidas"/> o reabra la clasificación en el mismo commit.
+    /// <b>Lo que NO observa</b>: distingue lectura de escritura por el sufijo <c>Query</c> del nombre, la convención
+    /// del repositorio; un Command mal llamado «Query» pasaría.
+    /// </summary>
+    [Fact]
+    public void El_catalogo_base_solo_queda_permitido_para_leer()
+    {
+        var delCatalogo = Peticiones.Where(p => ActosExcluidosDelEncargo.AreaDe(p) == "CatalogoBase").ToList();
+        delCatalogo.Should().NotBeEmpty("control positivo: ObtenerCatalogoBaseQuery vive en el área");
+
+        delCatalogo.Should().OnlyContain(
+            p => p.Name.EndsWith("Query", StringComparison.Ordinal) || ActosExcluidosDelEncargo.PeticionesExcluidas.Contains(p),
+            "mantener el catálogo base no es acto de quien administra un Tenant por encargo: una escritura del área "
+            + "se excluye por tipo o se decide otra clasificación en el commit que la crea");
+    }
+
     [Fact]
     public void El_area_es_el_segmento_exacto_tras_la_raiz_y_no_un_prefijo()
     {
