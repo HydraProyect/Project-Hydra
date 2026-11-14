@@ -68,7 +68,7 @@ Documentos :: ObtenerFirmaGuardadaUsuarioQueryHandler[ObtenerFirmaGuardadaUsuari
 DocumentosIa :: ObtenerAuditoriaIaQueryHandler[ObtenerAuditoriaIaQuery] = 1
 Empresas :: BuscarEmpresaPorCifQueryHandler[BuscarEmpresaPorCifQuery] = 1
 # Lee las marcas de cobro de la liquidacion del Operador CAE emisor (plano comercial/de Operacion del Tenant emisor, filtradas por
-# TenantId del emisor y mes). No lee filas con cartera de Cliente empresarial; la visibilidad la decide EmisorQueLeeAsync (#2229).
+# TenantId del emisor y mes). No lee filas con cartera de Cliente empresarial. La Query solo se acota al Tenant emisor y al rol (EmisorQueLeeAsync, #2229); devuelve las marcas de TODOS los Tenants beneficiarios del mes y el filtro por los alcanzados lo aplican los consumidores, no la Query: posible hueco de alcance a decidir aparte.
 Facturacion :: ObtenerCobrosLiquidacionOperadorCaeQueryHandler[ObtenerCobrosLiquidacionOperadorCaeQuery] = 1
 HerramientasPdf :: PrepararDivisionPdfQueryHandler[PrepararDivisionPdfQuery] = 1
 HerramientasPdf :: PrepararUnionPdfQueryHandler[PrepararUnionPdfQuery] = 1
