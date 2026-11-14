@@ -1,4 +1,5 @@
 using CaeManager.Application.Clientes;
+using CaeManager.Application.Common;
 using CaeManager.Application.Empresas;
 using CaeManager.Application.Integraciones;
 using CaeManager.Application.Integraciones.Queries.ObtenerResponsablesElegiblesBuzones;
@@ -15,7 +16,8 @@ namespace CaeManager.Application.Tests.Integraciones;
 /// <summary>
 /// La consulta que alimenta el selector de Responsable de Buzones. La regla de fondo (<see cref="ResponsableBuzonElegible"/>) se
 /// prueba aparte; aquí se fija que la consulta la aplica cuenta a cuenta y buzón a buzón, con el alcance del comando
-/// <c>FijarResponsableBuzonCommand</c>: solo Administrador, solo buzones compartidos de Microsoft 365 y visibles.
+/// <c>FijarResponsableBuzonCommand</c>: solo Administrador, solo buzones compartidos de Microsoft 365, visibles y con su
+/// Cliente empresarial dentro del alcance de quien consulta.
 /// </summary>
 public class ObtenerResponsablesElegiblesBuzonesQueryHandlerTests
 {
@@ -38,9 +40,10 @@ public class ObtenerResponsablesElegiblesBuzonesQueryHandlerTests
     private static DestinoCartera Cuenta(string? rol, bool activa = true) => new(activa, rol, null, false, Tenant, null);
 
     private ObtenerResponsablesElegiblesBuzonesQueryHandler CrearHandler(
-        IReadOnlyDictionary<Guid, DestinoCartera> cuentas, string? rolActual = "Administrador", bool buzonVisible = true) =>
+        IReadOnlyDictionary<Guid, DestinoCartera> cuentas, string? rolActual = "Administrador", bool buzonVisible = true,
+        IAlcanceDatosService? alcance = null) =>
         new(_conexiones,
-            new AlcanceDatosServiceFalso(conexionIntegracionVisible: buzonVisible),
+            alcance ?? new AlcanceDatosServiceFalso(conexionIntegracionVisible: buzonVisible),
             new ResponsableBuzonElegible(
                 new DirectorioPorUsuario(cuentas), new EquipoVacio(), new OperacionesEnMemoria([], []),
                 new EmpresasQueryContextFalso(), new TenantActualFijo(Tenant)),
@@ -148,5 +151,51 @@ public class ObtenerResponsablesElegiblesBuzonesQueryHandlerTests
         var invisible = await CrearHandler(cuentas, buzonVisible: false).Handle(
             new ObtenerResponsablesElegiblesBuzonesQuery([compartido.Id], [admin]), default);
         invisible.Should().BeEmpty("quien no ve el buzón no averigua nada de él");
+    }
+
+    /// <summary>
+    /// El acceso a un buzón compartido lo da la Asignación de Cartera (DECISION_LOG 2026-11-14), que aquí es el mismo alcance
+    /// que aplican el listado de buzones y el comando sobre su Cliente empresarial: fuera de él, el buzón no aparece, aunque
+    /// <c>ConexionIntegracionVisibleAsync</c> lo dé por visible.
+    /// </summary>
+    [Fact]
+    public async Task Un_buzon_cuyo_Cliente_empresarial_queda_fuera_de_la_cartera_de_quien_consulta_no_aparece()
+    {
+        var admin = Guid.NewGuid();
+        var cuentas = new Dictionary<Guid, DestinoCartera> { [admin] = Cuenta("Administrador") };
+        var empresaEnCartera = Guid.NewGuid();
+        var enCartera = Buzon(empresa: empresaEnCartera);
+        var fueraDeCartera = Buzon(empresa: Guid.NewGuid());
+        var triage = Buzon();
+        var alcance = new AlcanceDatosServiceFalso(
+            tieneAccesoTotal: false, clienteIdsVisibles: [empresaEnCartera], conexionIntegracionVisible: true);
+
+        var resultado = await CrearHandler(cuentas, alcance: alcance).Handle(
+            new ObtenerResponsablesElegiblesBuzonesQuery([enCartera.Id, fueraDeCartera.Id, triage.Id], [admin]), default);
+
+        resultado.Keys.Should().BeEquivalentTo(
+            new[] { enCartera.Id, triage.Id },
+            "control positivo: el de su cartera y el de triage sí; el de fuera de su cartera no se distingue de uno inexistente");
+    }
+
+    /// <summary>
+    /// La consulta aplica la regla entera, no una lista de roles: una cuenta de un Operador CAE externo con rol de origen
+    /// Consulta y rol guardado Gestor CAE entra por la vía heredada (sin Asignación de Operación) y es elegible en un buzón de
+    /// triage, como la aceptaría <c>FijarResponsableBuzonCommand</c>.
+    /// </summary>
+    [Fact]
+    public async Task Una_cuenta_delegada_con_rol_de_origen_Consulta_y_rol_guardado_Gestor_CAE_es_elegible_por_la_via_heredada()
+    {
+        var delegada = Guid.NewGuid();
+        var cuentas = new Dictionary<Guid, DestinoCartera>
+        {
+            [delegada] = new(true, "GestorCae", null, true, Guid.NewGuid(), "Consulta")
+        };
+        var buzon = Buzon();
+
+        var resultado = await CrearHandler(cuentas).Handle(
+            new ObtenerResponsablesElegiblesBuzonesQuery([buzon.Id], [delegada]), default);
+
+        resultado[buzon.Id].Should().BeEquivalentTo(new[] { delegada });
     }
 }

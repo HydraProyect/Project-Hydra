@@ -119,6 +119,11 @@ public class BuzonesAcuseAutomaticoTests : BunitContext
         public override Task<IReadOnlyList<CuentaVisibleEnRol>> ObtenerVisiblesEnRolAsync(
             string rol, CancellationToken cancellationToken = default) =>
             Task.FromResult(cuentasPorRol.TryGetValue(rol, out var cuentas) ? cuentas : []);
+
+        /// <summary>Todas las del directorio, sea cual sea la clave de rol con que el test las agrupe.</summary>
+        public override Task<IReadOnlyList<CuentaVisibleEnRol>> ObtenerCuentasVisiblesAsync(
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult<IReadOnlyList<CuentaVisibleEnRol>>(cuentasPorRol.Values.SelectMany(c => c).ToList());
     }
 
     private static DirectorioUsuariosTenant Directorio(IReadOnlyDictionary<string, IReadOnlyList<CuentaVisibleEnRol>> cuentasPorRol)
@@ -322,8 +327,8 @@ public class BuzonesAcuseAutomaticoTests : BunitContext
 
     /// <summary>
     /// El selector no tiene lista de roles propia: pregunta al servidor quién es elegible (<c>ResponsableBuzonElegible</c>), con
-    /// todos los roles que esa regla puede aceptar como universo. Administrador, Dirección CAE y Coordinador CAE aparecen si
-    /// el servidor los da por elegibles; un Gestor CAE que el servidor descarta (sin cartera) no aparece.
+    /// todas las cuentas visibles como universo. Administrador, Dirección CAE y Coordinador CAE aparecen si el servidor los da
+    /// por elegibles; un Gestor CAE y una cuenta Consulta que el servidor descarta no aparecen, aunque se le pregunte por ellas.
     /// </summary>
     [Fact]
     public void El_selector_de_responsable_ofrece_exactamente_las_cuentas_que_el_servidor_da_por_elegibles()
@@ -333,6 +338,7 @@ public class BuzonesAcuseAutomaticoTests : BunitContext
         var coordinador = new CuentaVisibleEnRol(Guid.NewGuid(), "Carla Coordinadora", "carla@ejemplo.test", null);
         var gestorConCartera = new CuentaVisibleEnRol(Guid.NewGuid(), "Diego Gestor", "diego@ejemplo.test", null);
         var gestorSinCartera = new CuentaVisibleEnRol(Guid.NewGuid(), "Elena Sincartera", "elena@ejemplo.test", null);
+        var consulta = new CuentaVisibleEnRol(Guid.NewGuid(), "Fran Consulta", "fran@ejemplo.test", null);
         var buzon = Buzon("cae");
         var mediador = new MediadorBuzones
         {
@@ -345,16 +351,53 @@ public class BuzonesAcuseAutomaticoTests : BunitContext
             [Roles.DireccionCae] = [direccion],
             [Roles.CoordinadorCae] = [coordinador],
             [Roles.GestorCae] = [gestorConCartera, gestorSinCartera],
-            [Roles.Consulta] = [new CuentaVisibleEnRol(Guid.NewGuid(), "Fran Consulta", "fran@ejemplo.test", null)]
+            [Roles.Consulta] = [consulta]
         });
 
         cut.Find("[data-testid=selector-responsable]").QuerySelectorAll("option").Select(o => o.TextContent.Trim())
             .Should().Equal("Sin responsable", "Ana Admin", "Berta Dirección", "Carla Coordinadora", "Diego Gestor");
-        var consulta = mediador.ConsultasElegibles.Should().ContainSingle().Subject;
-        consulta.ConexionIds.Should().Equal(buzon.Id);
-        consulta.CandidatoIds.Should().BeEquivalentTo(
-            [admin.Id, direccion.Id, coordinador.Id, gestorConCartera.Id, gestorSinCartera.Id],
-            "el universo son los cuatro roles que la regla puede aceptar, y Consulta no entra");
+        var pregunta = mediador.ConsultasElegibles.Should().ContainSingle().Subject;
+        pregunta.ConexionIds.Should().Equal(buzon.Id);
+        pregunta.CandidatoIds.Should().BeEquivalentTo(
+            [admin.Id, direccion.Id, coordinador.Id, gestorConCartera.Id, gestorSinCartera.Id, consulta.Id],
+            "el universo son todas las cuentas visibles: quién entra lo decide la regla del servidor, no un filtro por rol aquí");
+    }
+
+    /// <summary>
+    /// Hallazgo de la revisión r2: <c>ResponsableBuzonElegible</c> acepta a una cuenta de un Operador CAE externo por el rol
+    /// guardado de la vía heredada (Gestor CAE) aunque su rol de origen sea Consulta. Un selector que construyera su universo
+    /// por rol de origen no la preguntaría y no la ofrecería; aquí, si el servidor la da por elegible, aparece.
+    /// </summary>
+    /// <summary>
+    /// Hallazgo de la revisión r2: el pie no puede prometer que toda conversación nace asignada (queda sin asignar si no hay
+    /// Responsable o si deja de ser elegible) ni que sin Asignación de Cartera no se ve (Administrador y Dirección CAE sí ven).
+    /// </summary>
+    [Fact]
+    public void El_pie_dice_cuando_una_conversacion_queda_sin_asignar_y_quien_ve_sin_Asignacion_de_Cartera()
+    {
+        var cut = Renderizar(new MediadorBuzones { Conexiones = [Buzon("cae")] });
+
+        var pie = cut.Find(".pie-buzones").TextContent;
+        pie.Should().Contain("queda sin asignar si el buzón no tiene Responsable")
+            .And.Contain("Administrador y Dirección CAE ven las conversaciones sin necesitar una Asignación de Cartera")
+            .And.NotContain("nace asignada");
+    }
+
+    [Fact]
+    public void Una_cuenta_delegada_con_rol_de_origen_Consulta_que_el_servidor_acepta_aparece_en_el_selector()
+    {
+        var delegada = new CuentaVisibleEnRol(Guid.NewGuid(), "Gema Delegada", "gema@ejemplo.test", null);
+        var buzon = Buzon("cae");
+        var mediador = new MediadorBuzones { Conexiones = [buzon], Elegibles = [delegada.Id] };
+
+        var cut = Renderizar(mediador, cuentasPorRol: new Dictionary<string, IReadOnlyList<CuentaVisibleEnRol>>
+        {
+            [Roles.Consulta] = [delegada]
+        });
+
+        cut.Find("[data-testid=selector-responsable]").QuerySelectorAll("option").Select(o => o.TextContent.Trim())
+            .Should().Equal("Sin responsable", "Gema Delegada");
+        mediador.ConsultasElegibles.Should().ContainSingle().Which.CandidatoIds.Should().Equal(delegada.Id);
     }
 
     [Fact]

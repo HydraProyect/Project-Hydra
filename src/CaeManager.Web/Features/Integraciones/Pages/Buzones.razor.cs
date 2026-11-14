@@ -101,17 +101,16 @@ public partial class Buzones : CaeManager.Web.Components.PaginaIntegrableConfigu
     }
 
     /// <summary>
-    /// Las cuentas visibles con un rol que <see cref="ResponsableBuzonElegible"/> puede aceptar (Administrador, Dirección CAE,
-    /// Coordinador CAE y Gestor CAE). No es la regla, solo el universo sobre el que se pregunta: la decide el servidor.
+    /// Todas las cuentas visibles en el Tenant activo, sin filtrar por rol: el universo sobre el que se pregunta. Quién entra
+    /// lo decide solo <see cref="ResponsableBuzonElegible"/> en el servidor; un filtro por rol aquí sería una réplica de la regla
+    /// y dejaría fuera a quien ella acepta por otra vía (una cuenta de un Operador CAE externo con rol de origen Consulta y rol
+    /// guardado Gestor CAE en la vía heredada).
     /// </summary>
-    private async Task<IReadOnlyList<CuentaVisibleEnRol>> ObtenerCandidatosAsync(CancellationToken token)
-    {
-        var candidatos = new Dictionary<Guid, CuentaVisibleEnRol>();
-        foreach (var rol in new[] { Roles.Administrador, Roles.DireccionCae, Roles.CoordinadorCae, Roles.GestorCae })
-            foreach (var cuenta in await DirectorioUsuarios.ObtenerVisiblesEnRolAsync(rol, token))
-                candidatos.TryAdd(cuenta.Id, cuenta);
-        return candidatos.Values.OrderBy(c => c.NombreCompleto, StringComparer.CurrentCultureIgnoreCase).ToList();
-    }
+    private async Task<IReadOnlyList<CuentaVisibleEnRol>> ObtenerCandidatosAsync(CancellationToken token) =>
+        (await DirectorioUsuarios.ObtenerCuentasVisiblesAsync(token))
+            .DistinctBy(c => c.Id)
+            .OrderBy(c => c.NombreCompleto, StringComparer.CurrentCultureIgnoreCase)
+            .ToList();
 
     private async Task<IReadOnlyDictionary<Guid, IReadOnlySet<Guid>>> ObtenerElegiblesAsync(
         IReadOnlyList<ConexionIntegracionListaDto> conexiones, IReadOnlyList<CuentaVisibleEnRol> candidatos, CancellationToken token)

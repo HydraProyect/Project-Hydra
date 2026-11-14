@@ -103,7 +103,7 @@
     <value>No hem pogut carregar les bústies. Torna-ho a provar d&apos;aquí a uns minuts.</value>
   </data>
   <data name="PieBuzones" xml:space="preserve">
-    <value>Cada conversa neix assignada a la persona responsable de la seva bústia. Qui no té Assignació de Cartera sobre l&apos;Empresa de la bústia no en veu les converses.</value>
+    <value>Cada conversa nova s&apos;assigna al Responsable de la bústia; queda sense assignar si la bústia no té Responsable o si aquest ja no la pot atendre. Administrador i Direcció CAE veuen les converses sense necessitar una Assignació de Cartera; la resta de la gestió, segons la seva.</value>
   </data>
   <data name="ModalAcuseTitulo" xml:space="preserve">
     <value>Confirmació automàtica en rebre un correu</value>

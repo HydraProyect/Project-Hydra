@@ -10,9 +10,12 @@ namespace CaeManager.Application.Integraciones.Queries.ObtenerResponsablesElegib
 /// las mismas que aceptaría <c>FijarResponsableBuzonCommand</c>, porque la decide <see cref="ResponsableBuzonElegible"/>, la
 /// regla que aplican también ese comando y la ingesta. Alimenta el selector de Buzones, que así no ofrece a nadie que el
 /// servidor vaya a rechazar ni deja fuera, entre los candidatos que se le dan, a quien acepta (Administrador, Dirección CAE,
-/// Coordinador CAE y Gestor CAE según su cartera). El universo de candidatos lo pone quien consulta, por rol de origen: una
-/// cuenta delegada con otro rol de origen y un rol guardado de gestión no se ofrece. El comando sigue revalidando todo, incluida
-/// la visibilidad del Cliente empresarial del buzón, que esta consulta no repite: solo decide qué se ofrece.
+/// Coordinador CAE y Gestor CAE según su cartera). El universo de candidatos lo pone quien consulta, sin filtrar por rol: todas
+/// las cuentas visibles de su directorio, de modo que también entra la cuenta de un Operador CAE externo que la regla acepta por
+/// el rol guardado de la vía heredada. El buzón se acota igual que en el listado y en el comando: Microsoft 365, compartido,
+/// visible y con su Cliente empresarial dentro del alcance de quien consulta (su Asignación de Cartera, salvo quien ve el Tenant
+/// entero); fuera de ese alcance el buzón no aparece en el resultado. El comando sigue revalidando todo: esto solo decide qué
+/// se ofrece.
 /// </summary>
 /// <param name="ConexionIds">Buzones del listado que ya pidió quien consulta.</param>
 /// <param name="CandidatoIds">Cuentas que quien consulta ya ve en su directorio: esta consulta no descubre cuentas nuevas.</param>
@@ -21,8 +24,9 @@ public record ObtenerResponsablesElegiblesBuzonesQuery(
     : IRequest<IReadOnlyDictionary<Guid, IReadOnlySet<Guid>>>;
 
 /// <remarks>
-/// Un buzón que no existe, que no es de Microsoft 365, que es personal (responde siempre a su propietario) o que quien
-/// consulta no ve queda fuera del resultado, igual que en el comando. Quien no es Administrador no obtiene nada: la pantalla
+/// Un buzón que no existe, que no es de Microsoft 365, que es personal (responde siempre a su propietario), que quien
+/// consulta no ve o cuyo Cliente empresarial queda fuera de su alcance queda fuera del resultado, igual que en el comando: no
+/// se distingue de uno inexistente. Quien no es Administrador no obtiene nada: la pantalla
 /// no es una frontera de autorización y el selector solo es suyo.
 /// </remarks>
 public class ObtenerResponsablesElegiblesBuzonesQueryHandler(
@@ -46,6 +50,7 @@ public class ObtenerResponsablesElegiblesBuzonesQueryHandler(
             if (conexion is null
                 || conexion.Proveedor != ProveedorIntegracion.Microsoft365
                 || conexion.GestorPropietarioId is not null
+                || !await alcanceDatos.ClienteOpcionalVisibleAsync(conexion.ClienteId, cancellationToken)
                 || !await alcanceDatos.ConexionIntegracionVisibleAsync(conexion.Id, cancellationToken))
                 continue;
 

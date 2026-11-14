@@ -103,7 +103,7 @@
     <value>No pudimos cargar los buzones. Vuelve a intentarlo en unos minutos.</value>
   </data>
   <data name="PieBuzones" xml:space="preserve">
-    <value>Cada conversación nace asignada a la persona responsable de su buzón. Quien no tiene Asignación de Cartera sobre la Empresa del buzón no ve sus conversaciones.</value>
+    <value>Cada conversación nueva se asigna al Responsable del buzón; queda sin asignar si el buzón no tiene Responsable o si este ya no puede atenderla. Administrador y Dirección CAE ven las conversaciones sin necesitar una Asignación de Cartera; el resto de la gestión, según la suya.</value>
   </data>
   <data name="ModalAcuseTitulo" xml:space="preserve">
     <value>Acuse automático al recibir un correo</value>
