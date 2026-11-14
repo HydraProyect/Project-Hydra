@@ -781,7 +781,8 @@ public class ReclamacionEmpresaEmpleadoraTests
     // ---- Centro 360: la «última reclamación» del Cliente ve las dos vías ----
 
     private Task<UltimaReclamacionClienteDto?> UltimaDelCliente(AlcanceDatosServiceFalso? alcance = null) =>
-        new ObtenerUltimaReclamacionClienteQueryHandler(_reclamaciones, alcance ?? new AlcanceDatosServiceFalso(), Destinos())
+        new ObtenerUltimaReclamacionClienteQueryHandler(_reclamaciones, alcance ?? new AlcanceDatosServiceFalso(), Destinos(),
+                new CurrentUserServiceFalso(Guid.NewGuid(), "GestorCae"))
             .Handle(new ObtenerUltimaReclamacionClienteQuery(_cliente.Id), CancellationToken.None);
 
     [Fact]

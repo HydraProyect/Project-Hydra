@@ -18,8 +18,8 @@ namespace CaeManager.Web.Tests;
 /// D-23 y D-24 (lienzo «Documentos · listado sin pestañas», artboards Vista-rapida y Vista-rapida-estados): la pestaña
 /// Información de la vista rápida conserva lo que tenía main (datos, «Descargar PDF», «Renovar», «Reclamar») y gana «Ver» después
 /// de «Descargar PDF» y la sección «Plataformas CAE». Por rol: el menú «Acreditación ▾» es de quien escribe (Administrador,
-/// Gestor CAE); Consulta ve la sección con el motivo pero sin menú; el Usuario de Cliente ve el estado sin motivo ni menú, aunque
-/// el motivo llegara (el servidor ya no lo manda: ObtenerAcreditacionesDelDocumentoQueryTests).
+/// Gestor CAE); Consulta y el Usuario de Cliente ven la sección con el estado, sin motivo ni menú, aunque el motivo llegara (el
+/// servidor ya no se lo manda: ObtenerAcreditacionesDelDocumentoQueryTests; para Consulta, desde la decisión del 2026-11-14).
 /// </summary>
 public partial class DocumentoWorkspacePanelTests
 {
@@ -138,10 +138,16 @@ public partial class DocumentoWorkspacePanelTests
 
     // ------------------------------------------------------------- D-23: sección «Plataformas CAE»
 
+    /// <summary>
+    /// El motivo del historial de rechazos lo pintan solo los roles de <c>RolesComunicaciones.LecturaReclamaciones</c>
+    /// (decisión 2026-11-14): Consulta y el Usuario de Cliente ven la acreditación y su estado, no el motivo, aunque llegara.
+    /// </summary>
     [Theory]
     [InlineData(Roles.Administrador, true, true)]
+    [InlineData(Roles.DireccionCae, true, true)]
+    [InlineData(Roles.CoordinadorCae, true, true)]
     [InlineData(Roles.GestorCae, true, true)]
-    [InlineData(Roles.Consulta, false, true)]
+    [InlineData(Roles.Consulta, false, false)]
     [InlineData(Roles.Cliente, false, false)]
     public void La_seccion_Plataformas_CAE_muestra_cada_acreditacion_y_el_rol_decide_menu_y_motivo(string rol, bool veMenu, bool veMotivo)
     {
@@ -165,7 +171,7 @@ public partial class DocumentoWorkspacePanelTests
         if (veMotivo)
             motivos.Should().ContainSingle().Which.TextContent.Trim().Should().Be("Motivo: Documento ilegible, el escaneo está cortado por el borde");
         else
-            motivos.Should().BeEmpty("el Usuario de Cliente no ve el motivo aunque llegara");
+            motivos.Should().BeEmpty("Consulta y el Usuario de Cliente no ven el motivo aunque llegara");
 
         seccion.QuerySelectorAll("[data-menu-acreditacion]").Should().HaveCount(veMenu ? 2 : 0,
             "«Acreditación ▾» es de quien escribe; Consulta y el Usuario de Cliente leen");

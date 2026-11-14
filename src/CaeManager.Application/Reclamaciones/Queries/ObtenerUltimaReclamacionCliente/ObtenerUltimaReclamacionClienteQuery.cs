@@ -1,4 +1,5 @@
 using CaeManager.Application.Common;
+using CaeManager.Application.Documentos.SituacionEnCentro;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
 
@@ -15,6 +16,10 @@ namespace CaeManager.Application.Reclamaciones.Queries.ObtenerUltimaReclamacionC
 /// (2026-10-18), y devuelve la más reciente de las dos. Una reclamación de documentos de la propia Empresa contraparte es
 /// otro pendiente, con otros documentos y otros destinatarios, y no entra: la vía de la Empresa solo cuenta las que
 /// piden documentos de Trabajadores asignados a Centros de este Cliente, y solo de Empresas del alcance de gestión.
+///
+/// Es historial de reclamaciones: fuera de <c>SituacionDocumentosEnCentrosService.RolesQueLeenReclamaciones</c> (Consulta
+/// y Usuario de Cliente) devuelve null, aunque el Cliente sea visible (decisión 2026-11-14). La presentación tampoco la
+/// pregunta para esos roles.
 /// </summary>
 public record ObtenerUltimaReclamacionClienteQuery(Guid ClienteId) : IRequest<UltimaReclamacionClienteDto?>;
 
@@ -24,12 +29,16 @@ public record UltimaReclamacionClienteDto(Guid Id, DateTime FechaEnvioUtc, int T
 
 public class ObtenerUltimaReclamacionClienteQueryHandler(
     IReclamacionesQueryContext reclamacionesContext, IAlcanceDatosService alcanceDatos,
-    DestinoDeReclamacionesEnviadasService reclamacionesEnviadas)
+    DestinoDeReclamacionesEnviadasService reclamacionesEnviadas, ICurrentUserService currentUserService)
     : IRequestHandler<ObtenerUltimaReclamacionClienteQuery, UltimaReclamacionClienteDto?>
 {
     public async Task<UltimaReclamacionClienteDto?> Handle(
         ObtenerUltimaReclamacionClienteQuery request, CancellationToken cancellationToken)
     {
+        if (await currentUserService.ObtenerRolEfectivoAsync() is not { } rol
+            || !SituacionDocumentosEnCentrosService.RolesQueLeenReclamaciones.Contains(rol))
+            return null;
+
         if (!await alcanceDatos.ClienteVisibleAsync(request.ClienteId, cancellationToken))
             return null;
 
