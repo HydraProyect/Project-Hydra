@@ -286,19 +286,44 @@ public class RepartoAdjuntosPanelTests : BunitContext
         mediador.De<AsignarAdjuntosLoteCommand>().Single().Adjuntos.Select(a => a.AdjuntoId).Should().Equal(adjunto.Id);
     }
 
+    [Theory]
+    [InlineData(Roles.Consulta, EstadoRepartoAdjunto.Pendiente)]
+    [InlineData(Roles.GestorCae, EstadoRepartoAdjunto.Asignado)]
+    public void El_aviso_de_selectores_solo_sale_si_hay_algo_que_la_persona_podria_asignar(string rol, EstadoRepartoAdjunto estado)
+    {
+        var mediador = Preparar(rol, Adj("doc.pdf", trabajador: Marta, tipo: TipoDniTrabajador, estado: estado));
+        mediador.SelectoresFallan.Add(typeof(ObtenerTrabajadoresParaSelectorQuery));
+
+        var cut = Pintar();
+
+        cut.WaitForAssertion(() => cut.FindAll(".adjb").Should().HaveCount(1));
+        cut.FindAll("[data-selectores]").Should().BeEmpty();
+    }
+
     [Fact]
     public void Un_destino_que_no_esta_en_el_selector_no_queda_listo_y_pide_elegir_uno_de_la_lista()
     {
         // Los selectores se leen bien, pero el destino propuesto no está en la cartera que ofrecen: tampoco se puede nombrar.
-        Preparar(Roles.GestorCae, Adj("doc.pdf", trabajador: Guid.NewGuid(), tipo: TipoDniTrabajador));
+        var nuevo = Guid.NewGuid();
+        var mediador = Preparar(Roles.GestorCae, Adj("doc.pdf", trabajador: nuevo, tipo: TipoDniTrabajador));
         var cut = Pintar();
         cut.WaitForAssertion(() => cut.FindAll(".adjb").Should().HaveCount(1));
+        // Sin fecha, lo que le falta no es la fecha sino un destino que se pueda nombrar: no cuenta entre los que esperan fecha.
+        Texto(cut).Should().NotContain("espera su fecha de emisión");
         EscribirEmision(cut, "doc.pdf", "2026-03-01");
 
         cut.FindAll("[data-selectores]").Should().BeEmpty("no falló ningún selector: no hay nada que reintentar");
         cut.Find(".adjb-e").TextContent.Trim().Should().Be("Revisar");
         Texto(cut).Should().Contain("Destino actual").And.Contain("elige uno de la lista para poder asignarlo");
         cut.Find(".adjb-p .boton-primario").HasAttribute("disabled").Should().BeTrue();
+
+        // El Trabajador entra en la cartera después de abrir el hilo: la recarga siguiente vuelve a leer los selectores y lo nombra.
+        mediador.Trabajadores.Add(new(nuevo, "Lucía Mora", null, null));
+        cut.Render(p => p.Add(x => x.Recarga, new object()));
+
+        cut.WaitForAssertion(() => cut.Find(".adjb-e").TextContent.Trim().Should().Be("Listo"));
+        Texto(cut).Should().Contain("Lucía Mora");
+        cut.Find(".adjb-p .boton-primario").HasAttribute("disabled").Should().BeFalse();
     }
 
     // ---------- Por rol ----------

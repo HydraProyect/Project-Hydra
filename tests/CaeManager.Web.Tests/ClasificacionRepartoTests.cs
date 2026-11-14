@@ -16,6 +16,12 @@ public class ClasificacionRepartoTests
         EstadoRepartoAdjunto estado = EstadoRepartoAdjunto.Pendiente, Guid? trabajador = null, Guid? empresa = null, Guid? tipo = null) =>
         new(Guid.NewGuid(), Guid.NewGuid(), "doc.pdf", "application/pdf", 10, estado, trabajador, empresa, tipo, null, null, null, null);
 
+    // Con el destino y el tipo nombrables, que es lo que fija cada test salvo el de los nombres desconocidos.
+    private static SituacionAdjunto Situacion(AdjuntoRepartoDto adjunto, EdicionAdjunto edicion) =>
+        ClasificacionReparto.Situacion(adjunto, edicion, nombresConocidos: true);
+
+    private static FilaReparto Fila(AdjuntoRepartoDto adjunto, EdicionAdjunto edicion) => new(adjunto, edicion, NombresConocidos: true);
+
     private static EdicionAdjunto Fechas(string emision = "", string vencimiento = "", bool noCaduca = false) =>
         new() { FechaEmision = emision, FechaVencimiento = vencimiento, NoCaduca = noCaduca };
 
@@ -38,7 +44,7 @@ public class ClasificacionRepartoTests
     [Fact]
     public void Sin_destino_el_adjunto_pendiente_esta_sin_destino_aunque_tenga_tipo_y_fechas()
     {
-        ClasificacionReparto.Situacion(Adjunto(tipo: Guid.NewGuid()), Fechas("2026-01-05"))
+        Situacion(Adjunto(tipo: Guid.NewGuid()), Fechas("2026-01-05"))
             .Should().Be(SituacionAdjunto.SinDestino);
     }
 
@@ -46,9 +52,9 @@ public class ClasificacionRepartoTests
     public void Con_destino_pero_sin_tipo_o_sin_fecha_de_emision_hay_que_revisarlo()
     {
         var trabajador = Guid.NewGuid();
-        ClasificacionReparto.Situacion(Adjunto(trabajador: trabajador), Fechas("2026-01-05")).Should().Be(SituacionAdjunto.PorRevisar);
-        ClasificacionReparto.Situacion(Adjunto(trabajador: trabajador, tipo: Guid.NewGuid()), Fechas()).Should().Be(SituacionAdjunto.PorRevisar);
-        ClasificacionReparto.Situacion(Adjunto(trabajador: trabajador, tipo: Guid.NewGuid()), Fechas("no es fecha")).Should().Be(SituacionAdjunto.PorRevisar);
+        Situacion(Adjunto(trabajador: trabajador), Fechas("2026-01-05")).Should().Be(SituacionAdjunto.PorRevisar);
+        Situacion(Adjunto(trabajador: trabajador, tipo: Guid.NewGuid()), Fechas()).Should().Be(SituacionAdjunto.PorRevisar);
+        Situacion(Adjunto(trabajador: trabajador, tipo: Guid.NewGuid()), Fechas("no es fecha")).Should().Be(SituacionAdjunto.PorRevisar);
     }
 
     [Fact]
@@ -64,9 +70,9 @@ public class ClasificacionRepartoTests
     [Fact]
     public void Con_destino_tipo_y_fechas_validas_esta_listo_tambien_para_una_empresa()
     {
-        ClasificacionReparto.Situacion(Adjunto(trabajador: Guid.NewGuid(), tipo: Guid.NewGuid()), Fechas("2026-01-05", "2027-01-05"))
+        Situacion(Adjunto(trabajador: Guid.NewGuid(), tipo: Guid.NewGuid()), Fechas("2026-01-05", "2027-01-05"))
             .Should().Be(SituacionAdjunto.Listo);
-        ClasificacionReparto.Situacion(Adjunto(empresa: Guid.NewGuid(), tipo: Guid.NewGuid()), Fechas("2026-01-05", noCaduca: true))
+        Situacion(Adjunto(empresa: Guid.NewGuid(), tipo: Guid.NewGuid()), Fechas("2026-01-05", noCaduca: true))
             .Should().Be(SituacionAdjunto.Listo);
     }
 
@@ -81,7 +87,7 @@ public class ClasificacionRepartoTests
         contradictorias.FechasValidas.Should().BeFalse();
         contradictorias.FechasContradictorias.Should().BeTrue();
 
-        ClasificacionReparto.Situacion(Adjunto(trabajador: Guid.NewGuid(), tipo: Guid.NewGuid()), contradictorias)
+        Situacion(Adjunto(trabajador: Guid.NewGuid(), tipo: Guid.NewGuid()), contradictorias)
             .Should().Be(SituacionAdjunto.PorRevisar);
     }
 
@@ -100,7 +106,7 @@ public class ClasificacionRepartoTests
     [InlineData(EstadoRepartoAdjunto.Dividido, SituacionAdjunto.Dividido)]
     public void Lo_ya_resuelto_conserva_su_estado_guardado_con_independencia_del_destino(EstadoRepartoAdjunto estado, SituacionAdjunto esperada)
     {
-        ClasificacionReparto.Situacion(Adjunto(estado), Fechas()).Should().Be(esperada);
+        Situacion(Adjunto(estado), Fechas()).Should().Be(esperada);
     }
 
     [Fact]
@@ -110,12 +116,12 @@ public class ClasificacionRepartoTests
         var tipo = Guid.NewGuid();
         var filas = new List<FilaReparto>
         {
-            new(Adjunto(trabajador: trabajador, tipo: tipo), Fechas("2026-01-05")),
-            new(Adjunto(trabajador: trabajador, tipo: tipo), Fechas("2026-01-06")),
-            new(Adjunto(trabajador: trabajador), Fechas()),
-            new(Adjunto(), Fechas()),
-            new(Adjunto(EstadoRepartoAdjunto.Asignado), Fechas()),
-            new(Adjunto(EstadoRepartoAdjunto.Rechazado), Fechas())
+            Fila(Adjunto(trabajador: trabajador, tipo: tipo), Fechas("2026-01-05")),
+            Fila(Adjunto(trabajador: trabajador, tipo: tipo), Fechas("2026-01-06")),
+            Fila(Adjunto(trabajador: trabajador), Fechas()),
+            Fila(Adjunto(), Fechas()),
+            Fila(Adjunto(EstadoRepartoAdjunto.Asignado), Fechas()),
+            Fila(Adjunto(EstadoRepartoAdjunto.Rechazado), Fechas())
         };
 
         var resumen = ClasificacionReparto.Resumir(filas);
@@ -130,9 +136,9 @@ public class ClasificacionRepartoTests
     public void La_cola_uno_a_uno_lleva_primero_lo_que_pide_decision_con_destino_despues_lo_que_no_lo_tiene_y_no_incluye_lo_listo()
     {
         var trabajador = Guid.NewGuid();
-        var sinDestino = new FilaReparto(Adjunto(), Fechas());
-        var revisar = new FilaReparto(Adjunto(trabajador: trabajador), Fechas());
-        var listo = new FilaReparto(Adjunto(trabajador: trabajador, tipo: Guid.NewGuid()), Fechas("2026-01-05"));
+        var sinDestino = Fila(Adjunto(), Fechas());
+        var revisar = Fila(Adjunto(trabajador: trabajador), Fechas());
+        var listo = Fila(Adjunto(trabajador: trabajador, tipo: Guid.NewGuid()), Fechas("2026-01-05"));
 
         ClasificacionReparto.Cola([sinDestino, listo, revisar])
             .Should().Equal(revisar.Adjunto.Id, sinDestino.Adjunto.Id);
@@ -142,8 +148,8 @@ public class ClasificacionRepartoTests
     public void Abierta_desde_la_fila_de_un_listo_la_cola_empieza_por_ese_adjunto()
     {
         var trabajador = Guid.NewGuid();
-        var revisar = new FilaReparto(Adjunto(trabajador: trabajador), Fechas());
-        var listo = new FilaReparto(Adjunto(trabajador: trabajador, tipo: Guid.NewGuid()), Fechas("2026-01-05"));
+        var revisar = Fila(Adjunto(trabajador: trabajador), Fechas());
+        var listo = Fila(Adjunto(trabajador: trabajador, tipo: Guid.NewGuid()), Fechas("2026-01-05"));
 
         ClasificacionReparto.Cola([revisar, listo], listo.Adjunto.Id)
             .Should().Equal(listo.Adjunto.Id, revisar.Adjunto.Id);

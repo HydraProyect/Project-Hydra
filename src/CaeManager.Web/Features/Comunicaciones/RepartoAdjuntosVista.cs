@@ -90,9 +90,10 @@ public sealed class EdicionAdjunto
 /// <summary>
 /// Un adjunto del hilo con lo que la persona lleva escrito sobre él. <paramref name="NombresConocidos"/> dice si el destino y el
 /// tipo que tiene se pueden mostrar por su nombre (están en los selectores que la pantalla leyó): si no, la persona no sabría a
-/// quién ni como qué se daría de alta el Documento, y el adjunto no puede estar «Listo».
+/// quién ni como qué se daría de alta el Documento, y el adjunto no puede estar «Listo». Es obligatorio a propósito: un valor por
+/// defecto dejaría la guarda abierta a quien construyera la fila sin pensar en ello.
 /// </summary>
-public sealed record FilaReparto(AdjuntoRepartoDto Adjunto, EdicionAdjunto Edicion, bool NombresConocidos = true)
+public sealed record FilaReparto(AdjuntoRepartoDto Adjunto, EdicionAdjunto Edicion, bool NombresConocidos)
 {
     public bool TieneDestino => Adjunto.DestinoTrabajadorId is not null || Adjunto.DestinoEmpresaId is not null;
     public bool Pendiente => Adjunto.Estado == EstadoRepartoAdjunto.Pendiente;
@@ -117,7 +118,7 @@ public static class ClasificacionReparto
     /// Falso si el destino o el tipo no se pueden mostrar por su nombre (un selector no se pudo leer, o el valor no está en él):
     /// lo que no se puede identificar no se aprueba, así que el adjunto se queda «Revisar» aunque tenga todo lo demás.
     /// </param>
-    public static SituacionAdjunto Situacion(AdjuntoRepartoDto adjunto, EdicionAdjunto edicion, bool nombresConocidos = true) => adjunto.Estado switch
+    public static SituacionAdjunto Situacion(AdjuntoRepartoDto adjunto, EdicionAdjunto edicion, bool nombresConocidos) => adjunto.Estado switch
     {
         EstadoRepartoAdjunto.Asignado => SituacionAdjunto.Asignado,
         EstadoRepartoAdjunto.Rechazado => SituacionAdjunto.Rechazado,

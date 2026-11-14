@@ -63,9 +63,10 @@
                 <button type="button" class="tx-b" disabled="@_ocupado" @onclick="ReintentarCargaAsync">@Textos["Reintentar"]</button>
             </div>
         }
-        else if (_selectorFallo)
+        else if (_selectorFallo && enCurso && _puedeEscribir)
         {
-            @* Sin los nombres de destino y tipo no se sabe qué se aprobaría: esas filas no están listas hasta leerlos. *@
+            @* Sin los nombres de destino y tipo no se sabe qué se aprobaría: esas filas no están listas hasta leerlos. Sin nada
+               pendiente, o sin poder escribir, no hay nada que asignar y el aviso solo confundiría. *@
             <div class="adjb-aviso adjb-aviso-bloque" role="alert" data-selectores="fallo">
                 <span>@Textos["ErrorSelectores"]</span>
                 <button type="button" class="tx-b" disabled="@_ocupado" @onclick="ReintentarCargaAsync">@Textos["Reintentar"]</button>
@@ -238,10 +239,13 @@ else if (_errorCarga is not null)
             if (conversacionId != ConversacionId || generacion != _generacionCarga) return;
 
             if (adjuntos.Count > 0 && !_selectoresCargados)
-                await CargarSelectoresAsync(conversacionId);
+                await CargarSelectoresAsync(conversacionId, generacion);
             if (conversacionId != ConversacionId || generacion != _generacionCarga) return;
 
             _filas = adjuntos.Select(a => new FilaReparto(a, EdicionDe(a.Id), NombresConocidos(a))).ToList();
+            // Un destino o un tipo que no está en los selectores pudo crearse o proponerse después de leerlos: se releen en la
+            // próxima carga (la de después de una acción, la de «Reintentar» o la recarga del hilo) en vez de esperar a cambiar de hilo.
+            if (_filas.Any(f => f.Pendiente && !f.NombresConocidos)) _selectoresCargados = false;
             _errorCarga = null;
             // Sin filas pendientes, o con el adjunto en foco ya fuera de la lista, no hay nada que mostrar «uno a uno»: se vuelve a la lista.
             if (_enFoco && (!_filas.Any(f => f.Pendiente) || FilaEnFoco is null)) _enFoco = false;
@@ -266,14 +270,33 @@ else if (_errorCarga is not null)
     // Los desplegables de destino y tipo salen de los selectores del resto de la aplicación, que ya acotan por cartera y Tenant. Si
     // alguno no se puede leer, el reparto se ve igual (el destino se nombra como «Destino actual» y no se ofrece cambiarlo), pero
     // lo que no se puede nombrar no queda «Listo» (NombresConocidos) y se avisa con «Reintentar».
-    private async Task CargarSelectoresAsync(Guid conversacionId)
+    private async Task CargarSelectoresAsync(Guid conversacionId, int generacion)
     {
-        _selectorFallo = false;
-        _trabajadores = await LeerOVacioAsync(() => Mediator.Send(new ObtenerTrabajadoresParaSelectorQuery(AlcanceSelectorTrabajadores.Cartera)), conversacionId);
+        var fallo = false;
+        async Task<IReadOnlyList<T>> LeerOVacioAsync<T>(Func<Task<IReadOnlyList<T>>> lectura)
+        {
+            try { return await lectura(); }
+            catch (Exception ex) when (ex is not OperationCanceledException)
+            {
+                Logger.LogError(ex, "Error al leer un selector del reparto de adjuntos de la conversación {ConversacionId}.", conversacionId);
+                fallo = true;
+                return [];
+            }
+        }
+
+        var trabajadores = await LeerOVacioAsync(() => Mediator.Send(new ObtenerTrabajadoresParaSelectorQuery(AlcanceSelectorTrabajadores.Cartera)));
         // Las Empresas propias que la persona gestiona (su cartera), sin acotar al Cliente empresarial del hilo: el destino de un
         // Documento es la Empresa que lo aporta, y el comando de fijar destino vuelve a comprobar su alcance en el servidor.
-        _empresas = await LeerOVacioAsync(() => Mediator.Send(new ObtenerEmpresasParaSelectorQuery()), conversacionId);
-        var tipos = await LeerOVacioAsync(() => Mediator.Send(new ObtenerTiposDocumentoQuery(ParaAltaNueva: true)), conversacionId);
+        var empresas = await LeerOVacioAsync(() => Mediator.Send(new ObtenerEmpresasParaSelectorQuery()));
+        var tipos = await LeerOVacioAsync(() => Mediator.Send(new ObtenerTiposDocumentoQuery(ParaAltaNueva: true)));
+
+        // Una lectura que ya no es la última (empezó otra después, o se cambió de conversación) no pisa los selectores: si acabara
+        // fallando tras otra que fue bien, dejaría filas «Listo» construidas con nombres que ya no se ven.
+        if (conversacionId != ConversacionId || generacion != _generacionCarga) return;
+
+        _selectorFallo = fallo;
+        _trabajadores = trabajadores;
+        _empresas = empresas;
         _tipos = tipos.Where(t => t.AmbitoAplicacion is AmbitoAplicacion.Trabajador or AmbitoAplicacion.Empresa).ToList();
 
         // La etiqueta de cada Trabajador sale del único constructor de etiquetas de selector, que desempata a los homónimos
@@ -285,18 +308,7 @@ else if (_errorCarga is not null)
 
         // Si alguna lectura falló, no se da por cargado: se reintenta en la siguiente recarga en vez de dejar todos los destinos
         // como «Destino actual» hasta cambiar de conversación.
-        _selectoresCargados = !_selectorFallo;
-    }
-
-    private async Task<IReadOnlyList<T>> LeerOVacioAsync<T>(Func<Task<IReadOnlyList<T>>> lectura, Guid conversacionId)
-    {
-        try { return await lectura(); }
-        catch (Exception ex) when (ex is not OperationCanceledException)
-        {
-            Logger.LogError(ex, "Error al leer un selector del reparto de adjuntos de la conversación {ConversacionId}.", conversacionId);
-            _selectorFallo = true;
-            return [];
-        }
+        _selectoresCargados = !fallo;
     }
 
     private EdicionAdjunto EdicionDe(Guid adjuntoId)
