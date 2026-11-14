@@ -1,14 +1,16 @@
 # Queries de Application cuyo Handle no alcanza ninguna comprobacion de cartera de IAlcanceDatosService
-# (LlamadaAlAlcanceDeCarteraEnLecturaTests). Medida el 2026-11-14 sobre origin/main e3bee6554: 112 de 291.
+# (LlamadaAlAlcanceDeCarteraEnLecturaTests). Medida el 2026-11-14 sobre origin/main e3bee6554: 112 de 292
+# (291 IRequestHandler y 1 IStreamRequestHandler, que llama).
 #
-# Estar aqui NO es un aval. Muchas entradas son legitimas (datos del propio usuario, catalogo o configuracion
-# del Tenant, plano de Plataforma o de Operador CAE, agregado del Tenant entero tras AlcanzaElTenantEnteroAsync,
-# Query que solo compone otras por el mediador) y alguna es deuda conocida. La clasificacion de cada entrada
-# vive en el inventario de seguridad del repositorio de negocio (2026-11-14), no aqui.
+# Estar aqui NO es un aval: es una medida, no una clasificacion. Los motivos tipicos de una entrada son datos
+# del propio usuario, catalogo o configuracion del Tenant, plano de Plataforma o de Operador CAE, agregado del
+# Tenant entero tras AlcanzaElTenantEnteroAsync, o una Query que solo compone otras por el mediador. La
+# clasificacion de cada entrada vive en el repositorio de negocio, no aqui.
 #
-# La lista solo encoge. Una Query nueva que no llama a la comprobacion pone el test en rojo: lo correcto es
-# anadir la comprobacion y su test de Application con un usuario fuera de cartera. Si de verdad no aplica, la
-# linea nueva lleva encima un comentario '#' que diga que lee y quien decide en su lugar.
+# Una Query nueva que no llama a la comprobacion pone el test en rojo: lo correcto es anadir la comprobacion y
+# su test de Application con un usuario fuera de cartera. Si de verdad no aplica, la linea nueva deberia llevar
+# encima un comentario '#' que diga que lee y quien decide en su lugar (convencion de revision: el test no lo
+# impone, solo lo hace visible en el diff). Por la misma convencion, la lista solo deberia encoger.
 ApiKeys :: ObtenerClavesApiDeMiOrganizacionQueryHandler = 1
 ApiKeys :: ObtenerClavesApiQueryHandler = 1
 Asignaciones :: ObtenerTrabajadoresVisitaSinAsignacionQueryHandler = 1

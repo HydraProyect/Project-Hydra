@@ -15,16 +15,19 @@ namespace CaeManager.Architecture.Tests;
 /// con <see cref="AlcanceDeCarteraEnEscrituraTests"/> y <see cref="EscriturasSobreEntidadesConCarteraTests"/>
 /// en el constructor); la lectura no tenía ninguna fuera de los buzones
 /// (<see cref="AlcanceDeConversacionesYBuzonesTests"/>) y de la lectura Inbound
-/// (<see cref="ConsumidoresDelLectorInboundAcotadosTests"/>). Entre 2026-11-01 y 2026-11-14 varias PR
-/// necesitaron rondas de revisión porque a una Query le faltaba el filtro de cartera (p. ej. un selector
-/// de responsables sin <c>ClienteOpcionalVisibleAsync</c>). Esto convierte ese olvido en un rojo de CI.
+/// (<see cref="ConsumidoresDelLectorInboundAcotadosTests"/>), y la revisión de las PR encontraba a mano
+/// Queries a las que les faltaba el filtro de cartera. Esto convierte ese olvido en un rojo de CI.
 /// </para>
 ///
 /// <para>
-/// <b>Población.</b> Todos los handlers de Application cuya petición no es un comando de escritura
-/// (<see cref="ICommandBase"/>), en cualquier carpeta: a diferencia de la red de escritura, no se deriva
-/// de qué carpetas inyectan el alcance, para que una Query nueva en una carpeta sin cartera hoy (Auditoría,
-/// Tenants…) que empiece a leer Trabajadores o Documentos también se vea.
+/// <b>Población.</b> Todos los handlers de petición de Application (<see cref="IRequestHandler{TRequest,TResponse}"/>,
+/// <see cref="IRequestHandler{TRequest}"/> y <see cref="IStreamRequestHandler{TRequest,TResponse}"/>) cuya petición
+/// no es un comando de escritura (<see cref="ICommandBase"/>), en cualquier carpeta: a diferencia de la red de
+/// escritura, no se deriva de qué carpetas inyectan el alcance, para que una Query nueva en una carpeta sin
+/// cartera hoy (Auditoría, Tenants…) que empiece a leer Trabajadores o Documentos también se vea. Una clase que
+/// atiende varias peticiones se mide por cada <c>Handle</c>. Si Application empieza a implementar otra
+/// interfaz de MediatR, <see cref="Application_no_implementa_interfaces_de_MediatR_que_la_medida_no_mira"/>
+/// se pone en rojo para que se decida si entra en la población.
 /// </para>
 ///
 /// <para>
@@ -39,11 +42,12 @@ namespace CaeManager.Architecture.Tests;
 /// <b>La lista.</b> <c>Congelados/Queries-sin-comprobacion-de-cartera.txt</c>, una línea por handler que no
 /// llama (<c>Característica :: Handler = 1</c>). Una Query nueva que no llama sale <c>NUEVA</c>; una que
 /// pierde la llamada, también; una listada que empieza a llamar, o que se borra, sale <c>OBSOLETA</c> y
-/// obliga a quitar la línea. Estar en la lista <b>no</b> es un aval: muchas entradas son legítimas (datos
-/// del propio usuario, catálogo del Tenant, plano de Plataforma o de Operador CAE, agregado del Tenant entero
-/// tras <c>AlcanzaElTenantEnteroAsync</c>, delegación por el mediador en otra Query que sí comprueba) y
-/// alguna es deuda conocida; la clasificación de cada una vive en el inventario de seguridad de
-/// <c>Project-Hydra-Negocio</c> del 2026-11-14.
+/// obliga a quitar la línea. Estar en la lista <b>no</b> es un aval: es una medida, no una clasificación
+/// (los motivos típicos de una entrada son datos del propio usuario, catálogo del Tenant, plano de Plataforma
+/// o de Operador CAE, agregado del Tenant entero tras <c>AlcanzaElTenantEnteroAsync</c>, o delegación por el
+/// mediador en otra Query que sí comprueba); la clasificación de cada una vive en <c>Project-Hydra-Negocio</c>.
+/// Que una línea nueva lleve su motivo y que la lista solo encoja es convención de revisión: el test lo hace
+/// visible en el diff, no lo impone.
 /// </para>
 ///
 /// <para>
@@ -99,16 +103,58 @@ public class LlamadaAlAlcanceDeCarteraEnLecturaTests
     [Fact]
     public void El_criterio_de_llamar_es_el_de_la_red_de_escritura()
     {
-        var metodos = LlamadaAlAlcanceDeCarteraEnEscrituraTests.MetodosQueComprueban().Select(m => m.Name).ToHashSet();
+        var compartido = LlamadaAlAlcanceDeCarteraEnEscrituraTests.MetodosQueComprueban();
 
-        metodos.Should().Contain(nameof(IAlcanceDatosService.ObtenerClienteIdsVisiblesAsync))
+        // La medida guarda el criterio con el que midió: si Medir dejara de usar el compartido (un conjunto más
+        // estrecho daría NUEVAS falsas que alguien taparía añadiendo líneas), esto lo dice.
+        MedidaActual.Value.Criterio.Should().BeEquivalentTo(compartido.Select(ClaveMetodo.De),
+            "la red de lectura mide «llama» con el mismo criterio que la red de escritura");
+
+        var nombres = compartido.Select(m => m.Name).ToHashSet();
+        nombres.Should().Contain(nameof(IAlcanceDatosService.ObtenerClienteIdsVisiblesAsync))
             .And.Contain(nameof(IAlcanceDatosService.ObtenerTrabajadorIdsVisiblesAsync));
-        metodos.Should().NotContain(
+        nombres.Should().NotContain(
             new[] { nameof(IAlcanceDatosService.TieneAccesoTotalAsync), nameof(IAlcanceDatosService.AlcanzaElTenantEnteroAsync) },
             "decir que el rol lo ve todo no decide sobre ninguna fila: una Query que solo pregunta eso no comprueba la cartera");
     }
 
-    private sealed record Medida(int Total, int Llaman, IReadOnlyList<Ubicacion> NoLlaman, IReadOnlySet<string> CaracteristicasQueLlaman);
+    /// <summary>Interfaces de handler de petición que la medida recorre.</summary>
+    private static readonly Type[] InterfacesDePeticion =
+        [typeof(IRequestHandler<,>), typeof(IRequestHandler<>), typeof(IStreamRequestHandler<,>)];
+
+    /// <summary>
+    /// Interfaces genéricas de MediatR que Application puede implementar sin ser un handler de petición:
+    /// eventos y tuberías, que no responden a una Query, y los contratos de la propia petición.
+    /// </summary>
+    private static readonly Type[] InterfacesDeMediatRFueraDeLaPoblacion =
+    [
+        typeof(IRequest<>), typeof(IStreamRequest<>),
+        typeof(INotificationHandler<>), typeof(IPipelineBehavior<,>), typeof(IStreamPipelineBehavior<,>),
+        typeof(MediatR.Pipeline.IRequestPreProcessor<>), typeof(MediatR.Pipeline.IRequestPostProcessor<,>),
+        typeof(MediatR.Pipeline.IRequestExceptionHandler<,,>), typeof(MediatR.Pipeline.IRequestExceptionAction<,>),
+    ];
+
+    [Fact]
+    public void Application_no_implementa_interfaces_de_MediatR_que_la_medida_no_mira()
+    {
+        var conocidas = InterfacesDePeticion.Concat(InterfacesDeMediatRFueraDeLaPoblacion).ToHashSet();
+
+        var desconocidas = ReflexionArquitecturaHelper.TiposDe(typeof(ICommand).Assembly)
+            .Where(t => t is { IsClass: true, IsAbstract: false })
+            .SelectMany(t => t.GetInterfaces()
+                .Where(i => i.IsGenericType && i.Namespace?.StartsWith("MediatR", StringComparison.Ordinal) == true)
+                .Where(i => !conocidas.Contains(i.GetGenericTypeDefinition()))
+                .Select(i => $"{t.FullName} : {i.GetGenericTypeDefinition().Name}"))
+            .Order(StringComparer.Ordinal);
+
+        string.Join("\n", desconocidas).Should().BeEmpty(
+            "un handler de una interfaz de MediatR que la medida no recorre quedaría fuera de la población sin que " +
+            "nada lo dijera: añádela a InterfacesDePeticion si atiende peticiones, o a las de fuera si no");
+    }
+
+    private sealed record Medida(
+        int Total, int Llaman, IReadOnlyList<Ubicacion> NoLlaman, IReadOnlySet<string> CaracteristicasQueLlaman,
+        IReadOnlyCollection<ClaveMetodo> Criterio);
 
     private static Medida Medir()
     {
@@ -119,12 +165,13 @@ public class LlamadaAlAlcanceDeCarteraEnLecturaTests
             typeof(CaeManager.Infrastructure.Persistence.CaeManagerDbContext).Assembly,
             ReflexionArquitecturaHelper.CargarAssembly("CaeManager.Web"),
         ]);
-        var alcanzan = grafo.QueAlcanzan(LlamadaAlAlcanceDeCarteraEnEscrituraTests.MetodosQueComprueban());
+        var criterio = LlamadaAlAlcanceDeCarteraEnEscrituraTests.MetodosQueComprueban();
+        var alcanzan = grafo.QueAlcanzan(criterio);
 
         var handlers = ReflexionArquitecturaHelper.TiposDe(application)
             .Where(t => t is { IsClass: true, IsAbstract: false })
             .SelectMany(t => t.GetInterfaces()
-                .Where(i => i.IsGenericType && i.GetGenericTypeDefinition() == typeof(IRequestHandler<,>))
+                .Where(i => i.IsGenericType && InterfacesDePeticion.Contains(i.GetGenericTypeDefinition()))
                 .Select(i => (Handler: t, Interfaz: i, Peticion: i.GetGenericArguments()[0])))
             .ToList();
 
@@ -158,6 +205,6 @@ public class LlamadaAlAlcanceDeCarteraEnLecturaTests
         }
 
         noLlaman.Should().OnlyHaveUniqueItems("la clave Característica :: Handler[Petición] tiene que ser única");
-        return new Medida(total, llaman, noLlaman, caracteristicasQueLlaman);
+        return new Medida(total, llaman, noLlaman, caracteristicasQueLlaman, criterio.Select(ClaveMetodo.De).ToList());
     }
 }
