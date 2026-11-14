@@ -25,8 +25,12 @@ namespace CaeManager.Application.Documentos.Queries.ObtenerAcreditacionesDelDocu
 /// lista vacía, así que ve el estado pero ni el motivo ni la dirección viajan en el DTO (decisión de Chris del 2026-11-12, opción B).
 /// El rol Consulta (de gestión en solo lectura, no de portal, por cualquier vía: Tenant de origen, Tenant beneficiario delegado por
 /// Asignación de Operación o delegación heredada) SÍ los recibe: regla operativa de la opción C (DECISION_LOG 2026-11-14, «Tanda 1
-/// de decisiones pendientes», punto 1). Lo anotado a mano en un cambio de estado (nota, motivo anotado a mano y autor) sigue la otra regla, la de
-/// trazabilidad interna (<c>SituacionDocumentosEnCentrosService.RolesQueLeenReclamaciones</c>), y Consulta no lo lee.
+/// de decisiones pendientes», punto 1). El <b>registro</b> de un cambio de estado anotado a mano (nota, motivo y autor) sigue la
+/// otra regla, la de trazabilidad interna (<c>SituacionDocumentosEnCentrosService.RolesQueLeenReclamaciones</c>), y Consulta no lo lee
+/// de ahí. Pero el motivo de un rechazo anotado a mano no queda solo en ese registro: <c>AcreditacionDocumentoPlataforma.CambiarEstadoAMano</c>
+/// lo añade también al historial de rechazos (causa «Otro», sin autor ni nota; la tabla no distingue el origen) y esta consulta lo lee
+/// de ahí como <c>UltimoMotivoRechazo</c> (<c>RechazosAcreditacionDocumentoPlataforma</c>, más abajo) para todo rol que no sea Cliente,
+/// Consulta incluido. Es el mismo historial que leen <c>ObtenerDocumentosQuery</c> y <c>ObtenerAcreditacionesPorProveedorQuery</c>.
 /// D-3: solo cambia qué se muestra; cada Command del menú «Acreditación ▾» comprueba su propia autorización.
 /// </para>
 /// </summary>

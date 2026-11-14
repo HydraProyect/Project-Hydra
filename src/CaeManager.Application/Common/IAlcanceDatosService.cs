@@ -108,18 +108,26 @@ public interface IAlcanceDatosService
     /// la que la sesión lo tiene (su Tenant de origen, un Tenant beneficiario
     /// delegado por Asignación de Operación o la delegación heredada del acceso
     /// de soporte; decide el rol efectivo), así que recibe
-    /// aquí su alcance normal y, con él, la información operativa: el motivo
-    /// literal de rechazo que devuelve la Plataforma CAE, la dirección del
-    /// portal (<c>UrlAcceso</c>) y las notas del canal. Para el rol Cliente
-    /// sigue vigente la decisión del 2026-11-12 («B: estado, sin motivo»).
-    /// La segunda regla, la de trazabilidad interna (la nota, el motivo anotado
-    /// a mano y el Gestor CAE autor de un cambio de estado anotado a mano), se
-    /// aplica en el servidor con
-    /// <c>SituacionDocumentosEnCentrosService.RolesQueLeenReclamaciones</c>; el
-    /// historial de reclamaciones enviadas no pasa por esa lista en el servidor
-    /// (sus Queries acotan por cartera, no por rol) y se le corta a Consulta en
-    /// la presentación; las reclamaciones sin respuesta de Inicio y la última
-    /// reclamación del Centro sí le llegan hoy (ver el comentario de esa lista).
+    /// aquí su alcance normal y, con él, la información operativa: el último
+    /// motivo de rechazo del historial de rechazos de la acreditación
+    /// (<c>UltimoMotivoRechazo</c>), la dirección del portal (<c>UrlAcceso</c>)
+    /// y las notas del canal. Para el rol Cliente sigue vigente la decisión del
+    /// 2026-11-12 («B: estado, sin motivo»).
+    /// La segunda regla, la de trazabilidad interna, se aplica en el servidor
+    /// con <c>SituacionDocumentosEnCentrosService.RolesQueLeenReclamaciones</c>
+    /// y corta solo el <b>registro</b> de un cambio de estado anotado a mano
+    /// (su nota, su motivo y el Gestor CAE autor). No corta el motivo de un
+    /// rechazo anotado a mano: <c>AcreditacionDocumentoPlataforma.CambiarEstadoAMano</c>
+    /// lo guarda también en el historial de rechazos (causa «Otro», sin autor ni
+    /// nota, sin distinguir su origen del de un rechazo de la Plataforma CAE), y
+    /// ese historial le llega a Consulta por la regla operativa de este método
+    /// (<c>ObtenerAcreditacionesDelDocumentoQuery</c>, <c>ObtenerDocumentosQuery</c>
+    /// y <c>ObtenerAcreditacionesPorProveedorQuery</c>, esta última en la pestaña
+    /// Plataformas de Empresa 360). El historial de reclamaciones enviadas no
+    /// pasa por esa lista en el servidor (sus Queries acotan por cartera, no por
+    /// rol) y se le corta a Consulta en la presentación; las reclamaciones sin
+    /// respuesta de Inicio y la última reclamación del Centro sí le llegan hoy
+    /// (ver el comentario de esa lista).
     /// Añadir Consulta al corte de este método o a esa lista cambia la regla
     /// de producto, no es un ajuste de implementación.
     /// </para>

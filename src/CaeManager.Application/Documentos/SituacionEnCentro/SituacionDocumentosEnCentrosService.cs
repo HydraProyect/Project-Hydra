@@ -93,13 +93,19 @@ public class SituacionDocumentosEnCentrosService(
     // motivo y el Gestor CAE de un cambio de estado anotado a mano en la plataforma (Centro 360, bloque 3 del 21-10).
     //
     // Regla de trazabilidad interna del rol Consulta (opción C, DECISION_LOG 2026-11-14, «Tanda 1 de decisiones
-    // pendientes», punto 1). Son DOS reglas por tipo de dato y no se unifican: (1) la información operativa (el motivo
-    // literal de rechazo que devuelve la Plataforma CAE, la dirección del portal y las notas del canal) la lee Consulta,
-    // porque la puerta es IAlcanceDatosService.ObtenerCentroIdsParaGestionAsync, que solo excluye al rol Cliente; (2) la
-    // trazabilidad interna, de la que Consulta queda fuera a propósito. Esta lista la aplica el servidor solo en tres
-    // puntos: la nota, el motivo y el Gestor CAE autor de un cambio anotado a mano (CargarAnotacionesAsync de este
-    // servicio y ObtenerCambiosEstadoPlataformaDeCentroQuery) y la última reclamación de los documentos de la situación,
-    // presentes o ausentes (CargarReclamacionesAsync). Las Queries de reclamaciones (ObtenerReclamacionesEnviadasQuery,
+    // pendientes», punto 1). Son DOS reglas por tipo de dato y no se unifican: (1) la información operativa (el último
+    // motivo de rechazo del historial de rechazos de la acreditación, la dirección del portal y las notas del canal) la
+    // lee Consulta, porque la puerta es IAlcanceDatosService.ObtenerCentroIdsParaGestionAsync, que solo excluye al rol
+    // Cliente; (2) la trazabilidad interna, de la que Consulta queda fuera solo en los puntos que enumera el siguiente
+    // párrafo, no en todo lo que un Gestor CAE deja anotado. Esta lista la aplica el servidor solo en tres
+    // puntos: la nota, el motivo y el Gestor CAE autor del REGISTRO de un cambio anotado a mano (CargarAnotacionesAsync de
+    // este servicio y ObtenerCambiosEstadoPlataformaDeCentroQuery) y la última reclamación de los documentos de la
+    // situación, presentes o ausentes (CargarReclamacionesAsync). El motivo de un rechazo anotado a mano NO queda solo en
+    // ese registro: AcreditacionDocumentoPlataforma.CambiarEstadoAMano lo añade también al historial de rechazos (causa
+    // «Otro», sin autor ni nota; no distingue su origen del de un rechazo de la Plataforma CAE), y de ahí le llega a
+    // Consulta como UltimoMotivoRechazo por ObtenerAcreditacionesDelDocumentoQuery, ObtenerDocumentosQuery y
+    // ObtenerAcreditacionesPorProveedorQuery (esta última, en la pestaña Plataformas de Empresa 360, FilasPlataformasEmpresa).
+    // Las Queries de reclamaciones (ObtenerReclamacionesEnviadasQuery,
     // ObtenerReclamacionesSinRespuestaQuery, ObtenerUltimaReclamacionClienteQuery) NO la comprueban: acotan por cartera,
     // no por rol. Solo el historial de reclamaciones enviadas se le corta a Consulta en la presentación
     // (Documentos.RolesDeGestionDocumental y RolesComunicaciones.LecturaReclamaciones; un test de la Web fija que esa

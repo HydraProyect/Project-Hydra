@@ -600,13 +600,16 @@ public class AlcanceDatosService(
         // Cliente. Consulta (rol de gestión en solo lectura, por cualquier vía:
         // su Tenant de origen, un Tenant beneficiario delegado por Asignación
         // de Operación o la delegación heredada del acceso de soporte) recibe
-        // el motivo de rechazo de la Plataforma CAE, la
-        // dirección del portal y las notas del canal. La nota, el motivo
-        // anotado a mano y el autor de un cambio de estado anotado a mano los
-        // corta otra regla, RolesQueLeenReclamaciones; el historial de
-        // reclamaciones enviadas no pasa por ella en el servidor y se le corta
-        // a Consulta en la presentación (detalle en el comentario de esa
-        // lista). No añadir Consulta a esta condición.
+        // el último motivo de rechazo del historial de rechazos de la
+        // acreditación, la dirección del portal y las notas del canal. Otra
+        // regla, RolesQueLeenReclamaciones, corta el registro de un cambio de
+        // estado anotado a mano (su nota, su motivo y su autor), pero no el
+        // historial de rechazos: CambiarEstadoAMano guarda ahí también el motivo
+        // de un rechazo anotado a mano, sin distinguirlo del que devuelve la
+        // Plataforma CAE, y por esta puerta le llega a Consulta. El historial
+        // de reclamaciones enviadas no pasa por esa lista en el servidor y se
+        // le corta a Consulta en la presentación (detalle en el comentario de
+        // esa lista). No añadir Consulta a esta condición.
         if (await currentUserService.ObtenerRolEfectivoAsync() == Roles.Cliente)
             return [];
 

@@ -34,9 +34,14 @@ public record CambioEstadoPlataformaCentroDto(
 /// <para>La nota, el motivo y quién lo anotó solo salen a los roles que leen las reclamaciones (mismo criterio que
 /// <c>SituacionDocumentosEnCentrosService</c>): el Usuario de Cliente del portal y Consulta ven el cambio sin ese detalle.
 /// Es la regla de <b>trazabilidad interna</b> del rol Consulta (opción C, DECISION_LOG 2026-11-14, «Tanda 1 de decisiones
-/// pendientes», punto 1): lo anotado a mano por un Gestor CAE (nota, motivo anotado a mano y autor) no se enseña a Consulta,
-/// mientras que el motivo de rechazo que devuelve la Plataforma CAE sí le llega por la regla operativa (<c>ObtenerCentroIdsParaGestionAsync</c>,
-/// ver <c>ObtenerAcreditacionesDelDocumentoQuery</c>). Son dos reglas por tipo de dato y no se unifican.</para>
+/// pendientes», punto 1), y el corte es sobre el <b>registro del cambio</b>: la nota, el motivo y el Gestor CAE autor de un
+/// cambio de estado anotado a mano no se enseñan a Consulta en esta sección ni en las anotaciones de la situación del Centro.
+/// No es un corte del dato: cuando el cambio anotado a mano es un rechazo, <c>AcreditacionDocumentoPlataforma.CambiarEstadoAMano</c>
+/// guarda ese mismo motivo también en el historial de rechazos (causa «Otro», sin autor ni nota; esa tabla no distingue si el
+/// rechazo lo devolvió la Plataforma CAE o se anotó a mano), y ese historial sí le llega a Consulta por la regla operativa
+/// (<c>ObtenerCentroIdsParaGestionAsync</c>) como <c>UltimoMotivoRechazo</c> de la acreditación rechazada: ver
+/// <c>ObtenerAcreditacionesDelDocumentoQuery</c>. Son dos reglas por tipo de dato y no se unifican, pero el motivo de un
+/// rechazo anotado a mano es legible para Consulta por esa otra vía; la nota y el autor, no.</para>
 /// </summary>
 public class ObtenerCambiosEstadoPlataformaDeCentroQueryHandler(
     IDocumentosQueryContext documentosContext, ICentrosQueryContext centrosContext,
