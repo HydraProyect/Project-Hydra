@@ -7,7 +7,9 @@ namespace CaeManager.Application.CatalogoBase.Queries;
 /// <summary>
 /// El catálogo base de Plataforma vigente (B-13): las Actividades activas con sus códigos oficiales y los riesgos
 /// activos con los requisitos de base activos que proponen. Es de solo lectura y el mismo para todos los Tenants; lo
-/// puede leer cualquier Usuario autenticado. Hasta que un técnico habilitado revise el contenido (CA-7), está vacío.
+/// lee la identidad de runtime (<c>cae_app_runtime</c>), con cualquier Tenant o sin él. Una Sesión Privilegiada de
+/// Soporte TALVEG (rol <c>cae_app_soporte</c>) no lo lee: la migración le revoca todo, igual que en FestivosOficiales.
+/// Hasta que un técnico habilitado revise el contenido (CA-7), está vacío.
 /// </summary>
 public record ObtenerCatalogoBaseQuery : IRequest<CatalogoBaseDto>;
 
