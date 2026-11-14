@@ -364,25 +364,38 @@ public class BuzonesAcuseAutomaticoTests : BunitContext
     }
 
     /// <summary>
+    /// Hallazgo de la revisión r2: el pie no puede prometer que toda conversación nace asignada (queda sin asignar si no hay
+    /// Responsable o si deja de ser elegible) ni que sin Asignación de Cartera no se ve (Administrador, Dirección CAE y
+    /// Consulta alcanzan toda la organización, <c>Roles.AlcanzaTodaLaOrganizacion</c>). En es y en ca-ES.
+    /// </summary>
+    [Theory]
+    [InlineData("es-ES", "queda sin asignar si el buzón no tiene Responsable",
+        "Administrador, Dirección CAE y Consulta ven las conversaciones sin necesitar una Asignación de Cartera", "nace asignada")]
+    [InlineData("ca-ES", "queda sense assignar si la bústia no té Responsable",
+        "Administrador, Direcció CAE i Consulta veuen les converses sense necessitar una Assignació de Cartera", "neix assignada")]
+    public void El_pie_dice_cuando_una_conversacion_queda_sin_asignar_y_quien_ve_sin_Asignacion_de_Cartera(
+        string cultura, string sinAsignar, string sinCartera, string afirmacionFalsa)
+    {
+        var anterior = System.Globalization.CultureInfo.CurrentUICulture;
+        System.Globalization.CultureInfo.CurrentUICulture = new System.Globalization.CultureInfo(cultura);
+        try
+        {
+            var cut = Renderizar(new MediadorBuzones { Conexiones = [Buzon("cae")] });
+
+            var pie = cut.Find(".pie-buzones").TextContent;
+            pie.Should().Contain(sinAsignar).And.Contain(sinCartera).And.NotContain(afirmacionFalsa);
+        }
+        finally
+        {
+            System.Globalization.CultureInfo.CurrentUICulture = anterior;
+        }
+    }
+
+    /// <summary>
     /// Hallazgo de la revisión r2: <c>ResponsableBuzonElegible</c> acepta a una cuenta de un Operador CAE externo por el rol
     /// guardado de la vía heredada (Gestor CAE) aunque su rol de origen sea Consulta. Un selector que construyera su universo
     /// por rol de origen no la preguntaría y no la ofrecería; aquí, si el servidor la da por elegible, aparece.
     /// </summary>
-    /// <summary>
-    /// Hallazgo de la revisión r2: el pie no puede prometer que toda conversación nace asignada (queda sin asignar si no hay
-    /// Responsable o si deja de ser elegible) ni que sin Asignación de Cartera no se ve (Administrador y Dirección CAE sí ven).
-    /// </summary>
-    [Fact]
-    public void El_pie_dice_cuando_una_conversacion_queda_sin_asignar_y_quien_ve_sin_Asignacion_de_Cartera()
-    {
-        var cut = Renderizar(new MediadorBuzones { Conexiones = [Buzon("cae")] });
-
-        var pie = cut.Find(".pie-buzones").TextContent;
-        pie.Should().Contain("queda sin asignar si el buzón no tiene Responsable")
-            .And.Contain("Administrador y Dirección CAE ven las conversaciones sin necesitar una Asignación de Cartera")
-            .And.NotContain("nace asignada");
-    }
-
     [Fact]
     public void Una_cuenta_delegada_con_rol_de_origen_Consulta_que_el_servidor_acepta_aparece_en_el_selector()
     {

@@ -37,8 +37,10 @@ public class ConexionIntegracion : EntidadBase
 
     /// <summary>
     /// Persona responsable de un buzón compartido: cada conversación nueva de correo nace asignada a ella
-    /// (decisión de 2026-11-01). Null en los buzones conectados antes de existir el campo, y siempre en el
-    /// buzón personal, cuya responsable es su <see cref="GestorPropietarioId"/>.
+    /// (decisión de 2026-11-01) si sigue pudiendo atenderla (<c>ResponsableBuzonElegible</c>, que la ingesta
+    /// revalida); si no, o si no hay responsable, la conversación nace sin asignar. Null en los buzones
+    /// conectados antes de existir el campo, y siempre en el buzón personal, cuya responsable es su
+    /// <see cref="GestorPropietarioId"/>.
     /// </summary>
     public Guid? ResponsableUsuarioId { get; private set; }
 

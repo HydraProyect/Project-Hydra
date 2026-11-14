@@ -26,9 +26,16 @@ public class ObtenerResponsablesElegiblesBuzonesQueryHandlerTests
 
     private sealed class DirectorioPorUsuario(IReadOnlyDictionary<Guid, DestinoCartera> destinos) : IDirectorioDestinosCartera
     {
-        public Task<DestinoCartera?> ObtenerAsync(Guid usuarioId, CancellationToken cancellationToken = default) =>
-            Task.FromResult(destinos.TryGetValue(usuarioId, out var destino) ? destino : null);
+        public int Lecturas { get; private set; }
+
+        public Task<DestinoCartera?> ObtenerAsync(Guid usuarioId, CancellationToken cancellationToken = default)
+        {
+            Lecturas++;
+            return Task.FromResult(destinos.TryGetValue(usuarioId, out var destino) ? destino : null);
+        }
     }
+
+    private DirectorioPorUsuario? _directorio;
 
     private sealed class EquipoVacio : IDirectorioEquipoCoordinador
     {
@@ -45,7 +52,7 @@ public class ObtenerResponsablesElegiblesBuzonesQueryHandlerTests
         new(_conexiones,
             alcance ?? new AlcanceDatosServiceFalso(conexionIntegracionVisible: buzonVisible),
             new ResponsableBuzonElegible(
-                new DirectorioPorUsuario(cuentas), new EquipoVacio(), new OperacionesEnMemoria([], []),
+                _directorio = new DirectorioPorUsuario(cuentas), new EquipoVacio(), new OperacionesEnMemoria([], []),
                 new EmpresasQueryContextFalso(), new TenantActualFijo(Tenant)),
             new CurrentUserServiceFalso(Guid.NewGuid(), rolActual));
 
@@ -197,5 +204,41 @@ public class ObtenerResponsablesElegiblesBuzonesQueryHandlerTests
             new ObtenerResponsablesElegiblesBuzonesQuery([buzon.Id], [delegada]), default);
 
         resultado[buzon.Id].Should().BeEquivalentTo(new[] { delegada });
+    }
+
+    /// <summary>
+    /// Coste: el universo son todas las cuentas visibles, portal y Consulta incluidas, así que cada cuenta se lee una vez para
+    /// todos los buzones, no una por buzón; y el resultado por buzón es el mismo que el de la evaluación de uno solo.
+    /// </summary>
+    [Fact]
+    public async Task Cada_cuenta_se_lee_una_vez_para_todos_los_buzones_con_el_mismo_resultado_que_buzon_a_buzon()
+    {
+        var admin = Guid.NewGuid();
+        var gestor = Guid.NewGuid();
+        var portal = Guid.NewGuid();
+        var cuentas = new Dictionary<Guid, DestinoCartera>
+        {
+            [admin] = Cuenta("Administrador"),
+            [gestor] = Cuenta("GestorCae"),
+            [portal] = Cuenta("Cliente")
+        };
+        var empresa = Guid.NewGuid();
+        var buzones = new[] { Buzon(), Buzon(empresa: empresa), Buzon(empresa: empresa) };
+        var handler = CrearHandler(cuentas);
+
+        var resultado = await handler.Handle(
+            new ObtenerResponsablesElegiblesBuzonesQuery(buzones.Select(b => b.Id).ToList(), [admin, gestor, portal]), default);
+
+        _directorio!.Lecturas.Should().Be(3, "una lectura por cuenta, no una por cuenta y buzón (serían 9)");
+        resultado[buzones[0].Id].Should().BeEquivalentTo(new[] { admin, gestor }, "triage: decide solo el rol");
+        resultado[buzones[1].Id].Should().BeEquivalentTo(new[] { admin }, "Gestor CAE sin cartera sobre la Empresa");
+        resultado[buzones[2].Id].Should().BeEquivalentTo(new[] { admin });
+
+        foreach (var buzon in buzones)
+        {
+            var uno = await CrearHandler(cuentas).Handle(
+                new ObtenerResponsablesElegiblesBuzonesQuery([buzon.Id], [admin, gestor, portal]), default);
+            uno[buzon.Id].Should().BeEquivalentTo(resultado[buzon.Id], "la evaluación conjunta no cambia la regla");
+        }
     }
 }

@@ -44,6 +44,7 @@ public class ObtenerResponsablesElegiblesBuzonesQueryHandler(
         var resultado = new Dictionary<Guid, IReadOnlySet<Guid>>();
         if (await currentUserService.ObtenerRolEfectivoAsync() != RolAdministrador) return resultado;
 
+        var buzones = new List<ConexionIntegracion>();
         foreach (var conexionId in request.ConexionIds.Distinct())
         {
             var conexion = await conexionRepositorio.ObtenerPorIdAsync(conexionId, cancellationToken);
@@ -54,15 +55,22 @@ public class ObtenerResponsablesElegiblesBuzonesQueryHandler(
                 || !await alcanceDatos.ConexionIntegracionVisibleAsync(conexion.Id, cancellationToken))
                 continue;
 
-            var elegibles = new HashSet<Guid>();
-            foreach (var candidato in request.CandidatoIds.Distinct())
-            {
-                if (await elegibilidad.EvaluarAsync(candidato, conexion, cancellationToken) is null)
-                    elegibles.Add(candidato);
-            }
-            resultado[conexionId] = elegibles;
+            buzones.Add(conexion);
         }
 
+        if (buzones.Count == 0) return resultado;
+
+        var elegibles = buzones.ToDictionary(b => b.Id, _ => new HashSet<Guid>());
+        // Una evaluación por cuenta para todos los buzones: la cuenta y su acceso se leen una vez, no una por buzón.
+        foreach (var candidato in request.CandidatoIds.Distinct())
+        {
+            foreach (var (buzonId, motivo) in await elegibilidad.EvaluarAsync(candidato, buzones, cancellationToken))
+            {
+                if (motivo is null) elegibles[buzonId].Add(candidato);
+            }
+        }
+
+        foreach (var (buzonId, cuentas) in elegibles) resultado[buzonId] = cuentas;
         return resultado;
     }
 }
