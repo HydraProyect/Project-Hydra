@@ -49,7 +49,7 @@ public class DatosPruebaSeederDeterminismoTests
             using (AmbitoTenantExplicito.Establecer(tenantId))
             {
                 var empresas = await contexto.Empresas.AsNoTracking().ToListAsync();
-                empresas.Should().HaveCount(41, "la siembra completa crea 9 Clientes empresariales, 24 Empresas contratistas y 8 Empresas con Nivel de servicio de Subcontrata");
+                empresas.Should().HaveCount(18, "la siembra completa crea 9 Clientes empresariales, la Empresa propia única (D-P11) y 8 Empresas con Nivel de servicio de Subcontrata");
                 foreach (var empresa in empresas)
                 {
                     empresa.Cif.Should().NotBeNullOrWhiteSpace($"{empresa.RazonSocial} debe poder editarse");
@@ -67,7 +67,7 @@ public class DatosPruebaSeederDeterminismoTests
     }
 
     /// <summary>
-    /// Smoke end-to-end a escala de producción (9 clientes / 24 empresas,
+    /// Smoke end-to-end a escala de producción (9 clientes / una Empresa propia,
     /// seed 20260803 fijo) — <b>NO es la red de seguridad del defecto 1</b>.
     /// Con ese seed concreto, la propiedad se cumple incluso mutando el
     /// arreglo hacia atrás (comprobado a mano): el sorteo de esa tanda en
@@ -116,16 +116,15 @@ public class DatosPruebaSeederDeterminismoTests
     }
 
     /// <summary>
-    /// A escala de producción (9 clientes / 24 empresas, seed 20260803) el
-    /// hueco es posible pero no garantizado — depende de la suerte del
-    /// sorteo. Esta prueba lo fuerza matemáticamente: 2 clientes que sortean
-    /// 5-10 empresas cada uno CADA UNO, contra un pool de 30, cubren como
-    /// mucho 20 — quedan al menos 10 sin cliente pase lo que pase con el
-    /// dado, así que la prueba no depende de qué seed le toque a
-    /// <see cref="Random"/> ni puede dar un falso verde por casualidad.
+    /// Defecto (3), ahora con una sola Empresa propia por Tenant (D-P11): con
+    /// semillas distintas de la de producción y más Trabajadores que Centros
+    /// (2 clientes, 4-6 Centros cada uno, 60 Trabajadores), el reparto en rueda
+    /// deja plantilla en todos los Centros y ninguno queda sin gente — sin
+    /// plantilla un Centro es invisible en cualquier pantalla Centro→Trabajador.
+    /// Además la siembra deja exactamente una Empresa propia con todo colgado de ella.
     /// </summary>
     [Fact]
-    public async Task Dos_siembras_con_pool_de_empresas_mayor_que_lo_que_los_clientes_pueden_cubrir_no_dejan_ninguna_sin_centro()
+    public async Task Dos_siembras_con_semillas_distintas_dejan_plantilla_en_todos_los_centros_de_la_unica_Empresa_propia()
     {
         await using var arnes = await ArnesDeArranqueRuntime.CrearAsync(datosDePruebaActivos: true);
 
@@ -145,23 +144,25 @@ public class DatosPruebaSeederDeterminismoTests
 
             using (AmbitoTenantExplicito.Establecer(tenantId))
             {
-                var empresaIds = await contexto.Empresas
-                    .Where(e => e.EsCritico == null && e.NivelServicio == null)
+                var propiaIds = await contexto.Empresas
+                    .Where(e => e.EsPropia)
                     .Select(e => e.Id)
                     .ToListAsync();
-                empresaIds.Should().HaveCount(30, "el escenario forzado siembra exactamente 30 empresas");
+                propiaIds.Should().ContainSingle("el escenario forzado siembra una sola Empresa propia (D-P11)");
 
-                var empresasConCentro = await contexto.Centros
-                    .Select(c => c.EmpresaId)
+                var centroIds = await contexto.Centros.Select(c => c.Id).ToListAsync();
+                centroIds.Should().NotBeEmpty();
+
+                var centrosConPlantilla = await contexto.Asignaciones
+                    .Where(a => a.FechaBaja == null)
+                    .Select(a => a.CentroId)
                     .Distinct()
                     .ToListAsync();
 
-                var empresasSinCentro = empresaIds.Except(empresasConCentro).ToList();
-
-                empresasSinCentro.Should().BeEmpty(
-                    $"MEDIDO tenant {tenantId}: con 2 clientes y 30 empresas, el sorteo deja matemáticamente " +
-                    "huecos sin repesca — toda empresa contratista sembrada debe operar al menos un centro, " +
-                    "o su plantilla queda invisible en cualquier pantalla Centro→Trabajador");
+                centroIds.Except(centrosConPlantilla).Should().BeEmpty(
+                    $"MEDIDO tenant {tenantId}: con más Trabajadores que Centros, el reparto en rueda deja " +
+                    "plantilla activa en todos los Centros — sin ella el Centro es invisible en cualquier " +
+                    "pantalla Centro→Trabajador");
             }
         }
     }
@@ -243,7 +244,7 @@ public class DatosPruebaSeederDeterminismoTests
         using (AmbitoTenantExplicito.Establecer(tenantId))
         {
             await DatosPruebaSeeder.SembrarDatosOperativosAsync(
-                contexto, aleatorio, numeroClientes: 2, numeroEmpresas: 30, numeroSubcontratas: 0, CancellationToken.None);
+                contexto, aleatorio, numeroClientes: 2, centrosMediosPorCliente: 5, numeroTrabajadores: 60, numeroSubcontratas: 0, CancellationToken.None);
         }
     }
 

@@ -116,7 +116,7 @@ public class DocumentosFilaSinMenuE2ETests(WebAppFixtureListados fixture)
         // La ventana de contexto solo existe en los documentos con acreditaciones en plataformas. La
         // siembra (CicloDocumentalDatosPruebaSeeder.SembrarAcreditacionesAsync) las pone en cinco
         // documentos de UNA Empresa, y esa Empresa compite con el resto: con «?Ambito=Empresa» a secas
-        // entran los tipos obligatorios de las 24 empresas de la siembra, que pueden pasar de los 100
+        // entran los tipos obligatorios de las Empresas de la siembra (24 con el modelo anterior a D-P11, hoy la propia y las Subcontratas), que podían pasar de los 100
         // de la página mayor; el orden por severidad desempata por Id (UUIDv7, distinto en cada
         // siembra) y los cinco podían quedar fuera de esa página (#1700; inferido del código, el total
         // no queda en los artefactos). Se acota a esa Empresa por su Id, leído de la propia base como en
