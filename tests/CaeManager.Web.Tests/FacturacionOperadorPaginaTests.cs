@@ -4,7 +4,9 @@ using Bunit;
 using CaeManager.Application.Dashboard;
 using CaeManager.Application.Dashboard.Queries;
 using CaeManager.Application.Dashboard.TarifasOperadorCae;
+using CaeManager.Application.Facturacion.LiquidacionesOperadorCae;
 using CaeManager.Domain.Common;
+using CaeManager.Domain.Facturacion;
 using CaeManager.Domain.Dashboard;
 using CaeManager.Web.Components.DesignSystem;
 using FluentAssertions;
@@ -91,6 +93,10 @@ public class FacturacionOperadorPaginaTests : BunitContext
             Tarifa(ConceptoTarifaOperadorCae.ObraNueva, 120m, activa: false),
         ];
 
+        /// <summary>Las marcas de cobro del mes; por defecto ninguna y quien mira puede marcar (Administrador).</summary>
+        public CobrosLiquidacionOperadorCaeDto Cobros { get; set; } = new(true, []);
+        public Func<MarcarCobroLiquidacionOperadorCaeCommand, Result> AlMarcar { get; set; } = _ => Result.Exito();
+
         public Exception? ErrorEnSerie { get; set; }
         public Func<FijarTarifaOperadorCaeCommand, Result> AlFijar { get; set; } = _ => Result.Exito();
 
@@ -130,6 +136,17 @@ public class FacturacionOperadorPaginaTests : BunitContext
                     return new ConteoExtranjerosCobrablesDelMesDto(q.Anyo, q.Mes, [new ConteoExtranjerosCobrablesTenantDto(Ebro, "Ebro", AsignacionesEbro, 12)], 0);
                 case ObtenerTarifasOperadorCaeQuery:
                     return Tarifas;
+                case ObtenerCobrosLiquidacionOperadorCaeQuery:
+                    return Cobros;
+                case MarcarCobroLiquidacionOperadorCaeCommand c:
+                    var marca = AlMarcar(c);
+                    if (!marca.EsFallido)
+                        Cobros = Cobros with
+                        {
+                            Cobros = [.. Cobros.Cobros.Where(x => x.TenantBeneficiarioId != c.TenantBeneficiarioId),
+                                new CobroLiquidacionOperadorCaeDto(c.TenantBeneficiarioId, c.Estado, c.ReferenciaFacturaEmisor, Ahora, Guid.NewGuid())],
+                        };
+                    return marca;
                 case FijarTarifaOperadorCaeCommand c:
                     var resultado = AlFijar(c);
                     // Lo que se guarda queda guardado: la siguiente lectura de las tarifas ya lo trae.
@@ -310,6 +327,76 @@ public class FacturacionOperadorPaginaTests : BunitContext
 
         mediador.Enviados.OfType<ObtenerSerieCuadroDireccionQuery>().Last().Should().Be(new ObtenerSerieCuadroDireccionQuery(2026, 9, 1, ConFacturacion: true));
         mediador.Enviados.OfType<ContarExtranjerosCobrablesDelMesQuery>().Last().Should().Match<ContarExtranjerosCobrablesDelMesQuery>(q => q.Anyo == 2026 && q.Mes == 9);
+    }
+
+    [Fact]
+    public void En_el_mes_en_curso_el_cobro_sale_pendiente_sin_formulario_y_la_liquidacion_no_se_exporta()
+    {
+        var (cut, mediador) = Renderizar(new Escenario());
+
+        mediador.Enviados.OfType<ObtenerCobrosLiquidacionOperadorCaeQuery>().Should().ContainSingle()
+            .Which.Should().Be(new ObtenerCobrosLiquidacionOperadorCaeQuery(2026, 10));
+        Texto(cut.Find(".fct-cobro-estado")).Should().Be("Pendiente");
+        cut.FindAll(".fct-cobro-formulario").Should().BeEmpty("el cobro se marca cuando termina el mes");
+        Texto(cut.Find(".fct-cobro")).Should().Contain("El cobro se marca cuando termine el mes.").And.Contain("sin valor fiscal");
+        var exportar = cut.FindAll("a, button").Single(e => Texto(e) == "Exportar liquidación (CSV)");
+        (exportar.HasAttribute("disabled") || exportar.GetAttribute("aria-disabled") == "true").Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task En_un_mes_terminado_el_Administrador_marca_el_cobro_con_la_referencia_de_su_factura()
+    {
+        var (cut, mediador) = Renderizar(new Escenario());
+        await cut.FindAll(".fct-mes")[2].ClickAsync(new MouseEventArgs());
+
+        var exportar = cut.FindAll("a").Single(e => Texto(e) == "Exportar liquidación (CSV)");
+        exportar.GetAttribute("href").Should().Be("/facturacion/liquidacion-operador.csv?anyo=2026&mes=9");
+        Texto(cut.Find("[data-leyenda='liquidacion']")).Should().Be("Liquidación interna sin valor fiscal", "D-F3: la leyenda se ve en la pantalla de descarga");
+
+        await cut.Find(".fct-cobro-formulario select").ChangeAsync(new ChangeEventArgs { Value = nameof(EstadoCobroLiquidacion.Cobrada) });
+        await cut.Find(".fct-cobro-formulario input").ChangeAsync(new ChangeEventArgs { Value = " F-2026/118 " });
+        await cut.FindAll(".fct-cobro-formulario button").Single(b => Texto(b) == "Guardar cobro").ClickAsync(new MouseEventArgs());
+
+        mediador.Enviados.OfType<MarcarCobroLiquidacionOperadorCaeCommand>().Should().ContainSingle()
+            .Which.Should().Be(new MarcarCobroLiquidacionOperadorCaeCommand(Ebro, 2026, 9, EstadoCobroLiquidacion.Cobrada, "F-2026/118", null),
+                "sin marca previa no hay versión que devolver");
+        cut.WaitForAssertion(() => Texto(cut.Find(".fct-cobro-estado")).Should().Be("Cobrada"));
+        Texto(cut.Find(".fct-cobro-referencia")).Should().Be("Factura F-2026/118");
+    }
+
+    [Fact]
+    public async Task Al_cambiar_una_marca_el_comando_lleva_la_version_que_se_cargo_con_el_mes()
+    {
+        var version = Guid.NewGuid();
+        var (cut, mediador) = Renderizar(new Escenario
+        {
+            Cobros = new(true, [new CobroLiquidacionOperadorCaeDto(Ebro, EstadoCobroLiquidacion.Impagada, "F-1", Ahora, version)]),
+        });
+        await cut.FindAll(".fct-mes")[2].ClickAsync(new MouseEventArgs());
+
+        await cut.Find(".fct-cobro-formulario select").ChangeAsync(new ChangeEventArgs { Value = nameof(EstadoCobroLiquidacion.Cobrada) });
+        await cut.FindAll(".fct-cobro-formulario button").Single(b => Texto(b) == "Guardar cobro").ClickAsync(new MouseEventArgs());
+
+        mediador.Enviados.OfType<MarcarCobroLiquidacionOperadorCaeCommand>().Should().ContainSingle()
+            .Which.VersionLeida.Should().Be(version, "si otra persona la cambió entretanto, el handler rechaza la edición en vez de pisarla");
+    }
+
+    [Fact]
+    public async Task El_Coordinador_CAE_ve_el_estado_del_cobro_pero_no_lo_marca_ni_exporta_la_liquidacion()
+    {
+        var escenario = new Escenario
+        {
+            Tarifas = null,
+            Cobros = new(false, [new CobroLiquidacionOperadorCaeDto(Ebro, EstadoCobroLiquidacion.Impagada, null, Ahora, Guid.NewGuid())]),
+        };
+        var (cut, mediador) = Renderizar(escenario);
+        await cut.FindAll(".fct-mes")[2].ClickAsync(new MouseEventArgs());
+
+        Texto(cut.Find(".fct-cobro-estado")).Should().Be("Impagada");
+        cut.FindAll(".fct-cobro-formulario").Should().BeEmpty();
+        Texto(cut.Find(".fct-cobro")).Should().Contain("Solo el Administrador o la Dirección CAE marcan el cobro.");
+        cut.FindAll("a, button").Should().NotContain(e => Texto(e) == "Exportar liquidación (CSV)");
+        mediador.Enviados.OfType<MarcarCobroLiquidacionOperadorCaeCommand>().Should().BeEmpty();
     }
 
     [Fact]

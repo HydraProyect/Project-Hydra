@@ -94,6 +94,9 @@ public class EscriturasSobreEntidadesConCarteraTests
         ["CrearTarifaClienteCommandHandler"] = ("Facturacion", typeof(ICurrentUserService)),
         ["ActualizarTarifaClienteCommandHandler"] = ("Facturacion", typeof(ICurrentUserService)),
         ["EliminarTarifaClienteCommandHandler"] = ("Facturacion", typeof(ICurrentUserService)),
+        // Plano Comercial del Operador CAE externo: el rol efectivo en su Tenant de origen
+        // (AutorizacionTarifasOperadorCae) y la vigencia del mes, no la Asignación de Cartera.
+        ["MarcarCobroLiquidacionOperadorCaeCommandHandler"] = ("Facturacion", typeof(ICurrentUserService)),
     };
 
     [Theory]
