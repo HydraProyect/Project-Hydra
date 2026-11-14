@@ -193,8 +193,10 @@ public static class AlcanceDeDocumentosGenerados
 
 /// <summary>
 /// Asignación de Cartera de un <see cref="LoteGeneracionDocumento"/> (OWASP ASVS 4.0.3 V4.2.1).
-/// <see cref="LoteDentroDeAlcanceAsync"/> es el criterio con el que <c>IniciarLoteGeneracionDocumentosCommandHandler</c>
-/// deja nacer el lote: plantilla dentro de alcance y todos sus Trabajadores visibles.
+/// <see cref="LoteDentroDeAlcanceAsync"/> reproduce, sobre un lote que ya existe, el criterio con el que
+/// <c>IniciarLoteGeneracionDocumentosCommandHandler</c> deja nacer el lote: plantilla dentro de alcance y todos sus
+/// Trabajadores visibles. Iniciar no la llama (decide antes de que el lote exista, en línea, y además exige el Centro),
+/// así que nada aquí sujeta que los dos criterios sigan iguales: si cambia uno, hay que cambiar el otro.
 /// <see cref="LoteVisibleEnteroAsync"/> es el de un lote que ya existe, el único que usan la lectura del progreso
 /// (<c>ObtenerLoteGeneracionDocumentosQuery</c>) y el procesado de cada ítem (<c>ProcesarItemLoteGeneracionCommand</c>),
 /// que tratan el «no» igual que un lote o un ítem que no existe.
@@ -258,8 +260,8 @@ public static class AlcanceDeLotesGeneracion
         return idsGenerados.All(visibles.Contains);
     }
 
-    // Privada a propósito: un lote que ya existe se decide solo con LoteVisibleEnteroAsync, para que la query y el
-    // Command no puedan volver a divergir.
+    // Privada a propósito: un lote que ya existe se decide solo con LoteVisibleEnteroAsync, para que la lectura del
+    // progreso y el procesado de un ítem no puedan volver a divergir entre sí.
     private static async Task<bool> LoteDentroDeAlcanceAsync(
         this IAlcanceDatosService alcance,
         Guid plantillaDocumentoVersionId,

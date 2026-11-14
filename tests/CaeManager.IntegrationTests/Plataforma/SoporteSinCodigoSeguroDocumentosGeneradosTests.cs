@@ -140,6 +140,30 @@ public class SoporteSinCodigoSeguroDocumentosGeneradosTests : IAsyncLifetime
         conAvisos.Should().Be(1);
     }
 
+    /// <summary>
+    /// La rama sin acceso total (la de un Gestor CAE con Asignación de Cartera) contra Postgres de verdad: el recorte
+    /// en SQL (<c>Contains</c> sobre la lista de alcance, la proyección de coordenadas de plantilla seguida de
+    /// <c>Where</c>) y la puerta tienen que traducirse, y el contador tiene que dar lo mismo que la lista (revisión
+    /// puente de la ronda 3 de la PR #2222: los unitarios no ejercen la traducción EF).
+    /// </summary>
+    [Theory]
+    [InlineData(true, 1)]
+    [InlineData(false, 0)]
+    public async Task Sin_acceso_total_el_listado_y_su_contador_recortan_por_la_Cartera_en_la_base(bool empresaEnLaCartera, int esperados)
+    {
+        await using var contexto = CrearContexto(cadenaConexion: BaseDatosPostgresDePruebas.CadenaComoRuntime(_cadenaConexion));
+        var empresaGenerada = (await contexto.DocumentosGenerados.AsNoTracking().SingleAsync()).EmpresaId!.Value;
+        var gestorConCartera = new AlcanceDatosServiceFalso(empresaIds: [empresaEnLaCartera ? empresaGenerada : Guid.NewGuid()]);
+
+        var listado = await new ObtenerDocumentosGeneradosQueryHandler(contexto, contexto, contexto, contexto, contexto, gestorConCartera)
+            .Handle(new ObtenerDocumentosGeneradosQuery(), CancellationToken.None);
+        var conAvisos = await new ObtenerTotalDocumentosGeneradosConAvisosQueryHandler(contexto, contexto, contexto, gestorConCartera)
+            .Handle(new ObtenerTotalDocumentosGeneradosConAvisosQuery(), CancellationToken.None);
+
+        listado.Should().HaveCount(esperados);
+        conAvisos.Should().Be(esperados);
+    }
+
     [Fact]
     public async Task Materializar_la_entidad_falla_solo_en_Sesion_Privilegiada()
     {
