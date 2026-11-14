@@ -530,7 +530,7 @@ public class ProcesarItemLoteGeneracionCommandHandlerTests
         conDoce.Should().Be(conTres);
     }
 
-    private static async Task<(int Plantillas, int Documentos, int RecorridosDeCartera)> LecturasDeProcesarElUltimoItem(int items)
+    private static async Task<(int Plantillas, int Documentos, int RecorridosDeTrabajadores, int RecorridosDeCentros)> LecturasDeProcesarElUltimoItem(int items)
     {
         var contexto = new PlantillasQueryContextFalso();
         var documentos = new DocumentosQueryContextFalso();
@@ -542,27 +542,31 @@ public class ProcesarItemLoteGeneracionCommandHandlerTests
         var lotes = new LoteGeneracionDocumentoRepositorioFalso();
         lotes.Agregar(lote);
         var repositorio = new ItemGeneracionDocumentoRepositorioFalso();
-        var trabajadores = new List<Guid>();
+        var (trabajadores, centros) = (new List<Guid>(), new List<Guid>());
         for (var i = 0; i < items - 1; i++)
         {
-            var completado = ItemCompletadoConGenerado(contexto, documentos, lote, Guid.NewGuid());
+            var centro = Guid.NewGuid();
+            var completado = ItemCompletadoConGenerado(contexto, documentos, lote, Guid.NewGuid(), centroId: centro);
             repositorio.Agregar(completado);
             trabajadores.Add(completado.TrabajadorId);
+            centros.Add(centro);
         }
 
         var pendiente = new ItemGeneracionDocumento(lote.Id, Guid.NewGuid());
         repositorio.Agregar(pendiente);
         contexto.ListaItemsGeneracionDocumento.Add(pendiente);
         trabajadores.Add(pendiente.TrabajadorId);
-        var cartera = new ListaQueCuentaRecorridos(trabajadores);
-        var alcance = new AlcanceDatosServiceFalso(tieneAccesoTotal: false, trabajadorIdsVisibles: cartera);
+        var carteraTrabajadores = new ListaQueCuentaRecorridos(trabajadores);
+        var carteraCentros = new ListaQueCuentaRecorridos(centros);
+        var alcance = new AlcanceDatosServiceFalso(tieneAccesoTotal: false, trabajadorIdsVisibles: carteraTrabajadores,
+            centroIdsVisibles: carteraCentros);
 
         var resultado = await Handler(repositorio, lotes, GeneracionQueFalla(), contexto, alcance, documentos)
             .Handle(new ProcesarItemLoteGeneracionCommand(pendiente.Id), CancellationToken.None);
 
         resultado.EsExitoso.Should().BeTrue("el recuento solo vale si la llamada pasa la puerta entera");
         pendiente.Estado.Should().Be(EstadoItemGeneracion.Fallido);
-        return (contexto.Lecturas, documentos.LecturasDeDocumentos, cartera.Recorridos);
+        return (contexto.Lecturas, documentos.LecturasDeDocumentos, carteraTrabajadores.Recorridos, carteraCentros.Recorridos);
     }
 
     private static ProcesarItemLoteGeneracionCommandHandler Handler(

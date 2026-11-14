@@ -66,7 +66,8 @@ public static class DocumentoAlcanceExtensions
     /// <para>
     /// Las listas de Trabajadores, Empresas y Vehículos visibles se leen una vez para todos los Documentos, como
     /// conjuntos (<see cref="CarteraEnMemoria"/>): decidir N Documentos cuesta O(N) comprobaciones, no O(N·C) contra una
-    /// Cartera de C Ids (Codex, ronda 4 de la PR #2222). Quedan por Documento la lista de Clientes empresariales
+    /// Cartera de C Ids (Codex, ronda 4 de la PR #2222). Con un solo Documento no merece la pena convertir la Cartera
+    /// y se busca en la lista, como antes. Quedan por Documento la lista de Clientes empresariales
     /// (<see cref="AlcanceDatosServiceExtensions.ClienteVisibleAsync"/>, una Cartera corta) y la lectura del Proyecto de
     /// un Documento de Proyecto, que solo afecta a esos Documentos.
     /// </para>
@@ -84,7 +85,7 @@ public static class DocumentoAlcanceExtensions
             .Select(d => new { d.Id, d.TrabajadorId, d.ClienteId, d.VehiculoId, d.ProyectoId, d.EmpresaId })
             .ToListAsync(cancellationToken);
 
-        var cartera = new CarteraEnMemoria(alcance);
+        var cartera = new CarteraEnMemoria(alcance, comoConjunto: documentos.Count > 1);
         foreach (var documento in documentos)
         {
             if (await DocumentoLegibleAsync(alcance, cartera,
@@ -100,7 +101,7 @@ public static class DocumentoAlcanceExtensions
     public static Task<bool> DocumentoLegibleAsync(
         this IAlcanceDatosService alcance, Guid? trabajadorId, Guid? clienteId, Guid? vehiculoId, Guid? proyectoId, Guid? empresaId,
         IProyectosQueryContext proyectosContext, CancellationToken cancellationToken = default) =>
-        DocumentoLegibleAsync(alcance, new CarteraEnMemoria(alcance),
+        DocumentoLegibleAsync(alcance, new CarteraEnMemoria(alcance, comoConjunto: false),
             trabajadorId, clienteId, vehiculoId, proyectoId, empresaId, proyectosContext, cancellationToken);
 
     // La única definición del criterio; las dos públicas de arriba delegan aquí, con una Cartera por llamada.

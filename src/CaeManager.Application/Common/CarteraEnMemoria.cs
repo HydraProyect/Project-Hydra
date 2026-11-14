@@ -10,15 +10,21 @@ namespace CaeManager.Application.Common;
 ///
 /// <para>
 /// Vive lo que dura una llamada (una puerta, un lote de registros), no más: el alcance puede cambiar entre peticiones.
-/// No es seguro para hilos; cada llamada crea la suya.
+/// No es seguro para hilos; cada llamada crea la suya. Es <c>internal</c> a propósito, para que nadie la registre en el
+/// contenedor ni la guarde en un campo: en Blazor Server un circuito dura horas y congelaría la Cartera.
+/// </para>
+///
+/// <para>
+/// Con <paramref name="comoConjunto"/> a <c>false</c> (una sola comprobación) no construye el conjunto y busca en la
+/// lista, como las extensiones: convertir toda la Cartera para un único Id cuesta más de lo que ahorra.
 /// </para>
 /// </summary>
-public sealed class CarteraEnMemoria(IAlcanceDatosService alcance)
+internal sealed class CarteraEnMemoria(IAlcanceDatosService alcance, bool comoConjunto = true)
 {
-    private readonly ConjuntoVisible _trabajadores = new(alcance.ObtenerTrabajadorIdsVisiblesAsync);
-    private readonly ConjuntoVisible _empresas = new(alcance.ObtenerEmpresaIdsVisiblesAsync);
-    private readonly ConjuntoVisible _centros = new(alcance.ObtenerCentroIdsVisiblesAsync);
-    private readonly ConjuntoVisible _vehiculos = new(alcance.ObtenerVehiculoIdsVisiblesAsync);
+    private readonly ConjuntoVisible _trabajadores = new(alcance.ObtenerTrabajadorIdsVisiblesAsync, comoConjunto);
+    private readonly ConjuntoVisible _empresas = new(alcance.ObtenerEmpresaIdsVisiblesAsync, comoConjunto);
+    private readonly ConjuntoVisible _centros = new(alcance.ObtenerCentroIdsVisiblesAsync, comoConjunto);
+    private readonly ConjuntoVisible _vehiculos = new(alcance.ObtenerVehiculoIdsVisiblesAsync, comoConjunto);
 
     /// <summary>Lo mismo que <see cref="AlcanceDatosServiceExtensions.TrabajadorVisibleAsync"/>.</summary>
     public Task<bool> TrabajadorVisibleAsync(Guid trabajadorId, CancellationToken cancellationToken = default) =>
@@ -36,20 +42,25 @@ public sealed class CarteraEnMemoria(IAlcanceDatosService alcance)
     public Task<bool> VehiculoVisibleAsync(Guid vehiculoId, CancellationToken cancellationToken = default) =>
         _vehiculos.IncluyeAsync(vehiculoId, cancellationToken);
 
-    private sealed class ConjuntoVisible(Func<CancellationToken, Task<IReadOnlyList<Guid>?>> leer)
+    private sealed class ConjuntoVisible(Func<CancellationToken, Task<IReadOnlyList<Guid>?>> leer, bool comoConjunto)
     {
         private bool _leido;
-        private HashSet<Guid>? _ids;
+        private IReadOnlyList<Guid>? _lista;
+        private HashSet<Guid>? _conjunto;
 
         public async Task<bool> IncluyeAsync(Guid id, CancellationToken cancellationToken)
         {
             if (!_leido)
             {
-                _ids = (await leer(cancellationToken))?.ToHashSet();
+                _lista = await leer(cancellationToken);
+                _conjunto = comoConjunto ? _lista?.ToHashSet() : null;
                 _leido = true;
             }
 
-            return _ids is null || _ids.Contains(id);
+            // Lista nula = sin restricción; lista, incluida la vacía = Cartera restringida.
+            if (_lista is null)
+                return true;
+            return _conjunto?.Contains(id) ?? _lista.Contains(id);
         }
     }
 }

@@ -346,7 +346,8 @@ public class ObtenerLoteGeneracionDocumentosQueryHandlerTests
         conDoce.Should().Be(conTres);
     }
 
-    private async Task<(int Plantillas, int Documentos, int RecorridosDeCartera)> LecturasDeUnaLlamadaDeProgreso(int items)
+    private async Task<(int Plantillas, int Documentos, int RecorridosDeTrabajadores, int RecorridosDeCentros, int RecorridosDeEmpresas)>
+        LecturasDeUnaLlamadaDeProgreso(int items)
     {
         var contexto = new PlantillasQueryContextFalso();
         var plantilla = new PlantillaDocumento(OrigenPlantilla.Externa, "Ficha de riesgos", AmbitoAplicacion.Trabajador, FormatoOrigenPlantilla.PdfVisual, Guid.NewGuid());
@@ -355,18 +356,25 @@ public class ObtenerLoteGeneracionDocumentosQueryHandlerTests
         contexto.ListaPlantillasDocumentoVersion.Add(version);
         var lote = new LoteGeneracionDocumento(version.Id, items, Guid.NewGuid(), DateTime.UtcNow);
         contexto.ListaLotesGeneracionDocumento.Add(lote);
-        var centro = Guid.NewGuid();
-        var trabajadores = new List<Guid>();
+        var (trabajadores, centros, empresas) = (new List<Guid>(), new List<Guid>(), new List<Guid>());
         for (var i = 0; i < items; i++)
         {
             var item = new ItemGeneracionDocumento(lote.Id, Guid.NewGuid());
             contexto.ListaItemsGeneracionDocumento.Add(item);
+            var (centro, empresa) = (Guid.NewGuid(), Guid.NewGuid());
             trabajadores.Add(item.TrabajadorId);
-            CompletarConGenerado(contexto, lote, item, centroId: centro);
+            centros.Add(centro);
+            empresas.Add(empresa);
+            CompletarConGenerado(contexto, lote, item, centroId: centro, empresaId: empresa);
         }
 
-        var cartera = new ListaQueCuentaRecorridos(trabajadores);
-        var alcance = new AlcanceDatosServiceFalso(tieneAccesoTotal: false, trabajadorIdsVisibles: cartera, centroIdsVisibles: [centro]);
+        // Un Centro y una Empresa distintos por ítem: volver a recorrer la lista por generado en cualquiera de las tres
+        // coordenadas hace crecer su recuento con N.
+        var carteraTrabajadores = new ListaQueCuentaRecorridos(trabajadores);
+        var carteraCentros = new ListaQueCuentaRecorridos(centros);
+        var carteraEmpresas = new ListaQueCuentaRecorridos(empresas);
+        var alcance = new AlcanceDatosServiceFalso(tieneAccesoTotal: false, trabajadorIdsVisibles: carteraTrabajadores,
+            centroIdsVisibles: carteraCentros, empresaIdsVisibles: carteraEmpresas);
         var documentosAntes = _documentos.LecturasDeDocumentos;
 
         var resultado = await Handler(contexto, new TrabajadoresQueryContextFalso(), alcance)
@@ -374,6 +382,7 @@ public class ObtenerLoteGeneracionDocumentosQueryHandlerTests
 
         resultado.EsExitoso.Should().BeTrue("el recuento solo vale si la llamada recorre la puerta entera");
         resultado.Valor.Items.Should().HaveCount(items).And.OnlyContain(i => i.DocumentoGeneradoId != null);
-        return (contexto.Lecturas, _documentos.LecturasDeDocumentos - documentosAntes, cartera.Recorridos);
+        return (contexto.Lecturas, _documentos.LecturasDeDocumentos - documentosAntes,
+            carteraTrabajadores.Recorridos, carteraCentros.Recorridos, carteraEmpresas.Recorridos);
     }
 }
