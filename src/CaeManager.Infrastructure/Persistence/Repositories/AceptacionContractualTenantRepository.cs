@@ -16,11 +16,14 @@ public class AceptacionContractualTenantRepository(CaeManagerDbContext dbContext
     /// base de datos no las ve. En el ChangeTracker no se puede filtrar por Tenant (una fila pendiente se sella
     /// al guardar), así que se filtra por la cuenta: las de otra cuenta, por ejemplo de un intento que creó
     /// otro Tenant, no dan por registrada esta, y si se guardaran junto a las nuevas chocarían con el índice
-    /// único en vez de pasar en silencio. La consulta a la base de datos ya va acotada al Tenant por RLS.
+    /// único en vez de pasar en silencio. La consulta a la base de datos va acotada al Tenant por RLS y también
+    /// a la cuenta: una petición para otra cuenta no recibe un éxito que oculte el conflicto, sigue a las
+    /// comprobaciones de autoridad y de correo, y el índice único impide que deje una segunda atribución.
     /// </summary>
     public async Task<bool> ExistenDeSolicitudAltaAsync(Guid solicitudAltaId, Guid usuarioId, CancellationToken cancellationToken = default) =>
         dbContext.AceptacionesContractualesTenant.Local.Any(a => a.SolicitudAltaId == solicitudAltaId && a.UsuarioId == usuarioId)
-        || await dbContext.AceptacionesContractualesTenant.AnyAsync(a => a.SolicitudAltaId == solicitudAltaId, cancellationToken);
+        || await dbContext.AceptacionesContractualesTenant.AnyAsync(
+            a => a.SolicitudAltaId == solicitudAltaId && a.UsuarioId == usuarioId, cancellationToken);
 
     public async Task<IReadOnlyList<AceptacionContractualTenant>> ListarAsync(CancellationToken cancellationToken = default) =>
         await dbContext.AceptacionesContractualesTenant.AsNoTracking()

@@ -88,6 +88,8 @@ public class AceptacionContractualTenantBajoRlsTests : IAsyncLifetime
         {
             var repositorio = new AceptacionContractualTenantRepository(runtime);
             (await repositorio.ExistenDeSolicitudAltaAsync(solicitud, _usuarioId)).Should().BeTrue();
+            (await repositorio.ExistenDeSolicitudAltaAsync(solicitud, Guid.NewGuid())).Should().BeFalse(
+                "lo guardado para una cuenta no da por registrada la de otra: sigue a las comprobaciones de autoridad");
             var lista = await repositorio.ListarAsync();
             lista.Should().HaveCount(2).And.OnlyContain(a => a.TenantId == _tenantSesion);
             (await repositorio.UltimoAcusePorAceptacionAsync()).Keys.Should().Equal(propia);

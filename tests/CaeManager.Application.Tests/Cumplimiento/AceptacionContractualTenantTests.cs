@@ -128,6 +128,21 @@ public class AceptacionContractualTenantTests
         e.Repositorio.Aceptaciones.Count(a => a.UsuarioId == Administrador).Should().Be(2);
     }
 
+    [Fact]
+    public async Task Otra_cuenta_no_recibe_exito_por_lo_ya_registrado_para_quien_acepto()
+    {
+        var e = new Escenario();
+        var datos = Datos(Declarada(CondicionesV1, Ahora, facultades: true), Declarada(EncargoV1, Ahora));
+        (await e.Registro().RegistrarAsync(datos)).EsExitoso.Should().BeTrue();
+        var otraCuenta = Guid.NewGuid();
+        e.Administradores.Add(otraCuenta);
+
+        var r = await e.Registro().RegistrarAsync(datos with { UsuarioId = otraCuenta });
+
+        r.Error.Should().Be(ErroresAceptacionContractual.AceptanteNoAcreditado);
+        e.Repositorio.Aceptaciones.Should().HaveCount(2).And.OnlyContain(a => a.UsuarioId == Administrador);
+    }
+
     [Theory]
     [InlineData("admin@ejemplo.test", true)]
     [InlineData("  Admin@Ejemplo.TEST ", true)]

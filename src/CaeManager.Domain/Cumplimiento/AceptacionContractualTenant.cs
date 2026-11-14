@@ -124,9 +124,9 @@ public interface IAceptacionContractualTenantRepository
     void AgregarAcuse(AcuseAceptacionContractualTenant acuse);
 
     /// <summary>
-    /// Si el Tenant actual ya materializó las aceptaciones de esa Solicitud de alta para esa cuenta. Las
-    /// añadidas y aún sin guardar cuentan solo si son de la misma cuenta: una fila pendiente aún no lleva
-    /// Tenant (se sella al guardar), y la de otra cuenta no puede dar por registrada esta.
+    /// Si el Tenant actual ya materializó las aceptaciones de esa Solicitud de alta para esa cuenta, guardadas
+    /// o añadidas y aún sin guardar. Lo de otra cuenta no da por registrada esta: una fila pendiente aún no
+    /// lleva Tenant (se sella al guardar), y una guardada para otra persona no puede ocultar el conflicto.
     /// </summary>
     Task<bool> ExistenDeSolicitudAltaAsync(Guid solicitudAltaId, Guid usuarioId, CancellationToken cancellationToken = default);
 
