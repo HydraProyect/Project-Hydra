@@ -62,7 +62,7 @@ public class ObtenerRevisionIaParaVisorQueryHandlerTests
 
         var resultado = await PedirAsync(e.Handler(), revision.Id);
 
-        resultado.Should().Be(new RevisionIaParaVisorDto(documento.Id, revision.CreadaEnUtc));
+        resultado.Should().Be(new RevisionIaParaVisorDto(documento.Id));
     }
 
     [Fact]

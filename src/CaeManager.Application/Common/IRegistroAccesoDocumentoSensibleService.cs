@@ -25,10 +25,9 @@ namespace CaeManager.Application.Common;
 /// <c>PaqueteDocumentalVisitaService.ConstruirAsync</c>. Y el «Preparar paquete» de Empresa 360
 /// (<c>DescargarPaqueteEmpresaQuery</c>), que registra una apertura por cada Documento que entró en el zip antes de
 /// entregarlo, todas en una sola transacción: si una falla, no queda ninguna y el zip no se entrega.
-/// Y el documento que la pantalla Revisión IA carga sola (<c>GET /documentos/revision-ia/{revisionId}/archivo</c>), con su
-/// tipo propio y la fila deduplicada: como mucho una fila por persona y revisión pendiente: con una sola
-/// revisión pendiente del Documento se deduplica por persona y Documento desde que se creó; con varias, cada acceso deja
-/// fila; peticiones simultáneas pueden dejar más, nunca menos; cada acceso cuenta para la señal de extracción masiva (<see cref="RegistrarRevisionIaSiSensibleAsync"/>).
+/// Y el documento que la pantalla Revisión IA carga sola (<c>GET /documentos/revision-ia/{revisionId}/archivo</c>), con
+/// <see cref="TipoAccesoDocumentoSensible.RevisionIa"/>: cada acceso del visor de Revisión IA a un Documento sensible deja
+/// una fila de tipo Revisión IA, igual que cada Apertura; cuenta para la señal de extracción masiva.
 /// </para>
 ///
 /// <para>
@@ -76,34 +75,6 @@ public interface IRegistroAccesoDocumentoSensibleService
     /// </summary>
     Task RegistrarSiSensibleAsync(
         Guid recursoId, Guid tipoDocumentoId, TipoAccesoDocumentoSensible tipoAcceso, CancellationToken cancellationToken = default);
-
-    /// <summary>
-    /// El documento de una revisión pendiente que la pantalla Revisión IA carga sola (D-49, opción C;
-    /// <c>GET /documentos/revision-ia/{revisionId}/archivo</c>): registra un
-    /// <see cref="TipoAccesoDocumentoSensible.RevisionIa"/> igual que <see cref="RegistrarSiSensibleAsync(Guid, TipoAccesoDocumentoSensible, CancellationToken)"/>
-    /// —misma clasificación, mismo fallo en cerrado, misma señal de extracción masiva—, pero con la fila deduplicada: si el
-    /// Documento tiene una sola revisión pendiente y ya consta una fila <c>RevisionIa</c> de ese Documento, en el mismo
-    /// Tenant, con el mismo Usuario, Actor real y vía, ocurrida desde <paramref name="revisionCreadaEnUtc"/>, no escribe otra
-    /// (el visor pide por rangos y se recarga). Con varias revisiones pendientes del Documento no deduplica: la fila no
-    /// identifica la revisión, y la de una taparía la otra. La deduplicación solo decide la fila: cada acceso cuenta para la señal de extracción masiva, se
-    /// escriba la fila o no, igual que cada Apertura, así que deduplicar no esconde una relectura masiva a la señal ni
-    /// depende de lo que su contador en memoria recuerde tras un reinicio. La consulta pasa por el filtro de Tenant y la RLS
-    /// de la tabla, y compara además el Tenant actual. Si no se puede comprobar, registra: un falso «ya registrado» dejaría
-    /// un acceso sin rastro.
-    ///
-    /// <para>
-    /// Garantía: como mucho una fila por persona y revisión pendiente: con una sola revisión pendiente del Documento se
-    /// deduplica por persona y Documento desde que se creó; con varias, cada acceso deja fila; peticiones simultáneas pueden
-    /// dejar más, nunca menos (la comprobación y la escritura no van en un bloqueo: la auditoría solo puede pecar por
-    /// exceso); cada acceso cuenta para la señal de extracción masiva. Una revisión creada después de la última fila de esa
-    /// persona deja otra fila: es un acto de revisión nuevo. Límite conocido: las pendientes se cuentan al acceder, no al
-    /// escribir la fila; una fila escrita mientras había varias puede tapar, resueltas las otras, el acceso a la que queda.
-    /// </para>
-    /// La implementación por defecto no deduplica (registra en cada llamada): de más, nunca de menos.
-    /// </summary>
-    Task RegistrarRevisionIaSiSensibleAsync(
-        Guid documentoId, DateTime revisionCreadaEnUtc, CancellationToken cancellationToken = default) =>
-        RegistrarSiSensibleAsync(documentoId, TipoAccesoDocumentoSensible.RevisionIa, cancellationToken);
 
     /// <summary>
     /// Abre un lote de aperturas para quien las agrupa en una transacción de varios guardados

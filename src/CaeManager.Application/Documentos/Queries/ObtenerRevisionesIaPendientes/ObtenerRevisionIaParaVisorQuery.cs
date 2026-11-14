@@ -15,8 +15,7 @@ namespace CaeManager.Application.Documentos.Queries.ObtenerRevisionesIaPendiente
 public record ObtenerRevisionIaParaVisorQuery(Guid RevisionId) : IRequest<RevisionIaParaVisorDto?>;
 
 /// <param name="DocumentoId">El Documento de la revisión: el único que la ruta puede servir.</param>
-/// <param name="CreadaEnUtc">Desde cuándo cuenta una fila <c>RevisionIa</c> ya escrita como la de esta revisión.</param>
-public record RevisionIaParaVisorDto(Guid DocumentoId, DateTime CreadaEnUtc);
+public record RevisionIaParaVisorDto(Guid DocumentoId);
 
 public class ObtenerRevisionIaParaVisorQueryHandler(
     IDocumentosQueryContext documentosContext,
@@ -35,7 +34,7 @@ public class ObtenerRevisionIaParaVisorQueryHandler(
         // La misma definición de «pendiente y al alcance» que la pestaña: lo que no está en la cola de quien pide, no se sirve.
         return await ColaRevisionIa.Pendientes(documentosContext, trabajadorIdsVisibles)
             .Where(p => p.Revision.Id == request.RevisionId)
-            .Select(p => new RevisionIaParaVisorDto(p.Revision.DocumentoId, p.Revision.CreadaEnUtc))
+            .Select(p => new RevisionIaParaVisorDto(p.Revision.DocumentoId))
             .FirstOrDefaultAsync(cancellationToken);
     }
 }

@@ -16,27 +16,27 @@ namespace CaeManager.Web.Tests;
 
 /// <summary>
 /// <c>GET /documentos/revision-ia/{revisionId}/archivo</c> (D-49, opción C): el visor de la pantalla Revisión IA se carga
-/// solo y su acceso queda como «Revisión IA», como mucho una fila por persona y Documento desde que se creó la revisión
-/// pendiente si es la única del Documento (con varias, cada acceso deja fila), y cada acceso cuenta para la señal de extracción masiva. Aquí se fija el manejador: sirve el
-/// Documento de la revisión —no uno que elija el cliente—, lo registra por la vía deduplicada y nunca como Apertura, y una
-/// revisión que la cola no alcanza da 404 sin abrir ni registrar nada. <c>/documentos/{id}/archivo</c> sigue registrando
-/// una Apertura en cada GET.
+/// solo: cada acceso del visor de Revisión IA a un Documento sensible deja una fila de tipo Revisión IA, igual que cada
+/// Apertura; cuenta para la señal de extracción masiva. Aquí se fija el manejador: sirve el Documento de la revisión —no
+/// uno que elija el cliente—, lo registra como Revisión IA en cada petición y nunca como Apertura, y una revisión que la
+/// cola no alcanza da 404 sin abrir ni registrar nada. <c>/documentos/{id}/archivo</c> sigue registrando una Apertura en
+/// cada GET.
 ///
 /// <para>
-/// Qué no observa: la deduplicación misma (la prueba el servicio en Application y, contra la base, la integración), ni el
-/// routing y la autorización por rol de la ruta (<c>EndpointsQueSirvenBinariosEstanCatalogadosTests</c> fija el mapeo).
+/// Qué no observa: la escritura de la fila y la señal (las prueba el servicio en Application y, contra la base, la
+/// integración), ni el routing y la autorización por rol de la ruta (<c>EndpointsQueSirvenBinariosEstanCatalogadosTests</c>
+/// fija el mapeo).
 /// </para>
 /// </summary>
 public class DocumentosEndpointsRevisionIaTests
 {
     private static readonly Guid RevisionId = Guid.Parse("0199c0de-0000-7000-8000-0000000000a1");
     private static readonly Guid DocumentoDeLaRevision = Guid.Parse("0199c0de-0000-7000-8000-0000000000d1");
-    private static readonly DateTime CreadaEnUtc = new(2026, 11, 12, 9, 30, 0, DateTimeKind.Utc);
 
     [Fact]
-    public async Task Sirve_en_linea_el_documento_de_la_revision_y_lo_registra_como_Revision_IA_desde_su_creacion()
+    public async Task Sirve_en_linea_el_documento_de_la_revision_y_lo_registra_como_Revision_IA()
     {
-        var mediador = new MediadorFalso(new RevisionIaParaVisorDto(DocumentoDeLaRevision, CreadaEnUtc), Documento(DocumentoDeLaRevision));
+        var mediador = new MediadorFalso(new RevisionIaParaVisorDto(DocumentoDeLaRevision), Documento(DocumentoDeLaRevision));
         var registro = new RegistroEspia();
 
         var contexto = await ServirAsync(mediador, registro);
@@ -48,8 +48,24 @@ public class DocumentosEndpointsRevisionIaTests
         mediador.Enviadas.OfType<ObtenerRevisionIaParaVisorQuery>().Should().ContainSingle().Which.RevisionId.Should().Be(RevisionId);
         mediador.Enviadas.OfType<ObtenerDocumentoPorIdQuery>().Should().ContainSingle()
             .Which.Id.Should().Be(DocumentoDeLaRevision, "se sirve el Documento de la revisión, que el cliente no elige");
-        registro.RevisionIa.Should().Equal([(DocumentoDeLaRevision, CreadaEnUtc)]);
+        registro.RevisionIa.Should().Equal([DocumentoDeLaRevision]);
         registro.Otros.Should().BeEmpty("el visor de la revisión nunca deja una Apertura");
+    }
+
+    /// <summary>Dos cargas seguidas del visor, dos registros Revisión IA: el manejador no se salta ninguno.</summary>
+    [Fact]
+    public async Task Cada_peticion_del_visor_registra_su_acceso_Revision_IA()
+    {
+        var registro = new RegistroEspia();
+
+        for (var i = 0; i < 2; i++)
+        {
+            var mediador = new MediadorFalso(new RevisionIaParaVisorDto(DocumentoDeLaRevision), Documento(DocumentoDeLaRevision));
+            (await ServirAsync(mediador, registro)).Response.StatusCode.Should().Be(StatusCodes.Status200OK);
+        }
+
+        registro.RevisionIa.Should().Equal([DocumentoDeLaRevision, DocumentoDeLaRevision]);
+        registro.Otros.Should().BeEmpty();
     }
 
     [Fact]
@@ -72,7 +88,7 @@ public class DocumentosEndpointsRevisionIaTests
     [Fact]
     public async Task Si_el_Documento_de_la_revision_no_es_legible_da_404_sin_registrar()
     {
-        var mediador = new MediadorFalso(new RevisionIaParaVisorDto(DocumentoDeLaRevision, CreadaEnUtc), documento: null);
+        var mediador = new MediadorFalso(new RevisionIaParaVisorDto(DocumentoDeLaRevision), documento: null);
         var registro = new RegistroEspia();
 
         var contexto = await ServirAsync(mediador, registro);
@@ -86,7 +102,7 @@ public class DocumentosEndpointsRevisionIaTests
     [Fact]
     public async Task Si_el_registro_falla_responde_403_sin_entregar_ningun_byte()
     {
-        var mediador = new MediadorFalso(new RevisionIaParaVisorDto(DocumentoDeLaRevision, CreadaEnUtc), Documento(DocumentoDeLaRevision));
+        var mediador = new MediadorFalso(new RevisionIaParaVisorDto(DocumentoDeLaRevision), Documento(DocumentoDeLaRevision));
         var registro = new RegistroEspia { Falla = true };
 
         var contexto = await ServirAsync(mediador, registro);
@@ -115,7 +131,7 @@ public class DocumentosEndpointsRevisionIaTests
         contexto.Features.Get<IStatusCodePagesFeature>()!.Enabled.Should().BeTrue();
     }
 
-    /// <summary>Control: la ruta de siempre sigue registrando una Apertura en cada GET, sin deduplicar.</summary>
+    /// <summary>Control: la ruta de siempre sigue registrando una Apertura en cada GET.</summary>
     [Fact]
     public async Task El_archivo_por_Id_de_Documento_sigue_registrando_una_Apertura_en_cada_peticion()
     {
@@ -205,13 +221,18 @@ public class DocumentosEndpointsRevisionIaTests
 
     private sealed class RegistroEspia : IRegistroAccesoDocumentoSensibleService
     {
-        public List<(Guid DocumentoId, DateTime Desde)> RevisionIa { get; } = [];
+        public List<Guid> RevisionIa { get; } = [];
         public List<(Guid DocumentoId, TipoAccesoDocumentoSensible Tipo)> Otros { get; } = [];
         public bool Falla { get; init; }
 
         public Task RegistrarSiSensibleAsync(Guid documentoId, TipoAccesoDocumentoSensible tipoAcceso, CancellationToken cancellationToken = default)
         {
-            Otros.Add((documentoId, tipoAcceso));
+            if (Falla)
+                throw new CaeManager.Application.Auditoria.AccesoDocumentoSensibleNoRegistradoException(documentoId);
+            if (tipoAcceso == TipoAccesoDocumentoSensible.RevisionIa)
+                RevisionIa.Add(documentoId);
+            else
+                Otros.Add((documentoId, tipoAcceso));
             return Task.CompletedTask;
         }
 
@@ -219,14 +240,6 @@ public class DocumentosEndpointsRevisionIaTests
             Guid recursoId, Guid tipoDocumentoId, TipoAccesoDocumentoSensible tipoAcceso, CancellationToken cancellationToken = default)
         {
             Otros.Add((recursoId, tipoAcceso));
-            return Task.CompletedTask;
-        }
-
-        public Task RegistrarRevisionIaSiSensibleAsync(Guid documentoId, DateTime revisionCreadaEnUtc, CancellationToken cancellationToken = default)
-        {
-            if (Falla)
-                throw new CaeManager.Application.Auditoria.AccesoDocumentoSensibleNoRegistradoException(documentoId);
-            RevisionIa.Add((documentoId, revisionCreadaEnUtc));
             return Task.CompletedTask;
         }
     }

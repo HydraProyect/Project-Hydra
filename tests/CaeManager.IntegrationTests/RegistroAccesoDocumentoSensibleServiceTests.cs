@@ -94,11 +94,11 @@ public class RegistroAccesoDocumentoSensibleServiceTests : IAsyncLifetime
         resultado.Elementos.Single(e => e.DocumentoId == dadoDeBaja.Id).DocumentoTitulo.Should().BeNull();
     }
 
-    private RegistroAccesoDocumentoSensibleService CrearServicioConDeduplicacion(
-        ActorAuditoria actor, CaeManager.Application.Seguridad.Incidentes.ISenalesIncidenteSeguridad? senales = null) =>
+    private RegistroAccesoDocumentoSensibleService CrearServicioConSenal(
+        ActorAuditoria actor, CaeManager.Application.Seguridad.Incidentes.ISenalesIncidenteSeguridad senales) =>
         new(_dbContext, _dbContext, new ActorAuditoriaFalso(actor),
             new RegistroAccesoDocumentoSensibleRepository(_dbContext, NullLogger<RegistroAccesoDocumentoSensibleRepository>.Instance),
-            senalesIncidente: senales, tenantActual: _tenantActual, auditoriaContext: _dbContext);
+            senalesIncidente: senales, tenantActual: _tenantActual);
 
     /// <summary>Cuenta los avisos de Documento sensible abierto a la señal de extracción masiva.</summary>
     private sealed class SenalesQueCuentan : CaeManager.Application.Seguridad.Incidentes.ISenalesIncidenteSeguridad
@@ -122,106 +122,51 @@ public class RegistroAccesoDocumentoSensibleServiceTests : IAsyncLifetime
         await _dbContext.RegistrosAccesoDocumentoSensible.AsNoTracking().Where(r => r.DocumentoId == documentoId).ToListAsync();
 
     /// <summary>
-    /// D-49, opción C: el visor de Revisión IA pide el documento cada vez que se selecciona la revisión; consta como mucho
-    /// una fila «Revisión IA» por persona y Documento desde que se creó la única revisión pendiente (peticiones simultáneas pueden
-    /// dejar más, nunca menos; aquí van en serie). Las Aperturas siguen registrándose en cada llamada.
+    /// D-49, opción C, contra la base: cada acceso del visor de Revisión IA a un Documento sensible deja una fila de tipo
+    /// Revisión IA, igual que cada Apertura, y cuenta para la señal de extracción masiva. Las Aperturas no cambian.
     /// </summary>
     [Fact]
-    public async Task La_Revision_IA_deja_como_mucho_una_fila_por_persona_Documento_y_revision_pendiente()
+    public async Task Cada_acceso_por_Revision_IA_deja_su_fila_y_avisa_a_la_senal_igual_que_cada_Apertura()
     {
         var tipo = await TipoConSensibilidadAsync(SensibilidadDocumental.CategoriaEspecialSalud);
         var documento = CrearDocumentoDeEmpresa(tipo.Id);
         _dbContext.Documentos.Add(documento);
         await _dbContext.SaveChangesAsync();
-        var creada = DateTime.UtcNow.AddMinutes(-5);
         var marta = Guid.NewGuid();
-        var servicio = CrearServicioConDeduplicacion(ActorAuditoria.Normal(marta));
+        var senales = new SenalesQueCuentan();
+        var servicio = CrearServicioConSenal(ActorAuditoria.Normal(marta), senales);
 
-        for (var i = 0; i < 3; i++)
-            await servicio.RegistrarRevisionIaSiSensibleAsync(documento.Id, creada);
+        await servicio.RegistrarSiSensibleAsync(documento.Id, TipoAccesoDocumentoSensible.RevisionIa);
+        await servicio.RegistrarSiSensibleAsync(documento.Id, TipoAccesoDocumentoSensible.RevisionIa);
         await servicio.RegistrarSiSensibleAsync(documento.Id, TipoAccesoDocumentoSensible.Apertura);
         await servicio.RegistrarSiSensibleAsync(documento.Id, TipoAccesoDocumentoSensible.Apertura);
 
         var registros = await RegistrosDeAsync(documento.Id);
-        registros.Where(r => r.TipoAcceso == TipoAccesoDocumentoSensible.RevisionIa).Should().ContainSingle()
-            .Which.UsuarioId.Should().Be(marta);
-        registros.Count(r => r.TipoAcceso == TipoAccesoDocumentoSensible.Apertura).Should().Be(2, "la Apertura no se deduplica");
+        registros.Where(r => r.TipoAcceso == TipoAccesoDocumentoSensible.RevisionIa).Should().HaveCount(2, "dos GET seguidos, dos filas")
+            .And.OnlyContain(r => r.UsuarioId == marta);
+        registros.Count(r => r.TipoAcceso == TipoAccesoDocumentoSensible.Apertura).Should().Be(2, "la Apertura no cambia");
+        senales.DocumentosSensiblesAbiertos.Should().Be(4, "cada acceso cuenta para la señal de extracción masiva");
     }
 
+    /// <summary>Dos revisiones pendientes del mismo Documento: cada acceso, a una u otra, deja su fila.</summary>
     [Fact]
-    public async Task Otra_persona_o_una_revision_posterior_del_mismo_Documento_dejan_su_propia_fila()
+    public async Task Con_dos_revisiones_pendientes_del_mismo_Documento_cada_acceso_deja_su_fila()
     {
         var tipo = await TipoConSensibilidadAsync(SensibilidadDocumental.CategoriaEspecialSalud);
         var documento = CrearDocumentoDeEmpresa(tipo.Id);
         _dbContext.Documentos.Add(documento);
         await _dbContext.SaveChangesAsync();
-        var creada = DateTime.UtcNow.AddMinutes(-5);
-
-        await CrearServicioConDeduplicacion(ActorAuditoria.Normal(Guid.NewGuid())).RegistrarRevisionIaSiSensibleAsync(documento.Id, creada);
-        var otra = CrearServicioConDeduplicacion(ActorAuditoria.Normal(Guid.NewGuid()));
-        await otra.RegistrarRevisionIaSiSensibleAsync(documento.Id, creada);
-        // Una revisión creada después de la fila anterior de esa persona es otra revisión: vuelve a registrar.
-        await otra.RegistrarRevisionIaSiSensibleAsync(documento.Id, DateTime.UtcNow.AddMinutes(1));
-
-        (await RegistrosDeAsync(documento.Id)).Count(r => r.TipoAcceso == TipoAccesoDocumentoSensible.RevisionIa).Should().Be(3);
-    }
-
-    /// <summary>
-    /// Dos revisiones pendientes del mismo Documento a la vez: la fila no identifica la revisión, así que no se deduplica y
-    /// cada apertura deja fila, con el recuento de pendientes traducido a SQL bajo el filtro de Tenant. Al resolver una,
-    /// vuelve la deduplicación.
-    /// </summary>
-    [Fact]
-    public async Task Con_dos_revisiones_pendientes_del_mismo_Documento_cada_apertura_deja_fila()
-    {
-        var tipo = await TipoConSensibilidadAsync(SensibilidadDocumental.CategoriaEspecialSalud);
-        var documento = CrearDocumentoDeEmpresa(tipo.Id);
-        _dbContext.Documentos.Add(documento);
+        _dbContext.RevisionesIaDocumento.AddRange(
+            RevisionIaDocumento.Crear(documento.Id, 50, null, null, null, null, "Confianza baja (50%)"),
+            RevisionIaDocumento.Crear(documento.Id, 40, null, null, null, null, "Confianza baja (40%)"));
         await _dbContext.SaveChangesAsync();
-        var a = RevisionIaDocumento.Crear(documento.Id, 50, null, null, null, null, "Confianza baja (50%)");
-        var b = RevisionIaDocumento.Crear(documento.Id, 40, null, null, null, null, "Confianza baja (40%)");
-        _dbContext.RevisionesIaDocumento.AddRange(a, b);
-        await _dbContext.SaveChangesAsync();
-        var servicio = CrearServicioConDeduplicacion(ActorAuditoria.Normal(Guid.NewGuid()));
+        var servicio = CrearServicioConSenal(ActorAuditoria.Normal(Guid.NewGuid()), new SenalesQueCuentan());
 
-        await servicio.RegistrarRevisionIaSiSensibleAsync(documento.Id, a.CreadaEnUtc);
-        await servicio.RegistrarRevisionIaSiSensibleAsync(documento.Id, b.CreadaEnUtc);
-        await servicio.RegistrarRevisionIaSiSensibleAsync(documento.Id, a.CreadaEnUtc);
-
-        (await RegistrosDeAsync(documento.Id)).Count(r => r.TipoAcceso == TipoAccesoDocumentoSensible.RevisionIa)
-            .Should().Be(3, "con dos pendientes, cada acceso deja fila");
-
-        b.Resolver();
-        await _dbContext.SaveChangesAsync();
-        await servicio.RegistrarRevisionIaSiSensibleAsync(documento.Id, a.CreadaEnUtc);
-
-        (await RegistrosDeAsync(documento.Id)).Count(r => r.TipoAcceso == TipoAccesoDocumentoSensible.RevisionIa)
-            .Should().Be(3, "con una sola pendiente vuelve la deduplicación");
-    }
-
-    /// <summary>
-    /// La fila y la señal, separadas, con la comprobación traducida a SQL: tras un «reinicio» (un servicio y una señal
-    /// nuevos, con la fila de la revisión ya persistida), cada relectura deduplicada sigue contando para la señal de
-    /// extracción masiva, como cada Apertura.
-    /// </summary>
-    [Fact]
-    public async Task Cada_relectura_por_Revision_IA_cuenta_para_la_senal_aunque_no_deje_fila()
-    {
-        var tipo = await TipoConSensibilidadAsync(SensibilidadDocumental.CategoriaEspecialSalud);
-        var documento = CrearDocumentoDeEmpresa(tipo.Id);
-        _dbContext.Documentos.Add(documento);
-        await _dbContext.SaveChangesAsync();
-        var creada = DateTime.UtcNow.AddMinutes(-5);
-        var actor = ActorAuditoria.Normal(Guid.NewGuid());
-        await CrearServicioConDeduplicacion(actor).RegistrarRevisionIaSiSensibleAsync(documento.Id, creada);
-
-        var senales = new SenalesQueCuentan();
-        var trasReinicio = CrearServicioConDeduplicacion(actor, senales);
         for (var i = 0; i < 3; i++)
-            await trasReinicio.RegistrarRevisionIaSiSensibleAsync(documento.Id, creada);
+            await servicio.RegistrarSiSensibleAsync(documento.Id, TipoAccesoDocumentoSensible.RevisionIa);
 
-        (await RegistrosDeAsync(documento.Id)).Should().ContainSingle("la fila persistida tapa las relecturas");
-        senales.DocumentosSensiblesAbiertos.Should().Be(3, "cada acceso cuenta para la señal, se escriba la fila o no");
+        (await RegistrosDeAsync(documento.Id)).Count(r => r.TipoAcceso == TipoAccesoDocumentoSensible.RevisionIa)
+            .Should().Be(3, "cada acceso deja su fila, sea de la revisión que sea");
     }
 
     [Fact]
@@ -232,12 +177,11 @@ public class RegistroAccesoDocumentoSensibleServiceTests : IAsyncLifetime
         _dbContext.Documentos.Add(documento);
         await _dbContext.SaveChangesAsync();
 
-        await CrearServicioConDeduplicacion(ActorAuditoria.Normal(Guid.NewGuid()))
-            .RegistrarRevisionIaSiSensibleAsync(documento.Id, DateTime.UtcNow.AddMinutes(-5));
+        await CrearServicio(ActorAuditoria.Normal(Guid.NewGuid()))
+            .RegistrarSiSensibleAsync(documento.Id, TipoAccesoDocumentoSensible.RevisionIa);
 
         (await RegistrosDeAsync(documento.Id)).Should().BeEmpty();
     }
-
     [Fact]
     public async Task Registra_el_acceso_cuando_el_tipo_revela_salud()
     {

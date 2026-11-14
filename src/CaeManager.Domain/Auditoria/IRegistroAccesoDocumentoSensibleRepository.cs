@@ -6,9 +6,7 @@ namespace CaeManager.Domain.Auditoria;
 /// repositorio de agregado (que cualquier handler podría inyectar sin pasar
 /// por la superficie de consulta acotada), sino por
 /// <c>IAuditoriaQueryContext.RegistrosAccesoDocumentoSensible</c>, expuesto
-/// solo a la query que la sirve y a la comprobación de «ya registrado» de la
-/// Revisión IA en <c>RegistroAccesoDocumentoSensibleService</c> (un sí o un no,
-/// sin devolver filas).
+/// solo a la query que la sirve.
 /// </summary>
 public interface IRegistroAccesoDocumentoSensibleRepository
 {
