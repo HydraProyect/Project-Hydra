@@ -104,4 +104,18 @@ public class ObtenerLoteGeneracionDocumentosQueryHandlerTests
         resultado.EsFallido.Should().BeTrue();
         resultado.Error.Codigo.Should().Be("Plantilla.LoteNoEncontrado");
     }
+
+    [Fact]
+    public async Task Sin_acceso_total_el_lote_de_una_version_que_ya_no_se_lee_no_se_ve()
+    {
+        var (contexto, lote, uno, dos) = ConstruirLote();
+        contexto.ListaPlantillasDocumentoVersion.Clear();
+        var alcance = new AlcanceDatosServiceFalso(tieneAccesoTotal: false, trabajadorIdsVisibles: [uno, dos]);
+
+        var resultado = await new ObtenerLoteGeneracionDocumentosQueryHandler(contexto, new TrabajadoresQueryContextFalso(), alcance)
+            .Handle(new ObtenerLoteGeneracionDocumentosQuery(lote.Id), CancellationToken.None);
+
+        resultado.EsFallido.Should().BeTrue();
+        resultado.Error.Codigo.Should().Be("Plantilla.LoteNoEncontrado");
+    }
 }
