@@ -1,0 +1,123 @@
+# Queries de Application cuyo Handle no alcanza ninguna comprobacion de cartera de IAlcanceDatosService
+# (LlamadaAlAlcanceDeCarteraEnLecturaTests). Medida el 2026-11-14 sobre origin/main e3bee6554: 112 de 291.
+#
+# Estar aqui NO es un aval. Muchas entradas son legitimas (datos del propio usuario, catalogo o configuracion
+# del Tenant, plano de Plataforma o de Operador CAE, agregado del Tenant entero tras AlcanzaElTenantEnteroAsync,
+# Query que solo compone otras por el mediador) y alguna es deuda conocida. La clasificacion de cada entrada
+# vive en el inventario de seguridad del repositorio de negocio (2026-11-14), no aqui.
+#
+# La lista solo encoge. Una Query nueva que no llama a la comprobacion pone el test en rojo: lo correcto es
+# anadir la comprobacion y su test de Application con un usuario fuera de cartera. Si de verdad no aplica, la
+# linea nueva lleva encima un comentario '#' que diga que lee y quien decide en su lugar.
+ApiKeys :: ObtenerClavesApiDeMiOrganizacionQueryHandler = 1
+ApiKeys :: ObtenerClavesApiQueryHandler = 1
+Asignaciones :: ObtenerTrabajadoresVisitaSinAsignacionQueryHandler = 1
+AsistenteIa :: ComprobarInstruccionIaCarteraQueryHandler = 1
+AsistenteIa :: ListarTareasAsistenteQueryHandler = 1
+AsistenteIa :: ObtenerTareaAsistenteQueryHandler = 1
+AsistenteIa :: PreguntarAlAsistenteQueryHandler = 1
+AsistenteIa :: ProponerPlanAsistenteQueryHandler = 1
+Auditoria :: ObtenerAccesosDocumentosSensiblesQueryHandler = 1
+Auditoria :: ObtenerAuditoriaQueryHandler = 1
+Auditoria :: ObtenerRegistroAuditoriaPorIdQueryHandler = 1
+AutorizacionesLectura :: ObtenerAutorizacionesLecturaQueryHandler = 1
+Bandeja :: ObtenerBandejaAgrupadaQueryHandler = 1
+Bandeja :: ObtenerBandejaGestorQueryHandler = 1
+BusquedaGlobal :: ObtenerRecientesQueryHandler = 1
+Calendario :: ObtenerCapasCalendarioQueryHandler = 1
+CatalogoBase :: ObtenerCatalogoBaseQueryHandler = 1
+Comercial :: ObtenerEstadoComercialTenantsQueryHandler = 1
+Comunicaciones :: ObtenerCompanerosGestorCaeQueryHandler = 1
+Comunicaciones :: ObtenerMensajesBuzonPersonalQueryHandler = 1
+Configuracion :: ObtenerEstadoAutomatizacionesQueryHandler = 1
+Configuracion :: ObtenerFiltrosGuardadosQueryHandler = 1
+Configuracion :: ObtenerOrdenCajasFichaQueryHandler = 1
+Configuracion :: ObtenerParametroSistemaQueryHandler = 1
+Configuracion :: ObtenerSeguridadAccesoQueryHandler = 1
+Configuracion :: ObtenerVistaRecordadaQueryHandler = 1
+ContactosSeguridad :: ObtenerContactoSeguridadDeMiOrganizacionQueryHandler = 1
+ContactosSeguridad :: ObtenerContactoSeguridadVigenteQueryHandler = 1
+ContactosSeguridad :: ObtenerContactosSeguridadPropuestosQueryHandler = 1
+ContactosSeguridad :: ResolverDestinatariosAvisoSeguridadQueryHandler = 1
+Cumplimiento :: ObtenerAceptacionesContractualesTenantQueryHandler = 1
+Cumplimiento :: ObtenerEstadoAceptacionTerminosQueryHandler = 1
+Cumplimiento :: ObtenerEstadoTratamientoIaActualQueryHandler = 1
+Cumplimiento :: ObtenerHistoricoInstruccionTratamientoIaTenantPropietarioQueryHandler = 1
+Dashboard :: ContarExtranjerosCobrablesDelMesQueryHandler = 1
+Dashboard :: ObtenerComunicacionesCuadroDireccionQueryHandler = 1
+Dashboard :: ObtenerCuadroDireccionQueryHandler = 1
+Dashboard :: ObtenerCumplimientoExigidoTenantQueryHandler = 1
+Dashboard :: ObtenerDashboardEjecutivoQueryHandler = 1
+Dashboard :: ObtenerEmpresasGestionadasDelMesQueryHandler = 1
+Dashboard :: ObtenerExtranjerosDeEmpresasGestionadasDelMesQueryHandler = 1
+Dashboard :: ObtenerExtranjerosDelMesQueryHandler = 1
+Dashboard :: ObtenerFacturacionOperadorCaeQueryHandler = 1
+Dashboard :: ObtenerGestionesPorDiaCuadroDireccionQueryHandler = 1
+Dashboard :: ObtenerKpisGlobalesQueryHandler = 1
+Dashboard :: ObtenerPreferenciaDashboardQueryHandler = 1
+Dashboard :: ObtenerSerieCuadroDireccionQueryHandler = 1
+Dashboard :: ObtenerTarifasOperadorCaeQueryHandler = 1
+Dashboard :: ObtenerTenantsCuadroDireccionQueryHandler = 1
+Documentos :: DetectarCamposDocumentoQueryHandler = 1
+Documentos :: ObtenerFirmaGuardadaUsuarioQueryHandler = 1
+DocumentosIa :: ObtenerAuditoriaIaQueryHandler = 1
+Empresas :: BuscarEmpresaPorCifQueryHandler = 1
+HerramientasPdf :: PrepararDivisionPdfQueryHandler = 1
+HerramientasPdf :: PrepararUnionPdfQueryHandler = 1
+Importacion :: AnalizarPlantillaMaestraQueryHandler = 1
+Importacion :: ObtenerHistorialImportacionesQueryHandler = 1
+Integraciones :: ObtenerLineasWhatsAppQueryHandler = 1
+Integraciones :: ObtenerProveedoresPlataformaCaeQueryHandler = 1
+Marco :: ObtenerContextoMarcoQueryHandler = 1
+Notificaciones :: ObtenerNotificacionesPendientesQueryHandler = 1
+Operaciones :: ObtenerApoyosDeCarteraQueryHandler = 1
+Operaciones :: ObtenerCandidatosIncorporacionCarteraQueryHandler = 1
+Operaciones :: ObtenerDestinatariosDeApoyoQueryHandler = 1
+Operaciones :: ObtenerPropuestasApoyoPendientesQueryHandler = 1
+Operaciones :: ObtenerSolicitudesIncorporacionCarteraQueryHandler = 1
+Operaciones :: ParticipaEnIncorporacionCarteraQueryHandler = 1
+Plantillas :: DetectarCamposPlantillaQueryHandler = 1
+Plataforma :: ObtenerAccesosSoporteTalvegQueryHandler = 1
+Plataforma :: ObtenerAjusteSegundoFactorPorPlataformaQueryHandler = 1
+Plataforma :: ObtenerIdentidadPlataformaQueryHandler = 1
+Plataforma :: ObtenerOrdenMenuLateralQueryHandler = 1
+Plataforma :: ObtenerSesionPrivilegiadaPorIdQueryHandler = 1
+Plataforma :: PuedeInicializarPlataformaQueryHandler = 1
+Retencion :: ObtenerSolicitudesPurgaQueryHandler = 1
+Seguridad :: ObtenerIncidenteSeguridadQueryHandler = 1
+Subcontratas :: ObtenerSubcontratasParaSelectorQueryHandler = 1
+Telemetria :: ObtenerTiempoGestionConversacionQueryHandler = 1
+Tenants :: AutorizarOperadorCaeExternoQueriesHandler[BuscarOperadorCaeExternoAutorizableQuery] = 1
+Tenants :: AutorizarOperadorCaeExternoQueriesHandler[ObtenerTenantPropietarioAutorizanteQuery] = 1
+Tenants :: DesactivarDelegacionTenantCommandHandler[PuedeRevocarQuery] = 1
+Tenants :: EsAdministradorPlataformaQueryHandler = 1
+Tenants :: EsTenantOrigenPlataformaQueryHandler = 1
+Tenants :: ObtenerActividadSoporteQueryHandler = 1
+Tenants :: ObtenerClientesAutorizadosQueryHandler = 1
+Tenants :: ObtenerDelegacionesQueryHandler = 1
+Tenants :: ObtenerEncargosAdministracionQueryHandler = 1
+Tenants :: ObtenerLogoOrganizacionQueryHandler = 1
+Tenants :: ObtenerLogoTenantQueryHandler = 1
+Tenants :: ObtenerOperacionesEncargablesQueryHandler = 1
+Tenants :: ObtenerOperadoresCaeExternosQueryHandler = 1
+Tenants :: ObtenerPerfilVocabularioActualQueryHandler = 1
+Tenants :: ObtenerTenantObjetivoSesionQueryHandler = 1
+Tenants :: PermisosAccesosDelegadosQueryHandler = 1
+Tenants :: ReactivarDelegacionTenantCommandHandler[PuedeReactivarQuery] = 1
+Tenants :: UsaRotulosPrimeraPersonaQueryHandler = 1
+TiposDocumento :: ObtenerTipoDocumentoPorIdQueryHandler = 1
+TiposDocumento :: ObtenerTiposDocumentoQueryHandler = 1
+Usuarios :: ObtenerAvatarPropioQueryHandler = 1
+Usuarios :: ObtenerCarteraDeGestorCaeQueryHandler = 1
+Usuarios :: ObtenerCuentaUsuarioQueryHandler = 1
+Usuarios :: ObtenerDobleFactorPropioQueryHandler = 1
+Usuarios :: ObtenerEmpresasAsignablesEnAltaQueryHandler = 1
+Usuarios :: ObtenerEquipoDeCoordinadorQueryHandler = 1
+Usuarios :: ObtenerNombreCuentaQueryHandler = 1
+Usuarios :: ObtenerOperacionesSinPrincipalQueryHandler = 1
+Usuarios :: ObtenerOperadoresCaeDeMiTenantQueryHandler = 1
+Usuarios :: ObtenerPersonasConCarteraQueryHandler = 1
+Usuarios :: ObtenerRestablecimientoPorSoporteQueryHandler = 1
+Usuarios :: ObtenerRolesNoAsignablesQueryHandler = 1
+VigilanciaNormativa :: ObtenerAvisosRevisionNormativaQueryHandler = 1
+Visitas :: ObtenerProximaVisitaPorCentroQueryHandler = 1
