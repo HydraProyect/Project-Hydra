@@ -63,6 +63,45 @@ public class RegistroAccesoRevisionIaDeduplicacionTests
     }
 
     /// <summary>
+    /// Sin contexto de auditoría no hay con qué comprobar: registra en cada llamada, de más, nunca de menos, y no lo trata
+    /// como un fallo de la comprobación (sin aviso): es la composición sin deduplicación, no una consulta caída.
+    /// </summary>
+    [Fact]
+    public async Task Sin_contexto_de_auditoria_no_deduplica_y_escribe_la_fila()
+    {
+        var repositorio = new RepositorioEspia();
+        var avisos = new RegistroDeAvisos<RegistroAccesoDocumentoSensibleService>();
+        var servicio = new RegistroAccesoDocumentoSensibleService(
+            new DocumentosQueryContextFalso(), new TiposDocumentoQueryContextFalso(), new ActorFijo(ActorPorOperacion),
+            repositorio, tenantActual: new TenantFijo(TenantPropietarioId), auditoriaContext: null, logger: avisos);
+
+        await servicio.RegistrarRevisionIaSiSensibleAsync(DocumentoId, RevisionCreadaEnUtc);
+        await servicio.RegistrarRevisionIaSiSensibleAsync(DocumentoId, RevisionCreadaEnUtc);
+
+        repositorio.Guardados.Should().HaveCount(2);
+        avisos.Entradas.Should().BeEmpty("sin contexto no hay consulta que falle");
+    }
+
+    /// <summary>
+    /// Sin Actor real no hay de quién deduplicar: una fila idéntica, también sin Actor real, no tapa el acceso.
+    /// </summary>
+    [Fact]
+    public async Task Sin_Actor_real_no_deduplica_aunque_haya_una_fila_identica()
+    {
+        var repositorio = new RepositorioEspia();
+        var sinActorReal = new ActorAuditoria(null, null, TipoViaAcceso.Normal, null);
+        var identica = ConTenant(new RegistroAccesoDocumentoSensible(
+            DocumentoId, SensibilidadDocumental.CategoriaEspecialSalud, TipoAccesoDocumentoSensible.RevisionIa,
+            null, null, (TipoViaAccesoAuditoria)TipoViaAcceso.Normal, null,
+            (TipoActorAuditoria)sinActorReal.ResolverTipoActor()), TenantPropietarioId);
+        var servicio = Servicio(repositorio, new AuditoriaConFilas(identica), actor: sinActorReal);
+
+        await servicio.RegistrarRevisionIaSiSensibleAsync(DocumentoId, RevisionCreadaEnUtc);
+
+        repositorio.Guardados.Should().ContainSingle("sin Actor real, se registra: de más, nunca de menos");
+    }
+
+    /// <summary>
     /// La fila ya escrita desde que se creó la revisión tapa la fila de este acceso, pero no la señal: se avisa igual que
     /// si se hubiera escrito, sin aviso de fallo.
     /// </summary>

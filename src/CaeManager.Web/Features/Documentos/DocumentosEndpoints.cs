@@ -338,8 +338,8 @@ public static class DocumentosEndpoints
 
     /// <summary>
     /// <see cref="AbrirConRegistroAsync(Guid, TipoAccesoDocumentoSensible, HttpContext, IMediator, IFileStorageService, IRegistroAccesoDocumentoSensibleService, ILoggerFactory, CancellationToken)"/>
-    /// con el registro que decide quien llama (la Revisión IA deduplica por persona, Documento, revisión pendiente y ventana de
-    /// detección de extracción masiva). Mismo orden: lectura con
+    /// con el registro que decide quien llama (la Revisión IA deduplica la fila por persona y Documento desde que se creó la
+    /// revisión pendiente, y cada acceso cuenta para la señal de extracción masiva). Mismo orden: lectura con
     /// alcance, apertura del blob y registro antes de entregar nada; si el registro falla, no se sirve.
     /// </summary>
     private static async Task<(Stream? Flujo, DocumentoDetalleDto? Documento, IResult? Rechazo)> AbrirConRegistroAsync(
