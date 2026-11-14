@@ -1,3 +1,5 @@
+using CaeManager.Infrastructure.Identity;
+
 namespace CaeManager.Web.Features.Documentos;
 
 /// <summary>Qué pinta <c>/documentos</c> para un Id de <c>?pestana=</c>.</summary>
@@ -19,10 +21,8 @@ public enum VistaDePestana
 /// <param name="Vista">Lo que pinta <c>/documentos</c> mientras tanto.</param>
 /// <param name="RutaExterna">Pantalla propia a la que se lleva, si el sustituto no es el listado.</param>
 /// <param name="Agrupar">Valor de <c>agrupar</c> que equivale a la pestaña, si hay.</param>
-/// <param name="VenceEn">Valor de <c>venceEn</c> que equivale a la pestaña, si hay.</param>
-/// <param name="Orden">Valor de <c>orden</c> que equivale a la pestaña, si hay.</param>
 public sealed record PestanaResuelta(
-    VistaDePestana Vista, string? RutaExterna = null, string? Agrupar = null, string? VenceEn = null, string? Orden = null);
+    VistaDePestana Vista, string? RutaExterna = null, string? Agrupar = null);
 
 /// <summary>
 /// Tabla única de lo que hace cada Id de <c>?pestana=</c> desde que <c>/documentos</c> no tiene barra de pestañas (lienzo
@@ -36,8 +36,9 @@ public sealed record PestanaResuelta(
 /// Plataformas CAE, porque el listado no resalta ni acota a la acreditación del enlace (bucle de corrección, Mi trabajo).</item>
 /// <item><c>reclamaciones</c>: sigue siendo la vista de Reclamaciones para quien gestiona: el compositor «Nueva reclamación»
 /// no tiene aún sustituto completo (Alertas pide elegir el lote).</item>
-/// <item><c>sugerencias</c> (Preventivo): el listado con «Vence en 90 días» por vencimiento. Sus «Patrones de falta» ya viven en
-/// <c>/alertas</c> (Faltan documentos). Sin rol: la pestaña no restringía.</item>
+/// <item><c>sugerencias</c> (Preventivo): <c>/alertas</c>, cuya sección «Faltan documentos» (PR5, #2209) es su sustituto y usa la
+/// misma consulta. Solo para los roles que abre Alertas (Administrador, Dirección CAE, Coordinador CAE, Gestor CAE y Consulta);
+/// quien no la abre (Usuario de Cliente) se queda en el listado, sin aviso de rol. Antes la pestaña no restringía por rol.</item>
 /// <item><c>revision-ia</c>: <c>/documentos/revision-ia</c> para quien gestiona.</item>
 /// <item><c>plantillas</c>: <c>/plantillas</c> (catálogo) para quien gestiona.</item>
 /// </list>
@@ -50,18 +51,27 @@ public static class RedireccionDePestanas
     public const string RutaRevisionIa = "/documentos/revision-ia";
     public const string RutaPlantillas = "/plantillas";
     public const string AgruparPorPlataformaCae = "plataforma";
-    public const string VenceEnPreventivo = "90";
-    public const string OrdenPreventivo = "vencimiento";
+    public const string RutaAlertas = "/alertas";
+
+    /// <summary>Los roles del <c>[Authorize]</c> de <c>/alertas</c>; <c>RedireccionDePestanasTests</c> los compara con él.</summary>
+    public const string RolesQueAbrenAlertas =
+        $"{Roles.Administrador},{Roles.DireccionCae},{Roles.CoordinadorCae},{Roles.GestorCae},{Roles.Consulta}";
 
     /// <param name="idDePestana">Id canónico (<c>Documentos.IdDePestanaDeUrl</c>), o null si no hay o no es válido.</param>
     /// <param name="conAcreditacionId">El enlace trae <c>acreditacionId</c>.</param>
     /// <param name="gestionaDocumentos">null mientras no se ha leído el rol.</param>
-    public static PestanaResuelta Resolver(string? idDePestana, bool conAcreditacionId, bool? gestionaDocumentos)
+    /// <param name="puedeVerAlertas">Rol que abre <c>/alertas</c> (su <c>[Authorize]</c>); null mientras no se ha leído.</param>
+    public static PestanaResuelta Resolver(string? idDePestana, bool conAcreditacionId, bool? gestionaDocumentos, bool? puedeVerAlertas = null)
     {
         switch (idDePestana)
         {
             case "sugerencias":
-                return new PestanaResuelta(VistaDePestana.Listado, VenceEn: VenceEnPreventivo, Orden: OrdenPreventivo);
+                return puedeVerAlertas switch
+                {
+                    true => new PestanaResuelta(VistaDePestana.Redirigiendo, RutaExterna: RutaAlertas),
+                    false => new PestanaResuelta(VistaDePestana.Listado),
+                    null => new PestanaResuelta(VistaDePestana.Redirigiendo),
+                };
 
             case "plataforma" when !conAcreditacionId:
                 return new PestanaResuelta(VistaDePestana.Listado, Agrupar: AgruparPorPlataformaCae);

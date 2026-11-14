@@ -52,7 +52,8 @@ public class MiTrabajoGen2Tests(WebAppFixture fixture)
     [Fact]
     public async Task El_POST_cross_Tenant_con_returnUrl_profundo_aterriza_en_esa_pantalla_con_la_organizacion_activa()
     {
-        const string destino = "/documentos?pestana=plataforma";
+        // Un destino con consulta que Documentos no reescribe: `?pestana=plataforma` sin acreditación se sustituye por `?agrupar=plataforma` (PR8).
+        const string destino = "/documentos?agrupar=plataforma";
         await using var contexto = await fixture.Browser.NewContextAsync();
         var page = await contexto.NewPageAsync();
         await Ayudas.IniciarSesionAsync(page, fixture.BaseUrl, Ayudas.EmailAdministradorConsultora, Ayudas.ContrasenaUsuariosPrueba);

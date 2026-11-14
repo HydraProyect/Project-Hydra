@@ -24,38 +24,23 @@ public partial class DocumentosGen2Tests
     [InlineData("DireccionCae")]
     [InlineData("CoordinadorCae")]
     [InlineData("GestorCae")]
-    public void Preventivo_se_convierte_en_el_listado_con_Vence_en_90_dias_por_vencimiento(string rol)
+    [InlineData("Consulta")]
+    public void Preventivo_lleva_a_Faltan_documentos_de_Alertas_a_quien_Alertas_abre(string rol)
     {
-        var (cut, mediador) = Renderizar(ConDocumentos(Documento("Seguro RC")), rol: rol, url: "documentos?pestana=sugerencias");
+        _ = Renderizar(rol: rol, url: "documentos?pestana=sugerencias");
 
-        cut.WaitForAssertion(() =>
-        {
-            UltimaConsultaDeDocumentos(mediador).VenceEnDias.Should().Be(90);
-            UrlDeLaPagina().Should().Contain("VenceEn=90").And.Contain("orden=vencimiento").And.NotContain("pestana");
-        });
-        cut.FindAll("[role=tablist]").Should().BeEmpty();
+        UrlDeLaPagina().Should().EndWith("/alertas", "su sustituto es la seccion «Faltan documentos» de /alertas (PR5), no el listado");
     }
 
     [Fact]
-    public void Preventivo_con_un_plazo_propio_en_la_URL_no_lo_pisa()
+    public void Preventivo_para_el_Usuario_de_Cliente_se_queda_en_el_listado_porque_Alertas_no_se_le_abre()
     {
-        var (cut, mediador) = Renderizar(url: "documentos?pestana=sugerencias&VenceEn=30");
+        var (cut, mediador) = Renderizar(rol: "Cliente", url: "documentos?pestana=sugerencias");
 
-        cut.WaitForAssertion(() => UltimaConsultaDeDocumentos(mediador).VenceEnDias.Should().Be(30));
-        UrlDeLaPagina().Should().Contain("VenceEn=30").And.NotContain("VenceEn=90").And.NotContain("pestana");
+        EsperarListado(cut, mediador);
+        UrlDeLaPagina().Should().NotContain("/alertas");
+        UltimaConsultaDeDocumentos(mediador).VenceEnDias.Should().BeNull("el listado no hereda un filtro que la pestaña nunca fue");
     }
-
-    [Theory]
-    [InlineData("Consulta")]
-    [InlineData("Cliente")]
-    public void Preventivo_sin_rol_de_gestion_tambien_cae_en_el_listado_con_el_plazo(string rol)
-    {
-        var (cut, mediador) = Renderizar(rol: rol, url: "documentos?pestana=sugerencias");
-
-        cut.WaitForAssertion(() => UltimaConsultaDeDocumentos(mediador).VenceEnDias.Should().Be(90));
-        UrlDeLaPagina().Should().NotContain("pestana");
-    }
-
     [Fact]
     public void Plataformas_CAE_sin_acreditacion_es_el_listado_agrupado_por_Plataforma_CAE()
     {

@@ -109,6 +109,9 @@ public partial class Incidencias : CaeManager.Web.Components.PaginaInteractiva
     }
     private List<IncidenciaListaDto> _elementosPagina = [];
     private Guid? _idEnfocado;
+
+    /// <summary>Página, tamaño, búsqueda, estado y orden de la última carga: ver <see cref="ProveerElementosAsync"/>.</summary>
+    private (int, int, string, string, string?, bool)? _claveUltimaCarga;
     private bool _eliminandoLote;
     private bool _confirmarEliminarLoteVisible;
 
@@ -231,9 +234,19 @@ public partial class Incidencias : CaeManager.Web.Components.PaginaInteractiva
             _totalElementos = resultado.TotalElementos;
 
             var elementos = resultado.Elementos.ToList();
+
+            // QuickGrid vuelve a pedir los datos por su cuenta en el primer re-render tras la primera carga (cambia el total de su
+            // paginación): una petición idéntica con las mismas filas no es una lista nueva y no debe quitar la fila enfocada ni
+            // la selección de quien ya está usando los atajos. Con otra página, filtro, orden o filas, sí se empieza de cero.
+            var clave = (pagina, _paginacion.ItemsPerPage, _busqueda, _estadoFiltro, ordenarPor, descendente);
+            var mismaLista = clave.Equals(_claveUltimaCarga) && elementos.Select(e => e.Id).SequenceEqual(_elementosPagina.Select(e => e.Id));
+            _claveUltimaCarga = clave;
             _elementosPagina = elementos;
-            _seleccionados.Clear();
-            _idEnfocado = null;
+            if (!mismaLista)
+            {
+                _seleccionados.Clear();
+                _idEnfocado = null;
+            }
 
             return GridItemsProviderResult.From(elementos, resultado.TotalElementos);
         }

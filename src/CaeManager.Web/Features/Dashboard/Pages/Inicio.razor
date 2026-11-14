@@ -189,6 +189,7 @@
                                 reclamado@(reclamacion.TotalDocumentos == 1 ? "" : "s") hace @reclamacion.DiasTranscurridos días, sin respuesta.
                             </span>
                             <Badge Tono="TonoBadge.Advertencia">Sin respuesta</Badge>
+                            @* «?pestana=reclamaciones» sigue siendo la vista de Reclamaciones de /documentos (sin barra de pestañas desde la PR8; se retira en la PR9). *@
                             <a class="enlace-ver-todas" href="/documentos?pestana=reclamaciones">Revisar y reclamar →</a>
                         </div>
                     }
