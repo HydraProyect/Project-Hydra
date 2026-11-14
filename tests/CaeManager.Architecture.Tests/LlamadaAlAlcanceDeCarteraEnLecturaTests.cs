@@ -57,7 +57,8 @@ namespace CaeManager.Architecture.Tests;
 /// la lista. (3) Que la lista de roles que promete un comentario (<c>RolesQueLeen…</c>) se aplique: eso es otra
 /// guarda. (4) Nada de RLS ni del aislamiento entre Tenants: Propiedad ≠ Operación ≠ Plataforma; esto mira solo
 /// el plano de Operación dentro de un Tenant. (5) Que una Query que hoy no llama sea segura por su llamador: si
-/// un componente nuevo le pasa un Id sin filtrar, esta red no lo ve.
+/// un componente nuevo le pasa un Id sin filtrar, esta red no lo ve. (6) Handlers fuera del ensamblado de
+/// Application: solo se buscan ahí.
 /// </para>
 /// </summary>
 public class LlamadaAlAlcanceDeCarteraEnLecturaTests
@@ -110,6 +111,11 @@ public class LlamadaAlAlcanceDeCarteraEnLecturaTests
         MedidaActual.Value.Criterio.Should().BeEquivalentTo(compartido.Select(ClaveMetodo.De),
             "la red de lectura mide «llama» con el mismo criterio que la red de escritura");
 
+        // Y que ese criterio es el que se pasó al grafo: QueAlcanzan parte de sus objetivos, así que todos están en
+        // el conjunto medido. Si alguien estrechara solo el argumento de QueAlcanzan, faltarían aquí.
+        compartido.Select(ClaveMetodo.De).Should().BeSubsetOf(MedidaActual.Value.Alcanzan,
+            "la medida tiene que haber recorrido el grafo desde todos los métodos del criterio compartido");
+
         var nombres = compartido.Select(m => m.Name).ToHashSet();
         nombres.Should().Contain(nameof(IAlcanceDatosService.ObtenerClienteIdsVisiblesAsync))
             .And.Contain(nameof(IAlcanceDatosService.ObtenerTrabajadorIdsVisiblesAsync));
@@ -154,7 +160,7 @@ public class LlamadaAlAlcanceDeCarteraEnLecturaTests
 
     private sealed record Medida(
         int Total, int Llaman, IReadOnlyList<Ubicacion> NoLlaman, IReadOnlySet<string> CaracteristicasQueLlaman,
-        IReadOnlyCollection<ClaveMetodo> Criterio);
+        IReadOnlyCollection<ClaveMetodo> Criterio, IReadOnlySet<ClaveMetodo> Alcanzan);
 
     private static Medida Medir()
     {
@@ -205,6 +211,6 @@ public class LlamadaAlAlcanceDeCarteraEnLecturaTests
         }
 
         noLlaman.Should().OnlyHaveUniqueItems("la clave Característica :: Handler[Petición] tiene que ser única");
-        return new Medida(total, llaman, noLlaman, caracteristicasQueLlaman, criterio.Select(ClaveMetodo.De).ToList());
+        return new Medida(total, llaman, noLlaman, caracteristicasQueLlaman, criterio.Select(ClaveMetodo.De).ToList(), alcanzan);
     }
 }
