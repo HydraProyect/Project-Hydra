@@ -45,6 +45,13 @@ public class PlantillasFiltrosTests : BunitContext
         public List<ObtenerDocumentosGeneradosQuery> ConsultasGenerados { get; } = [];
         public List<FiltroGuardadoDto> FiltrosGuardados { get; } = [];
 
+        /// <summary>Los Trabajadores del selector (Cartera): el test los cambia para simular una Asignación de Cartera nueva.</summary>
+        public List<TrabajadorSelectorDto> Trabajadores { get; } =
+        [
+            new(Trabajador1, "Ana Pérez", null, null),
+            new(Trabajador2, "Luis Gómez", null, null)
+        ];
+
         public Task<TResponse> Send<TResponse>(IRequest<TResponse> request, CancellationToken cancellationToken = default) =>
             Task.FromResult((TResponse)Responder(request));
 
@@ -61,9 +68,7 @@ public class PlantillasFiltrosTests : BunitContext
                 case ObtenerClientesParaSelectorQuery:
                     return (IReadOnlyList<ClienteSelectorDto>)[new ClienteSelectorDto(Cliente, "Acerías del Sur")];
                 case ObtenerTrabajadoresParaSelectorQuery:
-                    return (IReadOnlyList<TrabajadorSelectorDto>)[
-                        new TrabajadorSelectorDto(Trabajador1, "Ana Pérez", null, null),
-                        new TrabajadorSelectorDto(Trabajador2, "Luis Gómez", null, null)];
+                    return (IReadOnlyList<TrabajadorSelectorDto>)Trabajadores.ToList();
                 case ObtenerTotalDocumentosGeneradosConAvisosQuery:
                     return Generados.Count(g => g.Estado == EstadoDocumentoGenerado.GeneradoConAvisos);
                 case ObtenerDocumentosGeneradosQuery q:
@@ -616,6 +621,28 @@ public class PlantillasFiltrosTests : BunitContext
 
         public Task Publish<TNotification>(TNotification notification, CancellationToken cancellationToken = default)
             where TNotification : INotification => Task.CompletedTask;
+    }
+
+    /// <summary>
+    /// La lista de Trabajadores que entregó el panel se olvida al salir de Generados: un Trabajador dado de alta en la Cartera
+    /// mientras tanto, que llega en un enlace, se valida contra la lista nueva y no contra la vieja.
+    /// </summary>
+    [Fact]
+    public async Task Un_trabajador_nuevo_de_la_Cartera_en_un_enlace_a_Generados_no_se_descarta_con_la_lista_vieja()
+    {
+        var mediador = CatalogoConGenerados();
+        var cut = Renderizar(mediador, "plantillas?Pestana=generados");
+        cut.WaitForAssertion(() => FilasGenerados(cut).Should().HaveCount(3));
+
+        await cut.FindAll(".segmentado-opcion").Single(o => o.TextContent.Trim().StartsWith("Catálogo", StringComparison.Ordinal)).ClickAsync(new MouseEventArgs());
+        cut.WaitForAssertion(() => Nombres(cut).Should().HaveCount(4));
+
+        var nuevo = Guid.NewGuid();
+        mediador.Trabajadores.Add(new TrabajadorSelectorDto(nuevo, "Eva Ruiz", null, null));
+        Services.GetRequiredService<NavigationManager>().NavigateTo($"plantillas?Pestana=generados&trabajador={nuevo}");
+
+        cut.WaitForAssertion(() => FilasGenerados(cut).Should().BeEmpty("Eva Ruiz aún no tiene documentos, pero el filtro sigue puesto"));
+        ClavesDeLaUrl().Should().Contain("trabajador");
     }
 
     /// <summary>El contrato del panel: un repintado del padre antes del arranque no avisa a la barra, que daría por buena una lista vacía.</summary>

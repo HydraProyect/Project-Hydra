@@ -252,7 +252,10 @@ public partial class PlantillasTab : ComponentBase, IDisposable
         // Catálogo y Generados comparten el menú de filtros guardados y la vista recordada, pero no los filtros: lo que es
         // de la otra vista se descarta, para no dejar un filtro oculto que no se ve ni se puede quitar.
         if (_pestanaActiva == "catalogo")
+        {
             _plantillaFiltro = _trabajadorFiltro = string.Empty;
+            OlvidarTrabajadoresGenerados();
+        }
         else
             _ambito = _formato = _alcance = string.Empty;
 
@@ -306,9 +309,23 @@ public partial class PlantillasTab : ComponentBase, IDisposable
         // Los filtros de una vista no son los de la otra: se conserva la búsqueda y se quita lo demás.
         _pestanaActiva = vista;
         _ambito = _formato = _estado = _alcance = _plantillaFiltro = _trabajadorFiltro = string.Empty;
+        if (vista != VistaGenerados)
+            OlvidarTrabajadoresGenerados();
+
         _idEnfocado = null;
         EscribirUrl();
         await PestanaActivaChanged.InvokeAsync(vista);
+    }
+
+    /// <summary>
+    /// El panel de Generados se retira al salir de su vista y la lista de Trabajadores que entregó puede quedar vieja (la
+    /// Cartera cambia): al volver, el filtro de Trabajador de un enlace se valida contra la lista que el panel entregue de nuevo,
+    /// no contra esta.
+    /// </summary>
+    private void OlvidarTrabajadoresGenerados()
+    {
+        _trabajadoresRecibidos = false;
+        _trabajadoresGenerados = [];
     }
 
     /// <summary>
