@@ -328,7 +328,6 @@ public class BackfillNoReabreOperacionesCerradasTests : IAsyncLifetime
         operacion.VigenciaHasta.Should().Be(caducidad, "se cierra en la fecha en que caducó la delegación");
         var cartera = await verificacion.AsignacionesCartera.IgnoreQueryFilters().SingleAsync(c => c.AsignacionOperacionId == acotada);
         cartera.Estado.Should().Be(EstadoAsignacion.Cerrada, "ni su cartera sin vencimiento");
-        cartera.RestaurableAlReactivar.Should().BeFalse("una caducidad no se deshace al reactivar");
         (await ExternasOutboundAsync()).Should().ContainSingle("control: no crea la del Tenant entero desde la caducada");
         (await verificacion.AsignacionesOperacion.SingleAsync(o => o.Id == inbound)).Estado
             .Should().Be(EstadoAsignacion.Vigente, "Inbound tiene su propio ciclo");
@@ -372,6 +371,38 @@ public class BackfillNoReabreOperacionesCerradasTests : IAsyncLifetime
         (await verificacion.AsignacionesCartera.IgnoreQueryFilters()
                 .CountAsync(c => c.UsuarioId == sinCartera && c.Estado == EstadoAsignacion.Vigente))
             .Should().Be(1, "control: quien no tenía cartera recibe la de Consulta");
+    }
+
+    /// <summary>
+    /// P8, trasladado desde RolesDelegadosSoloDeOperacionTests al retirarse la reposición al reactivar
+    /// (opción A en la PR #2223): la fila heredada revocada no emite cartera en el arranque, aunque su
+    /// rol sea de Operación y su persona nunca haya tenido cartera en el par. Se usa un Gestor CAE para
+    /// que el resultado dependa de la revocación y no de la lista blanca de roles. Control: la fila
+    /// válida de la misma delegación sí la emite.
+    /// </summary>
+    [Fact]
+    public async Task No_emite_la_cartera_de_una_fila_heredada_revocada()
+    {
+        await EjecutarBackfillAsync();
+        var revocado = await SembrarUsuarioAsync("gestor-revocado@operador");
+        var valida = await SembrarUsuarioAsync("consulta-valida@operador");
+        await using (var contexto = CrearContexto(_propietario))
+        {
+            var revocada = new AsignacionOperadorDelegado(_delegacion, revocado, Roles.GestorCae);
+            revocada.Revocar("Prueba de revocación", DateTime.UtcNow);
+            contexto.AsignacionesOperadorDelegadoConRevocadas.AddRange(
+                revocada, new AsignacionOperadorDelegado(_delegacion, valida, Roles.Consulta));
+            await contexto.SaveChangesAsync();
+        }
+
+        await EjecutarBackfillAsync();
+
+        await using var verificacion = CrearContexto(_propietario);
+        (await verificacion.AsignacionesCartera.IgnoreQueryFilters().AnyAsync(c => c.UsuarioId == revocado))
+            .Should().BeFalse("la fila heredada revocada no emite cartera");
+        (await verificacion.AsignacionesCartera.IgnoreQueryFilters()
+                .CountAsync(c => c.UsuarioId == valida && c.Estado == EstadoAsignacion.Vigente))
+            .Should().Be(1, "control positivo: la válida de la misma delegación sí la emite");
     }
 
     /// <summary>

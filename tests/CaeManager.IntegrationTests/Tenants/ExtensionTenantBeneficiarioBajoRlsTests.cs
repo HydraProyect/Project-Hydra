@@ -358,9 +358,15 @@ public class ExtensionTenantBeneficiarioBajoRlsTests : IAsyncLifetime
             operacion, usuario, Roles.GestorCae, AmbitoAsignacion.Universal, desde, null, ahora);
         _propietario.AsignacionesOperacion.Add(operacion);
         _propietario.AsignacionesCartera.Add(cartera);
+        // Una Asignación de Operación Outbound externa solo autoriza con la DelegacionTenant de Operador
+        // CAE externo del par vigente (decisión de Chris del 2026-11-14, opción A en la PR #2223).
+        if (operador != propietario && _paresConDelegacion.Add((propietario, operador)))
+            _propietario.DelegacionesTenant.Add(new DelegacionTenant(operador, propietario));
         await _propietario.SaveChangesAsync();
         return (operacion, cartera);
     }
+
+    private readonly HashSet<(Guid Propietario, Guid Operador)> _paresConDelegacion = [];
 
     private Task<Result<CambioEstadoAnotadoDto>> ConfirmarAsync(CaeManagerDbContext contexto, Guid acreditacionId) =>
         new ConfirmarSubidaDesdeExtensionCommandHandler(

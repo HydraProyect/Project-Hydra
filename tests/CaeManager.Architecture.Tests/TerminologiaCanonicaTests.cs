@@ -486,10 +486,13 @@ public class TerminologiaCanonicaTests
         // 355 → 356 (2026-11-02, retirar a una persona de un Operador CAE externo): +1, referencia a un tipo ya
         // existente. RevocarAsignacionOperadorDelegadoCommandHandler recibe IAutorizacionDelegacionTenant para
         // usar el predicado de AdministradorQueReactiva.
-        // 356 → 355 (2026-11-14, PR #2223): AsignacionesOperativasBackfillSeeder renombra el conjunto local de
-        // ids comerciales (idsDelegacionesComerciales → idsComerciales, dos apariciones) y su paso 2b añade
-        // una referencia a AsignacionOperadorDelegado.DelegacionTenantId, propiedad ya existente: −2 + 1.
-        ["Delegacion"] = 355,
+        // 356 → 356 (2026-11-14, PR #2223, saldo cero): AsignacionesOperativasBackfillSeeder renombra el
+        // conjunto local de ids comerciales (idsDelegacionesComerciales → idsComerciales, −2) y su paso 2b añade
+        // una referencia a AsignacionOperadorDelegado.DelegacionTenantId, propiedad ya existente (+1);
+        // AsignacionesOperativasWriter retira el método que filtraba por DelegacionTenantId (−1); y
+        // AlcanceDatosService.ObtenerCarteraAsync consulta el DbSet DelegacionesTenant y PropositoDelegacion,
+        // tipos ya existentes, para exigir la delegación del par vigente (+2). Ningún identificador nuevo.
+        ["Delegacion"] = 356,
         // 72 (antes 71): el selector de empresa gestionada también se ofrece en el cajón de navegación
         // móvil (NavegacionMovil), que bajo 1024 px es la única forma de alcanzarlo. Es un segundo
         // anfitrión del mismo componente, no un identificador nuevo; el renombrado sigue siendo un

@@ -201,15 +201,14 @@ public class SoporteRevocaOperadorCaeExternoBajoRuntimeTests : IAsyncLifetime
     }
 
     /// <summary>
-    /// Rondas 1 y 2 de Codex en la PR #2223: la reactivación repone solo lo que la cascada marcó como
-    /// restaurable, no lo que comparte el fin de la operación. La función, como
-    /// <c>AsignacionCartera.CerrarPorCascadaDeLaOperacion</c>, marca solo la cartera Vigente bajo una
-    /// operación Vigente. Una Suspendida cuya fecha de fin ya pasada coincide con la de su operación
-    /// —la colisión que engañaba a la inferencia— y una Vigente bajo una operación Suspendida se cierran
-    /// sin marca y con su estado efectivo Suspendido: lo suspendido nunca vuelve como vigente.
+    /// Rondas 1 y 2 de Codex en la PR #2223, con la opción A (decisión de Chris del 2026-11-14):
+    /// reactivar no repone ninguna cartera, así que la función ya no marca nada como restaurable. Cierra
+    /// por revocación toda cartera no cerrada del par, en cualquier estado —una Suspendida cuya fecha de
+    /// fin ya pasada coincide con la de su operación, una Vigente principal bajo una operación Suspendida
+    /// y la Vigente principal bajo la del Tenant entero— y apaga la marca de principal de todas.
     /// </summary>
     [Fact]
-    public async Task Con_la_capacidad_solo_marca_restaurable_la_cartera_vigente_bajo_una_operacion_vigente()
+    public async Task Con_la_capacidad_cierra_toda_cartera_del_par_en_cualquier_estado_y_apaga_la_marca_de_principal()
     {
         var otraGestora = Guid.NewGuid();
         await using (var contexto = CrearContexto(_tenantPlataforma, cadena: _cadenaConexion))
@@ -254,17 +253,16 @@ public class SoporteRevocaOperadorCaeExternoBajoRuntimeTests : IAsyncLifetime
         (await RevocarComoSoporteAsync(_tenantA, sesion)).Should().Be("revocada");
 
         const string Marca = @"
-SELECT c.""Estado"" || '/' || c.""MotivoCierre"" || '/' || c.""RestaurableAlReactivar""::text || '/' ||
-       c.""EraPrincipalAlCerrarsePorCascada""::text || '/' || c.""EstadoAlCerrarse"" || '/' ||
+SELECT c.""Estado"" || '/' || c.""MotivoCierre"" || '/' || c.""EsPrincipal""::text || '/' ||
        CASE WHEN c.""VigenciaHasta"" = o.""VigenciaHasta"" THEN 'igual' ELSE 'otro' END
 FROM ""AsignacionesCartera"" c JOIN ""AsignacionesOperacion"" o ON o.""Id"" = c.""AsignacionOperacionId""
 WHERE c.""Id"" = @u;";
-        (await EscalarAsync<string>(Marca, suspendida)).Should().Be("Cerrada/Revocada/false/false/Suspendida/igual",
-            "comparte la fecha de fin con su operación y aun así no queda restaurable: la marca es explícita");
-        (await EscalarAsync<string>(Marca, bajoSuspendida)).Should().Be("Cerrada/Revocada/false/false/Suspendida/igual",
-            "vigente bajo una operación suspendida: no autorizaba nada que reponer, y no recuerda la marca de principal");
-        (await EscalarAsync<string>(Marca, _cartera)).Should().StartWith("Cerrada/Revocada/true/true/Vigente/",
-            "control: la vigente bajo la vigente queda restaurable y recuerda la marca (D-9), sea cual sea su fecha");
+        (await EscalarAsync<string>(Marca, suspendida)).Should().Be("Cerrada/Revocada/false/igual",
+            "la suspendida se cierra y conserva la fecha de fin que compartía con su operación");
+        (await EscalarAsync<string>(Marca, bajoSuspendida)).Should().Be("Cerrada/Revocada/false/igual",
+            "la principal bajo una operación suspendida se cierra sin la marca de principal");
+        (await EscalarAsync<string>(Marca, _cartera)).Should().StartWith("Cerrada/Revocada/false/",
+            "y la principal bajo la del Tenant entero, también");
     }
 
     // ── Cada precondición de la función, incumplida ──────────────────────────

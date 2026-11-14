@@ -402,6 +402,7 @@ src/CaeManager.Infrastructure/Autorizacion/AlcanceDatosService.cs :: ClienteId =
 src/CaeManager.Infrastructure/Autorizacion/AlcanceDatosService.cs :: ClienteIds = 4
 src/CaeManager.Infrastructure/Autorizacion/AlcanceDatosService.cs :: ObtenerClienteIdsParaRolClienteAsync = 2
 src/CaeManager.Infrastructure/Autorizacion/AlcanceDatosService.cs :: ObtenerClienteIdsVisiblesAsync = 6
+src/CaeManager.Infrastructure/Autorizacion/AlcanceDatosService.cs :: TenantClienteId = 1
 src/CaeManager.Infrastructure/Autorizacion/AlcanceDatosService.cs :: _clienteIds = 5
 src/CaeManager.Infrastructure/Autorizacion/AlcanceDatosService.cs :: clienteId = 2
 src/CaeManager.Infrastructure/Autorizacion/AlcanceDatosService.cs :: clienteIds = 24

@@ -78,8 +78,8 @@ public class DirectorioUsuariosTenant(
     /// Si borrar este usuario dejaría algún vínculo operativo apuntando a un
     /// GUID sin cuenta: una Asignación de Cartera vigente, una Asignación de
     /// Operador Delegado (aunque su <see cref="Tenants.DelegacionTenant"/> esté
-    /// desactivada hoy — <c>ReabrirCarterasDeOperadoresAsync</c> la reconstruye
-    /// al reactivarla, para un usuario que ya no existiría), una
+    /// desactivada hoy: es la fila heredada de la que el arranque emite la cartera
+    /// a quien nunca la tuvo, para un usuario que ya no existiría), una
     /// configuración de <see cref="LineaWhatsApp"/> que lo nombra como gestor
     /// fijo o miembro de su pool, o un buzón que lo tiene como responsable. Sin filtro de posición para cartera y
     /// delegación —igual que <see cref="ObtenerTenantDeUsuarioAsync"/>—: la
