@@ -18,8 +18,11 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
     /// las Asignaciones de Operación Outbound externas no cerradas del par (Tenant entero y acotadas;
     /// Vigente, Programada o Suspendida) se cierran como <c>Revocada</c>, y sus carteras no cerradas
     /// también. Las vigentes, por la cascada (apagan la marca de principal y la recuerdan en
-    /// <c>EraPrincipalAlCerrarsePorCascada</c>, D-9); el resto, sin recordarla. Todo con el mismo
-    /// instante. Solo Outbound: una operación Inbound del mismo Operador CAE externo queda intacta.
+    /// <c>EraPrincipalAlCerrarsePorCascada</c>, D-9) y con el mismo instante que la operación; el
+    /// resto, sin recordarla y un microsegundo antes, para que la reactivación no las tome por
+    /// cerradas por la cascada y no devuelva como vigente una cartera suspendida (ronda 1 de Codex
+    /// en la PR #2223). Solo Outbound: una operación Inbound del mismo Operador CAE externo queda
+    /// intacta.
     /// </para>
     ///
     /// <para>
@@ -151,8 +154,11 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                   LOOP
                     -- Las vigentes, AsignacionCartera.CerrarPorCascadaDeLaOperacion: cierra, apaga la
                     -- marca de principal y recuerda si la llevaba. Las programadas o suspendidas,
-                    -- AsignacionCartera.Cerrar: cierra y apaga la marca sin recordarla. Mismo
-                    -- instante que la operación.
+                    -- AsignacionCartera.Cerrar: cierra y apaga la marca sin recordarla. Las vigentes,
+                    -- con el mismo instante que la operación; las demás, un microsegundo antes
+                    -- (AsignacionesOperativasWriter.FinDeLoQueNoEstabaVigente): la reactivación
+                    -- reconoce lo que cerró la cascada porque comparte el fin de la operación, y lo
+                    -- suspendido nunca vuelve como vigente.
                     WITH previas AS (
                       SELECT c."Id", c."Estado" AS estado_antes, c."EsPrincipal" AS principal_antes
                       FROM public."AsignacionesCartera" c
@@ -165,9 +171,15 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                           "Estado" = 'Cerrada',
                           "MotivoCierre" = 'Revocada',
                           "VigenciaHasta" = CASE
-                              WHEN c."VigenciaHasta" IS NULL OR c."VigenciaHasta" > v_ahora
-                                THEN GREATEST(v_ahora, c."VigenciaDesde")
-                              ELSE c."VigenciaHasta" END,
+                              WHEN p.estado_antes = 'Vigente' THEN CASE
+                                WHEN c."VigenciaHasta" IS NULL OR c."VigenciaHasta" > v_ahora
+                                  THEN GREATEST(v_ahora, c."VigenciaDesde")
+                                ELSE c."VigenciaHasta" END
+                              ELSE CASE
+                                WHEN c."VigenciaHasta" IS NULL OR c."VigenciaHasta" > v_ahora - interval '1 microsecond'
+                                  THEN GREATEST(v_ahora - interval '1 microsecond', c."VigenciaDesde")
+                                ELSE c."VigenciaHasta" END
+                              END,
                           "Version" = uuidv7()
                       FROM previas p
                       WHERE c."Id" = p."Id"

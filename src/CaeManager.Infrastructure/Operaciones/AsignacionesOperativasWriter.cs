@@ -200,15 +200,31 @@ public class AsignacionesOperativasWriter(
             // de principal, que es lo que la reactivación necesita para devolvérsela a quien la
             // tenía (D-9). Una Programada o Suspendida se cierra sin más: no era la principal de nada
             // que haya que restaurar, y en duda la revocación falla cerrada.
+            //
+            // Y con un instante anterior al de la operación (FinDeLoQueNoEstabaVigente): la
+            // reactivación reconoce lo que cerró la cascada porque comparte el fin de la operación
+            // (ReabrirCarterasDeOperadoresAsync), y una Suspendida cerrada con ese mismo instante
+            // volvería como Vigente (hallazgo de Codex en la ronda 1 de la PR #2223). Lo suspendido
+            // nunca vuelve como vigente. Una Programada ya queda fuera por sí sola: su fin es su
+            // inicio futuro.
             if (cartera.Estado == EstadoAsignacion.Vigente)
                 cartera.CerrarPorCascadaDeLaOperacion(motivo, ahora);
             else
-                cartera.Cerrar(motivo, ahora);
+                cartera.Cerrar(motivo, FinDeLoQueNoEstabaVigente(ahora));
         }
 
         foreach (var operacion in operaciones)
             operacion.Cerrar(motivo, ahora);
     }
+
+    /// <summary>
+    /// El instante con el que la revocación cierra una cartera que no estaba Vigente: un
+    /// microsegundo —la resolución de <c>timestamp with time zone</c>— antes que la operación. Así
+    /// no comparte el fin de la operación y la reactivación no la toma por cerrada por la cascada.
+    /// La función de Soporte TALVEG (<c>app_revocar_operador_cae_externo_por_soporte</c>) hace lo
+    /// mismo con <c>v_ahora - interval '1 microsecond'</c>.
+    /// </summary>
+    internal static DateTime FinDeLoQueNoEstabaVigente(DateTime ahora) => ahora.AddMicroseconds(-1);
 
     /// <summary>
     /// Las Asignaciones de Operación Outbound externas no cerradas de este Operador CAE externo
@@ -330,9 +346,10 @@ public class AsignacionesOperativasWriter(
         // futuro), y tomar una de ellas como «anterior» haría perder lo que cerró la cascada de la
         // del Tenant entero. Las acotadas no se reabren: hace falta un acto explícito.
         // El ámbito se filtra en memoria: son las etapas cerradas de un solo par, pocas. Tampoco
-        // cuenta una que se cerró sin haber empezado (una Programada cerrada lleva su inicio futuro
-        // como fin): no fue una etapa, y por fecha quedaría delante de la que cerró la cascada.
-        var cerradaHasta = DateTime.UtcNow;
+        // cuenta una que se cerró sin haber empezado: una Programada cerrada lleva su inicio como
+        // fin (VigenciaHasta == VigenciaDesde). No fue una etapa, y por fecha quedaría delante de la
+        // que cerró la cascada, también cuando ese inicio ya ha pasado. Antes se descartaba solo si
+        // su inicio seguía en el futuro (hallazgo de Codex en la ronda 1 de la PR #2223).
         var anterior = (await dbContext.AsignacionesOperacion
                 .AsNoTracking()
                 .Where(o => o.Id != operacion.Id
@@ -342,7 +359,7 @@ public class AsignacionesOperativasWriter(
                             && o.Servicio == operacion.Servicio
                             && o.Estado == EstadoAsignacion.Cerrada)
                 .ToListAsync(cancellationToken))
-            .Where(o => o.Ambito.EsUniversal && o.VigenciaHasta <= cerradaHasta)
+            .Where(o => o.Ambito.EsUniversal && o.VigenciaHasta > o.VigenciaDesde)
             .OrderByDescending(o => o.VigenciaHasta)
             .Select(o => new { o.Id, o.MotivoCierre, o.VigenciaHasta })
             .FirstOrDefault();
@@ -357,11 +374,16 @@ public class AsignacionesOperativasWriter(
         // principal tiene que saberse aunque su fila se haya revocado o cambiado de rol con la delegación
         // desactivada. Si no, su ausencia pasaría por «no había principal» y la regla de más abajo
         // marcaría al Gestor CAE de apoyo que quedara solo (revisión puente de I2b).
+        //
+        // Lo que no estaba Vigente al revocar no vuelve: la revocación cierra una Suspendida o una
+        // Programada con un instante anterior al de la operación (FinDeLoQueNoEstabaVigente), y una
+        // que nunca empezó (fin igual a su inicio) tampoco cuenta.
         var cerradasPorLaCascada = await dbContext.AsignacionesCartera
             .Where(c => c.AsignacionOperacionId == anterior.Id
                         && c.Estado == EstadoAsignacion.Cerrada
                         && c.MotivoCierre == MotivoCierreAsignacion.Revocada
-                        && c.VigenciaHasta == anterior.VigenciaHasta)
+                        && c.VigenciaHasta == anterior.VigenciaHasta
+                        && c.VigenciaHasta > c.VigenciaDesde)
             .Select(c => new { c.UsuarioId, c.Rol, c.EraPrincipalAlCerrarsePorCascada })
             .ToListAsync(cancellationToken);
 

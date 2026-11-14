@@ -200,6 +200,51 @@ public class SoporteRevocaOperadorCaeExternoBajoRuntimeTests : IAsyncLifetime
             "una fila de auditoría por cada fila que la función escribe, y ninguna de Inbound");
     }
 
+    /// <summary>
+    /// Ronda 1 de Codex en la PR #2223 (hallazgo 1): la reactivación reconoce lo que cerró la cascada
+    /// porque comparte el fin de la operación. La función cierra una cartera Suspendida un microsegundo
+    /// antes, como <c>AsignacionesOperativasWriter.FinDeLoQueNoEstabaVigente</c>, para que lo suspendido
+    /// nunca vuelva como vigente; la vigente sigue compartiendo el fin de la operación.
+    /// </summary>
+    [Fact]
+    public async Task Con_la_capacidad_cierra_una_cartera_suspendida_antes_que_la_operacion_para_que_reactivar_no_la_devuelva()
+    {
+        var otraGestora = Guid.NewGuid();
+        await using (var contexto = CrearContexto(_tenantPlataforma, cadena: _cadenaConexion))
+        {
+            SembrarCuenta(contexto, "otra-gestora", _tenantOperador, otraGestora);
+            await contexto.SaveChangesAsync();
+        }
+
+        Guid suspendida;
+        await using (var contexto = CrearContexto(_tenantA, cadena: _cadenaConexion))
+        {
+            var ahora = DateTime.UtcNow.AddMinutes(-30);
+            var operacion = await contexto.AsignacionesOperacion.SingleAsync(o => o.Id == _operacion);
+            var cartera = AsignacionCartera.Externa(
+                operacion, otraGestora, "GestorCae", AmbitoAsignacion.Universal, ahora, null, ahora, _gestora);
+            cartera.Suspender();
+            contexto.AsignacionesCartera.Add(cartera);
+            await contexto.SaveChangesAsync();
+            suspendida = cartera.Id;
+        }
+
+        var sesion = await AbrirSesionConCapacidadAsync();
+        (await RevocarComoSoporteAsync(_tenantA, sesion)).Should().Be("revocada");
+
+        const string FinFrenteAOperacion = @"
+SELECT c.""Estado"" || '/' || c.""MotivoCierre"" || '/' || c.""EraPrincipalAlCerrarsePorCascada""::text || '/' ||
+       CASE WHEN c.""VigenciaHasta"" = o.""VigenciaHasta"" THEN 'igual'
+            WHEN c.""VigenciaHasta"" = o.""VigenciaHasta"" - interval '1 microsecond' THEN 'antes'
+            ELSE 'otro' END
+FROM ""AsignacionesCartera"" c JOIN ""AsignacionesOperacion"" o ON o.""Id"" = c.""AsignacionOperacionId""
+WHERE c.""Id"" = @u;";
+        (await EscalarAsync<string>(FinFrenteAOperacion, suspendida)).Should().Be("Cerrada/Revocada/false/antes",
+            "la suspendida se cierra un microsegundo antes que la operación: la reactivación no la toma por cerrada por la cascada");
+        (await EscalarAsync<string>(FinFrenteAOperacion, _cartera)).Should().Be("Cerrada/Revocada/true/igual",
+            "control: la vigente comparte el fin de la operación y recuerda la marca (D-9)");
+    }
+
     // ── Cada precondición de la función, incumplida ──────────────────────────
 
     [Fact]

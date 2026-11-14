@@ -150,12 +150,16 @@ public class BackfillNoReabreOperacionesCerradasTests : IAsyncLifetime
                 .Cerrar(MotivoCierreAsignacion.Revocada, ahora);
             await contexto.SaveChangesAsync();
 
-            contexto.DelegacionesTenant.Add(new DelegacionTenant(_operador, _propietario));
+            var activa = new DelegacionTenant(_operador, _propietario);
+            contexto.DelegacionesTenant.Add(activa);
             var operacion = AsignacionOperacion.Externa(_propietario, _operador, ServicioCae.Outbound,
                 AmbitoAsignacion.Universal, ahora, null, ahora);
             contexto.AsignacionesOperacion.Add(operacion);
             contexto.AsignacionesCartera.Add(AsignacionCartera.Externa(
                 operacion, _gestorOperador, Roles.GestorCae, AmbitoAsignacion.Universal, ahora, null, ahora));
+            // Como la deja toda vía que emite una cartera externa: con su fila heredada en la activa.
+            contexto.AsignacionesOperadorDelegadoConRevocadas.Add(
+                new AsignacionOperadorDelegado(activa.Id, _gestorOperador, Roles.GestorCae));
             await contexto.SaveChangesAsync();
             nueva = operacion.Id;
         }
@@ -171,6 +175,168 @@ public class BackfillNoReabreOperacionesCerradasTests : IAsyncLifetime
                 .SingleAsync())
             .Should().Be(EstadoAsignacion.Vigente, "y su cartera");
         (await ExternasOutboundAsync()).Should().HaveCount(2, "ni recrea ni duplica");
+    }
+
+    /// <summary>
+    /// Ronda 1 de Codex en la PR #2223 (hallazgo 2): una persona retirada antes de esta PR conservó su
+    /// cartera bajo una operación acotada (la retirada solo cerraba la del Tenant entero) y su fila
+    /// heredada ya no existe. Con la delegación activa, el backfill la cierra; la de quien sí tiene
+    /// fila sigue, y la cartera Inbound de la persona retirada no se toca.
+    /// </summary>
+    [Fact]
+    public async Task Con_la_delegacion_activa_cierra_la_cartera_de_una_persona_sin_fila_heredada_tambien_bajo_una_acotada()
+    {
+        await EjecutarBackfillAsync();
+        var conFila = await SembrarUsuarioAsync("con-fila@operador");
+        Guid huerfanaAcotada, huerfanaTenantEntero, conservada, deInbound;
+        await using (var contexto = CrearContexto(_propietario))
+        {
+            var ahora = DateTime.UtcNow;
+            var tenantEntero = await contexto.AsignacionesOperacion.SingleAsync(o =>
+                !o.EsRaiz && o.PropietarioTenantId == _propietario && o.Servicio == ServicioCae.Outbound);
+            var acotada = AsignacionOperacion.Externa(_propietario, _operador, ServicioCae.Outbound,
+                AmbitoAsignacion.DeRelacionCliente(_clienteEmpresarial), ahora.AddDays(-1), null, ahora);
+            var inbound = AsignacionOperacion.Externa(_propietario, _operador, ServicioCae.Inbound,
+                AmbitoAsignacion.Universal, ahora.AddDays(-1), null, ahora);
+            contexto.AsignacionesOperacion.AddRange(acotada, inbound);
+            var c1 = AsignacionCartera.Externa(acotada, _gestorOperador, Roles.GestorCae, AmbitoAsignacion.Universal, ahora, null, ahora);
+            var c2 = AsignacionCartera.Externa(tenantEntero, _gestorOperador, Roles.GestorCae, AmbitoAsignacion.Universal, ahora, null, ahora);
+            var c3 = AsignacionCartera.Externa(acotada, conFila, Roles.GestorCae, AmbitoAsignacion.Universal, ahora, null, ahora);
+            var c4 = AsignacionCartera.Externa(inbound, _gestorOperador, Roles.GestorCae, AmbitoAsignacion.Universal, ahora, null, ahora);
+            contexto.AsignacionesCartera.AddRange(c1, c2, c3, c4);
+            contexto.AsignacionesOperadorDelegadoConRevocadas.Add(
+                new AsignacionOperadorDelegado(_delegacion, conFila, Roles.GestorCae));
+            await contexto.SaveChangesAsync();
+            (huerfanaAcotada, huerfanaTenantEntero, conservada, deInbound) = (c1.Id, c2.Id, c3.Id, c4.Id);
+        }
+
+        await EjecutarBackfillAsync();
+
+        (await EstadoCarteraAsync(huerfanaAcotada)).Should().Be(EstadoAsignacion.Cerrada,
+            "sin fila heredada en una delegación activa y vigente, su cartera bajo la acotada no tiene quien la ampare");
+        (await EstadoCarteraAsync(huerfanaTenantEntero)).Should().Be(EstadoAsignacion.Cerrada, "tampoco la del Tenant entero");
+        (await EstadoCarteraAsync(conservada)).Should().Be(EstadoAsignacion.Vigente, "control: quien tiene fila conserva la suya");
+        (await EstadoCarteraAsync(deInbound)).Should().Be(EstadoAsignacion.Vigente, "Inbound tiene su propio ciclo");
+    }
+
+    /// <summary>
+    /// Ronda 1 de Codex en la PR #2223 (hallazgo 3): con una delegación inactiva y otra activa del
+    /// mismo par, la asignación histórica de la inactiva no recibe una cartera universal bajo la
+    /// operación de la activa. Control: la misma asignación en la activa sí la recibe.
+    /// </summary>
+    [Fact]
+    public async Task Una_asignacion_historica_de_la_delegacion_inactiva_no_recibe_cartera_bajo_la_operacion_de_la_activa()
+    {
+        await EjecutarBackfillAsync();
+        var historica = await SembrarUsuarioAsync("historica@operador");
+        var actual = await SembrarUsuarioAsync("actual@operador");
+        await using (var contexto = CrearContexto(_propietario))
+        {
+            var ahora = DateTime.UtcNow;
+            contexto.AsignacionesOperadorDelegadoConRevocadas.Add(
+                new AsignacionOperadorDelegado(_delegacion, historica, Roles.Consulta));
+            (await contexto.DelegacionesTenant.SingleAsync(d => d.Id == _delegacion)).Desactivar();
+            (await contexto.AsignacionesOperacion.SingleAsync(o => !o.EsRaiz && o.PropietarioTenantId == _propietario))
+                .Cerrar(MotivoCierreAsignacion.Revocada, ahora);
+            await contexto.SaveChangesAsync();
+
+            var activa = new DelegacionTenant(_operador, _propietario);
+            contexto.DelegacionesTenant.Add(activa);
+            contexto.AsignacionesOperacion.Add(AsignacionOperacion.Externa(_propietario, _operador, ServicioCae.Outbound,
+                AmbitoAsignacion.Universal, ahora, null, ahora));
+            contexto.AsignacionesOperadorDelegadoConRevocadas.Add(
+                new AsignacionOperadorDelegado(activa.Id, actual, Roles.Consulta));
+            await contexto.SaveChangesAsync();
+        }
+
+        await EjecutarBackfillAsync();
+
+        await using var verificacion = CrearContexto(_propietario);
+        (await verificacion.AsignacionesCartera.IgnoreQueryFilters().AnyAsync(c => c.UsuarioId == historica))
+            .Should().BeFalse("una asignación de una delegación inactiva no concede nada bajo la operación de otra");
+        (await verificacion.AsignacionesCartera.IgnoreQueryFilters()
+                .CountAsync(c => c.UsuarioId == actual && c.Estado == EstadoAsignacion.Vigente))
+            .Should().Be(1, "control: la de la activa sí recibe su cartera universal de Consulta");
+    }
+
+    /// <summary>
+    /// Ronda 1 de Codex en la PR #2223 (hallazgo 4): una delegación inactiva no deja abierta la
+    /// operación del par por otra que sigue marcada activa pero ya caducó: esa no autoriza nada.
+    /// </summary>
+    [Fact]
+    public async Task Una_delegacion_activa_pero_caducada_no_mantiene_abierta_la_operacion_de_una_inactiva_del_mismo_par()
+    {
+        await EjecutarBackfillAsync();
+        await using (var contexto = CrearContexto(_propietario))
+        {
+            (await contexto.DelegacionesTenant.SingleAsync(d => d.Id == _delegacion)).Desactivar();
+            await contexto.SaveChangesAsync();
+
+            var caducada = new DelegacionTenant(_operador, _propietario);
+            contexto.DelegacionesTenant.Add(caducada);
+            contexto.Entry(caducada).Property(d => d.ExpiraEnUtc).CurrentValue = DateTime.UtcNow.AddDays(-1);
+            await contexto.SaveChangesAsync();
+            caducada.Activa.Should().BeTrue("control: sigue marcada activa");
+        }
+
+        await EjecutarBackfillAsync();
+
+        (await ExternasOutboundAsync()).Should().ContainSingle()
+            .Which.Estado.Should().Be(EstadoAsignacion.Cerrada,
+                "sin delegación activa y vigente del par, la operación del Tenant entero no queda abierta");
+    }
+
+    /// <summary>
+    /// Ronda 1 de Codex en la PR #2223 (hallazgo 6): la reconciliación de roles de Propiedad cierra
+    /// carteras externas Outbound, no Inbound; y también las Programadas, que el job activaría al
+    /// llegar su fecha.
+    /// </summary>
+    [Fact]
+    public async Task La_reconciliacion_de_roles_de_Propiedad_cierra_tambien_la_programada_Outbound_y_no_toca_Inbound()
+    {
+        await EjecutarBackfillAsync();
+        Guid deInbound, programadaOutbound;
+        await using (var contexto = CrearContexto(_propietario))
+        {
+            var ahora = DateTime.UtcNow;
+            var tenantEntero = await contexto.AsignacionesOperacion.SingleAsync(o =>
+                !o.EsRaiz && o.PropietarioTenantId == _propietario && o.Servicio == ServicioCae.Outbound);
+            var inbound = AsignacionOperacion.Externa(_propietario, _operador, ServicioCae.Inbound,
+                AmbitoAsignacion.Universal, ahora.AddDays(-1), null, ahora);
+            contexto.AsignacionesOperacion.Add(inbound);
+            var cartera = AsignacionCartera.Externa(
+                inbound, _gestorOperador, Roles.Administrador, AmbitoAsignacion.Universal, ahora, null, ahora);
+            var programada = AsignacionCartera.Externa(
+                tenantEntero, _gestorOperador, Roles.Administrador, AmbitoAsignacion.Universal, ahora.AddDays(2), null, ahora);
+            contexto.AsignacionesCartera.AddRange(cartera, programada);
+            // Con fila, para que la cierre la reconciliación de roles y no la de personas sin fila.
+            contexto.AsignacionesOperadorDelegadoConRevocadas.Add(
+                new AsignacionOperadorDelegado(_delegacion, _gestorOperador, Roles.GestorCae));
+            await contexto.SaveChangesAsync();
+            programada.Estado.Should().Be(EstadoAsignacion.Programada, "control: empieza en el futuro");
+            (deInbound, programadaOutbound) = (cartera.Id, programada.Id);
+        }
+
+        await EjecutarBackfillAsync();
+
+        (await EstadoCarteraAsync(programadaOutbound)).Should().Be(EstadoAsignacion.Cerrada,
+            "un rol de Propiedad no se delega, tampoco en una cartera Outbound que aún no ha empezado");
+        (await EstadoCarteraAsync(deInbound)).Should().Be(EstadoAsignacion.Vigente, "Inbound tiene su propio ciclo");
+    }
+
+    private async Task<EstadoAsignacion> EstadoCarteraAsync(Guid carteraId)
+    {
+        await using var contexto = CrearContexto(_propietario);
+        return (await contexto.AsignacionesCartera.IgnoreQueryFilters().SingleAsync(c => c.Id == carteraId)).Estado;
+    }
+
+    private async Task<Guid> SembrarUsuarioAsync(string correo)
+    {
+        await using var contexto = CrearContexto(_propietario);
+        var usuario = new ApplicationUser { Id = Guid.NewGuid(), TenantId = _operador, UserName = correo, Email = correo };
+        contexto.Users.Add(usuario);
+        await contexto.SaveChangesAsync();
+        return usuario.Id;
     }
 
     private async Task<Guid> SembrarAcotadaConCarteraAsync()

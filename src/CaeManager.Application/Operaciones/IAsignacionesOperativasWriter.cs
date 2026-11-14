@@ -83,7 +83,7 @@ public interface IAsignacionesOperativasWriter
     /// empresarial, vigentes, programadas o suspendidas— de una delegación que se desactiva, y con
     /// ellas todas sus carteras no cerradas: una cartera no puede sobrevivir a la operación que la
     /// ampara, y en duda la revocación falla cerrada (decisión de Chris del 2026-11-14). Cada cartera
-    /// vigente recuerda si llevaba la marca de principal
+    /// vigente se cierra con el mismo instante que su operación y recuerda si llevaba la marca de principal
     /// (<see cref="AsignacionCartera.EraPrincipalAlCerrarsePorCascada"/>), para
     /// que <see cref="ReabrirCarterasDeOperadoresAsync"/> sepa a quién devolvérsela. Reactivar solo
     /// reabre la del Tenant entero; las acotadas necesitan un acto explícito.
@@ -144,7 +144,11 @@ public interface IAsignacionesOperativasWriter
     /// que la última operación externa cerrada del mismo par, es decir, por la cascada de esa
     /// desactivación y no por la revocación de un operador concreto), y con el mismo rol que su fila de
     /// operador delegado: esa fila por sí sola no es una cartera, y <c>Empresa.EjecutivoUsuarioId</c> ya
-    /// no reconstruye alcance.
+    /// no reconstruye alcance. Lo que no estaba Vigente al revocar no vuelve: la revocación cierra una
+    /// cartera Suspendida un microsegundo antes que la operación (una Programada, con su inicio como
+    /// fin), y no cuentan ni una
+    /// cartera ni una operación del Tenant entero que se cerraron sin haber empezado (fin igual a su
+    /// inicio), aunque ese inicio ya haya pasado.
     ///
     /// <b>Marca de principal</b> (D-9, 2026-10-08: «al reactivar vuelve a ser principal quien lo era
     /// antes»). Las carteras repuestas nacen sin marca y el método devuelve el usuario cuya cartera era
