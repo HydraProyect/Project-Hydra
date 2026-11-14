@@ -32,7 +32,11 @@ public record CambioEstadoPlataformaCentroDto(
 /// acota además al Tenant operado. El alcance se aplica en la consulta, ANTES de cortar en <c>Maximo</c>: si no, 50 cambios
 /// de titulares fuera de cartera dejarían el Historial vacío aunque hubiera otros visibles.
 /// <para>La nota, el motivo y quién lo anotó solo salen a los roles que leen las reclamaciones (mismo criterio que
-/// <c>SituacionDocumentosEnCentrosService</c>): el Usuario de Cliente del portal y Consulta ven el cambio sin ese detalle.</para>
+/// <c>SituacionDocumentosEnCentrosService</c>): el Usuario de Cliente del portal y Consulta ven el cambio sin ese detalle.
+/// Es la regla de <b>trazabilidad interna</b> del rol Consulta (opción C, DECISION_LOG 2026-11-14, «Tanda 1 de decisiones
+/// pendientes», punto 1): lo anotado a mano por un Gestor CAE (nota, motivo anotado a mano y autor) no se enseña a Consulta,
+/// mientras que el motivo de rechazo que devuelve la Plataforma CAE sí le llega por la regla operativa (<c>ObtenerCentroIdsParaGestionAsync</c>,
+/// ver <c>ObtenerAcreditacionesDelDocumentoQuery</c>). Son dos reglas por tipo de dato y no se unifican.</para>
 /// </summary>
 public class ObtenerCambiosEstadoPlataformaDeCentroQueryHandler(
     IDocumentosQueryContext documentosContext, ICentrosQueryContext centrosContext,

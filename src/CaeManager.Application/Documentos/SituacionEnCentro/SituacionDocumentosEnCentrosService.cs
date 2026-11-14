@@ -91,6 +91,14 @@ public class SituacionDocumentosEnCentrosService(
     // (Documentos.RolesDeGestionDocumental). A Consulta y al Usuario de Cliente esa pestaña les dice «sin permiso»;
     // la segunda línea de una ficha no puede ser una puerta lateral al mismo dato. Con la misma regla se leen la nota, el
     // motivo y el Gestor CAE de un cambio de estado anotado a mano en la plataforma (Centro 360, bloque 3 del 21-10).
+    //
+    // Regla de trazabilidad interna del rol Consulta (opción C, DECISION_LOG 2026-11-14, «Tanda 1 de decisiones
+    // pendientes», punto 1). Son DOS reglas por tipo de dato y no se unifican: (1) la información operativa (el motivo
+    // literal de rechazo que devuelve la Plataforma CAE, la dirección del portal y las notas del canal) la lee Consulta,
+    // porque la puerta es IAlcanceDatosService.ObtenerCentroIdsParaGestionAsync, que solo excluye al rol Cliente; (2) la
+    // trazabilidad interna (la nota, el motivo y el Gestor CAE autor de un cambio anotado a mano, y el historial de
+    // reclamaciones) solo la leen los roles de esta lista, y Consulta queda fuera a propósito. Un test de la Web fija
+    // que Consulta no entre aquí. El Usuario de Cliente sigue con la decisión del 2026-11-12 («B: estado, sin motivo»).
     internal static readonly string[] RolesQueLeenReclamaciones =
         ["Administrador", "DireccionCae", "CoordinadorCae", "GestorCae"];
 

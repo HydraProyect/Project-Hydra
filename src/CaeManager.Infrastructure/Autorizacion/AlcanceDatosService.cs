@@ -594,6 +594,15 @@ public class AlcanceDatosService(
         // no opera sobre ellos. Lista vacía y no null — null significa "sin
         // restricción", que aquí sería exactamente lo contrario de lo que toca
         // (fallo cerrado).
+        //
+        // Regla operativa del rol Consulta (opción C, DECISION_LOG 2026-11-14,
+        // «Tanda 1 de decisiones pendientes», punto 1): solo se excluye al rol
+        // Cliente. Consulta es interno del Tenant propietario y recibe el
+        // motivo de rechazo de la Plataforma CAE, la dirección del portal y las
+        // notas del canal; lo que no recibe (nota, motivo anotado a mano y autor
+        // de un cambio de estado anotado a mano, historial de reclamaciones) lo
+        // corta otra regla,
+        // RolesQueLeenReclamaciones. No añadir Consulta a esta condición.
         if (await currentUserService.ObtenerRolEfectivoAsync() == Roles.Cliente)
             return [];
 

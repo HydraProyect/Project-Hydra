@@ -25,6 +25,9 @@ namespace CaeManager.Application.Centros.Queries.ObtenerCanalesGestionDeCentro;
 /// Cliente empresarial y sus canales, pero recibe ambos campos a <c>null</c>, así que no se le ofrece «Abrir portal». Es el
 /// mismo corte que la dirección del portal en <c>ObtenerAcreditacionesDelDocumentoQuery</c> y <c>ObtenerDocumentosQuery</c>
 /// (decisión de Chris del 2026-11-12, opción B, para la dirección; las notas internas del canal siguen el mismo corte).
+/// El rol Consulta, interno del Tenant propietario, SÍ recibe ambos campos: es la regla operativa de la opción C (DECISION_LOG
+/// 2026-11-14, «Tanda 1 de decisiones pendientes», punto 1), distinta de la de trazabilidad interna de
+/// <c>SituacionDocumentosEnCentrosService.RolesQueLeenReclamaciones</c>, de la que Consulta queda fuera.
 /// Guardar el canal exige el mismo alcance de gestión (<c>EditarCanalGestionCommand</c>): si un formulario de edición se
 /// precargara con estos campos a <c>null</c>, el servidor rechazaría el guardado, así que no se pierden datos.
 ///
