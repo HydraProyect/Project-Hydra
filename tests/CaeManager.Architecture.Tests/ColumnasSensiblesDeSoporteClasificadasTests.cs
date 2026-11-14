@@ -53,6 +53,7 @@ public class ColumnasSensiblesDeSoporteClasificadasTests
         ["AccesosPlataformaCaeEmpresa.ContrasenaCambiadaEnUtc"] = new(Decision.Retirada, "Sin SELECT para Soporte TALVEG tras las migraciones vigentes."),
         ["AccesosPlataformaCaeEmpresa.ContrasenaCambiadaPorUsuarioId"] = new(Decision.Retirada, "Sin SELECT para Soporte TALVEG tras las migraciones vigentes."),
         ["AceptacionesSolicitudAlta.HashSha256"] = new(Decision.Retirada, "Sin SELECT para Soporte TALVEG desde la migración que crea la tabla; no es un secreto, es el hash del documento aceptado."),
+        ["AceptacionesContractualesTenant.HashSha256"] = new(Decision.Retirada, "Sin SELECT para Soporte TALVEG desde la migración que crea la tabla; no es un secreto, es el hash del documento aceptado."),
         ["AspNetUsers.DebeCambiarContrasena"] = new(Decision.ConcedidaPorRevisar, "SELECT vigente; dato operativo o metadato, necesidad por revisar."),
         ["AspNetUsers.PasswordHash"] = new(Decision.ConcedidaPorRevisar, "Identity materializa la cuenta completa; exposición por revisar."),
         ["AuditoriasExtraccionIa.HashSha256"] = new(Decision.ConcedidaPorRevisar, "SELECT vigente; necesidad por revisar."),

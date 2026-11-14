@@ -242,6 +242,8 @@ public static class ApplicationServiceCollectionExtensions
         services.AddScoped<IEvaluadorExpedienteVisitaService, EvaluadorExpedienteVisitaService>();
         services.AddScoped<IVerificacionIaDocumentoService, VerificacionIaDocumentoService>();
         services.AddScoped<CaeManager.Application.Cumplimiento.IInstruccionTratamientoIaService, CaeManager.Application.Cumplimiento.InstruccionTratamientoIaService>();
+        services.AddScoped<CaeManager.Application.Cumplimiento.AceptacionContractual.IRegistroAceptacionContractualAlta, CaeManager.Application.Cumplimiento.AceptacionContractual.RegistroAceptacionContractualAlta>();
+        services.AddScoped<CaeManager.Application.Cumplimiento.AceptacionContractual.IEnvioAcuseAceptacionContractual, CaeManager.Application.Cumplimiento.AceptacionContractual.EnvioAcuseAceptacionContractual>();
         services.AddScoped<IValidacionDocumentoOficialService, ValidacionDocumentoOficialService>();
         services.AddScoped<IRegistroAccesoDocumentoSensibleService, RegistroAccesoDocumentoSensibleService>();
         services.AddScoped<IRegistroAccesoDatoSensibleService, RegistroAccesoDatoSensibleService>();

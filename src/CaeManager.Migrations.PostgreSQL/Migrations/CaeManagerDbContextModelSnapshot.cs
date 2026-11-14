@@ -44,6 +44,10 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                         .HasMaxLength(64)
                         .HasColumnType("character varying(64)");
 
+                    b.Property<decimal?>("ImportePermanencia")
+                        .HasPrecision(12, 2)
+                        .HasColumnType("numeric(12,2)");
+
                     b.Property<string>("Ip")
                         .IsRequired()
                         .HasMaxLength(45)
@@ -3045,6 +3049,66 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                         });
                 });
 
+            modelBuilder.Entity("CaeManager.Domain.Cumplimiento.AceptacionContractualTenant", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("AceptadaEnUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<bool>("DeclaraFacultades")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("Documento")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<string>("HashSha256")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character(64)")
+                        .IsFixedLength();
+
+                    b.Property<decimal?>("ImportePermanencia")
+                        .HasPrecision(12, 2)
+                        .HasColumnType("numeric(12,2)");
+
+                    b.Property<string>("Ip")
+                        .IsRequired()
+                        .HasMaxLength(45)
+                        .HasColumnType("character varying(45)");
+
+                    b.Property<DateTime>("RegistradaEnUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("SolicitudAltaId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("UsuarioId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Version")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TenantId", "Documento", "AceptadaEnUtc");
+
+                    b.HasIndex("TenantId", "SolicitudAltaId", "Documento")
+                        .IsUnique()
+                        .HasFilter("\"SolicitudAltaId\" IS NOT NULL");
+
+                    b.ToTable("AceptacionesContractualesTenant", (string)null);
+                });
+
             modelBuilder.Entity("CaeManager.Domain.Cumplimiento.AceptacionTerminos", b =>
                 {
                     b.Property<Guid>("Id")
@@ -3067,6 +3131,42 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                     b.HasIndex("UsuarioId", "VersionDocumento");
 
                     b.ToTable("AceptacionesTerminos", (string)null);
+                });
+
+            modelBuilder.Entity("CaeManager.Domain.Cumplimiento.AcuseAceptacionContractualTenant", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("AceptacionContractualTenantId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("EnvioId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Fase")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)");
+
+                    b.Property<DateTime>("RegistradoEnUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("UsuarioDestinatarioId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("AceptacionContractualTenantId", "TenantId");
+
+                    b.HasIndex("TenantId", "EnvioId", "AceptacionContractualTenantId", "Fase")
+                        .IsUnique();
+
+                    b.ToTable("AcusesAceptacionContractualTenant", (string)null);
                 });
 
             modelBuilder.Entity("CaeManager.Domain.Cumplimiento.InstruccionTratamientoIaTenantPropietario", b =>
