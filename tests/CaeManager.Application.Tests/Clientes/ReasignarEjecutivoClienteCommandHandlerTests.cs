@@ -378,7 +378,7 @@ public class BloqueoCarteraUsuarioFalso : IBloqueoCarteraUsuario
 {
     public List<Guid> Exclusivos { get; } = [];
     public List<Guid> Compartidos { get; } = [];
-    public List<string>? Eventos { get; init; }
+    public List<string>? Eventos { get; set; }
 
     public Task BloquearExclusivoAsync(Guid usuarioId, CancellationToken cancellationToken = default)
     {

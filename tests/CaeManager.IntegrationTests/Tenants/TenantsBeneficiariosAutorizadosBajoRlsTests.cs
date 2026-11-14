@@ -627,6 +627,65 @@ public class TenantsBeneficiariosAutorizadosBajoRlsTests : IAsyncLifetime
             .Should().BeFalse();
     }
 
+    // ---------- B-02a: la vía de Operación es la de Outbound ----------
+
+    /// <summary>
+    /// Bajo PostgreSQL, con el filtro de servicio traducido a SQL: en un Tenant beneficiario con una operación
+    /// Outbound y una Inbound más reciente del mismo Operador CAE externo, se elige y autoriza la Outbound; en
+    /// uno que solo tiene la Inbound, nadie entra por Operación, ni la lista lo ofrece, ni hay rol efectivo.
+    /// </summary>
+    [Theory]
+    [InlineData(Roles.GestorCae)]
+    [InlineData(Roles.Administrador)]
+    public async Task Una_operacion_Inbound_no_desplaza_a_la_Outbound_ni_da_entrada_por_si_sola(string perfil)
+    {
+        var persona = Guid.NewGuid();
+        var conLasDos = new Tenant("Tenant beneficiario con Outbound e Inbound");
+        var soloInbound = new Tenant("Tenant beneficiario solo con Inbound");
+        _propietario.Tenants.AddRange(conLasDos, soloInbound);
+        await _propietario.SaveChangesAsync();
+
+        var ahora = DateTime.UtcNow;
+        async Task<Guid> OperacionConCartera(Guid propietario, ServicioCae servicio, DateTime desde)
+        {
+            using var ambito = AmbitoTenantExplicito.Establecer(propietario);
+            var operacion = AsignacionOperacion.Externa(
+                propietario, _origen, servicio, AmbitoAsignacion.Universal, desde, null, ahora);
+            _propietario.AsignacionesOperacion.Add(operacion);
+            _propietario.AsignacionesCartera.Add(AsignacionCartera.Externa(
+                operacion, persona, Roles.GestorCae, AmbitoAsignacion.Universal, ahora.AddDays(-1), null, ahora));
+            await _propietario.SaveChangesAsync();
+            return operacion.Id;
+        }
+
+        var outbound = await OperacionConCartera(conLasDos.Id, ServicioCae.Outbound, ahora.AddDays(-10));
+        var inboundMasReciente = await OperacionConCartera(conLasDos.Id, ServicioCae.Inbound, ahora.AddDays(-2));
+        var unicaInbound = await OperacionConCartera(soloInbound.Id, ServicioCae.Inbound, ahora.AddDays(-2));
+
+        (await TenantsBeneficiariosAutorizados.OperacionQueAutorizaAsync(
+                _propietario, persona, _origen, conLasDos.Id, perfil, DateTime.UtcNow, default))
+            .Should().Be(outbound, "la Inbound es más reciente, pero no es una operación de Outbound");
+        (await TenantsBeneficiariosAutorizados.SigueAutorizadoPorOperacionAsync(
+                _propietario, persona, _origen, conLasDos.Id, inboundMasReciente, perfil, DateTime.UtcNow, default))
+            .Should().BeFalse();
+        (await TenantsBeneficiariosAutorizados.OperacionQueAutorizaAsync(
+                _propietario, persona, _origen, soloInbound.Id, perfil, DateTime.UtcNow, default))
+            .Should().BeNull();
+        (await TenantsBeneficiariosAutorizados.SigueAutorizadoPorOperacionAsync(
+                _propietario, persona, _origen, soloInbound.Id, unicaInbound, perfil, DateTime.UtcNow, default))
+            .Should().BeFalse();
+
+        (await ListaAsync(persona, perfil)).Select(c => c.TenantId).Should().Contain(conLasDos.Id)
+            .And.NotContain(soloInbound.Id, "el selector de Outbound no ofrece un Tenant que solo se opera en Inbound");
+
+        await using var runtime = CrearRuntime(persona, tenantDeLaPeticion: _origen);
+        var usuario = CrearCurrentUserService(runtime, persona, perfil);
+        using (AmbitoTenantExplicito.Establecer(soloInbound.Id))
+            (await usuario.ObtenerRolEfectivoAsync()).Should().BeNull();
+        using (AmbitoTenantExplicito.Establecer(conLasDos.Id))
+            (await usuario.ObtenerRolEfectivoAsync()).Should().Be(perfil);
+    }
+
     [Fact]
     public async Task Direccion_CAE_sin_cartera_abre_el_Tenant_de_la_operacion_con_su_perfil_y_alcance_total()
     {
