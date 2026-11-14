@@ -242,18 +242,24 @@ public class BackfillNoReabreOperacionesCerradasTests : IAsyncLifetime
 
             var activa = new DelegacionTenant(_operador, _propietario);
             contexto.DelegacionesTenant.Add(activa);
-            contexto.AsignacionesOperacion.Add(AsignacionOperacion.Externa(_propietario, _operador, ServicioCae.Outbound,
-                AmbitoAsignacion.Universal, ahora, null, ahora));
+            var operacionDeLaActiva = AsignacionOperacion.Externa(_propietario, _operador, ServicioCae.Outbound,
+                AmbitoAsignacion.Universal, ahora, null, ahora);
+            contexto.AsignacionesOperacion.Add(operacionDeLaActiva);
             contexto.AsignacionesOperadorDelegadoConRevocadas.Add(
                 new AsignacionOperadorDelegado(activa.Id, actual, Roles.Consulta));
+            // Y una cartera de la persona histórica bajo la operación de la activa: su única fila es la
+            // de la inactiva, que no la ampara.
+            contexto.AsignacionesCartera.Add(AsignacionCartera.Externa(
+                operacionDeLaActiva, historica, Roles.GestorCae, AmbitoAsignacion.Universal, ahora, null, ahora));
             await contexto.SaveChangesAsync();
         }
 
         await EjecutarBackfillAsync();
 
         await using var verificacion = CrearContexto(_propietario);
-        (await verificacion.AsignacionesCartera.IgnoreQueryFilters().AnyAsync(c => c.UsuarioId == historica))
-            .Should().BeFalse("una asignación de una delegación inactiva no concede nada bajo la operación de otra");
+        (await verificacion.AsignacionesCartera.IgnoreQueryFilters()
+                .AnyAsync(c => c.UsuarioId == historica && c.Estado != EstadoAsignacion.Cerrada))
+            .Should().BeFalse("una asignación de una delegación inactiva no concede ni sostiene nada bajo la operación de otra");
         (await verificacion.AsignacionesCartera.IgnoreQueryFilters()
                 .CountAsync(c => c.UsuarioId == actual && c.Estado == EstadoAsignacion.Vigente))
             .Should().Be(1, "control: la de la activa sí recibe su cartera universal de Consulta");
