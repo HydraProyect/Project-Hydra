@@ -131,9 +131,12 @@ public interface IAlcanceDatosService
     /// operativa de este método como <c>UltimoMotivoRechazo</c> en
     /// <c>ObtenerDocumentosQuery</c> (solo si la acreditación está rechazada) y en
     /// <c>ObtenerAcreditacionesPorProveedorQuery</c>, que no lo condiciona al
-    /// estado actual de la acreditación: en la pestaña Plataformas de Empresa 360
-    /// y en <c>GET /extension/acreditaciones-pendientes</c>, que no restringe por
-    /// rol. El historial de reclamaciones enviadas no pasa por esa lista en el
+    /// estado actual de la acreditación: la Bandeja del Gestor (y con ella
+    /// «Requiere atención» de Inicio), la pestaña Plataformas de Empresa 360 y
+    /// <c>GET /extension/acreditaciones-pendientes</c>, que no restringe por
+    /// rol; también lo pinta la pestaña Plataforma de Documentos. El DECISION_LOG
+    /// solo nombra la vista rápida: para esas otras vías no hay corte decidido
+    /// (ver el comentario de esa lista). El historial de reclamaciones enviadas no pasa por esa lista en el
     /// servidor (sus Queries acotan por cartera, no por rol) y se le corta a
     /// Consulta en la presentación (ver el comentario de esa lista).
     /// Añadir Consulta al corte de este método o a esa lista cambia la

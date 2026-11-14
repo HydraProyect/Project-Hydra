@@ -27,9 +27,10 @@ namespace CaeManager.Application.Documentos.Queries.ObtenerAcreditacionesDelDocu
 /// El motivo, además, solo lo reciben los roles que leen el historial de reclamaciones
 /// (<c>SituacionDocumentosEnCentrosService.RolesQueLeenReclamaciones</c>): Consulta recibe el estado y la dirección, pero no el
 /// motivo, que también guarda el de un rechazo anotado a mano (decisión de Chris del 2026-11-14). Es un corte de esta vista rápida:
-/// el mismo motivo sí le llega a Consulta por <c>ObtenerDocumentosQuery</c> y por <c>ObtenerAcreditacionesPorProveedorQuery</c>
-/// (Empresa 360 y <c>GET /extension/acreditaciones-pendientes</c>), que acotan por <c>ObtenerCentroIdsParaGestionAsync</c> y no por
-/// la lista de reclamaciones.
+/// el mismo motivo sí le llega a Consulta, entre otras vías, por <c>ObtenerDocumentosQuery</c> y por
+/// <c>ObtenerAcreditacionesPorProveedorQuery</c> (Bandeja del Gestor, Empresa 360 y
+/// <c>GET /extension/acreditaciones-pendientes</c>), que acotan por <c>ObtenerCentroIdsParaGestionAsync</c> y no por la lista de
+/// reclamaciones (ver el comentario de <c>SituacionDocumentosEnCentrosService.RolesQueLeenReclamaciones</c>).
 /// D-3: solo cambia qué se muestra; cada Command del menú «Acreditación ▾» comprueba su propia autorización.
 /// </para>
 /// </summary>

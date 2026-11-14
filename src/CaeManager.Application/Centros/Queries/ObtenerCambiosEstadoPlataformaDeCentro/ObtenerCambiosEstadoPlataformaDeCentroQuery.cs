@@ -42,9 +42,11 @@ public record CambioEstadoPlataformaCentroDto(
 /// (<c>ObtenerCentroIdsParaGestionAsync</c>) como <c>UltimoMotivoRechazo</c>: <c>ObtenerDocumentosQuery</c> lo devuelve solo si la
 /// acreditación está rechazada; <c>ObtenerAcreditacionesPorProveedorQuery</c> (pestaña Plataformas de Empresa 360, donde la
 /// presentación lo filtra, y <c>GET /extension/acreditaciones-pendientes</c>, que no restringe por rol) lo devuelve sin
-/// condicionarlo al estado actual de la acreditación. La vista rápida de un Documento (<c>ObtenerAcreditacionesDelDocumentoQuery</c>)
-/// sí lo corta para Consulta, con la misma lista que esta sección. Son dos reglas por tipo de dato y no se unifican, pero el motivo
-/// de un rechazo anotado a mano es legible para Consulta por esas otras vías; la nota y el autor, no.</para>
+/// condicionarlo al estado actual de la acreditación (y de ella cuelga también la Bandeja del Gestor, que llega a Inicio, además de la pestaña
+/// Plataforma de Documentos, entre otras vías: ver el comentario de esa lista). La vista rápida de un Documento
+/// (<c>ObtenerAcreditacionesDelDocumentoQuery</c>) sí lo corta para Consulta, con la misma lista que esta sección. Son dos reglas
+/// por tipo de dato y no se unifican, y el DECISION_LOG solo nombra esa vista rápida: el motivo de un rechazo anotado a mano sigue
+/// siendo legible para Consulta por esas otras vías, sin corte decidido; la nota y el autor, no.</para>
 /// </summary>
 public class ObtenerCambiosEstadoPlataformaDeCentroQueryHandler(
     IDocumentosQueryContext documentosContext, ICentrosQueryContext centrosContext,

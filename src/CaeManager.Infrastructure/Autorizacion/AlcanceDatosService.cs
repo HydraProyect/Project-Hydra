@@ -629,7 +629,8 @@ public class AlcanceDatosService(
         // rechazos en el resto de lecturas: CambiarEstadoAMano guarda ahí
         // también el motivo de un rechazo anotado a mano, sin distinguirlo del
         // que devuelve la Plataforma CAE, y por esta puerta le llega a Consulta
-        // por ObtenerDocumentosQuery y ObtenerAcreditacionesPorProveedorQuery.
+        // por ObtenerDocumentosQuery y ObtenerAcreditacionesPorProveedorQuery,
+        // entre otras vías (detalle en el comentario de esa lista).
         // El historial de reclamaciones enviadas no pasa por esa lista en el
         // servidor y se le corta a Consulta en la presentación (detalle en el
         // comentario de esa lista). No añadir Consulta a esta condición.
