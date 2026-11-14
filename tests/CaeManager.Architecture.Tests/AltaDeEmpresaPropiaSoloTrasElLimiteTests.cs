@@ -57,22 +57,21 @@ public class AltaDeEmpresaPropiaSoloTrasElLimiteTests
         "src/CaeManager.Application/Importacion/Commands/EjecutarImportacion/EjecutarImportacionCommand.cs",
         "src/CaeManager.Application/Importacion/Commands/EjecutarImportacionCombinada/EjecutarImportacionCombinadaCommand.cs",
         "src/CaeManager.Application/Importacion/Commands/EjecutarImportacionMaestra/EjecutarImportacionMaestraCommand.cs",
+        "src/CaeManager.Infrastructure/Persistence/Seed/SiembraEmpresaPropia.cs",
     ];
 
     // Las factorías de Cliente empresarial y Subcontrata ponen EsPropia = false; los seeders siembran Tenants de
     // demostración sin Producto Contratado. Empresa.cs no queda exento de la regla de EsPropia fuera del constructor.
-    // DatosPruebaSeeder (y con él DelegacionDemoSeeder, que reutiliza su siembra) sigue en la lista porque construye con
-    // el constructor público la única Empresa propia de cada Tenant que siembra, sin pasar por ILimiteEmpresaPropia (como
-    // PilotoOutboundSeeder). Ya no hay en él una Empresa propia de más: que sea una sola lo afirma
-    // DatosPruebaSeederUnaEmpresaPropiaTests sobre el resultado de la siembra (integración). Siguen exentos, sin que nada compruebe
-    // su recuento de Empresas propias por Tenant, hasta el incremento 2 de D-P11: CoberturaPantallasSeeder,
-    // EscenariosDireccionDemoSeeder y GestorCaeCarteraMultiTenantSeeder.
+    // DatosPruebaSeeder, DelegacionDemoSeeder y EscenariosDireccionDemoSeeder ya no construyen ninguna Empresa propia: la
+    // piden a SiembraEmpresaPropia, que sí pasa por ILimiteEmpresaPropia (candado por Tenant y recuento dentro del
+    // candado) y por eso figura en EscritoresConLimite. Que cada Tenant sembrado quede con una sola Empresa propia lo
+    // afirman DatosPruebaSeederUnaEmpresaPropiaTests y EscenariosDireccionDemoTests sobre el resultado de la siembra
+    // (integración). Siguen exentos, sin que nada compruebe su recuento de Empresas propias por Tenant:
+    // CoberturaPantallasSeeder, GestorCaeCarteraMultiTenantSeeder y PilotoOutboundSeeder.
     private static readonly string[] ExentosDelLimite =
     [
         "src/CaeManager.Domain/Empresas/Empresa.cs",
         "src/CaeManager.Infrastructure/Persistence/Seed/CoberturaPantallasSeeder.cs",
-        "src/CaeManager.Infrastructure/Persistence/Seed/DatosPruebaSeeder.cs",
-        "src/CaeManager.Infrastructure/Persistence/Seed/EscenariosDireccionDemoSeeder.cs",
         "src/CaeManager.Infrastructure/Persistence/Seed/GestorCaeCarteraMultiTenantSeeder.cs",
         "src/CaeManager.Infrastructure/Persistence/Seed/PilotoOutboundSeeder.cs",
     ];

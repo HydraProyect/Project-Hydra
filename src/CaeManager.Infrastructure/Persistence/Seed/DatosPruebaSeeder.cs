@@ -682,16 +682,20 @@ public static class DatosPruebaSeeder
         // --- Empresa propia: UNA sola por Tenant propietario (D-P11). Todos los
         // Centros, Trabajadores y Vehículos de la siembra cuelgan de ella, y las
         // Subcontratas y los Clientes empresariales se relacionan con ella. Mismo
-        // patrón que PilotoOutboundSeeder. Esta construcción directa es la que
-        // deja exento al fichero en AltaDeEmpresaPropiaSoloTrasElLimiteTests: el
-        // seeder siembra un Tenant nuevo sin pasar por ILimiteEmpresaPropia, y que
-        // sea una sola lo afirma DatosPruebaSeederUnaEmpresaPropiaTests sobre el
-        // resultado de la siembra. ---
-        var propia = new Empresa(
+        // patrón que PilotoOutboundSeeder. Se da de alta por el camino del
+        // producto (SiembraEmpresaPropia: ILimiteEmpresaPropia, con su candado), no
+        // con el constructor suelto: por eso el fichero ya no está exento en
+        // AltaDeEmpresaPropiaSoloTrasElLimiteTests. Si el Tenant ya tenía una
+        // Empresa propia activa se reutiliza (el nombre y el CIF se sortean igual,
+        // para no mover el generador aleatorio). ---
+        var tenantIdPropia = AmbitoTenantExplicito.TenantIdActual
+            ?? throw new InvalidOperationException(
+                "La siembra de datos operativos necesita un AmbitoTenantExplicito establecido: la Empresa propia es del Tenant propietario.");
+        var propia = await SiembraEmpresaPropia.AsegurarAsync(
+            dbContext, tenantIdPropia,
             $"{ElementoAleatorio(aleatorio, SectoresEmpresa)} {ElementoAleatorio(aleatorio, MarcasCaricatura)} {ElementoAleatorio(aleatorio, SufijosSociedad)}",
-            GenerarCifValido(contadorCif++));
+            GenerarCifValido(contadorCif++), cancellationToken);
         var empresas = new List<Empresa> { propia };
-        dbContext.Empresas.AddRange(empresas);
 
         // F4.2c — RelacionEmpresarial es la única fuente de escritura: el
         // seeder ya no siembra las tres tablas puente legacy. El repositorio

@@ -245,8 +245,8 @@ public sealed class NavegadorFidelidadFixture : IAsyncLifetime
 }
 
 /// <summary>
-/// Instancia con la siembra de escenarios de dirección (Cyberdyne Ibérica S.A., Montajes
-/// Skynet S.L., Transportes Terminator S.L.…, los nombres de las maquetas) y la siembra
+/// Instancia con la siembra de escenarios de dirección (Limpiezas Raccoon S.L., la Empresa propia de
+/// Pizza Planet; Cyberdyne Ibérica S.A., Montajes Skynet S.L., Transportes Terminator S.L.…, los nombres de las maquetas) y la siembra
 /// propia de las fichas 360 nuevas.
 /// </summary>
 [CollectionDefinition("AppCollectionFichas360")]
