@@ -746,7 +746,13 @@ public partial class ConfigurarPlantilla : CaeManager.Web.Components.PaginaInter
         else _trabajadoresSeleccionadosLote.Remove(trabajadorId);
     }
 
-    private bool PuedeGenerarLote => !_procesandoLote && _trabajadoresSeleccionadosLote.Count > 0;
+    private bool LoteSuperaTope =>
+        _trabajadoresSeleccionadosLote.Count > IniciarLoteGeneracionDocumentosCommandValidator.MaximoTrabajadoresPorLote;
+
+    private string MensajeLoteSuperaTope =>
+        IniciarLoteGeneracionDocumentosCommandValidator.MensajeSuperaTopeTrabajadores(_trabajadoresSeleccionadosLote.Count);
+
+    private bool PuedeGenerarLote => !_procesandoLote && _trabajadoresSeleccionadosLote.Count > 0 && !LoteSuperaTope;
 
     /// <summary>
     /// IniciarLoteGeneracionDocumentosCommand crea el lote y sus items de una
@@ -815,6 +821,11 @@ public partial class ConfigurarPlantilla : CaeManager.Web.Components.PaginaInter
             Toasts.Mostrar(
                 $"Lote terminado: {TotalCompletadosLote} generado(s), {TotalConAvisosLote} con avisos, {TotalFallidosLote} con error.",
                 TotalFallidosLote == 0 && TotalConAvisosLote == 0 ? TonoToast.Exito : TonoToast.Advertencia);
+        }
+        catch (FluentValidation.ValidationException ex)
+        {
+            // El servidor rechazó el lote entero (p. ej. el tope de Trabajadores); no nació ningún lote.
+            Toasts.Mostrar(string.Join(" ", ex.Errors.Select(e => e.ErrorMessage)), TonoToast.Error);
         }
         catch (PresupuestoMemoriaAgotadoException)
         {
