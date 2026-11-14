@@ -9238,9 +9238,6 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                     b.Property<Guid?>("CreadoPorUsuarioId")
                         .HasColumnType("uuid");
 
-                    b.Property<Guid?>("OrigenId")
-                        .HasColumnType("uuid");
-
                     b.Property<bool>("EsRaiz")
                         .HasColumnType("boolean");
 
@@ -9254,6 +9251,9 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                         .HasColumnType("character varying(30)");
 
                     b.Property<Guid>("OperadorTenantId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid?>("OrigenId")
                         .HasColumnType("uuid");
 
                     b.Property<Guid>("PropietarioTenantId")
