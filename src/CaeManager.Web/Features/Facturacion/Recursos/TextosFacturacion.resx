@@ -441,4 +441,106 @@
   <data name="ExtranjerosEnExcel" xml:space="preserve">
     <value>Excel: {0} filas</value>
   </data>
+  <data name="CsvColDocumento" xml:space="preserve">
+    <value>Tipo de documento</value>
+  </data>
+  <data name="CsvColPeriodo" xml:space="preserve">
+    <value>Periodo</value>
+  </data>
+  <data name="CsvColEstadoCifra" xml:space="preserve">
+    <value>Estado de la cifra</value>
+  </data>
+  <data name="CsvColEmpresa" xml:space="preserve">
+    <value>Empresa gestionada</value>
+  </data>
+  <data name="CsvColConcepto" xml:space="preserve">
+    <value>Concepto</value>
+  </data>
+  <data name="CsvColUnidades" xml:space="preserve">
+    <value>Unidades</value>
+  </data>
+  <data name="CsvColPrecio" xml:space="preserve">
+    <value>Precio unitario</value>
+  </data>
+  <data name="CsvColImporte" xml:space="preserve">
+    <value>Base imponible</value>
+  </data>
+  <data name="CsvColMoneda" xml:space="preserve">
+    <value>Moneda</value>
+  </data>
+  <data name="CsvColEstadoCobro" xml:space="preserve">
+    <value>Estado de cobro</value>
+  </data>
+  <data name="CsvColReferencia" xml:space="preserve">
+    <value>Referencia de tu factura</value>
+  </data>
+  <data name="CsvDocumento" xml:space="preserve">
+    <value>Liquidación interna sin valor fiscal</value>
+  </data>
+  <data name="CsvConceptoVisitaTrabajadorExtranjero" xml:space="preserve">
+    <value>Extranjeros gestionados</value>
+  </data>
+  <data name="CsvConceptoCentroNuevo" xml:space="preserve">
+    <value>Centros nuevos</value>
+  </data>
+  <data name="CsvConceptoObraNueva" xml:space="preserve">
+    <value>Obras nuevas</value>
+  </data>
+  <data name="CobroPendiente" xml:space="preserve">
+    <value>Pendiente</value>
+  </data>
+  <data name="CobroCobrada" xml:space="preserve">
+    <value>Cobrada</value>
+  </data>
+  <data name="CobroImpagada" xml:space="preserve">
+    <value>Impagada</value>
+  </data>
+  <data name="ExportarLiquidacion" xml:space="preserve">
+    <value>Exportar liquidación (CSV)</value>
+  </data>
+  <data name="ExportarLiquidacionAyuda" xml:space="preserve">
+    <value>Liquidación interna del mes, para importarla en tu programa de facturación. No es una factura y no tiene valor fiscal.</value>
+  </data>
+  <data name="ExportarLiquidacionMesEnCurso" xml:space="preserve">
+    <value>La liquidación se exporta cuando termine el mes.</value>
+  </data>
+  <data name="CobroTitulo" xml:space="preserve">
+    <value>Cobro de la liquidación</value>
+  </data>
+  <data name="CobroEstado" xml:space="preserve">
+    <value>Estado de cobro</value>
+  </data>
+  <data name="CobroReferencia" xml:space="preserve">
+    <value>Referencia de tu factura (opcional)</value>
+  </data>
+  <data name="CobroGuardar" xml:space="preserve">
+    <value>Guardar cobro</value>
+  </data>
+  <data name="CobroGuardado" xml:space="preserve">
+    <value>Cobro guardado.</value>
+  </data>
+  <data name="CobroError" xml:space="preserve">
+    <value>No se ha podido guardar el cobro. Inténtalo de nuevo.</value>
+  </data>
+  <data name="CobroNota" xml:space="preserve">
+    <value>Liquidación interna sin valor fiscal: la factura la emites tú con tu programa de facturación. Esta marca es solo para tu seguimiento y no cambia la gestión de la empresa.</value>
+  </data>
+  <data name="CobroSoloLectura" xml:space="preserve">
+    <value>Solo el Administrador o la Dirección CAE marcan el cobro.</value>
+  </data>
+  <data name="CobroMesEnCurso" xml:space="preserve">
+    <value>El cobro se marca cuando termine el mes.</value>
+  </data>
+  <data name="CobroReferenciaDe" xml:space="preserve">
+    <value>Factura {0}</value>
+  </data>
+  <data name="CsvColNif" xml:space="preserve">
+    <value>NIF</value>
+  </data>
+  <data name="CsvColRazonSocial" xml:space="preserve">
+    <value>Razón social</value>
+  </data>
+  <data name="CsvColTipoIva" xml:space="preserve">
+    <value>Tipo de IVA</value>
+  </data>
 </root>

@@ -2,8 +2,10 @@ using System.Globalization;
 using CaeManager.Application.Dashboard;
 using CaeManager.Application.Dashboard.Queries;
 using CaeManager.Application.Dashboard.TarifasOperadorCae;
+using CaeManager.Application.Facturacion.LiquidacionesOperadorCae;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Dashboard;
+using CaeManager.Domain.Facturacion;
 using CaeManager.Web.Components.DesignSystem;
 using CaeManager.Web.Features.CuadroDireccion;
 using CaeManager.Web.Features.Facturacion.Recursos;
@@ -50,6 +52,11 @@ public partial class Facturacion : CaeManager.Web.Components.PaginaInteractiva
     private ModeloFacturacion? _modelo;
     private IReadOnlyList<TarifaOperadorCaeDto>? _tarifas;
     private Guid _empresaId;
+    private CobrosLiquidacionOperadorCaeDto _cobros = CobrosLiquidacionOperadorCaeDto.Ninguno;
+
+    /// <summary>Lo que el formulario de cobro tiene escrito para la Empresa elegida; null mientras no se toque.</summary>
+    private (Guid TenantId, EstadoCobroLiquidacion Estado, string Referencia)? _cobroEditado;
+    private bool _guardandoCobro;
 
     protected override async Task OnInitializedAsync()
     {
@@ -90,11 +97,14 @@ public partial class Facturacion : CaeManager.Web.Components.PaginaInteractiva
             var extranjeros = await Mediator.Send(
                 new ContarExtranjerosCobrablesDelMesQuery(_anyo, _mes, gestionadas.EsOperadorCae ? gestionadas.Tramos : null));
             var tarifas = await Mediator.Send(new ObtenerTarifasOperadorCaeQuery());
+            var cobros = await Mediator.Send(new ObtenerCobrosLiquidacionOperadorCaeQuery(_anyo, _mes));
             var operadas = gestionadas.Tramos.Keys.ToList();
             if (solicitud != _solicitud)
                 return;
 
             _tarifas = tarifas;
+            _cobros = cobros;
+            _cobroEditado = null;
             _modelo = FacturacionOperadorModelo.Construir(_anyo, _mes, serie, extranjeros, tarifas, operadas, AhoraUtc);
             if (_modelo.Empresas.All(e => e.TenantId != _empresaId))
                 _empresaId = _modelo.Empresas.FirstOrDefault()?.TenantId ?? Guid.Empty;
@@ -326,6 +336,87 @@ public partial class Facturacion : CaeManager.Web.Components.PaginaInteractiva
     private string TituloExtranjeros => ExtranjerosDelMes > 0
         ? Textos["ExtranjerosFilas", ExtranjerosDelMes.ToString(CultureInfo.CurrentCulture)].Value
         : Textos["ExtranjerosNinguno", NombreMes(_anyo, _mes)].Value;
+
+    // ------------------------------------------------------------------ liquidación y cobro (V-2)
+
+    private string RutaLiquidacion => FormattableString.Invariant($"{FacturacionEndpoints.RutaLiquidacionDelOperador}?anyo={_anyo}&mes={_mes}");
+
+    /// <summary>La liquidación de un mes se exporta y su cobro se marca cuando el mes ha terminado.</summary>
+    private bool MesTerminado => MesCuadroDireccion.EsValido(_anyo, _mes) && new MesCuadroDireccion(_anyo, _mes).FinUtc <= AhoraUtc;
+
+    /// <summary>Exportar la liquidación solo lo ve quien ve importes (Administrador o Dirección CAE del Operador, D-F9).</summary>
+    private bool PuedeExportarLiquidacion => _modelo is { ImportesOcultos: false };
+
+    private string TituloLiquidacion => MesTerminado ? Textos["ExportarLiquidacionAyuda"].Value : Textos["ExportarLiquidacionMesEnCurso"].Value;
+
+    private CobroLiquidacionOperadorCaeDto? CobroDe(EmpresaFacturada empresa) => _cobros.De(empresa.TenantId);
+
+    private EstadoCobroLiquidacion EstadoCobro(EmpresaFacturada empresa) => CobroDe(empresa)?.Estado ?? EstadoCobroLiquidacion.Pendiente;
+
+    private string ClaveCobro(EmpresaFacturada empresa) => EstadoCobro(empresa) switch
+    {
+        EstadoCobroLiquidacion.Cobrada => "cobrada",
+        EstadoCobroLiquidacion.Impagada => "impagada",
+        _ => "pendiente",
+    };
+
+    private string TextoEstadoCobro(EstadoCobroLiquidacion estado) => LiquidacionOperadorCsv.EstadoCobroTexto(estado, Textos);
+
+    private string EtiquetaCobro(EmpresaFacturada empresa) => TextoEstadoCobro(EstadoCobro(empresa));
+
+    private static readonly EstadoCobroLiquidacion[] EstadosCobro = Enum.GetValues<EstadoCobroLiquidacion>();
+
+    private bool PuedeMarcarCobro => _cobros.PuedeMarcar && MesTerminado;
+
+    private EstadoCobroLiquidacion EstadoEditado(EmpresaFacturada empresa) =>
+        _cobroEditado is { } e && e.TenantId == empresa.TenantId ? e.Estado : EstadoCobro(empresa);
+
+    private string ReferenciaEditada(EmpresaFacturada empresa) =>
+        _cobroEditado is { } e && e.TenantId == empresa.TenantId ? e.Referencia : CobroDe(empresa)?.ReferenciaFacturaEmisor ?? string.Empty;
+
+    private bool HayCambiosCobro(EmpresaFacturada empresa) =>
+        EstadoEditado(empresa) != EstadoCobro(empresa)
+        || !string.Equals(ReferenciaEditada(empresa).Trim(), CobroDe(empresa)?.ReferenciaFacturaEmisor ?? string.Empty, StringComparison.Ordinal);
+
+    private void EditarEstadoCobro(EmpresaFacturada empresa, object? valor)
+    {
+        if (Enum.TryParse<EstadoCobroLiquidacion>(valor?.ToString(), out var estado) && Enum.IsDefined(estado))
+            _cobroEditado = (empresa.TenantId, estado, ReferenciaEditada(empresa));
+    }
+
+    private void EditarReferenciaCobro(EmpresaFacturada empresa, object? valor) =>
+        _cobroEditado = (empresa.TenantId, EstadoEditado(empresa), valor?.ToString() ?? string.Empty);
+
+    private async Task GuardarCobroAsync(EmpresaFacturada empresa)
+    {
+        if (_guardandoCobro || !PuedeMarcarCobro)
+            return;
+
+        _guardandoCobro = true;
+        try
+        {
+            var referencia = ReferenciaEditada(empresa).Trim();
+            var resultado = await Mediator.Send(new MarcarCobroLiquidacionOperadorCaeCommand(
+                empresa.TenantId, _anyo, _mes, EstadoEditado(empresa), referencia.Length == 0 ? null : referencia));
+            if (!resultado.EsExitoso)
+            {
+                ToastService.MostrarError(Textos["CobroError"].Value, resultado.Error);
+                return;
+            }
+
+            _cobros = await Mediator.Send(new ObtenerCobrosLiquidacionOperadorCaeQuery(_anyo, _mes));
+            _cobroEditado = null;
+            ToastService.Mostrar(Textos["CobroGuardado"].Value, TonoToast.Exito);
+        }
+        catch (ValidationException)
+        {
+            ToastService.Mostrar(Textos["CobroError"].Value, TonoToast.Error);
+        }
+        finally
+        {
+            _guardandoCobro = false;
+        }
+    }
 
     // ------------------------------------------------------------------ drawer de tarifas
 

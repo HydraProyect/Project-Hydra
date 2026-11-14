@@ -43,6 +43,9 @@ public static class ApplicationServiceCollectionExtensions
         services.AddScoped<CaeManager.Application.Integraciones.ConectoresPlataformaCae.IOperacionesConectorPlataformaCae,
             CaeManager.Application.Integraciones.ConectoresPlataformaCae.OperacionesConectorPlataformaCae>();
         services.AddScoped<CaeManager.Application.Dashboard.Queries.MedicionMensualCuadroDireccion>();
+        // Puerto del Núcleo por el que Facturación lee la liquidación del Operador CAE sin depender de Outbound (D-F2).
+        services.AddScoped<CaeManager.Application.Common.IFuenteLiquidacionOperadorCae,
+            CaeManager.Application.Dashboard.TarifasOperadorCae.FuenteLiquidacionOperadorCae>();
         // Lectura de la «Nota interna» de las fichas 360: una sola decisión para todas (ver PoliticaNotaInterna).
         services.AddScoped<CaeManager.Application.Common.IPoliticaNotaInterna, CaeManager.Application.Common.PoliticaNotaInterna>();
         // Singleton a propósito (Horizonte 2.4): la ventana de tasa de
