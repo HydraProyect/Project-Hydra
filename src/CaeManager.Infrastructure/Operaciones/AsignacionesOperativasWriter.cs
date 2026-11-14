@@ -174,23 +174,69 @@ public class AsignacionesOperativasWriter(
     {
         var ahora = DateTime.UtcNow;
 
-        var operacion = await ObtenerOperacionExternaVigenteAsync(propietarioTenantId, operadorTenantId, cancellationToken);
-        if (operacion is null) return;
+        // Revocar la delegación cierra TODA la autorización Outbound que el Operador CAE externo
+        // deriva de ella sobre este Tenant propietario (decisión de Chris del 2026-11-14, hallazgo
+        // de Codex en la revisión de la PR #2215): la operación del Tenant entero y también las
+        // acotadas a un Cliente empresarial, en cualquier estado no cerrado. Una Programada se
+        // activaría sola al llegar su fecha (ExpiracionAsignacionesHostedService) y una acotada
+        // vigente seguiría autorizando por Operación con su cartera. Antes solo se cerraba la
+        // vigente del Tenant entero. Solo Outbound: Inbound tiene su propio ciclo.
+        var operaciones = await OperacionesExternasNoCerradasAsync(propietarioTenantId, operadorTenantId, cancellationToken);
+        if (operaciones.Count == 0) return;
+
+        var ids = operaciones.Select(o => o.Id).ToList();
 
         // Las carteras se cierran en cascada: una cartera vigente bajo una
         // operación cerrada concedería acceso sin nada que lo ampare, y su
         // ámbito efectivo (intersección con el de la operación) ya no
         // significaría nada.
         var carteras = await dbContext.AsignacionesCartera
-            .Where(c => c.AsignacionOperacionId == operacion.Id && c.Estado == EstadoAsignacion.Vigente)
+            .Where(c => ids.Contains(c.AsignacionOperacionId) && c.Estado != EstadoAsignacion.Cerrada)
             .ToListAsync(cancellationToken);
 
-        // Por la cascada y no por Cerrar: la cartera recuerda si llevaba la marca de principal,
-        // que es lo que la reactivación necesita para devolvérsela a quien la tenía (D-9).
         foreach (var cartera in carteras)
-            cartera.CerrarPorCascadaDeLaOperacion(motivo, ahora);
+        {
+            // Las vigentes, por la cascada y no por Cerrar: la cartera recuerda si llevaba la marca
+            // de principal, que es lo que la reactivación necesita para devolvérsela a quien la
+            // tenía (D-9). Una Programada o Suspendida se cierra sin más: no era la principal de nada
+            // que haya que restaurar, y en duda la revocación falla cerrada.
+            if (cartera.Estado == EstadoAsignacion.Vigente)
+                cartera.CerrarPorCascadaDeLaOperacion(motivo, ahora);
+            else
+                cartera.Cerrar(motivo, ahora);
+        }
 
-        operacion.Cerrar(motivo, ahora);
+        foreach (var operacion in operaciones)
+            operacion.Cerrar(motivo, ahora);
+    }
+
+    /// <summary>
+    /// Las Asignaciones de Operación Outbound externas no cerradas de este Operador CAE externo
+    /// sobre este Tenant propietario, de cualquier ámbito (Tenant entero o acotadas) y estado
+    /// (Vigente, Programada, Suspendida). Mira también las añadidas al contexto y aún sin guardar,
+    /// por el mismo motivo que <see cref="ObtenerOperacionExternaVigenteAsync"/>.
+    /// </summary>
+    private async Task<List<AsignacionOperacion>> OperacionesExternasNoCerradasAsync(
+        Guid propietarioTenantId, Guid operadorTenantId, CancellationToken cancellationToken)
+    {
+        var enBase = await dbContext.AsignacionesOperacion
+            .Where(o => !o.EsRaiz
+                        && o.PropietarioTenantId == propietarioTenantId
+                        && o.OperadorTenantId == operadorTenantId
+                        && o.Servicio == ServicioCae.Outbound
+                        && o.Estado != EstadoAsignacion.Cerrada)
+            .ToListAsync(cancellationToken);
+
+        var anadidas = dbContext.ChangeTracker.Entries<AsignacionOperacion>()
+            .Where(e => e.State == EntityState.Added)
+            .Select(e => e.Entity)
+            .Where(o => !o.EsRaiz
+                        && o.PropietarioTenantId == propietarioTenantId
+                        && o.OperadorTenantId == operadorTenantId
+                        && o.Servicio == ServicioCae.Outbound
+                        && o.Estado != EstadoAsignacion.Cerrada);
+
+        return enBase.Union(anadidas).ToList();
     }
 
     public async Task AbrirCarteraOperadorAsync(
@@ -277,18 +323,26 @@ public class AsignacionesOperativasWriter(
         // operador delegado.
         var conCarteraPropia = operadores.Where(o => RolesConCarteraPropia.Contains(o.Rol)).ToList();
 
-        // La última operación externa cerrada del mismo par, sea cual sea su motivo: si la última etapa
-        // terminó por caducidad (Expirada) o por traspaso, no se repone nada desde una anterior.
-        var anterior = await dbContext.AsignacionesOperacion
-            .Where(o => o.Id != operacion.Id
-                        && !o.EsRaiz
-                        && o.PropietarioTenantId == operacion.PropietarioTenantId
-                        && o.OperadorTenantId == operacion.OperadorTenantId
-                        && o.Servicio == operacion.Servicio
-                        && o.Estado == EstadoAsignacion.Cerrada)
+        // La última operación externa cerrada del mismo par y del Tenant entero, sea cual sea su
+        // motivo: si la última etapa terminó por caducidad (Expirada) o por traspaso, no se repone
+        // nada desde una anterior. Solo del Tenant entero, como la que se reabre: la revocación
+        // cierra también las acotadas con el mismo instante (o, una Programada, con su inicio
+        // futuro), y tomar una de ellas como «anterior» haría perder lo que cerró la cascada de la
+        // del Tenant entero. Las acotadas no se reabren: hace falta un acto explícito.
+        // El ámbito se filtra en memoria: son las etapas cerradas de un solo par, pocas.
+        var anterior = (await dbContext.AsignacionesOperacion
+                .AsNoTracking()
+                .Where(o => o.Id != operacion.Id
+                            && !o.EsRaiz
+                            && o.PropietarioTenantId == operacion.PropietarioTenantId
+                            && o.OperadorTenantId == operacion.OperadorTenantId
+                            && o.Servicio == operacion.Servicio
+                            && o.Estado == EstadoAsignacion.Cerrada)
+                .ToListAsync(cancellationToken))
+            .Where(o => o.Ambito.EsUniversal)
             .OrderByDescending(o => o.VigenciaHasta)
             .Select(o => new { o.Id, o.MotivoCierre, o.VigenciaHasta })
-            .FirstOrDefaultAsync(cancellationToken);
+            .FirstOrDefault();
         if (anterior is null || anterior.MotivoCierre != MotivoCierreAsignacion.Revocada) return null;
 
         // Solo las carteras que cerró la cascada de esa misma desactivación: CerrarOperacionDelegadaAsync
@@ -357,13 +411,21 @@ public class AsignacionesOperativasWriter(
     {
         var ahora = DateTime.UtcNow;
 
-        var operacion = await ObtenerOperacionExternaVigenteAsync(propietarioTenantId, operadorTenantId, cancellationToken);
-        if (operacion is null) return;
-
-        var carteras = await dbContext.AsignacionesCartera
-            .Where(c => c.AsignacionOperacionId == operacion.Id
-                        && c.UsuarioId == usuarioId
-                        && c.Estado == EstadoAsignacion.Vigente)
+        // Retirar a la persona cierra todas sus Asignaciones de Cartera no cerradas bajo cualquier
+        // Asignación de Operación Outbound externa de este Operador CAE externo sobre este Tenant
+        // propietario: la del Tenant entero y también las acotadas a un Cliente empresarial, y en
+        // cualquier estado de la operación (decisión de Chris del 2026-11-14). Antes solo se miraba
+        // la operación vigente del Tenant entero, y su cartera bajo una acotada seguía autorizando.
+        var carteras = await (
+                from c in dbContext.AsignacionesCartera
+                join o in dbContext.AsignacionesOperacion on c.AsignacionOperacionId equals o.Id
+                where !o.EsRaiz
+                      && o.PropietarioTenantId == propietarioTenantId
+                      && o.OperadorTenantId == operadorTenantId
+                      && o.Servicio == ServicioCae.Outbound
+                      && c.UsuarioId == usuarioId
+                      && c.Estado != EstadoAsignacion.Cerrada
+                select c)
             .ToListAsync(cancellationToken);
 
         foreach (var cartera in carteras)

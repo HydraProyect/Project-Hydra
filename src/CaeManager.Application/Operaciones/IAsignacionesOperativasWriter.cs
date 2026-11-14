@@ -78,11 +78,15 @@ public interface IAsignacionesOperativasWriter
         CancellationToken cancellationToken = default);
 
     /// <summary>
-    /// Cierra la operación externa de una delegación que se desactiva, y con
-    /// ella todas sus carteras: una cartera no puede sobrevivir a la operación
-    /// que la ampara. Cada cartera recuerda si llevaba la marca de principal
+    /// Cierra <b>todas</b> las Asignaciones de Operación Outbound externas no cerradas del Operador
+    /// CAE externo sobre el Tenant propietario —la del Tenant entero y las acotadas a un Cliente
+    /// empresarial, vigentes, programadas o suspendidas— de una delegación que se desactiva, y con
+    /// ellas todas sus carteras no cerradas: una cartera no puede sobrevivir a la operación que la
+    /// ampara, y en duda la revocación falla cerrada (decisión de Chris del 2026-11-14). Cada cartera
+    /// vigente recuerda si llevaba la marca de principal
     /// (<see cref="AsignacionCartera.EraPrincipalAlCerrarsePorCascada"/>), para
-    /// que <see cref="ReabrirCarterasDeOperadoresAsync"/> sepa a quién devolvérsela.
+    /// que <see cref="ReabrirCarterasDeOperadoresAsync"/> sepa a quién devolvérsela. Reactivar solo
+    /// reabre la del Tenant entero; las acotadas necesitan un acto explícito.
     /// </summary>
     Task CerrarOperacionDelegadaAsync(
         Guid propietarioTenantId, Guid operadorTenantId, MotivoCierreAsignacion motivo,
@@ -153,7 +157,11 @@ public interface IAsignacionesOperativasWriter
     Task<Guid?> ReabrirCarterasDeOperadoresAsync(
         AsignacionOperacion operacion, Guid delegacionTenantId, CancellationToken cancellationToken = default);
 
-    /// <summary>Cierra la cartera de un operador delegado al que se le revoca la asignación.</summary>
+    /// <summary>
+    /// Cierra las carteras no cerradas de un operador delegado al que se le revoca la asignación,
+    /// bajo cualquier Asignación de Operación Outbound externa del par (del Tenant entero o acotada,
+    /// en cualquier estado): retirar a la persona le quita toda autorización Outbound derivada.
+    /// </summary>
     Task CerrarCarteraOperadorAsync(
         Guid propietarioTenantId, Guid operadorTenantId, Guid usuarioId, MotivoCierreAsignacion motivo,
         CancellationToken cancellationToken = default);

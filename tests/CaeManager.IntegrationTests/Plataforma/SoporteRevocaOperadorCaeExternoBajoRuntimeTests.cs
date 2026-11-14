@@ -131,6 +131,70 @@ public class SoporteRevocaOperadorCaeExternoBajoRuntimeTests : IAsyncLifetime
             "el motivo de la petición y el Operador CAE externo quedan en la auditoría");
     }
 
+    /// <summary>
+    /// Decisión de Chris del 2026-11-14 (hallazgo de Codex en la revisión de la PR #2215): la vía de
+    /// Soporte TALVEG cierra lo mismo que <c>CerrarOperacionDelegadaAsync</c>, toda Asignación de
+    /// Operación Outbound del par, del Tenant entero o acotada a un Cliente empresarial, vigente o
+    /// programada, y sus carteras. Inbound tiene su propio ciclo y queda intacta.
+    /// </summary>
+    [Fact]
+    public async Task Con_la_capacidad_revoca_cierra_tambien_las_operaciones_Outbound_acotadas_y_sus_carteras()
+    {
+        Guid acotadaVigente, acotadaProgramada, inbound, carteraAcotada, carteraProgramada, carteraInbound;
+        await using (var contexto = CrearContexto(_tenantA, cadena: _cadenaConexion))
+        {
+            var ahora = DateTime.UtcNow.AddMinutes(-30);
+            var uno = CaeManager.Domain.Empresas.Empresa.CrearComoCliente("Cliente acotado uno S.A.", "B10380202", false, null, null);
+            var dos = CaeManager.Domain.Empresas.Empresa.CrearComoCliente("Cliente acotado dos S.A.", "B10380228", false, null, null);
+            contexto.Empresas.AddRange(uno, dos);
+            var vigente = AsignacionOperacion.Externa(_tenantA, _tenantOperador, ServicioCae.Outbound,
+                AmbitoAsignacion.DeRelacionCliente(uno.Id), ahora, null, ahora, _gestora);
+            var programada = AsignacionOperacion.Externa(_tenantA, _tenantOperador, ServicioCae.Outbound,
+                AmbitoAsignacion.DeRelacionCliente(dos.Id), ahora.AddDays(2), null, ahora, _gestora);
+            var deInbound = AsignacionOperacion.Externa(_tenantA, _tenantOperador, ServicioCae.Inbound,
+                AmbitoAsignacion.Universal, ahora, null, ahora, _gestora);
+            var c1 = AsignacionCartera.Externa(vigente, _gestora, "GestorCae", AmbitoAsignacion.Universal, ahora, null, ahora, _gestora);
+            var c2 = AsignacionCartera.Externa(programada, _gestora, "GestorCae", AmbitoAsignacion.Universal, ahora, null, ahora, _gestora);
+            var c3 = AsignacionCartera.Externa(deInbound, _gestora, "GestorCae", AmbitoAsignacion.Universal, ahora, null, ahora, _gestora);
+            contexto.AsignacionesOperacion.AddRange(vigente, programada, deInbound);
+            contexto.AsignacionesCartera.AddRange(c1, c2, c3);
+            await contexto.SaveChangesAsync();
+            programada.Estado.Should().Be(EstadoAsignacion.Programada, "control: empieza en el futuro");
+            (acotadaVigente, acotadaProgramada, inbound, carteraAcotada, carteraProgramada, carteraInbound) =
+                (vigente.Id, programada.Id, deInbound.Id, c1.Id, c2.Id, c3.Id);
+        }
+
+        var sesion = await AbrirSesionConCapacidadAsync();
+        (await RevocarComoSoporteAsync(_tenantA, sesion)).Should().Be("revocada");
+
+        foreach (var operacion in new[] { _operacion, acotadaVigente, acotadaProgramada })
+            (await EscalarAsync<string>(
+                @"SELECT ""Estado"" || '/' || ""MotivoCierre"" FROM ""AsignacionesOperacion"" WHERE ""Id"" = @u;", operacion))
+                .Should().Be("Cerrada/Revocada", "toda Asignación de Operación Outbound del par se cierra, también las acotadas");
+        foreach (var cartera in new[] { _cartera, carteraAcotada, carteraProgramada })
+            (await EscalarAsync<string>(
+                @"SELECT ""Estado"" || '/' || ""MotivoCierre"" FROM ""AsignacionesCartera"" WHERE ""Id"" = @u;", cartera))
+                .Should().Be("Cerrada/Revocada", "y todas sus carteras");
+        (await EscalarAsync<string>(
+            @"SELECT ""EraPrincipalAlCerrarsePorCascada""::text FROM ""AsignacionesCartera"" WHERE ""Id"" = @u;", carteraAcotada))
+            .Should().Be("false", "solo recuerda la marca la cartera que la llevaba (D-9)");
+        (await EscalarAsync<bool>(
+            @"SELECT ""VigenciaHasta"" = ""VigenciaDesde"" FROM ""AsignacionesOperacion"" WHERE ""Id"" = @u;", acotadaProgramada))
+            .Should().BeTrue("la programada se cierra sin haber empezado, como Cerrar en C#");
+
+        (await EscalarAsync<string>(@"SELECT ""Estado"" FROM ""AsignacionesOperacion"" WHERE ""Id"" = @u;", inbound))
+            .Should().Be("Vigente", "Inbound tiene su propio ciclo");
+        (await EscalarAsync<string>(@"SELECT ""Estado"" FROM ""AsignacionesCartera"" WHERE ""Id"" = @u;", carteraInbound))
+            .Should().Be("Vigente");
+
+        var filas = await LeerAuditoriaDeSesionAsync(sesion);
+        filas.Select(f => (f.EntidadTipo, f.EntidadId)).Should().BeEquivalentTo(
+            [("DelegacionTenant", _delegacion),
+             ("AsignacionOperacion", _operacion), ("AsignacionOperacion", acotadaVigente), ("AsignacionOperacion", acotadaProgramada),
+             ("AsignacionCartera", _cartera), ("AsignacionCartera", carteraAcotada), ("AsignacionCartera", carteraProgramada)],
+            "una fila de auditoría por cada fila que la función escribe, y ninguna de Inbound");
+    }
+
     // ── Cada precondición de la función, incumplida ──────────────────────────
 
     [Fact]
