@@ -63,13 +63,26 @@ public enum GestorDemo
 }
 
 /// <param name="RazonSocial">Del Cliente empresarial. Ficticio, y distinto de los nueve de <c>DatosPruebaSeeder</c> para no chocar en un mismo Tenant.</param>
-/// <param name="Contratista">Empresa que opera sus centros y aporta la plantilla.</param>
-/// <param name="Subcontrata">Subcontrata de la contratista, con plantilla propia en dos de los centros.</param>
+/// <param name="Subcontrata">Subcontrata de la Empresa propia del Tenant, con plantilla propia en dos de los centros.</param>
+/// <param name="SubcontrataDeLaPlantillaBase">
+/// Si no es <c>null</c>, otra Subcontrata de la Empresa propia (con su Relación Empresarial con ella y con este Cliente
+/// empresarial) que aporta la plantilla base del Cliente en lugar de la propia Empresa propia. Es lo que enseña la ficha
+/// 360 de la demo de Pizza Planet: la plantilla de Cyberdyne es de Montajes Skynet, Subcontrata de Limpiezas Raccoon.
+/// </param>
 public sealed record ClienteEscenarioDemo(
-    string RazonSocial, string Contratista, string Subcontrata, EscenarioClienteDemo Escenario, GestorDemo Gestor);
+    string RazonSocial, string Subcontrata, EscenarioClienteDemo Escenario, GestorDemo Gestor,
+    string? SubcontrataDeLaPlantillaBase = null);
 
-/// <summary>La rama de un Tenant propietario: los Clientes empresariales que se le siembran.</summary>
-public sealed record RamaEscenariosDemo(string NombreTenant, IReadOnlyList<ClienteEscenarioDemo> Clientes);
+/// <summary>
+/// La rama de un Tenant propietario: su única Empresa propia (D-P11) y los Clientes empresariales a los que ella presta
+/// servicio.
+/// </summary>
+/// <param name="EmpresaPropia">
+/// Razón social de la única Empresa propia del Tenant. Se siembra con ese nombre solo si el Tenant no tiene ya una
+/// (los Tenants de <c>DelegacionDemoSeeder</c> traen la de <c>DatosPruebaSeeder</c>, que se reutiliza); todos los
+/// Centros y Trabajadores de la rama cuelgan de ella o de sus Subcontratas.
+/// </param>
+public sealed record RamaEscenariosDemo(string NombreTenant, string EmpresaPropia, IReadOnlyList<ClienteEscenarioDemo> Clientes);
 
 /// <summary>
 /// Reparto de la matriz entre los seis Tenants propietarios que opera el
@@ -93,50 +106,58 @@ public static class CatalogoEscenariosDireccionDemo
 
     public static readonly RamaEscenariosDemo Refrielectric = new(
         DelegacionDemoSeeder.NombreTenantRefrielectric,
+        "Montajes Frigoríficos Zubrowka S.L.",
     [
-        new("Hoteles Grand Budapest S.A.", "Montajes Frigoríficos Zubrowka S.L.", "Servicios Auxiliares Lobby S.L.",
+        new("Hoteles Grand Budapest S.A.", "Servicios Auxiliares Lobby S.L.",
             EscenarioClienteDemo.Completo, GestorDemo.Primero),
     ]);
 
     public static readonly RamaEscenariosDemo Dexter = new(
         DelegacionDemoSeeder.NombreTenantClienteDemo,
+        "Instalaciones Oompa S.L.",
     [
-        new("Wonka Industrias S.A.", "Instalaciones Oompa S.L.", "Envases Loompa S.L.",
+        new("Wonka Industrias S.A.", "Envases Loompa S.L.",
             EscenarioClienteDemo.CasiCompleto, GestorDemo.Primero),
-        new("Initech Iberia S.L.", "Mantenimiento Milton S.L.", "Archivos Swingline S.L.",
+        new("Initech Iberia S.L.", "Archivos Swingline S.L.",
             EscenarioClienteDemo.AccesoBloqueado, GestorDemo.Segundo),
     ]);
 
     public static readonly RamaEscenariosDemo PlanetExpress = new(
         DelegacionDemoSeeder.NombreTenantClienteDemo2,
+        "Servicios de Pista Nostromo S.L.",
     [
-        new("Oceanic Airlines España S.A.", "Servicios de Pista Nostromo S.L.", "Catering Dharma S.L.",
+        new("Oceanic Airlines España S.A.", "Catering Dharma S.L.",
             EscenarioClienteDemo.ConAccesoSinDocumentacionPendiente, GestorDemo.Primero),
-        new("Gringotts Banca Mágica S.A.", "Seguridad Hogwarts S.L.", "Custodia Bóveda S.L.",
+        new("Gringotts Banca Mágica S.A.", "Custodia Bóveda S.L.",
             EscenarioClienteDemo.AccesoPendienteDeConfirmacion, GestorDemo.Segundo),
     ]);
 
     public static readonly RamaEscenariosDemo KrustyKrab = new(
         DelegacionDemoSeeder.NombreTenantClienteDemo3,
+        "Logística Albuquerque S.L.",
     [
-        new("Cadena Los Pollos Hermanos S.L.", "Logística Albuquerque S.L.", "Frío Industrial Verde S.L.",
+        new("Cadena Los Pollos Hermanos S.L.", "Frío Industrial Verde S.L.",
             EscenarioClienteDemo.ConAccesoConDocumentacionPendiente, GestorDemo.Primero),
     ]);
 
     public static readonly RamaEscenariosDemo Duff = new(
         NombreTenantDuff,
+        "Electricidad Nexus S.L.",
     [
-        new("Tyrell Robótica S.L.", "Electricidad Nexus S.L.", "Vigilancia Replicante S.L.",
+        new("Tyrell Robótica S.L.", "Vigilancia Replicante S.L.",
             EscenarioClienteDemo.AccesoPendienteDeConfirmacion, GestorDemo.Primero),
     ]);
 
     public static readonly RamaEscenariosDemo PizzaPlanet = new(
         NombreTenantPizzaPlanet,
+        "Limpiezas Raccoon S.L.",
     [
-        new("Umbrella Corporation Ibérica S.A.", "Limpiezas Raccoon S.L.", "Laboratorios Nemesis S.L.",
+        new("Umbrella Corporation Ibérica S.A.", "Laboratorios Nemesis S.L.",
             EscenarioClienteDemo.AccesoBloqueado, GestorDemo.Primero),
-        new("Cyberdyne Ibérica S.A.", "Montajes Skynet S.L.", "Transportes Terminator S.L.",
-            EscenarioClienteDemo.CasiCompleto, GestorDemo.Segundo),
+        // La plantilla base de Cyberdyne es de Montajes Skynet (Subcontrata de Limpiezas Raccoon, la única Empresa propia
+        // del Tenant); Transportes Terminator es la otra Subcontrata, con su plantilla en dos de los centros.
+        new("Cyberdyne Ibérica S.A.", "Transportes Terminator S.L.",
+            EscenarioClienteDemo.CasiCompleto, GestorDemo.Segundo, SubcontrataDeLaPlantillaBase: "Montajes Skynet S.L."),
     ]);
 
     /// <summary>Las seis ramas, en el orden de los Tenants de la demo.</summary>

@@ -20,7 +20,9 @@ namespace CaeManager.E2ETests.Fidelidad360;
 public class Fidelidad360FichasTests(WebAppFixtureFichas360 fixture)
 {
     private const string TenantPizzaPlanet = "Pizza Planet S.L.";
-    private const string EmpresaDeLaMaqueta = "Montajes Skynet S.L.";
+    // Desde D-P11 Pizza Planet tiene una sola Empresa propia, Limpiezas Raccoon S.L. (la que lista /empresas/);
+    // Montajes Skynet S.L. es una Subcontrata suya y ya no tiene ficha de Empresa.
+    private const string EmpresaDeLaMaqueta = "Limpiezas Raccoon S.L.";
     private const string ClienteEmpresarialDeLaMaqueta = "Cyberdyne Ibérica S.A.";
     private const string SubcontrataDeLaMaqueta = "Transportes Terminator S.L.";
     private const string VehiculoDeLaMaqueta = "Camión grúa";

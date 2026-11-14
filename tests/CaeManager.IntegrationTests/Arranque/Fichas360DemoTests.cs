@@ -249,7 +249,7 @@ public class Fichas360DemoTests(Fichas360DemoFixture fixture) : IClassFixture<Fi
                 subcontrata.NivelServicio,
                 Plantilla = trabajadores.Where(t => t.SubcontrataId == subcontrata.Id).Select(t => t.NombreCompleto).ToList(),
                 CentrosDeLaSubcontrata = PlantillaPorCentro(t => t.SubcontrataId == subcontrata.Id),
-                CentrosDeSkynet = PlantillaPorCentro(t => t.EmpresaId == skynet.Id),
+                CentrosDeSkynet = PlantillaPorCentro(t => t.SubcontrataId == skynet.Id),
                 Verificaciones = (await contexto.VerificacionesExternaSubcontrata.Where(v => v.SubcontrataId == subcontrata.Id).ToListAsync())
                     .Select(v => (Tipo: tipos[v.TipoDocumentoId], Centro: centros[v.CentroId], v.Resultado, DiasDesdeHoy: v.FechaVerificacion.DayNumber - hoy.DayNumber))
                     .ToList(),
@@ -309,7 +309,8 @@ public class Fichas360DemoTests(Fichas360DemoFixture fixture) : IClassFixture<Fi
             {
                 vehiculo.Nombre,
                 vehiculo.Modelo,
-                Empleador = await contexto.Empresas.Where(e => e.Id == vehiculo.EmpresaId).Select(e => e.RazonSocial).SingleAsync(),
+                Empleador = await contexto.Empresas.Where(e => e.Id == (vehiculo.SubcontrataId ?? vehiculo.EmpresaId)).Select(e => e.RazonSocial).SingleAsync(),
+                EmpleadorEsSubcontrata = vehiculo.SubcontrataId is not null,
                 Operativos = documentos.Where(d => !d.EstaSustituido)
                     .ToDictionary(d => tipos[d.TipoDocumentoId], d => d.CalcularEstado(hoy, parametros.UmbralAmbarDias, parametros.UmbralRojoDias)),
                 Sustituidos = documentos.Where(d => d.EstaSustituido).Select(d => tipos[d.TipoDocumentoId]).ToList(),
@@ -320,6 +321,7 @@ public class Fichas360DemoTests(Fichas360DemoFixture fixture) : IClassFixture<Fi
         });
 
         (medido.Nombre, medido.Modelo, medido.Empleador).Should().Be(("Camión grúa", "Iveco Daily", "Montajes Skynet S.L."));
+        medido.EmpleadorEsSubcontrata.Should().BeTrue("MEDIDO (D-P11): Montajes Skynet S.L. es una Subcontrata de la única Empresa propia del Tenant, no una Empresa propia");
         medido.Operativos.Should().BeEquivalentTo(
             new Dictionary<string, EstadoDocumento>
             {

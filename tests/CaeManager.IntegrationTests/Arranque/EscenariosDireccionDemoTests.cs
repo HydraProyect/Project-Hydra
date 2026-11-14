@@ -159,6 +159,98 @@ public class EscenariosDireccionDemoTests(EscenariosDireccionDemoFixture fixture
         }
     }
 
+    /// <summary>
+    /// D-P11: una sola Empresa propia activa por Tenant propietario. Medido sin filtro de consulta (la fila existe o no,
+    /// con independencia de qué ve el usuario): la rama tiene una, sus Centros cuelgan de ella, su plantilla es de ella o
+    /// de sus Subcontratas, y cada Subcontrata es una Empresa no propia con su Relación Empresarial con la Empresa propia.
+    /// </summary>
+    [Fact]
+    public async Task Cada_Tenant_propietario_de_la_demo_tiene_una_sola_Empresa_propia_de_la_que_cuelgan_sus_Centros_y_su_plantilla()
+    {
+        using var todas = new FluentAssertions.Execution.AssertionScope();
+        foreach (var rama in CatalogoEscenariosDireccionDemo.Ramas)
+        {
+            await using var bootstrap = fixture.Arnes.Servicios.GetRequiredService<FabricaContextoDeBootstrap>().Crear();
+            var tenantId = await bootstrap.Tenants.Where(t => t.Nombre == rama.NombreTenant).Select(t => t.Id).SingleAsync();
+
+            var propias = await bootstrap.Empresas.IgnoreQueryFilters()
+                .Where(e => e.TenantId == tenantId && e.EsPropia && !e.EstaEliminado)
+                .ToListAsync();
+            propias.Should().ContainSingle($"MEDIDO ({rama.NombreTenant}): una sola Empresa propia activa por Tenant propietario");
+            if (propias.Count != 1)
+                continue;
+            var propia = propias[0];
+
+            var clientes = await bootstrap.Empresas.IgnoreQueryFilters()
+                .Where(e => e.TenantId == tenantId && e.EsCritico != null && rama.Clientes.Select(c => c.RazonSocial).Contains(e.RazonSocial))
+                .ToListAsync();
+            clientes.Should().HaveCount(rama.Clientes.Count, $"MEDIDO ({rama.NombreTenant}): están sembrados todos los Clientes empresariales de la rama");
+
+            var centros = await bootstrap.Centros.IgnoreQueryFilters()
+                .Where(c => c.TenantId == tenantId && clientes.Select(x => x.Id).Contains(c.ClienteId))
+                .ToListAsync();
+            centros.Should().OnlyContain(c => c.EmpresaId == propia.Id,
+                $"MEDIDO ({rama.NombreTenant}): todos los Centros de la rama cuelgan de su única Empresa propia");
+
+            var subcontratas = await bootstrap.Empresas.IgnoreQueryFilters()
+                .Where(e => e.TenantId == tenantId && e.NivelServicio != null && !e.EstaEliminado)
+                .ToListAsync();
+            var relaciones = await bootstrap.RelacionesEmpresariales.IgnoreQueryFilters()
+                .Where(r => r.TenantId == tenantId)
+                .ToListAsync();
+            foreach (var cliente in rama.Clientes)
+            {
+                var clienteSembrado = clientes.Single(c => c.RazonSocial == cliente.RazonSocial);
+                var propiaParaCliente = relaciones.SingleOrDefault(r => r.ProveedoraId == propia.Id && r.ClienteId == clienteSembrado.Id);
+                propiaParaCliente.Should().NotBeNull(
+                    $"MEDIDO ({rama.NombreTenant}): la Empresa propia presta servicio a «{cliente.RazonSocial}» con su Relación Empresarial");
+
+                var nombres = new[] { cliente.Subcontrata, cliente.SubcontrataDeLaPlantillaBase }.OfType<string>();
+                foreach (var nombre in nombres)
+                {
+                    var subcontrata = subcontratas.SingleOrDefault(s => s.RazonSocial == nombre);
+                    subcontrata.Should().NotBeNull($"MEDIDO ({rama.NombreTenant}): «{nombre}» es una Subcontrata de la Empresa propia");
+                    if (subcontrata is null)
+                        continue;
+                    subcontrata.EsPropia.Should().BeFalse($"MEDIDO ({rama.NombreTenant}): «{nombre}» no es una Empresa propia");
+                    relaciones.Should().Contain(r => r.ProveedoraId == subcontrata.Id && r.ClienteId == propia.Id,
+                        $"MEDIDO ({rama.NombreTenant}): «{nombre}» tiene su Relación Empresarial con la Empresa propia");
+                    relaciones.Should().ContainSingle(
+                        r => r.ProveedoraId == subcontrata.Id && r.ClienteId == clienteSembrado.Id && r.EnmarcadaEnId == propiaParaCliente!.Id,
+                        $"MEDIDO ({rama.NombreTenant}): «{nombre}» trabaja para «{cliente.RazonSocial}» enmarcada en la relación de la Empresa propia con él");
+                }
+            }
+        }
+    }
+
+    [Fact]
+    public async Task En_Pizza_Planet_la_Empresa_propia_es_Limpiezas_Raccoon_y_Montajes_Skynet_es_su_Subcontrata_con_Relacion_Empresarial()
+    {
+        await using var bootstrap = fixture.Arnes.Servicios.GetRequiredService<FabricaContextoDeBootstrap>().Crear();
+        var tenantId = await bootstrap.Tenants
+            .Where(t => t.Nombre == CatalogoEscenariosDireccionDemo.NombreTenantPizzaPlanet).Select(t => t.Id).SingleAsync();
+        var empresas = await bootstrap.Empresas.IgnoreQueryFilters().Where(e => e.TenantId == tenantId).ToListAsync();
+
+        var raccoon = empresas.Single(e => e.RazonSocial == "Limpiezas Raccoon S.L.");
+        var skynet = empresas.Single(e => e.RazonSocial == "Montajes Skynet S.L.");
+        empresas.Where(e => e.EsPropia && !e.EstaEliminado).Should().ContainSingle().Which.Id.Should().Be(raccoon.Id);
+        skynet.EsPropia.Should().BeFalse("MEDIDO (D-P11): Montajes Skynet S.L. ya no es una segunda Empresa propia");
+        skynet.NivelServicio.Should().NotBeNull("MEDIDO (D-P11): es una Subcontrata de Limpiezas Raccoon S.L.");
+
+        var relaciones = await bootstrap.RelacionesEmpresariales.IgnoreQueryFilters().Where(r => r.TenantId == tenantId).ToListAsync();
+        relaciones.Should().Contain(r => r.ProveedoraId == skynet.Id && r.ClienteId == raccoon.Id,
+            "MEDIDO: Montajes Skynet S.L. tiene su Relación Empresarial como Subcontrata de Limpiezas Raccoon S.L.");
+        var cyberdyne = empresas.Single(e => e.RazonSocial == "Cyberdyne Ibérica S.A.");
+        relaciones.Should().Contain(r => r.ProveedoraId == skynet.Id && r.ClienteId == cyberdyne.Id,
+            "MEDIDO: y con el Cliente empresarial al que aporta la plantilla");
+
+        var trabajadores = await bootstrap.Trabajadores.IgnoreQueryFilters().Where(t => t.TenantId == tenantId).ToListAsync();
+        trabajadores.Where(t => t.SubcontrataId == skynet.Id).Should().NotBeEmpty(
+            "MEDIDO: Montajes Skynet S.L. aporta como Subcontrata la plantilla base de Cyberdyne Ibérica S.A.");
+        trabajadores.Should().NotContain(t => t.EmpresaId == skynet.Id,
+            "MEDIDO: nadie es empleado de Montajes Skynet S.L. como Empresa propia");
+    }
+
     [Fact]
     public async Task El_estado_de_cada_centro_es_el_que_pide_el_escenario_medido_con_el_servicio_real()
     {
