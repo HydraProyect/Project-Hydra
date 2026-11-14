@@ -23,7 +23,8 @@ namespace CaeManager.Application.Documentos.Queries.ObtenerAcreditacionesDelDocu
 /// solo cuentan los canales con Plataforma CAE de Centros visibles y con gestión CAE, y el motivo y la dirección se cortan con
 /// <see cref="IAlcanceDatosService.ObtenerCentroIdsParaGestionAsync"/>, que decide por el rol efectivo: el rol Cliente recibe la
 /// lista vacía, así que ve el estado pero ni el motivo ni la dirección viajan en el DTO (decisión de Chris del 2026-11-12, opción B).
-/// El rol Consulta (interno del Tenant propietario) SÍ los recibe: regla operativa de la opción C (DECISION_LOG 2026-11-14, «Tanda 1
+/// El rol Consulta (de gestión en solo lectura, en su Tenant de origen o en un Tenant beneficiario delegado por Asignación de
+/// Operación) SÍ los recibe: regla operativa de la opción C (DECISION_LOG 2026-11-14, «Tanda 1
 /// de decisiones pendientes», punto 1). Lo anotado a mano en un cambio de estado (nota, motivo anotado a mano y autor) sigue la otra regla, la de
 /// trazabilidad interna (<c>SituacionDocumentosEnCentrosService.RolesQueLeenReclamaciones</c>), y Consulta no lo lee.
 /// D-3: solo cambia qué se muestra; cada Command del menú «Acreditación ▾» comprueba su propia autorización.
