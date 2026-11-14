@@ -9,6 +9,9 @@
     Consulta lo ve, con las acciones desactivadas como en la maqueta (`disabled={{soloConsulta}}`); quien no puede leer el
     reparto interno (rol Cliente de portal, hilo fuera de la cartera) recibe una lista vacía y no ve el bloque.
 
+    Si una lectura del reparto falla con filas ya pintadas (por ejemplo, la de después de una acción), las filas se quedan como
+    estaban pero con el aviso a la vista y todas las acciones desactivadas hasta volver a leerlo con éxito: pueden estar desfasadas.
+
     «Listo» es lo único que se asigna de una vez: destino, tipo de documento y fechas ya revisadas. Las fechas las escribe una
     persona (el alta no las inventa), y por eso un adjunto con destino y tipo pero sin fecha de emisión queda «Revisar».
 *@
@@ -47,6 +50,15 @@
         @if (!_puedeEscribir)
         {
             <div class="adjb-nota" role="status">@Textos["SoloConsulta"]</div>
+        }
+
+        @if (_errorCarga is not null)
+        {
+            @* Las filas son las de la última lectura buena: pueden estar desfasadas, así que se avisa y nada se toca hasta releer. *@
+            <div class="adjb-aviso adjb-aviso-bloque" role="alert">
+                <span>@_errorCarga</span>
+                <button type="button" class="tx-b" disabled="@_ocupado" @onclick="ReintentarCargaAsync">@Textos["Reintentar"]</button>
+            </div>
         }
 
         @if (cuerpoVisible)
@@ -110,7 +122,7 @@
                 <div class="adjb-g">
                     @BotonAsignarListos(listos)
                     <Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno"
-                           Deshabilitado="@(!_puedeEscribir || _ocupado || resumen.ParaRevisarUnoAUno == 0)"
+                           Deshabilitado="@(Bloqueado || resumen.ParaRevisarUnoAUno == 0)"
                            OnClick="() => AbrirUnoAUno(null)">@Textos["RevisarUnoAUno", resumen.ParaRevisarUnoAUno]</Boton>
                 </div>
             </div>
@@ -167,6 +179,10 @@ else if (_errorCarga is not null)
     private Guid _conversacionCargada;
     private object? _recargaCargada;
 
+    // Sin la última lectura del reparto las filas pueden estar desfasadas (un adjunto ya asignado seguiría como «Listo»): ninguna
+    // acción se ofrece hasta volver a leerlo con éxito.
+    private bool Bloqueado => !_puedeEscribir || _ocupado || _errorCarga is not null;
+
     private FilaReparto? FilaEnFoco => _posicion >= 0 && _posicion < _cola.Count ? _filas.FirstOrDefault(f => f.Adjunto.Id == _cola[_posicion]) : null;
 
     protected override async Task OnParametersSetAsync()
@@ -219,8 +235,17 @@ else if (_errorCarga is not null)
         {
             // Sin el reparto el resto de la conversación sigue funcionando: se avisa en el sitio, no se tumba la página.
             Logger.LogError(ex, "Error al cargar el reparto de adjuntos de la conversación {ConversacionId}.", conversacionId);
-            if (conversacionId == ConversacionId && generacion == _generacionCarga) _errorCarga = Textos["ErrorCargar"].Value;
+            if (conversacionId == ConversacionId && generacion == _generacionCarga)
+                _errorCarga = (_filas.Count > 0 ? Textos["ErrorRecargar"] : Textos["ErrorCargar"]).Value;
         }
+    }
+
+    private async Task ReintentarCargaAsync()
+    {
+        if (_ocupado) return;
+        _ocupado = true;
+        try { await CargarAsync(ConversacionId); }
+        finally { _ocupado = false; }
     }
 
     // Los desplegables de destino y tipo salen de los selectores del resto de la aplicación, que ya acotan por cartera y Tenant. Si
@@ -435,15 +460,15 @@ else if (_errorCarga is not null)
                     @if (f.Situacion is SituacionAdjunto.PorRevisar or SituacionAdjunto.SinDestino)
                     {
                         <button type="button" class="mini" aria-label="@Textos["ElegirDe", f.Adjunto.NombreArchivo]"
-                                disabled="@(!_puedeEscribir || _ocupado)" @onclick="() => AbrirUnoAUno(f.Adjunto.Id)">@Textos["Elegir"]</button>
+                                disabled="@(Bloqueado)" @onclick="() => AbrirUnoAUno(f.Adjunto.Id)">@Textos["Elegir"]</button>
                     }
                     <button type="button" class="mini" aria-expanded="@(f.Edicion.MenuAbierto ? "true" : "false")"
-                            aria-label="@Textos["MasAcciones", f.Adjunto.NombreArchivo]" disabled="@(!_puedeEscribir || _ocupado)"
+                            aria-label="@Textos["MasAcciones", f.Adjunto.NombreArchivo]" disabled="@(Bloqueado)"
                             @onclick="() => f.Edicion.MenuAbierto = !f.Edicion.MenuAbierto">@Textos["Mas"]</button>
                 }
                 else if (f.Adjunto.Estado is EstadoRepartoAdjunto.Rechazado or EstadoRepartoAdjunto.Descartado)
                 {
-                    <button type="button" class="mini" disabled="@(!_puedeEscribir || _ocupado)" @onclick="() => ReabrirAsync(f)">@Textos["Deshacer"]</button>
+                    <button type="button" class="mini" disabled="@(Bloqueado)" @onclick="() => ReabrirAsync(f)">@Textos["Deshacer"]</button>
                 }
             </span>
         </div>
@@ -473,7 +498,7 @@ else if (_errorCarga is not null)
                 <input type="text" class="adjb-motivo" maxlength="@AdjuntoMensaje.LongitudMaximaMotivoRechazo"
                        aria-label="@Textos["MotivoRechazoDe", f.Adjunto.NombreArchivo]" placeholder="@Textos["MotivoRechazo"]"
                        value="@f.Edicion.Motivo" @oninput="e => f.Edicion.Motivo = e.Value?.ToString() ?? string.Empty" />
-                <button type="button" class="mini" disabled="@(_ocupado || string.IsNullOrWhiteSpace(f.Edicion.Motivo))"
+                <button type="button" class="mini" disabled="@(Bloqueado || string.IsNullOrWhiteSpace(f.Edicion.Motivo))"
                         @onclick="() => RechazarAsync(f)">@Textos["Confirmar"]</button>
                 <button type="button" class="mini" @onclick="() => f.Edicion.PideMotivo = false">@Textos["Cancelar"]</button>
             </div>
@@ -490,7 +515,7 @@ else if (_errorCarga is not null)
     // lectura del PDF, que aquí no existe (la detección con IA está apagada por defecto): los pone una persona.
     private RenderFragment<FilaReparto> Campos => f => @<text>
         <select class="sel-m" aria-label="@Textos["DestinoDe", f.Adjunto.NombreArchivo]" value="@ValorDestino(f.Adjunto)"
-                disabled="@(!_puedeEscribir || _ocupado)" @onchange="e => CambiarDestinoAsync(f, e.Value?.ToString())">
+                disabled="@(Bloqueado)" @onchange="e => CambiarDestinoAsync(f, e.Value?.ToString())">
             <option value="">@(f.TieneDestino ? Textos["SinDestinoOpcion"] : Textos["EligeDestino"])</option>
             @if (_trabajadores.Count > 0)
             {
@@ -516,7 +541,7 @@ else if (_errorCarga is not null)
             }
         </select>
         <select class="sel-m" aria-label="@Textos["TipoDe", f.Adjunto.NombreArchivo]" value="@(f.Adjunto.TipoDocumentoId?.ToString() ?? string.Empty)"
-                disabled="@(!_puedeEscribir || _ocupado || !f.TieneDestino)" @onchange="e => CambiarTipoAsync(f, e.Value?.ToString())">
+                disabled="@(Bloqueado || !f.TieneDestino)" @onchange="e => CambiarTipoAsync(f, e.Value?.ToString())">
             <option value="">@Textos["EligeTipo"]</option>
             @foreach (var tipo in TiposPara(f.Adjunto))
             {
@@ -528,14 +553,14 @@ else if (_errorCarga is not null)
             }
         </select>
         <input type="date" class="adjb-fecha" aria-label="@Textos["EmisionDe", f.Adjunto.NombreArchivo]" title="@Textos["Emision"]"
-               value="@f.Edicion.FechaEmision" disabled="@(!_puedeEscribir || _ocupado)"
+               value="@f.Edicion.FechaEmision" disabled="@(Bloqueado)"
                @onchange="e => f.Edicion.FechaEmision = e.Value?.ToString() ?? string.Empty" />
         <input type="date" class="adjb-fecha" aria-label="@Textos["VencimientoDe", f.Adjunto.NombreArchivo]" title="@Textos["Vencimiento"]"
-               value="@f.Edicion.FechaVencimiento" disabled="@(!_puedeEscribir || _ocupado || f.Edicion.NoCaduca)"
+               value="@f.Edicion.FechaVencimiento" disabled="@(Bloqueado || f.Edicion.NoCaduca)"
                @onchange="e => f.Edicion.FechaVencimiento = e.Value?.ToString() ?? string.Empty" />
         <label class="adjb-chk">
             <input type="checkbox" aria-label="@Textos["NoCaducaDe", f.Adjunto.NombreArchivo]" checked="@f.Edicion.NoCaduca"
-                   disabled="@(!_puedeEscribir || _ocupado)" @onchange="e => CambiarNoCaduca(f, e.Value)" />
+                   disabled="@(Bloqueado)" @onchange="e => CambiarNoCaduca(f, e.Value)" />
             <span>@Textos["NoCaduca"]</span>
         </label>
     </text>;
@@ -589,9 +614,9 @@ else if (_errorCarga is not null)
             <Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno" Deshabilitado="@(_posicion <= 0)" OnClick="() => _posicion--">@Textos["Anterior"]</Boton>
             <Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno" Deshabilitado="@(_posicion >= _cola.Count - 1)" OnClick="() => _posicion++">@Textos["Siguiente"]</Boton>
             <span class="adjb-esp"></span>
-            <Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno" Deshabilitado="@(!_puedeEscribir || _ocupado || !f.Pendiente)"
+            <Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno" Deshabilitado="@(Bloqueado || !f.Pendiente)"
                    OnClick="() => PedirMotivo(f)">@Textos["Rechazar"]</Boton>
-            <Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno" Deshabilitado="@(!_puedeEscribir || _ocupado || !f.Pendiente)"
+            <Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno" Deshabilitado="@(Bloqueado || !f.Pendiente)"
                    OnClick="() => DescartarAsync(f)">@Textos["Descartar"]</Boton>
             @BotonAsignar(Textos["Asignar"].Value, f.Situacion != SituacionAdjunto.Listo, AsignarEnFocoAsync)
         </div>
@@ -600,12 +625,12 @@ else if (_errorCarga is not null)
     // Un único primario de la superficie: el del pie de la lista o el de la revisión uno a uno, que nunca conviven.
     private RenderFragment BotonAsignar(string texto, bool sinNada, Func<Task> alPulsar) => @<Boton Variante="VarianteBoton.Primario" Tamano="TamanoBoton.Pequeno"
                                                                                                    title="@Textos["AsignarAyuda"]"
-                                                                                                   Deshabilitado="@(!_puedeEscribir || _ocupado || sinNada)"
+                                                                                                   Deshabilitado="@(Bloqueado || sinNada)"
                                                                                                    OnClick="alPulsar">@texto</Boton>;
 
     private void AbrirUnoAUno(Guid? desde)
     {
-        if (!_puedeEscribir) return;
+        if (Bloqueado) return;
         _cola = ClasificacionReparto.Cola(_filas, desde).ToList();
         if (_cola.Count == 0) return;
         foreach (var fila in _filas) fila.Edicion.MenuAbierto = false;
@@ -639,7 +664,7 @@ else if (_errorCarga is not null)
 
     private async Task EjecutarAsync(EdicionAdjunto? sobre, Func<Task<string?>> accion, bool notificar, bool avanzar = false)
     {
-        if (_ocupado) return;
+        if (_ocupado || _errorCarga is not null) return;
 
         var conversacionId = ConversacionId;
         _ocupado = true;
@@ -764,7 +789,10 @@ else if (_errorCarga is not null)
                     if (asignados > 0) AvisarAsignados(asignados);
                     return null;
                 }
-                var lote = tanda.Select(f => new AdjuntoAAsignar(f.Adjunto.Id, f.Edicion.Emision!.Value, f.Edicion.Vencimiento, f.Edicion.NoCaduca)).ToList();
+                // Con el destino y el tipo que la persona ve: si en el servidor ya son otros, ese adjunto vuelve como conflicto.
+                var lote = tanda.Select(f => new AdjuntoAAsignar(
+                    f.Adjunto.Id, f.Adjunto.TipoDocumentoId, f.Adjunto.DestinoTrabajadorId, f.Adjunto.DestinoEmpresaId,
+                    f.Edicion.Emision!.Value, f.Edicion.Vencimiento, f.Edicion.NoCaduca)).ToList();
                 var resultado = await Mediator.Send(new AsignarAdjuntosLoteCommand(conversacionId, lote));
                 if (resultado.EsFallido)
                 {

@@ -171,9 +171,11 @@ public class RepartoAdjuntosPanelTests : BunitContext
     }
 
     [Fact]
-    public void Sin_adjuntos_o_sin_permiso_para_leer_el_reparto_no_se_pinta_el_bloque()
+    public void Con_la_consulta_del_reparto_vacia_no_se_pinta_el_bloque()
     {
-        // Rol Cliente de portal o hilo fuera de la cartera: la consulta devuelve una lista vacía y la pantalla no inventa nada.
+        // Solo fija la pantalla: con una lista vacía no inventa nada. Que la consulta salga vacía para el rol Cliente de portal,
+        // para un hilo fuera de la Asignación de Cartera o de otro Tenant, y que los comandos lo rechacen, lo prueban
+        // RepartoAdjuntosTests (Application) y RepartoAdjuntosBajoRlsTests (integración), no este mediador simulado.
         Preparar(Roles.GestorCae);
 
         var cut = Pintar();
@@ -191,6 +193,41 @@ public class RepartoAdjuntosPanelTests : BunitContext
 
         cut.WaitForAssertion(() => cut.Find("[role='alert']").TextContent.Should().Contain("No pudimos cargar el reparto de adjuntos"));
         cut.FindAll(".adjb").Should().BeEmpty();
+    }
+
+    [Fact]
+    public void Si_falla_la_recarga_tras_asignar_las_filas_viejas_avisan_y_no_admiten_acciones_hasta_releer()
+    {
+        var listo = Adj("dni-marta.pdf", trabajador: Marta, tipo: TipoDniTrabajador);
+        var otro = Adj("suelto.pdf");
+        var mediador = Preparar(Roles.GestorCae, listo, otro);
+        var cut = Pintar();
+        cut.WaitForAssertion(() => cut.FindAll(".adjb").Should().HaveCount(1));
+        EscribirEmision(cut, "dni-marta.pdf", "2026-03-01");
+        mediador.Lote = c =>
+        {
+            // El lote asigna, pero la lectura de después ya no responde.
+            var resultado = mediador.Todos(c, EstadoAsignacionAdjunto.Asignado);
+            mediador.RepartoFalla = true;
+            return resultado;
+        };
+
+        cut.Find(".adjb-p .boton-primario").Click();
+
+        cut.WaitForAssertion(() => cut.Find(".adjb [role='alert']").TextContent.Should().Contain("puede estar desactualizado"));
+        // La fila vieja sigue a la vista, pero nada se puede tocar: el adjunto ya asignado aparecería como «Listo».
+        cut.FindAll(".adjb-e").Should().NotBeEmpty();
+        cut.Find(".adjb-p .boton-primario").HasAttribute("disabled").Should().BeTrue();
+        cut.FindAll(".adjb select").Should().NotBeEmpty().And.OnlyContain(s => s.HasAttribute("disabled"));
+        cut.FindAll(".adjb input").Should().NotBeEmpty().And.OnlyContain(s => s.HasAttribute("disabled"));
+        cut.FindAll(".adjb-p button").Should().OnlyContain(b => b.HasAttribute("disabled"));
+
+        mediador.RepartoFalla = false;
+        cut.FindAll(".adjb [role='alert'] button").Single(b => b.TextContent.Trim() == "Reintentar").Click();
+
+        cut.WaitForAssertion(() => cut.FindAll(".adjb [role='alert']").Should().BeEmpty());
+        cut.Find("select[aria-label='Destino de suelto.pdf']").HasAttribute("disabled").Should().BeFalse();
+        mediador.De<AsignarAdjuntosLoteCommand>().Should().ContainSingle("el bloqueo no reenvía nada");
     }
 
     // ---------- Por rol ----------
@@ -411,8 +448,9 @@ public class RepartoAdjuntosPanelTests : BunitContext
         lote.ConversacionId.Should().Be(Conversacion);
         lote.Adjuntos.Should().BeEquivalentTo(
         [
-            new AdjuntoAAsignar(uno.Id, new DateOnly(2026, 3, 1), new DateOnly(2027, 3, 1), false),
-            new AdjuntoAAsignar(dos.Id, new DateOnly(2026, 4, 1), null, true)
+            // Con el destino y el tipo que se ven en la fila: el servidor los contrasta con la propuesta vigente.
+            new AdjuntoAAsignar(uno.Id, TipoDniTrabajador, Marta, null, new DateOnly(2026, 3, 1), new DateOnly(2027, 3, 1), false),
+            new AdjuntoAAsignar(dos.Id, TipoDniTrabajador, Pedro, null, new DateOnly(2026, 4, 1), null, true)
         ]);
         cut.WaitForAssertion(() => cambios.Should().Be(1));
         Services.GetRequiredService<ToastService>().Mensajes.Should().Contain(t => t.Mensaje.Contains("2 documentos asignados") && t.Mensaje.Contains("no se envía nada al remitente"));

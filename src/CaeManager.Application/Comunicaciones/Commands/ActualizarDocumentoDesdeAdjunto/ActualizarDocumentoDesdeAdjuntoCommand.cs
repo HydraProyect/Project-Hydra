@@ -52,8 +52,9 @@ namespace CaeManager.Application.Comunicaciones.Commands.ActualizarDocumentoDesd
 /// eliminadas, que son restaurables. Lo demás es <see cref="ActualizarDocumentoDesdeAdjuntoCommandHandler.CodigoEstadoIndeterminado"/>:
 /// la copia se conserva y la respuesta no afirma ni que se guardó ni que no.
 ///
-/// <paramref name="AplicaPropuestaFijada"/> lo pone quien da el alta con la propuesta que leyó del adjunto en vez de con
-/// lo que eligió una persona: si la propuesta ya es otra, es un conflicto antes de guardar nada.
+/// <paramref name="AplicaPropuestaFijada"/> lo pone quien da el alta con la propuesta fijada en el adjunto que una persona
+/// aprobó tal como la vio (el lote), en vez de con un destino y un tipo elegidos en ese momento: si la propuesta ya es otra,
+/// es un conflicto antes de guardar nada.
 /// </summary>
 public record ActualizarDocumentoDesdeAdjuntoCommand(
     Guid AdjuntoId, Guid TipoDocumentoId, Guid? TrabajadorId, Guid? EmpresaId,

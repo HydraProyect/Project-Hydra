@@ -294,6 +294,12 @@
   <data name="ErrorCargar" xml:space="preserve">
     <value>No hem pogut carregar el repartiment d&apos;adjunts. Torna-ho a provar d&apos;aquí a uns segons.</value>
   </data>
+  <data name="ErrorRecargar" xml:space="preserve">
+    <value>No hem pogut tornar a carregar el repartiment d&apos;adjunts, i el que veus pot estar desactualitzat. Les accions queden desactivades fins que es torni a carregar.</value>
+  </data>
+  <data name="Reintentar" xml:space="preserve">
+    <value>Reintentar</value>
+  </data>
   <data name="ErrorGenerico" xml:space="preserve">
     <value>No hem pogut completar l&apos;acció. Comprova l&apos;estat dels adjunts i torna-ho a provar.</value>
   </data>

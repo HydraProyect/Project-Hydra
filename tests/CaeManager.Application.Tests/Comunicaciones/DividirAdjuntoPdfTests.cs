@@ -516,7 +516,7 @@ public class DividirAdjuntoPdfTests
             .Handle(new FijarDestinoAdjuntoCommand(adjunto.Id, null, null, null), CancellationToken.None);
         var lote = await new AsignarAdjuntosLoteCommandHandler(
                 _contexto, Cartera(_empresaHilo), _mediador, NullLogger<AsignarAdjuntosLoteCommandHandler>.Instance)
-            .Handle(new AsignarAdjuntosLoteCommand(_conversacion.Id, [new AdjuntoAAsignar(adjunto.Id, new DateOnly(2026, 10, 1), null, false)]), CancellationToken.None);
+            .Handle(new AsignarAdjuntosLoteCommand(_conversacion.Id, [new AdjuntoAAsignar(adjunto.Id, adjunto.TipoDocumentoPropuestoId, adjunto.DestinoTrabajadorId, adjunto.DestinoEmpresaId, new DateOnly(2026, 10, 1), null, false)]), CancellationToken.None);
 
         reabrir.Error.Codigo.Should().Be("Adjunto.EstadoNoValido");
         fijar.Error.Codigo.Should().Be("Adjunto.YaResuelto");
