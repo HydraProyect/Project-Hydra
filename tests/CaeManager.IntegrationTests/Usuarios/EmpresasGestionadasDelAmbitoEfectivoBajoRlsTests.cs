@@ -99,7 +99,9 @@ public class EmpresasGestionadasDelAmbitoEfectivoBajoRlsTests : IAsyncLifetime
         var sobreW = AsignacionOperacion.Externa(
             _empresaW, _operadorA, ServicioCae.Outbound, AmbitoAsignacion.DeRelacionCliente(clienteDeW), desde, null, ahora);
         var sobreZ = AsignacionOperacion.Externa(_empresaZ, _operadorB, ServicioCae.Outbound, AmbitoAsignacion.Universal, desde, null, ahora);
-        // V: la misma Empresa, acotada a un Cliente empresarial en Outbound y entera en Inbound.
+        // V: la misma Empresa, acotada a un Cliente empresarial en Outbound y entera en Inbound. El Ámbito efectivo
+        // de /usuarios es el de Outbound, como el acceso y el alcance de datos (B-02a): la Inbound universal no
+        // convierte en entera la Outbound acotada, ni hace de V una Empresa gestionada del Tenant entero.
         var sobreVAcotada = AsignacionOperacion.Externa(
             _empresaV, _operadorA, ServicioCae.Outbound, AmbitoAsignacion.DeRelacionCliente(clienteDeV), desde, null, ahora);
         var sobreVEntera = AsignacionOperacion.Externa(_empresaV, _operadorA, ServicioCae.Inbound, AmbitoAsignacion.Universal, desde, null, ahora);
@@ -132,11 +134,12 @@ public class EmpresasGestionadasDelAmbitoEfectivoBajoRlsTests : IAsyncLifetime
             "cartera cuelgue de una operación de A");
         deA.PorCartera[_gestoraDeA].Should().BeEquivalentTo(
             [new EmpresaGestionada(_empresaX, "Empresa X", Parcial: false), new EmpresaGestionada(_empresaW, "Empresa W", Parcial: true),
-             new EmpresaGestionada(_empresaV, "Empresa V", Parcial: false)],
+             new EmpresaGestionada(_empresaV, "Empresa V", Parcial: true)],
             "la cartera cerrada en Y no concede nada, la de W cuelga de una operación acotada a un Cliente empresarial, " +
-            "y V cuenta una vez y entera porque una de sus dos operaciones lo es");
-        deA.DelTenantEntero.Select(e => e.TenantBeneficiarioId).Should().BeEquivalentTo([_empresaX, _empresaY, _empresaV],
-            "un Coordinador CAE entra sin cartera solo en las Empresas gestionadas que su organización opera enteras");
+            "y V cuenta una vez y parcial: su operación entera es Inbound y no amplía el ámbito de Outbound");
+        deA.DelTenantEntero.Select(e => e.TenantBeneficiarioId).Should().BeEquivalentTo([_empresaX, _empresaY],
+            "un Coordinador CAE entra sin cartera solo en las Empresas gestionadas que su organización opera enteras " +
+            "en Outbound; la operación Inbound entera de V no cuenta");
 
         var deB = await LeerAsync(sesion: Guid.NewGuid(), tenantOrigen: _operadorB, tenantActivo: _operadorB);
         deB.PorCartera.Keys.Should().BeEquivalentTo([_gestorDeB]);

@@ -195,6 +195,88 @@ public class IncorporacionCarteraBajoRuntimeTests : IAsyncLifetime
     }
 
     /// <summary>
+    /// B-02a, cuarta revisión de Codex (MEDIA 2): revocar una solicitud aceptada borra su fila heredada por la
+    /// misma regla que cualquier otro cierre de cartera. Si al Gestor CAE le queda otra cartera Outbound vigente
+    /// del mismo Operador CAE externo sobre ese Tenant propietario, bajo una operación vigente, la fila se
+    /// conserva; si esa operación está suspendida, la otra cartera no la sostiene y la fila se retira. El caso sin
+    /// ninguna otra cartera lo fija <see cref="Aceptar_crea_cartera_fila_heredada_y_aviso_y_revocar_los_retira"/>.
+    /// </summary>
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Revocar_conserva_la_fila_heredada_solo_si_queda_otra_cartera_Outbound_con_su_operacion_vigente(
+        bool otraOperacionSuspendida)
+    {
+        var solicitudId = await SolicitarAsync();
+        await using (var contexto = ContextoRuntime(_coordinador, _operador.Id, "CoordinadorCae"))
+        {
+            (await Aceptar(contexto).Handle(new AceptarSolicitudIncorporacionCarteraCommand(solicitudId), CancellationToken.None))
+                .EsExitoso.Should().BeTrue();
+        }
+
+        // La otra cartera, sembrada después de aceptar (si existiera antes, la aceptación la daría por «ya en
+        // cartera»): Tenant entero, bajo una segunda operación Outbound del mismo Operador CAE externo acotada por
+        // un Cliente empresarial (IX_AsignacionesOperacion_DelegacionTotalVigente admite una sola del Tenant entero).
+        var ahora = DateTime.UtcNow;
+        var clienteId = await SembrarClienteDeLaEmpresaAsync("B10380228");
+        await using (var propietario = ContextoPropietario())
+        {
+            var acotada = AsignacionOperacion.Externa(
+                _empresa.Id, _operador.Id, ServicioCae.Outbound, AmbitoAsignacion.DeRelacionCliente(clienteId),
+                vigenciaDesde: ahora.AddDays(-1), vigenciaHasta: null, ahora);
+            var laOtra = AsignacionCartera.Externa(
+                acotada, _gestor, "GestorCae", AmbitoAsignacion.Universal, ahora.AddDays(-1), null, ahora);
+            if (otraOperacionSuspendida) acotada.Suspender();
+            propietario.AsignacionesOperacion.Add(acotada);
+            propietario.AsignacionesCartera.Add(laOtra);
+            await propietario.SaveChangesAsync();
+        }
+
+        await using (var contexto = ContextoRuntime(_coordinador, _operador.Id, "CoordinadorCae"))
+        {
+            var resultado = await Revocar(contexto)
+                .Handle(new RevocarIncorporacionCarteraCommand(solicitudId), CancellationToken.None);
+            resultado.EsExitoso.Should().BeTrue(resultado.EsFallido ? resultado.Error.Codigo : null);
+        }
+
+        await using (var propietario = ContextoPropietario())
+        {
+            var solicitud = await propietario.SolicitudesIncorporacionCartera.AsNoTracking().SingleAsync(s => s.Id == solicitudId);
+            solicitud.Estado.Should().Be(EstadoSolicitudIncorporacionCartera.Revocada);
+            (await propietario.AsignacionesCartera.AsNoTracking().SingleAsync(c => c.Id == solicitud.AsignacionCarteraId))
+                .Estado.Should().Be(EstadoAsignacion.Cerrada, "control: la cartera de la solicitud se cierra");
+
+            var conservaLaFila = await propietario.AsignacionesOperadorDelegado.AnyAsync(a => a.UsuarioId == _gestor);
+            if (otraOperacionSuspendida)
+                conservaLaFila.Should().BeFalse(
+                    "la otra cartera cuelga de una operación suspendida: no da acceso por la vía de Operación ni sostiene la fila");
+            else
+                conservaLaFila.Should().BeTrue(
+                    "le queda otra cartera Outbound vigente del mismo Operador CAE externo, que sigue necesitando la fila");
+        }
+    }
+
+    /// <summary>
+    /// Una Empresa cliente de <see cref="_empresa"/>, sembrada como propietario de la base con el sellado de Tenant,
+    /// que es quien le pone el <c>TenantId</c>. Devuelve su Id.
+    /// </summary>
+    private async Task<Guid> SembrarClienteDeLaEmpresaAsync(string cif)
+    {
+        var tenantActual = new TenantActualAmbiental { TenantId = _empresa.Id };
+        var opciones = new DbContextOptionsBuilder<CaeManagerDbContext>()
+            .UseNpgsql(_cadenaConexion, npgsql => npgsql.MigrationsAssembly("CaeManager.Migrations.PostgreSQL"))
+            .AddInterceptors(new TenantSelladoInterceptor(tenantActual))
+            .Options;
+
+        await using var contexto = new CaeManagerDbContext(opciones, new EphemeralDataProtectionProvider(), tenantActual);
+        var cliente = CaeManager.Domain.Empresas.Empresa.CrearComoCliente(
+            $"Cliente acotado {cif}", cif, esCritico: false, notas: null, ejecutivoUsuarioId: null);
+        contexto.Empresas.Add(cliente);
+        await contexto.SaveChangesAsync();
+        return cliente.Id;
+    }
+
+    /// <summary>
     /// Hallazgo de Codex (P2, ronda 3): una incorporación cuya Asignación de Operación caducó o se
     /// suspendió ya no da acceso, aunque el proceso que cierra la cartera no haya pasado todavía.
     /// La bandeja no la ofrece como vigente ni, por tanto, como revocable.
