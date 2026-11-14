@@ -58,11 +58,14 @@ public sealed class AsignacionHeredadaVigente
 /// La vía de Operación solo cuenta Asignaciones de Operación de <see cref="ServicioDelContexto"/>
 /// (Outbound): el contexto que se elige, se revalida y se autoriza aquí es el de Outbound. Una
 /// Asignación de Operación Inbound del mismo Operador CAE externo sobre el mismo Tenant beneficiario
-/// no cambia la operación elegida ni da entrada por sí sola. Las etiquetas y recuentos que leen las
-/// operaciones de todos los servicios (<see cref="CarterasPorOperacionDeLaOrganizacion"/>,
-/// <see cref="OperacionesDelTenantEntero"/>, <see cref="AmbitosEfectivosDeCarteraAsync"/>) no filtran, ni el
-/// alcance de <c>AlcanceDatosService</c>; y la vía heredada no distingue servicio porque
-/// <c>DelegacionTenant</c> no lo tiene. Son huecos declarados para el escritor de Inbound (B-02b, B-03).
+/// no cambia la operación elegida, no da entrada por sí sola y no amplía el alcance de datos. El filtro
+/// vive en las primitivas de las que parten el acceso, el alcance y sus etiquetas
+/// (<see cref="CarterasPorOperacionDeLaOrganizacion"/>, <see cref="OperacionesDelTenantEntero"/>,
+/// <see cref="AmbitosEfectivosDeCarteraAsync"/> y <see cref="OrigenGestionadoAsync"/>), y lo repiten las
+/// consultas de Infrastructure que no parten de ellas (<c>AlcanceDatosService.ObtenerCarteraAsync</c>,
+/// <c>DirectorioUsuariosTenant.ObtenerCarterasVigentesAsync</c>, <c>VistaDemoActual</c>): una Asignación de
+/// Operación o de Cartera de otro servicio no cuenta en ninguna. La vía heredada no distingue servicio porque
+/// <c>DelegacionTenant</c> no lo tiene: hueco declarado para el escritor de Inbound (B-02b, B-03).
 /// </para>
 ///
 /// <para>
@@ -89,7 +92,7 @@ public static class TenantsBeneficiariosAutorizados
 
     /// <summary>
     /// Vía de Operación: carteras vigentes del usuario bajo operaciones vigentes
-    /// externas de su Operador CAE de origen.
+    /// externas de su Operador CAE de origen, de <see cref="ServicioDelContexto"/>.
     /// </summary>
     public static IQueryable<CarteraBajoOperacionVigente> CarterasPorOperacion(
         IOperacionesQueryContext operaciones, Guid usuarioId, Guid tenantOrigenId, DateTime ahora) =>
@@ -103,7 +106,9 @@ public static class TenantsBeneficiariosAutorizados
     /// <see cref="IOperacionesQueryContext"/>, así que solo la debe llamar quien tenga ese
     /// Tenant como origen. La usa la columna «Ámbito efectivo» de <c>/usuarios</c> para
     /// contar las Empresas gestionadas de cada Gestor CAE con el mismo predicado que
-    /// «Mi cartera · N empresas».
+    /// «Mi cartera · N empresas». Solo cuenta operaciones de <see cref="ServicioDelContexto"/>: una
+    /// Asignación de Cartera bajo una Asignación de Operación Inbound no da acceso, rol ni alcance de Outbound,
+    /// y como todos sus consumidores parten de aquí, ninguno tiene que repetir el filtro.
     /// </summary>
     public static IQueryable<CarteraBajoOperacionVigente> CarterasPorOperacionDeLaOrganizacion(
         IOperacionesQueryContext operaciones, Guid tenantOrigenId, DateTime ahora) =>
@@ -123,6 +128,7 @@ public static class TenantsBeneficiariosAutorizados
               // interna (propietario = operador) lo devolvería otra vez, ya no
               // como origen.
               && operacion.PropietarioTenantId != tenantOrigenId
+              && operacion.Servicio == ServicioDelContexto
               && operacion.Estado == EstadoAsignacion.Vigente
               && operacion.VigenciaDesde <= ahora
               && (operacion.VigenciaHasta == null || ahora < operacion.VigenciaHasta)
@@ -137,7 +143,8 @@ public static class TenantsBeneficiariosAutorizados
     /// una cartera vigente acotada por Cliente empresarial tampoco (D-7 y su CHECK la impiden). Sin ninguno,
     /// alcance cero. Admite operaciones internas y raíz, a diferencia de
     /// <see cref="CarterasPorOperacionDeLaOrganizacion"/>: la cartera de un Gestor CAE propio del Tenant cuelga
-    /// de ellas.
+    /// de ellas. Como el alcance de Outbound, solo cuenta operaciones de <see cref="ServicioDelContexto"/>: una
+    /// Asignación de Operación Inbound del Tenant entero no convierte en entero el ámbito de una Outbound acotada.
     /// </summary>
     public static Task<List<Guid?>> AmbitosEfectivosDeCarteraAsync(
         IOperacionesQueryContext operaciones, IReadOnlyCollection<Guid> usuarioIds, Guid propietarioTenantId,
@@ -154,6 +161,7 @@ public static class TenantsBeneficiariosAutorizados
                && (cartera.VigenciaHasta == null || ahora < cartera.VigenciaHasta)
                && operacion.PropietarioTenantId == propietarioTenantId
                && operacion.OperadorTenantId == operadorTenantId
+               && operacion.Servicio == ServicioDelContexto
                && operacion.Estado == EstadoAsignacion.Vigente
                && operacion.AmbitoCentroId == null && operacion.AmbitoTrabajadorId == null && operacion.AmbitoProyectoId == null
                && operacion.VigenciaDesde <= ahora
@@ -204,31 +212,32 @@ public static class TenantsBeneficiariosAutorizados
     /// <summary>
     /// ¿Opera <paramref name="tenantOrigenId"/> entero, y vigente, el Tenant propietario indicado en
     /// <see cref="ServicioDelContexto"/>? Es la vía sin cartera de <see cref="OperacionesQueAutorizan"/>,
-    /// vista desde el propietario (<c>ResponsableBuzonElegible</c>), con el mismo filtro de servicio.
+    /// vista desde el propietario (<c>ResponsableBuzonElegible</c>), con el mismo filtro de servicio, que
+    /// aplica <see cref="OperacionesDelTenantEntero"/>.
     /// </summary>
     public static Task<bool> OperaElTenantEnteroAsync(
         IOperacionesQueryContext operaciones, Guid tenantOrigenId, Guid propietarioTenantId, DateTime ahora,
         CancellationToken cancellationToken) =>
         OperacionesDelTenantEnteroDeLaOrganizacion(operaciones, tenantOrigenId, ahora)
-            .AnyAsync(operacion => operacion.PropietarioTenantId == propietarioTenantId
-                                   && operacion.Servicio == ServicioDelContexto, cancellationToken);
+            .AnyAsync(operacion => operacion.PropietarioTenantId == propietarioTenantId, cancellationToken);
 
     /// <summary>
     /// El predicado de <see cref="OperacionesDelTenantEnteroDeLaOrganizacion"/> sin fijar la
-    /// organización: vigentes, externas, no raíz y sin ninguna dimensión de ámbito. Lo usa
-    /// también <c>ObtenerDelegacionesQuery</c> para rotular el rol que se ejerce, en los dos
-    /// sentidos de la delegación, y <c>DirectorioUsuariosTenant.ObtenerRolesDeOperadoresDelegadosAsync</c>
-    /// para la columna Rol de <c>/usuarios</c>; una sola definición para que la etiqueta y el
-    /// acceso no diverjan en Outbound. No filtra por servicio y el acceso sí
-    /// (<see cref="OperacionesQueAutorizan"/>): con una Asignación de Operación Inbound la etiqueta
-    /// puede nombrar un rol que en Outbound no se ejerce. Hueco declarado de B-02a, que hoy no se da
-    /// porque no se escribe ninguna Inbound.
+    /// organización: vigentes, externas, no raíz, de <see cref="ServicioDelContexto"/> y sin ninguna
+    /// dimensión de ámbito. Lo usa también <c>ObtenerDelegacionesQuery</c> para rotular el rol que se
+    /// ejerce, en los dos sentidos de la delegación, y
+    /// <c>DirectorioUsuariosTenant.ObtenerRolesDeOperadoresDelegadosAsync</c> y
+    /// <c>DirectorioUsuariosTenant.ObtenerEmpresasGestionadasAsync</c> para las columnas Rol y Ámbito efectivo
+    /// de <c>/usuarios</c>; una sola definición, con el filtro de servicio dentro, para que la etiqueta y el
+    /// acceso no diverjan: una Asignación de Operación Inbound del Tenant entero no rotula un rol ni una
+    /// Empresa gestionada entera que en Outbound no se ejercen.
     /// </summary>
     public static IQueryable<AsignacionOperacion> OperacionesDelTenantEntero(
         IOperacionesQueryContext operaciones, DateTime ahora) =>
         operaciones.AsignacionesOperacion.Where(operacion =>
             !operacion.EsRaiz
             && operacion.PropietarioTenantId != operacion.OperadorTenantId
+            && operacion.Servicio == ServicioDelContexto
             && operacion.Estado == EstadoAsignacion.Vigente
             && operacion.VigenciaDesde <= ahora
             && (operacion.VigenciaHasta == null || ahora < operacion.VigenciaHasta)
@@ -251,14 +260,14 @@ public static class TenantsBeneficiariosAutorizados
     /// Un Tenant propietario en suspensión operativa no se abre por ninguna, ni ninguna se abre
     /// desde un Operador CAE suspendido (decisión D-3). Solo cuentan las de
     /// <see cref="ServicioDelContexto"/>: una Asignación de Operación Inbound no autoriza un contexto
-    /// de Outbound, ni con cartera ni sin ella.
+    /// de Outbound, ni con cartera ni sin ella. El filtro lo ponen las dos primitivas de las que parte
+    /// cada perfil (<see cref="OperacionesDelTenantEntero"/> y <see cref="CarterasPorOperacionDeLaOrganizacion"/>).
     /// </summary>
     public static IQueryable<AsignacionOperacion> OperacionesQueAutorizan(
         IOperacionesQueryContext operaciones, Guid usuarioId, Guid tenantOrigenId, string? rolDeOrigen,
         DateTime ahora) =>
         OperacionesPorPerfil(operaciones, usuarioId, tenantOrigenId, rolDeOrigen, ahora)
-            .Where(operacion => operacion.Servicio == ServicioDelContexto
-                                && !operaciones.TenantsSuspendidosIds.Contains(operacion.PropietarioTenantId)
+            .Where(operacion => !operaciones.TenantsSuspendidosIds.Contains(operacion.PropietarioTenantId)
                                 && !operaciones.TenantsSuspendidosIds.Contains(tenantOrigenId));
 
     private static IQueryable<AsignacionOperacion> OperacionesPorPerfil(
@@ -327,9 +336,9 @@ public static class TenantsBeneficiariosAutorizados
     /// El rol que una persona del Operador CAE externo <b>ejerce</b> en el Tenant beneficiario de
     /// una delegación, para enseñarlo en la lista de personas de <c>/delegaciones</c> y en la
     /// columna Rol de <c>/usuarios</c> (<c>DirectorioUsuariosTenant</c>), que no pueden discrepar: el mismo
-    /// criterio que <see cref="RolEnTenantDelegadoAsync"/> (decisión Chris 2026-10-20), salvo el servicio:
-    /// <paramref name="operacionDelTenantEntero"/> sale de <see cref="OperacionesDelTenantEntero"/>, que cuenta
-    /// también una Asignación de Operación Inbound, y el rol efectivo solo las de Outbound:
+    /// criterio que <see cref="RolEnTenantDelegadoAsync"/> (decisión Chris 2026-10-20), también en el servicio:
+    /// <paramref name="operacionDelTenantEntero"/> sale de <see cref="OperacionesDelTenantEntero"/>, que como el
+    /// rol efectivo solo cuenta las de <see cref="ServicioDelContexto"/>:
     /// <list type="bullet">
     /// <item>Perfil de origen en <see cref="RolesConAccesoPorOperacion"/> y operación vigente del
     /// Tenant entero (<paramref name="operacionDelTenantEntero"/>,

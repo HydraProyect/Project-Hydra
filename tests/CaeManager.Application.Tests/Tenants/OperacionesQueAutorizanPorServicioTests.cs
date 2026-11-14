@@ -2,6 +2,7 @@ using CaeManager.Application.Tenants;
 using CaeManager.Application.Tests.Integraciones;
 using CaeManager.Domain.Operaciones;
 using FluentAssertions;
+using Microsoft.EntityFrameworkCore;
 using Xunit;
 
 namespace CaeManager.Application.Tests.Tenants;
@@ -86,6 +87,36 @@ public class OperacionesQueAutorizanPorServicioTests
             soloInbound, OperadorCaeExterno, TenantBeneficiario, Ahora, default)).Should().BeFalse();
         (await TenantsBeneficiariosAutorizados.OperaElTenantEnteroAsync(
             conOutbound, OperadorCaeExterno, TenantBeneficiario, Ahora, default)).Should().BeTrue();
+    }
+
+    /// <summary>
+    /// Hallazgo de Codex sobre B-02a: una Outbound acotada a un Cliente empresarial y una Inbound del Tenant
+    /// entero, del mismo Operador CAE externo sobre el mismo Tenant propietario y las dos con cartera. El ámbito
+    /// efectivo (el de <c>AlcanceDatosService</c> y el buzón) y las carteras por operación (acceso, rol y
+    /// recuento de <c>/usuarios</c>) son solo los de la Outbound.
+    /// </summary>
+    [Fact]
+    public async Task Una_Inbound_del_Tenant_entero_no_amplia_el_ambito_de_una_Outbound_acotada()
+    {
+        var clienteEmpresarial = Guid.NewGuid();
+        var outboundAcotada = Vigente(AsignacionOperacion.Externa(
+            TenantBeneficiario, OperadorCaeExterno, ServicioCae.Outbound,
+            AmbitoAsignacion.DeRelacionCliente(clienteEmpresarial), Ahora.AddDays(-30), null, Ahora));
+        var inboundEntera = Externa(ServicioCae.Inbound, Ahora.AddDays(-2));
+        var contexto = ConCartera(outboundAcotada, inboundEntera);
+
+        (await TenantsBeneficiariosAutorizados.AmbitosEfectivosDeCarteraAsync(
+                contexto, [Usuario], TenantBeneficiario, OperadorCaeExterno, Ahora, default))
+            .Should().Equal([clienteEmpresarial], "la Inbound del Tenant entero no aporta el ámbito null (Tenant entero)");
+        (await TenantsBeneficiariosAutorizados.CarterasPorOperacionDeLaOrganizacion(contexto, OperadorCaeExterno, Ahora)
+                .Select(v => v.Operacion.Id).ToListAsync())
+            .Should().Equal([outboundAcotada.Id], "la cartera bajo la Inbound no cuenta en Outbound");
+        (await TenantsBeneficiariosAutorizados.OperacionesDelTenantEnteroDeLaOrganizacion(contexto, OperadorCaeExterno, Ahora)
+                .ToListAsync())
+            .Should().BeEmpty("la única operación del Tenant entero es Inbound");
+        (await TenantsBeneficiariosAutorizados.TieneCarteraDelTenantEnteroAsync(
+                contexto, Usuario, OperadorCaeExterno, TenantBeneficiario, inboundEntera.Id, ["GestorCae"], Ahora, default))
+            .Should().BeFalse("la cartera universal bajo la Inbound no es una cartera del Tenant entero en Outbound");
     }
 
     [Fact]

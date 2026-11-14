@@ -39,8 +39,8 @@ namespace CaeManager.IntegrationTests.Usuarios;
 /// la Empresa Z con una operación ya caducada. Su Administradora (perfil de origen Administrador) está
 /// delegada en las tres con el rol guardado «GestorCae»; su Gestora CAE, en X. La Plataforma P tiene una
 /// ventana de Soporte TALVEG abierta sobre X, con rol guardado «Consulta», para una persona cuyo perfil de
-/// origen es Administrador, y además una operación del Tenant entero sobre X: el Soporte TALVEG nunca
-/// sube al perfil de origen, ni siquiera entonces.
+/// origen es Administrador, y además una operación Inbound del Tenant entero sobre X, que no cuenta en
+/// Outbound (B-02a): el Soporte TALVEG conserva su rol guardado.
 /// </para>
 /// </summary>
 public class RolDelOperadorDelegadoIgualEnUsuariosYDelegacionesBajoRlsTests : IAsyncLifetime
@@ -106,7 +106,9 @@ public class RolDelOperadorDelegadoIgualEnUsuariosYDelegacionesBajoRlsTests : IA
                 AsignacionOperacion.Externa(
                     _empresaZ, _operadorA, ServicioCae.Outbound, AmbitoAsignacion.Universal, desde, ahora.AddDays(-1), ahora),
                 // Otro servicio: IX_AsignacionesOperacion_DelegacionTotalVigente admite una sola operación vigente del
-                // Tenant entero por propietario y servicio. OperacionesDelTenantEntero no mira el servicio.
+                // Tenant entero por propietario y servicio. Desde B-02a OperacionesDelTenantEntero solo cuenta Outbound,
+                // así que esta Inbound no rotula a nadie: que Soporte TALVEG no suba ni con una operación entera lo fija
+                // la regla pura en ObtenerDelegacionesQueryTests.El_rol_que_se_ensena_es_el_que_ejerce.
                 AsignacionOperacion.Externa(_empresaX, _plataforma, ServicioCae.Inbound, AmbitoAsignacion.Universal, desde, null, ahora));
         await propietario.SaveChangesAsync();
 
@@ -156,7 +158,7 @@ public class RolDelOperadorDelegadoIgualEnUsuariosYDelegacionesBajoRlsTests : IA
         });
         usuarios.Where(r => delegaciones.ContainsKey(r.Key)).Should().BeEquivalentTo(delegaciones);
         usuarios[_soporte].Should().Be("Consulta",
-            "la RLS deja leer la operación de P sobre X por la posición de propietario, y aun así Soporte no sube");
+            "la RLS deja leer la operación de P sobre X por la posición de propietario, pero es Inbound y Soporte no sube");
     }
 
     [Fact]

@@ -144,6 +144,37 @@ public partial class LoginLocalEnAsignacionDelegadaTests
     }
 
     /// <summary>
+    /// Hallazgo de Codex sobre B-02a: un Gestor CAE con una Asignación de Cartera bajo una Asignación de Operación
+    /// Outbound acotada a un Cliente empresarial y otra bajo una Inbound del Tenant entero, del mismo Operador CAE y
+    /// Tenant propietario. El alcance de datos de Outbound es solo ese Cliente empresarial: la Inbound no lo convierte
+    /// en el Tenant entero.
+    /// </summary>
+    [Fact]
+    public async Task Una_cartera_bajo_una_Operacion_Inbound_entera_no_amplia_el_alcance_de_Outbound()
+    {
+        using var escenario = await Escenario.CrearAsync(Roles.GestorCae, Roles.GestorCae);
+        await escenario.AplicarMiddlewareAsync();
+        var tenantActual = new TenantActualAmbiental { TenantId = escenario.TenantVisitado };
+        var ahora = DateTime.UtcNow;
+        var clientePropio = Guid.NewGuid();
+        var outboundAcotada = AsignacionOperacion.Externa(escenario.TenantVisitado, escenario.TenantOrigen,
+            ServicioCae.Outbound, AmbitoAsignacion.DeRelacionCliente(clientePropio), ahora.AddHours(-1), null, ahora);
+        var inboundEntera = AsignacionOperacion.Externa(escenario.TenantVisitado, escenario.TenantOrigen,
+            ServicioCae.Inbound, AmbitoAsignacion.Universal, ahora.AddHours(-1), null, ahora);
+        AsignacionCartera Cartera(AsignacionOperacion operacion) => AsignacionCartera.Externa(operacion, escenario.Usuario,
+            Roles.GestorCae, AmbitoAsignacion.Universal, ahora.AddHours(-1), null, ahora);
+        var usuarios = new[] { new ApplicationUser { Id = escenario.Usuario } };
+
+        await using var db = new ContextoDeCarteras(escenario, tenantActual, [outboundAcotada, inboundEntera],
+            [Cartera(outboundAcotada), Cartera(inboundEntera)], usuarios);
+        var alcance = new AlcanceDatosService(db, escenario.Servicio, tenantActual, new SesionPrivilegiadaAusente());
+
+        (await alcance.AlcanzaElTenantEnteroAsync()).Should().BeFalse(
+            "la cartera bajo la Operación Inbound del Tenant entero no da el Tenant entero en Outbound");
+        (await alcance.ObtenerClienteIdsVisiblesAsync()).Should().Equal(clientePropio);
+    }
+
+    /// <summary>
     /// Revisión de seguridad 2026-10-23, Z1-5: una conexión que no se puede leer no es visible
     /// (antes, «sin fila» se confundía con «buzón general» y devolvía true). Este contexto no aplica
     /// el filtro global de Tenant ni de borrado lógico: el caso de otro Tenant o eliminada llega al

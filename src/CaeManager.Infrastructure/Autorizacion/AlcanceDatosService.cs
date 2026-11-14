@@ -1,5 +1,6 @@
 using CaeManager.Application.Common;
 using CaeManager.Application.Plataforma;
+using CaeManager.Application.Tenants;
 using CaeManager.Application.VistaDemo;
 using CaeManager.Domain.Operaciones;
 using CaeManager.Domain.Plataforma;
@@ -501,8 +502,13 @@ public class AlcanceDatosService(
             // (AsignacionOperacionId, PropietarioTenantId) de AsignacionesCartera ya lo impide en la base de
             // datos; la consulta lo repite para fallar en cerrado si una fila mal formada llegara a existir
             // —o si la FK se relajara—, en vez de conceder el ámbito de una Operación de otro Tenant.
+            //
+            // Y tiene que ser del servicio del contexto (Outbound, B-02a): una Asignación de Cartera bajo una
+            // Asignación de Operación Inbound universal del mismo Operador CAE y Tenant propietario convertiría en
+            // el Tenant entero el ámbito de una Outbound acotada a un Cliente empresarial.
             .Join(dbContext.AsignacionesOperacion.Where(o =>
                     o.Estado == EstadoAsignacion.Vigente
+                    && o.Servicio == TenantsBeneficiariosAutorizados.ServicioDelContexto
                     && o.PropietarioTenantId == propietarioTenantId
                     && o.OperadorTenantId == operadorTenantId.Value
                     && o.VigenciaDesde <= ahora

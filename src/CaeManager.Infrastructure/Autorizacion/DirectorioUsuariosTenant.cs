@@ -712,6 +712,8 @@ public class DirectorioUsuariosTenant(
                 join operacion in identidad.AsignacionesOperacion
                     on cartera.AsignacionOperacionId equals operacion.Id
                 where operacion.Estado == EstadoAsignacion.Vigente
+                      // El mismo filtro de servicio que AlcanceDatosService.ObtenerCarteraAsync (B-02a).
+                      && operacion.Servicio == TenantsBeneficiariosAutorizados.ServicioDelContexto
                       && operacion.VigenciaDesde <= ahora
                       && (operacion.VigenciaHasta == null || ahora < operacion.VigenciaHasta)
                 join usuario in identidad.Users on cartera.UsuarioId equals usuario.Id
