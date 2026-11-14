@@ -1,0 +1,44 @@
+# Accesos crudos a las Asignaciones (Asignación de Operación y Asignación de Cartera): sin filtro de
+# Servicio visible para AccesoCrudoAAsignacionesSinServicioTests (ADR-013 § 4.6, condiciones 2 y 3;
+# paso M3', fase 1). Congelada el 2026-11-14 sobre origin/main e3bee6554. Solo baja.
+#
+# Formato: lugar :: Tipo.Miembro · Tabla = n (C#), o SQL función|política … :: Tabla = 1.
+# Incluye falsos positivos conocidos del instrumento (filtro en otra sentencia, escrituras de una
+# fila ya acotada, la raíz del DbContext); el inventario con su clasificación vive en
+# Project-Hydra-Negocio/tecnico/M3-INVENTARIO-ACCESO-ASIGNACIONES-2026-11-14.md.
+# Una línea nueva no se añade: se filtra por Servicio o se usa el puerto por servicio.
+SQL función public.encargo_administracion_exige_operador_de_la_operacion :: AsignacionesOperacion = 1
+SQL política cuentas_lectura ON public.AspNetUsers :: AsignacionesCartera = 1
+SQL política cuentas_lectura ON public.AspNetUsers :: AsignacionesOperacion = 1
+src/CaeManager.Application/Dashboard/TarifasOperadorCae/TarifasOperadorCae.cs :: AutorizacionTarifasOperadorCae.GestionaAsync · AsignacionesOperacion = 1
+src/CaeManager.Application/Dashboard/TarifasOperadorCae/TarifasOperadorCae.cs :: AutorizacionTarifasOperadorCae.VigenciasPorTenantBeneficiarioAsync · AsignacionesOperacion = 1
+src/CaeManager.Application/Tenants/TenantsBeneficiariosAutorizados.cs :: TenantsBeneficiariosAutorizados.OperacionesPorPerfil · AsignacionesOperacion = 1
+src/CaeManager.Infrastructure/Autorizacion/DirectorioUsuariosTenant.cs :: DirectorioUsuariosTenant.TieneVinculoOperativoAsync · AsignacionesCartera = 1
+src/CaeManager.Infrastructure/Autorizacion/DirectorioUsuariosTenant.cs :: DirectorioUsuariosTenant.TieneVinculoOperativoAsync · AsignacionesOperacion = 1
+src/CaeManager.Infrastructure/MultiTenancy/RetiradaTenantDemoService.cs :: RetiradaTenantDemoService.RetirarAsync · AsignacionesCartera = 1
+src/CaeManager.Infrastructure/MultiTenancy/RetiradaTenantDemoService.cs :: RetiradaTenantDemoService.RetirarAsync · AsignacionesOperacion = 1
+src/CaeManager.Infrastructure/Operaciones/AsignacionesOperativasWriter.cs :: AsignacionesOperativasWriter.AbrirCarteraOperadorAsync · AsignacionesCartera = 2
+src/CaeManager.Infrastructure/Operaciones/AsignacionesOperativasWriter.cs :: AsignacionesOperativasWriter.AbrirOperacionDelegadaAsync · AsignacionesOperacion = 1
+src/CaeManager.Infrastructure/Operaciones/AsignacionesOperativasWriter.cs :: AsignacionesOperativasWriter.AsegurarCarteraTenantEnteroAsync · AsignacionesCartera = 2
+src/CaeManager.Infrastructure/Operaciones/AsignacionesOperativasWriter.cs :: AsignacionesOperativasWriter.AsegurarOperacionRaizAsync · AsignacionesOperacion = 1
+src/CaeManager.Infrastructure/Operaciones/AsignacionesOperativasWriter.cs :: AsignacionesOperativasWriter.CerrarOperacionDelegadaAsync · AsignacionesCartera = 1
+src/CaeManager.Infrastructure/Operaciones/AsignacionesOperativasWriter.cs :: AsignacionesOperativasWriter.TieneUniversalVigenteAsync · AsignacionesCartera = 1
+src/CaeManager.Infrastructure/Operaciones/CatalogoIncorporacionCartera.cs :: CatalogoIncorporacionCartera.CarterasVivasDeTenantEntero · AsignacionesCartera = 1
+src/CaeManager.Infrastructure/Operaciones/CatalogoIncorporacionCartera.cs :: CatalogoIncorporacionCartera.IncorporarApoyoAsync · AsignacionesCartera = 1
+src/CaeManager.Infrastructure/Operaciones/CatalogoIncorporacionCartera.cs :: CatalogoIncorporacionCartera.IncorporarAsync · AsignacionesCartera = 1
+src/CaeManager.Infrastructure/Operaciones/CatalogoIncorporacionCartera.cs :: CatalogoIncorporacionCartera.RelevarPrincipalAsync · AsignacionesCartera = 2
+src/CaeManager.Infrastructure/Operaciones/CatalogoIncorporacionCartera.cs :: CatalogoIncorporacionCartera.RetirarAsync · AsignacionesCartera = 1
+src/CaeManager.Infrastructure/Operaciones/CatalogoIncorporacionCartera.cs :: CatalogoIncorporacionCartera.RetirarCarteraDeApoyoAsync · AsignacionesCartera = 1
+src/CaeManager.Infrastructure/Operaciones/ExpiracionAsignacionesHostedService.cs :: ExpiracionAsignacionesHostedService.ActivarProgramadasAsync · AsignacionesCartera = 1
+src/CaeManager.Infrastructure/Operaciones/ExpiracionAsignacionesHostedService.cs :: ExpiracionAsignacionesHostedService.CerrarExpiradasAsync · AsignacionesCartera = 2
+src/CaeManager.Infrastructure/Operaciones/PrincipalDeOperacion.cs :: PrincipalDeOperacion.HayPrincipalVivoAsync · AsignacionesCartera = 1
+src/CaeManager.Infrastructure/Persistence/CaeManagerDbContext.cs :: CaeManagerDbContext.AsignacionesCartera · AsignacionesCartera = 1
+src/CaeManager.Infrastructure/Persistence/CaeManagerDbContext.cs :: CaeManagerDbContext.AsignacionesOperacion · AsignacionesOperacion = 1
+src/CaeManager.Infrastructure/Persistence/CaeManagerDbContext.cs :: CaeManagerDbContext.IOperacionesQueryContext.AsignacionesCartera · AsignacionesCartera = 1
+src/CaeManager.Infrastructure/Persistence/CaeManagerDbContext.cs :: CaeManagerDbContext.IOperacionesQueryContext.AsignacionesOperacion · AsignacionesOperacion = 1
+src/CaeManager.Infrastructure/Persistence/Repositories/EncargoAdministracionRepository.cs :: EncargoAdministracionRepository.ListarOperacionesEncargablesAsync · AsignacionesOperacion = 1
+src/CaeManager.Infrastructure/Persistence/Repositories/EncargoAdministracionRepository.cs :: EncargoAdministracionRepository.ObtenerOperacionAsync · AsignacionesOperacion = 1
+src/CaeManager.Infrastructure/Persistence/Seed/AsignacionesOperativasBackfillSeeder.cs :: AsignacionesOperativasBackfillSeeder.SeedAsync · AsignacionesCartera = 2
+src/CaeManager.Infrastructure/Persistence/Seed/AsignacionesOperativasBackfillSeeder.cs :: AsignacionesOperativasBackfillSeeder.SeedAsync · AsignacionesOperacion = 3
+src/CaeManager.Infrastructure/Persistence/Seed/Fichas360DemoSeeder.cs :: Fichas360DemoSeeder.SeedAsync · AsignacionesCartera = 1
+src/CaeManager.Infrastructure/Persistence/Seed/PilotoOutboundSeeder.cs :: PilotoOutboundSeeder.SembrarAdministracionPorEncargoAsync · AsignacionesCartera = 2
