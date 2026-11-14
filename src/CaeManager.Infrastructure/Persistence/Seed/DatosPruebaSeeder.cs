@@ -1312,11 +1312,12 @@ public static class DatosPruebaSeeder
     private readonly record struct DatosDocumento(Guid TipoId, DateOnly Emision, VigenciaDocumento Vencimiento);
 
     /// <summary>
-    /// Reparto realista de estados: dentro de una empresa la mayoría de los
-    /// documentos está al día, y solo una minoría cae en la banda del
-    /// <see cref="PerfilCumplimiento"/> de esa empresa — que es, por
-    /// construcción, el peor estado al que puede llegar su documentación y la
-    /// de su plantilla.
+    /// Reparto realista de estados: la mayoría de los documentos está al día, y
+    /// solo una minoría cae en la banda del <see cref="PerfilCumplimiento"/> que
+    /// se le pasa — el del Centro (heredado por los Trabajadores de ese Centro),
+    /// el de la Subcontrata o el del Vehículo, y siempre AlDia en la Empresa
+    /// propia — que es, por construcción, el peor estado al que puede llegar esa
+    /// documentación.
     ///
     /// <para>
     /// <b>Bandas alineadas con los umbrales reales</b>
@@ -1340,9 +1341,9 @@ public static class DatosPruebaSeeder
     {
         var sorteo = aleatorio.Next(100);
 
-        // Una cuarta parte de los documentos de una empresa marcada como
-        // "con problemas" los tiene de verdad; el resto está al día. Sin
-        // esto, un cliente en rojo saldría con el 100 % de su documentación
+        // Una cuarta parte de los documentos de un Centro, Trabajador o Subcontrata
+        // marcados como "con problemas" los tiene de verdad; el resto está al día.
+        // Sin esto, un Centro en rojo saldría con el 100 % de su documentación
         // en rojo, que no es un escenario que nadie reconozca.
         var banda = sorteo < 25 ? perfil : PerfilCumplimiento.AlDia;
 

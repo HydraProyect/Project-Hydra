@@ -123,7 +123,8 @@ public class DatosPruebaSeederDeterminismoTests
     /// (2 clientes, 4-6 Centros cada uno, 60 Trabajadores), el reparto en rueda
     /// deja plantilla en todos los Centros y ninguno queda sin gente — sin
     /// plantilla un Centro es invisible en cualquier pantalla Centro→Trabajador.
-    /// Además la siembra deja exactamente una Empresa propia con todo colgado de ella.
+    /// Además la siembra deja exactamente una Empresa propia (que todo cuelga de ella lo comprueba
+    /// <c>DatosPruebaSeederUnaEmpresaPropiaTests</c>).
     /// </summary>
     [Fact]
     public async Task Dos_siembras_con_semillas_distintas_dejan_plantilla_en_todos_los_centros_de_la_unica_Empresa_propia()
