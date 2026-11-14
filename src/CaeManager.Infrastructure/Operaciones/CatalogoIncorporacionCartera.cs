@@ -109,8 +109,9 @@ public class CatalogoIncorporacionCartera(
     /// programada o cerrada no lo es. Una sola definición para todo lo que este catálogo hace depender de que
     /// la operación siga autorizando (B-02a, sexta revisión de Codex): emitir una cartera, las operaciones
     /// externas vivas, sostener la fila heredada, filtrar las carteras vigentes y las carteras vivas con las
-    /// que se autoriza (<see cref="CarterasQueAutorizanDelOperador"/>). Es el mismo criterio que
-    /// <c>TenantsBeneficiariosAutorizados.CarterasPorOperacionDeLaOrganizacion</c> para dar acceso.
+    /// que se autoriza (<see cref="CarterasQueAutorizanDelOperador"/>). Es el mismo criterio sobre la
+    /// operación que <c>TenantsBeneficiariosAutorizados.CarterasPorOperacionDeLaOrganizacion</c> para
+    /// dar acceso; las guardas sobre la cartera las pone cada mirada.
     /// </summary>
     private static System.Linq.Expressions.Expression<Func<AsignacionOperacion, bool>> OperacionDelServicioVigente(
         DateTime ahora) => o =>
@@ -293,11 +294,18 @@ public class CatalogoIncorporacionCartera(
     /// un apoyo, a quién se designa principal y si un Gestor CAE o un Coordinador CAE supera la
     /// guarda de revocación de <c>EquipoDelOperadorCaeExterno</c>. Una cartera que sigue figurando
     /// vigente bajo una operación caducada o suspendida no da acceso por la vía de Operación, y no
-    /// puede autorizar en su nombre; ante la duda, falla cerrada.
+    /// puede autorizar en su nombre; ante la duda, falla cerrada. A la cartera se le exige además
+    /// que su vigencia haya empezado, como en la vía de acceso: una Vigente con inicio futuro no
+    /// debería existir (nace Programada), y si existiera no autoriza.
     /// </summary>
-    private IQueryable<AsignacionCartera> CarterasQueAutorizanDelOperador(Guid operadorTenantId) =>
-        CarterasDelOperadorBajo(
-            dbContext.AsignacionesOperacion.Where(OperacionDelServicioVigente(DateTime.UtcNow)), operadorTenantId);
+    private IQueryable<AsignacionCartera> CarterasQueAutorizanDelOperador(Guid operadorTenantId)
+    {
+        var ahora = DateTime.UtcNow;
+
+        return CarterasDelOperadorBajo(
+                dbContext.AsignacionesOperacion.Where(OperacionDelServicioVigente(ahora)), operadorTenantId)
+            .Where(c => c.VigenciaDesde <= ahora);
+    }
 
     private IQueryable<AsignacionCartera> CarterasDelOperadorBajo(
         IQueryable<AsignacionOperacion> operaciones, Guid operadorTenantId) =>

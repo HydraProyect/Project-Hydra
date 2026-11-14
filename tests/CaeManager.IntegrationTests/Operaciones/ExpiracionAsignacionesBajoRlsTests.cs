@@ -565,7 +565,7 @@ public class ExpiracionAsignacionesBajoRlsTests
             await propietarioBd.SaveChangesAsync();
         }
 
-        var conflicto = new ConflictoDeVersionEnInbound(arnes.CadenaPropietario);
+        var conflicto = new ConflictoDeVersionEnServicio(arnes.CadenaPropietario, ServicioCae.Inbound);
         await using var pase = CrearContextoPropietario(arnes.CadenaPropietario, conflicto);
 
         var ciclo = () => ExpiracionAsignacionesHostedService.ProcesarParaPruebasAsync(
@@ -587,23 +587,78 @@ public class ExpiracionAsignacionesBajoRlsTests
     }
 
     /// <summary>
-    /// Provoca un conflicto de versión real en el primer guardado que cierra una Asignación de Operación Inbound:
-    /// antes de que el job emita su UPDATE, otra conexión le renueva la versión.
+    /// La otra mitad de la separación por servicio (revisión puente de la ronda 6): si el pase que cae es el de
+    /// Outbound, el de Inbound confirma igual, y no se activa ninguna programada de Outbound. Con el cierre caído, la
+    /// operación Outbound vencida sigue figurando vigente, y activar la cartera programada bajo ella le daría acceso
+    /// sin nada que lo ampare.
     /// </summary>
-    private sealed class ConflictoDeVersionEnInbound(string cadenaPropietario) : SaveChangesInterceptor
+    [Fact]
+    public async Task Si_cae_el_pase_Outbound_el_Inbound_confirma_y_no_se_activa_ninguna_programada_de_Outbound()
+    {
+        await using var arnes = await ArnesDeArranqueRuntime.CrearAsync(datosDePruebaActivos: false);
+
+        var ahora = DateTime.UtcNow;
+        var hace3h = ahora.AddHours(-3);
+        var operadorExterno = new Tenant("Operador CAE externo del conflicto Outbound", PerfilVocabularioTenant.Consultora);
+        var propietario = new Tenant("Propietario con Outbound en conflicto", PerfilVocabularioTenant.ClienteDirecto);
+
+        var outboundVencida = AsignacionOperacion.Externa(
+            propietario.Id, operadorExterno.Id, ServicioCae.Outbound, AmbitoAsignacion.Universal,
+            vigenciaDesde: hace3h, vigenciaHasta: ahora.AddHours(-1), ahora: hace3h);
+        var inboundVencida = AsignacionOperacion.Externa(
+            propietario.Id, operadorExterno.Id, ServicioCae.Inbound, AmbitoAsignacion.Universal,
+            vigenciaDesde: hace3h, vigenciaHasta: ahora.AddHours(-1), ahora: hace3h);
+        var programadaBajoLaVencida = AsignacionCartera.Externa(
+            outboundVencida, Guid.NewGuid(), Roles.GestorCae, AmbitoAsignacion.Universal,
+            vigenciaDesde: ahora.AddHours(-2), vigenciaHasta: null, ahora: hace3h);
+        programadaBajoLaVencida.Estado.Should().Be(EstadoAsignacion.Programada, "precondición de la siembra");
+
+        await using (var propietarioBd = CrearContextoPropietario(arnes.CadenaPropietario))
+        {
+            propietarioBd.Tenants.AddRange(operadorExterno, propietario);
+            propietarioBd.AsignacionesOperacion.AddRange(outboundVencida, inboundVencida);
+            propietarioBd.AsignacionesCartera.Add(programadaBajoLaVencida);
+            await propietarioBd.SaveChangesAsync();
+        }
+
+        var conflicto = new ConflictoDeVersionEnServicio(arnes.CadenaPropietario, ServicioCae.Outbound);
+        await using var pase = CrearContextoPropietario(arnes.CadenaPropietario, conflicto);
+
+        var ciclo = () => ExpiracionAsignacionesHostedService.ProcesarParaPruebasAsync(
+            pase, NullLogger<ExpiracionAsignacionesHostedService>.Instance, CancellationToken.None);
+
+        (await ciclo.Should().ThrowAsync<AggregateException>())
+            .Which.InnerExceptions.Should().ContainSingle().Which.Should().BeOfType<DbUpdateConcurrencyException>();
+        conflicto.Provocado.Should().BeTrue("precondición: el guardado del pase Outbound chocó con el cambio concurrente");
+
+        await using var verificacion = CrearContextoPropietario(arnes.CadenaPropietario);
+        (await verificacion.AsignacionesOperacion.AsNoTracking().SingleAsync(o => o.Id == inboundVencida.Id))
+            .Estado.Should().Be(EstadoAsignacion.Cerrada, "el fallo del pase Outbound no impide cerrar la Inbound");
+        (await verificacion.AsignacionesOperacion.AsNoTracking().SingleAsync(o => o.Id == outboundVencida.Id))
+            .Estado.Should().Be(EstadoAsignacion.Vigente, "control: el pase Outbound perdió por la versión y se deshizo");
+        (await verificacion.AsignacionesCartera.AsNoTracking().SingleAsync(c => c.Id == programadaBajoLaVencida.Id))
+            .Estado.Should().Be(EstadoAsignacion.Programada,
+                "sin el cierre de Outbound confirmado no se activa nada de Outbound: la operación vencida aún figura vigente");
+    }
+
+    /// <summary>
+    /// Provoca un conflicto de versión real en el primer guardado que cierra una Asignación de Operación del servicio
+    /// dado: antes de que el job emita su UPDATE, otra conexión le renueva la versión.
+    /// </summary>
+    private sealed class ConflictoDeVersionEnServicio(string cadenaPropietario, ServicioCae servicio) : SaveChangesInterceptor
     {
         public bool Provocado { get; private set; }
 
         public override async ValueTask<InterceptionResult<int>> SavingChangesAsync(
             DbContextEventData eventData, InterceptionResult<int> result, CancellationToken cancellationToken = default)
         {
-            var inbound = eventData.Context!.ChangeTracker.Entries<AsignacionOperacion>()
-                .FirstOrDefault(e => e.State == EntityState.Modified && e.Entity.Servicio == ServicioCae.Inbound);
-            if (!Provocado && inbound is not null)
+            var objetivo = eventData.Context!.ChangeTracker.Entries<AsignacionOperacion>()
+                .FirstOrDefault(e => e.State == EntityState.Modified && e.Entity.Servicio == servicio);
+            if (!Provocado && objetivo is not null)
             {
                 Provocado = true;
                 await using var otra = CrearContextoPropietario(cadenaPropietario);
-                await otra.AsignacionesOperacion.Where(o => o.Id == inbound.Entity.Id)
+                await otra.AsignacionesOperacion.Where(o => o.Id == objetivo.Entity.Id)
                     .ExecuteUpdateAsync(s => s.SetProperty(o => o.Version, Guid.NewGuid()), cancellationToken);
             }
 

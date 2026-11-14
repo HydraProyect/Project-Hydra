@@ -474,6 +474,7 @@ public class CarteraYFilaHeredadaSoloOutboundTests
     [InlineData("programada", false)]
     [InlineData("cerrada", false)]
     [InlineData("vigente antes de empezar", false)]
+    [InlineData("cartera vigente antes de empezar", false)]
     public async Task Solo_una_cartera_cuya_operacion_Outbound_sigue_vigente_autoriza_la_revocacion(
         string caso, bool autoriza)
     {
@@ -485,7 +486,11 @@ public class CarteraYFilaHeredadaSoloOutboundTests
                 _propietario.Id, _operador.Id, ServicioCae.Outbound, AmbitoAsignacion.Universal, Ahora.AddDays(1), null, Ahora),
             _ => Operacion(_propietario, ServicioCae.Outbound),
         };
-        var cartera = Cartera(operacion, _gestor);
+        var cartera = caso == "cartera vigente antes de empezar"
+            ? AsignacionCartera.Externa(operacion, _gestor, Roles.GestorCae, AmbitoAsignacion.Universal, Ahora.AddDays(1), null, Ahora)
+            : Cartera(operacion, _gestor);
+        // La cartera nace Programada con su inicio futuro; activarla a mano deja el estado que la guarda de fecha excluye.
+        if (caso == "cartera vigente antes de empezar") cartera.Activar();
         cartera.DesignarPrincipal();
         if (caso == "suspendida") operacion.Suspender();
         // Cerrada con fecha de fin futura: solo el estado la excluye, no la guarda de fecha.
