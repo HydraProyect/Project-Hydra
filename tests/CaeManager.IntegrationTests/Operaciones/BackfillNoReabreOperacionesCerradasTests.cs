@@ -376,19 +376,20 @@ public class BackfillNoReabreOperacionesCerradasTests : IAsyncLifetime
     /// <summary>
     /// P8, trasladado desde RolesDelegadosSoloDeOperacionTests al retirarse la reposición al reactivar
     /// (opción A en la PR #2223): la fila heredada revocada no emite cartera en el arranque, aunque su
-    /// rol sea de Operación y su persona nunca haya tenido cartera en el par. Se usa un Gestor CAE para
-    /// que el resultado dependa de la revocación y no de la lista blanca de roles. Control: la fila
-    /// válida de la misma delegación sí la emite.
+    /// persona nunca haya tenido cartera en el par. La fila revocada es de Consulta, el único rol para el
+    /// que el backfill emite cartera automáticamente: con otro rol el test pasaría aunque se leyera la
+    /// fila revocada. Control positivo: una fila de Consulta de la misma delegación, igual salvo por la
+    /// revocación, sí la emite.
     /// </summary>
     [Fact]
     public async Task No_emite_la_cartera_de_una_fila_heredada_revocada()
     {
         await EjecutarBackfillAsync();
-        var revocado = await SembrarUsuarioAsync("gestor-revocado@operador");
+        var revocado = await SembrarUsuarioAsync("consulta-revocada@operador");
         var valida = await SembrarUsuarioAsync("consulta-valida@operador");
         await using (var contexto = CrearContexto(_propietario))
         {
-            var revocada = new AsignacionOperadorDelegado(_delegacion, revocado, Roles.GestorCae);
+            var revocada = new AsignacionOperadorDelegado(_delegacion, revocado, Roles.Consulta);
             revocada.Revocar("Prueba de revocación", DateTime.UtcNow);
             contexto.AsignacionesOperadorDelegadoConRevocadas.AddRange(
                 revocada, new AsignacionOperadorDelegado(_delegacion, valida, Roles.Consulta));

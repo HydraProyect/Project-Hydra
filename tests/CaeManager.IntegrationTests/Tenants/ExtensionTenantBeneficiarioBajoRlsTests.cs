@@ -302,6 +302,7 @@ public class ExtensionTenantBeneficiarioBajoRlsTests : IAsyncLifetime
             .AddSingleton<ICurrentUserService>(usuarioActual)
             .AddSingleton<ITenantActual>(tenantActual)
             .AddSingleton<IOperacionesQueryContext>(runtime)
+            .AddSingleton<ITenantsQueryContext>(runtime)
             .AddSingleton(senales)
             .BuildServiceProvider();
 

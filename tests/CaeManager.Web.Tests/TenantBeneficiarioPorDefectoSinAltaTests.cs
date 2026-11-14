@@ -2,6 +2,7 @@ using System.Reflection;
 using System.Security.Claims;
 using CaeManager.Application.Common;
 using CaeManager.Application.Operaciones;
+using CaeManager.Application.Tenants;
 using CaeManager.Web.Services;
 using FluentAssertions;
 using MediatR;
@@ -52,12 +53,13 @@ public class TenantBeneficiarioPorDefectoSinAltaTests
         var mediator = DispatchProxy.Create<IMediator, Delator>();
         var usuario = DispatchProxy.Create<ICurrentUserService, Delator>();
         var operaciones = DispatchProxy.Create<IOperacionesQueryContext, Delator>();
+        var tenants = DispatchProxy.Create<ITenantsQueryContext, Delator>();
         var protector = DispatchProxy.Create<IDataProtectionProvider, Delator>();
 
-        await middleware.InvokeAsync(contexto, mediator, usuario, operaciones, protector,
+        await middleware.InvokeAsync(contexto, mediator, usuario, operaciones, tenants, protector,
             NullLogger<TenantBeneficiarioPorDefectoMiddleware>.Instance);
 
-        var consultas = new object[] { mediator, usuario, operaciones, protector }.Sum(p => ((Delator)p).Llamadas);
+        var consultas = new object[] { mediator, usuario, operaciones, tenants, protector }.Sum(p => ((Delator)p).Llamadas);
         return (contexto, siguienteLlamado, consultas);
     }
 

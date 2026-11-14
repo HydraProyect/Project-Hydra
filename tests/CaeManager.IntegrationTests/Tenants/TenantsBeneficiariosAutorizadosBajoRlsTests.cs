@@ -660,6 +660,16 @@ public class TenantsBeneficiariosAutorizadosBajoRlsTests : IAsyncLifetime
             return operacion.Id;
         }
 
+        // La vía de Operación exige la DelegacionTenant de Operador CAE externo del par vigente (opción A,
+        // PR #2223). Se siembra también para el Tenant que solo tiene la Inbound: así su negativo observa el
+        // filtro de servicio y no la falta de delegación.
+        foreach (var beneficiario in new[] { conLasDos.Id, soloInbound.Id })
+        {
+            using var ambito = AmbitoTenantExplicito.Establecer(beneficiario);
+            _propietario.DelegacionesTenant.Add(new DelegacionTenant(_origen, beneficiario));
+            await _propietario.SaveChangesAsync();
+        }
+
         var outbound = await OperacionConCartera(conLasDos.Id, ServicioCae.Outbound, ahora.AddDays(-10));
         var inboundMasReciente = await OperacionConCartera(conLasDos.Id, ServicioCae.Inbound, ahora.AddDays(-2));
         var unicaInbound = await OperacionConCartera(soloInbound.Id, ServicioCae.Inbound, ahora.AddDays(-2));
@@ -951,7 +961,8 @@ public class TenantsBeneficiariosAutorizadosBajoRlsTests : IAsyncLifetime
         return await TenantBeneficiarioPorDefectoMiddleware.FijarTenantPorDefectoAsync(
             httpContext, servicios.GetRequiredService<IMediator>(),
             new CurrentUserServiceFalso(usuario, rol, tenantOrigenId: _origen),
-            servicios.GetRequiredService<IOperacionesQueryContext>(), _protector);
+            servicios.GetRequiredService<IOperacionesQueryContext>(),
+            servicios.GetRequiredService<ITenantsQueryContext>(), _protector);
     }
 
     private DefaultHttpContext PeticionDePagina(Guid usuario, string ruta, string query)
