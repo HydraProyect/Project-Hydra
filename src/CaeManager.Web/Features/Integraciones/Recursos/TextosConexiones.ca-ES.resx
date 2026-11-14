@@ -57,6 +57,12 @@
   <data name="EnlaceDiagnostico" xml:space="preserve">
     <value>Per investigar una connexió concreta (carpetes, missatges a Graph que encara no han arribat per webhook), fes servir l'</value>
   </data>
+  <data name="EnlaceBuzones" xml:space="preserve">
+    <value>Per canviar el responsable d&apos;una bústia o la seva confirmació automàtica, ves a</value>
+  </data>
+  <data name="EnlaceBuzonesVinculo" xml:space="preserve">
+    <value>Bústies de correu</value>
+  </data>
   <data name="EnlaceDiagnosticoVinculo" xml:space="preserve">
     <value>explorador tècnic de la bústia (diagnòstic)</value>
   </data>

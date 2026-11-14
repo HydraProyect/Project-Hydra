@@ -419,6 +419,17 @@ public class LlamadaAlAlcanceDeCarteraEnEscrituraTests
                     nameof(CaeManager.Application.Dashboard.TarifasOperadorCae.AutorizacionTarifasOperadorCae.GestionaAsync)),
             ]),
 
+        ["Facturacion.MarcarCobroLiquidacionOperadorCaeCommandHandler"] = new(
+            "marca a mano el cobro de la liquidación mensual del Operador CAE externo a un Tenant beneficiario: una fila " +
+            "del Tenant de origen del Operador, no de la Empresa gestionada; la guardan el rol efectivo en origen " +
+            "(Administrador o Dirección CAE) y que el Operador gestionara a esa Empresa " +
+            "en algún tramo de ese mes (la misma vigencia con que la pantalla «Facturación» la lista)",
+            Guardas:
+            [
+                new(typeof(IFuenteLiquidacionOperadorCae), nameof(IFuenteLiquidacionOperadorCae.EmisorQueEmiteAsync)),
+                new(typeof(IFuenteLiquidacionOperadorCae), nameof(IFuenteLiquidacionOperadorCae.TenantsBeneficiariosDelMesAsync)),
+            ]),
+
         // ── Agregado del Tenant entero, no filas de una cartera ─────────────────────────────────
         ["Dashboard.ReabrirMesCuadroDireccionCommandHandler"] = new(
             "reabre el cierre mensual del Cuadro de dirección, un agregado del Tenant beneficiario entero: solo " +
@@ -532,7 +543,7 @@ public class LlamadaAlAlcanceDeCarteraEnEscrituraTests
     /// Tope de <see cref="Exentos"/>: una exención nueva tiene que subir este número en el diff, para que
     /// la revisión la vea. Si bajan, baja también.
     /// </summary>
-    private const int MaximoDeExentos = 44;
+    private const int MaximoDeExentos = 45;
 
     /// <summary>De <see cref="Exentos"/>, los que no tienen nada verificable: solo su motivo escrito.</summary>
     private const int MaximoDeExentosSoloConMotivo = 4;

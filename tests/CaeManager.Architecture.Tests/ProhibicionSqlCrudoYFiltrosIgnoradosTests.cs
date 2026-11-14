@@ -507,6 +507,7 @@ public class ProhibicionSqlCrudoYFiltrosIgnoradosTests
         // Las tarifas que un Operador CAE externo fijó al Tenant retirado son filas del Operador (TenantId ajeno): el
         // barrido genérico por TenantId no las alcanza. El Where() acota por PropietarioTenantId, el Tenant retirado.
         [("src/CaeManager.Infrastructure/MultiTenancy/RetiradaTenantDemoService.cs", "await dbContext.TarifasOperadorCae.IgnoreQueryFilters().Where(t => t.PropietarioTenantId == tenantId && t.TenantId != tenantId).ExecuteDeleteAsync(cancellationToken);")] = 1,
+        [("src/CaeManager.Infrastructure/MultiTenancy/RetiradaTenantDemoService.cs", "await dbContext.CobrosLiquidacionOperadorCae.IgnoreQueryFilters().Where(c => c.PropietarioTenantId == tenantId && c.TenantId != tenantId).ExecuteDeleteAsync(cancellationToken);")] = 1,
         // Retirada del piloto Outbound: antes de borrar las filas de un Tenant borra del almacén los PDF
         // de sus documentos, y tiene que alcanzar también los DESCARTADOS (borrado lógico), cuyo fichero
         // sigue en disco. Lectura con la identidad no privilegiada, dentro del ámbito del Tenant (RLS), y
