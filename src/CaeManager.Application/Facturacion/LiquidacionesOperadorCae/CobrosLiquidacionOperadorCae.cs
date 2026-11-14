@@ -1,4 +1,5 @@
 using CaeManager.Application.Common;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Facturacion;
 using FluentValidation;
@@ -63,6 +64,7 @@ public record CobrosLiquidacionOperadorCaeDto(bool PuedeMarcar, IReadOnlyList<Co
 }
 
 /// <summary>Las marcas de cobro de las liquidaciones de un mes del Operador CAE de quien pide; ninguna si no puede leerlas.</summary>
+[AreaDelEncargo("Facturacion")]
 public record ObtenerCobrosLiquidacionOperadorCaeQuery(int Anyo, int Mes) : IRequest<CobrosLiquidacionOperadorCaeDto>;
 
 public class ObtenerCobrosLiquidacionOperadorCaeQueryHandler(IFuenteLiquidacionOperadorCae fuente, ICobrosLiquidacionOperadorCaeContext contexto)
@@ -95,6 +97,7 @@ public class ObtenerCobrosLiquidacionOperadorCaeQueryHandler(IFuenteLiquidacionO
 /// mes la liquidación no tenía marca. Si ya no coincide, otra persona la cambió entretanto y el cambio se rechaza con
 /// <see cref="AutorizacionCobrosLiquidacionOperadorCae.Conflicto"/> en vez de pisar su marca con valores viejos.
 /// </param>
+[AreaDelEncargo("Facturacion")]
 public record MarcarCobroLiquidacionOperadorCaeCommand(
     Guid TenantBeneficiarioId, int Anyo, int Mes, EstadoCobroLiquidacion Estado, string? ReferenciaFacturaEmisor, Guid? VersionLeida) : ICommand;
 

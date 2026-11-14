@@ -1,5 +1,6 @@
 using CaeManager.Application.Common;
 using CaeManager.Application.Plataforma;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Domain.ApiKeys;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Tenants;
@@ -24,6 +25,7 @@ namespace CaeManager.Application.ApiKeys.Commands.RevocarClaveApi;
 /// <c>RevocarClaveApiDeMiOrganizacionCommand</c>.
 /// </para>
 /// </summary>
+[AreaDelEncargo("ApiKeys")]
 public record RevocarClaveApiCommand(Guid DelegacionTenantId, Guid ClaveApiId) : ICommand;
 
 public class RevocarClaveApiCommandValidator : AbstractValidator<RevocarClaveApiCommand>

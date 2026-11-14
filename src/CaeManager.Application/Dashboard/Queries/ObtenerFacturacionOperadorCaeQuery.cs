@@ -1,6 +1,7 @@
 using CaeManager.Application.Common;
 using CaeManager.Application.Dashboard.TarifasOperadorCae;
 using CaeManager.Application.Operaciones;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Dashboard;
 using MediatR;
@@ -12,6 +13,7 @@ namespace CaeManager.Application.Dashboard.Queries;
 /// «Facturación» del Cuadro de dirección (decisión de Chris, 2026-10-20). La unidad de cobro es el Tenant beneficiario,
 /// no el Cliente empresarial.
 /// </summary>
+[AreaDelEncargo("Dashboard")]
 public record ObtenerFacturacionOperadorCaeQuery(int Anyo, int Mes) : IRequest<FacturacionOperadorCaeDto>;
 
 /// <summary>La tarifa vigente de un concepto para un Tenant beneficiario; lo que el drawer de tarifas edita.</summary>

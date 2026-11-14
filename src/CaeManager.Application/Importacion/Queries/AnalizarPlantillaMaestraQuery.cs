@@ -1,6 +1,7 @@
 using CaeManager.Application.AutorizacionesLectura;
 using CaeManager.Application.Common;
 using CaeManager.Application.Importacion.Maestra;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Domain.Common;
 using MediatR;
 
@@ -13,6 +14,7 @@ namespace CaeManager.Application.Importacion.Queries;
 /// solo es seguro tras los behaviors de un <c>IComandoDeAprovisionamiento</c>; una Sesión Privilegiada no concede sobre lecturas de
 /// Tenant. El cupo del limitador de análisis lo reserva la página (I-2), como en el resto de plantillas.
 /// </summary>
+[AreaDelEncargo("Importacion")]
 public record AnalizarPlantillaMaestraQuery(byte[] ContenidoArchivo) : IRequest<Result<PlanImportacionMaestraDto>>, Common.ILecturaRegistradaEnSesionPrivilegiada;
 
 public class AnalizarPlantillaMaestraQueryHandler(IPlantillaMaestraService servicio, ICurrentUserService currentUserService)

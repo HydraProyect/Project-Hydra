@@ -1,6 +1,7 @@
 using CaeManager.Application.Centros;
 using CaeManager.Application.Common;
 using CaeManager.Application.Empresas;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Application.Trabajadores;
 using CaeManager.Domain.Centros;
 using CaeManager.Domain.Common;
@@ -34,6 +35,7 @@ namespace CaeManager.Application.Importacion.Commands.EjecutarImportacionCombina
 /// planificada de contenido CAE en un tenant durante su aprovisionamiento
 /// inicial — ver <c>AutorizacionEscrituraBehavior</c>.
 /// </summary>
+[AreaDelEncargo("Importacion")]
 public record EjecutarImportacionCombinadaCommand(PlanImportacionCombinadaDto Plan, bool ReemplazarExistentes)
     : ICommand<ResultadoImportacionCombinadaDto>, IComandoDeAprovisionamiento, Common.ILecturaRegistradaEnSesionPrivilegiada;
 

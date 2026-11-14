@@ -1,3 +1,5 @@
+using System.Collections.Concurrent;
+using System.Reflection;
 using CaeManager.Application.Auditoria.Queries;
 using CaeManager.Application.Configuracion.Commands.ActualizarPresupuestoIa;
 using CaeManager.Application.Configuracion.Commands.ActualizarSeguridadAcceso;
@@ -65,10 +67,22 @@ namespace CaeManager.Application.Tenants.Encargo;
 /// </para>
 ///
 /// <para>
-/// <see cref="AreasPermitidas"/> no decide nada en ejecución: existe para que
-/// <c>AreasClasificadasParaElEncargoTests</c> pueda exigir que toda área con
-/// peticiones esté en una de las dos listas, y que un área nueva no quede
-/// abierta bajo encargo sin que alguien lo haya decidido.
+/// <see cref="AreasPermitidas"/> decide una sola cosa en ejecución: que el área
+/// resuelta exista. Un área que no está en ninguna de las dos listas no es área,
+/// y la petición se excluye (<see cref="Excluye"/> falla cerrado). Además existe
+/// para que <c>AreasClasificadasParaElEncargoTests</c> pueda exigir que toda área
+/// con peticiones esté en una de las dos listas, y que un área nueva no quede sin
+/// decidir.
+/// </para>
+///
+/// <para>
+/// <b>El área se resuelve por tipo</b> (ADR-013, M0c; ver <see cref="AreaDe"/>):
+/// primero la <see cref="AreaDelEncargoAttribute"/> del tipo y, sin ella, el
+/// espacio de nombres. Antes se deducía siempre del espacio de nombres, y mover
+/// <c>AutorizacionesLectura</c> a <c>CaeManager.Application.Inbound.*</c> la
+/// habría abierto bajo encargo no pleno (área «Inbound», que no está excluida).
+/// Las áreas excluidas enteras llevan la marca en cada petición; <b>nunca</b> se
+/// clasifica un segmento de módulo («Inbound», «Outbound») como área.
 /// </para>
 /// </summary>
 public static class ActosExcluidosDelEncargo
@@ -148,22 +162,68 @@ public static class ActosExcluidosDelEncargo
     /// a una entidad es la pestaña de historial de una ficha, que cualquier rol
     /// de cartera ya veía; sin entidad es el registro de auditoría del Tenant
     /// propietario entero, que era solo del Administrador.
+    ///
+    /// <para>
+    /// <b>Falla cerrado</b> (ADR-013, M0c): una petición sin área resuelta
+    /// (<see cref="AreaDe"/> devuelve <c>null</c>) se excluye. Los handlers de
+    /// estas áreas no comprueban el rol (D-8), así que dejarla pasar daría a
+    /// quien administra por encargo no pleno el poder de un Administrador sobre
+    /// algo que nadie ha clasificado; excluirla solo le niega un acto que el
+    /// Administrador propio del Tenant propietario sigue pudiendo hacer, y
+    /// <c>AreasClasificadasParaElEncargoTests</c> pone el commit en rojo antes de
+    /// que llegue a ejecutarse.
+    /// </para>
     /// </summary>
     public static bool Excluye(object peticion)
     {
         ArgumentNullException.ThrowIfNull(peticion);
         var tipo = peticion.GetType();
 
-        return (AreaDe(tipo) is { } area && AreasExcluidas.Contains(area))
+        return AreaDe(tipo) is not { } area
+               || AreasExcluidas.Contains(area)
                || PeticionesExcluidas.Contains(tipo)
                || peticion is ObtenerAuditoriaQuery { EntidadId: null };
     }
 
+    private static readonly ConcurrentDictionary<Type, string?> AreasResueltas = new();
+
     /// <summary>
-    /// El área de una petición: el segmento de su espacio de nombres que sigue a
-    /// <c>CaeManager.Application.</c>, o <c>null</c> si no vive bajo esa raíz.
+    /// El área de una petición, resuelta por su tipo (ADR-013, M0c):
+    /// <list type="number">
+    ///   <item>la de su <see cref="AreaDelEncargoAttribute"/>, si la lleva: no depende
+    ///   de dónde viva el tipo, así que moverlo de carpeta o de espacio de nombres no
+    ///   cambia si queda excluido;</item>
+    ///   <item>si no la lleva, el segmento de su espacio de nombres que sigue a
+    ///   <c>CaeManager.Application.</c>.</item>
+    /// </list>
+    /// En los dos casos solo vale un área clasificada (<see cref="AreasExcluidas"/> o
+    /// <see cref="AreasPermitidas"/>); cualquier otra cosa —un segmento de módulo como
+    /// <c>Inbound</c>, un tipo fuera de la raíz, una marca con un área inexistente— da
+    /// <c>null</c>, y <see cref="Excluye"/> la excluye.
     /// </summary>
     public static string? AreaDe(Type tipoPeticion)
+    {
+        ArgumentNullException.ThrowIfNull(tipoPeticion);
+        return AreasResueltas.GetOrAdd(tipoPeticion, ResolverArea);
+    }
+
+    private static string? ResolverArea(Type tipoPeticion)
+    {
+        var area = tipoPeticion.GetCustomAttribute<AreaDelEncargoAttribute>(inherit: false) is { } marca
+            ? marca.Area
+            : AreaPorEspacioDeNombres(tipoPeticion);
+
+        return area is not null && (AreasExcluidas.Contains(area) || AreasPermitidas.Contains(area)) ? area : null;
+    }
+
+    /// <summary>
+    /// El segmento del espacio de nombres que sigue a <c>CaeManager.Application.</c>, sin
+    /// validar que sea un área clasificada; <c>null</c> si el tipo no vive bajo esa raíz.
+    /// Es la regla anterior a M0c: la conserva como respaldo para las peticiones sin
+    /// <see cref="AreaDelEncargoAttribute"/> y la usan los tests para comprobar que la marca
+    /// coincide con la carpeta mientras la petición no se haya movido.
+    /// </summary>
+    public static string? AreaPorEspacioDeNombres(Type tipoPeticion)
     {
         ArgumentNullException.ThrowIfNull(tipoPeticion);
         if (tipoPeticion.Namespace is not { } espacio || !espacio.StartsWith(RaizDeAreas, StringComparison.Ordinal))

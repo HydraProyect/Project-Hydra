@@ -133,6 +133,24 @@ public class ExclusionesDelEncargoBehaviorTests
         encargo.VecesConsultado.Should().Be(0, "una petición que no está en la lista no paga la resolución del rol efectivo");
     }
 
+    /// <summary>
+    /// ADR-013, M0c: una petición sin área resuelta (fuera de <c>CaeManager.Application.</c> y sin
+    /// <see cref="AreaDelEncargoAttribute"/>) falla cerrado bajo encargo no pleno; sin encargo pasa.
+    /// </summary>
+    [Fact]
+    public async Task Una_peticion_sin_area_resuelta_se_niega_a_quien_administra_por_encargo_y_pasa_sin_el()
+    {
+        var (bajoEncargo, llegoBajoEncargo) = await PasarAsync(new PeticionSinArea(), Result.Exito(), EncargoVigente);
+        llegoBajoEncargo.Should().BeFalse("sin área no hay clasificación que la abra");
+        bajoEncargo.Error.Should().Be(ErroresEncargoAdministracion.ActoExcluido);
+
+        var (sinEncargo, llegoSinEncargo) = await PasarAsync(new PeticionSinArea(), Result.Exito(), encargo: null);
+        llegoSinEncargo.Should().BeTrue("la restricción solo actúa sobre quien tiene el rol elevado por un encargo");
+        sinEncargo.EsExitoso.Should().BeTrue();
+    }
+
+    private sealed record PeticionSinArea : ICommand;
+
     // Decisión del 2026-10-15: en un Tenant sin Administrador propio, el Operador CAE externo con
     // encargo es Administrador pleno, sin excepciones.
     [Fact]

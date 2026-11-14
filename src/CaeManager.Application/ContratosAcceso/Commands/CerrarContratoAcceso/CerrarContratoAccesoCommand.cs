@@ -1,4 +1,5 @@
 using CaeManager.Application.Common;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.ContratosAcceso;
 using FluentValidation;
@@ -6,6 +7,7 @@ using MediatR;
 
 namespace CaeManager.Application.ContratosAcceso.Commands.CerrarContratoAcceso;
 
+[AreaDelEncargo("ContratosAcceso")]
 public record CerrarContratoAccesoCommand(Guid Id, DateOnly FechaCierre, Guid Version = default) : ICommand;
 
 public class CerrarContratoAccesoCommandValidator : AbstractValidator<CerrarContratoAccesoCommand>

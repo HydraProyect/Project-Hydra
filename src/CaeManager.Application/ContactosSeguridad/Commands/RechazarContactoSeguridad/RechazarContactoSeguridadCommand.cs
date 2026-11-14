@@ -1,6 +1,7 @@
 using CaeManager.Application.Common;
 using CaeManager.Application.ContactosSeguridad.Commands.ValidarContactoSeguridad;
 using CaeManager.Application.Plataforma;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Tenants;
 using FluentValidation;
@@ -14,6 +15,7 @@ namespace CaeManager.Application.ContactosSeguridad.Commands.RechazarContactoSeg
 /// misma puerta de escritura que <see cref="ValidarContactoSeguridadCommand"/>; el motivo lo ve el
 /// Administrador del Tenant en su pantalla y queda en la auditoría de su Tenant.
 /// </summary>
+[AreaDelEncargo("ContactosSeguridad")]
 public record RechazarContactoSeguridadCommand(Guid ContactoId, string Motivo) : ICommand;
 
 public class RechazarContactoSeguridadCommandValidator : AbstractValidator<RechazarContactoSeguridadCommand>

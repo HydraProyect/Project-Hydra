@@ -2,6 +2,7 @@ using System.Security.Cryptography;
 using CaeManager.Application.Common;
 using CaeManager.Application.ContratosAcceso.LecturaInbound;
 using CaeManager.Application.Empresas;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Application.TiposDocumento;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.EvidenciasInbound;
@@ -16,6 +17,7 @@ namespace CaeManager.Application.ContratosAcceso.EvidenciasInbound;
 /// La conclusión transcrita del certificado de aptitud. Obligatoria si el tipo elegido o el del original es de «solo
 /// conclusión de aptitud»; prohibida en cualquier otro caso.
 /// </param>
+[AreaDelEncargo("ContratosAcceso")]
 public record RegistrarEvidenciaInboundCommand(
     Guid ContratoAccesoId, Guid DocumentoOrigenId, Guid TipoDocumentoId, ConclusionAptitud? Conclusion) : ICommand<Guid>;
 

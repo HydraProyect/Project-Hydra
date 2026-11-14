@@ -18,8 +18,11 @@ namespace CaeManager.Architecture.Tests;
 ///
 /// <para>
 /// <b>Lo que observa</b>: por reflexión, todo tipo concreto del ensamblado de Application que
-/// implementa <see cref="IBaseRequest"/>, y su área (el segmento de su espacio de nombres tras
-/// <c>CaeManager.Application.</c>). <b>Lo que NO observa</b>: si la clasificación es acertada —eso es
+/// implementa <see cref="IBaseRequest"/>, y su área (<see cref="ActosExcluidosDelEncargo.AreaDe"/>: la
+/// <see cref="AreaDelEncargoAttribute"/> del tipo o, sin ella, el segmento de su espacio de nombres tras
+/// <c>CaeManager.Application.</c>; una petición sin área resuelta falla cerrado en ejecución y aquí da
+/// rojo). Que el área no dependa de la carpeta lo fija <c>AreaDelEncargoPorTipoTests</c>.
+/// <b>Lo que NO observa</b>: si la clasificación es acertada —eso es
 /// una decisión—, ni una petición nueva dentro de un área ya permitida, que nace permitida.
 /// </para>
 /// </summary>
@@ -36,7 +39,10 @@ public class AreasClasificadasParaElEncargoTests
 
         var areasConPeticiones = Peticiones
             .Select(p => ActosExcluidosDelEncargo.AreaDe(p)
-                         ?? throw new InvalidOperationException($"{p.FullName} no vive bajo CaeManager.Application."))
+                         ?? throw new InvalidOperationException(
+                             $"{p.FullName} no tiene área: ni [AreaDelEncargo] con un área clasificada ni un espacio de nombres "
+                             + "cuyo segmento tras CaeManager.Application. sea un área clasificada. Bajo encargo no pleno queda "
+                             + "excluida (falla cerrado); declara su área en el tipo o clasifica el área en ActosExcluidosDelEncargo."))
             .ToHashSet(StringComparer.Ordinal);
 
         ActosExcluidosDelEncargo.AreasExcluidas.Should().NotIntersectWith(ActosExcluidosDelEncargo.AreasPermitidas,

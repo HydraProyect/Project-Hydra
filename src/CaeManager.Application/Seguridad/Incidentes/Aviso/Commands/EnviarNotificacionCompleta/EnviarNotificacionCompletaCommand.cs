@@ -1,6 +1,7 @@
 using CaeManager.Application.Common;
 using CaeManager.Application.ContactosSeguridad;
 using CaeManager.Application.Plataforma;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Plataforma;
 using MediatR;
@@ -14,6 +15,7 @@ namespace CaeManager.Application.Seguridad.Incidentes.Aviso.Commands.EnviarNotif
 /// las 36 horas siguientes a la confirmación. Mismo clic, misma autoridad, mismos destinatarios e igual de
 /// idempotente que <see cref="ConfirmarYEnviarPrimerAviso.ConfirmarYEnviarPrimerAvisoCommand"/>.
 /// </summary>
+[AreaDelEncargo("Seguridad")]
 public record EnviarNotificacionCompletaCommand(Guid IncidenteId, ContenidoAvisoIncidente Contenido)
     : ICommand<ResumenEnvioAviso>;
 

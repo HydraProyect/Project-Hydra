@@ -1,4 +1,5 @@
 using CaeManager.Application.Common;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Application.Trabajadores;
 using CaeManager.Domain.AutorizacionesLectura;
 using CaeManager.Domain.Common;
@@ -8,6 +9,7 @@ using MediatR;
 namespace CaeManager.Application.AutorizacionesLectura.Commands.AsignarTrabajadoresAutorizacion;
 
 /// <summary>Añade Trabajadores a una autorización sin revocar. Los que ya estaban asignados se ignoran.</summary>
+[AreaDelEncargo("AutorizacionesLectura")]
 public record AsignarTrabajadoresAutorizacionCommand(Guid AutorizacionId, IReadOnlyList<Guid> TrabajadorIds, Guid Version = default)
     : ICommand;
 

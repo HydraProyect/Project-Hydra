@@ -1,4 +1,5 @@
 using CaeManager.Application.Common;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.ContratosAcceso;
 using FluentValidation;
@@ -7,6 +8,7 @@ using MediatR;
 namespace CaeManager.Application.ContratosAcceso.Commands.ReabrirContratoAcceso;
 
 /// <summary>Deshace un <see cref="CerrarContratoAcceso.CerrarContratoAccesoCommand"/>: el contrato vuelve a contar como abierto.</summary>
+[AreaDelEncargo("ContratosAcceso")]
 public record ReabrirContratoAccesoCommand(Guid Id, Guid Version = default) : ICommand;
 
 public class ReabrirContratoAccesoCommandValidator : AbstractValidator<ReabrirContratoAccesoCommand>

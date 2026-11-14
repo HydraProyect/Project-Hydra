@@ -1,4 +1,5 @@
 using CaeManager.Application.Common;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Domain.AutorizacionesLectura;
 using CaeManager.Domain.Common;
 using FluentValidation;
@@ -7,6 +8,7 @@ using MediatR;
 namespace CaeManager.Application.AutorizacionesLectura.Commands.RetirarTrabajadorAutorizacion;
 
 /// <summary>Retira un Trabajador de una autorización sin revocar: borra su fila, que no tiene UPDATE.</summary>
+[AreaDelEncargo("AutorizacionesLectura")]
 public record RetirarTrabajadorAutorizacionCommand(Guid AutorizacionId, Guid TrabajadorId, Guid Version = default) : ICommand;
 
 public class RetirarTrabajadorAutorizacionCommandValidator : AbstractValidator<RetirarTrabajadorAutorizacionCommand>

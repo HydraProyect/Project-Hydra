@@ -1,6 +1,7 @@
 using CaeManager.Application.Centros;
 using CaeManager.Application.Common;
 using CaeManager.Application.Empresas;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.ContratosAcceso;
 using FluentValidation;
@@ -12,6 +13,7 @@ namespace CaeManager.Application.ContratosAcceso.Commands.CrearContratoAcceso;
 /// <param name="ClienteEmpresarialId">El Cliente empresarial titular del Centro; tiene que ser el <c>ClienteId</c> del Centro.</param>
 /// <param name="EmpresaContratistaId">La Empresa contraparte local que representa a la Empresa contratista en este Tenant.</param>
 /// <param name="FechaFin">Fin contratado; null = indefinido.</param>
+[AreaDelEncargo("ContratosAcceso")]
 public record CrearContratoAccesoCommand(
     Guid ClienteEmpresarialId, Guid CentroId, Guid EmpresaContratistaId, DateOnly FechaInicio, DateOnly? FechaFin, string? Notas)
     : ICommand<Guid>;

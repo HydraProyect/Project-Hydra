@@ -4,6 +4,7 @@ using CaeManager.Application.Common;
 using CaeManager.Application.Documentos;
 using CaeManager.Application.Documentos.Acreditacion;
 using CaeManager.Application.Empresas;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Application.TiposDocumento;
 using CaeManager.Application.Trabajadores;
 using CaeManager.Application.Importacion;
@@ -48,6 +49,7 @@ namespace CaeManager.Application.Importacion.Commands.EjecutarImportacion;
 /// planificada de contenido CAE en un tenant durante su aprovisionamiento
 /// inicial — ver <c>AutorizacionEscrituraBehavior</c>.
 /// </summary>
+[AreaDelEncargo("Importacion")]
 public record EjecutarImportacionCommand(PlanImportacionDto Plan)
     : ICommand<ResultadoImportacionDto>, IComandoDeAprovisionamiento, Common.ILecturaRegistradaEnSesionPrivilegiada;
 

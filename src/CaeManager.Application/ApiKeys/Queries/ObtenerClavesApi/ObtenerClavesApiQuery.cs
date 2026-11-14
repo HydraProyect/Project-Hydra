@@ -1,6 +1,7 @@
 using CaeManager.Application.Common;
 using CaeManager.Application.Plataforma;
 using CaeManager.Application.Tenants;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Domain.ApiKeys;
 using CaeManager.Domain.Tenants;
 using MediatR;
@@ -16,6 +17,7 @@ namespace CaeManager.Application.ApiKeys.Queries.ObtenerClavesApi;
 /// a un Tenant marcado como plataforma (OWASP ASVS 4.0.3 V4.1.3). El Tenant propietario lee las
 /// suyas con <see cref="ObtenerClavesApiDeMiOrganizacion.ObtenerClavesApiDeMiOrganizacionQuery"/>.
 /// </summary>
+[AreaDelEncargo("ApiKeys")]
 public record ObtenerClavesApiQuery(Guid DelegacionTenantId) : IRequest<IReadOnlyList<ClaveApiDto>>;
 
 /// <summary>

@@ -1,7 +1,9 @@
+using CaeManager.Application.Tenants.Encargo;
 using MediatR;
 
 namespace CaeManager.Application.Importacion.Queries;
 
+[AreaDelEncargo("Importacion")]
 public record AnalizarImportacionExcelQuery(byte[] ContenidoArchivo) : IRequest<PlanImportacionDto>, Common.ILecturaRegistradaEnSesionPrivilegiada;
 
 public class AnalizarImportacionExcelQueryHandler(IExcelImportacionParser parser, RecorteDeAnalisisAlAmbito recorte)

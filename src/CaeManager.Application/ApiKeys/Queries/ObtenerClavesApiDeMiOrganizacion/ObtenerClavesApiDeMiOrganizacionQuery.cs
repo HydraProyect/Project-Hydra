@@ -2,6 +2,7 @@ using CaeManager.Application.ApiKeys.Queries.ObtenerClavesApi;
 using CaeManager.Application.Common;
 using CaeManager.Application.Plataforma;
 using CaeManager.Application.Tenants;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Domain.ApiKeys;
 using MediatR;
 
@@ -13,6 +14,7 @@ namespace CaeManager.Application.ApiKeys.Queries.ObtenerClavesApiDeMiOrganizacio
 /// autoridad recibe <c>null</c>, distinto de una lista vacía. El prefijo visible y los demás datos son los del listado de
 /// plataforma; el hash nunca sale.
 /// </summary>
+[AreaDelEncargo("ApiKeys")]
 public record ObtenerClavesApiDeMiOrganizacionQuery : IRequest<IReadOnlyList<ClaveApiDto>?>;
 
 public class ObtenerClavesApiDeMiOrganizacionQueryHandler(

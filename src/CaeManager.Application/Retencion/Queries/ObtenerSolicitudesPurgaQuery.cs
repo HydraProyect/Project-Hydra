@@ -1,3 +1,4 @@
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Domain.Common;
 using CaeManager.Application.Common;
 using CaeManager.Application.Retencion;
@@ -13,6 +14,7 @@ namespace CaeManager.Application.Retencion.Queries;
 /// destruyó, cuándo y con qué autorización: es lo que se enseña si alguien
 /// pregunta.
 /// </summary>
+[AreaDelEncargo("Retencion")]
 public record ObtenerSolicitudesPurgaQuery : IRequest<IReadOnlyList<SolicitudPurgaDto>>;
 
 public record SolicitudPurgaDto(

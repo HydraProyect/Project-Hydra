@@ -1,10 +1,12 @@
 using CaeManager.Application.Common;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Domain.Common;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
 
 namespace CaeManager.Application.ContratosAcceso.Queries.ObtenerContratoAccesoPorId;
 
+[AreaDelEncargo("ContratosAcceso")]
 public record ObtenerContratoAccesoPorIdQuery(Guid Id) : IRequest<ContratoAccesoDto?>;
 
 /// <summary>

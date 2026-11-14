@@ -1,4 +1,5 @@
 using CaeManager.Application.Common;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Application.Trabajadores;
 using CaeManager.Domain.AutorizacionesLectura;
 using CaeManager.Domain.Common;
@@ -15,6 +16,7 @@ namespace CaeManager.Application.AutorizacionesLectura.Commands.ConcederAutoriza
 /// <param name="TenantDestinatarioId">El Tenant del Cliente empresarial. Cómo se conoce es la decisión DN-1, abierta: el comando lo recibe como parámetro y no hay pantalla.</param>
 /// <param name="ContratoAccesoId">El contrato de acceso del Tenant destinatario; también por DN-1.</param>
 /// <param name="VigenciaHasta">Último día autorizado; null = sin fecha de fin.</param>
+[AreaDelEncargo("AutorizacionesLectura")]
 public record ConcederAutorizacionLecturaCommand(
     Guid TenantDestinatarioId,
     Guid ContratoAccesoId,
