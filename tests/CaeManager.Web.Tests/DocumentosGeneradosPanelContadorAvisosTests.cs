@@ -30,6 +30,7 @@ public class DocumentosGeneradosPanelContadorAvisosTests : BunitContext
     public DocumentosGeneradosPanelContadorAvisosTests()
     {
         JSInterop.Mode = JSRuntimeMode.Loose;
+        Services.AddLocalization();
         Services.AddScoped<ToastService>();
     }
 
