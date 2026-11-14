@@ -1,4 +1,3 @@
-using System.Reflection;
 using CaeManager.Web.Features.Documentos;
 using FluentAssertions;
 
@@ -10,34 +9,19 @@ namespace CaeManager.Web.Tests;
 /// </summary>
 public class RedireccionDePestanasTests
 {
-    [Theory]
-    [InlineData(true, "Redirigiendo", "/alertas")]
-    [InlineData(null, "Redirigiendo", null)]
-    [InlineData(false, "Listado", null)]
-    public void Preventivo_lleva_a_Faltan_documentos_de_Alertas_solo_para_quien_Alertas_abre(bool? puedeVerAlertas, string vista, string? ruta)
+    [Fact]
+    public void Preventivo_es_el_listado_con_Vence_en_90_por_vencimiento_para_cualquier_rol()
     {
-        // Gestiona o no gestiona documentos no decide nada aqui: lo decide el [Authorize] de /alertas.
         foreach (bool? gestiona in new bool?[] { true, false, null })
         {
-            var r = RedireccionDePestanas.Resolver("sugerencias", conAcreditacionId: false, gestiona, puedeVerAlertas);
-            r.Vista.ToString().Should().Be(vista);
-            r.RutaExterna.Should().Be(ruta);
-            r.Agrupar.Should().BeNull();
+            var r = RedireccionDePestanas.Resolver("sugerencias", conAcreditacionId: false, gestiona);
+            r.Vista.ToString().Should().Be("Listado");
+            r.VenceEn.Should().Be("90");
+            r.Orden.Should().Be("vencimiento");
+            r.RutaExterna.Should().BeNull();
         }
     }
 
-    [Fact]
-    public void Los_roles_que_abren_Alertas_son_exactamente_los_de_su_Authorize()
-    {
-        static string[] Roles(string roles) => roles.Split(',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries)
-            .OrderBy(r => r, StringComparer.Ordinal).ToArray();
-
-        var authorize = typeof(CaeManager.Web.Features.Alertas.Pages.Alertas)
-            .GetCustomAttribute<Microsoft.AspNetCore.Authorization.AuthorizeAttribute>()!.Roles!;
-
-        Roles(RedireccionDePestanas.RolesQueAbrenAlertas).Should().Equal(Roles(authorize),
-            "la redireccion no puede llevar a una pantalla que el rol no abre ni dejar fuera a quien si la abre");
-    }
     [Fact]
     public void Plataformas_sin_acreditacion_agrupa_el_listado_por_Plataforma_CAE()
     {

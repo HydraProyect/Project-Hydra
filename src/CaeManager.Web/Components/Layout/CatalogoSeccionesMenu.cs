@@ -92,9 +92,9 @@ public static class CatalogoSeccionesMenu
     [
         // «Todos los documentos» es la pantalla Documentos tal cual, sin barra de pestañas desde la PR8 del lienzo «Documentos ·
         // listado sin pestañas»: lo que eran sus pestañas internas son filtros del listado o pantallas propias, y cada Id de
-        // `?pestana=` se conserva como redirección (RedireccionDePestanas). «Revisión IA» e Incidencias salieron de Operación y
-        // del propio menú: son entradas de esta sección. Revisión IA es una pantalla propia, /documentos/revision-ia (D-49);
-        // /documentos?pestana=revision-ia redirige a ella para enlaces guardados.
+        // `?pestana=` se conserva como redirección (RedireccionDePestanas). Revisión IA es una pantalla propia de esta sección,
+        // /documentos/revision-ia (D-49); /documentos?pestana=revision-ia redirige a ella para enlaces guardados. Incidencias ya
+        // NO es de esta sección: tiene su entrada propia en Operación (CatalogoMenuLateral, P-6 y D-1), con sus propias migas.
         // BarraSeccion NO pinta esta sección en ninguna ruta y ninguna otra barra la sustituye.
         // Este catálogo sigue sirviendo a las migas y al menú lateral (qué pantalla es de qué sección).
         new(IdSeccionDocumentos, "SeccionDocumentos", "documentos",
@@ -103,8 +103,6 @@ public static class CatalogoSeccionesMenu
                 (ruta, pestana) => ruta.Equals("documentos", StringComparison.OrdinalIgnoreCase) && !EsRevisionIa(ruta, pestana)),
             new("documentos-revision-ia", "MenuSubDocumentosRevisionIa", "documentos/revision-ia", RolesDeRevisionIa,
                 EsRevisionIa),
-            new("documentos-incidencias", "SeccionIncidencias", "incidencias", RolesDeIncidencias,
-                (ruta, _) => EsRuta(ruta, "incidencias")),
         ]),
 
         // Equipo: Usuarios y Roles. El enlace del menú es «usuarios» (Administración) o «usuarios-equipo»

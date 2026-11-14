@@ -46,11 +46,11 @@ public class CatalogoSeccionesMenuTests
         seccion?.Pestanas.SingleOrDefault(p => p.Activa)?.Pestana.Id;
 
     [Theory]
-    [InlineData(Roles.Administrador, new[] { "documentos-todos", "documentos-revision-ia", "documentos-incidencias" })]
-    [InlineData(Roles.DireccionCae, new[] { "documentos-todos", "documentos-revision-ia", "documentos-incidencias" })]
-    [InlineData(Roles.CoordinadorCae, new[] { "documentos-todos", "documentos-revision-ia", "documentos-incidencias" })]
-    [InlineData(Roles.GestorCae, new[] { "documentos-todos", "documentos-revision-ia", "documentos-incidencias" })]
-    [InlineData(Roles.Consulta, new[] { "documentos-todos", "documentos-incidencias" })]
+    [InlineData(Roles.Administrador, new[] { "documentos-todos", "documentos-revision-ia" })]
+    [InlineData(Roles.DireccionCae, new[] { "documentos-todos", "documentos-revision-ia" })]
+    [InlineData(Roles.CoordinadorCae, new[] { "documentos-todos", "documentos-revision-ia" })]
+    [InlineData(Roles.GestorCae, new[] { "documentos-todos", "documentos-revision-ia" })]
+    [InlineData(Roles.Consulta, new string[0])]
     public void Documentos_ofrece_a_cada_rol_solo_las_pestanas_cuya_pantalla_le_abre(string rol, string[] esperadas)
     {
         Ids(CatalogoSeccionesMenu.Resolver("documentos", null, Contexto(rol))).Should().Equal(esperadas);
@@ -75,8 +75,6 @@ public class CatalogoSeccionesMenuTests
     [InlineData("documentos", "revision-ia", "documentos-revision-ia")]
     [InlineData("DOCUMENTOS", "REVISION-IA", "documentos-revision-ia")]
     [InlineData("documentos/revision-ia", null, "documentos-revision-ia")]
-    [InlineData("incidencias", null, "documentos-incidencias")]
-    [InlineData("incidencias/11111111-2222-3333-4444-555555555555", null, "documentos-incidencias")]
     public void La_pestana_activa_sale_de_la_ruta_y_del_parametro_pestana(string ruta, string? pestana, string activa)
     {
         var seccion = CatalogoSeccionesMenu.Resolver(ruta, pestana, Contexto(Roles.Administrador));
@@ -134,15 +132,15 @@ public class CatalogoSeccionesMenuTests
     {
         // Control positivo de la prueba anterior: la lente no oculta todo, solo lo que su rol no tiene.
         Ids(CatalogoSeccionesMenu.Resolver("documentos", null, Contexto(Roles.Administrador, VistaDemo.CoordinadorCae)))
-            .Should().Equal("documentos-todos", "documentos-revision-ia", "documentos-incidencias");
+            .Should().Equal("documentos-todos", "documentos-revision-ia");
         Ids(CatalogoSeccionesMenu.Resolver("usuarios", null, Contexto(Roles.Administrador, VistaDemo.CoordinadorCae))).Should().BeEmpty();
     }
 
     [Fact]
-    public void Con_la_lente_de_Gestor_Documentos_conserva_sus_tres_pestanas()
+    public void Con_la_lente_de_Gestor_Documentos_conserva_sus_dos_pestanas()
     {
         Ids(CatalogoSeccionesMenu.Resolver("documentos", null, Contexto(Roles.GestorCae, VistaDemo.GestorCae)))
-            .Should().Equal("documentos-todos", "documentos-revision-ia", "documentos-incidencias");
+            .Should().Equal("documentos-todos", "documentos-revision-ia");
     }
 
     // --- Los roles del catálogo son los de la pantalla de destino -----------------------------------
@@ -157,7 +155,6 @@ public class CatalogoSeccionesMenuTests
             .OrderBy(r => r, StringComparer.Ordinal).ToArray();
 
     [Theory]
-    [InlineData("documentos-incidencias", typeof(Features.Incidencias.Pages.Incidencias))]
     [InlineData("documentos-revision-ia", typeof(Features.Documentos.Pages.RevisionIa))]
     [InlineData("equipo-usuarios", typeof(Features.Usuarios.Pages.Usuarios))]
     [InlineData("equipo-roles", typeof(Features.GestionRoles.Pages.Roles))]
@@ -212,13 +209,74 @@ public class CatalogoSeccionesMenuTests
     }
 
     [Fact]
-    public void Incidencias_Revision_IA_Usuarios_y_Roles_no_son_ya_entradas_sueltas_del_menu_salvo_la_de_Equipo()
+    public void Revision_IA_Usuarios_y_Roles_no_son_entradas_sueltas_del_menu_salvo_la_de_Equipo()
     {
         var ids = CatalogoMenuLateral.Enlaces.Select(e => e.Id).ToList();
 
-        ids.Should().NotContain("incidencias");
         ids.Should().NotContain("roles");
         CatalogoMenuLateral.Subopciones.Select(s => s.Id).Should().NotContain(["config-usuarios", "config-roles"]);
+    }
+
+    [Fact]
+    public void Incidencias_y_Plantillas_son_entradas_propias_del_menu_y_ya_no_pestanas_de_la_seccion_Documentos()
+    {
+        // PR8: sin barra de pestañas, Plantillas (P-5, D-27) e Incidencias (P-6, D-1) se alcanzan por el menú.
+        var enlaces = CatalogoMenuLateral.Enlaces.ToDictionary(e => e.Id);
+        enlaces["incidencias"].GrupoId.Should().Be("operacion");
+        enlaces["plantillas"].GrupoId.Should().Be("negocio");
+
+        CatalogoSeccionesMenu.PestanaDe("incidencias", null).Should().BeNull(
+            "si fuera pestaña de Documentos, sus migas dirían Negocio y el menú la pondría en Operación");
+        CatalogoSeccionesMenu.PestanaDe("incidencias/11111111-2222-3333-4444-555555555555", null).Should().BeNull();
+        CatalogoMenuLateral.Subopciones.Select(s => s.Id).Should().NotContain(["documentos-incidencias", "documentos-plantillas"],
+            "la lupa las encuentra por su entrada; repetirlas como subopción las duplicaría");
+    }
+
+    /// <summary>
+    /// Las entradas de menú de Incidencias y de Plantillas llevan exactamente los roles del <c>[Authorize]</c> de su pantalla:
+    /// por cada rol, el menú la ofrece si y solo si la página lo admite (el menú no ofrece lo que la página niega ni esconde
+    /// lo que permite).
+    /// </summary>
+    [Theory]
+    [InlineData("incidencias", typeof(Features.Incidencias.Pages.Incidencias))]
+    [InlineData("plantillas", typeof(Features.Plantillas.Pages.Plantillas))]
+    public void Las_entradas_de_menu_de_Incidencias_y_Plantillas_son_exactamente_las_del_Authorize_de_su_pantalla(string id, Type pagina)
+    {
+        var enlace = CatalogoMenuLateral.Enlaces.Single(e => e.Id == id);
+        var rolesDeLaPagina = RolesDe(pagina);
+        rolesDeLaPagina.Should().NotBeEmpty("la pantalla se autoriza por roles");
+
+        string[] todos =
+        [
+            Roles.Administrador, Roles.DireccionCae, Roles.CoordinadorCae, Roles.GestorCae, Roles.Consulta, Roles.Cliente,
+        ];
+        foreach (var rol in todos)
+        {
+            var contexto = Contexto(rol);
+            var menuLaOfrece = CatalogoMenuLateral.Visibles(contexto)
+                .SelectMany(g => g.Enlaces).Any(e => e.Id == id);
+
+            menuLaOfrece.Should().Be(rolesDeLaPagina.Contains(rol),
+                $"el menú y el [Authorize] de {pagina.Name} deben coincidir para {rol}");
+        }
+
+        enlace.Condicion.Should().NotBeNull("la entrada fija sus roles en vez de heredar los del grupo");
+    }
+
+    /// <summary>
+    /// «?pestana=plantillas» y «?pestana=revision-ia» llevan a su pantalla solo a quien gestiona documentos, con la lista de
+    /// roles de <c>RedireccionDePestanas</c>; esa lista es exactamente el <c>[Authorize]</c> de ambas pantallas de destino.
+    /// </summary>
+    [Theory]
+    [InlineData(typeof(Features.Plantillas.Pages.Plantillas))]
+    [InlineData(typeof(Features.Documentos.Pages.RevisionIa))]
+    public void Los_roles_de_gestion_de_la_redireccion_son_exactamente_los_del_Authorize_de_la_pantalla_de_destino(Type pagina)
+    {
+        // La página decide «gestionaDocumentos» (el dato que recibe RedireccionDePestanas.Resolver) con esta constante privada.
+        var rolesDeGestion = (string)typeof(Features.Documentos.Pages.Documentos)
+            .GetField("RolesDeGestionDocumental", BindingFlags.NonPublic | BindingFlags.Static)!.GetRawConstantValue()!;
+
+        RolesDe(rolesDeGestion).Should().Equal(RolesDe(pagina));
     }
 }
 

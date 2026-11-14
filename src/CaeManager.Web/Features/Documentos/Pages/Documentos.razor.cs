@@ -235,9 +235,6 @@ public partial class Documentos : CaeManager.Web.Components.PaginaInteractiva, I
     /// <summary>Quien gestiona documentos (<see cref="RolesDeGestionDocumental"/>); null hasta leer el rol.</summary>
     private bool? _gestionaDocumentos;
 
-    /// <summary>Quien abre <c>/alertas</c>, el sustituto de la pestaña Preventivo (<see cref="RedireccionDePestanas.RolesQueAbrenAlertas"/>); null hasta leer el rol.</summary>
-    private bool? _puedeVerAlertas;
-
     /// <summary>La pantalla propia de Revisión IA (D-49): destino del Id de pestaña <c>revision-ia</c>.</summary>
     internal const string RutaRevisionIa = RedireccionDePestanas.RutaRevisionIa;
 
@@ -248,7 +245,7 @@ public partial class Documentos : CaeManager.Web.Components.PaginaInteractiva, I
     /// </summary>
     private PestanaResuelta AplicarPestanaDeLaUrl()
     {
-        var resuelta = RedireccionDePestanas.Resolver(IdDePestanaDeUrl(Pestana), AcreditacionId is not null, _gestionaDocumentos, _puedeVerAlertas);
+        var resuelta = RedireccionDePestanas.Resolver(IdDePestanaDeUrl(Pestana), AcreditacionId is not null, _gestionaDocumentos);
         _pestanaActiva = resuelta.Vista switch
         {
             VistaDePestana.PlataformaDeAcreditacion => "plataforma",
@@ -258,6 +255,10 @@ public partial class Documentos : CaeManager.Web.Components.PaginaInteractiva, I
         };
         if (resuelta.Agrupar is not null && string.IsNullOrWhiteSpace(Agrupar))
             _agrupacion = AgrupacionDeLaUrl(resuelta.Agrupar);
+        if (resuelta.VenceEn is not null && string.IsNullOrWhiteSpace(VenceEn))
+            _venceEnFiltro = VenceEnValido(resuelta.VenceEn);
+        if (resuelta.Orden is not null && string.IsNullOrWhiteSpace(OrdenInicial))
+            LeerOrden(resuelta.Orden);
         return resuelta;
     }
 
@@ -287,6 +288,10 @@ public partial class Documentos : CaeManager.Web.Components.PaginaInteractiva, I
             var parametros = new Dictionary<string, string?> { [nameof(Pestana)] = null };
             if (resuelta.Agrupar is not null && string.IsNullOrWhiteSpace(Agrupar))
                 parametros[AgrupacionDeLista.Parametro] = resuelta.Agrupar;
+            if (resuelta.VenceEn is not null && string.IsNullOrWhiteSpace(VenceEn))
+                parametros[nameof(VenceEn)] = resuelta.VenceEn;
+            if (resuelta.Orden is not null && string.IsNullOrWhiteSpace(OrdenInicial))
+                parametros["orden"] = resuelta.Orden;
             NavigationManager.ActualizarFiltrosEnUrl(parametros);
         }
 
@@ -547,7 +552,6 @@ public partial class Documentos : CaeManager.Web.Components.PaginaInteractiva, I
             if (_desechado) return;
             _puedeEscribir = Roles.ConEscrituraCsv.Split(',').Any(usuario.IsInRole);
             _gestionaDocumentos = RolesDeGestionDocumental.Split(',').Any(usuario.IsInRole);
-            _puedeVerAlertas = RedireccionDePestanas.RolesQueAbrenAlertas.Split(',').Any(usuario.IsInRole);
             if (RedirigirPestanaSiProcede())
             {
                 return;
@@ -556,7 +560,6 @@ public partial class Documentos : CaeManager.Web.Components.PaginaInteractiva, I
         else
         {
             _gestionaDocumentos = false;
-            _puedeVerAlertas = false;
             AplicarPestanaDeLaUrl();
         }
 

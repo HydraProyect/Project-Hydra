@@ -374,7 +374,6 @@ public class CabeceraRedisenadaTests : BunitContext
     }
 
     [Theory]
-    [InlineData("/incidencias", "Negocio", "Documentos", "Incidencias", "/documentos")]
     [InlineData("/roles", "Administración", "Equipo", "Roles", "/usuarios")]
     public void Una_pestana_de_seccion_lleva_su_seccion_en_medio_como_en_el_marco_de_Design(
         string ruta, string grupo, string seccion, string pestana, string rutaSeccion)
@@ -409,14 +408,18 @@ public class CabeceraRedisenadaTests : BunitContext
     }
 
     [Fact]
-    public void Una_ficha_de_Incidencia_sube_a_su_pestana_con_un_enlace()
+    public void Incidencias_cuelga_de_Operacion_como_su_entrada_del_menu()
     {
-        var id = Guid.NewGuid();
+        RenderMigas("/incidencias").FindAll("li.miga").Select(m => m.TextContent.Trim()).Should().Equal("Operación", "Incidencias");
+    }
 
-        var cut = RenderMigas($"/incidencias/{id}");
+    [Fact]
+    public void La_ficha_de_una_incidencia_sube_a_Incidencias_con_un_enlace()
+    {
+        var cut = RenderMigas($"/incidencias/{Guid.NewGuid()}");
 
-        cut.FindAll("li.miga a").Select(a => a.GetAttribute("href")).Should().Equal("/documentos", "/incidencias");
-        cut.FindAll("li.miga").Select(m => m.TextContent.Trim()).Should().Equal("Negocio", "Documentos", "Incidencias", "Ficha");
+        cut.FindAll("li.miga a").Select(a => a.GetAttribute("href")).Should().Equal("/incidencias");
+        cut.FindAll("li.miga").Select(m => m.TextContent.Trim()).Should().Equal("Operación", "Incidencias", "Ficha");
     }
 
     [Fact]

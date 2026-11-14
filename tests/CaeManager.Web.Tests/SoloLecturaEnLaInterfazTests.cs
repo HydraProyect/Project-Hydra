@@ -213,11 +213,11 @@ public class SoloLecturaEnLaInterfazTests : BunitContext
     }
 
     [Fact]
-    public void La_pestana_Preventivo_no_lleva_puerta_de_rol_y_Consulta_va_a_Faltan_documentos_de_Alertas_que_si_le_abre()
+    public void La_pestana_Preventivo_no_lleva_puerta_de_rol_y_Consulta_cae_en_el_listado_con_el_plazo()
     {
         var cut = RenderizarDocumentos("Consulta", "sugerencias");
 
-        cut.WaitForAssertion(() => Services.GetRequiredService<NavigationManager>().Uri.Should().EndWith("/alertas"));
+        cut.WaitForAssertion(() => Services.GetRequiredService<NavigationManager>().Uri.Should().Contain("VenceEn=90"));
         cut.Markup.Should().NotContain("Esta sección no está disponible para tu rol");
         cut.FindAll("[role=tablist]").Should().BeEmpty();
     }
