@@ -10,6 +10,7 @@ using CaeManager.Application.Trabajadores.Queries.ObtenerTrabajadoresParaSelecto
 using CaeManager.Domain.Documentos;
 using CaeManager.Domain.Plantillas;
 using CaeManager.Web.Components.DesignSystem;
+using CaeManager.Web.Features.Plantillas.Components;
 using FluentAssertions;
 using MediatR;
 using Microsoft.AspNetCore.Components;
@@ -617,28 +618,30 @@ public class PlantillasFiltrosTests : BunitContext
             where TNotification : INotification => Task.CompletedTask;
     }
 
-    /// <summary>
-    /// Con una base real, el padre se repinta (termina el catálogo) mientras el panel aún pide los Trabajadores del selector:
-    /// ese repintado no puede dar a la barra una lista vacía que descarte un Trabajador de la URL que sí existe.
-    /// </summary>
+    /// <summary>El contrato del panel: un repintado del padre antes del arranque no avisa a la barra, que daría por buena una lista vacía.</summary>
     [Fact]
-    public void Un_trabajador_valido_de_la_url_se_conserva_si_el_padre_se_repinta_antes_de_que_lleguen_los_Trabajadores()
+    public void El_panel_de_Generados_no_avisa_a_la_barra_antes_de_tener_los_Trabajadores()
     {
         var retenida = new TaskCompletionSource();
         var mediador = new MediatorConTrabajadoresRetenidos(CatalogoConGenerados(), retenida.Task);
         Services.AddScoped<IMediator>(_ => mediador);
         Services.AddLocalization();
-        Services.AddScoped<ToastService>();
-        Services.GetRequiredService<NavigationManager>().NavigateTo($"plantillas?Pestana=generados&trabajador={Trabajador2}");
+        var avisos = new List<DatosFiltrosGenerados>();
+        var alCargar = EventCallback.Factory.Create<DatosFiltrosGenerados>(this, avisos.Add);
 
-        var cut = Render<PaginaPlantillas>();
-        cut.WaitForAssertion(() => mediador.Pedida.Task.IsCompleted.Should().BeTrue("el catálogo termina y monta el panel, que queda esperando a los Trabajadores"));
-        cut.Render();
+        void Parametros(ComponentParameterCollectionBuilder<DocumentosGeneradosPanel> p) =>
+            p.Add(x => x.FiltrosEnLaBarra, true).Add(x => x.TrabajadorId, Trabajador2).Add(x => x.DatosCargados, alCargar);
+
+        var cut = Render<DocumentosGeneradosPanel>(Parametros);
+        cut.WaitForAssertion(() => mediador.Pedida.Task.IsCompleted.Should().BeTrue("el panel espera a los Trabajadores del selector"));
+
+        cut.Render(Parametros);
+        avisos.Should().BeEmpty("sin los Trabajadores, el aviso daría a la barra una lista vacía");
 
         retenida.SetResult();
 
-        cut.WaitForAssertion(() => FilasGenerados(cut).Should().Equal(["Entrega de EPI | Luis Gómez"]));
-        ClavesDeLaUrl().Should().Contain("trabajador");
+        cut.WaitForAssertion(() => avisos.Should().NotBeEmpty());
+        avisos.Should().OnlyContain(a => a.Trabajadores.Count == 2);
     }
 
     [Fact]
