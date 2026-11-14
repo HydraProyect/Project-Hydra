@@ -68,8 +68,12 @@ public class ObtenerResponsablesElegiblesBuzonesQueryHandlerTests
         var desconocida = Guid.NewGuid();
         var cuentas = new Dictionary<Guid, DestinoCartera>
         {
-            [admin] = Cuenta("Administrador"), [direccion] = Cuenta("DireccionCae"), [coordinador] = Cuenta("CoordinadorCae"),
-            [gestor] = Cuenta("GestorCae"), [consulta] = Cuenta("Consulta"), [portal] = Cuenta("Cliente"),
+            [admin] = Cuenta("Administrador"),
+            [direccion] = Cuenta("DireccionCae"),
+            [coordinador] = Cuenta("CoordinadorCae"),
+            [gestor] = Cuenta("GestorCae"),
+            [consulta] = Cuenta("Consulta"),
+            [portal] = Cuenta("Cliente"),
             [desactivada] = Cuenta("GestorCae", activa: false)
         };
         var buzon = Buzon();
@@ -93,8 +97,10 @@ public class ObtenerResponsablesElegiblesBuzonesQueryHandlerTests
         var gestor = Guid.NewGuid();
         var cuentas = new Dictionary<Guid, DestinoCartera>
         {
-            [admin] = Cuenta("Administrador"), [direccion] = Cuenta("DireccionCae"),
-            [coordinador] = Cuenta("CoordinadorCae"), [gestor] = Cuenta("GestorCae")
+            [admin] = Cuenta("Administrador"),
+            [direccion] = Cuenta("DireccionCae"),
+            [coordinador] = Cuenta("CoordinadorCae"),
+            [gestor] = Cuenta("GestorCae")
         };
         var buzon = Buzon(empresa: Guid.NewGuid());
 
