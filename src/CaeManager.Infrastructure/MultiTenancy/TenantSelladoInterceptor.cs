@@ -47,9 +47,9 @@ namespace CaeManager.Infrastructure.MultiTenancy;
 /// abierto y no permite ejecutar nada. Antes la restauración quedaba diferida al
 /// siguiente comando de EF o a la salida de la operación, y en esa ventana un
 /// comando directo de Npgsql, o un punto de guardado del llamador seguido de un
-/// <c>ROLLBACK TO SAVEPOINT</c>, veía el Tenant de la cuenta. Ya no hay estado
-/// diferido: en el éxito, el fallo y la cancelación la conexión está libre y se
-/// restaura en el mismo final (<see cref="RestaurarAsync"/>), y si la restauración
+/// <c>ROLLBACK TO SAVEPOINT</c>, veía el Tenant de la cuenta. La restauración ya
+/// no se difiere a otro comando: en el éxito, el fallo y la cancelación la
+/// conexión está libre y se restaura en el mismo final (<see cref="RestaurarAsync"/>), y si la restauración
 /// falla fuera de una transacción la conexión física se cierra
 /// (<see cref="TenantRlsConnectionInterceptor.DescartarSesionAsync"/>).
 /// </para>
@@ -83,9 +83,18 @@ public class TenantSelladoInterceptor(
     /// <summary>
     /// El <see cref="AutoTransactionBehavior"/> del contexto antes de forzar
     /// <see cref="AutoTransactionBehavior.Always"/> para este lote; <c>null</c>
-    /// cuando el lote corre en una transacción del llamador (no se fuerza nada).
+    /// cuando no hay lote armado. Se fuerza también dentro de una transacción del
+    /// llamador, para que EF no se salte el punto de guardado en un lote de un
+    /// solo comando (revisión puente, hallazgo 1).
     /// </summary>
     private AutoTransactionBehavior? _autoTransaccionPrevia;
+
+    /// <summary>
+    /// <c>true</c> si el lote armado corre en una transacción del llamador (se
+    /// mueve el contexto en el punto de guardado de EF); <c>false</c> si en su
+    /// transacción propia (se mueve tras el <c>BEGIN</c>).
+    /// </summary>
+    private bool _loteEnTransaccionDelLlamador;
 
     /// <summary>
     /// Lo que la conexión tenía antes de que este lote moviera el contexto, y que
@@ -257,18 +266,40 @@ public class TenantSelladoInterceptor(
     /// lo vuelve a mover; el anterior lo deshizo su <c>ROLLBACK</c>.
     /// </summary>
     DbTransaction IDbTransactionInterceptor.TransactionStarted(
-        DbConnection connection, TransactionEndEventData eventData, DbTransaction result)
-    {
-        AplicarTenantDelLoteAsync(eventData.Context, connection, enPuntoDeGuardado: false).GetAwaiter().GetResult();
-        return result;
-    }
+        DbConnection connection, TransactionEndEventData eventData, DbTransaction result) =>
+        AplicarTrasBeginAsync(eventData.Context, connection, result).GetAwaiter().GetResult();
 
-    async ValueTask<DbTransaction> IDbTransactionInterceptor.TransactionStartedAsync(
+    ValueTask<DbTransaction> IDbTransactionInterceptor.TransactionStartedAsync(
         DbConnection connection, TransactionEndEventData eventData, DbTransaction result,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken) =>
+        new(AplicarTrasBeginAsync(eventData.Context, connection, result));
+
+    /// <summary>
+    /// Si mover el contexto falla tras el <c>BEGIN</c>, EF todavía no ha tomado la
+    /// transacción como suya y no la desharía: se deshace aquí, con lo que también
+    /// vuelve lo que se hubiera llegado a mover, y se propaga el error.
+    /// </summary>
+    private async Task<DbTransaction> AplicarTrasBeginAsync(DbContext? context, DbConnection connection, DbTransaction result)
     {
-        await AplicarTenantDelLoteAsync(eventData.Context, connection, enPuntoDeGuardado: false);
-        return result;
+        try
+        {
+            await AplicarTenantDelLoteAsync(context, connection, enPuntoDeGuardado: false);
+            return result;
+        }
+        catch
+        {
+            _restauracion = null;
+            try
+            {
+                await result.RollbackAsync(CancellationToken.None);
+            }
+            catch (Exception exRollback)
+            {
+                log?.LogError(exRollback, "No se pudo deshacer la transacción del lote tras fallar el movimiento del contexto.");
+            }
+
+            throw;
+        }
     }
 
     /// <summary>
@@ -352,10 +383,9 @@ public class TenantSelladoInterceptor(
     {
         if (context is null || conexion is null || !ReferenceEquals(context, _contextoDelLote))
             return;
-        // Con AutoTransactionBehavior forzado el lote va en transacción propia; sin
-        // forzar, en un punto de guardado de la del llamador. El otro gancho no es
-        // el del lote.
-        if (enPuntoDeGuardado != (_autoTransaccionPrevia is null))
+        // Sin transacción del llamador el lote va en transacción propia; con ella,
+        // en el punto de guardado de EF. El otro gancho no es el del lote.
+        if (enPuntoDeGuardado != _loteEnTransaccionDelLlamador)
             return;
 
         await using (var lectura = conexion.CreateCommand())
@@ -415,7 +445,17 @@ public class TenantSelladoInterceptor(
             _restauracion = null;
             log?.LogError(ex, "No se pudo devolver a la conexión el contexto de sesión anterior al lote.");
             if (context.Database.CurrentTransaction is null)
-                await TenantRlsConnectionInterceptor.DescartarSesionAsync(conexion);
+            {
+                try
+                {
+                    await TenantRlsConnectionInterceptor.DescartarSesionAsync(conexion);
+                }
+                catch (Exception exDescarte) when (!propagarFallo)
+                {
+                    // En un final con error no se sustituye su excepción.
+                    log?.LogError(exDescarte, "No se pudo cerrar la conexión física tras fallar la devolución del contexto.");
+                }
+            }
 
             if (propagarFallo)
                 throw;
@@ -476,10 +516,9 @@ public class TenantSelladoInterceptor(
 
     /// <summary>
     /// El lote en curso necesita el Tenant de sesión <paramref name="tenant"/>.
-    /// Sin transacción del llamador se fuerza <see cref="AutoTransactionBehavior.Always"/>
-    /// para que el lote tenga siempre una transacción propia dentro de la cual
-    /// moverlo. Con transacción del llamador hace falta el punto de guardado
-    /// automático de EF; sin él (o con una transacción ambiente, que EF no
+    /// Se fuerza <see cref="AutoTransactionBehavior.Always"/> para que el lote tenga
+    /// siempre un ámbito propio dentro del cual moverlo: su transacción sin
+    /// transacción del llamador, y con ella el punto de guardado automático de EF; sin él (o con una transacción ambiente, que EF no
     /// gestiona) no habría ámbito que lo deshiciera, y se falla cerrado antes de
     /// escribir nada. Ninguna de las dos configuraciones existe hoy en el código.
     /// </summary>
@@ -489,17 +528,17 @@ public class TenantSelladoInterceptor(
             throw new InvalidOperationException(
                 "Un lote que mueve el Tenant de sesión no puede ejecutarse en una transacción ambiente.");
 
-        if (context.Database.CurrentTransaction is null)
-        {
-            _autoTransaccionPrevia = context.Database.AutoTransactionBehavior;
-            context.Database.AutoTransactionBehavior = AutoTransactionBehavior.Always;
-        }
-        else if (!context.Database.AutoSavepointsEnabled)
-        {
+        var enTransaccionDelLlamador = context.Database.CurrentTransaction is not null;
+        if (enTransaccionDelLlamador && !context.Database.AutoSavepointsEnabled)
             throw new InvalidOperationException(
                 "Un lote que mueve el Tenant de sesión dentro de una transacción necesita los puntos de guardado automáticos de EF.");
-        }
 
+        // Always en los dos casos: sin transacción del llamador, EF abre siempre la
+        // suya; con ella, no se salta el punto de guardado aunque el lote sea de un
+        // solo comando.
+        _autoTransaccionPrevia = context.Database.AutoTransactionBehavior;
+        context.Database.AutoTransactionBehavior = AutoTransactionBehavior.Always;
+        _loteEnTransaccionDelLlamador = enTransaccionDelLlamador;
         _contextoDelLote = context;
         _tenantDelLote = tenant;
     }
@@ -527,6 +566,7 @@ public class TenantSelladoInterceptor(
             context.Database.AutoTransactionBehavior = previa;
 
         _autoTransaccionPrevia = null;
+        _loteEnTransaccionDelLlamador = false;
         _contextoDelLote = null;
         _tenantDelLote = null;
     }
