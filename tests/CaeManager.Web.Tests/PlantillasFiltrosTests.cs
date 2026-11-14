@@ -198,6 +198,51 @@ public class PlantillasFiltrosTests : BunitContext
         Nombres(Renderizar(Catalogo(), "plantillas?alcance=org")).Should().BeEquivalentTo(["Entrega de EPI", "Anexo II"]);
     }
 
+    [Theory]
+    [InlineData("ambito=99")]
+    [InlineData("ambito=Inventado")]
+    [InlineData("formato=x")]
+    [InlineData("formato=99")]
+    [InlineData("alcance=centro:zz")]
+    [InlineData("alcance=cliente:no-guid")]
+    [InlineData("alcance=inventado")]
+    [InlineData("estado=Inventado")]
+    [InlineData("estado=Generado")]
+    [InlineData("plantilla=no-guid")]
+    [InlineData("trabajador=no-guid")]
+    public void Un_valor_inventado_en_la_url_no_filtra_por_nada(string consulta)
+    {
+        var cut = Renderizar(Catalogo(), $"plantillas?{consulta}");
+
+        Nombres(cut).Should().HaveCount(4, "un valor que no es de la pantalla se descarta en vez de dejar la lista vacia");
+    }
+
+    [Fact]
+    public void Un_estado_mezclado_con_uno_inventado_conserva_solo_el_valido()
+    {
+        Nombres(Renderizar(Catalogo(), "plantillas?estado=Inventado,Borrador")).Should().Equal(["Anexo II"]);
+    }
+
+    [Fact]
+    public void Los_filtros_de_Generados_en_la_url_del_Catalogo_se_descartan()
+    {
+        var cut = Renderizar(Catalogo(), $"plantillas?plantilla={Guid.NewGuid()}&trabajador={Trabajador1}");
+
+        Nombres(cut).Should().HaveCount(4);
+        cut.Markup.Should().NotContain("Limpiar filtros", "no queda ningun filtro puesto que limpiar");
+    }
+
+    [Theory]
+    [InlineData("D")]
+    [InlineData("N")]
+    [InlineData("U")]
+    public void Alcance_por_cliente_acepta_el_Guid_en_mayusculas_y_sin_guiones(string formato)
+    {
+        var id = formato == "U" ? Cliente.ToString().ToUpperInvariant() : Cliente.ToString(formato);
+
+        Nombres(Renderizar(Catalogo(), $"plantillas?alcance=cliente:{id}")).Should().Equal(["Autorización de acceso"]);
+    }
+
     [Fact]
     public void Alcance_por_centro_deja_solo_las_plantillas_de_ese_centro()
     {

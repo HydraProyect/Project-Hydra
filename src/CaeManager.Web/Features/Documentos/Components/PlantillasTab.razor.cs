@@ -164,15 +164,31 @@ public partial class PlantillasTab : ComponentBase, IDisposable
         _alcance = AlcanceValido(Valor("alcance"));
         _plantillaFiltro = Guid.TryParse(Valor("plantilla"), out var plantilla) ? plantilla.ToString() : string.Empty;
         _trabajadorFiltro = Guid.TryParse(Valor("trabajador"), out var trabajador) ? trabajador.ToString() : string.Empty;
+
+        // Catálogo y Generados comparten el menú de filtros guardados y la vista recordada, pero no los filtros: lo que es
+        // de la otra vista se descarta, para no dejar un filtro oculto que no se ve ni se puede quitar.
+        if (_pestanaActiva == "catalogo")
+            _plantillaFiltro = _trabajadorFiltro = string.Empty;
+        else
+            _ambito = _formato = _alcance = string.Empty;
+
         _idEnfocado = null;
     }
 
-    private static string AlcanceValido(string valor) =>
-        valor == AlcanceOrganizacion
-        || (valor.StartsWith(PrefijoCentro, StringComparison.Ordinal) && Guid.TryParse(valor[PrefijoCentro.Length..], out _))
-        || (valor.StartsWith(PrefijoCliente, StringComparison.Ordinal) && Guid.TryParse(valor[PrefijoCliente.Length..], out _))
-            ? valor
-            : string.Empty;
+    /// <summary>Solo vale «organizacion» o «centro:/cliente:» con un Guid; se devuelve normalizado (el Guid en su forma canónica).</summary>
+    private static string AlcanceValido(string valor)
+    {
+        if (valor == AlcanceOrganizacion)
+            return valor;
+
+        foreach (var prefijo in new[] { PrefijoCentro, PrefijoCliente })
+        {
+            if (valor.StartsWith(prefijo, StringComparison.Ordinal) && Guid.TryParse(valor[prefijo.Length..], out var id))
+                return prefijo + id;
+        }
+
+        return string.Empty;
+    }
 
     /// <summary>Los estados de código que admite la vista activa: los de la última versión del catálogo o los del documento generado.</summary>
     private IReadOnlyList<string> EstadosAdmitidos =>

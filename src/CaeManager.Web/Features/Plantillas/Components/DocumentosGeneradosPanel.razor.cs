@@ -59,7 +59,7 @@ public partial class DocumentosGeneradosPanel : ComponentBase, IDisposable
 
     /// <summary>
     /// La pantalla que aloja el panel (/plantillas) pinta ella la barra de filtros —buscador, pastillas y franja de
-    /// estados— y se los pasa: el panel no repite sus selectores ni su resumen. Sin esto (Subcontrata, y la ruta
+    /// estados— y se los pasa: el panel no repite sus selectores ni su resumen. Sin esto (la ruta
     /// /plantillas/documentos-generados) el panel lleva los suyos, como hasta ahora.
     /// </summary>
     [Parameter] public bool FiltrosEnLaBarra { get; set; }
