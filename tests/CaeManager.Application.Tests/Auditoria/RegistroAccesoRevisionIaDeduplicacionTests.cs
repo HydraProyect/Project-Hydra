@@ -229,7 +229,7 @@ public class RegistroAccesoRevisionIaDeduplicacionTests
 
         await servicio.RegistrarRevisionIaSiSensibleAsync(DocumentoId, DateTime.UtcNow.AddDays(-3));
 
-        repositorio.Guardados.Should().BeEmpty("como mucho una fila por persona y Documento desde que se creó la revisión");
+        repositorio.Guardados.Should().BeEmpty("con una sola revisión pendiente, como mucho una fila por persona y Documento desde que se creó");
         senales.Avisos.Should().ContainSingle();
     }
 
@@ -355,6 +355,27 @@ public class RegistroAccesoRevisionIaDeduplicacionTests
 
         almacen.Filas.Should().ContainSingle("con una sola revisión pendiente, como mucho una fila por persona y Documento");
         senales.Avisos.Should().HaveCount(3);
+    }
+
+    /// <summary>
+    /// Solo cuentan las revisiones pendientes de ESTE Documento: dos pendientes de otro Documento del Tenant no apagan la
+    /// deduplicación de este, que tiene una.
+    /// </summary>
+    [Fact]
+    public async Task Las_revisiones_pendientes_de_otro_Documento_no_impiden_deduplicar()
+    {
+        var (documentos, documentoId, a, _) = DocumentoConDosRevisionesPendientes();
+        var (otro, _, c, d) = DocumentoConDosRevisionesPendientes();
+        documentos.ListaRevisionesIaDocumento.RemoveAt(1);
+        documentos.ListaDocumentos.AddRange(otro.ListaDocumentos);
+        documentos.ListaRevisionesIaDocumento.AddRange([c, d]);
+        var almacen = new AlmacenDeFilas();
+        var servicio = ServicioSobre(documentos, almacen, new SenalesEspia());
+
+        await servicio.RegistrarRevisionIaSiSensibleAsync(documentoId, a.CreadaEnUtc);
+        await servicio.RegistrarRevisionIaSiSensibleAsync(documentoId, a.CreadaEnUtc);
+
+        almacen.Filas.Should().ContainSingle("las pendientes de otro Documento no cuentan para este");
     }
 
     /// <summary>

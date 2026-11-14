@@ -96,7 +96,8 @@ public interface IRegistroAccesoDocumentoSensibleService
     /// deduplica por persona y Documento desde que se creó; con varias, cada acceso deja fila; peticiones simultáneas pueden
     /// dejar más, nunca menos (la comprobación y la escritura no van en un bloqueo: la auditoría solo puede pecar por
     /// exceso); cada acceso cuenta para la señal de extracción masiva. Una revisión creada después de la última fila de esa
-    /// persona deja otra fila: es un acto de revisión nuevo.
+    /// persona deja otra fila: es un acto de revisión nuevo. Límite conocido: las pendientes se cuentan al acceder, no al
+    /// escribir la fila; una fila escrita mientras había varias puede tapar, resueltas las otras, el acceso a la que queda.
     /// </para>
     /// La implementación por defecto no deduplica (registra en cada llamada): de más, nunca de menos.
     /// </summary>

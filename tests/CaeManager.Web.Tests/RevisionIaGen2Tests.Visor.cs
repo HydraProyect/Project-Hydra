@@ -12,7 +12,7 @@ namespace CaeManager.Web.Tests;
 /// <summary>
 /// Revisión IA, ronda 2: el visor carga solo el documento de la revisión seleccionada (D-49, opción C) por la ruta de la
 /// revisión, que el servidor registra como «Revisión IA» como mucho una fila por persona y Documento desde que se creó la
-/// revisión pendiente (cada acceso cuenta para la señal de extracción masiva); «Descargar» sigue en
+/// revisión pendiente si es la única del Documento (con varias, cada acceso deja fila; cada acceso cuenta para la señal de extracción masiva); «Descargar» sigue en
 /// /documentos/{id}/archivo (Apertura). También el texto del diálogo de «Confirmar todos», «Confirmable» según el umbral y
 /// el foco del desplegable.
 /// </summary>
@@ -137,7 +137,7 @@ public partial class RevisionIaGen2Tests
 
         IframesDelVisor(cut).Should().ContainSingle().Which.Should().Be(RutaDelVisor(primera),
             "la nueva petición no añade fila: el servidor deja como mucho una por persona y Documento desde que se creó la " +
-            "revisión pendiente, aunque la petición cuenta para la señal de extracción masiva");
+            "única revisión pendiente, aunque la petición cuenta para la señal de extracción masiva");
     }
 
     // ---- Texto del diálogo de «Confirmar todos» ----
