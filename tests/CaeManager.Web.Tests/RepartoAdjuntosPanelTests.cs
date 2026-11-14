@@ -43,6 +43,8 @@ public class RepartoAdjuntosPanelTests : BunitContext
         public bool RepartoFalla { get; set; }
         /// <summary>Las consultas de selector (Trabajadores, Empresas o tipos) que lanzan al leerse.</summary>
         public HashSet<Type> SelectoresFallan { get; } = [];
+        /// <summary>Si se da, la próxima lectura del selector de Trabajadores no responde hasta que el test complete esta tarea.</summary>
+        public TaskCompletionSource<IReadOnlyList<TrabajadorSelectorDto>>? RetenerTrabajadores { get; set; }
         public List<TrabajadorSelectorDto> Trabajadores { get; set; } = [new(Marta, "Marta Ruiz", null, null), new(Pedro, "Pedro Gil", null, null)];
 
         public IEnumerable<T> De<T>() => Enviados.OfType<T>();
@@ -51,6 +53,12 @@ public class RepartoAdjuntosPanelTests : BunitContext
         {
             Enviados.Add(request);
             if (SelectoresFallan.Contains(request.GetType())) throw new InvalidOperationException("falla el selector");
+            if (request is ObtenerTrabajadoresParaSelectorQuery && RetenerTrabajadores is { } retenida)
+            {
+                // Solo la primera lectura queda en vuelo; las siguientes responden en el acto.
+                RetenerTrabajadores = null;
+                return (Task<TResponse>)(object)retenida.Task;
+            }
             object? respuesta = request switch
             {
                 ObtenerRepartoAdjuntosQuery => RepartoFalla ? throw new InvalidOperationException("falla") : Reparto.ToList(),
@@ -284,6 +292,32 @@ public class RepartoAdjuntosPanelTests : BunitContext
         asignar.Click();
         cut.WaitForAssertion(() => mediador.De<AsignarAdjuntosLoteCommand>().Should().ContainSingle());
         mediador.De<AsignarAdjuntosLoteCommand>().Single().Adjuntos.Select(a => a.AdjuntoId).Should().Equal(adjunto.Id);
+    }
+
+    [Fact]
+    public async Task Una_lectura_de_selectores_que_ya_no_es_la_ultima_no_pisa_los_nombres_aunque_falle_despues()
+    {
+        var mediador = Preparar(Roles.GestorCae, Adj("doc.pdf", trabajador: Marta, tipo: TipoDniTrabajador));
+        var retenida = new TaskCompletionSource<IReadOnlyList<TrabajadorSelectorDto>>();
+        mediador.RetenerTrabajadores = retenida;
+        var cut = Pintar();
+        cut.FindAll(".adjb").Should().BeEmpty("la primera carga sigue esperando al selector de Trabajadores");
+
+        // La página relee el hilo mientras tanto: la segunda carga lee sus propios selectores y pinta la fila.
+        cut.Render(p => p.Add(x => x.Recarga, new object()));
+        cut.WaitForAssertion(() => cut.FindAll(".adjb").Should().HaveCount(1));
+        EscribirEmision(cut, "doc.pdf", "2026-03-01");
+        cut.WaitForAssertion(() => cut.Find(".adjb-e").TextContent.Trim().Should().Be("Listo"));
+
+        // La lectura vieja falla al final. Sin la guarda de generación dejaría el aviso y los nombres vacíos sobre filas «Listo».
+        await cut.InvokeAsync(() => retenida.SetException(new InvalidOperationException("tarde")));
+        // La primera carga siguió tras el fallo: es la que pide las Empresas por segunda vez.
+        cut.WaitForAssertion(() => mediador.De<ObtenerEmpresasParaSelectorQuery>().Should().HaveCount(2));
+        await cut.InvokeAsync(() => { });
+
+        cut.FindAll("[data-selectores]").Should().BeEmpty();
+        Texto(cut).Should().Contain("Marta Ruiz: DNI");
+        cut.Find(".adjb-e").TextContent.Trim().Should().Be("Listo");
     }
 
     [Theory]
