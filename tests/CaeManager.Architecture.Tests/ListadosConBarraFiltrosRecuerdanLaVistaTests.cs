@@ -159,8 +159,20 @@ public class ListadosConBarraFiltrosRecuerdanLaVistaTests
         pantallas.Should().HaveCount(14, "control: una pantalla por cada uno de los catorce listados");
         pantallas.Values.Should().OnlyContain(p => p != null && PantallasConVistaRecordada.Admitidas.Contains(p));
         pantallas.Values.Should().OnlyHaveUniqueItems();
-        pantallas.Should().OnlyContain(p => Regex.Replace(Path.GetFileNameWithoutExtension(p.Key), "Tab$", string.Empty) == p.Value,
-            "hoy cada pantalla se llama como su página (PlantillasTab es el contenido de /plantillas, pantalla «Plantillas»): si un listado deja de cumplirlo a propósito, se cambia esta línea");
+        pantallas.Should().OnlyContain(p => NombreDePantallaEsperado(p.Key) == p.Value,
+            "hoy cada pantalla se llama como su página, y la única excepción es PlantillasTab (contenido de /plantillas, pantalla «Plantillas»): "
+            + "si otro listado deja de cumplirlo a propósito, se añade aquí su excepción justificada");
+    }
+
+    /// <summary>
+    /// El nombre de la pantalla de un listado es el de su fichero, sin más. Única excepción: <c>PlantillasTab</c> es el contenido
+    /// de la página /plantillas (pantalla «Plantillas»), no una pantalla propia. Quitar el sufijo <c>Tab</c> a cualquier listado
+    /// dejaría pasar un <c>FooTab</c> que recuerda bajo la pantalla «Foo» sin que nadie lo haya decidido.
+    /// </summary>
+    private static string NombreDePantallaEsperado(string ruta)
+    {
+        var nombre = Path.GetFileNameWithoutExtension(ruta);
+        return nombre == "PlantillasTab" ? "Plantillas" : nombre;
     }
 
     // ------------------------------------------------------------ sensibilidad
