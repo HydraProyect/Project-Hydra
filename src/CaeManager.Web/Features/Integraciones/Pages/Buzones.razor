@@ -79,9 +79,10 @@
                                     {
                                         <AuthorizeView Roles="@RolAdministrador" Context="autorizacionResponsable">
                                             <Authorized>
+                                                @{ var claves = new ClavesDeHermanos(); }
                                                 <select class="selector-responsable" aria-label="@Textos["AriaResponsable", conexion.Nombre]"
                                                         data-testid="selector-responsable"
-                                                        @key="(conexion.Id, _versionSelectores)"
+                                                        @key="claves.De((conexion.Id, _versionSelectores))"
                                                         disabled="@(_procesandoId is not null)"
                                                         @onchange="e => CambiarResponsableAsync(conexion, e.Value?.ToString())">
                                                     <option value="" selected="@(conexion.ResponsableUsuarioId is null)">@Textos["SinResponsable"]</option>
