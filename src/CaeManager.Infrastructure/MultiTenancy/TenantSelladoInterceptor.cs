@@ -45,7 +45,7 @@ namespace CaeManager.Infrastructure.MultiTenancy;
 /// origen es <see cref="CommandSource.SaveChanges"/>. Si otro interceptor de
 /// <c>SavingChanges</c> registrado detrás, o el <c>DetectChanges</c> posterior,
 /// lanzan después de preparar el lote, EF no avisa por ningún final y el lote
-/// queda preparado sin ejecutar; un <c>BeginTransaction</c> o un punto de guardado
+/// queda preparado sin ejecutar; una transacción explícita o un punto de guardado
 /// manual del llamador antes del <c>SaveChanges</c> siguiente abren un ámbito pero
 /// no mueven nada, porque ningún comando de <c>SaveChanges</c> puede llegar sin que
 /// antes pase ese <c>SaveChanges</c> siguiente por <see cref="SellarYValidarAsync"/>,
