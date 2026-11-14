@@ -311,7 +311,8 @@ public class TechoDeRolPorEncargoTests
         }
 
         public Task<RolEfectivoPorOperacion> ResolverAsync(string? rolDeSesionEnOrigen, DateTime? ahora = null) =>
-            new TechoDeRolPorEncargo(this, this, this, this).ResolverAsync(
+            new TechoDeRolPorEncargo(
+                this, CaeManager.Application.Tests.Integraciones.DelegacionesEnMemoria.Vigente(Operador, Propietario), this, this, this).ResolverAsync(
                 Usuario, Operador, Propietario, _operacion.Id, rolDeSesionEnOrigen, ahora ?? Ahora, default);
 
         private EncargoAdministracion? Construir(Encargo encargo)

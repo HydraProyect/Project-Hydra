@@ -491,6 +491,23 @@ public class AlcanceDatosService(
 
         var ahora = DateTime.UtcNow;
 
+        // Una Asignación de Operación Outbound externa solo autoriza mientras la DelegacionTenant de
+        // Operador CAE externo que la sostiene siga activa y sin caducar (decisión de Chris del
+        // 2026-11-14, opción A en la PR #2223). La operación del Tenant entero lleva la caducidad de la
+        // delegación como fin, pero las acotadas no, y su cierre por la caducidad o por una revocación
+        // atendida por la ranura anterior solo llega con el job de expiración o con el siguiente
+        // arranque. La operación no guarda de qué delegación nació, así que se exige una del mismo par
+        // (Tenant propietario, Operador CAE externo) y, sin ella, falla cerrada. Una operación del
+        // propio Tenant (raíz o interna) no depende de ninguna delegación, e Inbound tiene su propio
+        // ciclo.
+        var esExterno = operadorTenantId.Value != propietarioTenantId;
+        var delegacionVigente = !esExterno || await dbContext.DelegacionesTenant.AnyAsync(d =>
+            d.TenantClienteId == propietarioTenantId
+            && d.TenantConsultoraId == operadorTenantId.Value
+            && d.Proposito == CaeManager.Domain.Tenants.PropositoDelegacion.OperadorExterno
+            && d.Activa
+            && (d.ExpiraEnUtc == null || ahora < d.ExpiraEnUtc), cancellationToken);
+
         var carteras = await dbContext.AsignacionesCartera
             .Where(c => usuarioIds.Contains(c.UsuarioId)
                         && c.PropietarioTenantId == propietarioTenantId
@@ -516,7 +533,8 @@ public class AlcanceDatosService(
                     && o.PropietarioTenantId == propietarioTenantId
                     && o.OperadorTenantId == operadorTenantId.Value
                     && o.VigenciaDesde <= ahora
-                    && (o.VigenciaHasta == null || ahora < o.VigenciaHasta)),
+                    && (o.VigenciaHasta == null || ahora < o.VigenciaHasta)
+                    && (delegacionVigente || o.Servicio != ServicioCae.Outbound)),
                 c => c.AsignacionOperacionId, o => o.Id, (c, o) => new
                 {
                     Operacion = o.AmbitoRelacionClienteId,

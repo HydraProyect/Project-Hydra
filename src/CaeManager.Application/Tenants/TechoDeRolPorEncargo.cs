@@ -86,6 +86,7 @@ public readonly record struct RolEfectivoPorOperacion(
 /// </summary>
 public class TechoDeRolPorEncargo(
     IOperacionesQueryContext operaciones,
+    ITenantsQueryContext tenants,
     IEncargosAdministracionQueryContext encargos,
     IPerfilDePropiedadEnOrigen perfilDePropiedadEnOrigen,
     ITenantConAdministradorPropio tenantConAdministradorPropio)
@@ -102,7 +103,7 @@ public class TechoDeRolPorEncargo(
     {
         // 1. Sin cartera vigente no hay rol, haya o no encargo.
         var rolDeCartera = await TenantsBeneficiariosAutorizados.RolPorOperacionAsync(
-            operaciones, usuarioId, tenantOrigenId, tenantId, asignacionOperacionId, ahora, cancellationToken);
+            operaciones, tenants, usuarioId, tenantOrigenId, tenantId, asignacionOperacionId, ahora, cancellationToken);
         if (rolDeCartera is null)
             return RolEfectivoPorOperacion.Ninguno;
 
@@ -116,7 +117,7 @@ public class TechoDeRolPorEncargo(
         // Propiedad tiene alcance total sin consultar carteras: elevar una
         // cartera parcial convertiría su ámbito acotado en todo el Tenant.
         if (!await TenantsBeneficiariosAutorizados.TieneCarteraDelTenantEnteroAsync(
-                operaciones, usuarioId, tenantOrigenId, tenantId, asignacionOperacionId,
+                operaciones, tenants, usuarioId, tenantOrigenId, tenantId, asignacionOperacionId,
                 RolesDeCarteraElevables, ahora, cancellationToken))
             return soloCartera;
 

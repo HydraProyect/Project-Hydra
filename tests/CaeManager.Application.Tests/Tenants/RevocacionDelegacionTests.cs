@@ -975,8 +975,7 @@ public class RevocacionDelegacionTests
         IAutorizacionDelegacionTenant? autorizacion = null) =>
         new(repositorio, quien, writer ?? new AsignacionesOperativasWriterFalso(), unitOfWork ?? new UnitOfWorkFalso(),
             tenants ?? ConOperadorElegible(), transaccion ?? new TransaccionDeComandoFalsa(),
-            _catalogo, new DirectorioDestinosCarteraFalso(null), _cuentas,
-            new BloqueoCarteraUsuarioFalso(), new TenantActualFijo(tenantActivo),
+            new TenantActualFijo(tenantActivo),
             autorizacion ?? AutorizacionDelegacionFalsa.AdministradorDe(TenantPropietario));
 
     private PermisosAccesosDelegadosQueryHandler Lote(

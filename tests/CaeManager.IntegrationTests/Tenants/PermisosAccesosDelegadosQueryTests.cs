@@ -91,7 +91,7 @@ public class PermisosAccesosDelegadosQueryTests(ITestOutputHelper salida) : IAsy
         var revocar = new DesactivarDelegacionTenantCommandHandler(
             null!, sesion, null!, db, null!, directorio, db, catalogo);
         var reactivar = new ReactivarDelegacionTenantCommandHandler(
-            null!, sesion, null!, db, db, null!, catalogo, null!, directorio, null!, null!, null!);
+            null!, sesion, null!, db, db, null!, null!, null!);
         PermisosAccesosDelegadosQueryHandler Lote() => new(db, sesion, directorio, catalogo,
             new TenantActualAmbiental { TenantId = _operador }, null!);
         var individuales = new Dictionary<Guid, PermisosAccesoDelegadoDto>();
