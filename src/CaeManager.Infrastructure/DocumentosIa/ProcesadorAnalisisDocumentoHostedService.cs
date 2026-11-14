@@ -309,7 +309,10 @@ public class ProcesadorAnalisisDocumentoHostedService(
             // ese camino de cierre alcanza el override síncrono de
             // TenantRlsConnectionInterceptor —no su versión async—, que solo
             // hace I/O real (RESET ROLE) cuando la sesión privilegiada
-            // seleccionada no es null. Esa propiedad se resuelve leyendo el
+            // seleccionada no es null, cuando la conexión adoptó un rol, o
+            // cuando su sesión quedó incierta tras un fallo al aplicarla (sin
+            // sesión privilegiada no se adopta rol, así que aquí solo ese
+            // último caso, y solo tras un error). Esa propiedad se resuelve leyendo el
             // contexto HTTP ambiental de la petición en curso (ver
             // ClienteActivoSeleccionado, en CaeManager.Web.Services), algo
             // que un HostedService, al no correr dentro de una petición HTTP,
