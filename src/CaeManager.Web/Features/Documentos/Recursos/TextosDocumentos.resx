@@ -659,4 +659,88 @@
   <data name="RevIaDescartarMensaje" xml:space="preserve">
     <value>El aviso se cerrará y el documento se conservará sin aplicar la detección.</value>
   </data>
+  <data name="PlantillasEntradilla" xml:space="preserve">
+    <value>Documentos que TALVEG rellena y manda a firmar: entregas de EPI, autorizaciones, información de riesgos.</value>
+  </data>
+  <data name="PlantillasMenuDocumentos" xml:space="preserve">
+    <value>Plantillas</value>
+  </data>
+  <data name="PlantillasFiltroAmbito" xml:space="preserve">
+    <value>Ámbito</value>
+  </data>
+  <data name="PlantillasFiltroFormato" xml:space="preserve">
+    <value>Formato</value>
+  </data>
+  <data name="PlantillasFiltroEstado" xml:space="preserve">
+    <value>Estado</value>
+  </data>
+  <data name="PlantillasFiltroAlcance" xml:space="preserve">
+    <value>Alcance</value>
+  </data>
+  <data name="PlantillasFiltroPlantilla" xml:space="preserve">
+    <value>Plantilla</value>
+  </data>
+  <data name="PlantillasFiltroTrabajador" xml:space="preserve">
+    <value>Trabajador</value>
+  </data>
+  <data name="PlantillasTodos" xml:space="preserve">
+    <value>Todos</value>
+  </data>
+  <data name="PlantillasTodas" xml:space="preserve">
+    <value>Todas</value>
+  </data>
+  <data name="PlantillasEstadoPlantillaAccesible" xml:space="preserve">
+    <value>Filtrar por estado de la plantilla</value>
+  </data>
+  <data name="PlantillasEstadoGeneradoAccesible" xml:space="preserve">
+    <value>Filtrar por estado del documento generado</value>
+  </data>
+  <data name="PlantillasEstadoGenerado" xml:space="preserve">
+    <value>Generado</value>
+  </data>
+  <data name="PlantillasEstadoGeneradoConAvisos" xml:space="preserve">
+    <value>Generado con avisos</value>
+  </data>
+  <data name="PlantillasQuitarBusqueda" xml:space="preserve">
+    <value>Quitar la búsqueda</value>
+  </data>
+  <data name="PlantillasChipBusqueda" xml:space="preserve">
+    <value>Búsqueda: «{0}»</value>
+  </data>
+  <data name="PlantillasBuscadorCatalogo" xml:space="preserve">
+    <value>Filtrar esta pantalla: nombre de la plantilla</value>
+  </data>
+  <data name="PlantillasBuscadorGenerados" xml:space="preserve">
+    <value>Filtrar esta pantalla: plantilla, Trabajador o Empresa</value>
+  </data>
+  <data name="PlantillasVacioFiltroTitulo" xml:space="preserve">
+    <value>Ninguna plantilla coincide</value>
+  </data>
+  <data name="PlantillasVacioBase" xml:space="preserve">
+    <value>No hay plantillas</value>
+  </data>
+  <data name="PlantillasVacioEstado" xml:space="preserve">
+    <value>en {0}</value>
+  </data>
+  <data name="PlantillasVacioBusqueda" xml:space="preserve">
+    <value>con «{0}» en el nombre</value>
+  </data>
+  <data name="PlantillasVacioDemasFiltros" xml:space="preserve">
+    <value>que cumplan los demás filtros</value>
+  </data>
+  <data name="PlantillasVacioFiltrosPuestos" xml:space="preserve">
+    <value>que cumplan los filtros puestos</value>
+  </data>
+  <data name="PlantillasLimpiarFiltros" xml:space="preserve">
+    <value>Limpiar filtros</value>
+  </data>
+  <data name="PlantillasTodaLaOrganizacion" xml:space="preserve">
+    <value>Toda la organización</value>
+  </data>
+  <data name="PlantillasTipoProduceEtiqueta" xml:space="preserve">
+    <value>Tipo de documento que produce *</value>
+  </data>
+  <data name="PlantillasTipoProduceAyuda" xml:space="preserve">
+    <value>El documento generado y firmado acredita este tipo.</value>
+  </data>
 </root>

@@ -216,6 +216,19 @@ public partial class ConfigurarPlantillaEditorGen2Tests : BunitContext
         cabecera.QuerySelector(".acciones-cabecera a")!.GetAttribute("href").Should().Be("/plantillas");
     }
 
+    /// <summary>D-28: el tipo que acredita el documento generado y firmado se pide con su nombre y su ayuda.</summary>
+    [Fact]
+    public void El_tipo_de_documento_se_llama_que_produce_y_explica_que_acredita()
+    {
+        // El selector vive en el alta (/plantillas/nueva): una versión ya creada no cambia de tipo.
+        Registrar(new MediatorFalso());
+        var cut = Render<ConfigurarPlantilla>();
+        cut.WaitForAssertion(() => cut.Markup.Should().NotContain("aria-busy=\"true\""));
+
+        cut.Markup.Should().Contain("Tipo de documento que produce");
+        cut.Markup.Should().Contain("El documento generado y firmado acredita este tipo.");
+    }
+
     [Fact]
     public void Una_version_confirmada_se_ve_en_solo_lectura_y_su_panel_genera_documentos()
     {

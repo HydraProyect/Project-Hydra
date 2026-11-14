@@ -63,6 +63,14 @@ public static class AlcanceDePlantillas
 
         return true;
     }
+
+    /// <summary>
+    /// El Cliente empresarial al que está atada la plantilla (<c>null</c> si no lo está), sobre la entidad ya cargada.
+    /// Las lecturas con nombre canónico (la lista de plantillas, el DTO) pasan por aquí y no extienden el uso del
+    /// identificador antiguo; la columna heredada se lee solo en <see cref="Coordenadas"/>.
+    /// </summary>
+    public static Guid? ClienteEmpresarialDe(this PlantillaDocumento plantilla) =>
+        CoordenadasEnMemoria(plantilla).ClienteEmpresarialId;
 }
 
 /// <summary>Las coordenadas de una <see cref="PlantillaDocumento"/> que deciden su Asignación de Cartera.</summary>

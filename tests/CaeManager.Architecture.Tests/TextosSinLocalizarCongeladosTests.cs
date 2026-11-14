@@ -116,7 +116,7 @@ public class TextosSinLocalizarCongeladosTests
         //   @Textos[ClavesPasos[i]] y @Textos["BotonContinuarConPlantilla", Textos[…].Value].
         ["Importacion"] = 18,
         ["Integraciones"] = 87, // 93 → 87 el 2026-11-10 al migrar a TextosConexiones.resx el subtítulo y el pie de Buzones; 91 → 93 el 2026-11-09 SIN migrar a .resx: TituloDePaginaSinPrerender repite en C# el literal del PageTitle (páginas InteractiveServer sin prerender); baja cuando el título se localice.
-        ["Plantillas"] = 159, // 158 → 159 el 2026-11-09 SIN migrar a .resx: TituloDePaginaSinPrerender repite en C# el literal del PageTitle (páginas InteractiveServer sin prerender); baja cuando el título se localice.
+        ["Plantillas"] = 158, // 159 → 158 el 2026-11-14 (PR9): el tipo que produce la plantilla y la entradilla pasan a TextosDocumentos; «Quitar los filtros» sigue sin migrar. Antes: 158 → 159 el 2026-11-09 SIN migrar a .resx: TituloDePaginaSinPrerender repite en C# el literal del PageTitle (páginas InteractiveServer sin prerender); baja cuando el título se localice.
         ["Plataforma"] = 74,
         ["Retencion"] = 86, // 85 → 86 el 2026-11-09 SIN migrar a .resx: TituloDePaginaSinPrerender repite en C# el literal del PageTitle (páginas InteractiveServer sin prerender); baja cuando el título se localice.
         // 225 → 1 el 2026-09-23 al migrar la Feature a TextosSubcontratas.resx (también la
