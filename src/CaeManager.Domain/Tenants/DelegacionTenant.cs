@@ -45,6 +45,19 @@ public class DelegacionTenant : Entity
 
     public DateTime? ActivadaEnUtc { get; private set; }
 
+    /// <summary>
+    /// Cuántas veces ha pasado de activa a inactiva. Es lo que distingue una delegación
+    /// <b>reactivada</b> de una que nunca se revocó: cada Asignación de Operación externa guarda el
+    /// valor con el que nació (<c>AsignacionOperacion.RevocacionesDelegacionOrigen</c>), y una
+    /// revocación posterior la deja sin amparo para siempre, aunque la delegación vuelva a activarse.
+    /// En la base de datos no lo escribe la aplicación sino el trigger
+    /// <c>delegacion_tenant_cuenta_revocaciones</c>, que lo calcula desde la fila anterior: así cuenta
+    /// también las revocaciones de la ranura anterior durante el despliegue azul-verde y las de la
+    /// función de Soporte, y no se puede rebajar con un <c>UPDATE</c>. <see cref="Desactivar"/> lo
+    /// incrementa también en memoria con la misma regla.
+    /// </summary>
+    public int Revocaciones { get; private set; }
+
     private DelegacionTenant()
     {
         // Requerido por EF Core.
@@ -86,6 +99,7 @@ public class DelegacionTenant : Entity
 
     public void Desactivar()
     {
+        if (Activa) Revocaciones++;
         Activa = false;
         ExpiraEnUtc = null;
         MotivoActivacion = null;

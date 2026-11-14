@@ -114,7 +114,13 @@ public static class TenantsBeneficiariosAutorizados
     public static IQueryable<CarteraBajoOperacionVigente> CarterasPorOperacionDeLaOrganizacion(
         IOperacionesQueryContext operaciones, ITenantsQueryContext tenants, Guid tenantOrigenId, DateTime ahora) =>
         from cartera in operaciones.AsignacionesCartera
-        join operacion in operaciones.AsignacionesOperacion
+        // La operación externa solo autoriza mientras la DelegacionTenant concreta de la que nació siga
+        // activa, sin caducar y sin revocaciones desde entonces (AmparoDeDelegacionDeOrigen): otra
+        // delegación vigente del par no la sostiene, y una que sobrevivió a una revocación no vuelve al
+        // reactivarse. Sin origen, falla cerrada. La RLS de DelegacionesTenant deja leerla desde las dos
+        // posiciones que llaman aquí (el Operador CAE es extremo de la delegación, como Tenant de origen o
+        // como Tenant activo).
+        join operacion in operaciones.AsignacionesOperacion.AmparadasPorSuDelegacionDeOrigen(operaciones.DelegacionesTenant, ahora)
             on cartera.AsignacionOperacionId equals operacion.Id
         where cartera.Estado == EstadoAsignacion.Vigente
               && cartera.VigenciaDesde <= ahora
@@ -133,20 +139,6 @@ public static class TenantsBeneficiariosAutorizados
               && operacion.Estado == EstadoAsignacion.Vigente
               && operacion.VigenciaDesde <= ahora
               && (operacion.VigenciaHasta == null || ahora < operacion.VigenciaHasta)
-              // La operación externa solo autoriza mientras la DelegacionTenant de Operador CAE externo del
-              // par siga activa y sin caducar (decisión de Chris del 2026-11-14, opción A en la PR #2223), el
-              // mismo predicado que AlcanceDatosService.ObtenerCarteraAsync: una operación acotada no lleva la
-              // caducidad de la delegación como fin, y su cierre por la caducidad o por una revocación atendida
-              // por la ranura anterior solo llega con el job de expiración o con el siguiente arranque. La
-              // operación no guarda de qué delegación nació, así que se exige una del mismo par; sin ella, falla
-              // cerrado. La RLS de DelegacionesTenant deja leerla desde las dos posiciones que llaman aquí (el
-              // Operador CAE es extremo de la delegación, como Tenant de origen o como Tenant activo).
-              && tenants.DelegacionesTenant.Any(delegacion =>
-                  delegacion.TenantClienteId == operacion.PropietarioTenantId
-                  && delegacion.TenantConsultoraId == operacion.OperadorTenantId
-                  && delegacion.Proposito == PropositoDelegacion.OperadorExterno
-                  && delegacion.Activa
-                  && (delegacion.ExpiraEnUtc == null || ahora < delegacion.ExpiraEnUtc))
         select new CarteraBajoOperacionVigente { Cartera = cartera, Operacion = operacion };
 
     /// <summary>
@@ -165,7 +157,9 @@ public static class TenantsBeneficiariosAutorizados
         IOperacionesQueryContext operaciones, IReadOnlyCollection<Guid> usuarioIds, Guid propietarioTenantId,
         Guid operadorTenantId, DateTime ahora, CancellationToken cancellationToken) =>
         (from cartera in operaciones.AsignacionesCartera
-         join operacion in operaciones.AsignacionesOperacion
+         // Una operación externa solo cuenta amparada por su DelegacionTenant de origen; la raíz y las
+         // internas pasan siempre (AmparoDeDelegacionDeOrigen).
+         join operacion in operaciones.AsignacionesOperacion.AmparadasPorSuDelegacionDeOrigen(operaciones.DelegacionesTenant, ahora)
              on cartera.AsignacionOperacionId equals operacion.Id
          where usuarioIds.Contains(cartera.UsuarioId)
                && cartera.PropietarioTenantId == propietarioTenantId
@@ -246,10 +240,16 @@ public static class TenantsBeneficiariosAutorizados
     /// de <c>/usuarios</c>; una sola definición, con el filtro de servicio dentro, para que la etiqueta y el
     /// acceso no diverjan: una Asignación de Operación Inbound del Tenant entero no rotula un rol ni una
     /// Empresa gestionada entera que en Outbound no se ejercen.
+    /// <para>
+    /// La vía sin cartera exige también la DelegacionTenant de origen de la operación, activa, sin caducar
+    /// y sin revocaciones desde que nació (<see cref="AmparoDeDelegacionDeOrigen"/>): antes no miraba
+    /// ninguna, y una operación del Tenant entero que sobreviviera a la revocación (la ranura anterior solo
+    /// cerraba la vigente, no la Programada) volvía a autorizar al activarse (hallazgo de Codex en la PR #2223).
+    /// </para>
     /// </summary>
     public static IQueryable<AsignacionOperacion> OperacionesDelTenantEntero(
         IOperacionesQueryContext operaciones, DateTime ahora) =>
-        operaciones.AsignacionesOperacion.Where(operacion =>
+        operaciones.AsignacionesOperacion.AmparadasPorSuDelegacionDeOrigen(operaciones.DelegacionesTenant, ahora).Where(operacion =>
             !operacion.EsRaiz
             && operacion.PropietarioTenantId != operacion.OperadorTenantId
             && operacion.Servicio == ServicioDelContexto

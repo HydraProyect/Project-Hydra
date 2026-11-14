@@ -1,3 +1,5 @@
+using CaeManager.Domain.Tenants;
+
 namespace CaeManager.Domain.Operaciones;
 
 /// <summary>
@@ -37,6 +39,26 @@ public class AsignacionOperacion : AsignacionResponsabilidad
     public bool EsRaiz { get; private set; }
 
     public ServicioCae Servicio { get; private set; }
+
+    /// <summary>
+    /// La <see cref="DelegacionTenant"/> de Operador CAE externo de la que nace esta operación
+    /// externa. <c>null</c> en la raíz y en las internas, que no dependen de ninguna. En una
+    /// externa, <c>null</c> no autoriza nada: los lectores de alcance exigen esta delegación
+    /// concreta, activa, sin caducar y sin ninguna revocación posterior al nacimiento de la
+    /// operación (<see cref="RevocacionesDelegacionOrigen"/>). Otra delegación vigente del mismo
+    /// par no la sostiene.
+    /// </summary>
+    public Guid? DelegacionTenantOrigenId { get; private set; }
+
+    /// <summary>
+    /// El contador <see cref="DelegacionTenant.Revocaciones"/> de la delegación de origen en el
+    /// momento en que nació la operación. Cada revocación lo incrementa (y en la base de datos lo
+    /// incrementa un trigger, también para la ranura anterior y la función de Soporte), así que una
+    /// operación que sobrevivió a una revocación deja de coincidir para siempre, aunque la
+    /// delegación se reactive: reactivar no repone nada (opción A, decisión de Chris del 2026-11-14).
+    /// En la base de datos lo sella un trigger al fijar el origen, a partir de la fila real.
+    /// </summary>
+    public int? RevocacionesDelegacionOrigen { get; private set; }
 
     private AsignacionOperacion()
     {
@@ -128,4 +150,43 @@ public class AsignacionOperacion : AsignacionResponsabilidad
             propietarioTenantId, operadorTenantId, servicio,
             ambito, vigenciaDesde, vigenciaHasta, ahora, creadoPorUsuarioId);
     }
+
+    /// <summary>
+    /// Fija la <see cref="DelegacionTenant"/> de la que nace esta operación externa y el número
+    /// de revocaciones que llevaba en ese momento. Solo una vez: el origen no cambia, y una
+    /// operación cuyo origen se revocó no se rehabilita apuntándola a otra delegación (se abre una
+    /// nueva). La delegación tiene que ser de Operador CAE externo y del mismo par.
+    /// </summary>
+    public void FijarDelegacionDeOrigen(DelegacionTenant delegacion)
+    {
+        ArgumentNullException.ThrowIfNull(delegacion);
+
+        if (EsOperacionInterna)
+            throw new InvalidOperationException("Una operación del propio Tenant no nace de ninguna delegación.");
+        if (DelegacionTenantOrigenId is not null)
+            throw new InvalidOperationException("La operación ya tiene delegación de origen: no se cambia.");
+        if (delegacion.Proposito != PropositoDelegacion.OperadorExterno)
+            throw new ArgumentException("Solo una delegación de Operador CAE externo origina una operación.", nameof(delegacion));
+        if (delegacion.TenantClienteId != PropietarioTenantId || delegacion.TenantConsultoraId != OperadorTenantId)
+            throw new ArgumentException("La delegación de origen tiene que ser del mismo par que la operación.", nameof(delegacion));
+
+        DelegacionTenantOrigenId = delegacion.Id;
+        RevocacionesDelegacionOrigen = delegacion.Revocaciones;
+    }
+
+    /// <summary>
+    /// Si esta operación externa sigue amparada por su delegación de origen en
+    /// <paramref name="ahora"/>: la misma fila, activa, sin caducar y sin revocaciones posteriores
+    /// al nacimiento de la operación. La raíz y las internas siempre lo están. Es el predicado que
+    /// los lectores de alcance escriben en SQL (<c>AmparoDeDelegacionDeOrigen</c>).
+    /// </summary>
+    public bool EstaAmparadaPor(DelegacionTenant? delegacion, DateTime ahora) =>
+        EsOperacionInterna
+        || (delegacion is not null
+            && DelegacionTenantOrigenId == delegacion.Id
+            && delegacion.TenantClienteId == PropietarioTenantId
+            && delegacion.TenantConsultoraId == OperadorTenantId
+            && delegacion.Proposito == PropositoDelegacion.OperadorExterno
+            && delegacion.EstaVigente(ahora)
+            && RevocacionesDelegacionOrigen == delegacion.Revocaciones);
 }

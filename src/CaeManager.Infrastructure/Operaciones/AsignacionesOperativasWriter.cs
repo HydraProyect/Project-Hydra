@@ -92,6 +92,23 @@ public class AsignacionesOperativasWriter(
 
         if (await TieneUniversalVigenteAsync(externa, gestorUsuarioId, cancellationToken)) return;
 
+        // Lo que fue no vuelve solo (hallazgo de Codex en la PR #2223): este método lo llaman las siembras en
+        // cada arranque, no un acto explícito, así que aplica la misma regla que la fila heredada
+        // (AsignacionCartera.FilaHeredadaPuedeEmitir). Si la persona ya tuvo cualquier cartera en el par
+        // —cerrada por una revocación, Programada, Suspendida—, no se le emite otra al reactivar la
+        // delegación: hace falta un acto explícito.
+        var historico = await (
+                from c in dbContext.AsignacionesCartera
+                join o in dbContext.AsignacionesOperacion on c.AsignacionOperacionId equals o.Id
+                where !o.EsRaiz
+                      && o.PropietarioTenantId == propietarioTenantId
+                      && o.OperadorTenantId == tenantDelGestor.Value
+                      && o.Servicio == ServicioCae.Outbound
+                      && c.UsuarioId == gestorUsuarioId
+                select c)
+            .ToListAsync(cancellationToken);
+        if (!AsignacionCartera.FilaHeredadaPuedeEmitir(historico)) return;
+
         var cartera = AsignacionCartera.Externa(
             externa, gestorUsuarioId, rol, AmbitoAsignacion.Universal, ahora, vigenciaHasta: null, ahora, actorId);
         await MarcarPrincipalSiNoHayAsync(externa, cartera, cancellationToken);
@@ -157,15 +174,93 @@ public class AsignacionesOperativasWriter(
         var ahora = DateTime.UtcNow;
         var actorId = await currentUserService.ObtenerUsuarioActualIdAsync();
 
+        // La operación nace de la única DelegacionTenant de Operador CAE externo activa y vigente del par, y
+        // la guarda como origen (AmparoDeDelegacionDeOrigen): sin ella, o con más de una, no se abre nada.
+        var delegacion = await DelegacionDeOrigenAsync(propietarioTenantId, operadorTenantId, ahora, cancellationToken);
+
         var existente = await ObtenerOperacionExternaVigenteAsync(propietarioTenantId, operadorTenantId, cancellationToken);
         if (existente is not null) return existente;
+
+        // Una operación del Tenant entero vigente que ya no está amparada por su delegación de origen (sin
+        // origen, o revocada desde que nació) no autoriza nada, pero ocupa el índice único de delegación
+        // total. Se cierra con sus carteras y se abre la nueva sin ninguna: nada de lo que había vuelve
+        // (opción A, decisión de Chris del 2026-11-14).
+        await CerrarOperacionesSinAmparoAsync(propietarioTenantId, operadorTenantId, ahora, cancellationToken);
 
         var nueva = AsignacionOperacion.Externa(
             propietarioTenantId, operadorTenantId, ServicioCae.Outbound,
             AmbitoAsignacion.Universal, vigenciaDesde, vigenciaHasta, ahora, actorId);
+        nueva.FijarDelegacionDeOrigen(delegacion);
 
         dbContext.AsignacionesOperacion.Add(nueva);
         return nueva;
+    }
+
+    /// <summary>
+    /// La única DelegacionTenant de Operador CAE externo activa y vigente del par, mirando primero las del
+    /// contexto con su estado en memoria (el comando que reactiva o crea la delegación aún no la ha
+    /// guardado) y después las de la base de datos que no estén en él. Falla cerrado con ninguna o con
+    /// varias: una operación sin origen inequívoco no se abre.
+    /// </summary>
+    private async Task<Domain.Tenants.DelegacionTenant> DelegacionDeOrigenAsync(
+        Guid propietarioTenantId, Guid operadorTenantId, DateTime ahora, CancellationToken cancellationToken)
+    {
+        var enElContexto = dbContext.ChangeTracker.Entries<Domain.Tenants.DelegacionTenant>()
+            .Where(e => e.State != EntityState.Deleted && e.State != EntityState.Detached)
+            .Select(e => e.Entity)
+            .Where(d => d.TenantClienteId == propietarioTenantId
+                        && d.TenantConsultoraId == operadorTenantId
+                        && d.Proposito == Domain.Tenants.PropositoDelegacion.OperadorExterno)
+            .ToList();
+        var idsEnElContexto = enElContexto.Select(d => d.Id).ToList();
+
+        var enBase = await dbContext.DelegacionesTenant
+            .Where(d => d.TenantClienteId == propietarioTenantId
+                        && d.TenantConsultoraId == operadorTenantId
+                        && d.Proposito == Domain.Tenants.PropositoDelegacion.OperadorExterno
+                        && !idsEnElContexto.Contains(d.Id))
+            .ToListAsync(cancellationToken);
+
+        var vigentes = enElContexto.Concat(enBase).Where(d => d.EstaVigente(ahora)).ToList();
+        if (vigentes.Count != 1)
+            throw new InvalidOperationException(
+                $"El Operador CAE externo {operadorTenantId} tiene {vigentes.Count} delegaciones activas y vigentes sobre " +
+                $"{propietarioTenantId}: una Asignación de Operación externa nace de exactamente una.");
+
+        return vigentes[0];
+    }
+
+    /// <summary>
+    /// Cierra, con sus carteras, las Asignaciones de Operación Outbound externas no cerradas del par que ya no
+    /// están amparadas por su delegación de origen. Solo las de la base de datos: una añadida en este mismo
+    /// contexto lleva su origen recién fijado.
+    /// </summary>
+    private async Task CerrarOperacionesSinAmparoAsync(
+        Guid propietarioTenantId, Guid operadorTenantId, DateTime ahora, CancellationToken cancellationToken)
+    {
+        var amparadas = dbContext.AsignacionesOperacion
+            .AmparadasPorSuDelegacionDeOrigen(dbContext.DelegacionesTenant, ahora)
+            .Select(o => o.Id);
+
+        var sinAmparo = await dbContext.AsignacionesOperacion
+            .Where(o => !o.EsRaiz
+                        && o.PropietarioTenantId == propietarioTenantId
+                        && o.OperadorTenantId == operadorTenantId
+                        && o.Servicio == ServicioCae.Outbound
+                        && o.Estado != EstadoAsignacion.Cerrada
+                        && !amparadas.Contains(o.Id))
+            .ToListAsync(cancellationToken);
+        if (sinAmparo.Count == 0) return;
+
+        var ids = sinAmparo.Select(o => o.Id).ToList();
+        var carteras = await dbContext.AsignacionesCartera
+            .Where(c => ids.Contains(c.AsignacionOperacionId) && c.Estado != EstadoAsignacion.Cerrada)
+            .ToListAsync(cancellationToken);
+
+        foreach (var cartera in carteras)
+            cartera.CerrarPorCascadaDeLaOperacion(MotivoCierreAsignacion.Revocada, ahora);
+        foreach (var operacion in sinAmparo)
+            operacion.Cerrar(MotivoCierreAsignacion.Revocada, ahora);
     }
 
     public async Task CerrarOperacionDelegadaAsync(
@@ -447,18 +542,26 @@ public class AsignacionesOperativasWriter(
     private async Task<AsignacionOperacion?> ObtenerOperacionExternaVigenteAsync(
         Guid propietarioTenantId, Guid operadorTenantId, CancellationToken cancellationToken)
     {
+        // Solo las añadidas en este contexto, que llevan su origen recién fijado; una cargada de la base de
+        // datos pasa por el filtro de amparo de abajo.
         var enElContexto = dbContext.ChangeTracker.Entries<AsignacionOperacion>()
+            .Where(e => e.State == EntityState.Added)
             .Select(e => e.Entity)
             .FirstOrDefault(o => !o.EsRaiz
                                  && o.PropietarioTenantId == propietarioTenantId
                                  && o.OperadorTenantId == operadorTenantId
                                  && o.Servicio == ServicioCae.Outbound
                                  && o.Ambito.EsUniversal
-                                 && o.Estado == EstadoAsignacion.Vigente);
+                                 && o.Estado == EstadoAsignacion.Vigente
+                                 && o.DelegacionTenantOrigenId != null);
 
         if (enElContexto is not null) return enElContexto;
 
+        // Una operación sin el amparo de su DelegacionTenant de origen no es «la operación externa vigente»:
+        // colgar de ella una cartera daría una cartera que no autoriza, y reutilizarla al abrir rehabilitaría
+        // lo que la revocación dejó sin amparo.
         return await dbContext.AsignacionesOperacion
+            .AmparadasPorSuDelegacionDeOrigen(dbContext.DelegacionesTenant, DateTime.UtcNow)
             .FirstOrDefaultAsync(o => !o.EsRaiz
                                       && o.PropietarioTenantId == propietarioTenantId
                                       && o.OperadorTenantId == operadorTenantId

@@ -78,19 +78,17 @@ public class CatalogoIncorporacionCartera(
     {
         var ahora = DateTime.UtcNow;
 
-        return from operacion in dbContext.AsignacionesOperacion.Where(OperacionDelServicioVigente(ahora))
+        // Con la DelegacionTenant concreta de la que nació, no cualquiera del par
+        // (AmparoDeDelegacionDeOrigen): activa, sin caducar y sin revocaciones desde entonces.
+        return from operacion in dbContext.AsignacionesOperacion
+                   .AmparadasPorSuDelegacionDeOrigen(dbContext.DelegacionesTenant, ahora)
+                   .Where(OperacionDelServicioVigente(ahora))
                where !operacion.EsRaiz
                      && operacion.PropietarioTenantId != operacion.OperadorTenantId
                      && operacion.AmbitoRelacionClienteId == null
                      && operacion.AmbitoCentroId == null
                      && operacion.AmbitoTrabajadorId == null
                      && operacion.AmbitoProyectoId == null
-                     && dbContext.DelegacionesTenant.Any(d =>
-                         d.TenantClienteId == operacion.PropietarioTenantId
-                         && d.TenantConsultoraId == operacion.OperadorTenantId
-                         && d.Proposito == PropositoDelegacion.OperadorExterno
-                         && d.Activa
-                         && (d.ExpiraEnUtc == null || d.ExpiraEnUtc > ahora))
                select operacion;
     }
 

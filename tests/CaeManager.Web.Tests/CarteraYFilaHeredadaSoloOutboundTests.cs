@@ -46,6 +46,18 @@ public class CarteraYFilaHeredadaSoloOutboundTests
     private AsignacionOperacion Operacion(Tenant propietario, ServicioCae servicio) =>
         AsignacionOperacion.Externa(propietario.Id, _operador.Id, servicio, AmbitoAsignacion.Universal, Desde, null, Desde);
 
+    /// <summary>
+    /// Una DelegacionTenant de Operador CAE externo por par, fijada como origen de cada operación: los lectores de
+    /// alcance exigen la delegación concreta de la que nació la operación (AmparoDeDelegacionDeOrigen).
+    /// </summary>
+    private static DelegacionTenant[] Amparar(params AsignacionOperacion[] operaciones) =>
+        operaciones.GroupBy(o => (o.OperadorTenantId, o.PropietarioTenantId)).Select(par =>
+        {
+            var delegacion = new DelegacionTenant(par.Key.OperadorTenantId, par.Key.PropietarioTenantId);
+            foreach (var operacion in par) operacion.FijarDelegacionDeOrigen(delegacion);
+            return delegacion;
+        }).ToArray();
+
     private static AsignacionCartera Cartera(AsignacionOperacion operacion, Guid usuario, string rol = Roles.GestorCae) =>
         AsignacionCartera.Externa(operacion, usuario, rol, AmbitoAsignacion.Universal, Desde, null, Desde);
 
@@ -195,7 +207,7 @@ public class CarteraYFilaHeredadaSoloOutboundTests
             .Con(inbound, outbound)
             .Con(carteraInbound)
             .Con(_operador, _propietario)
-            .Con(new DelegacionTenant(_operador.Id, _propietario.Id));
+            .Con(Amparar(outbound));
         var catalogo = new CatalogoIncorporacionCartera(db, null!);
 
         (await catalogo.ObtenerCarteraUniversalAsync(_operador.Id, _gestor)).Should().BeEmpty();
@@ -331,6 +343,7 @@ public class CarteraYFilaHeredadaSoloOutboundTests
         await using var db = new ContextoEnMemoria(tenant)
             .Con(inbound, outboundDelMismo)
             .Con(Cartera(inbound, _gestor), Cartera(outboundDelMismo, otroGestor))
+            .Con(Amparar(outboundDelMismo))
             .ConUsuarios(
                 new ApplicationUser { Id = _gestor, TenantId = _operador.Id },
                 new ApplicationUser { Id = otroGestor, TenantId = _operador.Id });

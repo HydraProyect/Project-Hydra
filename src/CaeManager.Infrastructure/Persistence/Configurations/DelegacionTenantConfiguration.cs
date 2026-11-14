@@ -15,6 +15,10 @@ public class DelegacionTenantConfiguration : IEntityTypeConfiguration<Delegacion
         builder.Property(d => d.TenantClienteId).IsRequired();
         builder.Property(d => d.Activa).IsRequired();
 
+        // Lo mantiene el trigger delegacion_tenant_cuenta_revocaciones (migración
+        // AnadeProcedenciaDeOperacionExterna), no la aplicación: ver DelegacionTenant.Revocaciones.
+        builder.Property(d => d.Revocaciones).IsRequired();
+
         // Se guarda el nombre del enum, no su número: un valor intercalado en
         // el futuro no debe reinterpretar filas existentes — y aquí eso
         // convertiría una delegación comercial en una de soporte.

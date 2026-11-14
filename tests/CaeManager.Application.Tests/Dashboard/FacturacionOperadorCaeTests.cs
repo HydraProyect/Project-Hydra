@@ -152,6 +152,9 @@ public class FacturacionOperadorCaeTests
     private sealed class OperacionesFalsas(IReadOnlyList<AsignacionOperacion> asignaciones) : IOperacionesQueryContext
     {
         public IQueryable<AsignacionOperacion> AsignacionesOperacion => new TestAsyncQueryable<AsignacionOperacion>(asignaciones.AsQueryable());
+        private readonly List<CaeManager.Domain.Tenants.DelegacionTenant> _amparoPorDefecto = [];
+        public IQueryable<CaeManager.Domain.Tenants.DelegacionTenant> DelegacionesTenant =>
+            CaeManager.Application.Tests.Integraciones.OperacionesEnMemoria.AmparoPorDefecto(asignaciones, _amparoPorDefecto);
         public IQueryable<Guid> TenantsSuspendidosIds => new List<Guid>().AsQueryable();
         public IQueryable<AsignacionCartera> AsignacionesCartera => new TestAsyncQueryable<AsignacionCartera>(new List<AsignacionCartera>().AsQueryable());
     }

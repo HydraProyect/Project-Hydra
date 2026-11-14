@@ -1,5 +1,6 @@
 using CaeManager.Application.Common;
 using CaeManager.Application.Comunicaciones;
+using CaeManager.Application.Operaciones;
 using CaeManager.Domain.Notificaciones;
 using CaeManager.Domain.Operaciones;
 using CaeManager.Infrastructure.Persistence;
@@ -17,7 +18,11 @@ public class ContextoOperativoConversacionService(CaeManagerDbContext db, ITenan
     {
         if (tenantActual.TenantId != propietarioTenantId) return null;
         var ahora = DateTime.UtcNow;
-        var operaciones = await db.AsignacionesOperacion.Where(o => o.PropietarioTenantId == propietarioTenantId
+        // Una operación externa sin el amparo de su DelegacionTenant de origen (revocada, caducada, revocada
+        // y reactivada, o sin origen) no opera el hilo ni recibe sus avisos (AmparoDeDelegacionDeOrigen).
+        var operaciones = await db.AsignacionesOperacion
+            .AmparadasPorSuDelegacionDeOrigen(db.DelegacionesTenant, ahora)
+            .Where(o => o.PropietarioTenantId == propietarioTenantId
             && o.Servicio == ServicioCae.Outbound && o.Estado == EstadoAsignacion.Vigente
             && o.VigenciaDesde <= ahora && (o.VigenciaHasta == null || ahora < o.VigenciaHasta))
             .ToListAsync(cancellationToken);
@@ -37,7 +42,11 @@ public class ContextoOperativoConversacionService(CaeManagerDbContext db, ITenan
     {
         var ahora = DateTime.UtcNow;
         var propietarioTenantId = tenantActual.TenantId;
-        if (propietarioTenantId is null || !await db.AsignacionesOperacion.AnyAsync(o =>
+        // Se revalida también el amparo de la DelegacionTenant de origen: entre la resolución y el aviso la
+        // delegación ha podido revocarse o caducar, y el aviso no sale hacia un Operador CAE externo sin ella.
+        if (propietarioTenantId is null || !await db.AsignacionesOperacion
+                .AmparadasPorSuDelegacionDeOrigen(db.DelegacionesTenant, ahora)
+                .AnyAsync(o =>
                 o.Id == operacion.AsignacionOperacionId && o.PropietarioTenantId == propietarioTenantId
                 && o.OperadorTenantId == operacion.OperadorCaeTenantId && o.Servicio == ServicioCae.Outbound
                 && o.Estado == EstadoAsignacion.Vigente && o.VigenciaDesde <= ahora
