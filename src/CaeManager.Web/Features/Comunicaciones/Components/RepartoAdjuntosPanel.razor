@@ -428,7 +428,8 @@ else if (_errorCarga is not null)
                 {
                     @if (f.Situacion is SituacionAdjunto.PorRevisar or SituacionAdjunto.SinDestino)
                     {
-                        <button type="button" class="mini" disabled="@(!_puedeEscribir || _ocupado)" @onclick="() => AbrirUnoAUno(f.Adjunto.Id)">@Textos["Elegir"]</button>
+                        <button type="button" class="mini" aria-label="@Textos["ElegirDe", f.Adjunto.NombreArchivo]"
+                                disabled="@(!_puedeEscribir || _ocupado)" @onclick="() => AbrirUnoAUno(f.Adjunto.Id)">@Textos["Elegir"]</button>
                     }
                     <button type="button" class="mini" aria-expanded="@(f.Edicion.MenuAbierto ? "true" : "false")"
                             aria-label="@Textos["MasAcciones", f.Adjunto.NombreArchivo]" disabled="@(!_puedeEscribir || _ocupado)"
@@ -741,6 +742,7 @@ else if (_errorCarga is not null)
         EjecutarAsync(null, async () =>
         {
             var asignados = 0;
+            var revisiones = filas.ToDictionary(f => f.Adjunto.Id, f => f.Edicion.Revision);
             foreach (var tanda in filas.Chunk(AsignarAdjuntosLoteCommandValidator.MaximoAdjuntos))
             {
                 var lote = tanda.Select(f => new AdjuntoAAsignar(f.Adjunto.Id, f.Edicion.Emision!.Value, f.Edicion.Vencimiento, f.Edicion.NoCaduca)).ToList();
@@ -762,7 +764,9 @@ else if (_errorCarga is not null)
                     else
                     {
                         _filaSinAsignar = true;
-                        edicion.Aviso = r.Detalle ?? Textos["NoAsignado"].Value;
+                        // Si la persona cambió las fechas mientras tanto, el motivo es de las anteriores: no se pinta.
+                        if (!revisiones.TryGetValue(r.AdjuntoId, out var revision) || revision == edicion.Revision)
+                            edicion.Aviso = r.Detalle ?? Textos["NoAsignado"].Value;
                     }
                 }
             }

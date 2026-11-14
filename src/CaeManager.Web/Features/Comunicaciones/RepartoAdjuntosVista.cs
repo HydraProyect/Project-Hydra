@@ -32,9 +32,33 @@ public sealed class EdicionAdjunto
 {
     private const string FormatoFecha = "yyyy-MM-dd";
 
-    public string FechaEmision { get; set; } = string.Empty;
-    public string FechaVencimiento { get; set; } = string.Empty;
-    public bool NoCaduca { get; set; }
+    private string _fechaEmision = string.Empty;
+    private string _fechaVencimiento = string.Empty;
+    private bool _noCaduca;
+
+    /// <summary>
+    /// Cuenta cada cambio de las fechas o de «No caduca». Una asignación que sale con unas fechas anota su revisión; si al volver
+    /// la persona ya las ha cambiado, el motivo con que el servidor rechazó las fechas viejas ya no habla de lo que hay escrito y no se pinta.
+    /// </summary>
+    public int Revision { get; private set; }
+
+    public string FechaEmision
+    {
+        get => _fechaEmision;
+        set { if (_fechaEmision != value) Revision++; _fechaEmision = value; }
+    }
+
+    public string FechaVencimiento
+    {
+        get => _fechaVencimiento;
+        set { if (_fechaVencimiento != value) Revision++; _fechaVencimiento = value; }
+    }
+
+    public bool NoCaduca
+    {
+        get => _noCaduca;
+        set { if (_noCaduca != value) Revision++; _noCaduca = value; }
+    }
 
     /// <summary>Por qué falló la última acción sobre este adjunto, o lo que dijo el servidor al no asignarlo.</summary>
     public string? Aviso { get; set; }

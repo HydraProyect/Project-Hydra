@@ -20,6 +20,22 @@ public class ClasificacionRepartoTests
         new() { FechaEmision = emision, FechaVencimiento = vencimiento, NoCaduca = noCaduca };
 
     [Fact]
+    public void La_revision_cuenta_solo_los_cambios_reales_de_las_fechas_y_de_No_caduca()
+    {
+        var edicion = new EdicionAdjunto();
+        edicion.Revision.Should().Be(0);
+
+        edicion.FechaEmision = "2026-01-05";
+        edicion.FechaVencimiento = "2027-01-05";
+        edicion.NoCaduca = true;
+        edicion.Revision.Should().Be(3);
+
+        edicion.FechaEmision = "2026-01-05";
+        edicion.NoCaduca = true;
+        edicion.Revision.Should().Be(3, "escribir el mismo valor no es un cambio");
+    }
+
+    [Fact]
     public void Sin_destino_el_adjunto_pendiente_esta_sin_destino_aunque_tenga_tipo_y_fechas()
     {
         ClasificacionReparto.Situacion(Adjunto(tipo: Guid.NewGuid()), Fechas("2026-01-05"))

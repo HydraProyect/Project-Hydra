@@ -78,9 +78,6 @@
   <data name="AgruparPorTrabajador" xml:space="preserve">
     <value>Por Trabajador</value>
   </data>
-  <data name="AgruparAyuda" xml:space="preserve">
-    <value>Cómo se ordenan los adjuntos</value>
-  </data>
   <data name="VerResueltos" xml:space="preserve">
     <value>Ver resueltos ({0})</value>
   </data>
@@ -128,6 +125,9 @@
   </data>
   <data name="Elegir" xml:space="preserve">
     <value>Elegir</value>
+  </data>
+  <data name="ElegirDe" xml:space="preserve">
+    <value>Elegir destino de {0}</value>
   </data>
   <data name="Mas" xml:space="preserve">
     <value>Más</value>
@@ -276,15 +276,6 @@
   <data name="EsperanFechas_N" xml:space="preserve">
     <value>{0} adjuntos con destino y tipo esperan su fecha de emisión.</value>
   </data>
-  <data name="Motivo" xml:space="preserve">
-    <value>Motivo</value>
-  </data>
-  <data name="Destino" xml:space="preserve">
-    <value>Destino</value>
-  </data>
-  <data name="Tipo" xml:space="preserve">
-    <value>Tipo</value>
-  </data>
   <data name="ToastAsignados_1" xml:space="preserve">
     <value>{0} documento asignado · no se envía nada al remitente</value>
   </data>
@@ -308,8 +299,5 @@
   </data>
   <data name="NoAsignado" xml:space="preserve">
     <value>No se pudo asignar este adjunto.</value>
-  </data>
-  <data name="Cargando" xml:space="preserve">
-    <value>Cargando…</value>
   </data>
 </root>
