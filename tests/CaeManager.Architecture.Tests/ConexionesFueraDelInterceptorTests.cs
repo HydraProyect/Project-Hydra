@@ -115,8 +115,9 @@ public class ConexionesFueraDelInterceptorTests
         // antes; si está cerrada no hace nada. El movimiento al TenantId
         // PROPIETARIO de la cuenta de una fila de auditoría de Identity (sin
         // sesión, o un Workspace operativo derivado seleccionado) se hace sobre
-        // la conexión que EF le pasa en el BEGIN o el punto de guardado del
-        // propio lote, dentro de su ámbito transaccional.
+        // la conexión del primer comando de SaveChanges del propio lote
+        // (command.Connection), ya dentro de su ámbito transaccional: el BEGIN o
+        // el punto de guardado del lote solo abren ese ámbito.
         "src/CaeManager.Infrastructure/MultiTenancy/TenantSelladoInterceptor.cs",
 
         // P6: ClaveContextoRls registra la clave del contexto RLS firmado con

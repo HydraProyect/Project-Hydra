@@ -9,9 +9,11 @@ namespace CaeManager.Architecture.Tests;
 /// conexión ya abierta: el interceptor RLS realinea primero el contexto firmado
 /// con la sesión del instante y después el sellado decide, con ese contexto de
 /// base, si el lote necesita el Tenant propietario de una fila de Identity. Lo
-/// mismo en los ganchos de transacción: el interceptor RLS realinea antes del
-/// <c>BEGIN</c> y el sellado mueve el contexto justo después, dentro del ámbito
-/// transaccional del lote; tras un <c>ROLLBACK TO SAVEPOINT</c>, el RLS realinea
+/// mismo en los ganchos de transacción y de comando: el interceptor RLS realinea
+/// antes del <c>BEGIN</c>, el <c>BEGIN</c> o el punto de guardado del lote abren su
+/// ámbito y el sellado mueve el contexto antes del primer comando de
+/// <c>SaveChanges</c>, dentro de ese ámbito (el RLS, delante, no realinea dentro de
+/// una transacción); tras un <c>ROLLBACK TO SAVEPOINT</c>, el RLS realinea
 /// el rol y el sellado da por deshecho su movimiento. EF ejecuta los
 /// interceptores en el orden de registro, así que el orden del fichero es el
 /// contrato.
