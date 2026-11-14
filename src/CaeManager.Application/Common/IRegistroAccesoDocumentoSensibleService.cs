@@ -86,7 +86,8 @@ public interface IRegistroAccesoDocumentoSensibleService
     /// desde <paramref name="revisionCreadaEnUtc"/> y dentro de la ventana de detección de extracción masiva
     /// (<c>OpcionesIncidentesSeguridad.VentanaExtraccion</c>), no escribe otra (el visor pide por rangos y se recarga). La
     /// cota de la ventana impide que deduplicar esconda una relectura masiva a la señal: toda lectura que no deja fila tiene
-    /// otra fila de esa persona y Documento ya contada en la ventana vigente. La consulta pasa por el filtro de Tenant y la
+    /// otra fila de esa persona y Documento ya contada en la ventana vigente (en el mismo proceso desde su arranque: el
+    /// contador de la señal vive en memoria). La consulta pasa por el filtro de Tenant y la
     /// RLS de la tabla. Si no se puede comprobar, registra: un falso «ya registrado» dejaría un acceso sin rastro.
     ///
     /// <para>

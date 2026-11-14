@@ -136,7 +136,8 @@ public partial class RevisionIaGen2Tests
         await Navegar(cut, "Anterior (K)").ClickAsync(new MouseEventArgs());
 
         IframesDelVisor(cut).Should().ContainSingle().Which.Should().Be(RutaDelVisor(primera),
-            "la nueva petición no añade fila: el servidor deja una por persona y Documento");
+            "la nueva petición no añade fila: el servidor deja como mucho una por persona y Documento por cada revisión " +
+            "pendiente y dentro de la ventana de detección de extracción masiva");
     }
 
     // ---- Texto del diálogo de «Confirmar todos» ----

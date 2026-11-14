@@ -185,8 +185,10 @@ public class RegistroAccesoDocumentoSensibleService(
     /// Actor real y sin mirar el Documento, en una ventana deslizante de esa duración. Con esta cota, toda lectura que no
     /// deja fila tiene otra fila de esa persona y Documento escrita dentro de la ventana vigente, que la señal ya contó (la
     /// sumó al escribirla, en un instante igual o posterior a su <c>OcurridoEnUtc</c>): deduplicar no sirve para releer en
-    /// masa sin que la señal lo vea. Sin la cota, una fila de hace días taparía cada relectura de hoy. La señal tiene sus
-    /// propios límites (en memoria y por proceso, ver <see cref="VentanaDeslizantePorSujeto"/>); esta cota no los amplía.
+    /// masa sin que la señal lo vea. Sin la cota, una fila de hace días taparía cada relectura de hoy. La propiedad vale
+    /// dentro del mismo proceso desde su arranque: el contador de la señal vive en memoria
+    /// (<see cref="VentanaDeslizantePorSujeto"/>), así que tras un reinicio, o en otra instancia, una fila de la ventana que
+    /// ese contador no sumó también deduplica. Para llegar al umbral hacen falta Documentos distintos, que sí dejan fila.
     /// </para>
     /// </summary>
     private DateTime CotaDeduplicacion(DateTime revisionCreadaEnUtc)
