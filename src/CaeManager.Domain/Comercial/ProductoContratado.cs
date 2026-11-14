@@ -28,7 +28,17 @@ namespace CaeManager.Domain.Comercial;
 /// </para>
 /// <para>
 /// Ningún flujo lo crea todavía: lo hará <c>CompletarAltaAutonomaCommand</c> (A6), que abrirá también la vía
-/// de escritura en la base. Hasta entonces la migración solo concede lectura.
+/// de escritura en la base, y la línea Inbound el alta del Tenant del Cliente empresarial (B-04). Hasta entonces
+/// la migración solo concede lectura.
+/// </para>
+/// <para>
+/// Gate comercial de Inbound (DN-7, opción (a)): las funciones de lectura entre Tenants <c>app_inbound_*</c> solo
+/// responden al Tenant lector que tenga un Producto Contratado de <see cref="LineaProductoContratado.Inbound"/>
+/// <see cref="EstadoProductoContratado.Vigente"/>, no eliminado y con el inicio ya alcanzado; lo comprueba la base,
+/// en <c>app_inbound_tenant_contratista_del_contrato</c>. Cuenta el Tenant beneficiario (el
+/// <see cref="EntidadConTenant.TenantId"/>), nunca el Pagador TALVEG. La línea Inbound es «a presupuesto» (D-1): sin
+/// precio de catálogo; lleva los mismos datos obligatorios que cualquier línea, porque qué tramo y modalidad declara un
+/// presupuesto Inbound no está decidido.
 /// </para>
 /// </summary>
 public class ProductoContratado : EntidadBase

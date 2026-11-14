@@ -1,8 +1,10 @@
 using System.Text.RegularExpressions;
 using CaeManager.Application.Common;
 using CaeManager.Application.ContratosAcceso.LecturaInbound;
+using CaeManager.Domain.AltaAutonoma;
 using CaeManager.Domain.AutorizacionesLectura;
 using CaeManager.Domain.Centros;
+using CaeManager.Domain.Comercial;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.ContratosAcceso;
 using CaeManager.Domain.Documentos;
@@ -30,7 +32,8 @@ namespace CaeManager.IntegrationTests.AutorizacionesLectura;
 /// <see cref="LectorDocumentosInboundEnBase"/> y las funciones <c>app_inbound_*</c>. X es el Tenant del Cliente empresarial
 /// (lector, dueño de los contratos de acceso); Y, el Tenant de la Empresa contratista (Tenant propietario de los Documentos
 /// y de las autorizaciones); W, un destinatario que no es X; Z, otro Tenant de Cliente empresarial que vincula por su
-/// cuenta un contrato suyo con Y. Lo que prueba la base: solo las dos mitades del apretón juntas dan lectura, y solo del
+/// cuenta un contrato suyo con Y. Lo que prueba la base: sin la línea Inbound vigente en el Producto Contratado de X
+/// (DN-7) no hay lectura; solo las dos mitades del apretón juntas dan lectura, y solo del
 /// alcance autorizado (sin sustituidos, anonimizados ni eliminados, y sin los de Empresa si la autorización no los
 /// incluye o si Y no tiene exactamente una Empresa propia no eliminada); nunca un tipo de categoría especial de salud; el Tenant lector y el usuario salen del token, no de la GUC;
 /// cada lectura deja su fila en Y, con el Tenant de origen del usuario, y el runtime no la escribe; el lector no llama
@@ -70,6 +73,10 @@ public class LecturaInboundBajoRuntimeTests : IAsyncLifetime
 
     // Las autorizaciones de los bordes de vigencia, para comparar con AutorizacionLecturaDocumental.VigenteEn.
     private readonly List<(ContratoAcceso Contrato, AutorizacionLecturaDocumental Autorizacion)> _vigenciasAutorizacion = [];
+
+    // Producto Contratado de la línea Inbound de X (DN-7) y el Pagador TALVEG que lo paga.
+    private const string PagadorDelLector = "cus_PagadorDelLector";
+    private Guid _lineaInbound;
 
     // Documentos de Y.
     private Guid _autorizacion;
@@ -134,6 +141,12 @@ public class LecturaInboundBajoRuntimeTests : IAsyncLifetime
             _autHastaHoy = Contrato(_hoy.AddDays(-10));
             _autDesdeHoy = Contrato(_hoy.AddDays(-10));
             _autDesdeManana = Contrato(_hoy.AddDays(-10));
+
+            // DN-7: sin la línea Inbound vigente en X, ninguna función app_inbound_* le responde.
+            var lineaInbound = ProductoContratado.Contratar(LineaProductoContratado.Inbound, PagadorDelLector,
+                TramoTrabajadoresActivos.De1A10, ModalidadSuscripcionAlta.Anual, DateTime.UtcNow.AddDays(-30), DateTime.UtcNow);
+            contexto.ProductosContratados.Add(lineaInbound);
+            _lineaInbound = lineaInbound.Id;
             await contexto.SaveChangesAsync();
         }
 
@@ -898,6 +911,145 @@ public class LecturaInboundBajoRuntimeTests : IAsyncLifetime
 
         (await AccesosEnElTenantPropietarioAsync()).Select(a => a.Tipo)
             .Should().Equal([TipoAccesoLecturaInbound.Listado], "solo la lectura de fuera de la transacción; las rechazadas no llegaron a la base");
+    }
+
+    // ---------- DN-7, opción (a), y D-1 (2026-11-14): la línea Inbound «a presupuesto» en el Producto Contratado ----------
+    // La lectura entre Tenants exige que el Tenant del Cliente empresarial (X, Tenant beneficiario) tenga un Producto
+    // Contratado de la línea Inbound vigente. Lo decide el TenantId de la fila, nunca el Pagador TALVEG. El fixture se lo da
+    // a X: cada prueba de abajo se lo quita de una forma y comprueba 0 filas en las tres funciones públicas, sin traza.
+    // Mutación declarada: quitar el EXISTS de app_inbound_tenant_contratista_del_contrato deja estas pruebas en rojo.
+
+    [Fact]
+    public async Task Sin_linea_Inbound_vigente_en_el_Tenant_lector_las_tres_funciones_devuelven_0_filas()
+    {
+        await using (var control = Contexto(_lector.Id, _usuarioLector))
+        {
+            (await new LectorDocumentosInboundEnBase(control).AutorizacionDelContratoAsync(_vigente.Id))
+                .Should().NotBeNull("control: con la línea Inbound vigente el mismo contrato sí responde");
+        }
+
+        await FinalizarLineaInboundDelLectorAsync();
+
+        await ComprobarSinLecturaAsync(_lector.Id, _usuarioLector, "la línea Inbound de X está finalizada");
+    }
+
+    [Fact]
+    public async Task Una_linea_Inbound_eliminada_o_solo_la_linea_Outbound_no_abren_la_lectura()
+    {
+        await using (var contexto = Contexto(_lector.Id))
+        {
+            var linea = await contexto.ProductosContratados.SingleAsync(p => p.Id == _lineaInbound);
+            linea.MarcarComoEliminado(_usuarioLector);
+            contexto.ProductosContratados.Add(ProductoContratado.Contratar(LineaProductoContratado.OutboundGestionPropia, PagadorDelLector,
+                TramoTrabajadoresActivos.De1A10, ModalidadSuscripcionAlta.Anual, DateTime.UtcNow.AddDays(-30), DateTime.UtcNow));
+            await contexto.SaveChangesAsync();
+        }
+
+        await ComprobarSinLecturaAsync(_lector.Id, _usuarioLector,
+            "la línea Inbound está eliminada, aunque siga Vigente, y la Outbound vigente no es la línea Inbound");
+    }
+
+    [Fact]
+    public async Task Una_linea_Inbound_vigente_con_inicio_futuro_no_abre_la_lectura()
+    {
+        // El dominio no deja contratar con inicio futuro (ProductoContratado.Contratar), pero la base sí lo admitiría: el
+        // gate sigue el criterio de EstaVigenteEn y no da por vigente lo que aún no ha empezado.
+        await FinalizarLineaInboundDelLectorAsync();
+        await using (var conexion = new NpgsqlConnection(_cadena))
+        {
+            await conexion.OpenAsync();
+            await using var insertar = new NpgsqlCommand(
+                """
+                INSERT INTO "ProductosContratados" ("Id", "Linea", "PagadorStripeCustomerId", "Tramo", "Modalidad",
+                    "VigenteDesdeUtc", "VigenteHastaUtc", "Estado", "TenantId", "Version", "CreadoEnUtc", "EstaEliminado")
+                VALUES (@id, 'Inbound', 'cus_PagadorDelLector', 'De1A10', 'Anual', now() + interval '1 day', NULL, 'Vigente',
+                    @tenant, @id, now(), false);
+                """, conexion);
+            insertar.Parameters.AddWithValue("id", Guid.NewGuid());
+            insertar.Parameters.AddWithValue("tenant", _lector.Id);
+            (await insertar.ExecuteNonQueryAsync()).Should().Be(1, "precondición: la fila existe, vigente y con inicio mañana");
+        }
+
+        await ComprobarSinLecturaAsync(_lector.Id, _usuarioLector, "la línea Inbound de X empieza mañana");
+    }
+
+    [Fact]
+    public async Task La_linea_Inbound_de_otro_Tenant_o_del_mismo_Pagador_no_abre_la_lectura_del_Tenant_lector()
+    {
+        await FinalizarLineaInboundDelLectorAsync();
+        foreach (var tenant in new[] { _contratista.Id, _otroLector.Id })
+        {
+            await using var contexto = Contexto(tenant);
+            contexto.ProductosContratados.Add(ProductoContratado.Contratar(LineaProductoContratado.Inbound, PagadorDelLector,
+                TramoTrabajadoresActivos.De1A10, ModalidadSuscripcionAlta.Anual, DateTime.UtcNow.AddDays(-30), DateTime.UtcNow));
+            await contexto.SaveChangesAsync();
+        }
+
+        await ComprobarSinLecturaAsync(_lector.Id, _usuarioLector,
+            "Y y Z tienen la línea Inbound vigente, pagada por el mismo Pagador TALVEG que X, pero el gate mira el Tenant beneficiario lector");
+    }
+
+    [Fact]
+    public async Task La_migracion_de_la_linea_Inbound_solo_anade_el_gate_y_su_Down_solo_lo_quita()
+    {
+        // Como las de fallo cerrado y Empresa propia única: el SQL de la migración sobre el catálogo ya migrado, en una
+        // transacción. Los CHECK de la columna los cubren ProductosContratadosBajoRuntimeTests y el modelo de EF.
+        var migracion = new AnadeLineaInboundProductoContratado();
+        await using var conexion = new NpgsqlConnection(_cadena);
+        await conexion.OpenAsync();
+        await using var transaccion = await conexion.BeginTransactionAsync();
+
+        var vigente = await TenantContratistaDelContratoAsync(conexion, transaccion);
+        await EjecutarAsync(conexion, transaccion, migracion.DownOperations.OfType<SqlOperation>().Single().Sql);
+        var anterior = await TenantContratistaDelContratoAsync(conexion, transaccion);
+        await EjecutarAsync(conexion, transaccion, migracion.UpOperations.OfType<SqlOperation>().Single().Sql);
+
+        (await TenantContratistaDelContratoAsync(conexion, transaccion)).Should().Be(vigente, "el Up deja la función como la deja la migración");
+        anterior.PropietarioYPermisos.Should().Be(vigente.PropietarioYPermisos, "CREATE OR REPLACE conserva propietario y privilegios");
+        GateLineaInbound.Matches(vigente.Definicion).Should().HaveCount(1, "la función exige la línea Inbound vigente del Tenant lector");
+        anterior.Definicion.Should().NotContain("ProductosContratados", "el Down vuelve a la versión de AnadeLecturaInboundEntreTenants");
+        GateLineaInbound.Replace(vigente.Definicion, "").Should().Be(anterior.Definicion,
+            "fuera del gate, el cuerpo, la firma, el lenguaje, la volatilidad y el search_path son los mismos");
+
+        await transaccion.RollbackAsync();
+    }
+
+    private static readonly Regex GateLineaInbound = new(
+        @"\s+AND EXISTS \(SELECT 1 FROM public\.""ProductosContratados"" pc\s+WHERE pc\.""TenantId"" = p_lector AND pc\.""Linea"" = 'Inbound'\s+AND pc\.""Estado"" = 'Vigente' AND NOT pc\.""EstaEliminado""\s+AND pc\.""VigenteDesdeUtc"" <= pg_catalog\.now\(\)\)",
+        RegexOptions.CultureInvariant);
+
+    private static async Task<FuncionInbound> TenantContratistaDelContratoAsync(NpgsqlConnection conexion, NpgsqlTransaction transaccion)
+    {
+        await using var comando = new NpgsqlCommand(
+            """
+            SELECT pg_get_functiondef(oid), pg_get_userbyid(proowner) || ' ' || COALESCE(proacl::text, '')
+            FROM pg_proc
+            WHERE oid = 'public.app_inbound_tenant_contratista_del_contrato(uuid,uuid,date)'::regprocedure
+            """, conexion, transaccion);
+        await using var fila = await comando.ExecuteReaderAsync();
+        (await fila.ReadAsync()).Should().BeTrue();
+        return new FuncionInbound(fila.GetString(0), fila.GetString(1));
+    }
+
+    private async Task FinalizarLineaInboundDelLectorAsync()
+    {
+        await using var contexto = Contexto(_lector.Id);
+        var linea = await contexto.ProductosContratados.SingleAsync(p => p.Id == _lineaInbound);
+        linea.Finalizar(DateTime.UtcNow.AddSeconds(-1), DateTime.UtcNow);
+        await contexto.SaveChangesAsync();
+    }
+
+    private async Task ComprobarSinLecturaAsync(Guid tenant, Guid usuario, string motivo)
+    {
+        await using (var contexto = Contexto(tenant, usuario))
+        {
+            var lector = new LectorDocumentosInboundEnBase(contexto);
+            (await lector.AutorizacionDelContratoAsync(_vigente.Id)).Should().BeNull(motivo);
+            (await lector.DocumentosAutorizadosAsync(_vigente.Id)).Should().BeEmpty(motivo);
+            (await lector.ArchivoAutorizadoAsync(_vigente.Id, _deTrabajador)).Should().BeNull(motivo);
+        }
+
+        (await AccesosEnElTenantPropietarioAsync()).Should().BeEmpty("una lectura que el gate niega no deja traza");
     }
 
     private async Task<List<AccesoLecturaInbound>> AccesosEnElTenantPropietarioAsync()
