@@ -123,7 +123,9 @@ public interface IAlcanceDatosService
     /// ese historial le llega a Consulta por la regla operativa de este método
     /// (<c>ObtenerAcreditacionesDelDocumentoQuery</c>, <c>ObtenerDocumentosQuery</c>
     /// y <c>ObtenerAcreditacionesPorProveedorQuery</c>, esta última en la pestaña
-    /// Plataformas de Empresa 360). El historial de reclamaciones enviadas no
+    /// Plataformas de Empresa 360 y en <c>GET /extension/acreditaciones-pendientes</c>,
+    /// que no restringe por rol y no condiciona el motivo al estado actual de la
+    /// acreditación). El historial de reclamaciones enviadas no
     /// pasa por esa lista en el servidor (sus Queries acotan por cartera, no por
     /// rol) y se le corta a Consulta en la presentación; las reclamaciones sin
     /// respuesta de Inicio y la última reclamación del Centro sí le llegan hoy

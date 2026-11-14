@@ -29,7 +29,8 @@ namespace CaeManager.Application.Centros.Queries.ObtenerCanalesGestionDeCentro;
 /// Asignación de Operación o delegación heredada) SÍ recibe ambos campos: es la regla operativa de la opción C (DECISION_LOG
 /// 2026-11-14, «Tanda 1 de decisiones pendientes», punto 1), distinta de la de trazabilidad interna de
 /// <c>SituacionDocumentosEnCentrosService.RolesQueLeenReclamaciones</c>. De esa lista Consulta queda fuera, pero esa regla solo
-/// corta el registro de los cambios de estado anotados a mano y la última reclamación de la situación del Centro: no es un corte
+/// corta el registro de los cambios de estado anotados a mano y la última reclamación de los documentos de la situación (no la línea de
+/// última reclamación del Centro del Context Workspace, que sí le llega): no es un corte
 /// general de todo lo que un Gestor CAE deja anotado (ver el comentario de esa lista).
 /// Guardar el canal exige el mismo alcance de gestión (<c>EditarCanalGestionCommand</c>): si un formulario de edición se
 /// precargara con estos campos a <c>null</c>, el servidor rechazaría el guardado, así que no se pierden datos.
