@@ -96,8 +96,21 @@ public class CaeManagerDbContext(
         CaeManager.Application.EstadoMaterializado.IEstadoMaterializadoQueryContext,
         IRestauracionCambiosDeComando, IDescarteCambiosPendientes, CaeManager.Application.Dashboard.ICierresCuadroDireccion,
         CaeManager.Application.Dashboard.TarifasOperadorCae.ITarifasOperadorCaeContext,
-        CaeManager.Application.Calendario.ICalendarioLaboralQueryContext
+        CaeManager.Application.Calendario.ICalendarioLaboralQueryContext,
+        CaeManager.Application.CatalogoBase.ICatalogoBaseQueryContext
 {
+    // Catálogo base de Plataforma (B-13): global, sin Tenant ni RLS; el runtime solo tiene SELECT.
+    public DbSet<CaeManager.Domain.CatalogoBase.ActividadCatalogo> CatalogoActividades => Set<CaeManager.Domain.CatalogoBase.ActividadCatalogo>();
+    public DbSet<CaeManager.Domain.CatalogoBase.CodigoOficialActividad> CatalogoActividadesCodigosOficiales => Set<CaeManager.Domain.CatalogoBase.CodigoOficialActividad>();
+    public DbSet<CaeManager.Domain.CatalogoBase.RiesgoCatalogo> CatalogoRiesgos => Set<CaeManager.Domain.CatalogoBase.RiesgoCatalogo>();
+    public DbSet<CaeManager.Domain.CatalogoBase.RequisitoBase> CatalogoRequisitosBase => Set<CaeManager.Domain.CatalogoBase.RequisitoBase>();
+    public DbSet<CaeManager.Domain.CatalogoBase.ReglaRiesgoRequisito> CatalogoReglasRiesgoRequisito => Set<CaeManager.Domain.CatalogoBase.ReglaRiesgoRequisito>();
+    IQueryable<CaeManager.Domain.CatalogoBase.ActividadCatalogo> CaeManager.Application.CatalogoBase.ICatalogoBaseQueryContext.CatalogoActividades => CatalogoActividades.AsNoTracking();
+    IQueryable<CaeManager.Domain.CatalogoBase.CodigoOficialActividad> CaeManager.Application.CatalogoBase.ICatalogoBaseQueryContext.CatalogoActividadesCodigosOficiales => CatalogoActividadesCodigosOficiales.AsNoTracking();
+    IQueryable<CaeManager.Domain.CatalogoBase.RiesgoCatalogo> CaeManager.Application.CatalogoBase.ICatalogoBaseQueryContext.CatalogoRiesgos => CatalogoRiesgos.AsNoTracking();
+    IQueryable<CaeManager.Domain.CatalogoBase.RequisitoBase> CaeManager.Application.CatalogoBase.ICatalogoBaseQueryContext.CatalogoRequisitosBase => CatalogoRequisitosBase.AsNoTracking();
+    IQueryable<CaeManager.Domain.CatalogoBase.ReglaRiesgoRequisito> CaeManager.Application.CatalogoBase.ICatalogoBaseQueryContext.CatalogoReglasRiesgoRequisito => CatalogoReglasRiesgoRequisito.AsNoTracking();
+
     public DbSet<CaeManager.Domain.CalendarioLaboral.FestivoOficial> FestivosOficiales => Set<CaeManager.Domain.CalendarioLaboral.FestivoOficial>();
     IQueryable<CaeManager.Domain.CalendarioLaboral.FestivoOficial> CaeManager.Application.Calendario.ICalendarioLaboralQueryContext.FestivosOficiales => FestivosOficiales.AsNoTracking();
     public DbSet<CaeManager.Domain.CalendarioLaboral.CalendarioLaboralPersona> CalendariosLaboralesPersona => Set<CaeManager.Domain.CalendarioLaboral.CalendarioLaboralPersona>();
