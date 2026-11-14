@@ -452,7 +452,7 @@ public class AlcanceDatosService(
     /// avisos, columna de la lista): <b>no concede alcance</b> y no se lee aquí
     /// (D-7, 2026-10-02: la cartera es siempre el Tenant entero).
     ///
-    /// Dos condiciones que no estaban en el modelo anterior y que ahora hay que
+    /// Tres condiciones que no estaban en el modelo anterior y que ahora hay que
     /// imponer explícitamente:
     /// <list type="bullet">
     /// <item>la cartera debe pertenecer al <b>tenant en el que se está
@@ -462,6 +462,10 @@ public class AlcanceDatosService(
     /// <item>su operación debe estar <b>vigente</b>. Una cartera bajo una
     /// operación cerrada o suspendida no concede nada, y el cierre en cascada
     /// puede no haber corrido todavía si la operación caducó por fecha.</item>
+    /// <item>su operación debe ser del servicio del contexto
+    /// (<c>TenantsBeneficiariosAutorizados.ServicioDelContexto</c>, Outbound). Una cartera
+    /// bajo una Asignación de Operación Inbound no concede nada en Outbound, tampoco
+    /// cuando es universal y la Outbound está acotada a un Cliente empresarial.</item>
     /// </list>
     /// Cada cartera cuenta por su ámbito efectivo: la intersección con el de su
     /// operación. Una cartera universal bajo una operación universal da el Tenant

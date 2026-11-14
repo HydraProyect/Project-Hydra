@@ -199,8 +199,8 @@ public static class TenantsBeneficiariosAutorizados
     public const string RolAcotadoPorCartera = "GestorCae";
 
     /// <summary>
-    /// Las Asignaciones de Operación vigentes, externas y no raíz de la organización del
-    /// usuario (Operador CAE = su Tenant de origen) sobre otro Tenant, <b>del Tenant
+    /// Las Asignaciones de Operación vigentes, externas, no raíz y de <see cref="ServicioDelContexto"/> de la
+    /// organización del usuario (Operador CAE = su Tenant de origen) sobre otro Tenant, <b>del Tenant
     /// entero</b>: sin ninguna dimensión de ámbito. Una operación acotada no se abre sin
     /// cartera, porque los perfiles que entran por aquí tienen alcance de Tenant entero y
     /// ese alcance excedería el de la operación: fallo cerrado.
