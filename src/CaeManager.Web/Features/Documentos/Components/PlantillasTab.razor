@@ -8,8 +8,9 @@
     «Catálogo | Generados» es un control segmentado (lienzo «Documentos · listado sin pestañas», v34, D-10), no una segunda
     barra de pestañas. Aquí es una vista interna: PestanaInicial solo se lee al cambiar y el cambio posterior queda en la URL
     de la página (?Pestana=generados, deep link ya existente, cubierto por PestanaUrlDurableTests). Recargar /plantillas sin
-    ?Pestana= siempre abre en Catálogo: decisión registrada en DDL-080, no un hueco; por eso «Pestana» no es parámetro de
-    la vista recordada ni de los filtros guardados.
+    ?Pestana= y sin vista recordada abre en Catálogo (DDL-080). «Pestana» sí es parámetro de la vista recordada y de los
+    filtros guardados: la vista recordada recuerda cuál estaba abierta con sus filtros, y /plantillas sin filtros en la
+    URL —con o sin ?Pestana=generados— los restaura (con ?Pestana=generados solo si lo recordado es de Generados).
 
     Buscador y filtros (D-53, lo pidió Chris el 12/11): el buscador de la pantalla (tecla F), las pastillas Ámbito, Formato,
     Estado (franja con recuentos) y Alcance, «Filtros guardados» y, sin coincidencias, un vacío con «Limpiar filtros». La
@@ -78,7 +79,8 @@
         </Chips>
     </BarraFiltros>
     <VistaRecordadaDeListado Conexion="_vistaRecordada" Pantalla="@CaeManager.Application.Configuracion.PantallasConVistaRecordada.Plantillas"
-                             ParametrosDeVista="ParametrosDeVista" ParametroDeBusqueda="q" OnAplicar="AplicarVistaGuardadaAsync" AlCambiar="StateHasChanged" />
+                             ParametrosDeVista="ParametrosDeVista" ParametroDeBusqueda="q" ParametrosQueNoImpidenRestaurar="ParametrosQueEligenLaVista"
+                             OnAplicar="AplicarVistaGuardadaAsync" AlCambiar="StateHasChanged" />
     <FiltrosGuardadosDeListado Conexion="_filtrosGuardados" Pantalla="@CaeManager.Application.Configuracion.Commands.GuardarFiltro.PantallasConFiltrosGuardados.Plantillas"
                                ParametrosDeVista="ParametrosDeVista" OnAplicar="AplicarVistaGuardadaAsync" AlCambiar="StateHasChanged" />
 

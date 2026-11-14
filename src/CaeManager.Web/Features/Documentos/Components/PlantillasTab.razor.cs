@@ -21,9 +21,21 @@ public partial class PlantillasTab : ComponentBase, IDisposable
 {
     /// <summary>
     /// Lista blanca de los parámetros de VISTA de la URL: lo que guarda un filtro guardado y lo que recuerda la vista
-    /// recordada, junto con la búsqueda libre (<c>q</c>). «Pestana» no entra: recargar abre Catálogo (DDL-080).
+    /// recordada, junto con la búsqueda libre (<c>q</c>). «Pestana» (Catálogo o Generados) entra: la vista recordada recuerda
+    /// también cuál estaba abierta. Sin vista recordada, recargar /plantillas sin ?Pestana= abre Catálogo (DDL-080).
     /// </summary>
-    public static readonly IReadOnlyList<string> ParametrosDeVista = ["q", "ambito", "formato", "estado", "alcance", "plantilla", "trabajador"];
+    public static readonly IReadOnlyList<string> ParametrosDeVista = [ParametroPestana, "q", "ambito", "formato", "estado", "alcance", "plantilla", "trabajador"];
+
+    /// <summary>El parámetro de la URL que elige la vista (la comparte la página /plantillas, ver <c>Plantillas.Pestana</c>).</summary>
+    public const string ParametroPestana = "Pestana";
+
+    /// <summary>
+    /// Elegir la vista no es filtrar: <c>?Pestana=generados</c> a secas restaura los filtros recordados de Generados
+    /// (<see cref="VistaRecordadaDeListado.ParametrosQueNoImpidenRestaurar"/>).
+    /// </summary>
+    public static readonly IReadOnlyList<string> ParametrosQueEligenLaVista = [ParametroPestana];
+
+    private const string VistaGenerados = "generados";
 
     private const string AlcanceOrganizacion = "org";
     private const string PrefijoCentro = "centro:";
@@ -136,17 +148,26 @@ public partial class PlantillasTab : ComponentBase, IDisposable
             if (_desechado)
                 return;
 
-            SincronizarConLaUrl();
+            SincronizarConLaUrl(leerVista: true);
             StateHasChanged();
         });
     }
 
-    private void SincronizarConLaUrl()
+    /// <summary>
+    /// <paramref name="leerVista"/>: la vista (Catálogo/Generados) también sale de la URL. Solo con un cambio de dirección
+    /// (la URL ya es la nueva); en cada render la vista la manda <see cref="PestanaInicial"/> y se deja como está, porque
+    /// una URL a medio escribir (el clic de «Generados» aún no confirmado) la devolvería a la vista anterior.
+    /// </summary>
+    private void SincronizarConLaUrl(bool leerVista = false)
     {
         var consulta = QueryHelpers.ParseQuery(new Uri(Navigation.Uri).Query);
         string Leer(string nombre) => consulta.TryGetValue(nombre, out var valor) ? valor.ToString() : string.Empty;
 
-        AplicarVista(ParametrosDeVista.ToDictionary(p => p, p => (string?)Leer(p)));
+        var vista = ParametrosDeVista.ToDictionary(p => p, p => (string?)Leer(p));
+        if (!leerVista)
+            vista[ParametroPestana] = _pestanaActiva;
+
+        AplicarVista(vista);
     }
 
     /// <summary>
@@ -156,6 +177,9 @@ public partial class PlantillasTab : ComponentBase, IDisposable
     private void AplicarVista(IReadOnlyDictionary<string, string?> vista)
     {
         string Valor(string nombre) => vista.GetValueOrDefault(nombre) ?? string.Empty;
+
+        // La vista que se abre: la de la URL, la recordada o la del filtro guardado. Sin «Pestana» es Catálogo.
+        _pestanaActiva = Valor(ParametroPestana) == VistaGenerados ? VistaGenerados : "catalogo";
 
         _busqueda = Valor("q");
         _ambito = Enum.TryParse<AmbitoAplicacion>(Valor("ambito"), out var ambito) && Enum.IsDefined(ambito) ? ambito.ToString() : string.Empty;
@@ -202,6 +226,7 @@ public partial class PlantillasTab : ComponentBase, IDisposable
     private void EscribirUrl() =>
         Navigation.ActualizarFiltrosEnUrl(new Dictionary<string, string?>
         {
+            [ParametroPestana] = _pestanaActiva == VistaGenerados ? VistaGenerados : null,
             ["q"] = _busqueda,
             ["ambito"] = _ambito,
             ["formato"] = _formato,

@@ -34,7 +34,8 @@ namespace CaeManager.Web.Components.DesignSystem;
 /// <para>
 /// RESTAURAR: una vez por visita, con circuito (nunca en el prerender: allí una navegación es una
 /// redirección), cuando la página puede validar lo recordado (<see cref="ListoParaRestaurar"/>) y solo
-/// si la URL llega SIN cadena de consulta. Con cualquier parámetro manda la
+/// si la URL llega SIN cadena de consulta (o solo con <see cref="ParametrosQueNoImpidenRestaurar"/>, que eligen la vista y no
+/// filtran, y coinciden con lo recordado). Con cualquier otro parámetro manda la
 /// URL: un enlace compartido se ve como se compartió. La vista recordada se entrega a la página por
 /// <see cref="OnAplicar"/>, el mismo camino que un filtro guardado: la página valida cada valor
 /// como valida la URL (lo recordado no es autoridad), escribe la URL en UNA navegación y recarga.
@@ -135,6 +136,14 @@ public sealed class VistaRecordadaDeListado : ComponentBase, IDisposable
     /// empresarial elegido en Proyectos, sin el que esa pantalla no tiene lista.
     /// </summary>
     [Parameter] public IReadOnlyList<string> ParametrosDeContexto { get; set; } = [];
+
+    /// <summary>
+    /// Parámetros de la lista blanca que dicen QUÉ VISTA se abre (Catálogo o Generados en Plantillas) y no qué se filtra: una
+    /// URL que lleve solo estos parámetros sigue contando como «sin filtros» y restaura lo recordado, siempre que lo recordado
+    /// sea de esa misma vista (mismo valor en cada uno de ellos; un enlace a Generados no se pisa con los filtros del
+    /// Catálogo). Con cualquier otro parámetro manda la URL, como siempre.
+    /// </summary>
+    [Parameter] public IReadOnlyList<string> ParametrosQueNoImpidenRestaurar { get; set; } = [];
 
     /// <summary>
     /// La vista a aplicar: un valor por cada parámetro de <see cref="ParametrosDeVista"/>, <c>null</c> los que
@@ -241,7 +250,7 @@ public sealed class VistaRecordadaDeListado : ComponentBase, IDisposable
 
         // La URL manda: con cualquier parámetro no se restaura nada ni hace falta leer lo recordado.
         // Tampoco si el usuario ya cambió la vista mientras la página se preparaba.
-        if (_huboCambios || TieneConsulta(Navegacion.Uri))
+        if (_huboCambios || TieneConsultaDeFiltros(Navegacion.Uri))
             return;
 
         string? valoresJson;
@@ -261,7 +270,7 @@ public sealed class VistaRecordadaDeListado : ComponentBase, IDisposable
         }
 
         // Mientras se leía, la página pudo retirarse o el usuario pudo cambiar ya la vista.
-        if (_desechado || _huboCambios || TieneConsulta(Navegacion.Uri) || !EsMiRuta(Navegacion.Uri))
+        if (_desechado || _huboCambios || TieneConsultaDeFiltros(Navegacion.Uri) || !EsMiRuta(Navegacion.Uri))
             return;
 
         // Un JSON ilegible no es una vista. Lo que traiga fuera de la lista blanca no llega a la página.
@@ -272,6 +281,11 @@ public sealed class VistaRecordadaDeListado : ComponentBase, IDisposable
         var recordables = ParametrosRecordados;
         var recordada = leida.Where(p => recordables.Contains(p.Key)).ToDictionary(p => p.Key, p => p.Value);
         if (recordada.Count == 0)
+            return;
+
+        // La URL pide una vista (p. ej. ?Pestana=generados) y lo recordado es de otra: la URL manda, no se mezclan.
+        var enLaUrl = VistaDeLaUrl();
+        if (ParametrosQueNoImpidenRestaurar.Any(p => enLaUrl.TryGetValue(p, out var enUrl) && enUrl != recordada.GetValueOrDefault(p)))
             return;
 
         // Restaurar no es un cambio del usuario: lo que la navegación de la página traiga de vuelta
@@ -559,5 +573,17 @@ public sealed class VistaRecordadaDeListado : ComponentBase, IDisposable
 
     private string RutaDe(string direccion) => Navegacion.ToAbsoluteUri(direccion).AbsolutePath.TrimEnd('/');
 
-    private bool TieneConsulta(string direccion) => Navegacion.ToAbsoluteUri(direccion).Query.Length > 1;
+    /// <summary>
+    /// La dirección trae algún parámetro de consulta que no es de <see cref="ParametrosQueNoImpidenRestaurar"/>: con él manda la
+    /// URL. Sin esa lista, cualquier cadena de consulta cuenta.
+    /// </summary>
+    private bool TieneConsultaDeFiltros(string direccion)
+    {
+        var consulta = Navegacion.ToAbsoluteUri(direccion).Query;
+        if (consulta.Length <= 1)
+            return false;
+
+        return Microsoft.AspNetCore.WebUtilities.QueryHelpers.ParseQuery(consulta).Keys
+            .Any(k => !ParametrosQueNoImpidenRestaurar.Contains(k, StringComparer.OrdinalIgnoreCase));
+    }
 }

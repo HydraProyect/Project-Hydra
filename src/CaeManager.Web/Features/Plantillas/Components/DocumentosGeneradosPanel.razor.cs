@@ -139,7 +139,8 @@ public partial class DocumentosGeneradosPanel : ComponentBase, IDisposable
     /// </summary>
     private async Task NotificarDatosAsync()
     {
-        if (!FiltrosEnLaBarra || _desechado)
+        // Con una carga en vuelo la lista aún no es la de los filtros puestos: sus recuentos los notifica quien la termine.
+        if (!FiltrosEnLaBarra || _desechado || _cargando)
             return;
 
         var sinEstado = SinFiltroDeEstado.ToList();
@@ -183,8 +184,10 @@ public partial class DocumentosGeneradosPanel : ComponentBase, IDisposable
             return;
         }
 
-        await CargarAsync();
+        // Desde aquí un cambio de Plantilla o de Trabajador vuelve a pedir (OnParametersSetAsync): también si llega con esta
+        // primera consulta en vuelo, cuya respuesta ya no sería la del filtro puesto.
         _arrancado = true;
+        await CargarAsync();
         await NotificarDatosAsync();
     }
 
@@ -198,10 +201,14 @@ public partial class DocumentosGeneradosPanel : ComponentBase, IDisposable
         _errorCarga = false;
         StateHasChanged();
 
+        // La clave de la carga se captura ANTES del await, con los mismos valores que la consulta: leída después, un filtro
+        // cambiado mientras la primera carga está en vuelo daría por buena una respuesta de otro filtro.
+        var clave = (Plantilla: _plantillaFiltro, Trabajador: _trabajadorFiltro);
+
         try
         {
-            var generados = await Mediator.Send(new ObtenerDocumentosGeneradosQuery(_plantillaFiltro, _trabajadorFiltro), _ciclo.Token);
-            if (!EsVigente(carga))
+            var generados = await Mediator.Send(new ObtenerDocumentosGeneradosQuery(clave.Plantilla, clave.Trabajador), _ciclo.Token);
+            if (!EsVigente(carga) || clave != (_plantillaFiltro, _trabajadorFiltro))
                 return;
 
             _documentosGenerados = generados;
