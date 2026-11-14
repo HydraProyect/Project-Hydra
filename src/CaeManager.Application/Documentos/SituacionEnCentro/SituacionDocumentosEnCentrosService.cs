@@ -98,13 +98,16 @@ public class SituacionDocumentosEnCentrosService(
     // porque la puerta es IAlcanceDatosService.ObtenerCentroIdsParaGestionAsync, que solo excluye al rol Cliente; (2) la
     // trazabilidad interna, de la que Consulta queda fuera a propósito. Esta lista la aplica el servidor solo en tres
     // puntos: la nota, el motivo y el Gestor CAE autor de un cambio anotado a mano (CargarAnotacionesAsync de este
-    // servicio y ObtenerCambiosEstadoPlataformaDeCentroQuery) y la última reclamación de cada documento de la situación
-    // (CargarReclamacionesAsync). Las Queries de reclamaciones (ObtenerReclamacionesEnviadasQuery,
+    // servicio y ObtenerCambiosEstadoPlataformaDeCentroQuery) y la última reclamación de los documentos de la situación,
+    // presentes o ausentes (CargarReclamacionesAsync). Las Queries de reclamaciones (ObtenerReclamacionesEnviadasQuery,
     // ObtenerReclamacionesSinRespuestaQuery, ObtenerUltimaReclamacionClienteQuery) NO la comprueban: acotan por cartera,
-    // no por rol. El historial de reclamaciones enviadas se le corta a Consulta en la presentación
+    // no por rol. Solo el historial de reclamaciones enviadas se le corta a Consulta en la presentación
     // (Documentos.RolesDeGestionDocumental y RolesComunicaciones.LecturaReclamaciones; un test de la Web fija que esa
-    // lista no se separe de esta). Decide el rol efectivo (ICurrentUserService.ObtenerRolEfectivoAsync), así que la regla
-    // es la misma para Consulta en su Tenant de origen y en un Tenant beneficiario delegado por Asignación de Operación.
+    // lista no se separe de esta). Las otras dos sí le llegan hoy: el bloque «Reclamado y sin respuesta» de Inicio y la
+    // línea de última reclamación del Centro en el Context Workspace (CentroWorkspacePanel) solo excluyen al rol Cliente.
+    // Decide el rol efectivo (ICurrentUserService.ObtenerRolEfectivoAsync), así que la regla no depende de la vía por la
+    // que la sesión es Consulta (su Tenant de origen, un Tenant beneficiario delegado por Asignación de Operación o la
+    // delegación heredada del acceso de soporte).
     // El Usuario de Cliente sigue con la decisión del 2026-11-12 («B: estado, sin motivo»).
     internal static readonly string[] RolesQueLeenReclamaciones =
         ["Administrador", "DireccionCae", "CoordinadorCae", "GestorCae"];

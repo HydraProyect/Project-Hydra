@@ -104,9 +104,10 @@ public interface IAlcanceDatosService
     /// de gestión</b> (opción C, decisión de Chris del 2026-11-14; DECISION_LOG,
     /// «Tanda 1 de decisiones pendientes», punto 1): la regla <b>operativa</b>.
     /// Este método solo excluye al rol Cliente (usuario de portal). Consulta es
-    /// un rol de gestión en solo lectura, no de portal, tanto en el Tenant de
-    /// origen del Usuario como en un Tenant beneficiario delegado al que entra
-    /// por Asignación de Operación (decide el rol efectivo), así que recibe
+    /// un rol de gestión en solo lectura, no de portal, sea cual sea la vía por
+    /// la que la sesión lo tiene (su Tenant de origen, un Tenant beneficiario
+    /// delegado por Asignación de Operación o la delegación heredada del acceso
+    /// de soporte; decide el rol efectivo), así que recibe
     /// aquí su alcance normal y, con él, la información operativa: el motivo
     /// literal de rechazo que devuelve la Plataforma CAE, la dirección del
     /// portal (<c>UrlAcceso</c>) y las notas del canal. Para el rol Cliente
@@ -117,7 +118,8 @@ public interface IAlcanceDatosService
     /// <c>SituacionDocumentosEnCentrosService.RolesQueLeenReclamaciones</c>; el
     /// historial de reclamaciones enviadas no pasa por esa lista en el servidor
     /// (sus Queries acotan por cartera, no por rol) y se le corta a Consulta en
-    /// la presentación (ver el comentario de esa lista).
+    /// la presentación; las reclamaciones sin respuesta de Inicio y la última
+    /// reclamación del Centro sí le llegan hoy (ver el comentario de esa lista).
     /// Añadir Consulta al corte de este método o a esa lista cambia la regla
     /// de producto, no es un ajuste de implementación.
     /// </para>

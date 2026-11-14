@@ -597,14 +597,16 @@ public class AlcanceDatosService(
         //
         // Regla operativa del rol Consulta (opción C, DECISION_LOG 2026-11-14,
         // «Tanda 1 de decisiones pendientes», punto 1): solo se excluye al rol
-        // Cliente. Consulta (rol de gestión en solo lectura, en su Tenant de
-        // origen o en un Tenant beneficiario delegado por Asignación de
-        // Operación) recibe el motivo de rechazo de la Plataforma CAE, la
+        // Cliente. Consulta (rol de gestión en solo lectura, por cualquier vía:
+        // su Tenant de origen, un Tenant beneficiario delegado por Asignación
+        // de Operación o la delegación heredada del acceso de soporte) recibe
+        // el motivo de rechazo de la Plataforma CAE, la
         // dirección del portal y las notas del canal. La nota, el motivo
         // anotado a mano y el autor de un cambio de estado anotado a mano los
         // corta otra regla, RolesQueLeenReclamaciones; el historial de
         // reclamaciones enviadas no pasa por ella en el servidor y se le corta
-        // a Consulta en la presentación. No añadir Consulta a esta condición.
+        // a Consulta en la presentación (detalle en el comentario de esa
+        // lista). No añadir Consulta a esta condición.
         if (await currentUserService.ObtenerRolEfectivoAsync() == Roles.Cliente)
             return [];
 
