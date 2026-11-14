@@ -534,6 +534,15 @@ public class AsignacionResponsabilidadTests
         vivaSuspendida.Suspender();
         AsignacionCartera.AlgunaQuedoSuspendida([(vivaSuspendida, operacion), (reciente, operacion)])
             .Should().BeTrue("una viva suspendida bloquea aunque no sea la última");
+
+        // La viva suspendida es la más antigua: la última por creación se cerró vigente. Solo la
+        // rama de las vivas la ve.
+        var vivaAntigua = Cartera(Ahora.AddDays(-5));
+        vivaAntigua.Suspender();
+        var posteriorCerradaVigente = Cartera(Ahora.AddDays(-1));
+        posteriorCerradaVigente.Cerrar(MotivoCierreAsignacion.Revocada, Ahora);
+        AsignacionCartera.AlgunaQuedoSuspendida([(posteriorCerradaVigente, operacion), (vivaAntigua, operacion)])
+            .Should().BeTrue("una viva suspendida bloquea aunque la última por creación se cerrara vigente");
     }
 
     [Theory]
