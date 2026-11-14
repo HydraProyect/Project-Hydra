@@ -52,11 +52,19 @@ public class BuzonesAcuseAutomaticoTests : BunitContext
 
         public List<ObtenerResponsablesElegiblesBuzonesQuery> ConsultasElegibles { get; } = [];
 
+        /// <summary>Si es true, el listado falla: lo que pasa si la relectura tras un comando también cae.</summary>
+        public bool FallaElListado { get; set; }
+
+        /// <summary>Si es true, solo falla el cálculo de elegibles, no el listado.</summary>
+        public bool FallaElCalculoDeElegibles { get; set; }
+
         public Task<TResponse> Send<TResponse>(IRequest<TResponse> request, CancellationToken cancellationToken = default)
         {
             object respuesta = request switch
             {
-                ObtenerConexionesIntegracionQuery => (IReadOnlyList<ConexionIntegracionListaDto>)Conexiones.ToList(),
+                ObtenerConexionesIntegracionQuery => FallaElListado
+                    ? throw new InvalidOperationException("listado caído")
+                    : (IReadOnlyList<ConexionIntegracionListaDto>)Conexiones.ToList(),
                 ObtenerResponsablesElegiblesBuzonesQuery q => Evaluar(q),
                 FijarAcuseAutomaticoBuzonCommand c => Aplicar(c),
                 FijarResponsableBuzonCommand c => Aplicar(c),
@@ -68,6 +76,7 @@ public class BuzonesAcuseAutomaticoTests : BunitContext
         private IReadOnlyDictionary<Guid, IReadOnlySet<Guid>> Evaluar(ObtenerResponsablesElegiblesBuzonesQuery consulta)
         {
             ConsultasElegibles.Add(consulta);
+            if (FallaElCalculoDeElegibles) throw new InvalidOperationException("elegibles caído");
             return consulta.ConexionIds.ToDictionary(
                 id => id,
                 id => (IReadOnlySet<Guid>)consulta.CandidatoIds.Where(c => Elegibles is null || Elegibles.Contains(c)).ToHashSet());
@@ -216,7 +225,8 @@ public class BuzonesAcuseAutomaticoTests : BunitContext
             cut.FindAll(".modal-contenido").Should().BeEmpty("la confirmación se cierra al guardar");
         });
         Services.GetRequiredService<ToastService>().Mensajes.Should().ContainSingle()
-            .Which.Mensaje.Should().StartWith("Acuse automático activado en cae.");
+            .Which.Mensaje.Should().StartWith("Acuse automático activado en cae.")
+            .And.NotContain("cada conversación nueva", "el aviso no promete un acuse a todas las conversaciones");
     }
 
     [Fact]
@@ -382,6 +392,49 @@ public class BuzonesAcuseAutomaticoTests : BunitContext
                 "el comando ya lo desactivó: la fila lo enseña tras releer, no el «Activado» de antes");
             cut.Find("[data-testid=interruptor-acuse]").GetAttribute("disabled").Should().BeNull("la fila vuelve a ser operable");
         });
+    }
+
+    /// <summary>Si además la relectura cae, no se deja un listado con controles sobre un estado dudoso: se vacía y se avisa.</summary>
+    [Fact]
+    public void Si_el_comando_lanza_y_la_relectura_tambien_falla_la_pagina_se_vacia_y_avisa()
+    {
+        var mediador = new MediadorBuzones
+        {
+            Conexiones = [Buzon("cae", acuse: true)],
+            ExcepcionTrasAplicar = new InvalidOperationException("cae tras confirmar")
+        };
+        var cut = Renderizar(mediador);
+        mediador.FallaElListado = true;
+
+        cut.Find("[data-testid=interruptor-acuse]").Click();
+
+        cut.WaitForAssertion(() =>
+        {
+            mediador.ComandosAcuse.Should().ContainSingle();
+            cut.Find("[data-testid=aviso-buzones-no-cargados]").Should().NotBeNull();
+            cut.FindAll("[data-testid=interruptor-acuse]").Should().BeEmpty();
+        });
+    }
+
+    /// <summary>El cálculo de elegibles es auxiliar del selector: si cae, el listado y el acuse siguen y el selector ofrece al Responsable actual.</summary>
+    [Fact]
+    public void Si_falla_el_calculo_de_elegibles_el_listado_sigue_y_cada_selector_ofrece_solo_a_su_responsable()
+    {
+        var lucia = new CuentaVisibleEnRol(Guid.NewGuid(), "Lucía Sanz", "lucia@ejemplo.test", null);
+        var andres = new CuentaVisibleEnRol(Guid.NewGuid(), "Andrés Rey", "andres@ejemplo.test", null);
+        var mediador = new MediadorBuzones
+        {
+            Conexiones = [Buzon("cae", responsable: lucia.Id)],
+            FallaElCalculoDeElegibles = true
+        };
+
+        var cut = Renderizar(mediador, gestores: [lucia, andres]);
+
+        cut.FindAll("[data-testid=aviso-buzones-no-cargados]").Should().BeEmpty();
+        cut.Find("[data-testid=interruptor-acuse]").Should().NotBeNull();
+        mediador.ConsultasElegibles.Should().ContainSingle("control: la consulta se intentó");
+        cut.Find("[data-testid=selector-responsable]").QuerySelectorAll("option").Select(o => o.TextContent.Trim())
+            .Should().Equal("Sin responsable", "—");
     }
 
     [Fact]

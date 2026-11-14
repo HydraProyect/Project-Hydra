@@ -139,7 +139,7 @@
     <value>Cancel·la</value>
   </data>
   <data name="ToastAcuseActivado" xml:space="preserve">
-    <value>Confirmació automàtica activada a {0}. S&apos;envia només en el primer correu de cada conversa nova.</value>
+    <value>Confirmació automàtica activada a {0}. S&apos;aplicarà als correus que arribin a partir d&apos;ara, només si compleixen les condicions indicades en activar-la.</value>
   </data>
   <data name="ToastAcuseDesactivado" xml:space="preserve">
     <value>Confirmació automàtica desactivada a {0}.</value>

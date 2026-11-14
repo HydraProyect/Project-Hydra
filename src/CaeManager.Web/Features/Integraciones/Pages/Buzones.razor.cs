@@ -118,8 +118,18 @@ public partial class Buzones : CaeManager.Web.Components.PaginaIntegrableConfigu
     {
         var compartidos = conexiones.Where(c => c.GestorPropietarioId is null).Select(c => c.Id).ToList();
         if (compartidos.Count == 0 || candidatos.Count == 0) return new Dictionary<Guid, IReadOnlySet<Guid>>();
-        return await Mediator.Send(
-            new ObtenerResponsablesElegiblesBuzonesQuery(compartidos, candidatos.Select(c => c.Id).ToList()), token);
+        try
+        {
+            return await Mediator.Send(
+                new ObtenerResponsablesElegiblesBuzonesQuery(compartidos, candidatos.Select(c => c.Id).ToList()), token);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            // Es un auxiliar del selector: si falla, el listado y el interruptor del acuse siguen y cada selector ofrece solo a su
+            // Responsable actual (OpcionesDeResponsable), en vez de dejar la página sin cargar.
+            Logger.LogError(ex, "Error al calcular los responsables elegibles de los buzones.");
+            return new Dictionary<Guid, IReadOnlySet<Guid>>();
+        }
     }
 
     private async Task RecargarSinPropagarAsync()

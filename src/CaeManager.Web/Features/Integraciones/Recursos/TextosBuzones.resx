@@ -139,7 +139,7 @@
     <value>Cancelar</value>
   </data>
   <data name="ToastAcuseActivado" xml:space="preserve">
-    <value>Acuse automático activado en {0}. Se envía solo en el primer correo de cada conversación nueva.</value>
+    <value>Acuse automático activado en {0}. Se aplicará a los correos que lleguen desde ahora, solo si cumplen las condiciones indicadas al activarlo.</value>
   </data>
   <data name="ToastAcuseDesactivado" xml:space="preserve">
     <value>Acuse automático desactivado en {0}.</value>

@@ -9,8 +9,10 @@ namespace CaeManager.Application.Integraciones.Queries.ObtenerResponsablesElegib
 /// Para cada buzón compartido de Microsoft 365, cuáles de estas cuentas puede fijar el Administrador como su Responsable:
 /// las mismas que aceptaría <c>FijarResponsableBuzonCommand</c>, porque la decide <see cref="ResponsableBuzonElegible"/>, la
 /// regla que aplican también ese comando y la ingesta. Alimenta el selector de Buzones, que así no ofrece a nadie que el
-/// servidor vaya a rechazar ni deja fuera a quien acepta (Administrador, Dirección CAE, Coordinador CAE y Gestor CAE según su
-/// cartera). El comando sigue revalidando: esto solo decide qué se ofrece.
+/// servidor vaya a rechazar ni deja fuera, entre los candidatos que se le dan, a quien acepta (Administrador, Dirección CAE,
+/// Coordinador CAE y Gestor CAE según su cartera). El universo de candidatos lo pone quien consulta, por rol de origen: una
+/// cuenta delegada con otro rol de origen y un rol guardado de gestión no se ofrece. El comando sigue revalidando todo, incluida
+/// la visibilidad del Cliente empresarial del buzón, que esta consulta no repite: solo decide qué se ofrece.
 /// </summary>
 /// <param name="ConexionIds">Buzones del listado que ya pidió quien consulta.</param>
 /// <param name="CandidatoIds">Cuentas que quien consulta ya ve en su directorio: esta consulta no descubre cuentas nuevas.</param>
