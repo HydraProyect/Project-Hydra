@@ -438,14 +438,7 @@
   <data name="TituloPagina" xml:space="preserve"><value>Documentos</value></data>
   <data name="ListaNoCaduca" xml:space="preserve"><value>No caduca</value></data>
   <data name="ListaVer" xml:space="preserve"><value>Ver</value></data>
-  <data name="PestanaIncidencias" xml:space="preserve"><value>Incidencias</value></data>
-  <data name="PestanasEtiquetaGrupo" xml:space="preserve"><value>Secciones de documentos</value></data>
-  <data name="PestanaEstado" xml:space="preserve"><value>Estado</value></data>
-  <data name="PestanaPlataformasCae" xml:space="preserve"><value>Plataformas CAE</value></data>
-  <data name="PestanaReclamaciones" xml:space="preserve"><value>Reclamaciones</value></data>
-  <data name="PestanaPreventivo" xml:space="preserve"><value>Preventivo</value></data>
   <data name="PestanaRevisionIa" xml:space="preserve"><value>Revisión IA</value></data>
-  <data name="PestanaPlantillas" xml:space="preserve"><value>Plantillas</value></data>
   <data name="ListaSinAdjunto" xml:space="preserve"><value>Sin adjunto</value></data>
   <data name="ListaVencimientoSinConfirmar" xml:space="preserve"><value>Sin confirmar</value></data>
   <data name="ListaEmisionFecha" xml:space="preserve"><value>Emisión {0}</value></data>

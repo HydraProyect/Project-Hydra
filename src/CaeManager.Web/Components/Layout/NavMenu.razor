@@ -68,7 +68,7 @@
         </button>
         @if (_grupos.Count > 0)
         {
-            @* Opciones dentro de las páginas del menú (Configuración, pestañas de Documentos): ya vienen
+            @* Opciones dentro de las páginas del menú (Configuración, vistas de Documentos por Id de ?pestana=): ya vienen
                filtradas por el catálogo con las reglas de visibilidad del menú. Todas nacen ocultas y el
                JS muestra las que casan con lo escrito; elegir una navega directo a esa opción. La lista
                solo ocupa su fila mientras hay coincidencias. *@
@@ -156,7 +156,7 @@
     </div>;
 
     /// <summary>
-    /// Incidencias, Revisión IA y Roles ya no tienen entrada propia: son pestañas de sección (Documentos, Equipo).
+    /// Revisión IA y Roles no tienen entrada propia: son pestañas de sección (Documentos, Equipo).
     /// Estando en una de ellas, la entrada de la que cuelga su sección queda marcada y abre su grupo, como en el
     /// marco de Design (mapa PADRE). NavLink solo sabe de prefijos de ruta, así que se añade aquí.
     /// </summary>

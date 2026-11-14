@@ -163,17 +163,17 @@ public class SoloLecturaEnLaInterfazTests : BunitContext
     [InlineData("reclamaciones", "Reclamaciones")]
     [InlineData("revision-ia", "Revisión IA")]
     [InlineData("plantillas", "Plantillas")]
-    public void Consulta_no_ve_en_blanco_una_pestana_de_gestion_sino_que_se_le_dice_que_su_rol_no_la_incluye(
+    public void Consulta_con_un_id_de_pestana_de_gestion_se_queda_en_el_listado_sin_aviso_de_rol(
         string pestana, string rotulo)
     {
+        // PR8 del lienzo «Documentos · listado sin pestañas» (D-3): ya no hay hueco de pestaña que rellenar con un aviso de
+        // rol; la vista que exigía gestión no se ofrece y quien no gestiona ve el listado, que su rol sí incluye.
         var cut = RenderizarDocumentos("Consulta", pestana);
 
-        var mensaje = cut.FindAll(".estado-vacio");
-        mensaje.Should().ContainSingle("el hueco de la pestaña tiene que decir algo, no quedarse en blanco");
-        mensaje[0].QuerySelector("h3")!.TextContent.Should().Be("Esta sección no está disponible para tu rol");
-        mensaje[0].QuerySelector("p")!.TextContent.Should()
-            .Contain($"«{rotulo}»", "dice de qué sección habla")
-            .And.Contain("Consulta", "dice con qué rol se está mirando: el efectivo en el workspace, que puede no ser el propio");
+        cut.WaitForAssertion(() => cut.Find(".cabecera-pagina"));
+        cut.Markup.Should().NotContain("Esta sección no está disponible para tu rol", $"«{rotulo}» ya no tiene pestaña con hueco");
+        cut.FindAll("[role=tablist]").Should().BeEmpty();
+        Services.GetRequiredService<NavigationManager>().Uri.Should().NotContain("/plantillas").And.NotContain("revision-ia");
     }
 
     [Theory]
@@ -213,13 +213,13 @@ public class SoloLecturaEnLaInterfazTests : BunitContext
     }
 
     [Fact]
-    public void La_pestana_Preventivo_no_lleva_puerta_de_rol_y_para_Consulta_pinta_contenido()
+    public void La_pestana_Preventivo_no_lleva_puerta_de_rol_y_Consulta_cae_en_el_listado_con_el_plazo()
     {
         var cut = RenderizarDocumentos("Consulta", "sugerencias");
 
+        cut.WaitForAssertion(() => Services.GetRequiredService<NavigationManager>().Uri.Should().Contain("VenceEn=90"));
         cut.Markup.Should().NotContain("Esta sección no está disponible para tu rol");
-        cut.Markup.Should().Contain("Nada próximo a vencer",
-            "Preventivo tiene que pintar su estado vacío o su lista; un blanco sería el mismo defecto que en las otras pestañas");
+        cut.FindAll("[role=tablist]").Should().BeEmpty();
     }
 
     // ----------------------------------------------------------------------- botones de escritura

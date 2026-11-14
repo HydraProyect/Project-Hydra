@@ -175,12 +175,15 @@ public static class NavigationManagerExtensions
         navigation.ActualizarFiltrosEnUrl(new Dictionary<string, string?> { [nombreParametro] = valor }, estadoHistorial);
 
     /// <summary>
-    /// Igual que <see cref="ActualizarFiltroEnUrl"/> pero para varios
-    /// parámetros a la vez, en una única navegación. Mientras el navegador no
-    /// confirma la navegación, compone los cambios sobre el último destino solicitado.
+    /// La URL absoluta a la que <see cref="ActualizarFiltrosEnUrl"/> navegaría ahora con esos parámetros, sin navegar: para
+    /// quien tiene que anunciar la navegación antes de hacerla (la vista recordada, ver
+    /// <c>ConexionVistaRecordada.AnunciarNavegacionDeLaPagina</c>).
     /// </summary>
-    public static void ActualizarFiltrosEnUrl(this NavigationManager navigation, IReadOnlyDictionary<string, string?> parametros,
-        string? estadoHistorial = EstadoEscrituraDeFiltros)
+    public static string DestinoDeFiltrosEnUrl(this NavigationManager navigation, IReadOnlyDictionary<string, string?> parametros) =>
+        ComponerFiltrosEnUrl(navigation, parametros).Destino;
+
+    private static (string Destino, string BaseDeComposicion, EscriturasPendientes Pendientes) ComponerFiltrosEnUrl(
+        NavigationManager navigation, IReadOnlyDictionary<string, string?> parametros)
     {
         var normalizados = new Dictionary<string, object?>();
         foreach (var (nombreParametro, valor) in parametros)
@@ -188,7 +191,18 @@ public static class NavigationManagerExtensions
 
         var pendientes = Pendientes.GetValue(navigation, n => new EscriturasPendientes(n));
         var baseDeComposicion = pendientes.BaseDeComposicion(navigation.Uri);
-        var destino = navigation.GetUriWithQueryParameters(baseDeComposicion, normalizados);
+        return (navigation.GetUriWithQueryParameters(baseDeComposicion, normalizados), baseDeComposicion, pendientes);
+    }
+
+    /// <summary>
+    /// Igual que <see cref="ActualizarFiltroEnUrl"/> pero para varios
+    /// parámetros a la vez, en una única navegación. Mientras el navegador no
+    /// confirma la navegación, compone los cambios sobre el último destino solicitado.
+    /// </summary>
+    public static void ActualizarFiltrosEnUrl(this NavigationManager navigation, IReadOnlyDictionary<string, string?> parametros,
+        string? estadoHistorial = EstadoEscrituraDeFiltros)
+    {
+        var (destino, baseDeComposicion, pendientes) = ComponerFiltrosEnUrl(navigation, parametros);
         pendientes.Solicitar(destino, baseDeComposicion);
         try
         {

@@ -68,7 +68,7 @@ public class AccionesBandejaTests
     [InlineData(TipoItemBandeja.EnPlataformaSeguimiento)]
     public void Plataforma_pendiente_rechazada_o_en_seguimiento_va_a_la_pestana_de_plataforma(TipoItemBandeja tipo)
     {
-        AccionesBandeja.ResolverUrl(Item(tipo)).Should().Be("/documentos?pestana=plataforma");
+        AccionesBandeja.ResolverUrl(Item(tipo)).Should().Be("/documentos?agrupar=plataforma");
     }
 
     /// <summary>
@@ -97,7 +97,7 @@ public class AccionesBandejaTests
     public void Plataforma_vencida_va_a_la_pestana_de_plataforma_aunque_lleve_documento()
     {
         AccionesBandeja.ResolverUrl(Item(TipoItemBandeja.PlataformaVencida, documentoId: Guid.NewGuid()))
-            .Should().Be("/documentos?pestana=plataforma");
+            .Should().Be("/documentos?agrupar=plataforma");
     }
 
     [Fact]

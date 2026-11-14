@@ -53,7 +53,7 @@ public class NavMenuCaracterizacionTests
     [
         "dashboard", "clientes", "empresas", "centros", "subcontratas", "trabajadores", "vehiculos", "documentos", "tijeras",
         "asignaciones", "proyectos", "visitas", "alertas", "calendario", "reportes", "configuracion", "usuarios",
-        "seguridad", "chat", "cartera", "evaluaciones", "incidencias", "chevron", "plataforma",
+        "seguridad", "chat", "cartera", "evaluaciones", "incidencias", "plantilla", "chevron", "plataforma",
         "inicio", "ejecutivo", "tendencia", "ia", "solicitud", "mi-trabajo", "facturacion", "conectar", "delegacion", "etiqueta", "equipo", "auditoria", "importar",
     ];
 
@@ -296,7 +296,8 @@ public class NavMenuCaracterizacionTests
         var ids = cut.FindAll("[data-subopcion]").Select(a => a.GetAttribute("data-subopcion")!).ToList();
 
         ids.Any(i => i.StartsWith("config-")).Should().Be(configuracion, "Configuración solo existe para el Administrador");
-        ids.Contains("documentos-plantillas").Should().Be(gestionDocumental);
+        ids.Should().NotContain(["documentos-plantillas", "documentos-incidencias"],
+            "ya son entradas del menú (plantillas, incidencias): la lupa las encuentra por su enlace");
         ids.Contains("documentos-plataformas").Should().Be(gestionDocumental);
         ids.Should().Contain("documentos-preventivo", "esa pestaña no tiene restricción propia: la ve todo el que ve Documentos");
 
@@ -323,10 +324,10 @@ public class NavMenuCaracterizacionTests
     {
         var cut = Pintar(new Combinacion(Roles.Administrador, null, true, false, PerfilVocabularioTenant.Consultora, 1), null);
 
-        var plantillas = cut.Find("a[data-subopcion='documentos-plantillas']");
-        plantillas.GetAttribute("href").Should().Be("documentos?pestana=plantillas");
-        plantillas.QuerySelector(".nav-resultado-texto")!.TextContent.Trim().Should().Be("Plantillas");
-        plantillas.QuerySelector(".nav-resultado-padre")!.TextContent.Trim().Should().Be("Documentos");
+        var revisionIa = cut.Find("a[data-subopcion='documentos-revision-ia']");
+        revisionIa.GetAttribute("href").Should().Be("documentos?pestana=revision-ia");
+        revisionIa.QuerySelector(".nav-resultado-texto")!.TextContent.Trim().Should().Be("Revisión IA");
+        revisionIa.QuerySelector(".nav-resultado-padre")!.TextContent.Trim().Should().Be("Documentos");
 
         var api = cut.Find("a[data-subopcion='config-api']");
         api.GetAttribute("href").Should().Be("configuracion/api");

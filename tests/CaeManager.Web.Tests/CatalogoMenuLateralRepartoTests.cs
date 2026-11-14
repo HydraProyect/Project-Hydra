@@ -31,9 +31,9 @@ public class CatalogoMenuLateralRepartoTests
         visibles.Select(g => g.Grupo.Id).Should().Equal(
             ["dashboards", "negocio", "operacion", "control", "administracion", "plataforma"]);
         Ids(visibles, "negocio").Should().Equal(
-            ["empresas", "subcontratas", "trabajadores", "clientes", "centros", "documentos", "vehiculos", "proyectos"]);
+            ["empresas", "subcontratas", "trabajadores", "clientes", "centros", "documentos", "plantillas", "vehiculos", "proyectos"]);
         Ids(visibles, "operacion").Should().Equal(
-            ["mi-trabajo", "comunicaciones", "gestiones", "visitas", "herramientas-pdf"]);
+            ["mi-trabajo", "comunicaciones", "gestiones", "visitas", "herramientas-pdf", "incidencias"]);
         Ids(visibles, "control").Should().Equal(
             ["alertas", "calendario", "reportes", "facturacion", "conectar-extension"]);
     }
@@ -43,7 +43,7 @@ public class CatalogoMenuLateralRepartoTests
     {
         var visibles = CatalogoMenuLateral.Visibles(Contexto(Roles.Administrador, comunicaciones: false));
 
-        Ids(visibles, "operacion").Should().Equal(["mi-trabajo", "gestiones", "visitas", "herramientas-pdf"]);
+        Ids(visibles, "operacion").Should().Equal(["mi-trabajo", "gestiones", "visitas", "herramientas-pdf", "incidencias"]);
     }
 
     [Fact]
@@ -83,7 +83,8 @@ public class CatalogoMenuLateralRepartoTests
     /// antes (lista literal, escrita a partir de las Condicion y las Visible previas al cambio),
     /// con independencia de en qué grupo esté cada miTrabajo. Decisión posterior (defecto C1 del
     /// piloto Outbound, 2026-10-08): el rol Consulta deja de ver «Mi trabajo», porque las dos
-    /// páginas a las que lleva le deniegan el acceso. Y Design (2026-10-17) sacó «Incidencias» del menú: es una pestaña de\r\n    /// sección de Documentos (<see cref="CatalogoSeccionesMenu"/>), así que ningún rol la ve ya como enlace.
+    /// páginas a las que lleva le deniegan el acceso. Design (2026-10-17) sacó «Incidencias» del menú (pestaña de la
+    /// sección Documentos) y la PR8 del lienzo sin pestañas la devolvió a Operación, además de dar entrada propia a «Plantillas».
     /// </summary>
     [Theory]
     [InlineData(Roles.Administrador, true)]
@@ -117,7 +118,9 @@ public class CatalogoMenuLateralRepartoTests
             "comunicaciones", "gestiones", "visitas", "vehiculos", "proyectos",
             "alertas", "calendario", "reportes",
         };
-        if (rol != Roles.Consulta) comunes.AddRange(["mi-trabajo", "herramientas-pdf"]);
+        if (rol != Roles.Consulta) comunes.AddRange(["mi-trabajo", "herramientas-pdf", "plantillas"]);
+        // PR8: Incidencias vuelve a Operación (los cinco roles del menú completo) y Plantillas entra en Negocio (los cuatro de gestión documental).
+        comunes.Add("incidencias");
         var administracionAmpliada = rol is Roles.Administrador or Roles.DireccionCae;
         if (administracionAmpliada) comunes.AddRange(["facturacion", "usuarios"]);
         // D-12: el Coordinador CAE llega a /usuarios (ya autorizado por rol) desde Control; no es un permiso nuevo.
@@ -157,9 +160,9 @@ public class CatalogoMenuLateralRepartoTests
         var visibles = CatalogoMenuLateral.Visibles(contexto, gruposAntiguos, enlacesAntiguos);
 
         Ids(visibles, "negocio").Should().Equal(
-            ["empresas", "subcontratas", "trabajadores", "clientes", "centros", "documentos", "vehiculos", "proyectos"]);
+            ["empresas", "subcontratas", "trabajadores", "clientes", "centros", "documentos", "vehiculos", "proyectos", "plantillas"]);
         Ids(visibles, "operacion").Should().Equal(
-            ["comunicaciones", "gestiones", "visitas", "mi-trabajo", "herramientas-pdf"]);
+            ["comunicaciones", "gestiones", "incidencias", "visitas", "mi-trabajo", "herramientas-pdf"]);
         Ids(visibles, "control").Should().Equal(
             ["conectar-extension", "alertas", "facturacion", "calendario", "reportes"]);
 

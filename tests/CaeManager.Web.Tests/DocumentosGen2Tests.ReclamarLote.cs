@@ -404,7 +404,7 @@ public partial class DocumentosGen2Tests
         var pendiente = PulsarReclamarSinEsperar(cut);
         cut.WaitForAssertion(() => e.Mediador.Enviadas.OfType<ObtenerLoteReclamacionPorFiltroQuery>().Should().ContainSingle());
 
-        await Pestana(cut, "Preventivo").ClickAsync(new MouseEventArgs());
+        await AlternarFranjaDocumentoFase1(cut, "Vencidos");
         await Soltar(cut, retenida, LoteDe(ClienteAlfaId, "Constructora Alfa S.A.", Reclamable(e.Vencido)));
         await pendiente;
 

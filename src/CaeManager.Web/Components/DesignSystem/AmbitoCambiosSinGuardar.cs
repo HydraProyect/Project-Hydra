@@ -2,14 +2,14 @@ namespace CaeManager.Web.Components.DesignSystem;
 
 /// <summary>
 /// P1-E2b: una zona de la interfaz que se desmonta sin navegar: el contenido de
-/// <c>Pestanas</c> (las del Context Workspace, las de /documentos y cualquier otra) o la
+/// <c>Pestanas</c> (las del Context Workspace y cualquier otra; /documentos ya no tiene barra desde la PR8) o la
 /// ficha visible del Context Workspace (<see cref="NombreAmbitoFicha"/>). El
 /// componente la ofrece en cascada; cada <c>AvisoCambiosSinGuardar</c> de dentro se
 /// registra, y antes de cambiar de pestaña se llama a <see cref="ConfirmarAbandonoAsync"/>,
 /// que pregunta con el mismo aviso si hay cambios sin guardar.
 ///
 /// Los ámbitos se encadenan: un aviso dentro de unas pestañas anidadas (las subpestañas de
-/// Plantillas dentro de /documentos) se registra también en los ámbitos de fuera, porque
+/// Plantillas dentro de unas pestañas de fuera) se registra también en los ámbitos de fuera, porque
 /// cambiar la pestaña de fuera también lo desmonta.
 ///
 /// NavigationLock no basta ahí: cambiar de pestaña muta el estado antes que la URL, así que

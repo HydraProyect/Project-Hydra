@@ -1,12 +1,13 @@
 @*
     Una fila = un portal externo con acreditaciones pendientes o rechazadas
     (P-04 de la auditoría de producto 2026-08-16, "Pendiente por
-    plataforma"). Toda la fila es un enlace a la pestaña «Plataformas CAE» de
-    Documentos, que es el drill-down real (proveedor → Cliente empresarial →
+    plataforma"). Toda la fila es un enlace a Documentos agrupado por Plataforma CAE
+    (`?agrupar=plataforma`, de RedireccionDePestanas; el antiguo `?pestana=plataforma` solo queda como redirección para
+    enlaces guardados, PR8), que es el drill-down real (proveedor → Cliente empresarial →
     documento): antes la fila no llevaba a ningún sitio porque esa pantalla
     aún no existía, y al construirse nadie volvió a enlazarla — el propietario
-    lo detectó en staging recorriendo Inicio con demo.gestor1. La pestaña
-    lista todos los portales, no solo el pulsado: filtrar por uno sería otra
+    lo detectó en staging recorriendo Inicio con demo.gestor1. El listado
+    agrupa todos los portales, no solo el pulsado: filtrar por uno sería otra
     decisión de producto, y aquí no se inventa.
 
     El logotipo identifica la plataforma de un vistazo, que es lo que esta
@@ -41,7 +42,7 @@
 
 @code {
     /// <summary>Id de pestaña estable de Documentos (<c>?pestana=</c>), el mismo que usa el deep-link de Comunicaciones.</summary>
-    internal const string RutaDrillDown = "/documentos?pestana=plataforma";
+    internal static readonly string RutaDrillDown = CaeManager.Web.Features.Documentos.RedireccionDePestanas.RutaPlataformaCae;
 
     [Parameter, EditorRequired] public PendientePorPlataformaDto Plataforma { get; set; } = default!;
 }

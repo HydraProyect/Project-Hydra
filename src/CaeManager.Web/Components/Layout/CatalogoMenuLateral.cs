@@ -2,6 +2,7 @@ using System.Security.Claims;
 using CaeManager.Application.VistaDemo;
 using CaeManager.Domain.Tenants;
 using CaeManager.Infrastructure.Identity;
+using CaeManager.Web.Features.Documentos;
 using Microsoft.Extensions.Localization;
 
 namespace CaeManager.Web.Components.Layout;
@@ -89,8 +90,8 @@ public sealed record EnlaceMenuLateral(
 }
 
 /// <summary>
-/// Una opción DENTRO de la página de un enlace del menú (una sección de Configuración, una pestaña de
-/// Documentos): no es un enlace del menú, solo lo que encuentra la lupa de la cabecera. Solo cabe aquí
+/// Una opción DENTRO de la página de un enlace del menú (una sección de Configuración, un Id de
+/// <c>?pestana=</c> de Documentos, que redirige a su sustituto): no es un enlace del menú, solo lo que encuentra la lupa de la cabecera. Solo cabe aquí
 /// lo que se puede direccionar con una URL (ruta o <c>?pestana=</c>) y cuya autorización es exactamente
 /// la del enlace padre o una regla que el catálogo ya conoce: una subopción nunca concede nada.
 /// </summary>
@@ -154,9 +155,9 @@ public static class CatalogoMenuLateral
     private const string RolesDeCartera = $"{Roles.Administrador},{Roles.DireccionCae},{Roles.CoordinadorCae}";
 
     /// <summary>
-    /// Quién ve las pestañas de gestión documental de Documentos. Mismo valor que
-    /// <c>Documentos.RolesDeGestionDocumental</c> (lo vigila un test): la pestaña se pinta a todos,
-    /// pero su contenido solo a estos roles, y el menú no debe ofrecer un destino que la página niega.
+    /// Quién ve las subopciones de gestión documental de Documentos (los Ids de <c>?pestana=</c> que ya no tienen barra). Mismo
+    /// valor que <c>Documentos.RolesDeGestionDocumental</c> (lo vigila un test): la página redirige a su sustituto solo a estos
+    /// roles, y el menú no debe ofrecer un destino que la página niega.
     /// </summary>
     private const string RolesDeGestionDocumental =
         $"{Roles.Administrador},{Roles.DireccionCae},{Roles.CoordinadorCae},{Roles.GestorCae}";
@@ -195,7 +196,7 @@ public static class CatalogoMenuLateral
 
         // Mismo mandato. Operación: Mi trabajo, Comunicaciones, Gestiones y Visitas, en ese orden;
         // Vehículos y Proyectos pasaron a Negocio y Mi trabajo llegó desde Control. Incidencias salió
-        // el 2026-10-17 (entrega de Design): es pestaña de sección de Documentos.
+        // el 2026-10-17 (entrega de Design) como pestaña de sección de Documentos y volvió en la PR8 (barra retirada).
         new("operacion", "Operación", AbiertoPorDefecto: true, c => c.TieneAlgunRol(RolesConMenuCompleto)),
 
         // Control: Alertas, Calendario, Reportes y Facturación, y por el mandato del propietario del
@@ -254,10 +255,15 @@ public static class CatalogoMenuLateral
             RotuloPorContexto: c => c.RotulosPrimeraPersona ? "Mis trabajadores" : "Trabajadores"),
         new("clientes", "negocio", "clientes", "clientes", "Clientes"),
         new("centros", "negocio", "centros", "centros", "Centros"),
-        // Revisión IA, Documentos generados y Plantillas no tienen enlace propio: viven como
-        // pestañas de Documentos (REC-062, DEC-28, DDL-080). Sus rutas siguen funcionando para
-        // enlaces guardados y notificaciones.
+        // Revisión IA y Documentos generados no tienen enlace propio (Revisión IA es una pantalla propia a la que se llega
+        // desde Documentos, D-49). Plantillas SÍ lo tiene desde la PR8 del lienzo «Documentos · listado sin pestañas»
+        // (P-5 y D-27): al retirar la barra de pestañas de /documentos deja de haber otra puerta a /plantillas. El grupo
+        // «Ciclo documental» de D-27 no existe como grupo del menú (es el antetítulo de las pantallas), así que cuelga de
+        // Negocio, justo tras Documentos, que es donde vive el resto del ciclo documental. Mismos roles que su [Authorize]
+        // (un test los compara).
         new("documentos", "negocio", "documentos", "documentos", "Documentos"),
+        new("plantillas", "negocio", "plantillas", "plantilla", "MenuSubDocumentosPlantillas",
+            Condicion: c => c.TieneAlgunRol(RolesDeGestionDocumental), ClaveRotulo: "MenuSubDocumentosPlantillas"),
         // Vehículos y Proyectos son de Negocio por mandato del propietario del 2026-09-29.
         // "Vehículos" y no "Vehículos y Maquinaria": Maquinaria es un tramo bloqueado
         // (2.4, pendiente de ADR-006) y un enlace no se adelanta a una entidad que no existe.
@@ -282,9 +288,11 @@ public static class CatalogoMenuLateral
         new("herramientas-pdf", "operacion", "herramientas-pdf", "tijeras", "MenuHerramientasPdf",
             Condicion: c => c.HerramientasPdfDisponibles && c.TieneAlgunRol(RolesDeGestionDocumental),
             ClaveRotulo: "MenuHerramientasPdf"),
-        // Incidencias y Revisión IA ya no tienen enlace propio: son pestañas de sección de Documentos
-        // (entrega de Design del 2026-10-17; ver CatalogoSeccionesMenu). /incidencias sigue siendo la
-        // misma ruta y «g i» y la paleta siguen llevando allí.
+        // Incidencias recupera su entrada propia en Operación (PR8 del lienzo «Documentos · listado sin pestañas», P-6 y
+        // D-1): salió el 2026-10-17 porque era pestaña de la sección Documentos, y esa barra se retira. Vuelve a
+        // Operación, al final del grupo. Mismos roles que su [Authorize] (los cinco del menú completo; un test los compara).
+        new("incidencias", "operacion", "incidencias", "incidencias", "SeccionIncidencias",
+            Condicion: c => c.TieneAlgunRol(CatalogoSeccionesMenu.RolesDeIncidencias), ClaveRotulo: "SeccionIncidencias"),
 
         // Alertas NO es una segunda cola de "qué hacer ahora": desde DEC-4 es la vista agregada de
         // documentación a reclamar, que conserva a propósito EstadoDocumento.Proximo.
@@ -341,6 +349,9 @@ public static class CatalogoMenuLateral
             Condicion: c => c.EsAdministradorPlataforma, ClaveRotulo: "MenuContactosSeguridad"),
     ];
 
+    /// <summary>Las rutas del catálogo van sin la barra inicial (<c>documentos?…</c>).</summary>
+    private static string RutaSinBarra(string ruta) => ruta.TrimStart('/');
+
     /// <summary>
     /// Opciones que la lupa encuentra dentro de las páginas del menú. Criterio de inclusión: tiene URL
     /// propia (ruta o <c>?pestana=</c>) y la misma autorización que su enlace padre o una regla del
@@ -369,23 +380,25 @@ public static class CatalogoMenuLateral
         new("config-auditoria-ia", "configuracion", "configuracion/auditoria-ia", "EntradaAuditoriaIaNombre", FuenteRotuloSubopcion.TextosConfiguracion),
         new("config-automatizaciones", "configuracion", "configuracion/automatizaciones", "EntradaAutomatizacionesNombre", FuenteRotuloSubopcion.TextosConfiguracion),
 
-        // Pestañas de Documentos con deep-link ?pestana= (Documentos.IdDePestanaDeUrl). «Estado» es la
-        // propia página. Rótulos de la tira de pestañas de la página.
-        new("documentos-plataformas", "documentos", "documentos?pestana=plataforma", "MenuSubDocumentosPlataformas", FuenteRotuloSubopcion.TextosComunes,
+        // Ids de ?pestana= de Documentos (Documentos.IdDePestanaDeUrl), que desde la PR8 del lienzo «listado sin
+        // pestañas» ya no tienen barra: cada uno redirige a su sustituto (RedireccionDePestanas) con paridad de roles.
+        // Los que se sustituyen por el propio listado con filtros (Plataformas CAE y Preventivo) se enlazan directos a ese
+        // destino, de la misma tabla: desde dentro de /documentos la traducción del enlace sería una navegación más de la
+        // página. Elegirlos aquí es elegir esos filtros, como en la barra: estando ya en /documentos se recuerdan como vista
+        // (desde otra pantalla, la pieza toma la URL de llegada como línea base y no escribe). «Estado» es la propia página.
+        new("documentos-plataformas", "documentos", RutaSinBarra(RedireccionDePestanas.RutaPlataformaCae), "MenuSubDocumentosPlataformas", FuenteRotuloSubopcion.TextosComunes,
             Condicion: c => c.TieneAlgunRol(RolesDeGestionDocumental)),
         new("documentos-reclamaciones", "documentos", "documentos?pestana=reclamaciones", "MenuSubDocumentosReclamaciones", FuenteRotuloSubopcion.TextosComunes,
             Condicion: c => c.TieneAlgunRol(RolesDeGestionDocumental)),
-        new("documentos-preventivo", "documentos", "documentos?pestana=sugerencias", "MenuSubDocumentosPreventivo", FuenteRotuloSubopcion.TextosComunes),
+        new("documentos-preventivo", "documentos", RutaSinBarra(RedireccionDePestanas.RutaPreventivo), "MenuSubDocumentosPreventivo", FuenteRotuloSubopcion.TextosComunes),
         new("documentos-revision-ia", "documentos", "documentos?pestana=revision-ia", "MenuSubDocumentosRevisionIa", FuenteRotuloSubopcion.TextosComunes,
             Condicion: c => c.TieneAlgunRol(RolesDeGestionDocumental)),
-        new("documentos-plantillas", "documentos", "documentos?pestana=plantillas", "MenuSubDocumentosPlantillas", FuenteRotuloSubopcion.TextosComunes,
-            Condicion: c => c.TieneAlgunRol(RolesDeGestionDocumental)),
+        // Plantillas e Incidencias ya son entradas del menú (id «plantillas» e «incidencias»): la lupa las encuentra por su enlace
+        // y no se repiten aquí como subopción.
 
         // Pestañas de sección sin entrada propia en el menú (entrega de Design del 2026-10-17): la lupa sigue
-        // encontrando Incidencias, Usuarios y Roles. Mismos roles que la pestaña y que su pantalla
+        // encontrando Usuarios y Roles. Mismos roles que la pestaña y que su pantalla
         // (CatalogoSeccionesMenu); Roles tampoco se ofrece a quien administra por un Encargo no pleno.
-        new("documentos-incidencias", "documentos", "incidencias", "SeccionIncidencias", FuenteRotuloSubopcion.TextosComunes,
-            Condicion: c => c.TieneAlgunRol(CatalogoSeccionesMenu.RolesDeIncidencias)),
         new("equipo-usuarios", "usuarios", "usuarios", "SeccionUsuarios", FuenteRotuloSubopcion.TextosComunes,
             Condicion: c => c.TieneAlgunRol(CatalogoSeccionesMenu.RolesDeUsuarios)),
         new("equipo-roles", "usuarios", "roles", "SeccionRoles", FuenteRotuloSubopcion.TextosComunes,

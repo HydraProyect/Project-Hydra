@@ -15,7 +15,7 @@
 //     ensanchar vuelve el estado guardado, intacto. menu-lateral-inicio.js lo
 //     pone antes del primer pintado para que no parpadee.
 //  4. Búsqueda: el campo «Buscar en el menú» de la cabecera está siempre a la vista (marco de Design). Filtra los enlaces del
-//     menú y muestra las opciones de dentro de las páginas (Configuración, pestañas de Documentos) que
+//     menú y muestra las opciones de dentro de las páginas (Configuración, vistas de Documentos por Id de ?pestana=) que
 //     el servidor ya dejó en el marcado según las reglas de visibilidad del catálogo: este script solo
 //     muestra u oculta lo que existe, nunca añade un destino. Elegir una navega directo. Esc vacía el campo.
 //     Lo escrito no se guarda.

@@ -88,25 +88,24 @@ public class ListadosFase1VehiculosDocumentosTests(WebAppFixtureListados fixture
         await ComprobarOrdenDocumentoAsync(page, vigencia, "vencimiento");
     }
 
+    /// <summary>
+    /// PR8: /documentos ya no tiene barra de pestañas y <c>?Pestana=plantillas</c> redirige a /plantillas. En una carga en frío
+    /// de ese enlace antiguo se llega a la pantalla propia, con una sola acción primaria («+ Nueva plantilla»), sin pulsar ninguna pestaña.
+    /// </summary>
     [Fact]
-    public async Task Documentos_Plantillas_se_reconstruye_desde_URL_y_conserva_una_primaria()
+    public async Task Documentos_Pestana_plantillas_redirige_en_frio_a_Plantillas_y_conserva_una_primaria()
     {
         await using var contexto = await fixture.Browser.NewContextAsync();
         var page = await contexto.NewPageAsync();
         await Ayudas.IniciarSesionAsync(page, fixture.BaseUrl, Ayudas.EmailPrueba("gestorcae", 1), Ayudas.ContrasenaUsuariosPrueba);
         var paginaFria = await contexto.NewPageAsync();
         await Ayudas.NavegarYEsperarAsync(paginaFria, $"{fixture.BaseUrl}/documentos?Pestana=plantillas");
-        await Expect(paginaFria.GetByRole(AriaRole.Tab, new PageGetByRoleOptions { Name = "Plantillas", Exact = true }))
-            .ToHaveAttributeAsync("aria-selected", "true");
+        await Expect(paginaFria).ToHaveURLAsync($"{fixture.BaseUrl}/plantillas", new PageAssertionsToHaveURLOptions { Timeout = 30_000 });
         var nuevaPlantilla = paginaFria.GetByRole(AriaRole.Button,
             new PageGetByRoleOptions { Name = "+ Nueva plantilla", Exact = true });
         await Expect(nuevaPlantilla).ToBeVisibleAsync();
         await Expect(paginaFria.Locator(".contenedor-pagina button.boton-primario")).ToHaveCountAsync(1);
-        var nuevoDocumento = paginaFria.Locator("header.cabecera-pagina").GetByRole(AriaRole.Button,
-            new LocatorGetByRoleOptions { Name = "+ Nuevo documento", Exact = true });
-        await Expect(nuevoDocumento).ToHaveClassAsync(new Regex(@"\bboton-secundario\b"));
     }
-
     private static ILocator Cabecera(IPage page, string prefijo) =>
         page.Locator("thead th").Filter(new LocatorFilterOptions { HasTextRegex = new Regex("^" + Regex.Escape(prefijo)) });
 

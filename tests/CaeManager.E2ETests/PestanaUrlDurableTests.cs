@@ -15,49 +15,26 @@ namespace CaeManager.E2ETests;
 public class PestanaUrlDurableTests(WebAppFixtureListados fixture)
 {
     /// <summary>
-    /// D-49: Revisión IA vuelve a ser pantalla propia (/documentos/revision-ia, con la revisión en un lateral) y no pinta
-    /// la barra de pestañas. La pestaña de /documentos lleva a ella, y los enlaces guardados con
-    /// <c>?Pestana=revision-ia</c> (la URL durable que protegía este test) siguen sirviendo: redirigen a la pantalla
-    /// propia, también en una carga en frío.
+    /// D-49 y PR8: Revisión IA es pantalla propia (/documentos/revision-ia) y /documentos ya no tiene barra de pestañas: los
+    /// enlaces guardados con <c>?Pestana=revision-ia</c> (la URL durable que protegía este test) siguen sirviendo y redirigen a
+    /// la pantalla propia en una carga en frío. La señal es la URL final y la pantalla pintada, sin pulsar ninguna pestaña.
     /// </summary>
     [Fact]
-    public async Task La_pestana_Revision_IA_de_Documentos_lleva_a_su_pantalla_y_el_enlace_con_la_pestana_redirige_en_frio()
+    public async Task El_enlace_antiguo_con_Pestana_revision_ia_redirige_en_frio_a_la_pantalla_propia()
     {
         await using var contexto = await fixture.Browser.NewContextAsync();
         var page = await contexto.NewPageAsync();
         var rutaPropia = $"{fixture.BaseUrl}/documentos/revision-ia";
 
         await Ayudas.IniciarSesionAsync(page, fixture.BaseUrl, Ayudas.EmailAdministrador, Ayudas.ContrasenaAdministrador);
-        await Ayudas.NavegarYEsperarAsync(page, $"{fixture.BaseUrl}/documentos");
-
-        // El botón role="tab" lleva un @onclick server-side: un clic sobre el prerenderizado se pierde en silencio
-        // (REC-110, ver Ayudas.SeleccionarPestanaAsync). Aquí la señal de que llegó no es aria-selected —la pestaña
-        // navega fuera y desaparece con la barra— sino la URL de destino, así que se repite el clic hasta verla.
-        var pestana = page.GetByRole(AriaRole.Tab, new PageGetByRoleOptions { Name = "Revisión IA" });
-        await pestana.WaitForAsync(new LocatorWaitForOptions { Timeout = 10_000 });
-        for (var intento = 0; intento < 10 && page.Url != rutaPropia; intento++)
-        {
-            try
-            {
-                await pestana.ClickAsync(new LocatorClickOptions { Timeout = 2_000 });
-                await page.WaitForURLAsync(rutaPropia, new PageWaitForURLOptions { Timeout = 3_000 });
-            }
-            catch (Exception ex) when (ex is PlaywrightException or TimeoutException)
-            {
-                // El circuito aún no había conectado: se vuelve a pulsar.
-            }
-        }
-
-        await Assertions.Expect(page).ToHaveURLAsync(rutaPropia, new PageAssertionsToHaveURLOptions { Timeout = 30_000 });
-        await Assertions.Expect(page.Locator("section.revision-ia")).ToBeVisibleAsync(new LocatorAssertionsToBeVisibleOptions { Timeout = 15_000 });
 
         // Carga en frío del enlace antiguo (compartido o guardado): reproduce pegarlo o pulsar F5, no una navegación
-        // "enhanced" que reutilizaría el circuito ya abierto. Termina en la pantalla propia.
+        // "enhanced" que reutilizaría el circuito ya abierto.
         await Ayudas.NavegarYEsperarAsync(page, $"{fixture.BaseUrl}/documentos?Pestana=revision-ia");
+
         await Assertions.Expect(page).ToHaveURLAsync(rutaPropia, new PageAssertionsToHaveURLOptions { Timeout = 30_000 });
         await Assertions.Expect(page.Locator("section.revision-ia")).ToBeVisibleAsync(new LocatorAssertionsToBeVisibleOptions { Timeout = 15_000 });
     }
-
     [Fact]
     public async Task Cambiar_a_la_pestana_Generados_de_Plantillas_actualiza_la_URL_y_sobrevive_a_una_carga_en_frio()
     {
@@ -89,34 +66,26 @@ public class PestanaUrlDurableTests(WebAppFixtureListados fixture)
     }
 
     /// <summary>
-    /// REC-062 (DEC-28, DDL-080): Plantillas se pliega en pestaña de
-    /// Documentos conservando el mismo mecanismo de URL durable que las
-    /// pestañas de arriba — mismo motivo, mismo helper.
+    /// PR8 (P-5 y D-27): sin barra de pestañas, Plantillas se alcanza por su entrada del menú lateral y el enlace antiguo
+    /// <c>/documentos?Pestana=plantillas</c> sigue sirviendo: redirige a <c>/plantillas</c>, también en una carga en frío.
     /// </summary>
     [Fact]
-    public async Task Cambiar_a_la_pestana_Plantillas_de_Documentos_actualiza_la_URL_y_sobrevive_a_una_carga_en_frio()
+    public async Task El_enlace_antiguo_con_Pestana_plantillas_redirige_en_frio_a_Plantillas_y_el_menu_la_ofrece()
     {
         await using var contexto = await fixture.Browser.NewContextAsync();
         var page = await contexto.NewPageAsync();
 
         await Ayudas.IniciarSesionAsync(page, fixture.BaseUrl, Ayudas.EmailAdministrador, Ayudas.ContrasenaAdministrador);
-        await Ayudas.NavegarYEsperarAsync(page, $"{fixture.BaseUrl}/documentos");
-
-        // Mismo motivo que en los dos tests de arriba.
-        await Ayudas.SeleccionarPestanaAsync(
-            page,
-            page.GetByRole(AriaRole.Tab, new PageGetByRoleOptions { Name = "Plantillas" }),
-            "Plantillas");
-
-        // 30 s explícitos, por el mismo motivo que en los tests de arriba.
-        await Assertions.Expect(page).ToHaveURLAsync(
-            $"{fixture.BaseUrl}/documentos?Pestana=plantillas",
-            new PageAssertionsToHaveURLOptions { Timeout = 30_000 });
-
         await Ayudas.NavegarYEsperarAsync(page, $"{fixture.BaseUrl}/documentos?Pestana=plantillas");
 
-        var pestanaActiva = page.GetByRole(AriaRole.Tab, new PageGetByRoleOptions { Name = "Plantillas" });
-        await pestanaActiva.WaitForAsync(new LocatorWaitForOptions { Timeout = 10_000 });
-        Assert.Equal("true", await pestanaActiva.GetAttributeAsync("aria-selected"));
+        await Assertions.Expect(page).ToHaveURLAsync($"{fixture.BaseUrl}/plantillas", new PageAssertionsToHaveURLOptions { Timeout = 30_000 });
+
+        // La pantalla de destino pinta su propia barra de secciones (Plantillas · Generados): señal de que cargó.
+        await Assertions.Expect(page.GetByRole(AriaRole.Tab, new PageGetByRoleOptions { NameRegex = new System.Text.RegularExpressions.Regex("^Generados") }))
+            .ToBeVisibleAsync(new LocatorAssertionsToBeVisibleOptions { Timeout = 15_000 });
+
+        // Y el menú lateral lleva a ella sin pasar por /documentos.
+        await Assertions.Expect(page.Locator("a.nav-item[href='plantillas']"))
+            .ToBeVisibleAsync(new LocatorAssertionsToBeVisibleOptions { Timeout = 15_000 });
     }
 }
