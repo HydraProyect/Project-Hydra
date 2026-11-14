@@ -335,6 +335,136 @@ public class ExpiracionAsignacionesBajoRlsTests
     }
 
     /// <summary>
+    /// Cuarta revisión de Codex (B-02a), las dos mitades que faltaban de la regla compartida:
+    /// <list type="bullet">
+    /// <item>La otra cartera Outbound del mismo Operador CAE externo solo sostiene la fila heredada si su
+    /// Asignación de Operación Outbound está vigente: bajo una operación suspendida, la cartera sigue figurando
+    /// vigente pero no da acceso por la vía de Operación, y la fila se retira (falla cerrada; una suspendida no
+    /// guarda la fila para cuando se reanude).</item>
+    /// <item>La cartera que cae <b>solo</b> porque expira su operación (cascada del job) se lleva también la
+    /// fila heredada, salvo que quede otra cartera que la sostenga. Antes la conservaba, y la fila seguía
+    /// autorizando el Tenant mientras la delegación siguiera activa. Una Inbound que cae en cascada no mueve
+    /// la fila de Outbound.</item>
+    /// </list>
+    /// Bajo <c>cae_app_runtime</c> y con el recorrido de producción (ámbito = Tenant propietario, sin usuario).
+    /// </summary>
+    [Fact]
+    public async Task La_fila_heredada_solo_la_sostiene_otra_cartera_cuya_operacion_Outbound_siga_vigente_y_la_cascada_la_retira()
+    {
+        await using var arnes = await ArnesDeArranqueRuntime.CrearAsync(datosDePruebaActivos: false);
+
+        var ahora = DateTime.UtcNow;
+        var hace3h = ahora.AddHours(-3);
+        var haceUnaHora = ahora.AddHours(-1);
+        var operadorExterno = new Tenant("Operador CAE externo de la cascada", PerfilVocabularioTenant.Consultora);
+        var propietarioSuspendida = new Tenant("Propietario donde la otra operación está suspendida", PerfilVocabularioTenant.ClienteDirecto);
+        var propietarioCascada = new Tenant("Propietario cuya operación expira", PerfilVocabularioTenant.ClienteDirecto);
+        var propietarioCascadaConOtra = new Tenant("Propietario cuya operación expira y queda otra", PerfilVocabularioTenant.ClienteDirecto);
+        var propietarioCascadaInbound = new Tenant("Propietario cuya operación Inbound expira", PerfilVocabularioTenant.ClienteDirecto);
+
+        await using (var propietarioBd = CrearContextoPropietario(arnes.CadenaPropietario))
+        {
+            propietarioBd.Tenants.AddRange(
+                operadorExterno, propietarioSuspendida, propietarioCascada, propietarioCascadaConOtra, propietarioCascadaInbound);
+            await propietarioBd.SaveChangesAsync();
+        }
+
+        var clienteSuspendida = await SembrarClienteAsync(arnes.CadenaPropietario, propietarioSuspendida.Id, "B10380202");
+        var clienteCascadaConOtra = await SembrarClienteAsync(arnes.CadenaPropietario, propietarioCascadaConOtra.Id, "B10380210");
+
+        AsignacionOperacion Operacion(Tenant propietario, ServicioCae servicio) =>
+            AsignacionOperacion.Externa(
+                propietario.Id, operadorExterno.Id, servicio, AmbitoAsignacion.Universal,
+                vigenciaDesde: hace3h, vigenciaHasta: null, ahora: hace3h);
+        AsignacionOperacion Acotada(Tenant propietario, Guid clienteId) =>
+            AsignacionOperacion.Externa(
+                propietario.Id, operadorExterno.Id, ServicioCae.Outbound, AmbitoAsignacion.DeRelacionCliente(clienteId),
+                vigenciaDesde: hace3h, vigenciaHasta: null, ahora: hace3h);
+        AsignacionCartera Cartera(AsignacionOperacion operacion, Guid usuario, DateTime? hasta) =>
+            AsignacionCartera.Externa(
+                operacion, usuario, Roles.GestorCae, AmbitoAsignacion.Universal,
+                vigenciaDesde: hace3h, vigenciaHasta: hasta, ahora: hace3h);
+
+        // La otra cartera cuelga de una operación suspendida.
+        var conOtraSuspendida = Guid.NewGuid();
+        var outboundSuspendida = Operacion(propietarioSuspendida, ServicioCae.Outbound);
+        var suspendida = Acotada(propietarioSuspendida, clienteSuspendida);
+        var vinculoSuspendida = new DelegacionTenant(operadorExterno.Id, propietarioSuspendida.Id);
+        var caducaConSuspendida = Cartera(outboundSuspendida, conOtraSuspendida, haceUnaHora);
+        var bajoLaSuspendida = Cartera(suspendida, conOtraSuspendida, null);
+        suspendida.Suspender();
+
+        // Cascada: la única cartera, sin fecha propia, cae porque expira su operación.
+        var soloCascada = Guid.NewGuid();
+        var outboundQueExpira = Operacion(propietarioCascada, ServicioCae.Outbound);
+        var vinculoCascada = new DelegacionTenant(operadorExterno.Id, propietarioCascada.Id);
+        var caeConSuOperacion = Cartera(outboundQueExpira, soloCascada, null);
+
+        // Cascada con otra cartera vigente bajo una operación vigente: la fila se conserva.
+        var cascadaConOtra = Guid.NewGuid();
+        var outboundQueExpiraConOtra = Operacion(propietarioCascadaConOtra, ServicioCae.Outbound);
+        var acotadaVigente = Acotada(propietarioCascadaConOtra, clienteCascadaConOtra);
+        var vinculoCascadaConOtra = new DelegacionTenant(operadorExterno.Id, propietarioCascadaConOtra.Id);
+        var caeConSuOperacionConOtra = Cartera(outboundQueExpiraConOtra, cascadaConOtra, null);
+        var laQueQueda = Cartera(acotadaVigente, cascadaConOtra, null);
+
+        // Cascada Inbound: la cartera Inbound que cae con su operación no se lleva la fila de Outbound.
+        var cascadaInbound = Guid.NewGuid();
+        var inboundQueExpira = Operacion(propietarioCascadaInbound, ServicioCae.Inbound);
+        var vinculoCascadaInbound = new DelegacionTenant(operadorExterno.Id, propietarioCascadaInbound.Id);
+        var inboundCaeConSuOperacion = Cartera(inboundQueExpira, cascadaInbound, null);
+
+        await using (var propietarioBd = CrearContextoPropietario(arnes.CadenaPropietario))
+        {
+            propietarioBd.AsignacionesOperacion.AddRange(
+                outboundSuspendida, suspendida, outboundQueExpira, outboundQueExpiraConOtra, acotadaVigente, inboundQueExpira);
+            // Vencen en este pase para que sus carteras caigan con ellas; se emiten sin fecha de fin para que las
+            // carteras nazcan bajo operaciones vigentes.
+            foreach (var queExpira in new[] { outboundQueExpira, outboundQueExpiraConOtra, inboundQueExpira })
+                propietarioBd.Entry(queExpira).Property(o => o.VigenciaHasta).CurrentValue = haceUnaHora;
+            propietarioBd.DelegacionesTenant.AddRange(
+                vinculoSuspendida, vinculoCascada, vinculoCascadaConOtra, vinculoCascadaInbound);
+            propietarioBd.AsignacionesCartera.AddRange(
+                caducaConSuspendida, bajoLaSuspendida, caeConSuOperacion, caeConSuOperacionConOtra, laQueQueda,
+                inboundCaeConSuOperacion);
+            propietarioBd.AsignacionesOperadorDelegadoConRevocadas.AddRange(
+                new AsignacionOperadorDelegado(vinculoSuspendida.Id, conOtraSuspendida, Roles.GestorCae),
+                new AsignacionOperadorDelegado(vinculoCascada.Id, soloCascada, Roles.GestorCae),
+                new AsignacionOperadorDelegado(vinculoCascadaConOtra.Id, cascadaConOtra, Roles.GestorCae),
+                new AsignacionOperadorDelegado(vinculoCascadaInbound.Id, cascadaInbound, Roles.GestorCae));
+            await propietarioBd.SaveChangesAsync();
+        }
+
+        var job = new ExpiracionAsignacionesHostedService(
+            arnes.Servicios.GetRequiredService<IServiceScopeFactory>(),
+            new LiderSiempre(),
+            NullLogger<ExpiracionAsignacionesHostedService>.Instance);
+
+        await job.ProcesarAsync(CancellationToken.None);
+
+        await using var verificacion = CrearContextoPropietario(arnes.CadenaPropietario);
+        var estados = await verificacion.AsignacionesCartera.AsNoTracking().ToDictionaryAsync(c => c.Id, c => c.Estado);
+        estados[caducaConSuspendida.Id].Should().Be(EstadoAsignacion.Cerrada, "control: la que tenía fecha caducó");
+        estados[bajoLaSuspendida.Id].Should().Be(EstadoAsignacion.Vigente,
+            "precondición: la otra cartera sigue figurando vigente; es su operación la que está suspendida");
+        estados[caeConSuOperacion.Id].Should().Be(EstadoAsignacion.Cerrada, "control: su operación expiró en este pase");
+        estados[caeConSuOperacionConOtra.Id].Should().Be(EstadoAsignacion.Cerrada, "control: su operación expiró en este pase");
+        estados[laQueQueda.Id].Should().Be(EstadoAsignacion.Vigente);
+        estados[inboundCaeConSuOperacion.Id].Should().Be(EstadoAsignacion.Cerrada, "control: la Inbound también cae con su operación");
+
+        var filas = await verificacion.AsignacionesOperadorDelegadoConRevocadas.IgnoreQueryFilters().AsNoTracking()
+            .Select(f => f.UsuarioId).ToListAsync();
+        filas.Should().NotContain(conOtraSuspendida,
+            "la otra cartera cuelga de una operación suspendida: no da acceso por la vía de Operación ni sostiene la fila");
+        filas.Should().NotContain(soloCascada,
+            "la cartera cayó porque expiró su operación y no le queda otra: la fila heredada se va con ella");
+        filas.Should().Contain(cascadaConOtra,
+            "le queda otra cartera Outbound vigente del mismo Operador CAE bajo una operación vigente");
+        filas.Should().Contain(cascadaInbound,
+            "la cartera Inbound que cae con su operación no concedió el acceso de Outbound y no se lo lleva (B-02a)");
+    }
+
+    /// <summary>
     /// Una Empresa cliente del Tenant propietario, sembrada como propietario de la base con el sellado de
     /// Tenant, que es quien le pone el <c>TenantId</c>. Devuelve su Id.
     /// </summary>

@@ -203,37 +203,41 @@ public class ExpiracionAsignacionesHostedService(
         foreach (var cartera in carteras.Concat(carterasHuerfanas).DistinctBy(c => c.Id))
             cartera.Cerrar(MotivoCierreAsignacion.Expirada, ahora);
 
-        // Una cartera externa del Tenant entero que caduca por su propia fecha —un apoyo con
-        // fecha de fin— se lleva la fila heredada de Operador Delegado, igual que una retirada:
-        // esa fila autoriza el Tenant por sí sola, y sin borrarla la cartera quedaría cerrada y
-        // el acceso intacto. Cuentan como cerradas todas las de este pase, también las que caen
-        // con su operación: aún figuran vigentes en la base y, sin excluirlas, sostendrían la
-        // fila de quien pierde las dos a la vez.
-        //
-        // Hueco conocido, anterior a esto: la cartera que cae SOLO porque expira su operación
-        // no pasa por aquí y conserva su fila heredada, que sigue autorizando el Tenant mientras
-        // la delegación siga activa.
+        // Una cartera externa del Tenant entero que se cierra en este pase se lleva la fila
+        // heredada de Operador Delegado, igual que una retirada: esa fila autoriza el Tenant por
+        // sí sola, y sin borrarla la cartera quedaría cerrada y el acceso intacto. Vale tanto
+        // para la que caduca por su propia fecha —un apoyo con fecha de fin— como para la que
+        // cae en cascada porque expira su operación (B-02a, cuarta revisión de Codex: antes esta
+        // segunda conservaba la fila mientras la delegación siguiera activa). Cuentan como
+        // cerradas todas las de este pase: aún figuran vigentes en la base y, sin excluirlas,
+        // sostendrían la fila de quien pierde las dos a la vez. La operación que expira en este
+        // pase tampoco sostiene nada: RetirarFilaHeredadaSiSobraAsync exige la operación de la
+        // otra cartera dentro de su vigencia, con el mismo instante.
         //
         // Solo las carteras de Outbound mueven la fila (B-02a): la fila heredada abre Outbound, y
         // una cartera de otro servicio que caduca no puede quitar un acceso de Outbound que no
         // concedió. Que una cartera de otro servicio tampoco la sostenga lo decide
         // RetirarFilaHeredadaSiSobraAsync.
-        var cerradas = carteras.Concat(carterasHuerfanas).Select(c => c.Id).Distinct().ToList();
-        var externasCaducadas = carteras
+        var cerradasEnElPase = carteras.Concat(carterasHuerfanas).DistinctBy(c => c.Id).ToList();
+        var cerradas = cerradasEnElPase.Select(c => c.Id).ToList();
+        var externasCerradas = cerradasEnElPase
             .Where(c => c.OperadorTenantId != c.PropietarioTenantId && c.Ambito.EsUniversal)
             .ToList();
-        var idsOperacionesDeExternas = externasCaducadas.Select(c => c.AsignacionOperacionId).Distinct().ToList();
+        var idsOperacionesDeExternas = externasCerradas.Select(c => c.AsignacionOperacionId).Distinct().ToList();
         var operacionesDelServicio = idsOperacionesDeExternas.Count == 0
             ? []
             : (await dbContext.AsignacionesOperacion
                 .Where(o => idsOperacionesDeExternas.Contains(o.Id) && o.Servicio == CatalogoIncorporacionCartera.Servicio)
                 .Select(o => o.Id)
                 .ToListAsync(stoppingToken)).ToHashSet();
-        foreach (var caducada in externasCaducadas.Where(c => operacionesDelServicio.Contains(c.AsignacionOperacionId)))
+        var titulares = externasCerradas
+            .Where(c => operacionesDelServicio.Contains(c.AsignacionOperacionId))
+            .Select(c => (c.PropietarioTenantId, c.OperadorTenantId, c.UsuarioId))
+            .Distinct();
+        foreach (var (propietarioTenantId, operadorTenantId, usuarioId) in titulares)
         {
             await CatalogoIncorporacionCartera.RetirarFilaHeredadaSiSobraAsync(
-                dbContext, caducada.PropietarioTenantId, caducada.OperadorTenantId, caducada.UsuarioId,
-                cerradas, ahora, stoppingToken);
+                dbContext, propietarioTenantId, operadorTenantId, usuarioId, cerradas, ahora, stoppingToken);
         }
 
         foreach (var operacion in operaciones)

@@ -253,12 +253,17 @@ public class CatalogoIncorporacionCartera(
             cartera?.Cerrar(MotivoCierreAsignacion.RetiradaPorElOperador, ahora);
         }
 
+        // La fila que creó la aceptación se borra por la misma regla que cualquier otro cierre
+        // de cartera (B-02a, cuarta revisión de Codex): solo si al Gestor CAE no le queda otra
+        // cartera que la sostenga. Antes se borraba siempre, y a quien le quedaba otra cartera
+        // Outbound vigente del mismo Operador CAE externo sobre ese Tenant le desaparecía el
+        // Tenant del selector. Solo esa fila: no las que ya tuviera por otro camino.
         if (solicitud.AsignacionOperadorDelegadoId is { } filaId)
         {
-            var fila = await dbContext.AsignacionesOperadorDelegado
-                .FirstOrDefaultAsync(a => a.Id == filaId && a.UsuarioId == solicitud.SolicitanteUsuarioId, cancellationToken);
-            if (fila is not null)
-                dbContext.AsignacionesOperadorDelegadoConRevocadas.Remove(fila);
+            IReadOnlyCollection<Guid> cerradas = solicitud.AsignacionCarteraId is { } cerrada ? [cerrada] : [];
+            await RetirarFilaHeredadaSiSobraAsync(
+                dbContext, solicitud.PropietarioTenantId, solicitud.OperadorTenantId, solicitud.SolicitanteUsuarioId,
+                cerradas, ahora, cancellationToken, soloFilaId: filaId);
         }
     }
 
@@ -667,22 +672,51 @@ public class CatalogoIncorporacionCartera(
     /// autoriza el Tenant por sí sola (vía heredada de <c>TenantsBeneficiariosAutorizados</c>),
     /// así que <b>todo cierre de una cartera externa del Tenant entero tiene que pasar por
     /// aquí</b>: sin ello la cartera quedaría cerrada y el acceso, intacto. Lo usan la retirada
-    /// y el cierre por caducidad (<see cref="ExpiracionAsignacionesHostedService"/>). Sin guardar.
+    /// (también la de una solicitud aceptada que se revoca, <see cref="RetirarAsync"/>) y el
+    /// cierre por caducidad, por la fecha de la cartera o en cascada por la de su operación
+    /// (<see cref="ExpiracionAsignacionesHostedService"/>). Con <paramref name="soloFilaId"/> se
+    /// borra solo esa fila, si es de esta delegación; sin él, todas las del usuario en ella.
+    /// Sin guardar.
+    ///
+    /// <para>
+    /// La otra cartera solo sostiene la fila si <b>ella y su Asignación de Operación están
+    /// vigentes</b> (B-02a, cuarta revisión de Codex): la cartera, en estado Vigente, del Tenant
+    /// entero y dentro de su vigencia; su operación, externa y no raíz sobre este Tenant
+    /// propietario, en estado Vigente y dentro de su vigencia. Una cartera que sigue figurando
+    /// vigente bajo una operación caducada, suspendida, programada o cerrada no da acceso por la
+    /// vía de Operación (<c>TenantsBeneficiariosAutorizados.CarterasPorOperacionDeLaOrganizacion</c>
+    /// exige lo mismo), y si sostuviera la fila, la vía heredada lo seguiría dando. Ante la duda
+    /// se falla cerrado: una operación suspendida no conserva la fila para cuando se reanude.
+    /// </para>
     /// </summary>
     internal static async Task RetirarFilaHeredadaSiSobraAsync(
         CaeManagerDbContext dbContext, Guid propietarioTenantId, Guid operadorTenantId, Guid usuarioId,
-        IReadOnlyCollection<Guid> carterasCerradas, DateTime ahora, CancellationToken cancellationToken)
+        IReadOnlyCollection<Guid> carterasCerradas, DateTime ahora, CancellationToken cancellationToken,
+        Guid? soloFilaId = null)
     {
-        var leQuedaOtra = await dbContext.AsignacionesCartera.AnyAsync(c =>
-            c.UsuarioId == usuarioId
-            && c.PropietarioTenantId == propietarioTenantId
-            && !carterasCerradas.Contains(c.Id)
-            && c.Estado == EstadoAsignacion.Vigente
-            && (c.VigenciaHasta == null || ahora < c.VigenciaHasta)
-            && dbContext.AsignacionesOperacion.Any(o => o.Id == c.AsignacionOperacionId
-                                                         && o.Servicio == Servicio
-                                                         && o.OperadorTenantId == operadorTenantId),
-            cancellationToken);
+        var leQuedaOtra = await (
+            from c in dbContext.AsignacionesCartera
+            join o in dbContext.AsignacionesOperacion on c.AsignacionOperacionId equals o.Id
+            where c.UsuarioId == usuarioId
+                  && c.PropietarioTenantId == propietarioTenantId
+                  && !carterasCerradas.Contains(c.Id)
+                  && c.Estado == EstadoAsignacion.Vigente
+                  && c.VigenciaDesde <= ahora
+                  && (c.VigenciaHasta == null || ahora < c.VigenciaHasta)
+                  && c.AmbitoRelacionClienteId == null
+                  && c.AmbitoCentroId == null
+                  && c.AmbitoTrabajadorId == null
+                  && c.AmbitoProyectoId == null
+                  && o.Servicio == Servicio
+                  && o.OperadorTenantId == operadorTenantId
+                  && o.PropietarioTenantId == propietarioTenantId
+                  && o.PropietarioTenantId != operadorTenantId
+                  && !o.EsRaiz
+                  && o.Estado == EstadoAsignacion.Vigente
+                  && o.VigenciaDesde <= ahora
+                  && (o.VigenciaHasta == null || ahora < o.VigenciaHasta)
+            select c.Id)
+            .AnyAsync(cancellationToken);
         if (leQuedaOtra)
             return;
 
@@ -690,6 +724,7 @@ public class CatalogoIncorporacionCartera(
             from fila in dbContext.AsignacionesOperadorDelegado
             join vinculo in dbContext.DelegacionesTenant on fila.DelegacionTenantId equals vinculo.Id
             where fila.UsuarioId == usuarioId
+                  && (soloFilaId == null || fila.Id == soloFilaId)
                   && vinculo.TenantClienteId == propietarioTenantId
                   && vinculo.TenantConsultoraId == operadorTenantId
                   && vinculo.Proposito == PropositoDelegacion.OperadorExterno

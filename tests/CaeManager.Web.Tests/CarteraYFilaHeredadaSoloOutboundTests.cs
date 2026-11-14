@@ -340,6 +340,115 @@ public class CarteraYFilaHeredadaSoloOutboundTests
         carteras.Keys.Should().Equal([otroGestor], "la cartera bajo la operación Inbound no da alcance en Outbound");
     }
 
+    /// <summary>
+    /// Cuarta revisión de Codex (MEDIA 1): la otra cartera Outbound del mismo Operador CAE externo solo sostiene la
+    /// fila heredada si su Asignación de Operación Outbound está vigente, en estado y en fechas. Una operación caducada
+    /// por fecha (aún sin cerrar por el job), suspendida, programada o cerrada no la sostiene, aunque la cartera siga
+    /// figurando vigente: se falla cerrado y la fila se retira. Y una cartera que sigue vigente pero ya pasó su fecha,
+    /// o que no es del Tenant entero, tampoco.
+    /// </summary>
+    [Theory]
+    [InlineData("vigente", false)]
+    [InlineData("caducada", true)]
+    [InlineData("suspendida", true)]
+    [InlineData("programada", true)]
+    [InlineData("cerrada", true)]
+    [InlineData("cartera caducada", true)]
+    [InlineData("cartera de un centro", true)]
+    public async Task La_otra_cartera_solo_sostiene_la_fila_si_ella_y_su_operacion_Outbound_estan_vigentes(
+        string caso, bool seRetira)
+    {
+        var outbound = Operacion(_propietario, ServicioCae.Outbound);
+        var otra = caso switch
+        {
+            "caducada" => AsignacionOperacion.Externa(
+                _propietario.Id, _operador.Id, ServicioCae.Outbound, AmbitoAsignacion.DeRelacionCliente(Guid.NewGuid()),
+                Desde, Ahora.AddMinutes(-5), Desde),
+            "programada" => AsignacionOperacion.Externa(
+                _propietario.Id, _operador.Id, ServicioCae.Outbound, AmbitoAsignacion.DeRelacionCliente(Guid.NewGuid()),
+                Ahora.AddDays(1), null, Ahora),
+            _ => AsignacionOperacion.Externa(
+                _propietario.Id, _operador.Id, ServicioCae.Outbound, AmbitoAsignacion.DeRelacionCliente(Guid.NewGuid()),
+                Desde, null, Desde),
+        };
+        var cerrada = Cartera(outbound, _gestor);
+        var laOtra = caso switch
+        {
+            "cartera caducada" => AsignacionCartera.Externa(
+                otra, _gestor, Roles.GestorCae, AmbitoAsignacion.Universal, Desde, Ahora.AddMinutes(-5), Desde),
+            // Dimensión reservada sin uso: no concede nada, así que no puede sostener una fila que abre el Tenant entero.
+            "cartera de un centro" => AsignacionCartera.Externa(
+                otra, _gestor, Roles.GestorCae, new AmbitoAsignacion(CentroId: Guid.NewGuid()), Desde, null, Desde),
+            _ => Cartera(otra, _gestor),
+        };
+        if (caso == "suspendida") otra.Suspender();
+        if (caso == "cerrada") otra.Cerrar(MotivoCierreAsignacion.Revocada, Ahora);
+        var vinculo = new DelegacionTenant(_operador.Id, _propietario.Id);
+        var fila = new AsignacionOperadorDelegado(vinculo.Id, _gestor, Roles.GestorCae);
+
+        laOtra.Estado.Should().Be(EstadoAsignacion.Vigente, "precondición: la otra cartera sigue figurando vigente");
+
+        await using var db = new ContextoEnMemoria()
+            .Con(outbound, otra)
+            .Con(cerrada, laOtra)
+            .Con(_operador, _propietario)
+            .Con(vinculo)
+            .Con(fila);
+
+        await CatalogoIncorporacionCartera.RetirarFilaHeredadaSiSobraAsync(
+            db, _propietario.Id, _operador.Id, _gestor, [cerrada.Id], Ahora, CancellationToken.None);
+
+        if (seRetira)
+            db.De<AsignacionOperadorDelegado>().Retirados.Should().Equal([fila],
+                $"una cartera bajo una operación {caso} no da acceso por la vía de Operación y no puede mantenerlo por la heredada");
+        else
+            db.De<AsignacionOperadorDelegado>().Retirados.Should().BeEmpty("control: la otra cartera y su operación están vigentes");
+    }
+
+    /// <summary>
+    /// Cuarta revisión de Codex (MEDIA 2): revocar una solicitud aceptada borra su fila heredada por la regla
+    /// compartida. Si al Gestor CAE le queda otra cartera Outbound vigente del mismo Operador CAE externo, bajo una
+    /// operación vigente, la fila se conserva; si esa operación está suspendida, se retira. Y solo esa fila: no otra
+    /// que tuviera por otra delegación.
+    /// </summary>
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Revocar_una_solicitud_aceptada_conserva_la_fila_solo_si_queda_otra_cartera_Outbound_vigente(
+        bool otraOperacionSuspendida)
+    {
+        var outbound = Operacion(_propietario, ServicioCae.Outbound);
+        var acotada = AsignacionOperacion.Externa(
+            _propietario.Id, _operador.Id, ServicioCae.Outbound, AmbitoAsignacion.DeRelacionCliente(Guid.NewGuid()), Desde, null, Desde);
+        var vinculo = new DelegacionTenant(_operador.Id, _propietario.Id);
+        var vinculoAnterior = new DelegacionTenant(_operador.Id, _propietario.Id);
+        var carteraSolicitud = Cartera(outbound, _gestor);
+        var laOtra = Cartera(acotada, _gestor);
+        if (otraOperacionSuspendida) acotada.Suspender();
+        var filaSolicitud = new AsignacionOperadorDelegado(vinculo.Id, _gestor, Roles.GestorCae);
+        var filaAnterior = new AsignacionOperadorDelegado(vinculoAnterior.Id, _gestor, Roles.GestorCae);
+        var solicitud = SolicitudIncorporacionCartera.Crear(outbound, _gestor, "Me incorporo", Desde);
+        solicitud.Aceptar(Guid.NewGuid(), carteraSolicitud, filaSolicitud.Id, Ahora);
+
+        await using var db = new ContextoEnMemoria()
+            .Con(outbound, acotada)
+            .Con(carteraSolicitud, laOtra)
+            .Con(_operador, _propietario)
+            .Con(vinculo, vinculoAnterior)
+            .Con(filaSolicitud, filaAnterior);
+        var catalogo = new CatalogoIncorporacionCartera(db, null!);
+
+        await catalogo.RetirarAsync(solicitud);
+
+        carteraSolicitud.Estado.Should().Be(EstadoAsignacion.Cerrada, "control: la cartera de la solicitud se cierra");
+        if (otraOperacionSuspendida)
+            db.De<AsignacionOperadorDelegado>().Retirados.Should().Equal([filaSolicitud],
+                "la otra cartera cuelga de una operación suspendida: no sostiene la fila, y solo se borra la de la solicitud");
+        else
+            db.De<AsignacionOperadorDelegado>().Retirados.Should().BeEmpty(
+                "le queda otra cartera Outbound vigente del mismo Operador CAE externo, que sigue necesitando la fila");
+    }
+
     // ---------------------------------------------------------------- Infraestructura de la prueba
 
     /// <summary>

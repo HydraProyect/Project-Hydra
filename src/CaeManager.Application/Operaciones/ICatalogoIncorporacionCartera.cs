@@ -230,7 +230,8 @@ public interface ICatalogoIncorporacionCartera
     /// la fila heredada de Operador Delegado <b>solo si no le queda otra
     /// cartera vigente de Outbound del mismo Operador CAE externo</b> sobre el mismo Tenant (por
     /// ejemplo, una de otro rol o bajo otra operación Outbound suya acotada por Cliente
-    /// empresarial); una de otro servicio o de otro Operador CAE no la sostiene (B-02a). Sin guardar. Devuelve <c>false</c> sin tocar nada si no
+    /// empresarial); una de otro servicio o de otro Operador CAE no la sostiene (B-02a), ni una cuya
+    /// Asignación de Operación esté caducada, suspendida, programada o cerrada (falla cerrada). Sin guardar. Devuelve <c>false</c> sin tocar nada si no
     /// tenía ese Tenant entero en su cartera. Como
     /// <see cref="IncorporarAsync(Guid, Guid, Guid, Guid, CancellationToken)"/>, exige el
     /// Tenant propietario como Tenant activo (<c>AmbitoTenantExplicito</c>).
@@ -349,8 +350,12 @@ public interface ICatalogoIncorporacionCartera
 
     /// <summary>
     /// Cierra la cartera que creó la solicitud, si sigue vigente, y borra la
-    /// fila heredada que creó, si sigue existiendo. Nada más: ni otras
-    /// carteras del Gestor CAE ni filas que ya tuviera antes.
+    /// fila heredada que creó, si sigue existiendo, <b>solo si al Gestor CAE no
+    /// le queda otra cartera que la sostenga</b>: la misma regla que
+    /// <see cref="RetirarCarteraUniversalAsync"/> (otra cartera Outbound vigente
+    /// del mismo Operador CAE externo sobre ese Tenant, con su Asignación de
+    /// Operación vigente; B-02a). Nada más: ni otras carteras del Gestor CAE ni
+    /// filas que ya tuviera antes.
     /// </summary>
     Task RetirarAsync(SolicitudIncorporacionCartera solicitud, CancellationToken cancellationToken = default);
 
