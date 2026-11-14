@@ -340,7 +340,9 @@ public class CobrosLiquidacionOperadorCaeRlsTests : IAsyncLifetime
             (await MarcarAsync(_empresaX, EstadoCobroLiquidacion.Cobrada, null)).Error
                 .Should().Be(AutorizacionCobrosLiquidacionOperadorCae.SinPermiso, "el rol que cuenta es el del Tenant de origen del Operador");
 
-        Como("Administrador", _operadorA, rolFueraDelOrigen: "GestorCae");
+        // Control positivo desde el mismo ámbito ajeno. En X rige el perfil de origen por la vía de Operación: un rol
+        // distinto allí dejaría a X fuera de la serie del Cuadro, que mide cada Tenant beneficiario con su propio ámbito.
+        Como("Administrador", _operadorA);
         using (AmbitoTenantExplicito.Establecer(_empresaX))
             (await MarcarAsync(_empresaX, EstadoCobroLiquidacion.Cobrada, null)).EsExitoso
                 .Should().BeTrue("control positivo: Administrador en el Tenant de origen del Operador");
@@ -419,6 +421,10 @@ public class CobrosLiquidacionOperadorCaeRlsTests : IAsyncLifetime
         _sesion.Rol = rol;
         _sesion.RolFueraDelOrigen = rolFueraDelOrigen;
         _sesion.TenantOrigenId = tenantOrigen;
+        // Los Tenants beneficiarios a los que la organización de origen entra por sus Asignaciones de Operación sembradas.
+        _sesion.TenantsPorOperacion = tenantOrigen == _operadorA ? new HashSet<Guid> { _empresaX, _empresaW, _empresaZ }
+            : tenantOrigen == _operadorB ? new HashSet<Guid> { _empresaY }
+            : new HashSet<Guid>();
     }
 
     private async Task<Result> MarcarAsync(
@@ -497,6 +503,12 @@ public class CobrosLiquidacionOperadorCaeRlsTests : IAsyncLifetime
     /// Como el servicio real, el rol efectivo depende del Tenant del ámbito: <see cref="Rol"/> en el Tenant de origen y
     /// <see cref="RolFueraDelOrigen"/> en cualquier otro (o sin ámbito). Así la guarda solo pasa si fija el ámbito en
     /// el Tenant de origen del Operador antes de preguntar el rol.
+    /// <para>
+    /// En un Tenant beneficiario de <see cref="TenantsPorOperacion"/> rige, como en <c>CurrentUserService</c> (decisión
+    /// del 2026-10-20), el perfil de origen por la vía de Operación, salvo que el test fije otro con
+    /// <see cref="RolFueraDelOrigen"/>. Sin eso, la serie del Cuadro, que mide cada Tenant beneficiario con su propio
+    /// ámbito, no alcanzaría ninguno y ninguna liquidación existiría.
+    /// </para>
     /// </remarks>
     private sealed class UsuarioConmutable : ICurrentUserService, IEncargoDeAdministracionActual
     {
@@ -510,10 +522,18 @@ public class CobrosLiquidacionOperadorCaeRlsTests : IAsyncLifetime
         public string? Rol { get; set; }
         public string? RolFueraDelOrigen { get; set; }
         public Guid? TenantOrigenId { get; set; }
+        public IReadOnlySet<Guid> TenantsPorOperacion { get; set; } = new HashSet<Guid>();
+
+        private bool EnTenantPorOperacion =>
+            AmbitoTenantExplicito.TenantIdActual is { } ambito && ambito != TenantOrigenId && TenantsPorOperacion.Contains(ambito);
 
         public Task<Guid?> ObtenerUsuarioActualIdAsync() => Task.FromResult(UsuarioId);
         public Task<string?> ObtenerRolEfectivoAsync() =>
-            Task.FromResult(AmbitoTenantExplicito.TenantIdActual is { } ambito && ambito == TenantOrigenId ? Rol : RolFueraDelOrigen);
+            Task.FromResult(AmbitoTenantExplicito.TenantIdActual is { } ambito && ambito == TenantOrigenId ? Rol
+                : EnTenantPorOperacion ? RolFueraDelOrigen ?? Rol
+                : RolFueraDelOrigen);
+        public Task<string?> ObtenerPerfilQueDecideAlcanceAsync() => Task.FromResult(Rol);
+        public async Task<bool> OperaPorAsignacionDeOperacionAsync() => EnTenantPorOperacion && await ObtenerRolEfectivoAsync() is not null;
         public Task<string?> ObtenerRolOrigenAsync() => Task.FromResult(Rol);
         public Task<Guid?> ObtenerTenantOrigenIdAsync() => Task.FromResult(TenantOrigenId);
         public Task<bool> TieneDobleFactorActivoAsync() => Task.FromResult(true);
