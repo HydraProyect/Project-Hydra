@@ -139,8 +139,7 @@ public partial class DocumentosGeneradosPanel : ComponentBase, IDisposable
     /// </summary>
     private async Task NotificarDatosAsync()
     {
-        // Con una carga en vuelo la lista aún no es la de los filtros puestos: sus recuentos los notifica quien la termine.
-        if (!FiltrosEnLaBarra || _desechado || _cargando)
+        if (!FiltrosEnLaBarra || _desechado)
             return;
 
         var sinEstado = SinFiltroDeEstado.ToList();

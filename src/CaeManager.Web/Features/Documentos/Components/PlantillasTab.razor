@@ -49,6 +49,8 @@
             {
                 <PastillaFiltro Etiqueta="@Textos["PlantillasFiltroAmbito"]" TextoTodos="@Textos["PlantillasTodos"]" Valor="@_ambito" ValorChanged="CambiarAmbitoAsync" Opciones="OpcionesAmbito" />
                 <PastillaFiltro Etiqueta="@Textos["PlantillasFiltroFormato"]" TextoTodos="@Textos["PlantillasTodos"]" Valor="@_formato" ValorChanged="CambiarFormatoAsync" Opciones="OpcionesFormato" />
+                @* Estado: la misma selección que la franja (_estado), para que filtro y recuento sean uno. *@
+                <PastillaFiltro Etiqueta="@Textos["PlantillasFiltroEstado"]" TextoTodos="@Textos["PlantillasTodas"]" Valor="@_estado" ValorChanged="CambiarEstadoAsync" Opciones="OpcionesEstadoPastilla" />
                 <PastillaFiltro Etiqueta="@Textos["PlantillasFiltroAlcance"]" TextoTodos="@Textos["PlantillasTodos"]" Valor="@_alcance" ValorChanged="CambiarAlcanceAsync" Opciones="OpcionesAlcance" />
             }
             else
@@ -60,13 +62,13 @@
         <Estados>
             @if (_pestanaActiva == "catalogo")
             {
-                <FranjaEstado Opciones="OpcionesEstadoCatalogo" Valor="@_estado" ValorChanged="CambiarEstadoAsync"
+                <FranjaEstado CifraDetras="true" Opciones="OpcionesEstadoCatalogo" Valor="@_estado" ValorChanged="CambiarEstadoAsync"
                               Recuentos="RecuentosCatalogo" TotalTodos="TotalSinEstadoCatalogo" TextoTodos="@Textos["PlantillasTodas"]"
                               EtiquetaAccesible="@Textos["PlantillasEstadoPlantillaAccesible"]" />
             }
             else
             {
-                <FranjaEstado Opciones="OpcionesEstadoGenerados" Valor="@_estado" ValorChanged="CambiarEstadoAsync"
+                <FranjaEstado CifraDetras="true" Opciones="OpcionesEstadoGenerados" Valor="@_estado" ValorChanged="CambiarEstadoAsync"
                               Recuentos="_recuentosGenerados" TotalTodos="_totalSinEstadoGenerados" TextoTodos="@Textos["PlantillasTodos"]"
                               EtiquetaAccesible="@Textos["PlantillasEstadoGeneradoAccesible"]" />
             }

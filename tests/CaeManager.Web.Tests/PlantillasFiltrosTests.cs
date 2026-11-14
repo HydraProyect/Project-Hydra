@@ -186,6 +186,63 @@ public class PlantillasFiltrosTests : BunitContext
         Nombres(Renderizar(Catalogo(), "plantillas?ambito=Vehiculo")).Should().Equal(["Ficha de vehículo"]);
     }
 
+    /// <summary>D-53 y el artboard «Plantillas»: cuatro pastillas, en este orden, además de la franja.</summary>
+    [Fact]
+    public void El_catalogo_tiene_las_cuatro_pastillas_Ambito_Formato_Estado_y_Alcance_en_ese_orden()
+    {
+        var cut = Renderizar(Catalogo());
+
+        cut.FindComponents<PastillaFiltro>().Select(p => p.Instance.Etiqueta).Should().Equal(["Ámbito", "Formato", "Estado", "Alcance"]);
+    }
+
+    /// <summary>La pastilla Estado y la franja son una sola selección: lo que filtra una lo marca la otra, y el recuento es el mismo.</summary>
+    [Fact]
+    public async Task La_pastilla_Estado_filtra_con_la_misma_seleccion_que_la_franja()
+    {
+        var cut = Renderizar(Catalogo());
+        var recuentoAntes = Recuentos(cut)["Borrador"];
+
+        await cut.InvokeAsync(() => PastillaEstado(cut).Instance.ValorChanged.InvokeAsync("Borrador"));
+
+        cut.WaitForAssertion(() => Nombres(cut).Should().Equal(["Anexo II"]));
+        cut.Find(".franja-estado-boton[data-estado=Borrador]").GetAttribute("aria-pressed").Should().Be("true", "la franja ve lo elegido en la pastilla");
+        Recuentos(cut)["Borrador"].Should().Be(recuentoAntes).And.Be(Nombres(cut).Count.ToString(), "el recuento de la franja es el de las filas que quedan");
+        Services.GetRequiredService<NavigationManager>().Uri.Should().Contain("estado=Borrador");
+    }
+
+    [Fact]
+    public void Con_dos_estados_marcados_en_la_franja_la_pastilla_Estado_enseña_la_combinacion()
+    {
+        var cut = Renderizar(Catalogo(), $"plantillas?estado=Borrador{SeleccionEstados.Separador}Confirmada");
+
+        Nombres(cut).Should().BeEquivalentTo(["Entrega de EPI", "Anexo II", "Autorización de acceso"], "Pendiente de revisión queda fuera");
+        var pastilla = PastillaEstado(cut).Instance;
+        pastilla.Valor.Should().Be($"Borrador{SeleccionEstados.Separador}Confirmada");
+        pastilla.Opciones.Should().Contain(o => o.Valor == pastilla.Valor && o.Texto == "Confirmada, Borrador",
+            "la pastilla no dice «Todas» con dos estados puestos");
+    }
+
+    /// <summary>Artboard: «Confirmada 3», «Todas 2». La cifra va siempre detrás de la etiqueta, en los estados y en «Todas».</summary>
+    [Theory]
+    [InlineData("plantillas")]
+    [InlineData("plantillas?Pestana=generados")]
+    public void La_cifra_de_la_franja_va_siempre_detras_de_la_etiqueta(string url)
+    {
+        var cut = Renderizar(CatalogoConGenerados(), url);
+
+        var botones = cut.FindAll(".franja-estado-boton");
+        botones.Should().HaveCountGreaterThan(1);
+        foreach (var boton in botones)
+        {
+            boton.QuerySelector(".franja-estado-recuento").Should().NotBeNull("control: cada botón lleva su cifra");
+            boton.LastElementChild!.ClassList.Should().Contain("franja-estado-recuento", $"«{boton.TextContent.Trim()}»: la cifra es lo último del botón");
+            boton.TextContent.Trim().Should().MatchRegex(@"^\D+\d+$", "etiqueta y luego número");
+        }
+    }
+
+    private static IRenderedComponent<PastillaFiltro> PastillaEstado(IRenderedComponent<PaginaPlantillas> cut) =>
+        cut.FindComponents<PastillaFiltro>().Single(p => p.Instance.Etiqueta == "Estado");
+
     [Fact]
     public void Formato_filtra_por_como_se_rellena()
     {

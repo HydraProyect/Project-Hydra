@@ -355,6 +355,23 @@ public partial class PlantillasTab : ComponentBase, IDisposable
         new(Textos["PlantillasEstadoGeneradoConAvisos"], TonoBadge.Advertencia, nameof(EstadoDocumentoGenerado.GeneradoConAvisos))
     ];
 
+    /// <summary>
+    /// Los estados de la franja como opciones de la pastilla: la fuente es la misma, así que lo que se elige en una se ve en la
+    /// otra. Si la franja marcó varios, la pastilla enseña esa combinación (una opción más, ya marcada) en vez de «Todas».
+    /// </summary>
+    private IReadOnlyList<OpcionEstado> OpcionesEstadoPastilla
+    {
+        get
+        {
+            var opciones = OpcionesEstadoCatalogo.Select(o => new OpcionEstado(o.Valores[0], o.Texto)).ToList();
+            var marcados = SeleccionEstados.Separar(_estado);
+            if (marcados.Count > 1)
+                opciones.Add(new OpcionEstado(_estado, string.Join(", ", opciones.Where(o => marcados.Contains(o.Valor)).Select(o => o.Texto))));
+
+            return opciones;
+        }
+    }
+
     private IReadOnlyList<OpcionEstado> OpcionesAmbito =>
         _plantillas.Select(p => p.AmbitoAplicacion).Distinct()
             .Select(a => new OpcionEstado(a.ToString(), TextoAmbito(a)))

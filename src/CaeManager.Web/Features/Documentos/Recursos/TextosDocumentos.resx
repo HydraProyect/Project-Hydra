@@ -671,6 +671,9 @@
   <data name="PlantillasFiltroFormato" xml:space="preserve">
     <value>Formato</value>
   </data>
+  <data name="PlantillasFiltroEstado" xml:space="preserve">
+    <value>Estado</value>
+  </data>
   <data name="PlantillasFiltroAlcance" xml:space="preserve">
     <value>Alcance</value>
   </data>
