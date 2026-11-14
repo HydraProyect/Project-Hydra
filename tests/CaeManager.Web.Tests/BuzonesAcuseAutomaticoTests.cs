@@ -366,15 +366,24 @@ public class BuzonesAcuseAutomaticoTests : BunitContext
     /// <summary>
     /// Hallazgo de la revisión r2: el pie no puede prometer que toda conversación nace asignada (queda sin asignar si no hay
     /// Responsable o si deja de ser elegible) ni que sin Asignación de Cartera no se ve (Administrador, Dirección CAE y
-    /// Consulta alcanzan toda la organización, <c>Roles.AlcanzaTodaLaOrganizacion</c>). En es y en ca-ES.
+    /// Consulta alcanzan toda la organización, <c>Roles.AlcanzaTodaLaOrganizacion</c>). Hallazgo de la r3: la regla es la de
+    /// las conversaciones que abren un hilo nuevo; la continuación de un hilo cerrado conserva a la persona asignada a la
+    /// anterior (<c>Conversacion.ContinuarCorreo</c>, <c>IngestaWebhookService</c>) y el pie lo dice. En es y en ca-ES.
     /// </summary>
     [Theory]
     [InlineData("es-ES", "queda sin asignar si el buzón no tiene Responsable",
-        "Administrador, Dirección CAE y Consulta ven las conversaciones sin necesitar una Asignación de Cartera", "nace asignada")]
+        "Administrador, Dirección CAE y Consulta ven las conversaciones sin necesitar una Asignación de Cartera", "nace asignada",
+        "Cada conversación que abre un hilo nuevo se asigna al Responsable del buzón",
+        "Si el correo continúa un hilo cerrado, la conversación nueva conserva a la persona que tenía asignada la anterior",
+        "Cada conversación nueva")]
     [InlineData("ca-ES", "queda sense assignar si la bústia no té Responsable",
-        "Administrador, Direcció CAE i Consulta veuen les converses sense necessitar una Assignació de Cartera", "neix assignada")]
+        "Administrador, Direcció CAE i Consulta veuen les converses sense necessitar una Assignació de Cartera", "neix assignada",
+        "Cada conversa que obre un fil nou s'assigna al Responsable de la bústia",
+        "Si el correu continua un fil tancat, la conversa nova conserva la persona que tenia assignada l'anterior",
+        "Cada conversa nova")]
     public void El_pie_dice_cuando_una_conversacion_queda_sin_asignar_y_quien_ve_sin_Asignacion_de_Cartera(
-        string cultura, string sinAsignar, string sinCartera, string afirmacionFalsa)
+        string cultura, string sinAsignar, string sinCartera, string afirmacionFalsa,
+        string reglaDeHiloNuevo, string excepcionDeHiloCerrado, string generalizacion)
     {
         var anterior = System.Globalization.CultureInfo.CurrentUICulture;
         System.Globalization.CultureInfo.CurrentUICulture = new System.Globalization.CultureInfo(cultura);
@@ -384,6 +393,8 @@ public class BuzonesAcuseAutomaticoTests : BunitContext
 
             var pie = cut.Find(".pie-buzones").TextContent;
             pie.Should().Contain(sinAsignar).And.Contain(sinCartera).And.NotContain(afirmacionFalsa);
+            pie.Should().Contain(reglaDeHiloNuevo).And.Contain(excepcionDeHiloCerrado)
+                .And.NotContain(generalizacion, "la regla del Responsable no cubre la continuación de un hilo cerrado");
         }
         finally
         {

@@ -103,7 +103,7 @@
     <value>No hem pogut carregar les bústies. Torna-ho a provar d&apos;aquí a uns minuts.</value>
   </data>
   <data name="PieBuzones" xml:space="preserve">
-    <value>Cada conversa nova s&apos;assigna al Responsable de la bústia; queda sense assignar si la bústia no té Responsable o si aquest ja no la pot atendre. Administrador, Direcció CAE i Consulta veuen les converses sense necessitar una Assignació de Cartera; Coordinador CAE i Gestor CAE, segons la seva Assignació de Cartera o d&apos;Operació.</value>
+    <value>Cada conversa que obre un fil nou s&apos;assigna al Responsable de la bústia; queda sense assignar si la bústia no té Responsable o si aquest ja no la pot atendre. Si el correu continua un fil tancat, la conversa nova conserva la persona que tenia assignada l&apos;anterior. Administrador, Direcció CAE i Consulta veuen les converses sense necessitar una Assignació de Cartera; Coordinador CAE i Gestor CAE, segons la seva Assignació de Cartera o d&apos;Operació.</value>
   </data>
   <data name="ModalAcuseTitulo" xml:space="preserve">
     <value>Confirmació automàtica en rebre un correu</value>
