@@ -120,11 +120,12 @@ public sealed class FirmanteContextoRls
     /// abrió <c>TenantRlsConnectionInterceptor</c> (no hay contexto que tocar).
     ///
     /// <para>
-    /// El estado en memoria NO cambia aquí: el llamante invoca
-    /// <see cref="TokenPendiente.Confirmar"/> solo después de que el
-    /// <c>set_config</c> haya llegado a la base. Si fallara o se cancelara, la
-    /// memoria seguiría describiendo el token que la conexión tiene de verdad
-    /// (hallazgo P2 de Codex, ronda 1).
+    /// El estado en memoria NO cambia aquí, solo al invocar
+    /// <see cref="TokenPendiente.Confirmar"/> (hallazgo P2 de Codex, ronda 1).
+    /// El sellado no lo invoca (quinta revisión de Codex de la conexión por
+    /// operación): mueve el contexto solo dentro del ámbito transaccional de su
+    /// lote y lo devuelve al terminarlo, así que la memoria sigue describiendo el
+    /// contexto de base, que es el de la conexión fuera del lote.
     /// </para>
     /// </summary>
     public static async Task<TokenPendiente?> FirmarConTenantAsync(DbConnection conexion, Guid? tenantId, CancellationToken ct)
@@ -216,10 +217,10 @@ public sealed class FirmanteContextoRls
     /// <summary>
     /// El Tenant activo del contexto de base de esta conexión: el que fijó
     /// <c>TenantRlsConnectionInterceptor</c> al abrirla o al realinearla con el
-    /// contexto actual. Para <c>TenantSelladoInterceptor</c>: restaurar tras
-    /// sellar es volver a la base, y la base puede haberse realineado mientras
-    /// la conexión seguía abierta (conexión retenida por la operación de la
-    /// puerta) después de que el sellado anotara qué Tenant restaurar.
+    /// contexto actual. Para <c>TenantSelladoInterceptor</c>: dentro de una
+    /// transacción del llamador, decide si el ámbito cambió desde que se abrió la
+    /// conexión comparando el Tenant de esta base con el de
+    /// <c>ITenantActual</c>.
     /// </summary>
     public static bool TryObtenerTenantBase(DbConnection conexion, out Guid? tenantId)
     {

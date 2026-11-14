@@ -13,6 +13,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.Extensions.DependencyInjection;
 using Npgsql;
+using System.Data.Common;
 using Xunit;
 
 namespace CaeManager.IntegrationTests.Arranque;
@@ -333,7 +334,7 @@ public sealed class LoteMixtoIdentidadDominioFallaCerradoTests : IAsyncLifetime
 
         excepcion.Should().BeOfType<DbUpdateConcurrencyException>(
             "con app.tenant_id = X la fila de Y es invisible: 0 filas afectadas, y EF exige 1");
-        await AfirmarNadaEscritoYSesionRestauradaAsync(sesion, antes, cuentaId, tenantSesion, restauracionDiferida: true);
+        await AfirmarNadaEscritoYSesionRestauradaAsync(sesion, antes, cuentaId, tenantSesion);
         await AfirmarQueLaSesionSigueUsableAsync(sesion, tenantSesion);
     }
 
@@ -352,7 +353,7 @@ public sealed class LoteMixtoIdentidadDominioFallaCerradoTests : IAsyncLifetime
         var excepcion = await CapturarAsync(() => sesion.Contexto.SaveChangesAsync());
 
         excepcion.Should().BeOfType<DbUpdateConcurrencyException>();
-        await AfirmarNadaEscritoYSesionRestauradaAsync(sesion, antes, cuentaId, tenantSesion, restauracionDiferida: true);
+        await AfirmarNadaEscritoYSesionRestauradaAsync(sesion, antes, cuentaId, tenantSesion);
         await AfirmarQueLaSesionSigueUsableAsync(sesion, tenantSesion);
     }
 
@@ -361,8 +362,10 @@ public sealed class LoteMixtoIdentidadDominioFallaCerradoTests : IAsyncLifetime
     /// cancela: llama a <c>SaveChangesCanceled</c>. Un lote de Identidad de otro
     /// Tenant que ya movió <c>app.tenant_id</c> a X y se cancela a mitad tiene
     /// que devolver la variable a Y igual que un fallo. La cancelación se
-    /// dispara desde un interceptor colocado DESPUÉS del sellado, es decir con
-    /// la variable ya movida y antes de ejecutar ningún comando.
+    /// dispara desde un interceptor colocado DESPUÉS del sellado en el
+    /// <c>BEGIN</c> de la transacción del lote, es decir con la variable ya
+    /// movida (el sellado la mueve ahí) y antes de ejecutar ningún comando del
+    /// lote.
     /// </summary>
     [Fact]
     public async Task B_Un_lote_de_Identidad_de_otro_Tenant_cancelado_a_mitad_restaura_la_sesion()
@@ -392,32 +395,35 @@ public sealed class LoteMixtoIdentidadDominioFallaCerradoTests : IAsyncLifetime
     /// sesión de ESA MISMA conexión ha vuelto a Y. Se lee en la conexión que el
     /// test mantiene abierta: al cerrarla, Npgsql y el interceptor de sesión
     /// la reinicializarían y ocultarían un <c>app.tenant_id</c> olvidado.
+    ///
+    /// <para>
+    /// Quinta revisión de Codex de la conexión por operación: se lee con un
+    /// comando directo de Npgsql, que no pasa por ningún interceptor, también
+    /// tras un <see cref="DbUpdateConcurrencyException"/>. Antes la restauración
+    /// tras un conflicto quedaba diferida al siguiente comando de EF y un comando
+    /// directo veía el Tenant de la cuenta; ahora el sellado vive dentro de la
+    /// transacción del lote y su <c>ROLLBACK</c> lo deshace en el mismo conflicto.
+    /// </para>
     /// </summary>
-    /// <param name="restauracionDiferida">
-    /// En un <see cref="DbUpdateConcurrencyException"/> el interceptor no puede
-    /// ejecutar nada (el lector del lote sigue abierto cuando EF avisa) y
-    /// restaura antes del PRIMER COMANDO EF posterior. Ahí la lectura se hace
-    /// por EF —un comando del contexto, que es lo que la aplicación ejecuta—
-    /// y no por la conexión cruda, que el interceptor de comandos no ve.
-    /// </param>
     private async Task AfirmarNadaEscritoYSesionRestauradaAsync(
-        SesionDeTest sesion, FotoDeEstado antes, Guid cuentaId, Guid tenantSesion, bool restauracionDiferida = false)
+        SesionDeTest sesion, FotoDeEstado antes, Guid cuentaId, Guid tenantSesion)
     {
         (await FotoAsync(cuentaId, tenantSesion)).Should().Be(antes,
             "el lote falló entero: ni la auditoría y la cuenta de X ni el dominio de Y pueden haber cambiado");
-        var tenantDeLaConexion = restauracionDiferida
-            ? await LeerTenantDeSesionPorEfAsync(sesion.Contexto)
-            : await LeerTenantDeSesionAsync(sesion.Contexto);
-        tenantDeLaConexion.Should().Be(tenantSesion.ToString(),
-            "tras el fallo, app.tenant_id de la conexión vuelve al Tenant de sesión");
+        (await LeerTenantDeSesionAsync(sesion.Contexto)).Should().Be(tenantSesion.ToString(),
+            "tras el fallo, app.tenant_id de la conexión vuelve al Tenant de sesión, también para un comando directo");
+        (await LeerTenantFirmadoAsync(sesion.Contexto)).Should().Be(tenantSesion.ToString(),
+            "tras el fallo, el contexto firmado de la conexión vuelve al Tenant de sesión, también para un comando directo");
     }
 
     /// <summary>
-    /// El siguiente lote tras un conflicto de concurrencia, SIN consulta previa
-    /// que dispare la restauración diferida: el lote es de una cuenta del propio
-    /// Tenant de sesión, así que no hay fijado de variable que lo arregle, y
-    /// correría con el Tenant de la cuenta del lote anterior si el inicio de
-    /// <c>SavingChanges</c> no restaurara primero.
+    /// El siguiente lote tras un conflicto de concurrencia, SIN consulta previa:
+    /// el lote es de una cuenta del propio Tenant de sesión, así que no hay
+    /// fijado de variable que lo arregle, y correría con el Tenant de la cuenta
+    /// del lote anterior si el conflicto lo hubiera dejado puesto. Desde la quinta
+    /// revisión de Codex lo deshace el <c>ROLLBACK</c> del propio lote en
+    /// conflicto (el sellado vive dentro de su transacción), no una restauración
+    /// diferida al lote siguiente.
     /// </summary>
     [Fact]
     public async Task B_Tras_un_conflicto_de_concurrencia_el_siguiente_lote_sin_consulta_previa_corre_con_el_Tenant_de_sesion()
@@ -477,6 +483,12 @@ public sealed class LoteMixtoIdentidadDominioFallaCerradoTests : IAsyncLifetime
             (await CapturarAsync(() => sesion.Contexto.SaveChangesAsync()))
                 .Should().BeOfType<DbUpdateConcurrencyException>("precondición: el lote termina en conflicto");
 
+            // Quinta revisión de Codex (ALTO 3 fuera de la puerta): un comando
+            // directo, sin ningún comando de EF antes, ya ve el Tenant de sesión.
+            (await LeerTenantDeSesionAsync(sesion.Contexto)).Should().Be(tenantSesion.ToString(),
+                "dentro de la misma transacción, un comando directo justo tras el conflicto ya corre con el Tenant de sesión");
+            (await LeerTenantFirmadoAsync(sesion.Contexto)).Should().Be(tenantSesion.ToString(),
+                "y con el contexto firmado del Tenant de sesión");
             (await LeerTenantDeSesionPorEfAsync(sesion.Contexto)).Should().Be(tenantSesion.ToString(),
                 "dentro de la misma transacción, el primer comando posterior ya corre con el Tenant de sesión");
             // Segunda revisión de Codex de la conexión por operación: lo que leen
@@ -485,6 +497,25 @@ public sealed class LoteMixtoIdentidadDominioFallaCerradoTests : IAsyncLifetime
             // Tenant de sesión, y no seguir firmado con el Tenant de la cuenta.
             (await LeerTenantFirmadoPorEfAsync(sesion.Contexto)).Should().Be(tenantSesion.ToString(),
                 "dentro de la misma transacción, el contexto firmado también vuelve al Tenant de sesión");
+
+            // Quinta revisión de Codex (ALTO 1): un punto de guardado del llamador
+            // creado justo tras el conflicto, un comando de EF y la vuelta a ese
+            // punto. Con la restauración diferida al siguiente comando de EF, el
+            // punto capturaba el contexto sellado (crearlo no es un comando) y el
+            // ROLLBACK TO SAVEPOINT lo reinstalaba después de haberse restaurado.
+            await transaccion.CreateSavepointAsync("punto_del_llamador");
+            (await sesion.Contexto.ParametrosSistema.CountAsync()).Should().Be(1,
+                "control: el comando de EF entre el punto y la vuelta corre con el Tenant de sesión y ve su parámetro");
+            await transaccion.RollbackToSavepointAsync("punto_del_llamador");
+
+            (await LeerTenantDeSesionAsync(sesion.Contexto)).Should().Be(tenantSesion.ToString(),
+                "tras volver al punto del llamador, un comando directo sigue con el Tenant de sesión");
+            (await LeerTenantFirmadoAsync(sesion.Contexto)).Should().Be(tenantSesion.ToString(),
+                "tras volver al punto del llamador, un comando directo sigue con el contexto firmado del Tenant de sesión");
+            (await LeerTenantDeSesionPorEfAsync(sesion.Contexto)).Should().Be(tenantSesion.ToString(),
+                "tras volver al punto del llamador, un comando de EF sigue con el Tenant de sesión");
+            (await LeerTenantFirmadoPorEfAsync(sesion.Contexto)).Should().Be(tenantSesion.ToString(),
+                "tras volver al punto del llamador, un comando de EF sigue con el contexto firmado del Tenant de sesión");
 
             if (confirmar) await transaccion.CommitAsync();
             else await transaccion.RollbackAsync();
@@ -526,16 +557,18 @@ public sealed class LoteMixtoIdentidadDominioFallaCerradoTests : IAsyncLifetime
     /// <summary>
     /// Revisión puente de la segunda ronda de la conexión por operación: con la
     /// conexión retenida por la operación de la puerta, el «siguiente comando EF»
-    /// que ejecutaría la restauración diferida puede no llegar antes de salir. La
-    /// restauración se hace al salir de la operación, antes de soltar la conexión:
-    /// tras la operación, sin ningún comando EF más, la variable ya vuelve al
-    /// Tenant de sesión (se lee con un comando crudo, que no pasa por los
-    /// interceptores ni dispara la restauración).
+    /// que ejecutaría la restauración diferida puede no llegar antes de salir.
+    /// Quinta revisión de Codex (ALTO 3): y dentro de la operación, entre el
+    /// conflicto y ese comando, un comando directo de Npgsql veía el Tenant de la
+    /// cuenta. Ya no hay restauración diferida: el sellado vive dentro de la
+    /// transacción del lote y su <c>ROLLBACK</c> lo deshace en el propio conflicto,
+    /// así que dentro de la operación un comando directo (que no pasa por los
+    /// interceptores) y uno de EF leen el Tenant de sesión, y al salir también.
     /// </summary>
     [Fact]
-    public async Task B_Un_conflicto_de_concurrencia_dentro_de_una_operacion_de_la_puerta_restaura_la_sesion_al_salir()
+    public async Task B_Un_conflicto_de_concurrencia_dentro_de_una_operacion_de_la_puerta_restaura_la_sesion_en_el_propio_conflicto()
     {
-        var (tenantCuenta, tenantSesion, cuentaId) = await EscenarioAsync(conParametroDeSesion: true);
+        var (_, tenantSesion, cuentaId) = await EscenarioAsync(conParametroDeSesion: true);
         var puerta = new PuertaAccesoDatos();
 
         await using var sesion = await AbrirSesionSoloAuditoriaDeIdentidadAsync(tenantSesion, puerta: puerta);
@@ -548,18 +581,32 @@ public sealed class LoteMixtoIdentidadDominioFallaCerradoTests : IAsyncLifetime
             (await CapturarAsync(() => sesion.Contexto.SaveChangesAsync()))
                 .Should().BeOfType<DbUpdateConcurrencyException>("precondición: el lote termina en conflicto");
 
-            (await LeerTenantDeSesionAsync(sesion.Contexto)).Should().Be(tenantCuenta.ToString(),
-                "control: sin comando EF posterior, dentro de la operación la restauración sigue diferida");
+            (await LeerTenantDeSesionAsync(sesion.Contexto)).Should().Be(tenantSesion.ToString(),
+                "dentro de la operación, un comando directo justo tras el conflicto ya corre con el Tenant de sesión");
+            (await LeerTenantFirmadoAsync(sesion.Contexto)).Should().Be(tenantSesion.ToString(),
+                "dentro de la operación, un comando directo justo tras el conflicto ya corre con el contexto firmado del Tenant de sesión");
+            (await LeerTenantDeSesionPorEfAsync(sesion.Contexto)).Should().Be(tenantSesion.ToString(),
+                "dentro de la operación, un comando de EF tras el conflicto corre con el Tenant de sesión");
+            (await LeerTenantFirmadoPorEfAsync(sesion.Contexto)).Should().Be(tenantSesion.ToString(),
+                "dentro de la operación, un comando de EF tras el conflicto corre con el contexto firmado del Tenant de sesión");
         });
 
         (await LeerTenantDeSesionAsync(sesion.Contexto)).Should().Be(tenantSesion.ToString(),
-            "al salir de la operación la restauración ya se hizo, antes de soltar la conexión");
+            "al salir de la operación la conexión sigue con el Tenant de sesión");
     }
 
     private static async Task<string?> LeerTenantDeSesionPorEfAsync(CaeManagerDbContext contexto) =>
         (await contexto.Database
             .SqlQueryRaw<string>("SELECT current_setting('app.tenant_id', true) AS \"Value\"")
             .ToListAsync()).Single();
+
+    /// <summary>Comando directo de Npgsql, fuera de todo interceptor, como <see cref="LeerTenantDeSesionAsync"/>.</summary>
+    private static async Task<string?> LeerTenantFirmadoAsync(CaeManagerDbContext contexto)
+    {
+        await using var comando = contexto.Database.GetDbConnection().CreateCommand();
+        comando.CommandText = "SELECT app_ctx_tenant_id()::text;";
+        return await comando.ExecuteScalarAsync() as string;
+    }
 
     private static async Task<string?> LeerTenantFirmadoPorEfAsync(CaeManagerDbContext contexto) =>
         (await contexto.Database
@@ -667,21 +714,24 @@ public sealed class LoteMixtoIdentidadDominioFallaCerradoTests : IAsyncLifetime
     /// las rechace antes.
     /// </summary>
     private async Task<SesionDeTest> AbrirSesionSoloAuditoriaDeIdentidadAsync(
-        Guid tenantSesion, SaveChangesInterceptor? trasElSellado = null, PuertaAccesoDatos? puerta = null)
+        Guid tenantSesion, IInterceptor? trasElSellado = null, PuertaAccesoDatos? puerta = null)
     {
         _sesion.TenantId = tenantSesion;
         var servicios = _arnes.Servicios;
+        // El orden de producción (ConfiguracionDeContexto): el auditor, la sesión
+        // RLS y después el sellado (quinta revisión de Codex: el test lo tenía al
+        // revés y no ejercitaba el orden real de los ganchos de transacción).
         var interceptores = new List<IInterceptor>
         {
             new AuditoriaSoloDeIdentidadInterceptor(),
-            new TenantSelladoInterceptor(_sesion, _titular, puerta),
+            new TenantRlsConnectionInterceptor(
+                _sesion,
+                servicios.GetRequiredService<IClienteActivoSeleccionado>(),
+                servicios.GetRequiredService<ICurrentUserService>(), BaseDatosPostgresDePruebas.FirmanteContextoRls,
+                puerta),
+            new TenantSelladoInterceptor(_sesion, _titular),
         };
         if (trasElSellado is not null) interceptores.Add(trasElSellado);
-        interceptores.Add(new TenantRlsConnectionInterceptor(
-            _sesion,
-            servicios.GetRequiredService<IClienteActivoSeleccionado>(),
-            servicios.GetRequiredService<ICurrentUserService>(), BaseDatosPostgresDePruebas.FirmanteContextoRls,
-            puerta));
 
         var opciones = new DbContextOptionsBuilder<CaeManagerDbContext>()
             .UseNpgsql(
@@ -814,14 +864,18 @@ WHERE ""EntidadId"" = @id ORDER BY ""FechaUtc"" DESC LIMIT 1;";
         }
     }
 
-    /// <summary>Cancela el <c>SaveChanges</c> con el sellado ya hecho y ningún comando ejecutado.</summary>
-    private sealed class CancelaTrasElSelladoInterceptor(CancellationTokenSource cancelacion) : SaveChangesInterceptor
+    /// <summary>
+    /// Cancela el <c>SaveChanges</c> con el sellado ya hecho y ningún comando del
+    /// lote ejecutado: en el <c>BEGIN</c> de la transacción del lote, justo
+    /// después de que el sellado (registrado delante) haya movido el contexto.
+    /// </summary>
+    private sealed class CancelaTrasElSelladoInterceptor(CancellationTokenSource cancelacion) : DbTransactionInterceptor
     {
-        public override ValueTask<InterceptionResult<int>> SavingChangesAsync(
-            DbContextEventData eventData, InterceptionResult<int> result, CancellationToken cancellationToken = default)
+        public override ValueTask<DbTransaction> TransactionStartedAsync(
+            DbConnection connection, TransactionEndEventData eventData, DbTransaction result, CancellationToken cancellationToken = default)
         {
             cancelacion.Cancel();
-            return base.SavingChangesAsync(eventData, result, cancellationToken);
+            return base.TransactionStartedAsync(connection, eventData, result, cancellationToken);
         }
     }
 

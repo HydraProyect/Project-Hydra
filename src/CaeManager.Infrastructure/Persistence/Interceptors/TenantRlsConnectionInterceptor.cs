@@ -103,8 +103,13 @@ namespace CaeManager.Infrastructure.Persistence.Interceptors;
 /// <c>ROLLBACK TO SAVEPOINT</c>, que devuelve la sesión a la del punto de guardado
 /// con la transacción aún viva: ahí se realinea el rol (el contexto firmado no se
 /// vuelve a firmar dentro de la transacción) y la sesión queda incierta para el
-/// primer uso fuera de ella. Si esa realineación falla, ningún comando de la
-/// transacción pasa sin volver a intentarla (<see cref="RolSinRealinear"/>).
+/// primer uso fuera de ella. Esa realineación es síncrona y completa en el propio
+/// gancho: si no se puede hacer, la transacción queda abortada en PostgreSQL y
+/// ningún comando posterior corre con el rol del punto de guardado, sea de EF o
+/// directo de Npgsql (<see cref="RealinearRolTrasPuntoDeGuardadoAsync"/>). El
+/// contexto firmado no necesita realinearse dentro: solo lo mueve el sellado, y
+/// lo mueve dentro del propio lote (<c>TenantSelladoInterceptor</c>), así que el
+/// de cualquier punto de guardado del llamador es el del <c>BEGIN</c>.
 /// Una sesión cuyo contexto se aplicó sin firmar (sin clave) no cuenta como
 /// alineada, y el comando siguiente vuelve a intentar firmarlo, como hacía antes
 /// cada apertura.
@@ -263,9 +268,6 @@ public class TenantRlsConnectionInterceptor(
         if (sesion.Rol is { } rol)
             await AdoptarRolAsync(connection, rol, cancellationToken);
 
-        // El rol de la conexión es ya el que fijaría una apertura nueva, también
-        // si un ROLLBACK TO SAVEPOINT anterior lo había dejado sin realinear.
-        RolSinRealinear.Remove(connection);
         SesionPorConexion.AddOrUpdate(connection, sesion);
     }
 
@@ -430,14 +432,12 @@ public class TenantRlsConnectionInterceptor(
     public override void ConnectionClosed(DbConnection connection, ConnectionEndEventData eventData)
     {
         Olvidar(connection);
-        RolSinRealinear.Remove(connection);
         base.ConnectionClosed(connection, eventData);
     }
 
     public override Task ConnectionClosedAsync(DbConnection connection, ConnectionEndEventData eventData)
     {
         Olvidar(connection);
-        RolSinRealinear.Remove(connection);
         return base.ConnectionClosedAsync(connection, eventData);
     }
 
@@ -446,6 +446,23 @@ public class TenantRlsConnectionInterceptor(
         FirmanteContextoRls.Olvidar(connection);
         SesionPorConexion.Remove(connection);
         TransaccionSinConfirmar.Remove(connection);
+    }
+
+    /// <summary>
+    /// Para <c>TenantSelladoInterceptor</c>, cuando no pudo devolver el contexto
+    /// de base a una conexión que sigue abierta FUERA de una transacción: se
+    /// olvida lo anotado y se cierra la conexión física. Ningún comando, de EF ni
+    /// directo, corre ya sobre esa sesión: uno directo falla porque la conexión
+    /// está cerrada, y uno de EF la reabre y la prepara entera
+    /// (<see cref="ConnectionOpenedAsync"/>), como antes de retener la conexión.
+    /// Al devolverla al pool, Npgsql descarta la sesión (<c>DISCARD ALL</c>).
+    /// Dentro de una transacción no se usa: cerrar la conexión la desharía por
+    /// debajo de EF.
+    /// </summary>
+    internal static async Task DescartarSesionAsync(DbConnection connection)
+    {
+        Olvidar(connection);
+        await connection.CloseAsync();
     }
 
     /// <summary>
@@ -532,9 +549,10 @@ public class TenantRlsConnectionInterceptor(
     /// Al empezar un <c>SaveChanges</c> fuera de transacción, con la conexión ya
     /// abierta (retenida por la operación de la puerta): realinea ANTES del
     /// sellado de <c>TenantSelladoInterceptor</c>, que va registrado detrás (ver
-    /// <c>ConfiguracionDeContexto</c>). El sellado puede mover el Tenant del
-    /// contexto para una fila de Identity; si la realineación llegara después,
-    /// en el primer comando del lote, desharía ese movimiento. Con la conexión
+    /// <c>ConfiguracionDeContexto</c>). El sellado decide con el contexto de base
+    /// de la conexión y, si el lote necesita otro Tenant (una fila de Identity),
+    /// lo mueve dentro del ámbito transaccional del lote, donde los comandos ya no
+    /// se realinean (ver <see cref="AntesDelComandoAsync"/>). Con la conexión
     /// cerrada no hace nada: la apertura que haga el lote la preparará.
     /// </summary>
     ValueTask<InterceptionResult<int>> ISaveChangesInterceptor.SavingChangesAsync(
@@ -558,7 +576,9 @@ public class TenantRlsConnectionInterceptor(
     // PostgreSQL deshace con un ROLLBACK (o un ROLLBACK TO SAVEPOINT, que EF usa
     // dentro de SaveChanges en una transacción del llamador) los SET ROLE y los
     // set_config de sesión hechos dentro: una elevación o su vuelta, una
-    // renovación, un sellado. Lo anotado en memoria no se deshace con ellos, y
+    // renovación, un sellado (que por eso vive dentro del ámbito transaccional de
+    // su lote: el deshacer de PostgreSQL es su restauración en un conflicto). Lo
+    // anotado en memoria no se deshace con ellos, y
     // con la conexión retenida el comando siguiente compararía contra una sesión
     // que ya no es la de la conexión (p. ej. anotado soporte con el rol de
     // aprovisionamiento restaurado por el ROLLBACK). Con la transacción terminada
@@ -640,9 +660,8 @@ public class TenantRlsConnectionInterceptor(
     /// <see cref="RealinearRolTrasPuntoDeGuardadoAsync"/> que lanza) puede dejar
     /// la transacción viva (revisión puente de la cuarta ronda): se retira la
     /// sesión anotada y se marca la conexión, como en el punto de guardado, pero se
-    /// conserva el estado del firmante, sin el cual el sellado no podría volver a
-    /// firmar el contexto de base dentro de esa transacción. La marca de
-    /// <see cref="RolSinRealinear"/> tampoco se toca aquí.
+    /// conserva el estado del firmante, sin el cual el sellado no podría firmar el
+    /// contexto de su lote dentro de esa transacción.
     /// </summary>
     private static void TrasFalloDeTransaccion(DbConnection? conexion, string action)
     {
@@ -662,80 +681,101 @@ public class TenantRlsConnectionInterceptor(
     /// <summary>
     /// <c>ROLLBACK TO SAVEPOINT</c> (segunda revisión de Codex): a diferencia del
     /// ROLLBACK, la transacción sigue viva y sus comandos siguientes no se
-    /// realinean. PostgreSQL ha devuelto el rol y el contexto al valor que tenían
-    /// al crear el punto de guardado, que puede no ser el vigente: un rol de
-    /// aprovisionamiento con el ámbito ya cerrado y devuelto a soporte, o el
-    /// contexto que el sellado firmó con el Tenant propietario de una cuenta.
+    /// realinean. PostgreSQL ha devuelto el rol al que tenía al crear el punto de
+    /// guardado, que puede no ser el vigente: un rol de aprovisionamiento con el
+    /// ámbito ya cerrado y devuelto a soporte.
     ///
     /// <para>
-    /// <b>El rol se realinea aquí mismo</b>: <c>RESET ROLE</c> y el
-    /// <c>SET ROLE</c> del rol que fijaría una apertura nueva en este instante
+    /// <b>El rol se realinea aquí mismo, y en un solo comando</b>: <c>RESET ROLE</c>
+    /// y el <c>SET ROLE</c> del rol que fijaría una apertura nueva en este instante
     /// (<see cref="DebeAdoptarRolDeAprovisionamiento"/> sigue exigiendo ámbito,
     /// sesión y Tenant), así que nunca concede más que eso.
+    /// </para>
+    /// <para>
+    /// <b>Sin estado diferido</b> (quinta revisión de Codex): la ronda anterior
+    /// marcaba la conexión cuando la realineación fallaba y la volvía a intentar
+    /// antes del siguiente comando de EF, pero un comando directo de Npgsql no pasa
+    /// por ningún interceptor y corría con el rol del punto de guardado. Ahora no
+    /// queda ningún estado que el comando siguiente tenga que reparar: el rol
+    /// deseado se resuelve antes de tocar la base; si resolverlo falla, la
+    /// transacción se aborta en PostgreSQL (<see cref="AbortarTransaccionAsync"/>)
+    /// y se propaga el error; y el <c>RESET ROLE</c> y el <c>SET ROLE</c> van en un
+    /// solo comando, así que si el <c>SET ROLE</c> falla en la base la transacción
+    /// queda abortada con él. En los tres desenlaces, o el rol es el deseado o
+    /// ningún comando de la transacción —de EF o directo— llega a ejecutarse hasta
+    /// un <c>ROLLBACK</c> o un nuevo <c>ROLLBACK TO SAVEPOINT</c>, que vuelve a pasar
+    /// por aquí. Un fallo solo del cliente (conexión rota, tiempo agotado) deja la
+    /// conexión rota o, con la cancelación de Npgsql, la transacción abortada.
     /// </para>
     /// <para>
     /// <b>El contexto firmado no se vuelve a firmar dentro de la transacción</b>
     /// (tercera revisión de Codex): una firma nueva podría usar una clave que la
     /// instantánea de una transacción <c>REPEATABLE READ</c> todavía no ve y dejar
-    /// la transacción sin RLS utilizable. Se conserva el estado del firmante (sin
-    /// él, el sellado no podría volver a firmar el contexto de base al restaurar,
-    /// segunda revisión de Codex) y se retira solo la sesión anotada: fuera de la
-    /// transacción, la marca de <see cref="TransaccionSinConfirmar"/> o la falta de
-    /// anotación hacen que el siguiente uso aplique la sesión entera, también tras
-    /// un COMMIT.
-    /// </para>
-    /// <para>
-    /// La anotación y la marca se retiran antes de calcular nada: si algo falla,
-    /// la sesión queda incierta para todo uso fuera de la transacción. Un error de
-    /// PostgreSQL deja además la transacción abortada.
-    /// </para>
-    /// <para>
-    /// <b>Dentro de la transacción, falla cerrado</b> (cuarta revisión de Codex):
-    /// antes de calcular nada la conexión se marca en <see cref="RolSinRealinear"/>,
-    /// y la marca solo se retira cuando el <c>SET ROLE</c> llegó a la base. Si
-    /// resolver el rol o cambiarlo falla en el cliente sin abortar la transacción
-    /// y el llamador captura la excepción, el rol sigue siendo el que restauró el
-    /// punto de guardado (o el de login, tras el <c>RESET ROLE</c>); por eso cada
-    /// comando de EF dentro de la transacción mira la marca y vuelve a realinear
-    /// antes de pasar (<see cref="AntesDelComandoAsync"/>). Si tampoco lo consigue,
-    /// el comando lanza en vez de correr con el rol equivocado.
+    /// la transacción sin RLS utilizable. Tampoco hace falta: dentro de una
+    /// transacción solo el sellado mueve el contexto, y lo mueve dentro del punto de
+    /// guardado de su propio lote y lo devuelve antes de que el lote termine
+    /// (<c>TenantSelladoInterceptor</c>), así que el contexto de cualquier punto de
+    /// guardado del llamador es el del <c>BEGIN</c>. Se conserva el estado del
+    /// firmante y se retira solo la sesión anotada: fuera de la transacción, la
+    /// marca de <see cref="TransaccionSinConfirmar"/> o la falta de anotación hacen
+    /// que el siguiente uso aplique la sesión entera, también tras un COMMIT.
     /// </para>
     /// </summary>
     void IDbTransactionInterceptor.RolledBackToSavepoint(DbTransaction transaction, TransactionEventData eventData) =>
-        RealinearRolTrasPuntoDeGuardadoAsync(ConexionDe(transaction, eventData), CancellationToken.None)
-            .GetAwaiter().GetResult();
+        RealinearRolTrasPuntoDeGuardadoAsync(ConexionDe(transaction, eventData)).GetAwaiter().GetResult();
 
     Task IDbTransactionInterceptor.RolledBackToSavepointAsync(
         DbTransaction transaction, TransactionEventData eventData, CancellationToken cancellationToken) =>
-        RealinearRolTrasPuntoDeGuardadoAsync(ConexionDe(transaction, eventData), CancellationToken.None);
+        RealinearRolTrasPuntoDeGuardadoAsync(ConexionDe(transaction, eventData));
 
-    private async Task RealinearRolTrasPuntoDeGuardadoAsync(DbConnection? conexion, CancellationToken cancellationToken)
+    private async Task RealinearRolTrasPuntoDeGuardadoAsync(DbConnection? conexion)
     {
         if (conexion is not NpgsqlConnection npgsql || npgsql.State != System.Data.ConnectionState.Open)
             return;
 
         SesionPorConexion.Remove(npgsql);
         MarcarSinConfirmar(npgsql);
-        RolSinRealinear.AddOrUpdate(npgsql, Marca);
 
-        var rolDeseado = (await SesionDeseadaAsync()).Rol;
-        await DeshacerRolAsync(npgsql, cancellationToken);
-        if (rolDeseado is not null)
-            await AdoptarRolAsync(npgsql, rolDeseado, cancellationToken);
+        string? rolDeseado;
+        try
+        {
+            rolDeseado = (await SesionDeseadaAsync()).Rol;
+        }
+        catch
+        {
+            await AbortarTransaccionAsync(npgsql);
+            throw;
+        }
 
-        RolSinRealinear.Remove(npgsql);
+        // Identificadores fijos del código (los dos roles literales de esta clase).
+        await using var comando = npgsql.CreateCommand();
+        comando.CommandText = rolDeseado is null ? "RESET ROLE;" : $"RESET ROLE; SET ROLE {rolDeseado};";
+        await comando.ExecuteNonQueryAsync(CancellationToken.None);
     }
 
     /// <summary>
-    /// Conexiones cuyo rol un <c>ROLLBACK TO SAVEPOINT</c> devolvió al del punto
-    /// de guardado y que aún no se han realineado (ver
-    /// <see cref="RealinearRolTrasPuntoDeGuardadoAsync"/>). Mientras una conexión
-    /// esté aquí, ningún comando de EF pasa sin volver a realinear el rol. Solo la
-    /// retiran una realineación terminada, una aplicación entera de la sesión
-    /// (<see cref="AplicarAsync"/>) o el cierre de la conexión; no el fallo de la
-    /// transacción, que puede seguir viva.
+    /// Deja la transacción en curso abortada en PostgreSQL con un error deliberado
+    /// que no necesita ningún privilegio (un literal que no es un entero): a partir
+    /// de ahí la base rechaza todo comando de la transacción, de EF o directo
+    /// (<c>25P02</c>), hasta un <c>ROLLBACK</c> o un <c>ROLLBACK TO SAVEPOINT</c>. Si
+    /// la base no lo rechazara, no habría garantía, y se lanza.
     /// </summary>
-    private static readonly ConditionalWeakTable<DbConnection, object> RolSinRealinear = new();
+    private static async Task AbortarTransaccionAsync(NpgsqlConnection conexion)
+    {
+        await using var comando = conexion.CreateCommand();
+        comando.CommandText = "SELECT 'sesion RLS sin realinear tras ROLLBACK TO SAVEPOINT'::integer;";
+        try
+        {
+            await comando.ExecuteNonQueryAsync(CancellationToken.None);
+        }
+        catch (PostgresException ex) when (ex.SqlState == PostgresErrorCodes.InvalidTextRepresentation)
+        {
+            return;
+        }
+
+        throw new InvalidOperationException(
+            "No se pudo abortar la transacción tras no poder realinear el rol después de un ROLLBACK TO SAVEPOINT.");
+    }
 
     private static void OlvidarSiHayConexion(DbConnection? conexion)
     {
@@ -754,28 +794,17 @@ public class TenantRlsConnectionInterceptor(
     /// después, si hay una operación de la puerta en curso en este flujo,
     /// retener la conexión hasta que termine. La retención va al final a
     /// propósito: si realinear falla, el comando falla y la conexión se cierra
-    /// por el camino de siempre, sin quedar retenida.
-    ///
-    /// <para>
-    /// Dentro de una transacción no se realinea la sesión, salvo el rol de una
-    /// conexión que un <c>ROLLBACK TO SAVEPOINT</c> dejó sin realinear
-    /// (<see cref="RolSinRealinear"/>): se vuelve a intentar aquí, y si falla, el
-    /// comando no llega a la base.
-    /// </para>
+    /// por el camino de siempre, sin quedar retenida. Dentro de una transacción no
+    /// se realinea nada: los puntos que cambian la sesión dentro de ella la dejan
+    /// alineada, o la transacción abortada, en el mismo instante en que la cambian
+    /// (<see cref="RealinearRolTrasPuntoDeGuardadoAsync"/>, el sellado).
     /// </summary>
     private async Task AntesDelComandoAsync(DbCommand command, CommandEventData eventData, CancellationToken cancellationToken)
     {
-        if (command.Connection is { } conexion)
+        if (command.Connection is { } conexion && command.Transaction is null)
         {
-            if (command.Transaction is null)
-            {
-                await AlinearSiCambioAsync(conexion, cancellationToken);
-                await RenovarAsync(conexion, cancellationToken);
-            }
-            else if (RolSinRealinear.TryGetValue(conexion, out _))
-            {
-                await RealinearRolTrasPuntoDeGuardadoAsync(conexion, cancellationToken);
-            }
+            await AlinearSiCambioAsync(conexion, cancellationToken);
+            await RenovarAsync(conexion, cancellationToken);
         }
 
         RetenerSiHayOperacion(eventData.Context);

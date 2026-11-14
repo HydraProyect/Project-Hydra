@@ -7,12 +7,14 @@ namespace CaeManager.Architecture.Tests;
 /// delante de <c>TenantSelladoInterceptor</c>. Con la conexión retenida por la
 /// operación de <c>PuertaAccesoDatos</c>, un <c>SaveChanges</c> empieza con la
 /// conexión ya abierta: el interceptor RLS realinea primero el contexto firmado
-/// con la sesión del instante y después el sellado lo mueve, si hace falta, al
-/// Tenant propietario de una fila de Identity. Al revés, el sellado movería el
-/// contexto y el primer comando del lote lo sobrescribiría con la sesión: la
-/// fila de Identity se escribiría con el Tenant de sesión y no con el suyo.
-/// EF ejecuta los interceptores en el orden de registro, así que el orden del
-/// fichero es el contrato.
+/// con la sesión del instante y después el sellado decide, con ese contexto de
+/// base, si el lote necesita el Tenant propietario de una fila de Identity. Lo
+/// mismo en los ganchos de transacción: el interceptor RLS realinea antes del
+/// <c>BEGIN</c> y el sellado mueve el contexto justo después, dentro del ámbito
+/// transaccional del lote; tras un <c>ROLLBACK TO SAVEPOINT</c>, el RLS realinea
+/// el rol y el sellado da por deshecho su movimiento. EF ejecuta los
+/// interceptores en el orden de registro, así que el orden del fichero es el
+/// contrato.
 /// </summary>
 public class OrdenInterceptoresRlsYSelladoTests
 {

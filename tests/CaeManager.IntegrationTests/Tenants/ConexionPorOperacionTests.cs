@@ -333,14 +333,22 @@ public class ConexionPorOperacionTests : IAsyncLifetime
 
     /// <summary>
     /// Cuarta revisión de Codex (ALTO): la realineación del rol tras un ROLLBACK
-    /// TO SAVEPOINT falla en el cliente (aquí, al resolver el contexto) sin
-    /// abortar la transacción en PostgreSQL, y el llamador captura la excepción.
-    /// El rol de la conexión sigue siendo el que restauró el punto de guardado
-    /// (aprovisionamiento con el ámbito ya cerrado), así que el comando siguiente
-    /// de la MISMA transacción tiene que volver a realinearlo antes de correr.
+    /// TO SAVEPOINT falla en el cliente (aquí, al resolver el contexto) y el
+    /// llamador captura la excepción. El rol de la conexión es el que restauró el
+    /// punto de guardado (aprovisionamiento con el ámbito ya cerrado).
+    ///
+    /// <para>
+    /// Quinta revisión de Codex (ALTO 2): la ronda anterior marcaba la conexión y
+    /// realineaba antes del siguiente comando de EF, pero un comando directo de
+    /// Npgsql no pasa por ningún interceptor y corría con aprovisionamiento. Ahora
+    /// la realineación fallida aborta la transacción en PostgreSQL en el mismo
+    /// instante: ningún comando de esa transacción, directo o de EF, llega a
+    /// ejecutarse (<c>25P02</c>) hasta el <c>ROLLBACK</c>, y tras él la conexión
+    /// vuelve a soporte.
+    /// </para>
     /// </summary>
     [Fact]
-    public async Task Si_la_realineacion_tras_un_punto_de_guardado_falla_el_comando_siguiente_no_corre_con_el_rol_restaurado()
+    public async Task Si_la_realineacion_tras_un_punto_de_guardado_falla_ningun_comando_corre_con_el_rol_restaurado()
     {
         var puerta = new PuertaAccesoDatos();
         var sesion = Guid.NewGuid();
@@ -353,7 +361,7 @@ public class ConexionPorOperacionTests : IAsyncLifetime
         var elevacion = new ElevacionEscrituraPrivilegiada(contexto);
         var estrategia = contexto.Database.CreateExecutionStrategy();
 
-        var (fallo, conservaContextoFirmado, rolSinInterceptar, rolDelComandoSiguiente) =
+        var (fallo, conservaContextoFirmado, falloDirecto, falloDeEf, rolTrasRollback) =
             await puerta.EjecutarAsync(() => estrategia.ExecuteAsync(async () =>
             {
                 var ambito = AmbitoEscrituraPrivilegiada.Establecer(sesion, TenantA);
@@ -369,10 +377,10 @@ public class ConexionPorOperacionTests : IAsyncLifetime
                 usuario.Fallar = false;
 
                 var conserva = FirmanteContextoRls.TieneContextoFirmado(contexto.Database.GetDbConnection());
-                var sinInterceptar = await RolSinPasarPorElInterceptorAsync(contexto, transaccion);
-                var siguiente = (await RolActualAsync(contexto)).Rol;
+                var directo = await Record.ExceptionAsync(() => RolSinPasarPorElInterceptorAsync(contexto, transaccion));
+                var deEf = await Record.ExceptionAsync(() => RolActualAsync(contexto));
                 await transaccion.RollbackAsync();
-                return (excepcion, conserva, sinInterceptar, siguiente);
+                return (excepcion, conserva, directo, deEf, (await RolActualAsync(contexto)).Rol);
             }));
 
         fallo.Should().NotBeNull("control: la realineación tras el punto de guardado falló en el cliente");
@@ -380,11 +388,21 @@ public class ConexionPorOperacionTests : IAsyncLifetime
             "control: EF avisa del fallo como fallo de una acción de punto de guardado; sin esto la aserción siguiente no discrimina");
         conservaContextoFirmado.Should().BeTrue(
             "el fallo de una acción de punto de guardado no olvida el contexto firmado de una transacción que sigue " +
-            "viva: el sellado lo necesita para volver a firmar el contexto de base");
-        rolSinInterceptar.Should().Be("cae_app_aprovisionamiento",
-            "control: la transacción sigue viva con el rol que restauró el punto de guardado");
-        rolDelComandoSiguiente.Should().Be("cae_app_soporte",
-            "el comando siguiente de la transacción realinea el rol antes de correr; sin eso correría con escritura elevada");
+            "abierta: al terminarla, el siguiente uso aplica la sesión entera");
+        SqlStateDe(falloDirecto).Should().Be(PostgresErrorCodes.InFailedSqlTransaction,
+            "un comando directo de Npgsql, que no pasa por ningún interceptor, no puede correr con el rol que restauró el " +
+            "punto de guardado: la transacción quedó abortada en PostgreSQL");
+        SqlStateDe(falloDeEf).Should().Be(PostgresErrorCodes.InFailedSqlTransaction,
+            "un comando de EF tampoco corre en esa transacción");
+        rolTrasRollback.Should().Be("cae_app_soporte",
+            "tras el ROLLBACK la conexión de la operación vuelve a la sesión deseada, sin escritura elevada");
+    }
+
+    private static string? SqlStateDe(Exception? excepcion)
+    {
+        for (var actual = excepcion; actual is not null; actual = actual.InnerException)
+            if (actual is PostgresException postgres) return postgres.SqlState;
+        return null;
     }
 
     /// <summary>
@@ -658,7 +676,7 @@ public class ConexionPorOperacionTests : IAsyncLifetime
                 new TenantRlsConnectionInterceptor(
                     tenant, seleccion, usuario ?? new UsuarioDelTenant(usuarioId ?? Guid.NewGuid(), () => tenant.TenantId),
                     firmante ?? BaseDatosPostgresDePruebas.FirmanteContextoRls, puerta),
-                new TenantSelladoInterceptor(tenant, puertaAccesoDatos: puerta),
+                new TenantSelladoInterceptor(tenant),
                 aperturas)
             .AddInterceptors(extra is null ? Array.Empty<IInterceptor>() : new[] { extra })
             .Options;

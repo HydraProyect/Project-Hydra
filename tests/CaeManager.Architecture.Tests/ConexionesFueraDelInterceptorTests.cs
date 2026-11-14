@@ -107,17 +107,16 @@ public class ConexionesFueraDelInterceptorTests
         // conexión ya estaba abierta cuando el ámbito se establece.
         "src/CaeManager.Infrastructure/Plataforma/ElevacionEscrituraPrivilegiada.cs",
 
-        // TenantSelladoInterceptor.FijarTenantEnSesionRlsAsync: mismo patrón
-        // que ElevacionEscrituraPrivilegiada.cs de arriba — NO abre una
-        // conexión nueva, usa contexto.Database.GetDbConnection() (la MISMA
-        // conexión que TenantRlsConnectionInterceptor ya abrió) tras
-        // OpenConnectionAsync (contador de referencias de EF, no una apertura
-        // real independiente). Ejecuta set_config('app.tenant_id', ...) para
-        // sellar/restaurar la fila de auditoría de Identity con el TenantId
-        // PROPIETARIO de la cuenta cuando difiere del tenant de sesión (sin
-        // sesión, o un Workspace operativo derivado seleccionado) — el mismo
-        // valor que TenantRlsConnectionInterceptor ya fija al abrir, solo que
-        // aquí puede hacer falta a mitad de SaveChanges.
+        // TenantSelladoInterceptor: mismo patrón que
+        // ElevacionEscrituraPrivilegiada.cs de arriba — NO abre ninguna
+        // conexión: usa contexto.Database.GetDbConnection() (la MISMA conexión
+        // que TenantRlsConnectionInterceptor ya abrió) solo para devolverle,
+        // al terminar el lote, el app.tenant_id y el app.contexto que tenía
+        // antes; si está cerrada no hace nada. El movimiento al TenantId
+        // PROPIETARIO de la cuenta de una fila de auditoría de Identity (sin
+        // sesión, o un Workspace operativo derivado seleccionado) se hace sobre
+        // la conexión que EF le pasa en el BEGIN o el punto de guardado del
+        // propio lote, dentro de su ámbito transaccional.
         "src/CaeManager.Infrastructure/MultiTenancy/TenantSelladoInterceptor.cs",
 
         // P6: ClaveContextoRls registra la clave del contexto RLS firmado con
