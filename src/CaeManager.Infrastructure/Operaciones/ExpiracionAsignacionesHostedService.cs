@@ -170,33 +170,103 @@ public class ExpiracionAsignacionesHostedService(
         // el índice dentro de la misma transacción. Dos guardados ordenados lo
         // evitan sin necesidad de tocar el esquema.
         //
-        // El cierre va en su propia transacción porque retira filas heredadas bajo el candado de
-        // cartera de cada titular (ver CerrarExpiradasAsync); TransaccionDeComando la abre dentro
-        // de la estrategia de reintentos y se une a la de fuera si quien llama ya tiene una.
+        // Un pase por servicio, cada uno en su propia transacción y Outbound primero (B-02a, sexta
+        // revisión de Codex). Antes las asignaciones de los dos servicios se guardaban juntas: un
+        // conflicto de versión en una Inbound que alguien cambiaba a la vez deshacía también el
+        // cierre de las Outbound y el borrado de su fila heredada, y la fila seguía autorizando el
+        // Tenant hasta otro ciclo. Ahora un fallo en un pase no deshace ni impide el otro. Cada
+        // asignación cae en un solo pase —la cartera, por el servicio de su operación—, así que la
+        // partición no deja nada fuera ni lo cierra dos veces. TransaccionDeComando abre cada
+        // transacción dentro de la estrategia de reintentos y se une a la de fuera si quien llama ya
+        // tiene una (solo en pruebas; entonces los dos pases confirman o caen juntos).
+        //
+        // Solo se activan las programadas de un servicio cuyo cierre se confirmó: con el cierre
+        // caído, una operación vencida seguiría figurando vigente y la activación de sus carteras
+        // la tomaría por viva.
+        var fallos = new List<Exception>();
         var cerradas = 0;
-        var cierre = await new TransaccionDeComando(dbContext).EjecutarAsync(async ct =>
+        var serviciosCerrados = new List<bool>();
+        foreach (var deOutbound in PasesPorServicio)
         {
-            cerradas = await CerrarExpiradasAsync(dbContext, ahora, ct);
-            return Result.Exito();
-        }, stoppingToken);
-        if (cierre.EsFallido)
-            throw new InvalidOperationException($"El cierre de asignaciones expiradas falló: {cierre.Error}");
-        var activadas = await ActivarProgramadasAsync(dbContext, ahora, logger, stoppingToken);
+            try
+            {
+                var delPase = 0;
+                var cierre = await new TransaccionDeComando(dbContext).EjecutarAsync(async ct =>
+                {
+                    delPase = await CerrarExpiradasAsync(dbContext, ahora, deOutbound, ct);
+                    return Result.Exito();
+                }, stoppingToken);
+                if (cierre.EsFallido)
+                    throw new InvalidOperationException($"El cierre de asignaciones expiradas falló: {cierre.Error}");
+                cerradas += delPase;
+                serviciosCerrados.Add(deOutbound);
+            }
+            catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
+            {
+                throw;
+            }
+            catch (Exception ex)
+            {
+                // Lo que el pase caído dejó en memoria no puede colarse en el guardado del siguiente.
+                dbContext.ChangeTracker.Clear();
+                fallos.Add(ex);
+            }
+        }
+
+        var activadas = 0;
+        foreach (var deOutbound in serviciosCerrados)
+        {
+            try
+            {
+                activadas += await ActivarProgramadasAsync(dbContext, ahora, deOutbound, logger, stoppingToken);
+            }
+            catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
+            {
+                throw;
+            }
+            catch (Exception ex)
+            {
+                dbContext.ChangeTracker.Clear();
+                fallos.Add(ex);
+            }
+        }
 
         if (cerradas > 0 || activadas > 0)
             logger.LogInformation(
                 "Expiración de asignaciones operativas: {Cerradas} cerradas, {Activadas} activadas.", cerradas, activadas);
+
+        if (fallos.Count > 0)
+            throw new AggregateException("Falló al menos un pase de expiración de asignaciones operativas.", fallos);
     }
 
+    /// <summary>
+    /// Los pases del ciclo, en orden: <c>true</c> es el de <see cref="CatalogoIncorporacionCartera.Servicio"/>
+    /// (Outbound), <c>false</c> el de cualquier otro servicio. Outbound va primero: es el que retira filas
+    /// heredadas, que autorizan el Tenant por sí solas.
+    /// </summary>
+    private static readonly bool[] PasesPorServicio = [true, false];
+
+    /// <summary>
+    /// Las Asignaciones de Operación de un pase: las de <see cref="CatalogoIncorporacionCartera.Servicio"/>
+    /// o las de cualquier otro. Una cartera pertenece al pase de su operación.
+    /// </summary>
+    private static IQueryable<AsignacionOperacion> OperacionesDelPase(CaeManagerDbContext dbContext, bool deOutbound) =>
+        deOutbound
+            ? dbContext.AsignacionesOperacion.Where(o => o.Servicio == CatalogoIncorporacionCartera.Servicio)
+            : dbContext.AsignacionesOperacion.Where(o => o.Servicio != CatalogoIncorporacionCartera.Servicio);
+
     private static async Task<int> CerrarExpiradasAsync(
-        CaeManagerDbContext dbContext, DateTime ahora, CancellationToken stoppingToken)
+        CaeManagerDbContext dbContext, DateTime ahora, bool deOutbound, CancellationToken stoppingToken)
     {
+        var operacionesDelPase = OperacionesDelPase(dbContext, deOutbound);
+
         var carteras = await dbContext.AsignacionesCartera
             .Where(c => c.Estado == EstadoAsignacion.Vigente
-                        && c.VigenciaHasta != null && ahora >= c.VigenciaHasta)
+                        && c.VigenciaHasta != null && ahora >= c.VigenciaHasta
+                        && operacionesDelPase.Any(o => o.Id == c.AsignacionOperacionId))
             .ToListAsync(stoppingToken);
 
-        var operaciones = await dbContext.AsignacionesOperacion
+        var operaciones = await operacionesDelPase
             .Where(o => o.Estado == EstadoAsignacion.Vigente
                         && o.VigenciaHasta != null && ahora >= o.VigenciaHasta)
             .ToListAsync(stoppingToken);
@@ -228,25 +298,18 @@ public class ExpiracionAsignacionesHostedService(
         //
         // Solo las carteras de Outbound mueven la fila (B-02a): la fila heredada abre Outbound, y
         // una cartera de otro servicio que caduca no puede quitar un acceso de Outbound que no
-        // concedió. Que una cartera de otro servicio tampoco la sostenga lo decide
-        // RetirarFilaHeredadaSiSobraAsync.
+        // concedió. Por eso solo el pase de Outbound decide filas heredadas: en él todas las
+        // carteras cuelgan de una operación Outbound, y en el otro no hay titular que decidir. Que
+        // una cartera de otro servicio tampoco la sostenga lo decide RetirarFilaHeredadaSiSobraAsync.
         var cerradasEnElPase = carteras.Concat(carterasHuerfanas).DistinctBy(c => c.Id).ToList();
         var cerradas = cerradasEnElPase.Select(c => c.Id).ToList();
-        var externasCerradas = cerradasEnElPase
-            .Where(c => c.OperadorTenantId != c.PropietarioTenantId && c.Ambito.EsUniversal)
-            .ToList();
-        var idsOperacionesDeExternas = externasCerradas.Select(c => c.AsignacionOperacionId).Distinct().ToList();
-        var operacionesDelServicio = idsOperacionesDeExternas.Count == 0
+        List<(Guid PropietarioTenantId, Guid OperadorTenantId, Guid UsuarioId)> titulares = !deOutbound
             ? []
-            : (await dbContext.AsignacionesOperacion
-                .Where(o => idsOperacionesDeExternas.Contains(o.Id) && o.Servicio == CatalogoIncorporacionCartera.Servicio)
-                .Select(o => o.Id)
-                .ToListAsync(stoppingToken)).ToHashSet();
-        var titulares = externasCerradas
-            .Where(c => operacionesDelServicio.Contains(c.AsignacionOperacionId))
-            .Select(c => (c.PropietarioTenantId, c.OperadorTenantId, c.UsuarioId))
-            .Distinct()
-            .ToList();
+            : cerradasEnElPase
+                .Where(c => c.OperadorTenantId != c.PropietarioTenantId && c.Ambito.EsUniversal)
+                .Select(c => (c.PropietarioTenantId, c.OperadorTenantId, c.UsuarioId))
+                .Distinct()
+                .ToList();
 
         // Candado exclusivo de cartera de cada titular, en orden de clave y antes de mirar qué otra
         // cartera le queda (revisión puente de la ronda 5 de B-02a). Sin él, este pase y una
@@ -287,11 +350,12 @@ public class ExpiracionAsignacionesHostedService(
     /// concedería acceso sin nada que lo ampare.
     /// </summary>
     private static async Task<int> ActivarProgramadasAsync(
-        CaeManagerDbContext dbContext, DateTime ahora, ILogger logger, CancellationToken stoppingToken)
+        CaeManagerDbContext dbContext, DateTime ahora, bool deOutbound, ILogger logger, CancellationToken stoppingToken)
     {
         var activadas = 0;
+        var operacionesDelPase = OperacionesDelPase(dbContext, deOutbound);
 
-        var operaciones = await dbContext.AsignacionesOperacion
+        var operaciones = await operacionesDelPase
             .Where(o => o.Estado == EstadoAsignacion.Programada && o.VigenciaDesde <= ahora)
             .ToListAsync(stoppingToken);
 
@@ -302,7 +366,7 @@ public class ExpiracionAsignacionesHostedService(
                 activadas++;
         }
 
-        var idsOperacionesVigentes = await dbContext.AsignacionesOperacion
+        var idsOperacionesVigentes = await operacionesDelPase
             .Where(o => o.Estado == EstadoAsignacion.Vigente)
             .Select(o => o.Id)
             .ToListAsync(stoppingToken);

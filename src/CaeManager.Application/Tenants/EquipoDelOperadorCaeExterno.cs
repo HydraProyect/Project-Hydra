@@ -35,9 +35,10 @@ namespace CaeManager.Application.Tenants;
 /// que no escribe), y toda la organización llega a los Tenants propietarios con los que el
 /// Operador CAE externo tiene esta Asignación de Operación; el Gestor CAE y el Coordinador CAE
 /// necesitan una Asignación de Cartera viva propia sobre ese Tenant propietario, bajo una
-/// Asignación de Operación Outbound de este Operador CAE externo
-/// (<see cref="ICatalogoIncorporacionCartera.ObtenerCarterasVivasAsync"/> no devuelve las de
-/// otro servicio, B-02a): una cartera solo Inbound no revoca el acceso de Outbound.</item>
+/// Asignación de Operación Outbound de este Operador CAE externo que siga vigente en estado y en
+/// fechas (<see cref="ICatalogoIncorporacionCartera.ObtenerCarterasVivasAsync"/> no devuelve las de
+/// otro servicio ni las de una operación caducada, suspendida, programada o cerrada, B-02a): una
+/// cartera solo Inbound, o una cuya operación ya no autoriza, no revoca el acceso de Outbound.</item>
 /// </list>
 /// </summary>
 public static class EquipoDelOperadorCaeExterno

@@ -2,6 +2,7 @@ using System.Collections;
 using System.Linq.Expressions;
 using CaeManager.Application.Common;
 using CaeManager.Application.Operaciones;
+using CaeManager.Application.Tenants;
 using CaeManager.Domain.Operaciones;
 using CaeManager.Domain.Tenants;
 using CaeManager.Infrastructure.Autorizacion;
@@ -456,6 +457,93 @@ public class CarteraYFilaHeredadaSoloOutboundTests
         else
             db.De<AsignacionOperadorDelegado>().Retirados.Should().BeEmpty(
                 "le queda otra cartera Outbound vigente del mismo Operador CAE externo, que sigue necesitando la fila");
+    }
+
+    /// <summary>
+    /// Sexta revisión de Codex (MEDIA): una cartera Outbound que sigue figurando vigente solo autoriza si su
+    /// Asignación de Operación Outbound está vigente en estado y en fechas. Bajo una operación caducada por fecha
+    /// (aún sin cerrar por el job), suspendida, programada, cerrada o activada antes de que empiece su vigencia, el
+    /// Gestor CAE no aparece entre las carteras vivas con las que se autoriza y no supera la guarda de revocación
+    /// de <see cref="EquipoDelOperadorCaeExterno"/>. Esa misma cartera sí se puede retirar: la mirada de retirada
+    /// no exige la operación vigente, y quitar lo que ya no autoriza no puede quedar bloqueado.
+    /// </summary>
+    [Theory]
+    [InlineData("vigente", true)]
+    [InlineData("caducada", false)]
+    [InlineData("suspendida", false)]
+    [InlineData("programada", false)]
+    [InlineData("cerrada", false)]
+    [InlineData("vigente antes de empezar", false)]
+    public async Task Solo_una_cartera_cuya_operacion_Outbound_sigue_vigente_autoriza_la_revocacion(
+        string caso, bool autoriza)
+    {
+        var operacion = caso switch
+        {
+            "caducada" => AsignacionOperacion.Externa(
+                _propietario.Id, _operador.Id, ServicioCae.Outbound, AmbitoAsignacion.Universal, Desde, Ahora.AddMinutes(-5), Desde),
+            "programada" or "vigente antes de empezar" => AsignacionOperacion.Externa(
+                _propietario.Id, _operador.Id, ServicioCae.Outbound, AmbitoAsignacion.Universal, Ahora.AddDays(1), null, Ahora),
+            _ => Operacion(_propietario, ServicioCae.Outbound),
+        };
+        var cartera = Cartera(operacion, _gestor);
+        cartera.DesignarPrincipal();
+        if (caso == "suspendida") operacion.Suspender();
+        // Cerrada con fecha de fin futura: solo el estado la excluye, no la guarda de fecha.
+        if (caso == "cerrada") operacion.Cerrar(MotivoCierreAsignacion.Revocada, Ahora.AddDays(1));
+        // Vigente en estado pero con la vigencia aún por empezar: solo la guarda de fecha de inicio la excluye.
+        if (caso == "vigente antes de empezar") operacion.Activar();
+        cartera.Estado.Should().Be(EstadoAsignacion.Vigente, "precondición: la cartera sigue figurando vigente");
+
+        await using var db = new ContextoEnMemoria()
+            .Con(operacion)
+            .Con(cartera)
+            .Con(_operador, _propietario);
+        var catalogo = new CatalogoIncorporacionCartera(db, null!);
+
+        var vivas = await catalogo.ObtenerCarterasVivasAsync(_operador.Id, _propietario.Id);
+        var puedeRevocar = await EquipoDelOperadorCaeExterno.PuedeAsync(
+            _operador.Id, _propietario.Id, new GestorCaeEnSuOrigen(_gestor, _operador.Id), new CuentaActivaConSuRol(),
+            catalogo, CancellationToken.None);
+
+        if (autoriza)
+        {
+            vivas.Select(c => c.UsuarioId).Should().Equal([_gestor], "control: la cartera y su operación están vigentes");
+            puedeRevocar.Should().BeTrue("control: con su cartera viva el Gestor CAE revoca la delegación");
+        }
+        else
+        {
+            vivas.Should().BeEmpty($"una cartera bajo una operación {caso} no da acceso por la vía de Operación ni autoriza en su nombre");
+            puedeRevocar.Should().BeFalse($"con su única cartera bajo una operación {caso} el Gestor CAE no supera la guarda de revocación");
+        }
+
+        (await catalogo.ObtenerCarteraUniversalAsync(_operador.Id, _gestor)).Select(t => t.PropietarioTenantId)
+            .Should().Equal([_propietario.Id], "la cartera que ya no autoriza sigue pudiéndose retirar");
+    }
+
+    /// <summary>Sesión de un Gestor CAE en el Tenant de su Operador CAE externo.</summary>
+    private sealed class GestorCaeEnSuOrigen(Guid usuarioId, Guid origen) : ICurrentUserService
+    {
+        public Task<Guid?> ObtenerUsuarioActualIdAsync() => Task.FromResult<Guid?>(usuarioId);
+        public Task<string?> ObtenerRolEfectivoAsync() => Task.FromResult<string?>(Roles.GestorCae);
+        public Task<string?> ObtenerRolOrigenAsync() => Task.FromResult<string?>(Roles.GestorCae);
+        public Task<Guid?> ObtenerTenantOrigenIdAsync() => Task.FromResult<Guid?>(origen);
+        public Task<bool> TieneDobleFactorActivoAsync() => Task.FromResult(false);
+    }
+
+    /// <summary>Directorio en el que la cuenta está activa con el rol de su sesión: la guarda solo depende de la cartera.</summary>
+    private sealed class CuentaActivaConSuRol : IDirectorioUsuariosService
+    {
+        public Task<bool> EsVisibleEnTenantActualAsync(Guid usuarioId, CancellationToken cancellationToken = default) =>
+            Task.FromResult(true);
+        public Task<IReadOnlyDictionary<Guid, string>> ObtenerNombresVisiblesAsync(
+            IReadOnlyCollection<Guid> usuarioIds, CancellationToken cancellationToken = default) =>
+            Task.FromResult<IReadOnlyDictionary<Guid, string>>(new Dictionary<Guid, string>());
+        public Task<Guid?> ObtenerTenantDeUsuarioAsync(Guid usuarioId, CancellationToken cancellationToken = default) =>
+            Task.FromResult<Guid?>(null);
+        public Task<bool> EsCuentaActivaConRolAsync(
+            Guid usuarioId, Guid tenantId, string rol, CancellationToken cancellationToken = default) => Task.FromResult(true);
+        public Task<IReadOnlyList<Guid>> ObtenerCuentasActivasConRolAsync(
+            Guid tenantId, string rol, CancellationToken cancellationToken = default) => Task.FromResult<IReadOnlyList<Guid>>([]);
     }
 
     // ---------------------------------------------------------------- Infraestructura de la prueba

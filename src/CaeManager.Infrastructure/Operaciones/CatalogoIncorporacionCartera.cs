@@ -78,17 +78,13 @@ public class CatalogoIncorporacionCartera(
     {
         var ahora = DateTime.UtcNow;
 
-        return from operacion in dbContext.AsignacionesOperacion
+        return from operacion in dbContext.AsignacionesOperacion.Where(OperacionDelServicioVigente(ahora))
                where !operacion.EsRaiz
                      && operacion.PropietarioTenantId != operacion.OperadorTenantId
-                     && operacion.Servicio == Servicio
                      && operacion.AmbitoRelacionClienteId == null
                      && operacion.AmbitoCentroId == null
                      && operacion.AmbitoTrabajadorId == null
                      && operacion.AmbitoProyectoId == null
-                     && operacion.Estado == EstadoAsignacion.Vigente
-                     && operacion.VigenciaDesde <= ahora
-                     && (operacion.VigenciaHasta == null || ahora < operacion.VigenciaHasta)
                      && dbContext.DelegacionesTenant.Any(d =>
                          d.TenantClienteId == operacion.PropietarioTenantId
                          && d.TenantConsultoraId == operacion.OperadorTenantId
@@ -107,18 +103,27 @@ public class CatalogoIncorporacionCartera(
     /// </summary>
     internal const ServicioCae Servicio = TenantsBeneficiariosAutorizados.ServicioDelContexto;
 
-    public Task<AsignacionOperacion?> ObtenerOperacionVigenteAsync(
-        Guid asignacionOperacionId, CancellationToken cancellationToken = default)
-    {
-        var ahora = DateTime.UtcNow;
+    /// <summary>
+    /// Qué es una Asignación de Operación de <see cref="Servicio"/> vigente en <paramref name="ahora"/>: en
+    /// estado Vigente y dentro de su vigencia. Caducada por fecha (aún sin cerrar por el job), suspendida,
+    /// programada o cerrada no lo es. Una sola definición para todo lo que este catálogo hace depender de que
+    /// la operación siga autorizando (B-02a, sexta revisión de Codex): emitir una cartera, las operaciones
+    /// externas vivas, sostener la fila heredada, filtrar las carteras vigentes y las carteras vivas con las
+    /// que se autoriza (<see cref="CarterasQueAutorizanDelOperador"/>). Es el mismo criterio que
+    /// <c>TenantsBeneficiariosAutorizados.CarterasPorOperacionDeLaOrganizacion</c> para dar acceso.
+    /// </summary>
+    private static System.Linq.Expressions.Expression<Func<AsignacionOperacion, bool>> OperacionDelServicioVigente(
+        DateTime ahora) => o =>
+        o.Servicio == Servicio
+        && o.Estado == EstadoAsignacion.Vigente
+        && o.VigenciaDesde <= ahora
+        && (o.VigenciaHasta == null || ahora < o.VigenciaHasta);
 
-        return dbContext.AsignacionesOperacion
-            .FirstOrDefaultAsync(o => o.Id == asignacionOperacionId
-                                      && o.Servicio == Servicio
-                                      && o.Estado == EstadoAsignacion.Vigente
-                                      && o.VigenciaDesde <= ahora
-                                      && (o.VigenciaHasta == null || ahora < o.VigenciaHasta), cancellationToken);
-    }
+    public Task<AsignacionOperacion?> ObtenerOperacionVigenteAsync(
+        Guid asignacionOperacionId, CancellationToken cancellationToken = default) =>
+        dbContext.AsignacionesOperacion
+            .Where(OperacionDelServicioVigente(DateTime.UtcNow))
+            .FirstOrDefaultAsync(o => o.Id == asignacionOperacionId, cancellationToken);
 
     public Task<ResultadoIncorporacionCartera> IncorporarAsync(
         SolicitudIncorporacionCartera solicitud, CancellationToken cancellationToken = default)
@@ -201,8 +206,9 @@ public class CatalogoIncorporacionCartera(
 
         // El apoyo lo propone el principal: si quien propuso ya no lleva la marca en una
         // cartera vigente de esta operación, la propuesta no se sostiene. Se lee seguida por
-        // el contexto para poder escribirla abajo.
-        var principal = await CarterasVivasDelOperador(propuesta.OperadorTenantId)
+        // el contexto para poder escribirla abajo. La operación ya se exigió vigente arriba; la
+        // lectura que autoriza es la misma de ObtenerCarterasVivasAsync.
+        var principal = await CarterasQueAutorizanDelOperador(propuesta.OperadorTenantId)
             .FirstOrDefaultAsync(c => c.AsignacionOperacionId == propuesta.AsignacionOperacionId && c.EsPrincipal, cancellationToken);
         if (principal is null || principal.UsuarioId != propuesta.ProponenteUsuarioId)
             return ResultadoApoyoCartera.Anulada(MotivoAnulacionPropuestaApoyo.ProponenteYaNoEsPrincipal);
@@ -270,14 +276,33 @@ public class CatalogoIncorporacionCartera(
     /// <summary>
     /// Las Asignaciones de Cartera vivas de Gestor CAE y de Coordinador CAE de este Operador
     /// CAE: vigentes hoy, del Tenant entero, sobre una operación externa no raíz suya de
-    /// <see cref="Servicio"/>. Una sola definición para leer quién es principal y quién de apoyo,
-    /// para encender la marca, para listar y retirar la cartera de un Gestor CAE y para la guarda
-    /// de revocación de <c>EquipoDelOperadorCaeExterno</c>: una cartera bajo una operación de otro
-    /// servicio no es de este Operador CAE externo en Outbound.
+    /// <see cref="Servicio"/>, <b>esté como esté esa operación</b>. Es la mirada de gestión y de
+    /// retirada: encender la marca, retirar la cartera de un Gestor CAE (una cartera cuya operación
+    /// caducó o está suspendida se puede retirar aunque ya no autorice), listar y retirar los apoyos.
+    /// Nada que <b>autorice</b> sale de aquí: eso es <see cref="CarterasQueAutorizanDelOperador"/>.
+    /// Una cartera bajo una operación de otro servicio no es de este Operador CAE externo en Outbound.
     /// </summary>
     private IQueryable<AsignacionCartera> CarterasVivasDelOperador(Guid operadorTenantId) =>
+        CarterasDelOperadorBajo(dbContext.AsignacionesOperacion, operadorTenantId);
+
+    /// <summary>
+    /// Las de <see cref="CarterasVivasDelOperador"/> cuya Asignación de Operación Outbound sigue
+    /// vigente en estado y en fechas (<see cref="OperacionDelServicioVigente"/>): las únicas que
+    /// autorizan algo (B-02a, sexta revisión de Codex). Es la lectura de
+    /// <see cref="ObtenerCarterasVivasAsync"/>, con la que se decide quién es principal para proponer
+    /// un apoyo, a quién se designa principal y si un Gestor CAE o un Coordinador CAE supera la
+    /// guarda de revocación de <c>EquipoDelOperadorCaeExterno</c>. Una cartera que sigue figurando
+    /// vigente bajo una operación caducada o suspendida no da acceso por la vía de Operación, y no
+    /// puede autorizar en su nombre; ante la duda, falla cerrada.
+    /// </summary>
+    private IQueryable<AsignacionCartera> CarterasQueAutorizanDelOperador(Guid operadorTenantId) =>
+        CarterasDelOperadorBajo(
+            dbContext.AsignacionesOperacion.Where(OperacionDelServicioVigente(DateTime.UtcNow)), operadorTenantId);
+
+    private IQueryable<AsignacionCartera> CarterasDelOperadorBajo(
+        IQueryable<AsignacionOperacion> operaciones, Guid operadorTenantId) =>
         from c in CarterasVivasDeTenantEntero()
-        join o in dbContext.AsignacionesOperacion on c.AsignacionOperacionId equals o.Id
+        join o in operaciones on c.AsignacionOperacionId equals o.Id
         where !o.EsRaiz
               && o.Servicio == Servicio
               && o.OperadorTenantId == operadorTenantId
@@ -322,7 +347,7 @@ public class CatalogoIncorporacionCartera(
         Guid operadorTenantId, Guid? propietarioTenantId, CancellationToken cancellationToken = default)
     {
         var vivas = await (
-            from c in CarterasVivasDelOperador(operadorTenantId)
+            from c in CarterasQueAutorizanDelOperador(operadorTenantId)
             join t in dbContext.Tenants on c.PropietarioTenantId equals t.Id
             where propietarioTenantId == null || c.PropietarioTenantId == propietarioTenantId
             select new CarteraVivaDeOperacion(
@@ -703,21 +728,17 @@ public class CatalogoIncorporacionCartera(
     {
         var leQuedaOtra = await (
             from c in dbContext.AsignacionesCartera.Where(CarteraDelTenantEntero)
-            join o in dbContext.AsignacionesOperacion on c.AsignacionOperacionId equals o.Id
+            join o in dbContext.AsignacionesOperacion.Where(OperacionDelServicioVigente(ahora)) on c.AsignacionOperacionId equals o.Id
             where c.UsuarioId == usuarioId
                   && c.PropietarioTenantId == propietarioTenantId
                   && !carterasCerradas.Contains(c.Id)
                   && c.Estado == EstadoAsignacion.Vigente
                   && c.VigenciaDesde <= ahora
                   && (c.VigenciaHasta == null || ahora < c.VigenciaHasta)
-                  && o.Servicio == Servicio
                   && o.OperadorTenantId == operadorTenantId
                   && o.PropietarioTenantId == propietarioTenantId
                   && o.PropietarioTenantId != operadorTenantId
                   && !o.EsRaiz
-                  && o.Estado == EstadoAsignacion.Vigente
-                  && o.VigenciaDesde <= ahora
-                  && (o.VigenciaHasta == null || ahora < o.VigenciaHasta)
             select c.Id)
             .AnyAsync(cancellationToken);
         if (leQuedaOtra)
@@ -790,14 +811,10 @@ public class CatalogoIncorporacionCartera(
         var ahora = DateTime.UtcNow;
         var vigentes = await (
                 from c in dbContext.AsignacionesCartera
-                join o in dbContext.AsignacionesOperacion on c.AsignacionOperacionId equals o.Id
+                join o in dbContext.AsignacionesOperacion.Where(OperacionDelServicioVigente(ahora)) on c.AsignacionOperacionId equals o.Id
                 where asignacionCarteraIds.Contains(c.Id)
                       && c.Estado == EstadoAsignacion.Vigente
                       && (c.VigenciaHasta == null || ahora < c.VigenciaHasta)
-                      && o.Servicio == Servicio
-                      && o.Estado == EstadoAsignacion.Vigente
-                      && o.VigenciaDesde <= ahora
-                      && (o.VigenciaHasta == null || ahora < o.VigenciaHasta)
                 select c.Id)
             .ToListAsync(cancellationToken);
 

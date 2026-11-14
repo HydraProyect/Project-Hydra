@@ -10,6 +10,7 @@ using CaeManager.IntegrationTests.Arranque;
 using FluentAssertions;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
 using Xunit;
@@ -523,6 +524,93 @@ public class ExpiracionAsignacionesBajoRlsTests
             .Should().BeFalse("control: la única cartera caducó y la fila se retiró en la misma transacción");
     }
 
+    /// <summary>
+    /// Sexta revisión de Codex de B-02a (ALTA): un conflicto de versión en una asignación Inbound que alguien cambia
+    /// a la vez que el job no deshace ni impide el cierre de la cartera Outbound que caduca ni el borrado de su fila
+    /// heredada, que autoriza el Tenant por sí sola. El conflicto se provoca de verdad: justo antes del guardado que
+    /// cierra la operación Inbound vencida, otra conexión renueva su versión, y el UPDATE del job afecta a cero
+    /// filas. Con los dos servicios en un solo guardado, ese fallo arrastraba al Outbound y la fila seguía viva hasta
+    /// otro ciclo. El pase de Outbound va primero y confirma solo; el job informa del fallo del otro pase.
+    /// </summary>
+    [Fact]
+    public async Task Un_conflicto_en_una_asignacion_Inbound_no_impide_cerrar_la_Outbound_ni_retirar_su_fila_heredada()
+    {
+        await using var arnes = await ArnesDeArranqueRuntime.CrearAsync(datosDePruebaActivos: false);
+
+        var ahora = DateTime.UtcNow;
+        var hace3h = ahora.AddHours(-3);
+        var operadorExterno = new Tenant("Operador CAE externo del conflicto Inbound", PerfilVocabularioTenant.Consultora);
+        var propietario = new Tenant("Propietario con Outbound e Inbound en conflicto", PerfilVocabularioTenant.ClienteDirecto);
+        var titular = Guid.NewGuid();
+
+        var outbound = AsignacionOperacion.Externa(
+            propietario.Id, operadorExterno.Id, ServicioCae.Outbound, AmbitoAsignacion.Universal,
+            vigenciaDesde: hace3h, vigenciaHasta: null, ahora: hace3h);
+        var inboundVencida = AsignacionOperacion.Externa(
+            propietario.Id, operadorExterno.Id, ServicioCae.Inbound, AmbitoAsignacion.Universal,
+            vigenciaDesde: hace3h, vigenciaHasta: ahora.AddHours(-1), ahora: hace3h);
+        var vinculo = new DelegacionTenant(operadorExterno.Id, propietario.Id);
+        var carteraQueCaduca = AsignacionCartera.Externa(
+            outbound, titular, Roles.GestorCae, AmbitoAsignacion.Universal,
+            vigenciaDesde: hace3h, vigenciaHasta: ahora.AddHours(-1), ahora: hace3h);
+
+        await using (var propietarioBd = CrearContextoPropietario(arnes.CadenaPropietario))
+        {
+            propietarioBd.Tenants.AddRange(operadorExterno, propietario);
+            propietarioBd.AsignacionesOperacion.AddRange(outbound, inboundVencida);
+            propietarioBd.DelegacionesTenant.Add(vinculo);
+            propietarioBd.AsignacionesCartera.Add(carteraQueCaduca);
+            propietarioBd.AsignacionesOperadorDelegadoConRevocadas.Add(
+                new AsignacionOperadorDelegado(vinculo.Id, titular, Roles.GestorCae));
+            await propietarioBd.SaveChangesAsync();
+        }
+
+        var conflicto = new ConflictoDeVersionEnInbound(arnes.CadenaPropietario);
+        await using var pase = CrearContextoPropietario(arnes.CadenaPropietario, conflicto);
+
+        var ciclo = () => ExpiracionAsignacionesHostedService.ProcesarParaPruebasAsync(
+            pase, NullLogger<ExpiracionAsignacionesHostedService>.Instance, CancellationToken.None);
+
+        (await ciclo.Should().ThrowAsync<AggregateException>("el job informa del pase que falló"))
+            .Which.InnerExceptions.Should().ContainSingle().Which.Should().BeOfType<DbUpdateConcurrencyException>();
+        conflicto.Provocado.Should().BeTrue("precondición: el guardado del pase Inbound chocó con el cambio concurrente");
+
+        await using var verificacion = CrearContextoPropietario(arnes.CadenaPropietario);
+        var cartera = await verificacion.AsignacionesCartera.AsNoTracking().SingleAsync(c => c.Id == carteraQueCaduca.Id);
+        cartera.Estado.Should().Be(EstadoAsignacion.Cerrada, "el conflicto Inbound no deshace el cierre de la cartera Outbound");
+        cartera.MotivoCierre.Should().Be(MotivoCierreAsignacion.Expirada);
+        (await verificacion.AsignacionesOperadorDelegadoConRevocadas.IgnoreQueryFilters().AsNoTracking()
+                .AnyAsync(f => f.UsuarioId == titular))
+            .Should().BeFalse("la fila heredada de su única cartera Outbound se retira en el pase de Outbound, que confirma solo");
+        (await verificacion.AsignacionesOperacion.AsNoTracking().SingleAsync(o => o.Id == inboundVencida.Id))
+            .Estado.Should().Be(EstadoAsignacion.Vigente, "control: el pase Inbound perdió por la versión y se deshizo entero");
+    }
+
+    /// <summary>
+    /// Provoca un conflicto de versión real en el primer guardado que cierra una Asignación de Operación Inbound:
+    /// antes de que el job emita su UPDATE, otra conexión le renueva la versión.
+    /// </summary>
+    private sealed class ConflictoDeVersionEnInbound(string cadenaPropietario) : SaveChangesInterceptor
+    {
+        public bool Provocado { get; private set; }
+
+        public override async ValueTask<InterceptionResult<int>> SavingChangesAsync(
+            DbContextEventData eventData, InterceptionResult<int> result, CancellationToken cancellationToken = default)
+        {
+            var inbound = eventData.Context!.ChangeTracker.Entries<AsignacionOperacion>()
+                .FirstOrDefault(e => e.State == EntityState.Modified && e.Entity.Servicio == ServicioCae.Inbound);
+            if (!Provocado && inbound is not null)
+            {
+                Provocado = true;
+                await using var otra = CrearContextoPropietario(cadenaPropietario);
+                await otra.AsignacionesOperacion.Where(o => o.Id == inbound.Entity.Id)
+                    .ExecuteUpdateAsync(s => s.SetProperty(o => o.Version, Guid.NewGuid()), cancellationToken);
+            }
+
+            return result;
+        }
+    }
+
     /// <summary>Intenta, desde una conexión nueva, el candado de cartera de <paramref name="usuarioId"/> con la clave de <c>BloqueoCarteraUsuario</c>.</summary>
     private static async Task<bool> OtraConexionConsigueElCandadoAsync(string cadena, Guid usuarioId)
     {
@@ -557,11 +645,13 @@ public class ExpiracionAsignacionesBajoRlsTests
     /// Contexto como propietario de la base, sin interceptores: siembra y lectura
     /// de verificación con visión global, fuera de la política.
     /// </summary>
-    private static CaeManagerDbContext CrearContextoPropietario(string cadenaPropietario)
+    private static CaeManagerDbContext CrearContextoPropietario(
+        string cadenaPropietario, params IInterceptor[] interceptores)
     {
         var tenantActual = new TenantActualAmbiental { TenantId = null };
         var opciones = new DbContextOptionsBuilder<CaeManagerDbContext>()
             .UseNpgsql(cadenaPropietario, npgsql => npgsql.MigrationsAssembly("CaeManager.Migrations.PostgreSQL"))
+            .AddInterceptors(interceptores)
             .Options;
 
         return new CaeManagerDbContext(opciones, new EphemeralDataProtectionProvider(), tenantActual);

@@ -284,6 +284,16 @@ public interface ICatalogoIncorporacionCartera
     /// propietario indicado. Es la lectura de «quién es el principal y quiénes son de apoyo»
     /// (ADR-011 § 2.7, enmienda 2026-10-08). Acotada al Operador CAE por el filtro y por la
     /// política RLS de las carteras, que solo deja leer las del operador de la sesión.
+    ///
+    /// <para>
+    /// Es una lectura <b>que autoriza</b> (proponer un apoyo, designar principal, la guarda de
+    /// revocación de <c>EquipoDelOperadorCaeExterno</c>), así que solo devuelve carteras cuya
+    /// Asignación de Operación Outbound sigue vigente en estado y en fechas (B-02a, sexta revisión
+    /// de Codex): una cartera que figura vigente bajo una operación caducada, suspendida,
+    /// programada o cerrada no aparece. Para retirar lo que ya no autoriza están
+    /// <see cref="ObtenerCarteraUniversalAsync"/> y <see cref="ObtenerApoyosVivosAsync"/>, que no
+    /// exigen la operación vigente.
+    /// </para>
     /// </summary>
     Task<IReadOnlyList<CarteraVivaDeOperacion>> ObtenerCarterasVivasAsync(
         Guid operadorTenantId, Guid? propietarioTenantId, CancellationToken cancellationToken = default);
