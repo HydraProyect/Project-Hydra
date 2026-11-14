@@ -47,8 +47,10 @@ namespace CaeManager.Architecture.Tests;
 ///
 /// <para>
 /// <b>La lista.</b> <c>Congelados/Queries-sin-comprobacion-de-cartera.txt</c>, una línea por <b>petición</b>
-/// cuyo handler no llama (<c>Característica :: Handler[Petición] = 1</c>; la petición figura siempre, también si
-/// la clase atiende una sola, para que cambiar la Query sin cambiar el nombre del handler se vea). Una Query nueva que no llama sale <c>NUEVA</c>; una que
+/// cuyo handler no llama (<c>Namespace del handler :: Handler[Petición] = 1</c>, el namespace relativo a
+/// <c>CaeManager.Application</c> y la petición con su nombre completo relativo a él; la petición figura siempre,
+/// también si la clase atiende una sola, y con nombres inequívocos, para que cambiar la Query por otra homónima de
+/// otro namespace, o sin cambiar el nombre del handler, se vea). Una Query nueva que no llama sale <c>NUEVA</c>; una que
 /// pierde la llamada, también; una listada que empieza a llamar, o que se borra, sale <c>OBSOLETA</c> y
 /// obliga a quitar la línea. Estar en la lista <b>no</b> es un aval: es una medida, no una clasificación
 /// (los motivos típicos de una entrada son datos del propio usuario, catálogo del Tenant, plano de Plataforma
@@ -66,7 +68,13 @@ namespace CaeManager.Architecture.Tests;
 /// guarda. (3 bis) Que el delegado con la comprobación se invoque: ver «Cómo se mide». (4) Nada de RLS ni del aislamiento entre Tenants: Propiedad ≠ Operación ≠ Plataforma; esto mira solo
 /// el plano de Operación dentro de un Tenant. (5) Que una Query que hoy no llama sea segura por su llamador: si
 /// un componente nuevo le pasa un Id sin filtrar, esta red no lo ve. (6) Handlers fuera del ensamblado de
-/// Application: solo se buscan ahí.
+/// Application: solo se buscan ahí. (7) <b>Hueco conocido: despacho virtual a una sobrescritura.</b> El grafo solo
+/// considera las implementaciones alternativas de un método <i>sin cuerpo</i> (interfaz o abstracto: «llama» si
+/// todas llaman). Un <c>callvirt</c> a un método base <i>con</i> cuerpo que sí comprueba se cuenta como «llama»
+/// por la referencia al método base, aunque en tiempo de ejecución se despache a una sobrescritura que no
+/// comprueba; el grafo no mira las sobrescrituras de un método con cuerpo. No hay hoy un caso medido de esto; si
+/// aparece, la Query figuraría como «llama» y no entraría en la lista. Cerrarlo exigiría cambiar
+/// <see cref="GrafoDeLlamadasIl"/>, que comparte la red de escritura, y no se ha hecho en este incremento.
 /// </para>
 /// </summary>
 public class LlamadaAlAlcanceDeCarteraEnLecturaTests
@@ -78,7 +86,7 @@ public class LlamadaAlAlcanceDeCarteraEnLecturaTests
     [Fact]
     public void Toda_query_que_no_llama_a_la_comprobacion_de_cartera_esta_en_la_lista_congelada()
     {
-        var medido = MedidaActual.Value.NoLlaman.ToDictionary(clave => clave, _ => 1);
+        var medido = MedidaActual.Value.NoLlaman.ToDictionary(q => q.Clave, _ => 1);
 
         var fallo = ListaCongelada.Verificar(
             NombreDeLista,
@@ -110,13 +118,22 @@ public class LlamadaAlAlcanceDeCarteraEnLecturaTests
     }
 
     [Fact]
-    public void La_clave_de_cada_entrada_nombra_siempre_la_peticion()
+    public void La_clave_de_cada_entrada_nombra_sin_ambiguedad_al_handler_y_a_la_peticion()
     {
-        // Sin la petición en la clave, cambiar una Query congelada por otra sin comprobación que conserve el nombre
-        // del handler y la característica pasaría inadvertido (ni NUEVA ni OBSOLETA).
-        MedidaActual.Value.NoLlaman.Should().OnlyContain(
-            u => u.Simbolo.EndsWith("]", StringComparison.Ordinal) && u.Simbolo.Contains("Handler["),
-            "la clave es Handler[Petición] aunque la clase atienda una sola petición");
+        // Sin la petición en la clave, o con nombres simples, cambiar una Query congelada por otra sin comprobación
+        // que conserve el nombre pasaría inadvertido (ni NUEVA ni OBSOLETA). El control no depende del sufijo del
+        // handler ni de su aridad: compara con los FullName reales, sin pasar por la construcción de la clave.
+        MedidaActual.Value.NoLlaman.Should().NotBeEmpty();
+
+        foreach (var (clave, handler, peticion) in MedidaActual.Value.NoLlaman)
+        {
+            var handlerCompleto = (clave.Lugar.StartsWith(RaizDeApplication, StringComparison.Ordinal)
+                ? clave.Lugar : $"{RaizDeApplication}.{clave.Lugar}") + "." + clave.Simbolo[..clave.Simbolo.IndexOf('[')];
+            var peticionRelativa = peticion.FullName![(RaizDeApplication.Length + 1)..];
+
+            handlerCompleto.Should().Be(handler.FullName, "la clave identifica al handler por su namespace y su nombre");
+            clave.Simbolo.Should().EndWith($"[{peticionRelativa}]", "la clave identifica la petición por su nombre completo");
+        }
     }
 
     [Fact]
@@ -176,8 +193,11 @@ public class LlamadaAlAlcanceDeCarteraEnLecturaTests
             "nada lo dijera: añádela a InterfacesDePeticion si atiende peticiones, o a las de fuera si no");
     }
 
+    /// <summary>Una Query cuyo handler no alcanza la comprobación, con su clave y los tipos que la componen.</summary>
+    private sealed record QueQueNoLlama(Ubicacion Clave, Type Handler, Type Peticion);
+
     private sealed record Medida(
-        int Total, int Llaman, IReadOnlyList<Ubicacion> NoLlaman, IReadOnlySet<string> CaracteristicasQueLlaman,
+        int Total, int Llaman, IReadOnlyList<QueQueNoLlama> NoLlaman,IReadOnlySet<string> CaracteristicasQueLlaman,
         IReadOnlyCollection<ClaveMetodo> Criterio, IReadOnlySet<ClaveMetodo> Alcanzan);
 
     private static Medida Medir()
@@ -201,7 +221,7 @@ public class LlamadaAlAlcanceDeCarteraEnLecturaTests
 
         var total = 0;
         var llaman = 0;
-        var noLlaman = new List<Ubicacion>();
+        var noLlaman = new List<QueQueNoLlama>();
         var caracteristicasQueLlaman = new HashSet<string>(StringComparer.Ordinal);
 
         foreach (var grupo in handlers.GroupBy(h => h.Handler))
@@ -223,14 +243,36 @@ public class LlamadaAlAlcanceDeCarteraEnLecturaTests
                     continue;
                 }
 
-                // La clave nombra SIEMPRE la petición, también cuando la clase atiende una sola: si no, sustituir una
-                // Query congelada por otra sin comprobación que conserve el nombre del handler y la característica
-                // no saldría ni NUEVA ni OBSOLETA, y la lista aprobaría una Query distinta de la que se congeló.
-                noLlaman.Add(new Ubicacion(caracteristica, $"{handler.Name}[{peticion.Name}]"));
+                // La clave nombra SIEMPRE la petición, también cuando la clase atiende una sola, y con nombres
+                // inequívocos (namespace del handler y nombre completo de la petición, relativos a Application): si no,
+                // sustituir una Query congelada por otra sin comprobación que conserve el nombre (en otro namespace) no
+                // saldría ni NUEVA ni OBSOLETA, y la lista aprobaría una Query distinta de la que se congeló.
+                noLlaman.Add(new QueQueNoLlama(Clave(handler, peticion), handler, peticion));
             }
         }
 
-        noLlaman.Should().OnlyHaveUniqueItems("la clave Característica :: Handler[Petición] tiene que ser única");
+        noLlaman.Select(q => q.Clave).Should().OnlyHaveUniqueItems(
+            "la clave Namespace del handler :: Handler[Petición] tiene que ser única");
         return new Medida(total, llaman, noLlaman, caracteristicasQueLlaman, criterio.Select(ClaveMetodo.De).ToList(), alcanzan);
     }
+
+    private const string RaizDeApplication = "CaeManager.Application";
+
+    /// <summary>
+    /// Clave inequívoca de una Query congelada: <c>namespace del handler relativo a Application :: Handler[Petición
+    /// relativa a Application]</c>. Con nombres simples, cambiar una Query congelada por otra homónima de otro
+    /// namespace (mismo handler, misma petición, otra carpeta) no salía NUEVA ni OBSOLETA; con el namespace del
+    /// handler y el nombre completo de la petición, sí. El tipo anidado conserva su <c>+</c>.
+    /// </summary>
+    private static Ubicacion Clave(Type handler, Type peticion) =>
+        new(RelativoAApplication(handler.Namespace) ?? "(sin namespace)",
+            $"{NombreSinNamespace(handler)}[{RelativoAApplication(peticion.FullName ?? peticion.Name)}]");
+
+    private static string? RelativoAApplication(string? nombre) =>
+        nombre is not null && nombre.StartsWith(RaizDeApplication + ".", StringComparison.Ordinal)
+            ? nombre[(RaizDeApplication.Length + 1)..]
+            : nombre;
+
+    private static string NombreSinNamespace(Type tipo) =>
+        tipo.Namespace is { Length: > 0 } ns && tipo.FullName is { } completo ? completo[(ns.Length + 1)..] : tipo.Name;
 }
