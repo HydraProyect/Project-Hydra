@@ -120,11 +120,7 @@ public partial class DocumentosGen2Tests
         var (cut, _) = Renderizar(ConDocumentos(DocumentoDeFila()), rol: rol);
         cut.WaitForAssertion(() => cut.Find("tbody button.enlace-nombre-fila"));
 
-        // «Incidencias» (pantalla hermana) vive ahora en esta misma barra, para quien la abre; el rol Cliente no la ve.
-        // «Revisión IA» solo se ofrece a los roles de gestión (Consulta y Cliente no la ven, como en la barra de sección).
-        var esperadas = new[] { "Estado", "Plataformas CAE", "Reclamaciones", "Preventivo", "Revisión IA", "Plantillas", "Incidencias" }
-            .Where(r => (r != "Revisión IA" || rol is not ("Consulta" or "Cliente")) && (r != "Incidencias" || rol != "Cliente"));
-        Pestanas(cut).Select(p => string.Concat(p.ChildNodes.Where(n => n.NodeType == NodeType.Text).Select(n => n.TextContent)).Trim()).Should().Equal(esperadas);
+        cut.FindAll("[role=tablist]").Should().BeEmpty("sin barra de pestañas, para ningún rol");
         cut.FindAll("tbody button.enlace-nombre-fila").Should().Contain(b => b.TextContent == "Javier Salas Moreno");
         cut.FindAll("tbody button").Should().Contain(b => b.TextContent.Trim() == "Ver",
             "Consulta conserva el acceso de lectura al archivo");
@@ -142,6 +138,8 @@ public partial class DocumentosGen2Tests
         cabecera.TextContent.Contains("Nuevo documento").Should().Be(escritura);
         cabecera.TextContent.Contains("Subida múltiple").Should().Be(escritura);
         cabecera.TextContent.Contains("Importar documentos").Should().Be(importacion);
+        // D-27: Plantillas es página propia y Documentos la enlaza desde «Más acciones», con los roles de /plantillas.
+        cabecera.QuerySelectorAll(".menu-acciones-item").Select(i => i.TextContent.Trim()).Contains("Plantillas").Should().Be(escritura);
         cut.FindAll(".barra-acciones-lote").Should().BeEmpty("abrir el listado nunca selecciona documentos");
     }
 

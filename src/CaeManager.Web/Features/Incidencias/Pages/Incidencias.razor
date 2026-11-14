@@ -44,8 +44,7 @@
         </Primaria>
     </CabeceraListado>
 
-    @* Incidencias es una pestaña de la sección Documentos: la misma barra que pinta Documentos, bajo el título y las acciones. *@
-    <BarraPestanasDocumentos PestanaActiva="@BarraPestanasDocumentos.IdIncidencias">
+    @* Incidencias es una pantalla propia (lienzo «Documentos · listado sin pestañas», PR8): ya no cuelga de una barra de pestañas de Documentos. *@
     @* El estado se filtra en la franja (Sin resolver / Resueltas), que ya dice cuál está marcado: sin pastillas. El fragmento
        vacío mantiene la barra en modo pastillas. *@
     <BarraFiltros Busqueda="@_busqueda" BusquedaChanged="BuscarAsync" PlaceholderBuscador="@Textos["PlaceholderBusqueda"]"
@@ -181,8 +180,7 @@
             </EstadoVacio>
         }
     }
-    </BarraPestanasDocumentos>
-    @* Fuera de la barra, a nivel de página: el modal «Guardar filtro» no es de ninguna pestaña, y registrarlo en su ámbito haría preguntar al cambiar de pestaña. *@
+    @* El modal «Guardar filtro» es de la página, no de una vista concreta. *@
     <FiltrosGuardadosDeListado Conexion="_filtrosGuardados" Pantalla="@PantallaDeFiltrosGuardados" ParametrosDeVista="ParametrosDeVista"
                                OnAplicar="AplicarVistaGuardadaAsync" AlCambiar="StateHasChanged" />
 </div>

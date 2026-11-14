@@ -57,6 +57,8 @@ public static class AdmisionDeDestinos
         ["gestiones"] = new(EnlaceId: "gestiones"),
         ["visitas"] = new(EnlaceId: "visitas"),
         ["herramientas-pdf"] = new(EnlaceId: "herramientas-pdf"),
+        ["incidencias"] = new(EnlaceId: "incidencias"),
+        ["plantillas"] = new(EnlaceId: "plantillas"),
         ["alertas"] = new(EnlaceId: "alertas"),
         ["calendario"] = new(EnlaceId: "calendario"),
         ["reportes"] = new(EnlaceId: "reportes"),
@@ -66,8 +68,6 @@ public static class AdmisionDeDestinos
         ["delegaciones"] = new(EnlaceId: "delegaciones"),
 
         // Pestañas de sección sin enlace propio: la subopción del catálogo, que a su vez exige ver el enlace padre.
-        ["incidencias"] = new(SubopcionId: "documentos-incidencias"),
-        ["plantillas"] = new(SubopcionId: "documentos-plantillas"),
         ["roles"] = new(SubopcionId: "equipo-roles"),
 
         // Sin entrada en el menú con esta ruta: los roles que exige la página (los vigila el test de paridad).

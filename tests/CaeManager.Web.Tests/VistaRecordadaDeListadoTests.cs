@@ -77,6 +77,10 @@ public class VistaRecordadaDeListadoTests : BunitContext
     private sealed class RelojManual : TimeProvider
     {
         private readonly List<Temporizador> _temporizadores = [];
+        private TimeSpan _avance;
+
+        /// <summary>La hora también avanza con <see cref="Avanzar"/>: la caducidad de una navegación anunciada se mide con ella.</summary>
+        public override DateTimeOffset GetUtcNow() => base.GetUtcNow() + _avance;
 
         public override ITimer CreateTimer(TimerCallback callback, object? state, TimeSpan dueTime, TimeSpan period)
         {
@@ -90,7 +94,10 @@ public class VistaRecordadaDeListadoTests : BunitContext
         {
             Temporizador[] vivos;
             lock (_temporizadores)
+            {
+                _avance += cuanto;
                 vivos = [.. _temporizadores];
+            }
             foreach (var temporizador in vivos)
                 temporizador.Avanzar(cuanto);
         }
@@ -235,6 +242,124 @@ public class VistaRecordadaDeListadoTests : BunitContext
         _aplicadas.Should().BeEmpty();
         _navegaciones.Should().Be(0);
         _mediador.Enviadas.Should().BeEmpty("con la URL mandando no hace falta ni leer lo recordado, y llegar no es cambiar la vista");
+    }
+
+    /// <summary>
+    /// Una redirección de la página (un enlace antiguo con «?pestana=» que ella traduce a filtros) no es una acción del usuario:
+    /// la página la anuncia con <see cref="ConexionVistaRecordada.AnunciarNavegacionDeLaPagina"/> ANTES de navegar y esa
+    /// navegación no se escribe. Con el control sin anuncio, la misma navegación sí escribe. Que los avisos lleguen tarde (con
+    /// circuito, de ida y vuelta) lo fija la página en <c>DocumentosGen2Tests.RedireccionDePestanas</c>.
+    /// </summary>
+    [Theory]
+    [InlineData(true, 0)]
+    [InlineData(false, 1)]
+    public async Task Una_navegacion_de_la_pagina_anunciada_no_escribe_y_sin_anuncio_si(bool anuncia, int escrituras)
+    {
+        var cut = Montar("/vehiculos");
+
+        await cut.InvokeAsync(() =>
+        {
+            if (anuncia)
+                _conexion.AnunciarNavegacionDeLaPagina(Navegacion.Uri, "/vehiculos?estado=Vencido");
+            Navegacion.NavigateTo("/vehiculos?estado=Vencido", replace: true);
+        });
+        await VencerElReboteAsync(cut);
+
+        Escrituras.Should().HaveCount(escrituras);
+    }
+
+    [Fact]
+    public async Task El_anuncio_cancela_lo_que_el_aviso_del_enlace_ya_hubiera_programado()
+    {
+        _mediador.Recordada = """{"estado":"Vencido"}""";
+        var cut = Montar("/vehiculos");
+        await VencerElReboteAsync(cut);
+        _mediador.Enviadas.Clear();
+
+        // El enlace llega antes que la página (su aviso programa olvidar lo recordado) y luego la página anuncia y traduce.
+        await cut.InvokeAsync(() => Navegacion.NavigateTo("/vehiculos?pestana=x"));
+        await cut.InvokeAsync(() =>
+        {
+            _conexion.AnunciarNavegacionDeLaPagina(Navegacion.Uri, "/vehiculos?agrupar=cliente");
+            Navegacion.NavigateTo("/vehiculos?agrupar=cliente", replace: true);
+        });
+        await VencerElReboteAsync(cut);
+
+        Escrituras.Should().BeEmpty("ni el enlace ni su traducción son del usuario");
+    }
+
+    [Fact]
+    public async Task Tras_una_navegacion_anunciada_de_la_pagina_el_siguiente_cambio_del_usuario_si_escribe()
+    {
+        var cut = Montar("/vehiculos");
+        await cut.InvokeAsync(() =>
+        {
+            _conexion.AnunciarNavegacionDeLaPagina(Navegacion.Uri, "/vehiculos?estado=Vencido");
+            Navegacion.NavigateTo("/vehiculos?estado=Vencido", replace: true);
+        });
+        await VencerElReboteAsync(cut);
+        Escrituras.Should().BeEmpty("barrera: la navegación de la página no escribió");
+
+        // Cualquier otro cambio de dirección deja caer la marca: si el usuario vuelve después a esa misma vista, escribe.
+        await cut.InvokeAsync(() => Navegacion.NavigateTo("/vehiculos?estado=Vigente"));
+        await cut.InvokeAsync(() => Navegacion.NavigateTo("/vehiculos?estado=Vencido"));
+        await VencerElReboteAsync(cut);
+
+        Escrituras.Should().ContainSingle().Which.Should().BeOfType<GuardarVistaRecordadaCommand>()
+            .Which.ValoresJson.Should().Contain("Vencido");
+    }
+
+    [Fact]
+    public async Task El_aviso_del_enlace_que_llega_despues_del_anuncio_tampoco_escribe()
+    {
+        _mediador.Recordada = """{"estado":"Vencido"}""";
+        var cut = Montar("/vehiculos");
+        await VencerElReboteAsync(cut);
+        _mediador.Enviadas.Clear();
+
+        // Con circuito la página puede ver el enlace (y anunciar) antes de que el aviso de ese enlace llegue a la pieza.
+        await cut.InvokeAsync(() =>
+        {
+            _conexion.AnunciarNavegacionDeLaPagina("/vehiculos?pestana=x", "/vehiculos?agrupar=cliente");
+            Navegacion.NavigateTo("/vehiculos?pestana=x");
+        });
+        await cut.InvokeAsync(() => Navegacion.NavigateTo("/vehiculos?agrupar=cliente", replace: true));
+        await VencerElReboteAsync(cut);
+
+        Escrituras.Should().BeEmpty("el aviso tardío del enlace no olvida lo recordado ni deja caer la marca");
+    }
+
+    [Fact]
+    public async Task Dos_navegaciones_anunciadas_al_mismo_destino_no_escriben()
+    {
+        var cut = Montar("/vehiculos");
+
+        // La página traduce el enlace al cargar y otra vez en el siguiente OnParametersSet: los dos anuncios salen antes de que
+        // vuelva el primer aviso, y luego llegan los dos avisos del mismo destino.
+        var origen = Navegacion.Uri;
+        await cut.InvokeAsync(() =>
+        {
+            _conexion.AnunciarNavegacionDeLaPagina(origen, "/vehiculos?estado=Vencido");
+            _conexion.AnunciarNavegacionDeLaPagina(origen, "/vehiculos?estado=Vencido");
+            Navegacion.NavigateTo("/vehiculos?estado=Vencido", replace: true);
+            Navegacion.NavigateTo("/vehiculos?estado=Vencido", replace: true);
+        });
+        await VencerElReboteAsync(cut);
+
+        Escrituras.Should().BeEmpty("el segundo aviso del mismo destino tampoco es del usuario");
+    }
+
+    [Fact]
+    public async Task Una_navegacion_anunciada_cuyo_aviso_no_llega_caduca()
+    {
+        var cut = Montar("/vehiculos");
+        await cut.InvokeAsync(() => _conexion.AnunciarNavegacionDeLaPagina(Navegacion.Uri, "/vehiculos?estado=Vencido"));
+
+        _reloj.Avanzar(VistaRecordadaDeListado.CaducidadDeLaNavegacionDeLaPagina + TimeSpan.FromSeconds(1));
+        await cut.InvokeAsync(() => Navegacion.NavigateTo("/vehiculos?estado=Vencido"));
+        await VencerElReboteAsync(cut);
+
+        Escrituras.Should().ContainSingle("pasada la caducidad, esa misma vista es un cambio del usuario");
     }
 
     [Theory]

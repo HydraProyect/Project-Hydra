@@ -324,12 +324,6 @@ public partial class DocumentosGen2Tests : BunitContext
     private static MediadorControlado ConDocumentos(params DocumentoListaDto[] documentos) =>
         new() { Documentos = _ => documentos };
 
-    private static IReadOnlyList<IElement> Pestanas(IRenderedComponent<PaginaDocumentos> cut) =>
-        cut.FindAll("[role=tablist] [role=tab]");
-
-    private static IElement Pestana(IRenderedComponent<PaginaDocumentos> cut, string rotulo) =>
-        Pestanas(cut).Single(p => p.TextContent.Contains(rotulo, StringComparison.Ordinal));
-
     private IReadOnlyList<ToastMensaje> Toasts() => Services.GetRequiredService<ToastService>().Mensajes;
 
     private static IElement BotonPorTexto(IRenderedComponent<PaginaDocumentos> cut, string selector, string texto) =>
@@ -426,148 +420,14 @@ public partial class DocumentosGen2Tests : BunitContext
             .Should().Contain("Importar documentos").And.Contain("Subida múltiple");
     }
 
-    /// <summary>
-    /// Los rótulos son los del mockup salvo donde éste abrevia un término del
-    /// contrato: «plataforma» a secas colisiona con el plano Plataforma del
-    /// ADR-011 —quien accede excepcionalmente desde TALVEG—, mientras que lo
-    /// que esta pestaña enseña son Plataformas CAE externas (Nalanda, Dokify,
-    /// CTAIMA), que es como las nombra el propio dominio.
-    /// </summary>
     [Fact]
-    public void Los_rotulos_de_las_pestanas_son_los_del_mockup_con_el_apellido_semantico_del_contrato()
-    {
-        var (cut, _) = Renderizar();
-
-        Pestanas(cut).Select(p => p.TextContent.Trim()).Should().BeEquivalentTo(
-            ["Estado", "Plataformas CAE", "Reclamaciones", "Preventivo", "Revisión IA", "Plantillas", "Incidencias"],
-            o => o.WithoutStrictOrdering(),
-            "la píldora de recuento puede añadir texto, pero los rótulos son estos");
-
-        Pestanas(cut)[1].TextContent.Trim().Should().Be("Plataformas CAE");
-        Pestanas(cut)[1].TextContent.Should().NotBe("Plataforma",
-            "«Plataforma» a secas es el plano de acceso privilegiado, no el portal CAE externo");
-    }
-
-    /// <summary>
-    /// El deep-link de pestaña y los Ids de la URL NO cambian al cambiar los
-    /// rótulos: el timeline de Comunicaciones enlaza por Id.
-    /// </summary>
-    [Fact]
-    public void Cambiar_los_rotulos_no_cambio_los_ids_que_viajan_en_la_url()
-    {
-        var (cut, _) = Renderizar(url: "documentos?pestana=reclamaciones");
-
-        Pestana(cut, "Reclamaciones").GetAttribute("aria-selected").Should().Be("true");
-        Pestana(cut, "Estado").GetAttribute("aria-selected").Should().Be("false");
-    }
-
-    /// <summary>
-    /// D-30: en la pestaña Plantillas había dos primarias a la vez («+ Nuevo documento» de la
-    /// cabecera y «+ Nueva plantilla» de la pestaña). La primaria de Plantillas es la suya (mockup
-    /// «Plantillas TALVEG»); «+ Nuevo documento» baja a secundaria, y en el resto de pestañas sigue
-    /// siendo la primaria.
-    /// </summary>
-    [Fact]
-    public void En_Plantillas_la_primaria_es_Nueva_plantilla_y_Nuevo_documento_baja_a_secundaria()
-    {
-        var (cut, _) = Renderizar(url: "documentos?pestana=plantillas");
-
-        Pestana(cut, "Plantillas").GetAttribute("aria-selected").Should().Be("true", "barrera: la pestaña activa es la que se mide");
-        var nuevoDocumento = cut.Find(".cabecera-pagina .acciones-cabecera").QuerySelectorAll("button")
-            .Single(b => b.TextContent.Trim() == "+ Nuevo documento");
-        nuevoDocumento.ClassList.Should().Contain("boton-secundario").And.NotContain("boton-primario");
-        cut.FindAll("button").Single(b => b.TextContent.Trim() == "+ Nueva plantilla")
-            .ClassList.Should().Contain("boton-primario");
-        cut.FindAll("button.boton-primario").Should().ContainSingle(b => b.TextContent.Trim() == "+ Nueva plantilla",
-            "una sola primaria visible por vista");
-    }
-
-    /// <summary>
-    /// «Todos los documentos» (menú lateral, la pestaña «Estado» de /incidencias o un enlace guardado) apunta a «documentos» sin parámetro: desde otra pestaña, la misma
-    /// instancia de la página solo ve desaparecer «?pestana=» y tiene que volver al listado.
-    /// </summary>
-    [Fact]
-    public void Quitar_el_parametro_pestana_de_la_URL_devuelve_el_listado()
-    {
-        var (cut, _) = Renderizar(url: "documentos?pestana=plantillas");
-        Pestana(cut, "Plantillas").GetAttribute("aria-selected").Should().Be("true", "barrera: partimos de otra pestaña");
-
-        Services.GetRequiredService<NavigationManager>().NavigateTo("documentos");
-
-        cut.WaitForAssertion(() =>
-        {
-            Pestana(cut, "Estado").GetAttribute("aria-selected").Should().Be("true");
-            Pestana(cut, "Plantillas").GetAttribute("aria-selected").Should().Be("false");
-        });
-    }
-
-    [Fact]
-    public void Fuera_de_Plantillas_Nuevo_documento_sigue_siendo_la_primaria()
+    public void Nuevo_documento_es_siempre_la_primaria()
     {
         var (cut, _) = Renderizar();
 
         cut.Find(".cabecera-pagina .acciones-cabecera").QuerySelectorAll("button")
             .Single(b => b.TextContent.Trim() == "+ Nuevo documento")
             .ClassList.Should().Contain("boton-primario");
-    }
-
-    /// <summary>
-    /// El mockup pone una píldora con el recuento en la pestaña. El número sale
-    /// del total que ya devuelve la consulta —con su filtrado aplicado—, no de
-    /// un recuento inventado.
-    /// </summary>
-    [Fact]
-    public void La_pestana_Estado_lleva_la_pildora_con_el_total_que_devolvio_la_consulta()
-    {
-        var (cut, _) = Renderizar(ConDocumentos(Documento("Reconocimiento médico"), Documento("Formación PRL")));
-
-        Pestana(cut, "Estado").QuerySelector(".pestanas-contador")!.TextContent
-            .Should().Contain("2").And.Contain("documentos");
-    }
-
-    /// <summary>
-    /// La glosa de la píldora es lo único que convierte «1» en algo legible sin
-    /// ver el color, y va en singular cuando toca.
-    /// </summary>
-    [Fact]
-    public void La_pildora_dice_en_singular_lo_que_cuenta()
-    {
-        var (cut, _) = Renderizar(ConDocumentos(Documento("Reconocimiento médico")));
-
-        var pildora = Pestana(cut, "Estado").QuerySelector(".pestanas-contador")!.TextContent.Trim();
-        pildora.Should().Contain("1 documento");
-        pildora.Should().NotContain("documentos");
-    }
-
-    /// <summary>
-    /// Un total de cero no pinta píldora. «Estado 0» no dice nada que el estado
-    /// vacío de la lista no diga mejor, y el mockup tampoco dibuja ninguna.
-    /// </summary>
-    [Fact]
-    public void Sin_documentos_la_pestana_Estado_no_pinta_una_pildora_de_cero()
-    {
-        var (cut, _) = Renderizar();
-
-        Pestana(cut, "Estado").QuerySelector(".pestanas-contador").Should().BeNull();
-        cut.Markup.Should().Contain("Todavía no hay documentos",
-            "la barrera: si la lista no hubiera respondido, la ausencia de píldora sería verde vacío");
-    }
-
-    /// <summary>
-    /// Las otras cinco pestañas no llevan píldora: sus recuentos exigirían una
-    /// consulta propia que hoy no existe, y un cero sin contar es peor que
-    /// ningún número.
-    /// </summary>
-    [Fact]
-    public void Las_pestanas_sin_recuento_medido_no_inventan_una_pildora()
-    {
-        var (cut, _) = Renderizar(ConDocumentos(Documento("Reconocimiento médico")));
-
-        Pestana(cut, "Estado").QuerySelector(".pestanas-contador").Should().NotBeNull("es el punto de partida de este caso");
-
-        foreach (var rotulo in new[] { "Plataformas CAE", "Reclamaciones", "Preventivo", "Revisión IA", "Plantillas" })
-            Pestana(cut, rotulo).QuerySelector(".pestanas-contador").Should().BeNull(
-                $"«{rotulo}» no tiene hoy ninguna consulta que cuente lo suyo");
     }
 
     // ------------------------------------------------- contrato 1: concurrencia
@@ -617,7 +477,7 @@ public partial class DocumentosGen2Tests : BunitContext
             mediador.Pagina(new ObtenerDocumentosQuery(null, null, null, Estados: soloVencidos))));
         await filtroVencidos;
 
-        Pestana(cut, "Estado").QuerySelector(".pestanas-contador")!.TextContent
+        cut.Find(".cabecera-pagina .cabecera-listado-contador").TextContent.Trim()
             .Should().Contain("3", "el filtro vigente es «Vencidos y Por vencer», que devolvió tres: la respuesta de «solo Vencidos» llegó tarde");
         cut.MarcadosEnFranja().Should().Equal("Vencidos", "Por vencer");
     }
@@ -680,30 +540,6 @@ public partial class DocumentosGen2Tests : BunitContext
     }
 
     // --------------------------------- contrato 2: nada preparado para otro contexto
-
-    /// <summary>
-    /// El diálogo de borrado y la barra de lote se pintan FUERA del bloque de
-    /// pestañas, así que sobrevivían al cambio: dejar preparado un borrado en
-    /// «Estado» y cambiar de pestaña dejaba el diálogo apuntando a un documento
-    /// que ya no se ve.
-    /// </summary>
-    [Fact]
-    public async Task Cambiar_de_pestana_cierra_el_lote_preparado_y_suelta_la_seleccion()
-    {
-        var (cut, mediador) = Renderizar(ConDocumentos(Documento("Reconocimiento médico"), Documento("Formación PRL")));
-
-        await SeleccionarFilas(cut, 2);
-        await AbrirConfirmacionDeLote(cut);
-        cut.Markup.Should().Contain("Se ocultarán de las listas activas", "es el punto de partida de este caso");
-
-        await Pestana(cut, "Preventivo").ClickAsync(new MouseEventArgs());
-
-        cut.Markup.Should().NotContain("Se ocultarán de las listas activas",
-            "lo preparado pertenecía a la pestaña anterior");
-        cut.FindAll(".barra-acciones-lote").Should().BeEmpty("la selección de la pestaña anterior se soltó");
-        mediador.Enviadas.OfType<EliminarDocumentosCommand>().Should().BeEmpty(
-            "cerrar lo preparado no es ejecutarlo");
-    }
 
     /// <summary>
     /// Mismo contrato por el otro camino: cambiar un filtro cambia qué hay en
@@ -977,8 +813,8 @@ public partial class DocumentosGen2Tests : BunitContext
         var loteDelPrimerContexto = ConfirmarDialogo(cut);
 
         // Cambia lo que hay en pantalla, dos veces, y se prepara otro lote.
-        await Pestana(cut, "Preventivo").ClickAsync(new MouseEventArgs());
-        await Pestana(cut, "Estado").ClickAsync(new MouseEventArgs());
+        await AlternarFranjaDocumentoFase1(cut, "Vencidos");
+        await AlternarFranjaDocumentoFase1(cut, "Vencidos");
         await MarcarPrimeraFila(cut);
         await AbrirConfirmacionDeLote(cut);
         cut.Markup.Should().Contain("Se ocultarán de las listas activas", "es el punto de partida de este caso");
@@ -1311,20 +1147,6 @@ public partial class DocumentosGen2Tests : BunitContext
         franja.GetAttribute("aria-label").Should().Be("Filtrar por estado");
         cut.FindAll(".barra-filtros-pastillas .menu-acciones-disparador-pastilla").Select(p => p.GetAttribute("aria-label"))
             .Should().NotContain("Estado", "el estado se filtra en la franja, no en una pastilla");
-    }
-
-    [Fact]
-    public void Las_pestanas_se_quedan_entre_la_cabecera_y_la_barra_de_filtros()
-    {
-        var (cut, _) = Renderizar(ConDocumentos(Documento("Reconocimiento médico")));
-
-        var html = cut.Markup;
-        var cabecera = html.IndexOf("cabecera-pagina", StringComparison.Ordinal);
-        var pestanas = html.IndexOf("role=\"tablist\"", StringComparison.Ordinal);
-        var filtros = html.IndexOf("barra-filtros-pastillas", StringComparison.Ordinal);
-        cabecera.Should().BeGreaterThanOrEqualTo(0);
-        pestanas.Should().BeGreaterThan(cabecera);
-        filtros.Should().BeGreaterThan(pestanas);
     }
 
     [Fact]

@@ -63,7 +63,7 @@ public class PlantillasTabTests : BunitContext
         Services.AddScoped<ToastService>();
 
         var cut = Render<PlantillasTab>();
-        cut.FindAll("[role='tab']")[1].Click();
+        cut.FindAll(".segmentado-opcion")[1].Click();
         return cut;
     }
 
@@ -72,7 +72,7 @@ public class PlantillasTabTests : BunitContext
     {
         var cut = RenderizarEnGenerados(avisosPendientes: 3);
 
-        cut.FindAll("[role='tab']")[1].TextContent.Trim().Should().Be("Generados (3 con avisos)");
+        cut.FindAll(".segmentado-opcion")[1].TextContent.Trim().Should().Be("Generados (3 con avisos)");
     }
 
     [Fact]
@@ -80,7 +80,7 @@ public class PlantillasTabTests : BunitContext
     {
         var cut = RenderizarEnGenerados(avisosPendientes: 0);
 
-        cut.FindAll("[role='tab']")[1].TextContent.Trim().Should().Be("Generados",
+        cut.FindAll(".segmentado-opcion")[1].TextContent.Trim().Should().Be("Generados",
             "sin nada que revisar, un «(0 con avisos)» junto al tab lee como alarma vacía");
     }
 }

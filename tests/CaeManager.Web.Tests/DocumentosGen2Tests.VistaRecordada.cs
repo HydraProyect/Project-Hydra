@@ -9,6 +9,7 @@ using CaeManager.Application.Documentos.Queries.ObtenerDocumentos;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Documentos;
 using CaeManager.Web.Components.DesignSystem;
+using CaeManager.Web.Features.Documentos.Components;
 using FluentAssertions;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Web;
@@ -76,7 +77,7 @@ public partial class DocumentosGen2Tests
         UltimaConsultaDeDocumentos(mediador).Estados.Should().Equal(EstadoDocumento.Vencido);
     }
 
-    /// <summary>Con cualquier parámetro manda la URL, y la pestaña es uno: un enlace a otra pestaña no restaura nada.</summary>
+    /// <summary>Con cualquier parámetro manda la URL, y «pestana» es uno: un enlace a otra vista no restaura nada.</summary>
     [Fact]
     public void Un_enlace_a_otra_pestana_no_lee_ni_restaura_la_vista_recordada()
     {
@@ -84,7 +85,7 @@ public partial class DocumentosGen2Tests
 
         var (cut, _) = Renderizar(mediador, url: "documentos?pestana=reclamaciones");
 
-        Pestana(cut, "Reclamaciones").GetAttribute("aria-selected").Should().Be("true", "barrera: la pestaña activa es la del enlace");
+        cut.FindComponents<ReclamacionesTab>().Should().NotBeEmpty("barrera: la vista del enlace es la de Reclamaciones");
         ParametrosDeLaUrl().Should().BeEquivalentTo(new Dictionary<string, string> { ["pestana"] = "reclamaciones" });
         mediador.Enviadas.Should().NotBeEmpty("control: la página sí habló con el mediador");
         mediador.Enviadas.OfType<ObtenerVistaRecordadaQuery>().Should().BeEmpty("con parámetros manda la URL, y la pieza va bajo la pestaña del listado");

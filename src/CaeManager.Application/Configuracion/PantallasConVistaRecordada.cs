@@ -26,8 +26,10 @@ public static class PantallasConVistaRecordada
     public const string Usuarios = "Usuarios";
     public const string AsignacionesDeOperacion = PantallasConFiltrosGuardados.AsignacionesDeOperacion;
 
+    public const string Plantillas = PantallasConFiltrosGuardados.Plantillas;
+
     public static readonly string[] Admitidas =
-        [Trabajadores, Empresas, Clientes, Documentos, Centros, Subcontratas, Vehiculos, Proyectos, Visitas, Gestiones, Incidencias, Usuarios, AsignacionesDeOperacion];
+        [Trabajadores, Empresas, Clientes, Documentos, Centros, Subcontratas, Vehiculos, Proyectos, Visitas, Gestiones, Incidencias, Usuarios, AsignacionesDeOperacion, Plantillas];
 
     /// <summary>
     /// Tope de <c>ValoresJson</c> en caracteres. La vista se escribe sola, sin que

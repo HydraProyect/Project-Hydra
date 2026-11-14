@@ -34,7 +34,8 @@ namespace CaeManager.Web.Components.DesignSystem;
 /// <para>
 /// RESTAURAR: una vez por visita, con circuito (nunca en el prerender: allí una navegación es una
 /// redirección), cuando la página puede validar lo recordado (<see cref="ListoParaRestaurar"/>) y solo
-/// si la URL llega SIN cadena de consulta. Con cualquier parámetro manda la
+/// si la URL llega SIN cadena de consulta (o solo con <see cref="ParametrosQueNoImpidenRestaurar"/>, que eligen la vista y no
+/// filtran, y coinciden con lo recordado). Con cualquier otro parámetro manda la
 /// URL: un enlace compartido se ve como se compartió. La vista recordada se entrega a la página por
 /// <see cref="OnAplicar"/>, el mismo camino que un filtro guardado: la página valida cada valor
 /// como valida la URL (lo recordado no es autoridad), escribe la URL en UNA navegación y recarga.
@@ -58,6 +59,13 @@ namespace CaeManager.Web.Components.DesignSystem;
 /// pasado <see cref="Rebote"/> sin más cambios —cada escritura deja una
 /// fila de auditoría, así que una ráfaga de filtros es una sola—; si volvió a la de inicio, se
 /// olvida en vez de guardar un diccionario vacío. Restaurar no escribe.
+/// </para>
+///
+/// <para>
+/// LO QUE LA PÁGINA NAVEGA POR SU CUENTA no es del usuario: la página lo anuncia ANTES de navegar
+/// (<see cref="ConexionVistaRecordada.AnunciarNavegacionDeLaPagina"/>, p. ej. Documentos al traducir un enlace antiguo con
+/// «?pestana=»), lo programado se cancela y los avisos de su origen y de su destino —que con circuito llegan después, de
+/// ida y vuelta— no escriben ni olvidan, ni mueven lo recordado.
 /// </para>
 ///
 /// <para>
@@ -89,6 +97,12 @@ public sealed class VistaRecordadaDeListado : ComponentBase, IDisposable
 {
     /// <summary>Tiempo sin cambios de vista tras el que se escribe.</summary>
     public static readonly TimeSpan Rebote = TimeSpan.FromSeconds(2);
+
+    /// <summary>
+    /// Tiempo tras el que una navegación anunciada por la página (<see cref="ConexionVistaRecordada.AnunciarNavegacionDeLaPagina"/>)
+    /// cuyo aviso no llegó deja de descartar avisos: la ida y vuelta con el navegador tarda mucho menos.
+    /// </summary>
+    public static readonly TimeSpan CaducidadDeLaNavegacionDeLaPagina = TimeSpan.FromSeconds(10);
 
     /// <summary>La vista de inicio serializada: no hay nada que recordar.</summary>
     private const string SinVista = "{}";
@@ -122,6 +136,14 @@ public sealed class VistaRecordadaDeListado : ComponentBase, IDisposable
     /// empresarial elegido en Proyectos, sin el que esa pantalla no tiene lista.
     /// </summary>
     [Parameter] public IReadOnlyList<string> ParametrosDeContexto { get; set; } = [];
+
+    /// <summary>
+    /// Parámetros de la lista blanca que dicen QUÉ VISTA se abre (Catálogo o Generados en Plantillas) y no qué se filtra: una
+    /// URL que lleve solo estos parámetros sigue contando como «sin filtros» y restaura lo recordado, siempre que lo recordado
+    /// sea de esa misma vista (mismo valor en cada uno de ellos; un enlace a Generados no se pisa con los filtros del
+    /// Catálogo). Con cualquier otro parámetro manda la URL, como siempre.
+    /// </summary>
+    [Parameter] public IReadOnlyList<string> ParametrosQueNoImpidenRestaurar { get; set; } = [];
 
     /// <summary>
     /// La vista a aplicar: un valor por cada parámetro de <see cref="ParametrosDeVista"/>, <c>null</c> los que
@@ -185,6 +207,9 @@ public sealed class VistaRecordadaDeListado : ComponentBase, IDisposable
         Conexion.Conectar(this);
         _ruta = RutaDe(Navegacion.Uri);
 
+        // La página pudo anunciar su navegación antes de que hubiera pieza (entrada en frío): la caducidad cuenta desde aquí.
+        SellarNavegacionDeLaPagina();
+
         // La barra se pintó antes que esta pieza: si la URL ya trae una vista propia, se repinta.
         ActualizarDiferencia(VistaDeLaUrl());
     }
@@ -225,7 +250,7 @@ public sealed class VistaRecordadaDeListado : ComponentBase, IDisposable
 
         // La URL manda: con cualquier parámetro no se restaura nada ni hace falta leer lo recordado.
         // Tampoco si el usuario ya cambió la vista mientras la página se preparaba.
-        if (_huboCambios || TieneConsulta(Navegacion.Uri))
+        if (_huboCambios || TieneConsultaDeFiltros(Navegacion.Uri))
             return;
 
         string? valoresJson;
@@ -245,7 +270,7 @@ public sealed class VistaRecordadaDeListado : ComponentBase, IDisposable
         }
 
         // Mientras se leía, la página pudo retirarse o el usuario pudo cambiar ya la vista.
-        if (_desechado || _huboCambios || TieneConsulta(Navegacion.Uri) || !EsMiRuta(Navegacion.Uri))
+        if (_desechado || _huboCambios || TieneConsultaDeFiltros(Navegacion.Uri) || !EsMiRuta(Navegacion.Uri))
             return;
 
         // Un JSON ilegible no es una vista. Lo que traiga fuera de la lista blanca no llega a la página.
@@ -256,6 +281,11 @@ public sealed class VistaRecordadaDeListado : ComponentBase, IDisposable
         var recordables = ParametrosRecordados;
         var recordada = leida.Where(p => recordables.Contains(p.Key)).ToDictionary(p => p.Key, p => p.Value);
         if (recordada.Count == 0)
+            return;
+
+        // La URL pide una vista (p. ej. ?Pestana=generados) y lo recordado es de otra: la URL manda, no se mezclan.
+        var enLaUrl = VistaDeLaUrl();
+        if (ParametrosQueNoImpidenRestaurar.Any(p => enLaUrl.TryGetValue(p, out var enUrl) && enUrl != recordada.GetValueOrDefault(p)))
             return;
 
         // Restaurar no es un cambio del usuario: lo que la navegación de la página traiga de vuelta
@@ -309,9 +339,14 @@ public sealed class VistaRecordadaDeListado : ComponentBase, IDisposable
             return;
         }
 
-        _huboCambios = true;
         var vista = VistaDeListado.DeLaUrl(new Uri(e.Location), ParametrosDeVista);
         ActualizarDiferencia(vista);
+
+        // La página traduce un enlace (lo anunció antes de navegar): ni ese aviso ni el del enlace son del usuario.
+        if (EsDeLaNavegacionDeLaPagina(e.Location))
+            return;
+
+        _huboCambios = true;
 
         if (_restableciendo is { } esperada)
         {
@@ -376,6 +411,58 @@ public sealed class VistaRecordadaDeListado : ComponentBase, IDisposable
         if (SerializarEntera(VistaDeLaUrl()) == esperada)
             await CompletarRestablecerAsync();
     }
+
+    /// <summary>
+    /// La página anunció que va a reescribir la URL por su cuenta (<see cref="ConexionVistaRecordada.AnunciarNavegacionDeLaPagina"/>):
+    /// lo programado se cancela ya —pudo programarlo el aviso del enlace que la provocó, si llegó antes que la página— y
+    /// empieza a contar la caducidad. Los avisos de esa navegación los descarta <see cref="EsDeLaNavegacionDeLaPagina"/>.
+    /// </summary>
+    internal void AlAnunciarNavegacionDeLaPagina()
+    {
+        if (_desechado)
+            return;
+
+        SellarNavegacionDeLaPagina();
+        InvalidarEscrituraProgramada();
+        _pendiente = null;
+    }
+
+    private void SellarNavegacionDeLaPagina()
+    {
+        if (Conexion.NavegacionDeLaPagina is { Desde: null } anunciada)
+            anunciada.Desde = Tiempo.GetUtcNow();
+    }
+
+    /// <summary>
+    /// El aviso es de la navegación que la página anunció: el de su destino (uno o varios) o el de su origen, que con
+    /// circuito puede llegar después del anuncio. Ni uno ni otro es un cambio del usuario: no se escribe, no se olvida y
+    /// lo recordado no cambia, así que el siguiente cambio del usuario se compara con lo último escrito y sí escribe.
+    /// Cualquier otro cambio de dirección deja caer la marca (la navegación anunciada no llegará ya como tal), y una marca
+    /// más vieja que <see cref="CaducidadDeLaNavegacionDeLaPagina"/> tampoco descarta nada.
+    /// </summary>
+    private bool EsDeLaNavegacionDeLaPagina(string direccion)
+    {
+        if (Conexion.NavegacionDeLaPagina is not { } anunciada)
+            return false;
+
+        if (anunciada.Desde is { } desde && Tiempo.GetUtcNow() - desde > CaducidadDeLaNavegacionDeLaPagina)
+        {
+            Conexion.NavegacionDeLaPagina = null;
+            return false;
+        }
+
+        // El destino no consume la marca: la página puede pedirlo dos veces antes de que vuelva el primero (lo traduce en la
+        // carga y en el siguiente OnParametersSet), y llegan dos avisos iguales. Un usuario no navega a la URL que ya tiene.
+        if (MismaDireccion(direccion, anunciada.Destino) || MismaDireccion(direccion, anunciada.Origen))
+            return true;
+
+        Conexion.NavegacionDeLaPagina = null;
+        return false;
+    }
+
+    private bool MismaDireccion(string una, string otra) =>
+        Uri.Compare(Navegacion.ToAbsoluteUri(una), Navegacion.ToAbsoluteUri(otra), UriComponents.HttpRequestUrl,
+            UriFormat.SafeUnescaped, StringComparison.OrdinalIgnoreCase) == 0;
 
     /// <summary>La URL ya muestra la vista de inicio: lo recordado pasa a ser esa vista, sin esperar al rebote.</summary>
     private async Task CompletarRestablecerAsync()
@@ -486,5 +573,17 @@ public sealed class VistaRecordadaDeListado : ComponentBase, IDisposable
 
     private string RutaDe(string direccion) => Navegacion.ToAbsoluteUri(direccion).AbsolutePath.TrimEnd('/');
 
-    private bool TieneConsulta(string direccion) => Navegacion.ToAbsoluteUri(direccion).Query.Length > 1;
+    /// <summary>
+    /// La dirección trae algún parámetro de consulta que no es de <see cref="ParametrosQueNoImpidenRestaurar"/>: con él manda la
+    /// URL. Sin esa lista, cualquier cadena de consulta cuenta.
+    /// </summary>
+    private bool TieneConsultaDeFiltros(string direccion)
+    {
+        var consulta = Navegacion.ToAbsoluteUri(direccion).Query;
+        if (consulta.Length <= 1)
+            return false;
+
+        return Microsoft.AspNetCore.WebUtilities.QueryHelpers.ParseQuery(consulta).Keys
+            .Any(k => !ParametrosQueNoImpidenRestaurar.Contains(k, StringComparer.OrdinalIgnoreCase));
+    }
 }

@@ -74,7 +74,7 @@ public static class CatalogoSeccionesMenu
 
     private const string PestanaRevisionIa = "revision-ia";
 
-    /// <summary>Id de la sección Documentos: su barra de pestañas la pinta <c>BarraPestanasDocumentos</c>, no <c>BarraSeccion</c>.</summary>
+    /// <summary>Id de la sección Documentos: ya no tiene barra de pestañas (PR8); <c>BarraSeccion</c> no la pinta y el catálogo solo sirve a migas y menú lateral.</summary>
     internal const string IdSeccionDocumentos = "documentos";
 
     private static bool EsRuta(string ruta, string destino) =>
@@ -90,22 +90,19 @@ public static class CatalogoSeccionesMenu
 
     public static IReadOnlyList<SeccionMenu> Secciones { get; } =
     [
-        // «Todos los documentos» es la pantalla Documentos tal cual (sus pestañas internas —Plataformas CAE,
-        // Reclamaciones, Preventivo, Plantillas— siguen dentro de ella). «Revisión IA» e Incidencias salieron
-        // de Operación y del propio menú: ahora son pestañas de sección. La pestaña Revisión IA lleva a su pantalla
-        // propia, /documentos/revision-ia (D-49); /documentos?pestana=revision-ia redirige a ella para enlaces guardados.
-        // BarraSeccion NO pinta esta sección en ninguna ruta: Documentos e /incidencias pintan BarraPestanasDocumentos
-        // (una sola barra, bajo el título, porque dos repetían pestañas) y /documentos/revision-ia es una pantalla propia
-        // (D-49) sin barra de pestañas.
+        // «Todos los documentos» es la pantalla Documentos tal cual, sin barra de pestañas desde la PR8 del lienzo «Documentos ·
+        // listado sin pestañas»: lo que eran sus pestañas internas son filtros del listado o pantallas propias, y cada Id de
+        // `?pestana=` se conserva como redirección (RedireccionDePestanas). Revisión IA es una pantalla propia de esta sección,
+        // /documentos/revision-ia (D-49); /documentos?pestana=revision-ia redirige a ella para enlaces guardados. Incidencias ya
+        // NO es de esta sección: tiene su entrada propia en Operación (CatalogoMenuLateral, P-6 y D-1), con sus propias migas.
+        // BarraSeccion NO pinta esta sección en ninguna ruta y ninguna otra barra la sustituye.
         // Este catálogo sigue sirviendo a las migas y al menú lateral (qué pantalla es de qué sección).
         new(IdSeccionDocumentos, "SeccionDocumentos", "documentos",
         [
             new("documentos-todos", "SeccionTodosLosDocumentos", "documentos", RolesDeDocumentos,
                 (ruta, pestana) => ruta.Equals("documentos", StringComparison.OrdinalIgnoreCase) && !EsRevisionIa(ruta, pestana)),
-            new("documentos-revision-ia", "MenuSubDocumentosRevisionIa", "documentos?pestana=revision-ia", RolesDeRevisionIa,
+            new("documentos-revision-ia", "MenuSubDocumentosRevisionIa", "documentos/revision-ia", RolesDeRevisionIa,
                 EsRevisionIa),
-            new("documentos-incidencias", "SeccionIncidencias", "incidencias", RolesDeIncidencias,
-                (ruta, _) => EsRuta(ruta, "incidencias")),
         ]),
 
         // Equipo: Usuarios y Roles. El enlace del menú es «usuarios» (Administración) o «usuarios-equipo»

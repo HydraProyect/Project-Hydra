@@ -58,6 +58,7 @@ public class ListadosConBarraFiltrosOfrecenFiltrosGuardadosTests
         CarpetaDeFeatures + "Subcontratas/Pages/Subcontratas.razor",
         CarpetaDeFeatures + "Vehiculos/Pages/Vehiculos.razor",
         CarpetaDeFeatures + "Visitas/Pages/Visitas.razor",
+        CarpetaDeFeatures + "Documentos/Components/PlantillasTab.razor",
     ];
 
     private static readonly string[] AtributosExigidos = ["FiltrosGuardados", "OnGuardarFiltro", "OnAplicarFiltroGuardado"];
