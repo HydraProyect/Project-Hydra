@@ -498,8 +498,14 @@ public class CobrosLiquidacionOperadorCaeRlsTests : IAsyncLifetime
     /// <see cref="RolFueraDelOrigen"/> en cualquier otro (o sin ámbito). Así la guarda solo pasa si fija el ámbito en
     /// el Tenant de origen del Operador antes de preguntar el rol.
     /// </remarks>
-    private sealed class UsuarioConmutable : ICurrentUserService
+    private sealed class UsuarioConmutable : ICurrentUserService, IEncargoDeAdministracionActual
     {
+        // Como en producción (deuda del 2026-10-20): el Encargo de administración no eleva a nadie.
+        public Task<Guid?> EncargoQueElevaAsync() => Task.FromResult<Guid?>(null);
+        public Task<Guid?> EncargoPlenoAsync() => Task.FromResult<Guid?>(null);
+        public Guid? EncargoDeLaUltimaResolucion(Guid operacionId) => null;
+        public bool EncargoPlenoDeLaUltimaResolucion(Guid operacionId) => false;
+
         public Guid? UsuarioId { get; set; }
         public string? Rol { get; set; }
         public string? RolFueraDelOrigen { get; set; }
