@@ -82,11 +82,14 @@ public interface IAsignacionesOperativasWriter
     /// CAE externo sobre el Tenant propietario —la del Tenant entero y las acotadas a un Cliente
     /// empresarial, vigentes, programadas o suspendidas— de una delegación que se desactiva, y con
     /// ellas todas sus carteras no cerradas: una cartera no puede sobrevivir a la operación que la
-    /// ampara, y en duda la revocación falla cerrada (decisión de Chris del 2026-11-14). Cada cartera
-    /// vigente se cierra con el mismo instante que su operación y recuerda si llevaba la marca de principal
-    /// (<see cref="AsignacionCartera.EraPrincipalAlCerrarsePorCascada"/>), para
-    /// que <see cref="ReabrirCarterasDeOperadoresAsync"/> sepa a quién devolvérsela. Reactivar solo
-    /// reabre la del Tenant entero; las acotadas necesitan un acto explícito.
+    /// ampara, y en duda la revocación falla cerrada (decisión de Chris del 2026-11-14). Solo una
+    /// cartera Vigente bajo una operación Vigente queda marcada como restaurable
+    /// (<see cref="AsignacionCartera.RestaurableAlReactivar"/>) y recuerda si llevaba la marca de
+    /// principal (<see cref="AsignacionCartera.EraPrincipalAlCerrarsePorCascada"/>), para que
+    /// <see cref="ReabrirCarterasDeOperadoresAsync"/> sepa qué reponer y a quién devolvérsela; el resto
+    /// se cierra sin marca y recordando su estado efectivo
+    /// (<see cref="AsignacionCartera.EstadoAlCerrarse"/>). Reactivar solo reabre la del Tenant entero;
+    /// las acotadas necesitan un acto explícito.
     /// </summary>
     Task CerrarOperacionDelegadaAsync(
         Guid propietarioTenantId, Guid operadorTenantId, MotivoCierreAsignacion motivo,
@@ -110,6 +113,10 @@ public interface IAsignacionesOperativasWriter
     /// explícito —una solicitud de incorporación aceptada, el alta o la
     /// asignación de empresas en Usuarios, o <see cref="AsegurarCarteraTenantEnteroAsync"/>
     /// en una siembra—; la de un Coordinador CAE se deriva de las de sus Gestores CAE.
+    ///
+    /// <b>Lo suspendido nunca vuelve como vigente.</b> Tampoco emite la de Consulta si la persona
+    /// tiene en el par una cartera viva suspendida, o si su última cartera del par quedó suspendida
+    /// (<see cref="AsignacionCartera.AlgunaQuedoSuspendida"/>): reanudarla es un acto explícito.
     /// </summary>
     /// <param name="operacion">
     /// La operación sobre la que cuelga, ya sea recién creada en este mismo
@@ -139,16 +146,16 @@ public interface IAsignacionesOperativasWriter
     ///
     /// <b>Solo repone concesiones explícitas.</b> Un Gestor CAE —o un Coordinador CAE con cartera
     /// propia, como la que le emite el relevo del principal— recupera la cartera del Tenant entero
-    /// únicamente si la tenía vigente en la operación que esa misma desactivación cerró (una Asignación
-    /// de Cartera cerrada con motivo <see cref="MotivoCierreAsignacion.Revocada"/> en el mismo instante
-    /// que la última operación externa cerrada del mismo par, es decir, por la cascada de esa
-    /// desactivación y no por la revocación de un operador concreto), y con el mismo rol que su fila de
-    /// operador delegado: esa fila por sí sola no es una cartera, y <c>Empresa.EjecutivoUsuarioId</c> ya
-    /// no reconstruye alcance. Lo que no estaba Vigente al revocar no vuelve: la revocación cierra una
-    /// cartera Suspendida un microsegundo antes que la operación (una Programada, con su inicio como
-    /// fin), y no cuentan ni una
-    /// cartera ni una operación del Tenant entero que se cerraron sin haber empezado (fin igual a su
-    /// inicio), aunque ese inicio ya haya pasado.
+    /// únicamente si la tenía vigente, bajo una operación vigente, en la última operación externa del
+    /// Tenant entero cerrada del mismo par, y esa cascada la marcó como restaurable (una Asignación de
+    /// Cartera cerrada con motivo <see cref="MotivoCierreAsignacion.Revocada"/> y
+    /// <see cref="AsignacionCartera.RestaurableAlReactivar"/>; no la revocación de un operador
+    /// concreto), y con el mismo rol que su fila de operador delegado: esa fila por sí sola no es una
+    /// cartera, y <c>Empresa.EjecutivoUsuarioId</c> ya no reconstruye alcance. Lo que no estaba Vigente
+    /// al revocar —una cartera Suspendida o Programada, o cualquiera bajo una operación Suspendida— no
+    /// vuelve, sea cual sea su fecha de fin, y no cuenta como etapa anterior una operación del Tenant
+    /// entero que se cerró sin haber empezado (fin igual a su inicio), aunque ese inicio ya haya pasado.
+    /// La cartera de Consulta sigue la guarda de <see cref="AbrirCarteraOperadorAsync(AsignacionOperacion, Guid, string, CancellationToken)"/>.
     ///
     /// <b>Marca de principal</b> (D-9, 2026-10-08: «al reactivar vuelve a ser principal quien lo era
     /// antes»). Las carteras repuestas nacen sin marca y el método devuelve el usuario cuya cartera era

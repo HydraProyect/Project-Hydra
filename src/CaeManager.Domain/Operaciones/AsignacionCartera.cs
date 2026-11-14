@@ -158,30 +158,121 @@ public class AsignacionCartera : AsignacionResponsabilidad
     /// único. Sirve para que, al reactivar la delegación, vuelva a ser principal quien lo era
     /// (decisión del propietario, 2026-10-08, D-9).
     ///
-    /// Solo lo escribe <see cref="CerrarPorCascadaDeLaOperacion"/>. La retirada individual, la
+    /// Solo lo escribe <see cref="CerrarPorCascadaDeLaOperacion"/>, y solo en una cartera
+    /// <see cref="RestaurableAlReactivar"/>: lo que no vuelve no tiene marca que devolver. La retirada individual, la
     /// expiración por fecha y cualquier otro cierre lo dejan en <c>false</c>: ahí el principal
     /// se releva en el acto y no hay nada que restaurar. Lo repite la base de datos con el
     /// CHECK <c>CK_AsignacionesCartera_EraPrincipalSoloCerrada</c>.
     /// </summary>
     public bool EraPrincipalAlCerrarsePorCascada { get; private set; }
 
-    /// <summary>Una cartera cerrada no es la principal de nada: el cierre apaga la marca.</summary>
-    public override void Cerrar(MotivoCierreAsignacion motivo, DateTime ahora)
+    /// <summary>
+    /// Histórico de una cartera cerrada: el estado efectivo de su autorización en el instante del
+    /// cierre. Es el suyo, salvo en la cascada de una operación que no estaba Vigente: entonces una
+    /// cartera Vigente lleva el de su operación, porque no autorizaba nada (una Vigente bajo una
+    /// operación Suspendida estaba, en la práctica, suspendida). <c>null</c> en una cartera viva y en
+    /// las cerradas antes de que existiera la columna (ronda 2 de Codex en la PR #2223).
+    ///
+    /// Lo lee quien emite una cartera nueva desde una fila heredada (<see cref="QuedoSuspendida"/>):
+    /// lo suspendido nunca vuelve como vigente. Lo repite la base de datos con el CHECK
+    /// <c>CK_AsignacionesCartera_EstadoAlCerrarseSoloCerrada</c>.
+    /// </summary>
+    public EstadoAsignacion? EstadoAlCerrarse { get; private set; }
+
+    /// <summary>
+    /// Marca explícita de lo que la reactivación de la delegación puede reponer: solo la escribe
+    /// <see cref="CerrarPorCascadaDeLaOperacion"/>, y solo cuando la cartera y su operación estaban
+    /// las dos Vigentes y el motivo es <see cref="MotivoCierreAsignacion.Revocada"/>. Una cartera Suspendida o Programada, una Vigente bajo una operación Suspendida
+    /// o Programada, y cualquier cierre individual (retirada, expiración, reconciliación) la dejan en
+    /// <c>false</c> y no vuelven. Sustituye a la inferencia por fechas («comparte el fin de la
+    /// operación»), que confundía con la cascada una cartera Suspendida con la misma fecha de fin ya
+    /// pasada (ronda 2 de Codex en la PR #2223). Lo repite la base de datos con el CHECK
+    /// <c>CK_AsignacionesCartera_RestaurableSoloCerradaVigente</c>.
+    /// </summary>
+    public bool RestaurableAlReactivar { get; private set; }
+
+    /// <summary>
+    /// Una cartera cerrada no es la principal de nada: el cierre apaga la marca. Recuerda además el
+    /// estado que tenía (<see cref="EstadoAlCerrarse"/>).
+    /// </summary>
+    public override void Cerrar(MotivoCierreAsignacion motivo, DateTime ahora) => CerrarConEstado(motivo, ahora, Estado);
+
+    private void CerrarConEstado(MotivoCierreAsignacion motivo, DateTime ahora, EstadoAsignacion estadoEfectivo)
     {
         base.Cerrar(motivo, ahora);
         EsPrincipal = false;
+        EstadoAlCerrarse = estadoEfectivo;
     }
 
     /// <summary>
-    /// El cierre que arrastra la cascada de la Asignación de Operación entera. Cierra igual que
-    /// <see cref="Cerrar"/> —la marca se apaga— y además recuerda si la llevaba
-    /// (<see cref="EraPrincipalAlCerrarsePorCascada"/>).
+    /// El cierre que arrastra la cascada de su Asignación de Operación, antes de cerrar esta. Cierra
+    /// igual que <see cref="Cerrar"/> —la marca se apaga—, recuerda el estado efectivo
+    /// (<see cref="EstadoAlCerrarse"/>) y, si es una revocación y la cartera y la operación
+    /// estaban las dos Vigentes, la marca como <see cref="RestaurableAlReactivar"/> y recuerda si era
+    /// la principal (<see cref="EraPrincipalAlCerrarsePorCascada"/>, D-9). En cualquier otro caso se
+    /// cierra sin nada que restaurar: en duda, falla cerrada.
     /// </summary>
-    public void CerrarPorCascadaDeLaOperacion(MotivoCierreAsignacion motivo, DateTime ahora)
+    public void CerrarPorCascadaDeLaOperacion(
+        AsignacionOperacion operacion, MotivoCierreAsignacion motivo, DateTime ahora)
     {
+        ArgumentNullException.ThrowIfNull(operacion);
+        if (operacion.Id != AsignacionOperacionId)
+            throw new ArgumentException("La cascada solo la arrastra la operación de la que cuelga la cartera.", nameof(operacion));
+        if (operacion.Estado == EstadoAsignacion.Cerrada)
+            throw new InvalidOperationException(
+                "La cascada cierra las carteras antes que su operación: con la operación ya cerrada no se sabe en qué estado estaba.");
+
         var eraPrincipal = EsPrincipal;
-        Cerrar(motivo, ahora);
-        EraPrincipalAlCerrarsePorCascada = eraPrincipal;
+        var efectivo = Estado == EstadoAsignacion.Vigente ? operacion.Estado : Estado;
+        CerrarConEstado(motivo, ahora, efectivo);
+
+        // Solo una revocación se deshace al reactivar la delegación: una cascada por caducidad o por la
+        // reconciliación del backfill recuerda el estado efectivo, pero no deja nada que reponer.
+        RestaurableAlReactivar = efectivo == EstadoAsignacion.Vigente && motivo == MotivoCierreAsignacion.Revocada;
+        EraPrincipalAlCerrarsePorCascada = RestaurableAlReactivar && eraPrincipal;
+    }
+
+    /// <summary>
+    /// Si esta cartera estaba, en la práctica, suspendida: viva y Suspendida, viva y Vigente bajo una
+    /// operación Suspendida, o cerrada desde un estado efectivo Suspendido
+    /// (<see cref="EstadoAlCerrarse"/>). Quien emite una cartera desde una fila heredada lo pregunta a
+    /// la última cartera de la persona en el par para no devolver como vigente lo suspendido.
+    /// </summary>
+    public bool QuedoSuspendida(AsignacionOperacion operacion)
+    {
+        ArgumentNullException.ThrowIfNull(operacion);
+        if (operacion.Id != AsignacionOperacionId)
+            throw new ArgumentException("La operación no es la de la cartera.", nameof(operacion));
+
+        return Estado switch
+        {
+            EstadoAsignacion.Suspendida => true,
+            EstadoAsignacion.Vigente => operacion.Estado == EstadoAsignacion.Suspendida,
+            EstadoAsignacion.Cerrada => EstadoAlCerrarse == EstadoAsignacion.Suspendida,
+            _ => false,
+        };
+    }
+
+    /// <summary>
+    /// Si, entre las carteras de una persona en un par (Tenant propietario, Operador CAE externo), hay
+    /// alguna viva que <see cref="QuedoSuspendida"/> o la última —por creación— quedó suspendida. Es la
+    /// guarda común del writer y del backfill antes de emitir una cartera desde la fila heredada: lo
+    /// suspendido nunca vuelve como vigente (ronda 2 de Codex en la PR #2223).
+    /// </summary>
+    public static bool AlgunaQuedoSuspendida(
+        IEnumerable<(AsignacionCartera Cartera, AsignacionOperacion Operacion)> carterasDeLaPersonaEnElPar)
+    {
+        ArgumentNullException.ThrowIfNull(carterasDeLaPersonaEnElPar);
+        var lista = carterasDeLaPersonaEnElPar.ToList();
+
+        if (lista.Any(x => x.Cartera.Estado != EstadoAsignacion.Cerrada && x.Cartera.QuedoSuspendida(x.Operacion)))
+            return true;
+
+        var ultima = lista
+            .OrderByDescending(x => x.Cartera.CreadoEnUtc)
+            .ThenByDescending(x => x.Cartera.VigenciaDesde)
+            .FirstOrDefault();
+        return ultima.Cartera is not null && ultima.Cartera.QuedoSuspendida(ultima.Operacion);
     }
 
     /// <summary>

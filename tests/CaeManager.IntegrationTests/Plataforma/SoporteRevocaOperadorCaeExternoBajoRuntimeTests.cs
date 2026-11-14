@@ -201,13 +201,15 @@ public class SoporteRevocaOperadorCaeExternoBajoRuntimeTests : IAsyncLifetime
     }
 
     /// <summary>
-    /// Ronda 1 de Codex en la PR #2223 (hallazgo 1): la reactivación reconoce lo que cerró la cascada
-    /// porque comparte el fin de la operación. La función cierra una cartera Suspendida un microsegundo
-    /// antes, como <c>AsignacionesOperativasWriter.FinDeLoQueNoEstabaVigente</c>, para que lo suspendido
-    /// nunca vuelva como vigente; la vigente sigue compartiendo el fin de la operación.
+    /// Rondas 1 y 2 de Codex en la PR #2223: la reactivación repone solo lo que la cascada marcó como
+    /// restaurable, no lo que comparte el fin de la operación. La función, como
+    /// <c>AsignacionCartera.CerrarPorCascadaDeLaOperacion</c>, marca solo la cartera Vigente bajo una
+    /// operación Vigente. Una Suspendida cuya fecha de fin ya pasada coincide con la de su operación
+    /// —la colisión que engañaba a la inferencia— y una Vigente bajo una operación Suspendida se cierran
+    /// sin marca y con su estado efectivo Suspendido: lo suspendido nunca vuelve como vigente.
     /// </summary>
     [Fact]
-    public async Task Con_la_capacidad_cierra_una_cartera_suspendida_antes_que_la_operacion_para_que_reactivar_no_la_devuelva()
+    public async Task Con_la_capacidad_solo_marca_restaurable_la_cartera_vigente_bajo_una_operacion_vigente()
     {
         var otraGestora = Guid.NewGuid();
         await using (var contexto = CrearContexto(_tenantPlataforma, cadena: _cadenaConexion))
@@ -216,33 +218,53 @@ public class SoporteRevocaOperadorCaeExternoBajoRuntimeTests : IAsyncLifetime
             await contexto.SaveChangesAsync();
         }
 
-        Guid suspendida;
+        Guid suspendida, bajoSuspendida;
         await using (var contexto = CrearContexto(_tenantA, cadena: _cadenaConexion))
         {
             var ahora = DateTime.UtcNow.AddMinutes(-30);
+            var finPasado = DateTime.UtcNow.AddMinutes(-1);
             var operacion = await contexto.AsignacionesOperacion.SingleAsync(o => o.Id == _operacion);
             var cartera = AsignacionCartera.Externa(
-                operacion, otraGestora, "GestorCae", AmbitoAsignacion.Universal, ahora, null, ahora, _gestora);
+                operacion, otraGestora, "GestorCae", AmbitoAsignacion.Universal, ahora, finPasado, ahora, _gestora);
             cartera.Suspender();
-            contexto.AsignacionesCartera.Add(cartera);
+
+            var cliente = CaeManager.Domain.Empresas.Empresa.CrearComoCliente("Cliente suspendido S.A.", "B10380202", false, null, null);
+            contexto.Empresas.Add(cliente);
+            var acotada = AsignacionOperacion.Externa(_tenantA, _tenantOperador, ServicioCae.Outbound,
+                AmbitoAsignacion.DeRelacionCliente(cliente.Id), ahora, null, ahora, _gestora);
+            var vigenteBajoSuspendida = AsignacionCartera.Externa(
+                acotada, _gestora, "GestorCae", AmbitoAsignacion.Universal, ahora, null, ahora, _gestora);
+            vigenteBajoSuspendida.DesignarPrincipal();
+            acotada.Suspender();
+
+            contexto.AsignacionesOperacion.Add(acotada);
+            contexto.AsignacionesCartera.AddRange(cartera, vigenteBajoSuspendida);
             await contexto.SaveChangesAsync();
-            suspendida = cartera.Id;
+            (suspendida, bajoSuspendida) = (cartera.Id, vigenteBajoSuspendida.Id);
         }
+
+        // La colisión: la operación vigente del Tenant entero con la misma fecha de fin ya pasada que la
+        // suspendida (el job de expiración aún no la ha cerrado). Cerrar conserva esa fecha en las dos.
+        await EjecutarAsync(
+            @"UPDATE ""AsignacionesOperacion"" SET ""VigenciaHasta"" =
+                (SELECT ""VigenciaHasta"" FROM ""AsignacionesCartera"" WHERE ""Id"" = @u)
+              WHERE ""Id"" = (SELECT ""AsignacionOperacionId"" FROM ""AsignacionesCartera"" WHERE ""Id"" = @u);", suspendida);
 
         var sesion = await AbrirSesionConCapacidadAsync();
         (await RevocarComoSoporteAsync(_tenantA, sesion)).Should().Be("revocada");
 
-        const string FinFrenteAOperacion = @"
-SELECT c.""Estado"" || '/' || c.""MotivoCierre"" || '/' || c.""EraPrincipalAlCerrarsePorCascada""::text || '/' ||
-       CASE WHEN c.""VigenciaHasta"" = o.""VigenciaHasta"" THEN 'igual'
-            WHEN c.""VigenciaHasta"" = o.""VigenciaHasta"" - interval '1 microsecond' THEN 'antes'
-            ELSE 'otro' END
+        const string Marca = @"
+SELECT c.""Estado"" || '/' || c.""MotivoCierre"" || '/' || c.""RestaurableAlReactivar""::text || '/' ||
+       c.""EraPrincipalAlCerrarsePorCascada""::text || '/' || c.""EstadoAlCerrarse"" || '/' ||
+       CASE WHEN c.""VigenciaHasta"" = o.""VigenciaHasta"" THEN 'igual' ELSE 'otro' END
 FROM ""AsignacionesCartera"" c JOIN ""AsignacionesOperacion"" o ON o.""Id"" = c.""AsignacionOperacionId""
 WHERE c.""Id"" = @u;";
-        (await EscalarAsync<string>(FinFrenteAOperacion, suspendida)).Should().Be("Cerrada/Revocada/false/antes",
-            "la suspendida se cierra un microsegundo antes que la operación: la reactivación no la toma por cerrada por la cascada");
-        (await EscalarAsync<string>(FinFrenteAOperacion, _cartera)).Should().Be("Cerrada/Revocada/true/igual",
-            "control: la vigente comparte el fin de la operación y recuerda la marca (D-9)");
+        (await EscalarAsync<string>(Marca, suspendida)).Should().Be("Cerrada/Revocada/false/false/Suspendida/igual",
+            "comparte la fecha de fin con su operación y aun así no queda restaurable: la marca es explícita");
+        (await EscalarAsync<string>(Marca, bajoSuspendida)).Should().Be("Cerrada/Revocada/false/false/Suspendida/igual",
+            "vigente bajo una operación suspendida: no autorizaba nada que reponer, y no recuerda la marca de principal");
+        (await EscalarAsync<string>(Marca, _cartera)).Should().StartWith("Cerrada/Revocada/true/true/Vigente/",
+            "control: la vigente bajo la vigente queda restaurable y recuerda la marca (D-9), sea cual sea su fecha");
     }
 
     // ── Cada precondición de la función, incumplida ──────────────────────────

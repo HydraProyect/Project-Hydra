@@ -167,7 +167,11 @@ public static class AsignacionesOperativasBackfillSeeder
                     && o.Servicio == ServicioCae.Outbound)
                 .ToList();
 
-            if (!delegacion.Activa)
+            // Una delegación inactiva, o activa pero ya caducada: ninguna de las dos autoriza nada. Antes
+            // solo se cerraba lo del par con la inactiva, y la caducada dejaba abiertas sus operaciones
+            // acotadas, sin fecha de fin y con su cartera: el job de expiración solo cierra la del Tenant
+            // entero, que lleva la caducidad de la delegación (ronda 2 de Codex en la PR #2223).
+            if (!delegacion.EstaVigente(ahora))
             {
                 // Las operaciones del par no dicen de qué delegación nacieron. Si el mismo Operador
                 // CAE externo tiene hoy otra delegación activa sobre este Tenant propietario (se
@@ -183,22 +187,27 @@ public static class AsignacionesOperativasBackfillSeeder
                         && d.TenantConsultoraId == delegacion.TenantConsultoraId))
                     continue;
 
-                // Reconciliación: la delegación se desactivó después de que el backfill creara la
-                // operación. El modelo antiguo no guardó cuándo, así que se marca como tal en vez de
-                // inventar una fecha — la etapa quedó con vigencia real desconocida. Se cierran todas
-                // las no cerradas del par, del Tenant entero y acotadas, y sus carteras: una
-                // delegación inactiva no deja ninguna autorización Outbound derivada (decisión de
+                // Reconciliación: la delegación se desactivó, o caducó, después de que el backfill
+                // creara la operación. De una desactivación el modelo antiguo no guardó cuándo, así que
+                // se marca como tal en vez de inventar una fecha — la etapa quedó con vigencia real
+                // desconocida; de una caducidad sí se sabe, y se cierra como Expirada en su fecha. Se
+                // cierran todas las no cerradas del par, del Tenant entero y acotadas, y sus carteras
+                // por la cascada, que recuerda su estado efectivo y no deja nada restaurable: una
+                // delegación que no autoriza no deja ninguna autorización Outbound derivada (decisión de
                 // Chris del 2026-11-14).
+                var (motivo, cierre) = delegacion is { Activa: true, ExpiraEnUtc: { } caducidad }
+                    ? (MotivoCierreAsignacion.Expirada, caducidad)
+                    : (MotivoCierreAsignacion.MigradaSinFecha, ahora);
                 foreach (var abierta in operacionesDelPar.Where(o => o.Estado != EstadoAsignacion.Cerrada))
                 {
                     foreach (var cartera in carteras.Where(c =>
                                  c.AsignacionOperacionId == abierta.Id && c.Estado != EstadoAsignacion.Cerrada))
                     {
-                        cartera.Cerrar(MotivoCierreAsignacion.MigradaSinFecha, ahora);
+                        cartera.CerrarPorCascadaDeLaOperacion(abierta, motivo, cierre);
                         cerradas++;
                     }
 
-                    abierta.Cerrar(MotivoCierreAsignacion.MigradaSinFecha, ahora);
+                    abierta.Cerrar(motivo, cierre);
                     cerradas++;
                 }
 
@@ -217,10 +226,6 @@ public static class AsignacionesOperativasBackfillSeeder
             // revisión de la PR #2215; decisión de Chris del 2026-11-14).
             if (operacionesDelPar.Count > 0)
             {
-                // Una delegación ya caducada que sigue marcada activa no es una anomalía: su
-                // operación expiró con ella. Solo se avisa de la que aún debería estar vigente.
-                if (delegacion.ExpiraEnUtc is { } expira && expira <= ahora) continue;
-
                 incidencias.Add(
                     $"Delegación {delegacion.Id}: activa, pero sin Asignación de Operación Outbound del Tenant " +
                     "entero abierta y con otras ya cerradas, expiradas o acotadas. El backfill no reabre ni recrea " +
@@ -285,7 +290,7 @@ public static class AsignacionesOperativasBackfillSeeder
         // la misma condición que exige el writer para conceder (ObtenerRolDelegadoAsync), y toda
         // vía que emite una cartera externa escribe también su fila heredada
         // (CatalogoIncorporacionCartera). Sin delegación activa y vigente, la rama de la inactiva
-        // ya lo cerró todo. Inbound no se toca.
+        // o caducada ya lo cerró todo. Inbound no se toca.
         foreach (var par in idsVigentesPorPar)
         {
             var delegacionesVigentesDelPar = par.Value;
@@ -392,6 +397,27 @@ public static class AsignacionesOperativasBackfillSeeder
                 && c.Estado == EstadoAsignacion.Vigente);
 
             if (yaTiene) continue;
+
+            // Lo suspendido nunca vuelve como vigente, la misma guarda que el writer
+            // (AsignacionCartera.AlgunaQuedoSuspendida): con una cartera Suspendida viva o la última
+            // del par suspendida, el arranque no emite otra Vigente. Antes la emitía en cuanto no
+            // encontraba una Vigente (ronda 2 de Codex en la PR #2223).
+            var operacionesDelParPorId = operaciones
+                .Where(o => !o.EsRaiz
+                            && o.PropietarioTenantId == operacion.PropietarioTenantId
+                            && o.OperadorTenantId == operacion.OperadorTenantId
+                            && o.Servicio == ServicioCae.Outbound)
+                .ToDictionary(o => o.Id);
+            var deLaPersonaEnElPar = carteras
+                .Where(c => c.UsuarioId == operador.UsuarioId && operacionesDelParPorId.ContainsKey(c.AsignacionOperacionId))
+                .Select(c => (Cartera: c, Operacion: operacionesDelParPorId[c.AsignacionOperacionId]));
+            if (AsignacionCartera.AlgunaQuedoSuspendida(deLaPersonaEnElPar))
+            {
+                incidencias.Add(
+                    $"Operador delegado {operador.UsuarioId} sobre la delegación {delegacion.Id}: su cartera del par " +
+                    "está o quedó suspendida. No se emite otra vigente: reanudarla requiere un acto explícito.");
+                continue;
+            }
 
             var nueva = AsignacionCartera.Externa(
                 operacion, operador.UsuarioId, operador.Rol, AmbitoAsignacion.Universal,

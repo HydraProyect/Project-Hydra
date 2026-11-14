@@ -36,6 +36,9 @@ internal sealed class ContextoAnteriorALaMarcaDePrincipal(
         builder.Entity<AsignacionCartera>().Ignore(c => c.EsPrincipal);
         // Posterior a EsPrincipal (D-9): un esquema anterior a la marca tampoco tiene esta columna.
         builder.Entity<AsignacionCartera>().Ignore(c => c.EraPrincipalAlCerrarsePorCascada);
+        // Y la marca de restauración de SoporteRevocaOperacionesOutboundAcotadas (ronda 2 de Codex en la PR #2223).
+        builder.Entity<AsignacionCartera>().Ignore(c => c.EstadoAlCerrarse);
+        builder.Entity<AsignacionCartera>().Ignore(c => c.RestaurableAlReactivar);
         // Posterior también (AnadeFichaEmpresa): las clases que usan este contexto siembran Empresas sobre un
         // esquema sin las quince columnas de la ficha de Empresa 360.
         foreach (var campo in CamposDeLaFichaDeEmpresa) builder.Entity<Empresa>().Ignore(campo);

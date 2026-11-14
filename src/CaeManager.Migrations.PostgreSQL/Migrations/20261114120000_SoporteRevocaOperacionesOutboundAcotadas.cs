@@ -17,12 +17,21 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
     /// <c>AsignacionesOperativasWriter.CerrarOperacionDelegadaAsync</c>, del que es copia en SQL: todas
     /// las Asignaciones de Operación Outbound externas no cerradas del par (Tenant entero y acotadas;
     /// Vigente, Programada o Suspendida) se cierran como <c>Revocada</c>, y sus carteras no cerradas
-    /// también. Las vigentes, por la cascada (apagan la marca de principal y la recuerdan en
-    /// <c>EraPrincipalAlCerrarsePorCascada</c>, D-9) y con el mismo instante que la operación; el
-    /// resto, sin recordarla y un microsegundo antes, para que la reactivación no las tome por
-    /// cerradas por la cascada y no devuelva como vigente una cartera suspendida (ronda 1 de Codex
-    /// en la PR #2223). Solo Outbound: una operación Inbound del mismo Operador CAE externo queda
-    /// intacta.
+    /// también, como <c>AsignacionCartera.CerrarPorCascadaDeLaOperacion</c>: todas apagan la marca de
+    /// principal y recuerdan su estado efectivo en <c>EstadoAlCerrarse</c>; solo una cartera Vigente
+    /// bajo una operación Vigente queda <c>RestaurableAlReactivar</c> y recuerda la marca en
+    /// <c>EraPrincipalAlCerrarsePorCascada</c> (D-9). La reactivación repone solo lo marcado: lo
+    /// suspendido —una cartera Suspendida, o cualquiera bajo una operación Suspendida— nunca vuelve
+    /// como vigente, sea cual sea su fecha de fin (rondas 1 y 2 de Codex en la PR #2223). Solo
+    /// Outbound: una operación Inbound del mismo Operador CAE externo queda intacta.
+    /// </para>
+    ///
+    /// <para>
+    /// Añade las dos columnas de esa marca a <c>AsignacionesCartera</c>, con sus CHECK. Compatible con
+    /// la ranura anterior: la versión desplegada no las nombra, sus inserciones toman los valores por
+    /// omisión (<c>NULL</c> y <c>false</c>) y lo que ella cierre queda sin marca, es decir, no
+    /// restaurable: en duda, falla cerrada. Las carteras cerradas antes tampoco llevan la marca, y una
+    /// reactivación posterior no las repone (todos los datos de hoy son de prueba, decisión de Chris).
     /// </para>
     ///
     /// <para>
@@ -38,6 +47,30 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
         {
+            migrationBuilder.AddColumn<string>(
+                name: "EstadoAlCerrarse",
+                table: "AsignacionesCartera",
+                type: "character varying(20)",
+                maxLength: 20,
+                nullable: true);
+
+            migrationBuilder.AddColumn<bool>(
+                name: "RestaurableAlReactivar",
+                table: "AsignacionesCartera",
+                type: "boolean",
+                nullable: false,
+                defaultValue: false);
+
+            migrationBuilder.AddCheckConstraint(
+                name: "CK_AsignacionesCartera_EstadoAlCerrarseSoloCerrada",
+                table: "AsignacionesCartera",
+                sql: "\"EstadoAlCerrarse\" IS NULL OR (\"Estado\" = 'Cerrada' AND \"EstadoAlCerrarse\" IN ('Vigente', 'Programada', 'Suspendida'))");
+
+            migrationBuilder.AddCheckConstraint(
+                name: "CK_AsignacionesCartera_RestaurableSoloCerradaVigente",
+                table: "AsignacionesCartera",
+                sql: "NOT \"RestaurableAlReactivar\" OR (\"Estado\" = 'Cerrada' AND \"EstadoAlCerrarse\" = 'Vigente')");
+
             migrationBuilder.Sql(
                 """
                 CREATE OR REPLACE FUNCTION public.app_revocar_operador_cae_externo_por_soporte(p_sesion uuid, p_delegacion uuid, p_motivo text) RETURNS text
@@ -152,46 +185,45 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                     ORDER BY o."Id"
                     FOR UPDATE
                   LOOP
-                    -- Las vigentes, AsignacionCartera.CerrarPorCascadaDeLaOperacion: cierra, apaga la
-                    -- marca de principal y recuerda si la llevaba. Las programadas o suspendidas,
-                    -- AsignacionCartera.Cerrar: cierra y apaga la marca sin recordarla. Las vigentes,
-                    -- con el mismo instante que la operación; las demás, un microsegundo antes
-                    -- (AsignacionesOperativasWriter.FinDeLoQueNoEstabaVigente): la reactivación
-                    -- reconoce lo que cerró la cascada porque comparte el fin de la operación, y lo
-                    -- suspendido nunca vuelve como vigente.
+                    -- AsignacionCartera.CerrarPorCascadaDeLaOperacion, antes que la operación: cierra,
+                    -- apaga la marca de principal y recuerda el estado efectivo (el suyo, o el de la
+                    -- operación si ella estaba Vigente y la operación no). Solo una cartera Vigente
+                    -- bajo una operación Vigente queda restaurable y recuerda si era la principal
+                    -- (D-9): la reactivación repone solo lo marcado, y lo suspendido nunca vuelve como
+                    -- vigente, sea cual sea su fecha de fin.
                     WITH previas AS (
-                      SELECT c."Id", c."Estado" AS estado_antes, c."EsPrincipal" AS principal_antes
+                      SELECT c."Id", c."Estado" AS estado_antes, c."EsPrincipal" AS principal_antes,
+                             CASE WHEN c."Estado" = 'Vigente' THEN v_operacion."Estado" ELSE c."Estado" END AS efectivo
                       FROM public."AsignacionesCartera" c
                       WHERE c."AsignacionOperacionId" = v_operacion."Id"
                         AND c."Estado" <> 'Cerrada'),
                     cerradas AS (
                       UPDATE public."AsignacionesCartera" c
-                      SET "EraPrincipalAlCerrarsePorCascada" = (p.estado_antes = 'Vigente' AND c."EsPrincipal"),
+                      SET "EraPrincipalAlCerrarsePorCascada" = (p.efectivo = 'Vigente' AND c."EsPrincipal"),
+                          "RestaurableAlReactivar" = (p.efectivo = 'Vigente'),
+                          "EstadoAlCerrarse" = p.efectivo,
                           "EsPrincipal" = false,
                           "Estado" = 'Cerrada',
                           "MotivoCierre" = 'Revocada',
                           "VigenciaHasta" = CASE
-                              WHEN p.estado_antes = 'Vigente' THEN CASE
-                                WHEN c."VigenciaHasta" IS NULL OR c."VigenciaHasta" > v_ahora
-                                  THEN GREATEST(v_ahora, c."VigenciaDesde")
-                                ELSE c."VigenciaHasta" END
-                              ELSE CASE
-                                WHEN c."VigenciaHasta" IS NULL OR c."VigenciaHasta" > v_ahora - interval '1 microsecond'
-                                  THEN GREATEST(v_ahora - interval '1 microsecond', c."VigenciaDesde")
-                                ELSE c."VigenciaHasta" END
-                              END,
+                              WHEN c."VigenciaHasta" IS NULL OR c."VigenciaHasta" > v_ahora
+                                THEN GREATEST(v_ahora, c."VigenciaDesde")
+                              ELSE c."VigenciaHasta" END,
                           "Version" = uuidv7()
                       FROM previas p
                       WHERE c."Id" = p."Id"
                       RETURNING c."Id", p.estado_antes, p.principal_antes,
-                                c."EraPrincipalAlCerrarsePorCascada" AS era, c."VigenciaHasta" AS hasta)
+                                c."EraPrincipalAlCerrarsePorCascada" AS era, c."RestaurableAlReactivar" AS restaurable,
+                                c."EstadoAlCerrarse" AS efectivo, c."VigenciaHasta" AS hasta)
                     INSERT INTO public."RegistrosAuditoria"
                       ("Id", "TenantId", "EntidadTipo", "EntidadId", "Accion", "DatosAntes", "DatosDespues",
                        "UsuarioId", "ActorRealUsuarioId", "ViaAcceso", "ViaAccesoId", "TipoActor", "FechaUtc")
                     SELECT uuidv7(), v_tenant, 'AsignacionCartera', x."Id", 'Modificado',
                            json_build_object('Estado', x.estado_antes, 'EsPrincipal', x.principal_antes)::text,
                            json_build_object('Estado', 'Cerrada', 'MotivoCierre', 'Revocada', 'EsPrincipal', false,
-                                             'EraPrincipalAlCerrarsePorCascada', x.era, 'VigenciaHasta', x.hasta)::text,
+                                             'EraPrincipalAlCerrarsePorCascada', x.era,
+                                             'RestaurableAlReactivar', x.restaurable, 'EstadoAlCerrarse', x.efectivo,
+                                             'VigenciaHasta', x.hasta)::text,
                            v_actor, v_actor, 'SesionPrivilegiada', p_sesion, 'Persona', v_ahora
                     FROM cerradas x;
 
@@ -381,6 +413,22 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                 END;
                 $$;
                 """);
+
+            migrationBuilder.DropCheckConstraint(
+                name: "CK_AsignacionesCartera_RestaurableSoloCerradaVigente",
+                table: "AsignacionesCartera");
+
+            migrationBuilder.DropCheckConstraint(
+                name: "CK_AsignacionesCartera_EstadoAlCerrarseSoloCerrada",
+                table: "AsignacionesCartera");
+
+            migrationBuilder.DropColumn(
+                name: "RestaurableAlReactivar",
+                table: "AsignacionesCartera");
+
+            migrationBuilder.DropColumn(
+                name: "EstadoAlCerrarse",
+                table: "AsignacionesCartera");
         }
     }
 }

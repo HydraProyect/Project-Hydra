@@ -226,25 +226,47 @@ public class RevocacionCierraOperacionesOutboundAcotadasBajoRuntimeTests : IAsyn
     }
 
     /// <summary>
-    /// Ronda 1 de Codex en la PR #2223 (hallazgo 1): una cartera Suspendida bajo la operación del
-    /// Tenant entero se cierra al revocar, pero la reactivación no la devuelve como Vigente aunque su
-    /// persona siga en el equipo con el mismo rol. Lo suspendido nunca vuelve como vigente.
+    /// Rondas 1 y 2 de Codex en la PR #2223: una cartera Suspendida bajo la operación del Tenant entero
+    /// se cierra al revocar, pero la reactivación no la devuelve como Vigente aunque su persona siga en
+    /// el equipo con el mismo rol, y tampoco cuando comparte con su operación una fecha de fin ya pasada:
+    /// Cerrar conserva esa fecha en las dos y la antigua inferencia («comparte el fin de la operación»)
+    /// la tomaba por cerrada por la cascada. Control: la Vigente de la Gestora CAE vuelve con su marca
+    /// aunque su fecha de fin no coincida con la de la operación; la reposición sigue la marca, no la
+    /// fecha. Lo suspendido nunca vuelve como vigente.
     /// </summary>
     [Fact]
     public async Task Reactivar_no_devuelve_como_vigente_una_cartera_que_estaba_suspendida_al_revocar_bajo_RLS()
     {
         await using (var propietarioDeLaBase = ContextoPropietarioDeLaBase())
         {
-            var ahora = DateTime.UtcNow;
             var tenantEntero = await propietarioDeLaBase.AsignacionesOperacion.SingleAsync(o => o.Id == _operacionTenantEntero);
+            var inicio = tenantEntero.VigenciaDesde;
+            var ahora = DateTime.UtcNow;
+            var finPasado = inicio + (ahora - inicio) / 2;
+            finPasado = new DateTime(finPasado.Ticks - finPasado.Ticks % 10, DateTimeKind.Utc);
             var cartera = AsignacionCartera.Externa(
-                tenantEntero, _otroGestorOperador.Id, Roles.GestorCae, AmbitoAsignacion.Universal, ahora.AddMinutes(-5), null, ahora);
+                tenantEntero, _otroGestorOperador.Id, Roles.GestorCae, AmbitoAsignacion.Universal, inicio, finPasado, inicio);
             cartera.Suspender();
             propietarioDeLaBase.AsignacionesCartera.Add(cartera);
             await propietarioDeLaBase.SaveChangesAsync();
+
+            // La colisión: la operación, todavía Vigente (el job aún no la ha cerrado), con la misma
+            // fecha de fin ya pasada que la suspendida.
+            await propietarioDeLaBase.AsignacionesOperacion.Where(o => o.Id == _operacionTenantEntero)
+                .ExecuteUpdateAsync(s => s.SetProperty(o => o.VigenciaHasta, finPasado));
         }
 
         (await RevocarDelegacionAsync(_gestoraOperador, Roles.GestorCae)).EsExitoso.Should().BeTrue();
+
+        await using (var cerradas = ContextoPropietarioDeLaBase())
+        {
+            var operacion = await cerradas.AsignacionesOperacion.SingleAsync(o => o.Id == _operacionTenantEntero);
+            var suspendida = await cerradas.AsignacionesCartera.IgnoreQueryFilters()
+                .SingleAsync(c => c.AsignacionOperacionId == _operacionTenantEntero && c.UsuarioId == _otroGestorOperador.Id);
+            suspendida.VigenciaHasta.Should().Be(operacion.VigenciaHasta, "control: la colisión de fechas sigue ahí");
+            suspendida.RestaurableAlReactivar.Should().BeFalse();
+            suspendida.EstadoAlCerrarse.Should().Be(EstadoAsignacion.Suspendida);
+        }
         var reactivar = await ReactivarAsync(_administradorPropietario, Roles.Administrador);
         reactivar.EsExitoso.Should().BeTrue(reactivar.EsFallido ? reactivar.Error.Codigo : string.Empty);
 
@@ -256,6 +278,113 @@ public class RevocacionCierraOperacionesOutboundAcotadasBajoRuntimeTests : IAsyn
         var repuesta = await verificacion.AsignacionesCartera.IgnoreQueryFilters()
             .SingleAsync(c => c.AsignacionOperacionId == reabierta && c.UsuarioId == _gestoraOperador.Id);
         repuesta.EsPrincipal.Should().BeTrue("control: la que estaba vigente sí vuelve, con su marca (D-9)");
+    }
+
+    /// <summary>
+    /// Ronda 2 de Codex en la PR #2223 (hallazgo 2): la revocación cierra también una operación del
+    /// Tenant entero Suspendida, pero sus carteras Vigentes no autorizaban nada: se cierran sin marca y
+    /// con su estado efectivo Suspendido, y la reactivación no las repone bajo la operación nueva Vigente,
+    /// tampoco la marca de principal.
+    /// </summary>
+    [Fact]
+    public async Task Reactivar_no_repone_las_carteras_de_una_operacion_que_estaba_suspendida_al_revocar_bajo_RLS()
+    {
+        await using (var propietarioDeLaBase = ContextoPropietarioDeLaBase())
+        {
+            (await propietarioDeLaBase.AsignacionesOperacion.SingleAsync(o => o.Id == _operacionTenantEntero)).Suspender();
+            await propietarioDeLaBase.SaveChangesAsync();
+        }
+
+        (await RevocarDelegacionAsync(_gestoraOperador, Roles.GestorCae)).EsExitoso.Should().BeTrue();
+
+        await using (var cerradas = ContextoPropietarioDeLaBase())
+        {
+            var principal = await cerradas.AsignacionesCartera.IgnoreQueryFilters()
+                .SingleAsync(c => c.AsignacionOperacionId == _operacionTenantEntero && c.UsuarioId == _gestoraOperador.Id);
+            principal.RestaurableAlReactivar.Should().BeFalse("bajo una operación suspendida no autorizaba nada que reponer");
+            principal.EraPrincipalAlCerrarsePorCascada.Should().BeFalse();
+            principal.EstadoAlCerrarse.Should().Be(EstadoAsignacion.Suspendida);
+        }
+
+        var reactivar = await ReactivarAsync(_administradorPropietario, Roles.Administrador);
+        reactivar.EsExitoso.Should().BeTrue(reactivar.EsFallido ? reactivar.Error.Codigo : string.Empty);
+
+        var reabierta = await OperacionReabiertaAsync();
+        (await CarterasNoCerradasAsync(reabierta, _gestoraOperador.Id)).Should().Be(0,
+            "lo suspendido nunca vuelve como vigente: la cartera de la operación suspendida no se repone");
+    }
+
+    /// <summary>
+    /// Ronda 2 de Codex en la PR #2223 (hallazgo 3, writer): la cartera de Consulta nace de la fila
+    /// heredada, pero no si la última cartera de la persona en el par estaba suspendida. Al reactivar,
+    /// la de quien la tenía Suspendida al revocar no vuelve; la de quien la tenía Vigente, sí.
+    /// </summary>
+    [Fact]
+    public async Task Reactivar_no_emite_la_cartera_de_Consulta_de_quien_la_tenia_suspendida_bajo_RLS()
+    {
+        var consultaSuspendida = await SembrarUsuarioAsync("consulta-suspendida", _operador, Roles.Consulta);
+        var consultaVigente = await SembrarUsuarioAsync("consulta-vigente", _operador, Roles.Consulta);
+        await SembrarConsultaAsync(consultaSuspendida.Id, suspendida: true);
+        await SembrarConsultaAsync(consultaVigente.Id, suspendida: false);
+
+        (await RevocarDelegacionAsync(_gestoraOperador, Roles.GestorCae)).EsExitoso.Should().BeTrue();
+        var reactivar = await ReactivarAsync(_administradorPropietario, Roles.Administrador);
+        reactivar.EsExitoso.Should().BeTrue(reactivar.EsFallido ? reactivar.Error.Codigo : string.Empty);
+
+        var reabierta = await OperacionReabiertaAsync();
+        (await CarterasNoCerradasAsync(reabierta, consultaSuspendida.Id)).Should().Be(0,
+            "la fila heredada no devuelve como vigente lo que estaba suspendido");
+        (await CarterasNoCerradasAsync(reabierta, consultaVigente.Id)).Should().Be(1,
+            "control: la de quien la tenía vigente vuelve");
+    }
+
+    /// <summary>
+    /// Ronda 2 de Codex en la PR #2223 (hallazgo 3, writer): con la cartera de Consulta Suspendida y viva,
+    /// abrir la de Consulta desde la fila heredada no emite otra Vigente a su lado. Antes solo se miraba
+    /// si ya había una Vigente.
+    /// </summary>
+    [Fact]
+    public async Task Abrir_la_cartera_de_Consulta_no_emite_una_vigente_junto_a_una_suspendida_viva_bajo_RLS()
+    {
+        var consulta = await SembrarUsuarioAsync("consulta-viva", _operador, Roles.Consulta);
+        var otra = await SembrarUsuarioAsync("consulta-sin-cartera", _operador, Roles.Consulta);
+        await SembrarConsultaAsync(consulta.Id, suspendida: true);
+
+        using (var ambito = _arnes.Servicios.CreateScope())
+        {
+            var servicios = ambito.ServiceProvider;
+            var contexto = servicios.GetRequiredService<CaeManagerDbContext>();
+            var usuarioActual = FijarSesion(_administradorPropietario, Roles.Administrador);
+            var writer = new AsignacionesOperativasWriter(contexto, servicios.GetRequiredService<ITenantActual>(), usuarioActual);
+            using (AmbitoTenantExplicito.Establecer(_administradorPropietario.TenantId))
+            {
+                await writer.AbrirCarteraOperadorAsync(_propietario, _operador, consulta.Id, Roles.Consulta);
+                await writer.AbrirCarteraOperadorAsync(_propietario, _operador, otra.Id, Roles.Consulta);
+                await contexto.SaveChangesAsync();
+            }
+        }
+
+        await using var verificacion = ContextoPropietarioDeLaBase();
+        (await verificacion.AsignacionesCartera.IgnoreQueryFilters()
+                .Where(c => c.UsuarioId == consulta.Id && c.AsignacionOperacionId == _operacionTenantEntero)
+                .Select(c => c.Estado).ToListAsync())
+            .Should().Equal([EstadoAsignacion.Suspendida], "ninguna Vigente junto a la suspendida");
+        (await CarterasNoCerradasAsync(_operacionTenantEntero, otra.Id)).Should().Be(1,
+            "control: quien no tenía cartera recibe la de Consulta");
+    }
+
+    private async Task SembrarConsultaAsync(Guid usuarioId, bool suspendida)
+    {
+        await using var propietarioDeLaBase = ContextoPropietarioDeLaBase();
+        var ahora = DateTime.UtcNow;
+        var tenantEntero = await propietarioDeLaBase.AsignacionesOperacion.SingleAsync(o => o.Id == _operacionTenantEntero);
+        var cartera = AsignacionCartera.Externa(
+            tenantEntero, usuarioId, Roles.Consulta, AmbitoAsignacion.Universal, ahora.AddMinutes(-5), null, ahora);
+        if (suspendida) cartera.Suspender();
+        propietarioDeLaBase.AsignacionesCartera.Add(cartera);
+        propietarioDeLaBase.AsignacionesOperadorDelegadoConRevocadas.Add(
+            new AsignacionOperadorDelegado(_delegacion, usuarioId, Roles.Consulta));
+        await propietarioDeLaBase.SaveChangesAsync();
     }
 
     /// <summary>

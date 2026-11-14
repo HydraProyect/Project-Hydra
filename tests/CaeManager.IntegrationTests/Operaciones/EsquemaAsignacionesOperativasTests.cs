@@ -438,7 +438,7 @@ public class EsquemaAsignacionesOperativasTests : IAsyncLifetime
         // Control positivo: la cartera principal que cierra la cascada guarda el dato, y sigue sin ser principal.
         var cerrada = CarteraDe(operacion, Roles.GestorCae);
         cerrada.DesignarPrincipal();
-        cerrada.CerrarPorCascadaDeLaOperacion(MotivoCierreAsignacion.Revocada, DateTime.UtcNow);
+        cerrada.CerrarPorCascadaDeLaOperacion(operacion, MotivoCierreAsignacion.Revocada, DateTime.UtcNow);
         contexto.AsignacionesCartera.Add(cerrada);
         await contexto.Invoking(c => c.SaveChangesAsync()).Should().NotThrowAsync();
         (await contexto.AsignacionesCartera.AsNoTracking().SingleAsync(c => c.Id == cerrada.Id))
@@ -454,6 +454,55 @@ public class EsquemaAsignacionesOperativasTests : IAsyncLifetime
             .Which.Should().Match<PostgresException>(e =>
                 e.SqlState == PostgresErrorCodes.CheckViolation
                 && e.ConstraintName == AsignacionCarteraConfiguration.RestriccionEraPrincipal);
+    }
+
+    /// <summary>
+    /// Ronda 2 de Codex en la PR #2223: «restaurable al reactivar» y «estado al cerrarse» son histórico
+    /// de una cartera cerrada, y solo es restaurable la que estaba Vigente. Control positivo: la cascada
+    /// de una cartera vigente las escribe y se guarda.
+    /// </summary>
+    [Theory]
+    [InlineData(nameof(AsignacionCartera.RestaurableAlReactivar), true, AsignacionCarteraConfiguration.RestriccionRestaurable)]
+    [InlineData(nameof(AsignacionCartera.EstadoAlCerrarse), EstadoAsignacion.Vigente, AsignacionCarteraConfiguration.RestriccionEstadoAlCerrarse)]
+    public async Task La_marca_de_restauracion_solo_cabe_en_una_cartera_cerrada(string propiedad, object valor, string restriccion)
+    {
+        await using var contexto = CrearContexto(_tenant);
+        var operacion = await OperacionExternaAsync(contexto);
+
+        var cerrada = CarteraDe(operacion, Roles.GestorCae);
+        cerrada.CerrarPorCascadaDeLaOperacion(operacion, MotivoCierreAsignacion.Revocada, DateTime.UtcNow);
+        contexto.AsignacionesCartera.Add(cerrada);
+        await contexto.Invoking(c => c.SaveChangesAsync()).Should().NotThrowAsync();
+        (await contexto.AsignacionesCartera.AsNoTracking().SingleAsync(c => c.Id == cerrada.Id))
+            .Should().Match<AsignacionCartera>(c => c.RestaurableAlReactivar && c.EstadoAlCerrarse == EstadoAsignacion.Vigente);
+
+        var viva = CarteraDe(operacion, Roles.GestorCae);
+        typeof(AsignacionCartera).GetProperty(propiedad)!.SetValue(viva, valor);
+        contexto.AsignacionesCartera.Add(viva);
+
+        (await contexto.Invoking(c => c.SaveChangesAsync()).Should().ThrowAsync<DbUpdateException>())
+            .Which.InnerException.Should().BeOfType<PostgresException>()
+            .Which.Should().Match<PostgresException>(e =>
+                e.SqlState == PostgresErrorCodes.CheckViolation && e.ConstraintName == restriccion);
+    }
+
+    [Fact]
+    public async Task Una_cartera_cerrada_desde_suspendida_no_puede_quedar_restaurable()
+    {
+        await using var contexto = CrearContexto(_tenant);
+        var operacion = await OperacionExternaAsync(contexto);
+
+        var suspendida = CarteraDe(operacion, Roles.GestorCae);
+        suspendida.Suspender();
+        suspendida.CerrarPorCascadaDeLaOperacion(operacion, MotivoCierreAsignacion.Revocada, DateTime.UtcNow);
+        suspendida.RestaurableAlReactivar.Should().BeFalse("control: el dominio no la marca");
+        // Se fuerza para llegar al CHECK: cerrada, pero desde Suspendida.
+        typeof(AsignacionCartera).GetProperty(nameof(AsignacionCartera.RestaurableAlReactivar))!.SetValue(suspendida, true);
+        contexto.AsignacionesCartera.Add(suspendida);
+
+        (await contexto.Invoking(c => c.SaveChangesAsync()).Should().ThrowAsync<DbUpdateException>())
+            .Which.InnerException.Should().BeOfType<PostgresException>()
+            .Which.ConstraintName.Should().Be(AsignacionCarteraConfiguration.RestriccionRestaurable);
     }
 
     [Fact]

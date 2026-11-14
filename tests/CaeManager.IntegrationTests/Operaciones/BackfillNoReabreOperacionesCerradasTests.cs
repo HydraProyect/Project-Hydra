@@ -293,6 +293,88 @@ public class BackfillNoReabreOperacionesCerradasTests : IAsyncLifetime
     }
 
     /// <summary>
+    /// Ronda 2 de Codex en la PR #2223 (hallazgo 4): una delegación única, marcada activa pero ya
+    /// caducada, no deja autorización Outbound derivada. El job de expiración cierra la operación del
+    /// Tenant entero, que lleva la caducidad de la delegación, pero no una acotada sin fecha de fin ni su
+    /// cartera. Antes el backfill solo cerraba lo del par con la delegación inactiva.
+    /// </summary>
+    [Fact]
+    public async Task Con_la_unica_delegacion_activa_pero_caducada_cierra_la_operacion_acotada_y_su_cartera()
+    {
+        var acotada = await SembrarAcotadaConCarteraAsync();
+        Guid inbound;
+        DateTime caducidad;
+        await using (var contexto = CrearContexto(_propietario))
+        {
+            var delegacion = await contexto.DelegacionesTenant.SingleAsync(d => d.Id == _delegacion);
+            caducidad = DateTime.UtcNow.AddMinutes(-1);
+            caducidad = new DateTime(caducidad.Ticks - caducidad.Ticks % 10, DateTimeKind.Utc);
+            contexto.Entry(delegacion).Property(d => d.ExpiraEnUtc).CurrentValue = caducidad;
+            var ahora = DateTime.UtcNow;
+            var deInbound = AsignacionOperacion.Externa(_propietario, _operador, ServicioCae.Inbound,
+                AmbitoAsignacion.Universal, ahora.AddDays(-1), null, ahora);
+            contexto.AsignacionesOperacion.Add(deInbound);
+            await contexto.SaveChangesAsync();
+            delegacion.Activa.Should().BeTrue("control: sigue marcada activa");
+            inbound = deInbound.Id;
+        }
+
+        await EjecutarBackfillAsync();
+
+        await using var verificacion = CrearContexto(_propietario);
+        var operacion = await verificacion.AsignacionesOperacion.SingleAsync(o => o.Id == acotada);
+        operacion.Estado.Should().Be(EstadoAsignacion.Cerrada, "una delegación caducada no deja autorización Outbound acotada");
+        operacion.MotivoCierre.Should().Be(MotivoCierreAsignacion.Expirada);
+        operacion.VigenciaHasta.Should().Be(caducidad, "se cierra en la fecha en que caducó la delegación");
+        var cartera = await verificacion.AsignacionesCartera.IgnoreQueryFilters().SingleAsync(c => c.AsignacionOperacionId == acotada);
+        cartera.Estado.Should().Be(EstadoAsignacion.Cerrada, "ni su cartera sin vencimiento");
+        cartera.RestaurableAlReactivar.Should().BeFalse("una caducidad no se deshace al reactivar");
+        (await ExternasOutboundAsync()).Should().ContainSingle("control: no crea la del Tenant entero desde la caducada");
+        (await verificacion.AsignacionesOperacion.SingleAsync(o => o.Id == inbound)).Estado
+            .Should().Be(EstadoAsignacion.Vigente, "Inbound tiene su propio ciclo");
+    }
+
+    /// <summary>
+    /// Ronda 2 de Codex en la PR #2223 (hallazgo 3, backfill): con la cartera de Consulta Suspendida —viva
+    /// o cerrada desde Suspendida—, el arranque no emite otra Vigente desde la fila heredada. Antes la
+    /// emitía en cuanto no encontraba una Vigente. Control: la persona sin cartera sí la recibe.
+    /// </summary>
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task No_emite_la_cartera_de_Consulta_si_la_ultima_de_la_persona_quedo_suspendida(bool cerrarla)
+    {
+        await EjecutarBackfillAsync();
+        var suspendida = await SembrarUsuarioAsync("consulta-suspendida@operador");
+        var sinCartera = await SembrarUsuarioAsync("consulta-nueva@operador");
+        await using (var contexto = CrearContexto(_propietario))
+        {
+            var ahora = DateTime.UtcNow;
+            var tenantEntero = await contexto.AsignacionesOperacion.SingleAsync(o =>
+                !o.EsRaiz && o.PropietarioTenantId == _propietario && o.Servicio == ServicioCae.Outbound);
+            var cartera = AsignacionCartera.Externa(
+                tenantEntero, suspendida, Roles.Consulta, AmbitoAsignacion.Universal, ahora.AddMinutes(-5), null, ahora);
+            cartera.Suspender();
+            if (cerrarla) cartera.Cerrar(MotivoCierreAsignacion.Revocada, ahora);
+            contexto.AsignacionesCartera.Add(cartera);
+            contexto.AsignacionesOperadorDelegadoConRevocadas.AddRange(
+                new AsignacionOperadorDelegado(_delegacion, suspendida, Roles.Consulta),
+                new AsignacionOperadorDelegado(_delegacion, sinCartera, Roles.Consulta));
+            await contexto.SaveChangesAsync();
+        }
+
+        await EjecutarBackfillAsync();
+
+        await using var verificacion = CrearContexto(_propietario);
+        (await verificacion.AsignacionesCartera.IgnoreQueryFilters()
+                .AnyAsync(c => c.UsuarioId == suspendida && c.Estado == EstadoAsignacion.Vigente))
+            .Should().BeFalse("lo suspendido nunca vuelve como vigente, tampoco en el arranque");
+        (await verificacion.AsignacionesCartera.IgnoreQueryFilters()
+                .CountAsync(c => c.UsuarioId == sinCartera && c.Estado == EstadoAsignacion.Vigente))
+            .Should().Be(1, "control: quien no tenía cartera recibe la de Consulta");
+    }
+
+    /// <summary>
     /// Ronda 1 de Codex en la PR #2223 (hallazgo 6): la reconciliación de roles de Propiedad cierra
     /// carteras externas Outbound, no Inbound; y también las Programadas, que el job activaría al
     /// llegar su fecha.

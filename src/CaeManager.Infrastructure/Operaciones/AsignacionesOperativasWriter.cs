@@ -194,37 +194,20 @@ public class AsignacionesOperativasWriter(
             .Where(c => ids.Contains(c.AsignacionOperacionId) && c.Estado != EstadoAsignacion.Cerrada)
             .ToListAsync(cancellationToken);
 
+        // Todas por la cascada, antes que su operación: es AsignacionCartera la que decide, con el estado
+        // de las dos, qué queda marcado como restaurable. Solo una cartera Vigente bajo una operación
+        // Vigente vuelve al reactivar, y solo ella recuerda si era la principal (D-9). Una Suspendida o
+        // Programada, o una Vigente bajo una operación Suspendida o Programada, se cierra sin marca y
+        // recordando su estado efectivo (EstadoAlCerrarse): lo suspendido nunca vuelve como vigente.
+        // Antes la reactivación reconocía la cascada por la fecha de fin, y una Suspendida con la misma
+        // fecha de fin ya pasada que su operación pasaba por restaurable (ronda 2 de Codex en la PR #2223).
+        var porId = operaciones.ToDictionary(o => o.Id);
         foreach (var cartera in carteras)
-        {
-            // Las vigentes, por la cascada y no por Cerrar: la cartera recuerda si llevaba la marca
-            // de principal, que es lo que la reactivación necesita para devolvérsela a quien la
-            // tenía (D-9). Una Programada o Suspendida se cierra sin más: no era la principal de nada
-            // que haya que restaurar, y en duda la revocación falla cerrada.
-            //
-            // Y con un instante anterior al de la operación (FinDeLoQueNoEstabaVigente): la
-            // reactivación reconoce lo que cerró la cascada porque comparte el fin de la operación
-            // (ReabrirCarterasDeOperadoresAsync), y una Suspendida cerrada con ese mismo instante
-            // volvería como Vigente (hallazgo de Codex en la ronda 1 de la PR #2223). Lo suspendido
-            // nunca vuelve como vigente. Una Programada ya queda fuera por sí sola: su fin es su
-            // inicio futuro.
-            if (cartera.Estado == EstadoAsignacion.Vigente)
-                cartera.CerrarPorCascadaDeLaOperacion(motivo, ahora);
-            else
-                cartera.Cerrar(motivo, FinDeLoQueNoEstabaVigente(ahora));
-        }
+            cartera.CerrarPorCascadaDeLaOperacion(porId[cartera.AsignacionOperacionId], motivo, ahora);
 
         foreach (var operacion in operaciones)
             operacion.Cerrar(motivo, ahora);
     }
-
-    /// <summary>
-    /// El instante con el que la revocación cierra una cartera que no estaba Vigente: un
-    /// microsegundo —la resolución de <c>timestamp with time zone</c>— antes que la operación. Así
-    /// no comparte el fin de la operación y la reactivación no la toma por cerrada por la cascada.
-    /// La función de Soporte TALVEG (<c>app_revocar_operador_cae_externo_por_soporte</c>) hace lo
-    /// mismo con <c>v_ahora - interval '1 microsecond'</c>.
-    /// </summary>
-    internal static DateTime FinDeLoQueNoEstabaVigente(DateTime ahora) => ahora.AddMicroseconds(-1);
 
     /// <summary>
     /// Las Asignaciones de Operación Outbound externas no cerradas de este Operador CAE externo
@@ -301,8 +284,51 @@ public class AsignacionesOperativasWriter(
 
         if (yaTiene) return;
 
+        // Lo suspendido nunca vuelve como vigente (ronda 2 de Codex en la PR #2223): la fila heredada
+        // no basta si la última cartera de la persona en este par estaba suspendida, viva o al cerrarse.
+        // Antes se emitía una Vigente sin mirarla: al reactivar la delegación, o junto a la Suspendida
+        // que seguía viva. Reanudarla es un acto explícito, no un efecto de la fila heredada.
+        if (await UltimaCarteraQuedoSuspendidaAsync(operacion, usuarioId, cancellationToken)) return;
+
         dbContext.AsignacionesCartera.Add(AsignacionCartera.Externa(
             operacion, usuarioId, rol, AmbitoAsignacion.Universal, ahora, vigenciaHasta: null, ahora, actorId));
+    }
+
+    /// <summary>
+    /// Las carteras de la persona bajo cualquier Asignación de Operación Outbound externa del par de
+    /// <paramref name="operacion"/>, con su operación, y la guarda de dominio sobre ellas
+    /// (<see cref="AsignacionCartera.AlgunaQuedoSuspendida"/>). Mira también las añadidas al contexto y
+    /// aún sin guardar, por el mismo motivo que <see cref="ObtenerOperacionExternaVigenteAsync"/>.
+    /// </summary>
+    private async Task<bool> UltimaCarteraQuedoSuspendidaAsync(
+        AsignacionOperacion operacion, Guid usuarioId, CancellationToken cancellationToken)
+    {
+        var enBase = await (
+                from c in dbContext.AsignacionesCartera
+                join o in dbContext.AsignacionesOperacion on c.AsignacionOperacionId equals o.Id
+                where !o.EsRaiz
+                      && o.PropietarioTenantId == operacion.PropietarioTenantId
+                      && o.OperadorTenantId == operacion.OperadorTenantId
+                      && o.Servicio == ServicioCae.Outbound
+                      && c.UsuarioId == usuarioId
+                select new { Cartera = c, Operacion = o })
+            .ToListAsync(cancellationToken);
+
+        var operacionesEnElContexto = dbContext.ChangeTracker.Entries<AsignacionOperacion>()
+            .Select(e => e.Entity)
+            .ToDictionary(o => o.Id);
+        var anadidas = dbContext.ChangeTracker.Entries<AsignacionCartera>()
+            .Where(e => e.State == EntityState.Added && e.Entity.UsuarioId == usuarioId)
+            .Select(e => e.Entity)
+            .Where(c => operacionesEnElContexto.TryGetValue(c.AsignacionOperacionId, out var o)
+                        && !o.EsRaiz
+                        && o.PropietarioTenantId == operacion.PropietarioTenantId
+                        && o.OperadorTenantId == operacion.OperadorTenantId
+                        && o.Servicio == ServicioCae.Outbound)
+            .Select(c => (Cartera: c, Operacion: operacionesEnElContexto[c.AsignacionOperacionId]));
+
+        return AsignacionCartera.AlgunaQuedoSuspendida(
+            enBase.Select(x => (x.Cartera, x.Operacion)).Concat(anadidas).DistinctBy(x => x.Cartera.Id));
     }
 
     public async Task AbrirCarteraOperadorAsync(
@@ -365,25 +391,24 @@ public class AsignacionesOperativasWriter(
             .FirstOrDefault();
         if (anterior is null || anterior.MotivoCierre != MotivoCierreAsignacion.Revocada) return null;
 
-        // Solo las carteras que cerró la cascada de esa misma desactivación: CerrarOperacionDelegadaAsync
-        // cierra operación y carteras con el mismo instante, así que comparten VigenciaHasta. Una cartera
-        // revocada a un operador concreto con la operación aún vigente (CerrarCarteraOperadorAsync) se
-        // cerró antes y no se repone: nadie decidió devolvérsela.
+        // Solo las carteras que la cascada de esa misma desactivación marcó como restaurables
+        // (AsignacionCartera.RestaurableAlReactivar): las que estaban Vigentes bajo esa operación
+        // Vigente. Una cartera revocada a un operador concreto con la operación aún vigente
+        // (CerrarCarteraOperadorAsync), una que estaba Suspendida o Programada, y cualquiera bajo una
+        // operación que estaba Suspendida no llevan la marca y no se reponen: nadie decidió
+        // devolvérselas, y lo suspendido nunca vuelve como vigente. Antes la cascada se reconocía por
+        // compartir la fecha de fin con la operación, y una Suspendida con la misma fecha de fin ya
+        // pasada pasaba por restaurable (ronda 2 de Codex en la PR #2223).
         //
         // Se leen todas, no solo las de quien hoy sigue figurando como operador delegado: quién era el
         // principal tiene que saberse aunque su fila se haya revocado o cambiado de rol con la delegación
         // desactivada. Si no, su ausencia pasaría por «no había principal» y la regla de más abajo
         // marcaría al Gestor CAE de apoyo que quedara solo (revisión puente de I2b).
-        //
-        // Lo que no estaba Vigente al revocar no vuelve: la revocación cierra una Suspendida o una
-        // Programada con un instante anterior al de la operación (FinDeLoQueNoEstabaVigente), y una
-        // que nunca empezó (fin igual a su inicio) tampoco cuenta.
         var cerradasPorLaCascada = await dbContext.AsignacionesCartera
             .Where(c => c.AsignacionOperacionId == anterior.Id
                         && c.Estado == EstadoAsignacion.Cerrada
                         && c.MotivoCierre == MotivoCierreAsignacion.Revocada
-                        && c.VigenciaHasta == anterior.VigenciaHasta
-                        && c.VigenciaHasta > c.VigenciaDesde)
+                        && c.RestaurableAlReactivar)
             .Select(c => new { c.UsuarioId, c.Rol, c.EraPrincipalAlCerrarsePorCascada })
             .ToListAsync(cancellationToken);
 
