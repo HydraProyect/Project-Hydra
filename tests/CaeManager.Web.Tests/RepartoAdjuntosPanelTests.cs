@@ -193,6 +193,12 @@ public class RepartoAdjuntosPanelTests : BunitContext
 
         cut.WaitForAssertion(() => cut.Find("[role='alert']").TextContent.Should().Contain("No pudimos cargar el reparto de adjuntos"));
         cut.FindAll(".adjb").Should().BeEmpty();
+
+        mediador.RepartoFalla = false;
+        cut.Find("[role='alert'] button").Click();
+
+        cut.WaitForAssertion(() => cut.FindAll(".adjb").Should().HaveCount(1));
+        cut.FindAll("[role='alert']").Should().BeEmpty();
     }
 
     [Fact]
@@ -204,6 +210,8 @@ public class RepartoAdjuntosPanelTests : BunitContext
         var cut = Pintar();
         cut.WaitForAssertion(() => cut.FindAll(".adjb").Should().HaveCount(1));
         EscribirEmision(cut, "dni-marta.pdf", "2026-03-01");
+        // Un menú «Más» abierto antes del fallo sigue abierto después: sus acciones también deben esperar.
+        cut.Find("button[aria-expanded][aria-label*='suelto.pdf']").Click();
         mediador.Lote = c =>
         {
             // El lote asigna, pero la lectura de después ya no responde.
@@ -221,6 +229,9 @@ public class RepartoAdjuntosPanelTests : BunitContext
         cut.FindAll(".adjb select").Should().NotBeEmpty().And.OnlyContain(s => s.HasAttribute("disabled"));
         cut.FindAll(".adjb input").Should().NotBeEmpty().And.OnlyContain(s => s.HasAttribute("disabled"));
         cut.FindAll(".adjb-p button").Should().OnlyContain(b => b.HasAttribute("disabled"));
+        cut.FindAll(".adjb-m button").Should().HaveCount(3).And.OnlyContain(b => b.HasAttribute("disabled"));
+        cut.FindAll(".adjb-m button").Single(b => b.TextContent.Trim() == "Descartar").Click();
+        mediador.De<ResolverAdjuntoCommand>().Should().BeEmpty("ni forzando el clic se actúa sobre filas desfasadas");
 
         mediador.RepartoFalla = false;
         cut.FindAll(".adjb [role='alert'] button").Single(b => b.TextContent.Trim() == "Reintentar").Click();

@@ -131,7 +131,10 @@
 }
 else if (_errorCarga is not null)
 {
-    <div class="adjb-aviso adjb-aviso-bloque" role="alert">@_errorCarga</div>
+    <div class="adjb-aviso adjb-aviso-bloque" role="alert">
+        <span>@_errorCarga</span>
+        <button type="button" class="tx-b" disabled="@_ocupado" @onclick="ReintentarCargaAsync">@Textos["Reintentar"]</button>
+    </div>
 }
 
 @code {
@@ -479,9 +482,10 @@ else if (_errorCarga is not null)
                 {
                     <span class="m-d adjb-nota-fila">@nota</span>
                 }
-                <button type="button" class="mini" @onclick="() => AbrirUnoAUno(f.Adjunto.Id)">@Textos["CambiarDestino"]</button>
-                <button type="button" class="mini" @onclick="() => PedirMotivo(f)">@Textos["Rechazar"]</button>
-                <button type="button" class="mini" @onclick="() => DescartarAsync(f)">@Textos["Descartar"]</button>
+                @* El menú puede seguir abierto de antes de una recarga fallida: sus acciones también esperan a releer. *@
+                <button type="button" class="mini" disabled="@Bloqueado" @onclick="() => AbrirUnoAUno(f.Adjunto.Id)">@Textos["CambiarDestino"]</button>
+                <button type="button" class="mini" disabled="@Bloqueado" @onclick="() => PedirMotivo(f)">@Textos["Rechazar"]</button>
+                <button type="button" class="mini" disabled="@Bloqueado" @onclick="() => DescartarAsync(f)">@Textos["Descartar"]</button>
             </div>
         }
         @if (f.Pendiente && !f.Edicion.MenuAbierto && NotaDeFila(f) is { } notaFila)
@@ -733,6 +737,7 @@ else if (_errorCarga is not null)
 
     private void PedirMotivo(FilaReparto f)
     {
+        if (Bloqueado) return;
         f.Edicion.MenuAbierto = false;
         f.Edicion.PideMotivo = true;
     }

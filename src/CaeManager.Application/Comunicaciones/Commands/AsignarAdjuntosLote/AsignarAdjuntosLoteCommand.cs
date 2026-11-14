@@ -63,11 +63,13 @@ public class AsignarAdjuntosLoteCommandValidator : AbstractValidator<AsignarAdju
         RuleFor(c => c.Adjuntos)
             .Must(a => a is null || a.Select(x => x.AdjuntoId).Distinct().Count() == a.Count)
             .WithMessage("Un adjunto aparece dos veces en el lote.");
-        // Sin la propuesta aprobada no hay con qué contrastar la vigente: el lote no adivina qué vio la persona.
+        // Sin la propuesta aprobada no hay con qué contrastar la vigente: el lote no adivina qué vio la persona. Un elemento
+        // sin tipo o sin un único destino rechaza el lote entero (no es un «no asignado» por elemento): solo se aprueba lo
+        // que está «Listo», y aprobar algo incompleto es un error del llamador, no un estado del adjunto.
         RuleForEach(c => c.Adjuntos)
             .Must(a => a is not null && a.TipoDocumentoId is { } tipo && tipo != Guid.Empty
                 && (a.TrabajadorId is null) != (a.EmpresaId is null))
-            .WithMessage("Cada adjunto del lote lleva el tipo de documento y un único destino aprobados.");
+            .WithMessage("Hay un adjunto sin destino o sin tipo de documento revisados. Revísalo antes de asignar.");
     }
 }
 
@@ -174,7 +176,8 @@ public class AsignarAdjuntosLoteCommandHandler(
         && candidato.TrabajadorId == item.TrabajadorId
         && candidato.EmpresaId == item.EmpresaId;
 
-    // Solo se llega con la propuesta igual a la aprobada: falta algo únicamente si la aprobada ya venía incompleta.
+    // Solo se llega con la propuesta igual a la aprobada: falta algo únicamente si la aprobada ya venía incompleta, que el
+    // validador rechaza antes. Queda como defensa para quien llame al handler sin la tubería de validación.
     private static string? MotivoSinPropuesta(Candidato candidato)
     {
         if (candidato.TrabajadorId is null && candidato.EmpresaId is null) return "Este adjunto no tiene destino.";
