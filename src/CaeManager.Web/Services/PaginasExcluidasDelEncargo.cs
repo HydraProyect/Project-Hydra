@@ -38,6 +38,7 @@ public static class PaginasExcluidasDelEncargo
         typeof(Features.Documentos.Pages.ImportarDocumentos),
         typeof(Features.GestionRoles.Pages.Roles),
         typeof(Features.Importacion.Pages.Importacion),
+        typeof(Features.Integraciones.Pages.Buzones),
         typeof(Features.Integraciones.Pages.Conexiones),
         typeof(Features.Retencion.Pages.Retencion),
     ];
