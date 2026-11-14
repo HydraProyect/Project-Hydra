@@ -223,6 +223,66 @@ public class ResponsableBuzonElegibleTests
             .Should().BeNull();
     }
 
+    private static AsignacionOperacion ExternaInbound() =>
+        Vigente(AsignacionOperacion.Externa(
+            Propietario, OperadorExterno, ServicioCae.Inbound, AmbitoAsignacion.Universal, Ahora.AddDays(-30), null, Ahora));
+
+    /// <summary>
+    /// La vía de Operación es la de <c>TenantsBeneficiariosAutorizados.OperacionesQueAutorizan</c>, también en el
+    /// servicio: una operación Inbound del Tenant entero no da al perfil de origen la entrada de Outbound.
+    /// </summary>
+    [Fact]
+    public async Task Una_operacion_Inbound_del_Tenant_entero_no_hace_atender_al_perfil_de_origen_de_acceso_total()
+    {
+        (await EvaluarAsync(Delegado(guardado: "Consulta", perfil: "Administrador"), [ExternaInbound()]))
+            .Should().Be(MotivoResponsableNoElegible.RolSinGestion, "sin vía de Operación rige el rol guardado, Consulta");
+    }
+
+    [Fact]
+    public async Task Una_cartera_bajo_una_operacion_Inbound_no_hace_atender_al_Gestor_CAE_en_origen()
+    {
+        var inbound = ExternaInbound();
+        (await EvaluarAsync(Delegado(guardado: "Consulta", perfil: "GestorCae"), [inbound], [Externa(inbound, Gestor)]))
+            .Should().Be(MotivoResponsableNoElegible.RolSinGestion, "sin vía de Operación rige el rol guardado, Consulta");
+    }
+
+    /// <summary>
+    /// Hallazgo de Codex sobre B-02a: con una Outbound acotada a un Cliente empresarial y una Inbound del Tenant
+    /// entero concurrentes, las dos con cartera, el alcance del buzón es el de la Outbound. Si la Inbound contara,
+    /// su ámbito del Tenant entero haría alcanzable cualquier Cliente empresarial del Tenant.
+    /// </summary>
+    [Fact]
+    public async Task Una_Inbound_del_Tenant_entero_no_amplia_el_alcance_de_una_Outbound_acotada_en_el_buzon()
+    {
+        var clienteB = Guid.NewGuid();
+        var outboundAcotada = Externa(AmbitoAsignacion.DeRelacionCliente(clienteB));
+        var inbound = ExternaInbound();
+        var destino = Delegado("GestorCae");
+        AsignacionOperacion[] operaciones = [outboundAcotada, inbound];
+        AsignacionCartera[] carteras = [Externa(outboundAcotada, Gestor), Externa(inbound, Gestor)];
+
+        (await EvaluarAsync(destino, operaciones, carteras, cliente: Empresa))
+            .Should().Be(MotivoResponsableNoElegible.SinCarteraSobreLaEmpresa,
+                "la Inbound del Tenant entero no convierte en entero el ámbito de Outbound");
+        (await EvaluarAsync(destino, operaciones, carteras, cliente: clienteB)).Should().BeNull(
+            "el Cliente empresarial de la Outbound sigue alcanzable");
+    }
+
+    /// <summary>
+    /// Lo mismo para un perfil de acceso total sin cartera: la Inbound del Tenant entero no le da la vía sin
+    /// cartera aunque haya una Outbound acotada, y sin vía de Operación rige el rol guardado.
+    /// </summary>
+    [Fact]
+    public async Task Una_Inbound_del_Tenant_entero_no_abre_la_via_sin_cartera_junto_a_una_Outbound_acotada()
+    {
+        var outboundAcotada = Externa(AmbitoAsignacion.DeRelacionCliente(Guid.NewGuid()));
+
+        (await EvaluarAsync(Delegado(guardado: "GestorCae", perfil: "Administrador"), [outboundAcotada, ExternaInbound()],
+                cliente: Empresa))
+            .Should().Be(MotivoResponsableNoElegible.SinCarteraSobreLaEmpresa,
+                "sin operación entera de Outbound rige el rol guardado, y el Gestor CAE no tiene cartera");
+    }
+
     [Fact]
     public async Task Con_cartera_un_Gestor_CAE_en_origen_atiende_aunque_su_rol_guardado_sea_Consulta()
     {

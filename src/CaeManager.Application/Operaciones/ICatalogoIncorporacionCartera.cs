@@ -114,6 +114,17 @@ public enum ResultadoRetiradaApoyo
 /// </para>
 ///
 /// <para>
+/// <b>Solo Outbound</b> (B-02a): todo lo que este puerto lee, emite, retira o expira se acota a
+/// Asignaciones de Operación de <c>TenantsBeneficiariosAutorizados.ServicioDelContexto</c>. Una
+/// cartera bajo una operación de otro servicio no cuenta «en su cartera», no es cartera viva del
+/// Operador CAE (ni para la guarda de revocación de <c>EquipoDelOperadorCaeExterno</c>), no
+/// lleva una marca de principal que se apague, se encienda o se releve, no sostiene la fila
+/// heredada y no se retira desde aquí (<see cref="RetirarAsync"/> y
+/// <see cref="RetirarCarteraDeApoyoAsync"/> lanzan <see cref="InvalidOperationException"/> antes de
+/// tocar nada); una operación de otro servicio no es vigente para emitir.
+/// </para>
+///
+/// <para>
 /// Las escrituras (<see cref="IncorporarAsync"/>, <see cref="RetirarAsync"/>)
 /// tienen que ejecutarse con el Tenant propietario como Tenant activo
 /// (<c>AmbitoTenantExplicito</c>): la política RLS de las carteras solo deja
@@ -141,7 +152,7 @@ public interface ICatalogoIncorporacionCartera
     Task<IReadOnlyList<TenantCandidatoIncorporacion>> ObtenerAsignablesAsync(
         Guid operadorTenantId, CancellationToken cancellationToken = default);
 
-    /// <summary>La operación, si sigue vigente hoy; <c>null</c> si no existe, se cerró o caducó.</summary>
+    /// <summary>La operación Outbound, si sigue vigente hoy; <c>null</c> si no existe, es de otro servicio, se cerró o caducó.</summary>
     Task<AsignacionOperacion?> ObtenerOperacionVigenteAsync(
         Guid asignacionOperacionId, CancellationToken cancellationToken = default);
 
@@ -217,7 +228,9 @@ public interface ICatalogoIncorporacionCartera
     /// <paramref name="actorUsuarioId"/>— las solicitudes de incorporación aceptadas que las
     /// crearon, da por terminadas las propuestas de apoyo aceptadas que las emitieron y borra
     /// la fila heredada de Operador Delegado <b>solo si no le queda otra
-    /// cartera vigente</b> sobre el mismo Tenant (por ejemplo, una de otro rol). Sin guardar. Devuelve <c>false</c> sin tocar nada si no
+    /// cartera vigente de Outbound del mismo Operador CAE externo</b> sobre el mismo Tenant (por
+    /// ejemplo, una de otro rol o bajo otra operación Outbound suya acotada por Cliente
+    /// empresarial); una de otro servicio o de otro Operador CAE no la sostiene (B-02a). Sin guardar. Devuelve <c>false</c> sin tocar nada si no
     /// tenía ese Tenant entero en su cartera. Como
     /// <see cref="IncorporarAsync(Guid, Guid, Guid, Guid, CancellationToken)"/>, exige el
     /// Tenant propietario como Tenant activo (<c>AmbitoTenantExplicito</c>).
@@ -239,7 +252,8 @@ public interface ICatalogoIncorporacionCartera
     /// Asignación de Cartera que emitió <paramref name="propuesta"/> y da la propuesta por
     /// terminada, por el mismo camino que <see cref="RetirarCarteraUniversalAsync"/> (mismo
     /// motivo de cierre y misma regla para la fila heredada de Operador Delegado: se borra
-    /// solo si al usuario no le queda otra cartera vigente sobre ese Tenant). Sin guardar.
+    /// solo si al usuario no le queda otra cartera vigente de Outbound del mismo Operador CAE
+    /// externo sobre ese Tenant). Sin guardar.
     ///
     /// <para>
     /// <b>No toca la marca de principal ni releva a nadie</b>: si la cartera lleva hoy la

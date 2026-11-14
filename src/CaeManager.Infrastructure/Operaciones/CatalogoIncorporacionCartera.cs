@@ -1,5 +1,6 @@
 using CaeManager.Application.Common;
 using CaeManager.Application.Operaciones;
+using CaeManager.Application.Tenants;
 using CaeManager.Domain.Operaciones;
 using CaeManager.Domain.Tenants;
 using CaeManager.Infrastructure.Identity;
@@ -80,7 +81,7 @@ public class CatalogoIncorporacionCartera(
         return from operacion in dbContext.AsignacionesOperacion
                where !operacion.EsRaiz
                      && operacion.PropietarioTenantId != operacion.OperadorTenantId
-                     && operacion.Servicio == ServicioCae.Outbound
+                     && operacion.Servicio == Servicio
                      && operacion.AmbitoRelacionClienteId == null
                      && operacion.AmbitoCentroId == null
                      && operacion.AmbitoTrabajadorId == null
@@ -97,6 +98,15 @@ public class CatalogoIncorporacionCartera(
                select operacion;
     }
 
+    /// <summary>
+    /// El servicio de todo lo que este catálogo lee, emite, retira o expira: Outbound (B-02a). La
+    /// fila heredada de Operador Delegado autoriza el Tenant en Outbound por sí sola (vía heredada
+    /// de <c>TenantsBeneficiariosAutorizados</c>), así que ninguna cartera ni operación de otro
+    /// servicio puede emitirla, sostenerla, contar como cartera del Gestor CAE ni moverse desde la
+    /// gestión de Outbound: cada consulta de abajo filtra por este valor o falla cerrado.
+    /// </summary>
+    internal const ServicioCae Servicio = TenantsBeneficiariosAutorizados.ServicioDelContexto;
+
     public Task<AsignacionOperacion?> ObtenerOperacionVigenteAsync(
         Guid asignacionOperacionId, CancellationToken cancellationToken = default)
     {
@@ -104,6 +114,7 @@ public class CatalogoIncorporacionCartera(
 
         return dbContext.AsignacionesOperacion
             .FirstOrDefaultAsync(o => o.Id == asignacionOperacionId
+                                      && o.Servicio == Servicio
                                       && o.Estado == EstadoAsignacion.Vigente
                                       && o.VigenciaDesde <= ahora
                                       && (o.VigenciaHasta == null || ahora < o.VigenciaHasta), cancellationToken);
@@ -232,6 +243,7 @@ public class CatalogoIncorporacionCartera(
     public async Task RetirarAsync(SolicitudIncorporacionCartera solicitud, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(solicitud);
+        await ExigirOperacionDelServicioAsync(solicitud.AsignacionOperacionId, cancellationToken);
         var ahora = DateTime.UtcNow;
 
         if (solicitud.AsignacionCarteraId is { } carteraId)
@@ -252,14 +264,17 @@ public class CatalogoIncorporacionCartera(
 
     /// <summary>
     /// Las Asignaciones de Cartera vivas de Gestor CAE y de Coordinador CAE de este Operador
-    /// CAE: vigentes hoy, del Tenant entero, sobre una operación externa no raíz suya. Una sola
-    /// definición para leer quién es principal y quién de apoyo, para encender la marca y para
-    /// listar y retirar la cartera de un Gestor CAE.
+    /// CAE: vigentes hoy, del Tenant entero, sobre una operación externa no raíz suya de
+    /// <see cref="Servicio"/>. Una sola definición para leer quién es principal y quién de apoyo,
+    /// para encender la marca, para listar y retirar la cartera de un Gestor CAE y para la guarda
+    /// de revocación de <c>EquipoDelOperadorCaeExterno</c>: una cartera bajo una operación de otro
+    /// servicio no es de este Operador CAE externo en Outbound.
     /// </summary>
     private IQueryable<AsignacionCartera> CarterasVivasDelOperador(Guid operadorTenantId) =>
         from c in CarterasVivasDeTenantEntero()
         join o in dbContext.AsignacionesOperacion on c.AsignacionOperacionId equals o.Id
         where !o.EsRaiz
+              && o.Servicio == Servicio
               && o.OperadorTenantId == operadorTenantId
               && o.PropietarioTenantId == c.PropietarioTenantId
               && c.PropietarioTenantId != operadorTenantId
@@ -346,6 +361,7 @@ public class CatalogoIncorporacionCartera(
                   && c.EsPrincipal
                   && c.Estado != EstadoAsignacion.Cerrada
                   && !o.EsRaiz
+                  && o.Servicio == Servicio
                   && o.OperadorTenantId == operadorTenantId
                   && c.PropietarioTenantId != operadorTenantId
             select new OperacionConPrincipal(c.PropietarioTenantId, c.AsignacionOperacionId))
@@ -359,7 +375,9 @@ public class CatalogoIncorporacionCartera(
             .FirstOrDefaultAsync(c => c.AsignacionOperacionId == asignacionOperacionId
                                       && c.OperadorTenantId == operadorTenantId
                                       && c.EsPrincipal
-                                      && c.Estado != EstadoAsignacion.Cerrada, cancellationToken);
+                                      && c.Estado != EstadoAsignacion.Cerrada
+                                      && dbContext.AsignacionesOperacion.Any(o =>
+                                          o.Id == c.AsignacionOperacionId && o.Servicio == Servicio), cancellationToken);
         if (principal is null || principal.UsuarioId != usuarioEsperadoId)
             return false;
 
@@ -467,11 +485,16 @@ public class CatalogoIncorporacionCartera(
             .Select(d => (Guid?)d.Id)
             .FirstOrDefaultAsync(cancellationToken);
 
-    /// <summary>La operación externa, no raíz, de este Operador CAE; <c>null</c> si el Id es de otra.</summary>
+    /// <summary>
+    /// La operación externa, no raíz, de <see cref="Servicio"/>, de este Operador CAE; <c>null</c>
+    /// si el Id es de otra. Sobre una operación de otro servicio ni se enciende la marca ni se
+    /// releva al principal: el relevo emitiría una fila heredada que abre Outbound.
+    /// </summary>
     private Task<AsignacionOperacion?> OperacionExternaDelOperadorAsync(
         Guid asignacionOperacionId, Guid operadorTenantId, CancellationToken cancellationToken) =>
         dbContext.AsignacionesOperacion.FirstOrDefaultAsync(
             o => o.Id == asignacionOperacionId
+                 && o.Servicio == Servicio
                  && !o.EsRaiz
                  && o.OperadorTenantId == operadorTenantId
                  && o.PropietarioTenantId != operadorTenantId, cancellationToken);
@@ -525,6 +548,23 @@ public class CatalogoIncorporacionCartera(
         return apoyos.OrderBy(a => a.NombreTenant).ThenBy(a => a.PropuestaId).ToList();
     }
 
+    /// <summary>
+    /// Falla cerrado (B-02a) antes de que una retirada por Id toque una cartera o una fila
+    /// heredada de una Asignación de Operación de otro servicio. Hoy no se llega aquí: las
+    /// solicitudes y las propuestas solo nacen sobre operaciones Outbound
+    /// (<see cref="ObtenerOperacionVigenteAsync"/>). Si un escritor de otro servicio las
+    /// reutilizase, cerrar su cartera retiraría el acceso a Outbound de quien solo se sostiene
+    /// por ella. La retirada corre en la posición del Tenant propietario, donde la operación
+    /// es visible.
+    /// </summary>
+    private async Task ExigirOperacionDelServicioAsync(Guid asignacionOperacionId, CancellationToken cancellationToken)
+    {
+        if (!await dbContext.AsignacionesOperacion
+                .AnyAsync(o => o.Id == asignacionOperacionId && o.Servicio == Servicio, cancellationToken))
+            throw new InvalidOperationException(
+                $"La Asignación de Operación {asignacionOperacionId} no es de {Servicio}: no se retira desde el contexto de {Servicio}.");
+    }
+
     public async Task<ResultadoRetiradaApoyo> RetirarCarteraDeApoyoAsync(
         PropuestaApoyoCartera propuesta, Guid actorUsuarioId, bool exigirProponentePrincipal,
         CancellationToken cancellationToken = default)
@@ -551,6 +591,8 @@ public class CatalogoIncorporacionCartera(
 
         if (cartera.EsPrincipal)
             return ResultadoRetiradaApoyo.YaNoEsDeApoyo;
+
+        await ExigirOperacionDelServicioAsync(cartera.AsignacionOperacionId, cancellationToken);
 
         if (exigirProponentePrincipal)
         {
@@ -611,7 +653,17 @@ public class CatalogoIncorporacionCartera(
     /// <summary>
     /// Borra la fila heredada de Operador Delegado del usuario sobre ese Tenant propietario
     /// <b>solo si no le queda otra cartera vigente</b> en él (de otro rol, o bajo otra
-    /// operación): esa otra sigue necesitando que el Tenant le aparezca. La fila heredada
+    /// operación) <b>de <see cref="Servicio"/> y de este mismo Operador CAE externo</b>: esa otra
+    /// sigue necesitando que el Tenant le aparezca. Una cartera bajo una operación de otro servicio
+    /// no la sostiene: la fila abre Outbound, y mantenerla viva por una cartera Inbound abriría
+    /// Outbound sin cartera de Outbound que lo ampare. Tampoco una bajo una operación de otro
+    /// Operador CAE, externo o interno (B-02a, tercera revisión de Codex): la fila cuelga de la
+    /// delegación hacia el Operador CAE externo <paramref name="operadorTenantId"/>, y una cartera
+    /// de otro Operador CAE para este usuario
+    /// es un estado inválido (el usuario pertenece al Tenant del Operador CAE de su cartera,
+    /// <see cref="AsignacionCartera.UsuarioId"/>); ante él se falla cerrado y la fila se retira.
+    /// Se mira el Operador CAE de la Asignación de Operación, que es de donde la cartera lo
+    /// copia. La fila heredada
     /// autoriza el Tenant por sí sola (vía heredada de <c>TenantsBeneficiariosAutorizados</c>),
     /// así que <b>todo cierre de una cartera externa del Tenant entero tiene que pasar por
     /// aquí</b>: sin ello la cartera quedaría cerrada y el acceso, intacto. Lo usan la retirada
@@ -626,7 +678,11 @@ public class CatalogoIncorporacionCartera(
             && c.PropietarioTenantId == propietarioTenantId
             && !carterasCerradas.Contains(c.Id)
             && c.Estado == EstadoAsignacion.Vigente
-            && (c.VigenciaHasta == null || ahora < c.VigenciaHasta), cancellationToken);
+            && (c.VigenciaHasta == null || ahora < c.VigenciaHasta)
+            && dbContext.AsignacionesOperacion.Any(o => o.Id == c.AsignacionOperacionId
+                                                         && o.Servicio == Servicio
+                                                         && o.OperadorTenantId == operadorTenantId),
+            cancellationToken);
         if (leQuedaOtra)
             return;
 
@@ -700,6 +756,7 @@ public class CatalogoIncorporacionCartera(
                 where asignacionCarteraIds.Contains(c.Id)
                       && c.Estado == EstadoAsignacion.Vigente
                       && (c.VigenciaHasta == null || ahora < c.VigenciaHasta)
+                      && o.Servicio == Servicio
                       && o.Estado == EstadoAsignacion.Vigente
                       && o.VigenciaDesde <= ahora
                       && (o.VigenciaHasta == null || ahora < o.VigenciaHasta)
@@ -711,7 +768,9 @@ public class CatalogoIncorporacionCartera(
 
     /// <summary>
     /// De <paramref name="propietarios"/>, los que el usuario ya tiene en su
-    /// cartera — ver «En su cartera» en <see cref="ICatalogoIncorporacionCartera"/>.
+    /// cartera — ver «En su cartera» en <see cref="ICatalogoIncorporacionCartera"/>. Solo cuenta
+    /// una cartera bajo una operación de <see cref="Servicio"/>: una de otro servicio no deja al
+    /// Tenant propietario «ya en cartera» en Outbound.
     /// </summary>
     private async Task<HashSet<Guid>> PropietariosEnCarteraAsync(
         IReadOnlyCollection<Guid> propietarios, Guid operadorTenantId, Guid usuarioId, CancellationToken cancellationToken)
@@ -722,7 +781,8 @@ public class CatalogoIncorporacionCartera(
             .Where(c => c.UsuarioId == usuarioId
                         && propietarios.Contains(c.PropietarioTenantId)
                         && c.Estado == EstadoAsignacion.Vigente
-                        && (c.VigenciaHasta == null || ahora < c.VigenciaHasta))
+                        && (c.VigenciaHasta == null || ahora < c.VigenciaHasta)
+                        && dbContext.AsignacionesOperacion.Any(o => o.Id == c.AsignacionOperacionId && o.Servicio == Servicio))
             .Select(c => c.PropietarioTenantId)
             .ToListAsync(cancellationToken);
 

@@ -1,5 +1,6 @@
 using CaeManager.Application.Common;
 using CaeManager.Application.Plataforma;
+using CaeManager.Application.Tenants;
 using CaeManager.Application.VistaDemo;
 using CaeManager.Domain.Operaciones;
 using CaeManager.Infrastructure.Identity;
@@ -166,8 +167,11 @@ public class VistaDemoActual(
             .Where(c => c.Estado == EstadoAsignacion.Vigente
                         && c.VigenciaDesde <= ahora
                         && (c.VigenciaHasta == null || ahora < c.VigenciaHasta))
+            // El servicio del contexto, como AlcanceDatosService.ObtenerCarteraAsync (B-02a): la lente reproduce el
+            // alcance de Outbound, y una cartera bajo una operación Inbound no lo da.
             .Join(dbContext.AsignacionesOperacion.Where(o =>
                     o.OperadorTenantId == origen
+                    && o.Servicio == TenantsBeneficiariosAutorizados.ServicioDelContexto
                     && tenantsDeDemo.Contains(o.PropietarioTenantId)
                     && o.Estado == EstadoAsignacion.Vigente
                     && o.VigenciaDesde <= ahora
@@ -213,6 +217,7 @@ public class VistaDemoActual(
                             && (c.VigenciaHasta == null || ahora < c.VigenciaHasta))
                 .Join(dbContext.AsignacionesOperacion.Where(o =>
                         o.OperadorTenantId == origen
+                        && o.Servicio == TenantsBeneficiariosAutorizados.ServicioDelContexto
                         && tenantsDeDemo.Contains(o.PropietarioTenantId)
                         && o.Estado == EstadoAsignacion.Vigente
                         && o.VigenciaDesde <= ahora

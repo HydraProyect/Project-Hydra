@@ -213,9 +213,23 @@ public class ExpiracionAsignacionesHostedService(
         // Hueco conocido, anterior a esto: la cartera que cae SOLO porque expira su operación
         // no pasa por aquí y conserva su fila heredada, que sigue autorizando el Tenant mientras
         // la delegación siga activa.
+        //
+        // Solo las carteras de Outbound mueven la fila (B-02a): la fila heredada abre Outbound, y
+        // una cartera de otro servicio que caduca no puede quitar un acceso de Outbound que no
+        // concedió. Que una cartera de otro servicio tampoco la sostenga lo decide
+        // RetirarFilaHeredadaSiSobraAsync.
         var cerradas = carteras.Concat(carterasHuerfanas).Select(c => c.Id).Distinct().ToList();
-        foreach (var caducada in carteras.Where(c =>
-                     c.OperadorTenantId != c.PropietarioTenantId && c.Ambito.EsUniversal))
+        var externasCaducadas = carteras
+            .Where(c => c.OperadorTenantId != c.PropietarioTenantId && c.Ambito.EsUniversal)
+            .ToList();
+        var idsOperacionesDeExternas = externasCaducadas.Select(c => c.AsignacionOperacionId).Distinct().ToList();
+        var operacionesDelServicio = idsOperacionesDeExternas.Count == 0
+            ? []
+            : (await dbContext.AsignacionesOperacion
+                .Where(o => idsOperacionesDeExternas.Contains(o.Id) && o.Servicio == CatalogoIncorporacionCartera.Servicio)
+                .Select(o => o.Id)
+                .ToListAsync(stoppingToken)).ToHashSet();
+        foreach (var caducada in externasCaducadas.Where(c => operacionesDelServicio.Contains(c.AsignacionOperacionId)))
         {
             await CatalogoIncorporacionCartera.RetirarFilaHeredadaSiSobraAsync(
                 dbContext, caducada.PropietarioTenantId, caducada.OperadorTenantId, caducada.UsuarioId,

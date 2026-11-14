@@ -46,7 +46,7 @@ public class VistaDemoLenteTests : IAsyncLifetime
     private readonly string _cadenaConexion = BaseDatosPostgresDePruebas.CadenaConexionUnica();
 
     private Guid _operador, _p1, _p2, _p3, _tenantReal, _tenantReal2, _otroOperador;
-    private Guid _admin, _g1, _g2, _gSinCartera, _gCarteraFutura, _usuarioCliente, _gDeOtroOperador, _gSoloTenantReal;
+    private Guid _admin, _g1, _g2, _gSinCartera, _gCarteraFutura, _usuarioCliente, _gDeOtroOperador, _gSoloTenantReal, _gSoloInbound;
     private Empresa _c1a = null!, _c1b = null!, _c2 = null!, _c3 = null!;
 
     public async Task InitializeAsync()
@@ -93,6 +93,7 @@ public class VistaDemoLenteTests : IAsyncLifetime
         _usuarioCliente = Usuario("usuario-cliente", _operador, rolCliente);
         _gDeOtroOperador = Usuario("gestor-de-otro-operador", _otroOperador, rolGestor);
         _gSoloTenantReal = Usuario("gestor-solo-tenant-real", _operador, rolGestor);
+        _gSoloInbound = Usuario("gestor-solo-inbound", _operador, rolGestor);
         await contexto.SaveChangesAsync();
 
         // Datos de cada Tenant propietario, sellados con su propio Tenant.
@@ -125,8 +126,12 @@ public class VistaDemoLenteTests : IAsyncLifetime
         var op3 = Operacion(_p3, _operador, _c3);
         var opAjena = Operacion(_tenantReal, _otroOperador, cReal);
         var opRealPropia = Operacion(_tenantReal2, _operador, cReal2);
-        contexto.AsignacionesOperacion.AddRange(op1a, op1b, op1c, op1d, op2, op3, opAjena, opRealPropia);
+        // B-02a: una operación Inbound del Tenant entero sobre el Tenant 3. Sus carteras no son de Outbound: ni
+        // hacen elegible al Gestor CAE que solo tiene esa, ni añaden el Tenant 3 a la lente de G1.
+        var op3Inbound = AsignacionOperacion.Externa(_p3, _operador, ServicioCae.Inbound, AmbitoAsignacion.Universal, desde, null, ahora);
+        contexto.AsignacionesOperacion.AddRange(op1a, op1b, op1c, op1d, op2, op3, opAjena, opRealPropia, op3Inbound);
         contexto.AsignacionesCartera.AddRange(
+            Cartera(op3Inbound, _g1), Cartera(op3Inbound, _gSoloInbound),
             Cartera(op1a, _g1), Cartera(op2, _g1),
             Cartera(op1b, _g2), Cartera(op3, _g2),
             Cartera(op1c, _usuarioCliente),
@@ -367,7 +372,8 @@ public class VistaDemoLenteTests : IAsyncLifetime
         var elegibles = await CrearVista(contexto, _operador, Administrador(), Solicitud(null, null), Activo(true), null)
             .ObtenerGestoresElegiblesAsync();
 
-        elegibles.Select(g => g.UsuarioId).Should().BeEquivalentTo([_g1, _g2]);
+        elegibles.Select(g => g.UsuarioId).Should().BeEquivalentTo([_g1, _g2],
+            "el Gestor CAE con solo una cartera bajo una operación Inbound no reproduce ningún alcance de Outbound (B-02a)");
     }
 
     [Fact]
@@ -377,7 +383,8 @@ public class VistaDemoLenteTests : IAsyncLifetime
         sinLente.Select(c => c.TenantId).Should().BeEquivalentTo([_operador, _p1, _p2, _p3]);
 
         var lenteG1 = await ClientesAutorizadosAsync(Solicitud(VistaDemo.GestorCae, _g1));
-        lenteG1.Select(c => c.TenantId).Should().BeEquivalentTo([_operador, _p1, _p2], "G1 tiene cartera en los Tenants 1 y 2, no en el 3");
+        lenteG1.Select(c => c.TenantId).Should().BeEquivalentTo([_operador, _p1, _p2],
+            "G1 tiene cartera de Outbound en los Tenants 1 y 2; en el 3 solo una bajo la operación Inbound, que no cuenta (B-02a)");
         lenteG1.Should().OnlyContain(c => sinLente.Any(s => s.TenantId == c.TenantId), "la lente solo quita entradas");
 
         var lenteG2 = await ClientesAutorizadosAsync(Solicitud(VistaDemo.GestorCae, _g2));
