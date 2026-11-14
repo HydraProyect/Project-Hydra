@@ -3,6 +3,7 @@ using CaeManager.Application.Common;
 using CaeManager.Application.Empresas;
 using CaeManager.Application.Integraciones;
 using CaeManager.Application.Operaciones;
+using CaeManager.Application.Tenants;
 using CaeManager.Application.Tests.Clientes;
 using CaeManager.Application.Tests.Configuracion;
 using CaeManager.Application.Tests.Documentos;
@@ -10,6 +11,7 @@ using CaeManager.Application.Usuarios;
 using CaeManager.Domain.Empresas;
 using CaeManager.Domain.Integraciones;
 using CaeManager.Domain.Operaciones;
+using CaeManager.Domain.Tenants;
 using FluentAssertions;
 using Xunit;
 
@@ -20,10 +22,13 @@ public static class ResponsableBuzonElegibleDePrueba
 {
     public static ResponsableBuzonElegible Con(
         DestinoCartera? destino, IOperacionesQueryContext? operaciones = null, Guid? tenantActual = null,
-        IReadOnlyList<Guid>? equipo = null, IEmpresasQueryContext? empresas = null) =>
-        new(new DirectorioDestinosCarteraFalso(destino), new EquipoFalso(equipo ?? []),
-            operaciones ?? new OperacionesEnMemoria([], []), empresas ?? new EmpresasQueryContextFalso(),
+        IReadOnlyList<Guid>? equipo = null, IEmpresasQueryContext? empresas = null, ITenantsQueryContext? tenants = null)
+    {
+        operaciones ??= new OperacionesEnMemoria([], []);
+        return new(new DirectorioDestinosCarteraFalso(destino), new EquipoFalso(equipo ?? []),
+            operaciones, tenants ?? DelegacionesEnMemoria.VigentesDe(operaciones), empresas ?? new EmpresasQueryContextFalso(),
             new TenantActualFijo(tenantActual));
+    }
 
     public static Empresa ClienteEmpresarial() => Empresa.CrearComoCliente("Montajes Springfield", "B12345674", false, null, null);
 
@@ -70,6 +75,34 @@ public static class ResponsableBuzonElegibleDePrueba
             Guid coordinadorUsuarioId, CancellationToken cancellationToken = default) =>
             Task.FromResult<IReadOnlyList<MiembroDeEquipo>>(
                 equipo.Select(id => new MiembroDeEquipo(id, "gestor@ejemplo.test", "Gestor", true, false)).ToList());
+    }
+}
+
+/// <summary>
+/// DelegacionesTenant de Operador CAE externo en memoria: la vía de Operación de
+/// <see cref="TenantsBeneficiariosAutorizados.CarterasPorOperacionDeLaOrganizacion"/> exige la del par activa y sin
+/// caducar (opción A, PR #2223).
+/// </summary>
+public static class DelegacionesEnMemoria
+{
+    /// <summary>Una delegación activa y sin caducidad por cada par.</summary>
+    public static Comercial.TenantsQueryContextFalso Vigente(Guid operadorTenantId, Guid propietarioTenantId)
+    {
+        var contexto = new Comercial.TenantsQueryContextFalso();
+        contexto.ListaDelegacionesTenant.Add(new DelegacionTenant(operadorTenantId, propietarioTenantId));
+        return contexto;
+    }
+
+    /// <summary>Una delegación activa y sin caducidad por cada par externo de las operaciones del contexto.</summary>
+    public static Comercial.TenantsQueryContextFalso VigentesDe(IOperacionesQueryContext operaciones)
+    {
+        var contexto = new Comercial.TenantsQueryContextFalso();
+        contexto.ListaDelegacionesTenant.AddRange(operaciones.AsignacionesOperacion.AsEnumerable()
+            .Where(o => o.PropietarioTenantId != o.OperadorTenantId)
+            .Select(o => (o.OperadorTenantId, o.PropietarioTenantId))
+            .Distinct()
+            .Select(par => new DelegacionTenant(par.OperadorTenantId, par.PropietarioTenantId)));
+        return contexto;
     }
 }
 

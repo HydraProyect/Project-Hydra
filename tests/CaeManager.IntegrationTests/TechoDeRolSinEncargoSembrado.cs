@@ -27,7 +27,8 @@ internal static class TechoDeRolSinEncargoSembrado
         {
             var operaciones = sp.GetRequiredService<IOperacionesQueryContext>();
             return new TechoDeRolPorEncargo(
-                operaciones, (IEncargosAdministracionQueryContext)operaciones, new PerfilQueNoSeConsulta(),
+                operaciones, (CaeManager.Application.Tenants.ITenantsQueryContext)operaciones,
+                (IEncargosAdministracionQueryContext)operaciones, new PerfilQueNoSeConsulta(),
                 new PerfilQueNoSeConsulta());
         });
         return servicios;

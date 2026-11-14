@@ -321,7 +321,7 @@ src/CaeManager.Application/Tenants/Queries/ObtenerClientesAutorizados/ObtenerCli
 src/CaeManager.Application/Tenants/Queries/ObtenerDelegaciones/ObtenerDelegacionesQuery.cs :: TenantClienteId = 5
 src/CaeManager.Application/Tenants/Queries/ObtenerOperadoresCaeExternos/ObtenerOperadoresCaeExternosQuery.cs :: TenantClienteId = 1
 src/CaeManager.Application/Tenants/TenantsBeneficiariosAutorizados.cs :: AmbitoRelacionClienteId = 3
-src/CaeManager.Application/Tenants/TenantsBeneficiariosAutorizados.cs :: TenantClienteId = 2
+src/CaeManager.Application/Tenants/TenantsBeneficiariosAutorizados.cs :: TenantClienteId = 3
 src/CaeManager.Application/TiposDocumento/Commands/ActualizarLecturaIaCliente/ActualizarLecturaIaClienteCommand.cs :: ClienteId = 5
 src/CaeManager.Application/TiposDocumento/Commands/ActualizarLecturaIaCliente/ActualizarLecturaIaClienteCommand.cs :: ObtenerClienteIdsVisiblesAsync = 1
 src/CaeManager.Application/TiposDocumento/Commands/ActualizarLecturaIaCliente/ActualizarLecturaIaClienteCommand.cs :: clienteIdsVisibles = 3
@@ -402,6 +402,7 @@ src/CaeManager.Infrastructure/Autorizacion/AlcanceDatosService.cs :: ClienteId =
 src/CaeManager.Infrastructure/Autorizacion/AlcanceDatosService.cs :: ClienteIds = 4
 src/CaeManager.Infrastructure/Autorizacion/AlcanceDatosService.cs :: ObtenerClienteIdsParaRolClienteAsync = 2
 src/CaeManager.Infrastructure/Autorizacion/AlcanceDatosService.cs :: ObtenerClienteIdsVisiblesAsync = 6
+src/CaeManager.Infrastructure/Autorizacion/AlcanceDatosService.cs :: TenantClienteId = 1
 src/CaeManager.Infrastructure/Autorizacion/AlcanceDatosService.cs :: _clienteIds = 5
 src/CaeManager.Infrastructure/Autorizacion/AlcanceDatosService.cs :: clienteId = 2
 src/CaeManager.Infrastructure/Autorizacion/AlcanceDatosService.cs :: clienteIds = 24

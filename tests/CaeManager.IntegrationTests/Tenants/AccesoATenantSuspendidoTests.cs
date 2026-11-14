@@ -86,7 +86,7 @@ public class AccesoATenantSuspendidoTests : IAsyncLifetime
     {
         await using var contexto = CrearContexto();
         return await TenantsBeneficiariosAutorizados.OperacionQueAutorizaAsync(
-            contexto, _administradorDelOperador, _operador.Id, _beneficiario.Id, "Administrador", DateTime.UtcNow, CancellationToken.None) is not null;
+            contexto, contexto, _administradorDelOperador, _operador.Id, _beneficiario.Id, "Administrador", DateTime.UtcNow, CancellationToken.None) is not null;
     }
 
     private async Task<bool> PorViaHeredadaAsync()
