@@ -74,6 +74,8 @@ public class LogoTenantEndpointBajoRlsTests : IAsyncLifetime, IDisposable
             var operacion = AsignacionOperacion.Externa(
                 beneficiario, _origen, ServicioCae.Outbound, AmbitoAsignacion.Universal, ayer, null, DateTime.UtcNow);
             _propietario.AsignacionesOperacion.Add(operacion);
+            // La vía de Operación exige la DelegacionTenant de Operador CAE externo del par activa y sin caducar (opción A, PR #2223).
+            _propietario.DelegacionesTenant.Add(new DelegacionTenant(_origen, beneficiario));
             _propietario.AsignacionesCartera.Add(AsignacionCartera.Externa(
                 operacion, _gestor, Roles.GestorCae, AmbitoAsignacion.Universal, ayer, null, DateTime.UtcNow));
             await _propietario.SaveChangesAsync();

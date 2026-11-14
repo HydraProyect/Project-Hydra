@@ -353,8 +353,7 @@ public class AutorizacionDeDelegacionTests
         var reactivacion = await new ReactivarDelegacionTenantCommandHandler(
                 delegaciones, quienAdministraPorEncargo,
                 new AsignacionesOperativasWriterFalso(), unitOfWork, new TenantsQueryContextFalso(),
-                new TransaccionDeComandoFalsa(), new CatalogoIncorporacionCarteraFalso(),
-                new DirectorioDestinosCarteraFalso(null), rolesEnOrigen, new BloqueoCarteraUsuarioFalso(), new CaeManager.Application.Tests.Configuracion.TenantActualFijo(ClienteDelegante),
+                new TransaccionDeComandoFalsa(), new CaeManager.Application.Tests.Configuracion.TenantActualFijo(ClienteDelegante),
                 new AutorizacionDelegacionFalsa(autoriza: true))
             .Handle(new ReactivarDelegacionTenantCommand(delegacion.Id), CancellationToken.None);
 

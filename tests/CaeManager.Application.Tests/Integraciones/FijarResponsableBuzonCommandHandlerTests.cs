@@ -32,7 +32,9 @@ public class FijarResponsableBuzonCommandHandlerTests
                     ? new DestinoCartera(responsableActivo, rolResponsable, null, delegado, delegado ? OperadorExterno : Tenant, delegado ? rolResponsable : null)
                     : null)
                 { Eventos = eventos },
-                new EquipoVacio(), operaciones ?? new OperacionesEnMemoria([], []), empresas ?? new EmpresasQueryContextFalso(),
+                new EquipoVacio(), operaciones ?? new OperacionesEnMemoria([], []),
+                DelegacionesEnMemoria.VigentesDe(operaciones ?? new OperacionesEnMemoria([], [])),
+                empresas ?? new EmpresasQueryContextFalso(),
                 new TenantActualFijo(Tenant)),
             new CurrentUserServiceFalso(Guid.NewGuid(), rol), _unitOfWork, _transaccion, CrearBloqueo(eventos));
 

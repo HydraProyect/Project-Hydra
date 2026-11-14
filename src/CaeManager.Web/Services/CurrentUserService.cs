@@ -318,6 +318,7 @@ public class CurrentUserService(
         if (tenantOrigenId is null) return (RolEfectivoPorOperacion.Ninguno, null);
         var operacionId = await TenantsBeneficiariosAutorizados.OperacionQueAutorizaAsync(
             serviceProvider.GetRequiredService<IOperacionesQueryContext>(),
+            serviceProvider.GetRequiredService<ITenantsQueryContext>(),
             usuarioId.Value, tenantOrigenId.Value, tenantAmbito, PerfilQueDecideAlcance(await ObtenerUsuarioAsync()),
             DateTime.UtcNow, CancellationToken.None);
 
@@ -344,6 +345,7 @@ public class CurrentUserService(
 
         var rol = await TenantsBeneficiariosAutorizados.RolEnTenantDelegadoAsync(
             serviceProvider.GetRequiredService<IOperacionesQueryContext>(),
+            serviceProvider.GetRequiredService<ITenantsQueryContext>(),
             usuarioId, tenantOrigenId, tenantId, asignacionOperacionId,
             PerfilQueDecideAlcance(await ObtenerUsuarioAsync()), rolDeSesionEnOrigen,
             DateTime.UtcNow, CancellationToken.None);

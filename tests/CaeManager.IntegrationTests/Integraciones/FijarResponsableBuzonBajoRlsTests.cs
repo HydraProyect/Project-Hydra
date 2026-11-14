@@ -288,7 +288,7 @@ public class FijarResponsableBuzonBajoRlsTests : IAsyncLifetime
     private static ResponsableBuzonElegible Elegibilidad(CaeManagerDbContext runtime, ITenantActual tenant)
     {
         var directorio = new DirectorioUsuariosTenant(null!, runtime, tenant, new PuertaAccesoDatos(), runtime, null!);
-        return new ResponsableBuzonElegible(directorio, directorio, runtime, runtime, tenant);
+        return new ResponsableBuzonElegible(directorio, directorio, runtime, runtime, runtime, tenant);
     }
 
     private Task<Guid?> LeerResponsableAsync(Guid conexionId) =>

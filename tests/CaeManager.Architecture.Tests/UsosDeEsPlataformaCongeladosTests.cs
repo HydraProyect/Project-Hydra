@@ -476,6 +476,11 @@ public class UsosDeEsPlataformaCongeladosTests
             new(3, CategoriaUso.MigracionManual,
                 "doc-comment, comentario y predicado de app_revocar_operador_cae_externo_por_soporte (enmienda de " +
                 "ADR-004 § 12.2 del 2026-10-26; ADR-011 § 8.7.3): el actor de la Sesión Privilegiada debe pertenecer a un Tenant de plataforma. Solo restringe, como el segundo factor"),
+        ["src/CaeManager.Migrations.PostgreSQL/Migrations/20261114120000_SoporteRevocaOperacionesOutboundAcotadas.cs"] =
+            new(3, CategoriaUso.MigracionManual,
+                "comentario y predicado de app_revocar_operador_cae_externo_por_soporte en el Up y el mismo predicado en " +
+                "el Down (cuerpo de 20261026120000): la función se reescribe para cerrar también las Asignaciones de " +
+                "Operación Outbound acotadas (decisión de Chris del 2026-11-14) y no cambia qué cuenta admite. Solo restringe"),
         ["src/CaeManager.Migrations.PostgreSQL/Migrations/20261027073902_AnadeContactosSeguridadTenant.cs"] =
             new(2, CategoriaUso.MigracionManual,
                 "comentario y predicado de app_resolver_contacto_seguridad (aviso de violaciones de seguridad, " +

@@ -118,7 +118,8 @@ public class ContextoExtensionMiddleware(RequestDelegate siguiente)
 
         var cancelacion = contexto.RequestAborted;
         if (await TenantsBeneficiariosAutorizados.OperacionQueAutorizaAsync(
-                servicios.GetRequiredService<IOperacionesQueryContext>(), usuarioId, tenantOrigenId, tenantSolicitado,
+                servicios.GetRequiredService<IOperacionesQueryContext>(), servicios.GetRequiredService<ITenantsQueryContext>(),
+                usuarioId, tenantOrigenId, tenantSolicitado,
                 await usuarioActual.ObtenerPerfilQueDecideAlcanceAsync(), DateTime.UtcNow, cancelacion)
             is not { } asignacionOperacionId)
         {
