@@ -192,6 +192,35 @@ public class FronteraDeTenantEnGestionDeUsuariosTests : IAsyncLifetime
             .ChangeTracker.Entries<ApplicationUser>().Should().BeEmpty();
     }
 
+    /// <summary>
+    /// El universo del selector de Responsable de Buzones: todas las cuentas visibles sea cual sea su rol (una propia de
+    /// Consulta incluida), las propias y la delegada vigente, ni una ajena sin delegación (tampoco de Consulta); el mismo
+    /// conjunto que <c>ObtenerVisiblesAsync</c>, proyectado y sin materializar cuentas.
+    /// </summary>
+    [Fact]
+    public async Task Las_cuentas_visibles_sin_filtro_de_rol_son_las_propias_y_la_delegada_y_ninguna_ajena()
+    {
+        Guid propiaConsulta, ajenaSinDelegacion;
+        using (var ambitoSiembra = _servicios.CreateScope())
+        {
+            var cuentas = ambitoSiembra.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
+            propiaConsulta = await CrearAsync(cuentas, "consulta-propia@x.test", _tenantPropio, Roles.Consulta);
+            ajenaSinDelegacion = await CrearAsync(cuentas, "consulta-ajena@x.test", _tenantAjeno, Roles.Consulta);
+        }
+
+        using var ambitoTenant = AmbitoTenantExplicito.Establecer(_tenantPropio);
+        using var ambito = _servicios.CreateScope();
+        var directorio = ambito.ServiceProvider.GetRequiredService<DirectorioUsuariosTenant>();
+
+        var visibles = (await directorio.ObtenerCuentasVisiblesAsync()).Select(u => u.Id).ToList();
+
+        visibles.Should().Contain([_actorAdministrador, propiaConsulta, _usuarioAjenoDelegado]);
+        visibles.Should().NotContain(ajenaSinDelegacion);
+        ambito.ServiceProvider.GetRequiredService<CaeManagerDbContext>()
+            .ChangeTracker.Entries<ApplicationUser>().Should().BeEmpty();
+        visibles.Should().BeEquivalentTo((await directorio.ObtenerVisiblesAsync()).Select(u => u.Id));
+    }
+
     [Fact]
     public async Task AbrirEditarAsync_rechaza_la_ficha_de_un_operador_delegado()
     {

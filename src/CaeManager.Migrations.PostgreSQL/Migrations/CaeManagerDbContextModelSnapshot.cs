@@ -7762,6 +7762,56 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                         });
                 });
 
+            modelBuilder.Entity("CaeManager.Domain.Facturacion.CobroLiquidacionOperadorCae", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("Anyo")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("Estado")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime>("MarcadaEnUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("MarcadaPorUsuarioId")
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("Mes")
+                        .HasColumnType("integer");
+
+                    b.Property<Guid>("PropietarioTenantId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("ReferenciaFacturaEmisor")
+                        .HasMaxLength(60)
+                        .HasColumnType("character varying(60)");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("Version")
+                        .IsConcurrencyToken()
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TenantId", "PropietarioTenantId", "Anyo", "Mes")
+                        .IsUnique();
+
+                    b.ToTable("CobrosLiquidacionOperadorCae", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_CobrosLiquidacionOperadorCae_EstadoConocido", "\"Estado\" IN (1, 2, 3)");
+
+                            t.HasCheckConstraint("CK_CobrosLiquidacionOperadorCae_MesValido", "\"Mes\" BETWEEN 1 AND 12");
+
+                            t.HasCheckConstraint("CK_CobrosLiquidacionOperadorCae_OperadorNoEsElTenantBeneficiario", "\"PropietarioTenantId\" <> \"TenantId\"");
+                        });
+                });
+
             modelBuilder.Entity("CaeManager.Domain.Facturacion.TarifaCliente", b =>
                 {
                     b.Property<Guid>("Id")

@@ -73,6 +73,13 @@
                 <Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno" Href="@RutaExcel" download>@Textos["ExportarExcel"]</Boton>
                 <Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno" Href="@RutaExtranjeros" Deshabilitado="@(ExtranjerosDelMes == 0)"
                        title="@TituloExtranjeros" download>@Textos["ExportarExtranjeros"]</Boton>
+                @if (PuedeExportarLiquidacion)
+                {
+                    <Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno" Href="@RutaLiquidacion" Deshabilitado="@(!MesTerminado)"
+                           title="@TituloLiquidacion" download>@Textos["ExportarLiquidacion"]</Boton>
+                    @* D-F3: la leyenda se ve junto a la descarga, no solo en el fichero. *@
+                    <span class="fct-ayuda fct-liquidacion-leyenda" data-leyenda="liquidacion">@Textos["CsvDocumento"]</span>
+                }
             </span>
         </div>
 
@@ -169,6 +176,49 @@
                     {
                         <div class="fct-aviso" role="note"><span class="fct-aviso-texto">@Textos["AvisoSinTarifaEnElMes"]</span></div>
                     }
+                    @* Cobro de la liquidación (V-2, D-F5): marca manual del emisor, sin ninguna acción sobre la gestión. *@
+                    <div class="fct-cobro" data-cobro="@ClaveCobro(empresa)">
+                        <div class="fct-cobro-cabecera">
+                            <b>@Textos["CobroTitulo"]</b>
+                            <span class="fct-pastilla fct-cobro-estado" data-cobro="@ClaveCobro(empresa)">@EtiquetaCobro(empresa)</span>
+                            @if (CobroDe(empresa)?.ReferenciaFacturaEmisor is { } referencia)
+                            {
+                                <span class="fct-cobro-referencia">@Textos["CobroReferenciaDe", referencia]</span>
+                            }
+                        </div>
+                        @if (PuedeMarcarCobro)
+                        {
+                            <div class="fct-cobro-formulario">
+                                <label class="fct-campo">
+                                    <span class="fct-campo-etiqueta">@Textos["CobroEstado"]</span>
+                                    <select class="fct-control" value="@EstadoEditado(empresa)" disabled="@_guardandoCobro"
+                                            @onchange="e => EditarEstadoCobro(empresa, e.Value)">
+                                        @foreach (var opcion in EstadosCobro)
+                                        {
+                                            <option value="@opcion">@TextoEstadoCobro(opcion)</option>
+                                        }
+                                    </select>
+                                </label>
+                                <label class="fct-campo">
+                                    <span class="fct-campo-etiqueta">@Textos["CobroReferencia"]</span>
+                                    <input class="fct-control" type="text" maxlength="@CaeManager.Domain.Facturacion.CobroLiquidacionOperadorCae.LongitudMaximaReferencia"
+                                           value="@ReferenciaEditada(empresa)" disabled="@_guardandoCobro"
+                                           @onchange="e => EditarReferenciaCobro(empresa, e.Value)" />
+                                </label>
+                                <Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno"
+                                       Deshabilitado="@(_guardandoCobro || !HayCambiosCobro(empresa))" OnClick="() => GuardarCobroAsync(empresa)">@Textos["CobroGuardar"]</Boton>
+                            </div>
+                        }
+                        else if (!MesTerminado)
+                        {
+                            <span class="fct-ayuda">@Textos["CobroMesEnCurso"]</span>
+                        }
+                        else if (!_cobros.PuedeMarcar)
+                        {
+                            <span class="fct-ayuda">@Textos["CobroSoloLectura"]</span>
+                        }
+                        <span class="fct-ayuda fct-cobro-nota" role="note">@Textos["CobroNota"]</span>
+                    </div>
                     <div class="fct-metricas">
                         <span>@Textos["Gestiones"] <b>@TextoGestiones(empresa)</b></span>
                         <span>@Textos["IngresoPorGestion"] <b>@DineroOSinDato(empresa.IngresoPorGestion, empresa)</b></span>

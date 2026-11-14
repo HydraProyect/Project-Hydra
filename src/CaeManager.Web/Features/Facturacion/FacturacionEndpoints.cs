@@ -17,6 +17,9 @@ public static class FacturacionEndpoints
     /// <summary>Excel de «Facturación»: la cuota del Operador CAE a cada Empresa gestionada en un mes.</summary>
     public const string RutaCuotaDelOperador = "/facturacion/cuota-operador.xlsx";
 
+    /// <summary>CSV de la liquidación interna del mes, para importarla en el programa de facturación del emisor (V-2).</summary>
+    public const string RutaLiquidacionDelOperador = "/facturacion/liquidacion-operador.csv";
+
     public static IEndpointRouteBuilder MapFacturacionEndpoints(this IEndpointRouteBuilder endpoints)
     {
         // Los mismos roles que la página /facturacion. Las consultas vuelven a exigir su propia autorización
@@ -28,6 +31,13 @@ public static class FacturacionEndpoints
                 CaeManager.Infrastructure.Identity.Roles.Administrador,
                 CaeManager.Infrastructure.Identity.Roles.DireccionCae,
                 CaeManager.Infrastructure.Identity.Roles.CoordinadorCae));
+
+        // La liquidación para importar en el programa de facturación lleva importes: solo Administrador y Dirección CAE (D-F9).
+        // La consulta del modelo vuelve a exigir sus autorizaciones, y el endpoint rechaza el modelo sin importes.
+        endpoints.MapGet(RutaLiquidacionDelOperador, ExportarLiquidacionDelOperadorAsync)
+            .RequireAuthorization(policy => policy.RequireRole(
+                CaeManager.Infrastructure.Identity.Roles.Administrador, CaeManager.Infrastructure.Identity.Roles.DireccionCae))
+            .ExcluidoDelEncargoDeAdministracion();
 
         endpoints.MapGet("/facturacion/resumen.xlsx", ExportarResumenAsync).RequireAuthorization(policy => policy.RequireRole(
             CaeManager.Infrastructure.Identity.Roles.Administrador, CaeManager.Infrastructure.Identity.Roles.DireccionCae))
@@ -124,26 +134,8 @@ public static class FacturacionEndpoints
         if (new CaeManager.Application.Dashboard.Queries.MesCuadroDireccion(anyo, mes).InicioUtc > ahoraUtc)
             return Results.BadRequest();
 
-        ModeloFacturacion modelo;
-        try
-        {
-            var serie = await mediator.Send(
-                new CaeManager.Application.Dashboard.Queries.ObtenerSerieCuadroDireccionQuery(anyo, mes, 1, ConFacturacion: true), cancellationToken);
-            // Una sola fuente de vigencia (la del Cuadro de dirección): las Empresas gestionadas del mes y sus tramos. El conteo de
-            // extranjeros se acota a esos tramos, igual que la cifra del Cuadro, para que cifra, Excel e importe coincidan.
-            var gestionadas = await mediator.Send(
-                new CaeManager.Application.Dashboard.Queries.ObtenerEmpresasGestionadasDelMesQuery(anyo, mes), cancellationToken);
-            var extranjeros = await mediator.Send(
-                new CaeManager.Application.Dashboard.Queries.ContarExtranjerosCobrablesDelMesQuery(
-                    anyo, mes, gestionadas.EsOperadorCae ? gestionadas.Tramos : null), cancellationToken);
-            var tarifas = await mediator.Send(
-                new CaeManager.Application.Dashboard.TarifasOperadorCae.ObtenerTarifasOperadorCaeQuery(), cancellationToken);
-            modelo = FacturacionOperadorModelo.Construir(anyo, mes, serie, extranjeros, tarifas, gestionadas.Tramos.Keys.ToList(), ahoraUtc);
-        }
-        catch (UnauthorizedAccessException)
-        {
+        if (await ConstruirModeloAsync(mediator, anyo, mes, ahoraUtc, cancellationToken) is not { } modelo)
             return Results.Forbid();
-        }
 
         var nota = modelo.TenantsSinAlcanceCompleto > 0
             ? string.Format(System.Globalization.CultureInfo.CurrentCulture, textos["ExcelNotaSinAlcance"].Value, modelo.TenantsSinAlcanceCompleto)
@@ -177,6 +169,81 @@ public static class FacturacionEndpoints
 
         CabecerasArchivoSensible.ProhibirCache(contexto);
         return Results.File(libro, Exportacion.LibroDeListado.TipoContenido, $"facturacion-cuota-operador-{anyo:0000}-{mes:00}.xlsx");
+    }
+
+    /// <summary>
+    /// El modelo de «Facturación» de un mes, compuesto con las mismas consultas que la pantalla; null si quien pide no puede
+    /// leer el Cuadro de dirección.
+    /// </summary>
+    private static async Task<ModeloFacturacion?> ConstruirModeloAsync(
+        IMediator mediator, int anyo, int mes, DateTime ahoraUtc, CancellationToken cancellationToken)
+    {
+        try
+        {
+            var serie = await mediator.Send(
+                new CaeManager.Application.Dashboard.Queries.ObtenerSerieCuadroDireccionQuery(anyo, mes, 1, ConFacturacion: true), cancellationToken);
+            // Una sola fuente de vigencia (la del Cuadro de dirección): las Empresas gestionadas del mes y sus tramos. El conteo de
+            // extranjeros se acota a esos tramos, igual que la cifra del Cuadro, para que cifra, Excel e importe coincidan.
+            var gestionadas = await mediator.Send(
+                new CaeManager.Application.Dashboard.Queries.ObtenerEmpresasGestionadasDelMesQuery(anyo, mes), cancellationToken);
+            var extranjeros = await mediator.Send(
+                new CaeManager.Application.Dashboard.Queries.ContarExtranjerosCobrablesDelMesQuery(
+                    anyo, mes, gestionadas.EsOperadorCae ? gestionadas.Tramos : null), cancellationToken);
+            var tarifas = await mediator.Send(
+                new CaeManager.Application.Dashboard.TarifasOperadorCae.ObtenerTarifasOperadorCaeQuery(), cancellationToken);
+            return FacturacionOperadorModelo.Construir(anyo, mes, serie, extranjeros, tarifas, gestionadas.Tramos.Keys.ToList(), ahoraUtc);
+        }
+        catch (UnauthorizedAccessException)
+        {
+            return null;
+        }
+    }
+
+    /// <summary>
+    /// La liquidación mensual del Operador CAE externo a cada Tenant beneficiario, en CSV para importarla en el programa de
+    /// facturación del emisor (V-2 y D-F3, 2026-11-14). Es un documento interno del emisor y no una factura: no lleva
+    /// número de factura, ni serie, ni datos fiscales, y cada fila dice que no tiene valor fiscal. La factura la emite el
+    /// Operador CAE con su propio programa; aquí solo se le dan las líneas (Empresa, concepto, unidades, precio e importe,
+    /// los mismos que enseña la pantalla, por <see cref="FacturacionOperadorModelo"/>) y la marca de cobro que anotó.
+    ///
+    /// <para>
+    /// Solo un mes terminado, y solo para quien ve importes (Administrador o Dirección CAE del Operador, D-F9): un
+    /// Coordinador CAE recibe 403 porque, sin importes, el fichero no sirve para facturar. Formato pensado para hojas de
+    /// cálculo y programas de facturación en español: UTF-8 con BOM, separador punto y coma, coma decimal y sin separador de
+    /// miles.
+    /// </para>
+    /// </summary>
+    public static async Task<IResult> ExportarLiquidacionDelOperadorAsync(
+        int anyo, int mes, HttpContext contexto, IMediator mediator, TimeProvider reloj, [Microsoft.AspNetCore.Mvc.FromServices] IRegistroExportacionService registroExportacion,
+        Microsoft.Extensions.Localization.IStringLocalizer<Recursos.TextosFacturacion> textos, CancellationToken cancellationToken)
+    {
+        if (!CaeManager.Application.Dashboard.Queries.MesCuadroDireccion.EsValido(anyo, mes))
+            return Results.BadRequest();
+
+        var ahoraUtc = reloj.GetUtcNow().UtcDateTime;
+        if (new CaeManager.Application.Dashboard.Queries.MesCuadroDireccion(anyo, mes).FinUtc > ahoraUtc)
+            return Results.BadRequest();
+
+        if (await ConstruirModeloAsync(mediator, anyo, mes, ahoraUtc, cancellationToken) is not { } modelo || modelo.ImportesOcultos)
+            return Results.Forbid();
+
+        var cobros = await mediator.Send(
+            new CaeManager.Application.Facturacion.LiquidacionesOperadorCae.ObtenerCobrosLiquidacionOperadorCaeQuery(anyo, mes), cancellationToken);
+        var csv = LiquidacionOperadorCsv.Escribir(modelo, cobros, textos);
+
+        await registroExportacion.RegistrarAsync(
+            nameof(CaeManager.Domain.Facturacion.CobroLiquidacionOperadorCae), modelo.Empresas.Count,
+            CriteriosExportacion.Desde(
+                ("listado", "liquidacionOperador"),
+                ("anyo", anyo.ToString(System.Globalization.CultureInfo.InvariantCulture)),
+                ("mes", mes.ToString(System.Globalization.CultureInfo.InvariantCulture)),
+                ("tenantsSinAlcanceCompleto", modelo.AlcanceParcial
+                    ? modelo.TenantsSinAlcanceCompleto.ToString(System.Globalization.CultureInfo.InvariantCulture)
+                    : null)),
+            cancellationToken);
+
+        CabecerasArchivoSensible.ProhibirCache(contexto);
+        return Results.File(csv, LiquidacionOperadorCsv.TipoContenido, $"liquidacion-interna-operador-{anyo:0000}-{mes:00}.csv");
     }
 
     private static string EstadoTexto(
