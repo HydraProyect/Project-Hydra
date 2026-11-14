@@ -23,6 +23,7 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                     ReferenciaFacturaEmisor = table.Column<string>(type: "character varying(60)", maxLength: 60, nullable: true),
                     MarcadaPorUsuarioId = table.Column<Guid>(type: "uuid", nullable: false),
                     MarcadaEnUtc = table.Column<DateTime>(type: "timestamp with time zone", nullable: false),
+                    Version = table.Column<Guid>(type: "uuid", nullable: false),
                     TenantId = table.Column<Guid>(type: "uuid", nullable: false)
                 },
                 constraints: table =>
@@ -41,7 +42,7 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
 
             // Las marcas de cobro son del Operador CAE externo que emite la liquidación (TenantId): el Tenant
             // beneficiario (PropietarioTenantId) no las lee. El runtime solo consulta, crea y actualiza la marca (estado,
-            // referencia y quién y cuándo la puso; nunca el Tenant, el Operador ni el mes); nunca la borra (la retirada de un Tenant de demostración usa su propia identidad). Soporte no tiene acceso.
+            // referencia, quién y cuándo la puso y el token de concurrencia; nunca el Tenant, el Operador ni el mes); nunca la borra (la retirada de un Tenant de demostración usa su propia identidad). Soporte no tiene acceso.
             migrationBuilder.Sql("""
                 ALTER TABLE public."CobrosLiquidacionOperadorCae" ENABLE ROW LEVEL SECURITY;
                 ALTER TABLE ONLY public."CobrosLiquidacionOperadorCae" FORCE ROW LEVEL SECURITY;
@@ -50,7 +51,7 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                     WITH CHECK ("TenantId" = (SELECT public.app_ctx_tenant_id()));
                 REVOKE ALL ON TABLE public."CobrosLiquidacionOperadorCae" FROM PUBLIC, cae_app_runtime, cae_app_soporte, cae_app_aprovisionamiento;
                 GRANT SELECT, INSERT ON TABLE public."CobrosLiquidacionOperadorCae" TO cae_app_runtime;
-                GRANT UPDATE ("Estado", "ReferenciaFacturaEmisor", "MarcadaPorUsuarioId", "MarcadaEnUtc")
+                GRANT UPDATE ("Estado", "ReferenciaFacturaEmisor", "MarcadaPorUsuarioId", "MarcadaEnUtc", "Version")
                     ON TABLE public."CobrosLiquidacionOperadorCae" TO cae_app_runtime;
                 """);
         }

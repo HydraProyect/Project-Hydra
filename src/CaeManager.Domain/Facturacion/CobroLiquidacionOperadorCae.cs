@@ -35,9 +35,15 @@ public enum EstadoCobroLiquidacion
 /// liquidación está <see cref="EstadoCobroLiquidacion.Pendiente"/>.
 /// </para>
 /// </summary>
-public class CobroLiquidacionOperadorCae : EntidadConTenant
+public class CobroLiquidacionOperadorCae : EntidadConTenant, IVersionable
 {
     public const int LongitudMaximaReferencia = 60;
+
+    /// <summary>
+    /// Token de concurrencia optimista: dos personas del emisor pueden marcar el mismo cobro a la vez, y sin él la segunda
+    /// pisaría a la primera o dejaría una mezcla de las dos. Lo renueva <c>ConcurrenciaOptimistaInterceptor</c>.
+    /// </summary>
+    public Guid Version { get; private set; } = Guid.NewGuid();
 
     public Guid PropietarioTenantId { get; private set; }
     public int Anyo { get; private set; }

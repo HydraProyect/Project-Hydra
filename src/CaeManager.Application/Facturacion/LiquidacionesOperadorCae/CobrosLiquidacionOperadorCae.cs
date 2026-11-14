@@ -35,6 +35,9 @@ public static class AutorizacionCobrosLiquidacionOperadorCae
 
     public static readonly Error MesNoTerminado = Error.Crear(
         "CobroLiquidacionOperadorCae.MesNoTerminado", "Solo se marca el cobro de la liquidación de un mes terminado.");
+
+    public static readonly Error Conflicto = Error.Crear(
+        "CobroLiquidacionOperadorCae.Conflicto", "Otra persona ha marcado este cobro a la vez. Vuelve a cargar el mes para ver su marca y aplica la tuya de nuevo.");
 }
 
 /// <param name="ReferenciaFacturaEmisor">El número de la factura real del emisor, si lo anotó.</param>
@@ -95,9 +98,12 @@ public class MarcarCobroLiquidacionOperadorCaeCommandValidator : AbstractValidat
 
 public class MarcarCobroLiquidacionOperadorCaeCommandHandler(
     ICurrentUserService usuario, ICobrosLiquidacionOperadorCaeContext contexto, IFuenteLiquidacionOperadorCae fuente, IUnitOfWork unidad,
-    TimeProvider reloj)
+    TimeProvider reloj, IDescarteCambiosPendientes descarte)
     : IRequestHandler<MarcarCobroLiquidacionOperadorCaeCommand, Result>
 {
+    /// <summary>SQLSTATE estándar de violación de unicidad (unique_violation).</summary>
+    private const string ViolacionDeUnicidad = "23505";
+
     /// <summary>
     /// La Empresa tiene liquidación ese mes si el emisor la gestionó en algún tramo del mes: la misma vigencia con que la
     /// pantalla «Facturación» la lista (<see cref="IFuenteLiquidacionOperadorCae.TenantsBeneficiariosDelMesAsync"/>). Así no
@@ -129,7 +135,24 @@ public class MarcarCobroLiquidacionOperadorCaeCommandHandler(
         else
             existente.Marcar(request.Estado, request.ReferenciaFacturaEmisor, usuarioId, ahora);
 
-        await unidad.SaveChangesAsync(cancellationToken);
+        // Dos marcas a la vez: la primera alta choca con el índice único (Tenant emisor, Tenant beneficiario, mes) y una
+        // edición sobre una marca que otra persona acaba de cambiar, con el token de concurrencia (IVersionable). En los
+        // dos casos gana la primera entera, nunca una mezcla de estado, referencia y autoría, y lo que este intento dejó
+        // rastreado se suelta para que el siguiente Command del circuito no lo guarde.
+        try
+        {
+            await unidad.SaveChangesAsync(cancellationToken);
+        }
+        catch (DbUpdateConcurrencyException)
+        {
+            descarte.DescartarCambiosPendientes();
+            return Result.Fallo(AutorizacionCobrosLiquidacionOperadorCae.Conflicto);
+        }
+        catch (DbUpdateException excepcion) when (excepcion.InnerException is System.Data.Common.DbException { SqlState: ViolacionDeUnicidad })
+        {
+            descarte.DescartarCambiosPendientes();
+            return Result.Fallo(AutorizacionCobrosLiquidacionOperadorCae.Conflicto);
+        }
         return Result.Exito();
     }
 }

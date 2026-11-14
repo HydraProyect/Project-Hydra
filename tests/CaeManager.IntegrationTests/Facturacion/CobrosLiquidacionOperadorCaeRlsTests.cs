@@ -42,8 +42,12 @@ public class CobrosLiquidacionOperadorCaeRlsTests : IAsyncLifetime
     private Guid _operadorB;
     private Guid _empresaX;
     private Guid _empresaY;
+    private Guid _empresaW;
+    private Guid _empresaZ;
     private int _anyo;
     private int _mes;
+    private int _anyoAnterior;
+    private int _mesAnterior;
 
     public async Task InitializeAsync()
     {
@@ -61,17 +65,29 @@ public class CobrosLiquidacionOperadorCaeRlsTests : IAsyncLifetime
         var b = new Tenant("Operador B");
         var x = new Tenant("Empresa X");
         var y = new Tenant("Empresa Y");
-        propietario.Tenants.AddRange(a, b, x, y);
+        var w = new Tenant("Empresa W");
+        var z = new Tenant("Empresa Z");
+        propietario.Tenants.AddRange(a, b, x, y, w, z);
         await propietario.SaveChangesAsync();
-        (_operadorA, _operadorB, _empresaX, _empresaY) = (a.Id, b.Id, x.Id, y.Id);
+        (_operadorA, _operadorB, _empresaX, _empresaY, _empresaW, _empresaZ) = (a.Id, b.Id, x.Id, y.Id, w.Id, z.Id);
 
         var ahora = DateTime.UtcNow;
         var mesPasado = ahora.AddMonths(-1);
+        var mesAntepasado = ahora.AddMonths(-2);
         (_anyo, _mes) = (mesPasado.Year, mesPasado.Month);
-        var desde = new DateTime(_anyo, _mes, 1, 0, 0, 0, DateTimeKind.Utc).AddDays(-3);
+        (_anyoAnterior, _mesAnterior) = (mesAntepasado.Year, mesAntepasado.Month);
+        // Desde antes del mes antepasado: el Operador A tiene liquidación de X y de W en los dos meses terminados.
+        var desde = new DateTime(_anyoAnterior, _mesAnterior, 1, 0, 0, 0, DateTimeKind.Utc).AddDays(-3);
         using (AmbitoTenantExplicito.Establecer(_operadorA))
+        {
             propietario.AsignacionesOperacion.Add(AsignacionOperacion.Externa(
                 _empresaX, _operadorA, ServicioCae.Outbound, AmbitoAsignacion.Universal, desde, null, ahora));
+            propietario.AsignacionesOperacion.Add(AsignacionOperacion.Externa(
+                _empresaW, _operadorA, ServicioCae.Outbound, AmbitoAsignacion.Universal, desde, null, ahora));
+            // Solo Inbound: el Operador A opera a Z, pero no la factura en «Facturación» (vía Outbound), así que no se marca.
+            propietario.AsignacionesOperacion.Add(AsignacionOperacion.Externa(
+                _empresaZ, _operadorA, ServicioCae.Inbound, AmbitoAsignacion.Universal, desde, null, ahora));
+        }
         using (AmbitoTenantExplicito.Establecer(_operadorB))
             propietario.AsignacionesOperacion.Add(AsignacionOperacion.Externa(
                 _empresaY, _operadorB, ServicioCae.Outbound, AmbitoAsignacion.Universal, desde, null, ahora));
@@ -144,6 +160,9 @@ public class CobrosLiquidacionOperadorCaeRlsTests : IAsyncLifetime
             .Should().Be(AutorizacionCobrosLiquidacionOperadorCae.EmpresaNoGestionada, "la Empresa Y la gestiona el Operador B");
         (await MarcarAsync(_operadorA, EstadoCobroLiquidacion.Cobrada, null)).Error
             .Should().Be(AutorizacionCobrosLiquidacionOperadorCae.EmpresaNoGestionada, "el Operador no se liquida a sí mismo");
+        (await MarcarAsync(_empresaZ, EstadoCobroLiquidacion.Cobrada, null)).Error
+            .Should().Be(AutorizacionCobrosLiquidacionOperadorCae.EmpresaNoGestionada,
+                "una Asignación de Operación solo Inbound no da liquidación: la pantalla «Facturación» no lista a Z");
 
         var hoy = DateTime.UtcNow;
         (await MarcarAsync(_empresaX, EstadoCobroLiquidacion.Cobrada, null, hoy.Year, hoy.Month)).Error
@@ -164,6 +183,65 @@ public class CobrosLiquidacionOperadorCaeRlsTests : IAsyncLifetime
         (await ContarComoRuntimeAsync(_operadorA)).Should().Be(1, "una marca por Operador, Tenant beneficiario y mes");
         (await LeerAsync()).De(_empresaX).Should().Match<CobroLiquidacionOperadorCaeDto>(c =>
             c.Estado == EstadoCobroLiquidacion.Cobrada && c.ReferenciaFacturaEmisor == "F-2");
+    }
+
+    [Fact]
+    public async Task Cada_marca_es_de_su_Tenant_beneficiario_y_de_su_mes()
+    {
+        Como("Administrador", _operadorA);
+        (await MarcarAsync(_empresaX, EstadoCobroLiquidacion.Cobrada, "X-pasado")).EsExitoso.Should().BeTrue();
+        (await MarcarAsync(_empresaW, EstadoCobroLiquidacion.Impagada, "W-pasado")).EsExitoso.Should().BeTrue();
+        (await MarcarAsync(_empresaX, EstadoCobroLiquidacion.Impagada, "X-antepasado", _anyoAnterior, _mesAnterior)).EsExitoso.Should().BeTrue();
+
+        (await ContarComoRuntimeAsync(_operadorA)).Should().Be(3, "una fila por Tenant beneficiario y mes: ninguna marca pisó a otra");
+
+        var pasado = await LeerAsync();
+        pasado.Cobros.Should().HaveCount(2, "la lectura de un mes no trae marcas de otro");
+        pasado.De(_empresaX)!.ReferenciaFacturaEmisor.Should().Be("X-pasado");
+        pasado.De(_empresaW)!.ReferenciaFacturaEmisor.Should().Be("W-pasado");
+
+        var antepasado = await LeerAsync(_anyoAnterior, _mesAnterior);
+        antepasado.Cobros.Should().ContainSingle().Which.ReferenciaFacturaEmisor.Should().Be("X-antepasado");
+    }
+
+    [Fact]
+    public async Task El_Administrador_del_Tenant_beneficiario_no_lee_la_marca_de_su_liquidacion()
+    {
+        Como("Administrador", _operadorA);
+        (await MarcarAsync(_empresaX, EstadoCobroLiquidacion.Impagada, null)).EsExitoso.Should().BeTrue();
+
+        Como("Administrador", _empresaX);
+        var lectura = await LeerAsync();
+        lectura.Cobros.Should().BeEmpty("la marca es del Operador CAE emisor: la Empresa gestionada no la ve, ni dentro de la aplicación");
+        (await MarcarAsync(_empresaX, EstadoCobroLiquidacion.Cobrada, null)).EsExitoso
+            .Should().BeFalse("la Empresa no se marca a sí misma como cobrada");
+        Como("Administrador", _operadorA);
+        (await LeerAsync()).De(_empresaX)!.Estado.Should().Be(EstadoCobroLiquidacion.Impagada);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Dos_marcas_a_la_vez_gana_la_primera_entera_y_la_segunda_recibe_el_conflicto(bool yaHabiaMarca)
+    {
+        Como("Administrador", _operadorA);
+        if (yaHabiaMarca)
+            (await MarcarAsync(_empresaX, EstadoCobroLiquidacion.Pendiente, "F-0")).EsExitoso.Should().BeTrue();
+
+        await using var scope = _arnes.Servicios.CreateAsyncScope();
+        var contexto = scope.ServiceProvider.GetRequiredService<CaeManagerDbContext>();
+        var unidad = new UnidadConOtraMarcaAntes(contexto, async () =>
+            (await MarcarAsync(_empresaX, EstadoCobroLiquidacion.Cobrada, "F-1")).EsExitoso.Should().BeTrue("la primera marca entra"));
+
+        (await MarcarConAsync(scope.ServiceProvider, unidad, _empresaX, EstadoCobroLiquidacion.Impagada, "F-2")).Error
+            .Should().Be(AutorizacionCobrosLiquidacionOperadorCae.Conflicto,
+                yaHabiaMarca ? "el token de concurrencia detecta la edición pisada" : "el índice único detecta la segunda alta");
+        contexto.ChangeTracker.Entries().Should().BeEmpty("lo que el intento fallido dejó rastreado se suelta");
+
+        (await ContarComoRuntimeAsync(_operadorA)).Should().Be(1);
+        (await LeerAsync()).De(_empresaX).Should().Match<CobroLiquidacionOperadorCaeDto>(c =>
+            c.Estado == EstadoCobroLiquidacion.Cobrada && c.ReferenciaFacturaEmisor == "F-1",
+            "queda la primera marca entera, nunca una mezcla de las dos");
     }
 
     [Fact]
@@ -191,8 +269,8 @@ public class CobrosLiquidacionOperadorCaeRlsTests : IAsyncLifetime
         {
             await using var colada = ajena.CreateCommand();
             colada.CommandText = """
-                INSERT INTO "CobrosLiquidacionOperadorCae" ("Id", "PropietarioTenantId", "Anyo", "Mes", "Estado", "MarcadaPorUsuarioId", "MarcadaEnUtc", "TenantId")
-                VALUES (@id, @empresa, 2026, 1, 2, @usuario, now(), @operador);
+                INSERT INTO "CobrosLiquidacionOperadorCae" ("Id", "PropietarioTenantId", "Anyo", "Mes", "Estado", "MarcadaPorUsuarioId", "MarcadaEnUtc", "Version", "TenantId")
+                VALUES (@id, @empresa, 2026, 1, 2, @usuario, now(), @id, @operador);
                 """;
             colada.Parameters.AddWithValue("id", Guid.NewGuid());
             colada.Parameters.AddWithValue("empresa", _empresaY);
@@ -260,18 +338,40 @@ public class CobrosLiquidacionOperadorCaeRlsTests : IAsyncLifetime
     {
         await using var scope = _arnes.Servicios.CreateAsyncScope();
         var contexto = scope.ServiceProvider.GetRequiredService<CaeManagerDbContext>();
+        return await MarcarConAsync(scope.ServiceProvider, contexto, empresa, estado, referencia, anyo, mes);
+    }
+
+    /// <summary>El handler con las piezas del contenedor de producción (la fuente, con su mediador y la serie del Cuadro).</summary>
+    private Task<Result> MarcarConAsync(
+        IServiceProvider servicios, IUnitOfWork unidad, Guid empresa, EstadoCobroLiquidacion estado, string? referencia,
+        int? anyo = null, int? mes = null)
+    {
+        var contexto = servicios.GetRequiredService<CaeManagerDbContext>();
         var handler = new MarcarCobroLiquidacionOperadorCaeCommandHandler(
-            _sesion, contexto, new FuenteLiquidacionOperadorCae(_sesion, contexto), contexto, TimeProvider.System);
-        return await handler.Handle(
+            _sesion, contexto, servicios.GetRequiredService<IFuenteLiquidacionOperadorCae>(), unidad, TimeProvider.System, contexto);
+        return handler.Handle(
             new MarcarCobroLiquidacionOperadorCaeCommand(empresa, anyo ?? _anyo, mes ?? _mes, estado, referencia), CancellationToken.None);
     }
 
-    private async Task<CobrosLiquidacionOperadorCaeDto> LeerAsync()
+    /// <summary>
+    /// Mete otra marca completa entre la lectura y el guardado de este handler: la ventana exacta de dos personas que
+    /// marcan el mismo cobro a la vez.
+    /// </summary>
+    private sealed class UnidadConOtraMarcaAntes(IUnitOfWork real, Func<Task> otraMarca) : IUnitOfWork
+    {
+        public async Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
+        {
+            await otraMarca();
+            return await real.SaveChangesAsync(cancellationToken);
+        }
+    }
+
+    private async Task<CobrosLiquidacionOperadorCaeDto> LeerAsync(int? anyo = null, int? mes = null)
     {
         await using var scope = _arnes.Servicios.CreateAsyncScope();
         var contexto = scope.ServiceProvider.GetRequiredService<CaeManagerDbContext>();
-        return await new ObtenerCobrosLiquidacionOperadorCaeQueryHandler(new FuenteLiquidacionOperadorCae(_sesion, contexto), contexto)
-            .Handle(new ObtenerCobrosLiquidacionOperadorCaeQuery(_anyo, _mes), CancellationToken.None);
+        return await new ObtenerCobrosLiquidacionOperadorCaeQueryHandler(scope.ServiceProvider.GetRequiredService<IFuenteLiquidacionOperadorCae>(), contexto)
+            .Handle(new ObtenerCobrosLiquidacionOperadorCaeQuery(anyo ?? _anyo, mes ?? _mes), CancellationToken.None);
     }
 
     private async Task<long> ContarComoRuntimeAsync(Guid tenant)

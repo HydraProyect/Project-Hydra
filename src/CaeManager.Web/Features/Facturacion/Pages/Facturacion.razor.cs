@@ -401,6 +401,12 @@ public partial class Facturacion : CaeManager.Web.Components.PaginaInteractiva
             if (!resultado.EsExitoso)
             {
                 ToastService.MostrarError(Textos["CobroError"].Value, resultado.Error);
+                // Otra persona marcó a la vez: se enseña su marca para que esta decida si aplica la suya encima.
+                if (resultado.Error == AutorizacionCobrosLiquidacionOperadorCae.Conflicto)
+                {
+                    _cobros = await Mediator.Send(new ObtenerCobrosLiquidacionOperadorCaeQuery(_anyo, _mes));
+                    _cobroEditado = null;
+                }
                 return;
             }
 

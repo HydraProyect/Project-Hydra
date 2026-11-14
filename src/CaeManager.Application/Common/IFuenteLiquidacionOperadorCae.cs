@@ -30,9 +30,10 @@ public interface IFuenteLiquidacionOperadorCae
     DateTime? FinDelMesUtc(int anyo, int mes);
 
     /// <summary>
-    /// Los Tenants beneficiarios que el emisor de quien pide gestionó en algún tramo del mes (Asignación de Operación
-    /// externa en vigor), con la misma vigencia con que la pantalla «Facturación» los lista. Vacío si quien pide no lee
-    /// las liquidaciones o el mes no es válido. Nunca incluye al propio emisor.
+    /// Los Tenants beneficiarios que tienen liquidación del emisor ese mes: exactamente las Empresas que la pantalla
+    /// «Facturación» lista y el CSV exporta (gestionadas en algún tramo del mes por una Asignación de Operación externa y
+    /// presentes en la serie del Cuadro de dirección, es decir, autorizadas por la vía Outbound y alcanzadas enteras por
+    /// quien pide). Vacío si quien pide no lee las liquidaciones o el mes no es válido. Nunca incluye al propio emisor.
     /// </summary>
     Task<IReadOnlySet<Guid>> TenantsBeneficiariosDelMesAsync(int anyo, int mes, CancellationToken cancellationToken);
 }

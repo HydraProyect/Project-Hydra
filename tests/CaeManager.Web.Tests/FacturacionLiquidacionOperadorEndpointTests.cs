@@ -49,6 +49,7 @@ public class FacturacionLiquidacionOperadorEndpointTests
         public string NombreEmpresa { get; set; } = "Obras y Estructuras del Ebro S.L.";
         public CobrosLiquidacionOperadorCaeDto Cobros { get; set; } = CobrosLiquidacionOperadorCaeDto.Ninguno;
         public bool Prohibido { get; set; }
+        public int TenantsSinAlcanceCompleto { get; set; }
     }
 
     private sealed record LlamadaRegistro(string EntidadTipo, int Filas, IReadOnlyDictionary<string, string> Criterios);
@@ -123,11 +124,11 @@ public class FacturacionLiquidacionOperadorEndpointTests
         var filas = Filas(resultado.Contexto);
         filas[0].Should().Equal(
             "Tipo de documento", "Periodo", "Estado de la cifra", "NIF", "Razón social", "Empresa gestionada", "Concepto", "Unidades",
-            "Precio unitario", "Base imponible", "Tipo de IVA", "Moneda", "Estado de cobro", "Referencia de tu factura");
+            "Precio unitario", "Base imponible", "Tipo de IVA", "Moneda", "Estado de cobro", "Referencia de tu factura", "Cobertura");
         var datos = filas.Skip(1).ToList();
         datos.Should().HaveCount(3, "una fila por concepto de la Empresa gestionada");
-        datos.Should().OnlyContain(f => f.Length == 14 && f[0] == "Liquidación interna sin valor fiscal" && f[1] == "2026-09"
-            && f[5] == "Obras y Estructuras del Ebro S.L." && f[12] == "Pendiente" && f[13] == "");
+        datos.Should().OnlyContain(f => f.Length == 15 && f[0] == "Liquidación interna sin valor fiscal" && f[1] == "2026-09"
+            && f[5] == "Obras y Estructuras del Ebro S.L." && f[12] == "Pendiente" && f[13] == "" && f[14] == "Completa");
         datos.Should().OnlyContain(f => f[3] == "" && f[4] == "" && f[10] == "",
             "NIF, razón social y tipo de IVA no están en el modelo: van vacíos, no inventados");
         Encoding.UTF8.GetString(Bytes(resultado.Contexto)).Should().NotContainEquivalentOf("factura n",
@@ -139,6 +140,15 @@ public class FacturacionLiquidacionOperadorEndpointTests
         extranjeros[9].Should().Be("560,00");
         extranjeros[11].Should().Be("EUR");
         datos.Single(f => f[6] == "Obras nuevas")[9].Should().Be("120,00");
+    }
+
+    [Fact]
+    public async Task Con_alcance_parcial_cada_fila_dice_que_faltan_Empresas()
+    {
+        var resultado = await DescargarAsync("?anyo=2026&mes=9", new Escenario { TenantsSinAlcanceCompleto = 2 });
+
+        Filas(resultado.Contexto).Skip(1).Should().OnlyContain(f => f[14] == "Parcial: faltan 2 empresas que no alcanzas por completo",
+            "como la nota del Excel: la liquidación no se importa como completa si faltan Empresas");
     }
 
     [Fact]
@@ -304,7 +314,8 @@ public class FacturacionLiquidacionOperadorEndpointTests
                 ];
             var punto = new PuntoSerieCuadroDto(q.Anyo, q.Mes, EstadoCifraMensual.Existe, cifras, lineas);
             return new SerieCuadroDireccionDto(
-                [punto with { Facturacion = null }], [new SerieTenantCuadroDto(Ebro, escenario.NombreEmpresa, [punto])], 0);
+                [punto with { Facturacion = null }], [new SerieTenantCuadroDto(Ebro, escenario.NombreEmpresa, [punto])],
+                escenario.TenantsSinAlcanceCompleto);
         }
 
         public Task Send<TRequest>(TRequest request, CancellationToken cancellationToken = default) where TRequest : IRequest =>

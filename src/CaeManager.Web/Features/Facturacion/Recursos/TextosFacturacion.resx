@@ -543,4 +543,13 @@
   <data name="CsvColTipoIva" xml:space="preserve">
     <value>Tipo de IVA</value>
   </data>
+  <data name="CsvColAlcance" xml:space="preserve">
+    <value>Cobertura</value>
+  </data>
+  <data name="CsvAlcanceCompleto" xml:space="preserve">
+    <value>Completa</value>
+  </data>
+  <data name="CsvAlcanceParcial" xml:space="preserve">
+    <value>Parcial: faltan {0} empresas que no alcanzas por completo</value>
+  </data>
 </root>
