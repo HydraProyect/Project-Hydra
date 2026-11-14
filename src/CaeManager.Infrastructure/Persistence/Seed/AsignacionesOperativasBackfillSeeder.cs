@@ -278,7 +278,8 @@ public static class AsignacionesOperativasBackfillSeeder
         // lectores de alcance exigen esa concreta (AmparoDeOrigen); sin ella no autoriza. Las
         // anteriores a la columna, y las que abra la ranura anterior durante el despliegue azul-verde cuando el
         // trigger asignacion_operacion_sella_origen no pueda deducirla, llegan sin origen. Se rellena solo
-        // cuando es inequívoco: el par tiene una sola delegación de Operador CAE externo, activa y vigente, y
+        // cuando es inequívoco: el par tiene una sola delegación de Operador CAE externo, activa, vigente y sin
+        // ninguna revocación contada, y
         // la operación no sobrevivió a ninguna revocación —ninguna operación del par se cerró por revocación
         // (o por la reconciliación de una delegación inactiva) después de que naciera esta—. Si no, se cierra
         // con sus carteras: una operación de procedencia dudosa falla cerrada y nada de lo cerrado vuelve solo
@@ -305,7 +306,12 @@ public static class AsignacionesOperativasBackfillSeeder
                 && r.MotivoCierre is MotivoCierreAsignacion.Revocada or MotivoCierreAsignacion.MigradaSinFecha
                 && r.VigenciaHasta > sinOrigen.CreadoEnUtc);
 
-            if (candidatas.Count == 1 && candidatas[0].EstaVigente(ahora) && !sobrevivioARevocacion)
+            // Revocaciones == 0: el contador solo cuenta desde la migración, y con revocaciones no se sabe si la
+            // operación sin origen nació antes o después de ellas. Amarrarla sellaría el contador actual y una
+            // operación que sobrevivió a esa revocación volvería a autorizar tras la reactivación: ante la duda,
+            // se cierra (hallazgo de la revisión puente).
+            if (candidatas.Count == 1 && candidatas[0].EstaVigente(ahora) && candidatas[0].Revocaciones == 0
+                && !sobrevivioARevocacion)
             {
                 sinOrigen.FijarOrigen(candidatas[0]);
                 conOrigenFijado++;

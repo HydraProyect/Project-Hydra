@@ -166,6 +166,7 @@ public partial class LoginLocalEnAsignacionDelegadaTests
     [InlineData("reactivada", false)]
     [InlineData("caducada", false)]
     [InlineData("de otro Operador CAE externo", false)]
+    [InlineData("de Soporte TALVEG", false)]
     [InlineData("ninguna", false)]
     public async Task La_cartera_externa_Outbound_solo_concede_con_la_delegacion_del_par_vigente(string delegacion, bool concede)
     {
@@ -180,10 +181,23 @@ public partial class LoginLocalEnAsignacionDelegadaTests
             AmbitoAsignacion.Universal, ahora.AddHours(-1), null, ahora);
         var usuarios = new[] { new ApplicationUser { Id = escenario.Usuario } };
 
-        var fila = new DelegacionTenant(
-            delegacion == "de otro Operador CAE externo" ? Guid.NewGuid() : escenario.TenantOrigen, escenario.TenantVisitado);
-        // La operación nace de la delegación de su par; la de otro Operador CAE externo no puede ser su origen.
-        if (delegacion != "de otro Operador CAE externo") operacion.FijarOrigen(fila);
+        var fila = delegacion switch
+        {
+            "de otro Operador CAE externo" => new DelegacionTenant(Guid.NewGuid(), escenario.TenantVisitado),
+            "de Soporte TALVEG" => DelegacionTenant.ParaSoporte(escenario.TenantOrigen, escenario.TenantVisitado),
+            _ => new DelegacionTenant(escenario.TenantOrigen, escenario.TenantVisitado),
+        };
+        if (delegacion == "de Soporte TALVEG") fila.ActivarParaSoporte("Incidencia de prueba", ahora.AddHours(1), ahora);
+        if (delegacion is "de otro Operador CAE externo" or "de Soporte TALVEG")
+        {
+            // FijarOrigen rechaza un origen de otro par o de otro propósito: se fuerza la fila mal formada para
+            // probar que el predicado de los lectores (AmparoDeOrigen) falla cerrado por esa cláusula sola, con la
+            // delegación activa, sin caducar y con el mismo contador.
+            typeof(AsignacionOperacion).GetProperty(nameof(AsignacionOperacion.OrigenId))!.SetValue(operacion, fila.Id);
+            typeof(AsignacionOperacion).GetProperty(nameof(AsignacionOperacion.RevocacionesDelOrigen))!
+                .SetValue(operacion, fila.Revocaciones);
+        }
+        else operacion.FijarOrigen(fila);
         if (delegacion is "desactivada" or "reactivada") fila.Desactivar();
         if (delegacion == "reactivada") fila.Reactivar();
         if (delegacion == "caducada")
