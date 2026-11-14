@@ -1,0 +1,161 @@
+@page "/integraciones/buzones"
+@* Administración de los buzones de Microsoft 365 (maqueta Buzones.dc.html). Sin prerender, como Conexiones: la página carga en
+   el ciclo de vida y no persiste su estado. *@
+@rendermode @(new InteractiveServerRenderMode(prerender: false))
+@attribute [Authorize(Roles = CaeManager.Infrastructure.Identity.Roles.Administrador)]
+@inherits CaeManager.Web.Components.PaginaIntegrableConfiguracionBase
+@using CaeManager.Domain.Integraciones
+@using CaeManager.Web.Features.Integraciones.Recursos
+@using Microsoft.Extensions.Localization
+@inject IStringLocalizer<TextosBuzones> Textos
+
+
+<LimiteDeErrores Pagina="this">
+<PageTitle>@Textos["Titulo"] — @Marca.Nombre</PageTitle>
+<TituloDePaginaSinPrerender Titulo="@($"{Textos["Titulo"]} — {Marca.Nombre}")" />
+
+<div class="@ClaseContenedorPagina">
+    <CabeceraPagina Titulo="@Textos["Titulo"]" Integrada="@IntegradaEnConfiguracion">
+        <Descripcion>
+            @Textos["Subtitulo"]
+            @Textos["EnlaceConexiones"] <a href="/integraciones">@Textos["EnlaceConexionesVinculo"]</a>.
+        </Descripcion>
+    </CabeceraPagina>
+
+    @if (_cargando)
+    {
+        <EstadoCargando Filas="3" />
+    }
+    else if (_cargaFallida)
+    {
+        <p class="texto-error" role="alert" data-testid="aviso-buzones-no-cargados">@Textos["AvisoCargaFallida"]</p>
+    }
+    else if (_conexiones.Count == 0)
+    {
+        <EstadoVacio Titulo="@Textos["VacioTitulo"]" Descripcion="@Textos["VacioTexto"]" />
+    }
+    else
+    {
+        <div class="resumen-buzones" role="group" aria-label="@Textos["Resumen"]">
+            <div><b data-testid="total-buzones">@_conexiones.Count</b><span>@Textos["ResumenBuzones"]</span></div>
+        </div>
+
+        <TarjetaListado>
+            <Contenido>
+                <table class="tabla-datos">
+                    <thead>
+                        <tr>
+                            <th scope="col">@Textos["ColBuzon"]</th>
+                            <th scope="col">@Textos["ColTipo"]</th>
+                            <th scope="col">@Textos["ColEnrutaA"]</th>
+                            <th scope="col">@Textos["ColEstado"]</th>
+                            <th scope="col">@Textos["ColResponsable"]</th>
+                            <th scope="col">@Textos["ColAcuse"]</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var conexion in _conexiones)
+                        {
+                            <tr data-testid="fila-buzon">
+                                <td>
+                                    <span class="nombre-buzon">@conexion.Nombre</span>
+                                    <span class="direccion-buzon">@conexion.BuzonEmail</span>
+                                </td>
+                                <td>@DescribirTipo(conexion)</td>
+                                <td>@DescribirEnruta(conexion)</td>
+                                <td>
+                                    <Badge Tono="@ObtenerTonoEstado(conexion.Estado)">@ObtenerEtiquetaEstado(conexion.Estado)</Badge>
+                                    @if (conexion.Estado == EstadoConexionIntegracion.ConError && !string.IsNullOrWhiteSpace(conexion.UltimoError))
+                                    {
+                                        <span class="texto-error">@conexion.UltimoError</span>
+                                    }
+                                </td>
+                                <td>
+                                    @if (conexion.GestorPropietarioId is { } propietarioId)
+                                    {
+                                        @Textos["ResponsablePersonal", NombreDe(propietarioId)]
+                                    }
+                                    else
+                                    {
+                                        <AuthorizeView Roles="@RolAdministrador" Context="autorizacionResponsable">
+                                            <Authorized>
+                                                <select class="selector-responsable" aria-label="@Textos["AriaResponsable", conexion.Nombre]"
+                                                        data-testid="selector-responsable"
+                                                        disabled="@(_procesandoId is not null)"
+                                                        @onchange="e => CambiarResponsableAsync(conexion, e.Value?.ToString())">
+                                                    <option value="" selected="@(conexion.ResponsableUsuarioId is null)">@Textos["SinResponsable"]</option>
+                                                    @foreach (var opcion in OpcionesDeResponsable(conexion))
+                                                    {
+                                                        <option value="@opcion.Id" selected="@(conexion.ResponsableUsuarioId == opcion.Id)">@opcion.NombreCompleto</option>
+                                                    }
+                                                </select>
+                                            </Authorized>
+                                            <NotAuthorized>
+                                                @(conexion.ResponsableUsuarioId is { } responsableId ? NombreDe(responsableId) : Textos["SinResponsable"].Value)
+                                            </NotAuthorized>
+                                        </AuthorizeView>
+                                    }
+                                </td>
+                                <td>
+                                    @if (conexion.GestorPropietarioId is not null)
+                                    {
+                                        <span class="texto-secundario" data-testid="acuse-no-aplica">@Textos["AcuseNoAplica"]</span>
+                                    }
+                                    else
+                                    {
+                                        <AuthorizeView Roles="@RolAdministrador" Context="autorizacionAcuse">
+                                            <Authorized>
+                                                <span class="control-acuse">
+                                                    <button type="button" role="switch" data-testid="interruptor-acuse"
+                                                            class="@($"interruptor {(conexion.AcuseAutomaticoActivo ? "interruptor-activo" : "")}")"
+                                                            aria-checked="@(conexion.AcuseAutomaticoActivo ? "true" : "false")"
+                                                            aria-label="@Textos["AriaAcuse", conexion.Nombre]"
+                                                            disabled="@(_procesandoId is not null)"
+                                                            @onclick="() => AlternarAcuseAsync(conexion)">
+                                                        <span class="interruptor-pomo"></span>
+                                                    </button>
+                                                    <span data-testid="estado-acuse">@EtiquetaAcuse(conexion)</span>
+                                                </span>
+                                            </Authorized>
+                                            <NotAuthorized>
+                                                <Badge Tono="@(conexion.AcuseAutomaticoActivo ? TonoBadge.Exito : TonoBadge.Neutro)"><span data-testid="estado-acuse">@EtiquetaAcuse(conexion)</span></Badge>
+                                            </NotAuthorized>
+                                        </AuthorizeView>
+                                    }
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </Contenido>
+        </TarjetaListado>
+    }
+    <p class="texto-descriptivo pie-buzones">@Textos["PieBuzones"]</p>
+</div>
+
+<Modal Visible="_acuseAActivar is not null" VisibleChanged="(bool visible) => CerrarModalAcuse(visible)"
+       Titulo="@Textos["ModalAcuseTitulo"]" Subtitulo="@_acuseAActivar?.BuzonEmail"
+       CerrarAlHacerClicFuera="!_guardandoAcuse" Bloqueante="_guardandoAcuse">
+    <ChildContent>
+        <p>@Textos["ModalAcuseIntro"]</p>
+        <div class="reglas-acuse" aria-label="@Textos["ModalAcuseReglasTitulo"]">
+            <b>@Textos["ModalAcuseReglasTitulo"]</b>
+            <ul>
+                <li>@Textos["ModalAcuseRegla1"]</li>
+                <li>@Textos["ModalAcuseRegla2"]</li>
+                <li>@Textos["ModalAcuseRegla3"]</li>
+                <li>@Textos["ModalAcuseRegla4"]</li>
+            </ul>
+        </div>
+        @if (TextoDelAcuseEsBorrador)
+        {
+            <p class="texto-aviso-verificacion" data-testid="aviso-acuse-borrador">@Textos["ModalAcuseBorrador"]</p>
+        }
+        <p class="texto-descriptivo" role="status">@Textos["ModalAcuseAviso"]</p>
+    </ChildContent>
+    <Pie>
+        <Boton Variante="VarianteBoton.Secundario" Deshabilitado="_guardandoAcuse" OnClick="() => CerrarModalAcuse(false)">@Textos["ModalAcuseCancelar"]</Boton>
+        <Boton Variante="VarianteBoton.Primario" Cargando="_guardandoAcuse" OnClick="ConfirmarActivacionAcuseAsync" data-testid="guardar-acuse">@Textos["ModalAcuseGuardar"]</Boton>
+    </Pie>
+</Modal>
+</LimiteDeErrores>

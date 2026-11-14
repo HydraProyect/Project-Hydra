@@ -1,0 +1,156 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <data name="Titulo" xml:space="preserve">
+    <value>Bústies de correu</value>
+  </data>
+  <data name="Subtitulo" xml:space="preserve">
+    <value>TALVEG només llegeix les bústies d&apos;aquesta llista.</value>
+  </data>
+  <data name="EnlaceConexiones" xml:space="preserve">
+    <value>Per connectar, desconnectar o diagnosticar una bústia, ves a</value>
+  </data>
+  <data name="EnlaceConexionesVinculo" xml:space="preserve">
+    <value>Connexions d&apos;integració</value>
+  </data>
+  <data name="Resumen" xml:space="preserve">
+    <value>Resum</value>
+  </data>
+  <data name="ResumenBuzones" xml:space="preserve">
+    <value>Bústies</value>
+  </data>
+  <data name="ColBuzon" xml:space="preserve">
+    <value>Bústia</value>
+  </data>
+  <data name="ColTipo" xml:space="preserve">
+    <value>Tipus</value>
+  </data>
+  <data name="ColEnrutaA" xml:space="preserve">
+    <value>Encamina a</value>
+  </data>
+  <data name="ColEstado" xml:space="preserve">
+    <value>Estat</value>
+  </data>
+  <data name="ColResponsable" xml:space="preserve">
+    <value>Persona responsable</value>
+  </data>
+  <data name="ColAcuse" xml:space="preserve">
+    <value>Confirmació automàtica</value>
+  </data>
+  <data name="TipoCompartido" xml:space="preserve">
+    <value>Compartida</value>
+  </data>
+  <data name="TipoPersonal" xml:space="preserve">
+    <value>Personal</value>
+  </data>
+  <data name="TipoConectado" xml:space="preserve">
+    <value>Connectada</value>
+  </data>
+  <data name="EnrutaOrganizacionPropia" xml:space="preserve">
+    <value>Organització pròpia</value>
+  </data>
+  <data name="EnrutaPersonal" xml:space="preserve">
+    <value>Personal de {0}</value>
+  </data>
+  <data name="EstadoHabilitada" xml:space="preserve">
+    <value>Habilitada</value>
+  </data>
+  <data name="EstadoConError" xml:space="preserve">
+    <value>Amb error</value>
+  </data>
+  <data name="EstadoDeshabilitada" xml:space="preserve">
+    <value>Inhabilitada</value>
+  </data>
+  <data name="SinResponsable" xml:space="preserve">
+    <value>Sense responsable</value>
+  </data>
+  <data name="ResponsablePersonal" xml:space="preserve">
+    <value>{0} (propietari)</value>
+  </data>
+  <data name="AriaResponsable" xml:space="preserve">
+    <value>Persona responsable de {0}</value>
+  </data>
+  <data name="AcuseActivado" xml:space="preserve">
+    <value>Activada</value>
+  </data>
+  <data name="AcuseDesactivado" xml:space="preserve">
+    <value>Desactivada</value>
+  </data>
+  <data name="AcuseNoAplica" xml:space="preserve">
+    <value>No s&apos;aplica</value>
+  </data>
+  <data name="AriaAcuse" xml:space="preserve">
+    <value>Confirmació automàtica de {0}</value>
+  </data>
+  <data name="VacioTitulo" xml:space="preserve">
+    <value>Encara no hi ha cap bústia connectada.</value>
+  </data>
+  <data name="VacioTexto" xml:space="preserve">
+    <value>Connecta la primera des de Connexions d&apos;integració.</value>
+  </data>
+  <data name="AvisoCargaFallida" xml:space="preserve">
+    <value>No hem pogut carregar les bústies. Torna-ho a provar d&apos;aquí a uns minuts.</value>
+  </data>
+  <data name="PieBuzones" xml:space="preserve">
+    <value>Cada conversa neix assignada a la persona responsable de la seva bústia. Qui no té Assignació de Cartera sobre l&apos;Empresa de la bústia no en veu les converses.</value>
+  </data>
+  <data name="ModalAcuseTitulo" xml:space="preserve">
+    <value>Confirmació automàtica en rebre un correu</value>
+  </data>
+  <data name="ModalAcuseIntro" xml:space="preserve">
+    <value>Desactivada per defecte. En activar-la, cada conversa nova d&apos;aquesta bústia rep una confirmació de recepció.</value>
+  </data>
+  <data name="ModalAcuseReglasTitulo" xml:space="preserve">
+    <value>Quan s&apos;envia</value>
+  </data>
+  <data name="ModalAcuseRegla1" xml:space="preserve">
+    <value>Només s&apos;envia en el primer correu d&apos;una conversa nova.</value>
+  </data>
+  <data name="ModalAcuseRegla2" xml:space="preserve">
+    <value>Mai no s&apos;envia a respostes automàtiques ni a missatges de fora d&apos;oficina.</value>
+  </data>
+  <data name="ModalAcuseRegla3" xml:space="preserve">
+    <value>Mai no s&apos;envia a llistes de distribució.</value>
+  </data>
+  <data name="ModalAcuseRegla4" xml:space="preserve">
+    <value>Mai no s&apos;envia a remitents no-reply (noreply, no-reply, donotreply).</value>
+  </data>
+  <data name="ModalAcuseBorrador" xml:space="preserve">
+    <value>El text de la confirmació és fix i encara provisional: està pendent d&apos;aprovació.</value>
+  </data>
+  <data name="ModalAcuseAviso" xml:space="preserve">
+    <value>S&apos;enviarà a cada conversa nova d&apos;aquesta bústia a partir d&apos;ara.</value>
+  </data>
+  <data name="ModalAcuseGuardar" xml:space="preserve">
+    <value>Desa la confirmació</value>
+  </data>
+  <data name="ModalAcuseCancelar" xml:space="preserve">
+    <value>Cancel·la</value>
+  </data>
+  <data name="ToastAcuseActivado" xml:space="preserve">
+    <value>Confirmació automàtica activada a {0}. S&apos;envia només en el primer correu de cada conversa nova.</value>
+  </data>
+  <data name="ToastAcuseDesactivado" xml:space="preserve">
+    <value>Confirmació automàtica desactivada a {0}.</value>
+  </data>
+  <data name="ToastResponsableActualizado" xml:space="preserve">
+    <value>Responsable de {0} actualitzat.</value>
+  </data>
+  <data name="ErrorAcuse" xml:space="preserve">
+    <value>No hem pogut canviar la confirmació automàtica.</value>
+  </data>
+  <data name="ErrorResponsable" xml:space="preserve">
+    <value>No hem pogut canviar el responsable.</value>
+  </data>
+</root>
