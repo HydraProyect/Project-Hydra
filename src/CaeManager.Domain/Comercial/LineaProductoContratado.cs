@@ -18,9 +18,13 @@ public enum LineaProductoContratado
 
     /// <summary>
     /// Inbound «a presupuesto» (D-1): el Tenant beneficiario, el del Cliente empresarial, valida la documentación de
-    /// sus Empresas contratistas. Con un Producto Contratado de esta línea vigente, y solo entonces, las funciones de
-    /// lectura entre Tenants <c>app_inbound_*</c> responden a ese Tenant (DN-7, opción (a)); sin él devuelven 0 filas.
-    /// El Pagador TALVEG no cuenta: el gate mira el Tenant beneficiario, que es el <c>TenantId</c> de la fila.
+    /// sus Empresas contratistas. Un Producto Contratado de esta línea vigente es condición necesaria, no suficiente, para
+    /// que las funciones de lectura entre Tenants <c>app_inbound_*</c> respondan a ese Tenant (DN-7, opción (a)): además
+    /// exigen un contrato de acceso vigente vinculado al Tenant de la Empresa contratista y una autorización de lectura
+    /// concedida por ese Tenant para ese contrato; para listar y abrir Documentos, además vigente y no revocada
+    /// (<c>app_inbound_autorizacion_del_contrato</c> devuelve también la última revocada o caducada, marcada). Sin la
+    /// línea las tres devuelven 0 filas aunque haya contrato y autorización. El Pagador
+    /// TALVEG no cuenta: el gate mira el Tenant beneficiario, que es el <c>TenantId</c> de la fila.
     /// </summary>
     Inbound,
 }

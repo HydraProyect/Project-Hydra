@@ -25,7 +25,6 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
     /// <para>
     /// <c>CREATE OR REPLACE</c> con la misma firma, el mismo lenguaje, <c>STABLE</c>, el mismo <c>search_path</c> y sin
     /// <c>SECURITY DEFINER</c>: conserva propietario y privilegios (sin <c>EXECUTE</c> para ningún rol de la aplicación).
-    /// El Down restaura el cuerpo exacto de <c>AnadeLecturaInboundEntreTenants</c>, la única que la definió.
     /// </para>
     /// <para>
     /// Compatible con la ranura anterior durante el relevo: amplía un CHECK (las filas existentes siguen valiendo) y
@@ -37,9 +36,24 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
     /// Tenant lee Inbound entre Tenants en ningún entorno hasta que tenga su línea.
     /// </para>
     /// <para>
-    /// El Down vuelve a estrechar el CHECK y falla si ya hay filas de la línea Inbound, en cualquier estado (el CHECK
-    /// solo mira el valor de <c>Linea</c>): hay que borrarlas antes, con la identidad propietaria, decisión que no toma la
-    /// migración.
+    /// Sin vía de transición, a propósito (principio pre-cliente-real): a 2026-11-14 la lectura Inbound entre Tenants no
+    /// es alcanzable desde la aplicación en ningún entorno, así que cerrarla no deja a nadie sin una lectura que tuviera.
+    /// Ningún código de <c>CaeManager.Web</c> ni de <c>CaeManager.Infrastructure</c> envía <c>ObtenerAutorizacionInboundQuery</c>,
+    /// <c>ObtenerDocumentosInboundQuery</c>, <c>ObtenerArchivoInboundQuery</c>, <c>RegistrarEvidenciaInboundCommand</c>,
+    /// <c>ConcederAutorizacionLecturaCommand</c> ni <c>VincularTenantContratistaCommand</c>, y ninguna siembra crea
+    /// contratos vinculados al Tenant de la Empresa contratista ni autorizaciones de lectura. Si eso cambia antes de que
+    /// B-04 provisione las líneas, la provisión es una decisión de producto, no de esta migración.
+    /// </para>
+    /// <para>
+    /// El Down no reabre la lectura: deja la auxiliar denegando siempre (el mismo cuerpo con <c>AND false</c> en lugar
+    /// del gate), de modo que revertir no devuelve la lectura entre Tenants a un Tenant sin línea Inbound. Esa lectura
+    /// solo se reabre con una migración nueva hacia delante, que es una decisión explícita. El cuerpo denegador no lee
+    /// <c>ProductosContratados</c>, así que sigue siendo válido si un Down posterior borra la tabla
+    /// (<c>AnadeProductosContratados</c>), y el de <c>AnadeLecturaInboundEntreTenants</c> la elimina con las demás.
+    /// Se prefiere a un Down que falle porque mantiene la propiedad de seguridad sin bloquear la reversión del resto de la
+    /// cadena. Después vuelve a estrechar el CHECK y falla si ya hay filas de la línea Inbound, en cualquier estado (el
+    /// CHECK solo mira el valor de <c>Linea</c>): hay que borrarlas antes, con la identidad propietaria, decisión que no
+    /// toma la migración.
     /// </para>
     /// </summary>
     public partial class AnadeLineaInboundProductoContratado : Migration
@@ -96,7 +110,8 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                      AND c."FechaInicio" <= p_hoy
                      AND (c."FechaFin" IS NULL OR p_hoy <= c."FechaFin")
                      AND (c."FechaCierreReal" IS NULL OR p_hoy <= c."FechaCierreReal")
-                     AND c."TenantContratistaId" IS NOT NULL;
+                     AND c."TenantContratistaId" IS NOT NULL
+                     AND false;
                 $$;
                 """);
 

@@ -994,26 +994,38 @@ public class LecturaInboundBajoRuntimeTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task La_migracion_de_la_linea_Inbound_solo_anade_el_gate_y_su_Down_solo_lo_quita()
+    public async Task La_migracion_de_la_linea_Inbound_solo_anade_el_gate_y_su_Down_no_reabre_la_lectura()
     {
         // Como las de fallo cerrado y Empresa propia única: el SQL de la migración sobre el catálogo ya migrado, en una
         // transacción. Los CHECK de la columna los cubren ProductosContratadosBajoRuntimeTests y el modelo de EF.
+        // El Down no restaura la versión de AnadeLecturaInboundEntreTenants: eso reabriría la lectura entre Tenants a un
+        // Tenant sin línea Inbound. Deja la auxiliar denegando siempre, también con contrato, autorización y línea vigentes.
+        // Mutación declarada: quitar el AND false del Down deja esta prueba en rojo.
         var migracion = new AnadeLineaInboundProductoContratado();
         await using var conexion = new NpgsqlConnection(_cadena);
         await conexion.OpenAsync();
         await using var transaccion = await conexion.BeginTransactionAsync();
 
         var vigente = await TenantContratistaDelContratoAsync(conexion, transaccion);
-        await EjecutarAsync(conexion, transaccion, migracion.DownOperations.OfType<SqlOperation>().Single().Sql);
-        var anterior = await TenantContratistaDelContratoAsync(conexion, transaccion);
-        await EjecutarAsync(conexion, transaccion, migracion.UpOperations.OfType<SqlOperation>().Single().Sql);
+        (await EvaluarTenantContratistaAsync(conexion, transaccion)).Should().Be(_contratista.Id,
+            "control: con la migración aplicada, el contrato vigente del fixture, con la línea Inbound de X, responde");
 
+        await EjecutarAsync(conexion, transaccion, migracion.DownOperations.OfType<SqlOperation>().Single().Sql);
+        var revertida = await TenantContratistaDelContratoAsync(conexion, transaccion);
+        (await EvaluarTenantContratistaAsync(conexion, transaccion)).Should().BeNull(
+            "tras el Down la auxiliar deniega siempre: revertir no reabre la lectura entre Tenants");
+
+        await EjecutarAsync(conexion, transaccion, migracion.UpOperations.OfType<SqlOperation>().Single().Sql);
         (await TenantContratistaDelContratoAsync(conexion, transaccion)).Should().Be(vigente, "el Up deja la función como la deja la migración");
-        anterior.PropietarioYPermisos.Should().Be(vigente.PropietarioYPermisos, "CREATE OR REPLACE conserva propietario y privilegios");
+        (await EvaluarTenantContratistaAsync(conexion, transaccion)).Should().Be(_contratista.Id, "el Up vuelve a abrirla con la línea");
+
+        revertida.PropietarioYPermisos.Should().Be(vigente.PropietarioYPermisos, "CREATE OR REPLACE conserva propietario y privilegios");
         GateLineaInbound.Matches(vigente.Definicion).Should().HaveCount(1, "la función exige la línea Inbound vigente del Tenant lector");
-        anterior.Definicion.Should().NotContain("ProductosContratados", "el Down vuelve a la versión de AnadeLecturaInboundEntreTenants");
-        GateLineaInbound.Replace(vigente.Definicion, "").Should().Be(anterior.Definicion,
-            "fuera del gate, el cuerpo, la firma, el lenguaje, la volatilidad y el search_path son los mismos");
+        DenegacionTotal.Matches(revertida.Definicion).Should().HaveCount(1, "el Down deniega del todo");
+        revertida.Definicion.Should().NotContain("ProductosContratados",
+            "el cuerpo denegador no depende de la tabla, que el Down de AnadeProductosContratados puede borrar después");
+        GateLineaInbound.Replace(vigente.Definicion, "").Should().Be(DenegacionTotal.Replace(revertida.Definicion, ""),
+            "fuera del gate y de la denegación, el cuerpo, la firma, el lenguaje, la volatilidad y el search_path son los mismos");
 
         await transaccion.RollbackAsync();
     }
@@ -1021,6 +1033,18 @@ public class LecturaInboundBajoRuntimeTests : IAsyncLifetime
     private static readonly Regex GateLineaInbound = new(
         @"\s+AND EXISTS \(SELECT 1 FROM public\.""ProductosContratados"" pc\s+WHERE pc\.""TenantId"" = p_lector AND pc\.""Linea"" = 'Inbound'\s+AND pc\.""Estado"" = 'Vigente' AND NOT pc\.""EstaEliminado""\s+AND pc\.""VigenteDesdeUtc"" <= pg_catalog\.now\(\)\)",
         RegexOptions.CultureInvariant);
+
+    private static readonly Regex DenegacionTotal = new(@"\s+AND false(?=;)", RegexOptions.CultureInvariant);
+
+    private async Task<Guid?> EvaluarTenantContratistaAsync(NpgsqlConnection conexion, NpgsqlTransaction transaccion)
+    {
+        await using var comando = new NpgsqlCommand(
+            "SELECT public.app_inbound_tenant_contratista_del_contrato(@lector, @contrato, @hoy)", conexion, transaccion);
+        comando.Parameters.AddWithValue("lector", _lector.Id);
+        comando.Parameters.AddWithValue("contrato", _vigente.Id);
+        comando.Parameters.AddWithValue("hoy", _hoy);
+        return await comando.ExecuteScalarAsync() is Guid tenant ? tenant : null;
+    }
 
     private static async Task<FuncionInbound> TenantContratistaDelContratoAsync(NpgsqlConnection conexion, NpgsqlTransaction transaccion)
     {
