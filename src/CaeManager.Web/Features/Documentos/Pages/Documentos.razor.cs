@@ -201,33 +201,6 @@ public partial class Documentos : CaeManager.Web.Components.PaginaInteractiva, I
     private static readonly string[] _idsDePestana =
         ["listado", "plataforma", "reclamaciones", "sugerencias", "revision-ia", "plantillas"];
 
-    /// <summary>
-    /// El recuento de la pestaña «Estado», que el mockup pinta como píldora.
-    /// Es el total que YA devuelve <see cref="ObtenerDocumentosQuery"/> —el
-    /// filtrado vigente incluido—, no un total inventado: hasta que la lista
-    /// responda por primera vez no hay número y la píldora no se pinta, en
-    /// lugar de anunciar un cero que nadie ha contado.
-    ///
-    /// <para>
-    /// Un cero medido tampoco se pinta, y esto sí es una DECISIÓN: «Estado 0»
-    /// no informa de nada que el estado vacío de la lista no diga mejor, y
-    /// añade una píldora permanente a la pestaña más usada. El mockup tampoco
-    /// dibuja ninguna con cero.
-    /// </para>
-    ///
-    /// <para>
-    /// Las otras cinco pestañas se quedan sin píldora a propósito: sus
-    /// recuentos (documentos pendientes por Plataforma CAE, reclamaciones
-    /// abiertas, vencimientos de la ventana preventiva, extracciones de IA por
-    /// revisar) exigirían una consulta de recuento propia por pestaña que hoy
-    /// no existe, y que además se pagaría en cada carga de la página. Ver el
-    /// informe del incremento.
-    /// </para>
-    /// </summary>
-    private ContadorPestana? ContadorDeEstado =>
-        _totalConocido is not { } total || total == 0
-            ? null
-            : new ContadorPestana(total, total == 1 ? "documento" : "documentos");
 
     /// <summary>
     /// D-32: además de los ids canónicos, la URL acepta el nombre de la pestaña
@@ -252,47 +225,77 @@ public partial class Documentos : CaeManager.Web.Components.PaginaInteractiva, I
         return _idsDePestana.Contains(v) ? v : null;
     }
 
+    /// <summary>
+    /// Qué pinta la pantalla: <c>listado</c> (casi siempre), <c>plataforma</c> y <c>reclamaciones</c> (las dos vistas sin
+    /// sustituto completo, alcanzables por su Id sin barra) o <c>redirigiendo</c> (a la espera de saber el rol para llevar al
+    /// sustituto). Ver <see cref="RedireccionDePestanas"/>.
+    /// </summary>
     private string _pestanaActiva = "listado";
 
+    /// <summary>Quien gestiona documentos (<see cref="RolesDeGestionDocumental"/>); null hasta leer el rol.</summary>
+    private bool? _gestionaDocumentos;
+
     /// <summary>La pantalla propia de Revisión IA (D-49): destino del Id de pestaña <c>revision-ia</c>.</summary>
-    internal const string RutaRevisionIa = "/documentos/revision-ia";
+    internal const string RutaRevisionIa = RedireccionDePestanas.RutaRevisionIa;
 
     /// <summary>
-    /// D-49: los enlaces guardados y los deep links con «?pestana=revision-ia» (Alertas, Calendario, Comunicaciones) siguen
-    /// llegando: quien gestiona se va a la pantalla propia de Revisión IA. Quien no gestiona (Consulta) se queda y ve el aviso
-    /// de rol, porque la pantalla destino exige un rol de gestión y no debe toparse con un «acceso denegado».
+    /// Pasa el Id de <c>?pestana=</c> a la vista de esta pantalla y, si el sustituto es el propio listado, a sus filtros
+    /// (<c>agrupar</c>, <c>venceEn</c>, <c>orden</c>) sin pisar los que la URL ya trae. No navega: lo hace
+    /// <see cref="RedirigirPestanaSiProcede"/>.
     /// </summary>
-    private bool RedirigirARevisionIaSiProcede()
+    private PestanaResuelta AplicarPestanaDeLaUrl()
     {
-        if (_pestanaActiva != "revision-ia" || !_puedeEscribir)
+        var resuelta = RedireccionDePestanas.Resolver(IdDePestanaDeUrl(Pestana), AcreditacionId is not null, _gestionaDocumentos);
+        _pestanaActiva = resuelta.Vista switch
+        {
+            VistaDePestana.PlataformaDeAcreditacion => "plataforma",
+            VistaDePestana.Reclamaciones => "reclamaciones",
+            VistaDePestana.Redirigiendo => "redirigiendo",
+            _ => "listado",
+        };
+        if (resuelta.Agrupar is not null && string.IsNullOrWhiteSpace(Agrupar))
+            _agrupacion = AgrupacionDeLaUrl(resuelta.Agrupar);
+        if (resuelta.VenceEn is not null && string.IsNullOrWhiteSpace(VenceEn))
+            _venceEnFiltro = VenceEnValido(resuelta.VenceEn);
+        if (resuelta.Orden is not null && string.IsNullOrWhiteSpace(OrdenInicial))
+            LeerOrden(resuelta.Orden);
+        return resuelta;
+    }
+
+    /// <summary>
+    /// Los enlaces guardados y los deep links con «?pestana=» (menú, Alertas, Calendario, Comunicaciones, correos) siguen
+    /// llegando: con el rol ya leído, quien tiene sustituto en otra pantalla se va a ella y, si el sustituto es este mismo
+    /// listado, el parámetro se cambia por los filtros equivalentes. Quien no gestiona (Consulta, Usuario de Cliente) se queda
+    /// en el listado, sin aviso de rol: la pantalla destino exigiría un rol de gestión y no debe toparse con un «acceso
+    /// denegado». Devuelve true si se salió a otra pantalla.
+    /// </summary>
+    private bool RedirigirPestanaSiProcede()
+    {
+        if (string.IsNullOrWhiteSpace(Pestana) || _gestionaDocumentos is null)
         {
             return false;
         }
 
-        NavigationManager.NavigateTo(RutaRevisionIa, replace: true);
-        return true;
-    }
-
-    /// <summary>
-    /// La pestaña se refleja en la URL (mismo mecanismo que los filtros de la
-    /// rejilla, P1-18) para que recargar, compartir el enlace o navegar
-    /// atrás/adelante no pierda la sección elegida — hallazgo de revisión
-    /// adversarial de Codex tras plegar Revisión IA en pestaña: antes tenía
-    /// ruta propia y por tanto URL durable por definición. "listado" no se
-    /// escribe en la URL por ser el valor por defecto.
-    /// </summary>
-    private void CambiarPestana(string pestana)
-    {
-        // D-49: Revisión IA es pantalla propia; su Id sigue valiendo y lleva a ella.
-        if (pestana == "revision-ia")
+        var resuelta = AplicarPestanaDeLaUrl();
+        if (resuelta.RutaExterna is { } ruta)
         {
-            NavigationManager.NavigateTo(RutaRevisionIa);
-            return;
+            NavigationManager.NavigateTo(ruta, replace: true);
+            return true;
         }
 
-        _pestanaActiva = pestana;
-        CambiarContextoDocumental();
-        NavigationManager.ActualizarFiltroEnUrl(nameof(Pestana), pestana == "listado" ? null : pestana);
+        if (resuelta.Vista == VistaDePestana.Listado)
+        {
+            var parametros = new Dictionary<string, string?> { [nameof(Pestana)] = null };
+            if (resuelta.Agrupar is not null && string.IsNullOrWhiteSpace(Agrupar))
+                parametros[AgrupacionDeLista.Parametro] = resuelta.Agrupar;
+            if (resuelta.VenceEn is not null && string.IsNullOrWhiteSpace(VenceEn))
+                parametros[nameof(VenceEn)] = resuelta.VenceEn;
+            if (resuelta.Orden is not null && string.IsNullOrWhiteSpace(OrdenInicial))
+                parametros["orden"] = resuelta.Orden;
+            NavigationManager.ActualizarFiltrosEnUrl(parametros);
+        }
+
+        return false;
     }
 
     // --- Ciclo de vida y contexto en pantalla ---------------------------------------------------
@@ -548,10 +551,20 @@ public partial class Documentos : CaeManager.Web.Components.PaginaInteractiva, I
             var usuario = (await EstadoAutenticacion).User;
             if (_desechado) return;
             _puedeEscribir = Roles.ConEscrituraCsv.Split(',').Any(usuario.IsInRole);
-            if (RedirigirARevisionIaSiProcede())
+            _gestionaDocumentos = RolesDeGestionDocumental.Split(',').Any(usuario.IsInRole);
+            if (RedirigirPestanaSiProcede())
             {
                 return;
             }
+        }
+        else
+        {
+            _gestionaDocumentos = false;
+            AplicarPestanaDeLaUrl();
+        }
+
+        if (EstadoAutenticacion is not null)
+        {
             // «Pendiente de revisión IA» se ofrece por el rol EFECTIVO, la misma fuente con la que el handler decide si lo aplica
             // (ColaRevisionIa.AccedeElRol): no por el claim, que bajo una Sesión Privilegiada lleva el rol del Tenant de plataforma. Así
             // ni la pastilla, ni el chip, ni «Guardar filtro», ni «Exportar esta vista», ni la vista recordada llevan el filtro mientras
@@ -732,7 +745,7 @@ public partial class Documentos : CaeManager.Web.Components.PaginaInteractiva, I
     protected override void OnParametersSet()
     {
         SincronizarCamposConLaUrl();
-        if (RedirigirARevisionIaSiProcede())
+        if (RedirigirPestanaSiProcede())
         {
             return;
         }
@@ -798,12 +811,7 @@ public partial class Documentos : CaeManager.Web.Components.PaginaInteractiva, I
         // valor que no exista en vez de dejar la página en blanco.
         // Sin «?pestana=» la URL pide el listado, que es lo que «Estado» (la barra de las pantallas hermanas) y el menú lateral
         // enlaza: desde cualquier otra pestaña de esta misma instancia, ese enlace solo quita el parámetro.
-        if (IdDePestanaDeUrl(Pestana) is { } pestanaDeUrl)
-        {
-            _pestanaActiva = pestanaDeUrl;
-        }
-        else if (string.IsNullOrWhiteSpace(Pestana))
-            _pestanaActiva = "listado";
+        AplicarPestanaDeLaUrl();
     }
 
     private readonly PaginationState _paginacion = new() { ItemsPerPage = 20 };
@@ -1490,14 +1498,6 @@ public partial class Documentos : CaeManager.Web.Components.PaginaInteractiva, I
     private bool _errorCarga;
     private int _totalElementos;
 
-    /// <summary>
-    /// El total, solo cuando la lista ha respondido de verdad alguna vez. El
-    /// cero de <see cref="_totalElementos"/> antes de la primera respuesta no
-    /// es un recuento: es la falta de uno, y la píldora de la pestaña no puede
-    /// anunciarlo como si lo fuera.
-    /// </summary>
-    private int? _totalConocido;
-
     private async ValueTask<GridItemsProviderResult<DocumentoListaDto>> ProveerElementosAsync(
         GridItemsProviderRequest<DocumentoListaDto> request)
     {
@@ -1576,7 +1576,6 @@ public partial class Documentos : CaeManager.Web.Components.PaginaInteractiva, I
                 return GridItemsProviderResult.From(new List<DocumentoListaDto>(), 0);
 
             _totalElementos = resultado.TotalElementos;
-            _totalConocido = resultado.TotalElementos;
             _recuentosPorEstado = resultado.RecuentosPorEstado;
             _resumenPorGrupo = resultado.ResumenPorGrupo;
             _hoy = DiaDeNegocio.Hoy();

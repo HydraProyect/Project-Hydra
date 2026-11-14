@@ -369,8 +369,9 @@ public static class CatalogoMenuLateral
         new("config-auditoria-ia", "configuracion", "configuracion/auditoria-ia", "EntradaAuditoriaIaNombre", FuenteRotuloSubopcion.TextosConfiguracion),
         new("config-automatizaciones", "configuracion", "configuracion/automatizaciones", "EntradaAutomatizacionesNombre", FuenteRotuloSubopcion.TextosConfiguracion),
 
-        // Pestañas de Documentos con deep-link ?pestana= (Documentos.IdDePestanaDeUrl). «Estado» es la
-        // propia página. Rótulos de la tira de pestañas de la página.
+        // Ids de ?pestana= de Documentos (Documentos.IdDePestanaDeUrl), que desde la PR8 del lienzo «listado sin
+        // pestañas» ya no tienen barra: cada uno redirige a su sustituto (RedireccionDePestanas) con paridad de roles,
+        // así que estas entradas de la paleta siguen llegando sin repuntarlas. «Estado» es la propia página.
         new("documentos-plataformas", "documentos", "documentos?pestana=plataforma", "MenuSubDocumentosPlataformas", FuenteRotuloSubopcion.TextosComunes,
             Condicion: c => c.TieneAlgunRol(RolesDeGestionDocumental)),
         new("documentos-reclamaciones", "documentos", "documentos?pestana=reclamaciones", "MenuSubDocumentosReclamaciones", FuenteRotuloSubopcion.TextosComunes,

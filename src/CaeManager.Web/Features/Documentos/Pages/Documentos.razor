@@ -37,7 +37,7 @@
 <TituloDePaginaSinPrerender Titulo="@($"{Textos["TituloPagina"]} — {Marca.Nombre}")" />
 
 <div class="contenedor-pagina lista-design">
-    @* Fase 1: el selector lateral ya identifica la Empresa seleccionada; las seis pestañas conservan su comportamiento. *@
+    @* Fase 1: el selector lateral ya identifica la Empresa seleccionada. *@
     <CabeceraListado Titulo="@Textos["TituloPagina"]"
                      Contador="@(_pestanaActiva == "listado" && !_sinEmpresaSeleccionada && !_resolviendoEmpresa && !_cargando && !_errorCarga ? _totalElementos : (int?)null)"
                      SeleccionMultiple="_seleccionMultiple"
@@ -47,8 +47,7 @@
         <Primaria>
             @if (!_sinEmpresaSeleccionada && !_resolviendoEmpresa && !_alcanceCero)
             {
-                @* D-30: Plantillas conserva su propia primaria «+ Nueva plantilla»; el alta documental sigue secundaria. *@
-                <SoloConEscritura><Boton Variante="@(_pestanaActiva == "plantillas" ? VarianteBoton.Secundario : VarianteBoton.Primario)" OnClick="() => _drawerGestion.AbrirCrearAsync()">+ Nuevo documento</Boton></SoloConEscritura>
+                <SoloConEscritura><Boton Variante="VarianteBoton.Primario" OnClick="() => _drawerGestion.AbrirCrearAsync()">+ Nuevo documento</Boton></SoloConEscritura>
             }
         </Primaria>
     </CabeceraListado>
@@ -66,10 +65,17 @@
     }
     else
     {
-    <BarraPestanasDocumentos PestanaActiva="@_pestanaActiva" PestanaActivaChanged="CambiarPestana" ContadorEstado="ContadorDeEstado">
-        @if (_pestanaActiva == "plataforma")
-        {
-            <AuthorizeView Roles="@RolesDeGestionDocumental">
+    @* Sin barra de pestañas (lienzo «Documentos · listado sin pestañas», PR8): /documentos es un solo listado. Los Ids
+       de ?pestana= siguen valiendo y llevan a su sustituto (RedireccionDePestanas). Solo dos vistas siguen sin sustituto
+       completo y quedan alcanzables por su Id, sin barra: Plataformas CAE con ?acreditacionId= (bucle de corrección) y
+       Reclamaciones (compositor «Nueva reclamación»). Las cierra la PR9. *@
+    @if (_pestanaActiva == "redirigiendo")
+    {
+        <EstadoCargando Filas="3" />
+    }
+    else if (_pestanaActiva == "plataforma")
+    {
+        <AuthorizeView Roles="@RolesDeGestionDocumental">
                 <Authorized>
                     <PlataformaTab @ref="_plataformaTab" AcreditacionId="AcreditacionId"
                                    OnSubirVersionCorregida="AbrirVersionCorregidaAsync" />
@@ -87,32 +93,6 @@
                 </Authorized>
                 <NotAuthorized>
                     <SinPermisoEnSeccion Seccion="Reclamaciones" />
-                </NotAuthorized>
-            </AuthorizeView>
-        }
-        else if (_pestanaActiva == "revision-ia")
-        {
-            @* D-49: Revisión IA es la pantalla /documentos/revision-ia; quien gestiona se redirige allí
-               (RedirigirARevisionIaSiProcede) y el resto ve el aviso de rol. *@
-            <AuthorizeView Roles="@RolesDeGestionDocumental">
-                <NotAuthorized>
-                    <SinPermisoEnSeccion Seccion="Revisión IA" />
-                </NotAuthorized>
-            </AuthorizeView>
-        }
-        else if (_pestanaActiva == "sugerencias")
-        {
-            <SugerenciasPreventivasTab />
-        }
-
-        else if (_pestanaActiva == "plantillas")
-        {
-            <AuthorizeView Roles="@RolesDeGestionDocumental">
-                <Authorized>
-                    <PlantillasTab />
-                </Authorized>
-                <NotAuthorized>
-                    <SinPermisoEnSeccion Seccion="Plantillas" />
                 </NotAuthorized>
             </AuthorizeView>
         }
@@ -409,7 +389,6 @@
                 }
             }
         }
-    </BarraPestanasDocumentos>
     }
 </div>
 
@@ -474,7 +453,7 @@
     OnConfirmar="ConfirmarEliminarFiltroGuardadoAsync" />
 
 @* «Guardar filtro» es un formulario de un campo: ModalFormulario (guardián, «Cancelar», «Guardar» único con su motivo y estado, aviso
-   del formulario y aviso de navegación vienen del kit). Fuera de <BarraPestanasDocumentos>, a nivel de página: el nombre del filtro no es de
+   del formulario y aviso de navegación vienen del kit). A nivel de página: el nombre del filtro no es de
    ninguna pestaña, y registrarlo en su ámbito haría preguntar al cambiar de pestaña. *@
 <ModalFormulario Visible="_mostrarGuardarFiltro" VisibleChanged="CerrarModalGuardarFiltro" Titulo="Guardar filtro actual"
                  Ancho="AnchoModal.Pequeno" HayCambios="() => HayCambiosSinGuardar" Guardando="_guardandoFiltro"

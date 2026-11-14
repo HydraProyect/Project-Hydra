@@ -9,15 +9,12 @@ using CaeManager.Domain.Common;
 namespace CaeManager.Web.Tests;
 
 /// <summary>
-/// Pulido de la pantalla Documentos para la demo: una sola barra de pestañas, el motivo del estado sin repetir lo que
+/// Pulido de la pantalla Documentos para la demo: sin barra de pestañas, el motivo del estado sin repetir lo que
 /// «Vence» ya dice, ninguna línea vacía bajo el propietario, «Ver» como enlace frente a «Gestionar», y una altura de
 /// fila que no depende del número de plataformas.
 /// </summary>
 public partial class DocumentosGen2Tests
 {
-    private static string EtiquetaDePestana(AngleSharp.Dom.IElement pestana) =>
-        string.Concat(pestana.ChildNodes.Where(n => n.NodeType == AngleSharp.Dom.NodeType.Text).Select(n => n.TextContent)).Trim();
-
     [Theory]
     [InlineData("Administrador", true)]
     [InlineData("DireccionCae", true)]
@@ -25,36 +22,16 @@ public partial class DocumentosGen2Tests
     [InlineData("GestorCae", true)]
     [InlineData("Consulta", true)]
     [InlineData("Cliente", false)]
-    public void La_pagina_tiene_una_sola_barra_de_pestanas_con_Revision_IA_una_vez_e_Incidencias_segun_rol(string rol, bool conIncidencias)
+    public void La_pagina_ya_no_pinta_barra_de_pestanas_para_ningun_rol(string rol, bool conIncidencias)
     {
+        _ = conIncidencias;
         var (cut, _) = Renderizar(ConDocumentos(DocumentoDeFila()), rol: rol);
         cut.WaitForAssertion(() => cut.Find("tbody button.enlace-nombre-fila"));
 
-        cut.FindAll("[role=tablist]").Should().ContainSingle("la página lleva una sola tira de pestañas; que el marco no pinte la suya sobre /documentos lo fija BarraSeccionTests");
-        cut.FindComponents<CaeManager.Web.Features.Documentos.Components.BarraPestanasDocumentos>().Should().ContainSingle(
-            "la tira es el componente compartido de la sección, el mismo que pintan Incidencias y la pantalla heredada de Revisión IA");
-        BarraPestanasDocumentosTests.Activa(cut).Should().Be("Estado");
-        var etiquetas = Pestanas(cut).Select(EtiquetaDePestana).ToList();
-        var conRevisionIa = rol is not ("Consulta" or "Cliente");
-        etiquetas.Count(e => e == "Revisión IA").Should().Be(conRevisionIa ? 1 : 0);
-        etiquetas.Should().StartWith(conRevisionIa
-            ? ["Estado", "Plataformas CAE", "Reclamaciones", "Preventivo", "Revisión IA", "Plantillas"]
-            : ["Estado", "Plataformas CAE", "Reclamaciones", "Preventivo", "Plantillas"]);
-        etiquetas.Contains("Incidencias").Should().Be(conIncidencias);
-        if (conIncidencias)
-            etiquetas.Last().Should().Be("Incidencias");
-    }
-
-    [Fact]
-    public async Task Incidencias_sale_a_su_pantalla_sin_cambiar_la_pestana_activa()
-    {
-        var (cut, _) = Renderizar(ConDocumentos(DocumentoDeFila()));
-        cut.WaitForAssertion(() => cut.Find("tbody button.enlace-nombre-fila"));
-
-        await Pestana(cut, "Incidencias").ClickAsync(new Microsoft.AspNetCore.Components.Web.MouseEventArgs());
-
-        Services.GetRequiredService<NavigationManager>().Uri.Should().EndWith("/incidencias");
-        Pestana(cut, "Estado").GetAttribute("aria-selected").Should().Be("true");
+        // PR8 del lienzo «Documentos · listado sin pestañas»: /documentos es un solo listado. Cada pestaña tiene su sustituto
+        // (agrupar por Plataforma CAE, /comunicaciones, /alertas, /documentos/revision-ia, /plantillas e /incidencias).
+        cut.FindAll("[role=tablist]").Should().BeEmpty("sin barra de pestañas, para ningún rol");
+        cut.FindAll("[role=tab]").Should().BeEmpty();
     }
 
     [Theory]

@@ -253,7 +253,7 @@ public class BarraSeccionTests : BunitContext
         var cut = Pintar(url, rol);
 
         cut.FindAll("nav.barra-seccion").Should().BeEmpty(
-            "las pantallas de Documentos pintan todas BarraPestanasDocumentos: dos barras apiladas repetían pestañas");
+            "Documentos no tiene barra de sección: /documentos es un solo listado (PR8 del lienzo sin pestañas) y /incidencias es su propia pantalla");
     }
     [Fact]
     public void En_Equipo_el_Administrador_ve_Usuarios_y_Roles()
