@@ -653,10 +653,16 @@ public class CatalogoIncorporacionCartera(
     /// <summary>
     /// Borra la fila heredada de Operador Delegado del usuario sobre ese Tenant propietario
     /// <b>solo si no le queda otra cartera vigente</b> en él (de otro rol, o bajo otra
-    /// operación) <b>de <see cref="Servicio"/></b>: esa otra sigue necesitando que el Tenant le
-    /// aparezca. Una cartera bajo una operación de otro servicio no la sostiene: la fila abre
-    /// Outbound, y mantenerla viva por una cartera Inbound abriría Outbound sin cartera de
-    /// Outbound que lo ampare. La fila heredada
+    /// operación) <b>de <see cref="Servicio"/> y de este mismo Operador CAE</b>: esa otra sigue
+    /// necesitando que el Tenant le aparezca. Una cartera bajo una operación de otro servicio no
+    /// la sostiene: la fila abre Outbound, y mantenerla viva por una cartera Inbound abriría
+    /// Outbound sin cartera de Outbound que lo ampare. Tampoco una bajo una operación de otro
+    /// Operador CAE (B-02a, tercera revisión de Codex): la fila cuelga de la delegación hacia
+    /// <paramref name="operadorTenantId"/>, y una cartera de otro Operador CAE para este usuario
+    /// es un estado inválido (el usuario pertenece al Tenant del Operador CAE de su cartera,
+    /// <see cref="AsignacionCartera.UsuarioId"/>); ante él se falla cerrado y la fila se retira.
+    /// Se mira el Operador CAE de la Asignación de Operación, que es de donde la cartera lo
+    /// copia. La fila heredada
     /// autoriza el Tenant por sí sola (vía heredada de <c>TenantsBeneficiariosAutorizados</c>),
     /// así que <b>todo cierre de una cartera externa del Tenant entero tiene que pasar por
     /// aquí</b>: sin ello la cartera quedaría cerrada y el acceso, intacto. Lo usan la retirada
@@ -672,7 +678,9 @@ public class CatalogoIncorporacionCartera(
             && !carterasCerradas.Contains(c.Id)
             && c.Estado == EstadoAsignacion.Vigente
             && (c.VigenciaHasta == null || ahora < c.VigenciaHasta)
-            && dbContext.AsignacionesOperacion.Any(o => o.Id == c.AsignacionOperacionId && o.Servicio == Servicio),
+            && dbContext.AsignacionesOperacion.Any(o => o.Id == c.AsignacionOperacionId
+                                                         && o.Servicio == Servicio
+                                                         && o.OperadorTenantId == operadorTenantId),
             cancellationToken);
         if (leQuedaOtra)
             return;

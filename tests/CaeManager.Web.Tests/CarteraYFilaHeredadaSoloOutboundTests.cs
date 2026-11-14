@@ -9,6 +9,7 @@ using CaeManager.Infrastructure.Identity;
 using CaeManager.Infrastructure.MultiTenancy;
 using CaeManager.Infrastructure.Operaciones;
 using CaeManager.Infrastructure.Persistence;
+using CaeManager.Infrastructure.Persistence.Seed;
 using FluentAssertions;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.EntityFrameworkCore;
@@ -239,6 +240,77 @@ public class CarteraYFilaHeredadaSoloOutboundTests
         carteraOutbound.Estado.Should().Be(EstadoAsignacion.Cerrada, "control: la Outbound se retira");
         db.De<AsignacionOperadorDelegado>().Retirados.Should().Equal([fila],
             "sin cartera Outbound vigente la fila heredada sobra, aunque quede una cartera Inbound");
+    }
+
+    /// <summary>
+    /// Tercera revisión de Codex: solo una cartera Outbound vigente <b>del mismo Operador CAE</b> sostiene la fila
+    /// heredada. Caso válido: la otra cartera Outbound del mismo Operador CAE, bajo una operación acotada por Cliente
+    /// empresarial, la conserva. Fallo cerrado: una cartera de otro Operador CAE sobre el mismo Tenant propietario
+    /// (estado inválido, el usuario es del Tenant del Operador CAE de su cartera) o una Inbound no la conservan.
+    /// </summary>
+    [Fact]
+    public async Task La_fila_heredada_solo_la_sostiene_otra_cartera_Outbound_vigente_del_mismo_Operador_CAE()
+    {
+        var otroOperador = new Tenant("Otro Operador CAE externo", PerfilVocabularioTenant.Consultora);
+        var outbound = Operacion(_propietario, ServicioCae.Outbound);
+        var acotadaDelMismo = AsignacionOperacion.Externa(
+            _propietario.Id, _operador.Id, ServicioCae.Outbound, AmbitoAsignacion.DeRelacionCliente(Guid.NewGuid()), Desde, null, Desde);
+        var deOtroOperador = AsignacionOperacion.Externa(
+            _propietario.Id, otroOperador.Id, ServicioCae.Outbound, AmbitoAsignacion.DeRelacionCliente(Guid.NewGuid()), Desde, null, Desde);
+        var inbound = Operacion(_propietario, ServicioCae.Inbound);
+        var vinculo = new DelegacionTenant(_operador.Id, _propietario.Id);
+
+        var conOtraDelMismo = Guid.NewGuid();
+        var conOtraDeOtroOperador = Guid.NewGuid();
+        var conOtraInbound = Guid.NewGuid();
+        var cerradaDelMismo = Cartera(outbound, conOtraDelMismo);
+        var cerradaDeOtroOperador = Cartera(outbound, conOtraDeOtroOperador);
+        var cerradaInbound = Cartera(outbound, conOtraInbound);
+        var filaDelMismo = new AsignacionOperadorDelegado(vinculo.Id, conOtraDelMismo, Roles.GestorCae);
+        var filaDeOtroOperador = new AsignacionOperadorDelegado(vinculo.Id, conOtraDeOtroOperador, Roles.GestorCae);
+        var filaInbound = new AsignacionOperadorDelegado(vinculo.Id, conOtraInbound, Roles.GestorCae);
+
+        await using var db = new ContextoEnMemoria()
+            .Con(outbound, acotadaDelMismo, deOtroOperador, inbound)
+            .Con(
+                cerradaDelMismo, Cartera(acotadaDelMismo, conOtraDelMismo),
+                cerradaDeOtroOperador, Cartera(deOtroOperador, conOtraDeOtroOperador),
+                cerradaInbound, Cartera(inbound, conOtraInbound))
+            .Con(_operador, otroOperador, _propietario)
+            .Con(vinculo)
+            .Con(filaDelMismo, filaDeOtroOperador, filaInbound);
+
+        foreach (var (usuario, cerrada) in new[]
+                 {
+                     (conOtraDelMismo, cerradaDelMismo), (conOtraDeOtroOperador, cerradaDeOtroOperador), (conOtraInbound, cerradaInbound),
+                 })
+            await CatalogoIncorporacionCartera.RetirarFilaHeredadaSiSobraAsync(
+                db, _propietario.Id, _operador.Id, usuario, [cerrada.Id], Ahora, CancellationToken.None);
+
+        db.De<AsignacionOperadorDelegado>().Retirados.Should().Equal([filaDeOtroOperador, filaInbound],
+            "solo la otra cartera Outbound del mismo Operador CAE sostiene la fila; ante una de otro Operador CAE o una "
+            + "Inbound se falla cerrado y la fila se retira");
+    }
+
+    /// <summary>
+    /// Tercera revisión de Codex (BAJA): la siembra del piloto Outbound cuelga la cartera y el Encargo de
+    /// administración de la operación externa Outbound, y no falla si el mismo Operador CAE externo tiene además una
+    /// operación Inbound vigente sobre el mismo Tenant propietario.
+    /// </summary>
+    [Fact]
+    public async Task La_siembra_del_piloto_elige_la_operacion_Outbound_aunque_haya_una_Inbound_vigente()
+    {
+        var inbound = Operacion(_propietario, ServicioCae.Inbound);
+        var outbound = Operacion(_propietario, ServicioCae.Outbound);
+        var soloInbound = new Tenant("Tenant propietario solo con Inbound");
+        var inboundSola = Operacion(soloInbound, ServicioCae.Inbound);
+
+        await using var db = new ContextoEnMemoria().Con(inbound, outbound, inboundSola);
+
+        (await PilotoOutboundSeeder.OperacionExternaOutboundVigenteAsync(db, _propietario.Id, _operador.Id, Ahora, CancellationToken.None))
+            .Should().BeSameAs(outbound, "con Inbound y Outbound vigentes la siembra no encuentra dos ni cuelga de la Inbound");
+        (await PilotoOutboundSeeder.OperacionExternaOutboundVigenteAsync(db, soloInbound.Id, _operador.Id, Ahora, CancellationToken.None))
+            .Should().BeNull("una operación Inbound no es la operación externa del piloto Outbound");
     }
 
     /// <summary>
