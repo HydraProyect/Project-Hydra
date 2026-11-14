@@ -12,10 +12,11 @@ namespace CaeManager.Application.Empresas.Queries.ObtenerEmpresasParaSelector;
 /// a gestionar (p. ej. al dar de alta un Trabajador, donde la Empresa no
 /// depende de ningún Cliente concreto).
 ///
-/// A diferencia de los selectores de Subcontrata/Trabajador/Vehículo (que sí
-/// muestran el catálogo global a propósito, para reutilizar un registro ya
-/// existente sin duplicarlo), Empresa es aquí la entidad "contratista propia"
-/// cuya cartera debe respetarse — igual que <c>ObtenerClientesParaSelectorQuery</c>
+/// A diferencia de los selectores de Trabajador/Vehículo (que sí muestran el
+/// catálogo global a propósito, para reutilizar un registro ya existente sin
+/// duplicarlo), Empresa es aquí la entidad "contratista propia" cuya cartera
+/// debe respetarse (el de Subcontrata, <c>ObtenerSubcontratasParaSelectorQuery</c>,
+/// sigue este mismo alcance de gestión desde 2026-11-14) — igual que <c>ObtenerClientesParaSelectorQuery</c>
 /// con Cliente, del que Empresa es la raíz simétrica (Cliente = quien exige
 /// la documentación, Empresa propia = quien la aporta). Todos los
 /// consumidores actuales (alta/edición de Vehículo, Trabajador, Subcontrata,
